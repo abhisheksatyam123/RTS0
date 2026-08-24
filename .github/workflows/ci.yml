@@ -14,7 +14,7 @@ on:
 
 env:
   GODOT_RELEASE: 4.3-stable   # must match csproj Godot.NET.Sdk and installed templates
-  TEMPLATES_DIR: 4.3.mono     # .NET editors expect <version>.mono under export_templates
+  TEMPLATES_DIR: 4.3.stable.mono     # .NET editors expect <version>.stable.mono under export_templates
 
 jobs:
   csharp-build:
