@@ -38,7 +38,7 @@ public static class Assets
             if (mesh != null) return mesh;
         }
         // 2. procedural fallback via code (thronefall) — deterministic, no import needed
-        string id = path.GetFile().GetBasename();
+        string id = System.IO.Path.GetFileNameWithoutExtension(path.GetFile());
         if (path.Contains("units/")) return Procedural.GetUnitMesh(id);
         if (path.Contains("buildings/")) return Procedural.GetBuildingMesh(id);
         if (path.Contains("vegetation/")) return Procedural.GetVegetationMesh(id);
