@@ -57,7 +57,8 @@ public sealed class SeparationCompute : IDisposable
             uniformPos.AddId(posBuf);
             var uniformForce = new RDUniform { UniformType = RenderingDevice.UniformType.StorageBuffer, Binding = 1 };
             uniformForce.AddId(forceBuf);
-            var set = _rd.UniformSetCreate(new[] { uniformPos, uniformForce }, _shader, 0);
+            var uniforms = new Godot.Collections.Array<RDUniform> { uniformPos, uniformForce };
+            var set = _rd.UniformSetCreate(uniforms, _shader, 0);
             var push = new byte[16];
             BitConverter.GetBytes((uint)count).CopyTo(push, 0);
             BitConverter.GetBytes(0f).CopyTo(push, 4); // cellSize placeholder
