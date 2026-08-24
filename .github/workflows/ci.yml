@@ -74,13 +74,18 @@ jobs:
           mkdir -p ~/.local/share/godot/export_templates/${TEMPLATES_DIR}
           mv templates/* ~/.local/share/godot/export_templates/${TEMPLATES_DIR}/
 
+      - name: Install Mesa Vulkan (lavapipe) + Xvfb
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mesa-vulkan-drivers libgl1-mesa-dri xvfb
+
       - name: Import resources
-        run: xvfb-run godot --rendering-driver opengl3 --path . --import
+        run: xvfb-run godot --path . --import
 
       - name: Export preset
         run: |
           mkdir -p "${{ matrix.out }}"
-          xvfb-run godot --rendering-driver opengl3 --path . --export-release "${{ matrix.preset }}" "${{ matrix.out }}/RTS0"
+          xvfb-run godot --path . --export-release "${{ matrix.preset }}" "${{ matrix.out }}/RTS0"
 
       - name: Rename outputs per platform
         run: |
@@ -155,11 +160,16 @@ jobs:
           touch android/build/.gdignore
           chmod +x android/build/gradlew || true
 
+      - name: Install Mesa Vulkan (lavapipe) + Xvfb
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mesa-vulkan-drivers libgl1-mesa-dri xvfb
+
       - name: Import + export APK
         run: |
-          xvfb-run godot --rendering-driver opengl3 --path . --import
+          xvfb-run godot --path . --import
           mkdir -p build/android
-          xvfb-run godot --rendering-driver opengl3 --path . --export-release "Android" build/android/RTS0.apk
+          xvfb-run godot --path . --export-release "Android" build/android/RTS0.apk
 
       - uses: actions/upload-artifact@v4
         with:
