@@ -27,6 +27,11 @@ See `docs/MULTIPLAYER.md` for the netcode model, platform matrix, and the archit
 
 Passive gold trickles from your workers each second (placeholder economy).
 
+## Building & CI
+See **`docs/BUILD.md`** — export presets for Windows/Linux/Android/iOS, `tools/build.sh` + `tools/build.ps1` wrappers, and GitHub Actions that auto-export Windows+Linux on every push (Android via manual dispatch).
+
+**Current status & priorities: see `docs/NEXT_STEPS.md`.**
+
 ## Architecture
 ```
 scripts/

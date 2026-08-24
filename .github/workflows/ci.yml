@@ -1,0 +1,154 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      android:
+        description: "Also build Android APK"
+        type: boolean
+        default: false
+
+env:
+  GODOT_RELEASE: 4.3-stable   # must match csproj Godot.NET.Sdk and installed templates
+  TEMPLATES_DIR: 4.3.mono     # .NET editors expect <version>.mono under export_templates
+
+jobs:
+  csharp-build:
+    name: Build C# solution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 6.0.x
+      - run: dotnet build RTS0.sln -c Release
+
+  export-desktop:
+    name: Export ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    needs: csharp-build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            preset: "Windows Desktop"
+            out: build/windows/
+          - name: Linux
+            preset: "Linux"
+            out: build/linux/
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 6.0.x
+
+      - name: Cache Godot binaries + templates
+        id: cache-godot
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/local/bin/godot
+            ~/.local/share/godot/export_templates/${{ env.TEMPLATES_DIR }}
+          key: godot-${{ env.GODOT_RELEASE }}-mono
+
+      - name: Install Godot .NET + export templates
+        if: steps.cache-godot.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_mono_linux_x86_64.zip"
+          unzip -q "Godot_v${GODOT_RELEASE}_mono_linux_x86_64.zip"
+          BIN=$(find . -maxdepth 2 -name "Godot_v*_mono_linux_x86_64" -type f)
+          chmod +x "$BIN"
+          sudo mv "$BIN" /usr/local/bin/godot
+
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_mono_export_templates.tpz"
+          unzip -q "Godot_v${GODOT_RELEASE}_mono_export_templates.tpz"
+          mkdir -p ~/.local/share/godot/export_templates/${TEMPLATES_DIR}
+          mv templates/* ~/.local/share/godot/export_templates/${TEMPLATES_DIR}/
+
+      - name: Import resources
+        run: godot --headless --path . --import
+
+      - name: Export preset
+        run: |
+          mkdir -p "${{ matrix.out }}"
+          godot --headless --path . --export-release "${{ matrix.preset }}" "${{ matrix.out }}/RTS0"
+
+      - name: Rename outputs per platform
+        run: |
+          case "${{ matrix.name }}" in
+            Windows) mv "${{ matrix.out }}/RTS0" "${{ matrix.out }}/RTS0.exe" ;;
+            Linux)   mv "${{ matrix.out }}/RTS0" "${{ matrix.out }}/RTS0.x86_64" ; chmod +x "${{ matrix.out }}/RTS0.x86_64" ;;
+          esac
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RTS0-${{ matrix.name }}
+          path: ${{ matrix.out }}
+
+  export-android:
+    name: Export Android APK
+    runs-on: ubuntu-latest
+    needs: csharp-build
+    if: github.event_name == 'workflow_dispatch' && inputs.android == true
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 6.0.x
+
+      - name: Install Android SDK components
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platform-tools" "platforms;android-34" "build-tools;34.0.0" > /dev/null
+
+      # Reuse the cached editor/templates from a prior desktop run is not possible across jobs;
+      # install locally (small duplication, kept simple).
+      - name: Install Godot .NET + export templates
+        run: |
+          set -e
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_mono_linux_x86_64.zip"
+          unzip -q "Godot_v${GODOT_RELEASE}_mono_linux_x86_64.zip"
+          BIN=$(find . -maxdepth 2 -name "Godot_v*_mono_linux_x86_64" -type f)
+          chmod +x "$BIN"
+          sudo mv "$BIN" /usr/local/bin/godot
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_mono_export_templates.tpz"
+          unzip -q "Godot_v${GODOT_RELEASE}_mono_export_templates.tpz"
+          mkdir -p ~/.local/share/godot/export_templates/${TEMPLATES_DIR}
+          mv templates/* ~/.local/share/godot/export_templates/${TEMPLATES_DIR}/
+          # Debug keystore (auto-created by Godot if missing); replace with release keystore before store upload.
+          mkdir -p ~/.android
+          keytool -genkeypair -keyalg RSA -alias androiddebugkey \
+            -keypass android -storepass android -validity 9999 \
+            -keystore ~/.android/debug.keystore \
+            -dname "CN=Android Debug,O=Android,C=US" -storetype PKCS12
+
+      - name: Import + export APK
+        run: |
+          godot --headless --path . --import
+          mkdir -p build/android
+          godot --headless --path . --export-release "Android" build/android/RTS0.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RTS0-Android
+          path: build/android/
+
+# iOS: cannot be exported on Linux runners.
+# Requires macOS runner + Apple signing assets (certs, provisioning profiles).
+# Planned once gameplay hits M5 gate (see docs/MULTIPLAYER.md): a macOS job that runs
+#   godot --headless --path . --export-release "iOS" build/ios/RTS0
+# producing an unsigned Xcode project artifact, signed/archived afterwards via fastlane.
