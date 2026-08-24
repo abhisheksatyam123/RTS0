@@ -54,8 +54,9 @@ jobs:
         with:
           path: |
             /usr/local/bin/godot
+            /usr/local/bin/GodotSharp
             ~/.local/share/godot/export_templates/${{ env.TEMPLATES_DIR }}
-          key: godot-${{ env.GODOT_RELEASE }}-mono-v2
+          key: godot-${{ env.GODOT_RELEASE }}-mono-v3
 
       - name: Install Godot .NET + export templates
         if: steps.cache-godot.outputs.cache-hit != 'true'
@@ -137,6 +138,12 @@ jobs:
             -keypass android -storepass android -validity 9999 \
             -keystore ~/.android/debug.keystore \
             -dname "CN=Android Debug,O=Android,C=US" -storetype PKCS12
+
+      - name: Install Android build template
+        run: |
+          # Godot 4.3+ requires android/build template for gradle export
+          godot --headless --path . --install-android-build-template 2>&1 | head -n 20 || true
+          ls -R android 2>&1 | head -n 40 || echo "android template not auto-created, will try manual"
 
       - name: Import + export APK
         run: |
