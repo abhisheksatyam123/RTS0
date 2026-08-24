@@ -1,0 +1,29 @@
+#!/usr/bin/env python3
+import os
+from pathlib import Path
+
+def main():
+    config_dir = Path.home() / ".config" / "godot"
+    config_dir.mkdir(parents=True, exist_ok=True)
+
+    android_home = os.environ.get("ANDROID_HOME", "/usr/local/lib/android/sdk")
+    java_home = os.environ.get("JAVA_HOME", "")
+    debug_keystore = str(Path.home() / ".android" / "debug.keystore")
+
+    content = f"""[gd_resource type="EditorSettings" format=3]
+
+[resource]
+export/android/android_sdk_path = "{android_home}"
+export/android/java_sdk_path = "{java_home}"
+export/android/debug_keystore = "{debug_keystore}"
+export/android/debug_keystore_user = "androiddebugkey"
+export/android/debug_keystore_pass = "android"
+"""
+
+    for filename in ["editor_settings-4.3.tres", "editor_settings-4.tres"]:
+        target = config_dir / filename
+        target.write_text(content)
+        print(f"Wrote Godot editor settings to {target}")
+
+if __name__ == "__main__":
+    main()

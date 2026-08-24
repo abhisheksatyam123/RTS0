@@ -140,17 +140,7 @@ jobs:
           keytool -genkeypair -keyalg RSA -alias androiddebugkey -keypass android -storepass android -validity 9999 -keystore ~/.android/debug.keystore -dname "CN=Android Debug,O=Android,C=US" -storetype PKCS12
 
       - name: Configure Godot editor settings
-        run: |
-          mkdir -p ~/.config/godot
-          echo '[gd_resource type="EditorSettings" format=3]' > ~/.config/godot/editor_settings-4.3.tres
-          echo '' >> ~/.config/godot/editor_settings-4.3.tres
-          echo '[resource]' >> ~/.config/godot/editor_settings-4.3.tres
-          echo "export/android/android_sdk_path = \"$ANDROID_HOME\"" >> ~/.config/godot/editor_settings-4.3.tres
-          echo "export/android/java_sdk_path = \"$JAVA_HOME\"" >> ~/.config/godot/editor_settings-4.3.tres
-          echo "export/android/debug_keystore = \"$HOME/.android/debug.keystore\"" >> ~/.config/godot/editor_settings-4.3.tres
-          echo 'export/android/debug_keystore_user = "androiddebugkey"' >> ~/.config/godot/editor_settings-4.3.tres
-          echo 'export/android/debug_keystore_pass = "android"' >> ~/.config/godot/editor_settings-4.3.tres
-          cp ~/.config/godot/editor_settings-4.3.tres ~/.config/godot/editor_settings-4.tres
+        run: python3 tools/setup_editor_settings.py
 
       - name: Install Android build template
         run: |
