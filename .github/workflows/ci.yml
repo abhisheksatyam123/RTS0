@@ -152,6 +152,9 @@ jobs:
           echo "${TEMPLATES_DIR}" > android/.build_version
           touch android/build/.gdignore
           chmod +x android/build/gradlew || true
+          echo "=== ANDROID DIR STRUCTURE ==="
+          ls -la android/
+          ls -la android/build/
 
       - name: Install Mesa Vulkan (lavapipe) + Xvfb
         run: |
