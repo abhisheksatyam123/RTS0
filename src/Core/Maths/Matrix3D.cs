@@ -30,10 +30,10 @@ public sealed class Matrix3D
     public void SetYRotation(float a){ float c=MathF.Cos(a),s=MathF.Sin(a); _11=c;_12=0;_13=s;_14=0; _21=0;_22=1;_23=0;_24=0; _31=-s;_32=0;_33=c;_34=0; _41=0;_42=0;_43=0;_44=1; }
     public void SetZRotation(float a){ float c=MathF.Cos(a),s=MathF.Sin(a); _11=c;_12=-s;_13=0;_14=0; _21=s;_22=c;_23=0;_24=0; _31=0;_32=0;_33=1;_34=0; _41=0;_42=0;_43=0;_44=1; }
     public void SetRotation(Quaternion q) => q.ToMatrix(this);
-    public void RotateX(float a){ var r=Identity(); r.SetXRotation(a); Concat(r); }
-    public void RotateY(float a){ var r=Identity(); r.SetYRotation(a); Concat(r); }
-    public void RotateZ(float a){ var r=Identity(); r.SetZRotation(a); Concat(r); }
-    public void Rotate(Quaternion q){ var r=q.ToMatrix(); Concat(r); }
+    public void RotateX(float a){ var r=Identity(); r.SetXRotation(a); Concatenate(r); }
+    public void RotateY(float a){ var r=Identity(); r.SetYRotation(a); Concatenate(r); }
+    public void RotateZ(float a){ var r=Identity(); r.SetZRotation(a); Concatenate(r); }
+    public void Rotate(Quaternion q){ var r=q.ToMatrix(); Concatenate(r); }
     public void SetTranslation(float x,float y,float z){ SetIdentity(); _14=x; _24=y; _34=z; }
     public void SetTranslation(Vector3D v) => SetTranslation(v.X,v.Y,v.Z);
     public void Translate(float x,float y,float z){ _14+=x; _24+=y; _34+=z; }

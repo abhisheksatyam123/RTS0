@@ -26,7 +26,7 @@ public sealed class PackComponent
     public bool CanPack() => !Packing && !Packed;
     public bool CanUnpack() => !Packing && Packed;
 
-    public bool Pack(Action<int,int>? setTimer=null, Action<string,bool>? anim=null)
+    public bool Pack(Func<int,int,int>? setTimer=null, Action<string,bool>? anim=null)
     {
         if(!CanPack()) return false;
         Packing=true;
@@ -34,7 +34,7 @@ public sealed class PackComponent
         anim?.Invoke("packing",true);
         return true;
     }
-    public bool Unpack(Action<int,int>? setTimer=null, Action<string,bool>? anim=null)
+    public bool Unpack(Func<int,int,int>? setTimer=null, Action<string,bool>? anim=null)
     {
         if(!CanUnpack()) return false;
         Packing=true;

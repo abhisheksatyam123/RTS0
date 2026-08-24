@@ -116,7 +116,7 @@ public sealed class TriggerPointComponent
 
     public int RegisterRangeTrigger(string name, TriggerComponent.TriggerData data, System.Func<int,float,float,List<int>,int,string,int>? createQuery=null)
     {
-        int tag=createQuery?.Invoke(0,data.MinRange,data.MaxRange,data.Players,data.RequiredComponent) ?? Random.Shared.Next(1,999999);
+        int tag=createQuery?.Invoke(0,data.MinRange,data.MaxRange,data.Players,data.RequiredComponent,"") ?? Random.Shared.Next(1,999999);
         _collections[tag]=new(); _triggers[tag]=name;
         return tag;
     }

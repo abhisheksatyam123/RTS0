@@ -1,5 +1,6 @@
 /// Ported from /source/mods/public/simulation/components/Identity.js — 0 A.D. GPL-2.0
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Rts0.Core;
 
