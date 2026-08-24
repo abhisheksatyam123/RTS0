@@ -24,16 +24,25 @@ public static class Assets
 
     public static Mesh TryLoadMesh(string path, Mesh fallback)
     {
-        if (!ResExists(path)) return fallback;
-        var res = GD.Load<PackedScene>(path);
-        if (res != null)
+        // 1. try imported glb (CC0)
+        if (ResExists(path))
         {
-            var inst = res.Instantiate();
-            var mi = FindMeshInstance(inst);
-            if (mi?.Mesh != null) return mi.Mesh;
+            var res = GD.Load<PackedScene>(path);
+            if (res != null)
+            {
+                var inst = res.Instantiate();
+                var mi = FindMeshInstance(inst);
+                if (mi?.Mesh != null) return mi.Mesh;
+            }
+            var mesh = GD.Load<Mesh>(path);
+            if (mesh != null) return mesh;
         }
-        var mesh = GD.Load<Mesh>(path);
-        return mesh ?? fallback;
+        // 2. procedural fallback via code (thronefall) — deterministic, no import needed
+        string id = path.GetFile().GetBasename();
+        if (path.Contains("units/")) return Procedural.GetUnitMesh(id);
+        if (path.Contains("buildings/")) return Procedural.GetBuildingMesh(id);
+        if (path.Contains("vegetation/")) return Procedural.GetVegetationMesh(id);
+        return fallback;
     }
 
     public static ShaderMaterial LoadUnitMaterial()

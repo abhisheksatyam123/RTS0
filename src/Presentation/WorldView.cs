@@ -84,8 +84,9 @@ public partial class WorldView : Node3D
 
     private static MultiMesh MakeUnitMultiMesh(ShaderMaterial shaderMat, Color color, float team)
     {
+        string id = team < 0.5f ? "villager" : "swordsman"; // player vs enemy variant via code
         var fallback = new CapsuleMesh { Radius = 0.4f, Height = 1.2f };
-        var mesh = Assets.TryLoadMesh(Assets.UnitModel("villager"), fallback);
+        var mesh = Assets.TryLoadMesh(Assets.UnitModel(id), fallback);
         var mm = new MultiMesh
         {
             TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
