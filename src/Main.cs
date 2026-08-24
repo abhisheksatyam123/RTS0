@@ -52,7 +52,7 @@ public partial class Main : Node3D
     public override void _Process(double delta)
     {
         PerfTracker.BeginFrame();
-        long tickStart = Time.GetTicksMsec();
+        ulong tickStart = Time.GetTicksMsec();
         // Fixed-timestep simulation, render decoupled with interpolation.
         _accumulator += delta;
         int ticks = 0;
@@ -63,7 +63,7 @@ public partial class Main : Node3D
             ticks++;
         }
         if (ticks > 0) PerfTracker.RecordTick(Time.GetTicksMsec() - tickStart);
-        long drawStart = Time.GetTicksMsec();
+        ulong drawStart = Time.GetTicksMsec();
         _view.Sync(_sim, (float)(_accumulator / GameSim.FixedStep));
         PerfTracker.RecordDraw(_sim.Units.Count, _sim.Buildings.Count);
         if (Engine.GetFramesDrawn() % 300 == 0) // every ~5s

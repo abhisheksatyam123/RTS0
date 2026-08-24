@@ -80,11 +80,11 @@ public static class BugReporter
     private static string DeviceInfo()
     {
         var sb = new StringBuilder();
-        try { sb.AppendLine($"os: {OS.GetName()} {OS.GetVersion()} distribution={OS.GetDistributionName()}"); } catch { sb.AppendLine("os: (unknown)"); }
+        try { sb.AppendLine($"os: {OS.GetName()} model={OS.GetModelName()}"); } catch { sb.AppendLine("os: (unknown)"); }
         try { var vi = Engine.GetVersionInfo(); sb.AppendLine($"godot: {vi["string"]} ({vi["major"]}.{vi["minor"]}.{vi["patch"]}-{vi["status"]})"); } catch { sb.AppendLine("godot: (unknown)"); }
-        try { sb.AppendLine($"rendering: {RenderingServer.GetCurrentRenderingMethod()} adapter={RenderingServer.GetVideoAdapterName()} vendor={RenderingServer.GetVideoAdapterVendor()}"); } catch { sb.AppendLine("rendering: (unknown)"); }
+        try { sb.AppendLine($"rendering: adapter={RenderingServer.GetVideoAdapterName()} vendor={RenderingServer.GetVideoAdapterVendor()}"); } catch { sb.AppendLine("rendering: (unknown)"); }
         try { var rd = RenderingServer.GetRenderingDevice(); sb.AppendLine($"vulkan: {(rd != null ? "yes" : "no (GL/Headless)") }"); } catch { sb.AppendLine("vulkan: (unknown)"); }
-        try { sb.AppendLine($"locale: {TranslationServer.GetLocale()} os_locale={OS.GetLocaleLanguage()}_{OS.GetLocaleCountry()}"); } catch { sb.AppendLine("locale: (unknown)"); }
+        try { sb.AppendLine($"locale: {TranslationServer.GetLocale()} os_locale={OS.GetLocale()}"); } catch { sb.AppendLine("locale: (unknown)"); }
         try { sb.AppendLine($"user_data: {OS.GetUserDataDir()} processor={OS.GetProcessorName()} cores={OS.GetProcessorCount()}"); } catch { }
         return sb.ToString();
     }
