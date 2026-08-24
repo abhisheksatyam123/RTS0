@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using Rts0.Core;
+using Rts0.Core.Diagnostics;
 using Rts0.Presentation;
 
 // Thin glue layer: input gestures -> serializable commands -> GameSim.
@@ -33,23 +34,41 @@ public partial class Main : Node3D
 
     public override void _Ready()
     {
+        // logging + perf + crash — must be first, before any sim tick can throw
+        Logger.Init("RTS0");
+        CrashHandler.Install(() => $"Gold={_sim.Gold} Wave={_sim.WaveNumber} Units={_sim.Units.Count} Buildings={_sim.Buildings.Count}");
+        BugReporter.SetSnapshotHook(() => $"Gold={_sim.Gold} Wave={_sim.WaveNumber} Units={_sim.Units.Count}");
+        Logger.Info("Main", $"RTS0 _Ready — Godot {Engine.GetVersionInfo()["string"]} {OS.GetName()} {OS.GetModelName()} Vulkan={RenderingServer.GetVideoAdapterName()}");
+        var debugOverlay = new DebugOverlay();
+        AddChild(debugOverlay);
+
         BuildWorld();
         BuildUi();
         _sim.SpawnInitial();
         _view = new WorldView();
         AddChild(_view);
+        Logger.Info("Main", $"Spawned — Gold={_sim.Gold} Units={_sim.Units.Count} Buildings={_sim.Buildings.Count} Resources={_sim.Resources.Count}");
     }
 
     public override void _Process(double delta)
     {
+        PerfTracker.BeginFrame();
+        long tickStart = Time.GetTicksMsec();
         // Fixed-timestep simulation, render decoupled with interpolation.
         _accumulator += delta;
+        int ticks = 0;
         while (_accumulator >= GameSim.FixedStep)
         {
             _sim.Tick(GameSim.FixedStep);
             _accumulator -= GameSim.FixedStep;
+            ticks++;
         }
+        if (ticks > 0) PerfTracker.RecordTick(Time.GetTicksMsec() - tickStart);
+        long drawStart = Time.GetTicksMsec();
         _view.Sync(_sim, (float)(_accumulator / GameSim.FixedStep));
+        PerfTracker.RecordDraw(_sim.Units.Count, _sim.Buildings.Count);
+        if (Engine.GetFramesDrawn() % 300 == 0) // every ~5s
+            Logger.Debug("Perf", PerfTracker.GetReport());
 
         UpdateHud();
 
