@@ -109,7 +109,17 @@ public partial class Main : Node3D
             else if (mb.ButtonIndex == MouseButton.Right && mb.Pressed)
             {
                 if (_buildMode) EnterBuildMode(false);
-                else IssueMove(MouseGround(mb.Position));
+                else
+                {
+                    var enemy = PickEnemyUnit(mb.Position);
+                    if (enemy != null) IssueAttack(enemy.Id);
+                    else
+                    {
+                        var res = PickResource(mb.Position);
+                        if (res != null) IssueGather(res.Id);
+                        else IssueMove(MouseGround(mb.Position));
+                    }
+                }
             }
         }
         else if (@event is InputEventMouseMotion motion && _dragging)
@@ -222,6 +232,7 @@ public partial class Main : Node3D
         float bestDist = PickRadiusPx;
         foreach (SimUnit unit in _sim.Units)
         {
+            if (unit.Team != Team.Player) continue;
             Vector2 screenPos = _cam.UnprojectPosition(unit.Pos + Vector3.Up * 0.6f);
             float dist = screenPos.DistanceTo(mousePos);
             if (dist < bestDist)
@@ -229,6 +240,33 @@ public partial class Main : Node3D
                 bestDist = dist;
                 best = unit;
             }
+        }
+        return best;
+    }
+
+    private SimUnit PickEnemyUnit(Vector2 mousePos)
+    {
+        SimUnit best = null;
+        float bestDist = PickRadiusPx;
+        foreach (SimUnit unit in _sim.Units)
+        {
+            if (unit.Team != Team.Enemy) continue;
+            Vector2 screenPos = _cam.UnprojectPosition(unit.Pos + Vector3.Up * 0.6f);
+            float dist = screenPos.DistanceTo(mousePos);
+            if (dist < bestDist) { bestDist = dist; best = unit; }
+        }
+        return best;
+    }
+
+    private SimResource PickResource(Vector2 mousePos)
+    {
+        SimResource best = null;
+        float bestDist = PickRadiusPx * 1.2f;
+        foreach (SimResource res in _sim.Resources)
+        {
+            Vector2 screenPos = _cam.UnprojectPosition(res.Pos + Vector3.Up * 0.8f);
+            float dist = screenPos.DistanceTo(mousePos);
+            if (dist < bestDist) { bestDist = dist; best = res; }
         }
         return best;
     }
@@ -252,12 +290,13 @@ public partial class Main : Node3D
         ClearSelection();
         foreach (SimUnit unit in _sim.Units)
         {
+            if (unit.Team != Team.Player) continue;
             Vector2 screenPos = _cam.UnprojectPosition(unit.Pos + Vector3.Up * 0.6f);
             if (rect.HasPoint(screenPos)) Select(unit.Id);
         }
     }
 
-    // ---------- commands ----------
+    // ---------- commands (routed through UnitAI queues for 0 A.D. determinism) ----------
 
     private void IssueMove(Vector3 worldPos)
     {
@@ -268,6 +307,18 @@ public partial class Main : Node3D
             UnitIds = _selectedIds.ToArray(),
             Target = worldPos,
         });
+    }
+
+    private void IssueGather(int resourceId)
+    {
+        if (_selectedIds.Count == 0) return;
+        _sim.OrderGather(_selectedIds.ToArray(), resourceId);
+    }
+
+    private void IssueAttack(int targetId)
+    {
+        if (_selectedIds.Count == 0) return;
+        _sim.OrderAttack(_selectedIds.ToArray(), targetId);
     }
 
     private void TryPlace()
@@ -306,9 +357,11 @@ public partial class Main : Node3D
         if (!force && unitCount == _lastHudUnits && _sim.Gold == _lastHudGold) return;
         _lastHudGold = _sim.Gold;
         _lastHudUnits = unitCount;
+        int playerUnits = 0, enemies = 0;
+        foreach (var u in _sim.Units) if (u.Team == Team.Player) playerUnits++; else enemies++;
         _hud.Text =
-            $"Gold: {_sim.Gold}    Units: {unitCount}\n" +
+            $"Gold: {_sim.Gold}  Wave: {_sim.WaveNumber}  You: {playerUnits}  Enemies: {enemies}\n" +
             "WASD pan - Q/E rotate - Wheel zoom\n" +
-            $"LMB select - RMB move - B build (cost {GameSim.HouseCost})";
+            $"LMB select - RMB gather/attack/move - B build (cost {GameSim.HouseCost})";
     }
 }

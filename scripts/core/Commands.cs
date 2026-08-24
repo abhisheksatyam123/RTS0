@@ -8,6 +8,8 @@ public enum CommandType : byte
 {
     Move = 1,
     BuildHouse = 2,
+    Gather = 3,
+    Attack = 4,
 }
 
 // Every player action is a serializable command -> host-authoritative sync,
@@ -36,6 +38,8 @@ public abstract class GameCommand
         {
             CommandType.Move => new MoveCommand(),
             CommandType.BuildHouse => new BuildHouseCommand(),
+            CommandType.Gather => new GatherCommand(),
+            CommandType.Attack => new AttackCommand(),
             _ => throw new InvalidDataException($"Unknown command type: {type}"),
         };
         cmd.PlayerId = playerId;
@@ -85,4 +89,20 @@ public sealed class BuildHouseCommand : GameCommand
     {
         Cell = new Vector2Int(reader.ReadInt32(), reader.ReadInt32());
     }
+}
+
+public sealed class GatherCommand : GameCommand
+{
+    public int ResourceId;
+    public override CommandType Type => CommandType.Gather;
+    protected override void WritePayload(BinaryWriter w) => w.Write(ResourceId);
+    protected override void ReadPayload(BinaryReader r) => ResourceId = r.ReadInt32();
+}
+
+public sealed class AttackCommand : GameCommand
+{
+    public int TargetId;
+    public override CommandType Type => CommandType.Attack;
+    protected override void WritePayload(BinaryWriter w) => w.Write(TargetId);
+    protected override void ReadPayload(BinaryReader r) => TargetId = r.ReadInt32();
 }

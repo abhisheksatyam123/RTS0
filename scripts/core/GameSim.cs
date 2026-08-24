@@ -25,10 +25,18 @@ public class GameSim
     public readonly List<SimUnit> Units = new();
     public readonly Dictionary<int, SimUnit> UnitById = new();
     public readonly List<SimBuilding> Buildings = new();
+    public readonly List<SimResource> Resources = new();
+    public readonly Dictionary<int, SimResource> ResourceById = new();
 
     private int _nextId = 1;
     private readonly HashSet<Vector2Int> _occupiedCells = new();
     private float _goldCarry;
+    private readonly Dictionary<int, UnitAI> _aiByUnit = new();
+
+    // 0 A.D.-derived deterministic pathfinding (Fixed/Grid/Hierarchical/Long)
+    private Grid<byte> _passGrid;
+    private HierarchicalPathfinder _hier;
+    private LongPathfinder _long;
 
     // Spatial hash + force buffers (grown on demand, reused across ticks: zero steady-state allocs)
     private readonly Dictionary<long, List<int>> _cells = new();
@@ -46,20 +54,36 @@ public class GameSim
 
     public void SpawnInitial()
     {
+        RebuildPassability();
         PlaceBuildingExact(new Vector2Int(0, 0), isCenter: true);
         for (int i = 0; i < 8; i++)
         {
             float angle = Mathf.Tau * i / 8.0f;
             SpawnUnit(new Vector3(Mathf.Cos(angle) * 5.0f, 0.0f, Mathf.Sin(angle) * 5.0f + 7.0f));
         }
+        // Thronefall-style scattered resources (0 A.D. ResourceSupply pattern: small patches near start)
+        SpawnResource(new Vector2Int(5, 4), ResourceType.Tree);
+        SpawnResource(new Vector2Int(-6, 5), ResourceType.Tree);
+        SpawnResource(new Vector2Int(4, -6), ResourceType.GoldVein);
+        SpawnResource(new Vector2Int(-5, -5), ResourceType.GoldVein);
+        RebuildPassability();
     }
 
     public SimUnit SpawnUnit(Vector3 pos)
     {
-        var unit = new SimUnit { Id = _nextId++, Pos = pos, PrevPos = pos };
+        var unit = new SimUnit { Id = _nextId++, Pos = pos, PrevPos = pos, Hp = 100, MaxHp = 100 };
         Units.Add(unit);
         UnitById[unit.Id] = unit;
+        _aiByUnit[unit.Id] = new UnitAI(unit);
         return unit;
+    }
+
+    public SimResource SpawnResource(Vector2Int cell, ResourceType type)
+    {
+        var res = new SimResource { Id = _nextId++, Cell = cell, Type = type, Amount = type == ResourceType.Tree ? 300 : 500 };
+        Resources.Add(res);
+        ResourceById[res.Id] = res;
+        return res;
     }
 
     public void Apply(GameCommand command)
@@ -68,19 +92,65 @@ public class GameSim
         {
             case MoveCommand move: ApplyMove(move); break;
             case BuildHouseCommand build: ApplyBuild(build); break;
+            case GatherCommand gather: ApplyGather(gather); break;
+            case AttackCommand attack: ApplyAttack(attack); break;
         }
     }
+
+    public SimResource GetResource(int id) => ResourceById.TryGetValue(id, out var r) ? r : null;
+
+    public void AssignPath(SimUnit unit, Vector3 target)
+    {
+        if (_passGrid == null) { unit.Target = target; unit.HasOrder = true; return; }
+        var startCell = WorldToGrid(WorldToCell(unit.Pos));
+        var goalCell = WorldToGrid(WorldToCell(target));
+        var path = _long?.FindPath(startCell.X, startCell.Y, goalCell.X, goalCell.Y);
+        if (path != null && path.Count > 1)
+        {
+            unit.Path = new List<Vector3>(path.Count);
+            foreach (var (gx, gy) in path) unit.Path.Add(GridToWorld(gx, gy));
+            unit.PathIndex = 1;
+            unit.Target = unit.Path[unit.PathIndex];
+            unit.HasOrder = true;
+        }
+        else
+        {
+            unit.Path = null;
+            unit.Target = target;
+            unit.HasOrder = true;
+        }
+    }
+
+    private static Vector2Int WorldToCell(Vector3 pos) => new(Mathf.FloorToInt(pos.X / Grid), Mathf.FloorToInt(pos.Z / Grid));
+    private static Vector2Int WorldToGrid(Vector2Int cell)
+    {
+        int offset = (int)(MapHalfExtent / Grid); // 15
+        return new(cell.X + offset, cell.Y + offset);
+    }
+    private static Vector3 GridToWorld(int gx, int gy)
+    {
+        int offset = (int)(MapHalfExtent / Grid);
+        return new((gx - offset + 0.5f) * Grid, 0, (gy - offset + 0.5f) * Grid);
+    }
+    private static Vector3 CellToWorld(int x, int y) => GridToWorld(x, y);
 
     public void Tick(float dt)
     {
         foreach (SimUnit u in Units) u.PrevPos = u.Pos;
 
+        // 0 A.D.-style: tick UnitAI FSMs first (orders -> paths), then movement.
+        foreach (var u in Units)
+            if (_aiByUnit.TryGetValue(u.Id, out var ai)) ai.Update(this);
+
         MovePass(dt);
         SeparationPass();
         ClampToMap();
+        TickGather(dt);
+        TickCombat(dt);
+        TickWaves(dt);
 
-        // Placeholder economy: each worker produces 1 gold/sec.
-        _goldCarry += dt * Units.Count;
+        // Fallback trickle if no resources gathered (keeps early game from stalling)
+        _goldCarry += dt * 0.2f * Units.Count;
         while (_goldCarry >= 1.0f)
         {
             _goldCarry -= 1.0f;
@@ -109,9 +179,10 @@ public class GameSim
         foreach (int id in cmd.UnitIds)
         {
             if (!UnitById.TryGetValue(id, out SimUnit unit)) continue;
+            if (!_aiByUnit.TryGetValue(id, out var ai)) continue;
             Vector3 offset = FormationOffsets[i % FormationOffsets.Length];
-            unit.Target = cmd.Target + offset;
-            unit.HasOrder = true;
+            // Clear incompatible gathering state, push walk order (mirrors UnitAI.js Order.Walk)
+            ai.PushOrder(new MoveCommand { PlayerId = cmd.PlayerId, UnitIds = new[] { id }, Target = cmd.Target + offset });
             i++;
         }
     }
@@ -121,6 +192,40 @@ public class GameSim
         if (Gold < HouseCost || !CanPlace(cmd.Cell, isCenter: false)) return;
         Gold -= HouseCost;
         PlaceBuildingExact(cmd.Cell, isCenter: false);
+        RebuildPassability();
+    }
+
+    private void ApplyGather(GatherCommand cmd)
+    {
+        if (!ResourceById.TryGetValue(cmd.ResourceId, out _)) return;
+        // Routed per-unit via OrderGather — this generic entry stays for network replay.
+    }
+
+    private void ApplyAttack(AttackCommand cmd)
+    {
+        // Routed per-unit via OrderAttack
+    }
+
+    public void OrderGather(int[] unitIds, int resourceId)
+    {
+        if (!ResourceById.ContainsKey(resourceId)) return;
+        foreach (int id in unitIds)
+        {
+            if (!UnitById.TryGetValue(id, out var u) || u.Team != Team.Player) continue;
+            if (_aiByUnit.TryGetValue(id, out var ai))
+                ai.PushOrder(new GatherCommand { PlayerId = 0, ResourceId = resourceId });
+        }
+    }
+
+    public void OrderAttack(int[] unitIds, int targetId)
+    {
+        if (!UnitById.TryGetValue(targetId, out var target) || target.Hp <= 0) return;
+        foreach (int id in unitIds)
+        {
+            if (!UnitById.TryGetValue(id, out var u) || u.Team != Team.Player) continue;
+            if (_aiByUnit.TryGetValue(id, out var ai))
+                ai.PushOrder(new AttackCommand { PlayerId = 0, TargetId = targetId });
+        }
     }
 
     private void PlaceBuildingExact(Vector2Int anchor, bool isCenter)
@@ -140,20 +245,171 @@ public class GameSim
             _occupiedCells.Add(anchor + new Vector2Int(x, y));
     }
 
+    private void RebuildPassability()
+    {
+        int cells = (int)(MapHalfExtent * 2 / Grid);
+        _passGrid = new Grid<byte>((ushort)cells, (ushort)cells);
+        for (int y = 0; y < cells; y++)
+        for (int x = 0; x < cells; x++)
+            _passGrid.Set(x, y, 1);
+        int offset = cells / 2;
+        foreach (var c in _occupiedCells)
+        {
+            int gx = c.X + offset;
+            int gy = c.Y + offset;
+            if (gx >= 0 && gy >= 0 && gx < cells && gy < cells)
+                _passGrid.Set(gx, gy, 0);
+        }
+        _hier = new HierarchicalPathfinder(cells, cells);
+        _hier.Recompute(_passGrid);
+        _long = new LongPathfinder(_passGrid, _hier);
+    }
+
+    private float _gatherCarry;
+    private void TickGather(float dt)
+    {
+        // Mirrors 0 A.D. ResourceGatherer.js: gather 10 per second when in range, return to dropsite
+        var center = Buildings.Find(b => b.IsCenter);
+        if (center == null) return;
+        foreach (var u in Units)
+        {
+            if (u.Team != Team.Player || u.Hp <= 0) continue;
+            if (u.Carry >= u.CarryCapacity)
+            {
+                if (u.Pos.DistanceTo(center.CenterPos) < 2.5f)
+                {
+                    Gold += u.Carry;
+                    u.Carry = 0;
+                }
+                else if (!u.HasOrder)
+                {
+                    AssignPath(u, center.CenterPos);
+                }
+                continue;
+            }
+            // Find nearest resource with amount
+            SimResource best = null; float bestDist = float.MaxValue;
+            foreach (var r in Resources)
+            {
+                if (r.Amount <= 0) continue;
+                float d = u.Pos.DistanceTo(r.Pos);
+                if (d < bestDist) { bestDist = d; best = r; }
+            }
+            if (best == null) continue;
+            if (bestDist < 1.8f)
+            {
+                u.AttackTimer += dt;
+                if (u.AttackTimer >= 0.8f)
+                {
+                    u.AttackTimer = 0;
+                    int take = Math.Min(10, Math.Min(best.Amount, u.CarryCapacity - u.Carry));
+                    best.Amount -= take;
+                    u.Carry += take;
+                }
+            }
+            else if (!u.HasOrder)
+            {
+                AssignPath(u, best.Pos);
+            }
+        }
+        // Remove depleted resources (visual cleanup handled by WorldView)
+        Resources.RemoveAll(r => r.Amount <= 0);
+        foreach (var id in new List<int>(ResourceById.Keys))
+            if (ResourceById[id].Amount <= 0) ResourceById.Remove(id);
+    }
+
+    // ---- Combat — port of Attack.js / Health.js ----
+    private void TickCombat(float dt)
+    {
+        foreach (var u in Units) u.AttackTimer -= dt;
+        // Simple O(n^2) scan is fine for <200 units; will move to spatial query when scaling to 1k+
+        var toRemove = new List<SimUnit>();
+        foreach (var attacker in Units)
+        {
+            if (attacker.Hp <= 0 || attacker.AttackTimer > 0) continue;
+            SimUnit target = null; float best = attacker.AttackRange + 0.5f;
+            foreach (var v in Units)
+            {
+                if (v.Team == attacker.Team || v.Hp <= 0) continue;
+                float d = attacker.Pos.DistanceTo(v.Pos);
+                if (d < best) { best = d; target = v; }
+            }
+            if (target != null)
+            {
+                target.Hp -= attacker.AttackDamage;
+                attacker.AttackTimer = attacker.AttackCooldown;
+                if (target.Hp <= 0) toRemove.Add(target);
+            }
+        }
+        foreach (var dead in toRemove)
+        {
+            Units.Remove(dead);
+            UnitById.Remove(dead.Id);
+            _aiByUnit.Remove(dead.Id);
+        }
+    }
+
+    private float _waveTimer;
+    private int _waveNumber;
+    public int WaveNumber => _waveNumber;
+    private void TickWaves(float dt)
+    {
+        _waveTimer += dt;
+        if (_waveTimer < 25f) return;
+        _waveTimer = 0; _waveNumber++;
+        // Spawn at random map edge — mirrors 0 A.D. Trigger.js wave spawns
+        var rnd = new Random(_waveNumber * 9973);
+        int count = 3 + _waveNumber * 2;
+        for (int i = 0; i < count; i++)
+        {
+            float angle = (float)rnd.NextDouble() * Mathf.Tau;
+            float edge = MapHalfExtent - 1;
+            var pos = new Vector3(Mathf.Cos(angle) * edge, 0, Mathf.Sin(angle) * edge);
+            var e = SpawnUnit(pos);
+            e.Team = Team.Enemy;
+            e.Hp = 60 + _waveNumber * 10;
+            e.MaxHp = e.Hp;
+            // Push initial attack order toward town center so UnitAI takes over
+            if (_aiByUnit.TryGetValue(e.Id, out var ai))
+                ai.PushOrder(new AttackCommand { PlayerId = 1, TargetId = Units.Find(u => u.Team == Team.Player)?.Id ?? e.Id });
+        }
+    }
+
     private void MovePass(float dt)
     {
         foreach (SimUnit u in Units)
         {
             if (!u.HasOrder) continue;
-            Vector3 to = u.Target - u.Pos;
-            to.Y = 0.0f;
-            float dist = to.Length();
-            if (dist < ArriveDist)
+            // If we have a computed path, follow waypoints (0 A.D. LongPathfinder style)
+            if (u.Path != null && u.PathIndex < u.Path.Count)
+            {
+                Vector3 wp = u.Path[u.PathIndex];
+                Vector3 to = wp - u.Pos; to.Y = 0;
+                float dist = to.Length();
+                if (dist < 0.6f)
+                {
+                    u.PathIndex++;
+                    if (u.PathIndex >= u.Path.Count)
+                    {
+                        u.Path = null;
+                        // Snap target to final waypoint; check arrival at actual order target
+                        Vector3 toFinal = u.Target - u.Pos; toFinal.Y = 0;
+                        if (toFinal.Length() < ArriveDist) u.HasOrder = false;
+                    }
+                    continue;
+                }
+                u.Pos += to / dist * UnitSpeed * dt;
+                continue;
+            }
+            Vector3 to2 = u.Target - u.Pos;
+            to2.Y = 0.0f;
+            float dist2 = to2.Length();
+            if (dist2 < ArriveDist)
             {
                 u.HasOrder = false;
                 continue;
             }
-            u.Pos += to / dist * UnitSpeed * dt;
+            u.Pos += to2 / dist2 * UnitSpeed * dt;
         }
     }
 
