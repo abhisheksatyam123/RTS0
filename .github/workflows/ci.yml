@@ -176,7 +176,7 @@ jobs:
           apksigner --version || true
           xvfb-run godot --path . --import
           mkdir -p build/android
-          xvfb-run godot --path . --export-release "Android" build/android/RTS0.apk
+          xvfb-run godot --path . --export-debug "Android" build/android/RTS0.apk
 
       - uses: actions/upload-artifact@v4
         with:
