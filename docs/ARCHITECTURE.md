@@ -45,8 +45,10 @@ shaders/
 
 scenes/main.tscn  → DirectionalLight3D CSM + WorldEnvironment (SSAO/SSIL/fog) + Main
 scenes/env.tres  → Environment (ambient+SSAO+SSIL+fog)
+assets/           → CC0 pipeline (models/units/buildings/vegetation, textures/noise/terrain_noise.png, materials/thronefall/*.tres, sounds/fonts) — see assets/README.md, fallback to primitives in WorldView
+src/Core/Assets/Assets.cs → runtime loader (ResExists → GD.Load → fallback)
 export_presets.cfg → Windows/Linux/Android/iOS (forward_plus Vulkan)
-tools/build.py    → cross-platform driver (python) + build.sh/ps1 wrappers
+tools/build.py    → cross-platform driver (python) + tools/generate_noise.py → assets/textures/noise/terrain_noise.png
 ```
 
 ## Determinism

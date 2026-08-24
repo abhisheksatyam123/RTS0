@@ -1,0 +1,12 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/unit_thronefall.gdshader" id="1"]
+
+[resource]
+shader = ExtResource("1")
+shader_parameter/color_player = Color(0.36, 0.62, 0.94, 1)
+shader_parameter/color_enemy = Color(0.92, 0.32, 0.28, 1)
+shader_parameter/outline_color = Color(0.08, 0.09, 0.11, 1)
+shader_parameter/outline_width = 0.012
+shader_parameter/flat_steps = 3.0
+shader_parameter/ao_strength = 0.18

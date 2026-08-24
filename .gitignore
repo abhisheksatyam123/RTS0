@@ -3,3 +3,7 @@
 obj/
 bin/
 build/
+# CC0 drop zone — large binaries ignored, keep canonical assets/ small
+assets/imported/
+# Godot imports are generated, not committed (keep repo small)
+*.import

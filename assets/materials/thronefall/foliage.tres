@@ -1,0 +1,10 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/foliage_wind.gdshader" id="1"]
+
+[resource]
+shader = ExtResource("1")
+shader_parameter/trunk_col = Color(0.42, 0.28, 0.18, 1)
+shader_parameter/leaves_col = Color(0.18, 0.55, 0.22, 1)
+shader_parameter/wind_strength = 0.6
+shader_parameter/wind_speed = 0.9

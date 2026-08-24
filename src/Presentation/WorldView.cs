@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 using Rts0.Core;
+using Rts0.Core.Assets;
 
 namespace Rts0.Presentation;
 
@@ -44,10 +45,10 @@ public partial class WorldView : Node3D
 
     public override void _Ready()
     {
-        // thronefall shaders — load or fallback to StandardMaterial3D if missing
-        _unitMat = LoadShaderMat("res://shaders/unit_thronefall.gdshader");
-        _foliageMat = LoadShaderMat("res://shaders/foliage_wind.gdshader");
-        _terrainMat = LoadShaderMat("res://shaders/terrain.gdshader");
+        // thronefall shaders + assets — CC0 + procedural fallback (see assets/README.md)
+        _unitMat = Assets.LoadUnitMaterial() ?? LoadShaderMat("res://shaders/unit_thronefall.gdshader");
+        _foliageMat = Assets.LoadFoliageMaterial() ?? LoadShaderMat("res://shaders/foliage_wind.gdshader");
+        _terrainMat = Assets.LoadTerrainMaterial() ?? LoadShaderMat("res://shaders/terrain.gdshader");
 
         _capPlayer = _capEnemy = _capCenter = _capHouse = _capTree = _capGold = InitialCapacity;
         _playerMm = MakeUnitMultiMesh(_unitMat, new Color(0.36f, 0.62f, 0.94f), 0.0f);
@@ -83,10 +84,12 @@ public partial class WorldView : Node3D
 
     private static MultiMesh MakeUnitMultiMesh(ShaderMaterial shaderMat, Color color, float team)
     {
+        var fallback = new CapsuleMesh { Radius = 0.4f, Height = 1.2f };
+        var mesh = Assets.TryLoadMesh(Assets.UnitModel("villager"), fallback);
         var mm = new MultiMesh
         {
             TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
-            Mesh = new CapsuleMesh { Radius = 0.4f, Height = 1.2f },
+            Mesh = mesh,
             InstanceCount = InitialCapacity,
             VisibleInstanceCount = 0,
             UseCustomData = true,
@@ -108,10 +111,13 @@ public partial class WorldView : Node3D
 
     private static MultiMesh MakeBuildingMultiMesh(ShaderMaterial mat, Vector3 size, bool isCenter)
     {
+        string id = isCenter ? "town_center" : "house";
+        var fallback = new BoxMesh { Size = size };
+        var mesh = Assets.TryLoadMesh(Assets.BuildingModel(id), fallback);
         var mm = new MultiMesh
         {
             TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
-            Mesh = new BoxMesh { Size = size },
+            Mesh = mesh,
             InstanceCount = InitialCapacity,
             VisibleInstanceCount = 0,
             UseCustomData = true,
@@ -123,9 +129,11 @@ public partial class WorldView : Node3D
 
     private static MultiMesh MakeResourceMultiMesh(ShaderMaterial mat, ResourceType type)
     {
-        Mesh mesh = type == ResourceType.Tree
+        Mesh fallback = type == ResourceType.Tree
             ? (Mesh)new CylinderMesh { TopRadius = 0.18f, BottomRadius = 0.22f, Height = 1.8f }
             : new BoxMesh { Size = new Vector3(1.2f, 0.8f, 1.2f) };
+        string id = type == ResourceType.Tree ? "tree" : "gold_vein";
+        Mesh mesh = Assets.TryLoadMesh(Assets.VegetationModel(id), fallback);
         var mm = new MultiMesh
         {
             TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
