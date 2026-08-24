@@ -63,7 +63,7 @@ jobs:
           set -e
           wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_mono_linux_x86_64.zip"
           unzip -q "Godot_v${GODOT_RELEASE}_mono_linux_x86_64.zip"
-          BIN=$(find . -type f -name "Godot_v*mono*linux*" | head -n 1)
+          BIN="Godot_v${GODOT_RELEASE}_mono_linux_x86_64/Godot_v${GODOT_RELEASE}_mono_linux.x86_64"
           chmod +x "$BIN"
           sudo mv "$BIN" /usr/local/bin/godot
 
@@ -122,7 +122,7 @@ jobs:
           set -e
           wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_mono_linux_x86_64.zip"
           unzip -q "Godot_v${GODOT_RELEASE}_mono_linux_x86_64.zip"
-          BIN=$(find . -type f -name "Godot_v*mono*linux*" | head -n 1)
+          BIN="Godot_v${GODOT_RELEASE}_mono_linux_x86_64/Godot_v${GODOT_RELEASE}_mono_linux.x86_64"
           chmod +x "$BIN"
           sudo mv "$BIN" /usr/local/bin/godot
           wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_mono_export_templates.tpz"
