@@ -139,11 +139,22 @@ jobs:
             -keystore ~/.android/debug.keystore \
             -dname "CN=Android Debug,O=Android,C=US" -storetype PKCS12
 
+      - name: Configure Godot editor settings
+        run: |
+          mkdir -p ~/.config/godot
+          cat << "EOF" > ~/.config/godot/editor_settings-4.godot
+[godot]
+export/android/android_sdk_path = "/usr/local/lib/android/sdk"
+export/android/debug_keystore = "/home/runner/.android/debug.keystore"
+export/android/debug_keystore_user = "androiddebugkey"
+export/android/debug_keystore_pass = "android"
+EOF
+
       - name: Install Android build template
         run: |
-          # Godot 4.3+ requires android/build template for gradle export
-          godot --headless --path . --install-android-build-template 2>&1 | head -n 20 || true
-          ls -R android 2>&1 | head -n 40 || echo "android template not auto-created, will try manual"
+          mkdir -p android/build
+          unzip -q ~/.local/share/godot/export_templates/${TEMPLATES_DIR}/android_source.zip -d android/build
+          chmod +x android/build/gradlew || true
 
       - name: Import + export APK
         run: |
