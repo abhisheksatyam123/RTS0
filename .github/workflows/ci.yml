@@ -143,8 +143,11 @@ jobs:
           mkdir -p ~/.android
           keytool -genkeypair -keyalg RSA -alias androiddebugkey -keypass android -storepass android -validity 9999 -keystore ~/.android/debug.keystore -dname "CN=Android Debug,O=Android,C=US" -storetype PKCS12
 
-      - name: Configure Godot editor settings
-        run: python3 tools/setup_editor_settings.py
+      - name: Configure Godot editor settings & Java symlinks
+        run: |
+          sudo ln -sf "$JAVA_HOME/bin/java" /usr/local/bin/java
+          sudo ln -sf "$JAVA_HOME/bin/keytool" /usr/local/bin/keytool
+          python3 tools/setup_editor_settings.py
 
       - name: Install Android build template
         run: |
