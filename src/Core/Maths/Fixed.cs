@@ -25,7 +25,8 @@ public readonly struct Fixed : IEquatable<Fixed>, IComparable<Fixed>
 
     private readonly int _value;
 
-    private Fixed(int raw) => _value = raw;
+    internal Fixed(int raw) => _value = raw;
+    public static Fixed FromRaw(int raw) => new(raw);
 
     public static Fixed Zero => new(0);
     public static Fixed One => FromInt(1);
@@ -62,6 +63,7 @@ public readonly struct Fixed : IEquatable<Fixed>, IComparable<Fixed>
     public static Fixed operator -(Fixed a, Fixed b) => new(a._value - b._value);
     public static Fixed operator -(Fixed a) => new(-a._value);
     public static Fixed operator *(Fixed a, int n) => new(a._value * n);
+    public static Fixed operator *(Fixed a, Fixed b) => a.Multiply(b);
     public static Fixed operator /(Fixed a, int n) => new(a._value / n);
     public static Fixed operator >>(Fixed a, int n) => new(a._value >> n);
     public static Fixed operator <<(Fixed a, int n) => new(a._value << n);

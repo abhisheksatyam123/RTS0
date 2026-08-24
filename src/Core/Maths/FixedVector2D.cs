@@ -25,7 +25,7 @@ public readonly struct FixedVector2D : IEquatable<FixedVector2D>
         ulong yy = (ulong)(long)Y.RawValue * (ulong)(long)Y.RawValue;
         ulong d2 = xx + yy;
         uint d = SqrtUtil.Isqrt64(d2);
-        return new Fixed((int)d);
+        return Fixed.FromRaw((int)d);
     }
 
     public int CompareLength(Fixed cmp)
@@ -59,7 +59,7 @@ public readonly struct FixedVector2D : IEquatable<FixedVector2D>
         long y = (long)Y.RawValue * v.Y.RawValue;
         long sum = x + y;
         sum >>= Fixed.FractBits;
-        return new Fixed((int)sum);
+        return Fixed.FromRaw((int)sum);
     }
 
     public bool Equals(FixedVector2D other) => X == other.X && Y == other.Y;

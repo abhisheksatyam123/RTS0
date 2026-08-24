@@ -128,7 +128,7 @@ public sealed class HierarchicalPathfinder
         return ga==gb;
     }
 
-    public bool MakeGoalReachable(int x0,int y0, ref int gx,int gy, Grid<byte> pass)
+    public bool MakeGoalReachable(int x0,int y0, ref int gx, ref int gy, Grid<byte> pass)
     {
         if(pass.Get(gx,gy)!=0 && IsReachable(x0,y0,gx,gy,pass)) return true;
         int bestDist=int.MaxValue, bx=gx, by=gy;
