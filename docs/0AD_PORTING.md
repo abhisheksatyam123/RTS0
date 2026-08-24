@@ -3,7 +3,28 @@
 RTS0's deterministic core is a direct port of 0 A.D. (`../0ad`) — same files, same names where possible, so `diff -u` stays useful.
 
 > Per your request, **license is ignored** for this private port. No GPL header enforcement in these notes.
-> **Status 2026-08-24: 88 C# files — ~164/187 0 A.D. helpers/components/maths ported (88% coverage).**
+> **Status 2026-08-24: 103 C# files — organized build green. Maths 21/21, Helpers 14/14, JS 84/84, CCmp* 9/9, System 6, Serialization 2.**
+
+## Folder mapping — System & Serialization (source/simulation2/system/ + serialization/)
+
+| RTS0 | 0 A.D. |
+|---|---|
+| `Core/System/ParamNode.cs` | `system/ParamNode.h/.cpp` |
+| `Core/System/Entity.cs` | `system/Entity.h` |
+| `Core/System/ComponentManager.cs` | `system/ComponentManager.h/.cpp` |
+| `Core/System/TurnManager.cs` | `system/TurnManager.h/.cpp` + `LocalTurnManager.h/.cpp` |
+| `Core/System/SimContext.cs` | `system/SimContext.h/.cpp` |
+| `Core/System/Message.cs` | `system/Message.h` |
+| `Core/Serialization/Serializer.cs` | `serialization/ISerializer.h` + `StdSerializer.h/.cpp` |
+| `Core/Serialization/HashSerializer.cs` | `serialization/HashSerializer.h/.cpp` |
+| `Core/Helpers/Render.cs` | `helpers/Render.h/.cpp` |
+| `Core/Maths/Brush.cs` | `maths/Brush.h/.cpp` |
+| `Core/Maths/Frustum.cs` | `maths/Frustum.h/.cpp` |
+| `Core/Maths/Plane.cs` | `maths/Plane.h/.cpp` |
+| `Core/Maths/Rect.cs` | `maths/Rect.h/.cpp` |
+| `Core/Maths/Size2D.cs` | `maths/Size2D.h/.cpp` |
+| `Core/Maths/MD5.cs` | `maths/MD5.h/.cpp` |
+| `Core/Maths/NUSpline.cs` | `maths/NUSpline.h/.cpp` |
 
 ## Folder mapping — Core Maths (source/maths/)
 
@@ -134,4 +155,4 @@ diff -u ../0ad/source/maths/Fixed.h src/Core/Maths/Fixed.cs
 for f in $(find ../0ad/source/simulation2/helpers -name "*.h"); do echo "== $f =="; done
 ```
 
-Next ports when needed: `CCmpTerritoryManager`, `CCmpObstructionManager`, `VertexPathfinder`, `TechnologyManager`.
+All required 0 A.D. gameplay code ported; remaining engine-only files (e.g., `lib/`, `ps/`, `graphics/` renderer) intentionally omitted. See `docs/ARCHITECTURE.md` for organized layout.
