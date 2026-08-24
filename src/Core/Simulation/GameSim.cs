@@ -29,7 +29,7 @@ public class GameSim
     public readonly Dictionary<int, SimResource> ResourceById = new();
 
     private int _nextId = 1;
-    private readonly HashSet<Vector2Int> _occupiedCells = new();
+    private readonly HashSet<Vector2I> _occupiedCells = new();
     private float _goldCarry;
     private readonly Dictionary<int, UnitAI> _aiByUnit = new();
 
@@ -55,17 +55,17 @@ public class GameSim
     public void SpawnInitial()
     {
         RebuildPassability();
-        PlaceBuildingExact(new Vector2Int(0, 0), isCenter: true);
+        PlaceBuildingExact(new Vector2I(0, 0), isCenter: true);
         for (int i = 0; i < 8; i++)
         {
             float angle = Mathf.Tau * i / 8.0f;
             SpawnUnit(new Vector3(Mathf.Cos(angle) * 5.0f, 0.0f, Mathf.Sin(angle) * 5.0f + 7.0f));
         }
         // Thronefall-style scattered resources (0 A.D. ResourceSupply pattern: small patches near start)
-        SpawnResource(new Vector2Int(5, 4), ResourceType.Tree);
-        SpawnResource(new Vector2Int(-6, 5), ResourceType.Tree);
-        SpawnResource(new Vector2Int(4, -6), ResourceType.GoldVein);
-        SpawnResource(new Vector2Int(-5, -5), ResourceType.GoldVein);
+        SpawnResource(new Vector2I(5, 4), ResourceType.Tree);
+        SpawnResource(new Vector2I(-6, 5), ResourceType.Tree);
+        SpawnResource(new Vector2I(4, -6), ResourceType.GoldVein);
+        SpawnResource(new Vector2I(-5, -5), ResourceType.GoldVein);
         RebuildPassability();
     }
 
@@ -78,7 +78,7 @@ public class GameSim
         return unit;
     }
 
-    public SimResource SpawnResource(Vector2Int cell, ResourceType type)
+    public SimResource SpawnResource(Vector2I cell, ResourceType type)
     {
         var res = new SimResource { Id = _nextId++, Cell = cell, Type = type, Amount = type == ResourceType.Tree ? 300 : 500 };
         Resources.Add(res);
@@ -121,8 +121,8 @@ public class GameSim
         }
     }
 
-    private static Vector2Int WorldToCell(Vector3 pos) => new(Mathf.FloorToInt(pos.X / Grid), Mathf.FloorToInt(pos.Z / Grid));
-    private static Vector2Int WorldToGrid(Vector2Int cell)
+    private static Vector2I WorldToCell(Vector3 pos) => new(Mathf.FloorToInt(pos.X / Grid), Mathf.FloorToInt(pos.Z / Grid));
+    private static Vector2I WorldToGrid(Vector2I cell)
     {
         int offset = (int)(MapHalfExtent / Grid); // 15
         return new(cell.X + offset, cell.Y + offset);
@@ -158,7 +158,7 @@ public class GameSim
         }
     }
 
-    public bool CanPlace(Vector2Int anchor, bool isCenter)
+    public bool CanPlace(Vector2I anchor, bool isCenter)
     {
         int footprint = isCenter ? CenterFootprint : HouseFootprint;
         int limit = (int)(MapHalfExtent / Grid) - footprint;
@@ -166,7 +166,7 @@ public class GameSim
         for (int x = 0; x < footprint; x++)
         for (int y = 0; y < footprint; y++)
         {
-            var cell = anchor + new Vector2Int(x, y);
+            var cell = anchor + new Vector2I(x, y);
             if (Mathf.Abs(cell.X) > limit || Mathf.Abs(cell.Y) > limit) return false;
             if (_occupiedCells.Contains(cell)) return false;
         }
@@ -228,7 +228,7 @@ public class GameSim
         }
     }
 
-    private void PlaceBuildingExact(Vector2Int anchor, bool isCenter)
+    private void PlaceBuildingExact(Vector2I anchor, bool isCenter)
     {
         int footprint = isCenter ? CenterFootprint : HouseFootprint;
         var building = new SimBuilding
@@ -242,7 +242,7 @@ public class GameSim
         Buildings.Add(building);
         for (int x = 0; x < footprint; x++)
         for (int y = 0; y < footprint; y++)
-            _occupiedCells.Add(anchor + new Vector2Int(x, y));
+            _occupiedCells.Add(anchor + new Vector2I(x, y));
     }
 
     private void RebuildPassability()

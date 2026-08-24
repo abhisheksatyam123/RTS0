@@ -75,7 +75,7 @@ public sealed class MoveCommand : GameCommand
 
 public sealed class BuildHouseCommand : GameCommand
 {
-    public Vector2Int Cell;
+    public Vector2I Cell;
 
     public override CommandType Type => CommandType.BuildHouse;
 
@@ -87,7 +87,7 @@ public sealed class BuildHouseCommand : GameCommand
 
     protected override void ReadPayload(BinaryReader reader)
     {
-        Cell = new Vector2Int(reader.ReadInt32(), reader.ReadInt32());
+        Cell = new Vector2I(reader.ReadInt32(), reader.ReadInt32());
     }
 }
 

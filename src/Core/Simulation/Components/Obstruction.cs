@@ -12,7 +12,7 @@ public sealed class ObstructionComponent
 
     public ObstructionComponent(int w, int h) => Size = new Vector2I(w, h);
 
-    public void ApplyToGrid(Grid<byte> grid, Vector2Int anchor, bool block)
+    public void ApplyToGrid(Grid<byte> grid, Vector2I anchor, bool block)
     {
         byte val = block ? (byte)0 : (byte)1;
         for (int y = 0; y < Size.Y; y++)
@@ -25,6 +25,6 @@ public sealed class ObstructionComponent
         }
     }
 
-    public static Vector2Int WorldToObstructionCells(Vector3 worldPos, float cellSize = 2.0f)
+    public static Vector2I WorldToObstructionCells(Vector3 worldPos, float cellSize = 2.0f)
         => new(Mathf.FloorToInt(worldPos.X / cellSize), Mathf.FloorToInt(worldPos.Z / cellSize));
 }

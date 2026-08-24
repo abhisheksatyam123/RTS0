@@ -55,7 +55,7 @@ public partial class Main : Node3D
 
         if (_buildMode && _ghost != null)
         {
-            Vector2Int cell = MouseCell(GetViewport().GetMousePosition());
+            Vector2I cell = MouseCell(GetViewport().GetMousePosition());
             Vector3 center = CellCenter(cell);
             _ghost.GlobalPosition = center + Vector3.Up * 0.9f;
             bool valid = _sim.Gold >= GameSim.HouseCost && _sim.CanPlace(cell, isCenter: false);
@@ -215,15 +215,15 @@ public partial class Main : Node3D
         return origin + dir * t;
     }
 
-    private Vector2Int MouseCell(Vector2 mousePos)
+    private Vector2I MouseCell(Vector2 mousePos)
     {
         Vector3 ground = MouseGround(mousePos);
-        return new Vector2Int(
+        return new Vector2I(
             Mathf.FloorToInt(ground.X / GameSim.Grid),
             Mathf.FloorToInt(ground.Z / GameSim.Grid));
     }
 
-    private static Vector3 CellCenter(Vector2Int cell) =>
+    private static Vector3 CellCenter(Vector2I cell) =>
         new((cell.X + 0.5f) * GameSim.Grid, 0.0f, (cell.Y + 0.5f) * GameSim.Grid);
 
     private SimUnit PickUnit(Vector2 mousePos)

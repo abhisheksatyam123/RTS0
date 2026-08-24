@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 
 namespace Rts0.Core;
@@ -36,7 +37,7 @@ public sealed class SimBuilding
 {
     public int Id;
     public Team Team = Team.Player;
-    public Vector2Int AnchorCell;   // top-left footprint cell
+    public Vector2I AnchorCell;   // top-left footprint cell
     public int Footprint;           // cells per side
     public float SizeMeters;
     public bool IsCenter;
@@ -51,7 +52,7 @@ public sealed class SimResource
 {
     public int Id;
     public ResourceType Type;
-    public Vector2Int Cell;
+    public Vector2I Cell;
     public int Amount = 200;
     public Vector3 Pos => new((Cell.X + 0.5f) * GameSim.Grid, 0, (Cell.Y + 0.5f) * GameSim.Grid);
 }
