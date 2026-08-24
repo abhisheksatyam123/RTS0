@@ -9,11 +9,22 @@ def main():
 
     android_home = os.environ.get("ANDROID_HOME", "/usr/local/lib/android/sdk")
     java_home = os.environ.get("JAVA_HOME", "")
-    debug_keystore = str(Path.home() / ".android" / "debug.keystore")
+    debug_keystore = str((Path.home() / ".android" / "debug.keystore").resolve())
 
     print(f"[setup_editor_settings] ANDROID_HOME={android_home}")
     print(f"[setup_editor_settings] JAVA_HOME={java_home}")
     print(f"[setup_editor_settings] debug_keystore={debug_keystore}")
+
+    # Update export_presets.cfg keystore path dynamically with absolute path
+    preset_cfg = Path("export_presets.cfg")
+    if preset_cfg.exists():
+        text = preset_cfg.read_text()
+        text = text.replace('keystore/debug="~/.android/debug.keystore"', f'keystore/debug="{debug_keystore}"')
+        text = text.replace('keystore/debug=""', f'keystore/debug="{debug_keystore}"')
+        text = text.replace('keystore/debug_user=""', 'keystore/debug_user="androiddebugkey"')
+        text = text.replace('keystore/debug_password=""', 'keystore/debug_password="android"')
+        preset_cfg.write_text(text)
+        print(f"[setup_editor_settings] Updated export_presets.cfg keystore path to: {debug_keystore}")
 
     content = f"""[gd_resource type="EditorSettings" format=3]
 
