@@ -2,6 +2,7 @@
 /// <summary>Simulation context — mirrors CSimContext (source/simulation2/system/SimContext.h/.cpp).</summary>
 /// <remarks>Reference: SimContext.h, SimContext.cpp — holds ComponentManager, Terrain, UnitManager</remarks>
 using System;
+using System.Collections.Generic;
 
 namespace Rts0.Core;
 

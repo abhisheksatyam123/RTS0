@@ -1,4 +1,5 @@
 /// Ported from source/maths/Size2D.h/.cpp — 0 A.D. GPL-2.0 — 2D size.
+using System;
 
 namespace Rts0.Core;
 
