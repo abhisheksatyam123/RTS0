@@ -156,7 +156,13 @@ jobs:
 
       - name: Import + export APK
         run: |
+          echo "=== ENV DEBUG ==="
+          echo "JAVA_HOME=$JAVA_HOME"
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          which java || true
+          java -version || true
           export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/build-tools/34.0.0:$PATH"
+          apksigner --version || true
           xvfb-run godot --path . --import
           mkdir -p build/android
           xvfb-run godot --path . --export-release "Android" build/android/RTS0.apk
