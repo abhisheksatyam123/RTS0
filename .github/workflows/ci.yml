@@ -55,7 +55,7 @@ jobs:
           path: |
             /usr/local/bin/godot
             ~/.local/share/godot/export_templates/${{ env.TEMPLATES_DIR }}
-          key: godot-${{ env.GODOT_RELEASE }}-mono
+          key: godot-${{ env.GODOT_RELEASE }}-mono-v2
 
       - name: Install Godot .NET + export templates
         if: steps.cache-godot.outputs.cache-hit != 'true'
@@ -66,6 +66,7 @@ jobs:
           BIN="Godot_v${GODOT_RELEASE}_mono_linux_x86_64/Godot_v${GODOT_RELEASE}_mono_linux.x86_64"
           chmod +x "$BIN"
           sudo mv "$BIN" /usr/local/bin/godot
+          sudo mv "Godot_v${GODOT_RELEASE}_mono_linux_x86_64/GodotSharp" /usr/local/bin/GodotSharp
 
           wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_mono_export_templates.tpz"
           unzip -q "Godot_v${GODOT_RELEASE}_mono_export_templates.tpz"
@@ -125,6 +126,7 @@ jobs:
           BIN="Godot_v${GODOT_RELEASE}_mono_linux_x86_64/Godot_v${GODOT_RELEASE}_mono_linux.x86_64"
           chmod +x "$BIN"
           sudo mv "$BIN" /usr/local/bin/godot
+          sudo mv "Godot_v${GODOT_RELEASE}_mono_linux_x86_64/GodotSharp" /usr/local/bin/GodotSharp
           wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_mono_export_templates.tpz"
           unzip -q "Godot_v${GODOT_RELEASE}_mono_export_templates.tpz"
           mkdir -p ~/.local/share/godot/export_templates/${TEMPLATES_DIR}
