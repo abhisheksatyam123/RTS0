@@ -75,12 +75,12 @@ jobs:
           mv templates/* ~/.local/share/godot/export_templates/${TEMPLATES_DIR}/
 
       - name: Import resources
-        run: godot --headless --path . --import
+        run: xvfb-run godot --path . --import
 
       - name: Export preset
         run: |
           mkdir -p "${{ matrix.out }}"
-          godot --headless --path . --export-release "${{ matrix.preset }}" "${{ matrix.out }}/RTS0"
+          xvfb-run godot --path . --export-release "${{ matrix.preset }}" "${{ matrix.out }}/RTS0"
 
       - name: Rename outputs per platform
         run: |
@@ -157,9 +157,9 @@ jobs:
 
       - name: Import + export APK
         run: |
-          godot --headless --path . --import
+          xvfb-run godot --path . --import
           mkdir -p build/android
-          godot --headless --path . --export-release "Android" build/android/RTS0.apk
+          xvfb-run godot --path . --export-release "Android" build/android/RTS0.apk
 
       - uses: actions/upload-artifact@v4
         with:
