@@ -9,6 +9,7 @@ public enum ResourceType : byte { Tree = 0, GoldVein = 1 }
 
 // Plain data only: no Godot Nodes in the sim, so it can run anywhere and stay deterministic-friendly.
 // Ported fields mirror 0 A.D. CCmpUnitMotion / Health / ResourceGatherer.
+// SimUnit now holds Position + Ownership + Vision components (see src/Core/Simulation/Components).
 public sealed class SimUnit
 {
     public int Id;
@@ -17,6 +18,10 @@ public sealed class SimUnit
     public Vector3 PrevPos;   // for render interpolation between fixed ticks
     public Vector3 Target;
     public bool HasOrder;
+    public Position PositionComp;   // deterministic FixedVector2D mirror of Pos — see CCmpPosition
+    public Ownership OwnershipComp;
+    public Vision VisionComp;
+    public UnitMotion MotionComp;
 
     // 0 A.D. UnitAI / Health / Attack fields
     public int Hp = 100;
@@ -43,6 +48,8 @@ public sealed class SimBuilding
     public bool IsCenter;
     public int Hp = 200;
     public int MaxHp = 200;
+    public Position PositionComp;
+    public Ownership OwnershipComp;
 
     public Vector3 BasePos => new(AnchorCell.X * GameSim.Grid, 0.0f, AnchorCell.Y * GameSim.Grid);
     public Vector3 CenterPos => BasePos + new Vector3(SizeMeters * 0.5f, 0, SizeMeters * 0.5f);

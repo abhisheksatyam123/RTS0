@@ -37,6 +37,12 @@ public class GameSim
     private Grid<byte> _passGrid;
     private HierarchicalPathfinder _hier;
     private LongPathfinder _long;
+    private VertexPathfinder _vertex;
+    private Pathfinder _pathfinderSystem;
+    private RangeManager _rangeManager;
+    private ObstructionManager _obstructionManager;
+    private TerritoryManager _territoryManager;
+    private readonly Dictionary<int, PlayerComponent> _players = new();
 
     // Spatial hash + force buffers (grown on demand, reused across ticks: zero steady-state allocs)
     private readonly Dictionary<long, List<int>> _cells = new();
@@ -54,6 +60,14 @@ public class GameSim
 
     public void SpawnInitial()
     {
+        // 0 A.D. managers — mirror source/simulation2/system/ComponentManager init order
+        _rangeManager = new RangeManager();
+        _rangeManager.SetBounds(Fixed.FromInt((int)-MapHalfExtent), Fixed.FromInt((int)-MapHalfExtent), Fixed.FromInt((int)MapHalfExtent), Fixed.FromInt((int)MapHalfExtent));
+        _obstructionManager = new ObstructionManager();
+        _territoryManager = new TerritoryManager();
+        _territoryManager.Init((int)(MapHalfExtent * 2 / Grid), (int)(MapHalfExtent * 2 / Grid));
+        for (int p = 0; p < 2; p++) { var pc = new PlayerComponent(); pc.Init(p); _players[p] = pc; }
+
         RebuildPassability();
         PlaceBuildingExact(new Vector2I(0, 0), isCenter: true);
         for (int i = 0; i < 8; i++)
@@ -67,14 +81,26 @@ public class GameSim
         SpawnResource(new Vector2I(4, -6), ResourceType.GoldVein);
         SpawnResource(new Vector2I(-5, -5), ResourceType.GoldVein);
         RebuildPassability();
+        // Initial territory & LOS reveal (mirrors CCmpRangeManager + CCmpTerritoryManager)
+        _rangeManager.SetLosRevealAll(0, true);
+        _territoryManager.AddInfluence(new Vector2I(0, 0), 1, 2);
+        _territoryManager.CalculateTerritories();
     }
 
     public SimUnit SpawnUnit(Vector3 pos)
     {
         var unit = new SimUnit { Id = _nextId++, Pos = pos, PrevPos = pos, Hp = 100, MaxHp = 100 };
+        // Wire 0 A.D. components — mirrors CCmpPosition / CCmpOwnership / CCmpVision / CCmpUnitMotion
+        unit.PositionComp = new Position(unit.Id);
+        unit.PositionComp.SetPosition(Fixed.FromFloat(pos.X), Fixed.FromFloat(pos.Z));
+        unit.OwnershipComp = new Ownership(unit.Id, (int)unit.Team);
+        unit.VisionComp = new Vision(unit.Id, Fixed.FromInt(24));
+        unit.MotionComp = new UnitMotion(unit.Id);
         Units.Add(unit);
         UnitById[unit.Id] = unit;
         _aiByUnit[unit.Id] = new UnitAI(unit);
+        _rangeManager?.AddEntity(unit.Id, unit.PositionComp.GetPosition2D(), (int)unit.Team, Fixed.FromFloat(UnitRadius), Fixed.FromInt(24));
+        _obstructionManager?.AddUnitShape(unit.Id, Fixed.FromFloat(pos.X), Fixed.FromFloat(pos.Z), Fixed.FromFloat(UnitRadius));
         return unit;
     }
 
@@ -142,12 +168,27 @@ public class GameSim
         foreach (var u in Units)
             if (_aiByUnit.TryGetValue(u.Id, out var ai)) ai.Update(this);
 
+        // 0 A.D. managers tick — mirrors CCmpRangeManager / CCmpTerritoryManager / CCmpObstructionManager
+        foreach (var u in Units)
+        {
+            if (u.PositionComp != null)
+            {
+                u.PositionComp.SetPosition(Fixed.FromFloat(u.Pos.X), Fixed.FromFloat(u.Pos.Z));
+                _rangeManager?.MoveEntity(u.Id, u.PositionComp.GetPosition2D());
+                _obstructionManager?.MoveShape(u.Id, Fixed.FromFloat(u.Pos.X), Fixed.FromFloat(u.Pos.Z));
+            }
+            u.MotionComp?.Tick(u.PositionComp, _pathfinderSystem, Fixed.FromFloat(dt));
+        }
+        _territoryManager?.Tick(dt);
+
         MovePass(dt);
         SeparationPass();
         ClampToMap();
         TickGather(dt);
         TickCombat(dt);
         TickWaves(dt);
+        // ResourceTrickle / Population tick — mirrors ResourceTrickle.js / Population.js
+        foreach (var kv in _players) kv.Value?.Tick(dt, (type, amt) => Gold += amt);
 
         // Fallback trickle if no resources gathered (keeps early game from stalling)
         _goldCarry += dt * 0.2f * Units.Count;
@@ -263,6 +304,11 @@ public class GameSim
         _hier = new HierarchicalPathfinder(cells, cells);
         _hier.Recompute(_passGrid);
         _long = new LongPathfinder(_passGrid, _hier);
+        // Vertex short pathfinder + system wrapper — mirrors CCmpPathfinder
+        _vertex = new VertexPathfinder((ushort)cells, new Grid<ushort>((ushort)cells, (ushort)cells));
+        _pathfinderSystem = new Pathfinder(_hier, _long, _vertex, _passGrid);
+        // rasterize obstructions for next tick (mirrors CCmpObstructionManager.Rasterize)
+        _obstructionManager?.UpdateGrid(_passGrid, offset);
     }
 
     private float _gatherCarry;
