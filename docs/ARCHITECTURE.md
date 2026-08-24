@@ -32,10 +32,19 @@ src/
   App/
     CameraRig.cs, SelectionRect.cs  → input & camera (presentation logic)
   Presentation/
-    WorldView.cs    → MultiMeshInstance3D + thronefall mats, interpolates GameSim via alpha
+    WorldView.cs    → 6× MultiMesh batches + shaders, frustum culling, lerp α
+  GPU/
+    GpuCuller.cs    → Frustum culling (CPU) mirrors graphics/Frustum
+    SeparationCompute.cs + shaders/compute/separation.glsl → GPU SeparationPass (>512 units)
   Main.cs           → glue: GameSim ↔ WorldView, fixed-step loop, commands
+shaders/
+  unit_thronefall.gdshader → flat ramp + outline (INSTANCE_CUSTOM x=team y=hp z=wind)
+  foliage_wind.gdshader     → tree sway (VERTEX wind)
+  terrain.gdshader          → 3-way splat + territory tint + LOS fog
+  compute/separation.glsl   → Vulkan compute for separation
 
-scenes/main.tscn  → res://src/Main.cs
+scenes/main.tscn  → DirectionalLight3D CSM + WorldEnvironment (SSAO/SSIL/fog) + Main
+scenes/env.tres  → Environment (ambient+SSAO+SSIL+fog)
 export_presets.cfg → Windows/Linux/Android/iOS (forward_plus Vulkan)
 tools/build.py    → cross-platform driver (python) + build.sh/ps1 wrappers
 ```
@@ -43,10 +52,15 @@ tools/build.py    → cross-platform driver (python) + build.sh/ps1 wrappers
 ## Determinism
 
 - Simulation uses **only** `Fixed`/`FixedVector2D/3D`, `Grid<T>`, no `float`/`Random` except render edge (`WorldView.ToFloat()` + `alpha` lerp).
-- `GameSim.FixedStep = 1/20s`, two-phase `Parallel.For` (accumulate → apply) for `SeparationPass`.
+- `GameSim.FixedStep = 1/20s`, two-phase `Parallel.For` (accumulate → apply) for `SeparationPass`, GPU fallback via `SeparationCompute` when `count>=512` (`src/Core/GPU/SeparationCompute.cs:1`).
 - Managers: `RangeManager` (LOS), `ObstructionManager` (pathfinding raster), `TerritoryManager` (influence), `Pathfinder` (hier+long+vertex).
+- Presentation: 6 GPU batches (player/enemy units + center/house + tree/gold) + terrain plane, `INSTANCE_CUSTOM` for team/hp/wind, frustum cull `src/Core/Maths/Frustum.cs:34`.
 
-## 0 A.D. Port Coverage (2026-08-24: 103 C# files)
+## 0 A.D. Port Coverage (2026-08-24: 105 C# files + 4 shaders)
+
+GPU: `src/Core/GPU/` + `shaders/*` (Thronefall flat-ramp/outline/wind, terrain splat, compute separation)
+
+## 0 A.D. Port Coverage (2026-08-24: 105 C# files)
 
 - **maths/** 21/21 ported (100% of relevant deterministic maths; lib/ platform code omitted)
 - **helpers/** 12/12 relevant ported (Grid, PathGoal, Hierarchical, Long, Vertex, PriorityQueue, Geometry, Rasterize, Los, Selection, CinemaPath, MapEdgeTiles, Render)

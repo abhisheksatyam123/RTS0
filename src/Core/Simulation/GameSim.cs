@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Godot;
+using Rts0.Core.Gpu;
 
 namespace Rts0.Core;
 
@@ -48,6 +49,7 @@ public class GameSim
     private readonly Dictionary<long, List<int>> _cells = new();
     private float[] _forceX = Array.Empty<float>();
     private float[] _forceZ = Array.Empty<float>();
+    private SeparationCompute _gpuSeparation;
 
     private static readonly Vector3[] FormationOffsets =
     {
@@ -67,6 +69,7 @@ public class GameSim
         _territoryManager = new TerritoryManager();
         _territoryManager.Init((int)(MapHalfExtent * 2 / Grid), (int)(MapHalfExtent * 2 / Grid));
         for (int p = 0; p < 2; p++) { var pc = new PlayerComponent(); pc.Init(p); _players[p] = pc; }
+        _gpuSeparation = new SeparationCompute();
 
         RebuildPassability();
         PlaceBuildingExact(new Vector2I(0, 0), isCenter: true);
@@ -472,17 +475,24 @@ public class GameSim
 
         BuildSpatialHash();
 
-        // Phase 1 (parallel, read-only over positions): accumulate push forces.
-        // Writing to distinct indices per iteration -> no races, and because forces
-        // never depend on concurrent writes the result is identical serial or parallel.
+        // Phase 1: try GPU compute when available and large crowds (keeps CPU free)
         float minDist = UnitRadius * 2.0f;
-        if (count >= ParallelMinUnits)
+        bool gpuDone = false;
+        if (count >= 512 && _gpuSeparation != null && _gpuSeparation.IsAvailable)
         {
-            Parallel.For(0, count, i => AccumulatePush(i, minDist));
+            var posSpan = new Vector3[count];
+            for (int k = 0; k < count; k++) posSpan[k] = Units[k].Pos;
+            var gpuForces = _gpuSeparation.TryCompute(posSpan, minDist);
+            if (gpuForces != null)
+            {
+                for (int k = 0; k < count; k++) { _forceX[k] = gpuForces[k].X; _forceZ[k] = gpuForces[k].Y; }
+                gpuDone = true;
+            }
         }
-        else
+        if (!gpuDone)
         {
-            for (int i = 0; i < count; i++) AccumulatePush(i, minDist);
+            if (count >= ParallelMinUnits) Parallel.For(0, count, i => AccumulatePush(i, minDist));
+            else for (int i = 0; i < count; i++) AccumulatePush(i, minDist);
         }
 
         // Phase 2 (serial apply): deterministic order.

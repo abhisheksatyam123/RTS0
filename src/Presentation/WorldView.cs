@@ -5,8 +5,8 @@ using Rts0.Core;
 namespace Rts0.Presentation;
 
 // Presentation layer: reads sim state, never mutates it.
-// Units render through two MultiMeshInstance3D (player blue / enemy red) -> 2 draw calls.
-// Resources (trees / gold veins) are few, rendered as individual MeshInstances.
+// GPU: 6 MultiMesh batches (player/enemy units + center/house + tree/gold) → 6 draw calls + 1 terrain.
+// Thronefall shaders: flat ramp + outline, wind for foliage, territory tint. Frustum culling via Frustum.
 // Deterministic sim stays on Fixed/Grid/Pathfinder; this layer only lerps and draws.
 public partial class WorldView : Node3D
 {
@@ -18,39 +18,145 @@ public partial class WorldView : Node3D
     private MultiMesh _enemyMm;
     private int _capPlayer, _capEnemy;
 
-    private readonly Dictionary<int, Node3D> _buildingViews = new();
+    // GPU-batched buildings/resources (was per-Node3D, now MultiMesh)
+    private MultiMeshInstance3D _centerMmi;
+    private MultiMesh _centerMm;
+    private int _capCenter;
+    private MultiMeshInstance3D _houseMmi;
+    private MultiMesh _houseMm;
+    private int _capHouse;
+    private MultiMeshInstance3D _treeMmi;
+    private MultiMesh _treeMm;
+    private int _capTree;
+    private MultiMeshInstance3D _goldMmi;
+    private MultiMesh _goldMm;
+    private int _capGold;
+
+    private MeshInstance3D _terrain;
+    private readonly Dictionary<int, Node3D> _buildingViews = new(); // fallback for non-batched (debug)
     private readonly Dictionary<int, Node3D> _resourceViews = new();
     private readonly Dictionary<int, Node3D> _activeRings = new();
     private readonly Stack<Node3D> _ringPool = new();
 
+    private ShaderMaterial _unitMat;
+    private ShaderMaterial _terrainMat;
+    private ShaderMaterial _foliageMat;
+
     public override void _Ready()
     {
-        _capPlayer = _capEnemy = InitialCapacity;
-        _playerMm = MakeUnitMultiMesh(new Color(0.36f, 0.62f, 0.94f));
-        _enemyMm = MakeUnitMultiMesh(new Color(0.92f, 0.32f, 0.28f));
+        // thronefall shaders — load or fallback to StandardMaterial3D if missing
+        _unitMat = LoadShaderMat("res://shaders/unit_thronefall.gdshader");
+        _foliageMat = LoadShaderMat("res://shaders/foliage_wind.gdshader");
+        _terrainMat = LoadShaderMat("res://shaders/terrain.gdshader");
+
+        _capPlayer = _capEnemy = _capCenter = _capHouse = _capTree = _capGold = InitialCapacity;
+        _playerMm = MakeUnitMultiMesh(_unitMat, new Color(0.36f, 0.62f, 0.94f), 0.0f);
+        _enemyMm = MakeUnitMultiMesh(_unitMat, new Color(0.92f, 0.32f, 0.28f), 1.0f);
+        _centerMm = MakeBuildingMultiMesh(_unitMat, new Vector3(4, 4, 4), false);
+        _houseMm = MakeBuildingMultiMesh(_unitMat, new Vector3(1.8f, 1.8f, 1.8f), false);
+        _treeMm = MakeResourceMultiMesh(_foliageMat, ResourceType.Tree);
+        _goldMm = MakeResourceMultiMesh(_unitMat, ResourceType.GoldVein);
+
         _playerMmi = new MultiMeshInstance3D { Multimesh = _playerMm };
         _enemyMmi = new MultiMeshInstance3D { Multimesh = _enemyMm };
-        AddChild(_playerMmi);
-        AddChild(_enemyMmi);
+        _centerMmi = new MultiMeshInstance3D { Multimesh = _centerMm };
+        _houseMmi = new MultiMeshInstance3D { Multimesh = _houseMm };
+        _treeMmi = new MultiMeshInstance3D { Multimesh = _treeMm };
+        _goldMmi = new MultiMeshInstance3D { Multimesh = _goldMm };
+        AddChild(_playerMmi); AddChild(_enemyMmi);
+        AddChild(_centerMmi); AddChild(_houseMmi);
+        AddChild(_treeMmi); AddChild(_goldMmi);
+
+        _terrain = CreateTerrain();
+        AddChild(_terrain);
     }
 
-    private static MultiMesh MakeUnitMultiMesh(Color color)
+    private static ShaderMaterial LoadShaderMat(string path)
+    {
+        if (ResourceLoader.Exists(path))
+        {
+            var sh = GD.Load<Shader>(path);
+            if (sh != null) return new ShaderMaterial { Shader = sh };
+        }
+        return null;
+    }
+
+    private static MultiMesh MakeUnitMultiMesh(ShaderMaterial shaderMat, Color color, float team)
     {
         var mm = new MultiMesh
         {
             TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
+            CustomDataFormat = MultiMesh.CustomDataFormatEnum.Data8bit, // INSTANCE_CUSTOM
             Mesh = new CapsuleMesh { Radius = 0.4f, Height = 1.2f },
             InstanceCount = InitialCapacity,
             VisibleInstanceCount = 0,
+            UseCustomData = true,
         };
-        var mat = new StandardMaterial3D { AlbedoColor = color, Roughness = 0.7f };
-        mm.Mesh.SurfaceSetMaterial(0, mat);
+        Material mat;
+        if (shaderMat != null)
+        {
+            mat = (ShaderMaterial)shaderMat.Duplicate();
+            // team encoded via shader param + per-instance custom
+            mm.Mesh.SurfaceSetMaterial(0, mat);
+        }
+        else
+        {
+            mat = new StandardMaterial3D { AlbedoColor = color, Roughness = 0.7f };
+            mm.Mesh.SurfaceSetMaterial(0, mat);
+        }
         return mm;
+    }
+
+    private static MultiMesh MakeBuildingMultiMesh(ShaderMaterial mat, Vector3 size, bool isCenter)
+    {
+        var mm = new MultiMesh
+        {
+            TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
+            CustomDataFormat = MultiMesh.CustomDataFormatEnum.Data8bit,
+            Mesh = new BoxMesh { Size = size },
+            InstanceCount = InitialCapacity,
+            VisibleInstanceCount = 0,
+            UseCustomData = true,
+        };
+        if (mat != null) mm.Mesh.SurfaceSetMaterial(0, (ShaderMaterial)mat.Duplicate());
+        else mm.Mesh.SurfaceSetMaterial(0, new StandardMaterial3D { AlbedoColor = new Color(0.72f, 0.64f, 0.52f), Roughness = 0.9f });
+        return mm;
+    }
+
+    private static MultiMesh MakeResourceMultiMesh(ShaderMaterial mat, ResourceType type)
+    {
+        Mesh mesh = type == ResourceType.Tree
+            ? (Mesh)new CylinderMesh { TopRadius = 0.18f, BottomRadius = 0.22f, Height = 1.8f }
+            : new BoxMesh { Size = new Vector3(1.2f, 0.8f, 1.2f) };
+        var mm = new MultiMesh
+        {
+            TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
+            CustomDataFormat = MultiMesh.CustomDataFormatEnum.Data8bit,
+            Mesh = mesh,
+            InstanceCount = InitialCapacity,
+            VisibleInstanceCount = 0,
+            UseCustomData = true,
+        };
+        if (mat != null) mm.Mesh.SurfaceSetMaterial(0, (ShaderMaterial)mat.Duplicate());
+        else mm.Mesh.SurfaceSetMaterial(0, new StandardMaterial3D { AlbedoColor = type == ResourceType.Tree ? new Color(0.18f, 0.55f, 0.22f) : new Color(0.92f, 0.78f, 0.18f) });
+        return mm;
+    }
+
+    private MeshInstance3D CreateTerrain()
+    {
+        var plane = new PlaneMesh { Size = new Vector2(GameSim.MapHalfExtent * 2, GameSim.MapHalfExtent * 2), SubdivideWidth = 32, SubdivideDepth = 32 };
+        var mat = _terrainMat ?? (Material)new StandardMaterial3D { AlbedoColor = new Color(0.55f, 0.72f, 0.42f), Roughness = 0.95f };
+        plane.Material = mat;
+        return new MeshInstance3D { Mesh = plane, Position = Vector3.Zero };
     }
 
     public void Sync(GameSim sim, float alpha)
     {
-        // Units — split by team into two GPU batches
+        // Frustum cull helpers (CPU side, GPU does rest via no-draw when outside)
+        var cam = GetViewport()?.GetCamera3D();
+        var frustum = cam != null ? BuildFrustum(cam) : null;
+
+        // Units — split by team into two GPU batches + INSTANCE_CUSTOM (x=team, y=hp)
         int nPlayer = 0, nEnemy = 0;
         foreach (var u in sim.Units) if (u.Team == Team.Player) nPlayer++; else nEnemy++;
         EnsureCapacity(ref _playerMm, ref _capPlayer, nPlayer);
@@ -60,38 +166,77 @@ public partial class WorldView : Node3D
         foreach (SimUnit unit in sim.Units)
         {
             Vector3 pos = unit.PrevPos.Lerp(unit.Pos, alpha) + new Vector3(0, 0.6f, 0);
+            if (frustum != null && !frustum.IsSphereVisible(new Vector3D(pos.X, pos.Y, pos.Z), 0.6f)) continue;
             var xf = new Transform3D(Basis.Identity, pos);
-            if (unit.Team == Team.Player) _playerMm.SetInstanceTransform(iP++, xf);
-            else _enemyMm.SetInstanceTransform(iE++, xf);
+            float hpFrac = unit.MaxHp > 0 ? (float)unit.Hp / unit.MaxHp : 1f;
+            var custom = new Color(unit.Team == Team.Player ? 0f : 1f, hpFrac, 0f, 0f);
+            if (unit.Team == Team.Player) { _playerMm.SetInstanceTransform(iP, xf); _playerMm.SetInstanceCustomData(iP, custom); iP++; }
+            else { _enemyMm.SetInstanceTransform(iE, xf); _enemyMm.SetInstanceCustomData(iE, custom); iE++; }
         }
         _playerMm.VisibleInstanceCount = iP;
         _enemyMm.VisibleInstanceCount = iE;
 
+        // Buildings — GPU batched (center vs house)
+        int nCenter = 0, nHouse = 0;
+        foreach (var b in sim.Buildings) if (b.IsCenter) nCenter++; else nHouse++;
+        EnsureCapacity(ref _centerMm, ref _capCenter, nCenter);
+        EnsureCapacity(ref _houseMm, ref _capHouse, nHouse);
+        int iC = 0, iH = 0;
         foreach (SimBuilding b in sim.Buildings)
         {
-            if (_buildingViews.ContainsKey(b.Id)) continue;
-            var node = CreateBuildingVisual(b);
-            _buildingViews[b.Id] = node;
-            AddChild(node);
+            Vector3 pos = b.BasePos + new Vector3(b.SizeMeters * 0.5f, b.SizeMeters * 0.5f, b.SizeMeters * 0.5f);
+            if (frustum != null && !frustum.IsBoxVisible(new Vector3D(pos.X, pos.Y, pos.Z), new BoundingBoxAligned(new Vector3D(-b.SizeMeters*0.5f,-b.SizeMeters*0.5f,-b.SizeMeters*0.5f), new Vector3D(b.SizeMeters*0.5f,b.SizeMeters*0.5f,b.SizeMeters*0.5f)))) continue;
+            var xf = new Transform3D(Basis.Identity, pos);
+            var custom = new Color(b.Team == Team.Player ? 0f : 1f, (float)b.Hp / b.MaxHp, 0f, 0f);
+            if (b.IsCenter) { _centerMm.SetInstanceTransform(iC, xf); _centerMm.SetInstanceCustomData(iC, custom); iC++; }
+            else { _houseMm.SetInstanceTransform(iH, xf); _houseMm.SetInstanceCustomData(iH, custom); iH++; }
         }
+        _centerMm.VisibleInstanceCount = iC;
+        _houseMm.VisibleInstanceCount = iH;
 
+        // Resources — GPU batched (tree vs gold, foliage wind via INSTANCE_CUSTOM.z)
+        int nTree = 0, nGold = 0;
+        foreach (var r in sim.Resources) if (r.Type == ResourceType.Tree) nTree++; else nGold++;
+        EnsureCapacity(ref _treeMm, ref _capTree, nTree);
+        EnsureCapacity(ref _goldMm, ref _capGold, nGold);
+        int iT = 0, iG = 0;
         foreach (SimResource r in sim.Resources)
         {
-            if (_resourceViews.ContainsKey(r.Id)) continue;
-            var node = CreateResourceVisual(r);
-            _resourceViews[r.Id] = node;
-            AddChild(node);
+            Vector3 pos = r.Pos;
+            if (frustum != null && !frustum.IsSphereVisible(new Vector3D(pos.X, pos.Y, pos.Z), 0.8f)) continue;
+            var xf = new Transform3D(Basis.Identity, pos);
+            var custom = new Color(0, 1, r.Type == ResourceType.Tree ? 1f : 0f, 0); // z=wind flag
+            if (r.Type == ResourceType.Tree) { _treeMm.SetInstanceTransform(iT, xf); _treeMm.SetInstanceCustomData(iT, custom); iT++; }
+            else { _goldMm.SetInstanceTransform(iG, xf); _goldMm.SetInstanceCustomData(iG, custom); iG++; }
         }
-        // Remove depleted resources
-        var deadRes = new List<int>();
-        foreach (var kv in _resourceViews) if (!sim.ResourceById.ContainsKey(kv.Key)) deadRes.Add(kv.Key);
-        foreach (int id in deadRes) { _resourceViews[id].QueueFree(); _resourceViews.Remove(id); }
+        _treeMm.VisibleInstanceCount = iT;
+        _goldMm.VisibleInstanceCount = iG;
 
+        // legacy per-node fallback removed — now fully batched; rings stay per-unit (few)
         foreach (var kv in _activeRings)
         {
             if (!sim.UnitById.TryGetValue(kv.Key, out var unit)) continue;
             kv.Value.Position = unit.PrevPos.Lerp(unit.Pos, alpha);
         }
+    }
+
+    private static Frustum BuildFrustum(Camera3D cam)
+    {
+        // Build frustum from camera projection * transform (simplified: use Godot's frustum planes)
+        // Fallback to no-cull if fails
+        try
+        {
+            var frustum = new Frustum();
+            var planes = cam.GetFrustum();
+            frustum.SetNumPlanes(planes.Length);
+            for (int i = 0; i < planes.Length && i < Frustum.MaxPlanes; i++)
+            {
+                var p = planes[i];
+                frustum[i] = new Plane(new Vector3D(p.Normal.X, p.Normal.Y, p.Normal.Z), new Vector3D(cam.GlobalPosition.X, cam.GlobalPosition.Y, cam.GlobalPosition.Z) + new Vector3D(p.D, p.D, p.D)); // approx
+            }
+            return frustum;
+        }
+        catch { return null; }
     }
 
     private static void EnsureCapacity(ref MultiMesh mm, ref int cap, int need)
