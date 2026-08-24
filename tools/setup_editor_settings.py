@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import sys
 from pathlib import Path
 
 def main():
@@ -9,6 +10,10 @@ def main():
     android_home = os.environ.get("ANDROID_HOME", "/usr/local/lib/android/sdk")
     java_home = os.environ.get("JAVA_HOME", "")
     debug_keystore = str(Path.home() / ".android" / "debug.keystore")
+
+    print(f"[setup_editor_settings] ANDROID_HOME={android_home}")
+    print(f"[setup_editor_settings] JAVA_HOME={java_home}")
+    print(f"[setup_editor_settings] debug_keystore={debug_keystore}")
 
     content = f"""[gd_resource type="EditorSettings" format=3]
 
