@@ -32,30 +32,51 @@ See **`docs/BUILD.md`** — export presets for Windows/Linux/Android/iOS, `tools
 
 **Current status & priorities: see `docs/NEXT_STEPS.md`.**
 
-## Architecture
+## Architecture — mirrors 0 A.D. (`../0ad/source/...`)
+
 ```
-scripts/
+src/
   Main.cs                    Glue: input gestures -> serializable commands -> GameSim; fixed-step loop
-  core/
-    GameSim.cs               Pure simulation (no Godot Nodes): movement, spatial hash, parallel separation, economy
-    Commands.cs              Serializable player commands (Move, BuildHouse) with binary encode/decode -> netcode-ready
-    SimTypes.cs              Plain sim data (SimUnit, SimBuilding)
-  presentation/
-    WorldView.cs             Reads sim state only; MultiMesh batched unit rendering, selection ring pool
-  CameraRig.cs               RTS camera: pan/rotate/zoom rig with child perspective Camera3D
-  SelectionRect.cs           Draws the drag-selection rectangle (Control._Draw)
+  App/
+    CameraRig.cs             RTS camera rig (thronefall: soft shadows, pastel sky)
+    SelectionRect.cs         Drag-selection rectangle (Control._Draw)
+  Core/
+    Maths/                   Deterministic math — ported from 0 A.D.
+      Fixed.cs               source/maths/Fixed.h          (CFixed_15_16, 15.16)
+      FixedVector2D.cs       source/maths/FixedVector2D.h
+      Sqrt.cs                source/maths/Sqrt.cpp (isqrt64)
+      Grid.cs                source/simulation2/helpers/Grid.h (Grid/SparseGrid)
+    Pathfinding/             Ported from simulation2/helpers/
+      PathGoal.cs            PathGoal.h — point/circle/square goals
+      HierarchicalPathfinder.cs  HierarchicalPathfinder.h/.cpp — chunk regions + MakeGoalReachable
+      LongPathfinder.cs      LongPathfinder.cpp — A* 8-dir (10/14), PriorityQueue, Deterministic
+    Simulation/              Deterministic sim (no Godot Nodes) — host-authoritative now, lockstep-ready
+      SimTypes.cs            SimUnit/SimBuilding/SimResource + Team enum (helpers/Position.h)
+      GameSim.cs             simulation2/Simulation2.cpp + TurnManager — tick, spatial hash, waves
+      Commands.cs            helpers/SimulationCommand.h — binary serializable Move/Build/Gather/Attack
+      Components/
+        UnitAI.cs            mods/public/simulation/components/UnitAI.js (6652 lines → condensed FSM, stances)
+        Health.cs            Health.js — Hp/regen, TakeDamage
+        Attack.cs            Attack.js — damage types, range, bonuses
+        ResourceSupply.cs    ResourceSupply.js — amount / Infinite
+        ResourceGatherer.cs  ResourceGatherer.js — rates/capacities/Carry
+        Obstruction.cs       CCmpObstruction — grid footprint blocking
+  Presentation/              Visual only — never writes sim state (ICmpVisual rule)
+    WorldView.cs             Reads sim only; dual MultiMesh (player blue / enemy red) + resource visuals
 scenes/
-  main.tscn                  Root node only; everything is constructed in code for now
-RTS0.csproj/.sln             .NET project files
+  main.tscn                  Root node only (res://src/Main.cs); everything constructed in code
+RTS0.csproj/.sln
 docs/
-  MULTIPLAYER.md             Netcode model, platform matrix, architecture rules
-  PERFORMANCE.md             Multi-core + GPU strategy and hot-path rules
+  0AD_PORTING.md             What was copied from ../0ad and why
+  MULTIPLAYER.md             Host-authoritative model, platform matrix
+  PERFORMANCE.md             Multi-core (Parallel.For) + GPU (MultiMesh, compute) plan
+  BUILD.md / NEXT_STEPS.md
 ```
 
-Key invariants (enforced by structure):
-- `core/` never references Godot Nodes -> threadable, testable off-engine, lockstep-friendly.
-- Every player action is a serializable `GameCommand` applied via `GameSim.Apply` -> the same entry point the network layer will use.
-- Units render as one GPU `MultiMesh` draw call regardless of count.
+Key invariants (from 0 A.D.):
+- `Core/` never references Godot Nodes -> threadable, testable off-engine, lockstep-friendly.
+- Every player action is a serializable `GameCommand` via `GameSim.Apply` -> network `TurnManager` will replay identically.
+- Units = GPU `MultiMesh` (1–2 draw calls) regardless of count — thronefall look via clean lighting, not extra geometry.
 
 ## Roadmap (suggested order)
 1. **Pathfinding** — A*/flow-field on the sim grid inside `GameSim` (deterministic; NOT `NavigationAgent3D`, which is engine-stateful and lockstep-hostile).
