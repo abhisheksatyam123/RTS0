@@ -15,10 +15,12 @@ uniform float ao_strength : hint_range(0,1) = 0.18;
 
 varying vec3 v_vertex;
 varying vec3 v_normal;
+varying vec4 v_custom;
 
 void vertex() {
     v_vertex = VERTEX;
     v_normal = NORMAL;
+    v_custom = INSTANCE_CUSTOM;
     // slight top-face AO via y
     // wind for foliage instances: offset by INSTANCE_CUSTOM.z
     float wind = INSTANCE_CUSTOM.z;
@@ -30,10 +32,10 @@ void vertex() {
 }
 
 void fragment() {
-    float team = clamp(INSTANCE_CUSTOM.x, 0.0, 1.0);
+    float team = clamp(v_custom.x, 0.0, 1.0);
     vec3 base = mix(color_player, color_enemy, team);
     // hp desaturate when wounded
-    float hp = clamp(INSTANCE_CUSTOM.y, 0.0, 1.0);
+    float hp = clamp(v_custom.y, 0.0, 1.0);
     base = mix(base * 0.55, base, hp);
 
     // flat ramp: N·L quantized

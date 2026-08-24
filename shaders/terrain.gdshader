@@ -14,10 +14,12 @@ uniform float fog_strength : hint_range(0,1) = 0.45;
 
 varying vec2 v_uv;
 varying vec3 v_pos;
+varying vec4 v_custom;
 
 void vertex() {
     v_uv = UV * 18.0;
     v_pos = VERTEX;
+    v_custom = INSTANCE_CUSTOM;
 }
 
 void fragment() {
@@ -35,7 +37,7 @@ void fragment() {
     col = mix(col, col * 0.92, grid * 0.25);
 
     // territory tint via INSTANCE_CUSTOM (for batched terrain chunks) or uniform
-    float terr = clamp(INSTANCE_CUSTOM.x * 2.0 - 1.0, -1.0, 1.0); // -1 enemy, +1 player
+    float terr = clamp(v_custom.x * 2.0 - 1.0, -1.0, 1.0); // -1 enemy, +1 player
     vec3 terrCol = terr > 0.0 ? territory_player : territory_enemy;
     col = mix(col, mix(col, terrCol, 0.22), abs(terr) * territory_strength);
 
@@ -44,7 +46,7 @@ void fragment() {
     col *= ao;
 
     // LOS fog via second UV (fog texture sampled in WorldView custom)
-    float fog = clamp(INSTANCE_CUSTOM.y, 0.0, 1.0); // 0 hidden, 0.5 fogged, 1 visible
+    float fog = clamp(v_custom.y, 0.0, 1.0); // 0 hidden, 0.5 fogged, 1 visible
     vec3 fogCol = vec3(0.12, 0.14, 0.18);
     col = mix(fogCol * 0.7, col, mix(0.45, 1.0, fog) * (1.0 - fog_strength * (1.0-fog)));
 
