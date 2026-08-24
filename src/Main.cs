@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using Rts0.Core;
-using Rts0.Core.Diagnostics;
 using Rts0.Presentation;
 
 // Thin glue layer: input gestures -> serializable commands -> GameSim.
