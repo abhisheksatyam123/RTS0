@@ -143,6 +143,9 @@ jobs:
           mkdir -p ~/.android
           keytool -genkeypair -keyalg RSA -alias androiddebugkey -keypass android -storepass android -validity 9999 -keystore ~/.android/debug.keystore -dname "CN=Android Debug,O=Android,C=US" -storetype PKCS12
 
+      - name: Configure Godot editor settings
+        run: python3 tools/setup_editor_settings.py
+
       - name: Install Android build template
         run: |
           mkdir -p android/build
@@ -161,7 +164,6 @@ jobs:
 
       - name: Import + export APK
         run: |
-          rm -rf ~/.config/godot
           echo "=== ENV DEBUG ==="
           echo "JAVA_HOME=$JAVA_HOME"
           echo "ANDROID_HOME=$ANDROID_HOME"
