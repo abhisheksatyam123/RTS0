@@ -1,4 +1,4 @@
-// thronefall flat-ramp + outline — Godot 4.3 forward_plus
+// thronefall flat-ramp + outline -- Godot 4.3 forward_plus
 // Use on MultiMesh units/buildings. Colors via INSTANCE_CUSTOM (r=team, g=hp)
 // Reference: Thronefall low-poly flat + screen-space outline
 shader_type spatial;

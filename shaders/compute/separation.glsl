@@ -1,7 +1,7 @@
 #[compute]
 #version 450
 
-// GPU separation — mirrors GameSim.SeparationPass AccumulatePush
+// GPU separation -- mirrors GameSim.SeparationPass AccumulatePush
 // Input: positions (vec2 xz), Output: forces (vec2)
 
 layout(local_size_x = 64) in;

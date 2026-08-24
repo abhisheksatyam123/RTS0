@@ -1,4 +1,4 @@
-// Thronefall terrain — 3-layer splat + territory tint + LOS fog
+// Thronefall terrain -- 3-layer splat + territory tint + LOS fog
 // Use on PlaneMesh ground. Expects splat via UV2, territory via custom.
 shader_type spatial;
 render_mode blend_mix, depth_draw_opaque, cull_back, diffuse_lambert;
@@ -52,5 +52,5 @@ void fragment() {
 
     ALBEDO = col;
     ROUGHNESS = 0.95;
-    // no normal map — flat thronefall
+    // no normal map -- flat thronefall
 }
