@@ -86,7 +86,6 @@ public partial class WorldView : Node3D
         var mm = new MultiMesh
         {
             TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
-            CustomDataFormat = MultiMesh.CustomDataFormatEnum.Data8bit, // INSTANCE_CUSTOM
             Mesh = new CapsuleMesh { Radius = 0.4f, Height = 1.2f },
             InstanceCount = InitialCapacity,
             VisibleInstanceCount = 0,
@@ -112,7 +111,6 @@ public partial class WorldView : Node3D
         var mm = new MultiMesh
         {
             TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
-            CustomDataFormat = MultiMesh.CustomDataFormatEnum.Data8bit,
             Mesh = new BoxMesh { Size = size },
             InstanceCount = InitialCapacity,
             VisibleInstanceCount = 0,
@@ -131,7 +129,6 @@ public partial class WorldView : Node3D
         var mm = new MultiMesh
         {
             TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
-            CustomDataFormat = MultiMesh.CustomDataFormatEnum.Data8bit,
             Mesh = mesh,
             InstanceCount = InitialCapacity,
             VisibleInstanceCount = 0,
@@ -220,19 +217,23 @@ public partial class WorldView : Node3D
         }
     }
 
-    private static Frustum BuildFrustum(Camera3D cam)
+    private static Rts0.Core.Frustum BuildFrustum(Camera3D cam)
     {
-        // Build frustum from camera projection * transform (simplified: use Godot's frustum planes)
-        // Fallback to no-cull if fails
         try
         {
-            var frustum = new Frustum();
-            var planes = cam.GetFrustum();
-            frustum.SetNumPlanes(planes.Length);
-            for (int i = 0; i < planes.Length && i < Frustum.MaxPlanes; i++)
+            var frustum = new Rts0.Core.Frustum();
+            var planes = cam.GetFrustum(); // Godot.Collections.Array<Godot.Plane>
+            int n = planes.Count;
+            frustum.SetNumPlanes(n);
+            for (int i = 0; i < n && i < Rts0.Core.Frustum.MaxPlanes; i++)
             {
-                var p = planes[i];
-                frustum[i] = new Plane(new Vector3D(p.Normal.X, p.Normal.Y, p.Normal.Z), new Vector3D(cam.GlobalPosition.X, cam.GlobalPosition.Y, cam.GlobalPosition.Z) + new Vector3D(p.D, p.D, p.D)); // approx
+                Godot.Plane gp = planes[i];
+                var nrm = new Vector3D(gp.Normal.X, gp.Normal.Y, gp.Normal.Z);
+                var pt = nrm * gp.D;
+                var p = new Rts0.Core.Plane();
+                p.Set(nrm, pt);
+                p.Normalize();
+                frustum[i] = p;
             }
             return frustum;
         }

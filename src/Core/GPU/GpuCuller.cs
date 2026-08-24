@@ -15,17 +15,17 @@ public sealed class GpuCuller
 
     public void UpdateFrustum(Camera3D cam)
     {
-        _frustum = new Frustum();
+        _frustum = new Rts0.Core.Frustum();
         var planes = cam.GetFrustum();
-        _frustum.SetNumPlanes(planes.Length);
-        for (int i = 0; i < planes.Length && i < Frustum.MaxPlanes; i++)
+        int n = planes.Count;
+        _frustum.SetNumPlanes(n);
+        for (int i = 0; i < n && i < Rts0.Core.Frustum.MaxPlanes; i++)
         {
-            var gp = planes[i];
-            var n = new Vector3D(gp.Normal.X, gp.Normal.Y, gp.Normal.Z);
-            // plane point = n * D (Godot D is distance from origin)
-            var pt = n * gp.D;
-            var p = new Plane();
-            p.Set(n, pt);
+            Godot.Plane gp = planes[i];
+            var nrm = new Vector3D(gp.Normal.X, gp.Normal.Y, gp.Normal.Z);
+            var pt = nrm * gp.D;
+            var p = new Rts0.Core.Plane();
+            p.Set(nrm, pt);
             p.Normalize();
             _frustum[i] = p;
         }
