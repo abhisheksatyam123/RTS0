@@ -1,0 +1,20 @@
+[configuration]
+entry_symbol = "rtso_library_init"
+compatibility_minimum = "4.3"
+reloadable = true
+
+[libraries]
+linux.debug.x86_64 = "res://native/bin/librtso.linux.template_debug.x86_64.so"
+linux.template_debug.x86_64 = "res://native/bin/librtso.linux.template_debug.x86_64.so"
+linux.release.x86_64 = "res://native/bin/librtso.linux.template_release.x86_64.so"
+linux.template_release.x86_64 = "res://native/bin/librtso.linux.template_release.x86_64.so"
+windows.debug.x86_64 = "res://native/bin/librtso.windows.template_debug.x86_64.dll"
+windows.release.x86_64 = "res://native/bin/librtso.windows.template_release.x86_64.dll"
+macos.debug = "res://native/bin/librtso.macos.template_debug.framework"
+macos.release = "res://native/bin/librtso.macos.template_release.framework"
+android.debug.arm64 = "res://native/bin/librtso.android.template_debug.arm64.so"
+android.release.arm64 = "res://native/bin/librtso.android.template_release.arm64.so"
+android.debug.x86_64 = "res://native/bin/librtso.android.template_debug.x86_64.so"
+android.release.x86_64 = "res://native/bin/librtso.android.template_release.x86_64.so"
+web.debug.wasm32 = "res://native/bin/librtso.web.template_debug.wasm32.wasm"
+web.release.wasm32 = "res://native/bin/librtso.web.template_release.wasm32.wasm"

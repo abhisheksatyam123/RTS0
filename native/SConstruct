@@ -1,0 +1,56 @@
+#!/usr/bin/env python
+# RTS0 native GDExtension — high-performance C++ simulation & GDExtension nodes
+# Build with: scons target=template_release  or  scons target=template_debug
+# Requires godot-cpp at native/godot-cpp (branch 4.3)
+
+import os
+
+env = SConscript("godot-cpp/SConstruct")
+
+env.Append(CPPPATH=["src"])
+env.Append(CPPFLAGS=["-std=c++20"])
+
+if env["target"] == "template_release":
+    env.Append(CCFLAGS=["-O3", "-DNDEBUG"])
+elif env["target"] == "template_debug":
+    env.Append(CCFLAGS=["-O0", "-g", "-DDEBUG_ENABLED"])
+else:
+    env.Append(CCFLAGS=["-O2", "-g"])
+
+sources = []
+for root, dirs, files in os.walk("src"):
+    # 0ad vendor is reference only — not built (requires 0 A.D. lib stubs, SpiderMonkey, etc.)
+    # Real game uses SoA rewrite in src/sim + src/core with cache-friendly arena/pool.
+    # Vendor files under src/0ad are kept for reference & future porting.
+    if "0ad" in root.split(os.sep):
+        continue
+    for f in files:
+        if f.endswith(".cpp"):
+            sources.append(os.path.join(root, f))
+
+if env["platform"] == "macos":
+    library = env.SharedLibrary(
+        "bin/librtso.{}.{}.framework/librtso.{}.{}".format(
+            env["platform"], env["target"], env["platform"], env["target"]
+        ),
+        source=sources,
+    )
+elif env["platform"] == "ios":
+    if env.get("ios_simulator", False):
+        library = env.StaticLibrary(
+            "bin/librtso.{}.{}.simulator.a".format(env["platform"], env["target"]),
+            source=sources,
+        )
+    else:
+        library = env.StaticLibrary(
+            "bin/librtso.{}.{}.a".format(env["platform"], env["target"]),
+            source=sources,
+        )
+else:
+    library = env.SharedLibrary(
+        "bin/librtso{}{}".format(env["suffix"], env["SHLIBSUFFIX"]),
+        source=sources,
+    )
+
+env.NoCache(library)
+Default(library)

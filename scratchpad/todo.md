@@ -1,33 +1,49 @@
 ## Systems
 
-### Android Readiness Assessment
-1. **Repository & Build Configurations**: **READY**
-   - `export_presets.cfg`: Configured for `Android`, 64-bit architectures (`arm64-v8a`, `x86_64`), Gradle build enabled, launcher icon enabled (`show_as_launcher_app=true`), package name `com.abhisheksatyam123.rts0`.
-   - `project.godot`: Mobile rendering override added (`renderer/rendering_method.mobile="mobile"`), ensuring Vulkan Mobile rendering on Android instead of unsupported desktop Forward+.
-   - C# GPU compute (`SeparationCompute.cs`): Graceful fallback to CPU if Vulkan compute is unavailable on device.
+### 1. Existing C# Architecture (`src/`)
+- Total ~11k LOC across 113 C# files.
+- `Main.cs`: Scene root Node3D. Instantiates `GameSim`, `WorldView`, `DebugOverlay`, UI elements, music, handles mouse/keyboard input (selection, drag rect, building placement mode `B`, movement order `RMB`).
+- `Presentation/`:
+  - `WorldView.cs`: Visual representation of entities (units, buildings, resources, ghosts, footprints), interpolation, selection highlights, camera tracking.
+  - `DebugOverlay.cs`: Performance statistics overlay.
+  - `MiniMapView.cs`: Minimap widget.
+- `App/`:
+  - `CameraRig.cs`: RTS camera movement, zoom, pan.
+  - `SelectionRect.cs`: UI Control drawing drag-selection rectangle.
+- `Core/Assets/`: `Assets.cs`, `Procedural.cs` (mesh generation, materials, shaders).
+- `Core/Diagnostics/`: `Logger.cs`, `PerfTracker.cs`, `CrashHandler.cs`, `BugReporter.cs`.
+- `Core/GPU/`: `SeparationCompute.cs`, `GpuCuller.cs`.
+- `Core/Helpers/`: `Geometry.cs`, `Render.cs`, `Pathfinding.cs`, `Selection.cs`, `Rasterize.cs`, `Los.cs`, `CinemaPath.cs`, `PriorityQueue.cs`, `MapEdgeTiles.cs`.
+- `Core/Maths/`: Vector2D, Vector3D, Matrix3D, Fixed, FixedVector, Grid, Frustum, Bounds, Brush, Sqrt, MD5, NUSpline, Quaternion, Plane, Rect, Ease.
+- `Core/Pathfinding/`: `VertexPathfinder.cs`, `HierarchicalPathfinder.cs`, `LongPathfinder.cs`, `PathGoal.cs`.
+- `Core/Serialization/`: `Serializer.cs`, `HashSerializer.cs`.
+- `Core/Simulation/`: `GameSim.cs`, `Player.cs`, `SimTypes.cs`, `Commands.cs`, 40+ simulation components (Position, Health, UnitMotion, Pathfinder, Attack, ResourceSupply, ResourceGatherer, Builder, Market, Turret, Wall, Dropsite, Upkeep, Auras, etc.).
+- `Core/System/`: `Entity.cs`, `ComponentManager.cs`, `SimContext.cs`, `TurnManager.cs`, `Message.cs`.
 
-2. **CI Pipeline (`.github/workflows/ci.yml`)**: **READY**
-   - GitHub Actions workflow is fully set up for Android export on `workflow_dispatch` (with `android: true`).
-   - Downloads & installs Godot 4.3-stable .NET, export templates (`4.3.stable.mono`), JDK 17, .NET 6.0 SDK, Android SDK platform 34 & build-tools 34.0.0, generates a debug keystore, installs Android build template, and exports `RTS0.apk` downloadable as a build artifact.
+### 2. Existing C++ GDExtension Setup (`native/`)
+- GDExtension binding for Godot 4.3 using `godot-cpp` (v4.3 branch).
+- `SConstruct`: Cross-platform SCons build script supporting Linux, Windows, macOS, Android, iOS, Web.
+- `rts0.gdextension`: Configured for multi-platform shared libraries in `native/bin/`.
+- `native/src/`:
+  - `register_types.h / .cpp`: Entry symbol `rtso_library_init`. Registers GDExtension classes.
+  - `sim/simulation.h / .cpp`: Cache-friendly SoA high-performance C++ simulation (`rtso::Simulation`).
+  - `core/`: `arena.h` (64B-aligned bump allocator, double-buffered `FrameArena`), `pool.h` (ABA-guarded pool), `soa_storage.h` (SoA arrays for units and resources).
+  - `nodes/sim_node.h / .cpp`: GDExtension `RtsoSimNode` extending `Node3D`. Exposes simulation bindings to Godot (spawn_initial, tick, cmd_move, cmd_build_house, get_gold, get_unit_count, etc.).
 
-3. **Local Workstation Environment**: **NEEDS SETUP IF BUILDING LOCALLY**
-   - Godot 4.3 .NET editor binary and .NET 6.0 SDK are not installed on this local workstation PATH.
-   - JDK 17, `adb`, and Android SDK tools are present under `/home/abhi/miniconda3/envs/0ad/`.
+### 3. Removal & Porting Strategy
+- Port all simulation, rendering/presentation, diagnostics, maths, pathfinding, assets, and main node logic into C++ GDExtension classes (and Godot native C++ APIs).
+- Replace `src/Main.cs` with GDExtension node `RtsoMain` (or `RtsoSimNode` extended to handle scene presentation and input) registered with Godot's `ClassDB`.
+- Update `scenes/main.tscn` to attach to the native `RtsoMain` class instead of `res://src/Main.cs`.
+- Delete all C# files (`src/`), `.csproj`, `.sln`, `.godot/mono/`.
+- Remove `.NET` / `mono` configurations from `project.godot`, `export_presets.cfg`, `tools/build.py`, `tools/build.sh`, `.gitignore`.
+- Verify compilation of C++ GDExtension module across debug/release and ensure project imports and runs in Godot without C# / Mono.
 
 ## Tasks
-
-- [x] Audit repo configs (`project.godot`, `export_presets.cfg`, C# code).
-- [x] Fix renderer & launcher configuration for Android.
-- [x] Verify CI pipeline readiness for automated APK creation.
-- [x] Provide readiness report and instructions for building & testing on Android.
-
-### 2026-04 0 A.D. art bake — complete the game
-
-- [x] PMD binary parser (PSMD `source/graphics/ModelDef.cpp` v1-v5, `CFileUnpacker`) + DDS DXT1/5 decoder (fix G6 channel).
-- [x] Actor composer (variant groups, shared `variants/**`, prop attach `root/head/shield/weapon/helmet`, bone-relative `Trs * boneBind`).
-- [x] Player-color bake (`shaders/glsl/model_common.fs` alpha-mask `mix(playerColor,white,tex.a)`) + AO multiply + winding CW->CCW + ground-center normalize.
-- [x] Blender headless validation: 6 GLBs import cleanly, Cycles renders lit (villager blue 1.7m, swordsman red 1.8m w/ helm/shield/xiphos, town_center 5.2m, house 2.1m, oak 4.5m, gold 1.8m).
-- [x] `tools/extract_0ad_assets.py` + `assets/models/manifest.json` (sources, size_meters) + terrain tiles `grass/dirt/rock.png` + `music/{theme,victory,defeat}.ogg`.
-- [x] `src/Core/Assets/Assets.cs` + `src/Presentation/WorldView.cs` real-model path (IsRealModel guard, no mat override, Y-offsets), `src/Main.cs` music + picking fix + ghost real mesh.
-- [x] Docs: `assets/README.md`, `docs/0AD_ATTRIBUTION.md` (art table), `docs/NEXT_STEPS.md` P1+P3 flipped to ✓, generator cli.
-- [ ] Regenerate decision: keep AO bake or lerp 50% (house/civic centre currently dark). Wiring terrain shader to sample `assets/textures/terrain/*.png` (currently stored, not yet sampled) and adding UI/attack sfx from 0ad audio groups are optional polish before showing.
+- [ ] Inspect remaining C# classes in detail to ensure no logic or functionality is missed in C++ native.
+- [ ] Expand native C++ codebase in `native/src/` to cover all game simulation components, math/pathfinding helpers, assets/rendering presentation, camera rig, selection rect, debug overlay, and main node logic (`RtsoMain`).
+- [ ] Update GDExtension bindings (`register_types.cpp`, class registrations, methods, signals, properties).
+- [ ] Test build native C++ extension using SCons (`cd native && scons`).
+- [ ] Update `scenes/main.tscn` to use native GDExtension `RtsoMain` node.
+- [ ] Update `project.godot`, `export_presets.cfg`, `tools/build.py` to remove all .NET/Mono references.
+- [ ] Remove all `.cs` files, `RTS0.csproj`, `RTS0.sln`.
+- [ ] Verify full project build and run using `godot --headless` / test execution.

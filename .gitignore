@@ -10,3 +10,14 @@ assets/imported/
 __pycache__/
 *.pyc
 assets/models/**/*_tex*.png
+# GDExtension build artifacts — rebuilt via SCons, do not commit
+native/bin/
+native/.sconsign.dblite
+native/src/**/*.os
+native/src/**/*.o
+# godot-cpp is a large upstream dependency — fetch via `git clone --branch 4.3 https://github.com/godotengine/godot-cpp.git native/godot-cpp`
+native/godot-cpp/
+# mono/.NET leftover after pure C++ migration
+.mono/
+data_*/
+.mono/
