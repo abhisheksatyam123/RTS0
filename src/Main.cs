@@ -51,14 +51,9 @@ public partial class Main : Node3D
         AddChild(_view);
         Logger.Info("Main", $"Spawned — Gold={_sim.Gold} Units={_sim.Units.Count} Buildings={_sim.Buildings.Count} Resources={_sim.Resources.Count}");
 
-        // auto screenshot for headless verification (can be removed for release)
-        GetTree().CreateTimer(2.0).Timeout += () =>
-        {
-            var img = GetViewport().GetTexture().GetImage();
-            string p = "user://screenshot.png";
-            var err = img.SavePng(p);
-            Logger.Info("Main", $"screenshot saved to {p} err={err} size={img.GetWidth()}x{img.GetHeight()}");
-        };
+        // auto screenshot removed — GetViewport().GetTexture().GetImage() does GPU readback on render thread
+        // and races X11 (xcb_xlib_unknown_req_in_deq) when combined with scrot/import.
+        // Use F12 or tools/debug.sh for manual capture instead.
     }
 
     public override void _Process(double delta)
