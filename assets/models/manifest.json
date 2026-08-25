@@ -1,7 +1,299 @@
 {
+ "animations": {
+  "archer_attack": {
+   "bones": 46,
+   "file": "animations/archer_attack.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 74,
+   "json": "animations/archer_attack.json",
+   "source": "art/animation/biped/infantry/archer/attack_ranged.dae.cached.psa"
+  },
+  "biped_attack": {
+   "bones": 46,
+   "file": "animations/biped_attack.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 29,
+   "json": "animations/biped_attack.json",
+   "source": "art/animation/biped/infantry/swordsman/attack_melee_shield_01.dae.cached.psa"
+  },
+  "biped_death": {
+   "bones": 46,
+   "file": "animations/biped_death.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 36,
+   "json": "animations/biped_death.json",
+   "source": "art/animation/biped/infantry/death_a.dae.cached.psa"
+  },
+  "biped_idle": {
+   "bones": 46,
+   "file": "animations/biped_idle.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 74,
+   "json": "animations/biped_idle.json",
+   "source": "art/animation/biped/infantry/swordsman/idle_relax_shield_01.dae.cached.psa"
+  },
+  "biped_run": {
+   "bones": 46,
+   "file": "animations/biped_run.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 24,
+   "json": "animations/biped_run.json",
+   "source": "art/animation/biped/infantry/swordsman/run_relax_shield.dae.cached.psa"
+  },
+  "biped_walk": {
+   "bones": 46,
+   "file": "animations/biped_walk.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 49,
+   "json": "animations/biped_walk.json",
+   "source": "art/animation/biped/infantry/swordsman/walk_relax_shield.dae.cached.psa"
+  },
+  "carry_ore": {
+   "bones": 46,
+   "file": "animations/carry_ore.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 36,
+   "json": "animations/carry_ore.json",
+   "source": "art/animation/biped/gatherer/carry_ore_m.dae.cached.psa"
+  },
+  "carry_wood": {
+   "bones": 46,
+   "file": "animations/carry_wood.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 36,
+   "json": "animations/carry_wood.json",
+   "source": "art/animation/biped/gatherer/carry_wood_m.dae.cached.psa"
+  },
+  "cavalry_idle": {
+   "bones": 46,
+   "file": "animations/cavalry_idle.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 59,
+   "json": "animations/cavalry_idle.json",
+   "source": "art/animation/biped/rider/cavalry/generic/idle_relax_01.dae.cached.psa"
+  },
+  "cavalry_walk": {
+   "bones": 46,
+   "file": "animations/cavalry_walk.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 49,
+   "json": "animations/cavalry_walk.json",
+   "source": "art/animation/biped/rider/cavalry/generic/walk_relax.dae.cached.psa"
+  },
+  "citizen_idle": {
+   "bones": 46,
+   "file": "animations/citizen_idle.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 74,
+   "json": "animations/citizen_idle.json",
+   "source": "art/animation/biped/citizen/idle_relax_m.dae.cached.psa"
+  },
+  "citizen_walk": {
+   "bones": 46,
+   "file": "animations/citizen_walk.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 49,
+   "json": "animations/citizen_walk.json",
+   "source": "art/animation/biped/citizen/walk_relax_m.dae.cached.psa"
+  },
+  "gather_berries": {
+   "bones": 46,
+   "file": "animations/gather_berries.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 65,
+   "json": "animations/gather_berries.json",
+   "source": "art/animation/biped/gatherer/gather_berries.dae.cached.psa"
+  },
+  "gather_mine": {
+   "bones": 46,
+   "file": "animations/gather_mine.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 70,
+   "json": "animations/gather_mine.json",
+   "source": "art/animation/biped/gatherer/gather_mine.dae.cached.psa"
+  },
+  "gather_wood": {
+   "bones": 46,
+   "file": "animations/gather_wood.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 68,
+   "json": "animations/gather_wood.json",
+   "source": "art/animation/biped/gatherer/gather_wood.dae.cached.psa"
+  }
+ },
  "generator": "tools/extract_0ad_assets.py",
  "license": "CC-BY-SA 3.0 / GPL-2.0 (see docs/0AD_ATTRIBUTION.md)",
  "models": {
+  "archer": {
+   "file": "models/vegetation/archer.glb",
+   "origin": "ground-center",
+   "parts": 9,
+   "size_meters": [
+    0.886,
+    1.8,
+    1.196
+   ],
+   "sources": [
+    "actor:art/actors/props/units/heads/new/head_hele_a.xml",
+    "actor:art/actors/props/units/helmets/hele_straw_01.xml",
+    "actor:art/actors/props/units/quiver_greek_back.xml",
+    "actor:art/actors/props/units/quiver_greek_back_arrows.xml",
+    "actor:art/actors/props/units/shields/pelte_back_wooden.xml",
+    "actor:art/actors/props/units/shields/pelte_cretan_bronze_01.xml",
+    "actor:art/actors/props/units/weapons/arrow_back.xml",
+    "actor:art/actors/props/units/weapons/bow_short.xml",
+    "actor:art/actors/units/athenians/infantry_archer_a.xml",
+    "mesh:props/helmet/hele_straw_01.dae",
+    "mesh:props/new/head_beard_small.dae",
+    "mesh:props/quiver_greek_back.dae",
+    "mesh:props/quiver_greek_back_arrows.dae",
+    "mesh:props/shield/pelte_02_back.dae",
+    "mesh:props/shield/pelte_02_front.dae",
+    "mesh:props/weap_arrow_back.dae",
+    "mesh:props/weapons/bow_greek.dae",
+    "mesh:skeletal/new/m_tunic_short.dae",
+    "skin:props/head/hele_c.dds",
+    "skin:props/helmet/hele_straw_01.png",
+    "skin:props/prop_weap.dds",
+    "skin:props/quiver_greek_b.png",
+    "skin:props/shield/aspis_athen_01.png",
+    "skin:props/shield/celt_round_back.dds",
+    "skin:props/spart_sail_a.png",
+    "skin:skeletal/hele/tunic_03_psiloi_03.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
+  "barracks": {
+   "file": "models/vegetation/barracks.glb",
+   "origin": "ground-center",
+   "parts": 6,
+   "size_meters": [
+    3.865,
+    3.341,
+    4.0
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/athenians/barracks_decor.xml",
+    "actor:art/actors/props/structures/athenians/barracks_props_a.xml",
+    "actor:art/actors/props/structures/athenians/barracks_props_shields.xml",
+    "actor:art/actors/props/structures/athenians/barracks_struct_b.xml",
+    "actor:art/actors/props/structures/athenians/barracks_tile_c.xml",
+    "actor:art/actors/structures/athenians/barracks.xml",
+    "mesh:props/athen_barracks_decor.dae",
+    "mesh:props/athen_barracks_props_a.dae",
+    "mesh:props/athen_barracks_shields.dae",
+    "mesh:props/athen_barracks_struct_b.dae",
+    "mesh:props/athen_barracks_tile_c.dae",
+    "mesh:structural/athen_barracks_struct.dae",
+    "skin:props/athen_prop_shields.png",
+    "skin:props/hele_decor.png",
+    "skin:props/hele_props_a.dds",
+    "skin:props/hele_tile_c.dds",
+    "skin:structural/ao/athen_barracks.png",
+    "skin:structural/hele_struct.dds",
+    "skin:structural/hele_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "cavalry": {
+   "file": "models/vegetation/cavalry.glb",
+   "origin": "ground-center",
+   "parts": 5,
+   "size_meters": [
+    0.476,
+    1.9,
+    1.596
+   ],
+   "sources": [
+    "actor:art/actors/props/horse/cav_rein_leather.xml",
+    "actor:art/actors/props/units/heads/new/head_hele_b.xml",
+    "actor:art/actors/props/units/helmets/hele_straw_01.xml",
+    "actor:art/actors/props/units/weapons/falcata.xml",
+    "actor:art/actors/units/athenians/cavalry_swordsman_b_m.xml",
+    "actor:art/actors/units/athenians/cavalry_swordsman_b_r.xml",
+    "mesh:props/helmet/hele_straw_01.dae",
+    "mesh:props/new/dude_head.dae",
+    "mesh:props/weap_falcata_a.dae",
+    "mesh:skeletal/horse_tessalian.dae",
+    "mesh:skeletal/new/m_tunic_short.dae",
+    "skin:props/head/hele_a.dds",
+    "skin:props/helmet/hele_straw_01.png",
+    "skin:props/prop_weap.dds",
+    "skin:skeletal/hele/tunic_02_03.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "deer": {
+   "file": "models/vegetation/deer.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.311,
+    1.4,
+    1.647
+   ],
+   "sources": [
+    "actor:art/actors/fauna/deer.xml",
+    "mesh:skeletal/deer_mesh.dae",
+    "skin:skeletal/animal_deer_01.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "farmstead": {
+   "file": "models/vegetation/farmstead.glb",
+   "origin": "ground-center",
+   "parts": 4,
+   "size_meters": [
+    3.2,
+    2.419,
+    2.41
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/hellenes/farmstead_hay.xml",
+    "actor:art/actors/props/structures/hellenes/farmstead_plants.xml",
+    "actor:art/actors/props/structures/hellenes/farmstead_props.xml",
+    "actor:art/actors/structures/hellenes/farmstead.xml",
+    "mesh:props/hele_farmstead_hay.dae",
+    "mesh:props/hele_farmstead_nature.dae",
+    "mesh:props/hele_farmstead_props.dae",
+    "mesh:structural/hele_farmstead.dae",
+    "skin:props/hele_props_a.dds",
+    "skin:props/structs_nature.png",
+    "skin:props/wrld_hay_a.dds",
+    "skin:structural/ao/hele_farmstead.png",
+    "skin:structural/hele_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "fortress": {
+   "file": "models/vegetation/fortress.glb",
+   "origin": "ground-center",
+   "parts": 5,
+   "size_meters": [
+    6.0,
+    5.824,
+    5.322
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/athenians/fortress_shields.xml",
+    "actor:art/actors/props/structures/hellenes/fortress_gate_up.xml",
+    "actor:art/actors/props/structures/hellenes/fortress_props_up.xml",
+    "actor:art/actors/props/structures/hellenes/fortress_tile_b.xml",
+    "actor:art/actors/structures/athenians/fortress.xml",
+    "mesh:props/hele_fortress_up_gate.dae",
+    "mesh:props/hele_fortress_up_props.dae",
+    "mesh:props/hele_fortress_up_shields.dae",
+    "mesh:props/hele_fortress_up_tile_b.dae",
+    "mesh:structural/hele_fortress_up.dae",
+    "skin:props/athen_prop_shields.png",
+    "skin:props/hele_gate.png",
+    "skin:props/hele_props_a.dds",
+    "skin:props/hele_tile_b.dds",
+    "skin:structural/ao/hele_fortress.png",
+    "skin:structural/hele_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
   "gold_vein": {
    "file": "models/vegetation/gold_vein.glb",
    "origin": "ground-center",
@@ -50,6 +342,196 @@
    ],
    "upstream_material": "no_trans_ao_parallax_spec.xml"
   },
+  "market": {
+   "file": "models/vegetation/market.glb",
+   "origin": "ground-center",
+   "parts": 5,
+   "size_meters": [
+    4.2,
+    1.787,
+    3.681
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/hellenes/market_decor.xml",
+    "actor:art/actors/props/structures/hellenes/market_props_a.xml",
+    "actor:art/actors/props/structures/hellenes/market_struct_b.xml",
+    "actor:art/actors/props/structures/hellenes/market_tile_c.xml",
+    "actor:art/actors/structures/hellenes/market.xml",
+    "mesh:structural/hele_market_decor.dae",
+    "mesh:structural/hele_market_props_a.dae",
+    "mesh:structural/hele_market_struct.dae",
+    "mesh:structural/hele_market_struct_b.dae",
+    "mesh:structural/hele_market_tile_c.dae",
+    "skin:props/hele_decor.png",
+    "skin:props/hele_props_a.dds",
+    "skin:props/hele_tile_c.dds",
+    "skin:structural/ao/hele_market.png",
+    "skin:structural/hele_struct.dds",
+    "skin:structural/hele_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "palm": {
+   "file": "models/vegetation/palm.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    1.596,
+    4.0,
+    1.62
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/palm_cretan_date.xml",
+    "mesh:gaia/tree_cretan_date_palm_01.dae",
+    "skin:gaia/tree_palm_senegal_a.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "pine": {
+   "file": "models/vegetation/pine.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.249,
+    4.8,
+    3.406
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/pine.xml",
+    "mesh:gaia/tree_pine_02.dae",
+    "skin:gaia/pine.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "ram": {
+   "file": "models/vegetation/ram.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    1.43,
+    1.752,
+    3.0
+   ],
+   "sources": [
+    "actor:art/actors/props/units/shields/props/scutum_rome_boss_02_bronze.xml",
+    "actor:art/actors/props/units/shields/scutum_rome_isw_06.xml",
+    "actor:art/actors/units/romans/siege_ram.xml",
+    "mesh:props/shield/props/scutum_boss_b.dae",
+    "mesh:structural/rome_ram.dae",
+    "skin:props/shield/scutum_rome_boss_01_bronze.png",
+    "skin:structural/rome_ram.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "ruins": {
+   "file": "models/vegetation/ruins.glb",
+   "origin": "ground-center",
+   "parts": 7,
+   "size_meters": [
+    1.15,
+    1.589,
+    2.5
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/hellenes/parth_antefixes.xml",
+    "actor:art/actors/props/structures/hellenes/parth_props.xml",
+    "actor:art/actors/props/structures/hellenes/parth_roof.xml",
+    "actor:art/actors/props/structures/hellenes/parth_steps.xml",
+    "actor:art/actors/props/structures/hellenes/parth_walls.xml",
+    "actor:art/actors/props/structures/platforms/stone_26x55.xml",
+    "actor:art/actors/structures/hellenes/temple_epic.xml",
+    "mesh:props/parth_antefixes.dae",
+    "mesh:props/parth_props.dae",
+    "mesh:props/parth_roof.dae",
+    "mesh:props/parth_steps.dae",
+    "mesh:props/parth_walls.dae",
+    "mesh:props/structural/platform_parth.dae",
+    "mesh:structural/parth_struct.dae",
+    "skin:props/hele_props_a.dds",
+    "skin:props/hele_tile_c.dds",
+    "skin:props/hele_wonder_rooftile.png",
+    "skin:structural/ao/athen_parthenon.png",
+    "skin:structural/hele_blocks.png",
+    "skin:structural/parth_pediment.png",
+    "skin:structural/stone_wall_diff.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "spearman": {
+   "file": "models/vegetation/spearman.glb",
+   "origin": "ground-center",
+   "parts": 4,
+   "size_meters": [
+    0.793,
+    1.8,
+    2.431
+   ],
+   "sources": [
+    "actor:art/actors/props/units/heads/new/head_hele_b.xml",
+    "actor:art/actors/props/units/helmets/hele_pilos.xml",
+    "actor:art/actors/props/units/shields/aspis_athen_b.xml",
+    "actor:art/actors/props/units/shields/props/aspis_back_bronze_01.xml",
+    "actor:art/actors/props/units/shields/props/aspis_handgrip_bronze_01.xml",
+    "actor:art/actors/props/units/weapons/spear_hoplite.xml",
+    "actor:art/actors/units/athenians/infantry_spearman_b.xml",
+    "mesh:props/helmet/hele_pilos_a1.dae",
+    "mesh:props/new/dude_head.dae",
+    "mesh:props/shield/aspis_01_back.dae",
+    "mesh:props/spear_hoplite.dae",
+    "mesh:skeletal/new/m_tunic_short.dae",
+    "skin:props/head/hele_a.dds",
+    "skin:props/helmet/hele_pilos_01_bronze.png",
+    "skin:props/prop_weap.dds",
+    "skin:props/shield/aspis_back_bronze.png",
+    "skin:skeletal/hele/tunic_02_03.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
+  "stone_mine": {
+   "file": "models/vegetation/stone_mine.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    2.0,
+    1.219,
+    1.946
+   ],
+   "sources": [
+    "actor:art/actors/geology/stonemine_granite.xml",
+    "mesh:gaia/temperate_stone_mine_a.dae",
+    "skin:gaia/stone_temperate_01.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "storehouse": {
+   "file": "models/vegetation/storehouse.glb",
+   "origin": "ground-center",
+   "parts": 5,
+   "size_meters": [
+    3.308,
+    3.63,
+    3.4
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/hellenes/storehouse_blocks.xml",
+    "actor:art/actors/props/structures/hellenes/storehouse_props.xml",
+    "actor:art/actors/props/structures/hellenes/storehouse_roof.xml",
+    "actor:art/actors/props/structures/hellenes/storehouse_wood.xml",
+    "actor:art/actors/structures/hellenes/storehouse.xml",
+    "mesh:props/hele_storehouse_blocks.dae",
+    "mesh:props/hele_storehouse_props.dae",
+    "mesh:props/hele_storehouse_roof.dae",
+    "mesh:props/hele_storehouse_wood.dae",
+    "mesh:structural/hele_storehouse.dae",
+    "skin:props/hele_props_a.dds",
+    "skin:props/wood_c.png",
+    "skin:structural/ao/hele_storehouse.png",
+    "skin:structural/hele_struct.dds",
+    "skin:structural/hele_struct_b.png",
+    "skin:structural/rooftiles_broken.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
   "swordsman": {
    "file": "models/units/swordsman.glb",
    "origin": "ground-center",
@@ -90,6 +572,40 @@
     "skin:skeletal/athen/padded_marine_01_01.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
+  },
+  "temple": {
+   "file": "models/vegetation/temple.glb",
+   "origin": "ground-center",
+   "parts": 7,
+   "size_meters": [
+    2.3,
+    3.178,
+    5.0
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/hellenes/parth_antefixes.xml",
+    "actor:art/actors/props/structures/hellenes/parth_props.xml",
+    "actor:art/actors/props/structures/hellenes/parth_roof.xml",
+    "actor:art/actors/props/structures/hellenes/parth_steps.xml",
+    "actor:art/actors/props/structures/hellenes/parth_walls.xml",
+    "actor:art/actors/props/structures/platforms/stone_26x55.xml",
+    "actor:art/actors/structures/hellenes/temple_epic.xml",
+    "mesh:props/parth_antefixes.dae",
+    "mesh:props/parth_props.dae",
+    "mesh:props/parth_roof.dae",
+    "mesh:props/parth_steps.dae",
+    "mesh:props/parth_walls.dae",
+    "mesh:props/structural/platform_parth.dae",
+    "mesh:structural/parth_struct.dae",
+    "skin:props/hele_props_a.dds",
+    "skin:props/hele_tile_c.dds",
+    "skin:props/hele_wonder_rooftile.png",
+    "skin:structural/ao/athen_parthenon.png",
+    "skin:structural/hele_blocks.png",
+    "skin:structural/parth_pediment.png",
+    "skin:structural/stone_wall_diff.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
   "town_center": {
    "file": "models/buildings/town_center.glb",
@@ -165,12 +681,61 @@
     "skin:skeletal/hele/dress_female_01.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
+  },
+  "wall": {
+   "file": "models/vegetation/wall.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    2.0,
+    1.272,
+    0.309
+   ],
+   "sources": [
+    "actor:art/actors/structures/athenians/wall_long.xml",
+    "mesh:structural/athen_wall_long.dae",
+    "skin:structural/ao/hele_wall_long.png",
+    "skin:structural/hele_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "wall_tower": {
+   "file": "models/vegetation/wall_tower.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    2.019,
+    7.34,
+    2.2
+   ],
+   "sources": [
+    "actor:art/actors/geology/decal_stone_medit_a.xml",
+    "actor:art/actors/props/structures/hellenes/wall_turret.xml",
+    "actor:art/actors/structures/hellenes/wall_tower.xml",
+    "mesh:props/hele_wall_tower_props.dae",
+    "mesh:structural/hele_wall_tower.dae",
+    "skin:props/hele_props_a.dds",
+    "skin:structural/ao/hele_wall_tower.png",
+    "skin:structural/hele_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
   }
  },
  "origin": "0 A.D. by Wildfire Games (public mod archive)",
+ "skeletons": {
+  "biped": {
+   "bones": 46,
+   "file": "skeletons/biped.xml",
+   "source": "art/skeletons/biped.xml"
+  }
+ },
  "terrain": {
+  "alpine_snow": "types/alpine_arctic/snow_01.png",
+  "desert_sand": "types/african_savanna/dirt_01.png",
   "dirt": "types/aegean_anatolia/dirt_01.png",
   "grass": "types/aegean_anatolia/grass_01.png",
-  "rock": "types/aegean_anatolia/cliff_01.png"
+  "medit_sand": "types/aegean_anatolia/sand_01.png",
+  "rock": "types/aegean_anatolia/cliff_01.png",
+  "savanna_mud": "types/african_savanna/mud_01.png"
  }
 }

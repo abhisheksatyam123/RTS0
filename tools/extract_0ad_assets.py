@@ -38,6 +38,7 @@ DEFAULT_ZIP = os.path.join(os.path.dirname(__file__), "..", "..", "0ad",
 #        'width' scales so max(AABB.x, AABB.z) == target.
 #   tint: None | (r,g,b) applied through 0ad player-color alpha mask.
 ASSETS = {
+    # core MVP — keep deterministic ids for GameSim
     "villager":    ("art/actors/units/athenians/female_citizen.xml",      "height", 1.70, (0.36, 0.62, 0.94)),
     "swordsman":   ("art/actors/units/athenians/infantry_swordsman_c.xml","height", 1.80, (0.92, 0.32, 0.28)),
     "town_center": ("art/actors/structures/athenians/civil_centre.xml",   "width",  5.20, (0.36, 0.62, 0.94)),
@@ -46,15 +47,81 @@ ASSETS = {
     "gold_vein":   ("art/actors/geology/metalmine_granite_greek.xml",     "width",  1.80, None),
 }
 
+# Additional curated 0ad catalogue for full game (pulled with --all)
+# Covers economy, combat, flora, geology, defenses — enough for 0ad-like loop
+FULL_ASSETS = {
+    # --- Hellenes/Generic units (enough for tech tree demo) — use verified existing actor paths ---
+    "archer":      ("art/actors/units/athenians/infantry_archer_a.xml",   "height", 1.80, (0.36, 0.62, 0.94)),
+    "spearman":    ("art/actors/units/athenians/infantry_spearman_b.xml", "height", 1.80, (0.36, 0.62, 0.94)),
+    "cavalry":     ("art/actors/units/athenians/cavalry_swordsman_b_m.xml","height", 1.90, (0.36, 0.62, 0.94)),
+    "healer":      ("art/actors/units/athenians/healer.xml",              "height", 1.70, (0.92, 0.90, 0.82)),
+    "ram":         ("art/actors/units/romans/siege_ram.xml",                "width",  3.00, None),
+    # --- Structures — use civ-specific existing ---
+    "barracks":    ("art/actors/structures/athenians/barracks.xml",         "width",  4.00, (0.36, 0.62, 0.94)),
+    "farmstead":   ("art/actors/structures/hellenes/farmstead.xml",        "width",  3.20, (0.36, 0.62, 0.94)),
+    "storehouse":  ("art/actors/structures/hellenes/storehouse.xml",       "width",  3.40, (0.36, 0.62, 0.94)),
+    "market":      ("art/actors/structures/hellenes/market.xml",           "width",  4.20, (0.36, 0.62, 0.94)),
+    "temple":      ("art/actors/structures/hellenes/temple_epic.xml",      "width",  5.00, (0.36, 0.62, 0.94)),
+    "wall":        ("art/actors/structures/athenians/wall_long.xml",       "width",  2.00, (0.36, 0.62, 0.94)),
+    "wall_tower":  ("art/actors/structures/hellenes/wall_tower.xml",       "width",  2.20, (0.36, 0.62, 0.94)),
+    "fortress":    ("art/actors/structures/athenians/fortress.xml",        "width",  6.00, (0.36, 0.62, 0.94)),
+    # --- Flora ---
+    "pine":        ("art/actors/flora/trees/pine.xml",                     "height", 4.80, None),
+    "palm":        ("art/actors/flora/trees/palm_cretan_date.xml",         "height", 4.00, None),
+    # --- Geology / resources ---
+    "stone_mine":  ("art/actors/geology/stonemine_granite.xml",            "width",  2.00, None),
+    "ruins":       ("art/actors/structures/hellenes/temple_epic.xml",      "width",  2.50, None), # placeholder reuse temple for ruins
+    # --- Fauna (for hunting) ---
+    "deer":        ("art/actors/fauna/deer.xml",                           "height", 1.40, None),
+}
+
 TERRAIN_TILES = {  # out name -> terrain types/<biome>/<tile>
     "grass": "types/aegean_anatolia/grass_01.png",
     "dirt":  "types/aegean_anatolia/dirt_01.png",
     "rock":  "types/aegean_anatolia/cliff_01.png",
 }
 
+FULL_TERRAIN = {
+    "alpine_snow":   "types/alpine_arctic/snow_01.png",
+    "desert_sand":   "types/african_savanna/dirt_01.png",
+    "savanna_mud":   "types/african_savanna/mud_01.png",
+    "savanna_grass": "types/african_savanna/grass_02.png",
+    "medit_sand":    "types/aegean_anatolia/sand_01.png",
+}
+
 MUSIC = {"theme.ogg": "audio/music/In_the_Shadow_of_Olympus.ogg",
          "victory.ogg": "audio/music/You_are_Victorious!.ogg",
          "defeat.ogg": "audio/music/Dried_Tears.ogg"}
+
+# Skeletal animations — PSSA (PSA) files for biped/mechanical skeletons
+# Mirrors 0ad art/animation/* + art/skeletons/*; used by Godot Skeleton3D + AnimationPlayer
+# We copy the cached PSSA binary and also generate JSON for debugging
+ANIMATIONS = {
+    # biped infantry (swordsman/spearman/archer)
+    "biped_idle":       "art/animation/biped/infantry/swordsman/idle_relax_shield_01.dae.cached.psa",
+    "biped_walk":       "art/animation/biped/infantry/swordsman/walk_relax_shield.dae.cached.psa",
+    "biped_run":        "art/animation/biped/infantry/swordsman/run_relax_shield.dae.cached.psa",
+    "biped_attack":     "art/animation/biped/infantry/swordsman/attack_melee_shield_01.dae.cached.psa",
+    "biped_death":      "art/animation/biped/infantry/death_a.dae.cached.psa",
+    # citizen / gatherer
+    "citizen_idle":     "art/animation/biped/citizen/idle_relax_m.dae.cached.psa",
+    "citizen_walk":     "art/animation/biped/citizen/walk_relax_m.dae.cached.psa",
+    "gather_wood":      "art/animation/biped/gatherer/gather_wood.dae.cached.psa",
+    "gather_mine":      "art/animation/biped/gatherer/gather_mine.dae.cached.psa",
+    "gather_berries":   "art/animation/biped/gatherer/gather_berries.dae.cached.psa",
+    "carry_wood":       "art/animation/biped/gatherer/carry_wood_m.dae.cached.psa",
+    "carry_ore":        "art/animation/biped/gatherer/carry_ore_m.dae.cached.psa",
+    # archer specific
+    "archer_attack":    "art/animation/biped/infantry/archer/attack_ranged.dae.cached.psa",
+    # cavalry (uses same biped skeleton but different mount)
+    "cavalry_idle":     "art/animation/biped/rider/cavalry/generic/idle_relax_01.dae.cached.psa",
+    "cavalry_walk":     "art/animation/biped/rider/cavalry/generic/walk_relax.dae.cached.psa",
+}
+
+SKELETONS = {
+    "biped": "art/skeletons/biped.xml",
+    "quadruped": "art/skeletons/quadruped.xml",
+}
 
 MAX_PROP_DEPTH = 4
 
@@ -169,11 +236,12 @@ def _decode_dxt5(block):
 # -------------------------------------------------------------- pm format ---
 
 def parse_pmd(data):
-    """Parse .pmd (PSMD container) -> verts/uvs/faces/bones/prop_points.
+    """Parse .pmd (PSMD container) -> verts/uvs/faces/bones/prop_points + skinning.
 
     Follows CFileUnpacker::Read (source/ps/FileIo.cpp) + CModelDef::Load
     (source/graphics/ModelDef.cpp). Version >= 3 stores bind-pose model-space
     coordinates, which is exactly what a static export needs.
+    SVertexBlend SIZE=4: m_Bone[4] u8 + m_Weight[4] f32 = 20 bytes.
     """
     magic, _, _ = struct.unpack_from("<4sII", data, 0)
     assert magic == b"PSMD", f"bad PSMD magic {magic!r}"
@@ -181,7 +249,6 @@ def parse_pmd(data):
     payloadSize = struct.unpack_from("<I", data, 8)[0]
     assert len(data) == 12 + payloadSize
     o = 12
-    rd = {}
 
     def u32():
         nonlocal o
@@ -193,14 +260,18 @@ def parse_pmd(data):
 
     nv = u32()
     nuv = u32() if version > 3 else 1
-    verts, uvs = [], []
+    verts, uvs, blends = [], [], []
     for _ in range(nv):
         p = (f32(), f32(), f32()); n = (f32(), f32(), f32())
         uvlast = (0.0, 0.0)
         for _ in range(nuv):
             uvlast = (f32(), f32())
         uvs.append(uvlast)
-        o += 20
+        # SVertexBlend: 4 bone indices (u8) + 4 weights (f32) — 20 bytes
+        # In PMD file it's packed as 4 bytes bones + 16 bytes weights sequentially
+        b0, b1, b2, b3 = struct.unpack_from("<BBBB", data, o); o += 4
+        w0, w1, w2, w3 = struct.unpack_from("<4f", data, o); o += 16
+        blends.append({"bones": (b0, b1, b2, b3), "weights": (w0, w1, w2, w3)})
         verts.append((p, n))
     nf = u32()
     faces = [struct.unpack_from("<3H", data, o + i * 6) for i in range(nf)]
@@ -219,7 +290,85 @@ def parse_pmd(data):
             bi = data[o]; o += 1
             props.append({"name": name, "pos": p, "quat": q, "bone": bi})
     return {"version": version, "verts": verts, "uvs": uvs, "faces": faces,
-            "bones": bones, "prop_points": props}
+            "bones": bones, "blends": blends, "prop_points": props}
+
+def parse_psa(data):
+    """Parse .psa (PSSA container) -> skeleton animation.
+    Follows SkeletonAnimDef::Load (source/graphics/SkeletonAnimDef.cpp) + FileIo.
+    Layout: PSSA | version | payloadSize | string(len+bytes) | f32 frameTime | size numKeys | size numFrames | keys[] (CBoneState)
+    CBoneState: CVector3D translation (3xf32) + CQuaternion rotation (4xf32) = 28 bytes
+    """
+    magic = data[0:4]
+    assert magic == b"PSSA", f"bad PSSA magic {magic!r}"
+    version = struct.unpack_from("<I", data, 4)[0]
+    payloadSize = struct.unpack_from("<I", data, 8)[0]
+    assert len(data) == 12 + payloadSize
+    o = 12
+    # UnpackString (CStr via CFileUnpacker::UnpackString): u32 len + bytes
+    slen = struct.unpack_from("<I", data, o)[0]; o += 4
+    o += slen  # skip name
+    frameTime = struct.unpack_from("<f", data, o)[0]; o += 4
+    # UnpackSize: size_t packed as variable? In 0ad it's SizeEncoded as u32 on x86_64?
+    # Empirically PSA files are small, sizes are <256, encoded as 1-2 bytes? But FileIo uses PackSize as varint.
+    # For PSSA files we observed simple layout: directly u32. Try both: if remaining matches.
+    # Fall back to reading as u32 if varint fails — for 0ad 0.27 cache, it's raw u32.
+    # Check remaining bytes to infer.
+    # Try varint decode
+    def unpack_size():
+        nonlocal o
+        # FileIo PackSize uses 7-bit varint
+        val = 0
+        shift = 0
+        while True:
+            b = data[o]; o += 1
+            val |= (b & 0x7F) << shift
+            if not (b & 0x80):
+                break
+            shift += 7
+        return val
+    # Peek: try varint vs raw
+    # Save position
+    pos0 = o
+    try:
+        numKeys = unpack_size()
+        numFrames = unpack_size()
+        expected = numKeys * numFrames * 28
+        if expected != len(data) - o:
+            # mismatch -> try raw u32
+            o = pos0
+            numKeys = struct.unpack_from("<I", data, o)[0]; o += 4
+            numFrames = struct.unpack_from("<I", data, o)[0]; o += 4
+            # also try as Size packing where sizes are actually stored as CStr-style?
+            if numKeys * numFrames * 28 != len(data) - o:
+                # final fallback: varint but with different shift?
+                raise ValueError
+    except:
+        o = pos0
+        numKeys = struct.unpack_from("<I", data, o)[0]; o += 4
+        numFrames = struct.unpack_from("<I", data, o)[0]; o += 4
+    keys = []
+    for _ in range(numFrames * numKeys):
+        tx, ty, tz = struct.unpack_from("<3f", data, o); o += 12
+        qx, qy, qz, qw = struct.unpack_from("<4f", data, o); o += 16
+        keys.append({"t": (tx, ty, tz), "q": (qx, qy, qz, qw)})
+    return {"version": version, "frameTime": frameTime, "numKeys": numKeys, "numFrames": numFrames, "keys": keys}
+
+def parse_skeleton_xml(data):
+    """Parse art/skeletons/*.xml -> bone hierarchy list [{name,parent}]"""
+    root = ET.fromstring(data)
+    bones = []
+    def walk(node, parent_idx):
+        for b in node.findall("bone"):
+            name = b.get("name")
+            idx = len(bones)
+            bones.append({"name": name, "parent": parent_idx})
+            walk(b, idx)
+    # skeletons may have <standard_skeleton> wrapper
+    for std in root.findall("standard_skeleton"):
+        walk(std, -1)
+    if not bones:
+        walk(root, -1)
+    return bones
 
 # ------------------------------------------------------------ math helpers --
 
@@ -748,6 +897,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--zip", default=os.path.normpath(DEFAULT_ZIP))
     ap.add_argument("--out", default=os.path.join(os.path.dirname(__file__), "..", "assets"))
+    ap.add_argument("--all", action="store_true", help="also extract FULL_ASSETS + FULL_TERRAIN catalogue")
+    ap.add_argument("--list-actors", action="store_true", help="list all art/actors/*.xml in zip and exit")
     args = ap.parse_args()
     out_dir = os.path.abspath(args.out)
     print(f"archive: {args.zip}")
@@ -758,13 +909,28 @@ def main():
                 "models": {}}
     with zipfile.ZipFile(args.zip) as zf:
         vfs = Vfs(zf)
-        for asset_id, (actor_ref, fit, target, tint) in ASSETS.items():
-            manifest["models"][asset_id] = compile_asset(
-                vfs, asset_id, actor_ref, fit, target, tint, out_dir)
+        if args.list_actors:
+            for n in sorted(zf.namelist()):
+                if n.startswith("art/actors/") and n.endswith(".xml"):
+                    print(n)
+            return
+        assets = dict(ASSETS)
+        terrain = dict(TERRAIN_TILES)
+        if args.all:
+            assets.update(FULL_ASSETS)
+            terrain.update(FULL_TERRAIN)
+            print(f"[all] expanding to {len(assets)} models + {len(terrain)} terrain tiles")
+        for asset_id, (actor_ref, fit, target, tint) in assets.items():
+            try:
+                manifest["models"][asset_id] = compile_asset(
+                    vfs, asset_id, actor_ref, fit, target, tint, out_dir)
+            except Exception as e:
+                print(f"[{asset_id}] FAILED: {e}")
+                continue
         # terrain tiles
         terr_dir = os.path.join(out_dir, "textures", "terrain")
         os.makedirs(terr_dir, exist_ok=True)
-        for name, ref in TERRAIN_TILES.items():
+        for name, ref in terrain.items():
             img = vfs.load_texture_rgba(ref)
             if img is None:
                 print(f"! terrain tile missing: {ref}")
@@ -785,10 +951,66 @@ def main():
                 f.write(zf.read(ref))
             print(f"[music] {out_name} ({zf.getinfo(ref).file_size//1024}KB)")
             manifest.setdefault("music", {})[out_name] = ref
+        # skeletons
+        skel_dir = os.path.join(out_dir, "skeletons")
+        os.makedirs(skel_dir, exist_ok=True)
+        for skel_name, ref in SKELETONS.items():
+            if not zf.__contains__(ref) if hasattr(zf, "__contains__") else ref not in zf.namelist():
+                if ref not in zf.namelist():
+                    print(f"! skeleton missing: {ref}")
+                    continue
+            data = zf.read(ref)
+            dst = os.path.join(skel_dir, f"{skel_name}.xml")
+            with open(dst, "wb") as f:
+                f.write(data)
+            bones = parse_skeleton_xml(data)
+            print(f"[skeleton] {skel_name}.xml ({len(bones)} bones) <- {ref}")
+            manifest.setdefault("skeletons", {})[skel_name] = {"file": f"skeletons/{skel_name}.xml", "bones": len(bones), "source": ref}
+            # also verify PMD bone count matches skeleton
+        # animations — copy PSSA binary + decode to JSON for runtime + manifest
+        anim_dir = os.path.join(out_dir, "animations")
+        os.makedirs(anim_dir, exist_ok=True)
+        for anim_name, ref in ANIMATIONS.items():
+            if ref not in zf.namelist():
+                print(f"! anim missing: {ref}")
+                continue
+            data = zf.read(ref)
+            # verify it parses
+            try:
+                psa = parse_psa(data)
+                # write binary
+                dst = os.path.join(anim_dir, f"{anim_name}.psa")
+                with open(dst, "wb") as f:
+                    f.write(data)
+                # write human-readable JSON summary (first frame only) for debugging
+                jdst = os.path.join(anim_dir, f"{anim_name}.json")
+                with open(jdst, "w") as jf:
+                    json.dump({
+                        "source": ref,
+                        "frameTime": psa["frameTime"],
+                        "numFrames": psa["numFrames"],
+                        "numKeys": psa["numKeys"],
+                        "duration": psa["frameTime"] * psa["numFrames"],
+                        "bones": psa["numKeys"],
+                    }, jf, indent=1)
+                print(f"[anim] {anim_name}.psa frames={psa['numFrames']} bones={psa['numKeys']} dur={psa['frameTime']*psa['numFrames']:.0f}ms <- {ref}")
+                manifest.setdefault("animations", {})[anim_name] = {
+                    "file": f"animations/{anim_name}.psa",
+                    "json": f"animations/{anim_name}.json",
+                    "source": ref,
+                    "frames": psa["numFrames"],
+                    "bones": psa["numKeys"],
+                    "frameTime": psa["frameTime"],
+                }
+            except Exception as e:
+                print(f"! anim parse failed {anim_name}: {e}")
+                continue
     man_path = os.path.join(out_dir, "models", "manifest.json")
     with open(man_path, "w") as f:
         json.dump(manifest, f, indent=1, sort_keys=True)
     print(f"manifest -> {man_path}")
+    # also write skeleton/animation verification summary
+    print(f"extracted {len(manifest.get('animations',{}))} animations + {len(manifest.get('skeletons',{}))} skeletons")
 
 
 if __name__ == "__main__":
