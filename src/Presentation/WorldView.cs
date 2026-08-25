@@ -42,6 +42,7 @@ public partial class WorldView : Node3D
     private ShaderMaterial _unitMat;
     private ShaderMaterial _terrainMat;
     private ShaderMaterial _foliageMat;
+    private bool _realUnits, _realBuildings, _realTree, _realGold;
 
     public override void _Ready()
     {
@@ -51,6 +52,10 @@ public partial class WorldView : Node3D
         _terrainMat = Assets.LoadTerrainMaterial() ?? LoadShaderMat("res://shaders/terrain.gdshader");
 
         _capPlayer = _capEnemy = _capCenter = _capHouse = _capTree = _capGold = InitialCapacity;
+        _realUnits = Assets.IsRealModel(Assets.UnitModel("villager")) || Assets.IsRealModel(Assets.UnitModel("swordsman"));
+        _realBuildings = Assets.IsRealModel(Assets.BuildingModel("town_center")) || Assets.IsRealModel(Assets.BuildingModel("house"));
+        _realTree = Assets.IsRealModel(Assets.VegetationModel("tree"));
+        _realGold = Assets.IsRealModel(Assets.VegetationModel("gold_vein"));
         _playerMm = MakeUnitMultiMesh(_unitMat, new Color(0.36f, 0.62f, 0.94f), 0.0f);
         _enemyMm = MakeUnitMultiMesh(_unitMat, new Color(0.92f, 0.32f, 0.28f), 1.0f);
         _centerMm = MakeBuildingMultiMesh(_unitMat, new Vector3(4, 4, 4), false);
@@ -84,9 +89,11 @@ public partial class WorldView : Node3D
 
     private static MultiMesh MakeUnitMultiMesh(ShaderMaterial shaderMat, Color color, float team)
     {
-        string id = team < 0.5f ? "villager" : "swordsman"; // player vs enemy variant via code
+        string id = team < 0.5f ? "villager" : "swordsman"; // player vs enemy — now baked 0ad models per team
         var fallback = new CapsuleMesh { Radius = 0.4f, Height = 1.2f };
-        var mesh = Assets.TryLoadMesh(Assets.UnitModel(id), fallback);
+        string path = Assets.UnitModel(id);
+        bool isReal = Assets.IsRealModel(path);
+        var mesh = Assets.TryLoadMesh(path, fallback);
         var mm = new MultiMesh
         {
             TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
@@ -95,11 +102,11 @@ public partial class WorldView : Node3D
             VisibleInstanceCount = 0,
             UseCustomData = true,
         };
+        if (isReal) return mm; // keep imported StandardMaterial3D with baked player-color + textures
         Material mat;
         if (shaderMat != null)
         {
             mat = (ShaderMaterial)shaderMat.Duplicate();
-            // team encoded via shader param + per-instance custom
             mm.Mesh.SurfaceSetMaterial(0, mat);
         }
         else
@@ -113,8 +120,10 @@ public partial class WorldView : Node3D
     private static MultiMesh MakeBuildingMultiMesh(ShaderMaterial mat, Vector3 size, bool isCenter)
     {
         string id = isCenter ? "town_center" : "house";
+        string path = Assets.BuildingModel(id);
+        bool isReal = Assets.IsRealModel(path);
         var fallback = new BoxMesh { Size = size };
-        var mesh = Assets.TryLoadMesh(Assets.BuildingModel(id), fallback);
+        var mesh = Assets.TryLoadMesh(path, fallback);
         var mm = new MultiMesh
         {
             TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
@@ -123,6 +132,7 @@ public partial class WorldView : Node3D
             VisibleInstanceCount = 0,
             UseCustomData = true,
         };
+        if (isReal) return mm;
         if (mat != null) mm.Mesh.SurfaceSetMaterial(0, (ShaderMaterial)mat.Duplicate());
         else mm.Mesh.SurfaceSetMaterial(0, new StandardMaterial3D { AlbedoColor = new Color(0.72f, 0.64f, 0.52f), Roughness = 0.9f });
         return mm;
@@ -130,11 +140,13 @@ public partial class WorldView : Node3D
 
     private static MultiMesh MakeResourceMultiMesh(ShaderMaterial mat, ResourceType type)
     {
+        string id = type == ResourceType.Tree ? "tree" : "gold_vein";
+        string path = Assets.VegetationModel(id);
+        bool isReal = Assets.IsRealModel(path);
         Mesh fallback = type == ResourceType.Tree
             ? (Mesh)new CylinderMesh { TopRadius = 0.18f, BottomRadius = 0.22f, Height = 1.8f }
             : new BoxMesh { Size = new Vector3(1.2f, 0.8f, 1.2f) };
-        string id = type == ResourceType.Tree ? "tree" : "gold_vein";
-        Mesh mesh = Assets.TryLoadMesh(Assets.VegetationModel(id), fallback);
+        Mesh mesh = Assets.TryLoadMesh(path, fallback);
         var mm = new MultiMesh
         {
             TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
@@ -143,6 +155,7 @@ public partial class WorldView : Node3D
             VisibleInstanceCount = 0,
             UseCustomData = true,
         };
+        if (isReal) return mm;
         if (mat != null) mm.Mesh.SurfaceSetMaterial(0, (ShaderMaterial)mat.Duplicate());
         else mm.Mesh.SurfaceSetMaterial(0, new StandardMaterial3D { AlbedoColor = type == ResourceType.Tree ? new Color(0.18f, 0.55f, 0.22f) : new Color(0.92f, 0.78f, 0.18f) });
         return mm;
@@ -151,7 +164,10 @@ public partial class WorldView : Node3D
     private MeshInstance3D CreateTerrain()
     {
         var plane = new PlaneMesh { Size = new Vector2(GameSim.MapHalfExtent * 2, GameSim.MapHalfExtent * 2), SubdivideWidth = 32, SubdivideDepth = 32 };
-        var mat = _terrainMat ?? (Material)new StandardMaterial3D { AlbedoColor = new Color(0.55f, 0.72f, 0.42f), Roughness = 0.95f };
+        ShaderMaterial tm = _terrainMat;
+        // If 0ad terrain tiles exist, they are referenced by terrain.tres; keep them there — no runtime swap needed.
+        // Fallback for missing noise/textures is handled by the shader (procedural fract).
+        var mat = (Material)tm ?? new StandardMaterial3D { AlbedoColor = new Color(0.55f, 0.72f, 0.42f), Roughness = 0.95f };
         plane.Material = mat;
         return new MeshInstance3D { Mesh = plane, Position = Vector3.Zero };
     }
@@ -169,9 +185,10 @@ public partial class WorldView : Node3D
         EnsureCapacity(ref _enemyMm, ref _capEnemy, nEnemy);
 
         int iP = 0, iE = 0;
+        float unitYOffset = _realUnits ? 0.02f : 0.6f;
         foreach (SimUnit unit in sim.Units)
         {
-            Vector3 pos = unit.PrevPos.Lerp(unit.Pos, alpha) + new Vector3(0, 0.6f, 0);
+            Vector3 pos = unit.PrevPos.Lerp(unit.Pos, alpha) + new Vector3(0, unitYOffset, 0);
             if (frustum != null && !frustum.IsSphereVisible(new Vector3D(pos.X, pos.Y, pos.Z), 0.6f)) continue;
             var xf = new Transform3D(Basis.Identity, pos);
             float hpFrac = unit.MaxHp > 0 ? (float)unit.Hp / unit.MaxHp : 1f;
@@ -190,7 +207,11 @@ public partial class WorldView : Node3D
         int iC = 0, iH = 0;
         foreach (SimBuilding b in sim.Buildings)
         {
-            Vector3 pos = b.BasePos + new Vector3(b.SizeMeters * 0.5f, b.SizeMeters * 0.5f, b.SizeMeters * 0.5f);
+            Vector3 pos;
+            if (_realBuildings)
+                pos = b.BasePos + new Vector3(b.SizeMeters * 0.5f, 0, b.SizeMeters * 0.5f);
+            else
+                pos = b.BasePos + new Vector3(b.SizeMeters * 0.5f, b.SizeMeters * 0.5f, b.SizeMeters * 0.5f);
             if (frustum != null && !frustum.IsBoxVisible(new Vector3D(pos.X, pos.Y, pos.Z), new BoundingBoxAligned(new Vector3D(-b.SizeMeters*0.5f,-b.SizeMeters*0.5f,-b.SizeMeters*0.5f), new Vector3D(b.SizeMeters*0.5f,b.SizeMeters*0.5f,b.SizeMeters*0.5f)))) continue;
             var xf = new Transform3D(Basis.Identity, pos);
             var custom = new Color(b.Team == Team.Player ? 0f : 1f, (float)b.Hp / b.MaxHp, 0f, 0f);
@@ -209,6 +230,8 @@ public partial class WorldView : Node3D
         foreach (SimResource r in sim.Resources)
         {
             Vector3 pos = r.Pos;
+            if (!_realTree && r.Type == ResourceType.Tree) pos += new Vector3(0, 0.9f, 0);
+            if (!_realGold && r.Type == ResourceType.GoldVein) pos += new Vector3(0, 0.4f, 0);
             if (frustum != null && !frustum.IsSphereVisible(new Vector3D(pos.X, pos.Y, pos.Z), 0.8f)) continue;
             var xf = new Transform3D(Basis.Identity, pos);
             var custom = new Color(0, 1, r.Type == ResourceType.Tree ? 1f : 0f, 0); // z=wind flag

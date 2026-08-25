@@ -7,10 +7,30 @@ by Wildfire Games, which is licensed under **GPL-2.0-or-later**.
 
 | RTS0 file | 0 A.D. source | Lines | License |
 |---|---|---|---|
-| `scripts/core/Fixed.cs` | `source/maths/Fixed.h` + `FixedVector2D.h` + `source/maths/Sqrt.cpp` | ~408 + 250 + 48 | GPL-2.0+ |
-| `scripts/core/Grid.cs` | `source/simulation2/helpers/Grid.h` | 412 | GPL-2.0+ |
-| `scripts/core/Pathfinder.cs` | `source/simulation2/helpers/PathGoal.h` + `HierarchicalPathfinder.*` + `LongPathfinder.*` | 84 + 353/865 + 1170 | GPL-2.0+ |
-| `scripts/core/UnitAI.cs` | `binaries/data/mods/public/simulation/components/UnitAI.js` + `CCmpUnitMotion` | 6652 (condensed) | GPL-2.0+ |
+| `src/Core/Maths/Fixed.cs` | `source/maths/Fixed.h` + `FixedVector2D.h` + `source/maths/Sqrt.cpp` | ~408 + 250 + 48 | GPL-2.0+ |
+| `src/Core/Maths/Grid.cs` | `source/simulation2/helpers/Grid.h` | 412 | GPL-2.0+ |
+| `src/Core/Pathfinding/*` | `source/simulation2/helpers/PathGoal.h` + `HierarchicalPathfinder.*` + `LongPathfinder.*` + `VertexPathfinder` | ~1300 | GPL-2.0+ |
+| `src/Core/Simulation/Components/UnitAI.cs` | `binaries/data/mods/public/simulation/components/UnitAI.js` + `CCmpUnitMotion` | 6652 (condensed) | GPL-2.0+ |
+| `tools/extract_0ad_assets.py` | `source/graphics/ModelDef.cpp` + `source/ps/FileIo.cpp` + `shaders/glsl/model_common.fs` (player-color alpha) | ~650 | GPL-2.0+ |
+
+### Art & audio (CC-BY-SA 3.0, Wildfire Games)
+
+| RTS0 asset | 0 A.D. source | Notes |
+|---|---|---|
+| `assets/models/units/villager.glb` | `art/actors/units/athenians/female_citizen.xml` → `skeletal/new/f_dress.dae` + `props/units/heads/...` | player blue baked (`player_trans_norm_spec`) |
+| `assets/models/units/swordsman.glb` | `art/actors/units/athenians/infantry_swordsman_c.xml` → armor + helmet + `xiphos` + `aspis` | enemy red baked |
+| `assets/models/buildings/town_center.glb` | `art/actors/structures/athenians/civil_centre.xml` → `structural/athen_cc_struct` + props | `no_trans_ao_parallax`, ao baked |
+| `assets/models/buildings/house.glb` | `art/actors/structures/hellenes/house.xml` (variant D) → `hele_house_d` + `shields/nature/decor` | `no_trans_ao_parallax`, ao baked |
+| `assets/models/vegetation/tree.glb` | `art/actors/flora/trees/oak_new.xml` → `gaia/tree_oak_new_a/c_top_a` | `basic_trans_wind`, alpha-mask canopy |
+| `assets/models/vegetation/gold_vein.glb` | `art/actors/geology/metalmine_granite_greek.xml` → `gaia/stonemine_granite_a` | rock formation for carry anim |
+| `assets/textures/terrain/grass.png` | `art/textures/terrain/types/aegean_anatolia/grass_01` | 512 tiled |
+| `assets/textures/terrain/dirt.png` | `.../dirt_01` | |
+| `assets/textures/terrain/rock.png` | `.../cliff_01` | |
+| `assets/music/theme.ogg` | `audio/music/In_the_Shadow_of_Olympus.ogg` | ambient loop |
+| `assets/music/victory.ogg` | `audio/music/You_are_Victorious!.ogg` | stinger |
+| `assets/music/defeat.ogg` | `audio/music/Dried_Tears.ogg` | |
+
+Sources manifest: `assets/models/manifest.json` (hash of each `actor/mesh/skin` ref).
 
 All ported files retain the original GPL header:
 

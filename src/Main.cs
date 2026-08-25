@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using Rts0.Core;
+using Rts0.Core.Assets;
 using Rts0.Presentation;
 
 // Thin glue layer: input gestures -> serializable commands -> GameSim.
@@ -20,6 +21,7 @@ public partial class Main : Node3D
     private MeshInstance3D _ghost;
     private StandardMaterial3D _ghostMatOk;
     private StandardMaterial3D _ghostMatBad;
+    private AudioStreamPlayer _musicPlayer;
 
     private bool _buildMode;
     private readonly HashSet<int> _selectedIds = new();
@@ -43,6 +45,7 @@ public partial class Main : Node3D
 
         BuildWorld();
         BuildUi();
+        BuildMusic();
         _sim.SpawnInitial();
         _view = new WorldView();
         AddChild(_view);
@@ -75,7 +78,8 @@ public partial class Main : Node3D
         {
             Vector2I cell = MouseCell(GetViewport().GetMousePosition());
             Vector3 center = CellCenter(cell);
-            _ghost.GlobalPosition = center + Vector3.Up * 0.9f;
+            bool realHouse = Assets.IsRealModel(Assets.BuildingModel("house"));
+            _ghost.GlobalPosition = center + (realHouse ? Vector3.Zero : Vector3.Up * 0.9f);
             bool valid = _sim.Gold >= GameSim.HouseCost && _sim.CanPlace(cell, isCenter: false);
             _ghost.MaterialOverride = valid ? _ghostMatOk : _ghostMatBad;
         }
@@ -111,10 +115,11 @@ public partial class Main : Node3D
                 _dragStart = mb.Position;
                 _selRect.SetRect(new Rect2(_dragStart, Vector2.Zero), true);
 
-                SimUnit picked = PickUnit(mb.Position);
+                        SimUnit picked = PickUnit(mb.Position);
                 _clickedEmpty = picked == null;
                 ClearSelection();
                 if (picked != null) Select(picked.Id);
+                // Update ghost preview for build mode right away
             }
             else if (mb.ButtonIndex == MouseButton.Left && !mb.Pressed && _dragging)
             {
@@ -192,6 +197,32 @@ public partial class Main : Node3D
         _cam = cam3d;
     }
 
+    private void BuildMusic()
+    {
+        // 0 A.D. soundtrack: theme loop, CC-BY-SA (see docs/0AD_ATTRIBUTION.md)
+        _musicPlayer = new AudioStreamPlayer { Name = "Music", Bus = "Master", Autoplay = false };
+        string[] candidates = { "res://assets/music/theme.ogg", "res://assets/music/victory.ogg" };
+        foreach (string p in candidates)
+        {
+            if (ResourceLoader.Exists(p))
+            {
+                var stream = GD.Load<AudioStream>(p);
+                if (stream != null)
+                {
+                    if (stream is AudioStreamOggVorbis ogg) ogg.Loop = true;
+                    _musicPlayer.Stream = stream;
+                    _musicPlayer.VolumeDb = -10.0f;
+                    AddChild(_musicPlayer);
+                    _musicPlayer.Play();
+                    Logger.Info("Main", $"Music playing: {p}");
+                    return;
+                }
+            }
+        }
+        Logger.Info("Main", "No music asset found — running silently");
+        AddChild(_musicPlayer);
+    }
+
     private void BuildUi()
     {
         var uiLayer = new CanvasLayer { Name = "UI" };
@@ -246,12 +277,14 @@ public partial class Main : Node3D
 
     private SimUnit PickUnit(Vector2 mousePos)
     {
+        bool real = Rts0.Core.Assets.Assets.IsRealModel(Rts0.Core.Assets.Assets.UnitModel("villager"));
+        float yOff = real ? 0.9f : 0.6f;
         SimUnit best = null;
         float bestDist = PickRadiusPx;
         foreach (SimUnit unit in _sim.Units)
         {
             if (unit.Team != Team.Player) continue;
-            Vector2 screenPos = _cam.UnprojectPosition(unit.Pos + Vector3.Up * 0.6f);
+            Vector2 screenPos = _cam.UnprojectPosition(unit.Pos + Vector3.Up * yOff);
             float dist = screenPos.DistanceTo(mousePos);
             if (dist < bestDist)
             {
@@ -264,12 +297,14 @@ public partial class Main : Node3D
 
     private SimUnit PickEnemyUnit(Vector2 mousePos)
     {
+        bool real = Rts0.Core.Assets.Assets.IsRealModel(Rts0.Core.Assets.Assets.UnitModel("swordsman"));
+        float yOff = real ? 0.9f : 0.6f;
         SimUnit best = null;
         float bestDist = PickRadiusPx;
         foreach (SimUnit unit in _sim.Units)
         {
             if (unit.Team != Team.Enemy) continue;
-            Vector2 screenPos = _cam.UnprojectPosition(unit.Pos + Vector3.Up * 0.6f);
+            Vector2 screenPos = _cam.UnprojectPosition(unit.Pos + Vector3.Up * yOff);
             float dist = screenPos.DistanceTo(mousePos);
             if (dist < bestDist) { bestDist = dist; best = unit; }
         }
@@ -278,11 +313,14 @@ public partial class Main : Node3D
 
     private SimResource PickResource(Vector2 mousePos)
     {
+        bool realTree = Rts0.Core.Assets.Assets.IsRealModel(Rts0.Core.Assets.Assets.VegetationModel("tree"));
+        bool realGold = Rts0.Core.Assets.Assets.IsRealModel(Rts0.Core.Assets.Assets.VegetationModel("gold_vein"));
         SimResource best = null;
         float bestDist = PickRadiusPx * 1.2f;
         foreach (SimResource res in _sim.Resources)
         {
-            Vector2 screenPos = _cam.UnprojectPosition(res.Pos + Vector3.Up * 0.8f);
+            float yOff = res.Type == ResourceType.Tree ? (realTree ? 1.2f : 0.8f) : (realGold ? 0.3f : 0.4f);
+            Vector2 screenPos = _cam.UnprojectPosition(res.Pos + Vector3.Up * yOff);
             float dist = screenPos.DistanceTo(mousePos);
             if (dist < bestDist) { bestDist = dist; best = res; }
         }
@@ -305,11 +343,13 @@ public partial class Main : Node3D
 
     private void SelectBox(Rect2 rect)
     {
+        bool real = Rts0.Core.Assets.Assets.IsRealModel(Rts0.Core.Assets.Assets.UnitModel("villager"));
+        float yOff = real ? 0.9f : 0.6f;
         ClearSelection();
         foreach (SimUnit unit in _sim.Units)
         {
             if (unit.Team != Team.Player) continue;
-            Vector2 screenPos = _cam.UnprojectPosition(unit.Pos + Vector3.Up * 0.6f);
+            Vector2 screenPos = _cam.UnprojectPosition(unit.Pos + Vector3.Up * yOff);
             if (rect.HasPoint(screenPos)) Select(unit.Id);
         }
     }
@@ -355,11 +395,13 @@ public partial class Main : Node3D
         if (enabled)
         {
             ClearSelection();
-            _ghost = new MeshInstance3D
-            {
-                Mesh = new BoxMesh { Size = new Vector3(GameSim.Grid, 1.8f, GameSim.Grid) },
-                MaterialOverride = _ghostMatOk,
-            };
+            Mesh ghostMesh;
+            string housePath = Rts0.Core.Assets.Assets.BuildingModel("house");
+            if (Rts0.Core.Assets.Assets.IsRealModel(housePath))
+                ghostMesh = Rts0.Core.Assets.Assets.TryLoadMesh(housePath, new BoxMesh { Size = new Vector3(GameSim.Grid, 1.8f, GameSim.Grid) });
+            else
+                ghostMesh = new BoxMesh { Size = new Vector3(GameSim.Grid, 1.8f, GameSim.Grid) };
+            _ghost = new MeshInstance3D { Mesh = ghostMesh, MaterialOverride = _ghostMatOk };
             AddChild(_ghost);
         }
         else

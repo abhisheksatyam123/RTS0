@@ -1,0 +1,176 @@
+{
+ "generator": "tools/extract_0ad_assets.py",
+ "license": "CC-BY-SA 3.0 / GPL-2.0 (see docs/0AD_ATTRIBUTION.md)",
+ "models": {
+  "gold_vein": {
+   "file": "models/vegetation/gold_vein.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    1.301,
+    0.565,
+    1.8
+   ],
+   "sources": [
+    "actor:art/actors/geology/metalmine_granite_greek.xml",
+    "mesh:gaia/stonemine_granite_a.dae",
+    "skin:gaia/metal_granite_greek.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "house": {
+   "file": "models/buildings/house.glb",
+   "origin": "ground-center",
+   "parts": 6,
+   "size_meters": [
+    2.1,
+    2.053,
+    2.063
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/hellenes/house_d_decor.xml",
+    "actor:art/actors/props/structures/hellenes/house_d_nature.xml",
+    "actor:art/actors/props/structures/hellenes/house_d_props_a.xml",
+    "actor:art/actors/props/structures/hellenes/house_d_shields.xml",
+    "actor:art/actors/props/structures/hellenes/house_d_struct.xml",
+    "actor:art/actors/structures/hellenes/house.xml",
+    "mesh:props/hele_house_d_decor.dae",
+    "mesh:props/hele_house_d_nature.dae",
+    "mesh:props/hele_house_d_props_a.dae",
+    "mesh:props/hele_house_d_shields.dae",
+    "mesh:props/hele_house_d_struct.dae",
+    "mesh:structural/hele_house_d.dae",
+    "skin:props/hele_decor.png",
+    "skin:props/hele_props_a.dds",
+    "skin:props/hele_props_b.dds",
+    "skin:props/structs_nature.png",
+    "skin:structural/ao/hele_house_d.png",
+    "skin:structural/hele_struct.dds",
+    "skin:structural/hele_struct_b.png"
+   ],
+   "upstream_material": "no_trans_ao_parallax_spec.xml"
+  },
+  "swordsman": {
+   "file": "models/units/swordsman.glb",
+   "origin": "ground-center",
+   "parts": 7,
+   "size_meters": [
+    0.795,
+    1.8,
+    1.062
+   ],
+   "sources": [
+    "actor:art/actors/props/units/heads/new/head_hele_b.xml",
+    "actor:art/actors/props/units/helmets/hele_thracian_b2_crested.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_bronze_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_01.xml",
+    "actor:art/actors/props/units/shields/aspis_athen_m.xml",
+    "actor:art/actors/props/units/shields/props/aspis_apron_athen_02.xml",
+    "actor:art/actors/props/units/shields/props/aspis_back_bronze_01.xml",
+    "actor:art/actors/props/units/shields/props/aspis_handgrip_bronze_01.xml",
+    "actor:art/actors/props/units/weapons/sheath_xiphos_e.xml",
+    "actor:art/actors/props/units/weapons/xiphos.xml",
+    "actor:art/actors/units/athenians/infantry_swordsman_c.xml",
+    "mesh:props/helmet/hele_thracian_b.dae",
+    "mesh:props/helmet/props/hele_crest_a.dae",
+    "mesh:props/helmet/props/hele_crest_hair_a.dae",
+    "mesh:props/new/dude_head.dae",
+    "mesh:props/shield/aspis_01_back.dae",
+    "mesh:props/weap_xiphos_a.dae",
+    "mesh:props/weapons/sheath_xiphos.dae",
+    "mesh:skeletal/new/m_armor_tunic_short.dae",
+    "mesh:skeletal/new/m_tunic_short.dae",
+    "skin:props/head/hele_a.dds",
+    "skin:props/helmet/crest_01_bronze.png",
+    "skin:props/helmet/hele_thracian_02_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds",
+    "skin:props/prop_weap.dds",
+    "skin:props/sheaths/xiphos_red.png",
+    "skin:props/shield/aspis_back_bronze.png",
+    "skin:skeletal/athen/padded_marine_01_01.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
+  "town_center": {
+   "file": "models/buildings/town_center.glb",
+   "origin": "ground-center",
+   "parts": 8,
+   "size_meters": [
+    5.2,
+    3.315,
+    5.039
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/athenians/civic_centre_decor.xml",
+    "actor:art/actors/props/structures/athenians/civic_centre_nature.xml",
+    "actor:art/actors/props/structures/athenians/civic_centre_props_a.xml",
+    "actor:art/actors/props/structures/athenians/civic_centre_roundroof.xml",
+    "actor:art/actors/props/structures/athenians/civic_centre_shields.xml",
+    "actor:art/actors/props/structures/athenians/civic_centre_tiles.xml",
+    "actor:art/actors/props/structures/athenians/civic_centre_trees.xml",
+    "actor:art/actors/structures/athenians/civil_centre.xml",
+    "mesh:structural/athen_cc_decor.dae",
+    "mesh:structural/athen_cc_nature_transp.dae",
+    "mesh:structural/athen_cc_propsa.dae",
+    "mesh:structural/athen_cc_round_roof.dae",
+    "mesh:structural/athen_cc_shields.dae",
+    "mesh:structural/athen_cc_struct.dae",
+    "mesh:structural/athen_cc_tiles_b.dae",
+    "mesh:structural/athen_cc_trees.dae",
+    "skin:gaia/tree_cypress_f.png",
+    "skin:props/athen_prop_shields.png",
+    "skin:props/hele_decor.png",
+    "skin:props/hele_props_a.dds",
+    "skin:props/hele_tile_b.dds",
+    "skin:props/structs_nature.png",
+    "skin:structural/ao/athen_civic_centre.png",
+    "skin:structural/hele_struct.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "tree": {
+   "file": "models/vegetation/tree.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    3.435,
+    4.5,
+    3.062
+   ],
+   "sources": [
+    "actor:art/actors/flora/trees/oak_new.xml",
+    "actor:art/actors/flora/trees/oak_new_top_a.xml",
+    "mesh:gaia/tree_oak_new_a.dae",
+    "mesh:gaia/tree_oak_new_top_a.dae",
+    "skin:gaia/tree_dead.dds",
+    "skin:gaia/tree_oak_c.dds"
+   ],
+   "upstream_material": "basic_trans_wind_norm_spec.xml"
+  },
+  "villager": {
+   "file": "models/units/villager.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    0.758,
+    1.7,
+    0.341
+   ],
+   "sources": [
+    "actor:art/actors/props/units/heads/new/head_female_dudette_b.xml",
+    "actor:art/actors/units/athenians/female_citizen.xml",
+    "mesh:props/new/dudette_head_b.dae",
+    "mesh:skeletal/new/f_dress.dae",
+    "skin:props/head/kart_fem_a_cin.dds",
+    "skin:skeletal/hele/dress_female_01.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  }
+ },
+ "origin": "0 A.D. by Wildfire Games (public mod archive)",
+ "terrain": {
+  "dirt": "types/aegean_anatolia/dirt_01.png",
+  "grass": "types/aegean_anatolia/grass_01.png",
+  "rock": "types/aegean_anatolia/cliff_01.png"
+ }
+}
