@@ -4,6 +4,9 @@ shader_type spatial;
 render_mode blend_mix, depth_draw_opaque, cull_back, diffuse_lambert;
 
 uniform sampler2D noise_tex : hint_default_black;
+uniform sampler2D grass_tex : hint_default_white; // 0AD aegean_anatolia/grass_01
+uniform sampler2D dirt_tex : hint_default_white;
+uniform sampler2D rock_tex : hint_default_white;
 uniform vec4 grass_col : source_color = vec4(0.55, 0.72, 0.42, 1);
 uniform vec4 dirt_col : source_color = vec4(0.62, 0.55, 0.45, 1);
 uniform vec4 rock_col : source_color = vec4(0.58, 0.59, 0.60, 1);
@@ -28,9 +31,12 @@ void fragment() {
     float n2 = texture(noise_tex, uv * 0.13 + vec2(4.2,1.1)).r;
 
     float splat = n * 0.55 + n2 * 0.45;
-    // 3-stop splat: grass | dirt | rock
-    vec3 col = mix(grass_col.rgb, dirt_col.rgb, smoothstep(0.32, 0.55, splat));
-    col = mix(col, rock_col.rgb, smoothstep(0.68, 0.85, splat));
+    // 3-stop splat: 0AD textures * Thronefall colors (white fallback keeps solid)
+    vec3 grass = texture(grass_tex, uv * 1.2).rgb * grass_col.rgb;
+    vec3 dirt  = texture(dirt_tex,  uv * 1.2).rgb * dirt_col.rgb;
+    vec3 rock  = texture(rock_tex,  uv * 1.2).rgb * rock_col.rgb;
+    vec3 col = mix(grass, dirt, smoothstep(0.32, 0.55, splat));
+    col = mix(col, rock, smoothstep(0.68, 0.85, splat));
 
     // subtle grid hint (Thronefall)
     float grid = smoothstep(0.97, 1.0, max(fract(uv.x), fract(uv.y)));

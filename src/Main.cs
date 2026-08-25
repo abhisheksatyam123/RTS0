@@ -50,6 +50,15 @@ public partial class Main : Node3D
         _view = new WorldView();
         AddChild(_view);
         Logger.Info("Main", $"Spawned — Gold={_sim.Gold} Units={_sim.Units.Count} Buildings={_sim.Buildings.Count} Resources={_sim.Resources.Count}");
+
+        // auto screenshot for headless verification (can be removed for release)
+        GetTree().CreateTimer(2.0).Timeout += () =>
+        {
+            var img = GetViewport().GetTexture().GetImage();
+            string p = "user://screenshot.png";
+            var err = img.SavePng(p);
+            Logger.Info("Main", $"screenshot saved to {p} err={err} size={img.GetWidth()}x{img.GetHeight()}");
+        };
     }
 
     public override void _Process(double delta)

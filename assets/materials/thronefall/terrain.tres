@@ -2,10 +2,16 @@
 
 [ext_resource type="Shader" path="res://shaders/terrain.gdshader" id="1"]
 [ext_resource type="Texture2D" path="res://assets/textures/noise/terrain_noise.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/textures/terrain/grass.png" id="3"]
+[ext_resource type="Texture2D" path="res://assets/textures/terrain/dirt.png" id="4"]
+[ext_resource type="Texture2D" path="res://assets/textures/terrain/rock.png" id="5"]
 
 [resource]
 shader = ExtResource("1")
 shader_parameter/noise_tex = ExtResource("2")
+shader_parameter/grass_tex = ExtResource("3")
+shader_parameter/dirt_tex = ExtResource("4")
+shader_parameter/rock_tex = ExtResource("5")
 shader_parameter/grass_col = Color(0.55, 0.72, 0.42, 1)
 shader_parameter/dirt_col = Color(0.62, 0.55, 0.45, 1)
 shader_parameter/rock_col = Color(0.58, 0.59, 0.6, 1)

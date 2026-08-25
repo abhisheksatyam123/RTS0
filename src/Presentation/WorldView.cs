@@ -186,10 +186,11 @@ public partial class WorldView : Node3D
 
         int iP = 0, iE = 0;
         float unitYOffset = _realUnits ? 0.02f : 0.6f;
+        // DEBUG: disable frustum culling to verify visibility (0AD maps ~60x60, cull may hide)
         foreach (SimUnit unit in sim.Units)
         {
             Vector3 pos = unit.PrevPos.Lerp(unit.Pos, alpha) + new Vector3(0, unitYOffset, 0);
-            if (frustum != null && !frustum.IsSphereVisible(new Vector3D(pos.X, pos.Y, pos.Z), 0.6f)) continue;
+            // if (frustum != null && !frustum.IsSphereVisible(new Vector3D(pos.X, pos.Y, pos.Z), 0.6f)) continue;
             var xf = new Transform3D(Basis.Identity, pos);
             float hpFrac = unit.MaxHp > 0 ? (float)unit.Hp / unit.MaxHp : 1f;
             var custom = new Color(unit.Team == Team.Player ? 0f : 1f, hpFrac, 0f, 0f);
@@ -212,7 +213,7 @@ public partial class WorldView : Node3D
                 pos = b.BasePos + new Vector3(b.SizeMeters * 0.5f, 0, b.SizeMeters * 0.5f);
             else
                 pos = b.BasePos + new Vector3(b.SizeMeters * 0.5f, b.SizeMeters * 0.5f, b.SizeMeters * 0.5f);
-            if (frustum != null && !frustum.IsBoxVisible(new Vector3D(pos.X, pos.Y, pos.Z), new BoundingBoxAligned(new Vector3D(-b.SizeMeters*0.5f,-b.SizeMeters*0.5f,-b.SizeMeters*0.5f), new Vector3D(b.SizeMeters*0.5f,b.SizeMeters*0.5f,b.SizeMeters*0.5f)))) continue;
+            // if (frustum != null && !frustum.IsBoxVisible(new Vector3D(pos.X, pos.Y, pos.Z), new BoundingBoxAligned(new Vector3D(-b.SizeMeters*0.5f,-b.SizeMeters*0.5f,-b.SizeMeters*0.5f), new Vector3D(b.SizeMeters*0.5f,b.SizeMeters*0.5f,b.SizeMeters*0.5f)))) continue;
             var xf = new Transform3D(Basis.Identity, pos);
             var custom = new Color(b.Team == Team.Player ? 0f : 1f, (float)b.Hp / b.MaxHp, 0f, 0f);
             if (b.IsCenter) { _centerMm.SetInstanceTransform(iC, xf); _centerMm.SetInstanceCustomData(iC, custom); iC++; }
@@ -232,7 +233,7 @@ public partial class WorldView : Node3D
             Vector3 pos = r.Pos;
             if (!_realTree && r.Type == ResourceType.Tree) pos += new Vector3(0, 0.9f, 0);
             if (!_realGold && r.Type == ResourceType.GoldVein) pos += new Vector3(0, 0.4f, 0);
-            if (frustum != null && !frustum.IsSphereVisible(new Vector3D(pos.X, pos.Y, pos.Z), 0.8f)) continue;
+            // if (frustum != null && !frustum.IsSphereVisible(new Vector3D(pos.X, pos.Y, pos.Z), 0.8f)) continue;
             var xf = new Transform3D(Basis.Identity, pos);
             var custom = new Color(0, 1, r.Type == ResourceType.Tree ? 1f : 0f, 0); // z=wind flag
             if (r.Type == ResourceType.Tree) { _treeMm.SetInstanceTransform(iT, xf); _treeMm.SetInstanceCustomData(iT, custom); iT++; }

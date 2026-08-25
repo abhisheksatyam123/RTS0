@@ -7,6 +7,6 @@ build/
 assets/imported/
 # Godot imports are generated, not committed (keep repo small)
 *.import
-assets/models/**/*_tex*.png
 __pycache__/
 *.pyc
+assets/models/**/*_tex*.png
