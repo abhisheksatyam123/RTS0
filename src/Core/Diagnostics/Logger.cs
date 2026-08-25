@@ -82,7 +82,8 @@ public static class Logger
     {
         if (level < GetLevel()) return;
         string ts = DateTime.Now.ToString("HH:mm:ss.fff");
-        string formatted = $"[{ts}] [{level.ToString().ToUpper()}] [{tag}] {message}";
+        string tid = System.Threading.Thread.CurrentThread.ManagedThreadId.ToString();
+        string formatted = $"[{ts}] [{level.ToString().ToUpper()}] [{tag}:{tid}] {message}";
         LogEntry entry = new(Time.GetTicksMsec() / 1000.0, level, tag, message, formatted);
 
         List<ILogSink> sinksCopy;

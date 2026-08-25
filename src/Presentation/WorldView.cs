@@ -98,9 +98,9 @@ public partial class WorldView : Node3D
         {
             TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
             Mesh = mesh,
+            UseCustomData = true,
             InstanceCount = InitialCapacity,
             VisibleInstanceCount = 0,
-            UseCustomData = true,
         };
         if (isReal) return mm; // keep imported StandardMaterial3D with baked player-color + textures
         Material mat;
@@ -128,9 +128,9 @@ public partial class WorldView : Node3D
         {
             TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
             Mesh = mesh,
+            UseCustomData = true,
             InstanceCount = InitialCapacity,
             VisibleInstanceCount = 0,
-            UseCustomData = true,
         };
         if (isReal) return mm;
         if (mat != null) mm.Mesh.SurfaceSetMaterial(0, (ShaderMaterial)mat.Duplicate());
@@ -151,9 +151,9 @@ public partial class WorldView : Node3D
         {
             TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
             Mesh = mesh,
+            UseCustomData = true,
             InstanceCount = InitialCapacity,
             VisibleInstanceCount = 0,
-            UseCustomData = true,
         };
         if (isReal) return mm;
         if (mat != null) mm.Mesh.SurfaceSetMaterial(0, (ShaderMaterial)mat.Duplicate());

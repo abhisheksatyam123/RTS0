@@ -86,10 +86,13 @@ public static class CrashHandler
             try { snapshot = _snapshotHook?.Invoke() ?? "(no snapshot hook)"; } catch (Exception se) { snapshot = $"snapshot hook failed: {se}"; }
         }
 
+        string gpu = "unknown";
+        try { gpu = RenderingServer.GetVideoAdapterName() + " / " + RenderingServer.GetVideoAdapterVendor() + " Vulkan=" + RenderingServer.GetVideoAdapterApiVersion(); } catch { }
         string content = $"RTS0 crash dump {ts}\n"
             + $"context: {context}\n"
             + $"terminating: {terminating}\n"
-            + $"os: {OS.GetName()} godot={Engine.GetVersionInfo()["string"]}\n"
+            + $"os: {OS.GetName()} godot={Engine.GetVersionInfo()["string"]} gpu={gpu}\n"
+            + $"build: {OS.GetExecutablePath()} cmdline={string.Join(" ", OS.GetCmdlineArgs())}\n"
             + $"exception: {ex.GetType().FullName}: {ex.Message}\n"
             + $"stack:\n{ex.StackTrace}\n"
             + $"inner: {ex.InnerException}\n"
