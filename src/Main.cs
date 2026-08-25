@@ -227,6 +227,9 @@ public partial class Main : Node3D
     {
         var uiLayer = new CanvasLayer { Name = "UI" };
         AddChild(uiLayer);
+        var mini = new MiniMapView();
+        mini.Bind(_sim, _cam);
+        uiLayer.AddChild(mini);
 
         _selRect = new SelectionRect();
         _selRect.SetAnchorsPreset(Control.LayoutPreset.FullRect);
