@@ -11,8 +11,8 @@
 #include <vector>
 #include <array>
 #include <string>
-#include "../../core/arena.h"
-#include "../../core/pool.h"
+#include "../../core/memory/arena.h"
+#include "../../core/memory/pool.h"
 
 namespace rtso {
 

@@ -4,13 +4,13 @@
 #include <godot_cpp/core/defs.hpp>
 #include <godot_cpp/godot.hpp>
 
-#include "nodes/sim_node.h"
-#include "nodes/main_node.h"
-#include "nodes/camera_rig.h"
-#include "nodes/selection_rect.h"
-#include "nodes/debug_overlay.h"
-#include "nodes/minimap_view.h"
-#include "nodes/world_view_node.h"
+#include "presentation/sim_node.h"
+#include "presentation/main_node.h"
+#include "presentation/camera_rig.h"
+#include "presentation/selection_rect.h"
+#include "presentation/debug_overlay.h"
+#include "presentation/minimap_view.h"
+#include "presentation/world_view_node.h"
 
 using namespace godot;
 

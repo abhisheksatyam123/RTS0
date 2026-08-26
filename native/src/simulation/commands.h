@@ -4,15 +4,15 @@
 // Port of src/Core/Simulation/Commands.cs -> C++ GDExtension
 // Original C# ported from 0 A.D. source/simulation2 & maths — now cache-friendly C++17/20
 // Real 0 A.D. code vendored under native/src/0ad for reference; this header is the high-perf SoA rewrite.
-// See docs/0AD_PORTING.md and native/src/core/arena.h / soa_storage.h for memory strategy.
+// See docs/0AD_PORTING.md and native/s../core/memory/arena.h / soa_storage.h for memory strategy.
 
 #pragma once
 #include <cstdint>
 #include <vector>
 #include <array>
 #include <string>
-#include "../../core/arena.h"
-#include "../../core/pool.h"
+#include "../../core/memory/arena.h"
+#include "../../core/memory/pool.h"
 
 namespace rtso {
 
