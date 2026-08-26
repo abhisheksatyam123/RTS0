@@ -27,10 +27,13 @@ void initialize_rtso_module(ModuleInitializationLevel p_level) {
 	GDREGISTER_CLASS(RtsoWorldView);
 }
 
+#include "graphics/assets/model_library.h"
+
 void uninitialize_rtso_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
 	}
+	rtso::ModelLibrary::clear();
 }
 
 extern "C" {
