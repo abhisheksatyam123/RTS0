@@ -1,0 +1,67 @@
+[gd_scene load_steps=3 format=3 uid="uid://e3z9a1t6o8q4d"]
+
+[ext_resource type="Script" path="res://scenes/session/pause_menu.gd" id="1"]
+
+[node name="PauseMenu" type="CanvasLayer" parent="."]
+visible = false
+script = ExtResource("1")
+
+[node name="Background" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.6)
+visible = false
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+visible = false
+
+[node name="Panel" type="Panel" parent="CenterContainer"]
+custom_minimum_size = Vector2(360, 280)
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="CenterContainer/Panel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+offset_left = 16.0
+offset_top = 16.0
+offset_right = -16.0
+offset_bottom = -16.0
+
+[node name="Title" type="Label" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Paused — 0 A.D. session/Menu.xml"
+horizontal_alignment = 1
+
+[node name="BtnResume" type="Button" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+text = "Resume (ESC)"
+
+[node name="BtnOptions" type="Button" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+text = "Options"
+
+[node name="BtnLobby" type="Button" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+text = "Lobby / Match Settings"
+
+[node name="BtnExit" type="Button" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+text = "Exit to Main Menu"
+
+[connection signal="pressed" from="CenterContainer/Panel/VBox/BtnResume" to="." method="_on_resume_pressed"]
+[connection signal="pressed" from="CenterContainer/Panel/VBox/BtnOptions" to="." method="_on_options_pressed"]
+[connection signal="pressed" from="CenterContainer/Panel/VBox/BtnLobby" to="." method="_on_lobby_pressed"]
+[connection signal="pressed" from="CenterContainer/Panel/VBox/BtnExit" to="." method="_on_exit_pressed"]

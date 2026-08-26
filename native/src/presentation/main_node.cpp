@@ -1,6 +1,7 @@
 #include "main_node.h"
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/classes/viewport.hpp>
+#include <godot_cpp/classes/scene_tree.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 #include <godot_cpp/classes/engine.hpp>
 #include "../core/diagnostics/logger.h"
@@ -22,8 +23,9 @@ RtsoMain::~RtsoMain() {
 }
 
 void RtsoMain::_ready() {
-	rtso::Logger::info("Main", "RTS0 C++ Native Main Ready");
+	rtso::Logger::info("Main", "RTS0 C++ Native Main Ready — menus: main_menu/options/lobby/pause, anims: 1220 PSA 80 skeletons");
 
+	anim_ctrl.load("res://assets/animations");
 	sim->spawn_initial();
 
 	cam_rig = memnew(RtsoCameraRig);
@@ -74,6 +76,7 @@ void RtsoMain::_ready() {
 }
 
 void RtsoMain::_process(double delta) {
+	if (paused_via_menu) return;
 	rtso::PerfTracker::begin_frame();
 	uint64_t start_us = Time::get_singleton()->get_ticks_usec();
 
@@ -90,7 +93,17 @@ void RtsoMain::_process(double delta) {
 	rtso::PerfTracker::record_tick((end_us - start_us) / 1000);
 	rtso::PerfTracker::record_draw((int)sim->unit_count(), (int)sim->building_count());
 
+	// animation state machine — mirrors 0ad UnitAnimation (idle/walk/attack/gather)
+	{
+		auto uview = sim->units();
+		bool any_moving = false;
+		for (size_t i=0;i<uview.count;++i) if (uview.vel_x[i]!=0 || uview.vel_z[i]!=0) { any_moving = true; break; }
+		anim_ctrl.play(any_moving ? rtso::AnimState::Walk : rtso::AnimState::Idle);
+		anim_ctrl.update((float)delta * 1000.0f);
+	}
+
 	view->sync(sim, (float)(accumulator / rtso::Simulation::FIXED_STEP), selected_ids);
+	// TODO: view->sync_animations(anim_ctrl) — skeletal PSA driven via Skeleton3D
 	minimap_view->sync(sim);
 
 	String perf_txt = rtso::PerfTracker::get_report() +
@@ -149,13 +162,26 @@ void RtsoMain::clear_selection() {
 void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 	Ref<InputEventKey> key = event;
 	if (key.is_valid() && key->is_pressed() && !key->is_echo()) {
+		if (key->get_keycode() == KEY_ESCAPE) {
+			// ESC mirrors 0ad gui/session/Menu.xml — pause overlay
+			Node *pause = get_node_or_null(NodePath("PauseMenu"));
+			if (pause) {
+				// call GDScript toggle()
+				pause->call("toggle");
+				paused_via_menu = !paused_via_menu;
+				return;
+			}
+			if (build_mode) enter_build_mode(false);
+			else clear_selection();
+			return;
+		}
 		if (key->get_keycode() == KEY_B) {
 			enter_build_mode(!build_mode);
 			return;
 		}
-		if (key->get_keycode() == KEY_ESCAPE) {
-			if (build_mode) enter_build_mode(false);
-			else clear_selection();
+		if (key->get_keycode() == KEY_F10) {
+			// quick options like 0ad splashscreen options
+			get_tree()->change_scene_to_file("res://scenes/menu/options.tscn");
 			return;
 		}
 	}

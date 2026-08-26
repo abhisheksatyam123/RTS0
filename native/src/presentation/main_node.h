@@ -17,6 +17,7 @@
 #include <godot_cpp/classes/time.hpp>
 
 #include "../simulation/simulation.h"
+#include "../animation/animation_controller.h"
 #include "world_view_node.h"
 #include "camera_rig.h"
 #include "selection_rect.h"
@@ -42,10 +43,12 @@ class RtsoMain : public Node3D {
 
 	bool build_mode = false;
 	bool dragging = false;
+	bool paused_via_menu = false;
 	Vector2 drag_start;
 	PackedInt32Array selected_ids;
 
 	double accumulator = 0.0;
+	rtso::AnimationController anim_ctrl;
 
 protected:
 	static void _bind_methods();

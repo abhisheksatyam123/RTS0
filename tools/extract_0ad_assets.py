@@ -121,6 +121,9 @@ ANIMATIONS = {
 SKELETONS = {
     "biped": "art/skeletons/biped.xml",
     "quadruped": "art/skeletons/quadruped.xml",
+    "camel": "art/skeletons/camel.xml",
+    "elephant": "art/skeletons/elephant.xml",
+    "horse": "art/skeletons/horse.xml",
 }
 
 MAX_PROP_DEPTH = 4
@@ -898,6 +901,8 @@ def main():
     ap.add_argument("--zip", default=os.path.normpath(DEFAULT_ZIP))
     ap.add_argument("--out", default=os.path.join(os.path.dirname(__file__), "..", "assets"))
     ap.add_argument("--all", action="store_true", help="also extract FULL_ASSETS + FULL_TERRAIN catalogue")
+    ap.add_argument("--all-animations", action="store_true", help="extract all 650+ PSA animations (preserves folder structure)")
+    ap.add_argument("--all-skeletons", action="store_true", help="extract all skeletons")
     ap.add_argument("--list-actors", action="store_true", help="list all art/actors/*.xml in zip and exit")
     args = ap.parse_args()
     out_dir = os.path.abspath(args.out)
@@ -954,11 +959,18 @@ def main():
         # skeletons
         skel_dir = os.path.join(out_dir, "skeletons")
         os.makedirs(skel_dir, exist_ok=True)
-        for skel_name, ref in SKELETONS.items():
-            if not zf.__contains__(ref) if hasattr(zf, "__contains__") else ref not in zf.namelist():
-                if ref not in zf.namelist():
-                    print(f"! skeleton missing: {ref}")
-                    continue
+        skels_to_extract = dict(SKELETONS)
+        if args.all or args.all_skeletons:
+            # discover all skeletons in zip
+            for n in zf.namelist():
+                if n.startswith("art/skeletons/") and n.endswith(".xml"):
+                    name = os.path.splitext(os.path.basename(n))[0]
+                    if name not in skels_to_extract:
+                        skels_to_extract[name] = n
+        for skel_name, ref in skels_to_extract.items():
+            if ref not in zf.namelist():
+                print(f"! skeleton missing: {ref}")
+                continue
             data = zf.read(ref)
             dst = os.path.join(skel_dir, f"{skel_name}.xml")
             with open(dst, "wb") as f:
@@ -970,7 +982,19 @@ def main():
         # animations — copy PSSA binary + decode to JSON for runtime + manifest
         anim_dir = os.path.join(out_dir, "animations")
         os.makedirs(anim_dir, exist_ok=True)
-        for anim_name, ref in ANIMATIONS.items():
+        anims_to_extract = dict(ANIMATIONS)
+        if args.all or args.all_animations:
+            # discover all PSA files
+            for n in zf.namelist():
+                if n.startswith("art/animation/") and n.endswith(".psa"):
+                    # keep relative path as key, sanitize
+                    rel = n[len("art/animation/"):-len(".dae.cached.psa")]
+                    # replace slashes with _ for flat file, but preserve hierarchy in manifest
+                    flat = rel.replace("/", "_").replace("\\", "_")
+                    if flat not in anims_to_extract and n not in anims_to_extract.values():
+                        anims_to_extract[flat] = n
+            print(f"[all-animations] discovered {len(anims_to_extract)} total PSA (curated {len(ANIMATIONS)} + discovered)")
+        for anim_name, ref in anims_to_extract.items():
             if ref not in zf.namelist():
                 print(f"! anim missing: {ref}")
                 continue
@@ -978,8 +1002,14 @@ def main():
             # verify it parses
             try:
                 psa = parse_psa(data)
-                # write binary
-                dst = os.path.join(anim_dir, f"{anim_name}.psa")
+                # write binary preserving hierarchy if all-animations
+                if "/" in ref or "\\" in ref:
+                    # use flat name for file but keep source
+                    dst = os.path.join(anim_dir, f"{anim_name}.psa")
+                else:
+                    dst = os.path.join(anim_dir, f"{anim_name}.psa")
+                # ensure parent dir if we preserve hierarchy
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
                 with open(dst, "wb") as f:
                     f.write(data)
                 # write human-readable JSON summary (first frame only) for debugging
@@ -993,7 +1023,11 @@ def main():
                         "duration": psa["frameTime"] * psa["numFrames"],
                         "bones": psa["numKeys"],
                     }, jf, indent=1)
-                print(f"[anim] {anim_name}.psa frames={psa['numFrames']} bones={psa['numKeys']} dur={psa['frameTime']*psa['numFrames']:.0f}ms <- {ref}")
+                # only print curated or first 50 if all
+                if anim_name in ANIMATIONS or len(manifest.get("animations", {})) < 50:
+                    print(f"[anim] {anim_name}.psa frames={psa['numFrames']} bones={psa['numKeys']} dur={psa['frameTime']*psa['numFrames']:.0f}ms <- {ref}")
+                elif len(manifest.get("animations", {})) == 50:
+                    print(f"[anim] ... and {len(anims_to_extract)-50} more (suppressed)")
                 manifest.setdefault("animations", {})[anim_name] = {
                     "file": f"animations/{anim_name}.psa",
                     "json": f"animations/{anim_name}.json",

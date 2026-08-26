@@ -1,0 +1,106 @@
+[gd_scene load_steps=4 format=3 uid="uid://b0v6x8q3l5n1a"]
+
+[ext_resource type="Script" path="res://scenes/menu/main_menu.gd" id="1_1"]
+[ext_resource type="Environment" path="res://scenes/env.tres" id="1"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_1"]
+bg_color = Color(0.12, 0.14, 0.18, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[node name="MainMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_1")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.07, 0.08, 0.12, 1)
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer"]
+layout_mode = 2
+alignment = 1
+
+[node name="Title" type="Label" parent="CenterContainer/VBoxContainer"]
+custom_minimum_size = Vector2(0, 80)
+layout_mode = 2
+theme_override_font_sizes/font_size = 42
+text = "RTS0 — 0 A.D. Reborn"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Subtitle" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.8, 0.9, 1)
+theme_override_font_sizes/font_size = 14
+text = "Pure C++ GDExtension • SoA • Deterministic Lockstep"
+horizontal_alignment = 1
+
+[node name="Spacer" type="Control" parent="CenterContainer/VBoxContainer"]
+custom_minimum_size = Vector2(0, 30)
+layout_mode = 2
+
+[node name="BtnSingle" type="Button" parent="CenterContainer/VBoxContainer"]
+custom_minimum_size = Vector2(320, 48)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Single Player — Skirmish (Gerasa)"
+
+[node name="BtnMulti" type="Button" parent="CenterContainer/VBoxContainer"]
+custom_minimum_size = Vector2(320, 48)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Multiplayer — Host / Join"
+
+[node name="BtnOptions" type="Button" parent="CenterContainer/VBoxContainer"]
+custom_minimum_size = Vector2(320, 48)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Options"
+
+[node name="BtnExit" type="Button" parent="CenterContainer/VBoxContainer"]
+custom_minimum_size = Vector2(320, 48)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Exit"
+
+[node name="Version" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 0
+offset_left = -8
+offset_top = -24
+offset_right = -8
+offset_bottom = -8
+theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(0.6, 0.6, 0.7, 1)
+text = "v0.4.3 • Godot 4.3 • Native SoA"
+horizontal_alignment = 2
+
+[connection signal="pressed" from="CenterContainer/VBoxContainer/BtnSingle" to="." method="_on_single_pressed"]
+[connection signal="pressed" from="CenterContainer/VBoxContainer/BtnMulti" to="." method="_on_multi_pressed"]
+[connection signal="pressed" from="CenterContainer/VBoxContainer/BtnOptions" to="." method="_on_options_pressed"]
+[connection signal="pressed" from="CenterContainer/VBoxContainer/BtnExit" to="." method="_on_exit_pressed"]
