@@ -1,28 +1,28 @@
 # Build & Release Guide
 
-Targets: **Windows, Linux, Android** (automated), **iOS** (macOS-only, gated on .NET support — see `docs/MULTIPLAYER.md` M5).
+Targets: **Windows, Linux, Android** (automated), **iOS** (macOS-only).
 
 ## Version pinning (critical)
 Everything must match:
 | Component | Value |
 |---|---|
-| Godot editor | **4.3-stable (.NET edition)** |
-| Export templates | `Godot_v4.3-stable_mono_export_templates.tpz` from the same release page |
-| `Godot.NET.Sdk` | 4.3.0 (`RTS0.csproj`) |
-| .NET SDK locally | 6.0+ |
+| Godot editor | **4.3-stable (Standard edition)** |
+| Export templates | `Godot_v4.3-stable_export_templates.tpz` from the official release page |
+| C++ Standard | C++20 (`gcc` 11+, `clang` 14+, or MSVC 2022) |
+| SCons | 4.x (Python build tool) |
 
-A version mismatch between editor and templates is the #1 export failure cause.
+> **Note:** RTS0 is built as a pure C++ GDExtension (`native/`). **.NET / C# / Mono SDK is NOT required.**
 
 ## One-time setup per machine
 
 ### All platforms
-1. Download Godot 4.3-stable **.NET** for your OS: https://github.com/godotengine/godot/releases/tag/4.3-stable
-2. Download `Godot_v4.3-stable_mono_export_templates.tpz` from the same page.
+1. Download Godot 4.3-stable **Standard** for your OS: https://github.com/godotengine/godot/releases/tag/4.3-stable
+2. Download `Godot_v4.3-stable_export_templates.tpz` from the same page.
 3. Install templates:
    - Linux/macOS: extract the `.tpz` (it's a zip) and move the inner `templates/` folder to
-     `~/.local/share/godot/export_templates/4.3.mono/`
-   - Windows: `%APPDATA%\Godot\export_templates\4.3.mono\`
-4. Open the project once in the editor; it will restore/build the C# solution.
+     `~/.local/share/godot/export_templates/4.3.stable/`
+   - Windows: `%APPDATA%\Godot\export_templates\4.3.stable\`
+4. Compile the native C++ library with SCons: `cd native && scons platform=linux target=template_release` (or `template_debug`)
 
 ### Android extras
 - Android Studio or command-line SDK with: platform `android-34`, build-tools `34.0.0`

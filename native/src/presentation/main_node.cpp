@@ -2,16 +2,20 @@
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/classes/viewport.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
+#include <godot_cpp/classes/resource_loader.hpp>
+#include <godot_cpp/classes/audio_stream.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 #include <godot_cpp/classes/engine.hpp>
 #include "../core/diagnostics/logger.h"
 #include "../core/diagnostics/perf_tracker.h"
+#include "../graphics/assets/model_library.h"
 
 using namespace godot;
 
 void RtsoMain::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("enter_build_mode", "enable"), &RtsoMain::enter_build_mode);
+	ClassDB::bind_method(D_METHOD("enter_build_mode", "enable", "btype"), &RtsoMain::enter_build_mode, DEFVAL(rtso::BLD_HOUSE));
 	ClassDB::bind_method(D_METHOD("clear_selection"), &RtsoMain::clear_selection);
+	ClassDB::bind_method(D_METHOD("_on_minimap_clicked", "world_pos"), &RtsoMain::_on_minimap_clicked);
 }
 
 RtsoMain::RtsoMain() {
@@ -23,7 +27,7 @@ RtsoMain::~RtsoMain() {
 }
 
 void RtsoMain::_ready() {
-	rtso::Logger::info("Main", "RTS0 C++ Native Main Ready — menus: main_menu/options/lobby/pause, anims: 1220 PSA 80 skeletons");
+	rtso::Logger::info("Main", "RTS0 0 A.D. Reborn Ready — Pure C++ GDExtension");
 
 	anim_ctrl.load("res://assets/animations");
 	sim->spawn_initial();
@@ -44,34 +48,147 @@ void RtsoMain::_ready() {
 	ui_layer->add_child(debug_overlay);
 
 	minimap_view = memnew(RtsoMiniMapView);
+	minimap_view->connect("minimap_clicked", Callable(this, "_on_minimap_clicked"));
 	ui_layer->add_child(minimap_view);
 
-	hud_label = memnew(Label);
-	hud_label->set_position(Vector2(200, 10));
-	ui_layer->add_child(hud_label);
+	// 1. Top HUD Bar Panel (Food, Wood, Gold, Stone, Pop, Waves)
+	top_hud_panel = memnew(Panel);
+	top_hud_panel->set_position(Vector2(20, 12));
+	top_hud_panel->set_size(Vector2(880, 42));
 
-	// Ghost building mesh
-	Ref<BoxMesh> box;
-	box.instantiate();
-	box->set_size(Vector3(1.8f, 1.8f, 1.8f));
+	Ref<StyleBoxFlat> top_style;
+	top_style.instantiate();
+	top_style->set_bg_color(Color(0.08f, 0.09f, 0.13f, 0.88f));
+	top_style->set_corner_radius_all(6);
+	top_style->set_border_width_all(1);
+	top_style->set_border_color(Color(0.35f, 0.35f, 0.42f, 0.8f));
+	top_hud_panel->add_theme_stylebox_override("panel", top_style);
+	ui_layer->add_child(top_hud_panel);
 
+	top_hud_label = memnew(Label);
+	top_hud_label->set_position(Vector2(14, 8));
+	top_hud_label->set_size(Vector2(850, 26));
+	top_hud_label->add_theme_font_size_override("font_size", 14);
+	top_hud_label->add_theme_color_override("font_color", Color(0.95f, 0.95f, 0.98f));
+	top_hud_panel->add_child(top_hud_label);
+
+	// 2. Bottom Inspector Panel (Selected Unit / Building Card)
+	inspector_panel = memnew(Panel);
+	inspector_panel->set_position(Vector2(220, 520));
+	inspector_panel->set_size(Vector2(640, 150));
+
+	Ref<StyleBoxFlat> insp_style;
+	insp_style.instantiate();
+	insp_style->set_bg_color(Color(0.09f, 0.10f, 0.14f, 0.90f));
+	insp_style->set_corner_radius_all(8);
+	insp_style->set_border_width_all(1);
+	insp_style->set_border_color(Color(0.40f, 0.40f, 0.50f, 0.85f));
+	inspector_panel->add_theme_stylebox_override("panel", insp_style);
+	ui_layer->add_child(inspector_panel);
+
+	inspector_title = memnew(Label);
+	inspector_title->set_position(Vector2(16, 12));
+	inspector_title->set_size(Vector2(600, 24));
+	inspector_title->add_theme_font_size_override("font_size", 16);
+	inspector_title->add_theme_color_override("font_color", Color(1.0f, 0.88f, 0.4f));
+	inspector_panel->add_child(inspector_title);
+
+	inspector_info = memnew(Label);
+	inspector_info->set_position(Vector2(16, 40));
+	inspector_info->set_size(Vector2(600, 48));
+	inspector_info->add_theme_font_size_override("font_size", 13);
+	inspector_info->add_theme_color_override("font_color", Color(0.85f, 0.85f, 0.92f));
+	inspector_panel->add_child(inspector_info);
+
+	inspector_actions = memnew(Label);
+	inspector_actions->set_position(Vector2(16, 92));
+	inspector_actions->set_size(Vector2(600, 44));
+	inspector_actions->add_theme_font_size_override("font_size", 13);
+	inspector_actions->add_theme_color_override("font_color", Color(0.4f, 0.95f, 0.6f));
+	inspector_panel->add_child(inspector_actions);
+
+	// 3. Victory / Defeat Overlay Banner
+	banner_panel = memnew(Panel);
+	banner_panel->set_position(Vector2(320, 240));
+	banner_panel->set_size(Vector2(500, 160));
+	banner_panel->set_visible(false);
+
+	Ref<StyleBoxFlat> banner_style;
+	banner_style.instantiate();
+	banner_style->set_bg_color(Color(0.05f, 0.06f, 0.09f, 0.95f));
+	banner_style->set_corner_radius_all(10);
+	banner_style->set_border_width_all(2);
+	banner_style->set_border_color(Color(0.8f, 0.7f, 0.2f, 1.0f));
+	banner_panel->add_theme_stylebox_override("panel", banner_style);
+	ui_layer->add_child(banner_panel);
+
+	banner_label = memnew(Label);
+	banner_label->set_position(Vector2(20, 30));
+	banner_label->set_size(Vector2(460, 100));
+	banner_label->add_theme_font_size_override("font_size", 28);
+	banner_label->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+	banner_panel->add_child(banner_label);
+
+	// 4. Background Music (0 A.D. Theme)
+	if (ResourceLoader::get_singleton()->exists("res://assets/music/theme.ogg")) {
+		Ref<AudioStream> stream = ResourceLoader::get_singleton()->load("res://assets/music/theme.ogg");
+		if (stream.is_valid()) {
+			music_player = memnew(AudioStreamPlayer);
+			music_player->set_stream(stream);
+			music_player->set_autoplay(true);
+			music_player->set_volume_db(-6.0f);
+			add_child(music_player);
+			music_player->play();
+		}
+	}
+
+	// 5. Ghost Building Preview Mesh
 	ghost_mat_ok.instantiate();
-	ghost_mat_ok->set_albedo(Color(0.2f, 0.9f, 0.2f, 0.5f));
+	ghost_mat_ok->set_albedo(Color(0.2f, 0.9f, 0.2f, 0.55f));
 	ghost_mat_ok->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
+	ghost_mat_ok->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
 
 	ghost_mat_bad.instantiate();
-	ghost_mat_bad->set_albedo(Color(0.9f, 0.2f, 0.2f, 0.5f));
+	ghost_mat_bad->set_albedo(Color(0.9f, 0.2f, 0.2f, 0.55f));
 	ghost_mat_bad->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
+	ghost_mat_bad->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
 
 	ghost_mesh = memnew(MeshInstance3D);
-	ghost_mesh->set_mesh(box);
 	ghost_mesh->set_visible(false);
 	add_child(ghost_mesh);
+	update_ghost_mesh();
 
-	// Select initial villagers
+	// Select initial player units
 	auto uview = sim->units();
 	for (size_t i = 0; i < uview.count; ++i) {
 		if (uview.team[i] == 0) selected_ids.push_back((int32_t)uview.id[i]);
+	}
+}
+
+void RtsoMain::_on_minimap_clicked(Vector2 world_pos) {
+	if (cam_rig) {
+		cam_rig->set_target_pos(Vector3(world_pos.x, 0.0f, world_pos.y));
+	}
+}
+
+void RtsoMain::update_ghost_mesh() {
+	if (!ghost_mesh) return;
+	const char *mid = "house";
+	if (current_build_type == rtso::BLD_BARRACKS) mid = "barracks";
+	else if (current_build_type == rtso::BLD_TOWER) mid = "wall_tower";
+	else if (current_build_type == rtso::BLD_STOREHOUSE) mid = "storehouse";
+	else if (current_build_type == rtso::BLD_FARMSTEAD) mid = "farmstead";
+	else if (current_build_type == rtso::BLD_TOWN_CENTER) mid = "town_center";
+
+	const auto &bentry = rtso::ModelLibrary::get("buildings", mid);
+	if (bentry.valid) {
+		ghost_mesh->set_mesh(bentry.mesh);
+		ghost_mesh->set_scale(Vector3(bentry.scale, bentry.scale, bentry.scale));
+	} else {
+		Ref<BoxMesh> box;
+		box.instantiate();
+		box->set_size(Vector3(1.8f, 1.8f, 1.8f));
+		ghost_mesh->set_mesh(box);
 	}
 }
 
@@ -93,18 +210,10 @@ void RtsoMain::_process(double delta) {
 	rtso::PerfTracker::record_tick((end_us - start_us) / 1000);
 	rtso::PerfTracker::record_draw((int)sim->unit_count(), (int)sim->building_count());
 
-	// animation state machine — mirrors 0ad UnitAnimation (idle/walk/attack/gather)
-	{
-		auto uview = sim->units();
-		bool any_moving = false;
-		for (size_t i=0;i<uview.count;++i) if (uview.vel_x[i]!=0 || uview.vel_z[i]!=0) { any_moving = true; break; }
-		anim_ctrl.play(any_moving ? rtso::AnimState::Walk : rtso::AnimState::Idle);
-		anim_ctrl.update((float)delta * 1000.0f);
-	}
-
 	view->sync(sim, (float)(accumulator / rtso::Simulation::FIXED_STEP), selected_ids);
-	// TODO: view->sync_animations(anim_ctrl) — skeletal PSA driven via Skeleton3D
-	minimap_view->sync(sim);
+	if (cam_rig) {
+		minimap_view->sync(sim, cam_rig->get_target_pos());
+	}
 
 	String perf_txt = rtso::PerfTracker::get_report() +
 		" | Tick US: " + String::num_int64(sim->stats().tick_us) +
@@ -113,14 +222,29 @@ void RtsoMain::_process(double delta) {
 
 	update_hud();
 
+	// Update Building Placement Ghost
 	if (build_mode && ghost_mesh) {
 		Vector2 mouse_pos = get_viewport()->get_mouse_position();
 		auto [cell_x, cell_y] = mouse_cell(mouse_pos);
-		Vector3 center((cell_x + 0.5f) * rtso::Simulation::GRID, 0.9f, (cell_y + 0.5f) * rtso::Simulation::GRID);
-		ghost_mesh->set_global_position(center);
+		int footprint = (current_build_type == rtso::BLD_TOWN_CENTER || current_build_type == rtso::BLD_BARRACKS) ? 2 : 1;
 
-		bool valid = sim->gold() >= rtso::Simulation::HOUSE_COST && sim->can_place(cell_x, cell_y, false);
-		ghost_mesh->set_material_override(valid ? ghost_mat_ok : ghost_mat_bad);
+		float gx = (cell_x + footprint * 0.5f) * rtso::Simulation::GRID;
+		float gz = (cell_y + footprint * 0.5f) * rtso::Simulation::GRID;
+		ghost_mesh->set_global_position(Vector3(gx, 0.05f, gz));
+
+		bool can_build = sim->can_place(cell_x, cell_y, footprint);
+		ghost_mesh->set_material_override(can_build ? ghost_mat_ok : ghost_mat_bad);
+	}
+
+	// Check Victory / Defeat Condition
+	if (sim->is_victory()) {
+		banner_panel->set_visible(true);
+		banner_label->set_text("VICTORY!\nYou successfully defended Athens against all enemy invasions!");
+		banner_label->add_theme_color_override("font_color", Color(0.3f, 1.0f, 0.5f));
+	} else if (sim->is_game_over()) {
+		banner_panel->set_visible(true);
+		banner_label->set_text("DEFEAT!\nYour Athenian Town Center has fallen!");
+		banner_label->add_theme_color_override("font_color", Color(1.0f, 0.3f, 0.3f));
 	}
 }
 
@@ -142,31 +266,141 @@ std::pair<int, int> RtsoMain::mouse_cell(Vector2 mouse_pos) const {
 }
 
 void RtsoMain::update_hud() {
-	if (!hud_label) return;
-	String txt = "Gold: " + String::num_int64(sim->gold()) +
-		" | Units: " + String::num_int64(sim->unit_count()) +
-		" | Wave: " + String::num_int64(sim->wave_number()) +
-		" | [B] Build House (50g) | [RMB] Move/Gather";
-	hud_label->set_text(txt);
+	if (!top_hud_label) return;
+
+	// Top Resource Bar
+	String hud_txt = "🍞 Food: " + String::num_int64(sim->food()) +
+		"  |  🌲 Wood: " + String::num_int64(sim->wood()) +
+		"  |  🪙 Gold: " + String::num_int64(sim->gold()) +
+		"  |  🪨 Stone: " + String::num_int64(sim->stone()) +
+		"  |  👥 Pop: " + String::num_int64(sim->pop_current()) + "/" + String::num_int64(sim->pop_max()) +
+		"  |  ⚔️ Wave " + String::num_int64(sim->wave_number()) +
+		" (Next in " + String::num((double)sim->wave_time_remaining(), 0) + "s)";
+
+	top_hud_label->set_text(hud_txt);
+
+	// Bottom Inspector Card
+	if (selected_building_id != 0) {
+		const auto &bldgs = sim->buildings();
+		const rtso::Simulation::Building *found_b = nullptr;
+		for (const auto &b : bldgs) {
+			if (b.id == selected_building_id) { found_b = &b; break; }
+		}
+
+		if (found_b) {
+			String bname = "Town Center (Athenian)";
+			if (found_b->type == rtso::BLD_HOUSE) bname = "House (+5 Population)";
+			else if (found_b->type == rtso::BLD_BARRACKS) bname = "Barracks (Infantry / Ranged / Cavalry)";
+			else if (found_b->type == rtso::BLD_TOWER) bname = "Defense Tower (Ballistic Arrows)";
+			else if (found_b->type == rtso::BLD_STOREHOUSE) bname = "Storehouse (Wood/Gold/Stone Dropsite)";
+			else if (found_b->type == rtso::BLD_FARMSTEAD) bname = "Farmstead (Food Dropsite)";
+
+			inspector_title->set_text("🏛️ " + bname);
+
+			String status = "HP: " + String::num((double)found_b->hp, 0) + " / " + String::num((double)found_b->max_hp, 0);
+			if (found_b->build_progress < 1.0f) {
+				status += " | 🔨 Under Construction (" + String::num((double)(found_b->build_progress * 100.0f), 0) + "%)";
+			} else if (found_b->production_unit_type != 255) {
+				status += " | ⏳ Training Unit (" + String::num((double)found_b->production_timer, 1) + "s)";
+			}
+			inspector_info->set_text(status);
+
+			if (found_b->type == rtso::BLD_TOWN_CENTER) {
+				inspector_actions->set_text("Actions: [V] Train Villager (50 Food) | [B] Build Structures");
+			} else if (found_b->type == rtso::BLD_BARRACKS) {
+				inspector_actions->set_text("Actions: [S] Swordsman (60g,30w) | [A] Archer (40g,50w) | [C] Cavalry (80g,50f)");
+			} else {
+				inspector_actions->set_text("Passive structure | Right-click to repair if damaged.");
+			}
+			inspector_panel->set_visible(true);
+			return;
+		}
+	}
+
+	if (selected_ids.size() > 0) {
+		auto uview = sim->units();
+		int villager_cnt = 0, sword_cnt = 0, archer_cnt = 0, spear_cnt = 0, cav_cnt = 0;
+		float total_hp = 0, total_max_hp = 0;
+
+		for (int i = 0; i < selected_ids.size(); ++i) {
+			uint32_t uid = (uint32_t)selected_ids[i];
+			for (size_t u = 0; u < uview.count; ++u) {
+				if (uview.id[u] == uid && uview.alive[u]) {
+					total_hp += uview.hp[u];
+					total_max_hp += uview.max_hp[u];
+					if (uview.unit_type[u] == rtso::UNIT_VILLAGER) villager_cnt++;
+					else if (uview.unit_type[u] == rtso::UNIT_SWORDSMAN) sword_cnt++;
+					else if (uview.unit_type[u] == rtso::UNIT_ARCHER) archer_cnt++;
+					else if (uview.unit_type[u] == rtso::UNIT_SPEARMAN) spear_cnt++;
+					else if (uview.unit_type[u] == rtso::UNIT_CAVALRY) cav_cnt++;
+					break;
+				}
+			}
+		}
+
+		String unit_title = "⚔️ Selected Army (" + String::num_int64(selected_ids.size()) + " Units)";
+		if (selected_ids.size() == 1) {
+			if (villager_cnt == 1) unit_title = "🧑 Villager (Worker / Builder)";
+			else if (sword_cnt == 1) unit_title = "🗡️ Hoplite Swordsman (Melee)";
+			else if (archer_cnt == 1) unit_title = "🏹 Cretan Archer (Ranged Ballistics)";
+			else if (spear_cnt == 1) unit_title = "🛡️ Spearman (Anti-Cavalry)";
+			else if (cav_cnt == 1) unit_title = "🐎 Cavalry Raider (Fast Flank)";
+		}
+
+		inspector_title->set_text(unit_title);
+		inspector_info->set_text("Total HP: " + String::num((double)total_hp, 0) + " / " + String::num((double)total_max_hp, 0) +
+			" | Composition: " + String::num_int64(villager_cnt) + " Villagers, " +
+			String::num_int64(sword_cnt) + " Swords, " + String::num_int64(archer_cnt) + " Archers, " +
+			String::num_int64(cav_cnt) + " Cavalry");
+
+		if (villager_cnt > 0) {
+			inspector_actions->set_text("Orders: [RMB] Move/Gather/Build | [B] Build Menu ([H] House, [R] Barracks, [T] Tower, [S] Storehouse)");
+		} else {
+			inspector_actions->set_text("Stances: [F1] Aggressive | [F2] Defensive | [F3] Stand Ground | [RMB] Attack / Move");
+		}
+		inspector_panel->set_visible(true);
+	} else {
+		inspector_panel->set_visible(false);
+	}
 }
 
-void RtsoMain::enter_build_mode(bool enable) {
+void RtsoMain::enter_build_mode(bool enable, uint8_t btype) {
 	build_mode = enable;
+	current_build_type = btype;
+	update_ghost_mesh();
 	if (ghost_mesh) ghost_mesh->set_visible(build_mode);
+}
+
+void RtsoMain::try_train_unit(uint8_t utype) {
+	if (selected_building_id != 0) {
+		sim->cmd_train(selected_building_id, utype);
+		return;
+	}
+	// Fallback: search player's Town Center or Barracks
+	for (const auto &b : sim->buildings()) {
+		if (b.team == 0 && b.build_progress >= 1.0f) {
+			if (utype == rtso::UNIT_VILLAGER && b.type == rtso::BLD_TOWN_CENTER && b.production_unit_type == 255) {
+				sim->cmd_train(b.id, utype);
+				break;
+			} else if (utype != rtso::UNIT_VILLAGER && b.type == rtso::BLD_BARRACKS && b.production_unit_type == 255) {
+				sim->cmd_train(b.id, utype);
+				break;
+			}
+		}
+	}
 }
 
 void RtsoMain::clear_selection() {
 	selected_ids.clear();
+	selected_building_id = 0;
 }
 
 void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 	Ref<InputEventKey> key = event;
 	if (key.is_valid() && key->is_pressed() && !key->is_echo()) {
 		if (key->get_keycode() == KEY_ESCAPE) {
-			// ESC mirrors 0ad gui/session/Menu.xml — pause overlay
 			Node *pause = get_node_or_null(NodePath("PauseMenu"));
 			if (pause) {
-				// call GDScript toggle()
 				pause->call("toggle");
 				paused_via_menu = !paused_via_menu;
 				return;
@@ -175,12 +409,32 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			else clear_selection();
 			return;
 		}
+
+		// Build Hotkeys
 		if (key->get_keycode() == KEY_B) {
-			enter_build_mode(!build_mode);
+			enter_build_mode(!build_mode, rtso::BLD_HOUSE);
 			return;
 		}
+		if (build_mode) {
+			if (key->get_keycode() == KEY_H) { enter_build_mode(true, rtso::BLD_HOUSE); return; }
+			if (key->get_keycode() == KEY_R) { enter_build_mode(true, rtso::BLD_BARRACKS); return; }
+			if (key->get_keycode() == KEY_T) { enter_build_mode(true, rtso::BLD_TOWER); return; }
+			if (key->get_keycode() == KEY_S) { enter_build_mode(true, rtso::BLD_STOREHOUSE); return; }
+			if (key->get_keycode() == KEY_F) { enter_build_mode(true, rtso::BLD_FARMSTEAD); return; }
+		}
+
+		// Unit Training Hotkeys
+		if (key->get_keycode() == KEY_V) { try_train_unit(rtso::UNIT_VILLAGER); return; }
+		if (key->get_keycode() == KEY_S && !build_mode) { try_train_unit(rtso::UNIT_SWORDSMAN); return; }
+		if (key->get_keycode() == KEY_A) { try_train_unit(rtso::UNIT_ARCHER); return; }
+		if (key->get_keycode() == KEY_C) { try_train_unit(rtso::UNIT_CAVALRY); return; }
+
+		// Stances Hotkeys
+		if (key->get_keycode() == KEY_F1) { sim->order_set_stance((const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0); return; }
+		if (key->get_keycode() == KEY_F2) { sim->order_set_stance((const uint32_t *)selected_ids.ptr(), selected_ids.size(), 1); return; }
+		if (key->get_keycode() == KEY_F3) { sim->order_set_stance((const uint32_t *)selected_ids.ptr(), selected_ids.size(), 2); return; }
+
 		if (key->get_keycode() == KEY_F10) {
-			// quick options like 0ad splashscreen options
 			get_tree()->change_scene_to_file("res://scenes/menu/options.tscn");
 			return;
 		}
@@ -194,7 +448,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (mb->is_pressed()) {
 				if (build_mode) {
 					auto [cell_x, cell_y] = mouse_cell(mouse_pos);
-					if (sim->cmd_build_house(cell_x, cell_y)) {
+					if (sim->cmd_build(cell_x, cell_y, current_build_type)) {
 						enter_build_mode(false);
 					}
 					return;
@@ -213,28 +467,45 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						Vector3 click_pos = get_ground_click_pos(mouse_pos);
 						auto uview = sim->units();
 						selected_ids.clear();
-						size_t best_idx = (size_t)-1;
-						float best_d2 = 2.0f * 2.0f;
+						selected_building_id = 0;
+
+						// 1. Check unit hit
+						size_t best_uidx = (size_t)-1;
+						float best_ud2 = 2.0f * 2.0f;
 						for (size_t i = 0; i < uview.count; ++i) {
 							if (!uview.alive[i] || uview.team[i] != 0) continue;
 							float dx = uview.pos_x[i] - click_pos.x;
 							float dz = uview.pos_z[i] - click_pos.z;
 							float d2 = dx * dx + dz * dz;
-							if (d2 < best_d2) {
-								best_d2 = d2;
-								best_idx = i;
+							if (d2 < best_ud2) {
+								best_ud2 = d2;
+								best_uidx = i;
 							}
 						}
-						if (best_idx != (size_t)-1) {
-							selected_ids.push_back((int32_t)uview.id[best_idx]);
+
+						if (best_uidx != (size_t)-1) {
+							selected_ids.push_back((int32_t)uview.id[best_uidx]);
+						} else {
+							// 2. Check building hit
+							for (const auto &b : sim->buildings()) {
+								if (b.team != 0) continue;
+								float dx = b.x - click_pos.x;
+								float dz = b.z - click_pos.z;
+								float hit_r = b.half_size + 0.6f;
+								if (dx * dx + dz * dz <= hit_r * hit_r) {
+									selected_building_id = b.id;
+									break;
+								}
+							}
 						}
 					} else {
-						// Box selection
+						// Box selection (units only)
 						Vector2 min_p(std::min(drag_start.x, drag_end.x), std::min(drag_start.y, drag_end.y));
 						Vector2 max_p(std::max(drag_start.x, drag_end.x), std::max(drag_start.y, drag_end.y));
 
 						auto uview = sim->units();
 						selected_ids.clear();
+						selected_building_id = 0;
 						Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
 						if (cam) {
 							for (size_t i = 0; i < uview.count; ++i) {
@@ -254,10 +525,29 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (selected_ids.size() == 0) return;
 			Vector3 click_pos = get_ground_click_pos(mouse_pos);
 
-			// Check if right clicked on resource
+			// 1. Check if right-clicked on Enemy Unit (Attack Order)
+			auto uview = sim->units();
+			uint32_t clicked_enemy_id = 0;
+			float best_ed2 = 2.2f * 2.2f;
+			for (size_t i = 0; i < uview.count; ++i) {
+				if (!uview.alive[i] || uview.team[i] == 0) continue;
+				float dx = uview.pos_x[i] - click_pos.x;
+				float dz = uview.pos_z[i] - click_pos.z;
+				float d2 = dx * dx + dz * dz;
+				if (d2 < best_ed2) {
+					best_ed2 = d2;
+					clicked_enemy_id = uview.id[i];
+				}
+			}
+			if (clicked_enemy_id != 0) {
+				sim->order_attack((const uint32_t *)selected_ids.ptr(), selected_ids.size(), clicked_enemy_id);
+				return;
+			}
+
+			// 2. Check if right-clicked on Resource Node (Gather Order)
 			auto rview = sim->resources();
 			uint32_t clicked_res_id = 0;
-			float best_rd2 = 2.0f * 2.0f;
+			float best_rd2 = 2.2f * 2.2f;
 			for (size_t r = 0; r < rview.count; ++r) {
 				if (!rview.alive[r] || rview.amount[r] <= 0) continue;
 				float dx = rview.x[r] - click_pos.x;
@@ -268,12 +558,25 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					clicked_res_id = rview.id[r];
 				}
 			}
-
 			if (clicked_res_id != 0) {
 				sim->order_gather((const uint32_t *)selected_ids.ptr(), selected_ids.size(), clicked_res_id);
-			} else {
-				sim->cmd_move((const uint32_t *)selected_ids.ptr(), selected_ids.size(), click_pos.x, click_pos.z);
+				return;
 			}
+
+			// 3. Check if right-clicked on Unfinished Building (Build / Repair Order)
+			for (const auto &b : sim->buildings()) {
+				if (b.team != 0) continue;
+				float dx = b.x - click_pos.x;
+				float dz = b.z - click_pos.z;
+				float hit_r = b.half_size + 1.0f;
+				if (dx * dx + dz * dz <= hit_r * hit_r) {
+					sim->order_build_or_repair((const uint32_t *)selected_ids.ptr(), selected_ids.size(), b.id);
+					return;
+				}
+			}
+
+			// 4. Default: Move Order to clicked position
+			sim->cmd_move((const uint32_t *)selected_ids.ptr(), selected_ids.size(), click_pos.x, click_pos.z);
 		}
 	}
 
@@ -282,3 +585,4 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		sel_rect->set_rect(drag_start, mm->get_position(), true);
 	}
 }
+

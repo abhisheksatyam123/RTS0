@@ -50,7 +50,11 @@ void RtsoSimNode::cmd_move(const PackedInt32Array &unit_ids, Vector3 target) {
 	for (int i = 0; i < unit_ids.size(); ++i) ids.push_back((uint32_t)unit_ids[i]);
 	sim->cmd_move(ids.data(), ids.size(), target.x, target.z);
 }
-void RtsoSimNode::cmd_build_house(Vector3 pos) { sim->cmd_build_house(pos.x, pos.z); }
+void RtsoSimNode::cmd_build_house(Vector3 pos) {
+	int cx = (int)std::floor(pos.x / rtso::Simulation::GRID);
+	int cz = (int)std::floor(pos.z / rtso::Simulation::GRID);
+	sim->cmd_build(cx, cz, rtso::BLD_HOUSE);
+}
 
 int RtsoSimNode::get_gold() const { return sim->gold(); }
 int RtsoSimNode::get_unit_count() const { return (int)sim->unit_count(); }

@@ -19,6 +19,7 @@ public:
 	~RtsoDebugOverlay();
 
 	void _ready() override;
+	void _notification(int p_what);
 	void update_info(const String &text);
 };
 

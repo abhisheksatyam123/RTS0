@@ -33,14 +33,21 @@ struct UnitSoA {
 	float *max_hp = nullptr;
 	uint32_t *id = nullptr;
 	uint8_t *team = nullptr; // 0=Player, 1=Enemy
+	uint8_t *unit_type = nullptr; // 0=Villager, 1=Swordsman, 2=Archer, 3=Spearman, 4=Cavalry
+	uint8_t *action_state = nullptr; // 0=Idle, 1=Move, 2=Attack, 3=Gather, 4=ReturnDropsite, 5=Build, 6=Dying
+	uint8_t *res_type_carried = nullptr; // 0=wood, 1=gold, 2=stone, 3=food
 	int32_t *carry = nullptr;
 	int32_t *carry_capacity = nullptr;
+	float *speed = nullptr;
 	float *attack_timer = nullptr;
 	float *attack_range = nullptr;
 	float *attack_damage = nullptr;
 	float *attack_cooldown = nullptr;
+	float *death_timer = nullptr;
 	uint32_t *target_unit_id = nullptr;
 	uint32_t *target_resource_id = nullptr;
+	uint32_t *target_building_id = nullptr;
+	uint8_t *stance = nullptr; // 0=Aggressive, 1=Defensive, 2=Stand Ground
 
 	size_t cap = 0;
 	size_t count = 0;
@@ -51,9 +58,11 @@ struct UnitSoA {
 		FREE(pos_x); FREE(pos_z); FREE(vel_x); FREE(vel_z);
 		FREE(target_x); FREE(target_z); FREE(has_order); FREE(alive);
 		FREE(hp); FREE(max_hp); FREE(id); FREE(team);
-		FREE(carry); FREE(carry_capacity); FREE(attack_timer);
-		FREE(attack_range); FREE(attack_damage); FREE(attack_cooldown);
-		FREE(target_unit_id); FREE(target_resource_id);
+		FREE(unit_type); FREE(action_state); FREE(res_type_carried);
+		FREE(carry); FREE(carry_capacity); FREE(speed);
+		FREE(attack_timer); FREE(attack_range); FREE(attack_damage); FREE(attack_cooldown);
+		FREE(death_timer); FREE(target_unit_id); FREE(target_resource_id); FREE(target_building_id);
+		FREE(stance);
 		#undef FREE
 		cap = count = 0;
 	}
@@ -84,30 +93,74 @@ struct UnitSoA {
 		realloc_aligned(max_hp, c * sizeof(float));
 		realloc_aligned(id, c * sizeof(uint32_t));
 		realloc_aligned(team, c * sizeof(uint8_t));
+		realloc_aligned(unit_type, c * sizeof(uint8_t));
+		realloc_aligned(action_state, c * sizeof(uint8_t));
+		realloc_aligned(res_type_carried, c * sizeof(uint8_t));
 		realloc_aligned(carry, c * sizeof(int32_t));
 		realloc_aligned(carry_capacity, c * sizeof(int32_t));
+		realloc_aligned(speed, c * sizeof(float));
 		realloc_aligned(attack_timer, c * sizeof(float));
 		realloc_aligned(attack_range, c * sizeof(float));
 		realloc_aligned(attack_damage, c * sizeof(float));
 		realloc_aligned(attack_cooldown, c * sizeof(float));
+		realloc_aligned(death_timer, c * sizeof(float));
 		realloc_aligned(target_unit_id, c * sizeof(uint32_t));
 		realloc_aligned(target_resource_id, c * sizeof(uint32_t));
+		realloc_aligned(target_building_id, c * sizeof(uint32_t));
+		realloc_aligned(stance, c * sizeof(uint8_t));
 		cap = c;
 	}
 
-	size_t push(float x, float z, uint32_t uid, uint8_t u_team = 0) {
+	size_t push(float x, float z, uint32_t uid, uint8_t u_team = 0, uint8_t u_type = 0) {
 		if (count >= cap) reserve(cap ? cap * 2 : 1024);
 		size_t i = count++;
 		pos_x[i] = x; pos_z[i] = z;
 		vel_x[i] = vel_z[i] = 0;
 		target_x[i] = x; target_z[i] = z;
 		has_order[i] = 0; alive[i] = 1;
-		hp[i] = max_hp[i] = 100.f;
 		id[i] = uid; team[i] = u_team;
-		carry[i] = 0; carry_capacity[i] = 20;
-		attack_timer[i] = 0; attack_range[i] = 2.0f;
-		attack_damage[i] = 15.0f; attack_cooldown[i] = 1.0f;
-		target_unit_id[i] = 0; target_resource_id[i] = 0;
+		unit_type[i] = u_type;
+		action_state[i] = 0; // Idle
+		res_type_carried[i] = 0;
+		carry[i] = 0; carry_capacity[i] = (u_type == 0) ? 20 : 0;
+		speed[i] = (u_type == 4) ? 8.5f : 6.0f; // Cavalry is faster
+		death_timer[i] = 0.0f;
+		target_unit_id[i] = 0; target_resource_id[i] = 0; target_building_id[i] = 0;
+		stance[i] = 0; // Aggressive by default
+
+		// Configure stats per unit type
+		if (u_type == 0) { // Villager
+			hp[i] = max_hp[i] = 100.0f;
+			attack_range[i] = 1.6f;
+			attack_damage[i] = 10.0f;
+			attack_cooldown[i] = 1.0f;
+		} else if (u_type == 1) { // Swordsman
+			hp[i] = max_hp[i] = 160.0f;
+			attack_range[i] = 2.0f;
+			attack_damage[i] = 22.0f;
+			attack_cooldown[i] = 0.9f;
+		} else if (u_type == 2) { // Archer
+			hp[i] = max_hp[i] = 90.0f;
+			attack_range[i] = 12.0f;
+			attack_damage[i] = 15.0f;
+			attack_cooldown[i] = 1.2f;
+		} else if (u_type == 3) { // Spearman
+			hp[i] = max_hp[i] = 130.0f;
+			attack_range[i] = 2.4f;
+			attack_damage[i] = 18.0f;
+			attack_cooldown[i] = 1.0f;
+		} else if (u_type == 4) { // Cavalry
+			hp[i] = max_hp[i] = 190.0f;
+			attack_range[i] = 2.2f;
+			attack_damage[i] = 25.0f;
+			attack_cooldown[i] = 0.85f;
+		} else {
+			hp[i] = max_hp[i] = 100.0f;
+			attack_range[i] = 2.0f;
+			attack_damage[i] = 15.0f;
+			attack_cooldown[i] = 1.0f;
+		}
+		attack_timer[i] = 0.0f;
 		return i;
 	}
 
@@ -121,10 +174,17 @@ struct UnitSoA {
 			has_order[idx] = has_order[last]; alive[idx] = alive[last];
 			hp[idx] = hp[last]; max_hp[idx] = max_hp[last];
 			id[idx] = id[last]; team[idx] = team[last];
+			unit_type[idx] = unit_type[last];
+			action_state[idx] = action_state[last];
+			res_type_carried[idx] = res_type_carried[last];
 			carry[idx] = carry[last]; carry_capacity[idx] = carry_capacity[last];
+			speed[idx] = speed[last];
 			attack_timer[idx] = attack_timer[last]; attack_range[idx] = attack_range[last];
 			attack_damage[idx] = attack_damage[last]; attack_cooldown[idx] = attack_cooldown[last];
+			death_timer[idx] = death_timer[last];
 			target_unit_id[idx] = target_unit_id[last]; target_resource_id[idx] = target_resource_id[last];
+			target_building_id[idx] = target_building_id[last];
+			stance[idx] = stance[last];
 		}
 		count--;
 	}

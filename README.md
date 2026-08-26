@@ -1,18 +1,20 @@
 # RTS0
 
-Gray-box RTS starter (Age of Empires gameplay direction, Thronefall-style art direction) built with **Godot 4.3 (.NET / C#)**.
+Gray-box RTS starter (Age of Empires gameplay direction, Thronefall-style art direction) built with **Godot 4.3 (Pure C++ GDExtension / SoA Simulation)**.
 
 **Cross-platform multiplayer target: Windows, Linux, Android, iOS.**
 See `docs/MULTIPLAYER.md` for the netcode model, platform matrix, and the architecture rules (sim/presentation split, command pattern) that all gameplay code must follow.
 
 ## Requirements
-- Godot 4.3+ **.NET edition** (not the standard build): https://godotengine.org/download
-- .NET SDK 6.0+ (the editor will prompt/restore automatically)
+- Godot 4.3+ **Standard edition** (no .NET SDK or Mono required): https://godotengine.org/download
+- C++20 compiler (`gcc` 11+, `clang` 14+, or MSVC 2022)
+- SCons (for compiling the native C++ GDExtension library)
+- Standard Godot 4.3 export templates
 - For device testing later: Android export templates + keystore; iOS requires macOS/Xcode
 
-## Run
-1. Open Godot (.NET edition) -> Import -> select this folder's `project.godot`.
-2. First launch builds the C# solution (MSBuild). Press **F5**.
+## Run / Build
+1. Build native GDExtension: `cd native && scons platform=linux target=template_release` (or debug)
+2. Open in Godot 4.3 (Standard edition) and press **F5**, or run `python3 tools/build.py linux`
 
 ## Controls
 | Input | Action |
