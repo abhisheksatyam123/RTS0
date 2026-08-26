@@ -41,7 +41,7 @@ ASSETS = {
     # core MVP — keep deterministic ids for GameSim
     "villager":    ("art/actors/units/athenians/female_citizen.xml",      "height", 1.70, (0.36, 0.62, 0.94)),
     "swordsman":   ("art/actors/units/athenians/infantry_swordsman_c.xml","height", 1.80, (0.92, 0.32, 0.28)),
-    "town_center": ("art/actors/structures/athenians/civil_centre.xml",   "width",  5.20, (0.36, 0.62, 0.94)),
+    "town_center": ("art/actors/structures/spartans/civic_center.xml",   "width",  5.80, (0.36, 0.62, 0.94)),
     "house":       ("art/actors/structures/spartans/house.xml",           "width",  2.40, (0.36, 0.62, 0.94)),
     "tree":        ("art/actors/flora/trees/oak_new.xml",                 "height", 4.50, None),
     "gold_vein":   ("art/actors/geology/metalmine_granite_greek.xml",     "width",  1.80, None),
@@ -861,6 +861,10 @@ def compile_asset(vfs, asset_id, actor_ref, fit, target, tint, out_dir):
     blob = glb.build(asset_id)
     with open(out_path, "wb") as f:
         f.write(blob)
+    for im in glb.image_defs:
+        im_out = os.path.join(os.path.dirname(out_path), f"{asset_id}_{im['name']}.png")
+        with open(im_out, "wb") as f:
+            f.write(im["bytes"])
     final_dim = (dim[0]*scale, dim[1]*scale, dim[2]*scale)
     print(f"  -> {out_path} ({os.path.getsize(out_path)//1024}KB, "
           f"{len(parts)} parts, dim {final_dim[0]:.2f}x{final_dim[1]:.2f}x{final_dim[2]:.2f})")
