@@ -16,5 +16,12 @@ func _on_back_pressed():
 
 func _on_start_pressed():
 	# Would pass map/civ to Simulation via Autoload or NetHost
-	print("[GameSetup] Start — map Gerasa, civ Athenians, players ", $VBox/HBox/Left/SpinPlayers.value)
-	get_tree().change_scene_to_file("res://scenes/main.tscn")
+	var players_node = get_node_or_null("VBox/HBox/Left/Players/SpinPlayers")
+	var players = players_node.value if players_node else 2
+	print("[GameSetup] Start — map Gerasa, civ Athenians, players ", players)
+	var err = get_tree().change_scene_to_file("res://scenes/main.tscn")
+	if err != OK:
+		print("[GameSetup] change_scene failed:", err, " — fallback load main.tscn directly")
+		var sc = load("res://scenes/main.tscn")
+		if sc:
+			get_tree().change_scene_to_packed(sc)
