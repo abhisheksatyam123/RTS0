@@ -42,7 +42,7 @@ ASSETS = {
     "villager":    ("art/actors/units/athenians/female_citizen.xml",      "height", 1.70, (0.36, 0.62, 0.94)),
     "swordsman":   ("art/actors/units/athenians/infantry_swordsman_c.xml","height", 1.80, (0.92, 0.32, 0.28)),
     "town_center": ("art/actors/structures/athenians/civil_centre.xml",   "width",  5.20, (0.36, 0.62, 0.94)),
-    "house":       ("art/actors/structures/hellenes/house.xml",           "width",  2.10, (0.36, 0.62, 0.94)),
+    "house":       ("art/actors/structures/spartans/house.xml",           "width",  2.40, (0.36, 0.62, 0.94)),
     "tree":        ("art/actors/flora/trees/oak_new.xml",                 "height", 4.50, None),
     "gold_vein":   ("art/actors/geology/metalmine_granite_greek.xml",     "width",  1.80, None),
 }
@@ -664,24 +664,23 @@ def bake_texture(vfs, ref, ao_img, tint):
     img = src.copy()  # don't mutate cache
     if max(img.size) > 1024:
         img = img.resize((img.size[0] // 2, img.size[1] // 2), Image.LANCZOS)
-    px = img.load()
-    w, h = img.size
-    r_t, g_t, b_t = (int(c * 255) for c in tint) if tint else (255, 255, 255)
-    for y in range(h):
-        for x in range(w):
-            r, g, b, a = px[x, y]
-            if tint is not None:
+    
+    # Check if this texture is intended for player color masking (e.g. unit clothing/shields/banners)
+    is_structural = any(k in ref for k in ("tile", "struct", "stone", "grass", "dirt", "rock", "tree", "plant", "nature", "foliage", "wood"))
+    
+    if tint is not None and not is_structural:
+        px = img.load()
+        w, h = img.size
+        r_t, g_t, b_t = (int(c * 255) for c in tint)
+        for y in range(h):
+            for x in range(w):
+                r, g, b, a = px[x, y]
                 # 0ad model_common.fs: diffuse *= mix(playerColor, white, tex.a)
-                r = int(r * (r_t * (1 - a / 255.0) + a) / 255)
-                g = int(g * (g_t * (1 - a / 255.0) + a) / 255)
-                b = int(b * (b_t * (1 - a / 255.0) + a) / 255)
-                a = 255
-            if ao_img is not None:
-                ar, ag, ab = ao_img.getpixel((min(x, ao_img.size[0]-1), min(y, ao_img.size[1]-1)))[:3]
-                lum = (ar * 299 + ag * 587 + ab * 114) // 1000
-                lum = max(lum, 40)
-                r = r * lum // 255; g = g * lum // 255; b = b * lum // 255
-            px[x, y] = (min(r, 255), min(g, 255), min(b, 255), a)
+                if a < 250:
+                    r = int(r * (r_t * (1 - a / 255.0) + a) / 255)
+                    g = int(g * (g_t * (1 - a / 255.0) + a) / 255)
+                    b = int(b * (b_t * (1 - a / 255.0) + a) / 255)
+                    px[x, y] = (min(r, 255), min(g, 255), min(b, 255), a)
     return img
 
 # ------------------------------------------------------------ glb writer ----

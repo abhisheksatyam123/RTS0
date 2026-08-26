@@ -9953,34 +9953,22 @@
   "house": {
    "file": "models/buildings/house.glb",
    "origin": "ground-center",
-   "parts": 6,
+   "parts": 2,
    "size_meters": [
-    2.1,
-    2.053,
-    2.063
+    2.4,
+    2.263,
+    2.09
    ],
    "sources": [
-    "actor:art/actors/props/structures/hellenes/house_d_decor.xml",
-    "actor:art/actors/props/structures/hellenes/house_d_nature.xml",
-    "actor:art/actors/props/structures/hellenes/house_d_props_a.xml",
-    "actor:art/actors/props/structures/hellenes/house_d_shields.xml",
-    "actor:art/actors/props/structures/hellenes/house_d_struct.xml",
-    "actor:art/actors/structures/hellenes/house.xml",
-    "mesh:props/hele_house_d_decor.dae",
-    "mesh:props/hele_house_d_nature.dae",
-    "mesh:props/hele_house_d_props_a.dae",
-    "mesh:props/hele_house_d_shields.dae",
-    "mesh:props/hele_house_d_struct.dae",
-    "mesh:structural/hele_house_d.dae",
-    "skin:props/hele_decor.png",
-    "skin:props/hele_props_a.dds",
-    "skin:props/hele_props_b.dds",
+    "actor:art/actors/props/structures/spartans/house_nature.xml",
+    "actor:art/actors/structures/spartans/house.xml",
+    "mesh:structural/spart_house_01.dae",
+    "mesh:structural/spart_house_a_nature.dae",
     "skin:props/structs_nature.png",
-    "skin:structural/ao/hele_house_d.png",
-    "skin:structural/hele_struct.dds",
-    "skin:structural/hele_struct_b.png"
+    "skin:structural/ao/spart_house_01.png",
+    "skin:structural/sparta_struct.png"
    ],
-   "upstream_material": "no_trans_ao_parallax_spec.xml"
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
   "market": {
    "file": "models/vegetation/market.glb",
