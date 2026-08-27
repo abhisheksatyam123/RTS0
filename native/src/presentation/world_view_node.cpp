@@ -204,6 +204,11 @@ void RtsoWorldView::attach_unit_model(UnitVis &v, const String &model_name) {
 		rtso::ModelLibrary::apply_imported_material_fixups(v.model);
 		v.root->add_child(v.model);
 		v.anim = find_anim_player(v.model);
+		if (v.anim) {
+			v.anim->set_active(true);
+			v.anim->set_callback_mode_process(AnimationMixer::ANIMATION_CALLBACK_MODE_PROCESS_IDLE);
+			v.anim->advance(0.0);
+		}
 		return;
 	}
 	MeshInstance3D *mi = memnew(MeshInstance3D);
@@ -249,6 +254,7 @@ void RtsoWorldView::play_unit_clip(UnitVis &v, const String &clip, bool loop) {
 	if (v.clip == clip) return;
 	v.clip = clip;
 	v.anim->play(clip);
+	v.anim->advance(0.0);
 }
 
 void RtsoWorldView::sync(const rtso::Simulation *sim, float alpha, const PackedInt32Array &selected_ids) {
@@ -291,7 +297,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float alpha, const PackedI
 		const auto &entry = rtso::ModelLibrary::get("units", model_name);
 
 		if (speed2 > 0.001f) {
-			float target_yaw = Math::atan2(vx, vz);
+			// 0 A.D. / OpenGL meshes face +Z. Godot's Y-rotation takes +Z toward
+			// -X for +atan2(x,z), so negate vx to align model forward with velocity.
+			float target_yaw = Math::atan2(-vx, vz);
 			float diff = Math::wrapf(target_yaw - v.yaw, -(float)Math_PI, (float)Math_PI);
 			v.yaw += diff * 0.28f;
 		}
