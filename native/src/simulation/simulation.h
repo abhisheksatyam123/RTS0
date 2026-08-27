@@ -3,47 +3,15 @@
 
 #include "../core/memory/arena.h"
 #include "../core/memory/soa_storage.h"
+#include "sim_types.h"
 #include <cstdint>
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
 #include <cmath>
+#include <utility>
 
 namespace rtso {
-
-enum UnitType : uint8_t {
-	UNIT_VILLAGER = 0,
-	UNIT_SWORDSMAN = 1,
-	UNIT_ARCHER = 2,
-	UNIT_SPEARMAN = 3,
-	UNIT_CAVALRY = 4
-};
-
-enum UnitAction : uint8_t {
-	ACTION_IDLE = 0,
-	ACTION_MOVE = 1,
-	ACTION_ATTACK = 2,
-	ACTION_GATHER = 3,
-	ACTION_RETURN_DROPSITE = 4,
-	ACTION_BUILD = 5,
-	ACTION_DYING = 6
-};
-
-enum BuildingType : uint8_t {
-	BLD_TOWN_CENTER = 0,
-	BLD_HOUSE = 1,
-	BLD_BARRACKS = 2,
-	BLD_STOREHOUSE = 3,
-	BLD_TOWER = 4,
-	BLD_FARMSTEAD = 5
-};
-
-enum ResourceType : uint8_t {
-	RES_WOOD = 0,
-	RES_GOLD = 1,
-	RES_STONE = 2,
-	RES_FOOD = 3
-};
 
 struct Projectile {
 	uint32_t id = 0;
@@ -67,6 +35,8 @@ public:
 	static constexpr float UNIT_SPEED = 6.0f;
 	static constexpr float ARRIVE_DIST = 0.4f;
 	static constexpr float UNIT_RADIUS = 0.45f;
+	static constexpr size_t UNIT_CAP = 4096;
+	static constexpr size_t MAX_PROJECTILES = 384;
 
 	struct Building {
 		uint32_t id;
@@ -80,7 +50,7 @@ public:
 		int cell_x, cell_y;
 		int footprint; // 1 or 2
 		float production_timer;
-		uint8_t production_unit_type; // 255 = idle
+		uint8_t production_unit_type; // UNIT_TYPE_NONE = idle
 		float attack_timer; // for towers / town center defense
 	};
 
@@ -89,15 +59,17 @@ public:
 
 	void reset();
 	void spawn_initial();
+	// Two armies that clash (default 500 vs 500). Bypasses pop/train costs.
+	void spawn_war(int total_units = 2000);
 
-	uint32_t spawn_unit(float x, float z, uint8_t team = 0, uint8_t u_type = UNIT_VILLAGER, float hp = 100.0f);
+	uint32_t spawn_unit(float x, float z, uint8_t team = 0, UnitType u_type = UNIT_VILLAGER, float hp = 100.0f);
 	uint32_t spawn_resource(int cell_x, int cell_y, uint8_t type);
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f);
 
 	// Commands
 	void cmd_move(const uint32_t *unit_ids, size_t count, float tx, float tz);
 	bool cmd_build(int cell_x, int cell_y, uint8_t b_type);
-	bool cmd_train(uint32_t building_id, uint8_t u_type);
+	bool cmd_train(uint32_t building_id, UnitType u_type);
 	void order_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id);
 	void order_attack(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id);
 	void order_build_or_repair(const uint32_t *unit_ids, size_t count, uint32_t building_id);
@@ -151,7 +123,7 @@ public:
 	Stats stats() const { return {tick_us_, ticks_}; }
 
 private:
-	void move_units(float dt);
+	void move_units(float dt, Arena &arena);
 	void separation(float dt, Arena &arena);
 	void tick_gather(float dt);
 	void tick_combat(float dt);
@@ -160,12 +132,15 @@ private:
 	void tick_projectiles(float dt);
 	void tick_waves(float dt);
 	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id);
+	void bind_unit_index(uint32_t id, size_t idx);
+	int32_t lookup_unit(uint32_t id) const;
 
 	UnitSoA units_;
 	ResourceSoA resources_;
 	std::vector<Building> buildings_;
 	std::vector<Projectile> projectiles_;
 	std::unordered_map<uint32_t, size_t> unit_id_to_idx_;
+	std::vector<int32_t> unit_idx_by_id_;
 	std::unordered_map<uint32_t, size_t> res_id_to_idx_;
 	std::unordered_map<uint32_t, size_t> building_id_to_idx_;
 
@@ -190,7 +165,7 @@ private:
 
 	uint64_t tick_us_ = 0;
 	uint64_t ticks_ = 0;
-	FrameArena frame_arena_;
+	FrameArena frame_arena_{4 * 1024 * 1024};
 
 	uint32_t alloc_id() { return next_id_++; }
 };

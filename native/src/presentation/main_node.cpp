@@ -10,6 +10,7 @@
 #include <godot_cpp/classes/image.hpp>
 #include "../core/diagnostics/logger.h"
 #include "../core/diagnostics/perf_tracker.h"
+#include "../core/job_system.h"
 #include "../graphics/assets/model_library.h"
 
 using namespace godot;
@@ -18,6 +19,36 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("enter_build_mode", "enable", "btype"), &RtsoMain::enter_build_mode, DEFVAL(rtso::BLD_HOUSE));
 	ClassDB::bind_method(D_METHOD("clear_selection"), &RtsoMain::clear_selection);
 	ClassDB::bind_method(D_METHOD("_on_minimap_clicked", "world_pos"), &RtsoMain::_on_minimap_clicked);
+
+	const StringName cls = get_class_static();
+	auto bind_enum = [&](const char *enum_name, const char *name, int64_t value) {
+		ClassDB::bind_integer_constant(cls, enum_name, name, value);
+	};
+	bind_enum("UnitType", "VILLAGER", rtso::UNIT_VILLAGER);
+	bind_enum("UnitType", "SWORDSMAN", rtso::UNIT_SWORDSMAN);
+	bind_enum("UnitType", "ARCHER", rtso::UNIT_ARCHER);
+	bind_enum("UnitType", "SPEARMAN", rtso::UNIT_SPEARMAN);
+	bind_enum("UnitType", "CAVALRY", rtso::UNIT_CAVALRY);
+	bind_enum("UnitType", "NONE", rtso::UNIT_TYPE_NONE);
+
+	bind_enum("BuildingType", "TOWN_CENTER", rtso::BLD_TOWN_CENTER);
+	bind_enum("BuildingType", "HOUSE", rtso::BLD_HOUSE);
+	bind_enum("BuildingType", "BARRACKS", rtso::BLD_BARRACKS);
+	bind_enum("BuildingType", "STOREHOUSE", rtso::BLD_STOREHOUSE);
+	bind_enum("BuildingType", "TOWER", rtso::BLD_TOWER);
+	bind_enum("BuildingType", "FARMSTEAD", rtso::BLD_FARMSTEAD);
+
+	bind_enum("UnitAction", "IDLE", rtso::ACTION_IDLE);
+	bind_enum("UnitAction", "MOVE", rtso::ACTION_MOVE);
+	bind_enum("UnitAction", "ATTACK", rtso::ACTION_ATTACK);
+	bind_enum("UnitAction", "GATHER", rtso::ACTION_GATHER);
+	bind_enum("UnitAction", "RETURN_DROPSITE", rtso::ACTION_RETURN_DROPSITE);
+	bind_enum("UnitAction", "BUILD", rtso::ACTION_BUILD);
+	bind_enum("UnitAction", "DYING", rtso::ACTION_DYING);
+
+	bind_enum("UnitStance", "AGGRESSIVE", rtso::STANCE_AGGRESSIVE);
+	bind_enum("UnitStance", "DEFENSIVE", rtso::STANCE_DEFENSIVE);
+	bind_enum("UnitStance", "STAND_GROUND", rtso::STANCE_STAND_GROUND);
 }
 
 RtsoMain::RtsoMain() {
@@ -217,17 +248,22 @@ void RtsoMain::_process(double delta) {
 		if (ticks > 8) break;
 	}
 
-	uint64_t end_us = Time::get_singleton()->get_ticks_usec();
-	rtso::PerfTracker::record_tick((end_us - start_us) / 1000);
+	uint64_t after_sim_us = Time::get_singleton()->get_ticks_usec();
+	rtso::PerfTracker::record_tick((after_sim_us - start_us) / 1000);
 	rtso::PerfTracker::record_draw((int)sim->unit_count(), (int)sim->building_count());
 
-	view->sync(sim, (float)(accumulator / rtso::Simulation::FIXED_STEP), selected_ids);
+	view->sync(sim, (float)delta, selected_ids);
 	if (cam_rig) {
 		minimap_view->sync(sim, cam_rig->get_target_pos());
 	}
+	uint64_t after_sync_us = Time::get_singleton()->get_ticks_usec();
+	rtso::PerfTracker::record_sync((after_sync_us - after_sim_us) / 1000);
+	rtso::PerfTracker::sample_memory();
+	rtso::PerfTracker::maybe_log();
 
 	String perf_txt = rtso::PerfTracker::get_report() +
 		" | Tick US: " + String::num_int64(sim->stats().tick_us) +
+		" | Jobs: " + String::num_int64((int64_t)rtso::JobSystem::instance().parallel_width()) +
 		" | FPS: " + String::num_int64(Engine::get_singleton()->get_frames_per_second());
 	debug_overlay->update_info(perf_txt);
 
@@ -311,8 +347,9 @@ void RtsoMain::update_hud() {
 			String status = "HP: " + String::num((double)found_b->hp, 0) + " / " + String::num((double)found_b->max_hp, 0);
 			if (found_b->build_progress < 1.0f) {
 				status += " | 🔨 Under Construction (" + String::num((double)(found_b->build_progress * 100.0f), 0) + "%)";
-			} else if (found_b->production_unit_type != 255) {
-				status += " | ⏳ Training Unit (" + String::num((double)found_b->production_timer, 1) + "s)";
+			} else if (found_b->production_unit_type != rtso::UNIT_TYPE_NONE) {
+				status += " | ⏳ Training " + String(rtso::unit_type_name(found_b->production_unit_type)) +
+					" (" + String::num((double)found_b->production_timer, 1) + "s)";
 			}
 			inspector_info->set_text(status);
 
@@ -382,7 +419,7 @@ void RtsoMain::enter_build_mode(bool enable, uint8_t btype) {
 	if (ghost_mesh) ghost_mesh->set_visible(build_mode);
 }
 
-void RtsoMain::try_train_unit(uint8_t utype) {
+void RtsoMain::try_train_unit(rtso::UnitType utype) {
 	if (selected_building_id != 0) {
 		sim->cmd_train(selected_building_id, utype);
 		return;
@@ -390,10 +427,10 @@ void RtsoMain::try_train_unit(uint8_t utype) {
 	// Fallback: search player's Town Center or Barracks
 	for (const auto &b : sim->buildings()) {
 		if (b.team == 0 && b.build_progress >= 1.0f) {
-			if (utype == rtso::UNIT_VILLAGER && b.type == rtso::BLD_TOWN_CENTER && b.production_unit_type == 255) {
+			if (utype == rtso::UNIT_VILLAGER && b.type == rtso::BLD_TOWN_CENTER && b.production_unit_type == rtso::UNIT_TYPE_NONE) {
 				sim->cmd_train(b.id, utype);
 				break;
-			} else if (utype != rtso::UNIT_VILLAGER && b.type == rtso::BLD_BARRACKS && b.production_unit_type == 255) {
+			} else if (utype != rtso::UNIT_VILLAGER && b.type == rtso::BLD_BARRACKS && b.production_unit_type == rtso::UNIT_TYPE_NONE) {
 				sim->cmd_train(b.id, utype);
 				break;
 			}
@@ -451,9 +488,15 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (key->get_keycode() == KEY_C) { try_train_unit(rtso::UNIT_CAVALRY); return; }
 
 		// Stances Hotkeys
-		if (key->get_keycode() == KEY_F1) { sim->order_set_stance((const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0); return; }
-		if (key->get_keycode() == KEY_F2) { sim->order_set_stance((const uint32_t *)selected_ids.ptr(), selected_ids.size(), 1); return; }
-		if (key->get_keycode() == KEY_F3) { sim->order_set_stance((const uint32_t *)selected_ids.ptr(), selected_ids.size(), 2); return; }
+		if (key->get_keycode() == KEY_F1) { sim->order_set_stance((const uint32_t *)selected_ids.ptr(), selected_ids.size(), rtso::STANCE_AGGRESSIVE); return; }
+		if (key->get_keycode() == KEY_F2) { sim->order_set_stance((const uint32_t *)selected_ids.ptr(), selected_ids.size(), rtso::STANCE_DEFENSIVE); return; }
+		if (key->get_keycode() == KEY_F3) { sim->order_set_stance((const uint32_t *)selected_ids.ptr(), selected_ids.size(), rtso::STANCE_STAND_GROUND); return; }
+
+		if (key->get_keycode() == KEY_F9) {
+			sim->spawn_war(2000);
+			print_line("[RTS0] Spawned 1000 vs 1000 war. Press F9 again to add another wave.");
+			return;
+		}
 
 		if (key->get_keycode() == KEY_F10) {
 			get_tree()->change_scene_to_file("res://scenes/menu/options.tscn");

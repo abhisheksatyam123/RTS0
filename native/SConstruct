@@ -9,6 +9,9 @@ env = SConscript("godot-cpp/SConstruct")
 
 env.Append(CPPPATH=["src"])
 env.Append(CPPFLAGS=["-std=c++20"])
+if env["platform"] == "linux" or env["platform"] == "linuxbsd":
+	env.Append(CCFLAGS=["-pthread"])
+	env.Append(LINKFLAGS=["-pthread"])
 
 if env["target"] == "template_release":
     env.Append(CCFLAGS=["-O3", "-DNDEBUG"])

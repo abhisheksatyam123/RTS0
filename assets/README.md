@@ -8,26 +8,25 @@ where useful; baked models use imported `StandardMaterial3D`.
 
 ```
 assets/
-  models/
-    units/villager.glb     athenians/female_citizen (f_dress + head, player blue)
-    units/swordsman.glb    athenians/infantry_swordsman_c (armor + helmet + shield + xiphos, enemy red)
-    buildings/town_center.glb  athenians/civil_centre (structural/athen_cc_struct, 5.2m, ao baked)
-    buildings/house.glb    hellenes/house variant D (hele_house_d, 2.1m, ao baked)
-    vegetation/tree.glb    flora/oak_new (bark + canopy, alpha-mask leaves, 4.5m)
-    vegetation/gold_vein.glb  geology/metal_granite_greek (stonemine, tiny boulders for carry)
-    manifest.json          sources, baked size_meters, upstream material per asset
-  textures/
-    terrain/grass.png      types/aegean_anatolia/grass_01.cached.dds -> png 512
-    terrain/dirt.png       types/aegean_anatolia/dirt_01.cached.dds
-    terrain/rock.png       types/aegean_anatolia/cliff_01.cached.dds
-    terrain/splat.png      Procedural.GenerateSplat() fallback (unused when tiles present)
-    noise/terrain_noise.png  FastNoiseLite 512, used by terrain.gdshader fallback
-  materials/thronefall/
-    unit.tres / terrain.tres / foliage.tres   ShaderMaterial -> shaders/*.gdshader
-  music/theme.ogg          audio/music/In_the_Shadow_of_Olympus.ogg (ambient loop)
-         victory.ogg       You_are_Victorious!.ogg
-         defeat.ogg        Dried_Tears.ogg
-  imported/                **gitignored** drop zone for CC0 packs (Kenney/Quaternius)
+  models/units/          villager, swordsman, archer, spearman, cavalry, healer, ram, deer
+  models/buildings/      town_center, house, barracks, farmstead, storehouse, market,
+                         temple, wall, wall_tower, fortress, ruins
+  models/vegetation/     tree, pine, palm, gold_vein, stone_mine
+  models/manifest.json   actor sources, size_meters, clips
+  animations/            curated PSA clips baked into unit GLBs + sidecar copies
+  skeletons/             biped.xml, horse.xml, …
+  textures/terrain/      grass, dirt, rock (+ biome tiles with --all)
+  music/                 theme.ogg, victory.ogg, defeat.ogg
+```
+
+Unknown ids are never written to `vegetation/` (that used to dump unit/building files there).
+
+Regenerate after pulling 0ad:
+
+```bash
+python3 tools/extract_0ad_assets.py --all \
+  --zip /home/abhi/project/0ad/binaries/data/mods/public/public.zip \
+  --out assets
 ```
 
 ## Pipeline (`tools/extract_0ad_assets.py`)
@@ -47,9 +46,8 @@ assets/
 Regenerate after pulling 0ad:
 
 ```bash
-python3 tools/extract_0ad_assets.py              # --zip ../0ad/.../public.zip --out assets
-# Validate (needs blender snap):
-blender --background --python /tmp/opencode/render_cycles.py -- /tmp/previews
+python3 tools/extract_0ad_assets.py --all \
+  --zip ../0ad/binaries/data/mods/public/public.zip --out assets
 ```
 
 Import settings (auto on export): `filter=false, fix_handedness`, `msaa_3d=2`, textures `s3tc_bptc` desktop / `etc2_astc` Android.

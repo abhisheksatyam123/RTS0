@@ -10,7 +10,10 @@ class PerfTracker {
 public:
 	static void begin_frame();
 	static void record_tick(uint64_t ms);
+	static void record_sync(uint64_t ms);
 	static void record_draw(int unit_count, int building_count);
+	static void sample_memory();
+	static void maybe_log();
 	static godot::String get_report();
 
 	static uint64_t get_tick_ms();

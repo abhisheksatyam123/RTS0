@@ -21,24 +21,6 @@ native/godot-cpp/
 .mono/
 data_*/
 .mono/
-# Large 0 A.D. animation binaries — regenerated via tools/extract_0ad_assets.py --all-animations (1220 PSA ~30MB)
-assets/animations/*.psa
-assets/animations/*.json
-assets/skeletons/*.xml
-# Keep manifest.json (small) but ignore generated GLBs beyond MVP (regenerate via --all)
-assets/models/vegetation/barracks.glb
-assets/models/vegetation/cavalry.glb
-assets/models/vegetation/market.glb
-assets/models/vegetation/pine.glb
-assets/models/vegetation/temple.glb
-assets/models/vegetation/farmstead.glb
-assets/models/vegetation/storehouse.glb
-assets/models/vegetation/wall*.glb
-assets/models/vegetation/fortress.glb
-assets/models/vegetation/ram.glb
-assets/models/vegetation/deer.glb
-assets/models/vegetation/palm.glb
-assets/models/vegetation/stone_mine.glb
-assets/models/vegetation/ruins.glb
-assets/models/vegetation/spearman.glb
-assets/models/vegetation/archer.glb
+# Large extra 0 A.D. PSA dumps from --all-animations (~30MB). Curated clips are stored:
+# assets/animations/{biped,citizen,gather,cavalry}_*.psa
+# Full dump: python3 tools/extract_0ad_assets.py --all-animations

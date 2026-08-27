@@ -6,6 +6,7 @@
 #include <godot_cpp/classes/multi_mesh.hpp>
 #include <godot_cpp/classes/mesh_instance3d.hpp>
 #include <godot_cpp/classes/animation_player.hpp>
+#include <godot_cpp/classes/array_mesh.hpp>
 #include <godot_cpp/classes/plane_mesh.hpp>
 #include <godot_cpp/classes/torus_mesh.hpp>
 #include <godot_cpp/classes/box_mesh.hpp>
@@ -36,6 +37,7 @@ class RtsoWorldView : public Node3D {
 		uint32_t sim_id = 0;
 		float yaw = 0.0f;
 		bool ring_on = false;
+		uint32_t vis_stamp = 0;
 		String model_id;
 		String clip;
 	};
@@ -86,7 +88,23 @@ class RtsoWorldView : public Node3D {
 	Ref<StandardMaterial3D> hp_red_mat;
 	Ref<StandardMaterial3D> hp_blue_mat;
 
+	// Crowd units: MultiMesh per (UnitType, anim clip). Hidden puppets supply posed meshes.
+	static constexpr int CROWD_CLIP_COUNT = 4;
+	MultiMeshInstance3D *unit_mmi[rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT] = {};
+	Ref<MultiMesh> unit_mm[rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT];
+	struct CrowdPuppet {
+		Node *root = nullptr;
+		AnimationPlayer *anim = nullptr;
+		String clip;
+		Ref<ArrayMesh> posed;
+		rtso::ModelLibrary::CrowdSkin skin;
+	};
+	CrowdPuppet unit_puppet[rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT] = {};
+	std::unordered_map<uint32_t, float> crowd_yaw;
+
+	static constexpr int MAX_DETAILED_UNITS = 8;
 	float anim_time = 0.0f;
+	uint32_t unit_vis_stamp = 1;
 
 protected:
 	static void _bind_methods();
@@ -96,7 +114,7 @@ public:
 	~RtsoWorldView();
 
 	void _ready() override;
-	void sync(const rtso::Simulation *sim, float alpha, const PackedInt32Array &selected_ids);
+	void sync(const rtso::Simulation *sim, float delta, const PackedInt32Array &selected_ids);
 
 private:
 	Ref<MultiMesh> create_multimesh(const Ref<Mesh> &mesh, bool use_colors = false);
@@ -105,6 +123,8 @@ private:
 	void attach_unit_model(UnitVis &v, const String &model_name);
 	void attach_building_model(BuildingVis &v, const String &model_name);
 	void play_unit_clip(UnitVis &v, const String &clip, bool loop);
+	void hide_unit_vis(UnitVis &v);
+	void ensure_unit_batches();
 };
 
 #endif

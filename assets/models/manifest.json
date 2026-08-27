@@ -123,6 +123,79 @@
  },
  "generator": "tools/extract_0ad_assets.py",
  "license": "CC-BY-SA 3.0 / GPL-2.0 (see docs/0AD_ATTRIBUTION.md)",
+ "mapping": {
+  "clips": {
+   "archer": {
+    "Attack": "archer_attack",
+    "Death": "biped_death",
+    "Idle": "biped_idle",
+    "Run": "biped_run",
+    "Walk": "biped_walk"
+   },
+   "cavalry": {
+    "Attack": "horse_attack",
+    "Death": "horse_death",
+    "Idle": "horse_idle",
+    "Run": "horse_run",
+    "Walk": "horse_walk"
+   },
+   "deer": {
+    "Idle": "deer_idle",
+    "Run": "deer_walk",
+    "Walk": "deer_walk"
+   },
+   "healer": {
+    "Attack": "healer_heal",
+    "Death": "biped_death",
+    "Idle": "healer_idle",
+    "Run": "healer_run",
+    "Walk": "healer_walk"
+   },
+   "ram": {
+    "Attack": "ram_attack",
+    "Idle": "ram_idle",
+    "Run": "ram_walk",
+    "Walk": "ram_walk"
+   },
+   "spearman": {
+    "Attack": "biped_attack",
+    "Death": "biped_death",
+    "Idle": "biped_idle",
+    "Run": "biped_run",
+    "Walk": "biped_walk"
+   },
+   "swordsman": {
+    "Attack": "biped_attack",
+    "Death": "biped_death",
+    "Idle": "biped_idle",
+    "Run": "biped_run",
+    "Walk": "biped_walk"
+   },
+   "villager": {
+    "Attack": "biped_attack",
+    "Build": "gather_wood",
+    "Death": "biped_death",
+    "Gather": "gather_wood",
+    "Idle": "citizen_idle",
+    "Run": "citizen_walk",
+    "Walk": "citizen_walk"
+   }
+  },
+  "player_color": "baseTex.a masks mix(playerColor, white) into RGB (model_common.fs).",
+  "skeleton": {
+   "archer": "biped",
+   "cavalry": "horse",
+   "deer": "deer",
+   "healer": "biped",
+   "ram": "",
+   "spearman": "biped",
+   "swordsman": "biped",
+   "villager": "biped"
+  },
+  "skin": "PMD SVertexBlend 4 bones+weights -> JOINTS_0/WEIGHTS_0. Prop attach bone if no blends.",
+  "uv0": "baseTex atlas (TEXCOORD_0). PMD OpenGL V flipped for glTF/Godot.",
+  "uv1_ao": "aoTex unique unwrap sampled into COLOR_0. Never multiplied onto UV0 pixels."
+ },
  "models": {
   "archer": {
    "animated": true,
@@ -217,29 +290,35 @@
    "bones": 49,
    "file": "models/units/cavalry.glb",
    "origin": "ground-center",
-   "parts": 5,
+   "parts": 11,
    "size_meters": [
     0.476,
     1.9,
-    1.596
+    1.732
    ],
-   "skeleton": "biped",
+   "skeleton": "horse",
    "sources": [
     "actor:art/actors/props/horse/cav_rein_leather.xml",
+    "actor:art/actors/props/horse/horse_hair_mane_black_brown.xml",
+    "actor:art/actors/props/horse/horse_hair_tail_black_brown.xml",
     "actor:art/actors/props/units/heads/new/head_hele_b.xml",
     "actor:art/actors/props/units/helmets/hele_straw_01.xml",
     "actor:art/actors/props/units/weapons/falcata.xml",
     "actor:art/actors/units/athenians/cavalry_swordsman_b_m.xml",
     "actor:art/actors/units/athenians/cavalry_swordsman_b_r.xml",
     "mesh:props/helmet/hele_straw_01.dae",
+    "mesh:props/horse/hair_mane_01.dae",
+    "mesh:props/horse/hair_tail_01.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/weap_falcata_a.dae",
     "mesh:skeletal/horse_tessalian.dae",
     "mesh:skeletal/new/m_tunic_short.dae",
     "skin:props/head/hele_a.dds",
     "skin:props/helmet/hele_straw_01.png",
+    "skin:props/horse/hair_brown.png",
     "skin:props/prop_weap.dds",
-    "skin:skeletal/hele/tunic_02_03.png"
+    "skin:skeletal/hele/tunic_02_03.png",
+    "skin:skeletal/horse_brown.png"
    ],
    "upstream_material": "no_trans_parallax_spec.xml"
   },
@@ -247,7 +326,8 @@
    "animated": true,
    "animations": [
     "Idle",
-    "Walk"
+    "Walk",
+    "Run"
    ],
    "bones": 29,
    "file": "models/units/deer.glb",
@@ -258,7 +338,7 @@
     1.4,
     1.647
    ],
-   "skeleton": "biped",
+   "skeleton": "deer",
    "sources": [
     "actor:art/actors/fauna/deer.xml",
     "mesh:skeletal/deer_mesh.dae",
@@ -346,21 +426,29 @@
     "Attack",
     "Death"
    ],
-   "bones": 1,
+   "bones": 46,
    "file": "models/units/healer.glb",
    "origin": "ground-center",
-   "parts": 1,
+   "parts": 4,
    "size_meters": [
-    1.256,
+    0.763,
     1.7,
-    0.87
+    1.125
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/hele_hood_priest.xml",
+    "actor:art/actors/props/units/heads/new/head_hele_healer.xml",
+    "actor:art/actors/props/units/staff.xml",
     "actor:art/actors/units/athenians/healer.xml",
     "mesh:props/helmet/old/hele_hood.dae",
-    "skin:props/helmet/old/hele_hood_1.dds"
+    "mesh:props/m_staff.dae",
+    "mesh:props/new/head_beard.dae",
+    "mesh:skeletal/new/m_dress.dae",
+    "skin:props/head/hele_healer_a.dds",
+    "skin:props/helmet/old/hele_hood_1.dds",
+    "skin:skeletal/hele/toga_healer_01.dds",
+    "skin:structural/celt_struct_1.dds"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
   },
@@ -445,24 +533,33 @@
   "ram": {
    "animated": true,
    "animations": [
-    "Idle"
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack"
    ],
    "bones": 8,
    "file": "models/units/ram.glb",
    "origin": "ground-center",
-   "parts": 3,
+   "parts": 7,
    "size_meters": [
     1.43,
     1.752,
     3.0
    ],
-   "skeleton": "biped",
+   "skeleton": "",
    "sources": [
+    "actor:art/actors/props/units/shields/props/scutum_rome_back_01.xml",
     "actor:art/actors/props/units/shields/props/scutum_rome_boss_02_bronze.xml",
+    "actor:art/actors/props/units/shields/props/scutum_rome_handgrip_01.xml",
     "actor:art/actors/props/units/shields/scutum_rome_isw_06.xml",
     "actor:art/actors/units/romans/siege_ram.xml",
+    "mesh:props/shield/props/scutum_01_b.dae",
     "mesh:props/shield/props/scutum_boss_b.dae",
+    "mesh:props/shield/scutum_01_f.dae",
     "mesh:structural/rome_ram.dae",
+    "skin:props/shield/scutum_a_wooden_back_01.png",
+    "skin:props/shield/scutum_rome_07.png",
     "skin:props/shield/scutum_rome_boss_01_bronze.png",
     "skin:structural/rome_ram.png"
    ],
@@ -511,9 +608,9 @@
    "bones": 46,
    "file": "models/units/spearman.glb",
    "origin": "ground-center",
-   "parts": 5,
+   "parts": 6,
    "size_meters": [
-    0.823,
+    0.861,
     1.8,
     2.431
    ],
@@ -529,11 +626,13 @@
     "mesh:props/helmet/hele_pilos_a1.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/shield/aspis_01_back.dae",
+    "mesh:props/shield/aspis_01_front.dae",
     "mesh:props/spear_hoplite.dae",
     "mesh:skeletal/new/m_tunic_short.dae",
     "skin:props/head/hele_a.dds",
     "skin:props/helmet/hele_pilos_01_bronze.png",
     "skin:props/prop_weap.dds",
+    "skin:props/shield/aspis_athen_01.png",
     "skin:props/shield/aspis_back_bronze.png",
     "skin:skeletal/hele/tunic_02_03.png"
    ],
@@ -596,11 +695,11 @@
    "bones": 46,
    "file": "models/units/swordsman.glb",
    "origin": "ground-center",
-   "parts": 8,
+   "parts": 9,
    "size_meters": [
-    0.827,
+    0.866,
     1.8,
-    1.098
+    1.102
    ],
    "skeleton": "biped",
    "sources": [
@@ -620,6 +719,7 @@
     "mesh:props/helmet/props/hele_crest_hair_a.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/shield/aspis_01_back.dae",
+    "mesh:props/shield/aspis_01_front.dae",
     "mesh:props/weap_xiphos_a.dae",
     "mesh:props/weapons/sheath_xiphos.dae",
     "mesh:skeletal/new/m_armor_tunic_short.dae",
@@ -630,6 +730,7 @@
     "skin:props/helmet/old/hele_a3.dds",
     "skin:props/prop_weap.dds",
     "skin:props/sheaths/xiphos_red.png",
+    "skin:props/shield/aspis_athen_alpha_01.png",
     "skin:props/shield/aspis_back_bronze.png",
     "skin:skeletal/athen/padded_marine_01_01.png"
    ],
@@ -788,405 +889,15 @@
  },
  "origin": "0 A.D. by Wildfire Games (public mod archive)",
  "skeletons": {
-  "aspron": {
-   "bones": 22,
-   "file": "skeletons/aspron.xml",
-   "source": "art/skeletons/aspron.xml"
-  },
-  "ballista": {
-   "bones": 8,
-   "file": "skeletons/ballista.xml",
-   "source": "art/skeletons/ballista.xml"
-  },
   "biped": {
    "bones": 46,
    "file": "skeletons/biped.xml",
    "source": "art/skeletons/biped.xml"
   },
-  "boar": {
-   "bones": 26,
-   "file": "skeletons/boar.xml",
-   "source": "art/skeletons/boar.xml"
-  },
-  "bovidae_skeleton": {
-   "bones": 35,
-   "file": "skeletons/bovidae_skeleton.xml",
-   "source": "art/skeletons/bovidae_skeleton.xml"
-  },
-  "bow": {
-   "bones": 4,
-   "file": "skeletons/bow.xml",
-   "source": "art/skeletons/bow.xml"
-  },
-  "camelus": {
-   "bones": 48,
-   "file": "skeletons/camelus.xml",
-   "source": "art/skeletons/camelus.xml"
-  },
-  "celt_sail": {
-   "bones": 21,
-   "file": "skeletons/celt_sail.xml",
-   "source": "art/skeletons/celt_sail.xml"
-  },
-  "chariot": {
-   "bones": 15,
-   "file": "skeletons/chariot.xml",
-   "source": "art/skeletons/chariot.xml"
-  },
-  "chariot_rein": {
-   "bones": 14,
-   "file": "skeletons/chariot_rein.xml",
-   "source": "art/skeletons/chariot_rein.xml"
-  },
-  "chicken": {
-   "bones": 16,
-   "file": "skeletons/chicken.xml",
-   "source": "art/skeletons/chicken.xml"
-  },
-  "crocodile": {
-   "bones": 22,
-   "file": "skeletons/crocodile.xml",
-   "source": "art/skeletons/crocodile.xml"
-  },
-  "deer": {
-   "bones": 29,
-   "file": "skeletons/deer.xml",
-   "source": "art/skeletons/deer.xml"
-  },
-  "elephant_3ds": {
-   "bones": 38,
-   "file": "skeletons/elephant_3ds.xml",
-   "source": "art/skeletons/elephant_3ds.xml"
-  },
-  "elephant_blender": {
-   "bones": 73,
-   "file": "skeletons/elephant_blender.xml",
-   "source": "art/skeletons/elephant_blender.xml"
-  },
-  "elephantidae_african": {
-   "bones": 58,
-   "file": "skeletons/elephantidae_african.xml",
-   "source": "art/skeletons/elephantidae_african.xml"
-  },
-  "elephantidae_african_bush": {
-   "bones": 58,
-   "file": "skeletons/elephantidae_african_bush.xml",
-   "source": "art/skeletons/elephantidae_african_bush.xml"
-  },
-  "elephantidae_asian": {
-   "bones": 58,
-   "file": "skeletons/elephantidae_asian.xml",
-   "source": "art/skeletons/elephantidae_asian.xml"
-  },
-  "feline_blender": {
-   "bones": 41,
-   "file": "skeletons/feline_blender.xml",
-   "source": "art/skeletons/feline_blender.xml"
-  },
-  "fish": {
-   "bones": 7,
-   "file": "skeletons/fish.xml",
-   "source": "art/skeletons/fish.xml"
-  },
-  "fish_shoal": {
-   "bones": 22,
-   "file": "skeletons/fish_shoal.xml",
-   "source": "art/skeletons/fish_shoal.xml"
-  },
-  "fish_single": {
-   "bones": 8,
-   "file": "skeletons/fish_single.xml",
-   "source": "art/skeletons/fish_single.xml"
-  },
-  "fishing_net": {
-   "bones": 33,
-   "file": "skeletons/fishing_net.xml",
-   "source": "art/skeletons/fishing_net.xml"
-  },
-  "flare-marker-armature": {
-   "bones": 4,
-   "file": "skeletons/flare-marker-armature.xml",
-   "source": "art/skeletons/flare-marker-armature.xml"
-  },
-  "floating_barrels": {
-   "bones": 6,
-   "file": "skeletons/floating_barrels.xml",
-   "source": "art/skeletons/floating_barrels.xml"
-  },
-  "fox_armature": {
-   "bones": 40,
-   "file": "skeletons/fox_armature.xml",
-   "source": "art/skeletons/fox_armature.xml"
-  },
-  "gastraphetes": {
-   "bones": 23,
-   "file": "skeletons/gastraphetes.xml",
-   "source": "art/skeletons/gastraphetes.xml"
-  },
-  "gate": {
-   "bones": 5,
-   "file": "skeletons/gate.xml",
-   "source": "art/skeletons/gate.xml"
-  },
-  "giraffe": {
-   "bones": 31,
-   "file": "skeletons/giraffe.xml",
-   "source": "art/skeletons/giraffe.xml"
-  },
-  "goat": {
-   "bones": 25,
-   "file": "skeletons/goat.xml",
-   "source": "art/skeletons/goat.xml"
-  },
-  "han_bow": {
-   "bones": 4,
-   "file": "skeletons/han_bow.xml",
-   "source": "art/skeletons/han_bow.xml"
-  },
-  "han_forge_wheel": {
-   "bones": 3,
-   "file": "skeletons/han_forge_wheel.xml",
-   "source": "art/skeletons/han_forge_wheel.xml"
-  },
-  "han_mangonel": {
-   "bones": 42,
-   "file": "skeletons/han_mangonel.xml",
-   "source": "art/skeletons/han_mangonel.xml"
-  },
-  "han_nu": {
-   "bones": 7,
-   "file": "skeletons/han_nu.xml",
-   "source": "art/skeletons/han_nu.xml"
-  },
-  "han_ram": {
-   "bones": 2,
-   "file": "skeletons/han_ram.xml",
-   "source": "art/skeletons/han_ram.xml"
-  },
-  "han_shoushe": {
-   "bones": 27,
-   "file": "skeletons/han_shoushe.xml",
-   "source": "art/skeletons/han_shoushe.xml"
-  },
-  "hawk": {
-   "bones": 9,
-   "file": "skeletons/hawk.xml",
-   "source": "art/skeletons/hawk.xml"
-  },
-  "hele_lithobolos": {
-   "bones": 8,
-   "file": "skeletons/hele_lithobolos.xml",
-   "source": "art/skeletons/hele_lithobolos.xml"
-  },
-  "hippopotamus_armature": {
-   "bones": 49,
-   "file": "skeletons/hippopotamus_armature.xml",
-   "source": "art/skeletons/hippopotamus_armature.xml"
-  },
   "horse": {
    "bones": 49,
    "file": "skeletons/horse.xml",
    "source": "art/skeletons/horse.xml"
-  },
-  "horse_old": {
-   "bones": 27,
-   "file": "skeletons/horse_old.xml",
-   "source": "art/skeletons/horse_old.xml"
-  },
-  "horse_rein": {
-   "bones": 24,
-   "file": "skeletons/horse_rein.xml",
-   "source": "art/skeletons/horse_rein.xml"
-  },
-  "lian_nu_crossbow": {
-   "bones": 9,
-   "file": "skeletons/lian_nu_crossbow.xml",
-   "source": "art/skeletons/lian_nu_crossbow.xml"
-  },
-  "lithobolos_light": {
-   "bones": 33,
-   "file": "skeletons/lithobolos_light.xml",
-   "source": "art/skeletons/lithobolos_light.xml"
-  },
-  "longboat": {
-   "bones": 27,
-   "file": "skeletons/longboat.xml",
-   "source": "art/skeletons/longboat.xml"
-  },
-  "mastiff": {
-   "bones": 42,
-   "file": "skeletons/mastiff.xml",
-   "source": "art/skeletons/mastiff.xml"
-  },
-  "maur_ch": {
-   "bones": 4,
-   "file": "skeletons/maur_ch.xml",
-   "source": "art/skeletons/maur_ch.xml"
-  },
-  "norse_sail": {
-   "bones": 41,
-   "file": "skeletons/norse_sail.xml",
-   "source": "art/skeletons/norse_sail.xml"
-  },
-  "oxybeles": {
-   "bones": 36,
-   "file": "skeletons/oxybeles.xml",
-   "source": "art/skeletons/oxybeles.xml"
-  },
-  "peacock": {
-   "bones": 34,
-   "file": "skeletons/peacock.xml",
-   "source": "art/skeletons/peacock.xml"
-  },
-  "pers_ram": {
-   "bones": 6,
-   "file": "skeletons/pers_ram.xml",
-   "source": "art/skeletons/pers_ram.xml"
-  },
-  "polybolos": {
-   "bones": 26,
-   "file": "skeletons/polybolos.xml",
-   "source": "art/skeletons/polybolos.xml"
-  },
-  "pony": {
-   "bones": 30,
-   "file": "skeletons/pony.xml",
-   "source": "art/skeletons/pony.xml"
-  },
-  "ptol_polybolos": {
-   "bones": 9,
-   "file": "skeletons/ptol_polybolos.xml",
-   "source": "art/skeletons/ptol_polybolos.xml"
-  },
-  "rhino": {
-   "bones": 24,
-   "file": "skeletons/rhino.xml",
-   "source": "art/skeletons/rhino.xml"
-  },
-  "rome_bridge": {
-   "bones": 5,
-   "file": "skeletons/rome_bridge.xml",
-   "source": "art/skeletons/rome_bridge.xml"
-  },
-  "rotary_mill_grinder": {
-   "bones": 7,
-   "file": "skeletons/rotary_mill_grinder.xml",
-   "source": "art/skeletons/rotary_mill_grinder.xml"
-  },
-  "rowing_boat": {
-   "bones": 3,
-   "file": "skeletons/rowing_boat.xml",
-   "source": "art/skeletons/rowing_boat.xml"
-  },
-  "scorpio": {
-   "bones": 32,
-   "file": "skeletons/scorpio.xml",
-   "source": "art/skeletons/scorpio.xml"
-  },
-  "shark": {
-   "bones": 9,
-   "file": "skeletons/shark.xml",
-   "source": "art/skeletons/shark.xml"
-  },
-  "sheep": {
-   "bones": 23,
-   "file": "skeletons/sheep.xml",
-   "source": "art/skeletons/sheep.xml"
-  },
-  "ship_one_row": {
-   "bones": 3,
-   "file": "skeletons/ship_one_row.xml",
-   "source": "art/skeletons/ship_one_row.xml"
-  },
-  "ship_row": {
-   "bones": 2,
-   "file": "skeletons/ship_row.xml",
-   "source": "art/skeletons/ship_row.xml"
-  },
-  "ship_sail": {
-   "bones": 41,
-   "file": "skeletons/ship_sail.xml",
-   "source": "art/skeletons/ship_sail.xml"
-  },
-  "ship_three_row": {
-   "bones": 7,
-   "file": "skeletons/ship_three_row.xml",
-   "source": "art/skeletons/ship_three_row.xml"
-  },
-  "ship_two_row": {
-   "bones": 5,
-   "file": "skeletons/ship_two_row.xml",
-   "source": "art/skeletons/ship_two_row.xml"
-  },
-  "siege_onager": {
-   "bones": 7,
-   "file": "skeletons/siege_onager.xml",
-   "source": "art/skeletons/siege_onager.xml"
-  },
-  "six_wheeler": {
-   "bones": 8,
-   "file": "skeletons/six_wheeler.xml",
-   "source": "art/skeletons/six_wheeler.xml"
-  },
-  "sling": {
-   "bones": 7,
-   "file": "skeletons/sling.xml",
-   "source": "art/skeletons/sling.xml"
-  },
-  "target_marker": {
-   "bones": 36,
-   "file": "skeletons/target_marker.xml",
-   "source": "art/skeletons/target_marker.xml"
-  },
-  "tuna": {
-   "bones": 16,
-   "file": "skeletons/tuna.xml",
-   "source": "art/skeletons/tuna.xml"
-  },
-  "ursidae_armature": {
-   "bones": 44,
-   "file": "skeletons/ursidae_armature.xml",
-   "source": "art/skeletons/ursidae_armature.xml"
-  },
-  "vehicle_four_wheel": {
-   "bones": 6,
-   "file": "skeletons/vehicle_four_wheel.xml",
-   "source": "art/skeletons/vehicle_four_wheel.xml"
-  },
-  "vehicle_six_wheel": {
-   "bones": 8,
-   "file": "skeletons/vehicle_six_wheel.xml",
-   "source": "art/skeletons/vehicle_six_wheel.xml"
-  },
-  "vehicle_two_wheel": {
-   "bones": 4,
-   "file": "skeletons/vehicle_two_wheel.xml",
-   "source": "art/skeletons/vehicle_two_wheel.xml"
-  },
-  "whale": {
-   "bones": 8,
-   "file": "skeletons/whale.xml",
-   "source": "art/skeletons/whale.xml"
-  },
-  "wolf": {
-   "bones": 32,
-   "file": "skeletons/wolf.xml",
-   "source": "art/skeletons/wolf.xml"
-  },
-  "wolfhound": {
-   "bones": 40,
-   "file": "skeletons/wolfhound.xml",
-   "source": "art/skeletons/wolfhound.xml"
-  },
-  "zebra": {
-   "bones": 43,
-   "file": "skeletons/zebra.xml",
-   "source": "art/skeletons/zebra.xml"
-  },
-  "zebu": {
-   "bones": 26,
-   "file": "skeletons/zebu.xml",
-   "source": "art/skeletons/zebu.xml"
   }
  },
  "terrain": {

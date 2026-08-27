@@ -1,5 +1,6 @@
 #include "model_library.h"
 #include "procedural.h"
+#include "../../core/diagnostics/logger.h"
 #include <godot_cpp/classes/packed_scene.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/node.hpp>
@@ -10,8 +11,17 @@
 #include <godot_cpp/classes/base_material3d.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
 #include <godot_cpp/classes/animation_player.hpp>
+#include <godot_cpp/classes/skeleton3d.hpp>
+#include <godot_cpp/classes/skin.hpp>
+#include <godot_cpp/variant/packed_float32_array.hpp>
+#include <godot_cpp/variant/packed_int32_array.hpp>
+#include <godot_cpp/variant/packed_color_array.hpp>
 #include <godot_cpp/core/math.hpp>
 #include <godot_cpp/core/memory.hpp>
+#include <algorithm>
+#include <cstdio>
+#include <unordered_map>
+#include <vector>
 
 using namespace godot;
 
@@ -75,9 +85,18 @@ void ModelLibrary::apply_imported_material_fixups(Node *n) {
 			// Packed 0 A.D. atlases bleed into noise at RTS camera distance
 			// when mipmapped; keep them sharp (0 A.D. uses aniso + padded DDS).
 			bm->set_texture_filter(BaseMaterial3D::TEXTURE_FILTER_LINEAR);
-			// AO is baked into COLOR_0. Never sample an occlusion map with atlas UVs.
+			// 0 A.D. UV0 = tiling albedo, UV1 = unique AO. We bake AO into COLOR_0.
 			bm->set_feature(BaseMaterial3D::FEATURE_AMBIENT_OCCLUSION, false);
-			bm->set_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, true);
+			bool has_vcol = false;
+			if (mesh->get_surface_count() > s) {
+				Array arrays = mesh->surface_get_arrays(s);
+				if (arrays.size() > Mesh::ARRAY_COLOR && arrays[Mesh::ARRAY_COLOR].get_type() != Variant::NIL) {
+					PackedColorArray cols = arrays[Mesh::ARRAY_COLOR];
+					has_vcol = cols.size() > 0;
+				}
+			}
+			bm->set_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, has_vcol);
+			bm->set_flag(BaseMaterial3D::FLAG_SRGB_VERTEX_COLOR, has_vcol);
 		}
 	}
 	for (int i = 0; i < n->get_child_count(); ++i) {
@@ -100,9 +119,89 @@ static void collect_mesh_xforms(Node *n, const Transform3D &acc, Vector<MeshXfor
 	}
 }
 
-static Ref<ArrayMesh> merge_mesh_instances(const Vector<MeshXform> &instances) {
+static uint64_t material_merge_key(const Ref<Material> &mat) {
+	Ref<BaseMaterial3D> bm = mat;
+	if (bm.is_valid()) {
+		Ref<Texture2D> tex = bm->get_texture(BaseMaterial3D::TEXTURE_ALBEDO);
+		if (tex.is_valid()) return (uint64_t)tex->get_rid().get_id();
+	}
+	if (mat.is_valid()) return (uint64_t)mat->get_rid().get_id();
+	return 0;
+}
+
+struct SurfBucket {
+	Ref<Material> mat;
+	PackedVector3Array verts;
+	PackedVector3Array norms;
+	PackedVector2Array uvs;
+	PackedColorArray colors;
+	PackedInt32Array indices;
+};
+
+static void append_surface(SurfBucket &b, const Transform3D &xf, const Array &arrays) {
+	PackedVector3Array verts = arrays[Mesh::ARRAY_VERTEX];
+	if (verts.size() == 0) return;
+	PackedVector3Array norms = arrays[Mesh::ARRAY_NORMAL];
+	PackedVector2Array uvs = arrays[Mesh::ARRAY_TEX_UV];
+	PackedColorArray cols;
+	if (arrays.size() > Mesh::ARRAY_COLOR && arrays[Mesh::ARRAY_COLOR].get_type() != Variant::NIL) {
+		cols = arrays[Mesh::ARRAY_COLOR];
+	}
+	PackedInt32Array idx = arrays[Mesh::ARRAY_INDEX];
+
+	const int base = b.verts.size();
+	for (int v = 0; v < verts.size(); ++v) {
+		b.verts.push_back(xf.xform(verts[v]));
+		if (v < norms.size()) {
+			b.norms.push_back(xf.basis.xform(norms[v]).normalized());
+		} else {
+			b.norms.push_back(Vector3(0, 1, 0));
+		}
+		if (v < uvs.size()) b.uvs.push_back(uvs[v]);
+		else b.uvs.push_back(Vector2());
+		if (v < cols.size()) b.colors.push_back(cols[v]);
+		else b.colors.push_back(Color(1, 1, 1, 1));
+	}
+	if (idx.size() > 0) {
+		for (int k = 0; k < idx.size(); ++k) {
+			b.indices.push_back(idx[k] + base);
+		}
+	} else {
+		for (int v = 0; v < verts.size(); ++v) {
+			b.indices.push_back(base + v);
+		}
+	}
+}
+
+static Ref<ArrayMesh> mesh_from_buckets(std::vector<SurfBucket> &buckets, int max_surfaces) {
+	std::sort(buckets.begin(), buckets.end(), [](const SurfBucket &a, const SurfBucket &b) {
+		return a.verts.size() > b.verts.size();
+	});
 	Ref<ArrayMesh> merged;
 	merged.instantiate();
+	int n = (int)buckets.size();
+	if (max_surfaces > 0 && n > max_surfaces) n = max_surfaces;
+	for (int i = 0; i < n; ++i) {
+		SurfBucket &b = buckets[i];
+		if (b.verts.size() == 0) continue;
+		Array out_arr;
+		out_arr.resize(Mesh::ARRAY_MAX);
+		out_arr[Mesh::ARRAY_VERTEX] = b.verts;
+		out_arr[Mesh::ARRAY_NORMAL] = b.norms;
+		out_arr[Mesh::ARRAY_TEX_UV] = b.uvs;
+		out_arr[Mesh::ARRAY_COLOR] = b.colors;
+		out_arr[Mesh::ARRAY_INDEX] = b.indices;
+		merged->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, out_arr);
+		if (b.mat.is_valid()) {
+			merged->surface_set_material(merged->get_surface_count() - 1, b.mat);
+		}
+	}
+	return merged;
+}
+
+static void collect_buckets(const Vector<MeshXform> &instances, bool skip_tiny,
+		std::vector<SurfBucket> &out) {
+	std::unordered_map<uint64_t, int> key_to_idx;
 	for (int i = 0; i < instances.size(); ++i) {
 		MeshInstance3D *mi = instances[i].mi;
 		Ref<Mesh> src = mi->get_mesh();
@@ -111,38 +210,379 @@ static Ref<ArrayMesh> merge_mesh_instances(const Vector<MeshXform> &instances) {
 		for (int s = 0; s < src->get_surface_count(); ++s) {
 			Array arrays = src->surface_get_arrays(s);
 			if (arrays.size() == 0) continue;
-
 			PackedVector3Array verts = arrays[Mesh::ARRAY_VERTEX];
-			PackedVector3Array norms = arrays[Mesh::ARRAY_NORMAL];
-			for (int v = 0; v < verts.size(); ++v) {
-				verts.set(v, xf.xform(verts[v]));
-			}
-			if (norms.size() == verts.size()) {
-				for (int v = 0; v < norms.size(); ++v) {
-					norms.set(v, xf.basis.xform(norms[v]).normalized());
-				}
-			}
-
-			Array out_arr;
-			out_arr.resize(Mesh::ARRAY_MAX);
-			out_arr[Mesh::ARRAY_VERTEX] = verts;
-			if (norms.size() > 0) out_arr[Mesh::ARRAY_NORMAL] = norms;
-			out_arr[Mesh::ARRAY_TEX_UV] = arrays[Mesh::ARRAY_TEX_UV];
-			if (arrays.size() > Mesh::ARRAY_TEX_UV2 && arrays[Mesh::ARRAY_TEX_UV2].get_type() != Variant::NIL) {
-				out_arr[Mesh::ARRAY_TEX_UV2] = arrays[Mesh::ARRAY_TEX_UV2];
-			}
-			out_arr[Mesh::ARRAY_INDEX] = arrays[Mesh::ARRAY_INDEX];
-
-			merged->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, out_arr);
-
+			if (skip_tiny && verts.size() < 24) continue;
 			Ref<Material> mat = mi->get_active_material(s);
 			if (!mat.is_valid()) mat = src->surface_get_material(s);
-			if (mat.is_valid()) {
-				merged->surface_set_material(merged->get_surface_count() - 1, mat);
+			uint64_t key = material_merge_key(mat);
+			auto it = key_to_idx.find(key);
+			int bi;
+			if (it == key_to_idx.end()) {
+				bi = (int)out.size();
+				key_to_idx[key] = bi;
+				SurfBucket b;
+				b.mat = mat;
+				out.push_back(std::move(b));
+			} else {
+				bi = it->second;
 			}
+			append_surface(out[bi], xf, arrays);
 		}
 	}
-	return merged;
+}
+
+static Ref<ArrayMesh> merge_mesh_instances(const Vector<MeshXform> &instances) {
+	std::vector<SurfBucket> buckets;
+	collect_buckets(instances, false, buckets);
+	return mesh_from_buckets(buckets, 0);
+}
+
+static Ref<ArrayMesh> merge_crowd_mesh(const Vector<MeshXform> &instances) {
+	std::vector<SurfBucket> buckets;
+	collect_buckets(instances, true, buckets);
+	// One (or two) surfaces → one/two MultiMesh draws instead of dozens.
+	return mesh_from_buckets(buckets, 2);
+}
+
+static Skeleton3D *find_skeleton(Node *n) {
+	if (!n) return nullptr;
+	if (Skeleton3D *s = Object::cast_to<Skeleton3D>(n)) return s;
+	for (int i = 0; i < n->get_child_count(); ++i) {
+		if (Skeleton3D *s = find_skeleton(n->get_child(i))) return s;
+	}
+	return nullptr;
+}
+
+static void force_update_skeletons(Node *n) {
+	if (!n) return;
+	if (Skeleton3D *s = Object::cast_to<Skeleton3D>(n)) {
+		s->force_update_all_bone_transforms();
+	}
+	for (int i = 0; i < n->get_child_count(); ++i) {
+		force_update_skeletons(n->get_child(i));
+	}
+}
+
+static Transform3D xf_to_ancestor(Node3D *from, Node *root) {
+	Transform3D xf;
+	Node *cur = from;
+	while (cur && cur != root) {
+		if (Node3D *n3 = Object::cast_to<Node3D>(cur)) {
+			xf = n3->get_transform() * xf;
+		}
+		cur = cur->get_parent();
+	}
+	return xf;
+}
+
+static PackedInt32Array bone_indices_from_arrays(const Array &arrays, int vert_count) {
+	PackedInt32Array out;
+	if (arrays.size() <= Mesh::ARRAY_BONES) return out;
+	Variant v = arrays[Mesh::ARRAY_BONES];
+	if (v.get_type() == Variant::PACKED_INT32_ARRAY) {
+		out = v;
+	} else if (v.get_type() == Variant::PACKED_FLOAT32_ARRAY) {
+		PackedFloat32Array f = v;
+		out.resize(f.size());
+		for (int i = 0; i < f.size(); ++i) out[i] = (int32_t)f[i];
+	}
+	(void)vert_count;
+	return out;
+}
+
+static bool build_bone_palette(MeshInstance3D *mi, std::vector<Transform3D> &palette) {
+	if (!mi) return false;
+	Skeleton3D *skel = nullptr;
+	NodePath sp = mi->get_skeleton_path();
+	if (!sp.is_empty() && mi->has_node(sp)) {
+		skel = Object::cast_to<Skeleton3D>(mi->get_node_or_null(sp));
+	}
+	if (!skel) skel = find_skeleton(mi->get_parent());
+	if (!skel) return false;
+
+	Ref<Skin> skin = mi->get_skin();
+	if (skin.is_valid() && skin->get_bind_count() > 0) {
+		const int n = skin->get_bind_count();
+		palette.resize((size_t)n);
+		for (int i = 0; i < n; ++i) {
+			int bone = skin->get_bind_bone(i);
+			if (bone < 0) {
+				StringName bn = skin->get_bind_name(i);
+				if (bn != StringName()) bone = skel->find_bone(bn);
+			}
+			if (bone < 0 || bone >= skel->get_bone_count()) {
+				palette[i] = Transform3D();
+				continue;
+			}
+			palette[i] = skel->get_bone_global_pose(bone) * skin->get_bind_pose(i);
+		}
+		return true;
+	}
+
+	const int n = skel->get_bone_count();
+	if (n <= 0) return false;
+	palette.resize((size_t)n);
+	for (int i = 0; i < n; ++i) {
+		palette[i] = skel->get_bone_global_pose(i) * skel->get_bone_global_rest(i).affine_inverse();
+	}
+	return true;
+}
+
+static void append_skinned_surface(SurfBucket &b, const Transform3D &skel_xf, const Array &arrays,
+		const std::vector<Transform3D> &palette) {
+	PackedVector3Array verts = arrays[Mesh::ARRAY_VERTEX];
+	if (verts.size() == 0) return;
+	PackedVector3Array norms = arrays[Mesh::ARRAY_NORMAL];
+	PackedVector2Array uvs = arrays[Mesh::ARRAY_TEX_UV];
+	PackedColorArray cols;
+	if (arrays.size() > Mesh::ARRAY_COLOR && arrays[Mesh::ARRAY_COLOR].get_type() != Variant::NIL) {
+		cols = arrays[Mesh::ARRAY_COLOR];
+	}
+	PackedInt32Array idx = arrays[Mesh::ARRAY_INDEX];
+	PackedInt32Array bones = bone_indices_from_arrays(arrays, verts.size());
+	PackedFloat32Array weights;
+	if (arrays.size() > Mesh::ARRAY_WEIGHTS && arrays[Mesh::ARRAY_WEIGHTS].get_type() != Variant::NIL) {
+		weights = arrays[Mesh::ARRAY_WEIGHTS];
+	}
+
+	const int n = verts.size();
+	int stride = (n > 0 && bones.size() > 0) ? bones.size() / n : 0;
+	if (stride < 1) stride = 4;
+
+	const int base = b.verts.size();
+	for (int v = 0; v < n; ++v) {
+		Vector3 p = verts[v];
+		Vector3 nrm = (v < norms.size()) ? norms[v] : Vector3(0, 1, 0);
+		Vector3 skinned(0, 0, 0);
+		Vector3 sn(0, 0, 0);
+		float wsum = 0.0f;
+		if (bones.size() >= (v + 1) * stride) {
+			for (int k = 0; k < stride && k < 8; ++k) {
+				int bi = bones[v * stride + k];
+				float w = 0.0f;
+				int wi = v * stride + k;
+				if (wi < weights.size()) w = weights[wi];
+				if (w == 0.0f || bi < 0 || bi >= (int)palette.size()) continue;
+				skinned += palette[bi].xform(p) * w;
+				sn += palette[bi].basis.xform(nrm) * w;
+				wsum += w;
+			}
+		}
+		if (wsum < 0.0001f) {
+			skinned = p;
+			sn = nrm;
+		} else if (Math::abs(wsum - 1.0f) > 0.01f) {
+			skinned /= wsum;
+			sn /= wsum;
+		}
+		b.verts.push_back(skel_xf.xform(skinned));
+		b.norms.push_back(skel_xf.basis.xform(sn).normalized());
+		if (v < uvs.size()) b.uvs.push_back(uvs[v]);
+		else b.uvs.push_back(Vector2());
+		if (v < cols.size()) b.colors.push_back(cols[v]);
+		else b.colors.push_back(Color(1, 1, 1, 1));
+	}
+	if (idx.size() > 0) {
+		for (int k = 0; k < idx.size(); ++k) b.indices.push_back(idx[k] + base);
+	} else {
+		for (int v = 0; v < n; ++v) b.indices.push_back(base + v);
+	}
+}
+
+bool ModelLibrary::capture_crowd_skin(Node *root, CrowdSkin &out) {
+	out = CrowdSkin();
+	if (!root) return false;
+	out.root = root;
+	force_update_skeletons(root);
+
+	Vector<MeshXform> instances;
+	collect_mesh_xforms(root, Transform3D(), instances);
+	for (int i = 0; i < instances.size(); ++i) {
+		MeshInstance3D *mi = instances[i].mi;
+		Ref<Mesh> src = mi->get_mesh();
+		if (!src.is_valid()) continue;
+
+		CrowdSkin::Rig rig;
+		NodePath sp = mi->get_skeleton_path();
+		if (!sp.is_empty() && mi->has_node(sp)) {
+			rig.skel = Object::cast_to<Skeleton3D>(mi->get_node_or_null(sp));
+		}
+		if (!rig.skel) rig.skel = find_skeleton(mi->get_parent() ? mi->get_parent() : root);
+		rig.xf = rig.skel ? xf_to_ancestor(rig.skel, root) : instances[i].xf;
+		if (rig.skel) {
+			Ref<Skin> skin = mi->get_skin();
+			if (skin.is_valid() && skin->get_bind_count() > 0) {
+				const int nb = skin->get_bind_count();
+				rig.bone_index.resize((size_t)nb);
+				rig.bind_pose.resize((size_t)nb);
+				for (int b = 0; b < nb; ++b) {
+					int bone = skin->get_bind_bone(b);
+					if (bone < 0) {
+						StringName bn = skin->get_bind_name(b);
+						if (bn != StringName()) bone = rig.skel->find_bone(bn);
+					}
+					rig.bone_index[b] = bone;
+					rig.bind_pose[b] = skin->get_bind_pose(b);
+				}
+			} else {
+				const int nb = rig.skel->get_bone_count();
+				rig.bone_index.resize((size_t)nb);
+				rig.bind_pose.resize((size_t)nb);
+				for (int b = 0; b < nb; ++b) {
+					rig.bone_index[b] = b;
+					rig.bind_pose[b] = rig.skel->get_bone_global_rest(b).affine_inverse();
+				}
+			}
+		}
+		const int rig_i = (int)out.rigs.size();
+		out.rigs.push_back(std::move(rig));
+
+		for (int s = 0; s < src->get_surface_count(); ++s) {
+			Array arrays = src->surface_get_arrays(s);
+			if (arrays.size() == 0) continue;
+			PackedVector3Array verts = arrays[Mesh::ARRAY_VERTEX];
+			if (verts.size() < 24) continue;
+			CrowdSkin::Surf surf;
+			Ref<Material> mat = mi->get_active_material(s);
+			if (!mat.is_valid()) mat = src->surface_get_material(s);
+			surf.mat = mat;
+			surf.rigid_xf = instances[i].xf;
+			surf.rest_v.resize((size_t)verts.size());
+			for (int v = 0; v < verts.size(); ++v) surf.rest_v[v] = verts[v];
+			PackedVector3Array norms = arrays[Mesh::ARRAY_NORMAL];
+			surf.rest_n.resize((size_t)verts.size());
+			for (int v = 0; v < verts.size(); ++v) {
+				surf.rest_n[v] = (v < norms.size()) ? norms[v] : Vector3(0, 1, 0);
+			}
+			PackedVector2Array uvs = arrays[Mesh::ARRAY_TEX_UV];
+			surf.uv.resize((size_t)verts.size());
+			for (int v = 0; v < verts.size(); ++v) {
+				surf.uv[v] = (v < uvs.size()) ? uvs[v] : Vector2();
+			}
+			PackedColorArray cols;
+			if (arrays.size() > Mesh::ARRAY_COLOR && arrays[Mesh::ARRAY_COLOR].get_type() != Variant::NIL) {
+				cols = arrays[Mesh::ARRAY_COLOR];
+			}
+			surf.col.resize((size_t)verts.size());
+			for (int v = 0; v < verts.size(); ++v) {
+				surf.col[v] = (v < cols.size()) ? cols[v] : Color(1, 1, 1, 1);
+			}
+			PackedInt32Array idx = arrays[Mesh::ARRAY_INDEX];
+			surf.idx.resize((size_t)idx.size());
+			for (int k = 0; k < idx.size(); ++k) surf.idx[k] = idx[k];
+			PackedInt32Array bones = bone_indices_from_arrays(arrays, verts.size());
+			PackedFloat32Array weights;
+			if (arrays.size() > Mesh::ARRAY_WEIGHTS && arrays[Mesh::ARRAY_WEIGHTS].get_type() != Variant::NIL) {
+				weights = arrays[Mesh::ARRAY_WEIGHTS];
+			}
+			surf.bones.resize((size_t)bones.size());
+			for (int k = 0; k < bones.size(); ++k) surf.bones[k] = bones[k];
+			surf.weights.resize((size_t)weights.size());
+			for (int k = 0; k < weights.size(); ++k) surf.weights[k] = weights[k];
+			int stride = (verts.size() > 0 && bones.size() > 0) ? bones.size() / verts.size() : 0;
+			surf.stride = stride < 1 ? 4 : stride;
+			if (out.rigs[rig_i].skel && bones.size() >= verts.size()) surf.rig_i = rig_i;
+			else surf.rig_i = -1;
+			out.surfs.push_back(std::move(surf));
+		}
+	}
+	out.captured = !out.surfs.empty();
+	return out.captured;
+}
+
+Ref<ArrayMesh> ModelLibrary::bake_crowd_skin(CrowdSkin &skin, const Ref<ArrayMesh> &reuse) {
+	if (!skin.captured || !skin.root) return Ref<ArrayMesh>();
+	force_update_skeletons(skin.root);
+
+	std::vector<std::vector<Transform3D>> palettes(skin.rigs.size());
+	for (size_t r = 0; r < skin.rigs.size(); ++r) {
+		CrowdSkin::Rig &rig = skin.rigs[r];
+		if (!rig.skel) continue;
+		palettes[r].resize(rig.bone_index.size());
+		for (size_t b = 0; b < rig.bone_index.size(); ++b) {
+			int bone = rig.bone_index[b];
+			if (bone < 0 || bone >= rig.skel->get_bone_count()) {
+				palettes[r][b] = Transform3D();
+				continue;
+			}
+			palettes[r][b] = rig.skel->get_bone_global_pose(bone) * rig.bind_pose[b];
+		}
+	}
+
+	std::vector<SurfBucket> buckets;
+	std::unordered_map<uint64_t, int> key_to_idx;
+	auto bucket_for = [&](const Ref<Material> &mat) -> SurfBucket & {
+		uint64_t key = material_merge_key(mat);
+		auto it = key_to_idx.find(key);
+		if (it == key_to_idx.end()) {
+			int bi = (int)buckets.size();
+			key_to_idx[key] = bi;
+			SurfBucket b;
+			b.mat = mat;
+			buckets.push_back(std::move(b));
+			return buckets.back();
+		}
+		return buckets[it->second];
+	};
+
+	for (const CrowdSkin::Surf &surf : skin.surfs) {
+		SurfBucket &b = bucket_for(surf.mat);
+		const int n = (int)surf.rest_v.size();
+		const int base = b.verts.size();
+		const bool skinned = surf.rig_i >= 0 && surf.rig_i < (int)palettes.size() && !palettes[surf.rig_i].empty();
+		const Transform3D xf = skinned ? skin.rigs[surf.rig_i].xf : surf.rigid_xf;
+		const std::vector<Transform3D> *pal = skinned ? &palettes[surf.rig_i] : nullptr;
+		for (int v = 0; v < n; ++v) {
+			Vector3 p = surf.rest_v[v];
+			Vector3 nrm = surf.rest_n[v];
+			if (pal) {
+				Vector3 skinned_p(0, 0, 0);
+				Vector3 sn(0, 0, 0);
+				float wsum = 0.0f;
+				int stride = surf.stride;
+				if ((int)surf.bones.size() >= (v + 1) * stride) {
+					for (int k = 0; k < stride && k < 8; ++k) {
+						int bi = surf.bones[v * stride + k];
+						float w = 0.0f;
+						int wi = v * stride + k;
+						if (wi < (int)surf.weights.size()) w = surf.weights[wi];
+						if (w == 0.0f || bi < 0 || bi >= (int)pal->size()) continue;
+						skinned_p += (*pal)[bi].xform(p) * w;
+						sn += (*pal)[bi].basis.xform(nrm) * w;
+						wsum += w;
+					}
+				}
+				if (wsum < 0.0001f) {
+					skinned_p = p;
+					sn = nrm;
+				} else if (Math::abs(wsum - 1.0f) > 0.01f) {
+					skinned_p /= wsum;
+					sn /= wsum;
+				}
+				p = skinned_p;
+				nrm = sn;
+			}
+			b.verts.push_back(xf.xform(p));
+			b.norms.push_back(xf.basis.xform(nrm).normalized());
+			b.uvs.push_back(v < (int)surf.uv.size() ? surf.uv[v] : Vector2());
+			b.colors.push_back(v < (int)surf.col.size() ? surf.col[v] : Color(1, 1, 1, 1));
+		}
+		if (!surf.idx.empty()) {
+			for (int32_t ix : surf.idx) b.indices.push_back(ix + base);
+		} else {
+			for (int v = 0; v < n; ++v) b.indices.push_back(base + v);
+		}
+	}
+	if (buckets.empty()) return Ref<ArrayMesh>();
+	Ref<ArrayMesh> mesh = reuse;
+	if (mesh.is_valid()) mesh->clear_surfaces();
+	return mesh_from_buckets(buckets, 2);
+}
+
+Ref<ArrayMesh> ModelLibrary::bake_posed_crowd_mesh(Node *root) {
+	CrowdSkin skin;
+	if (!capture_crowd_skin(root, skin)) return Ref<ArrayMesh>();
+	return bake_crowd_skin(skin);
 }
 
 ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id) {
@@ -170,11 +610,22 @@ ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id)
 					collect_mesh_xforms(inst, Transform3D(), mesh_instances);
 					if (mesh_instances.size() > 0) {
 						e.mesh = merge_mesh_instances(mesh_instances);
+						if (category == "units") {
+							e.crowd_mesh = merge_crowd_mesh(mesh_instances);
+						} else {
+							e.crowd_mesh = e.mesh;
+						}
 						if (e.mesh.is_valid()) {
 							e.aabb = e.mesh->get_aabb();
 							e.scale = 1.0f;
 							e.y_offset = e.animated ? 0.0f : -e.aabb.position.y;
 							e.valid = true;
+							char buf[192];
+							std::snprintf(buf, sizeof(buf), "%s/%s surfaces full=%d crowd=%d",
+									category.utf8().get_data(), id.utf8().get_data(),
+									e.mesh->get_surface_count(),
+									e.crowd_mesh.is_valid() ? e.crowd_mesh->get_surface_count() : 0);
+							Logger::info("mesh", buf);
 						}
 					}
 					memdelete(inst);
@@ -197,6 +648,7 @@ ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id)
 			e.scale = 1.0f;
 			e.y_offset = -e.aabb.position.y;
 			e.valid = true;
+			e.crowd_mesh = e.mesh;
 		}
 	}
 

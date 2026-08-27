@@ -1,12 +1,21 @@
 #ifndef RTSO_MODEL_LIBRARY_H
 #define RTSO_MODEL_LIBRARY_H
 
+#include <godot_cpp/classes/array_mesh.hpp>
+#include <godot_cpp/classes/material.hpp>
 #include <godot_cpp/classes/mesh.hpp>
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/classes/packed_scene.hpp>
+#include <godot_cpp/classes/skeleton3d.hpp>
 #include <godot_cpp/variant/aabb.hpp>
+#include <godot_cpp/variant/color.hpp>
 #include <godot_cpp/variant/string.hpp>
+#include <godot_cpp/variant/transform3d.hpp>
+#include <godot_cpp/variant/vector2.hpp>
+#include <godot_cpp/variant/vector3.hpp>
 #include <godot_cpp/templates/hash_map.hpp>
+#include <cstdint>
+#include <vector>
 
 using namespace godot;
 
@@ -19,6 +28,7 @@ class ModelLibrary {
 public:
 	struct Entry {
 		Ref<Mesh> mesh;
+		Ref<Mesh> crowd_mesh; // fewer surfaces/parts for MultiMesh armies
 		Ref<PackedScene> scene;
 		AABB aabb;
 		float scale = 1.0f;
@@ -27,9 +37,38 @@ public:
 		bool animated = false;
 	};
 
-	// category: "units" | "buildings" | "vegetation"
+	struct CrowdSkin {
+		bool captured = false;
+		godot::Node *root = nullptr;
+		struct Rig {
+			godot::Skeleton3D *skel = nullptr;
+			std::vector<int32_t> bone_index;
+			std::vector<godot::Transform3D> bind_pose;
+			godot::Transform3D xf;
+		};
+		struct Surf {
+			int rig_i = -1;
+			godot::Transform3D rigid_xf;
+			std::vector<godot::Vector3> rest_v;
+			std::vector<godot::Vector3> rest_n;
+			std::vector<godot::Vector2> uv;
+			std::vector<godot::Color> col;
+			std::vector<int32_t> idx;
+			std::vector<int32_t> bones;
+			std::vector<float> weights;
+			int stride = 4;
+			godot::Ref<godot::Material> mat;
+		};
+		std::vector<Rig> rigs;
+		std::vector<Surf> surfs;
+	};
+
 	static const Entry &get(const godot::String &category, const godot::String &id);
 	static void clear();
+	static bool capture_crowd_skin(godot::Node *root, CrowdSkin &out);
+	static godot::Ref<godot::ArrayMesh> bake_crowd_skin(CrowdSkin &skin, const godot::Ref<godot::ArrayMesh> &reuse = godot::Ref<godot::ArrayMesh>());
+	// CPU-skin a posed unit scene into a low-surface mesh for MultiMesh crowds.
+	static godot::Ref<godot::ArrayMesh> bake_posed_crowd_mesh(godot::Node *root);
 	// 0 A.D. stores tiling albedo on UV0 and unique AO on UV1. Godot's glTF
 	// importer enables AO but samples it with UV0 unless FLAG_AO_ON_UV2 is set.
 	static void apply_imported_material_fixups(godot::Node *root);

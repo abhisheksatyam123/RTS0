@@ -1,24 +1,82 @@
 #include "simulation.h"
+#include "../core/job_system.h"
 #include <chrono>
 #include <cmath>
 #include <algorithm>
 #include <cstring>
+#include <cstdint>
+#include <cstdlib>
 
 namespace rtso {
 
+namespace {
+constexpr int kUnitGridRes = 40;
+
+struct UnitGrid {
+	int32_t *head = nullptr;
+	int32_t *nxt = nullptr;
+	int res = kUnitGridRes;
+	float inv = 0.0f;
+
+	int cell_of(float x, float z) const {
+		int cx = std::clamp((int)((x + Simulation::MAP_HALF) * inv), 0, res - 1);
+		int cz = std::clamp((int)((z + Simulation::MAP_HALF) * inv), 0, res - 1);
+		return cz * res + cx;
+	}
+
+	bool build(Arena &arena, size_t n, const float *px, const float *pz, const uint8_t *alive) {
+		inv = (float)res / (Simulation::MAP_HALF * 2.0f);
+		head = arena.alloc_array<int32_t>((size_t)(res * res));
+		nxt = arena.alloc_array<int32_t>(n);
+		if (!head || !nxt) return false;
+		for (int c = 0; c < res * res; ++c) head[c] = -1;
+		for (size_t i = 0; i < n; ++i) {
+			if (!alive[i]) {
+				nxt[i] = -1;
+				continue;
+			}
+			int c = cell_of(px[i], pz[i]);
+			nxt[i] = head[c];
+			head[c] = (int32_t)i;
+		}
+		return true;
+	}
+
+	template <typename Fn>
+	void visit_radius(float x, float z, float radius, Fn &&fn) const {
+		int cr = std::max(1, (int)std::ceil(radius * inv) + 1);
+		int cx = std::clamp((int)((x + Simulation::MAP_HALF) * inv), 0, res - 1);
+		int cz = std::clamp((int)((z + Simulation::MAP_HALF) * inv), 0, res - 1);
+		int x0 = std::max(0, cx - cr);
+		int x1 = std::min(res - 1, cx + cr);
+		int z0 = std::max(0, cz - cr);
+		int z1 = std::min(res - 1, cz + cr);
+		for (int zz = z0; zz <= z1; ++zz) {
+			int row = zz * res;
+			for (int xx = x0; xx <= x1; ++xx) {
+				for (int32_t j = head[row + xx]; j >= 0; j = nxt[j]) {
+					fn(j);
+				}
+			}
+		}
+	}
+};
+} // namespace
+
 Simulation::Simulation() {
-	units_.init(1024);
+	units_.init(UNIT_CAP);
 	resources_.init(512);
 }
 
 Simulation::~Simulation() = default;
 
 void Simulation::reset() {
-	units_.free_all(); units_.init(1024);
+	units_.free_all(); units_.init(UNIT_CAP);
 	resources_.free_all(); resources_.init(512);
 	buildings_.clear();
 	projectiles_.clear();
 	unit_id_to_idx_.clear();
+	unit_idx_by_id_.clear();
 	res_id_to_idx_.clear();
 	building_id_to_idx_.clear();
 	occupied_cells_.clear();
@@ -53,7 +111,7 @@ int Simulation::pop_max() const {
 			else if (b.type == BLD_TOWN_CENTER) cap += 10;
 		}
 	}
-	return std::min(200, cap);
+	return std::min(2000, cap);
 }
 
 void Simulation::spawn_initial() {
@@ -83,13 +141,13 @@ void Simulation::spawn_initial() {
 
 	// 5. Rich Resource Fields (Wood, Gold, Stone, Food)
 	// Near Base Resources
-	spawn_resource(5, 5, RES_WOOD);     // Tree grove north-east
-	spawn_resource(6, 6, RES_WOOD);
-	spawn_resource(7, 5, RES_WOOD);
+	spawn_resource(5, -5, RES_WOOD);
+	spawn_resource(6, -5, RES_WOOD);
+	spawn_resource(7, -5, RES_WOOD);
 
-	spawn_resource(-5, 6, RES_WOOD);    // Pine forest north-west
-	spawn_resource(-6, 6, RES_WOOD);
-	spawn_resource(-7, 7, RES_WOOD);
+	spawn_resource(-5, -5, RES_WOOD);
+	spawn_resource(-6, -5, RES_WOOD);
+	spawn_resource(-7, -6, RES_WOOD);
 
 	spawn_resource(5, -6, RES_GOLD);    // Gold vein south-east
 	spawn_resource(6, -6, RES_GOLD);
@@ -97,21 +155,99 @@ void Simulation::spawn_initial() {
 	spawn_resource(-6, -6, RES_STONE);  // Stone mine south-west
 	spawn_resource(-7, -6, RES_STONE);
 
-	// Outer scatter
+	// Outer scatter — keep the north battlefield clear so the war is not fought inside trees.
 	for (int i = 0; i < 36; ++i) {
 		int cx = (int)((i * 37 + 13) % 27) - 13;
 		int cy = (int)((i * 53 + 7) % 27) - 13;
-		if (std::abs(cx) < 4 && std::abs(cy) < 4) continue; // keep base clear
+		if (std::abs(cx) < 4 && std::abs(cy) < 4) continue;
+		float wx = (cx * 2 + 0.5f) * GRID;
+		float wz = (cy * 2 + 0.5f) * GRID;
+		if (wz > 2.0f && std::abs(wx) < 28.0f) continue;
 		uint8_t rtype = (i % 9 == 0) ? RES_GOLD : ((i % 7 == 0) ? RES_STONE : RES_WOOD);
 		spawn_resource(cx * 2, cy * 2, rtype);
 	}
+
+	if (const char *war = std::getenv("RTS0_WAR")) {
+		int n = std::atoi(war);
+		if (n < 2) n = 2000;
+		spawn_war(n);
+	}
 }
 
-uint32_t Simulation::spawn_unit(float x, float z, uint8_t team, uint8_t u_type, float hp) {
+void Simulation::spawn_war(int total_units) {
+	total_units = std::clamp(total_units, 2, (int)UNIT_CAP - 32);
+	const int half = total_units / 2;
+	const float spacing = 1.15f;
+	const float ox = 13.0f;
+	const float oz = 6.0f;
+	int cols = std::max(1, (int)std::ceil(std::sqrt((float)half)));
+	auto fits = [&](int c) {
+		int r = (half + c - 1) / c;
+		float hw = c * 0.5f * spacing;
+		float hd = r * 0.5f * spacing;
+		return ox + hw < MAP_HALF - 1.5f && std::abs(oz) + hd < MAP_HALF - 1.5f;
+	};
+	while (cols > 6 && !fits(cols)) cols--;
+	std::vector<uint32_t> left;
+	std::vector<uint32_t> right;
+	left.reserve((size_t)half);
+	right.reserve((size_t)half);
+	auto deploy = [&](uint8_t team, float cx, float cz, std::vector<uint32_t> &ids) {
+		for (int i = 0; i < half; ++i) {
+			int row = i / cols;
+			int col = i % cols;
+			float x = std::clamp(cx + (col - cols * 0.5f) * spacing, -MAP_HALF + 1.5f, MAP_HALF - 1.5f);
+			float z = std::clamp(cz + (row - cols * 0.5f) * spacing, -MAP_HALF + 1.5f, MAP_HALF - 1.5f);
+			UnitType typ = UNIT_SWORDSMAN;
+			if (i % 5 == 0) typ = UNIT_ARCHER;
+			else if (i % 9 == 0) typ = UNIT_CAVALRY;
+			else if (i % 4 == 0) typ = UNIT_SPEARMAN;
+			uint32_t uid = spawn_unit(x, z, team, typ);
+			int32_t idx = lookup_unit(uid);
+			if (idx < 0) continue;
+			units_.has_order[idx] = 1;
+			units_.action_state[idx] = ACTION_ATTACK;
+			units_.stance[idx] = STANCE_AGGRESSIVE;
+			ids.push_back(uid);
+		}
+	};
+	deploy(0, -ox, oz, left);
+	deploy(1, ox, oz, right);
+	const size_t pairs = std::min(left.size(), right.size());
+	for (size_t i = 0; i < pairs; ++i) {
+		int32_t a = lookup_unit(left[i]);
+		int32_t b = lookup_unit(right[i]);
+		if (a >= 0) {
+			units_.target_unit_id[a] = right[i];
+			units_.target_x[a] = units_.pos_x[b >= 0 ? b : a];
+			units_.target_z[a] = units_.pos_z[b >= 0 ? b : a];
+		}
+		if (b >= 0) {
+			units_.target_unit_id[b] = left[i];
+			units_.target_x[b] = units_.pos_x[a >= 0 ? a : b];
+			units_.target_z[b] = units_.pos_z[a >= 0 ? a : b];
+		}
+	}
+}
+
+void Simulation::bind_unit_index(uint32_t id, size_t idx) {
+	unit_id_to_idx_[id] = idx;
+	if (id >= unit_idx_by_id_.size()) {
+		unit_idx_by_id_.resize((size_t)id + 1, -1);
+	}
+	unit_idx_by_id_[id] = (int32_t)idx;
+}
+
+int32_t Simulation::lookup_unit(uint32_t id) const {
+	if (id >= unit_idx_by_id_.size()) return -1;
+	return unit_idx_by_id_[id];
+}
+
+uint32_t Simulation::spawn_unit(float x, float z, uint8_t team, UnitType u_type, float hp) {
 	uint32_t uid = alloc_id();
 	size_t idx = units_.push(x, z, uid, team, u_type);
 	units_.hp[idx] = units_.max_hp[idx] = hp;
-	unit_id_to_idx_[uid] = idx;
+	bind_unit_index(uid, idx);
 	return uid;
 }
 
@@ -152,7 +288,7 @@ uint32_t Simulation::spawn_building(int cell_x, int cell_y, uint8_t type, uint8_
 	b.cell_y = cell_y;
 	b.footprint = footprint;
 	b.production_timer = 0.0f;
-	b.production_unit_type = 255;
+	b.production_unit_type = UNIT_TYPE_NONE;
 	b.attack_timer = 0.0f;
 
 	buildings_.push_back(b);
@@ -203,11 +339,11 @@ bool Simulation::cmd_build(int cell_x, int cell_y, uint8_t b_type) {
 	return true;
 }
 
-bool Simulation::cmd_train(uint32_t building_id, uint8_t u_type) {
+bool Simulation::cmd_train(uint32_t building_id, UnitType u_type) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return false;
 	Building &b = buildings_[bit->second];
-	if (b.team != 0 || b.build_progress < 1.0f || b.production_unit_type != 255) return false;
+	if (b.team != 0 || b.build_progress < 1.0f || b.production_unit_type != UNIT_TYPE_NONE) return false;
 
 	if (pop_current() >= pop_max()) return false;
 
@@ -230,19 +366,18 @@ bool Simulation::cmd_train(uint32_t building_id, uint8_t u_type) {
 }
 
 void Simulation::cmd_move(const uint32_t *unit_ids, size_t count, float tx, float tz) {
-	static const float formation_offsets[12][2] = {
-		{0.0f, 0.0f}, {1.6f, 0.0f}, {-1.6f, 0.0f}, {0.0f, 1.6f}, {0.0f, -1.6f},
-		{1.6f, 1.6f}, {-1.6f, 1.6f}, {1.6f, -1.6f}, {-1.6f, -1.6f},
-		{3.2f, 0.0f}, {-3.2f, 0.0f}, {0.0f, 3.2f}
-	};
+	int side = std::max(1, (int)std::ceil(std::sqrt((float)std::max<size_t>(count, 1))));
+	const float spacing = 1.35f;
 	for (size_t i = 0; i < count; ++i) {
 		auto it = unit_id_to_idx_.find(unit_ids[i]);
 		if (it == unit_id_to_idx_.end()) continue;
 		size_t idx = it->second;
 		if (idx >= units_.count || !units_.alive[idx]) continue;
 
-		float ox = formation_offsets[i % 12][0];
-		float oz = formation_offsets[i % 12][1];
+		int row = (int)i / side;
+		int col = (int)i % side;
+		float ox = (col - (side - 1) * 0.5f) * spacing;
+		float oz = (row - (side - 1) * 0.5f) * spacing;
 		units_.target_x[idx] = tx + ox;
 		units_.target_z[idx] = tz + oz;
 		units_.has_order[idx] = 1;
@@ -330,6 +465,7 @@ void Simulation::order_set_stance(const uint32_t *unit_ids, size_t count, uint8_
 }
 
 void Simulation::fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id) {
+	if (projectiles_.size() >= MAX_PROJECTILES) return;
 	Projectile p;
 	p.id = alloc_id();
 	p.start_x = sx; p.start_y = sy; p.start_z = sz;
@@ -351,7 +487,7 @@ void Simulation::tick(float dt) {
 	Arena &arena = frame_arena_.current();
 	arena.reset();
 
-	move_units(dt);
+	move_units(dt, arena);
 	separation(dt, arena);
 	tick_gather(dt);
 	tick_combat(dt);
@@ -374,8 +510,9 @@ void Simulation::tick(float dt) {
 	ticks_++;
 }
 
-void Simulation::move_units(float dt) {
+void Simulation::move_units(float dt, Arena &arena) {
 	const size_t n = units_.count;
+	if (n == 0) return;
 	float *px = units_.pos_x;
 	float *pz = units_.pos_z;
 	float *vx = units_.vel_x;
@@ -385,50 +522,68 @@ void Simulation::move_units(float dt) {
 	uint8_t *has = units_.has_order;
 	uint8_t *alive = units_.alive;
 
-	for (size_t i = 0; i < n; ++i) {
+	// Two-phase: read current positions for chase, write into scratch, then commit.
+	float *npx = arena.alloc_array<float>(n);
+	float *npz = arena.alloc_array<float>(n);
+	if (!npx || !npz) return;
+	memcpy(npx, px, n * sizeof(float));
+	memcpy(npz, pz, n * sizeof(float));
+
+	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		if (!alive[i]) {
 			vx[i] = vz[i] = 0;
 			if (units_.action_state[i] == ACTION_DYING) {
 				units_.death_timer[i] += dt;
 			}
-			continue;
+			return;
 		}
-		if (!has[i]) { vx[i] = vz[i] = 0; continue; }
+		if (!has[i]) {
+			vx[i] = vz[i] = 0;
+			return;
+		}
 
-		// Dynamic target tracking when chasing unit
+		float aim_x = tx[i];
+		float aim_z = tz[i];
 		if (units_.target_unit_id[i] != 0) {
-			auto tit = unit_id_to_idx_.find(units_.target_unit_id[i]);
-			if (tit != unit_id_to_idx_.end() && units_.alive[tit->second]) {
-				tx[i] = px[tit->second];
-				tz[i] = pz[tit->second];
+			int32_t tidx = lookup_unit(units_.target_unit_id[i]);
+			if (tidx >= 0 && units_.alive[tidx]) {
+				aim_x = px[tidx];
+				aim_z = pz[tidx];
+				tx[i] = aim_x;
+				tz[i] = aim_z;
 			}
 		}
 
-		float dx = tx[i] - px[i];
-		float dz = tz[i] - pz[i];
+		float dx = aim_x - px[i];
+		float dz = aim_z - pz[i];
 		float d2 = dx * dx + dz * dz;
-		float stop_dist = (units_.action_state[i] == ACTION_ATTACK) ? (units_.attack_range[i] * 0.85f) : ARRIVE_DIST;
+		float stop_dist = ARRIVE_DIST;
+		if (units_.action_state[i] == ACTION_ATTACK) {
+			stop_dist = std::max(0.35f, units_.attack_range[i] * 0.45f);
+		}
 
 		if (d2 <= stop_dist * stop_dist) {
-			vx[i] = 0; vz[i] = 0;
+			vx[i] = 0;
+			vz[i] = 0;
 			if (units_.action_state[i] == ACTION_MOVE) {
 				has[i] = 0;
 				units_.action_state[i] = ACTION_IDLE;
 			}
-			continue;
+			return;
 		}
 
 		float inv = 1.0f / sqrtf(d2);
 		float ux = dx * inv;
 		float uz = dz * inv;
 		float spd = units_.speed[i];
-		float nx = px[i] + ux * spd * dt;
-		float nz = pz[i] + uz * spd * dt;
-		nx = std::clamp(nx, -MAP_HALF, MAP_HALF);
-		nz = std::clamp(nz, -MAP_HALF, MAP_HALF);
-		px[i] = nx; pz[i] = nz;
-		vx[i] = ux * spd; vz[i] = uz * spd;
-	}
+		npx[i] = std::clamp(px[i] + ux * spd * dt, -MAP_HALF, MAP_HALF);
+		npz[i] = std::clamp(pz[i] + uz * spd * dt, -MAP_HALF, MAP_HALF);
+		vx[i] = ux * spd;
+		vz[i] = uz * spd;
+	});
+
+	memcpy(px, npx, n * sizeof(float));
+	memcpy(pz, npz, n * sizeof(float));
 }
 
 void Simulation::separation(float dt, Arena &arena) {
@@ -443,32 +598,48 @@ void Simulation::separation(float dt, Arena &arena) {
 	memset(fx, 0, n * sizeof(float));
 	memset(fz, 0, n * sizeof(float));
 
-	const float min_dist = UNIT_RADIUS * 2.0f;
-	const float min_dist_sq = min_dist * min_dist;
+	UnitGrid grid;
+	if (!grid.build(arena, n, px, pz, units_.alive)) return;
 
-	for (size_t i = 0; i < n; ++i) {
-		if (!units_.alive[i]) continue;
-		for (size_t j = i + 1; j < n; ++j) {
-			if (!units_.alive[j]) continue;
-			float dx = px[i] - px[j];
-			float dz = pz[i] - pz[j];
+	const float ally_dist = 1.15f;
+	const float ally_dist_sq = ally_dist * ally_dist;
+	const float foe_dist = 0.40f;
+	const float foe_dist_sq = foe_dist * foe_dist;
+
+	JobSystem::instance().for_each_index(n, [&](size_t i) {
+		if (!units_.alive[i]) return;
+		float pxi = px[i];
+		float pzi = pz[i];
+		float ax = 0.0f;
+		float az = 0.0f;
+		const uint8_t my_team = units_.team[i];
+		const uint32_t my_target = units_.target_unit_id[i];
+		grid.visit_radius(pxi, pzi, ally_dist, [&](int32_t j) {
+			if ((size_t)j == i) return;
+			if (units_.id[j] == my_target) return;
+			float dx = pxi - px[j];
+			float dz = pzi - pz[j];
 			float d2 = dx * dx + dz * dz;
-			if (d2 > 0.0001f && d2 < min_dist_sq) {
+			const bool ally = units_.team[j] == my_team;
+			const float lim_sq = ally ? ally_dist_sq : foe_dist_sq;
+			const float lim = ally ? ally_dist : foe_dist;
+			if (d2 > 0.0001f && d2 < lim_sq) {
 				float dist = sqrtf(d2);
-				float overlap = (min_dist - dist) / dist;
-				float push_x = dx * overlap * 0.5f;
-				float push_z = dz * overlap * 0.5f;
-				fx[i] += push_x; fz[i] += push_z;
-				fx[j] -= push_x; fz[j] -= push_z;
+				float overlap = (lim - dist) / dist;
+				float w = ally ? 0.85f : 0.25f;
+				ax += dx * overlap * w;
+				az += dz * overlap * w;
 			}
-		}
-	}
+		});
+		fx[i] = ax;
+		fz[i] = az;
+	});
 
-	for (size_t i = 0; i < n; ++i) {
-		if (!units_.alive[i]) continue;
-		px[i] = std::clamp(px[i] + fx[i] * dt * 4.0f, -MAP_HALF, MAP_HALF);
-		pz[i] = std::clamp(pz[i] + fz[i] * dt * 4.0f, -MAP_HALF, MAP_HALF);
-	}
+	JobSystem::instance().for_each_index(n, [&](size_t i) {
+		if (!units_.alive[i]) return;
+		px[i] = std::clamp(px[i] + fx[i] * dt * 6.0f, -MAP_HALF, MAP_HALF);
+		pz[i] = std::clamp(pz[i] + fz[i] * dt * 6.0f, -MAP_HALF, MAP_HALF);
+	});
 }
 
 void Simulation::tick_gather(float dt) {
@@ -606,83 +777,106 @@ void Simulation::tick_construction(float dt) {
 
 void Simulation::tick_production(float dt) {
 	for (auto &b : buildings_) {
-		if (b.team != 0 || b.build_progress < 1.0f || b.production_unit_type == 255) continue;
+		if (b.team != 0 || b.build_progress < 1.0f || b.production_unit_type == UNIT_TYPE_NONE) continue;
 		b.production_timer -= dt;
 		if (b.production_timer <= 0.0f) {
 			uint8_t utype = b.production_unit_type;
-			b.production_unit_type = 255;
+			b.production_unit_type = UNIT_TYPE_NONE;
 			b.production_timer = 0.0f;
 			// Spawn unit next to building
 			float sx = b.x + (b.footprint + 0.5f) * GRID;
 			float sz = b.z;
-			spawn_unit(sx, sz, 0, utype);
+			spawn_unit(sx, sz, 0, (UnitType)utype);
 		}
 	}
 }
 
 void Simulation::tick_combat(float dt) {
 	const size_t n = units_.count;
-	for (size_t i = 0; i < n; ++i) {
+	Arena &arena = frame_arena_.current();
+	int32_t *target_idx = n ? arena.alloc_array<int32_t>(n) : nullptr;
+	if (n && !target_idx) return;
+
+	UnitGrid grid;
+	if (n && !grid.build(arena, n, units_.pos_x, units_.pos_z, units_.alive)) return;
+
+	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		if (units_.attack_timer[i] > 0) units_.attack_timer[i] -= dt;
-	}
+		target_idx[i] = -1;
+		if (!units_.alive[i]) return;
+		if (units_.unit_type[i] == UNIT_VILLAGER &&
+				(units_.action_state[i] == ACTION_GATHER || units_.action_state[i] == ACTION_BUILD ||
+						units_.action_state[i] == ACTION_RETURN_DROPSITE)) {
+			return;
+		}
 
-	// 1. Units combat
-	for (size_t i = 0; i < n; ++i) {
-		if (!units_.alive[i] || units_.attack_timer[i] > 0) continue;
-
-		size_t target_idx = (size_t)-1;
-		float best_d2 = units_.attack_range[i] * units_.attack_range[i];
-
-		// If has explicit target unit
+		int32_t found = -1;
 		if (units_.target_unit_id[i] != 0) {
-			auto tit = unit_id_to_idx_.find(units_.target_unit_id[i]);
-			if (tit != unit_id_to_idx_.end() && units_.alive[tit->second]) {
-				float dx = units_.pos_x[i] - units_.pos_x[tit->second];
-				float dz = units_.pos_z[i] - units_.pos_z[tit->second];
-				if (dx * dx + dz * dz <= best_d2) {
-					target_idx = tit->second;
-				}
+			int32_t tidx = lookup_unit(units_.target_unit_id[i]);
+			if (tidx >= 0 && units_.alive[tidx] && units_.team[tidx] != units_.team[i]) {
+				found = tidx;
 			}
 		}
 
-		// Auto-aggro within range
-		if (target_idx == (size_t)-1 && units_.stance[i] != 2) {
-			float scan_range = (units_.unit_type[i] == UNIT_ARCHER) ? 14.0f : ((units_.unit_type[i] == UNIT_VILLAGER) ? 3.0f : 8.0f);
+		if (found < 0 && units_.stance[i] != STANCE_STAND_GROUND) {
+			float scan_range = unit_type_info(units_.unit_type[i]).aggro_range;
+			if (units_.action_state[i] == ACTION_ATTACK) {
+				scan_range = std::max(scan_range, 20.0f);
+			}
 			float best_scan_d2 = scan_range * scan_range;
-			for (size_t j = 0; j < n; ++j) {
-				if (!units_.alive[j] || units_.team[i] == units_.team[j]) continue;
-				float dx = units_.pos_x[i] - units_.pos_x[j];
-				float dz = units_.pos_z[i] - units_.pos_z[j];
+			const uint8_t my_team = units_.team[i];
+			const float pxi = units_.pos_x[i];
+			const float pzi = units_.pos_z[i];
+			grid.visit_radius(pxi, pzi, scan_range, [&](int32_t j) {
+				if (!units_.alive[j] || units_.team[j] == my_team) return;
+				float dx = pxi - units_.pos_x[j];
+				float dz = pzi - units_.pos_z[j];
 				float d2 = dx * dx + dz * dz;
 				if (d2 < best_scan_d2) {
 					best_scan_d2 = d2;
-					target_idx = j;
+					found = j;
 				}
-			}
+			});
 		}
-
-		if (target_idx != (size_t)-1) {
-			float dx = units_.pos_x[i] - units_.pos_x[target_idx];
-			float dz = units_.pos_z[i] - units_.pos_z[target_idx];
-			float d2 = dx * dx + dz * dz;
-
-			if (d2 <= units_.attack_range[i] * units_.attack_range[i]) {
-				units_.attack_timer[i] = units_.attack_cooldown[i];
+		if (found >= 0) {
+			units_.target_unit_id[i] = units_.id[found];
+			units_.has_order[i] = 1;
+			units_.target_x[i] = units_.pos_x[found];
+			units_.target_z[i] = units_.pos_z[found];
+			if (units_.unit_type[i] == UNIT_VILLAGER &&
+					(units_.action_state[i] == ACTION_GATHER || units_.action_state[i] == ACTION_BUILD ||
+							units_.action_state[i] == ACTION_RETURN_DROPSITE)) {
+				// leave villagers on their job
+			} else {
 				units_.action_state[i] = ACTION_ATTACK;
+			}
+		} else {
+			units_.target_unit_id[i] = 0;
+		}
+		target_idx[i] = found;
+	});
 
-				if (units_.unit_type[i] == UNIT_ARCHER) {
-					// Ranged attack — fire ballistic arrow
-					fire_arrow(units_.pos_x[i], 1.4f, units_.pos_z[i],
-					           units_.pos_x[target_idx], 0.8f, units_.pos_z[target_idx],
-					           units_.attack_damage[i], units_.team[i], units_.id[target_idx]);
-				} else {
-					// Melee strike
-					units_.hp[target_idx] -= units_.attack_damage[i];
-					if (units_.hp[target_idx] <= 0) {
-						units_.alive[target_idx] = 0;
-						units_.action_state[target_idx] = ACTION_DYING;
-					}
-				}
+	// Apply damage / arrows on the sim thread (shared HP, projectile list).
+	for (size_t i = 0; i < n; ++i) {
+		int32_t t = target_idx[i];
+		if (t < 0 || !units_.alive[i] || units_.attack_timer[i] > 0) continue;
+		float dx = units_.pos_x[i] - units_.pos_x[t];
+		float dz = units_.pos_z[i] - units_.pos_z[t];
+		float d2 = dx * dx + dz * dz;
+		if (d2 > units_.attack_range[i] * units_.attack_range[i]) continue;
+
+		units_.attack_timer[i] = units_.attack_cooldown[i];
+		units_.action_state[i] = ACTION_ATTACK;
+
+		if (units_.unit_type[i] == UNIT_ARCHER) {
+			fire_arrow(units_.pos_x[i], 1.4f, units_.pos_z[i],
+			           units_.pos_x[t], 0.8f, units_.pos_z[t],
+			           units_.attack_damage[i], units_.team[i], units_.id[t]);
+		} else {
+			units_.hp[t] -= units_.attack_damage[i];
+			if (units_.hp[t] <= 0) {
+				units_.alive[t] = 0;
+				units_.action_state[t] = ACTION_DYING;
 			}
 		}
 	}
@@ -692,18 +886,19 @@ void Simulation::tick_combat(float dt) {
 		if (b.build_progress < 1.0f) continue;
 		if (b.type == BLD_TOWN_CENTER || b.type == BLD_TOWER) {
 			b.attack_timer -= dt;
-			if (b.attack_timer <= 0.0f) {
+				if (b.attack_timer <= 0.0f && n) {
 				float range = (b.type == BLD_TOWER) ? 15.0f : 14.0f;
 				float range_sq = range * range;
-				for (size_t i = 0; i < n; ++i) {
-					if (!units_.alive[i] || units_.team[i] == b.team) continue;
+				int32_t hit = -1;
+				grid.visit_radius(b.x, b.z, range, [&](int32_t i) {
+					if (hit >= 0 || !units_.alive[i] || units_.team[i] == b.team) return;
 					float dx = b.x - units_.pos_x[i];
 					float dz = b.z - units_.pos_z[i];
-					if (dx * dx + dz * dz <= range_sq) {
-						b.attack_timer = (b.type == BLD_TOWER) ? 0.9f : 1.2f;
-						fire_arrow(b.x, 3.5f, b.z, units_.pos_x[i], 0.8f, units_.pos_z[i], 18.0f, b.team, units_.id[i]);
-						break;
-					}
+					if (dx * dx + dz * dz <= range_sq) hit = i;
+				});
+				if (hit >= 0) {
+					b.attack_timer = (b.type == BLD_TOWER) ? 0.9f : 1.2f;
+					fire_arrow(b.x, 3.5f, b.z, units_.pos_x[hit], 0.8f, units_.pos_z[hit], 18.0f, b.team, units_.id[hit]);
 				}
 			}
 		}
@@ -719,11 +914,14 @@ void Simulation::tick_combat(float dt) {
 	if (!dead_indices.empty()) {
 		std::sort(dead_indices.rbegin(), dead_indices.rend());
 		for (size_t idx : dead_indices) {
-			unit_id_to_idx_.erase(units_.id[idx]);
+			uint32_t dead_id = units_.id[idx];
+			unit_id_to_idx_.erase(dead_id);
+			if (dead_id < unit_idx_by_id_.size()) unit_idx_by_id_[dead_id] = -1;
 			units_.remove_at(idx);
+			if (idx < units_.count) {
+				bind_unit_index(units_.id[idx], idx);
+			}
 		}
-		unit_id_to_idx_.clear();
-		for (size_t k = 0; k < units_.count; ++k) unit_id_to_idx_[units_.id[k]] = k;
 	}
 
 	// 4. Check base destruction
@@ -752,12 +950,12 @@ void Simulation::tick_projectiles(float dt) {
 
 			// Impact damage on target
 			if (p.target_unit_id != 0) {
-				auto tit = unit_id_to_idx_.find(p.target_unit_id);
-				if (tit != unit_id_to_idx_.end() && units_.alive[tit->second]) {
-					units_.hp[tit->second] -= p.damage;
-					if (units_.hp[tit->second] <= 0) {
-						units_.alive[tit->second] = 0;
-						units_.action_state[tit->second] = ACTION_DYING;
+				int32_t tidx = lookup_unit(p.target_unit_id);
+				if (tidx >= 0 && units_.alive[tidx]) {
+					units_.hp[tidx] -= p.damage;
+					if (units_.hp[tidx] <= 0) {
+						units_.alive[tidx] = 0;
+						units_.action_state[tidx] = ACTION_DYING;
 					}
 				}
 			}
@@ -801,7 +999,7 @@ void Simulation::tick_waves(float dt) {
 		if (i < base_archers) utype = UNIT_ARCHER;
 		else if (i >= total - base_cavalry) utype = UNIT_CAVALRY;
 
-		uint32_t uid = spawn_unit(x, z, 1, utype);
+		uint32_t uid = spawn_unit(x, z, 1, (UnitType)utype);
 		size_t uidx = unit_id_to_idx_[uid];
 		units_.target_x[uidx] = 0.0f;
 		units_.target_z[uidx] = 0.0f;

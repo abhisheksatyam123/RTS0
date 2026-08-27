@@ -113,18 +113,46 @@ ANIMATIONS = {
     "carry_ore":        "art/animation/biped/gatherer/carry_ore_m.dae.cached.psa",
     # archer specific
     "archer_attack":    "art/animation/biped/infantry/archer/attack_ranged.dae.cached.psa",
-    # cavalry (uses same biped skeleton but different mount)
-    "cavalry_idle":     "art/animation/biped/rider/cavalry/generic/idle_relax_01.dae.cached.psa",
-    "cavalry_walk":     "art/animation/biped/rider/cavalry/generic/walk_relax.dae.cached.psa",
+    # horse (cavalry mesh is the mount — PMD bone count matches horse.xml, not biped)
+    "horse_idle":       "art/animation/quadraped/horse_idle_01.dae.cached.psa",
+    "horse_walk":       "art/animation/quadraped/horse_walk.dae.cached.psa",
+    "horse_run":        "art/animation/quadraped/horse_gallop.dae.cached.psa",
+    "horse_attack":     "art/animation/quadraped/horse_attack_01.dae.cached.psa",
+    "horse_death":      "art/animation/quadraped/horse_death.dae.cached.psa",
+    "deer_idle":        "art/animation/quadraped/deer_idle_01.dae.cached.psa",
+    "deer_walk":        "art/animation/quadraped/deer_walk_01.dae.cached.psa",
+    # healer (biped 46 — citizen healer set, not infantry relax)
+    "healer_idle":      "art/animation/biped/citizen/idle_relax_h_m.dae.cached.psa",
+    "healer_walk":      "art/animation/biped/citizen/walk_relax_h_m.dae.cached.psa",
+    "healer_run":       "art/animation/biped/citizen/jog_h.dae.cached.psa",
+    "healer_heal":      "art/animation/biped/citizen/healing_m.dae.cached.psa",
+    # roman ram (mechanical, 8 bones matching rome_ram.dae)
+    "ram_idle":         "art/animation/mechanical/rome_ram_idle.dae.cached.psa",
+    "ram_walk":         "art/animation/mechanical/rome_ram_move.dae.cached.psa",
+    "ram_attack":       "art/animation/mechanical/rome_ram_attack.dae.cached.psa",
 }
 
 SKELETONS = {
     "biped": "art/skeletons/biped.xml",
-    "quadruped": "art/skeletons/quadruped.xml",
-    "camel": "art/skeletons/camel.xml",
-    "elephant": "art/skeletons/elephant.xml",
     "horse": "art/skeletons/horse.xml",
+    "deer": "art/skeletons/deer.xml",
 }
+
+# 0 A.D. cavalry is two actors: *_m mount + *_r rider parented to horse "rider".
+RIDER_ACTORS = {
+    "cavalry": ("art/actors/units/athenians/cavalry_swordsman_b_r.xml", "rider"),
+}
+
+UNIT_IDS = frozenset({
+    "villager", "swordsman", "archer", "spearman", "cavalry", "healer", "ram", "deer",
+})
+BUILDING_IDS = frozenset({
+    "town_center", "house", "barracks", "farmstead", "storehouse", "market",
+    "temple", "wall", "wall_tower", "fortress", "ruins",
+})
+VEGETATION_IDS = frozenset({
+    "tree", "pine", "palm", "gold_vein", "stone_mine",
+})
 
 MAX_PROP_DEPTH = 4
 
@@ -427,7 +455,8 @@ class Vfs:
 
 class Part:
     """One composed mesh part with its own material/texture set."""
-    __slots__ = ("mesh_data", "tex_base", "tex_ao", "material", "transform", "source", "bone")
+    __slots__ = ("mesh_data", "tex_base", "tex_ao", "material", "transform", "source",
+                 "bone", "force_rigid", "aux")
 
     def __init__(self):
         self.mesh_data = None
@@ -437,6 +466,8 @@ class Part:
         self.transform = None
         self.source = ""
         self.bone = 0  # skeleton bone index this part attaches to (0 = root/hip)
+        self.force_rigid = False  # ignore PMD blends; 100% weight on self.bone
+        self.aux = False  # e.g. cavalry rider — excluded from fit AABB
 
 
 def _variant_children(vfs, var):
@@ -497,6 +528,35 @@ def _resolve_variant_file(vfs, file_ref, cache):
     return None
 
 
+def _as_variant(elem):
+    if elem is None:
+        return None
+    if elem.tag == "variant":
+        return elem
+    found = elem.find("variant")
+    return found if found is not None else elem
+
+
+def _variant_has_anims(var):
+    if var is None:
+        return False
+    return var.find("animations") is not None or var.find("animation") is not None
+
+
+def resolve_variant_chain(vfs, var, cache, depth=0):
+    """Follow nested variant @file (e.g. aspis_alpha -> aspis_base). Inline wins."""
+    if var is None or depth > 8:
+        return var
+    file_ref = (var.get("file") or "").strip()
+    if not file_ref:
+        return var
+    shared = _as_variant(_resolve_variant_file(vfs, file_ref, cache))
+    if shared is None:
+        return var
+    shared = resolve_variant_chain(vfs, shared, cache, depth + 1)
+    return _merge_variant_xml(shared, var)
+
+
 def compose_actor(vfs, actor_path, depth=0, tint=None, sources=None):
     """Compose an actor into a list of Parts.
 
@@ -505,8 +565,10 @@ def compose_actor(vfs, actor_path, depth=0, tint=None, sources=None):
       - a group that supplies a <mesh> replaces the current pending mesh
         (0ad variant groups override; e.g. armour upgrade swaps body mesh)
       - shared `file=` variants are resolved from art/variants/**
-      - groups whose shared file is an animation-state ('biped/...') contribute
-        textures only — their props/meshes belong to runtime states we don't bake
+      - animation-only shared files (biped/quadraped/mechanical, no mesh) skip
+        their state props (weapon swaps). Inline mesh+props on the same variant
+        are kept (healer body + head/staff).
+      - nested variant @file chains are resolved (shield front mesh, scutum, …)
       - destruction variants are skipped entirely
     Prop actors attach AFTER all groups resolve (deferred), matching CModel.
     """
@@ -554,26 +616,20 @@ def compose_actor(vfs, actor_path, depth=0, tint=None, sources=None):
         if var is None:
             continue
         file_ref = (var.get("file") or "").strip()
-        resolved = var
-        if file_ref:
-            if "destruction" in file_ref:
-                continue
-            shared_root = _resolve_variant_file(vfs, file_ref, vcache)
-            shared_var = shared_root.find("variant") if shared_root is not None else None
-            if shared_var is not None:
-                resolved = _merge_variant_xml(shared_var, var)
-        anim_state = file_ref.startswith("biped/") or \
-            resolved.find("animation") is not None
+        if "destruction" in file_ref:
+            continue
+        resolved = resolve_variant_chain(vfs, var, vcache)
         m1, p1, t1, mtl1 = _variant_children(vfs, resolved)
+        anim_only = _variant_has_anims(resolved) and not m1
         if m1:
-            if not anim_state:
-                if acc_mesh is not None and acc_mesh != m1:
-                    if flush() is not None:
-                        final_parts.pop()  # mesh replaced by later variant group
-                if acc_mesh is None:
-                    acc_mesh = m1
+            if acc_mesh is not None and acc_mesh != m1:
+                if flush() is not None:
+                    final_parts.pop()  # mesh replaced by later variant group
+            if acc_mesh is None:
+                acc_mesh = m1
         acc_tex.update(t1)
-        if not anim_state:
+        # Skip animation-library prop swaps (empty attach / slaughter dagger).
+        if p1 and not anim_only:
             pending_props.extend(p1)
         if mtl1:
             acc_mat = mtl1
@@ -621,6 +677,60 @@ def compose_actor(vfs, actor_path, depth=0, tint=None, sources=None):
             final_parts.extend(sub_parts)
 
     return final_parts, material_name
+
+
+def _identity():
+    return trs((0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 1.0))
+
+
+def _prop_world(part, pp):
+    local = trs(pp["pos"], pp["quat"])
+    bones = part.mesh_data.get("bones") or []
+    if pp["bone"] != 0xFF and pp["bone"] < len(bones):
+        t, q = bones[pp["bone"]]
+        return mat_mul(trs(t, q), local)
+    return local
+
+
+def attach_rider_parts(vfs, parts, body, asset_id, tint, sources):
+    """Parent the *_r cavalry actor onto the horse `rider` prop (bone 2).
+
+    Rider uses a 46-bone biped; the mount uses 49 horse bones. One glTF skin
+    cannot drive both, so rider meshes are rigid-bound to the horse rider joint.
+    """
+    cfg = RIDER_ACTORS.get(asset_id)
+    if not cfg:
+        return parts
+    rpath, ap_name = cfg
+    rparts, _ = compose_actor(vfs, rpath, 0, tint, sources)
+    if not rparts:
+        print(f"  ! rider actor empty: {rpath}")
+        return parts
+    attach_pp = None
+    attach_part = body
+    for part in parts:
+        if not part.mesh_data:
+            continue
+        for pp in part.mesh_data.get("prop_points") or []:
+            if pp["name"].lower() == ap_name.lower():
+                attach_pp = pp
+                attach_part = part
+                break
+        if attach_pp:
+            break
+    if attach_pp is None:
+        print(f"  ! rider attachpoint '{ap_name}' missing on {asset_id}")
+        return parts
+    world = _prop_world(attach_part, attach_pp)
+    rb = attach_pp["bone"] if attach_pp["bone"] != 0xFF else 0
+    for sp in rparts:
+        child = sp.transform if sp.transform is not None else _identity()
+        sp.transform = mat_mul(world, child)
+        sp.bone = rb
+        sp.force_rigid = True
+        sp.aux = True
+    print(f"  rider <- {rpath} @{ap_name} bone={rb} ({len(rparts)} parts)")
+    return parts + rparts
 
 
 def _merge_variant_xml(shared_var, inline_var):
@@ -765,10 +875,10 @@ class GlbBuilder:
         self.accessors.append(acc)
         return len(self.accessors) - 1
 
-    def _add_primitive(self, positions, normals, uvs, indices, mat_idx=-1, joints=None, weights=None, uv1=None):
+    def _add_primitive(self, positions, normals, uvs, indices, mat_idx=-1, joints=None, weights=None, uv1=None, colors=None):
         """Append one primitive (already in model space) and return its index."""
         pi = len(self.primitives)
-        self.primitives.append((positions, normals, uvs, indices, mat_idx, True, "MASK", joints, weights, uv1))
+        self.primitives.append((positions, normals, uvs, indices, mat_idx, True, "MASK", joints, weights, uv1, colors))
         return pi
 
     def build(self, node_name, nodes=None, animations=None, skins=None):
@@ -1036,6 +1146,7 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
             break
     if body is None:
         body = parts[0]
+    parts = attach_rider_parts(vfs, parts, body, asset_id, tint, sources)
     bones_local = body.mesh_data.get("bones", [])
     num_bones = max(1, len(bones_local))
 
@@ -1056,11 +1167,14 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
 
     glb = GlbBuilder()
     all_pos = []
+    fit_pos = []
     baked_cache = {}
+    ao_img_cache = {}
     part_info = []  # (prim_idx, bone_idx, world_xf)
     for part in parts:
         md = part.mesh_data
         verts, uvs, faces = md["verts"], md["uvs"], md["faces"]
+        uv1s = md.get("uv1s") or []
         xf = part.transform if part.transform is not None else trs((0, 0, 0), (0, 0, 0, 1))
         positions = [mat_apply(xf, p) for (p, n) in verts]
         normals = [mat_apply(rot_only(xf), n) for (p, n) in verts]
@@ -1068,22 +1182,21 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
         tex = part.tex_base
         mat_idx = 0
         if tex:
-            key = (tex, part.tex_ao, tint)
+            key = (tex, tint)
             if key in baked_cache:
-                _, img_idx = baked_cache[key]
+                img_idx = baked_cache[key]
             else:
-                ao = vfs.load_texture_rgba(part.tex_ao) if part.tex_ao else None
-                img = bake_texture(vfs, tex, ao, tint)
+                img = bake_texture(vfs, tex, None, tint)
                 if img is not None and max(img.size) > 512:
                     s = 512 / max(img.size)
                     img = img.resize((max(1, int(img.size[0] * s)), max(1, int(img.size[1] * s))), Image.LANCZOS)
                 if img is None:
-                    _, img_idx = b"", -1
+                    img_idx = -1
                 else:
                     bio = io.BytesIO()
                     img.save(bio, "PNG", optimize=True)
                     img_idx = glb.add_image(bio.getvalue())
-                baked_cache[key] = (None, img_idx)
+                baked_cache[key] = img_idx
             if img_idx >= 0:
                 cutout = _is_cutout_material(part)
                 mat_idx = glb.add_material(img_idx, "MASK" if cutout else "OPAQUE", True)
@@ -1092,23 +1205,45 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
         else:
             mat_idx = _plain_material(glb)
         flip_uvs = [(u, 1.0 - v) for (u, v) in uvs]
+        flip_uv1 = None
+        has_uv1 = len(uv1s) == len(uvs) and all(u is not None for u in uv1s)
+        if has_uv1:
+            flip_uv1 = [(u, 1.0 - v) for (u, v) in uv1s]
+        colors = None
+        if has_uv1 and part.tex_ao:
+            if part.tex_ao not in ao_img_cache:
+                ao_img_cache[part.tex_ao] = vfs.load_texture_rgba(part.tex_ao)
+            ao_img = ao_img_cache[part.tex_ao]
+            if ao_img is not None:
+                colors = ao_vertex_colors(ao_img.convert("RGBA"), uv1s)
         tri = []
         for a, b, c in faces:
             tri += [a, c, b]
         bone_idx = getattr(part, "bone", 0)
-        origin_locked = bone_idx == 0xFF
+        origin_locked = bone_idx == 0xFF and not getattr(part, "force_rigid", False)
         if origin_locked:
             joints, weights = None, None
+        elif getattr(part, "force_rigid", False):
+            if bone_idx < 0 or bone_idx == 0xFF or bone_idx >= num_bones:
+                bone_idx = 0
+            fb = bone_idx
+            joints = [(fb, 0, 0, 0)] * len(positions)
+            weights = [(1.0, 0.0, 0.0, 0.0)] * len(positions)
         else:
             if bone_idx < 0 or bone_idx >= num_bones:
                 bone_idx = 0
             joints, weights = _skin_attrs(md, len(positions), bone_idx, num_bones)
-        prim = glb._add_primitive(positions, normals, flip_uvs, tri, mat_idx, joints, weights)
+        prim = glb._add_primitive(positions, normals, flip_uvs, tri, mat_idx, joints, weights, flip_uv1, colors)
         part_info.append((prim, bone_idx, xf, origin_locked))
+
+        if not getattr(part, "aux", False):
+            fit_pos.extend(positions)
 
     # Normalization (center XZ, base Y, scale to target) applied as the ROOT
     # node transform so the in-model-space bone/part transforms stay intact.
-    xs = [p[0] for p in all_pos]; ys = [p[1] for p in all_pos]; zs = [p[2] for p in all_pos]
+    # Rider/aux parts are left out of the fit so cavalry stays horse-sized.
+    box = fit_pos or all_pos
+    xs = [p[0] for p in box]; ys = [p[1] for p in box]; zs = [p[2] for p in box]
     minx, maxx, miny, maxy, minz, maxz = min(xs), max(xs), min(ys), max(ys), min(zs), max(zs)
     dim = (maxx - minx, maxy - miny, maxz - minz)
     scale = (target / max(dim[0], dim[2])) if fit == "width" else (target / max(dim[1], 1e-6))
@@ -1339,14 +1474,61 @@ def bone_rest_worlds(bones_local, parents):
 
 
 def asset_dir(asset_id):
-    if asset_id in ("villager", "swordsman", "archer", "spearman", "cavalry", "healer", "ram", "deer"):
+    if asset_id in UNIT_IDS:
         return "models/units"
-    if asset_id in ("town_center", "house", "barracks", "farmstead", "storehouse", "market", "temple", "wall", "wall_tower", "fortress", "ruins"):
+    if asset_id in BUILDING_IDS:
         return "models/buildings"
-    return "models/vegetation"
+    if asset_id in VEGETATION_IDS:
+        return "models/vegetation"
+    raise ValueError(f"unknown asset id {asset_id!r} — add it to UNIT_IDS, BUILDING_IDS, or VEGETATION_IDS")
+
+
+def _asset_id_from_filename(name):
+    if "_tex" in name:
+        return name.split("_tex")[0]
+    for ext in (".glb.import", ".png.import", ".glb", ".png"):
+        if name.endswith(ext):
+            return name[: -len(ext)]
+    return os.path.splitext(name)[0]
+
+
+def clean_misplaced_assets(out_dir):
+    """Remove files that landed in the wrong models/ folder from older extracts."""
+    allowed = {
+        "models/units": UNIT_IDS,
+        "models/buildings": BUILDING_IDS,
+        "models/vegetation": VEGETATION_IDS,
+    }
+    removed = 0
+    for rel, ids in allowed.items():
+        folder = os.path.join(out_dir, rel)
+        if not os.path.isdir(folder):
+            continue
+        for name in os.listdir(folder):
+            if name in (".", ".."):
+                continue
+            aid = _asset_id_from_filename(name)
+            if aid in ids:
+                continue
+            path = os.path.join(folder, name)
+            try:
+                os.remove(path)
+                removed += 1
+                print(f"[clean] removed misplaced {rel}/{name}")
+            except OSError as e:
+                print(f"[clean] skip {rel}/{name}: {e}")
+    if removed:
+        print(f"[clean] removed {removed} misplaced files")
 
 # Per-unit skeleton + animation-state -> PSA mapping.
-# State names MUST match the clip names the runtime (world_view_node) requests.
+# 0 A.D. requires PMD bone count == PSA numKeys (CSkeletonAnimDef).
+# Clip names MUST match world_view_node (Idle/Walk/Run/Attack/Death/Gather/Build).
+#
+# Texture mapping (same as source/graphics + shaders/glsl/model_common.fs):
+#   UV0 / TEXCOORD_0  -> baseTex atlas (tiling). OpenGL V is flipped for glTF.
+#   UV1 / COLOR_0     -> aoTex unique unwrap (never multiplied onto UV0 in image space).
+#   vertex blend      -> JOINTS_0 / WEIGHTS_0 (4 influences, 0xFF = unbound)
+#   actor prop @bone  -> rigid bind 100% to that joint
 UNIT_CFG = {
     "villager": ("biped", {
         "Idle": "citizen_idle", "Walk": "citizen_walk", "Run": "citizen_walk",
@@ -1361,14 +1543,17 @@ UNIT_CFG = {
     "archer": ("biped", {
         "Idle": "biped_idle", "Walk": "biped_walk", "Run": "biped_run",
         "Attack": "archer_attack", "Death": "biped_death"}),
-    "cavalry": ("biped", {
-        "Idle": "cavalry_idle", "Walk": "cavalry_walk", "Run": "cavalry_walk",
-        "Attack": "biped_attack", "Death": "biped_death"}),
+    "cavalry": ("horse", {
+        "Idle": "horse_idle", "Walk": "horse_walk", "Run": "horse_run",
+        "Attack": "horse_attack", "Death": "horse_death"}),
+    "deer": ("deer", {
+        "Idle": "deer_idle", "Walk": "deer_walk", "Run": "deer_walk"}),
     "healer": ("biped", {
-        "Idle": "biped_idle", "Walk": "biped_walk", "Run": "biped_run",
-        "Attack": "biped_attack", "Death": "biped_death"}),
-    "ram": ("biped", {"Idle": "biped_idle"}),
-    "deer": ("biped", {"Idle": "biped_idle", "Walk": "biped_walk"}),
+        "Idle": "healer_idle", "Walk": "healer_walk", "Run": "healer_run",
+        "Attack": "healer_heal", "Death": "biped_death"}),
+    "ram": ("", {
+        "Idle": "ram_idle", "Walk": "ram_walk", "Run": "ram_walk",
+        "Attack": "ram_attack"}),
 }
 
 # --------------------------------------------------------------- main -------
@@ -1386,6 +1571,7 @@ def main():
     out_dir = os.path.abspath(args.out)
     print(f"archive: {args.zip}")
     print(f"output : {out_dir}")
+    clean_misplaced_assets(out_dir)
     manifest = {"generator": "tools/extract_0ad_assets.py",
                 "origin": "0 A.D. by Wildfire Games (public mod archive)",
                 "license": "CC-BY-SA 3.0 / GPL-2.0 (see docs/0AD_ATTRIBUTION.md)",
@@ -1404,9 +1590,11 @@ def main():
             terrain.update(FULL_TERRAIN)
             print(f"[all] expanding to {len(assets)} models + {len(terrain)} terrain tiles")
         if args.only:
-            assets = {k: v for k, v in assets.items() if k in args.only}
+            known = dict(ASSETS)
+            known.update(FULL_ASSETS)
+            assets = {k: v for k, v in known.items() if k in args.only}
             if not assets:
-                sys.exit(f"--only matched nothing. known ids: {', '.join(sorted(dict(ASSETS)|dict(FULL_ASSETS)))}")
+                sys.exit(f"--only matched nothing. known ids: {', '.join(sorted(known))}")
         for asset_id, (actor_ref, fit, target, tint) in assets.items():
             try:
                 if asset_id in UNIT_CFG:
@@ -1534,6 +1722,14 @@ def main():
                 prev = json.load(f)
             prev.setdefault("models", {}).update(manifest.get("models", {}))
             manifest = prev
+    manifest["mapping"] = {
+        "uv0": "baseTex atlas (TEXCOORD_0). PMD OpenGL V flipped for glTF/Godot.",
+        "uv1_ao": "aoTex unique unwrap sampled into COLOR_0. Never multiplied onto UV0 pixels.",
+        "player_color": "baseTex.a masks mix(playerColor, white) into RGB (model_common.fs).",
+        "skin": "PMD SVertexBlend 4 bones+weights -> JOINTS_0/WEIGHTS_0. Prop attach bone if no blends.",
+        "skeleton": {uid: cfg[0] for uid, cfg in UNIT_CFG.items()},
+        "clips": {uid: cfg[1] for uid, cfg in UNIT_CFG.items()},
+    }
     with open(man_path, "w") as f:
         json.dump(manifest, f, indent=1, sort_keys=True)
     print(f"manifest -> {man_path}")

@@ -5,9 +5,17 @@
 #include <godot_cpp/variant/color.hpp>
 #include <godot_cpp/core/math.hpp>
 #include <godot_cpp/classes/animation.hpp>
+#include <godot_cpp/classes/animation_mixer.hpp>
 #include <godot_cpp/classes/packed_scene.hpp>
 #include <godot_cpp/core/memory.hpp>
-#include <set>
+#include <godot_cpp/classes/viewport.hpp>
+#include <godot_cpp/classes/camera3d.hpp>
+#include <godot_cpp/classes/geometry_instance3d.hpp>
+#include <algorithm>
+#include <cstdint>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 using namespace godot;
 
@@ -177,6 +185,8 @@ void RtsoWorldView::_ready() {
 	tree_c_mmi = memnew(MultiMeshInstance3D); tree_c_mmi->set_multimesh(tree_c_mm); add_child(tree_c_mmi);
 	gold_mmi = memnew(MultiMeshInstance3D); gold_mmi->set_multimesh(gold_mm); add_child(gold_mmi);
 	stone_mmi = memnew(MultiMeshInstance3D); stone_mmi->set_multimesh(stone_mm); add_child(stone_mmi);
+
+	ensure_unit_batches();
 }
 
 static AnimationPlayer *find_anim_player(Node *n) {
@@ -186,6 +196,16 @@ static AnimationPlayer *find_anim_player(Node *n) {
 		if (AnimationPlayer *found = find_anim_player(n->get_child(i))) return found;
 	}
 	return nullptr;
+}
+
+static void disable_mesh_shadows(Node *n) {
+	if (!n) return;
+	if (GeometryInstance3D *gi = Object::cast_to<GeometryInstance3D>(n)) {
+		gi->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+	}
+	for (int i = 0; i < n->get_child_count(); ++i) {
+		disable_mesh_shadows(n->get_child(i));
+	}
 }
 
 void RtsoWorldView::attach_unit_model(UnitVis &v, const String &model_name) {
@@ -203,10 +223,12 @@ void RtsoWorldView::attach_unit_model(UnitVis &v, const String &model_name) {
 		v.model = entry.scene->instantiate();
 		rtso::ModelLibrary::apply_imported_material_fixups(v.model);
 		v.root->add_child(v.model);
+		disable_mesh_shadows(v.model);
 		v.anim = find_anim_player(v.model);
 		if (v.anim) {
 			v.anim->set_active(true);
-			v.anim->set_callback_mode_process(AnimationMixer::ANIMATION_CALLBACK_MODE_PROCESS_IDLE);
+			v.anim->set_callback_mode_process(AnimationMixer::ANIMATION_CALLBACK_MODE_PROCESS_MANUAL);
+			v.anim->set_speed_scale(1.0);
 			v.anim->advance(0.0);
 		}
 		return;
@@ -218,6 +240,7 @@ void RtsoWorldView::attach_unit_model(UnitVis &v, const String &model_name) {
 	}
 	v.model = mi;
 	v.root->add_child(mi);
+	disable_mesh_shadows(mi);
 	v.anim = nullptr;
 }
 
@@ -244,38 +267,188 @@ void RtsoWorldView::attach_building_model(BuildingVis &v, const String &model_na
 	v.root->add_child(mi);
 }
 
+void RtsoWorldView::hide_unit_vis(UnitVis &v) {
+	if (v.root) v.root->set_visible(false);
+	if (v.ring) v.ring->set_visible(false);
+	if (v.hp_bg) v.hp_bg->set_visible(false);
+	if (v.hp_fg) v.hp_fg->set_visible(false);
+	if (v.anim) v.anim->set_active(false);
+}
+
+void RtsoWorldView::ensure_unit_batches() {
+	static const char *kWantClip[CROWD_CLIP_COUNT] = { "Idle", "Walk", "Attack", "Death" };
+	static const char *kFallback[CROWD_CLIP_COUNT] = { "Idle", "Run", "Attack", "Idle" };
+
+	for (int t = 0; t < rtso::UNIT_TYPE_COUNT; ++t) {
+		const char *id = rtso::unit_type_model((uint8_t)t);
+		const auto &entry = rtso::ModelLibrary::get("units", id);
+		Ref<Mesh> rest = entry.crowd_mesh.is_valid() ? entry.crowd_mesh : entry.mesh;
+
+		if (!unit_puppet[t][0].root && entry.scene.is_valid()) {
+			for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
+				CrowdPuppet &p = unit_puppet[t][c];
+				p.root = entry.scene->instantiate();
+				if (!p.root) continue;
+				rtso::ModelLibrary::apply_imported_material_fixups(p.root);
+				if (Node3D *n3 = Object::cast_to<Node3D>(p.root)) {
+					n3->set_visible(false);
+					n3->set_position(Vector3(0.0f, -200.0f, 0.0f));
+				}
+				p.root->set_process_mode(Node::PROCESS_MODE_ALWAYS);
+				add_child(p.root);
+				p.anim = find_anim_player(p.root);
+				if (!p.anim) continue;
+				p.anim->set_active(true);
+				p.anim->set_callback_mode_process(AnimationMixer::ANIMATION_CALLBACK_MODE_PROCESS_MANUAL);
+				p.anim->set_speed_scale(1.0);
+				String clip = kWantClip[c];
+				if (!p.anim->has_animation(clip) && kFallback[c]) {
+					clip = kFallback[c];
+				}
+				if (!p.anim->has_animation(clip)) {
+					if (p.anim->has_animation("Idle")) clip = "Idle";
+					else if (p.anim->has_animation("Walk")) clip = "Walk";
+					else {
+						PackedStringArray names = p.anim->get_animation_list();
+						if (names.size() > 0) clip = names[0];
+						else clip = String();
+					}
+				}
+				if (clip.is_empty()) continue;
+				p.clip = clip;
+				Ref<Animation> a = p.anim->get_animation(clip);
+				if (a.is_valid()) {
+					a->set_loop_mode(c == 3 ? Animation::LOOP_NONE : Animation::LOOP_LINEAR);
+				}
+				p.anim->play(clip);
+				p.anim->advance(0.12 * (double)((t + c) % 4));
+				rtso::ModelLibrary::capture_crowd_skin(p.root, p.skin);
+			}
+		}
+
+		for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
+			if (unit_mmi[t][c]) continue;
+			unit_mm[t][c] = create_multimesh(rest, true);
+			unit_mmi[t][c] = memnew(MultiMeshInstance3D);
+			unit_mmi[t][c]->set_multimesh(unit_mm[t][c]);
+			unit_mmi[t][c]->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+			add_child(unit_mmi[t][c]);
+		}
+	}
+}
+
 void RtsoWorldView::play_unit_clip(UnitVis &v, const String &clip, bool loop) {
 	if (!v.anim || clip.is_empty()) return;
 	if (!v.anim->has_animation(clip)) return;
+	if (v.clip == clip) return;
+	v.clip = clip;
 	Ref<Animation> a = v.anim->get_animation(clip);
 	if (a.is_valid()) {
 		a->set_loop_mode(loop ? Animation::LOOP_LINEAR : Animation::LOOP_NONE);
 	}
-	if (v.clip == clip) return;
-	v.clip = clip;
 	v.anim->play(clip);
 	v.anim->advance(0.0);
 }
 
-void RtsoWorldView::sync(const rtso::Simulation *sim, float alpha, const PackedInt32Array &selected_ids) {
+void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedInt32Array &selected_ids) {
 	if (!sim) return;
-	anim_time += 1.0f / 60.0f;
+	if (delta < 0.0f) delta = 0.0f;
+	if (delta > 0.05f) delta = 0.05f;
+	anim_time += delta;
+	unit_vis_stamp++;
+	if (unit_vis_stamp == 0) unit_vis_stamp = 1;
 
-	std::set<int32_t> sel_set;
+	std::unordered_set<int32_t> sel_set;
+	if (selected_ids.size() > 0) sel_set.reserve((size_t)selected_ids.size());
 	for (int i = 0; i < selected_ids.size(); ++i) sel_set.insert(selected_ids[i]);
+
+	Vector3 cam_pos;
+	if (Viewport *vp = get_viewport()) {
+		if (Camera3D *cam = vp->get_camera_3d()) {
+			cam_pos = cam->get_global_position();
+		}
+	}
+	const float anim_dist_sq = 24.0f * 24.0f;
+	(void)anim_dist_sq;
+
+	auto crowd_clip_of = [](uint8_t uaction, float speed2, bool alive) -> int {
+		if (!alive || uaction == rtso::ACTION_DYING) return 3;
+		if (uaction == rtso::ACTION_ATTACK) return speed2 > 8.0f ? 1 : 2;
+		if (uaction == rtso::ACTION_GATHER || uaction == rtso::ACTION_BUILD) return 0;
+		if (speed2 > 0.001f || uaction == rtso::ACTION_MOVE || uaction == rtso::ACTION_RETURN_DROPSITE) return 1;
+		return 0;
+	};
 
 	// =========================================================================
 	// 1. Units Presentation: Real 0 A.D. models, 3D animations, and Health Bars
 	// =========================================================================
+	ensure_unit_batches();
 	auto uview = sim->units();
-	std::set<uint32_t> alive_units;
+
+	std::unordered_set<uint32_t> detailed;
+	detailed.reserve((size_t)MAX_DETAILED_UNITS * 2);
+	for (int s = 0; s < selected_ids.size() && (int)detailed.size() < MAX_DETAILED_UNITS; ++s) {
+		detailed.insert((uint32_t)selected_ids[s]);
+	}
+	if ((int)detailed.size() < MAX_DETAILED_UNITS) {
+		struct Near {
+			float d2;
+			uint32_t id;
+		};
+		std::vector<Near> near;
+		near.reserve(uview.count);
+		for (size_t i = 0; i < uview.count; ++i) {
+			if (!uview.alive[i] && uview.action_state[i] != rtso::ACTION_DYING) continue;
+			float dx = uview.pos_x[i] - cam_pos.x;
+			float dz = uview.pos_z[i] - cam_pos.z;
+			near.push_back({dx * dx + dz * dz, uview.id[i]});
+		}
+		int keep = MAX_DETAILED_UNITS;
+		if ((int)near.size() > keep) {
+			std::partial_sort(near.begin(), near.begin() + keep, near.end(),
+					[](const Near &a, const Near &b) { return a.d2 < b.d2; });
+			near.resize((size_t)keep);
+		}
+		for (const Near &n : near) {
+			if ((int)detailed.size() >= MAX_DETAILED_UNITS) break;
+			detailed.insert(n.id);
+		}
+	}
+
+	int counts[rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT] = {};
+	for (size_t i = 0; i < uview.count; ++i) {
+		uint8_t t = uview.unit_type[i];
+		if (t >= rtso::UNIT_TYPE_COUNT) t = rtso::UNIT_VILLAGER;
+		float vx = uview.vel_x[i];
+		float vz = uview.vel_z[i];
+		int clip = crowd_clip_of(uview.action_state[i], vx * vx + vz * vz, uview.alive[i] != 0);
+		counts[t][clip]++;
+	}
+	int written[rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT] = {};
+	for (int t = 0; t < rtso::UNIT_TYPE_COUNT; ++t) {
+		for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
+			if (unit_mm[t][c].is_valid()) unit_mm[t][c]->set_instance_count(counts[t][c]);
+			CrowdPuppet &p = unit_puppet[t][c];
+			if (!p.anim) continue;
+			if (counts[t][c] <= 0) continue;
+			p.anim->advance((double)delta);
+			if (!p.skin.captured) rtso::ModelLibrary::capture_crowd_skin(p.root, p.skin);
+			Ref<ArrayMesh> posed = rtso::ModelLibrary::bake_crowd_skin(p.skin, p.posed);
+			if (posed.is_valid() && posed->get_surface_count() > 0) {
+				p.posed = posed;
+				if (unit_mm[t][c].is_valid()) unit_mm[t][c]->set_mesh(p.posed);
+			}
+		}
+	}
+
+	const Color col_player(0.55f, 0.72f, 1.0f);
+	const Color col_enemy(1.0f, 0.52f, 0.42f);
 
 	for (size_t i = 0; i < uview.count; ++i) {
 		uint32_t id = uview.id[i];
-		alive_units.insert(id);
-
 		bool is_player = (uview.team[i] == 0);
 		uint8_t utype = uview.unit_type[i];
+		if (utype >= rtso::UNIT_TYPE_COUNT) utype = rtso::UNIT_VILLAGER;
 		uint8_t uaction = uview.action_state[i];
 		float hp = uview.hp[i];
 		float max_hp = uview.max_hp[i];
@@ -284,38 +457,60 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float alpha, const PackedI
 		float vx = uview.vel_x[i];
 		float vz = uview.vel_z[i];
 		float speed2 = vx * vx + vz * vz;
+		float yaw = 0.0f;
+		auto yaw_it = crowd_yaw.find(id);
+		if (yaw_it != crowd_yaw.end()) yaw = yaw_it->second;
+		if (speed2 > 0.0004f) {
+			yaw = Math::atan2(-vx, vz);
+			crowd_yaw[id] = yaw;
+		} else if (yaw_it == crowd_yaw.end()) {
+			crowd_yaw[id] = 0.0f;
+		}
+
+		const auto &entry = rtso::ModelLibrary::get("units", rtso::unit_type_model(utype));
+		float y = entry.y_offset;
+		Transform3D xf(Basis(Vector3(0, 1, 0), yaw), Vector3(x, y, z));
+		int clip = crowd_clip_of(uaction, speed2, uview.alive[i] != 0);
+		int slot = written[utype][clip]++;
+		if (unit_mm[utype][clip].is_valid()) {
+			if (detailed.count(id) > 0) {
+				Transform3D hidden;
+				hidden.origin = Vector3(x, y, z);
+				hidden.basis = hidden.basis.scaled(Vector3(0.001f, 0.001f, 0.001f));
+				unit_mm[utype][clip]->set_instance_transform(slot, hidden);
+			} else {
+				unit_mm[utype][clip]->set_instance_transform(slot, xf);
+			}
+			unit_mm[utype][clip]->set_instance_color(slot, is_player ? col_player : col_enemy);
+		}
+
+		if (detailed.count(id) == 0) continue;
 
 		UnitVis &v = acquire_unit_slot(id);
-
-		const char *model_name = "villager";
-		if (utype == rtso::UNIT_SWORDSMAN) model_name = "swordsman";
-		else if (utype == rtso::UNIT_ARCHER) model_name = "archer";
-		else if (utype == rtso::UNIT_SPEARMAN) model_name = "spearman";
-		else if (utype == rtso::UNIT_CAVALRY) model_name = "cavalry";
-
-		attach_unit_model(v, model_name);
-		const auto &entry = rtso::ModelLibrary::get("units", model_name);
+		v.vis_stamp = unit_vis_stamp;
+		attach_unit_model(v, rtso::unit_type_model(utype));
 
 		if (speed2 > 0.001f) {
-			// 0 A.D. / OpenGL meshes face +Z. Godot's Y-rotation takes +Z toward
-			// -X for +atan2(x,z), so negate vx to align model forward with velocity.
 			float target_yaw = Math::atan2(-vx, vz);
 			float diff = Math::wrapf(target_yaw - v.yaw, -(float)Math_PI, (float)Math_PI);
 			v.yaw += diff * 0.28f;
 		}
 
-		bool has_clips = v.anim != nullptr;
+		if (v.anim) {
+			v.anim->set_active(true);
+			v.anim->set_callback_mode_process(AnimationMixer::ANIMATION_CALLBACK_MODE_PROCESS_MANUAL);
+			v.anim->set_speed_scale(1.0);
+		}
 		String want_clip;
 		bool loop_clip = true;
 		if (!uview.alive[i] || uaction == rtso::ACTION_DYING) {
 			want_clip = "Death";
 			loop_clip = false;
-		} else if (speed2 > 0.04f) {
-			want_clip = "Run";
-		} else if (speed2 > 0.001f || uaction == rtso::ACTION_MOVE || uaction == rtso::ACTION_RETURN_DROPSITE) {
-			want_clip = "Walk";
-		} else if (uaction == rtso::ACTION_ATTACK) {
+		} else if (uaction == rtso::ACTION_ATTACK && speed2 <= 8.0f) {
 			want_clip = "Attack";
+		} else if (speed2 > 0.001f || uaction == rtso::ACTION_MOVE || uaction == rtso::ACTION_RETURN_DROPSITE ||
+				uaction == rtso::ACTION_ATTACK) {
+			want_clip = "Walk";
 		} else if (uaction == rtso::ACTION_GATHER) {
 			want_clip = "Gather";
 		} else if (uaction == rtso::ACTION_BUILD) {
@@ -323,76 +518,40 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float alpha, const PackedI
 		} else {
 			want_clip = "Idle";
 		}
-		if (has_clips) {
+		if (v.anim) {
 			if (!v.anim->has_animation(want_clip)) {
 				if (want_clip == "Run" && v.anim->has_animation("Walk")) want_clip = "Walk";
+				else if (want_clip == "Walk" && v.anim->has_animation("Run")) want_clip = "Run";
 				else if (want_clip == "Build" && v.anim->has_animation("Gather")) want_clip = "Gather";
 				else if (v.anim->has_animation("Idle")) want_clip = "Idle";
 			}
 			play_unit_clip(v, want_clip, loop_clip);
+			v.anim->advance((double)delta);
 		}
 
-		float anim_y = entry.y_offset;
-		float anim_pitch = 0.0f;
-		float anim_roll = 0.0f;
-		if (!has_clips) {
-			if (!uview.alive[i] || uaction == rtso::ACTION_DYING) {
-				float dt = uview.death_timer[i];
-				anim_y -= dt * 0.9f;
-				anim_pitch = dt * 1.3f;
-			} else if (speed2 > 0.001f) {
-				float step_freq = (utype == rtso::UNIT_CAVALRY) ? 14.0f : 10.0f;
-				float phase = anim_time * step_freq + (float)(id % 11) * 0.35f;
-				anim_y += Math::abs(Math::sin(phase)) * 0.10f;
-				anim_roll = Math::sin(phase) * 0.05f;
-			} else if (uaction == rtso::ACTION_ATTACK) {
-				float strike_phase = Math::sin(anim_time * 12.0f);
-				anim_y += Math::max(0.0f, strike_phase * 0.12f);
-				anim_pitch = strike_phase * 0.18f;
-			} else if (uaction == rtso::ACTION_GATHER || uaction == rtso::ACTION_BUILD) {
-				float chop_phase = Math::sin(anim_time * 8.0f);
-				anim_pitch = chop_phase * 0.22f;
-				anim_y += Math::abs(chop_phase) * 0.06f;
-			} else {
-				anim_y += Math::sin(anim_time * 2.5f + (float)(id % 7) * 0.5f) * 0.03f;
-			}
-		}
+		Transform3D dxf(Basis(Vector3(0, 1, 0), v.yaw), Vector3(x, entry.y_offset, z));
+		v.root->set_transform(dxf);
 
-		Basis rot = Basis(Vector3(0, 1, 0), v.yaw) * Basis(Vector3(1, 0, 0), anim_pitch) * Basis(Vector3(0, 0, 1), anim_roll);
-		Transform3D xf(rot, Vector3(x, anim_y, z));
-		v.root->set_transform(xf);
-
-		// Selection Ring
 		bool is_selected = (sel_set.count((int32_t)id) > 0);
-		if (!is_player) {
-			v.ring->set_material_override(ring_enemy_mat);
+		if (is_selected) {
+			v.ring->set_material_override(is_player ? ring_sel_mat : ring_enemy_mat);
 			v.ring->set_visible(true);
-		} else if (is_selected && !v.ring_on) {
-			v.ring->set_material_override(ring_sel_mat);
-			v.ring->set_visible(true);
-		} else if (!is_selected) {
+			v.ring->set_transform(Transform3D(Basis(), Vector3(x, 0.04f, z)));
+		} else if (v.ring_on) {
 			v.ring->set_visible(false);
 		}
 		v.ring_on = is_selected;
-		if (is_selected || !is_player) {
-			v.ring->set_transform(Transform3D(Basis(), Vector3(x, 0.04f, z)));
-		}
 
-		// 3D Floating Health Bar (shown for selected units or damaged units)
-		bool show_hp = (is_selected || hp < max_hp * 0.95f) && uview.alive[i];
+		bool show_hp = is_selected && uview.alive[i];
 		v.hp_bg->set_visible(show_hp);
 		v.hp_fg->set_visible(show_hp);
-
 		if (show_hp) {
 			float hp_ratio = Math::clamp(hp / max_hp, 0.0f, 1.0f);
 			float bar_y = entry.aabb.size.y + 0.4f;
 			if (bar_y < 1.2f) bar_y = entry.scale * 1.8f + 0.4f;
 			Vector3 hp_pos(x, bar_y, z);
-
 			v.hp_bg->set_transform(Transform3D(Basis(), hp_pos));
 			v.hp_fg->set_material_override(is_player ? hp_green_mat : hp_red_mat);
-
-			// Scale foreground bar by HP percentage
 			Basis fg_basis;
 			fg_basis.scale(Vector3(hp_ratio, 1.0f, 1.0f));
 			Vector3 fg_offset((hp_ratio - 1.0f) * 0.44f, 0.0f, 0.01f);
@@ -400,14 +559,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float alpha, const PackedI
 		}
 	}
 
-	// Recycle dead unit visual instances
 	for (size_t s = 0; s < unit_pool.size(); ++s) {
-		if (unit_pool[s].root && unit_pool[s].root->is_visible() &&
-			alive_units.find(unit_pool[s].sim_id) == alive_units.end()) {
-			unit_pool[s].root->set_visible(false);
-			unit_pool[s].ring->set_visible(false);
-			unit_pool[s].hp_bg->set_visible(false);
-			unit_pool[s].hp_fg->set_visible(false);
+		if (unit_pool[s].root && unit_pool[s].vis_stamp != unit_vis_stamp) {
+			hide_unit_vis(unit_pool[s]);
 			unit_slot.erase(unit_pool[s].sim_id);
 			unit_free.push_back(s);
 		}
@@ -417,7 +571,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float alpha, const PackedI
 	// 2. Buildings: Town Center, Barracks, Houses, Towers, Storehouses, Farms
 	// =========================================================================
 	const auto &buildings = sim->buildings();
-	std::set<uint32_t> alive_buildings;
+	std::unordered_set<uint32_t> alive_buildings;
 
 	for (const auto &b : buildings) {
 		alive_buildings.insert(b.id);

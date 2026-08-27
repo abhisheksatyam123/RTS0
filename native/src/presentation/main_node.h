@@ -88,7 +88,7 @@ private:
 	void update_hud();
 	void enter_build_mode(bool enable, uint8_t btype = rtso::BLD_HOUSE);
 	void update_ghost_mesh();
-	void try_train_unit(uint8_t utype);
+	void try_train_unit(rtso::UnitType utype);
 };
 
 #endif

@@ -18,8 +18,13 @@ config/features=PackedStringArray("4.3", "Forward Plus")
 
 textures/vram_compression/import_etc2_astc=true
 environment/defaults/default_clear_color=Color(0.12, 0.14, 0.18, 1)
-anti_aliasing/quality/msaa_3d=2
+anti_aliasing/quality/msaa_3d=0
+anti_aliasing/quality/screen_space_aa=1
 textures/default_filters/anisotropic_filtering_level=4
+
+[threading]
+
+worker_pool/max_threads=-1
 
 [importer_defaults]
 

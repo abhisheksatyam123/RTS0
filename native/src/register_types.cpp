@@ -11,6 +11,13 @@
 #include "presentation/debug_overlay.h"
 #include "presentation/minimap_view.h"
 #include "presentation/world_view_node.h"
+#include "graphics/assets/model_library.h"
+#include "core/job_system.h"
+#include "core/diagnostics/logger.h"
+
+#include <algorithm>
+#include <cstdio>
+#include <thread>
 
 using namespace godot;
 
@@ -25,14 +32,21 @@ void initialize_rtso_module(ModuleInitializationLevel p_level) {
 	GDREGISTER_CLASS(RtsoDebugOverlay);
 	GDREGISTER_CLASS(RtsoMiniMapView);
 	GDREGISTER_CLASS(RtsoWorldView);
-}
 
-#include "graphics/assets/model_library.h"
+	rtso::JobSystem::instance().start();
+	char buf[160];
+	std::snprintf(buf, sizeof(buf), "sim workers=%u (+main, width=%u) hw_concurrency=%u",
+			rtso::JobSystem::instance().worker_count(),
+			rtso::JobSystem::instance().parallel_width(),
+			std::max(1u, std::thread::hardware_concurrency()));
+	rtso::Logger::info("jobs", buf);
+}
 
 void uninitialize_rtso_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
 	}
+	rtso::JobSystem::instance().stop();
 	rtso::ModelLibrary::clear();
 }
 
