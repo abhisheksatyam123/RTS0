@@ -24,7 +24,7 @@ import zipfile
 import xml.etree.ElementTree as ET
 
 try:
-    from PIL import Image
+    from PIL import Image, ImageChops
 except ImportError:
     sys.exit("Pillow required: pip install pillow")
 
@@ -41,8 +41,8 @@ ASSETS = {
     # core MVP — keep deterministic ids for GameSim
     "villager":    ("art/actors/units/athenians/female_citizen.xml",      "height", 1.70, (0.36, 0.62, 0.94)),
     "swordsman":   ("art/actors/units/athenians/infantry_swordsman_c.xml","height", 1.80, (0.92, 0.32, 0.28)),
-    "town_center": ("art/actors/structures/spartans/civic_center.xml",   "width",  5.80, (0.36, 0.62, 0.94)),
-    "house":       ("art/actors/structures/spartans/house.xml",           "width",  2.40, (0.36, 0.62, 0.94)),
+    "town_center": ("art/actors/structures/hellenes/civic_centre_new.xml", "width",  6.20, (0.36, 0.62, 0.94)),
+    "house":       ("art/actors/structures/romans/house.xml",             "width",  2.40, (0.36, 0.62, 0.94)),
     "tree":        ("art/actors/flora/trees/oak_new.xml",                 "height", 4.50, None),
     "gold_vein":   ("art/actors/geology/metalmine_granite_greek.xml",     "width",  1.80, None),
 }
@@ -263,13 +263,15 @@ def parse_pmd(data):
 
     nv = u32()
     nuv = u32() if version > 3 else 1
-    verts, uvs, blends = [], [], []
+    verts, uvs, uv1s, blends = [], [], [], []
     for _ in range(nv):
         p = (f32(), f32(), f32()); n = (f32(), f32(), f32())
-        uvlast = (0.0, 0.0)
+        uv_sets = []
         for _ in range(nuv):
-            uvlast = (f32(), f32())
-        uvs.append(uvlast)
+            uv_sets.append((f32(), f32()))
+        # UV set 0 = tiling/atlas diffuse (baseTex). UV set 1 = unique AO unwrap.
+        uvs.append(uv_sets[0] if uv_sets else (0.0, 0.0))
+        uv1s.append(uv_sets[1] if len(uv_sets) > 1 else None)
         # SVertexBlend: 4 bone indices (u8) + 4 weights (f32) — 20 bytes
         # In PMD file it's packed as 4 bytes bones + 16 bytes weights sequentially
         b0, b1, b2, b3 = struct.unpack_from("<BBBB", data, o); o += 4
@@ -292,14 +294,19 @@ def parse_pmd(data):
             p = (f32(), f32(), f32()); q = (f32(), f32(), f32(), f32())
             bi = data[o]; o += 1
             props.append({"name": name, "pos": p, "quat": q, "bone": bi})
-    return {"version": version, "verts": verts, "uvs": uvs, "faces": faces,
+    # ModelDef.cpp: versions <=2 omit the default 'root' prop point
+    if version <= 2 or not any(p["name"].lower() == "root" for p in props):
+        props.append({"name": "root", "pos": (0.0, 0.0, 0.0), "quat": (0.0, 0.0, 0.0, 1.0), "bone": 0xFF})
+    return {"version": version, "verts": verts, "uvs": uvs, "uv1s": uv1s, "faces": faces,
             "bones": bones, "blends": blends, "prop_points": props}
 
 def parse_psa(data):
-    """Parse .psa (PSSA container) -> skeleton animation.
-    Follows SkeletonAnimDef::Load (source/graphics/SkeletonAnimDef.cpp) + FileIo.
-    Layout: PSSA | version | payloadSize | string(len+bytes) | f32 frameTime | size numKeys | size numFrames | keys[] (CBoneState)
-    CBoneState: CVector3D translation (3xf32) + CQuaternion rotation (4xf32) = 28 bytes
+    """Parse .psa (PSSA) using 0 A.D. CSkeletonAnimDef::Load + CFileUnpacker.
+
+    Layout: PSSA | version | payloadSize | UnpackString | f32 frameTime
+            | UnpackSize numKeys | UnpackSize numFrames | CBoneState[numKeys*numFrames]
+    CBoneState (SkeletonAnimDef.h): translation relative to root + rotation relative to root.
+    UnpackSize is always little-endian u32 (ps/FileIo.cpp).
     """
     magic = data[0:4]
     assert magic == b"PSSA", f"bad PSSA magic {magic!r}"
@@ -307,48 +314,11 @@ def parse_psa(data):
     payloadSize = struct.unpack_from("<I", data, 8)[0]
     assert len(data) == 12 + payloadSize
     o = 12
-    # UnpackString (CStr via CFileUnpacker::UnpackString): u32 len + bytes
     slen = struct.unpack_from("<I", data, o)[0]; o += 4
-    o += slen  # skip name
+    o += slen  # unused name, same as SkeletonAnimDef.cpp
     frameTime = struct.unpack_from("<f", data, o)[0]; o += 4
-    # UnpackSize: size_t packed as variable? In 0ad it's SizeEncoded as u32 on x86_64?
-    # Empirically PSA files are small, sizes are <256, encoded as 1-2 bytes? But FileIo uses PackSize as varint.
-    # For PSSA files we observed simple layout: directly u32. Try both: if remaining matches.
-    # Fall back to reading as u32 if varint fails — for 0ad 0.27 cache, it's raw u32.
-    # Check remaining bytes to infer.
-    # Try varint decode
-    def unpack_size():
-        nonlocal o
-        # FileIo PackSize uses 7-bit varint
-        val = 0
-        shift = 0
-        while True:
-            b = data[o]; o += 1
-            val |= (b & 0x7F) << shift
-            if not (b & 0x80):
-                break
-            shift += 7
-        return val
-    # Peek: try varint vs raw
-    # Save position
-    pos0 = o
-    try:
-        numKeys = unpack_size()
-        numFrames = unpack_size()
-        expected = numKeys * numFrames * 28
-        if expected != len(data) - o:
-            # mismatch -> try raw u32
-            o = pos0
-            numKeys = struct.unpack_from("<I", data, o)[0]; o += 4
-            numFrames = struct.unpack_from("<I", data, o)[0]; o += 4
-            # also try as Size packing where sizes are actually stored as CStr-style?
-            if numKeys * numFrames * 28 != len(data) - o:
-                # final fallback: varint but with different shift?
-                raise ValueError
-    except:
-        o = pos0
-        numKeys = struct.unpack_from("<I", data, o)[0]; o += 4
-        numFrames = struct.unpack_from("<I", data, o)[0]; o += 4
+    numKeys = struct.unpack_from("<I", data, o)[0]; o += 4
+    numFrames = struct.unpack_from("<I", data, o)[0]; o += 4
     keys = []
     for _ in range(numFrames * numKeys):
         tx, ty, tz = struct.unpack_from("<3f", data, o); o += 12
@@ -457,7 +427,7 @@ class Vfs:
 
 class Part:
     """One composed mesh part with its own material/texture set."""
-    __slots__ = ("mesh_data", "tex_base", "tex_ao", "material", "transform", "source")
+    __slots__ = ("mesh_data", "tex_base", "tex_ao", "material", "transform", "source", "bone")
 
     def __init__(self):
         self.mesh_data = None
@@ -466,6 +436,7 @@ class Part:
         self.material = ""
         self.transform = None
         self.source = ""
+        self.bone = 0  # skeleton bone index this part attaches to (0 = root/hip)
 
 
 def _variant_children(vfs, var):
@@ -509,15 +480,20 @@ def _pick_variant(group):
 
 
 def _resolve_variant_file(vfs, file_ref, cache):
-    path = f"art/{file_ref.strip()}" if not file_ref.startswith("art/") else file_ref
-    for cand in (path, path + ".xml"):
-        if vfs.exists(cand):
-            key = cand
-            if key in cache:
-                return ET.fromstring(cache[key])
-            data = vfs.read(cand)
-            cache[key] = data
-            return ET.fromstring(data)
+    """0 A.D. ObjectBase.cpp loads variant @file from art/variants/ + value."""
+    ref = file_ref.strip()
+    if ref.startswith("art/"):
+        prefixes = [ref]
+    else:
+        prefixes = [f"art/variants/{ref}", f"art/{ref}"]
+    for path in prefixes:
+        for cand in (path, path if path.endswith(".xml") else path + ".xml"):
+            if vfs.exists(cand):
+                if cand in cache:
+                    return ET.fromstring(cache[cand])
+                data = vfs.read(cand)
+                cache[cand] = data
+                return ET.fromstring(data)
     return None
 
 
@@ -611,7 +587,7 @@ def compose_actor(vfs, actor_path, depth=0, tint=None, sources=None):
     # resolve props against the composed parts (CModel::ValidatePosition rule:
     # world = boneBindMatrix * propPoint.transform, or transform alone if unboned)
     for actor_ref, attachpoint, _sel in pending_props:
-        if any(s in actor_ref for s in ("decals/", "particle", "flag")):
+        if any(s in actor_ref for s in ("decals/", "platforms/", "particle", "flag")):
             continue
         sub_path = actor_ref if actor_ref.startswith("art/") else f"art/actors/{actor_ref}"
         sub_parts, _ = compose_actor(vfs, sub_path, depth + 1, tint, sources)
@@ -629,13 +605,20 @@ def compose_actor(vfs, actor_path, depth=0, tint=None, sources=None):
                         world = local
                     for sp in sub_parts:
                         sp.transform = world
+                        sp.bone = pp["bone"] if pp["bone"] != 0xFF else 0xFF
                     final_parts.extend(sub_parts)
                     placed = True
                     break
             if placed:
                 break
         if not placed:
-            print(f"  ! attachpoint '{attachpoint}' not found for {sub_path}")
+            # CModel: boneIndex 0xFF => relative to object origin, not a bone
+            print(f"  ! attachpoint '{attachpoint}' not found for {sub_path}; origin-attach")
+            for sp in sub_parts:
+                if sp.transform is None:
+                    sp.transform = trs((0, 0, 0), (0, 0, 0, 1))
+                sp.bone = 0xFF
+            final_parts.extend(sub_parts)
 
     return final_parts, material_name
 
@@ -662,12 +645,10 @@ def bake_texture(vfs, ref, ao_img, tint):
     if src is None:
         return None
     img = src.copy()  # don't mutate cache
-    if max(img.size) > 1024:
-        img = img.resize((img.size[0] // 2, img.size[1] // 2), Image.LANCZOS)
-    
+
     # Check if this texture is intended for player color masking (e.g. unit clothing/shields/banners)
     is_structural = any(k in ref for k in ("tile", "struct", "stone", "grass", "dirt", "rock", "tree", "plant", "nature", "foliage", "wood"))
-    
+
     if tint is not None and not is_structural:
         px = img.load()
         w, h = img.size
@@ -680,8 +661,44 @@ def bake_texture(vfs, ref, ao_img, tint):
                     r = int(r * (r_t * (1 - a / 255.0) + a) / 255)
                     g = int(g * (g_t * (1 - a / 255.0) + a) / 255)
                     b = int(b * (b_t * (1 - a / 255.0) + a) / 255)
-                    px[x, y] = (min(r, 255), min(g, 255), min(b, 255), a)
+                # Player-color lives in alpha; after baking it into RGB, keep the
+                # texel opaque so glTF MASK materials don't discard team colors.
+                # baked color is now in RGB; don't keep player-mask alpha for MASK shaders
+                px[x, y] = (min(r, 255), min(g, 255), min(b, 255), 255)
+
+    # AO (aoTex) is a unique UV1 lightmap in 0 A.D. — never multiply it onto
+    # the tiling UV0 albedo in image space (that tiles the unwrap as static).
     return img
+
+
+def _sample_rgba(img, u, v):
+    """Sample PIL image. PMD UVs are OpenGL (0,0 = bottom-left)."""
+    w, h = img.size
+    uu = min(max(float(u), 0.0), 1.0)
+    vv = min(max(1.0 - float(v), 0.0), 1.0)
+    x = min(int(uu * (w - 1) + 0.5), w - 1)
+    y = min(int(vv * (h - 1) + 0.5), h - 1)
+    px = img.getpixel((x, y))
+    if len(px) == 3:
+        return px[0], px[1], px[2], 255
+    return px[0], px[1], px[2], px[3]
+
+
+def ao_vertex_colors(ao_img, uv1s):
+    """Bake unique-unwrap AO into COLOR_0.
+
+    Godot's glTF importer enables occlusionTexture but samples it with UV0,
+    which turns a UV1 lightmap into static on tiling building atlases.
+    """
+    cols = []
+    for uv in uv1s:
+        if uv is None:
+            cols.append((255, 255, 255, 255))
+            continue
+        r, g, b, _ = _sample_rgba(ao_img, uv[0], uv[1])
+        a = int(round((r + g + b) / 3.0))
+        cols.append((a, a, a, 255))
+    return cols
 
 # ------------------------------------------------------------ glb writer ----
 
@@ -691,6 +708,7 @@ class GlbBuilder:
         self.images = {}       # content-hash -> index
         self.image_defs = []   # {name, png_bytes}
         self.materials = []    # json defs
+        self.ao_image_indices = set()
         self.primitives = []   # (positions, normals, uvs, indices, material_idx, double_sided, alpha_mode)
 
     def add_image(self, png_bytes):
@@ -702,8 +720,8 @@ class GlbBuilder:
         self.image_defs.append({"name": f"tex{idx}", "bytes": png_bytes})
         return idx
 
-    def add_material(self, img_idx, alpha_mode, double_sided):
-        key = (img_idx, alpha_mode, double_sided)
+    def add_material(self, img_idx, alpha_mode, double_sided, ao_idx=None):
+        key = (img_idx, alpha_mode, double_sided, ao_idx)
         for i, m in enumerate(self.materials):
             if m["_key"] == key:
                 return i
@@ -714,6 +732,11 @@ class GlbBuilder:
         if alpha_mode == "MASK":
             d["alphaMode"] = "MASK"
             d["alphaCutoff"] = 0.35
+        if ao_idx is not None:
+            d["occlusionTexture"] = {"index": ao_idx, "texCoord": 1}
+            self.ao_image_indices.add(ao_idx)
+            # Godot's glTF importer enables AO but samples UV0 unless the
+            # runtime sets BaseMaterial3D.FLAG_AO_ON_UV2. Keep texCoord=1.
         self.materials.append(d)
         return len(self.materials) - 1
 
@@ -723,28 +746,49 @@ class GlbBuilder:
             b += b"\x00"
         return b
 
-    def _accessor(self, comp_type, count, data_type, data_bytes, minmax=None):
+    def _accessor(self, comp_type, count, data_type, data_bytes, minmax=None, stride=None, normalized=False):
         self.bin = self._pad(bytes(self.bin))
         offset = len(self.bin)
         self.bin += data_bytes
         acc = {"bufferView": len(self.buffer_views), "componentType": comp_type,
                "count": count, "type": data_type}
+        if normalized:
+            acc["normalized"] = True
         bv = {"buffer": 0, "byteOffset": offset, "byteLength": len(data_bytes)}
-        if data_type != "SCALAR":
-            bv["byteStride"] = {"VEC3": 12, "VEC2": 8}[data_type]
+        if stride:
+            bv["byteStride"] = stride
+        elif data_type in ("VEC3", "VEC2"):
+            bv["byteStride"] = 12 if data_type == "VEC3" else 8
         self.buffer_views.append(bv)
         if minmax:
             acc["min"], acc["max"] = minmax
         self.accessors.append(acc)
         return len(self.accessors) - 1
 
-    def build(self, node_name):
+    def _add_primitive(self, positions, normals, uvs, indices, mat_idx=-1, joints=None, weights=None, uv1=None):
+        """Append one primitive (already in model space) and return its index."""
+        pi = len(self.primitives)
+        self.primitives.append((positions, normals, uvs, indices, mat_idx, True, "MASK", joints, weights, uv1))
+        return pi
+
+    def build(self, node_name, nodes=None, animations=None, skins=None):
+        """Build GLB.
+
+        If ``nodes``/``animations`` are None, build the legacy flat layout
+        (one mesh+node per primitive, like 0 A.D.'s separate CModel per prop).
+        If provided, ``nodes`` is the scene graph and ``animations`` are glTF
+        animation clips (used for skinned/rigid-prop skeletal unit animation).
+        """
         import json as _json
         self.accessors = []
         self.buffer_views = []
         self.bin = bytearray()
-        prim_json = []
-        for positions, normals, uvs, indices, mat_idx, ds, am in self.primitives:
+        # Each primitive becomes its own mesh.
+        meshes = []
+        for pi, prim in enumerate(self.primitives):
+            positions, normals, uvs, indices, mat_idx = prim[0], prim[1], prim[2], prim[3], prim[4]
+            joints = prim[7] if len(prim) > 7 else None
+            weights = prim[8] if len(prim) > 8 else None
             mn = [min(p[i] for p in positions) for i in range(3)]
             mx = [max(p[i] for p in positions) for i in range(3)]
             pos_acc = self._accessor(5126, len(positions), "VEC3",
@@ -752,32 +796,116 @@ class GlbBuilder:
             nrm_acc = self._accessor(5126, len(normals), "VEC3",
                                      b"".join(struct.pack("<3f", *n) for n in normals))
             uv_acc = self._accessor(5126, len(uvs), "VEC2",
-                                    b"".join(struct.pack("<2f", *t) for t in uvs))
+                                     b"".join(struct.pack("<2f", *t) for t in uvs))
             idx_acc = self._accessor(5125, len(indices), "SCALAR",
                                      b"".join(struct.pack("<I", i) for i in indices))
-            prim_json.append({"attributes": {"POSITION": pos_acc, "NORMAL": nrm_acc,
-                                             "TEXCOORD_0": uv_acc},
-                              "indices": idx_acc, "material": mat_idx})
-        # mark buffer views targets
-        for bv, tgt in zip(self.buffer_views, [34962, 34962, 34962, 34963] * len(self.primitives)):
-            bv["target"] = tgt
+            # mark mesh buffer-view targets immediately
+            attr_targets = [(pos_acc, 34962), (nrm_acc, 34962), (uv_acc, 34962), (idx_acc, 34963)]
+            attrs = {"POSITION": pos_acc, "NORMAL": nrm_acc, "TEXCOORD_0": uv_acc}
+            uv1 = prim[9] if len(prim) > 9 else None
+            colors = prim[10] if len(prim) > 10 else None
+            if uv1 and len(uv1) == len(positions):
+                uv1_acc = self._accessor(5126, len(uv1), "VEC2",
+                                         b"".join(struct.pack("<2f", *t) for t in uv1))
+                attrs["TEXCOORD_1"] = uv1_acc
+                attr_targets.append((uv1_acc, 34962))
+            if colors and len(colors) == len(positions):
+                col_acc = self._accessor(5121, len(colors), "VEC4",
+                                         b"".join(struct.pack("<4B", *c) for c in colors),
+                                         stride=4, normalized=True)
+                attrs["COLOR_0"] = col_acc
+                attr_targets.append((col_acc, 34962))
+            if joints and weights and len(joints) == len(positions):
+                j_acc = self._accessor(5121, len(joints), "VEC4",
+                                       b"".join(struct.pack("<4B", *j) for j in joints), stride=4)
+                w_acc = self._accessor(5126, len(weights), "VEC4",
+                                       b"".join(struct.pack("<4f", *w) for w in weights), stride=16)
+                attrs["JOINTS_0"] = j_acc
+                attrs["WEIGHTS_0"] = w_acc
+                attr_targets += [(j_acc, 34962), (w_acc, 34962)]
+            for bvi, tgt in attr_targets:
+                self.buffer_views[bvi]["target"] = tgt
+            primj = {"attributes": attrs, "indices": idx_acc, "material": mat_idx}
+            meshes.append({"name": f"{node_name}_part{pi}", "primitives": [primj]})
         images = [{"bufferView": None, "mimeType": "image/png", "name": im["name"]}
                   for im in self.image_defs]
+
+        if nodes is None:
+            # Legacy flat layout.
+            nodes = [{"name": node_name, "children": list(range(1, len(meshes) + 1))}]
+            for pi in range(len(meshes)):
+                nodes.append({"name": f"{node_name}_part{pi}", "mesh": pi})
+
+        gltf_nodes = []
+        for nd in nodes:
+            d = {"name": nd["name"]}
+            if nd.get("mesh", -1) >= 0:
+                d["mesh"] = nd["mesh"]
+            if nd.get("translation"):
+                d["translation"] = [float(x) for x in nd["translation"]]
+            if nd.get("rotation"):
+                d["rotation"] = [float(x) for x in nd["rotation"]]
+            if nd.get("scale"):
+                d["scale"] = [float(x) for x in nd["scale"]]
+            if nd.get("children"):
+                d["children"] = list(nd["children"])
+            if nd.get("skin", -1) >= 0:
+                d["skin"] = int(nd["skin"])
+            gltf_nodes.append(d)
+
+        gltf_animations = []
+        if animations:
+            for anim in animations:
+                times = anim["times"]
+                t_acc = self._accessor(5126, len(times), "SCALAR",
+                                       b"".join(struct.pack("<f", t) for t in times))
+                samplers = []
+                channels = []
+                for node_idx, tracks in anim["tracks"].items():
+                    if "translation" in tracks:
+                        out = b"".join(struct.pack("<3f", *v) for v in tracks["translation"])
+                        o_acc = self._accessor(5126, len(tracks["translation"]), "VEC3", out)
+                        si = len(samplers)
+                        samplers.append({"input": t_acc, "output": o_acc, "interpolation": "LINEAR"})
+                        channels.append({"sampler": si, "target": {"node": int(node_idx), "path": "translation"}})
+                    if "rotation" in tracks:
+                        out = b"".join(struct.pack("<4f", *v) for v in tracks["rotation"])
+                        o_acc = self._accessor(5126, len(tracks["rotation"]), "VEC4", out)
+                        si = len(samplers)
+                        samplers.append({"input": t_acc, "output": o_acc, "interpolation": "LINEAR"})
+                        channels.append({"sampler": si, "target": {"node": int(node_idx), "path": "rotation"}})
+                gltf_animations.append({"name": anim["name"], "samplers": samplers, "channels": channels})
+
         gltf = {
             "asset": {"version": "2.0", "generator": "RTS0 extract_0ad_assets.py"},
             "scene": 0,
             "scenes": [{"nodes": [0]}],
-            "nodes": [{"name": node_name, "mesh": 0}],
-            "meshes": [{"name": node_name, "primitives": prim_json}],
+            "nodes": gltf_nodes,
+            "meshes": meshes,
             "materials": [{k: v for k, v in m.items() if k != "_key"} for m in self.materials],
-            "textures": [{"source": i, "sampler": 0} for i in range(len(images))],
+            "textures": [{"source": i, "sampler": (1 if i in self.ao_image_indices else 0)}
+                         for i in range(len(images))],
             "images": images,
-            "samplers": [{"magFilter": 9729, "minFilter": 9987,
-                          "wrapS": 10497, "wrapT": 10497}],
+            "samplers": [
+                {"magFilter": 9729, "minFilter": 9987, "wrapS": 10497, "wrapT": 10497},
+                {"magFilter": 9729, "minFilter": 9987, "wrapS": 33071, "wrapT": 33071},
+            ],
             "buffers": [{"byteLength": len(self.bin)}],
             "bufferViews": self.buffer_views,
             "accessors": self.accessors,
         }
+        if gltf_animations:
+            gltf["animations"] = gltf_animations
+        if skins:
+            gltf_skins = []
+            for sk in skins:
+                ibm_bytes = b"".join(_mat4_gltf(m) for m in sk["inverseBindMatrices"])
+                ibm_acc = self._accessor(5126, len(sk["inverseBindMatrices"]), "MAT4", ibm_bytes)
+                entry = {"joints": list(sk["joints"]), "inverseBindMatrices": ibm_acc}
+                if "skeleton" in sk:
+                    entry["skeleton"] = int(sk["skeleton"])
+                gltf_skins.append(entry)
+            gltf["skins"] = gltf_skins
         # append image bytes to bin, fix bufferViews
         for im in self.image_defs:
             self.bin = self._pad(bytes(self.bin))
@@ -807,10 +935,13 @@ def compile_asset(vfs, asset_id, actor_ref, fit, target, tint, out_dir):
         raise RuntimeError(f"no parts composed for {asset_id}")
     glb = GlbBuilder()
     all_pos = []
-    baked_cache = {}  # (tex_ref, ao_ref) -> (png_bytes, img_idx)
+    baked_cache = {}  # (tex_ref, tint) -> img_idx
+    ao_img_cache = {}
     for part in parts:
         md = part.mesh_data
         verts, uvs, faces = md["verts"], md["uvs"], md["faces"]
+        uv1s = md.get("uv1s") or []
+        has_uv1 = len(uv1s) == len(uvs) and all(u is not None for u in uv1s)
         xf = part.transform if part.transform is not None else trs((0, 0, 0), (0, 0, 0, 1))
         positions = [mat_apply(xf, p) for (p, n) in verts]
         normals = [mat_apply(rot_only(xf), n) for (p, n) in verts]
@@ -818,33 +949,38 @@ def compile_asset(vfs, asset_id, actor_ref, fit, target, tint, out_dir):
         tex = part.tex_base
         mat_idx = 0
         if tex:
-            key = (tex, part.tex_ao, tint)
+            key = (tex, tint)
             if key in baked_cache:
-                png, img_idx = baked_cache[key]
+                img_idx = baked_cache[key]
             else:
-                ao = vfs.load_texture_rgba(part.tex_ao) if part.tex_ao else None
-                img = bake_texture(vfs, tex, ao, tint)
-                if img is not None and max(img.size) > 512:
-                    s = 512 / max(img.size)
-                    img = img.resize((max(1, int(img.size[0]*s)), max(1, int(img.size[1]*s))), Image.LANCZOS)
-                if img is None:
-                    png, img_idx = b"", -1
-                else:
-                    bio = io.BytesIO(); img.save(bio, "PNG", optimize=True)
-                    png = bio.getvalue()
+                img = bake_texture(vfs, tex, None, tint)
+                img_idx = -1
+                png = _img_png(img)
+                if png:
                     img_idx = glb.add_image(png)
-                baked_cache[key] = (png, img_idx)
+                baked_cache[key] = img_idx
             if img_idx >= 0:
-                alpha_masked = "player_" not in (part.material or "")
-                mat_idx = glb.add_material(img_idx, "MASK" if alpha_masked else "OPAQUE", True)
+                cutout = _is_cutout_material(part)
+                mat_idx = glb.add_material(img_idx, "MASK" if cutout else "OPAQUE", True)
             else:
                 mat_idx = _plain_material(glb)
         else:
             mat_idx = _plain_material(glb)
+        colors = None
+        if has_uv1 and part.tex_ao:
+            if part.tex_ao not in ao_img_cache:
+                ao_img_cache[part.tex_ao] = vfs.load_texture_rgba(part.tex_ao)
+            ao_img = ao_img_cache[part.tex_ao]
+            if ao_img is not None:
+                colors = ao_vertex_colors(ao_img.convert("RGBA"), uv1s)
         tri_indices = []
         for a, b, c in faces:
             tri_indices += [a, c, b]  # 0ad = CW front; glTF = CCW front
-        glb.primitives.append((positions, normals, uvs, tri_indices, mat_idx, True, "MASK"))
+        # 0 A.D. / OpenGL texture coords use (0,0) at the BOTTOM-LEFT, while
+        # glTF / Godot sample (0,0) at the TOP-LEFT. Flip V so baked textures
+        # map to the correct location on the model instead of being mirrored.
+        flip_uvs = [(u, 1.0 - v) for (u, v) in uvs]
+        glb.primitives.append((positions, normals, flip_uvs, tri_indices, mat_idx, True, "MASK", None, None, None, colors))
     # normalize: ground + center + fit
     xs = [p[0] for p in all_pos]; ys = [p[1] for p in all_pos]; zs = [p[2] for p in all_pos]
     minx, maxx, miny, maxy, minz, maxz = min(xs), max(xs), min(ys), max(ys), min(zs), max(zs)
@@ -853,9 +989,9 @@ def compile_asset(vfs, asset_id, actor_ref, fit, target, tint, out_dir):
     cx, cz = (minx+maxx)/2, (minz+maxz)/2
     # rewrite primitive positions in place
     for pi, prim in enumerate(glb.primitives):
-        pos, nrm, uv, idx, mi, ds, am = prim
+        pos, nrm, uv, idx, mi = prim[0], prim[1], prim[2], prim[3], prim[4]
         pos2 = [((x-cx)*scale, (y-miny)*scale, (z-cz)*scale) for x, y, z in pos]
-        glb.primitives[pi] = (pos2, nrm, uv, idx, mi, ds, am)
+        glb.primitives[pi] = (pos2, nrm, uv, idx, mi) + tuple(prim[5:])
     out_path = os.path.join(out_dir, asset_dir(asset_id), f"{asset_id}.glb")
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     blob = glb.build(asset_id)
@@ -878,6 +1014,208 @@ def compile_asset(vfs, asset_id, actor_ref, fit, target, tint, out_dir):
     }
 
 
+def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
+                          skeleton_name, anims_map):
+    """Like compile_asset but bakes a REAL skeletal (rigid-prop) animation.
+
+    Builds a bone-node hierarchy from the unit's skeleton, attaches every mesh
+    part to the bone it is bound to, and emits glTF animation clips sampled
+    from 0 A.D. PSA files so Godot plays them natively via AnimationPlayer.
+    """
+    print(f"[{asset_id}] (animated) {actor_ref}  skeleton={skeleton_name}")
+    sources = set()
+    parts, material_name = compose_actor(vfs, actor_ref, 0, tint, sources)
+    if not parts:
+        raise RuntimeError(f"no parts composed for {asset_id}")
+
+    # Body part carries the skeleton (bones + prop attachment points).
+    body = None
+    for p in parts:
+        if p.mesh_data and len(p.mesh_data.get("bones", [])) > 0:
+            body = p
+            break
+    if body is None:
+        body = parts[0]
+    bones_local = body.mesh_data.get("bones", [])
+    num_bones = max(1, len(bones_local))
+
+    # Skeleton names from art/skeletons/*.xml (display only). 0 A.D. does NOT
+    # parent-multiply bone matrices — CBoneState is "relative to root"
+    # (SkeletonAnimDef.h) and BuildBoneMatrices writes each bone independently.
+    bone_names = []
+    skel_ref = SKELETONS.get(skeleton_name)
+    if skel_ref and vfs.exists(skel_ref):
+        sb = parse_skeleton_xml(vfs.read(skel_ref))
+        bone_names = [b["name"] for b in sb]
+    rest_worlds = []
+    rest_tq = []
+    for i in range(num_bones):
+        t, q = bones_local[i] if i < len(bones_local) else ((0, 0, 0), (0, 0, 0, 1))
+        rest_tq.append((t, q))
+        rest_worlds.append(trs(t, q))
+
+    glb = GlbBuilder()
+    all_pos = []
+    baked_cache = {}
+    part_info = []  # (prim_idx, bone_idx, world_xf)
+    for part in parts:
+        md = part.mesh_data
+        verts, uvs, faces = md["verts"], md["uvs"], md["faces"]
+        xf = part.transform if part.transform is not None else trs((0, 0, 0), (0, 0, 0, 1))
+        positions = [mat_apply(xf, p) for (p, n) in verts]
+        normals = [mat_apply(rot_only(xf), n) for (p, n) in verts]
+        all_pos.extend(positions)
+        tex = part.tex_base
+        mat_idx = 0
+        if tex:
+            key = (tex, part.tex_ao, tint)
+            if key in baked_cache:
+                _, img_idx = baked_cache[key]
+            else:
+                ao = vfs.load_texture_rgba(part.tex_ao) if part.tex_ao else None
+                img = bake_texture(vfs, tex, ao, tint)
+                if img is not None and max(img.size) > 512:
+                    s = 512 / max(img.size)
+                    img = img.resize((max(1, int(img.size[0] * s)), max(1, int(img.size[1] * s))), Image.LANCZOS)
+                if img is None:
+                    _, img_idx = b"", -1
+                else:
+                    bio = io.BytesIO()
+                    img.save(bio, "PNG", optimize=True)
+                    img_idx = glb.add_image(bio.getvalue())
+                baked_cache[key] = (None, img_idx)
+            if img_idx >= 0:
+                cutout = _is_cutout_material(part)
+                mat_idx = glb.add_material(img_idx, "MASK" if cutout else "OPAQUE", True)
+            else:
+                mat_idx = _plain_material(glb)
+        else:
+            mat_idx = _plain_material(glb)
+        flip_uvs = [(u, 1.0 - v) for (u, v) in uvs]
+        tri = []
+        for a, b, c in faces:
+            tri += [a, c, b]
+        bone_idx = getattr(part, "bone", 0)
+        origin_locked = bone_idx == 0xFF
+        if origin_locked:
+            joints, weights = None, None
+        else:
+            if bone_idx < 0 or bone_idx >= num_bones:
+                bone_idx = 0
+            joints, weights = _skin_attrs(md, len(positions), bone_idx, num_bones)
+        prim = glb._add_primitive(positions, normals, flip_uvs, tri, mat_idx, joints, weights)
+        part_info.append((prim, bone_idx, xf, origin_locked))
+
+    # Normalization (center XZ, base Y, scale to target) applied as the ROOT
+    # node transform so the in-model-space bone/part transforms stay intact.
+    xs = [p[0] for p in all_pos]; ys = [p[1] for p in all_pos]; zs = [p[2] for p in all_pos]
+    minx, maxx, miny, maxy, minz, maxz = min(xs), max(xs), min(ys), max(ys), min(zs), max(zs)
+    dim = (maxx - minx, maxy - miny, maxz - minz)
+    scale = (target / max(dim[0], dim[2])) if fit == "width" else (target / max(dim[1], 1e-6))
+    cx, cz = (minx + maxx) / 2, (minz + maxz) / 2
+    root_t = (-cx * scale, -miny * scale, -cz * scale)
+    root_s = (scale, scale, scale)
+
+    # Node graph matching CModel / CSkeletonAnimDef:
+    # every bone is a sibling of the scaled root with root-relative TRS.
+    # Skinning uses IBM = inverse(bind) like ModelDef.cpp (Translate(-t) then
+    # Rotate(q^-1)), which is the same as rigid_inverse(bind).
+    bone_node = {i: 1 + i for i in range(num_bones)}
+    part_node_start = 1 + num_bones
+    mesh_nodes = list(range(part_node_start, part_node_start + len(part_info)))
+    all_bones = [bone_node[i] for i in range(num_bones)]
+    nodes = [{"name": asset_id, "translation": list(root_t), "scale": list(root_s),
+              "children": all_bones + mesh_nodes}]
+    for i in range(num_bones):
+        t, q = rest_tq[i]
+        nodes.append({"name": bone_names[i] if i < len(bone_names) else f"bone{i}",
+                      "translation": list(t), "rotation": list(q)})
+    for k, (prim, bidx, wxf, origin_locked) in enumerate(part_info):
+        nd = {"name": f"{asset_id}_part{k}", "mesh": prim}
+        if not origin_locked:
+            nd["skin"] = 0
+        nodes.append(nd)
+
+    # Animation clips: PSA keys are already root-relative (BuildBoneMatrices).
+    # Times are converted from milliseconds (GetFrameTime) to glTF seconds.
+    animations = []
+    for state_name, psa_key in anims_map.items():
+        ref = ANIMATIONS.get(psa_key, psa_key)
+        if not vfs.exists(ref):
+            print(f"  ! anim missing: {ref}")
+            continue
+        try:
+            psa = parse_psa(vfs.read(ref))
+        except Exception as e:
+            print(f"  ! anim parse failed {state_name}: {e}")
+            continue
+        nf = psa["numFrames"]; nk = psa["numKeys"]
+        if nk != num_bones:
+            print(f"  ! bone count PMD={num_bones} PSA={nk} for {state_name} (0ad ENSURE equal; extra bones stay bind-pose)")
+        times = [psa["frameTime"] * f / 1000.0 for f in range(nf)]
+        tracks = {}
+        for i in range(num_bones):
+            trans = []
+            rots = []
+            rt, rq = rest_tq[i]
+            for f in range(nf):
+                ki = f * nk + i
+                if i < nk and ki < len(psa["keys"]):
+                    key = psa["keys"][ki]
+                    trans.append(tuple(key["t"]))
+                    rots.append(tuple(key["q"]))
+                else:
+                    trans.append(tuple(rt))
+                    rots.append(tuple(rq))
+            tracks[bone_node[i]] = {"translation": trans, "rotation": rots}
+        animations.append({"name": state_name, "times": times, "tracks": tracks})
+        print(f"  anim '{state_name}' <- {ref} ({nf}f, {nk}b)")
+
+    skins = [{
+        "joints": all_bones,
+        "inverseBindMatrices": [rigid_inverse(rest_worlds[i]) for i in range(num_bones)],
+        "skeleton": bone_node[0],
+    }]
+
+    out_path = os.path.join(out_dir, asset_dir(asset_id), f"{asset_id}.glb")
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    blob = glb.build(asset_id, nodes=nodes, animations=animations, skins=skins)
+    with open(out_path, "wb") as f:
+        f.write(blob)
+    for im in glb.image_defs:
+        im_out = os.path.join(os.path.dirname(out_path), f"{asset_id}_{im['name']}.png")
+        with open(im_out, "wb") as f:
+            f.write(im["bytes"])
+    final_dim = (dim[0] * scale, dim[1] * scale, dim[2] * scale)
+    print(f"  -> {out_path} ({os.path.getsize(out_path)//1024}KB, {len(parts)} parts, "
+          f"{num_bones} bones, {len(animations)} anims, "
+          f"dim {final_dim[0]:.2f}x{final_dim[1]:.2f}x{final_dim[2]:.2f})")
+    entry = {
+        "file": os.path.relpath(out_path, out_dir).replace(os.sep, "/"),
+        "parts": len(parts),
+        "bones": num_bones,
+        "animated": True,
+        "skeleton": skeleton_name,
+        "animations": list(anims_map.keys()),
+        "size_meters": [round(final_dim[0], 3), round(final_dim[1], 3), round(final_dim[2], 3)],
+        "origin": "ground-center",
+        "sources": sorted(f"{kind}:{ref}" for kind, ref in sources),
+        "upstream_material": material_name,
+    }
+    return entry
+
+
+def _img_png(img, max_edge=1024):
+    if img is None:
+        return None
+    if max(img.size) > max_edge:
+        s = max_edge / max(img.size)
+        img = img.resize((max(1, int(img.size[0] * s)), max(1, int(img.size[1] * s))), Image.LANCZOS)
+    bio = io.BytesIO()
+    img.save(bio, "PNG", optimize=True)
+    return bio.getvalue()
+
+
 def _plain_material(glb):
     glb.materials.append({"_key": ("none", len(glb.materials)), "name": f"plain{len(glb.materials)}",
                           "pbrMetallicRoughness": {"baseColorFactor": [0.6, 0.6, 0.6, 1.0],
@@ -886,16 +1224,152 @@ def _plain_material(glb):
     return len(glb.materials) - 1
 
 
+def _is_cutout_material(part):
+    blob = f"{part.material or ''} {part.tex_base or ''} {part.source or ''}".lower()
+    return any(k in blob for k in ("foliage", "leaf", "grass", "hair", "alphatest", "plant", "tree", "canopy"))
+
+
+def _skin_attrs(md, nverts, fallback_bone, num_bones):
+    """Per-vertex joint indices + weights. Props with no blends bind 100% to attach bone."""
+    blends = md.get("blends") or []
+    max_b = max(0, num_bones - 1)
+
+    def clamp_bone(b):
+        if b in (0xFF, 255) or b < 0:
+            return 0
+        return min(int(b), max_b)
+
+    joints, weights = [], []
+    if len(blends) == nverts:
+        for bl in blends:
+            b = [clamp_bone(x) for x in bl["bones"]]
+            w = list(bl["weights"])
+            s = sum(w)
+            if s <= 1e-6:
+                b, w = [fallback_bone, 0, 0, 0], [1.0, 0.0, 0.0, 0.0]
+            else:
+                w = [x / s for x in w]
+            while len(b) < 4:
+                b.append(0)
+                w.append(0.0)
+            joints.append(tuple(b[:4]))
+            weights.append(tuple(w[:4]))
+    else:
+        fb = clamp_bone(fallback_bone)
+        joints = [(fb, 0, 0, 0)] * nverts
+        weights = [(1.0, 0.0, 0.0, 0.0)] * nverts
+    return joints, weights
+
+
+def mat_to_tq(m):
+    t = (m[0][3], m[1][3], m[2][3])
+    q = mat3_to_quat([[m[i][j] for j in range(3)] for i in range(3)])
+    return t, q
+
+
+def _mat4_gltf(m):
+    """Pack a row-major 4x4 as glTF column-major floats."""
+    vals = [m[r][c] for c in range(4) for r in range(4)]
+    return struct.pack("<16f", *vals)
+
+
 def rot_only(m):
     r = [row[:] for row in m]
     r[0][3] = r[1][3] = r[2][3] = 0
     return r
 
 
+def rigid_inverse(m):
+    """Inverse of a rigid (rotation + translation, no scale) 4x4 matrix."""
+    R = [[m[i][j] for j in range(3)] for i in range(3)]
+    t = (m[0][3], m[1][3], m[2][3])
+    Rt = [[R[j][i] for j in range(3)] for i in range(3)]  # transpose
+    it = tuple(-sum(Rt[i][k] * t[k] for k in range(3)) for i in range(3))
+    return [[Rt[i][j] for j in range(3)] + [it[i]] for i in range(3)] + [[0, 0, 0, 1]]
+
+
+def mat3_to_quat(R):
+    """Convert a 3x3 rotation matrix to a (x,y,z,w) quaternion."""
+    m00, m01, m02 = R[0]
+    m10, m11, m12 = R[1]
+    m20, m21, m22 = R[2]
+    tr = m00 + m11 + m22
+    if tr > 0:
+        s = (tr + 1.0) ** 0.5
+        w = 0.5 * s
+        s = 0.5 / s
+        x = (m21 - m12) * s
+        y = (m02 - m20) * s
+        z = (m10 - m01) * s
+    elif m00 > m11 and m00 > m22:
+        s = (1.0 + m00 - m11 - m22) ** 0.5
+        x = 0.5 * s
+        s = 0.5 / s
+        y = (m01 + m10) * s
+        z = (m02 + m20) * s
+        w = (m21 - m12) * s
+    elif m11 > m22:
+        s = (1.0 + m11 - m00 - m22) ** 0.5
+        y = 0.5 * s
+        s = 0.5 / s
+        x = (m01 + m10) * s
+        z = (m12 + m21) * s
+        w = (m02 - m20) * s
+    else:
+        s = (1.0 + m22 - m00 - m11) ** 0.5
+        z = 0.5 * s
+        s = 0.5 / s
+        x = (m02 + m20) * s
+        y = (m12 + m21) * s
+        w = (m10 - m01) * s
+    return (x, y, z, w)
+
+
+def bone_rest_worlds(bones_local, parents):
+    """bones_local: list of (t,q); parents: list of parent indices (-1 root)."""
+    worlds = []
+    for i, (t, q) in enumerate(bones_local):
+        local = trs(t, q)
+        p = parents[i] if i < len(parents) else -1
+        if p < 0 or p >= len(worlds):
+            worlds.append(local)
+        else:
+            worlds.append(mat_mul(worlds[p], local))
+    return worlds
+
+
 def asset_dir(asset_id):
-    if asset_id in ("villager", "swordsman"): return "models/units"
-    if asset_id in ("town_center", "house"): return "models/buildings"
+    if asset_id in ("villager", "swordsman", "archer", "spearman", "cavalry", "healer", "ram", "deer"):
+        return "models/units"
+    if asset_id in ("town_center", "house", "barracks", "farmstead", "storehouse", "market", "temple", "wall", "wall_tower", "fortress", "ruins"):
+        return "models/buildings"
     return "models/vegetation"
+
+# Per-unit skeleton + animation-state -> PSA mapping.
+# State names MUST match the clip names the runtime (world_view_node) requests.
+UNIT_CFG = {
+    "villager": ("biped", {
+        "Idle": "citizen_idle", "Walk": "citizen_walk", "Run": "citizen_walk",
+        "Attack": "biped_attack", "Death": "biped_death",
+        "Gather": "gather_wood", "Build": "gather_wood"}),
+    "swordsman": ("biped", {
+        "Idle": "biped_idle", "Walk": "biped_walk", "Run": "biped_run",
+        "Attack": "biped_attack", "Death": "biped_death"}),
+    "spearman": ("biped", {
+        "Idle": "biped_idle", "Walk": "biped_walk", "Run": "biped_run",
+        "Attack": "biped_attack", "Death": "biped_death"}),
+    "archer": ("biped", {
+        "Idle": "biped_idle", "Walk": "biped_walk", "Run": "biped_run",
+        "Attack": "archer_attack", "Death": "biped_death"}),
+    "cavalry": ("biped", {
+        "Idle": "cavalry_idle", "Walk": "cavalry_walk", "Run": "cavalry_walk",
+        "Attack": "biped_attack", "Death": "biped_death"}),
+    "healer": ("biped", {
+        "Idle": "biped_idle", "Walk": "biped_walk", "Run": "biped_run",
+        "Attack": "biped_attack", "Death": "biped_death"}),
+    "ram": ("biped", {"Idle": "biped_idle"}),
+    "deer": ("biped", {"Idle": "biped_idle", "Walk": "biped_walk"}),
+}
 
 # --------------------------------------------------------------- main -------
 
@@ -906,6 +1380,7 @@ def main():
     ap.add_argument("--all", action="store_true", help="also extract FULL_ASSETS + FULL_TERRAIN catalogue")
     ap.add_argument("--all-animations", action="store_true", help="extract all 650+ PSA animations (preserves folder structure)")
     ap.add_argument("--all-skeletons", action="store_true", help="extract all skeletons")
+    ap.add_argument("--only", nargs="+", help="extract only these asset ids")
     ap.add_argument("--list-actors", action="store_true", help="list all art/actors/*.xml in zip and exit")
     args = ap.parse_args()
     out_dir = os.path.abspath(args.out)
@@ -928,26 +1403,35 @@ def main():
             assets.update(FULL_ASSETS)
             terrain.update(FULL_TERRAIN)
             print(f"[all] expanding to {len(assets)} models + {len(terrain)} terrain tiles")
+        if args.only:
+            assets = {k: v for k, v in assets.items() if k in args.only}
+            if not assets:
+                sys.exit(f"--only matched nothing. known ids: {', '.join(sorted(dict(ASSETS)|dict(FULL_ASSETS)))}")
         for asset_id, (actor_ref, fit, target, tint) in assets.items():
             try:
-                manifest["models"][asset_id] = compile_asset(
-                    vfs, asset_id, actor_ref, fit, target, tint, out_dir)
+                if asset_id in UNIT_CFG:
+                    sk, anims = UNIT_CFG[asset_id]
+                    manifest["models"][asset_id] = compile_unit_animated(
+                        vfs, asset_id, actor_ref, fit, target, tint, out_dir, sk, anims)
+                else:
+                    manifest["models"][asset_id] = compile_asset(
+                        vfs, asset_id, actor_ref, fit, target, tint, out_dir)
             except Exception as e:
                 print(f"[{asset_id}] FAILED: {e}")
                 continue
-        # terrain tiles
-        terr_dir = os.path.join(out_dir, "textures", "terrain")
-        os.makedirs(terr_dir, exist_ok=True)
-        for name, ref in terrain.items():
-            img = vfs.load_texture_rgba(ref)
-            if img is None:
-                print(f"! terrain tile missing: {ref}")
-                continue
-            img = img.resize((512, 512), Image.LANCZOS)
-            p = os.path.join(terr_dir, f"{name}.png")
-            img.save(p, optimize=True)
-            print(f"[terrain] {name} <- {ref}")
-            manifest.setdefault("terrain", {})[name] = ref
+        if not args.only:
+            terr_dir = os.path.join(out_dir, "textures", "terrain")
+            os.makedirs(terr_dir, exist_ok=True)
+            for name, ref in terrain.items():
+                img = vfs.load_texture_rgba(ref)
+                if img is None:
+                    print(f"! terrain tile missing: {ref}")
+                    continue
+                img = img.resize((512, 512), Image.LANCZOS)
+                p = os.path.join(terr_dir, f"{name}.png")
+                img.save(p, optimize=True)
+                print(f"[terrain] {name} <- {ref}")
+                manifest.setdefault("terrain", {})[name] = ref
         # music
         mus_dir = os.path.join(out_dir, "music")
         os.makedirs(mus_dir, exist_ok=True)
@@ -963,7 +1447,7 @@ def main():
         skel_dir = os.path.join(out_dir, "skeletons")
         os.makedirs(skel_dir, exist_ok=True)
         skels_to_extract = dict(SKELETONS)
-        if args.all or args.all_skeletons:
+        if args.all_skeletons:
             # discover all skeletons in zip
             for n in zf.namelist():
                 if n.startswith("art/skeletons/") and n.endswith(".xml"):
@@ -986,7 +1470,7 @@ def main():
         anim_dir = os.path.join(out_dir, "animations")
         os.makedirs(anim_dir, exist_ok=True)
         anims_to_extract = dict(ANIMATIONS)
-        if args.all or args.all_animations:
+        if args.all_animations:
             # discover all PSA files
             for n in zf.namelist():
                 if n.startswith("art/animation/") and n.endswith(".psa"):
@@ -1043,6 +1527,13 @@ def main():
                 print(f"! anim parse failed {anim_name}: {e}")
                 continue
     man_path = os.path.join(out_dir, "models", "manifest.json")
+    if args.only:
+        prev_path = os.path.join(out_dir, "models", "manifest.json")
+        if os.path.exists(prev_path):
+            with open(prev_path) as f:
+                prev = json.load(f)
+            prev.setdefault("models", {}).update(manifest.get("models", {}))
+            manifest = prev
     with open(man_path, "w") as f:
         json.dump(manifest, f, indent=1, sort_keys=True)
     print(f"manifest -> {man_path}")

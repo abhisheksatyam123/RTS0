@@ -6,6 +6,8 @@
 #include <godot_cpp/classes/audio_stream.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 #include <godot_cpp/classes/engine.hpp>
+#include <godot_cpp/classes/viewport_texture.hpp>
+#include <godot_cpp/classes/image.hpp>
 #include "../core/diagnostics/logger.h"
 #include "../core/diagnostics/perf_tracker.h"
 #include "../graphics/assets/model_library.h"
@@ -196,6 +198,15 @@ void RtsoMain::_process(double delta) {
 	if (paused_via_menu) return;
 	rtso::PerfTracker::begin_frame();
 	uint64_t start_us = Time::get_singleton()->get_ticks_usec();
+
+	static int auto_shot_frames = 0;
+	if (++auto_shot_frames == 60) {
+		Ref<Image> img = get_viewport()->get_texture()->get_image();
+		if (img.is_valid()) {
+			img->save_png("/home/abhi/project/RTS0/screen_game.png");
+			print_line("[RTS0] Auto-screenshot frame 60 saved to /home/abhi/project/RTS0/screen_game.png");
+		}
+	}
 
 	accumulator += delta;
 	int ticks = 0;
@@ -407,6 +418,16 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 			if (build_mode) enter_build_mode(false);
 			else clear_selection();
+			return;
+		}
+
+		// F12 Screenshot
+		if (key->get_keycode() == KEY_F12) {
+			Ref<Image> img = get_viewport()->get_texture()->get_image();
+			if (img.is_valid()) {
+				img->save_png("/home/abhi/project/RTS0/screen_game.png");
+				print_line("[RTS0] Screenshot saved to /home/abhi/project/RTS0/screen_game.png");
+			}
 			return;
 		}
 

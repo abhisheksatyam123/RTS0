@@ -18,8 +18,10 @@ RtsoCameraRig::~RtsoCameraRig() {}
 void RtsoCameraRig::_ready() {
 	cam = memnew(Camera3D);
 	add_child(cam);
-	cam->set_position(Vector3(0, zoom_height, zoom_height * 0.82f));
-	cam->set_rotation_degrees(Vector3(-52, 0, 0));
+	zoom_height = 28.0f;
+	target_zoom = 28.0f;
+	cam->set_position(Vector3(0, zoom_height, zoom_height * 0.95f));
+	cam->set_rotation_degrees(Vector3(-48, 0, 0));
 	target_pos = Vector3(0, 0, 0);
 }
 

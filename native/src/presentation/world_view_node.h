@@ -5,6 +5,7 @@
 #include <godot_cpp/classes/multi_mesh_instance3d.hpp>
 #include <godot_cpp/classes/multi_mesh.hpp>
 #include <godot_cpp/classes/mesh_instance3d.hpp>
+#include <godot_cpp/classes/animation_player.hpp>
 #include <godot_cpp/classes/plane_mesh.hpp>
 #include <godot_cpp/classes/torus_mesh.hpp>
 #include <godot_cpp/classes/box_mesh.hpp>
@@ -26,22 +27,28 @@ class RtsoWorldView : public Node3D {
 
 	// Per-unit visual: real 0ad mesh + selection ring + 3D floating health bar
 	struct UnitVis {
-		MeshInstance3D *body = nullptr;
+		Node3D *root = nullptr;
+		Node *model = nullptr;
+		AnimationPlayer *anim = nullptr;
 		MeshInstance3D *ring = nullptr;
 		MeshInstance3D *hp_bg = nullptr;
 		MeshInstance3D *hp_fg = nullptr;
 		uint32_t sim_id = 0;
 		float yaw = 0.0f;
 		bool ring_on = false;
+		String model_id;
+		String clip;
 	};
 
 	struct BuildingVis {
-		MeshInstance3D *body = nullptr;
+		Node3D *root = nullptr;
+		Node *model = nullptr;
 		MeshInstance3D *hp_bg = nullptr;
 		MeshInstance3D *hp_fg = nullptr;
 		uint32_t sim_id = 0;
 		uint8_t type = 0;
 		float build_progress = 1.0f;
+		String model_id;
 	};
 
 	std::vector<UnitVis> unit_pool;
@@ -92,9 +99,12 @@ public:
 	void sync(const rtso::Simulation *sim, float alpha, const PackedInt32Array &selected_ids);
 
 private:
-	Ref<MultiMesh> create_multimesh(const Ref<Mesh> &mesh, bool use_colors = true);
+	Ref<MultiMesh> create_multimesh(const Ref<Mesh> &mesh, bool use_colors = false);
 	UnitVis &acquire_unit_slot(uint32_t sim_id);
 	BuildingVis &acquire_building_slot(uint32_t sim_id);
+	void attach_unit_model(UnitVis &v, const String &model_name);
+	void attach_building_model(BuildingVis &v, const String &model_name);
+	void play_unit_clip(UnitVis &v, const String &clip, bool loop);
 };
 
 #endif

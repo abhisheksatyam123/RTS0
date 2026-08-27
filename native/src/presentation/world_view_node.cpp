@@ -4,6 +4,9 @@
 #include <godot_cpp/variant/basis.hpp>
 #include <godot_cpp/variant/color.hpp>
 #include <godot_cpp/core/math.hpp>
+#include <godot_cpp/classes/animation.hpp>
+#include <godot_cpp/classes/packed_scene.hpp>
+#include <godot_cpp/core/memory.hpp>
 #include <set>
 
 using namespace godot;
@@ -39,8 +42,8 @@ RtsoWorldView::UnitVis &RtsoWorldView::acquire_unit_slot(uint32_t sim_id) {
 		unit_pool.emplace_back();
 
 		UnitVis &v = unit_pool[slot];
-		v.body = memnew(MeshInstance3D);
-		add_child(v.body);
+		v.root = memnew(Node3D);
+		add_child(v.root);
 
 		v.ring = memnew(MeshInstance3D);
 		v.ring->set_mesh(ring_mesh);
@@ -60,7 +63,7 @@ RtsoWorldView::UnitVis &RtsoWorldView::acquire_unit_slot(uint32_t sim_id) {
 	UnitVis &v = unit_pool[slot];
 	v.sim_id = sim_id;
 	v.yaw = 0.0f;
-	v.body->set_visible(true);
+	v.root->set_visible(true);
 	v.hp_bg->set_visible(false);
 	v.hp_fg->set_visible(false);
 	unit_slot[sim_id] = slot;
@@ -75,8 +78,8 @@ RtsoWorldView::BuildingVis &RtsoWorldView::acquire_building_slot(uint32_t sim_id
 	building_pool.emplace_back();
 	BuildingVis &v = building_pool[slot];
 	v.sim_id = sim_id;
-	v.body = memnew(MeshInstance3D);
-	add_child(v.body);
+	v.root = memnew(Node3D);
+	add_child(v.root);
 
 	v.hp_bg = memnew(MeshInstance3D);
 	v.hp_bg->set_mesh(hp_bg_mesh);
@@ -163,17 +166,89 @@ void RtsoWorldView::_ready() {
 	add_child(arrow_mmi);
 
 	// Resource batches — real 0ad flora & mines with variety
-	tree_a_mm = create_multimesh(rtso::ModelLibrary::get("vegetation", "tree").mesh);
-	tree_b_mm = create_multimesh(rtso::ModelLibrary::get("vegetation", "pine").mesh);
-	tree_c_mm = create_multimesh(rtso::ModelLibrary::get("vegetation", "palm").mesh);
-	gold_mm = create_multimesh(rtso::ModelLibrary::get("vegetation", "gold_vein").mesh);
-	stone_mm = create_multimesh(rtso::ModelLibrary::get("vegetation", "stone_mine").mesh);
+	tree_a_mm = create_multimesh(rtso::ModelLibrary::get("vegetation", "tree").mesh, false);
+	tree_b_mm = create_multimesh(rtso::ModelLibrary::get("vegetation", "pine").mesh, false);
+	tree_c_mm = create_multimesh(rtso::ModelLibrary::get("vegetation", "palm").mesh, false);
+	gold_mm = create_multimesh(rtso::ModelLibrary::get("vegetation", "gold_vein").mesh, false);
+	stone_mm = create_multimesh(rtso::ModelLibrary::get("vegetation", "stone_mine").mesh, false);
 
 	tree_a_mmi = memnew(MultiMeshInstance3D); tree_a_mmi->set_multimesh(tree_a_mm); add_child(tree_a_mmi);
 	tree_b_mmi = memnew(MultiMeshInstance3D); tree_b_mmi->set_multimesh(tree_b_mm); add_child(tree_b_mmi);
 	tree_c_mmi = memnew(MultiMeshInstance3D); tree_c_mmi->set_multimesh(tree_c_mm); add_child(tree_c_mmi);
 	gold_mmi = memnew(MultiMeshInstance3D); gold_mmi->set_multimesh(gold_mm); add_child(gold_mmi);
 	stone_mmi = memnew(MultiMeshInstance3D); stone_mmi->set_multimesh(stone_mm); add_child(stone_mmi);
+}
+
+static AnimationPlayer *find_anim_player(Node *n) {
+	if (!n) return nullptr;
+	if (AnimationPlayer *ap = Object::cast_to<AnimationPlayer>(n)) return ap;
+	for (int i = 0; i < n->get_child_count(); ++i) {
+		if (AnimationPlayer *found = find_anim_player(n->get_child(i))) return found;
+	}
+	return nullptr;
+}
+
+void RtsoWorldView::attach_unit_model(UnitVis &v, const String &model_name) {
+	if (v.model_id == model_name && v.model) return;
+	if (v.model) {
+		v.root->remove_child(v.model);
+		v.model->queue_free();
+		v.model = nullptr;
+		v.anim = nullptr;
+	}
+	v.model_id = model_name;
+	v.clip = String();
+	const auto &entry = rtso::ModelLibrary::get("units", model_name);
+	if (entry.scene.is_valid()) {
+		v.model = entry.scene->instantiate();
+		rtso::ModelLibrary::apply_imported_material_fixups(v.model);
+		v.root->add_child(v.model);
+		v.anim = find_anim_player(v.model);
+		return;
+	}
+	MeshInstance3D *mi = memnew(MeshInstance3D);
+	if (entry.valid) {
+		mi->set_mesh(entry.mesh);
+		mi->set_scale(Vector3(entry.scale, entry.scale, entry.scale));
+	}
+	v.model = mi;
+	v.root->add_child(mi);
+	v.anim = nullptr;
+}
+
+void RtsoWorldView::attach_building_model(BuildingVis &v, const String &model_name) {
+	if (v.model_id == model_name && v.model) return;
+	if (v.model) {
+		v.root->remove_child(v.model);
+		v.model->queue_free();
+		v.model = nullptr;
+	}
+	v.model_id = model_name;
+	const auto &entry = rtso::ModelLibrary::get("buildings", model_name);
+	if (entry.scene.is_valid()) {
+		v.model = entry.scene->instantiate();
+		rtso::ModelLibrary::apply_imported_material_fixups(v.model);
+		v.root->add_child(v.model);
+		return;
+	}
+	MeshInstance3D *mi = memnew(MeshInstance3D);
+	if (entry.valid) {
+		mi->set_mesh(entry.mesh);
+	}
+	v.model = mi;
+	v.root->add_child(mi);
+}
+
+void RtsoWorldView::play_unit_clip(UnitVis &v, const String &clip, bool loop) {
+	if (!v.anim || clip.is_empty()) return;
+	if (!v.anim->has_animation(clip)) return;
+	Ref<Animation> a = v.anim->get_animation(clip);
+	if (a.is_valid()) {
+		a->set_loop_mode(loop ? Animation::LOOP_LINEAR : Animation::LOOP_NONE);
+	}
+	if (v.clip == clip) return;
+	v.clip = clip;
+	v.anim->play(clip);
 }
 
 void RtsoWorldView::sync(const rtso::Simulation *sim, float alpha, const PackedInt32Array &selected_ids) {
@@ -206,62 +281,78 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float alpha, const PackedI
 
 		UnitVis &v = acquire_unit_slot(id);
 
-		// Select appropriate 0 A.D. model
 		const char *model_name = "villager";
 		if (utype == rtso::UNIT_SWORDSMAN) model_name = "swordsman";
 		else if (utype == rtso::UNIT_ARCHER) model_name = "archer";
 		else if (utype == rtso::UNIT_SPEARMAN) model_name = "spearman";
 		else if (utype == rtso::UNIT_CAVALRY) model_name = "cavalry";
 
+		attach_unit_model(v, model_name);
 		const auto &entry = rtso::ModelLibrary::get("units", model_name);
-		if (entry.valid && v.body->get_mesh() != entry.mesh) {
-			v.body->set_mesh(entry.mesh);
-			v.body->set_scale(Vector3(entry.scale, entry.scale, entry.scale));
-		}
 
-		// Turn toward movement direction
 		if (speed2 > 0.001f) {
 			float target_yaw = Math::atan2(vx, vz);
 			float diff = Math::wrapf(target_yaw - v.yaw, -(float)Math_PI, (float)Math_PI);
 			v.yaw += diff * 0.28f;
 		}
 
-		// Distinct 0 A.D. Animation Motion Synthesis
+		bool has_clips = v.anim != nullptr;
+		String want_clip;
+		bool loop_clip = true;
+		if (!uview.alive[i] || uaction == rtso::ACTION_DYING) {
+			want_clip = "Death";
+			loop_clip = false;
+		} else if (speed2 > 0.04f) {
+			want_clip = "Run";
+		} else if (speed2 > 0.001f || uaction == rtso::ACTION_MOVE || uaction == rtso::ACTION_RETURN_DROPSITE) {
+			want_clip = "Walk";
+		} else if (uaction == rtso::ACTION_ATTACK) {
+			want_clip = "Attack";
+		} else if (uaction == rtso::ACTION_GATHER) {
+			want_clip = "Gather";
+		} else if (uaction == rtso::ACTION_BUILD) {
+			want_clip = "Build";
+		} else {
+			want_clip = "Idle";
+		}
+		if (has_clips) {
+			if (!v.anim->has_animation(want_clip)) {
+				if (want_clip == "Run" && v.anim->has_animation("Walk")) want_clip = "Walk";
+				else if (want_clip == "Build" && v.anim->has_animation("Gather")) want_clip = "Gather";
+				else if (v.anim->has_animation("Idle")) want_clip = "Idle";
+			}
+			play_unit_clip(v, want_clip, loop_clip);
+		}
+
 		float anim_y = entry.y_offset;
 		float anim_pitch = 0.0f;
 		float anim_roll = 0.0f;
-
-		if (!uview.alive[i] || uaction == rtso::ACTION_DYING) {
-			// Death animation: collapse and sink smoothly
-			float dt = uview.death_timer[i];
-			anim_y -= dt * 0.9f;
-			anim_pitch = dt * 1.3f; // fall forward
-		} else if (speed2 > 0.001f) {
-			// Walking / Running cadence (step oscillation + body sway)
-			float step_freq = (utype == rtso::UNIT_CAVALRY) ? 14.0f : 10.0f;
-			float phase = anim_time * step_freq + (float)(id % 11) * 0.35f;
-			float bob = Math::abs(Math::sin(phase)) * 0.10f;
-			anim_y += bob;
-			anim_roll = Math::sin(phase) * 0.05f; // subtle side tilt
-		} else if (uaction == rtso::ACTION_ATTACK) {
-			// Attack strike lunge animation
-			float strike_phase = Math::sin(anim_time * 12.0f);
-			anim_y += Math::max(0.0f, strike_phase * 0.12f);
-			anim_pitch = strike_phase * 0.18f;
-		} else if (uaction == rtso::ACTION_GATHER || uaction == rtso::ACTION_BUILD) {
-			// Harvesting / Hammering swing
-			float chop_phase = Math::sin(anim_time * 8.0f);
-			anim_pitch = chop_phase * 0.22f;
-			anim_y += Math::abs(chop_phase) * 0.06f;
-		} else {
-			// Idle stance breathing
-			float breath = Math::sin(anim_time * 2.5f + (float)(id % 7) * 0.5f) * 0.03f;
-			anim_y += breath;
+		if (!has_clips) {
+			if (!uview.alive[i] || uaction == rtso::ACTION_DYING) {
+				float dt = uview.death_timer[i];
+				anim_y -= dt * 0.9f;
+				anim_pitch = dt * 1.3f;
+			} else if (speed2 > 0.001f) {
+				float step_freq = (utype == rtso::UNIT_CAVALRY) ? 14.0f : 10.0f;
+				float phase = anim_time * step_freq + (float)(id % 11) * 0.35f;
+				anim_y += Math::abs(Math::sin(phase)) * 0.10f;
+				anim_roll = Math::sin(phase) * 0.05f;
+			} else if (uaction == rtso::ACTION_ATTACK) {
+				float strike_phase = Math::sin(anim_time * 12.0f);
+				anim_y += Math::max(0.0f, strike_phase * 0.12f);
+				anim_pitch = strike_phase * 0.18f;
+			} else if (uaction == rtso::ACTION_GATHER || uaction == rtso::ACTION_BUILD) {
+				float chop_phase = Math::sin(anim_time * 8.0f);
+				anim_pitch = chop_phase * 0.22f;
+				anim_y += Math::abs(chop_phase) * 0.06f;
+			} else {
+				anim_y += Math::sin(anim_time * 2.5f + (float)(id % 7) * 0.5f) * 0.03f;
+			}
 		}
 
 		Basis rot = Basis(Vector3(0, 1, 0), v.yaw) * Basis(Vector3(1, 0, 0), anim_pitch) * Basis(Vector3(0, 0, 1), anim_roll);
 		Transform3D xf(rot, Vector3(x, anim_y, z));
-		v.body->set_transform(xf);
+		v.root->set_transform(xf);
 
 		// Selection Ring
 		bool is_selected = (sel_set.count((int32_t)id) > 0);
@@ -286,7 +377,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float alpha, const PackedI
 
 		if (show_hp) {
 			float hp_ratio = Math::clamp(hp / max_hp, 0.0f, 1.0f);
-			float bar_y = entry.scale * 1.8f + 0.4f;
+			float bar_y = entry.aabb.size.y + 0.4f;
+			if (bar_y < 1.2f) bar_y = entry.scale * 1.8f + 0.4f;
 			Vector3 hp_pos(x, bar_y, z);
 
 			v.hp_bg->set_transform(Transform3D(Basis(), hp_pos));
@@ -302,9 +394,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float alpha, const PackedI
 
 	// Recycle dead unit visual instances
 	for (size_t s = 0; s < unit_pool.size(); ++s) {
-		if (unit_pool[s].body && unit_pool[s].body->is_visible() &&
+		if (unit_pool[s].root && unit_pool[s].root->is_visible() &&
 			alive_units.find(unit_pool[s].sim_id) == alive_units.end()) {
-			unit_pool[s].body->set_visible(false);
+			unit_pool[s].root->set_visible(false);
 			unit_pool[s].ring->set_visible(false);
 			unit_pool[s].hp_bg->set_visible(false);
 			unit_pool[s].hp_fg->set_visible(false);
@@ -330,10 +422,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float alpha, const PackedI
 		else if (b.type == rtso::BLD_STOREHOUSE) mid = "storehouse";
 		else if (b.type == rtso::BLD_FARMSTEAD) mid = "farmstead";
 
+		attach_building_model(v, mid);
 		const auto &entry = rtso::ModelLibrary::get("buildings", mid);
-		if (entry.valid && v.body->get_mesh() != entry.mesh) {
-			v.body->set_mesh(entry.mesh);
-		}
 
 		// Construction progress scale / height
 		float b_scale = entry.scale;
@@ -341,12 +431,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float alpha, const PackedI
 		float y_pos = entry.y_offset;
 
 		if (b_progress < 1.0f) {
-			// Under construction: rise up from ground
 			y_pos -= (1.0f - b_progress) * 2.0f;
 		}
 
 		Transform3D xf(Basis().scaled(Vector3(b_scale, b_scale, b_scale)), Vector3(b.x, y_pos, b.z));
-		v.body->set_transform(xf);
+		v.root->set_transform(xf);
 
 		// Building Health & Construction Progress Bar
 		bool show_bhp = (b_progress < 1.0f || b.hp < b.max_hp * 0.98f);
@@ -369,10 +458,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float alpha, const PackedI
 	}
 
 	for (size_t s = 0; s < building_pool.size(); ++s) {
-		if (building_pool[s].body && alive_buildings.find(building_pool[s].sim_id) == alive_buildings.end()) {
-			remove_child(building_pool[s].body);
-			memdelete(building_pool[s].body);
-			building_pool[s].body = nullptr;
+		if (building_pool[s].root && alive_buildings.find(building_pool[s].sim_id) == alive_buildings.end()) {
+			remove_child(building_pool[s].root);
+			memdelete(building_pool[s].root);
+			building_pool[s].root = nullptr;
+			building_pool[s].model = nullptr;
 			building_slot.erase(building_pool[s].sim_id);
 		}
 	}

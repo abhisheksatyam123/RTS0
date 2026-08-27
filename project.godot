@@ -19,3 +19,11 @@ config/features=PackedStringArray("4.3", "Forward Plus")
 textures/vram_compression/import_etc2_astc=true
 environment/defaults/default_clear_color=Color(0.12, 0.14, 0.18, 1)
 anti_aliasing/quality/msaa_3d=2
+textures/default_filters/anisotropic_filtering_level=4
+
+[importer_defaults]
+
+scene={
+"meshes/generate_lods": false,
+"meshes/light_baking": 0
+}
