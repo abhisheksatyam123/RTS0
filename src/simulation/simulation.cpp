@@ -600,7 +600,16 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 }
 
 void Simulation::rebuild_nav_grid() {
-	nav_grid_.init(map_half_, NavGrid::DEFAULT_RES);
+	if (nav_grid_.cells.blank())
+		nav_grid_.init(map_half_, NavGrid::DEFAULT_RES);
+	else {
+		for (int y = 0; y < nav_grid_.res; ++y) {
+			for (int x = 0; x < nav_grid_.res; ++x) {
+				if (nav_grid_.cells.at(x, y) != NAV_WATER)
+					nav_grid_.cells.at(x, y) = NAV_PASSABLE;
+			}
+		}
+	}
 	nav_grid_.set_water_from_heights(terrain_heights_, terrain_res_, terrain_water_height_);
 	for (const auto &b : buildings_) {
 		if (b.build_progress < 0.99f) continue;
@@ -610,7 +619,10 @@ void Simulation::rebuild_nav_grid() {
 		int sy = cy - footprint / 2;
 		nav_grid_.mark_building(sx, sy, footprint, NAV_OBSTRUCTED);
 	}
-	nav_grid_.rebuild_regions();
+	// Full remesh: demolished footprints are not marked dirty by mark_building
+	if (!nav_grid_.dirty.blank())
+		nav_grid_.dirty.fill(1);
+	nav_grid_.rebuild_dirty_regions();
 }
 
 void Simulation::rebuild_territory() {
@@ -4698,6 +4710,24 @@ void Simulation::petra_manage_naval(float dt) {
 				uint32_t uid = units_.id[i];
 				order_attack_move(&uid, 1, tx, tz);
 			}
+		}
+	}
+
+	// navalManager.js:568 moveApart — idle ships must not stack on the dock
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != 1) continue;
+		uint8_t ut = units_.unit_type[i];
+		if (ut != UNIT_TRIREME && ut != UNIT_FISHING_BOAT && ut != UNIT_MERCHANT_SHIP) continue;
+		if (units_.action_state[i] != ACTION_IDLE) continue;
+		for (const auto &b : buildings_) {
+			if (b.team != 1 || b.type != BLD_DOCK || b.hp <= 0) continue;
+			float dx = units_.pos_x[i] - b.x;
+			float dz = units_.pos_z[i] - b.z;
+			if (dx * dx + dz * dz > 49.0f) continue;
+			float ang = (float)(units_.id[i] % 8) * 0.78539816f;
+			uint32_t uid = units_.id[i];
+			cmd_move(&uid, 1, b.x + std::cos(ang) * 12.0f, b.z + std::sin(ang) * 12.0f);
+			break;
 		}
 	}
 }

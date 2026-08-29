@@ -29,6 +29,7 @@
 #include <godot_cpp/classes/control.hpp>
 #include <godot_cpp/classes/item_list.hpp>
 #include "../network/net_host.h"
+#include "../network/turn_manager.h"
 #include "../network/lobby_client.h"
 #include "../core/memory/arena.h"
 #include <godot_cpp/classes/rich_text_label.hpp>
@@ -96,6 +97,7 @@ class RtsoMain : public Node3D {
 	LineEdit *lobby_port = nullptr;
 	Label *lobby_status = nullptr;
 	rtso::NetHost net_host_;
+	rtso::TurnManager turn_mgr_;
 	rtso::Arena net_arena_{64 * 1024};
 	std::vector<rtso::LobbyRoomInfo> lobby_room_cache_;
 	std::string lobby_http_host_ = "127.0.0.1";
@@ -213,6 +215,9 @@ public:
 	void _on_lobby_join_pressed();
 	void _on_lobby_refresh_pressed();
 	void refresh_lobby_rooms();
+	bool net_lockstep() const { return net_host_.getRole() != rtso::NetRole::None; }
+	void post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
+	                   float x = 0, float z = 0, uint32_t tid = 0, uint8_t param = 0);
 	void _on_barter_requested(int sell_type, int buy_type, int amount);
 
 	void _on_queue_slot_gui_input(const Ref<InputEvent> &event, int slot_idx);

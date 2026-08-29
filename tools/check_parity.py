@@ -145,7 +145,7 @@ def check_pathfinder_wiring():
         checks["simulation.cpp rebuild_nav_grid impl (or TODO)"] = "rebuild_nav_grid" in ctxt
         checks["simulation.cpp find_path impl (or TODO)"] = "find_path" in ctxt
         checks["cmd_move uses PASS_SHIP for boats"] = "PASS_SHIP" in ctxt and "UNIT_TRIREME" in ctxt
-        checks["rebuild_nav_grid calls rebuild_regions"] = "rebuild_regions()" in ctxt
+        checks["rebuild_nav_grid calls rebuild_regions"] = "rebuild_dirty_regions()" in ctxt or "rebuild_regions()" in ctxt
     return checks
 
 def compute_g_gaps(manifest_counts, js_count, ticks, pmd_count, wiring):
@@ -407,6 +407,7 @@ def check_netcode_parity():
         "LobbyRoom list + publishLobbyRoom": "LobbyRoom" in host_txt and "publishLobbyRoom" in host_txt,
         "Client auto-auth on handshake response": "NMT_SERVER_HANDSHAKE_RESPONSE" in host_txt and "sendAuthenticate" in host_txt,
         "HTTP lobby client helper": (ROOT / "src/network/lobby_client.h").is_file(),
+        "Lockstep applies sim ticks then hash": "TICKS_PER_TURN" in tm_txt and "compute_sim_hash(sim)" in tm_txt,
     }
     ok = sum(checks.values())
     total = len(checks)
@@ -505,6 +506,7 @@ def check_petra_parity():
         "startingStrategy.js opening House/Storehouse/Barracks": "petra_manage_opening" in ctxt and "petra_opening_step_" in htxt,
         "naval fishing boats + gather": "UNIT_FISHING_BOAT" in ctxt and "target_fishers" in ctxt,
         "research pop-gated Town/City phase": "work_phase3" in ctxt and "TECH_PHASE_TOWN" in ctxt and "pop_phase2" in ctxt,
+        "navalManager.js moveApart idle ships": "moveApart" in ctxt and "UNIT_MERCHANT_SHIP" in ctxt,
     }
 
     ok = sum(checks.values())

@@ -342,7 +342,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		});
 	}
 
-	// Execute turn commands into simulation
+	// Execute turn commands into simulation (0 A.D. applies batch then advances sim)
 	for (const auto &c : frame.commands) {
 		if (c.cmd_type == 1) { // Move
 			sim.cmd_move(c.entity_ids.data(), c.entity_ids.size(), c.target_x, c.target_z);
@@ -360,8 +360,47 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			sim.order_set_stance(c.entity_ids.data(), c.entity_ids.size(), c.param);
 		} else if (c.cmd_type == 8) { // Formation
 			sim.order_set_formation(c.entity_ids.data(), c.entity_ids.size(), c.param);
+		} else if (c.cmd_type == 9) { // Research
+			sim.cmd_research(c.target_id, c.param);
+		} else if (c.cmd_type == 10) { // Attack-move
+			sim.order_attack_move(c.entity_ids.data(), c.entity_ids.size(), c.target_x, c.target_z);
+		} else if (c.cmd_type == 11) { // Patrol
+			sim.order_patrol(c.entity_ids.data(), c.entity_ids.size(), c.target_x, c.target_z);
+		} else if (c.cmd_type == 12) { // Garrison
+			sim.order_garrison(c.entity_ids.data(), c.entity_ids.size(), c.target_id);
+		} else if (c.cmd_type == 13) { // Ungarrison / disembark-all
+			if (c.param == 1 && !c.entity_ids.empty())
+				sim.order_disembark_all(c.entity_ids[0]);
+			else
+				sim.order_ungarrison(c.target_id);
+		} else if (c.cmd_type == 14) { // Rally
+			uint32_t res = c.entity_ids.size() > 0 ? c.entity_ids[0] : 0;
+			uint32_t bld = c.entity_ids.size() > 1 ? c.entity_ids[1] : 0;
+			sim.cmd_set_rally_point(c.target_id, c.target_x, c.target_z, res, bld);
+		} else if (c.cmd_type == 15) { // Attack building
+			sim.order_attack_building(c.entity_ids.data(), c.entity_ids.size(), c.target_id);
+		} else if (c.cmd_type == 16) { // Build / repair
+			sim.order_build_or_repair(c.entity_ids.data(), c.entity_ids.size(), c.target_id);
+		} else if (c.cmd_type == 17) { // Hunt / herd
+			if (c.param == 1)
+				sim.order_herd(c.entity_ids.data(), c.entity_ids.size(), c.target_id);
+			else
+				sim.order_hunt(c.entity_ids.data(), c.entity_ids.size(), c.target_id);
+		} else if (c.cmd_type == 18) { // Board
+			sim.order_board_transport(c.entity_ids.data(), c.entity_ids.size(), c.target_id);
+		} else if (c.cmd_type == 19) { // Disembark
+			if (!c.entity_ids.empty())
+				sim.order_disembark(c.entity_ids[0], c.target_x, c.target_z);
+		} else if (c.cmd_type == 20) { // Cancel train
+			sim.cmd_cancel_train(c.target_id, (size_t)c.param);
+		} else if (c.cmd_type == 21) { // Guard
+			sim.order_guard(c.entity_ids.data(), c.entity_ids.size(), c.target_id);
 		}
 	}
+
+	// HashSerializer runs after the turn's simulation steps, not before
+	for (int i = 0; i < TICKS_PER_TURN; ++i)
+		sim.tick(Simulation::FIXED_STEP);
 
 	frame.sim_state_hash = compute_sim_hash(sim);
 

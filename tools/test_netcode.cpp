@@ -216,6 +216,27 @@ int main() {
         std::cout << "  [PASS] Out-of-sync detection triggered correctly." << std::endl;
     }
 
+    // 4. Dual-sim lockstep hashes after several empty turns (HashSerializer after sim ticks)
+    std::cout << "[Test 4] Dual Simulation lockstep hash agreement..." << std::endl;
+    {
+        Simulation a;
+        Simulation b;
+        a.reset();
+        b.reset();
+        TurnManager ta;
+        TurnManager tb;
+        for (int t = 0; t < 8; ++t) {
+            [[maybe_unused]] bool ok_a = ta.tick(TurnManager::TURN_DURATION, a);
+            [[maybe_unused]] bool ok_b = tb.tick(TurnManager::TURN_DURATION, b);
+            assert(ok_a && ok_b);
+            uint32_t ha = ta.compute_sim_hash(a);
+            uint32_t hb = tb.compute_sim_hash(b);
+            assert(ha == hb);
+        }
+        assert(ta.current_turn() == 8);
+        std::cout << "  [PASS] 8 empty turns hashed identically on both sims." << std::endl;
+    }
+
     std::cout << "========================================" << std::endl;
     std::cout << "ALL NETCODE TESTS PASSED (100%)" << std::endl;
     std::cout << "========================================" << std::endl;

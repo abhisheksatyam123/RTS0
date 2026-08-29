@@ -1361,11 +1361,18 @@ void RtsoMain::_on_menu_button_pressed() {
 
 void RtsoMain::_on_ungarrison_pressed() {
 	if (selected_building_id != 0) {
-		sim->order_ungarrison(selected_building_id);
+		if (net_lockstep())
+			post_lockstep(13, nullptr, 0, 0, 0, selected_building_id, 0);
+		else
+			sim->order_ungarrison(selected_building_id);
 	} else if (!selected_ids.is_empty()) {
 		for (int s = 0; s < selected_ids.size(); ++s) {
 			if (sim->is_transport((uint32_t)selected_ids[s])) {
-				sim->order_disembark_all((uint32_t)selected_ids[s]);
+				uint32_t tid = (uint32_t)selected_ids[s];
+				if (net_lockstep())
+					post_lockstep(13, &tid, 1, 0, 0, 0, 1);
+				else
+					sim->order_disembark_all(tid);
 			}
 		}
 	}
@@ -1373,13 +1380,19 @@ void RtsoMain::_on_ungarrison_pressed() {
 
 void RtsoMain::_on_stance_selected(int stance) {
 	if (!selected_ids.is_empty()) {
-		sim->order_set_stance((const uint32_t *)selected_ids.ptr(), selected_ids.size(), (uint8_t)stance);
+		if (net_lockstep())
+			post_lockstep(7, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0, 0, 0, (uint8_t)stance);
+		else
+			sim->order_set_stance((const uint32_t *)selected_ids.ptr(), selected_ids.size(), (uint8_t)stance);
 	}
 }
 
 void RtsoMain::_on_formation_selected(int formation) {
 	if (!selected_ids.is_empty()) {
-		sim->order_set_formation((const uint32_t *)selected_ids.ptr(), selected_ids.size(), (uint8_t)formation);
+		if (net_lockstep())
+			post_lockstep(8, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0, 0, 0, (uint8_t)formation);
+		else
+			sim->order_set_formation((const uint32_t *)selected_ids.ptr(), selected_ids.size(), (uint8_t)formation);
 	}
 }
 
@@ -1393,7 +1406,10 @@ void RtsoMain::_on_build_btn_pressed(int btype) {
 
 void RtsoMain::_on_tech_pressed(int tech_id) {
 	if (selected_building_id != 0) {
-		sim->cmd_research(selected_building_id, (uint8_t)tech_id);
+		if (net_lockstep())
+			post_lockstep(9, nullptr, 0, 0, 0, selected_building_id, (uint8_t)tech_id);
+		else
+			sim->cmd_research(selected_building_id, (uint8_t)tech_id);
 	}
 }
 
@@ -1492,11 +1508,19 @@ void RtsoMain::_process(double delta) {
 
 	accumulator += scaled_delta;
 	int ticks = 0;
-	while (accumulator >= rtso::Simulation::FIXED_STEP) {
-		sim->tick(rtso::Simulation::FIXED_STEP);
-		accumulator -= rtso::Simulation::FIXED_STEP;
-		ticks++;
-		if (ticks > 8) break;
+	if (net_lockstep()) {
+		// NetClientTurnManager: one 200ms turn batch, sim steps inside TurnManager::tick
+		if (turn_mgr_.tick((float)scaled_delta, *sim))
+			ticks = rtso::TurnManager::TICKS_PER_TURN;
+		if (turn_mgr_.has_out_of_sync() && lobby_status)
+			lobby_status->set_text("OOS turn " + String::num_int64(turn_mgr_.oos_turn()));
+	} else {
+		while (accumulator >= rtso::Simulation::FIXED_STEP) {
+			sim->tick(rtso::Simulation::FIXED_STEP);
+			accumulator -= rtso::Simulation::FIXED_STEP;
+			ticks++;
+			if (ticks > 8) break;
+		}
 	}
 
 	uint64_t after_sim_us = Time::get_singleton()->get_ticks_usec();
@@ -2274,42 +2298,35 @@ void RtsoMain::enter_build_mode(bool enable, uint8_t btype) {
 }
 
 void RtsoMain::try_train_unit(rtso::UnitType utype) {
-	if (selected_building_id != 0) {
-		if (sim->cmd_train(selected_building_id, utype)) {
-			play_civ_voice("select");
-		}
-		return;
-	}
-	for (const auto &b : sim->buildings()) {
-		if (b.team == 0 && b.build_progress >= 1.0f) {
-			if ((utype == rtso::UNIT_VILLAGER || utype == rtso::UNIT_FEMALE_CITIZEN) && b.type == rtso::BLD_TOWN_CENTER) {
-				if (sim->cmd_train(b.id, utype)) {
-					play_civ_voice("select");
-					break;
-				}
-			} else if (utype == rtso::UNIT_TRADER && b.type == rtso::BLD_MARKET) {
-				if (sim->cmd_train(b.id, utype)) {
-					play_civ_voice("select");
-					break;
-				}
-			} else if ((utype == rtso::UNIT_TRIREME || utype == rtso::UNIT_FISHING_BOAT || utype == rtso::UNIT_MERCHANT_SHIP) && b.type == rtso::BLD_DOCK) {
-				if (sim->cmd_train(b.id, utype)) {
-					play_civ_voice("select");
-					break;
-				}
-			} else if (utype == rtso::UNIT_HEALER && (b.type == rtso::BLD_TEMPLE || b.type == rtso::BLD_TOWN_CENTER)) {
-				if (sim->cmd_train(b.id, utype)) {
-					play_civ_voice("select");
-					break;
-				}
-			} else if (b.type == rtso::BLD_BARRACKS || b.type == rtso::BLD_FORTRESS) {
-				if (sim->cmd_train(b.id, utype)) {
-					play_civ_voice("select");
-					break;
-				}
+	uint32_t bid = selected_building_id;
+	if (bid == 0) {
+		for (const auto &b : sim->buildings()) {
+			if (b.team != 0 || b.build_progress < 1.0f) continue;
+			bool match = false;
+			if ((utype == rtso::UNIT_VILLAGER || utype == rtso::UNIT_FEMALE_CITIZEN) && b.type == rtso::BLD_TOWN_CENTER)
+				match = true;
+			else if (utype == rtso::UNIT_TRADER && b.type == rtso::BLD_MARKET)
+				match = true;
+			else if ((utype == rtso::UNIT_TRIREME || utype == rtso::UNIT_FISHING_BOAT || utype == rtso::UNIT_MERCHANT_SHIP) && b.type == rtso::BLD_DOCK)
+				match = true;
+			else if (utype == rtso::UNIT_HEALER && (b.type == rtso::BLD_TEMPLE || b.type == rtso::BLD_TOWN_CENTER))
+				match = true;
+			else if (b.type == rtso::BLD_BARRACKS || b.type == rtso::BLD_FORTRESS)
+				match = true;
+			if (match) {
+				bid = b.id;
+				break;
 			}
 		}
 	}
+	if (bid == 0) return;
+	if (net_lockstep()) {
+		post_lockstep(6, nullptr, 0, 0, 0, bid, (uint8_t)utype);
+		play_civ_voice("select");
+		return;
+	}
+	if (sim->cmd_train(bid, utype))
+		play_civ_voice("select");
 }
 
 void RtsoMain::clear_selection() {
@@ -2368,19 +2385,29 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 
 		if (key->get_keycode() == KEY_S && !build_mode) {
 			if (selected_ids.size() > 0) {
-				sim->cmd_stop((const uint32_t *)selected_ids.ptr(), selected_ids.size());
+				if (net_lockstep())
+					post_lockstep(2, (const uint32_t *)selected_ids.ptr(), selected_ids.size());
+				else
+					sim->cmd_stop((const uint32_t *)selected_ids.ptr(), selected_ids.size());
 				return;
 			}
 		}
 
 		// Hotkeys: Stances
-		if (key->get_keycode() == KEY_F1) { sim->order_set_stance((const uint32_t *)selected_ids.ptr(), selected_ids.size(), rtso::STANCE_AGGRESSIVE); return; }
-		if (key->get_keycode() == KEY_F2) { sim->order_set_stance((const uint32_t *)selected_ids.ptr(), selected_ids.size(), rtso::STANCE_DEFENSIVE); return; }
-		if (key->get_keycode() == KEY_F3) { sim->order_set_stance((const uint32_t *)selected_ids.ptr(), selected_ids.size(), rtso::STANCE_STAND_GROUND); return; }
-		if (key->get_keycode() == KEY_F4) { sim->order_set_stance((const uint32_t *)selected_ids.ptr(), selected_ids.size(), rtso::STANCE_HOLD_GROUND); return; }
+		auto apply_stance = [&](uint8_t st) {
+			if (selected_ids.is_empty()) return;
+			if (net_lockstep())
+				post_lockstep(7, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0, 0, 0, st);
+			else
+				sim->order_set_stance((const uint32_t *)selected_ids.ptr(), selected_ids.size(), st);
+		};
+		if (key->get_keycode() == KEY_F1) { apply_stance(rtso::STANCE_AGGRESSIVE); return; }
+		if (key->get_keycode() == KEY_F2) { apply_stance(rtso::STANCE_DEFENSIVE); return; }
+		if (key->get_keycode() == KEY_F3) { apply_stance(rtso::STANCE_STAND_GROUND); return; }
+		if (key->get_keycode() == KEY_F4) { apply_stance(rtso::STANCE_HOLD_GROUND); return; }
 		// F5 stance passive (when no mod key) \u2014 if Ctrl held, it is QuickSave instead
 		if (key->get_keycode() == KEY_F5 && !key->is_ctrl_pressed()) {
-			sim->order_set_stance((const uint32_t *)selected_ids.ptr(), selected_ids.size(), rtso::STANCE_PASSIVE);
+			apply_stance(rtso::STANCE_PASSIVE);
 			return;
 		}
 		// F5 = QuickSave (Ctrl+F5 / standalone F5 overrides stance when Ctrl held)
@@ -2502,7 +2529,11 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						return;
 					}
 					auto [cell_x, cell_y] = mouse_cell(mouse_pos);
-					if (sim->cmd_build(cell_x, cell_y, current_build_type)) {
+					if (net_lockstep()) {
+						post_lockstep(5, nullptr, 0, (float)cell_x, (float)cell_y, 0, current_build_type);
+						play_civ_voice("build");
+						enter_build_mode(false);
+					} else if (sim->cmd_build(cell_x, cell_y, current_build_type)) {
 						play_civ_voice("build");
 						enter_build_mode(false);
 					}
@@ -2624,7 +2655,12 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					float dz = b.z - click_pos.z;
 					if (dx * dx + dz * dz < 3.0f * 3.0f) { target_bld = b.id; break; }
 				}
-				sim->cmd_set_rally_point(selected_building_id, click_pos.x, click_pos.z, target_res, target_bld);
+				if (net_lockstep()) {
+					uint32_t extra[2] = {target_res, target_bld};
+					post_lockstep(14, extra, 2, click_pos.x, click_pos.z, selected_building_id);
+				} else {
+					sim->cmd_set_rally_point(selected_building_id, click_pos.x, click_pos.z, target_res, target_bld);
+				}
 				play_civ_voice("select");
 				return;
 			}
@@ -2632,13 +2668,19 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (selected_ids.is_empty()) return;
 
 			if (attack_move_mode) {
-				sim->order_attack_move((const uint32_t *)selected_ids.ptr(), selected_ids.size(), click_pos.x, click_pos.z);
+				if (net_lockstep())
+					post_lockstep(10, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), click_pos.x, click_pos.z);
+				else
+					sim->order_attack_move((const uint32_t *)selected_ids.ptr(), selected_ids.size(), click_pos.x, click_pos.z);
 				play_civ_voice("attack");
 				attack_move_mode = false;
 				return;
 			}
 			if (patrol_mode) {
-				sim->order_patrol((const uint32_t *)selected_ids.ptr(), selected_ids.size(), click_pos.x, click_pos.z);
+				if (net_lockstep())
+					post_lockstep(11, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), click_pos.x, click_pos.z);
+				else
+					sim->order_patrol((const uint32_t *)selected_ids.ptr(), selected_ids.size(), click_pos.x, click_pos.z);
 				play_civ_voice("select");
 				patrol_mode = false;
 				return;
@@ -2658,7 +2700,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					}
 				}
 				if (target_ally_id != 0) {
-					sim->order_guard((const uint32_t *)selected_ids.ptr(), selected_ids.size(), target_ally_id);
+					if (net_lockstep())
+						post_lockstep(21, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0, 0, target_ally_id);
+					else
+						sim->order_guard((const uint32_t *)selected_ids.ptr(), selected_ids.size(), target_ally_id);
 					play_civ_voice("select");
 				}
 				guard_mode = false;
@@ -2678,7 +2723,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 			}
 			if (has_loaded_transport && sim->get_terrain_height(click_pos.x, click_pos.z) >= sim->water_height() + 0.1f) {
-				sim->order_disembark(transport_sel_id, click_pos.x, click_pos.z);
+				if (net_lockstep())
+					post_lockstep(19, &transport_sel_id, 1, click_pos.x, click_pos.z);
+				else
+					sim->order_disembark(transport_sel_id, click_pos.x, click_pos.z);
 				play_civ_voice("move");
 				return;
 			}
@@ -2695,7 +2743,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 			}
 			if (clicked_transport_id != 0) {
-				sim->order_board_transport((const uint32_t *)selected_ids.ptr(), selected_ids.size(), clicked_transport_id);
+				if (net_lockstep())
+					post_lockstep(18, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0, 0, clicked_transport_id);
+				else
+					sim->order_board_transport((const uint32_t *)selected_ids.ptr(), selected_ids.size(), clicked_transport_id);
 				play_civ_voice("move");
 				return;
 			}
@@ -2714,7 +2765,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 			}
 			if (clicked_enemy_id != 0) {
-				sim->order_attack((const uint32_t *)selected_ids.ptr(), selected_ids.size(), clicked_enemy_id);
+				if (net_lockstep())
+					post_lockstep(3, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0, 0, clicked_enemy_id);
+				else
+					sim->order_attack((const uint32_t *)selected_ids.ptr(), selected_ids.size(), clicked_enemy_id);
 				play_civ_voice("attack");
 				return;
 			}
@@ -2737,13 +2791,14 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 			if (clicked_fauna_id != 0) {
 				const auto &finfo = rtso::fauna_type_info(clicked_fauna_type);
-				if (finfo.is_domestic) {
+				uint8_t herd = finfo.is_domestic ? 1 : 0;
+				if (net_lockstep())
+					post_lockstep(17, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0, 0, clicked_fauna_id, herd);
+				else if (herd)
 					sim->order_herd((const uint32_t *)selected_ids.ptr(), selected_ids.size(), clicked_fauna_id);
-					play_civ_voice("gather");
-				} else {
+				else
 					sim->order_hunt((const uint32_t *)selected_ids.ptr(), selected_ids.size(), clicked_fauna_id);
-					play_civ_voice("attack");
-				}
+				play_civ_voice(herd ? "gather" : "attack");
 				return;
 			}
 
@@ -2762,7 +2817,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 			}
 			if (clicked_res_id != 0) {
-				sim->order_gather((const uint32_t *)selected_ids.ptr(), selected_ids.size(), clicked_res_id);
+				if (net_lockstep())
+					post_lockstep(4, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0, 0, clicked_res_id);
+				else
+					sim->order_gather((const uint32_t *)selected_ids.ptr(), selected_ids.size(), clicked_res_id);
 				play_civ_voice("gather");
 				return;
 			}
@@ -2774,21 +2832,26 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				float hit_r = b.half_size + 1.2f;
 				if (dx * dx + dz * dz <= hit_r * hit_r) {
 					if (b.team != 0) {
-						// Enemy Building -> Attack / Siege Demolition
-						sim->order_attack_building((const uint32_t *)selected_ids.ptr(), selected_ids.size(), b.id);
+						if (net_lockstep())
+							post_lockstep(15, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0, 0, b.id);
+						else
+							sim->order_attack_building((const uint32_t *)selected_ids.ptr(), selected_ids.size(), b.id);
 						play_civ_voice("attack");
 					} else {
-						// Allied Building -> Build / Repair / Garrison / Gate Upgrade
 						if (b.build_progress < 1.0f || b.hp < b.max_hp) {
-							sim->order_build_or_repair((const uint32_t *)selected_ids.ptr(), selected_ids.size(), b.id);
+							if (net_lockstep())
+								post_lockstep(16, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0, 0, b.id);
+							else
+								sim->order_build_or_repair((const uint32_t *)selected_ids.ptr(), selected_ids.size(), b.id);
 							play_civ_voice("build");
 						} else if (b.type == rtso::BLD_WALL_SEGMENT && Input::get_singleton()->is_key_pressed(KEY_CTRL)) {
-							// Upgrade Wall to Gate
 							sim->spawn_building_world(b.x, b.z, rtso::BLD_GATE, 0, 1.0f);
 							play_civ_voice("build");
 						} else {
-							// Garrison units inside building
-							sim->order_garrison((const uint32_t *)selected_ids.ptr(), selected_ids.size(), b.id);
+							if (net_lockstep())
+								post_lockstep(12, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0, 0, b.id);
+							else
+								sim->order_garrison((const uint32_t *)selected_ids.ptr(), selected_ids.size(), b.id);
 							clear_selection();
 						}
 					}
@@ -2797,7 +2860,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 
 			// 5. Default: Move Order
-			sim->cmd_move((const uint32_t *)selected_ids.ptr(), selected_ids.size(), click_pos.x, click_pos.z);
+			if (net_lockstep())
+				post_lockstep(1, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), click_pos.x, click_pos.z);
+			else
+				sim->cmd_move((const uint32_t *)selected_ids.ptr(), selected_ids.size(), click_pos.x, click_pos.z);
 			play_civ_voice("move");
 		}
 	}
@@ -3085,6 +3151,18 @@ void RtsoMain::_on_lobby_refresh_pressed() {
 	refresh_lobby_rooms();
 }
 
+void RtsoMain::post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
+                             float x, float z, uint32_t tid, uint8_t param) {
+	rtso::NetCommand c;
+	c.cmd_type = cmd_type;
+	if (ids && n) c.entity_ids.assign(ids, ids + n);
+	c.target_x = x;
+	c.target_z = z;
+	c.target_id = tid;
+	c.param = param;
+	turn_mgr_.post_local_command(c);
+}
+
 void RtsoMain::_on_lobby_host_pressed() {
 	rtso::NetConfig cfg;
 	cfg.port = (uint16_t)lobby_port->get_text().to_int();
@@ -3094,6 +3172,8 @@ void RtsoMain::_on_lobby_host_pressed() {
 		if (lobby_status) lobby_status->set_text("Host bind failed");
 		return;
 	}
+	turn_mgr_.reset();
+	turn_mgr_.set_net_host(&net_host_, 0);
 	std::ostringstream js;
 	js << "{\"id\":\"room-" << cfg.port << "\",\"host_ip\":\"127.0.0.1\",\"host_port\":"
 	   << cfg.port << ",\"players\":1,\"max_players\":" << (int)cfg.maxPlayers
@@ -3122,6 +3202,8 @@ void RtsoMain::_on_lobby_join_pressed() {
 		if (lobby_status) lobby_status->set_text("Join failed");
 		return;
 	}
+	turn_mgr_.reset();
+	turn_mgr_.set_net_host(&net_host_, 1);
 	if (lobby_status)
 		lobby_status->set_text("Connecting " + String(ip.c_str()) + ":" + String::num_int64(port));
 }
@@ -3166,6 +3248,11 @@ void RtsoMain::_on_queue_slot_gui_input(const Ref<InputEvent> &event, int slot_i
 
 void RtsoMain::_on_queue_slot_cancel(int slot_idx) {
 	if (selected_building_id != 0 && sim) {
+		if (net_lockstep()) {
+			post_lockstep(20, nullptr, 0, 0, 0, selected_building_id, (uint8_t)slot_idx);
+			play_sfx("res://assets/sounds/ui/cancel.ogg");
+			return;
+		}
 		if (sim->cmd_cancel_train(selected_building_id, (size_t)slot_idx)) {
 			play_sfx("res://assets/sounds/ui/cancel.ogg");
 			update_command_panel();

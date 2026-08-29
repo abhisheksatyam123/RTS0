@@ -25,6 +25,7 @@ public:
 	// TURN_DURATION = 0.200f (200ms = 5 turns/sec) lockstep turn length matching 0 A.D.
 	// DEFAULT_TURN_LENGTH / COMMAND_DELAY_MP.
 	static constexpr float TURN_DURATION = 0.200f; // 200ms lockstep turns (5 turns/sec) matching 0 A.D. COMMAND_DELAY_MP
+	static constexpr int TICKS_PER_TURN = 4;       // 200ms / 50ms FIXED_STEP — NetClientTurnManager NotifyFinishedUpdate
 
 	TurnManager();
 	explicit TurnManager(NetHost *host, uint32_t client_id = 0);

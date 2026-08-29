@@ -337,6 +337,20 @@ struct NavGrid {
         flood_chunk_regions(PASS_INFANTRY, chunk_regions_, global_region_map_);
         flood_chunk_regions(PASS_SHIP, ship_chunk_regions_, ship_region_map_);
         regions_ready_ = true;
+        if (!dirty.blank()) dirty.fill(0);
+    }
+
+    bool any_dirty() const {
+        if (dirty.blank()) return false;
+        for (uint8_t v : dirty.data)
+            if (v) return true;
+        return false;
+    }
+
+    // HierarchicalPathfinder.cpp:480 — only recompute when dirtinessGrid is set
+    void rebuild_dirty_regions() {
+        if (!regions_ready_ || any_dirty())
+            rebuild_regions();
     }
 
     uint16_t global_region_at(int cx, int cy, uint8_t pass = PASS_INFANTRY) const {
@@ -638,9 +652,23 @@ inline bool NavGrid::find_path(float sx, float sz, float tx, float tz, WaypointP
                 int oy2 = cur.y + dirs[k][1];
                 if (!is_passable_for(ox, oy, pass) || !is_passable_for(ox2, oy2, pass)) continue;
             }
+            int step_cost = costs[k];
+            // LongPathfinder.cpp AddJumpedHoriz — skip empty cardinal runs
+            if (k < 4) {
+                int jx = nx, jy = ny, extra = 0;
+                while (extra < 24) {
+                    int mx = jx + dirs[k][0], my = jy + dirs[k][1];
+                    if (!cells.inside(mx, my) || !is_passable_for(mx, my, pass)) break;
+                    jx = mx; jy = my;
+                    extra += 10;
+                    if (jx == tcx && jy == tcy) break;
+                }
+                nx = jx; ny = jy;
+                step_cost += extra;
+            }
             int ni = cell_idx(nx, ny);
             if (closed[ni]) continue;
-            int ng = cur.g + costs[k];
+            int ng = cur.g + step_cost;
             if (ng < g[ni]) {
                 g[ni] = ng;
                 parent[ni] = ci;
