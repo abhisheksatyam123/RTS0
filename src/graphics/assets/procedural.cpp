@@ -51,6 +51,10 @@ Ref<Mesh> Procedural::get_unit_mesh(const String &id) {
 	else if (id == "swordsman") { h = 1.25f; r = 0.38f; }
 	else if (id == "spearman") { h = 1.35f; r = 0.38f; }
 	else if (id == "healer") { h = 1.2f; r = 0.36f; }
+	else if (id == "deer") { h = 1.1f; r = 0.32f; }
+	else if (id == "boar") { h = 0.85f; r = 0.38f; }
+	else if (id == "sheep") { h = 0.7f; r = 0.30f; }
+	else if (id == "wolf") { h = 0.8f; r = 0.28f; }
 	mesh->set_radius(r);
 	mesh->set_height(h);
 	mesh->set_radial_segments(8);

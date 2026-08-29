@@ -146,8 +146,8 @@ ANIMATIONS = {
     # archer specific
     "archer_attack":    "art/animation/biped/infantry/archer/attack_ranged.dae.cached.psa",
     # cavalry / horse
-    "cavalry_idle":     "art/animation/biped/rider/cavalry/swordsman/idle_relax_01.dae.cached.psa",
-    "cavalry_walk":     "art/animation/biped/rider/cavalry/swordsman/walk_relax_shield.dae.cached.psa",
+    "cavalry_idle":     "art/animation/biped/rider/cavalry/generic/idle_relax_01.dae.cached.psa",
+    "cavalry_walk":     "art/animation/biped/rider/cavalry/generic/walk_relax_shield.dae.cached.psa",
     "horse_idle":       "art/animation/quadraped/horse_idle_01.dae.cached.psa",
     "horse_walk":       "art/animation/quadraped/horse_walk.dae.cached.psa",
     "horse_run":        "art/animation/quadraped/horse_gallop.dae.cached.psa",
@@ -196,6 +196,8 @@ ANIMATIONS = {
     "ram_idle":         "art/animation/mechanical/rome_ram_idle.dae.cached.psa",
     "ram_walk":         "art/animation/mechanical/rome_ram_move.dae.cached.psa",
     "ram_attack":       "art/animation/mechanical/rome_ram_attack.dae.cached.psa",
+    "trader_idle":      "art/animation/mechanical/trader_cart_idle.dae.cached.psa",
+    "trader_walk":      "art/animation/mechanical/trader_cart_move.dae.cached.psa",
     "catapult_idle":    "art/animation/mechanical/siege_artillery/lithobolos_med_idle_01.dae.cached.psa",
     "catapult_attack":  "art/animation/mechanical/siege_artillery/lithobolos_med_attack_ranged_01.dae.cached.psa",
     "bolt_idle":        "art/animation/mechanical/siege_artillery/oxybeles_idle_01.dae.cached.psa",
@@ -220,6 +222,14 @@ RIDER_ACTORS = {
     "camel": ("art/actors/units/ptolemies/camel_archer_a_r.xml", "rider"),
     "elephant": ("art/actors/units/carthaginians/elephantry_c_r.xml", "rider"),
     "chariot": ("art/actors/units/britons/chariot_javelinist_c_r.xml", "rider2"),
+}
+# Rider PMD bind pose is a standing biped. Bake this PSA (frame 0) before
+# rigid-binding to the horse so the rider sits (art/animation/biped/rider/*).
+RIDER_SIT_PSA = {
+    "cavalry": "cavalry_idle",
+    "camel": "cavalry_idle",
+    "elephant": "cavalry_idle",
+    "chariot": "cavalry_idle",
 }
 
 UNIT_IDS = frozenset({
@@ -744,7 +754,8 @@ def compose_actor(vfs, actor_path, depth=0, tint=None, sources=None):
                     else:
                         world = local
                     for sp in sub_parts:
-                        sp.transform = world
+                        child = sp.transform if sp.transform is not None else _identity()
+                        sp.transform = mat_mul(world, child)
                         sp.bone = pp["bone"] if pp["bone"] != 0xFF else 0xFF
                     final_parts.extend(sub_parts)
                     placed = True
@@ -776,11 +787,118 @@ def _prop_world(part, pp):
     return local
 
 
+def _psa_frame_tq(psa, frame=0):
+    nk = psa["numKeys"]
+    keys = psa["keys"]
+    out = []
+    for i in range(nk):
+        ki = frame * nk + i
+        if ki < len(keys):
+            k = keys[ki]
+            out.append((k["t"], k["q"]))
+        else:
+            out.append(((0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 1.0)))
+    return out
+
+
+def _blends_fit_skeleton(blends, n_bones):
+    for bl in blends:
+        for b, w in zip(bl["bones"], bl["weights"]):
+            if w <= 1e-8 or b in (0xFF, 255):
+                continue
+            if b < 0 or b >= n_bones:
+                return False
+    return True
+
+
+def _skin_mesh_to_pose(md, rest_tq, pose_tq):
+    """CPU-skin PMD verts: pose * IBM * bind  (ModelDef.cpp inverse bind)."""
+    n = min(len(rest_tq), len(pose_tq))
+    if n <= 0:
+        return
+    pals = [mat_mul(trs(*pose_tq[i]), rigid_inverse(trs(*rest_tq[i]))) for i in range(n)]
+    blends = md.get("blends") or []
+    posed = []
+    for i, (p, nrm) in enumerate(md["verts"]):
+        if i >= len(blends):
+            posed.append((p, nrm))
+            continue
+        acc = [0.0, 0.0, 0.0]
+        accn = [0.0, 0.0, 0.0]
+        wsum = 0.0
+        bl = blends[i]
+        for b, w in zip(bl["bones"], bl["weights"]):
+            if w <= 1e-8 or b in (0xFF, 255) or b < 0 or b >= n:
+                continue
+            pp = mat_apply(pals[b], p)
+            nn = rot_apply(pals[b], nrm)
+            acc[0] += pp[0] * w
+            acc[1] += pp[1] * w
+            acc[2] += pp[2] * w
+            accn[0] += nn[0] * w
+            accn[1] += nn[1] * w
+            accn[2] += nn[2] * w
+            wsum += w
+        if wsum <= 1e-8:
+            posed.append((p, nrm))
+            continue
+        ln = math.sqrt(accn[0] * accn[0] + accn[1] * accn[1] + accn[2] * accn[2]) or 1.0
+        posed.append((tuple(acc), (accn[0] / ln, accn[1] / ln, accn[2] / ln)))
+    md["verts"] = posed
+    md["blends"] = []
+
+
+def _pose_rider_sit(vfs, rparts, psa_key):
+    """Bake rider/cavalry sit onto biped parts (0 A.D. *_r actor + rider PSA)."""
+    ref = ANIMATIONS.get(psa_key, psa_key)
+    if not vfs.exists(ref):
+        print(f"  ! rider sit PSA missing: {ref}")
+        return
+    try:
+        psa = parse_psa(vfs.read(ref))
+    except Exception as e:
+        print(f"  ! rider sit PSA parse failed: {e}")
+        return
+    rbody = None
+    for p in rparts:
+        if p.mesh_data and len(p.mesh_data.get("bones") or []) > 0:
+            rbody = p
+            break
+    if rbody is None:
+        print("  ! rider body has no bind bones; sit bake skipped")
+        return
+    rest_tq = list(rbody.mesh_data["bones"])
+    pose_tq = _psa_frame_tq(psa, 0)
+    while len(pose_tq) < len(rest_tq):
+        pose_tq.append(rest_tq[len(pose_tq)])
+    n = min(len(rest_tq), len(pose_tq))
+    skinned = 0
+    propped = 0
+    for sp in rparts:
+        md = sp.mesh_data
+        if not md:
+            continue
+        blends = md.get("blends") or []
+        own_bones = len(md.get("bones") or [])
+        # Full biped body (~46 bones). Helmets/weapons are 0–few bones + attach xf.
+        if own_bones >= 20 and blends and _blends_fit_skeleton(blends, n):
+            _skin_mesh_to_pose(md, rest_tq, pose_tq)
+            skinned += 1
+        elif sp.transform is not None:
+            bi = sp.bone if sp.bone != 0xFF else 0
+            if 0 <= bi < n:
+                delta = mat_mul(trs(*pose_tq[bi]), rigid_inverse(trs(*rest_tq[bi])))
+                sp.transform = mat_mul(delta, sp.transform)
+                propped += 1
+    print(f"  rider sit <- {ref} (skinned {skinned} parts, props {propped})")
+
+
 def attach_rider_parts(vfs, parts, body, asset_id, tint, sources):
     """Parent the *_r cavalry actor onto the horse `rider` prop (bone 2).
 
     Rider uses a 46-bone biped; the mount uses 49 horse bones. One glTF skin
     cannot drive both, so rider meshes are rigid-bound to the horse rider joint.
+    Bake cavalry_idle (sitting) first — bind-pose riders stand in the saddle.
     """
     cfg = RIDER_ACTORS.get(asset_id)
     if not cfg:
@@ -790,6 +908,9 @@ def attach_rider_parts(vfs, parts, body, asset_id, tint, sources):
     if not rparts:
         print(f"  ! rider actor empty: {rpath}")
         return parts
+    sit_key = RIDER_SIT_PSA.get(asset_id)
+    if sit_key:
+        _pose_rider_sit(vfs, rparts, sit_key)
     attach_pp = None
     attach_part = body
     for part in parts:
@@ -1231,6 +1352,13 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
     if body is None:
         body = parts[0]
     parts = attach_rider_parts(vfs, parts, body, asset_id, tint, sources)
+    # trader.xml already parents hellenes/trader_r; sit-bake that biped only
+    # (do not run this on the cart — 4 bones vs cavalry_idle 46).
+    if asset_id == "trader":
+        for p in parts:
+            nb = len((p.mesh_data or {}).get("bones") or [])
+            if 40 <= nb <= 47:
+                _pose_rider_sit(vfs, [p], "cavalry_idle")
     bones_local = body.mesh_data.get("bones", [])
     num_bones = max(1, len(bones_local))
 
@@ -1624,6 +1752,10 @@ UNIT_CFG = {
     "cavalry": ("horse", {
         "Idle": "horse_idle", "Walk": "horse_walk", "Run": "horse_run",
         "Attack": "horse_attack", "Death": "horse_death"}),
+    # 0 A.D. trader.xml: mechanical trader_cart (4 bones) + horse/rider props
+    "trader": ("", {
+        "Idle": "trader_idle", "Walk": "trader_walk", "Run": "trader_walk",
+        "Death": "trader_idle"}),
     "deer": ("deer", {
         "Idle": "deer_idle", "Walk": "deer_walk", "Run": "deer_walk"}),
     "healer": ("biped", {

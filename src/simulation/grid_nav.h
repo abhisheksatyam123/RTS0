@@ -663,6 +663,9 @@ inline bool NavGrid::find_path(float sx, float sz, float tx, float tz, WaypointP
                     extra += 10;
                     if (jx == tcx && jy == tcy) break;
                 }
+                if (extra > 0 && !line_clear(cur.x, cur.y, jx, jy, pass)) {
+                    jx = nx; jy = ny; extra = 0;
+                }
                 nx = jx; ny = jy;
                 step_cost += extra;
             }

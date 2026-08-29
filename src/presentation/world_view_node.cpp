@@ -11,6 +11,7 @@
 #include <godot_cpp/classes/viewport.hpp>
 #include <godot_cpp/classes/camera3d.hpp>
 #include <godot_cpp/classes/geometry_instance3d.hpp>
+#include <godot_cpp/variant/utility_functions.hpp>
 #include <algorithm>
 #include <cstdint>
 #include <unordered_map>
@@ -114,7 +115,7 @@ void RtsoWorldView::init_animation_controllers() {
 	anim_controllers[rtso::UNIT_HEALER].load_rig(rtso::RigType::Healer);
 	anim_controllers[rtso::UNIT_SIEGE_RAM].load_rig(rtso::RigType::SiegeRam);
 	anim_controllers[rtso::UNIT_HERO].load_rig(rtso::RigType::Biped);
-	anim_controllers[rtso::UNIT_TRADER].load_rig(rtso::RigType::Mounted);
+	anim_controllers[rtso::UNIT_TRADER].load("trader");
 	anim_controllers[rtso::UNIT_ARCHER_MAIDEN].load_rig(rtso::RigType::Archer);
 	anim_controllers[rtso::UNIT_CARNYX].load_rig(rtso::RigType::Biped);
 	anim_controllers[rtso::UNIT_ELEPHANT].load("elephant");
@@ -209,15 +210,17 @@ void RtsoWorldView::_ready() {
 	gold_mmi = memnew(MultiMeshInstance3D); gold_mmi->set_multimesh(gold_mm); add_child(gold_mmi);
 	stone_mmi = memnew(MultiMeshInstance3D); stone_mmi->set_multimesh(stone_mm); add_child(stone_mmi);
 
-	// Fauna (Wildlife) batches
-	fauna_mm[rtso::FAUNA_DEER] = create_multimesh(rtso::ModelLibrary::get("vegetation", "pine").mesh, false);
+	// Fauna — never fall back to trees/stones (those looked like walking mines)
 	{
+		auto deer = rtso::ModelLibrary::get("units", "deer");
+		Ref<Mesh> deer_mesh = deer.mesh.is_valid() ? deer.mesh : rtso::ModelLibrary::get("units", "war_dog").mesh;
+		fauna_mm[rtso::FAUNA_DEER] = create_multimesh(deer_mesh, false);
 		auto boar = rtso::ModelLibrary::get("units", "boar");
-		fauna_mm[rtso::FAUNA_BOAR] = create_multimesh(boar.mesh.is_valid() ? boar.mesh : rtso::ModelLibrary::get("vegetation", "stone_mine").mesh, false);
+		fauna_mm[rtso::FAUNA_BOAR] = create_multimesh(boar.mesh.is_valid() ? boar.mesh : deer_mesh, false);
 		auto sheep = rtso::ModelLibrary::get("units", "sheep");
-		fauna_mm[rtso::FAUNA_SHEEP] = create_multimesh(sheep.mesh.is_valid() ? sheep.mesh : rtso::ModelLibrary::get("vegetation", "tree").mesh, false);
+		fauna_mm[rtso::FAUNA_SHEEP] = create_multimesh(sheep.mesh.is_valid() ? sheep.mesh : deer_mesh, false);
 		auto wolf = rtso::ModelLibrary::get("units", "wolf");
-		fauna_mm[rtso::FAUNA_WOLF] = create_multimesh(wolf.mesh.is_valid() ? wolf.mesh : rtso::ModelLibrary::get("vegetation", "gold_vein").mesh, false);
+		fauna_mm[rtso::FAUNA_WOLF] = create_multimesh(wolf.mesh.is_valid() ? wolf.mesh : deer_mesh, false);
 	}
 
 	for (int f = 0; f < rtso::FAUNA_COUNT; ++f) {
@@ -311,11 +314,14 @@ static void disable_mesh_shadows(Node *n) {
 
 void RtsoWorldView::attach_unit_model(UnitVis &v, const String &model_name) {
 	if (v.model_id == model_name && v.model) return;
+	if (v.anim) {
+		v.anim->stop();
+		v.anim = nullptr;
+	}
 	if (v.model) {
 		v.root->remove_child(v.model);
 		v.model->queue_free();
 		v.model = nullptr;
-		v.anim = nullptr;
 	}
 	v.model_id = model_name;
 	v.clip = String();
@@ -375,72 +381,18 @@ void RtsoWorldView::hide_unit_vis(UnitVis &v) {
 	if (v.ring) v.ring->set_visible(false);
 	if (v.hp_bg) v.hp_bg->set_visible(false);
 	if (v.hp_fg) v.hp_fg->set_visible(false);
-	if (v.anim) v.anim->set_active(false);
+	if (v.anim && UtilityFunctions::is_instance_valid(v.anim))
+		v.anim->set_active(false);
 }
 
 void RtsoWorldView::ensure_unit_batches() {
-	static const char *kWantClip[CROWD_CLIP_COUNT] = { "Idle", "Walk", "Attack", "Death" };
-	static const char *kFallback[CROWD_CLIP_COUNT] = { "Idle", "Run", "Attack", "Idle" };
-
 	for (int t = 0; t < rtso::UNIT_TYPE_COUNT; ++t) {
 		const char *id = rtso::unit_type_model((uint8_t)t);
 		String id_str = id;
 		String cat_units2 = "units";
 		auto entry = rtso::ModelLibrary::get(cat_units2, id_str);
 		Ref<Mesh> rest = entry.crowd_mesh.is_valid() ? entry.crowd_mesh : entry.mesh;
-
-		if (!unit_puppet_baked[t] && entry.scene.is_valid()) {
-			unit_puppet_baked[t] = true;
-			for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
-				CrowdPuppet &p = unit_puppet[t][c];
-				p.root = entry.scene->instantiate();
-				if (!p.root) continue;
-				rtso::ModelLibrary::apply_imported_material_fixups(p.root);
-				if (Node3D *n3 = Object::cast_to<Node3D>(p.root)) {
-					n3->set_visible(false);
-					n3->set_position(Vector3(0.0f, -200.0f, 0.0f));
-				}
-				p.root->set_process_mode(Node::PROCESS_MODE_ALWAYS);
-				add_child(p.root);
-				p.anim = find_anim_player(p.root);
-				if (!p.anim) continue;
-				p.anim->set_active(true);
-				p.anim->set_callback_mode_process(AnimationMixer::ANIMATION_CALLBACK_MODE_PROCESS_MANUAL);
-				p.anim->set_speed_scale(1.0);
-				String clip = kWantClip[c];
-				if (!p.anim->has_animation(clip) && kFallback[c]) {
-					clip = kFallback[c];
-				}
-				if (!p.anim->has_animation(clip)) {
-					if (p.anim->has_animation("Idle")) clip = "Idle";
-					else if (p.anim->has_animation("Walk")) clip = "Walk";
-					else {
-						PackedStringArray names = p.anim->get_animation_list();
-						if (names.size() > 0) clip = names[0];
-						else clip = String();
-					}
-				}
-				if (clip.is_empty()) continue;
-				p.clip = clip;
-				Ref<Animation> a = p.anim->get_animation(clip);
-				if (a.is_valid()) {
-					a->set_loop_mode(c == 3 ? Animation::LOOP_NONE : Animation::LOOP_LINEAR);
-					double anim_len = a->get_length();
-					if (anim_len <= 0.001) anim_len = 1.0;
-					p.anim->play(clip);
-					if (!p.skin.captured) rtso::ModelLibrary::capture_crowd_skin(p.root, p.skin);
-					for (int f = 0; f < CROWD_FRAMES_PER_CLIP; ++f) {
-						double t_sec = ((double)f / (double)CROWD_FRAMES_PER_CLIP) * anim_len;
-						p.anim->seek(t_sec, true);
-						Ref<ArrayMesh> posed = rtso::ModelLibrary::bake_crowd_skin(p.skin);
-						if (posed.is_valid() && posed->get_surface_count() > 0) {
-							p.posed_frames[f] = posed;
-							p.baked_count = f + 1;
-						}
-					}
-				}
-			}
-		}
+		unit_puppet_baked[t] = true;
 
 		for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
 			if (unit_mmi[t][c]) continue;
@@ -454,7 +406,7 @@ void RtsoWorldView::ensure_unit_batches() {
 }
 
 void RtsoWorldView::play_unit_clip(UnitVis &v, const String &clip, bool loop) {
-	if (!v.anim || clip.is_empty()) return;
+	if (!v.anim || !UtilityFunctions::is_instance_valid(v.anim) || clip.is_empty()) return;
 	if (!v.anim->has_animation(clip)) return;
 	if (v.clip == clip) return;
 	v.clip = clip;
@@ -610,13 +562,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (unit_mm[t][c].is_valid()) {
 				unit_mm[t][c]->set_instance_count(counts[t][c]);
 				CrowdPuppet &p = unit_puppet[t][c];
-				if (counts[t][c] > 0 && p.baked_count > 0) {
-					int frame_idx = (int)(anim_time * 6.0f + (float)(t + c)) % p.baked_count;
-					Ref<ArrayMesh> fmesh = p.posed_frames[frame_idx];
-					if (fmesh.is_valid() && unit_mm[t][c]->get_mesh() != fmesh) {
-						unit_mm[t][c]->set_mesh(fmesh);
-					}
-				}
+				(void)p;
 			}
 		}
 	}
@@ -655,7 +601,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (dist_sq > 25.0f) {
 				cur = target;
 			} else {
-				float factor = Math::clamp(delta * 18.0f, 0.0f, 1.0f);
+				float factor = Math::clamp(delta * 10.0f, 0.0f, 1.0f);
 				cur = cur.lerp(target, factor);
 			}
 			crowd_pos[id] = cur;
@@ -707,7 +653,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		String cat_units3 = "units";
 		auto entry = rtso::ModelLibrary::get(cat_units3, utype_str);
 		float y = sim->get_terrain_height(x, z) + entry.y_offset;
-		Transform3D xf(Basis(Vector3(0, 1, 0), yaw), Vector3(x, y, z));
+		float sc = entry.scale > 0.05f ? entry.scale : 1.0f;
+		Transform3D xf(Basis(Vector3(0, 1, 0), yaw).scaled(Vector3(sc, sc, sc)), Vector3(x, y, z));
 		int clip = crowd_clip_of(uaction, speed2, uview.alive[i] != 0);
 		int slot = written[utype][clip]++;
 		if (unit_mm[utype][clip].is_valid()) {
@@ -729,10 +676,12 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		v.yaw = yaw;
 		attach_unit_model(v, rtso::unit_type_model(utype));
 
-		if (v.anim) {
+		if (v.anim && UtilityFunctions::is_instance_valid(v.anim)) {
 			v.anim->set_active(true);
 			v.anim->set_callback_mode_process(AnimationMixer::ANIMATION_CALLBACK_MODE_PROCESS_MANUAL);
 			v.anim->set_speed_scale(1.0);
+		} else {
+			v.anim = nullptr;
 		}
 		String want_clip;
 		bool loop_clip = true;
@@ -751,7 +700,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		} else {
 			want_clip = "Idle";
 		}
-		if (v.anim) {
+		if (v.anim && UtilityFunctions::is_instance_valid(v.anim)) {
 			if (!v.anim->has_animation(want_clip)) {
 				if (want_clip == "Run" && v.anim->has_animation("Walk")) want_clip = "Walk";
 				else if (want_clip == "Walk" && v.anim->has_animation("Run")) want_clip = "Run";
@@ -762,7 +711,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			v.anim->advance((double)delta);
 		}
 
-		Transform3D dxf(Basis(Vector3(0, 1, 0), v.yaw), Vector3(x, entry.y_offset, z));
+		float dsc = entry.scale > 0.05f ? entry.scale : 1.0f;
+		Transform3D dxf(Basis(Vector3(0, 1, 0), v.yaw).scaled(Vector3(dsc, dsc, dsc)),
+		               Vector3(x, y, z));
 		v.root->set_transform(dxf);
 
 		bool is_selected = (sel_set.count((int32_t)id) > 0);
@@ -1049,17 +1000,16 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 	}
 
-	tree_a_mm->set_instance_count((int)ta);
-	tree_b_mm->set_instance_count((int)tb);
-	tree_c_mm->set_instance_count((int)tc);
+	// All wood on tree.glb — pine/palm were easy to mistake for walking fauna
+	tree_a_mm->set_instance_count((int)(ta + tb + tc));
+	tree_b_mm->set_instance_count(0);
+	tree_c_mm->set_instance_count(0);
 	gold_mm->set_instance_count((int)g);
 	stone_mm->set_instance_count((int)st);
 
-	size_t ia = 0, ib = 0, ic = 0, ig = 0, ist = 0;
+	size_t ia = 0, ig = 0, ist = 0;
 	String cat_veg = "vegetation";
 	String id_tree = "tree"; auto e_tree = rtso::ModelLibrary::get(cat_veg, id_tree);
-	String id_pine = "pine"; auto e_pine = rtso::ModelLibrary::get(cat_veg, id_pine);
-	String id_palm = "palm"; auto e_palm = rtso::ModelLibrary::get(cat_veg, id_palm);
 	String id_gold = "gold_vein"; auto e_gold = rtso::ModelLibrary::get(cat_veg, id_gold);
 	String id_stone = "stone_mine"; auto e_stone = rtso::ModelLibrary::get(cat_veg, id_stone);
 
@@ -1071,11 +1021,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		Basis rot(Vector3(0, 1, 0), (float)(h % 12) * 0.52f);
 
 		if (rview.type[i] == rtso::RES_WOOD) {
-			float y_off = (h % 3 == 0) ? e_tree.y_offset : ((h % 3 == 1) ? e_pine.y_offset : e_palm.y_offset);
-			Transform3D xf(rot, Vector3(rx, ry + y_off, rz));
-			if (h % 3 == 0) tree_a_mm->set_instance_transform((int)ia++, xf);
-			else if (h % 3 == 1) tree_b_mm->set_instance_transform((int)ib++, xf);
-			else tree_c_mm->set_instance_transform((int)ic++, xf);
+			Transform3D xf(rot, Vector3(rx, ry + e_tree.y_offset, rz));
+			tree_a_mm->set_instance_transform((int)ia++, xf);
 		} else if (rview.type[i] == rtso::RES_GOLD) {
 			Transform3D xf(rot, Vector3(rx, ry + e_gold.y_offset, rz));
 			gold_mm->set_instance_transform((int)ig++, xf);
@@ -1109,7 +1056,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		float fz = fview.pos_z[f];
 		float fy = sim->get_terrain_height(fx, fz);
 		float frot = fview.rot_y[f];
-		Transform3D xf(Basis(Vector3(0, 1, 0), frot), Vector3(fx, fy, fz));
+		const char *fid = rtso::fauna_type_info(ft).model_id;
+		auto fent = rtso::ModelLibrary::get("units", String(fid));
+		float fsc = fent.scale > 0.05f ? fent.scale : 1.0f;
+		Transform3D xf(Basis(Vector3(0, 1, 0), frot).scaled(Vector3(fsc, fsc, fsc)),
+		               Vector3(fx, fy + fent.y_offset, fz));
 		int fslot = f_written[ft]++;
 		if (fauna_mm[ft].is_valid() && fslot < f_counts[ft]) {
 			fauna_mm[ft]->set_instance_transform(fslot, xf);

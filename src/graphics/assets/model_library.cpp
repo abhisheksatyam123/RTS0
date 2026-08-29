@@ -48,7 +48,10 @@ float ModelLibrary::target_height(const String &category, const String &id, floa
 		if (id == "archer_maiden") return 1.7f;
 		if (id == "female_citizen" || id == "female") return 1.68f;
 		if (id == "healer") return 1.72f;
-		if (id == "deer") return 1.5f;
+		if (id == "deer") return 1.35f;
+		if (id == "boar") return 1.15f;
+		if (id == "sheep") return 0.95f;
+		if (id == "wolf") return 1.05f;
 		return 1.8f;
 	}
 	if (category == "buildings") {
@@ -227,7 +230,8 @@ static void collect_buckets(const Vector<MeshXform> &instances, bool skip_tiny,
 			Array arrays = src->surface_get_arrays(s);
 			if (arrays.size() == 0) continue;
 			PackedVector3Array verts = arrays[Mesh::ARRAY_VERTEX];
-			if (skip_tiny && verts.size() < 24) continue;
+			// Heads, helmets, and rider bits are often <24 verts — do not drop them
+			if (skip_tiny && verts.size() < 3) continue;
 			Ref<Material> mat = mi->get_active_material(s);
 			if (!mat.is_valid()) mat = src->surface_get_material(s);
 			uint64_t key = material_merge_key(mat);
@@ -247,6 +251,26 @@ static void collect_buckets(const Vector<MeshXform> &instances, bool skip_tiny,
 	}
 }
 
+static Ref<ArrayMesh> flatten_to_one_surface(std::vector<SurfBucket> &buckets) {
+	if (buckets.empty()) return Ref<ArrayMesh>();
+	SurfBucket all;
+	all.mat = buckets[0].mat;
+	for (SurfBucket &b : buckets) {
+		const int base = all.verts.size();
+		for (int i = 0; i < b.verts.size(); ++i) {
+			all.verts.push_back(b.verts[i]);
+			all.norms.push_back(i < b.norms.size() ? b.norms[i] : Vector3(0, 1, 0));
+			all.uvs.push_back(i < b.uvs.size() ? b.uvs[i] : Vector2());
+			all.colors.push_back(i < b.colors.size() ? b.colors[i] : Color(1, 1, 1, 1));
+		}
+		for (int k = 0; k < b.indices.size(); ++k)
+			all.indices.push_back(b.indices[k] + base);
+	}
+	std::vector<SurfBucket> one;
+	one.push_back(std::move(all));
+	return mesh_from_buckets(one, 1);
+}
+
 static Ref<ArrayMesh> merge_mesh_instances(const Vector<MeshXform> &instances) {
 	std::vector<SurfBucket> buckets;
 	collect_buckets(instances, false, buckets);
@@ -255,9 +279,9 @@ static Ref<ArrayMesh> merge_mesh_instances(const Vector<MeshXform> &instances) {
 
 static Ref<ArrayMesh> merge_crowd_mesh(const Vector<MeshXform> &instances) {
 	std::vector<SurfBucket> buckets;
-	collect_buckets(instances, true, buckets);
-	// One (or two) surfaces → one/two MultiMesh draws instead of dozens.
-	return mesh_from_buckets(buckets, 2);
+	collect_buckets(instances, false, buckets);
+	// Godot MultiMesh draws one surface reliably; flatten so heads/riders stay.
+	return flatten_to_one_surface(buckets);
 }
 
 static Skeleton3D *find_skeleton(Node *n) {
@@ -358,7 +382,7 @@ bool ModelLibrary::capture_crowd_skin(Node *root, CrowdSkin &out) {
 			Array arrays = src->surface_get_arrays(s);
 			if (arrays.size() == 0) continue;
 			PackedVector3Array verts = arrays[Mesh::ARRAY_VERTEX];
-			if (verts.size() < 24) continue;
+			if (verts.size() < 3) continue;
 			CrowdSkin::Surf surf;
 			Ref<Material> mat = mi->get_active_material(s);
 			if (!mat.is_valid()) mat = src->surface_get_material(s);
@@ -493,7 +517,8 @@ Ref<ArrayMesh> ModelLibrary::bake_crowd_skin(CrowdSkin &skin, const Ref<ArrayMes
 	if (buckets.empty()) return Ref<ArrayMesh>();
 	Ref<ArrayMesh> mesh = reuse;
 	if (mesh.is_valid()) mesh->clear_surfaces();
-	return mesh_from_buckets(buckets, 2);
+	(void)mesh;
+	return flatten_to_one_surface(buckets);
 }
 
 Ref<ArrayMesh> ModelLibrary::bake_posed_crowd_mesh(Node *root) {
@@ -546,7 +571,11 @@ ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id)
 						if (e.mesh.is_valid()) {
 							e.aabb = e.mesh->get_aabb();
 							e.scale = 1.0f;
-							e.y_offset = e.animated ? 0.0f : -e.aabb.position.y;
+							float natural_h = e.aabb.size.y;
+							float want_h = target_height(category, id, natural_h);
+							if (natural_h > 0.05f && want_h > 0.05f)
+								e.scale = want_h / natural_h;
+							e.y_offset = e.animated ? 0.0f : -e.aabb.position.y * e.scale;
 							e.valid = true;
 							char buf[192];
 							std::snprintf(buf, sizeof(buf), "%s/%s surfaces full=%d crowd=%d",

@@ -473,10 +473,10 @@ struct FaunaTypeInfo {
 inline const FaunaTypeInfo &fauna_type_info(uint8_t ftype) {
 	static const FaunaTypeInfo kTable[FAUNA_COUNT] = {
 		// name, model, hp, speed, food, agro, dmg, cd, predator, domestic
-		{"Red Deer", "villager", 45.0f, 4.5f, 150, 12.0f, 0.0f, 1.0f, false, false},
-		{"Wild Boar", "cavalry", 120.0f, 3.8f, 300, 8.0f, 12.0f, 1.2f, true, false},
-		{"Mountain Sheep", "villager", 35.0f, 2.5f, 100, 10.0f, 0.0f, 1.0f, false, true},
-		{"Gray Wolf", "swordsman", 80.0f, 4.8f, 200, 10.0f, 10.0f, 1.0f, true, false}
+		{"Red Deer", "deer", 45.0f, 4.5f, 150, 12.0f, 0.0f, 1.0f, false, false},
+		{"Wild Boar", "boar", 120.0f, 3.8f, 300, 8.0f, 12.0f, 1.2f, true, false},
+		{"Mountain Sheep", "sheep", 35.0f, 2.5f, 100, 10.0f, 0.0f, 1.0f, false, true},
+		{"Gray Wolf", "wolf", 80.0f, 4.8f, 200, 10.0f, 10.0f, 1.0f, true, false}
 	};
 	if (ftype >= FAUNA_COUNT) return kTable[FAUNA_DEER];
 	return kTable[ftype];

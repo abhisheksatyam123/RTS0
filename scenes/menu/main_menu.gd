@@ -12,6 +12,10 @@ func _on_encyclopedia_pressed() -> void:
 	play_click()
 	get_tree().change_scene_to_file("res://scenes/menu/encyclopedia.tscn")
 
+func _on_asset_viewer_pressed() -> void:
+	play_click()
+	get_tree().change_scene_to_file("res://scenes/tools/asset_viewer.tscn")
+
 func _on_replays_pressed() -> void:
 	play_click()
 	get_tree().change_scene_to_file("res://scenes/menu/replay_browser.tscn")

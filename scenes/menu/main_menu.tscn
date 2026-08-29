@@ -85,6 +85,12 @@ layout_mode = 2
 size_flags_horizontal = 4
 text = "📖 Civilization Manual & Stats"
 
+[node name="BtnAssets" type="Button" parent="CenterContainer/VBoxContainer"]
+custom_minimum_size = Vector2(340, 42)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "🎨 Asset Viewer — Models & Clips"
+
 [node name="BtnReplays" type="Button" parent="CenterContainer/VBoxContainer"]
 custom_minimum_size = Vector2(340, 42)
 layout_mode = 2
@@ -138,6 +144,7 @@ volume_db = -6.0
 [connection signal="pressed" from="CenterContainer/VBoxContainer/BtnSingle" to="." method="_on_single_pressed"]
 [connection signal="pressed" from="CenterContainer/VBoxContainer/BtnSetup" to="." method="_on_setup_pressed"]
 [connection signal="pressed" from="CenterContainer/VBoxContainer/BtnEncyclopedia" to="." method="_on_encyclopedia_pressed"]
+[connection signal="pressed" from="CenterContainer/VBoxContainer/BtnAssets" to="." method="_on_asset_viewer_pressed"]
 [connection signal="pressed" from="CenterContainer/VBoxContainer/BtnReplays" to="." method="_on_replays_pressed"]
 [connection signal="pressed" from="CenterContainer/VBoxContainer/BtnMulti" to="." method="_on_multi_pressed"]
 [connection signal="pressed" from="CenterContainer/VBoxContainer/BtnOptions" to="." method="_on_options_pressed"]

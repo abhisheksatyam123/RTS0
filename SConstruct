@@ -57,3 +57,34 @@ else:
 
 env.NoCache(library)
 Default(library)
+
+# After a Linux release library, copy it next to the export and rebuild
+# RTS0.x86_64 when Godot is on PATH (skip with: scons skip_export=1).
+def _export_linux_release(target, source, env):
+	import shutil
+	import subprocess
+	from pathlib import Path
+
+	so = Path(str(target[0]))
+	dest_dir = Path("build/linux")
+	dest_dir.mkdir(parents=True, exist_ok=True)
+	shutil.copy2(so, dest_dir / so.name)
+	if str(ARGUMENTS.get("skip_export", "0")) in ("1", "true", "yes"):
+		print("skip_export=1 — left %s, no Godot pack" % (dest_dir / so.name))
+		return
+	godot = os.environ.get("GODOT") or shutil.which("godot") or shutil.which("godot4")
+	if not godot:
+		print("Copied %s; set GODOT or install godot to refresh RTS0.x86_64" % so.name)
+		return
+	exe = dest_dir / "RTS0.x86_64"
+	print("Exporting Linux -> %s" % exe)
+	subprocess.check_call([str(godot), "--headless", "--path", ".", "--import"])
+	subprocess.check_call([str(godot), "--headless", "--path", ".", "--export-release", "Linux", str(exe)])
+	try:
+		exe.chmod(0o755)
+	except OSError:
+		pass
+
+_plat = str(env.get("platform", ""))
+if _plat in ("linux", "linuxbsd") and env["target"] == "template_release":
+	env.AddPostAction(library, _export_linux_release)

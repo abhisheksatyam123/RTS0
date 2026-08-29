@@ -604,6 +604,12 @@
     "Run": "biped_run",
     "Walk": "biped_walk"
    },
+   "trader": {
+    "Death": "trader_idle",
+    "Idle": "trader_idle",
+    "Run": "trader_walk",
+    "Walk": "trader_walk"
+   },
    "villager": {
     "Attack": "biped_attack",
     "Build": "gather_wood",
@@ -644,6 +650,7 @@
    "siege_ram": "",
    "spearman": "biped",
    "swordsman": "biped",
+   "trader": "",
    "villager": "biped",
    "war_dog": "mastiff",
    "wolf": "wolf"
@@ -2040,14 +2047,23 @@
    "upstream_material": "player_trans_parallax_spec.xml"
   },
   "trader": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Death"
+   ],
+   "bones": 4,
    "file": "models/units/trader.glb",
    "origin": "ground-center",
    "parts": 11,
    "size_meters": [
-    1.144,
+    1.388,
     1.9,
-    2.436
+    2.852
    ],
+   "skeleton": "",
    "sources": [
     "actor:art/actors/props/horse/chest_colorband_trader.xml",
     "actor:art/actors/props/horse/horse_hair_mane_black_brown.xml",

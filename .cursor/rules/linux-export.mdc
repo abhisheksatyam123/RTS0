@@ -1,0 +1,16 @@
+---
+description: Always refresh the Linux playable export after game changes
+alwaysApply: true
+---
+
+# Linux export
+
+`build/linux/RTS0.x86_64` is what the user runs. `scons target=template_debug` only updates the editor `.so` and leaves that binary stale.
+
+After C++, scenes, or `rts0.gdextension` changes that should ship:
+
+```bash
+python3 tools/build.py linux
+```
+
+or `make`. Confirm `build/linux/RTS0.x86_64` is newer than the sources before saying the build is ready. `make debug` / `scons target=template_debug` is only for Godot F5.

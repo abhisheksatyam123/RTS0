@@ -1794,10 +1794,6 @@ void Simulation::move_units(float dt, Arena &arena) {
 			}
 			return;
 		}
-		if (units_.unit_type[i]==UNIT_TRADER) {
-			std::cout << "[trader dbg] i="<<i<<" has="<<(int)has[i]<<" pos "<<px[i]<<" "<<pz[i]<<" target "<<tx[i]<<" "<<tz[i]<<" speed "<<units_.speed[i]<<" dt "<<dt<<" action "<<(int)units_.action_state[i]<<std::endl;
-		}
-
 		// Guard.js — follow and protect target unit
 		if (units_.action_state[i] == ACTION_GUARD && units_.target_unit_id[i] != 0) {
 			int32_t gtidx = lookup_unit(units_.target_unit_id[i]);

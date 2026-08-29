@@ -115,6 +115,14 @@ bool AnimationController::load(const std::string& base) {
 		return load_rig(RigType::Villager);
 	} else if (base == "mounted" || base == "cavalry" || base == "horse") {
 		return load_rig(RigType::Mounted);
+	} else if (base == "trader") {
+		anims.clear();
+		mount_rider_controller.reset();
+		load_clip(AnimState::Idle, "trader_idle");
+		load_clip(AnimState::Walk, "trader_walk");
+		load_clip(AnimState::Run, "trader_walk");
+		load_clip(AnimState::Death, "trader_idle");
+		return !anims.empty();
 	} else if (base == "fauna" || base == "deer") {
 		return load_rig(RigType::Fauna);
 	} else if (base == "healer") {

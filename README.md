@@ -13,8 +13,14 @@ See `docs/MULTIPLAYER.md` for the netcode model, platform matrix, and the archit
 - For device testing later: Android export templates + keystore; iOS requires macOS/Xcode
 
 ## Run / Build
-1. Build GDExtension: `scons platform=linux target=template_release` (or `template_debug`)
-2. Open in Godot 4.3 (Standard edition) and press **F5**, or run `python3 tools/build.py linux`
+The playable file is **`build/linux/RTS0.x86_64`**. Refresh it every ship (not only the `.so`):
+
+```bash
+make                    # or: python3 tools/build.py linux
+./build/linux/RTS0.x86_64
+```
+
+`scons platform=linux target=template_release` now copies `bin/librtso.linux.template_release.x86_64.so` into `build/linux/` and, if `godot` is on `PATH` (or `GODOT=`), re-exports that binary. Use `scons skip_export=1` for library-only. Editor iteration: `make debug` then F5.
 
 ## Controls
 | Input | Action |
