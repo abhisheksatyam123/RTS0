@@ -24,6 +24,8 @@ struct Projectile {
 	float speed = 26.0f;
 	float arc_height = 2.5f;
 	float damage = 15.0f;
+	uint8_t damage_type = 1; // 0=hack, 1=pierce, 2=crush
+	uint8_t status_effect = 0; // bitflags of StatusEffect
 	uint8_t team = 0;
 	uint32_t target_unit_id = 0;
 	bool alive = true;
@@ -71,6 +73,7 @@ public:
 		int cell_x, cell_y;
 		int footprint; // 1 or 2
 		float attack_timer; // for defensive arrows
+		bool is_burning; // Structure fire under 33% HP
 
 		// Multi-slot production queue
 		std::vector<ProductionOrder> queue;
@@ -101,12 +104,14 @@ public:
 	void reset();
 	void spawn_initial();
 	void spawn_war(int total_units = 2000);
+	void generate_random_map(MapType type = MAP_RANDOM_CONTINENTAL, uint32_t seed = 0, int num_players = 2, float map_half = 64.0f);
 
 	uint32_t spawn_unit(float x, float z, uint8_t team = 0, UnitType u_type = UNIT_VILLAGER, float hp = 100.0f);
 	uint32_t spawn_resource(int cell_x, int cell_y, uint8_t type, int32_t amount = 600);
 	uint32_t spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount = 600);
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f);
 	uint32_t spawn_building_world(float wx, float wz, uint8_t type, uint8_t team = 0, float progress = 1.0f);
+	uint32_t spawn_relic(float x, float z, uint8_t res_type, int amount = 300);
 
 	float get_terrain_height(float x, float z) const;
 	float map_half() const { return map_half_; }
@@ -139,6 +144,7 @@ public:
 
 	void order_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id);
 	void order_attack(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id);
+	void order_attack_building(const uint32_t *unit_ids, size_t count, uint32_t target_building_id);
 	void order_attack_move(const uint32_t *unit_ids, size_t count, float tx, float tz);
 	void order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz);
 	void order_build_or_repair(const uint32_t *unit_ids, size_t count, uint32_t building_id);
@@ -148,6 +154,20 @@ public:
 	void order_ungarrison(uint32_t building_id);
 	void order_ungarrison_single(uint32_t building_id, uint32_t unit_id);
 	void order_guard(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id);
+
+	// Livestock & Corrals (Corral.js)
+	void order_herd(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
+	bool cmd_breed_livestock(uint32_t building_id);
+
+	// Naval Transport Logistics (GarrisonHolder.js / UnitAI.js)
+	static constexpr int TRANSPORT_CAPACITY = 15;
+	void order_board_transport(const uint32_t *unit_ids, size_t count, uint32_t transport_id);
+	void order_disembark(uint32_t transport_id, float target_x, float target_z);
+	void order_disembark_all(uint32_t transport_id);
+	void order_disembark_single(uint32_t transport_id, uint32_t unit_id);
+	const std::vector<uint32_t> *get_transport_passengers(uint32_t transport_id) const;
+	size_t get_transport_passenger_count(uint32_t transport_id) const;
+	bool is_transport(uint32_t unit_id) const;
 
 	bool cmd_research(uint32_t building_id, uint8_t tech_id);
 	bool cmd_barter(ResourceType sell, ResourceType buy, int amount = 100);
@@ -171,6 +191,7 @@ public:
 		const float *death_timer;
 		const uint16_t *kills;
 		const uint8_t *rank;
+		const uint8_t *status_effects;
 		size_t count;
 	};
 	UnitView units() const;
@@ -213,6 +234,18 @@ public:
 	void set_map_preset(uint8_t m) { map_preset_ = m; }
 	uint8_t map_preset() const { return map_preset_; }
 	bool is_tech_researched(uint8_t tech_id) const { return (researched_techs_mask_ & (1u << tech_id)) != 0; }
+
+	// Petra AI Heuristics & Threat View
+	int petra_phase() const { return petra_phase_; }
+	float ai_food() const { return ai_food_; }
+	float ai_wood() const { return ai_wood_; }
+	float ai_gold() const { return ai_gold_; }
+	float ai_stone() const { return ai_stone_; }
+	const float* petra_threat_grid() const { return petra_threat_map_.danger; }
+	float get_threat_at(float x, float z) const;
+	bool is_position_safe(float x, float z, float threshold = 6.0f) const;
+	int ai_pop_current() const;
+	int ai_pop_max() const;
 
 	// Fauna (Wildlife) View & Spawner
 	struct FaunaView {
@@ -278,8 +311,9 @@ private:
 	void tick_trickle(float dt);
 	void tick_petra_ai(float dt);
 	void tick_fauna(float dt);
+	void tick_status_effects(float dt);
 	void tick_fow();  // updates FoW each sim tick
-	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id);
+	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1);
 	void bind_unit_index(uint32_t id, size_t idx);
 	int32_t lookup_unit(uint32_t id) const;
 
@@ -301,8 +335,11 @@ private:
 		float state_timer[MAX_FAUNA] = {};
 		float attack_timer[MAX_FAUNA] = {};
 		uint32_t target_unit_id[MAX_FAUNA] = {};
+		uint32_t corral_id[MAX_FAUNA] = {};
+		float fatten_timer[MAX_FAUNA] = {};
 	} fauna_;
 	std::unordered_map<uint32_t, size_t> fauna_id_to_idx_;
+	std::unordered_map<uint32_t, std::vector<uint32_t>> transport_passengers_;
 
 	UnitSoA units_;
 	ResourceSoA resources_;
@@ -353,13 +390,49 @@ private:
 	uint64_t ticks_ = 0;
 	FrameArena frame_arena_{4 * 1024 * 1024};
 
-	// Petra AI state (Petra.js)
+	// Petra AI Subsystems & Heuristics (0 A.D. Petra.js / dangerMap.js / military.js / economy.js / attackPlan.js)
+	static constexpr int THREAT_GRID_RES = 16;
+	static constexpr float THREAT_CELL_SIZE = (MAP_HALF * 2.0f) / (float)THREAT_GRID_RES;
+
+	struct PetraThreatMap {
+		float danger[THREAT_GRID_RES * THREAT_GRID_RES] = {};
+		float enemy_threat[THREAT_GRID_RES * THREAT_GRID_RES] = {};
+		float friendly_defense[THREAT_GRID_RES * THREAT_GRID_RES] = {};
+		float update_timer = 0.0f;
+	} petra_threat_map_;
+
+	struct PetraStrikeForce {
+		enum State : uint8_t {
+			MUSTER = 0,
+			MARCH  = 1,
+			ENGAGE = 2
+		} state = MUSTER;
+		std::vector<uint32_t> unit_ids;
+		float staging_x = 24.0f;
+		float staging_z = 24.0f;
+		float target_x = 0.0f;
+		float target_z = 0.0f;
+		uint32_t target_building_id = 0;
+		uint32_t target_unit_id = 0;
+		float state_timer = 0.0f;
+	} petra_strike_force_;
+
 	float petra_timer_  = 0.0f;
-	int   petra_phase_  = 1; // 1=early, 2=mid, 3=late
+	float petra_econ_timer_ = 0.0f;
+	int   petra_phase_  = 1; // 1=Village, 2=Town, 3=City
 	float ai_food_  = 400.0f;
 	float ai_wood_  = 600.0f;
 	float ai_gold_  = 300.0f;
 	float ai_stone_ = 200.0f;
+	uint32_t ai_researched_techs_mask_ = 0;
+
+	void update_petra_threat_map(float dt);
+	void petra_manage_workers(float dt);
+	void petra_manage_economy(float dt);
+	void petra_manage_buildings(float dt);
+	void petra_manage_research(float dt);
+	void petra_manage_military_production(float dt);
+	void petra_manage_tactical_attacks(float dt);
 
 	uint8_t fow_grid_[FOW_GRID * FOW_GRID] = {}; // FoW state per tile
 	float fow_timer_ = 0.0f;

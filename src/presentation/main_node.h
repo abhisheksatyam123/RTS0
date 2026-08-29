@@ -171,6 +171,7 @@ private:
 	void try_train_unit(rtso::UnitType utype);
 	void cycle_idle_worker();
 	void play_voice(const char *path);
+	void play_civ_voice(const char *action);
 	void play_alarm(const char *path);
 	void play_sfx(const char *path);
 	void play_spatial_sfx(const char *path, Vector3 pos);

@@ -4,7 +4,10 @@ extends Control
 
 func _ready():
 	# populate civs like 0ad templates
-	var civs = ["Athenians", "Spartans", "Romans", "Carthaginians", "Britons", "Gauls", "Persians"]
+	var civs = [
+		"Athenians", "Spartans", "Persians", "Romans", "Carthaginians", "Macedonians",
+		"Britons", "Gauls", "Iberians", "Mauryans", "Kushites", "Ptolemies", "Seleucids"
+	]
 	for c in civs:
 		$VBox/HBox/Left/CivOption.add_item(c)
 	$VBox/HBox/Left/MapOption.add_item("Gerasa (Aegean)")

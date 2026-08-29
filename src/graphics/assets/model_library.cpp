@@ -35,7 +35,19 @@ HashMap<String, ModelLibrary::Entry> &ModelLibrary::cache() {
 float ModelLibrary::target_height(const String &category, const String &id, float natural_h) {
 	if (category == "units") {
 		if (id == "cavalry") return 2.6f;
-		if (id == "ram") return 2.0f;
+		if (id == "camel") return 2.7f;
+		if (id == "chariot" || id == "scythed_chariot") return 2.4f;
+		if (id == "worker_elephant" || id == "elephant") return 3.2f;
+		if (id == "ram" || id == "siege_ram") return 2.0f;
+		if (id == "bolt_shooter" || id == "ballista" || id == "oxybeles") return 1.8f;
+		if (id == "catapult") return 2.2f;
+		if (id == "fishing_boat") return 2.0f;
+		if (id == "merchant_ship" || id == "trireme" || id == "ship_merchant") return 3.5f;
+		if (id == "war_dog" || id == "dog") return 0.85f;
+		if (id == "carnyx") return 1.95f;
+		if (id == "archer_maiden") return 1.7f;
+		if (id == "female_citizen" || id == "female") return 1.68f;
+		if (id == "healer") return 1.72f;
 		if (id == "deer") return 1.5f;
 		return 1.8f;
 	}
@@ -43,9 +55,13 @@ float ModelLibrary::target_height(const String &category, const String &id, floa
 		if (id == "town_center") return 6.0f;
 		else if (id == "fortress") return 7.0f;
 		else if (id == "temple") return 6.4f;
+		else if (id == "wonder") return 8.5f;
 		else if (id == "barracks" || id == "market") return 4.4f;
 		else if (id == "wall_tower") return 4.6f;
 		else if (id == "wall") return 3.0f;
+		else if (id == "gate") return 4.5f;
+		else if (id == "dock" || id == "shipyard") return 4.0f;
+		else if (id == "corral") return 2.8f;
 		else if (id == "house" || id == "farmstead" || id == "storehouse") return 3.4f;
 		else if (id == "ruins") return 2.4f;
 		return Math::clamp(natural_h, 2.0f, 8.0f);
@@ -595,6 +611,36 @@ ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id)
 	candidates.push_back(String("res://assets/models/buildings/") + id + String(".glb"));
 	candidates.push_back(String("res://assets/models/vegetation/") + id + String(".glb"));
 	candidates.push_back(String("res://assets/models/") + id + String(".glb"));
+
+	// Archetypal GLB model fallbacks
+	if (category == "units") {
+		if (id == "chariot" || id == "scythed_chariot" || id == "camel" || id == "worker_elephant") {
+			candidates.push_back("res://assets/models/units/cavalry.glb");
+		} else if (id == "war_dog" || id == "dog") {
+			candidates.push_back("res://assets/models/units/deer.glb");
+		} else if (id == "carnyx") {
+			candidates.push_back("res://assets/models/units/spearman.glb");
+		} else if (id == "archer_maiden") {
+			candidates.push_back("res://assets/models/units/archer.glb");
+		} else if (id == "female_citizen" || id == "female") {
+			candidates.push_back("res://assets/models/units/villager.glb");
+		} else if (id == "healer") {
+			candidates.push_back("res://assets/models/units/healer.glb");
+			candidates.push_back("res://assets/models/units/villager.glb");
+		} else if (id == "bolt_shooter" || id == "ballista" || id == "oxybeles") {
+			candidates.push_back("res://assets/models/units/ram.glb");
+		}
+	} else if (category == "buildings") {
+		if (id == "corral") {
+			candidates.push_back("res://assets/models/buildings/farmstead.glb");
+		} else if (id == "dock" || id == "shipyard") {
+			candidates.push_back("res://assets/models/buildings/storehouse.glb");
+		} else if (id == "gate") {
+			candidates.push_back("res://assets/models/buildings/wall.glb");
+		} else if (id == "wonder") {
+			candidates.push_back("res://assets/models/buildings/town_center.glb");
+		}
+	}
 
 	for (int i = 0; i < candidates.size(); ++i) {
 		const String &path = candidates[i];

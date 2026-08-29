@@ -30,6 +30,7 @@ public:
 
 	// GDScript/C# API — lockstep commands
 	void spawn_initial();
+	void generate_random_map(int map_type = 5, int seed = 0, int num_players = 2, float map_half = 64.0f);
 	void tick(float dt);
 	void cmd_move(const PackedInt32Array &unit_ids, Vector3 target);
 	void cmd_build_house(Vector3 pos);

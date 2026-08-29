@@ -53,11 +53,24 @@ void RtsoMain::_bind_methods() {
 	bind_enum("UnitType", "ARCHER", rtso::UNIT_ARCHER);
 	bind_enum("UnitType", "SPEARMAN", rtso::UNIT_SPEARMAN);
 	bind_enum("UnitType", "CAVALRY", rtso::UNIT_CAVALRY);
+	bind_enum("UnitType", "TRADER", rtso::UNIT_TRADER);
 	bind_enum("UnitType", "CATAPULT", rtso::UNIT_CATAPULT);
 	bind_enum("UnitType", "HERO", rtso::UNIT_HERO);
 	bind_enum("UnitType", "TRIREME", rtso::UNIT_TRIREME);
 	bind_enum("UnitType", "ELEPHANT", rtso::UNIT_ELEPHANT);
 	bind_enum("UnitType", "SIEGE_RAM", rtso::UNIT_SIEGE_RAM);
+	bind_enum("UnitType", "HEALER", rtso::UNIT_HEALER);
+	bind_enum("UnitType", "CHARIOT", rtso::UNIT_CHARIOT);
+	bind_enum("UnitType", "WAR_DOG", rtso::UNIT_WAR_DOG);
+	bind_enum("UnitType", "BOLT_SHOOTER", rtso::UNIT_BOLT_SHOOTER);
+	bind_enum("UnitType", "FISHING_BOAT", rtso::UNIT_FISHING_BOAT);
+	bind_enum("UnitType", "MERCHANT_SHIP", rtso::UNIT_MERCHANT_SHIP);
+	bind_enum("UnitType", "FEMALE_CITIZEN", rtso::UNIT_FEMALE_CITIZEN);
+	bind_enum("UnitType", "CARNYX", rtso::UNIT_CARNYX);
+	bind_enum("UnitType", "WORKER_ELEPHANT", rtso::UNIT_WORKER_ELEPHANT);
+	bind_enum("UnitType", "ARCHER_MAIDEN", rtso::UNIT_ARCHER_MAIDEN);
+	bind_enum("UnitType", "CAMEL", rtso::UNIT_CAMEL);
+	bind_enum("UnitType", "SCYTHED_CHARIOT", rtso::UNIT_SCYTHED_CHARIOT);
 	bind_enum("UnitType", "NONE", rtso::UNIT_TYPE_NONE);
 
 	bind_enum("BuildingType", "TOWN_CENTER", rtso::BLD_TOWN_CENTER);
@@ -68,6 +81,26 @@ void RtsoMain::_bind_methods() {
 	bind_enum("BuildingType", "FARMSTEAD", rtso::BLD_FARMSTEAD);
 	bind_enum("BuildingType", "MARKET", rtso::BLD_MARKET);
 	bind_enum("BuildingType", "FORTRESS", rtso::BLD_FORTRESS);
+	bind_enum("BuildingType", "GATE", rtso::BLD_GATE);
+	bind_enum("BuildingType", "TEMPLE", rtso::BLD_TEMPLE);
+	bind_enum("BuildingType", "WONDER", rtso::BLD_WONDER);
+	bind_enum("BuildingType", "DOCK", rtso::BLD_DOCK);
+	bind_enum("BuildingType", "WALL_SEGMENT", rtso::BLD_WALL_SEGMENT);
+	bind_enum("BuildingType", "CORRAL", rtso::BLD_CORRAL);
+
+	bind_enum("Civilization", "ATHENIANS", rtso::CIV_ATHENIANS);
+	bind_enum("Civilization", "SPARTANS", rtso::CIV_SPARTANS);
+	bind_enum("Civilization", "PERSIANS", rtso::CIV_PERSIANS);
+	bind_enum("Civilization", "ROMANS", rtso::CIV_ROMANS);
+	bind_enum("Civilization", "CARTHAGINIANS", rtso::CIV_CARTHAGINIANS);
+	bind_enum("Civilization", "MACEDONIANS", rtso::CIV_MACEDONIANS);
+	bind_enum("Civilization", "BRITONS", rtso::CIV_BRITONS);
+	bind_enum("Civilization", "GAULS", rtso::CIV_GAULS);
+	bind_enum("Civilization", "IBERIANS", rtso::CIV_IBERIANS);
+	bind_enum("Civilization", "MAURYANS", rtso::CIV_MAURYANS);
+	bind_enum("Civilization", "KUSHITES", rtso::CIV_KUSHITES);
+	bind_enum("Civilization", "PTOLEMIES", rtso::CIV_PTOLEMIES);
+	bind_enum("Civilization", "SELEUCIDS", rtso::CIV_SELEUCIDS);
 }
 
 RtsoMain::RtsoMain() {
@@ -82,6 +115,23 @@ static Ref<Texture2D> load_tex(const String &path) {
 	if (ResourceLoader::get_singleton()->exists(path)) {
 		Ref<Texture2D> tex = ResourceLoader::get_singleton()->load(path);
 		if (tex.is_valid()) return tex;
+	}
+	if (path.contains("emblems/")) {
+		if (ResourceLoader::get_singleton()->exists("res://assets/textures/ui/emblems/athenians.png")) {
+			return ResourceLoader::get_singleton()->load("res://assets/textures/ui/emblems/athenians.png");
+		}
+	} else if (path.contains("portraits/")) {
+		if (ResourceLoader::get_singleton()->exists("res://assets/textures/ui/portraits/swordsman.png")) {
+			return ResourceLoader::get_singleton()->load("res://assets/textures/ui/portraits/swordsman.png");
+		}
+	} else if (path.contains("stances/")) {
+		if (ResourceLoader::get_singleton()->exists("res://assets/textures/ui/stances/defensive.png")) {
+			return ResourceLoader::get_singleton()->load("res://assets/textures/ui/stances/defensive.png");
+		}
+	} else if (path.contains("formations/")) {
+		if (ResourceLoader::get_singleton()->exists("res://assets/textures/ui/formations/line.png")) {
+			return ResourceLoader::get_singleton()->load("res://assets/textures/ui/formations/line.png");
+		}
 	}
 	return Ref<Texture2D>();
 }
@@ -250,24 +300,39 @@ void RtsoMain::_ready() {
 	top_hbox->add_child(menu_btn);
 
 	map_selector = memnew(OptionButton);
-	map_selector->set_custom_minimum_size(Vector2(145, 28));
+	map_selector->set_custom_minimum_size(Vector2(165, 28));
 	map_selector->add_item("Acropolis Bay (2P)", 0);
 	map_selector->add_item("Corinthian Isthmus (4P)", 1);
 	map_selector->add_item("Atlas Valleys (8P)", 2);
 	map_selector->add_item("Bactria (2P)", 3);
 	map_selector->add_item("Battle for Tiber (3P)", 4);
 	map_selector->add_item("Standard Arena (128m)", 5);
+	map_selector->add_item("Procedural Continental (RMS)", 6);
+	map_selector->add_item("Procedural Archipelago (RMS)", 7);
+	map_selector->add_item("Procedural Oasis (RMS)", 8);
+	map_selector->add_item("Procedural Highlands (RMS)", 9);
+	map_selector->add_item("Procedural Valley (RMS)", 10);
+	map_selector->add_item("Procedural Mediterranean (RMS)", 11);
+	map_selector->add_item("Procedural Acropolis (RMS)", 12);
+	map_selector->add_item("Procedural Spartan Valley (RMS)", 13);
 	map_selector->connect("item_selected", Callable(this, "_on_map_selected"));
 	top_hbox->add_child(map_selector);
 
 	civ_selector = memnew(OptionButton);
-	civ_selector->set_custom_minimum_size(Vector2(115, 28));
-	civ_selector->add_item("Athenians", 0);
-	civ_selector->add_item("Spartans", 1);
-	civ_selector->add_item("Persians", 2);
-	civ_selector->add_item("Romans", 3);
-	civ_selector->add_item("Carthaginians", 4);
-	civ_selector->add_item("Macedonians", 5);
+	civ_selector->set_custom_minimum_size(Vector2(125, 28));
+	civ_selector->add_item("Athenians", rtso::CIV_ATHENIANS);
+	civ_selector->add_item("Spartans", rtso::CIV_SPARTANS);
+	civ_selector->add_item("Persians", rtso::CIV_PERSIANS);
+	civ_selector->add_item("Romans", rtso::CIV_ROMANS);
+	civ_selector->add_item("Carthaginians", rtso::CIV_CARTHAGINIANS);
+	civ_selector->add_item("Macedonians", rtso::CIV_MACEDONIANS);
+	civ_selector->add_item("Britons", rtso::CIV_BRITONS);
+	civ_selector->add_item("Gauls", rtso::CIV_GAULS);
+	civ_selector->add_item("Iberians", rtso::CIV_IBERIANS);
+	civ_selector->add_item("Mauryans", rtso::CIV_MAURYANS);
+	civ_selector->add_item("Kushites", rtso::CIV_KUSHITES);
+	civ_selector->add_item("Ptolemies", rtso::CIV_PTOLEMIES);
+	civ_selector->add_item("Seleucids", rtso::CIV_SELEUCIDS);
 	civ_selector->connect("item_selected", Callable(this, "_on_civ_selected"));
 	top_hbox->add_child(civ_selector);
 
@@ -387,11 +452,23 @@ void RtsoMain::_ready() {
 	stances_bar->add_theme_constant_override("separation", 6);
 	command_panel->add_child(stances_bar);
 
-	const char *stance_names[5] = {"Aggressive", "Defensive", "Stand Ground", "Hold", "Passive"};
+	const char *stance_names[5] = {"Aggressive", "Defensive", "Stand Ground", "Hold Ground", "Passive"};
+	const char *stance_icons[5] = {
+		"res://assets/textures/ui/stances/aggressive.png",
+		"res://assets/textures/ui/stances/defensive.png",
+		"res://assets/textures/ui/stances/standground.png",
+		"res://assets/textures/ui/stances/standground.png",
+		"res://assets/textures/ui/stances/passive.png"
+	};
 	for (int s = 0; s < 5; ++s) {
 		Button *sb = memnew(Button);
-		sb->set_custom_minimum_size(Vector2(78, 28));
+		sb->set_custom_minimum_size(Vector2(95, 28));
 		sb->set_text(stance_names[s]);
+		Ref<Texture2D> s_ico = load_tex(stance_icons[s]);
+		if (s_ico.is_valid()) {
+			sb->set_button_icon(s_ico);
+			sb->set_expand_icon(true);
+		}
 		sb->add_theme_font_size_override("font_size", 10);
 		sb->connect("pressed", Callable(this, "_on_stance_selected").bind(s));
 		stances_bar->add_child(sb);
@@ -548,6 +625,144 @@ void RtsoMain::play_voice(const char *path) {
 	}
 }
 
+void RtsoMain::play_civ_voice(const char *action) {
+	if (!voice_player) return;
+	static uint32_t voice_rand_idx = 0;
+	++voice_rand_idx;
+
+	uint8_t current_civ = sim ? sim->player_civ() : (uint8_t)rtso::CIV_ATHENIANS;
+	std::string act(action);
+	const char *chosen_file = nullptr;
+
+	if (current_civ == rtso::CIV_ATHENIANS || current_civ == rtso::CIV_SPARTANS ||
+		current_civ == rtso::CIV_MACEDONIANS || current_civ == rtso::CIV_PTOLEMIES ||
+		current_civ == rtso::CIV_SELEUCIDS) {
+		// Greek / Hellenistic voice pool
+		if (act == "select") {
+			const char *opts[] = {
+				"res://assets/sounds/voice/greek/civ_male_hello_1.ogg",
+				"res://assets/sounds/voice/greek/civ_male_what_is_it_1.ogg",
+				"res://assets/sounds/voice/greek/civ_female_hello_1.ogg"
+			};
+			chosen_file = opts[voice_rand_idx % 3];
+		} else if (act == "move") {
+			const char *opts[] = {
+				"res://assets/sounds/voice/greek/civ_male_march_1.ogg",
+				"res://assets/sounds/voice/greek/civ_male_walk_1.ogg",
+				"res://assets/sounds/voice/greek/civ_male_forward_1.ogg"
+			};
+			chosen_file = opts[voice_rand_idx % 3];
+		} else if (act == "attack") {
+			const char *opts[] = {
+				"res://assets/sounds/voice/greek/civ_male_attack_1.ogg",
+				"res://assets/sounds/voice/greek/civ_male_fight_1.ogg",
+				"res://assets/sounds/voice/greek/civ_male_to_war_1.ogg"
+			};
+			chosen_file = opts[voice_rand_idx % 3];
+		} else if (act == "build") {
+			const char *opts[] = {
+				"res://assets/sounds/voice/greek/civ_male_build_1.ogg",
+				"res://assets/sounds/voice/greek/civ_female_build_1.ogg"
+			};
+			chosen_file = opts[voice_rand_idx % 2];
+		} else if (act == "gather") {
+			const char *opts[] = {
+				"res://assets/sounds/voice/greek/civ_male_work_land_1.ogg",
+				"res://assets/sounds/voice/greek/civ_female_gather_together_1.ogg"
+			};
+			chosen_file = opts[voice_rand_idx % 2];
+		}
+	} else if (current_civ == rtso::CIV_ROMANS) {
+		// Latin / Roman voice pool
+		if (act == "select") {
+			const char *opts[] = {
+				"res://assets/sounds/voice/latin/civ_male_hello_1.ogg",
+				"res://assets/sounds/voice/latin/civ_male_what_is_it_1.ogg",
+				"res://assets/sounds/voice/latin/civ_female_hello_1.ogg"
+			};
+			chosen_file = opts[voice_rand_idx % 3];
+		} else if (act == "move") {
+			const char *opts[] = {
+				"res://assets/sounds/voice/latin/civ_male_march_1.ogg",
+				"res://assets/sounds/voice/latin/civ_male_walk_1.ogg"
+			};
+			chosen_file = opts[voice_rand_idx % 2];
+		} else if (act == "attack") {
+			const char *opts[] = {
+				"res://assets/sounds/voice/latin/civ_male_attack_1.ogg",
+				"res://assets/sounds/voice/latin/civ_male_fight_1.ogg"
+			};
+			chosen_file = opts[voice_rand_idx % 2];
+		} else if (act == "build") {
+			chosen_file = "res://assets/sounds/voice/latin/civ_male_build_1.ogg";
+		} else if (act == "gather") {
+			chosen_file = "res://assets/sounds/voice/latin/civ_male_work_land_1.ogg";
+		}
+	} else if (current_civ == rtso::CIV_PERSIANS) {
+		// Persian voice pool
+		if (act == "select") {
+			const char *opts[] = {
+				"res://assets/sounds/voice/persian/civ_male_hello_1.ogg",
+				"res://assets/sounds/voice/persian/civ_female_hello_1.ogg"
+			};
+			chosen_file = opts[voice_rand_idx % 2];
+		} else if (act == "move") {
+			const char *opts[] = {
+				"res://assets/sounds/voice/persian/civ_male_forward_1.ogg",
+				"res://assets/sounds/voice/persian/civ_male_forward_2.ogg"
+			};
+			chosen_file = opts[voice_rand_idx % 2];
+		} else if (act == "attack") {
+			const char *opts[] = {
+				"res://assets/sounds/voice/persian/civ_male_attack_1.ogg",
+				"res://assets/sounds/voice/persian/civ_female_to_war_1.ogg"
+			};
+			chosen_file = opts[voice_rand_idx % 2];
+		} else if (act == "build") {
+			chosen_file = "res://assets/sounds/voice/persian/civ_male_build_1.ogg";
+		} else if (act == "gather") {
+			chosen_file = "res://assets/sounds/voice/persian/civ_male_gather_1.ogg";
+		}
+	} else if (current_civ == rtso::CIV_KUSHITES) {
+		// Napatan / Kushite voice pool
+		if (act == "select") {
+			const char *opts[] = {
+				"res://assets/sounds/voice/napatan/civ_male_what_is_it_01.ogg",
+				"res://assets/sounds/voice/napatan/civ_female_hello_01.ogg"
+			};
+			chosen_file = opts[voice_rand_idx % 2];
+		} else if (act == "move") {
+			const char *opts[] = {
+				"res://assets/sounds/voice/napatan/civ_male_walk_01.ogg",
+				"res://assets/sounds/voice/napatan/civ_female_march_01.ogg"
+			};
+			chosen_file = opts[voice_rand_idx % 2];
+		} else if (act == "attack") {
+			const char *opts[] = {
+				"res://assets/sounds/voice/napatan/civ_male_attack_01.ogg",
+				"res://assets/sounds/voice/napatan/civ_male_go_out_against_01.ogg"
+			};
+			chosen_file = opts[voice_rand_idx % 2];
+		} else if (act == "build") {
+			chosen_file = "res://assets/sounds/voice/napatan/civ_male_build_01.ogg";
+		} else if (act == "gather") {
+			chosen_file = "res://assets/sounds/voice/napatan/civ_male_gather_01.ogg";
+		}
+	}
+
+	// Fallback to default voices if specific civ file doesn't exist
+	if (chosen_file && ResourceLoader::get_singleton()->exists(chosen_file)) {
+		play_voice(chosen_file);
+		return;
+	}
+
+	if (act == "select") play_voice("res://assets/sounds/voice/select_1.ogg");
+	else if (act == "move") play_voice("res://assets/sounds/voice/move_1.ogg");
+	else if (act == "attack") play_voice("res://assets/sounds/voice/attack_1.ogg");
+	else if (act == "build") play_voice("res://assets/sounds/voice/build_1.ogg");
+	else if (act == "gather") play_voice("res://assets/sounds/voice/gather_1.ogg");
+}
+
 void RtsoMain::play_spatial_sfx(const char *path, Vector3 pos) {
 	if (!spatial_sfx_player) return;
 	if (ResourceLoader::get_singleton()->exists(path)) {
@@ -607,7 +822,7 @@ void RtsoMain::cycle_idle_worker() {
 	for (size_t i = 0; i < uview.count; ++i) {
 		if (uview.id[i] == target_uid && cam_rig) {
 			cam_rig->set_target_pos(Vector3(uview.pos_x[i], 0, uview.pos_z[i]));
-			play_voice("res://assets/sounds/voice/select_1.ogg");
+			play_civ_voice("select");
 			break;
 		}
 	}
@@ -632,6 +847,12 @@ void RtsoMain::_on_menu_button_pressed() {
 void RtsoMain::_on_ungarrison_pressed() {
 	if (selected_building_id != 0) {
 		sim->order_ungarrison(selected_building_id);
+	} else if (!selected_ids.is_empty()) {
+		for (int s = 0; s < selected_ids.size(); ++s) {
+			if (sim->is_transport((uint32_t)selected_ids[s])) {
+				sim->order_disembark_all((uint32_t)selected_ids[s]);
+			}
+		}
 	}
 }
 
@@ -929,7 +1150,8 @@ void RtsoMain::update_inspector() {
 			const auto &binfo = rtso::building_type_info(found_b->type);
 			inspector_portrait->set_texture(load_tex("res://assets/textures/ui/portraits/" + String(binfo.portrait_id) + ".png"));
 			inspector_title->set_text(String(binfo.name));
-			inspector_class->set_text("Athenian Architecture • Garrison Cap: " + String::num_int64(found_b->garrison_cap));
+			String civ_name = rtso::civ_info(sim->player_civ()).name;
+			inspector_class->set_text(civ_name + " Architecture • Garrison Cap: " + String::num_int64(found_b->garrison_cap));
 
 			inspector_hp_bar->set_max(found_b->max_hp);
 			inspector_hp_bar->set_value(found_b->hp);
@@ -967,7 +1189,8 @@ void RtsoMain::update_inspector() {
 
 	if (!selected_ids.is_empty()) {
 		auto uview = sim->units();
-		int v_cnt = 0, s_cnt = 0, a_cnt = 0, sp_cnt = 0, c_cnt = 0;
+		int v_cnt = 0, f_cnt = 0, s_cnt = 0, a_cnt = 0, sp_cnt = 0, c_cnt = 0;
+		int h_cnt = 0, ch_cnt = 0, ele_cnt = 0, siege_cnt = 0, naval_cnt = 0;
 		float hp_sum = 0, hp_max_sum = 0;
 		uint8_t single_utype = rtso::UNIT_VILLAGER;
 
@@ -977,12 +1200,20 @@ void RtsoMain::update_inspector() {
 				if (uview.id[u] == uid && uview.alive[u]) {
 					hp_sum += uview.hp[u];
 					hp_max_sum += uview.max_hp[u];
-					single_utype = uview.unit_type[u];
-					if (uview.unit_type[u] == rtso::UNIT_VILLAGER) v_cnt++;
-					else if (uview.unit_type[u] == rtso::UNIT_SWORDSMAN) s_cnt++;
-					else if (uview.unit_type[u] == rtso::UNIT_ARCHER) a_cnt++;
-					else if (uview.unit_type[u] == rtso::UNIT_SPEARMAN) sp_cnt++;
-					else if (uview.unit_type[u] == rtso::UNIT_CAVALRY) c_cnt++;
+					uint8_t ut = uview.unit_type[u];
+					single_utype = ut;
+					if (ut == rtso::UNIT_VILLAGER) v_cnt++;
+					else if (ut == rtso::UNIT_FEMALE_CITIZEN) f_cnt++;
+					else if (ut == rtso::UNIT_SWORDSMAN) s_cnt++;
+					else if (ut == rtso::UNIT_ARCHER || ut == rtso::UNIT_ARCHER_MAIDEN) a_cnt++;
+					else if (ut == rtso::UNIT_SPEARMAN || ut == rtso::UNIT_CARNYX) sp_cnt++;
+					else if (ut == rtso::UNIT_CAVALRY || ut == rtso::UNIT_CAMEL || ut == rtso::UNIT_HERO) c_cnt++;
+					else if (ut == rtso::UNIT_HEALER) h_cnt++;
+					else if (ut == rtso::UNIT_CHARIOT || ut == rtso::UNIT_SCYTHED_CHARIOT) ch_cnt++;
+					else if (ut == rtso::UNIT_ELEPHANT || ut == rtso::UNIT_WORKER_ELEPHANT) ele_cnt++;
+					else if (ut == rtso::UNIT_CATAPULT || ut == rtso::UNIT_SIEGE_RAM || ut == rtso::UNIT_BOLT_SHOOTER) siege_cnt++;
+					else if (ut == rtso::UNIT_TRIREME || ut == rtso::UNIT_FISHING_BOAT || ut == rtso::UNIT_MERCHANT_SHIP) naval_cnt++;
+					else v_cnt++;
 					break;
 				}
 			}
@@ -1005,34 +1236,74 @@ void RtsoMain::update_inspector() {
 
 			String rank_badge = (u_rank == 3) ? " [Elite]" : ((u_rank == 2) ? " [Advanced]" : " [Citizen]");
 			inspector_title->set_text(String(uinfo.name) + rank_badge);
-			inspector_class->set_text("Kills: " + String::num_int64(u_kills) + " • Speed: " + String::num(uinfo.speed, 1) + " m/s");
+
+			const char *role_name = "Infantry";
+			if (single_utype == rtso::UNIT_VILLAGER || single_utype == rtso::UNIT_FEMALE_CITIZEN) role_name = "Economic Citizen";
+			else if (single_utype == rtso::UNIT_ARCHER || single_utype == rtso::UNIT_ARCHER_MAIDEN) role_name = "Ranged Skirmisher";
+			else if (single_utype == rtso::UNIT_CAVALRY || single_utype == rtso::UNIT_CAMEL) role_name = "Shock Cavalry";
+			else if (single_utype == rtso::UNIT_CHARIOT || single_utype == rtso::UNIT_SCYTHED_CHARIOT) role_name = "War Chariot";
+			else if (single_utype == rtso::UNIT_ELEPHANT || single_utype == rtso::UNIT_WORKER_ELEPHANT) role_name = "War Elephant";
+			else if (single_utype == rtso::UNIT_HEALER) role_name = "Temple Healer";
+			else if (single_utype == rtso::UNIT_CATAPULT || single_utype == rtso::UNIT_BOLT_SHOOTER || single_utype == rtso::UNIT_SIEGE_RAM) role_name = "Siege Artillery";
+			else if (single_utype == rtso::UNIT_TRIREME || single_utype == rtso::UNIT_FISHING_BOAT || single_utype == rtso::UNIT_MERCHANT_SHIP) role_name = "Naval Vessel";
+
+			inspector_class->set_text(String("Role: ") + role_name + " • Kills: " + String::num_int64(u_kills) + " • Speed: " + String::num(uinfo.speed, 1) + " m/s");
 
 			inspector_hp_bar->set_max(hp_max_sum);
 			inspector_hp_bar->set_value(hp_sum);
 			inspector_hp_label->set_text("HP: " + String::num((double)hp_sum, 0) + " / " + String::num((double)hp_max_sum, 0));
 
-			inspector_stats->set_text("Attack: " + String::num(uinfo.attack_damage, 0) +
-				" | Range: " + String::num(uinfo.attack_range, 1) +
-				" | Armor: " + String::num(uinfo.hack_armor, 0) + "H/" + String::num(uinfo.pierce_armor, 0) + "P");
+			String stats_line = "⚔️ Attack: " + String::num(uinfo.attack_damage, 0);
+			if (uinfo.attack_range > 2.0f) stats_line += " (" + String::num(uinfo.attack_range, 1) + "m)";
+			stats_line += " | 🛡️ Armor: " + String::num(uinfo.hack_armor, 0) + "H / " + String::num(uinfo.pierce_armor, 0) + "P / " + String::num(uinfo.crush_armor, 0) + "C";
+			if (uinfo.carry_capacity > 0) stats_line += " | 🎒 Cap: " + String::num_int64(uinfo.carry_capacity);
+			inspector_stats->set_text(stats_line);
 
-			inspector_extra->set_text("Orders: [RMB] Move/Attack/Gather | Stances: [F1-F5]");
+			if (single_utype == rtso::UNIT_TRIREME) {
+				size_t p_count = sim->get_transport_passenger_count(uid);
+				if (p_count > 0) {
+					inspector_extra->set_text("🚢 Transport: " + String::num_int64(p_count) + " / " + String::num_int64(rtso::Simulation::TRANSPORT_CAPACITY) + " Passengers | [Z] Disembark All");
+					ungarrison_btn->set_text("Disembark (Z)");
+					ungarrison_btn->set_visible(true);
+				} else {
+					inspector_extra->set_text("🚢 Warship / Transport • Capacity: " + String::num_int64(rtso::Simulation::TRANSPORT_CAPACITY) + " troops");
+					ungarrison_btn->set_text("Ungarrison (Z)");
+					ungarrison_btn->set_visible(false);
+				}
+			} else {
+				inspector_extra->set_text("Orders: [RMB] Move/Attack/Gather | Stances: [F1-F5] | Formations: [Z,X,C,V]");
+				ungarrison_btn->set_text("Ungarrison (Z)");
+				ungarrison_btn->set_visible(false);
+			}
 		} else {
 			inspector_portrait->set_texture(load_tex("res://assets/textures/ui/portraits/swordsman.png"));
 			inspector_title->set_text("Selected Company (" + String::num_int64(selected_ids.size()) + " Units)");
-			inspector_class->set_text("Athenian Taskforce • Combined Arms");
+			String civ_name = rtso::civ_info(sim->player_civ()).name;
+			inspector_class->set_text(civ_name + " Taskforce • Combined Arms");
 
 			inspector_hp_bar->set_max(hp_max_sum);
 			inspector_hp_bar->set_value(hp_sum);
 			inspector_hp_label->set_text("HP: " + String::num((double)hp_sum, 0) + " / " + String::num((double)hp_max_sum, 0));
 
-			inspector_stats->set_text("Comp: " + String::num_int64(v_cnt) + " Villagers, " +
-				String::num_int64(s_cnt) + " Swords, " + String::num_int64(a_cnt) + " Archers, " +
-				String::num_int64(sp_cnt) + " Spears, " + String::num_int64(c_cnt) + " Cav");
+			String comp_str = "Comp: ";
+			if (v_cnt > 0) comp_str += String::num_int64(v_cnt) + " Citizens, ";
+			if (f_cnt > 0) comp_str += String::num_int64(f_cnt) + " Females, ";
+			if (s_cnt > 0) comp_str += String::num_int64(s_cnt) + " Swords, ";
+			if (a_cnt > 0) comp_str += String::num_int64(a_cnt) + " Archers, ";
+			if (sp_cnt > 0) comp_str += String::num_int64(sp_cnt) + " Spears, ";
+			if (c_cnt > 0) comp_str += String::num_int64(c_cnt) + " Cav, ";
+			if (ch_cnt > 0) comp_str += String::num_int64(ch_cnt) + " Chariots, ";
+			if (ele_cnt > 0) comp_str += String::num_int64(ele_cnt) + " Elephants, ";
+			if (h_cnt > 0) comp_str += String::num_int64(h_cnt) + " Healers, ";
+			if (siege_cnt > 0) comp_str += String::num_int64(siege_cnt) + " Siege, ";
+			if (naval_cnt > 0) comp_str += String::num_int64(naval_cnt) + " Ships, ";
+			if (comp_str.ends_with(", ")) comp_str = comp_str.substr(0, comp_str.length() - 2);
+			inspector_stats->set_text(comp_str);
 
 			inspector_extra->set_text("Stances: [F1-F5] | Formations: [Z,X,C,V]");
+			ungarrison_btn->set_visible(false);
 		}
 
-		ungarrison_btn->set_visible(false);
 		inspector_panel->set_visible(true);
 	} else {
 		inspector_panel->set_visible(false);
@@ -1061,24 +1332,37 @@ void RtsoMain::update_command_panel() {
 			if (b.id == selected_building_id) { found_b = &b; break; }
 		}
 		if (found_b && found_b->build_progress >= 1.0f) {
+			uint8_t pciv = sim->player_civ();
+			uint8_t pphase = sim->player_phase();
+
 			if (found_b->type == rtso::BLD_TOWN_CENTER) {
 				Button *btn_v = memnew(Button);
 				btn_v->set_text("Villager (50f)");
 				btn_v->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_VILLAGER));
 				production_bar->add_child(btn_v);
 
-				if (sim->player_phase() == 1) {
+				Button *btn_f = memnew(Button);
+				btn_f->set_text("Female Citizen (40f)");
+				btn_f->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_FEMALE_CITIZEN));
+				production_bar->add_child(btn_f);
+
+				Button *btn_h = memnew(Button);
+				btn_h->set_text("Healer (80f,60g)");
+				btn_h->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_HEALER));
+				production_bar->add_child(btn_h);
+
+				if (pphase == 1) {
 					Button *btn_phase = memnew(Button);
 					btn_phase->set_text("Town Phase (200f,200w,100g)");
 					btn_phase->connect("pressed", Callable(this, "_on_tech_pressed").bind((int)rtso::TECH_PHASE_TOWN));
 					production_bar->add_child(btn_phase);
-				} else if (sim->player_phase() == 2) {
+				} else if (pphase == 2) {
 					Button *btn_phase = memnew(Button);
 					btn_phase->set_text("City Phase (400f,400w,300g,200s)");
 					btn_phase->connect("pressed", Callable(this, "_on_tech_pressed").bind((int)rtso::TECH_PHASE_CITY));
 					production_bar->add_child(btn_phase);
 				}
-			} else if (found_b->type == rtso::BLD_BARRACKS) {
+			} else if (found_b->type == rtso::BLD_BARRACKS || found_b->type == rtso::BLD_FORTRESS) {
 				Button *btn_s = memnew(Button);
 				btn_s->set_text("Swordsman (60g,30w)");
 				btn_s->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_SWORDSMAN));
@@ -1099,34 +1383,93 @@ void RtsoMain::update_command_panel() {
 				btn_c->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_CAVALRY));
 				production_bar->add_child(btn_c);
 
-				if (sim->player_phase() >= 2) {
+				if (pphase >= 2) {
 					Button *btn_hero = memnew(Button);
 					btn_hero->set_text("Champion Hero (200f,200g)");
 					btn_hero->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_HERO));
 					production_bar->add_child(btn_hero);
+
+					Button *btn_bolt = memnew(Button);
+					btn_bolt->set_text("Bolt Shooter (120w,80g)");
+					btn_bolt->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_BOLT_SHOOTER));
+					production_bar->add_child(btn_bolt);
 				}
 
-				if (sim->player_phase() >= 3) {
+				if (pphase >= 3) {
 					Button *btn_cat = memnew(Button);
-					btn_cat->set_text("Catapult Siege (150w,100g,50s)");
+					btn_cat->set_text("Catapult Artillery (150w,100g,50s)");
 					btn_cat->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_CATAPULT));
 					production_bar->add_child(btn_cat);
+
+					Button *btn_ram = memnew(Button);
+					btn_ram->set_text("Siege Ram (200w,100g)");
+					btn_ram->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_SIEGE_RAM));
+					production_bar->add_child(btn_ram);
 				}
 
-				if (sim->player_civ() == rtso::CIV_CARTHAGINIANS || sim->player_phase() >= 3) {
+				// Civilization Special Units
+				if (pciv == rtso::CIV_CARTHAGINIANS || pciv == rtso::CIV_MAURYANS || pciv == rtso::CIV_SELEUCIDS || pphase >= 3) {
 					Button *btn_ele = memnew(Button);
 					btn_ele->set_text("War Elephant (250f,200g)");
 					btn_ele->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_ELEPHANT));
 					production_bar->add_child(btn_ele);
 				}
 
-				if (sim->player_phase() >= 3) {
-					Button *btn_ram = memnew(Button);
-					btn_ram->set_text("Siege Ram (200w,100g)");
-					btn_ram->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_SIEGE_RAM));
-					production_bar->add_child(btn_ram);
+				if (pciv == rtso::CIV_BRITONS || pciv == rtso::CIV_GAULS) {
+					Button *btn_ch = memnew(Button);
+					btn_ch->set_text("Celtic Chariot (80f,100w,60g)");
+					btn_ch->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_CHARIOT));
+					production_bar->add_child(btn_ch);
+
+					Button *btn_dog = memnew(Button);
+					btn_dog->set_text("War Dog (60f)");
+					btn_dog->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_WAR_DOG));
+					production_bar->add_child(btn_dog);
+				}
+
+				if (pciv == rtso::CIV_GAULS) {
+					Button *btn_carnyx = memnew(Button);
+					btn_carnyx->set_text("Carnyx Herald (70f,40w,30g)");
+					btn_carnyx->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_CARNYX));
+					production_bar->add_child(btn_carnyx);
+				}
+
+				if (pciv == rtso::CIV_MAURYANS) {
+					Button *btn_wele = memnew(Button);
+					btn_wele->set_text("Worker Elephant (180f,80w)");
+					btn_wele->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_WORKER_ELEPHANT));
+					production_bar->add_child(btn_wele);
+
+					Button *btn_maiden = memnew(Button);
+					btn_maiden->set_text("Archer Maiden (40f,60w,40g)");
+					btn_maiden->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_ARCHER_MAIDEN));
+					production_bar->add_child(btn_maiden);
+				}
+
+				if (pciv == rtso::CIV_PERSIANS || pciv == rtso::CIV_KUSHITES || pciv == rtso::CIV_PTOLEMIES) {
+					Button *btn_camel = memnew(Button);
+					btn_camel->set_text("Camel Rider (60f,70g)");
+					btn_camel->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_CAMEL));
+					production_bar->add_child(btn_camel);
+				}
+
+				if (pciv == rtso::CIV_SELEUCIDS) {
+					Button *btn_scythe = memnew(Button);
+					btn_scythe->set_text("Scythed Chariot (100f,80w,120g)");
+					btn_scythe->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_SCYTHED_CHARIOT));
+					production_bar->add_child(btn_scythe);
 				}
 			} else if (found_b->type == rtso::BLD_DOCK) {
+				Button *btn_fish = memnew(Button);
+				btn_fish->set_text("Fishing Boat (75w)");
+				btn_fish->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_FISHING_BOAT));
+				production_bar->add_child(btn_fish);
+
+				Button *btn_cargo = memnew(Button);
+				btn_cargo->set_text("Merchant Ship (120w,40g)");
+				btn_cargo->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_MERCHANT_SHIP));
+				production_bar->add_child(btn_cargo);
+
 				Button *btn_tri = memnew(Button);
 				btn_tri->set_text("War Trireme (200w,150g)");
 				btn_tri->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_TRIREME));
@@ -1136,38 +1479,77 @@ void RtsoMain::update_command_panel() {
 				btn_t->set_text("Merchant Trader (60f,60w)");
 				btn_t->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_TRADER));
 				production_bar->add_child(btn_t);
+			} else if (found_b->type == rtso::BLD_TEMPLE) {
+				Button *btn_h = memnew(Button);
+				btn_h->set_text("Temple Healer (80f,60g)");
+				btn_h->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_HEALER));
+				production_bar->add_child(btn_h);
+			} else if (found_b->type == rtso::BLD_FARMSTEAD || found_b->type == rtso::BLD_CORRAL) {
+				Button *btn_dog = memnew(Button);
+				btn_dog->set_text("Guard Dog (60f)");
+				btn_dog->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_WAR_DOG));
+				production_bar->add_child(btn_dog);
 			}
 		}
 	} else if (!selected_ids.is_empty()) {
+		// Formations & Tactical Actions
+		const char *form_names[6] = {"Line", "Box", "Column", "Phalanx", "Wedge", "Scatter"};
+		const char *form_icons[6] = {
+			"res://assets/textures/ui/formations/line.png",
+			"res://assets/textures/ui/formations/box.png",
+			"res://assets/textures/ui/formations/column.png",
+			"res://assets/textures/ui/formations/phalanx.png",
+			"res://assets/textures/ui/formations/wedge.png",
+			"res://assets/textures/ui/formations/scatter.png"
+		};
+		for (int f = 0; f < 6; ++f) {
+			Button *fb = memnew(Button);
+			fb->set_custom_minimum_size(Vector2(72, 28));
+			fb->set_text(form_names[f]);
+			Ref<Texture2D> f_ico = load_tex(form_icons[f]);
+			if (f_ico.is_valid()) {
+				fb->set_button_icon(f_ico);
+				fb->set_expand_icon(true);
+			}
+			fb->add_theme_font_size_override("font_size", 9);
+			fb->connect("pressed", Callable(this, "_on_formation_selected").bind(f + 1));
+			actions_bar->add_child(fb);
+		}
+
 		// Villager Build Menu
-		bool has_villager = false;
+		bool has_worker = false;
 		auto uview = sim->units();
 		for (int i = 0; i < selected_ids.size(); ++i) {
 			for (size_t u = 0; u < uview.count; ++u) {
-				if (uview.id[u] == (uint32_t)selected_ids[i] && uview.unit_type[u] == rtso::UNIT_VILLAGER) {
-					has_villager = true;
-					break;
+				if (uview.id[u] == (uint32_t)selected_ids[i]) {
+					uint8_t ut = uview.unit_type[u];
+					if (ut == rtso::UNIT_VILLAGER || ut == rtso::UNIT_FEMALE_CITIZEN || ut == rtso::UNIT_WORKER_ELEPHANT) {
+						has_worker = true;
+						break;
+					}
 				}
 			}
 		}
 
-		if (has_villager) {
-			const char *b_names[10] = {
+		if (has_worker) {
+			const char *b_names[13] = {
 				"House (80w)", "Barracks (150w,50g)", "Tower (100w,100s)", "Storehouse (100w)",
-				"Farmstead (100w)", "Market (200w,100g)", "Temple (150w,100g,100s)",
-				"Wonder (500f,500w,500g,500s)", "Dock (200w,100s)", "Wall (40s)"
+				"Farmstead (100w)", "Corral (100w)", "Market (200w,100g)", "Temple (150w,100g,100s)",
+				"Fortress (300w,200g,300s)", "Gate (100w,100s)", "Dock (200w,100s)", "Wall (40s)",
+				"Wonder (500f,500w,500g,500s)"
 			};
-			int b_types[10] = {
+			int b_types[13] = {
 				rtso::BLD_HOUSE, rtso::BLD_BARRACKS, rtso::BLD_TOWER, rtso::BLD_STOREHOUSE,
-				rtso::BLD_FARMSTEAD, rtso::BLD_MARKET, rtso::BLD_TEMPLE,
-				rtso::BLD_WONDER, rtso::BLD_DOCK, rtso::BLD_WALL_SEGMENT
+				rtso::BLD_FARMSTEAD, rtso::BLD_CORRAL, rtso::BLD_MARKET, rtso::BLD_TEMPLE,
+				rtso::BLD_FORTRESS, rtso::BLD_GATE, rtso::BLD_DOCK, rtso::BLD_WALL_SEGMENT,
+				rtso::BLD_WONDER
 			};
-			for (int b = 0; b < 10; ++b) {
+			for (int b = 0; b < 13; ++b) {
 				Button *bb = memnew(Button);
 				bb->set_text(b_names[b]);
-				bb->add_theme_font_size_override("font_size", 10);
+				bb->add_theme_font_size_override("font_size", 9);
 				bb->connect("pressed", Callable(this, "_on_build_btn_pressed").bind(b_types[b]));
-				actions_bar->add_child(bb);
+				production_bar->add_child(bb);
 			}
 		}
 	}
@@ -1183,32 +1565,35 @@ void RtsoMain::enter_build_mode(bool enable, uint8_t btype) {
 void RtsoMain::try_train_unit(rtso::UnitType utype) {
 	if (selected_building_id != 0) {
 		if (sim->cmd_train(selected_building_id, utype)) {
-			play_voice("res://assets/sounds/voice/select_2.ogg");
+			play_civ_voice("select");
 		}
 		return;
 	}
 	for (const auto &b : sim->buildings()) {
 		if (b.team == 0 && b.build_progress >= 1.0f) {
-			if (utype == rtso::UNIT_VILLAGER && b.type == rtso::BLD_TOWN_CENTER) {
+			if ((utype == rtso::UNIT_VILLAGER || utype == rtso::UNIT_FEMALE_CITIZEN) && b.type == rtso::BLD_TOWN_CENTER) {
 				if (sim->cmd_train(b.id, utype)) {
-					play_voice("res://assets/sounds/voice/select_2.ogg");
+					play_civ_voice("select");
 					break;
 				}
-			else if (utype == rtso::UNIT_CATAPULT && (b.type == rtso::BLD_BARRACKS || b.type == rtso::BLD_FORTRESS)) {
+			} else if (utype == rtso::UNIT_TRADER && b.type == rtso::BLD_MARKET) {
 				if (sim->cmd_train(b.id, utype)) {
-					play_voice("res://assets/sounds/voice/select_2.ogg");
+					play_civ_voice("select");
 					break;
 				}
-			}
-			else if (utype == rtso::UNIT_TRADER && b.type == rtso::BLD_MARKET) {
+			} else if ((utype == rtso::UNIT_TRIREME || utype == rtso::UNIT_FISHING_BOAT || utype == rtso::UNIT_MERCHANT_SHIP) && b.type == rtso::BLD_DOCK) {
 				if (sim->cmd_train(b.id, utype)) {
-					play_voice("res://assets/sounds/voice/select_2.ogg");
+					play_civ_voice("select");
 					break;
 				}
-			}
-			} else if (utype != rtso::UNIT_VILLAGER && b.type == rtso::BLD_BARRACKS) {
+			} else if (utype == rtso::UNIT_HEALER && (b.type == rtso::BLD_TEMPLE || b.type == rtso::BLD_TOWN_CENTER)) {
 				if (sim->cmd_train(b.id, utype)) {
-					play_voice("res://assets/sounds/voice/select_2.ogg");
+					play_civ_voice("select");
+					break;
+				}
+			} else if (b.type == rtso::BLD_BARRACKS || b.type == rtso::BLD_FORTRESS) {
+				if (sim->cmd_train(b.id, utype)) {
+					play_civ_voice("select");
 					break;
 				}
 			}
@@ -1299,14 +1684,14 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			attack_move_mode = true;
 			patrol_mode = false;
 			guard_mode = false;
-			play_voice("res://assets/sounds/voice/select_2.ogg");
+			play_civ_voice("select");
 			return;
 		}
 		if (key->get_keycode() == KEY_P && !selected_ids.is_empty()) {
 			patrol_mode = true;
 			attack_move_mode = false;
 			guard_mode = false;
-			play_voice("res://assets/sounds/voice/select_2.ogg");
+			play_civ_voice("select");
 			return;
 		}
 		// G key — guard mode: next RMB click picks target to guard
@@ -1314,7 +1699,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			guard_mode = !guard_mode;
 			attack_move_mode = false;
 			patrol_mode = false;
-			play_voice("res://assets/sounds/voice/select_2.ogg");
+			play_civ_voice("select");
 			return;
 		}
 
@@ -1395,7 +1780,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					}
 					auto [cell_x, cell_y] = mouse_cell(mouse_pos);
 					if (sim->cmd_build(cell_x, cell_y, current_build_type)) {
-						play_voice("res://assets/sounds/voice/build_1.ogg");
+						play_civ_voice("build");
 						enter_build_mode(false);
 					}
 					return;
@@ -1424,7 +1809,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								sim->spawn_building_world(end_p.x, end_p.z, rtso::BLD_TOWER, 0, 0.1f);
 							}
 						}
-						play_voice("res://assets/sounds/voice/build_1.ogg");
+						play_civ_voice("build");
 					}
 					enter_build_mode(false);
 					return;
@@ -1457,7 +1842,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 
 						if (best_uidx != (size_t)-1) {
 							selected_ids.push_back((int32_t)uview.id[best_uidx]);
-							play_voice("res://assets/sounds/voice/select_1.ogg");
+							play_civ_voice("select");
 						} else {
 							// Check building hit
 							for (const auto &b : sim->buildings()) {
@@ -1491,7 +1876,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								}
 							}
 							if (selected_ids.size() > 0) {
-								play_voice("res://assets/sounds/voice/select_3.ogg");
+								play_civ_voice("select");
 							}
 						}
 					}
@@ -1517,7 +1902,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					if (dx * dx + dz * dz < 3.0f * 3.0f) { target_bld = b.id; break; }
 				}
 				sim->cmd_set_rally_point(selected_building_id, click_pos.x, click_pos.z, target_res, target_bld);
-				play_voice("res://assets/sounds/voice/select_2.ogg");
+				play_civ_voice("select");
 				return;
 			}
 
@@ -1525,13 +1910,13 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 
 			if (attack_move_mode) {
 				sim->order_attack_move((const uint32_t *)selected_ids.ptr(), selected_ids.size(), click_pos.x, click_pos.z);
-				play_voice("res://assets/sounds/voice/attack_1.ogg");
+				play_civ_voice("attack");
 				attack_move_mode = false;
 				return;
 			}
 			if (patrol_mode) {
 				sim->order_patrol((const uint32_t *)selected_ids.ptr(), selected_ids.size(), click_pos.x, click_pos.z);
-				play_voice("res://assets/sounds/voice/select_2.ogg");
+				play_civ_voice("select");
 				patrol_mode = false;
 				return;
 			}
@@ -1551,14 +1936,48 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 				if (target_ally_id != 0) {
 					sim->order_guard((const uint32_t *)selected_ids.ptr(), selected_ids.size(), target_ally_id);
-					play_voice("res://assets/sounds/voice/select_2.ogg");
+					play_civ_voice("select");
 				}
 				guard_mode = false;
 				return;
 			}
 
-			// 1. Right click on Enemy Unit (Attack)
 			auto uview = sim->units();
+
+			// 0. Right click with Loaded Transport on Shore/Land (Disembark)
+			bool has_loaded_transport = false;
+			uint32_t transport_sel_id = 0;
+			for (int s = 0; s < selected_ids.size(); ++s) {
+				if (sim->is_transport((uint32_t)selected_ids[s]) && sim->get_transport_passenger_count((uint32_t)selected_ids[s]) > 0) {
+					has_loaded_transport = true;
+					transport_sel_id = (uint32_t)selected_ids[s];
+					break;
+				}
+			}
+			if (has_loaded_transport && sim->get_terrain_height(click_pos.x, click_pos.z) >= sim->water_height() + 0.1f) {
+				sim->order_disembark(transport_sel_id, click_pos.x, click_pos.z);
+				play_civ_voice("move");
+				return;
+			}
+
+			// 1. Right click on Allied War Trireme / Transport (Board Naval Transport)
+			uint32_t clicked_transport_id = 0;
+			for (size_t i = 0; i < uview.count; ++i) {
+				if (!uview.alive[i] || uview.team[i] != 0 || uview.unit_type[i] != rtso::UNIT_TRIREME) continue;
+				float dx = uview.pos_x[i] - click_pos.x;
+				float dz = uview.pos_z[i] - click_pos.z;
+				if (dx * dx + dz * dz <= 3.2f * 3.2f) {
+					clicked_transport_id = uview.id[i];
+					break;
+				}
+			}
+			if (clicked_transport_id != 0) {
+				sim->order_board_transport((const uint32_t *)selected_ids.ptr(), selected_ids.size(), clicked_transport_id);
+				play_civ_voice("move");
+				return;
+			}
+
+			// 2. Right click on Enemy Unit (Attack)
 			uint32_t clicked_enemy_id = 0;
 			float best_ed2 = 2.2f * 2.2f;
 			for (size_t i = 0; i < uview.count; ++i) {
@@ -1573,13 +1992,14 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 			if (clicked_enemy_id != 0) {
 				sim->order_attack((const uint32_t *)selected_ids.ptr(), selected_ids.size(), clicked_enemy_id);
-				play_voice("res://assets/sounds/voice/attack_1.ogg");
+				play_civ_voice("attack");
 				return;
 			}
 
-			// 2. Right click on Wildlife Fauna (Hunting)
+			// 3. Right click on Wildlife Fauna (Hunting vs Herding into Corral)
 			auto fview = sim->fauna();
 			uint32_t clicked_fauna_id = 0;
+			uint8_t clicked_fauna_type = 0;
 			float best_fd2 = 2.5f * 2.5f;
 			for (size_t f = 0; f < fview.count; ++f) {
 				if (!fview.alive[f]) continue;
@@ -1589,11 +2009,18 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				if (d2 < best_fd2) {
 					best_fd2 = d2;
 					clicked_fauna_id = fview.id[f];
+					clicked_fauna_type = fview.fauna_type[f];
 				}
 			}
 			if (clicked_fauna_id != 0) {
-				sim->order_hunt((const uint32_t *)selected_ids.ptr(), selected_ids.size(), clicked_fauna_id);
-				play_voice("res://assets/sounds/voice/attack_1.ogg");
+				const auto &finfo = rtso::fauna_type_info(clicked_fauna_type);
+				if (finfo.is_domestic) {
+					sim->order_herd((const uint32_t *)selected_ids.ptr(), selected_ids.size(), clicked_fauna_id);
+					play_civ_voice("gather");
+				} else {
+					sim->order_hunt((const uint32_t *)selected_ids.ptr(), selected_ids.size(), clicked_fauna_id);
+					play_civ_voice("attack");
+				}
 				return;
 			}
 
@@ -1613,28 +2040,34 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 			if (clicked_res_id != 0) {
 				sim->order_gather((const uint32_t *)selected_ids.ptr(), selected_ids.size(), clicked_res_id);
-				play_voice("res://assets/sounds/voice/gather_1.ogg");
+				play_civ_voice("gather");
 				return;
 			}
 
-			// 4. Right click on Building (Build / Repair / Garrison / Gate Upgrade)
+			// 4. Right click on Building (Attack Enemy vs Build/Repair/Garrison Allied)
 			for (const auto &b : sim->buildings()) {
-				if (b.team != 0) continue;
 				float dx = b.x - click_pos.x;
 				float dz = b.z - click_pos.z;
-				float hit_r = b.half_size + 1.0f;
+				float hit_r = b.half_size + 1.2f;
 				if (dx * dx + dz * dz <= hit_r * hit_r) {
-					if (b.build_progress < 1.0f || b.hp < b.max_hp) {
-						sim->order_build_or_repair((const uint32_t *)selected_ids.ptr(), selected_ids.size(), b.id);
-						play_voice("res://assets/sounds/voice/build_1.ogg");
-					} else if (b.type == rtso::BLD_WALL_SEGMENT && Input::get_singleton()->is_key_pressed(KEY_CTRL)) {
-						// Upgrade Wall to Gate
-						sim->spawn_building_world(b.x, b.z, rtso::BLD_GATE, 0, 1.0f);
-						play_voice("res://assets/sounds/voice/build_1.ogg");
+					if (b.team != 0) {
+						// Enemy Building -> Attack / Siege Demolition
+						sim->order_attack_building((const uint32_t *)selected_ids.ptr(), selected_ids.size(), b.id);
+						play_civ_voice("attack");
 					} else {
-						// Garrison units inside building
-						sim->order_garrison((const uint32_t *)selected_ids.ptr(), selected_ids.size(), b.id);
-						clear_selection();
+						// Allied Building -> Build / Repair / Garrison / Gate Upgrade
+						if (b.build_progress < 1.0f || b.hp < b.max_hp) {
+							sim->order_build_or_repair((const uint32_t *)selected_ids.ptr(), selected_ids.size(), b.id);
+							play_civ_voice("build");
+						} else if (b.type == rtso::BLD_WALL_SEGMENT && Input::get_singleton()->is_key_pressed(KEY_CTRL)) {
+							// Upgrade Wall to Gate
+							sim->spawn_building_world(b.x, b.z, rtso::BLD_GATE, 0, 1.0f);
+							play_civ_voice("build");
+						} else {
+							// Garrison units inside building
+							sim->order_garrison((const uint32_t *)selected_ids.ptr(), selected_ids.size(), b.id);
+							clear_selection();
+						}
 					}
 					return;
 				}
@@ -1642,7 +2075,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 
 			// 5. Default: Move Order
 			sim->cmd_move((const uint32_t *)selected_ids.ptr(), selected_ids.size(), click_pos.x, click_pos.z);
-			play_voice("res://assets/sounds/voice/move_1.ogg");
+			play_civ_voice("move");
 		}
 	}
 
@@ -1659,9 +2092,17 @@ void RtsoMain::_on_map_selected(int index) {
 		"atlas_valleys",
 		"bactria",
 		"battle_for_the_tiber",
-		"default"
+		"default",
+		"random_continental",
+		"random_archipelago",
+		"random_oasis",
+		"random_highlands",
+		"random_valley",
+		"random_mediterranean",
+		"random_acropolis",
+		"random_spartan_valley"
 	};
-	if (index >= 0 && index < 6) {
+	if (index >= 0 && index < 14) {
 		load_map(map_ids[index]);
 	}
 }
@@ -1674,12 +2115,54 @@ PackedStringArray RtsoMain::get_available_maps() const {
 	maps.push_back("bactria");
 	maps.push_back("battle_for_the_tiber");
 	maps.push_back("default");
+	maps.push_back("random_continental");
+	maps.push_back("random_archipelago");
+	maps.push_back("random_oasis");
+	maps.push_back("random_highlands");
+	maps.push_back("random_valley");
+	maps.push_back("random_mediterranean");
+	maps.push_back("random_acropolis");
+	maps.push_back("random_spartan_valley");
 	return maps;
 }
 
 bool RtsoMain::load_map(String map_id) {
 	if (!sim || !view) return false;
 	clear_selection();
+
+	// 1. Procedural Random Map Generation (RMS Engine)
+	if (map_id.begins_with("random_") || map_id.begins_with("procedural_") ||
+		map_id == "continental" || map_id == "archipelago" || map_id == "oasis" ||
+		map_id == "highlands" || map_id == "valley" || map_id == "mediterranean" ||
+		map_id == "random_acropolis" || map_id == "random_spartan_valley") {
+		
+		rtso::MapType mtype = rtso::MAP_RANDOM_CONTINENTAL;
+		int num_p = 2;
+		if (map_id.contains("archipelago")) mtype = rtso::MAP_RANDOM_ARCHIPELAGO;
+		else if (map_id.contains("oasis")) mtype = rtso::MAP_RANDOM_OASIS;
+		else if (map_id.contains("highlands")) mtype = rtso::MAP_RANDOM_HIGHLANDS;
+		else if (map_id.contains("valley") && !map_id.contains("spartan")) mtype = rtso::MAP_RANDOM_VALLEY;
+		else if (map_id.contains("spartan")) mtype = rtso::MAP_SPARTAN_VALLEY;
+		else if (map_id.contains("acropolis")) mtype = rtso::MAP_ACROPOLIS;
+		else if (map_id.contains("mediterranean")) { mtype = rtso::MAP_RANDOM_MEDITERRANEAN; num_p = 4; }
+
+		uint32_t seed = (uint32_t)Time::get_singleton()->get_ticks_msec();
+		sim->generate_random_map(mtype, seed, num_p, 64.0f);
+		view->rebuild_terrain(sim);
+
+		if (cam_rig) {
+			cam_rig->set_map_bounds_half(sim->map_half());
+			for (const auto &b : sim->buildings()) {
+				if (b.team == 0 && b.type == rtso::BLD_TOWN_CENTER) {
+					cam_rig->set_target_pos(Vector3(b.x, 0, b.z));
+					break;
+				}
+			}
+		}
+
+		UtilityFunctions::print("[RtsoMain] Generated procedural RMS map '", rtso::map_type_info(mtype).name, "' (seed=", (int64_t)seed, ", players=", num_p, ")");
+		return true;
+	}
 
 	if (map_id == "default" || map_id == "arena") {
 		sim->spawn_initial();

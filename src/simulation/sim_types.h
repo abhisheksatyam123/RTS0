@@ -21,7 +21,14 @@ enum Civilization : uint8_t {
 	CIV_ROMANS = 3,
 	CIV_CARTHAGINIANS = 4,
 	CIV_MACEDONIANS = 5,
-	CIV_COUNT = 6
+	CIV_BRITONS = 6,
+	CIV_GAULS = 7,
+	CIV_IBERIANS = 8,
+	CIV_MAURYANS = 9,
+	CIV_KUSHITES = 10,
+	CIV_PTOLEMIES = 11,
+	CIV_SELEUCIDS = 12,
+	CIV_COUNT = 13
 };
 
 enum MapType : uint8_t {
@@ -30,8 +37,45 @@ enum MapType : uint8_t {
 	MAP_ACROPOLIS = 2,
 	MAP_SAHARA = 3,
 	MAP_SPARTAN_VALLEY = 4,
-	MAP_TYPE_COUNT = 5
+	MAP_RANDOM_CONTINENTAL = 5,
+	MAP_RANDOM_ARCHIPELAGO = 6,
+	MAP_RANDOM_OASIS = 7,
+	MAP_RANDOM_HIGHLANDS = 8,
+	MAP_RANDOM_VALLEY = 9,
+	MAP_RANDOM_MEDITERRANEAN = 10,
+	MAP_TYPE_COUNT = 11
 };
+
+struct MapTypeInfo {
+	MapType type;
+	const char *id;
+	const char *name;
+	const char *biome;
+	bool is_procedural;
+	const char *description;
+};
+
+inline const MapTypeInfo &map_type_info(uint8_t type) {
+	static const MapTypeInfo kTable[MAP_TYPE_COUNT] = {
+		{MAP_AEGEAN_ARCHIPELAGO, "aegean_archipelago", "Aegean Archipelago", "aegean", true, "Scattered Greek islands surrounded by crystal waters, rich in coastal fishing and maritime routes."},
+		{MAP_PELOPONNESE, "peloponnese", "Peloponnese Peninsula", "mediterranean", true, "Vast peninsula with jagged coastlines, defensive hills, and fertile coastal lowlands."},
+		{MAP_ACROPOLIS, "acropolis", "Acropolis Heights", "mediterranean", true, "Elevated central plateaus offering formidable defensive high-ground over resource valleys."},
+		{MAP_SAHARA, "sahara", "Sahara Dunes", "oasis", true, "Arid desert sands with scarce timber, contested watering holes, and rich mineral outcroppings."},
+		{MAP_SPARTAN_VALLEY, "spartan_valley", "Spartan Valley", "alpine", true, "Narrow pass flanked by impassable mountain ranges, ideal for phalanx warfare and tactical choke points."},
+		{MAP_RANDOM_CONTINENTAL, "random_continental", "Continental (RMS)", "mediterranean", true, "A grand landmass surrounded by ocean with winding inland rivers and rolling resource woodlands."},
+		{MAP_RANDOM_ARCHIPELAGO, "random_archipelago", "Archipelago (RMS)", "aegean", true, "Deep-water island cluster requiring maritime expansion, docks, and naval supremacy."},
+		{MAP_RANDOM_OASIS, "random_oasis", "Oasis (RMS)", "oasis", true, "Densely forested desert borders surrounding a lush, resource-heavy central lake basin."},
+		{MAP_RANDOM_HIGHLANDS, "random_highlands", "Highlands (RMS)", "alpine", true, "Rugged alpine terrain with sheer mountain cliffs, gorge rivers, and strategic passes."},
+		{MAP_RANDOM_VALLEY, "random_valley", "Fertile Valley (RMS)", "latium", true, "A lush river valley bounded by towering mountain ridges with balanced contested resources."},
+		{MAP_RANDOM_MEDITERRANEAN, "random_mediterranean", "Mediterranean Sea (RMS)", "mediterranean", true, "A central sea ringed by continuous fertile mainland coasts for all civilizations."}
+	};
+	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
+	return kTable[type];
+}
+
+inline bool is_procedural_map(uint8_t type) {
+	return type < MAP_TYPE_COUNT;
+}
 
 enum UnitType : uint8_t {
 	UNIT_VILLAGER = 0,
@@ -45,7 +89,19 @@ enum UnitType : uint8_t {
 	UNIT_TRIREME = 8,
 	UNIT_ELEPHANT = 9,
 	UNIT_SIEGE_RAM = 10,
-	UNIT_TYPE_COUNT = 11,
+	UNIT_HEALER = 11,
+	UNIT_CHARIOT = 12,
+	UNIT_WAR_DOG = 13,
+	UNIT_BOLT_SHOOTER = 14,
+	UNIT_FISHING_BOAT = 15,
+	UNIT_MERCHANT_SHIP = 16,
+	UNIT_FEMALE_CITIZEN = 17,
+	UNIT_CARNYX = 18,
+	UNIT_WORKER_ELEPHANT = 19,
+	UNIT_ARCHER_MAIDEN = 20,
+	UNIT_CAMEL = 21,
+	UNIT_SCYTHED_CHARIOT = 22,
+	UNIT_TYPE_COUNT = 23,
 	UNIT_TYPE_NONE = 255
 };
 
@@ -78,7 +134,8 @@ enum BuildingType : uint8_t {
 	BLD_WONDER = 10,
 	BLD_DOCK = 11,
 	BLD_WALL_SEGMENT = 12,
-	BLD_TYPE_COUNT = 13
+	BLD_CORRAL = 13,
+	BLD_TYPE_COUNT = 14
 };
 
 enum ResourceType : uint8_t {
@@ -119,6 +176,14 @@ enum TechnologyId : uint8_t {
 	TECH_COUNT = 8
 };
 
+enum StatusEffect : uint8_t {
+	EFFECT_NONE = 0,
+	EFFECT_POISON = 1,
+	EFFECT_BURNING = 2,
+	EFFECT_SNARE = 4,
+	EFFECT_KNOCKBACK = 8
+};
+
 struct UnitTypeInfo {
 	const char *name;
 	const char *model_id;
@@ -139,22 +204,37 @@ struct UnitTypeInfo {
 	int stone_cost;
 	int pop_cost;
 	float train_time;
+	float hack_damage;
+	float pierce_damage;
+	float crush_damage;
 };
 
 inline const UnitTypeInfo &unit_type_info(uint8_t type) {
 	static const UnitTypeInfo kTable[UNIT_TYPE_COUNT] = {
-		// name, model, portrait, hp, speed, range, dmg, cd, carry, aggro, hack, pierce, crush, food, wood, gold, stone, pop, train_time
-		{"Villager", "villager", "villager", 80.0f, 3.0f, 1.6f, 5.0f, 1.0f, 20, 3.0f, 2.0f, 4.0f, 15.0f, 50, 0, 0, 0, 1, 10.0f},
-		{"Swordsman", "swordsman", "swordsman", 100.0f, 3.4f, 2.0f, 8.0f, 0.75f, 0, 10.0f, 3.0f, 3.0f, 15.0f, 0, 30, 60, 0, 1, 14.0f},
-		{"Archer", "archer", "archer", 80.0f, 3.3f, 16.0f, 7.2f, 1.25f, 0, 16.0f, 1.0f, 1.0f, 15.0f, 0, 50, 40, 0, 1, 12.0f},
-		{"Spearman", "spearman", "spearman", 100.0f, 3.2f, 2.4f, 8.5f, 1.0f, 0, 10.0f, 3.0f, 3.0f, 15.0f, 30, 40, 20, 0, 1, 12.0f},
-		{"Cavalry", "cavalry", "cavalry", 180.0f, 5.5f, 2.2f, 11.5f, 1.25f, 0, 12.0f, 3.0f, 3.0f, 15.0f, 50, 0, 80, 0, 2, 18.0f},
-		{"Merchant Trader", "cavalry", "market", 120.0f, 4.2f, 1.0f, 0.0f, 1.0f, 50, 0.0f, 2.0f, 2.0f, 10.0f, 60, 60, 0, 0, 1, 12.0f},
-		{"Catapult Artillery", "swordsman", "fortress", 220.0f, 2.0f, 24.0f, 45.0f, 3.5f, 0, 24.0f, 2.0f, 5.0f, 20.0f, 0, 150, 100, 50, 3, 28.0f},
-		{"Historical Champion Hero", "cavalry", "swordsman", 350.0f, 4.2f, 2.8f, 18.0f, 0.8f, 0, 16.0f, 6.0f, 6.0f, 25.0f, 200, 0, 200, 0, 3, 30.0f},
-		{"War Trireme", "storehouse", "fortress", 600.0f, 4.5f, 20.0f, 25.0f, 1.2f, 0, 20.0f, 5.0f, 8.0f, 20.0f, 0, 200, 150, 0, 3, 35.0f},
-		{"Carthaginian War Elephant", "cavalry", "fortress", 900.0f, 3.4f, 2.5f, 35.0f, 1.4f, 0, 16.0f, 5.0f, 8.0f, 20.0f, 250, 0, 200, 0, 4, 40.0f},
-		{"Siege Battering Ram", "swordsman", "fortress", 850.0f, 2.2f, 2.4f, 75.0f, 2.5f, 0, 12.0f, 2.0f, 12.0f, 15.0f, 0, 200, 100, 0, 3, 25.0f}
+		// name, model, portrait, hp, speed, range, dmg, cd, carry, aggro, hack, pierce, crush, food, wood, gold, stone, pop, train_time, hack_dmg, pierce_dmg, crush_dmg
+		{"Villager", "villager", "villager", 80.0f, 3.0f, 1.6f, 5.0f, 1.0f, 20, 3.0f, 2.0f, 4.0f, 15.0f, 50, 0, 0, 0, 1, 10.0f, 5.0f, 0.0f, 0.0f},
+		{"Swordsman", "swordsman", "swordsman", 100.0f, 3.4f, 2.0f, 8.0f, 0.75f, 0, 10.0f, 3.0f, 3.0f, 15.0f, 0, 30, 60, 0, 1, 14.0f, 8.0f, 0.0f, 0.0f},
+		{"Archer", "archer", "archer", 80.0f, 3.3f, 16.0f, 7.2f, 1.25f, 0, 16.0f, 1.0f, 1.0f, 15.0f, 0, 50, 40, 0, 1, 12.0f, 0.0f, 7.2f, 0.0f},
+		{"Spearman", "spearman", "spearman", 100.0f, 3.2f, 2.4f, 8.5f, 1.0f, 0, 10.0f, 3.0f, 3.0f, 15.0f, 30, 40, 20, 0, 1, 12.0f, 4.25f, 4.25f, 0.0f},
+		{"Cavalry", "cavalry", "cavalry", 180.0f, 5.5f, 2.2f, 11.5f, 1.25f, 0, 12.0f, 3.0f, 3.0f, 15.0f, 50, 0, 80, 0, 2, 18.0f, 11.5f, 0.0f, 0.0f},
+		{"Merchant Trader", "cavalry", "market", 120.0f, 4.2f, 1.0f, 0.0f, 1.0f, 50, 0.0f, 2.0f, 2.0f, 10.0f, 60, 60, 0, 0, 1, 12.0f, 0.0f, 0.0f, 0.0f},
+		{"Catapult Artillery", "swordsman", "fortress", 220.0f, 2.0f, 24.0f, 45.0f, 3.5f, 0, 24.0f, 2.0f, 5.0f, 20.0f, 0, 150, 100, 50, 3, 28.0f, 0.0f, 0.0f, 45.0f},
+		{"Historical Champion Hero", "cavalry", "swordsman", 350.0f, 4.2f, 2.8f, 18.0f, 0.8f, 0, 16.0f, 6.0f, 6.0f, 25.0f, 200, 0, 200, 0, 3, 30.0f, 12.0f, 6.0f, 0.0f},
+		{"War Trireme", "storehouse", "fortress", 600.0f, 4.5f, 20.0f, 25.0f, 1.2f, 0, 20.0f, 5.0f, 8.0f, 20.0f, 0, 200, 150, 0, 3, 35.0f, 0.0f, 25.0f, 0.0f},
+		{"Carthaginian War Elephant", "cavalry", "fortress", 900.0f, 3.4f, 2.5f, 35.0f, 1.4f, 0, 16.0f, 5.0f, 8.0f, 20.0f, 250, 0, 200, 0, 4, 40.0f, 20.0f, 0.0f, 15.0f},
+		{"Siege Battering Ram", "ram", "fortress", 850.0f, 2.2f, 2.4f, 75.0f, 2.5f, 0, 12.0f, 2.0f, 12.0f, 15.0f, 0, 200, 100, 0, 3, 25.0f, 0.0f, 0.0f, 75.0f},
+		{"Temple Healer", "healer", "villager", 90.0f, 3.2f, 12.0f, 0.0f, 1.0f, 0, 10.0f, 1.0f, 1.0f, 10.0f, 80, 0, 60, 0, 1, 14.0f, 0.0f, 0.0f, 0.0f},
+		{"Celtic War Chariot", "cavalry", "cavalry", 280.0f, 5.8f, 14.0f, 14.0f, 1.1f, 0, 14.0f, 4.0f, 4.0f, 20.0f, 80, 100, 60, 0, 2, 22.0f, 4.0f, 10.0f, 0.0f},
+		{"Celtic War Dog", "deer", "villager", 75.0f, 5.2f, 1.2f, 9.0f, 0.7f, 0, 12.0f, 1.0f, 2.0f, 8.0f, 60, 0, 0, 0, 1, 8.0f, 9.0f, 0.0f, 0.0f},
+		{"Bolt Shooter Ballista", "swordsman", "fortress", 200.0f, 2.2f, 28.0f, 40.0f, 3.0f, 0, 28.0f, 2.0f, 4.0f, 15.0f, 0, 120, 80, 0, 2, 22.0f, 0.0f, 40.0f, 0.0f},
+		{"Fishing Boat", "storehouse", "dock", 150.0f, 3.8f, 1.5f, 0.0f, 1.0f, 30, 0.0f, 1.0f, 2.0f, 10.0f, 0, 75, 0, 0, 1, 12.0f, 0.0f, 0.0f, 0.0f},
+		{"Merchant Cargo Ship", "storehouse", "dock", 300.0f, 4.0f, 1.0f, 0.0f, 1.0f, 100, 0.0f, 3.0f, 4.0f, 15.0f, 0, 120, 40, 0, 1, 18.0f, 0.0f, 0.0f, 0.0f},
+		{"Female Citizen", "villager", "villager", 65.0f, 3.2f, 1.4f, 4.0f, 1.0f, 25, 3.0f, 1.0f, 3.0f, 10.0f, 40, 0, 0, 0, 1, 8.0f, 4.0f, 0.0f, 0.0f},
+		{"Gallic Carnyx Herald", "swordsman", "spearman", 140.0f, 3.5f, 2.0f, 7.0f, 1.0f, 0, 12.0f, 3.0f, 3.0f, 15.0f, 70, 40, 30, 0, 1, 15.0f, 7.0f, 0.0f, 0.0f},
+		{"Mauryan Worker Elephant", "cavalry", "cavalry", 600.0f, 3.2f, 2.0f, 12.0f, 1.2f, 100, 6.0f, 4.0f, 6.0f, 20.0f, 180, 80, 0, 0, 2, 25.0f, 8.0f, 0.0f, 4.0f},
+		{"Mauryan Archer Maiden", "archer", "archer", 95.0f, 3.6f, 17.0f, 8.5f, 1.1f, 0, 17.0f, 2.0f, 2.0f, 15.0f, 40, 60, 40, 0, 1, 14.0f, 0.0f, 8.5f, 0.0f},
+		{"Persian/Arabian Camel", "cavalry", "cavalry", 190.0f, 5.2f, 2.4f, 12.0f, 1.2f, 0, 12.0f, 3.0f, 3.0f, 15.0f, 60, 0, 70, 0, 2, 16.0f, 12.0f, 0.0f, 0.0f},
+		{"Seleucid Scythed Chariot", "cavalry", "cavalry", 320.0f, 5.6f, 2.2f, 24.0f, 1.0f, 0, 14.0f, 5.0f, 5.0f, 25.0f, 100, 80, 120, 0, 3, 26.0f, 18.0f, 0.0f, 6.0f}
 	};
 	if (type >= UNIT_TYPE_COUNT) return kTable[UNIT_VILLAGER];
 	return kTable[type];
@@ -173,6 +253,18 @@ inline float unit_collision_radius(uint8_t type) {
 		case UNIT_TRIREME: return 1.80f;
 		case UNIT_ELEPHANT: return 1.40f;
 		case UNIT_SIEGE_RAM: return 1.20f;
+		case UNIT_HEALER: return 0.50f;
+		case UNIT_CHARIOT: return 1.25f;
+		case UNIT_WAR_DOG: return 0.40f;
+		case UNIT_BOLT_SHOOTER: return 1.10f;
+		case UNIT_FISHING_BOAT: return 1.10f;
+		case UNIT_MERCHANT_SHIP: return 1.60f;
+		case UNIT_FEMALE_CITIZEN: return 0.48f;
+		case UNIT_CARNYX: return 0.55f;
+		case UNIT_WORKER_ELEPHANT: return 1.35f;
+		case UNIT_ARCHER_MAIDEN: return 0.50f;
+		case UNIT_CAMEL: return 0.90f;
+		case UNIT_SCYTHED_CHARIOT: return 1.35f;
 		default: return 0.55f;
 	}
 }
@@ -214,7 +306,8 @@ inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 		{"Temple", "farmstead", "storehouse", 1200.0f, 2, 0, 150, 100, 100, 0, 5, 40.0f, 0.0f, 0.0f, 0.0f},
 		{"Wonder Monument", "town_center", "town_center", 5000.0f, 2, 500, 500, 500, 500, 0, 10, 120.0f, 0.0f, 0.0f, 0.0f},
 		{"Naval Shipyard Dock", "storehouse", "storehouse", 1400.0f, 2, 0, 200, 0, 100, 0, 5, 40.0f, 16.0f, 15.0f, 1.2f},
-		{"Stone Wall Segment", "wall_tower", "tower", 1800.0f, 1, 0, 0, 0, 40, 0, 0, 15.0f, 0.0f, 0.0f, 0.0f}
+		{"Stone Wall Segment", "wall_tower", "tower", 1800.0f, 1, 0, 0, 0, 40, 0, 5, 15.0f, 0.0f, 0.0f, 0.0f},
+		{"Livestock Corral", "farmstead", "farmstead", 800.0f, 2, 0, 100, 0, 0, 5, 10, 25.0f, 0.0f, 0.0f, 0.0f}
 	};
 	if (type >= BLD_TYPE_COUNT) return kTable[BLD_HOUSE];
 	return kTable[type];
@@ -283,7 +376,28 @@ inline const CivInfo &civ_info(uint8_t civ) {
 		 1.0f, 1.15f, 1.20f, 1.0f, 1.20f},
 		{CIV_MACEDONIANS, "mace", "Macedonians", "res://assets/textures/ui/emblems/spartans.png",
 		 "Sarissa Phalanx & Companion Cavalry: Extended spear attack reach and rapid cavalry shock charges.",
-		 1.0f, 1.20f, 1.10f, 1.0f, 1.0f}
+		 1.0f, 1.20f, 1.10f, 1.0f, 1.0f},
+		{CIV_BRITONS, "brit", "Britons", "res://assets/textures/ui/emblems/athenians.png",
+		 "Celtic Chariot Raiders & War Dogs: Fast hit-and-run chariot raiders, ferocious war hounds, and rotary mills.",
+		 1.0f, 1.15f, 1.10f, 1.10f, 1.0f},
+		{CIV_GAULS, "gaul", "Gauls", "res://assets/textures/ui/emblems/spartans.png",
+		 "Carnyx Horn Morale Aura & Fanatical Champions: Morale-boosting war horns and fearless Celtic broadsword champions.",
+		 1.10f, 1.20f, 1.15f, 1.0f, 1.0f},
+		{CIV_IBERIANS, "iber", "Iberians", "res://assets/textures/ui/emblems/athenians.png",
+		 "Devotio Bodyguard Vow & Balearic Slingers: Elite Balearic mercenary slingers, rapid fire cavalry, and +20% mining rate.",
+		 1.20f, 1.10f, 1.10f, 1.20f, 1.0f},
+		{CIV_MAURYANS, "maur", "Mauryans", "res://assets/textures/ui/emblems/persians.png",
+		 "Worker Elephants & Archer Maidens: High economic stamina, worker elephants for construction/gathering, and Ashoka Pillars.",
+		 1.10f, 1.05f, 1.25f, 1.25f, 1.15f},
+		{CIV_KUSHITES, "kush", "Kushites", "res://assets/textures/ui/emblems/athenians.png",
+		 "Bleeding & Poison Arrows: Nubian archers with venomous arrows, Blemmye mercenaries, and monumental pyramid shrines.",
+		 1.0f, 1.10f, 1.15f, 1.15f, 1.10f},
+		{CIV_PTOLEMIES, "ptol", "Ptolemies", "res://assets/textures/ui/emblems/spartans.png",
+		 "Mercenary Camps & Library of Alexandria: Hellenistic-Egyptian synthesis, camel raiders, and +30% trade gain.",
+		 1.10f, 1.10f, 1.10f, 1.15f, 1.30f},
+		{CIV_SELEUCIDS, "sele", "Seleucids", "res://assets/textures/ui/emblems/romans.png",
+		 "Argyraspides Silver Shields & Scythed Chariots: Heavy cataphract shock cavalry, silver shield pikemen, and scythed chariots.",
+		 1.10f, 1.25f, 1.20f, 1.0f, 1.15f}
 	};
 	if (civ >= CIV_COUNT) return kTable[CIV_ATHENIANS];
 	return kTable[civ];
@@ -302,7 +416,8 @@ enum FaunaBehavior : uint8_t {
 	FAUNA_FLEE       = 1,
 	FAUNA_ATTACK     = 2,
 	FAUNA_HERDED     = 3,
-	FAUNA_CARCASS    = 4
+	FAUNA_CARCASS    = 4,
+	FAUNA_CORRALLED  = 5
 };
 
 struct FaunaTypeInfo {
@@ -315,15 +430,16 @@ struct FaunaTypeInfo {
 	float attack_damage;
 	float attack_cooldown;
 	bool is_predator;
+	bool is_domestic;
 };
 
 inline const FaunaTypeInfo &fauna_type_info(uint8_t ftype) {
 	static const FaunaTypeInfo kTable[FAUNA_COUNT] = {
-		// name, model, hp, speed, food, agro, dmg, cd, predator
-		{"Red Deer", "villager", 45.0f, 4.5f, 150, 12.0f, 0.0f, 1.0f, false},
-		{"Wild Boar", "cavalry", 120.0f, 3.8f, 300, 8.0f, 12.0f, 1.2f, true},
-		{"Mountain Sheep", "villager", 35.0f, 2.5f, 100, 10.0f, 0.0f, 1.0f, false},
-		{"Gray Wolf", "swordsman", 80.0f, 4.8f, 200, 10.0f, 10.0f, 1.0f, true}
+		// name, model, hp, speed, food, agro, dmg, cd, predator, domestic
+		{"Red Deer", "villager", 45.0f, 4.5f, 150, 12.0f, 0.0f, 1.0f, false, false},
+		{"Wild Boar", "cavalry", 120.0f, 3.8f, 300, 8.0f, 12.0f, 1.2f, true, false},
+		{"Mountain Sheep", "villager", 35.0f, 2.5f, 100, 10.0f, 0.0f, 1.0f, false, true},
+		{"Gray Wolf", "swordsman", 80.0f, 4.8f, 200, 10.0f, 10.0f, 1.0f, true, false}
 	};
 	if (ftype >= FAUNA_COUNT) return kTable[FAUNA_DEER];
 	return kTable[ftype];

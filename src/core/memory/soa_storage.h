@@ -26,6 +26,8 @@ struct UnitSoA {
 	float *vel_z = nullptr;
 	float *target_x = nullptr;
 	float *target_z = nullptr;
+	float *anchor_x = nullptr;
+	float *anchor_z = nullptr;
 	uint8_t *has_order = nullptr;
 	uint8_t *alive = nullptr;
 
@@ -52,6 +54,12 @@ struct UnitSoA {
 	uint8_t *formation = nullptr; // 0=None, 1=Line, 2=Box, 3=Column, etc.
 	uint16_t *kills = nullptr; // Total unit combat kills (Promotion.js)
 	uint8_t *rank = nullptr; // 1=Basic, 2=Advanced (★), 3=Elite (★★)
+	uint8_t *status_effects = nullptr; // Bitfield of StatusEffect
+	float *poison_timer = nullptr;
+	float *snare_timer = nullptr;
+	float *knockback_timer = nullptr;
+	float *knockback_dir_x = nullptr;
+	float *knockback_dir_z = nullptr;
 
 	size_t cap = 0;
 	size_t count = 0;
@@ -60,13 +68,15 @@ struct UnitSoA {
 	void free_all() {
 		#define FREE(p) if(p){ free(p); p=nullptr; }
 		FREE(pos_x); FREE(pos_z); FREE(vel_x); FREE(vel_z);
-		FREE(target_x); FREE(target_z); FREE(has_order); FREE(alive);
+		FREE(target_x); FREE(target_z); FREE(anchor_x); FREE(anchor_z); FREE(has_order); FREE(alive);
 		FREE(hp); FREE(max_hp); FREE(id); FREE(team);
 		FREE(unit_type); FREE(action_state); FREE(res_type_carried);
 		FREE(carry); FREE(carry_capacity); FREE(speed);
 		FREE(attack_timer); FREE(attack_range); FREE(attack_damage); FREE(attack_cooldown);
 		FREE(death_timer); FREE(target_unit_id); FREE(target_resource_id); FREE(target_building_id);
 		FREE(stance); FREE(formation); FREE(kills); FREE(rank);
+		FREE(status_effects); FREE(poison_timer); FREE(snare_timer); FREE(knockback_timer);
+		FREE(knockback_dir_x); FREE(knockback_dir_z);
 		#undef FREE
 		cap = count = 0;
 	}
@@ -91,6 +101,8 @@ struct UnitSoA {
 		realloc_aligned(vel_z, c * sizeof(float));
 		realloc_aligned(target_x, c * sizeof(float));
 		realloc_aligned(target_z, c * sizeof(float));
+		realloc_aligned(anchor_x, c * sizeof(float));
+		realloc_aligned(anchor_z, c * sizeof(float));
 		realloc_aligned(has_order, c * sizeof(uint8_t));
 		realloc_aligned(alive, c * sizeof(uint8_t));
 		realloc_aligned(hp, c * sizeof(float));
@@ -115,6 +127,12 @@ struct UnitSoA {
 		realloc_aligned(formation, c * sizeof(uint8_t));
 		realloc_aligned(kills, c * sizeof(uint16_t));
 		realloc_aligned(rank, c * sizeof(uint8_t));
+		realloc_aligned(status_effects, c * sizeof(uint8_t));
+		realloc_aligned(poison_timer, c * sizeof(float));
+		realloc_aligned(snare_timer, c * sizeof(float));
+		realloc_aligned(knockback_timer, c * sizeof(float));
+		realloc_aligned(knockback_dir_x, c * sizeof(float));
+		realloc_aligned(knockback_dir_z, c * sizeof(float));
 		cap = c;
 	}
 
@@ -124,6 +142,7 @@ struct UnitSoA {
 		pos_x[i] = x; pos_z[i] = z;
 		vel_x[i] = vel_z[i] = 0;
 		target_x[i] = x; target_z[i] = z;
+		anchor_x[i] = x; anchor_z[i] = z;
 		has_order[i] = 0; alive[i] = 1;
 		id[i] = uid; team[i] = u_team;
 		unit_type[i] = u_type;
@@ -138,6 +157,12 @@ struct UnitSoA {
 		formation[i] = FORMATION_NONE;
 		kills[i] = 0;
 		rank[i] = 1;
+		status_effects[i] = EFFECT_NONE;
+		poison_timer[i] = 0.0f;
+		snare_timer[i] = 0.0f;
+		knockback_timer[i] = 0.0f;
+		knockback_dir_x[i] = 0.0f;
+		knockback_dir_z[i] = 0.0f;
 		hp[i] = max_hp[i] = info.hp;
 		attack_range[i] = info.attack_range;
 		attack_damage[i] = info.attack_damage;
@@ -153,6 +178,7 @@ struct UnitSoA {
 			pos_x[idx] = pos_x[last]; pos_z[idx] = pos_z[last];
 			vel_x[idx] = vel_x[last]; vel_z[idx] = vel_z[last];
 			target_x[idx] = target_x[last]; target_z[idx] = target_z[last];
+			anchor_x[idx] = anchor_x[last]; anchor_z[idx] = anchor_z[last];
 			has_order[idx] = has_order[last]; alive[idx] = alive[last];
 			hp[idx] = hp[last]; max_hp[idx] = max_hp[last];
 			id[idx] = id[last]; team[idx] = team[last];
@@ -170,6 +196,12 @@ struct UnitSoA {
 			formation[idx] = formation[last];
 			kills[idx] = kills[last];
 			rank[idx] = rank[last];
+			status_effects[idx] = status_effects[last];
+			poison_timer[idx] = poison_timer[last];
+			snare_timer[idx] = snare_timer[last];
+			knockback_timer[idx] = knockback_timer[last];
+			knockback_dir_x[idx] = knockback_dir_x[last];
+			knockback_dir_z[idx] = knockback_dir_z[last];
 		}
 		count--;
 	}

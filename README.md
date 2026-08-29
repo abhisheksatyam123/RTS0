@@ -34,44 +34,49 @@ See **`docs/BUILD.md`** — export presets for Windows/Linux/Android/iOS, `tools
 
 **Current status & priorities: see `docs/NEXT_STEPS.md`.**
 
-## Architecture — mirrors 0 A.D. (`../0ad/source/...`)
+## Architecture
 
 ```
 src/
-  Main.cs                    Glue: input gestures -> serializable commands -> GameSim; fixed-step loop
-  App/
-    CameraRig.cs             RTS camera rig (thronefall: soft shadows, pastel sky)
-    SelectionRect.cs         Drag-selection rectangle (Control._Draw)
-  Core/
-    Maths/                   Deterministic math — ported from 0 A.D.
-      Fixed.cs               source/maths/Fixed.h          (CFixed_15_16, 15.16)
-      FixedVector2D.cs       source/maths/FixedVector2D.h
-      Sqrt.cs                source/maths/Sqrt.cpp (isqrt64)
-      Grid.cs                source/simulation2/helpers/Grid.h (Grid/SparseGrid)
-    Pathfinding/             Ported from simulation2/helpers/
-      PathGoal.cs            PathGoal.h — point/circle/square goals
-      HierarchicalPathfinder.cs  HierarchicalPathfinder.h/.cpp — chunk regions + MakeGoalReachable
-      LongPathfinder.cs      LongPathfinder.cpp — A* 8-dir (10/14), PriorityQueue, Deterministic
-    Simulation/              Deterministic sim (no Godot Nodes) — host-authoritative now, lockstep-ready
-      SimTypes.cs            SimUnit/SimBuilding/SimResource + Team enum (helpers/Position.h)
-      GameSim.cs             simulation2/Simulation2.cpp + TurnManager — tick, spatial hash, waves
-      Commands.cs            helpers/SimulationCommand.h — binary serializable Move/Build/Gather/Attack
-      Components/
-        UnitAI.cs            mods/public/simulation/components/UnitAI.js (6652 lines → condensed FSM, stances)
-        Health.cs            Health.js — Hp/regen, TakeDamage
-        Attack.cs            Attack.js — damage types, range, bonuses
-        ResourceSupply.cs    ResourceSupply.js — amount / Infinite
-        ResourceGatherer.cs  ResourceGatherer.js — rates/capacities/Carry
-        Obstruction.cs       CCmpObstruction — grid footprint blocking
-  Presentation/              Visual only — never writes sim state (ICmpVisual rule)
-    WorldView.cs             Reads sim only; dual MultiMesh (player blue / enemy red) + resource visuals
+  register_types.h / .cpp       GDExtension module entry point & class registration
+  simulation/
+    simulation.h / .cpp         Deterministic SoA simulation (units, combat, gathering, formations, FoW)
+    sim_types.h                 Sim types, enums (Civs, Biomes, Units, Buildings), stats tables
+  presentation/
+    main_node.h / .cpp          UI menus, HUD, game orchestration, command dispatch, audio
+    world_view_node.h / .cpp    MultiMesh 3D rendering (units, buildings, resources, health bars)
+    camera_rig.h / .cpp         RTS camera rig (pan, zoom, rotate, terrain raycast)
+    minimap_view.h / .cpp       Interactive 2D minimap with FoW shroud & frustum overlay
+    debug_overlay.h / .cpp      In-game performance metrics and unit/fps counters
+    selection_rect.h / .cpp     2D box selection marquee
+    sim_node.h / .cpp           Node wrapping deterministic simulation ticks
+  animation/
+    animation_controller.h/.cpp Skeletal / clip animation manager
+    psa_loader.h / .cpp         0 A.D. PSA animation format loader
+    skeleton.h / .cpp           Skeleton bone hierarchy & transforms
+  graphics/assets/
+    model_library.h / .cpp      Mesh library & GLB/procedural asset caching
+    assets.h / .cpp             Texture and resource loading utilities
+    procedural.h / .cpp         Procedural unit/building geometry generators
+  network/
+    turn_manager.h / .cpp       Deterministic lockstep turn manager & replay recording
+    net_host.h / .cpp           ENet networking host wrapper
+    net_types.h                 Network packet and peer structures
+  core/
+    job_system.h / .cpp         Multi-threaded worker pool
+    memory/soa_storage.h        Structure-of-Arrays columnar unit storage
+    memory/arena.h              Frame and tick linear arena allocators
+    memory/pool.h               Fixed-size object pools
+    diagnostics/logger.h/.cpp   Diagnostics file/console logger
+    diagnostics/perf_tracker.*  Performance profiler and tick timers
+  0ad/                          Vendored 0 A.D. C++ reference code
 scenes/
-  main.tscn                  Root node only (res://src/Main.cs); everything constructed in code
-RTS0.csproj/.sln
+  main.tscn                     Root scene (res://scenes/main.tscn)
+rts0.gdextension                Godot 4.3 GDExtension configuration
 docs/
-  0AD_PORTING.md             What was copied from ../0ad and why
-  MULTIPLAYER.md             Host-authoritative model, platform matrix
-  PERFORMANCE.md             Multi-core (Parallel.For) + GPU (MultiMesh, compute) plan
+  0AD_PORTING.md                Porting notes from 0 A.D.
+  MULTIPLAYER.md                Lockstep model and platform matrix
+  PERFORMANCE.md                SoA, multi-threading, and MultiMesh rendering
   BUILD.md / NEXT_STEPS.md
 ```
 

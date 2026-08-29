@@ -1,79 +1,58 @@
 # RTS0 Architecture
 
-Deterministic RTS core (0 A.D. port) + Godot 4.3 presentation, mirroring 0ad folder structure for `diff -u` friendliness.
+Deterministic RTS core + Godot 4.3 presentation built with pure C++20 GDExtension and data-oriented Structure-of-Arrays (SoA) simulation.
 
 ## Layout
 
 ```
 src/
-  Core/
-    Maths/          → source/maths/   (Fixed 15.16, Grid, vectors, matrices, splines)
-      Fixed.cs, FixedVector2D/3D.cs, Sqrt.cs, Grid.cs, MathUtil.cs
-      Vector2D/3D/4D.cs, VectorUtil.cs, Matrix3D.cs, Quaternion.cs
-      Bounds.cs (AABB/OBB/Sphere), Brush.cs, Frustum.cs, Plane.cs, Rect.cs, Size2D.cs
-      Ease.cs, NUSpline.cs, MD5.cs
-    Helpers/
-      Pathfinding/  → helpers/Hierarchical/Long/VertexPathfinder, PathGoal, PriorityQueue
-      Geometry.cs, Rasterize.cs, Los.cs, Selection.cs, CinemaPath.cs, MapEdgeTiles.cs, Render.cs
-      Pathfinding.cs (common), PriorityQueue.cs
-    Simulation/
-      System/       → simulation2/system/ (ComponentManager, ParamNode, Entity, TurnManager, SimContext, Message)
-      Serialization/→ simulation2/serialization/ (ISerializer, StdSerializer, HashSerializer)
-      Components/   → simulation/components/*.js + CCmp* (50+ components)
-        Economy: ResourceSupply, ResourceGatherer, Trader, Market, Cost, ResourceTrickle
-        Combat: Attack, Health, Heal, Loot, Resistance, Capture, etc
-        Movement: Position, UnitMotion, Formation, Pack, Guard
-        Infra: ProductionQueue, Builder, Foundation, Repairable, TechnologyManager, etc
-      GameSim.cs    → Simulation2.cpp + TurnManager + Spatial hash (deterministic 20Hz)
-      SimTypes.cs   → Position.h (entity_pos_t = Fixed)
-      Player.cs     → helpers/Player.h
-      Commands.cs   → SimulationCommand.h
-    Maths, Helpers, Pathfinding all share namespace Rts0.Core for determinism.
-  App/
-    CameraRig.cs, SelectionRect.cs  → input & camera (presentation logic)
-  Presentation/
-    WorldView.cs    → 6× MultiMesh batches + shaders, frustum culling, lerp α
-  GPU/
-    GpuCuller.cs    → Frustum culling (CPU) mirrors graphics/Frustum
-    SeparationCompute.cs + shaders/compute/separation.glsl → GPU SeparationPass (>512 units)
-  Main.cs           → glue: GameSim ↔ WorldView, fixed-step loop, commands
+  register_types.h / .cpp       GDExtension module entry point & class registration
+  simulation/
+    simulation.h / .cpp         Deterministic SoA simulation (units, combat, gathering, formations, FoW)
+    sim_types.h                 Sim types, enums (Civs, Biomes, Units, Buildings), stats tables
+  presentation/
+    main_node.h / .cpp          UI menus, HUD, game orchestration, command dispatch, audio
+    world_view_node.h / .cpp    MultiMesh 3D rendering (units, buildings, resources, health bars)
+    camera_rig.h / .cpp         RTS camera rig (pan, zoom, rotate, terrain raycast)
+    minimap_view.h / .cpp       Interactive 2D minimap with FoW shroud & frustum overlay
+    debug_overlay.h / .cpp      In-game performance metrics and unit/fps counters
+    selection_rect.h / .cpp     2D box selection marquee
+    sim_node.h / .cpp           Node wrapping deterministic simulation ticks
+  animation/
+    animation_controller.h/.cpp Skeletal / clip animation manager
+    psa_loader.h / .cpp         0 A.D. PSA animation format loader
+    skeleton.h / .cpp           Skeleton bone hierarchy & transforms
+  graphics/assets/
+    model_library.h / .cpp      Mesh library & GLB/procedural asset caching
+    assets.h / .cpp             Texture and resource loading utilities
+    procedural.h / .cpp         Procedural unit/building geometry generators
+  network/
+    turn_manager.h / .cpp       Deterministic lockstep turn manager & replay recording
+    net_host.h / .cpp           ENet networking host wrapper
+    net_types.h                 Network packet and peer structures
+  core/
+    job_system.h / .cpp         Multi-threaded worker pool
+    memory/soa_storage.h        Structure-of-Arrays columnar unit storage
+    memory/arena.h              Frame and tick linear arena allocators
+    memory/pool.h               Fixed-size object pools
+    diagnostics/logger.h/.cpp   Diagnostics file/console logger
+    diagnostics/perf_tracker.*  Performance profiler and tick timers
+  0ad/                          Vendored 0 A.D. C++ reference code
 shaders/
-  unit_thronefall.gdshader → flat ramp + outline (INSTANCE_CUSTOM x=team y=hp z=wind)
-  foliage_wind.gdshader     → tree sway (VERTEX wind)
-  terrain.gdshader          → 3-way splat + territory tint + LOS fog
-  compute/separation.glsl   → Vulkan compute for separation
+  unit_thronefall.gdshader      Flat ramp + outline
+  foliage_wind.gdshader         Tree sway (VERTEX wind)
+  terrain.gdshader              3-way splat + territory tint + LOS fog
+  water.gdshader                Water surface shading
 
-scenes/main.tscn  → DirectionalLight3D CSM + WorldEnvironment (SSAO/SSIL/fog) + Main
-scenes/env.tres  → Environment (ambient+SSAO+SSIL+fog)
-assets/           → CC0 pipeline (models/units/buildings/vegetation, textures/noise/terrain_noise.png, materials/thronefall/*.tres, sounds/fonts) — see assets/README.md, fallback to primitives in WorldView
-src/Core/Assets/Assets.cs → runtime loader (ResExists → GD.Load → fallback)
-export_presets.cfg → Windows/Linux/Android/iOS (forward_plus Vulkan)
-tools/build.py    → cross-platform driver (python) + tools/generate_noise.py → assets/textures/noise/terrain_noise.png
+scenes/
+  main.tscn                     Root scene
+  env.tres                      Environment configuration
 ```
 
-## Determinism
+## Performance & Invariants
 
-- Simulation uses **only** `Fixed`/`FixedVector2D/3D`, `Grid<T>`, no `float`/`Random` except render edge (`WorldView.ToFloat()` + `alpha` lerp).
-- `GameSim.FixedStep = 1/20s`, two-phase `Parallel.For` (accumulate → apply) for `SeparationPass`, GPU fallback via `SeparationCompute` when `count>=512` (`src/Core/GPU/SeparationCompute.cs:1`).
-- Managers: `RangeManager` (LOS), `ObstructionManager` (pathfinding raster), `TerritoryManager` (influence), `Pathfinder` (hier+long+vertex).
-- Presentation: 6 GPU batches (player/enemy units + center/house + tree/gold) + terrain plane, `INSTANCE_CUSTOM` for team/hp/wind, frustum cull `src/Core/Maths/Frustum.cs:34`.
+- **Structure-of-Arrays (SoA)**: Entity attributes (positions, velocities, HP, targets, states) are contiguous arrays in memory (`SoAStorage` & `Arena`), maximizing CPU L1/L2 cache hit rates.
+- **Pure C++ GDExtension**: No C# / Mono runtime overhead.
+- **Separation of Sim and Presentation**: Simulation logic never references Godot nodes.
+- **Rendering**: MultiMesh instances render thousands of units in a handful of draw calls.
 
-## 0 A.D. Port Coverage (2026-08-24: 105 C# files + 4 shaders)
-
-GPU: `src/Core/GPU/` + `shaders/*` (Thronefall flat-ramp/outline/wind, terrain splat, compute separation)
-
-## 0 A.D. Port Coverage (2026-08-24: 105 C# files)
-
-- **maths/** 21/21 ported (100% of relevant deterministic maths; lib/ platform code omitted)
-- **helpers/** 12/12 relevant ported (Grid, PathGoal, Hierarchical, Long, Vertex, PriorityQueue, Geometry, Rasterize, Los, Selection, CinemaPath, MapEdgeTiles, Render)
-- **components/** 84 JS + 9 CCmp* → 52 C# grouped files (all gameplay components)
-- **system/** 6/6 core (ParamNode, Entity, ComponentManager, TurnManager, SimContext, Message)
-- **serialization/** 2/2 (StdSerializer, HashSerializer)
-
-See `docs/0AD_PORTING.md` for file-by-file map and `diff -u` usage.
-
-## Build
-
-- `dotnet build RTS0.sln -c ExportRelease` (CI: `csharp-build`)
-- `godot --headless --path . --export-release "Windows Desktop"` etc (CI matrix)
-- Vulkan `forward_plus` (`project.godot:renderer/rendering_method`), `tools/build.py android` → `build/android/RTS0.apk`

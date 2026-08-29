@@ -1,4 +1,5 @@
 #include "simulation.h"
+#include "rms_generator.h"
 #include "../core/job_system.h"
 #include <chrono>
 #include <cmath>
@@ -114,6 +115,22 @@ void Simulation::reset() {
 	memset(fow_grid_, 0, sizeof(fow_grid_));
 	fauna_.count = 0;
 	fauna_id_to_idx_.clear();
+	transport_passengers_.clear();
+
+	// Reset Petra AI State
+	petra_timer_ = 0.0f;
+	petra_econ_timer_ = 0.0f;
+	petra_phase_ = 1;
+	ai_food_ = 400.0f;
+	ai_wood_ = 600.0f;
+	ai_gold_ = 300.0f;
+	ai_stone_ = 200.0f;
+	ai_researched_techs_mask_ = 0;
+	memset(petra_threat_map_.danger, 0, sizeof(petra_threat_map_.danger));
+	memset(petra_threat_map_.enemy_threat, 0, sizeof(petra_threat_map_.enemy_threat));
+	memset(petra_threat_map_.friendly_defense, 0, sizeof(petra_threat_map_.friendly_defense));
+	petra_threat_map_.update_timer = 0.0f;
+	petra_strike_force_ = PetraStrikeForce();
 }
 
 int Simulation::pop_current() const {
@@ -128,6 +145,24 @@ int Simulation::pop_max() const {
 	int cap = 10;
 	for (const auto &b : buildings_) {
 		if (b.team == 0 && b.build_progress >= 1.0f) {
+			cap += building_type_info(b.type).pop_bonus;
+		}
+	}
+	return cap;
+}
+
+int Simulation::ai_pop_current() const {
+	int count = 0;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (units_.team[i] == 1 && (units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED)) count++;
+	}
+	return count;
+}
+
+int Simulation::ai_pop_max() const {
+	int cap = 10;
+	for (const auto &b : buildings_) {
+		if (b.team == 1 && b.build_progress >= 1.0f) {
 			cap += building_type_info(b.type).pop_bonus;
 		}
 	}
@@ -157,13 +192,15 @@ void Simulation::spawn_initial() {
 	spawn_building(-6, 4, BLD_HOUSE, 0, 1.0f);
 	spawn_building(-6, -4, BLD_HOUSE, 0, 1.0f);
 
-	// 3. Initial Units (6 Villagers, 2 Swordsmen, 2 Archers)
-	for (int i = 0; i < 6; ++i) {
-		float a = 6.28318530718f * i / 6.0f;
+	// 3. Initial Units (5 Villagers, 2 Female Citizens, 2 Swordsmen, 2 Archers)
+	for (int i = 0; i < 5; ++i) {
+		float a = 6.28318530718f * i / 5.0f;
 		float x = cosf(a) * 5.0f;
 		float z = sinf(a) * 5.0f + 5.0f;
 		spawn_unit(x, z, 0, UNIT_VILLAGER, 100.0f);
 	}
+	spawn_unit(3.0f, 4.0f, 0, UNIT_FEMALE_CITIZEN, 65.0f);
+	spawn_unit(-3.0f, 4.0f, 0, UNIT_FEMALE_CITIZEN, 65.0f);
 	spawn_unit(9.0f, 2.0f, 0, UNIT_SWORDSMAN, 160.0f);
 	spawn_unit(9.0f, -2.0f, 0, UNIT_SWORDSMAN, 160.0f);
 	spawn_unit(8.0f, 5.0f, 0, UNIT_ARCHER, 90.0f);
@@ -215,6 +252,31 @@ void Simulation::spawn_initial() {
 	spawn_fauna(-27.0f, -22.0f, FAUNA_SHEEP);
 	spawn_fauna(30.0f, 25.0f, FAUNA_WOLF);
 	spawn_fauna(32.0f, 28.0f, FAUNA_WOLF);
+
+	// 7. Enemy Base (Team 1) — Spartan Base for Petra Autonomous AI
+	spawn_building(18, 18, BLD_TOWN_CENTER, 1, 1.0f);
+	spawn_building(15, 17, BLD_BARRACKS, 1, 1.0f);
+	spawn_building(21, 19, BLD_HOUSE, 1, 1.0f);
+	spawn_building(19, 21, BLD_HOUSE, 1, 1.0f);
+	spawn_building(17, 21, BLD_STOREHOUSE, 1, 1.0f);
+
+	for (int i = 0; i < 6; ++i) {
+		float a = 6.28318530718f * i / 6.0f;
+		float x = 37.0f + cosf(a) * 4.0f;
+		float z = 37.0f + sinf(a) * 4.0f;
+		spawn_unit(x, z, 1, UNIT_VILLAGER, 100.0f);
+	}
+	spawn_unit(32.0f, 32.0f, 1, UNIT_SWORDSMAN, 160.0f);
+	spawn_unit(34.0f, 30.0f, 1, UNIT_SPEARMAN, 160.0f);
+	spawn_unit(30.0f, 34.0f, 1, UNIT_ARCHER, 90.0f);
+	spawn_unit(28.0f, 36.0f, 1, UNIT_ARCHER, 90.0f);
+
+	// Dedicated economic resources near AI base
+	spawn_resource(21, 21, RES_WOOD, 1200);
+	spawn_resource(22, 21, RES_WOOD, 1200);
+	spawn_resource(21, 16, RES_GOLD, 1200);
+	spawn_resource(16, 22, RES_STONE, 1200);
+	spawn_resource(15, 15, RES_FOOD, 1000);
 }
 
 void Simulation::spawn_war(int total_units) {
@@ -349,23 +411,38 @@ int32_t Simulation::lookup_unit(uint32_t id) const {
 uint32_t Simulation::spawn_unit(float x, float z, uint8_t team, UnitType u_type, float hp) {
 	uint32_t uid = alloc_id();
 	size_t idx = units_.push(x, z, uid, team, u_type);
-	units_.hp[idx] = units_.max_hp[idx] = hp;
+	const UnitTypeInfo &uinfo = unit_type_info(u_type);
+	if (hp > 0.0f) {
+		units_.hp[idx] = units_.max_hp[idx] = hp;
+	} else {
+		units_.hp[idx] = units_.max_hp[idx] = uinfo.hp;
+	}
 
-	// Apply researched military tech bonuses & Civilization traits to player units
+	// Apply researched military tech bonuses & Civilization traits
+	uint32_t tech_mask = (team == 0) ? researched_techs_mask_ : ai_researched_techs_mask_;
+	Civilization civ = (team < 4) ? player_civ_[team] : CIV_ATHENIANS;
+	const CivInfo &cinfo = civ_info(civ);
+
+	units_.max_hp[idx] *= cinfo.hp_mult;
+	units_.hp[idx] = units_.max_hp[idx];
+
+	if ((tech_mask & (1u << TECH_WEAPONS_1)) != 0) units_.attack_damage[idx] *= 1.20f;
+	if ((tech_mask & (1u << TECH_ARMOR_1)) != 0) {
+		units_.max_hp[idx] += 30.0f;
+		units_.hp[idx] = units_.max_hp[idx];
+	}
+	// Civ bonuses
+	if (civ == CIV_SPARTANS && (u_type == UNIT_SWORDSMAN || u_type == UNIT_SPEARMAN)) {
+		units_.max_hp[idx] *= 1.25f;
+		units_.hp[idx] = units_.max_hp[idx];
+		units_.attack_damage[idx] *= 1.15f;
+	} else if (civ == CIV_PERSIANS && (u_type == UNIT_CAVALRY || u_type == UNIT_CAMEL)) {
+		units_.speed[idx] *= 1.20f;
+	} else if (civ == CIV_BRITONS && (u_type == UNIT_CHARIOT || u_type == UNIT_WAR_DOG)) {
+		units_.speed[idx] *= 1.15f;
+	}
+
 	if (team == 0) {
-		if (is_tech_researched(TECH_WEAPONS_1)) units_.attack_damage[idx] *= 1.20f;
-		if (is_tech_researched(TECH_ARMOR_1)) {
-			units_.max_hp[idx] += 30.0f;
-			units_.hp[idx] = units_.max_hp[idx];
-		}
-		// Civ bonuses
-		if (player_civ_[0] == CIV_SPARTANS && (u_type == UNIT_SWORDSMAN || u_type == UNIT_SPEARMAN)) {
-			units_.max_hp[idx] *= 1.25f;
-			units_.hp[idx] = units_.max_hp[idx];
-			units_.attack_damage[idx] *= 1.15f;
-		} else if (player_civ_[0] == CIV_PERSIANS && u_type == UNIT_CAVALRY) {
-			units_.speed[idx] *= 1.20f;
-		}
 		record_.units_trained++;
 	}
 
@@ -417,6 +494,7 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	b.cell_y = cell_y;
 	b.footprint = footprint;
 	b.attack_timer = 0.0f;
+	b.is_burning = false;
 	b.has_rally_point = false;
 	b.rally_x = wx;
 	b.rally_z = wz + half + 2.0f;
@@ -438,6 +516,27 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 		}
 	}
 	return bid;
+}
+
+uint32_t Simulation::spawn_relic(float x, float z, uint8_t res_type, int amount) {
+	uint32_t rid = alloc_id();
+	relics_.push_back({rid, x, z, res_type, amount, false});
+	return rid;
+}
+
+void Simulation::generate_random_map(MapType type, uint32_t seed, int num_players, float map_half) {
+	RmsGenerator::Config cfg;
+	cfg.map_type = type;
+	cfg.seed = seed;
+	cfg.num_players = num_players;
+	cfg.map_half = map_half;
+	const auto &minfo = map_type_info(type);
+	if (std::strcmp(minfo.biome, "alpine") == 0) cfg.biome = BIOME_ALPINE;
+	else if (std::strcmp(minfo.biome, "oasis") == 0) cfg.biome = BIOME_OASIS;
+	else if (std::strcmp(minfo.biome, "latium") == 0) cfg.biome = BIOME_LATIUM;
+	else cfg.biome = BIOME_AEGEAN;
+
+	RmsGenerator::generate(*this, cfg);
 }
 
 float Simulation::get_terrain_height(float x, float z) const {
@@ -505,6 +604,10 @@ bool Simulation::cmd_train(uint32_t building_id, UnitType u_type) {
 	if (b.team != 0 || b.build_progress < 1.0f) return false;
 	if (b.queue.size() >= 8) return false;
 
+	if (b.type == BLD_CORRAL || u_type == UNIT_TYPE_NONE) {
+		return cmd_breed_livestock(building_id);
+	}
+
 	const UnitTypeInfo &uinfo = unit_type_info(u_type);
 	if (pop_current() >= pop_max()) return false;
 
@@ -534,6 +637,13 @@ bool Simulation::cmd_cancel_train(uint32_t building_id, size_t queue_idx) {
 	if (queue_idx >= b.queue.size()) return false;
 
 	uint8_t utype = b.queue[queue_idx].unit_type;
+	if (utype == UNIT_TYPE_NONE) {
+		food_ += 60;
+		wood_ += 30;
+		b.queue.erase(b.queue.begin() + queue_idx);
+		return true;
+	}
+
 	const UnitTypeInfo &uinfo = unit_type_info(utype);
 	food_ += uinfo.food_cost;
 	wood_ += uinfo.wood_cost;
@@ -657,6 +767,8 @@ void Simulation::cmd_move(const uint32_t *unit_ids, size_t count, float tx, floa
 
 		units_.target_x[idx] = tx + ox;
 		units_.target_z[idx] = tz + oz;
+		units_.anchor_x[idx] = tx + ox;
+		units_.anchor_z[idx] = tz + oz;
 		units_.has_order[idx] = 1;
 		units_.action_state[idx] = ACTION_MOVE;
 		units_.target_resource_id[idx] = 0;
@@ -671,6 +783,8 @@ void Simulation::cmd_stop(const uint32_t *unit_ids, size_t count) {
 		if (idx >= 0 && (size_t)idx < units_.count && units_.alive[idx]) {
 			units_.has_order[idx] = 0;
 			units_.action_state[idx] = ACTION_IDLE;
+			units_.anchor_x[idx] = units_.pos_x[idx];
+			units_.anchor_z[idx] = units_.pos_z[idx];
 			units_.target_resource_id[idx] = 0;
 			units_.target_unit_id[idx] = 0;
 			units_.target_building_id[idx] = 0;
@@ -687,10 +801,12 @@ void Simulation::order_gather(const uint32_t *unit_ids, size_t count, uint32_t r
 
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
-		if (uidx < 0 || units_.team[uidx] != 0 || !units_.alive[uidx]) continue;
+		if (uidx < 0 || !units_.alive[uidx]) continue;
 
 		units_.target_x[uidx] = rx;
 		units_.target_z[uidx] = rz;
+		units_.anchor_x[uidx] = rx;
+		units_.anchor_z[uidx] = rz;
 		units_.has_order[uidx] = 1;
 		units_.action_state[uidx] = ACTION_GATHER;
 		units_.target_resource_id[uidx] = resource_id;
@@ -707,7 +823,7 @@ void Simulation::order_attack(const uint32_t *unit_ids, size_t count, uint32_t t
 
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
-		if (uidx < 0 || units_.team[uidx] != 0 || !units_.alive[uidx]) continue;
+		if (uidx < 0 || !units_.alive[uidx]) continue;
 
 		units_.target_x[uidx] = tx;
 		units_.target_z[uidx] = tz;
@@ -716,6 +832,25 @@ void Simulation::order_attack(const uint32_t *unit_ids, size_t count, uint32_t t
 		units_.target_unit_id[uidx] = target_unit_id;
 		units_.target_resource_id[uidx] = 0;
 		units_.target_building_id[uidx] = 0;
+	}
+}
+
+void Simulation::order_attack_building(const uint32_t *unit_ids, size_t count, uint32_t target_building_id) {
+	auto bit = building_id_to_idx_.find(target_building_id);
+	if (bit == building_id_to_idx_.end()) return;
+	const Building &b = buildings_[bit->second];
+
+	for (size_t i = 0; i < count; ++i) {
+		int32_t uidx = lookup_unit(unit_ids[i]);
+		if (uidx < 0 || !units_.alive[uidx]) continue;
+
+		units_.target_x[uidx] = b.x;
+		units_.target_z[uidx] = b.z;
+		units_.has_order[uidx] = 1;
+		units_.action_state[uidx] = ACTION_ATTACK;
+		units_.target_building_id[uidx] = target_building_id;
+		units_.target_unit_id[uidx] = 0;
+		units_.target_resource_id[uidx] = 0;
 	}
 }
 
@@ -748,7 +883,7 @@ void Simulation::order_build_or_repair(const uint32_t *unit_ids, size_t count, u
 
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
-		if (uidx < 0 || units_.team[uidx] != 0 || units_.unit_type[uidx] != UNIT_VILLAGER || !units_.alive[uidx]) continue;
+		if (uidx < 0 || units_.unit_type[uidx] != UNIT_VILLAGER || !units_.alive[uidx]) continue;
 
 		units_.target_x[uidx] = b.x;
 		units_.target_z[uidx] = b.z;
@@ -838,7 +973,215 @@ void Simulation::order_ungarrison_single(uint32_t building_id, uint32_t unit_id)
 	}
 }
 
-void Simulation::fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id) {
+void Simulation::order_herd(const uint32_t *unit_ids, size_t count, uint32_t fauna_id) {
+	auto it = fauna_id_to_idx_.find(fauna_id);
+	if (it == fauna_id_to_idx_.end()) return;
+	size_t fidx = it->second;
+	if (!fauna_.alive[fidx]) return;
+
+	const auto &info = fauna_type_info(fauna_.fauna_type[fidx]);
+	if (!info.is_domestic) {
+		order_hunt(unit_ids, count, fauna_id);
+		return;
+	}
+
+	fauna_.behavior[fidx] = FAUNA_HERDED;
+	fauna_.target_unit_id[fidx] = count > 0 ? unit_ids[0] : 0;
+
+	for (size_t k = 0; k < count; ++k) {
+		int32_t uidx = lookup_unit(unit_ids[k]);
+		if (uidx < 0 || !units_.alive[uidx] || units_.unit_type[uidx] != UNIT_VILLAGER) continue;
+		units_.action_state[uidx] = ACTION_MOVE;
+		units_.has_order[uidx] = 1;
+		units_.target_unit_id[uidx] = fauna_id;
+		units_.target_x[uidx] = fauna_.pos_x[fidx];
+		units_.target_z[uidx] = fauna_.pos_z[fidx];
+	}
+}
+
+bool Simulation::cmd_breed_livestock(uint32_t building_id) {
+	auto bit = building_id_to_idx_.find(building_id);
+	if (bit == building_id_to_idx_.end()) return false;
+	Building &b = buildings_[bit->second];
+	if (b.team != 0 || b.build_progress < 1.0f || b.type != BLD_CORRAL) return false;
+	if (b.queue.size() >= 8) return false;
+	if (food_ < 60 || wood_ < 30) return false;
+
+	food_ -= 60;
+	wood_ -= 30;
+	b.queue.push_back({(uint8_t)UNIT_TYPE_NONE, 0.0f, 15.0f});
+	return true;
+}
+
+bool Simulation::is_transport(uint32_t unit_id) const {
+	int32_t idx = lookup_unit(unit_id);
+	if (idx < 0 || !units_.alive[idx]) return false;
+	return units_.unit_type[idx] == UNIT_TRIREME;
+}
+
+const std::vector<uint32_t> *Simulation::get_transport_passengers(uint32_t transport_id) const {
+	auto it = transport_passengers_.find(transport_id);
+	if (it != transport_passengers_.end()) return &it->second;
+	return nullptr;
+}
+
+size_t Simulation::get_transport_passenger_count(uint32_t transport_id) const {
+	auto it = transport_passengers_.find(transport_id);
+	if (it != transport_passengers_.end()) return it->second.size();
+	return 0;
+}
+
+void Simulation::order_board_transport(const uint32_t *unit_ids, size_t count, uint32_t transport_id) {
+	int32_t tidx = lookup_unit(transport_id);
+	if (tidx < 0 || !units_.alive[tidx] || units_.unit_type[tidx] != UNIT_TRIREME) return;
+	float tx = units_.pos_x[tidx];
+	float tz = units_.pos_z[tidx];
+	uint8_t team = units_.team[tidx];
+
+	auto &passengers = transport_passengers_[transport_id];
+
+	for (size_t i = 0; i < count; ++i) {
+		if ((int)passengers.size() >= TRANSPORT_CAPACITY) break;
+		int32_t uidx = lookup_unit(unit_ids[i]);
+		if (uidx < 0 || !units_.alive[uidx] || units_.team[uidx] != team) continue;
+		if (units_.unit_type[uidx] == UNIT_TRIREME) continue;
+
+		float dx = units_.pos_x[uidx] - tx;
+		float dz = units_.pos_z[uidx] - tz;
+		float d2 = dx * dx + dz * dz;
+
+		if (d2 <= 4.5f * 4.5f) {
+			units_.action_state[uidx] = ACTION_GARRISONED;
+			units_.alive[uidx] = 0;
+			units_.has_order[uidx] = 0;
+			passengers.push_back(unit_ids[i]);
+		} else {
+			units_.action_state[uidx] = ACTION_MOVE;
+			units_.has_order[uidx] = 1;
+			units_.target_unit_id[uidx] = transport_id;
+			units_.target_x[uidx] = tx;
+			units_.target_z[uidx] = tz;
+		}
+	}
+}
+
+void Simulation::order_disembark(uint32_t transport_id, float target_x, float target_z) {
+	int32_t tidx = lookup_unit(transport_id);
+	if (tidx < 0 || units_.unit_type[tidx] != UNIT_TRIREME) return;
+
+	auto pit = transport_passengers_.find(transport_id);
+	if (pit == transport_passengers_.end() || pit->second.empty()) return;
+	auto &passengers = pit->second;
+
+	float tx = units_.pos_x[tidx];
+	float tz = units_.pos_z[tidx];
+	float dist_to_target = std::hypot(tx - target_x, tz - target_z);
+
+	if (dist_to_target > 6.0f) {
+		units_.target_x[tidx] = target_x;
+		units_.target_z[tidx] = target_z;
+		units_.has_order[tidx] = 1;
+		units_.action_state[tidx] = ACTION_MOVE;
+		return;
+	}
+
+	float land_x = target_x;
+	float land_z = target_z;
+	bool found_land = false;
+
+	for (float r = 0.0f; r <= 8.0f && !found_land; r += 1.5f) {
+		for (int a = 0; a < 8; ++a) {
+			float ang = a * 0.785398f;
+			float cx = target_x + cosf(ang) * r;
+			float cz = target_z + sinf(ang) * r;
+			if (std::abs(cx) >= map_half_ - 2.0f || std::abs(cz) >= map_half_ - 2.0f) continue;
+			if (get_terrain_height(cx, cz) >= terrain_water_height_ + 0.15f) {
+				land_x = cx;
+				land_z = cz;
+				found_land = true;
+				break;
+			}
+		}
+	}
+
+	if (!found_land) {
+		for (float r = 1.0f; r <= 8.0f && !found_land; r += 1.5f) {
+			for (int a = 0; a < 8; ++a) {
+				float ang = a * 0.785398f;
+				float cx = tx + cosf(ang) * r;
+				float cz = tz + sinf(ang) * r;
+				if (std::abs(cx) >= map_half_ - 2.0f || std::abs(cz) >= map_half_ - 2.0f) continue;
+				if (get_terrain_height(cx, cz) >= terrain_water_height_ + 0.15f) {
+					land_x = cx;
+					land_z = cz;
+					found_land = true;
+					break;
+				}
+			}
+		}
+	}
+
+	if (!found_land) {
+		land_x = target_x;
+		land_z = target_z;
+	}
+
+	float angle_step = 6.2831853f / std::max(1, (int)passengers.size());
+	int k = 0;
+	for (uint32_t uid : passengers) {
+		int32_t idx = lookup_unit(uid);
+		if (idx >= 0) {
+			float a = angle_step * k++;
+			units_.pos_x[idx] = land_x + cosf(a) * 1.5f;
+			units_.pos_z[idx] = land_z + sinf(a) * 1.5f;
+			units_.alive[idx] = 1;
+			units_.action_state[idx] = ACTION_IDLE;
+			units_.has_order[idx] = 0;
+		}
+	}
+	passengers.clear();
+}
+
+void Simulation::order_disembark_all(uint32_t transport_id) {
+	int32_t tidx = lookup_unit(transport_id);
+	if (tidx < 0) return;
+	order_disembark(transport_id, units_.pos_x[tidx], units_.pos_z[tidx]);
+}
+
+void Simulation::order_disembark_single(uint32_t transport_id, uint32_t unit_id) {
+	int32_t tidx = lookup_unit(transport_id);
+	if (tidx < 0) return;
+	auto pit = transport_passengers_.find(transport_id);
+	if (pit == transport_passengers_.end()) return;
+	auto it = std::find(pit->second.begin(), pit->second.end(), unit_id);
+	if (it != pit->second.end()) {
+		int32_t idx = lookup_unit(unit_id);
+		if (idx >= 0) {
+			float tx = units_.pos_x[tidx];
+			float tz = units_.pos_z[tidx];
+			float land_x = tx + 2.0f;
+			float land_z = tz;
+			for (float r = 1.0f; r <= 6.0f; r += 1.5f) {
+				for (int a = 0; a < 8; ++a) {
+					float ang = a * 0.785398f;
+					float cx = tx + cosf(ang) * r;
+					float cz = tz + sinf(ang) * r;
+					if (get_terrain_height(cx, cz) >= terrain_water_height_ + 0.15f) {
+						land_x = cx; land_z = cz; break;
+					}
+				}
+			}
+			units_.pos_x[idx] = land_x;
+			units_.pos_z[idx] = land_z;
+			units_.alive[idx] = 1;
+			units_.action_state[idx] = ACTION_IDLE;
+			units_.has_order[idx] = 0;
+		}
+		pit->second.erase(it);
+	}
+}
+
+void Simulation::fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect, uint8_t dmg_type) {
 	if (projectiles_.size() >= MAX_PROJECTILES) return;
 	Projectile p;
 	p.id = alloc_id();
@@ -849,6 +1192,8 @@ void Simulation::fire_arrow(float sx, float sy, float sz, float tx, float ty, fl
 	p.speed = 26.0f;
 	p.arc_height = 2.4f;
 	p.damage = damage;
+	p.damage_type = dmg_type;
+	p.status_effect = effect;
 	p.team = team;
 	p.target_unit_id = target_id;
 	p.alive = true;
@@ -865,6 +1210,7 @@ void Simulation::tick(float dt) {
 	separation(dt, arena);
 	tick_gather(dt);
 	tick_combat(dt);
+	tick_status_effects(dt);
 	tick_construction(dt);
 	tick_production(dt);
 	tick_projectiles(dt);
@@ -975,6 +1321,10 @@ void Simulation::move_units(float dt, Arena &arena) {
 
 		if (!has[i]) {
 			vx[i] = vz[i] = 0;
+			if (units_.status_effects[i] & EFFECT_KNOCKBACK) {
+				npx[i] = std::clamp(px[i] + units_.knockback_dir_x[i] * 14.0f * dt, -map_half_, map_half_);
+				npz[i] = std::clamp(pz[i] + units_.knockback_dir_z[i] * 14.0f * dt, -map_half_, map_half_);
+			}
 			return;
 		}
 
@@ -1024,14 +1374,59 @@ void Simulation::move_units(float dt, Arena &arena) {
 		float ux = dx * inv;
 		float uz = dz * inv;
 		float spd = units_.speed[i];
-		npx[i] = std::clamp(px[i] + ux * spd * dt, -map_half_, map_half_);
-		npz[i] = std::clamp(pz[i] + uz * spd * dt, -map_half_, map_half_);
+		if (units_.status_effects[i] & EFFECT_SNARE) {
+			spd *= 0.65f; // Snare 35% speed penalty (0 A.D. cavalry snare)
+		}
+		float move_dx = ux * spd * dt;
+		float move_dz = uz * spd * dt;
+		if (units_.status_effects[i] & EFFECT_KNOCKBACK) {
+			move_dx += units_.knockback_dir_x[i] * 14.0f * dt;
+			move_dz += units_.knockback_dir_z[i] * 14.0f * dt;
+		}
+		npx[i] = std::clamp(px[i] + move_dx, -map_half_, map_half_);
+		npz[i] = std::clamp(pz[i] + move_dz, -map_half_, map_half_);
 		vx[i] = ux * spd;
 		vz[i] = uz * spd;
 	});
 
 	memcpy(px, npx, n * sizeof(float));
 	memcpy(pz, npz, n * sizeof(float));
+
+	// Naval Transport Boarding & Moving Passenger Position Synchronization
+	for (size_t i = 0; i < n; ++i) {
+		if (!units_.alive[i] || units_.unit_type[i] == UNIT_TRIREME) continue;
+		if (units_.action_state[i] == ACTION_MOVE && units_.target_unit_id[i] != 0) {
+			int32_t tidx = lookup_unit(units_.target_unit_id[i]);
+			if (tidx >= 0 && units_.alive[tidx] && units_.unit_type[tidx] == UNIT_TRIREME && units_.team[tidx] == units_.team[i]) {
+				float dx = px[i] - px[tidx];
+				float dz = pz[i] - pz[tidx];
+				if (dx * dx + dz * dz <= 4.5f * 4.5f) {
+					auto &passengers = transport_passengers_[units_.id[tidx]];
+					if (passengers.size() < TRANSPORT_CAPACITY) {
+						units_.action_state[i] = ACTION_GARRISONED;
+						units_.alive[i] = 0;
+						units_.has_order[i] = 0;
+						passengers.push_back(units_.id[i]);
+					}
+				}
+			}
+		}
+	}
+
+	for (const auto &kv : transport_passengers_) {
+		int32_t tidx = lookup_unit(kv.first);
+		if (tidx >= 0 && units_.alive[tidx]) {
+			float tx = px[tidx];
+			float tz = pz[tidx];
+			for (uint32_t puid : kv.second) {
+				int32_t pidx = lookup_unit(puid);
+				if (pidx >= 0) {
+					px[pidx] = tx;
+					pz[pidx] = tz;
+				}
+			}
+		}
+	}
 }
 
 void Simulation::separation(float dt, Arena &arena) {
@@ -1151,7 +1546,12 @@ void Simulation::separation(float dt, Arena &arena) {
 void Simulation::tick_gather(float dt) {
 	const size_t n = units_.count;
 	for (size_t i = 0; i < n; ++i) {
-		if (!units_.alive[i] || units_.team[i] != 0 || units_.unit_type[i] != UNIT_VILLAGER) continue;
+		bool is_gatherer = (units_.unit_type[i] == UNIT_VILLAGER ||
+		                    units_.unit_type[i] == UNIT_FEMALE_CITIZEN ||
+		                    units_.unit_type[i] == UNIT_WORKER_ELEPHANT ||
+		                    units_.unit_type[i] == UNIT_FISHING_BOAT);
+		if (!units_.alive[i] || !is_gatherer) continue;
+		uint8_t uteam = units_.team[i];
 
 		// 1. Returning to dropsite
 		if (units_.carry[i] >= units_.carry_capacity[i] || units_.action_state[i] == ACTION_RETURN_DROPSITE) {
@@ -1160,11 +1560,12 @@ void Simulation::tick_gather(float dt) {
 			bool found_dropsite = false;
 
 			for (const auto &b : buildings_) {
-				if (b.team != 0 || b.build_progress < 1.0f) continue;
+				if (b.team != uteam || b.build_progress < 1.0f) continue;
 				bool valid_drop = false;
 				if (b.type == BLD_TOWN_CENTER) valid_drop = true;
 				else if (b.type == BLD_STOREHOUSE && (units_.res_type_carried[i] != RES_FOOD)) valid_drop = true;
 				else if (b.type == BLD_FARMSTEAD && (units_.res_type_carried[i] == RES_FOOD)) valid_drop = true;
+				else if (b.type == BLD_DOCK && (units_.unit_type[i] == UNIT_FISHING_BOAT || units_.res_type_carried[i] == RES_FOOD)) valid_drop = true;
 
 				if (valid_drop) {
 					float dx = units_.pos_x[i] - b.x;
@@ -1183,10 +1584,17 @@ void Simulation::tick_gather(float dt) {
 				float dz = units_.pos_z[i] - drop_z;
 				if (dx * dx + dz * dz < 2.5f * 2.5f) {
 					int amt = units_.carry[i];
-					if (units_.res_type_carried[i] == RES_WOOD) { wood_ += amt; wood_gathered_window_ += amt; record_.total_wood_gathered += amt; }
-					else if (units_.res_type_carried[i] == RES_GOLD) { gold_ += amt; gold_gathered_window_ += amt; record_.total_gold_gathered += amt; }
-					else if (units_.res_type_carried[i] == RES_STONE) { stone_ += amt; stone_gathered_window_ += amt; record_.total_stone_gathered += amt; }
-					else if (units_.res_type_carried[i] == RES_FOOD) { food_ += amt; food_gathered_window_ += amt; record_.total_food_gathered += amt; }
+					if (uteam == 0) {
+						if (units_.res_type_carried[i] == RES_WOOD) { wood_ += amt; wood_gathered_window_ += amt; record_.total_wood_gathered += amt; }
+						else if (units_.res_type_carried[i] == RES_GOLD) { gold_ += amt; gold_gathered_window_ += amt; record_.total_gold_gathered += amt; }
+						else if (units_.res_type_carried[i] == RES_STONE) { stone_ += amt; stone_gathered_window_ += amt; record_.total_stone_gathered += amt; }
+						else if (units_.res_type_carried[i] == RES_FOOD) { food_ += amt; food_gathered_window_ += amt; record_.total_food_gathered += amt; }
+					} else {
+						if (units_.res_type_carried[i] == RES_WOOD) ai_wood_ = std::min(9999.0f, ai_wood_ + amt);
+						else if (units_.res_type_carried[i] == RES_GOLD) ai_gold_ = std::min(9999.0f, ai_gold_ + amt);
+						else if (units_.res_type_carried[i] == RES_STONE) ai_stone_ = std::min(9999.0f, ai_stone_ + amt);
+						else if (units_.res_type_carried[i] == RES_FOOD) ai_food_ = std::min(9999.0f, ai_food_ + amt);
+					}
 
 					units_.carry[i] = 0;
 					units_.action_state[i] = ACTION_GATHER;
@@ -1220,16 +1628,50 @@ void Simulation::tick_gather(float dt) {
 			size_t ridx = rit->second;
 			float dx = units_.pos_x[i] - resources_.x[ridx];
 			float dz = units_.pos_z[i] - resources_.z[ridx];
-			if (dx * dx + dz * dz < 2.2f * 2.2f) {
+			if (dx * dx + dz * dz < 2.5f * 2.5f) {
 				units_.attack_timer[i] += dt;
 				float harvest_rate = 0.75f;
-				if (is_tech_researched(TECH_FARMING_1) && resources_.type[ridx] == RES_FOOD) harvest_rate = 0.55f;
-				if (is_tech_researched(TECH_WOODCUTTING_1) && resources_.type[ridx] == RES_WOOD) harvest_rate = 0.55f;
-				if (is_tech_researched(TECH_MINING_1) && (resources_.type[ridx] == RES_GOLD || resources_.type[ridx] == RES_STONE)) harvest_rate = 0.55f;
+				if (uteam == 0) {
+					if (is_tech_researched(TECH_FARMING_1) && resources_.type[ridx] == RES_FOOD) harvest_rate = 0.55f;
+					if (is_tech_researched(TECH_WOODCUTTING_1) && resources_.type[ridx] == RES_WOOD) harvest_rate = 0.55f;
+					if (is_tech_researched(TECH_MINING_1) && (resources_.type[ridx] == RES_GOLD || resources_.type[ridx] == RES_STONE)) harvest_rate = 0.55f;
 
-				// Civ gathering bonuses
-				if (player_civ_[0] == CIV_ATHENIANS && resources_.type[ridx] == RES_WOOD) harvest_rate *= 0.80f;
-				if (player_civ_[0] == CIV_CARTHAGINIANS && resources_.type[ridx] == RES_GOLD) harvest_rate *= 0.75f;
+					Civilization civ = (uteam < 4) ? player_civ_[uteam] : CIV_ATHENIANS;
+					if ((resources_.type[ridx] == RES_GOLD || resources_.type[ridx] == RES_STONE) && civ_info(civ).metal_gather_mult > 1.0f) {
+						harvest_rate /= civ_info(civ).metal_gather_mult;
+					}
+				} else {
+					if ((ai_researched_techs_mask_ & (1u << TECH_FARMING_1)) && resources_.type[ridx] == RES_FOOD) harvest_rate = 0.55f;
+					if ((ai_researched_techs_mask_ & (1u << TECH_WOODCUTTING_1)) && resources_.type[ridx] == RES_WOOD) harvest_rate = 0.55f;
+					if ((ai_researched_techs_mask_ & (1u << TECH_MINING_1)) && (resources_.type[ridx] == RES_GOLD || resources_.type[ridx] == RES_STONE)) harvest_rate = 0.55f;
+				}
+
+				// Female Citizen gathering bonus (+25% Food gather speed)
+				if (units_.unit_type[i] == UNIT_FEMALE_CITIZEN && resources_.type[ridx] == RES_FOOD) {
+					harvest_rate *= 0.75f;
+				}
+
+				// Female Citizen Economic Inspiration Aura: +15% gathering rate for male villagers within 10m
+				if (units_.unit_type[i] == UNIT_VILLAGER) {
+					bool has_female_aura = false;
+					for (size_t fc = 0; fc < n; ++fc) {
+						if (!units_.alive[fc] || units_.team[fc] != uteam || units_.unit_type[fc] != UNIT_FEMALE_CITIZEN) continue;
+						float fdx = units_.pos_x[i] - units_.pos_x[fc];
+						float fdz = units_.pos_z[i] - units_.pos_z[fc];
+						if (fdx * fdx + fdz * fdz <= 10.0f * 10.0f) {
+							has_female_aura = true;
+							break;
+						}
+					}
+					if (has_female_aura) {
+						harvest_rate *= 0.85f;
+					}
+				}
+
+				// Worker Elephant: +50% heavy harvesting rate for all resources
+				if (units_.unit_type[i] == UNIT_WORKER_ELEPHANT) {
+					harvest_rate *= 0.65f;
+				}
 
 				if (units_.attack_timer[i] >= harvest_rate) {
 					units_.attack_timer[i] = 0.0f;
@@ -1283,7 +1725,9 @@ void Simulation::tick_construction(float dt) {
 		if (dx * dx + dz * dz < (b.half_size + 1.6f) * (b.half_size + 1.6f)) {
 			int worker_count = std::max(1, builders_per_bld[b.id]);
 			float speed_mult = sqrtf((float)worker_count) / (float)worker_count;
-			if (player_civ_[0] == CIV_ROMANS) speed_mult *= 1.25f; // Roman fast construction
+			if (units_.unit_type[i] == UNIT_WORKER_ELEPHANT) speed_mult *= 2.0f; // Worker elephant heavy construction
+			Civilization civ = (units_.team[i] < 4) ? player_civ_[units_.team[i]] : CIV_ATHENIANS;
+			speed_mult *= civ_info(civ).build_speed_mult;
 
 			if (b.build_progress < 1.0f) {
 				const BuildingTypeInfo &binfo = building_type_info(b.type);
@@ -1336,15 +1780,22 @@ void Simulation::tick_construction(float dt) {
 
 void Simulation::tick_production(float dt) {
 	for (auto &b : buildings_) {
-		if (b.team != 0 || b.build_progress < 1.0f) continue;
+		if (b.build_progress < 1.0f) continue;
+		uint8_t bteam = b.team;
 
 		// 1. Tech Research
 		if (b.research_tech != TECH_NONE) {
 			b.research_timer += dt;
 			if (b.research_timer >= b.research_duration) {
-				researched_techs_mask_ |= (1u << b.research_tech);
-				if (b.research_tech == TECH_PHASE_TOWN) player_phase_ = 2;
-				else if (b.research_tech == TECH_PHASE_CITY) player_phase_ = 3;
+				if (bteam == 0) {
+					researched_techs_mask_ |= (1u << b.research_tech);
+					if (b.research_tech == TECH_PHASE_TOWN) player_phase_ = 2;
+					else if (b.research_tech == TECH_PHASE_CITY) player_phase_ = 3;
+				} else {
+					ai_researched_techs_mask_ |= (1u << b.research_tech);
+					if (b.research_tech == TECH_PHASE_TOWN) petra_phase_ = 2;
+					else if (b.research_tech == TECH_PHASE_CITY) petra_phase_ = 3;
+				}
 				b.research_tech = TECH_NONE;
 			}
 		}
@@ -1357,27 +1808,46 @@ void Simulation::tick_production(float dt) {
 				uint8_t utype = order.unit_type;
 				b.queue.erase(b.queue.begin());
 
-				// Spawn unit near building
-				float sx = b.x + (b.footprint + 0.6f) * GRID;
-				float sz = b.z;
-				uint32_t uid = spawn_unit(sx, sz, 0, (UnitType)utype);
+				if (b.type == BLD_CORRAL || utype == UNIT_TYPE_NONE) {
+					// Domestic livestock bred in Corral (Corral.js)
+					float sx = b.x + 1.6f;
+					float sz = b.z + 1.6f;
+					uint32_t fid = spawn_fauna(sx, sz, FAUNA_SHEEP);
+					auto fit = fauna_id_to_idx_.find(fid);
+					if (fit != fauna_id_to_idx_.end()) {
+						size_t fidx = fit->second;
+						fauna_.corral_id[fidx] = b.id;
+						fauna_.behavior[fidx] = FAUNA_CORRALLED;
+					}
+				} else {
+					// Spawn unit near building
+					float sx = b.x + (b.footprint + 0.6f) * GRID;
+					float sz = b.z;
+					uint32_t uid = spawn_unit(sx, sz, bteam, (UnitType)utype);
 
-				// Route to Rally Point if set
-				if (b.has_rally_point) {
-					int32_t uidx = lookup_unit(uid);
-					if (uidx >= 0) {
-						if (b.rally_target_res_id != 0 && utype == UNIT_VILLAGER) {
-							order_gather(&uid, 1, b.rally_target_res_id);
-						} else if (b.rally_target_bld_id != 0 && utype == UNIT_VILLAGER) {
-							order_build_or_repair(&uid, 1, b.rally_target_bld_id);
-						} else {
-							cmd_move(&uid, 1, b.rally_x, b.rally_z);
+					// Route to Rally Point if set
+					if (b.has_rally_point) {
+						int32_t uidx = lookup_unit(uid);
+						if (uidx >= 0) {
+							if (b.rally_target_res_id != 0 && utype == UNIT_VILLAGER) {
+								order_gather(&uid, 1, b.rally_target_res_id);
+							} else if (b.rally_target_bld_id != 0 && utype == UNIT_VILLAGER) {
+								order_build_or_repair(&uid, 1, b.rally_target_bld_id);
+							} else {
+								cmd_move(&uid, 1, b.rally_x, b.rally_z);
+							}
 						}
 					}
 				}
 			}
 		}
 	}
+}
+
+inline bool in_parabolic_range(float d2, float att_y, float def_y, float base_range) {
+	float height_diff = def_y - att_y; // target_y - attacker_y
+	float max_r2 = base_range * base_range - 2.0f * base_range * height_diff;
+	return (max_r2 > 0.0f) && (d2 <= max_r2);
 }
 
 void Simulation::tick_combat(float dt) {
@@ -1389,10 +1859,14 @@ void Simulation::tick_combat(float dt) {
 	UnitGrid grid;
 	if (n && !grid.build(arena, n, units_.pos_x, units_.pos_z, units_.alive, map_half_)) return;
 
+	// 1. Target Acquisition & Stance Evaluation (0 A.D. UnitAI.js)
 	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		if (units_.attack_timer[i] > 0) units_.attack_timer[i] -= dt;
 		target_idx[i] = -1;
 		if (!units_.alive[i]) return;
+
+		// Passive stance / civilian gatherers do not auto-acquire combat targets
+		if (units_.stance[i] == STANCE_PASSIVE) return;
 		if (units_.unit_type[i] == UNIT_VILLAGER &&
 				(units_.action_state[i] == ACTION_GATHER || units_.action_state[i] == ACTION_BUILD ||
 						units_.action_state[i] == ACTION_RETURN_DROPSITE)) {
@@ -1400,6 +1874,7 @@ void Simulation::tick_combat(float dt) {
 		}
 
 		int32_t found = -1;
+		// A. Existing unit target check
 		if (units_.target_unit_id[i] != 0) {
 			int32_t tidx = lookup_unit(units_.target_unit_id[i]);
 			if (tidx >= 0 && units_.alive[tidx] && units_.team[tidx] != units_.team[i]) {
@@ -1407,45 +1882,108 @@ void Simulation::tick_combat(float dt) {
 			}
 		}
 
-		if (found < 0 && units_.stance[i] != STANCE_STAND_GROUND && units_.stance[i] != STANCE_PASSIVE) {
-			if ((i + ticks_) % 4 == 0 || units_.action_state[i] == ACTION_ATTACK) {
-				float scan_range = unit_type_info(units_.unit_type[i]).aggro_range;
-				if (units_.action_state[i] == ACTION_ATTACK || units_.action_state[i] == ACTION_ATTACK_MOVE || units_.action_state[i] == ACTION_PATROL) {
-					scan_range = std::max(scan_range, 16.0f);
-				}
-				float best_scan_d2 = scan_range * scan_range;
+		// B. Stance Leash & Auto-Aggro Scan
+		if (found < 0 && units_.target_building_id[i] == 0) {
+			float scan_range = unit_type_info(units_.unit_type[i]).aggro_range;
+			float leash_radius = 24.0f;
+
+			if (units_.stance[i] == STANCE_STAND_GROUND) {
+				scan_range = units_.attack_range[i]; // Only attack targets already in weapon range
+				leash_radius = units_.attack_range[i];
+			} else if (units_.stance[i] == STANCE_HOLD_GROUND) {
+				scan_range = std::min(scan_range, 10.0f);
+				leash_radius = 8.0f; // Max pursuit 8m from anchor
+			} else if (units_.stance[i] == STANCE_DEFENSIVE) {
+				scan_range = std::min(scan_range, 18.0f);
+				leash_radius = 20.0f; // Max pursuit 20m from anchor
+			} else if (units_.stance[i] == STANCE_AGGRESSIVE) {
+				scan_range = std::max(scan_range, 24.0f);
+				leash_radius = 1000.0f;
+			}
+
+			if ((i + ticks_) % 4 == 0 || units_.action_state[i] == ACTION_ATTACK || units_.action_state[i] == ACTION_ATTACK_MOVE) {
+				float best_score = -999999.0f;
 				const uint8_t my_team = units_.team[i];
+				const uint8_t my_type = units_.unit_type[i];
 				const float pxi = units_.pos_x[i];
 				const float pzi = units_.pos_z[i];
+				const float anc_x = units_.anchor_x[i];
+				const float anc_z = units_.anchor_z[i];
+				const float att_y = get_terrain_height(pxi, pzi);
+
 				grid.visit_radius(pxi, pzi, scan_range, [&](int32_t j) {
 					if (!units_.alive[j] || units_.team[j] == my_team) return;
+
+					// Check leash distance from anchor for Hold/Defensive stances
+					if (units_.stance[i] == STANCE_HOLD_GROUND || units_.stance[i] == STANCE_DEFENSIVE) {
+						float adx = units_.pos_x[j] - anc_x;
+						float adz = units_.pos_z[j] - anc_z;
+						if (adx * adx + adz * adz > leash_radius * leash_radius) return;
+					}
+
 					float dx = pxi - units_.pos_x[j];
 					float dz = pzi - units_.pos_z[j];
 					float d2 = dx * dx + dz * dz;
-					if (d2 < best_scan_d2) {
-						best_scan_d2 = d2;
+
+					// Stand ground strict weapon range check
+					if (units_.stance[i] == STANCE_STAND_GROUND) {
+						float def_y = get_terrain_height(units_.pos_x[j], units_.pos_z[j]);
+						if (!in_parabolic_range(d2, att_y, def_y, units_.attack_range[i])) return;
+					}
+
+					// 0 A.D. Target Selection Heuristic: Counter-bonus preference + focus fire + proximity
+					float score = -sqrtf(d2);
+					uint8_t target_type = units_.unit_type[j];
+
+					// Tactical counter preference
+					if (my_type == UNIT_SPEARMAN && (target_type == UNIT_CAVALRY || target_type == UNIT_CAMEL || target_type == UNIT_CHARIOT)) score += 35.0f;
+					else if ((my_type == UNIT_CAVALRY || my_type == UNIT_CHARIOT) && (target_type == UNIT_ARCHER || target_type == UNIT_ARCHER_MAIDEN || target_type == UNIT_HEALER)) score += 30.0f;
+					else if (my_type == UNIT_SWORDSMAN && target_type == UNIT_SPEARMAN) score += 20.0f;
+					else if (my_type == UNIT_BOLT_SHOOTER && (target_type == UNIT_ELEPHANT || target_type == UNIT_WORKER_ELEPHANT || target_type == UNIT_HERO)) score += 40.0f;
+
+					// Finishing blow focus fire on low-HP enemies
+					if (units_.max_hp[j] > 0.0f) {
+						score += (1.0f - units_.hp[j] / units_.max_hp[j]) * 15.0f;
+					}
+
+					if (score > best_score) {
+						best_score = score;
 						found = j;
 					}
 				});
 			}
 		}
+
 		if (found >= 0) {
 			units_.target_unit_id[i] = units_.id[found];
 			units_.has_order[i] = 1;
-			units_.target_x[i] = units_.pos_x[found];
-			units_.target_z[i] = units_.pos_z[found];
-			if (units_.unit_type[i] == UNIT_VILLAGER &&
-					(units_.action_state[i] == ACTION_GATHER || units_.action_state[i] == ACTION_BUILD ||
-							units_.action_state[i] == ACTION_RETURN_DROPSITE)) {
-			} else {
+			if (units_.stance[i] != STANCE_STAND_GROUND) {
+				units_.target_x[i] = units_.pos_x[found];
+				units_.target_z[i] = units_.pos_z[found];
+			}
+			if (units_.unit_type[i] != UNIT_VILLAGER) {
 				units_.action_state[i] = ACTION_ATTACK;
 			}
 		} else {
 			units_.target_unit_id[i] = 0;
+			// Return to leash anchor if hold/defensive stance and combat ended
+			if ((units_.stance[i] == STANCE_HOLD_GROUND || units_.stance[i] == STANCE_DEFENSIVE) &&
+				units_.action_state[i] == ACTION_ATTACK && units_.target_building_id[i] == 0) {
+				float adx = units_.pos_x[i] - units_.anchor_x[i];
+				float adz = units_.pos_z[i] - units_.anchor_z[i];
+				if (adx * adx + adz * adz > 2.0f * 2.0f) {
+					units_.target_x[i] = units_.anchor_x[i];
+					units_.target_z[i] = units_.anchor_z[i];
+					units_.action_state[i] = ACTION_MOVE;
+				} else {
+					units_.action_state[i] = ACTION_IDLE;
+				}
+			}
 		}
 		target_idx[i] = found;
 	});
 
+	// 2. Unit vs Unit Attack Execution
 	for (size_t i = 0; i < n; ++i) {
 		int32_t t = target_idx[i];
 		if (t < 0 || !units_.alive[i] || units_.attack_timer[i] > 0) continue;
@@ -1457,47 +1995,90 @@ void Simulation::tick_combat(float dt) {
 		float def_y = get_terrain_height(units_.pos_x[t], units_.pos_z[t]);
 		float height_diff = att_y - def_y;
 
-		float eff_range = units_.attack_range[i];
-		if (height_diff > 1.0f) {
-			eff_range += std::min(height_diff * 1.2f, units_.attack_range[i] * 0.4f); // High-ground range extension
-		}
-		if (d2 > eff_range * eff_range) continue;
+		// 0 A.D. Exact Parabolic Range Equation (CCmpRangeManager.cpp)
+		if (!in_parabolic_range(d2, att_y, def_y, units_.attack_range[i])) continue;
 
 		units_.attack_timer[i] = units_.attack_cooldown[i];
 		units_.action_state[i] = ACTION_ATTACK;
 
 		// 0 A.D. Exact Exponential Armor Formula (Attack.js + Resistance.js):
 		// Damage = sum( Dmg[Type] * 0.9^Armor[Type] )
+		const auto &uinfo_att = unit_type_info(units_.unit_type[i]);
 		const auto &uinfo_dst = unit_type_info(units_.unit_type[t]);
 		float target_hack = uinfo_dst.hack_armor;
 		float target_pierce = uinfo_dst.pierce_armor;
 		float target_crush = uinfo_dst.crush_armor;
 
 		// Tactical formation armor bonuses
-		if (units_.formation[t] == FORMATION_PHALANX) target_pierce += 3.0f; // Shield wall
-		if (units_.formation[t] == FORMATION_SCATTER) target_pierce += 2.0f; // Loose skirmish
+		if (units_.formation[t] == FORMATION_PHALANX) {
+			target_pierce += 4.0f; // Shield wall arrow immunity
+			target_hack += 3.0f;
+		}
+		if (units_.formation[t] == FORMATION_SCATTER) target_pierce += 3.0f; // Loose skirmish evasion
 
-		float base_dmg = units_.attack_damage[i];
-		if (units_.formation[i] == FORMATION_WEDGE) base_dmg *= 1.25f; // Wedge charge bonus
+		// Researched armor tech bonuses
+		if (units_.team[t] == 0 && is_tech_researched(TECH_ARMOR_1)) {
+			target_hack += 3.0f;
+			target_pierce += 3.0f;
+		}
+
+		// Iberian Devotio Bodyguard Vow: +2 armor
+		if (player_civ_[units_.team[t] < 4 ? units_.team[t] : 0] == CIV_IBERIANS) {
+			target_hack += 2.0f;
+			target_pierce += 2.0f;
+		}
+
+		float dmg_scale = (uinfo_att.attack_damage > 0.0f) ? (units_.attack_damage[i] / uinfo_att.attack_damage) : 1.0f;
+		float hack_dmg = uinfo_att.hack_damage * dmg_scale;
+		float pierce_dmg = uinfo_att.pierce_damage * dmg_scale;
+		float crush_dmg = uinfo_att.crush_damage * dmg_scale;
+
+		if (units_.formation[i] == FORMATION_WEDGE) {
+			hack_dmg *= 1.25f; // Wedge charge bonus
+			pierce_dmg *= 1.25f;
+			crush_dmg *= 1.25f;
+		}
+
+		uint8_t att_team = units_.team[i];
+		Civilization att_civ = (att_team < 4) ? player_civ_[att_team] : CIV_ATHENIANS;
+		float civ_melee_mult = civ_info(att_civ).melee_damage_mult;
+		hack_dmg *= civ_melee_mult;
 
 		// Counter Multipliers matching 0 A.D. template bonuses
 		float counter_mul = 1.0f;
-		if (units_.unit_type[i] == UNIT_SPEARMAN && units_.unit_type[t] == UNIT_CAVALRY) counter_mul = 2.5f;
-		else if (units_.unit_type[i] == UNIT_CAVALRY && units_.unit_type[t] == UNIT_ARCHER) counter_mul = 1.6f;
-		else if (units_.unit_type[i] == UNIT_SWORDSMAN && units_.unit_type[t] == UNIT_SPEARMAN) counter_mul = 1.4f;
+		uint8_t u_att = units_.unit_type[i];
+		uint8_t u_def = units_.unit_type[t];
 
-		base_dmg *= counter_mul;
+		if (u_att == UNIT_SPEARMAN && (u_def == UNIT_CAVALRY || u_def == UNIT_CAMEL || u_def == UNIT_CHARIOT)) counter_mul = 2.5f;
+		else if ((u_att == UNIT_CAVALRY || u_att == UNIT_CHARIOT || u_att == UNIT_CAMEL) && (u_def == UNIT_ARCHER || u_def == UNIT_ARCHER_MAIDEN || u_def == UNIT_HEALER || u_def == UNIT_FEMALE_CITIZEN)) counter_mul = 1.6f;
+		else if (u_att == UNIT_SWORDSMAN && u_def == UNIT_SPEARMAN) counter_mul = 1.4f;
+		else if (u_att == UNIT_CAMEL && u_def == UNIT_CAVALRY) counter_mul = 1.5f;
+		else if (u_att == UNIT_WAR_DOG && (u_def == UNIT_ARCHER || u_def == UNIT_ARCHER_MAIDEN || u_def == UNIT_VILLAGER || u_def == UNIT_FEMALE_CITIZEN)) counter_mul = 1.4f;
+		else if (u_att == UNIT_SCYTHED_CHARIOT && (u_def == UNIT_SWORDSMAN || u_def == UNIT_SPEARMAN || u_def == UNIT_ARCHER)) counter_mul = 1.6f;
+		else if (u_att == UNIT_BOLT_SHOOTER && (u_def == UNIT_ELEPHANT || u_def == UNIT_WORKER_ELEPHANT || u_def == UNIT_HERO)) counter_mul = 1.8f;
 
-		float final_dmg = 1.0f;
-		if (units_.unit_type[i] == UNIT_ARCHER) {
-			final_dmg = std::max(1.0f, base_dmg * powf(0.9f, target_pierce));
-		} else if (units_.unit_type[i] == UNIT_CATAPULT || units_.unit_type[i] == UNIT_SIEGE_RAM) {
-			final_dmg = std::max(1.0f, base_dmg * powf(0.9f, target_crush));
-		} else if (units_.unit_type[i] == UNIT_SPEARMAN) {
-			final_dmg = std::max(1.0f, (base_dmg * 0.5f * powf(0.9f, target_hack)) + (base_dmg * 0.5f * powf(0.9f, target_pierce)));
-		} else {
-			final_dmg = std::max(1.0f, base_dmg * powf(0.9f, target_hack));
+		hack_dmg *= counter_mul;
+		pierce_dmg *= counter_mul;
+		crush_dmg *= counter_mul;
+
+		// Carnyx Horn Morale Aura check (Gauls)
+		bool carnyx_aura = false;
+		grid.visit_radius(units_.pos_x[i], units_.pos_z[i], 14.0f, [&](int32_t c_idx) {
+			if (carnyx_aura || !units_.alive[c_idx] || units_.team[c_idx] != att_team) return;
+			if (units_.unit_type[c_idx] == UNIT_CARNYX) carnyx_aura = true;
+		});
+		if (carnyx_aura) {
+			hack_dmg *= 1.20f;
+			pierce_dmg *= 1.20f;
+			crush_dmg *= 1.20f;
 		}
+
+		// 0 A.D. Exact Logarithmic Armor Reduction: Damage = Base * pow(0.9f, armor) with hack, pierce, crush
+		float final_dmg = std::max(1.0f,
+			hack_dmg * powf(0.9f, target_hack) +
+			pierce_dmg * powf(0.9f, target_pierce) +
+			crush_dmg * powf(0.9f, target_crush)
+		);
 
 		// Elevation damage advantage (RangeManager.cpp High Ground bonus)
 		if (height_diff > 1.0f) {
@@ -1506,12 +2087,61 @@ void Simulation::tick_combat(float dt) {
 			final_dmg *= std::max(0.80f, 1.0f + height_diff * 0.04f); // Uphill attack penalty
 		}
 
-		if (units_.unit_type[i] == UNIT_ARCHER) {
-			fire_arrow(units_.pos_x[i], 1.4f, units_.pos_z[i],
-			           units_.pos_x[t], 0.8f, units_.pos_z[t],
-			           final_dmg, units_.team[i], units_.id[t]);
+		bool is_ranged_attack = (u_att == UNIT_ARCHER || u_att == UNIT_ARCHER_MAIDEN ||
+		                         u_att == UNIT_BOLT_SHOOTER || u_att == UNIT_CHARIOT ||
+		                         u_att == UNIT_TRIREME);
+
+		if (is_ranged_attack) {
+			uint8_t effect = EFFECT_NONE;
+			if (att_civ == CIV_KUSHITES || u_att == UNIT_ARCHER_MAIDEN) {
+				effect |= EFFECT_POISON;
+			}
+			float arrow_sy = (u_att == UNIT_TRIREME) ? 2.2f : (u_att == UNIT_BOLT_SHOOTER ? 1.0f : 1.4f);
+			// 0 A.D. Spread dispersion
+			float dist = sqrtf(d2);
+			float spread_factor = (dist / units_.attack_range[i]) * 0.25f;
+			float disp_x = ((float)(rand() % 100) / 100.0f - 0.5f) * spread_factor;
+			float disp_z = ((float)(rand() % 100) / 100.0f - 0.5f) * spread_factor;
+
+			fire_arrow(units_.pos_x[i], arrow_sy, units_.pos_z[i],
+			           units_.pos_x[t] + disp_x, 0.8f, units_.pos_z[t] + disp_z,
+			           final_dmg, units_.team[i], units_.id[t], effect, 1);
+
+			// If War Trireme has garrisoned passengers, fire deck archer barrage
+			if (u_att == UNIT_TRIREME) {
+				auto pit = transport_passengers_.find(units_.id[i]);
+				if (pit != transport_passengers_.end() && !pit->second.empty()) {
+					int extra = std::min(4, (int)pit->second.size());
+					for (int a = 0; a < extra; ++a) {
+						float sp = (a - extra * 0.5f) * 0.3f;
+						fire_arrow(units_.pos_x[i] + sp, 2.5f, units_.pos_z[i] + sp,
+								   units_.pos_x[t], 0.8f, units_.pos_z[t],
+								   12.0f, units_.team[i], units_.id[t]);
+					}
+				}
+			}
 		} else {
 			units_.hp[t] -= final_dmg;
+
+			// Spearman Snare on Cavalry / Chariot / Camel
+			if (u_att == UNIT_SPEARMAN && (u_def == UNIT_CAVALRY || u_def == UNIT_CAMEL || u_def == UNIT_CHARIOT)) {
+				units_.status_effects[t] |= EFFECT_SNARE;
+				units_.snare_timer[t] = 3.0f;
+			}
+
+			// Trample Knockback from Heavy Chariots / War Elephants
+			if (u_att == UNIT_ELEPHANT || u_att == UNIT_WORKER_ELEPHANT || u_att == UNIT_SCYTHED_CHARIOT) {
+				float kdx = units_.pos_x[t] - units_.pos_x[i];
+				float kdz = units_.pos_z[t] - units_.pos_z[i];
+				float kd2 = kdx * kdx + kdz * kdz;
+				if (kd2 > 0.0001f) {
+					float kinv = 1.0f / sqrtf(kd2);
+					units_.status_effects[t] |= EFFECT_KNOCKBACK;
+					units_.knockback_timer[t] = 0.25f;
+					units_.knockback_dir_x[t] = kdx * kinv;
+					units_.knockback_dir_z[t] = kdz * kinv;
+				}
+			}
 
 			// Catapult Siege Splash Damage (0 A.D. Quadratic Falloff: 1 - d^2 / r^2)
 			if (units_.unit_type[i] == UNIT_CATAPULT) {
@@ -1555,6 +2185,33 @@ void Simulation::tick_combat(float dt) {
 					}
 				}
 
+				// Trireme destruction: disembark survivors near shore or drown
+				if (units_.unit_type[t] == UNIT_TRIREME) {
+					auto pit = transport_passengers_.find(units_.id[t]);
+					if (pit != transport_passengers_.end()) {
+						float ship_x = units_.pos_x[t];
+						float ship_z = units_.pos_z[t];
+						bool near_shore = (get_terrain_height(ship_x, ship_z) >= terrain_water_height_ - 0.5f);
+						for (uint32_t puid : pit->second) {
+							int32_t pidx = lookup_unit(puid);
+							if (pidx >= 0) {
+								if (near_shore) {
+									units_.pos_x[pidx] = ship_x + 1.2f;
+									units_.pos_z[pidx] = ship_z + 1.2f;
+									units_.alive[pidx] = 1;
+									units_.action_state[pidx] = ACTION_IDLE;
+									units_.hp[pidx] = std::max(10.0f, units_.hp[pidx] * 0.5f);
+								} else {
+									units_.alive[pidx] = 0;
+									units_.action_state[pidx] = ACTION_DYING;
+									if (units_.team[pidx] == 0) record_.units_lost++;
+								}
+							}
+						}
+						transport_passengers_.erase(pit);
+					}
+				}
+
 				// Promotion.js - Unit Veterancy & Experience
 				units_.kills[i]++;
 				if (units_.kills[i] >= 3 && units_.rank[i] < 2) {
@@ -1572,30 +2229,138 @@ void Simulation::tick_combat(float dt) {
 		}
 	}
 
-	// 2. Defensive Buildings attack (TC / Tower / Fortress + Garrison volley bonus)
+	// 3. Units Attacking Buildings & Siege Demolition (0 A.D. Attack.js + BuildingDamage)
+	for (size_t i = 0; i < n; ++i) {
+		if (!units_.alive[i] || units_.target_building_id[i] == 0 || units_.attack_timer[i] > 0) continue;
+		auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
+		if (bit == building_id_to_idx_.end()) {
+			units_.target_building_id[i] = 0;
+			units_.action_state[i] = ACTION_IDLE;
+			continue;
+		}
+		Building &b = buildings_[bit->second];
+		if (b.team == units_.team[i]) {
+			units_.target_building_id[i] = 0;
+			continue;
+		}
+
+		float dx = units_.pos_x[i] - b.x;
+		float dz = units_.pos_z[i] - b.z;
+		float d = sqrtf(dx * dx + dz * dz);
+		float eff_d = std::max(0.0f, d - b.half_size);
+
+		float att_y = get_terrain_height(units_.pos_x[i], units_.pos_z[i]);
+		float bld_y = get_terrain_height(b.x, b.z);
+
+		if (!in_parabolic_range(eff_d * eff_d, att_y, bld_y, units_.attack_range[i])) {
+			// Move toward building if out of range
+			units_.target_x[i] = b.x;
+			units_.target_z[i] = b.z;
+			units_.has_order[i] = 1;
+			units_.action_state[i] = ACTION_ATTACK;
+			continue;
+		}
+
+		units_.attack_timer[i] = units_.attack_cooldown[i];
+		units_.action_state[i] = ACTION_ATTACK;
+
+		const auto &uinfo_att = unit_type_info(units_.unit_type[i]);
+		float hack_dmg = uinfo_att.hack_damage;
+		float pierce_dmg = uinfo_att.pierce_damage;
+		float crush_dmg = uinfo_att.crush_damage;
+
+		// Battering Ram & Elephant Siege Demolition Bonus
+		if (units_.unit_type[i] == UNIT_SIEGE_RAM) {
+			crush_dmg *= 4.0f; // 4x Crush damage vs fortifications
+		} else if (units_.unit_type[i] == UNIT_ELEPHANT || units_.unit_type[i] == UNIT_CATAPULT) {
+			crush_dmg *= 2.0f;
+		}
+
+		// Structure Armor: Hack 3.0, Pierce 15.0 (arrow-resistant), Crush 3.0
+		float b_hack_armor = (b.type == BLD_FORTRESS || b.type == BLD_WALL_SEGMENT) ? 5.0f : 3.0f;
+		float b_pierce_armor = (b.type == BLD_FORTRESS || b.type == BLD_WALL_SEGMENT) ? 20.0f : 15.0f;
+		float b_crush_armor = (b.type == BLD_FORTRESS) ? 6.0f : 3.0f;
+
+		float bld_dmg = std::max(1.0f,
+			hack_dmg * powf(0.9f, b_hack_armor) +
+			pierce_dmg * powf(0.9f, b_pierce_armor) +
+			crush_dmg * powf(0.9f, b_crush_armor)
+		);
+
+		bool is_ranged_attack = (units_.unit_type[i] == UNIT_ARCHER || units_.unit_type[i] == UNIT_ARCHER_MAIDEN ||
+		                         units_.unit_type[i] == UNIT_BOLT_SHOOTER || units_.unit_type[i] == UNIT_CATAPULT);
+
+		if (is_ranged_attack) {
+			fire_arrow(units_.pos_x[i], 1.4f, units_.pos_z[i],
+			           b.x, 1.5f, b.z,
+			           bld_dmg, units_.team[i], b.id, EFFECT_BURNING, 2);
+		} else {
+			b.hp -= bld_dmg;
+			if (b.hp < b.max_hp * 0.33f) {
+				b.is_burning = true;
+			}
+			if (b.hp <= 0.0f) {
+				// Destroy building
+				if (units_.team[i] == 0) {
+					record_.enemies_killed++;
+					gold_ += 25; stone_ += 25; wood_ += 25; // Loot.js Plunder
+				}
+				// Evacuate garrisoned units with casualty damage
+				for (uint32_t guid : b.garrisoned_units) {
+					int32_t gidx = lookup_unit(guid);
+					if (gidx >= 0 && (size_t)gidx < units_.count) {
+						units_.pos_x[gidx] = b.x + 2.0f;
+						units_.pos_z[gidx] = b.z + 2.0f;
+						units_.alive[gidx] = 1;
+						units_.action_state[gidx] = ACTION_IDLE;
+						units_.hp[gidx] = std::max(5.0f, units_.hp[gidx] * 0.5f);
+					}
+				}
+				b.garrisoned_units.clear();
+				b.build_progress = 0.0f; // Marks collapsed/destroyed
+				units_.target_building_id[i] = 0;
+				units_.action_state[i] = ACTION_IDLE;
+			}
+		}
+	}
+
+	// 4. Defensive Buildings & Parapet Walls attack (TC / Tower / Fortress / Wall + Garrison volley bonus)
 	for (auto &b : buildings_) {
-		if (b.build_progress < 1.0f) continue;
+		if (b.build_progress < 1.0f || b.hp <= 0.0f) continue;
 		const BuildingTypeInfo &binfo = building_type_info(b.type);
-		if (binfo.attack_damage > 0) {
+		bool is_wall = (b.type == BLD_WALL_SEGMENT);
+
+		if (binfo.attack_damage > 0 || (is_wall && !b.garrisoned_units.empty())) {
 			b.attack_timer -= dt;
 			if (b.attack_timer <= 0.0f && n) {
-				float range = binfo.attack_range;
-				float range_sq = range * range;
+				float base_range = is_wall ? 16.0f : binfo.attack_range;
+				float base_dmg = is_wall ? 15.0f : binfo.attack_damage;
+				float cd = is_wall ? 1.0f : binfo.attack_cooldown;
+
+				// Parapet Wall & High-Ground Elevation Advantage (+50% range on walls)
+				float wall_y = get_terrain_height(b.x, b.z) + (is_wall ? 4.5f : 3.5f);
+				float range = is_wall ? (base_range * 1.5f) : base_range;
+				float damage = is_wall ? (base_dmg * 1.25f) : base_dmg;
+
 				int32_t hit = -1;
 				grid.visit_radius(b.x, b.z, range, [&](int32_t i) {
 					if (hit >= 0 || !units_.alive[i] || units_.team[i] == b.team) return;
 					float dx = b.x - units_.pos_x[i];
 					float dz = b.z - units_.pos_z[i];
-					if (dx * dx + dz * dz <= range_sq) hit = i;
+					float d2 = dx * dx + dz * dz;
+					float unit_y = get_terrain_height(units_.pos_x[i], units_.pos_z[i]);
+					if (in_parabolic_range(d2, wall_y, unit_y, range)) {
+						hit = i;
+					}
 				});
 				if (hit >= 0) {
-					b.attack_timer = binfo.attack_cooldown;
-					int arrow_count = 1 + (int)b.garrisoned_units.size();
-					for (int a = 0; a < std::min(4, arrow_count); ++a) {
-						float spread = (a - arrow_count * 0.5f) * 0.2f;
-						fire_arrow(b.x + spread, 3.5f, b.z + spread,
+					b.attack_timer = cd;
+					int arrow_count = is_wall ? (int)b.garrisoned_units.size() : (1 + (int)b.garrisoned_units.size());
+					for (int a = 0; a < std::min(5, arrow_count); ++a) {
+						float spread = (a - arrow_count * 0.5f) * 0.22f;
+						fire_arrow(b.x + spread, wall_y, b.z + spread,
 								   units_.pos_x[hit], 0.8f, units_.pos_z[hit],
-								   binfo.attack_damage, b.team, units_.id[hit]);
+								   damage, b.team, units_.id[hit]);
 					}
 				}
 			}
@@ -1611,6 +2376,38 @@ void Simulation::tick_combat(float dt) {
 			float dz = units_.pos_z[u] - b.z;
 			if (dx * dx + dz * dz <= 18.0f * 18.0f && units_.hp[u] < units_.max_hp[u]) {
 				units_.hp[u] = std::min(units_.max_hp[u], units_.hp[u] + dt * 3.5f);
+			}
+		}
+	}
+
+	// 3b. Priest / Healer Unit Active Healing & Cleansing (UNIT_HEALER)
+	for (size_t h = 0; h < n; ++h) {
+		if (!units_.alive[h] || units_.unit_type[h] != UNIT_HEALER) continue;
+		const uint8_t h_team = units_.team[h];
+		const float hx = units_.pos_x[h];
+		const float hz = units_.pos_z[h];
+		int32_t heal_target = -1;
+		float lowest_hp_ratio = 1.0f;
+
+		grid.visit_radius(hx, hz, 12.0f, [&](int32_t u) {
+			if (!units_.alive[u] || units_.team[u] != h_team || u == (int32_t)h) return;
+			float ratio = units_.hp[u] / units_.max_hp[u];
+			bool has_debuff = (units_.status_effects[u] & (EFFECT_POISON | EFFECT_SNARE)) != 0;
+			if (ratio < lowest_hp_ratio || (has_debuff && ratio < 0.99f)) {
+				lowest_hp_ratio = ratio;
+				heal_target = u;
+			}
+		});
+
+		if (heal_target >= 0 && (lowest_hp_ratio < 0.999f || (units_.status_effects[heal_target] & (EFFECT_POISON | EFFECT_SNARE)))) {
+			units_.hp[heal_target] = std::min(units_.max_hp[heal_target], units_.hp[heal_target] + dt * 8.0f);
+			if (units_.status_effects[heal_target] & EFFECT_POISON) {
+				units_.status_effects[heal_target] &= ~EFFECT_POISON;
+				units_.poison_timer[heal_target] = 0.0f;
+			}
+			if (units_.status_effects[heal_target] & EFFECT_SNARE) {
+				units_.status_effects[heal_target] &= ~EFFECT_SNARE;
+				units_.snare_timer[heal_target] = 0.0f;
 			}
 		}
 	}
@@ -1745,6 +2542,11 @@ void Simulation::tick_projectiles(float dt) {
 				int32_t tidx = lookup_unit(p.target_unit_id);
 				if (tidx >= 0 && units_.alive[tidx]) {
 					units_.hp[tidx] -= p.damage;
+					if (p.status_effect != 0) {
+						units_.status_effects[tidx] |= p.status_effect;
+						if (p.status_effect & EFFECT_POISON) units_.poison_timer[tidx] = 5.0f;
+						if (p.status_effect & EFFECT_SNARE) units_.snare_timer[tidx] = 3.0f;
+					}
 					if (units_.hp[tidx] <= 0) {
 						units_.alive[tidx] = 0;
 						units_.action_state[tidx] = ACTION_DYING;
@@ -1764,6 +2566,57 @@ void Simulation::tick_projectiles(float dt) {
 
 	projectiles_.erase(std::remove_if(projectiles_.begin(), projectiles_.end(),
 		[](const Projectile &p) { return !p.alive; }), projectiles_.end());
+}
+
+void Simulation::tick_status_effects(float dt) {
+	const size_t n = units_.count;
+	for (size_t i = 0; i < n; ++i) {
+		if (!units_.alive[i]) continue;
+
+		// 1. Poison effect (Kushite poison arrows / venom) dealing ticking damage
+		if (units_.status_effects[i] & EFFECT_POISON) {
+			units_.poison_timer[i] -= dt;
+			units_.hp[i] -= 4.0f * dt; // 4 HP / sec poison tick
+			if (units_.hp[i] <= 0.0f) {
+				units_.alive[i] = 0;
+				units_.action_state[i] = ACTION_DYING;
+				if (units_.team[i] == 0) record_.units_lost++;
+				else record_.enemies_killed++;
+			}
+			if (units_.poison_timer[i] <= 0.0f) {
+				units_.status_effects[i] &= ~EFFECT_POISON;
+				units_.poison_timer[i] = 0.0f;
+			}
+		}
+
+		// 2. Snare effect (Spear brace / Cavalry snare)
+		if (units_.status_effects[i] & EFFECT_SNARE) {
+			units_.snare_timer[i] -= dt;
+			if (units_.snare_timer[i] <= 0.0f) {
+				units_.status_effects[i] &= ~EFFECT_SNARE;
+				units_.snare_timer[i] = 0.0f;
+			}
+		}
+
+		// 3. Knockback effect (Trample impulse)
+		if (units_.status_effects[i] & EFFECT_KNOCKBACK) {
+			units_.knockback_timer[i] -= dt;
+			if (units_.knockback_timer[i] <= 0.0f) {
+				units_.status_effects[i] &= ~EFFECT_KNOCKBACK;
+				units_.knockback_timer[i] = 0.0f;
+			}
+		}
+	}
+
+	// 4. Burning structures (< 33% HP)
+	for (auto &b : buildings_) {
+		if (b.build_progress >= 1.0f && b.hp > 0.0f && b.hp < b.max_hp * 0.33f) {
+			b.hp = std::max(0.0f, b.hp - 6.0f * dt); // 6 HP / sec fire burning tick
+			if (b.hp <= 0.0f) {
+				if (b.team == 0) record_.buildings_destroyed++;
+			}
+		}
+	}
 }
 
 void Simulation::tick_waves(float dt) {
@@ -1804,20 +2657,30 @@ void Simulation::tick_waves(float dt) {
 }
 
 Simulation::UnitView Simulation::units() const {
-	return {
-		units_.pos_x, units_.pos_z,
-		units_.vel_x, units_.vel_z,
-		units_.target_x, units_.target_z,
-		units_.hp, units_.max_hp,
-		units_.id,
-		units_.alive, units_.team, units_.unit_type, units_.action_state, units_.res_type_carried,
-		units_.stance, units_.formation,
-		units_.carry,
-		units_.death_timer,
-		units_.kills,
-		units_.rank,
-		units_.count
-	};
+	Simulation::UnitView v;
+	v.pos_x = units_.pos_x;
+	v.pos_z = units_.pos_z;
+	v.vel_x = units_.vel_x;
+	v.vel_z = units_.vel_z;
+	v.target_x = units_.target_x;
+	v.target_z = units_.target_z;
+	v.hp = units_.hp;
+	v.max_hp = units_.max_hp;
+	v.id = units_.id;
+	v.alive = units_.alive;
+	v.team = units_.team;
+	v.unit_type = units_.unit_type;
+	v.action_state = units_.action_state;
+	v.res_type_carried = units_.res_type_carried;
+	v.stance = units_.stance;
+	v.formation = units_.formation;
+	v.carry = units_.carry;
+	v.death_timer = units_.death_timer;
+	v.kills = units_.kills;
+	v.rank = units_.rank;
+	v.status_effects = units_.status_effects;
+	v.count = units_.count;
+	return v;
 }
 
 Simulation::ResourceView Simulation::resources() const {
@@ -1871,87 +2734,790 @@ void Simulation::order_guard(const uint32_t *unit_ids, size_t count, uint32_t ta
 	}
 }
 
-void Simulation::tick_petra_ai(float dt) {
-	// Petra.js — Autonomous enemy AI macro strategy
-	petra_timer_ += dt;
+void Simulation::update_petra_threat_map(float dt) {
+	petra_threat_map_.update_timer += dt;
+	if (petra_threat_map_.update_timer < 0.4f) return;
+	petra_threat_map_.update_timer = 0.0f;
 
-	// Count enemy units/buildings
-	int enemy_villages = 0, enemy_military = 0, enemy_tc = 0, enemy_barracks = 0;
+	float cell_size = (map_half_ * 2.0f) / (float)THREAT_GRID_RES;
+	float inv_cell = 1.0f / cell_size;
+
+	memset(petra_threat_map_.enemy_threat, 0, sizeof(petra_threat_map_.enemy_threat));
+	memset(petra_threat_map_.friendly_defense, 0, sizeof(petra_threat_map_.friendly_defense));
+
+	auto add_power = [&](float *grid, float wx, float wz, float power, int radius_cells) {
+		int cx = std::clamp((int)((wx + map_half_) * inv_cell), 0, THREAT_GRID_RES - 1);
+		int cz = std::clamp((int)((wz + map_half_) * inv_cell), 0, THREAT_GRID_RES - 1);
+		int x0 = std::max(0, cx - radius_cells);
+		int x1 = std::min(THREAT_GRID_RES - 1, cx + radius_cells);
+		int z0 = std::max(0, cz - radius_cells);
+		int z1 = std::min(THREAT_GRID_RES - 1, cz + radius_cells);
+
+		for (int z = z0; z <= z1; ++z) {
+			for (int x = x0; x <= x1; ++x) {
+				float dist_sq = (float)((x - cx) * (x - cx) + (z - cz) * (z - cz));
+				float max_dist_sq = (float)(radius_cells * radius_cells + 1);
+				float falloff = std::max(0.2f, 1.0f - (dist_sq / max_dist_sq));
+				grid[z * THREAT_GRID_RES + x] += power * falloff;
+			}
+		}
+	};
+
+	// 1. Accumulate unit threats
 	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || units_.team[i] != 1) continue;
-		if (units_.unit_type[i] == UNIT_VILLAGER) enemy_villages++;
-		else enemy_military++;
+		if (!units_.alive[i]) continue;
+		float power = 0.0f;
+		int rad = 1;
+		switch (units_.unit_type[i]) {
+			case UNIT_VILLAGER: power = 0.5f; rad = 1; break;
+			case UNIT_SWORDSMAN: power = 5.0f; rad = 1; break;
+			case UNIT_SPEARMAN: power = 5.5f; rad = 1; break;
+			case UNIT_ARCHER: power = 7.5f; rad = 2; break; // ranged threat
+			case UNIT_CAVALRY: power = 9.0f; rad = 2; break; // high mobility
+			case UNIT_CATAPULT: power = 14.0f; rad = 3; break; // heavy siege
+			case UNIT_SIEGE_RAM: power = 12.0f; rad = 1; break;
+			case UNIT_ELEPHANT: power = 20.0f; rad = 2; break;
+			case UNIT_HERO: power = 18.0f; rad = 2; break;
+			default: power = 4.0f; rad = 1; break;
+		}
+
+		if (units_.team[i] == 0) {
+			add_power(petra_threat_map_.enemy_threat, units_.pos_x[i], units_.pos_z[i], power, rad);
+		} else if (units_.team[i] == 1) {
+			add_power(petra_threat_map_.friendly_defense, units_.pos_x[i], units_.pos_z[i], power, rad);
+		}
 	}
+
+	// 2. Accumulate building defensive power
+	for (const auto &b : buildings_) {
+		if (b.build_progress < 0.5f) continue;
+		float b_power = 0.0f;
+		int b_rad = 1;
+		if (b.type == BLD_TOWN_CENTER) { b_power = 22.0f; b_rad = 2; }
+		else if (b.type == BLD_FORTRESS) { b_power = 35.0f; b_rad = 3; }
+		else if (b.type == BLD_TOWER) { b_power = 16.0f; b_rad = 2; }
+		else if (b.type == BLD_BARRACKS) { b_power = 5.0f; b_rad = 1; }
+
+		if (b_power > 0.0f) {
+			if (b.team == 0) {
+				add_power(petra_threat_map_.enemy_threat, b.x, b.z, b_power, b_rad);
+			} else if (b.team == 1) {
+				add_power(petra_threat_map_.friendly_defense, b.x, b.z, b_power, b_rad);
+			}
+		}
+	}
+
+	// 3. Compute net danger with decay
+	for (int c = 0; c < THREAT_GRID_RES * THREAT_GRID_RES; ++c) {
+		float raw_danger = std::max(0.0f, petra_threat_map_.enemy_threat[c] - petra_threat_map_.friendly_defense[c] * 0.65f);
+		petra_threat_map_.danger[c] = petra_threat_map_.danger[c] * 0.3f + raw_danger * 0.7f;
+	}
+}
+
+float Simulation::get_threat_at(float x, float z) const {
+	float cell_size = (map_half_ * 2.0f) / (float)THREAT_GRID_RES;
+	int cx = std::clamp((int)((x + map_half_) / cell_size), 0, THREAT_GRID_RES - 1);
+	int cz = std::clamp((int)((z + map_half_) / cell_size), 0, THREAT_GRID_RES - 1);
+	return petra_threat_map_.danger[cz * THREAT_GRID_RES + cx];
+}
+
+bool Simulation::is_position_safe(float x, float z, float threshold) const {
+	return get_threat_at(x, z) < threshold;
+}
+
+void Simulation::petra_manage_workers(float dt) {
+	// Find safest shelter building for Team 1
+	float safe_x = 36.0f, safe_z = 36.0f;
+	uint32_t shelter_bld_id = 0;
+	float best_shelter_score = 1e9f;
+
+	for (const auto &b : buildings_) {
+		if (b.team != 1 || b.build_progress < 0.5f) continue;
+		if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER || b.type == BLD_STOREHOUSE) {
+			float b_threat = get_threat_at(b.x, b.z);
+			if (b_threat < best_shelter_score) {
+				best_shelter_score = b_threat;
+				safe_x = b.x;
+				safe_z = b.z;
+				shelter_bld_id = b.id;
+			}
+		}
+	}
+
+	// 1. Worker Threat Evaluation & Evacuation
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != 1 || units_.unit_type[i] != UNIT_VILLAGER) continue;
+
+		float threat = get_threat_at(units_.pos_x[i], units_.pos_z[i]);
+
+		// Under heavy danger: Evacuate!
+		if (threat >= 7.0f) {
+			if (units_.action_state[i] == ACTION_GATHER || units_.action_state[i] == ACTION_BUILD ||
+				units_.action_state[i] == ACTION_RETURN_DROPSITE || units_.action_state[i] == ACTION_IDLE) {
+				units_.target_x[i] = safe_x + (float)(rand() % 5 - 2);
+				units_.target_z[i] = safe_z + (float)(rand() % 5 - 2);
+				units_.has_order[i] = 1;
+				units_.action_state[i] = ACTION_MOVE;
+				units_.target_resource_id[i] = 0;
+				units_.target_building_id[i] = 0;
+			}
+
+			// If near stronghold with garrison capacity, garrison inside for shelter
+			if (shelter_bld_id != 0) {
+				auto bit = building_id_to_idx_.find(shelter_bld_id);
+				if (bit != building_id_to_idx_.end()) {
+					Building &sb = buildings_[bit->second];
+					float dx = units_.pos_x[i] - sb.x;
+					float dz = units_.pos_z[i] - sb.z;
+					if (dx * dx + dz * dz <= 4.0f * 4.0f && (int)sb.garrisoned_units.size() < sb.garrison_cap) {
+						uint32_t uid = units_.id[i];
+						order_garrison(&uid, 1, sb.id);
+					}
+				}
+			}
+		}
+	}
+
+	// Ungarrison workers when threat is cleared
+	if (best_shelter_score < 2.0f) {
+		for (auto &b : buildings_) {
+			if (b.team == 1 && !b.garrisoned_units.empty()) {
+				order_ungarrison(b.id);
+			}
+		}
+	}
+}
+
+void Simulation::petra_manage_military_production(float dt) {
+	// Scan Player (Team 0) forces
+	int enemy_infantry = 0;
+	int enemy_spearmen = 0;
+	int enemy_archers = 0;
+	int enemy_cavalry = 0;
+	int enemy_siege = 0;
+	int enemy_champions = 0;
+	int enemy_forts = 0;
+
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != 0) continue;
+		switch (units_.unit_type[i]) {
+			case UNIT_SWORDSMAN: enemy_infantry++; break;
+			case UNIT_SPEARMAN: enemy_spearmen++; break;
+			case UNIT_ARCHER: enemy_archers++; break;
+			case UNIT_CAVALRY: enemy_cavalry++; break;
+			case UNIT_CATAPULT: case UNIT_SIEGE_RAM: enemy_siege++; break;
+			case UNIT_HERO: case UNIT_ELEPHANT: enemy_champions++; break;
+			default: break;
+		}
+	}
+
+	for (const auto &b : buildings_) {
+		if (b.team != 0 || b.build_progress < 0.5f) continue;
+		if (b.type == BLD_FORTRESS || b.type == BLD_TOWER || b.type == BLD_GATE || b.type == BLD_WALL_SEGMENT) {
+			enemy_forts++;
+		}
+	}
+
+	int total_enemy_mil = enemy_infantry + enemy_spearmen + enemy_archers + enemy_cavalry + enemy_siege + enemy_champions;
+	float norm = 1.0f / (float)std::max(1, total_enemy_mil);
+
+	// Dynamic Counter-Unit Utility Scores (0 A.D. Petra combat counters)
+	// Spearmen (2.5x vs Cavalry / 2.0x vs Elephants)
+	float spearman_score = 1.2f + (enemy_cavalry * 4.5f + enemy_champions * 3.5f) * norm;
+
+	// Archers (Pierce kiting vs Swordsmen & Spearmen)
+	float archer_score = 1.0f + (enemy_infantry * 3.0f + enemy_spearmen * 3.5f) * norm;
+
+	// Swordsmen (Hack melee, general frontline)
+	float swordsman_score = 1.0f + (enemy_spearmen * 1.8f) * norm;
+
+	// Cavalry (Speed & Flanking counter vs Archers and Siege)
+	float cavalry_score = 0.8f + (enemy_archers * 4.0f + enemy_siege * 3.0f) * norm;
+
+	// Siege (Crush damage vs Fortresses and Towers)
+	float siege_score = 0.2f;
+	if (petra_phase_ >= 2) {
+		siege_score = 0.5f + (float)enemy_forts * 2.0f;
+	}
+
+	// Champion / Elephant (Elite shock)
+	float champion_score = (petra_phase_ >= 3) ? 2.5f : 0.0f;
+
+	// Find available AI military production buildings
+	uint32_t barracks_id = 0;
+	uint32_t fortress_id = 0;
 	for (const auto &b : buildings_) {
 		if (b.team != 1 || b.build_progress < 1.0f) continue;
-		if (b.type == BLD_TOWN_CENTER) enemy_tc++;
-		if (b.type == BLD_BARRACKS)    enemy_barracks++;
+		if (b.type == BLD_BARRACKS && b.queue.size() < 4 && barracks_id == 0) barracks_id = b.id;
+		if (b.type == BLD_FORTRESS && b.queue.size() < 4 && fortress_id == 0) fortress_id = b.id;
 	}
-	(void)enemy_villages; (void)enemy_military;
-	(void)enemy_tc; (void)enemy_barracks;
 
-	// AI economic trickle (Petra manages its own virtual economy)
-	ai_food_  += 8.0f * dt;
-	ai_wood_  += 6.0f * dt;
-	ai_gold_  += 4.0f * dt;
-	ai_stone_ += 2.0f * dt;
+	if (barracks_id == 0 && fortress_id == 0) return;
+	if (ai_pop_current() >= ai_pop_max()) return;
+
+	struct Option {
+		UnitType type;
+		float score;
+		uint32_t bld_id;
+	};
+	std::vector<Option> options;
+
+	if (barracks_id != 0) {
+		options.push_back({UNIT_SPEARMAN, spearman_score, barracks_id});
+		options.push_back({UNIT_ARCHER, archer_score, barracks_id});
+		options.push_back({UNIT_SWORDSMAN, swordsman_score, barracks_id});
+		if (petra_phase_ >= 2) {
+			options.push_back({UNIT_CAVALRY, cavalry_score, barracks_id});
+		}
+	}
+	if (fortress_id != 0) {
+		if (petra_phase_ >= 2) {
+			options.push_back({UNIT_CATAPULT, siege_score, fortress_id});
+			options.push_back({UNIT_SIEGE_RAM, siege_score * 0.9f, fortress_id});
+		}
+		if (petra_phase_ >= 3) {
+			options.push_back({UNIT_ELEPHANT, champion_score, fortress_id});
+			options.push_back({UNIT_HERO, champion_score * 0.9f, fortress_id});
+		}
+	}
+
+	std::sort(options.begin(), options.end(), [](const Option &a, const Option &b) {
+		return a.score > b.score;
+	});
+
+	for (const auto &opt : options) {
+		const UnitTypeInfo &uinfo = unit_type_info(opt.type);
+		if (ai_food_ >= uinfo.food_cost && ai_wood_ >= uinfo.wood_cost &&
+			ai_gold_ >= uinfo.gold_cost && ai_stone_ >= uinfo.stone_cost) {
+			ai_food_ -= uinfo.food_cost;
+			ai_wood_ -= uinfo.wood_cost;
+			ai_gold_ -= uinfo.gold_cost;
+			ai_stone_ -= uinfo.stone_cost;
+
+			auto bit = building_id_to_idx_.find(opt.bld_id);
+			if (bit != building_id_to_idx_.end()) {
+				ProductionOrder order;
+				order.unit_type = opt.type;
+				order.timer = 0.0f;
+				order.duration = uinfo.train_time * 0.75f;
+				buildings_[bit->second].queue.push_back(order);
+			}
+			break;
+		}
+	}
+}
+
+void Simulation::petra_manage_economy(float dt) {
+	petra_econ_timer_ += dt;
+	if (petra_econ_timer_ < 1.0f) return;
+	petra_econ_timer_ = 0.0f;
+
+	// 1. Check AI Villager Population Goal
+	int ai_villagers = 0;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (units_.alive[i] && units_.team[i] == 1 && units_.unit_type[i] == UNIT_VILLAGER) {
+			ai_villagers++;
+		}
+	}
+
+	int target_villagers = (petra_phase_ == 1) ? 10 : ((petra_phase_ == 2) ? 18 : 25);
+	if (ai_villagers < target_villagers && ai_pop_current() < ai_pop_max() && ai_food_ >= 50.0f) {
+		for (auto &b : buildings_) {
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f && b.queue.size() < 3) {
+				ai_food_ -= 50.0f;
+				ProductionOrder order;
+				order.unit_type = UNIT_VILLAGER;
+				order.timer = 0.0f;
+				order.duration = unit_type_info(UNIT_VILLAGER).train_time * 0.8f;
+				b.queue.push_back(order);
+				break;
+			}
+		}
+	}
+
+	// 2. Count workers currently on each resource
+	int workers_food = 0, workers_wood = 0, workers_gold = 0, workers_stone = 0;
+	std::vector<size_t> reassignable_workers;
+
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != 1 || units_.unit_type[i] != UNIT_VILLAGER) continue;
+		if (units_.action_state[i] == ACTION_IDLE) {
+			reassignable_workers.push_back(i);
+		} else if (units_.action_state[i] == ACTION_GATHER || units_.action_state[i] == ACTION_RETURN_DROPSITE) {
+			if (units_.target_resource_id[i] != 0) {
+				auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
+				if (rit != res_id_to_idx_.end()) {
+					uint8_t rtype = resources_.type[rit->second];
+					if (rtype == RES_FOOD) workers_food++;
+					else if (rtype == RES_WOOD) workers_wood++;
+					else if (rtype == RES_GOLD) workers_gold++;
+					else if (rtype == RES_STONE) workers_stone++;
+				}
+			}
+		}
+	}
+
+	// 3. Compute Resource Deficits & Target Allocations
+	float need_food = std::max(50.0f, 300.0f - ai_food_);
+	float need_wood = std::max(50.0f, 400.0f - ai_wood_);
+	float need_gold = std::max(30.0f, 250.0f - ai_gold_);
+	float need_stone = (petra_phase_ >= 2) ? std::max(50.0f, 250.0f - ai_stone_) : 30.0f;
+
+	float total_need = need_food + need_wood + need_gold + need_stone;
+	float pct_food  = need_food / total_need;
+	float pct_wood  = need_wood / total_need;
+	float pct_gold  = need_gold / total_need;
+	float pct_stone = need_stone / total_need;
+
+	int total_workers = std::max(1, ai_villagers);
+	int target_food  = (int)std::round(pct_food * total_workers);
+	int target_wood  = (int)std::round(pct_wood * total_workers);
+	int target_gold  = (int)std::round(pct_gold * total_workers);
+	int target_stone = total_workers - (target_food + target_wood + target_gold);
+	if (target_stone < 0) target_stone = 0;
+
+	// Assign reassignable workers to the most under-allocated resource
+	for (size_t widx : reassignable_workers) {
+		uint8_t chosen_res_type = RES_FOOD;
+		int max_deficit = target_food - workers_food;
+
+		if (target_wood - workers_wood > max_deficit) {
+			max_deficit = target_wood - workers_wood;
+			chosen_res_type = RES_WOOD;
+		}
+		if (target_gold - workers_gold > max_deficit) {
+			max_deficit = target_gold - workers_gold;
+			chosen_res_type = RES_GOLD;
+		}
+		if (target_stone - workers_stone > max_deficit) {
+			max_deficit = target_stone - workers_stone;
+			chosen_res_type = RES_STONE;
+		}
+
+		// Find nearest safe resource of chosen type
+		float wx = units_.pos_x[widx];
+		float wz = units_.pos_z[widx];
+		float best_d2 = 1e9f;
+		uint32_t best_rid = 0;
+
+		for (size_t r = 0; r < resources_.count; ++r) {
+			if (!resources_.alive[r] || resources_.amount[r] <= 0 || resources_.type[r] != chosen_res_type) continue;
+			if (!is_position_safe(resources_.x[r], resources_.z[r], 6.0f)) continue;
+
+			float dx = wx - resources_.x[r];
+			float dz = wz - resources_.z[r];
+			float d2 = dx * dx + dz * dz;
+			if (d2 < best_d2) {
+				best_d2 = d2;
+				best_rid = resources_.id[r];
+			}
+		}
+
+		if (best_rid != 0) {
+			uint32_t uid = units_.id[widx];
+			order_gather(&uid, 1, best_rid);
+			if (chosen_res_type == RES_FOOD) workers_food++;
+			else if (chosen_res_type == RES_WOOD) workers_wood++;
+			else if (chosen_res_type == RES_GOLD) workers_gold++;
+			else if (chosen_res_type == RES_STONE) workers_stone++;
+		}
+	}
+}
+
+void Simulation::petra_manage_buildings(float dt) {
+	// 1. Build House if approaching population limit
+	if (ai_pop_current() >= ai_pop_max() - 3 && ai_wood_ >= 80.0f) {
+		bool house_in_progress = false;
+		for (const auto &b : buildings_) {
+			if (b.team == 1 && b.type == BLD_HOUSE && b.build_progress < 1.0f) {
+				house_in_progress = true;
+				break;
+			}
+		}
+		if (!house_in_progress) {
+			float base_x = 36.0f, base_z = 36.0f;
+			for (const auto &b : buildings_) {
+				if (b.team == 1 && b.type == BLD_TOWN_CENTER) {
+					base_x = b.x; base_z = b.z; break;
+				}
+			}
+			int start_cx = (int)(base_x / GRID);
+			int start_cz = (int)(base_z / GRID);
+			bool placed = false;
+			for (int r = 3; r <= 8 && !placed; ++r) {
+				for (int dx = -r; dx <= r && !placed; ++dx) {
+					for (int dz = -r; dz <= r && !placed; ++dz) {
+						if (std::abs(dx) != r && std::abs(dz) != r) continue;
+						int cx = start_cx + dx;
+						int cz = start_cz + dz;
+						if (can_place(cx, cz, 1)) {
+							ai_wood_ -= 80.0f;
+							uint32_t bid = spawn_building(cx, cz, BLD_HOUSE, 1, 0.05f);
+							auto idle_workers = get_idle_workers(1);
+							if (!idle_workers.empty()) {
+								order_build_or_repair(idle_workers.data(), std::min((size_t)2, idle_workers.size()), bid);
+							}
+							placed = true;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// 2. Build Barracks if AI has none
+	bool has_barracks = false;
+	for (const auto &b : buildings_) {
+		if (b.team == 1 && b.type == BLD_BARRACKS) { has_barracks = true; break; }
+	}
+	if (!has_barracks && ai_wood_ >= 150.0f && ai_gold_ >= 50.0f && ai_stone_ >= 50.0f) {
+		float base_x = 36.0f, base_z = 36.0f;
+		for (const auto &b : buildings_) {
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER) {
+				base_x = b.x; base_z = b.z; break;
+			}
+		}
+		int start_cx = (int)(base_x / GRID);
+		int start_cz = (int)(base_z / GRID);
+		bool placed = false;
+		for (int r = 3; r <= 8 && !placed; ++r) {
+			for (int dx = -r; dx <= r && !placed; ++dx) {
+				for (int dz = -r; dz <= r && !placed; ++dz) {
+					int cx = start_cx + dx;
+					int cz = start_cz + dz;
+					if (can_place(cx, cz, 2)) {
+						ai_wood_ -= 150.0f;
+						ai_gold_ -= 50.0f;
+						ai_stone_ -= 50.0f;
+						uint32_t bid = spawn_building(cx, cz, BLD_BARRACKS, 1, 0.05f);
+						auto idle_workers = get_idle_workers(1);
+						if (!idle_workers.empty()) {
+							order_build_or_repair(idle_workers.data(), std::min((size_t)3, idle_workers.size()), bid);
+						}
+						placed = true;
+					}
+				}
+			}
+		}
+	}
+
+	// 3. Build Defense Tower in Phase >= 2
+	if (petra_phase_ >= 2 && ai_wood_ >= 100.0f && ai_stone_ >= 100.0f) {
+		int tower_count = 0;
+		for (const auto &b : buildings_) {
+			if (b.team == 1 && b.type == BLD_TOWER) tower_count++;
+		}
+		if (tower_count < 3) {
+			float base_x = 36.0f, base_z = 36.0f;
+			int start_cx = (int)(base_x / GRID);
+			int start_cz = (int)(base_z / GRID);
+			bool placed = false;
+			for (int r = 5; r <= 10 && !placed; ++r) {
+				for (int dx = -r; dx <= 0 && !placed; ++dx) {
+					for (int dz = -r; dz <= 0 && !placed; ++dz) {
+						int cx = start_cx + dx;
+						int cz = start_cz + dz;
+						if (can_place(cx, cz, 1)) {
+							ai_wood_ -= 100.0f;
+							ai_stone_ -= 100.0f;
+							uint32_t bid = spawn_building(cx, cz, BLD_TOWER, 1, 0.05f);
+							auto idle_workers = get_idle_workers(1);
+							if (!idle_workers.empty()) {
+								order_build_or_repair(idle_workers.data(), std::min((size_t)2, idle_workers.size()), bid);
+							}
+							placed = true;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// 4. Build Fortress in Phase >= 3
+	if (petra_phase_ >= 3 && ai_wood_ >= 300.0f && ai_gold_ >= 200.0f && ai_stone_ >= 300.0f) {
+		bool has_fortress = false;
+		for (const auto &b : buildings_) {
+			if (b.team == 1 && b.type == BLD_FORTRESS) { has_fortress = true; break; }
+		}
+		if (!has_fortress) {
+			float base_x = 36.0f, base_z = 36.0f;
+			int start_cx = (int)(base_x / GRID);
+			int start_cz = (int)(base_z / GRID);
+			bool placed = false;
+			for (int r = 4; r <= 10 && !placed; ++r) {
+				for (int dx = -r; dx <= 0 && !placed; ++dx) {
+					for (int dz = -r; dz <= 0 && !placed; ++dz) {
+						int cx = start_cx + dx;
+						int cz = start_cz + dz;
+						if (can_place(cx, cz, 2)) {
+							ai_wood_ -= 300.0f;
+							ai_gold_ -= 200.0f;
+							ai_stone_ -= 300.0f;
+							uint32_t bid = spawn_building(cx, cz, BLD_FORTRESS, 1, 0.05f);
+							auto idle_workers = get_idle_workers(1);
+							if (!idle_workers.empty()) {
+								order_build_or_repair(idle_workers.data(), std::min((size_t)4, idle_workers.size()), bid);
+							}
+							placed = true;
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+void Simulation::petra_manage_research(float dt) {
+	Building *ai_tc = nullptr;
+	for (auto &b : buildings_) {
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) {
+			ai_tc = &b;
+			break;
+		}
+	}
+	if (!ai_tc || ai_tc->research_tech != TECH_NONE) return;
+
+	// Phase 1 -> Town Phase
+	if (petra_phase_ == 1 && (ai_researched_techs_mask_ & (1u << TECH_PHASE_TOWN)) == 0) {
+		const TechInfo &tinfo = tech_info(TECH_PHASE_TOWN);
+		if (ai_food_ >= tinfo.food_cost && ai_wood_ >= tinfo.wood_cost && ai_gold_ >= tinfo.gold_cost) {
+			ai_food_ -= tinfo.food_cost;
+			ai_wood_ -= tinfo.wood_cost;
+			ai_gold_ -= tinfo.gold_cost;
+			ai_tc->research_tech = TECH_PHASE_TOWN;
+			ai_tc->research_timer = 0.0f;
+			ai_tc->research_duration = tinfo.research_time * 0.75f;
+			return;
+		}
+	}
+
+	// Phase 2 Economic Techs
+	if (petra_phase_ >= 2) {
+		if ((ai_researched_techs_mask_ & (1u << TECH_FARMING_1)) == 0) {
+			const TechInfo &tinfo = tech_info(TECH_FARMING_1);
+			if (ai_food_ >= tinfo.food_cost && ai_wood_ >= tinfo.wood_cost) {
+				ai_food_ -= tinfo.food_cost;
+				ai_wood_ -= tinfo.wood_cost;
+				ai_tc->research_tech = TECH_FARMING_1;
+				ai_tc->research_timer = 0.0f;
+				ai_tc->research_duration = tinfo.research_time * 0.75f;
+				return;
+			}
+		}
+		if ((ai_researched_techs_mask_ & (1u << TECH_WOODCUTTING_1)) == 0) {
+			const TechInfo &tinfo = tech_info(TECH_WOODCUTTING_1);
+			if (ai_food_ >= tinfo.food_cost && ai_wood_ >= tinfo.wood_cost && ai_gold_ >= tinfo.gold_cost) {
+				ai_food_ -= tinfo.food_cost;
+				ai_wood_ -= tinfo.wood_cost;
+				ai_gold_ -= tinfo.gold_cost;
+				ai_tc->research_tech = TECH_WOODCUTTING_1;
+				ai_tc->research_timer = 0.0f;
+				ai_tc->research_duration = tinfo.research_time * 0.75f;
+				return;
+			}
+		}
+		if ((ai_researched_techs_mask_ & (1u << TECH_MINING_1)) == 0) {
+			const TechInfo &tinfo = tech_info(TECH_MINING_1);
+			if (ai_food_ >= tinfo.food_cost && ai_wood_ >= tinfo.wood_cost && ai_gold_ >= tinfo.gold_cost && ai_stone_ >= tinfo.stone_cost) {
+				ai_food_ -= tinfo.food_cost;
+				ai_wood_ -= tinfo.wood_cost;
+				ai_gold_ -= tinfo.gold_cost;
+				ai_stone_ -= tinfo.stone_cost;
+				ai_tc->research_tech = TECH_MINING_1;
+				ai_tc->research_timer = 0.0f;
+				ai_tc->research_duration = tinfo.research_time * 0.75f;
+				return;
+			}
+		}
+	}
+
+	// Town Phase -> City Phase
+	if (petra_phase_ == 2 && (ai_researched_techs_mask_ & (1u << TECH_PHASE_CITY)) == 0) {
+		const TechInfo &tinfo = tech_info(TECH_PHASE_CITY);
+		if (ai_food_ >= tinfo.food_cost && ai_wood_ >= tinfo.wood_cost && ai_gold_ >= tinfo.gold_cost && ai_stone_ >= tinfo.stone_cost) {
+			ai_food_ -= tinfo.food_cost;
+			ai_wood_ -= tinfo.wood_cost;
+			ai_gold_ -= tinfo.gold_cost;
+			ai_stone_ -= tinfo.stone_cost;
+			ai_tc->research_tech = TECH_PHASE_CITY;
+			ai_tc->research_timer = 0.0f;
+			ai_tc->research_duration = tinfo.research_time * 0.75f;
+			return;
+		}
+	}
+
+	// Phase 3 Military Techs
+	if (petra_phase_ >= 3) {
+		if ((ai_researched_techs_mask_ & (1u << TECH_WEAPONS_1)) == 0) {
+			const TechInfo &tinfo = tech_info(TECH_WEAPONS_1);
+			if (ai_food_ >= tinfo.food_cost && ai_wood_ >= tinfo.wood_cost && ai_gold_ >= tinfo.gold_cost) {
+				ai_food_ -= tinfo.food_cost;
+				ai_wood_ -= tinfo.wood_cost;
+				ai_gold_ -= tinfo.gold_cost;
+				ai_tc->research_tech = TECH_WEAPONS_1;
+				ai_tc->research_timer = 0.0f;
+				ai_tc->research_duration = tinfo.research_time * 0.75f;
+				return;
+			}
+		}
+		if ((ai_researched_techs_mask_ & (1u << TECH_ARMOR_1)) == 0) {
+			const TechInfo &tinfo = tech_info(TECH_ARMOR_1);
+			if (ai_food_ >= tinfo.food_cost && ai_wood_ >= tinfo.wood_cost && ai_gold_ >= tinfo.gold_cost && ai_stone_ >= tinfo.stone_cost) {
+				ai_food_ -= tinfo.food_cost;
+				ai_wood_ -= tinfo.wood_cost;
+				ai_gold_ -= tinfo.gold_cost;
+				ai_stone_ -= tinfo.stone_cost;
+				ai_tc->research_tech = TECH_ARMOR_1;
+				ai_tc->research_timer = 0.0f;
+				ai_tc->research_duration = tinfo.research_time * 0.75f;
+				return;
+			}
+		}
+	}
+}
+
+void Simulation::petra_manage_tactical_attacks(float dt) {
+	petra_strike_force_.state_timer += dt;
+
+	// 1. Staging Point determination
+	float base_x = 36.0f, base_z = 36.0f;
+	for (const auto &b : buildings_) {
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) {
+			base_x = b.x; base_z = b.z; break;
+		}
+	}
+	petra_strike_force_.staging_x = base_x * 0.65f;
+	petra_strike_force_.staging_z = base_z * 0.65f;
+
+	// Clean up dead units from strike force
+	auto &sf_units = petra_strike_force_.unit_ids;
+	sf_units.erase(std::remove_if(sf_units.begin(), sf_units.end(), [&](uint32_t uid) {
+		int32_t uidx = lookup_unit(uid);
+		return (uidx < 0 || !units_.alive[uidx] || units_.team[uidx] != 1);
+	}), sf_units.end());
+
+	// Collect unassigned / newly produced AI military units into strike force
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != 1 || units_.unit_type[i] == UNIT_VILLAGER) continue;
+		uint32_t uid = units_.id[i];
+		if (std::find(sf_units.begin(), sf_units.end(), uid) == sf_units.end()) {
+			sf_units.push_back(uid);
+			if (petra_strike_force_.state == PetraStrikeForce::MUSTER) {
+				// Move to staging muster point
+				cmd_move(&uid, 1, petra_strike_force_.staging_x, petra_strike_force_.staging_z);
+			}
+		}
+	}
+
+	// Check if base is under attack (Emergency Defense Mobilization)
+	float base_threat = get_threat_at(base_x, base_z);
+	if (base_threat >= 10.0f && !sf_units.empty()) {
+		order_attack_move(sf_units.data(), sf_units.size(), base_x, base_z);
+		petra_strike_force_.state = PetraStrikeForce::ENGAGE;
+		return;
+	}
+
+	// 2. State Machine for Strike Force
+	size_t army_threshold = (petra_phase_ == 1) ? 6 : ((petra_phase_ == 2) ? 10 : 16);
+
+	if (petra_strike_force_.state == PetraStrikeForce::MUSTER) {
+		if (sf_units.size() >= army_threshold || petra_strike_force_.state_timer >= 60.0f) {
+			petra_strike_force_.state = PetraStrikeForce::MARCH;
+			petra_strike_force_.state_timer = 0.0f;
+		}
+	}
+
+	if (petra_strike_force_.state == PetraStrikeForce::MARCH) {
+		// 3. Strategic Target Selection
+		// Priority 1: Defense Towers / Fortresses guarding approaches
+		// Priority 2: Economic dropsites (Storehouses, Farmsteads) and exposed Villagers
+		// Priority 3: Military Barracks
+		// Priority 4: Town Center
+		float target_x = 0.0f, target_z = 0.0f;
+		uint32_t chosen_bld_id = 0;
+		int best_priority = -1;
+		float best_dist_sq = 1e9f;
+
+		for (const auto &b : buildings_) {
+			if (b.team != 0 || b.hp <= 0) continue;
+			int priority = 0;
+			if (b.type == BLD_TOWER || b.type == BLD_FORTRESS) priority = 4; // High threat defense
+			else if (b.type == BLD_STOREHOUSE || b.type == BLD_FARMSTEAD) priority = 3; // Economic dropsite
+			else if (b.type == BLD_BARRACKS) priority = 2;
+			else if (b.type == BLD_TOWN_CENTER) priority = 1;
+
+			if (priority > best_priority || (priority == best_priority && (b.x * b.x + b.z * b.z) < best_dist_sq)) {
+				best_priority = priority;
+				best_dist_sq = b.x * b.x + b.z * b.z;
+				chosen_bld_id = b.id;
+				target_x = b.x;
+				target_z = b.z;
+			}
+		}
+
+		petra_strike_force_.target_building_id = chosen_bld_id;
+		petra_strike_force_.target_x = target_x;
+		petra_strike_force_.target_z = target_z;
+
+		// 4. Tactical Formations Assignment
+		for (uint32_t uid : sf_units) {
+			int32_t idx = lookup_unit(uid);
+			if (idx < 0) continue;
+			if (units_.unit_type[idx] == UNIT_SWORDSMAN || units_.unit_type[idx] == UNIT_SPEARMAN || units_.unit_type[idx] == UNIT_ELEPHANT) {
+				units_.formation[idx] = FORMATION_PHALANX; // Frontline Shield Wall / Phalanx
+			} else if (units_.unit_type[idx] == UNIT_CAVALRY) {
+				units_.formation[idx] = FORMATION_WEDGE; // Flanking Wedge Shock
+			} else if (units_.unit_type[idx] == UNIT_ARCHER || units_.unit_type[idx] == UNIT_CATAPULT) {
+				units_.formation[idx] = FORMATION_SCATTER; // Dispersed Skirmish Volley
+			}
+		}
+
+		// Coordinated Attack-Move order towards target
+		order_attack_move(sf_units.data(), sf_units.size(), target_x, target_z);
+		petra_strike_force_.state = PetraStrikeForce::ENGAGE;
+		petra_strike_force_.state_timer = 0.0f;
+	}
+
+	if (petra_strike_force_.state == PetraStrikeForce::ENGAGE) {
+		if (sf_units.size() < 2) {
+			petra_strike_force_.state = PetraStrikeForce::MUSTER;
+			petra_strike_force_.state_timer = 0.0f;
+		} else if (petra_strike_force_.state_timer >= 25.0f) {
+			petra_strike_force_.state = PetraStrikeForce::MARCH;
+		}
+	}
+}
+
+void Simulation::tick_petra_ai(float dt) {
+	// 0 A.D. Petra Autonomous AI System
+	petra_timer_ += dt;
+
+	// AI economic passive baseline trickle
+	ai_food_  += 3.0f * dt;
+	ai_wood_  += 3.0f * dt;
+	ai_gold_  += 2.0f * dt;
+	ai_stone_ += 1.5f * dt;
 	ai_food_  = std::min(ai_food_,  9999.0f);
 	ai_wood_  = std::min(ai_wood_,  9999.0f);
 	ai_gold_  = std::min(ai_gold_,  9999.0f);
 	ai_stone_ = std::min(ai_stone_, 9999.0f);
 
-	// Update AI phase based on wave number
-	if (wave_number_ >= 5)       petra_phase_ = 3;
-	else if (wave_number_ >= 3)  petra_phase_ = 2;
+	// 1. Dynamic Danger & Threat Heatmap
+	update_petra_threat_map(dt);
 
-	// Petra training cadence — spawn military units every 18-25s based on phase
-	float training_interval = (petra_phase_ == 1) ? 22.0f : (petra_phase_ == 2) ? 18.0f : 14.0f;
+	// 2. Villager Danger Evaluation & Retreat
+	petra_manage_workers(dt);
 
-	if (petra_timer_ >= training_interval) {
-		petra_timer_ = 0.0f;
+	// 3. Dynamic Counter-Unit Military Composition & Production
+	petra_manage_military_production(dt);
 
-		// Find an enemy Town Center or Barracks to spawn from
-		float spawn_x = 28.0f, spawn_z = 28.0f; // default far corner
-		for (const auto &b : buildings_) {
-			if (b.team == 1 && b.build_progress >= 1.0f &&
-				(b.type == BLD_TOWN_CENTER || b.type == BLD_BARRACKS || b.type == BLD_FORTRESS)) {
-				spawn_x = b.x + 2.0f + (float)(rand() % 4 - 2);
-				spawn_z = b.z + 2.0f + (float)(rand() % 4 - 2);
-				break;
-			}
-		}
-		// Clamp to map bounds
-		spawn_x = std::clamp(spawn_x, -map_half_ + 2.0f, map_half_ - 2.0f);
-		spawn_z = std::clamp(spawn_z, -map_half_ + 2.0f, map_half_ - 2.0f);
+	// 4. Economic Balance, Housing & Phase Progression
+	petra_manage_economy(dt);
+	petra_manage_buildings(dt);
+	petra_manage_research(dt);
 
-		// Train a unit proportional to phase
-		UnitType ai_unit = UNIT_SWORDSMAN;
-		int roll = rand() % 10;
-		if (petra_phase_ == 1) {
-			ai_unit = (roll < 4) ? UNIT_SWORDSMAN : (roll < 7) ? UNIT_SPEARMAN : UNIT_ARCHER;
-		} else if (petra_phase_ == 2) {
-			ai_unit = (roll < 3) ? UNIT_CAVALRY : (roll < 6) ? UNIT_SWORDSMAN : UNIT_ARCHER;
-		} else {
-			ai_unit = (roll < 2) ? UNIT_CATAPULT : (roll < 4) ? UNIT_CAVALRY :
-			          (roll < 6) ? UNIT_ELEPHANT : UNIT_SWORDSMAN;
-		}
-
-		const UnitTypeInfo &uinfo = unit_type_info(ai_unit);
-		// Deduct from AI economy
-		if (ai_food_ >= uinfo.food_cost && ai_wood_ >= uinfo.wood_cost &&
-			ai_gold_ >= uinfo.gold_cost) {
-			ai_food_ -= uinfo.food_cost;
-			ai_wood_ -= uinfo.wood_cost;
-			ai_gold_ -= uinfo.gold_cost;
-			uint32_t uid = spawn_unit(spawn_x, spawn_z, 1, ai_unit, uinfo.hp);
-
-			// Give new unit an attack-move order towards the player base
-			float tx = 0.0f + (float)(rand() % 10 - 5);
-			float tz = 0.0f + (float)(rand() % 10 - 5);
-			uint32_t arr[1] = {uid};
-			order_attack_move(arr, 1, tx, tz);
-		}
-	}
+	// 5. Coordinated Tactical Battlegroup Attacks
+	petra_manage_tactical_attacks(dt);
 }
 
 bool Simulation::save_state(const char *filepath) const {
@@ -2376,6 +3942,8 @@ uint32_t Simulation::spawn_fauna(float x, float z, uint8_t ftype) {
 	fauna_.state_timer[idx] = 2.0f + (float)(rand() % 4);
 	fauna_.attack_timer[idx] = 0.0f;
 	fauna_.target_unit_id[idx] = 0;
+	fauna_.corral_id[idx] = 0;
+	fauna_.fatten_timer[idx] = 0.0f;
 	fauna_id_to_idx_[fid] = idx;
 	return fid;
 }
@@ -2402,11 +3970,11 @@ void Simulation::tick_fauna(float dt) {
 		if (!fauna_.alive[i]) continue;
 		const auto &info = fauna_type_info(fauna_.fauna_type[i]);
 
-		// Dead check -> Carcass conversion
+		// Dead check -> Carcass conversion (preserves fattened food value!)
 		if (fauna_.hp[i] <= 0.0f) {
 			if (fauna_.behavior[i] != FAUNA_CARCASS) {
 				fauna_.behavior[i] = FAUNA_CARCASS;
-				// Spawn rich food resource node where animal fell
+				// Spawn rich food resource node where animal fell with fattened food yield
 				spawn_resource_world(fauna_.pos_x[i], fauna_.pos_z[i], RES_FOOD, fauna_.food_amount[i]);
 			}
 			fauna_.alive[i] = 0;
@@ -2419,7 +3987,118 @@ void Simulation::tick_fauna(float dt) {
 		float fx = fauna_.pos_x[i];
 		float fz = fauna_.pos_z[i];
 
-		// Scan for nearest player unit within agro/flee range
+		// 1. Domestic Corralled Livestock Behavior & Passive Fattening (Corral.js)
+		if (fauna_.behavior[i] == FAUNA_CORRALLED) {
+			auto bit = building_id_to_idx_.find(fauna_.corral_id[i]);
+			if (bit == building_id_to_idx_.end() || buildings_[bit->second].hp <= 0.0f) {
+				fauna_.behavior[i] = FAUNA_IDLE_GRAZE;
+				fauna_.corral_id[i] = 0;
+			} else {
+				const auto &corral = buildings_[bit->second];
+				// Passive Fattening over time: steadily increases food yield from 100 up to 400!
+				fauna_.fatten_timer[i] += dt;
+				if (fauna_.fatten_timer[i] >= 2.0f) {
+					fauna_.fatten_timer[i] -= 2.0f;
+					if (fauna_.food_amount[i] < 400) {
+						fauna_.food_amount[i] = std::min(400, fauna_.food_amount[i] + 5);
+						fauna_.hp[i] = std::min(fauna_.max_hp[i] * 1.5f, fauna_.hp[i] + 0.5f);
+					}
+				}
+
+				// Gentle wandering inside/near corral perimeter
+				float cdx = fx - corral.x;
+				float cdz = fz - corral.z;
+				float cd2 = cdx * cdx + cdz * cdz;
+				if (cd2 > 2.8f * 2.8f) {
+					float clen = std::sqrt(cd2);
+					fauna_.vel_x[i] = -(cdx / clen) * (info.speed * 0.4f);
+					fauna_.vel_z[i] = -(cdz / clen) * (info.speed * 0.4f);
+					fauna_.rot_y[i] = std::atan2(-cdx, -cdz);
+				} else if (fauna_.state_timer[i] <= 0.0f) {
+					fauna_.state_timer[i] = 3.0f + (float)(rand() % 4);
+					if (rand() % 2 == 0) {
+						float angle = (float)(rand() % 360) * 0.0174533f;
+						fauna_.vel_x[i] = std::sin(angle) * (info.speed * 0.2f);
+						fauna_.vel_z[i] = std::cos(angle) * (info.speed * 0.2f);
+						fauna_.rot_y[i] = angle;
+					} else {
+						fauna_.vel_x[i] = 0.0f;
+						fauna_.vel_z[i] = 0.0f;
+					}
+				}
+
+				fauna_.pos_x[i] += fauna_.vel_x[i] * dt;
+				fauna_.pos_z[i] += fauna_.vel_z[i] * dt;
+				fauna_.pos_x[i] = std::clamp(fauna_.pos_x[i], -map_half_ + 2.0f, map_half_ - 2.0f);
+				fauna_.pos_z[i] = std::clamp(fauna_.pos_z[i], -map_half_ + 2.0f, map_half_ - 2.0f);
+				continue;
+			}
+		}
+
+		// 2. Herded Animals (Following Villager / Moving toward friendly Corral)
+		if (fauna_.behavior[i] == FAUNA_HERDED) {
+			float nearest_corral_d2 = 99999.0f;
+			float target_cx = 0.0f, target_cz = 0.0f;
+			uint32_t nearest_cid = 0;
+
+			for (const auto &b : buildings_) {
+				if (b.team != 0 || b.build_progress < 1.0f) continue;
+				if (b.type == BLD_CORRAL || (b.type == BLD_TOWN_CENTER && nearest_cid == 0)) {
+					float dx = b.x - fx;
+					float dz = b.z - fz;
+					float d2 = dx * dx + dz * dz;
+					if (b.type == BLD_CORRAL) d2 *= 0.5f; // prioritize corrals
+					if (d2 < nearest_corral_d2) {
+						nearest_corral_d2 = d2;
+						target_cx = b.x;
+						target_cz = b.z;
+						nearest_cid = b.id;
+					}
+				}
+			}
+
+			if (nearest_cid != 0) {
+				float dx = target_cx - fx;
+				float dz = target_cz - fz;
+				float len = std::hypot(dx, dz);
+				if (len <= 3.8f) {
+					// Arrived safely at corral!
+					fauna_.corral_id[i] = nearest_cid;
+					fauna_.behavior[i] = FAUNA_CORRALLED;
+					fauna_.vel_x[i] = 0.0f;
+					fauna_.vel_z[i] = 0.0f;
+				} else {
+					fauna_.vel_x[i] = (dx / len) * (info.speed * 1.15f);
+					fauna_.vel_z[i] = (dz / len) * (info.speed * 1.15f);
+					fauna_.rot_y[i] = std::atan2(dx, dz);
+				}
+			} else {
+				int32_t herder_idx = lookup_unit(fauna_.target_unit_id[i]);
+				if (herder_idx >= 0 && units_.alive[herder_idx]) {
+					float dx = units_.pos_x[herder_idx] - fx;
+					float dz = units_.pos_z[herder_idx] - fz;
+					float len = std::hypot(dx, dz);
+					if (len > 2.5f) {
+						fauna_.vel_x[i] = (dx / len) * (info.speed * 1.1f);
+						fauna_.vel_z[i] = (dz / len) * (info.speed * 1.1f);
+						fauna_.rot_y[i] = std::atan2(dx, dz);
+					} else {
+						fauna_.vel_x[i] = 0.0f;
+						fauna_.vel_z[i] = 0.0f;
+					}
+				} else {
+					fauna_.behavior[i] = FAUNA_IDLE_GRAZE;
+				}
+			}
+
+			fauna_.pos_x[i] += fauna_.vel_x[i] * dt;
+			fauna_.pos_z[i] += fauna_.vel_z[i] * dt;
+			fauna_.pos_x[i] = std::clamp(fauna_.pos_x[i], -map_half_ + 2.0f, map_half_ - 2.0f);
+			fauna_.pos_z[i] = std::clamp(fauna_.pos_z[i], -map_half_ + 2.0f, map_half_ - 2.0f);
+			continue;
+		}
+
+		// 3. Scan for nearest player unit within agro/flee range
 		float nearest_u_dist2 = 99999.0f;
 		float nearest_ux = 0, nearest_uz = 0;
 		uint32_t nearest_uid = 0;

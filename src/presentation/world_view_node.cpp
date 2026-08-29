@@ -671,12 +671,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		alive_buildings.insert(b.id);
 		BuildingVis &v = acquire_building_slot(b.id);
 
-		const char *mid = "town_center";
-		if (b.type == rtso::BLD_HOUSE) mid = "house";
-		else if (b.type == rtso::BLD_BARRACKS) mid = "barracks";
-		else if (b.type == rtso::BLD_TOWER) mid = "wall_tower";
-		else if (b.type == rtso::BLD_STOREHOUSE) mid = "storehouse";
-		else if (b.type == rtso::BLD_FARMSTEAD) mid = "farmstead";
+		const char *mid = rtso::building_type_model(b.type);
 
 		attach_building_model(v, mid);
 		String cat_b = "buildings";

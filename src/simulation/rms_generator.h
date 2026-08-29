@@ -1,0 +1,152 @@
+#ifndef RTSO_RMS_GENERATOR_H
+#define RTSO_RMS_GENERATOR_H
+
+#include "sim_types.h"
+#include <cstdint>
+#include <vector>
+#include <string>
+#include <cmath>
+#include <algorithm>
+#include <utility>
+
+namespace rtso {
+
+class Simulation;
+
+// Deterministic PRNG for procedural generation with seed reproducibility
+class RmsRng {
+public:
+	explicit RmsRng(uint32_t seed = 1337) : state_(seed ? seed : 1337) {}
+
+	void set_seed(uint32_t seed) { state_ = seed ? seed : 1337; }
+	uint32_t seed() const { return state_; }
+
+	uint32_t next_u32() {
+		uint32_t x = state_;
+		x ^= x << 13;
+		x ^= x >> 17;
+		x ^= x << 5;
+		state_ = x;
+		return x;
+	}
+
+	float next_float() {
+		return (next_u32() & 0xFFFFFF) / 16777216.0f; // [0, 1)
+	}
+
+	float range_float(float min_val, float max_val) {
+		return min_val + next_float() * (max_val - min_val);
+	}
+
+	int range_int(int min_val, int max_val) {
+		if (min_val >= max_val) return min_val;
+		return min_val + (int)(next_u32() % (uint32_t)(max_val - min_val + 1));
+	}
+
+	float next_gaussian(float mean = 0.0f, float stddev = 1.0f) {
+		float u1 = std::max(1e-6f, next_float());
+		float u2 = next_float();
+		float z0 = std::sqrt(-2.0f * std::log(u1)) * std::cos(6.28318530718f * u2);
+		return mean + z0 * stddev;
+	}
+
+private:
+	uint32_t state_;
+};
+
+// 2D Heightmap Grid for multi-scale terrain synthesis
+class HeightmapGrid {
+public:
+	int res = 129; // (2^n + 1) e.g., 65 or 129
+	float map_half = 64.0f;
+	std::vector<float> data;
+
+	void init(int r, float half, float init_val = 0.0f) {
+		res = r;
+		map_half = half;
+		data.assign((size_t)(res * res), init_val);
+	}
+
+	inline float get(int x, int z) const {
+		if (x < 0) x = 0; else if (x >= res) x = res - 1;
+		if (z < 0) z = 0; else if (z >= res) z = res - 1;
+		return data[(size_t)(z * res + x)];
+	}
+
+	inline void set(int x, int z, float val) {
+		if (x >= 0 && x < res && z >= 0 && z < res) {
+			data[(size_t)(z * res + x)] = val;
+		}
+	}
+
+	inline void add(int x, int z, float val) {
+		if (x >= 0 && x < res && z >= 0 && z < res) {
+			data[(size_t)(z * res + x)] += val;
+		}
+	}
+
+	float sample_world(float wx, float wz) const;
+	void world_to_grid(float wx, float wz, float &gx, float &gz) const;
+	void grid_to_world(int gx, int gz, float &wx, float &wz) const;
+
+	float compute_slope_world(float wx, float wz) const;
+
+	// Terrain synthesis operations
+	void diamond_square(RmsRng &rng, float initial_range, float roughness);
+	void apply_fbm(RmsRng &rng, int octaves, float frequency, float persistence, float lacunarity, float amplitude);
+	void apply_ridged_noise(RmsRng &rng, int octaves, float frequency, float persistence, float lacunarity, float amplitude);
+	void apply_radial_falloff(float start_fraction, float end_fraction, float ocean_height);
+	void apply_border_falloff(float border_width, float target_height);
+	void blur(int passes = 1, float weight = 0.5f);
+	void thermal_erosion(int iterations = 10, float talus_threshold = 0.8f, float erosion_rate = 0.15f);
+	void terrace(float step_height, float ramp_fraction = 0.2f);
+	void level_area(float center_wx, float center_wz, float radius, float blend_radius, float target_height);
+	void carve_spline_path(const std::vector<std::pair<float, float>> &points, float river_width, float bed_depth, float water_height, float ford_start_dist = -1.0f, float ford_length = 0.0f);
+	void carve_crater_lake(float center_wx, float center_wz, float radius, float blend_margin, float depth, float water_height);
+	void raise_plateau(float center_wx, float center_wz, float radius, float ramp_angle, float ramp_width_rad, float height_gain, float cliff_blend);
+};
+
+// RMS Procedural Map Generator Engine
+class RmsGenerator {
+public:
+	struct Config {
+		MapType map_type = MAP_RANDOM_CONTINENTAL;
+		uint32_t seed = 0;
+		int num_players = 2;
+		float map_half = 64.0f;
+		int heightmap_res = 129; // 129x129 grid for high-fidelity terrain
+		BiomeType biome = BIOME_AEGEAN;
+	};
+
+	struct PlayerSpawn {
+		uint8_t team;
+		float x, z;
+		float base_height;
+		float forward_dir_x, forward_dir_z;
+	};
+
+	static bool generate(Simulation &sim, const Config &config);
+
+private:
+	// Map-specific terrain synthesizers
+	static void synth_continental(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players);
+	static void synth_archipelago(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players);
+	static void synth_oasis(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players);
+	static void synth_highlands(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players);
+	static void synth_valley(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players);
+	static void synth_mediterranean(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players);
+	static void synth_acropolis(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players);
+	static void synth_spartan_valley(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players);
+	static void synth_sahara(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players);
+	static void synth_peloponnese(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players);
+
+	// Fair entity & resource distribution
+	static void distribute_player_bases(Simulation &sim, const HeightmapGrid &hm, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config);
+	static void distribute_neutral_resources(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config);
+	static void distribute_wildlife(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config);
+	static void distribute_relics(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config);
+};
+
+} // namespace rtso
+
+#endif // RTSO_RMS_GENERATOR_H

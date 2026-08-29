@@ -13,6 +13,7 @@ RtsoSimNode::~RtsoSimNode() {
 
 void RtsoSimNode::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("spawn_initial"), &RtsoSimNode::spawn_initial);
+	ClassDB::bind_method(D_METHOD("generate_random_map", "map_type", "seed", "num_players", "map_half"), &RtsoSimNode::generate_random_map, DEFVAL(5), DEFVAL(0), DEFVAL(2), DEFVAL(64.0f));
 	ClassDB::bind_method(D_METHOD("tick", "dt"), &RtsoSimNode::tick);
 	ClassDB::bind_method(D_METHOD("cmd_move", "unit_ids", "target"), &RtsoSimNode::cmd_move);
 	ClassDB::bind_method(D_METHOD("cmd_build_house", "pos"), &RtsoSimNode::cmd_build_house);
@@ -41,6 +42,9 @@ void RtsoSimNode::_process(double delta) {
 }
 
 void RtsoSimNode::spawn_initial() { sim->spawn_initial(); }
+void RtsoSimNode::generate_random_map(int map_type, int seed, int num_players, float map_half) {
+	sim->generate_random_map((rtso::MapType)std::clamp(map_type, 0, (int)rtso::MAP_TYPE_COUNT - 1), (uint32_t)seed, num_players, map_half);
+}
 void RtsoSimNode::tick(float dt) { sim->tick(dt); }
 
 void RtsoSimNode::cmd_move(const PackedInt32Array &unit_ids, Vector3 target) {
