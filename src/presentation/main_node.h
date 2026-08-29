@@ -26,6 +26,9 @@
 #include <godot_cpp/classes/audio_stream.hpp>
 #include <godot_cpp/classes/time.hpp>
 #include <godot_cpp/classes/option_button.hpp>
+#include <godot_cpp/classes/rich_text_label.hpp>
+#include <godot_cpp/classes/line_edit.hpp>
+#include <godot_cpp/classes/h_separator.hpp>
 #include <godot_cpp/classes/json.hpp>
 #include <godot_cpp/classes/file_access.hpp>
 #include <godot_cpp/classes/input.hpp>
@@ -56,12 +59,15 @@ class RtsoMain : public Node3D {
 	AudioStreamPlayer *alarm_player = nullptr;
 	AudioStreamPlayer *sfx_player = nullptr;
 	AudioStreamPlayer *ambient_player = nullptr;
+	AudioStreamPlayer *ambient_wind_player = nullptr;
+	AudioStreamPlayer *ambient_water_player = nullptr;
 	AudioStreamPlayer3D *spatial_sfx_player = nullptr;
 	float combat_intensity = 0.0f;
 
 	// 1. Top HUD Bar
 	Panel *top_hud_panel = nullptr;
 	TextureRect *civ_emblem = nullptr;
+	TextureRect *phase_emblem = nullptr;
 	TextureRect *res_icons[4] = {nullptr};
 	Label *res_labels[4] = {nullptr};
 	TextureRect *pop_icon = nullptr;
@@ -73,14 +79,25 @@ class RtsoMain : public Node3D {
 	Button *menu_btn = nullptr;
 	OptionButton *map_selector = nullptr;
 	OptionButton *civ_selector = nullptr;
+	OptionButton *ai_diff_selector = nullptr;
+	OptionButton *ai_behavior_selector = nullptr;
+	OptionButton *victory_selector = nullptr;
 
-	// 2. Bottom Inspector Panel
+	// 2. Bottom Inspector Panel (5-Bar Stack: Health, Capture, XP, Stamina, Aura)
 	Panel *inspector_panel = nullptr;
 	TextureRect *inspector_portrait = nullptr;
 	Label *inspector_title = nullptr;
 	Label *inspector_class = nullptr;
 	ProgressBar *inspector_hp_bar = nullptr;
 	Label *inspector_hp_label = nullptr;
+	ProgressBar *inspector_capture_bar = nullptr;
+	Label *inspector_capture_label = nullptr;
+	ProgressBar *inspector_xp_bar = nullptr;
+	Label *inspector_xp_label = nullptr;
+	ProgressBar *inspector_stamina_bar = nullptr;
+	Label *inspector_stamina_label = nullptr;
+	ProgressBar *inspector_aura_bar = nullptr;
+	Label *inspector_aura_label = nullptr;
 	Label *inspector_stats = nullptr;
 	Label *inspector_extra = nullptr;
 	Button *ungarrison_btn = nullptr;
@@ -93,9 +110,30 @@ class RtsoMain : public Node3D {
 	HBoxContainer *queue_bar = nullptr;
 	Label *command_title = nullptr;
 
+	struct QueueSlotUI {
+		Panel *panel = nullptr;
+		TextureRect *icon = nullptr;
+		ProgressBar *progress = nullptr;
+		Label *chip = nullptr;
+	};
+	QueueSlotUI queue_slots[8];
+
 	// 4. Banner Overlay
 	Panel *banner_panel = nullptr;
 	Label *banner_label = nullptr;
+
+	// 5. In-Game Chat Overlay
+	Panel *chat_panel = nullptr;
+	RichTextLabel *chat_log = nullptr;
+	OptionButton *chat_channel = nullptr;
+	LineEdit *chat_input = nullptr;
+	Button *chat_send_btn = nullptr;
+
+	// 6. Diplomacy & Tribute Dialog (8-player matrix)
+	Panel *diplomacy_panel = nullptr;
+	OptionButton *diplo_stances[8] = {nullptr};
+	Label *diplo_player_names[8] = {nullptr};
+	Button *diplo_close_btn = nullptr;
 
 	// 3D Placement Ghost & Rally Marker
 	MeshInstance3D *ghost_mesh = nullptr;
@@ -148,6 +186,21 @@ public:
 	void _on_tech_pressed(int tech_id);
 	void _on_map_selected(int index);
 	void _on_civ_selected(int index);
+	void _on_ai_diff_selected(int index);
+	void _on_ai_behavior_selected(int index);
+	void _on_victory_selected(int index);
+	void _on_barter_requested(int sell_type, int buy_type, int amount);
+
+	void _on_queue_slot_gui_input(const Ref<InputEvent> &event, int slot_idx);
+	void _on_queue_slot_cancel(int slot_idx);
+
+	void toggle_chat();
+	void _on_chat_send_pressed();
+	void _on_chat_text_submitted(const String &text);
+
+	void toggle_diplomacy();
+	void _on_diplo_stance_changed(int stance, int player_idx);
+	void _on_diplo_tribute_pressed(int player_idx, int res_type);
 
 	bool load_map(String map_id);
 	PackedStringArray get_available_maps() const;
@@ -158,6 +211,9 @@ public:
 	PackedByteArray get_fow_grid() const;
 	void order_guard_units(uint32_t target_id);
 	void spawn_large_battle(int total_units = 1000);
+
+	void set_use_english_voice_orders(bool enable) { use_english_voice_orders_ = enable; }
+	bool is_use_english_voice_orders() const { return use_english_voice_orders_; }
 
 private:
 	Vector3 get_ground_click_pos(Vector2 mouse_pos) const;
@@ -175,6 +231,8 @@ private:
 	void play_alarm(const char *path);
 	void play_sfx(const char *path);
 	void play_spatial_sfx(const char *path, Vector3 pos);
+
+	bool use_english_voice_orders_ = true; // Default to English orders
 };
 
 #endif

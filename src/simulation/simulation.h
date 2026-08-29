@@ -3,6 +3,9 @@
 
 #include "../core/memory/arena.h"
 #include "../core/memory/soa_storage.h"
+#include "grid_nav.h"
+#include "aura_manager.h"
+#include "petra_ai.h"
 #include "sim_types.h"
 #include <cstdint>
 #include <vector>
@@ -168,9 +171,34 @@ public:
 	const std::vector<uint32_t> *get_transport_passengers(uint32_t transport_id) const;
 	size_t get_transport_passenger_count(uint32_t transport_id) const;
 	bool is_transport(uint32_t unit_id) const;
+	int get_transport_capacity(uint32_t transport_id) const;
+
+	// Garrison & Turret System (GarrisonHolder.js, TurretHolder.js)
+	int get_garrison_count(uint32_t building_id) const;
+	int get_garrison_capacity(uint32_t building_id) const;
+	const std::vector<uint32_t> *get_garrisoned_units(uint32_t building_id) const;
+
+	// Victory Conditions (VictoryManager.js, EndGameManager.js)
+	uint8_t victory_condition() const { return (uint8_t)victory_condition_; }
+	void set_victory_condition(uint8_t vc) { victory_condition_ = (VictoryCondition)vc; }
+	float relic_victory_timer() const { return relic_victory_timer_; }
+
+	// Battle Alerts (AlertRaiser.js)
+	void raise_alert(BattleAlert::Type type, float x, float z, uint32_t entity_id, uint8_t team = 0);
+	const std::vector<BattleAlert> &pending_alerts() const { return pending_alerts_; }
+	void clear_alerts() { pending_alerts_.clear(); }
 
 	bool cmd_research(uint32_t building_id, uint8_t tech_id);
 	bool cmd_barter(ResourceType sell, ResourceType buy, int amount = 100);
+	// G3 Market/Trader
+	int calculate_trader_gain(const Building& mA, const Building& mB, uint8_t team) const;
+	void order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id);
+	void order_trade_auto(const uint32_t *unit_ids, size_t count); // auto-find best route
+	float get_market_buy_price(ResourceType t) const { return market_buy_price_[t]; }
+	float get_market_sell_price(ResourceType t) const { return market_sell_price_[t]; }
+	int get_market_history(ResourceType t) const { return market_trade_history_[t]; }
+	float trader_gains(const Building *a, const Building *b) const; // legacy helper
+	float trader_gains(Building *a, Building *b) { return trader_gains((const Building*)a,(const Building*)b); }
 
 	bool save_state(const char *filepath) const;
 	bool load_state(const char *filepath);
@@ -234,6 +262,25 @@ public:
 	void set_map_preset(uint8_t m) { map_preset_ = m; }
 	uint8_t map_preset() const { return map_preset_; }
 	bool is_tech_researched(uint8_t tech_id) const { return (researched_techs_mask_ & (1u << tech_id)) != 0; }
+	uint32_t researched_techs_mask() const { return researched_techs_mask_; }
+	uint32_t ai_researched_techs_mask() const { return ai_researched_techs_mask_; }
+	bool unit_has_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.has_order[idx]; }
+	const Grid<uint8_t>& territory_grid() const { return territory_grid_; }
+	const Grid<uint8_t>& influence_grid() const { return influence_grid_; }
+	const NavGrid& nav_grid() const { return nav_grid_; }
+	float market_buy_price(uint8_t res) const { return (res < 4) ? market_buy_price_[res] : 1.0f; }
+	float market_sell_price(uint8_t res) const { return (res < 4) ? market_sell_price_[res] : 1.0f; }
+
+	// Diplomacy & Tribute (DiplomacyDialog.js)
+	enum DiplomacyStance : uint8_t {
+		DIPLO_ALLY = 0,
+		DIPLO_NEUTRAL = 1,
+		DIPLO_ENEMY = 2
+	};
+	uint8_t get_diplomacy(uint8_t player_id) const { return (player_id < 8) ? diplomacy_[player_id] : (uint8_t)DIPLO_ENEMY; }
+	void set_diplomacy(uint8_t player_id, uint8_t stance) { if (player_id < 8) diplomacy_[player_id] = stance; }
+	bool send_tribute(uint8_t player_id, uint8_t res_type, int amount);
+	bool ai_send_tribute(uint8_t res_type, int amount);
 
 	// Petra AI Heuristics & Threat View
 	int petra_phase() const { return petra_phase_; }
@@ -246,6 +293,87 @@ public:
 	bool is_position_safe(float x, float z, float threshold = 6.0f) const;
 	int ai_pop_current() const;
 	int ai_pop_max() const;
+
+	const uint8_t* petra_fow_grid() const { return petra_fow_; }
+
+	// Petra Multi-Base HQ & BasesManager (0 A.D. ai/petra/headquarters.js / baseManager.js)
+	struct PetraBase {
+		uint32_t id = 1;
+		uint32_t anchor_building_id = 0;
+		float x = 36.0f;
+		float z = 36.0f;
+		bool is_primary = true;
+		int assigned_workers = 0;
+		float radius = 32.0f;
+		float danger_level = 0.0f;
+		bool resources_depleted = false;
+	};
+
+	enum PetraPriorityQueue : uint8_t {
+		PETRA_QUEUE_EMERGENCY = 0, // Threat >= 7.0f: Emergency spearmen, archers, towers
+		PETRA_QUEUE_VILLAGER  = 1, // Economic boom: 35% of total pop
+		PETRA_QUEUE_MILITARY  = 2, // Military strike force: Counter-units for AttackPlan
+		PETRA_QUEUE_TECH      = 3, // Technology & Phase research
+		PETRA_QUEUE_TRADE     = 4, // Market and trader caravans
+		PETRA_QUEUE_NAVAL     = 5, // Dock and triremes on coastal/water maps
+		PETRA_QUEUE_COUNT     = 6
+	};
+
+	const std::vector<PetraBase> &petra_bases() const { return petra_bases_; }
+	const PetraBase *get_primary_petra_base() const;
+	const PetraBase *get_nearest_petra_base(float x, float z) const;
+
+	// Petra AI AttackPlan FSM matching 0 A.D. ai/petra/attackPlan.js
+	struct AttackPlan {
+		enum PlanType : uint8_t {
+			PLAN_RAID     = 0, // Quick cavalry/infantry harass against economy/workers
+			PLAN_ASSAULT  = 1, // Standard combined-arms attack against military buildings
+			PLAN_SIEGE    = 2  // Heavy siege assault against fortified bases (requires Catapults/Siege Rams)
+		} type = PLAN_ASSAULT;
+
+		enum State : uint8_t {
+			UNEXECUTED = 0,
+			MUSTER     = 1,
+			WALKING    = 2,
+			ATTACKED   = 3,
+			REGROUP    = 4,
+			ABORT      = 5
+		} state = UNEXECUTED;
+
+		uint32_t target_building_id = 0;
+		float staging_x = 0.0f;
+		float staging_z = 0.0f;
+		float target_x = 0.0f;
+		float target_z = 0.0f;
+		float abort_threat = 14.0f; // abort if danger at staging exceeds abort threshold
+		std::vector<uint32_t> squad; // unit_ids committed to this plan
+		size_t initial_squad_size = 0;
+		float state_timer = 0.0f;
+		uint32_t retreat_base_id = 0;
+		float retreat_x = 36.0f;
+		float retreat_z = 36.0f;
+	};
+	const AttackPlan &petra_attack_plan() const { return petra_attack_plan_; }
+	const AttackPlan &petra_raid_plan() const { return petra_raid_plan_; }
+	int petra_opening_step() const { return petra_opening_step_; }
+
+	void set_petra_difficulty(uint8_t d) {
+		petra_config_.difficulty = (d > PETRA_VERY_HARD) ? PETRA_MEDIUM : d;
+		apply_petra_config();
+	}
+	void set_petra_behavior(uint8_t b) {
+		petra_config_.behavior = (b > PETRA_BEHAVIOR_AGGRESSIVE) ? PETRA_BEHAVIOR_BALANCED : b;
+		apply_petra_config();
+	}
+	uint8_t petra_difficulty() const { return petra_config_.difficulty; }
+	uint8_t petra_behavior() const { return petra_config_.behavior; }
+	const PetraConfig &petra_config() const { return petra_config_; }
+	bool petra_in_emergency() const { return petra_emergency_.active; }
+	const PetraDefenseArmy &petra_defense_army() const { return petra_defense_army_; }
+	const PetraQueueManager &petra_queues() const { return petra_queues_; }
+	const PetraTransportPlan &petra_transport_plan() const { return petra_transport_; }
+	const std::vector<PetraChatLine> &pending_petra_chat() const { return petra_chat_; }
+	void clear_petra_chat() { petra_chat_.clear(); }
 
 	// Fauna (Wildlife) View & Spawner
 	struct FaunaView {
@@ -271,6 +399,7 @@ public:
 		uint8_t res_type;
 		int amount;
 		bool claimed;
+		uint8_t owner_team = 255;
 	};
 
 	float wonder_time_remaining() const { return std::max(0.0f, 600.0f - wonder_victory_timer_); }
@@ -313,9 +442,16 @@ private:
 	void tick_fauna(float dt);
 	void tick_status_effects(float dt);
 	void tick_fow();  // updates FoW each sim tick
+	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
+	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
+	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
+	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
+	void rebuild_auras(); // G4: rebuild AuraManager from temples/heroes/carnyx/female citizens
 	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1);
 	void bind_unit_index(uint32_t id, size_t idx);
 	int32_t lookup_unit(uint32_t id) const;
+	void apply_loot_bounty(uint8_t killer_team, int food, int wood, int gold, int stone);
+	void check_victory_conditions(float dt);
 
 	struct FaunaStorage {
 		static constexpr size_t MAX_FAUNA = 256;
@@ -348,6 +484,10 @@ private:
 	std::vector<TreasureRelic> relics_;
 	float wonder_victory_timer_ = 0.0f;
 	bool has_active_wonder_ = false;
+	VictoryCondition victory_condition_ = VICTORY_CONQUEST;
+	float relic_victory_timer_ = 0.0f;
+	std::vector<BattleAlert> pending_alerts_;
+	float last_alert_time_[6] = {};
 	std::unordered_map<uint32_t, size_t> unit_id_to_idx_;
 	std::vector<int32_t> unit_idx_by_id_;
 	std::unordered_map<uint32_t, size_t> res_id_to_idx_;
@@ -373,8 +513,16 @@ private:
 	float gold_gathered_window_ = 0.0f;
 	float stone_gathered_window_ = 0.0f;
 
+	// G3 Market / Barter dynamic prices (indexed by ResourceType: 0=WOOD,1=GOLD,2=STONE,3=FOOD)
+	float market_buy_price_[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+	float market_sell_price_[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+	int market_trade_history_[4] = {};
+	std::unordered_map<uint32_t, std::pair<uint32_t,uint32_t>> trader_routes_; // unit_id -> (marketA_id, marketB_id)
+	std::unordered_map<uint32_t,int> trader_leg_; // unit_id -> 0=A->B, 1=B->A (which target next)
+
 	uint8_t player_phase_ = 1; // 1=Village, 2=Town, 3=City
 	Civilization player_civ_[4] = {CIV_ATHENIANS, CIV_SPARTANS, CIV_ROMANS, CIV_PERSIANS};
+	uint8_t diplomacy_[8] = {0, 2, 2, 2, 2, 2, 2, 2}; // 0=Ally, 1=Neutral, 2=Enemy
 	uint8_t biome_ = BIOME_AEGEAN;
 	uint8_t map_preset_ = MAP_AEGEAN_ARCHIPELAGO;
 	uint32_t researched_techs_mask_ = 0;
@@ -391,15 +539,17 @@ private:
 	FrameArena frame_arena_{4 * 1024 * 1024};
 
 	// Petra AI Subsystems & Heuristics (0 A.D. Petra.js / dangerMap.js / military.js / economy.js / attackPlan.js)
-	static constexpr int THREAT_GRID_RES = 16;
+	// Phase6/G9: 64x64 high-resolution danger map matching NavGrid and FOW_GRID (2.0m cells)
+	static constexpr int THREAT_GRID_RES = 64;
 	static constexpr float THREAT_CELL_SIZE = (MAP_HALF * 2.0f) / (float)THREAT_GRID_RES;
 
+	// Phase7: 32-module Petra (config/attack/defense/queue) collapsed to G10 stub - see docs/AI_PETRA.md
 	struct PetraThreatMap {
 		float danger[THREAT_GRID_RES * THREAT_GRID_RES] = {};
 		float enemy_threat[THREAT_GRID_RES * THREAT_GRID_RES] = {};
 		float friendly_defense[THREAT_GRID_RES * THREAT_GRID_RES] = {};
 		float update_timer = 0.0f;
-	} petra_threat_map_;
+	} petra_threat_map_; // Phase7 full AI will extract to src/simulation/ai/ (Petra.js / dangerMap.js)
 
 	struct PetraStrikeForce {
 		enum State : uint8_t {
@@ -417,8 +567,34 @@ private:
 		float state_timer = 0.0f;
 	} petra_strike_force_;
 
+	AttackPlan petra_attack_plan_;
+	AttackPlan petra_raid_plan_;
+	int petra_opening_step_ = 0;
+	float petra_opening_timer_ = 0.0f;
+	PetraConfig petra_config_;
+	PetraDefenseArmy petra_defense_army_;
+	PetraEmergency petra_emergency_;
+	PetraQueueManager petra_queues_;
+	PetraTransportPlan petra_transport_;
+	std::vector<PetraChatLine> petra_chat_;
+	float petra_defense_timer_ = 0.0f;
+	float petra_victory_timer_ = 0.0f;
+	float petra_diplo_timer_ = 0.0f;
+	float ai_wonder_victory_timer_ = 0.0f;
+	bool pick_petra_safe_staging(float base_x, float base_z, float target_x, float target_z, float &out_sx, float &out_sz) const;
+	uint32_t find_petra_attack_target(float &out_tx, float &out_tz) const;
+	uint32_t find_petra_raid_target(float &out_tx, float &out_tz) const;
+	bool petra_unit_reserved(uint32_t uid) const;
+
+	std::vector<PetraBase> petra_bases_;
 	float petra_timer_  = 0.0f;
 	float petra_econ_timer_ = 0.0f;
+	float petra_trade_timer_ = 0.0f;
+	float petra_naval_timer_ = 0.0f;
+	float petra_scout_timer_ = 0.0f;
+	uint32_t petra_scout_unit_id_ = 0;
+	float petra_scout_angle_ = 0.0f;
+	float petra_scout_radius_ = 12.0f;
 	int   petra_phase_  = 1; // 1=Village, 2=Town, 3=City
 	float ai_food_  = 400.0f;
 	float ai_wood_  = 600.0f;
@@ -426,17 +602,43 @@ private:
 	float ai_stone_ = 200.0f;
 	uint32_t ai_researched_techs_mask_ = 0;
 
+	void update_petra_bases(float dt);
 	void update_petra_threat_map(float dt);
+	void petra_manage_scouting(float dt);
 	void petra_manage_workers(float dt);
 	void petra_manage_economy(float dt);
+	void petra_manage_trading(float dt);
+	void petra_manage_naval(float dt);
 	void petra_manage_buildings(float dt);
 	void petra_manage_research(float dt);
 	void petra_manage_military_production(float dt);
 	void petra_manage_tactical_attacks(float dt);
+	void petra_manage_raid(float dt);
+	void petra_manage_opening(float dt);
+	void petra_manage_defense(float dt);
+	void petra_manage_victory(float dt);
+	void petra_manage_diplomacy(float dt);
+	void petra_manage_emergency(float dt);
+	void petra_manage_transport(float dt);
+	void apply_petra_config();
+	void petra_refresh_queue_accounts();
+	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
+	void petra_say(uint8_t kind, float x = 0.0f, float z = 0.0f);
+	bool petra_path_crosses_water(float x0, float z0, float x1, float z1) const;
+	bool petra_find_beach(float land_x, float land_z, float toward_x, float toward_z, float &out_x, float &out_z) const;
+	bool petra_start_transport(const std::vector<uint32_t> &unit_ids, float from_x, float from_z, float to_x, float to_z);
+	uint32_t petra_place_building(uint8_t btype, float near_x, float near_z, int min_r, int max_r, uint8_t queue);
 
 	uint8_t fow_grid_[FOW_GRID * FOW_GRID] = {}; // FoW state per tile
+	uint8_t petra_fow_[FOW_GRID * FOW_GRID] = {}; // FoW state per tile for Petra AI
+	NavGrid nav_grid_; // Phase1: SoA nav mesh (buildings + water), mirrors 0AD Grid<NavcellData>
+	Grid<uint8_t> territory_grid_; // 64x64 player id per cell, G2 (CCmpTerritoryManager)
+	Grid<uint8_t> influence_grid_; // 64x64 influence count per cell, G2
+	std::vector<WaypointPath> unit_paths_; // per-unit path (UNIT_CAP), SoA waypoint_cur/count sync
+	AuraManager aura_mgr_; // G4: unified aura sources (AuraManager)
 	float fow_timer_ = 0.0f;
 	float territory_timer_ = 0.0f;
+	float aura_timer_ = 0.0f; // G4: 0.4s aura rebuild timer
 
 	float map_half_ = 64.0f;
 	int terrain_res_ = 64;

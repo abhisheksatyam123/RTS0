@@ -55,11 +55,17 @@ struct UnitSoA {
 	uint16_t *kills = nullptr; // Total unit combat kills (Promotion.js)
 	uint8_t *rank = nullptr; // 1=Basic, 2=Advanced (★), 3=Elite (★★)
 	uint8_t *status_effects = nullptr; // Bitfield of StatusEffect
+	uint16_t *xp = nullptr; // G1 Petra/Formation - veterancy XP (Promotion.js), allocation wired below
+	int16_t *waypoint_cur = nullptr; // G1 Petra/Formation - current waypoint index (WaypointPath::cur)
+	int16_t *waypoint_count = nullptr; // G1 Petra/Formation - waypoint count (WaypointPath::count)
 	float *poison_timer = nullptr;
 	float *snare_timer = nullptr;
 	float *knockback_timer = nullptr;
 	float *knockback_dir_x = nullptr;
 	float *knockback_dir_z = nullptr;
+	float *slow_timer = nullptr;
+	float *bleed_timer = nullptr;
+	float *burning_timer = nullptr;
 
 	size_t cap = 0;
 	size_t count = 0;
@@ -75,8 +81,10 @@ struct UnitSoA {
 		FREE(attack_timer); FREE(attack_range); FREE(attack_damage); FREE(attack_cooldown);
 		FREE(death_timer); FREE(target_unit_id); FREE(target_resource_id); FREE(target_building_id);
 		FREE(stance); FREE(formation); FREE(kills); FREE(rank);
-		FREE(status_effects); FREE(poison_timer); FREE(snare_timer); FREE(knockback_timer);
+		FREE(status_effects); FREE(xp); FREE(waypoint_cur); FREE(waypoint_count);
+		FREE(poison_timer); FREE(snare_timer); FREE(knockback_timer);
 		FREE(knockback_dir_x); FREE(knockback_dir_z);
+		FREE(slow_timer); FREE(bleed_timer); FREE(burning_timer);
 		#undef FREE
 		cap = count = 0;
 	}
@@ -128,11 +136,17 @@ struct UnitSoA {
 		realloc_aligned(kills, c * sizeof(uint16_t));
 		realloc_aligned(rank, c * sizeof(uint8_t));
 		realloc_aligned(status_effects, c * sizeof(uint8_t));
+		realloc_aligned(xp, c * sizeof(uint16_t));
+		realloc_aligned(waypoint_cur, c * sizeof(int16_t));
+		realloc_aligned(waypoint_count, c * sizeof(int16_t));
 		realloc_aligned(poison_timer, c * sizeof(float));
 		realloc_aligned(snare_timer, c * sizeof(float));
 		realloc_aligned(knockback_timer, c * sizeof(float));
 		realloc_aligned(knockback_dir_x, c * sizeof(float));
 		realloc_aligned(knockback_dir_z, c * sizeof(float));
+		realloc_aligned(slow_timer, c * sizeof(float));
+		realloc_aligned(bleed_timer, c * sizeof(float));
+		realloc_aligned(burning_timer, c * sizeof(float));
 		cap = c;
 	}
 
@@ -158,11 +172,17 @@ struct UnitSoA {
 		kills[i] = 0;
 		rank[i] = 1;
 		status_effects[i] = EFFECT_NONE;
+		xp[i] = 0;
+		waypoint_cur[i] = 0;
+		waypoint_count[i] = 0;
 		poison_timer[i] = 0.0f;
 		snare_timer[i] = 0.0f;
 		knockback_timer[i] = 0.0f;
 		knockback_dir_x[i] = 0.0f;
 		knockback_dir_z[i] = 0.0f;
+		slow_timer[i] = 0.0f;
+		bleed_timer[i] = 0.0f;
+		burning_timer[i] = 0.0f;
 		hp[i] = max_hp[i] = info.hp;
 		attack_range[i] = info.attack_range;
 		attack_damage[i] = info.attack_damage;
@@ -197,11 +217,17 @@ struct UnitSoA {
 			kills[idx] = kills[last];
 			rank[idx] = rank[last];
 			status_effects[idx] = status_effects[last];
+			xp[idx] = xp[last];
+			waypoint_cur[idx] = waypoint_cur[last];
+			waypoint_count[idx] = waypoint_count[last];
 			poison_timer[idx] = poison_timer[last];
 			snare_timer[idx] = snare_timer[last];
 			knockback_timer[idx] = knockback_timer[last];
 			knockback_dir_x[idx] = knockback_dir_x[last];
 			knockback_dir_z[idx] = knockback_dir_z[last];
+			slow_timer[idx] = slow_timer[last];
+			bleed_timer[idx] = bleed_timer[last];
+			burning_timer[idx] = burning_timer[last];
 		}
 		count--;
 	}

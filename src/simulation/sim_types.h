@@ -11,7 +11,10 @@ enum BiomeType : uint8_t {
 	BIOME_LATIUM = 1,
 	BIOME_ALPINE = 2,
 	BIOME_OASIS = 3,
-	BIOME_COUNT = 4
+	BIOME_TEMPERATE = 4,
+	BIOME_STEPPE = 5,
+	BIOME_SAVANNA = 6,
+	BIOME_COUNT = 7
 };
 
 enum Civilization : uint8_t {
@@ -43,7 +46,11 @@ enum MapType : uint8_t {
 	MAP_RANDOM_HIGHLANDS = 8,
 	MAP_RANDOM_VALLEY = 9,
 	MAP_RANDOM_MEDITERRANEAN = 10,
-	MAP_TYPE_COUNT = 11
+	MAP_DANUBIUS = 11,
+	MAP_SAHARAN_OASES = 12,
+	MAP_ANATOLIAN_PLATEAU = 13,
+	MAP_JEBEL_BARKAL = 14,
+	MAP_TYPE_COUNT = 15
 };
 
 struct MapTypeInfo {
@@ -67,7 +74,11 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_RANDOM_OASIS, "random_oasis", "Oasis (RMS)", "oasis", true, "Densely forested desert borders surrounding a lush, resource-heavy central lake basin."},
 		{MAP_RANDOM_HIGHLANDS, "random_highlands", "Highlands (RMS)", "alpine", true, "Rugged alpine terrain with sheer mountain cliffs, gorge rivers, and strategic passes."},
 		{MAP_RANDOM_VALLEY, "random_valley", "Fertile Valley (RMS)", "latium", true, "A lush river valley bounded by towering mountain ridges with balanced contested resources."},
-		{MAP_RANDOM_MEDITERRANEAN, "random_mediterranean", "Mediterranean Sea (RMS)", "mediterranean", true, "A central sea ringed by continuous fertile mainland coasts for all civilizations."}
+		{MAP_RANDOM_MEDITERRANEAN, "random_mediterranean", "Mediterranean Sea (RMS)", "mediterranean", true, "A central sea ringed by continuous fertile mainland coasts for all civilizations."},
+		{MAP_DANUBIUS, "danubius", "Danubius (RMS)", "temperate", true, "Meandering dual-channel river with fords, sandbars, and central island fortress."},
+		{MAP_SAHARAN_OASES, "saharan_oases", "Saharan Oases (RMS)", "oasis", true, "Arid desert with sinusoidal sand dunes, date palm groves, and freshwater oases."},
+		{MAP_ANATOLIAN_PLATEAU, "anatolian_plateau", "Anatolian Plateau (RMS)", "steppe", true, "High plateau steppe surrounded by perimeter canyon ravines and rich mineral outcrops."},
+		{MAP_JEBEL_BARKAL, "jebel_barkal", "Jebel Barkal (RMS)", "savanna", true, "Iconic central sandstone mesa landmark with high-ground elevation advantage and surrounding savanna quarries."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
@@ -181,7 +192,33 @@ enum StatusEffect : uint8_t {
 	EFFECT_POISON = 1,
 	EFFECT_BURNING = 2,
 	EFFECT_SNARE = 4,
-	EFFECT_KNOCKBACK = 8
+	EFFECT_KNOCKBACK = 8,
+	EFFECT_SLOW = 16,
+	EFFECT_BLEED = 32
+};
+
+enum VictoryCondition : uint8_t {
+	VICTORY_CONQUEST = 0,
+	VICTORY_WONDER = 1,
+	VICTORY_RELIC = 2,
+	VICTORY_ENDLESS = 3
+};
+
+struct BattleAlert {
+	enum Type : uint8_t {
+		ALERT_UNDER_ATTACK = 0,
+		ALERT_BUILDING_UNDER_ATTACK = 1,
+		ALERT_BUILDING_DESTROYED = 2,
+		ALERT_STRUCTURE_CAPTURED = 3,
+		ALERT_WONDER_COUNTDOWN = 4,
+		ALERT_RELIC_CLAIMED = 5
+	};
+	Type type = ALERT_UNDER_ATTACK;
+	float x = 0.0f;
+	float z = 0.0f;
+	uint32_t entity_id = 0;
+	uint8_t team = 0;
+	float time_stamp = 0.0f;
 };
 
 struct UnitTypeInfo {
@@ -217,24 +254,24 @@ inline const UnitTypeInfo &unit_type_info(uint8_t type) {
 		{"Archer", "archer", "archer", 80.0f, 3.3f, 16.0f, 7.2f, 1.25f, 0, 16.0f, 1.0f, 1.0f, 15.0f, 0, 50, 40, 0, 1, 12.0f, 0.0f, 7.2f, 0.0f},
 		{"Spearman", "spearman", "spearman", 100.0f, 3.2f, 2.4f, 8.5f, 1.0f, 0, 10.0f, 3.0f, 3.0f, 15.0f, 30, 40, 20, 0, 1, 12.0f, 4.25f, 4.25f, 0.0f},
 		{"Cavalry", "cavalry", "cavalry", 180.0f, 5.5f, 2.2f, 11.5f, 1.25f, 0, 12.0f, 3.0f, 3.0f, 15.0f, 50, 0, 80, 0, 2, 18.0f, 11.5f, 0.0f, 0.0f},
-		{"Merchant Trader", "cavalry", "market", 120.0f, 4.2f, 1.0f, 0.0f, 1.0f, 50, 0.0f, 2.0f, 2.0f, 10.0f, 60, 60, 0, 0, 1, 12.0f, 0.0f, 0.0f, 0.0f},
-		{"Catapult Artillery", "swordsman", "fortress", 220.0f, 2.0f, 24.0f, 45.0f, 3.5f, 0, 24.0f, 2.0f, 5.0f, 20.0f, 0, 150, 100, 50, 3, 28.0f, 0.0f, 0.0f, 45.0f},
-		{"Historical Champion Hero", "cavalry", "swordsman", 350.0f, 4.2f, 2.8f, 18.0f, 0.8f, 0, 16.0f, 6.0f, 6.0f, 25.0f, 200, 0, 200, 0, 3, 30.0f, 12.0f, 6.0f, 0.0f},
-		{"War Trireme", "storehouse", "fortress", 600.0f, 4.5f, 20.0f, 25.0f, 1.2f, 0, 20.0f, 5.0f, 8.0f, 20.0f, 0, 200, 150, 0, 3, 35.0f, 0.0f, 25.0f, 0.0f},
-		{"Carthaginian War Elephant", "cavalry", "fortress", 900.0f, 3.4f, 2.5f, 35.0f, 1.4f, 0, 16.0f, 5.0f, 8.0f, 20.0f, 250, 0, 200, 0, 4, 40.0f, 20.0f, 0.0f, 15.0f},
+		{"Merchant Trader", "trader", "market", 120.0f, 4.2f, 1.0f, 0.0f, 1.0f, 50, 0.0f, 2.0f, 2.0f, 10.0f, 60, 60, 0, 0, 1, 12.0f, 0.0f, 0.0f, 0.0f},
+		{"Catapult Artillery", "catapult", "fortress", 220.0f, 2.0f, 24.0f, 45.0f, 3.5f, 0, 24.0f, 2.0f, 5.0f, 20.0f, 0, 150, 100, 50, 3, 28.0f, 0.0f, 0.0f, 45.0f},
+		{"Historical Champion Hero", "hero", "swordsman", 350.0f, 4.2f, 2.8f, 18.0f, 0.8f, 0, 16.0f, 6.0f, 6.0f, 25.0f, 200, 0, 200, 0, 3, 30.0f, 12.0f, 6.0f, 0.0f},
+		{"War Trireme", "trireme", "fortress", 600.0f, 4.5f, 20.0f, 25.0f, 1.2f, 0, 20.0f, 5.0f, 8.0f, 20.0f, 0, 200, 150, 0, 3, 35.0f, 0.0f, 25.0f, 0.0f},
+		{"Carthaginian War Elephant", "elephant", "fortress", 900.0f, 3.4f, 2.5f, 35.0f, 1.4f, 0, 16.0f, 5.0f, 8.0f, 20.0f, 250, 0, 200, 0, 4, 40.0f, 20.0f, 0.0f, 15.0f},
 		{"Siege Battering Ram", "ram", "fortress", 850.0f, 2.2f, 2.4f, 75.0f, 2.5f, 0, 12.0f, 2.0f, 12.0f, 15.0f, 0, 200, 100, 0, 3, 25.0f, 0.0f, 0.0f, 75.0f},
 		{"Temple Healer", "healer", "villager", 90.0f, 3.2f, 12.0f, 0.0f, 1.0f, 0, 10.0f, 1.0f, 1.0f, 10.0f, 80, 0, 60, 0, 1, 14.0f, 0.0f, 0.0f, 0.0f},
-		{"Celtic War Chariot", "cavalry", "cavalry", 280.0f, 5.8f, 14.0f, 14.0f, 1.1f, 0, 14.0f, 4.0f, 4.0f, 20.0f, 80, 100, 60, 0, 2, 22.0f, 4.0f, 10.0f, 0.0f},
-		{"Celtic War Dog", "deer", "villager", 75.0f, 5.2f, 1.2f, 9.0f, 0.7f, 0, 12.0f, 1.0f, 2.0f, 8.0f, 60, 0, 0, 0, 1, 8.0f, 9.0f, 0.0f, 0.0f},
-		{"Bolt Shooter Ballista", "swordsman", "fortress", 200.0f, 2.2f, 28.0f, 40.0f, 3.0f, 0, 28.0f, 2.0f, 4.0f, 15.0f, 0, 120, 80, 0, 2, 22.0f, 0.0f, 40.0f, 0.0f},
-		{"Fishing Boat", "storehouse", "dock", 150.0f, 3.8f, 1.5f, 0.0f, 1.0f, 30, 0.0f, 1.0f, 2.0f, 10.0f, 0, 75, 0, 0, 1, 12.0f, 0.0f, 0.0f, 0.0f},
-		{"Merchant Cargo Ship", "storehouse", "dock", 300.0f, 4.0f, 1.0f, 0.0f, 1.0f, 100, 0.0f, 3.0f, 4.0f, 15.0f, 0, 120, 40, 0, 1, 18.0f, 0.0f, 0.0f, 0.0f},
-		{"Female Citizen", "villager", "villager", 65.0f, 3.2f, 1.4f, 4.0f, 1.0f, 25, 3.0f, 1.0f, 3.0f, 10.0f, 40, 0, 0, 0, 1, 8.0f, 4.0f, 0.0f, 0.0f},
-		{"Gallic Carnyx Herald", "swordsman", "spearman", 140.0f, 3.5f, 2.0f, 7.0f, 1.0f, 0, 12.0f, 3.0f, 3.0f, 15.0f, 70, 40, 30, 0, 1, 15.0f, 7.0f, 0.0f, 0.0f},
-		{"Mauryan Worker Elephant", "cavalry", "cavalry", 600.0f, 3.2f, 2.0f, 12.0f, 1.2f, 100, 6.0f, 4.0f, 6.0f, 20.0f, 180, 80, 0, 0, 2, 25.0f, 8.0f, 0.0f, 4.0f},
-		{"Mauryan Archer Maiden", "archer", "archer", 95.0f, 3.6f, 17.0f, 8.5f, 1.1f, 0, 17.0f, 2.0f, 2.0f, 15.0f, 40, 60, 40, 0, 1, 14.0f, 0.0f, 8.5f, 0.0f},
-		{"Persian/Arabian Camel", "cavalry", "cavalry", 190.0f, 5.2f, 2.4f, 12.0f, 1.2f, 0, 12.0f, 3.0f, 3.0f, 15.0f, 60, 0, 70, 0, 2, 16.0f, 12.0f, 0.0f, 0.0f},
-		{"Seleucid Scythed Chariot", "cavalry", "cavalry", 320.0f, 5.6f, 2.2f, 24.0f, 1.0f, 0, 14.0f, 5.0f, 5.0f, 25.0f, 100, 80, 120, 0, 3, 26.0f, 18.0f, 0.0f, 6.0f}
+		{"Celtic War Chariot", "chariot", "cavalry", 280.0f, 5.8f, 14.0f, 14.0f, 1.1f, 0, 14.0f, 4.0f, 4.0f, 20.0f, 80, 100, 60, 0, 2, 22.0f, 4.0f, 10.0f, 0.0f},
+		{"Celtic War Dog", "war_dog", "villager", 75.0f, 5.2f, 1.2f, 9.0f, 0.7f, 0, 12.0f, 1.0f, 2.0f, 8.0f, 60, 0, 0, 0, 1, 8.0f, 9.0f, 0.0f, 0.0f},
+		{"Bolt Shooter Ballista", "bolt_shooter", "fortress", 200.0f, 2.2f, 28.0f, 40.0f, 3.0f, 0, 28.0f, 2.0f, 4.0f, 15.0f, 0, 120, 80, 0, 2, 22.0f, 0.0f, 40.0f, 0.0f},
+		{"Fishing Boat", "fishing_boat", "dock", 150.0f, 3.8f, 1.5f, 0.0f, 1.0f, 30, 0.0f, 1.0f, 2.0f, 10.0f, 0, 75, 0, 0, 1, 12.0f, 0.0f, 0.0f, 0.0f},
+		{"Merchant Cargo Ship", "merchant_ship", "dock", 300.0f, 4.0f, 1.0f, 0.0f, 1.0f, 100, 0.0f, 3.0f, 4.0f, 15.0f, 0, 120, 40, 0, 1, 18.0f, 0.0f, 0.0f, 0.0f},
+		{"Female Citizen", "female_citizen", "villager", 65.0f, 3.2f, 1.4f, 4.0f, 1.0f, 25, 3.0f, 1.0f, 3.0f, 10.0f, 40, 0, 0, 0, 1, 8.0f, 4.0f, 0.0f, 0.0f},
+		{"Gallic Carnyx Herald", "carnyx", "spearman", 140.0f, 3.5f, 2.0f, 7.0f, 1.0f, 0, 12.0f, 3.0f, 3.0f, 15.0f, 70, 40, 30, 0, 1, 15.0f, 7.0f, 0.0f, 0.0f},
+		{"Mauryan Worker Elephant", "worker_elephant", "cavalry", 600.0f, 3.2f, 2.0f, 12.0f, 1.2f, 100, 6.0f, 4.0f, 6.0f, 20.0f, 180, 80, 0, 0, 2, 25.0f, 8.0f, 0.0f, 4.0f},
+		{"Mauryan Archer Maiden", "archer_maiden", "archer", 95.0f, 3.6f, 17.0f, 8.5f, 1.1f, 0, 17.0f, 2.0f, 2.0f, 15.0f, 40, 60, 40, 0, 1, 14.0f, 0.0f, 8.5f, 0.0f},
+		{"Persian/Arabian Camel", "camel", "cavalry", 190.0f, 5.2f, 2.4f, 12.0f, 1.2f, 0, 12.0f, 3.0f, 3.0f, 15.0f, 60, 0, 70, 0, 2, 16.0f, 12.0f, 0.0f, 0.0f},
+		{"Seleucid Scythed Chariot", "scythed_chariot", "cavalry", 320.0f, 5.6f, 2.2f, 24.0f, 1.0f, 0, 14.0f, 5.0f, 5.0f, 25.0f, 100, 80, 120, 0, 3, 26.0f, 18.0f, 0.0f, 6.0f}
 	};
 	if (type >= UNIT_TYPE_COUNT) return kTable[UNIT_VILLAGER];
 	return kTable[type];
@@ -303,11 +340,11 @@ inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 		{"Market", "market", "market", 1200.0f, 2, 0, 200, 100, 0, 0, 5, 40.0f, 0.0f, 0.0f, 0.0f},
 		{"Fortress", "fortress", "fortress", 3500.0f, 2, 0, 300, 200, 300, 0, 30, 80.0f, 22.0f, 30.0f, 0.8f},
 		{"Gate", "gate", "gate", 1500.0f, 1, 0, 100, 0, 100, 0, 0, 25.0f, 0.0f, 0.0f, 0.0f},
-		{"Temple", "farmstead", "storehouse", 1200.0f, 2, 0, 150, 100, 100, 0, 5, 40.0f, 0.0f, 0.0f, 0.0f},
-		{"Wonder Monument", "town_center", "town_center", 5000.0f, 2, 500, 500, 500, 500, 0, 10, 120.0f, 0.0f, 0.0f, 0.0f},
-		{"Naval Shipyard Dock", "storehouse", "storehouse", 1400.0f, 2, 0, 200, 0, 100, 0, 5, 40.0f, 16.0f, 15.0f, 1.2f},
-		{"Stone Wall Segment", "wall_tower", "tower", 1800.0f, 1, 0, 0, 0, 40, 0, 5, 15.0f, 0.0f, 0.0f, 0.0f},
-		{"Livestock Corral", "farmstead", "farmstead", 800.0f, 2, 0, 100, 0, 0, 5, 10, 25.0f, 0.0f, 0.0f, 0.0f}
+		{"Temple", "temple", "storehouse", 1200.0f, 2, 0, 150, 100, 100, 0, 5, 40.0f, 0.0f, 0.0f, 0.0f},
+		{"Wonder Monument", "wonder", "town_center", 5000.0f, 2, 500, 500, 500, 500, 0, 10, 120.0f, 0.0f, 0.0f, 0.0f},
+		{"Naval Shipyard Dock", "dock", "storehouse", 1400.0f, 2, 0, 200, 0, 100, 0, 5, 40.0f, 16.0f, 15.0f, 1.2f},
+		{"Stone Wall Segment", "wall_segment", "tower", 1800.0f, 1, 0, 0, 0, 40, 0, 5, 15.0f, 0.0f, 0.0f, 0.0f},
+		{"Livestock Corral", "corral", "farmstead", 800.0f, 2, 0, 100, 0, 0, 5, 10, 25.0f, 0.0f, 0.0f, 0.0f}
 	};
 	if (type >= BLD_TYPE_COUNT) return kTable[BLD_HOUSE];
 	return kTable[type];
@@ -371,31 +408,31 @@ inline const CivInfo &civ_info(uint8_t civ) {
 		{CIV_ROMANS, "rome", "Romans", "res://assets/textures/ui/emblems/romans.png",
 		 "Legionary Discipline & Rapid Engineering: +30% building construction rate and heavy legionary armor.",
 		 1.0f, 1.10f, 1.15f, 1.30f, 1.0f},
-		{CIV_CARTHAGINIANS, "cart", "Carthaginians", "res://assets/textures/ui/emblems/athenians.png",
+		{CIV_CARTHAGINIANS, "cart", "Carthaginians", "res://assets/textures/ui/emblems/carthaginians.png",
 		 "Phoenician Naval Mastery & War Elephants: Elite mercenary forces and formidable war elephants.",
 		 1.0f, 1.15f, 1.20f, 1.0f, 1.20f},
-		{CIV_MACEDONIANS, "mace", "Macedonians", "res://assets/textures/ui/emblems/spartans.png",
+		{CIV_MACEDONIANS, "mace", "Macedonians", "res://assets/textures/ui/emblems/macedonians.png",
 		 "Sarissa Phalanx & Companion Cavalry: Extended spear attack reach and rapid cavalry shock charges.",
 		 1.0f, 1.20f, 1.10f, 1.0f, 1.0f},
-		{CIV_BRITONS, "brit", "Britons", "res://assets/textures/ui/emblems/athenians.png",
+		{CIV_BRITONS, "brit", "Britons", "res://assets/textures/ui/emblems/britons.png",
 		 "Celtic Chariot Raiders & War Dogs: Fast hit-and-run chariot raiders, ferocious war hounds, and rotary mills.",
 		 1.0f, 1.15f, 1.10f, 1.10f, 1.0f},
-		{CIV_GAULS, "gaul", "Gauls", "res://assets/textures/ui/emblems/spartans.png",
+		{CIV_GAULS, "gaul", "Gauls", "res://assets/textures/ui/emblems/gauls.png",
 		 "Carnyx Horn Morale Aura & Fanatical Champions: Morale-boosting war horns and fearless Celtic broadsword champions.",
 		 1.10f, 1.20f, 1.15f, 1.0f, 1.0f},
-		{CIV_IBERIANS, "iber", "Iberians", "res://assets/textures/ui/emblems/athenians.png",
+		{CIV_IBERIANS, "iber", "Iberians", "res://assets/textures/ui/emblems/iberians.png",
 		 "Devotio Bodyguard Vow & Balearic Slingers: Elite Balearic mercenary slingers, rapid fire cavalry, and +20% mining rate.",
 		 1.20f, 1.10f, 1.10f, 1.20f, 1.0f},
-		{CIV_MAURYANS, "maur", "Mauryans", "res://assets/textures/ui/emblems/persians.png",
+		{CIV_MAURYANS, "maur", "Mauryans", "res://assets/textures/ui/emblems/mauryans.png",
 		 "Worker Elephants & Archer Maidens: High economic stamina, worker elephants for construction/gathering, and Ashoka Pillars.",
 		 1.10f, 1.05f, 1.25f, 1.25f, 1.15f},
-		{CIV_KUSHITES, "kush", "Kushites", "res://assets/textures/ui/emblems/athenians.png",
+		{CIV_KUSHITES, "kush", "Kushites", "res://assets/textures/ui/emblems/kushites.png",
 		 "Bleeding & Poison Arrows: Nubian archers with venomous arrows, Blemmye mercenaries, and monumental pyramid shrines.",
 		 1.0f, 1.10f, 1.15f, 1.15f, 1.10f},
-		{CIV_PTOLEMIES, "ptol", "Ptolemies", "res://assets/textures/ui/emblems/spartans.png",
+		{CIV_PTOLEMIES, "ptol", "Ptolemies", "res://assets/textures/ui/emblems/ptolemies.png",
 		 "Mercenary Camps & Library of Alexandria: Hellenistic-Egyptian synthesis, camel raiders, and +30% trade gain.",
 		 1.10f, 1.10f, 1.10f, 1.15f, 1.30f},
-		{CIV_SELEUCIDS, "sele", "Seleucids", "res://assets/textures/ui/emblems/romans.png",
+		{CIV_SELEUCIDS, "sele", "Seleucids", "res://assets/textures/ui/emblems/seleucids.png",
 		 "Argyraspides Silver Shields & Scythed Chariots: Heavy cataphract shock cavalry, silver shield pikemen, and scythed chariots.",
 		 1.10f, 1.25f, 1.20f, 1.0f, 1.15f}
 	};

@@ -121,7 +121,6 @@ float HeightmapGrid::sample_world(float wx, float wz) const {
 
 float HeightmapGrid::compute_slope_world(float wx, float wz) const {
 	float delta = 1.0f;
-	float h_center = sample_world(wx, wz);
 	float h_east   = sample_world(wx + delta, wz);
 	float h_west   = sample_world(wx - delta, wz);
 	float h_north  = sample_world(wx, wz + delta);
@@ -489,8 +488,6 @@ void HeightmapGrid::raise_plateau(float center_wx, float center_wz, float radius
 			float angle_diff = std::abs(angle - ramp_angle);
 			while (angle_diff > 3.14159265f) angle_diff = std::abs(angle_diff - 6.2831853f);
 
-			float current = get(x, z);
-
 			if (angle_diff < ramp_width_rad && dist > radius * 0.5f) {
 				// Access Ramp Sector
 				float t_ramp = (dist - radius * 0.5f) / (total_r - radius * 0.5f);
@@ -503,6 +500,115 @@ void HeightmapGrid::raise_plateau(float center_wx, float center_wz, float radius
 				add(x, z, height_gain * (1.0f - t));
 			}
 		}
+	}
+}
+
+void HeightmapGrid::apply_sinusoidal_dunes(float angle_rad, float wavelength, float amplitude, float secondary_amp) {
+	if (wavelength <= 0.01f) return;
+	float step = (map_half * 2.0f) / (float)(res - 1);
+	float cos_a = std::cos(angle_rad);
+	float sin_a = std::sin(angle_rad);
+	float k = 6.2831853f / wavelength;
+
+	for (int z = 0; z < res; ++z) {
+		float wz = -map_half + z * step;
+		for (int x = 0; x < res; ++x) {
+			float wx = -map_half + x * step;
+
+			// Rotate coordinates to dune wind direction
+			float u = wx * cos_a + wz * sin_a;
+			float v = -wx * sin_a + wz * cos_a;
+
+			// Primary sinusoidal dune wave with windward gentle slope and leeward steep slip-face
+			float phase = u * k + 0.35f * std::sin(v * k * 0.4f);
+			float wave = std::sin(phase);
+			float shaped_wave = (wave > 0.0f) ? std::pow(wave, 0.85f) : -std::pow(-wave, 1.2f);
+
+			// Secondary cross-ripple
+			float secondary = std::sin(v * k * 1.8f + u * k * 0.5f) * secondary_amp;
+
+			add(x, z, shaped_wave * amplitude + secondary);
+		}
+	}
+}
+
+void HeightmapGrid::raise_sandstone_mesa(float center_wx, float center_wz, float radius_base, float radius_top, float height_gain, float ramp1_angle_rad, float ramp2_angle_rad, float ramp_width_rad) {
+	float step = (map_half * 2.0f) / (float)(res - 1);
+
+	for (int z = 0; z < res; ++z) {
+		float wz = -map_half + z * step;
+		for (int x = 0; x < res; ++x) {
+			float wx = -map_half + x * step;
+			float dx = wx - center_wx;
+			float dz = wz - center_wz;
+			float dist = std::sqrt(dx * dx + dz * dz);
+
+			if (dist > radius_base) continue;
+
+			float angle = std::atan2(dz, dx);
+
+			auto check_ramp = [&](float ramp_angle) {
+				float diff = std::abs(angle - ramp_angle);
+				while (diff > 3.14159265f) diff = std::abs(diff - 6.2831853f);
+				return diff;
+			};
+
+			float diff1 = check_ramp(ramp1_angle_rad);
+			float diff2 = check_ramp(ramp2_angle_rad);
+			float min_ramp_diff = std::min(diff1, diff2);
+
+			if (min_ramp_diff < ramp_width_rad && dist > radius_top * 0.4f) {
+				// Access ramp sector: natural slope up the cliff face
+				float t_dist = (dist - radius_top * 0.4f) / (radius_base - radius_top * 0.4f);
+				float ramp_h = height_gain * (1.0f - t_dist);
+				float lateral_blend = 1.0f - (min_ramp_diff / ramp_width_rad);
+				add(x, z, ramp_h * lateral_blend + height_gain * (1.0f - lateral_blend) * (1.0f - smoothstep(radius_top, radius_base, dist)));
+			} else if (dist <= radius_top) {
+				// Mesa summit plateau
+				add(x, z, height_gain);
+			} else {
+				// Sheer sandstone cliff face
+				float t = smoothstep(radius_top, radius_base, dist);
+				float cliff_drop = std::pow(1.0f - t, 0.7f);
+				add(x, z, height_gain * cliff_drop);
+			}
+		}
+	}
+}
+
+void HeightmapGrid::carve_canyon_network(RmsRng &rng, float border_margin, float canyon_width, float canyon_depth) {
+	(void)rng;
+	float half = map_half;
+	float step = (half * 2.0f) / (float)(res - 1);
+
+	// Perimeter ravines
+	for (int z = 0; z < res; ++z) {
+		float wz = -half + z * step;
+		float dist_z = half - std::abs(wz);
+		for (int x = 0; x < res; ++x) {
+			float wx = -half + x * step;
+			float dist_x = half - std::abs(wx);
+			float min_edge = std::min(dist_x, dist_z);
+
+			if (min_edge < border_margin) {
+				float t = smoothstep(0.0f, border_margin, min_edge);
+				float cur = get(x, z);
+				float target_h = cur - canyon_depth;
+				set(x, z, target_h * (1.0f - t) + cur * t);
+			}
+		}
+	}
+
+	// Slicing tributary canyon ravines cutting inward from borders
+	std::vector<std::vector<std::pair<float, float>>> ravines = {
+		{ {-half * 0.95f,  half * 0.35f}, {-half * 0.65f,  half * 0.25f}, {-half * 0.40f,  half * 0.15f} },
+		{ { half * 0.95f, -half * 0.35f}, { half * 0.65f, -half * 0.25f}, { half * 0.40f, -half * 0.15f} },
+		{ { half * 0.25f,  half * 0.95f}, { half * 0.20f,  half * 0.65f}, { half * 0.12f,  half * 0.40f} },
+		{ {-half * 0.25f, -half * 0.95f}, {-half * 0.20f, -half * 0.65f}, {-half * 0.12f, -half * 0.40f} }
+	};
+
+	for (const auto &pts : ravines) {
+		carve_spline_path(pts, canyon_width, canyon_depth, -20.0f);
 	}
 }
 
@@ -823,6 +929,212 @@ void RmsGenerator::synth_peloponnese(HeightmapGrid &hm, RmsRng &rng, float &wate
 	synth_continental(hm, rng, water_h, spawns, num_players);
 }
 
+void RmsGenerator::synth_danubius(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	water_h = 0.5f;
+	hm.init(hm.res, hm.map_half, 2.6f);
+
+	float half = hm.map_half;
+
+	// 1. Base rolling temperate river valley terrain with fBm
+	hm.apply_fbm(rng, 4, 0.028f, 0.52f, 2.1f, 3.8f);
+	hm.diamond_square(rng, 1.8f, 0.60f);
+
+	// 2. Dual-channel river branches around central island fortress
+	// Channel 1: North Branch
+	std::vector<std::pair<float, float>> north_branch = {
+		{-half * 0.92f, -half * 0.10f},
+		{-half * 0.55f, -half * 0.24f},
+		{-half * 0.22f, -half * 0.38f},
+		{0.0f,          -half * 0.42f},
+		{half * 0.22f,  -half * 0.38f},
+		{half * 0.55f,  -half * 0.24f},
+		{half * 0.92f,  -half * 0.10f}
+	};
+
+	// Channel 2: South Branch
+	std::vector<std::pair<float, float>> south_branch = {
+		{-half * 0.92f,  half * 0.10f},
+		{-half * 0.55f,  half * 0.24f},
+		{-half * 0.22f,  half * 0.38f},
+		{0.0f,           half * 0.42f},
+		{half * 0.22f,   half * 0.38f},
+		{half * 0.55f,   half * 0.24f},
+		{half * 0.92f,   half * 0.10f}
+	};
+
+	// Carve both channels with central walkable fords
+	float ford_dist_n = half * 0.90f;
+	float ford_dist_s = half * 0.90f;
+	hm.carve_spline_path(north_branch, 4.2f, 2.2f, water_h, ford_dist_n, 8.0f);
+	hm.carve_spline_path(south_branch, 4.2f, 2.2f, water_h, ford_dist_s, 8.0f);
+
+	// 3. Central Fortress Island & Sandbars
+	hm.level_area(0.0f, 0.0f, half * 0.18f, 6.0f, 4.5f);
+	// Sandbars upstream and downstream
+	hm.level_area(-half * 0.30f, 0.0f, 4.5f, 4.0f, 1.2f);
+	hm.level_area( half * 0.30f, 0.0f, 4.5f, 4.0f, 1.2f);
+
+	// 4. Perimeter gentle falloff
+	hm.apply_radial_falloff(0.85f, 0.98f, 1.0f);
+	hm.blur(2, 0.42f);
+
+	// Re-level central fortress island summit
+	hm.level_area(0.0f, 0.0f, half * 0.14f, 4.0f, 4.5f);
+
+	// 5. Opposing riverbank player spawns
+	spawns.clear();
+	if (num_players == 2) {
+		float sx0 = 0.0f, sz0 = -half * 0.62f;
+		float sx1 = 0.0f, sz1 =  half * 0.62f;
+		float bh0 = std::max(water_h + 1.5f, hm.sample_world(sx0, sz0));
+		float bh1 = std::max(water_h + 1.5f, hm.sample_world(sx1, sz1));
+		hm.level_area(sx0, sz0, 14.0f, 6.0f, bh0);
+		hm.level_area(sx1, sz1, 14.0f, 6.0f, bh1);
+		spawns.push_back({0, sx0, sz0, bh0, 0.0f, 1.0f});
+		spawns.push_back({1, sx1, sz1, bh1, 0.0f, -1.0f});
+	} else {
+		for (int i = 0; i < num_players; ++i) {
+			float side = (i % 2 == 0) ? -1.0f : 1.0f;
+			float col = (float)(i / 2) - (float)(num_players / 4);
+			float sx = col * 24.0f;
+			float sz = side * half * 0.62f;
+			float fx = 0.0f;
+			float fz = -side;
+			float bh = std::max(water_h + 1.5f, hm.sample_world(sx, sz));
+			hm.level_area(sx, sz, 14.0f, 6.0f, bh);
+			spawns.push_back({(uint8_t)i, sx, sz, bh, fx, fz});
+		}
+	}
+}
+
+void RmsGenerator::synth_saharan_oases(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	water_h = 0.0f;
+	hm.init(hm.res, hm.map_half, 2.8f);
+
+	float half = hm.map_half;
+
+	// 1. Sinusoidal Sand Dunes Generation
+	hm.apply_sinusoidal_dunes(0.45f, 22.0f, 2.4f, 0.6f);
+	hm.apply_fbm(rng, 3, 0.022f, 0.55f, 2.0f, 2.5f);
+	hm.terrace(1.4f, 0.35f);
+
+	// 2. Freshwater Oases System (Central Grand Oasis + 4 Quadrant Satellite Oases)
+	float central_oasis_r = half * 0.16f;
+	hm.carve_crater_lake(0.0f, 0.0f, central_oasis_r, 6.0f, 3.2f, water_h);
+
+	float sat_r = half * 0.44f;
+	float sat_radius = half * 0.10f;
+	hm.carve_crater_lake(-sat_r, -sat_r * 0.65f, sat_radius, 5.0f, 2.8f, water_h);
+	hm.carve_crater_lake( sat_r, -sat_r * 0.65f, sat_radius, 5.0f, 2.8f, water_h);
+	hm.carve_crater_lake(-sat_r,  sat_r * 0.65f, sat_radius, 5.0f, 2.8f, water_h);
+	hm.carve_crater_lake( sat_r,  sat_r * 0.65f, sat_radius, 5.0f, 2.8f, water_h);
+
+	// 3. Perimeter High Dunes Ridge
+	hm.apply_border_falloff(half * 0.20f, 6.5f);
+	hm.blur(1, 0.35f);
+
+	// 4. Symmetrical Player Spawns in Desert Ring
+	spawns.clear();
+	float spawn_r = half * 0.56f;
+	for (int i = 0; i < num_players; ++i) {
+		float angle = (6.2831853f * i) / (float)num_players + 0.392f;
+		float sx = std::cos(angle) * spawn_r;
+		float sz = std::sin(angle) * spawn_r;
+		float fx = -std::cos(angle);
+		float fz = -std::sin(angle);
+		float bh = std::max(water_h + 1.5f, hm.sample_world(sx, sz));
+
+		spawns.push_back({(uint8_t)i, sx, sz, bh, fx, fz});
+		hm.level_area(sx, sz, 14.0f, 6.0f, bh);
+	}
+}
+
+void RmsGenerator::synth_anatolian_plateau(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	water_h = -20.0f; // High inland dry plateau
+	hm.init(hm.res, hm.map_half, 8.0f); // High base steppe elevation
+
+	float half = hm.map_half;
+
+	// 1. High Steppe Undulating Noise
+	hm.apply_fbm(rng, 4, 0.024f, 0.50f, 2.0f, 3.0f);
+	hm.apply_ridged_noise(rng, 3, 0.035f, 0.45f, 2.0f, 2.5f);
+
+	// 2. Perimeter Canyon Ravines & Slicing Fissures
+	hm.carve_canyon_network(rng, half * 0.22f, 4.5f, 9.0f);
+
+	// 3. Rocky Terracing & Erosion
+	hm.terrace(1.8f, 0.20f);
+	hm.thermal_erosion(8, 0.55f, 0.20f);
+	hm.blur(1, 0.35f);
+
+	// 4. Steppe Player Bases on the high plateau
+	spawns.clear();
+	float spawn_r = half * 0.48f;
+	for (int i = 0; i < num_players; ++i) {
+		float angle = (6.2831853f * i) / (float)num_players + 0.52f;
+		float sx = std::cos(angle) * spawn_r;
+		float sz = std::sin(angle) * spawn_r;
+		float fx = -std::cos(angle);
+		float fz = -std::sin(angle);
+		float bh = std::max(6.0f, hm.sample_world(sx, sz));
+
+		hm.level_area(sx, sz, 15.0f, 6.0f, bh);
+		spawns.push_back({(uint8_t)i, sx, sz, bh, fx, fz});
+	}
+}
+
+void RmsGenerator::synth_jebel_barkal(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	water_h = 0.0f;
+	hm.init(hm.res, hm.map_half, 2.0f); // Savanna base level
+
+	float half = hm.map_half;
+
+	// 1. Savanna Rolling Base Terrain
+	hm.apply_fbm(rng, 3, 0.026f, 0.52f, 2.0f, 2.2f);
+
+	// 2. Flanking Nile River along southern border
+	std::vector<std::pair<float, float>> nile_river = {
+		{-half * 0.95f, -half * 0.72f},
+		{-half * 0.45f, -half * 0.76f},
+		{0.0f,          -half * 0.80f},
+		{half * 0.45f,  -half * 0.74f},
+		{half * 0.95f,  -half * 0.70f}
+	};
+	hm.carve_spline_path(nile_river, 5.0f, 2.5f, water_h);
+
+	// 3. Iconic Central Sandstone Mesa (Jebel Barkal)
+	// Base radius 18m, Summit top radius 11m, Height gain +13.5m, North & South access ramps
+	float ramp1_angle = 3.14159265f * 0.5f;  // North ramp
+	float ramp2_angle = -3.14159265f * 0.5f; // South ramp
+	hm.raise_sandstone_mesa(0.0f, half * 0.06f, 18.0f, 11.0f, 13.5f, ramp1_angle, ramp2_angle, 0.55f);
+
+	// Flat high-ground summit plateau
+	hm.level_area(0.0f, half * 0.06f, 9.0f, 2.5f, 15.5f);
+
+	// 4. Surrounding Savanna Outcrops & Hillocks
+	hm.raise_plateau(-half * 0.48f,  half * 0.42f, 8.0f, 0.0f, 0.5f, 4.0f, 3.0f);
+	hm.raise_plateau( half * 0.48f,  half * 0.42f, 8.0f, 3.14f, 0.5f, 4.0f, 3.0f);
+
+	hm.blur(1, 0.32f);
+	// Re-level summit for clean unit combat
+	hm.level_area(0.0f, half * 0.06f, 8.5f, 2.0f, 15.5f);
+
+	// 5. Surrounding Savanna Player Spawns facing Jebel Barkal
+	spawns.clear();
+	float spawn_r = half * 0.56f;
+	for (int i = 0; i < num_players; ++i) {
+		float angle = (6.2831853f * i) / (float)num_players + 0.40f;
+		float sx = std::cos(angle) * spawn_r;
+		float sz = std::sin(angle) * spawn_r + half * 0.06f;
+		float fx = -std::cos(angle);
+		float fz = -std::sin(angle);
+		float bh = std::max(water_h + 1.2f, hm.sample_world(sx, sz));
+
+		hm.level_area(sx, sz, 14.0f, 6.0f, bh);
+		spawns.push_back({(uint8_t)i, sx, sz, bh, fx, fz});
+	}
+}
+
 // =========================================================================
 // Entity & Fair Resource Distribution
 // =========================================================================
@@ -936,6 +1248,86 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 	float half = hm.map_half;
 	int num_groves = (int)(half * 0.65f); // ~40 groves for 64m map
 
+	// Map-specific landmark resource clusters
+	if (config.map_type == MAP_DANUBIUS) {
+		// Central Island Fortress Resources
+		sim.spawn_resource_world(-2.5f, 0.0f, RES_GOLD, 1600);
+		sim.spawn_resource_world( 2.5f, 0.0f, RES_GOLD, 1600);
+		sim.spawn_resource_world(0.0f, -2.5f, RES_STONE, 1600);
+		sim.spawn_resource_world(0.0f,  2.5f, RES_STONE, 1600);
+		// Oak grove on fortress island
+		for (int t = 0; t < 8; ++t) {
+			float a = (6.2831853f * t) / 8.0f;
+			sim.spawn_resource_world(std::cos(a) * 5.0f, std::sin(a) * 5.0f, RES_WOOD, 850);
+		}
+		// Sandbar resources
+		sim.spawn_resource_world(-half * 0.30f, 0.0f, RES_STONE, 1200);
+		sim.spawn_resource_world( half * 0.30f, 0.0f, RES_STONE, 1200);
+	} else if (config.map_type == MAP_SAHARAN_OASES) {
+		// Date palm tree rings and berry groves around each oasis
+		std::vector<std::pair<float, float>> oases_centers = {
+			{0.0f, 0.0f},
+			{-half * 0.44f, -half * 0.44f * 0.65f},
+			{ half * 0.44f, -half * 0.44f * 0.65f},
+			{-half * 0.44f,  half * 0.44f * 0.65f},
+			{ half * 0.44f,  half * 0.44f * 0.65f}
+		};
+		for (size_t oi = 0; oi < oases_centers.size(); ++oi) {
+			float ox = oases_centers[oi].first;
+			float oz = oases_centers[oi].second;
+			float o_rad = (oi == 0) ? (half * 0.16f + 1.5f) : (half * 0.10f + 1.2f);
+			int num_palms = (oi == 0) ? 14 : 8;
+			for (int p = 0; p < num_palms; ++p) {
+				float a = (6.2831853f * p) / (float)num_palms + rng.range_float(-0.2f, 0.2f);
+				float tx = ox + std::cos(a) * o_rad;
+				float tz = oz + std::sin(a) * o_rad;
+				if (hm.sample_world(tx, tz) > water_h + 0.15f) {
+					sim.spawn_resource_world(tx, tz, RES_WOOD, 800);
+				}
+			}
+			// Oasis date/grape berry bushes
+			for (int b = 0; b < 3; ++b) {
+				float ba = (6.2831853f * b) / 3.0f + 0.5f;
+				float bx = ox + std::cos(ba) * (o_rad + 2.0f);
+				float bz = oz + std::sin(ba) * (o_rad + 2.0f);
+				if (hm.sample_world(bx, bz) > water_h + 0.15f) {
+					sim.spawn_resource_world(bx, bz, RES_FOOD, 450);
+				}
+			}
+		}
+	} else if (config.map_type == MAP_ANATOLIAN_PLATEAU) {
+		// Rich mineral deposits along canyon rims and high steppe
+		std::vector<std::pair<float, float>> rim_mines = {
+			{-half * 0.35f,  half * 0.30f},
+			{ half * 0.35f, -half * 0.30f},
+			{ half * 0.30f,  half * 0.35f},
+			{-half * 0.30f, -half * 0.35f},
+			{ 0.0f,          half * 0.38f},
+			{ 0.0f,         -half * 0.38f}
+		};
+		for (size_t mi = 0; mi < rim_mines.size(); ++mi) {
+			uint8_t mtype = (mi % 2 == 0) ? RES_GOLD : RES_STONE;
+			float mx = rim_mines[mi].first;
+			float mz = rim_mines[mi].second;
+			sim.spawn_resource_world(mx - 1.2f, mz, mtype, 1600);
+			sim.spawn_resource_world(mx + 1.2f, mz, mtype, 1600);
+		}
+	} else if (config.map_type == MAP_JEBEL_BARKAL) {
+		// Summit of Jebel Barkal high-ground treasure & quarries
+		float mesa_z = half * 0.06f;
+		sim.spawn_resource_world(-2.5f, mesa_z, RES_GOLD, 1800);
+		sim.spawn_resource_world( 2.5f, mesa_z, RES_GOLD, 1800);
+		sim.spawn_resource_world( 0.0f, mesa_z + 2.5f, RES_STONE, 1800);
+		sim.spawn_resource_world( 0.0f, mesa_z - 2.5f, RES_STONE, 1800);
+		for (int t = 0; t < 6; ++t) {
+			float a = (6.2831853f * t) / 6.0f;
+			sim.spawn_resource_world(std::cos(a) * 4.5f, mesa_z + std::sin(a) * 4.5f, RES_WOOD, 800);
+		}
+		// Surrounding savanna quarries along base
+		sim.spawn_resource_world(-half * 0.48f,  half * 0.42f, RES_STONE, 1500);
+		sim.spawn_resource_world( half * 0.48f,  half * 0.42f, RES_STONE, 1500);
+	}
+
 	// 1. Organic Forest Clumps
 	for (int g = 0; g < num_groves; ++g) {
 		float gx = rng.range_float(-half * 0.82f, half * 0.82f);
@@ -1023,12 +1415,18 @@ void RmsGenerator::distribute_wildlife(Simulation &sim, const HeightmapGrid &hm,
 }
 
 void RmsGenerator::distribute_relics(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config) {
-	(void)config;
 	float half = hm.map_half;
 	int num_relics = 6;
 
 	// Center relic if land is above water
-	if (hm.sample_world(0.0f, 0.0f) > water_h + 0.2f) {
+	float center_h = hm.sample_world(0.0f, 0.0f);
+	if (config.map_type == MAP_JEBEL_BARKAL) {
+		// Place sacred landmark relic on summit of Jebel Barkal
+		sim.spawn_relic(0.0f, half * 0.06f, RES_GOLD, 500);
+	} else if (config.map_type == MAP_DANUBIUS) {
+		// Place sacred relic on Island Fortress
+		sim.spawn_relic(0.0f, 0.0f, RES_GOLD, 450);
+	} else if (center_h > water_h + 0.2f) {
 		bool near_player = false;
 		for (const auto &sp : spawns) {
 			float d = std::sqrt(sp.x * sp.x + sp.z * sp.z);
@@ -1107,6 +1505,18 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 			break;
 		case MAP_SAHARA:
 			synth_sahara(hm, rng, water_h, spawns, config.num_players);
+			break;
+		case MAP_DANUBIUS:
+			synth_danubius(hm, rng, water_h, spawns, config.num_players);
+			break;
+		case MAP_SAHARAN_OASES:
+			synth_saharan_oases(hm, rng, water_h, spawns, config.num_players);
+			break;
+		case MAP_ANATOLIAN_PLATEAU:
+			synth_anatolian_plateau(hm, rng, water_h, spawns, config.num_players);
+			break;
+		case MAP_JEBEL_BARKAL:
+			synth_jebel_barkal(hm, rng, water_h, spawns, config.num_players);
 			break;
 		case MAP_PELOPONNESE:
 		case MAP_AEGEAN_ARCHIPELAGO:

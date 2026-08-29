@@ -105,6 +105,16 @@ RtsoWorldView::BuildingVis &RtsoWorldView::acquire_building_slot(uint32_t sim_id
 	return v;
 }
 
+void RtsoWorldView::init_animation_controllers() {
+	anim_controllers[rtso::UNIT_VILLAGER].load_rig(rtso::RigType::Villager);
+	anim_controllers[rtso::UNIT_SWORDSMAN].load_rig(rtso::RigType::Biped);
+	anim_controllers[rtso::UNIT_SPEARMAN].load_rig(rtso::RigType::Biped);
+	anim_controllers[rtso::UNIT_ARCHER].load_rig(rtso::RigType::Archer);
+	anim_controllers[rtso::UNIT_CAVALRY].load_rig(rtso::RigType::Mounted);
+	anim_controllers[rtso::UNIT_HEALER].load_rig(rtso::RigType::Healer);
+	anim_controllers[rtso::UNIT_SIEGE_RAM].load_rig(rtso::RigType::SiegeRam);
+}
+
 void RtsoWorldView::_ready() {
 	// Selection Ring
 	ring_mesh.instantiate();
@@ -198,7 +208,68 @@ void RtsoWorldView::_ready() {
 		add_child(fauna_mmi[f]);
 	}
 
+	// Initialize 3D Positional Spatial Audio Pool
+	for (size_t p = 0; p < SPATIAL_AUDIO_POOL_SIZE; ++p) {
+		spatial_players[p] = memnew(AudioStreamPlayer3D);
+		spatial_players[p]->set_max_distance(80.0f);
+		spatial_players[p]->set_unit_size(8.0f);
+		spatial_players[p]->set_volume_db(0.0f);
+		add_child(spatial_players[p]);
+	}
+
+	// Pre-cache combat and destruction audio streams
+	auto load_s = [](const char *path) -> Ref<AudioStream> {
+		if (ResourceLoader::get_singleton()->exists(path)) {
+			return ResourceLoader::get_singleton()->load(path);
+		}
+		return Ref<AudioStream>();
+	};
+
+	sfx_bow_shoot[0] = load_s("res://assets/sounds/combat/bow_shoot_1.ogg");
+	sfx_bow_shoot[1] = load_s("res://assets/sounds/combat/bow_shoot_2.ogg");
+	sfx_arrow_hit = load_s("res://assets/sounds/combat/arrow_hit.ogg");
+	sfx_catapult_blast = load_s("res://assets/sounds/combat/catapult_blast.ogg");
+	sfx_sword_hit[0] = load_s("res://assets/sounds/combat/sword_hit_1.ogg");
+	sfx_sword_hit[1] = load_s("res://assets/sounds/combat/sword_hit_2.ogg");
+	sfx_sword_hit[2] = load_s("res://assets/sounds/combat/sword_hit_3.ogg");
+	sfx_spear_hit[0] = load_s("res://assets/sounds/combat/spear_hit_1.ogg");
+	sfx_spear_hit[1] = load_s("res://assets/sounds/combat/spear_hit_2.ogg");
+	sfx_building_collapse = load_s("res://assets/sounds/building/building_collapse.ogg");
+	sfx_building_fire = load_s("res://assets/sounds/building/building_fire.ogg");
+
+	init_animation_controllers();
 	ensure_unit_batches();
+}
+
+void RtsoWorldView::play_spatial_sound(const Ref<AudioStream> &stream, Vector3 pos, float volume_db, float max_dist, float pitch_scale) {
+	if (!stream.is_valid()) return;
+	AudioStreamPlayer3D *player = spatial_players[next_spatial_idx];
+	next_spatial_idx = (next_spatial_idx + 1) % SPATIAL_AUDIO_POOL_SIZE;
+	if (player) {
+		player->set_position(pos);
+		player->set_stream(stream);
+		player->set_volume_db(volume_db);
+		player->set_max_distance(max_dist);
+		player->set_pitch_scale(pitch_scale);
+		player->play();
+	}
+}
+
+void RtsoWorldView::play_spatial_sound_path(const String &path, Vector3 pos, float volume_db, float max_dist, float pitch_scale) {
+	String res_path = path;
+	if (!res_path.begins_with("res://")) {
+		if (res_path.begins_with("audio/")) {
+			res_path = "res://assets/sounds/" + res_path.substr(6);
+		} else if (res_path.begins_with("assets/sounds/")) {
+			res_path = "res://" + res_path;
+		} else {
+			res_path = "res://" + res_path;
+		}
+	}
+	if (ResourceLoader::get_singleton()->exists(res_path)) {
+		Ref<AudioStream> s = ResourceLoader::get_singleton()->load(res_path);
+		play_spatial_sound(s, pos, volume_db, max_dist, pitch_scale);
+	}
 }
 
 static AnimationPlayer *find_anim_player(Node *n) {
@@ -469,6 +540,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	unit_vis_stamp++;
 	if (unit_vis_stamp == 0) unit_vis_stamp = 1;
 
+	// Update skeletal animation controllers
+	for (int t = 0; t < rtso::UNIT_TYPE_COUNT; ++t) {
+		anim_controllers[t].update(delta * 1000.0f);
+	}
+
 	std::unordered_set<int32_t> sel_set;
 	if (selected_ids.size() > 0) sel_set.reserve((size_t)selected_ids.size());
 	for (int i = 0; i < selected_ids.size(); ++i) sel_set.insert(selected_ids[i]);
@@ -530,19 +606,46 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	const Color col_player(0.55f, 0.72f, 1.0f);
 	const Color col_enemy(1.0f, 0.52f, 0.42f);
 
+	std::unordered_set<uint32_t> active_unit_ids;
+
 	for (size_t i = 0; i < uview.count; ++i) {
 		uint32_t id = uview.id[i];
+		active_unit_ids.insert(id);
+
 		bool is_player = (uview.team[i] == 0);
 		uint8_t utype = uview.unit_type[i];
 		if (utype >= rtso::UNIT_TYPE_COUNT) utype = rtso::UNIT_VILLAGER;
 		uint8_t uaction = uview.action_state[i];
 		float hp = uview.hp[i];
 		float max_hp = uview.max_hp[i];
-		float x = uview.pos_x[i];
-		float z = uview.pos_z[i];
+		float tx = uview.pos_x[i];
+		float tz = uview.pos_z[i];
 		float vx = uview.vel_x[i];
 		float vz = uview.vel_z[i];
 		float speed2 = vx * vx + vz * vz;
+
+		// Smooth visual position interpolation to prevent snapping
+		float x = tx;
+		float z = tz;
+		auto pos_it = crowd_pos.find(id);
+		if (pos_it == crowd_pos.end()) {
+			crowd_pos[id] = Vector2(tx, tz);
+		} else {
+			Vector2 cur = pos_it->second;
+			Vector2 target(tx, tz);
+			float dist_sq = cur.distance_squared_to(target);
+			if (dist_sq > 25.0f) {
+				cur = target;
+			} else {
+				float factor = Math::clamp(delta * 18.0f, 0.0f, 1.0f);
+				cur = cur.lerp(target, factor);
+			}
+			crowd_pos[id] = cur;
+			x = cur.x;
+			z = cur.y;
+		}
+
+		// Smooth visual rotation interpolation to prevent snapping
 		float yaw = 0.0f;
 		auto yaw_it = crowd_yaw.find(id);
 		if (yaw_it != crowd_yaw.end()) yaw = yaw_it->second;
@@ -563,6 +666,24 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		float diff = Math::wrapf(target_yaw - yaw, -(float)Math_PI, (float)Math_PI);
 		yaw += diff * Math::clamp(delta * 14.0f, 0.0f, 1.0f);
 		crowd_yaw[id] = yaw;
+
+		// Evaluate skeletal bone pose via AnimationController based on action_state
+		rtso::AnimState want_anim_state = rtso::AnimState::Idle;
+		if (!uview.alive[i] || uaction == rtso::ACTION_DYING) {
+			want_anim_state = rtso::AnimState::Death;
+		} else if (uaction == rtso::ACTION_ATTACK) {
+			want_anim_state = (speed2 > 8.0f) ? rtso::AnimState::Walk : rtso::AnimState::Attack;
+		} else if (uaction == rtso::ACTION_GATHER) {
+			want_anim_state = rtso::AnimState::Gather;
+		} else if (uaction == rtso::ACTION_BUILD) {
+			want_anim_state = rtso::AnimState::Build;
+		} else if (speed2 > 0.001f || uaction == rtso::ACTION_MOVE || uaction == rtso::ACTION_RETURN_DROPSITE) {
+			want_anim_state = rtso::AnimState::Walk;
+		} else {
+			want_anim_state = rtso::AnimState::Idle;
+		}
+
+		anim_controllers[utype].play(want_anim_state);
 
 		String utype_str = rtso::unit_type_model(utype);
 		String cat_units3 = "units";
@@ -661,6 +782,66 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 	}
 
+	// Clean up stale visual interpolation entries
+	if (crowd_pos.size() > uview.count + 64) {
+		for (auto it = crowd_pos.begin(); it != crowd_pos.end(); ) {
+			if (active_unit_ids.find(it->first) == active_unit_ids.end()) {
+				it = crowd_pos.erase(it);
+			} else {
+				++it;
+			}
+		}
+	}
+	if (crowd_yaw.size() > uview.count + 64) {
+		for (auto it = crowd_yaw.begin(); it != crowd_yaw.end(); ) {
+			if (active_unit_ids.find(it->first) == active_unit_ids.end()) {
+				it = crowd_yaw.erase(it);
+			} else {
+				++it;
+			}
+		}
+	}
+
+	// 3D Positional Combat Acoustics: Melee Weapon Clash (Swords, Spears)
+	for (auto it = unit_clash_cooldown.begin(); it != unit_clash_cooldown.end(); ) {
+		it->second -= delta;
+		if (it->second <= 0.0f) {
+			it = unit_clash_cooldown.erase(it);
+		} else {
+			++it;
+		}
+	}
+	global_clash_timer -= delta;
+
+	int clashes_this_frame = 0;
+	for (size_t i = 0; i < uview.count && clashes_this_frame < 4; ++i) {
+		if (!uview.alive[i] || uview.action_state[i] != rtso::ACTION_ATTACK) continue;
+		uint8_t utype = uview.unit_type[i];
+		bool is_spear = (utype == rtso::UNIT_SPEARMAN);
+		bool is_sword = (utype == rtso::UNIT_SWORDSMAN || utype == rtso::UNIT_CAVALRY || utype == rtso::UNIT_HERO);
+		if (!is_spear && !is_sword) continue;
+
+		uint32_t uid = uview.id[i];
+		if (unit_clash_cooldown.find(uid) == unit_clash_cooldown.end()) {
+			float tx = uview.target_x[i] - uview.pos_x[i];
+			float tz = uview.target_z[i] - uview.pos_z[i];
+			float dist_sq = tx * tx + tz * tz;
+			if (dist_sq <= 14.0f) { // Within melee contact range
+				unit_clash_cooldown[uid] = 0.75f + ((float)(rand() % 40) / 100.0f);
+				Vector3 clash_pos(uview.pos_x[i], sim->get_terrain_height(uview.pos_x[i], uview.pos_z[i]) + 1.0f, uview.pos_z[i]);
+				float pitch = 0.92f + ((float)(rand() % 20) / 100.0f);
+				if (is_spear) {
+					int s_idx = rand() % 2;
+					play_spatial_sound(sfx_spear_hit[s_idx], clash_pos, -2.0f, 65.0f, pitch);
+				} else {
+					int s_idx = rand() % 3;
+					play_spatial_sound(sfx_sword_hit[s_idx], clash_pos, -1.0f, 65.0f, pitch);
+				}
+				clashes_this_frame++;
+			}
+		}
+	}
+
 	// =========================================================================
 	// 2. Buildings: Town Center, Barracks, Houses, Towers, Storehouses, Farms
 	// =========================================================================
@@ -709,6 +890,42 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			Vector3 fg_offset((bar_ratio - 1.0f) * 1.1f, 0.0f, 0.02f);
 			v.hp_fg->set_transform(Transform3D(fg_basis, hp_pos + fg_offset));
 		}
+
+		// 3D Positional Building Fire Acoustics
+		auto bit = tracked_buildings.find(b.id);
+		if (bit == tracked_buildings.end()) {
+			PrevBuildingState st;
+			st.id = b.id;
+			st.x = b.x;
+			st.z = b.z;
+			st.hp = b.hp;
+			st.max_hp = b.max_hp;
+			st.type = b.type;
+			st.fire_timer = ((float)(rand() % 100) / 100.0f) * 2.0f;
+			tracked_buildings[b.id] = st;
+		} else {
+			bit->second.hp = b.hp;
+			bit->second.max_hp = b.max_hp;
+			bit->second.fire_timer += delta;
+
+			// If damaged below 50% HP, periodically trigger fire crackle acoustics
+			if (b.hp < b.max_hp * 0.5f && b.hp > 0.0f && bit->second.fire_timer >= 2.8f) {
+				bit->second.fire_timer = 0.0f;
+				float by = sim->get_terrain_height(b.x, b.z);
+				play_spatial_sound(sfx_building_fire, Vector3(b.x, by + 1.5f, b.z), -4.0f, 55.0f, 0.95f + ((float)(rand() % 15) / 100.0f));
+			}
+		}
+	}
+
+	// 3D Positional Building Collapse / Destruction Acoustics
+	for (auto it = tracked_buildings.begin(); it != tracked_buildings.end(); ) {
+		if (alive_buildings.find(it->first) == alive_buildings.end()) {
+			float by = sim->get_terrain_height(it->second.x, it->second.z);
+			play_spatial_sound(sfx_building_collapse, Vector3(it->second.x, by + 1.0f, it->second.z), 3.0f, 95.0f, 0.95f);
+			it = tracked_buildings.erase(it);
+		} else {
+			++it;
+		}
 	}
 
 	for (size_t s = 0; s < building_pool.size(); ++s) {
@@ -722,13 +939,16 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	}
 
 	// =========================================================================
-	// 3. Flying Projectiles (Ballistic Arrows)
+	// 3. Flying Projectiles (Ballistic Arrows & Catapult Stones)
 	// =========================================================================
 	const auto &projectiles = sim->projectiles();
 	arrow_mm->set_instance_count((int)projectiles.size());
 
+	std::unordered_set<uint32_t> current_proj_ids;
+
 	for (size_t p = 0; p < projectiles.size(); ++p) {
 		const auto &proj = projectiles[p];
+		current_proj_ids.insert(proj.id);
 		Vector3 pos(proj.current_x, proj.current_y, proj.current_z);
 
 		// Calculate direction of flight
@@ -745,6 +965,50 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 		Transform3D xf(rot, pos);
 		arrow_mm->set_instance_transform((int)p, xf);
+
+		// 3D Positional Projectile Release Acoustics (Bow string whoosh / catapult launch)
+		auto pit = tracked_projectiles.find(proj.id);
+		if (pit == tracked_projectiles.end()) {
+			bool is_crush = (proj.damage_type == 2 || proj.arc_height > 4.0f);
+			PrevProjState st;
+			st.id = proj.id;
+			st.target_x = proj.target_x;
+			st.target_y = proj.target_y;
+			st.target_z = proj.target_z;
+			st.last_progress = proj.progress;
+			st.is_crush = is_crush;
+			tracked_projectiles[proj.id] = st;
+
+			Vector3 launch_pos(proj.start_x, proj.start_y, proj.start_z);
+			float pitch = 0.95f + ((float)(rand() % 15) / 100.0f);
+			if (is_crush) {
+				play_spatial_sound(sfx_catapult_blast, launch_pos, -3.0f, 90.0f, 0.75f);
+			} else {
+				int s_idx = rand() % 2;
+				play_spatial_sound(sfx_bow_shoot[s_idx], launch_pos, -2.0f, 70.0f, pitch);
+			}
+		} else {
+			pit->second.last_progress = proj.progress;
+			pit->second.target_x = proj.target_x;
+			pit->second.target_y = proj.target_y;
+			pit->second.target_z = proj.target_z;
+		}
+	}
+
+	// 3D Positional Projectile Impact Acoustics (Arrow hit / Catapult stone blast)
+	for (auto it = tracked_projectiles.begin(); it != tracked_projectiles.end(); ) {
+		if (current_proj_ids.find(it->first) == current_proj_ids.end()) {
+			Vector3 hit_pos(it->second.target_x, it->second.target_y, it->second.target_z);
+			float pitch = 0.92f + ((float)(rand() % 18) / 100.0f);
+			if (it->second.is_crush) {
+				play_spatial_sound(sfx_catapult_blast, hit_pos, 2.0f, 100.0f, pitch);
+			} else {
+				play_spatial_sound(sfx_arrow_hit, hit_pos, 0.0f, 65.0f, pitch);
+			}
+			it = tracked_projectiles.erase(it);
+		} else {
+			++it;
+		}
 	}
 
 	// =========================================================================
@@ -783,22 +1047,22 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 	for (size_t i = 0; i < rview.count; ++i) {
 		if (!rview.alive[i] || rview.amount[i] <= 0) continue;
-		float x = rview.x[i], z = rview.z[i];
-		float ry = sim->get_terrain_height(x, z);
+		float rx = rview.x[i], rz = rview.z[i];
+		float ry = sim->get_terrain_height(rx, rz);
 		uint32_t h = rview.id[i];
 		Basis rot(Vector3(0, 1, 0), (float)(h % 12) * 0.52f);
 
 		if (rview.type[i] == rtso::RES_WOOD) {
 			float y_off = (h % 3 == 0) ? e_tree.y_offset : ((h % 3 == 1) ? e_pine.y_offset : e_palm.y_offset);
-			Transform3D xf(rot, Vector3(x, ry + y_off, z));
+			Transform3D xf(rot, Vector3(rx, ry + y_off, rz));
 			if (h % 3 == 0) tree_a_mm->set_instance_transform((int)ia++, xf);
 			else if (h % 3 == 1) tree_b_mm->set_instance_transform((int)ib++, xf);
 			else tree_c_mm->set_instance_transform((int)ic++, xf);
 		} else if (rview.type[i] == rtso::RES_GOLD) {
-			Transform3D xf(rot, Vector3(x, ry + e_gold.y_offset, z));
+			Transform3D xf(rot, Vector3(rx, ry + e_gold.y_offset, rz));
 			gold_mm->set_instance_transform((int)ig++, xf);
 		} else if (rview.type[i] == rtso::RES_STONE) {
-			Transform3D xf(rot, Vector3(x, ry + e_stone.y_offset, z));
+			Transform3D xf(rot, Vector3(rx, ry + e_stone.y_offset, rz));
 			stone_mm->set_instance_transform((int)ist++, xf);
 		}
 	}
@@ -828,10 +1092,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		float fy = sim->get_terrain_height(fx, fz);
 		float frot = fview.rot_y[f];
 		Transform3D xf(Basis(Vector3(0, 1, 0), frot), Vector3(fx, fy, fz));
-		int slot = f_written[ft]++;
-		if (fauna_mm[ft].is_valid() && slot < f_counts[ft]) {
-			fauna_mm[ft]->set_instance_transform(slot, xf);
+		int fslot = f_written[ft]++;
+		if (fauna_mm[ft].is_valid() && fslot < f_counts[ft]) {
+			fauna_mm[ft]->set_instance_transform(fslot, xf);
 		}
 	}
 }
-

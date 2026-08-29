@@ -306,105 +306,6 @@ static PackedInt32Array bone_indices_from_arrays(const Array &arrays, int vert_c
 	return out;
 }
 
-static bool build_bone_palette(MeshInstance3D *mi, std::vector<Transform3D> &palette) {
-	if (!mi) return false;
-	Skeleton3D *skel = nullptr;
-	NodePath sp = mi->get_skeleton_path();
-	if (!sp.is_empty() && mi->has_node(sp)) {
-		skel = Object::cast_to<Skeleton3D>(mi->get_node_or_null(sp));
-	}
-	if (!skel) skel = find_skeleton(mi->get_parent());
-	if (!skel) return false;
-
-	Ref<Skin> skin = mi->get_skin();
-	if (skin.is_valid() && skin->get_bind_count() > 0) {
-		const int n = skin->get_bind_count();
-		palette.resize((size_t)n);
-		for (int i = 0; i < n; ++i) {
-			int bone = skin->get_bind_bone(i);
-			if (bone < 0) {
-				StringName bn = skin->get_bind_name(i);
-				if (bn != StringName()) bone = skel->find_bone(bn);
-			}
-			if (bone < 0 || bone >= skel->get_bone_count()) {
-				palette[i] = Transform3D();
-				continue;
-			}
-			palette[i] = skel->get_bone_global_pose(bone) * skin->get_bind_pose(i);
-		}
-		return true;
-	}
-
-	const int n = skel->get_bone_count();
-	if (n <= 0) return false;
-	palette.resize((size_t)n);
-	for (int i = 0; i < n; ++i) {
-		palette[i] = skel->get_bone_global_pose(i) * skel->get_bone_global_rest(i).affine_inverse();
-	}
-	return true;
-}
-
-static void append_skinned_surface(SurfBucket &b, const Transform3D &skel_xf, const Array &arrays,
-		const std::vector<Transform3D> &palette) {
-	PackedVector3Array verts = arrays[Mesh::ARRAY_VERTEX];
-	if (verts.size() == 0) return;
-	PackedVector3Array norms = arrays[Mesh::ARRAY_NORMAL];
-	PackedVector2Array uvs = arrays[Mesh::ARRAY_TEX_UV];
-	PackedColorArray cols;
-	if (arrays.size() > Mesh::ARRAY_COLOR && arrays[Mesh::ARRAY_COLOR].get_type() != Variant::NIL) {
-		cols = arrays[Mesh::ARRAY_COLOR];
-	}
-	PackedInt32Array idx = arrays[Mesh::ARRAY_INDEX];
-	PackedInt32Array bones = bone_indices_from_arrays(arrays, verts.size());
-	PackedFloat32Array weights;
-	if (arrays.size() > Mesh::ARRAY_WEIGHTS && arrays[Mesh::ARRAY_WEIGHTS].get_type() != Variant::NIL) {
-		weights = arrays[Mesh::ARRAY_WEIGHTS];
-	}
-
-	const int n = verts.size();
-	int stride = (n > 0 && bones.size() > 0) ? bones.size() / n : 0;
-	if (stride < 1) stride = 4;
-
-	const int base = b.verts.size();
-	for (int v = 0; v < n; ++v) {
-		Vector3 p = verts[v];
-		Vector3 nrm = (v < norms.size()) ? norms[v] : Vector3(0, 1, 0);
-		Vector3 skinned(0, 0, 0);
-		Vector3 sn(0, 0, 0);
-		float wsum = 0.0f;
-		if (bones.size() >= (v + 1) * stride) {
-			for (int k = 0; k < stride && k < 8; ++k) {
-				int bi = bones[v * stride + k];
-				float w = 0.0f;
-				int wi = v * stride + k;
-				if (wi < weights.size()) w = weights[wi];
-				if (w == 0.0f || bi < 0 || bi >= (int)palette.size()) continue;
-				skinned += palette[bi].xform(p) * w;
-				sn += palette[bi].basis.xform(nrm) * w;
-				wsum += w;
-			}
-		}
-		if (wsum < 0.0001f) {
-			skinned = p;
-			sn = nrm;
-		} else if (Math::abs(wsum - 1.0f) > 0.01f) {
-			skinned /= wsum;
-			sn /= wsum;
-		}
-		b.verts.push_back(skel_xf.xform(skinned));
-		b.norms.push_back(skel_xf.basis.xform(sn).normalized());
-		if (v < uvs.size()) b.uvs.push_back(uvs[v]);
-		else b.uvs.push_back(Vector2());
-		if (v < cols.size()) b.colors.push_back(cols[v]);
-		else b.colors.push_back(Color(1, 1, 1, 1));
-	}
-	if (idx.size() > 0) {
-		for (int k = 0; k < idx.size(); ++k) b.indices.push_back(idx[k] + base);
-	} else {
-		for (int v = 0; v < n; ++v) b.indices.push_back(base + v);
-	}
-}
-
 bool ModelLibrary::capture_crowd_skin(Node *root, CrowdSkin &out) {
 	out = CrowdSkin();
 	if (!root) return false;
@@ -612,33 +513,14 @@ ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id)
 	candidates.push_back(String("res://assets/models/vegetation/") + id + String(".glb"));
 	candidates.push_back(String("res://assets/models/") + id + String(".glb"));
 
-	// Archetypal GLB model fallbacks
+	// Fallbacks only for IDs that still share a stand-in mesh
 	if (category == "units") {
-		if (id == "chariot" || id == "scythed_chariot" || id == "camel" || id == "worker_elephant") {
-			candidates.push_back("res://assets/models/units/cavalry.glb");
-		} else if (id == "war_dog" || id == "dog") {
-			candidates.push_back("res://assets/models/units/deer.glb");
-		} else if (id == "carnyx") {
-			candidates.push_back("res://assets/models/units/spearman.glb");
-		} else if (id == "archer_maiden") {
-			candidates.push_back("res://assets/models/units/archer.glb");
-		} else if (id == "female_citizen" || id == "female") {
+		if (id == "healer") {
 			candidates.push_back("res://assets/models/units/villager.glb");
-		} else if (id == "healer") {
-			candidates.push_back("res://assets/models/units/healer.glb");
-			candidates.push_back("res://assets/models/units/villager.glb");
-		} else if (id == "bolt_shooter" || id == "ballista" || id == "oxybeles") {
-			candidates.push_back("res://assets/models/units/ram.glb");
 		}
 	} else if (category == "buildings") {
-		if (id == "corral") {
-			candidates.push_back("res://assets/models/buildings/farmstead.glb");
-		} else if (id == "dock" || id == "shipyard") {
-			candidates.push_back("res://assets/models/buildings/storehouse.glb");
-		} else if (id == "gate") {
+		if (id == "gate") {
 			candidates.push_back("res://assets/models/buildings/wall.glb");
-		} else if (id == "wonder") {
-			candidates.push_back("res://assets/models/buildings/town_center.glb");
 		}
 	}
 

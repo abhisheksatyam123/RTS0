@@ -27,6 +27,7 @@ class RtsoMiniMapView : public Control {
 	bool dragging = false;
 	bool show_territory = true;
 	bool show_resources = true;
+	bool show_fow = true;
 	std::vector<MapPing> pings;
 
 protected:
@@ -42,6 +43,7 @@ public:
 	void add_ping(Vector2 world_pos, Color col = Color(1.0f, 0.85f, 0.2f));
 	void toggle_territory() { show_territory = !show_territory; queue_redraw(); }
 	void toggle_resources() { show_resources = !show_resources; queue_redraw(); }
+	void toggle_fow() { show_fow = !show_fow; queue_redraw(); }
 };
 
 #endif

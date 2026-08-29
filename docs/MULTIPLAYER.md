@@ -1,3 +1,5 @@
+> **2026-08-29 Audit** TurnManager is single lockstep stub (turn_manager.cpp:183) vs 0AD split NetClientTurnManager:188/NetServerTurnManager:235. See docs/REMAINING_GAPS.md G8-G9. Decision required: snapshot (doc) vs lockstep (code).
+
 # Multiplayer & Cross-Platform Plan
 
 Targets: **Windows, Linux, Android, iOS** — online multiplayer.
@@ -36,6 +38,8 @@ Why not deterministic lockstep (the classic AoE approach):
 
 If we ever add ranked 1v1 PvP, revisit lockstep then — design the sim boundary below so that door stays open.
 
+> **2026-08-29 Audit Note — Model Conflict:** This document describes **snapshot / host-authoritative** broadcast, but `src/network/turn_manager.h:30` and `turn_manager.cpp:183` implement a **deterministic lockstep** `TURN_DURATION = 0.200f` (5 turns/sec) matching 0AD `COMMAND_DELAY_MP` / `DEFAULT_TURN_LENGTH`. See `## 2026-08-29 Gap Detail (G8-G9)` and `## Decision Matrix` below. **Decision required before M3:** keep snapshot (rewrite TurnManager) or commit to lockstep (rewrite this doc + add fixed-point determinism).
+
 ## Architecture rules (start NOW, cheap to do today, painful to retrofit)
 
 1. **Simulation / presentation split**
@@ -60,10 +64,42 @@ If we ever add ranked 1v1 PvP, revisit lockstep then — design the sim boundary
 - Build/train actions via bottom bar buttons, not hotkeys (hotkeys stay as desktop shortcuts).
 - Target: playable one-handed portrait? No — landscape only, lock orientation.
 
-## Milestones insertion
-- M1 ✅ (done): command pattern + core/presentation split exist (`core/GameSim.cs`, `core/Commands.cs`; all input routes through serializable commands applied via `GameSim.Apply`).
-  - Note: parallelism inside the tick is deterministic-safe (two-phase force pass), so this does NOT block future lockstep.
-- M2: local-only game fully driven through commands (netcode-ready).
-- M3: host/join UI + ENet sync of commands, host simulates, clients render snapshots.
-- M4: mobile touch scheme + Android device testing.
-- M5: iOS verification gate -> decide C# stays or hot paths move.
+## 2026-08-29 Gap Detail (G8-G9)
+
+> G8 = Multiplayer Transport / TurnManager gaps. G9 = Petra AI parity. This table audits `src/network/*` vs vendored `src/0ad/network/*`. See `docs/REMAINING_GAPS.md` G8-G9 for tracking.
+
+| Area | 0AD Reference | RTS0 Current (Stub) | Gap / File |
+|---|---|---|---|
+| **Transport / ENetHost Init** | `src/0ad/network/NetHost.h:88` `CNetHost::Initialize()` static + `NetServer.cpp:190` `enet_host_create(addr, peerCount, channelLimit)` + `NetClient.h:134` `SetupConnection(ENetHost*)` + `SetupUPnP` thread `NetServer.cpp:220` | `src/network/net_host.cpp:9` `startHost/startClient/poll/sendCommand` all no-op; `role=Host|Client` only, ignores `Arena&` | No ENet linkage, no `ENetHost* m_Host` / `ENetPeer*`, no `enet_host_service` loop |
+| **Messages / Command Batch** | `src/0ad/network/NetMessages.h:78-84` `NMT_END_COMMAND_BATCH` (`m_Turn,u32` + `m_TurnLength,u16`) + `NMT_SIMULATION_COMMAND`, `NMT_SYNC_CHECK`/`NMT_SYNC_ERROR` (`m_Hash:CStr`), `NMT_CHAT/READY/GAME_SETUP/PLAYER_ASSIGNMENT/FILE_TRANSFER_*` etc — 28 message types `NetMessages.h:41-85` | `src/network/turn_manager.h:12` `NetCommand{client_id, cmd_type:u8, entity_ids[], target_x/z, target_id, param}` raw binary serialization `turn_manager.cpp:104` `magic 0x52545330 "RTS0"` | No `NMT_*` enum, no `CNetMessage` serialization, no per-turn batching, no chat/lobby handshake |
+| **Hash / OOS Detection** | `src/0ad/network/NetServerTurnManager.h:95` `m_ClientStateHashes: map<turn, map<client, hash>>` + `NetClientTurnManager.cpp:52` `COMMAND_DELAY_MP` hash compare via `CStr m_Hash` (`NMT_SYNC_CHECK:250` / `NMT_SYNC_ERROR:255`) — quick hash + full hash `ComputeStateHash` | `src/network/turn_manager.cpp:26` `compute_sim_hash()` single FNV-1a 32b (`2166136261u * 16777619u`) over `pos_x/z, hp, action_state` + 4 resources `sim.food()/wood()/gold()/stone()` — no per-client map, no quick/full split | No divergent-hash OOS reporting, no `NMT_SYNC_ERROR` player-name list, single global hash stored `TurnFrame.sim_state_hash` |
+| **Rejoin / FileTransfer** | `src/0ad/network/NetMessages.h:60-63` `NMT_FILE_TRANSFER_REQUEST/RESPONSE/DATA/ACK` + `NMT_JOIN_SYNC_START:65`, `NMT_REJOINED:67`, `NMT_LOADED_GAME:75` + `NetFileTransfer.h:41` chunked reliable transfer; `NetServer.cpp:1253` `NotifyFinishedClientUpdate` re-sync | `src/network/turn_manager.cpp:136` `load_replay(path)` local file only; `save_replay` / `load_replay` binary via `ifstream` — no network rejoin, no file transfer | Joining mid-game, re-sync, and saved-game transfer missing |
+| **FSM / Session State** | `src/0ad/network/NetClient.h:52-59` `NCS_UNCONNECTED, NCS_CONNECT, NCS_HANDSHAKE, NCS_AUTHENTICATE, NCS_PREGAME, NCS_LOADING, NCS_JOIN_SYNCING, NCS_INGAME` + `NetServer.h:50` `NetServerState` + `NetServer.h:75` `NetServerSessionState` + `NetSession.h:158` `CNetServerSession : CFsm<>` threaded | `src/network/net_types.h:6` `enum class NetRole { None, Host, Client }` + `net_host.h:7` `NetRole role` only — no `CFsm`, no `boost::lockfree::queue<ENetEvent>` | No handshake/auth FSM, no `HandleMessageReceive`, no `RunNetLoop` thread |
+| **Lobby / PlayerAssignments** | `src/0ad/network/NetHost.h:38` `struct PlayerAssignment {m_Enabled,m_Name:CStrW,m_PlayerID:i8,m_Status:u8}` + `NetHost.h:57` `PlayerAssignmentMap map<GUID, Assignment>` + `NetClient.h:363` `m_PlayerAssignments` + `NetMessages.h:161` `NMT_PLAYER_ASSIGNMENT` GUID routing, `m_GUID` per peer, `ARC_OK/REJOINING` | `src/network/net_types.h:7` `struct NetConfig {port=7777, maxPlayers=8}` + `struct NetPeer{id,address,port,connected}` — no GUID, no `PlayerAssignmentMap`, `maxPlayers=8` hard-coded | No lobby GUID, no `NMT_ASSIGN_PLAYER`/`NMT_PLAYER_ASSIGNMENT`, no observer slot, no `CStr m_GUID` |
+| **NAT / STUN / UPnP** | `src/0ad/network/NetServer.cpp:220` `SetupUPnP(port)` via `miniupnpc` (`CONFIG2_MINIUPNPC`) + `NetClient.h:147` `TryToConnectWithSTUN(hostJID, localNetwork)` + `XmppClient.cpp:887` `g_NetClient->TryToConnectWithSTUN` + `NDR_STUN_PORT_FAILED:82` / `NDR_STUN_ENDPOINT_FAILED:83` | `src/network/net_host.cpp:9` none; `net_types.h` no STUN/UPnP fields | NAT punch-through absent — LAN + port-forward only; mobile/carrier NAT fallback WebSocket relay not implemented |
+
+Additional 0AD anchors: `NetServerTurnManager.cpp:43` `m_ReadyTurn(COMMAND_DELAY_MP-1)`, `NetServerTurnManager.h:99` `m_ReadyTurn`, `NetClientTurnManager.h:37` `CNetClientTurnManager : CTurnManager` (`turn_manager.cpp:183` single stub vs split).
+
+## Decision Matrix
+
+> Must decide **before M3 (host/join UI)**. Snapshot is what `## Netcode model` (host-authoritative) describes; lockstep is what `src/network/turn_manager.*` currently implements (200ms lockstep, 5 turns/sec, `TURN_DURATION=0.200f`).
+
+| Model | Pros | Cons | 0AD Reference & RTS0 Impact |
+|---|---|---|---|
+| **Snapshot / Host-authoritative** (doc model) | Cross-platform float-safe — no fixed-point rewrite needed (x86 vs ARM determinism avoided). Tolerant to mobile jitter — clients render latest snapshot interpolated, not blocked by slowest peer. Simpler transport: snapshots `unreliable` + commands `reliable` (doc `## Netcode model`). Host validates & applies `GameSim.Apply`. | Bandwidth heavy: full/delta state broadcast each tick; needs compression. Anti-cheat weaker (client trusts host snapshots). Divergence harder to detect without hashes. Requires implementing `NetHost::poll` snapshot send, client interpolation, compression. | Doc `## Netcode model:28-35` sized for co-op/wave defense (hundreds, not 1000s). If chosen, **rewrite** `src/network/turn_manager.h:28` — replace lockstep `TURN_DURATION`/`TurnFrame` with `SnapshotManager` (host tick 20 Hz, snapshot delta, client interp). Keep `NetCommand` but send host->all via `ENetHost` unreliable channel. |
+| **Deterministic Lockstep** (code model) | Minimal bandwidth: only `NetCommand` batches per turn ( `turn_manager.cpp:67` `frame.commands = move(pending)`). Strong OOS detection via hashes (`compute_sim_hash` → `NMT_SYNC_CHECK:80` / `NMT_SYNC_ERROR:81`). Proven for RTS: 0AD `src/0ad/network/NetServerTurnManager.cpp:47` “Turns [1..COMMAND_DELAY-1] are special: all clients run without waiting on server”. Replay free (`save_replay` magic `0x52545330`). | Requires **full determinism**: fixed-point math or soft-float, deterministic `JobSystem` tick, no `float` drift — painful retrofit per doc warning. Lockstep punishes jitter: everyone waits `COMMAND_DELAY_MP` turns (`NetServerTurnManager.cpp:43` `m_ReadyTurn(COMMAND_DELAY_MP-1)=1`, `DEFAULT_TURN_LENGTH` `* COMMAND_DELAY_MP/2 = NETWORK_BAD_PING:98`). Needs split turn managers. | 0AD handshake: `NetMessages.h:28` magic `0x5073013f` (`'P','s',0x01,'?'`) + `0x50630121` response, `PS_PROTOCOL_VERSION 0x01010019`, `DEFAULT_TURN_LENGTH` + `COMMAND_DELAY_MP` (=2 typical, 200ms turn → 400ms command delay). RTS0 currently hard-codes `TURN_DURATION 0.200f` (`turn_manager.h:30`) but single `TurnManager` (`turn_manager.cpp:183` lines) vs 0AD split `NetClientTurnManager:188 LOC` / `NetServerTurnManager:235 LOC`. If chosen, **rewrite doc** `## Netcode model`, add `NetClientTurnManager`/`NetServerTurnManager` split, implement `ENetHost` + `COMMAND_DELAY_MP` pipelining, `NMT_END_COMMAND_BATCH` (`NetMessages.h:245`), and fixed-timestep determinism. |
+
+**Recommendation placeholder (team decision required):** For RTS0 scope (co-op/wave, hundreds of units, mobile jitter-sensitive) the doc’s snapshot model is lower risk. For ranked 1v1 PvP or large battles the lockstep code model is correct but requires determinism investment. Either way, align `docs/MULTIPLAYER.md` ↔ `src/network/turn_manager.*` before M3.
+
+## Milestones insertion (Annotated 2026-08-29)
+
+- M1 ✅ **done** (verified): command pattern + core/presentation split exist (`core/GameSim.cs` / `core/Commands.cs` in doc; actual `src/simulation/simulation.h` `cmd_*`/`order_*` + `src/network/turn_manager.h:12` `NetCommand` — all input routes through serializable commands applied via `Simulation::tick` / `TurnManager::tick`). Parallelism inside tick is deterministic-safe (two-phase force pass), so does NOT block future lockstep.
+- M2 **in progress / netcode-ready gap**: local-only game fully driven through commands. `Simulation::tick` fixed `FIXED_STEP 1/20` exists but `TurnManager::tick` (`turn_manager.cpp:52`) is single local lockstep stub — no network batching yet. Needs `NMT_SIMULATION_COMMAND` wire-up.
+- M3 **host/join UI stub — NOT DONE**: `src/network/net_host.h:6` `NetHost{startHost,startClient,poll,sendCommand,onCommand}` all no-op `net_host.cpp:9` (ignores `Arena&`), `NetRole None/Host/Client` only vs `NCS_*` FSM. ENet not linked (see `## 2026-08-29 Gap Detail`). UI not wired. Decision snapshot vs lockstep must be resolved before implementing.
+- M4 **not started**: mobile touch scheme + Android device testing. Blocked on M3 decision (snapshot more tolerant to carrier NAT jitter; lockstep needs `COMMAND_DELAY_MP` tuning + STUN/UPnP).
+- M5 **not started / iOS verification gate** -> decide C# stays or hot paths move. (RTS0 is C++20 GDExtension — C# note is doc legacy; verify against pinned Godot version anyway.)
+
+## 2026-08-29 G8/G9 Scaffold (Phase4) — minimal lift 5%→30% without ENet
+
+> **Parity note:** TurnManager now hashes **all SoA fields** (`pos_x/z, hp, unit_type, team, action_state, carry, building hp/progress/team/type, resources, techMask, fow_grid_, projectiles, relics, territory_grid_, market prices`) via FNV-1a (`turn_manager.cpp:26 compute_sim_hash // Phase4 HashSerializer parity`, `v2` replay). `save_replay` writes `turn_index` monotonic + `sim_state_hash` per frame; `load_replay` verifies ordering and hash (accepts `v1` legacy). `NetHost` now exposes `NetMessageType : uint8_t { NMT_SIMULATION_COMMAND=29 ... NMT_SYNC_CHECK/ERROR }` + `struct NetMessage {type, turn, payload}` header-only, plus `poll()` pseudocode `enet_host_service` / `ENET_EVENT_TYPE_CONNECT/DISCONNECT/RECEIVE` dispatching `onCommand`. `NetTypes` adds `Observer` role, `rtt_ms`, `snapshotRate 20Hz`. No `libenet` linkage required yet — `g++ -fsyntax-only` passes. Next: wire `ENetHost* m_Host` in `poll()` and coalesce `NMT_END_COMMAND_BATCH` in `NetServerTurnManager`.
+

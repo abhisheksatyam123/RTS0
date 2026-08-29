@@ -1,0 +1,104 @@
+# RTS0 Session HUD Parity vs 0 A.D. `gui/session`
+
+> Scope: `binaries/data/mods/public/gui/session/**` (0 A.D. rP26xxx) vs RTS0 `src/presentation/main_node.cpp` (`RtsoMain::_ready`, `_process`, `update_hud/inspector/command_panel`, input) + `src/presentation/minimap_view.cpp` + `src/presentation/world_view_node.cpp`.
+
+---
+
+## 1. Top HUD
+
+0 A.D. `gui/session/top_panel/CounterResource.js` + `CounterPopulation.js` + `PhaseIcon.js` + `CivIcon.js` + `gui/session/menu.js`
+
+| RTS0 (`src/presentation/main_node.cpp`) | 0 A.D. (`gui/session/**`) | Parity | Gap |
+|---|---|---|---|
+| **4 resource counters** – `main_node.cpp:223-247` `res_icons[4]` + `res_labels[4]` (`food/wood/metal/stone` from `assets/textures/ui/icons/*.png`, `load_tex` fallback `main_node.cpp:114-136`) in `top_hud_panel` `main_node.cpp:183-212` | `gui/session/top_panel/CounterResource.js` generic counter with `icon` + `count` + `rate` + tooltip (4 resources via `Resources` component) | **4/4 icons present** but rates are baked text `(+\d/m)` not sampled from sim template; no tooltip breakdown | Tooltip + per-resource observer (0 A.D. registers `OnResourceChange`) missing. |
+| **Population** – `main_node.cpp:249-263` `pop_icon` + `pop_label` `cur/max`, red when capped `main_node.cpp:1108-1112` | `gui/session/top_panel/CounterPopulation.js` `popCount` / `popLimit` / `popMax` with class icons, queue overflow warning | **1/1** but no queue preview | No pop-cap warning sound / housed indicator parity. |
+| **Civ emblem** – `main_node.cpp:214-220` `civ_emblem` `TextureRect` single `athenians.png`, `main_node.cpp:321-337` `civ_selector` `OptionButton` 13 items but only 2 textures real (fallback `main_node.cpp:119-122` → `athenians.png`) | `gui/session/top_panel/CivIcon.js` + `art/textures/ui/session/icons/civilisations/*.png` (13 civs: athen/spart/pers/rome/cart/mace/brit/gaul/iber/maur/kush/ptol/sele) | **2/13** textures | Missing 11 emblems `panel_phase_emblems` also missing (`gui/session/top_panel/PhaseIcon.js` Village→Town→City – 3 phases via `TechnologyManager` phase tech). RTS0 shows `wave_label` phase string `main_node.cpp:1126-1136` but no emblem `TextureRect`. |
+| **Idle worker** – `main_node.cpp:265-271` `idle_worker_btn` `Idle: N` `cycle_idle_worker()` `main_node.cpp:810-829` | `gui/session/idle_worker/*.js` button + observer + `FindIdleUnits` | Present but no portrait cycling | Parity OK for M1; 0 A.D. shows worker class icon vs text. |
+| **Clock / Phase / Wave** – `main_node.cpp:274-286` `clock_label` + `wave_label` (`Wave N (Xs) | Phase`) `main_node.cpp:1119-1136` | `gui/session/top_panel/TimeElapsed.js` + `gui/common/music/Music.js` + `gui/session/notifications/NotificationManager.js` | Clock parity; wave injected by RTS0 `Simulation` not 0 A.D. `Trigger` | Phase emblem missing as above. |
+| **Speed / Menu / Map / Civ selectors** – `main_node.cpp:288-337` | `gui/session/menu.js`, `gui/session/speed/*.js` (observer `SetSimRate`) | Present | 0 A.D. diplomacy/options shortcut keys not bound. |
+
+**Missing assets:** `assets/textures/ui/emblems/` only `athenians.png` (see `ASSET_MAPPING.md` auras/minimap missing); `assets/textures/ui/icons/civilisations/phase_*.png` absent. Export via `tools/extract_0ad_assets.py --full`.
+
+---
+
+## 2. Inspector / Entity Details
+
+0 A.D. `gui/session/panel_entity/PanelEntity.js` + `gui/session/unit_actions/**` + `gui/session/selection_details/**`
+
+| RTS0 (`main_node.cpp:339-416`) | 0 A.D. | Parity | Gap |
+|---|---|---|---|
+| **Portrait + title/class** – `main_node.cpp:361-380` `inspector_portrait` (`load_tex` `portraits/*.png` fallback `main_node.cpp:123-126`), `inspector_title` `inspector_class` | `gui/session/panel_entity/PanelEntity.js` `Icon` + `Name` + `Class` + `Tooltip` + `Rank` badge | Portrait pipeline exists but only 2 portraits shipped (`swordsman.png` fallback) vs 0 A.D. `art/textures/ui/session/portraits/units/*.png` (~40). Rank badge `Advanced/Elite` text only `main_node.cpp:1237` vs texture `rank_*.png`. | Need `assets/textures/ui/portraits/**` full set. |
+| **Health** – `main_node.cpp:382-393` single `ProgressBar` `inspector_hp_bar` + `inspector_hp_label` (`HP: X / Y`) `main_node.cpp:1156-1158` | `gui/session/panel_entity/HealthBar.js` segmented stack: `Health` + `Capture` + `Experience` + `Stamina` + `Aura` range, with capture points & `maxHitpoints` observer | **1/5** bars | Capture (`CCmpCapturable`), XP (`CCmpPromotion` `currXp / requiredXp` `main_node.cpp:1227-1235` kills/rank but no XP bar), Stamina (`CCmpUnitMotion` stamina), Aura (`CCmpAuras` `aura` range) all missing. 3D `world_view_node.cpp:124-145` `hp_fg_mat` single bar same gap. |
+| **Stats** – `main_node.cpp:395-407` `inspector_stats`/`inspector_extra` text (attack/armor/speed/queue) `main_node.cpp:1178-1183` | `gui/session/selection_details/SelectionDetails.js` template-driven armor `hack/pierce/crush`, attack `hack/pierce/crush + range`, speed, gather rates, garrisoned count | Text dump vs structured rows + icons (`art/textures/ui/session/icons/types/**`) | Need icon grid + observer `OnSelectionChange` template resolve. |
+| **Garrison / Ungarrison** – `main_node.cpp:409-416` `ungarrison_btn` `Z` `main_node.cpp:847-856` `order_ungarrison`/`order_disembark_all` | `gui/session/unit_actions/Garrison.js` + `gui/session/panel_entity/GarrisonPanel.js` | Button present | 0 A.D. shows garrisoned unit portraits list; RTS0 shows count only `main_node.cpp:1180`. |
+
+---
+
+## 3. Command / Actions / Production
+
+0 A.D. `gui/session/unit_actions/**`, `gui/session/buildings/**`, `gui/session/queue/**`, `gui/session/structures/**`
+
+| RTS0 | 0 A.D. | Parity | Gap |
+|---|---|---|---|
+| **Stance panel** – `main_node.cpp:448-475` `stances_bar` 5 buttons `Aggressive/Defensive/Stand Ground/Hold Ground/Passive` `main_node.cpp:455` `stance_icons[5]` (`load_tex` fallback `stances/defensive.png` `main_node.cpp:128-130`) + `main_node.cpp:859-863` `order_set_stance` | `gui/session/unit_actions/Stance.js` 5 stances, `art/textures/ui/session/icons/stances/*.png` observer `CCmpUnitAI::GetStance` | **5/5 labels** but 2 textures unique (stand/hold share `standground.png` `main_node.cpp:460` duplicate) | Need 5 distinct stance icons; missing aura overlay indicating stance. |
+| **Formations** – `main_node.cpp:477-483` `actions_bar` (empty placeholder); `main_node.cpp:865-869` `order_set_formation` + `main_node.h:145` handler exists but no buttons created | `gui/session/formations/Formation.js` 14 formations (`art/textures/ui/session/icons/formations/*.png` line/column/box/battle_line etc.) `gui/session/unit_actions/Formation.js` | **0/14 buttons** (handler wired, UI not built) vs 6 icons shipped (`assets/textures/ui/formations/line.png` fallback `main_node.cpp:131-134`) | Create 14 `Button` grid `main_node.cpp:477` `actions_bar`; ship missing PNGs (8 more). |
+| **Production queue** – `main_node.cpp:485-489` `production_bar` `HBoxContainer`; `update_command_panel()` (not in first 200 lines – see `main_node.cpp:993-995` call) fills `production_bar` + `queue_bar` `main_node.h:93` with text queue `main_node.cpp:1167-1177` `"Queue (X/8): > Name (Xs) [2] Name …"` | `gui/session/queue/ProductionQueue.js` 8 slots with `ProgressRing` (`gui/common/progressRing/*.js`) icon + progress `CCmpProductionQueue`, `art/textures/ui/session/icons/units/**` + `structures/**` metadata | **Text-only** vs icon grid + progress ring | Need 8 `TextureRect`+`ProgressBar` ring widgets + `assets/textures/ui/portraits/*` icons; hotkeys `Q/W/E…` not bound. |
+| **Build grid** – `main_node.cpp:875-877` `enter_build_mode` + `main_node.cpp:939-954` `ghost_mesh` + `main_node.cpp:1020-1032` ghost preview | `gui/session/buildings/BuildPanel.js` per-civ building roster (`art/textures/ui/session/icons/buildings/**` 13+ icons), `CCmpBuilder` place preview via `gui/session/input.js` `placement` | Build buttons exist (see `update_command_panel()` builder list) but icon set incomplete | Need full building icons + hotkey `B` then `H/B/M/T…` mapping (`gui/session/hotkeys/**`). |
+| **Tech** – `main_node.cpp:879-883` `_on_tech_pressed` → `cmd_research` | `gui/session/techs/TechPanel.js` | Handler present | Needs `art/textures/ui/session/icons/technologies/**` icons. |
+| **Hotkeys** | `binaries/data/mods/public/gui/session/hotkeys/**` `hotkeys.json` (attack-move `Ctrl`, patrol, guard, stop, etc.) | `main_node.cpp:137` `_unhandled_input` exists but not audited here | Shift queue, control groups, etc. gap – see §4. |
+
+---
+
+## 4. Selection & Input
+
+0 A.D. `gui/session/input.js` + `gui/session/selection.js` + `gui/session/controls/**`
+
+| RTS0 | 0 A.D. | Gap |
+|---|---|---|
+| **Box select** – `src/presentation/selection_rect.h` `RtsoSelectionRect` in `main_node.cpp:170-171` | `gui/session/selection.js` `StartDragging` / `EndDragging` with `hotkey` additive | Parity. |
+| **Shift queue** | `gui/session/input.js:HandleInputBeforeGui` `shiftDown` → `queue` flag on `OrderMove`/`OrderAttack` | **Missing** – `main_node.cpp:_unhandled_input` does not check `Input::is_key_pressed(KEY_SHIFT)` before `sim->order_move` (audit `_unhandled_input` body). |
+| **Control groups 0-9** | `gui/session/selection.js:ControlGroups` `SetSelectionGroup(0-9)` + `Recal` | **Missing** – no `selected_groups[10]` in `main_node.h:106-124`; need `PackedInt32Array` groups + `KEY_0..9` handling. |
+| **Double-click select type** | `gui/session/selection.js:DoubleClick` selects all visible of same `template` | **Missing** – no `double_click_timer` in `main_node.cpp:_unhandled_input`. |
+| **Wall drag** | `gui/session/input.js:WallPlacement` `wallset` preview | Partial – `main_node.h:105` `wall_ghosts` `vector<MeshInstance3D>` + `main_node.cpp:108-109` `wall_drag_mode`/`wall_drag_start_pos` exist but `update_ghost_mesh()` `main_node.cpp:939-954` only ghosts single `bentry.mesh`; no line-segment `wall_ghosts` populate on drag. Need `sim->can_place` wallset loop. |
+| **Attack-move / Patrol / Guard** | `gui/session/input.js:AttackMove` (`Ctrl`), `Patrol`, `Guard` (`CCmpUnitAI`) | Flags `main_node.cpp:110-112` `attack_move_mode`/`patrol_mode`/`guard_mode` bool exist but UI toggle buttons not exposed in `command_panel`. Wire to `actions_bar`. |
+
+---
+
+## 5. Minimap
+
+0 A.D. `gui/session/minimap/MiniMap.js` + `gui/session/minimap/MiniMapPanel.js` + `gui/session/diplomacy/**`
+
+| RTS0 | 0 A.D. | Gap |
+|---|---|---|
+| **Panel** – `src/presentation/minimap_view.h` `RtsoMiniMapView` `Control` `main_node.cpp:176-178` `minimap_view` + `_on_minimap_clicked` `main_node.cpp:800-803` | `gui/session/minimap/MiniMap.js` `MiniMap` canvas with `terrainTexture`, `losTexture`, `territoryOverlay` | RTS0 `_draw()` `minimap_view.cpp:90-184` hand-draws rects/circles (terrain grey `93-94`, territory circles `105-123` per building, resource dots `125-137`, buildings `139-159`, units `161-169`, pings `171-179`, camera frustum `181-183`). 0 A.D. composites `terrain` + `LOS` 3-state shroud (unexplored black, explored dark, visible full) via `CCmpRangeManager` `losTexture`. | **Territory circles vs shroud** – `minimap_view.cpp:106-123` `show_territory` circles are placeholder; not sampling `get_fow_grid()` (`main_node.cpp:911-919`). Need `FOW_GRID 128×128` `R8` texture sampled in `_draw()` (see `PERFORMANCE.md` FoW row). |
+| **Diplomacy colors toggle** | `gui/session/minimap/MiniMapPanel.js:ToggleDiplomacyColors` (ally/enemy vs player color) | Missing – RTS0 `show_territory` `minimap_view.cpp:7-13` toggles territory only (`toggle_territory()`), no `diplomacy` palette switch. Need `ToggleDiplomacy` button. |
+| **Flare / Ping** | `gui/session/minimap/MiniMapPanel.js:Flare` (allies see ping) | Partial – `minimap_view.cpp:29-42` `add_ping` + `main_node.cpp:800` `_on_minimap_clicked` right-click `172-174` tactical ping with decay, but no network `Enet` `NET_Flare` broadcast (see `src/network/net_types.h`). |
+| **Idle / Alerts** | `gui/session/minimap/IdleButtons.js` + `gui/session/notifications/**` | Missing – no idle-attack/building-complete alert buttons on minimap chrome. |
+| **Expand / Collapse** | `gui/session/minimap/MiniMapPanel.js:CollapseButton` | Missing. |
+
+---
+
+## 6. Chat / Diplomacy / Trade Overlays
+
+| RTS0 | 0 A.D. | Gap |
+|---|---|---|
+| **Chat** – (none yet; placeholder for `chat_overlay.gd` pattern) | `gui/session/chat/Chat.js` + `gui/session/chat/ChatPanel.js` `addressees`: All / Allies / Team / Private (whisper), `OnChatMessage` + `g_NetworkChat` | **Missing overlay** – Need `CanvasLayer` `ChatOverlay` (`chat_overlay.gd` style) `LineEdit` + `RichTextLabel` + `OptionButton` addressee (0=All, 1=Allies, 2=Team). Wire to `src/network/net_host.h` `ChatMessage` packet. Cite missing: `gui/session/chat/**` vs no `main_node.cpp` chat node. |
+| **Diplomacy** – (none; team fixed) | `gui/session/diplomacy/DiplomacyDialog.js` per-player `stance` dropdown (Ally/Neutral/Enemy) `CCmpDiplomacy` + `gui/session/diplomacy/DiplomacyColors.js`, `OnDiplomacyChanged` | **Missing** – RTS0 `sim->building.type` team `0/1` binary (`minimap_view.cpp:117-118` `b.team==0` ternary) vs per-player `DiplomacyManager` 8-player matrix. Need `DiplomacyDialog` `Panel` with 8 rows `OptionButton` stance, wired to `Simulation::set_diplomacy(player, other, stance)`. |
+| **Trade / Market / Barter** – `sim->food/gold` exchange via `ProductionQueue` only | `gui/session/trade/TradeDialog.js` + `gui/session/barter/BarterDialog.js` barter resource-for-resource with `marketGain` (`CCmpMarket` `GetBarterRate`), `gui/session/trade/TradeRoute.js` trader path | **Missing** – RTS0 `TRADER`/`MERCHANT_SHIP` `main_node.cpp:56,59` exist but no `TradeDialog` barter UI or `Market` panel (buy/sell 100 food ↔ gold at `barterMultiplier`). Need `Panel` with 4×4 barter grid + `market_gain` formula parity (`simulation/cmp_market.cpp` reference if ported). |
+| **Tribute / Ceasefire** | `gui/session/diplomacy/TributeDialog.js`, `gui/session/ceasefire/**` | Missing – P6. |
+
+---
+
+## DoD Checklist for P5 (must pass before merge)
+
+- [x] **Formation heading (G5 – 2026-08-29)** – `Simulation::cmd_move` `src/simulation/simulation.cpp:897` now computes `centerX/Y = avg(ids pos)`, `heading = atan2(tz-centerZ, tx-centerX)`, `cosH/sinH`, then `rx = ox*cosH - oz*sinH`, `rz = ox*sinH + oz*cosH` per `Formation.js GetFormationOffsets` parity; verified `python3 tools/check_parity.py --unit formation` shows LINE not axis-aligned and `PHALANX` speed 0.85x / `WEDGE` 1.1x via `formation_speed_mult[7]` in `cmd_move` + `move_units:1759`. Armor/dmg already in `tick_combat:2013/2036` ✓.
+- [ ] **Top HUD** – 13 civ emblems in `assets/textures/ui/emblems/*.png` load via `main_node.cpp:114` `load_tex`; active civ emblem swaps on `set_civ()` `main_node.cpp:153` + phase emblem `TextureRect` next to `civ_emblem` updates on `sim->player_phase()` (Village/Town/City) – verify `rg -n "phase_emblem|civ_emblem" src/presentation/main_node.cpp`.
+- [ ] **Inspector** – 5-bar stack renders for single selection: `Health` + `Capture` + `XP` + `Stamina` + `Aura` (`PanelEntity.js` parity). `update_inspector()` `main_node.cpp:1139` draws 5 `ProgressBar` rows; `world_view_node.cpp:124` 3D health bar remains single but 2D panel is 5. Need `assets/textures/ui/session/icons/**` stat icons.
+- [ ] **Command** – `stances_bar` 5 distinct icons (`main_node.cpp:456-462` no duplicate), `actions_bar` 14 formation buttons (`Formation.js` parity) with `order_set_formation` `main_node.cpp:865`, `production_bar` + `queue_bar` 8 slots icon grid + `ProgressRing` (not text `Queue (X/8):` `main_node.cpp:1167`), build grid hotkeys `B` → building keys, tech icons. Verify `rg -n "formation|stance" src/presentation/main_node.cpp` shows 14 formation branches.
+- [ ] **Selection input** – Shift queue queues instead of replaces (`_unhandled_input` checks `KEY_SHIFT`), Ctrl+0-9 groups store/recall (`main_node.h` `selected_groups[10]`), double-click selects type (`selection.js` parity), `wall_ghosts` `main_node.h:105` populates N segments on `wall_drag_mode` drag (commit on release via `sim->place_wallset`). Manual QA: shift+right-click twice → two waypoints in `sim->unit.targets`.
+- [ ] **Minimap** – `_draw()` `minimap_view.cpp:90` samples `get_fow_grid()` `main_node.cpp:911` as `ImageTexture` 3-state shroud (unexplored black / explored 40% / visible 100%) instead of only territory circles `minimap_view.cpp:106`; diplomacy color toggle `minimap_view.cpp:8` `toggle_diplomacy` switches ally/enemy palette; flare button broadcasts via `net_host`; idle-attack button cycles `cycle_idle_worker()` `main_node.cpp:810`. Verify `rg -n "fow_grid|losTexture" src/ shaders/` hits shader.
+- [ ] **Chat** – `ChatOverlay` `LineEdit` + addressee `OptionButton` (All/Allies/Team) + history `RichTextLabel`; sends `ChatMessage` packet via `net_host.h`; `Addressee` enum parity `gui/session/chat/Chat.js:Addressee`.
+- [ ] **Diplomacy** – `DiplomacyDialog` `Panel` listing players 1..N (skip self) with `OptionButton` Ally/Neutral/Enemy per row, `OnStanceChange` calls `Simulation::set_diplomacy` and updates `minimap_view` colors; test two-client Enet: stance change replicates.
+- [ ] **Trade** – `TradeDialog`/`BarterDialog` `Panel` with resource barter grid (100 → X) using `market_gain` rate; `TRADER` unit `CCmpTrader` gain scales with market distance; verify barter changes `sim->food/gold` atomically. `TradeRoute.js` parity not required for P5 (auto path OK).
+- [ ] **Assets** – `assets/textures/ui/session/auras/*`, `minimap-*`, `panel_phase_emblems`, formations 14 PNGs, emblems 13 PNGs present; `extract_0ad_assets.py --full` emits them (see `ASSET_MAPPING.md` Next export targets). `godot --headless --check` + `ctest` sim input tests pass.
+- [ ] **No regressions** – `Simulation` deterministic lockstep (`turn_manager.h`) unchanged; `ModelLibrary` fallback `model_library.cpp:616` still works when new GLBs absent; `project.godot` `generate_lods` not broken for existing CI.

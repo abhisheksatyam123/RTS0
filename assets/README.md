@@ -21,6 +21,12 @@ assets/
 
 Unknown ids are never written to `vegetation/` (that used to dump unit/building files there).
 
+Quick help:
+
+```bash
+python3 tools/extract_0ad_assets.py --help     # shows --all / --full / --zip / --out
+```
+
 Regenerate after pulling 0ad:
 
 ```bash
@@ -65,6 +71,36 @@ Targets baked into GLB (manifest `size_meters`): villager 1.7m, swordsman 1.8m,
 town_center 5.2m (footprint 4), house 2.1m (footprint 1.8), tree 4.5m, gold_vein 1.8m.
 `WorldView.Sync` uses `_real*` flags to pick Y offset: real units 0.02 vs 0.6 (capsule),
 real buildings 0 vs size/2 (Box center).
+
+## Phase 5 Export Expansion (G6+G7 parity)
+
+P5 closes the asset gaps audited in `docs/ASSET_MAPPING.md` (`## 2026-08-29 Parity Audit`). The
+current `assets/models/manifest.json` ships 24 GLBs / 18 PSAs / 3 skeletons; P5 targets the
+18 missing GLBs (`camel`, `elephant`, `war_dog`, `chariot`, `scythed_chariot`, `carnyx`,
+`worker_elephant`, `archer_maiden`, `bolt_shooter`, `fishing_boat`, `trireme`, `merchant_ship`,
+`dock`, `corral`, `gate`, `wonder`, `boar`, `wolf`) + 4 skeletons + 10 PSAs + terrain tiles
+and UI (`auras/*`, `minimap-*`, `panel_phase_emblems`, formations 14, emblems 13).
+
+Run the full extractor against a local 0 A.D. checkout:
+
+```bash
+# from repo root
+python3 tools/extract_0ad_assets.py --full \
+  --zip /home/abhi/project/0ad/binaries/data/mods/public/public.zip \
+  --out assets
+# or shorthand (tool defaults to --full terrain/UI skeletons)
+python3 tools/extract_0ad_assets.py --full
+```
+
+This rebuilds `assets/models/{units,buildings,vegetation}/*.glb`, `assets/skeletons/*.xml`,
+`assets/animations/*.psa`, `assets/textures/terrain/*`, and `assets/textures/ui/session/**` then
+rewrites `assets/models/manifest.json`. Missing ids will fall back via
+`src/graphics/assets/model_library.cpp:616` until the GLB exists – the game never crashes.
+
+> **GridNav note:** `src/simulation/grid_nav.cpp` (flow-field / `GridNav`) is simulation-only
+> (pathfinding, `can_place`, footprint collision). It does **not** affect asset import or GLB
+> layout – navigation meshes are generated from `Simulation::terrain_heights` at runtime, not
+> baked into models. Re-exporting assets never requires rebuilding nav data.
 
 ## License
 

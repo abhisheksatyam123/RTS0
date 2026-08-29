@@ -41,8 +41,23 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("load_map", "map_id"), &RtsoMain::load_map);
 	ClassDB::bind_method(D_METHOD("get_available_maps"), &RtsoMain::get_available_maps);
 	ClassDB::bind_method(D_METHOD("_on_civ_selected", "index"), &RtsoMain::_on_civ_selected);
+	ClassDB::bind_method(D_METHOD("_on_ai_diff_selected", "index"), &RtsoMain::_on_ai_diff_selected);
+	ClassDB::bind_method(D_METHOD("_on_ai_behavior_selected", "index"), &RtsoMain::_on_ai_behavior_selected);
+	ClassDB::bind_method(D_METHOD("_on_victory_selected", "index"), &RtsoMain::_on_victory_selected);
+	ClassDB::bind_method(D_METHOD("_on_barter_requested", "sell_type", "buy_type", "amount"), &RtsoMain::_on_barter_requested);
 	ClassDB::bind_method(D_METHOD("set_civ", "civ_idx"), &RtsoMain::set_civ);
 	ClassDB::bind_method(D_METHOD("get_civ_info", "civ_idx"), &RtsoMain::get_civ_info);
+
+	ClassDB::bind_method(D_METHOD("_on_queue_slot_gui_input", "event", "slot_idx"), &RtsoMain::_on_queue_slot_gui_input);
+	ClassDB::bind_method(D_METHOD("_on_queue_slot_cancel", "slot_idx"), &RtsoMain::_on_queue_slot_cancel);
+	ClassDB::bind_method(D_METHOD("toggle_chat"), &RtsoMain::toggle_chat);
+	ClassDB::bind_method(D_METHOD("_on_chat_send_pressed"), &RtsoMain::_on_chat_send_pressed);
+	ClassDB::bind_method(D_METHOD("_on_chat_text_submitted", "text"), &RtsoMain::_on_chat_text_submitted);
+	ClassDB::bind_method(D_METHOD("toggle_diplomacy"), &RtsoMain::toggle_diplomacy);
+	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);
+	ClassDB::bind_method(D_METHOD("_on_diplo_tribute_pressed", "player_idx", "res_type"), &RtsoMain::_on_diplo_tribute_pressed);
+	ClassDB::bind_method(D_METHOD("set_use_english_voice_orders", "enable"), &RtsoMain::set_use_english_voice_orders);
+	ClassDB::bind_method(D_METHOD("is_use_english_voice_orders"), &RtsoMain::is_use_english_voice_orders);
 
 	const StringName cls = get_class_static();
 	auto bind_enum = [&](const char *enum_name, const char *name, int64_t value) {
@@ -119,6 +134,10 @@ static Ref<Texture2D> load_tex(const String &path) {
 	if (path.contains("emblems/")) {
 		if (ResourceLoader::get_singleton()->exists("res://assets/textures/ui/emblems/athenians.png")) {
 			return ResourceLoader::get_singleton()->load("res://assets/textures/ui/emblems/athenians.png");
+		}
+	} else if (path.contains("phases/")) {
+		if (ResourceLoader::get_singleton()->exists("res://assets/textures/ui/phases/village.png")) {
+			return ResourceLoader::get_singleton()->load("res://assets/textures/ui/phases/village.png");
 		}
 	} else if (path.contains("portraits/")) {
 		if (ResourceLoader::get_singleton()->exists("res://assets/textures/ui/portraits/swordsman.png")) {
@@ -218,6 +237,14 @@ void RtsoMain::_ready() {
 	civ_emblem->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
 	civ_emblem->set_texture(load_tex("res://assets/textures/ui/emblems/athenians.png"));
 	top_hbox->add_child(civ_emblem);
+
+	// Phase Emblem Badge (Village, Town, City)
+	phase_emblem = memnew(TextureRect);
+	phase_emblem->set_custom_minimum_size(Vector2(38, 38));
+	phase_emblem->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
+	phase_emblem->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
+	phase_emblem->set_texture(load_tex("res://assets/textures/ui/phases/village.png"));
+	top_hbox->add_child(phase_emblem);
 
 	// Resource Items (Food, Wood, Gold, Stone)
 	const char *res_paths[4] = {
@@ -336,8 +363,38 @@ void RtsoMain::_ready() {
 	civ_selector->connect("item_selected", Callable(this, "_on_civ_selected"));
 	top_hbox->add_child(civ_selector);
 
+	ai_diff_selector = memnew(OptionButton);
+	ai_diff_selector->set_custom_minimum_size(Vector2(100, 28));
+	ai_diff_selector->add_item("AI Sandbox", rtso::PETRA_SANDBOX);
+	ai_diff_selector->add_item("AI Very Easy", rtso::PETRA_VERY_EASY);
+	ai_diff_selector->add_item("AI Easy", rtso::PETRA_EASY);
+	ai_diff_selector->add_item("AI Medium", rtso::PETRA_MEDIUM);
+	ai_diff_selector->add_item("AI Hard", rtso::PETRA_HARD);
+	ai_diff_selector->add_item("AI Very Hard", rtso::PETRA_VERY_HARD);
+	ai_diff_selector->select(rtso::PETRA_MEDIUM);
+	ai_diff_selector->connect("item_selected", Callable(this, "_on_ai_diff_selected"));
+	top_hbox->add_child(ai_diff_selector);
+
+	ai_behavior_selector = memnew(OptionButton);
+	ai_behavior_selector->set_custom_minimum_size(Vector2(110, 28));
+	ai_behavior_selector->add_item("AI Balanced", rtso::PETRA_BEHAVIOR_BALANCED);
+	ai_behavior_selector->add_item("AI Defensive", rtso::PETRA_BEHAVIOR_DEFENSIVE);
+	ai_behavior_selector->add_item("AI Aggressive", rtso::PETRA_BEHAVIOR_AGGRESSIVE);
+	ai_behavior_selector->add_item("AI Random", rtso::PETRA_BEHAVIOR_RANDOM);
+	ai_behavior_selector->connect("item_selected", Callable(this, "_on_ai_behavior_selected"));
+	top_hbox->add_child(ai_behavior_selector);
+
+	victory_selector = memnew(OptionButton);
+	victory_selector->set_custom_minimum_size(Vector2(110, 28));
+	victory_selector->add_item("Conquest", rtso::VICTORY_CONQUEST);
+	victory_selector->add_item("Wonder", rtso::VICTORY_WONDER);
+	victory_selector->add_item("Relics", rtso::VICTORY_RELIC);
+	victory_selector->add_item("Endless", rtso::VICTORY_ENDLESS);
+	victory_selector->connect("item_selected", Callable(this, "_on_victory_selected"));
+	top_hbox->add_child(victory_selector);
+
 	// =========================================================================
-	// 2. BOTTOM INSPECTOR PANEL (Portrait, segmented HP bar, Armor, Combat stats)
+	// 2. BOTTOM INSPECTOR PANEL (5-Bar Stack: Health, Capture, XP, Stamina, Aura)
 	// =========================================================================
 	inspector_panel = memnew(Panel);
 	inspector_panel->set_anchor(SIDE_LEFT, 0.0f);
@@ -345,13 +402,13 @@ void RtsoMain::_ready() {
 	inspector_panel->set_anchor(SIDE_TOP, 1.0f);
 	inspector_panel->set_anchor(SIDE_BOTTOM, 1.0f);
 	inspector_panel->set_offset(SIDE_LEFT, 214.0f);
-	inspector_panel->set_offset(SIDE_RIGHT, 694.0f);
-	inspector_panel->set_offset(SIDE_TOP, -170.0f);
-	inspector_panel->set_offset(SIDE_BOTTOM, -12.0f);
+	inspector_panel->set_offset(SIDE_RIGHT, 730.0f);
+	inspector_panel->set_offset(SIDE_TOP, -198.0f);
+	inspector_panel->set_offset(SIDE_BOTTOM, -10.0f);
 
 	Ref<StyleBoxFlat> insp_style;
 	insp_style.instantiate();
-	insp_style->set_bg_color(Color(0.08f, 0.09f, 0.13f, 0.93f));
+	insp_style->set_bg_color(Color(0.08f, 0.09f, 0.13f, 0.94f));
 	insp_style->set_corner_radius_all(8);
 	insp_style->set_border_width_all(1);
 	insp_style->set_border_color(Color(0.42f, 0.45f, 0.56f, 0.85f));
@@ -359,78 +416,105 @@ void RtsoMain::_ready() {
 	ui_layer->add_child(inspector_panel);
 
 	inspector_portrait = memnew(TextureRect);
-	inspector_portrait->set_position(Vector2(12, 12));
-	inspector_portrait->set_size(Vector2(100, 100));
+	inspector_portrait->set_position(Vector2(10, 10));
+	inspector_portrait->set_size(Vector2(84, 84));
 	inspector_portrait->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
 	inspector_portrait->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_COVERED);
 	inspector_panel->add_child(inspector_portrait);
 
 	inspector_title = memnew(Label);
-	inspector_title->set_position(Vector2(120, 10));
-	inspector_title->set_size(Vector2(340, 22));
-	inspector_title->add_theme_font_size_override("font_size", 15);
+	inspector_title->set_position(Vector2(102, 6));
+	inspector_title->set_size(Vector2(404, 18));
+	inspector_title->add_theme_font_size_override("font_size", 13);
 	inspector_title->add_theme_color_override("font_color", Color(1.0f, 0.88f, 0.4f));
 	inspector_panel->add_child(inspector_title);
 
 	inspector_class = memnew(Label);
-	inspector_class->set_position(Vector2(120, 32));
-	inspector_class->set_size(Vector2(340, 18));
-	inspector_class->add_theme_font_size_override("font_size", 11);
+	inspector_class->set_position(Vector2(102, 24));
+	inspector_class->set_size(Vector2(404, 15));
+	inspector_class->add_theme_font_size_override("font_size", 10);
 	inspector_class->add_theme_color_override("font_color", Color(0.7f, 0.75f, 0.85f));
 	inspector_panel->add_child(inspector_class);
 
-	inspector_hp_bar = memnew(ProgressBar);
-	inspector_hp_bar->set_position(Vector2(120, 52));
-	inspector_hp_bar->set_size(Vector2(335, 14));
-	inspector_hp_bar->set_show_percentage(false);
-	inspector_panel->add_child(inspector_hp_bar);
+	// Helper lambda to setup 5 inspector bars
+	auto make_insp_bar = [&](ProgressBar *&pbar, Label *&plbl, int y, Color fill_col) {
+		pbar = memnew(ProgressBar);
+		pbar->set_position(Vector2(102, y));
+		pbar->set_size(Vector2(404, 11));
+		pbar->set_show_percentage(false);
 
-	inspector_hp_label = memnew(Label);
-	inspector_hp_label->set_position(Vector2(120, 50));
-	inspector_hp_label->set_size(Vector2(335, 18));
-	inspector_hp_label->add_theme_font_size_override("font_size", 10);
-	inspector_hp_label->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
-	inspector_panel->add_child(inspector_hp_label);
+		Ref<StyleBoxFlat> bg_sb;
+		bg_sb.instantiate();
+		bg_sb->set_bg_color(Color(0.10f, 0.12f, 0.16f, 0.85f));
+		bg_sb->set_corner_radius_all(2);
+		pbar->add_theme_stylebox_override("background", bg_sb);
+
+		Ref<StyleBoxFlat> fg_sb;
+		fg_sb.instantiate();
+		fg_sb->set_bg_color(fill_col);
+		fg_sb->set_corner_radius_all(2);
+		pbar->add_theme_stylebox_override("fill", fg_sb);
+		inspector_panel->add_child(pbar);
+
+		plbl = memnew(Label);
+		plbl->set_position(Vector2(102, y - 1));
+		plbl->set_size(Vector2(404, 13));
+		plbl->add_theme_font_size_override("font_size", 9);
+		plbl->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+		plbl->add_theme_color_override("font_color", Color(0.95f, 0.95f, 0.98f));
+		inspector_panel->add_child(plbl);
+	};
+
+	// 1. Health Bar (Green)
+	make_insp_bar(inspector_hp_bar, inspector_hp_label, 41, Color(0.25f, 0.75f, 0.35f));
+	// 2. Capture Points Bar (Cyan / Blue)
+	make_insp_bar(inspector_capture_bar, inspector_capture_label, 54, Color(0.35f, 0.55f, 0.95f));
+	// 3. Veterancy / Experience XP Bar (Gold / Amber)
+	make_insp_bar(inspector_xp_bar, inspector_xp_label, 67, Color(0.95f, 0.75f, 0.20f));
+	// 4. Stamina / Energy Bar (Teal / Mint)
+	make_insp_bar(inspector_stamina_bar, inspector_stamina_label, 80, Color(0.20f, 0.85f, 0.75f));
+	// 5. Aura Influence Bar (Magenta / Violet)
+	make_insp_bar(inspector_aura_bar, inspector_aura_label, 93, Color(0.85f, 0.35f, 0.85f));
 
 	inspector_stats = memnew(Label);
-	inspector_stats->set_position(Vector2(120, 70));
-	inspector_stats->set_size(Vector2(340, 36));
-	inspector_stats->add_theme_font_size_override("font_size", 11);
+	inspector_stats->set_position(Vector2(102, 108));
+	inspector_stats->set_size(Vector2(404, 38));
+	inspector_stats->add_theme_font_size_override("font_size", 10);
 	inspector_stats->add_theme_color_override("font_color", Color(0.85f, 0.88f, 0.95f));
 	inspector_panel->add_child(inspector_stats);
 
 	inspector_extra = memnew(Label);
-	inspector_extra->set_position(Vector2(12, 118));
-	inspector_extra->set_size(Vector2(340, 30));
-	inspector_extra->add_theme_font_size_override("font_size", 11);
+	inspector_extra->set_position(Vector2(10, 100));
+	inspector_extra->set_size(Vector2(88, 48));
+	inspector_extra->add_theme_font_size_override("font_size", 9);
 	inspector_extra->add_theme_color_override("font_color", Color(0.4f, 0.95f, 0.6f));
 	inspector_panel->add_child(inspector_extra);
 
 	ungarrison_btn = memnew(Button);
-	ungarrison_btn->set_position(Vector2(356, 115));
-	ungarrison_btn->set_size(Vector2(100, 28));
+	ungarrison_btn->set_position(Vector2(10, 150));
+	ungarrison_btn->set_size(Vector2(88, 26));
 	ungarrison_btn->set_text("Ungarrison (Z)");
-	ungarrison_btn->add_theme_font_size_override("font_size", 11);
+	ungarrison_btn->add_theme_font_size_override("font_size", 10);
 	ungarrison_btn->connect("pressed", Callable(this, "_on_ungarrison_pressed"));
 	ungarrison_btn->set_visible(false);
 	inspector_panel->add_child(ungarrison_btn);
 
 	// =========================================================================
-	// 3. COMMAND & ACTION PANEL (Stances, Formations, Training, Build Grid)
+	// 3. COMMAND & ACTION PANEL (Stances, Formations, Training, 8-Slot Queue)
 	// =========================================================================
 	command_panel = memnew(Panel);
 	command_panel->set_anchor(SIDE_LEFT, 1.0f);
 	command_panel->set_anchor(SIDE_RIGHT, 1.0f);
 	command_panel->set_anchor(SIDE_TOP, 1.0f);
 	command_panel->set_anchor(SIDE_BOTTOM, 1.0f);
-	command_panel->set_offset(SIDE_LEFT, -574.0f);
+	command_panel->set_offset(SIDE_LEFT, -584.0f);
 	command_panel->set_offset(SIDE_RIGHT, -12.0f);
-	command_panel->set_offset(SIDE_TOP, -170.0f);
-	command_panel->set_offset(SIDE_BOTTOM, -12.0f);
+	command_panel->set_offset(SIDE_TOP, -198.0f);
+	command_panel->set_offset(SIDE_BOTTOM, -10.0f);
 
 	Ref<StyleBoxFlat> cmd_style;
 	cmd_style.instantiate();
-	cmd_style->set_bg_color(Color(0.08f, 0.09f, 0.13f, 0.93f));
+	cmd_style->set_bg_color(Color(0.08f, 0.09f, 0.13f, 0.94f));
 	cmd_style->set_corner_radius_all(8);
 	cmd_style->set_border_width_all(1);
 	cmd_style->set_border_color(Color(0.42f, 0.45f, 0.56f, 0.85f));
@@ -439,16 +523,16 @@ void RtsoMain::_ready() {
 
 	command_title = memnew(Label);
 	command_title->set_position(Vector2(10, 6));
-	command_title->set_size(Vector2(540, 20));
-	command_title->add_theme_font_size_override("font_size", 13);
+	command_title->set_size(Vector2(552, 16));
+	command_title->add_theme_font_size_override("font_size", 12);
 	command_title->add_theme_color_override("font_color", Color(1.0f, 0.85f, 0.4f));
 	command_title->set_text("Commands & Actions");
 	command_panel->add_child(command_title);
 
 	// Stances Bar (Aggressive, Defensive, Stand Ground, Hold, Passive)
 	stances_bar = memnew(HBoxContainer);
-	stances_bar->set_position(Vector2(10, 30));
-	stances_bar->set_size(Vector2(540, 32));
+	stances_bar->set_position(Vector2(10, 24));
+	stances_bar->set_size(Vector2(552, 26));
 	stances_bar->add_theme_constant_override("separation", 6);
 	command_panel->add_child(stances_bar);
 
@@ -462,31 +546,89 @@ void RtsoMain::_ready() {
 	};
 	for (int s = 0; s < 5; ++s) {
 		Button *sb = memnew(Button);
-		sb->set_custom_minimum_size(Vector2(95, 28));
+		sb->set_custom_minimum_size(Vector2(95, 24));
 		sb->set_text(stance_names[s]);
 		Ref<Texture2D> s_ico = load_tex(stance_icons[s]);
 		if (s_ico.is_valid()) {
 			sb->set_button_icon(s_ico);
 			sb->set_expand_icon(true);
 		}
-		sb->add_theme_font_size_override("font_size", 10);
+		sb->add_theme_font_size_override("font_size", 9);
 		sb->connect("pressed", Callable(this, "_on_stance_selected").bind(s));
 		stances_bar->add_child(sb);
 	}
 
 	// Actions & Formations Bar
 	actions_bar = memnew(HBoxContainer);
-	actions_bar->set_position(Vector2(10, 66));
-	actions_bar->set_size(Vector2(540, 32));
+	actions_bar->set_position(Vector2(10, 52));
+	actions_bar->set_size(Vector2(552, 26));
 	actions_bar->add_theme_constant_override("separation", 6);
 	command_panel->add_child(actions_bar);
 
 	// Production Bar (Training & Tech)
 	production_bar = memnew(HBoxContainer);
-	production_bar->set_position(Vector2(10, 102));
-	production_bar->set_size(Vector2(540, 44));
+	production_bar->set_position(Vector2(10, 80));
+	production_bar->set_size(Vector2(552, 38));
 	production_bar->add_theme_constant_override("separation", 6);
 	command_panel->add_child(production_bar);
+
+	// Visual 8-Slot Production Queue Bar (ProductionQueue.js parity)
+	queue_bar = memnew(HBoxContainer);
+	queue_bar->set_position(Vector2(10, 122));
+	queue_bar->set_size(Vector2(552, 54));
+	queue_bar->add_theme_constant_override("separation", 6);
+	command_panel->add_child(queue_bar);
+
+	for (int q = 0; q < 8; ++q) {
+		Panel *sp = memnew(Panel);
+		sp->set_custom_minimum_size(Vector2(46, 48));
+
+		Ref<StyleBoxFlat> slot_sb;
+		slot_sb.instantiate();
+		slot_sb->set_bg_color(Color(0.09f, 0.11f, 0.15f, 0.90f));
+		slot_sb->set_border_width_all(1);
+		slot_sb->set_border_color(Color(0.35f, 0.38f, 0.48f, 0.70f));
+		slot_sb->set_corner_radius_all(4);
+		sp->add_theme_stylebox_override("panel", slot_sb);
+
+		TextureRect *ico = memnew(TextureRect);
+		ico->set_position(Vector2(3, 2));
+		ico->set_size(Vector2(40, 36));
+		ico->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
+		ico->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
+		ico->set_visible(false);
+		sp->add_child(ico);
+
+		ProgressBar *pb = memnew(ProgressBar);
+		pb->set_position(Vector2(3, 39));
+		pb->set_size(Vector2(40, 4));
+		pb->set_show_percentage(false);
+
+		Ref<StyleBoxFlat> pb_fg;
+		pb_fg.instantiate();
+		pb_fg->set_bg_color(Color(0.95f, 0.75f, 0.20f));
+		pb_fg->set_corner_radius_all(1);
+		pb->add_theme_stylebox_override("fill", pb_fg);
+		pb->set_visible(false);
+		sp->add_child(pb);
+
+		Label *chip = memnew(Label);
+		chip->set_position(Vector2(20, 1));
+		chip->set_size(Vector2(22, 12));
+		chip->add_theme_font_size_override("font_size", 9);
+		chip->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_RIGHT);
+		chip->add_theme_color_override("font_color", Color(1.0f, 0.9f, 0.3f));
+		chip->set_visible(false);
+		sp->add_child(chip);
+
+		sp->connect("gui_input", Callable(this, "_on_queue_slot_gui_input").bind(q));
+
+		queue_slots[q].panel = sp;
+		queue_slots[q].icon = ico;
+		queue_slots[q].progress = pb;
+		queue_slots[q].chip = chip;
+		queue_bar->add_child(sp);
+	}
 
 	// =========================================================================
 	// 4. BANNER OVERLAY (Victory / Defeat)
@@ -517,6 +659,205 @@ void RtsoMain::_ready() {
 	banner_label->add_theme_font_size_override("font_size", 22);
 	banner_label->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 	banner_panel->add_child(banner_label);
+
+	// =========================================================================
+	// 5. IN-GAME CHAT OVERLAY (LineEdit + All/Allies/Team channels)
+	// =========================================================================
+	chat_panel = memnew(Panel);
+	chat_panel->set_anchor(SIDE_LEFT, 0.0f);
+	chat_panel->set_anchor(SIDE_TOP, 0.0f);
+	chat_panel->set_offset(SIDE_LEFT, 16.0f);
+	chat_panel->set_offset(SIDE_RIGHT, 400.0f);
+	chat_panel->set_offset(SIDE_TOP, 60.0f);
+	chat_panel->set_offset(SIDE_BOTTOM, 260.0f);
+
+	Ref<StyleBoxFlat> chat_style;
+	chat_style.instantiate();
+	chat_style->set_bg_color(Color(0.06f, 0.07f, 0.10f, 0.94f));
+	chat_style->set_corner_radius_all(6);
+	chat_style->set_border_width_all(1);
+	chat_style->set_border_color(Color(0.35f, 0.38f, 0.48f, 0.85f));
+	chat_panel->add_theme_stylebox_override("panel", chat_style);
+
+	VBoxContainer *chat_vbox = memnew(VBoxContainer);
+	chat_vbox->set_anchor(SIDE_LEFT, 0.0f);
+	chat_vbox->set_anchor(SIDE_RIGHT, 1.0f);
+	chat_vbox->set_anchor(SIDE_TOP, 0.0f);
+	chat_vbox->set_anchor(SIDE_BOTTOM, 1.0f);
+	chat_vbox->set_offset(SIDE_LEFT, 8.0f);
+	chat_vbox->set_offset(SIDE_RIGHT, -8.0f);
+	chat_vbox->set_offset(SIDE_TOP, 6.0f);
+	chat_vbox->set_offset(SIDE_BOTTOM, -6.0f);
+	chat_vbox->add_theme_constant_override("separation", 4);
+	chat_panel->add_child(chat_vbox);
+
+	HBoxContainer *chat_top_bar = memnew(HBoxContainer);
+	chat_top_bar->set_custom_minimum_size(Vector2(0, 24));
+	Label *chat_title = memnew(Label);
+	chat_title->set_text("💬 In-Game Chat");
+	chat_title->add_theme_font_size_override("font_size", 12);
+	chat_title->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+	chat_top_bar->add_child(chat_title);
+
+	chat_channel = memnew(OptionButton);
+	chat_channel->set_custom_minimum_size(Vector2(90, 22));
+	chat_channel->add_item("All", 0);
+	chat_channel->add_item("Allies", 1);
+	chat_channel->add_item("Team", 2);
+	chat_channel->add_theme_font_size_override("font_size", 10);
+	chat_top_bar->add_child(chat_channel);
+
+	Button *chat_close = memnew(Button);
+	chat_close->set_custom_minimum_size(Vector2(22, 22));
+	chat_close->set_text("✕");
+	chat_close->add_theme_font_size_override("font_size", 10);
+	chat_close->connect("pressed", Callable(this, "toggle_chat"));
+	chat_top_bar->add_child(chat_close);
+	chat_vbox->add_child(chat_top_bar);
+
+	chat_log = memnew(RichTextLabel);
+	chat_log->set_v_size_flags(Control::SIZE_EXPAND_FILL);
+	chat_log->set_use_bbcode(true);
+	chat_log->set_scroll_follow(true);
+	chat_log->add_theme_font_size_override("normal_font_size", 11);
+	chat_log->set_text("[color=#888888]Hellenic League Session Chat. Press Enter to send messages.[/color]\n");
+	chat_vbox->add_child(chat_log);
+
+	HBoxContainer *chat_input_bar = memnew(HBoxContainer);
+	chat_input_bar->set_custom_minimum_size(Vector2(0, 26));
+	chat_input = memnew(LineEdit);
+	chat_input->set_placeholder("Type message...");
+	chat_input->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+	chat_input->add_theme_font_size_override("font_size", 11);
+	chat_input->connect("text_submitted", Callable(this, "_on_chat_text_submitted"));
+	chat_input_bar->add_child(chat_input);
+
+	chat_send_btn = memnew(Button);
+	chat_send_btn->set_custom_minimum_size(Vector2(55, 24));
+	chat_send_btn->set_text("Send");
+	chat_send_btn->add_theme_font_size_override("font_size", 11);
+	chat_send_btn->connect("pressed", Callable(this, "_on_chat_send_pressed"));
+	chat_input_bar->add_child(chat_send_btn);
+	chat_vbox->add_child(chat_input_bar);
+
+	chat_panel->set_visible(false);
+	ui_layer->add_child(chat_panel);
+
+	// =========================================================================
+	// 6. DIPLOMACY & TRIBUTE DIALOG (8-Player Matrix)
+	// =========================================================================
+	diplomacy_panel = memnew(Panel);
+	diplomacy_panel->set_anchor(SIDE_LEFT, 0.5f);
+	diplomacy_panel->set_anchor(SIDE_RIGHT, 0.5f);
+	diplomacy_panel->set_anchor(SIDE_TOP, 0.5f);
+	diplomacy_panel->set_anchor(SIDE_BOTTOM, 0.5f);
+	diplomacy_panel->set_offset(SIDE_LEFT, -320.0f);
+	diplomacy_panel->set_offset(SIDE_RIGHT, 320.0f);
+	diplomacy_panel->set_offset(SIDE_TOP, -210.0f);
+	diplomacy_panel->set_offset(SIDE_BOTTOM, 210.0f);
+
+	Ref<StyleBoxFlat> diplo_style;
+	diplo_style.instantiate();
+	diplo_style->set_bg_color(Color(0.06f, 0.07f, 0.10f, 0.97f));
+	diplo_style->set_corner_radius_all(8);
+	diplo_style->set_border_width_all(2);
+	diplo_style->set_border_color(Color(0.85f, 0.72f, 0.25f, 0.95f));
+	diplomacy_panel->add_theme_stylebox_override("panel", diplo_style);
+
+	VBoxContainer *diplo_vbox = memnew(VBoxContainer);
+	diplo_vbox->set_anchor(SIDE_LEFT, 0.0f);
+	diplo_vbox->set_anchor(SIDE_RIGHT, 1.0f);
+	diplo_vbox->set_anchor(SIDE_TOP, 0.0f);
+	diplo_vbox->set_anchor(SIDE_BOTTOM, 1.0f);
+	diplo_vbox->set_offset(SIDE_LEFT, 16.0f);
+	diplo_vbox->set_offset(SIDE_RIGHT, -16.0f);
+	diplo_vbox->set_offset(SIDE_TOP, 12.0f);
+	diplo_vbox->set_offset(SIDE_BOTTOM, -12.0f);
+	diplo_vbox->add_theme_constant_override("separation", 6);
+	diplomacy_panel->add_child(diplo_vbox);
+
+	Label *diplo_title = memnew(Label);
+	diplo_title->set_text("🏛️ Hellenic League — Diplomacy & Tribute Matrix");
+	diplo_title->add_theme_font_size_override("font_size", 15);
+	diplo_title->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+	diplo_title->add_theme_color_override("font_color", Color(1.0f, 0.88f, 0.4f));
+	diplo_vbox->add_child(diplo_title);
+
+	HSeparator *diplo_sep1 = memnew(HSeparator);
+	diplo_vbox->add_child(diplo_sep1);
+
+	const char *player_names[8] = {
+		"🔵 Athens (You)",
+		"🔴 Sparta (AI)",
+		"🟡 Persia (AI)",
+		"🟣 Rome (AI)",
+		"⚪ Carthage (AI)",
+		"🟢 Macedon (AI)",
+		"🟠 Gaul (AI)",
+		"🟤 Maurya (AI)"
+	};
+
+	for (int p = 0; p < 8; ++p) {
+		HBoxContainer *prow = memnew(HBoxContainer);
+		prow->set_custom_minimum_size(Vector2(0, 26));
+		prow->add_theme_constant_override("separation", 8);
+
+		diplo_player_names[p] = memnew(Label);
+		diplo_player_names[p]->set_custom_minimum_size(Vector2(165, 24));
+		diplo_player_names[p]->set_text(player_names[p]);
+		diplo_player_names[p]->add_theme_font_size_override("font_size", 11);
+		prow->add_child(diplo_player_names[p]);
+
+		diplo_stances[p] = memnew(OptionButton);
+		diplo_stances[p]->set_custom_minimum_size(Vector2(95, 24));
+		diplo_stances[p]->add_theme_font_size_override("font_size", 10);
+		if (p == 0) {
+			diplo_stances[p]->add_item("Self", 0);
+			diplo_stances[p]->set_disabled(true);
+		} else {
+			diplo_stances[p]->add_item("Ally", 0);
+			diplo_stances[p]->add_item("Neutral", 1);
+			diplo_stances[p]->add_item("Enemy", 2);
+			diplo_stances[p]->select(2); // Enemy
+			diplo_stances[p]->connect("item_selected", Callable(this, "_on_diplo_stance_changed").bind(p));
+		}
+		prow->add_child(diplo_stances[p]);
+
+		if (p == 0) {
+			Label *self_lbl = memnew(Label);
+			self_lbl->set_text("— Player Base Command —");
+			self_lbl->add_theme_font_size_override("font_size", 10);
+			self_lbl->add_theme_color_override("font_color", Color(0.6f, 0.6f, 0.7f));
+			prow->add_child(self_lbl);
+		} else {
+			const char *t_icons[4] = {"🍞 +100", "🌲 +100", "🪙 +100", "🪨 +100"};
+			int t_res[4] = {rtso::RES_FOOD, rtso::RES_WOOD, rtso::RES_GOLD, rtso::RES_STONE};
+			for (int r = 0; r < 4; ++r) {
+				Button *tb = memnew(Button);
+				tb->set_custom_minimum_size(Vector2(68, 22));
+				tb->set_text(t_icons[r]);
+				tb->add_theme_font_size_override("font_size", 9);
+				tb->connect("pressed", Callable(this, "_on_diplo_tribute_pressed").bind(p, t_res[r]));
+				prow->add_child(tb);
+			}
+		}
+
+		diplo_vbox->add_child(prow);
+	}
+
+	HSeparator *diplo_sep2 = memnew(HSeparator);
+	diplo_vbox->add_child(diplo_sep2);
+
+	diplo_close_btn = memnew(Button);
+	diplo_close_btn->set_custom_minimum_size(Vector2(130, 28));
+	diplo_close_btn->set_text("Close (D / Esc)");
+	diplo_close_btn->set_h_size_flags(Control::SIZE_SHRINK_CENTER);
+	diplo_close_btn->add_theme_font_size_override("font_size", 11);
+	diplo_close_btn->connect("pressed", Callable(this, "toggle_diplomacy"));
+	diplo_vbox->add_child(diplo_close_btn);
+
+	diplomacy_panel->set_visible(false);
+	ui_layer->add_child(diplomacy_panel);
 
 	// =========================================================================
 	// 5. AUDIO PLAYERS (Voice, SFX, Alarm, Music)
@@ -568,6 +909,30 @@ void RtsoMain::_ready() {
 		}
 	}
 
+	if (ResourceLoader::get_singleton()->exists("res://assets/sounds/ambient/wind_ambient.ogg")) {
+		Ref<AudioStream> wind_stream = ResourceLoader::get_singleton()->load("res://assets/sounds/ambient/wind_ambient.ogg");
+		if (wind_stream.is_valid()) {
+			ambient_wind_player = memnew(AudioStreamPlayer);
+			ambient_wind_player->set_stream(wind_stream);
+			ambient_wind_player->set_autoplay(true);
+			ambient_wind_player->set_volume_db(-25.0f);
+			add_child(ambient_wind_player);
+			ambient_wind_player->play();
+		}
+	}
+
+	if (ResourceLoader::get_singleton()->exists("res://assets/sounds/ambient/water_coast.ogg")) {
+		Ref<AudioStream> water_stream = ResourceLoader::get_singleton()->load("res://assets/sounds/ambient/water_coast.ogg");
+		if (water_stream.is_valid()) {
+			ambient_water_player = memnew(AudioStreamPlayer);
+			ambient_water_player->set_stream(water_stream);
+			ambient_water_player->set_autoplay(true);
+			ambient_water_player->set_volume_db(-80.0f);
+			add_child(ambient_water_player);
+			ambient_water_player->play();
+		}
+	}
+
 	spatial_sfx_player = memnew(AudioStreamPlayer3D);
 	spatial_sfx_player->set_max_distance(75.0f);
 	spatial_sfx_player->set_unit_size(10.0f);
@@ -612,12 +977,36 @@ void RtsoMain::_ready() {
 	for (size_t i = 0; i < uview.count; ++i) {
 		if (uview.team[i] == 0) selected_ids.push_back((int32_t)uview.id[i]);
 	}
+
+	// G3 Barter dialog wiring: connect BarterDialog.barter_requested -> _on_barter_requested
+	Node *barter = get_node_or_null(NodePath("BarterDialog"));
+	if (barter) {
+		barter->connect("barter_requested", Callable(this, "_on_barter_requested"));
+	}
 }
 
 void RtsoMain::play_voice(const char *path) {
-	if (!voice_player) return;
-	if (ResourceLoader::get_singleton()->exists(path)) {
-		Ref<AudioStream> s = ResourceLoader::get_singleton()->load(path);
+	if (!voice_player || !path) return;
+	String p = path;
+	String final_path = p;
+	if (!final_path.begins_with("res://")) {
+		if (final_path.begins_with("audio/")) {
+			final_path = "res://assets/sounds/" + final_path.substr(6);
+		} else if (final_path.begins_with("assets/sounds/")) {
+			final_path = "res://" + final_path;
+		} else {
+			final_path = "res://" + final_path;
+		}
+	}
+	if (!ResourceLoader::get_singleton()->exists(final_path)) {
+		if (ResourceLoader::get_singleton()->exists(p)) {
+			final_path = p;
+		} else if (ResourceLoader::get_singleton()->exists("res://" + p)) {
+			final_path = "res://" + p;
+		}
+	}
+	if (ResourceLoader::get_singleton()->exists(final_path)) {
+		Ref<AudioStream> s = ResourceLoader::get_singleton()->load(final_path);
 		if (s.is_valid()) {
 			voice_player->set_stream(s);
 			voice_player->play();
@@ -630,47 +1019,81 @@ void RtsoMain::play_civ_voice(const char *action) {
 	static uint32_t voice_rand_idx = 0;
 	++voice_rand_idx;
 
-	uint8_t current_civ = sim ? sim->player_civ() : (uint8_t)rtso::CIV_ATHENIANS;
 	std::string act(action);
+
+	if (use_english_voice_orders_) {
+		// Pure English orders voice lines
+		if (act == "select") {
+			const char *opts[] = {
+				"res://assets/sounds/voice/select_1.ogg",
+				"res://assets/sounds/voice/select_2.ogg",
+				"res://assets/sounds/voice/select_3.ogg"
+			};
+			play_voice(opts[voice_rand_idx % 3]);
+		} else if (act == "move") {
+			const char *opts[] = {
+				"res://assets/sounds/voice/move_1.ogg",
+				"res://assets/sounds/voice/move_2.ogg"
+			};
+			play_voice(opts[voice_rand_idx % 2]);
+		} else if (act == "attack") {
+			const char *opts[] = {
+				"res://assets/sounds/voice/attack_1.ogg",
+				"res://assets/sounds/voice/attack_2.ogg"
+			};
+			play_voice(opts[voice_rand_idx % 2]);
+		} else if (act == "build") {
+			play_voice("res://assets/sounds/voice/build_1.ogg");
+		} else if (act == "gather") {
+			play_voice("res://assets/sounds/voice/gather_1.ogg");
+		} else if (act == "repair") {
+			play_voice("res://assets/sounds/voice/repair_1.ogg");
+		}
+		return;
+	}
+
+	uint8_t current_civ = sim ? sim->player_civ() : (uint8_t)rtso::CIV_ATHENIANS;
 	const char *chosen_file = nullptr;
 
 	if (current_civ == rtso::CIV_ATHENIANS || current_civ == rtso::CIV_SPARTANS ||
 		current_civ == rtso::CIV_MACEDONIANS || current_civ == rtso::CIV_PTOLEMIES ||
 		current_civ == rtso::CIV_SELEUCIDS) {
-		// Greek / Hellenistic voice pool
+		// Ancient Hellenic voice lines pool (audio/voice/hellenes/)
 		if (act == "select") {
-			const char *opts[] = {
-				"res://assets/sounds/voice/greek/civ_male_hello_1.ogg",
-				"res://assets/sounds/voice/greek/civ_male_what_is_it_1.ogg",
-				"res://assets/sounds/voice/greek/civ_female_hello_1.ogg"
+			// Selection: "Khaire", "Ti estin", "Hetoimos"
+			const char *opts[][2] = {
+				{ "res://assets/sounds/voice/hellenes/khaire.ogg", "res://assets/sounds/voice/greek/civ_female_what_is_it_1.ogg" },
+				{ "res://assets/sounds/voice/hellenes/ti_estin.ogg", "res://assets/sounds/voice/greek/civ_female_what_is_it_2.ogg" },
+				{ "res://assets/sounds/voice/hellenes/hetoimos.ogg", "res://assets/sounds/voice/greek/civ_female_what_is_it_3.ogg" }
 			};
-			chosen_file = opts[voice_rand_idx % 3];
+			int idx = voice_rand_idx % 3;
+			chosen_file = ResourceLoader::get_singleton()->exists(opts[idx][0]) ? opts[idx][0] : opts[idx][1];
 		} else if (act == "move") {
-			const char *opts[] = {
-				"res://assets/sounds/voice/greek/civ_male_march_1.ogg",
-				"res://assets/sounds/voice/greek/civ_male_walk_1.ogg",
-				"res://assets/sounds/voice/greek/civ_male_forward_1.ogg"
+			// Move orders: "Poreuomai", "Baino"
+			const char *opts[][2] = {
+				{ "res://assets/sounds/voice/hellenes/poreuomai.ogg", "res://assets/sounds/voice/greek/civ_female_walk_1.ogg" },
+				{ "res://assets/sounds/voice/hellenes/baino.ogg", "res://assets/sounds/voice/greek/civ_female_march_1.ogg" }
 			};
-			chosen_file = opts[voice_rand_idx % 3];
+			int idx = voice_rand_idx % 2;
+			chosen_file = ResourceLoader::get_singleton()->exists(opts[idx][0]) ? opts[idx][0] : opts[idx][1];
 		} else if (act == "attack") {
-			const char *opts[] = {
-				"res://assets/sounds/voice/greek/civ_male_attack_1.ogg",
-				"res://assets/sounds/voice/greek/civ_male_fight_1.ogg",
-				"res://assets/sounds/voice/greek/civ_male_to_war_1.ogg"
+			// Attack orders: "Epi tous polemious!", "Eis makhen!"
+			const char *opts[][2] = {
+				{ "res://assets/sounds/voice/hellenes/epi_tous_polemious.ogg", "res://assets/sounds/voice/greek/civ_female_attack_1.ogg" },
+				{ "res://assets/sounds/voice/hellenes/eis_makhen.ogg", "res://assets/sounds/voice/greek/civ_female_go_out_against_1.ogg" }
 			};
-			chosen_file = opts[voice_rand_idx % 3];
+			int idx = voice_rand_idx % 2;
+			chosen_file = ResourceLoader::get_singleton()->exists(opts[idx][0]) ? opts[idx][0] : opts[idx][1];
 		} else if (act == "build") {
-			const char *opts[] = {
-				"res://assets/sounds/voice/greek/civ_male_build_1.ogg",
-				"res://assets/sounds/voice/greek/civ_female_build_1.ogg"
-			};
-			chosen_file = opts[voice_rand_idx % 2];
+			// Build orders: "Poieso"
+			chosen_file = ResourceLoader::get_singleton()->exists("res://assets/sounds/voice/hellenes/poieso.ogg")
+				? "res://assets/sounds/voice/hellenes/poieso.ogg"
+				: "res://assets/sounds/voice/greek/civ_female_build_1.ogg";
 		} else if (act == "gather") {
-			const char *opts[] = {
-				"res://assets/sounds/voice/greek/civ_male_work_land_1.ogg",
-				"res://assets/sounds/voice/greek/civ_female_gather_together_1.ogg"
-			};
-			chosen_file = opts[voice_rand_idx % 2];
+			// Gather orders: "Ergon"
+			chosen_file = ResourceLoader::get_singleton()->exists("res://assets/sounds/voice/hellenes/ergon.ogg")
+				? "res://assets/sounds/voice/hellenes/ergon.ogg"
+				: "res://assets/sounds/voice/greek/civ_female_work_land_1.ogg";
 		}
 	} else if (current_civ == rtso::CIV_ROMANS) {
 		// Latin / Roman voice pool
@@ -764,6 +1187,10 @@ void RtsoMain::play_civ_voice(const char *action) {
 }
 
 void RtsoMain::play_spatial_sfx(const char *path, Vector3 pos) {
+	if (view) {
+		view->play_spatial_sound_path(path, pos);
+		return;
+	}
 	if (!spatial_sfx_player) return;
 	if (ResourceLoader::get_singleton()->exists(path)) {
 		Ref<AudioStream> s = ResourceLoader::get_singleton()->load(path);
@@ -882,6 +1309,16 @@ void RtsoMain::_on_tech_pressed(int tech_id) {
 	}
 }
 
+void RtsoMain::_on_barter_requested(int sell_type, int buy_type, int amount) {
+	if (!sim) return;
+	if (sell_type < 0 || sell_type >= 4 || buy_type < 0 || buy_type >= 4) return;
+	bool ok = sim->cmd_barter((rtso::ResourceType)sell_type, (rtso::ResourceType)buy_type, amount);
+	if (ok) {
+		play_sfx("res://assets/sounds/ui/bonus.ogg");
+		// Price labels will be refreshed on next update_hud / barter dialog visibility
+	}
+}
+
 bool RtsoMain::save_game(String path) {
 	if (!sim) return false;
 	String global_path = ProjectSettings::get_singleton()->globalize_path(path);
@@ -990,6 +1427,12 @@ void RtsoMain::_process(double delta) {
 	debug_overlay->update_info(perf_txt);
 
 	update_hud();
+	if (sim && chat_log) {
+		for (const auto &line : sim->pending_petra_chat()) {
+			chat_log->append_text("[color=#88ccff]Petra:[/color] " + String(line.text) + "\n");
+		}
+		if (!sim->pending_petra_chat().empty()) sim->clear_petra_chat();
+	}
 	update_inspector();
 	update_command_panel();
 
@@ -1015,6 +1458,48 @@ void RtsoMain::_process(double delta) {
 		float battle_db = -80.0f + (combat_intensity * 74.0f); // up to -6.0dB
 		music_player->set_volume_db(peace_db);
 		battle_music_player->set_volume_db(battle_db);
+	}
+
+	// Environmental Ambience: Viewport Elevation & Coastal Water Proximity
+	Vector3 cam_world_pos(0, 30, 0);
+	if (cam_rig && cam_rig->get_camera()) {
+		cam_world_pos = cam_rig->get_camera()->get_global_position();
+	} else if (cam_rig) {
+		cam_world_pos = cam_rig->get_target_pos() + Vector3(0, 30, 0);
+	}
+
+	// 1. Wind & Nature elevation crossfade
+	float elev_factor = Math::clamp((cam_world_pos.y - 12.0f) / 38.0f, 0.0f, 1.0f);
+	float target_wind_db = Math::lerp(-32.0f, -8.0f, elev_factor);
+	float target_nature_db = Math::lerp(-12.0f, -28.0f, elev_factor);
+
+	if (ambient_wind_player) {
+		if (!ambient_wind_player->is_playing()) ambient_wind_player->play();
+		float cur_db = ambient_wind_player->get_volume_db();
+		ambient_wind_player->set_volume_db(Math::lerp(cur_db, target_wind_db, (float)delta * 3.5f));
+	}
+	if (ambient_player) {
+		if (!ambient_player->is_playing()) ambient_player->play();
+		float cur_db = ambient_player->get_volume_db();
+		ambient_player->set_volume_db(Math::lerp(cur_db, target_nature_db, (float)delta * 3.5f));
+	}
+
+	// 2. Coastal water proximity modulation
+	float target_water_db = -80.0f;
+	if (sim && sim->water_height() > 0.0f) {
+		float water_h = sim->water_height();
+		Vector3 target_pos = cam_rig ? cam_rig->get_target_pos() : cam_world_pos;
+		float terrain_h = sim->get_terrain_height(target_pos.x, target_pos.z);
+		float d_water = terrain_h - water_h;
+		if (d_water <= 3.5f) {
+			float coast_factor = Math::clamp(1.0f - (d_water / 3.5f), 0.0f, 1.0f);
+			target_water_db = Math::lerp(-40.0f, -10.0f, coast_factor);
+		}
+	}
+	if (ambient_water_player) {
+		if (!ambient_water_player->is_playing()) ambient_water_player->play();
+		float cur_db = ambient_water_player->get_volume_db();
+		ambient_water_player->set_volume_db(Math::lerp(cur_db, target_water_db, (float)delta * 3.0f));
 	}
 
 	// Update Building Placement Ghost
@@ -1098,6 +1583,18 @@ std::pair<int, int> RtsoMain::mouse_cell(Vector2 mouse_pos) const {
 void RtsoMain::update_hud() {
 	if (!res_labels[0]) return;
 
+	// Dynamic Civ Crest & Phase Badge Emblems
+	const auto &cinfo = rtso::civ_info(sim->player_civ());
+	if (civ_emblem) {
+		civ_emblem->set_texture(load_tex(cinfo.emblem_path));
+	}
+	if (phase_emblem) {
+		uint8_t pphase = sim->player_phase();
+		if (pphase == 1) phase_emblem->set_texture(load_tex("res://assets/textures/ui/phases/village.png"));
+		else if (pphase == 2) phase_emblem->set_texture(load_tex("res://assets/textures/ui/phases/town.png"));
+		else phase_emblem->set_texture(load_tex("res://assets/textures/ui/phases/city.png"));
+	}
+
 	// Resource counts & rates
 	res_labels[0]->set_text(String::num_int64(sim->food()) + " (+" + String::num(sim->food_rate(), 0) + "/m)");
 	res_labels[1]->set_text(String::num_int64(sim->wood()) + " (+" + String::num(sim->wood_rate(), 0) + "/m)");
@@ -1153,9 +1650,50 @@ void RtsoMain::update_inspector() {
 			String civ_name = rtso::civ_info(sim->player_civ()).name;
 			inspector_class->set_text(civ_name + " Architecture • Garrison Cap: " + String::num_int64(found_b->garrison_cap));
 
+			// 1. Health Bar
 			inspector_hp_bar->set_max(found_b->max_hp);
 			inspector_hp_bar->set_value(found_b->hp);
 			inspector_hp_label->set_text("HP: " + String::num((double)found_b->hp, 0) + " / " + String::num((double)found_b->max_hp, 0));
+
+			// 2. Capture Points Bar
+			float max_cp = (found_b->max_capture_points > 0.0f) ? found_b->max_capture_points : 1000.0f;
+			float cur_cp = (found_b->max_capture_points > 0.0f) ? found_b->capture_points : (found_b->hp / found_b->max_hp * max_cp);
+			inspector_capture_bar->set_max(max_cp);
+			inspector_capture_bar->set_value(cur_cp);
+			inspector_capture_label->set_text("Capture: " + String::num((double)cur_cp, 0) + " / " + String::num((double)max_cp, 0));
+
+			// 3. Veterancy / Tech Research XP Bar
+			if (found_b->research_tech != rtso::TECH_NONE && found_b->research_duration > 0.0f) {
+				inspector_xp_bar->set_max(found_b->research_duration);
+				inspector_xp_bar->set_value(found_b->research_timer);
+				inspector_xp_label->set_text("Research: " + String(rtso::tech_info(found_b->research_tech).name) + " (" + String::num(found_b->research_timer, 1) + "s / " + String::num(found_b->research_duration, 1) + "s)");
+			} else {
+				inspector_xp_bar->set_max(100.0f);
+				inspector_xp_bar->set_value(100.0f);
+				inspector_xp_label->set_text("Technology Research: Ready");
+			}
+
+			// 4. Stamina / Structure Gauge
+			float struct_prog = std::clamp(found_b->build_progress * 100.0f, 0.0f, 100.0f);
+			inspector_stamina_bar->set_max(100.0f);
+			inspector_stamina_bar->set_value(struct_prog);
+			inspector_stamina_label->set_text(struct_prog >= 100.0f ? "Structure: 100% Integrity" : ("Construction: " + String::num(struct_prog, 0) + "%"));
+
+			// 5. Aura Influence Gauge
+			float aura_r = (found_b->type == rtso::BLD_TOWN_CENTER) ? 32.0f : ((found_b->type == rtso::BLD_FORTRESS) ? 28.0f : ((found_b->type == rtso::BLD_TOWER) ? 18.0f : ((found_b->type == rtso::BLD_TEMPLE) ? 18.0f : 0.0f)));
+			if (aura_r > 0.0f) {
+				inspector_aura_bar->set_max(32.0f);
+				inspector_aura_bar->set_value(aura_r);
+				inspector_aura_label->set_text("Aura: " + String::num(aura_r, 0) + "m Territory Influence (Active)");
+			} else if (found_b->garrison_cap > 0) {
+				inspector_aura_bar->set_max((float)found_b->garrison_cap);
+				inspector_aura_bar->set_value((float)found_b->garrisoned_units.size());
+				inspector_aura_label->set_text("Garrison: " + String::num_int64(found_b->garrisoned_units.size()) + " / " + String::num_int64(found_b->garrison_cap));
+			} else {
+				inspector_aura_bar->set_max(100.0f);
+				inspector_aura_bar->set_value(100.0f);
+				inspector_aura_label->set_text("Aura: Standard Influence");
+			}
 
 			String status = "State: Operational";
 			if (found_b->build_progress < 1.0f) {
@@ -1164,16 +1702,7 @@ void RtsoMain::update_inspector() {
 				status = "Researching " + String(rtso::tech_info(found_b->research_tech).name) +
 					" (" + String::num((double)(found_b->research_duration - found_b->research_timer), 1) + "s)";
 			} else if (!found_b->queue.empty()) {
-				String q_str = "Queue (" + String::num_int64(found_b->queue.size()) + "/8): ";
-				for (size_t qi = 0; qi < found_b->queue.size(); ++qi) {
-					if (qi == 0) {
-						q_str += "> " + String(rtso::unit_type_name(found_b->queue[qi].unit_type)) +
-							" (" + String::num((double)(found_b->queue[qi].duration - found_b->queue[qi].timer), 1) + "s) ";
-					} else {
-						q_str += "[" + String::num_int64(qi + 1) + "] " + String(rtso::unit_type_name(found_b->queue[qi].unit_type)) + " ";
-					}
-				}
-				status = q_str;
+				status = "Training Active (" + String::num_int64(found_b->queue.size()) + "/8 queued) — Right-click slot to cancel";
 			}
 			inspector_stats->set_text(status);
 
@@ -1249,9 +1778,38 @@ void RtsoMain::update_inspector() {
 
 			inspector_class->set_text(String("Role: ") + role_name + " • Kills: " + String::num_int64(u_kills) + " • Speed: " + String::num(uinfo.speed, 1) + " m/s");
 
+			// 1. Health Bar
 			inspector_hp_bar->set_max(hp_max_sum);
 			inspector_hp_bar->set_value(hp_sum);
 			inspector_hp_label->set_text("HP: " + String::num((double)hp_sum, 0) + " / " + String::num((double)hp_max_sum, 0));
+
+			// 2. Capture Resistance Bar
+			inspector_capture_bar->set_max(100.0f);
+			inspector_capture_bar->set_value(100.0f);
+			inspector_capture_label->set_text("Capture Resistance: 100 / 100");
+
+			// 3. Veterancy / Experience XP Bar
+			float req_xp = (float)(u_rank * 100);
+			float cur_xp = (float)(u_kills * 15 + (u_rank - 1) * 50);
+			if (cur_xp > req_xp && u_rank >= 3) cur_xp = req_xp;
+			inspector_xp_bar->set_max(req_xp);
+			inspector_xp_bar->set_value(cur_xp);
+			inspector_xp_label->set_text("Veterancy XP: " + String::num(cur_xp, 0) + " / " + String::num(req_xp, 0) + " (" + String::num_int64(u_kills) + " Kills)");
+
+			// 4. Stamina / Energy Gauge
+			inspector_stamina_bar->set_max(100.0f);
+			inspector_stamina_bar->set_value(100.0f);
+			inspector_stamina_label->set_text("Stamina: 100 / 100 (Energy)");
+
+			// 5. Aura Influence Gauge
+			bool has_hero_aura = (single_utype == rtso::UNIT_HERO || single_utype == rtso::UNIT_HEALER || single_utype == rtso::UNIT_CARNYX || single_utype == rtso::UNIT_FEMALE_CITIZEN);
+			inspector_aura_bar->set_max(100.0f);
+			inspector_aura_bar->set_value(has_hero_aura ? 100.0f : 50.0f);
+			if (single_utype == rtso::UNIT_HERO) inspector_aura_label->set_text("Aura: 16m Heroic Morale Aura (Active)");
+			else if (single_utype == rtso::UNIT_HEALER) inspector_aura_label->set_text("Aura: 12m Divine Healing Aura (Active)");
+			else if (single_utype == rtso::UNIT_CARNYX) inspector_aura_label->set_text("Aura: 14m Carnyx Battle Cry Aura (Active)");
+			else if (single_utype == rtso::UNIT_FEMALE_CITIZEN) inspector_aura_label->set_text("Aura: 10m Civic Inspiration Aura (+15% Gather)");
+			else inspector_aura_label->set_text("Aura Influence: Active Standard");
 
 			String stats_line = "⚔️ Attack: " + String::num(uinfo.attack_damage, 0);
 			if (uinfo.attack_range > 2.0f) stats_line += " (" + String::num(uinfo.attack_range, 1) + "m)";
@@ -1281,9 +1839,30 @@ void RtsoMain::update_inspector() {
 			String civ_name = rtso::civ_info(sim->player_civ()).name;
 			inspector_class->set_text(civ_name + " Taskforce • Combined Arms");
 
+			// 1. Health Bar
 			inspector_hp_bar->set_max(hp_max_sum);
 			inspector_hp_bar->set_value(hp_sum);
 			inspector_hp_label->set_text("HP: " + String::num((double)hp_sum, 0) + " / " + String::num((double)hp_max_sum, 0));
+
+			// 2. Capture Resistance Bar
+			inspector_capture_bar->set_max(100.0f);
+			inspector_capture_bar->set_value(100.0f);
+			inspector_capture_label->set_text("Capture Resistance: 100%");
+
+			// 3. Veterancy / Company XP Bar
+			inspector_xp_bar->set_max((float)(selected_ids.size() * 100));
+			inspector_xp_bar->set_value((float)(selected_ids.size() * 50));
+			inspector_xp_label->set_text("Company Experience: " + String::num_int64(selected_ids.size()) + " Battlegroup");
+
+			// 4. Stamina Gauge
+			inspector_stamina_bar->set_max(100.0f);
+			inspector_stamina_bar->set_value(100.0f);
+			inspector_stamina_label->set_text("Company Stamina: 100 / 100");
+
+			// 5. Aura Influence Gauge
+			inspector_aura_bar->set_max(100.0f);
+			inspector_aura_bar->set_value(100.0f);
+			inspector_aura_label->set_text("Aura: Combined Arms Influence");
 
 			String comp_str = "Comp: ";
 			if (v_cnt > 0) comp_str += String::num_int64(v_cnt) + " Citizens, ";
@@ -1331,6 +1910,36 @@ void RtsoMain::update_command_panel() {
 		for (const auto &b : bldgs) {
 			if (b.id == selected_building_id) { found_b = &b; break; }
 		}
+
+		// Update 8-slot Visual Production Queue (ProductionQueue.js parity)
+		if (found_b) {
+			for (int q = 0; q < 8; ++q) {
+				if (q < (int)found_b->queue.size()) {
+					uint8_t utype = found_b->queue[q].unit_type;
+					const auto &uinfo = rtso::unit_type_info(utype);
+					queue_slots[q].icon->set_texture(load_tex("res://assets/textures/ui/portraits/" + String(uinfo.portrait_id) + ".png"));
+					queue_slots[q].icon->set_visible(true);
+					queue_slots[q].chip->set_text(String::num_int64(q + 1));
+					queue_slots[q].chip->set_visible(true);
+
+					if (q == 0) {
+						queue_slots[q].progress->set_visible(true);
+						queue_slots[q].progress->set_max(found_b->queue[0].duration);
+						queue_slots[q].progress->set_value(found_b->queue[0].timer);
+						queue_slots[q].panel->set_tooltip_text(String(uinfo.name) + " (" + String::num(found_b->queue[0].duration - found_b->queue[0].timer, 1) + "s)\n[Right-Click] Cancel & Refund");
+					} else {
+						queue_slots[q].progress->set_visible(false);
+						queue_slots[q].panel->set_tooltip_text(String(uinfo.name) + " [Slot " + String::num_int64(q + 1) + "]\n[Right-Click] Cancel & Refund");
+					}
+				} else {
+					queue_slots[q].icon->set_visible(false);
+					queue_slots[q].progress->set_visible(false);
+					queue_slots[q].chip->set_visible(false);
+					queue_slots[q].panel->set_tooltip_text("Empty Queue Slot");
+				}
+			}
+		}
+
 		if (found_b && found_b->build_progress >= 1.0f) {
 			uint8_t pciv = sim->player_civ();
 			uint8_t pphase = sim->player_phase();
@@ -1491,65 +2100,75 @@ void RtsoMain::update_command_panel() {
 				production_bar->add_child(btn_dog);
 			}
 		}
-	} else if (!selected_ids.is_empty()) {
-		// Formations & Tactical Actions
-		const char *form_names[6] = {"Line", "Box", "Column", "Phalanx", "Wedge", "Scatter"};
-		const char *form_icons[6] = {
-			"res://assets/textures/ui/formations/line.png",
-			"res://assets/textures/ui/formations/box.png",
-			"res://assets/textures/ui/formations/column.png",
-			"res://assets/textures/ui/formations/phalanx.png",
-			"res://assets/textures/ui/formations/wedge.png",
-			"res://assets/textures/ui/formations/scatter.png"
-		};
-		for (int f = 0; f < 6; ++f) {
-			Button *fb = memnew(Button);
-			fb->set_custom_minimum_size(Vector2(72, 28));
-			fb->set_text(form_names[f]);
-			Ref<Texture2D> f_ico = load_tex(form_icons[f]);
-			if (f_ico.is_valid()) {
-				fb->set_button_icon(f_ico);
-				fb->set_expand_icon(true);
-			}
-			fb->add_theme_font_size_override("font_size", 9);
-			fb->connect("pressed", Callable(this, "_on_formation_selected").bind(f + 1));
-			actions_bar->add_child(fb);
+	} else {
+		// Non-building selected: clear visual queue slots
+		for (int q = 0; q < 8; ++q) {
+			queue_slots[q].icon->set_visible(false);
+			queue_slots[q].progress->set_visible(false);
+			queue_slots[q].chip->set_visible(false);
+			queue_slots[q].panel->set_tooltip_text("Empty Queue Slot");
 		}
 
-		// Villager Build Menu
-		bool has_worker = false;
-		auto uview = sim->units();
-		for (int i = 0; i < selected_ids.size(); ++i) {
-			for (size_t u = 0; u < uview.count; ++u) {
-				if (uview.id[u] == (uint32_t)selected_ids[i]) {
-					uint8_t ut = uview.unit_type[u];
-					if (ut == rtso::UNIT_VILLAGER || ut == rtso::UNIT_FEMALE_CITIZEN || ut == rtso::UNIT_WORKER_ELEPHANT) {
-						has_worker = true;
-						break;
+		if (!selected_ids.is_empty()) {
+			// Formations & Tactical Actions
+			const char *form_names[6] = {"Line", "Box", "Column", "Phalanx", "Wedge", "Scatter"};
+			const char *form_icons[6] = {
+				"res://assets/textures/ui/formations/line.png",
+				"res://assets/textures/ui/formations/box.png",
+				"res://assets/textures/ui/formations/column.png",
+				"res://assets/textures/ui/formations/phalanx.png",
+				"res://assets/textures/ui/formations/wedge.png",
+				"res://assets/textures/ui/formations/scatter.png"
+			};
+			for (int f = 0; f < 6; ++f) {
+				Button *fb = memnew(Button);
+				fb->set_custom_minimum_size(Vector2(72, 28));
+				fb->set_text(form_names[f]);
+				Ref<Texture2D> f_ico = load_tex(form_icons[f]);
+				if (f_ico.is_valid()) {
+					fb->set_button_icon(f_ico);
+					fb->set_expand_icon(true);
+				}
+				fb->add_theme_font_size_override("font_size", 9);
+				fb->connect("pressed", Callable(this, "_on_formation_selected").bind(f + 1));
+				actions_bar->add_child(fb);
+			}
+
+			// Villager Build Menu
+			bool has_worker = false;
+			auto uview = sim->units();
+			for (int i = 0; i < selected_ids.size(); ++i) {
+				for (size_t u = 0; u < uview.count; ++u) {
+					if (uview.id[u] == (uint32_t)selected_ids[i]) {
+						uint8_t ut = uview.unit_type[u];
+						if (ut == rtso::UNIT_VILLAGER || ut == rtso::UNIT_FEMALE_CITIZEN || ut == rtso::UNIT_WORKER_ELEPHANT) {
+							has_worker = true;
+							break;
+						}
 					}
 				}
 			}
-		}
 
-		if (has_worker) {
-			const char *b_names[13] = {
-				"House (80w)", "Barracks (150w,50g)", "Tower (100w,100s)", "Storehouse (100w)",
-				"Farmstead (100w)", "Corral (100w)", "Market (200w,100g)", "Temple (150w,100g,100s)",
-				"Fortress (300w,200g,300s)", "Gate (100w,100s)", "Dock (200w,100s)", "Wall (40s)",
-				"Wonder (500f,500w,500g,500s)"
-			};
-			int b_types[13] = {
-				rtso::BLD_HOUSE, rtso::BLD_BARRACKS, rtso::BLD_TOWER, rtso::BLD_STOREHOUSE,
-				rtso::BLD_FARMSTEAD, rtso::BLD_CORRAL, rtso::BLD_MARKET, rtso::BLD_TEMPLE,
-				rtso::BLD_FORTRESS, rtso::BLD_GATE, rtso::BLD_DOCK, rtso::BLD_WALL_SEGMENT,
-				rtso::BLD_WONDER
-			};
-			for (int b = 0; b < 13; ++b) {
-				Button *bb = memnew(Button);
-				bb->set_text(b_names[b]);
-				bb->add_theme_font_size_override("font_size", 9);
-				bb->connect("pressed", Callable(this, "_on_build_btn_pressed").bind(b_types[b]));
-				production_bar->add_child(bb);
+			if (has_worker) {
+				const char *b_names[13] = {
+					"House (80w)", "Barracks (150w,50g)", "Tower (100w,100s)", "Storehouse (100w)",
+					"Farmstead (100w)", "Corral (100w)", "Market (200w,100g)", "Temple (150w,100g,100s)",
+					"Fortress (300w,200g,300s)", "Gate (100w,100s)", "Dock (200w,100s)", "Wall (40s)",
+					"Wonder (500f,500w,500g,500s)"
+				};
+				int b_types[13] = {
+					rtso::BLD_HOUSE, rtso::BLD_BARRACKS, rtso::BLD_TOWER, rtso::BLD_STOREHOUSE,
+					rtso::BLD_FARMSTEAD, rtso::BLD_CORRAL, rtso::BLD_MARKET, rtso::BLD_TEMPLE,
+					rtso::BLD_FORTRESS, rtso::BLD_GATE, rtso::BLD_DOCK, rtso::BLD_WALL_SEGMENT,
+					rtso::BLD_WONDER
+				};
+				for (int b = 0; b < 13; ++b) {
+					Button *bb = memnew(Button);
+					bb->set_text(b_names[b]);
+					bb->add_theme_font_size_override("font_size", 9);
+					bb->connect("pressed", Callable(this, "_on_build_btn_pressed").bind(b_types[b]));
+					production_bar->add_child(bb);
+				}
 			}
 		}
 	}
@@ -1610,6 +2229,14 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 	Ref<InputEventKey> key = event;
 	if (key.is_valid() && key->is_pressed() && !key->is_echo()) {
 		if (key->get_keycode() == KEY_ESCAPE) {
+			if (chat_panel && chat_panel->is_visible()) {
+				chat_panel->set_visible(false);
+				return;
+			}
+			if (diplomacy_panel && diplomacy_panel->is_visible()) {
+				diplomacy_panel->set_visible(false);
+				return;
+			}
 			Node *pause = get_node_or_null(NodePath("PauseMenu"));
 			if (pause) {
 				pause->call("toggle");
@@ -1621,14 +2248,18 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			return;
 		}
 
+		if (key->get_keycode() == KEY_ENTER || key->get_keycode() == KEY_KP_ENTER) {
+			toggle_chat();
+			return;
+		}
+
 		if (key->get_keycode() == KEY_PERIOD || key->get_keycode() == KEY_TAB) {
 			cycle_idle_worker();
 			return;
 		}
 
 		if (key->get_keycode() == KEY_D) {
-			Node *diplo = get_node_or_null(NodePath("DiplomacyDialog"));
-			if (diplo) diplo->call("toggle");
+			toggle_diplomacy();
 			return;
 		}
 
@@ -2100,9 +2731,13 @@ void RtsoMain::_on_map_selected(int index) {
 		"random_valley",
 		"random_mediterranean",
 		"random_acropolis",
-		"random_spartan_valley"
+		"random_spartan_valley",
+		"random_danubius",
+		"random_saharan_oases",
+		"random_anatolian_plateau",
+		"random_jebel_barkal"
 	};
-	if (index >= 0 && index < 14) {
+	if (index >= 0 && index < 18) {
 		load_map(map_ids[index]);
 	}
 }
@@ -2123,6 +2758,10 @@ PackedStringArray RtsoMain::get_available_maps() const {
 	maps.push_back("random_mediterranean");
 	maps.push_back("random_acropolis");
 	maps.push_back("random_spartan_valley");
+	maps.push_back("random_danubius");
+	maps.push_back("random_saharan_oases");
+	maps.push_back("random_anatolian_plateau");
+	maps.push_back("random_jebel_barkal");
 	return maps;
 }
 
@@ -2134,16 +2773,24 @@ bool RtsoMain::load_map(String map_id) {
 	if (map_id.begins_with("random_") || map_id.begins_with("procedural_") ||
 		map_id == "continental" || map_id == "archipelago" || map_id == "oasis" ||
 		map_id == "highlands" || map_id == "valley" || map_id == "mediterranean" ||
-		map_id == "random_acropolis" || map_id == "random_spartan_valley") {
+		map_id == "random_acropolis" || map_id == "random_spartan_valley" ||
+		map_id == "danubius" || map_id == "random_danubius" ||
+		map_id == "saharan_oases" || map_id == "random_saharan_oases" ||
+		map_id == "anatolian_plateau" || map_id == "random_anatolian_plateau" ||
+		map_id == "jebel_barkal" || map_id == "random_jebel_barkal") {
 		
 		rtso::MapType mtype = rtso::MAP_RANDOM_CONTINENTAL;
 		int num_p = 2;
 		if (map_id.contains("archipelago")) mtype = rtso::MAP_RANDOM_ARCHIPELAGO;
+		else if (map_id.contains("saharan_oases")) mtype = rtso::MAP_SAHARAN_OASES;
 		else if (map_id.contains("oasis")) mtype = rtso::MAP_RANDOM_OASIS;
 		else if (map_id.contains("highlands")) mtype = rtso::MAP_RANDOM_HIGHLANDS;
 		else if (map_id.contains("valley") && !map_id.contains("spartan")) mtype = rtso::MAP_RANDOM_VALLEY;
 		else if (map_id.contains("spartan")) mtype = rtso::MAP_SPARTAN_VALLEY;
 		else if (map_id.contains("acropolis")) mtype = rtso::MAP_ACROPOLIS;
+		else if (map_id.contains("danubius")) mtype = rtso::MAP_DANUBIUS;
+		else if (map_id.contains("anatolian")) mtype = rtso::MAP_ANATOLIAN_PLATEAU;
+		else if (map_id.contains("jebel") || map_id.contains("barkal")) mtype = rtso::MAP_JEBEL_BARKAL;
 		else if (map_id.contains("mediterranean")) { mtype = rtso::MAP_RANDOM_MEDITERRANEAN; num_p = 4; }
 
 		uint32_t seed = (uint32_t)Time::get_singleton()->get_ticks_msec();
@@ -2293,6 +2940,21 @@ void RtsoMain::_on_civ_selected(int index) {
 	set_civ(index);
 }
 
+void RtsoMain::_on_ai_diff_selected(int index) {
+	if (!sim || !ai_diff_selector) return;
+	sim->set_petra_difficulty((uint8_t)ai_diff_selector->get_item_id(index));
+}
+
+void RtsoMain::_on_ai_behavior_selected(int index) {
+	if (!sim || !ai_behavior_selector) return;
+	sim->set_petra_behavior((uint8_t)ai_behavior_selector->get_item_id(index));
+}
+
+void RtsoMain::_on_victory_selected(int index) {
+	if (!sim || !victory_selector) return;
+	sim->set_victory_condition((uint8_t)victory_selector->get_item_id(index));
+}
+
 void RtsoMain::set_civ(int civ_idx) {
 	if (!sim) return;
 	if (civ_idx < 0 || civ_idx >= rtso::CIV_COUNT) civ_idx = rtso::CIV_ATHENIANS;
@@ -2319,4 +2981,86 @@ Dictionary RtsoMain::get_civ_info(int civ_idx) const {
 	d["build_speed_mult"] = info.build_speed_mult;
 	d["trade_gain_mult"] = info.trade_gain_mult;
 	return d;
+}
+
+void RtsoMain::_on_queue_slot_gui_input(const Ref<InputEvent> &event, int slot_idx) {
+	Ref<InputEventMouseButton> mb = event;
+	if (mb.is_valid() && mb->is_pressed()) {
+		if (mb->get_button_index() == MOUSE_BUTTON_RIGHT || mb->get_button_index() == MOUSE_BUTTON_LEFT) {
+			_on_queue_slot_cancel(slot_idx);
+			get_viewport()->set_input_as_handled();
+		}
+	}
+}
+
+void RtsoMain::_on_queue_slot_cancel(int slot_idx) {
+	if (selected_building_id != 0 && sim) {
+		if (sim->cmd_cancel_train(selected_building_id, (size_t)slot_idx)) {
+			play_sfx("res://assets/sounds/ui/cancel.ogg");
+			update_command_panel();
+			update_inspector();
+		}
+	}
+}
+
+void RtsoMain::toggle_chat() {
+	if (!chat_panel) return;
+	bool vis = !chat_panel->is_visible();
+	chat_panel->set_visible(vis);
+	if (vis && chat_input) {
+		chat_input->grab_focus();
+	}
+}
+
+void RtsoMain::_on_chat_send_pressed() {
+	if (!chat_input || !chat_log) return;
+	String text = chat_input->get_text().strip_edges();
+	if (!text.is_empty()) {
+		int ch = chat_channel ? chat_channel->get_selected() : 0;
+		String ch_prefix = (ch == 1) ? "[color=#55ff55][Allies][/color]" : ((ch == 2) ? "[color=#ffff55][Team][/color]" : "[color=#55bbff][All][/color]");
+		String civ_name = rtso::civ_info(sim->player_civ()).name;
+		chat_log->append_text(ch_prefix + " [color=#ffffff]" + civ_name + "[/color]: " + text + "\n");
+		chat_input->clear();
+		play_sfx("res://assets/sounds/ui/chat.ogg");
+	}
+	if (chat_panel) chat_panel->set_visible(false);
+}
+
+void RtsoMain::_on_chat_text_submitted(const String &text) {
+	_on_chat_send_pressed();
+}
+
+void RtsoMain::toggle_diplomacy() {
+	if (!diplomacy_panel) return;
+	diplomacy_panel->set_visible(!diplomacy_panel->is_visible());
+	if (diplomacy_panel->is_visible()) {
+		play_sfx("res://assets/sounds/ui/diplomacy.ogg");
+	}
+}
+
+void RtsoMain::_on_diplo_stance_changed(int stance, int player_idx) {
+	if (!sim || player_idx < 0 || player_idx >= 8) return;
+	sim->set_diplomacy((uint8_t)player_idx, (uint8_t)stance);
+	String st_name = (stance == 0) ? "Ally" : ((stance == 1) ? "Neutral" : "Enemy");
+	UtilityFunctions::print("[RTS0] Set diplomacy stance with Player ", player_idx + 1, " to ", st_name);
+	if (chat_log) {
+		chat_log->append_text("[color=#eebb22]🏛️ Diplomacy with Player " + String::num_int64(player_idx + 1) + " set to " + st_name + "[/color]\n");
+	}
+}
+
+void RtsoMain::_on_diplo_tribute_pressed(int player_idx, int res_type) {
+	if (!sim || player_idx <= 0 || player_idx >= 8) return;
+	bool ok = sim->send_tribute((uint8_t)player_idx, (uint8_t)res_type, 100);
+	if (ok) {
+		const char *r_names[4] = {"Wood", "Gold", "Stone", "Food"};
+		String r_name = (res_type >= 0 && res_type < 4) ? r_names[res_type] : "Resource";
+		UtilityFunctions::print("[RTS0] Sent 100 ", r_name, " tribute to Player ", player_idx + 1);
+		if (chat_log) {
+			chat_log->append_text("[color=#55ffaa]🎁 Sent 100 " + r_name + " tribute to Player " + String::num_int64(player_idx + 1) + "[/color]\n");
+		}
+		play_sfx("res://assets/sounds/ui/bonus.ogg");
+		update_hud();
+	} else {
+		play_alarm("res://assets/sounds/ui/alarm.ogg");
+	}
 }

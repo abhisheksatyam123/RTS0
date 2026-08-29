@@ -38,56 +38,85 @@ DEFAULT_ZIP = os.path.join(os.path.dirname(__file__), "..", "..", "0ad",
 #        'width' scales so max(AABB.x, AABB.z) == target.
 #   tint: None | (r,g,b) applied through 0ad player-color alpha mask.
 ASSETS = {
-    # core MVP — keep deterministic ids for GameSim
-    "villager":    ("art/actors/units/athenians/female_citizen.xml",      "height", 1.70, (0.36, 0.62, 0.94)),
-    "swordsman":   ("art/actors/units/athenians/infantry_swordsman_c.xml","height", 1.80, (0.92, 0.32, 0.28)),
-    "town_center": ("art/actors/structures/hellenes/civic_centre_new.xml", "width",  6.20, (0.36, 0.62, 0.94)),
-    "house":       ("art/actors/structures/romans/house.xml",             "width",  2.40, (0.36, 0.62, 0.94)),
-    "tree":        ("art/actors/flora/trees/oak_new.xml",                 "height", 4.50, None),
-    "gold_vein":   ("art/actors/geology/metalmine_granite_greek.xml",     "width",  1.80, None),
+    # All 23 UnitTypes
+    "villager":         ("art/actors/units/athenians/female_citizen.xml",      "height", 1.70, (0.36, 0.62, 0.94)),
+    "swordsman":        ("art/actors/units/athenians/infantry_swordsman_c.xml","height", 1.80, (0.92, 0.32, 0.28)),
+    "archer":           ("art/actors/units/athenians/infantry_archer_a.xml",   "height", 1.80, (0.36, 0.62, 0.94)),
+    "spearman":         ("art/actors/units/athenians/infantry_spearman_b.xml", "height", 1.80, (0.36, 0.62, 0.94)),
+    "cavalry":          ("art/actors/units/athenians/cavalry_swordsman_b_m.xml","height", 1.90, (0.36, 0.62, 0.94)),
+    "trader":           ("art/actors/units/athenians/trader.xml",              "height", 1.90, (0.36, 0.62, 0.94)),
+    "catapult":         ("art/actors/units/carthaginians/siege_lithobolos_med.xml", "width", 2.60, (0.92, 0.32, 0.28)),
+    "hero":             ("art/actors/units/spartans/hero_infantry_spearman_leonidas.xml", "height", 1.85, (0.92, 0.32, 0.28)),
+    "trireme":          ("art/actors/structures/athenians/trireme.xml",        "width",  7.00, (0.36, 0.62, 0.94)),
+    "elephant":         ("art/actors/units/carthaginians/elephantry_c_m.xml",  "height", 3.20, (0.92, 0.32, 0.28)),
+    "ram":              ("art/actors/units/romans/siege_ram.xml",              "width",  3.00, None),
+    "siege_ram":        ("art/actors/units/romans/siege_ram.xml",              "width",  3.00, None),
+    "healer":           ("art/actors/units/athenians/healer.xml",              "height", 1.70, (0.92, 0.90, 0.82)),
+    "chariot":          ("art/actors/units/britons/chariot_javelinist_c_m.xml","width",  2.80, (0.36, 0.62, 0.94)),
+    "war_dog":          ("art/actors/units/britons/war_dog_mastiff_a.xml",     "height", 0.90, None),
+    "bolt_shooter":     ("art/actors/units/athenians/oxybeles_infantry_a.xml", "width",  2.20, (0.36, 0.62, 0.94)),
+    "fishing_boat":     ("art/actors/structures/athenians/fishing_boat.xml",   "width",  3.50, (0.36, 0.62, 0.94)),
+    "merchant_ship":    ("art/actors/structures/carthaginians/merchant_ship.xml","width",5.50, (0.36, 0.62, 0.94)),
+    "female_citizen":   ("art/actors/units/athenians/female_citizen.xml",      "height", 1.68, (0.36, 0.62, 0.94)),
+    "carnyx":           ("art/actors/units/gauls/infantry_carnyx_c.xml",       "height", 1.95, (0.36, 0.62, 0.94)),
+    "worker_elephant":  ("art/actors/units/mauryas/support_elephant.xml",      "height", 2.90, (0.36, 0.62, 0.94)),
+    "archer_maiden":    ("art/actors/units/mauryas/infantry_archer_c.xml",     "height", 1.70, (0.36, 0.62, 0.94)),
+    "camel":            ("art/actors/units/ptolemies/camel_archer_a_m.xml",    "height", 2.40, (0.36, 0.62, 0.94)),
+    "scythed_chariot":  ("art/actors/units/persians/chariot_archer_a_m.xml",   "width",  2.90, (0.92, 0.32, 0.28)),
+
+    # Fauna
+    "deer":             ("art/actors/fauna/deer.xml",                          "height", 1.40, None),
+    "boar":             ("art/actors/fauna/boar.xml",                          "height", 1.10, None),
+    "wolf":             ("art/actors/fauna/wolf.xml",                          "height", 1.00, None),
+    "sheep":            ("art/actors/fauna/sheep1.xml",                        "height", 0.90, None),
+
+    # 14 BuildingTypes + common military/civ structures
+    "town_center":      ("art/actors/structures/hellenes/civic_centre_new.xml","width",  6.20, (0.36, 0.62, 0.94)),
+    "house":            ("art/actors/structures/romans/house.xml",             "width",  2.40, (0.36, 0.62, 0.94)),
+    "barracks":         ("art/actors/structures/athenians/barracks.xml",        "width",  4.00, (0.36, 0.62, 0.94)),
+    "storehouse":       ("art/actors/structures/hellenes/storehouse.xml",      "width",  3.40, (0.36, 0.62, 0.94)),
+    "wall_tower":       ("art/actors/structures/hellenes/wall_tower.xml",      "width",  2.20, (0.36, 0.62, 0.94)),
+    "tower":            ("art/actors/structures/hellenes/wall_tower.xml",      "width",  2.20, (0.36, 0.62, 0.94)),
+    "farmstead":        ("art/actors/structures/hellenes/farmstead.xml",       "width",  3.20, (0.36, 0.62, 0.94)),
+    "market":           ("art/actors/structures/hellenes/market.xml",          "width",  4.20, (0.36, 0.62, 0.94)),
+    "fortress":         ("art/actors/structures/athenians/fortress.xml",       "width",  6.00, (0.36, 0.62, 0.94)),
+    "gate":             ("art/actors/structures/athenians/wall_gate_struct.xml","width", 3.80, (0.36, 0.62, 0.94)),
+    "temple":           ("art/actors/structures/hellenes/temple_epic.xml",     "width",  5.00, (0.36, 0.62, 0.94)),
+    "wonder":           ("art/actors/structures/carthaginians/wonder.xml",     "width",  6.50, (0.36, 0.62, 0.94)),
+    "dock":             ("art/actors/structures/athenians/dock.xml",           "width",  4.80, (0.36, 0.62, 0.94)),
+    "wall":             ("art/actors/structures/athenians/wall_long.xml",      "width",  2.00, (0.36, 0.62, 0.94)),
+    "wall_segment":     ("art/actors/structures/athenians/wall_long.xml",      "width",  2.00, (0.36, 0.62, 0.94)),
+    "corral":           ("art/actors/structures/carthaginians/corral.xml",     "width",  3.60, (0.36, 0.62, 0.94)),
+    "range":            ("art/actors/structures/hellenes/range.xml",           "width",  3.80, (0.36, 0.62, 0.94)),
+    "archery_range":    ("art/actors/structures/hellenes/range.xml",           "width",  3.80, (0.36, 0.62, 0.94)),
+    "stable":           ("art/actors/structures/hellenes/stable.xml",          "width",  4.20, (0.36, 0.62, 0.94)),
+    "stables":          ("art/actors/structures/hellenes/stable.xml",          "width",  4.20, (0.36, 0.62, 0.94)),
+    "ruins":            ("art/actors/structures/hellenes/temple_epic.xml",     "width",  2.50, None),
+
+    # Vegetation / Resources
+    "tree":             ("art/actors/flora/trees/oak_new.xml",                 "height", 4.50, None),
+    "pine":             ("art/actors/flora/trees/pine.xml",                    "height", 4.80, None),
+    "palm":             ("art/actors/flora/trees/palm_cretan_date.xml",        "height", 4.00, None),
+    "gold_vein":        ("art/actors/geology/metalmine_granite_greek.xml",     "width",  1.80, None),
+    "stone_mine":       ("art/actors/geology/stonemine_granite.xml",           "width",  2.00, None),
 }
 
-# Additional curated 0ad catalogue for full game (pulled with --all)
-# Covers economy, combat, flora, geology, defenses — enough for 0ad-like loop
-FULL_ASSETS = {
-    # --- Hellenes/Generic units (enough for tech tree demo) — use verified existing actor paths ---
-    "archer":      ("art/actors/units/athenians/infantry_archer_a.xml",   "height", 1.80, (0.36, 0.62, 0.94)),
-    "spearman":    ("art/actors/units/athenians/infantry_spearman_b.xml", "height", 1.80, (0.36, 0.62, 0.94)),
-    "cavalry":     ("art/actors/units/athenians/cavalry_swordsman_b_m.xml","height", 1.90, (0.36, 0.62, 0.94)),
-    "healer":      ("art/actors/units/athenians/healer.xml",              "height", 1.70, (0.92, 0.90, 0.82)),
-    "ram":         ("art/actors/units/romans/siege_ram.xml",                "width",  3.00, None),
-    # --- Structures — use civ-specific existing ---
-    "barracks":    ("art/actors/structures/athenians/barracks.xml",         "width",  4.00, (0.36, 0.62, 0.94)),
-    "farmstead":   ("art/actors/structures/hellenes/farmstead.xml",        "width",  3.20, (0.36, 0.62, 0.94)),
-    "storehouse":  ("art/actors/structures/hellenes/storehouse.xml",       "width",  3.40, (0.36, 0.62, 0.94)),
-    "market":      ("art/actors/structures/hellenes/market.xml",           "width",  4.20, (0.36, 0.62, 0.94)),
-    "temple":      ("art/actors/structures/hellenes/temple_epic.xml",      "width",  5.00, (0.36, 0.62, 0.94)),
-    "wall":        ("art/actors/structures/athenians/wall_long.xml",       "width",  2.00, (0.36, 0.62, 0.94)),
-    "wall_tower":  ("art/actors/structures/hellenes/wall_tower.xml",       "width",  2.20, (0.36, 0.62, 0.94)),
-    "fortress":    ("art/actors/structures/athenians/fortress.xml",        "width",  6.00, (0.36, 0.62, 0.94)),
-    # --- Flora ---
-    "pine":        ("art/actors/flora/trees/pine.xml",                     "height", 4.80, None),
-    "palm":        ("art/actors/flora/trees/palm_cretan_date.xml",         "height", 4.00, None),
-    # --- Geology / resources ---
-    "stone_mine":  ("art/actors/geology/stonemine_granite.xml",            "width",  2.00, None),
-    "ruins":       ("art/actors/structures/hellenes/temple_epic.xml",      "width",  2.50, None), # placeholder reuse temple for ruins
-    # --- Fauna (for hunting) ---
-    "deer":        ("art/actors/fauna/deer.xml",                           "height", 1.40, None),
-}
+FULL_ASSETS = dict(ASSETS)
 
 TERRAIN_TILES = {  # out name -> terrain types/<biome>/<tile>
-    "grass": "types/aegean_anatolia/grass_01.png",
-    "dirt":  "types/aegean_anatolia/dirt_01.png",
-    "rock":  "types/aegean_anatolia/cliff_01.png",
-}
-
-FULL_TERRAIN = {
+    "grass":         "types/aegean_anatolia/grass_01.png",
+    "dirt":          "types/aegean_anatolia/dirt_01.png",
+    "rock":          "types/aegean_anatolia/cliff_01.png",
+    "sand":          "types/aegean_anatolia/sand_01.png",
+    "snow":          "types/alpine_arctic/snow_01.png",
     "alpine_snow":   "types/alpine_arctic/snow_01.png",
     "desert_sand":   "types/african_savanna/dirt_01.png",
     "savanna_mud":   "types/african_savanna/mud_01.png",
-    "savanna_grass": "types/african_savanna/grass_02.png",
+    "savanna_grass": "types/african_savanna/grass_dirt_03.png",
     "medit_sand":    "types/aegean_anatolia/sand_01.png",
 }
+
+FULL_TERRAIN = dict(TERRAIN_TILES)
 
 MUSIC = {"theme.ogg": "audio/music/In_the_Shadow_of_Olympus.ogg",
          "victory.ogg": "audio/music/You_are_Victorious!.ogg",
@@ -97,15 +126,18 @@ MUSIC = {"theme.ogg": "audio/music/In_the_Shadow_of_Olympus.ogg",
 # Mirrors 0ad art/animation/* + art/skeletons/*; used by Godot Skeleton3D + AnimationPlayer
 # We copy the cached PSSA binary and also generate JSON for debugging
 ANIMATIONS = {
-    # biped infantry (swordsman/spearman/archer)
+    # biped infantry (swordsman/spearman/archer/hero/carnyx)
     "biped_idle":       "art/animation/biped/infantry/swordsman/idle_relax_shield_01.dae.cached.psa",
     "biped_walk":       "art/animation/biped/infantry/swordsman/walk_relax_shield.dae.cached.psa",
     "biped_run":        "art/animation/biped/infantry/swordsman/run_relax_shield.dae.cached.psa",
     "biped_attack":     "art/animation/biped/infantry/swordsman/attack_melee_shield_01.dae.cached.psa",
     "biped_death":      "art/animation/biped/infantry/death_a.dae.cached.psa",
-    # citizen / gatherer
+    # citizen / gatherer (male & female)
     "citizen_idle":     "art/animation/biped/citizen/idle_relax_m.dae.cached.psa",
     "citizen_walk":     "art/animation/biped/citizen/walk_relax_m.dae.cached.psa",
+    "female_idle":      "art/animation/biped/citizen/idle_relax_f.dae.cached.psa",
+    "female_walk":      "art/animation/biped/citizen/walk_relax_f.dae.cached.psa",
+    "female_run":       "art/animation/biped/citizen/jog_f.dae.cached.psa",
     "gather_wood":      "art/animation/biped/gatherer/gather_wood.dae.cached.psa",
     "gather_mine":      "art/animation/biped/gatherer/gather_mine.dae.cached.psa",
     "gather_berries":   "art/animation/biped/gatherer/gather_berries.dae.cached.psa",
@@ -113,42 +145,94 @@ ANIMATIONS = {
     "carry_ore":        "art/animation/biped/gatherer/carry_ore_m.dae.cached.psa",
     # archer specific
     "archer_attack":    "art/animation/biped/infantry/archer/attack_ranged.dae.cached.psa",
-    # horse (cavalry mesh is the mount — PMD bone count matches horse.xml, not biped)
+    # cavalry / horse
+    "cavalry_idle":     "art/animation/biped/rider/cavalry/swordsman/idle_relax_01.dae.cached.psa",
+    "cavalry_walk":     "art/animation/biped/rider/cavalry/swordsman/walk_relax_shield.dae.cached.psa",
     "horse_idle":       "art/animation/quadraped/horse_idle_01.dae.cached.psa",
     "horse_walk":       "art/animation/quadraped/horse_walk.dae.cached.psa",
     "horse_run":        "art/animation/quadraped/horse_gallop.dae.cached.psa",
     "horse_attack":     "art/animation/quadraped/horse_attack_01.dae.cached.psa",
     "horse_death":      "art/animation/quadraped/horse_death.dae.cached.psa",
+    # camel
+    "camel_idle":       "art/animation/quadraped/camel_idle_01.dae.cached.psa",
+    "camel_walk":       "art/animation/quadraped/camel_walk.dae.cached.psa",
+    "camel_run":        "art/animation/quadraped/camel_run.dae.cached.psa",
+    "camel_attack":     "art/animation/quadraped/camel_attack_melee_01.dae.cached.psa",
+    "camel_death":      "art/animation/quadraped/camel_death.dae.cached.psa",
+    # elephant
+    "elephant_idle":    "art/animation/quadraped/elephant_asian_idle_01.dae.cached.psa",
+    "elephant_walk":    "art/animation/quadraped/elephant_asian_walk.dae.cached.psa",
+    "elephant_run":     "art/animation/quadraped/elephant_asian_run.dae.cached.psa",
+    "elephant_attack":  "art/animation/quadraped/elephant_asian_attack_melee_01.dae.cached.psa",
+    "elephant_death":   "art/animation/quadraped/elephant_asian_death.dae.cached.psa",
+    # fauna
     "deer_idle":        "art/animation/quadraped/deer_idle_01.dae.cached.psa",
     "deer_walk":        "art/animation/quadraped/deer_walk_01.dae.cached.psa",
+    "boar_idle":        "art/animation/quadraped/animal_boar_idle_01.dae.cached.psa",
+    "boar_walk":        "art/animation/quadraped/animal_boar_walk_01.dae.cached.psa",
+    "boar_run":         "art/animation/quadraped/animal_boar_run_01.dae.cached.psa",
+    "boar_attack":      "art/animation/quadraped/animal_boar_attack_01.dae.cached.psa",
+    "boar_death":       "art/animation/quadraped/animal_boar_death_01.dae.cached.psa",
+    "wolf_idle":        "art/animation/quadraped/wolf_idle_01.dae.cached.psa",
+    "wolf_walk":        "art/animation/quadraped/wolf_walk.dae.cached.psa",
+    "wolf_run":         "art/animation/quadraped/wolf_run.dae.cached.psa",
+    "wolf_attack":      "art/animation/quadraped/wolf_attack_01.dae.cached.psa",
+    "wolf_death":       "art/animation/quadraped/wolf_death_01.dae.cached.psa",
+    "sheep_idle":       "art/animation/quadraped/sheep_idle_01.dae.cached.psa",
+    "sheep_walk":       "art/animation/quadraped/sheep_walk.dae.cached.psa",
+    "sheep_run":        "art/animation/quadraped/sheep_run.dae.cached.psa",
+    "sheep_death":      "art/animation/quadraped/sheep_death.dae.cached.psa",
+    "dog_idle":         "art/animation/quadraped/mastiff_idle.dae.cached.psa",
+    "dog_walk":         "art/animation/quadraped/mastiff_run.dae.cached.psa",
+    "dog_run":          "art/animation/quadraped/mastiff_run.dae.cached.psa",
+    "dog_attack":       "art/animation/quadraped/mastiff_attack.dae.cached.psa",
+    "dog_death":        "art/animation/quadraped/mastiff_death.dae.cached.psa",
     # healer (biped 46 — citizen healer set, not infantry relax)
     "healer_idle":      "art/animation/biped/citizen/idle_relax_h_m.dae.cached.psa",
     "healer_walk":      "art/animation/biped/citizen/walk_relax_h_m.dae.cached.psa",
     "healer_run":       "art/animation/biped/citizen/jog_h.dae.cached.psa",
     "healer_heal":      "art/animation/biped/citizen/healing_m.dae.cached.psa",
-    # roman ram (mechanical, 8 bones matching rome_ram.dae)
+    # mechanical / siege
     "ram_idle":         "art/animation/mechanical/rome_ram_idle.dae.cached.psa",
     "ram_walk":         "art/animation/mechanical/rome_ram_move.dae.cached.psa",
     "ram_attack":       "art/animation/mechanical/rome_ram_attack.dae.cached.psa",
+    "catapult_idle":    "art/animation/mechanical/siege_artillery/lithobolos_med_idle_01.dae.cached.psa",
+    "catapult_attack":  "art/animation/mechanical/siege_artillery/lithobolos_med_attack_ranged_01.dae.cached.psa",
+    "bolt_idle":        "art/animation/mechanical/siege_artillery/oxybeles_idle_01.dae.cached.psa",
+    "bolt_attack":      "art/animation/mechanical/siege_artillery/oxybeles_attack_ranged_01.dae.cached.psa",
 }
 
 SKELETONS = {
     "biped": "art/skeletons/biped.xml",
     "horse": "art/skeletons/horse.xml",
     "deer": "art/skeletons/deer.xml",
+    "camel": "art/skeletons/camelus.xml",
+    "elephant": "art/skeletons/elephantidae_asian.xml",
+    "boar": "art/skeletons/boar.xml",
+    "wolf": "art/skeletons/wolf.xml",
+    "sheep": "art/skeletons/sheep.xml",
+    "mastiff": "art/skeletons/mastiff.xml",
 }
 
-# 0 A.D. cavalry is two actors: *_m mount + *_r rider parented to horse "rider".
+# 0 A.D. cavalry is two actors: *_m mount + *_r rider parented to mount "rider"
 RIDER_ACTORS = {
     "cavalry": ("art/actors/units/athenians/cavalry_swordsman_b_r.xml", "rider"),
+    "camel": ("art/actors/units/ptolemies/camel_archer_a_r.xml", "rider"),
+    "elephant": ("art/actors/units/carthaginians/elephantry_c_r.xml", "rider"),
+    "chariot": ("art/actors/units/britons/chariot_javelinist_c_r.xml", "rider2"),
 }
 
 UNIT_IDS = frozenset({
-    "villager", "swordsman", "archer", "spearman", "cavalry", "healer", "ram", "deer",
+    "villager", "swordsman", "archer", "spearman", "cavalry", "trader", "catapult",
+    "hero", "trireme", "elephant", "ram", "siege_ram", "healer", "chariot", "war_dog",
+    "bolt_shooter", "fishing_boat", "merchant_ship", "female_citizen", "carnyx",
+    "worker_elephant", "archer_maiden", "camel", "scythed_chariot",
+    "deer", "boar", "wolf", "sheep",
 })
 BUILDING_IDS = frozenset({
     "town_center", "house", "barracks", "farmstead", "storehouse", "market",
-    "temple", "wall", "wall_tower", "fortress", "ruins",
+    "temple", "wall", "wall_segment", "wall_tower", "tower", "fortress",
+    "gate", "wonder", "dock", "corral", "range", "archery_range", "stable", "stables", "ruins",
 })
 VEGETATION_IDS = frozenset({
     "tree", "pine", "palm", "gold_vein", "stone_mine",
@@ -1340,7 +1424,7 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
     return entry
 
 
-def _img_png(img, max_edge=1024):
+def _img_png(img, max_edge=512):
     if img is None:
         return None
     if max(img.size) > max_edge:
@@ -1523,12 +1607,6 @@ def clean_misplaced_assets(out_dir):
 # Per-unit skeleton + animation-state -> PSA mapping.
 # 0 A.D. requires PMD bone count == PSA numKeys (CSkeletonAnimDef).
 # Clip names MUST match world_view_node (Idle/Walk/Run/Attack/Death/Gather/Build).
-#
-# Texture mapping (same as source/graphics + shaders/glsl/model_common.fs):
-#   UV0 / TEXCOORD_0  -> baseTex atlas (tiling). OpenGL V is flipped for glTF.
-#   UV1 / COLOR_0     -> aoTex unique unwrap (never multiplied onto UV0 in image space).
-#   vertex blend      -> JOINTS_0 / WEIGHTS_0 (4 influences, 0xFF = unbound)
-#   actor prop @bone  -> rigid bind 100% to that joint
 UNIT_CFG = {
     "villager": ("biped", {
         "Idle": "citizen_idle", "Walk": "citizen_walk", "Run": "citizen_walk",
@@ -1554,6 +1632,34 @@ UNIT_CFG = {
     "ram": ("", {
         "Idle": "ram_idle", "Walk": "ram_walk", "Run": "ram_walk",
         "Attack": "ram_attack"}),
+    "siege_ram": ("", {
+        "Idle": "ram_idle", "Walk": "ram_walk", "Run": "ram_walk",
+        "Attack": "ram_attack"}),
+    "female_citizen": ("biped", {
+        "Idle": "female_idle", "Walk": "female_walk", "Run": "female_run",
+        "Attack": "biped_attack", "Death": "biped_death",
+        "Gather": "gather_wood", "Build": "gather_wood"}),
+    "hero": ("biped", {
+        "Idle": "biped_idle", "Walk": "biped_walk", "Run": "biped_run",
+        "Attack": "biped_attack", "Death": "biped_death"}),
+    "carnyx": ("biped", {
+        "Idle": "biped_idle", "Walk": "biped_walk", "Run": "biped_run",
+        "Attack": "biped_attack", "Death": "biped_death"}),
+    "archer_maiden": ("biped", {
+        "Idle": "female_idle", "Walk": "female_walk", "Run": "female_run",
+        "Attack": "archer_attack", "Death": "biped_death"}),
+    "war_dog": ("mastiff", {
+        "Idle": "dog_idle", "Walk": "dog_walk", "Run": "dog_run",
+        "Attack": "dog_attack", "Death": "dog_death"}),
+    "boar": ("boar", {
+        "Idle": "boar_idle", "Walk": "boar_walk", "Run": "boar_run",
+        "Attack": "boar_attack", "Death": "boar_death"}),
+    "wolf": ("wolf", {
+        "Idle": "wolf_idle", "Walk": "wolf_walk", "Run": "wolf_run",
+        "Attack": "wolf_attack", "Death": "wolf_death"}),
+    "sheep": ("sheep", {
+        "Idle": "sheep_idle", "Walk": "sheep_walk", "Run": "sheep_run",
+        "Death": "sheep_death"}),
 }
 
 # --------------------------------------------------------------- main -------
@@ -1563,11 +1669,14 @@ def main():
     ap.add_argument("--zip", default=os.path.normpath(DEFAULT_ZIP))
     ap.add_argument("--out", default=os.path.join(os.path.dirname(__file__), "..", "assets"))
     ap.add_argument("--all", action="store_true", help="also extract FULL_ASSETS + FULL_TERRAIN catalogue")
+    ap.add_argument("--full", action="store_true", help=argparse.SUPPRESS)  # alias for --all, keeps docs ` --full` working
     ap.add_argument("--all-animations", action="store_true", help="extract all 650+ PSA animations (preserves folder structure)")
     ap.add_argument("--all-skeletons", action="store_true", help="extract all skeletons")
     ap.add_argument("--only", nargs="+", help="extract only these asset ids")
     ap.add_argument("--list-actors", action="store_true", help="list all art/actors/*.xml in zip and exit")
     args = ap.parse_args()
+    if getattr(args, "full", False):
+        args.all = True
     out_dir = os.path.abspath(args.out)
     print(f"archive: {args.zip}")
     print(f"output : {out_dir}")

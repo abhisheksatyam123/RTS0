@@ -1,5 +1,6 @@
 #include "assets.h"
 #include "procedural.h"
+#include <godot_cpp/classes/texture2d.hpp>
 
 using namespace godot;
 
@@ -51,7 +52,18 @@ Ref<ShaderMaterial> Assets::load_unit_material() {
 }
 
 Ref<ShaderMaterial> Assets::load_terrain_material() {
-	return try_load_mat(TerrainMaterial, TerrainShader);
+	Ref<ShaderMaterial> mat = try_load_mat(TerrainMaterial, TerrainShader);
+	if (mat.is_valid()) {
+		auto bind = [&](const char *param, const char *path) {
+			if (!res_exists(path)) return;
+			Ref<Texture2D> tex = ResourceLoader::get_singleton()->load(path);
+			if (tex.is_valid()) mat->set_shader_parameter(param, tex);
+		};
+		bind("grass_tex", "res://assets/textures/terrain/savanna_grass.png");
+		bind("dirt_tex", "res://assets/textures/terrain/sand.png");
+		bind("rock_tex", "res://assets/textures/terrain/snow.png");
+	}
+	return mat;
 }
 
 Ref<ShaderMaterial> Assets::load_foliage_material() {

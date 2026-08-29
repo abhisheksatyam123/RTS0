@@ -13,6 +13,10 @@
 #include <godot_cpp/classes/cylinder_mesh.hpp>
 #include <godot_cpp/classes/standard_material3d.hpp>
 #include <godot_cpp/variant/packed_int32_array.hpp>
+#include <godot_cpp/variant/vector2.hpp>
+#include <godot_cpp/classes/audio_stream_player3d.hpp>
+#include <godot_cpp/classes/audio_stream.hpp>
+#include <godot_cpp/classes/resource_loader.hpp>
 #include <unordered_map>
 #include <vector>
 
@@ -20,6 +24,8 @@
 #include "../graphics/assets/assets.h"
 #include "../graphics/assets/procedural.h"
 #include "../graphics/assets/model_library.h"
+#include "../animation/animation_controller.h"
+#include "../animation/skeleton.h"
 
 using namespace godot;
 
@@ -113,10 +119,48 @@ class RtsoWorldView : public Node3D {
 	CrowdPuppet unit_puppet[rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT] = {};
 	bool unit_puppet_baked[rtso::UNIT_TYPE_COUNT] = {};
 	std::unordered_map<uint32_t, float> crowd_yaw;
+	std::unordered_map<uint32_t, Vector2> crowd_pos;
+
+	// Skeletal animation controllers per unit type
+	rtso::AnimationController anim_controllers[rtso::UNIT_TYPE_COUNT];
 
 	static constexpr int MAX_DETAILED_UNITS = 16;
 	float anim_time = 0.0f;
 	uint32_t unit_vis_stamp = 1;
+
+	// 3D Positional Combat Acoustics
+	static constexpr size_t SPATIAL_AUDIO_POOL_SIZE = 32;
+	AudioStreamPlayer3D *spatial_players[SPATIAL_AUDIO_POOL_SIZE] = {nullptr};
+	size_t next_spatial_idx = 0;
+
+	Ref<AudioStream> sfx_bow_shoot[2];
+	Ref<AudioStream> sfx_arrow_hit;
+	Ref<AudioStream> sfx_catapult_blast;
+	Ref<AudioStream> sfx_sword_hit[3];
+	Ref<AudioStream> sfx_spear_hit[2];
+	Ref<AudioStream> sfx_building_collapse;
+	Ref<AudioStream> sfx_building_fire;
+
+	struct PrevProjState {
+		uint32_t id = 0;
+		float target_x = 0.0f, target_y = 0.0f, target_z = 0.0f;
+		float last_progress = 0.0f;
+		bool is_crush = false;
+	};
+	std::unordered_map<uint32_t, PrevProjState> tracked_projectiles;
+
+	struct PrevBuildingState {
+		uint32_t id = 0;
+		float x = 0.0f, z = 0.0f;
+		float hp = 0.0f;
+		float max_hp = 0.0f;
+		uint8_t type = 0;
+		float fire_timer = 0.0f;
+	};
+	std::unordered_map<uint32_t, PrevBuildingState> tracked_buildings;
+
+	std::unordered_map<uint32_t, float> unit_clash_cooldown;
+	float global_clash_timer = 0.0f;
 
 protected:
 	static void _bind_methods();
@@ -129,6 +173,9 @@ public:
 	void sync(const rtso::Simulation *sim, float delta, const PackedInt32Array &selected_ids);
 	void rebuild_terrain(const rtso::Simulation *sim);
 
+	void play_spatial_sound(const Ref<AudioStream> &stream, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
+	void play_spatial_sound_path(const String &path, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
+
 private:
 	Ref<MultiMesh> create_multimesh(const Ref<Mesh> &mesh, bool use_colors = false);
 	UnitVis &acquire_unit_slot(uint32_t sim_id);
@@ -138,6 +185,7 @@ private:
 	void play_unit_clip(UnitVis &v, const String &clip, bool loop);
 	void hide_unit_vis(UnitVis &v);
 	void ensure_unit_batches();
+	void init_animation_controllers();
 };
 
 #endif

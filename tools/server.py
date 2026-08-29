@@ -37,7 +37,16 @@ def main():
     parser.add_argument("--turns", type=int, default=1200, help="Max match simulation turns (20 Hz = 60s/1200 turns)")
     parser.add_argument("--port", type=int, default=7777, help="Server ENet host port")
     parser.add_argument("--headless", action="store_true", default=True, help="Run headless")
+    parser.add_argument("--lobby", action="store_true", help="Run HTTP lobby (GET/POST /rooms) instead of Godot")
+    parser.add_argument("--lobby-port", type=int, default=8088, help="HTTP lobby bind port")
     args = parser.parse_args()
+
+    if args.lobby:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from lobby_server import main as lobby_main
+        sys.argv = [sys.argv[0], "--port", str(args.lobby_port)]
+        lobby_main()
+        return
 
     print("==================================================")
     print("       RTS0 DEDICATED HEADLESS SERVER            ")
