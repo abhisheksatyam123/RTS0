@@ -16,6 +16,7 @@
 #include "../core/diagnostics/perf_tracker.h"
 #include "../core/job_system.h"
 #include "../graphics/assets/model_library.h"
+#include <sstream>
 
 using namespace godot;
 
@@ -58,6 +59,11 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_diplo_tribute_pressed", "player_idx", "res_type"), &RtsoMain::_on_diplo_tribute_pressed);
 	ClassDB::bind_method(D_METHOD("set_use_english_voice_orders", "enable"), &RtsoMain::set_use_english_voice_orders);
 	ClassDB::bind_method(D_METHOD("is_use_english_voice_orders"), &RtsoMain::is_use_english_voice_orders);
+	ClassDB::bind_method(D_METHOD("_on_lobby_button_pressed"), &RtsoMain::_on_lobby_button_pressed);
+	ClassDB::bind_method(D_METHOD("_on_voice_button_pressed"), &RtsoMain::_on_voice_button_pressed);
+	ClassDB::bind_method(D_METHOD("_on_lobby_host_pressed"), &RtsoMain::_on_lobby_host_pressed);
+	ClassDB::bind_method(D_METHOD("_on_lobby_join_pressed"), &RtsoMain::_on_lobby_join_pressed);
+	ClassDB::bind_method(D_METHOD("_on_lobby_refresh_pressed"), &RtsoMain::_on_lobby_refresh_pressed);
 
 	const StringName cls = get_class_static();
 	auto bind_enum = [&](const char *enum_name, const char *name, int64_t value) {
@@ -123,6 +129,7 @@ RtsoMain::RtsoMain() {
 }
 
 RtsoMain::~RtsoMain() {
+	net_host_.stop();
 	delete sim;
 }
 
@@ -392,6 +399,85 @@ void RtsoMain::_ready() {
 	victory_selector->add_item("Endless", rtso::VICTORY_ENDLESS);
 	victory_selector->connect("item_selected", Callable(this, "_on_victory_selected"));
 	top_hbox->add_child(victory_selector);
+
+	voice_btn = memnew(Button);
+	voice_btn->set_custom_minimum_size(Vector2(72, 28));
+	voice_btn->set_text("Voice: EN");
+	voice_btn->add_theme_font_size_override("font_size", 12);
+	voice_btn->connect("pressed", Callable(this, "_on_voice_button_pressed"));
+	top_hbox->add_child(voice_btn);
+
+	lobby_btn = memnew(Button);
+	lobby_btn->set_custom_minimum_size(Vector2(64, 28));
+	lobby_btn->set_text("Lobby");
+	lobby_btn->add_theme_font_size_override("font_size", 12);
+	lobby_btn->connect("pressed", Callable(this, "_on_lobby_button_pressed"));
+	top_hbox->add_child(lobby_btn);
+
+	lobby_panel = memnew(Panel);
+	lobby_panel->set_visible(false);
+	lobby_panel->set_anchor(SIDE_LEFT, 0.0f);
+	lobby_panel->set_anchor(SIDE_RIGHT, 0.0f);
+	lobby_panel->set_anchor(SIDE_TOP, 0.0f);
+	lobby_panel->set_anchor(SIDE_BOTTOM, 0.0f);
+	lobby_panel->set_offset(SIDE_LEFT, 16.0f);
+	lobby_panel->set_offset(SIDE_RIGHT, 420.0f);
+	lobby_panel->set_offset(SIDE_TOP, 52.0f);
+	lobby_panel->set_offset(SIDE_BOTTOM, 320.0f);
+	ui_layer->add_child(lobby_panel);
+
+	VBoxContainer *lobby_box = memnew(VBoxContainer);
+	lobby_box->set_anchors_preset(Control::PRESET_FULL_RECT);
+	lobby_box->set_offset(SIDE_LEFT, 8);
+	lobby_box->set_offset(SIDE_RIGHT, -8);
+	lobby_box->set_offset(SIDE_TOP, 8);
+	lobby_box->set_offset(SIDE_BOTTOM, -8);
+	lobby_panel->add_child(lobby_box);
+
+	Label *lobby_title = memnew(Label);
+	lobby_title->set_text("Multiplayer lobby");
+	lobby_box->add_child(lobby_title);
+
+	HBoxContainer *name_row = memnew(HBoxContainer);
+	lobby_name = memnew(LineEdit);
+	lobby_name->set_placeholder("Player name");
+	lobby_name->set_text("Player");
+	lobby_name->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+	name_row->add_child(lobby_name);
+	lobby_host = memnew(LineEdit);
+	lobby_host->set_placeholder("127.0.0.1");
+	lobby_host->set_text("127.0.0.1");
+	lobby_host->set_custom_minimum_size(Vector2(110, 0));
+	name_row->add_child(lobby_host);
+	lobby_port = memnew(LineEdit);
+	lobby_port->set_placeholder("20595");
+	lobby_port->set_text("20595");
+	lobby_port->set_custom_minimum_size(Vector2(70, 0));
+	name_row->add_child(lobby_port);
+	lobby_box->add_child(name_row);
+
+	lobby_rooms = memnew(ItemList);
+	lobby_rooms->set_custom_minimum_size(Vector2(0, 140));
+	lobby_box->add_child(lobby_rooms);
+
+	HBoxContainer *lobby_actions = memnew(HBoxContainer);
+	Button *host_b = memnew(Button);
+	host_b->set_text("Host");
+	host_b->connect("pressed", Callable(this, "_on_lobby_host_pressed"));
+	lobby_actions->add_child(host_b);
+	Button *join_b = memnew(Button);
+	join_b->set_text("Join");
+	join_b->connect("pressed", Callable(this, "_on_lobby_join_pressed"));
+	lobby_actions->add_child(join_b);
+	Button *ref_b = memnew(Button);
+	ref_b->set_text("Refresh");
+	ref_b->connect("pressed", Callable(this, "_on_lobby_refresh_pressed"));
+	lobby_actions->add_child(ref_b);
+	lobby_box->add_child(lobby_actions);
+
+	lobby_status = memnew(Label);
+	lobby_status->set_text("Lobby HTTP 127.0.0.1:8088 — run tools/lobby_server.py");
+	lobby_box->add_child(lobby_status);
 
 	// =========================================================================
 	// 2. BOTTOM INSPECTOR PANEL (5-Bar Stack: Health, Capture, XP, Stamina, Aura)
@@ -1095,7 +1181,8 @@ void RtsoMain::play_civ_voice(const char *action) {
 				? "res://assets/sounds/voice/hellenes/ergon.ogg"
 				: "res://assets/sounds/voice/greek/civ_female_work_land_1.ogg";
 		}
-	} else if (current_civ == rtso::CIV_ROMANS) {
+	} else if (current_civ == rtso::CIV_ROMANS || current_civ == rtso::CIV_BRITONS ||
+	           current_civ == rtso::CIV_GAULS) {
 		// Latin / Roman voice pool
 		if (act == "select") {
 			const char *opts[] = {
@@ -1121,7 +1208,8 @@ void RtsoMain::play_civ_voice(const char *action) {
 		} else if (act == "gather") {
 			chosen_file = "res://assets/sounds/voice/latin/civ_male_work_land_1.ogg";
 		}
-	} else if (current_civ == rtso::CIV_PERSIANS) {
+	} else if (current_civ == rtso::CIV_PERSIANS || current_civ == rtso::CIV_CARTHAGINIANS ||
+	           current_civ == rtso::CIV_IBERIANS || current_civ == rtso::CIV_MAURYANS) {
 		// Persian voice pool
 		if (act == "select") {
 			const char *opts[] = {
@@ -1391,6 +1479,10 @@ void RtsoMain::update_ghost_mesh() {
 }
 
 void RtsoMain::_process(double delta) {
+	if (net_host_.getRole() != rtso::NetRole::None) {
+		net_host_.poll(net_arena_);
+		net_arena_.reset();
+	}
 	if (paused_via_menu) return;
 	double scaled_delta = delta * game_speed;
 	match_elapsed_time += scaled_delta;
@@ -2953,6 +3045,85 @@ void RtsoMain::_on_ai_behavior_selected(int index) {
 void RtsoMain::_on_victory_selected(int index) {
 	if (!sim || !victory_selector) return;
 	sim->set_victory_condition((uint8_t)victory_selector->get_item_id(index));
+}
+
+void RtsoMain::_on_voice_button_pressed() {
+	use_english_voice_orders_ = !use_english_voice_orders_;
+	if (voice_btn)
+		voice_btn->set_text(use_english_voice_orders_ ? "Voice: EN" : "Voice: Civ");
+}
+
+void RtsoMain::_on_lobby_button_pressed() {
+	if (!lobby_panel) return;
+	lobby_panel->set_visible(!lobby_panel->is_visible());
+	if (lobby_panel->is_visible())
+		refresh_lobby_rooms();
+}
+
+void RtsoMain::refresh_lobby_rooms() {
+	if (!lobby_rooms) return;
+	lobby_rooms->clear();
+	lobby_room_cache_.clear();
+	std::string body;
+	if (!rtso::lobby_http_get(lobby_http_host_, lobby_http_port_, "/rooms", body)) {
+		if (lobby_status)
+			lobby_status->set_text("Lobby unreachable — start: python3 tools/lobby_server.py");
+		return;
+	}
+	lobby_room_cache_ = rtso::parse_lobby_rooms(body);
+	for (const auto &r : lobby_room_cache_) {
+		String line = String(r.id.c_str()) + "  " + String(r.host_ip.c_str()) + ":" +
+		              String::num_int64(r.host_port) + "  " + String::num_int64(r.players) +
+		              "/" + String::num_int64(r.max_players) + "  " + String(r.map_id.c_str());
+		lobby_rooms->add_item(line);
+	}
+	if (lobby_status)
+		lobby_status->set_text(String::num_int64((int64_t)lobby_room_cache_.size()) + " rooms");
+}
+
+void RtsoMain::_on_lobby_refresh_pressed() {
+	refresh_lobby_rooms();
+}
+
+void RtsoMain::_on_lobby_host_pressed() {
+	rtso::NetConfig cfg;
+	cfg.port = (uint16_t)lobby_port->get_text().to_int();
+	if (cfg.port == 0) cfg.port = rtso::PS_DEFAULT_PORT;
+	net_host_.setLocalPlayerName(lobby_name->get_text().utf8().get_data());
+	if (!net_host_.startHost(cfg)) {
+		if (lobby_status) lobby_status->set_text("Host bind failed");
+		return;
+	}
+	std::ostringstream js;
+	js << "{\"id\":\"room-" << cfg.port << "\",\"host_ip\":\"127.0.0.1\",\"host_port\":"
+	   << cfg.port << ",\"players\":1,\"max_players\":" << (int)cfg.maxPlayers
+	   << ",\"map_id\":\"default\"}";
+	std::string body;
+	rtso::lobby_http_post_json(lobby_http_host_, lobby_http_port_, "/rooms", js.str(), body);
+	if (lobby_status) lobby_status->set_text("Hosting on " + String::num_int64(cfg.port));
+	refresh_lobby_rooms();
+}
+
+void RtsoMain::_on_lobby_join_pressed() {
+	std::string ip = lobby_host->get_text().utf8().get_data();
+	uint16_t port = (uint16_t)lobby_port->get_text().to_int();
+	PackedInt32Array sel = lobby_rooms->get_selected_items();
+	if (sel.size() > 0) {
+		int idx = sel[0];
+		if (idx >= 0 && (size_t)idx < lobby_room_cache_.size()) {
+			ip = lobby_room_cache_[(size_t)idx].host_ip;
+			port = lobby_room_cache_[(size_t)idx].host_port;
+		}
+	}
+	if (port == 0) port = rtso::PS_DEFAULT_PORT;
+	if (ip.empty()) ip = "127.0.0.1";
+	net_host_.setLocalPlayerName(lobby_name->get_text().utf8().get_data());
+	if (!net_host_.startClient(ip, port)) {
+		if (lobby_status) lobby_status->set_text("Join failed");
+		return;
+	}
+	if (lobby_status)
+		lobby_status->set_text("Connecting " + String(ip.c_str()) + ":" + String::num_int64(port));
 }
 
 void RtsoMain::set_civ(int civ_idx) {

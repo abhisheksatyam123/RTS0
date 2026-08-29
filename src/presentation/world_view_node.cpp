@@ -113,6 +113,19 @@ void RtsoWorldView::init_animation_controllers() {
 	anim_controllers[rtso::UNIT_CAVALRY].load_rig(rtso::RigType::Mounted);
 	anim_controllers[rtso::UNIT_HEALER].load_rig(rtso::RigType::Healer);
 	anim_controllers[rtso::UNIT_SIEGE_RAM].load_rig(rtso::RigType::SiegeRam);
+	anim_controllers[rtso::UNIT_HERO].load_rig(rtso::RigType::Biped);
+	anim_controllers[rtso::UNIT_TRADER].load_rig(rtso::RigType::Mounted);
+	anim_controllers[rtso::UNIT_ARCHER_MAIDEN].load_rig(rtso::RigType::Archer);
+	anim_controllers[rtso::UNIT_CARNYX].load_rig(rtso::RigType::Biped);
+	anim_controllers[rtso::UNIT_ELEPHANT].load("elephant");
+	anim_controllers[rtso::UNIT_WORKER_ELEPHANT].load("elephant");
+	anim_controllers[rtso::UNIT_CAMEL].load("camel");
+	anim_controllers[rtso::UNIT_CHARIOT].load("camel");
+	anim_controllers[rtso::UNIT_SCYTHED_CHARIOT].load("camel");
+	anim_controllers[rtso::UNIT_WAR_DOG].load("dog");
+	anim_controllers[rtso::UNIT_CATAPULT].load("catapult");
+	anim_controllers[rtso::UNIT_BOLT_SHOOTER].load("bolt");
+	anim_controllers[rtso::UNIT_FEMALE_CITIZEN].load("female");
 }
 
 void RtsoWorldView::_ready() {
@@ -198,9 +211,14 @@ void RtsoWorldView::_ready() {
 
 	// Fauna (Wildlife) batches
 	fauna_mm[rtso::FAUNA_DEER] = create_multimesh(rtso::ModelLibrary::get("vegetation", "pine").mesh, false);
-	fauna_mm[rtso::FAUNA_BOAR] = create_multimesh(rtso::ModelLibrary::get("vegetation", "stone_mine").mesh, false);
-	fauna_mm[rtso::FAUNA_SHEEP] = create_multimesh(rtso::ModelLibrary::get("vegetation", "tree").mesh, false);
-	fauna_mm[rtso::FAUNA_WOLF] = create_multimesh(rtso::ModelLibrary::get("vegetation", "gold_vein").mesh, false);
+	{
+		auto boar = rtso::ModelLibrary::get("units", "boar");
+		fauna_mm[rtso::FAUNA_BOAR] = create_multimesh(boar.mesh.is_valid() ? boar.mesh : rtso::ModelLibrary::get("vegetation", "stone_mine").mesh, false);
+		auto sheep = rtso::ModelLibrary::get("units", "sheep");
+		fauna_mm[rtso::FAUNA_SHEEP] = create_multimesh(sheep.mesh.is_valid() ? sheep.mesh : rtso::ModelLibrary::get("vegetation", "tree").mesh, false);
+		auto wolf = rtso::ModelLibrary::get("units", "wolf");
+		fauna_mm[rtso::FAUNA_WOLF] = create_multimesh(wolf.mesh.is_valid() ? wolf.mesh : rtso::ModelLibrary::get("vegetation", "gold_vein").mesh, false);
+	}
 
 	for (int f = 0; f < rtso::FAUNA_COUNT; ++f) {
 		fauna_mmi[f] = memnew(MultiMeshInstance3D);

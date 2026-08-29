@@ -125,6 +125,8 @@ def check_pathfinder_wiring():
         checks["Long octile note"] = "octile" in gtxt.lower() or "PathCost" in gtxt or "92682" in gtxt
         checks["is_passable_for() ship/land"] = "is_passable_for" in gtxt and "PASS_SHIP" in gtxt
         checks["string_pull() on A* paths"] = "void string_pull" in gtxt and "string_pull(path_cells" in gtxt
+        checks["rebuild_regions() hierarchical"] = "void rebuild_regions" in gtxt and "reachable(" in gtxt
+        checks["ship + land region maps"] = "ship_region_map_" in gtxt and "flood_chunk_regions" in gtxt
     else:
         for k in ["Grid<T> template","NavGrid struct","NavCell enum","WaypointPath struct","world_to_cell()","set_water_from_heights()","Hierarchical CHUNK_SIZE note","Long octile note"]:
             checks[k] = False
@@ -143,6 +145,7 @@ def check_pathfinder_wiring():
         checks["simulation.cpp rebuild_nav_grid impl (or TODO)"] = "rebuild_nav_grid" in ctxt
         checks["simulation.cpp find_path impl (or TODO)"] = "find_path" in ctxt
         checks["cmd_move uses PASS_SHIP for boats"] = "PASS_SHIP" in ctxt and "UNIT_TRIREME" in ctxt
+        checks["rebuild_nav_grid calls rebuild_regions"] = "rebuild_regions()" in ctxt
     return checks
 
 def compute_g_gaps(manifest_counts, js_count, ticks, pmd_count, wiring):
@@ -403,6 +406,7 @@ def check_netcode_parity():
         "TurnManager::tick OOS detection": "SyncCheckMsg" in tm_txt and "oos_detected_" in tm_txt and "compute_sim_hash" in tm_txt,
         "LobbyRoom list + publishLobbyRoom": "LobbyRoom" in host_txt and "publishLobbyRoom" in host_txt,
         "Client auto-auth on handshake response": "NMT_SERVER_HANDSHAKE_RESPONSE" in host_txt and "sendAuthenticate" in host_txt,
+        "HTTP lobby client helper": (ROOT / "src/network/lobby_client.h").is_file(),
     }
     ok = sum(checks.values())
     total = len(checks)
@@ -499,6 +503,8 @@ def check_petra_parity():
         "tick_petra_ai wires transport + queue refresh": "petra_manage_transport(dt)" in ctxt and "petra_refresh_queue_accounts()" in ctxt,
         "Concurrent raid AttackPlan (petra_raid_plan_)": "petra_raid_plan_" in htxt and "petra_manage_raid" in ctxt and "find_petra_raid_target" in ctxt,
         "startingStrategy.js opening House/Storehouse/Barracks": "petra_manage_opening" in ctxt and "petra_opening_step_" in htxt,
+        "naval fishing boats + gather": "UNIT_FISHING_BOAT" in ctxt and "target_fishers" in ctxt,
+        "research pop-gated Town/City phase": "work_phase3" in ctxt and "TECH_PHASE_TOWN" in ctxt and "pop_phase2" in ctxt,
     }
 
     ok = sum(checks.values())

@@ -134,6 +134,9 @@ struct NavGrid {
     // Two navcells are connected iff global_region_[key(A)] == global_region_[key(B)] != 0.
     // Mirrors HierarchicalPathfinder::m_GlobalRegions (HierarchicalPathfinder.h:298).
     std::unordered_map<uint32_t, uint16_t> global_region_map_;
+    Grid<uint8_t> ship_chunk_regions_;
+    std::unordered_map<uint32_t, uint16_t> ship_region_map_;
+    bool regions_ready_ = false;
 
     // Number of chunks per axis: res / CHUNK_SIZE
     int chunks_per_axis_ = DEFAULT_RES / CHUNK_SIZE; // 64/8 = 8
@@ -145,7 +148,10 @@ struct NavGrid {
         dirty = Grid<uint8_t>(res, res, 0);
         chunks_per_axis_ = res / CHUNK_SIZE;
         chunk_regions_ = Grid<uint8_t>(res, res, 0);
+        ship_chunk_regions_ = Grid<uint8_t>(res, res, 0);
         global_region_map_.clear();
+        ship_region_map_.clear();
+        regions_ready_ = false;
     }
 
     // World (x,z) in [-map_half, +map_half] -> cell (cx,cy) in [0,res)
@@ -222,6 +228,132 @@ struct NavGrid {
             i = best;
         }
         cells.swap(out);
+    }
+
+    static uint32_t region_key(int ci, int cj, uint8_t local_r) {
+        return (static_cast<uint32_t>(ci) << 16) | (static_cast<uint32_t>(cj) << 8) | static_cast<uint32_t>(local_r);
+    }
+
+    // Port of HierarchicalPathfinder::Chunk::InitRegions (scan/flood per CHUNK_SIZE)
+    // + ComputeNeighbors (union across chunk edges) + UpdateGlobalRegions.
+    // Vendor: src/0ad/simulation2/helpers/HierarchicalPathfinder.cpp:50, :523, :652
+    void flood_chunk_regions(uint8_t pass, Grid<uint8_t> &local, std::unordered_map<uint32_t, uint16_t> &global) {
+        local.fill(0);
+        global.clear();
+        if (cells.blank()) return;
+
+        for (int cj = 0; cj < chunks_per_axis_; ++cj) {
+            for (int ci = 0; ci < chunks_per_axis_; ++ci) {
+                uint8_t next_r = 1;
+                const int x0 = ci * CHUNK_SIZE;
+                const int y0 = cj * CHUNK_SIZE;
+                const int x1 = std::min(x0 + CHUNK_SIZE, res);
+                const int y1 = std::min(y0 + CHUNK_SIZE, res);
+                for (int y = y0; y < y1; ++y) {
+                    for (int x = x0; x < x1; ++x) {
+                        if (!is_passable_for(x, y, pass) || local.at(x, y) != 0) continue;
+                        std::vector<std::pair<int,int>> q;
+                        q.emplace_back(x, y);
+                        local.at(x, y) = next_r;
+                        for (size_t qi = 0; qi < q.size(); ++qi) {
+                            int cx = q[qi].first, cy = q[qi].second;
+                            static const int d[4][2] = {{1,0},{-1,0},{0,1},{0,-1}};
+                            for (const auto &dir : d) {
+                                int nx = cx + dir[0], ny = cy + dir[1];
+                                if (nx < x0 || ny < y0 || nx >= x1 || ny >= y1) continue;
+                                if (!is_passable_for(nx, ny, pass) || local.at(nx, ny) != 0) continue;
+                                local.at(nx, ny) = next_r;
+                                q.emplace_back(nx, ny);
+                            }
+                        }
+                        ++next_r;
+                    }
+                }
+            }
+        }
+
+        std::unordered_map<uint32_t, uint32_t> parent;
+        auto findp = [&](uint32_t k) {
+            if (!parent.count(k)) parent[k] = k;
+            uint32_t p = k;
+            while (parent[p] != p) p = parent[p];
+            uint32_t c = k;
+            while (parent[c] != p) {
+                uint32_t n = parent[c];
+                parent[c] = p;
+                c = n;
+            }
+            return p;
+        };
+        auto unite = [&](uint32_t a, uint32_t b) {
+            a = findp(a);
+            b = findp(b);
+            if (a != b) parent[b] = a;
+        };
+
+        auto seed_key = [&](int x, int y) {
+            uint8_t lr = local.at(x, y);
+            if (!lr) return;
+            parent[region_key(x / CHUNK_SIZE, y / CHUNK_SIZE, lr)] =
+                region_key(x / CHUNK_SIZE, y / CHUNK_SIZE, lr);
+        };
+        for (int y = 0; y < res; ++y)
+            for (int x = 0; x < res; ++x)
+                seed_key(x, y);
+
+        for (int cj = 0; cj < chunks_per_axis_; ++cj) {
+            for (int ci = 0; ci < chunks_per_axis_ - 1; ++ci) {
+                int x = (ci + 1) * CHUNK_SIZE - 1;
+                int x2 = x + 1;
+                if (x2 >= res) continue;
+                for (int y = cj * CHUNK_SIZE; y < (cj + 1) * CHUNK_SIZE && y < res; ++y) {
+                    uint8_t r1 = local.at(x, y), r2 = local.at(x2, y);
+                    if (r1 && r2) unite(region_key(ci, cj, r1), region_key(ci + 1, cj, r2));
+                }
+            }
+        }
+        for (int ci = 0; ci < chunks_per_axis_; ++ci) {
+            for (int cj = 0; cj < chunks_per_axis_ - 1; ++cj) {
+                int y = (cj + 1) * CHUNK_SIZE - 1;
+                int y2 = y + 1;
+                if (y2 >= res) continue;
+                for (int x = ci * CHUNK_SIZE; x < (ci + 1) * CHUNK_SIZE && x < res; ++x) {
+                    uint8_t r1 = local.at(x, y), r2 = local.at(x, y2);
+                    if (r1 && r2) unite(region_key(ci, cj, r1), region_key(ci, cj + 1, r2));
+                }
+            }
+        }
+
+        uint16_t next_g = 1;
+        std::unordered_map<uint32_t, uint16_t> root_ids;
+        for (const auto &kv : parent) {
+            uint32_t root = findp(kv.first);
+            if (!root_ids.count(root)) root_ids[root] = next_g++;
+            global[kv.first] = root_ids[root];
+        }
+    }
+
+    void rebuild_regions() {
+        flood_chunk_regions(PASS_INFANTRY, chunk_regions_, global_region_map_);
+        flood_chunk_regions(PASS_SHIP, ship_chunk_regions_, ship_region_map_);
+        regions_ready_ = true;
+    }
+
+    uint16_t global_region_at(int cx, int cy, uint8_t pass = PASS_INFANTRY) const {
+        const Grid<uint8_t> &local = (pass == PASS_SHIP) ? ship_chunk_regions_ : chunk_regions_;
+        const auto &gmap = (pass == PASS_SHIP) ? ship_region_map_ : global_region_map_;
+        if (local.blank() || !local.inside(cx, cy)) return 0;
+        uint8_t lr = local.at(cx, cy);
+        if (!lr) return 0;
+        auto it = gmap.find(region_key(cx / CHUNK_SIZE, cy / CHUNK_SIZE, lr));
+        return it == gmap.end() ? 0 : it->second;
+    }
+
+    bool reachable(int sx, int sy, int tx, int ty, uint8_t pass = PASS_INFANTRY) const {
+        if (!regions_ready_) return true;
+        uint16_t a = global_region_at(sx, sy, pass);
+        uint16_t b = global_region_at(tx, ty, pass);
+        return a != 0 && a == b;
     }
 
     // Territory blur — 3x3 box blur (avg neighbor count >4) for soft borders
@@ -405,6 +537,41 @@ inline bool NavGrid::find_path(float sx, float sz, float tx, float tz, WaypointP
     if (!is_passable_for(scx, scy, pass) || !is_passable_for(tcx, tcy, pass)) {
         out.push_back(tx, tz);
         return false;
+    }
+    // HierarchicalPathfinder.cpp:689 MakeGoalReachable — if the goal region is not
+    // connected to the start, snap to the nearest navcell in the start global region
+    // instead of failing (0 A.D. never leaves the unit with an island goal).
+    {
+        const uint8_t rpass = (pass == PASS_SHIP) ? PASS_SHIP : PASS_INFANTRY;
+        if (regions_ready_ && !reachable(scx, scy, tcx, tcy, rpass)) {
+            const uint16_t want = global_region_at(scx, scy, rpass);
+            int best_d = 1 << 30;
+            int bx = tcx, by = tcy;
+            bool found = false;
+            if (want != 0) {
+                for (int y = 0; y < res; ++y) {
+                    for (int x = 0; x < res; ++x) {
+                        if (global_region_at(x, y, rpass) != want) continue;
+                        int dx = x - tcx, dy = y - tcy;
+                        int d = dx * dx + dy * dy;
+                        if (d < best_d) {
+                            best_d = d;
+                            bx = x;
+                            by = y;
+                            found = true;
+                        }
+                    }
+                }
+            }
+            if (!found) {
+                out.push_back(tx, tz);
+                return false;
+            }
+            tcx = bx;
+            tcy = by;
+            tx = ((static_cast<float>(tcx) + 0.5f) / static_cast<float>(res)) * (map_half * 2.0f) - map_half;
+            tz = ((static_cast<float>(tcy) + 0.5f) / static_cast<float>(res)) * (map_half * 2.0f) - map_half;
+        }
     }
     if (scx == tcx && scy == tcy) {
         out.push_back(tx, tz);

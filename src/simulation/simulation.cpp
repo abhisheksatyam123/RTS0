@@ -610,6 +610,7 @@ void Simulation::rebuild_nav_grid() {
 		int sy = cy - footprint / 2;
 		nav_grid_.mark_building(sx, sy, footprint, NAV_OBSTRUCTED);
 	}
+	nav_grid_.rebuild_regions();
 }
 
 void Simulation::rebuild_territory() {
@@ -3799,6 +3800,30 @@ void Simulation::update_petra_bases(float dt) {
 		}
 		base.resources_depleted = (safe_nodes <= 2 || total_amount < 1200);
 	}
+
+	// Send idle villagers to a depleted-primary expansion (baseManager.js)
+	if (petra_bases_.size() >= 2) {
+		const PetraBase *dest = nullptr;
+		for (const auto &b : petra_bases_) {
+			if (!b.is_primary && b.assigned_workers < 4) {
+				dest = &b;
+				break;
+			}
+		}
+		if (dest) {
+			int sent = 0;
+			for (size_t i = 0; i < units_.count && sent < 3; ++i) {
+				if (!units_.alive[i] || units_.team[i] != 1 || units_.unit_type[i] != UNIT_VILLAGER) continue;
+				if (units_.action_state[i] != ACTION_IDLE) continue;
+				float dx = units_.pos_x[i] - dest->x;
+				float dz = units_.pos_z[i] - dest->z;
+				if (dx * dx + dz * dz <= dest->radius * dest->radius) continue;
+				uint32_t uid = units_.id[i];
+				cmd_move(&uid, 1, dest->x, dest->z);
+				++sent;
+			}
+		}
+	}
 }
 
 void Simulation::petra_manage_scouting(float dt) {
@@ -4597,6 +4622,56 @@ void Simulation::petra_manage_naval(float dt) {
 		}
 	}
 
+	// 2b. navalManager.js — fishing boats on food clusters near docks
+	int ai_fishers = 0;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (units_.alive[i] && units_.team[i] == 1 && units_.unit_type[i] == UNIT_FISHING_BOAT)
+			ai_fishers++;
+	}
+	int target_fishers = (petra_phase_ >= 2) ? 3 : 2;
+	if (ai_fishers < target_fishers && !dock_ids.empty() && ai_pop_current() < ai_pop_max()) {
+		const UnitTypeInfo &finfo = unit_type_info(UNIT_FISHING_BOAT);
+		if (petra_try_pay(PETRA_QUEUE_NAVAL, 0.0f, (float)finfo.wood_cost, (float)finfo.gold_cost, 0.0f)) {
+			auto bit = building_id_to_idx_.find(dock_ids[0]);
+			if (bit != building_id_to_idx_.end() && buildings_[bit->second].queue.size() < 3) {
+				ProductionOrder order;
+				order.unit_type = UNIT_FISHING_BOAT;
+				order.timer = 0.0f;
+				order.duration = finfo.train_time * 0.75f;
+				buildings_[bit->second].queue.push_back(order);
+			}
+		}
+	}
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != 1 || units_.unit_type[i] != UNIT_FISHING_BOAT) continue;
+		if (units_.action_state[i] != ACTION_IDLE && units_.action_state[i] != ACTION_MOVE) continue;
+		if (units_.carry[i] > 0) continue;
+		uint32_t best_rid = 0;
+		float best_d2 = 40.0f * 40.0f;
+		for (size_t r = 0; r < resources_.count; ++r) {
+			if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
+			if (resources_.type[r] != RES_FOOD) continue;
+			// navalManager.js:223 canFishSafely — skip fish in enemy territory
+			int owner = territory_owner_at(resources_.x[r], resources_.z[r]);
+			if (owner >= 0 && owner != 1) continue;
+			auto [fcx, fcy] = nav_grid_.world_to_cell(resources_.x[r], resources_.z[r]);
+			if (!nav_grid_.is_passable_for(fcx, fcy, PASS_SHIP) &&
+			    nav_grid_.cells.at(fcx, fcy) != NAV_WATER)
+				continue;
+			float dx = resources_.x[r] - units_.pos_x[i];
+			float dz = resources_.z[r] - units_.pos_z[i];
+			float d2 = dx * dx + dz * dz;
+			if (d2 < best_d2) {
+				best_d2 = d2;
+				best_rid = resources_.id[r];
+			}
+		}
+		if (best_rid) {
+			uint32_t uid = units_.id[i];
+			order_gather(&uid, 1, best_rid);
+		}
+	}
+
 	// 3. Coastal Patrol & Maritime Defense
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != 1 || units_.unit_type[i] != UNIT_TRIREME) continue;
@@ -4996,13 +5071,31 @@ void Simulation::petra_manage_research(float dt) {
 		return true;
 	};
 
-	if (petra_phase_ == 1 && start_tech(TECH_PHASE_TOWN)) return;
+	// researchManager.js:15 checkPhase — Town at pop >= Economy.popPhase2,
+	// City when workers > Economy.workPhase3 (not a 0.55 fudge).
+	int pop = ai_pop_current();
+	int workers = 0;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (units_.alive[i] && units_.team[i] == 1 &&
+		    (units_.unit_type[i] == UNIT_VILLAGER || units_.unit_type[i] == UNIT_FEMALE_CITIZEN ||
+		     units_.unit_type[i] == UNIT_FISHING_BOAT))
+			++workers;
+	}
+
+	if (petra_phase_ == 1) {
+		if (pop < petra_config_.pop_phase2) {
+			if (start_tech(TECH_FARMING_1)) return;   // researchWantedTechs village
+			if (start_tech(TECH_WOODCUTTING_1)) return;
+			return;
+		}
+		if (start_tech(TECH_PHASE_TOWN)) return;
+	}
 	if (petra_phase_ >= 2) {
 		if (start_tech(TECH_FARMING_1)) return;
 		if (start_tech(TECH_WOODCUTTING_1)) return;
 		if (start_tech(TECH_MINING_1)) return;
 	}
-	if (petra_phase_ == 2 && start_tech(TECH_PHASE_CITY)) return;
+	if (petra_phase_ == 2 && workers > petra_config_.work_phase3 && start_tech(TECH_PHASE_CITY)) return;
 	if (petra_phase_ >= 3) {
 		if (start_tech(TECH_WEAPONS_1)) return;
 		if (start_tech(TECH_ARMOR_1)) return;
@@ -5660,15 +5753,16 @@ void Simulation::petra_manage_opening(float dt) {
 		return n;
 	};
 
+	// startingStrategy.js:513 — wood dropsite first, then houses, then barracks
 	uint8_t want = BLD_HOUSE;
 	uint8_t queue = PETRA_QUEUE_VILLAGER;
 	int have_needed = 0;
-	if (petra_opening_step_ == 0 || petra_opening_step_ == 1) {
-		want = BLD_HOUSE;
-		have_needed = petra_opening_step_ + 1;
-	} else if (petra_opening_step_ == 2) {
+	if (petra_opening_step_ == 0) {
 		want = BLD_STOREHOUSE;
 		have_needed = 1;
+	} else if (petra_opening_step_ == 1 || petra_opening_step_ == 2) {
+		want = BLD_HOUSE;
+		have_needed = petra_opening_step_;
 	} else {
 		want = BLD_BARRACKS;
 		queue = PETRA_QUEUE_MILITARY;

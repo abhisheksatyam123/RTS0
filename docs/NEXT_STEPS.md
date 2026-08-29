@@ -1,8 +1,18 @@
 # Next Steps (prioritized)
 
-> **2026-08-29 Audit** — This file was **re-prioritized** against true parity (`docs/REMAINING_GAPS.md` G1-G10). The old P0-P4 below are kept as **legacy** (2026-08-24 MVP checklist). New P0-P5 is the source of truth, ordered by unblock (Navigation → Territory → Economy → Combat → UI/Assets → Network → Petra). Native SoA is `src/simulation/simulation.cpp:4194`; vendor is reference only `SConstruct:28`.
+> **Live plan:** [`docs/PLAN.md`](PLAN.md) — 0 A.D. file:line + RTS0 targets. Do not use the legacy P0–P5 below for new work.
 
-## P0 — Foundation + Navigation (G1) — **Blocking**
+> **2026-08-29 evening** — P0–P5 from the morning audit are largely done (A* + hierarchical reachability, territory/auras/market, Petra raid/opening/queues, lobby host/join UI). Use the live list below. Legacy P0–P5 text after that is historical.
+
+## Now — playtest and remaining fidelity
+
+1. **Two-client match** — Host + Join via Lobby panel; run `python3 tools/lobby_server.py`; confirm handshake/auth and TurnManager hashes. Fix the first OOS you see.
+2. **JPS / slope** — hierarchical reject is live; still no Jump Point Search or cavalry slope class.
+3. **Petra naval combat** — fishing + docks + trireme patrol exist; boarding vs enemy ships and dock raids are thin.
+4. **Civ-unique art** — roster shares one mesh per type; next is per-civ actors, not more fallback IDs.
+5. **Fixed lockstep (optional)** — only if ranked 1v1; keep float + snapshot for co-op.
+
+## P0 — Foundation + Navigation (G1) — **Blocking** (done enough; see “Now”)
 
 - **G1 Pathfinding 5%** `CCmpPathfinder.cpp` / `HierarchicalPathfinder.h:353` vs `src/simulation/simulation.cpp:1253` `move_units` straight-line, `separation:1432`, `Grid.h:412` unused → port `HierarchicalPathfinder` + `LongPathfinder.cpp:400` octile onto `src/simulation/grid_nav.h` `NavGrid` (64×64) + `WaypointPath::MAX_WP=64`.
 - **Phase 0 checklist (must be done with G1):** `src/simulation/grid_nav.h` wiring, `territory_grid_` `Grid<uint8_t>` in `Simulation` (`simulation.h`), SoA `kills/rank` verify + `waypoint` per-unit `WaypointPath path[UNIT_CAP]`, `tools/check_parity.py` for `Grid.h`/`LongPathfinder`/`Hierarchical` octet.

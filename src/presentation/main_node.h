@@ -26,6 +26,11 @@
 #include <godot_cpp/classes/audio_stream.hpp>
 #include <godot_cpp/classes/time.hpp>
 #include <godot_cpp/classes/option_button.hpp>
+#include <godot_cpp/classes/control.hpp>
+#include <godot_cpp/classes/item_list.hpp>
+#include "../network/net_host.h"
+#include "../network/lobby_client.h"
+#include "../core/memory/arena.h"
 #include <godot_cpp/classes/rich_text_label.hpp>
 #include <godot_cpp/classes/line_edit.hpp>
 #include <godot_cpp/classes/h_separator.hpp>
@@ -82,6 +87,19 @@ class RtsoMain : public Node3D {
 	OptionButton *ai_diff_selector = nullptr;
 	OptionButton *ai_behavior_selector = nullptr;
 	OptionButton *victory_selector = nullptr;
+	Button *lobby_btn = nullptr;
+	Button *voice_btn = nullptr;
+	Panel *lobby_panel = nullptr;
+	ItemList *lobby_rooms = nullptr;
+	LineEdit *lobby_name = nullptr;
+	LineEdit *lobby_host = nullptr;
+	LineEdit *lobby_port = nullptr;
+	Label *lobby_status = nullptr;
+	rtso::NetHost net_host_;
+	rtso::Arena net_arena_{64 * 1024};
+	std::vector<rtso::LobbyRoomInfo> lobby_room_cache_;
+	std::string lobby_http_host_ = "127.0.0.1";
+	uint16_t lobby_http_port_ = 8088;
 
 	// 2. Bottom Inspector Panel (5-Bar Stack: Health, Capture, XP, Stamina, Aura)
 	Panel *inspector_panel = nullptr;
@@ -189,6 +207,12 @@ public:
 	void _on_ai_diff_selected(int index);
 	void _on_ai_behavior_selected(int index);
 	void _on_victory_selected(int index);
+	void _on_lobby_button_pressed();
+	void _on_voice_button_pressed();
+	void _on_lobby_host_pressed();
+	void _on_lobby_join_pressed();
+	void _on_lobby_refresh_pressed();
+	void refresh_lobby_rooms();
 	void _on_barter_requested(int sell_type, int buy_type, int amount);
 
 	void _on_queue_slot_gui_input(const Ref<InputEvent> &event, int slot_idx);

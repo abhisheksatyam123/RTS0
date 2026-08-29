@@ -1,9 +1,11 @@
 #ifndef RTSO_PETRA_AI_H
 #define RTSO_PETRA_AI_H
 
-// Native collapse of 0 A.D. ai/petra/{config,difficultyLevel,defenseManager,
-// defenseArmy,garrisonManager,emergencyManager,diplomacyManager,victoryManager}.js
-// Wired from Simulation::tick_petra_ai. Vendor JS remains reference-only.
+// Native collapse of 0 A.D. Petra JS. Vendor (not compiled):
+//   0ad/source/mods/public/simulation/ai/petra/{config,difficultyLevel,
+//   startingStrategy,researchManager,navalManager,attackPlan,queueManager,
+//   defenseManager,emergencyManager,diplomacyManager,victoryManager}.js
+// Wired from Simulation::tick_petra_ai.
 
 #include "sim_types.h"
 #include <cstdint>
@@ -55,7 +57,8 @@ struct PetraConfig {
 	float army_compact_sq   = 2000.0f; // Defense.armyCompactSize
 	int   target_num_workers = 60;
 	int   target_num_traders = 3;
-	int   pop_phase2         = 55;
+	int   pop_phase2         = 55;   // config.js Economy.popPhase2
+	int   work_phase3        = 40;   // config.js Economy.workPhase3 (scaled down for our pop cap)
 	int   muster_delta       = 0;     // +/- army threshold from personality
 
 	float garrison_hp_low  = 0.40f;
@@ -104,6 +107,11 @@ struct PetraConfig {
 		if (aggressive > 0.70f) muster_delta = -2;
 		if (defensive > 0.70f) muster_delta = 2;
 		pop_phase2 = (aggressive > 0.70f) ? 50 : 55;
+		// config.js:314–319 popScaling clamp; workPhase3 floor 40 in 0 A.D., smaller here
+		pop_phase2 = std::max(20, (int)((float)pop_phase2 * pop_scaling));
+		work_phase3 = std::max(18, (int)(40.0f * pop_scaling));
+		if (difficulty == PETRA_SANDBOX)
+			work_phase3 = 999; // config.js:322 sandbox never cities
 		prio_emergency = 1000;
 		prio_villager  = 300;
 		prio_military  = (aggressive > 0.70f) ? 720 : 600;
