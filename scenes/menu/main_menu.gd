@@ -1,16 +1,33 @@
 extends Control
-# Main menu — mirrors 0 A.D. page_splashscreen.xml + page_pregame.xml
-# Routes to gamesetup / lobby / options. Keeps SoA sim out of menu.
 
-func _on_single_pressed():
-	# Single-player skirmish: Gerasa (aegean) — mirrors 0ad autostart + page_pregame
+func _on_single_pressed() -> void:
+	play_click()
+	get_tree().change_scene_to_file("res://scenes/main.tscn")
+
+func _on_setup_pressed() -> void:
+	play_click()
 	get_tree().change_scene_to_file("res://scenes/menu/gamesetup.tscn")
 
-func _on_multi_pressed():
+func _on_encyclopedia_pressed() -> void:
+	play_click()
+	get_tree().change_scene_to_file("res://scenes/menu/encyclopedia.tscn")
+
+func _on_replays_pressed() -> void:
+	play_click()
+	get_tree().change_scene_to_file("res://scenes/menu/replay_browser.tscn")
+
+func _on_multi_pressed() -> void:
+	play_click()
 	get_tree().change_scene_to_file("res://scenes/menu/lobby.tscn")
 
-func _on_options_pressed():
+func _on_options_pressed() -> void:
+	play_click()
 	get_tree().change_scene_to_file("res://scenes/menu/options.tscn")
 
-func _on_exit_pressed():
+func _on_exit_pressed() -> void:
 	get_tree().quit()
+
+func play_click() -> void:
+	var sfx: AudioStreamPlayer = get_node_or_null("ClickSFX")
+	if sfx:
+		sfx.play()

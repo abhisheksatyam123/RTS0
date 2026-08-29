@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://c4expansionscene"]
+
+[ext_resource type="Script" path="res://scratch/test_expansion_systems.gd" id="1_exp"]
+
+[node name="TestExpansion" type="Node3D"]
+script = ExtResource("1_exp")

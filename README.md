@@ -13,7 +13,7 @@ See `docs/MULTIPLAYER.md` for the netcode model, platform matrix, and the archit
 - For device testing later: Android export templates + keystore; iOS requires macOS/Xcode
 
 ## Run / Build
-1. Build native GDExtension: `cd native && scons platform=linux target=template_release` (or debug)
+1. Build GDExtension: `scons platform=linux target=template_release` (or `template_debug`)
 2. Open in Godot 4.3 (Standard edition) and press **F5**, or run `python3 tools/build.py linux`
 
 ## Controls

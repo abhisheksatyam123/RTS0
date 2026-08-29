@@ -11,7 +11,7 @@ Everything must match:
 | C++ Standard | C++20 (`gcc` 11+, `clang` 14+, or MSVC 2022) |
 | SCons | 4.x (Python build tool) |
 
-> **Note:** RTS0 is built as a pure C++ GDExtension (`native/`). **.NET / C# / Mono SDK is NOT required.**
+> **Note:** RTS0 is built as a pure C++ GDExtension (`src/`). **.NET / C# / Mono SDK is NOT required.**
 
 ## One-time setup per machine
 
@@ -22,7 +22,7 @@ Everything must match:
    - Linux/macOS: extract the `.tpz` (it's a zip) and move the inner `templates/` folder to
      `~/.local/share/godot/export_templates/4.3.stable/`
    - Windows: `%APPDATA%\Godot\export_templates\4.3.stable\`
-4. Compile the native C++ library with SCons: `cd native && scons platform=linux target=template_release` (or `template_debug`)
+4. Compile the C++ GDExtension library with SCons: `scons platform=linux target=template_release` (or `template_debug`)
 
 ### Android extras
 - Android Studio or command-line SDK with: platform `android-34`, build-tools `34.0.0`

@@ -22,7 +22,6 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 BUILD = REPO / "build"
-NATIVE = REPO / "native"
 
 PRESETS = {
     "windows": ("Windows Desktop", BUILD / "windows" / "RTS0.exe"),
@@ -72,10 +71,10 @@ def main():
         # Build GDExtension C++ library first
         scons_cmd = shutil.which("scons")
         if scons_cmd:
-            print("== Building Native C++ GDExtension library ==")
+            print("== Building C++ GDExtension library ==")
             for t in targets:
                 platform = "windows" if t == "windows" else ("linux" if t == "linux" else t)
-                run([scons_cmd, f"platform={platform}", "target=template_release"], cwd=NATIVE)
+                run([scons_cmd, f"platform={platform}", "target=template_release"], cwd=REPO)
         else:
             print("Warning: SCons not found, skipping C++ native library build.", file=sys.stderr)
 

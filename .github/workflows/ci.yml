@@ -35,24 +35,24 @@ jobs:
         id: cache-godotcpp
         uses: actions/cache@v4
         with:
-          path: native/godot-cpp
-          key: godot-cpp-${{ env.GODOT_CPP_BRANCH }}-${{ hashFiles('native/SConstruct') }}
+          path: godot-cpp
+          key: godot-cpp-${{ env.GODOT_CPP_BRANCH }}-${{ hashFiles('SConstruct') }}
 
       - name: Fetch godot-cpp
         if: steps.cache-godotcpp.outputs.cache-hit != 'true'
         run: |
-          rm -rf native/godot-cpp
-          git clone --depth 1 --branch ${{ env.GODOT_CPP_BRANCH }} https://github.com/godotengine/godot-cpp.git native/godot-cpp
+          rm -rf godot-cpp
+          git clone --depth 1 --branch ${{ env.GODOT_CPP_BRANCH }} https://github.com/godotengine/godot-cpp.git godot-cpp
 
       - name: Build GDExtension (template_release)
         run: |
-          scons -C native target=template_release -j4
-          ls -lh native/bin/
+          scons target=template_release -j4
+          ls -lh bin/
 
       - uses: actions/upload-artifact@v4
         with:
           name: gdextension-linux
-          path: native/bin/
+          path: bin/
 
   export-desktop:
     name: Export ${{ matrix.name }}
@@ -84,7 +84,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: gdextension-linux
-          path: native/bin/
+          path: bin/
         # For Windows we rebuild; for Linux we reuse. Window build needs cross compile - for now reuse linux lib and build windows natively if on linux with mingw
         # Simpler: rebuild for target platform
       - name: Cache Godot binaries + templates
@@ -111,24 +111,24 @@ jobs:
 
       - name: Fetch godot-cpp (for scons)
         run: |
-          if [ ! -d native/godot-cpp ]; then
-            git clone --depth 1 --branch ${{ env.GODOT_CPP_BRANCH }} https://github.com/godotengine/godot-cpp.git native/godot-cpp
+          if [ ! -d godot-cpp ]; then
+            git clone --depth 1 --branch ${{ env.GODOT_CPP_BRANCH }} https://github.com/godotengine/godot-cpp.git godot-cpp
           fi
 
       - name: Build GDExtension for ${{ matrix.platform }}
         run: |
           if [ "${{ matrix.platform }}" = "linux" ]; then
-            scons -C native platform=linux target=template_release -j4
+            scons platform=linux target=template_release -j4
           else
             # Windows cross-build from linux using mingw - fallback to linux lib for now if mingw missing
             if which x86_64-w64-mingw32-g++ >/dev/null 2>&1; then
-              scons -C native platform=windows target=template_release -j4
+              scons platform=windows target=template_release -j4
             else
               echo "mingw not available, using linux lib as placeholder for windows export test"
-              cp native/bin/librtso.linux.template_release.x86_64.so native/bin/librtso.windows.template_release.x86_64.dll || true
+              cp bin/librtso.linux.template_release.x86_64.so bin/librtso.windows.template_release.x86_64.dll || true
             fi
           fi
-          ls -lh native/bin/
+          ls -lh bin/
 
       - name: Import resources
         run: xvfb-run godot --path . --import
@@ -177,14 +177,14 @@ jobs:
 
       - name: Fetch godot-cpp
         run: |
-          rm -rf native/godot-cpp
-          git clone --depth 1 --branch ${{ env.GODOT_CPP_BRANCH }} https://github.com/godotengine/godot-cpp.git native/godot-cpp
+          rm -rf godot-cpp
+          git clone --depth 1 --branch ${{ env.GODOT_CPP_BRANCH }} https://github.com/godotengine/godot-cpp.git godot-cpp
 
       - name: Build GDExtension for Android
         run: |
           # Requires NDK via ANDROID_NDK_ROOT; Godot's SCons will pick it up
-          scons -C native platform=android target=template_release android_arch=arm64v8 -j4 || scons -C native platform=android target=template_release -j4
-          ls -lh native/bin/
+          scons platform=android target=template_release android_arch=arm64v8 -j4 || scons platform=android target=template_release -j4
+          ls -lh bin/
 
       - name: Install Android SDK components
         run: |

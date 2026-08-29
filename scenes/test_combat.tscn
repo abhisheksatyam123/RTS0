@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://c5combattestscene"]
+
+[ext_resource type="Script" path="res://scratch/test_combat_immersion.gd" id="1_cbt"]
+
+[node name="TestCombat" type="Node3D"]
+script = ExtResource("1_cbt")

@@ -1,0 +1,44 @@
+extends CanvasLayer
+
+signal select_all_army_requested()
+signal idle_worker_requested()
+signal stop_requested()
+signal build_requested()
+signal market_requested()
+signal diplo_requested()
+
+func _ready() -> void:
+	# Show touch controls on mobile or when touch is detected
+	if OS.has_feature("mobile") or OS.has_feature("touchscreen"):
+		visible = true
+	else:
+		visible = true # Always provide available touch action bar
+
+func _on_army_pressed() -> void:
+	emit_signal("select_all_army_requested")
+
+func _on_idle_pressed() -> void:
+	var main = get_parent()
+	if main and main.has_method("cycle_idle_worker"):
+		main.call("cycle_idle_worker")
+
+func _on_stop_pressed() -> void:
+	var ev = InputEventKey.new()
+	ev.keycode = KEY_S
+	ev.pressed = true
+	Input.parse_input_event(ev)
+
+func _on_build_pressed() -> void:
+	var main = get_parent()
+	if main and main.has_method("enter_build_mode"):
+		main.call("enter_build_mode", true, 1)
+
+func _on_market_pressed() -> void:
+	var barter = get_node_or_null("../BarterDialog")
+	if barter:
+		barter.call("toggle")
+
+func _on_diplo_pressed() -> void:
+	var diplo = get_node_or_null("../DiplomacyDialog")
+	if diplo:
+		diplo.call("toggle")
