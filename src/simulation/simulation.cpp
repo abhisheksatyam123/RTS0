@@ -15,6 +15,54 @@ namespace rtso {
 
 namespace {
 constexpr int kUnitGridRes = 64; // 64x64 grid cells (2.0m per cell over 128m map)
+// 0 A.D. Builder.GetRange: max ≈ 2 + unit obstruction. Stand on the AABB edge, never inside.
+constexpr float kBuildStandOff = 0.80f;
+constexpr float kBuildReach = 2.20f;
+
+// Stand on the nearest AABB edge so pathing never aims through the footprint.
+static void stand_outside_rect(float bx, float bz, float half, uint32_t uid,
+		float from_x, float from_z, float *ox, float *oz) {
+	float minx = bx - half, maxx = bx + half;
+	float minz = bz - half, maxz = bz + half;
+	float spread = ((int)(uid % 5) - 2) * 0.55f;
+	bool inside = (from_x > minx && from_x < maxx && from_z > minz && from_z < maxz);
+	if (!inside) {
+		if (std::abs(from_x - std::clamp(from_x, minx, maxx)) >=
+				std::abs(from_z - std::clamp(from_z, minz, maxz))) {
+			*ox = (from_x < bx) ? (minx - kBuildStandOff) : (maxx + kBuildStandOff);
+			*oz = std::clamp(from_z + spread, minz, maxz);
+		} else {
+			*ox = std::clamp(from_x + spread, minx, maxx);
+			*oz = (from_z < bz) ? (minz - kBuildStandOff) : (maxz + kBuildStandOff);
+		}
+		return;
+	}
+	float dl = from_x - minx, dr = maxx - from_x, db = from_z - minz, dt = maxz - from_z;
+	float m = std::min({dl, dr, db, dt});
+	if (m == dl) {
+		*ox = minx - kBuildStandOff;
+		*oz = std::clamp(from_z + spread, minz, maxz);
+	} else if (m == dr) {
+		*ox = maxx + kBuildStandOff;
+		*oz = std::clamp(from_z + spread, minz, maxz);
+	} else if (m == db) {
+		*ox = std::clamp(from_x + spread, minx, maxx);
+		*oz = minz - kBuildStandOff;
+	} else {
+		*ox = std::clamp(from_x + spread, minx, maxx);
+		*oz = maxz + kBuildStandOff;
+	}
+}
+
+static bool outside_and_in_build_range(float bx, float bz, float half, float x, float z) {
+	float minx = bx - half, maxx = bx + half;
+	float minz = bz - half, maxz = bz + half;
+	if (x > minx && x < maxx && z > minz && z < maxz)
+		return false;
+	float cx = std::clamp(x, minx, maxx);
+	float cz = std::clamp(z, minz, maxz);
+	return std::hypot(x - cx, z - cz) <= kBuildReach;
+}
 
 struct UnitGrid {
 	int32_t *head = nullptr;
@@ -104,7 +152,6 @@ void Simulation::reset() {
 	stone_gathered_window_ = 0.0f;
 
 	player_phase_ = 1;
-	player_civ_[0] = CIV_ATHENIANS;
 	researched_techs_mask_ = 0;
 
 	wave_timer_ = 0.0f;
@@ -537,8 +584,18 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	b.team = team;
 	b.max_hp = binfo.max_hp;
 	if (team == 0 && player_civ_[0] == CIV_ROMANS) b.max_hp *= 1.20f; // Roman architecture bonus
-	b.hp = b.max_hp * progress;
-	b.build_progress = progress;
+	// 0 A.D. foundation.xml: Health/Initial is 1. Progress 0 = plot only (not a wreck).
+	if (progress <= 0.0f) {
+		b.build_progress = 0.0f;
+		b.hp = 1.0f;
+		b.committed = false;
+		b.wrecked = false;
+	} else {
+		b.build_progress = progress;
+		b.hp = b.max_hp * progress;
+		b.committed = (progress >= 1.0f);
+		b.wrecked = false;
+	}
 	b.cell_x = cell_x;
 	b.cell_y = cell_y;
 	b.footprint = footprint;
@@ -707,13 +764,13 @@ bool Simulation::can_place(int cell_x, int cell_y, int footprint) const {
 	return true;
 }
 
-bool Simulation::cmd_build(int cell_x, int cell_y, uint8_t b_type) {
+uint32_t Simulation::cmd_build(int cell_x, int cell_y, uint8_t b_type) {
 	const BuildingTypeInfo &binfo = building_type_info(b_type);
-	if (!can_place(cell_x, cell_y, binfo.footprint)) return false;
+	if (!can_place(cell_x, cell_y, binfo.footprint)) return 0;
 
 	if (wood_ < binfo.wood_cost || stone_ < binfo.stone_cost ||
 		gold_ < binfo.gold_cost || food_ < binfo.food_cost) {
-		return false;
+		return 0;
 	}
 
 	wood_ -= binfo.wood_cost;
@@ -721,9 +778,9 @@ bool Simulation::cmd_build(int cell_x, int cell_y, uint8_t b_type) {
 	gold_ -= binfo.gold_cost;
 	food_ -= binfo.food_cost;
 
-	spawn_building(cell_x, cell_y, b_type, 0, 0.05f);
+	uint32_t bid = spawn_building(cell_x, cell_y, b_type, 0, 0.0f);
 	record_.buildings_constructed++;
-	return true;
+	return bid;
 }
 
 bool Simulation::cmd_train(uint32_t building_id, UnitType u_type) {
@@ -736,6 +793,8 @@ bool Simulation::cmd_train(uint32_t building_id, UnitType u_type) {
 	if (b.type == BLD_CORRAL || u_type == UNIT_TYPE_NONE) {
 		return cmd_breed_livestock(building_id);
 	}
+
+	if (!civ_can_train(player_civ_[0], (uint8_t)u_type)) return false;
 
 	const UnitTypeInfo &uinfo = unit_type_info(u_type);
 	if (pop_current() >= pop_max()) return false;
@@ -1175,8 +1234,9 @@ void Simulation::order_attack_building(const uint32_t *unit_ids, size_t count, u
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx]) continue;
 
-		units_.target_x[uidx] = b.x;
-		units_.target_z[uidx] = b.z;
+		stand_outside_rect(b.x, b.z, b.half_size, units_.id[uidx],
+				units_.pos_x[uidx], units_.pos_z[uidx],
+				&units_.target_x[uidx], &units_.target_z[uidx]);
 		units_.has_order[uidx] = 1;
 		units_.action_state[uidx] = ACTION_ATTACK;
 		units_.target_building_id[uidx] = target_building_id;
@@ -1214,10 +1274,14 @@ void Simulation::order_build_or_repair(const uint32_t *unit_ids, size_t count, u
 
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
-		if (uidx < 0 || units_.unit_type[uidx] != UNIT_VILLAGER || !units_.alive[uidx]) continue;
+		if (uidx < 0 || !units_.alive[uidx]) continue;
+		uint8_t ut = units_.unit_type[uidx];
+		if (ut != UNIT_VILLAGER && ut != UNIT_FEMALE_CITIZEN && ut != UNIT_WORKER_ELEPHANT)
+			continue;
 
-		units_.target_x[uidx] = b.x;
-		units_.target_z[uidx] = b.z;
+		stand_outside_rect(b.x, b.z, b.half_size, units_.id[uidx],
+				units_.pos_x[uidx], units_.pos_z[uidx],
+				&units_.target_x[uidx], &units_.target_z[uidx]);
 		units_.has_order[uidx] = 1;
 		units_.action_state[uidx] = ACTION_BUILD;
 		units_.target_building_id[uidx] = building_id;
@@ -1592,7 +1656,14 @@ void Simulation::raise_alert(BattleAlert::Type type, float x, float z, uint32_t 
 	}
 }
 
-void Simulation::fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect, uint8_t dmg_type) {
+void Simulation::mark_building_wreck(Building &b) {
+	if (b.wrecked) return;
+	b.wrecked = true;
+	b.hp = 0.0f;
+	b.build_progress = 0.0f;
+}
+
+void Simulation::fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect, uint8_t dmg_type, bool hits_building) {
 	if (projectiles_.size() >= MAX_PROJECTILES) return;
 	Projectile p;
 	p.id = alloc_id();
@@ -1606,7 +1677,13 @@ void Simulation::fire_arrow(float sx, float sy, float sz, float tx, float ty, fl
 	p.damage_type = dmg_type;
 	p.status_effect = effect;
 	p.team = team;
-	p.target_unit_id = target_id;
+	if (hits_building) {
+		p.target_building_id = target_id;
+		p.target_unit_id = 0;
+	} else {
+		p.target_unit_id = target_id;
+		p.target_building_id = 0;
+	}
 	p.alive = true;
 	projectiles_.push_back(p);
 }
@@ -1814,6 +1891,18 @@ void Simulation::move_units(float dt, Arena &arena) {
 				units_.action_state[i] = ACTION_IDLE;
 				units_.has_order[i] = 0;
 				units_.target_unit_id[i] = 0;
+			}
+		}
+
+		if (units_.action_state[i] == ACTION_BUILD && units_.target_building_id[i] != 0) {
+			auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
+			if (bit != building_id_to_idx_.end()) {
+				const Building &bb = buildings_[bit->second];
+				if (!bb.wrecked && bb.hp > 0.0f) {
+					stand_outside_rect(bb.x, bb.z, bb.half_size, units_.id[i],
+							px[i], pz[i], &tx[i], &tz[i]);
+					has[i] = 1;
+				}
 			}
 		}
 
@@ -2041,15 +2130,31 @@ void Simulation::separation(float dt, Arena &arena) {
 			}
 		});
 
-		// 2. Building Obstacle Non-Penetration
+		// 2. Building Obstacle Non-Penetration (keep units outside the footprint rectangle)
 		for (const auto &b : buildings_) {
+			if (b.wrecked) continue;
 			float b_half = b.half_size;
 			float cx = std::clamp(pxi, b.x - b_half, b.x + b_half);
 			float cz = std::clamp(pzi, b.z - b_half, b.z + b_half);
 			float bdx = pxi - cx;
 			float bdz = pzi - cz;
 			float bd2 = bdx * bdx + bdz * bdz;
-			float b_req = ri + 0.20f;
+			float b_req = ri + 0.35f;
+			bool inside = (pxi > b.x - b_half && pxi < b.x + b_half &&
+					pzi > b.z - b_half && pzi < b.z + b_half);
+			if (inside) {
+				float dist_east = (b.x + b_half) - pxi;
+				float dist_west = pxi - (b.x - b_half);
+				float dist_south = (b.z + b_half) - pzi;
+				float dist_north = pzi - (b.z - b_half);
+				float min_edge = std::min({dist_east, dist_west, dist_south, dist_north});
+				float push = b_req + 0.55f;
+				if (min_edge == dist_east) ax += push;
+				else if (min_edge == dist_west) ax -= push;
+				else if (min_edge == dist_south) az += push;
+				else az -= push;
+				continue;
+			}
 			if (bd2 < b_req * b_req) {
 				float bdist = sqrtf(bd2);
 				if (bdist > 0.001f) {
@@ -2260,9 +2365,12 @@ void Simulation::tick_construction(float dt) {
 			continue;
 		}
 		Building &b = buildings_[bit->second];
-		float dx = units_.pos_x[i] - b.x;
-		float dz = units_.pos_z[i] - b.z;
-		if (dx * dx + dz * dz < (b.half_size + 1.6f) * (b.half_size + 1.6f)) {
+		if (b.hp <= 0.0f) {
+			units_.target_building_id[i] = 0;
+			units_.action_state[i] = ACTION_IDLE;
+			continue;
+		}
+		if (outside_and_in_build_range(b.x, b.z, b.half_size, units_.pos_x[i], units_.pos_z[i])) {
 			int worker_count = std::max(1, builders_per_bld[b.id]);
 			float speed_mult = sqrtf((float)worker_count) / (float)worker_count;
 			if (units_.unit_type[i] == UNIT_WORKER_ELEPHANT) speed_mult *= 2.0f; // Worker elephant heavy construction
@@ -2270,6 +2378,8 @@ void Simulation::tick_construction(float dt) {
 			speed_mult *= civ_info(civ).build_speed_mult;
 
 			if (b.build_progress < 1.0f) {
+				// 0 A.D. Foundation.Commit: first builder on site → scaffold + construction preview.
+				b.committed = true;
 				const BuildingTypeInfo &binfo = building_type_info(b.type);
 				float rate = (1.0f / std::max(5.0f, binfo.build_time)) * speed_mult * dt;
 				b.build_progress = std::min(1.0f, b.build_progress + rate);
@@ -2825,8 +2935,9 @@ void Simulation::tick_combat(float dt) {
 
 		if (!in_parabolic_range(eff_d * eff_d, att_y, bld_y, units_.attack_range[i])) {
 			// Move toward building if out of range
-			units_.target_x[i] = b.x;
-			units_.target_z[i] = b.z;
+			stand_outside_rect(b.x, b.z, b.half_size, units_.id[i],
+					units_.pos_x[i], units_.pos_z[i],
+					&units_.target_x[i], &units_.target_z[i]);
 			units_.has_order[i] = 1;
 			units_.action_state[i] = ACTION_ATTACK;
 			continue;
@@ -2864,7 +2975,7 @@ void Simulation::tick_combat(float dt) {
 		if (is_ranged_attack) {
 			fire_arrow(units_.pos_x[i], 1.4f, units_.pos_z[i],
 			           b.x, 1.5f, b.z,
-			           bld_dmg, units_.team[i], b.id, EFFECT_BURNING, 2);
+			           bld_dmg, units_.team[i], b.id, EFFECT_BURNING, 2, true);
 		} else {
 			b.hp -= bld_dmg;
 			if (b.team == 0) {
@@ -2904,7 +3015,7 @@ void Simulation::tick_combat(float dt) {
 					}
 				}
 				b.garrisoned_units.clear();
-				b.build_progress = 0.0f; // Marks collapsed/destroyed
+				mark_building_wreck(b);
 				units_.target_building_id[i] = 0;
 				units_.action_state[i] = ACTION_IDLE;
 				rebuild_nav_grid();
@@ -3215,6 +3326,36 @@ void Simulation::tick_projectiles(float dt) {
 						apply_loot_bounty(p.team, pf_loot, pw_loot, pg_loot, ps_loot);
 					}
 				}
+			} else if (p.target_building_id != 0) {
+				auto bit = building_id_to_idx_.find(p.target_building_id);
+				if (bit != building_id_to_idx_.end()) {
+					Building &b = buildings_[bit->second];
+					if (!b.wrecked && b.hp > 0.0f) {
+						b.hp -= p.damage;
+						if (b.team == 0)
+							raise_alert(BattleAlert::ALERT_BUILDING_UNDER_ATTACK, b.x, b.z, b.id, b.team);
+						if (b.hp < b.max_hp * 0.33f)
+							b.is_burning = true;
+						if (b.hp <= 0.0f) {
+							if (p.team == 0)
+								record_.enemies_killed++;
+							else if (b.team == 0)
+								record_.buildings_destroyed++;
+							if (b.team == 0)
+								raise_alert(BattleAlert::ALERT_BUILDING_DESTROYED, b.x, b.z, b.id, b.team);
+							const auto &b_info = building_type_info(b.type);
+							apply_loot_bounty(p.team,
+									std::max(10, (int)std::round(b_info.food_cost * 0.10f)),
+									std::max(15, (int)std::round(b_info.wood_cost * 0.10f)),
+									std::max(10, (int)std::round(b_info.gold_cost * 0.10f)),
+									std::max(10, (int)std::round(b_info.stone_cost * 0.10f)));
+							mark_building_wreck(b);
+							rebuild_nav_grid();
+							if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER)
+								rebuild_territory();
+						}
+					}
+				}
 			}
 		}
 
@@ -3323,7 +3464,7 @@ void Simulation::tick_status_effects(float dt) {
 					record_.buildings_destroyed++;
 					raise_alert(BattleAlert::ALERT_BUILDING_DESTROYED, b.x, b.z, b.id, b.team);
 				}
-				b.build_progress = 0.0f;
+				mark_building_wreck(b);
 				rebuild_nav_grid();
 				if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER) {
 					rebuild_territory();
@@ -4212,24 +4353,33 @@ void Simulation::petra_manage_military_production(float dt) {
 	};
 	std::vector<Option> options;
 
+	uint8_t ai_civ = player_civ_[1];
+	auto push_if_civ = [&](UnitType t, float score, uint32_t bid) {
+		if (civ_can_train(ai_civ, (uint8_t)t))
+			options.push_back({t, score, bid});
+	};
+
 	for (uint32_t bid : barracks_list) {
-		options.push_back({UNIT_SPEARMAN, spearman_score, bid});
-		options.push_back({UNIT_ARCHER, archer_score, bid});
-		options.push_back({UNIT_SWORDSMAN, swordsman_score, bid});
+		push_if_civ(UNIT_SPEARMAN, spearman_score, bid);
+		push_if_civ(UNIT_ARCHER, archer_score, bid);
+		push_if_civ(UNIT_SWORDSMAN, swordsman_score, bid);
 		if (petra_phase_ >= 2) {
-			options.push_back({UNIT_CAVALRY, cavalry_score, bid});
+			push_if_civ(UNIT_CAVALRY, cavalry_score, bid);
+			push_if_civ(UNIT_CAMEL, cavalry_score, bid);
+			push_if_civ(UNIT_CHARIOT, cavalry_score * 0.95f, bid);
 		}
 	}
 
 	for (uint32_t fid : fortress_list) {
 		if (petra_phase_ >= 2) {
-			options.push_back({UNIT_CATAPULT, siege_score, fid});
-			options.push_back({UNIT_SIEGE_RAM, siege_score * 0.95f, fid});
-			options.push_back({UNIT_BOLT_SHOOTER, siege_score * 0.85f, fid});
+			push_if_civ(UNIT_CATAPULT, siege_score, fid);
+			push_if_civ(UNIT_SIEGE_RAM, siege_score * 0.95f, fid);
+			push_if_civ(UNIT_BOLT_SHOOTER, siege_score * 0.85f, fid);
 		}
 		if (petra_phase_ >= 3) {
-			options.push_back({UNIT_ELEPHANT, champion_score, fid});
-			options.push_back({UNIT_HERO, champion_score * 0.9f, fid});
+			push_if_civ(UNIT_ELEPHANT, champion_score, fid);
+			push_if_civ(UNIT_HERO, champion_score * 0.9f, fid);
+			push_if_civ(UNIT_SCYTHED_CHARIOT, champion_score * 0.85f, fid);
 		}
 	}
 
@@ -4474,7 +4624,7 @@ void Simulation::petra_manage_trading(float dt) {
 					int cz = start_cz + dz;
 					if (can_place(cx, cz, 2) && is_position_safe(cx * GRID, cz * GRID, 6.0f) &&
 					    petra_try_pay(PETRA_QUEUE_TRADE, 0.0f, 200.0f, 100.0f, 0.0f)) {
-						uint32_t bid = spawn_building(cx, cz, BLD_MARKET, 1, 0.05f);
+						uint32_t bid = spawn_building(cx, cz, BLD_MARKET, 1, 0.0f);
 						auto idle_workers = get_idle_workers(1);
 						if (!idle_workers.empty()) {
 							order_build_or_repair(idle_workers.data(), std::min((size_t)3, idle_workers.size()), bid);
@@ -4498,7 +4648,7 @@ void Simulation::petra_manage_trading(float dt) {
 					int cz = start_cz + dz;
 					if (can_place(cx, cz, 2) && is_position_safe(cx * GRID, cz * GRID, 6.0f) &&
 					    petra_try_pay(PETRA_QUEUE_TRADE, 0.0f, 200.0f, 100.0f, 0.0f)) {
-						uint32_t bid = spawn_building(cx, cz, BLD_MARKET, 1, 0.05f);
+						uint32_t bid = spawn_building(cx, cz, BLD_MARKET, 1, 0.0f);
 						auto idle_workers = get_idle_workers(1);
 						if (!idle_workers.empty()) {
 							order_build_or_repair(idle_workers.data(), std::min((size_t)3, idle_workers.size()), bid);
@@ -4594,7 +4744,7 @@ void Simulation::petra_manage_naval(float dt) {
 					if (h >= terrain_water_height_ - 0.5f && h <= terrain_water_height_ + 1.8f) {
 						if (can_place(cx, cz, 2) && is_position_safe(wx, wz, 6.0f) &&
 						    petra_try_pay(PETRA_QUEUE_NAVAL, 0.0f, 200.0f, 0.0f, 100.0f)) {
-							uint32_t bid = spawn_building(cx, cz, BLD_DOCK, 1, 0.05f);
+							uint32_t bid = spawn_building(cx, cz, BLD_DOCK, 1, 0.0f);
 							auto idle_workers = get_idle_workers(1);
 							if (!idle_workers.empty()) {
 								order_build_or_repair(idle_workers.data(), std::min((size_t)3, idle_workers.size()), bid);
@@ -4752,7 +4902,7 @@ void Simulation::petra_manage_buildings(float dt) {
 					int cz = start_cz + dz;
 					if (can_place(cx, cz, 1) &&
 					    petra_try_pay(PETRA_QUEUE_EMERGENCY, 0.0f, 100.0f, 0.0f, 100.0f)) {
-						uint32_t bid = spawn_building(cx, cz, BLD_TOWER, 1, 0.05f);
+						uint32_t bid = spawn_building(cx, cz, BLD_TOWER, 1, 0.0f);
 						auto idle_workers = get_idle_workers(1);
 						if (!idle_workers.empty()) {
 							order_build_or_repair(idle_workers.data(), std::min((size_t)3, idle_workers.size()), bid);
@@ -4831,7 +4981,7 @@ void Simulation::petra_manage_buildings(float dt) {
 
 			if (best_cluster_score > 0.0f &&
 			    petra_try_pay(PETRA_QUEUE_VILLAGER, 0.0f, 300.0f, 100.0f, 200.0f)) {
-				uint32_t bid = spawn_building(best_cx, best_cz, BLD_TOWN_CENTER, 1, 0.05f);
+				uint32_t bid = spawn_building(best_cx, best_cz, BLD_TOWN_CENTER, 1, 0.0f);
 				auto idle_workers = get_idle_workers(1);
 				if (!idle_workers.empty()) {
 					order_build_or_repair(idle_workers.data(), std::min((size_t)4, idle_workers.size()), bid);
@@ -4919,7 +5069,7 @@ void Simulation::petra_manage_buildings(float dt) {
 							int cz = start_cz + dz;
 							if (can_place(cx, cz, 1) && is_position_safe(cx * GRID, cz * GRID, 5.0f) &&
 							    petra_try_pay(PETRA_QUEUE_VILLAGER, 0.0f, 100.0f, 0.0f, 0.0f)) {
-								uint32_t bid = spawn_building(cx, cz, dropsite_type, 1, 0.05f);
+								uint32_t bid = spawn_building(cx, cz, dropsite_type, 1, 0.0f);
 								auto idle_workers = get_idle_workers(1);
 								if (!idle_workers.empty()) {
 									order_build_or_repair(idle_workers.data(), std::min((size_t)3, idle_workers.size()), bid);
@@ -4958,7 +5108,7 @@ void Simulation::petra_manage_buildings(float dt) {
 						int cz = start_cz + dz;
 						if (can_place(cx, cz, 1) &&
 						    petra_try_pay(PETRA_QUEUE_VILLAGER, 0.0f, 80.0f, 0.0f, 0.0f)) {
-							uint32_t bid = spawn_building(cx, cz, BLD_HOUSE, 1, 0.05f);
+							uint32_t bid = spawn_building(cx, cz, BLD_HOUSE, 1, 0.0f);
 							auto idle_workers = get_idle_workers(1);
 							if (!idle_workers.empty()) {
 								order_build_or_repair(idle_workers.data(), std::min((size_t)2, idle_workers.size()), bid);
@@ -4991,7 +5141,7 @@ void Simulation::petra_manage_buildings(float dt) {
 					int cz = start_cz + dz;
 					if (can_place(cx, cz, 2) &&
 					    petra_try_pay(PETRA_QUEUE_MILITARY, 0.0f, 150.0f, 50.0f, 50.0f)) {
-						uint32_t bid = spawn_building(cx, cz, BLD_BARRACKS, 1, 0.05f);
+						uint32_t bid = spawn_building(cx, cz, BLD_BARRACKS, 1, 0.0f);
 						auto idle_workers = get_idle_workers(1);
 						if (!idle_workers.empty()) {
 							order_build_or_repair(idle_workers.data(), std::min((size_t)3, idle_workers.size()), bid);
@@ -5024,7 +5174,7 @@ void Simulation::petra_manage_buildings(float dt) {
 						int cz = start_cz + dz;
 						if (can_place(cx, cz, 1) &&
 						    petra_try_pay(PETRA_QUEUE_MILITARY, 0.0f, 100.0f, 0.0f, 100.0f)) {
-							uint32_t bid = spawn_building(cx, cz, BLD_TOWER, 1, 0.05f);
+							uint32_t bid = spawn_building(cx, cz, BLD_TOWER, 1, 0.0f);
 							auto idle_workers = get_idle_workers(1);
 							if (!idle_workers.empty()) {
 								order_build_or_repair(idle_workers.data(), std::min((size_t)2, idle_workers.size()), bid);
@@ -5058,7 +5208,7 @@ void Simulation::petra_manage_buildings(float dt) {
 						int cz = start_cz + dz;
 						if (can_place(cx, cz, 2)) {
 							if (!petra_try_pay(PETRA_QUEUE_MILITARY, 0.0f, 300.0f, 200.0f, 300.0f)) break;
-							uint32_t bid = spawn_building(cx, cz, BLD_FORTRESS, 1, 0.05f);
+							uint32_t bid = spawn_building(cx, cz, BLD_FORTRESS, 1, 0.0f);
 							auto idle_workers = get_idle_workers(1);
 							if (!idle_workers.empty()) {
 								order_build_or_repair(idle_workers.data(), std::min((size_t)4, idle_workers.size()), bid);
@@ -6040,7 +6190,7 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 				                   (float)info.gold_cost, (float)info.stone_cost)) {
 					return 0;
 				}
-				return spawn_building(cx, cz, btype, 1, 0.05f);
+				return spawn_building(cx, cz, btype, 1, 0.0f);
 			}
 		}
 	}
@@ -6754,6 +6904,8 @@ bool Simulation::load_state(const char *filepath) {
 		in.read((char *)&bld.research_duration, sizeof(bld.research_duration));
 		in.read((char *)&bld.capture_points, sizeof(bld.capture_points));
 		in.read((char *)&bld.max_capture_points, sizeof(bld.max_capture_points));
+		bld.committed = (bld.build_progress > 0.0f);
+		bld.wrecked = (bld.hp <= 0.0f);
 
 		uint32_t q_sz = 0;
 		in.read((char *)&q_sz, sizeof(q_sz));

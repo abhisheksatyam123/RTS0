@@ -51,10 +51,15 @@ class RtsoWorldView : public Node3D {
 	struct BuildingVis {
 		Node3D *root = nullptr;
 		Node *model = nullptr;
+		Node *foundation = nullptr;
+		Node *scaffold = nullptr;
 		MeshInstance3D *hp_bg = nullptr;
 		MeshInstance3D *hp_fg = nullptr;
 		uint32_t sim_id = 0;
 		uint8_t type = 0;
+		int overlay_type = -1;
+		uint8_t phase = 0; // 0 complete, 1 prebuild, 2 construct, 3 collapse, 4 rubble
+		float phase_t = 0.0f;
 		float build_progress = 1.0f;
 		String model_id;
 	};
@@ -103,11 +108,13 @@ class RtsoWorldView : public Node3D {
 	Ref<StandardMaterial3D> hp_red_mat;
 	Ref<StandardMaterial3D> hp_blue_mat;
 
-	// Crowd units: MultiMesh per (UnitType, anim clip). Pre-baked keyframe cache supplies static meshes.
+	// Crowd units: MultiMesh per (civ-bank, UnitType, anim clip).
+	// Bank 0 = player civ meshes, bank 1 = AI civ meshes.
+	static constexpr int CROWD_BANK_COUNT = 2;
 	static constexpr int CROWD_CLIP_COUNT = 4;
 	static constexpr int CROWD_FRAMES_PER_CLIP = 6;
-	MultiMeshInstance3D *unit_mmi[rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT] = {};
-	Ref<MultiMesh> unit_mm[rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT];
+	MultiMeshInstance3D *unit_mmi[CROWD_BANK_COUNT][rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT] = {};
+	Ref<MultiMesh> unit_mm[CROWD_BANK_COUNT][rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT];
 	struct CrowdPuppet {
 		Node *root = nullptr;
 		AnimationPlayer *anim = nullptr;
@@ -116,8 +123,8 @@ class RtsoWorldView : public Node3D {
 		int baked_count = 0;
 		rtso::ModelLibrary::CrowdSkin skin;
 	};
-	CrowdPuppet unit_puppet[rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT] = {};
-	bool unit_puppet_baked[rtso::UNIT_TYPE_COUNT] = {};
+	CrowdPuppet unit_puppet[CROWD_BANK_COUNT][rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT] = {};
+	bool unit_puppet_baked[CROWD_BANK_COUNT][rtso::UNIT_TYPE_COUNT] = {};
 	std::unordered_map<uint32_t, float> crowd_yaw;
 	std::unordered_map<uint32_t, Vector2> crowd_pos;
 
@@ -182,9 +189,11 @@ private:
 	BuildingVis &acquire_building_slot(uint32_t sim_id);
 	void attach_unit_model(UnitVis &v, const String &model_name);
 	void attach_building_model(BuildingVis &v, const String &model_name);
+	void set_building_site_visible(BuildingVis &v, bool foundation_on, bool scaffold_on, uint8_t btype);
+	static Node *instantiate_building_id(const String &id);
 	void play_unit_clip(UnitVis &v, const String &clip, bool loop);
 	void hide_unit_vis(UnitVis &v);
-	void ensure_unit_batches();
+	void ensure_unit_batches(const rtso::Simulation *sim);
 	void init_animation_controllers();
 };
 

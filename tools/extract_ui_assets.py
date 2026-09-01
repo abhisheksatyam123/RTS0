@@ -13,8 +13,12 @@ try:
 except ImportError:
     sys.exit("Pillow required: pip install pillow")
 
-ZIP_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "0ad",
-                        "binaries", "data", "mods", "public", "public.zip")
+_CANDIDATE_ZIPS = [
+    os.path.join(os.path.dirname(__file__), "..", "..", "0ad",
+                 "binaries", "data", "mods", "public", "public.zip"),
+    "/home/abhi/project/0ad/binaries/data/mods/public/public.zip",
+]
+ZIP_PATH = next((p for p in _CANDIDATE_ZIPS if os.path.exists(p)), _CANDIDATE_ZIPS[0])
 ASSETS_DIR = os.path.join(os.path.dirname(__file__), "..", "assets")
 
 def decode_dxt1(data, width, height):
@@ -140,26 +144,76 @@ TEXTURE_MAPPING = {
     "art/textures/ui/session/icons/formations/wedge.png.cached.dds": "textures/ui/formations/wedge.png",
     "art/textures/ui/session/icons/formations/scatter.png.cached.dds": "textures/ui/formations/scatter.png",
 
-    # Emblems
+    # Phase emblems (session HUD)
+    "art/textures/ui/session/portraits/technologies/village_phase.png.cached.dds": "textures/ui/phases/village.png",
+    "art/textures/ui/session/portraits/technologies/town_phase.png.cached.dds": "textures/ui/phases/town.png",
+    "art/textures/ui/session/portraits/technologies/city_phase.png.cached.dds": "textures/ui/phases/city.png",
+
+    # Session command icons used by HUD / selection
+    "art/textures/ui/session/icons/construction.png.cached.dds": "textures/ui/icons/construction.png",
+    "art/textures/ui/session/icons/repair.png.cached.dds": "textures/ui/icons/repair.png",
+    "art/textures/ui/session/icons/stop.png.cached.dds": "textures/ui/icons/stop.png",
+    "art/textures/ui/session/icons/garrison.png.cached.dds": "textures/ui/icons/garrison.png",
+    "art/textures/ui/session/icons/patrol.png.cached.dds": "textures/ui/icons/patrol.png",
+    "art/textures/ui/session/icons/heal.png.cached.dds": "textures/ui/icons/heal.png",
+    "art/textures/ui/session/icons/health_fg.png.cached.dds": "textures/ui/icons/health_fg.png",
+    "art/textures/ui/session/icons/health_bg.png.cached.dds": "textures/ui/icons/health_bg.png",
+
+    # Emblems (all playable civs)
     "art/textures/ui/session/portraits/emblems/emblem_athenians.png.cached.dds": "textures/ui/emblems/athenians.png",
     "art/textures/ui/session/portraits/emblems/emblem_spartans.png.cached.dds": "textures/ui/emblems/spartans.png",
+    "art/textures/ui/session/portraits/emblems/emblem_persians.png.cached.dds": "textures/ui/emblems/persians.png",
+    "art/textures/ui/session/portraits/emblems/emblem_romans.png.cached.dds": "textures/ui/emblems/romans.png",
+    "art/textures/ui/session/portraits/emblems/emblem_carthaginians.png.cached.dds": "textures/ui/emblems/carthaginians.png",
+    "art/textures/ui/session/portraits/emblems/emblem_macedonians.png.cached.dds": "textures/ui/emblems/macedonians.png",
+    "art/textures/ui/session/portraits/emblems/emblem_britons.png.cached.dds": "textures/ui/emblems/britons.png",
+    "art/textures/ui/session/portraits/emblems/emblem_celts.png.cached.dds": "textures/ui/emblems/gauls.png",
+    "art/textures/ui/session/portraits/emblems/emblem_iberians.png.cached.dds": "textures/ui/emblems/iberians.png",
+    "art/textures/ui/session/portraits/emblems/emblem_mauryas.png.cached.dds": "textures/ui/emblems/mauryans.png",
+    "art/textures/ui/session/portraits/emblems/emblem_kushites.png.cached.dds": "textures/ui/emblems/kushites.png",
+    "art/textures/ui/session/portraits/emblems/emblem_ptolemies.png.cached.dds": "textures/ui/emblems/ptolemies.png",
+    "art/textures/ui/session/portraits/emblems/emblem_seleucids.png.cached.dds": "textures/ui/emblems/seleucids.png",
 
-    # Unit Portraits
+    # Unit portraits — 0 A.D. session art (generic Hellenic + unique civ units)
     "art/textures/ui/session/portraits/units/athen/support_civilian.png.cached.dds": "textures/ui/portraits/villager.png",
+    "art/textures/ui/session/portraits/units/hele/support_female_citizen.png.cached.dds": "textures/ui/portraits/female_citizen.png",
+    "art/textures/ui/session/portraits/units/hele/support_healer.png.cached.dds": "textures/ui/portraits/healer.png",
+    "art/textures/ui/session/portraits/units/hele/support_trader.png.cached.dds": "textures/ui/portraits/trader.png",
     "art/textures/ui/session/portraits/units/athen/champion_infantry.png.cached.dds": "textures/ui/portraits/swordsman.png",
-    "art/textures/ui/session/portraits/units/athen/champion_ranged.png.cached.dds": "textures/ui/portraits/archer.png",
+    "art/textures/ui/session/portraits/units/hele/infantry_archer.png.cached.dds": "textures/ui/portraits/archer.png",
     "art/textures/ui/session/portraits/units/athen/infantry_spearman.png.cached.dds": "textures/ui/portraits/spearman.png",
     "art/textures/ui/session/portraits/units/athen/cavalry_swordsman.png.cached.dds": "textures/ui/portraits/cavalry.png",
+    "art/textures/ui/session/portraits/units/athen/hero_pericles.png.cached.dds": "textures/ui/portraits/hero.png",
+    "art/textures/ui/session/portraits/units/hele/ship_ram.png.cached.dds": "textures/ui/portraits/trireme.png",
+    "art/textures/ui/session/portraits/units/hele/ship_fishing.png.cached.dds": "textures/ui/portraits/fishing_boat.png",
+    "art/textures/ui/session/portraits/units/hele/ship_merchant.png.cached.dds": "textures/ui/portraits/merchant_ship.png",
+    "art/textures/ui/session/portraits/units/athen/siege_ram.png.cached.dds": "textures/ui/portraits/ram.png",
+    "art/textures/ui/session/portraits/units/hele/siege_lithobolos.png.cached.dds": "textures/ui/portraits/catapult.png",
+    "art/textures/ui/session/portraits/units/hele/siege_oxybeles.png.cached.dds": "textures/ui/portraits/bolt_shooter.png",
+    "art/textures/ui/session/portraits/units/cart/champion_elephant.png.cached.dds": "textures/ui/portraits/elephant.png",
+    "art/textures/ui/session/portraits/units/brit/champion_chariot.png.cached.dds": "textures/ui/portraits/chariot.png",
+    "art/textures/ui/session/portraits/units/brit/war_dog.png.cached.dds": "textures/ui/portraits/war_dog.png",
+    "art/textures/ui/session/portraits/units/gaul/champion_swordsman_carnyx.png.cached.dds": "textures/ui/portraits/carnyx.png",
+    "art/textures/ui/session/portraits/units/maur/support_elephant.png.cached.dds": "textures/ui/portraits/worker_elephant.png",
+    "art/textures/ui/session/portraits/units/maur/champion_maiden_archer.png.cached.dds": "textures/ui/portraits/archer_maiden.png",
+    "art/textures/ui/session/portraits/units/kush/camel_swordsman.png.cached.dds": "textures/ui/portraits/camel.png",
+    "art/textures/ui/session/portraits/units/sele/champion_chariot.png.cached.dds": "textures/ui/portraits/scythed_chariot.png",
 
-    # Structure Portraits
+    # Structure portraits
     "art/textures/ui/session/portraits/structures/civic_centre.png.cached.dds": "textures/ui/portraits/town_center.png",
     "art/textures/ui/session/portraits/structures/house.png.cached.dds": "textures/ui/portraits/house.png",
     "art/textures/ui/session/portraits/structures/barracks.png.cached.dds": "textures/ui/portraits/barracks.png",
+    "art/textures/ui/session/portraits/structures/storehouse.png.cached.dds": "textures/ui/portraits/storehouse.png",
     "art/textures/ui/session/portraits/structures/defense_tower.png.cached.dds": "textures/ui/portraits/tower.png",
     "art/textures/ui/session/portraits/structures/farmstead.png.cached.dds": "textures/ui/portraits/farmstead.png",
     "art/textures/ui/session/portraits/structures/market.png.cached.dds": "textures/ui/portraits/market.png",
     "art/textures/ui/session/portraits/structures/fortress.png.cached.dds": "textures/ui/portraits/fortress.png",
     "art/textures/ui/session/portraits/structures/gate.png.cached.dds": "textures/ui/portraits/gate.png",
+    "art/textures/ui/session/portraits/structures/temple.png.cached.dds": "textures/ui/portraits/temple.png",
+    "art/textures/ui/session/portraits/structures/wonder.png.cached.dds": "textures/ui/portraits/wonder.png",
+    "art/textures/ui/session/portraits/structures/dock.png.cached.dds": "textures/ui/portraits/dock.png",
+    "art/textures/ui/session/portraits/structures/wall.png.cached.dds": "textures/ui/portraits/wall.png",
+    "art/textures/ui/session/portraits/structures/corral.png.cached.dds": "textures/ui/portraits/corral.png",
 }
 
 AUDIO_MAPPING = {

@@ -121,8 +121,8 @@ void RtsoWorldView::init_animation_controllers() {
 	anim_controllers[rtso::UNIT_ELEPHANT].load("elephant");
 	anim_controllers[rtso::UNIT_WORKER_ELEPHANT].load("elephant");
 	anim_controllers[rtso::UNIT_CAMEL].load("camel");
-	anim_controllers[rtso::UNIT_CHARIOT].load("camel");
-	anim_controllers[rtso::UNIT_SCYTHED_CHARIOT].load("camel");
+	anim_controllers[rtso::UNIT_CHARIOT].load("chariot");
+	anim_controllers[rtso::UNIT_SCYTHED_CHARIOT].load("chariot");
 	anim_controllers[rtso::UNIT_WAR_DOG].load("dog");
 	anim_controllers[rtso::UNIT_CATAPULT].load("catapult");
 	anim_controllers[rtso::UNIT_BOLT_SHOOTER].load("bolt");
@@ -259,7 +259,6 @@ void RtsoWorldView::_ready() {
 	sfx_building_fire = load_s("res://assets/sounds/building/building_fire.ogg");
 
 	init_animation_controllers();
-	ensure_unit_batches();
 }
 
 void RtsoWorldView::play_spatial_sound(const Ref<AudioStream> &stream, Vector3 pos, float volume_db, float max_dist, float pitch_scale) {
@@ -352,6 +351,61 @@ void RtsoWorldView::attach_unit_model(UnitVis &v, const String &model_name) {
 	v.anim = nullptr;
 }
 
+Node *RtsoWorldView::instantiate_building_id(const String &id) {
+	String cat = "buildings";
+	const rtso::ModelLibrary::Entry &e = rtso::ModelLibrary::get(cat, id);
+	if (e.scene.is_valid()) {
+		Node *n = e.scene->instantiate();
+		rtso::ModelLibrary::apply_imported_material_fixups(n);
+		return n;
+	}
+	if (e.mesh.is_valid()) {
+		MeshInstance3D *mi = memnew(MeshInstance3D);
+		mi->set_mesh(e.mesh);
+		return mi;
+	}
+	return nullptr;
+}
+
+void RtsoWorldView::set_building_site_visible(BuildingVis &v, bool foundation_on, bool scaffold_on, uint8_t btype) {
+	auto drop = [&](Node *&n) {
+		if (!n) return;
+		if (v.root && n->get_parent() == v.root)
+			v.root->remove_child(n);
+		n->queue_free();
+		n = nullptr;
+	};
+	auto place = [&](Node *&slot, const char *id, bool show) {
+		if (!show) {
+			if (Node3D *n3 = Object::cast_to<Node3D>(slot))
+				n3->set_visible(false);
+			return;
+		}
+		if (!slot) {
+			slot = instantiate_building_id(id);
+			if (!slot) return;
+			v.root->add_child(slot);
+			String cat = "buildings";
+			const auto &se = rtso::ModelLibrary::get(cat, String(id));
+			if (Node3D *n3 = Object::cast_to<Node3D>(slot)) {
+				float s = se.scale > 0.05f ? se.scale : 1.0f;
+				n3->set_scale(Vector3(s, s, s));
+				n3->set_position(Vector3(0, se.y_offset, 0));
+			}
+		}
+		if (Node3D *n3 = Object::cast_to<Node3D>(slot))
+			n3->set_visible(true);
+	};
+
+	if (v.overlay_type != (int)btype) {
+		drop(v.foundation);
+		drop(v.scaffold);
+		v.overlay_type = (int)btype;
+	}
+	place(v.foundation, rtso::civ_building_foundation(btype), foundation_on);
+	place(v.scaffold, rtso::civ_building_scaffold(btype), scaffold_on);
+}
+
 void RtsoWorldView::attach_building_model(BuildingVis &v, const String &model_name) {
 	if (v.model_id == model_name && v.model) return;
 	if (v.model) {
@@ -360,20 +414,12 @@ void RtsoWorldView::attach_building_model(BuildingVis &v, const String &model_na
 		v.model = nullptr;
 	}
 	v.model_id = model_name;
-	String cat_buildings = "buildings";
-	auto entry = rtso::ModelLibrary::get(cat_buildings, model_name);
-	if (entry.scene.is_valid()) {
-		v.model = entry.scene->instantiate();
-		rtso::ModelLibrary::apply_imported_material_fixups(v.model);
-		v.root->add_child(v.model);
-		return;
+	v.model = instantiate_building_id(model_name);
+	if (!v.model) {
+		MeshInstance3D *mi = memnew(MeshInstance3D);
+		v.model = mi;
 	}
-	MeshInstance3D *mi = memnew(MeshInstance3D);
-	if (entry.valid) {
-		mi->set_mesh(entry.mesh);
-	}
-	v.model = mi;
-	v.root->add_child(mi);
+	v.root->add_child(v.model);
 }
 
 void RtsoWorldView::hide_unit_vis(UnitVis &v) {
@@ -385,22 +431,28 @@ void RtsoWorldView::hide_unit_vis(UnitVis &v) {
 		v.anim->set_active(false);
 }
 
-void RtsoWorldView::ensure_unit_batches() {
-	for (int t = 0; t < rtso::UNIT_TYPE_COUNT; ++t) {
-		const char *id = rtso::unit_type_model((uint8_t)t);
-		String id_str = id;
-		String cat_units2 = "units";
-		auto entry = rtso::ModelLibrary::get(cat_units2, id_str);
-		Ref<Mesh> rest = entry.crowd_mesh.is_valid() ? entry.crowd_mesh : entry.mesh;
-		unit_puppet_baked[t] = true;
+void RtsoWorldView::ensure_unit_batches(const rtso::Simulation *sim) {
+	uint8_t civs[CROWD_BANK_COUNT] = {rtso::CIV_ATHENIANS, rtso::CIV_SPARTANS};
+	if (sim) {
+		civs[0] = sim->player_civ();
+		civs[1] = sim->team_civ(1);
+	}
+	for (int bank = 0; bank < CROWD_BANK_COUNT; ++bank) {
+		for (int t = 0; t < rtso::UNIT_TYPE_COUNT; ++t) {
+			String id_str = rtso::civ_unit_model(civs[bank], (uint8_t)t);
+			String cat_units2 = "units";
+			auto entry = rtso::ModelLibrary::get(cat_units2, id_str);
+			Ref<Mesh> rest = entry.crowd_mesh.is_valid() ? entry.crowd_mesh : entry.mesh;
+			unit_puppet_baked[bank][t] = true;
 
-		for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
-			if (unit_mmi[t][c]) continue;
-			unit_mm[t][c] = create_multimesh(rest, true);
-			unit_mmi[t][c] = memnew(MultiMeshInstance3D);
-			unit_mmi[t][c]->set_multimesh(unit_mm[t][c]);
-			unit_mmi[t][c]->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
-			add_child(unit_mmi[t][c]);
+			for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
+				if (unit_mmi[bank][t][c]) continue;
+				unit_mm[bank][t][c] = create_multimesh(rest, true);
+				unit_mmi[bank][t][c] = memnew(MultiMeshInstance3D);
+				unit_mmi[bank][t][c]->set_multimesh(unit_mm[bank][t][c]);
+				unit_mmi[bank][t][c]->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+				add_child(unit_mmi[bank][t][c]);
+			}
 		}
 	}
 }
@@ -539,7 +591,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	// =========================================================================
 	// 1. Units Presentation: Real 0 A.D. models, 3D animations, and Health Bars
 	// =========================================================================
-	ensure_unit_batches();
+	ensure_unit_batches(sim);
 	auto uview = sim->units();
 
 	std::unordered_set<uint32_t> detailed;
@@ -547,22 +599,23 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		detailed.insert((uint32_t)selected_ids[s]);
 	}
 
-	int counts[rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT] = {};
+	int counts[CROWD_BANK_COUNT][rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT] = {};
 	for (size_t i = 0; i < uview.count; ++i) {
 		uint8_t t = uview.unit_type[i];
 		if (t >= rtso::UNIT_TYPE_COUNT) t = rtso::UNIT_VILLAGER;
+		int bank = (uview.team[i] == 0) ? 0 : 1;
 		float vx = uview.vel_x[i];
 		float vz = uview.vel_z[i];
 		int clip = crowd_clip_of(uview.action_state[i], vx * vx + vz * vz, uview.alive[i] != 0);
-		counts[t][clip]++;
+		counts[bank][t][clip]++;
 	}
-	int written[rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT] = {};
-	for (int t = 0; t < rtso::UNIT_TYPE_COUNT; ++t) {
-		for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
-			if (unit_mm[t][c].is_valid()) {
-				unit_mm[t][c]->set_instance_count(counts[t][c]);
-				CrowdPuppet &p = unit_puppet[t][c];
-				(void)p;
+	int written[CROWD_BANK_COUNT][rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT] = {};
+	for (int bank = 0; bank < CROWD_BANK_COUNT; ++bank) {
+		for (int t = 0; t < rtso::UNIT_TYPE_COUNT; ++t) {
+			for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
+				if (unit_mm[bank][t][c].is_valid()) {
+					unit_mm[bank][t][c]->set_instance_count(counts[bank][t][c]);
+				}
 			}
 		}
 	}
@@ -649,24 +702,26 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 		anim_controllers[utype].play(want_anim_state);
 
-		String utype_str = rtso::unit_type_model(utype);
+		int bank = is_player ? 0 : 1;
+		uint8_t uciv = is_player ? sim->player_civ() : sim->team_civ(uview.team[i]);
+		String utype_str = rtso::civ_unit_model(uciv, utype);
 		String cat_units3 = "units";
 		auto entry = rtso::ModelLibrary::get(cat_units3, utype_str);
 		float y = sim->get_terrain_height(x, z) + entry.y_offset;
 		float sc = entry.scale > 0.05f ? entry.scale : 1.0f;
 		Transform3D xf(Basis(Vector3(0, 1, 0), yaw).scaled(Vector3(sc, sc, sc)), Vector3(x, y, z));
 		int clip = crowd_clip_of(uaction, speed2, uview.alive[i] != 0);
-		int slot = written[utype][clip]++;
-		if (unit_mm[utype][clip].is_valid()) {
+		int slot = written[bank][utype][clip]++;
+		if (unit_mm[bank][utype][clip].is_valid()) {
 			if (detailed.count(id) > 0) {
 				Transform3D hidden;
 				hidden.origin = Vector3(x, y, z);
 				hidden.basis = hidden.basis.scaled(Vector3(0.001f, 0.001f, 0.001f));
-				unit_mm[utype][clip]->set_instance_transform(slot, hidden);
+				unit_mm[bank][utype][clip]->set_instance_transform(slot, hidden);
 			} else {
-				unit_mm[utype][clip]->set_instance_transform(slot, xf);
+				unit_mm[bank][utype][clip]->set_instance_transform(slot, xf);
 			}
-			unit_mm[utype][clip]->set_instance_color(slot, is_player ? col_player : col_enemy);
+			unit_mm[bank][utype][clip]->set_instance_color(slot, is_player ? col_player : col_enemy);
 		}
 
 		if (detailed.count(id) == 0) continue;
@@ -674,7 +729,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		UnitVis &v = acquire_unit_slot(id);
 		v.vis_stamp = unit_vis_stamp;
 		v.yaw = yaw;
-		attach_unit_model(v, rtso::unit_type_model(utype));
+		attach_unit_model(v, rtso::civ_unit_model(uciv, utype));
 
 		if (v.anim && UtilityFunctions::is_instance_valid(v.anim)) {
 			v.anim->set_active(true);
@@ -821,28 +876,76 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		alive_buildings.insert(b.id);
 		BuildingVis &v = acquire_building_slot(b.id);
 
-		const char *mid = rtso::building_type_model(b.type);
-
-		attach_building_model(v, mid);
-		String cat_b = "buildings";
-		String mid_str2 = mid;
-		auto entry = rtso::ModelLibrary::get(cat_b, mid_str2);
-
-		// Construction progress scale / height
-		float b_scale = entry.scale;
+		uint8_t bciv = sim->team_civ(b.team);
+		const char *mid = rtso::civ_building_model(bciv, b.type);
+		const char *rubble_id = rtso::civ_building_rubble(bciv, b.type);
 		float b_progress = b.build_progress;
+		bool destroyed = (b.hp <= 0.0f || b.wrecked);
+		bool prebuild = !destroyed && (b_progress < 1.0f) && !b.committed;
+		bool constructing = !destroyed && (b_progress < 1.0f) && b.committed;
 		float base_y = sim->get_terrain_height(b.x, b.z);
-		float y_pos = base_y + entry.y_offset;
 
-		if (b_progress < 1.0f) {
-			y_pos -= (1.0f - b_progress) * 2.0f;
+		if (destroyed) {
+			if (v.phase != 3 && v.phase != 4) {
+				v.phase = 3;
+				v.phase_t = 0.0f;
+				play_spatial_sound(sfx_building_collapse, Vector3(b.x, base_y + 1.0f, b.z), 3.0f, 95.0f, 0.95f);
+			}
+			v.phase_t += delta;
+			if (v.phase == 3 && v.phase_t >= 0.70f)
+				v.phase = 4;
+		} else if (prebuild) {
+			v.phase = 1;
+			v.phase_t = 0.0f;
+		} else if (constructing) {
+			v.phase = 2;
+			v.phase_t = b_progress;
+		} else {
+			v.phase = 0;
+			v.phase_t = 1.0f;
 		}
 
-		Transform3D xf(Basis().scaled(Vector3(b_scale, b_scale, b_scale)), Vector3(b.x, y_pos, b.z));
-		v.root->set_transform(xf);
+		String cat_b = "buildings";
+		// Collapse = house sinks (no skeletal death clip). Then SpawnEntityOnDeath rubble.
+		String visual_id = (v.phase == 4) ? String(rubble_id) : String(mid);
+		attach_building_model(v, visual_id);
+		auto entry = rtso::ModelLibrary::get(cat_b, visual_id);
+		float b_scale = entry.scale > 0.05f ? entry.scale : 1.0f;
+
+		v.root->set_transform(Transform3D(Basis(), Vector3(b.x, base_y, b.z)));
+		set_building_site_visible(v, v.phase == 1 || v.phase == 2, v.phase == 2, b.type);
+
+		if (Node3D *n3 = Object::cast_to<Node3D>(v.model)) {
+			n3->set_scale(Vector3(b_scale, b_scale, b_scale));
+			n3->set_rotation(Vector3());
+			if (v.phase == 1) {
+				n3->set_visible(false);
+			} else if (v.phase == 2) {
+				n3->set_visible(true);
+				float dy = entry.aabb.size.y * b_scale;
+				if (dy < 1.0f)
+					dy = 4.0f;
+				n3->set_position(Vector3(0, entry.y_offset + (b_progress - 1.0f) * dy, 0));
+			} else if (v.phase == 3) {
+				n3->set_visible(true);
+				float t = Math::clamp(v.phase_t / 0.70f, 0.0f, 1.0f);
+				float dy = entry.aabb.size.y * b_scale;
+				if (dy < 1.0f)
+					dy = 4.0f;
+				n3->set_rotation(Vector3(t * 0.22f, t * 0.40f, t * -0.14f));
+				n3->set_position(Vector3((t - 0.5f) * 0.45f, entry.y_offset - t * dy * 0.90f, (0.5f - t) * 0.35f));
+			} else if (v.phase == 4) {
+				n3->set_visible(true);
+				float sink = Math::clamp((v.phase_t - 0.70f) / 2.40f, 0.0f, 1.0f);
+				n3->set_position(Vector3(0, entry.y_offset - sink * 1.20f, 0));
+			} else {
+				n3->set_visible(true);
+				n3->set_position(Vector3(0, entry.y_offset, 0));
+			}
+		}
 
 		// Building Health & Construction Progress Bar
-		bool show_bhp = (b_progress < 1.0f || b.hp < b.max_hp * 0.98f);
+		bool show_bhp = !destroyed && (b_progress < 1.0f || b.hp < b.max_hp * 0.98f);
 		v.hp_bg->set_visible(show_bhp);
 		v.hp_fg->set_visible(show_bhp);
 
@@ -903,6 +1006,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			memdelete(building_pool[s].root);
 			building_pool[s].root = nullptr;
 			building_pool[s].model = nullptr;
+			building_pool[s].foundation = nullptr;
+			building_pool[s].scaffold = nullptr;
 			building_slot.erase(building_pool[s].sim_id);
 		}
 	}

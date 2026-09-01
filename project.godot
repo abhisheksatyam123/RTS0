@@ -14,6 +14,10 @@ config/name="RTS0"
 run/main_scene="res://scenes/menu/main_menu.tscn"
 config/features=PackedStringArray("4.3", "Forward Plus")
 
+[autoload]
+
+MatchSettings="*res://scenes/menu/match_settings.gd"
+
 [rendering]
 
 textures/vram_compression/import_etc2_astc=true

@@ -4,6 +4,7 @@
 
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/classes/animation.hpp>
+#include <godot_cpp/classes/animation_library.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
 #include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/classes/canvas_layer.hpp>
@@ -34,6 +35,7 @@ using namespace godot;
 
 void RtsoAssetViewer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_cat_selected", "index"), &RtsoAssetViewer::_on_cat_selected);
+	ClassDB::bind_method(D_METHOD("_on_civ_selected", "index"), &RtsoAssetViewer::_on_civ_selected);
 	ClassDB::bind_method(D_METHOD("_on_item_selected", "index"), &RtsoAssetViewer::_on_item_selected);
 	ClassDB::bind_method(D_METHOD("_on_clip_selected", "index"), &RtsoAssetViewer::_on_clip_selected);
 	ClassDB::bind_method(D_METHOD("_on_clip_box_selected", "index"), &RtsoAssetViewer::_on_clip_box_selected);
@@ -181,6 +183,18 @@ void RtsoAssetViewer::build_ui() {
 	cat_box->connect("item_selected", Callable(this, "_on_cat_selected"));
 	lv->add_child(cat_box);
 
+	Label *civ_title = memnew(Label);
+	civ_title->set_text("Civilization");
+	civ_title->add_theme_font_size_override("font_size", 13);
+	lv->add_child(civ_title);
+
+	civ_box = memnew(OptionButton);
+	for (int c = 0; c < rtso::CIV_COUNT; ++c)
+		civ_box->add_item(rtso::civ_info((uint8_t)c).name, c);
+	civ_box->select(rtso::CIV_ATHENIANS);
+	civ_box->connect("item_selected", Callable(this, "_on_civ_selected"));
+	lv->add_child(civ_box);
+
 	item_list = memnew(ItemList);
 	item_list->set_v_size_flags(Control::SIZE_EXPAND_FILL);
 	item_list->connect("item_selected", Callable(this, "_on_item_selected"));
@@ -248,7 +262,7 @@ void RtsoAssetViewer::build_ui() {
 	row->add_child(chk_full);
 	chk_crowd = memnew(CheckBox);
 	chk_crowd->set_text("Crowd mesh");
-	chk_crowd->set_pressed(true);
+	chk_crowd->set_pressed(false);
 	chk_crowd->connect("toggled", Callable(this, "_on_toggle_view"));
 	row->add_child(chk_crowd);
 
@@ -340,13 +354,23 @@ void RtsoAssetViewer::rebuild_item_list() {
 	items.clear();
 	item_list->clear();
 	int cat = cat_box->get_selected();
+	uint8_t civ = rtso::CIV_ATHENIANS;
+	if (civ_box) {
+		int id = civ_box->get_item_id(civ_box->get_selected());
+		if (id >= 0 && id < rtso::CIV_COUNT)
+			civ = (uint8_t)id;
+		civ_box->set_disabled(cat != 0 && cat != 2);
+	}
+	const auto &cinfo = rtso::civ_info(civ);
 	if (cat == 0) {
 		for (int t = 0; t < rtso::UNIT_TYPE_COUNT; ++t) {
+			if (!rtso::civ_can_train(civ, (uint8_t)t))
+				continue;
 			const auto &info = rtso::unit_type_info((uint8_t)t);
 			CatalogItem it;
 			it.cat = "units";
-			it.id = info.model_id;
-			it.label = String(info.name) + "  (" + String(info.model_id) + ")";
+			it.id = rtso::civ_unit_model(civ, (uint8_t)t);
+			it.label = String(info.name) + "  (" + String(cinfo.code) + "_" + String(info.model_id) + ")";
 			items.push_back(it);
 		}
 	} else if (cat == 1) {
@@ -363,8 +387,36 @@ void RtsoAssetViewer::rebuild_item_list() {
 			const auto &info = rtso::building_type_info((uint8_t)t);
 			CatalogItem it;
 			it.cat = "buildings";
-			it.id = info.model_id;
-			it.label = String(info.name) + "  (" + String(info.model_id) + ")";
+			it.id = rtso::civ_building_model(civ, (uint8_t)t);
+			it.label = String(info.name) + "  (" + String(cinfo.code) + "_" + String(info.model_id) + ")";
+			items.push_back(it);
+		}
+		static const char *site[][2] = {
+			{"foundation_3x3", "Foundation 3x3 (house)"},
+			{"foundation_5x5", "Foundation 5x5 (farmstead)"},
+			{"foundation_6x6", "Foundation 6x6 (barracks)"},
+			{"foundation_8x8", "Foundation 8x8 (civic centre)"},
+			{"foundation_4x6", "Foundation 4x6 (temple)"},
+			{"foundation_3x3_tower", "Foundation tower"},
+			{"foundation_wall", "Foundation wall"},
+			{"foundation_dock", "Foundation dock"},
+			{"scaffold_small", "Scaffold (small)"},
+			{"scaffold_large", "Scaffold (large)"},
+			{"rubble_small", "Rubble 3x3"},
+			{"rubble_large", "Rubble 6x6"},
+		};
+		for (auto &row : site) {
+			CatalogItem it;
+			it.cat = "buildings";
+			it.id = row[0];
+			it.label = String(row[1]) + "  (" + String(row[0]) + ")";
+			items.push_back(it);
+		}
+		{
+			CatalogItem it;
+			it.cat = "buildings";
+			it.id = String(cinfo.code) + "_town_center_rubble";
+			it.label = String(cinfo.name) + " civic-centre rubble  (" + it.id + ")";
 			items.push_back(it);
 		}
 	} else {
@@ -410,6 +462,24 @@ void RtsoAssetViewer::release_preview() {
 		crowd_mi->queue_free();
 		crowd_mi = nullptr;
 	}
+	if (site_foundation) {
+		if (preview_root && site_foundation->get_parent() == preview_root)
+			preview_root->remove_child(site_foundation);
+		site_foundation->queue_free();
+		site_foundation = nullptr;
+	}
+	if (site_scaffold) {
+		if (preview_root && site_scaffold->get_parent() == preview_root)
+			preview_root->remove_child(site_scaffold);
+		site_scaffold->queue_free();
+		site_scaffold = nullptr;
+	}
+	if (site_rubble) {
+		if (preview_root && site_rubble->get_parent() == preview_root)
+			preview_root->remove_child(site_rubble);
+		site_rubble->queue_free();
+		site_rubble = nullptr;
+	}
 }
 
 void RtsoAssetViewer::load_preview() {
@@ -424,11 +494,84 @@ void RtsoAssetViewer::load_preview() {
 		if (preview_scene) {
 			rtso::ModelLibrary::apply_imported_material_fixups(preview_scene);
 			preview_root->add_child(preview_scene);
-			if (Node3D *n3 = Object::cast_to<Node3D>(preview_scene)) {
+			Node3D *n3 = Object::cast_to<Node3D>(preview_scene);
+			if (n3) {
 				n3->set_scale(Vector3(sc, sc, sc));
 				n3->set_position(Vector3(-1.1f, e.y_offset, 0));
 			}
 			anim = find_anim(preview_scene);
+			if (cur_cat == "buildings" && n3) {
+				bool site = cur_id.begins_with("foundation_") || cur_id.begins_with("scaffold_") ||
+					cur_id.begins_with("rubble_") || cur_id.ends_with("_rubble");
+				if (!site) {
+					if (!anim) {
+						anim = memnew(AnimationPlayer);
+						n3->add_child(anim);
+					}
+					Ref<AnimationLibrary> lib;
+					if (anim->has_animation_library(""))
+						lib = anim->get_animation_library("");
+					else {
+						lib.instantiate();
+						anim->add_animation_library("", lib);
+					}
+					if (lib.is_valid() && !lib->has_animation("Prebuild")) {
+						float rise = std::max(2.0f, e.aabb.size.y * sc * 0.85f);
+						Ref<Animation> idle;
+						idle.instantiate();
+						idle->set_length(1.0);
+						idle->set_loop_mode(Animation::LOOP_LINEAR);
+						int ti = idle->add_track(Animation::TYPE_SCALE_3D);
+						idle->track_set_path(ti, NodePath("."));
+						idle->track_insert_key(ti, 0.0, Vector3(sc, sc, sc));
+						idle->track_insert_key(ti, 1.0, Vector3(sc, sc, sc));
+						lib->add_animation("Idle", idle);
+
+						Ref<Animation> pre;
+						pre.instantiate();
+						pre->set_length(1.0);
+						pre->set_loop_mode(Animation::LOOP_LINEAR);
+						int tpr = pre->add_track(Animation::TYPE_SCALE_3D);
+						pre->track_set_path(tpr, NodePath("."));
+						pre->track_insert_key(tpr, 0.0, Vector3(sc, sc, sc));
+						lib->add_animation("Prebuild", pre);
+
+						Ref<Animation> build;
+						build.instantiate();
+						build->set_length(2.0);
+						build->set_loop_mode(Animation::LOOP_NONE);
+						int ts = build->add_track(Animation::TYPE_SCALE_3D);
+						build->track_set_path(ts, NodePath("."));
+						build->track_insert_key(ts, 0.0, Vector3(sc, sc, sc));
+						build->track_insert_key(ts, 2.0, Vector3(sc, sc, sc));
+						int tp = build->add_track(Animation::TYPE_POSITION_3D);
+						build->track_set_path(tp, NodePath("."));
+						build->track_insert_key(tp, 0.0, Vector3(-1.1f, e.y_offset - rise, 0));
+						build->track_insert_key(tp, 2.0, Vector3(-1.1f, e.y_offset, 0));
+						lib->add_animation("Build", build);
+
+						Ref<Animation> death;
+						death.instantiate();
+						death->set_length(2.0);
+						death->set_loop_mode(Animation::LOOP_NONE);
+						int tds = death->add_track(Animation::TYPE_SCALE_3D);
+						death->track_set_path(tds, NodePath("."));
+						death->track_insert_key(tds, 0.0, Vector3(sc, sc, sc));
+						death->track_insert_key(tds, 0.7, Vector3(sc, sc, sc));
+						int tdr = death->add_track(Animation::TYPE_ROTATION_3D);
+						death->track_set_path(tdr, NodePath("."));
+						death->track_insert_key(tdr, 0.0, Quaternion());
+						death->track_insert_key(tdr, 0.22, Quaternion::from_euler(Vector3(0.06f, 0.12f, -0.04f)));
+						death->track_insert_key(tdr, 0.70, Quaternion::from_euler(Vector3(0.28f, 0.55f, -0.16f)));
+						int tdp = death->add_track(Animation::TYPE_POSITION_3D);
+						death->track_set_path(tdp, NodePath("."));
+						death->track_insert_key(tdp, 0.0, Vector3(-1.1f, e.y_offset, 0));
+						death->track_insert_key(tdp, 0.70, Vector3(-1.1f, e.y_offset - rise * 0.95f, 0));
+						death->track_insert_key(tdp, 2.0, Vector3(-1.1f, e.y_offset - rise * 0.95f, 0));
+						lib->add_animation("Death", death);
+					}
+				}
+			}
 			if (anim_ok()) {
 				anim->set_active(true);
 				if (speed_sl)
@@ -437,20 +580,79 @@ void RtsoAssetViewer::load_preview() {
 		}
 	}
 
-	if (e.crowd_mesh.is_valid() || e.mesh.is_valid()) {
+	// Units only: optional crowd bake on the side. Buildings must not spawn a
+	// second idle house — it sits on the plot and hides Prebuild/Build/Death.
+	if (cur_cat != "buildings" && (e.crowd_mesh.is_valid() || e.mesh.is_valid())) {
 		crowd_mi = memnew(MeshInstance3D);
 		crowd_mi->set_mesh(e.crowd_mesh.is_valid() ? e.crowd_mesh : e.mesh);
 		crowd_mi->set_scale(Vector3(sc, sc, sc));
 		crowd_mi->set_position(Vector3(1.4f, e.y_offset, 0));
+		crowd_mi->set_visible(false);
 		preview_root->add_child(crowd_mi);
+	}
+
+	if (cur_cat == "buildings" && preview_root &&
+			!cur_id.begins_with("foundation_") && !cur_id.begins_with("scaffold_") &&
+			!cur_id.begins_with("rubble_") && !cur_id.ends_with("_rubble")) {
+		uint8_t btype = rtso::BLD_HOUSE;
+		String base = cur_id;
+		for (int c = 0; c < rtso::CIV_COUNT; ++c) {
+			String prefix = String(rtso::civ_info((uint8_t)c).code) + "_";
+			if (cur_id.begins_with(prefix)) {
+				base = cur_id.substr(prefix.length());
+				break;
+			}
+		}
+		for (int t = 0; t < rtso::BLD_TYPE_COUNT; ++t) {
+			if (base == String(rtso::building_type_info((uint8_t)t).model_id)) {
+				btype = (uint8_t)t;
+				break;
+			}
+		}
+		auto spawn_site = [&](const char *id) -> Node * {
+			String sid = id;
+			const rtso::ModelLibrary::Entry &se = rtso::ModelLibrary::get(String("buildings"), sid);
+			Node *n = nullptr;
+			if (se.scene.is_valid()) {
+				n = se.scene->instantiate();
+				rtso::ModelLibrary::apply_imported_material_fixups(n);
+			} else if (se.mesh.is_valid()) {
+				MeshInstance3D *mi = memnew(MeshInstance3D);
+				mi->set_mesh(se.mesh);
+				n = mi;
+			}
+			if (!n) return nullptr;
+			preview_root->add_child(n);
+			if (Node3D *n3 = Object::cast_to<Node3D>(n)) {
+				float s = se.scale > 0.05f ? se.scale : 1.0f;
+				n3->set_scale(Vector3(s, s, s));
+				n3->set_position(Vector3(-1.1f, se.y_offset, 0));
+				n3->set_meta("rest_y", se.y_offset);
+				n3->set_visible(false);
+			}
+			return n;
+		};
+		site_foundation = spawn_site(rtso::civ_building_foundation(btype));
+		site_scaffold = spawn_site(rtso::civ_building_scaffold(btype));
+		uint8_t rciv = 0;
+		if (civ_box && civ_box->get_item_count() > 0)
+			rciv = (uint8_t)civ_box->get_item_id(civ_box->get_selected());
+		site_rubble = spawn_site(rtso::civ_building_rubble(rciv, btype));
 	}
 
 	refresh_clips();
 	apply_visibility();
 	refresh_diag();
-	frame_camera();
+	int start = 0;
+	for (int i = 0; i < clip_names.size(); ++i) {
+		if (clip_names[i] == "Prebuild") {
+			start = i;
+			break;
+		}
+	}
 	if (clip_names.size() > 0)
-		play_clip_at(0);
+		play_clip_at(start);
+	frame_camera();
 }
 
 void RtsoAssetViewer::apply_visibility() {
@@ -460,6 +662,41 @@ void RtsoAssetViewer::apply_visibility() {
 	}
 	if (crowd_mi)
 		crowd_mi->set_visible(chk_crowd && chk_crowd->is_pressed());
+	apply_building_clip_visuals();
+}
+
+void RtsoAssetViewer::apply_building_clip_visuals() {
+	bool site_asset = cur_id.begins_with("foundation_") || cur_id.begins_with("scaffold_") ||
+			cur_id.begins_with("rubble_") || cur_id.ends_with("_rubble");
+	if (cur_cat != "buildings" || site_asset)
+		return;
+	bool pre = (cur_clip == "Prebuild" || cur_clip == "Foundation");
+	bool building = (cur_clip == "Build");
+	bool death = (cur_clip == "Death");
+	float death_t = 0.0f;
+	if (death && anim_ok() && anim->is_playing())
+		death_t = (float)anim->get_current_animation_position();
+	else if (death && anim_ok())
+		death_t = (float)anim->get_current_animation_position();
+	bool collapse = death && death_t < 0.70f;
+	bool show_house = (collapse || (!pre && !death)) && (chk_full && chk_full->is_pressed());
+	if (Node3D *n3 = Object::cast_to<Node3D>(preview_scene))
+		n3->set_visible(show_house);
+	if (crowd_mi)
+		crowd_mi->set_visible(false);
+	if (Node3D *n3 = Object::cast_to<Node3D>(site_foundation))
+		n3->set_visible(pre || building);
+	if (Node3D *n3 = Object::cast_to<Node3D>(site_scaffold))
+		n3->set_visible(building);
+	if (Node3D *n3 = Object::cast_to<Node3D>(site_rubble)) {
+		bool show_rubble = death && death_t >= 0.55f;
+		n3->set_visible(show_rubble);
+		if (show_rubble) {
+			float rest_y = n3->has_meta("rest_y") ? (float)n3->get_meta("rest_y") : n3->get_position().y;
+			float sink = Math::clamp((death_t - 0.55f) / 1.45f, 0.0f, 1.0f);
+			n3->set_position(Vector3(-1.1f, rest_y - sink * 1.15f, 0));
+		}
+	}
 }
 
 void RtsoAssetViewer::refresh_clips() {
@@ -530,7 +767,9 @@ void RtsoAssetViewer::play_clip_at(int index) {
 	if (clip_box && clip_box->get_item_count() == clip_names.size())
 		clip_box->select(index);
 	refresh_now_playing();
+	apply_building_clip_visuals();
 	_on_play();
+	frame_camera();
 }
 
 void RtsoAssetViewer::refresh_diag() {
@@ -582,8 +821,13 @@ void RtsoAssetViewer::refresh_diag() {
 		text += "NOTE: crowd is 1 surface (MultiMesh). Compare left vs right for missing parts.\n";
 	if (crowd_aabb.size.y > 0.01f && crowd_aabb.size.y < 0.45f)
 		text += "FLAG: crowd AABB very short — mesh may be incomplete.\n";
-	if (cur_id == "cavalry")
-		text += "NOTE: cavalry.glb is a horse skeleton; rider is sit-baked (cavalry_idle) onto the rider joint.\n";
+	if (cur_id.ends_with("cavalry") || cur_id == "cavalry")
+		text += "NOTE: cavalry GLB is a horse skeleton; the rider is a second skin driven by sit/attack clips.\n";
+	if (civ_box && cat_box && (cat_box->get_selected() == 0 || cat_box->get_selected() == 2))
+		text += String("Civ: ") + String(rtso::civ_info((uint8_t)civ_box->get_item_id(civ_box->get_selected())).name) + "\n";
+	if (cur_cat == "buildings" && !cur_id.begins_with("foundation_") && !cur_id.begins_with("scaffold_") &&
+			!cur_id.begins_with("rubble_") && !cur_id.ends_with("_rubble"))
+		text += "Phases: Idle = finished. Prebuild = plot. Build = plot + rising. Death = collapse then rubble sink.\n";
 
 	if (clip_names.size() > 0) {
 		text += "\nUse the list or [ ] to change clips.\n";
@@ -614,8 +858,23 @@ static void accumulate_aabb(Node *n, AABB &bb, bool &any) {
 void RtsoAssetViewer::frame_camera() {
 	AABB bb;
 	bool any = false;
-	accumulate_aabb(preview_scene, bb, any);
-	accumulate_aabb(crowd_mi, bb, any);
+	if (preview_scene) {
+		if (Node3D *n3 = Object::cast_to<Node3D>(preview_scene)) {
+			if (n3->is_visible_in_tree())
+				accumulate_aabb(preview_scene, bb, any);
+		}
+	}
+	if (crowd_mi && crowd_mi->is_visible())
+		accumulate_aabb(crowd_mi, bb, any);
+	auto acc_vis = [&](Node *n) {
+		if (Node3D *n3 = Object::cast_to<Node3D>(n)) {
+			if (n3->is_visible())
+				accumulate_aabb(n, bb, any);
+		}
+	};
+	acc_vis(site_foundation);
+	acc_vis(site_scaffold);
+	acc_vis(site_rubble);
 	if (!any) {
 		orbit_target = Vector3(0, 0.9f, 0);
 		orbit_dist = 8.0f;
@@ -642,6 +901,8 @@ void RtsoAssetViewer::update_camera() {
 
 void RtsoAssetViewer::_process(double delta) {
 	(void)delta;
+	if (cur_clip == "Death")
+		apply_building_clip_visuals();
 	if (!anim_ok() || seeking || !seek_sl) return;
 	if (!anim->is_playing() || cur_clip.is_empty()) return;
 	Ref<Animation> a = anim->get_animation(cur_clip);
@@ -721,6 +982,39 @@ void RtsoAssetViewer::_on_cat_selected(int index) {
 	if (item_list->get_item_count() > 0) {
 		item_list->select(0);
 		_on_item_selected(0);
+	}
+}
+
+static String unit_id_without_civ(const String &id) {
+	for (int c = 0; c < rtso::CIV_COUNT; ++c) {
+		String prefix = String(rtso::civ_info((uint8_t)c).code) + "_";
+		if (id.begins_with(prefix))
+			return id.substr(prefix.length());
+	}
+	return id;
+}
+
+void RtsoAssetViewer::_on_civ_selected(int index) {
+	(void)index;
+	String keep_base;
+	int keep = item_list ? item_list->get_selected_items().size() : 0;
+	if (keep > 0 && item_list->get_selected_items()[0] >= 0 &&
+			(size_t)item_list->get_selected_items()[0] < items.size()) {
+		keep_base = unit_id_without_civ(items[(size_t)item_list->get_selected_items()[0]].id);
+	}
+	rebuild_item_list();
+	int pick = 0;
+	if (!keep_base.is_empty()) {
+		for (size_t i = 0; i < items.size(); ++i) {
+			if (unit_id_without_civ(items[i].id) == keep_base) {
+				pick = (int)i;
+				break;
+			}
+		}
+	}
+	if (item_list->get_item_count() > 0) {
+		item_list->select(pick);
+		_on_item_selected(pick);
 	}
 }
 

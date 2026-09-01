@@ -51,8 +51,8 @@ bool AnimationController::load_rig(RigType rig) {
 			load_clip(AnimState::Idle, "citizen_idle");
 			load_clip(AnimState::Walk, "citizen_walk");
 			load_clip(AnimState::Attack, "biped_attack");
-			load_clip(AnimState::Gather, "gather_wood"); // villager_gather
-			load_clip(AnimState::Build, "gather_wood");
+			load_clip(AnimState::Gather, "gather_wood");
+			load_clip(AnimState::Build, "citizen_build");
 			load_clip(AnimState::Carry, "carry_wood");
 			load_clip(AnimState::Death, "biped_death");
 			skeleton.load_xml("biped");
@@ -63,7 +63,7 @@ bool AnimationController::load_rig(RigType rig) {
 			load_clip(AnimState::Idle, "horse_idle");
 			load_clip(AnimState::Walk, "horse_walk");
 			load_clip(AnimState::Run, "horse_run");
-			load_clip(AnimState::Attack, "horse_attack");
+			load_clip(AnimState::Attack, "horse_idle");
 			load_clip(AnimState::Death, "horse_death");
 			skeleton.load_xml("horse");
 
@@ -73,8 +73,8 @@ bool AnimationController::load_rig(RigType rig) {
 			mount_rider_controller->load_clip(AnimState::Idle, "cavalry_idle");
 			mount_rider_controller->load_clip(AnimState::Walk, "cavalry_walk");
 			mount_rider_controller->load_clip(AnimState::Run, "cavalry_walk");
-			mount_rider_controller->load_clip(AnimState::Attack, "biped_attack");
-			mount_rider_controller->load_clip(AnimState::Death, "biped_death");
+			mount_rider_controller->load_clip(AnimState::Attack, "cavalry_attack");
+			mount_rider_controller->load_clip(AnimState::Death, "cavalry_death");
 			mount_rider_controller->get_skeleton().load_xml("biped");
 			break;
 		}
@@ -129,6 +129,35 @@ bool AnimationController::load(const std::string& base) {
 		return load_rig(RigType::Healer);
 	} else if (base == "ram" || base == "siege_ram") {
 		return load_rig(RigType::SiegeRam);
+	} else if (base == "camel") {
+		anims.clear();
+		mount_rider_controller.reset();
+		load_clip(AnimState::Idle, "camel_idle");
+		load_clip(AnimState::Walk, "camel_walk");
+		load_clip(AnimState::Run, "camel_run");
+		load_clip(AnimState::Attack, "camel_idle");
+		load_clip(AnimState::Death, "camel_death");
+		skeleton.load_xml("camel");
+		return !anims.empty();
+	} else if (base == "elephant") {
+		anims.clear();
+		mount_rider_controller.reset();
+		load_clip(AnimState::Idle, "elephant_idle");
+		load_clip(AnimState::Walk, "elephant_walk");
+		load_clip(AnimState::Run, "elephant_run");
+		load_clip(AnimState::Attack, "elephant_idle");
+		load_clip(AnimState::Death, "elephant_death");
+		skeleton.load_xml("elephant");
+		return !anims.empty();
+	} else if (base == "chariot") {
+		anims.clear();
+		mount_rider_controller.reset();
+		load_clip(AnimState::Idle, "chariot_idle");
+		load_clip(AnimState::Walk, "chariot_walk");
+		load_clip(AnimState::Run, "chariot_walk");
+		load_clip(AnimState::Death, "chariot_death");
+		skeleton.load_xml("chariot");
+		return !anims.empty();
 	}
 
 	// Try loading default biped clips prefixed by base

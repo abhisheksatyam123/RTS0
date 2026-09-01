@@ -55,18 +55,25 @@ float ModelLibrary::target_height(const String &category, const String &id, floa
 		return 1.8f;
 	}
 	if (category == "buildings") {
-		if (id == "town_center") return 6.0f;
-		else if (id == "fortress") return 7.0f;
-		else if (id == "temple") return 6.4f;
-		else if (id == "wonder") return 8.5f;
-		else if (id == "barracks" || id == "market") return 4.4f;
-		else if (id == "wall_tower") return 4.6f;
-		else if (id == "wall") return 3.0f;
-		else if (id == "gate") return 4.5f;
-		else if (id == "dock" || id == "shipyard") return 4.0f;
-		else if (id == "corral") return 2.8f;
-		else if (id == "house" || id == "farmstead" || id == "storehouse") return 3.4f;
-		else if (id == "ruins") return 2.4f;
+		if (id.begins_with("foundation_") || id.begins_with("scaffold_") ||
+				id.begins_with("rubble_") || id.ends_with("_rubble"))
+			return natural_h;
+		String base = id;
+		int us = id.find("_");
+		if (us > 0 && us < id.length() - 1)
+			base = id.substr(us + 1);
+		if (base == "town_center") return 6.0f;
+		else if (base == "fortress") return 7.0f;
+		else if (base == "temple") return 6.4f;
+		else if (base == "wonder") return 8.5f;
+		else if (base == "barracks" || base == "market") return 4.4f;
+		else if (base == "wall_tower") return 4.6f;
+		else if (base == "wall" || base == "wall_segment") return 3.0f;
+		else if (base == "gate") return 4.5f;
+		else if (base == "dock" || base == "shipyard") return 4.0f;
+		else if (base == "corral") return 2.8f;
+		else if (base == "house" || base == "farmstead" || base == "storehouse") return 3.4f;
+		else if (base == "ruins") return 2.4f;
 		return Math::clamp(natural_h, 2.0f, 8.0f);
 	}
 	if (id == "pine") return 8.0f;
@@ -540,12 +547,31 @@ ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id)
 
 	// Fallbacks only for IDs that still share a stand-in mesh
 	if (category == "units") {
+		int us = id.find("_");
+		if (us > 0 && us < id.length() - 1) {
+			String base = id.substr(us + 1);
+			candidates.push_back(String("res://assets/models/units/") + base + String(".glb"));
+		}
 		if (id == "healer") {
 			candidates.push_back("res://assets/models/units/villager.glb");
 		}
 	} else if (category == "buildings") {
-		if (id == "gate") {
+		int us = id.find("_");
+		if (us > 0 && us < id.length() - 1) {
+			String base = id.substr(us + 1);
+			candidates.push_back(String("res://assets/models/buildings/") + base + String(".glb"));
+		}
+		if (id.ends_with("gate") || id == "gate") {
 			candidates.push_back("res://assets/models/buildings/wall.glb");
+		}
+		if (id.ends_with("_rubble") || id.begins_with("rubble_")) {
+			candidates.push_back("res://assets/models/buildings/rubble_large.glb");
+			candidates.push_back("res://assets/models/buildings/rubble_small.glb");
+		}
+		if (id.begins_with("foundation_")) {
+			candidates.push_back("res://assets/models/buildings/foundation_5x5.glb");
+			candidates.push_back("res://assets/models/buildings/foundation_large.glb");
+			candidates.push_back("res://assets/models/buildings/foundation_small.glb");
 		}
 	}
 

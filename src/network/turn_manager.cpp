@@ -353,7 +353,9 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		} else if (c.cmd_type == 4) { // Gather
 			sim.order_gather(c.entity_ids.data(), c.entity_ids.size(), c.target_id);
 		} else if (c.cmd_type == 5) { // Build
-			sim.cmd_build((int)c.target_x, (int)c.target_z, c.param);
+			uint32_t bid = sim.cmd_build((int)c.target_x, (int)c.target_z, c.param);
+			if (bid && !c.entity_ids.empty())
+				sim.order_build_or_repair(c.entity_ids.data(), c.entity_ids.size(), bid);
 		} else if (c.cmd_type == 6) { // Train
 			sim.cmd_train(c.target_id, (UnitType)c.param);
 		} else if (c.cmd_type == 7) { // Stance

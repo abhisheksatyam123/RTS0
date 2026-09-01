@@ -24,11 +24,15 @@ class RtsoAssetViewer : public Node3D {
 	Camera3D *cam = nullptr;
 	Node3D *preview_root = nullptr;
 	Node *preview_scene = nullptr;
+	Node *site_foundation = nullptr;
+	Node *site_scaffold = nullptr;
+	Node *site_rubble = nullptr;
 	MeshInstance3D *crowd_mi = nullptr;
 	MeshInstance3D *gizmo_mi = nullptr;
 	AnimationPlayer *anim = nullptr;
 
 	OptionButton *cat_box = nullptr;
+	OptionButton *civ_box = nullptr;
 	ItemList *item_list = nullptr;
 	ItemList *clip_list = nullptr;
 	OptionButton *clip_box = nullptr;
@@ -72,6 +76,7 @@ public:
 	void _unhandled_input(const Ref<InputEvent> &event) override;
 
 	void _on_cat_selected(int index);
+	void _on_civ_selected(int index);
 	void _on_item_selected(int index);
 	void _on_clip_selected(int index);
 	void _on_clip_box_selected(int index);
@@ -95,6 +100,7 @@ private:
 	void release_preview();
 	bool anim_ok() const;
 	void apply_visibility();
+	void apply_building_clip_visuals();
 	void refresh_clips();
 	void play_clip_at(int index);
 	void refresh_now_playing();

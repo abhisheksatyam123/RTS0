@@ -138,32 +138,20 @@ static Ref<Texture2D> load_tex(const String &path) {
 		Ref<Texture2D> tex = ResourceLoader::get_singleton()->load(path);
 		if (tex.is_valid()) return tex;
 	}
-	if (path.contains("emblems/")) {
-		if (ResourceLoader::get_singleton()->exists("res://assets/textures/ui/emblems/athenians.png")) {
-			return ResourceLoader::get_singleton()->load("res://assets/textures/ui/emblems/athenians.png");
-		}
-	} else if (path.contains("phases/")) {
-		if (ResourceLoader::get_singleton()->exists("res://assets/textures/ui/phases/village.png")) {
-			return ResourceLoader::get_singleton()->load("res://assets/textures/ui/phases/village.png");
-		}
-	} else if (path.contains("portraits/")) {
-		if (ResourceLoader::get_singleton()->exists("res://assets/textures/ui/portraits/swordsman.png")) {
-			return ResourceLoader::get_singleton()->load("res://assets/textures/ui/portraits/swordsman.png");
-		}
-	} else if (path.contains("stances/")) {
-		if (ResourceLoader::get_singleton()->exists("res://assets/textures/ui/stances/defensive.png")) {
-			return ResourceLoader::get_singleton()->load("res://assets/textures/ui/stances/defensive.png");
-		}
-	} else if (path.contains("formations/")) {
-		if (ResourceLoader::get_singleton()->exists("res://assets/textures/ui/formations/line.png")) {
-			return ResourceLoader::get_singleton()->load("res://assets/textures/ui/formations/line.png");
-		}
-	}
 	return Ref<Texture2D>();
 }
 
 void RtsoMain::_ready() {
 	rtso::Logger::info("Main", "RTS0 0 A.D. Reborn Ready — Full 0 A.D. UI & Simulation");
+
+	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings"))) {
+		int civ = (int)ms->get("player_civ");
+		int ai = (int)ms->get("ai_civ");
+		if (civ >= 0 && civ < rtso::CIV_COUNT) sim->set_player_civ((uint8_t)civ);
+		if (ai >= 0 && ai < rtso::CIV_COUNT) sim->set_team_civ(1, (uint8_t)ai);
+		UtilityFunctions::print("[RtsoMain] Match civ ", rtso::civ_info(sim->player_civ()).name,
+				" vs ", rtso::civ_info(sim->team_civ(1)).name);
+	}
 
 	anim_ctrl.load("res://assets/animations");
 	sim->spawn_initial();
@@ -242,7 +230,7 @@ void RtsoMain::_ready() {
 	civ_emblem->set_custom_minimum_size(Vector2(38, 38));
 	civ_emblem->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
 	civ_emblem->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
-	civ_emblem->set_texture(load_tex("res://assets/textures/ui/emblems/athenians.png"));
+	civ_emblem->set_texture(load_tex(rtso::civ_info(sim->player_civ()).emblem_path));
 	top_hbox->add_child(civ_emblem);
 
 	// Phase Emblem Badge (Village, Town, City)
@@ -368,6 +356,7 @@ void RtsoMain::_ready() {
 	civ_selector->add_item("Ptolemies", rtso::CIV_PTOLEMIES);
 	civ_selector->add_item("Seleucids", rtso::CIV_SELEUCIDS);
 	civ_selector->connect("item_selected", Callable(this, "_on_civ_selected"));
+	civ_selector->select((int)sim->player_civ());
 	top_hbox->add_child(civ_selector);
 
 	ai_diff_selector = memnew(OptionButton);
@@ -1479,10 +1468,13 @@ void RtsoMain::spawn_large_battle(int total_units) {
 
 void RtsoMain::update_ghost_mesh() {
 	if (!ghost_mesh) return;
-	const char *mid = rtso::building_type_model(current_build_type);
-	String mid_str = mid;
 	String cat = "buildings";
-	auto bentry = rtso::ModelLibrary::get(cat, mid_str);
+	const char *fid = rtso::civ_building_foundation(current_build_type);
+	auto bentry = rtso::ModelLibrary::get(cat, String(fid));
+	if (!bentry.valid) {
+		uint8_t pciv = sim ? sim->player_civ() : (uint8_t)rtso::CIV_ATHENIANS;
+		bentry = rtso::ModelLibrary::get(cat, String(rtso::civ_building_model(pciv, current_build_type)));
+	}
 	if (bentry.valid) {
 		ghost_mesh->set_mesh(bentry.mesh);
 		ghost_mesh->set_scale(Vector3(bentry.scale, bentry.scale, bentry.scale));
@@ -2059,22 +2051,19 @@ void RtsoMain::update_command_panel() {
 		if (found_b && found_b->build_progress >= 1.0f) {
 			uint8_t pciv = sim->player_civ();
 			uint8_t pphase = sim->player_phase();
+			uint32_t roster = rtso::civ_train_mask(pciv);
+			auto add_train = [&](rtso::UnitType t, const char *label) {
+				if ((roster & rtso::unit_bit((uint8_t)t)) == 0) return;
+				Button *btn = memnew(Button);
+				btn->set_text(label);
+				btn->connect("pressed", Callable(this, "_on_train_pressed").bind((int)t));
+				production_bar->add_child(btn);
+			};
 
 			if (found_b->type == rtso::BLD_TOWN_CENTER) {
-				Button *btn_v = memnew(Button);
-				btn_v->set_text("Villager (50f)");
-				btn_v->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_VILLAGER));
-				production_bar->add_child(btn_v);
-
-				Button *btn_f = memnew(Button);
-				btn_f->set_text("Female Citizen (40f)");
-				btn_f->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_FEMALE_CITIZEN));
-				production_bar->add_child(btn_f);
-
-				Button *btn_h = memnew(Button);
-				btn_h->set_text("Healer (80f,60g)");
-				btn_h->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_HEALER));
-				production_bar->add_child(btn_h);
+				add_train(rtso::UNIT_VILLAGER, "Villager (50f)");
+				add_train(rtso::UNIT_FEMALE_CITIZEN, "Female Citizen (40f)");
+				add_train(rtso::UNIT_HEALER, "Healer (80f,60g)");
 
 				if (pphase == 1) {
 					Button *btn_phase = memnew(Button);
@@ -2088,132 +2077,37 @@ void RtsoMain::update_command_panel() {
 					production_bar->add_child(btn_phase);
 				}
 			} else if (found_b->type == rtso::BLD_BARRACKS || found_b->type == rtso::BLD_FORTRESS) {
-				Button *btn_s = memnew(Button);
-				btn_s->set_text("Swordsman (60g,30w)");
-				btn_s->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_SWORDSMAN));
-				production_bar->add_child(btn_s);
-
-				Button *btn_a = memnew(Button);
-				btn_a->set_text("Archer (40g,50w)");
-				btn_a->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_ARCHER));
-				production_bar->add_child(btn_a);
-
-				Button *btn_sp = memnew(Button);
-				btn_sp->set_text("Spearman (30f,40w,20g)");
-				btn_sp->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_SPEARMAN));
-				production_bar->add_child(btn_sp);
-
-				Button *btn_c = memnew(Button);
-				btn_c->set_text("Cavalry (80g,50f)");
-				btn_c->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_CAVALRY));
-				production_bar->add_child(btn_c);
+				add_train(rtso::UNIT_SWORDSMAN, "Swordsman (60g,30w)");
+				add_train(rtso::UNIT_ARCHER, "Archer (40g,50w)");
+				add_train(rtso::UNIT_SPEARMAN, "Spearman (30f,40w,20g)");
+				add_train(rtso::UNIT_CAVALRY, "Cavalry (80g,50f)");
+				add_train(rtso::UNIT_CAMEL, "Camel Rider (60f,70g)");
+				add_train(rtso::UNIT_CHARIOT, "Celtic Chariot (80f,100w,60g)");
+				add_train(rtso::UNIT_WAR_DOG, "War Dog (60f)");
+				add_train(rtso::UNIT_CARNYX, "Carnyx Herald (70f,40w,30g)");
+				add_train(rtso::UNIT_ARCHER_MAIDEN, "Archer Maiden (40f,60w,40g)");
+				add_train(rtso::UNIT_WORKER_ELEPHANT, "Worker Elephant (180f,80w)");
 
 				if (pphase >= 2) {
-					Button *btn_hero = memnew(Button);
-					btn_hero->set_text("Champion Hero (200f,200g)");
-					btn_hero->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_HERO));
-					production_bar->add_child(btn_hero);
-
-					Button *btn_bolt = memnew(Button);
-					btn_bolt->set_text("Bolt Shooter (120w,80g)");
-					btn_bolt->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_BOLT_SHOOTER));
-					production_bar->add_child(btn_bolt);
+					add_train(rtso::UNIT_HERO, "Champion Hero (200f,200g)");
+					add_train(rtso::UNIT_BOLT_SHOOTER, "Bolt Shooter (120w,80g)");
 				}
-
 				if (pphase >= 3) {
-					Button *btn_cat = memnew(Button);
-					btn_cat->set_text("Catapult Artillery (150w,100g,50s)");
-					btn_cat->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_CATAPULT));
-					production_bar->add_child(btn_cat);
-
-					Button *btn_ram = memnew(Button);
-					btn_ram->set_text("Siege Ram (200w,100g)");
-					btn_ram->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_SIEGE_RAM));
-					production_bar->add_child(btn_ram);
-				}
-
-				// Civilization Special Units
-				if (pciv == rtso::CIV_CARTHAGINIANS || pciv == rtso::CIV_MAURYANS || pciv == rtso::CIV_SELEUCIDS || pphase >= 3) {
-					Button *btn_ele = memnew(Button);
-					btn_ele->set_text("War Elephant (250f,200g)");
-					btn_ele->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_ELEPHANT));
-					production_bar->add_child(btn_ele);
-				}
-
-				if (pciv == rtso::CIV_BRITONS || pciv == rtso::CIV_GAULS) {
-					Button *btn_ch = memnew(Button);
-					btn_ch->set_text("Celtic Chariot (80f,100w,60g)");
-					btn_ch->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_CHARIOT));
-					production_bar->add_child(btn_ch);
-
-					Button *btn_dog = memnew(Button);
-					btn_dog->set_text("War Dog (60f)");
-					btn_dog->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_WAR_DOG));
-					production_bar->add_child(btn_dog);
-				}
-
-				if (pciv == rtso::CIV_GAULS) {
-					Button *btn_carnyx = memnew(Button);
-					btn_carnyx->set_text("Carnyx Herald (70f,40w,30g)");
-					btn_carnyx->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_CARNYX));
-					production_bar->add_child(btn_carnyx);
-				}
-
-				if (pciv == rtso::CIV_MAURYANS) {
-					Button *btn_wele = memnew(Button);
-					btn_wele->set_text("Worker Elephant (180f,80w)");
-					btn_wele->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_WORKER_ELEPHANT));
-					production_bar->add_child(btn_wele);
-
-					Button *btn_maiden = memnew(Button);
-					btn_maiden->set_text("Archer Maiden (40f,60w,40g)");
-					btn_maiden->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_ARCHER_MAIDEN));
-					production_bar->add_child(btn_maiden);
-				}
-
-				if (pciv == rtso::CIV_PERSIANS || pciv == rtso::CIV_KUSHITES || pciv == rtso::CIV_PTOLEMIES) {
-					Button *btn_camel = memnew(Button);
-					btn_camel->set_text("Camel Rider (60f,70g)");
-					btn_camel->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_CAMEL));
-					production_bar->add_child(btn_camel);
-				}
-
-				if (pciv == rtso::CIV_SELEUCIDS) {
-					Button *btn_scythe = memnew(Button);
-					btn_scythe->set_text("Scythed Chariot (100f,80w,120g)");
-					btn_scythe->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_SCYTHED_CHARIOT));
-					production_bar->add_child(btn_scythe);
+					add_train(rtso::UNIT_CATAPULT, "Catapult Artillery (150w,100g,50s)");
+					add_train(rtso::UNIT_SIEGE_RAM, "Siege Ram (200w,100g)");
+					add_train(rtso::UNIT_ELEPHANT, "War Elephant (250f,200g)");
+					add_train(rtso::UNIT_SCYTHED_CHARIOT, "Scythed Chariot (100f,80w,120g)");
 				}
 			} else if (found_b->type == rtso::BLD_DOCK) {
-				Button *btn_fish = memnew(Button);
-				btn_fish->set_text("Fishing Boat (75w)");
-				btn_fish->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_FISHING_BOAT));
-				production_bar->add_child(btn_fish);
-
-				Button *btn_cargo = memnew(Button);
-				btn_cargo->set_text("Merchant Ship (120w,40g)");
-				btn_cargo->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_MERCHANT_SHIP));
-				production_bar->add_child(btn_cargo);
-
-				Button *btn_tri = memnew(Button);
-				btn_tri->set_text("War Trireme (200w,150g)");
-				btn_tri->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_TRIREME));
-				production_bar->add_child(btn_tri);
+				add_train(rtso::UNIT_FISHING_BOAT, "Fishing Boat (75w)");
+				add_train(rtso::UNIT_MERCHANT_SHIP, "Merchant Ship (120w,40g)");
+				add_train(rtso::UNIT_TRIREME, "War Trireme (200w,150g)");
 			} else if (found_b->type == rtso::BLD_MARKET) {
-				Button *btn_t = memnew(Button);
-				btn_t->set_text("Merchant Trader (60f,60w)");
-				btn_t->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_TRADER));
-				production_bar->add_child(btn_t);
+				add_train(rtso::UNIT_TRADER, "Merchant Trader (60f,60w)");
 			} else if (found_b->type == rtso::BLD_TEMPLE) {
-				Button *btn_h = memnew(Button);
-				btn_h->set_text("Temple Healer (80f,60g)");
-				btn_h->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_HEALER));
-				production_bar->add_child(btn_h);
+				add_train(rtso::UNIT_HEALER, "Temple Healer (80f,60g)");
 			} else if (found_b->type == rtso::BLD_FARMSTEAD || found_b->type == rtso::BLD_CORRAL) {
-				Button *btn_dog = memnew(Button);
-				btn_dog->set_text("Guard Dog (60f)");
-				btn_dog->connect("pressed", Callable(this, "_on_train_pressed").bind((int)rtso::UNIT_WAR_DOG));
-				production_bar->add_child(btn_dog);
+				add_train(rtso::UNIT_WAR_DOG, "Guard Dog (60f)");
 			}
 		}
 	} else {
@@ -2298,6 +2192,7 @@ void RtsoMain::enter_build_mode(bool enable, uint8_t btype) {
 }
 
 void RtsoMain::try_train_unit(rtso::UnitType utype) {
+	if (!sim || !rtso::civ_can_train(sim->player_civ(), (uint8_t)utype)) return;
 	uint32_t bid = selected_building_id;
 	if (bid == 0) {
 		for (const auto &b : sim->buildings()) {
@@ -2530,10 +2425,13 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					}
 					auto [cell_x, cell_y] = mouse_cell(mouse_pos);
 					if (net_lockstep()) {
-						post_lockstep(5, nullptr, 0, (float)cell_x, (float)cell_y, 0, current_build_type);
+						post_lockstep(5, (const uint32_t *)selected_ids.ptr(), selected_ids.size(),
+								(float)cell_x, (float)cell_y, 0, current_build_type);
 						play_civ_voice("build");
 						enter_build_mode(false);
-					} else if (sim->cmd_build(cell_x, cell_y, current_build_type)) {
+					} else if (uint32_t bid = sim->cmd_build(cell_x, cell_y, current_build_type)) {
+						if (!selected_ids.is_empty())
+							sim->order_build_or_repair((const uint32_t *)selected_ids.ptr(), selected_ids.size(), bid);
 						play_civ_voice("build");
 						enter_build_mode(false);
 					}
@@ -2552,15 +2450,15 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						Vector3 step_vec = (drag_end_pos - wall_drag_start_pos) / (float)seg_count;
 
 						// Start node tower
-						sim->spawn_building_world(wall_drag_start_pos.x, wall_drag_start_pos.z, rtso::BLD_TOWER, 0, 0.1f);
+						sim->spawn_building_world(wall_drag_start_pos.x, wall_drag_start_pos.z, rtso::BLD_TOWER, 0, 0.0f);
 
 						for (int s = 0; s < seg_count; ++s) {
 							Vector3 mid_p = wall_drag_start_pos + step_vec * ((float)s + 0.5f);
-							sim->spawn_building_world(mid_p.x, mid_p.z, rtso::BLD_WALL_SEGMENT, 0, 0.1f);
+							sim->spawn_building_world(mid_p.x, mid_p.z, rtso::BLD_WALL_SEGMENT, 0, 0.0f);
 
 							Vector3 end_p = wall_drag_start_pos + step_vec * ((float)s + 1.0f);
 							if (s == seg_count - 1) {
-								sim->spawn_building_world(end_p.x, end_p.z, rtso::BLD_TOWER, 0, 0.1f);
+								sim->spawn_building_world(end_p.x, end_p.z, rtso::BLD_TOWER, 0, 0.0f);
 							}
 						}
 						play_civ_voice("build");
@@ -3216,6 +3114,9 @@ void RtsoMain::set_civ(int civ_idx) {
 	const auto &info = rtso::civ_info(civ_idx);
 	if (civ_emblem) {
 		civ_emblem->set_texture(load_tex(info.emblem_path));
+	}
+	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings"))) {
+		ms->set("player_civ", civ_idx);
 	}
 	UtilityFunctions::print("[RtsoMain] Switched Civilization to: ", info.name, " (", info.description, ")");
 }

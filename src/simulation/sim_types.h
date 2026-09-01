@@ -2,6 +2,7 @@
 #define RTSO_SIM_TYPES_H
 
 #include <cstdint>
+#include <cstdio>
 #include <vector>
 
 namespace rtso {
@@ -254,24 +255,24 @@ inline const UnitTypeInfo &unit_type_info(uint8_t type) {
 		{"Archer", "archer", "archer", 80.0f, 3.3f, 16.0f, 7.2f, 1.25f, 0, 16.0f, 1.0f, 1.0f, 15.0f, 0, 50, 40, 0, 1, 12.0f, 0.0f, 7.2f, 0.0f},
 		{"Spearman", "spearman", "spearman", 100.0f, 3.2f, 2.4f, 8.5f, 1.0f, 0, 10.0f, 3.0f, 3.0f, 15.0f, 30, 40, 20, 0, 1, 12.0f, 4.25f, 4.25f, 0.0f},
 		{"Cavalry", "cavalry", "cavalry", 180.0f, 5.5f, 2.2f, 11.5f, 1.25f, 0, 12.0f, 3.0f, 3.0f, 15.0f, 50, 0, 80, 0, 2, 18.0f, 11.5f, 0.0f, 0.0f},
-		{"Merchant Trader", "trader", "market", 120.0f, 4.2f, 1.0f, 0.0f, 1.0f, 50, 0.0f, 2.0f, 2.0f, 10.0f, 60, 60, 0, 0, 1, 12.0f, 0.0f, 0.0f, 0.0f},
-		{"Catapult Artillery", "catapult", "fortress", 220.0f, 2.0f, 24.0f, 45.0f, 3.5f, 0, 24.0f, 2.0f, 5.0f, 20.0f, 0, 150, 100, 50, 3, 28.0f, 0.0f, 0.0f, 45.0f},
-		{"Historical Champion Hero", "hero", "swordsman", 350.0f, 4.2f, 2.8f, 18.0f, 0.8f, 0, 16.0f, 6.0f, 6.0f, 25.0f, 200, 0, 200, 0, 3, 30.0f, 12.0f, 6.0f, 0.0f},
-		{"War Trireme", "trireme", "fortress", 600.0f, 4.5f, 20.0f, 25.0f, 1.2f, 0, 20.0f, 5.0f, 8.0f, 20.0f, 0, 200, 150, 0, 3, 35.0f, 0.0f, 25.0f, 0.0f},
-		{"Carthaginian War Elephant", "elephant", "fortress", 900.0f, 3.4f, 2.5f, 35.0f, 1.4f, 0, 16.0f, 5.0f, 8.0f, 20.0f, 250, 0, 200, 0, 4, 40.0f, 20.0f, 0.0f, 15.0f},
-		{"Siege Battering Ram", "ram", "fortress", 850.0f, 2.2f, 2.4f, 75.0f, 2.5f, 0, 12.0f, 2.0f, 12.0f, 15.0f, 0, 200, 100, 0, 3, 25.0f, 0.0f, 0.0f, 75.0f},
-		{"Temple Healer", "healer", "villager", 90.0f, 3.2f, 12.0f, 0.0f, 1.0f, 0, 10.0f, 1.0f, 1.0f, 10.0f, 80, 0, 60, 0, 1, 14.0f, 0.0f, 0.0f, 0.0f},
-		{"Celtic War Chariot", "chariot", "cavalry", 280.0f, 5.8f, 14.0f, 14.0f, 1.1f, 0, 14.0f, 4.0f, 4.0f, 20.0f, 80, 100, 60, 0, 2, 22.0f, 4.0f, 10.0f, 0.0f},
-		{"Celtic War Dog", "war_dog", "villager", 75.0f, 5.2f, 1.2f, 9.0f, 0.7f, 0, 12.0f, 1.0f, 2.0f, 8.0f, 60, 0, 0, 0, 1, 8.0f, 9.0f, 0.0f, 0.0f},
-		{"Bolt Shooter Ballista", "bolt_shooter", "fortress", 200.0f, 2.2f, 28.0f, 40.0f, 3.0f, 0, 28.0f, 2.0f, 4.0f, 15.0f, 0, 120, 80, 0, 2, 22.0f, 0.0f, 40.0f, 0.0f},
-		{"Fishing Boat", "fishing_boat", "dock", 150.0f, 3.8f, 1.5f, 0.0f, 1.0f, 30, 0.0f, 1.0f, 2.0f, 10.0f, 0, 75, 0, 0, 1, 12.0f, 0.0f, 0.0f, 0.0f},
-		{"Merchant Cargo Ship", "merchant_ship", "dock", 300.0f, 4.0f, 1.0f, 0.0f, 1.0f, 100, 0.0f, 3.0f, 4.0f, 15.0f, 0, 120, 40, 0, 1, 18.0f, 0.0f, 0.0f, 0.0f},
-		{"Female Citizen", "female_citizen", "villager", 65.0f, 3.2f, 1.4f, 4.0f, 1.0f, 25, 3.0f, 1.0f, 3.0f, 10.0f, 40, 0, 0, 0, 1, 8.0f, 4.0f, 0.0f, 0.0f},
-		{"Gallic Carnyx Herald", "carnyx", "spearman", 140.0f, 3.5f, 2.0f, 7.0f, 1.0f, 0, 12.0f, 3.0f, 3.0f, 15.0f, 70, 40, 30, 0, 1, 15.0f, 7.0f, 0.0f, 0.0f},
-		{"Mauryan Worker Elephant", "worker_elephant", "cavalry", 600.0f, 3.2f, 2.0f, 12.0f, 1.2f, 100, 6.0f, 4.0f, 6.0f, 20.0f, 180, 80, 0, 0, 2, 25.0f, 8.0f, 0.0f, 4.0f},
-		{"Mauryan Archer Maiden", "archer_maiden", "archer", 95.0f, 3.6f, 17.0f, 8.5f, 1.1f, 0, 17.0f, 2.0f, 2.0f, 15.0f, 40, 60, 40, 0, 1, 14.0f, 0.0f, 8.5f, 0.0f},
-		{"Persian/Arabian Camel", "camel", "cavalry", 190.0f, 5.2f, 2.4f, 12.0f, 1.2f, 0, 12.0f, 3.0f, 3.0f, 15.0f, 60, 0, 70, 0, 2, 16.0f, 12.0f, 0.0f, 0.0f},
-		{"Seleucid Scythed Chariot", "scythed_chariot", "cavalry", 320.0f, 5.6f, 2.2f, 24.0f, 1.0f, 0, 14.0f, 5.0f, 5.0f, 25.0f, 100, 80, 120, 0, 3, 26.0f, 18.0f, 0.0f, 6.0f}
+		{"Merchant Trader", "trader", "trader", 120.0f, 4.2f, 1.0f, 0.0f, 1.0f, 50, 0.0f, 2.0f, 2.0f, 10.0f, 60, 60, 0, 0, 1, 12.0f, 0.0f, 0.0f, 0.0f},
+		{"Catapult Artillery", "catapult", "catapult", 220.0f, 2.0f, 24.0f, 45.0f, 3.5f, 0, 24.0f, 2.0f, 5.0f, 20.0f, 0, 150, 100, 50, 3, 28.0f, 0.0f, 0.0f, 45.0f},
+		{"Historical Champion Hero", "hero", "hero", 350.0f, 4.2f, 2.8f, 18.0f, 0.8f, 0, 16.0f, 6.0f, 6.0f, 25.0f, 200, 0, 200, 0, 3, 30.0f, 12.0f, 6.0f, 0.0f},
+		{"War Trireme", "trireme", "trireme", 600.0f, 4.5f, 20.0f, 25.0f, 1.2f, 0, 20.0f, 5.0f, 8.0f, 20.0f, 0, 200, 150, 0, 3, 35.0f, 0.0f, 25.0f, 0.0f},
+		{"Carthaginian War Elephant", "elephant", "elephant", 900.0f, 3.4f, 2.5f, 35.0f, 1.4f, 0, 16.0f, 5.0f, 8.0f, 20.0f, 250, 0, 200, 0, 4, 40.0f, 20.0f, 0.0f, 15.0f},
+		{"Siege Battering Ram", "ram", "ram", 850.0f, 2.2f, 2.4f, 75.0f, 2.5f, 0, 12.0f, 2.0f, 12.0f, 15.0f, 0, 200, 100, 0, 3, 25.0f, 0.0f, 0.0f, 75.0f},
+		{"Temple Healer", "healer", "healer", 90.0f, 3.2f, 12.0f, 0.0f, 1.0f, 0, 10.0f, 1.0f, 1.0f, 10.0f, 80, 0, 60, 0, 1, 14.0f, 0.0f, 0.0f, 0.0f},
+		{"Celtic War Chariot", "chariot", "chariot", 280.0f, 5.8f, 14.0f, 14.0f, 1.1f, 0, 14.0f, 4.0f, 4.0f, 20.0f, 80, 100, 60, 0, 2, 22.0f, 4.0f, 10.0f, 0.0f},
+		{"Celtic War Dog", "war_dog", "war_dog", 75.0f, 5.2f, 1.2f, 9.0f, 0.7f, 0, 12.0f, 1.0f, 2.0f, 8.0f, 60, 0, 0, 0, 1, 8.0f, 9.0f, 0.0f, 0.0f},
+		{"Bolt Shooter Ballista", "bolt_shooter", "bolt_shooter", 200.0f, 2.2f, 28.0f, 40.0f, 3.0f, 0, 28.0f, 2.0f, 4.0f, 15.0f, 0, 120, 80, 0, 2, 22.0f, 0.0f, 40.0f, 0.0f},
+		{"Fishing Boat", "fishing_boat", "fishing_boat", 150.0f, 3.8f, 1.5f, 0.0f, 1.0f, 30, 0.0f, 1.0f, 2.0f, 10.0f, 0, 75, 0, 0, 1, 12.0f, 0.0f, 0.0f, 0.0f},
+		{"Merchant Cargo Ship", "merchant_ship", "merchant_ship", 300.0f, 4.0f, 1.0f, 0.0f, 1.0f, 100, 0.0f, 3.0f, 4.0f, 15.0f, 0, 120, 40, 0, 1, 18.0f, 0.0f, 0.0f, 0.0f},
+		{"Female Citizen", "female_citizen", "female_citizen", 65.0f, 3.2f, 1.4f, 4.0f, 1.0f, 25, 3.0f, 1.0f, 3.0f, 10.0f, 40, 0, 0, 0, 1, 8.0f, 4.0f, 0.0f, 0.0f},
+		{"Gallic Carnyx Herald", "carnyx", "carnyx", 140.0f, 3.5f, 2.0f, 7.0f, 1.0f, 0, 12.0f, 3.0f, 3.0f, 15.0f, 70, 40, 30, 0, 1, 15.0f, 7.0f, 0.0f, 0.0f},
+		{"Mauryan Worker Elephant", "worker_elephant", "worker_elephant", 600.0f, 3.2f, 2.0f, 12.0f, 1.2f, 100, 6.0f, 4.0f, 6.0f, 20.0f, 180, 80, 0, 0, 2, 25.0f, 8.0f, 0.0f, 4.0f},
+		{"Mauryan Archer Maiden", "archer_maiden", "archer_maiden", 95.0f, 3.6f, 17.0f, 8.5f, 1.1f, 0, 17.0f, 2.0f, 2.0f, 15.0f, 40, 60, 40, 0, 1, 14.0f, 0.0f, 8.5f, 0.0f},
+		{"Persian/Arabian Camel", "camel", "camel", 190.0f, 5.2f, 2.4f, 12.0f, 1.2f, 0, 12.0f, 3.0f, 3.0f, 15.0f, 60, 0, 70, 0, 2, 16.0f, 12.0f, 0.0f, 0.0f},
+		{"Seleucid Scythed Chariot", "scythed_chariot", "scythed_chariot", 320.0f, 5.6f, 2.2f, 24.0f, 1.0f, 0, 14.0f, 5.0f, 5.0f, 25.0f, 100, 80, 120, 0, 3, 26.0f, 18.0f, 0.0f, 6.0f}
 	};
 	if (type >= UNIT_TYPE_COUNT) return kTable[UNIT_VILLAGER];
 	return kTable[type];
@@ -340,11 +341,11 @@ inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 		{"Market", "market", "market", 1200.0f, 2, 0, 200, 100, 0, 0, 5, 40.0f, 0.0f, 0.0f, 0.0f},
 		{"Fortress", "fortress", "fortress", 3500.0f, 2, 0, 300, 200, 300, 0, 30, 80.0f, 22.0f, 30.0f, 0.8f},
 		{"Gate", "gate", "gate", 1500.0f, 1, 0, 100, 0, 100, 0, 0, 25.0f, 0.0f, 0.0f, 0.0f},
-		{"Temple", "temple", "storehouse", 1200.0f, 2, 0, 150, 100, 100, 0, 5, 40.0f, 0.0f, 0.0f, 0.0f},
-		{"Wonder Monument", "wonder", "town_center", 5000.0f, 2, 500, 500, 500, 500, 0, 10, 120.0f, 0.0f, 0.0f, 0.0f},
-		{"Naval Shipyard Dock", "dock", "storehouse", 1400.0f, 2, 0, 200, 0, 100, 0, 5, 40.0f, 16.0f, 15.0f, 1.2f},
-		{"Stone Wall Segment", "wall_segment", "tower", 1800.0f, 1, 0, 0, 0, 40, 0, 5, 15.0f, 0.0f, 0.0f, 0.0f},
-		{"Livestock Corral", "corral", "farmstead", 800.0f, 2, 0, 100, 0, 0, 5, 10, 25.0f, 0.0f, 0.0f, 0.0f}
+		{"Temple", "temple", "temple", 1200.0f, 2, 0, 150, 100, 100, 0, 5, 40.0f, 0.0f, 0.0f, 0.0f},
+		{"Wonder Monument", "wonder", "wonder", 5000.0f, 2, 500, 500, 500, 500, 0, 10, 120.0f, 0.0f, 0.0f, 0.0f},
+		{"Naval Shipyard Dock", "dock", "dock", 1400.0f, 2, 0, 200, 0, 100, 0, 5, 40.0f, 16.0f, 15.0f, 1.2f},
+		{"Stone Wall Segment", "wall_segment", "wall", 1800.0f, 1, 0, 0, 0, 40, 0, 5, 15.0f, 0.0f, 0.0f, 0.0f},
+		{"Livestock Corral", "corral", "corral", 800.0f, 2, 0, 100, 0, 0, 5, 10, 25.0f, 0.0f, 0.0f, 0.0f}
 	};
 	if (type >= BLD_TYPE_COUNT) return kTable[BLD_HOUSE];
 	return kTable[type];
@@ -438,6 +439,164 @@ inline const CivInfo &civ_info(uint8_t civ) {
 	};
 	if (civ >= CIV_COUNT) return kTable[CIV_ATHENIANS];
 	return kTable[civ];
+}
+
+inline uint32_t unit_bit(uint8_t type) { return (type < 32) ? (1u << type) : 0u; }
+
+// Units this civilization can train (0 A.D. roster, simplified to RTS0 types).
+inline uint32_t civ_train_mask(uint8_t civ) {
+	uint32_t m = unit_bit(UNIT_VILLAGER) | unit_bit(UNIT_FEMALE_CITIZEN) | unit_bit(UNIT_TRADER) |
+		unit_bit(UNIT_FISHING_BOAT) | unit_bit(UNIT_MERCHANT_SHIP) | unit_bit(UNIT_TRIREME) |
+		unit_bit(UNIT_HEALER) | unit_bit(UNIT_BOLT_SHOOTER) | unit_bit(UNIT_CATAPULT) |
+		unit_bit(UNIT_SIEGE_RAM) | unit_bit(UNIT_HERO) | unit_bit(UNIT_CAVALRY) | unit_bit(UNIT_SPEARMAN);
+	switch (civ) {
+		case CIV_ATHENIANS:
+		case CIV_MACEDONIANS:
+		case CIV_IBERIANS:
+		case CIV_ROMANS:
+			m |= unit_bit(UNIT_SWORDSMAN) | unit_bit(UNIT_ARCHER);
+			break;
+		case CIV_SPARTANS:
+			m |= unit_bit(UNIT_SWORDSMAN) | unit_bit(UNIT_ARCHER);
+			break;
+		case CIV_PERSIANS:
+			m |= unit_bit(UNIT_ARCHER) | unit_bit(UNIT_CAMEL);
+			break;
+		case CIV_CARTHAGINIANS:
+			m |= unit_bit(UNIT_SWORDSMAN) | unit_bit(UNIT_ARCHER) | unit_bit(UNIT_ELEPHANT);
+			break;
+		case CIV_BRITONS:
+			m |= unit_bit(UNIT_SWORDSMAN) | unit_bit(UNIT_ARCHER) | unit_bit(UNIT_CHARIOT) | unit_bit(UNIT_WAR_DOG);
+			break;
+		case CIV_GAULS:
+			m |= unit_bit(UNIT_SWORDSMAN) | unit_bit(UNIT_ARCHER) | unit_bit(UNIT_CHARIOT) |
+				unit_bit(UNIT_WAR_DOG) | unit_bit(UNIT_CARNYX);
+			break;
+		case CIV_MAURYANS:
+			m |= unit_bit(UNIT_SWORDSMAN) | unit_bit(UNIT_ARCHER) | unit_bit(UNIT_ELEPHANT) |
+				unit_bit(UNIT_WORKER_ELEPHANT) | unit_bit(UNIT_ARCHER_MAIDEN);
+			break;
+		case CIV_KUSHITES:
+			m |= unit_bit(UNIT_SWORDSMAN) | unit_bit(UNIT_ARCHER) | unit_bit(UNIT_CAMEL);
+			break;
+		case CIV_PTOLEMIES:
+			m |= unit_bit(UNIT_SWORDSMAN) | unit_bit(UNIT_ARCHER) | unit_bit(UNIT_CAMEL);
+			break;
+		case CIV_SELEUCIDS:
+			m |= unit_bit(UNIT_SWORDSMAN) | unit_bit(UNIT_ARCHER) | unit_bit(UNIT_ELEPHANT) |
+				unit_bit(UNIT_SCYTHED_CHARIOT);
+			break;
+		default:
+			m |= unit_bit(UNIT_SWORDSMAN) | unit_bit(UNIT_ARCHER);
+			break;
+	}
+	return m;
+}
+
+inline bool civ_can_train(uint8_t civ, uint8_t type) {
+	return (civ_train_mask(civ) & unit_bit(type)) != 0;
+}
+
+// Prefer extracted `{civcode}_{model}` GLB; ModelLibrary falls back to the generic mesh.
+inline const char *civ_unit_model(uint8_t civ, uint8_t type) {
+	static char names[CIV_COUNT][UNIT_TYPE_COUNT][40];
+	static bool ready = false;
+	if (!ready) {
+		for (uint8_t c = 0; c < CIV_COUNT; ++c) {
+			const char *code = civ_info(c).code;
+			for (uint8_t t = 0; t < UNIT_TYPE_COUNT; ++t) {
+				std::snprintf(names[c][t], sizeof(names[c][t]), "%s_%s", code, unit_type_info(t).model_id);
+			}
+		}
+		ready = true;
+	}
+	if (civ >= CIV_COUNT) civ = CIV_ATHENIANS;
+	if (type >= UNIT_TYPE_COUNT) type = UNIT_VILLAGER;
+	return names[civ][type];
+}
+
+inline const char *civ_building_model(uint8_t civ, uint8_t type) {
+	static char names[CIV_COUNT][BLD_TYPE_COUNT][48];
+	static bool ready = false;
+	if (!ready) {
+		for (uint8_t c = 0; c < CIV_COUNT; ++c) {
+			const char *code = civ_info(c).code;
+			for (uint8_t t = 0; t < BLD_TYPE_COUNT; ++t) {
+				std::snprintf(names[c][t], sizeof(names[c][t]), "%s_%s", code, building_type_info(t).model_id);
+			}
+		}
+		ready = true;
+	}
+	if (civ >= CIV_COUNT) civ = CIV_ATHENIANS;
+	if (type >= BLD_TYPE_COUNT) type = BLD_HOUSE;
+	return names[civ][type];
+}
+
+inline const char *civ_building_rubble(uint8_t civ, uint8_t type) {
+	static char cc_rubble[CIV_COUNT][48];
+	static bool ready = false;
+	if (!ready) {
+		for (uint8_t c = 0; c < CIV_COUNT; ++c)
+			std::snprintf(cc_rubble[c], sizeof(cc_rubble[c]), "%s_town_center_rubble", civ_info(c).code);
+		ready = true;
+	}
+	if (civ >= CIV_COUNT) civ = CIV_ATHENIANS;
+	if (type == BLD_TOWN_CENTER)
+		return cc_rubble[civ];
+	switch (type) {
+		case BLD_HOUSE:
+		case BLD_STOREHOUSE:
+		case BLD_CORRAL:
+		case BLD_TOWER:
+		case BLD_FARMSTEAD:
+			return "rubble_small";
+		default:
+			return "rubble_large";
+	}
+}
+
+// 0 A.D. VisualActor/FoundationActor per structure class.
+inline const char *civ_building_foundation(uint8_t type) {
+	switch (type) {
+		case BLD_HOUSE:
+		case BLD_STOREHOUSE:
+		case BLD_CORRAL:
+			return "foundation_3x3";
+		case BLD_TOWER:
+			return "foundation_3x3_tower";
+		case BLD_FARMSTEAD:
+			return "foundation_5x5";
+		case BLD_BARRACKS:
+			return "foundation_6x6";
+		case BLD_TEMPLE:
+			return "foundation_4x6";
+		case BLD_WALL_SEGMENT:
+		case BLD_GATE:
+			return "foundation_wall";
+		case BLD_DOCK:
+			return "foundation_dock";
+		case BLD_TOWN_CENTER:
+		case BLD_MARKET:
+		case BLD_FORTRESS:
+		case BLD_WONDER:
+			return "foundation_8x8";
+		default:
+			return "foundation_5x5";
+	}
+}
+
+inline const char *civ_building_scaffold(uint8_t type) {
+	switch (type) {
+		case BLD_HOUSE:
+		case BLD_STOREHOUSE:
+		case BLD_CORRAL:
+		case BLD_TOWER:
+		case BLD_WALL_SEGMENT:
+		case BLD_GATE:
+			return "scaffold_small";
+		default:
+			return "scaffold_large";
+	}
 }
 
 enum FaunaType : uint8_t {

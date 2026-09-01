@@ -31,6 +31,7 @@ struct Projectile {
 	uint8_t status_effect = 0; // bitflags of StatusEffect
 	uint8_t team = 0;
 	uint32_t target_unit_id = 0;
+	uint32_t target_building_id = 0;
 	bool alive = true;
 };
 
@@ -73,6 +74,8 @@ public:
 		float hp;
 		float max_hp;
 		float build_progress; // 0.0f to 1.0f (1.0f = finished)
+		bool committed = false; // 0 A.D. Foundation.committed: first builder reached the plot
+		bool wrecked = false;   // hp already applied; keep entity for collapse + rubble
 		int cell_x, cell_y;
 		int footprint; // 1 or 2
 		float attack_timer; // for defensive arrows
@@ -140,7 +143,7 @@ public:
 	// Commands
 	void cmd_move(const uint32_t *unit_ids, size_t count, float tx, float tz);
 	void cmd_stop(const uint32_t *unit_ids, size_t count);
-	bool cmd_build(int cell_x, int cell_y, uint8_t b_type);
+	uint32_t cmd_build(int cell_x, int cell_y, uint8_t b_type);
 	bool cmd_train(uint32_t building_id, UnitType u_type);
 	bool cmd_cancel_train(uint32_t building_id, size_t queue_idx);
 	void cmd_set_rally_point(uint32_t building_id, float rx, float rz, uint32_t res_id = 0, uint32_t bld_id = 0);
@@ -447,7 +450,8 @@ private:
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
 	void rebuild_auras(); // G4: rebuild AuraManager from temples/heroes/carnyx/female citizens
-	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1);
+	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false);
+	void mark_building_wreck(Building &b);
 	void bind_unit_index(uint32_t id, size_t idx);
 	int32_t lookup_unit(uint32_t id) const;
 	void apply_loot_bounty(uint8_t killer_team, int food, int wood, int gold, int stone);

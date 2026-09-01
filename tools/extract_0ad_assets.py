@@ -54,9 +54,11 @@ ASSETS = {
     "healer":           ("art/actors/units/athenians/healer.xml",              "height", 1.70, (0.92, 0.90, 0.82)),
     "chariot":          ("art/actors/units/britons/chariot_javelinist_c_m.xml","width",  2.80, (0.36, 0.62, 0.94)),
     "war_dog":          ("art/actors/units/britons/war_dog_mastiff_a.xml",     "height", 0.90, None),
-    "bolt_shooter":     ("art/actors/units/athenians/oxybeles_infantry_a.xml", "width",  2.20, (0.36, 0.62, 0.94)),
+    "bolt_shooter":     ("art/actors/units/hellenes/siege_oxybeles.xml",       "width",  2.20, (0.36, 0.62, 0.94)),
     "fishing_boat":     ("art/actors/structures/athenians/fishing_boat.xml",   "width",  3.50, (0.36, 0.62, 0.94)),
-    "merchant_ship":    ("art/actors/structures/carthaginians/merchant_ship.xml","width",5.50, (0.36, 0.62, 0.94)),
+    # Carthaginian kart hull/sail/cargo are 0-bone. Celtic merchant has a 21-bone
+    # sail (celt_merchant_sail + idle/move/run) so Walk/Run actually flutter.
+    "merchant_ship":    ("art/actors/structures/celts/merchant_ship.xml",      "width",5.50, (0.36, 0.62, 0.94)),
     "female_citizen":   ("art/actors/units/athenians/female_citizen.xml",      "height", 1.68, (0.36, 0.62, 0.94)),
     "carnyx":           ("art/actors/units/gauls/infantry_carnyx_c.xml",       "height", 1.95, (0.36, 0.62, 0.94)),
     "worker_elephant":  ("art/actors/units/mauryas/support_elephant.xml",      "height", 2.90, (0.36, 0.62, 0.94)),
@@ -92,6 +94,33 @@ ASSETS = {
     "stable":           ("art/actors/structures/hellenes/stable.xml",          "width",  4.20, (0.36, 0.62, 0.94)),
     "stables":          ("art/actors/structures/hellenes/stable.xml",          "width",  4.20, (0.36, 0.62, 0.94)),
     "ruins":            ("art/actors/structures/hellenes/temple_epic.xml",     "width",  2.50, None),
+    "foundation_small": ("art/actors/structures/fndn_4x4.xml",                 "width",  2.40, None),
+    "foundation_large": ("art/actors/structures/fndn_7x7.xml",                 "width",  6.20, None),
+    "foundation_3x3":   ("art/actors/structures/fndn_3x3.xml",                 "width",  2.40, None),
+    "foundation_3x3_tower": ("art/actors/structures/fndn_3x3_tower.xml",       "width",  2.40, None),
+    "foundation_5x5":   ("art/actors/structures/fndn_5x5.xml",                 "width",  3.60, None),
+    "foundation_6x6":   ("art/actors/structures/fndn_6x6.xml",                 "width",  4.40, None),
+    "foundation_8x8":   ("art/actors/structures/fndn_8x8.xml",                 "width",  6.20, None),
+    "foundation_4x6":   ("art/actors/structures/fndn_4x6.xml",                 "width",  5.00, None),
+    "foundation_wall":  ("art/actors/structures/fndn_9x3_wall.xml",            "width",  4.00, None),
+    "foundation_dock":  ("art/actors/structures/fndn_4x4_dock.xml",            "width",  4.80, None),
+    "scaffold_small":   ("art/actors/props/structures/construction/scaf_4x4.xml", "width", 2.40, None),
+    "scaffold_large":   ("art/actors/props/structures/construction/scaf_8x8.xml", "width", 6.20, None),
+    "rubble_small":     ("art/actors/structures/destruct_stone_3x3.xml",       "width",  2.40, None),
+    "rubble_large":     ("art/actors/structures/destruct_stone_6x6.xml",       "width",  6.20, None),
+    "athen_town_center_rubble": ("art/actors/structures/destruct_hele_cc.xml", "width", 6.20, None),
+    "spart_town_center_rubble": ("art/actors/structures/destruct_hele_cc.xml", "width", 6.20, None),
+    "mace_town_center_rubble":  ("art/actors/structures/destruct_hele_cc.xml", "width", 6.20, None),
+    "sele_town_center_rubble":  ("art/actors/structures/destruct_hele_cc.xml", "width", 6.20, None),
+    "ptol_town_center_rubble":  ("art/actors/structures/destruct_hele_cc.xml", "width", 6.20, None),
+    "rome_town_center_rubble":  ("art/actors/structures/destruct_rome_cc.xml", "width", 6.20, None),
+    "brit_town_center_rubble":  ("art/actors/structures/destruct_brit_cc.xml", "width", 6.20, None),
+    "gaul_town_center_rubble":  ("art/actors/structures/destruct_gaul_civic_center.xml", "width", 6.20, None),
+    "pers_town_center_rubble":  ("art/actors/structures/destruct_pers_cc.xml", "width", 6.20, None),
+    "cart_town_center_rubble":  ("art/actors/structures/destruct_kart_cc.xml", "width", 6.20, None),
+    "iber_town_center_rubble":  ("art/actors/structures/destruct_iber_cc.xml", "width", 6.20, None),
+    "maur_town_center_rubble":  ("art/actors/structures/destruct_maur_cc.xml", "width", 6.20, None),
+    "kush_town_center_rubble":  ("art/actors/structures/destruct_stone_6x6.xml", "width", 6.20, None),
 
     # Vegetation / Resources
     "tree":             ("art/actors/flora/trees/oak_new.xml",                 "height", 4.50, None),
@@ -100,6 +129,289 @@ ASSETS = {
     "gold_vein":        ("art/actors/geology/metalmine_granite_greek.xml",     "width",  1.80, None),
     "stone_mine":       ("art/actors/geology/stonemine_granite.xml",           "width",  2.00, None),
 }
+
+# Per-civ core actors (folder names follow 0 A.D. art/actors/units/*).
+# Exported as `{civ_code}_{unit_id}.glb` so each civilization has its own meshes.
+CIV_CORE_ACTORS = {
+    "athen": {
+        "villager": "art/actors/units/athenians/citizen_male.xml",
+        "female_citizen": "art/actors/units/athenians/female_citizen.xml",
+        "swordsman": "art/actors/units/athenians/infantry_swordsman_c.xml",
+        "spearman": "art/actors/units/athenians/infantry_spearman_b.xml",
+        "archer": "art/actors/units/athenians/infantry_archer_a.xml",
+        "cavalry": "art/actors/units/athenians/cavalry_swordsman_b_m.xml",
+        "hero": "art/actors/units/athenians/hero_infantry_swordsman_themistocles.xml",
+        "healer": "art/actors/units/athenians/healer.xml",
+        "trader": "art/actors/units/athenians/trader.xml",
+        "fishing_boat": "art/actors/structures/athenians/fishing_boat.xml",
+        "trireme": "art/actors/structures/athenians/trireme.xml",
+    },
+    "spart": {
+        "villager": "art/actors/units/spartans/citizen_male.xml",
+        "female_citizen": "art/actors/units/spartans/female_citizen.xml",
+        "swordsman": "art/actors/units/spartans/infantry_swordsman_c.xml",
+        "spearman": "art/actors/units/spartans/infantry_spearman_c.xml",
+        "archer": "art/actors/units/spartans/infantry_slinger_b.xml",
+        "cavalry": "art/actors/units/spartans/cavalry_spearman_b_m.xml",
+        "hero": "art/actors/units/spartans/hero_infantry_spearman_leonidas.xml",
+        "healer": "art/actors/units/spartans/healer.xml",
+        "trader": "art/actors/units/spartans/trader.xml",
+        "fishing_boat": "art/actors/structures/hellenes/fishing_boat.xml",
+        "trireme": "art/actors/structures/spartans/trireme.xml",
+    },
+    "pers": {
+        "villager": "art/actors/units/persians/citizen_male.xml",
+        "female_citizen": "art/actors/units/persians/female_citizen.xml",
+        "spearman": "art/actors/units/persians/infantry_spearman_c.xml",
+        "archer": "art/actors/units/persians/infantry_archer_c.xml",
+        "cavalry": "art/actors/units/persians/cavalry_axeman_b_m.xml",
+        "hero": "art/actors/units/persians/hero_infantry_archer_xerxes.xml",
+        "healer": "art/actors/units/persians/healer.xml",
+        "trader": "art/actors/units/persians/trader.xml",
+        "fishing_boat": "art/actors/structures/persians/fishship.xml",
+        "trireme": "art/actors/structures/persians/trireme.xml",
+    },
+    "rome": {
+        "villager": "art/actors/units/romans/citizen_male.xml",
+        "female_citizen": "art/actors/units/romans/female_citizen.xml",
+        "swordsman": "art/actors/units/romans/infantry_swordsman_c.xml",
+        "spearman": "art/actors/units/romans/infantry_spearman_b.xml",
+        "archer": "art/actors/units/romans/infantry_javelinist_b.xml",
+        "cavalry": "art/actors/units/romans/cavalry_spearman_b_m.xml",
+        "hero": "art/actors/units/romans/hero_infantry_swordsman_scipio.xml",
+        "healer": "art/actors/units/romans/healer.xml",
+        "trader": "art/actors/units/romans/trader.xml",
+        "fishing_boat": "art/actors/structures/hellenes/fishing_boat.xml",
+        "trireme": "art/actors/structures/romans/trireme.xml",
+    },
+    "cart": {
+        "villager": "art/actors/units/carthaginians/citizen_male.xml",
+        "female_citizen": "art/actors/units/carthaginians/female_citizen.xml",
+        "swordsman": "art/actors/units/carthaginians/infantry_swordsman_b.xml",
+        "spearman": "art/actors/units/carthaginians/infantry_spearman_c.xml",
+        "archer": "art/actors/units/carthaginians/infantry_archer_b.xml",
+        "cavalry": "art/actors/units/carthaginians/cavalry_spearman_c_m.xml",
+        "hero": "art/actors/units/carthaginians/hero_infantry_swordsman_hannibal.xml",
+        "healer": "art/actors/units/carthaginians/healer.xml",
+        "trader": "art/actors/units/carthaginians/trader.xml",
+        "fishing_boat": "art/actors/structures/hellenes/fishing_boat.xml",
+        "trireme": "art/actors/structures/carthaginians/trireme.xml",
+    },
+    "mace": {
+        "villager": "art/actors/units/macedonians/female_citizen.xml",
+        "female_citizen": "art/actors/units/macedonians/female_citizen.xml",
+        "swordsman": "art/actors/units/macedonians/infantry_swordsman_c_thracian.xml",
+        "spearman": "art/actors/units/macedonians/infantry_pikeman_b.xml",
+        "archer": "art/actors/units/macedonians/infantry_archer_b.xml",
+        "cavalry": "art/actors/units/macedonians/cavalry_spearman_c_m.xml",
+        "hero": "art/actors/units/macedonians/hero_infantry_swordsman_alexander.xml",
+        "healer": "art/actors/units/hellenes/healer.xml",
+        "trader": "art/actors/units/macedonians/trader.xml",
+        "fishing_boat": "art/actors/structures/hellenes/fishing_boat.xml",
+        "trireme": "art/actors/structures/macedonians/trireme.xml",
+    },
+    "brit": {
+        "villager": "art/actors/units/britons/citizen_male.xml",
+        "female_citizen": "art/actors/units/britons/citizen_female.xml",
+        "swordsman": "art/actors/units/britons/infantry_swordsman_c.xml",
+        "spearman": "art/actors/units/britons/infantry_spearman_c.xml",
+        "archer": "art/actors/units/britons/infantry_slinger_b.xml",
+        "cavalry": "art/actors/units/britons/cavalry_swordsman_b_m.xml",
+        "hero": "art/actors/units/britons/hero_infantry_swordsman_boudicca.xml",
+        "healer": "art/actors/units/celts/healer.xml",
+        "trader": "art/actors/units/celts/trader.xml",
+        "fishing_boat": "art/actors/structures/celts/fishing_boat.xml",
+        "trireme": "art/actors/structures/celts/warship.xml",
+    },
+    "gaul": {
+        "villager": "art/actors/units/britons/citizen_male.xml",
+        "female_citizen": "art/actors/units/britons/citizen_female.xml",
+        "swordsman": "art/actors/units/gauls/infantry_swordsman_c.xml",
+        "spearman": "art/actors/units/gauls/infantry_spearman_c.xml",
+        "archer": "art/actors/units/gauls/infantry_slinger_b.xml",
+        "cavalry": "art/actors/units/gauls/cavalry_swordsman_b_m.xml",
+        "hero": "art/actors/units/gauls/hero_infantry_swordsman_vercingetorix.xml",
+        "healer": "art/actors/units/celts/healer.xml",
+        "trader": "art/actors/units/celts/trader.xml",
+        "fishing_boat": "art/actors/structures/celts/fishing_boat.xml",
+        "trireme": "art/actors/structures/celts/warship.xml",
+    },
+    "iber": {
+        "villager": "art/actors/units/iberians/citizen_male.xml",
+        "female_citizen": "art/actors/units/iberians/female_citizen.xml",
+        "swordsman": "art/actors/units/iberians/infantry_swordsman_c.xml",
+        "spearman": "art/actors/units/iberians/infantry_spearman_b.xml",
+        "archer": "art/actors/units/iberians/infantry_slinger_b.xml",
+        "cavalry": "art/actors/units/iberians/cavalry_javelinist_c_m.xml",
+        "hero": "art/actors/units/iberians/hero_infantry_swordsman_viriato.xml",
+        "healer": "art/actors/units/iberians/healer.xml",
+        "trader": "art/actors/units/iberians/trader.xml",
+        "fishing_boat": "art/actors/structures/iberians/fishing_ship.xml",
+        "trireme": "art/actors/structures/iberians/warship.xml",
+    },
+    "maur": {
+        "villager": "art/actors/units/mauryas/citizen_male.xml",
+        "female_citizen": "art/actors/units/mauryas/female_citizen.xml",
+        "swordsman": "art/actors/units/mauryas/infantry_swordsman_c.xml",
+        "spearman": "art/actors/units/mauryas/infantry_spearman_b.xml",
+        "archer": "art/actors/units/mauryas/infantry_archer_c.xml",
+        "cavalry": "art/actors/units/mauryas/cavalry_swordsman_b_m.xml",
+        "hero": "art/actors/units/mauryas/hero_infantry_archer_ashoka.xml",
+        "healer": "art/actors/units/mauryas/healer.xml",
+        "trader": "art/actors/units/mauryas/trader.xml",
+        "fishing_boat": "art/actors/structures/mauryas/fishing_ship.xml",
+        "trireme": "art/actors/structures/mauryas/trireme.xml",
+    },
+    "kush": {
+        "villager": "art/actors/units/kushites/citizen_male.xml",
+        "female_citizen": "art/actors/units/kushites/female_citizen.xml",
+        "swordsman": "art/actors/units/kushites/infantry_swordsman_c.xml",
+        "spearman": "art/actors/units/kushites/infantry_spearman_b.xml",
+        "archer": "art/actors/units/kushites/infantry_archer_c.xml",
+        "cavalry": "art/actors/units/kushites/cavalry_spearman_c_m.xml",
+        "hero": "art/actors/units/kushites/hero_infantry_archer_amanirenas.xml",
+        "healer": "art/actors/units/kushites/healer.xml",
+        "trader": "art/actors/units/kushites/trader.xml",
+        "fishing_boat": "art/actors/structures/kushites/fishing_boat.xml",
+        "trireme": "art/actors/structures/kushites/trireme.xml",
+    },
+    "ptol": {
+        "villager": "art/actors/units/ptolemies/citizen_male.xml",
+        "female_citizen": "art/actors/units/ptolemies/female_citizen.xml",
+        "swordsman": "art/actors/units/ptolemies/infantry_swordsman_b.xml",
+        "spearman": "art/actors/units/ptolemies/infantry_pikeman_c.xml",
+        "archer": "art/actors/units/ptolemies/infantry_archer_b.xml",
+        "cavalry": "art/actors/units/ptolemies/cavalry_spearman_c_m.xml",
+        "hero": "art/actors/units/ptolemies/hero_infantry_archer_cleopatra.xml",
+        "healer": "art/actors/units/ptolemies/healer.xml",
+        "trader": "art/actors/units/hellenes/trader.xml",
+        "fishing_boat": "art/actors/structures/ptolemies/fishing_boat.xml",
+        "trireme": "art/actors/structures/ptolemies/trireme.xml",
+    },
+    "sele": {
+        "villager": "art/actors/units/seleucids/citizen_male.xml",
+        "female_citizen": "art/actors/units/seleucids/female_citizen.xml",
+        "swordsman": "art/actors/units/seleucids/infantry_swordsman_c.xml",
+        "spearman": "art/actors/units/seleucids/infantry_pikeman_c.xml",
+        "archer": "art/actors/units/seleucids/infantry_archer_b.xml",
+        "cavalry": "art/actors/units/seleucids/cavalry_spearman_c_m.xml",
+        "hero": "art/actors/units/seleucids/hero_infantry_spearman_seleucid_victor.xml",
+        "healer": "art/actors/units/hellenes/healer.xml",
+        "trader": "art/actors/units/hellenes/trader.xml",
+        "fishing_boat": "art/actors/structures/hellenes/fishing_boat.xml",
+        "trireme": "art/actors/structures/seleucids/trireme.xml",
+    },
+}
+
+CIV_STRUCTURE_FOLDERS = {
+    "athen": ["athenians", "hellenes"],
+    "spart": ["spartans", "hellenes"],
+    "pers": ["persians"],
+    "rome": ["romans"],
+    "cart": ["carthaginians"],
+    "mace": ["macedonians", "hellenes"],
+    "brit": ["britons", "celts"],
+    "gaul": ["gauls", "celts"],
+    "iber": ["iberians"],
+    "maur": ["mauryas"],
+    "kush": ["kushites"],
+    "ptol": ["ptolemies"],
+    "sele": ["seleucids", "hellenes"],
+}
+
+# 0 A.D. filenames for each RTS0 building id (first match in civ folders wins).
+BLD_ACTOR_NAMES = {
+    "town_center": ("civic_centre.xml", "civic_center.xml", "civil_centre.xml", "civil_center.xml"),
+    "house": ("house.xml", "homestead.xml"),
+    "barracks": ("barracks.xml",),
+    "storehouse": ("storehouse.xml",),
+    "wall_tower": ("wall_tower.xml", "defense_tower.xml", "defense_tower_stone.xml", "scout_tower.xml"),
+    "tower": ("wall_tower.xml", "defense_tower.xml", "defense_tower_stone.xml", "scout_tower.xml"),
+    "farmstead": ("farmstead.xml",),
+    "market": ("market.xml", "market_newest.xml"),
+    "fortress": ("fortress.xml",),
+    "gate": ("wall_gate.xml", "wall_gate_struct.xml", "gate.xml"),
+    "temple": ("temple.xml",),
+    "wonder": ("wonder.xml", "apadana.xml", "capitoline.xml", "big_stupa.xml",
+               "pyramid_large.xml", "temple_epic.xml"),
+    "dock": ("dock.xml",),
+    "wall_segment": ("wall_long.xml",),
+    "wall": ("wall_long.xml",),
+    "corral": ("corral.xml", "plot_corral.xml"),
+}
+
+BLD_GLOBAL_FALLBACK = {
+    "town_center": "art/actors/structures/hellenes/civic_centre_new.xml",
+    "house": "art/actors/structures/hellenes/house.xml",
+    "barracks": "art/actors/structures/athenians/barracks.xml",
+    "storehouse": "art/actors/structures/hellenes/storehouse.xml",
+    "wall_tower": "art/actors/structures/hellenes/wall_tower.xml",
+    "tower": "art/actors/structures/hellenes/wall_tower.xml",
+    "farmstead": "art/actors/structures/hellenes/farmstead.xml",
+    "market": "art/actors/structures/hellenes/market.xml",
+    "fortress": "art/actors/structures/athenians/fortress.xml",
+    "gate": "art/actors/structures/hellenes/wall_gate.xml",
+    "temple": "art/actors/structures/hellenes/temple.xml",
+    "wonder": "art/actors/structures/carthaginians/wonder.xml",
+    "dock": "art/actors/structures/athenians/dock.xml",
+    "wall_segment": "art/actors/structures/hellenes/wall_long.xml",
+    "wall": "art/actors/structures/hellenes/wall_long.xml",
+    "corral": "art/actors/structures/hellenes/corral.xml",
+}
+
+
+def register_civ_unit_assets(assets):
+    """Add `{code}_{unit}` entries and copy UNIT_CFG / rider attach from the base unit."""
+    added = []
+    for code, units in CIV_CORE_ACTORS.items():
+        for uid, actor in units.items():
+            if uid not in ASSETS:
+                continue
+            aid = f"{code}_{uid}"
+            _path, fit, target, tint = ASSETS[uid]
+            assets[aid] = (actor, fit, target, tint)
+            if uid in UNIT_CFG:
+                UNIT_CFG[aid] = UNIT_CFG[uid]
+            if uid in RIDER_ATTACHMENTS:
+                rpath, ap_name, sit = RIDER_ATTACHMENTS[uid][0]
+                if actor.endswith("_m.xml"):
+                    rider = actor[:-6] + "_r.xml"
+                elif uid == "trader" and actor.endswith("trader.xml"):
+                    rider = actor[:-len("trader.xml")] + "trader_r.xml"
+                else:
+                    rider = rpath
+                RIDER_ATTACHMENTS[aid] = [(rider, ap_name, sit)]
+            if uid in RIDER_CLIPS:
+                RIDER_CLIPS[aid] = RIDER_CLIPS[uid]
+            added.append(aid)
+    return added
+
+
+def register_civ_building_assets(assets, zf):
+    """Add `{code}_{building}` entries from each civ's 0 A.D. structure actors."""
+    names = set(zf.namelist())
+    added = []
+    for code, folders in CIV_STRUCTURE_FOLDERS.items():
+        for bid, filenames in BLD_ACTOR_NAMES.items():
+            if bid not in ASSETS:
+                continue
+            actor = None
+            for folder in folders:
+                for fn in filenames:
+                    path = f"art/actors/structures/{folder}/{fn}"
+                    if path in names:
+                        actor = path
+                        break
+                if actor:
+                    break
+            if actor is None:
+                actor = BLD_GLOBAL_FALLBACK.get(bid) or ASSETS[bid][0]
+            aid = f"{code}_{bid}"
+            _path, fit, target, tint = ASSETS[bid]
+            assets[aid] = (actor, fit, target, tint)
+            added.append(aid)
+    return added
+
 
 FULL_ASSETS = dict(ASSETS)
 
@@ -139,6 +451,7 @@ ANIMATIONS = {
     "female_walk":      "art/animation/biped/citizen/walk_relax_f.dae.cached.psa",
     "female_run":       "art/animation/biped/citizen/jog_f.dae.cached.psa",
     "gather_wood":      "art/animation/biped/gatherer/gather_wood.dae.cached.psa",
+    "citizen_build":    "art/animation/biped/citizen/build.dae.cached.psa",
     "gather_mine":      "art/animation/biped/gatherer/gather_mine.dae.cached.psa",
     "gather_berries":   "art/animation/biped/gatherer/gather_berries.dae.cached.psa",
     "carry_wood":       "art/animation/biped/gatherer/carry_wood_m.dae.cached.psa",
@@ -148,6 +461,8 @@ ANIMATIONS = {
     # cavalry / horse
     "cavalry_idle":     "art/animation/biped/rider/cavalry/generic/idle_relax_01.dae.cached.psa",
     "cavalry_walk":     "art/animation/biped/rider/cavalry/generic/walk_relax_shield.dae.cached.psa",
+    "cavalry_attack":   "art/animation/biped/rider/cavalry/generic/attack_melee_01.dae.cached.psa",
+    "cavalry_death":    "art/animation/biped/rider/cavalry/generic/death_01.dae.cached.psa",
     "horse_idle":       "art/animation/quadraped/horse_idle_01.dae.cached.psa",
     "horse_walk":       "art/animation/quadraped/horse_walk.dae.cached.psa",
     "horse_run":        "art/animation/quadraped/horse_gallop.dae.cached.psa",
@@ -202,6 +517,33 @@ ANIMATIONS = {
     "catapult_attack":  "art/animation/mechanical/siege_artillery/lithobolos_med_attack_ranged_01.dae.cached.psa",
     "bolt_idle":        "art/animation/mechanical/siege_artillery/oxybeles_idle_01.dae.cached.psa",
     "bolt_attack":      "art/animation/mechanical/siege_artillery/oxybeles_attack_ranged_01.dae.cached.psa",
+    # mechanical chariot (15 bones)
+    "chariot_idle":     "art/animation/mechanical/chariot_idle.dae.cached.psa",
+    "chariot_walk":     "art/animation/mechanical/chariot_move.dae.cached.psa",
+    "chariot_run":      "art/animation/mechanical/chariot_run.dae.cached.psa",
+    "chariot_death":    "art/animation/mechanical/chariot_death.dae.cached.psa",
+    # sit-bake clips for mount crew (46-bone biped, frame 0)
+    "camel_rider_idle": "art/animation/biped/rider/camelry/archer/idle_relax_01.dae.cached.psa",
+    "camel_rider_walk": "art/animation/biped/rider/camelry/archer/trot_relax.dae.cached.psa",
+    "camel_rider_run":  "art/animation/biped/rider/camelry/archer/run_relax.dae.cached.psa",
+    "camel_rider_attack": "art/animation/biped/rider/camelry/archer/attack_ranged_right.dae.cached.psa",
+    "elephant_driver_idle": "art/animation/biped/rider/elephantry/driver/idle_relax.dae.cached.psa",
+    "elephant_driver_attack": "art/animation/biped/rider/elephantry/driver/attack_melee.dae.cached.psa",
+    "trader_rider_idle": "art/animation/biped/citizen/idle_relax_h_f.dae.cached.psa",
+    "trader_rider_walk": "art/animation/biped/citizen/walk_relax_t.dae.cached.psa",
+    "fisherman_idle":   "art/animation/biped/new/boat_fisherman_idle.dae.cached.psa",
+    "trireme_idle":     "art/animation/other/main_sail_idle.dae.cached.psa",
+    "trireme_walk":     "art/animation/other/main_sail_move.dae.cached.psa",
+    "merchant_sail_idle": "art/animation/others/celt_merchant_sail_idle.dae.cached.psa",
+    "merchant_sail_walk": "art/animation/others/celt_merchant_sail_move.dae.cached.psa",
+    "merchant_sail_run":  "art/animation/others/celt_merchant_sail_run.dae.cached.psa",
+    "fisherman_gather": "art/animation/biped/new/boat_fisherman_gather_fish.dae.cached.psa",
+    "rowing_idle":      "art/animation/mechanical/rowing_boat_idle.dae.cached.psa",
+    "rowing_walk":      "art/animation/mechanical/rowing_boat_move.dae.cached.psa",
+    "chariot_driver_idle": "art/animation/biped/chariot/idle.dae.cached.psa",
+    "chariot_driver_celt": "art/animation/biped/chariot/idle_celt.dae.cached.psa",
+    "chariot_jav_ready": "art/animation/biped/infantry/javelinist/idle_ready.dae.cached.psa",
+    "chariot_archer_ready": "art/animation/biped/infantry/archer/idle_ready.dae.cached.psa",
 }
 
 SKELETONS = {
@@ -210,26 +552,73 @@ SKELETONS = {
     "deer": "art/skeletons/deer.xml",
     "camel": "art/skeletons/camelus.xml",
     "elephant": "art/skeletons/elephantidae_asian.xml",
+    "chariot": "art/skeletons/chariot.xml",
+    "lithobolos": "art/skeletons/lithobolos_light.xml",
+    "oxybeles": "art/skeletons/oxybeles.xml",
+    "rowing_boat": "art/skeletons/rowing_boat.xml",
+    "ship_sail": "art/skeletons/ship_sail.xml",
+    "celt_sail": "art/skeletons/celt_sail.xml",
     "boar": "art/skeletons/boar.xml",
     "wolf": "art/skeletons/wolf.xml",
     "sheep": "art/skeletons/sheep.xml",
     "mastiff": "art/skeletons/mastiff.xml",
 }
 
-# 0 A.D. cavalry is two actors: *_m mount + *_r rider parented to mount "rider"
-RIDER_ACTORS = {
-    "cavalry": ("art/actors/units/athenians/cavalry_swordsman_b_r.xml", "rider"),
-    "camel": ("art/actors/units/ptolemies/camel_archer_a_r.xml", "rider"),
-    "elephant": ("art/actors/units/carthaginians/elephantry_c_r.xml", "rider"),
-    "chariot": ("art/actors/units/britons/chariot_javelinist_c_r.xml", "rider2"),
+# Mount *_m XML already props crew onto attachpoints. compose_actor skips
+# these actors, then attach_rider_parts sit-bakes each once. Otherwise the
+# GLB gets a standing bind-pose copy plus a posed copy.
+# (actor_path, attachpoint, sit_psa_key)
+RIDER_ATTACHMENTS = {
+    "cavalry": [
+        ("art/actors/units/athenians/cavalry_swordsman_b_r.xml", "rider", "cavalry_idle"),
+    ],
+    "camel": [
+        ("art/actors/units/ptolemies/camel_archer_a_r.xml", "rider", "camel_rider_idle"),
+    ],
+    "elephant": [
+        ("art/actors/units/carthaginians/elephantry_c_d.xml", "rider", "elephant_driver_idle"),
+    ],
+    "worker_elephant": [
+        ("art/actors/units/mauryas/support_elephant_d.xml", "rider", "elephant_driver_idle"),
+    ],
+    "chariot": [
+        ("art/actors/units/britons/chariot_javelinist_c_r.xml", "rider3", "chariot_jav_ready"),
+        ("art/actors/units/britons/chariot_javelinist_c_d.xml", "driver2_mid", "chariot_driver_celt"),
+    ],
+    "scythed_chariot": [
+        ("art/actors/units/persians/chariot_archer_a_r.xml", "rider1", "chariot_archer_ready"),
+        ("art/actors/units/persians/chariot_archer_a_d.xml", "driver1", "chariot_driver_idle"),
+    ],
+    "trader": [
+        ("art/actors/units/hellenes/trader_r.xml", "trader", "trader_rider_idle"),
+    ],
+    "fishing_boat": [
+        ("art/actors/units/hellenes/fisherman.xml", "fisherman", "fisherman_idle"),
+    ],
 }
-# Rider PMD bind pose is a standing biped. Bake this PSA (frame 0) before
-# rigid-binding to the horse so the rider sits (art/animation/biped/rider/*).
-RIDER_SIT_PSA = {
-    "cavalry": "cavalry_idle",
-    "camel": "cavalry_idle",
-    "elephant": "cavalry_idle",
-    "chariot": "cavalry_idle",
+
+# Live rider clips (second skin). Attack stays a sitting human, not the animal.
+RIDER_CLIPS = {
+    "cavalry": {
+        "Idle": "cavalry_idle", "Walk": "cavalry_walk", "Run": "cavalry_walk",
+        "Attack": "cavalry_attack", "Death": "cavalry_death",
+    },
+    "camel": {
+        "Idle": "camel_rider_idle", "Walk": "camel_rider_walk", "Run": "camel_rider_run",
+        "Attack": "camel_rider_attack", "Death": "camel_rider_idle",
+    },
+    "elephant": {
+        "Idle": "elephant_driver_idle", "Walk": "elephant_driver_idle",
+        "Run": "elephant_driver_idle", "Attack": "elephant_driver_attack",
+        "Death": "elephant_driver_idle",
+    },
+    "trader": {
+        "Idle": "trader_rider_idle", "Walk": "trader_rider_walk", "Run": "trader_rider_walk",
+        "Death": "trader_rider_idle",
+    },
+    "fishing_boat": {
+        "Idle": "fisherman_idle", "Walk": "fisherman_idle", "Run": "fisherman_idle",
+    },
 }
 
 UNIT_IDS = frozenset({
@@ -243,6 +632,10 @@ BUILDING_IDS = frozenset({
     "town_center", "house", "barracks", "farmstead", "storehouse", "market",
     "temple", "wall", "wall_segment", "wall_tower", "tower", "fortress",
     "gate", "wonder", "dock", "corral", "range", "archery_range", "stable", "stables", "ruins",
+    "foundation_small", "foundation_large", "foundation_3x3", "foundation_3x3_tower",
+    "foundation_5x5", "foundation_6x6", "foundation_8x8", "foundation_4x6",
+    "foundation_wall", "foundation_dock", "scaffold_small", "scaffold_large",
+    "rubble_small", "rubble_large", "town_center_rubble",
 })
 VEGETATION_IDS = frozenset({
     "tree", "pine", "palm", "gold_vein", "stone_mine",
@@ -550,7 +943,8 @@ class Vfs:
 class Part:
     """One composed mesh part with its own material/texture set."""
     __slots__ = ("mesh_data", "tex_base", "tex_ao", "material", "transform", "source",
-                 "bone", "force_rigid", "aux")
+                 "bone", "force_rigid", "aux", "rider_skin", "rider_attach_world",
+                 "rider_attach_bone")
 
     def __init__(self):
         self.mesh_data = None
@@ -562,6 +956,9 @@ class Part:
         self.bone = 0  # skeleton bone index this part attaches to (0 = root/hip)
         self.force_rigid = False  # ignore PMD blends; 100% weight on self.bone
         self.aux = False  # e.g. cavalry rider — excluded from fit AABB
+        self.rider_skin = False
+        self.rider_attach_world = None
+        self.rider_attach_bone = 0
 
 
 def _variant_children(vfs, var):
@@ -651,7 +1048,14 @@ def resolve_variant_chain(vfs, var, cache, depth=0):
     return _merge_variant_xml(shared, var)
 
 
-def compose_actor(vfs, actor_path, depth=0, tint=None, sources=None):
+def _actor_path(ref):
+    r = (ref or "").replace("\\", "/").strip()
+    if not r:
+        return r
+    return r if r.startswith("art/") else f"art/actors/{r}"
+
+
+def compose_actor(vfs, actor_path, depth=0, tint=None, sources=None, skip_actors=None):
     """Compose an actor into a list of Parts.
 
     Deterministic picks: highest-frequency variant per group (ties -> first).
@@ -734,13 +1138,17 @@ def compose_actor(vfs, actor_path, depth=0, tint=None, sources=None):
     if sources is not None:
         sources.add(("actor", actor_path))
 
+    skip_actors = skip_actors or set()
+
     # resolve props against the composed parts (CModel::ValidatePosition rule:
     # world = boneBindMatrix * propPoint.transform, or transform alone if unboned)
     for actor_ref, attachpoint, _sel in pending_props:
         if any(s in actor_ref for s in ("decals/", "platforms/", "particle", "flag")):
             continue
-        sub_path = actor_ref if actor_ref.startswith("art/") else f"art/actors/{actor_ref}"
-        sub_parts, _ = compose_actor(vfs, sub_path, depth + 1, tint, sources)
+        sub_path = _actor_path(actor_ref)
+        if sub_path in skip_actors or actor_ref in skip_actors:
+            continue
+        sub_parts, _ = compose_actor(vfs, sub_path, depth + 1, tint, sources, skip_actors)
         if not sub_parts:
             continue
         placed = False
@@ -893,49 +1301,70 @@ def _pose_rider_sit(vfs, rparts, psa_key):
     print(f"  rider sit <- {ref} (skinned {skinned} parts, props {propped})")
 
 
-def attach_rider_parts(vfs, parts, body, asset_id, tint, sources):
-    """Parent the *_r cavalry actor onto the horse `rider` prop (bone 2).
+def _rider_skip_actors(asset_id):
+    return {_actor_path(p) for p, _ap, _sit in RIDER_ATTACHMENTS.get(asset_id, [])}
 
-    Rider uses a 46-bone biped; the mount uses 49 horse bones. One glTF skin
-    cannot drive both, so rider meshes are rigid-bound to the horse rider joint.
-    Bake cavalry_idle (sitting) first — bind-pose riders stand in the saddle.
+
+def attach_rider_parts(vfs, parts, body, asset_id, tint, sources):
+    """Sit-bake each mount crew actor and rigid-bind it to its attachpoint.
+
+    Crew uses a 46-bone biped; the mount uses a different skeleton. One glTF
+    skin cannot drive both, so crew meshes are rigid-bound to the mount joint.
+    Bake the sit/ready PSA first — bind-pose riders stand in the saddle.
+    compose_actor skips these props so this is the only instance of each.
     """
-    cfg = RIDER_ACTORS.get(asset_id)
-    if not cfg:
-        return parts
-    rpath, ap_name = cfg
-    rparts, _ = compose_actor(vfs, rpath, 0, tint, sources)
-    if not rparts:
-        print(f"  ! rider actor empty: {rpath}")
-        return parts
-    sit_key = RIDER_SIT_PSA.get(asset_id)
-    if sit_key:
-        _pose_rider_sit(vfs, rparts, sit_key)
-    attach_pp = None
-    attach_part = body
-    for part in parts:
-        if not part.mesh_data:
+    for rpath, ap_name, sit_key in RIDER_ATTACHMENTS.get(asset_id, []):
+        rparts, _ = compose_actor(vfs, rpath, 0, tint, sources)
+        if not rparts:
+            print(f"  ! rider actor empty: {rpath}")
             continue
-        for pp in part.mesh_data.get("prop_points") or []:
-            if pp["name"].lower() == ap_name.lower():
-                attach_pp = pp
-                attach_part = part
+        attach_pp = None
+        attach_part = body
+        for part in parts:
+            if not part.mesh_data:
+                continue
+            for pp in part.mesh_data.get("prop_points") or []:
+                if pp["name"].lower() == ap_name.lower():
+                    attach_pp = pp
+                    attach_part = part
+                    break
+            if attach_pp:
                 break
-        if attach_pp:
-            break
-    if attach_pp is None:
-        print(f"  ! rider attachpoint '{ap_name}' missing on {asset_id}")
-        return parts
-    world = _prop_world(attach_part, attach_pp)
-    rb = attach_pp["bone"] if attach_pp["bone"] != 0xFF else 0
-    for sp in rparts:
-        child = sp.transform if sp.transform is not None else _identity()
-        sp.transform = mat_mul(world, child)
-        sp.bone = rb
-        sp.force_rigid = True
-        sp.aux = True
-    print(f"  rider <- {rpath} @{ap_name} bone={rb} ({len(rparts)} parts)")
-    return parts + rparts
+        if attach_pp is None:
+            print(f"  ! rider attachpoint '{ap_name}' missing on {asset_id}")
+            continue
+        world = _prop_world(attach_part, attach_pp)
+        rb = attach_pp["bone"] if attach_pp["bone"] != 0xFF else 0
+        live = asset_id in RIDER_CLIPS
+        if live and sit_key:
+            # Keep biped blends so Attack/Walk can drive the sitting rider.
+            pass
+        elif sit_key:
+            _pose_rider_sit(vfs, rparts, sit_key)
+        for sp in rparts:
+            child = sp.transform if sp.transform is not None else _identity()
+            sp.transform = mat_mul(world, child)
+            sp.aux = True
+            if live:
+                sp.rider_skin = True
+                sp.rider_attach_world = world
+                sp.rider_attach_bone = rb
+                own = len((sp.mesh_data or {}).get("bones") or [])
+                blends = (sp.mesh_data or {}).get("blends") or []
+                if own < 20 or not blends:
+                    sp.force_rigid = True
+            else:
+                if sit_key:
+                    # sit already applied above for the whole group
+                    pass
+                sp.bone = rb
+                sp.force_rigid = True
+        if live:
+            print(f"  rider live <- {rpath} @{ap_name} bone={rb} ({len(rparts)} parts)")
+        else:
+            print(f"  rider <- {rpath} @{ap_name} bone={rb} ({len(rparts)} parts)")
+        parts = parts + rparts
+    return parts
 
 
 def _merge_variant_xml(shared_var, inline_var):
@@ -1245,9 +1674,18 @@ class GlbBuilder:
 def compile_asset(vfs, asset_id, actor_ref, fit, target, tint, out_dir):
     print(f"[{asset_id}] {actor_ref}")
     sources = set()
-    parts, material_name = compose_actor(vfs, actor_ref, 0, tint, sources)
+    skip_actors = _rider_skip_actors(asset_id)
+    parts, material_name = compose_actor(vfs, actor_ref, 0, tint, sources, skip_actors)
     if not parts:
         raise RuntimeError(f"no parts composed for {asset_id}")
+    body = None
+    for p in parts:
+        if p.mesh_data and len(p.mesh_data.get("bones", [])) > 0:
+            body = p
+            break
+    if body is None:
+        body = parts[0]
+    parts = attach_rider_parts(vfs, parts, body, asset_id, tint, sources)
     glb = GlbBuilder()
     all_pos = []
     baked_cache = {}  # (tex_ref, tint) -> img_idx
@@ -1339,37 +1777,34 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
     """
     print(f"[{asset_id}] (animated) {actor_ref}  skeleton={skeleton_name}")
     sources = set()
-    parts, material_name = compose_actor(vfs, actor_ref, 0, tint, sources)
+    skip_actors = _rider_skip_actors(asset_id)
+    parts, material_name = compose_actor(vfs, actor_ref, 0, tint, sources, skip_actors)
     if not parts:
         raise RuntimeError(f"no parts composed for {asset_id}")
 
-    # Body part carries the skeleton (bones + prop attachment points).
-    body = None
-    for p in parts:
-        if p.mesh_data and len(p.mesh_data.get("bones", [])) > 0:
-            body = p
-            break
-    if body is None:
-        body = parts[0]
-    parts = attach_rider_parts(vfs, parts, body, asset_id, tint, sources)
-    # trader.xml already parents hellenes/trader_r; sit-bake that biped only
-    # (do not run this on the cart — 4 bones vs cavalry_idle 46).
-    if asset_id == "trader":
-        for p in parts:
-            nb = len((p.mesh_data or {}).get("bones") or [])
-            if 40 <= nb <= 47:
-                _pose_rider_sit(vfs, [p], "cavalry_idle")
-    bones_local = body.mesh_data.get("bones", [])
-    num_bones = max(1, len(bones_local))
-
-    # Skeleton names from art/skeletons/*.xml (display only). 0 A.D. does NOT
-    # parent-multiply bone matrices — CBoneState is "relative to root"
-    # (SkeletonAnimDef.h) and BuildBoneMatrices writes each bone independently.
+    # Prefer the mesh whose bind-pose bone count matches the unit skeleton
+    # (trireme hull is 0 bones; the 41-bone sail is the animated body).
     bone_names = []
+    want_bones = 0
     skel_ref = SKELETONS.get(skeleton_name)
     if skel_ref and vfs.exists(skel_ref):
         sb = parse_skeleton_xml(vfs.read(skel_ref))
         bone_names = [b["name"] for b in sb]
+        want_bones = len(sb)
+    body = None
+    fallback = None
+    for p in parts:
+        nb = len((p.mesh_data or {}).get("bones") or [])
+        if nb > 0 and fallback is None:
+            fallback = p
+        if want_bones and nb == want_bones:
+            body = p
+            break
+    if body is None:
+        body = fallback or parts[0]
+    parts = attach_rider_parts(vfs, parts, body, asset_id, tint, sources)
+    bones_local = body.mesh_data.get("bones", [])
+    num_bones = max(1, len(bones_local))
     rest_worlds = []
     rest_tq = []
     for i in range(num_bones):
@@ -1432,21 +1867,29 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
         for a, b, c in faces:
             tri += [a, c, b]
         bone_idx = getattr(part, "bone", 0)
-        origin_locked = bone_idx == 0xFF and not getattr(part, "force_rigid", False)
+        own_bones = len(md.get("bones") or [])
+        rider_skin = getattr(part, "rider_skin", False)
+        skin_n = 46 if rider_skin else num_bones
+        # Horse-on-chariot / biped-on-mount: foreign skeleton cannot use this skin.
+        mismatched = (not rider_skin) and own_bones > 0 and own_bones != num_bones
+        use_rigid = getattr(part, "force_rigid", False) or mismatched
+        has_skin_blends = bool(md.get("blends")) and _blends_fit_skeleton(md["blends"], skin_n)
+        # Cape etc. attach to root (0xFF) but still have a full matching skin.
+        origin_locked = bone_idx == 0xFF and not use_rigid and not has_skin_blends and not rider_skin
         if origin_locked:
             joints, weights = None, None
-        elif getattr(part, "force_rigid", False):
-            if bone_idx < 0 or bone_idx == 0xFF or bone_idx >= num_bones:
+        elif use_rigid:
+            if bone_idx < 0 or bone_idx == 0xFF or bone_idx >= skin_n:
                 bone_idx = 0
             fb = bone_idx
             joints = [(fb, 0, 0, 0)] * len(positions)
             weights = [(1.0, 0.0, 0.0, 0.0)] * len(positions)
         else:
-            if bone_idx < 0 or bone_idx >= num_bones:
+            if bone_idx < 0 or bone_idx >= skin_n:
                 bone_idx = 0
-            joints, weights = _skin_attrs(md, len(positions), bone_idx, num_bones)
+            joints, weights = _skin_attrs(md, len(positions), bone_idx, skin_n)
         prim = glb._add_primitive(positions, normals, flip_uvs, tri, mat_idx, joints, weights, flip_uv1, colors)
-        part_info.append((prim, bone_idx, xf, origin_locked))
+        part_info.append((prim, bone_idx, xf, origin_locked, 1 if rider_skin else 0))
 
         if not getattr(part, "aux", False):
             fit_pos.extend(positions)
@@ -1463,24 +1906,51 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
     root_t = (-cx * scale, -miny * scale, -cz * scale)
     root_s = (scale, scale, scale)
 
+    # Live rider: second skin (46 biped bones) in mount space via attach xf.
+    rider_rest_local = []
+    rider_attach_world = _identity()
+    rider_body = None
+    for p in parts:
+        if getattr(p, "rider_skin", False) and len((p.mesh_data or {}).get("bones") or []) >= 20:
+            rider_body = p
+            rider_rest_local = list(p.mesh_data["bones"])
+            rider_attach_world = getattr(p, "rider_attach_world", None) or _identity()
+            rider_attach_bone = getattr(p, "rider_attach_bone", 0)
+            break
+    rider_n = len(rider_rest_local)
+    rider_rest_worlds = [mat_mul(rider_attach_world, trs(*rider_rest_local[i])) for i in range(rider_n)]
+    rider_rest_tq = [mat_to_tq(rider_rest_worlds[i]) for i in range(rider_n)]
+    rider_attach_bone = 0
+    for p in parts:
+        if getattr(p, "rider_skin", False) and hasattr(p, "rider_attach_bone"):
+            rider_attach_bone = p.rider_attach_bone
+            break
+    if rider_n > 0 and 0 <= rider_attach_bone < num_bones:
+        rider_prop_local = mat_mul(rigid_inverse(trs(*rest_tq[rider_attach_bone])), rider_attach_world)
+    else:
+        rider_prop_local = _identity()
+
     # Node graph matching CModel / CSkeletonAnimDef:
     # every bone is a sibling of the scaled root with root-relative TRS.
-    # Skinning uses IBM = inverse(bind) like ModelDef.cpp (Translate(-t) then
-    # Rotate(q^-1)), which is the same as rigid_inverse(bind).
     bone_node = {i: 1 + i for i in range(num_bones)}
-    part_node_start = 1 + num_bones
+    rider_node = {i: 1 + num_bones + i for i in range(rider_n)}
+    part_node_start = 1 + num_bones + rider_n
     mesh_nodes = list(range(part_node_start, part_node_start + len(part_info)))
     all_bones = [bone_node[i] for i in range(num_bones)]
+    rider_joints = [rider_node[i] for i in range(rider_n)]
     nodes = [{"name": asset_id, "translation": list(root_t), "scale": list(root_s),
-              "children": all_bones + mesh_nodes}]
+              "children": all_bones + rider_joints + mesh_nodes}]
     for i in range(num_bones):
         t, q = rest_tq[i]
         nodes.append({"name": bone_names[i] if i < len(bone_names) else f"bone{i}",
                       "translation": list(t), "rotation": list(q)})
-    for k, (prim, bidx, wxf, origin_locked) in enumerate(part_info):
+    for i in range(rider_n):
+        t, q = rider_rest_tq[i]
+        nodes.append({"name": f"rider_{i}", "translation": list(t), "rotation": list(q)})
+    for k, (prim, bidx, wxf, origin_locked, skin_i) in enumerate(part_info):
         nd = {"name": f"{asset_id}_part{k}", "mesh": prim}
         if not origin_locked:
-            nd["skin"] = 0
+            nd["skin"] = skin_i if (skin_i == 0 or rider_n > 0) else 0
         nodes.append(nd)
 
     # Animation clips: PSA keys are already root-relative (BuildBoneMatrices).
@@ -1515,14 +1985,64 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
                     trans.append(tuple(rt))
                     rots.append(tuple(rq))
             tracks[bone_node[i]] = {"translation": trans, "rotation": rots}
+        rclip = (RIDER_CLIPS.get(asset_id) or {}).get(state_name)
+        rpsa = None
+        if rider_n > 0 and rclip:
+            rref = ANIMATIONS.get(rclip, rclip)
+            if vfs.exists(rref):
+                try:
+                    rpsa = parse_psa(vfs.read(rref))
+                except Exception as e:
+                    print(f"  ! rider anim parse {state_name}: {e}")
+        if rider_n > 0:
+            r_nf = rpsa["numFrames"] if rpsa else 1
+            r_nk = rpsa["numKeys"] if rpsa else 0
+            r_dt = (rpsa["frameTime"] / 1000.0) if rpsa else 1.0
+            loop_r = state_name not in ("Attack", "Death")
+            for i in range(rider_n):
+                trans, rots = [], []
+                local_rest = rider_rest_local[i] if i < len(rider_rest_local) else ((0, 0, 0), (0, 0, 0, 1))
+                for f in range(nf):
+                    tsec = times[f]
+                    if rpsa and r_nf > 0:
+                        rf = int(tsec / max(r_dt, 1e-6))
+                        rf = rf % r_nf if loop_r else min(rf, r_nf - 1)
+                        ki = rf * r_nk + i
+                        if i < r_nk and ki < len(rpsa["keys"]):
+                            k = rpsa["keys"][ki]
+                            local = (k["t"], k["q"])
+                        else:
+                            local = local_rest
+                    else:
+                        local = local_rest
+                    if 0 <= rider_attach_bone < num_bones:
+                        mt, mq = rest_tq[rider_attach_bone]
+                        ki_m = f * nk + rider_attach_bone
+                        if rider_attach_bone < nk and ki_m < len(psa["keys"]):
+                            mk = psa["keys"][ki_m]
+                            mt, mq = mk["t"], mk["q"]
+                        attach_f = mat_mul(trs(mt, mq), rider_prop_local)
+                    else:
+                        attach_f = rider_attach_world
+                    wt, wq = mat_to_tq(mat_mul(attach_f, trs(*local)))
+                    trans.append(wt)
+                    rots.append(wq)
+                tracks[rider_node[i]] = {"translation": trans, "rotation": rots}
         animations.append({"name": state_name, "times": times, "tracks": tracks})
-        print(f"  anim '{state_name}' <- {ref} ({nf}f, {nk}b)")
+        extra = f"+rider {rclip}" if rpsa else ""
+        print(f"  anim '{state_name}' <- {ref} ({nf}f, {nk}b) {extra}")
 
     skins = [{
         "joints": all_bones,
         "inverseBindMatrices": [rigid_inverse(rest_worlds[i]) for i in range(num_bones)],
         "skeleton": bone_node[0],
     }]
+    if rider_n > 0:
+        skins.append({
+            "joints": rider_joints,
+            "inverseBindMatrices": [rigid_inverse(rider_rest_worlds[i]) for i in range(rider_n)],
+            "skeleton": rider_joints[0],
+        })
 
     out_path = os.path.join(out_dir, asset_dir(asset_id), f"{asset_id}.glb")
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
@@ -1635,6 +2155,12 @@ def rigid_inverse(m):
     return [[Rt[i][j] for j in range(3)] + [it[i]] for i in range(3)] + [[0, 0, 0, 1]]
 
 
+def mat_to_tq(m):
+    t = (m[0][3], m[1][3], m[2][3])
+    R = [[m[i][j] for j in range(3)] for i in range(3)]
+    return t, mat3_to_quat(R)
+
+
 def mat3_to_quat(R):
     """Convert a 3x3 rotation matrix to a (x,y,z,w) quaternion."""
     m00, m01, m02 = R[0]
@@ -1685,10 +2211,32 @@ def bone_rest_worlds(bones_local, parents):
     return worlds
 
 
+def _civ_base_unit_id(asset_id):
+    if "_" not in asset_id:
+        return None
+    code, base = asset_id.split("_", 1)
+    if code in CIV_CORE_ACTORS and base in UNIT_IDS:
+        return base
+    return None
+
+
+def _civ_base_building_id(asset_id):
+    if "_" not in asset_id:
+        return None
+    code, base = asset_id.split("_", 1)
+    if code not in CIV_STRUCTURE_FOLDERS:
+        return None
+    if base in BUILDING_IDS:
+        return base
+    if base.endswith("_rubble") and base[: -len("_rubble")] in BUILDING_IDS:
+        return base
+    return None
+
+
 def asset_dir(asset_id):
-    if asset_id in UNIT_IDS:
+    if asset_id in UNIT_IDS or _civ_base_unit_id(asset_id):
         return "models/units"
-    if asset_id in BUILDING_IDS:
+    if asset_id in BUILDING_IDS or _civ_base_building_id(asset_id):
         return "models/buildings"
     if asset_id in VEGETATION_IDS:
         return "models/vegetation"
@@ -1720,7 +2268,9 @@ def clean_misplaced_assets(out_dir):
             if name in (".", ".."):
                 continue
             aid = _asset_id_from_filename(name)
-            if aid in ids:
+            if aid in ids or (rel == "models/units" and _civ_base_unit_id(aid)):
+                continue
+            if rel == "models/buildings" and _civ_base_building_id(aid):
                 continue
             path = os.path.join(folder, name)
             try:
@@ -1739,7 +2289,7 @@ UNIT_CFG = {
     "villager": ("biped", {
         "Idle": "citizen_idle", "Walk": "citizen_walk", "Run": "citizen_walk",
         "Attack": "biped_attack", "Death": "biped_death",
-        "Gather": "gather_wood", "Build": "gather_wood"}),
+        "Gather": "gather_wood", "Build": "citizen_build"}),
     "swordsman": ("biped", {
         "Idle": "biped_idle", "Walk": "biped_walk", "Run": "biped_run",
         "Attack": "biped_attack", "Death": "biped_death"}),
@@ -1751,7 +2301,22 @@ UNIT_CFG = {
         "Attack": "archer_attack", "Death": "biped_death"}),
     "cavalry": ("horse", {
         "Idle": "horse_idle", "Walk": "horse_walk", "Run": "horse_run",
-        "Attack": "horse_attack", "Death": "horse_death"}),
+        "Attack": "horse_idle", "Death": "horse_death"}),
+    "camel": ("camel", {
+        "Idle": "camel_idle", "Walk": "camel_walk", "Run": "camel_run",
+        "Attack": "camel_idle", "Death": "camel_death"}),
+    "elephant": ("elephant", {
+        "Idle": "elephant_idle", "Walk": "elephant_walk", "Run": "elephant_run",
+        "Attack": "elephant_idle", "Death": "elephant_death"}),
+    "worker_elephant": ("elephant", {
+        "Idle": "elephant_idle", "Walk": "elephant_walk", "Run": "elephant_run",
+        "Attack": "elephant_attack", "Death": "elephant_death"}),
+    "chariot": ("chariot", {
+        "Idle": "chariot_idle", "Walk": "chariot_walk", "Run": "chariot_walk",
+        "Death": "chariot_death"}),
+    "scythed_chariot": ("chariot", {
+        "Idle": "chariot_idle", "Walk": "chariot_walk", "Run": "chariot_walk",
+        "Death": "chariot_death"}),
     # 0 A.D. trader.xml: mechanical trader_cart (4 bones) + horse/rider props
     "trader": ("", {
         "Idle": "trader_idle", "Walk": "trader_walk", "Run": "trader_walk",
@@ -1770,7 +2335,7 @@ UNIT_CFG = {
     "female_citizen": ("biped", {
         "Idle": "female_idle", "Walk": "female_walk", "Run": "female_run",
         "Attack": "biped_attack", "Death": "biped_death",
-        "Gather": "gather_wood", "Build": "gather_wood"}),
+        "Gather": "gather_wood", "Build": "citizen_build"}),
     "hero": ("biped", {
         "Idle": "biped_idle", "Walk": "biped_walk", "Run": "biped_run",
         "Attack": "biped_attack", "Death": "biped_death"}),
@@ -1792,6 +2357,18 @@ UNIT_CFG = {
     "sheep": ("sheep", {
         "Idle": "sheep_idle", "Walk": "sheep_walk", "Run": "sheep_run",
         "Death": "sheep_death"}),
+    "catapult": ("lithobolos", {
+        "Idle": "catapult_idle", "Attack": "catapult_attack", "Death": "catapult_idle"}),
+    "bolt_shooter": ("oxybeles", {
+        "Idle": "bolt_idle", "Attack": "bolt_attack", "Death": "bolt_idle"}),
+    "fishing_boat": ("rowing_boat", {
+        "Idle": "rowing_idle", "Walk": "rowing_walk", "Run": "rowing_walk"}),
+    "trireme": ("ship_sail", {
+        "Idle": "trireme_idle", "Walk": "trireme_walk", "Run": "trireme_walk",
+        "Attack": "trireme_idle"}),
+    "merchant_ship": ("celt_sail", {
+        "Idle": "merchant_sail_idle", "Walk": "merchant_sail_walk",
+        "Run": "merchant_sail_run"}),
 }
 
 # --------------------------------------------------------------- main -------
@@ -1825,14 +2402,21 @@ def main():
                     print(n)
             return
         assets = dict(ASSETS)
+        civ_ids = register_civ_unit_assets(assets)
+        bld_ids = register_civ_building_assets(assets, zf)
+        print(f"[civ] registered {len(civ_ids)} civilization unit meshes + {len(bld_ids)} buildings")
         terrain = dict(TERRAIN_TILES)
         if args.all:
             assets.update(FULL_ASSETS)
+            register_civ_unit_assets(assets)
+            register_civ_building_assets(assets, zf)
             terrain.update(FULL_TERRAIN)
             print(f"[all] expanding to {len(assets)} models + {len(terrain)} terrain tiles")
         if args.only:
             known = dict(ASSETS)
             known.update(FULL_ASSETS)
+            register_civ_unit_assets(known)
+            register_civ_building_assets(known, zf)
             assets = {k: v for k, v in known.items() if k in args.only}
             if not assets:
                 sys.exit(f"--only matched nothing. known ids: {', '.join(sorted(known))}")
@@ -1962,6 +2546,8 @@ def main():
             with open(prev_path) as f:
                 prev = json.load(f)
             prev.setdefault("models", {}).update(manifest.get("models", {}))
+            prev.setdefault("animations", {}).update(manifest.get("animations", {}))
+            prev.setdefault("skeletons", {}).update(manifest.get("skeletons", {}))
             manifest = prev
     manifest["mapping"] = {
         "uv0": "baseTex atlas (TEXCOORD_0). PMD OpenGL V flipped for glTF/Godot.",
