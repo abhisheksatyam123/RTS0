@@ -50,6 +50,7 @@ bool AnimationController::load_rig(RigType rig) {
 		case RigType::Villager: {
 			load_clip(AnimState::Idle, "citizen_idle");
 			load_clip(AnimState::Walk, "citizen_walk");
+			load_clip(AnimState::Run, "citizen_run");
 			load_clip(AnimState::Attack, "biped_attack");
 			load_clip(AnimState::Gather, "gather_wood");
 			load_clip(AnimState::Build, "citizen_build");

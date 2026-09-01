@@ -447,9 +447,11 @@ ANIMATIONS = {
     # citizen / gatherer (male & female)
     "citizen_idle":     "art/animation/biped/citizen/idle_relax_m.dae.cached.psa",
     "citizen_walk":     "art/animation/biped/citizen/walk_relax_m.dae.cached.psa",
+    "citizen_run":      "art/animation/biped/citizen/jog_m.dae.cached.psa",
     "female_idle":      "art/animation/biped/citizen/idle_relax_f.dae.cached.psa",
     "female_walk":      "art/animation/biped/citizen/walk_relax_f.dae.cached.psa",
     "female_run":       "art/animation/biped/citizen/jog_f.dae.cached.psa",
+    "slaughter":        "art/animation/biped/gatherer/slaughter.dae.cached.psa",
     "gather_wood":      "art/animation/biped/gatherer/gather_wood.dae.cached.psa",
     "citizen_build":    "art/animation/biped/citizen/build.dae.cached.psa",
     "gather_mine":      "art/animation/biped/gatherer/gather_mine.dae.cached.psa",
@@ -1135,6 +1137,14 @@ def compose_actor(vfs, actor_path, depth=0, tint=None, sources=None, skip_actors
     flush()
     material_name = acc_mat or top_mat or ""
 
+    # For citizen/villager units, 0 A.D. specifies the knife (dagger) in
+    # attack_slaughter / attack_melee_female variants rather than the base group.
+    # Ensure the dagger is equipped on weapon_R so villagers hold their knife.
+    is_citizen_actor = any(w in actor_path.lower() for w in ("citizen", "villager"))
+    has_weapon_r = any((ap or "").lower() == "weapon_r" for _, ap, _ in pending_props)
+    if is_citizen_actor and not has_weapon_r:
+        pending_props.append(("props/units/weapons/dagger.xml", "weapon_R", None))
+
     if sources is not None:
         sources.add(("actor", actor_path))
 
@@ -1803,6 +1813,26 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
     if body is None:
         body = fallback or parts[0]
     parts = attach_rider_parts(vfs, parts, body, asset_id, tint, sources)
+    # Safety net: ensure any villager/citizen asset has the knife (dagger) on weapon_R
+    is_villager = "villager" in asset_id or "female_citizen" in asset_id or "citizen" in asset_id
+    has_weapon_r = any(getattr(p, "bone", 0) == 25 for p in parts[1:])
+    if is_villager and not has_weapon_r and body and "prop_points" in (body.mesh_data or {}):
+        for pp in body.mesh_data["prop_points"]:
+            if pp["name"].lower() == "weapon_r":
+                dparts, _ = compose_actor(vfs, "art/actors/props/units/weapons/dagger.xml", 1, tint, sources)
+                local = trs(pp["pos"], pp["quat"])
+                bones = body.mesh_data.get("bones") or []
+                if pp["bone"] != 0xFF and pp["bone"] < len(bones):
+                    t, q = bones[pp["bone"]]
+                    world = mat_mul(trs(t, q), local)
+                else:
+                    world = local
+                for dp in dparts:
+                    child = dp.transform if dp.transform is not None else _identity()
+                    dp.transform = mat_mul(world, child)
+                    dp.bone = pp["bone"] if pp["bone"] != 0xFF else 0xFF
+                parts.extend(dparts)
+                break
     bones_local = body.mesh_data.get("bones", [])
     num_bones = max(1, len(bones_local))
     rest_worlds = []
@@ -2287,9 +2317,10 @@ def clean_misplaced_assets(out_dir):
 # Clip names MUST match world_view_node (Idle/Walk/Run/Attack/Death/Gather/Build).
 UNIT_CFG = {
     "villager": ("biped", {
-        "Idle": "citizen_idle", "Walk": "citizen_walk", "Run": "citizen_walk",
+        "Idle": "citizen_idle", "Walk": "citizen_walk", "Run": "citizen_run",
         "Attack": "biped_attack", "Death": "biped_death",
-        "Gather": "gather_wood", "Build": "citizen_build"}),
+        "Gather": "gather_wood", "Build": "citizen_build",
+        "Slaughter": "slaughter"}),
     "swordsman": ("biped", {
         "Idle": "biped_idle", "Walk": "biped_walk", "Run": "biped_run",
         "Attack": "biped_attack", "Death": "biped_death"}),
@@ -2335,7 +2366,8 @@ UNIT_CFG = {
     "female_citizen": ("biped", {
         "Idle": "female_idle", "Walk": "female_walk", "Run": "female_run",
         "Attack": "biped_attack", "Death": "biped_death",
-        "Gather": "gather_wood", "Build": "citizen_build"}),
+        "Gather": "gather_wood", "Build": "citizen_build",
+        "Slaughter": "slaughter"}),
     "hero": ("biped", {
         "Idle": "biped_idle", "Walk": "biped_walk", "Run": "biped_run",
         "Attack": "biped_attack", "Death": "biped_death"}),

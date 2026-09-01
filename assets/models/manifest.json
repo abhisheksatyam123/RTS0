@@ -320,6 +320,14 @@
    "json": "animations/citizen_idle.json",
    "source": "art/animation/biped/citizen/idle_relax_m.dae.cached.psa"
   },
+  "citizen_run": {
+   "bones": 46,
+   "file": "animations/citizen_run.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 29,
+   "json": "animations/citizen_run.json",
+   "source": "art/animation/biped/citizen/jog_m.dae.cached.psa"
+  },
   "citizen_walk": {
    "bones": 46,
    "file": "animations/citizen_walk.psa",
@@ -672,6 +680,14 @@
    "json": "animations/sheep_walk.json",
    "source": "art/animation/quadraped/sheep_walk.dae.cached.psa"
   },
+  "slaughter": {
+   "bones": 46,
+   "file": "animations/slaughter.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 61,
+   "json": "animations/slaughter.json",
+   "source": "art/animation/biped/gatherer/slaughter.dae.cached.psa"
+  },
   "trader_idle": {
    "bones": 4,
    "file": "animations/trader_idle.psa",
@@ -800,6 +816,7 @@
     "Gather": "gather_wood",
     "Idle": "female_idle",
     "Run": "female_run",
+    "Slaughter": "slaughter",
     "Walk": "female_walk"
    },
    "athen_fishing_boat": {
@@ -853,7 +870,8 @@
     "Death": "biped_death",
     "Gather": "gather_wood",
     "Idle": "citizen_idle",
-    "Run": "citizen_walk",
+    "Run": "citizen_run",
+    "Slaughter": "slaughter",
     "Walk": "citizen_walk"
    },
    "boar": {
@@ -889,6 +907,7 @@
     "Gather": "gather_wood",
     "Idle": "female_idle",
     "Run": "female_run",
+    "Slaughter": "slaughter",
     "Walk": "female_walk"
    },
    "brit_fishing_boat": {
@@ -942,7 +961,8 @@
     "Death": "biped_death",
     "Gather": "gather_wood",
     "Idle": "citizen_idle",
-    "Run": "citizen_walk",
+    "Run": "citizen_run",
+    "Slaughter": "slaughter",
     "Walk": "citizen_walk"
    },
    "camel": {
@@ -980,6 +1000,7 @@
     "Gather": "gather_wood",
     "Idle": "female_idle",
     "Run": "female_run",
+    "Slaughter": "slaughter",
     "Walk": "female_walk"
    },
    "cart_fishing_boat": {
@@ -1033,7 +1054,8 @@
     "Death": "biped_death",
     "Gather": "gather_wood",
     "Idle": "citizen_idle",
-    "Run": "citizen_walk",
+    "Run": "citizen_run",
+    "Slaughter": "slaughter",
     "Walk": "citizen_walk"
    },
    "catapult": {
@@ -1073,6 +1095,7 @@
     "Gather": "gather_wood",
     "Idle": "female_idle",
     "Run": "female_run",
+    "Slaughter": "slaughter",
     "Walk": "female_walk"
    },
    "fishing_boat": {
@@ -1101,6 +1124,7 @@
     "Gather": "gather_wood",
     "Idle": "female_idle",
     "Run": "female_run",
+    "Slaughter": "slaughter",
     "Walk": "female_walk"
    },
    "gaul_fishing_boat": {
@@ -1154,7 +1178,8 @@
     "Death": "biped_death",
     "Gather": "gather_wood",
     "Idle": "citizen_idle",
-    "Run": "citizen_walk",
+    "Run": "citizen_run",
+    "Slaughter": "slaughter",
     "Walk": "citizen_walk"
    },
    "healer": {
@@ -1192,6 +1217,7 @@
     "Gather": "gather_wood",
     "Idle": "female_idle",
     "Run": "female_run",
+    "Slaughter": "slaughter",
     "Walk": "female_walk"
    },
    "iber_fishing_boat": {
@@ -1245,7 +1271,8 @@
     "Death": "biped_death",
     "Gather": "gather_wood",
     "Idle": "citizen_idle",
-    "Run": "citizen_walk",
+    "Run": "citizen_run",
+    "Slaughter": "slaughter",
     "Walk": "citizen_walk"
    },
    "kush_archer": {
@@ -1269,6 +1296,7 @@
     "Gather": "gather_wood",
     "Idle": "female_idle",
     "Run": "female_run",
+    "Slaughter": "slaughter",
     "Walk": "female_walk"
    },
    "kush_fishing_boat": {
@@ -1322,7 +1350,8 @@
     "Death": "biped_death",
     "Gather": "gather_wood",
     "Idle": "citizen_idle",
-    "Run": "citizen_walk",
+    "Run": "citizen_run",
+    "Slaughter": "slaughter",
     "Walk": "citizen_walk"
    },
    "mace_archer": {
@@ -1346,6 +1375,7 @@
     "Gather": "gather_wood",
     "Idle": "female_idle",
     "Run": "female_run",
+    "Slaughter": "slaughter",
     "Walk": "female_walk"
    },
    "mace_fishing_boat": {
@@ -1399,7 +1429,8 @@
     "Death": "biped_death",
     "Gather": "gather_wood",
     "Idle": "citizen_idle",
-    "Run": "citizen_walk",
+    "Run": "citizen_run",
+    "Slaughter": "slaughter",
     "Walk": "citizen_walk"
    },
    "maur_archer": {
@@ -1423,6 +1454,7 @@
     "Gather": "gather_wood",
     "Idle": "female_idle",
     "Run": "female_run",
+    "Slaughter": "slaughter",
     "Walk": "female_walk"
    },
    "maur_fishing_boat": {
@@ -1476,7 +1508,8 @@
     "Death": "biped_death",
     "Gather": "gather_wood",
     "Idle": "citizen_idle",
-    "Run": "citizen_walk",
+    "Run": "citizen_run",
+    "Slaughter": "slaughter",
     "Walk": "citizen_walk"
    },
    "merchant_ship": {
@@ -1505,6 +1538,7 @@
     "Gather": "gather_wood",
     "Idle": "female_idle",
     "Run": "female_run",
+    "Slaughter": "slaughter",
     "Walk": "female_walk"
    },
    "pers_fishing_boat": {
@@ -1551,7 +1585,8 @@
     "Death": "biped_death",
     "Gather": "gather_wood",
     "Idle": "citizen_idle",
-    "Run": "citizen_walk",
+    "Run": "citizen_run",
+    "Slaughter": "slaughter",
     "Walk": "citizen_walk"
    },
    "ptol_archer": {
@@ -1575,6 +1610,7 @@
     "Gather": "gather_wood",
     "Idle": "female_idle",
     "Run": "female_run",
+    "Slaughter": "slaughter",
     "Walk": "female_walk"
    },
    "ptol_fishing_boat": {
@@ -1628,7 +1664,8 @@
     "Death": "biped_death",
     "Gather": "gather_wood",
     "Idle": "citizen_idle",
-    "Run": "citizen_walk",
+    "Run": "citizen_run",
+    "Slaughter": "slaughter",
     "Walk": "citizen_walk"
    },
    "ram": {
@@ -1658,6 +1695,7 @@
     "Gather": "gather_wood",
     "Idle": "female_idle",
     "Run": "female_run",
+    "Slaughter": "slaughter",
     "Walk": "female_walk"
    },
    "rome_fishing_boat": {
@@ -1711,7 +1749,8 @@
     "Death": "biped_death",
     "Gather": "gather_wood",
     "Idle": "citizen_idle",
-    "Run": "citizen_walk",
+    "Run": "citizen_run",
+    "Slaughter": "slaughter",
     "Walk": "citizen_walk"
    },
    "scythed_chariot": {
@@ -1741,6 +1780,7 @@
     "Gather": "gather_wood",
     "Idle": "female_idle",
     "Run": "female_run",
+    "Slaughter": "slaughter",
     "Walk": "female_walk"
    },
    "sele_fishing_boat": {
@@ -1794,7 +1834,8 @@
     "Death": "biped_death",
     "Gather": "gather_wood",
     "Idle": "citizen_idle",
-    "Run": "citizen_walk",
+    "Run": "citizen_run",
+    "Slaughter": "slaughter",
     "Walk": "citizen_walk"
    },
    "sheep": {
@@ -1830,6 +1871,7 @@
     "Gather": "gather_wood",
     "Idle": "female_idle",
     "Run": "female_run",
+    "Slaughter": "slaughter",
     "Walk": "female_walk"
    },
    "spart_fishing_boat": {
@@ -1883,7 +1925,8 @@
     "Death": "biped_death",
     "Gather": "gather_wood",
     "Idle": "citizen_idle",
-    "Run": "citizen_walk",
+    "Run": "citizen_run",
+    "Slaughter": "slaughter",
     "Walk": "citizen_walk"
    },
    "spearman": {
@@ -1918,7 +1961,8 @@
     "Death": "biped_death",
     "Gather": "gather_wood",
     "Idle": "citizen_idle",
-    "Run": "citizen_walk",
+    "Run": "citizen_run",
+    "Slaughter": "slaughter",
     "Walk": "citizen_walk"
    },
    "war_dog": {
@@ -2462,24 +2506,28 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/athen_female_citizen.glb",
    "origin": "ground-center",
-   "parts": 2,
+   "parts": 3,
    "size_meters": [
     0.749,
     1.68,
-    0.337
+    0.637
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/new/head_female_dudette_b.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/athenians/female_citizen.xml",
     "mesh:props/new/dudette_head_b.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/f_dress.dae",
     "skin:props/head/kart_fem_a_cin.dds",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/hele/dress_female_01.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -3033,24 +3081,28 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/athen_villager.glb",
    "origin": "ground-center",
-   "parts": 2,
+   "parts": 3,
    "size_meters": [
     0.768,
     1.7,
-    0.314
+    0.62
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/new/head_hele_b.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/athenians/citizen_male.xml",
     "mesh:props/new/dude_head.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/m_dress.dae",
     "skin:props/head/hele_a.dds",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/imp/support_citizen_male_01.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -3427,24 +3479,28 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/brit_female_citizen.glb",
    "origin": "ground-center",
-   "parts": 2,
+   "parts": 3,
    "size_meters": [
     0.749,
     1.68,
-    0.337
+    0.637
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/new/head_female_celt.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/britons/citizen_female.xml",
     "mesh:props/new/dudette_head_a.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/f_dress.dae",
     "skin:props/head/celt_fem_b.dds",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/germ/dress_female_02_01.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -3957,24 +4013,28 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/brit_villager.glb",
    "origin": "ground-center",
-   "parts": 2,
+   "parts": 3,
    "size_meters": [
     0.768,
     1.7,
-    0.328
+    0.634
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/new/head_celt.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/britons/citizen_male.xml",
     "mesh:props/new/head_longhair.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/m_tunic_short.dae",
     "skin:props/head/celt_a.dds",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/germ/tunic_pants_01_01.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -4336,24 +4396,28 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/cart_female_citizen.glb",
    "origin": "ground-center",
-   "parts": 2,
+   "parts": 3,
    "size_meters": [
     0.749,
     1.68,
-    0.337
+    0.637
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/new/head_kart_fem_1.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/carthaginians/female_citizen.xml",
     "mesh:props/new/dudette_head_a.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/f_dress.dae",
     "skin:props/head/pers_fem_a.dds",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/cart/dress_female_01.dds"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -4833,24 +4897,28 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/cart_villager.glb",
    "origin": "ground-center",
-   "parts": 2,
+   "parts": 3,
    "size_meters": [
     0.768,
     1.7,
-    0.328
+    0.634
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/new/head_pers_a.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/carthaginians/citizen_male.xml",
     "mesh:props/new/head_beard_large.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/m_tunic_short.dae",
     "skin:props/head/pers_face_a.png",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/cart/tunic_01_01.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -5253,24 +5321,28 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/female_citizen.glb",
    "origin": "ground-center",
-   "parts": 2,
+   "parts": 3,
    "size_meters": [
     0.749,
     1.68,
-    0.337
+    0.637
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/new/head_female_dudette_b.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/athenians/female_citizen.xml",
     "mesh:props/new/dudette_head_b.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/f_dress.dae",
     "skin:props/head/kart_fem_a_cin.dds",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/hele/dress_female_01.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -6004,24 +6076,28 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/gaul_female_citizen.glb",
    "origin": "ground-center",
-   "parts": 2,
+   "parts": 3,
    "size_meters": [
     0.749,
     1.68,
-    0.337
+    0.637
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/new/head_female_celt.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/britons/citizen_female.xml",
     "mesh:props/new/dudette_head_a.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/f_dress.dae",
     "skin:props/head/celt_fem_b.dds",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/germ/dress_female_02_01.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -6540,24 +6616,28 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/gaul_villager.glb",
    "origin": "ground-center",
-   "parts": 2,
+   "parts": 3,
    "size_meters": [
     0.768,
     1.7,
-    0.328
+    0.634
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/new/head_celt.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/britons/citizen_male.xml",
     "mesh:props/new/head_longhair.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/m_tunic_short.dae",
     "skin:props/head/celt_a.dds",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/germ/tunic_pants_01_01.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -7034,27 +7114,31 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/iber_female_citizen.glb",
    "origin": "ground-center",
-   "parts": 3,
+   "parts": 4,
    "size_meters": [
     0.749,
     1.68,
-    0.34
+    0.639
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/new/head_pers_fem_1.xml",
     "actor:art/actors/props/units/helmets/iber_helmet_02.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/iberians/female_citizen.xml",
     "mesh:props/helmet/old/iberian_02.dae",
     "mesh:props/new/dudette_head_a.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/f_dress.dae",
     "skin:props/head/pers_fem_a.dds",
     "skin:props/helmet/old/iber_02.dds",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/iber/dress_female_01_04.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -7535,24 +7619,28 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/iber_villager.glb",
    "origin": "ground-center",
-   "parts": 2,
+   "parts": 3,
    "size_meters": [
     0.768,
     1.7,
-    0.328
+    0.634
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/new/head_iber_adv.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/iberians/citizen_male.xml",
     "mesh:props/new/head_longhair.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/m_tunic_short.dae",
     "skin:props/head/iber_isp_b_1.dds",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/iber/tunic_01_01.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -7809,27 +7897,31 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/kush_female_citizen.glb",
    "origin": "ground-center",
-   "parts": 3,
+   "parts": 4,
    "size_meters": [
     0.76,
     1.68,
-    0.312
+    0.615
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/head_kush_fem_medium.xml",
     "actor:art/actors/props/units/heads/maur_earrings_1.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/kushites/female_citizen.xml",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/new/head_female_shorthair.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/f_tunic_short.dae",
     "skin:props/head/african_fem_a_medium.png",
     "skin:props/helmet/old/pers_f1.dds",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/kush/skirt_female_01_medium.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -8292,27 +8384,31 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/kush_villager.glb",
    "origin": "ground-center",
-   "parts": 3,
+   "parts": 4,
    "size_meters": [
     0.768,
     1.7,
-    0.328
+    0.634
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/head_kush_meroitic.xml",
     "actor:art/actors/props/units/heads/maur_earrings_1.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/kushites/citizen_male.xml",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/new/dude_head.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/m_tunic_short.dae",
     "skin:props/head/african_meroitic_a.png",
     "skin:props/helmet/old/pers_f1.dds",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/kush/tunic_basic_02_01.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -8615,24 +8711,28 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/mace_female_citizen.glb",
    "origin": "ground-center",
-   "parts": 2,
+   "parts": 3,
    "size_meters": [
     0.749,
     1.68,
-    0.337
+    0.637
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/new/dudette_head.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/macedonians/female_citizen.xml",
     "mesh:props/new/dudette_head_a.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/f_dress.dae",
     "skin:props/head/celt_fem_a.dds",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/spart/female_03.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -9182,24 +9282,28 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/mace_villager.glb",
    "origin": "ground-center",
-   "parts": 2,
+   "parts": 3,
    "size_meters": [
     0.758,
     1.7,
-    0.341
+    0.644
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/new/dudette_head.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/macedonians/female_citizen.xml",
     "mesh:props/new/dudette_head_a.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/f_dress.dae",
     "skin:props/head/celt_fem_a.dds",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/spart/female_03.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -9504,27 +9608,31 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/maur_female_citizen.glb",
    "origin": "ground-center",
-   "parts": 3,
+   "parts": 4,
    "size_meters": [
     0.75,
     1.68,
-    0.307
+    0.607
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/maur_earrings_1.xml",
     "actor:art/actors/props/units/heads/new/head_maur_fem.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/mauryas/female_citizen.xml",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/new/dudette_head_a.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/f_tunic_short.dae",
     "skin:props/head/maur_fem_a.dds",
     "skin:props/helmet/old/pers_f1.dds",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/maur/female_01_01.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -10021,16 +10129,17 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/maur_villager.glb",
    "origin": "ground-center",
-   "parts": 5,
+   "parts": 6,
    "size_meters": [
     0.741,
     1.7,
-    0.321
+    0.616
    ],
    "skeleton": "biped",
    "sources": [
@@ -10038,16 +10147,19 @@
     "actor:art/actors/props/units/heads/maur_maiden_big_turban.xml",
     "actor:art/actors/props/units/heads/new/head_indian_a.xml",
     "actor:art/actors/props/units/heads/new/head_maur_short_hair.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/mauryas/citizen_male.xml",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/helmet/maur_inf_big_turban_maiden.dae",
     "mesh:props/new/head_indian_1.dae",
     "mesh:props/new/head_mauryan_short_hair.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/m_tunic_long.dae",
     "skin:props/head/indian_face_b.dds",
     "skin:props/head/maur_face_a.png",
     "skin:props/helmet/maur_inf_turban_a.png",
     "skin:props/helmet/old/pers_f1.dds",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/cart/toga_citizen_01.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -10374,24 +10486,28 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/pers_female_citizen.glb",
    "origin": "ground-center",
-   "parts": 2,
+   "parts": 3,
    "size_meters": [
     0.749,
     1.68,
-    0.337
+    0.637
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/new/head_pers_fem_1.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/persians/female_citizen.xml",
     "mesh:props/new/dudette_head_a.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/f_dress.dae",
     "skin:props/head/pers_fem_a.dds",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/pers/dress_female_01_01.dds"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -10812,24 +10928,28 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/pers_villager.glb",
    "origin": "ground-center",
-   "parts": 2,
+   "parts": 3,
    "size_meters": [
     0.768,
     1.7,
-    0.332
+    0.638
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/new/head_pers_a.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/persians/citizen_male.xml",
     "mesh:props/new/head_beard_large.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/m_tunic_long.dae",
     "skin:props/head/pers_face_a.png",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/pers/tunic_basic_01_01.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -11124,27 +11244,31 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/ptol_female_citizen.glb",
    "origin": "ground-center",
-   "parts": 3,
+   "parts": 4,
    "size_meters": [
     0.759,
     1.68,
-    0.342
+    0.645
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/maur_earrings_1.xml",
     "actor:art/actors/props/units/heads/new/head_ptol_fem.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/ptolemies/female_citizen.xml",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/new/head_ptol_female.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/f_dress.dae",
     "skin:props/head/maur_fem_a.dds",
     "skin:props/helmet/old/pers_f1.dds",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/ptol/dress_female_01.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -11657,24 +11781,28 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/ptol_villager.glb",
    "origin": "ground-center",
-   "parts": 2,
+   "parts": 3,
    "size_meters": [
     0.768,
     1.7,
-    0.314
+    0.62
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/new/head_pers_a.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/ptolemies/citizen_male.xml",
     "mesh:props/new/head_beard_large.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/m_dress.dae",
     "skin:props/head/pers_face_a.png",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/cart/toga_citizen_01.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -11999,24 +12127,28 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/rome_female_citizen.glb",
    "origin": "ground-center",
-   "parts": 2,
+   "parts": 3,
    "size_meters": [
     0.749,
     1.68,
-    0.337
+    0.637
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/new/dudette_head.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/romans/female_citizen.xml",
     "mesh:props/new/dudette_head_a.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/f_dress.dae",
     "skin:props/head/celt_fem_a.dds",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/imp/support_citizen_female_01.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -12528,24 +12660,28 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/rome_villager.glb",
    "origin": "ground-center",
-   "parts": 2,
+   "parts": 3,
    "size_meters": [
     0.768,
     1.7,
-    0.314
+    0.62
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/new/head_hele_b.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/romans/citizen_male.xml",
     "mesh:props/new/dude_head.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/m_dress.dae",
     "skin:props/head/hele_a.dds",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/imp/support_citizen_male_01.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -12977,24 +13113,28 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/sele_female_citizen.glb",
    "origin": "ground-center",
-   "parts": 2,
+   "parts": 3,
    "size_meters": [
     0.749,
     1.68,
-    0.337
+    0.637
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/new/head_maur_fem.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/seleucids/female_citizen.xml",
     "mesh:props/new/dudette_head_a.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/f_dress.dae",
     "skin:props/head/maur_fem_a.dds",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/ptol/dress_female_01.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -13508,27 +13648,31 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/sele_villager.glb",
    "origin": "ground-center",
-   "parts": 3,
+   "parts": 4,
    "size_meters": [
     0.768,
     1.7,
-    0.328
+    0.634
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/new/head_hele_b.xml",
     "actor:art/actors/props/units/heads/new/head_hele_e.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/seleucids/citizen_male.xml",
     "mesh:props/new/dude_head.dae",
     "mesh:props/new/head_beard_small.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/m_tunic_short.dae",
     "skin:props/head/hele_a.dds",
     "skin:props/head/hele_e.dds",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/mace/tunic_hellenistic_e_01.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -13832,24 +13976,28 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/spart_female_citizen.glb",
    "origin": "ground-center",
-   "parts": 2,
+   "parts": 3,
    "size_meters": [
     0.75,
     1.68,
-    0.307
+    0.607
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/new/head_female_dudette_a.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/spartans/female_citizen.xml",
     "mesh:props/new/dudette_head_a.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/f_tunic_short.dae",
     "skin:props/head/maur_fem_b.png",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/spart/tunic_female_01.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -14366,24 +14514,28 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/spart_villager.glb",
    "origin": "ground-center",
-   "parts": 2,
+   "parts": 3,
    "size_meters": [
     0.768,
     1.7,
-    0.328
+    0.634
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/new/head_spart_a.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/spartans/citizen_male.xml",
     "mesh:props/new/head_beard_longhair.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/m_tunic_short.dae",
     "skin:props/head/hele_c.dds",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/hele/tunic_02_01.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -14868,24 +15020,28 @@
     "Attack",
     "Death",
     "Gather",
-    "Build"
+    "Build",
+    "Slaughter"
    ],
    "bones": 46,
    "file": "models/units/villager.glb",
    "origin": "ground-center",
-   "parts": 2,
+   "parts": 3,
    "size_meters": [
     0.758,
     1.7,
-    0.341
+    0.644
    ],
    "skeleton": "biped",
    "sources": [
     "actor:art/actors/props/units/heads/new/head_female_dudette_b.xml",
+    "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/athenians/female_citizen.xml",
     "mesh:props/new/dudette_head_b.dae",
+    "mesh:props/weapons/dagger_01.dae",
     "mesh:skeletal/new/f_dress.dae",
     "skin:props/head/kart_fem_a_cin.dds",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/hele/dress_female_01.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"

@@ -22,6 +22,8 @@ static std::string resolve_psa_alias(const std::string& input) {
 	if (s == "villager_gather" || s == "gather") return "gather_wood";
 	if (s == "villager_idle") return "citizen_idle";
 	if (s == "villager_walk") return "citizen_walk";
+	if (s == "villager_run") return "citizen_run";
+	if (s == "villager_attack") return "biped_attack";
 	return s;
 }
 
