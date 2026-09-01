@@ -122,7 +122,7 @@ bool AnimationController::load(const std::string& base) {
 		load_clip(AnimState::Idle, "trader_idle");
 		load_clip(AnimState::Walk, "trader_walk");
 		load_clip(AnimState::Run, "trader_walk");
-		load_clip(AnimState::Death, "trader_idle");
+		load_clip(AnimState::Death, "trader_death");
 		return !anims.empty();
 	} else if (base == "fauna" || base == "deer") {
 		return load_rig(RigType::Fauna);

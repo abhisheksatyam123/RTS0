@@ -696,6 +696,14 @@
    "json": "animations/trader_idle.json",
    "source": "art/animation/mechanical/trader_cart_idle.dae.cached.psa"
   },
+  "trader_rider_death": {
+   "bones": 46,
+   "file": "animations/trader_rider_death.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 59,
+   "json": "animations/trader_rider_death.json",
+   "source": "art/animation/biped/chariot/maur_trader/death.dae.cached.psa"
+  },
   "trader_rider_idle": {
    "bones": 46,
    "file": "animations/trader_rider_idle.psa",
@@ -853,7 +861,7 @@
     "Walk": "biped_walk"
    },
    "athen_trader": {
-    "Death": "trader_idle",
+    "Death": "trader_death",
     "Idle": "trader_idle",
     "Run": "trader_walk",
     "Walk": "trader_walk"
@@ -944,7 +952,7 @@
     "Walk": "biped_walk"
    },
    "brit_trader": {
-    "Death": "trader_idle",
+    "Death": "trader_death",
     "Idle": "trader_idle",
     "Run": "trader_walk",
     "Walk": "trader_walk"
@@ -1037,10 +1045,11 @@
     "Walk": "biped_walk"
    },
    "cart_trader": {
-    "Death": "trader_idle",
-    "Idle": "trader_idle",
-    "Run": "trader_walk",
-    "Walk": "trader_walk"
+    "Attack": "camel_attack",
+    "Death": "camel_death",
+    "Idle": "camel_idle",
+    "Run": "camel_run",
+    "Walk": "camel_walk"
    },
    "cart_trireme": {
     "Attack": "trireme_idle",
@@ -1161,7 +1170,7 @@
     "Walk": "biped_walk"
    },
    "gaul_trader": {
-    "Death": "trader_idle",
+    "Death": "trader_death",
     "Idle": "trader_idle",
     "Run": "trader_walk",
     "Walk": "trader_walk"
@@ -1254,7 +1263,7 @@
     "Walk": "biped_walk"
    },
    "iber_trader": {
-    "Death": "trader_idle",
+    "Death": "trader_death",
     "Idle": "trader_idle",
     "Run": "trader_walk",
     "Walk": "trader_walk"
@@ -1333,7 +1342,7 @@
     "Walk": "biped_walk"
    },
    "kush_trader": {
-    "Death": "trader_idle",
+    "Death": "trader_death",
     "Idle": "trader_idle",
     "Run": "trader_walk",
     "Walk": "trader_walk"
@@ -1412,7 +1421,7 @@
     "Walk": "biped_walk"
    },
    "mace_trader": {
-    "Death": "trader_idle",
+    "Death": "trader_death",
     "Idle": "trader_idle",
     "Run": "trader_walk",
     "Walk": "trader_walk"
@@ -1491,7 +1500,7 @@
     "Walk": "biped_walk"
    },
    "maur_trader": {
-    "Death": "trader_idle",
+    "Death": "trader_death",
     "Idle": "trader_idle",
     "Run": "trader_walk",
     "Walk": "trader_walk"
@@ -1568,10 +1577,11 @@
     "Walk": "biped_walk"
    },
    "pers_trader": {
-    "Death": "trader_idle",
-    "Idle": "trader_idle",
-    "Run": "trader_walk",
-    "Walk": "trader_walk"
+    "Attack": "camel_attack",
+    "Death": "camel_death",
+    "Idle": "camel_idle",
+    "Run": "camel_run",
+    "Walk": "camel_walk"
    },
    "pers_trireme": {
     "Attack": "trireme_idle",
@@ -1647,7 +1657,7 @@
     "Walk": "biped_walk"
    },
    "ptol_trader": {
-    "Death": "trader_idle",
+    "Death": "trader_death",
     "Idle": "trader_idle",
     "Run": "trader_walk",
     "Walk": "trader_walk"
@@ -1732,7 +1742,7 @@
     "Walk": "biped_walk"
    },
    "rome_trader": {
-    "Death": "trader_idle",
+    "Death": "trader_death",
     "Idle": "trader_idle",
     "Run": "trader_walk",
     "Walk": "trader_walk"
@@ -1817,7 +1827,7 @@
     "Walk": "biped_walk"
    },
    "sele_trader": {
-    "Death": "trader_idle",
+    "Death": "trader_death",
     "Idle": "trader_idle",
     "Run": "trader_walk",
     "Walk": "trader_walk"
@@ -1908,7 +1918,7 @@
     "Walk": "biped_walk"
    },
    "spart_trader": {
-    "Death": "trader_idle",
+    "Death": "trader_death",
     "Idle": "trader_idle",
     "Run": "trader_walk",
     "Walk": "trader_walk"
@@ -1944,7 +1954,7 @@
     "Walk": "biped_walk"
    },
    "trader": {
-    "Death": "trader_idle",
+    "Death": "trader_death",
     "Idle": "trader_idle",
     "Run": "trader_walk",
     "Walk": "trader_walk"
@@ -2025,7 +2035,7 @@
    "cart_hero": "biped",
    "cart_spearman": "biped",
    "cart_swordsman": "biped",
-   "cart_trader": "",
+   "cart_trader": "camel",
    "cart_trireme": "ship_sail",
    "cart_villager": "biped",
    "catapult": "lithobolos",
@@ -2100,7 +2110,7 @@
    "pers_healer": "biped",
    "pers_hero": "biped",
    "pers_spearman": "biped",
-   "pers_trader": "",
+   "pers_trader": "camel",
    "pers_trireme": "ship_sail",
    "pers_villager": "biped",
    "ptol_archer": "biped",
@@ -2987,9 +2997,9 @@
    "bones": 4,
    "file": "models/units/athen_trader.glb",
    "origin": "ground-center",
-   "parts": 15,
+   "parts": 11,
    "size_meters": [
-    1.778,
+    1.277,
     1.9,
     3.734
    ],
@@ -3001,12 +3011,10 @@
     "actor:art/actors/props/horse/trader_blanket.xml",
     "actor:art/actors/props/special/eyecandy/barrel_a.xml",
     "actor:art/actors/props/special/eyecandy/crate_a.xml",
-    "actor:art/actors/props/units/heads/new/head_hele_a.xml",
     "actor:art/actors/props/units/heads/new/head_hele_e.xml",
     "actor:art/actors/props/units/helmets/hele_straw_01.xml",
     "actor:art/actors/props/units/weapons/trader_staff.xml",
     "actor:art/actors/units/athenians/trader.xml",
-    "actor:art/actors/units/athenians/trader_r.xml",
     "actor:art/actors/units/hellenes/trader_h.xml",
     "actor:art/actors/units/hellenes/trader_r.xml",
     "mesh:props/helmet/hele_straw_01.dae",
@@ -3021,7 +3029,6 @@
     "mesh:skeletal/new/m_dress.dae",
     "mesh:skeletal/trader_cart.dae",
     "skin:props/celt_prop_1.png",
-    "skin:props/head/hele_c.dds",
     "skin:props/head/hele_e.dds",
     "skin:props/helmet/hele_straw_01.png",
     "skin:props/horse/blanket_trader.png",
@@ -3938,38 +3945,47 @@
     "Run",
     "Death"
    ],
-   "bones": 27,
+   "bones": 46,
    "file": "models/units/brit_trader.glb",
    "origin": "ground-center",
-   "parts": 7,
+   "parts": 11,
    "size_meters": [
-    0.594,
+    0.667,
     1.9,
-    1.121
+    1.305
    ],
    "skeleton": "",
    "sources": [
     "actor:art/actors/props/units/backpack_celt.xml",
     "actor:art/actors/props/units/heads/new/head_celt.xml",
+    "actor:art/actors/props/units/heads/new/head_hele_e.xml",
+    "actor:art/actors/props/units/helmets/hele_straw_01.xml",
     "actor:art/actors/props/units/horse/donkey_pack_01.xml",
     "actor:art/actors/props/units/weapons/trader_staff.xml",
     "actor:art/actors/units/celts/trader.xml",
     "actor:art/actors/units/celts/trader_h.xml",
     "actor:art/actors/units/celts/trader_r.xml",
+    "actor:art/actors/units/hellenes/trader_r.xml",
     "mesh:props/donkey_pack_01.dae",
+    "mesh:props/helmet/hele_straw_01.dae",
     "mesh:props/m_backpack.dae",
+    "mesh:props/new/head_beard_small.dae",
     "mesh:props/new/head_longhair.dae",
     "mesh:props/trader_staff.dae",
     "mesh:skeletal/celt_trader.dae",
     "mesh:skeletal/donkey.dae",
     "mesh:skeletal/new/m_armor_pants_tunic_long.dae",
+    "mesh:skeletal/new/m_dress.dae",
     "skin:null_white.dds",
     "skin:props/backpack_trader_celt.dds",
     "skin:props/celt_prop_1.png",
     "skin:props/head/celt_a.dds",
+    "skin:props/head/hele_e.dds",
+    "skin:props/helmet/hele_straw_01.png",
     "skin:props/prop_weap.dds",
     "skin:skeletal/animal_donkey.dds",
-    "skin:skeletal/gaul/tunic_01_01.png"
+    "skin:skeletal/gaul/tunic_01_01.png",
+    "skin:skeletal/hele/trader_01.dds"
    ],
    "upstream_material": "no_trans_norm_spec.xml"
   },
@@ -4820,6 +4836,7 @@
     "Idle",
     "Walk",
     "Run",
+    "Attack",
     "Death"
    ],
    "bones": 48,
@@ -4831,7 +4848,7 @@
     1.9,
     2.178
    ],
-   "skeleton": "",
+   "skeleton": "camel",
    "sources": [
     "actor:art/actors/props/camel/teeths.xml",
     "actor:art/actors/props/units/kart_camel_props.xml",
@@ -6541,38 +6558,47 @@
     "Run",
     "Death"
    ],
-   "bones": 27,
+   "bones": 46,
    "file": "models/units/gaul_trader.glb",
    "origin": "ground-center",
-   "parts": 7,
+   "parts": 11,
    "size_meters": [
-    0.594,
+    0.667,
     1.9,
-    1.121
+    1.305
    ],
    "skeleton": "",
    "sources": [
     "actor:art/actors/props/units/backpack_celt.xml",
     "actor:art/actors/props/units/heads/new/head_celt.xml",
+    "actor:art/actors/props/units/heads/new/head_hele_e.xml",
+    "actor:art/actors/props/units/helmets/hele_straw_01.xml",
     "actor:art/actors/props/units/horse/donkey_pack_01.xml",
     "actor:art/actors/props/units/weapons/trader_staff.xml",
     "actor:art/actors/units/celts/trader.xml",
     "actor:art/actors/units/celts/trader_h.xml",
     "actor:art/actors/units/celts/trader_r.xml",
+    "actor:art/actors/units/hellenes/trader_r.xml",
     "mesh:props/donkey_pack_01.dae",
+    "mesh:props/helmet/hele_straw_01.dae",
     "mesh:props/m_backpack.dae",
+    "mesh:props/new/head_beard_small.dae",
     "mesh:props/new/head_longhair.dae",
     "mesh:props/trader_staff.dae",
     "mesh:skeletal/celt_trader.dae",
     "mesh:skeletal/donkey.dae",
     "mesh:skeletal/new/m_armor_pants_tunic_long.dae",
+    "mesh:skeletal/new/m_dress.dae",
     "skin:null_white.dds",
     "skin:props/backpack_trader_celt.dds",
     "skin:props/celt_prop_1.png",
     "skin:props/head/celt_a.dds",
+    "skin:props/head/hele_e.dds",
+    "skin:props/helmet/hele_straw_01.png",
     "skin:props/prop_weap.dds",
     "skin:skeletal/animal_donkey.dds",
-    "skin:skeletal/gaul/tunic_01_01.png"
+    "skin:skeletal/gaul/tunic_01_01.png",
+    "skin:skeletal/hele/trader_01.dds"
    ],
    "upstream_material": "no_trans_norm_spec.xml"
   },
@@ -7544,37 +7570,46 @@
     "Run",
     "Death"
    ],
-   "bones": 27,
+   "bones": 46,
    "file": "models/units/iber_trader.glb",
    "origin": "ground-center",
-   "parts": 7,
+   "parts": 11,
    "size_meters": [
-    0.594,
+    0.667,
     1.9,
-    1.121
+    1.305
    ],
    "skeleton": "",
    "sources": [
     "actor:art/actors/props/units/backpack_celt.xml",
+    "actor:art/actors/props/units/heads/new/head_hele_e.xml",
     "actor:art/actors/props/units/heads/new/head_iber_adv.xml",
+    "actor:art/actors/props/units/helmets/hele_straw_01.xml",
     "actor:art/actors/props/units/horse/donkey_pack_01.xml",
     "actor:art/actors/props/units/weapons/trader_staff.xml",
     "actor:art/actors/units/celts/trader_h.xml",
+    "actor:art/actors/units/hellenes/trader_r.xml",
     "actor:art/actors/units/iberians/trader.xml",
     "actor:art/actors/units/iberians/trader_r.xml",
     "mesh:props/donkey_pack_01.dae",
+    "mesh:props/helmet/hele_straw_01.dae",
     "mesh:props/m_backpack.dae",
+    "mesh:props/new/head_beard_small.dae",
     "mesh:props/new/head_longhair.dae",
     "mesh:props/trader_staff.dae",
     "mesh:skeletal/celt_trader.dae",
     "mesh:skeletal/donkey.dae",
+    "mesh:skeletal/new/m_dress.dae",
     "mesh:skeletal/new/m_pants_tunic_long.dae",
     "skin:null_white.dds",
     "skin:props/backpack_trader_celt.dds",
     "skin:props/celt_prop_1.png",
+    "skin:props/head/hele_e.dds",
     "skin:props/head/iber_isp_b_1.dds",
+    "skin:props/helmet/hele_straw_01.png",
     "skin:props/prop_weap.dds",
     "skin:skeletal/animal_donkey.dds",
+    "skin:skeletal/hele/trader_01.dds",
     "skin:skeletal/iber/trader_01.dds"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -8308,34 +8343,43 @@
     "Run",
     "Death"
    ],
-   "bones": 27,
+   "bones": 46,
    "file": "models/units/kush_trader.glb",
    "origin": "ground-center",
-   "parts": 6,
+   "parts": 10,
    "size_meters": [
-    0.594,
+    0.669,
     1.9,
-    1.121
+    1.305
    ],
    "skeleton": "",
    "sources": [
     "actor:art/actors/props/units/heads/head_kush_meroitic.xml",
+    "actor:art/actors/props/units/heads/new/head_hele_e.xml",
+    "actor:art/actors/props/units/helmets/hele_straw_01.xml",
     "actor:art/actors/props/units/horse/donkey_pack_01.xml",
     "actor:art/actors/props/units/weapons/trader_staff.xml",
+    "actor:art/actors/units/hellenes/trader_r.xml",
     "actor:art/actors/units/kushites/trader.xml",
     "actor:art/actors/units/kushites/trader_h.xml",
     "actor:art/actors/units/kushites/trader_r.xml",
     "mesh:props/donkey_pack_01.dae",
+    "mesh:props/helmet/hele_straw_01.dae",
     "mesh:props/new/dude_head.dae",
+    "mesh:props/new/head_beard_small.dae",
     "mesh:props/trader_staff.dae",
     "mesh:skeletal/celt_trader.dae",
     "mesh:skeletal/donkey.dae",
+    "mesh:skeletal/new/m_dress.dae",
     "mesh:skeletal/new/m_dress_sleeves.dae",
     "skin:null_white.dds",
     "skin:props/celt_prop_1.png",
     "skin:props/head/african_meroitic_a.png",
+    "skin:props/head/hele_e.dds",
+    "skin:props/helmet/hele_straw_01.png",
     "skin:props/prop_weap.dds",
     "skin:skeletal/animal_donkey.dds",
+    "skin:skeletal/hele/trader_01.dds",
     "skin:skeletal/kush/dress_trader_01.png"
    ],
    "upstream_material": "no_trans_norm_spec.xml"
@@ -9191,9 +9235,9 @@
    "bones": 4,
    "file": "models/units/mace_trader.glb",
    "origin": "ground-center",
-   "parts": 11,
+   "parts": 15,
    "size_meters": [
-    1.277,
+    1.778,
     1.9,
     3.734
    ],
@@ -9206,12 +9250,16 @@
     "actor:art/actors/props/special/eyecandy/barrel_a.xml",
     "actor:art/actors/props/special/eyecandy/crate_a.xml",
     "actor:art/actors/props/units/heads/new/head_hele_a.xml",
+    "actor:art/actors/props/units/heads/new/head_hele_e.xml",
     "actor:art/actors/props/units/helmets/hele_kausia_cap.xml",
+    "actor:art/actors/props/units/helmets/hele_straw_01.xml",
     "actor:art/actors/props/units/weapons/trader_staff.xml",
+    "actor:art/actors/units/hellenes/trader_r.xml",
     "actor:art/actors/units/macedonians/trader.xml",
     "actor:art/actors/units/macedonians/trader_h.xml",
     "actor:art/actors/units/macedonians/trader_r.xml",
     "mesh:props/helmet/hele_kausia_cap_01.dae",
+    "mesh:props/helmet/hele_straw_01.dae",
     "mesh:props/horse/blanket.dae",
     "mesh:props/horse/chest_colorband_01.dae",
     "mesh:props/horse/hair_mane_01.dae",
@@ -9224,7 +9272,9 @@
     "mesh:skeletal/trader_cart.dae",
     "skin:props/celt_prop_1.png",
     "skin:props/head/hele_c.dds",
+    "skin:props/head/hele_e.dds",
     "skin:props/helmet/hele_kausia_cap_01.png",
+    "skin:props/helmet/hele_straw_01.png",
     "skin:props/horse/blanket_trader.png",
     "skin:props/horse/hair_brown.png",
     "skin:props/horse/peytral_iron_03.png",
@@ -10038,33 +10088,45 @@
    "bones": 4,
    "file": "models/units/maur_trader.glb",
    "origin": "ground-center",
-   "parts": 7,
+   "parts": 11,
    "size_meters": [
-    2.497,
+    1.506,
     1.9,
-    5.993
+    3.615
    ],
    "skeleton": "",
    "sources": [
     "actor:art/actors/fauna/zebu.xml",
     "actor:art/actors/props/special/eyecandy/barrel_a.xml",
     "actor:art/actors/props/units/heads/maur_inf_turban.xml",
+    "actor:art/actors/props/units/heads/new/head_hele_e.xml",
     "actor:art/actors/props/units/heads/new/head_mauryan_short_hair.xml",
+    "actor:art/actors/props/units/helmets/hele_straw_01.xml",
     "actor:art/actors/props/units/maur_trader_rein_left.xml",
     "actor:art/actors/props/units/maur_trader_rein_right.xml",
     "actor:art/actors/props/units/maur_trader_staff.xml",
+    "actor:art/actors/props/units/weapons/trader_staff.xml",
+    "actor:art/actors/units/hellenes/trader_r.xml",
     "actor:art/actors/units/mauryas/trader.xml",
     "actor:art/actors/units/mauryas/trader_r.xml",
+    "mesh:props/helmet/hele_straw_01.dae",
     "mesh:props/helmet/maur_inf_turban_a.dae",
     "mesh:props/maur_trader_staff.dae",
+    "mesh:props/new/head_beard_small.dae",
     "mesh:props/new/head_mauryan_short_hair.dae",
+    "mesh:props/trader_staff.dae",
     "mesh:skeletal/maur_trader.dae",
+    "mesh:skeletal/new/m_dress.dae",
     "mesh:skeletal/new/m_tunic_long.dae",
     "mesh:skeletal/zebu.dae",
+    "skin:props/head/hele_e.dds",
     "skin:props/head/indian_face_a.dds",
+    "skin:props/helmet/hele_straw_01.png",
     "skin:props/helmet/maur_inf_turban_a.png",
     "skin:props/maur_trader.png",
+    "skin:props/prop_weap.dds",
     "skin:skeletal/animal_zebu.png",
+    "skin:skeletal/hele/trader_01.dds",
     "skin:skeletal/maur/skirt_01_01.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
@@ -10856,6 +10918,7 @@
     "Idle",
     "Walk",
     "Run",
+    "Attack",
     "Death"
    ],
    "bones": 48,
@@ -10867,7 +10930,7 @@
     1.9,
     2.023
    ],
-   "skeleton": "",
+   "skeleton": "camel",
    "sources": [
     "actor:art/actors/props/camel/teeths.xml",
     "actor:art/actors/props/units/pers_camel_props.xml",
@@ -12559,7 +12622,7 @@
    "origin": "ground-center",
    "parts": 11,
    "size_meters": [
-    1.778,
+    1.277,
     1.9,
     3.723
    ],
@@ -14423,9 +14486,9 @@
    "bones": 4,
    "file": "models/units/spart_trader.glb",
    "origin": "ground-center",
-   "parts": 11,
+   "parts": 15,
    "size_meters": [
-    1.277,
+    1.778,
     1.9,
     3.734
    ],
@@ -14437,9 +14500,11 @@
     "actor:art/actors/props/horse/trader_blanket.xml",
     "actor:art/actors/props/special/eyecandy/barrel_a.xml",
     "actor:art/actors/props/special/eyecandy/crate_a.xml",
+    "actor:art/actors/props/units/heads/new/head_hele_e.xml",
     "actor:art/actors/props/units/heads/new/head_spart_e.xml",
     "actor:art/actors/props/units/helmets/hele_straw_01.xml",
     "actor:art/actors/props/units/weapons/trader_staff.xml",
+    "actor:art/actors/units/hellenes/trader_r.xml",
     "actor:art/actors/units/spartans/trader.xml",
     "actor:art/actors/units/spartans/trader_h.xml",
     "actor:art/actors/units/spartans/trader_r.xml",
@@ -14449,6 +14514,7 @@
     "mesh:props/horse/hair_mane_01.dae",
     "mesh:props/horse/hair_tail_01.dae",
     "mesh:props/new/head_beard_longhair.dae",
+    "mesh:props/new/head_beard_small.dae",
     "mesh:props/trader_staff.dae",
     "mesh:props/wrld_crate_a.dae",
     "mesh:skeletal/horse_tessalian.dae",

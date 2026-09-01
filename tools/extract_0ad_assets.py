@@ -360,8 +360,9 @@ BLD_GLOBAL_FALLBACK = {
 }
 
 
-def register_civ_unit_assets(assets):
+def register_civ_unit_assets(assets, zf=None):
     """Add `{code}_{unit}` entries and copy UNIT_CFG / rider attach from the base unit."""
+    names = set(zf.namelist()) if zf is not None else set()
     added = []
     for code, units in CIV_CORE_ACTORS.items():
         for uid, actor in units.items():
@@ -376,13 +377,28 @@ def register_civ_unit_assets(assets):
                 rpath, ap_name, sit = RIDER_ATTACHMENTS[uid][0]
                 if actor.endswith("_m.xml"):
                     rider = actor[:-6] + "_r.xml"
-                elif uid == "trader" and actor.endswith("trader.xml"):
-                    rider = actor[:-len("trader.xml")] + "trader_r.xml"
+                elif uid == "trader":
+                    cand = (actor[:-len("trader.xml")] + "trader_r.xml") if actor.endswith("trader.xml") else None
+                    if cand and cand in names:
+                        rider = cand
+                    elif "camel" in actor or "carthaginians" in actor or "persians" in actor:
+                        rider = None
+                        UNIT_CFG[aid] = ("camel", {
+                            "Idle": "camel_idle", "Walk": "camel_walk", "Run": "camel_run",
+                            "Attack": "camel_attack", "Death": "camel_death"})
+                    else:
+                        rider = rpath
                 else:
                     rider = rpath
-                RIDER_ATTACHMENTS[aid] = [(rider, ap_name, sit)]
+                if rider:
+                    RIDER_ATTACHMENTS[aid] = [(rider, ap_name, sit)]
+                else:
+                    RIDER_ATTACHMENTS.pop(aid, None)
             if uid in RIDER_CLIPS:
-                RIDER_CLIPS[aid] = RIDER_CLIPS[uid]
+                if aid in RIDER_ATTACHMENTS:
+                    RIDER_CLIPS[aid] = RIDER_CLIPS[uid]
+                else:
+                    RIDER_CLIPS.pop(aid, None)
             added.append(aid)
     return added
 
@@ -515,6 +531,7 @@ ANIMATIONS = {
     "ram_attack":       "art/animation/mechanical/rome_ram_attack.dae.cached.psa",
     "trader_idle":      "art/animation/mechanical/trader_cart_idle.dae.cached.psa",
     "trader_walk":      "art/animation/mechanical/trader_cart_move.dae.cached.psa",
+    "trader_death":     "assets/animations/trader_death.psa",
     "catapult_idle":    "art/animation/mechanical/siege_artillery/lithobolos_med_idle_01.dae.cached.psa",
     "catapult_attack":  "art/animation/mechanical/siege_artillery/lithobolos_med_attack_ranged_01.dae.cached.psa",
     "bolt_idle":        "art/animation/mechanical/siege_artillery/oxybeles_idle_01.dae.cached.psa",
@@ -533,6 +550,7 @@ ANIMATIONS = {
     "elephant_driver_attack": "art/animation/biped/rider/elephantry/driver/attack_melee.dae.cached.psa",
     "trader_rider_idle": "art/animation/biped/citizen/idle_relax_h_f.dae.cached.psa",
     "trader_rider_walk": "art/animation/biped/citizen/walk_relax_t.dae.cached.psa",
+    "trader_rider_death": "art/animation/biped/chariot/maur_trader/death.dae.cached.psa",
     "fisherman_idle":   "art/animation/biped/new/boat_fisherman_idle.dae.cached.psa",
     "trireme_idle":     "art/animation/other/main_sail_idle.dae.cached.psa",
     "trireme_walk":     "art/animation/other/main_sail_move.dae.cached.psa",
@@ -616,7 +634,7 @@ RIDER_CLIPS = {
     },
     "trader": {
         "Idle": "trader_rider_idle", "Walk": "trader_rider_walk", "Run": "trader_rider_walk",
-        "Death": "trader_rider_idle",
+        "Death": "trader_rider_death",
     },
     "fishing_boat": {
         "Idle": "fisherman_idle", "Walk": "fisherman_idle", "Run": "fisherman_idle",
@@ -903,10 +921,13 @@ class Vfs:
         self._png_cache = {}
 
     def read(self, path):
+        if os.path.isfile(path):
+            with open(path, "rb") as f:
+                return f.read()
         return self.zf.read(path)
 
     def exists(self, path):
-        return path in self.zf.namelist()
+        return os.path.isfile(path) or (path in self.zf.namelist())
 
     def mesh_path(self, ref):
         ref = ref.strip().replace("\\", "/")
@@ -2351,7 +2372,7 @@ UNIT_CFG = {
     # 0 A.D. trader.xml: mechanical trader_cart (4 bones) + horse/rider props
     "trader": ("", {
         "Idle": "trader_idle", "Walk": "trader_walk", "Run": "trader_walk",
-        "Death": "trader_idle"}),
+        "Death": "trader_death"}),
     "deer": ("deer", {
         "Idle": "deer_idle", "Walk": "deer_walk", "Run": "deer_walk"}),
     "healer": ("biped", {
@@ -2434,13 +2455,13 @@ def main():
                     print(n)
             return
         assets = dict(ASSETS)
-        civ_ids = register_civ_unit_assets(assets)
+        civ_ids = register_civ_unit_assets(assets, zf)
         bld_ids = register_civ_building_assets(assets, zf)
         print(f"[civ] registered {len(civ_ids)} civilization unit meshes + {len(bld_ids)} buildings")
         terrain = dict(TERRAIN_TILES)
         if args.all:
             assets.update(FULL_ASSETS)
-            register_civ_unit_assets(assets)
+            register_civ_unit_assets(assets, zf)
             register_civ_building_assets(assets, zf)
             terrain.update(FULL_TERRAIN)
             print(f"[all] expanding to {len(assets)} models + {len(terrain)} terrain tiles")
