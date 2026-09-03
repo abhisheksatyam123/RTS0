@@ -9,10 +9,10 @@ func _on_resume_pressed():
 	get_tree().paused = false
 
 func _on_options_pressed():
-	get_tree().change_scene_to_file("res://scenes/menu/options.tscn")
+	MatchSettings.go("res://scenes/menu/options.tscn")
 
 func _on_lobby_pressed():
-	get_tree().change_scene_to_file("res://scenes/menu/lobby.tscn")
+	MatchSettings.go("res://scenes/menu/lobby.tscn")
 
 func _on_save_pressed():
 	var parent = get_parent()
@@ -31,7 +31,7 @@ func _on_load_pressed():
 
 func _on_exit_pressed():
 	get_tree().paused = false
-	get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
+	MatchSettings.go("res://scenes/menu/main_menu.tscn")
 
 func toggle():
 	visible = !visible

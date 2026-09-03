@@ -195,6 +195,7 @@ TEXTURE_MAPPING = {
     "art/textures/ui/session/portraits/units/brit/war_dog.png.cached.dds": "textures/ui/portraits/war_dog.png",
     "art/textures/ui/session/portraits/units/gaul/champion_swordsman_carnyx.png.cached.dds": "textures/ui/portraits/carnyx.png",
     "art/textures/ui/session/portraits/units/maur/support_elephant.png.cached.dds": "textures/ui/portraits/worker_elephant.png",
+    "art/textures/ui/session/portraits/units/maur/elephant_archer.png.cached.dds": "textures/ui/portraits/maur_elephant.png",
     "art/textures/ui/session/portraits/units/maur/champion_maiden_archer.png.cached.dds": "textures/ui/portraits/archer_maiden.png",
     "art/textures/ui/session/portraits/units/kush/camel_swordsman.png.cached.dds": "textures/ui/portraits/camel.png",
     "art/textures/ui/session/portraits/units/sele/champion_chariot.png.cached.dds": "textures/ui/portraits/scythed_chariot.png",

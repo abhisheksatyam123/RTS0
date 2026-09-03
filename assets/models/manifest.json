@@ -336,6 +336,14 @@
    "json": "animations/citizen_walk.json",
    "source": "art/animation/biped/citizen/walk_relax_m.dae.cached.psa"
   },
+  "deer_death": {
+   "bones": 29,
+   "file": "animations/deer_death.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 12,
+   "json": "animations/deer_death.json",
+   "source": "art/animation/quadraped/deer_death_01.dae.cached.psa"
+  },
   "deer_idle": {
    "bones": 29,
    "file": "animations/deer_idle.psa",
@@ -391,6 +399,38 @@
    "frames": 29,
    "json": "animations/dog_walk.json",
    "source": "art/animation/quadraped/mastiff_run.dae.cached.psa"
+  },
+  "elephant_archer_attack": {
+   "bones": 46,
+   "file": "animations/elephant_archer_attack.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 80,
+   "json": "animations/elephant_archer_attack.json",
+   "source": "art/animation/biped/rider/elephantry/archer/r1_attack_ranged_bow.dae.cached.psa"
+  },
+  "elephant_archer_death": {
+   "bones": 46,
+   "file": "animations/elephant_archer_death.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 49,
+   "json": "animations/elephant_archer_death.json",
+   "source": "art/animation/biped/rider/elephantry/archer/r1_death_archer.dae.cached.psa"
+  },
+  "elephant_archer_ready": {
+   "bones": 46,
+   "file": "animations/elephant_archer_ready.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 49,
+   "json": "animations/elephant_archer_ready.json",
+   "source": "art/animation/biped/rider/elephantry/archer/r1_idle_ready.dae.cached.psa"
+  },
+  "elephant_archer_walk": {
+   "bones": 46,
+   "file": "animations/elephant_archer_walk.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 49,
+   "json": "animations/elephant_archer_walk.json",
+   "source": "art/animation/biped/rider/elephantry/archer/r1_walk_ready.dae.cached.psa"
   },
   "elephant_attack": {
    "bones": 58,
@@ -584,6 +624,54 @@
    "json": "animations/horse_walk.json",
    "source": "art/animation/quadraped/horse_walk.dae.cached.psa"
   },
+  "maur_ch_death": {
+   "bones": 4,
+   "file": "animations/maur_ch_death.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 44,
+   "json": "animations/maur_ch_death.json",
+   "source": "art/animation/mechanical/maur_ch_death.dae.cached.psa"
+  },
+  "maur_ch_idle": {
+   "bones": 4,
+   "file": "animations/maur_ch_idle.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 83,
+   "json": "animations/maur_ch_idle.json",
+   "source": "art/animation/mechanical/maur_ch_idle.dae.cached.psa"
+  },
+  "maur_ch_move": {
+   "bones": 4,
+   "file": "animations/maur_ch_move.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 83,
+   "json": "animations/maur_ch_move.json",
+   "source": "art/animation/mechanical/maur_ch_move.dae.cached.psa"
+  },
+  "maur_trader_rider_death": {
+   "bones": 46,
+   "file": "animations/maur_trader_rider_death.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 59,
+   "json": "animations/maur_trader_rider_death.json",
+   "source": "art/animation/biped/chariot/maur_trader/death.dae.cached.psa"
+  },
+  "maur_trader_rider_idle": {
+   "bones": 46,
+   "file": "animations/maur_trader_rider_idle.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 74,
+   "json": "animations/maur_trader_rider_idle.json",
+   "source": "art/animation/biped/chariot/maur_trader/idle.dae.cached.psa"
+  },
+  "maur_trader_rider_walk": {
+   "bones": 46,
+   "file": "animations/maur_trader_rider_walk.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 74,
+   "json": "animations/maur_trader_rider_walk.json",
+   "source": "art/animation/biped/chariot/maur_trader/move_a.dae.cached.psa"
+  },
   "merchant_sail_idle": {
    "bones": 21,
    "file": "animations/merchant_sail_idle.psa",
@@ -615,6 +703,14 @@
    "frames": 35,
    "json": "animations/ram_attack.json",
    "source": "art/animation/mechanical/rome_ram_attack.dae.cached.psa"
+  },
+  "ram_death": {
+   "bones": 8,
+   "file": "animations/ram_death.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 36,
+   "json": "animations/ram_death.json",
+   "source": "art/animation/mechanical/maur_siege_ram_death.dae.cached.psa"
   },
   "ram_idle": {
    "bones": 8,
@@ -783,6 +879,14 @@
    "frames": 58,
    "json": "animations/wolf_walk.json",
    "source": "art/animation/quadraped/wolf_walk.dae.cached.psa"
+  },
+  "zebu_idle": {
+   "bones": 26,
+   "file": "animations/zebu_idle.psa",
+   "frameTime": 33.33333206176758,
+   "frames": 119,
+   "json": "animations/zebu_idle.json",
+   "source": "art/animation/quadraped/zebu_idle01.dae.cached.psa"
   }
  },
  "generator": "tools/extract_0ad_assets.py",
@@ -803,85 +907,6 @@
     "Run": "female_run",
     "Walk": "female_walk"
    },
-   "athen_archer": {
-    "Attack": "archer_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "athen_cavalry": {
-    "Attack": "horse_idle",
-    "Death": "horse_death",
-    "Idle": "horse_idle",
-    "Run": "horse_run",
-    "Walk": "horse_walk"
-   },
-   "athen_female_citizen": {
-    "Attack": "biped_attack",
-    "Build": "citizen_build",
-    "Death": "biped_death",
-    "Gather": "gather_wood",
-    "Idle": "female_idle",
-    "Run": "female_run",
-    "Slaughter": "slaughter",
-    "Walk": "female_walk"
-   },
-   "athen_fishing_boat": {
-    "Idle": "rowing_idle",
-    "Run": "rowing_walk",
-    "Walk": "rowing_walk"
-   },
-   "athen_healer": {
-    "Attack": "healer_heal",
-    "Death": "biped_death",
-    "Idle": "healer_idle",
-    "Run": "healer_run",
-    "Walk": "healer_walk"
-   },
-   "athen_hero": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "athen_spearman": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "athen_swordsman": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "athen_trader": {
-    "Death": "trader_death",
-    "Idle": "trader_idle",
-    "Run": "trader_walk",
-    "Walk": "trader_walk"
-   },
-   "athen_trireme": {
-    "Attack": "trireme_idle",
-    "Idle": "trireme_idle",
-    "Run": "trireme_walk",
-    "Walk": "trireme_walk"
-   },
-   "athen_villager": {
-    "Attack": "biped_attack",
-    "Build": "citizen_build",
-    "Death": "biped_death",
-    "Gather": "gather_wood",
-    "Idle": "citizen_idle",
-    "Run": "citizen_run",
-    "Slaughter": "slaughter",
-    "Walk": "citizen_walk"
-   },
    "boar": {
     "Attack": "boar_attack",
     "Death": "boar_death",
@@ -894,87 +919,8 @@
     "Death": "bolt_idle",
     "Idle": "bolt_idle"
    },
-   "brit_archer": {
-    "Attack": "archer_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "brit_cavalry": {
-    "Attack": "horse_idle",
-    "Death": "horse_death",
-    "Idle": "horse_idle",
-    "Run": "horse_run",
-    "Walk": "horse_walk"
-   },
-   "brit_female_citizen": {
-    "Attack": "biped_attack",
-    "Build": "citizen_build",
-    "Death": "biped_death",
-    "Gather": "gather_wood",
-    "Idle": "female_idle",
-    "Run": "female_run",
-    "Slaughter": "slaughter",
-    "Walk": "female_walk"
-   },
-   "brit_fishing_boat": {
-    "Idle": "rowing_idle",
-    "Run": "rowing_walk",
-    "Walk": "rowing_walk"
-   },
-   "brit_healer": {
-    "Attack": "healer_heal",
-    "Death": "biped_death",
-    "Idle": "healer_idle",
-    "Run": "healer_run",
-    "Walk": "healer_walk"
-   },
-   "brit_hero": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "brit_spearman": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "brit_swordsman": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "brit_trader": {
-    "Death": "trader_death",
-    "Idle": "trader_idle",
-    "Run": "trader_walk",
-    "Walk": "trader_walk"
-   },
-   "brit_trireme": {
-    "Attack": "trireme_idle",
-    "Idle": "trireme_idle",
-    "Run": "trireme_walk",
-    "Walk": "trireme_walk"
-   },
-   "brit_villager": {
-    "Attack": "biped_attack",
-    "Build": "citizen_build",
-    "Death": "biped_death",
-    "Gather": "gather_wood",
-    "Idle": "citizen_idle",
-    "Run": "citizen_run",
-    "Slaughter": "slaughter",
-    "Walk": "citizen_walk"
-   },
    "camel": {
-    "Attack": "camel_idle",
+    "Attack": "camel_attack",
     "Death": "camel_death",
     "Idle": "camel_idle",
     "Run": "camel_run",
@@ -987,85 +933,12 @@
     "Run": "biped_run",
     "Walk": "biped_walk"
    },
-   "cart_archer": {
-    "Attack": "archer_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "cart_cavalry": {
-    "Attack": "horse_idle",
-    "Death": "horse_death",
-    "Idle": "horse_idle",
-    "Run": "horse_run",
-    "Walk": "horse_walk"
-   },
-   "cart_female_citizen": {
-    "Attack": "biped_attack",
-    "Build": "citizen_build",
-    "Death": "biped_death",
-    "Gather": "gather_wood",
-    "Idle": "female_idle",
-    "Run": "female_run",
-    "Slaughter": "slaughter",
-    "Walk": "female_walk"
-   },
-   "cart_fishing_boat": {
-    "Idle": "rowing_idle",
-    "Run": "rowing_walk",
-    "Walk": "rowing_walk"
-   },
-   "cart_healer": {
-    "Attack": "healer_heal",
-    "Death": "biped_death",
-    "Idle": "healer_idle",
-    "Run": "healer_run",
-    "Walk": "healer_walk"
-   },
-   "cart_hero": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "cart_spearman": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "cart_swordsman": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
    "cart_trader": {
     "Attack": "camel_attack",
     "Death": "camel_death",
     "Idle": "camel_idle",
     "Run": "camel_run",
     "Walk": "camel_walk"
-   },
-   "cart_trireme": {
-    "Attack": "trireme_idle",
-    "Idle": "trireme_idle",
-    "Run": "trireme_walk",
-    "Walk": "trireme_walk"
-   },
-   "cart_villager": {
-    "Attack": "biped_attack",
-    "Build": "citizen_build",
-    "Death": "biped_death",
-    "Gather": "gather_wood",
-    "Idle": "citizen_idle",
-    "Run": "citizen_run",
-    "Slaughter": "slaughter",
-    "Walk": "citizen_walk"
    },
    "catapult": {
     "Attack": "catapult_attack",
@@ -1086,12 +959,13 @@
     "Walk": "chariot_walk"
    },
    "deer": {
+    "Death": "deer_death",
     "Idle": "deer_idle",
     "Run": "deer_walk",
     "Walk": "deer_walk"
    },
    "elephant": {
-    "Attack": "elephant_idle",
+    "Attack": "elephant_attack",
     "Death": "elephant_death",
     "Idle": "elephant_idle",
     "Run": "elephant_run",
@@ -1108,88 +982,13 @@
     "Walk": "female_walk"
    },
    "fishing_boat": {
+    "Attack": "rowing_idle",
+    "Carry": "rowing_walk",
+    "Death": "rowing_idle",
+    "Gather": "rowing_idle",
     "Idle": "rowing_idle",
     "Run": "rowing_walk",
     "Walk": "rowing_walk"
-   },
-   "gaul_archer": {
-    "Attack": "archer_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "gaul_cavalry": {
-    "Attack": "horse_idle",
-    "Death": "horse_death",
-    "Idle": "horse_idle",
-    "Run": "horse_run",
-    "Walk": "horse_walk"
-   },
-   "gaul_female_citizen": {
-    "Attack": "biped_attack",
-    "Build": "citizen_build",
-    "Death": "biped_death",
-    "Gather": "gather_wood",
-    "Idle": "female_idle",
-    "Run": "female_run",
-    "Slaughter": "slaughter",
-    "Walk": "female_walk"
-   },
-   "gaul_fishing_boat": {
-    "Idle": "rowing_idle",
-    "Run": "rowing_walk",
-    "Walk": "rowing_walk"
-   },
-   "gaul_healer": {
-    "Attack": "healer_heal",
-    "Death": "biped_death",
-    "Idle": "healer_idle",
-    "Run": "healer_run",
-    "Walk": "healer_walk"
-   },
-   "gaul_hero": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "gaul_spearman": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "gaul_swordsman": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "gaul_trader": {
-    "Death": "trader_death",
-    "Idle": "trader_idle",
-    "Run": "trader_walk",
-    "Walk": "trader_walk"
-   },
-   "gaul_trireme": {
-    "Attack": "trireme_idle",
-    "Idle": "trireme_idle",
-    "Run": "trireme_walk",
-    "Walk": "trireme_walk"
-   },
-   "gaul_villager": {
-    "Attack": "biped_attack",
-    "Build": "citizen_build",
-    "Death": "biped_death",
-    "Gather": "gather_wood",
-    "Idle": "citizen_idle",
-    "Run": "citizen_run",
-    "Slaughter": "slaughter",
-    "Walk": "citizen_walk"
    },
    "healer": {
     "Attack": "healer_heal",
@@ -1205,376 +1004,17 @@
     "Run": "biped_run",
     "Walk": "biped_walk"
    },
-   "iber_archer": {
-    "Attack": "archer_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "iber_cavalry": {
-    "Attack": "horse_idle",
-    "Death": "horse_death",
-    "Idle": "horse_idle",
-    "Run": "horse_run",
-    "Walk": "horse_walk"
-   },
-   "iber_female_citizen": {
-    "Attack": "biped_attack",
-    "Build": "citizen_build",
-    "Death": "biped_death",
-    "Gather": "gather_wood",
-    "Idle": "female_idle",
-    "Run": "female_run",
-    "Slaughter": "slaughter",
-    "Walk": "female_walk"
-   },
-   "iber_fishing_boat": {
-    "Idle": "rowing_idle",
-    "Run": "rowing_walk",
-    "Walk": "rowing_walk"
-   },
-   "iber_healer": {
-    "Attack": "healer_heal",
-    "Death": "biped_death",
-    "Idle": "healer_idle",
-    "Run": "healer_run",
-    "Walk": "healer_walk"
-   },
-   "iber_hero": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "iber_spearman": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "iber_swordsman": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "iber_trader": {
-    "Death": "trader_death",
-    "Idle": "trader_idle",
-    "Run": "trader_walk",
-    "Walk": "trader_walk"
-   },
-   "iber_trireme": {
-    "Attack": "trireme_idle",
-    "Idle": "trireme_idle",
-    "Run": "trireme_walk",
-    "Walk": "trireme_walk"
-   },
-   "iber_villager": {
-    "Attack": "biped_attack",
-    "Build": "citizen_build",
-    "Death": "biped_death",
-    "Gather": "gather_wood",
-    "Idle": "citizen_idle",
-    "Run": "citizen_run",
-    "Slaughter": "slaughter",
-    "Walk": "citizen_walk"
-   },
-   "kush_archer": {
-    "Attack": "archer_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "kush_cavalry": {
-    "Attack": "horse_idle",
-    "Death": "horse_death",
-    "Idle": "horse_idle",
-    "Run": "horse_run",
-    "Walk": "horse_walk"
-   },
-   "kush_female_citizen": {
-    "Attack": "biped_attack",
-    "Build": "citizen_build",
-    "Death": "biped_death",
-    "Gather": "gather_wood",
-    "Idle": "female_idle",
-    "Run": "female_run",
-    "Slaughter": "slaughter",
-    "Walk": "female_walk"
-   },
-   "kush_fishing_boat": {
-    "Idle": "rowing_idle",
-    "Run": "rowing_walk",
-    "Walk": "rowing_walk"
-   },
-   "kush_healer": {
-    "Attack": "healer_heal",
-    "Death": "biped_death",
-    "Idle": "healer_idle",
-    "Run": "healer_run",
-    "Walk": "healer_walk"
-   },
-   "kush_hero": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "kush_spearman": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "kush_swordsman": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "kush_trader": {
-    "Death": "trader_death",
-    "Idle": "trader_idle",
-    "Run": "trader_walk",
-    "Walk": "trader_walk"
-   },
-   "kush_trireme": {
-    "Attack": "trireme_idle",
-    "Idle": "trireme_idle",
-    "Run": "trireme_walk",
-    "Walk": "trireme_walk"
-   },
-   "kush_villager": {
-    "Attack": "biped_attack",
-    "Build": "citizen_build",
-    "Death": "biped_death",
-    "Gather": "gather_wood",
-    "Idle": "citizen_idle",
-    "Run": "citizen_run",
-    "Slaughter": "slaughter",
-    "Walk": "citizen_walk"
-   },
-   "mace_archer": {
-    "Attack": "archer_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "mace_cavalry": {
-    "Attack": "horse_idle",
-    "Death": "horse_death",
-    "Idle": "horse_idle",
-    "Run": "horse_run",
-    "Walk": "horse_walk"
-   },
-   "mace_female_citizen": {
-    "Attack": "biped_attack",
-    "Build": "citizen_build",
-    "Death": "biped_death",
-    "Gather": "gather_wood",
-    "Idle": "female_idle",
-    "Run": "female_run",
-    "Slaughter": "slaughter",
-    "Walk": "female_walk"
-   },
-   "mace_fishing_boat": {
-    "Idle": "rowing_idle",
-    "Run": "rowing_walk",
-    "Walk": "rowing_walk"
-   },
-   "mace_healer": {
-    "Attack": "healer_heal",
-    "Death": "biped_death",
-    "Idle": "healer_idle",
-    "Run": "healer_run",
-    "Walk": "healer_walk"
-   },
-   "mace_hero": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "mace_spearman": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "mace_swordsman": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "mace_trader": {
-    "Death": "trader_death",
-    "Idle": "trader_idle",
-    "Run": "trader_walk",
-    "Walk": "trader_walk"
-   },
-   "mace_trireme": {
-    "Attack": "trireme_idle",
-    "Idle": "trireme_idle",
-    "Run": "trireme_walk",
-    "Walk": "trireme_walk"
-   },
-   "mace_villager": {
-    "Attack": "biped_attack",
-    "Build": "citizen_build",
-    "Death": "biped_death",
-    "Gather": "gather_wood",
-    "Idle": "citizen_idle",
-    "Run": "citizen_run",
-    "Slaughter": "slaughter",
-    "Walk": "citizen_walk"
-   },
-   "maur_archer": {
-    "Attack": "archer_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "maur_cavalry": {
-    "Attack": "horse_idle",
-    "Death": "horse_death",
-    "Idle": "horse_idle",
-    "Run": "horse_run",
-    "Walk": "horse_walk"
-   },
-   "maur_female_citizen": {
-    "Attack": "biped_attack",
-    "Build": "citizen_build",
-    "Death": "biped_death",
-    "Gather": "gather_wood",
-    "Idle": "female_idle",
-    "Run": "female_run",
-    "Slaughter": "slaughter",
-    "Walk": "female_walk"
-   },
-   "maur_fishing_boat": {
-    "Idle": "rowing_idle",
-    "Run": "rowing_walk",
-    "Walk": "rowing_walk"
-   },
-   "maur_healer": {
-    "Attack": "healer_heal",
-    "Death": "biped_death",
-    "Idle": "healer_idle",
-    "Run": "healer_run",
-    "Walk": "healer_walk"
-   },
-   "maur_hero": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "maur_spearman": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "maur_swordsman": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
    "maur_trader": {
-    "Death": "trader_death",
-    "Idle": "trader_idle",
-    "Run": "trader_walk",
-    "Walk": "trader_walk"
-   },
-   "maur_trireme": {
-    "Attack": "trireme_idle",
-    "Idle": "trireme_idle",
-    "Run": "trireme_walk",
-    "Walk": "trireme_walk"
-   },
-   "maur_villager": {
-    "Attack": "biped_attack",
-    "Build": "citizen_build",
-    "Death": "biped_death",
-    "Gather": "gather_wood",
-    "Idle": "citizen_idle",
-    "Run": "citizen_run",
-    "Slaughter": "slaughter",
-    "Walk": "citizen_walk"
+    "Death": "maur_ch_death",
+    "Idle": "maur_ch_idle",
+    "Run": "maur_ch_move",
+    "Walk": "maur_ch_move"
    },
    "merchant_ship": {
+    "Death": "merchant_sail_idle",
     "Idle": "merchant_sail_idle",
     "Run": "merchant_sail_run",
     "Walk": "merchant_sail_walk"
-   },
-   "pers_archer": {
-    "Attack": "archer_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "pers_cavalry": {
-    "Attack": "horse_idle",
-    "Death": "horse_death",
-    "Idle": "horse_idle",
-    "Run": "horse_run",
-    "Walk": "horse_walk"
-   },
-   "pers_female_citizen": {
-    "Attack": "biped_attack",
-    "Build": "citizen_build",
-    "Death": "biped_death",
-    "Gather": "gather_wood",
-    "Idle": "female_idle",
-    "Run": "female_run",
-    "Slaughter": "slaughter",
-    "Walk": "female_walk"
-   },
-   "pers_fishing_boat": {
-    "Idle": "rowing_idle",
-    "Run": "rowing_walk",
-    "Walk": "rowing_walk"
-   },
-   "pers_healer": {
-    "Attack": "healer_heal",
-    "Death": "biped_death",
-    "Idle": "healer_idle",
-    "Run": "healer_run",
-    "Walk": "healer_walk"
-   },
-   "pers_hero": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "pers_spearman": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
    },
    "pers_trader": {
     "Attack": "camel_attack",
@@ -1583,270 +1023,18 @@
     "Run": "camel_run",
     "Walk": "camel_walk"
    },
-   "pers_trireme": {
-    "Attack": "trireme_idle",
-    "Idle": "trireme_idle",
-    "Run": "trireme_walk",
-    "Walk": "trireme_walk"
-   },
-   "pers_villager": {
-    "Attack": "biped_attack",
-    "Build": "citizen_build",
-    "Death": "biped_death",
-    "Gather": "gather_wood",
-    "Idle": "citizen_idle",
-    "Run": "citizen_run",
-    "Slaughter": "slaughter",
-    "Walk": "citizen_walk"
-   },
-   "ptol_archer": {
-    "Attack": "archer_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "ptol_cavalry": {
-    "Attack": "horse_idle",
-    "Death": "horse_death",
-    "Idle": "horse_idle",
-    "Run": "horse_run",
-    "Walk": "horse_walk"
-   },
-   "ptol_female_citizen": {
-    "Attack": "biped_attack",
-    "Build": "citizen_build",
-    "Death": "biped_death",
-    "Gather": "gather_wood",
-    "Idle": "female_idle",
-    "Run": "female_run",
-    "Slaughter": "slaughter",
-    "Walk": "female_walk"
-   },
-   "ptol_fishing_boat": {
-    "Idle": "rowing_idle",
-    "Run": "rowing_walk",
-    "Walk": "rowing_walk"
-   },
-   "ptol_healer": {
-    "Attack": "healer_heal",
-    "Death": "biped_death",
-    "Idle": "healer_idle",
-    "Run": "healer_run",
-    "Walk": "healer_walk"
-   },
-   "ptol_hero": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "ptol_spearman": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "ptol_swordsman": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "ptol_trader": {
-    "Death": "trader_death",
-    "Idle": "trader_idle",
-    "Run": "trader_walk",
-    "Walk": "trader_walk"
-   },
-   "ptol_trireme": {
-    "Attack": "trireme_idle",
-    "Idle": "trireme_idle",
-    "Run": "trireme_walk",
-    "Walk": "trireme_walk"
-   },
-   "ptol_villager": {
-    "Attack": "biped_attack",
-    "Build": "citizen_build",
-    "Death": "biped_death",
-    "Gather": "gather_wood",
-    "Idle": "citizen_idle",
-    "Run": "citizen_run",
-    "Slaughter": "slaughter",
-    "Walk": "citizen_walk"
-   },
    "ram": {
     "Attack": "ram_attack",
+    "Death": "ram_death",
     "Idle": "ram_idle",
     "Run": "ram_walk",
     "Walk": "ram_walk"
-   },
-   "rome_archer": {
-    "Attack": "archer_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "rome_cavalry": {
-    "Attack": "horse_idle",
-    "Death": "horse_death",
-    "Idle": "horse_idle",
-    "Run": "horse_run",
-    "Walk": "horse_walk"
-   },
-   "rome_female_citizen": {
-    "Attack": "biped_attack",
-    "Build": "citizen_build",
-    "Death": "biped_death",
-    "Gather": "gather_wood",
-    "Idle": "female_idle",
-    "Run": "female_run",
-    "Slaughter": "slaughter",
-    "Walk": "female_walk"
-   },
-   "rome_fishing_boat": {
-    "Idle": "rowing_idle",
-    "Run": "rowing_walk",
-    "Walk": "rowing_walk"
-   },
-   "rome_healer": {
-    "Attack": "healer_heal",
-    "Death": "biped_death",
-    "Idle": "healer_idle",
-    "Run": "healer_run",
-    "Walk": "healer_walk"
-   },
-   "rome_hero": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "rome_spearman": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "rome_swordsman": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "rome_trader": {
-    "Death": "trader_death",
-    "Idle": "trader_idle",
-    "Run": "trader_walk",
-    "Walk": "trader_walk"
-   },
-   "rome_trireme": {
-    "Attack": "trireme_idle",
-    "Idle": "trireme_idle",
-    "Run": "trireme_walk",
-    "Walk": "trireme_walk"
-   },
-   "rome_villager": {
-    "Attack": "biped_attack",
-    "Build": "citizen_build",
-    "Death": "biped_death",
-    "Gather": "gather_wood",
-    "Idle": "citizen_idle",
-    "Run": "citizen_run",
-    "Slaughter": "slaughter",
-    "Walk": "citizen_walk"
    },
    "scythed_chariot": {
     "Death": "chariot_death",
     "Idle": "chariot_idle",
     "Run": "chariot_walk",
     "Walk": "chariot_walk"
-   },
-   "sele_archer": {
-    "Attack": "archer_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "sele_cavalry": {
-    "Attack": "horse_idle",
-    "Death": "horse_death",
-    "Idle": "horse_idle",
-    "Run": "horse_run",
-    "Walk": "horse_walk"
-   },
-   "sele_female_citizen": {
-    "Attack": "biped_attack",
-    "Build": "citizen_build",
-    "Death": "biped_death",
-    "Gather": "gather_wood",
-    "Idle": "female_idle",
-    "Run": "female_run",
-    "Slaughter": "slaughter",
-    "Walk": "female_walk"
-   },
-   "sele_fishing_boat": {
-    "Idle": "rowing_idle",
-    "Run": "rowing_walk",
-    "Walk": "rowing_walk"
-   },
-   "sele_healer": {
-    "Attack": "healer_heal",
-    "Death": "biped_death",
-    "Idle": "healer_idle",
-    "Run": "healer_run",
-    "Walk": "healer_walk"
-   },
-   "sele_hero": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "sele_spearman": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "sele_swordsman": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "sele_trader": {
-    "Death": "trader_death",
-    "Idle": "trader_idle",
-    "Run": "trader_walk",
-    "Walk": "trader_walk"
-   },
-   "sele_trireme": {
-    "Attack": "trireme_idle",
-    "Idle": "trireme_idle",
-    "Run": "trireme_walk",
-    "Walk": "trireme_walk"
-   },
-   "sele_villager": {
-    "Attack": "biped_attack",
-    "Build": "citizen_build",
-    "Death": "biped_death",
-    "Gather": "gather_wood",
-    "Idle": "citizen_idle",
-    "Run": "citizen_run",
-    "Slaughter": "slaughter",
-    "Walk": "citizen_walk"
    },
    "sheep": {
     "Death": "sheep_death",
@@ -1856,88 +1044,10 @@
    },
    "siege_ram": {
     "Attack": "ram_attack",
+    "Death": "ram_death",
     "Idle": "ram_idle",
     "Run": "ram_walk",
     "Walk": "ram_walk"
-   },
-   "spart_archer": {
-    "Attack": "archer_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "spart_cavalry": {
-    "Attack": "horse_idle",
-    "Death": "horse_death",
-    "Idle": "horse_idle",
-    "Run": "horse_run",
-    "Walk": "horse_walk"
-   },
-   "spart_female_citizen": {
-    "Attack": "biped_attack",
-    "Build": "citizen_build",
-    "Death": "biped_death",
-    "Gather": "gather_wood",
-    "Idle": "female_idle",
-    "Run": "female_run",
-    "Slaughter": "slaughter",
-    "Walk": "female_walk"
-   },
-   "spart_fishing_boat": {
-    "Idle": "rowing_idle",
-    "Run": "rowing_walk",
-    "Walk": "rowing_walk"
-   },
-   "spart_healer": {
-    "Attack": "healer_heal",
-    "Death": "biped_death",
-    "Idle": "healer_idle",
-    "Run": "healer_run",
-    "Walk": "healer_walk"
-   },
-   "spart_hero": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "spart_spearman": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "spart_swordsman": {
-    "Attack": "biped_attack",
-    "Death": "biped_death",
-    "Idle": "biped_idle",
-    "Run": "biped_run",
-    "Walk": "biped_walk"
-   },
-   "spart_trader": {
-    "Death": "trader_death",
-    "Idle": "trader_idle",
-    "Run": "trader_walk",
-    "Walk": "trader_walk"
-   },
-   "spart_trireme": {
-    "Attack": "trireme_idle",
-    "Idle": "trireme_idle",
-    "Run": "trireme_walk",
-    "Walk": "trireme_walk"
-   },
-   "spart_villager": {
-    "Attack": "biped_attack",
-    "Build": "citizen_build",
-    "Death": "biped_death",
-    "Gather": "gather_wood",
-    "Idle": "citizen_idle",
-    "Run": "citizen_run",
-    "Slaughter": "slaughter",
-    "Walk": "citizen_walk"
    },
    "spearman": {
     "Attack": "biped_attack",
@@ -1961,6 +1071,7 @@
    },
    "trireme": {
     "Attack": "trireme_idle",
+    "Death": "trireme_idle",
     "Idle": "trireme_idle",
     "Run": "trireme_walk",
     "Walk": "trireme_walk"
@@ -2001,43 +1112,11 @@
   "skeleton": {
    "archer": "biped",
    "archer_maiden": "biped",
-   "athen_archer": "biped",
-   "athen_cavalry": "horse",
-   "athen_female_citizen": "biped",
-   "athen_fishing_boat": "rowing_boat",
-   "athen_healer": "biped",
-   "athen_hero": "biped",
-   "athen_spearman": "biped",
-   "athen_swordsman": "biped",
-   "athen_trader": "",
-   "athen_trireme": "ship_sail",
-   "athen_villager": "biped",
    "boar": "boar",
    "bolt_shooter": "oxybeles",
-   "brit_archer": "biped",
-   "brit_cavalry": "horse",
-   "brit_female_citizen": "biped",
-   "brit_fishing_boat": "rowing_boat",
-   "brit_healer": "biped",
-   "brit_hero": "biped",
-   "brit_spearman": "biped",
-   "brit_swordsman": "biped",
-   "brit_trader": "",
-   "brit_trireme": "ship_sail",
-   "brit_villager": "biped",
    "camel": "camel",
    "carnyx": "biped",
-   "cart_archer": "biped",
-   "cart_cavalry": "horse",
-   "cart_female_citizen": "biped",
-   "cart_fishing_boat": "rowing_boat",
-   "cart_healer": "biped",
-   "cart_hero": "biped",
-   "cart_spearman": "biped",
-   "cart_swordsman": "biped",
    "cart_trader": "camel",
-   "cart_trireme": "ship_sail",
-   "cart_villager": "biped",
    "catapult": "lithobolos",
    "cavalry": "horse",
    "chariot": "chariot",
@@ -2045,122 +1124,15 @@
    "elephant": "elephant",
    "female_citizen": "biped",
    "fishing_boat": "rowing_boat",
-   "gaul_archer": "biped",
-   "gaul_cavalry": "horse",
-   "gaul_female_citizen": "biped",
-   "gaul_fishing_boat": "rowing_boat",
-   "gaul_healer": "biped",
-   "gaul_hero": "biped",
-   "gaul_spearman": "biped",
-   "gaul_swordsman": "biped",
-   "gaul_trader": "",
-   "gaul_trireme": "ship_sail",
-   "gaul_villager": "biped",
    "healer": "biped",
    "hero": "biped",
-   "iber_archer": "biped",
-   "iber_cavalry": "horse",
-   "iber_female_citizen": "biped",
-   "iber_fishing_boat": "rowing_boat",
-   "iber_healer": "biped",
-   "iber_hero": "biped",
-   "iber_spearman": "biped",
-   "iber_swordsman": "biped",
-   "iber_trader": "",
-   "iber_trireme": "ship_sail",
-   "iber_villager": "biped",
-   "kush_archer": "biped",
-   "kush_cavalry": "horse",
-   "kush_female_citizen": "biped",
-   "kush_fishing_boat": "rowing_boat",
-   "kush_healer": "biped",
-   "kush_hero": "biped",
-   "kush_spearman": "biped",
-   "kush_swordsman": "biped",
-   "kush_trader": "",
-   "kush_trireme": "ship_sail",
-   "kush_villager": "biped",
-   "mace_archer": "biped",
-   "mace_cavalry": "horse",
-   "mace_female_citizen": "biped",
-   "mace_fishing_boat": "rowing_boat",
-   "mace_healer": "biped",
-   "mace_hero": "biped",
-   "mace_spearman": "biped",
-   "mace_swordsman": "biped",
-   "mace_trader": "",
-   "mace_trireme": "ship_sail",
-   "mace_villager": "biped",
-   "maur_archer": "biped",
-   "maur_cavalry": "horse",
-   "maur_female_citizen": "biped",
-   "maur_fishing_boat": "rowing_boat",
-   "maur_healer": "biped",
-   "maur_hero": "biped",
-   "maur_spearman": "biped",
-   "maur_swordsman": "biped",
-   "maur_trader": "",
-   "maur_trireme": "ship_sail",
-   "maur_villager": "biped",
+   "maur_trader": "maur_ch",
    "merchant_ship": "celt_sail",
-   "pers_archer": "biped",
-   "pers_cavalry": "horse",
-   "pers_female_citizen": "biped",
-   "pers_fishing_boat": "rowing_boat",
-   "pers_healer": "biped",
-   "pers_hero": "biped",
-   "pers_spearman": "biped",
    "pers_trader": "camel",
-   "pers_trireme": "ship_sail",
-   "pers_villager": "biped",
-   "ptol_archer": "biped",
-   "ptol_cavalry": "horse",
-   "ptol_female_citizen": "biped",
-   "ptol_fishing_boat": "rowing_boat",
-   "ptol_healer": "biped",
-   "ptol_hero": "biped",
-   "ptol_spearman": "biped",
-   "ptol_swordsman": "biped",
-   "ptol_trader": "",
-   "ptol_trireme": "ship_sail",
-   "ptol_villager": "biped",
    "ram": "",
-   "rome_archer": "biped",
-   "rome_cavalry": "horse",
-   "rome_female_citizen": "biped",
-   "rome_fishing_boat": "rowing_boat",
-   "rome_healer": "biped",
-   "rome_hero": "biped",
-   "rome_spearman": "biped",
-   "rome_swordsman": "biped",
-   "rome_trader": "",
-   "rome_trireme": "ship_sail",
-   "rome_villager": "biped",
    "scythed_chariot": "chariot",
-   "sele_archer": "biped",
-   "sele_cavalry": "horse",
-   "sele_female_citizen": "biped",
-   "sele_fishing_boat": "rowing_boat",
-   "sele_healer": "biped",
-   "sele_hero": "biped",
-   "sele_spearman": "biped",
-   "sele_swordsman": "biped",
-   "sele_trader": "",
-   "sele_trireme": "ship_sail",
-   "sele_villager": "biped",
    "sheep": "sheep",
    "siege_ram": "",
-   "spart_archer": "biped",
-   "spart_cavalry": "horse",
-   "spart_female_citizen": "biped",
-   "spart_fishing_boat": "rowing_boat",
-   "spart_healer": "biped",
-   "spart_hero": "biped",
-   "spart_spearman": "biped",
-   "spart_swordsman": "biped",
-   "spart_trader": "",
-   "spart_trireme": "ship_sail",
-   "spart_villager": "biped",
    "spearman": "biped",
    "swordsman": "biped",
    "trader": "",
@@ -2547,7 +1519,10 @@
    "animations": [
     "Idle",
     "Walk",
-    "Run"
+    "Run",
+    "Carry",
+    "Attack",
+    "Death"
    ],
    "bones": 3,
    "file": "models/units/athen_fishing_boat.glb",
@@ -3047,12 +2022,13 @@
     "Idle",
     "Walk",
     "Run",
-    "Attack"
+    "Attack",
+    "Death"
    ],
    "bones": 41,
    "file": "models/units/athen_trireme.glb",
    "origin": "ground-center",
-   "parts": 5,
+   "parts": 4,
    "size_meters": [
     2.402,
     2.835,
@@ -3063,10 +2039,8 @@
     "actor:art/actors/props/structures/athenians/trireme_main_sail.xml",
     "actor:art/actors/props/structures/hellenes/trireme_blanket.xml",
     "actor:art/actors/props/structures/hellenes/trireme_fore_sail.xml",
-    "actor:art/actors/props/units/weapons/bolt_tower.xml",
     "actor:art/actors/structures/athenians/trireme.xml",
     "mesh:props/athen_trireme_main_sail.dae",
-    "mesh:props/bolt_tower_projectile.dae",
     "mesh:props/hele_fore_sail.dae",
     "mesh:props/hele_trireme_blanket.dae",
     "mesh:structural/athen_ship_trireme.dae",
@@ -3074,8 +2048,7 @@
     "skin:props/sail_blank_netting_new.png",
     "skin:props/stall_big_cloth.png",
     "skin:structural/ao/hele_trireme.png",
-    "skin:structural/hele_trireme.png",
-    "skin:structural/rome_struct.png"
+    "skin:structural/hele_trireme.png"
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
@@ -3239,6 +2212,22 @@
     "skin:skeletal/animal_boar_01.png"
    ],
    "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "bolt_projectile": {
+   "file": "models/units/bolt_projectile.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    1.4,
+    13.675,
+    0.476
+   ],
+   "sources": [
+    "actor:art/actors/props/units/weapons/bolt_tower.xml",
+    "mesh:props/bolt_tower_projectile.dae",
+    "skin:structural/rome_struct.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
   },
   "bolt_shooter": {
    "animated": true,
@@ -3517,7 +2506,11 @@
    "animations": [
     "Idle",
     "Walk",
-    "Run"
+    "Run",
+    "Carry",
+    "Carry_fish",
+    "Attack",
+    "Death"
    ],
    "bones": 21,
    "file": "models/units/brit_fishing_boat.glb",
@@ -3528,7 +2521,7 @@
     2.595,
     3.5
    ],
-   "skeleton": "rowing_boat",
+   "skeleton": "celt_sail",
    "sources": [
     "actor:art/actors/props/structures/celts/fishing_sail.xml",
     "actor:art/actors/props/units/heads/new/head_celt.xml",
@@ -3990,33 +2983,21 @@
    "upstream_material": "no_trans_norm_spec.xml"
   },
   "brit_trireme": {
-   "animated": true,
-   "animations": [
-    "Idle",
-    "Walk",
-    "Run",
-    "Attack"
-   ],
-   "bones": 1,
    "file": "models/units/brit_trireme.glb",
    "origin": "ground-center",
-   "parts": 3,
+   "parts": 2,
    "size_meters": [
     4.073,
     5.593,
     7.0
    ],
-   "skeleton": "ship_sail",
    "sources": [
     "actor:art/actors/props/structures/celts/warship_sail.xml",
-    "actor:art/actors/props/units/weapons/bolt_tower.xml",
     "actor:art/actors/structures/celts/warship.xml",
-    "mesh:props/bolt_tower_projectile.dae",
     "mesh:props/celt_warship.dae",
     "mesh:structural/celt_warship.dae",
     "skin:props/celt_sail_boar.dds",
-    "skin:structural/celt_ship.png",
-    "skin:structural/rome_struct.png"
+    "skin:structural/celt_ship.png"
    ],
    "upstream_material": "no_trans_norm_spec.xml"
   },
@@ -4443,7 +3424,10 @@
    "animations": [
     "Idle",
     "Walk",
-    "Run"
+    "Run",
+    "Carry",
+    "Attack",
+    "Death"
    ],
    "bones": 3,
    "file": "models/units/cart_fishing_boat.glb",
@@ -4868,12 +3852,13 @@
     "Idle",
     "Walk",
     "Run",
-    "Attack"
+    "Attack",
+    "Death"
    ],
    "bones": 41,
    "file": "models/units/cart_trireme.glb",
    "origin": "ground-center",
-   "parts": 105,
+   "parts": 104,
    "size_meters": [
     2.189,
     3.134,
@@ -4886,9 +3871,7 @@
     "actor:art/actors/props/structures/carthaginians/trireme_main_sail.xml",
     "actor:art/actors/props/units/shields/kart_leather_large_e.xml",
     "actor:art/actors/props/units/shields/round_noboss_back_wicker.xml",
-    "actor:art/actors/props/units/weapons/bolt_tower.xml",
     "actor:art/actors/structures/carthaginians/trireme.xml",
-    "mesh:props/bolt_tower_projectile.dae",
     "mesh:props/kart_ship_standard.dae",
     "mesh:props/kart_trireme_fore_sail.dae",
     "mesh:props/kart_trireme_main_sail.dae",
@@ -4900,8 +3883,7 @@
     "skin:props/shield/hele_oval_a.dds",
     "skin:props/shield/kart_leather_a.dds",
     "skin:structural/ao/kart_trireme.png",
-    "skin:structural/kart_trireme.png",
-    "skin:structural/rome_struct.png"
+    "skin:structural/kart_trireme.png"
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
@@ -5204,7 +4186,8 @@
    "animations": [
     "Idle",
     "Walk",
-    "Run"
+    "Run",
+    "Death"
    ],
    "bones": 29,
    "file": "models/units/deer.glb",
@@ -5369,7 +4352,11 @@
    "animations": [
     "Idle",
     "Walk",
-    "Run"
+    "Run",
+    "Carry",
+    "Gather",
+    "Attack",
+    "Death"
    ],
    "bones": 3,
    "file": "models/units/fishing_boat.glb",
@@ -6124,7 +5111,11 @@
    "animations": [
     "Idle",
     "Walk",
-    "Run"
+    "Run",
+    "Carry",
+    "Carry_fish",
+    "Attack",
+    "Death"
    ],
    "bones": 21,
    "file": "models/units/gaul_fishing_boat.glb",
@@ -6135,7 +5126,7 @@
     2.595,
     3.5
    ],
-   "skeleton": "rowing_boat",
+   "skeleton": "celt_sail",
    "sources": [
     "actor:art/actors/props/structures/celts/fishing_sail.xml",
     "actor:art/actors/props/units/heads/new/head_celt.xml",
@@ -6603,33 +5594,21 @@
    "upstream_material": "no_trans_norm_spec.xml"
   },
   "gaul_trireme": {
-   "animated": true,
-   "animations": [
-    "Idle",
-    "Walk",
-    "Run",
-    "Attack"
-   ],
-   "bones": 1,
    "file": "models/units/gaul_trireme.glb",
    "origin": "ground-center",
-   "parts": 3,
+   "parts": 2,
    "size_meters": [
     4.073,
     5.593,
     7.0
    ],
-   "skeleton": "ship_sail",
    "sources": [
     "actor:art/actors/props/structures/celts/warship_sail.xml",
-    "actor:art/actors/props/units/weapons/bolt_tower.xml",
     "actor:art/actors/structures/celts/warship.xml",
-    "mesh:props/bolt_tower_projectile.dae",
     "mesh:props/celt_warship.dae",
     "mesh:structural/celt_warship.dae",
     "skin:props/celt_sail_boar.dds",
-    "skin:structural/celt_ship.png",
-    "skin:structural/rome_struct.png"
+    "skin:structural/celt_ship.png"
    ],
    "upstream_material": "no_trans_norm_spec.xml"
   },
@@ -7171,11 +6150,7 @@
   },
   "iber_fishing_boat": {
    "animated": true,
-   "animations": [
-    "Idle",
-    "Walk",
-    "Run"
-   ],
+   "animations": [],
    "bones": 1,
    "file": "models/units/iber_fishing_boat.glb",
    "origin": "ground-center",
@@ -7185,7 +6160,7 @@
     3.345,
     3.5
    ],
-   "skeleton": "rowing_boat",
+   "skeleton": "",
    "sources": [
     "actor:art/actors/props/structures/iberians/fishship_sail.xml",
     "actor:art/actors/props/units/heads/new/head_hele_e.xml",
@@ -7615,33 +6590,21 @@
    "upstream_material": "player_trans_norm_spec.xml"
   },
   "iber_trireme": {
-   "animated": true,
-   "animations": [
-    "Idle",
-    "Walk",
-    "Run",
-    "Attack"
-   ],
-   "bones": 1,
    "file": "models/units/iber_trireme.glb",
    "origin": "ground-center",
-   "parts": 3,
+   "parts": 2,
    "size_meters": [
     4.073,
     5.593,
     7.0
    ],
-   "skeleton": "ship_sail",
    "sources": [
     "actor:art/actors/props/structures/celts/warship_sail.xml",
-    "actor:art/actors/props/units/weapons/bolt_tower.xml",
     "actor:art/actors/structures/iberians/warship.xml",
-    "mesh:props/bolt_tower_projectile.dae",
     "mesh:props/celt_warship.dae",
     "mesh:structural/celt_warship.dae",
     "skin:props/celt_sail_boar.dds",
-    "skin:structural/celt_ship.png",
-    "skin:structural/rome_struct.png"
+    "skin:structural/celt_ship.png"
    ],
    "upstream_material": "no_trans_norm_spec.xml"
   },
@@ -7963,12 +6926,8 @@
   },
   "kush_fishing_boat": {
    "animated": true,
-   "animations": [
-    "Idle",
-    "Walk",
-    "Run"
-   ],
-   "bones": 46,
+   "animations": [],
+   "bones": 1,
    "file": "models/units/kush_fishing_boat.glb",
    "origin": "ground-center",
    "parts": 7,
@@ -7977,7 +6936,7 @@
     1.805,
     3.5
    ],
-   "skeleton": "rowing_boat",
+   "skeleton": "",
    "sources": [
     "actor:art/actors/props/structures/ptolemies/fishing_boat_basket.xml",
     "actor:art/actors/props/units/heads/head_kush_meroitic.xml",
@@ -8390,12 +7349,13 @@
     "Idle",
     "Walk",
     "Run",
-    "Attack"
+    "Attack",
+    "Death"
    ],
    "bones": 41,
    "file": "models/units/kush_trireme.glb",
    "origin": "ground-center",
-   "parts": 4,
+   "parts": 3,
    "size_meters": [
     3.98,
     3.289,
@@ -8405,17 +7365,14 @@
    "sources": [
     "actor:art/actors/props/structures/kushites/trireme_main_sail.xml",
     "actor:art/actors/props/structures/kushites/trireme_structure.xml",
-    "actor:art/actors/props/units/weapons/bolt_tower.xml",
     "actor:art/actors/structures/kushites/trireme.xml",
-    "mesh:props/bolt_tower_projectile.dae",
     "mesh:props/kush_trireme_main_sail.dae",
     "mesh:props/kush_trireme_struct.dae",
     "mesh:structural/kush_trireme.dae",
     "skin:props/kush_bireme_sail.png",
     "skin:structural/ao/kush_trireme.png",
     "skin:structural/kush_trireme.png",
-    "skin:structural/kush_victory_paintings.png",
-    "skin:structural/rome_struct.png"
+    "skin:structural/kush_victory_paintings.png"
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
@@ -8786,7 +7743,10 @@
    "animations": [
     "Idle",
     "Walk",
-    "Run"
+    "Run",
+    "Carry",
+    "Attack",
+    "Death"
    ],
    "bones": 3,
    "file": "models/units/mace_fishing_boat.glb",
@@ -9291,12 +8251,13 @@
     "Idle",
     "Walk",
     "Run",
-    "Attack"
+    "Attack",
+    "Death"
    ],
    "bones": 41,
    "file": "models/units/mace_trireme.glb",
    "origin": "ground-center",
-   "parts": 5,
+   "parts": 4,
    "size_meters": [
     3.036,
     3.042,
@@ -9307,9 +8268,7 @@
     "actor:art/actors/props/structures/hellenes/trireme_fore_sail.xml",
     "actor:art/actors/props/structures/macedonians/trireme_main_sail.xml",
     "actor:art/actors/props/structures/macedonians/trireme_shields.xml",
-    "actor:art/actors/props/units/weapons/bolt_tower.xml",
     "actor:art/actors/structures/macedonians/trireme.xml",
-    "mesh:props/bolt_tower_projectile.dae",
     "mesh:props/hele_fore_sail.dae",
     "mesh:props/mace_trireme_main_sail.dae",
     "mesh:props/mace_trireme_shields.dae",
@@ -9318,8 +8277,7 @@
     "skin:props/mace_sail_01.png",
     "skin:props/sail_blank_netting_new.png",
     "skin:structural/ao/mace_trireme.png",
-    "skin:structural/mace_trireme.png",
-    "skin:structural/rome_struct.png"
+    "skin:structural/mace_trireme.png"
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
@@ -9623,6 +8581,64 @@
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
+  "maur_elephant": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 58,
+   "file": "models/units/maur_elephant.glb",
+   "origin": "ground-center",
+   "parts": 29,
+   "size_meters": [
+    1.673,
+    3.2,
+    3.991
+   ],
+   "skeleton": "elephant",
+   "sources": [
+    "actor:art/actors/props/units/heads/new/head_indian_a.xml",
+    "actor:art/actors/props/units/quiver_back_bamboo.xml",
+    "actor:art/actors/props/units/shields/maur_small_b.xml",
+    "actor:art/actors/props/units/weapons/arrow_back.xml",
+    "actor:art/actors/props/units/weapons/axe_sagaris.xml",
+    "actor:art/actors/props/units/weapons/blades/jav_blade.xml",
+    "actor:art/actors/props/units/weapons/bow_bamboo_long.xml",
+    "actor:art/actors/props/units/weapons/jav.xml",
+    "actor:art/actors/props/units/weapons/jav_ammo.xml",
+    "actor:art/actors/props/units/weapons/quiver_bamboo_arrows.xml",
+    "actor:art/actors/units/mauryas/elephantry_archer_d.xml",
+    "actor:art/actors/units/mauryas/elephantry_archer_e_m.xml",
+    "actor:art/actors/units/mauryas/elephantry_archer_r1.xml",
+    "actor:art/actors/units/mauryas/elephantry_archer_r2.xml",
+    "actor:art/actors/units/mauryas/elephantry_archer_r3.xml",
+    "mesh:props/jav_blade.dae",
+    "mesh:props/maur_shield_small.dae",
+    "mesh:props/new/head_indian_1.dae",
+    "mesh:props/quiver_bamboo_1.dae",
+    "mesh:props/quiver_bamboo_arrows.dae",
+    "mesh:props/weap_arrow_back.dae",
+    "mesh:props/weap_javelin_shaft_a.dae",
+    "mesh:props/weap_javelin_shaft_quiver.dae",
+    "mesh:props/weapons/bow_bamboo.dae",
+    "mesh:props/weapons/sagaris_01.dae",
+    "mesh:skeletal/elephant_asian_armored_01.dae",
+    "mesh:skeletal/new/m_tunic_short.dae",
+    "skin:props/head/indian_face_b.dds",
+    "skin:props/maur_props_1.png",
+    "skin:props/prop_weap.dds",
+    "skin:props/shield/maur_shield_small_b.png",
+    "skin:skeletal/maur/elephant_archer.png",
+    "skin:skeletal/maur/skirt_01_01.png",
+    "skin:skeletal/maur/skirt_leather_01_01.png",
+    "skin:skeletal/maur/tunic_leather_01_02.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
   "maur_farmstead": {
    "file": "models/buildings/maur_farmstead.glb",
    "origin": "ground-center",
@@ -9689,35 +8705,25 @@
   },
   "maur_fishing_boat": {
    "animated": true,
-   "animations": [
-    "Idle",
-    "Walk",
-    "Run"
-   ],
-   "bones": 46,
+   "animations": [],
+   "bones": 1,
    "file": "models/units/maur_fishing_boat.glb",
    "origin": "ground-center",
-   "parts": 5,
+   "parts": 3,
    "size_meters": [
     0.953,
     2.538,
     3.5
    ],
-   "skeleton": "rowing_boat",
+   "skeleton": "",
    "sources": [
-    "actor:art/actors/props/units/heads/new/head_hele_e.xml",
     "actor:art/actors/props/units/heads/new/head_indian_a.xml",
     "actor:art/actors/structures/mauryas/fishing_ship.xml",
-    "actor:art/actors/units/hellenes/fisherman.xml",
     "actor:art/actors/units/mauryas/fisherman.xml",
-    "mesh:props/new/head_beard_small.dae",
     "mesh:props/new/head_indian_1.dae",
     "mesh:skeletal/new/m_tunic_long.dae",
-    "mesh:skeletal/new/m_tunic_short.dae",
     "mesh:structural/maur_fishing_boat.dae",
-    "skin:props/head/hele_e.dds",
     "skin:props/head/indian_face_b.dds",
-    "skin:skeletal/hele/tunic_01_01.png",
     "skin:skeletal/maur/skirt_01_01.png",
     "skin:structural/maur_fishing_boat.png"
    ],
@@ -10088,67 +9094,46 @@
    "bones": 4,
    "file": "models/units/maur_trader.glb",
    "origin": "ground-center",
-   "parts": 11,
+   "parts": 7,
    "size_meters": [
-    1.506,
+    2.534,
     1.9,
-    3.615
+    5.573
    ],
-   "skeleton": "",
+   "skeleton": "maur_ch",
    "sources": [
     "actor:art/actors/fauna/zebu.xml",
     "actor:art/actors/props/special/eyecandy/barrel_a.xml",
     "actor:art/actors/props/units/heads/maur_inf_turban.xml",
-    "actor:art/actors/props/units/heads/new/head_hele_e.xml",
     "actor:art/actors/props/units/heads/new/head_mauryan_short_hair.xml",
-    "actor:art/actors/props/units/helmets/hele_straw_01.xml",
     "actor:art/actors/props/units/maur_trader_rein_left.xml",
     "actor:art/actors/props/units/maur_trader_rein_right.xml",
     "actor:art/actors/props/units/maur_trader_staff.xml",
-    "actor:art/actors/props/units/weapons/trader_staff.xml",
-    "actor:art/actors/units/hellenes/trader_r.xml",
     "actor:art/actors/units/mauryas/trader.xml",
     "actor:art/actors/units/mauryas/trader_r.xml",
-    "mesh:props/helmet/hele_straw_01.dae",
     "mesh:props/helmet/maur_inf_turban_a.dae",
     "mesh:props/maur_trader_staff.dae",
-    "mesh:props/new/head_beard_small.dae",
     "mesh:props/new/head_mauryan_short_hair.dae",
-    "mesh:props/trader_staff.dae",
     "mesh:skeletal/maur_trader.dae",
-    "mesh:skeletal/new/m_dress.dae",
     "mesh:skeletal/new/m_tunic_long.dae",
     "mesh:skeletal/zebu.dae",
-    "skin:props/head/hele_e.dds",
     "skin:props/head/indian_face_a.dds",
-    "skin:props/helmet/hele_straw_01.png",
     "skin:props/helmet/maur_inf_turban_a.png",
     "skin:props/maur_trader.png",
-    "skin:props/prop_weap.dds",
     "skin:skeletal/animal_zebu.png",
-    "skin:skeletal/hele/trader_01.dds",
     "skin:skeletal/maur/skirt_01_01.png"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
   },
   "maur_trireme": {
-   "animated": true,
-   "animations": [
-    "Idle",
-    "Walk",
-    "Run",
-    "Attack"
-   ],
-   "bones": 1,
    "file": "models/units/maur_trireme.glb",
    "origin": "ground-center",
-   "parts": 15,
+   "parts": 14,
    "size_meters": [
     2.251,
     4.982,
     7.0
    ],
-   "skeleton": "ship_sail",
    "sources": [
     "actor:art/actors/props/special/eyecandy/barrel_a.xml",
     "actor:art/actors/props/special/eyecandy/basket_celt_a.xml",
@@ -10158,10 +9143,8 @@
     "actor:art/actors/props/units/shields/maur_bell_straight_b.xml",
     "actor:art/actors/props/units/shields/maur_tall_roundtop_a.xml",
     "actor:art/actors/props/units/shields/maur_tall_roundtop_b.xml",
-    "actor:art/actors/props/units/weapons/bolt_tower.xml",
     "actor:art/actors/props/units/weapons/longsword_mauryan.xml",
     "actor:art/actors/structures/mauryas/trireme.xml",
-    "mesh:props/bolt_tower_projectile.dae",
     "mesh:props/maur_long_sword.dae",
     "mesh:props/maur_shield_bell.dae",
     "mesh:props/maur_shield_bell_straight.dae",
@@ -10177,8 +9160,7 @@
     "skin:props/shield/maur_shield_tall_round_a.png",
     "skin:props/shield/maur_shield_tall_round_b.png",
     "skin:props/wrld_sack.dds",
-    "skin:structural/maur_trireme.png",
-    "skin:structural/rome_struct.png"
+    "skin:structural/maur_trireme.png"
    ],
    "upstream_material": "player_trans_parallax_spec.xml"
   },
@@ -10300,7 +9282,9 @@
    "animations": [
     "Idle",
     "Walk",
-    "Run"
+    "Run",
+    "Death",
+    "Attack"
    ],
    "bones": 21,
    "file": "models/units/merchant_ship.glb",
@@ -10579,9 +9563,13 @@
    "animations": [
     "Idle",
     "Walk",
-    "Run"
+    "Run",
+    "Carry",
+    "Carry_fish",
+    "Attack",
+    "Death"
    ],
-   "bones": 46,
+   "bones": 21,
    "file": "models/units/pers_fishing_boat.glb",
    "origin": "ground-center",
    "parts": 6,
@@ -10590,7 +9578,7 @@
     2.962,
     3.5
    ],
-   "skeleton": "rowing_boat",
+   "skeleton": "celt_sail",
    "sources": [
     "actor:art/actors/props/structures/persians/fishship_sail.xml",
     "actor:art/actors/props/units/heads/new/head_hele_e.xml",
@@ -10950,12 +9938,13 @@
     "Idle",
     "Walk",
     "Run",
-    "Attack"
+    "Attack",
+    "Death"
    ],
    "bones": 41,
    "file": "models/units/pers_trireme.glb",
    "origin": "ground-center",
-   "parts": 143,
+   "parts": 142,
    "size_meters": [
     2.35,
     2.82,
@@ -10966,9 +9955,7 @@
     "actor:art/actors/props/structures/persians/trireme_main_sail.xml",
     "actor:art/actors/props/units/shields/celt_buckler_c_back.xml",
     "actor:art/actors/props/units/shields/pers_buckler_1.xml",
-    "actor:art/actors/props/units/weapons/bolt_tower.xml",
     "actor:art/actors/structures/persians/trireme.xml",
-    "mesh:props/bolt_tower_projectile.dae",
     "mesh:props/pers_trireme_sail.dae",
     "mesh:props/shield/round_t_b.dae",
     "mesh:props/shield/round_t_f.dae",
@@ -10977,8 +9964,7 @@
     "skin:props/shield/celt_round_back.dds",
     "skin:props/shield/pers_round_a.dds",
     "skin:structural/ao/pers_trireme.png",
-    "skin:structural/pers_trireme.png",
-    "skin:structural/rome_struct.png"
+    "skin:structural/pers_trireme.png"
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
@@ -11338,12 +10324,8 @@
   },
   "ptol_fishing_boat": {
    "animated": true,
-   "animations": [
-    "Idle",
-    "Walk",
-    "Run"
-   ],
-   "bones": 46,
+   "animations": [],
+   "bones": 1,
    "file": "models/units/ptol_fishing_boat.glb",
    "origin": "ground-center",
    "parts": 7,
@@ -11352,7 +10334,7 @@
     1.805,
     3.5
    ],
-   "skeleton": "rowing_boat",
+   "skeleton": "",
    "sources": [
     "actor:art/actors/props/structures/ptolemies/fishing_boat_basket.xml",
     "actor:art/actors/props/units/heads/new/head_african_1.xml",
@@ -11807,31 +10789,29 @@
     "Idle",
     "Walk",
     "Run",
-    "Attack"
+    "Attack",
+    "Death"
    ],
-   "bones": 5,
+   "bones": 1,
    "file": "models/units/ptol_trireme.glb",
    "origin": "ground-center",
-   "parts": 4,
+   "parts": 3,
    "size_meters": [
     3.384,
     2.99,
     7.0
    ],
-   "skeleton": "ship_sail",
+   "skeleton": "",
    "sources": [
     "actor:art/actors/props/structures/ptolemies/trireme_sail.xml",
     "actor:art/actors/props/structures/ptolemies/trireme_tent.xml",
-    "actor:art/actors/props/units/weapons/bolt_tower.xml",
     "actor:art/actors/structures/ptolemies/trireme.xml",
-    "mesh:props/bolt_tower_projectile.dae",
     "mesh:structural/ptol_ship_trireme.dae",
     "mesh:structural/ptol_ship_trireme_sails.dae",
     "mesh:structural/ptol_ship_trireme_tent.dae",
     "skin:props/ptol_sail.png",
     "skin:props/stall_small_a_cloth.png",
-    "skin:structural/ptol_trireme.png",
-    "skin:structural/rome_struct.png"
+    "skin:structural/ptol_trireme.png"
    ],
    "upstream_material": "player_trans_parallax_spec.xml"
   },
@@ -11936,7 +10916,8 @@
     "Idle",
     "Walk",
     "Run",
-    "Attack"
+    "Attack",
+    "Death"
    ],
    "bones": 8,
    "file": "models/units/ram.glb",
@@ -12221,7 +11202,10 @@
    "animations": [
     "Idle",
     "Walk",
-    "Run"
+    "Run",
+    "Carry",
+    "Attack",
+    "Death"
    ],
    "bones": 3,
    "file": "models/units/rome_fishing_boat.glb",
@@ -12670,12 +11654,13 @@
     "Idle",
     "Walk",
     "Run",
-    "Attack"
+    "Attack",
+    "Death"
    ],
    "bones": 41,
    "file": "models/units/rome_trireme.glb",
    "origin": "ground-center",
-   "parts": 124,
+   "parts": 123,
    "size_meters": [
     2.859,
     2.864,
@@ -12691,9 +11676,7 @@
     "actor:art/actors/props/units/shields/props/scutum_rome_handgrip_01.xml",
     "actor:art/actors/props/units/shields/scutum_rome_isp_02.xml",
     "actor:art/actors/props/units/shields/scutum_rome_isp_09.xml",
-    "actor:art/actors/props/units/weapons/bolt_tower.xml",
     "actor:art/actors/structures/romans/trireme.xml",
-    "mesh:props/bolt_tower_projectile.dae",
     "mesh:props/rome_trireme_fore_sail.dae",
     "mesh:props/rome_trireme_main_sail.dae",
     "mesh:props/shield/props/scutum_01_b.dae",
@@ -12709,7 +11692,6 @@
     "skin:props/shield/scutum_rome_boss_01_bronze.png",
     "skin:props/shield/scutum_rome_boss_01_iron.png",
     "skin:structural/ao/rome_trireme.png",
-    "skin:structural/rome_struct.png",
     "skin:structural/rome_trireme.png"
    ],
    "upstream_material": "player_trans_ao_norm_spec.xml"
@@ -13207,7 +12189,10 @@
    "animations": [
     "Idle",
     "Walk",
-    "Run"
+    "Run",
+    "Carry",
+    "Attack",
+    "Death"
    ],
    "bones": 3,
    "file": "models/units/sele_fishing_boat.glb",
@@ -13670,12 +12655,13 @@
     "Idle",
     "Walk",
     "Run",
-    "Attack"
+    "Attack",
+    "Death"
    ],
    "bones": 41,
    "file": "models/units/sele_trireme.glb",
    "origin": "ground-center",
-   "parts": 5,
+   "parts": 4,
    "size_meters": [
     3.036,
     3.042,
@@ -13686,9 +12672,7 @@
     "actor:art/actors/props/structures/hellenes/trireme_fore_sail.xml",
     "actor:art/actors/props/structures/seleucids/trireme_main_sail.xml",
     "actor:art/actors/props/structures/seleucids/trireme_shields.xml",
-    "actor:art/actors/props/units/weapons/bolt_tower.xml",
     "actor:art/actors/structures/seleucids/trireme.xml",
-    "mesh:props/bolt_tower_projectile.dae",
     "mesh:props/hele_fore_sail.dae",
     "mesh:props/mace_trireme_main_sail.dae",
     "mesh:props/mace_trireme_shields.dae",
@@ -13697,8 +12681,7 @@
     "skin:props/sail_blank_netting_new.png",
     "skin:props/sele_sail_01.png",
     "skin:structural/ao/mace_trireme.png",
-    "skin:structural/mace_trireme.png",
-    "skin:structural/rome_struct.png"
+    "skin:structural/mace_trireme.png"
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
@@ -13842,7 +12825,8 @@
     "Idle",
     "Walk",
     "Run",
-    "Attack"
+    "Attack",
+    "Death"
    ],
    "bones": 8,
    "file": "models/units/siege_ram.glb",
@@ -14070,7 +13054,10 @@
    "animations": [
     "Idle",
     "Walk",
-    "Run"
+    "Run",
+    "Carry",
+    "Attack",
+    "Death"
    ],
    "bones": 3,
    "file": "models/units/spart_fishing_boat.glb",
@@ -14539,12 +13526,13 @@
     "Idle",
     "Walk",
     "Run",
-    "Attack"
+    "Attack",
+    "Death"
    ],
    "bones": 41,
    "file": "models/units/spart_trireme.glb",
    "origin": "ground-center",
-   "parts": 5,
+   "parts": 4,
    "size_meters": [
     2.81,
     2.754,
@@ -14555,9 +13543,7 @@
     "actor:art/actors/props/structures/hellenes/trireme_fore_sail.xml",
     "actor:art/actors/props/structures/spartans/trireme_blanket.xml",
     "actor:art/actors/props/structures/spartans/trireme_main_sail.xml",
-    "actor:art/actors/props/units/weapons/bolt_tower.xml",
     "actor:art/actors/structures/spartans/trireme.xml",
-    "mesh:props/bolt_tower_projectile.dae",
     "mesh:props/hele_fore_sail.dae",
     "mesh:props/spart_trireme_blanket.dae",
     "mesh:props/spart_trireme_main_sail.dae",
@@ -14565,7 +13551,6 @@
     "skin:props/sail_blank_netting_new.png",
     "skin:props/spart_sail_6.png",
     "skin:structural/ao/spart_trireme.png",
-    "skin:structural/rome_struct.png",
     "skin:structural/spart_trireme.png",
     "skin:structural/spart_trireme_blanket.png"
    ],
@@ -15045,12 +14030,13 @@
     "Idle",
     "Walk",
     "Run",
-    "Attack"
+    "Attack",
+    "Death"
    ],
    "bones": 41,
    "file": "models/units/trireme.glb",
    "origin": "ground-center",
-   "parts": 5,
+   "parts": 4,
    "size_meters": [
     2.402,
     2.835,
@@ -15061,10 +14047,8 @@
     "actor:art/actors/props/structures/athenians/trireme_main_sail.xml",
     "actor:art/actors/props/structures/hellenes/trireme_blanket.xml",
     "actor:art/actors/props/structures/hellenes/trireme_fore_sail.xml",
-    "actor:art/actors/props/units/weapons/bolt_tower.xml",
     "actor:art/actors/structures/athenians/trireme.xml",
     "mesh:props/athen_trireme_main_sail.dae",
-    "mesh:props/bolt_tower_projectile.dae",
     "mesh:props/hele_fore_sail.dae",
     "mesh:props/hele_trireme_blanket.dae",
     "mesh:structural/athen_ship_trireme.dae",
@@ -15072,8 +14056,7 @@
     "skin:props/sail_blank_netting_new.png",
     "skin:props/stall_big_cloth.png",
     "skin:structural/ao/hele_trireme.png",
-    "skin:structural/hele_trireme.png",
-    "skin:structural/rome_struct.png"
+    "skin:structural/hele_trireme.png"
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },

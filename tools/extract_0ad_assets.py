@@ -48,6 +48,8 @@ ASSETS = {
     "catapult":         ("art/actors/units/carthaginians/siege_lithobolos_med.xml", "width", 2.60, (0.92, 0.32, 0.28)),
     "hero":             ("art/actors/units/spartans/hero_infantry_spearman_leonidas.xml", "height", 1.85, (0.92, 0.32, 0.28)),
     "trireme":          ("art/actors/structures/athenians/trireme.xml",        "width",  7.00, (0.36, 0.62, 0.94)),
+    # ObjectEntry.pluck 'projectile' — flying bolt for warship Attack.js LaunchProjectile
+    "bolt_projectile":  ("art/actors/props/units/weapons/bolt_tower.xml",      "width",  1.40, None),
     "elephant":         ("art/actors/units/carthaginians/elephantry_c_m.xml",  "height", 3.20, (0.92, 0.32, 0.28)),
     "ram":              ("art/actors/units/romans/siege_ram.xml",              "width",  3.00, None),
     "siege_ram":        ("art/actors/units/romans/siege_ram.xml",              "width",  3.00, None),
@@ -261,6 +263,7 @@ CIV_CORE_ACTORS = {
         "trader": "art/actors/units/mauryas/trader.xml",
         "fishing_boat": "art/actors/structures/mauryas/fishing_ship.xml",
         "trireme": "art/actors/structures/mauryas/trireme.xml",
+        "elephant": "art/actors/units/mauryas/elephantry_archer_e_m.xml",
     },
     "kush": {
         "villager": "art/actors/units/kushites/citizen_male.xml",
@@ -371,8 +374,6 @@ def register_civ_unit_assets(assets, zf=None):
             aid = f"{code}_{uid}"
             _path, fit, target, tint = ASSETS[uid]
             assets[aid] = (actor, fit, target, tint)
-            if uid in UNIT_CFG:
-                UNIT_CFG[aid] = UNIT_CFG[uid]
             if uid in RIDER_ATTACHMENTS:
                 rpath, ap_name, sit = RIDER_ATTACHMENTS[uid][0]
                 if actor.endswith("_m.xml"):
@@ -400,7 +401,39 @@ def register_civ_unit_assets(assets, zf=None):
                 else:
                     RIDER_CLIPS.pop(aid, None)
             added.append(aid)
+    _apply_civ_unit_overrides()
     return added
+
+
+def _apply_civ_unit_overrides():
+    """Civ actors that do not share the generic UNIT_CFG skeleton/clips."""
+    # Mauryan trader: 4-bone maur_ch cart + zebu pair + seated driver.
+    UNIT_CFG["maur_trader"] = ("maur_ch", {
+        "Idle": "maur_ch_idle", "Walk": "maur_ch_move", "Run": "maur_ch_move",
+        "Death": "maur_ch_death"})
+    RIDER_ATTACHMENTS["maur_trader"] = [
+        ("art/actors/units/mauryas/trader_r.xml", "driver", "maur_trader_rider_idle"),
+        ("art/actors/fauna/zebu.xml", "horseright", "zebu_idle"),
+        ("art/actors/fauna/zebu.xml", "horseleft", "zebu_idle"),
+    ]
+    RIDER_CLIPS["maur_trader"] = {
+        "Idle": "maur_trader_rider_idle", "Walk": "maur_trader_rider_walk",
+        "Run": "maur_trader_rider_walk", "Death": "maur_trader_rider_death",
+    }
+    # Mauryan hull has no sail DAE. Keep ship_sail clips and inject a sail mesh
+    # so idle/move animate the cloth; the 0-bone hull stays origin-locked.
+    # Mauryan fishing hull is static; keep the fisherman as the live rider.
+    RIDER_ATTACHMENTS["maur_fishing_boat"] = [
+        ("art/actors/units/mauryas/fisherman.xml", "fisherman", "fisherman_idle"),
+    ]
+    # Mauryan war elephant is the elephant archer (howdah crew sit-baked).
+    RIDER_ATTACHMENTS["maur_elephant"] = [
+        ("art/actors/units/mauryas/elephantry_archer_d.xml", "rider", "elephant_driver_idle"),
+        ("art/actors/units/mauryas/elephantry_archer_r1.xml", "rider1", "elephant_archer_ready"),
+        ("art/actors/units/mauryas/elephantry_archer_r2.xml", "rider2", "elephant_archer_ready"),
+        ("art/actors/units/mauryas/elephantry_archer_r3.xml", "rider3", "elephant_archer_ready"),
+    ]
+    RIDER_CLIPS.pop("maur_elephant", None)
 
 
 def register_civ_building_assets(assets, zf):
@@ -501,6 +534,7 @@ ANIMATIONS = {
     # fauna
     "deer_idle":        "art/animation/quadraped/deer_idle_01.dae.cached.psa",
     "deer_walk":        "art/animation/quadraped/deer_walk_01.dae.cached.psa",
+    "deer_death":       "art/animation/quadraped/deer_death_01.dae.cached.psa",
     "boar_idle":        "art/animation/quadraped/animal_boar_idle_01.dae.cached.psa",
     "boar_walk":        "art/animation/quadraped/animal_boar_walk_01.dae.cached.psa",
     "boar_run":         "art/animation/quadraped/animal_boar_run_01.dae.cached.psa",
@@ -529,6 +563,8 @@ ANIMATIONS = {
     "ram_idle":         "art/animation/mechanical/rome_ram_idle.dae.cached.psa",
     "ram_walk":         "art/animation/mechanical/rome_ram_move.dae.cached.psa",
     "ram_attack":       "art/animation/mechanical/rome_ram_attack.dae.cached.psa",
+    # 8-bone death (Mauryan/German rams). Rome/Celt actors use particles only.
+    "ram_death":        "art/animation/mechanical/maur_siege_ram_death.dae.cached.psa",
     "trader_idle":      "art/animation/mechanical/trader_cart_idle.dae.cached.psa",
     "trader_walk":      "art/animation/mechanical/trader_cart_move.dae.cached.psa",
     "trader_death":     "assets/animations/trader_death.psa",
@@ -551,6 +587,17 @@ ANIMATIONS = {
     "trader_rider_idle": "art/animation/biped/citizen/idle_relax_h_f.dae.cached.psa",
     "trader_rider_walk": "art/animation/biped/citizen/walk_relax_t.dae.cached.psa",
     "trader_rider_death": "art/animation/biped/chariot/maur_trader/death.dae.cached.psa",
+    "maur_ch_idle":     "art/animation/mechanical/maur_ch_idle.dae.cached.psa",
+    "maur_ch_move":     "art/animation/mechanical/maur_ch_move.dae.cached.psa",
+    "maur_ch_death":    "art/animation/mechanical/maur_ch_death.dae.cached.psa",
+    "maur_trader_rider_idle": "art/animation/biped/chariot/maur_trader/idle.dae.cached.psa",
+    "maur_trader_rider_walk": "art/animation/biped/chariot/maur_trader/move_a.dae.cached.psa",
+    "maur_trader_rider_death": "art/animation/biped/chariot/maur_trader/death.dae.cached.psa",
+    "zebu_idle":        "art/animation/quadraped/zebu_idle01.dae.cached.psa",
+    "elephant_archer_ready": "art/animation/biped/rider/elephantry/archer/r1_idle_ready.dae.cached.psa",
+    "elephant_archer_walk": "art/animation/biped/rider/elephantry/archer/r1_walk_ready.dae.cached.psa",
+    "elephant_archer_attack": "art/animation/biped/rider/elephantry/archer/r1_attack_ranged_bow.dae.cached.psa",
+    "elephant_archer_death": "art/animation/biped/rider/elephantry/archer/r1_death_archer.dae.cached.psa",
     "fisherman_idle":   "art/animation/biped/new/boat_fisherman_idle.dae.cached.psa",
     "trireme_idle":     "art/animation/other/main_sail_idle.dae.cached.psa",
     "trireme_walk":     "art/animation/other/main_sail_move.dae.cached.psa",
@@ -575,6 +622,7 @@ SKELETONS = {
     "chariot": "art/skeletons/chariot.xml",
     "lithobolos": "art/skeletons/lithobolos_light.xml",
     "oxybeles": "art/skeletons/oxybeles.xml",
+    "maur_ch": "art/skeletons/maur_ch.xml",
     "rowing_boat": "art/skeletons/rowing_boat.xml",
     "ship_sail": "art/skeletons/ship_sail.xml",
     "celt_sail": "art/skeletons/celt_sail.xml",
@@ -632,12 +680,19 @@ RIDER_CLIPS = {
         "Run": "elephant_driver_idle", "Attack": "elephant_driver_attack",
         "Death": "elephant_driver_idle",
     },
+    "worker_elephant": {
+        "Idle": "elephant_driver_idle", "Walk": "elephant_driver_idle",
+        "Run": "elephant_driver_idle", "Attack": "elephant_driver_attack",
+        "Death": "elephant_driver_idle",
+    },
     "trader": {
         "Idle": "trader_rider_idle", "Walk": "trader_rider_walk", "Run": "trader_rider_walk",
         "Death": "trader_rider_death",
     },
     "fishing_boat": {
         "Idle": "fisherman_idle", "Walk": "fisherman_idle", "Run": "fisherman_idle",
+        "Gather": "fisherman_gather", "Attack": "biped_attack",
+        "Carry": "fisherman_idle", "Death": "biped_death",
     },
 }
 
@@ -646,7 +701,7 @@ UNIT_IDS = frozenset({
     "hero", "trireme", "elephant", "ram", "siege_ram", "healer", "chariot", "war_dog",
     "bolt_shooter", "fishing_boat", "merchant_ship", "female_citizen", "carnyx",
     "worker_elephant", "archer_maiden", "camel", "scythed_chariot",
-    "deer", "boar", "wolf", "sheep",
+    "deer", "boar", "wolf", "sheep", "bolt_projectile",
 })
 BUILDING_IDS = frozenset({
     "town_center", "house", "barracks", "farmstead", "storehouse", "market",
@@ -912,6 +967,93 @@ def rot_apply(m, v):
     x, y, z = v
     return tuple(m[i][0]*x + m[i][1]*y + m[i][2]*z for i in range(3))
 
+
+def _is_watercraft(asset_id):
+    a = (asset_id or "").lower()
+    return any(k in a for k in ("trireme", "fishing_boat", "merchant_ship", "fishship"))
+
+
+def _yaw_quat_y(yaw):
+    h = 0.5 * yaw
+    return (0.0, math.sin(h), 0.0, math.cos(h))
+
+
+def _rot_y(p, yaw):
+    """Rotate (x,y,z) around Y so a +Z-facing vector turns by ``yaw``."""
+    c, s = math.cos(yaw), math.sin(yaw)
+    x, y, z = p
+    return (x * c + z * s, y, -x * s + z * c)
+
+
+def _snap_yaw_quarter(yaw):
+    """Snap to 0 / ±90 / 180 so noisy prop points do not tilt a hull."""
+    turns = (0.0, 0.5 * math.pi, math.pi, -0.5 * math.pi)
+    return min(turns, key=lambda t: abs(math.atan2(math.sin(yaw - t), math.cos(yaw - t))))
+
+
+def _hull_part_for_align(parts):
+    """Largest structural mesh, skipping crew/weapon/head props."""
+    skip = ("fisherman", "citizen", "/heads/", "weapon", "shield", "helmet")
+    best, best_n = None, -1
+    for p in parts:
+        src = (getattr(p, "source", None) or "").lower()
+        if any(s in src for s in skip):
+            continue
+        n = len((p.mesh_data or {}).get("verts") or [])
+        if n > best_n:
+            best, best_n = p, n
+    return best or (parts[0] if parts else None)
+
+
+def _ship_align_yaw(parts, asset_id):
+    """Yaw that maps the authored bow onto Godot forward (-Z).
+
+    0 A.D. warships mark the bow with ram / fore_sail / a far projectile.
+    Several fishing hulls and the Celt/Iberian warship are authored the
+    opposite way (bow at +Z). Without this, those boats sail stern-first.
+    """
+    if not _is_watercraft(asset_id) or not parts:
+        return 0.0
+    hull = _hull_part_for_align(parts)
+    md = (hull.mesh_data if hull else None) or {}
+    verts = md.get("verts") or []
+    if not verts:
+        return 0.0
+    xs = [v[0][0] for v in verts]
+    zs = [v[0][2] for v in verts]
+    half = 0.5 * max(max(xs) - min(xs), max(zs) - min(zs), 1e-6)
+
+    def from_bow(dx, dz, why):
+        if abs(dx) < 1e-5 and abs(dz) < 1e-5:
+            return 0.0
+        yaw = _snap_yaw_quarter(math.atan2(-dx, -dz))
+        if abs(yaw) > 0.01:
+            print(f"  ship-align {asset_id}: {why} -> {math.degrees(yaw):.0f} deg")
+        return yaw
+
+    by_name = {pp["name"].lower(): pp["pos"] for pp in (md.get("prop_points") or [])}
+    for name in ("ram", "fore_sail", "front"):
+        if name in by_name:
+            p = by_name[name]
+            if abs(p[0]) + abs(p[2]) > 0.12 * half:
+                return from_bow(p[0], p[2], name)
+    if "projectile" in by_name:
+        p = by_name["projectile"]
+        if math.hypot(p[0], p[2]) > 0.28 * half:
+            return from_bow(p[0], p[2], "projectile")
+
+    zn, zp = [], []
+    for (p, _) in verts:
+        (zn if p[2] < 0 else zp).append(abs(p[0]))
+    if zn and zp:
+        azn, azp = sum(zn) / len(zn), sum(zp) / len(zp)
+        # Narrower tip is the bow. Threshold lets the wide Celt warship flip.
+        if azp < azn * 0.88:
+            return from_bow(0.0, 1.0, "taper +Z")
+        if azn < azp * 0.88:
+            return from_bow(0.0, -1.0, "taper -Z")
+    return 0.0
+
 # ------------------------------------------------------------ zip vfs -------
 
 class Vfs:
@@ -1176,6 +1318,9 @@ def compose_actor(vfs, actor_path, depth=0, tint=None, sources=None, skip_actors
     for actor_ref, attachpoint, _sel in pending_props:
         if any(s in actor_ref for s in ("decals/", "platforms/", "particle", "flag")):
             continue
+        # ObjectEntry.cpp: attachpoint 'projectile' is plucked for LaunchProjectile, not drawn on the actor.
+        if (attachpoint or "").lower() == "projectile":
+            continue
         sub_path = _actor_path(actor_ref)
         if sub_path in skip_actors or actor_ref in skip_actors:
             continue
@@ -1211,6 +1356,166 @@ def compose_actor(vfs, actor_path, depth=0, tint=None, sources=None, skip_actors
             final_parts.extend(sub_parts)
 
     return final_parts, material_name
+
+
+# Godot clip names used by world_view_node. 0 A.D. actor XML uses mixed case.
+_CLIP_CANON = {
+    "idle": "Idle", "walk": "Walk", "run": "Run", "move": "Walk",
+    "attack": "Attack", "attack_melee": "Attack", "attack_ranged": "Attack",
+    "death": "Death", "gather": "Gather", "build": "Build",
+    "slaughter": "Slaughter", "carry": "Carry", "carry_food": "Carry",
+}
+
+
+def _canon_clip(name):
+    n = (name or "").strip()
+    if not n:
+        return ""
+    return _CLIP_CANON.get(n.lower(), n[0].upper() + n[1:])
+
+
+def _psa_for_dae(vfs, dae_file):
+    """Map an actor <animation file='other/foo.dae'> to the cached PSA in the zip."""
+    f = (dae_file or "").strip().replace("\\", "/")
+    if not f:
+        return None
+    if f.startswith("art/animation/") and vfs.exists(f):
+        return f
+    if f.endswith(".cached.psa"):
+        cands = [f if f.startswith("art/") else f"art/animation/{f}"]
+    elif f.endswith(".dae"):
+        cands = [f"art/animation/{f}.cached.psa", f"art/animation/{f}"]
+    else:
+        cands = [f"art/animation/{f}.dae.cached.psa", f"art/animation/{f}"]
+    for c in cands:
+        if vfs.exists(c):
+            return c
+    return None
+
+
+def collect_actor_clips(vfs, actor_path, depth=0, seen=None):
+    """Read Idle/Walk/… PSA paths from the actor, its variant files, and props.
+
+    This is how 0 A.D. actually animates a unit: the mesh actor plus sail/oar
+    prop actors declare <animation file='…dae'>. No per-civ extract table.
+    """
+    seen = seen if seen is not None else set()
+    clips = {}
+    path = _actor_path(actor_path)
+    if depth > 6 or not path or path in seen or not vfs.exists(path):
+        return clips
+    seen.add(path)
+    root = ET.fromstring(vfs.read(path))
+    vcache = {}
+
+    def add_anim(anim):
+        psa = _psa_for_dae(vfs, anim.get("file") or "")
+        if not psa:
+            return
+        key = _canon_clip(anim.get("name") or "")
+        if key and key not in clips:
+            clips[key] = psa
+
+    def walk_var(var):
+        if var is None:
+            return
+        resolved = resolve_variant_chain(vfs, var, vcache)
+        for anim in resolved.iter("animation"):
+            add_anim(anim)
+        for pr in resolved.iter("prop"):
+            act = (pr.get("actor") or "").strip()
+            ap = (pr.get("attachpoint") or "").strip().lower()
+            if not act or ap == "projectile":
+                continue
+            if any(s in act for s in ("decals/", "platforms/", "particle", "flag")):
+                continue
+            # Crew/fauna props are sit-baked separately. Only follow cloth/oar
+            # actors so a fisherman idle is not treated as the ship's body clip.
+            if not any(s in act.lower() for s in ("sail", "oar", "rowing", "shroud")):
+                continue
+            for k, v in collect_actor_clips(vfs, act, depth + 1, seen).items():
+                if k not in clips:
+                    clips[k] = v
+
+    for anim in root.findall("./animations/animation"):
+        add_anim(anim)
+    for g in root.findall("group"):
+        var = _pick_variant(g)
+        if var is None:
+            continue
+        if "destruction" in (var.get("file") or ""):
+            continue
+        walk_var(var)
+    return clips
+
+
+def _fallback_unit_cfg(asset_id):
+    if asset_id in UNIT_CFG:
+        return UNIT_CFG[asset_id]
+    parent = _civ_base_unit_id(asset_id)
+    if parent and parent in UNIT_CFG:
+        sk = UNIT_CFG[parent][0]
+        # Sail/oar clips only exist when the actor (or a prop) declared them.
+        # Do not paste Greek ship_sail onto a hull that 0 A.D. left static.
+        if sk in ("ship_sail", "celt_sail", "rowing_boat"):
+            return None
+        return UNIT_CFG[parent]
+    return None
+
+
+def _skeleton_for_clips(vfs, clips, preferred=""):
+    if preferred and preferred in SKELETONS:
+        return preferred
+    counts = {}
+    for name, ref in SKELETONS.items():
+        if vfs.exists(ref):
+            counts[name] = len(parse_skeleton_xml(vfs.read(ref)))
+    for psa_path in clips.values():
+        if not vfs.exists(psa_path):
+            continue
+        try:
+            nk = parse_psa(vfs.read(psa_path))["numKeys"]
+        except Exception:
+            continue
+        for name, n in counts.items():
+            if n == nk:
+                return name
+        break
+    return preferred or ""
+
+
+def resolve_anim_cfg(vfs, asset_id, actor_ref):
+    """Prefer clips declared on the 0 A.D. actor; UNIT_CFG is only a fallback."""
+    harvested = collect_actor_clips(vfs, actor_ref)
+    base = _fallback_unit_cfg(asset_id)
+    merged = dict(harvested)
+    if base:
+        _sk, fallback_clips = base
+        if harvested:
+            for state, key in fallback_clips.items():
+                if state in merged:
+                    continue
+                ref = ANIMATIONS.get(key, key)
+                if vfs.exists(ref):
+                    merged[state] = ref
+        else:
+            for state, key in fallback_clips.items():
+                ref = ANIMATIONS.get(key, key)
+                if vfs.exists(ref):
+                    merged[state] = ref
+    if "Walk" in merged and "Run" not in merged:
+        merged["Run"] = merged["Walk"]
+    if "Idle" in merged:
+        for extra in ("Attack", "Death"):
+            if extra not in merged:
+                merged[extra] = merged["Idle"]
+    if not merged:
+        return None
+    preferred = base[0] if base else ""
+    if harvested:
+        preferred = _skeleton_for_clips(vfs, harvested, preferred)
+    sk = _skeleton_for_clips(vfs, merged, preferred)
+    return sk, merged
 
 
 def _identity():
@@ -1366,7 +1671,8 @@ def attach_rider_parts(vfs, parts, body, asset_id, tint, sources):
             continue
         world = _prop_world(attach_part, attach_pp)
         rb = attach_pp["bone"] if attach_pp["bone"] != 0xFF else 0
-        live = asset_id in RIDER_CLIPS
+        live_keys = set((RIDER_CLIPS.get(asset_id) or {}).values())
+        live = bool(live_keys) and sit_key in live_keys
         if live and sit_key:
             # Keep biped blends so Attack/Walk can drive the sitting rider.
             pass
@@ -1765,7 +2071,8 @@ def compile_asset(vfs, asset_id, actor_ref, fit, target, tint, out_dir):
         # map to the correct location on the model instead of being mirrored.
         flip_uvs = [(u, 1.0 - v) for (u, v) in uvs]
         glb.primitives.append((positions, normals, flip_uvs, tri_indices, mat_idx, True, "MASK", None, None, None, colors))
-    # normalize: ground + center + fit
+    # normalize: ground + center + fit; boats also yaw so the bow is -Z
+    yaw = _ship_align_yaw(parts, asset_id)
     xs = [p[0] for p in all_pos]; ys = [p[1] for p in all_pos]; zs = [p[2] for p in all_pos]
     minx, maxx, miny, maxy, minz, maxz = min(xs), max(xs), min(ys), max(ys), min(zs), max(zs)
     dim = (maxx-minx, maxy-miny, maxz-minz)
@@ -1774,8 +2081,17 @@ def compile_asset(vfs, asset_id, actor_ref, fit, target, tint, out_dir):
     # rewrite primitive positions in place
     for pi, prim in enumerate(glb.primitives):
         pos, nrm, uv, idx, mi = prim[0], prim[1], prim[2], prim[3], prim[4]
-        pos2 = [((x-cx)*scale, (y-miny)*scale, (z-cz)*scale) for x, y, z in pos]
-        glb.primitives[pi] = (pos2, nrm, uv, idx, mi) + tuple(prim[5:])
+        pos2, nrm2 = [], []
+        for x, y, z in pos:
+            px, py, pz = (x - cx) * scale, (y - miny) * scale, (z - cz) * scale
+            pos2.append(_rot_y((px, py, pz), yaw) if yaw else (px, py, pz))
+        if yaw:
+            nrm2 = [_rot_y(n, yaw) for n in nrm]
+        else:
+            nrm2 = nrm
+        glb.primitives[pi] = (pos2, nrm2, uv, idx, mi) + tuple(prim[5:])
+    if abs(yaw - 0.5 * math.pi) < 0.01 or abs(yaw + 0.5 * math.pi) < 0.01:
+        dim = (dim[2], dim[1], dim[0])
     out_path = os.path.join(out_dir, asset_dir(asset_id), f"{asset_id}.glb")
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     blob = glb.build(asset_id)
@@ -1812,7 +2128,6 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
     parts, material_name = compose_actor(vfs, actor_ref, 0, tint, sources, skip_actors)
     if not parts:
         raise RuntimeError(f"no parts composed for {asset_id}")
-
     # Prefer the mesh whose bind-pose bone count matches the unit skeleton
     # (trireme hull is 0 bones; the 41-bone sail is the animated body).
     bone_names = []
@@ -1824,15 +2139,23 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
         want_bones = len(sb)
     body = None
     fallback = None
+    hull = None
+    hull_n = 10 ** 9
     for p in parts:
         nb = len((p.mesh_data or {}).get("bones") or [])
         if nb > 0 and fallback is None:
             fallback = p
+        if nb < hull_n:
+            hull_n = nb
+            hull = p
         if want_bones and nb == want_bones:
             body = p
             break
     if body is None:
-        body = fallback or parts[0]
+        # Civ boats often have a static hull plus a skinned rider. Prefer the
+        # hull when no part matches the UNIT_CFG skeleton (else the rider
+        # becomes the body and hull clips warp the fisherman).
+        body = hull or fallback or parts[0]
     parts = attach_rider_parts(vfs, parts, body, asset_id, tint, sources)
     # Safety net: ensure any villager/citizen asset has the knife (dagger) on weapon_R
     is_villager = "villager" in asset_id or "female_citizen" in asset_id or "citizen" in asset_id
@@ -1956,6 +2279,11 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
     cx, cz = (minx + maxx) / 2, (minz + maxz) / 2
     root_t = (-cx * scale, -miny * scale, -cz * scale)
     root_s = (scale, scale, scale)
+    align_yaw = _ship_align_yaw(parts, asset_id)
+    if abs(align_yaw) > 0.01:
+        root_t = _rot_y(root_t, align_yaw)
+    if abs(align_yaw - 0.5 * math.pi) < 0.01 or abs(align_yaw + 0.5 * math.pi) < 0.01:
+        dim = (dim[2], dim[1], dim[0])
 
     # Live rider: second skin (46 biped bones) in mount space via attach xf.
     rider_rest_local = []
@@ -1989,8 +2317,11 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
     mesh_nodes = list(range(part_node_start, part_node_start + len(part_info)))
     all_bones = [bone_node[i] for i in range(num_bones)]
     rider_joints = [rider_node[i] for i in range(rider_n)]
-    nodes = [{"name": asset_id, "translation": list(root_t), "scale": list(root_s),
-              "children": all_bones + rider_joints + mesh_nodes}]
+    root_node = {"name": asset_id, "translation": list(root_t), "scale": list(root_s),
+                 "children": all_bones + rider_joints + mesh_nodes}
+    if abs(align_yaw) > 0.01:
+        root_node["rotation"] = list(_yaw_quat_y(align_yaw))
+    nodes = [root_node]
     for i in range(num_bones):
         t, q = rest_tq[i]
         nodes.append({"name": bone_names[i] if i < len(bone_names) else f"bone{i}",
@@ -2333,9 +2664,9 @@ def clean_misplaced_assets(out_dir):
     if removed:
         print(f"[clean] removed {removed} misplaced files")
 
-# Per-unit skeleton + animation-state -> PSA mapping.
+# Fallback only when the actor XML declares no <animation file>. Clip names
+# MUST match world_view_node (Idle/Walk/Run/Attack/Death/Gather/Build).
 # 0 A.D. requires PMD bone count == PSA numKeys (CSkeletonAnimDef).
-# Clip names MUST match world_view_node (Idle/Walk/Run/Attack/Death/Gather/Build).
 UNIT_CFG = {
     "villager": ("biped", {
         "Idle": "citizen_idle", "Walk": "citizen_walk", "Run": "citizen_run",
@@ -2356,10 +2687,10 @@ UNIT_CFG = {
         "Attack": "horse_idle", "Death": "horse_death"}),
     "camel": ("camel", {
         "Idle": "camel_idle", "Walk": "camel_walk", "Run": "camel_run",
-        "Attack": "camel_idle", "Death": "camel_death"}),
+        "Attack": "camel_attack", "Death": "camel_death"}),
     "elephant": ("elephant", {
         "Idle": "elephant_idle", "Walk": "elephant_walk", "Run": "elephant_run",
-        "Attack": "elephant_idle", "Death": "elephant_death"}),
+        "Attack": "elephant_attack", "Death": "elephant_death"}),
     "worker_elephant": ("elephant", {
         "Idle": "elephant_idle", "Walk": "elephant_walk", "Run": "elephant_run",
         "Attack": "elephant_attack", "Death": "elephant_death"}),
@@ -2374,16 +2705,17 @@ UNIT_CFG = {
         "Idle": "trader_idle", "Walk": "trader_walk", "Run": "trader_walk",
         "Death": "trader_death"}),
     "deer": ("deer", {
-        "Idle": "deer_idle", "Walk": "deer_walk", "Run": "deer_walk"}),
+        "Idle": "deer_idle", "Walk": "deer_walk", "Run": "deer_walk",
+        "Death": "deer_death"}),
     "healer": ("biped", {
         "Idle": "healer_idle", "Walk": "healer_walk", "Run": "healer_run",
         "Attack": "healer_heal", "Death": "biped_death"}),
     "ram": ("", {
         "Idle": "ram_idle", "Walk": "ram_walk", "Run": "ram_walk",
-        "Attack": "ram_attack"}),
+        "Attack": "ram_attack", "Death": "ram_death"}),
     "siege_ram": ("", {
         "Idle": "ram_idle", "Walk": "ram_walk", "Run": "ram_walk",
-        "Attack": "ram_attack"}),
+        "Attack": "ram_attack", "Death": "ram_death"}),
     "female_citizen": ("biped", {
         "Idle": "female_idle", "Walk": "female_walk", "Run": "female_run",
         "Attack": "biped_attack", "Death": "biped_death",
@@ -2415,13 +2747,17 @@ UNIT_CFG = {
     "bolt_shooter": ("oxybeles", {
         "Idle": "bolt_idle", "Attack": "bolt_attack", "Death": "bolt_idle"}),
     "fishing_boat": ("rowing_boat", {
-        "Idle": "rowing_idle", "Walk": "rowing_walk", "Run": "rowing_walk"}),
+        "Idle": "rowing_idle", "Walk": "rowing_walk", "Run": "rowing_walk",
+        "Gather": "rowing_idle", "Attack": "rowing_idle",
+        "Carry": "rowing_walk", "Death": "rowing_idle"}),
     "trireme": ("ship_sail", {
         "Idle": "trireme_idle", "Walk": "trireme_walk", "Run": "trireme_walk",
-        "Attack": "trireme_idle"}),
+        # Attack.js SelectAnimation("attack_ranged") → GetAnimations falls back to idle.
+        # The visible attack is LaunchProjectile (bolt_tower), not a hull DAE.
+        "Attack": "trireme_idle", "Death": "trireme_idle"}),
     "merchant_ship": ("celt_sail", {
         "Idle": "merchant_sail_idle", "Walk": "merchant_sail_walk",
-        "Run": "merchant_sail_run"}),
+        "Run": "merchant_sail_run", "Death": "merchant_sail_idle"}),
 }
 
 # --------------------------------------------------------------- main -------
@@ -2468,17 +2804,30 @@ def main():
         if args.only:
             known = dict(ASSETS)
             known.update(FULL_ASSETS)
-            register_civ_unit_assets(known)
+            register_civ_unit_assets(known, zf)
             register_civ_building_assets(known, zf)
-            assets = {k: v for k, v in known.items() if k in args.only}
+            only = set(args.only)
+            def wanted(aid):
+                if aid in only:
+                    return True
+                for o in only:
+                    if aid.endswith("_" + o):
+                        return True
+                return False
+            assets = {k: v for k, v in known.items() if wanted(k)}
             if not assets:
                 sys.exit(f"--only matched nothing. known ids: {', '.join(sorted(known))}")
         for asset_id, (actor_ref, fit, target, tint) in assets.items():
             try:
-                if asset_id in UNIT_CFG:
-                    sk, anims = UNIT_CFG[asset_id]
+                cfg = resolve_anim_cfg(vfs, asset_id, actor_ref)
+                if cfg:
+                    sk, anims = cfg
                     manifest["models"][asset_id] = compile_unit_animated(
                         vfs, asset_id, actor_ref, fit, target, tint, out_dir, sk, anims)
+                elif asset_id in RIDER_ATTACHMENTS:
+                    # Static hull + sit-baked crew (0 A.D. left the hull unskinned).
+                    manifest["models"][asset_id] = compile_unit_animated(
+                        vfs, asset_id, actor_ref, fit, target, tint, out_dir, "", {})
                 else:
                     manifest["models"][asset_id] = compile_asset(
                         vfs, asset_id, actor_ref, fit, target, tint, out_dir)

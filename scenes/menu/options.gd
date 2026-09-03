@@ -11,6 +11,22 @@ const CONFIG_PATH = "user://config.ini"
 @onready var spin_port: SpinBox = $CenterContainer/Panel/VBox/TabContainer/Network/NetworkList/Port/SpinBox
 
 func _ready() -> void:
+	MatchSettings.prepare_line_edit(line_edit_sp)
+	MatchSettings.prepare_line_edit(line_edit_mp)
+	if spin_port:
+		MatchSettings.prepare_line_edit(spin_port.get_line_edit())
+	var scale_slot := get_node_or_null("CenterContainer/Panel/VBox/TabContainer/Graphics/GraphicsList/Scale/ScaleSlot")
+	if scale_slot and scale_slot.get_child_count() == 0:
+		var ob := OptionButton.new()
+		ob.set_anchors_preset(Control.PRESET_FULL_RECT)
+		MatchSettings.prepare_option(ob)
+		ob.add_item("50%")
+		ob.add_item("75%")
+		ob.add_item("100%")
+		ob.add_item("125%")
+		ob.add_item("150%")
+		ob.select(2)
+		scale_slot.add_child(ob)
 	load_settings()
 
 func load_settings() -> void:
@@ -54,4 +70,4 @@ func save_settings() -> void:
 
 func _on_back_pressed() -> void:
 	save_settings()
-	get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
+	MatchSettings.go("res://scenes/menu/main_menu.tscn")

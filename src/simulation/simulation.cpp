@@ -534,6 +534,8 @@ uint32_t Simulation::spawn_unit(float x, float z, uint8_t team, UnitType u_type,
 		units_.speed[idx] *= 1.20f;
 	} else if (civ == CIV_BRITONS && (u_type == UNIT_CHARIOT || u_type == UNIT_WAR_DOG)) {
 		units_.speed[idx] *= 1.15f;
+	} else if (civ == CIV_MAURYANS && u_type == UNIT_ELEPHANT) {
+		units_.attack_range[idx] = 16.0f;
 	}
 
 	if (team == 0) {
@@ -1663,7 +1665,7 @@ void Simulation::mark_building_wreck(Building &b) {
 	b.build_progress = 0.0f;
 }
 
-void Simulation::fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect, uint8_t dmg_type, bool hits_building) {
+void Simulation::fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect, uint8_t dmg_type, bool hits_building, uint8_t visual) {
 	if (projectiles_.size() >= MAX_PROJECTILES) return;
 	Projectile p;
 	p.id = alloc_id();
@@ -1673,6 +1675,12 @@ void Simulation::fire_arrow(float sx, float sy, float sz, float tx, float ty, fl
 	p.progress = 0.0f;
 	p.speed = 26.0f;
 	p.arc_height = 2.4f;
+	p.visual = visual;
+	if (visual == 1) {
+		// template_unit_ship_warship Ranged/Projectile Speed=80 Gravity=50
+		p.speed = 56.0f;
+		p.arc_height = 3.8f;
+	}
 	p.damage = damage;
 	p.damage_type = dmg_type;
 	p.status_effect = effect;
@@ -2733,16 +2741,19 @@ void Simulation::tick_combat(float dt) {
 			final_dmg *= std::max(0.80f, 1.0f + height_diff * 0.04f); // Uphill attack penalty
 		}
 
+		bool maur_elephant_archer = (u_att == UNIT_ELEPHANT && att_civ == CIV_MAURYANS);
 		bool is_ranged_attack = (u_att == UNIT_ARCHER || u_att == UNIT_ARCHER_MAIDEN ||
 		                         u_att == UNIT_BOLT_SHOOTER || u_att == UNIT_CHARIOT ||
-		                         u_att == UNIT_TRIREME);
+		                         u_att == UNIT_TRIREME || maur_elephant_archer);
 
 		if (is_ranged_attack) {
 			uint8_t effect = EFFECT_NONE;
 			if (att_civ == CIV_KUSHITES || u_att == UNIT_ARCHER_MAIDEN) {
 				effect |= EFFECT_POISON;
 			}
-			float arrow_sy = (u_att == UNIT_TRIREME) ? 2.2f : (u_att == UNIT_BOLT_SHOOTER ? 1.0f : 1.4f);
+			// Warship LaunchPoint y=3; elephant archer LaunchPoint y=9 (scaled).
+			float arrow_sy = (u_att == UNIT_TRIREME) ? 3.0f : (u_att == UNIT_BOLT_SHOOTER ? 1.0f : (maur_elephant_archer ? 3.4f : 1.4f));
+			uint8_t proj_vis = (u_att == UNIT_TRIREME || u_att == UNIT_BOLT_SHOOTER) ? 1 : 0;
 			// 0 A.D. Spread dispersion
 			float dist = sqrtf(d2);
 			float spread_factor = (dist / units_.attack_range[i]) * 0.25f;
@@ -2751,7 +2762,7 @@ void Simulation::tick_combat(float dt) {
 
 			fire_arrow(units_.pos_x[i], arrow_sy, units_.pos_z[i],
 			           units_.pos_x[t] + disp_x, 0.8f, units_.pos_z[t] + disp_z,
-			           final_dmg, units_.team[i], units_.id[t], effect, 1);
+			           final_dmg, units_.team[i], units_.id[t], effect, 1, false, proj_vis);
 
 			// If War Trireme has garrisoned passengers, fire deck archer barrage
 			if (u_att == UNIT_TRIREME) {
@@ -3238,7 +3249,8 @@ void Simulation::tick_combat(float dt) {
 	// 8. Remove dead units after death timer
 	std::vector<size_t> dead_indices;
 	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] && units_.action_state[i] == ACTION_DYING && units_.death_timer[i] >= 1.0f) {
+		if (!units_.alive[i] && units_.action_state[i] == ACTION_DYING &&
+				units_.death_timer[i] >= unit_death_duration(units_.unit_type[i])) {
 			dead_indices.push_back(i);
 		}
 	}

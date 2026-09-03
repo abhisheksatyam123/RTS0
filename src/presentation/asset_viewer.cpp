@@ -1,4 +1,5 @@
 #include "asset_viewer.h"
+#include "popup_safe.h"
 #include "../graphics/assets/model_library.h"
 #include "../simulation/sim_types.h"
 
@@ -54,6 +55,16 @@ void RtsoAssetViewer::_bind_methods() {
 
 RtsoAssetViewer::RtsoAssetViewer() {}
 RtsoAssetViewer::~RtsoAssetViewer() {}
+
+void RtsoAssetViewer::_notification(int p_what) {
+	if (p_what == NOTIFICATION_EXIT_TREE) {
+		if (SceneTree *t = get_tree()) {
+			rtso::hide_node_popups(t->get_root());
+		} else {
+			rtso::hide_node_popups(this);
+		}
+	}
+}
 
 AnimationPlayer *RtsoAssetViewer::find_anim(Node *n) {
 	if (!n) return nullptr;
@@ -181,7 +192,7 @@ void RtsoAssetViewer::build_ui() {
 	cat_box->add_item("Buildings");
 	cat_box->add_item("Vegetation");
 	cat_box->connect("item_selected", Callable(this, "_on_cat_selected"));
-	lv->add_child(cat_box);
+	rtso::parent_option_button(lv, cat_box);
 
 	Label *civ_title = memnew(Label);
 	civ_title->set_text("Civilization");
@@ -193,7 +204,7 @@ void RtsoAssetViewer::build_ui() {
 		civ_box->add_item(rtso::civ_info((uint8_t)c).name, c);
 	civ_box->select(rtso::CIV_ATHENIANS);
 	civ_box->connect("item_selected", Callable(this, "_on_civ_selected"));
-	lv->add_child(civ_box);
+	rtso::parent_option_button(lv, civ_box);
 
 	item_list = memnew(ItemList);
 	item_list->set_v_size_flags(Control::SIZE_EXPAND_FILL);
@@ -320,7 +331,7 @@ void RtsoAssetViewer::build_ui() {
 	clip_box = memnew(OptionButton);
 	clip_box->set_custom_minimum_size(Vector2(0, 32));
 	clip_box->connect("item_selected", Callable(this, "_on_clip_box_selected"));
-	rv->add_child(clip_box);
+	rtso::parent_option_button(rv, clip_box);
 
 	clip_list = memnew(ItemList);
 	clip_list->set_v_size_flags(Control::SIZE_EXPAND_FILL);
@@ -1080,8 +1091,10 @@ void RtsoAssetViewer::_on_rest() {
 }
 
 void RtsoAssetViewer::_on_back() {
-	if (SceneTree *tree = get_tree())
+	if (SceneTree *tree = get_tree()) {
+		rtso::hide_node_popups(tree->get_root());
 		tree->change_scene_to_file("res://scenes/menu/main_menu.tscn");
+	}
 }
 
 void RtsoAssetViewer::_on_toggle_view(bool) {

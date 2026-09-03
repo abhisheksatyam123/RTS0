@@ -218,6 +218,7 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_float(p.damage);
 		mix_u8(p.team);
 		mix_u8(p.damage_type);
+		mix_u8(p.visual);
 		mix_u8(p.status_effect);
 		mix_u32(p.target_unit_id);
 		mix_float(p.progress);

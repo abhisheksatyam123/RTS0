@@ -83,6 +83,7 @@ bool AnimationController::load_rig(RigType rig) {
 			load_clip(AnimState::Idle, "deer_idle");
 			load_clip(AnimState::Walk, "deer_walk");
 			load_clip(AnimState::Run, "deer_walk");
+			load_clip(AnimState::Death, "deer_death");
 			skeleton.load_xml("deer");
 			break;
 		}
@@ -100,7 +101,7 @@ bool AnimationController::load_rig(RigType rig) {
 			load_clip(AnimState::Walk, "ram_walk");
 			load_clip(AnimState::Run, "ram_walk");
 			load_clip(AnimState::Attack, "ram_attack");
-			load_clip(AnimState::Death, "ram_idle");
+			load_clip(AnimState::Death, "ram_death");
 			break;
 		}
 	}
@@ -136,7 +137,7 @@ bool AnimationController::load(const std::string& base) {
 		load_clip(AnimState::Idle, "camel_idle");
 		load_clip(AnimState::Walk, "camel_walk");
 		load_clip(AnimState::Run, "camel_run");
-		load_clip(AnimState::Attack, "camel_idle");
+		load_clip(AnimState::Attack, "camel_attack");
 		load_clip(AnimState::Death, "camel_death");
 		skeleton.load_xml("camel");
 		return !anims.empty();
@@ -146,9 +147,40 @@ bool AnimationController::load(const std::string& base) {
 		load_clip(AnimState::Idle, "elephant_idle");
 		load_clip(AnimState::Walk, "elephant_walk");
 		load_clip(AnimState::Run, "elephant_run");
-		load_clip(AnimState::Attack, "elephant_idle");
+		load_clip(AnimState::Attack, "elephant_attack");
 		load_clip(AnimState::Death, "elephant_death");
 		skeleton.load_xml("elephant");
+		return !anims.empty();
+	} else if (base == "fishing_boat" || base == "rowing") {
+		anims.clear();
+		mount_rider_controller.reset();
+		load_clip(AnimState::Idle, "rowing_idle");
+		load_clip(AnimState::Walk, "rowing_walk");
+		load_clip(AnimState::Run, "rowing_walk");
+		load_clip(AnimState::Gather, "rowing_idle");
+		load_clip(AnimState::Attack, "rowing_idle");
+		load_clip(AnimState::Carry, "rowing_walk");
+		load_clip(AnimState::Death, "rowing_idle");
+		skeleton.load_xml("rowing_boat");
+		return !anims.empty();
+	} else if (base == "trireme" || base == "warship") {
+		anims.clear();
+		mount_rider_controller.reset();
+		load_clip(AnimState::Idle, "trireme_idle");
+		load_clip(AnimState::Walk, "trireme_walk");
+		load_clip(AnimState::Run, "trireme_walk");
+		load_clip(AnimState::Attack, "trireme_idle");
+		load_clip(AnimState::Death, "trireme_idle");
+		skeleton.load_xml("ship_sail");
+		return !anims.empty();
+	} else if (base == "merchant" || base == "merchant_ship") {
+		anims.clear();
+		mount_rider_controller.reset();
+		load_clip(AnimState::Idle, "merchant_sail_idle");
+		load_clip(AnimState::Walk, "merchant_sail_walk");
+		load_clip(AnimState::Run, "merchant_sail_run");
+		load_clip(AnimState::Death, "merchant_sail_idle");
+		skeleton.load_xml("celt_sail");
 		return !anims.empty();
 	} else if (base == "chariot") {
 		anims.clear();

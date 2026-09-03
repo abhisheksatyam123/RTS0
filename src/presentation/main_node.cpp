@@ -1,4 +1,5 @@
 #include "main_node.h"
+#include "popup_safe.h"
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/classes/viewport.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
@@ -131,6 +132,16 @@ RtsoMain::RtsoMain() {
 RtsoMain::~RtsoMain() {
 	net_host_.stop();
 	delete sim;
+}
+
+void RtsoMain::_notification(int p_what) {
+	if (p_what == NOTIFICATION_EXIT_TREE) {
+		if (SceneTree *t = get_tree()) {
+			rtso::hide_node_popups(t->get_root());
+		} else {
+			rtso::hide_node_popups(this);
+		}
+	}
 }
 
 static Ref<Texture2D> load_tex(const String &path) {
@@ -338,7 +349,7 @@ void RtsoMain::_ready() {
 	map_selector->add_item("Procedural Acropolis (RMS)", 12);
 	map_selector->add_item("Procedural Spartan Valley (RMS)", 13);
 	map_selector->connect("item_selected", Callable(this, "_on_map_selected"));
-	top_hbox->add_child(map_selector);
+	rtso::parent_option_button(top_hbox, map_selector);
 
 	civ_selector = memnew(OptionButton);
 	civ_selector->set_custom_minimum_size(Vector2(125, 28));
@@ -357,7 +368,7 @@ void RtsoMain::_ready() {
 	civ_selector->add_item("Seleucids", rtso::CIV_SELEUCIDS);
 	civ_selector->connect("item_selected", Callable(this, "_on_civ_selected"));
 	civ_selector->select((int)sim->player_civ());
-	top_hbox->add_child(civ_selector);
+	rtso::parent_option_button(top_hbox, civ_selector);
 
 	ai_diff_selector = memnew(OptionButton);
 	ai_diff_selector->set_custom_minimum_size(Vector2(100, 28));
@@ -369,7 +380,7 @@ void RtsoMain::_ready() {
 	ai_diff_selector->add_item("AI Very Hard", rtso::PETRA_VERY_HARD);
 	ai_diff_selector->select(rtso::PETRA_MEDIUM);
 	ai_diff_selector->connect("item_selected", Callable(this, "_on_ai_diff_selected"));
-	top_hbox->add_child(ai_diff_selector);
+	rtso::parent_option_button(top_hbox, ai_diff_selector);
 
 	ai_behavior_selector = memnew(OptionButton);
 	ai_behavior_selector->set_custom_minimum_size(Vector2(110, 28));
@@ -378,7 +389,7 @@ void RtsoMain::_ready() {
 	ai_behavior_selector->add_item("AI Aggressive", rtso::PETRA_BEHAVIOR_AGGRESSIVE);
 	ai_behavior_selector->add_item("AI Random", rtso::PETRA_BEHAVIOR_RANDOM);
 	ai_behavior_selector->connect("item_selected", Callable(this, "_on_ai_behavior_selected"));
-	top_hbox->add_child(ai_behavior_selector);
+	rtso::parent_option_button(top_hbox, ai_behavior_selector);
 
 	victory_selector = memnew(OptionButton);
 	victory_selector->set_custom_minimum_size(Vector2(110, 28));
@@ -387,7 +398,7 @@ void RtsoMain::_ready() {
 	victory_selector->add_item("Relics", rtso::VICTORY_RELIC);
 	victory_selector->add_item("Endless", rtso::VICTORY_ENDLESS);
 	victory_selector->connect("item_selected", Callable(this, "_on_victory_selected"));
-	top_hbox->add_child(victory_selector);
+	rtso::parent_option_button(top_hbox, victory_selector);
 
 	voice_btn = memnew(Button);
 	voice_btn->set_custom_minimum_size(Vector2(72, 28));
@@ -432,17 +443,17 @@ void RtsoMain::_ready() {
 	lobby_name->set_placeholder("Player name");
 	lobby_name->set_text("Player");
 	lobby_name->set_h_size_flags(Control::SIZE_EXPAND_FILL);
-	name_row->add_child(lobby_name);
+	rtso::parent_line_edit(name_row, lobby_name);
 	lobby_host = memnew(LineEdit);
 	lobby_host->set_placeholder("127.0.0.1");
 	lobby_host->set_text("127.0.0.1");
 	lobby_host->set_custom_minimum_size(Vector2(110, 0));
-	name_row->add_child(lobby_host);
+	rtso::parent_line_edit(name_row, lobby_host);
 	lobby_port = memnew(LineEdit);
 	lobby_port->set_placeholder("20595");
 	lobby_port->set_text("20595");
 	lobby_port->set_custom_minimum_size(Vector2(70, 0));
-	name_row->add_child(lobby_port);
+	rtso::parent_line_edit(name_row, lobby_port);
 	lobby_box->add_child(name_row);
 
 	lobby_rooms = memnew(ItemList);
@@ -780,7 +791,7 @@ void RtsoMain::_ready() {
 	chat_channel->add_item("Allies", 1);
 	chat_channel->add_item("Team", 2);
 	chat_channel->add_theme_font_size_override("font_size", 10);
-	chat_top_bar->add_child(chat_channel);
+	rtso::parent_option_button(chat_top_bar, chat_channel);
 
 	Button *chat_close = memnew(Button);
 	chat_close->set_custom_minimum_size(Vector2(22, 22));
@@ -805,7 +816,7 @@ void RtsoMain::_ready() {
 	chat_input->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 	chat_input->add_theme_font_size_override("font_size", 11);
 	chat_input->connect("text_submitted", Callable(this, "_on_chat_text_submitted"));
-	chat_input_bar->add_child(chat_input);
+	rtso::parent_line_edit(chat_input_bar, chat_input);
 
 	chat_send_btn = memnew(Button);
 	chat_send_btn->set_custom_minimum_size(Vector2(55, 24));
@@ -896,7 +907,7 @@ void RtsoMain::_ready() {
 			diplo_stances[p]->select(2); // Enemy
 			diplo_stances[p]->connect("item_selected", Callable(this, "_on_diplo_stance_changed").bind(p));
 		}
-		prow->add_child(diplo_stances[p]);
+		rtso::parent_option_button(prow, diplo_stances[p]);
 
 		if (p == 0) {
 			Label *self_lbl = memnew(Label);
@@ -1058,6 +1069,7 @@ void RtsoMain::_ready() {
 	if (barter) {
 		barter->connect("barter_requested", Callable(this, "_on_barter_requested"));
 	}
+
 }
 
 void RtsoMain::play_voice(const char *path) {
@@ -2087,6 +2099,8 @@ void RtsoMain::update_command_panel() {
 				add_train(rtso::UNIT_CARNYX, "Carnyx Herald (70f,40w,30g)");
 				add_train(rtso::UNIT_ARCHER_MAIDEN, "Archer Maiden (40f,60w,40g)");
 				add_train(rtso::UNIT_WORKER_ELEPHANT, "Worker Elephant (180f,80w)");
+				if (pciv == rtso::CIV_MAURYANS && pphase >= 2)
+					add_train(rtso::UNIT_ELEPHANT, "Elephant Archer (175f,75w)");
 
 				if (pphase >= 2) {
 					add_train(rtso::UNIT_HERO, "Champion Hero (200f,200g)");
@@ -2095,7 +2109,8 @@ void RtsoMain::update_command_panel() {
 				if (pphase >= 3) {
 					add_train(rtso::UNIT_CATAPULT, "Catapult Artillery (150w,100g,50s)");
 					add_train(rtso::UNIT_SIEGE_RAM, "Siege Ram (200w,100g)");
-					add_train(rtso::UNIT_ELEPHANT, "War Elephant (250f,200g)");
+					if (pciv != rtso::CIV_MAURYANS)
+						add_train(rtso::UNIT_ELEPHANT, "War Elephant (250f,200g)");
 					add_train(rtso::UNIT_SCYTHED_CHARIOT, "Scythed Chariot (100f,80w,120g)");
 				}
 			} else if (found_b->type == rtso::BLD_DOCK) {
@@ -2377,7 +2392,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		}
 
 		if (key->get_keycode() == KEY_F10) {
-			get_tree()->change_scene_to_file("res://scenes/menu/options.tscn");
+			if (SceneTree *t = get_tree()) {
+				rtso::hide_node_popups(t->get_root());
+				t->change_scene_to_file("res://scenes/menu/options.tscn");
+			}
 			return;
 		}
 

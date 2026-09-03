@@ -6,6 +6,7 @@ extends CanvasLayer
 
 func _ready() -> void:
 	panel.visible = false
+	MatchSettings.prepare_line_edit(line_edit)
 
 func toggle() -> void:
 	panel.visible = not panel.visible

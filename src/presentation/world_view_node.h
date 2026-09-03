@@ -83,11 +83,14 @@ class RtsoWorldView : public Node3D {
 	MultiMeshInstance3D *fauna_mmi[rtso::FAUNA_COUNT] = {};
 	Ref<MultiMesh> fauna_mm[rtso::FAUNA_COUNT];
 
-	// flying projectiles (arrows)
+	// flying projectiles (arrows + warship bolts)
 	MultiMeshInstance3D *arrow_mmi = nullptr;
 	Ref<MultiMesh> arrow_mm;
 	Ref<CylinderMesh> arrow_mesh;
 	Ref<StandardMaterial3D> arrow_mat;
+	MultiMeshInstance3D *bolt_mmi = nullptr;
+	Ref<MultiMesh> bolt_mm;
+	float bolt_scale = 1.0f;
 
 	MeshInstance3D *terrain = nullptr;
 	Ref<PlaneMesh> plane_mesh;
@@ -131,7 +134,7 @@ class RtsoWorldView : public Node3D {
 	// Skeletal animation controllers per unit type
 	rtso::AnimationController anim_controllers[rtso::UNIT_TYPE_COUNT];
 
-	static constexpr int MAX_DETAILED_UNITS = 16;
+	static constexpr int MAX_DETAILED_UNITS = 24;
 	float anim_time = 0.0f;
 	uint32_t unit_vis_stamp = 1;
 
@@ -141,6 +144,7 @@ class RtsoWorldView : public Node3D {
 	size_t next_spatial_idx = 0;
 
 	Ref<AudioStream> sfx_bow_shoot[2];
+	Ref<AudioStream> sfx_arrow_fly;
 	Ref<AudioStream> sfx_arrow_hit;
 	Ref<AudioStream> sfx_catapult_blast;
 	Ref<AudioStream> sfx_sword_hit[3];

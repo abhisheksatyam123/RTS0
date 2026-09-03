@@ -38,8 +38,12 @@ void JobSystem::stop() {
 	for (auto &t : workers_) {
 		if (t.joinable()) t.join();
 	}
-	workers_.clear();
-	started_ = false;
+	{
+		std::lock_guard<std::mutex> lock(mu_);
+		workers_.clear();
+		started_ = false;
+		stop_ = false;
+	}
 }
 
 void JobSystem::worker_main() {
@@ -79,6 +83,11 @@ void JobSystem::parallel_for(size_t count, const std::function<void(size_t, size
 		fn(0, count);
 		return;
 	}
+	// Nested / overlapping parallel_for would overwrite job_ and deadlock the pool.
+	if (in_parallel_.exchange(true)) {
+		fn(0, count);
+		return;
+	}
 
 	size_t width = (size_t)parallel_width();
 	size_t grain = std::max(min_grain, (count + width * 4 - 1) / (width * 4));
@@ -109,6 +118,7 @@ void JobSystem::parallel_for(size_t count, const std::function<void(size_t, size
 		});
 		job_ = nullptr;
 	}
+	in_parallel_.store(false);
 }
 
 } // namespace rtso

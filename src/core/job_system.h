@@ -57,6 +57,7 @@ private:
 	uint64_t epoch_ = 0;
 	size_t workers_finished_ = 0;
 	std::atomic<bool> stop_{false};
+	std::atomic<bool> in_parallel_{false};
 	bool started_ = false;
 };
 

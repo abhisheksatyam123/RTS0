@@ -172,10 +172,9 @@ custom_minimum_size = Vector2(260, 0)
 layout_mode = 2
 text = "Resolution scale (renderer.scale)"
 
-[node name="OptionButton" type="OptionButton" parent="CenterContainer/Panel/VBox/TabContainer/Graphics/GraphicsList/Scale"]
-custom_minimum_size = Vector2(160, 0)
+[node name="ScaleSlot" type="Control" parent="CenterContainer/Panel/VBox/TabContainer/Graphics/GraphicsList/Scale"]
+custom_minimum_size = Vector2(160, 32)
 layout_mode = 2
-selected = 3
 
 [node name="Sound" type="Control" parent="CenterContainer/Panel/VBox/TabContainer"]
 layout_mode = 1

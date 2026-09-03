@@ -39,6 +39,7 @@ float ModelLibrary::target_height(const String &category, const String &id, floa
 		if (id == "chariot" || id == "scythed_chariot") return 2.4f;
 		if (id == "worker_elephant" || id == "elephant") return 3.2f;
 		if (id == "ram" || id == "siege_ram") return 2.0f;
+		if (id == "bolt_projectile") return 1.15f;
 		if (id == "bolt_shooter" || id == "ballista" || id == "oxybeles") return 1.8f;
 		if (id == "catapult") return 2.2f;
 		if (id == "fishing_boat") return 2.0f;
@@ -608,7 +609,7 @@ ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id)
 									category.utf8().get_data(), id.utf8().get_data(),
 									e.mesh->get_surface_count(),
 									e.crowd_mesh.is_valid() ? e.crowd_mesh->get_surface_count() : 0);
-							Logger::info("mesh", buf);
+							Logger::debug("mesh", buf);
 						}
 					}
 					memdelete(inst);

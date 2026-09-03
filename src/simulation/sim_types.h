@@ -311,6 +311,21 @@ inline const char *unit_type_name(uint8_t type) { return unit_type_info(type).na
 inline const char *unit_type_model(uint8_t type) { return unit_type_info(type).model_id; }
 inline const char *unit_type_portrait(uint8_t type) { return unit_type_info(type).portrait_id; }
 
+inline bool unit_is_ship(uint8_t type) {
+	return type == UNIT_TRIREME || type == UNIT_FISHING_BOAT || type == UNIT_MERCHANT_SHIP;
+}
+
+inline bool unit_is_siege_engine(uint8_t type) {
+	return type == UNIT_SIEGE_RAM || type == UNIT_CATAPULT || type == UNIT_BOLT_SHOOTER;
+}
+
+// Corpse lifetime before removal. Ships use 0 A.D. CCmpDecay SinkingAnim (~4–5s).
+inline float unit_death_duration(uint8_t type) {
+	if (unit_is_ship(type)) return 5.0f;
+	if (unit_is_siege_engine(type)) return 1.6f;
+	return 1.4f;
+}
+
 struct BuildingTypeInfo {
 	const char *name;
 	const char *model_id;

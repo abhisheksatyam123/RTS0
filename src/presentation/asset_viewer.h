@@ -71,6 +71,7 @@ public:
 	RtsoAssetViewer();
 	~RtsoAssetViewer();
 
+	void _notification(int p_what);
 	void _ready() override;
 	void _process(double delta) override;
 	void _unhandled_input(const Ref<InputEvent> &event) override;

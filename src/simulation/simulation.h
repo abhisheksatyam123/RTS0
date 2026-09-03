@@ -28,6 +28,7 @@ struct Projectile {
 	float arc_height = 2.5f;
 	float damage = 15.0f;
 	uint8_t damage_type = 1; // 0=hack, 1=pierce, 2=crush
+	uint8_t visual = 0; // 0=arrow, 1=bolt (warship projectile prop), 2=stone
 	uint8_t status_effect = 0; // bitflags of StatusEffect
 	uint8_t team = 0;
 	uint32_t target_unit_id = 0;
@@ -450,7 +451,7 @@ private:
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
 	void rebuild_auras(); // G4: rebuild AuraManager from temples/heroes/carnyx/female citizens
-	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false);
+	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false, uint8_t visual = 0);
 	void mark_building_wreck(Building &b);
 	void bind_unit_index(uint32_t id, size_t idx);
 	int32_t lookup_unit(uint32_t id) const;

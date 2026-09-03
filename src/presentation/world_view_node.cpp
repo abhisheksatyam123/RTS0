@@ -127,6 +127,9 @@ void RtsoWorldView::init_animation_controllers() {
 	anim_controllers[rtso::UNIT_CATAPULT].load("catapult");
 	anim_controllers[rtso::UNIT_BOLT_SHOOTER].load("bolt");
 	anim_controllers[rtso::UNIT_FEMALE_CITIZEN].load("female");
+	anim_controllers[rtso::UNIT_TRIREME].load("trireme");
+	anim_controllers[rtso::UNIT_FISHING_BOAT].load("fishing_boat");
+	anim_controllers[rtso::UNIT_MERCHANT_SHIP].load("merchant_ship");
 }
 
 void RtsoWorldView::_ready() {
@@ -197,6 +200,25 @@ void RtsoWorldView::_ready() {
 	arrow_mmi->set_material_override(arrow_mat);
 	add_child(arrow_mmi);
 
+	{
+		auto bolt_entry = rtso::ModelLibrary::get("units", "bolt_projectile");
+		Ref<Mesh> bolt = bolt_entry.mesh;
+		bolt_scale = bolt_entry.scale > 0.05f ? bolt_entry.scale : 1.0f;
+		if (!bolt.is_valid()) {
+			Ref<CylinderMesh> bolt_cyl;
+			bolt_cyl.instantiate();
+			bolt_cyl->set_top_radius(0.06f);
+			bolt_cyl->set_bottom_radius(0.08f);
+			bolt_cyl->set_height(1.55f);
+			bolt = bolt_cyl;
+			bolt_scale = 1.0f;
+		}
+		bolt_mm = create_multimesh(bolt, false);
+		bolt_mmi = memnew(MultiMeshInstance3D);
+		bolt_mmi->set_multimesh(bolt_mm);
+		add_child(bolt_mmi);
+	}
+
 	// Resource batches — real 0ad flora & mines with variety
 	tree_a_mm = create_multimesh(rtso::ModelLibrary::get("vegetation", "tree").mesh, false);
 	tree_b_mm = create_multimesh(rtso::ModelLibrary::get("vegetation", "pine").mesh, false);
@@ -248,6 +270,7 @@ void RtsoWorldView::_ready() {
 
 	sfx_bow_shoot[0] = load_s("res://assets/sounds/combat/bow_shoot_1.ogg");
 	sfx_bow_shoot[1] = load_s("res://assets/sounds/combat/bow_shoot_2.ogg");
+	sfx_arrow_fly = load_s("res://assets/sounds/combat/arrow_fly.ogg");
 	sfx_arrow_hit = load_s("res://assets/sounds/combat/arrow_hit.ogg");
 	sfx_catapult_blast = load_s("res://assets/sounds/combat/catapult_blast.ogg");
 	sfx_sword_hit[0] = load_s("res://assets/sounds/combat/sword_hit_1.ogg");
@@ -299,6 +322,91 @@ static AnimationPlayer *find_anim_player(Node *n) {
 		if (AnimationPlayer *found = find_anim_player(n->get_child(i))) return found;
 	}
 	return nullptr;
+}
+
+// 0 A.D. CCmpDecay.cpp SinkingAnim: exponential sink + randomized tilt.
+// template_unit_ship.xml: SinkRate=0.5, SinkAccel=7, DelayTime=0.
+static int wrap_mod(int v, int m) {
+	int r = v % m;
+	return r < 0 ? r + m : r;
+}
+
+// 0 A.D. action → clip (Attack.js, ResourceGatherer.js, CCmpVisualActor, UnitAI carry variant).
+struct WantAnim {
+	String clip;
+	bool loop = true;
+	rtso::AnimState state = rtso::AnimState::Idle;
+};
+
+static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int32_t carry, uint8_t utype) {
+	WantAnim w;
+	if (!alive || uaction == rtso::ACTION_DYING) {
+		w.clip = "Death";
+		w.loop = false;
+		w.state = rtso::AnimState::Death;
+		return w;
+	}
+	// Gather/build/attack block movement clips (SelectMovementAnimation early-out).
+	if (uaction == rtso::ACTION_GATHER) {
+		w.clip = "Gather";
+		w.state = rtso::AnimState::Gather;
+		return w;
+	}
+	if (uaction == rtso::ACTION_BUILD) {
+		w.clip = "Build";
+		w.state = rtso::AnimState::Build;
+		return w;
+	}
+	// Ships: Attack.js keeps attack_ranged until StopAttacking (sail falls back to idle).
+	if (uaction == rtso::ACTION_ATTACK && (speed2 <= 8.0f || rtso::unit_is_ship(utype))) {
+		w.clip = "Attack";
+		w.state = rtso::AnimState::Attack;
+		return w;
+	}
+	// UnitAI.SetDefaultAnimationVariant → carry_food / carry_*; fishing hull uses rowing_move.
+	if (uaction == rtso::ACTION_RETURN_DROPSITE ||
+			(carry > 0 && (speed2 > 0.001f || uaction == rtso::ACTION_MOVE))) {
+		w.clip = "Carry";
+		w.state = rtso::AnimState::Carry;
+		return w;
+	}
+	if (speed2 > 0.001f || uaction == rtso::ACTION_MOVE || uaction == rtso::ACTION_ATTACK ||
+			uaction == rtso::ACTION_ATTACK_MOVE || uaction == rtso::ACTION_PATROL) {
+		w.clip = "Walk";
+		w.state = rtso::AnimState::Walk;
+		return w;
+	}
+	w.clip = "Idle";
+	w.state = rtso::AnimState::Idle;
+	return w;
+}
+
+static void apply_unit_death_xform(Transform3D &xf, uint8_t utype, float death_t, float px, float pz, float hull_h, bool has_death_clip) {
+	if (death_t <= 0.0f) return;
+	if (rtso::unit_is_ship(utype)) {
+		// CCmpDecay SinkingAnim (SinkRate=0.5, SinkAccel=7) plus a linear floor so
+		// the wreck lists immediately — the raw exponential is nearly flat for 1s.
+		float t = death_t;
+		float ang_x = (float)(wrap_mod((int)Math::round(px), 30) - 15) / 15.0f;
+		float ang_z = (float)wrap_mod((int)Math::round(pz), 30) / 40.0f;
+		float u = Math::clamp(t / 2.2f, 0.0f, 1.0f);
+		float rx = ang_x * u * 0.55f;
+		float rz = (ang_z + 0.20f) * u * 0.42f;
+		float expo = 0.5f * (Math::exp(t - 1.0f) - 0.54881163609f)
+				+ 7.0f * (Math::exp(t - 4.0f) - 0.01831563888f);
+		if (expo < 0.0f) expo = 0.0f;
+		float depth = Math::max(expo, t * 1.8f);
+		xf.basis = Basis(Vector3(1, 0, 0), rx) * Basis(Vector3(0, 0, 1), rz) * xf.basis;
+		xf.origin.y -= depth;
+		return;
+	}
+	if (has_death_clip) return;
+	if (rtso::unit_is_siege_engine(utype)) {
+		float u = Math::clamp(death_t / 1.20f, 0.0f, 1.0f);
+		float dy = hull_h > 0.4f ? hull_h : 2.0f;
+		xf.basis = Basis(Vector3(1, 0, 0), u * 0.22f) * Basis(Vector3(0, 1, 0), u * 0.40f) * xf.basis;
+		xf.origin.y -= u * dy * 0.70f;
+	}
 }
 
 static void disable_mesh_shadows(Node *n) {
@@ -580,11 +688,15 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	const float anim_dist_sq = 24.0f * 24.0f;
 	(void)anim_dist_sq;
 
+	// 0 A.D. CCmpVisualActor::SelectMovementAnimation only swaps idle/walk/run.
+	// Attack.js SelectAnimation("attack_*") and ResourceGatherer "gather_*" stay put.
 	auto crowd_clip_of = [](uint8_t uaction, float speed2, bool alive) -> int {
 		if (!alive || uaction == rtso::ACTION_DYING) return 3;
-		if (uaction == rtso::ACTION_ATTACK) return speed2 > 8.0f ? 1 : 2;
 		if (uaction == rtso::ACTION_GATHER || uaction == rtso::ACTION_BUILD) return 0;
-		if (speed2 > 0.001f || uaction == rtso::ACTION_MOVE || uaction == rtso::ACTION_RETURN_DROPSITE) return 1;
+		if (uaction == rtso::ACTION_ATTACK) return 2;
+		if (speed2 > 0.001f || uaction == rtso::ACTION_MOVE || uaction == rtso::ACTION_RETURN_DROPSITE ||
+				uaction == rtso::ACTION_ATTACK_MOVE || uaction == rtso::ACTION_PATROL)
+			return 1;
 		return 0;
 	};
 
@@ -595,6 +707,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	auto uview = sim->units();
 
 	std::unordered_set<uint32_t> detailed;
+	// Dying and fighting ships must be detailed — crowd MultiMesh is a rest pose.
+	for (size_t i = 0; i < uview.count && (int)detailed.size() < MAX_DETAILED_UNITS; ++i) {
+		uint8_t t = uview.unit_type[i];
+		bool dying = !uview.alive[i] || uview.action_state[i] == rtso::ACTION_DYING;
+		bool ship = rtso::unit_is_ship(t);
+		if (dying || ship)
+			detailed.insert(uview.id[i]);
+	}
 	for (int s = 0; s < selected_ids.size() && (int)detailed.size() < MAX_DETAILED_UNITS; ++s) {
 		detailed.insert((uint32_t)selected_ids[s]);
 	}
@@ -684,23 +804,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		yaw += diff * Math::clamp(delta * 14.0f, 0.0f, 1.0f);
 		crowd_yaw[id] = yaw;
 
-		// Evaluate skeletal bone pose via AnimationController based on action_state
-		rtso::AnimState want_anim_state = rtso::AnimState::Idle;
-		if (!uview.alive[i] || uaction == rtso::ACTION_DYING) {
-			want_anim_state = rtso::AnimState::Death;
-		} else if (uaction == rtso::ACTION_ATTACK) {
-			want_anim_state = (speed2 > 8.0f) ? rtso::AnimState::Walk : rtso::AnimState::Attack;
-		} else if (uaction == rtso::ACTION_GATHER) {
-			want_anim_state = rtso::AnimState::Gather;
-		} else if (uaction == rtso::ACTION_BUILD) {
-			want_anim_state = rtso::AnimState::Build;
-		} else if (speed2 > 0.001f || uaction == rtso::ACTION_MOVE || uaction == rtso::ACTION_RETURN_DROPSITE) {
-			want_anim_state = rtso::AnimState::Walk;
-		} else {
-			want_anim_state = rtso::AnimState::Idle;
-		}
-
-		anim_controllers[utype].play(want_anim_state);
+		WantAnim want = resolve_unit_anim(uaction, speed2, uview.alive[i] != 0, uview.carry[i], utype);
+		anim_controllers[utype].play(want.state);
 
 		int bank = is_player ? 0 : 1;
 		uint8_t uciv = is_player ? sim->player_civ() : sim->team_civ(uview.team[i]);
@@ -710,6 +815,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		float y = sim->get_terrain_height(x, z) + entry.y_offset;
 		float sc = entry.scale > 0.05f ? entry.scale : 1.0f;
 		Transform3D xf(Basis(Vector3(0, 1, 0), yaw).scaled(Vector3(sc, sc, sc)), Vector3(x, y, z));
+		const bool dying = !uview.alive[i] || uaction == rtso::ACTION_DYING;
+		const float death_t = dying ? uview.death_timer[i] : 0.0f;
+		if (dying) {
+			apply_unit_death_xform(xf, utype, death_t, x, z, entry.aabb.size.y * sc, false);
+		}
 		int clip = crowd_clip_of(uaction, speed2, uview.alive[i] != 0);
 		int slot = written[bank][utype][clip]++;
 		if (unit_mm[bank][utype][clip].is_valid()) {
@@ -738,37 +848,36 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		} else {
 			v.anim = nullptr;
 		}
-		String want_clip;
-		bool loop_clip = true;
-		if (!uview.alive[i] || uaction == rtso::ACTION_DYING) {
-			want_clip = "Death";
-			loop_clip = false;
-		} else if (uaction == rtso::ACTION_ATTACK && speed2 <= 8.0f) {
-			want_clip = "Attack";
-		} else if (speed2 > 0.001f || uaction == rtso::ACTION_MOVE || uaction == rtso::ACTION_RETURN_DROPSITE ||
-				uaction == rtso::ACTION_ATTACK) {
-			want_clip = "Walk";
-		} else if (uaction == rtso::ACTION_GATHER) {
-			want_clip = "Gather";
-		} else if (uaction == rtso::ACTION_BUILD) {
-			want_clip = "Build";
-		} else {
-			want_clip = "Idle";
-		}
+		String want_clip = want.clip;
+		bool loop_clip = want.loop;
+		bool has_death_clip = v.anim && UtilityFunctions::is_instance_valid(v.anim) && v.anim->has_animation("Death");
 		if (v.anim && UtilityFunctions::is_instance_valid(v.anim)) {
 			if (!v.anim->has_animation(want_clip)) {
 				if (want_clip == "Run" && v.anim->has_animation("Walk")) want_clip = "Walk";
 				else if (want_clip == "Walk" && v.anim->has_animation("Run")) want_clip = "Run";
+				else if (want_clip == "Carry" && v.anim->has_animation("Walk")) want_clip = "Walk";
 				else if (want_clip == "Build" && v.anim->has_animation("Gather")) want_clip = "Gather";
-				else if (v.anim->has_animation("Idle")) want_clip = "Idle";
+				else if (want_clip == "Gather" && v.anim->has_animation("Idle")) want_clip = "Idle";
+				else if (want_clip == "Attack" && v.anim->has_animation("Idle")) want_clip = "Idle";
+				else if (want_clip == "Death") {
+					want_clip = v.anim->has_animation("Idle") ? String("Idle") : String();
+					loop_clip = false;
+				} else if (v.anim->has_animation("Idle")) {
+					want_clip = "Idle";
+				}
 			}
-			play_unit_clip(v, want_clip, loop_clip);
-			v.anim->advance((double)delta);
+			if (!want_clip.is_empty()) {
+				play_unit_clip(v, want_clip, loop_clip);
+				v.anim->advance((double)delta);
+			}
 		}
 
 		float dsc = entry.scale > 0.05f ? entry.scale : 1.0f;
 		Transform3D dxf(Basis(Vector3(0, 1, 0), v.yaw).scaled(Vector3(dsc, dsc, dsc)),
 		               Vector3(x, y, z));
+		if (dying) {
+			apply_unit_death_xform(dxf, utype, death_t, x, z, entry.aabb.size.y * dsc, has_death_clip);
+		}
 		v.root->set_transform(dxf);
 
 		bool is_selected = (sel_set.count((int32_t)id) > 0);
@@ -1016,9 +1125,16 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	// 3. Flying Projectiles (Ballistic Arrows & Catapult Stones)
 	// =========================================================================
 	const auto &projectiles = sim->projectiles();
-	arrow_mm->set_instance_count((int)projectiles.size());
+	int arrow_n = 0, bolt_n = 0;
+	for (const auto &proj : projectiles) {
+		if (proj.visual == 1) bolt_n++;
+		else arrow_n++;
+	}
+	arrow_mm->set_instance_count(arrow_n);
+	if (bolt_mm.is_valid()) bolt_mm->set_instance_count(bolt_n);
 
 	std::unordered_set<uint32_t> current_proj_ids;
+	int arrow_i = 0, bolt_i = 0;
 
 	for (size_t p = 0; p < projectiles.size(); ++p) {
 		const auto &proj = projectiles[p];
@@ -1030,7 +1146,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (dir.length_squared() > 0.001f) dir.normalize();
 
 		// In Godot, CylinderMesh is built along +Y/-Y.
-		// Align column 1 (+Y) with 'dir' so the arrow points forward along its flight path.
+		// Align column 1 (+Y) with 'dir' so the arrow/bolt points along its flight path.
 		Vector3 up(0, 1, 0);
 		if (Math::abs(dir.dot(up)) > 0.95f) up = Vector3(0, 0, 1);
 		Vector3 right = dir.cross(up).normalized();
@@ -1038,7 +1154,12 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		Basis rot(right, dir, forward);
 
 		Transform3D xf(rot, pos);
-		arrow_mm->set_instance_transform((int)p, xf);
+		if (proj.visual == 1 && bolt_mm.is_valid()) {
+			xf.basis = xf.basis.scaled(Vector3(bolt_scale, bolt_scale, bolt_scale));
+			bolt_mm->set_instance_transform(bolt_i++, xf);
+		} else {
+			arrow_mm->set_instance_transform(arrow_i++, xf);
+		}
 
 		// 3D Positional Projectile Release Acoustics (Bow string whoosh / catapult launch)
 		auto pit = tracked_projectiles.find(proj.id);
@@ -1057,6 +1178,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			float pitch = 0.95f + ((float)(rand() % 15) / 100.0f);
 			if (is_crush) {
 				play_spatial_sound(sfx_catapult_blast, launch_pos, -3.0f, 90.0f, 0.75f);
+			} else if (proj.visual == 1 && sfx_arrow_fly.is_valid()) {
+				// template_unit_ship SoundGroups attack_ranged → arrowfly.xml
+				play_spatial_sound(sfx_arrow_fly, launch_pos, -1.0f, 80.0f, pitch);
 			} else {
 				int s_idx = rand() % 2;
 				play_spatial_sound(sfx_bow_shoot[s_idx], launch_pos, -2.0f, 70.0f, pitch);
