@@ -12,6 +12,7 @@
 #include "presentation/minimap_view.h"
 #include "presentation/world_view_node.h"
 #include "presentation/asset_viewer.h"
+#include "presentation/safe_select.h"
 #include "graphics/assets/model_library.h"
 #include "core/job_system.h"
 #include "core/diagnostics/logger.h"
@@ -34,6 +35,7 @@ void initialize_rtso_module(ModuleInitializationLevel p_level) {
 	GDREGISTER_CLASS(RtsoMiniMapView);
 	GDREGISTER_CLASS(RtsoWorldView);
 	GDREGISTER_CLASS(RtsoAssetViewer);
+	GDREGISTER_CLASS(RtsoSafeSelect);
 
 	rtso::JobSystem::instance().start();
 	char buf[160];

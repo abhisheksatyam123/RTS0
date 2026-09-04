@@ -332,7 +332,7 @@ void RtsoMain::_ready() {
 	menu_btn->connect("pressed", Callable(this, "_on_menu_button_pressed"));
 	top_hbox->add_child(menu_btn);
 
-	map_selector = memnew(OptionButton);
+	map_selector = memnew(RtsoSafeSelect);
 	map_selector->set_custom_minimum_size(Vector2(165, 28));
 	map_selector->add_item("Acropolis Bay (2P)", 0);
 	map_selector->add_item("Corinthian Isthmus (4P)", 1);
@@ -349,9 +349,9 @@ void RtsoMain::_ready() {
 	map_selector->add_item("Procedural Acropolis (RMS)", 12);
 	map_selector->add_item("Procedural Spartan Valley (RMS)", 13);
 	map_selector->connect("item_selected", Callable(this, "_on_map_selected"));
-	rtso::parent_option_button(top_hbox, map_selector);
+	top_hbox->add_child(map_selector);
 
-	civ_selector = memnew(OptionButton);
+	civ_selector = memnew(RtsoSafeSelect);
 	civ_selector->set_custom_minimum_size(Vector2(125, 28));
 	civ_selector->add_item("Athenians", rtso::CIV_ATHENIANS);
 	civ_selector->add_item("Spartans", rtso::CIV_SPARTANS);
@@ -368,9 +368,9 @@ void RtsoMain::_ready() {
 	civ_selector->add_item("Seleucids", rtso::CIV_SELEUCIDS);
 	civ_selector->connect("item_selected", Callable(this, "_on_civ_selected"));
 	civ_selector->select((int)sim->player_civ());
-	rtso::parent_option_button(top_hbox, civ_selector);
+	top_hbox->add_child(civ_selector);
 
-	ai_diff_selector = memnew(OptionButton);
+	ai_diff_selector = memnew(RtsoSafeSelect);
 	ai_diff_selector->set_custom_minimum_size(Vector2(100, 28));
 	ai_diff_selector->add_item("AI Sandbox", rtso::PETRA_SANDBOX);
 	ai_diff_selector->add_item("AI Very Easy", rtso::PETRA_VERY_EASY);
@@ -380,25 +380,25 @@ void RtsoMain::_ready() {
 	ai_diff_selector->add_item("AI Very Hard", rtso::PETRA_VERY_HARD);
 	ai_diff_selector->select(rtso::PETRA_MEDIUM);
 	ai_diff_selector->connect("item_selected", Callable(this, "_on_ai_diff_selected"));
-	rtso::parent_option_button(top_hbox, ai_diff_selector);
+	top_hbox->add_child(ai_diff_selector);
 
-	ai_behavior_selector = memnew(OptionButton);
+	ai_behavior_selector = memnew(RtsoSafeSelect);
 	ai_behavior_selector->set_custom_minimum_size(Vector2(110, 28));
 	ai_behavior_selector->add_item("AI Balanced", rtso::PETRA_BEHAVIOR_BALANCED);
 	ai_behavior_selector->add_item("AI Defensive", rtso::PETRA_BEHAVIOR_DEFENSIVE);
 	ai_behavior_selector->add_item("AI Aggressive", rtso::PETRA_BEHAVIOR_AGGRESSIVE);
 	ai_behavior_selector->add_item("AI Random", rtso::PETRA_BEHAVIOR_RANDOM);
 	ai_behavior_selector->connect("item_selected", Callable(this, "_on_ai_behavior_selected"));
-	rtso::parent_option_button(top_hbox, ai_behavior_selector);
+	top_hbox->add_child(ai_behavior_selector);
 
-	victory_selector = memnew(OptionButton);
+	victory_selector = memnew(RtsoSafeSelect);
 	victory_selector->set_custom_minimum_size(Vector2(110, 28));
 	victory_selector->add_item("Conquest", rtso::VICTORY_CONQUEST);
 	victory_selector->add_item("Wonder", rtso::VICTORY_WONDER);
 	victory_selector->add_item("Relics", rtso::VICTORY_RELIC);
 	victory_selector->add_item("Endless", rtso::VICTORY_ENDLESS);
 	victory_selector->connect("item_selected", Callable(this, "_on_victory_selected"));
-	rtso::parent_option_button(top_hbox, victory_selector);
+	top_hbox->add_child(victory_selector);
 
 	voice_btn = memnew(Button);
 	voice_btn->set_custom_minimum_size(Vector2(72, 28));
@@ -785,13 +785,13 @@ void RtsoMain::_ready() {
 	chat_title->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 	chat_top_bar->add_child(chat_title);
 
-	chat_channel = memnew(OptionButton);
+	chat_channel = memnew(RtsoSafeSelect);
 	chat_channel->set_custom_minimum_size(Vector2(90, 22));
 	chat_channel->add_item("All", 0);
 	chat_channel->add_item("Allies", 1);
 	chat_channel->add_item("Team", 2);
 	chat_channel->add_theme_font_size_override("font_size", 10);
-	rtso::parent_option_button(chat_top_bar, chat_channel);
+	chat_top_bar->add_child(chat_channel);
 
 	Button *chat_close = memnew(Button);
 	chat_close->set_custom_minimum_size(Vector2(22, 22));
@@ -894,7 +894,7 @@ void RtsoMain::_ready() {
 		diplo_player_names[p]->add_theme_font_size_override("font_size", 11);
 		prow->add_child(diplo_player_names[p]);
 
-		diplo_stances[p] = memnew(OptionButton);
+		diplo_stances[p] = memnew(RtsoSafeSelect);
 		diplo_stances[p]->set_custom_minimum_size(Vector2(95, 24));
 		diplo_stances[p]->add_theme_font_size_override("font_size", 10);
 		if (p == 0) {
@@ -907,7 +907,7 @@ void RtsoMain::_ready() {
 			diplo_stances[p]->select(2); // Enemy
 			diplo_stances[p]->connect("item_selected", Callable(this, "_on_diplo_stance_changed").bind(p));
 		}
-		rtso::parent_option_button(prow, diplo_stances[p]);
+		prow->add_child(diplo_stances[p]);
 
 		if (p == 0) {
 			Label *self_lbl = memnew(Label);
@@ -1944,7 +1944,7 @@ void RtsoMain::update_inspector() {
 					ungarrison_btn->set_text("Disembark (Z)");
 					ungarrison_btn->set_visible(true);
 				} else {
-					inspector_extra->set_text("🚢 Warship / Transport • Capacity: " + String::num_int64(rtso::Simulation::TRANSPORT_CAPACITY) + " troops");
+					inspector_extra->set_text("🚢 Arrow warship (ranged pierce, 3× vs ships) • Capacity: " + String::num_int64(rtso::Simulation::TRANSPORT_CAPACITY) + " troops");
 					ungarrison_btn->set_text("Ungarrison (Z)");
 					ungarrison_btn->set_visible(false);
 				}

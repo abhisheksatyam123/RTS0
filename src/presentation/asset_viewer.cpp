@@ -185,25 +185,25 @@ void RtsoAssetViewer::build_ui() {
 	title->add_theme_font_size_override("font_size", 18);
 	lv->add_child(title);
 
-	cat_box = memnew(OptionButton);
+	cat_box = memnew(RtsoSafeSelect);
 	cat_box->add_item("Units");
 	cat_box->add_item("Fauna");
 	cat_box->add_item("Buildings");
 	cat_box->add_item("Vegetation");
 	cat_box->connect("item_selected", Callable(this, "_on_cat_selected"));
-	rtso::parent_option_button(lv, cat_box);
+	lv->add_child(cat_box);
 
 	Label *civ_title = memnew(Label);
 	civ_title->set_text("Civilization");
 	civ_title->add_theme_font_size_override("font_size", 13);
 	lv->add_child(civ_title);
 
-	civ_box = memnew(OptionButton);
+	civ_box = memnew(RtsoSafeSelect);
 	for (int c = 0; c < rtso::CIV_COUNT; ++c)
 		civ_box->add_item(rtso::civ_info((uint8_t)c).name, c);
 	civ_box->select(rtso::CIV_ATHENIANS);
 	civ_box->connect("item_selected", Callable(this, "_on_civ_selected"));
-	rtso::parent_option_button(lv, civ_box);
+	lv->add_child(civ_box);
 
 	item_list = memnew(ItemList);
 	item_list->set_v_size_flags(Control::SIZE_EXPAND_FILL);

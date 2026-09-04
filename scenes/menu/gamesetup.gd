@@ -33,10 +33,9 @@ func _ready() -> void:
 	_mute_spin($VBox/HBox/Left/Players/SpinPlayers)
 	_mute_spin($VBox/HBox/Left/Resources/SpinRes)
 
-func _make_option(slot: Control) -> OptionButton:
-	var ob := OptionButton.new()
+func _make_option(slot: Control) -> RtsoSafeSelect:
+	var ob := RtsoSafeSelect.new()
 	ob.set_anchors_preset(Control.PRESET_FULL_RECT)
-	MatchSettings.prepare_option(ob)
 	slot.add_child(ob)
 	return ob
 
@@ -44,10 +43,10 @@ func _mute_spin(sb: SpinBox) -> void:
 	if sb:
 		MatchSettings.prepare_line_edit(sb.get_line_edit())
 
-func _civ_option() -> OptionButton:
+func _civ_option() -> RtsoSafeSelect:
 	return $VBox/HBox/Left/CivSlot.get_child(0)
 
-func _map_option() -> OptionButton:
+func _map_option() -> RtsoSafeSelect:
 	return $VBox/HBox/Left/MapSlot.get_child(0)
 
 func _on_civ_changed(idx: int) -> void:
@@ -62,8 +61,8 @@ func _on_back_pressed() -> void:
 	MatchSettings.go("res://scenes/menu/main_menu.tscn")
 
 func _on_start_pressed() -> void:
-	var civ_opt: OptionButton = _civ_option()
-	var map_opt: OptionButton = _map_option()
+	var civ_opt: RtsoSafeSelect = _civ_option()
+	var map_opt: RtsoSafeSelect = _map_option()
 	var players_node = get_node_or_null("VBox/HBox/Left/Players/SpinPlayers")
 	var players = int(players_node.value) if players_node else 2
 	var civ := civ_opt.selected
