@@ -306,7 +306,9 @@ CIV_CORE_ACTORS = {
     },
 }
 
-CIV_STRUCTURE_FOLDERS = {
+# 0 A.D. art folder names per civ, most specific first. Shared by the unit and
+# structure probes (art/actors/units/<folder> and art/actors/structures/<folder>).
+CIV_ART_FOLDERS = {
     "athen": ["athenians", "hellenes"],
     "spart": ["spartans", "hellenes"],
     "pers": ["persians"],
@@ -320,6 +322,30 @@ CIV_STRUCTURE_FOLDERS = {
     "kush": ["kushites"],
     "ptol": ["ptolemies"],
     "sele": ["seleucids", "hellenes"],
+}
+
+# 0 A.D. filenames for each RTS0 unit id that CIV_CORE_ACTORS does not spell out
+# (siege, chariots, camels, elephants, merchantmen). Probed against each civ's
+# folders exactly like BLD_ACTOR_NAMES, so a civ that lacks the unit simply has
+# no `{code}_{unit}.glb` and ModelLibrary falls back to the generic mesh.
+CIV_UNIT_ACTOR_NAMES = {
+    "catapult": ("siege_lithobolos_med.xml", "siege_onager.xml", "siege_lithobolos.xml",
+                 "siege_polybolos.xml", "siege_rock.xml", "siege_spear.xml"),
+    "siege_ram": ("siege_ram.xml",),
+    "ram": ("siege_ram.xml",),
+    "bolt_shooter": ("siege_oxybeles.xml", "siege_polybolos.xml",
+                     "siege_ballista_med.xml", "siege_ballista.xml"),
+    "chariot": ("chariot_javelinist_c_m.xml", "chariot_archer_c_m.xml",
+                "chariot_archer_b_m.xml", "chariot_archer_a_m.xml"),
+    "scythed_chariot": ("chariot_archer_a_m.xml", "chariot_archer_c_m.xml",
+                        "chariot_javelinist_c_m.xml"),
+    "war_dog": ("war_dog_mastiff_a.xml", "wolfhound.xml"),
+    "camel": ("camel_archer_a_m.xml", "camel_javelinist_b_m.xml", "camel_swordsman_m.xml"),
+    "elephant": ("elephantry_archer_e_m.xml", "elephantry_c_m.xml"),
+    "worker_elephant": ("support_elephant.xml",),
+    "carnyx": ("infantry_carnyx_c.xml",),
+    "archer_maiden": ("infantry_archer_c.xml", "infantry_archer_b.xml", "infantry_archer_a.xml"),
+    "merchant_ship": ("merchant_ship.xml", "merchantman.xml", "merchant_sail.xml", "merchant.xml"),
 }
 
 # 0 A.D. filenames for each RTS0 building id (first match in civ folders wins).
@@ -363,44 +389,76 @@ BLD_GLOBAL_FALLBACK = {
 }
 
 
+def _register_civ_unit(assets, names, code, uid, actor):
+    """Bind one `{code}_{uid}` asset to a 0 A.D. actor, inheriting rider setup."""
+    if uid not in ASSETS:
+        return None
+    aid = f"{code}_{uid}"
+    _path, fit, target, tint = ASSETS[uid]
+    assets[aid] = (actor, fit, target, tint)
+    if uid in RIDER_ATTACHMENTS:
+        rpath, ap_name, sit = RIDER_ATTACHMENTS[uid][0]
+        if actor.endswith("_m.xml"):
+            rider = actor[:-6] + "_r.xml"
+        elif uid == "trader":
+            cand = (actor[:-len("trader.xml")] + "trader_r.xml") if actor.endswith("trader.xml") else None
+            if cand and cand in names:
+                rider = cand
+            elif "camel" in actor or "carthaginians" in actor or "persians" in actor:
+                rider = None
+                UNIT_CFG[aid] = ("camel", {
+                    "Idle": "camel_idle", "Walk": "camel_walk", "Run": "camel_run",
+                    "Attack": "camel_attack", "Death": "camel_death"})
+            else:
+                rider = rpath
+        else:
+            rider = rpath
+        if rider:
+            RIDER_ATTACHMENTS[aid] = [(rider, ap_name, sit)]
+        else:
+            RIDER_ATTACHMENTS.pop(aid, None)
+    if uid in RIDER_CLIPS:
+        if aid in RIDER_ATTACHMENTS:
+            RIDER_CLIPS[aid] = RIDER_CLIPS[uid]
+        else:
+            RIDER_CLIPS.pop(aid, None)
+    return aid
+
+
 def register_civ_unit_assets(assets, zf=None):
     """Add `{code}_{unit}` entries and copy UNIT_CFG / rider attach from the base unit."""
     names = set(zf.namelist()) if zf is not None else set()
     added = []
     for code, units in CIV_CORE_ACTORS.items():
         for uid, actor in units.items():
-            if uid not in ASSETS:
-                continue
+            aid = _register_civ_unit(assets, names, code, uid, actor)
+            if aid:
+                added.append(aid)
+    # Siege/chariot/camel/elephant/merchantman: probe the civ's own folders the
+    # way buildings do. A civ 0 A.D. never gave the unit is skipped, and
+    # ModelLibrary falls back to the generic mesh at load time.
+    for code, folders in CIV_ART_FOLDERS.items():
+        for uid, filenames in CIV_UNIT_ACTOR_NAMES.items():
             aid = f"{code}_{uid}"
-            _path, fit, target, tint = ASSETS[uid]
-            assets[aid] = (actor, fit, target, tint)
-            if uid in RIDER_ATTACHMENTS:
-                rpath, ap_name, sit = RIDER_ATTACHMENTS[uid][0]
-                if actor.endswith("_m.xml"):
-                    rider = actor[:-6] + "_r.xml"
-                elif uid == "trader":
-                    cand = (actor[:-len("trader.xml")] + "trader_r.xml") if actor.endswith("trader.xml") else None
-                    if cand and cand in names:
-                        rider = cand
-                    elif "camel" in actor or "carthaginians" in actor or "persians" in actor:
-                        rider = None
-                        UNIT_CFG[aid] = ("camel", {
-                            "Idle": "camel_idle", "Walk": "camel_walk", "Run": "camel_run",
-                            "Attack": "camel_attack", "Death": "camel_death"})
-                    else:
-                        rider = rpath
-                else:
-                    rider = rpath
-                if rider:
-                    RIDER_ATTACHMENTS[aid] = [(rider, ap_name, sit)]
-                else:
-                    RIDER_ATTACHMENTS.pop(aid, None)
-            if uid in RIDER_CLIPS:
-                if aid in RIDER_ATTACHMENTS:
-                    RIDER_CLIPS[aid] = RIDER_CLIPS[uid]
-                else:
-                    RIDER_CLIPS.pop(aid, None)
-            added.append(aid)
+            if uid not in ASSETS or aid in assets:
+                continue
+            actor = None
+            for folder in folders:
+                for fn in filenames:
+                    for root in ("units", "structures"):
+                        path = f"art/actors/{root}/{folder}/{fn}"
+                        if path in names:
+                            actor = path
+                            break
+                    if actor:
+                        break
+                if actor:
+                    break
+            if actor is None:
+                continue
+            got = _register_civ_unit(assets, names, code, uid, actor)
+            if got:
+                added.append(got)
     _apply_civ_unit_overrides()
     return added
 
@@ -440,7 +498,7 @@ def register_civ_building_assets(assets, zf):
     """Add `{code}_{building}` entries from each civ's 0 A.D. structure actors."""
     names = set(zf.namelist())
     added = []
-    for code, folders in CIV_STRUCTURE_FOLDERS.items():
+    for code, folders in CIV_ART_FOLDERS.items():
         for bid, filenames in BLD_ACTOR_NAMES.items():
             if bid not in ASSETS:
                 continue
@@ -916,6 +974,28 @@ def parse_psa(data):
         keys.append({"t": (tx, ty, tz), "q": (qx, qy, qz, qw)})
     return {"version": version, "frameTime": frameTime, "numKeys": numKeys, "numFrames": numFrames, "keys": keys}
 
+
+_PSA_KEYS_CACHE = {}
+
+
+def psa_num_keys(vfs, ref):
+    """Bone count a PSA drives, header only. Every clip is probed against every
+    candidate body, so decoding the key array here would dominate the run."""
+    if ref in _PSA_KEYS_CACHE:
+        return _PSA_KEYS_CACHE[ref]
+    n = None
+    try:
+        data = vfs.read(ref)
+        if data[0:4] == b"PSSA":
+            o = 12
+            o += 4 + struct.unpack_from("<I", data, o)[0]  # unused name
+            n = struct.unpack_from("<I", data, o + 4)[0]
+    except Exception:
+        n = None
+    _PSA_KEYS_CACHE[ref] = n
+    return n
+
+
 def parse_skeleton_xml(data):
     """Parse art/skeletons/*.xml -> bone hierarchy list [{name,parent}]"""
     root = ET.fromstring(data)
@@ -1061,6 +1141,9 @@ class Vfs:
         self.zf = zf
         self._tex_cache = {}
         self._png_cache = {}
+        # namelist() rebuilds a ~50k list on every call and exists() is the
+        # hottest thing in the extractor, so keep it as a set.
+        self._names = set(zf.namelist())
 
     def read(self, path):
         if os.path.isfile(path):
@@ -1069,7 +1152,7 @@ class Vfs:
         return self.zf.read(path)
 
     def exists(self, path):
-        return os.path.isfile(path) or (path in self.zf.namelist())
+        return path in self._names or os.path.isfile(path)
 
     def mesh_path(self, ref):
         ref = ref.strip().replace("\\", "/")
@@ -1241,6 +1324,10 @@ def compose_actor(vfs, actor_path, depth=0, tint=None, sources=None, skip_actors
         print(f"  ! missing actor {actor_path}")
         return [], ""
     root = ET.fromstring(vfs.read(actor_path))
+    if root.tag == "qualitylevels":
+        inline = root.find("inline")
+        if inline is not None:
+            root = inline
     material_name = ""
     acc_mesh = None
     acc_tex = {}
@@ -1358,20 +1445,55 @@ def compose_actor(vfs, actor_path, depth=0, tint=None, sources=None, skip_actors
     return final_parts, material_name
 
 
-# Godot clip names used by world_view_node. 0 A.D. actor XML uses mixed case.
+# Godot clip names used by world_view_node / AnimationController. 0 A.D. names
+# are free-form and mixed case (attack_ranged, gather_tree, Build_farm, …), so
+# fold every 0 A.D. variant onto the state the renderer actually asks for.
 _CLIP_CANON = {
-    "idle": "Idle", "walk": "Walk", "run": "Run", "move": "Walk",
+    "idle": "Idle", "idle_transition": "Idle", "feeding": "Idle",
+    "walk": "Walk", "move": "Walk", "walk_feeding": "Walk",
+    "run": "Run", "flee": "Run",
     "attack": "Attack", "attack_melee": "Attack", "attack_ranged": "Attack",
-    "death": "Death", "gather": "Gather", "build": "Build",
-    "slaughter": "Slaughter", "carry": "Carry", "carry_food": "Carry",
+    "attack_capture": "Attack",
+    "attack_slaughter": "Slaughter", "slaughter": "Slaughter",
+    "death": "Death",
+    "build": "Build", "build_farm": "Build",
+    "heal": "Heal",
+    "promotion": "Promotion",
+}
+# gather_* / carry_* fan out over every resource; the renderer has one state each.
+_CLIP_PREFIX_CANON = (("gather_", "Gather"), ("carry_", "Carry"))
+# Anything outside this set is a 0 A.D. detail state we have no renderer hook
+# for; harvesting it would multiply every GLB by a clip nobody plays.
+_CLIP_WANTED = ("Idle", "Walk", "Run", "Attack", "Death",
+                "Gather", "Build", "Carry", "Heal", "Slaughter")
+# Several 0 A.D. names fold onto one state; lowest rank wins so a swordsman
+# keeps attack_melee rather than the attack_capture shove, and a gatherer
+# keeps a tool swing rather than the fruit-picking crouch.
+_CLIP_RANK = {
+    "attack_melee": 0, "attack_ranged": 0, "attack": 0, "attack_capture": 3,
+    "gather_tree": 0, "gather_ore": 0, "gather_rock": 0, "gather_ruins": 0,
+    "gather_grain": 1, "gather_fruit": 2, "gather_fish": 2,
+    "gather_meat": 3, "gather_praise": 4,
+    "carry_food": 0, "carry_wood": 0, "carry_stone": 0, "carry_metal": 0,
+    "carry_meat": 1, "carry_fish": 1,
+    "idle": 0, "feeding": 3, "idle_transition": 4,
+    "walk": 0, "move": 0, "walk_feeding": 3,
+    "run": 0, "flee": 3,
+    "build": 0, "build_farm": 1,
 }
 
 
 def _canon_clip(name):
-    n = (name or "").strip()
+    n = (name or "").strip().lower()
     if not n:
         return ""
-    return _CLIP_CANON.get(n.lower(), n[0].upper() + n[1:])
+    hit = _CLIP_CANON.get(n)
+    if hit:
+        return hit
+    for prefix, state in _CLIP_PREFIX_CANON:
+        if n.startswith(prefix):
+            return state
+    return n[0].upper() + n[1:]
 
 
 def _psa_for_dae(vfs, dae_file):
@@ -1393,35 +1515,59 @@ def _psa_for_dae(vfs, dae_file):
     return None
 
 
-def collect_actor_clips(vfs, actor_path, depth=0, seen=None):
-    """Read Idle/Walk/… PSA paths from the actor, its variant files, and props.
+def collect_actor_clips(vfs, actor_path, depth=0, seen=None, skip=None):
+    """Read Idle/Walk/Attack/… PSA paths from the actor, its variants, and props.
 
-    This is how 0 A.D. actually animates a unit: the mesh actor plus sail/oar
-    prop actors declare <animation file='…dae'>. No per-civ extract table.
+    This is how 0 A.D. actually animates a unit: the mesh actor plus its vehicle
+    props (sail, oars, the donkey under a Celtic trader) declare
+    <animation file='…dae'>. No per-civ extract table.
+
+    Every variant of a group is scanned, not just the one compose_actor picks
+    for geometry: 0 A.D. keeps attack/death/gather as *sibling* variants that
+    UnitAI swaps in by name, so picking one would throw the rest away.
+
+    `skip` holds the crew actors attach_rider_parts sit-bakes separately, so a
+    fisherman's idle is never mistaken for his boat's body clip.
     """
     seen = seen if seen is not None else set()
+    skip = skip or set()
     clips = {}
     path = _actor_path(actor_path)
     if depth > 6 or not path or path in seen or not vfs.exists(path):
         return clips
     seen.add(path)
     root = ET.fromstring(vfs.read(path))
+    if root.tag == "qualitylevels":
+        inline = root.find("inline")
+        if inline is not None:
+            root = inline
     vcache = {}
+
+    ranks = {}
 
     def add_anim(anim):
         psa = _psa_for_dae(vfs, anim.get("file") or "")
         if not psa:
             return
-        key = _canon_clip(anim.get("name") or "")
-        if key and key not in clips:
+        raw = (anim.get("name") or "").strip().lower()
+        key = _canon_clip(raw)
+        if key not in _CLIP_WANTED:
+            return
+        rank = _CLIP_RANK.get(raw, 1)
+        if key not in clips or rank < ranks[key]:
             clips[key] = psa
+            ranks[key] = rank
 
-    def walk_var(var):
+    vehicle_props = []
+
+    def walk_var(var, props=True):
         if var is None:
             return
         resolved = resolve_variant_chain(vfs, var, vcache)
         for anim in resolved.iter("animation"):
             add_anim(anim)
+        if not props:
+            return
         for pr in resolved.iter("prop"):
             act = (pr.get("actor") or "").strip()
             ap = (pr.get("attachpoint") or "").strip().lower()
@@ -1429,23 +1575,25 @@ def collect_actor_clips(vfs, actor_path, depth=0, seen=None):
                 continue
             if any(s in act for s in ("decals/", "platforms/", "particle", "flag")):
                 continue
-            # Crew/fauna props are sit-baked separately. Only follow cloth/oar
-            # actors so a fisherman idle is not treated as the ship's body clip.
-            if not any(s in act.lower() for s in ("sail", "oar", "rowing", "shroud")):
+            if _actor_path(act) in skip:
                 continue
-            for k, v in collect_actor_clips(vfs, act, depth + 1, seen).items():
-                if k not in clips:
-                    clips[k] = v
+            vehicle_props.append(act)
 
     for anim in root.findall("./animations/animation"):
         add_anim(anim)
     for g in root.findall("group"):
-        var = _pick_variant(g)
-        if var is None:
-            continue
-        if "destruction" in (var.get("file") or ""):
-            continue
-        walk_var(var)
+        picked = _pick_variant(g)
+        for var in g.findall("variant"):
+            if "destruction" in (var.get("file") or ""):
+                continue
+            # Props only come from the variant compose_actor renders; the other
+            # variants contribute animations alone.
+            walk_var(var, props=(var is picked))
+    # Props run last so the actor's own clips always outrank a prop's.
+    for act in vehicle_props:
+        for k, v in collect_actor_clips(vfs, act, depth + 1, seen, skip).items():
+            if k not in clips:
+                clips[k] = v
     return clips
 
 
@@ -1473,9 +1621,8 @@ def _skeleton_for_clips(vfs, clips, preferred=""):
     for psa_path in clips.values():
         if not vfs.exists(psa_path):
             continue
-        try:
-            nk = parse_psa(vfs.read(psa_path))["numKeys"]
-        except Exception:
+        nk = psa_num_keys(vfs, psa_path)
+        if nk is None:
             continue
         for name, n in counts.items():
             if n == nk:
@@ -1486,7 +1633,8 @@ def _skeleton_for_clips(vfs, clips, preferred=""):
 
 def resolve_anim_cfg(vfs, asset_id, actor_ref):
     """Prefer clips declared on the 0 A.D. actor; UNIT_CFG is only a fallback."""
-    harvested = collect_actor_clips(vfs, actor_ref)
+    harvested = collect_actor_clips(
+        vfs, actor_ref, skip=_rider_skip_actors(asset_id, resolve_riders(vfs, asset_id, actor_ref)))
     base = _fallback_unit_cfg(asset_id)
     merged = dict(harvested)
     if base:
@@ -1612,9 +1760,13 @@ def _pose_rider_sit(vfs, rparts, psa_key):
         print("  ! rider body has no bind bones; sit bake skipped")
         return
     rest_tq = list(rbody.mesh_data["bones"])
+    if psa["numKeys"] != len(rest_tq):
+        # CModel::SetAnimation rejects this pairing outright; padding the missing
+        # keys with rest-pose bones tears the mesh (posed parents, rest children).
+        print(f"  ! rider sit skipped: {ref} has {psa['numKeys']} keys, "
+              f"mesh has {len(rest_tq)} bones")
+        return
     pose_tq = _psa_frame_tq(psa, 0)
-    while len(pose_tq) < len(rest_tq):
-        pose_tq.append(rest_tq[len(pose_tq)])
     n = min(len(rest_tq), len(pose_tq))
     skinned = 0
     propped = 0
@@ -1637,11 +1789,50 @@ def _pose_rider_sit(vfs, rparts, psa_key):
     print(f"  rider sit <- {ref} (skinned {skinned} parts, props {propped})")
 
 
-def _rider_skip_actors(asset_id):
-    return {_actor_path(p) for p, _ap, _sit in RIDER_ATTACHMENTS.get(asset_id, [])}
+def _actor_prop_at(vfs, actor_path, ap_name, depth=0, seen=None):
+    """Actor this hull props at `attachpoint`, following shared variant files."""
+    seen = seen if seen is not None else set()
+    path = _actor_path(actor_path)
+    if depth > 4 or not path or path in seen or not vfs.exists(path):
+        return None
+    seen.add(path)
+    root = ET.fromstring(vfs.read(path))
+    if root.tag == "qualitylevels":
+        inline = root.find("inline")
+        if inline is not None:
+            root = inline
+    vcache = {}
+    for g in root.findall("group"):
+        var = resolve_variant_chain(vfs, _pick_variant(g), vcache)
+        if var is None:
+            continue
+        for pr in var.iter("prop"):
+            if (pr.get("attachpoint") or "").strip().lower() == ap_name.lower():
+                act = (pr.get("actor") or "").strip()
+                if act:
+                    return _actor_path(act)
+    return None
 
 
-def attach_rider_parts(vfs, parts, body, asset_id, tint, sources):
+def resolve_riders(vfs, asset_id, actor_ref):
+    """RIDER_ATTACHMENTS, but with each crew actor taken from the hull itself.
+
+    A Kushite fishing boat props a Kushite fisherman; using the table's Hellenic
+    one would leave two men in one boat.
+    """
+    out = []
+    for rpath, ap_name, sit_key in RIDER_ATTACHMENTS.get(asset_id, []):
+        own = _actor_prop_at(vfs, actor_ref, ap_name)
+        out.append((own or _actor_path(rpath), ap_name, sit_key))
+    return out
+
+
+def _rider_skip_actors(asset_id, riders=None):
+    src = riders if riders is not None else RIDER_ATTACHMENTS.get(asset_id, [])
+    return {_actor_path(p) for p, _ap, _sit in src}
+
+
+def attach_rider_parts(vfs, parts, body, asset_id, tint, sources, riders=None):
     """Sit-bake each mount crew actor and rigid-bind it to its attachpoint.
 
     Crew uses a 46-bone biped; the mount uses a different skeleton. One glTF
@@ -1649,7 +1840,8 @@ def attach_rider_parts(vfs, parts, body, asset_id, tint, sources):
     Bake the sit/ready PSA first — bind-pose riders stand in the saddle.
     compose_actor skips these props so this is the only instance of each.
     """
-    for rpath, ap_name, sit_key in RIDER_ATTACHMENTS.get(asset_id, []):
+    for rpath, ap_name, sit_key in (riders if riders is not None
+                                    else RIDER_ATTACHMENTS.get(asset_id, [])):
         rparts, _ = compose_actor(vfs, rpath, 0, tint, sources)
         if not rparts:
             print(f"  ! rider actor empty: {rpath}")
@@ -2011,7 +2203,8 @@ class GlbBuilder:
 def compile_asset(vfs, asset_id, actor_ref, fit, target, tint, out_dir):
     print(f"[{asset_id}] {actor_ref}")
     sources = set()
-    skip_actors = _rider_skip_actors(asset_id)
+    riders = resolve_riders(vfs, asset_id, actor_ref)
+    skip_actors = _rider_skip_actors(asset_id, riders)
     parts, material_name = compose_actor(vfs, actor_ref, 0, tint, sources, skip_actors)
     if not parts:
         raise RuntimeError(f"no parts composed for {asset_id}")
@@ -2022,7 +2215,7 @@ def compile_asset(vfs, asset_id, actor_ref, fit, target, tint, out_dir):
             break
     if body is None:
         body = parts[0]
-    parts = attach_rider_parts(vfs, parts, body, asset_id, tint, sources)
+    parts = attach_rider_parts(vfs, parts, body, asset_id, tint, sources, riders)
     glb = GlbBuilder()
     all_pos = []
     baked_cache = {}  # (tex_ref, tint) -> img_idx
@@ -2124,7 +2317,8 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
     """
     print(f"[{asset_id}] (animated) {actor_ref}  skeleton={skeleton_name}")
     sources = set()
-    skip_actors = _rider_skip_actors(asset_id)
+    riders = resolve_riders(vfs, asset_id, actor_ref)
+    skip_actors = _rider_skip_actors(asset_id, riders)
     parts, material_name = compose_actor(vfs, actor_ref, 0, tint, sources, skip_actors)
     if not parts:
         raise RuntimeError(f"no parts composed for {asset_id}")
@@ -2137,6 +2331,15 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
         sb = parse_skeleton_xml(vfs.read(skel_ref))
         bone_names = [b["name"] for b in sb]
         want_bones = len(sb)
+    # CModel::SetAnimation only accepts a PSA whose key count equals the mesh's
+    # bone count, so the animated body is the part the clips can actually drive
+    # — for a siege engine that is the 7-bone frame, not the rock it throws.
+    clip_bones = set()
+    for psa_key in anims_map.values():
+        ref = ANIMATIONS.get(psa_key, psa_key)
+        nk = psa_num_keys(vfs, ref) if vfs.exists(ref) else None
+        if nk is not None:
+            clip_bones.add(nk)
     body = None
     fallback = None
     hull = None
@@ -2148,15 +2351,20 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
         if nb < hull_n:
             hull_n = nb
             hull = p
-        if want_bones and nb == want_bones:
+        if nb and nb in clip_bones and body is None:
             body = p
-            break
+    if body is None:
+        for p in parts:
+            nb = len((p.mesh_data or {}).get("bones") or [])
+            if want_bones and nb == want_bones:
+                body = p
+                break
     if body is None:
         # Civ boats often have a static hull plus a skinned rider. Prefer the
         # hull when no part matches the UNIT_CFG skeleton (else the rider
         # becomes the body and hull clips warp the fisherman).
         body = hull or fallback or parts[0]
-    parts = attach_rider_parts(vfs, parts, body, asset_id, tint, sources)
+    parts = attach_rider_parts(vfs, parts, body, asset_id, tint, sources, riders)
     # Safety net: ensure any villager/citizen asset has the knife (dagger) on weapon_R
     is_villager = "villager" in asset_id or "female_citizen" in asset_id or "citizen" in asset_id
     has_weapon_r = any(getattr(p, "bone", 0) == 25 for p in parts[1:])
@@ -2179,6 +2387,30 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
                 break
     bones_local = body.mesh_data.get("bones", [])
     num_bones = max(1, len(bones_local))
+    if bones_local:
+        # Same key check CModel::SetAnimation applies. A UNIT_CFG fallback aimed
+        # at a sibling skeleton (lithobolos clips on an onager frame) has to go
+        # before the states that borrow from Idle/Walk are filled back in.
+        kept = {}
+        for state, psa_key in anims_map.items():
+            ref = ANIMATIONS.get(psa_key, psa_key)
+            if not vfs.exists(ref):
+                print(f"  ! anim missing: {ref}")
+                continue
+            nk = psa_num_keys(vfs, ref)
+            if nk is None:
+                print(f"  ! anim parse failed {state}: {ref}")
+                continue
+            if nk == num_bones:
+                kept[state] = psa_key
+            else:
+                print(f"  ! {state} dropped: {ref} has {nk} keys, body has {num_bones} bones")
+        if kept:
+            kept.setdefault("Run", kept.get("Walk", kept.get("Idle")))
+            for extra in ("Attack", "Death"):
+                if "Idle" in kept:
+                    kept.setdefault(extra, kept["Idle"])
+        anims_map = {k: v for k, v in kept.items() if v}
     rest_worlds = []
     rest_tq = []
     for i in range(num_bones):
@@ -2338,36 +2570,23 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
     # Animation clips: PSA keys are already root-relative (BuildBoneMatrices).
     # Times are converted from milliseconds (GetFrameTime) to glTF seconds.
     animations = []
-    for state_name, psa_key in anims_map.items():
-        ref = ANIMATIONS.get(psa_key, psa_key)
-        if not vfs.exists(ref):
-            print(f"  ! anim missing: {ref}")
-            continue
-        try:
-            psa = parse_psa(vfs.read(ref))
-        except Exception as e:
-            print(f"  ! anim parse failed {state_name}: {e}")
-            continue
-        nf = psa["numFrames"]; nk = psa["numKeys"]
-        if nk != num_bones:
-            print(f"  ! bone count PMD={num_bones} PSA={nk} for {state_name} (0ad ENSURE equal; extra bones stay bind-pose)")
-        times = [psa["frameTime"] * f / 1000.0 for f in range(nf)]
-        tracks = {}
-        for i in range(num_bones):
-            trans = []
-            rots = []
-            rt, rq = rest_tq[i]
-            for f in range(nf):
-                ki = f * nk + i
-                if i < nk and ki < len(psa["keys"]):
-                    key = psa["keys"][ki]
-                    trans.append(tuple(key["t"]))
-                    rots.append(tuple(key["q"]))
-                else:
-                    trans.append(tuple(rt))
-                    rots.append(tuple(rq))
-            tracks[bone_node[i]] = {"translation": trans, "rotation": rots}
-        rclip = (RIDER_CLIPS.get(asset_id) or {}).get(state_name)
+    rider_map = RIDER_CLIPS.get(asset_id) or {}
+    # A static hull (0-bone fishing boat, arrow ship) still animates through its
+    # crew, so a state survives on the rider clip alone.
+    states = list(anims_map.keys()) + [s for s in rider_map if s not in anims_map]
+    for state_name in states:
+        psa_key = anims_map.get(state_name)
+        ref = ANIMATIONS.get(psa_key, psa_key) if psa_key else ""
+        psa = None
+        if ref:
+            if not vfs.exists(ref):
+                print(f"  ! anim missing: {ref}")
+            else:
+                try:
+                    psa = parse_psa(vfs.read(ref))
+                except Exception as e:
+                    print(f"  ! anim parse failed {state_name}: {e}")
+        rclip = rider_map.get(state_name)
         rpsa = None
         if rider_n > 0 and rclip:
             rref = ANIMATIONS.get(rclip, rclip)
@@ -2376,6 +2595,31 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
                     rpsa = parse_psa(vfs.read(rref))
                 except Exception as e:
                     print(f"  ! rider anim parse {state_name}: {e}")
+        if psa is None and rpsa is None:
+            continue
+        if psa is not None:
+            nf = psa["numFrames"]; nk = psa["numKeys"]
+            times = [psa["frameTime"] * f / 1000.0 for f in range(nf)]
+            if nk != num_bones:
+                print(f"  ! bone count PMD={num_bones} PSA={nk} for {state_name} (0ad ENSURE equal; extra bones stay bind-pose)")
+        else:
+            nf = rpsa["numFrames"]; nk = 0
+            times = [rpsa["frameTime"] * f / 1000.0 for f in range(nf)]
+        tracks = {}
+        for i in range(num_bones):
+            trans = []
+            rots = []
+            rt, rq = rest_tq[i]
+            for f in range(nf):
+                ki = f * nk + i
+                if psa is not None and i < nk and ki < len(psa["keys"]):
+                    key = psa["keys"][ki]
+                    trans.append(tuple(key["t"]))
+                    rots.append(tuple(key["q"]))
+                else:
+                    trans.append(tuple(rt))
+                    rots.append(tuple(rq))
+            tracks[bone_node[i]] = {"translation": trans, "rotation": rots}
         if rider_n > 0:
             r_nf = rpsa["numFrames"] if rpsa else 1
             r_nk = rpsa["numKeys"] if rpsa else 0
@@ -2400,7 +2644,7 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
                     if 0 <= rider_attach_bone < num_bones:
                         mt, mq = rest_tq[rider_attach_bone]
                         ki_m = f * nk + rider_attach_bone
-                        if rider_attach_bone < nk and ki_m < len(psa["keys"]):
+                        if psa is not None and rider_attach_bone < nk and ki_m < len(psa["keys"]):
                             mk = psa["keys"][ki_m]
                             mt, mq = mk["t"], mk["q"]
                         attach_f = mat_mul(trs(mt, mq), rider_prop_local)
@@ -2412,7 +2656,7 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
                 tracks[rider_node[i]] = {"translation": trans, "rotation": rots}
         animations.append({"name": state_name, "times": times, "tracks": tracks})
         extra = f"+rider {rclip}" if rpsa else ""
-        print(f"  anim '{state_name}' <- {ref} ({nf}f, {nk}b) {extra}")
+        print(f"  anim '{state_name}' <- {ref or '(crew only)'} ({nf}f, {nk}b) {extra}")
 
     skins = [{
         "joints": all_bones,
@@ -2445,7 +2689,9 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
         "bones": num_bones,
         "animated": True,
         "skeleton": skeleton_name,
-        "animations": list(anims_map.keys()),
+        # What the GLB actually carries, which includes crew-only states a
+        # static hull has no body clip for.
+        "animations": [a["name"] for a in animations],
         "size_meters": [round(final_dim[0], 3), round(final_dim[1], 3), round(final_dim[2], 3)],
         "origin": "ground-center",
         "sources": sorted(f"{kind}:{ref}" for kind, ref in sources),
@@ -2606,7 +2852,7 @@ def _civ_base_building_id(asset_id):
     if "_" not in asset_id:
         return None
     code, base = asset_id.split("_", 1)
-    if code not in CIV_STRUCTURE_FOLDERS:
+    if code not in CIV_ART_FOLDERS:
         return None
     if base in BUILDING_IDS:
         return base
@@ -2897,6 +3143,8 @@ def main():
                         anims_to_extract[flat] = n
             print(f"[all-animations] discovered {len(anims_to_extract)} total PSA (curated {len(ANIMATIONS)} + discovered)")
         for anim_name, ref in anims_to_extract.items():
+            if ref.startswith("assets/"):
+                continue  # hand-authored clip already living in the output tree
             if ref not in zf.namelist():
                 print(f"! anim missing: {ref}")
                 continue

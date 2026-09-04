@@ -39,7 +39,6 @@ void RtsoAssetViewer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_civ_selected", "index"), &RtsoAssetViewer::_on_civ_selected);
 	ClassDB::bind_method(D_METHOD("_on_item_selected", "index"), &RtsoAssetViewer::_on_item_selected);
 	ClassDB::bind_method(D_METHOD("_on_clip_selected", "index"), &RtsoAssetViewer::_on_clip_selected);
-	ClassDB::bind_method(D_METHOD("_on_clip_box_selected", "index"), &RtsoAssetViewer::_on_clip_box_selected);
 	ClassDB::bind_method(D_METHOD("_on_clip_clicked", "index", "at_position", "mouse_button_index"), &RtsoAssetViewer::_on_clip_clicked);
 	ClassDB::bind_method(D_METHOD("_on_clip_prev"), &RtsoAssetViewer::_on_clip_prev);
 	ClassDB::bind_method(D_METHOD("_on_clip_next"), &RtsoAssetViewer::_on_clip_next);
@@ -327,11 +326,6 @@ void RtsoAssetViewer::build_ui() {
 	anim_title->set_text("Animations");
 	anim_title->add_theme_font_size_override("font_size", 16);
 	rv->add_child(anim_title);
-
-	clip_box = memnew(OptionButton);
-	clip_box->set_custom_minimum_size(Vector2(0, 32));
-	clip_box->connect("item_selected", Callable(this, "_on_clip_box_selected"));
-	rtso::parent_option_button(rv, clip_box);
 
 	clip_list = memnew(ItemList);
 	clip_list->set_v_size_flags(Control::SIZE_EXPAND_FILL);
@@ -715,14 +709,10 @@ void RtsoAssetViewer::refresh_clips() {
 	clip_index = -1;
 	if (clip_list)
 		clip_list->clear();
-	if (clip_box)
-		clip_box->clear();
 
 	if (!anim_ok()) {
 		if (clip_list)
 			clip_list->add_item("(no AnimationPlayer)");
-		if (clip_box)
-			clip_box->add_item("(no AnimationPlayer)");
 		refresh_now_playing();
 		return;
 	}
@@ -740,14 +730,10 @@ void RtsoAssetViewer::refresh_clips() {
 		String label = String(line);
 		if (clip_list)
 			clip_list->add_item(label);
-		if (clip_box)
-			clip_box->add_item(label);
 	}
 	if (clip_names.size() == 0) {
 		if (clip_list)
 			clip_list->add_item("(no clips)");
-		if (clip_box)
-			clip_box->add_item("(no clips)");
 	}
 	refresh_now_playing();
 }
@@ -775,8 +761,6 @@ void RtsoAssetViewer::play_clip_at(int index) {
 	cur_clip = clip_names[index];
 	if (clip_list && clip_list->get_item_count() == clip_names.size())
 		clip_list->select(index);
-	if (clip_box && clip_box->get_item_count() == clip_names.size())
-		clip_box->select(index);
 	refresh_now_playing();
 	apply_building_clip_visuals();
 	_on_play();
@@ -1037,10 +1021,6 @@ void RtsoAssetViewer::_on_item_selected(int index) {
 }
 
 void RtsoAssetViewer::_on_clip_selected(int index) {
-	play_clip_at(index);
-}
-
-void RtsoAssetViewer::_on_clip_box_selected(int index) {
 	play_clip_at(index);
 }
 

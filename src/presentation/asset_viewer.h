@@ -35,7 +35,6 @@ class RtsoAssetViewer : public Node3D {
 	OptionButton *civ_box = nullptr;
 	ItemList *item_list = nullptr;
 	ItemList *clip_list = nullptr;
-	OptionButton *clip_box = nullptr;
 	Label *now_playing = nullptr;
 	Label *diag = nullptr;
 	CheckBox *chk_full = nullptr;
@@ -80,7 +79,6 @@ public:
 	void _on_civ_selected(int index);
 	void _on_item_selected(int index);
 	void _on_clip_selected(int index);
-	void _on_clip_box_selected(int index);
 	void _on_clip_clicked(int index, Vector2 at_position, int mouse_button_index);
 	void _on_clip_prev();
 	void _on_clip_next();

@@ -348,7 +348,8 @@ static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int
 	}
 	// Gather/build/attack block movement clips (SelectMovementAnimation early-out).
 	if (uaction == rtso::ACTION_GATHER) {
-		w.clip = "Gather";
+		// 0 A.D. gives the healer a Heal variant where everyone else has gather_*.
+		w.clip = (utype == rtso::UNIT_HEALER) ? "Heal" : "Gather";
 		w.state = rtso::AnimState::Gather;
 		return w;
 	}
@@ -379,6 +380,21 @@ static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int
 	w.clip = "Idle";
 	w.state = rtso::AnimState::Idle;
 	return w;
+}
+
+// 0 A.D. rigs a sail skeleton on only some hulls (Athenian/Persian/Roman); the
+// Briton, Gaulish, Iberian and Mauryan warships ship as unskinned meshes, so
+// their swell has to come from the transform. Applied to every hull so the
+// fleet reads the same.
+static void apply_ship_wave_xform(Transform3D &xf, uint32_t id, float t, float speed2) {
+	const float phase = (float)(id % 64) * 0.09817f; // 2*pi/64
+	const float w = t * 1.15f + phase;
+	const float moving = Math::clamp(speed2 * 4.0f, 0.0f, 1.0f);
+	const float amp = 0.75f + 0.75f * moving;
+	const float roll = Math::sin(w) * 0.032f * amp;
+	const float pitch = Math::sin(w * 1.37f + 1.1f) * 0.021f * amp;
+	xf.basis = xf.basis * Basis(Vector3(0, 0, 1), roll) * Basis(Vector3(1, 0, 0), pitch);
+	xf.origin.y += Math::sin(w * 0.83f + 0.5f) * 0.055f * amp;
 }
 
 static void apply_unit_death_xform(Transform3D &xf, uint8_t utype, float death_t, float px, float pz, float hull_h, bool has_death_clip) {
@@ -817,6 +833,10 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		Transform3D xf(Basis(Vector3(0, 1, 0), yaw).scaled(Vector3(sc, sc, sc)), Vector3(x, y, z));
 		const bool dying = !uview.alive[i] || uaction == rtso::ACTION_DYING;
 		const float death_t = dying ? uview.death_timer[i] : 0.0f;
+		const bool ship_wave = !dying && rtso::unit_is_ship(utype);
+		if (ship_wave) {
+			apply_ship_wave_xform(xf, id, anim_time, speed2);
+		}
 		if (dying) {
 			apply_unit_death_xform(xf, utype, death_t, x, z, entry.aabb.size.y * sc, false);
 		}
@@ -857,6 +877,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 				else if (want_clip == "Walk" && v.anim->has_animation("Run")) want_clip = "Run";
 				else if (want_clip == "Carry" && v.anim->has_animation("Walk")) want_clip = "Walk";
 				else if (want_clip == "Build" && v.anim->has_animation("Gather")) want_clip = "Gather";
+				else if (want_clip == "Heal" && v.anim->has_animation("Gather")) want_clip = "Gather";
 				else if (want_clip == "Gather" && v.anim->has_animation("Idle")) want_clip = "Idle";
 				else if (want_clip == "Attack" && v.anim->has_animation("Idle")) want_clip = "Idle";
 				else if (want_clip == "Death") {
@@ -875,6 +896,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		float dsc = entry.scale > 0.05f ? entry.scale : 1.0f;
 		Transform3D dxf(Basis(Vector3(0, 1, 0), v.yaw).scaled(Vector3(dsc, dsc, dsc)),
 		               Vector3(x, y, z));
+		if (ship_wave) {
+			apply_ship_wave_xform(dxf, id, anim_time, speed2);
+		}
 		if (dying) {
 			apply_unit_death_xform(dxf, utype, death_t, x, z, entry.aabb.size.y * dsc, has_death_clip);
 		}
