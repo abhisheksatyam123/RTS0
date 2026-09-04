@@ -1,0 +1,60 @@
+#ifndef RTSO_SAFE_SELECT_H
+#define RTSO_SAFE_SELECT_H
+
+#include <godot_cpp/classes/button.hpp>
+#include <godot_cpp/classes/input_event.hpp>
+#include <godot_cpp/classes/item_list.hpp>
+#include <godot_cpp/classes/panel_container.hpp>
+#include <godot_cpp/classes/texture2d.hpp>
+#include <godot_cpp/variant/string.hpp>
+#include <vector>
+
+using namespace godot;
+
+// Dropdown that never creates a Window/Popup. Godot 4.3 OptionButton popups
+// connect focus_entered / tree_exited on the root Window with callable_mp, then
+// disconnect with an empty callable on hide/teardown.
+class RtsoSafeSelect : public Button {
+	GDCLASS(RtsoSafeSelect, Button);
+
+	struct Item {
+		String text;
+		int id = 0;
+		Ref<Texture2D> icon;
+	};
+	std::vector<Item> items;
+	int selected = -1;
+	bool suppress = false;
+	PanelContainer *menu = nullptr;
+	ItemList *list = nullptr;
+
+protected:
+	static void _bind_methods();
+
+public:
+	RtsoSafeSelect();
+	~RtsoSafeSelect();
+
+	void add_item(const String &text, int id = -1);
+	void add_icon_item(const Ref<Texture2D> &icon, const String &text, int id = -1);
+	void select(int index);
+	int get_selected() const { return selected; }
+	int get_item_id(int index) const;
+	int get_item_count() const { return (int)items.size(); }
+	void clear();
+
+	void _notification(int p_what);
+	void _input(const Ref<InputEvent> &event) override;
+
+	void _on_pressed();
+	void _on_list_selected(int index);
+
+private:
+	void ensure_menu();
+	void refresh_button();
+	void open_menu();
+	void close_menu();
+	void rebuild_list();
+};
+
+#endif

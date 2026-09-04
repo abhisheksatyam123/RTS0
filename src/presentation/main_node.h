@@ -25,7 +25,7 @@
 #include <godot_cpp/classes/audio_stream_player3d.hpp>
 #include <godot_cpp/classes/audio_stream.hpp>
 #include <godot_cpp/classes/time.hpp>
-#include <godot_cpp/classes/option_button.hpp>
+#include "safe_select.h"
 #include <godot_cpp/classes/control.hpp>
 #include <godot_cpp/classes/item_list.hpp>
 #include "../network/net_host.h"
@@ -83,11 +83,11 @@ class RtsoMain : public Node3D {
 	Label *wave_label = nullptr;
 	Button *speed_btn = nullptr;
 	Button *menu_btn = nullptr;
-	OptionButton *map_selector = nullptr;
-	OptionButton *civ_selector = nullptr;
-	OptionButton *ai_diff_selector = nullptr;
-	OptionButton *ai_behavior_selector = nullptr;
-	OptionButton *victory_selector = nullptr;
+	RtsoSafeSelect *map_selector = nullptr;
+	RtsoSafeSelect *civ_selector = nullptr;
+	RtsoSafeSelect *ai_diff_selector = nullptr;
+	RtsoSafeSelect *ai_behavior_selector = nullptr;
+	RtsoSafeSelect *victory_selector = nullptr;
 	Button *lobby_btn = nullptr;
 	Button *voice_btn = nullptr;
 	Panel *lobby_panel = nullptr;
@@ -145,13 +145,13 @@ class RtsoMain : public Node3D {
 	// 5. In-Game Chat Overlay
 	Panel *chat_panel = nullptr;
 	RichTextLabel *chat_log = nullptr;
-	OptionButton *chat_channel = nullptr;
+	RtsoSafeSelect *chat_channel = nullptr;
 	LineEdit *chat_input = nullptr;
 	Button *chat_send_btn = nullptr;
 
 	// 6. Diplomacy & Tribute Dialog (8-player matrix)
 	Panel *diplomacy_panel = nullptr;
-	OptionButton *diplo_stances[8] = {nullptr};
+	RtsoSafeSelect *diplo_stances[8] = {nullptr};
 	Label *diplo_player_names[8] = {nullptr};
 	Button *diplo_close_btn = nullptr;
 

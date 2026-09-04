@@ -1216,6 +1216,7 @@ void Simulation::order_attack(const uint32_t *unit_ids, size_t count, uint32_t t
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx]) continue;
+		if (!unit_can_attack(units_.unit_type[uidx])) continue;
 
 		units_.target_x[uidx] = tx;
 		units_.target_z[uidx] = tz;
@@ -1235,6 +1236,7 @@ void Simulation::order_attack_building(const uint32_t *unit_ids, size_t count, u
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx]) continue;
+		if (!unit_can_attack(units_.unit_type[uidx])) continue;
 
 		stand_outside_rect(b.x, b.z, b.half_size, units_.id[uidx],
 				units_.pos_x[uidx], units_.pos_z[uidx],
@@ -2515,6 +2517,7 @@ void Simulation::tick_combat(float dt) {
 		if (units_.attack_timer[i] > 0) units_.attack_timer[i] -= dt;
 		target_idx[i] = -1;
 		if (!units_.alive[i]) return;
+		if (!unit_can_attack(units_.unit_type[i])) return;
 
 		// Passive stance / civilian gatherers do not auto-acquire combat targets
 		if (units_.stance[i] == STANCE_PASSIVE) return;
@@ -2638,6 +2641,7 @@ void Simulation::tick_combat(float dt) {
 	for (size_t i = 0; i < n; ++i) {
 		int32_t t = target_idx[i];
 		if (t < 0 || !units_.alive[i] || units_.attack_timer[i] > 0) continue;
+		if (!unit_can_attack(units_.unit_type[i])) continue;
 		float dx = units_.pos_x[i] - units_.pos_x[t];
 		float dz = units_.pos_z[i] - units_.pos_z[t];
 		float d2 = dx * dx + dz * dz;
@@ -2714,6 +2718,7 @@ void Simulation::tick_combat(float dt) {
 		else if (u_att == UNIT_WAR_DOG && (u_def == UNIT_ARCHER || u_def == UNIT_ARCHER_MAIDEN || u_def == UNIT_VILLAGER || u_def == UNIT_FEMALE_CITIZEN)) counter_mul = 1.4f;
 		else if (u_att == UNIT_SCYTHED_CHARIOT && (u_def == UNIT_SWORDSMAN || u_def == UNIT_SPEARMAN || u_def == UNIT_ARCHER)) counter_mul = 1.6f;
 		else if (u_att == UNIT_BOLT_SHOOTER && (u_def == UNIT_ELEPHANT || u_def == UNIT_WORKER_ELEPHANT || u_def == UNIT_HERO)) counter_mul = 1.8f;
+		else if (u_att == UNIT_TRIREME && unit_is_ship(u_def)) counter_mul = 3.0f;
 
 		hack_dmg *= counter_mul;
 		pierce_dmg *= counter_mul;
@@ -2742,9 +2747,7 @@ void Simulation::tick_combat(float dt) {
 		}
 
 		bool maur_elephant_archer = (u_att == UNIT_ELEPHANT && att_civ == CIV_MAURYANS);
-		bool is_ranged_attack = (u_att == UNIT_ARCHER || u_att == UNIT_ARCHER_MAIDEN ||
-		                         u_att == UNIT_BOLT_SHOOTER || u_att == UNIT_CHARIOT ||
-		                         u_att == UNIT_TRIREME || maur_elephant_archer);
+		bool is_ranged_attack = unit_has_ranged_attack(u_att, att_civ);
 
 		if (is_ranged_attack) {
 			uint8_t effect = EFFECT_NONE;
@@ -2924,6 +2927,7 @@ void Simulation::tick_combat(float dt) {
 	// 3. Units Attacking Buildings & Siege Demolition (0 A.D. Attack.js + BuildingDamage)
 	for (size_t i = 0; i < n; ++i) {
 		if (!units_.alive[i] || units_.target_building_id[i] == 0 || units_.attack_timer[i] > 0) continue;
+		if (!unit_can_attack(units_.unit_type[i])) continue;
 		auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
 		if (bit == building_id_to_idx_.end()) {
 			units_.target_building_id[i] = 0;
@@ -2980,13 +2984,16 @@ void Simulation::tick_combat(float dt) {
 			crush_dmg * powf(0.9f, b_crush_armor)
 		);
 
-		bool is_ranged_attack = (units_.unit_type[i] == UNIT_ARCHER || units_.unit_type[i] == UNIT_ARCHER_MAIDEN ||
-		                         units_.unit_type[i] == UNIT_BOLT_SHOOTER || units_.unit_type[i] == UNIT_CATAPULT);
+		bool is_ranged_attack = unit_has_ranged_attack(units_.unit_type[i],
+				player_civ_[units_.team[i] < 4 ? units_.team[i] : 0]);
 
 		if (is_ranged_attack) {
-			fire_arrow(units_.pos_x[i], 1.4f, units_.pos_z[i],
+			uint8_t ut = units_.unit_type[i];
+			float sy = (ut == UNIT_TRIREME) ? 3.0f : (ut == UNIT_CATAPULT ? 2.0f : 1.4f);
+			uint8_t vis = (ut == UNIT_TRIREME || ut == UNIT_BOLT_SHOOTER || ut == UNIT_CATAPULT) ? 1 : 0;
+			fire_arrow(units_.pos_x[i], sy, units_.pos_z[i],
 			           b.x, 1.5f, b.z,
-			           bld_dmg, units_.team[i], b.id, EFFECT_BURNING, 2, true);
+			           bld_dmg, units_.team[i], b.id, EFFECT_BURNING, 2, true, vis);
 		} else {
 			b.hp -= bld_dmg;
 			if (b.team == 0) {
