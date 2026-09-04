@@ -18,6 +18,12 @@ config/features=PackedStringArray("4.3", "Forward Plus")
 
 MatchSettings="*res://scenes/menu/match_settings.gd"
 
+[gui]
+
+; Godot 4.3 PopupPanel tooltips disconnect the root Window with an empty
+; Callable (focus_entered / tree_exited). Keep native tooltips off.
+timers/tooltip_delay_sec=3600.0
+
 [rendering]
 
 textures/vram_compression/import_etc2_astc=true
@@ -43,6 +49,3 @@ window/size/viewport_width=1280
 window/size/viewport_height=720
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
-# Godot 4.3 embedded Popup/OptionButton teardown disconnects focus_entered
-# and tree_exited on the root Window with an empty callable.
-window/subwindows/embed_subwindows=false

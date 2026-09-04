@@ -258,7 +258,7 @@ inline const UnitTypeInfo &unit_type_info(uint8_t type) {
 		{"Merchant Trader", "trader", "trader", 120.0f, 4.2f, 1.0f, 0.0f, 1.0f, 50, 0.0f, 2.0f, 2.0f, 10.0f, 60, 60, 0, 0, 1, 12.0f, 0.0f, 0.0f, 0.0f},
 		{"Catapult Artillery", "catapult", "catapult", 220.0f, 2.0f, 24.0f, 45.0f, 3.5f, 0, 24.0f, 2.0f, 5.0f, 20.0f, 0, 150, 100, 50, 3, 28.0f, 0.0f, 0.0f, 45.0f},
 		{"Historical Champion Hero", "hero", "hero", 350.0f, 4.2f, 2.8f, 18.0f, 0.8f, 0, 16.0f, 6.0f, 6.0f, 25.0f, 200, 0, 200, 0, 3, 30.0f, 12.0f, 6.0f, 0.0f},
-		{"War Trireme", "trireme", "trireme", 600.0f, 4.5f, 20.0f, 25.0f, 1.2f, 0, 20.0f, 5.0f, 8.0f, 20.0f, 0, 200, 150, 0, 3, 35.0f, 0.0f, 25.0f, 0.0f},
+		{"War Trireme", "trireme", "trireme", 600.0f, 4.5f, 20.0f, 32.0f, 1.0f, 0, 20.0f, 5.0f, 8.0f, 20.0f, 0, 200, 150, 0, 3, 35.0f, 0.0f, 32.0f, 0.0f},
 		{"Carthaginian War Elephant", "elephant", "elephant", 900.0f, 3.4f, 2.5f, 35.0f, 1.4f, 0, 16.0f, 5.0f, 8.0f, 20.0f, 250, 0, 200, 0, 4, 40.0f, 20.0f, 0.0f, 15.0f},
 		{"Siege Battering Ram", "ram", "ram", 850.0f, 2.2f, 2.4f, 75.0f, 2.5f, 0, 12.0f, 2.0f, 12.0f, 15.0f, 0, 200, 100, 0, 3, 25.0f, 0.0f, 0.0f, 75.0f},
 		{"Temple Healer", "healer", "healer", 90.0f, 3.2f, 12.0f, 0.0f, 1.0f, 0, 10.0f, 1.0f, 1.0f, 10.0f, 80, 0, 60, 0, 1, 14.0f, 0.0f, 0.0f, 0.0f},
@@ -317,6 +317,44 @@ inline bool unit_is_ship(uint8_t type) {
 
 inline bool unit_is_siege_engine(uint8_t type) {
 	return type == UNIT_SIEGE_RAM || type == UNIT_CATAPULT || type == UNIT_BOLT_SHOOTER;
+}
+
+// 0 A.D. Attack.js CanAttack: fishing/merchant/trader/healer ship no (or
+// RestrictedClasses !SeaCreature). Fish are gathered, not fought.
+inline bool unit_can_attack(uint8_t type) {
+	return unit_type_info(type).attack_damage > 0.0f;
+}
+
+// 0 A.D. ship attack kinds for the three hulls RTS0 trains:
+//   fishing  → Melee Harpoon vs SeaCreature only (gather in RTS0)
+//   merchant → no Attack
+//   trireme  → Ranged Arrow (template_unit_ship_warship_arrow; the ram /
+//              siege / fire hulls are separate 0 A.D. units we do not train)
+inline bool unit_has_ranged_attack(uint8_t type, uint8_t civ = CIV_ATHENIANS) {
+	switch (type) {
+		case UNIT_ARCHER:
+		case UNIT_ARCHER_MAIDEN:
+		case UNIT_BOLT_SHOOTER:
+		case UNIT_CHARIOT:
+		case UNIT_CATAPULT:
+		case UNIT_TRIREME:
+			return true;
+		case UNIT_ELEPHANT:
+			return civ == CIV_MAURYANS;
+		default:
+			return false;
+	}
+}
+
+inline uint8_t unit_default_stance(uint8_t type) {
+	switch (type) {
+		case UNIT_FISHING_BOAT:
+		case UNIT_MERCHANT_SHIP:
+		case UNIT_TRADER:
+			return STANCE_PASSIVE;
+		default:
+			return STANCE_AGGRESSIVE;
+	}
 }
 
 // Corpse lifetime before removal. Ships use 0 A.D. CCmpDecay SinkingAnim (~4–5s).

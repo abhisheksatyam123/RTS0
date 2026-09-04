@@ -6,25 +6,20 @@ var ai_civ: int = 1
 var map_index: int = 0
 var player_count: int = 2
 
-# Godot 4.3 OptionButton popups must have FLAG_POPUP cleared *before*
-# they enter the tree. Clearing it later disconnects root Window signals
-# with an empty callable.
-
-func prepare_option(ob: OptionButton) -> OptionButton:
-	if ob == null:
-		return null
-	if not ob.is_inside_tree():
-		var p: Window = ob.get_popup()
-		if p:
-			p.exclusive = false
-			p.transient = false
-			p.unfocusable = true
-			p.set_flag(Window.FLAG_POPUP, false)
-	return ob
+func strip_engine_popups(n: Node) -> void:
+	if n == null:
+		return
+	for p in n.find_children("*", "Popup", true, false):
+		var par: Node = p.get_parent()
+		if par:
+			par.remove_child(p)
+		p.queue_free()
 
 func prepare_line_edit(le: LineEdit) -> LineEdit:
 	if le:
 		le.context_menu_enabled = false
+		le.middle_mouse_paste_enabled = false
+		strip_engine_popups(le)
 	return le
 
 func hide_option_popups(_n: Node = null) -> void:

@@ -15,11 +15,11 @@ func _ready() -> void:
 	MatchSettings.prepare_line_edit(line_edit_mp)
 	if spin_port:
 		MatchSettings.prepare_line_edit(spin_port.get_line_edit())
+		MatchSettings.strip_engine_popups(spin_port)
 	var scale_slot := get_node_or_null("CenterContainer/Panel/VBox/TabContainer/Graphics/GraphicsList/Scale/ScaleSlot")
 	if scale_slot and scale_slot.get_child_count() == 0:
-		var ob := OptionButton.new()
+		var ob := RtsoSafeSelect.new()
 		ob.set_anchors_preset(Control.PRESET_FULL_RECT)
-		MatchSettings.prepare_option(ob)
 		ob.add_item("50%")
 		ob.add_item("75%")
 		ob.add_item("100%")

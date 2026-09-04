@@ -5,7 +5,7 @@
 #include <godot_cpp/classes/camera3d.hpp>
 #include <godot_cpp/classes/mesh_instance3d.hpp>
 #include <godot_cpp/classes/animation_player.hpp>
-#include <godot_cpp/classes/option_button.hpp>
+#include "safe_select.h"
 #include <godot_cpp/classes/item_list.hpp>
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/check_box.hpp>
@@ -31,8 +31,8 @@ class RtsoAssetViewer : public Node3D {
 	MeshInstance3D *gizmo_mi = nullptr;
 	AnimationPlayer *anim = nullptr;
 
-	OptionButton *cat_box = nullptr;
-	OptionButton *civ_box = nullptr;
+	RtsoSafeSelect *cat_box = nullptr;
+	RtsoSafeSelect *civ_box = nullptr;
 	ItemList *item_list = nullptr;
 	ItemList *clip_list = nullptr;
 	Label *now_playing = nullptr;

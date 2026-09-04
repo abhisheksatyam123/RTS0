@@ -79,10 +79,6 @@ class RtsoWorldView : public Node3D {
 	MultiMeshInstance3D *stone_mmi = nullptr;  // stone_mine.glb
 	Ref<MultiMesh> tree_a_mm, tree_b_mm, tree_c_mm, gold_mm, stone_mm;
 
-	// wildlife fauna batched
-	MultiMeshInstance3D *fauna_mmi[rtso::FAUNA_COUNT] = {};
-	Ref<MultiMesh> fauna_mm[rtso::FAUNA_COUNT];
-
 	// flying projectiles (arrows + warship bolts)
 	MultiMeshInstance3D *arrow_mmi = nullptr;
 	Ref<MultiMesh> arrow_mm;
@@ -124,10 +120,19 @@ class RtsoWorldView : public Node3D {
 		String clip;
 		Ref<ArrayMesh> posed_frames[CROWD_FRAMES_PER_CLIP];
 		int baked_count = 0;
+		int last_frame = -1;
 		rtso::ModelLibrary::CrowdSkin skin;
 	};
 	CrowdPuppet unit_puppet[CROWD_BANK_COUNT][rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT] = {};
 	bool unit_puppet_baked[CROWD_BANK_COUNT][rtso::UNIT_TYPE_COUNT] = {};
+	Node3D *crowd_bake_root = nullptr;
+
+	// wildlife fauna batched (idle / move / attack / death)
+	MultiMeshInstance3D *fauna_mmi[rtso::FAUNA_COUNT][CROWD_CLIP_COUNT] = {};
+	Ref<MultiMesh> fauna_mm[rtso::FAUNA_COUNT][CROWD_CLIP_COUNT];
+	CrowdPuppet fauna_puppet[rtso::FAUNA_COUNT][CROWD_CLIP_COUNT] = {};
+	bool fauna_puppet_baked[rtso::FAUNA_COUNT] = {};
+
 	std::unordered_map<uint32_t, float> crowd_yaw;
 	std::unordered_map<uint32_t, Vector2> crowd_pos;
 
@@ -198,6 +203,11 @@ private:
 	void play_unit_clip(UnitVis &v, const StringName &clip, bool loop);
 	void hide_unit_vis(UnitVis &v);
 	void ensure_unit_batches(const rtso::Simulation *sim);
+	void bake_puppet_clips(CrowdPuppet *row, AnimationPlayer *ap,
+			rtso::ModelLibrary::CrowdSkin &skin, bool skinned);
+	void cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts);
+	void ensure_crowd_frames(int bank, uint8_t utype, uint8_t civ);
+	void ensure_fauna_frames(uint8_t ftype);
 	void init_animation_controllers();
 };
 

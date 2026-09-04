@@ -11,6 +11,7 @@
 #include <godot_cpp/classes/viewport.hpp>
 #include <godot_cpp/classes/camera3d.hpp>
 #include <godot_cpp/classes/geometry_instance3d.hpp>
+#include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 #include <algorithm>
 #include <cstdint>
@@ -236,19 +237,22 @@ void RtsoWorldView::_ready() {
 	{
 		auto deer = rtso::ModelLibrary::get("units", "deer");
 		Ref<Mesh> deer_mesh = deer.mesh.is_valid() ? deer.mesh : rtso::ModelLibrary::get("units", "war_dog").mesh;
-		fauna_mm[rtso::FAUNA_DEER] = create_multimesh(deer_mesh, false);
+		Ref<Mesh> fauna_rest[rtso::FAUNA_COUNT];
+		fauna_rest[rtso::FAUNA_DEER] = deer_mesh;
 		auto boar = rtso::ModelLibrary::get("units", "boar");
-		fauna_mm[rtso::FAUNA_BOAR] = create_multimesh(boar.mesh.is_valid() ? boar.mesh : deer_mesh, false);
+		fauna_rest[rtso::FAUNA_BOAR] = boar.mesh.is_valid() ? boar.mesh : deer_mesh;
 		auto sheep = rtso::ModelLibrary::get("units", "sheep");
-		fauna_mm[rtso::FAUNA_SHEEP] = create_multimesh(sheep.mesh.is_valid() ? sheep.mesh : deer_mesh, false);
+		fauna_rest[rtso::FAUNA_SHEEP] = sheep.mesh.is_valid() ? sheep.mesh : deer_mesh;
 		auto wolf = rtso::ModelLibrary::get("units", "wolf");
-		fauna_mm[rtso::FAUNA_WOLF] = create_multimesh(wolf.mesh.is_valid() ? wolf.mesh : deer_mesh, false);
-	}
-
-	for (int f = 0; f < rtso::FAUNA_COUNT; ++f) {
-		fauna_mmi[f] = memnew(MultiMeshInstance3D);
-		fauna_mmi[f]->set_multimesh(fauna_mm[f]);
-		add_child(fauna_mmi[f]);
+		fauna_rest[rtso::FAUNA_WOLF] = wolf.mesh.is_valid() ? wolf.mesh : deer_mesh;
+		for (int f = 0; f < rtso::FAUNA_COUNT; ++f) {
+			for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
+				fauna_mm[f][c] = create_multimesh(fauna_rest[f], false);
+				fauna_mmi[f][c] = memnew(MultiMeshInstance3D);
+				fauna_mmi[f][c]->set_multimesh(fauna_mm[f][c]);
+				add_child(fauna_mmi[f][c]);
+			}
+		}
 	}
 
 	// Initialize 3D Positional Spatial Audio Pool
@@ -346,6 +350,7 @@ enum ClipId : uint8_t {
 	CLIP_BUILD,
 	CLIP_CARRY,
 	CLIP_HEAL,
+	CLIP_SLAUGHTER,
 	CLIP_COUNT
 };
 
@@ -353,7 +358,8 @@ static const StringName &clip_name(ClipId id) {
 	static const StringName names[CLIP_COUNT] = {
 		StringName(), StringName("Idle"), StringName("Walk"), StringName("Run"),
 		StringName("Attack"), StringName("Death"), StringName("Gather"),
-		StringName("Build"), StringName("Carry"), StringName("Heal")
+		StringName("Build"), StringName("Carry"), StringName("Heal"),
+		StringName("Slaughter")
 	};
 	return names[id < CLIP_COUNT ? id : CLIP_NONE];
 }
@@ -369,9 +375,12 @@ static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int
 	WantAnim w;
 	// A laden unit keeps the carry variant through any movement clip.
 	const bool laden_move = carry > 0 && (speed2 > 0.001f || uaction == rtso::ACTION_MOVE);
+	// ~4.24 m/s: infantry walk (~3.2) stays Walk; cavalry/camel/chariot pick Run.
+	const bool sprint = !laden_move && speed2 > 18.0f;
 	WantAnim w_move;
-	w_move.clip = laden_move ? CLIP_CARRY : CLIP_WALK;
-	w_move.state = laden_move ? rtso::AnimState::Carry : rtso::AnimState::Walk;
+	w_move.clip = laden_move ? CLIP_CARRY : (sprint ? CLIP_RUN : CLIP_WALK);
+	w_move.state = laden_move ? rtso::AnimState::Carry
+			: (sprint ? rtso::AnimState::Run : rtso::AnimState::Walk);
 
 	if (!alive || uaction == rtso::ACTION_DYING) {
 		w.clip = CLIP_DEATH;
@@ -393,7 +402,8 @@ static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int
 		case rtso::ACTION_ATTACK:
 			// Ships: Attack.js keeps attack_ranged until StopAttacking (sail falls back to idle).
 			if (speed2 <= 8.0f || rtso::unit_is_ship(utype)) {
-				w.clip = CLIP_ATTACK;
+				const bool hunt = (utype == rtso::UNIT_VILLAGER || utype == rtso::UNIT_FEMALE_CITIZEN);
+				w.clip = hunt ? CLIP_SLAUGHTER : CLIP_ATTACK;
 				w.state = rtso::AnimState::Attack;
 				return w;
 			}
@@ -422,12 +432,13 @@ static ClipId resolve_clip_fallback(AnimationPlayer *anim, ClipId want) {
 	if (!anim || want == CLIP_NONE || anim->has_animation(clip_name(want))) return want;
 	ClipId alt = CLIP_NONE;
 	switch (want) {
-		case CLIP_RUN:    alt = CLIP_WALK; break;
-		case CLIP_WALK:   alt = CLIP_RUN; break;
-		case CLIP_CARRY:  alt = CLIP_WALK; break;
-		case CLIP_BUILD:  alt = CLIP_GATHER; break;
-		case CLIP_HEAL:   alt = CLIP_GATHER; break;
-		default:          break;
+		case CLIP_RUN:       alt = CLIP_WALK; break;
+		case CLIP_WALK:      alt = CLIP_RUN; break;
+		case CLIP_CARRY:     alt = CLIP_WALK; break;
+		case CLIP_BUILD:     alt = CLIP_GATHER; break;
+		case CLIP_HEAL:      alt = CLIP_GATHER; break;
+		case CLIP_SLAUGHTER: alt = CLIP_ATTACK; break;
+		default:             break;
 	}
 	if (alt != CLIP_NONE && anim->has_animation(clip_name(alt))) return alt;
 	// Death must not loop an idle forever; the caller clears loop for it.
@@ -447,6 +458,35 @@ static void apply_ship_wave_xform(Transform3D &xf, uint32_t id, float t, float s
 	const float pitch = Math::sin(w * 1.37f + 1.1f) * 0.021f * amp;
 	xf.basis = xf.basis * Basis(Vector3(0, 0, 1), roll) * Basis(Vector3(1, 0, 0), pitch);
 	xf.origin.y += Math::sin(w * 0.83f + 0.5f) * 0.055f * amp;
+}
+
+// Trireme oars are rigid child nodes (oar_*), not sail-skeleton bones. Stroke
+// them in local space while the hull is moving; Idle leaves them at rest.
+static void apply_ship_oar_stroke(Node *model, uint32_t id, float t, float speed2) {
+	if (!model) return;
+	const float moving = Math::clamp(speed2 * 4.0f, 0.0f, 1.0f);
+	std::vector<Node *> stack;
+	stack.push_back(model);
+	int k = 0;
+	while (!stack.empty()) {
+		Node *n = stack.back();
+		stack.pop_back();
+		for (int i = 0; i < n->get_child_count(); ++i) {
+			stack.push_back(n->get_child(i));
+		}
+		Node3D *n3 = Object::cast_to<Node3D>(n);
+		if (!n3) continue;
+		if (!String(n3->get_name()).begins_with("oar_")) continue;
+		if (!n3->has_meta("oar_rest")) {
+			n3->set_meta("oar_rest", n3->get_transform());
+		}
+		Transform3D rest = n3->get_meta("oar_rest");
+		const float phase = (float)(id % 17) * 0.37f + (float)k * 0.21f;
+		++k;
+		const float ang = Math::sin(t * 4.2f + phase) * 0.35f * moving;
+		rest.basis = rest.basis * Basis(Vector3(1.0f, 0.0f, 0.0f), ang);
+		n3->set_transform(rest);
+	}
 }
 
 static void apply_unit_death_xform(Transform3D &xf, uint8_t utype, float death_t, float px, float pz, float hull_h, bool has_death_clip) {
@@ -619,7 +659,6 @@ void RtsoWorldView::ensure_unit_batches(const rtso::Simulation *sim) {
 			String cat_units2 = "units";
 			auto entry = rtso::ModelLibrary::get(cat_units2, id_str);
 			Ref<Mesh> rest = entry.crowd_mesh.is_valid() ? entry.crowd_mesh : entry.mesh;
-			unit_puppet_baked[bank][t] = true;
 
 			for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
 				if (unit_mmi[bank][t][c]) continue;
@@ -631,6 +670,162 @@ void RtsoWorldView::ensure_unit_batches(const rtso::Simulation *sim) {
 			}
 		}
 	}
+}
+
+void RtsoWorldView::bake_puppet_clips(CrowdPuppet *row, AnimationPlayer *ap,
+		rtso::ModelLibrary::CrowdSkin &skin, bool skinned) {
+	static const ClipId kWant[CROWD_CLIP_COUNT] = {
+		CLIP_IDLE, CLIP_WALK, CLIP_ATTACK, CLIP_DEATH
+	};
+	bool fauna_row = false;
+	for (int fi = 0; fi < rtso::FAUNA_COUNT; ++fi) {
+		if (row == fauna_puppet[fi]) {
+			fauna_row = true;
+			break;
+		}
+	}
+	for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
+		ClipId want = kWant[c];
+		if (c == 1 && fauna_row && ap && ap->has_animation(clip_name(CLIP_RUN))) {
+			want = CLIP_RUN;
+		}
+		ClipId play = resolve_clip_fallback(ap, want);
+		int valid = 0;
+		if (skinned && ap && play != CLIP_NONE) {
+			const StringName &name = clip_name(play);
+			double len = 0.0;
+			Ref<Animation> a = ap->get_animation(name);
+			if (a.is_valid()) len = a->get_length();
+			ap->play(name);
+			const int n = CROWD_FRAMES_PER_CLIP;
+			for (int f = 0; f < n; ++f) {
+				double t = 0.0;
+				if (len > 0.0) {
+					if (c == 3) {
+						t = (n > 1) ? len * (double)f / (double)(n - 1) : 0.0;
+					} else {
+						t = len * (double)f / (double)n;
+					}
+				}
+				ap->seek(t, true);
+				ap->advance(0.0);
+				Ref<ArrayMesh> baked = rtso::ModelLibrary::bake_crowd_skin(skin);
+				if (baked.is_valid()) {
+					row[c].posed_frames[valid] = baked;
+					valid++;
+				}
+			}
+		}
+		row[c].baked_count = valid;
+		row[c].last_frame = -1;
+	}
+	if (ap) ap->stop();
+}
+
+void RtsoWorldView::cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts) {
+	for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
+		if (!meshes[c].is_valid() || row[c].baked_count <= 0 || counts[c] <= 0) continue;
+		int frame;
+		if (c == 3) {
+			frame = (int)(anim_time * 5.0f);
+			if (frame > row[c].baked_count - 1) frame = row[c].baked_count - 1;
+		} else {
+			frame = wrap_mod((int)(anim_time * 8.0f), row[c].baked_count);
+		}
+		if (frame != row[c].last_frame && row[c].posed_frames[frame].is_valid()) {
+			meshes[c]->set_mesh(row[c].posed_frames[frame]);
+			row[c].last_frame = frame;
+		}
+	}
+}
+
+void RtsoWorldView::ensure_crowd_frames(int bank, uint8_t utype, uint8_t civ) {
+	if (bank < 0 || bank >= CROWD_BANK_COUNT) return;
+	if (utype >= rtso::UNIT_TYPE_COUNT) return;
+	if (unit_puppet_baked[bank][utype]) return;
+	unit_puppet_baked[bank][utype] = true;
+
+	String cat_units = "units";
+	String id_str = rtso::civ_unit_model(civ, utype);
+	auto entry = rtso::ModelLibrary::get(cat_units, id_str);
+	if (!entry.scene.is_valid()) return;
+
+	if (!crowd_bake_root) {
+		crowd_bake_root = memnew(Node3D);
+		crowd_bake_root->set_visible(false);
+		add_child(crowd_bake_root);
+	}
+	Node *inst = entry.scene->instantiate();
+	if (!inst) return;
+	crowd_bake_root->add_child(inst);
+	if (Node3D *n3 = Object::cast_to<Node3D>(inst)) {
+		n3->set_visible(false);
+		n3->set_position(Vector3(0, -1000, 0));
+	}
+	rtso::ModelLibrary::apply_imported_material_fixups(inst);
+
+	AnimationPlayer *ap = find_anim_player(inst);
+	if (ap) {
+		ap->set_active(true);
+		ap->set_callback_mode_process(AnimationMixer::ANIMATION_CALLBACK_MODE_PROCESS_MANUAL);
+	}
+	rtso::ModelLibrary::CrowdSkin skin;
+	bool captured = rtso::ModelLibrary::capture_crowd_skin(inst, skin);
+	bake_puppet_clips(unit_puppet[bank][utype], ap, skin, captured);
+	for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
+		if (unit_mm[bank][utype][c].is_valid() && unit_puppet[bank][utype][c].posed_frames[0].is_valid()) {
+			unit_mm[bank][utype][c]->set_mesh(unit_puppet[bank][utype][c].posed_frames[0]);
+		}
+		unit_puppet[bank][utype][c].skin = rtso::ModelLibrary::CrowdSkin();
+		unit_puppet[bank][utype][c].root = nullptr;
+		unit_puppet[bank][utype][c].anim = nullptr;
+	}
+	crowd_bake_root->remove_child(inst);
+	inst->queue_free();
+}
+
+void RtsoWorldView::ensure_fauna_frames(uint8_t ftype) {
+	if (ftype >= rtso::FAUNA_COUNT) return;
+	if (fauna_puppet_baked[ftype]) return;
+	fauna_puppet_baked[ftype] = true;
+
+	String cat_units = "units";
+	String id_str = rtso::fauna_type_info(ftype).model_id;
+	auto entry = rtso::ModelLibrary::get(cat_units, id_str);
+	if (!entry.scene.is_valid()) return;
+
+	if (!crowd_bake_root) {
+		crowd_bake_root = memnew(Node3D);
+		crowd_bake_root->set_visible(false);
+		add_child(crowd_bake_root);
+	}
+	Node *inst = entry.scene->instantiate();
+	if (!inst) return;
+	crowd_bake_root->add_child(inst);
+	if (Node3D *n3 = Object::cast_to<Node3D>(inst)) {
+		n3->set_visible(false);
+		n3->set_position(Vector3(0, -1000, 0));
+	}
+	rtso::ModelLibrary::apply_imported_material_fixups(inst);
+
+	AnimationPlayer *ap = find_anim_player(inst);
+	if (ap) {
+		ap->set_active(true);
+		ap->set_callback_mode_process(AnimationMixer::ANIMATION_CALLBACK_MODE_PROCESS_MANUAL);
+	}
+	rtso::ModelLibrary::CrowdSkin skin;
+	bool captured = rtso::ModelLibrary::capture_crowd_skin(inst, skin);
+	bake_puppet_clips(fauna_puppet[ftype], ap, skin, captured);
+	for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
+		if (fauna_mm[ftype][c].is_valid() && fauna_puppet[ftype][c].posed_frames[0].is_valid()) {
+			fauna_mm[ftype][c]->set_mesh(fauna_puppet[ftype][c].posed_frames[0]);
+		}
+		fauna_puppet[ftype][c].skin = rtso::ModelLibrary::CrowdSkin();
+		fauna_puppet[ftype][c].root = nullptr;
+		fauna_puppet[ftype][c].anim = nullptr;
+	}
+	crowd_bake_root->remove_child(inst);
+	inst->queue_free();
 }
 
 void RtsoWorldView::play_unit_clip(UnitVis &v, const StringName &clip, bool loop) {
@@ -783,12 +978,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	auto uview = sim->units();
 
 	std::unordered_set<uint32_t> detailed;
-	// Dying and fighting ships must be detailed — crowd MultiMesh is a rest pose.
+	// Ships always need the real GLB (sail clips + oar nodes). Crowd is rest-pose.
+	for (size_t i = 0; i < uview.count; ++i) {
+		if (rtso::unit_is_ship(uview.unit_type[i]))
+			detailed.insert(uview.id[i]);
+	}
 	for (size_t i = 0; i < uview.count && (int)detailed.size() < MAX_DETAILED_UNITS; ++i) {
-		uint8_t t = uview.unit_type[i];
 		bool dying = !uview.alive[i] || uview.action_state[i] == rtso::ACTION_DYING;
-		bool ship = rtso::unit_is_ship(t);
-		if (dying || ship)
+		if (dying)
 			detailed.insert(uview.id[i]);
 	}
 	for (int s = 0; s < selected_ids.size() && (int)detailed.size() < MAX_DETAILED_UNITS; ++s) {
@@ -804,6 +1001,15 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		float vz = uview.vel_z[i];
 		int clip = crowd_clip_of(uview.action_state[i], vx * vx + vz * vz, uview.alive[i] != 0);
 		counts[bank][t][clip]++;
+	}
+	uint8_t civs[CROWD_BANK_COUNT] = { sim->player_civ(), sim->team_civ(1) };
+	for (int bank = 0; bank < CROWD_BANK_COUNT; ++bank) {
+		for (int t = 0; t < rtso::UNIT_TYPE_COUNT; ++t) {
+			int any = 0;
+			for (int c = 0; c < CROWD_CLIP_COUNT; ++c) any += counts[bank][t][c];
+			if (any > 0) ensure_crowd_frames(bank, (uint8_t)t, civs[bank]);
+			cycle_puppet_meshes(unit_puppet[bank][t], unit_mm[bank][t], counts[bank][t]);
+		}
 	}
 	int written[CROWD_BANK_COUNT][rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT] = {};
 	for (int bank = 0; bank < CROWD_BANK_COUNT; ++bank) {
@@ -949,6 +1155,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			apply_unit_death_xform(dxf, utype, death_t, x, z, entry.aabb.size.y * dsc, has_death_clip);
 		}
 		v.root->set_transform(dxf);
+		if (ship_wave) {
+			apply_ship_oar_stroke(v.model, id, anim_time, speed2);
+		}
 
 		bool is_selected = (sel_set.count((int32_t)id) > 0);
 		if (is_selected) {
@@ -1335,22 +1544,40 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	// 5. Wildlife Fauna MultiMeshes
 	// =========================================================================
 	auto fview = sim->fauna();
-	int f_counts[rtso::FAUNA_COUNT] = {};
+	auto fauna_clip_of = [](uint8_t behavior, float speed2, bool alive) -> int {
+		if (!alive || behavior == rtso::FAUNA_CARCASS) return 3;
+		if (behavior == rtso::FAUNA_ATTACK) return 2;
+		if (behavior == rtso::FAUNA_FLEE) return 1;
+		if (speed2 > 0.001f) return 1;
+		return 0;
+	};
+	int f_counts[rtso::FAUNA_COUNT][CROWD_CLIP_COUNT] = {};
 	for (size_t f = 0; f < fview.count; ++f) {
-		if (fview.alive[f] && fview.fauna_type[f] < rtso::FAUNA_COUNT) {
-			f_counts[fview.fauna_type[f]]++;
-		}
-	}
-	for (int ft = 0; ft < rtso::FAUNA_COUNT; ++ft) {
-		if (fauna_mm[ft].is_valid()) {
-			fauna_mm[ft]->set_instance_count(f_counts[ft]);
-		}
-	}
-	int f_written[rtso::FAUNA_COUNT] = {};
-	for (size_t f = 0; f < fview.count; ++f) {
-		if (!fview.alive[f]) continue;
 		uint8_t ft = fview.fauna_type[f];
 		if (ft >= rtso::FAUNA_COUNT) continue;
+		float vx = fview.vel_x[f];
+		float vz = fview.vel_z[f];
+		int clip = fauna_clip_of(fview.behavior[f], vx * vx + vz * vz, fview.alive[f] != 0);
+		f_counts[ft][clip]++;
+	}
+	for (int ft = 0; ft < rtso::FAUNA_COUNT; ++ft) {
+		int any = 0;
+		for (int c = 0; c < CROWD_CLIP_COUNT; ++c) any += f_counts[ft][c];
+		if (any > 0) ensure_fauna_frames((uint8_t)ft);
+		cycle_puppet_meshes(fauna_puppet[ft], fauna_mm[ft], f_counts[ft]);
+		for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
+			if (fauna_mm[ft][c].is_valid()) {
+				fauna_mm[ft][c]->set_instance_count(f_counts[ft][c]);
+			}
+		}
+	}
+	int f_written[rtso::FAUNA_COUNT][CROWD_CLIP_COUNT] = {};
+	for (size_t f = 0; f < fview.count; ++f) {
+		uint8_t ft = fview.fauna_type[f];
+		if (ft >= rtso::FAUNA_COUNT) continue;
+		float vx = fview.vel_x[f];
+		float vz = fview.vel_z[f];
+		int clip = fauna_clip_of(fview.behavior[f], vx * vx + vz * vz, fview.alive[f] != 0);
 		float fx = fview.pos_x[f];
 		float fz = fview.pos_z[f];
 		float fy = sim->get_terrain_height(fx, fz);
@@ -1360,9 +1587,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		float fsc = fent.scale > 0.05f ? fent.scale : 1.0f;
 		Transform3D xf(Basis(Vector3(0, 1, 0), frot).scaled(Vector3(fsc, fsc, fsc)),
 		               Vector3(fx, fy + fent.y_offset, fz));
-		int fslot = f_written[ft]++;
-		if (fauna_mm[ft].is_valid() && fslot < f_counts[ft]) {
-			fauna_mm[ft]->set_instance_transform(fslot, xf);
+		int fslot = f_written[ft][clip]++;
+		if (fauna_mm[ft][clip].is_valid()) {
+			fauna_mm[ft][clip]->set_instance_transform(fslot, xf);
 		}
 	}
 }

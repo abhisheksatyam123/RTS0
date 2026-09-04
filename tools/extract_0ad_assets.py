@@ -1515,6 +1515,24 @@ def _psa_for_dae(vfs, dae_file):
     return None
 
 
+def _is_carry_variant(var):
+    """0 A.D. UnitAI SetAnimationVariant(carry_wood) swaps a sibling variant.
+
+    The inner clips are still named Idle/Walk/Run — not carry_* — so the
+    harvest has to notice the variant itself (name or @file).
+    """
+    if var is None:
+        return False
+    name = (var.get("name") or "").strip().lower()
+    file = (var.get("file") or "").replace("\\", "/").lower()
+    base = file.rsplit("/", 1)[-1]
+    if name.startswith("carry") or "carry_" in name:
+        return True
+    if "carry_" in base or base.startswith("carry"):
+        return True
+    return False
+
+
 def collect_actor_clips(vfs, actor_path, depth=0, seen=None, skip=None):
     """Read Idle/Walk/Attack/… PSA paths from the actor, its variants, and props.
 
@@ -1535,6 +1553,10 @@ def collect_actor_clips(vfs, actor_path, depth=0, seen=None, skip=None):
     path = _actor_path(actor_path)
     if depth > 6 or not path or path in seen or not vfs.exists(path):
         return clips
+    # Oar actors carry a 2-bone Idle/Walk PSA. Those must not occupy the ship's
+    # Idle/Walk (sail is 41 bones) — oars are rigid nodes stroked at runtime.
+    if "ship_oar" in path:
+        return clips
     seen.add(path)
     root = ET.fromstring(vfs.read(path))
     if root.tag == "qualitylevels":
@@ -1545,15 +1567,30 @@ def collect_actor_clips(vfs, actor_path, depth=0, seen=None, skip=None):
 
     ranks = {}
 
-    def add_anim(anim):
+    def add_anim(anim, as_carry=False):
         psa = _psa_for_dae(vfs, anim.get("file") or "")
         if not psa:
             return
         raw = (anim.get("name") or "").strip().lower()
-        key = _canon_clip(raw)
-        if key not in _CLIP_WANTED:
-            return
-        rank = _CLIP_RANK.get(raw, 1)
+        if as_carry:
+            # Laden variant: keep the walk cycle as Carry so it cannot overwrite
+            # the unit's unladen Idle/Walk. Prefer walk, then run, then idle.
+            if raw in ("walk", "run", "move"):
+                key = "Carry"
+                rank = 0 if raw == "walk" else 1
+            elif raw in ("idle",):
+                key = "Carry"
+                rank = 2
+            else:
+                key = _canon_clip(raw)
+                if key not in _CLIP_WANTED:
+                    return
+                rank = _CLIP_RANK.get(raw, 1)
+        else:
+            key = _canon_clip(raw)
+            if key not in _CLIP_WANTED:
+                return
+            rank = _CLIP_RANK.get(raw, 1)
         if key not in clips or rank < ranks[key]:
             clips[key] = psa
             ranks[key] = rank
@@ -1564,8 +1601,9 @@ def collect_actor_clips(vfs, actor_path, depth=0, seen=None, skip=None):
         if var is None:
             return
         resolved = resolve_variant_chain(vfs, var, vcache)
+        carry = _is_carry_variant(var) or _is_carry_variant(resolved)
         for anim in resolved.iter("animation"):
-            add_anim(anim)
+            add_anim(anim, as_carry=carry)
         if not props:
             return
         for pr in resolved.iter("prop"):
@@ -1573,7 +1611,7 @@ def collect_actor_clips(vfs, actor_path, depth=0, seen=None, skip=None):
             ap = (pr.get("attachpoint") or "").strip().lower()
             if not act or ap == "projectile":
                 continue
-            if any(s in act for s in ("decals/", "platforms/", "particle", "flag")):
+            if any(s in act for s in ("decals/", "platforms/", "particle", "flag", "ship_oar")):
                 continue
             if _actor_path(act) in skip:
                 continue
@@ -1897,18 +1935,38 @@ def attach_rider_parts(vfs, parts, body, asset_id, tint, sources, riders=None):
 
 
 def _merge_variant_xml(shared_var, inline_var):
-    """Combine a shared variant file's <variant> with the inline one
-    (inline wins for meshes/materials; children merge)."""
+    """Combine a shared variant file's <variant> with the inline one.
+
+    Mesh/material/textures: inline wins. Props and animations concatenate —
+    replacing <props> used to drop trireme oars when the hull variant also
+    declared sail props.
+    """
     merged = ET.Element("variant")
-    for child in shared_var:
-        merged.append(child)
-    for child in inline_var:
-        tag = child.tag
-        existing = merged.findall(tag)
-        if existing:
-            for e in existing:
-                merged.remove(e)
-        merged.append(child)
+    merged.attrib.update(shared_var.attrib)
+    for k, v in inline_var.attrib.items():
+        if v:
+            merged.set(k, v)
+
+    def _copy(el):
+        return ET.fromstring(ET.tostring(el, encoding="unicode"))
+
+    by_tag = {}
+    append_tags = ("props", "animations")
+    for src in (shared_var, inline_var):
+        for child in list(src):
+            tag = child.tag
+            if tag in append_tags:
+                if tag not in by_tag:
+                    node = ET.SubElement(merged, tag)
+                    by_tag[tag] = node
+                for gc in child:
+                    by_tag[tag].append(_copy(gc))
+                continue
+            if tag in by_tag:
+                merged.remove(by_tag[tag])
+            node = _copy(child)
+            merged.append(node)
+            by_tag[tag] = node
     return merged
 
 # ------------------------------------------------------------- baking -------
@@ -2344,17 +2402,35 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
     fallback = None
     hull = None
     hull_n = 10 ** 9
+    # Prefer the mesh the UNIT_CFG / harvested skeleton actually drives, then
+    # the largest clip-compatible part. First-match used to bind a catapult to
+    # its rock or a 46-bone crew tunic when those bone counts also appeared in
+    # clip_bones.
+    best_score = None
     for p in parts:
         nb = len((p.mesh_data or {}).get("bones") or [])
+        nv = len((p.mesh_data or {}).get("verts") or [])
+        src = (getattr(p, "source", "") or "").lower()
+        if "ship_oar" in src:
+            continue
         if nb > 0 and fallback is None:
             fallback = p
         if nb < hull_n:
             hull_n = nb
             hull = p
-        if nb and nb in clip_bones and body is None:
+        if not nb or nb not in clip_bones:
+            continue
+        if any(w in src for w in ("projectile", "stone_ammo", "stone_projectile")):
+            continue
+        score = (1 if (want_bones and nb == want_bones) else 0, nv, nb)
+        if best_score is None or score > best_score:
+            best_score = score
             body = p
     if body is None:
         for p in parts:
+            src = (getattr(p, "source", "") or "").lower()
+            if "ship_oar" in src:
+                continue
             nb = len((p.mesh_data or {}).get("bones") or [])
             if want_bones and nb == want_bones:
                 body = p
@@ -2423,15 +2499,24 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
     fit_pos = []
     baked_cache = {}
     ao_img_cache = {}
-    part_info = []  # (prim_idx, bone_idx, world_xf)
+    part_info = []  # (prim_idx, bone_idx, world_xf, origin_locked, skin_i, oar_tq)
     for part in parts:
         md = part.mesh_data
         verts, uvs, faces = md["verts"], md["uvs"], md["faces"]
         uv1s = md.get("uv1s") or []
         xf = part.transform if part.transform is not None else trs((0, 0, 0), (0, 0, 0, 1))
-        positions = [mat_apply(xf, p) for (p, n) in verts]
-        normals = [mat_apply(rot_only(xf), n) for (p, n) in verts]
-        all_pos.extend(positions)
+        src = (getattr(part, "source", "") or "").lower()
+        is_oar = "ship_oar" in src
+        world_pos = [mat_apply(xf, p) for (p, n) in verts]
+        if is_oar:
+            positions = [p for (p, n) in verts]
+            normals = [n for (p, n) in verts]
+            oar_tq = mat_to_tq(xf)
+        else:
+            positions = world_pos
+            normals = [mat_apply(rot_only(xf), n) for (p, n) in verts]
+            oar_tq = None
+        all_pos.extend(world_pos)
         tex = part.tex_base
         mat_idx = 0
         if tex:
@@ -2482,7 +2567,14 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
         has_skin_blends = bool(md.get("blends")) and _blends_fit_skeleton(md["blends"], skin_n)
         # Cape etc. attach to root (0xFF) but still have a full matching skin.
         origin_locked = bone_idx == 0xFF and not use_rigid and not has_skin_blends and not rider_skin
-        if origin_locked:
+        if is_oar:
+            # Keep oars as rigid child nodes so Walk can stroke them; they must
+            # not ride the sail skeleton (2-bone oar PMD vs 41-bone sail).
+            origin_locked = True
+            use_rigid = False
+            has_skin_blends = False
+            joints, weights = None, None
+        elif origin_locked:
             joints, weights = None, None
         elif use_rigid:
             if bone_idx < 0 or bone_idx == 0xFF or bone_idx >= skin_n:
@@ -2495,10 +2587,10 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
                 bone_idx = 0
             joints, weights = _skin_attrs(md, len(positions), bone_idx, skin_n)
         prim = glb._add_primitive(positions, normals, flip_uvs, tri, mat_idx, joints, weights, flip_uv1, colors)
-        part_info.append((prim, bone_idx, xf, origin_locked, 1 if rider_skin else 0))
+        part_info.append((prim, bone_idx, xf, origin_locked, 1 if rider_skin else 0, oar_tq))
 
-        if not getattr(part, "aux", False):
-            fit_pos.extend(positions)
+        if not getattr(part, "aux", False) and not is_oar:
+            fit_pos.extend(world_pos)
 
     # Normalization (center XZ, base Y, scale to target) applied as the ROOT
     # node transform so the in-model-space bone/part transforms stay intact.
@@ -2561,8 +2653,12 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
     for i in range(rider_n):
         t, q = rider_rest_tq[i]
         nodes.append({"name": f"rider_{i}", "translation": list(t), "rotation": list(q)})
-    for k, (prim, bidx, wxf, origin_locked, skin_i) in enumerate(part_info):
-        nd = {"name": f"{asset_id}_part{k}", "mesh": prim}
+    for k, (prim, bidx, wxf, origin_locked, skin_i, oar_tq) in enumerate(part_info):
+        nd = {"name": f"oar_{k}" if oar_tq is not None else f"{asset_id}_part{k}", "mesh": prim}
+        if oar_tq is not None:
+            ot, oq = oar_tq
+            nd["translation"] = list(ot)
+            nd["rotation"] = list(oq)
         if not origin_locked:
             nd["skin"] = skin_i if (skin_i == 0 or rider_n > 0) else 0
         nodes.append(nd)
@@ -2756,12 +2852,6 @@ def _skin_attrs(md, nverts, fallback_bone, num_bones):
     return joints, weights
 
 
-def mat_to_tq(m):
-    t = (m[0][3], m[1][3], m[2][3])
-    q = mat3_to_quat([[m[i][j] for j in range(3)] for i in range(3)])
-    return t, q
-
-
 def _mat4_gltf(m):
     """Pack a row-major 4x4 as glTF column-major floats."""
     vals = [m[r][c] for c in range(4) for r in range(4)]
@@ -2918,7 +3008,7 @@ UNIT_CFG = {
         "Idle": "citizen_idle", "Walk": "citizen_walk", "Run": "citizen_run",
         "Attack": "biped_attack", "Death": "biped_death",
         "Gather": "gather_wood", "Build": "citizen_build",
-        "Slaughter": "slaughter"}),
+        "Carry": "carry_wood", "Slaughter": "slaughter"}),
     "swordsman": ("biped", {
         "Idle": "biped_idle", "Walk": "biped_walk", "Run": "biped_run",
         "Attack": "biped_attack", "Death": "biped_death"}),
@@ -2955,7 +3045,7 @@ UNIT_CFG = {
         "Death": "deer_death"}),
     "healer": ("biped", {
         "Idle": "healer_idle", "Walk": "healer_walk", "Run": "healer_run",
-        "Attack": "healer_heal", "Death": "biped_death"}),
+        "Attack": "healer_heal", "Heal": "healer_heal", "Death": "biped_death"}),
     "ram": ("", {
         "Idle": "ram_idle", "Walk": "ram_walk", "Run": "ram_walk",
         "Attack": "ram_attack", "Death": "ram_death"}),
@@ -2966,7 +3056,7 @@ UNIT_CFG = {
         "Idle": "female_idle", "Walk": "female_walk", "Run": "female_run",
         "Attack": "biped_attack", "Death": "biped_death",
         "Gather": "gather_wood", "Build": "citizen_build",
-        "Slaughter": "slaughter"}),
+        "Carry": "carry_wood", "Slaughter": "slaughter"}),
     "hero": ("biped", {
         "Idle": "biped_idle", "Walk": "biped_walk", "Run": "biped_run",
         "Attack": "biped_attack", "Death": "biped_death"}),
@@ -3006,6 +3096,84 @@ UNIT_CFG = {
         "Run": "merchant_sail_run", "Death": "merchant_sail_idle"}),
 }
 
+# Runtime ClipId states the renderer actually requests, per model kind.
+# Ships only need Idle (hulls are often unskinned; sail/oar are harvested if
+# the actor declared them). Buildings have no skeletal clips.
+_KIND_WANTED_CLIPS = {
+    "villager": ("Idle", "Walk", "Run", "Attack", "Death", "Gather", "Build", "Carry", "Slaughter"),
+    "female_citizen": ("Idle", "Walk", "Run", "Attack", "Death", "Gather", "Build", "Carry", "Slaughter"),
+    "swordsman": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "spearman": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "archer": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "cavalry": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "camel": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "elephant": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "worker_elephant": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "chariot": ("Idle", "Walk", "Death"),
+    "scythed_chariot": ("Idle", "Walk", "Death"),
+    "trader": ("Idle", "Walk", "Death"),
+    "healer": ("Idle", "Walk", "Run", "Heal", "Death"),
+    "ram": ("Idle", "Walk", "Attack", "Death"),
+    "siege_ram": ("Idle", "Walk", "Attack", "Death"),
+    "hero": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "carnyx": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "archer_maiden": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "war_dog": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "catapult": ("Idle", "Attack"),
+    "bolt_shooter": ("Idle", "Attack"),
+    "fishing_boat": ("Idle",),
+    "trireme": ("Idle",),
+    "merchant_ship": ("Idle",),
+    "deer": ("Idle", "Walk", "Death"),
+    "boar": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "wolf": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "sheep": ("Idle", "Walk", "Run", "Death"),
+}
+
+
+def _kind_for_audit(asset_id):
+    if asset_id in _KIND_WANTED_CLIPS:
+        return asset_id
+    parent = _civ_base_unit_id(asset_id)
+    if parent and parent in _KIND_WANTED_CLIPS:
+        return parent
+    return None
+
+
+def audit_extracted_clips(manifest):
+    """Print GLB clip lists vs the states each unit type can enter in-game."""
+    models = manifest.get("models") or {}
+    print("[audit] GLB clips vs wanted runtime states")
+    missing_assets = 0
+    static_hulls = 0
+    rows = 0
+    for aid in sorted(models):
+        kind = _kind_for_audit(aid)
+        if not kind:
+            continue
+        rec = models[aid]
+        have = list(rec.get("animations") or [])
+        wanted = _KIND_WANTED_CLIPS[kind]
+        # Unskinned civ hulls list no clips — rest pose is correct. Do not
+        # invent sail Idle or flag them as MISSING.
+        if _is_watercraft(aid) and not have:
+            rows += 1
+            static_hulls += 1
+            print(f"  static {aid:28s} []")
+            continue
+        miss = [c for c in wanted if c not in have]
+        rows += 1
+        tag = "ok" if not miss else "!"
+        if miss:
+            missing_assets += 1
+            print(f"  {tag} {aid:28s} have={have}  MISSING {miss}")
+        else:
+            print(f"  {tag} {aid:28s} {have}")
+    print(f"[audit] {rows} unit/fauna assets, {static_hulls} static hulls, "
+          f"{missing_assets} missing wanted clips")
+    return missing_assets
+
+
 # --------------------------------------------------------------- main -------
 
 def main():
@@ -3018,12 +3186,19 @@ def main():
     ap.add_argument("--all-skeletons", action="store_true", help="extract all skeletons")
     ap.add_argument("--only", nargs="+", help="extract only these asset ids")
     ap.add_argument("--list-actors", action="store_true", help="list all art/actors/*.xml in zip and exit")
+    ap.add_argument("--audit", action="store_true",
+                    help="print clip coverage vs wanted runtime states and exit (uses existing manifest)")
     args = ap.parse_args()
     if getattr(args, "full", False):
         args.all = True
     out_dir = os.path.abspath(args.out)
     print(f"archive: {args.zip}")
     print(f"output : {out_dir}")
+    if args.audit:
+        man_path = os.path.join(out_dir, "models", "manifest.json")
+        with open(man_path) as f:
+            audit_extracted_clips(json.load(f))
+        return
     clean_misplaced_assets(out_dir)
     manifest = {"generator": "tools/extract_0ad_assets.py",
                 "origin": "0 A.D. by Wildfire Games (public mod archive)",
@@ -3212,6 +3387,7 @@ def main():
     print(f"manifest -> {man_path}")
     # also write skeleton/animation verification summary
     print(f"extracted {len(manifest.get('animations',{}))} animations + {len(manifest.get('skeletons',{}))} skeletons")
+    audit_extracted_clips(manifest)
 
 
 if __name__ == "__main__":
