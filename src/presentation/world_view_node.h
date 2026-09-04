@@ -45,7 +45,7 @@ class RtsoWorldView : public Node3D {
 		bool ring_on = false;
 		uint32_t vis_stamp = 0;
 		String model_id;
-		String clip;
+		StringName clip;
 	};
 
 	struct BuildingVis {
@@ -195,7 +195,7 @@ private:
 	void attach_building_model(BuildingVis &v, const String &model_name);
 	void set_building_site_visible(BuildingVis &v, bool foundation_on, bool scaffold_on, uint8_t btype);
 	static Node *instantiate_building_id(const String &id);
-	void play_unit_clip(UnitVis &v, const String &clip, bool loop);
+	void play_unit_clip(UnitVis &v, const StringName &clip, bool loop);
 	void hide_unit_vis(UnitVis &v);
 	void ensure_unit_batches(const rtso::Simulation *sim);
 	void init_animation_controllers();

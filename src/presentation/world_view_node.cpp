@@ -331,55 +331,107 @@ static int wrap_mod(int v, int m) {
 	return r < 0 ? r + m : r;
 }
 
+// Clip names are resolved for every detailed unit every frame. Building a
+// godot::String from a literal there allocates, and every has_animation() call
+// would re-hash it into a StringName, so keep one interned name per clip and
+// pass small ids around instead.
+enum ClipId : uint8_t {
+	CLIP_NONE = 0,
+	CLIP_IDLE,
+	CLIP_WALK,
+	CLIP_RUN,
+	CLIP_ATTACK,
+	CLIP_DEATH,
+	CLIP_GATHER,
+	CLIP_BUILD,
+	CLIP_CARRY,
+	CLIP_HEAL,
+	CLIP_COUNT
+};
+
+static const StringName &clip_name(ClipId id) {
+	static const StringName names[CLIP_COUNT] = {
+		StringName(), StringName("Idle"), StringName("Walk"), StringName("Run"),
+		StringName("Attack"), StringName("Death"), StringName("Gather"),
+		StringName("Build"), StringName("Carry"), StringName("Heal")
+	};
+	return names[id < CLIP_COUNT ? id : CLIP_NONE];
+}
+
 // 0 A.D. action → clip (Attack.js, ResourceGatherer.js, CCmpVisualActor, UnitAI carry variant).
 struct WantAnim {
-	String clip;
+	ClipId clip = CLIP_IDLE;
 	bool loop = true;
 	rtso::AnimState state = rtso::AnimState::Idle;
 };
 
 static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int32_t carry, uint8_t utype) {
 	WantAnim w;
+	// A laden unit keeps the carry variant through any movement clip.
+	const bool laden_move = carry > 0 && (speed2 > 0.001f || uaction == rtso::ACTION_MOVE);
+	WantAnim w_move;
+	w_move.clip = laden_move ? CLIP_CARRY : CLIP_WALK;
+	w_move.state = laden_move ? rtso::AnimState::Carry : rtso::AnimState::Walk;
+
 	if (!alive || uaction == rtso::ACTION_DYING) {
-		w.clip = "Death";
+		w.clip = CLIP_DEATH;
 		w.loop = false;
 		w.state = rtso::AnimState::Death;
 		return w;
 	}
-	// Gather/build/attack block movement clips (SelectMovementAnimation early-out).
-	if (uaction == rtso::ACTION_GATHER) {
-		// 0 A.D. gives the healer a Heal variant where everyone else has gather_*.
-		w.clip = (utype == rtso::UNIT_HEALER) ? "Heal" : "Gather";
-		w.state = rtso::AnimState::Gather;
-		return w;
+	switch (uaction) {
+		// Gather/build/attack block movement clips (SelectMovementAnimation early-out).
+		case rtso::ACTION_GATHER:
+			// 0 A.D. gives the healer a Heal variant where everyone else has gather_*.
+			w.clip = (utype == rtso::UNIT_HEALER) ? CLIP_HEAL : CLIP_GATHER;
+			w.state = rtso::AnimState::Gather;
+			return w;
+		case rtso::ACTION_BUILD:
+			w.clip = CLIP_BUILD;
+			w.state = rtso::AnimState::Build;
+			return w;
+		case rtso::ACTION_ATTACK:
+			// Ships: Attack.js keeps attack_ranged until StopAttacking (sail falls back to idle).
+			if (speed2 <= 8.0f || rtso::unit_is_ship(utype)) {
+				w.clip = CLIP_ATTACK;
+				w.state = rtso::AnimState::Attack;
+				return w;
+			}
+			return w_move;
+		// UnitAI.SetDefaultAnimationVariant → carry_food / carry_*; fishing hull uses rowing_move.
+		case rtso::ACTION_RETURN_DROPSITE:
+			w.clip = CLIP_CARRY;
+			w.state = rtso::AnimState::Carry;
+			return w;
+		case rtso::ACTION_MOVE:
+		case rtso::ACTION_ATTACK_MOVE:
+		case rtso::ACTION_PATROL:
+			return w_move;
+		default:
+			break;
 	}
-	if (uaction == rtso::ACTION_BUILD) {
-		w.clip = "Build";
-		w.state = rtso::AnimState::Build;
-		return w;
-	}
-	// Ships: Attack.js keeps attack_ranged until StopAttacking (sail falls back to idle).
-	if (uaction == rtso::ACTION_ATTACK && (speed2 <= 8.0f || rtso::unit_is_ship(utype))) {
-		w.clip = "Attack";
-		w.state = rtso::AnimState::Attack;
-		return w;
-	}
-	// UnitAI.SetDefaultAnimationVariant → carry_food / carry_*; fishing hull uses rowing_move.
-	if (uaction == rtso::ACTION_RETURN_DROPSITE ||
-			(carry > 0 && (speed2 > 0.001f || uaction == rtso::ACTION_MOVE))) {
-		w.clip = "Carry";
-		w.state = rtso::AnimState::Carry;
-		return w;
-	}
-	if (speed2 > 0.001f || uaction == rtso::ACTION_MOVE || uaction == rtso::ACTION_ATTACK ||
-			uaction == rtso::ACTION_ATTACK_MOVE || uaction == rtso::ACTION_PATROL) {
-		w.clip = "Walk";
-		w.state = rtso::AnimState::Walk;
-		return w;
-	}
-	w.clip = "Idle";
+	if (speed2 > 0.001f) return w_move;
+	w.clip = CLIP_IDLE;
 	w.state = rtso::AnimState::Idle;
 	return w;
+}
+
+// Nearest clip a model actually ships, mirroring the extractor's own borrowing
+// (Run from Walk, Carry from Walk, Death from Idle for hulls that only float).
+static ClipId resolve_clip_fallback(AnimationPlayer *anim, ClipId want) {
+	if (!anim || want == CLIP_NONE || anim->has_animation(clip_name(want))) return want;
+	ClipId alt = CLIP_NONE;
+	switch (want) {
+		case CLIP_RUN:    alt = CLIP_WALK; break;
+		case CLIP_WALK:   alt = CLIP_RUN; break;
+		case CLIP_CARRY:  alt = CLIP_WALK; break;
+		case CLIP_BUILD:  alt = CLIP_GATHER; break;
+		case CLIP_HEAL:   alt = CLIP_GATHER; break;
+		default:          break;
+	}
+	if (alt != CLIP_NONE && anim->has_animation(clip_name(alt))) return alt;
+	// Death must not loop an idle forever; the caller clears loop for it.
+	return anim->has_animation(clip_name(CLIP_IDLE)) ? CLIP_IDLE : CLIP_NONE;
 }
 
 // 0 A.D. rigs a sail skeleton on only some hulls (Athenian/Persian/Roman); the
@@ -447,7 +499,7 @@ void RtsoWorldView::attach_unit_model(UnitVis &v, const String &model_name) {
 		v.model = nullptr;
 	}
 	v.model_id = model_name;
-	v.clip = String();
+	v.clip = StringName();
 	String cat_units = "units";
 	auto entry = rtso::ModelLibrary::get(cat_units, model_name);
 	if (entry.scene.is_valid()) {
@@ -581,10 +633,10 @@ void RtsoWorldView::ensure_unit_batches(const rtso::Simulation *sim) {
 	}
 }
 
-void RtsoWorldView::play_unit_clip(UnitVis &v, const String &clip, bool loop) {
-	if (!v.anim || !UtilityFunctions::is_instance_valid(v.anim) || clip.is_empty()) return;
-	if (!v.anim->has_animation(clip)) return;
+void RtsoWorldView::play_unit_clip(UnitVis &v, const StringName &clip, bool loop) {
+	if (!v.anim || !UtilityFunctions::is_instance_valid(v.anim) || clip == StringName()) return;
 	if (v.clip == clip) return;
+	if (!v.anim->has_animation(clip)) return;
 	v.clip = clip;
 	Ref<Animation> a = v.anim->get_animation(clip);
 	if (a.is_valid()) {
@@ -708,12 +760,20 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	// Attack.js SelectAnimation("attack_*") and ResourceGatherer "gather_*" stay put.
 	auto crowd_clip_of = [](uint8_t uaction, float speed2, bool alive) -> int {
 		if (!alive || uaction == rtso::ACTION_DYING) return 3;
-		if (uaction == rtso::ACTION_GATHER || uaction == rtso::ACTION_BUILD) return 0;
-		if (uaction == rtso::ACTION_ATTACK) return 2;
-		if (speed2 > 0.001f || uaction == rtso::ACTION_MOVE || uaction == rtso::ACTION_RETURN_DROPSITE ||
-				uaction == rtso::ACTION_ATTACK_MOVE || uaction == rtso::ACTION_PATROL)
-			return 1;
-		return 0;
+		switch (uaction) {
+			case rtso::ACTION_GATHER:
+			case rtso::ACTION_BUILD:
+				return 0;
+			case rtso::ACTION_ATTACK:
+				return 2;
+			case rtso::ACTION_MOVE:
+			case rtso::ACTION_RETURN_DROPSITE:
+			case rtso::ACTION_ATTACK_MOVE:
+			case rtso::ACTION_PATROL:
+				return 1;
+			default:
+				return speed2 > 0.001f ? 1 : 0;
+		}
 	};
 
 	// =========================================================================
@@ -868,27 +928,13 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		} else {
 			v.anim = nullptr;
 		}
-		String want_clip = want.clip;
-		bool loop_clip = want.loop;
-		bool has_death_clip = v.anim && UtilityFunctions::is_instance_valid(v.anim) && v.anim->has_animation("Death");
-		if (v.anim && UtilityFunctions::is_instance_valid(v.anim)) {
-			if (!v.anim->has_animation(want_clip)) {
-				if (want_clip == "Run" && v.anim->has_animation("Walk")) want_clip = "Walk";
-				else if (want_clip == "Walk" && v.anim->has_animation("Run")) want_clip = "Run";
-				else if (want_clip == "Carry" && v.anim->has_animation("Walk")) want_clip = "Walk";
-				else if (want_clip == "Build" && v.anim->has_animation("Gather")) want_clip = "Gather";
-				else if (want_clip == "Heal" && v.anim->has_animation("Gather")) want_clip = "Gather";
-				else if (want_clip == "Gather" && v.anim->has_animation("Idle")) want_clip = "Idle";
-				else if (want_clip == "Attack" && v.anim->has_animation("Idle")) want_clip = "Idle";
-				else if (want_clip == "Death") {
-					want_clip = v.anim->has_animation("Idle") ? String("Idle") : String();
-					loop_clip = false;
-				} else if (v.anim->has_animation("Idle")) {
-					want_clip = "Idle";
-				}
-			}
-			if (!want_clip.is_empty()) {
-				play_unit_clip(v, want_clip, loop_clip);
+		bool has_death_clip = v.anim && v.anim->has_animation(clip_name(CLIP_DEATH));
+		if (v.anim) {
+			ClipId play = resolve_clip_fallback(v.anim, want.clip);
+			// A borrowed Death is an idle standing in for a corpse; never loop it.
+			bool loop_clip = want.loop && play == want.clip;
+			if (play != CLIP_NONE) {
+				play_unit_clip(v, clip_name(play), loop_clip);
 				v.anim->advance((double)delta);
 			}
 		}
