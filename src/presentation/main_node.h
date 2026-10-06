@@ -49,10 +49,12 @@
 #include "selection_rect.h"
 #include "debug_overlay.h"
 #include "minimap_view.h"
+#include "chat_window.h"
+#include "diplomacy_dialog.h"
 
 using namespace godot;
 
-class RtsoMain : public Node3D {
+class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost {
 	GDCLASS(RtsoMain, Node3D);
 
 	rtso::Simulation *sim = nullptr;
@@ -145,18 +147,11 @@ class RtsoMain : public Node3D {
 	Panel *banner_panel = nullptr;
 	Label *banner_label = nullptr;
 
-	// 5. In-Game Chat Overlay
-	Panel *chat_panel = nullptr;
-	RichTextLabel *chat_log = nullptr;
-	RtsoSafeSelect *chat_channel = nullptr;
-	LineEdit *chat_input = nullptr;
-	Button *chat_send_btn = nullptr;
-
-	// 6. Diplomacy & Tribute Dialog (8-player matrix)
-	Panel *diplomacy_panel = nullptr;
-	RtsoSafeSelect *diplo_stances[8] = {nullptr};
-	Label *diplo_player_names[8] = {nullptr};
-	Button *diplo_close_btn = nullptr;
+	// 5/6. In-Game Chat Overlay + Diplomacy & Tribute Dialog: P4.1 leaf
+	// widgets (chat_window.h / diplomacy_dialog.h) own their panel trees;
+	// the bound handler methods below delegate into them.
+	RtsoChatWindow chat_window_;
+	RtsoDiplomacyDialog diplo_dialog_;
 
 	// 3D Placement Ghost & Rally Marker
 	MeshInstance3D *ghost_mesh = nullptr;
@@ -248,6 +243,11 @@ public:
 	bool net_lockstep() const { return net_host_.getRole() != rtso::NetRole::None; }
 	void post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
 	                   float x = 0, float z = 0, uint32_t tid = 0, uint8_t param = 0);
+	// P4.1 host hooks for chat_window.h / diplomacy_dialog.h: thin inline
+	// forwards to the existing sim/net path (NMT_CHAT + cmd 22 unchanged).
+	String chat_civ_name() { return rtso::civ_info(sim->player_civ()).name; }
+	void chat_send_wire(const std::string &wire) { net_host_.sendChat(wire); }
+	rtso::Simulation *ui_sim() { return sim; }
 	void _on_barter_requested(int sell_type, int buy_type, int amount);
 
 	void _on_queue_slot_gui_input(const Ref<InputEvent> &event, int slot_idx);

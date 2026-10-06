@@ -162,7 +162,8 @@ void RtsoMain::_ready() {
 	rtso::Logger::info("Main", "RTS0 0 A.D. Reborn Ready — Full 0 A.D. UI & Simulation");
 
 	// Incoming chat: 0 A.D. NetMessages.h NMT_CHAT parity. Fires on the main
-	// thread from net_host_.poll() (_process), so appending to chat_log is safe.
+	// thread from net_host_.poll() (_process), so appending to the chat
+	// widget (chat_window.h) is safe.
 	// net_host.cpp:540 dispatch -> onChat (:395) -> display here.
 	net_host_.onChat([this](const rtso::ChatMsg &cm) {
 		String msg = String::utf8(cm.message.c_str());
@@ -178,31 +179,9 @@ void RtsoMain::_ready() {
 			}
 			return;
 		}
-		if (!chat_log) return;
-		String tag_col = "#55bbff"; // All (default channel color, 0 A.D. ChatBounce.js:15-38 parity)
-		String chan_prefix = "[All]";
-		if (msg.begins_with("[Allies]")) {
-			tag_col = "#55ff55";
-			chan_prefix = "[Allies]";
-			msg = msg.substr(8).strip_edges();
-		} else if (msg.begins_with("[Team]")) {
-			tag_col = "#ffff55";
-			chan_prefix = "[Team]";
-			msg = msg.substr(6).strip_edges();
-		} else if (msg.begins_with("[Enemies]")) {
-			tag_col = "#ff5555";
-			chan_prefix = "[Enemies]";
-			msg = msg.substr(9).strip_edges();
-		} else if (msg.begins_with("[Player-")) {
-			int close_b = msg.find("]");
-			if (close_b > 0) {
-				chan_prefix = msg.substr(0, close_b + 1);
-				tag_col = "#eebb22";
-				msg = msg.substr(close_b + 1).strip_edges();
-			}
-		}
-		chat_log->append_text("[color=" + tag_col + "]" + chan_prefix + " " +
-				String::utf8(cm.sender_guid.c_str()) + "[/color]: " + msg + "\n");
+		// Channel-tag parse + RichTextLabel append live in the chat leaf
+		// widget (chat_window.h append_incoming()); no-op until built.
+		chat_window_.append_incoming(String::utf8(cm.sender_guid.c_str()), msg);
 	});
 
 	// Stash the GameSetup first: load_map_seeded needs view + cam_rig, which
@@ -860,231 +839,11 @@ void RtsoMain::_ready() {
 	banner_label->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 	banner_panel->add_child(banner_label);
 
-	// =========================================================================
-	// 5. IN-GAME CHAT OVERLAY (LineEdit + All/Allies/Team channels)
-	// =========================================================================
-	chat_panel = memnew(Panel);
-	chat_panel->set_anchor(SIDE_LEFT, 0.0f);
-	chat_panel->set_anchor(SIDE_TOP, 0.0f);
-	chat_panel->set_offset(SIDE_LEFT, 16.0f);
-	chat_panel->set_offset(SIDE_RIGHT, 400.0f);
-	chat_panel->set_offset(SIDE_TOP, 60.0f);
-	chat_panel->set_offset(SIDE_BOTTOM, 260.0f);
-
-	Ref<StyleBoxFlat> chat_style;
-	chat_style.instantiate();
-	chat_style->set_bg_color(Color(0.06f, 0.07f, 0.10f, 0.94f));
-	chat_style->set_corner_radius_all(6);
-	chat_style->set_border_width_all(1);
-	chat_style->set_border_color(Color(0.35f, 0.38f, 0.48f, 0.85f));
-	chat_panel->add_theme_stylebox_override("panel", chat_style);
-
-	VBoxContainer *chat_vbox = memnew(VBoxContainer);
-	chat_vbox->set_anchor(SIDE_LEFT, 0.0f);
-	chat_vbox->set_anchor(SIDE_RIGHT, 1.0f);
-	chat_vbox->set_anchor(SIDE_TOP, 0.0f);
-	chat_vbox->set_anchor(SIDE_BOTTOM, 1.0f);
-	chat_vbox->set_offset(SIDE_LEFT, 8.0f);
-	chat_vbox->set_offset(SIDE_RIGHT, -8.0f);
-	chat_vbox->set_offset(SIDE_TOP, 6.0f);
-	chat_vbox->set_offset(SIDE_BOTTOM, -6.0f);
-	chat_vbox->add_theme_constant_override("separation", 4);
-	chat_panel->add_child(chat_vbox);
-
-	HBoxContainer *chat_top_bar = memnew(HBoxContainer);
-	chat_top_bar->set_custom_minimum_size(Vector2(0, 24));
-	Label *chat_title = memnew(Label);
-	chat_title->set_text("💬 In-Game Chat");
-	chat_title->add_theme_font_size_override("font_size", 12);
-	chat_title->set_h_size_flags(Control::SIZE_EXPAND_FILL);
-	chat_top_bar->add_child(chat_title);
-
-	Button *chat_close = memnew(Button);
-	chat_close->set_custom_minimum_size(Vector2(22, 22));
-	chat_close->set_text("✕");
-	chat_close->add_theme_font_size_override("font_size", 10);
-	chat_close->connect("pressed", Callable(this, "toggle_chat"));
-	chat_top_bar->add_child(chat_close);
-	chat_vbox->add_child(chat_top_bar);
-
-	chat_log = memnew(RichTextLabel);
-	chat_log->set_v_size_flags(Control::SIZE_EXPAND_FILL);
-	chat_log->set_use_bbcode(true);
-	chat_log->set_scroll_follow(true);
-	chat_log->add_theme_font_size_override("normal_font_size", 11);
-	chat_log->set_text("[color=#888888]Hellenic League Session Chat. Press Enter to send messages.[/color]\n");
-	chat_vbox->add_child(chat_log);
-
-	// Chat addressee selector row above chat input (0 A.D. gui/session/chat/ChatWindow.js:35-58 parity)
-	HBoxContainer *chat_addressee_bar = memnew(HBoxContainer);
-	chat_addressee_bar->set_custom_minimum_size(Vector2(0, 24));
-
-	Label *to_lbl = memnew(Label);
-	to_lbl->set_text("To:");
-	to_lbl->add_theme_font_size_override("font_size", 10);
-	to_lbl->add_theme_color_override("font_color", Color(0.75f, 0.78f, 0.88f));
-	chat_addressee_bar->add_child(to_lbl);
-
-	chat_channel = memnew(RtsoSafeSelect);
-	chat_channel->set_custom_minimum_size(Vector2(110, 22));
-	chat_channel->add_item("All", 0);
-	chat_channel->add_item("Allies", 1);
-	chat_channel->add_item("Enemies", 2);
-	for (int p = 1; p <= 8; ++p) {
-		chat_channel->add_item("Player-" + String::num_int64(p), 2 + p);
-	}
-	chat_channel->add_theme_font_size_override("font_size", 10);
-	chat_addressee_bar->add_child(chat_channel);
-
-	auto add_quick_btn = [&](const String &label, int ch_idx) {
-		Button *b = memnew(Button);
-		b->set_custom_minimum_size(Vector2(42, 20));
-		b->set_text(label);
-		b->add_theme_font_size_override("font_size", 9);
-		b->connect("pressed", Callable(this, "_on_chat_channel_btn_pressed").bind(ch_idx));
-		chat_addressee_bar->add_child(b);
-	};
-	add_quick_btn("All", 0);
-	add_quick_btn("Ally", 1);
-	add_quick_btn("Enemy", 2);
-
-	chat_vbox->add_child(chat_addressee_bar);
-
-	HBoxContainer *chat_input_bar = memnew(HBoxContainer);
-	chat_input_bar->set_custom_minimum_size(Vector2(0, 26));
-	chat_input = memnew(LineEdit);
-	chat_input->set_placeholder("Type message...");
-	chat_input->set_h_size_flags(Control::SIZE_EXPAND_FILL);
-	chat_input->add_theme_font_size_override("font_size", 11);
-	chat_input->connect("text_submitted", Callable(this, "_on_chat_text_submitted"));
-	rtso::parent_line_edit(chat_input_bar, chat_input);
-
-	chat_send_btn = memnew(Button);
-	chat_send_btn->set_custom_minimum_size(Vector2(55, 24));
-	chat_send_btn->set_text("Send");
-	chat_send_btn->add_theme_font_size_override("font_size", 11);
-	chat_send_btn->connect("pressed", Callable(this, "_on_chat_send_pressed"));
-	chat_input_bar->add_child(chat_send_btn);
-	chat_vbox->add_child(chat_input_bar);
-
-	chat_panel->set_visible(false);
-	ui_layer->add_child(chat_panel);
-
-	// =========================================================================
-	// 6. DIPLOMACY & TRIBUTE DIALOG (8-Player Matrix)
-	// =========================================================================
-	diplomacy_panel = memnew(Panel);
-	diplomacy_panel->set_anchor(SIDE_LEFT, 0.5f);
-	diplomacy_panel->set_anchor(SIDE_RIGHT, 0.5f);
-	diplomacy_panel->set_anchor(SIDE_TOP, 0.5f);
-	diplomacy_panel->set_anchor(SIDE_BOTTOM, 0.5f);
-	diplomacy_panel->set_offset(SIDE_LEFT, -320.0f);
-	diplomacy_panel->set_offset(SIDE_RIGHT, 320.0f);
-	diplomacy_panel->set_offset(SIDE_TOP, -210.0f);
-	diplomacy_panel->set_offset(SIDE_BOTTOM, 210.0f);
-
-	Ref<StyleBoxFlat> diplo_style;
-	diplo_style.instantiate();
-	diplo_style->set_bg_color(Color(0.06f, 0.07f, 0.10f, 0.97f));
-	diplo_style->set_corner_radius_all(8);
-	diplo_style->set_border_width_all(2);
-	diplo_style->set_border_color(Color(0.85f, 0.72f, 0.25f, 0.95f));
-	diplomacy_panel->add_theme_stylebox_override("panel", diplo_style);
-
-	VBoxContainer *diplo_vbox = memnew(VBoxContainer);
-	diplo_vbox->set_anchor(SIDE_LEFT, 0.0f);
-	diplo_vbox->set_anchor(SIDE_RIGHT, 1.0f);
-	diplo_vbox->set_anchor(SIDE_TOP, 0.0f);
-	diplo_vbox->set_anchor(SIDE_BOTTOM, 1.0f);
-	diplo_vbox->set_offset(SIDE_LEFT, 16.0f);
-	diplo_vbox->set_offset(SIDE_RIGHT, -16.0f);
-	diplo_vbox->set_offset(SIDE_TOP, 12.0f);
-	diplo_vbox->set_offset(SIDE_BOTTOM, -12.0f);
-	diplo_vbox->add_theme_constant_override("separation", 6);
-	diplomacy_panel->add_child(diplo_vbox);
-
-	Label *diplo_title = memnew(Label);
-	diplo_title->set_text("🏛️ Hellenic League — Diplomacy & Tribute Matrix");
-	diplo_title->add_theme_font_size_override("font_size", 15);
-	diplo_title->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
-	diplo_title->add_theme_color_override("font_color", Color(1.0f, 0.88f, 0.4f));
-	diplo_vbox->add_child(diplo_title);
-
-	HSeparator *diplo_sep1 = memnew(HSeparator);
-	diplo_vbox->add_child(diplo_sep1);
-
-	const char *player_names[8] = {
-		"🔵 Athens (You)",
-		"🔴 Sparta (AI)",
-		"🟡 Persia (AI)",
-		"🟣 Rome (AI)",
-		"⚪ Carthage (AI)",
-		"🟢 Macedon (AI)",
-		"🟠 Gaul (AI)",
-		"🟤 Maurya (AI)"
-	};
-
-	for (int p = 0; p < 8; ++p) {
-		HBoxContainer *prow = memnew(HBoxContainer);
-		prow->set_custom_minimum_size(Vector2(0, 26));
-		prow->add_theme_constant_override("separation", 8);
-
-		diplo_player_names[p] = memnew(Label);
-		diplo_player_names[p]->set_custom_minimum_size(Vector2(165, 24));
-		diplo_player_names[p]->set_text(player_names[p]);
-		diplo_player_names[p]->add_theme_font_size_override("font_size", 11);
-		prow->add_child(diplo_player_names[p]);
-
-		diplo_stances[p] = memnew(RtsoSafeSelect);
-		diplo_stances[p]->set_custom_minimum_size(Vector2(95, 24));
-		diplo_stances[p]->add_theme_font_size_override("font_size", 10);
-		if (p == 0) {
-			diplo_stances[p]->add_item("Self", 0);
-			diplo_stances[p]->set_disabled(true);
-		} else {
-			diplo_stances[p]->add_item("Ally", 0);
-			diplo_stances[p]->add_item("Neutral", 1);
-			diplo_stances[p]->add_item("Enemy", 2);
-			diplo_stances[p]->select(2); // Enemy
-			diplo_stances[p]->connect("item_selected", Callable(this, "_on_diplo_stance_changed").bind(p));
-		}
-		prow->add_child(diplo_stances[p]);
-
-		if (p == 0) {
-			Label *self_lbl = memnew(Label);
-			self_lbl->set_text("— Player Base Command —");
-			self_lbl->add_theme_font_size_override("font_size", 10);
-			self_lbl->add_theme_color_override("font_color", Color(0.6f, 0.6f, 0.7f));
-			prow->add_child(self_lbl);
-		} else {
-			const char *t_icons[4] = {"🍞 +100", "🌲 +100", "🪙 +100", "🪨 +100"};
-			int t_res[4] = {rtso::RES_FOOD, rtso::RES_WOOD, rtso::RES_GOLD, rtso::RES_STONE};
-			for (int r = 0; r < 4; ++r) {
-				Button *tb = memnew(Button);
-				tb->set_custom_minimum_size(Vector2(68, 22));
-				tb->set_text(t_icons[r]);
-				tb->add_theme_font_size_override("font_size", 9);
-				tb->connect("pressed", Callable(this, "_on_diplo_tribute_pressed").bind(p, t_res[r]));
-				prow->add_child(tb);
-			}
-		}
-
-		diplo_vbox->add_child(prow);
-	}
-
-	HSeparator *diplo_sep2 = memnew(HSeparator);
-	diplo_vbox->add_child(diplo_sep2);
-
-	diplo_close_btn = memnew(Button);
-	diplo_close_btn->set_custom_minimum_size(Vector2(130, 28));
-	diplo_close_btn->set_text("Close (D / Esc)");
-	diplo_close_btn->set_h_size_flags(Control::SIZE_SHRINK_CENTER);
-	diplo_close_btn->add_theme_font_size_override("font_size", 11);
-	diplo_close_btn->connect("pressed", Callable(this, "toggle_diplomacy"));
-	diplo_vbox->add_child(diplo_close_btn);
-
-	diplomacy_panel->set_visible(false);
-	ui_layer->add_child(diplomacy_panel);
+	// 5/6. Chat overlay + diplomacy/tribute matrix: P4.1 leaf widgets
+	// (chat_window.h / diplomacy_dialog.h own the panel trees; the bound
+	// handler methods below delegate into them).
+	chat_window_.build(this, ui_layer, this);
+	diplo_dialog_.build(this, ui_layer, this, &chat_window_);
 	rtso::strip_engine_popups(ui_layer);
 
 	// =========================================================================
@@ -1752,9 +1511,9 @@ void RtsoMain::_process(double delta) {
 	debug_overlay->update_info(perf_txt);
 
 	update_hud();
-	if (sim && chat_log) {
+	if (sim && chat_window_.is_ready()) {
 		for (const auto &line : sim->pending_petra_chat()) {
-			chat_log->append_text("[color=#88ccff]Petra:[/color] " + String(line.text) + "\n");
+			chat_window_.append_line("[color=#88ccff]Petra:[/color] " + String(line.text) + "\n");
 		}
 		if (!sim->pending_petra_chat().empty()) sim->clear_petra_chat();
 	}
@@ -2584,14 +2343,14 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 	Ref<InputEventKey> key = event;
 	if (key.is_valid() && key->is_pressed() && !key->is_echo()) {
 		if (key->get_keycode() == KEY_ESCAPE) {
-			if (chat_panel && chat_panel->is_visible()) {
-				chat_panel->set_visible(false);
-				return;
-			}
-			if (diplomacy_panel && diplomacy_panel->is_visible()) {
-				diplomacy_panel->set_visible(false);
-				return;
-			}
+				if (chat_window_.is_open()) {
+					chat_window_.close();
+					return;
+				}
+				if (diplo_dialog_.is_open()) {
+					diplo_dialog_.close();
+					return;
+				}
 			Node *pause = get_node_or_null(NodePath("PauseMenu"));
 			if (pause) {
 				pause->call("toggle");
@@ -3905,95 +3664,30 @@ void RtsoMain::_on_queue_slot_cancel(int slot_idx) {
 }
 
 void RtsoMain::toggle_chat() {
-	if (!chat_panel) return;
-	bool vis = !chat_panel->is_visible();
-	chat_panel->set_visible(vis);
-	if (vis && chat_input) {
-		chat_input->grab_focus();
-	}
+	chat_window_.toggle();
 }
 
 void RtsoMain::_on_chat_channel_btn_pressed(int channel_idx) {
-	if (chat_channel) {
-		chat_channel->select(channel_idx);
-	}
+	chat_window_.select_channel(channel_idx);
 }
 
 void RtsoMain::_on_chat_send_pressed() {
-	if (!chat_input || !chat_log) return;
-	String text = chat_input->get_text().strip_edges();
-	if (!text.is_empty()) {
-		int ch = chat_channel ? chat_channel->get_selected() : 0;
-		String ch_prefix = "[color=#55bbff][All][/color]";
-		String wire_tag = "";
-		if (ch == 1) {
-			ch_prefix = "[color=#55ff55][Allies][/color]";
-			wire_tag = "[Allies] ";
-		} else if (ch == 2) {
-			ch_prefix = "[color=#ff5555][Enemies][/color]";
-			wire_tag = "[Enemies] ";
-		} else if (ch >= 3) {
-			int p_num = ch - 2;
-			ch_prefix = "[color=#eebb22][Player-" + String::num_int64(p_num) + "][/color]";
-			wire_tag = "[Player-" + String::num_int64(p_num) + "] ";
-		}
-		String civ_name = rtso::civ_info(sim->player_civ()).name;
-		chat_log->append_text(ch_prefix + " [color=#ffffff]" + civ_name + "[/color]: " + text + "\n");
-		chat_input->clear();
-		play_sfx("res://assets/sounds/ui/chat.ogg");
-		// Network: 0 A.D. NMT_CHAT broadcast (NetHost::sendChat net_host.cpp:327).
-		// Channel travels as wire tag (0 A.D. gui/session/chat/ChatBounce.js:15-38 parity).
-		// Parsed client-side in onChat display without breaking protocol compatibility.
-		if (net_lockstep()) {
-			std::string wire = (wire_tag + text).utf8().get_data();
-			net_host_.sendChat(wire);
-		}
-	}
-	if (chat_panel) chat_panel->set_visible(false);
+	chat_window_.send_pressed();
 }
 
 void RtsoMain::_on_chat_text_submitted(const String &text) {
-	_on_chat_send_pressed();
+	(void)text;
+	chat_window_.send_pressed();
 }
 
 void RtsoMain::toggle_diplomacy() {
-	if (!diplomacy_panel) return;
-	diplomacy_panel->set_visible(!diplomacy_panel->is_visible());
-	if (diplomacy_panel->is_visible()) {
-		play_sfx("res://assets/sounds/ui/diplomacy.ogg");
-	}
+	diplo_dialog_.toggle();
 }
 
 void RtsoMain::_on_diplo_stance_changed(int stance, int player_idx) {
-	if (!sim || player_idx < 0 || player_idx >= 8) return;
-	// Lockstep: stance MUST be a turn command (cmd_type 22, turn_manager.cpp dispatch)
-	// — diplomacy_state() is hashed (turn_manager.cpp:213), so a local-only change
-	// desyncs peers. Offline applies immediately via the validated sim cmd.
-	// 0 A.D. Diplomacy.js / DiplomacyDialog.js OnStanceChange parity.
-	if (net_lockstep())
-		post_lockstep(22, nullptr, 0, 0, 0, (uint32_t)player_idx, (uint8_t)stance);
-	else
-		sim->cmd_set_diplomacy((uint8_t)player_idx, (uint8_t)stance);
-	String st_name = (stance == 0) ? "Ally" : ((stance == 1) ? "Neutral" : "Enemy");
-	UtilityFunctions::print("[RTS0] Set diplomacy stance with Player ", player_idx + 1, " to ", st_name);
-	if (chat_log) {
-		chat_log->append_text("[color=#eebb22]🏛️ Diplomacy with Player " + String::num_int64(player_idx + 1) + " set to " + st_name + "[/color]\n");
-	}
+	diplo_dialog_.stance_changed(stance, player_idx);
 }
 
 void RtsoMain::_on_diplo_tribute_pressed(int player_idx, int res_type) {
-	if (!sim || player_idx <= 0 || player_idx >= 8) return;
-	bool ok = sim->send_tribute((uint8_t)player_idx, (uint8_t)res_type, 100);
-	if (ok) {
-		const char *r_names[4] = {"Wood", "Gold", "Stone", "Food"};
-		String r_name = (res_type >= 0 && res_type < 4) ? r_names[res_type] : "Resource";
-		UtilityFunctions::print("[RTS0] Sent 100 ", r_name, " tribute to Player ", player_idx + 1);
-		if (chat_log) {
-			chat_log->append_text("[color=#55ffaa]🎁 Sent 100 " + r_name + " tribute to Player " + String::num_int64(player_idx + 1) + "[/color]\n");
-		}
-		play_sfx("res://assets/sounds/ui/bonus.ogg");
-		update_hud();
-	} else {
-		play_alarm("res://assets/sounds/ui/alarm.ogg");
-	}
+	diplo_dialog_.tribute_pressed(player_idx, res_type);
 }

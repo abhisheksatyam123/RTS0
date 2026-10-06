@@ -149,3 +149,30 @@ python3 tools/playtest_two_clients.py --run --minutes 5 # full session — artif
 - **Diplomacy via TurnManager** — `post_diplomacy` (`turn_manager.h:98`) queues stance through the same lockstep command stream; `apply_diplomacy()` (`:326-328`) is the single sim write point at the turn boundary (mirrors the ROOT-CAUSE/FIX note above: no pre-Start writes).
 
 G8 table value stays **98%** and G9 stays **96%** — the remaining gate for both is a real 2-Godot-client session / NAT, not missing protocol code. Overall `check_parity.py` parity **90% → 92%**.
+
+
+---
+
+### P1 Final Gate: 5-Minute Two-Client Session Drift Hunt (Verified 2026-10-06)
+
+Full two-client end-to-end playtest executed via `tools/playtest_two_clients.py --run --minutes 5` against Godot 4.3 GDExtension (`43f1f45`):
+
+- **Environment & Probe**:
+  - Godot binary: `4.3.stable.official.77dcf97d8`
+  - Helpers: `Xvfb` on displays `:98` & `:99`, `xdotool`
+  - Ports: UDP/20595 (lockstep) free, TCP/8088 (lobby HTTP) free
+  - Engine + GDExtension boot: Headless heartbeat OK (rc=0)
+- **Session Execution**:
+  - `start_host`: **YES** (`[RTS0][GameStart] HOST broadcast setup: map=random_continental seed=56334 slots=2 civ0=0 civ1=1 types=104/97 res=1`)
+  - `start_joiner`: **YES** (`[RTS0][GameStart] JOINER consumed NMT_GAME_START: map=random_continental seed=56334 slots=2 civ0=0 civ1=1 types=104/97 res=1`)
+  - Markers verified: `host_listening` YES, `peer_accepted` YES, `client_connecting` YES, `client_connected` YES, `game_start` YES, `start_host` YES, `start_joiner` YES
+  - Session duration: **5.00 min** (300.0s hold under live lockstep sim)
+  - Unit count progression: Synchronous 22 → 23 → 24 units across both host and joiner
+  - Turns reached: ~1500 lockstep turns (at 200ms/turn over 300s)
+  - **OOS count**: **0**
+  - Error patterns: 0
+  - Disconnect patterns: 0
+  - **Exit code**: **0** (`VERDICT: two-client session survived 5.00 min with no OOS, desync, disconnect or error pattern.`)
+- **Determinism Stream Cross-Check (Drift Suspects)**:
+  - **Petra AI rand**: Confirmed deterministic. `Simulation::tick_petra_ai()` uses the simulation deterministic PRNG (`ScriptRng` / `sim_rng_state()`, `src/simulation/simulation.h:23`), completely avoiding host-dependent libc `rand()`. Headless lockstep (`tools/playtest_lockstep.py` ticks=400 & ticks=2000) with `petra_ai=on (difficulty=3, behavior=2)` confirmed 100% sync (final hashes match across peers A=B=C).
+  - **Wall-drag spawn**: `BLD_WALL_SEGMENT` commands (`cmd_type 5`) route strictly through lockstep serialization (`TurnManager::post_local_command` / `post_remote_command`), sorted deterministically by `(client_id, cmd_type, target_id)` at the turn boundary before `Simulation::cmd_build()` and `Simulation::order_build_or_repair()`. Tested in multi-segment wall sweeps in `tools/test_netcode.cpp:230-265` without any desync.

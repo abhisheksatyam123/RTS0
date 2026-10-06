@@ -80,6 +80,96 @@ Requires: Pillow
 #  => 14/14 BuildingTypes unique; 0 structure fallbacks.
 # ===========================================================================
 
+# ===========================================================================
+# C3 MAURYA (Indian) civ — unit/building coverage & fallback matrix
+# ===========================================================================
+# 0 A.D. art roots used by this civ (verified against public.zip via
+# `--list-actors`; 0 A.D. names the civ folder "mauryas" under both roots):
+#     art/actors/units/mauryas/*.xml       people, elephantry, chariots
+#     art/actors/structures/mauryas/*.xml   stupa/palace civic set, hulls
+#     art/actors/props/structures/mauryas/*.xml  *_struct_b / *_palisade
+#         sub-meshes only — these are component props pulled in by the parent
+#         actors above and are NOT standalone actors, so they are deliberately
+#         not registered as assets (extracting them yields no renderable mesh).
+#
+# "maur" was already present in CIV_CORE_ACTORS/CIV_ART_FOLDERS (unlike "han",
+# which had to be added in the C2 batch), so the civ auto-registration pass was
+# already emitting the 36 core `maur_*` ids. This batch adds the Mauryan
+# roster WIDTH: the a/b/e infantry colour variants, the full elephantry line,
+# the javelinist/swordsman cavalry variants, the four extra heroes, and the
+# stupa civic set that the core pass could not reach.
+#
+# UNIT MATRIX — RTS0 UnitTypes (23) -> Mauryan mesh (unique = Mauryan art)
+# ---------------------------------------------------------------------------
+#  UNIT ID            MAURYA MESH                            STATUS
+#  villager            citizen_male.xml                      unique   height 1.70
+#  female_citizen      female_citizen.xml                    unique   height 1.70
+#  swordsman           infantry_swordsman_c.xml              unique   height 1.80
+#  spearman            infantry_spearman_b.xml               unique   height 1.80
+#  archer              infantry_archer_c.xml                 unique   height 1.78
+#  cavalry             cavalry_swordsman_b_m.xml              unique   height 2.20
+#  hero                hero_infantry_archer_ashoka.xml       unique   height 1.90
+#  healer              healer.xml                            unique   height 1.70
+#  trader              trader.xml                            unique   height 1.90
+#  elephant            elephantry_archer_e_m.xml             unique   width  3.40
+#  worker_elephant     support_elephant.xml                   unique   width  3.60
+#  chariot             chariot_archer_c_m.xml                 unique   width  2.90
+#  fishing_boat        structures/mauryas/fishing_ship.xml    unique   width  3.50
+#  trireme             structures/mauryas/trireme.xml         unique   width  7.00
+#  --- Mauryan-only roster (exported this batch, no generic UnitType) ---
+#  maceman             infantry_maceman_c.xml                 unique   height 1.85
+#  hero_ashoka         hero_infantry_archer_ashoka.xml       unique   height 1.90
+#  hero_bindusara      hero_infantry_swordsman_bindusara.xml  unique   height 1.90
+#  hero_chandragupta   hero_infantry_swordsman_chandragupta.xml unique height 1.90
+#  hero_chanakya       hero_healer_chanakya.xml              unique   height 1.80
+#  hero_elephant       hero_elephant_chandragupta_m.xml       unique   width  3.60
+#  hero_chariot        hero_chariot_archer_ashoka_d.xml      unique   width  3.00
+#  a/b/e colour variants of swordsman / spearman / archer / cavalry,
+#  elephantry_archer a_m/b_m/d/r1, elephantry_c_d, support_elephant_d.
+#  siege_ram           structures/mauryas/siege_ram.xml        unique   width  3.60
+#  catapult            (none — Mauryas are a bow/elephant civ)  FALLBACK generic
+#  bolt_shooter        (none — no Mauryan bolt shooter)        FALLBACK generic
+#  scythed_chariot     (none — no scythed chariot actor)      FALLBACK generic
+#  war_dog             (none — no Mauryan dog unit)           FALLBACK generic
+#  camel               (none — Mauryas fight on elephants)    FALLBACK generic
+#  carnyx              (none — no Mauryan war-trumpet unit)   FALLBACK generic
+#  archer_maiden       (none — shares infantry_archer_c.xml)  FALLBACK (maur_archer)
+#  => 14 unique, 9 fallback (of which archer_maiden reuses a real Mauryan
+#     archer mesh via maur_archer rather than the generic one).
+#
+# BUILDING MATRIX — RTS0 BuildingTypes (14) + common civ buildings
+# ---------------------------------------------------------------------------
+#  BUILDING ID         MAURYA MESH                            STATUS
+#  town_center         structures/mauryas/civil_centre.xml    unique   width 6.20
+#  house               structures/mauryas/house.xml           unique   width 2.40
+#  barracks            structures/mauryas/barracks.xml        unique   width 4.00
+#  storehouse          structures/mauryas/storehouse.xml      unique   width 3.40
+#  farmstead           structures/mauryas/farmstead.xml       unique   width 3.20
+#  market              structures/mauryas/market.xml          unique   width 4.20
+#  temple              structures/mauryas/temple.xml          unique   width 5.00
+#  fortress            structures/mauryas/fortress.xml        unique   width 6.00
+#  gate                structures/mauryas/wall_gate.xml       unique   width 3.80
+#  dock                structures/mauryas/dock.xml            unique   width 4.80
+#  wall / wall_segment structures/mauryas/wall_long.xml       unique   width 2.00
+#  wall_tower / tower  structures/mauryas/wall_tower.xml      unique   width 2.20
+#  corral              structures/mauryas/corral.xml          unique   width 3.60
+#  wonder              structures/mauryas/big_stupa.xml       unique   width 6.50
+#  --- Mauryan civic set added this batch ---
+#  blacksmith          structures/mauryas/blacksmith.xml      unique   width 4.00
+#  workshop            structures/mauryas/workshop.xml        unique   width 4.60
+#  archery_range       structures/mauryas/range.xml           unique   width 3.80
+#  stable              structures/mauryas/stable.xml          unique   width 4.20
+#  stable_elephant     structures/mauryas/stable_elephant.xml unique   width 4.60
+#  palace              structures/mauryas/palace.xml          unique   width 6.00
+#  outpost             structures/mauryas/outpost.xml         unique   width 2.00
+#  scout_tower         structures/mauryas/scout_tower.xml     unique   width 2.00
+#  wooden_tower        structures/mauryas/wooden_tower.xml    unique   width 2.00
+#  tower_double        structures/mauryas/tower_double.xml    unique   width 2.60
+#  super_dock          structures/mauryas/dock.xml            unique   width 5.00
+#  bireme              structures/mauryas/bireme.xml          unique   width 6.00
+#  => 14/14 BuildingTypes unique; 0 structure fallbacks.
+# ===========================================================================
+
 import argparse
 import hashlib
 import io
@@ -393,6 +483,54 @@ ASSETS = {
     "han_fishing_ship":      ("art/actors/structures/han/fishing_ship.xml",   "width", 3.50, None),
     "han_fireship":          ("art/actors/structures/han/fireship.xml",       "width", 6.50, None),
     "han_towership":         ("art/actors/structures/han/towership.xml",      "width", 6.50, None),
+    # ---------------------------------------------------------------------
+    # --- Mauryan infantry / support (height 1.70-1.85, matches other civs) ---
+    "maur_mace_inf":         ("art/actors/units/mauryas/infantry_maceman_c.xml", "height", 1.85, (0.36, 0.62, 0.94)),
+    "maur_swordsman_a":      ("art/actors/units/mauryas/infantry_swordsman_a.xml", "height", 1.8, (0.36, 0.62, 0.94)),
+    "maur_swordsman_b":      ("art/actors/units/mauryas/infantry_swordsman_b.xml", "height", 1.8, (0.36, 0.62, 0.94)),
+    "maur_swordsman_e":      ("art/actors/units/mauryas/infantry_swordsman_e.xml", "height", 1.8, (0.36, 0.62, 0.94)),
+    "maur_spearman_a":       ("art/actors/units/mauryas/infantry_spearman_a.xml", "height", 1.8, (0.36, 0.62, 0.94)),
+    "maur_spearman_e":       ("art/actors/units/mauryas/infantry_spearman_e.xml", "height", 1.8, (0.36, 0.62, 0.94)),
+    "maur_archer_a":         ("art/actors/units/mauryas/infantry_archer_a.xml", "height", 1.78, (0.36, 0.62, 0.94)),
+    "maur_archer_b":         ("art/actors/units/mauryas/infantry_archer_b.xml", "height", 1.78, (0.36, 0.62, 0.94)),
+    "maur_archer_e":         ("art/actors/units/mauryas/infantry_archer_e.xml", "height", 1.78, (0.36, 0.62, 0.94)),
+    "maur_archer_fire":      ("art/actors/units/mauryas/infantry_archer_c_fire.xml", "height", 1.78, (0.36, 0.62, 0.94)),
+    "maur_citizen_female":   ("art/actors/units/mauryas/citizen_female.xml", "height", 1.7, (0.36, 0.62, 0.94)),
+    "maur_fisherman":        ("art/actors/units/mauryas/fisherman.xml", "height", 1.7, (0.36, 0.62, 0.94)),
+    # --- Mauryan cavalry (height 2.20, rider `_m` actor as the base mesh) ---
+    "maur_cav_jav_a":        ("art/actors/units/mauryas/cavalry_javelinist_a_m.xml", "height", 2.20, (0.36, 0.62, 0.94)),
+    "maur_cav_jav_b":        ("art/actors/units/mauryas/cavalry_javelinist_b_m.xml", "height", 2.20, (0.36, 0.62, 0.94)),
+    "maur_cav_jav_e":        ("art/actors/units/mauryas/cavalry_javelinist_e_m.xml", "height", 2.20, (0.36, 0.62, 0.94)),
+    "maur_cav_sword_a":      ("art/actors/units/mauryas/cavalry_swordsman_a_m.xml", "height", 2.20, (0.36, 0.62, 0.94)),
+    "maur_cav_sword_e":      ("art/actors/units/mauryas/cavalry_swordsman_e_m.xml", "height", 2.20, (0.36, 0.62, 0.94)),
+    # --- Mauryan elephantry / chariot (width; too tall for a 'height' fit) ---
+    "maur_eleph_archer_a":   ("art/actors/units/mauryas/elephantry_archer_a_m.xml", "width",  3.2, (0.36, 0.62, 0.94)),
+    "maur_eleph_archer_b":   ("art/actors/units/mauryas/elephantry_archer_b_m.xml", "width",  3.2, (0.36, 0.62, 0.94)),
+    "maur_eleph_archer_d":   ("art/actors/units/mauryas/elephantry_archer_d.xml", "width",  3.4, (0.36, 0.62, 0.94)),
+    "maur_eleph_archer_r1":  ("art/actors/units/mauryas/elephantry_archer_r1.xml", "width",  3.4, (0.36, 0.62, 0.94)),
+    "maur_elephantry_c":     ("art/actors/units/mauryas/elephantry_c_d.xml", "width",  3.4, (0.36, 0.62, 0.94)),
+    "maur_support_elephant": ("art/actors/units/mauryas/support_elephant_d.xml", "width",  3.6, (0.36, 0.62, 0.94)),
+    "maur_chariot_archer_c": ("art/actors/units/mauryas/chariot_archer_c_d.xml", "width",  2.9, (0.36, 0.62, 0.94)),
+    # --- Mauryan heroes (Ashoka / Bindusara / Chandragupta / Chanakya) ---
+    "maur_hero_ashoka":      ("art/actors/units/mauryas/hero_infantry_archer_ashoka.xml", "height",  1.9, (0.92, 0.32, 0.28)),
+    "maur_hero_bindusara":   ("art/actors/units/mauryas/hero_infantry_swordsman_bindusara.xml", "height",  1.9, (0.92, 0.32, 0.28)),
+    "maur_hero_chandragupta":("art/actors/units/mauryas/hero_infantry_swordsman_chandragupta.xml", "height",  1.9, (0.92, 0.32, 0.28)),
+    "maur_hero_chanakya":    ("art/actors/units/mauryas/hero_healer_chanakya.xml", "height",  1.8, (0.92, 0.90, 0.82)),
+    "maur_hero_elephant":    ("art/actors/units/mauryas/hero_elephant_chandragupta_m.xml", "width",  3.6, (0.92, 0.32, 0.28)),
+    "maur_hero_chariot":     ("art/actors/units/mauryas/hero_chariot_archer_ashoka_d.xml", "width",  3.0, (0.92, 0.32, 0.28)),
+    # --- Mauryan structures (width; stupa/palace civic set) ---
+    "maur_blacksmith":       ("art/actors/structures/mauryas/blacksmith.xml", "width",  4.0, (0.36, 0.62, 0.94)),
+    "maur_workshop":         ("art/actors/structures/mauryas/workshop.xml", "width",  4.6, (0.36, 0.62, 0.94)),
+    "maur_range":            ("art/actors/structures/mauryas/range.xml", "width",  3.8, (0.36, 0.62, 0.94)),
+    "maur_stable":           ("art/actors/structures/mauryas/stable.xml", "width",  4.2, (0.36, 0.62, 0.94)),
+    "maur_stable_elephant":  ("art/actors/structures/mauryas/stable_elephant.xml", "width",  4.6, (0.36, 0.62, 0.94)),
+    "maur_palace":           ("art/actors/structures/mauryas/palace.xml", "width",  6.0, (0.36, 0.62, 0.94)),
+    "maur_outpost":          ("art/actors/structures/mauryas/outpost.xml", "width",  2.0, (0.36, 0.62, 0.94)),
+    "maur_scout_tower":      ("art/actors/structures/mauryas/scout_tower.xml", "width",  2.0, (0.36, 0.62, 0.94)),
+    "maur_wooden_tower":     ("art/actors/structures/mauryas/wooden_tower.xml", "width",  2.0, (0.36, 0.62, 0.94)),
+    "maur_tower_double":     ("art/actors/structures/mauryas/tower_double.xml", "width",  2.6, (0.36, 0.62, 0.94)),
+    "maur_bireme":           ("art/actors/structures/mauryas/bireme.xml", "width",  6.0, (0.36, 0.62, 0.94)),
+    "maur_super_dock":       ("art/actors/structures/mauryas/dock.xml", "width",  5.0, (0.36, 0.62, 0.94)),
 }
 
 # Per-civ core actors (folder names follow 0 A.D. art/actors/units/*).
@@ -1359,6 +1497,15 @@ UNIT_IDS = frozenset({
     "han_siege_mangonel_pivot",
     "han_villager_female",
     "han_villager_male",
+    # --- Mauryan civ batch: a/b/e infantry, elephantry, extra cavalry ---
+    "maur_archer_a", "maur_archer_b", "maur_archer_e", "maur_archer_fire",
+    "maur_cav_jav_a", "maur_cav_jav_b", "maur_cav_jav_e", "maur_cav_sword_a",
+    "maur_cav_sword_e", "maur_chariot_archer_c", "maur_citizen_female", "maur_eleph_archer_a",
+    "maur_eleph_archer_b", "maur_eleph_archer_d", "maur_eleph_archer_r1", "maur_elephantry_c",
+    "maur_fisherman", "maur_hero_ashoka", "maur_hero_bindusara", "maur_hero_chanakya",
+    "maur_hero_chandragupta", "maur_hero_chariot", "maur_hero_elephant", "maur_mace_inf",
+    "maur_spearman_a", "maur_spearman_e", "maur_support_elephant", "maur_swordsman_a",
+    "maur_swordsman_b", "maur_swordsman_e",
 })
 BUILDING_IDS = frozenset({
     "town_center", "house", "barracks", "farmstead", "storehouse", "market",
@@ -1402,6 +1549,10 @@ BUILDING_IDS = frozenset({
     "han_wall_long",
     "han_wall_medium",
     "han_wall_short",
+    # --- Mauryan civ batch: stupa civic set, palisade towers, hulls ---
+    "maur_bireme", "maur_blacksmith", "maur_outpost", "maur_palace",
+    "maur_range", "maur_scout_tower", "maur_stable", "maur_stable_elephant",
+    "maur_super_dock", "maur_tower_double", "maur_wooden_tower", "maur_workshop",
 })
 VEGETATION_IDS = frozenset({
     "tree", "pine", "palm", "gold_vein", "stone_mine", "fruit_bush",
