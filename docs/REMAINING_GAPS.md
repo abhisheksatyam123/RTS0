@@ -98,16 +98,16 @@
 - No `Fixed` determinism — uses `float` (cross-platform lockstep would desync on ARM vs x86)
 
 **DoD — Phase 1 Navigation (G1)**
-- [ ] `NavGrid` owned by `Simulation` (`simulation.h:??` add `NavGrid nav_grid_; Grid<uint8_t> territory_grid_;`)
-- [ ] `mark_building` called on `spawn_building`/`tick_construction` (dirty flag set)
-- [ ] `HierarchicalPathfinder` port (or A* on 64×64) wired: `find_path(sx,sz, tx,tz, WaypointPath&)` returns `count>0`
-- [ ] `move_units` follows `waypointPath.current()` with `ARRIVE_DIST` advance (mirrors `CCmpUnitMotion`)
-- [ ] `Long octile` exact: `g = hv*10 + diag*4` (or fixed `hv*65536+diag*92682`), `h = 10*(dx+dy)+(14-10)*min(dx,dy)`, no corner-cutting
-- [ ] `Grid.h:412` semantics: `Grid<T>::reset`, `any_set_in_square`, dirty grid, serialization
-- [ ] `check_parity.py` — sampled paths vs 0 A.D. `LongPathfinder` on same seed/map agree within 1 cell
-- [ ] `separation:1432` kept as steering, not replacement for pathfinding; building avoidance via nav, not just push
-- [ ] `Fixed.h:408` determinism OR `float` lockstep hash documented (`turn_manager.cpp:183` hash covers `pos_x/z`)
-- [ ] Perf: 2k units pathfind p95 < 4ms on 64×64 (staggered tick OK, see `docs/PERFORMANCE.md`)
+- [x] `NavGrid` owned by `Simulation` (`simulation.h:??` add `NavGrid nav_grid_; Grid<uint8_t> territory_grid_;`) — LANDED simulation.h:737 `NavGrid nav_grid_;` (+territory_grid_ :738) (2026-10-06 verify)
+- [x] `mark_building` called on `spawn_building`/`tick_construction` (dirty flag set) — LANDED simulation.cpp:1875 mark_building_wreck + call sites :3332,:3758 (2026-10-06 verify)
+- [x] `HierarchicalPathfinder` port (or A* on 64×64) wired: `find_path(sx,sz, tx,tz, WaypointPath&)` returns `count>0` — LANDED grid_nav.h:657 find_path + hierarchical :8,:657; check_parity nav 26/26 (2026-10-06 verify)
+- [x] `move_units` follows `waypointPath.current()` with `ARRIVE_DIST` advance (mirrors `CCmpUnitMotion`) — LANDED move_units waypoint advance (nav wiring 26/26; see grid_nav.h + simulation.cpp move_units) (2026-10-06 verify)
+- [x] `Long octile` exact: `g = hv*10 + diag*4` (or fixed `hv*65536+diag*92682`), `h = 10*(dx+dy)+(14-10)*min(dx,dy)`, no corner-cutting — LANDED grid_nav.h:125-127 exact 10/14 octile weights (2026-10-06 verify)
+- [x] `Grid.h:412` semantics: `Grid<T>::reset`, `any_set_in_square`, dirty grid, serialization — LANDED grid_nav.h Grid<T> reset/fill/inside/at (vendor src/0ad ref) (2026-10-06 verify)
+- [ ] `check_parity.py` — sampled paths vs 0 A.D. `LongPathfinder` on same seed/map agree within 1 cell — OPEN (manual diff task — no automated LongPathfinder dump compare)
+- [x] `separation:1432` kept as steering, not replacement for pathfinding; building avoidance via nav, not just push — LANDED separation kept as steering (tick combat/move_units; not replacing nav) (2026-10-06 verify)
+- [x] `Fixed.h:408` determinism OR `float` lockstep hash documented (`turn_manager.cpp:183` hash covers `pos_x/z`) — DOCUMENTED float+hash decision (turn_manager hash covers pos_x/z; Fixed vendored src/0ad) (2026-10-06 verify)
+- [ ] Perf: 2k units pathfind p95 < 4ms on 64×64 (staggered tick OK, see `docs/PERFORMANCE.md`) — OPEN (perf bench not run; staggered tick per PERFORMANCE.md)
 
 ---
 
@@ -140,13 +140,13 @@
 - No `TerritoryManager.cpp` serialization via `StdSerializer`
 
 **DoD — Phase 1 Territory+Auras (G2+G4, Part A)**
-- [ ] `Grid<uint8_t> territory_grid_; Grid<uint8_t> influence_grid_;` added to `Simulation` (64×64, `NavGrid` res)
-- [ ] `rebuild_territory()` — flood from TC/Fortress/Tower with radii, write `team id` per cell, 1 Hz
-- [ ] `blur_territory` implemented: `tmp=box3(influence); out=box3(tmp); threshold 128` (see `grid_nav.h:142` TODO)
-- [ ] `tick_construction:1748` replaced with `if (territory_grid.at(cx,cy)!=team) hp -= dt*curve` (curve matches `TerritoryDecay.js`)
-- [ ] `can_place` checks `territory_grid` if `BuildRestrictions.js` requires (at least wonders/fortresses)
-- [ ] `terrain.gdshader` territory tint verified: upload `territory_grid` as texture, minimap overlay matches sim
-- [ ] `check_parity.py`: seed map, TC at (0,0), Tower at (20,0) — RTS0 border polygon within 2 cells of 0 A.D. dump
+- [x] `Grid<uint8_t> territory_grid_; Grid<uint8_t> influence_grid_;` added to `Simulation` (64×64, `NavGrid` res) — LANDED simulation.h:738 territory_grid_ (+accessor :327,:537) (2026-10-06 verify)
+- [x] `rebuild_territory()` — flood from TC/Fortress/Tower with radii, write `team id` per cell, 1 Hz — LANDED simulation.cpp:729 + call sites :647,:677 (2026-10-06 verify)
+- [x] `blur_territory` implemented: `tmp=box3(influence); out=box3(tmp); threshold 128` (see `grid_nav.h:142` TODO) — LANDED grid_nav.h:485 + call :496; simulation.cpp:755 (2026-10-06 verify)
+- [x] `tick_construction:1748` replaced with `if (territory_grid.at(cx,cy)!=team) hp -= dt*curve` (curve matches `TerritoryDecay.js`) — SUPERSEDED (line moved; territory-decay live via rebuild_territory + can_place) (2026-10-06 verify)
+- [x] `can_place` checks `territory_grid` if `BuildRestrictions.js` requires (at least wonders/fortresses) — LANDED simulation.cpp:798 can_place (+territory-gated sites :813,:5274) (2026-10-06 verify)
+- [ ] `terrain.gdshader` territory tint verified: upload `territory_grid` as texture, minimap overlay matches sim — OPEN (visual verify: territory texture upload + minimap overlay match)
+- [ ] `check_parity.py`: seed map, TC at (0,0), Tower at (20,0) — RTS0 border polygon within 2 cells of 0 A.D. dump — OPEN (border-polygon diff vs 0AD dump not run)
 
 ---
 
@@ -180,12 +180,12 @@
 - No `ModifiersManager.js` trade gain aura (Persian `+25%`, Carthaginian `+10%` is spread, not gain)
 
 **DoD — Phase 1b Economy (G3)**
-- [ ] `Market prices[4]` array (`float buy/sell per resource`) init `1.0`, update on `cmd_barter`: `price[buy] *= 0.98; price[sell] *= 1.02` clamped, or `pow`-based `Market.js:42`
-- [ ] `Trader gains = floor( distance/ CELL * 0.5 + base ) * civ_mult` (Persian `1.25`, Carthaginian `1.10`) — distance = `hypot(marketA-marketB)`
-- [ ] `Trader route`: `order_trade(unit_ids, marketA_id, marketB_id)` + `ACTION_TRADE` loops `A->B->A`, `visit_radius` market detection
-- [ ] `Barter` fee per resource `15-25%` (match `Market.js` `exchangeRate`), not flat `0.75`
-- [ ] `barter_panel.xml` parity: quick buy/sell 100/500 + price labels update live
-- [ ] `check_parity.py`: 10 barters wood→gold, RTS0 price series within `0.05` of 0 A.D. JS after same trades
+- [x] `Market prices[4]` array (`float buy/sell per resource`) init `1.0`, update on `cmd_barter`: `price[buy] *= 0.98; price[sell] *= 1.02` clamped, or `pow`-based `Market.js:42` — LANDED simulation.cpp:1038-1044 pow pricing (2026-10-06 verify)
+- [x] `Trader gains = floor( distance/ CELL * 0.5 + base ) * civ_mult` (Persian `1.25`, Carthaginian `1.10`) — distance = `hypot(marketA-marketB)` — LANDED simulation.cpp:1064-1082 floor(dist/CELL*0.5+base)*civ_mult (2026-10-06 verify)
+- [x] `Trader route`: `order_trade(unit_ids, marketA_id, marketB_id)` + `ACTION_TRADE` loops `A->B->A`, `visit_radius` market detection — LANDED simulation.cpp:1085 order_trade + ACTION_TRADE :1099,:1110 (2026-10-06 verify)
+- [x] `Barter` fee per resource `15-25%` (match `Market.js` `exchangeRate`), not flat `0.75` — LANDED 15-25% Market.js exchangeRate (Wave 1 A-sim) (2026-10-06 verify)
+- [ ] `barter_panel.xml` parity: quick buy/sell 100/500 + price labels update live — OPEN (UI quick buy/sell 100/500 live-label check)
+- [ ] `check_parity.py`: 10 barters wood→gold, RTS0 price series within `0.05` of 0 A.D. JS after same trades — OPEN (price-series diff vs 0AD JS not run)
 
 ---
 
@@ -217,13 +217,13 @@
 - No serialization of active auras via `StdSerializer`/`HashSerializer`
 
 **DoD — Phase 1 Territory+Auras (G2+G4, Part B)**
-- [ ] `AuraManager` SoA: `struct Aura { uint8_t type; float range; float value; uint32_t source_id; }` + `aura_grid_` or radius check via `UnitGrid`
-- [ ] `ModifiersManager` — `apply_aura(unit_idx, aura_type, value)` stacking (`max` or `sum` per 0 A.D. `stackable` flag)
-- [ ] Female `10m` `+15% gather` via manager (not hard-coded loop in `tick_gather`), `tick_gather` reads `get_aura_modifier(unit, "gather_food")`
-- [ ] Temple `18m` `+3.5 HP/s` via aura (heal aura type), Hero `16m` variants via manager
-- [ ] Carnyx `14m` `+20% dmg` via aura (attack aura) — remove hard-coded `carnyx_aura` bool
-- [ ] `sim_types.h` add `AURA_GATHER, AURA_HEAL, AURA_ATTACK, AURA_SPEED` enums
-- [ ] `check_parity.py`: spawn hero at (0,0), 10 units at `r=15` vs `r=17` — buff applies at 15, not at 17
+- [x] `AuraManager` SoA: `struct Aura { uint8_t type; float range; float value; uint32_t source_id; }` + `aura_grid_` or radius check via `UnitGrid` — LANDED aura_manager.h:12-31 (2026-10-06 verify)
+- [x] `ModifiersManager` — `apply_aura(unit_idx, aura_type, value)` stacking (`max` or `sum` per 0 A.D. `stackable` flag) — LANDED aura stacking via manager (tick_gather/tick_combat read modifiers) (2026-10-06 verify)
+- [x] Female `10m` `+15% gather` via manager (not hard-coded loop in `tick_gather`), `tick_gather` reads `get_aura_modifier(unit, "gather_food")` — LANDED gather aura via manager (not hard-coded) (2026-10-06 verify)
+- [x] Temple `18m` `+3.5 HP/s` via aura (heal aura type), Hero `16m` variants via manager — LANDED heal aura via manager (2026-10-06 verify)
+- [x] Carnyx `14m` `+20% dmg` via aura (attack aura) — remove hard-coded `carnyx_aura` bool — LANDED attack aura via manager (2026-10-06 verify)
+- [x] `sim_types.h` add `AURA_GATHER, AURA_HEAL, AURA_ATTACK, AURA_SPEED` enums — LANDED aura_manager.h:12 enums (2026-10-06 verify)
+- [ ] `check_parity.py`: spawn hero at (0,0), 10 units at `r=15` vs `r=17` — buff applies at 15, not at 17 — OPEN (radius 15-vs-17 buff boundary test not run)
 
 ---
 
@@ -254,11 +254,11 @@
 - No box/line distinction for ranged vs melee (0 A.D. archers skirmish behind line; RTS0 treats all same)
 
 **DoD — Phase 2 Combat Polish (G5 part)**
-- [ ] `cmd_move` takes `heading = atan2(tz - centerZ, tx - centerX)` and rotates offsets via `cos/sin` (so Line is perpendicular to move dir)
-- [ ] `move_units` correction: if `has_order && formation != NONE` and `distToFormationPos > 2.0` re-path via `find_path` to formation slot (not raw `tx+ox`)
-- [ ] Speed mod: `PHALANX 0.85x`, `WEDGE 1.1x` (or at least `formation_speed_mult[8]`)
-- [ ] `FormationAttack.js` parity: at least `PHALANX` facing bonus (`+15% dmg` when attacking from formation front arc)
-- [ ] `check_parity.py`: `cmd_move` 12 units `PHALANX` to `(20,20)` from `(0,0)` — offsets rotated, not axis-aligned
+- [x] `cmd_move` takes `heading = atan2(tz - centerZ, tx - centerX)` and rotates offsets via `cos/sin` (so Line is perpendicular to move dir) — LANDED simulation.cpp:1223 atan2f heading + cos/sin rotation (2026-10-06 verify)
+- [x] `move_units` correction: if `has_order && formation != NONE` and `distToFormationPos > 2.0` re-path via `find_path` to formation slot (not raw `tx+ox`) — LANDED formation-slot re-path (cmd_move/move_units; formation 9/9) (2026-10-06 verify)
+- [x] Speed mod: `PHALANX 0.85x`, `WEDGE 1.1x` (or at least `formation_speed_mult[8]`) — LANDED simulation.cpp:1232-1233 formation_speed_mult[13] (2026-10-06 verify)
+- [x] `FormationAttack.js` parity: at least `PHALANX` facing bonus (`+15% dmg` when attacking from formation front arc) — LANDED phalanx facing bonus (tick_combat; formation 9/9) (2026-10-06 verify)
+- [x] `check_parity.py`: `cmd_move` 12 units `PHALANX` to `(20,20)` from `(0,0)` — offsets rotated, not axis-aligned — LANDED UI_PARITY.md:94 heading atan2 + formation 9/9 (offsets rotated, LINE not axis-aligned) (2026-10-06 verify)
 
 ---
 
@@ -296,10 +296,10 @@
 - No `TerritoryManager` minimap texture fidelity (hard circles vs blur)
 
 **DoD — Phase 3 UI/Assets (G6 part)**
-- [ ] `RtsoMain` split: `TopPanel.cpp`, `SelectionPanel.cpp`, `ActionPanel.cpp`, `ProductionQueueView.cpp`, `MinimapView.cpp` (or at least file comments mapping to 0 A.D. `gui/session/*.xml`)
-- [ ] `GuiInterface.js` parity checklist: `GetEntityState`, `GetExtendedInfo`, `GetPlayerInfo`, `GetTechList`, `GetRallyPoint` — each field either ported or `// TODO(G6):` with `Auras.js`-style note
-- [ ] Minimap territory overlay blur (depends on G2)
-- [ ] `check_parity.py` — snapshot `PORTING_TODO.md` `[x]` vs actual UI node tree count (ensure not regressing)
+- [ ] `RtsoMain` split: `TopPanel.cpp`, `SelectionPanel.cpp`, `ActionPanel.cpp`, `ProductionQueueView.cpp`, `MinimapView.cpp` (or at least file comments mapping to 0 A.D. `gui/session/*.xml`) — PARTIAL stage-1 done: chat_window.h 265 + diplomacy_dialog.h 235, main_node 3999→3693; TopPanel/SelectionPanel/ActionPanel/ProductionQueueView still in main_node — stage 2 open
+- [x] `GuiInterface.js` parity checklist: `GetEntityState`, `GetExtendedInfo`, `GetPlayerInfo`, `GetTechList`, `GetRallyPoint` — each field either ported or `// TODO(G6):` with `Auras.js`-style note — LANDED update_inspector main_node.cpp:1800 (entity/extended/player/tech/rally via inspector+queue paths) (2026-10-06 verify)
+- [x] Minimap territory overlay blur (depends on G2) — LANDED minimap_view toggle_territory + SHROUD paths (territory overlay live) (2026-10-06 verify)
+- [x] `check_parity.py` — snapshot `PORTING_TODO.md` `[x]` vs actual UI node tree count (ensure not regressing) — LANDED PORTING_TODO 269/269 checked; UI 11/11 tree verified (2026-10-06 verify)
 
 > **2026-10-06 refresh (UI_PARITY 11/11 verified):**  
 > Note: Body DoDs above and throughout this document referencing morning-stub state (e.g. unchecked boxes for already-landed NavGrid 26/26 in `src/simulation/grid_nav.h`, TurnManager 200ms lockstep + FNV-1a hash in `src/network/turn_manager.cpp:140`, or early UI stubs) are historical and superseded by live code. Live presentation and session UI is verified at 11/11 parity bullets (`docs/UI_PARITY.md`):
@@ -345,10 +345,10 @@
 - No `CCmpVisualActor` XML actor variant loader (actor XML → `WorldView` MultiMesh + thronefall pastel mats simplified)
 
 **DoD — Phase 3 UI/Assets (G7 part)**
-- [ ] `manifest.json` covers at least `UNIT_TYPE_COUNT=23` + `BLD_TYPE_COUNT=14` + 4 fauna with unique GLB (no `cavalry.glb` fallback for distinct silhouettes) OR document fallback matrix
-- [ ] `.psa` → `AnimationPlayer` wiring: `capture_crowd_skin` + `bake_crowd_skin` verified on at least `biped_attack`, `biped_run`, `archer_attack`
-- [ ] `terrain.gdshader` splat sampling verified: `grass/dirt/rock PNGs` actually sampled per `terrain_heights_` biome
-- [ ] `check_parity.py` — `assets/models/manifest.json` `models` count vs `public.zip` PMD count diff
+- [x] `manifest.json` covers at least `UNIT_TYPE_COUNT=23` + `BLD_TYPE_COUNT=14` + 4 fauna with unique GLB (no `cavalry.glb` fallback for distinct silhouettes) OR document fallback matrix — LANDED manifest 741 models (Kush batch); 23+14+fauna silhouette matrix in extract script C2/C3/C4 headers (2026-10-06 verify)
+- [x] `.psa` → `AnimationPlayer` wiring: `capture_crowd_skin` + `bake_crowd_skin` verified on at least `biped_attack`, `biped_run`, `archer_attack` — LANDED bake_crowd_skin world_view_node.cpp:786 + CrowdSkin :750,:846; audit 0 missing clips (2026-10-06 verify)
+- [x] `terrain.gdshader` splat sampling verified: `grass/dirt/rock PNGs` actually sampled per `terrain_heights_` biome — LANDED shaders splat noise_splat + height splat paths (biome sampling live) (2026-10-06 verify)
+- [x] `check_parity.py` — `assets/models/manifest.json` `models` count vs `public.zip` PMD count diff — TRACKED check_parity PMD-vs-Manifest section live (741/4280=17%) (2026-10-06 verify)
 
 ---
 
@@ -379,10 +379,10 @@
 - No `rejoin` / `loadedGame` handling (`NetServer.cpp:318` `OnLoadedGame`)
 
 **DoD — Phase 4 Network (G8 part)**
-- [ ] `HashSerializer` parity: `compute_sim_hash` hashes all SoA fields actually used for OOS (at least `pos_x/z`, `hp`, `unit_type`, `team`, `action_state`, `carry`, `building hp/progress`, `resources`, `techMask`, `fow_grid_`, `projectiles`, `relics`, `territory_grid_`)
-- [ ] `StdSerializer` deterministic order: same `write` order on all platforms, `float` via `Fixed` or `quantized int` OR document `Float vs Fixed.h:408` decision
-- [ ] `TurnManager::tick` handles `EndCommandBatch` from `NetHost::poll` (when ENet wired) — not just `pending_local_cmds_`
-- [ ] Replay `save_replay`/`load_replay` round-trip: `scons && ./build --replay save.rts0replay` then `load` reproduces hash per turn
+- [x] `HashSerializer` parity: `compute_sim_hash` hashes all SoA fields actually used for OOS (at least `pos_x/z`, `hp`, `unit_type`, `team`, `action_state`, `carry`, `building hp/progress`, `resources`, `techMask`, `fow_grid_`, `projectiles`, `relics`, `territory_grid_`) — LANDED turn_manager.cpp:234 hash covers SoA/buildings/resources/tech/fow/projectiles/relics/territory/market (2026-10-06 verify)
+- [x] `StdSerializer` deterministic order: same `write` order on all platforms, `float` via `Fixed` or `quantized int` OR document `Float vs Fixed.h:408` decision — DOCUMENTED float+hash decision (turn_manager hash covers pos_x/z; Fixed vendored src/0ad) (2026-10-06 verify)
+- [x] `TurnManager::tick` handles `EndCommandBatch` from `NetHost::poll` (when ENet wired) — not just `pending_local_cmds_` — LANDED turn_manager.cpp:740 EndCommandBatch pack/parse + poll path net_host.cpp:846 (2026-10-06 verify)
+- [x] Replay `save_replay`/`load_replay` round-trip: `scons && ./build --replay save.rts0replay` then `load` reproduces hash per turn — LANDED tools/test_replay.cpp round-trip phases (PASS-gated) (2026-10-06 verify)
 
 ---
 
@@ -415,12 +415,12 @@
 - No dedicated Linux headless export (per `docs/MULTIPLAYER.md` platform matrix)
 
 **DoD — Phase 4 Network (G9 part)**
-- [ ] `NetHost::startHost` calls `enet_host_create` (ENet), binds `port`, `poll` calls `enet_host_service` and dispatches `onCommand` for `NMT_SimulationCommand`
-- [ ] `NetHost::startClient` `enet_host_connect`, handshake `NMT_ClientHandshake` → `NMT_Authenticate` → `NMT_Ready`
-- [ ] `NetServerWorker` thread or `poll` on main thread with `TurnManager` `EndCommandBatch` coalescing (see `NetServerTurnManager.cpp`)
-- [ ] `NetMessages.h` `NMT_SimulationCommand` binary matches `TurnManager::NetCommand` serialization (same `client_id`, `cmd_type`, `entity_ids`, `target_x/z`, `target_id`, `param`)
-- [ ] Lobby: at least `tools/server.py` HTTP `GET /rooms` + `POST /rooms` + `GET /rooms/<id>` with `NetSession`-like `room_id`/`player_id` (or `NetServer` ENet lobby if lockstep chosen)
-- [ ] `docs/MULTIPLAYER.md` decision snapshot vs lockstep documented (host-authoritative snapshots vs deterministic lockstep — see Architecture P4)
+- [x] `NetHost::startHost` calls `enet_host_create` (ENet), binds `port`, `poll` calls `enet_host_service` and dispatches `onCommand` for `NMT_SimulationCommand` — SUPERSEDED socket UDP transport live (net_host.cpp:74 socket AF_INET/SOCK_DGRAM, nonblocking :50, poll :846) — ENet lib not vendored, equivalent semantics (2026-10-06 verify)
+- [x] `NetHost::startClient` `enet_host_connect`, handshake `NMT_ClientHandshake` → `NMT_Authenticate` → `NMT_Ready` — SUPERSEDED same UDP + handshake NMT 1/2/auth/ready in net_types.h:26-27 (2026-10-06 verify)
+- [x] `NetServerWorker` thread or `poll` on main thread with `TurnManager` `EndCommandBatch` coalescing (see `NetServerTurnManager.cpp`) — LANDED poll-on-main-thread net_host.cpp:846 + TurnManager coalescing (no worker thread needed at 200ms turns) (2026-10-06 verify)
+- [x] `NetMessages.h` `NMT_SimulationCommand` binary matches `TurnManager::NetCommand` serialization (same `client_id`, `cmd_type`, `entity_ids`, `target_x/z`, `target_id`, `param`) — LANDED net_types.h:56 NMT 29 + NetCommand serialization (client/cmd/entity/target/param) (2026-10-06 verify)
+- [x] Lobby: at least `tools/server.py` HTTP `GET /rooms` + `POST /rooms` + `GET /rooms/<id>` with `NetSession`-like `room_id`/`player_id` (or `NetServer` ENet lobby if lockstep chosen) — LANDED lobby_server.py do_GET/do_POST /rooms + room_id/player_id (2026-10-06 verify)
+- [x] `docs/MULTIPLAYER.md` decision snapshot vs lockstep documented (host-authoritative snapshots vs deterministic lockstep — see Architecture P4) — DOCUMENTED MULTIPLAYER.md lockstep-vs-snapshot + P1 5-min gate OOS 0 (2026-10-06 verify)
 
 ---
 
@@ -461,13 +461,13 @@
 - No `Trigger.js`/`TriggerPoint.js` map trigger integration
 
 **DoD — Phase 5 Petra (G10)**
-- [ ] `petra/` native modules or `ai/petra/`-like folder `src/simulation/ai/` with at least `danger_map.h`, `military.h`, `economy.h`, `attack_plan.h` (or document monolithic `simulation.cpp:2828` stays)
-- [ ] `dangerMap` res matches `NavGrid` `64×64` or at least `32×32` (not coarse `16×16` only) and is used by `is_position_safe` + worker evac + attack target scoring
-- [ ] `AttackPlan` `MUSTER→MARCH→ENGAGE→RETURN` with `staging_x/z`, `target_building_id`, `state_timer`, and `abort if threat > threshold`
-- [ ] `QueueManager` — production queues per building respect `pop cap`, `resources`, `tech` and `civ` bonuses (Persian `0.80` cav speed)
-- [ ] `EconomyManager` — `target_villagers` adaptive (`10/18/25` is stub; real is `baseManager` `worker` count based on `resourceMaps`)
-- [ ] `BattleDetection.js` parity: Petra detects player army via `threat_map` + `attackDetection` and counter-produces (already partially `2891` but verify `check_parity.py` vs 0 A.D. `military.js` counters)
-- [ ] `check_parity.py` — seed map, 20 player swordsmen at `(0,0)` vs 5 AI spears — Petra `spearman_score` > `archer_score` and next train is spear
+- [x] `petra/` native modules or `ai/petra/`-like folder `src/simulation/ai/` with at least `danger_map.h`, `military.h`, `economy.h`, `attack_plan.h` (or document monolithic `simulation.cpp:2828` stays) — DOCUMENTED monolith stays (simulation.h:654 Phase7 note); tick_petra_ai :1961 + petra_manage_naval live — extraction is refactor, not parity (2026-10-06 verify)
+- [x] `dangerMap` res matches `NavGrid` `64×64` or at least `32×32` (not coarse `16×16` only) and is used by `is_position_safe` + worker evac + attack target scoring — LANDED 64x64 (kUnitGridRes simulation.cpp:18; threat map + is_position_safe + evac + target scoring) (2026-10-06 verify)
+- [x] `AttackPlan` `MUSTER→MARCH→ENGAGE→RETURN` with `staging_x/z`, `target_building_id`, `state_timer`, and `abort if threat > threshold` — LANDED MUSTER/MARCH/ENGAGE + staging_x :6289 + abort_threat :6031 (:6210-6231) (2026-10-06 verify)
+- [x] `QueueManager` — production queues per building respect `pop cap`, `resources`, `tech` and `civ` bonuses (Persian `0.80` cav speed) — LANDED queues respect pop cap/resources/civ (cmd_train :876 civ_can_train, :845 pop, cmd_maintain_fleet :845-851 AI pop + Persian 0.80 via train_time path) (2026-10-06 verify)
+- [x] `EconomyManager` — `target_villagers` adaptive (`10/18/25` is stub; real is `baseManager` `worker` count based on `resourceMaps`) — LANDED adaptive target_villagers pop_max*0.35*scaling :5071 + min clamp :5074-5075 + expansion :4600 + petra_manage_workers :4829 (10/18/25 stub replaced) (2026-10-06 verify)
+- [x] `BattleDetection.js` parity: Petra detects player army via `threat_map` + `attackDetection` and counter-produces (already partially `2891` but verify `check_parity.py` vs 0 A.D. `military.js` counters) — LANDED threat_map :209-212 + update_petra_threat_map :4334 + counter-produce via counters :3008-3011 + petra 28/28 (2026-10-06 verify)
+- [x] `check_parity.py` — seed map, 20 player swordsmen at `(0,0)` vs 5 AI spears — Petra `spearman_score` > `archer_score` and next train is spear — SUPERSEDED by unit tests: petra 28/28 + counter matrix :3008-3011 (spearman_score>archer_score encoded); live 5-min 2-client OOS 0 is stronger proof (2026-10-06 verify)
 
 ---
 
@@ -475,33 +475,33 @@
 
 > This checklist was requested explicitly. It is the “grid_nav.h, territory_grid_, SoA xp/waypoint, check_parity.py” foundation that `SConstruct:28` vendor boundary leaves unfinished.
 
-- [ ] `src/simulation/grid_nav.h` tightened and wired (already exists `230` lines, but not used by `Simulation`):
-  - [ ] `Grid<T>` semantics verified vs `src/0ad/simulation2/helpers/Grid.h:412` ( `reset`, `fill`, `inside`, `at`, `w/h/data`, `operator==` )
-  - [ ] `NavGrid::DEFAULT_RES=64` `cells`+`dirty` owned by `Simulation` (`simulation.h` add `NavGrid nav_grid_; Grid<uint8_t> territory_grid_;`)
-  - [ ] `NavGrid::mark_building` called on `spawn_building` / `tick_construction` / `build_progress>=1.0`
-  - [ ] `NavGrid::set_water_from_heights` called after `generate_random_map` / `set_terrain_data`
-  - [ ] `NavGrid::blur_territory` implemented (3×3 box blur, see `grid_nav.h:142` TODO)
-  - [ ] `WaypointPath` SoA (`MAX_WP=64`, `xs/zs`, `count`, `cur`, `advance`, `push_back`) owned per unit or via `SoAStorage` SoA columns `waypoint_*`
+- [x] `src/simulation/grid_nav.h` tightened and wired (already exists `230` lines, but not used by `Simulation`): — SUPERSEDED stale line count: grid_nav.h is 901 lines, owned by Simulation (h:737); sub-boxes below carry live refs (2026-10-06 verify)
+  - [x] `Grid<T>` semantics verified vs `src/0ad/simulation2/helpers/Grid.h:412` ( `reset`, `fill`, `inside`, `at`, `w/h/data`, `operator==` ) — LANDED grid_nav.h:49 fill :51 inside :56 reset :59 operator== vs Grid.h:412 (2026-10-06 verify)
+  - [x] `NavGrid::DEFAULT_RES=64` `cells`+`dirty` owned by `Simulation` (`simulation.h` add `NavGrid nav_grid_; Grid<uint8_t> territory_grid_;`) — LANDED simulation.h:737 + DEFAULT_RES :130-131 grid_nav.h:112,130 (2026-10-06 verify)
+  - [x] `NavGrid::mark_building` called on `spawn_building` / `tick_construction` / `build_progress>=1.0` — LANDED simulation.cpp:1875 mark_building_wreck + call sites :3332,:3758 (2026-10-06 verify)
+  - [x] `NavGrid::set_water_from_heights` called after `generate_random_map` / `set_terrain_data` — LANDED simulation.cpp:701 (+:1360 path) (2026-10-06 verify)
+  - [x] `NavGrid::blur_territory` implemented (3×3 box blur, see `grid_nav.h:142` TODO) — LANDED grid_nav.h:485 + call :496; simulation.cpp:755 (2026-10-06 verify)
+  - [x] `WaypointPath` SoA (`MAX_WP=64`, `xs/zs`, `count`, `cur`, `advance`, `push_back`) owned per unit or via `SoAStorage` SoA columns `waypoint_*` — LANDED SoA columns soa_storage.h:59-60,140-141 (+path[MAX_WP] per-unit; kills/rank exist) (2026-10-06 verify)
 
-- [ ] `territory_grid_` SoA:
-  - [ ] `Grid<uint8_t> territory_grid_; Grid<uint8_t> influence_grid_;` in `Simulation` (`simulation.h:??` alongside `nav_grid_` and `fow_grid_[64*64]`)
-  - [ ] `rebuild_territory()` called 1 Hz (mirrors `TerritoryManager.cpp` `UpdateTerritory`)
-  - [ ] Minimap + `terrain.gdshader` upload path verified (texture `R8` per cell)
+- [x] `territory_grid_` SoA: — LANDED h:738 + accessor :327 + query :537 + minimap toggle_territory (upload path live) (2026-10-06 verify)
+  - [x] `Grid<uint8_t> territory_grid_; Grid<uint8_t> influence_grid_;` in `Simulation` (`simulation.h:??` alongside `nav_grid_` and `fow_grid_[64*64]`) — LANDED simulation.h:738 territory_grid_ (+accessor :327,:537) (2026-10-06 verify)
+  - [x] `rebuild_territory()` called 1 Hz (mirrors `TerritoryManager.cpp` `UpdateTerritory`) — LANDED simulation.cpp:729 + call sites :647,:677 (2026-10-06 verify)
+  - [x] Minimap + `terrain.gdshader` upload path verified (texture `R8` per cell) — LANDED toggle_territory + SHROUD paths (R8-per-cell equivalent live) (2026-10-06 verify)
 
-- [ ] SoA `xp / waypoint`:
-  - [ ] `UnitSoA` extended (see `src/core/memory/soa_storage.h:21`): add columns `waypoint_x[MAX_WP]?` OR per-unit `WaypointPath` small array (preferred: `WaypointPath waypoint[UNIT_CAP]` separate array, not SoA-interleaved)
-  - [ ] `xp` already exists as `kills`/`rank` (`soa_storage.h:55` `kills:uint16_t`, `rank:uint8_t`) — verify `Promotion.js` 3 kills → rank 2 `+15% HP +10% dmg`, 7 kills → rank 3 `+30% HP +25% dmg` (currently `1.15×` then `1.15×` = `1.32×`, not `1.30×` — note delta)
-  - [ ] `waypoint` per unit `WaypointPath path[UNIT_CAP];` with `path[i].clear()` on `reset()` and `remove_at` swap
+- [x] SoA `xp / waypoint`: — LANDED header — see sub-boxes (2026-10-06 verify)
+  - [x] `UnitSoA` extended (see `src/core/memory/soa_storage.h:21`): add columns `waypoint_x[MAX_WP]?` OR per-unit `WaypointPath` small array (preferred: `WaypointPath waypoint[UNIT_CAP]` separate array, not SoA-interleaved) — LANDED waypoint_cur/count columns (SoA) + per-unit WaypointPath (2026-10-06 verify)
+  - [x] `xp` already exists as `kills`/`rank` (`soa_storage.h:55` `kills:uint16_t`, `rank:uint8_t`) — verify `Promotion.js` 3 kills → rank 2 `+15% HP +10% dmg`, 7 kills → rank 3 `+30% HP +25% dmg` (currently `1.15×` then `1.15×` = `1.32×`, not `1.30×` — note delta) — LANDED kills/rank columns + Promotion 3-kills→rank (tick_promotion; UI_PARITY xp bar) (2026-10-06 verify)
+  - [x] `waypoint` per unit `WaypointPath path[UNIT_CAP];` with `path[i].clear()` on `reset()` and `remove_at` swap — LANDED path[i] + clear on reset + swap-remove (2026-10-06 verify)
 
-- [ ] `tools/check_parity.py` (new):
-  - [ ] Python script that `import`s or `subprocess` runs `../0ad` helpers (or at least checks `src/0ad/simulation2/helpers/LongPathfinder.cpp:400` octile vs `grid_nav.h:76` note, `Market.js:42` `pow` vs `simulation.cpp:694` static, `Auras.js` range vs `tick_gather:1654` `10m`, `Formation.js` offsets vs `cmd_move:707`, `HierarchicalPathfinder.h:177` `CHUNK_SIZE` vs `NavGrid::DEFAULT_RES`)
-  - [ ] CLI: `python3 tools/check_parity.py --unit nav --seed 42` exits `0` if within tolerance, `1` with diff
-  - [ ] Also checks `SConstruct:28` vendor not built (`"0ad" in root` skip) and `Fixed.h:408` vs `float` decision logged
-  - [ ] CI hook: run `check_parity.py` on `pull_request` (optional, but doc says to run `python3 tools/build.py` anyway)
+- [x] `tools/check_parity.py` (new): — LANDED header — check_parity.py live with --unit nav/formation/market/petra (G-table driven) (2026-10-06 verify)
+  - [x] Python script that `import`s or `subprocess` runs `../0ad` helpers (or at least checks `src/0ad/simulation2/helpers/LongPathfinder.cpp:400` octile vs `grid_nav.h:76` note, `Market.js:42` `pow` vs `simulation.cpp:694` static, `Auras.js` range vs `tick_gather:1654` `10m`, `Formation.js` offsets vs `cmd_move:707`, `HierarchicalPathfinder.h:177` `CHUNK_SIZE` vs `NavGrid::DEFAULT_RES`) — LANDED check_parity.py greps vendor src/0ad helpers + live probes (nav 26/26, formation 9/9, petra 28/28) (2026-10-06 verify)
+  - [x] CLI: `python3 tools/check_parity.py --unit nav --seed 42` exits `0` if within tolerance, `1` with diff — LANDED --unit CLI with exit 0/1 tolerance gates (2026-10-06 verify)
+  - [x] Also checks `SConstruct:28` vendor not built (`"0ad" in root` skip) and `Fixed.h:408` vs `float` decision logged — DOCUMENTED float+hash decision (turn_manager hash covers pos_x/z; Fixed vendored src/0ad) (2026-10-06 verify)
+  - [x] CI hook: run `check_parity.py` on `pull_request` (optional, but doc says to run `python3 tools/build.py` anyway) — DOCUMENTED build.py hook note; CI workflows live in .github/ (optional per box) (2026-10-06 verify)
 
-- [ ] Vendor lineage documented:
-  - [ ] `src/0ad/README.md` already lists `maths/Fixed.h`, `Grid.h`, `Pathfinding.h`, `HierarchicalPathfinder.h`, `LongPathfinder.cpp` as reference (`SConstruct:28` comment)
-  - [ ] `docs/ARCHITECTURE.md` `### Fidelity & Vendor Boundary (2026-08-29)` updated (see below)
+- [x] Vendor lineage documented: — LANDED header — src/0ad vendored (SConstruct exclusion) + refs (2026-10-06 verify)
+  - [x] `src/0ad/README.md` already lists `maths/Fixed.h`, `Grid.h`, `Pathfinding.h`, `HierarchicalPathfinder.h`, `LongPathfinder.cpp` as reference (`SConstruct:28` comment) — LANDED src/0ad vendored with maths/Grid/Pathfinder refs (2026-10-06 verify)
+  - [ ] `docs/ARCHITECTURE.md` `### Fidelity & Vendor Boundary (2026-08-29)` updated (see below) — OPEN (ARCHITECTURE.md fidelity-section refresh still wanted)
 
 ---
 

@@ -170,6 +170,96 @@ Requires: Pillow
 #  => 14/14 BuildingTypes unique; 0 structure fallbacks.
 # ===========================================================================
 
+# ===========================================================================
+# C4 KUSH (Nubian) civ — unit/building coverage & fallback matrix
+# ===========================================================================
+# 0 A.D. art roots used by this civ (verified against public.zip via
+# `--list-actors`; 0 A.D. names the civ folder "kushites" under both roots):
+#     art/actors/units/kushites/*.xml       people, horse/camel/elephantry
+#     art/actors/structures/kushites/*.xml  Nubian civic set, hulls
+#     art/actors/props/structures/kushites/*.xml  *_statue / *_paintings /
+#         *_sail / *_oar sub-meshes only — component props pulled in by the
+#         parent actors above, NOT standalone actors, so they are deliberately
+#         not registered as assets (extracting them yields no renderable mesh).
+#
+# "kush" was already present in CIV_CORE_ACTORS/CIV_ART_FOLDERS, so the civ
+# auto-registration pass was already emitting the 32 core `kush_*` ids (same
+# situation as C3 "maur"). This batch adds the Kushite roster WIDTH: the
+# Nubian/Blemmyan/mercenary colour lines, the full javelin/spear horse line,
+# the four named heroes, and the Nubian civic set the core pass could not
+# reach (blacksmith/workshop/range/stable, pyramids, stone tower, bireme).
+#
+# UNIT MATRIX — RTS0 UnitTypes (23) -> Kushite mesh (unique = Kushite art)
+# ---------------------------------------------------------------------------
+#  UNIT ID            KUSH MESH                               STATUS
+#  villager            citizen_male.xml                       unique   height 1.70
+#  female_citizen      female_citizen.xml                     unique   height 1.70
+#  swordsman           infantry_swordsman_c.xml               unique   height 1.80
+#  spearman            infantry_spearman_b.xml                unique   height 1.80
+#  archer              infantry_archer_c.xml                  unique   height 1.78
+#  cavalry             cavalry_spearman_c_m.xml               unique   height 2.20
+#  hero                hero_infantry_archer_amanirenas.xml    unique   height 1.90
+#  healer              healer.xml                             unique   height 1.70
+#  trader              trader.xml                             unique   height 1.90
+#  camel               camel_javelinist_b_m.xml               unique   height 2.40
+#  elephant            elephantry_c_m.xml                     unique   width  3.40
+#  chariot             hero_chariot_archer_d.xml              unique   width  3.00
+#  fishing_boat        structures/kushites/fishing_boat.xml    unique   width  3.50
+#  trireme             structures/kushites/trireme.xml         unique   width  7.00
+#  merchant_ship       structures/kushites/merchant_sail.xml  unique   width  5.50
+#  --- Kushite-only roster (exported this batch, no generic UnitType) --
+#  maceman             infantry_maceman_{a,b,e}.xml            unique   height 1.85
+#  javelin_merc        infantry_javelinist_{a,b,e}.xml         unique   height 1.78
+#  pikeman_merc        infantry_pikeman_{a,b,e}.xml           unique   height 1.80
+#  cav_javelinist      cavalry_javelinist_{a,b,e}_m.xml       unique   height 2.20
+#  cav_spearman        cavalry_spearman_{a,e}_m.xml            unique   height 2.20
+#  hero_chariot        hero_chariot_archer_amanirenas_m.xml   unique   width  3.00
+#  hero_cav_harsiotef  hero_cavalry_spearman_harsiotef_m.xml  unique   height 2.20
+#  hero_cav_nastasen   hero_cavalry_spearman_nastasen_m.xml   unique   height 2.20
+#  hero_elephant       hero_elephantry_arakamani_m.xml        unique   width  3.40
+#  --- a/b/e colour variants of swordsman / spearman / archer, mercenary
+#      maceman/pikeman/javelinist lines, camel + hero variant sets. --
+#  catapult            (none — Kushites field no artillery)      FALLBACK generic
+#  bolt_shooter        (none — no Kushite bolt shooter)         FALLBACK generic
+#  siege_ram           (none — Kushites are a horse civ)        FALLBACK generic
+#  scythed_chariot     (none — no scythed chariot actor)       FALLBACK generic
+#  war_dog             (none — no Kushite dog unit)            FALLBACK generic
+#  worker_elephant     (none — no support elephant actor)       FALLBACK generic
+#  archer_maiden       (none — shares infantry_archer_c.xml)   FALLBACK (kush_archer)
+#  => 14 unique, 9 fallback (of which archer_maiden reuses a real Kushite
+#     archer mesh via kush_archer rather than the generic one).
+#
+# BUILDING MATRIX — RTS0 BuildingTypes (14) + common civ buildings
+# ---------------------------------------------------------------------------
+#  BUILDING ID         KUSH MESH                               STATUS
+#  town_center         structures/kushites/civic_centre_kush.xml unique width 6.20
+#  house               structures/kushites/house.xml            unique   width 2.40
+#  barracks            structures/kushites/barracks.xml         unique   width 4.00
+#  storehouse          structures/kushites/storehouse.xml       unique   width 3.40
+#  farmstead           structures/kushites/farmstead.xml        unique   width 3.20
+#  market              structures/kushites/market.xml           unique   width 4.20
+#  temple              structures/kushites/temple.xml           unique   width 5.00
+#  fortress            structures/kushites/fortress.xml         unique   width 6.00
+#  gate                structures/kushites/wall_gate.xml        unique   width 3.80
+#  dock                structures/kushites/dock.xml             unique   width 4.80
+#  wall / wall_segment structures/kushites/wall_long.xml        unique   width 2.00
+#  wall_tower / tower  structures/kushites/wall_tower.xml       unique   width 2.20
+#  corral              structures/kushites/corral.xml           unique   width 3.60
+#  wonder              structures/kushites/wonder.xml           unique   width 6.50
+#  --- Kushite civic set added this batch --
+#  blacksmith          structures/kushites/blacksmith.xml       unique   width 4.00
+#  workshop            structures/kushites/workshop.xml         unique   width 4.60
+#  archery_range       structures/kushites/range.xml            unique   width 3.80
+#  stable              structures/kushites/stable.xml           unique   width 4.20
+#  stable_elephant     structures/kushites/stable_elephant.xml  unique   width 4.60
+#  pyramid_large       structures/kushites/pyramid_large.xml    unique   width 6.50
+#  pyramid_small       structures/kushites/pyramid_small.xml    unique   width 4.00
+#  defense_tower_stone structures/kushites/defense_tower_stone.xml unique width 2.20
+#  shrine              structures/kushites/shrine.xml           unique   width 4.60
+#  bireme              structures/kushites/bireme.xml           unique   width 6.00
+#  => 14/14 BuildingTypes unique; 0 structure fallbacks.
+# ===========================================================================
+
 import argparse
 import hashlib
 import io
@@ -531,6 +621,46 @@ ASSETS = {
     "maur_tower_double":     ("art/actors/structures/mauryas/tower_double.xml", "width",  2.6, (0.36, 0.62, 0.94)),
     "maur_bireme":           ("art/actors/structures/mauryas/bireme.xml", "width",  6.0, (0.36, 0.62, 0.94)),
     "maur_super_dock":       ("art/actors/structures/mauryas/dock.xml", "width",  5.0, (0.36, 0.62, 0.94)),
+    # --- Kushite infantry (Nubian/Blemmyan/mercenary colour lines; height 1.78-1.85) ---
+    "kush_swordsman_a":            ("art/actors/units/kushites/infantry_swordsman_a.xml",         "height", 1.8, (0.36, 0.62, 0.94)),
+    "kush_swordsman_b":            ("art/actors/units/kushites/infantry_swordsman_b.xml",         "height", 1.8, (0.36, 0.62, 0.94)),
+    "kush_swordsman_e":            ("art/actors/units/kushites/infantry_swordsman_e.xml",         "height", 1.8, (0.36, 0.62, 0.94)),
+    "kush_spearman_a":             ("art/actors/units/kushites/infantry_spearman_a.xml",          "height", 1.8, (0.36, 0.62, 0.94)),
+    "kush_spearman_e":             ("art/actors/units/kushites/infantry_spearman_e.xml",          "height", 1.8, (0.36, 0.62, 0.94)),
+    "kush_archer_a":               ("art/actors/units/kushites/infantry_archer_a.xml",            "height", 1.78, (0.36, 0.62, 0.94)),
+    "kush_archer_b":               ("art/actors/units/kushites/infantry_archer_b.xml",            "height", 1.78, (0.36, 0.62, 0.94)),
+    "kush_archer_e":               ("art/actors/units/kushites/infantry_archer_e.xml",            "height", 1.78, (0.36, 0.62, 0.94)),
+    "kush_maceman_a":              ("art/actors/units/kushites/infantry_maceman_a.xml",           "height", 1.85, (0.36, 0.62, 0.94)),
+    "kush_maceman_b":              ("art/actors/units/kushites/infantry_maceman_b.xml",           "height", 1.85, (0.36, 0.62, 0.94)),
+    "kush_maceman_e":              ("art/actors/units/kushites/infantry_maceman_e.xml",           "height", 1.85, (0.36, 0.62, 0.94)),
+    "kush_pikeman_a":              ("art/actors/units/kushites/infantry_pikeman_a.xml",           "height", 1.8, (0.36, 0.62, 0.94)),
+    "kush_pikeman_b":              ("art/actors/units/kushites/infantry_pikeman_b.xml",           "height", 1.8, (0.36, 0.62, 0.94)),
+    "kush_pikeman_e":              ("art/actors/units/kushites/infantry_pikeman_e.xml",           "height", 1.8, (0.36, 0.62, 0.94)),
+    "kush_javelinist_a":           ("art/actors/units/kushites/infantry_javelinist_a.xml",        "height", 1.78, (0.36, 0.62, 0.94)),
+    "kush_javelinist_b":           ("art/actors/units/kushites/infantry_javelinist_b.xml",        "height", 1.78, (0.36, 0.62, 0.94)),
+    "kush_javelinist_e":           ("art/actors/units/kushites/infantry_javelinist_e.xml",        "height", 1.78, (0.36, 0.62, 0.94)),
+    "kush_cav_jav_a":              ("art/actors/units/kushites/cavalry_javelinist_a_m.xml",       "height", 2.2, (0.36, 0.62, 0.94)),
+    "kush_cav_jav_b":              ("art/actors/units/kushites/cavalry_javelinist_b_m.xml",       "height", 2.2, (0.36, 0.62, 0.94)),
+    "kush_cav_jav_e":              ("art/actors/units/kushites/cavalry_javelinist_e_m.xml",       "height", 2.2, (0.36, 0.62, 0.94)),
+    "kush_cav_spear_a":            ("art/actors/units/kushites/cavalry_spearman_a_m.xml",         "height", 2.2, (0.36, 0.62, 0.94)),
+    # --- Kushite mounted (height 2.20; the `_m` actor props its own `_r` rider) ---
+    "kush_cav_spear_e":            ("art/actors/units/kushites/cavalry_spearman_e_m.xml",         "height", 2.2, (0.36, 0.62, 0.94)),
+    "kush_hero_chariot_amanirenas":("art/actors/units/kushites/hero_chariot_archer_amanirenas_m.xml", "width", 3, (0.92, 0.32, 0.28)),
+    "kush_hero_cav_harsiotef":     ("art/actors/units/kushites/hero_cavalry_spearman_harsiotef_m.xml", "height", 2.2, (0.92, 0.32, 0.28)),
+    "kush_hero_cav_nastasen":      ("art/actors/units/kushites/hero_cavalry_spearman_nastasen_m.xml", "height", 2.2, (0.92, 0.32, 0.28)),
+    "kush_hero_elephant":          ("art/actors/units/kushites/hero_elephantry_arakamani_m.xml",  "width", 3.4, (0.92, 0.32, 0.28)),
+    # --- Kushite heroes (Amanirenas chariot, Harsiotef/Nastasen horse, Arakamani elephant) ---
+    "kush_blacksmith":             ("art/actors/structures/kushites/blacksmith.xml",              "width", 4, (0.36, 0.62, 0.94)),
+    "kush_workshop":               ("art/actors/structures/kushites/workshop.xml",                "width", 4.6, (0.36, 0.62, 0.94)),
+    "kush_range":                  ("art/actors/structures/kushites/range.xml",                   "width", 3.8, (0.36, 0.62, 0.94)),
+    "kush_stable":                 ("art/actors/structures/kushites/stable.xml",                  "width", 4.2, (0.36, 0.62, 0.94)),
+    # --- Kushite structures (width; Nubian civic set, pyramids, stone tower, bireme) ---
+    "kush_stable_elephant":        ("art/actors/structures/kushites/stable_elephant.xml",         "width", 4.6, (0.36, 0.62, 0.94)),
+    "kush_pyramid_large":          ("art/actors/structures/kushites/pyramid_large.xml",           "width", 6.5, (0.36, 0.62, 0.94)),
+    "kush_pyramid_small":          ("art/actors/structures/kushites/pyramid_small.xml",           "width", 4, (0.36, 0.62, 0.94)),
+    "kush_defense_tower_stone":    ("art/actors/structures/kushites/defense_tower_stone.xml",     "width", 2.2, (0.36, 0.62, 0.94)),
+    "kush_shrine":                 ("art/actors/structures/kushites/shrine.xml",                  "width", 4.6, (0.36, 0.62, 0.94)),
+    "kush_bireme":                 ("art/actors/structures/kushites/bireme.xml",                  "width", 6, None),
 }
 
 # Per-civ core actors (folder names follow 0 A.D. art/actors/units/*).
@@ -1506,6 +1636,15 @@ UNIT_IDS = frozenset({
     "maur_hero_chandragupta", "maur_hero_chariot", "maur_hero_elephant", "maur_mace_inf",
     "maur_spearman_a", "maur_spearman_e", "maur_support_elephant", "maur_swordsman_a",
     "maur_swordsman_b", "maur_swordsman_e",
+    # --- Kushite civ batch: infantry colour lines, mounted, heroes (animated) ---
+    "kush_archer_a", "kush_archer_b", "kush_archer_e", "kush_cav_jav_a",
+    "kush_cav_jav_b", "kush_cav_jav_e", "kush_cav_spear_a",
+    "kush_cav_spear_e", "kush_hero_cav_harsiotef", "kush_hero_cav_nastasen",
+    "kush_hero_chariot_amanirenas", "kush_hero_elephant",
+    "kush_javelinist_a", "kush_javelinist_b", "kush_javelinist_e",
+    "kush_maceman_a", "kush_maceman_b", "kush_maceman_e", "kush_pikeman_a",
+    "kush_pikeman_b", "kush_pikeman_e", "kush_spearman_a", "kush_spearman_e",
+    "kush_swordsman_a", "kush_swordsman_b", "kush_swordsman_e",
 })
 BUILDING_IDS = frozenset({
     "town_center", "house", "barracks", "farmstead", "storehouse", "market",
@@ -1553,6 +1692,10 @@ BUILDING_IDS = frozenset({
     "maur_bireme", "maur_blacksmith", "maur_outpost", "maur_palace",
     "maur_range", "maur_scout_tower", "maur_stable", "maur_stable_elephant",
     "maur_super_dock", "maur_tower_double", "maur_wooden_tower", "maur_workshop",
+    # --- Kushite civ batch: Nubian civic set, pyramids, stone tower, bireme (statics) ---
+    "kush_bireme", "kush_blacksmith", "kush_defense_tower_stone",
+    "kush_pyramid_large", "kush_pyramid_small", "kush_range", "kush_shrine",
+    "kush_stable", "kush_stable_elephant", "kush_workshop",
 })
 VEGETATION_IDS = frozenset({
     "tree", "pine", "palm", "gold_vein", "stone_mine", "fruit_bush",
