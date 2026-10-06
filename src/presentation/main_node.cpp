@@ -25,6 +25,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("enter_build_mode", "enable", "btype"), &RtsoMain::enter_build_mode, DEFVAL(rtso::BLD_HOUSE));
 	ClassDB::bind_method(D_METHOD("clear_selection"), &RtsoMain::clear_selection);
 	ClassDB::bind_method(D_METHOD("_on_minimap_clicked", "world_pos"), &RtsoMain::_on_minimap_clicked);
+	ClassDB::bind_method(D_METHOD("_on_flare_requested", "world_pos"), &RtsoMain::_on_flare_requested);
 	ClassDB::bind_method(D_METHOD("_on_idle_worker_clicked"), &RtsoMain::_on_idle_worker_clicked);
 	ClassDB::bind_method(D_METHOD("_on_speed_button_pressed"), &RtsoMain::_on_speed_button_pressed);
 	ClassDB::bind_method(D_METHOD("_on_menu_button_pressed"), &RtsoMain::_on_menu_button_pressed);
@@ -49,12 +50,14 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_barter_requested", "sell_type", "buy_type", "amount"), &RtsoMain::_on_barter_requested);
 	ClassDB::bind_method(D_METHOD("set_civ", "civ_idx"), &RtsoMain::set_civ);
 	ClassDB::bind_method(D_METHOD("get_civ_info", "civ_idx"), &RtsoMain::get_civ_info);
+	ClassDB::bind_method(D_METHOD("get_match_summary"), &RtsoMain::get_match_summary);
 
 	ClassDB::bind_method(D_METHOD("_on_queue_slot_gui_input", "event", "slot_idx"), &RtsoMain::_on_queue_slot_gui_input);
 	ClassDB::bind_method(D_METHOD("_on_queue_slot_cancel", "slot_idx"), &RtsoMain::_on_queue_slot_cancel);
 	ClassDB::bind_method(D_METHOD("toggle_chat"), &RtsoMain::toggle_chat);
 	ClassDB::bind_method(D_METHOD("_on_chat_send_pressed"), &RtsoMain::_on_chat_send_pressed);
 	ClassDB::bind_method(D_METHOD("_on_chat_text_submitted", "text"), &RtsoMain::_on_chat_text_submitted);
+	ClassDB::bind_method(D_METHOD("_on_chat_channel_btn_pressed", "channel_idx"), &RtsoMain::_on_chat_channel_btn_pressed);
 	ClassDB::bind_method(D_METHOD("toggle_diplomacy"), &RtsoMain::toggle_diplomacy);
 	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);
 	ClassDB::bind_method(D_METHOD("_on_diplo_tribute_pressed", "player_idx", "res_type"), &RtsoMain::_on_diplo_tribute_pressed);
@@ -64,6 +67,9 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_voice_button_pressed"), &RtsoMain::_on_voice_button_pressed);
 	ClassDB::bind_method(D_METHOD("_on_lobby_host_pressed"), &RtsoMain::_on_lobby_host_pressed);
 	ClassDB::bind_method(D_METHOD("_on_lobby_join_pressed"), &RtsoMain::_on_lobby_join_pressed);
+	ClassDB::bind_method(D_METHOD("_on_lobby_start_pressed"), &RtsoMain::_on_lobby_start_pressed);
+	ClassDB::bind_method(D_METHOD("apply_net_game_start"), &RtsoMain::apply_net_game_start);
+	ClassDB::bind_method(D_METHOD("load_map_seeded", "map_id", "seed"), &RtsoMain::load_map_seeded);
 	ClassDB::bind_method(D_METHOD("_on_lobby_refresh_pressed"), &RtsoMain::_on_lobby_refresh_pressed);
 
 	const StringName cls = get_class_static();
@@ -155,17 +161,57 @@ static Ref<Texture2D> load_tex(const String &path) {
 void RtsoMain::_ready() {
 	rtso::Logger::info("Main", "RTS0 0 A.D. Reborn Ready — Full 0 A.D. UI & Simulation");
 
-	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings"))) {
-		int civ = (int)ms->get("player_civ");
-		int ai = (int)ms->get("ai_civ");
-		if (civ >= 0 && civ < rtso::CIV_COUNT) sim->set_player_civ((uint8_t)civ);
-		if (ai >= 0 && ai < rtso::CIV_COUNT) sim->set_team_civ(1, (uint8_t)ai);
-		UtilityFunctions::print("[RtsoMain] Match civ ", rtso::civ_info(sim->player_civ()).name,
-				" vs ", rtso::civ_info(sim->team_civ(1)).name);
-	}
+	// Incoming chat: 0 A.D. NetMessages.h NMT_CHAT parity. Fires on the main
+	// thread from net_host_.poll() (_process), so appending to chat_log is safe.
+	// net_host.cpp:540 dispatch -> onChat (:395) -> display here.
+	net_host_.onChat([this](const rtso::ChatMsg &cm) {
+		String msg = String::utf8(cm.message.c_str());
+		// Tactical flare piggybacks NMT_CHAT (approximation of 0 A.D. minimap
+		// flare): "[Flare] x,z" -> local map ping, not chat text.
+		if (msg.begins_with("[Flare]")) {
+			String coords = msg.substr(7).strip_edges();
+			int32_t comma = coords.find(",");
+			if (comma > 0) {
+				float fx = coords.substr(0, comma).to_float();
+				float fz = coords.substr(comma + 1).to_float();
+				if (minimap_view) minimap_view->add_ping(Vector2(fx, fz), Color(1.0f, 0.45f, 0.1f));
+			}
+			return;
+		}
+		if (!chat_log) return;
+		String tag_col = "#55bbff"; // All (default channel color, 0 A.D. ChatBounce.js:15-38 parity)
+		String chan_prefix = "[All]";
+		if (msg.begins_with("[Allies]")) {
+			tag_col = "#55ff55";
+			chan_prefix = "[Allies]";
+			msg = msg.substr(8).strip_edges();
+		} else if (msg.begins_with("[Team]")) {
+			tag_col = "#ffff55";
+			chan_prefix = "[Team]";
+			msg = msg.substr(6).strip_edges();
+		} else if (msg.begins_with("[Enemies]")) {
+			tag_col = "#ff5555";
+			chan_prefix = "[Enemies]";
+			msg = msg.substr(9).strip_edges();
+		} else if (msg.begins_with("[Player-")) {
+			int close_b = msg.find("]");
+			if (close_b > 0) {
+				chan_prefix = msg.substr(0, close_b + 1);
+				tag_col = "#eebb22";
+				msg = msg.substr(close_b + 1).strip_edges();
+			}
+		}
+		chat_log->append_text("[color=" + tag_col + "]" + chan_prefix + " " +
+				String::utf8(cm.sender_guid.c_str()) + "[/color]: " + msg + "\n");
+	});
 
+	// Stash the GameSetup first: load_map_seeded needs view + cam_rig, which
+	// are created below. apply_match_settings() runs after they exist.
+	// (Map choice was previously dropped — map_index stored but never
+	// consumed. Victory / Petra difficulty+behavior / starting resources /
+	// per-slot civs apply after the map load because reset()/generate()
+	// overwrite stocks.)
 	anim_ctrl.load("res://assets/animations");
-	sim->spawn_initial();
 
 	bool has_light = false;
 	for (int i = 0; i < get_child_count(); ++i) {
@@ -200,7 +246,42 @@ void RtsoMain::_ready() {
 
 	minimap_view = memnew(RtsoMiniMapView);
 	minimap_view->connect("minimap_clicked", Callable(this, "_on_minimap_clicked"));
+	minimap_view->connect("flare_requested", Callable(this, "_on_flare_requested"));
 	ui_layer->add_child(minimap_view);
+
+	// Minimap layer toggles (methods were ClassDB-bound but had no UI driver).
+	// Row sits directly above the 190px minimap (see minimap ctor offsets).
+	{
+		HBoxContainer *mm_btns = memnew(HBoxContainer);
+		mm_btns->set_anchor(SIDE_LEFT, Control::ANCHOR_BEGIN);
+		mm_btns->set_anchor(SIDE_RIGHT, Control::ANCHOR_BEGIN);
+		mm_btns->set_anchor(SIDE_TOP, Control::ANCHOR_END);
+		mm_btns->set_anchor(SIDE_BOTTOM, Control::ANCHOR_END);
+		mm_btns->set_offset(SIDE_LEFT, 14.0f);
+		mm_btns->set_offset(SIDE_RIGHT, 204.0f);
+		mm_btns->set_offset(SIDE_TOP, -230.0f);
+		mm_btns->set_offset(SIDE_BOTTOM, -206.0f);
+		mm_btns->add_theme_constant_override("separation", 4);
+		struct MmBtn { const char *label; const char *method; };
+		const MmBtn mm_btn_defs[4] = {
+			// 3-state shroud cycle (RtsoMiniMapView::cycle_shroud, minimap_view.h ShroudMode):
+			// On -> terrain-only -> off -> On. 0AD MiniMapPanel.js:8-11 panel buttons.
+			{"Shroud", "cycle_shroud"},
+			{"Terr", "toggle_territory"},
+			{"Res", "toggle_resources"},
+			{"Diplo", "toggle_diplomacy"},
+		};
+		for (const MmBtn &d : mm_btn_defs) {
+			Button *b = memnew(Button);
+			b->set_text(d.label);
+			b->set_custom_minimum_size(Vector2(44, 22));
+			b->set_focus_mode(Control::FOCUS_NONE);
+			b->add_theme_font_size_override("font_size", 9);
+			b->connect("pressed", Callable(minimap_view, d.method));
+			mm_btns->add_child(b);
+		}
+		ui_layer->add_child(mm_btns);
+	}
 
 	// =========================================================================
 	// 1. TOP HUD BAR PANEL (Civ Crest, 4 Resources, Pop, Idle, Clock, Speed, Menu)
@@ -473,6 +554,11 @@ void RtsoMain::_ready() {
 	ref_b->set_text("Refresh");
 	ref_b->connect("pressed", Callable(this, "_on_lobby_refresh_pressed"));
 	lobby_actions->add_child(ref_b);
+	Button *start_b = memnew(Button);
+	start_b->set_text("Start");
+	start_b->set_tooltip_text("Host: regenerate map with a fresh seed and broadcast map+seed (NMT_GAME_START)");
+	start_b->connect("pressed", Callable(this, "_on_lobby_start_pressed"));
+	lobby_actions->add_child(start_b);
 	lobby_box->add_child(lobby_actions);
 
 	lobby_status = memnew(Label);
@@ -522,11 +608,34 @@ void RtsoMain::_ready() {
 	inspector_class->add_theme_color_override("font_color", Color(0.7f, 0.75f, 0.85f));
 	inspector_panel->add_child(inspector_class);
 
-	// Helper lambda to setup 5 inspector bars
-	auto make_insp_bar = [&](ProgressBar *&pbar, Label *&plbl, int y, Color fill_col) {
+	// Helper lambda to setup 5 inspector bars with PNG icons or fallback text-based glyph icon labels
+	// (0 A.D. gui/session/selection_details.js icon parity: HP/CP/XP/STA/AURA)
+	auto make_insp_bar = [&](ProgressBar *&pbar, Label *&plbl, int y, Color fill_col, const char *glyph_text, const char *icon_path = nullptr) {
+		Label *glyph_lbl = memnew(Label);
+		glyph_lbl->set_position(Vector2(102, y - 2));
+		glyph_lbl->set_size(Vector2(42, 14));
+		glyph_lbl->set_text(glyph_text);
+		glyph_lbl->add_theme_font_size_override("font_size", 9);
+		glyph_lbl->add_theme_color_override("font_color", fill_col);
+		inspector_panel->add_child(glyph_lbl);
+
+		if (icon_path && *icon_path) {
+			Ref<Texture2D> icon_tex = load_tex(icon_path);
+			if (icon_tex.is_valid()) {
+				TextureRect *icon_rect = memnew(TextureRect);
+				icon_rect->set_position(Vector2(102, y - 2));
+				icon_rect->set_size(Vector2(14, 14));
+				icon_rect->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
+				icon_rect->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
+				icon_rect->set_texture(icon_tex);
+				inspector_panel->add_child(icon_rect);
+				glyph_lbl->set_visible(false);
+			}
+		}
+
 		pbar = memnew(ProgressBar);
-		pbar->set_position(Vector2(102, y));
-		pbar->set_size(Vector2(404, 11));
+		pbar->set_position(Vector2(148, y));
+		pbar->set_size(Vector2(358, 11));
 		pbar->set_show_percentage(false);
 
 		Ref<StyleBoxFlat> bg_sb;
@@ -543,8 +652,8 @@ void RtsoMain::_ready() {
 		inspector_panel->add_child(pbar);
 
 		plbl = memnew(Label);
-		plbl->set_position(Vector2(102, y - 1));
-		plbl->set_size(Vector2(404, 13));
+		plbl->set_position(Vector2(148, y - 1));
+		plbl->set_size(Vector2(358, 13));
 		plbl->add_theme_font_size_override("font_size", 9);
 		plbl->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 		plbl->add_theme_color_override("font_color", Color(0.95f, 0.95f, 0.98f));
@@ -552,15 +661,15 @@ void RtsoMain::_ready() {
 	};
 
 	// 1. Health Bar (Green)
-	make_insp_bar(inspector_hp_bar, inspector_hp_label, 41, Color(0.25f, 0.75f, 0.35f));
+	make_insp_bar(inspector_hp_bar, inspector_hp_label, 41, Color(0.25f, 0.75f, 0.35f), "HP", "res://assets/textures/ui/icons/insp_health_fg.png");
 	// 2. Capture Points Bar (Cyan / Blue)
-	make_insp_bar(inspector_capture_bar, inspector_capture_label, 54, Color(0.35f, 0.55f, 0.95f));
+	make_insp_bar(inspector_capture_bar, inspector_capture_label, 54, Color(0.35f, 0.55f, 0.95f), "CP", "res://assets/textures/ui/icons/insp_capture_bar.png");
 	// 3. Veterancy / Experience XP Bar (Gold / Amber)
-	make_insp_bar(inspector_xp_bar, inspector_xp_label, 67, Color(0.95f, 0.75f, 0.20f));
+	make_insp_bar(inspector_xp_bar, inspector_xp_label, 67, Color(0.95f, 0.75f, 0.20f), "XP", "res://assets/textures/ui/icons/insp_experience_fg.png");
 	// 4. Stamina / Energy Bar (Teal / Mint)
-	make_insp_bar(inspector_stamina_bar, inspector_stamina_label, 80, Color(0.20f, 0.85f, 0.75f));
-	// 5. Aura Influence Bar (Magenta / Violet)
-	make_insp_bar(inspector_aura_bar, inspector_aura_label, 93, Color(0.85f, 0.35f, 0.85f));
+	make_insp_bar(inspector_stamina_bar, inspector_stamina_label, 80, Color(0.20f, 0.85f, 0.75f), "STA", "res://assets/textures/ui/icons/insp_stamina_fg.png");
+	// 5. Aura Influence Bar (Magenta / Violet) — no public.zip session icon, fallback to text glyph badge
+	make_insp_bar(inspector_aura_bar, inspector_aura_label, 93, Color(0.85f, 0.35f, 0.85f), "AURA", nullptr);
 
 	inspector_stats = memnew(Label);
 	inspector_stats->set_position(Vector2(102, 108));
@@ -623,11 +732,16 @@ void RtsoMain::_ready() {
 	command_panel->add_child(stances_bar);
 
 	const char *stance_names[5] = {"Aggressive", "Defensive", "Stand Ground", "Hold Ground", "Passive"};
+	// Icons mapped by BEHAVIOR parity to 0 A.D. g_Stances (UnitAI.js:80):
+	// RTS0 Aggressive leashes 1000m = 0AD "violent" (respondChaseBeyondVision, UnitAI.js:80);
+	// RTS0 Defensive 18m/20m leash = 0AD "aggressive" (respondChase, UnitAI.js:92);
+	// RTS0 Hold Ground 8m leash = 0AD "defensive" (respondHoldGround, UnitAI.js:104).
+	// All 5 icons distinct (0AD stance_panel.xml repeat=5; icon set violent/aggressive/defensive/standground/passive).
 	const char *stance_icons[5] = {
+		"res://assets/textures/ui/stances/violent.png",
 		"res://assets/textures/ui/stances/aggressive.png",
+		"res://assets/textures/ui/stances/standground.png",
 		"res://assets/textures/ui/stances/defensive.png",
-		"res://assets/textures/ui/stances/standground.png",
-		"res://assets/textures/ui/stances/standground.png",
 		"res://assets/textures/ui/stances/passive.png"
 	};
 	for (int s = 0; s < 5; ++s) {
@@ -648,7 +762,7 @@ void RtsoMain::_ready() {
 	actions_bar = memnew(HBoxContainer);
 	actions_bar->set_position(Vector2(10, 52));
 	actions_bar->set_size(Vector2(552, 26));
-	actions_bar->add_theme_constant_override("separation", 6);
+	actions_bar->add_theme_constant_override("separation", 2);
 	command_panel->add_child(actions_bar);
 
 	// Production Bar (Training & Tech)
@@ -785,14 +899,6 @@ void RtsoMain::_ready() {
 	chat_title->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 	chat_top_bar->add_child(chat_title);
 
-	chat_channel = memnew(RtsoSafeSelect);
-	chat_channel->set_custom_minimum_size(Vector2(90, 22));
-	chat_channel->add_item("All", 0);
-	chat_channel->add_item("Allies", 1);
-	chat_channel->add_item("Team", 2);
-	chat_channel->add_theme_font_size_override("font_size", 10);
-	chat_top_bar->add_child(chat_channel);
-
 	Button *chat_close = memnew(Button);
 	chat_close->set_custom_minimum_size(Vector2(22, 22));
 	chat_close->set_text("✕");
@@ -808,6 +914,41 @@ void RtsoMain::_ready() {
 	chat_log->add_theme_font_size_override("normal_font_size", 11);
 	chat_log->set_text("[color=#888888]Hellenic League Session Chat. Press Enter to send messages.[/color]\n");
 	chat_vbox->add_child(chat_log);
+
+	// Chat addressee selector row above chat input (0 A.D. gui/session/chat/ChatWindow.js:35-58 parity)
+	HBoxContainer *chat_addressee_bar = memnew(HBoxContainer);
+	chat_addressee_bar->set_custom_minimum_size(Vector2(0, 24));
+
+	Label *to_lbl = memnew(Label);
+	to_lbl->set_text("To:");
+	to_lbl->add_theme_font_size_override("font_size", 10);
+	to_lbl->add_theme_color_override("font_color", Color(0.75f, 0.78f, 0.88f));
+	chat_addressee_bar->add_child(to_lbl);
+
+	chat_channel = memnew(RtsoSafeSelect);
+	chat_channel->set_custom_minimum_size(Vector2(110, 22));
+	chat_channel->add_item("All", 0);
+	chat_channel->add_item("Allies", 1);
+	chat_channel->add_item("Enemies", 2);
+	for (int p = 1; p <= 8; ++p) {
+		chat_channel->add_item("Player-" + String::num_int64(p), 2 + p);
+	}
+	chat_channel->add_theme_font_size_override("font_size", 10);
+	chat_addressee_bar->add_child(chat_channel);
+
+	auto add_quick_btn = [&](const String &label, int ch_idx) {
+		Button *b = memnew(Button);
+		b->set_custom_minimum_size(Vector2(42, 20));
+		b->set_text(label);
+		b->add_theme_font_size_override("font_size", 9);
+		b->connect("pressed", Callable(this, "_on_chat_channel_btn_pressed").bind(ch_idx));
+		chat_addressee_bar->add_child(b);
+	};
+	add_quick_btn("All", 0);
+	add_quick_btn("Ally", 1);
+	add_quick_btn("Enemy", 2);
+
+	chat_vbox->add_child(chat_addressee_bar);
 
 	HBoxContainer *chat_input_bar = memnew(HBoxContainer);
 	chat_input_bar->set_custom_minimum_size(Vector2(0, 26));
@@ -1059,18 +1200,17 @@ void RtsoMain::_ready() {
 	rally_flag->set_visible(false);
 	add_child(rally_flag);
 
-	// Select initial player units
-	auto uview = sim->units();
-	for (size_t i = 0; i < uview.count; ++i) {
-		if (uview.team[i] == 0) selected_ids.push_back((int32_t)uview.id[i]);
-	}
-
+	// (Unit selection now happens in apply_match_settings, after the map
+	// exists — the old block here ran before any map loaded and selected
+	// nothing. apply_net_game_start re-selects on GameStart via
+	// load_map_seeded -> clear_selection; selection follows in _process.)
 	// G3 Barter dialog wiring: connect BarterDialog.barter_requested -> _on_barter_requested
 	Node *barter = get_node_or_null(NodePath("BarterDialog"));
 	if (barter) {
 		barter->connect("barter_requested", Callable(this, "_on_barter_requested"));
 	}
 
+	apply_match_settings();
 }
 
 void RtsoMain::play_voice(const char *path) {
@@ -1314,6 +1454,15 @@ void RtsoMain::play_alarm(const char *path) {
 	}
 }
 
+// Tactical flare: broadcast to session peers over NMT_CHAT (approximation of
+// 0 A.D.'s dedicated flare message; receive side parses "[Flare] x,z" in the
+// onChat callback registered in _ready()). Local ping already added by caller.
+void RtsoMain::_on_flare_requested(Vector2 world_pos) {
+	if (!net_lockstep()) return;
+	std::string wire = "[Flare] " + std::to_string(world_pos.x) + "," + std::to_string(world_pos.y);
+	net_host_.sendChat(wire);
+}
+
 void RtsoMain::_on_minimap_clicked(Vector2 world_pos) {
 	if (cam_rig) {
 		cam_rig->set_target_pos(Vector3(world_pos.x, 0.0f, world_pos.y));
@@ -1418,7 +1567,15 @@ void RtsoMain::_on_tech_pressed(int tech_id) {
 void RtsoMain::_on_barter_requested(int sell_type, int buy_type, int amount) {
 	if (!sim) return;
 	if (sell_type < 0 || sell_type >= 4 || buy_type < 0 || buy_type >= 4) return;
-	bool ok = sim->cmd_barter((rtso::ResourceType)sell_type, (rtso::ResourceType)buy_type, amount);
+	// Lockstep: barter mutates resources + market prices (both hashed) -> cmd_type 23
+	// (turn_manager.cpp) applies on every peer at the turn boundary. 0 A.D. Barter.js.
+	bool ok = false;
+	if (net_lockstep()) {
+		post_lockstep(23, nullptr, 0, (float)sell_type, (float)buy_type, (uint32_t)amount, 0);
+		ok = true; // validated deterministically on every peer at the boundary
+	} else {
+		ok = sim->cmd_barter((rtso::ResourceType)sell_type, (rtso::ResourceType)buy_type, amount);
+	}
 	if (ok) {
 		play_sfx("res://assets/sounds/ui/bonus.ogg");
 		// Price labels will be refreshed on next update_hud / barter dialog visibility
@@ -1503,6 +1660,8 @@ void RtsoMain::_process(double delta) {
 	if (net_host_.getRole() != rtso::NetRole::None) {
 		net_host_.poll(net_arena_);
 		net_arena_.reset();
+		// Consume NMT_GAME_START seed-sync queued by TurnManager::onMessage.
+		apply_net_game_start();
 	}
 	if (paused_via_menu) return;
 	double scaled_delta = delta * game_speed;
@@ -1514,17 +1673,62 @@ void RtsoMain::_process(double delta) {
 	accumulator += scaled_delta;
 	int ticks = 0;
 	if (net_lockstep()) {
-		// NetClientTurnManager: one 200ms turn batch, sim steps inside TurnManager::tick
-		if (turn_mgr_.tick((float)scaled_delta, *sim))
-			ticks = rtso::TurnManager::TICKS_PER_TURN;
-		if (turn_mgr_.has_out_of_sync() && lobby_status)
-			lobby_status->set_text("OOS turn " + String::num_int64(turn_mgr_.oos_turn()));
+		if (net_game_started_) {
+			// NetClientTurnManager: one 200ms turn batch, sim steps inside TurnManager::tick
+			if (turn_mgr_.tick((float)scaled_delta, *sim))
+				ticks = rtso::TurnManager::TICKS_PER_TURN;
+			if (turn_mgr_.has_out_of_sync() && lobby_status)
+				lobby_status->set_text("OOS turn " + String::num_int64(turn_mgr_.oos_turn()));
+		}
+		// else pre-Start lobby phase: poll + GAME_START consume only (above) —
+		// no lockstep turns and no hash exchange across divergent boot worlds.
 	} else {
 		while (accumulator >= rtso::Simulation::FIXED_STEP) {
 			sim->tick(rtso::Simulation::FIXED_STEP);
 			accumulator -= rtso::Simulation::FIXED_STEP;
 			ticks++;
 			if (ticks > 8) break;
+		}
+	}
+
+	// Shift-queued waypoints: issue the next staged point once the unit reaches
+	// the active one — 0 A.D. gui/session/input.js:1345 ("session.queue ... add
+	// the order to the unit's order queue"). RTS0's UnitView has one target_x/z,
+	// so pending points are staged presentation-side and flushed here.
+	if (!waypoint_queue.empty()) {
+		auto uview = sim->units();
+		for (auto it = waypoint_queue.begin(); it != waypoint_queue.end();) {
+			QueuedWaypoint &qw = it->second;
+			if (qw.active >= (int)qw.pts.size()) {
+				it = waypoint_queue.erase(it);
+				continue;
+			}
+			size_t idx = (size_t)-1;
+			for (size_t i = 0; i < uview.count; ++i) {
+				if (uview.alive[i] && uview.id[i] == it->first) { idx = i; break; }
+			}
+			if (idx == (size_t)-1) { // unit died — queue dies with it
+				it = waypoint_queue.erase(it);
+				continue;
+			}
+			// Reached the unit's own destination (formation offset aware) or
+			// stopped (sim sets ACTION_IDLE on arrival, simulation.cpp cmd_move).
+			const float dx = uview.pos_x[idx] - uview.target_x[idx];
+			const float dz = uview.pos_z[idx] - uview.target_z[idx];
+			const bool reached = dx * dx + dz * dz <= 1.5f * 1.5f ||
+				uview.action_state[idx] == (uint8_t)rtso::ACTION_IDLE;
+			if (!reached) { ++it; continue; }
+			if (qw.active + 1 >= (int)qw.pts.size()) {
+				it = waypoint_queue.erase(it); // last waypoint reached
+				continue;
+			}
+			++qw.active;
+			const Vector3 &next = qw.pts[qw.active];
+			if (net_lockstep())
+				post_lockstep(1, &it->first, 1, next.x, next.z);
+			else
+				sim->cmd_move(&it->first, 1, next.x, next.z);
+			++it;
 		}
 	}
 
@@ -1623,18 +1827,98 @@ void RtsoMain::_process(double delta) {
 		ambient_water_player->set_volume_db(Math::lerp(cur_db, target_water_db, (float)delta * 3.0f));
 	}
 
-	// Update Building Placement Ghost
-	if (build_mode && ghost_mesh) {
+	// Update Building Placement Ghost (0 A.D. gui/session/building_placement.js:45-92 BuildPreview parity)
+	if (build_mode) {
 		Vector2 mouse_pos = get_viewport()->get_mouse_position();
-		auto [cell_x, cell_y] = mouse_cell(mouse_pos);
-		int footprint = rtso::building_type_info(current_build_type).footprint;
+		if (wall_drag_mode) {
+			if (ghost_mesh && ghost_mesh->is_visible()) ghost_mesh->set_visible(false);
+			Vector3 drag_curr_pos = get_ground_click_pos(mouse_pos);
+			float dist = wall_drag_start_pos.distance_to(drag_curr_pos);
+			int seg_count = std::max(1, (int)(dist / 6.0f));
+			Vector3 step_vec = (drag_curr_pos - wall_drag_start_pos) / (float)seg_count;
+			float wall_rot_y = std::atan2(step_vec.x, step_vec.z);
 
-		float gx = (cell_x + footprint * 0.5f) * rtso::Simulation::GRID;
-		float gz = (cell_y + footprint * 0.5f) * rtso::Simulation::GRID;
-		ghost_mesh->set_global_position(Vector3(gx, 0.05f, gz));
+			size_t total_ghosts = (size_t)seg_count + 2;
+			while (wall_ghosts.size() < total_ghosts) {
+				MeshInstance3D *g = memnew(MeshInstance3D);
+				g->set_visible(false);
+				add_child(g);
+				wall_ghosts.push_back(g);
+			}
 
-		bool can_build = sim->can_place(cell_x, cell_y, footprint);
-		ghost_mesh->set_material_override(can_build ? ghost_mat_ok : ghost_mat_bad);
+			uint8_t pciv = sim ? sim->player_civ() : (uint8_t)rtso::CIV_ATHENIANS;
+			auto tower_entry = rtso::ModelLibrary::get("buildings", String(rtso::civ_building_foundation(rtso::BLD_TOWER)));
+			if (!tower_entry.valid) {
+				tower_entry = rtso::ModelLibrary::get("buildings", String(rtso::civ_building_model(pciv, rtso::BLD_TOWER)));
+			}
+			auto wall_entry = rtso::ModelLibrary::get("buildings", String(rtso::civ_building_foundation(rtso::BLD_WALL_SEGMENT)));
+			if (!wall_entry.valid) {
+				wall_entry = rtso::ModelLibrary::get("buildings", String(rtso::civ_building_model(pciv, rtso::BLD_WALL_SEGMENT)));
+			}
+
+			auto configure_ghost = [&](size_t idx, Vector3 pos, bool is_tower, float yaw) {
+				MeshInstance3D *g = wall_ghosts[idx];
+				auto &entry = is_tower ? tower_entry : wall_entry;
+				if (entry.valid) {
+					g->set_mesh(entry.mesh);
+					g->set_scale(Vector3(entry.scale, entry.scale, entry.scale));
+				} else {
+					Ref<BoxMesh> box;
+					box.instantiate();
+					box->set_size(is_tower ? Vector3(2.2f, 4.5f, 2.2f) : Vector3(1.2f, 2.5f, 5.5f));
+					g->set_mesh(box);
+				}
+				g->set_global_position(Vector3(pos.x, 0.05f, pos.z));
+				g->set_rotation(Vector3(0.0f, yaw, 0.0f));
+
+				int cx = (int)std::floor(pos.x / rtso::Simulation::GRID);
+				int cy = (int)std::floor(pos.z / rtso::Simulation::GRID);
+				int footprint = is_tower ? 2 : 1;
+				bool can_place = sim ? sim->can_place(cx, cy, footprint) : true;
+				g->set_material_override(can_place ? ghost_mat_ok : ghost_mat_bad);
+				g->set_visible(true);
+			};
+
+			// Start node tower
+			configure_ghost(0, wall_drag_start_pos, true, 0.0f);
+
+			// Intermediate wall segments
+			for (int s = 0; s < seg_count; ++s) {
+				Vector3 mid_p = wall_drag_start_pos + step_vec * ((float)s + 0.5f);
+				configure_ghost(1 + s, mid_p, false, wall_rot_y);
+			}
+
+			// End node tower
+			Vector3 end_p = wall_drag_start_pos + step_vec * (float)seg_count;
+			configure_ghost(seg_count + 1, end_p, true, 0.0f);
+
+			for (size_t i = total_ghosts; i < wall_ghosts.size(); ++i) {
+				if (wall_ghosts[i] && wall_ghosts[i]->is_visible()) {
+					wall_ghosts[i]->set_visible(false);
+				}
+			}
+		} else {
+			for (auto *wg : wall_ghosts) {
+				if (wg && wg->is_visible()) wg->set_visible(false);
+			}
+			if (ghost_mesh) {
+				ghost_mesh->set_visible(true);
+				auto [cell_x, cell_y] = mouse_cell(mouse_pos);
+				int footprint = rtso::building_type_info(current_build_type).footprint;
+
+				float gx = (cell_x + footprint * 0.5f) * rtso::Simulation::GRID;
+				float gz = (cell_y + footprint * 0.5f) * rtso::Simulation::GRID;
+				ghost_mesh->set_global_position(Vector3(gx, 0.05f, gz));
+
+				bool can_build = sim->can_place(cell_x, cell_y, footprint);
+				ghost_mesh->set_material_override(can_build ? ghost_mat_ok : ghost_mat_bad);
+			}
+		}
+	} else {
+		if (ghost_mesh && ghost_mesh->is_visible()) ghost_mesh->set_visible(false);
+		for (auto *wg : wall_ghosts) {
+			if (wg && wg->is_visible()) wg->set_visible(false);
+		}
 	}
 
 	// Update 3D Rally Point Marker
@@ -2078,11 +2362,19 @@ void RtsoMain::update_command_panel() {
 				if (pphase == 1) {
 					Button *btn_phase = memnew(Button);
 					btn_phase->set_text("Town Phase (200f,200w,100g)");
+					// Tech icon parity: 0 A.D. phase buttons use portraits/technologies
+					// town_phase icon (extracted -> textures/ui/phases/town.png). Cost text kept.
+					btn_phase->set_button_icon(load_tex("res://assets/textures/ui/phases/town.png"));
+					btn_phase->set_icon_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+					btn_phase->add_theme_constant_override("icon_max_width", 20);
 					btn_phase->connect("pressed", Callable(this, "_on_tech_pressed").bind((int)rtso::TECH_PHASE_TOWN));
 					production_bar->add_child(btn_phase);
 				} else if (pphase == 2) {
 					Button *btn_phase = memnew(Button);
 					btn_phase->set_text("City Phase (400f,400w,300g,200s)");
+					btn_phase->set_button_icon(load_tex("res://assets/textures/ui/phases/city.png"));
+					btn_phase->set_icon_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+					btn_phase->add_theme_constant_override("icon_max_width", 20);
 					btn_phase->connect("pressed", Callable(this, "_on_tech_pressed").bind((int)rtso::TECH_PHASE_CITY));
 					production_bar->add_child(btn_phase);
 				}
@@ -2132,33 +2424,66 @@ void RtsoMain::update_command_panel() {
 		}
 
 		if (!selected_ids.is_empty()) {
-			// Formations & Tactical Actions
-			const char *form_names[6] = {"Line", "Box", "Column", "Phalanx", "Wedge", "Scatter"};
-			const char *form_icons[6] = {
-				"res://assets/textures/ui/formations/line.png",
-				"res://assets/textures/ui/formations/box.png",
-				"res://assets/textures/ui/formations/column.png",
-				"res://assets/textures/ui/formations/phalanx.png",
-				"res://assets/textures/ui/formations/wedge.png",
-				"res://assets/textures/ui/formations/scatter.png"
+			auto uview = sim->units();
+
+			// 0 A.D. Parity: gui/session/selection_panels.js:265-330 (g_SelectionPanels.Formation)
+			// and gui/session/selection_panels_left/formation_panel.xml:1-12 (unitFormationButton repeat=15).
+			// Reference: 0 A.D. template_player.xml:84-96 (12 actionable formations, skipping FORMATION_NONE).
+			// Active formation highlighted with gold font color, matching 0 A.D. guiSelection overlay.
+			static const struct FormationButtonDef {
+				const char *name;
+				uint8_t id;
+				const char *icon;
+			} kFormationButtons[12] = {
+				{"Line",       rtso::FORMATION_LINE,         "res://assets/textures/ui/formations/line.png"},
+				{"Box",        rtso::FORMATION_BOX,          "res://assets/textures/ui/formations/box.png"},
+				{"Col",        rtso::FORMATION_COLUMN,       "res://assets/textures/ui/formations/column.png"},
+				{"Phalanx",    rtso::FORMATION_PHALANX,      "res://assets/textures/ui/formations/phalanx.png"},
+				{"Wedge",      rtso::FORMATION_WEDGE,        "res://assets/textures/ui/formations/wedge.png"},
+				{"Skirmish",   rtso::FORMATION_SCATTER,      "res://assets/textures/ui/formations/scatter.png"},
+				{"LineOpen",   rtso::FORMATION_LINE_OPEN,    "res://assets/textures/ui/formations/line_open.png"},
+				{"ColOpen",    rtso::FORMATION_COLUMN_OPEN,  "res://assets/textures/ui/formations/column_open.png"},
+				{"Flank",      rtso::FORMATION_FLANK,        "res://assets/textures/ui/formations/flank.png"},
+				{"BattleLine", rtso::FORMATION_BATTLE_LINE,  "res://assets/textures/ui/formations/battle_line.png"},
+				{"ShipLine",   rtso::FORMATION_SHIPS_LINE,   "res://assets/textures/ui/formations/ship_line.png"},
+				{"ShipCol",    rtso::FORMATION_SHIPS_COLUMN, "res://assets/textures/ui/formations/ship_column.png"}
 			};
-			for (int f = 0; f < 6; ++f) {
+
+			// Query active formation across selected units to highlight matching button
+			uint8_t active_formation = rtso::FORMATION_NONE;
+			for (int i = 0; i < selected_ids.size(); ++i) {
+				for (size_t u = 0; u < uview.count; ++u) {
+					if (uview.id[u] == (uint32_t)selected_ids[i]) {
+						if (uview.formation[u] != rtso::FORMATION_NONE) {
+							active_formation = uview.formation[u];
+							break;
+						}
+					}
+				}
+				if (active_formation != rtso::FORMATION_NONE) break;
+			}
+
+			for (int f = 0; f < 12; ++f) {
 				Button *fb = memnew(Button);
-				fb->set_custom_minimum_size(Vector2(72, 28));
-				fb->set_text(form_names[f]);
-				Ref<Texture2D> f_ico = load_tex(form_icons[f]);
+				fb->set_custom_minimum_size(Vector2(44, 24));
+				fb->set_clip_text(true);
+				fb->set_tooltip_text(kFormationButtons[f].name);
+				fb->set_text(kFormationButtons[f].name);
+				Ref<Texture2D> f_ico = load_tex(kFormationButtons[f].icon);
 				if (f_ico.is_valid()) {
 					fb->set_button_icon(f_ico);
 					fb->set_expand_icon(true);
 				}
-				fb->add_theme_font_size_override("font_size", 9);
-				fb->connect("pressed", Callable(this, "_on_formation_selected").bind(f + 1));
+				fb->add_theme_font_size_override("font_size", 8);
+				if (active_formation == kFormationButtons[f].id) {
+					fb->add_theme_color_override("font_color", Color(1.0f, 0.85f, 0.2f));
+				}
+				fb->connect("pressed", Callable(this, "_on_formation_selected").bind((int)kFormationButtons[f].id));
 				actions_bar->add_child(fb);
 			}
 
 			// Villager Build Menu
 			bool has_worker = false;
-			auto uview = sim->units();
 			for (int i = 0; i < selected_ids.size(); ++i) {
 				for (size_t u = 0; u < uview.count; ++u) {
 					if (uview.id[u] == (uint32_t)selected_ids[i]) {
@@ -2199,8 +2524,14 @@ void RtsoMain::update_command_panel() {
 void RtsoMain::enter_build_mode(bool enable, uint8_t btype) {
 	build_mode = enable;
 	current_build_type = btype;
+	if (!enable) {
+		wall_drag_mode = false;
+		for (auto *wg : wall_ghosts) {
+			if (wg) wg->set_visible(false);
+		}
+	}
 	update_ghost_mesh();
-	if (ghost_mesh) ghost_mesh->set_visible(build_mode);
+	if (ghost_mesh) ghost_mesh->set_visible(build_mode && !wall_drag_mode);
 }
 
 void RtsoMain::try_train_unit(rtso::UnitType utype) {
@@ -2241,6 +2572,14 @@ void RtsoMain::clear_selection() {
 	selected_building_id = 0;
 }
 
+// Drop staged Shift waypoints of the current selection — a stop (or any other
+// non-queued order) replaces the unit's queue; only input.js:1345 session.queue
+// (Shift) appends. 0 A.D. gui/session/input.js:1345.
+void RtsoMain::drop_staged_waypoints() {
+	for (int s = 0; s < selected_ids.size(); ++s)
+		waypoint_queue.erase((uint32_t)selected_ids[s]);
+}
+
 void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 	Ref<InputEventKey> key = event;
 	if (key.is_valid() && key->is_pressed() && !key->is_echo()) {
@@ -2269,6 +2608,44 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			return;
 		}
 
+		// Control groups: Ctrl+0-9 stores the current selection, bare 0-9 recalls
+		// it, Shift+0-9 appends to selection (alive player units only) — 0 A.D.
+		// gui/session/input.js:1684 performGroup("save"/"select"); dispatch at input.js:906.
+		if (key->get_keycode() >= KEY_0 && key->get_keycode() <= KEY_9) {
+			const int grp = (int)(key->get_keycode() - KEY_0);
+			if (key->is_ctrl_pressed()) {
+				selected_groups[grp] = selected_ids;
+				return;
+			}
+			PackedInt32Array recall;
+			if (sim) {
+				auto gview = sim->units();
+				for (int g = 0; g < selected_groups[grp].size(); ++g) {
+					const int32_t gid = selected_groups[grp][g];
+					for (size_t i = 0; i < gview.count; ++i) {
+						if (gview.alive[i] && gview.id[i] == (uint32_t)gid && gview.team[i] == 0) {
+							recall.push_back(gid);
+							break;
+						}
+					}
+				}
+			}
+			if (!recall.is_empty()) {
+				if (key->is_shift_pressed()) {
+					// Shift+0-9 appends group to selection (0 A.D. input.js:1684)
+					for (int r = 0; r < recall.size(); ++r) {
+						if (!selected_ids.has(recall[r]))
+							selected_ids.push_back(recall[r]);
+					}
+				} else {
+					selected_ids = recall;
+				}
+				selected_building_id = 0;
+				play_civ_voice("select");
+			}
+			return;
+		}
+
 		if (key->get_keycode() == KEY_PERIOD || key->get_keycode() == KEY_TAB) {
 			cycle_idle_worker();
 			return;
@@ -2292,6 +2669,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 
 		if (key->get_keycode() == KEY_S && !build_mode) {
 			if (selected_ids.size() > 0) {
+				drop_staged_waypoints(); // stop replaces the unit order queue (0 A.D. input.js:1345)
 				if (net_lockstep())
 					post_lockstep(2, (const uint32_t *)selected_ids.ptr(), selected_ids.size());
 				else
@@ -2360,18 +2738,30 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			return;
 		}
 
+		// Hotkeys: Build Mode (covers all 14 RTS0 building types; 0 A.D. input.js lacks
+		// direct letter mappings so we use first-letter mnemonics with non-conflicting fallbacks)
+		if (key->get_keycode() == KEY_B) { enter_build_mode(!build_mode, rtso::BLD_HOUSE); return; }
+		if (build_mode) {
+			if (key->get_keycode() == KEY_C) { enter_build_mode(true, rtso::BLD_TOWN_CENTER); return; } // Civic Centre
+			if (key->get_keycode() == KEY_H) { enter_build_mode(true, rtso::BLD_HOUSE); return; }       // House
+			if (key->get_keycode() == KEY_R) { enter_build_mode(true, rtso::BLD_BARRACKS); return; }    // baRracks
+			if (key->get_keycode() == KEY_S) { enter_build_mode(true, rtso::BLD_STOREHOUSE); return; }  // Storehouse
+			if (key->get_keycode() == KEY_T) { enter_build_mode(true, rtso::BLD_TOWER); return; }       // Tower
+			if (key->get_keycode() == KEY_F) { enter_build_mode(true, rtso::BLD_FARMSTEAD); return; }   // Farmstead
+			if (key->get_keycode() == KEY_M) { enter_build_mode(true, rtso::BLD_MARKET); return; }      // Market
+			if (key->get_keycode() == KEY_K) { enter_build_mode(true, rtso::BLD_FORTRESS); return; }    // Keep / Fortress
+			if (key->get_keycode() == KEY_G) { enter_build_mode(true, rtso::BLD_GATE); return; }        // Gate
+			if (key->get_keycode() == KEY_E || key->get_keycode() == KEY_P) { enter_build_mode(true, rtso::BLD_TEMPLE); return; } // tEmple / temPle
+			if (key->get_keycode() == KEY_W) { enter_build_mode(true, rtso::BLD_WONDER); return; }      // Wonder
+			if (key->get_keycode() == KEY_D) { enter_build_mode(true, rtso::BLD_DOCK); return; }        // Dock
+			if (key->get_keycode() == KEY_L) { enter_build_mode(true, rtso::BLD_WALL_SEGMENT); return; } // waLl
+			if (key->get_keycode() == KEY_O || key->get_keycode() == KEY_A) { enter_build_mode(true, rtso::BLD_CORRAL); return; } // cOrral / Animal
+		}
+
 		// Hotkeys: Training
 		if (key->get_keycode() == KEY_V) { try_train_unit(rtso::UNIT_VILLAGER); return; }
 		if (key->get_keycode() == KEY_A) { try_train_unit(rtso::UNIT_ARCHER); return; }
 		if (key->get_keycode() == KEY_C) { try_train_unit(rtso::UNIT_CAVALRY); return; }
-
-		// Hotkeys: Build Mode
-		if (key->get_keycode() == KEY_B) { enter_build_mode(!build_mode, rtso::BLD_HOUSE); return; }
-		if (build_mode) {
-			if (key->get_keycode() == KEY_H) { enter_build_mode(true, rtso::BLD_HOUSE); return; }
-			if (key->get_keycode() == KEY_R) { enter_build_mode(true, rtso::BLD_BARRACKS); return; }
-			if (key->get_keycode() == KEY_T) { enter_build_mode(true, rtso::BLD_TOWER); return; }
-		}
 
 		if (key->get_keycode() == KEY_F7) {
 			spawn_large_battle(500);
@@ -2427,6 +2817,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					Vector3 click_pos = get_ground_click_pos(mouse_pos);
 					if (minimap_view) {
 						minimap_view->add_ping(Vector2(click_pos.x, click_pos.z), Color(1.0f, 0.4f, 0.2f));
+						_on_flare_requested(Vector2(click_pos.x, click_pos.z));
 						play_alarm("res://assets/sounds/ui/alarm.ogg");
 					}
 					return;
@@ -2452,28 +2843,56 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					}
 					return;
 				}
+				// Godot flags the second press of a double-click (0 A.D. ev.clicks == 2,
+				// input.js:893); consumed on release below.
+				double_click_pending = mb->is_double_click();
 				dragging = true;
 				drag_start = mouse_pos;
 				sel_rect->set_rect(drag_start, mouse_pos, true);
 			} else {
+				const bool dbl_click = double_click_pending;
+				double_click_pending = false;
 				if (wall_drag_mode) {
 					wall_drag_mode = false;
+					for (auto *wg : wall_ghosts) {
+						if (wg) wg->set_visible(false);
+					}
 					Vector3 drag_end_pos = get_ground_click_pos(mouse_pos);
 					float dist = wall_drag_start_pos.distance_to(drag_end_pos);
 					if (dist > 1.5f) {
 						int seg_count = std::max(1, (int)(dist / 6.0f));
 						Vector3 step_vec = (drag_end_pos - wall_drag_start_pos) / (float)seg_count;
 
+						// Commit wall nodes through existing lockstep/build command paths
+						// (0 A.D. gui/session/building_placement.js:45-92 / placement.js)
+						auto place_wall_node = [&](const Vector3 &p, uint8_t btype) {
+							int cx = (int)std::floor(p.x / rtso::Simulation::GRID);
+							int cz = (int)std::floor(p.z / rtso::Simulation::GRID);
+							if (net_lockstep()) {
+								post_lockstep(5, (const uint32_t *)selected_ids.ptr(), selected_ids.size(),
+								              (float)cx, (float)cz, 0, btype);
+							} else if (sim) {
+								uint32_t bid = sim->cmd_build(cx, cz, btype);
+								if (!bid) {
+									// Sandbox / cost-fallback placement
+									bid = sim->spawn_building_world(p.x, p.z, btype, 0, 0.0f);
+								}
+								if (bid && !selected_ids.is_empty()) {
+									sim->order_build_or_repair((const uint32_t *)selected_ids.ptr(), selected_ids.size(), bid);
+								}
+							}
+						};
+
 						// Start node tower
-						sim->spawn_building_world(wall_drag_start_pos.x, wall_drag_start_pos.z, rtso::BLD_TOWER, 0, 0.0f);
+						place_wall_node(wall_drag_start_pos, rtso::BLD_TOWER);
 
 						for (int s = 0; s < seg_count; ++s) {
 							Vector3 mid_p = wall_drag_start_pos + step_vec * ((float)s + 0.5f);
-							sim->spawn_building_world(mid_p.x, mid_p.z, rtso::BLD_WALL_SEGMENT, 0, 0.0f);
+							place_wall_node(mid_p, rtso::BLD_WALL_SEGMENT);
 
-							Vector3 end_p = wall_drag_start_pos + step_vec * ((float)s + 1.0f);
 							if (s == seg_count - 1) {
-								sim->spawn_building_world(end_p.x, end_p.z, rtso::BLD_TOWER, 0, 0.0f);
+								Vector3 end_p = wall_drag_start_pos + step_vec * ((float)s + 1.0f);
+								place_wall_node(end_p, rtso::BLD_TOWER);
 							}
 						}
 						play_civ_voice("build");
@@ -2508,7 +2927,33 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						}
 
 						if (best_uidx != (size_t)-1) {
-							selected_ids.push_back((int32_t)uview.id[best_uidx]);
+							if (dbl_click) {
+								// Double-click selects every same-type player unit on screen —
+								// 0 A.D. gui/session/input.js:1022-1042 (ev.clicks == 2 →
+								// selectionGroupName/template match via
+								// Engine.PickSimilarPlayerEntities(showOffscreen=false)).
+								// RTS0 matches on unit_type (no selectionGroupName data yet).
+								const uint8_t same_type = uview.unit_type[best_uidx];
+								Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
+								if (cam) {
+									const Vector2 vp_size = get_viewport()->get_visible_rect().size;
+									for (size_t i = 0; i < uview.count; ++i) {
+										if (!uview.alive[i] || uview.team[i] != 0 ||
+											uview.unit_type[i] != same_type)
+											continue;
+										Vector3 world_pos(uview.pos_x[i], 0, uview.pos_z[i]);
+										if (cam->is_position_behind(world_pos)) continue;
+										Vector2 screen_pos = cam->unproject_position(world_pos);
+										if (screen_pos.x >= 0.0f && screen_pos.x <= vp_size.x &&
+											screen_pos.y >= 0.0f && screen_pos.y <= vp_size.y)
+											selected_ids.push_back((int32_t)uview.id[i]);
+									}
+								}
+								if (selected_ids.is_empty()) // camera-less fallback: keep the hit unit
+									selected_ids.push_back((int32_t)uview.id[best_uidx]);
+							} else {
+								selected_ids.push_back((int32_t)uview.id[best_uidx]);
+							}
 							play_civ_voice("select");
 						} else {
 							// Check building hit
@@ -2550,6 +2995,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 			}
 		} else if (mb->get_button_index() == MOUSE_BUTTON_RIGHT && mb->is_pressed()) {
+			if (build_mode) {
+				enter_build_mode(false);
+				return;
+			}
 			Vector3 click_pos = get_ground_click_pos(mouse_pos);
 
 			// If building selected, right click sets Rally Point!
@@ -2579,6 +3028,21 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 
 			if (selected_ids.is_empty()) return;
+
+			// Staged Shift waypoints survive only if this click resolves to the
+			// default move order below — every other right-click order replaces the
+			// unit's queue (0 A.D. gui/session/input.js:1345 session.queue appends;
+			// RTS0 queues plain move waypoints only). Stash here, restore below.
+			const bool queue_shift = mb->is_shift_pressed();
+			std::vector<std::pair<uint32_t, QueuedWaypoint>> stashed_wp;
+			for (int s = 0; s < selected_ids.size(); ++s) {
+				const uint32_t sid = (uint32_t)selected_ids[s];
+				auto wit = waypoint_queue.find(sid);
+				if (wit != waypoint_queue.end()) {
+					stashed_wp.push_back(*wit);
+					waypoint_queue.erase(wit);
+				}
+			}
 
 			if (attack_move_mode) {
 				if (net_lockstep())
@@ -2773,6 +3237,39 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 
 			// 5. Default: Move Order
+			if (queue_shift) {
+				// Shift+right-click queues the waypoint instead of replacing the
+				// order — 0 A.D. gui/session/input.js:1345 (session.queue hotkey
+				// appends to the unit's order queue). Restore stashed points, then
+				// append this click for units already walking a queue; units without
+				// one start a fresh queue with a single batched cmd_move so
+				// formation offsets still apply (simulation.cpp cmd_move).
+				for (auto &entry : stashed_wp)
+					waypoint_queue.insert(std::move(entry));
+				stashed_wp.clear();
+				PackedInt32Array fresh;
+				for (int s = 0; s < selected_ids.size(); ++s) {
+					const uint32_t sid = (uint32_t)selected_ids[s];
+					auto wit = waypoint_queue.find(sid);
+					if (wit == waypoint_queue.end())
+						fresh.push_back((int32_t)sid);
+					else
+						wit->second.pts.push_back(click_pos);
+				}
+				if (!fresh.is_empty()) {
+					if (net_lockstep())
+						post_lockstep(1, (const uint32_t *)fresh.ptr(), fresh.size(), click_pos.x, click_pos.z);
+					else
+						sim->cmd_move((const uint32_t *)fresh.ptr(), fresh.size(), click_pos.x, click_pos.z);
+					QueuedWaypoint nq;
+					nq.pts.push_back(click_pos);
+					for (int s = 0; s < fresh.size(); ++s)
+						waypoint_queue[(uint32_t)fresh[s]] = nq;
+				}
+				play_civ_voice("move");
+				return;
+			}
+			// Plain right-click: stashed waypoints dropped (order replaced).
 			if (net_lockstep())
 				post_lockstep(1, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), click_pos.x, click_pos.z);
 			else
@@ -2785,6 +3282,92 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 	if (mm.is_valid() && dragging) {
 		sel_rect->set_rect(drag_start, mm->get_position(), true);
 	}
+}
+
+// Full GameSetup hand-off (0 A.D. page_gamesetup -> match launch).
+// Runs at the end of _ready (view + cam_rig exist) and mirrors
+// apply_game_setup (NMT_GAME_START path): map first via load_map_seeded,
+// then victory / Petra / starting resources / slot civs.
+void RtsoMain::apply_match_settings() {
+	if (!sim) return;
+	Node *ms = get_node_or_null(NodePath("/root/MatchSettings"));
+	if (!ms) {
+		sim->spawn_initial();
+		return;
+	}
+	String map_id = (String)ms->get("map_id");
+	uint32_t seed = (uint32_t)(int64_t)(int)ms->get("seed");
+	if (seed == 0) seed = (uint32_t)Time::get_singleton()->get_ticks_msec();
+	if (map_id.is_empty()) map_id = "random_continental";
+	int victory = (int)ms->get("victory");
+	int diff = (int)ms->get("ai_difficulty");
+	int behavior = (int)ms->get("ai_behavior");
+	int start_res = (int)ms->get("start_res");
+	Array slot_civs = ms->get("slot_civs");
+	// Normalize legacy fields: if the setup screen never ran, slot_civs
+	// may be empty — fall back to player_civ/ai_civ.
+	int civ = (int)ms->get("player_civ");
+	int ai = (int)ms->get("ai_civ");
+	if (slot_civs.size() >= 2) {
+		civ = (int)slot_civs[0];
+		ai = (int)slot_civs[1];
+	}
+	if (!load_map_seeded(map_id, seed)) {
+		UtilityFunctions::printerr("[RtsoMain] GameSetup map failed: ", map_id, " — default arena.");
+		if (civ >= 0 && civ < rtso::CIV_COUNT) sim->set_player_civ((uint8_t)civ);
+		if (ai >= 0 && ai < rtso::CIV_COUNT) sim->set_team_civ(1, (uint8_t)ai);
+		sim->spawn_initial();
+		return;
+	}
+	if (victory >= 0 && victory <= 3) sim->set_victory_condition((uint8_t)victory);
+	if (diff >= 0 && diff <= 5) sim->set_petra_difficulty((uint8_t)diff);
+	if (behavior >= 0 && behavior <= 3) sim->set_petra_behavior((uint8_t)behavior);
+	// Starting-resources presets (0 sparse / 1 normal / 2 generous / 3 abundant).
+	static const int kStartRes[4][4] = {
+		{150, 200, 150, 100}, {300, 400, 300, 200},
+		{500, 700, 500, 350}, {900, 1200, 900, 600},
+	};
+	if (start_res < 0 || start_res > 3) start_res = 1;
+	sim->set_starting_resources(kStartRes[start_res][0], kStartRes[start_res][1],
+			kStartRes[start_res][2], kStartRes[start_res][3]);
+	// Per-slot civs (slot 0 = human; extra slots honor team civs the
+	// RMS/JSON spawns actually created — Petra only drives team 1).
+	for (int t = 0; t < 4 && t < slot_civs.size(); ++t) {
+		int sc = (int)slot_civs[t];
+		if (sc >= 0 && sc < rtso::CIV_COUNT) sim->set_team_civ((uint8_t)t, (uint8_t)sc);
+	}
+	UtilityFunctions::print("[RtsoMain] GameSetup ", map_id, " seed ", (int64_t)seed,
+			" civ ", rtso::civ_info(sim->player_civ()).name,
+			" vs ", rtso::civ_info(sim->team_civ(1)).name);
+	// Map just (re)spawned — select the human player's units like the old
+	// _ready tail did (it ran before any map existed, so it selected nothing).
+	clear_selection();
+	auto uview = sim->units();
+	for (size_t i = 0; i < uview.count; ++i) {
+		if (uview.team[i] == 0) selected_ids.push_back((int32_t)uview.id[i]);
+	}
+}
+
+// Match summary for the setup E2E + future summary screen: what the sim
+// actually holds after apply_match_settings / apply_game_setup.
+Dictionary RtsoMain::get_match_summary() const {
+	Dictionary d;
+	if (!sim) return d;
+	d["map_id"] = String(sim->current_map_id().c_str());
+	d["map_name"] = String(sim->current_map_name().c_str());
+	d["seed"] = (int64_t)sim->sim_seed();
+	d["victory"] = (int)sim->victory_condition();
+	d["petra_diff"] = (int)sim->petra_difficulty();
+	d["petra_behavior"] = (int)sim->petra_behavior();
+	d["food"] = sim->food();
+	d["wood"] = sim->wood();
+	d["gold"] = sim->gold();
+	d["stone"] = sim->stone();
+	d["player_civ"] = (int)sim->player_civ();
+	d["ai_civ"] = (int)sim->team_civ(1);
+	d["units"] = (int64_t)sim->unit_count();
+	d["buildings"] = (int64_t)sim->building_count();
+	return d;
 }
 
 void RtsoMain::_on_map_selected(int index) {
@@ -2837,6 +3420,11 @@ PackedStringArray RtsoMain::get_available_maps() const {
 }
 
 bool RtsoMain::load_map(String map_id) {
+	uint32_t seed = (uint32_t)Time::get_singleton()->get_ticks_msec();
+	return load_map_seeded(map_id, seed);
+}
+
+bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 	if (!sim || !view) return false;
 	clear_selection();
 
@@ -2864,7 +3452,6 @@ bool RtsoMain::load_map(String map_id) {
 		else if (map_id.contains("jebel") || map_id.contains("barkal")) mtype = rtso::MAP_JEBEL_BARKAL;
 		else if (map_id.contains("mediterranean")) { mtype = rtso::MAP_RANDOM_MEDITERRANEAN; num_p = 4; }
 
-		uint32_t seed = (uint32_t)Time::get_singleton()->get_ticks_msec();
 		sim->generate_random_map(mtype, seed, num_p, 64.0f);
 		view->rebuild_terrain(sim);
 
@@ -2883,6 +3470,7 @@ bool RtsoMain::load_map(String map_id) {
 	}
 
 	if (map_id == "default" || map_id == "arena") {
+		sim->set_sim_seed(seed);
 		sim->spawn_initial();
 		view->rebuild_terrain(sim);
 		if (cam_rig) {
@@ -2911,6 +3499,7 @@ bool RtsoMain::load_map(String map_id) {
 	if (parsed.get_type() != Variant::DICTIONARY) return false;
 	Dictionary d = parsed;
 
+	sim->set_sim_seed(seed);
 	sim->reset();
 
 	String name = d.get("name", map_id);
@@ -3087,6 +3676,8 @@ void RtsoMain::_on_lobby_host_pressed() {
 	}
 	turn_mgr_.reset();
 	turn_mgr_.set_net_host(&net_host_, 0);
+	turn_mgr_.clear_game_started();
+	net_game_started_ = false; // wait for Start (NMT_GAME_START) before any lockstep turn
 	std::ostringstream js;
 	js << "{\"id\":\"room-" << cfg.port << "\",\"host_ip\":\"127.0.0.1\",\"host_port\":"
 	   << cfg.port << ",\"players\":1,\"max_players\":" << (int)cfg.maxPlayers
@@ -3095,6 +3686,140 @@ void RtsoMain::_on_lobby_host_pressed() {
 	rtso::lobby_http_post_json(lobby_http_host_, lobby_http_port_, "/rooms", js.str(), body);
 	if (lobby_status) lobby_status->set_text("Hosting on " + String::num_int64(cfg.port));
 	refresh_lobby_rooms();
+}
+
+void RtsoMain::_on_lobby_start_pressed() {
+	if (!sim) return;
+	if (!net_host_.isHost()) {
+		if (lobby_status) lobby_status->set_text("Start is host-only — Join waits for host Start");
+		return;
+	}
+	// Seed-sync + full setup broadcast: the host's CURRENT match settings
+	// (map+seed+victory+petra+slots from the GameSetup screen) are packed
+	// into NMT_GAME_START so the join path applies the identical setup via
+	// apply_game_setup. generate_random_map funnels the seed into
+	// set_sim_seed, so both RNG streams (RMS + sim ticks) match.
+	rtso::GameSetupParams setup;
+	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings"))) {
+		String mid = (String)ms->get("map_id");
+		setup.map_id = mid.is_empty() ? sim->current_map_id() : mid.utf8().get_data();
+		setup.seed = (uint32_t)(int64_t)(int)ms->get("seed");
+		setup.victory = (uint8_t)((int)ms->get("victory"));
+		setup.difficulty = (uint8_t)((int)ms->get("ai_difficulty"));
+		setup.behavior = (uint8_t)((int)ms->get("ai_behavior"));
+		setup.start_res = (uint8_t)((int)ms->get("start_res"));
+		Array civs = ms->get("slot_civs");
+		Array types = ms->get("slot_types");
+		Array teams = ms->get("slot_teams");
+		setup.slot_count = 0;
+		for (int i = 0; i < 8 && i < civs.size(); ++i) {
+			int c = (int)civs[i];
+			setup.civs[i] = (c >= 0 && c < rtso::CIV_COUNT) ? (uint8_t)c : 0;
+			int ty = (i < types.size()) ? (int)types[i] : 2;
+			setup.slot_types[i] = (ty == 0) ? 'h' : ((ty == 1) ? 'a' : 'x');
+			int tm = (i < teams.size()) ? (int)teams[i] : 0;
+			setup.teams[i] = (tm >= 0 && tm < 10) ? (uint8_t)tm : 0;
+			setup.slot_count++;
+		}
+		if (setup.slot_count == 0) {
+			setup.slot_count = 2;
+			setup.civs[0] = sim->player_civ();
+			setup.civs[1] = sim->team_civ(1);
+		}
+	} else {
+		setup.map_id = sim->current_map_id();
+		setup.civs[0] = sim->player_civ();
+		setup.civs[1] = sim->team_civ(1);
+	}
+	if (setup.map_id.empty()) setup.map_id = "random_continental";
+	if (setup.seed == 0) setup.seed = (uint32_t)Time::get_singleton()->get_ticks_msec();
+	if (setup.victory > 3) setup.victory = sim->victory_condition();
+	if (setup.difficulty > 5) setup.difficulty = sim->petra_difficulty();
+	if (setup.behavior > 3) setup.behavior = sim->petra_behavior();
+	if (setup.start_res > 3) setup.start_res = 1;
+	apply_game_setup(setup);
+	turn_mgr_.reset();
+	turn_mgr_.set_net_host(&net_host_, 0);
+	turn_mgr_.set_game_start_applied_sim(sim);
+	turn_mgr_.mark_game_started(sim);
+	net_host_.note_game_start_sent();
+	net_host_.sendGameStart(rtso::format_game_start_full(setup));
+	net_game_started_ = true;
+	print_line("[RTS0][GameStart] HOST broadcast setup: map=" + String(setup.map_id.c_str()) +
+	           " seed=" + String::num_int64((int64_t)setup.seed) +
+	           " slots=" + String::num_int64(setup.slot_count) +
+	           " civ0=" + String::num_int64((int64_t)setup.civs[0]) +
+	           " civ1=" + String::num_int64((int64_t)setup.civs[1]) +
+	           " types=" + String::num_int64((int64_t)setup.slot_types[0]) +
+	           "/" + String::num_int64((int64_t)setup.slot_types[1]) +
+	           " res=" + String::num_int64((int64_t)setup.start_res));
+	if (lobby_status)
+		lobby_status->set_text(String("Started ") + String(setup.map_id.c_str()) +
+		                         " seed " + String::num_int64((int64_t)setup.seed));
+}
+
+// Apply the full GameSetup staged by NMT_GAME_START (map+seed+options).
+// Order mirrors _ready: map first (reset inside), options after.
+void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
+	if (!sim) return;
+	if (!load_map_seeded(String(setup.map_id.c_str()), setup.seed)) {
+		if (lobby_status) lobby_status->set_text("GameStart failed: map regen failed");
+		return;
+	}
+	sim->set_victory_condition(setup.victory > 3 ? 0 : setup.victory);
+	sim->set_petra_difficulty(setup.difficulty > 5 ? 3 : setup.difficulty);
+	sim->set_petra_behavior(setup.behavior > 3 ? 2 : setup.behavior);
+	static const int kStartRes[4][4] = {
+		{150, 200, 150, 100}, {300, 400, 300, 200},
+		{500, 700, 500, 350}, {900, 1200, 900, 600},
+	};
+	uint8_t sr = setup.start_res > 3 ? 1 : setup.start_res;
+	sim->set_starting_resources(kStartRes[sr][0], kStartRes[sr][1],
+			kStartRes[sr][2], kStartRes[sr][3]);
+	for (uint8_t t = 0; t < 4 && t < setup.slot_count; ++t) {
+		if (setup.civs[t] < rtso::CIV_COUNT) sim->set_team_civ(t, setup.civs[t]);
+	}
+	clear_selection();
+	auto uview = sim->units();
+	for (size_t i = 0; i < uview.count; ++i) {
+		if (uview.team[i] == 0) selected_ids.push_back((int32_t)uview.id[i]);
+	}
+	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings"))) {
+		ms->set("map_id", String(setup.map_id.c_str()));
+		ms->set("seed", (int64_t)setup.seed);
+		ms->set("victory", (int)sim->victory_condition());
+		ms->set("ai_difficulty", (int)sim->petra_difficulty());
+		ms->set("ai_behavior", (int)sim->petra_behavior());
+		ms->set("start_res", (int)sr);
+		Array civs;
+		for (uint8_t t = 0; t < 4 && t < setup.slot_count; ++t) civs.push_back((int)setup.civs[t]);
+		ms->set("slot_civs", civs);
+		ms->set("player_civ", (int)sim->player_civ());
+		ms->set("ai_civ", (int)sim->team_civ(1));
+	}
+}
+void RtsoMain::apply_net_game_start() {
+	if (!sim) return;
+	turn_mgr_.set_game_start_applied_sim(sim);
+	rtso::GameSetupParams setup;
+	if (!turn_mgr_.take_pending_game_start_full(setup)) return;
+	apply_game_setup(setup);
+	turn_mgr_.reset();
+	turn_mgr_.set_net_host(&net_host_, net_host_.isHost() ? 0 : 1);
+	turn_mgr_.set_game_start_applied_sim(sim);
+	turn_mgr_.note_game_start_applied(sim);
+	net_game_started_ = true;
+	print_line("[RTS0][GameStart] JOINER consumed NMT_GAME_START: map=" + String(setup.map_id.c_str()) +
+	           " seed=" + String::num_int64((int64_t)setup.seed) +
+	           " slots=" + String::num_int64(setup.slot_count) +
+	           " civ0=" + String::num_int64((int64_t)setup.civs[0]) +
+	           " civ1=" + String::num_int64((int64_t)setup.civs[1]) +
+	           " types=" + String::num_int64((int64_t)setup.slot_types[0]) +
+	           "/" + String::num_int64((int64_t)setup.slot_types[1]) +
+	           " res=" + String::num_int64((int64_t)setup.start_res));
+	if (lobby_status)
+		lobby_status->set_text(String("GameStart ") + String(setup.map_id.c_str()) +
+		                         " seed " + String::num_int64((int64_t)setup.seed));
 }
 
 void RtsoMain::_on_lobby_join_pressed() {
@@ -3117,6 +3842,8 @@ void RtsoMain::_on_lobby_join_pressed() {
 	}
 	turn_mgr_.reset();
 	turn_mgr_.set_net_host(&net_host_, 1);
+	turn_mgr_.clear_game_started();
+	net_game_started_ = false; // wait for host's NMT_GAME_START before lockstep turns
 	if (lobby_status)
 		lobby_status->set_text("Connecting " + String(ip.c_str()) + ":" + String::num_int64(port));
 }
@@ -3186,16 +3913,41 @@ void RtsoMain::toggle_chat() {
 	}
 }
 
+void RtsoMain::_on_chat_channel_btn_pressed(int channel_idx) {
+	if (chat_channel) {
+		chat_channel->select(channel_idx);
+	}
+}
+
 void RtsoMain::_on_chat_send_pressed() {
 	if (!chat_input || !chat_log) return;
 	String text = chat_input->get_text().strip_edges();
 	if (!text.is_empty()) {
 		int ch = chat_channel ? chat_channel->get_selected() : 0;
-		String ch_prefix = (ch == 1) ? "[color=#55ff55][Allies][/color]" : ((ch == 2) ? "[color=#ffff55][Team][/color]" : "[color=#55bbff][All][/color]");
+		String ch_prefix = "[color=#55bbff][All][/color]";
+		String wire_tag = "";
+		if (ch == 1) {
+			ch_prefix = "[color=#55ff55][Allies][/color]";
+			wire_tag = "[Allies] ";
+		} else if (ch == 2) {
+			ch_prefix = "[color=#ff5555][Enemies][/color]";
+			wire_tag = "[Enemies] ";
+		} else if (ch >= 3) {
+			int p_num = ch - 2;
+			ch_prefix = "[color=#eebb22][Player-" + String::num_int64(p_num) + "][/color]";
+			wire_tag = "[Player-" + String::num_int64(p_num) + "] ";
+		}
 		String civ_name = rtso::civ_info(sim->player_civ()).name;
 		chat_log->append_text(ch_prefix + " [color=#ffffff]" + civ_name + "[/color]: " + text + "\n");
 		chat_input->clear();
 		play_sfx("res://assets/sounds/ui/chat.ogg");
+		// Network: 0 A.D. NMT_CHAT broadcast (NetHost::sendChat net_host.cpp:327).
+		// Channel travels as wire tag (0 A.D. gui/session/chat/ChatBounce.js:15-38 parity).
+		// Parsed client-side in onChat display without breaking protocol compatibility.
+		if (net_lockstep()) {
+			std::string wire = (wire_tag + text).utf8().get_data();
+			net_host_.sendChat(wire);
+		}
 	}
 	if (chat_panel) chat_panel->set_visible(false);
 }
@@ -3214,7 +3966,14 @@ void RtsoMain::toggle_diplomacy() {
 
 void RtsoMain::_on_diplo_stance_changed(int stance, int player_idx) {
 	if (!sim || player_idx < 0 || player_idx >= 8) return;
-	sim->set_diplomacy((uint8_t)player_idx, (uint8_t)stance);
+	// Lockstep: stance MUST be a turn command (cmd_type 22, turn_manager.cpp dispatch)
+	// — diplomacy_state() is hashed (turn_manager.cpp:213), so a local-only change
+	// desyncs peers. Offline applies immediately via the validated sim cmd.
+	// 0 A.D. Diplomacy.js / DiplomacyDialog.js OnStanceChange parity.
+	if (net_lockstep())
+		post_lockstep(22, nullptr, 0, 0, 0, (uint32_t)player_idx, (uint8_t)stance);
+	else
+		sim->cmd_set_diplomacy((uint8_t)player_idx, (uint8_t)stance);
 	String st_name = (stance == 0) ? "Ally" : ((stance == 1) ? "Neutral" : "Enemy");
 	UtilityFunctions::print("[RTS0] Set diplomacy stance with Player ", player_idx + 1, " to ", st_name);
 	if (chat_log) {

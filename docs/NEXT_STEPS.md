@@ -4,6 +4,8 @@
 
 > **2026-08-29 evening** — P0–P5 from the morning audit are largely done (A* + hierarchical reachability, territory/auras/market, Petra raid/opening/queues, lobby host/join UI). Use the live list below. Legacy P0–P5 text after that is historical.
 
+> **Status 2026-10-05:** live code is `simulation.cpp:8053` (16 ticks, 30+ orders, cmd types 1-23), roster 23/14/13, nav wiring 26/26, manifest 567 models / 1279 anims / 89 skels, `check_parity.py` overall **88%**, UI_PARITY 10/11, playtest 3/3 seeds PASS, replay+diplo tests PASS. P0–P5 bodies below still quote the 2026-08-29-morning stubs (5%/15%/20%/24 GLBs) and are HISTORICAL — trust `docs/PLAN.md` Next work + the live list here.
+
 ## Now — playtest and remaining fidelity
 
 1. **Two-client match** — Host + Join via Lobby panel; run `python3 tools/lobby_server.py`; confirm handshake/auth and TurnManager hashes. Fix the first OOS you see.

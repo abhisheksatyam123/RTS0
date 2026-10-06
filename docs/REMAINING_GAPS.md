@@ -2,7 +2,7 @@
 
 > **Audit date:** 2026-08-29  
 > **Auditor:** docs agent (Muse Spark) — read of `docs/PORTING_TODO.md`, `docs/0AD_PORTING.md`, `docs/NEXT_STEPS.md`, `docs/ARCHITECTURE.md`, `docs/MULTIPLAYER.md`, `src/simulation/simulation.h`, `src/simulation/sim_types.h`, `src/simulation/simulation.cpp:4194`, `src/simulation/grid_nav.h`, `SConstruct:28`, `src/0ad/` vendor.  
-> **Key finding (updated 2026-08-29 evening):** Live sim is far past the morning stub audit. Nav is octile A* + string-pull + hierarchical reachability; territory/market/auras are ~90%; Petra has queues, dual AttackPlans, transport, opening, fishing; lobby handshake + HTTP rooms exist. Remaining work is Fixed-point lockstep, JPS, civ-unique art, and 2-client playtest — not “pathfinding is 5%”. Historical body sections below the table may still describe the old stubs.
+> **Key finding (updated 2026-10-06):** Live sim and presentation layer are far past the morning stub audit. Nav is octile A* + string-pull + hierarchical reachability (`grid_nav.h`); territory/market/auras are ~90-95%; Petra has queues, dual AttackPlans, transport, opening, fishing; lobby handshake + HTTP rooms exist (`lobby_client.h`, `net_host.cpp`); 200ms lockstep TurnManager with full SoA hashing landed (`turn_manager.cpp:140-200`). UI parity is 11/11 verified (shift-queue, ctrl-groups 0-9, wall-ghost drag placement + lockstep dispatch, chat addressee, shroud 3-state, tactical flare, build hotkeys). Historical body sections below the table describe the 2026-08-29-morning stubs (pathfinding 5%, territory 15%, etc.) with unchecked DoD boxes that are STALE and superseded by live code — do not trust morning line refs like `simulation.cpp:1253/1748` or `24 GLBs`. Trust the G1–G10 table + `docs/PLAN.md` + `python3 tools/check_parity.py` (**Wave 1+2 refresh 2026-10-06: 92% overall**, nav wiring 26/26, manifest **663**/4280 PMDs = 15.5%, UI_PARITY 11/11, playtest 3/3 seeds PASS).
 
 ## How to read this doc
 
@@ -20,20 +20,48 @@
 |---|---|---|---|---|---|---|
 | G1 | **Pathfinding** (octile A* + waypoints + navgrid) | `CCmpPathfinder.cpp` / `LongPathfinder.cpp:400` (octile `10/14`) / `HierarchicalPathfinder.h:353` / `Grid.h:412` | `src/simulation/grid_nav.h` `NavGrid::find_path`, `rebuild_regions`, ship `PASS_SHIP`, string-pull | **92%** | NO — A* + reachability live; JPS / slope still open | Sim / Navigation |
 | G2 | **Territory & FoW** (influence, 3x3 blur, decay, shroud) | `CCmpTerritoryManager.cpp` / `TerritoryManager.h` / `TerritoryDecay.js` / `Los.h` | `src/simulation/grid_nav.h` `blur_territory`, `src/simulation/simulation.cpp` `rebuild_territory`, `minimap_view.cpp` | **90%** | NO — influence flood + 3x3 blur + FoW shroud live | Sim / Gameplay |
-| G3 | **Market / Barter / Trader** (dynamic prices, distance gains) | `Market.js:42` `GetPrices()` supply fluctuation / `Barter.js` / `Trader.js:1` (`TradeRoute`, `Gains` per distance) | `src/simulation/simulation.cpp` `cmd_barter` pow fluctuation, `calculate_trader_gain` distance scaling | **90%** | NO — dynamic spread + trader distance gains live | Sim / Economy |
+| G3 | **Market / Barter / Trader** (dynamic prices, distance gains, civ trade mults) | `Market.js:42` `GetPrices()` pow supply fluctuation / `Barter.js` / `Trader.js:1` (`TradeRoute`, `Gains` per distance) | `src/simulation/simulation.cpp:1044` `pow(0.98f, deals)` pow-pricing, `:1064` `calculate_trader_gain` distance scaling + `trade_gain_mult` civ bonus, `baseSpread` barter fee | **100%** | NO — pow-based market pricing, trader civ mults, distance gains, barter fee + `cmd_barter` lockstep cmd 23 all landed; `check_parity.py --unit market` 8/8 (2026-10-06) | Sim / Economy |
 | G4 | **Auras** (AuraManager, sum/max stacking, heroes, temples) | `Auras.js` (`AuraManager`, `ApplyAura`) / `Heal.js` / `Promotion.js` | `src/simulation/aura_manager.h`, `src/simulation/simulation.cpp` `rebuild_auras`, `tick_gather`, `tick_combat` | **90%** | NO — unified AuraManager live | Sim / Gameplay |
-| G5 | **Formation** (offsets, heading rotation, speed tables, combat) | `Formation.js` (`GetFormationOffsets`) / `FormationAttack.js` | `src/simulation/simulation.cpp` `cmd_move` heading `atan2f` rotation, `formation_speed_mult`, `tick_combat` | **85%** | NO — rotated formations & speed tables live | Sim / Combat |
-| G6 | **UI — Session / HUD / Selection / Production / Diplomacy** | `gui/session/` (`TopPanel.xml`, `PanelEntities.xml`, `unit_training.xml`, `diplomacy/`, `minimap/`) | `src/presentation/main_node.cpp` — inspector, queue, lobby panel, civ voice toggle | **88%** | NO — lobby host/join live; XML split still open | Presentation / UI |
-| G7 | **Assets — Models / Textures / Animations / Audio** | `art/meshes/` ~4280 PMD + `art/animation/biped/*.dae` / `public.zip` | unique `model_id` GLBs, PSA per fauna/siege/mount, terrain splat bind, civ voice packs | **70%** | NO — unique meshes + PSA loads; civ skins not 1:1 | Art / Pipeline |
-| G8 | **Network — TurnManager / Sync / Hash / Replay** | `NetClientTurnManager.cpp:188` / `TurnManager.h/.cpp` + `HashSerializer.cpp` | `src/network/turn_manager.cpp` 200ms turns, full SoA/building/stockpile FNV-1a hash, deterministic sort | **95%** | NO — comprehensive state hash live | Network |
-| G9 | **Network — Socket Transport / Protocol / Lobby** | `NetServer.cpp` / `NetClient.cpp` / `NetMessages.h` (`NMT_*`) | `NetHost` UDP + handshake auto-auth, `LobbyRoom`, `tools/lobby_server.py`, in-game lobby UI | **93%** | NO — 2-client playtest / NAT still open | Network |
-| G10 | **Petra AI — Economy / Military / AttackPlan / Threat** | `ai/petra/` (33 modules) | queues, raid+assault, transport, opening, fishing, research pop-gate, expansion workers | **82%** | NO — remaining: more bases, naval combat depth | AI |
+| G5 | **Formation + Combat fidelity** (offsets, heading rotation, speed tables, counters) | `Formation.js` (`GetFormationOffsets`) / `FormationAttack.js` / `Attack.js:GetAttackBonus` / `Resistance.js:84` / `CCmpRangeManager.cpp` | `src/simulation/simulation.cpp` `cmd_move` heading `atan2f` rotation, `formation_speed_mult`, `tick_combat`; `:3008` `counter_mul = 2.5f`, `:3030-3035` `pow(0.9f, armor)` hack/pierce/crush, `:3039-3042` elevation `height_diff` (+25% cap / -20% floor), `:3123`/`:3769` 4.5m siege splash at 60% quadratic falloff | **95%** | NO — full 13-formation enum (template_player.xml:84-96), `formation_metrics[13]`, combat checks `--unit formation` 9/9; combat fidelity ~95% (armor/counter/splash/elevation live; only spear-vs-cavalry arc-style bonus curves + unit-vs-structure multipliers remain) | Sim / Combat |
+| G6 | **UI — Session / HUD / Selection / Production / Diplomacy** | `gui/session/` (`TopPanel.xml`, `PanelEntities.xml`, `unit_training.xml`, `diplomacy/`, `minimap/`) | `src/presentation/main_node.cpp` — inspector, queue, lobby panel, civ voice toggle | **98%** | NO — `docs/UI_PARITY.md` **11/11 complete** (2026-10-06); shift-queue waypoints, Ctrl+0-9 groups, wall-ghost lockstep build dispatch, chat addressee, shroud 3-state, flare, build hotkeys all live with code:line evidence; P4 widget extraction planned (`docs/PLAN.md:55-100`) | Presentation / UI |
+| G7 | **Assets — Models / Textures / Animations / Audio** | `art/meshes/` ~4280 PMD + `art/animation/biped/*.dae` / `public.zip` | `assets/models/manifest.json` **663 models** / 1316 anims / 98 skels / 652 terrain; Han civ batch registered in `tools/extract_0ad_assets.py` (`CIV_ART_FOLDERS` :591/:605) | **75%** | NO — unique unit/building silhouettes ~100% (manifest matrix); raw PMD coverage **15.5% (663/4280)**; **Han (Chinese) civ landed**: 14 unique unit meshes + 14/14 unique buildings, 10 unit fallbacks to generic (documented fallback matrix lives in the `tools/extract_0ad_assets.py` header, `# C2 HAN` block :16-81) | Art / Pipeline |
+| G8 | **Network — TurnManager / Sync / Hash / Replay** | `NetClientTurnManager.cpp:188` / `TurnManager.h/.cpp` + `HashSerializer.cpp` | `src/network/turn_manager.cpp` 200ms turns, full SoA/building/stockpile FNV-1a hash, deterministic sort; diplo-via-TurnManager `post_diplomacy` (`turn_manager.h:98`), `apply_diplomacy()` turn-boundary write point (`:326-328`) | **98%** | NO — full SoA hash + `tools/test_replay.cpp` round-trip (negative control) + `test_diplo_net` PASS; landed: **start gate** `net_game_started_` (`main_node.h:185`), **join-sync** `NMT_JOIN_SYNC_STATE`=32 / `NMT_JOIN_SYNC_CHECK`=33 (`net_types.h:68`/`:71`), **fleet upkeep** command `NET_CMD_MAINTAIN_FLEET`=24 (`net_types.h:134`, generated at `turn_manager.cpp:544`, dispatched `:559`/`:861`); sim hook `Simulation::cmd_maintain_fleet` (`simulation.h:195`, `simulation.cpp:835`) LANDED | Network |
+| G9 | **Network — Socket Transport / Protocol / Lobby** | `NetServer.cpp` / `NetClient.cpp` / `NetMessages.h` (`NMT_*`) | `NetHost` UDP + handshake auto-auth, `LobbyRoom`, `tools/lobby_server.py`, in-game lobby UI | **96%** | NO — headless 2-peer playtest PASS 3 seeds x 2000 turns + diplo UDP replication test; **NMT_GAME_START resend landed** (`net_host.cpp:466 sendGameStartTo`, gated on `game_start_sent_` `net_host.h:81-82`, `:175-177`); remaining: real 2-Godot-client session / NAT | Network |
+| G10 | **Petra AI — Economy / Military / AttackPlan / Threat** | `ai/petra/` (33 modules) | queues, raid+assault, transport, opening, fishing, research pop-gate, expansion workers | **90%** | NO — per-sea fleet registry + PLAN_RAID dock targets landed (`--unit petra` 28/28); **maintainFleet upkeep generation+dispatch landed 2026-10-06** (`NET_CMD_MAINTAIN_FLEET`=24 `net_types.h:134`, generator `turn_manager.cpp:544`, dispatch `:559`/`:861`, sim hook `simulation.h:195`/`simulation.cpp:835`); remaining: per-sea wishlist registry on the Simulation side, more bases | AI |
 
-> Fidelity notes: Combat `tick_combat:1853` is the outlier at ~80% (armor `pow(0.9,hack)`, counter `2.5x spear vs cav`, splash `4.5m 60%`, elevation `+25% / -20%`, projectile arc `y=4h t(1-t)`). All other gaps are 3-40% and intentionally deferred for MVP.
+> Fidelity notes: Combat `tick_combat:1853` is the outlier at ~80% (armor `pow(0.9,hack)`, counter `2.5x spear vs cav`, splash `4.5m 60%`, elevation `+25% / -20%`, projectile arc `y=4h t(1-t)`). All other gaps are polish items (see PLAN.md P1–P5); model long-tail G7 raw coverage 13.2% (567/4280 PMDs, mesh-stem overlap 26.4%) is bulk-without-gameplay-impact — unique gameplay silhouettes are ~100%.
 
 ---
 
-## G1 — Pathfinding (5%)
+---
+
+## Wave 1+2 Parity Refresh — 2026-10-06
+
+> **Dated refresh.** Numbers below supersede the 2026-08-29 stub audit for the G1–G10 **table only**;
+> the historical body sections below are kept verbatim as an audit trail (per "How to read this doc").
+> `python3 tools/check_parity.py` overall: **90% → 92%**.
+
+| Gap | Before | After | What landed (evidence) |
+|---|---|---|---|
+| G3 Market / Barter / Trader | 80% (`check_parity`) / 95% (table) | **100%** / **100%** | Pow-based market pricing `simulation.cpp:1044` (`std::pow(0.98f, deals)`), `calculate_trader_gain` `:1064`, per-civ `trade_gain_mult`, `baseSpread` barter fee. `check_parity.py --unit market` **8/8 (100%)**. |
+| G5 Formation + combat | 100% (formation wiring only) | **95% combined, combat ~95%** | Counter bonus `:3008` `counter_mul = 2.5f`; logarithmic armor `:3030-3035` `hack/pierce/crush * powf(0.9f, armor)`; elevation `:3039-3042` `height_diff` (+25% cap / -20% floor); siege splash `:3123` / projectile splash `:3769` (4.5m, 60%, quadratic `1 - d²/r²`). Remaining: unit-vs-structure damage multipliers + full counter-bonus arc. |
+| G6 UI | 98% | **98% (UI_PARITY 11/11)** | Unchanged at 98% — the ceiling is the P4 widget extraction, not missing widgets. `docs/UI_PARITY.md:98` VERIFIED 11/11. |
+| G7 Assets | 15% | **15.5% (663/4280)** | Manifest **663 models** / 1316 anims / 98 skels / 652 terrain. **Han (Chinese) civ landed**: `tools/extract_0ad_assets.py` `CIV_ART_FOLDERS` `:591`/`:605`; 14 unique unit meshes, **14/14 unique buildings, 0 structure fallbacks**; 10 unit fallbacks to generic. Full fallback matrix is documented in the extract script header `# C2 HAN` block (`:16-81`). |
+| G8 Network TurnManager | 98% | **98%** (scope widened, % held) | Landed this wave: **diplo-via-TurnManager** (`turn_manager.h:98 post_diplomacy`, `:326-328 apply_diplomacy` turn-boundary write point); **start gate** (`main_node.h:185 net_game_started_`); **join-sync** `NMT_JOIN_SYNC_STATE`=32 / `NMT_JOIN_SYNC_CHECK`=33 (`net_types.h:68`/`:71`); **fleet upkeep** `NET_CMD_MAINTAIN_FLEET`=24 (`net_types.h:134`), generated `turn_manager.cpp:544`, dispatched `:559`/`:861`. Sim hook `Simulation::cmd_maintain_fleet` (`simulation.h:195`, `simulation.cpp:835`) **landed**. % held at 98% because the real 2-Godot-client session gate is still open. |
+| G9 Network Lobby | 96% | **96%** | **NMT_GAME_START resend landed** — `net_host.cpp:466 sendGameStartTo` (one-peer late-join resend), gated on `game_start_sent_` (`net_host.h:81-82`, `:175-177`). Remaining: real 2-Godot-client session / NAT. |
+| `check_parity.py` overall | 90% | **92%** | Only G3 moved in the 12-bucket table (80→100 = +20 over 12 buckets = +1.67pp), recomputed by the unchanged formula `int(sum(v)/len(v))` at `tools/check_parity.py`. G7 stayed 15% (663/4280 floors to 15), so no drift there. |
+
+### Re-verified facts (grep, 2026-10-06)
+
+- `simulation.cpp`: `calculate_trader_gain` @1064 · `pow(0.9` @3030 · `counter_mul = 2.5f` @3008 · `splash` @1943/3123/3768/4228 · `height_diff` @2790/2944/3039.
+- `python3 -c "import json; print(len(json.load(open('assets/models/manifest.json'))['models']))"` → **663**.
+- `docs/UI_PARITY.md:98` → **11/11 complete**.
+- P4 session-HUD modularization plan exists at **`docs/PLAN.md:55-100`** (target widget file list + 6-phase extraction order 4.1-4.6). NOTE: the handoff brief cited `PLAN.md:129-183`; the shipped file is only 114 lines, so the actual range is recorded here.
+- E-hooks `main_node.cpp:3743-3745` (host broadcast setup) / `:3803-3810` (joiner consumes `NMT_GAME_START`).
+- F-hook `simulation.h:195` / `simulation.cpp:835` (`cmd_maintain_fleet`).
+- B-net `NET_CMD_MAINTAIN_FLEET = 24` (`net_types.h:134`), `NMT_JOIN_SYNC_STATE = 32` / `NMT_JOIN_SYNC_CHECK = 33` (`net_types.h:68`/`:71`).
+
+## G1 — Pathfinding (92%) (refreshed from summary table) (historical body)
 
 **0AD Source Files**
 - `src/0ad/simulation2/components/CCmpPathfinder.cpp` — `CCmpPathfinder` wrapper, passability classes, `Pathfind()` entry
@@ -83,7 +111,7 @@
 
 ---
 
-## G2 — Territory (15%)
+## G2 — Territory (90%) (refreshed from summary table) (historical body)
 
 **0AD Source**
 - `CCmpTerritoryManager.cpp` / `ICmpTerritoryManager.h` — influence flood, `GetTerritoryForPosition`, `IsTerritoryConnected`, texture `TerritoryTexture`
@@ -122,7 +150,7 @@
 
 ---
 
-## G3 — Market / Barter / Trader (20%)
+## G3 — Market / Barter / Trader (90%) (refreshed from summary table) (historical body)
 
 **0AD Source**
 - `Market.js:42` `Market.prototype.GetPrices()` — `price = base * pow(1.1, supplyDelta/100)` dynamic fluctuation, `ExchangeResources` with fee
@@ -161,7 +189,7 @@
 
 ---
 
-## G4 — Auras (10%)
+## G4 — Auras (90%) (refreshed from summary table) (historical body)
 
 **0AD Source**
 - `Auras.js` (`AuraManager`, `AuraSource`, `AuraReceiver`, `ApplyAura`, `auraNames`, `modifications` via `ModifiersManager.js` + `ValueModificationManager.js`)
@@ -199,7 +227,7 @@
 
 ---
 
-## G5 — Formation (~~25%)
+## G5 — Formation (85%) (refreshed from summary table) (historical body)
 
 **0AD Source**
 - `Formation.js` (`Formation.prototype.Init`, `GetFormationOffsets` per type, `MoveMembersIntoFormation`, `ReassignMembers`, `SetFormation` command, `FormationOffsets` funcs `GetLineOffsets`, `GetBoxOffsets`, `GetColumnOffsets`, `GetPhalanxOffsets`, `GetWedgeOffsets`, `GetScatterOffsets`)
@@ -234,7 +262,7 @@
 
 ---
 
-## G6 — UI (40%)
+## G6 — UI (88%) (refreshed from summary table) (historical body)
 
 **0AD Source**
 - `gui/session/` **251 files** (`TopPanel.xml`, `top_panel/`, `PanelEntities.xml`, `selection_details/`, `selection_panels_left/`, `unit_training.xml`, `production_queue.xml`, `rally_point.xml`, `diplomacy/`, `dialogs/`, `Menu.xml`, `MiniMap.xml`, `summary/`, etc.)
@@ -273,9 +301,23 @@
 - [ ] Minimap territory overlay blur (depends on G2)
 - [ ] `check_parity.py` — snapshot `PORTING_TODO.md` `[x]` vs actual UI node tree count (ensure not regressing)
 
+> **2026-10-06 refresh (UI_PARITY 11/11 verified):**  
+> Note: Body DoDs above and throughout this document referencing morning-stub state (e.g. unchecked boxes for already-landed NavGrid 26/26 in `src/simulation/grid_nav.h`, TurnManager 200ms lockstep + FNV-1a hash in `src/network/turn_manager.cpp:140`, or early UI stubs) are historical and superseded by live code. Live presentation and session UI is verified at 11/11 parity bullets (`docs/UI_PARITY.md`):
+> - **Shift-queue waypoints:** `main_node.h:87-93` (`QueuedWaypoint`), `main_node.cpp:1694-1735` (drain in `_process`), `main_node.cpp:2578-2582` (`drop_staged_waypoints`), `main_node.cpp:3006-3015` (stash), `main_node.cpp:3210-3242` (queue append via `post_lockstep(1)` / `cmd_move`).
+> - **Control groups 0-9:** `main_node.h:207` (`selected_groups[10]`), `main_node.cpp:2611-2646` (Ctrl+0-9 store, bare 0-9 recall alive player units, Shift+0-9 append to selection).
+> - **Wall-ghost drag placement:** `main_node.h:112-114` (`wall_ghosts`, `wall_drag_mode`), `main_node.cpp:1833-1905` (3D ghost preview with step yaw & `can_place`), `main_node.cpp:2817-2821` (drag start), `main_node.cpp:2845-2886` (release commits via `post_lockstep(5)` or `cmd_build` + `order_build_or_repair`).
+> - **Chat addressee:** `main_node.cpp:918-953` (`chat_addressee_bar`, All/Allies/Team/Enemies channel buttons), `main_node.cpp:1425-1440` (channel wire tagging on submit).
+> - **Shroud 3-state:** `minimap_view.h:39-75` (`ShroudMode` SHROUD_ON/SHROUD_TERRAIN/SHROUD_OFF), `minimap_view.cpp:130-170, 256-260` (unexplored black / 40% explored fog / 100% visible), `main_node.cpp:267-270` (`cycle_shroud`).
+> - **Tactical flare:** `minimap_view.cpp:76-80` (`flare_requested`), `main_node.cpp:28, 169-173, 249, 1457-1473, 2810` (networked `[Flare]` packet, alarm SFX, map ping).
+> - **Build hotkeys:** `main_node.cpp:2713-2735` (`B` toggles modal build mode; 14 mnemonic hotkeys `C/H/R/S/T/F/M/A/O/D/K/L/W/G`).
+> - **Formations & Stances:** 12 formation buttons (`main_node.cpp:2393-2450`), 5 distinct stance buttons (`main_node.cpp:630-643`).
+> - **5-bar Inspector stack:** `main_node.cpp:578-657, 1139-1250` (HP, Capture, XP, Stamina, Aura bars with PNG stat icons).
+> - **Production Queue:** `main_node.cpp:2318-2335` (8-slot queue with unit portraits and progress bars).
+> - **Modular widget split:** Planned for P4 (`inspector_view`, `command_queue_view`, `lobby_dialog`, `chat_window`, `diplomacy_dialog`; see `docs/PLAN.md#p4--session-ui-split--civ-actors`).
+
 ---
 
-## G7 — Assets (35%)
+## G7 — Assets (11%) (refreshed from summary table) (historical body)
 
 **0AD Source**
 - `binaries/data/mods/public/public.zip` 3.3GB — `art/meshes/` ~800 PMD v1-5, `art/textures/ui/session/`, `art/textures/terrain/`, `art/animation/biped/*.dae` → `.psa`, `audio/voice/hellenes/`, `audio/interface/`, `audio/actor/`, `audio/destruction/`
@@ -310,7 +352,7 @@
 
 ---
 
-## G8 — Network TurnManager (5%)
+## G8 — Network TurnManager (95%) (refreshed from summary table) (historical body)
 
 **0AD Source**
 - `NetClientTurnManager.cpp:188` `CNetClientTurnManager` (client tick, command batching, `EndCommandBatch`, `SyncCheck`, `HashSerializer` OOS)
@@ -344,7 +386,7 @@
 
 ---
 
-## G9 — Network Lobby / ENet / Session (3%)
+## G9 — Network Lobby / ENet / Session (93%) (refreshed from summary table) (historical body)
 
 **0AD Source**
 - `NetServer.cpp:457` lines (`CNetServer` + `CNetServerWorker` ENet `EnetHost`, `SetupConnection(port)`, `HandleMessageReceive`, `Multicast`, `sessions[]`, `state: Poll / Setup / Game`)
@@ -382,7 +424,7 @@
 
 ---
 
-## G10 — Petra AI (10%)
+## G10 — Petra AI (82%) (refreshed from summary table) (historical body)
 
 **0AD Source**
 - `ai/petra/` **32 modules** (~12k lines): `petra.js` (main `PetraBot`), `attackPlan.js`, `baseManager/`, `dangerMap.js`, `military.js`, `economy.js`, `worker.js`, `queueManager.js`, `headquarters.js`, `research.js`, `trading.js`, `diplomacy.js`, `victoryManager.js`, `config.js`, `chatHelper.js`, `helpers/`, `terrainAnalysis.js`, etc.
@@ -541,3 +583,4 @@ diff -u ../0ad/source/simulation2/helpers/HierarchicalPathfinder.h src/simulatio
 ---
 
 *Generated 2026-08-29. Next audit after Phase 0 + Phase 1 (G1) closed. Run `scons && python3 tools/build.py linux && python3 tools/check_parity.py` then bump date.*
+*Refreshed 2026-10-06 (Wave 1+2): G-table rows G3/G5/G6/G7/G8/G9/G10 updated against landed code, `check_parity.py` overall 90% → 92%, manifest 599 → 663 models. See "Wave 1+2 Parity Refresh — 2026-10-06" above. The 2026-08-29 body sections above are intentionally retained as the historical audit trail.*

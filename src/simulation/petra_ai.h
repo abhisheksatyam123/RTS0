@@ -163,6 +163,19 @@ enum PetraChatKind : uint8_t {
 };
 
 // chatHelper.js — short English taunts (no i18n)
+struct PetraDiplomacyRequest {
+	enum Status : uint8_t {
+		WAITING = 0,
+		ACCEPTED = 1,
+		DECLINED = 2
+	} status = WAITING;
+	uint8_t request_type = 0; // 0=ally, 1=neutral
+	float warn_time = 0.0f;
+	float lapse_time = 0.0f;
+	int wanted = 0;
+	uint8_t resource = 0;
+};
+
 struct PetraChatLine {
 	uint8_t kind = PETRA_CHAT_ATTACK;
 	float x = 0.0f;
@@ -186,6 +199,25 @@ struct PetraEmergency {
 	int ref_roots = 0;
 	bool active = false;
 };
+
+// navalManager.js:58 seaWarShips — per-sea fleet accounting registry
+struct Petra {
+	static constexpr int kMaxSeas = 8;
+	uint32_t sea_warships[kMaxSeas][16] = {};
+	uint8_t sea_warship_count[kMaxSeas] = {};
+	int sea_count_ = 0;
+
+	inline void clear_sea_fleets() {
+		for (int s = 0; s < kMaxSeas; ++s) {
+			sea_warship_count[s] = 0;
+			std::memset(sea_warships[s], 0, sizeof(sea_warships[s]));
+		}
+		sea_count_ = 0;
+	}
+};
+using PetraFleetRegistry = Petra;
+using PetraSeaRegistry = Petra;
+
 
 } // namespace rtso
 

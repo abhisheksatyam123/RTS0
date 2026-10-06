@@ -1,10 +1,28 @@
 extends Node
 # Survives scene changes so Game Setup can start a match with the chosen civ.
 
+# Core match choices (legacy fields kept for back-compat).
 var player_civ: int = 0
 var ai_civ: int = 1
 var map_index: int = 0
 var player_count: int = 2
+# Full 0 A.D.-style setup (page_gamesetup): map id as in
+# RtsoMain.get_available_maps(), 0 = randomize at start.
+var map_id: String = "random_continental"
+var seed: int = 0
+# Victory: 0 conquest, 1 wonder, 2 relic, 3 endless.
+var victory: int = 0
+# Petra difficulty 0..5 (sandbox..very hard), behavior 0..3.
+var ai_difficulty: int = 3
+var ai_behavior: int = 2
+# Starting resources preset index 0..3 (sparse/normal/generous/abundant).
+var start_res: int = 1
+# Per-slot setup, slot 0 is always the human player.
+# slot_types: 0 human, 1 AI, 2 closed. slot_civs: civ index per slot.
+# slot_teams: team number per slot (1-based, like 0 A.D.).
+var slot_types: Array = [0, 1]
+var slot_civs: Array = [0, 1]
+var slot_teams: Array = [1, 2]
 
 func strip_engine_popups(n: Node) -> void:
 	if n == null:

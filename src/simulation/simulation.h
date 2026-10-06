@@ -15,8 +15,38 @@
 #include <utility>
 #include <algorithm>
 #include <string>
+#include <array>
 
 namespace rtso {
+
+// Deterministic sim-tick PRNG (xorshift32, same algorithm as RmsRng).
+// Replaces libc rand() so two lockstep peers draw identical streams.
+// Sequential-call only: all sim-rng call sites are in serial tick regions.
+// Persisted in save_state v3 and mixed into TurnManager::compute_sim_hash.
+class SimRng {
+public:
+	explicit SimRng(uint32_t seed = 1337) : state_(seed ? seed : 1337) {}
+	void set_seed(uint32_t seed) { state_ = seed ? seed : 1337; }
+	uint32_t state() const { return state_; }
+	void set_state(uint32_t st) { state_ = st ? st : 1337; }
+	uint32_t next_u32() {
+		uint32_t x = state_;
+		x ^= x << 13;
+		x ^= x >> 17;
+		x ^= x << 5;
+		state_ = x;
+		return x;
+	}
+	int range_int(int min_val, int max_val) {
+		if (min_val >= max_val) return min_val;
+		return min_val + (int)(next_u32() % (uint32_t)(max_val - min_val + 1));
+	}
+	float range_float(float min_val, float max_val) {
+		return min_val + (next_u32() & 0xFFFFFF) / 16777216.0f * (max_val - min_val);
+	}
+private:
+	uint32_t state_;
+};
 
 struct Projectile {
 	uint32_t id = 0;
@@ -65,6 +95,8 @@ public:
 
 	// Public accessor for the FoW grid (FOW_GRID*FOW_GRID flat array, row-major)
 	const uint8_t* fow_grid() const { return fow_grid_; }
+	uint8_t fow_state_at(float x, float z, uint8_t viewer_team = 0) const;
+	bool is_entity_visible_to_viewer(float x, float z, uint8_t entity_team, uint8_t viewer_team = 0) const;
 
 	struct Building {
 		uint32_t id;
@@ -100,22 +132,32 @@ public:
 		float research_timer;
 		float research_duration;
 
-		// Structure Capture (Capturable.js)
+		// Structure Capture (Capturable.js): per-player capture points.
+		// The scalar capture_points field remains the amount currently held
+		// by the building owner for compatibility with presentation code.
 		float capture_points;
+		std::array<float, 8> capture_points_by_team{};
 		float max_capture_points;
+		float capture_regen_rate;
+		float capture_garrison_regen_rate;
+		float territory_decay_rate;
 	};
 
 	Simulation();
 	~Simulation();
 
 	void reset();
+	void set_sim_seed(uint32_t seed) { sim_seed_ = seed ? seed : 1337; sim_rng_.set_seed(sim_seed_); }
+	uint32_t sim_seed() const { return sim_seed_; }
+	uint32_t sim_rng_state() const { return sim_rng_.state(); }
+	uint32_t next_id() const { return next_id_; }
 	void spawn_initial();
 	void spawn_war(int total_units = 2000);
 	void generate_random_map(MapType type = MAP_RANDOM_CONTINENTAL, uint32_t seed = 0, int num_players = 2, float map_half = 64.0f);
 
 	uint32_t spawn_unit(float x, float z, uint8_t team = 0, UnitType u_type = UNIT_VILLAGER, float hp = 100.0f);
 	uint32_t spawn_resource(int cell_x, int cell_y, uint8_t type, int32_t amount = 600);
-	uint32_t spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount = 600);
+	uint32_t spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount = 600, uint8_t subtype = 0);
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f);
 	uint32_t spawn_building_world(float wx, float wz, uint8_t type, uint8_t team = 0, float progress = 1.0f);
 	uint32_t spawn_relic(float x, float z, uint8_t res_type, int amount = 300);
@@ -146,6 +188,11 @@ public:
 	void cmd_stop(const uint32_t *unit_ids, size_t count);
 	uint32_t cmd_build(int cell_x, int cell_y, uint8_t b_type);
 	bool cmd_train(uint32_t building_id, UnitType u_type);
+	// P3 maintainFleet upkeep seam (0 A.D. navalManager.js:507-543): team-aware
+	// naval queue entry used by TurnManager NET_CMD_MAINTAIN_FLEET. Unlike
+	// cmd_train (team-0/human only) this honours the building's own team
+	// resources (Petra team 1 via petra_try_pay) so Petra docks can train.
+	bool cmd_maintain_fleet(uint32_t building_id, UnitType u_type, uint8_t team);
 	bool cmd_cancel_train(uint32_t building_id, size_t queue_idx);
 	void cmd_set_rally_point(uint32_t building_id, float rx, float rz, uint32_t res_id = 0, uint32_t bld_id = 0);
 
@@ -194,6 +241,7 @@ public:
 
 	bool cmd_research(uint32_t building_id, uint8_t tech_id);
 	bool cmd_barter(ResourceType sell, ResourceType buy, int amount = 100);
+	bool cmd_set_diplomacy(uint8_t player_id, uint8_t stance);
 	// G3 Market/Trader
 	int calculate_trader_gain(const Building& mA, const Building& mB, uint8_t team) const;
 	void order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id);
@@ -219,11 +267,13 @@ public:
 		const float *hp, *max_hp;
 		const uint32_t *id;
 		const uint8_t *alive, *team, *unit_type, *action_state, *res_type_carried, *stance, *formation;
+		const uint32_t *target_resource_id;
 		const int32_t *carry;
 		const float *death_timer;
 		const uint16_t *kills;
 		const uint8_t *rank;
 		const uint8_t *status_effects;
+		const uint16_t *xp;
 		size_t count;
 	};
 	UnitView units() const;
@@ -231,7 +281,7 @@ public:
 	struct ResourceView {
 		const float *x, *z;
 		const int32_t *amount;
-		const uint8_t *type, *alive;
+		const uint8_t *type, *subtype, *alive;
 		const uint32_t *id;
 		size_t count;
 	};
@@ -244,6 +294,11 @@ public:
 	int wood() const { return wood_; }
 	int gold() const { return gold_; }
 	int stone() const { return stone_; }
+	// GameSetup starting-resources option (0 A.D. page_gamesetup "Starting Resources").
+	// Must be called AFTER map load: reset()/generate() overwrite stocks.
+	void set_starting_resources(int food, int wood, int gold, int stone) {
+		food_ = food; wood_ = wood; gold_ = gold; stone_ = stone;
+	}
 
 	float food_rate() const { return food_gathered_window_ * 6.0f; } // per min approx
 	float wood_rate() const { return wood_gathered_window_ * 6.0f; }
@@ -282,9 +337,28 @@ public:
 		DIPLO_ENEMY = 2
 	};
 	uint8_t get_diplomacy(uint8_t player_id) const { return (player_id < 8) ? diplomacy_[player_id] : (uint8_t)DIPLO_ENEMY; }
+	uint8_t get_diplomacy_from(uint8_t player_id, uint8_t other) const {
+		return (other < 8) ? diplomacy_[other] : (uint8_t)DIPLO_ENEMY;
+	}
 	void set_diplomacy(uint8_t player_id, uint8_t stance) { if (player_id < 8) diplomacy_[player_id] = stance; }
+	void set_mutual_ally(uint8_t player_id) {
+		if (player_id == 0 || player_id >= 8) return;
+		diplomacy_[player_id] = DIPLO_ALLY;
+		diplomacy_reverse_[player_id] = DIPLO_ALLY;
+	}
+	bool is_mutual_ally(uint8_t player_id) const {
+		return player_id != 0 && player_id < 8 &&
+		       get_diplomacy(player_id) == DIPLO_ALLY &&
+		       diplomacy_reverse_[player_id] == DIPLO_ALLY;
+	}
+	const uint8_t *diplomacy_state() const { return diplomacy_; }
+	const uint8_t *diplomacy_reverse_state() const { return diplomacy_reverse_; }
 	bool send_tribute(uint8_t player_id, uint8_t res_type, int amount);
 	bool ai_send_tribute(uint8_t res_type, int amount);
+	// Accept a validated 0 A.D.-style Petra diplomacy request. The request
+	// remains in WAITING until the tribute policy is satisfied; callers can
+	// inspect petra_diplomacy_requests() for status/timers.
+	void receive_petra_diplomacy_request(uint8_t player_id, bool ally, int wanted, uint8_t resource);
 
 	// Petra AI Heuristics & Threat View
 	int petra_phase() const { return petra_phase_; }
@@ -377,6 +451,7 @@ public:
 	const PetraQueueManager &petra_queues() const { return petra_queues_; }
 	const PetraTransportPlan &petra_transport_plan() const { return petra_transport_; }
 	const std::vector<PetraChatLine> &pending_petra_chat() const { return petra_chat_; }
+	const std::unordered_map<uint8_t, PetraDiplomacyRequest> &petra_diplomacy_requests() const { return petra_diplomacy_requests_; }
 	void clear_petra_chat() { petra_chat_.clear(); }
 
 	// Fauna (Wildlife) View & Spawner
@@ -437,15 +512,26 @@ private:
 	void separation(float dt, Arena &arena);
 	void tick_gather(float dt);
 	void tick_combat(float dt);
-	void tick_construction(float dt);
-	void tick_production(float dt);
+	void tick_promotion(float dt);
+	void tick_capture(float dt);
+	void tick_status_effects(float dt);
 	void tick_projectiles(float dt);
-	void tick_waves(float dt);
+	void tick_construction(float dt);
+	void tick_repair(float dt);
+	void tick_production(float dt);
+	void tick_research(float dt);
+	void tick_barter(float dt);
 	void tick_trickle(float dt);
+	void tick_upkeep(float dt);
+	void tick_entity_limits(float dt);
+	void tick_death_damage(float dt);
+	void tick_loot(float dt);
+	void tick_gates(float dt);
+	void tick_waves(float dt);
 	void tick_petra_ai(float dt);
 	void tick_fauna(float dt);
-	void tick_status_effects(float dt);
 	void tick_fow();  // updates FoW each sim tick
+	bool terrain_blocks_los(float sx, float sz, float sy, float tx, float tz, float ty) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
 	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
@@ -453,6 +539,7 @@ private:
 	void rebuild_auras(); // G4: rebuild AuraManager from temples/heroes/carnyx/female citizens
 	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false, uint8_t visual = 0);
 	void mark_building_wreck(Building &b);
+	void record_death(float x, float z, uint8_t team, uint8_t killer_team, uint8_t type, bool is_building);
 	void bind_unit_index(uint32_t id, size_t idx);
 	int32_t lookup_unit(uint32_t id) const;
 	void apply_loot_bounty(uint8_t killer_team, int food, int wood, int gold, int stone);
@@ -506,12 +593,21 @@ private:
 	std::unordered_set<std::pair<int, int>, CellHash> occupied_cells_;
 
 	uint32_t next_id_ = 1;
+	uint32_t sim_seed_ = 1337;
+	SimRng sim_rng_;
 	int food_ = 300;
 	int wood_ = 400;
 	int gold_ = 300;
 	int stone_ = 200;
 	float passive_timer_ = 0.0f;
 	float rate_window_timer_ = 0.0f;
+	float barter_timer_ = 0.0f;
+	float upkeep_timer_ = 0.0f;
+	float entity_limits_timer_ = 0.0f;
+	float gate_timer_ = 0.0f;
+	static constexpr size_t MAX_RECENT_DEATHS = 64;
+	std::array<RecentDeath, MAX_RECENT_DEATHS> recent_deaths_{};
+	size_t recent_death_head_ = 0;
 
 	float food_gathered_window_ = 0.0f;
 	float wood_gathered_window_ = 0.0f;
@@ -527,7 +623,8 @@ private:
 
 	uint8_t player_phase_ = 1; // 1=Village, 2=Town, 3=City
 	Civilization player_civ_[4] = {CIV_ATHENIANS, CIV_SPARTANS, CIV_ROMANS, CIV_PERSIANS};
-	uint8_t diplomacy_[8] = {0, 2, 2, 2, 2, 2, 2, 2}; // 0=Ally, 1=Neutral, 2=Enemy
+	uint8_t diplomacy_[8] = {0, 2, 2, 2, 2, 2, 2, 2}; // player 0 stance toward each player
+	uint8_t diplomacy_reverse_[8] = {0, 2, 2, 2, 2, 2, 2, 2}; // reciprocal stance for shared LOS
 	uint8_t biome_ = BIOME_AEGEAN;
 	uint8_t map_preset_ = MAP_AEGEAN_ARCHIPELAGO;
 	uint32_t researched_techs_mask_ = 0;
@@ -582,6 +679,7 @@ private:
 	PetraQueueManager petra_queues_;
 	PetraTransportPlan petra_transport_;
 	std::vector<PetraChatLine> petra_chat_;
+	std::unordered_map<uint8_t, PetraDiplomacyRequest> petra_diplomacy_requests_;
 	float petra_defense_timer_ = 0.0f;
 	float petra_victory_timer_ = 0.0f;
 	float petra_diplo_timer_ = 0.0f;

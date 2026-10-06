@@ -7,6 +7,18 @@
 
 namespace rtso {
 
+
+// 0 A.D. DeathDamage.js & Loot.js: track recent death events for area splash and bounty
+struct RecentDeath {
+	float x = 0.0f;
+	float z = 0.0f;
+	uint8_t team = 0;
+	uint8_t killer_team = 0;
+	uint8_t type = 0;
+	bool is_building = false;
+	bool death_damage_applied = false;
+	bool loot_applied = false;
+};
 enum BiomeType : uint8_t {
 	BIOME_AEGEAN = 0,
 	BIOME_LATIUM = 1,
@@ -158,6 +170,14 @@ enum ResourceType : uint8_t {
 	RES_COUNT = 4
 };
 
+// Food supply flavour for ResourceGatherer gather_* clips. Wood/gold/stone
+// ignore this; food defaults to fruit (berry bush) unless marked meat/grain.
+enum ResourceSubtype : uint8_t {
+	RES_SUB_NONE = 0,
+	RES_SUB_MEAT = 1,
+	RES_SUB_GRAIN = 2
+};
+
 enum UnitStance : uint8_t {
 	STANCE_AGGRESSIVE = 0,
 	STANCE_DEFENSIVE = 1,
@@ -166,6 +186,23 @@ enum UnitStance : uint8_t {
 	STANCE_PASSIVE = 4
 };
 
+// 0 A.D. Formations (source: template_player.xml:84-96, exactly 13 entries indexed 0..12)
+// Appended AFTER existing 6 so network/replay order stays wire-compatible (values 0..6 unchanged).
+// 0 A.D. template_player.xml:84-96 token list:
+//   [84] special/formations/null                 -> FORMATION_NONE = 0
+//   [85] special/formations/box                  -> FORMATION_BOX = 2
+//   [86] special/formations/column_closed        -> FORMATION_COLUMN = 3
+//   [87] special/formations/line_closed          -> FORMATION_LINE = 1
+//   [88] special/formations/column_open          -> FORMATION_COLUMN_OPEN = 8
+//   [89] special/formations/line_open            -> FORMATION_LINE_OPEN = 7
+//   [90] special/formations/flank                -> FORMATION_FLANK = 9
+//   [91] special/formations/battle_line          -> FORMATION_BATTLE_LINE = 10
+//   [92] special/formations/skirmish             -> FORMATION_SCATTER = 6
+//   [93] special/formations/wedge                -> FORMATION_WEDGE = 5
+//   [94] special/formations/ships/line_staggered -> FORMATION_SHIPS_LINE = 11
+//   [95] special/formations/ships/flank          -> FORMATION_SHIPS_FLANK = 9 (alias FORMATION_FLANK)
+//   [96] special/formations/ships/column         -> FORMATION_SHIPS_COLUMN = 12
+// Note: FORMATION_PHALANX = 4 preserved from 0 A.D. special/formations/phalanx.xml (civ-specific).
 enum UnitFormation : uint8_t {
 	FORMATION_NONE = 0,
 	FORMATION_LINE = 1,
@@ -173,7 +210,15 @@ enum UnitFormation : uint8_t {
 	FORMATION_COLUMN = 3,
 	FORMATION_PHALANX = 4,
 	FORMATION_WEDGE = 5,
-	FORMATION_SCATTER = 6
+	FORMATION_SCATTER = 6,
+	FORMATION_LINE_OPEN = 7,
+	FORMATION_COLUMN_OPEN = 8,
+	FORMATION_FLANK = 9,
+	FORMATION_BATTLE_LINE = 10,
+	FORMATION_SHIPS_LINE = 11,
+	FORMATION_SHIPS_COLUMN = 12,
+	FORMATION_COUNT = 13,
+	FORMATION_SHIPS_FLANK = FORMATION_FLANK
 };
 
 enum TechnologyId : uint8_t {
@@ -307,6 +352,24 @@ inline float unit_collision_radius(uint8_t type) {
 	}
 }
 
+// 0 A.D. capture attack strengths (Attack.js / template_unit_*).
+// Values are per capture effect; the simulation applies them per second for
+// the bounded nearby-capturer model.
+inline float unit_capture_strength(uint8_t type) {
+	switch (type) {
+		case UNIT_VILLAGER: case UNIT_HEALER: case UNIT_TRADER:
+		case UNIT_FEMALE_CITIZEN: case UNIT_WORKER_ELEPHANT:
+			return 1.0f;
+		case UNIT_CAVALRY: case UNIT_CHARIOT: case UNIT_CAMEL:
+		case UNIT_SCYTHED_CHARIOT: return 1.75f;
+		case UNIT_SPEARMAN: case UNIT_SWORDSMAN: case UNIT_ARCHER:
+		case UNIT_ARCHER_MAIDEN: case UNIT_ELEPHANT: case UNIT_CARNYX:
+		case UNIT_WAR_DOG: return 2.5f;
+		case UNIT_HERO: return 10.0f;
+		default: return 0.0f;
+	}
+}
+
 inline const char *unit_type_name(uint8_t type) { return unit_type_info(type).name; }
 inline const char *unit_type_model(uint8_t type) { return unit_type_info(type).model_id; }
 inline const char *unit_type_portrait(uint8_t type) { return unit_type_info(type).portrait_id; }
@@ -380,25 +443,31 @@ struct BuildingTypeInfo {
 	float attack_range;
 	float attack_damage;
 	float attack_cooldown;
+	// 0 A.D. Capturable.js / TerritoryDecay.js template values.
+	float capture_max_points;
+	float capture_regen_rate;
+	float capture_garrison_regen_rate;
+	float territory_decay_rate;
 };
 
 inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 	static const BuildingTypeInfo kTable[BLD_TYPE_COUNT] = {
-		// name, model, portrait, hp, foot, f, w, g, s, pop, garrison, build_time, range, dmg, cd
-		{"Town Center", "town_center", "town_center", 2500.0f, 2, 0, 300, 100, 200, 10, 20, 60.0f, 16.0f, 18.0f, 1.0f},
-		{"House", "house", "house", 500.0f, 1, 0, 80, 0, 0, 5, 5, 20.0f, 0.0f, 0.0f, 0.0f},
-		{"Barracks", "barracks", "barracks", 1500.0f, 2, 0, 150, 50, 50, 0, 10, 35.0f, 0.0f, 0.0f, 0.0f},
-		{"Storehouse", "storehouse", "storehouse", 800.0f, 1, 0, 100, 0, 0, 0, 5, 25.0f, 0.0f, 0.0f, 0.0f},
-		{"Defense Tower", "wall_tower", "tower", 1200.0f, 1, 0, 100, 0, 100, 0, 5, 30.0f, 18.0f, 20.0f, 1.0f},
-		{"Farmstead", "farmstead", "farmstead", 800.0f, 1, 0, 100, 0, 0, 0, 5, 25.0f, 0.0f, 0.0f, 0.0f},
-		{"Market", "market", "market", 1200.0f, 2, 0, 200, 100, 0, 0, 5, 40.0f, 0.0f, 0.0f, 0.0f},
-		{"Fortress", "fortress", "fortress", 3500.0f, 2, 0, 300, 200, 300, 0, 30, 80.0f, 22.0f, 30.0f, 0.8f},
-		{"Gate", "gate", "gate", 1500.0f, 1, 0, 100, 0, 100, 0, 0, 25.0f, 0.0f, 0.0f, 0.0f},
-		{"Temple", "temple", "temple", 1200.0f, 2, 0, 150, 100, 100, 0, 5, 40.0f, 0.0f, 0.0f, 0.0f},
-		{"Wonder Monument", "wonder", "wonder", 5000.0f, 2, 500, 500, 500, 500, 0, 10, 120.0f, 0.0f, 0.0f, 0.0f},
-		{"Naval Shipyard Dock", "dock", "dock", 1400.0f, 2, 0, 200, 0, 100, 0, 5, 40.0f, 16.0f, 15.0f, 1.2f},
-		{"Stone Wall Segment", "wall_segment", "wall", 1800.0f, 1, 0, 0, 0, 40, 0, 5, 15.0f, 0.0f, 0.0f, 0.0f},
-		{"Livestock Corral", "corral", "corral", 800.0f, 2, 0, 100, 0, 0, 5, 10, 25.0f, 0.0f, 0.0f, 0.0f}
+		// name, model, portrait, hp, foot, f, w, g, s, pop, garrison, build_time, range, dmg, cd,
+		// capture max, regen, garrison regen, territory decay
+		{"Town Center", "town_center", "town_center", 2500.0f, 2, 0, 300, 100, 200, 10, 20, 60.0f, 16.0f, 18.0f, 1.0f, 2500.0f, 30.0f, 1.0f, 20.0f},
+		{"House", "house", "house", 500.0f, 1, 0, 80, 0, 0, 5, 5, 20.0f, 0.0f, 0.0f, 0.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Barracks", "barracks", "barracks", 1500.0f, 2, 0, 150, 50, 50, 0, 10, 35.0f, 0.0f, 0.0f, 0.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Storehouse", "storehouse", "storehouse", 800.0f, 1, 0, 100, 0, 0, 0, 5, 25.0f, 0.0f, 0.0f, 0.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Defense Tower", "wall_tower", "tower", 1200.0f, 1, 0, 100, 0, 100, 0, 5, 30.0f, 18.0f, 20.0f, 1.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Farmstead", "farmstead", "farmstead", 800.0f, 1, 0, 100, 0, 0, 0, 5, 25.0f, 0.0f, 0.0f, 0.0f, 300.0f, 5.0f, 1.0f, 20.0f},
+		{"Market", "market", "market", 1200.0f, 2, 0, 200, 100, 0, 0, 5, 40.0f, 0.0f, 0.0f, 0.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Fortress", "fortress", "fortress", 3500.0f, 2, 0, 300, 200, 300, 0, 30, 80.0f, 22.0f, 30.0f, 0.8f, 4000.0f, 45.0f, 1.0f, 40.0f},
+		{"Gate", "gate", "gate", 1500.0f, 1, 0, 100, 0, 100, 0, 0, 25.0f, 0.0f, 0.0f, 0.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Temple", "temple", "temple", 1200.0f, 2, 0, 150, 100, 100, 0, 5, 40.0f, 0.0f, 0.0f, 0.0f, 500.0f, 15.0f, 1.0f, 20.0f},
+		{"Wonder Monument", "wonder", "wonder", 5000.0f, 2, 500, 500, 500, 500, 0, 10, 120.0f, 0.0f, 0.0f, 0.0f, 2000.0f, 5.0f, 1.0f, 20.0f},
+		{"Naval Shipyard Dock", "dock", "dock", 1400.0f, 2, 0, 200, 0, 100, 0, 5, 40.0f, 16.0f, 15.0f, 1.2f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Stone Wall Segment", "wall_segment", "wall", 1800.0f, 1, 0, 0, 0, 40, 0, 5, 15.0f, 0.0f, 0.0f, 0.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Livestock Corral", "corral", "corral", 800.0f, 2, 0, 100, 0, 0, 5, 10, 25.0f, 0.0f, 0.0f, 0.0f, 500.0f, 5.0f, 1.0f, 20.0f},
 	};
 	if (type >= BLD_TYPE_COUNT) return kTable[BLD_HOUSE];
 	return kTable[type];
@@ -464,7 +533,7 @@ inline const CivInfo &civ_info(uint8_t civ) {
 		 1.0f, 1.10f, 1.15f, 1.30f, 1.0f},
 		{CIV_CARTHAGINIANS, "cart", "Carthaginians", "res://assets/textures/ui/emblems/carthaginians.png",
 		 "Phoenician Naval Mastery & War Elephants: Elite mercenary forces and formidable war elephants.",
-		 1.0f, 1.15f, 1.20f, 1.0f, 1.20f},
+		 1.0f, 1.15f, 1.20f, 1.0f, 1.10f},
 		{CIV_MACEDONIANS, "mace", "Macedonians", "res://assets/textures/ui/emblems/macedonians.png",
 		 "Sarissa Phalanx & Companion Cavalry: Extended spear attack reach and rapid cavalry shock charges.",
 		 1.0f, 1.20f, 1.10f, 1.0f, 1.0f},

@@ -72,15 +72,25 @@ enum NavCell : uint8_t {
 };
 
 // ---------------------------------------------------------------------------
-// Phase 8A: Passability mask constants — mirrors 0 A.D. CCmpPathfinder pass classes.
-// PASS_INFANTRY : foot soldiers, villagers, cavalry (on-land passable cells).
-// PASS_CAVALRY  : mounted units; same as INFANTRY on flat land (future: slope check).
+// Phase 8A / P2: Passability mask constants — mirrors 0 A.D. CCmpPathfinder pass classes.
+// PASS_INFANTRY : foot soldiers, villagers (on-land passable cells).
+// PASS_CAVALRY  : mounted units; impassable on steep slopes exceeding cavalry_max_slope.
 // PASS_SHIP     : naval units only — NAV_WATER cells passable, NAV_PASSABLE blocked.
-// Reference: Pathfinding.h pass_class_t, CCmpPathfinder::GetPassabilityClass().
+//
+// 0 A.D. slope handling & passability references:
+// - source/simulation2/helpers/Pathfinding.h:205-241 (PathfinderPassability::IsPassable: steepness < m_MaxSlope)
+// - source/simulation2/components/CCmpPathfinder.cpp:694-703 (terrain.GetSlopeFixed(itile, jtile) passability check)
+// - source/graphics/Terrain.cpp:306-322 (CTerrain::GetSlopeFixed: fractional slope = delta / TERRAIN_TILE_SIZE)
+// - binaries/data/mods/_test.sim/simulation/data/pathfinder.xml:13 (MaxTerrainSlope: 1.0 = 100% grade / 45 deg for default)
+// For cavalry: historical equestrian limits & RTS tactical balance restrict horses to
+// ~25-45% grade (~14-24 degrees; default 0.35 = 35% grade / ~19.3 degrees) where steep
+// terrain is impassable for cavalry while remaining passable for infantry (PASS_INFANTRY).
 // ---------------------------------------------------------------------------
 static constexpr uint8_t PASS_INFANTRY = 1;
 static constexpr uint8_t PASS_CAVALRY  = 2;
 static constexpr uint8_t PASS_SHIP     = 4;
+
+static constexpr float DEFAULT_CAVALRY_MAX_SLOPE = 0.35f; // 35% grade limit (height delta / cell width)
 
 // ---------------------------------------------------------------------------
 // Phase 8A: NavChunk — mirrors 0 A.D. HierarchicalPathfinder::Chunk at our scale.
@@ -136,6 +146,16 @@ struct NavGrid {
     std::unordered_map<uint32_t, uint16_t> global_region_map_;
     Grid<uint8_t> ship_chunk_regions_;
     std::unordered_map<uint32_t, uint16_t> ship_region_map_;
+
+    // Phase 8A / P2: Cavalry passability & hierarchical chunk region data.
+    // steep_cells_: res x res, 1 = cell slope exceeds cavalry_max_slope (impassable for PASS_CAVALRY).
+    // cavalry_chunk_regions_: local region id per navcell for PASS_CAVALRY.
+    // cavalry_region_map_: global connected-region map for PASS_CAVALRY.
+    Grid<uint8_t> steep_cells_;
+    Grid<uint8_t> cavalry_chunk_regions_;
+    std::unordered_map<uint32_t, uint16_t> cavalry_region_map_;
+    float cavalry_max_slope = DEFAULT_CAVALRY_MAX_SLOPE;
+
     bool regions_ready_ = false;
 
     // Number of chunks per axis: res / CHUNK_SIZE
@@ -149,8 +169,11 @@ struct NavGrid {
         chunks_per_axis_ = res / CHUNK_SIZE;
         chunk_regions_ = Grid<uint8_t>(res, res, 0);
         ship_chunk_regions_ = Grid<uint8_t>(res, res, 0);
+        cavalry_chunk_regions_ = Grid<uint8_t>(res, res, 0);
+        steep_cells_ = Grid<uint8_t>(res, res, 0);
         global_region_map_.clear();
         ship_region_map_.clear();
+        cavalry_region_map_.clear();
         regions_ready_ = false;
     }
 
@@ -189,11 +212,21 @@ struct NavGrid {
         return is_passable_for(cx, cy, PASS_INFANTRY);
     }
 
+    bool is_passable_cavalry(int cx, int cy) const {
+        return is_passable_for(cx, cy, PASS_CAVALRY);
+    }
+
+    bool is_passable_ship(int cx, int cy) const {
+        return is_passable_for(cx, cy, PASS_SHIP);
+    }
+
     bool is_passable_for(int cx, int cy, uint8_t pass) const {
         if (!cells.inside(cx, cy)) return false;
         uint8_t c = cells.at(cx, cy);
-        if (pass == PASS_SHIP) return c == NAV_WATER;
-        return c == NAV_PASSABLE;
+        if (pass == PASS_SHIP || (pass & PASS_SHIP)) return c == NAV_WATER;
+        if (c != NAV_PASSABLE) return false;
+        if ((pass == PASS_CAVALRY || (pass & PASS_CAVALRY)) && is_steep(cx, cy)) return false;
+        return true;
     }
 
     bool line_clear(int x0, int y0, int x1, int y1, uint8_t pass) const {
@@ -237,41 +270,91 @@ struct NavGrid {
     // Port of HierarchicalPathfinder::Chunk::InitRegions (scan/flood per CHUNK_SIZE)
     // + ComputeNeighbors (union across chunk edges) + UpdateGlobalRegions.
     // Vendor: src/0ad/simulation2/helpers/HierarchicalPathfinder.cpp:50, :523, :652
+    // Full remesh over all chunks (cold start / water-table swap).
+    // Delegates to flood_single_chunk + recompute_global_regions so the
+    // per-chunk and full paths share one implementation.
     void flood_chunk_regions(uint8_t pass, Grid<uint8_t> &local, std::unordered_map<uint32_t, uint16_t> &global) {
         local.fill(0);
         global.clear();
         if (cells.blank()) return;
+        for (int cj = 0; cj < chunks_per_axis_; ++cj)
+            for (int ci = 0; ci < chunks_per_axis_; ++ci)
+                flood_single_chunk(ci, cj, pass, local);
+        recompute_global_regions(local, global);
+    }
 
-        for (int cj = 0; cj < chunks_per_axis_; ++cj) {
-            for (int ci = 0; ci < chunks_per_axis_; ++ci) {
-                uint8_t next_r = 1;
-                const int x0 = ci * CHUNK_SIZE;
-                const int y0 = cj * CHUNK_SIZE;
-                const int x1 = std::min(x0 + CHUNK_SIZE, res);
-                const int y1 = std::min(y0 + CHUNK_SIZE, res);
-                for (int y = y0; y < y1; ++y) {
-                    for (int x = x0; x < x1; ++x) {
-                        if (!is_passable_for(x, y, pass) || local.at(x, y) != 0) continue;
-                        std::vector<std::pair<int,int>> q;
-                        q.emplace_back(x, y);
-                        local.at(x, y) = next_r;
-                        for (size_t qi = 0; qi < q.size(); ++qi) {
-                            int cx = q[qi].first, cy = q[qi].second;
-                            static const int d[4][2] = {{1,0},{-1,0},{0,1},{0,-1}};
-                            for (const auto &dir : d) {
-                                int nx = cx + dir[0], ny = cy + dir[1];
-                                if (nx < x0 || ny < y0 || nx >= x1 || ny >= y1) continue;
-                                if (!is_passable_for(nx, ny, pass) || local.at(nx, ny) != 0) continue;
-                                local.at(nx, ny) = next_r;
-                                q.emplace_back(nx, ny);
-                            }
-                        }
-                        ++next_r;
+    void rebuild_regions() {
+        flood_chunk_regions(PASS_INFANTRY, chunk_regions_, global_region_map_);
+        flood_chunk_regions(PASS_SHIP, ship_chunk_regions_, ship_region_map_);
+        flood_chunk_regions(PASS_CAVALRY, cavalry_chunk_regions_, cavalry_region_map_);
+        regions_ready_ = true;
+        if (!dirty.blank()) dirty.fill(0);
+    }
+
+    bool any_dirty() const {
+        if (dirty.blank()) return false;
+        for (uint8_t v : dirty.data)
+            if (v) return true;
+        return false;
+    }
+
+    // Chunk dirtiness — mirrors dirtinessGrid.any_set_in_square(i0,j0,i1,j1)
+    // (HierarchicalPathfinder.cpp:477). A chunk is dirty iff any navcell inside it is set.
+    bool chunk_is_dirty(int ci, int cj) const {
+        if (dirty.blank()) return true;
+        const int x0 = ci * CHUNK_SIZE;
+        const int y0 = cj * CHUNK_SIZE;
+        const int x1 = std::min(x0 + CHUNK_SIZE, res);
+        const int y1 = std::min(y0 + CHUNK_SIZE, res);
+        for (int y = y0; y < y1; ++y)
+            for (int x = x0; x < x1; ++x)
+                if (dirty.at(x, y)) return true;
+        return false;
+    }
+
+    // Flood local regions inside ONE chunk only — factored out of
+    // flood_chunk_regions() so dirty chunks can be re-flooded without
+    // touching clean ones. Mirrors Chunk::InitRegions(ci, cj, grid, passClass)
+    // (HierarchicalPathfinder.cpp:503).
+    void flood_single_chunk(int ci, int cj, uint8_t pass, Grid<uint8_t> &local) {
+        const int x0 = ci * CHUNK_SIZE;
+        const int y0 = cj * CHUNK_SIZE;
+        const int x1 = std::min(x0 + CHUNK_SIZE, res);
+        const int y1 = std::min(y0 + CHUNK_SIZE, res);
+        // Clear stale local labels in this chunk (region ids may be reused).
+        for (int y = y0; y < y1; ++y)
+            for (int x = x0; x < x1; ++x)
+                local.at(x, y) = 0;
+        uint8_t next_r = 1;
+        for (int y = y0; y < y1; ++y) {
+            for (int x = x0; x < x1; ++x) {
+                if (!is_passable_for(x, y, pass) || local.at(x, y) != 0) continue;
+                std::vector<std::pair<int,int>> q;
+                q.emplace_back(x, y);
+                local.at(x, y) = next_r;
+                for (size_t qi = 0; qi < q.size(); ++qi) {
+                    int cx = q[qi].first, cy = q[qi].second;
+                    static const int d[4][2] = {{1,0},{-1,0},{0,1},{0,-1}};
+                    for (const auto &dir : d) {
+                        int nx = cx + dir[0], ny = cy + dir[1];
+                        if (nx < x0 || ny < y0 || nx >= x1 || ny >= y1) continue;
+                        if (!is_passable_for(nx, ny, pass) || local.at(nx, ny) != 0) continue;
+                        local.at(nx, ny) = next_r;
+                        q.emplace_back(nx, ny);
                     }
                 }
+                ++next_r;
             }
         }
+    }
 
+    // Rebuild the global region map over current local labels (union-find +
+    // ComputeNeighbors + UpdateGlobalRegions, HierarchicalPathfinder.cpp:523,
+    // :575, :652). Like 0 A.D., the global flood runs at most once per update
+    // even when only a few chunks were re-flooded (:467).
+    void recompute_global_regions(Grid<uint8_t> &local, std::unordered_map<uint32_t, uint16_t> &global) {
+        global.clear();
+        if (cells.blank()) return;
         std::unordered_map<uint32_t, uint32_t> parent;
         auto findp = [&](uint32_t k) {
             if (!parent.count(k)) parent[k] = k;
@@ -333,34 +416,61 @@ struct NavGrid {
         }
     }
 
-    void rebuild_regions() {
-        flood_chunk_regions(PASS_INFANTRY, chunk_regions_, global_region_map_);
-        flood_chunk_regions(PASS_SHIP, ship_chunk_regions_, ship_region_map_);
+    // HierarchicalPathfinder::Update — re-flood only dirty chunks, then
+    // rebuild the global map once (HierarchicalPathfinder.cpp:440-520).
+    // Returns the number of chunk floods performed (0 when clean).
+    int rebuild_dirty_chunks(uint8_t pass, Grid<uint8_t> &local, std::unordered_map<uint32_t, uint16_t> &global) {
+        int floods = 0;
+        for (int cj = 0; cj < chunks_per_axis_; ++cj)
+            for (int ci = 0; ci < chunks_per_axis_; ++ci) {
+                if (!chunk_is_dirty(ci, cj)) continue;
+                flood_single_chunk(ci, cj, pass, local);
+                ++floods;
+            }
+        recompute_global_regions(local, global);
+        return floods;
+    }
+
+    // HierarchicalPathfinder.cpp:480 — only recompute when dirtinessGrid is set.
+    // Per-chunk: re-floods dirty chunks for both passes plus one global
+    // rebuild each — never a full 64-chunk remesh for a single building.
+    void rebuild_dirty_regions() {
+        if (!regions_ready_) {
+            rebuild_regions();
+            return;
+        }
+        if (!any_dirty()) return;
+        rebuild_dirty_chunks(PASS_INFANTRY, chunk_regions_, global_region_map_);
+        rebuild_dirty_chunks(PASS_SHIP, ship_chunk_regions_, ship_region_map_);
+        rebuild_dirty_chunks(PASS_CAVALRY, cavalry_chunk_regions_, cavalry_region_map_);
         regions_ready_ = true;
         if (!dirty.blank()) dirty.fill(0);
     }
 
-    bool any_dirty() const {
-        if (dirty.blank()) return false;
-        for (uint8_t v : dirty.data)
-            if (v) return true;
-        return false;
-    }
-
-    // HierarchicalPathfinder.cpp:480 — only recompute when dirtinessGrid is set
-    void rebuild_dirty_regions() {
-        if (!regions_ready_ || any_dirty())
-            rebuild_regions();
-    }
 
     uint16_t global_region_at(int cx, int cy, uint8_t pass = PASS_INFANTRY) const {
-        const Grid<uint8_t> &local = (pass == PASS_SHIP) ? ship_chunk_regions_ : chunk_regions_;
-        const auto &gmap = (pass == PASS_SHIP) ? ship_region_map_ : global_region_map_;
-        if (local.blank() || !local.inside(cx, cy)) return 0;
-        uint8_t lr = local.at(cx, cy);
+        const Grid<uint8_t> *local = &chunk_regions_;
+        const auto *gmap = &global_region_map_;
+        if (pass == PASS_SHIP || (pass & PASS_SHIP)) {
+            local = &ship_chunk_regions_;
+            gmap = &ship_region_map_;
+        } else if (pass == PASS_CAVALRY || (pass & PASS_CAVALRY)) {
+            local = &cavalry_chunk_regions_;
+            gmap = &cavalry_region_map_;
+        }
+        if (local->blank() || !local->inside(cx, cy)) return 0;
+        uint8_t lr = local->at(cx, cy);
         if (!lr) return 0;
-        auto it = gmap.find(region_key(cx / CHUNK_SIZE, cy / CHUNK_SIZE, lr));
-        return it == gmap.end() ? 0 : it->second;
+        auto it = gmap->find(region_key(cx / CHUNK_SIZE, cy / CHUNK_SIZE, lr));
+        return it == gmap->end() ? 0 : it->second;
+    }
+
+    uint16_t global_region_cavalry_at(int cx, int cy) const {
+        return global_region_at(cx, cy, PASS_CAVALRY);
+    }
+
+    uint16_t global_region_ship_at(int cx, int cy) const {
+        return global_region_at(cx, cy, PASS_SHIP);
     }
 
     bool reachable(int sx, int sy, int tx, int ty, uint8_t pass = PASS_INFANTRY) const {
@@ -424,12 +534,98 @@ struct NavGrid {
         }
     }
 
-    // Tag water navcells from heightmap. heights is res x res row-major,
-    // with same [-map_half, +map_half] extent. Any navcell whose bilinear-sampled
-    // height < water_h+0.3 becomes NAV_WATER (and dirty=1).
+    // Bilinear height sample matching Simulation::get_terrain_height.
+    float sample_height_bilinear(float wx, float wz, const std::vector<float>& heights, int h_res) const {
+        if (heights.empty() || h_res <= 0) return 0.0f;
+        float fx = (wx + map_half) / (map_half * 2.0f) * static_cast<float>(h_res - 1);
+        float fz = (wz + map_half) / (map_half * 2.0f) * static_cast<float>(h_res - 1);
+        fx = std::clamp(fx, 0.0f, static_cast<float>(h_res - 1));
+        fz = std::clamp(fz, 0.0f, static_cast<float>(h_res - 1));
+        int x0 = static_cast<int>(std::floor(fx));
+        int z0 = static_cast<int>(std::floor(fz));
+        int x1 = std::min(x0 + 1, h_res - 1);
+        int z1 = std::min(z0 + 1, h_res - 1);
+        float tx = fx - static_cast<float>(x0);
+        float tz = fz - static_cast<float>(z0);
+        float h00 = heights[static_cast<size_t>(z0) * static_cast<size_t>(h_res) + static_cast<size_t>(x0)];
+        float h10 = heights[static_cast<size_t>(z0) * static_cast<size_t>(h_res) + static_cast<size_t>(x1)];
+        float h01 = heights[static_cast<size_t>(z1) * static_cast<size_t>(h_res) + static_cast<size_t>(x0)];
+        float h11 = heights[static_cast<size_t>(z1) * static_cast<size_t>(h_res) + static_cast<size_t>(x1)];
+        float h0 = h00 * (1.0f - tx) + h10 * tx;
+        float h1 = h01 * (1.0f - tx) + h11 * tx;
+        return h0 * (1.0f - tz) + h1 * tz;
+    }
+
+    // Computes fractional slope (rise / run) across navcell (cx, cy) using corner height delta.
+    // Mirrors 0 A.D. CTerrain::GetSlopeFixed (source/graphics/Terrain.cpp:306-322).
+    float compute_cell_slope(int cx, int cy, const std::vector<float>& heights, int h_res) const {
+        if (heights.empty() || h_res <= 0 || res <= 0) return 0.0f;
+        const float cell_w = (map_half * 2.0f) / static_cast<float>(res);
+        float min_wx = (static_cast<float>(cx) / static_cast<float>(res)) * (map_half * 2.0f) - map_half;
+        float max_wx = (static_cast<float>(cx + 1) / static_cast<float>(res)) * (map_half * 2.0f) - map_half;
+        float min_wz = (static_cast<float>(cy) / static_cast<float>(res)) * (map_half * 2.0f) - map_half;
+        float max_wz = (static_cast<float>(cy + 1) / static_cast<float>(res)) * (map_half * 2.0f) - map_half;
+
+        float h00 = sample_height_bilinear(min_wx, min_wz, heights, h_res);
+        float h10 = sample_height_bilinear(max_wx, min_wz, heights, h_res);
+        float h01 = sample_height_bilinear(min_wx, max_wz, heights, h_res);
+        float h11 = sample_height_bilinear(max_wx, max_wz, heights, h_res);
+
+        float max_h = std::max(std::max(h00, h10), std::max(h01, h11));
+        float min_h = std::min(std::min(h00, h10), std::min(h01, h11));
+        return (cell_w > 0.0f) ? ((max_h - min_h) / cell_w) : 0.0f;
+    }
+
+    // Computes slopes for all navcells from heightmap, flagging cells exceeding cavalry_max_slope.
+    void compute_slopes_from_heights(const std::vector<float>& heights, int h_res) {
+        if (heights.empty() || h_res <= 0 || res <= 0) return;
+        if (steep_cells_.w != res || steep_cells_.h != res) {
+            steep_cells_.resize(res, res, 0);
+        }
+        for (int y = 0; y < res; ++y) {
+            for (int x = 0; x < res; ++x) {
+                float slope = compute_cell_slope(x, y, heights, h_res);
+                uint8_t steep = (slope > cavalry_max_slope) ? 1 : 0;
+                if (steep_cells_.at(x, y) != steep) {
+                    steep_cells_.at(x, y) = steep;
+                    if (!dirty.blank()) dirty.at(x, y) = 1;
+                }
+            }
+        }
+    }
+
+    void set_slopes_from_heights(const std::vector<float>& heights, int h_res) {
+        compute_slopes_from_heights(heights, h_res);
+    }
+
+    void set_steep(int cx, int cy, bool steep) {
+        if (steep_cells_.blank() || !steep_cells_.inside(cx, cy)) return;
+        uint8_t v = steep ? 1 : 0;
+        if (steep_cells_.at(cx, cy) != v) {
+            steep_cells_.at(cx, cy) = v;
+            if (!dirty.blank()) dirty.at(cx, cy) = 1;
+        }
+    }
+
+    bool is_steep(int cx, int cy) const {
+        if (steep_cells_.blank() || !steep_cells_.inside(cx, cy)) return false;
+        return steep_cells_.at(cx, cy) != 0;
+    }
+
+    void set_cavalry_max_slope(float s) { cavalry_max_slope = s; }
+    float get_cavalry_max_slope() const { return cavalry_max_slope; }
+
+    // Tag water navcells and compute cavalry slopes from heightmap.
+    // heights is res x res row-major with [-map_half, +map_half] extent.
+    // Slopes exceeding cavalry_max_slope are marked in steep_cells_ (PASS_CAVALRY exclusion).
+    // Any navcell whose bilinear-sampled height < water_h+0.3 becomes NAV_WATER (and dirty=1).
     void set_water_from_heights(const std::vector<float>& heights, int res, float water_h) {
         if (heights.empty() || res <= 0) return;
         if (cells.blank()) return;
+
+        // Compute slope steepness for PASS_CAVALRY (independent of water table)
+        compute_slopes_from_heights(heights, res);
+
         // If water_h is sentinel (< -0.5 e.g. -1.0 in Simulation::terrain_water_height_),
         // treat as "no water" — leave grid untouched (matches rms_generator behaviour).
         if (water_h < -0.5f) return;
@@ -440,24 +636,7 @@ struct NavGrid {
                 // Navcell center in world
                 float wx = ((static_cast<float>(x) + 0.5f) / static_cast<float>(this->res)) * (map_half * 2.0f) - map_half;
                 float wz = ((static_cast<float>(y) + 0.5f) / static_cast<float>(this->res)) * (map_half * 2.0f) - map_half;
-                // Map to height sample (bilinear)
-                float fx = (wx + map_half) / (map_half * 2.0f) * static_cast<float>(res - 1);
-                float fz = (wz + map_half) / (map_half * 2.0f) * static_cast<float>(res - 1);
-                fx = std::clamp(fx, 0.0f, static_cast<float>(res - 1));
-                fz = std::clamp(fz, 0.0f, static_cast<float>(res - 1));
-                int x0 = static_cast<int>(std::floor(fx));
-                int z0 = static_cast<int>(std::floor(fz));
-                int x1 = std::min(x0 + 1, res - 1);
-                int z1 = std::min(z0 + 1, res - 1);
-                float tx = fx - static_cast<float>(x0);
-                float tz = fz - static_cast<float>(z0);
-                float h00 = heights[static_cast<size_t>(z0) * static_cast<size_t>(res) + static_cast<size_t>(x0)];
-                float h10 = heights[static_cast<size_t>(z0) * static_cast<size_t>(res) + static_cast<size_t>(x1)];
-                float h01 = heights[static_cast<size_t>(z1) * static_cast<size_t>(res) + static_cast<size_t>(x0)];
-                float h11 = heights[static_cast<size_t>(z1) * static_cast<size_t>(res) + static_cast<size_t>(x1)];
-                float h0 = h00 * (1.0f - tx) + h10 * tx;
-                float h1 = h01 * (1.0f - tx) + h11 * tx;
-                float h = h0 * (1.0f - tz) + h1 * tz;
+                float h = sample_height_bilinear(wx, wz, heights, res);
                 if (h < thresh) {
                     if (cells.at(x, y) != NAV_WATER) {
                         cells.at(x, y) = NAV_WATER;
@@ -556,7 +735,7 @@ inline bool NavGrid::find_path(float sx, float sz, float tx, float tz, WaypointP
     // connected to the start, snap to the nearest navcell in the start global region
     // instead of failing (0 A.D. never leaves the unit with an island goal).
     {
-        const uint8_t rpass = (pass == PASS_SHIP) ? PASS_SHIP : PASS_INFANTRY;
+        const uint8_t rpass = pass;
         if (regions_ready_ && !reachable(scx, scy, tcx, tcy, rpass)) {
             const uint16_t want = global_region_at(scx, scy, rpass);
             int best_d = 1 << 30;

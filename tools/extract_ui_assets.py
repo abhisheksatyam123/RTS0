@@ -143,6 +143,11 @@ TEXTURE_MAPPING = {
     "art/textures/ui/session/icons/formations/phalanx.png.cached.dds": "textures/ui/formations/phalanx.png",
     "art/textures/ui/session/icons/formations/wedge.png.cached.dds": "textures/ui/formations/wedge.png",
     "art/textures/ui/session/icons/formations/scatter.png.cached.dds": "textures/ui/formations/scatter.png",
+    # Formation buttons 7-12 (main_node.cpp K2: LineOpen/ColOpen/Flank/BattleLine)
+    "art/textures/ui/session/icons/formations/line_open.png.cached.dds": "textures/ui/formations/line_open.png",
+    "art/textures/ui/session/icons/formations/column_open.png.cached.dds": "textures/ui/formations/column_open.png",
+    "art/textures/ui/session/icons/formations/flank.png.cached.dds": "textures/ui/formations/flank.png",
+    "art/textures/ui/session/icons/formations/battle_line.png.cached.dds": "textures/ui/formations/battle_line.png",
 
     # Phase emblems (session HUD)
     "art/textures/ui/session/portraits/technologies/village_phase.png.cached.dds": "textures/ui/phases/village.png",
@@ -158,6 +163,13 @@ TEXTURE_MAPPING = {
     "art/textures/ui/session/icons/heal.png.cached.dds": "textures/ui/icons/heal.png",
     "art/textures/ui/session/icons/health_fg.png.cached.dds": "textures/ui/icons/health_fg.png",
     "art/textures/ui/session/icons/health_bg.png.cached.dds": "textures/ui/icons/health_bg.png",
+
+    # Inspector stat bar icons (0 A.D. session icon parity)
+    "art/textures/ui/session/icons/capture_bar.png.cached.dds": "textures/ui/icons/insp_capture_bar.png",
+    "art/textures/ui/session/icons/experience_fg.png.cached.dds": "textures/ui/icons/insp_experience_fg.png",
+    "art/textures/ui/session/icons/health_bg.png.cached.dds": "textures/ui/icons/insp_health_bg.png",
+    "art/textures/ui/session/icons/health_fg.png.cached.dds": "textures/ui/icons/insp_health_fg.png",
+    "art/textures/ui/session/icons/stamina_fg.png.cached.dds": "textures/ui/icons/insp_stamina_fg.png",
 
     # Emblems (all playable civs)
     "art/textures/ui/session/portraits/emblems/emblem_athenians.png.cached.dds": "textures/ui/emblems/athenians.png",
@@ -217,23 +229,88 @@ TEXTURE_MAPPING = {
     "art/textures/ui/session/portraits/structures/corral.png.cached.dds": "textures/ui/portraits/corral.png",
 }
 
-AUDIO_MAPPING = {
-    # Voice Lines (Greek civ female & male)
-    "audio/voice/greek/civ/civ_female_what_is_it_1.ogg": "sounds/voice/select_1.ogg",
-    "audio/voice/greek/civ/civ_female_what_is_it_2.ogg": "sounds/voice/select_2.ogg",
-    "audio/voice/greek/civ/civ_female_my_lord_1.ogg": "sounds/voice/select_3.ogg",
-    "audio/voice/greek/civ/civ_female_walk_1.ogg": "sounds/voice/move_1.ogg",
-    "audio/voice/greek/civ/civ_female_march_1.ogg": "sounds/voice/move_2.ogg",
-    "audio/voice/greek/civ/civ_female_attack_1.ogg": "sounds/voice/attack_1.ogg",
-    "audio/voice/greek/civ/civ_male_attack_10.ogg": "sounds/voice/attack_2.ogg",
-    "audio/voice/greek/civ/civ_female_gather_together_1.ogg": "sounds/voice/gather_1.ogg",
-    "audio/voice/greek/civ/civ_female_build_1.ogg": "sounds/voice/build_1.ogg",
-    "audio/voice/greek/civ/civ_female_repair_1.ogg": "sounds/voice/repair_1.ogg",
+def dump_hud_textures(zf, assets_dir):
+    names = set(zf.namelist())
+    for zip_entry, out_rel in TEXTURE_MAPPING.items():
+        out_path = os.path.join(assets_dir, out_rel)
+        os.makedirs(os.path.dirname(out_path), exist_ok=True)
+        if zip_entry not in names:
+            print(f"  [WARN] Entry not in zip: {zip_entry}")
+            continue
+        try:
+            img = decode_dds(zf.read(zip_entry))
+            img.save(out_path, format="PNG")
+            print(f"  [OK] Texture: {out_rel} ({img.width}x{img.height})")
+        except Exception as e:
+            print(f"  [ERR] Texture decode failed {zip_entry}: {e}")
 
-    # Interface & Alarms
-    "audio/interface/alarm/alarm_attacked_gaia_01.ogg": "sounds/alarm_under_attack.ogg",
-    "audio/interface/alarm/alarm_defeated_ally.ogg": "sounds/alarm_defeated.ogg",
-}
+    # Inspector icon convenience aliases
+    insp_aliases = [
+        ("art/textures/ui/session/icons/health_fg.png.cached.dds", "textures/ui/icons/insp_health.png"),
+        ("art/textures/ui/session/icons/capture_bar.png.cached.dds", "textures/ui/icons/insp_capture.png"),
+        ("art/textures/ui/session/icons/experience_fg.png.cached.dds", "textures/ui/icons/insp_experience.png"),
+        ("art/textures/ui/session/icons/experience_fg.png.cached.dds", "textures/ui/icons/insp_xp.png"),
+        ("art/textures/ui/session/icons/stamina_fg.png.cached.dds", "textures/ui/icons/insp_stamina.png"),
+    ]
+    for zip_entry, out_rel in insp_aliases:
+        if zip_entry not in names:
+            continue
+        try:
+            img = decode_dds(zf.read(zip_entry))
+            out_path = os.path.join(assets_dir, out_rel)
+            os.makedirs(os.path.dirname(out_path), exist_ok=True)
+            img.save(out_path, format="PNG")
+            print(f"  [OK] Texture: {out_rel} ({img.width}x{img.height})")
+        except Exception as e:
+            print(f"  [ERR] Texture decode failed {zip_entry}: {e}")
+
+    # Ship formation glyphs: 0 A.D. ships no dedicated ship-formation icons
+    # (public.zip has only land formations) -> reuse line/column closed.
+    # Drives main_node.cpp ship_line/ship_column buttons.
+    ship_formations = {
+        "art/textures/ui/session/icons/formations/line_closed.png.cached.dds":
+            "textures/ui/formations/ship_line.png",
+        "art/textures/ui/session/icons/formations/column_closed.png.cached.dds":
+            "textures/ui/formations/ship_column.png",
+    }
+    for zip_entry, out_rel in ship_formations.items():
+        if zip_entry not in names:
+            print(f"  [WARN] Entry not in zip: {zip_entry}")
+            continue
+        try:
+            img = decode_dds(zf.read(zip_entry))
+            out_path = os.path.join(assets_dir, out_rel)
+            os.makedirs(os.path.dirname(out_path), exist_ok=True)
+            img.save(out_path, format="PNG")
+            print(f"  [OK] Texture: {out_rel} ({img.width}x{img.height})")
+        except Exception as e:
+            print(f"  [ERR] Texture decode failed {zip_entry}: {e}")
+
+
+def dump_session_archive(zf, assets_dir):
+    """Remaining art/textures/ui/session/**/*.cached.dds -> textures/ui/archive/."""
+    prefix = "art/textures/ui/session/"
+    mapped = set(TEXTURE_MAPPING)
+    ok = skip = 0
+    for name in zf.namelist():
+        if not name.startswith(prefix) or not name.endswith(".cached.dds"):
+            continue
+        if name in mapped:
+            continue
+        rel = name[len(prefix):-len(".cached.dds")]
+        stem, ext = os.path.splitext(rel)
+        out_rel = "textures/ui/archive/" + stem + ".png"
+        out_path = os.path.join(assets_dir, out_rel)
+        os.makedirs(os.path.dirname(out_path), exist_ok=True)
+        try:
+            img = decode_dds(zf.read(name))
+            img.save(out_path, format="PNG")
+            ok += 1
+        except Exception as e:
+            skip += 1
+            print(f"  [ERR] archive texture {name}: {e}")
+    print(f"  [OK] session archive {ok} pngs ({skip} failed)")
+
 
 def main():
     if not os.path.exists(ZIP_PATH):
@@ -242,34 +319,10 @@ def main():
 
     print(f"[EXTRACT] Reading from {ZIP_PATH}...")
     with zipfile.ZipFile(ZIP_PATH, 'r') as z:
-        # 1. Extract Textures
-        for zip_entry, out_rel in TEXTURE_MAPPING.items():
-            out_path = os.path.join(ASSETS_DIR, out_rel)
-            os.makedirs(os.path.dirname(out_path), exist_ok=True)
-            if zip_entry in z.namelist():
-                raw = z.read(zip_entry)
-                try:
-                    img = decode_dds(raw)
-                    img.save(out_path, format="PNG")
-                    print(f"  [OK] Texture: {out_rel} ({img.width}x{img.height})")
-                except Exception as e:
-                    print(f"  [ERR] Texture decode failed {zip_entry}: {e}")
-            else:
-                print(f"  [WARN] Entry not in zip: {zip_entry}")
+        dump_hud_textures(z, ASSETS_DIR)
+        dump_session_archive(z, ASSETS_DIR)
 
-        # 2. Extract Audio
-        for zip_entry, out_rel in AUDIO_MAPPING.items():
-            out_path = os.path.join(ASSETS_DIR, out_rel)
-            os.makedirs(os.path.dirname(out_path), exist_ok=True)
-            if zip_entry in z.namelist():
-                raw = z.read(zip_entry)
-                with open(out_path, "wb") as f:
-                    f.write(raw)
-                print(f"  [OK] Audio: {out_rel} ({len(raw)} bytes)")
-            else:
-                print(f"  [WARN] Entry not in zip: {zip_entry}")
-
-    print("[EXTRACT] Done extracting UI & Audio assets!")
+    print("[EXTRACT] Done extracting UI textures (audio is tools/extract_media.py)")
 
 if __name__ == "__main__":
     main()

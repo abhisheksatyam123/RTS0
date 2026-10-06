@@ -60,20 +60,21 @@ bool AnimationController::load_rig(RigType rig) {
 			break;
 		}
 		case RigType::Mounted: {
-			// Horse mount rig
+			// Horse mount rig. 0AD: public.zip art/variants/horse/* (idle/walk/run),
+			// source/graphics/UnitAnimation.cpp:113 SetAnimationState.
 			load_clip(AnimState::Idle, "horse_idle");
 			load_clip(AnimState::Walk, "horse_walk");
 			load_clip(AnimState::Run, "horse_run");
-			load_clip(AnimState::Attack, "horse_idle");
+			load_clip(AnimState::Attack, "horse_attack");
 			load_clip(AnimState::Death, "horse_death");
 			skeleton.load_xml("horse");
 
-			// Mounted rider rig
+			// Mounted rider rig (cavalry_*; run folds to walk via alias table).
 			mount_rider_controller = std::make_unique<AnimationController>();
 			mount_rider_controller->rig_type = RigType::Biped;
 			mount_rider_controller->load_clip(AnimState::Idle, "cavalry_idle");
 			mount_rider_controller->load_clip(AnimState::Walk, "cavalry_walk");
-			mount_rider_controller->load_clip(AnimState::Run, "cavalry_walk");
+			mount_rider_controller->load_clip(AnimState::Run, "cavalry_run");
 			mount_rider_controller->load_clip(AnimState::Attack, "cavalry_attack");
 			mount_rider_controller->load_clip(AnimState::Death, "cavalry_death");
 			mount_rider_controller->get_skeleton().load_xml("biped");
@@ -97,9 +98,10 @@ bool AnimationController::load_rig(RigType rig) {
 			break;
 		}
 		case RigType::SiegeRam: {
+			// 0AD: public.zip art/variants/*ram*/idle+move; ram_run folds to ram_walk.
 			load_clip(AnimState::Idle, "ram_idle");
 			load_clip(AnimState::Walk, "ram_walk");
-			load_clip(AnimState::Run, "ram_walk");
+			load_clip(AnimState::Run, "ram_run");
 			load_clip(AnimState::Attack, "ram_attack");
 			load_clip(AnimState::Death, "ram_death");
 			break;
@@ -108,12 +110,38 @@ bool AnimationController::load_rig(RigType rig) {
 	return !anims.empty();
 }
 
+// Unit-type -> clip resolution table (canonical clip per AnimState).
+// Every entry below resolves to a .psa on disk, either directly or via the
+// alias table in psa_loader.cpp (kPsaAliasTable).
+// 0AD refs: source/graphics/UnitAnimation.h:60 + UnitAnimation.cpp:113
+//   (SetAnimationState state/action model), public.zip
+//   art/variants/biped/attack_ranged_archer.xml (ranged attack),
+//   art/variants/biped/attack_melee_female.xml (female melee),
+//   art/variants/biped/death_infantry.xml (infantry Death).
+// Required coverage: citizen, spearman, archer, cavalry, trader, ship each
+// resolve idle/walk/run/attack/death.
 bool AnimationController::load(const std::string& base) {
-	if (base == "biped" || base == "swordsman" || base == "spearman") {
+	if (base == "biped" || base == "swordsman" || base == "spearman" ||
+			base == "carnyx" || base == "hero") {
 		return load_rig(RigType::Biped);
-	} else if (base == "archer") {
+	} else if (base == "archer" || base == "archer_maiden") {
 		return load_rig(RigType::Archer);
-	} else if (base == "villager" || base == "citizen") {
+	} else if (base == "villager" || base == "citizen" || base == "female_citizen") {
+		if (base == "female_citizen") {
+			anims.clear();
+			mount_rider_controller.reset();
+			rig_type = RigType::Villager;
+			load_clip(AnimState::Idle, "female_idle");
+			load_clip(AnimState::Walk, "female_walk");
+			load_clip(AnimState::Run, "female_run");
+			load_clip(AnimState::Attack, "female_attack");
+			load_clip(AnimState::Gather, "gather_wood");
+			load_clip(AnimState::Build, "citizen_build");
+			load_clip(AnimState::Carry, "carry_wood");
+			load_clip(AnimState::Death, "female_death");
+			skeleton.load_xml("biped");
+			return !anims.empty();
+		}
 		return load_rig(RigType::Villager);
 	} else if (base == "mounted" || base == "cavalry" || base == "horse") {
 		return load_rig(RigType::Mounted);
@@ -122,15 +150,88 @@ bool AnimationController::load(const std::string& base) {
 		mount_rider_controller.reset();
 		load_clip(AnimState::Idle, "trader_idle");
 		load_clip(AnimState::Walk, "trader_walk");
-		load_clip(AnimState::Run, "trader_walk");
+		load_clip(AnimState::Run, "trader_run");
+		load_clip(AnimState::Attack, "trader_attack");
 		load_clip(AnimState::Death, "trader_death");
+		skeleton.load_xml("biped");
+		return !anims.empty();
+	} else if (base == "cart_trader" || base == "pers_trader") {
+		anims.clear();
+		mount_rider_controller.reset();
+		load_clip(AnimState::Idle, base + "_idle");
+		load_clip(AnimState::Walk, base + "_walk");
+		load_clip(AnimState::Run, base + "_run");
+		load_clip(AnimState::Attack, base + "_attack");
+		load_clip(AnimState::Death, base + "_death");
+		skeleton.load_xml("camel");
+		return !anims.empty();
+	} else if (base == "maur_trader") {
+		anims.clear();
+		mount_rider_controller.reset();
+		load_clip(AnimState::Idle, "maur_trader_idle");
+		load_clip(AnimState::Walk, "maur_trader_walk");
+		load_clip(AnimState::Run, "maur_trader_run");
+		load_clip(AnimState::Attack, "maur_trader_attack");
+		load_clip(AnimState::Death, "maur_trader_death");
+		skeleton.load_xml("maur_ch");
 		return !anims.empty();
 	} else if (base == "fauna" || base == "deer") {
 		return load_rig(RigType::Fauna);
+	} else if (base == "sheep") {
+		anims.clear();
+		mount_rider_controller.reset();
+		load_clip(AnimState::Idle, "sheep_idle");
+		load_clip(AnimState::Walk, "sheep_walk");
+		load_clip(AnimState::Run, "sheep_run");
+		load_clip(AnimState::Attack, "sheep_attack");
+		load_clip(AnimState::Death, "sheep_death");
+		skeleton.load_xml("sheep");
+		return !anims.empty();
+	} else if (base == "boar") {
+		anims.clear();
+		mount_rider_controller.reset();
+		load_clip(AnimState::Idle, "boar_idle");
+		load_clip(AnimState::Walk, "boar_walk");
+		load_clip(AnimState::Run, "boar_run");
+		load_clip(AnimState::Attack, "boar_attack");
+		load_clip(AnimState::Death, "boar_death");
+		skeleton.load_xml("boar");
+		return !anims.empty();
+	} else if (base == "wolf" || base == "war_dog" || base == "dog") {
+		anims.clear();
+		mount_rider_controller.reset();
+		const std::string prefix = (base == "wolf") ? "wolf" : (base == "war_dog" ? "war_dog" : "dog");
+		load_clip(AnimState::Idle, prefix + "_idle");
+		load_clip(AnimState::Walk, prefix + "_walk");
+		load_clip(AnimState::Run, prefix + "_run");
+		load_clip(AnimState::Attack, prefix + "_attack");
+		load_clip(AnimState::Death, prefix + "_death");
+		skeleton.load_xml(base == "wolf" ? "wolf" : "mastiff");
+		return !anims.empty();
 	} else if (base == "healer") {
 		return load_rig(RigType::Healer);
 	} else if (base == "ram" || base == "siege_ram") {
 		return load_rig(RigType::SiegeRam);
+	} else if (base == "bolt_shooter") {
+		anims.clear();
+		mount_rider_controller.reset();
+		load_clip(AnimState::Idle, "bolt_shooter_idle");
+		load_clip(AnimState::Walk, "bolt_shooter_walk");
+		load_clip(AnimState::Run, "bolt_shooter_run");
+		load_clip(AnimState::Attack, "bolt_shooter_attack");
+		load_clip(AnimState::Death, "bolt_shooter_death");
+		skeleton.load_xml("oxybeles");
+		return !anims.empty();
+	} else if (base == "catapult") {
+		anims.clear();
+		mount_rider_controller.reset();
+		load_clip(AnimState::Idle, "catapult_idle");
+		load_clip(AnimState::Walk, "catapult_walk");
+		load_clip(AnimState::Run, "catapult_run");
+		load_clip(AnimState::Attack, "catapult_attack");
+		load_clip(AnimState::Death, "catapult_death");
+		skeleton.load_xml("lithobolos");
+		return !anims.empty();
 	} else if (base == "camel") {
 		anims.clear();
 		mount_rider_controller.reset();
@@ -141,26 +242,27 @@ bool AnimationController::load(const std::string& base) {
 		load_clip(AnimState::Death, "camel_death");
 		skeleton.load_xml("camel");
 		return !anims.empty();
-	} else if (base == "elephant") {
+	} else if (base == "elephant" || base == "worker_elephant") {
 		anims.clear();
 		mount_rider_controller.reset();
-		load_clip(AnimState::Idle, "elephant_idle");
-		load_clip(AnimState::Walk, "elephant_walk");
-		load_clip(AnimState::Run, "elephant_run");
-		load_clip(AnimState::Attack, "elephant_attack");
-		load_clip(AnimState::Death, "elephant_death");
+		const std::string prefix = base; // worker_elephant_* folds via alias table
+		load_clip(AnimState::Idle, prefix + "_idle");
+		load_clip(AnimState::Walk, prefix + "_walk");
+		load_clip(AnimState::Run, prefix + "_run");
+		load_clip(AnimState::Attack, prefix + "_attack");
+		load_clip(AnimState::Death, prefix + "_death");
 		skeleton.load_xml("elephant");
 		return !anims.empty();
-	} else if (base == "fishing_boat" || base == "rowing") {
+	} else if (base == "fishing_boat" || base == "rowing" || base == "ship") {
 		anims.clear();
 		mount_rider_controller.reset();
 		load_clip(AnimState::Idle, "rowing_idle");
 		load_clip(AnimState::Walk, "rowing_walk");
-		load_clip(AnimState::Run, "rowing_walk");
+		load_clip(AnimState::Run, "rowing_run");
 		load_clip(AnimState::Gather, "rowing_idle");
-		load_clip(AnimState::Attack, "rowing_idle");
+		load_clip(AnimState::Attack, "rowing_attack");
 		load_clip(AnimState::Carry, "rowing_walk");
-		load_clip(AnimState::Death, "rowing_idle");
+		load_clip(AnimState::Death, "rowing_death");
 		skeleton.load_xml("rowing_boat");
 		return !anims.empty();
 	} else if (base == "trireme" || base == "warship") {
@@ -168,32 +270,36 @@ bool AnimationController::load(const std::string& base) {
 		mount_rider_controller.reset();
 		load_clip(AnimState::Idle, "trireme_idle");
 		load_clip(AnimState::Walk, "trireme_walk");
-		load_clip(AnimState::Run, "trireme_walk");
-		load_clip(AnimState::Attack, "trireme_idle");
-		load_clip(AnimState::Death, "trireme_idle");
+		load_clip(AnimState::Run, "trireme_run");
+		load_clip(AnimState::Attack, "trireme_attack");
+		load_clip(AnimState::Death, "trireme_death");
 		skeleton.load_xml("ship_sail");
 		return !anims.empty();
 	} else if (base == "merchant" || base == "merchant_ship") {
 		anims.clear();
 		mount_rider_controller.reset();
-		load_clip(AnimState::Idle, "merchant_sail_idle");
-		load_clip(AnimState::Walk, "merchant_sail_walk");
-		load_clip(AnimState::Run, "merchant_sail_run");
-		load_clip(AnimState::Death, "merchant_sail_idle");
+		const std::string prefix = (base == "merchant_ship") ? "merchant_ship" : "merchant_sail";
+		load_clip(AnimState::Idle, prefix + "_idle");
+		load_clip(AnimState::Walk, prefix + "_walk");
+		load_clip(AnimState::Run, prefix + "_run");
+		load_clip(AnimState::Attack, prefix + "_attack");
+		load_clip(AnimState::Death, prefix + "_death");
 		skeleton.load_xml("celt_sail");
 		return !anims.empty();
-	} else if (base == "chariot") {
+	} else if (base == "chariot" || base == "scythed_chariot") {
 		anims.clear();
 		mount_rider_controller.reset();
-		load_clip(AnimState::Idle, "chariot_idle");
-		load_clip(AnimState::Walk, "chariot_walk");
-		load_clip(AnimState::Run, "chariot_walk");
-		load_clip(AnimState::Death, "chariot_death");
+		const std::string prefix = base; // scythed_chariot_* folds via alias table
+		load_clip(AnimState::Idle, prefix + "_idle");
+		load_clip(AnimState::Walk, prefix + "_walk");
+		load_clip(AnimState::Run, base == "chariot" ? "chariot_run" : prefix + "_run");
+		load_clip(AnimState::Attack, prefix + "_attack");
+		load_clip(AnimState::Death, prefix + "_death");
 		skeleton.load_xml("chariot");
 		return !anims.empty();
 	}
 
-	// Try loading default biped clips prefixed by base
+	// Try loading default biped clips prefixed by base (aliases cover unknowns).
 	load_clip(AnimState::Idle, base + "_idle");
 	load_clip(AnimState::Walk, base + "_walk");
 	load_clip(AnimState::Run, base + "_run");

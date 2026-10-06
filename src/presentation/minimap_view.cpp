@@ -7,10 +7,13 @@ using namespace godot;
 
 void RtsoMiniMapView::_bind_methods() {
 	ADD_SIGNAL(MethodInfo("minimap_clicked", PropertyInfo(Variant::VECTOR2, "world_pos")));
+	ADD_SIGNAL(MethodInfo("flare_requested", PropertyInfo(Variant::VECTOR2, "world_pos")));
 	ClassDB::bind_method(D_METHOD("add_ping", "world_pos", "color"), &RtsoMiniMapView::add_ping, DEFVAL(Color(1.0f, 0.85f, 0.2f)));
 	ClassDB::bind_method(D_METHOD("toggle_territory"), &RtsoMiniMapView::toggle_territory);
 	ClassDB::bind_method(D_METHOD("toggle_resources"), &RtsoMiniMapView::toggle_resources);
 	ClassDB::bind_method(D_METHOD("toggle_fow"), &RtsoMiniMapView::toggle_fow);
+	ClassDB::bind_method(D_METHOD("cycle_shroud"), &RtsoMiniMapView::cycle_shroud);
+	ClassDB::bind_method(D_METHOD("toggle_diplomacy"), &RtsoMiniMapView::toggle_diplomacy);
 }
 
 RtsoMiniMapView::RtsoMiniMapView() {
@@ -70,8 +73,10 @@ void RtsoMiniMapView::_gui_input(const Ref<InputEvent> &event) {
 			emit_signal("minimap_clicked", Vector2(wx, wz));
 			accept_event();
 		} else if (mb->get_button_index() == MOUSE_BUTTON_RIGHT && mb->is_pressed()) {
-			// Right-click on minimap adds tactical ping!
+			// Right-click on minimap adds tactical ping + broadcasts a flare
+			// to session peers (main_node handles flare_requested -> NMT_CHAT).
 			add_ping(Vector2(wx, wz), Color(1.0f, 0.4f, 0.2f));
+			emit_signal("flare_requested", Vector2(wx, wz));
 			accept_event();
 		}
 	}
@@ -103,6 +108,17 @@ void RtsoMiniMapView::_draw() {
 		return Vector2(nx * sz.x, nz * sz.y);
 	};
 
+	// Diplomacy palette (0 A.D. DiplomacyDialog stance -> minimap color):
+	// stance toward entity team from sim->get_diplomacy (simulation.h:332,
+	// DIPLO_ALLY=0/DIPLO_NEUTRAL=1/DIPLO_ENEMY=2, simulation.h:328).
+	auto diplo_color = [&](uint8_t team, const Color &fallback) -> Color {
+		if (!show_diplo_palette || team == 0 || !sim) return fallback;
+		uint8_t st = sim->get_diplomacy(team);
+		if (st == rtso::Simulation::DIPLO_ALLY) return Color(0.30f, 0.90f, 0.45f);
+		if (st == rtso::Simulation::DIPLO_NEUTRAL) return Color(0.95f, 0.80f, 0.25f);
+		return fallback; // enemy keeps the hostile red
+	};
+
 	const uint8_t *fow = sim->fow_grid();
 	auto get_fow_state = [&](float x, float z) -> uint8_t {
 		if (!fow) return rtso::Simulation::FOW_VISIBLE;
@@ -110,6 +126,46 @@ void RtsoMiniMapView::_draw() {
 		int cz = std::clamp((int)((z + half_map) / (half_map * 2.0f) * rtso::Simulation::FOW_GRID), 0, rtso::Simulation::FOW_GRID - 1);
 		return fow[cz * rtso::Simulation::FOW_GRID + cx];
 	};
+
+	// 3-Tier Fog of War shroud (Unexplored black, Explored fog 40%, Visible 100%)
+	// matching 0 A.D.'s LOS bitmap (visible=255 / explored=127 / unexplored=0,
+	// graphics/LOSTexture.cpp:443-449 composited by MiniMapTexture.cpp:523).
+	// Draw order encodes the shroud state (see ShroudMode in minimap_view.h):
+	//   SHROUD_ON      -> drawn AFTER entities, masking them (original behaviour)
+	//   SHROUD_TERRAIN -> drawn BEFORE entities: shroud hits the terrain layer only
+	//   SHROUD_OFF     -> not drawn at all (and no entity masking)
+	auto draw_shroud = [&]() {
+		if (!fow) return;
+		float cell_w = sz.x / (float)rtso::Simulation::FOW_GRID;
+		float cell_h = sz.y / (float)rtso::Simulation::FOW_GRID;
+
+		const Color black_shroud(0.03f, 0.04f, 0.06f, 1.0f);  // 100% black unexplored
+		const Color fog_shroud(0.01f, 0.02f, 0.04f, 0.40f);    // 40% explored fog
+
+		for (int z = 0; z < rtso::Simulation::FOW_GRID; ++z) {
+			int x = 0;
+			while (x < rtso::Simulation::FOW_GRID) {
+				uint8_t st = fow[z * rtso::Simulation::FOW_GRID + x];
+				if (st == rtso::Simulation::FOW_VISIBLE) {
+					x++;
+					continue;
+				}
+				int run_start = x;
+				while (x < rtso::Simulation::FOW_GRID && fow[z * rtso::Simulation::FOW_GRID + x] == st) {
+					x++;
+				}
+				int run_len = x - run_start;
+				Color col = (st == rtso::Simulation::FOW_UNEXPLORED) ? black_shroud : fog_shroud;
+				draw_rect(Rect2(run_start * cell_w, z * cell_h, run_len * cell_w + 0.5f, cell_h + 0.5f), col, true);
+			}
+		}
+	};
+
+	// Terrain-only shroud pass (entities are drawn on top, unaffected).
+	if (shroud_mode == SHROUD_TERRAIN) draw_shroud();
+
+	// Entity masking by shroud is active only in the normal (SHROUD_ON) state.
+	const bool mask_entities = (shroud_mode == SHROUD_ON);
 
 	// 1. Smoothed Territory Influence Outlines (0 A.D. Territory System)
 	if (show_territory) {
@@ -137,7 +193,7 @@ void RtsoMiniMapView::_draw() {
 		for (size_t i = 0; i < res.count; ++i) {
 			if (!res.alive[i] || res.amount[i] <= 0) continue;
 			uint8_t f_state = get_fow_state(res.x[i], res.z[i]);
-			if (show_fow && f_state == rtso::Simulation::FOW_UNEXPLORED) continue;
+			if (mask_entities && f_state == rtso::Simulation::FOW_UNEXPLORED) continue;
 
 			Vector2 pos = map_to_mini(res.x[i], res.z[i]);
 			Color col = Color(0.2f, 0.8f, 0.25f, 0.85f); // Wood
@@ -145,7 +201,7 @@ void RtsoMiniMapView::_draw() {
 			else if (res.type[i] == rtso::RES_STONE) col = Color(0.70f, 0.70f, 0.78f, 0.85f); // Stone
 			else if (res.type[i] == rtso::RES_FOOD) col = Color(0.95f, 0.45f, 0.2f, 0.85f); // Food
 
-			if (show_fow && f_state == rtso::Simulation::FOW_EXPLORED) {
+			if (mask_entities && f_state == rtso::Simulation::FOW_EXPLORED) {
 				col.a *= 0.55f;
 			}
 			draw_rect(Rect2(pos - Vector2(1.5f, 1.5f), Vector2(3.0f, 3.0f)), col, true);
@@ -155,7 +211,7 @@ void RtsoMiniMapView::_draw() {
 	// 3. Draw Buildings
 	for (const auto &b : sim->buildings()) {
 		uint8_t f_state = get_fow_state(b.x, b.z);
-		if (show_fow && b.team != 0 && f_state == rtso::Simulation::FOW_UNEXPLORED) continue;
+		if (mask_entities && b.team != 0 && f_state == rtso::Simulation::FOW_UNEXPLORED) continue;
 
 		Vector2 pos = map_to_mini(b.x, b.z);
 		Color col = Color(0.7f, 0.7f, 0.7f);
@@ -174,9 +230,10 @@ void RtsoMiniMapView::_draw() {
 			col = Color(0.75f, 0.55f, 0.35f);
 		}
 
-		if (show_fow && f_state == rtso::Simulation::FOW_EXPLORED && b.team != 0) {
+		if (mask_entities && f_state == rtso::Simulation::FOW_EXPLORED && b.team != 0) {
 			col.a *= 0.55f;
 		}
+		col = diplo_color(b.team, col);
 		draw_rect(Rect2(pos - Vector2(box_sz * 0.5f, box_sz * 0.5f), Vector2(box_sz, box_sz)), col, true);
 	}
 
@@ -185,42 +242,20 @@ void RtsoMiniMapView::_draw() {
 	for (size_t i = 0; i < units.count; ++i) {
 		if (!units.alive[i]) continue;
 		uint8_t f_state = get_fow_state(units.pos_x[i], units.pos_z[i]);
-		if (show_fow && units.team[i] != 0 && f_state != rtso::Simulation::FOW_VISIBLE) {
+		if (mask_entities && units.team[i] != 0 && f_state != rtso::Simulation::FOW_VISIBLE) {
 			continue; // Enemy units invisible outside direct LOS
 		}
 
 		Vector2 pos = map_to_mini(units.pos_x[i], units.pos_z[i]);
-		Color col = (units.team[i] == 0) ? Color(0.25f, 0.65f, 1.0f) : Color(0.95f, 0.25f, 0.2f);
+		Color col = diplo_color(units.team[i],
+				(units.team[i] == 0) ? Color(0.25f, 0.65f, 1.0f) : Color(0.95f, 0.25f, 0.2f));
 		float rad = (units.unit_type[i] == rtso::UNIT_CAVALRY || units.unit_type[i] == rtso::UNIT_TRADER) ? 3.0f : 2.0f;
 		draw_rect(Rect2(pos.x - rad * 0.5f, pos.y - rad * 0.5f, rad, rad), col, true);
 	}
 
-	// 5. 3-Tier Fog of War Shroud (Unexplored black, Explored fog 40%, Visible 100%)
-	if (show_fow && fow) {
-		float cell_w = sz.x / (float)rtso::Simulation::FOW_GRID;
-		float cell_h = sz.y / (float)rtso::Simulation::FOW_GRID;
-
-		const Color black_shroud(0.03f, 0.04f, 0.06f, 1.0f);  // 100% black unexplored
-		const Color fog_shroud(0.01f, 0.02f, 0.04f, 0.40f);    // 40% explored fog
-
-		for (int z = 0; z < rtso::Simulation::FOW_GRID; ++z) {
-			int x = 0;
-			while (x < rtso::Simulation::FOW_GRID) {
-				uint8_t st = fow[z * rtso::Simulation::FOW_GRID + x];
-				if (st == rtso::Simulation::FOW_VISIBLE) {
-					x++;
-					continue;
-				}
-				int run_start = x;
-				while (x < rtso::Simulation::FOW_GRID && fow[z * rtso::Simulation::FOW_GRID + x] == st) {
-					x++;
-				}
-				int run_len = x - run_start;
-				Color col = (st == rtso::Simulation::FOW_UNEXPLORED) ? black_shroud : fog_shroud;
-				draw_rect(Rect2(run_start * cell_w, z * cell_h, run_len * cell_w + 0.5f, cell_h + 0.5f), col, true);
-			}
-		}
-	}
+	// 5. Normal shroud pass — drawn over the entities so they are masked too
+	// (skipped in terrain-only mode, which drew it as a terrain layer above).
+	if (shroud_mode == SHROUD_ON) draw_shroud();
 
 	// 6. Draw Tactical Map Pings
 	for (const auto &p : pings) {

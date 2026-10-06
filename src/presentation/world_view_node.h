@@ -77,16 +77,21 @@ class RtsoWorldView : public Node3D {
 	MultiMeshInstance3D *tree_c_mmi = nullptr; // palm.glb
 	MultiMeshInstance3D *gold_mmi = nullptr;   // gold_vein.glb
 	MultiMeshInstance3D *stone_mmi = nullptr;  // stone_mine.glb
-	Ref<MultiMesh> tree_a_mm, tree_b_mm, tree_c_mm, gold_mm, stone_mm;
+	MultiMeshInstance3D *food_mmi = nullptr;   // fruit_bush.glb
+	Ref<MultiMesh> tree_a_mm, tree_b_mm, tree_c_mm, gold_mm, stone_mm, food_mm;
 
-	// flying projectiles (arrows + warship bolts)
+	// flying projectiles (arrows + warship bolts + catapult stones)
 	MultiMeshInstance3D *arrow_mmi = nullptr;
 	Ref<MultiMesh> arrow_mm;
 	Ref<CylinderMesh> arrow_mesh;
 	Ref<StandardMaterial3D> arrow_mat;
+	float arrow_scale = 1.0f;
 	MultiMeshInstance3D *bolt_mmi = nullptr;
 	Ref<MultiMesh> bolt_mm;
 	float bolt_scale = 1.0f;
+	MultiMeshInstance3D *stone_proj_mmi = nullptr;
+	Ref<MultiMesh> stone_proj_mm;
+	float stone_proj_scale = 1.0f;
 
 	MeshInstance3D *terrain = nullptr;
 	Ref<PlaneMesh> plane_mesh;

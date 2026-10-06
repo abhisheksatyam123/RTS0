@@ -38,6 +38,9 @@
 #include <godot_cpp/classes/json.hpp>
 #include <godot_cpp/classes/file_access.hpp>
 #include <godot_cpp/classes/input.hpp>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 #include "../simulation/simulation.h"
 #include "../animation/animation_controller.h"
@@ -173,12 +176,33 @@ class RtsoMain : public Node3D {
 
 	bool dragging = false;
 	bool paused_via_menu = false;
+	// Lockstep gate (2026-10-06 OOS fix): host and joiner boot INDEPENDENT
+	// random worlds, so pre-Start lockstep turns hash divergent state (first
+	// live OOS at turn 1) and reset() at asymmetric wall times offsets the
+	// peers' turn counters. Turns/sync stay paused until NMT_GAME_START is
+	// applied here: host sets true in _on_lobby_start_pressed, joiner in
+	// apply_net_game_start; both set false at Host/Join press.
+	bool net_game_started_ = false;
 	float game_speed = 1.0f;
 	double match_elapsed_time = 0.0;
 	size_t last_idle_index = 0;
 
 	Vector2 drag_start;
 	PackedInt32Array selected_ids;
+
+	// Selection input parity (0 A.D. gui/session/input.js):
+	//   Ctrl+0-9 saves / bare 0-9 recalls the selection — input.js:1684 performGroup.
+	//   Shift+right-click stages waypoints (session.queue) — input.js:1345; RTS0's
+	//   UnitView keeps a single target_x/z, so pending points are staged here and
+	//   issued from _process as the active one is reached.
+	//   Double-click selects same-type units on screen — input.js:1022.
+	PackedInt32Array selected_groups[10];
+	struct QueuedWaypoint {
+		std::vector<Vector3> pts; // pts[active] = destination last issued to the sim
+		int active = 0;
+	};
+	std::unordered_map<uint32_t, QueuedWaypoint> waypoint_queue;
+	bool double_click_pending = false;
 
 	double accumulator = 0.0;
 	rtso::AnimationController anim_ctrl;
@@ -196,6 +220,7 @@ public:
 	void _unhandled_input(const Ref<InputEvent> &event) override;
 
 	void _on_minimap_clicked(Vector2 world_pos);
+	void _on_flare_requested(Vector2 world_pos);
 	void _on_idle_worker_clicked();
 	void _on_speed_button_pressed();
 	void _on_menu_button_pressed();
@@ -214,6 +239,10 @@ public:
 	void _on_voice_button_pressed();
 	void _on_lobby_host_pressed();
 	void _on_lobby_join_pressed();
+	void _on_lobby_start_pressed();
+	void apply_net_game_start();
+	void apply_match_settings();
+	void apply_game_setup(const rtso::GameSetupParams &setup);
 	void _on_lobby_refresh_pressed();
 	void refresh_lobby_rooms();
 	bool net_lockstep() const { return net_host_.getRole() != rtso::NetRole::None; }
@@ -227,15 +256,18 @@ public:
 	void toggle_chat();
 	void _on_chat_send_pressed();
 	void _on_chat_text_submitted(const String &text);
+	void _on_chat_channel_btn_pressed(int channel_idx);
 
 	void toggle_diplomacy();
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
 
 	bool load_map(String map_id);
+	bool load_map_seeded(String map_id, uint32_t seed);
 	PackedStringArray get_available_maps() const;
 	void set_civ(int civ_idx);
 	Dictionary get_civ_info(int civ_idx) const;
+	Dictionary get_match_summary() const;
 	bool save_game(String path = "user://saves/quicksave.rts0sav");
 	bool load_game(String path = "user://saves/quicksave.rts0sav");
 	PackedByteArray get_fow_grid() const;
@@ -249,6 +281,7 @@ private:
 	Vector3 get_ground_click_pos(Vector2 mouse_pos) const;
 	std::pair<int, int> mouse_cell(Vector2 mouse_pos) const;
 	void clear_selection();
+	void drop_staged_waypoints();
 	void update_hud();
 	void update_inspector();
 	void update_command_panel();

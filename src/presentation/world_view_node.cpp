@@ -12,6 +12,7 @@
 #include <godot_cpp/classes/camera3d.hpp>
 #include <godot_cpp/classes/geometry_instance3d.hpp>
 #include <godot_cpp/classes/node.hpp>
+#include <godot_cpp/classes/sphere_mesh.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 #include <algorithm>
 #include <cstdint>
@@ -186,20 +187,28 @@ void RtsoWorldView::_ready() {
 		terrain->set_material_override(terrain_mat);
 	}
 
-	// Flying Arrows MultiMesh
-	arrow_mesh.instantiate();
-	arrow_mesh->set_top_radius(0.03f);
-	arrow_mesh->set_bottom_radius(0.04f);
-	arrow_mesh->set_height(0.65f);
-
-	arrow_mat.instantiate();
-	arrow_mat->set_albedo(Color(0.85f, 0.75f, 0.5f));
-
-	arrow_mm = create_multimesh(arrow_mesh, false);
-	arrow_mmi = memnew(MultiMeshInstance3D);
-	arrow_mmi->set_multimesh(arrow_mm);
-	arrow_mmi->set_material_override(arrow_mat);
-	add_child(arrow_mmi);
+	// Flying arrows — 0 A.D. arrow_front, else a thick cylinder that reads at RTS range
+	{
+		auto arrow_entry = rtso::ModelLibrary::get("units", "arrow_projectile");
+		Ref<Mesh> arrow = arrow_entry.mesh;
+		arrow_scale = arrow_entry.scale > 0.05f ? arrow_entry.scale : 1.0f;
+		if (!arrow.is_valid()) {
+			arrow_mesh.instantiate();
+			arrow_mesh->set_top_radius(0.08f);
+			arrow_mesh->set_bottom_radius(0.10f);
+			arrow_mesh->set_height(1.10f);
+			arrow = arrow_mesh;
+			arrow_scale = 1.0f;
+			arrow_mat.instantiate();
+			arrow_mat->set_albedo(Color(0.85f, 0.75f, 0.5f));
+		}
+		arrow_mm = create_multimesh(arrow, false);
+		arrow_mmi = memnew(MultiMeshInstance3D);
+		arrow_mmi->set_multimesh(arrow_mm);
+		if (arrow_mat.is_valid())
+			arrow_mmi->set_material_override(arrow_mat);
+		add_child(arrow_mmi);
+	}
 
 	{
 		auto bolt_entry = rtso::ModelLibrary::get("units", "bolt_projectile");
@@ -220,18 +229,38 @@ void RtsoWorldView::_ready() {
 		add_child(bolt_mmi);
 	}
 
+	{
+		auto stone_entry = rtso::ModelLibrary::get("units", "stone_projectile");
+		Ref<Mesh> stone = stone_entry.mesh;
+		stone_proj_scale = stone_entry.scale > 0.05f ? stone_entry.scale : 1.0f;
+		if (!stone.is_valid()) {
+			Ref<SphereMesh> rock;
+			rock.instantiate();
+			rock->set_radius(0.28f);
+			rock->set_height(0.56f);
+			stone = rock;
+			stone_proj_scale = 1.0f;
+		}
+		stone_proj_mm = create_multimesh(stone, false);
+		stone_proj_mmi = memnew(MultiMeshInstance3D);
+		stone_proj_mmi->set_multimesh(stone_proj_mm);
+		add_child(stone_proj_mmi);
+	}
+
 	// Resource batches — real 0ad flora & mines with variety
 	tree_a_mm = create_multimesh(rtso::ModelLibrary::get("vegetation", "tree").mesh, false);
 	tree_b_mm = create_multimesh(rtso::ModelLibrary::get("vegetation", "pine").mesh, false);
 	tree_c_mm = create_multimesh(rtso::ModelLibrary::get("vegetation", "palm").mesh, false);
 	gold_mm = create_multimesh(rtso::ModelLibrary::get("vegetation", "gold_vein").mesh, false);
 	stone_mm = create_multimesh(rtso::ModelLibrary::get("vegetation", "stone_mine").mesh, false);
+	food_mm = create_multimesh(rtso::ModelLibrary::get("vegetation", "fruit_bush").mesh, false);
 
 	tree_a_mmi = memnew(MultiMeshInstance3D); tree_a_mmi->set_multimesh(tree_a_mm); add_child(tree_a_mmi);
 	tree_b_mmi = memnew(MultiMeshInstance3D); tree_b_mmi->set_multimesh(tree_b_mm); add_child(tree_b_mmi);
 	tree_c_mmi = memnew(MultiMeshInstance3D); tree_c_mmi->set_multimesh(tree_c_mm); add_child(tree_c_mmi);
 	gold_mmi = memnew(MultiMeshInstance3D); gold_mmi->set_multimesh(gold_mm); add_child(gold_mmi);
 	stone_mmi = memnew(MultiMeshInstance3D); stone_mmi->set_multimesh(stone_mm); add_child(stone_mmi);
+	food_mmi = memnew(MultiMeshInstance3D); food_mmi->set_multimesh(food_mm); add_child(food_mmi);
 
 	// Fauna — never fall back to trees/stones (those looked like walking mines)
 	{
@@ -347,6 +376,13 @@ enum ClipId : uint8_t {
 	CLIP_ATTACK,
 	CLIP_DEATH,
 	CLIP_GATHER,
+	CLIP_GATHER_TREE,
+	CLIP_GATHER_ORE,
+	CLIP_GATHER_ROCK,
+	CLIP_GATHER_FRUIT,
+	CLIP_GATHER_GRAIN,
+	CLIP_GATHER_MEAT,
+	CLIP_GATHER_FISH,
 	CLIP_BUILD,
 	CLIP_CARRY,
 	CLIP_HEAL,
@@ -358,10 +394,30 @@ static const StringName &clip_name(ClipId id) {
 	static const StringName names[CLIP_COUNT] = {
 		StringName(), StringName("Idle"), StringName("Walk"), StringName("Run"),
 		StringName("Attack"), StringName("Death"), StringName("Gather"),
+		StringName("GatherTree"), StringName("GatherOre"), StringName("GatherRock"),
+		StringName("GatherFruit"), StringName("GatherGrain"), StringName("GatherMeat"),
+		StringName("GatherFish"),
 		StringName("Build"), StringName("Carry"), StringName("Heal"),
 		StringName("Slaughter")
 	};
 	return names[id < CLIP_COUNT ? id : CLIP_NONE];
+}
+
+// 0 A.D. ResourceGatherer.js SelectAnimation("gather_" + type).
+static ClipId gather_clip_for(uint8_t utype, uint8_t res_type, uint8_t subtype) {
+	if (utype == rtso::UNIT_HEALER) return CLIP_HEAL;
+	if (utype == rtso::UNIT_FISHING_BOAT) return CLIP_GATHER_FISH;
+	switch (res_type) {
+		case rtso::RES_WOOD: return CLIP_GATHER_TREE;
+		case rtso::RES_GOLD: return CLIP_GATHER_ORE;
+		case rtso::RES_STONE: return CLIP_GATHER_ROCK;
+		case rtso::RES_FOOD:
+			if (subtype == rtso::RES_SUB_MEAT) return CLIP_GATHER_MEAT;
+			if (subtype == rtso::RES_SUB_GRAIN) return CLIP_GATHER_GRAIN;
+			return CLIP_GATHER_FRUIT;
+		default:
+			return CLIP_GATHER;
+	}
 }
 
 // 0 A.D. action → clip (Attack.js, ResourceGatherer.js, CCmpVisualActor, UnitAI carry variant).
@@ -371,7 +427,8 @@ struct WantAnim {
 	rtso::AnimState state = rtso::AnimState::Idle;
 };
 
-static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int32_t carry, uint8_t utype) {
+static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int32_t carry,
+		uint8_t utype, uint8_t res_type, uint8_t res_sub) {
 	WantAnim w;
 	// A laden unit keeps the carry variant through any movement clip.
 	const bool laden_move = carry > 0 && (speed2 > 0.001f || uaction == rtso::ACTION_MOVE);
@@ -391,8 +448,7 @@ static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int
 	switch (uaction) {
 		// Gather/build/attack block movement clips (SelectMovementAnimation early-out).
 		case rtso::ACTION_GATHER:
-			// 0 A.D. gives the healer a Heal variant where everyone else has gather_*.
-			w.clip = (utype == rtso::UNIT_HEALER) ? CLIP_HEAL : CLIP_GATHER;
+			w.clip = gather_clip_for(utype, res_type, res_sub);
 			w.state = rtso::AnimState::Gather;
 			return w;
 		case rtso::ACTION_BUILD:
@@ -435,6 +491,19 @@ static ClipId resolve_clip_fallback(AnimationPlayer *anim, ClipId want) {
 		case CLIP_RUN:       alt = CLIP_WALK; break;
 		case CLIP_WALK:      alt = CLIP_RUN; break;
 		case CLIP_CARRY:     alt = CLIP_WALK; break;
+		case CLIP_GATHER_TREE:
+		case CLIP_GATHER_ORE:
+		case CLIP_GATHER_ROCK:
+		case CLIP_GATHER_FRUIT:
+		case CLIP_GATHER_GRAIN:
+		case CLIP_GATHER_MEAT:
+		case CLIP_GATHER_FISH:
+			if (anim->has_animation(clip_name(CLIP_GATHER))) return CLIP_GATHER;
+			alt = CLIP_IDLE;
+			break;
+		case CLIP_GATHER:
+			if (anim->has_animation(clip_name(CLIP_GATHER_TREE))) return CLIP_GATHER_TREE;
+			break;
 		case CLIP_BUILD:     alt = CLIP_GATHER; break;
 		case CLIP_HEAL:      alt = CLIP_GATHER; break;
 		case CLIP_SLAUGHTER: alt = CLIP_ATTACK; break;
@@ -527,6 +596,10 @@ static void disable_mesh_shadows(Node *n) {
 	}
 }
 
+static void apply_unit_tools(Node *root, const StringName &clip) {
+	rtso::ModelLibrary::apply_clip_tools(root, clip);
+}
+
 void RtsoWorldView::attach_unit_model(UnitVis &v, const String &model_name) {
 	if (v.model_id == model_name && v.model) return;
 	if (v.anim) {
@@ -554,6 +627,7 @@ void RtsoWorldView::attach_unit_model(UnitVis &v, const String &model_name) {
 			v.anim->set_speed_scale(1.0);
 			v.anim->advance(0.0);
 		}
+		apply_unit_tools(v.model, StringName("Idle"));
 		return;
 	}
 	MeshInstance3D *mi = memnew(MeshInstance3D);
@@ -759,10 +833,10 @@ void RtsoWorldView::ensure_crowd_frames(int bank, uint8_t utype, uint8_t civ) {
 	if (!inst) return;
 	crowd_bake_root->add_child(inst);
 	if (Node3D *n3 = Object::cast_to<Node3D>(inst)) {
-		n3->set_visible(false);
 		n3->set_position(Vector3(0, -1000, 0));
 	}
 	rtso::ModelLibrary::apply_imported_material_fixups(inst);
+	apply_unit_tools(inst, StringName("Idle"));
 
 	AnimationPlayer *ap = find_anim_player(inst);
 	if (ap) {
@@ -803,10 +877,10 @@ void RtsoWorldView::ensure_fauna_frames(uint8_t ftype) {
 	if (!inst) return;
 	crowd_bake_root->add_child(inst);
 	if (Node3D *n3 = Object::cast_to<Node3D>(inst)) {
-		n3->set_visible(false);
 		n3->set_position(Vector3(0, -1000, 0));
 	}
 	rtso::ModelLibrary::apply_imported_material_fixups(inst);
+	apply_unit_tools(inst, StringName("Idle"));
 
 	AnimationPlayer *ap = find_anim_player(inst);
 	if (ap) {
@@ -839,6 +913,7 @@ void RtsoWorldView::play_unit_clip(UnitVis &v, const StringName &clip, bool loop
 	}
 	v.anim->play(clip);
 	v.anim->advance(0.0);
+	apply_unit_tools(v.model, clip);
 }
 
 void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
@@ -976,6 +1051,16 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	// =========================================================================
 	ensure_unit_batches(sim);
 	auto uview = sim->units();
+	auto rview_g = sim->resources();
+	auto entity_visible = [sim](float x, float z, uint8_t team) {
+		return sim->is_entity_visible_to_viewer(x, z, team, 0);
+	};
+	std::unordered_map<uint32_t, uint8_t> res_sub;
+	res_sub.reserve(rview_g.count);
+	for (size_t r = 0; r < rview_g.count; ++r) {
+		if (rview_g.subtype && rview_g.subtype[r])
+			res_sub[rview_g.id[r]] = rview_g.subtype[r];
+	}
 
 	std::unordered_set<uint32_t> detailed;
 	// Ships always need the real GLB (sail clips + oar nodes). Crowd is rest-pose.
@@ -988,12 +1073,17 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (dying)
 			detailed.insert(uview.id[i]);
 	}
+	for (size_t i = 0; i < uview.count && (int)detailed.size() < MAX_DETAILED_UNITS; ++i) {
+		if (uview.action_state[i] == rtso::ACTION_GATHER)
+			detailed.insert(uview.id[i]);
+	}
 	for (int s = 0; s < selected_ids.size() && (int)detailed.size() < MAX_DETAILED_UNITS; ++s) {
 		detailed.insert((uint32_t)selected_ids[s]);
 	}
 
 	int counts[CROWD_BANK_COUNT][rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT] = {};
 	for (size_t i = 0; i < uview.count; ++i) {
+		if (!entity_visible(uview.pos_x[i], uview.pos_z[i], uview.team[i])) continue;
 		uint8_t t = uview.unit_type[i];
 		if (t >= rtso::UNIT_TYPE_COUNT) t = rtso::UNIT_VILLAGER;
 		int bank = (uview.team[i] == 0) ? 0 : 1;
@@ -1028,6 +1118,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	std::unordered_set<uint32_t> active_unit_ids;
 
 	for (size_t i = 0; i < uview.count; ++i) {
+		if (!entity_visible(uview.pos_x[i], uview.pos_z[i], uview.team[i])) continue;
 		uint32_t id = uview.id[i];
 		active_unit_ids.insert(id);
 
@@ -1086,7 +1177,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		yaw += diff * Math::clamp(delta * 14.0f, 0.0f, 1.0f);
 		crowd_yaw[id] = yaw;
 
-		WantAnim want = resolve_unit_anim(uaction, speed2, uview.alive[i] != 0, uview.carry[i], utype);
+		WantAnim want = resolve_unit_anim(uaction, speed2, uview.alive[i] != 0, uview.carry[i], utype,
+				uview.res_type_carried[i],
+				(uview.target_resource_id && uview.target_resource_id[i])
+					? (res_sub.count(uview.target_resource_id[i]) ? res_sub[uview.target_resource_id[i]] : 0)
+					: 0);
 		anim_controllers[utype].play(want.state);
 
 		int bank = is_player ? 0 : 1;
@@ -1142,6 +1237,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (play != CLIP_NONE) {
 				play_unit_clip(v, clip_name(play), loop_clip);
 				v.anim->advance((double)delta);
+				apply_unit_tools(v.model, clip_name(play));
 			}
 		}
 
@@ -1261,8 +1357,18 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	std::unordered_set<uint32_t> alive_buildings;
 
 	for (const auto &b : buildings) {
+		bool building_visible = entity_visible(b.x, b.z, b.team);
+		auto existing = building_slot.find(b.id);
+		if (existing != building_slot.end()) {
+			BuildingVis &hidden = building_pool[existing->second];
+			if (hidden.root) hidden.root->set_visible(building_visible);
+			if (hidden.hp_bg) hidden.hp_bg->set_visible(false);
+			if (hidden.hp_fg) hidden.hp_fg->set_visible(false);
+		}
+		if (!building_visible) continue;
 		alive_buildings.insert(b.id);
 		BuildingVis &v = acquire_building_slot(b.id);
+		if (v.root) v.root->set_visible(true);
 
 		uint8_t bciv = sim->team_civ(b.team);
 		const char *mid = rtso::civ_building_model(bciv, b.type);
@@ -1404,19 +1510,23 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	// 3. Flying Projectiles (Ballistic Arrows & Catapult Stones)
 	// =========================================================================
 	const auto &projectiles = sim->projectiles();
-	int arrow_n = 0, bolt_n = 0;
+	int arrow_n = 0, bolt_n = 0, stone_n = 0;
 	for (const auto &proj : projectiles) {
-		if (proj.visual == 1) bolt_n++;
+		if (!entity_visible(proj.current_x, proj.current_z, proj.team)) continue;
+		if (proj.visual == 2) stone_n++;
+		else if (proj.visual == 1) bolt_n++;
 		else arrow_n++;
 	}
-	arrow_mm->set_instance_count(arrow_n);
+	if (arrow_mm.is_valid()) arrow_mm->set_instance_count(arrow_n);
 	if (bolt_mm.is_valid()) bolt_mm->set_instance_count(bolt_n);
+	if (stone_proj_mm.is_valid()) stone_proj_mm->set_instance_count(stone_n);
 
 	std::unordered_set<uint32_t> current_proj_ids;
-	int arrow_i = 0, bolt_i = 0;
+	int arrow_i = 0, bolt_i = 0, stone_i = 0;
 
 	for (size_t p = 0; p < projectiles.size(); ++p) {
 		const auto &proj = projectiles[p];
+		if (!entity_visible(proj.current_x, proj.current_z, proj.team)) continue;
 		current_proj_ids.insert(proj.id);
 		Vector3 pos(proj.current_x, proj.current_y, proj.current_z);
 
@@ -1433,10 +1543,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		Basis rot(right, dir, forward);
 
 		Transform3D xf(rot, pos);
-		if (proj.visual == 1 && bolt_mm.is_valid()) {
+		if (proj.visual == 2 && stone_proj_mm.is_valid()) {
+			xf.basis = xf.basis.scaled(Vector3(stone_proj_scale, stone_proj_scale, stone_proj_scale));
+			stone_proj_mm->set_instance_transform(stone_i++, xf);
+		} else if (proj.visual == 1 && bolt_mm.is_valid()) {
 			xf.basis = xf.basis.scaled(Vector3(bolt_scale, bolt_scale, bolt_scale));
 			bolt_mm->set_instance_transform(bolt_i++, xf);
-		} else {
+		} else if (arrow_mm.is_valid()) {
+			xf.basis = xf.basis.scaled(Vector3(arrow_scale, arrow_scale, arrow_scale));
 			arrow_mm->set_instance_transform(arrow_i++, xf);
 		}
 
@@ -1489,13 +1603,13 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	}
 
 	// =========================================================================
-	// 4. Resources: Tree Varieties, Gold Veins, Stone Mines
+	// 4. Resources: Tree Varieties, Gold Veins, Stone Mines, Fruit Bushes
 	// =========================================================================
 	auto rview = sim->resources();
-	size_t ta = 0, tb = 0, tc = 0, g = 0, st = 0;
+	size_t ta = 0, tb = 0, tc = 0, g = 0, st = 0, fd = 0;
 
 	for (size_t i = 0; i < rview.count; ++i) {
-		if (!rview.alive[i] || rview.amount[i] <= 0) continue;
+		if (!rview.alive[i] || rview.amount[i] <= 0 || !entity_visible(rview.x[i], rview.z[i], 255)) continue;
 		uint32_t h = rview.id[i];
 		if (rview.type[i] == rtso::RES_WOOD) {
 			if (h % 3 == 0) ta++;
@@ -1505,6 +1619,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			g++;
 		} else if (rview.type[i] == rtso::RES_STONE) {
 			st++;
+		} else if (rview.type[i] == rtso::RES_FOOD) {
+			fd++;
 		}
 	}
 
@@ -1514,15 +1630,18 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	tree_c_mm->set_instance_count(0);
 	gold_mm->set_instance_count((int)g);
 	stone_mm->set_instance_count((int)st);
+	if (food_mm.is_valid())
+		food_mm->set_instance_count((int)fd);
 
-	size_t ia = 0, ig = 0, ist = 0;
+	size_t ia = 0, ig = 0, ist = 0, ifd = 0;
 	String cat_veg = "vegetation";
 	String id_tree = "tree"; auto e_tree = rtso::ModelLibrary::get(cat_veg, id_tree);
 	String id_gold = "gold_vein"; auto e_gold = rtso::ModelLibrary::get(cat_veg, id_gold);
 	String id_stone = "stone_mine"; auto e_stone = rtso::ModelLibrary::get(cat_veg, id_stone);
+	String id_food = "fruit_bush"; auto e_food = rtso::ModelLibrary::get(cat_veg, id_food);
 
 	for (size_t i = 0; i < rview.count; ++i) {
-		if (!rview.alive[i] || rview.amount[i] <= 0) continue;
+		if (!rview.alive[i] || rview.amount[i] <= 0 || !entity_visible(rview.x[i], rview.z[i], 255)) continue;
 		float rx = rview.x[i], rz = rview.z[i];
 		float ry = sim->get_terrain_height(rx, rz);
 		uint32_t h = rview.id[i];
@@ -1537,6 +1656,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		} else if (rview.type[i] == rtso::RES_STONE) {
 			Transform3D xf(rot, Vector3(rx, ry + e_stone.y_offset, rz));
 			stone_mm->set_instance_transform((int)ist++, xf);
+		} else if (rview.type[i] == rtso::RES_FOOD && food_mm.is_valid()) {
+			Transform3D xf(rot, Vector3(rx, ry + e_food.y_offset, rz));
+			food_mm->set_instance_transform((int)ifd++, xf);
 		}
 	}
 
@@ -1553,6 +1675,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	};
 	int f_counts[rtso::FAUNA_COUNT][CROWD_CLIP_COUNT] = {};
 	for (size_t f = 0; f < fview.count; ++f) {
+		if (!entity_visible(fview.pos_x[f], fview.pos_z[f], 255)) continue;
 		uint8_t ft = fview.fauna_type[f];
 		if (ft >= rtso::FAUNA_COUNT) continue;
 		float vx = fview.vel_x[f];
@@ -1573,6 +1696,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	}
 	int f_written[rtso::FAUNA_COUNT][CROWD_CLIP_COUNT] = {};
 	for (size_t f = 0; f < fview.count; ++f) {
+		if (!entity_visible(fview.pos_x[f], fview.pos_z[f], 255)) continue;
 		uint8_t ft = fview.fauna_type[f];
 		if (ft >= rtso::FAUNA_COUNT) continue;
 		float vx = fview.vel_x[f];

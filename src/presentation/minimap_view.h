@@ -27,7 +27,21 @@ class RtsoMiniMapView : public Control {
 	bool dragging = false;
 	bool show_territory = true;
 	bool show_resources = true;
-	bool show_fow = true;
+	bool show_diplo_palette = false; // ally/enemy palette per DiplomacyDialog stances (UI_PARITY Minimap bullet)
+
+	// 3-state shroud view. 0 A.D. rasterises a 3-level LOS bitmap
+	// (visible=255 / explored=127 / unexplored=0, graphics/LOSTexture.cpp:443-449)
+	// and composites it over minimap terrain (graphics/MiniMapTexture.cpp:523);
+	// RTS0 mirrors those states in _draw(). The toggle rides the minimap panel
+	// button row, parity with 0 A.D. gui/session/minimap/MiniMapPanel.js:8-11
+	// (diplomacy/idle/flare buttons) and the enabled/disabled sprite swap of
+	// gui/session/minimap/MiniMapDiplomacyColorsButton.js:24-33.
+	enum ShroudMode {
+		SHROUD_ON = 0, // normal: 3-tier shroud masks terrain AND entities
+		SHROUD_TERRAIN = 1, // terrain-only: shroud over the terrain layer only
+		SHROUD_OFF = 2, // shroud off (observer / replay view)
+	};
+	int shroud_mode = SHROUD_ON;
 	std::vector<MapPing> pings;
 
 protected:
@@ -43,7 +57,25 @@ public:
 	void add_ping(Vector2 world_pos, Color col = Color(1.0f, 0.85f, 0.2f));
 	void toggle_territory() { show_territory = !show_territory; queue_redraw(); }
 	void toggle_resources() { show_resources = !show_resources; queue_redraw(); }
-	void toggle_fow() { show_fow = !show_fow; queue_redraw(); }
+	// Binary legacy API kept bound (docs/UI_PARITY.md still names toggle_fow):
+	// maps onto the 3-state cycle as OFF <-> ON.
+	void toggle_fow() {
+		shroud_mode = (shroud_mode == SHROUD_OFF) ? SHROUD_ON : SHROUD_OFF;
+		queue_redraw();
+	}
+	// Normal -> terrain-only -> off -> normal (hotkey F in main_node.cpp).
+	void cycle_shroud() {
+		shroud_mode = (shroud_mode + 1) % 3;
+		queue_redraw();
+	}
+	const char *shroud_name() const {
+		switch (shroud_mode) {
+			case SHROUD_TERRAIN: return "Terr";
+			case SHROUD_OFF: return "Off";
+			default: return "On";
+		}
+	}
+	void toggle_diplomacy() { show_diplo_palette = !show_diplo_palette; queue_redraw(); }
 };
 
 #endif

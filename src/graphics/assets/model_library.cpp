@@ -5,6 +5,7 @@
 #include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/classes/node3d.hpp>
+#include <godot_cpp/classes/geometry_instance3d.hpp>
 #include <godot_cpp/classes/mesh_instance3d.hpp>
 #include <godot_cpp/classes/array_mesh.hpp>
 #include <godot_cpp/classes/material.hpp>
@@ -40,6 +41,8 @@ float ModelLibrary::target_height(const String &category, const String &id, floa
 		if (id == "worker_elephant" || id == "elephant") return 3.2f;
 		if (id == "ram" || id == "siege_ram") return 2.0f;
 		if (id == "bolt_projectile") return 1.15f;
+		if (id == "arrow_projectile") return 1.10f;
+		if (id == "stone_projectile") return 0.45f;
 		if (id == "bolt_shooter" || id == "ballista" || id == "oxybeles") return 1.8f;
 		if (id == "catapult") return 2.2f;
 		if (id == "fishing_boat") return 2.0f;
@@ -82,6 +85,7 @@ float ModelLibrary::target_height(const String &category, const String &id, floa
 	else if (id == "tree") return 6.0f;
 	else if (id == "stone_mine") return 1.4f;
 	else if (id == "gold_vein") return 1.1f;
+	else if (id == "fruit_bush") return 1.15f;
 	return Math::clamp(natural_h, 0.8f, 8.0f);
 }
 
@@ -131,8 +135,83 @@ void ModelLibrary::apply_imported_material_fixups(Node *n) {
 	}
 }
 
+static String tool_tag_of(const String &nm) {
+	int i = nm.find("tool_");
+	if (i < 0) return String();
+	String rest = nm.substr(i + 5);
+	int us = rest.rfind("_");
+	if (us > 0) {
+		String tail = rest.substr(us + 1);
+		bool digits = tail.length() > 0;
+		for (int k = 0; k < tail.length(); ++k) {
+			char32_t ch = tail[k];
+			if (ch < '0' || ch > '9') {
+				digits = false;
+				break;
+			}
+		}
+		if (digits) rest = rest.substr(0, us);
+	}
+	return rest;
+}
+
+static void set_tool_drawn(Node3D *n3, bool on) {
+	n3->set_visible(on);
+	if (GeometryInstance3D *gi = Object::cast_to<GeometryInstance3D>(n3)) {
+		// Skinned MeshInstance3D under Skeleton3D often ignores visible;
+		// drop it from every camera layer and fade the instance.
+		gi->set_transparency(on ? 0.0f : 1.0f);
+		gi->set_layer_mask(on ? 1u : 0u);
+	}
+}
+
+void ModelLibrary::apply_clip_tools(Node *root, const StringName &clip) {
+	if (!root) return;
+	std::vector<Node3D *> tools;
+	std::vector<Node *> stack;
+	stack.push_back(root);
+	while (!stack.empty()) {
+		Node *n = stack.back();
+		stack.pop_back();
+		for (int i = 0; i < n->get_child_count(); ++i)
+			stack.push_back(n->get_child(i));
+		Node3D *n3 = Object::cast_to<Node3D>(n);
+		if (!n3) continue;
+		if (tool_tag_of(n3->get_name()).is_empty()) continue;
+		tools.push_back(n3);
+		set_tool_drawn(n3, false);
+	}
+	if (tools.empty()) return;
+	String tag = String(clip);
+	if (tag == "Gather") tag = "GatherTree";
+	if (tag == "Idle" || tag == "Walk" || tag == "Run" || tag == "Carry" ||
+			tag == "Attack" || tag == "Death" || tag == "Slaughter" || tag == "Heal" ||
+			tag == "Promotion")
+		tag = "Weapon";
+	Node3D *pick = nullptr;
+	for (Node3D *n3 : tools) {
+		if (tool_tag_of(n3->get_name()) == tag) {
+			pick = n3;
+			break;
+		}
+	}
+	if (!pick) {
+		for (Node3D *n3 : tools) {
+			if (tool_tag_of(n3->get_name()) == String("Weapon")) {
+				pick = n3;
+				break;
+			}
+		}
+	}
+	if (pick) set_tool_drawn(pick, true);
+}
+
 static void collect_mesh_xforms(Node *n, const Transform3D &acc, Vector<MeshXform> &out) {
 	Node3D *n3 = Object::cast_to<Node3D>(n);
+	if (n3 && !n3->is_visible()) return;
+	if (GeometryInstance3D *gi = Object::cast_to<GeometryInstance3D>(n)) {
+		if (gi->get_layer_mask() == 0) return;
+	}
 	Transform3D xf = n3 ? acc * n3->get_transform() : acc;
 	MeshInstance3D *mi = Object::cast_to<MeshInstance3D>(n);
 	if (mi && mi->get_mesh().is_valid()) {
@@ -584,6 +663,7 @@ ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id)
 				Node *inst = ps->instantiate();
 				if (inst) {
 					apply_imported_material_fixups(inst);
+					apply_clip_tools(inst, StringName("Idle"));
 					e.scene = ps;
 					e.animated = find_animation_player(inst) != nullptr;
 					Vector<MeshXform> mesh_instances;

@@ -38,7 +38,9 @@ enum class NetMessageType : uint8_t {
 	NMT_FILE_TRANSFER_RESPONSE    = 13,
 	NMT_FILE_TRANSFER_DATA        = 14,
 	NMT_FILE_TRANSFER_ACK         = 15,
-	NMT_JOIN_SYNC_START           = 16,
+	NMT_JOIN_SYNC_START           = 16, // 0 A.D. join-sync marker; RTS0 uses it only
+	                                // as a reserved value (the RTS0 late-join
+	                                // resync is NMT_JOIN_SYNC_STATE below)
 	NMT_REJOINED                  = 17,
 	NMT_KICKED                    = 18,
 	NMT_CLIENT_TIMEOUT            = 19,
@@ -53,7 +55,21 @@ enum class NetMessageType : uint8_t {
 	NMT_SYNC_ERROR                = 28,
 	NMT_SIMULATION_COMMAND        = 29,
 	NMT_FLARE                     = 30,
-	NMT_COUNT                     = 31
+	// --- RTS0-local extensions (ids 1..30 mirror 0 A.D. NetMessages.h) ---
+	// NMT_DIPLOMACY is symmetric (either role may originate it) and host-relayed.
+	// Do not reuse an id >= NMT_DIPLOMACY for a different payload shape.
+	NMT_DIPLOMACY                 = 31,
+	// --- RTS0-local extensions, append-only (ids >= NMT_DIPLOMACY) -------------
+	// NMT_JOIN_SYNC_STATE carries the late-join turn-0 state resync request and the
+	// host's accept/reject reply (see JoinSyncMsg / TurnStateSnapshotMsg). It is
+	// deliberately a NEW id rather than a reuse of 0 A.D.'s NMT_REJOINED (17) or
+	// NMT_JOIN_SYNC_START (16) so old peers keep rejecting it as NMT_INVALID
+	// instead of parsing it with the wrong payload shape.
+	NMT_JOIN_SYNC_STATE           = 32,
+	// Half-close of the late-join handshake: {accepted, hash}. Separate from
+	// NMT_SYNC_CHECK so it cannot pollute the per-turn OOS accounting.
+	NMT_JOIN_SYNC_CHECK           = 33,
+	NMT_COUNT                     = 34
 };
 
 enum AuthenticateResultCode : uint32_t {
@@ -63,9 +79,64 @@ enum AuthenticateResultCode : uint32_t {
 	ARC_PASSWORD_INVALID = 3
 };
 
+// NetCommand::cmd_type values. APPEND-ONLY: 1..23 are frozen wire values and
+// must never be renumbered or reused for a different payload shape (they ride
+// NMT_SIMULATION_COMMAND, the v2 replay layout and turn_history()). 24+ are
+// RTS0-local and only valid on turn boundary paths.
+//
+//   1 Move          2 Stop         3 Attack      4 Gather      5 Build
+//   6 Train         7 Stance       8 Formation   9 Research   10 Attack-move
+//  11 Patrol       12 Garrison    13 Ungarrison 14 Rally      15 AttackBuilding
+//  16 BuildRepair  17 Hunt        18 Board      19 Disembark  20 CancelTrain
+//  21 Guard        22 Diplomacy   23 Barter
+//
+// NOTE cmd_type 22 (Diplomacy) and 24 (MaintainFleet) are BOTH reachable through
+// two independent paths and the two must agree:
+//   * NMT_SIMULATION_COMMAND -> TurnManager::onMessage -> receive_remote_turn_batch
+//     -> TurnManager::tick applier (the in-band lockstep path, see turn_manager.cpp)
+//   * the dedicated symmetric NMT_DIPLOMACY / NMT_JOIN_SYNC_START carriers, which
+//     TurnManager::onMessage also owns and which must deliver the SAME result --
+//     applied at the turn boundary current_turn_ + DIPLOMACY_APPLY_DELAY -- so
+//     peers cannot drift by one turn.
+// An out-of-band stance landing one turn earlier than the command-path stance is
+// a guaranteed desync: diplomacy_state() is mixed into compute_sim_hash().
+enum class NetCommandType : uint8_t {
+	// 0 stays reserved as "unset", exactly as before this enum existed.
+	NET_CMD_NONE          = 0,
+	NET_CMD_MOVE          = 1,
+	NET_CMD_STOP          = 2,
+	NET_CMD_ATTACK        = 3,
+	NET_CMD_GATHER        = 4,
+	NET_CMD_BUILD         = 5,
+	NET_CMD_TRAIN         = 6,
+	NET_CMD_STANCE        = 7,
+	NET_CMD_FORMATION     = 8,
+	NET_CMD_RESEARCH      = 9,
+	NET_CMD_ATTACK_MOVE   = 10,
+	NET_CMD_PATROL        = 11,
+	NET_CMD_GARRISON      = 12,
+	NET_CMD_UNGARRISON    = 13,
+	NET_CMD_RALLY         = 14,
+	NET_CMD_ATTACK_BUILD  = 15,
+	NET_CMD_BUILD_REPAIR  = 16,
+	NET_CMD_HUNT          = 17,
+	NET_CMD_BOARD         = 18,
+	NET_CMD_DISEMBARK     = 19,
+	NET_CMD_CANCEL_TRAIN  = 20,
+	NET_CMD_GUARD         = 21,
+	NET_CMD_DIPLOMACY     = 22,
+	NET_CMD_BARTER        = 23,
+	// --- RTS0-local, appended after the frozen 1..23 block -------------------
+	// P3 maintainFleet upkeep (navalManager.js:507). target_id = unit type to
+	// commission (UNIT_TRIREME=8 warship / UNIT_FISHING_BOAT=15 fishing boat),
+	// param = reserved (0). Queued, never applied directly: see
+	// TurnManager::request_fleet_upkeep / TurnManager::maintain_fleet_upkeep.
+	NET_CMD_MAINTAIN_FLEET = 24,
+};
+
 struct NetCommand {
 	uint32_t client_id = 0;
-	uint8_t cmd_type = 0; // 1=Move, 2=Stop, 3=Attack, 4=Gather, 5=Build, 6=Train, 7=Stance, 8=Formation
+	uint8_t cmd_type = 0; // NetCommandType as uint8; 1..23 frozen (see NetCommandType)
 	std::vector<uint32_t> entity_ids;
 	float target_x = 0.0f;
 	float target_z = 0.0f;
@@ -158,6 +229,129 @@ struct GameStartMsg {
 	std::string init_attributes;
 };
 
+// Lockstep seed-sync helpers (P1 playtest gate).
+// Wire format stays a plain attributes string so old/new peers interop:
+//   "map=<map_id>;seed=<u32>"  (extra keys ignored on parse)
+// Full game setup rides as extra keys (0 A.D. NetServer game-start
+// attributes broadcast before the first turn, NetMessages.h NMT_GAME_START):
+//   victory=<0..3>;diff=<0..5>;behavior=<0..3>;res=<0..3>;
+//   civ0=<civ>;civ1=<civ>;teams=<t0,t1,...> (+ up to 8 slots: civ2..civ7,
+//   types=<ht,ht,...> with h=human a=ai x=closed, slots count = teams len)
+// Old peers parse map+seed and ignore the rest.
+struct GameSetupParams {
+	std::string map_id;
+	uint32_t seed = 0;
+	uint8_t victory = 0;    // 0 conquest, 1 wonder, 2 relic, 3 endless
+	uint8_t difficulty = 3; // Petra 0..5 sandbox..very hard
+	uint8_t behavior = 2;   // Petra 0..3 random/def/bal/agg
+	uint8_t start_res = 1;  // 0 sparse, 1 normal, 2 generous, 3 abundant
+	uint8_t civs[8] = {0, 1, 0, 0, 0, 0, 0, 0};
+	char slot_types[8] = {'h', 'a', 'x', 'x', 'x', 'x', 'x', 'x'};
+	uint8_t teams[8] = {1, 2, 0, 0, 0, 0, 0, 0};
+	uint8_t slot_count = 2;
+};
+inline std::string format_game_start_full(const GameSetupParams &p) {
+	std::string s = "map=" + p.map_id + ";seed=" + std::to_string(p.seed);
+	s += ";victory=" + std::to_string((unsigned)p.victory);
+	s += ";diff=" + std::to_string((unsigned)p.difficulty);
+	s += ";behavior=" + std::to_string((unsigned)p.behavior);
+	s += ";res=" + std::to_string((unsigned)p.start_res);
+	char types[9] = {0}, teamstr[64] = {0};
+	size_t tp = 0, sp = 0;
+	for (unsigned i = 0; i < p.slot_count && i < 8; ++i) {
+		if (tp < 8) types[tp++] = p.slot_types[i];
+		s += ";civ" + std::to_string(i) + "=" + std::to_string((unsigned)p.civs[i]);
+		if (sp < sizeof(teamstr) - 2) {
+			if (i) teamstr[sp++] = ',';
+			teamstr[sp++] = (char)('0' + (p.teams[i] < 10 ? p.teams[i] : 0));
+		}
+	}
+	teamstr[sp] = 0;
+	s += std::string(";types=") + types + ";teams=" + teamstr;
+	return s;
+}
+namespace detail {
+inline bool parse_u8(const std::string &v, uint8_t lo, uint8_t hi, uint8_t &out) {
+	if (v.empty()) return false;
+	unsigned val = 0;
+	for (char c : v) {
+		if (c < '0' || c > '9') return false;
+		val = val * 10u + (unsigned)(c - '0');
+	}
+	if (val < lo || val > hi) return false;
+	out = (uint8_t)val;
+	return true;
+}
+} // namespace detail
+inline std::string format_game_start(const std::string &map_id, uint32_t seed) {
+	GameSetupParams p;
+	p.map_id = map_id;
+	p.seed = seed;
+	return format_game_start_full(p);
+}
+inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out) {
+	out = GameSetupParams();
+	bool have_map = false, have_seed = false;
+	size_t pos = 0;
+	while (pos <= attrs.size()) {
+		size_t end = attrs.find(';', pos);
+		if (end == std::string::npos) end = attrs.size();
+		std::string kv = attrs.substr(pos, end - pos);
+		size_t eq = kv.find('=');
+		if (eq != std::string::npos) {
+			std::string k = kv.substr(0, eq), v = kv.substr(eq + 1);
+			if (k == "map") { out.map_id = v; have_map = true; }
+			else if (k == "seed") {
+				uint8_t dummy = 0;
+				(void)dummy;
+				if (v.empty()) return false;
+				uint32_t val = 0;
+				for (char c : v) {
+					if (c < '0' || c > '9') return false;
+					val = val * 10u + (uint32_t)(c - '0');
+				}
+				out.seed = val;
+				have_seed = true;
+			}
+			else if (k == "victory") { uint8_t x; if (detail::parse_u8(v, 0, 3, x)) out.victory = x; }
+			else if (k == "diff") { uint8_t x; if (detail::parse_u8(v, 0, 5, x)) out.difficulty = x; }
+			else if (k == "behavior") { uint8_t x; if (detail::parse_u8(v, 0, 3, x)) out.behavior = x; }
+			else if (k == "res") { uint8_t x; if (detail::parse_u8(v, 0, 3, x)) out.start_res = x; }
+			else if (k.size() == 4 && k[0] == 'c' && k[1] == 'i' && k[2] == 'v' && k[3] >= '0' && k[3] <= '7') {
+				uint8_t x; if (detail::parse_u8(v, 0, 12, x)) out.civs[k[3] - '0'] = x;
+			}
+			else if (k == "types") {
+				for (size_t i = 0; i < v.size() && i < 8; ++i)
+					if (v[i] == 'h' || v[i] == 'a' || v[i] == 'x') out.slot_types[i] = v[i];
+				if (!v.empty()) out.slot_count = (uint8_t)(v.size() < 8 ? v.size() : 8);
+			}
+			else if (k == "teams") {
+				size_t i = 0;
+				size_t p2 = 0;
+				while (i < 8) {
+					size_t c = v.find(',', p2);
+					std::string tok = (c == std::string::npos) ? v.substr(p2) : v.substr(p2, c - p2);
+					uint8_t x;
+					if (!detail::parse_u8(tok, 0, 8, x)) break;
+					out.teams[i++] = x;
+					if (c == std::string::npos) break;
+					p2 = c + 1;
+				}
+			}
+		}
+		if (end == attrs.size()) break;
+		pos = end + 1;
+	}
+	return have_map && have_seed;
+}
+inline bool parse_game_start_params(const std::string &attrs, std::string &map_id_out, uint32_t &seed_out) {
+	GameSetupParams p;
+	if (!parse_game_start_full(attrs, p)) return false;
+	map_id_out = p.map_id;
+	seed_out = p.seed;
+	return true;
+}
+
 struct SimulationCommandMsg {
 	uint32_t turn = 0;
 	uint32_t client_id = 0;
@@ -185,6 +379,81 @@ struct ChatMsg {
 	std::string sender_guid;
 	std::string message;
 	std::vector<std::string> receivers; // empty = broadcast to all
+};
+
+// NMT_DIPLOMACY payload. `stance` is Simulation::DiplomacyStance
+// (0=ally, 1=neutral, 2=enemy). diplomacy_state() is part of the lockstep
+// hash (TurnManager::compute_sim_hash), so a stance applied on ONE peer only
+// desyncs the session; every peer must apply it. Wire layout is fixed at two
+// bytes: [player_id, stance].
+struct DiplomacyMsg {
+	uint8_t player_id = 0;
+	uint8_t stance = 1; // DIPLO_NEUTRAL
+};
+
+// NMT_JOIN_SYNC_STATE payload -- late-join turn-0 state resync request.
+// 0 A.D. parity: NetServer.cpp:1366 OnGameStart re-sends the game setup to a
+// session that arrives after the first broadcast, and NetClient.cpp:826 OnGameStart
+// is a legal transition in state NCS_JOIN_SYNCING (NetClient.cpp:108). In RTS0 one
+// message type carries BOTH halves of that handshake -- an enum id is append-only,
+// but a single id may carry any payload as long as two ids never collide:
+//   * ROLE_JOINER -> the invitee is asking for setup + turn-0 state.
+//   * ROLE_HOST   -> the host answers with NMT_GAME_START(full setup) followed by
+//                   NMT_JOIN_SYNC_START(ROLE_JOINER, requested_turn).
+//
+// The sync is REQUESTED, never pushed: a peer must not reset its world because a
+// stranger dialed in. The host answers only to an admitted peer, so the resend is
+// a pure replay of the attributes it is already broadcasting to everyone.
+struct JoinSyncMsg {
+	enum Role : uint8_t {
+		ROLE_JOINER   = 0, // "send me turn-N state"
+		ROLE_HOST     = 1, // "here is the turn-N sync state"
+	};
+	uint8_t role = ROLE_JOINER;
+	uint32_t requested_turn = 0; // JOINER: the turn it wants to resume at
+};
+
+// Turn-0 (or turn-N) state request, hosted by NMT_JOIN_SYNC_STATE. Asserting that
+// the invariant below holds in the two processes that matter is what keeps this
+// honest: a late joiner's boot world is built from the same map+seed, so a
+// mismatch here is a hard desync and MUST abort the join rather than continue.
+struct TurnStateSnapshotMsg {
+	uint32_t turn = 0; // turn the snapshot describes
+	uint32_t hash = 0; // TurnManager::compute_sim_hash at that turn
+	bool accepted = 0; // 1 = host will resend setup, 0 = rejected (see error)
+	uint8_t error = 0; // Error code; meaningful only when accepted == 0
+	enum Error : uint8_t {
+		ERR_UNKNOWN           = 0,
+		ERR_PEER_ADMITTED     = 1, // requester is not an admitted peer
+		ERR_NOT_AUTHORITATIVE = 2, // host has no GAME_START applied yet
+		ERR_JOINED_LATE       = 3, // host already past the accepted window
+	};
+};
+
+// Late-join turn-0 state request path (P3 GAME_START resend):
+//
+//   joiner -> NMT_JOIN_SYNC_STATE{ROLE_JOINER, requested_turn}   -> host
+//   host   -> NMT_JOIN_SYNC_STATE{ROLE_HOST, turn}              (accepted)
+//   host   -> NMT_GAME_START{full setup}                       (resend)
+//   host   -> NMT_JOIN_SYNC_STATE{ROLE_JOINER, turn}            (turn-0 request)
+//   joiner -> NMT_JOIN_SYNC_CHECK{accepted, hash}               -> host
+//   joiner -> NMT_JOIN_SYNC_CHECK{accepted=0, hash=0}           -> host when the
+//                                                                    rebuilt
+//                                                                    turn-0 hash
+//                                                                    mismatches
+//
+// NMT_JOIN_SYNC_CHECK (id 33) is the ack half of this path. Both sides use the
+// same frame: {role = ROLE_JOINER, turn, accepted, hash, error}.
+// Do NOT fold the snapshot into NMT_SYNC_CHECK: that message is broadcast every
+// lockstep turn, is consumed by receive_sync_check() -> has_out_of_sync(), and
+// folding a handshake into it would need an indistinguishable special case and
+// would mix the handshake into the per-turn OOS accounting.
+struct JoinSyncCheckMsg {
+	uint8_t role = JoinSyncMsg::ROLE_JOINER;
+	uint8_t accepted = 0;
+	uint8_t error = 0;
+	uint32_t turn = 0;
+	uint32_t hash = 0;
 };
 
 // Binary serialization utilities
@@ -520,6 +789,88 @@ public:
 			if (!NetSerde::read_string(data, size, offset, r)) return false;
 			msg.receivers.push_back(std::move(r));
 		}
+		return true;
+	}
+
+	static std::vector<uint8_t> frame_diplomacy(const DiplomacyMsg &msg) {
+		std::vector<uint8_t> buf;
+		NetSerde::write_u8(buf, msg.player_id);
+		NetSerde::write_u8(buf, msg.stance);
+		return buf;
+	}
+
+	// Exact-size parse: a truncated or over-long payload is rejected instead of
+	// being accepted with zero-extended fields.
+	static bool parse_diplomacy(const uint8_t *data, size_t size, DiplomacyMsg &msg) {
+		if (size != 2) return false;
+		size_t offset = 0;
+		if (!NetSerde::read_u8(data, size, offset, msg.player_id)) return false;
+		if (!NetSerde::read_u8(data, size, offset, msg.stance)) return false;
+		return true;
+	}
+
+	static std::vector<uint8_t> frame_join_sync(const JoinSyncMsg &msg) {
+		std::vector<uint8_t> buf;
+		NetSerde::write_u8(buf, msg.role);
+		NetSerde::write_u32(buf, msg.requested_turn);
+		return buf;
+	}
+
+	// Exact-size parse: an unknown role is rejected instead of being accepted and
+	// then silently treated as ROLE_JOINER (which would let a peer ask for a resync).
+	static bool parse_join_sync(const uint8_t *data, size_t size, JoinSyncMsg &msg) {
+		if (size != 5) return false;
+		size_t offset = 0;
+		if (!NetSerde::read_u8(data, size, offset, msg.role)) return false;
+		if (msg.role != JoinSyncMsg::ROLE_JOINER && msg.role != JoinSyncMsg::ROLE_HOST) return false;
+		if (!NetSerde::read_u32(data, size, offset, msg.requested_turn)) return false;
+		return true;
+	}
+
+	static std::vector<uint8_t> frame_join_sync_check(const JoinSyncCheckMsg &msg) {
+		std::vector<uint8_t> buf;
+		NetSerde::write_u8(buf, msg.role);
+		NetSerde::write_u8(buf, msg.accepted);
+		NetSerde::write_u8(buf, msg.error);
+		NetSerde::write_u32(buf, msg.turn);
+		NetSerde::write_u32(buf, msg.hash);
+		return buf;
+	}
+
+	static bool parse_join_sync_check(const uint8_t *data, size_t size, JoinSyncCheckMsg &msg) {
+		if (size != 11) return false;
+		size_t offset = 0;
+		if (!NetSerde::read_u8(data, size, offset, msg.role)) return false;
+		if (!NetSerde::read_u8(data, size, offset, msg.accepted)) return false;
+		if (!NetSerde::read_u8(data, size, offset, msg.error)) return false;
+		if (!NetSerde::read_u32(data, size, offset, msg.turn)) return false;
+		if (!NetSerde::read_u32(data, size, offset, msg.hash)) return false;
+		return true;
+	}
+
+	// Late-join answer, packed into the SAME 11-byte frame as
+	// JoinSyncCheckMsg. Accepted replies carry {turn, hash} inside the hash/error
+	// fields and are validated by TurnManager::receive_join_sync; only a rejected
+	// reply is decoded as TurnStateSnapshotMsg (its Error is 1..3, never 0).
+	static std::vector<uint8_t> frame_join_sync_snapshot(const TurnStateSnapshotMsg &msg) {
+		JoinSyncCheckMsg c;
+		c.role = JoinSyncMsg::ROLE_HOST;
+		c.accepted = msg.accepted ? 1u : 0u;
+		c.error = msg.error;
+		c.turn = msg.turn;
+		c.hash = msg.hash;
+		return frame_join_sync_check(c);
+	}
+
+	static bool parse_join_sync_snapshot(const uint8_t *data, size_t size, TurnStateSnapshotMsg &msg) {
+		JoinSyncCheckMsg c;
+		if (!parse_join_sync_check(data, size, c)) return false;
+		if (c.role != JoinSyncMsg::ROLE_HOST) return false;
+		if (c.accepted && c.error != 0) return false; // accepted reply carries no error
+		msg.turn = c.turn;
+		msg.hash = c.hash;
+		msg.accepted = (c.accepted != 0);
+		msg.error = c.error;
 		return true;
 	}
 

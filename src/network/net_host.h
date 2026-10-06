@@ -61,10 +61,32 @@ public:
 	void sendSimulationCommand(uint32_t peer, uint32_t turn, const std::vector<uint8_t> &payload);
 	void sendSyncCheck(uint32_t turn, uint32_t hash);
 	void sendChat(const std::string &msg, const std::string &receiver_guid = "");
+	// Symmetric like sendChat: broadcastCommand() routes host -> peers and
+	// client -> host alike. A client MAY originate a stance change; the host
+	// relays it on dispatch. `turn` rides the packet header so receivers can
+	// order it against the command batch.
+	void sendDiplomacy(uint8_t player_id, uint8_t stance, uint32_t turn = 0);
+	// Late-join turn-0 state resync (P3). Asks the host to resend the full
+	// NMT_GAME_START setup plus its current turn state. Client-only; the host
+	// answers through dispatchMessage() and a client replies with
+	// NMT_JOIN_SYNC_CHECK either way.
+	void request_join_sync(uint32_t requested_turn = 0);
+	// Authoritative sender-id resolution for a relayed message.
+	// See the peer_id==0 quirk note on resolve_sender_id() in net_host.cpp; wire
+	// formats are unchanged, this only interprets the wire header peer_id.
+	uint32_t resolve_sender_id(uint32_t wire_peer_id) const;
+	// True once this host has been told its own NMT_GAME_START attributes, i.e.
+	// it has an authoritative setup to hand a late joiner. NetHost never parses
+	// the attributes itself (TurnManager owns the payload) but records the id.
+	void note_game_start_sent() { game_start_sent_ = true; }
+	bool game_start_sent() const { return game_start_sent_; }
 	void sendHandshake();
 	void sendAuthenticate(const std::string &name, const std::string &password = "");
 	void sendReady(bool ready = true);
 	void sendGameStart(const std::string &attributes);
+	// Resend the SAME setup attributes to ONE peer (late-join resend). public so
+	// TurnManager, which owns the payload it validated, can drive it.
+	void sendGameStartTo(uint32_t peer_id, const std::string &attributes);
 
 	struct LobbyRoom {
 		std::string id;
@@ -85,6 +107,21 @@ public:
 	void onPeerConnected(std::function<void(uint32_t)> cb);
 	void onPeerDisconnected(std::function<void(uint32_t)> cb);
 	void onChat(std::function<void(const ChatMsg&)> cb);
+	// Fired from dispatchMessage() for every well-formed NMT_DIPLOMACY payload,
+	// on both host and client. The receiver owns applying the stance to its
+	// Simulation (src/simulation is a separate ownership stream); a malformed
+	// payload is dropped and never reaches this callback.
+	//
+	// NOTE the host ALSO forwards NMT_DIPLOMACY to message_cb_ so TurnManager can
+	// queue the turn-boundary apply (see resolve_sender_id for the peer_id==0
+	// quirk that makes the authoritative id necessary).
+	void onDiplomacy(std::function<void(uint32_t sender_peer_id, const DiplomacyMsg&)> cb);
+	// Fired for a late-join request this host may answer. Returns true when the
+	// owner answered it, filling turn_out / hash_out with the state it can prove a
+	// joiner can rebuild; returns false to have NetHost reply ERR_JOINED_LATE.
+	// Set by TurnManager::set_net_host.
+	void onJoinSyncRequest(std::function<bool(uint32_t requester_peer_id, uint32_t requested_turn,
+	                                          uint32_t &turn_out, uint32_t &hash_out)> cb);
 
 	// Low-level message dispatcher
 	void dispatchMessage(uint32_t peerId, const NetMessage &msg);
@@ -130,9 +167,14 @@ private:
 	std::function<void(uint32_t)> peer_connected_cb_;
 	std::function<void(uint32_t)> peer_disconnected_cb_;
 	std::function<void(const ChatMsg&)> chat_cb_;
+	std::function<void(uint32_t, const DiplomacyMsg&)> diplomacy_cb_;
+	std::function<bool(uint32_t, uint32_t, uint32_t &, uint32_t &)> join_sync_request_cb_;
 
 	std::vector<LobbyRoom> lobby_rooms_;
 	std::string local_player_name_ = "Player";
+	// True after this host sent NMT_GAME_START, so a late joiner is only answered
+	// with an authoritative setup. Cleared by startHost/startClient/stop.
+	bool game_start_sent_ = false;
 };
 
 } // namespace rtso

@@ -1,10 +1,13 @@
 # Default target refreshes the playable Linux export (library + Godot pack).
 # Fast editor iteration: `make debug` then F5 in Godot.
 
-.PHONY: linux debug export
+.PHONY: linux debug export extract
 
 linux export:
 	python3 tools/build.py linux
 
 debug:
 	scons platform=linux target=template_debug -j8
+
+extract:
+	python3 tools/extract_all.py

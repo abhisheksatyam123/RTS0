@@ -12,6 +12,74 @@ Pipeline (mirrors 0ad source/graphics/ModelDef.cpp + ps/FileIo.cpp formats):
 Usage: python3 tools/extract_0ad_assets.py [--zip PATH] [--out assets]
 Requires: Pillow
 """
+# ===========================================================================
+# C2 HAN (Chinese) civ — unit/building coverage & fallback matrix
+# ===========================================================================
+# 0 A.D. art roots used by this civ (verified against public.zip via
+# `--list-actors`; no `chinese/` tree exists in the archive — 0 A.D. names the
+# civ folder "han" under both roots):
+#     art/actors/units/han/*.xml         people, mounts, chariots, siege
+#     art/actors/structures/han/*.xml     pagoda/timber civic set, hulls
+#     art/actors/props/units/han/*.xml   mangonel/shoushe sub-meshes only
+#
+# Prior to this batch "han" was absent from CIV_ART_FOLDERS, so register_civ_
+# unit_assets()/register_civ_building_assets() never probed those folders and
+# every Han unit fell through to the generic mesh at load time.
+#
+# UNIT MATRIX — RTS0 UnitTypes (23) -> Han mesh  (unique = Han-specific art,
+#                                                 fallback = borrowed civil)
+# ---------------------------------------------------------------------------
+#  UNIT ID            HAN MESH                              STATUS
+#  villager            citizen_male.xml                      unique   height 1.70
+#  female_citizen      female_citizen.xml                    unique   height 1.70
+#  swordsman           infantry_swordsman_c.xml              unique   height 1.80
+#  spearman            infantry_spearman_c.xml               unique   height 1.80
+#  archer              infantry_archer_c.xml                 unique   height 1.78
+#  cavalry             cavalry_spearman_c_m.xml              unique   height 2.20
+#  hero                hero_infantry_han_xin.xml            unique   height 1.90
+#  healer              healer.xml                            unique   height 1.70
+#  trader              trader.xml                            unique   height 1.90
+#  fishing_boat        structures/han/fishing_ship.xml       unique   width  3.50
+#  trireme             structures/han/trireme.xml            unique   width  7.00
+#  chariot             chariot_archer_d.xml                  unique   width  2.80
+#  merchant_ship       structures/han/merchant_ship.xml      unique   width  5.50
+#  catapult            (none — Han uses mangonel)            FALLBACK generic
+#  bolt_shooter        (none — Han uses mangonel/shoushe)    FALLBACK generic
+#  siege_ram           (none — Han has no battering ram)     FALLBACK generic
+#  elephant            (none — Han has no war elephant)      FALLBACK generic
+#  worker_elephant     (none — Han uses corral/stable)       FALLBACK generic
+#  war_dog             (none — no Han dog unit)              FALLBACK generic
+#  camel               (none — no Han camel)                 FALLBACK generic
+#  scythed_chariot     (none — Han chariots are archer only)  FALLBACK generic
+#  carnyx              (none — no Han war-trumpet unit)      FALLBACK generic
+#  archer_maiden       (none — Han women are citizens only)  FALLBACK generic
+#  => 14 unique, 10 fallback (Han-specific equivalents exported separately
+#     as siege_mangonel / siege_shoushe / halberdman / crossbowman /
+#     cavalry_crossbow / minister so the Han roster is not thin).
+#
+# BUILDING MATRIX — RTS0 BuildingTypes (14) + common civ buildings
+# ---------------------------------------------------------------------------
+#  BUILDING ID         HAN MESH                              STATUS
+#  town_center         structures/han/civil_centre.xml       unique   width 6.20
+#  house               structures/han/house.xml              unique   width 2.40
+#  barracks            structures/han/barracks.xml           unique   width 4.00
+#  storehouse          structures/han/storehouse.xml         unique   width 3.40
+#  farmstead           structures/han/farmstead.xml          unique   width 3.20
+#  market              structures/han/market.xml             unique   width 4.20
+#  temple              structures/han/temple.xml             unique   width 5.00
+#  fortress            structures/han/fortress.xml           unique   width 6.00
+#  gate                structures/han/wall_gate.xml          unique   width 3.80
+#  dock                structures/han/dock.xml                unique   width 4.80
+#  wall / wall_segment structures/han/wall_long.xml          unique   width 2.00
+#  wall_tower / tower  structures/han/wall_tower.xml          unique   width 2.20
+#  corral              structures/han/corral.xml             unique   width 3.60
+#  wonder              structures/han/wonder.xml             unique   width 6.50
+#  --- Han-only civic extras with no RTS0 BuildingType id (exported anyway) ---
+#  shrine / academy / arsenal / pagoda / imperial_court / imperial_ministry /
+#  tower_small / tower_large / tower_great / forge / outpost
+#  => 14/14 BuildingTypes unique; 0 structure fallbacks.
+# ===========================================================================
+
 import argparse
 import hashlib
 import io
@@ -48,8 +116,10 @@ ASSETS = {
     "catapult":         ("art/actors/units/carthaginians/siege_lithobolos_med.xml", "width", 2.60, (0.92, 0.32, 0.28)),
     "hero":             ("art/actors/units/spartans/hero_infantry_spearman_leonidas.xml", "height", 1.85, (0.92, 0.32, 0.28)),
     "trireme":          ("art/actors/structures/athenians/trireme.xml",        "width",  7.00, (0.36, 0.62, 0.94)),
-    # ObjectEntry.pluck 'projectile' — flying bolt for warship Attack.js LaunchProjectile
+    # ObjectEntry.pluck 'projectile' — flying bolt / arrow / stone for LaunchProjectile
     "bolt_projectile":  ("art/actors/props/units/weapons/bolt_tower.xml",      "width",  1.40, None),
+    "arrow_projectile": ("art/actors/props/units/weapons/arrow_front.xml",     "width",  1.10, None),
+    "stone_projectile": ("art/actors/props/units/siege_artillery/stone_projectile_med.xml", "width", 0.55, None),
     "elephant":         ("art/actors/units/carthaginians/elephantry_c_m.xml",  "height", 3.20, (0.92, 0.32, 0.28)),
     "ram":              ("art/actors/units/romans/siege_ram.xml",              "width",  3.00, None),
     "siege_ram":        ("art/actors/units/romans/siege_ram.xml",              "width",  3.00, None),
@@ -130,6 +200,199 @@ ASSETS = {
     "palm":             ("art/actors/flora/trees/palm_cretan_date.xml",        "height", 4.00, None),
     "gold_vein":        ("art/actors/geology/metalmine_granite_greek.xml",     "width",  1.80, None),
     "stone_mine":       ("art/actors/geology/stonemine_granite.xml",           "width",  2.00, None),
+    "fruit_bush":       ("art/actors/props/flora/berry_bush.xml",              "height", 1.20, None),
+    # G7-H2 batch: HIGH-VISIBILITY map fauna (animated) + landmarks/civic extras (static) + flora/geology variety.
+    # Chosen = biggest convertible classes still missing: gaia animals used on maps,
+    # wonder/landmark structures, athenian civic set, extra trees. Civ-skin duplicates skipped.
+    "goat":             ("art/actors/fauna/goat.xml",                            "height", 0.90, None),
+    "zebra":            ("art/actors/fauna/zebra.xml",                           "height", 1.40, None),
+    "chicken":          ("art/actors/fauna/chicken.xml",                         "height", 0.50, None),
+    "crocodile":        ("art/actors/fauna/crocodile.xml",                       "height", 0.80, None),
+    "giraffe":          ("art/actors/fauna/giraffe_adult.xml",                   "height", 4.20, None),
+    "rabbit":           ("art/actors/fauna/rabbit1.xml",                         "height", 0.40, None),
+    "gazelle":          ("art/actors/fauna/gazelle.xml",                         "height", 1.20, None),
+    "bear":             ("art/actors/fauna/bear_brown.xml",                      "height", 1.60, None),
+    "cow":              ("art/actors/fauna/cow.xml",                             "height", 1.40, None),
+    "pig":              ("art/actors/fauna/pig1.xml",                            "height", 0.80, None),
+    "lion":             ("art/actors/fauna/lion.xml",                            "height", 1.20, None),
+    "lioness":          ("art/actors/fauna/lioness.xml",                         "height", 1.10, None),
+    "donkey":           ("art/actors/fauna/donkey.xml",                          "height", 1.20, None),
+    "fox":              ("art/actors/fauna/fox_red.xml",                         "height", 0.60, None),
+    "hawk":             ("art/actors/fauna/hawk.xml",                            "height", 0.60, None),
+    "pyramid":          ("art/actors/special/pyramid.xml",                       "width",  8.00, None),
+    "pyramid_minor":    ("art/actors/special/pyramid_minor.xml",                 "width",  5.00, None),
+    "ishtar_gate":      ("art/actors/special/pers_ishtar_gate.xml",              "width",  6.00, None),
+    "greek_stoa":       ("art/actors/special/greek_stoa.xml",                    "width",  5.00, None),
+    "greek_stoa_great": ("art/actors/special/greek_stoa_great.xml",               "width",  6.50, None),
+    "theater":          ("art/actors/structures/athenians/theater.xml",          "width",  6.00, None),
+    "gymnasium":        ("art/actors/structures/athenians/gymnasium.xml",        "width",  5.50, None),
+    "stoa":             ("art/actors/structures/athenians/stoa_painted.xml",     "width",  5.00, None),
+    "prytaneion":       ("art/actors/structures/athenians/prytaneion.xml",        "width",  5.00, None),
+    "propylaea":        ("art/actors/structures/athenians/propylaea.xml",         "width",  4.50, None),
+    "lighthouse":       ("art/actors/structures/ptolemies/lighthouse.xml",       "width",  4.00, None),
+    "oak":              ("art/actors/flora/trees/oak.xml",                       "height", 5.00, None),
+    "acacia":           ("art/actors/flora/trees/acacia.xml",                    "height", 5.50, None),
+    "baobab":           ("art/actors/flora/trees/baobab.xml",                    "height", 6.50, None),
+    "bamboo":           ("art/actors/flora/trees/bamboo.xml",                    "height", 4.50, None),
+    "apple":            ("art/actors/flora/trees/apple.xml",                     "height", 3.50, None),
+    # G7-M batch: siege engines (animated, distinct per-engine silhouettes) +
+    # towers/walls/docks + production/civic statics still missing from manifest.
+    # Mesh bones == PSA keys == skeleton bones verified per id (see UNIT_CFG).
+    "siege_ballista":       ("art/actors/units/romans/siege_ballista.xml",        "width",  2.20, (0.36, 0.62, 0.94)),
+    "siege_ballista_med":   ("art/actors/units/romans/siege_ballista_med.xml",    "width",  2.40, (0.36, 0.62, 0.94)),
+    "siege_lithobolos":     ("art/actors/units/hellenes/siege_lithobolos.xml",    "width",  2.60, (0.36, 0.62, 0.94)),
+    "siege_lithobolos_light": ("art/actors/units/hellenes/siege_lithobolos_light.xml", "width", 2.20, (0.36, 0.62, 0.94)),
+    "siege_oxybeles":       ("art/actors/units/hellenes/siege_oxybeles.xml",      "width",  2.20, (0.36, 0.62, 0.94)),
+    "siege_polybolos":      ("art/actors/units/ptolemies/siege_polybolos.xml",    "width",  2.40, (0.36, 0.62, 0.94)),
+    "siege_scorpio":        ("art/actors/units/romans/siege_scorpio.xml",         "width",  2.20, (0.36, 0.62, 0.94)),
+    "siege_onager":         ("art/actors/units/romans/siege_onager.xml",          "width",  2.60, (0.36, 0.62, 0.94)),
+    "siege_mangonel":       ("art/actors/units/han/siege_mangonel.xml",            "width",  3.00, (0.36, 0.62, 0.94)),
+    "siege_shoushe":        ("art/actors/units/han/siege_shoushe.xml",            "width",  2.60, (0.36, 0.62, 0.94)),
+    "siege_tower":          ("art/actors/structures/hellenes/siege_tower.xml",    "width",  3.00, (0.36, 0.62, 0.94)),
+    "siege_wall":           ("art/actors/structures/romans/siege_wall.xml",       "width",  3.00, None),
+    "ballista_tower":       ("art/actors/structures/persians/ballista_tower.xml", "width",  2.50, None),
+    "sentry_tower":         ("art/actors/structures/germans/sentry_tower.xml",    "width",  2.00, None),
+    "defense_tower":        ("art/actors/structures/germans/defense_tower.xml",   "width",  2.50, None),
+    "outpost":              ("art/actors/structures/hellenes/outpost.xml",       "width",  2.00, None),
+    "super_dock":           ("art/actors/structures/carthaginians/super_dock.xml","width",  5.50, None),
+    "blacksmith":           ("art/actors/structures/hellenes/blacksmith.xml",    "width",  4.20, None),
+    "workshop":             ("art/actors/structures/hellenes/workshop.xml",       "width",  4.20, None),
+    "arsenal":              ("art/actors/structures/han/arsenal.xml",            "width",  5.00, None),
+    "library":              ("art/actors/structures/macedonians/library.xml",    "width",  4.50, None),
+    "amphitheater":         ("art/actors/structures/romans/amphitheater_pompeii.xml", "width", 8.00, None),
+    "triumphal_arch":       ("art/actors/structures/romans/triumphal_arch.xml",  "width",  4.00, None),
+    "mausoleum":            ("art/actors/structures/global/mausoleum.xml",        "width",  5.00, None),
+    "shrine":               ("art/actors/structures/han/shrine.xml",              "width",  3.00, None),
+    "palace":               ("art/actors/structures/carthaginians/palace.xml",   "width",  6.00, None),
+    "embassy":              ("art/actors/structures/carthaginians/embassy.xml",  "width",  3.50, None),
+    "academy":              ("art/actors/structures/han/academy.xml",            "width",  5.00, None),
+    "great_hall":           ("art/actors/structures/germans/great_hall.xml",     "width",  5.00, None),
+    # G7-Q batch: warship hulls (bireme/quinquereme/pentekonter + nordic/celtic
+    # boats + han merchants) + smith/forge/farm-field/harbor statics + hound,
+    # elephant and chariot variants. pentekonter is the one animated hull
+    # (3-bone mesh, 3-key PSAs, ship_one_row skeleton); the rest are 0-bone
+    # statics. Hound/elephant/chariot triples verified mesh==skeleton==PSA.
+    "bireme":               ("art/actors/structures/carthaginians/bireme.xml",  "width",  6.00, None),
+    "bireme_rome":          ("art/actors/structures/romans/bireme.xml",         "width",  6.00, None),
+    "quinquereme":          ("art/actors/structures/carthaginians/quinquereme.xml", "width", 7.50, None),
+    "quinquereme_rome":     ("art/actors/structures/romans/quinquereme.xml",    "width",  7.50, None),
+    "pentekonter":          ("art/actors/structures/hellenes/pentekonter.xml",   "width",  6.00, (0.36, 0.62, 0.94)),
+    "trireme_han":          ("art/actors/structures/han/trireme.xml",           "width",  7.00, None),
+    "bireme_han":           ("art/actors/structures/han/bireme.xml",            "width",  6.00, None),
+    "ship_knarr":           ("art/actors/structures/germans/ship_knarr.xml",    "width",  5.00, None),
+    "ship_snekkja":         ("art/actors/structures/germans/ship_snekkja.xml",  "width",  5.50, None),
+    "ship_karvi":           ("art/actors/structures/germans/ship_karvi.xml",    "width",  4.50, None),
+    "skiff":                ("art/actors/structures/celts/skiff.xml",           "width",  3.00, None),
+    "rowboat":              ("art/actors/structures/celts/rowboat.xml",         "width",  3.00, None),
+    "merchant_han":         ("art/actors/structures/han/merchant_ship.xml",     "width",  5.50, None),
+    "fishing_han":          ("art/actors/structures/han/fishing_ship.xml",      "width",  3.50, None),
+    "blacksmith_brit":      ("art/actors/structures/britons/blacksmith.xml",   "width",  4.20, None),
+    "blacksmith_kart":      ("art/actors/structures/carthaginians/blacksmith.xml", "width", 4.20, None),
+    "forge_germ":           ("art/actors/structures/germans/forge.xml",         "width",  4.20, None),
+    "forge_han":            ("art/actors/structures/han/forge.xml",              "width",  4.50, None),
+    "field_plot":           ("art/actors/structures/plot_field.xml",            "width",  4.00, None),
+    "orchard_plot":         ("art/actors/structures/plot_orchard.xml",          "width",  4.00, None),
+    "crannog":              ("art/actors/structures/britons/crannog.xml",       "width",  5.00, None),
+    "wooden_tower":         ("art/actors/structures/britons/wooden_tower.xml",  "width",  2.50, None),
+    "scout_tower":          ("art/actors/structures/britons/scout_tower.xml",   "width",  2.00, None),
+    "tower_bolt":           ("art/actors/structures/carthaginians/tower_bolt.xml", "width", 2.50, None),
+    "tower_artillery":      ("art/actors/structures/carthaginians/tower_artillery.xml", "width", 3.00, None),
+    "stable_elephant":      ("art/actors/structures/carthaginians/stable_elephant.xml", "width", 5.00, None),
+    "kennel":               ("art/actors/structures/britons/kennel.xml",        "width",  3.50, None),
+    "wolfhound":            ("art/actors/units/britons/wolfhound.xml",          "height", 0.90, None),
+    "mastiff_gaia":         ("art/actors/fauna/mastiff.xml",                   "height", 0.90, None),
+    "elephant_bush":        ("art/actors/fauna/elephant_african_bush.xml",     "height", 3.20, (0.92, 0.32, 0.28)),
+    "elephant_forest":      ("art/actors/fauna/elephant_african_forest.xml",   "height", 3.20, (0.92, 0.32, 0.28)),
+    "chariot_han":          ("art/actors/units/han/chariot_archer_m.xml",       "width",  2.80, (0.36, 0.62, 0.94)),
+
+    # ---------------------------------------------------------------------
+    # C2 HAN (Chinese) civ batch. 0 A.D. ships the Han roster under two art
+    # roots — art/actors/units/han/*.xml (people, mounts, chariots, siege) and
+    # art/actors/structures/han/*.xml (the pagoda/timber civic set). None of it
+    # was reachable before: "han" was absent from CIV_ART_FOLDERS, so the civ
+    # probe never looked in those folders and ModelLibrary silently fell back to
+    # the generic (Greek/Hellenic) meshes.
+    #
+    # Fit conventions copied from the rows above:
+    #   infantry/support : 'height' 1.70 (villager/female/healer per task spec)
+    #   mounted/chariot   : 'height' 2.20 for cavalry, 'width' 2.80 for chariots
+    #   structures/siege : 'width'  (0 A.D. .pmd units are ~1 unit == 1 m here)
+    # Tint: (0.36, 0.62, 0.94) player blue — Han actors are tinted with the same
+    # alpha-mask path as every other row above, so the civ reads as a recolour of
+    # the same pipeline rather than a new bake path.
+    # ---------------------------------------------------------------------
+    # --- Han infantry / support (height 1.70-1.80, matches the other civs) ---
+    "han_villager_male":     ("art/actors/units/han/citizen_male.xml",       "height", 1.70, (0.36, 0.62, 0.94)),
+    "han_villager_female":   ("art/actors/units/han/female_citizen.xml",    "height", 1.70, (0.36, 0.62, 0.94)),
+    "han_citizen_female":    ("art/actors/units/han/citizen_female.xml",    "height", 1.70, (0.36, 0.62, 0.94)),
+    "han_swordsman":         ("art/actors/units/han/infantry_swordsman_c.xml", "height", 1.80, (0.36, 0.62, 0.94)),
+    "han_spearman":          ("art/actors/units/han/infantry_spearman_c.xml",  "height", 1.80, (0.36, 0.62, 0.94)),
+    "han_halberdman":        ("art/actors/units/han/infantry_halberdman_b.xml", "height", 1.85, (0.36, 0.62, 0.94)),
+    "han_archer":            ("art/actors/units/han/infantry_archer_c.xml",    "height", 1.78, (0.36, 0.62, 0.94)),
+    "han_crossbowman":       ("art/actors/units/han/infantry_crossbowman_c.xml", "height", 1.78, (0.36, 0.62, 0.94)),
+    "han_healer":            ("art/actors/units/han/healer.xml",                "height", 1.70, (0.92, 0.90, 0.82)),
+    "han_trader":            ("art/actors/units/han/trader.xml",                "height", 1.90, (0.36, 0.62, 0.94)),
+    "han_minister":          ("art/actors/units/han/minister.xml",              "height", 1.72, (0.92, 0.90, 0.82)),
+    "han_fisherman":         ("art/actors/units/han/fisherman.xml",             "height", 1.70, (0.36, 0.62, 0.94)),
+    # --- Han heroes (the three 0 A.D. hero_infantry_* actors) ---
+    "han_hero_han_xin":      ("art/actors/units/han/hero_infantry_han_xin.xml",      "height", 1.90, (0.92, 0.32, 0.28)),
+    "han_hero_wei_qing":     ("art/actors/units/han/hero_infantry_wei_qing.xml",     "height", 1.90, (0.92, 0.32, 0.28)),
+    "han_hero_liu_bang":     ("art/actors/units/han/hero_infantry_liu_bang.xml",     "height", 1.90, (0.92, 0.32, 0.28)),
+    "han_hero_cav_han_xin":  ("art/actors/units/han/hero_cavalry_spearman_han_xin_m.xml",    "height", 2.20, (0.92, 0.32, 0.28)),
+    "han_hero_cav_wei_qing": ("art/actors/units/han/hero_cavalry_crossbowman_wei_qing_m.xml", "height", 2.20, (0.92, 0.32, 0.28)),
+    "han_hero_cav_liu_bang": ("art/actors/units/han/hero_cavalry_swordsman_liu_bang_m.xml",    "height", 2.20, (0.92, 0.32, 0.28)),
+    "han_hero_chariot_han":  ("art/actors/units/han/hero_chariot_crossbowman_d.xml", "width",  2.90, (0.92, 0.32, 0.28)),
+    # --- Han mounted / chariot (cavalry height 2.20 per task spec, chariots width) ---
+    "han_cavalry_spearman":  ("art/actors/units/han/cavalry_spearman_c_m.xml",  "height", 2.20, (0.36, 0.62, 0.94)),
+    "han_cavalry_swordsman": ("art/actors/units/han/cavalry_swordsman_b_m.xml", "height", 2.20, (0.36, 0.62, 0.94)),
+    "han_cavalry_crossbow":  ("art/actors/units/han/cavalry_crossbowman_c_m.xml", "height", 2.20, (0.36, 0.62, 0.94)),
+    "han_cavalry_archer":    ("art/actors/units/han/cavalry_archer_b_m.xml",    "height", 2.20, (0.36, 0.62, 0.94)),
+    "han_chariot_archer":    ("art/actors/units/han/chariot_archer_d.xml",      "width",  2.80, (0.36, 0.62, 0.94)),
+    "han_chariot_general":   ("art/actors/units/han/chariot_archer_h_01.xml",   "width",  2.80, (0.36, 0.62, 0.94)),
+    # --- Han siege (already partly present as siege_mangonel / siege_shoushe;
+    #     the packed sub-meshes are the ones the unit actors actually compose) ---
+    "han_siege_mangonel_packed": ("art/actors/units/han/siege_mangonel_packed.xml", "width", 3.00, (0.36, 0.62, 0.94)),
+    "han_siege_mangonel_pivot":  ("art/actors/units/han/siege_mangonel_pivot_packed.xml", "width", 3.00, (0.36, 0.62, 0.94)),
+    # --- Han structures: civic core (all 'width', sizes copied from the
+    #     Hellenic/Athenian rows above so the RTS0 building footprints line up) ---
+    "han_town_center":       ("art/actors/structures/han/civil_centre.xml",   "width", 6.20, (0.36, 0.62, 0.94)),
+    "han_house":             ("art/actors/structures/han/house.xml",          "width", 2.40, (0.36, 0.62, 0.94)),
+    "han_barracks":          ("art/actors/structures/han/barracks.xml",       "width", 4.00, (0.36, 0.62, 0.94)),
+    "han_storehouse":        ("art/actors/structures/han/storehouse.xml",     "width", 3.40, (0.36, 0.62, 0.94)),
+    "han_farmstead":         ("art/actors/structures/han/farmstead.xml",      "width", 3.20, (0.36, 0.62, 0.94)),
+    "han_market":            ("art/actors/structures/han/market.xml",         "width", 4.20, (0.36, 0.62, 0.94)),
+    "han_temple":            ("art/actors/structures/han/temple.xml",         "width", 5.00, (0.36, 0.62, 0.94)),
+    "han_temple_shrine":     ("art/actors/structures/han/shrine.xml",         "width", 3.00, (0.36, 0.62, 0.94)),
+    "han_range":             ("art/actors/structures/han/range.xml",          "width", 3.80, (0.36, 0.62, 0.94)),
+    "han_stable":            ("art/actors/structures/han/stable.xml",         "width", 4.20, (0.36, 0.62, 0.94)),
+    "han_fortress":          ("art/actors/structures/han/fortress.xml",       "width", 6.00, (0.36, 0.62, 0.94)),
+    "han_fortress_old":      ("art/actors/structures/han/fortress_old.xml",   "width", 6.00, (0.36, 0.62, 0.94)),
+    "han_academy":           ("art/actors/structures/han/academy.xml",        "width", 5.00, (0.36, 0.62, 0.94)),
+    "han_arsenal":           ("art/actors/structures/han/arsenal.xml",        "width", 5.00, (0.36, 0.62, 0.94)),
+    "han_pagoda":            ("art/actors/structures/han/pagoda.xml",         "width", 5.50, (0.36, 0.62, 0.94)),
+    "han_imperial_court":    ("art/actors/structures/han/imperial_court.xml", "width", 6.00, (0.36, 0.62, 0.94)),
+    "han_imperial_ministry": ("art/actors/structures/han/imperial_ministry.xml", "width", 5.50, (0.36, 0.62, 0.94)),
+    "han_wonder":            ("art/actors/structures/han/wonder.xml",         "width", 6.50, (0.36, 0.62, 0.94)),
+    # --- Han defences / walls / dock ---
+    "han_wall_tower":        ("art/actors/structures/han/wall_tower.xml",     "width", 2.20, (0.36, 0.62, 0.94)),
+    "han_tower_small":       ("art/actors/structures/han/tower_small.xml",    "width", 2.00, (0.36, 0.62, 0.94)),
+    "han_tower_large":       ("art/actors/structures/han/tower_large.xml",    "width", 2.60, (0.36, 0.62, 0.94)),
+    "han_tower_great":       ("art/actors/structures/han/tower_great.xml",     "width", 3.20, (0.36, 0.62, 0.94)),
+    "han_wall_long":         ("art/actors/structures/han/wall_long.xml",      "width", 2.00, (0.36, 0.62, 0.94)),
+    "han_wall_short":        ("art/actors/structures/han/wall_short.xml",     "width", 1.00, (0.36, 0.62, 0.94)),
+    "han_wall_medium":       ("art/actors/structures/han/wall_medium.xml",    "width", 1.50, (0.36, 0.62, 0.94)),
+    "han_wall_gate":         ("art/actors/structures/han/wall_gate.xml",      "width", 3.80, (0.36, 0.62, 0.94)),
+    "han_outpost":           ("art/actors/structures/han/outpost.xml",        "width", 2.00, (0.36, 0.62, 0.94)),
+    "han_dock":              ("art/actors/structures/han/dock.xml",           "width", 4.80, (0.36, 0.62, 0.94)),
+    "han_corral":            ("art/actors/structures/han/corral.xml",         "width", 3.60, (0.36, 0.62, 0.94)),
+    "han_forge":             ("art/actors/structures/han/forge.xml",          "width", 4.50, (0.36, 0.62, 0.94)),
+    # --- Han naval hulls (static, 'width'; sail/rig animates via rider clips) ---
+    "han_trireme":           ("art/actors/structures/han/trireme.xml",        "width", 7.00, None),
+    "han_bireme":            ("art/actors/structures/han/bireme.xml",         "width", 6.00, None),
+    "han_merchant_ship":     ("art/actors/structures/han/merchant_ship.xml",  "width", 5.50, None),
+    "han_fishing_ship":      ("art/actors/structures/han/fishing_ship.xml",   "width", 3.50, None),
+    "han_fireship":          ("art/actors/structures/han/fireship.xml",       "width", 6.50, None),
+    "han_towership":         ("art/actors/structures/han/towership.xml",      "width", 6.50, None),
 }
 
 # Per-civ core actors (folder names follow 0 A.D. art/actors/units/*).
@@ -304,6 +567,23 @@ CIV_CORE_ACTORS = {
         "fishing_boat": "art/actors/structures/hellenes/fishing_boat.xml",
         "trireme": "art/actors/structures/seleucids/trireme.xml",
     },
+    # Han (Chinese). 0 A.D. has no generic citizen male under a Han-specific
+    # name set beyond citizen_male/female_citizen; the roster is Han's own
+    # halberd/spear/sword line, crossbow & archer, mounted crossbow/spear/sword,
+    # two chariot flavours, three heroes and the minister/ministeress support cast.
+    "han": {
+        "villager": "art/actors/units/han/citizen_male.xml",
+        "female_citizen": "art/actors/units/han/female_citizen.xml",
+        "swordsman": "art/actors/units/han/infantry_swordsman_c.xml",
+        "spearman": "art/actors/units/han/infantry_spearman_c.xml",
+        "archer": "art/actors/units/han/infantry_archer_c.xml",
+        "cavalry": "art/actors/units/han/cavalry_spearman_c_m.xml",
+        "hero": "art/actors/units/han/hero_infantry_han_xin.xml",
+        "healer": "art/actors/units/han/healer.xml",
+        "trader": "art/actors/units/han/trader.xml",
+        "fishing_boat": "art/actors/structures/han/fishing_ship.xml",
+        "trireme": "art/actors/structures/han/trireme.xml",
+    },
 }
 
 # 0 A.D. art folder names per civ, most specific first. Shared by the unit and
@@ -322,6 +602,7 @@ CIV_ART_FOLDERS = {
     "kush": ["kushites"],
     "ptol": ["ptolemies"],
     "sele": ["seleucids", "hellenes"],
+    "han": ["han"],
 }
 
 # 0 A.D. filenames for each RTS0 unit id that CIV_CORE_ACTORS does not spell out
@@ -346,6 +627,16 @@ CIV_UNIT_ACTOR_NAMES = {
     "carnyx": ("infantry_carnyx_c.xml",),
     "archer_maiden": ("infantry_archer_c.xml", "infantry_archer_b.xml", "infantry_archer_a.xml"),
     "merchant_ship": ("merchant_ship.xml", "merchantman.xml", "merchant_sail.xml", "merchant.xml"),
+    # Han-specific lines 0 A.D. ships under their own names.
+    "halberdman": ("infantry_halberdman_b.xml",),
+    "crossbowman": ("infantry_crossbowman_c.xml", "infantry_crossbowman_b.xml"),
+    "cavalry_crossbowman": ("cavalry_crossbowman_c_m.xml",),
+    "cavalry_archer": ("cavalry_archer_b_m.xml",),
+    "chariot_archer_han": ("chariot_archer_d.xml", "chariot_archer_m.xml"),
+    "hero_cavalry_han": ("hero_cavalry_spearman_han_xin_m.xml",),
+    "hero_chariot_han": ("hero_chariot_crossbowman_d.xml",),
+    "minister": ("minister.xml",),
+    "fisherman": ("fisherman.xml",),
 }
 
 # 0 A.D. filenames for each RTS0 building id (first match in civ folders wins).
@@ -520,6 +811,74 @@ def register_civ_building_assets(assets, zf):
     return added
 
 
+# G7-H2 curated batch: HIGH-VISIBILITY classes still missing from the manifest.
+# Map fauna (animated gaia animals placed on maps), landmark/civic statics
+# (wonders + athenian civic set used on maps), flora variety (biome trees).
+# Civ-skin duplicates of already-converted models are deliberately excluded.
+G7_CLASSSETS = {
+    "g7h2": [
+        "goat", "zebra", "chicken", "crocodile", "giraffe", "rabbit",
+        "gazelle", "bear", "cow", "pig", "lion", "lioness", "donkey",
+        "fox", "hawk",
+        "pyramid", "pyramid_minor", "ishtar_gate", "greek_stoa",
+        "greek_stoa_great", "theater", "gymnasium", "stoa",
+        "prytaneion", "propylaea", "lighthouse",
+        "oak", "acacia", "baobab", "bamboo", "apple",
+    ],
+    "fauna": [
+        "goat", "zebra", "chicken", "crocodile", "giraffe", "rabbit",
+        "gazelle", "bear", "cow", "pig", "lion", "lioness", "donkey",
+        "fox", "hawk",
+    ],
+    "landmarks": [
+        "pyramid", "pyramid_minor", "ishtar_gate", "greek_stoa",
+        "greek_stoa_great", "theater", "gymnasium", "stoa",
+        "prytaneion", "propylaea", "lighthouse",
+    ],
+    "flora": ["oak", "acacia", "baobab", "bamboo", "apple"],
+    # G7-M: siege engines (animated) + towers/walls/docks + production/civics.
+    # Generic ram/wall/dock/catapult/bolt_shooter + civ skins already ship, so
+    # only the still-missing distinct silhouettes are listed here (29 models).
+    "g7m": [
+        "siege_ballista", "siege_ballista_med", "siege_lithobolos",
+        "siege_lithobolos_light", "siege_oxybeles", "siege_polybolos",
+        "siege_scorpio", "siege_onager", "siege_mangonel", "siege_shoushe",
+        "siege_tower",
+        "siege_wall", "ballista_tower", "sentry_tower", "defense_tower",
+        "outpost", "super_dock", "blacksmith", "workshop", "arsenal",
+        "library", "amphitheater", "triumphal_arch", "mausoleum", "shrine",
+        "palace", "embassy", "academy", "great_hall",
+    ],
+    # G7-Q: warship hulls (bireme/quinquereme/pentekonter + nordic/celtic
+    # boats + han merchants) + smith/forge/field/harbor statics + hound,
+    # elephant and chariot variants. Distinct silhouettes only; civ-skin
+    # dupes, *_top LODs and decals are excluded (32 models).
+    "g7q": [
+        "bireme", "bireme_rome", "quinquereme", "quinquereme_rome",
+        "pentekonter", "trireme_han", "bireme_han",
+        "ship_knarr", "ship_snekkja", "ship_karvi",
+        "skiff", "rowboat", "merchant_han", "fishing_han",
+        "blacksmith_brit", "blacksmith_kart", "forge_germ", "forge_han",
+        "field_plot", "orchard_plot", "crannog",
+        "wooden_tower", "scout_tower", "tower_bolt", "tower_artillery",
+        "stable_elephant", "kennel",
+        "wolfhound", "mastiff_gaia", "elephant_bush", "elephant_forest",
+        "chariot_han",
+    ],
+    "siege": [
+        "siege_ballista", "siege_ballista_med", "siege_lithobolos",
+        "siege_lithobolos_light", "siege_oxybeles", "siege_polybolos",
+        "siege_scorpio", "siege_onager", "siege_mangonel", "siege_shoushe",
+        "siege_tower",
+    ],
+    "walls": [
+        "siege_wall", "ballista_tower", "sentry_tower", "defense_tower",
+        "outpost",
+    ],
+    "docks": ["super_dock"],
+}
+
+
 FULL_ASSETS = dict(ASSETS)
 
 TERRAIN_TILES = {  # out name -> terrain types/<biome>/<tile>
@@ -536,6 +895,77 @@ TERRAIN_TILES = {  # out name -> terrain types/<biome>/<tile>
 }
 
 FULL_TERRAIN = dict(TERRAIN_TILES)
+
+_ARCHIVE_ACTOR_ROOTS = ("units", "structures", "flora", "fauna", "geology")
+_ARCHIVE_SKIP_SUBSTR = ("/particle/", "/decals/", "/destruction/", "destruct")
+_TERRAIN_SKIP_SUFFIX = ("_norm", "_spec", "_bump", "_height", "_normal", "_ao")
+
+
+def discover_terrain_tiles(zf):
+    """Every albedo under art/textures/terrain/types/**, keyed for PNG dump."""
+    tiles = dict(TERRAIN_TILES)
+    tiles.update(FULL_TERRAIN)
+    prefix = "art/textures/terrain/types/"
+    for n in zf.namelist():
+        if not n.startswith(prefix):
+            continue
+        if not n.endswith(".cached.dds"):
+            continue
+        rest = n[len(prefix):-len(".cached.dds")]
+        stem, ext = os.path.splitext(rest)
+        low = stem.lower()
+        if any(low.endswith(s) for s in _TERRAIN_SKIP_SUFFIX):
+            continue
+        ref = "types/" + rest
+        name = stem.replace("/", "_").replace("\\", "_")
+        if name in tiles:
+            continue
+        tiles[name] = ref
+    return tiles
+
+
+def discover_archive_actors(zf, already_refs, already_ids):
+    """Extra actors under units/structures/flora/fauna/geology for models/archive/."""
+    extras = []
+    used = set(already_ids)
+    for n in zf.namelist():
+        if not n.startswith("art/actors/") or not n.endswith(".xml"):
+            continue
+        parts = n.split("/")
+        if len(parts) < 4 or parts[2] not in _ARCHIVE_ACTOR_ROOTS:
+            continue
+        low = n.lower()
+        if any(s in low for s in _ARCHIVE_SKIP_SUBSTR):
+            continue
+        if n in already_refs:
+            continue
+        rel = n[len("art/actors/"):-len(".xml")].replace("/", "_").replace(" ", "_")
+        aid = rel
+        n_id = 2
+        while aid in used:
+            aid = f"{rel}_{n_id}"
+            n_id += 1
+        used.add(aid)
+        extras.append((aid, n))
+    return extras
+
+
+def _archive_fit(actor_ref):
+    folder = actor_ref.split("/")[2] if actor_ref.startswith("art/actors/") else ""
+    if folder == "structures":
+        return "width", 5.0
+    if folder == "geology":
+        return "width", 2.0
+    if folder == "flora":
+        return "height", 3.5
+    if folder == "fauna":
+        return "height", 1.4
+    return "height", 1.8
+
+
+def _glb_out_path(out_dir, asset_id, rel_dir=None):
+    folder = rel_dir or asset_dir(asset_id)
+    return os.path.join(out_dir, folder, f"{asset_id}.glb")
 
 MUSIC = {"theme.ogg": "audio/music/In_the_Shadow_of_Olympus.ogg",
          "victory.ogg": "audio/music/You_are_Victorious!.ogg",
@@ -563,6 +993,10 @@ ANIMATIONS = {
     "citizen_build":    "art/animation/biped/citizen/build.dae.cached.psa",
     "gather_mine":      "art/animation/biped/gatherer/gather_mine.dae.cached.psa",
     "gather_berries":   "art/animation/biped/gatherer/gather_berries.dae.cached.psa",
+    "gather_fruit_m":   "art/animation/biped/gatherer/gather_fruit_m.dae.cached.psa",
+    "gather_fruit_f":   "art/animation/biped/gatherer/gather_fruit_f.dae.cached.psa",
+    "gather_grain":     "art/animation/biped/gatherer/farming.dae.cached.psa",
+    "gather_meat":      "art/animation/biped/gatherer/gather_meat.dae.cached.psa",
     "carry_wood":       "art/animation/biped/gatherer/carry_wood_m.dae.cached.psa",
     "carry_ore":        "art/animation/biped/gatherer/carry_ore_m.dae.cached.psa",
     # archer specific
@@ -612,6 +1046,63 @@ ANIMATIONS = {
     "dog_run":          "art/animation/quadraped/mastiff_run.dae.cached.psa",
     "dog_attack":       "art/animation/quadraped/mastiff_attack.dae.cached.psa",
     "dog_death":        "art/animation/quadraped/mastiff_death.dae.cached.psa",
+    # G7-H2 map-fauna batch (bone counts verified vs skeleton xml: psa_num_keys == len(skeleton))
+    "goat_idle":        "art/animation/quadraped/goat_idle_01.dae.cached.psa",
+    "goat_walk":        "art/animation/quadraped/goat_walk.dae.cached.psa",
+    "goat_death":       "art/animation/quadraped/goat_death.dae.cached.psa",
+    "zebra_idle":       "art/animation/quadraped/zebra_idle.dae.cached.psa",
+    "zebra_walk":       "art/animation/quadraped/zebra_walk.dae.cached.psa",
+    "zebra_run":        "art/animation/quadraped/zebra_run.dae.cached.psa",
+    "zebra_attack":     "art/animation/quadraped/zebra_attack.dae.cached.psa",
+    "zebra_death":      "art/animation/quadraped/zebra_death.dae.cached.psa",
+    "chicken_idle":     "art/animation/quadraped/chicken_idle_01.dae.cached.psa",
+    "chicken_walk":     "art/animation/quadraped/chicken_walk.dae.cached.psa",
+    "chicken_run":      "art/animation/quadraped/chicken_run_01.dae.cached.psa",
+    "chicken_attack":   "art/animation/quadraped/chicken_attack.dae.cached.psa",
+    "chicken_death":    "art/animation/quadraped/chicken_death.dae.cached.psa",
+    "croc_idle":        "art/animation/quadraped/Croc_idle1.dae.cached.psa",
+    "croc_walk":        "art/animation/quadraped/Croc_walk.dae.cached.psa",
+    "croc_run":         "art/animation/quadraped/Croc_run.dae.cached.psa",
+    "croc_attack":      "art/animation/quadraped/Croc_attack.dae.cached.psa",
+    "croc_death":       "art/animation/quadraped/Croc_death.dae.cached.psa",
+    "giraffe_idle":     "art/animation/quadraped/giraffe_adult_idle_01.dae.cached.psa",
+    "giraffe_walk":     "art/animation/quadraped/giraffe_adult_walk.dae.cached.psa",
+    "giraffe_run":      "art/animation/quadraped/giraffe_adult_run.dae.cached.psa",
+    "giraffe_death":    "art/animation/quadraped/giraffe_adult_death.dae.cached.psa",
+    "rabbit_idle":      "art/animation/quadraped/rabbit_idle_01.dae.cached.psa",
+    "rabbit_walk":      "art/animation/quadraped/rabbit_walk.dae.cached.psa",
+    "rabbit_death":     "art/animation/quadraped/rabbit_death.dae.cached.psa",
+    "bear_idle":        "art/animation/quadraped/bear_idle_01.dae.cached.psa",
+    "bear_walk":        "art/animation/quadraped/bear_walk.dae.cached.psa",
+    "bear_run":         "art/animation/quadraped/bear_run.dae.cached.psa",
+    "bear_attack":      "art/animation/quadraped/bear_attack_01.dae.cached.psa",
+    "bear_death":       "art/animation/quadraped/bear_death_01.dae.cached.psa",
+    "cow_idle":         "art/animation/quadraped/bovidae_idle_a.dae.cached.psa",
+    "cow_walk":         "art/animation/quadraped/bovidae_walk_relax.dae.cached.psa",
+    "cow_run":          "art/animation/quadraped/bovidae_run.dae.cached.psa",
+    "cow_attack":       "art/animation/quadraped/bovidae_attack.dae.cached.psa",
+    "cow_death":        "art/animation/quadraped/bovidae_death_a.dae.cached.psa",
+    "pig_idle":         "art/animation/quadraped/animal_pig_idle_01.dae.cached.psa",
+    "pig_walk":         "art/animation/quadraped/animal_pig_walk_01.dae.cached.psa",
+    "pig_run":          "art/animation/quadraped/animal_pig_run_01.dae.cached.psa",
+    "pig_attack":       "art/animation/quadraped/animal_pig_attack_01.dae.cached.psa",
+    "pig_death":        "art/animation/quadraped/animal_pig_death_01.dae.cached.psa",
+    "fox_idle":         "art/animation/quadraped/fox_idle.dae.cached.psa",
+    "fox_walk":         "art/animation/quadraped/fox_walk.dae.cached.psa",
+    "fox_run":          "art/animation/quadraped/fox_run.dae.cached.psa",
+    "fox_death":        "art/animation/quadraped/fox_death.dae.cached.psa",
+    "hawk_idle":        "art/animation/other/hawk_flight.dae.cached.psa",
+    "hawk_walk":        "art/animation/other/hawk_glide.dae.cached.psa",
+    "lion_idle":        "art/animation/quadraped/lion_idle_01.dae.cached.psa",
+    "lion_walk":        "art/animation/quadraped/lion_walk.dae.cached.psa",
+    "lion_run":         "art/animation/quadraped/lion_run.dae.cached.psa",
+    "lion_attack":      "art/animation/quadraped/lion_idle_01.dae.cached.psa",
+    "lion_death":       "art/animation/quadraped/lion_death.dae.cached.psa",
+    "donkey_idle":      "art/animation/quadraped/donkey_idle_01.dae.cached.psa",
+    "donkey_walk":      "art/animation/quadraped/donkey_walk_01.dae.cached.psa",
+    "donkey_death":     "art/animation/quadraped/donkey_death_01.dae.cached.psa",
+    "deer_attack":      "art/animation/quadraped/deer_attack_01.dae.cached.psa",
+    "deer_run":         "art/animation/quadraped/deer_run_01.dae.cached.psa",
     # healer (biped 46 — citizen healer set, not infantry relax)
     "healer_idle":      "art/animation/biped/citizen/idle_relax_h_m.dae.cached.psa",
     "healer_walk":      "art/animation/biped/citizen/walk_relax_h_m.dae.cached.psa",
@@ -667,8 +1158,47 @@ ANIMATIONS = {
     "rowing_walk":      "art/animation/mechanical/rowing_boat_move.dae.cached.psa",
     "chariot_driver_idle": "art/animation/biped/chariot/idle.dae.cached.psa",
     "chariot_driver_celt": "art/animation/biped/chariot/idle_celt.dae.cached.psa",
+    # G7-M siege-engine clips (mesh bones == PSA keys verified per engine).
+    "rome_ballista_idle":  "art/animation/mechanical/siege_artillery/rome_ballista_idle_01.dae.cached.psa",
+    "rome_ballista_attack": "art/animation/mechanical/siege_artillery/rome_ballista_attack_ranged_01.dae.cached.psa",
+    "rome_ballista_med_idle": "art/animation/mechanical/siege_artillery/rome_ballista_med_idle_01.dae.cached.psa",
+    "rome_ballista_med_attack": "art/animation/mechanical/siege_artillery/rome_ballista_med_attack_ranged_01.dae.cached.psa",
+    "lithobolos_idle":    "art/animation/mechanical/siege_artillery/lithobolos_idle_01.dae.cached.psa",
+    "lithobolos_attack":  "art/animation/mechanical/siege_artillery/lithobolos_attack_ranged_01.dae.cached.psa",
+    "lithobolos_light_idle": "art/animation/mechanical/siege_artillery/lithobolos_light_idle_01.dae.cached.psa",
+    "lithobolos_light_attack": "art/animation/mechanical/siege_artillery/lithobolos_light_attack_ranged_01.dae.cached.psa",
+    "lithobolos_light_death": "art/animation/mechanical/siege_artillery/lithobolos_light_death_01.dae.cached.psa",
+    "polybolos_idle":     "art/animation/mechanical/siege_artillery/polybolos_idle_01.dae.cached.psa",
+    "polybolos_attack":   "art/animation/mechanical/siege_artillery/polybolos_attack_ranged_01.dae.cached.psa",
+    "scorpio_idle":       "art/animation/mechanical/siege_artillery/scorpio_idle_01.dae.cached.psa",
+    "scorpio_attack":     "art/animation/mechanical/siege_artillery/scorpio_attack_ranged_01.dae.cached.psa",
+    "onager_idle":        "art/animation/mechanical/siege_onager_idle.dae.cached.psa",
+    "onager_attack":      "art/animation/mechanical/siege_onager_attack.dae.cached.psa",
+    "han_mangonel_idle":  "art/animation/mechanical/han_mangonel_idle.dae.cached.psa",
+    "han_mangonel_attack": "art/animation/mechanical/han_mangonel_attack.dae.cached.psa",
+    "han_shoushe_idle":   "art/animation/mechanical/han_shoushe_idle.dae.cached.psa",
+    "han_shoushe_walk":   "art/animation/mechanical/han_shoushe_walk.dae.cached.psa",
+    "han_shoushe_attack": "art/animation/mechanical/han_shoushe_attack.dae.cached.psa",
+    "han_shoushe_death":  "art/animation/mechanical/han_shoushe_death.dae.cached.psa",
+    "hele_siege_tower_idle": "art/animation/mechanical/hele_siege_tower_idle.dae.cached.psa",
+    "hele_siege_tower_walk": "art/animation/mechanical/hele_siege_tower_move.dae.cached.psa",
     "chariot_jav_ready": "art/animation/biped/infantry/javelinist/idle_ready.dae.cached.psa",
     "chariot_archer_ready": "art/animation/biped/infantry/archer/idle_ready.dae.cached.psa",
+    # G7-Q hound/elephant/chariot variants (mesh bones == skeleton == PSA keys).
+    "hound_idle":       "art/animation/quadraped/wolfhound_idle1.dae.cached.psa",
+    "hound_walk":       "art/animation/quadraped/wolfhound_walk.dae.cached.psa",
+    "hound_attack":     "art/animation/quadraped/wolfhound_attack.dae.cached.psa",
+    "hound_death":      "art/animation/quadraped/wolfhound_death.dae.cached.psa",
+    "elephant_bush_idle": "art/animation/quadraped/elephant_african_bush_idle_01.dae.cached.psa",
+    "elephant_bush_walk": "art/animation/quadraped/elephant_african_bush_walk.dae.cached.psa",
+    "elephant_bush_run": "art/animation/quadraped/elephant_african_bush_run.dae.cached.psa",
+    "elephant_bush_attack": "art/animation/quadraped/elephant_african_bush_attack_melee_01.dae.cached.psa",
+    "elephant_bush_death": "art/animation/quadraped/elephant_african_bush_death.dae.cached.psa",
+    "elephant_forest_idle": "art/animation/quadraped/elephant_african_forest_idle_01.dae.cached.psa",
+    "elephant_forest_walk": "art/animation/quadraped/elephant_african_forest_walk.dae.cached.psa",
+    "elephant_forest_run": "art/animation/quadraped/elephant_african_forest_run.dae.cached.psa",
+    "elephant_forest_attack": "art/animation/quadraped/elephant_african_forest_attack_melee_01.dae.cached.psa",
+    "elephant_forest_death": "art/animation/quadraped/elephant_african_forest_death.dae.cached.psa",
 }
 
 SKELETONS = {
@@ -688,6 +1218,32 @@ SKELETONS = {
     "wolf": "art/skeletons/wolf.xml",
     "sheep": "art/skeletons/sheep.xml",
     "mastiff": "art/skeletons/mastiff.xml",
+    # G7-H2 map-fauna skeletons (mesh bones == skeleton bones == PSA keys, verified)
+    "goat": "art/skeletons/goat.xml",
+    "zebra": "art/skeletons/zebra.xml",
+    "chicken": "art/skeletons/chicken.xml",
+    "crocodile": "art/skeletons/crocodile.xml",
+    "giraffe": "art/skeletons/giraffe.xml",
+    "bear": "art/skeletons/ursidae_armature.xml",
+    "cow": "art/skeletons/bovidae_skeleton.xml",
+    "pig": "art/skeletons/boar.xml",
+    "fox": "art/skeletons/fox_armature.xml",
+    "hawk": "art/skeletons/hawk.xml",
+    "lion": "art/skeletons/horse_old.xml",
+    "donkey": "art/skeletons/horse_old.xml",
+    # G7-M siege-engine skeletons (mesh bones == skeleton bones == PSA keys).
+    "ballista_frame": "art/skeletons/ballista.xml",
+    "scorpio_frame": "art/skeletons/scorpio.xml",
+    "polybolos_frame": "art/skeletons/polybolos.xml",
+    "onager_frame": "art/skeletons/siege_onager.xml",
+    "mangonel_frame": "art/skeletons/han_mangonel.xml",
+    "shoushe_frame": "art/skeletons/han_shoushe.xml",
+    "hele_siege_tower": "art/skeletons/hele_lithobolos.xml",
+    # G7-Q variant skeletons (mesh bones == skeleton bones == PSA keys).
+    "wolfhound": "art/skeletons/wolfhound.xml",
+    "elephant_bush": "art/skeletons/elephantidae_african_bush.xml",
+    "elephant_forest": "art/skeletons/elephantidae_african.xml",
+    "ship_one_row": "art/skeletons/ship_one_row.xml",
 }
 
 # Mount *_m XML already props crew onto attachpoints. compose_actor skips
@@ -760,6 +1316,49 @@ UNIT_IDS = frozenset({
     "bolt_shooter", "fishing_boat", "merchant_ship", "female_citizen", "carnyx",
     "worker_elephant", "archer_maiden", "camel", "scythed_chariot",
     "deer", "boar", "wolf", "sheep", "bolt_projectile",
+    "arrow_projectile", "stone_projectile",
+    # G7-H2 map-fauna batch (animated; statics below go to BUILDING/VEGETATION sets)
+    "goat", "zebra", "chicken", "crocodile", "giraffe", "rabbit",
+    "gazelle", "bear", "cow", "pig", "lion", "lioness", "donkey",
+    "fox", "hawk",
+    # G7-M animated siege engines (statics below go to BUILDING_IDS)
+    "siege_ballista", "siege_ballista_med", "siege_lithobolos",
+    "siege_lithobolos_light", "siege_oxybeles", "siege_polybolos",
+    "siege_scorpio", "siege_onager", "siege_mangonel", "siege_shoushe",
+    "siege_tower",
+    # G7-Q animated variants (pentekonter hull + hound/elephant/chariot)
+    "pentekonter",
+    "wolfhound", "mastiff_gaia", "elephant_bush", "elephant_forest",
+    "chariot_han",
+    # C2 Han civ unit variants (animated)
+    "han_cavalry_archer",
+    "han_cavalry_crossbow",
+    "han_cavalry_spearman",
+    "han_cavalry_swordsman",
+    "han_chariot_archer",
+    "han_chariot_general",
+    "han_citizen_female",
+    "han_crossbowman",
+    "han_fisherman",
+    "han_halberdman",
+    "han_hero_cav_han_xin",
+    "han_hero_cav_liu_bang",
+    "han_hero_cav_wei_qing",
+    "han_hero_chariot_han",
+    "han_hero_han_xin",
+    "han_hero_liu_bang",
+    "han_hero_wei_qing",
+    "han_mangonel_attack",
+    "han_mangonel_idle",
+    "han_minister",
+    "han_shoushe_attack",
+    "han_shoushe_death",
+    "han_shoushe_idle",
+    "han_shoushe_walk",
+    "han_siege_mangonel_packed",
+    "han_siege_mangonel_pivot",
+    "han_villager_female",
+    "han_villager_male",
 })
 BUILDING_IDS = frozenset({
     "town_center", "house", "barracks", "farmstead", "storehouse", "market",
@@ -769,9 +1368,45 @@ BUILDING_IDS = frozenset({
     "foundation_5x5", "foundation_6x6", "foundation_8x8", "foundation_4x6",
     "foundation_wall", "foundation_dock", "scaffold_small", "scaffold_large",
     "rubble_small", "rubble_large", "town_center_rubble",
+    # G7-H2 landmark/civic statics
+    "pyramid", "pyramid_minor", "ishtar_gate", "greek_stoa", "greek_stoa_great",
+    "theater", "gymnasium", "stoa", "prytaneion", "propylaea", "lighthouse",
+    # G7-M towers/walls/docks + production/civic statics
+    "siege_wall", "ballista_tower", "sentry_tower", "defense_tower",
+    "outpost", "super_dock", "blacksmith", "workshop", "arsenal",
+    "library", "amphitheater", "triumphal_arch", "mausoleum", "shrine",
+    "palace", "embassy", "academy", "great_hall",
+    # G7-Q warship hulls (0-bone statics) + smith/forge/field/harbor statics
+    "bireme", "bireme_rome", "quinquereme", "quinquereme_rome",
+    "trireme_han", "bireme_han",
+    "ship_knarr", "ship_snekkja", "ship_karvi",
+    "skiff", "rowboat", "merchant_han", "fishing_han",
+    "blacksmith_brit", "blacksmith_kart", "forge_germ", "forge_han",
+    "field_plot", "orchard_plot", "crannog",
+    "wooden_tower", "scout_tower", "tower_bolt", "tower_artillery",
+    "stable_elephant", "kennel",
+    # C2 Han civ structure variants (statics)
+    "han_fireship",
+    "han_fishing_ship",
+    "han_forge",
+    "han_fortress_old",
+    "han_imperial_court",
+    "han_imperial_ministry",
+    "han_pagoda",
+    "han_temple_shrine",
+    "han_tower_great",
+    "han_tower_large",
+    "han_tower_small",
+    "han_towership",
+    "han_wall_gate",
+    "han_wall_long",
+    "han_wall_medium",
+    "han_wall_short",
 })
 VEGETATION_IDS = frozenset({
-    "tree", "pine", "palm", "gold_vein", "stone_mine",
+    "tree", "pine", "palm", "gold_vein", "stone_mine", "fruit_bush",
+    # G7-H2 flora variety
+    "oak", "acacia", "baobab", "bamboo", "apple",
 })
 
 MAX_PROP_DEPTH = 4
@@ -1192,7 +1827,7 @@ class Part:
     """One composed mesh part with its own material/texture set."""
     __slots__ = ("mesh_data", "tex_base", "tex_ao", "material", "transform", "source",
                  "bone", "force_rigid", "aux", "rider_skin", "rider_attach_world",
-                 "rider_attach_bone")
+                 "rider_attach_bone", "tool_tag", "attach_name")
 
     def __init__(self):
         self.mesh_data = None
@@ -1207,6 +1842,8 @@ class Part:
         self.rider_skin = False
         self.rider_attach_world = None
         self.rider_attach_bone = 0
+        self.tool_tag = None  # "Weapon", "GatherTree", … or None (always visible)
+        self.attach_name = ""
 
 
 def _variant_children(vfs, var):
@@ -1378,11 +2015,26 @@ def compose_actor(vfs, actor_path, depth=0, tint=None, sources=None, skip_actors
             if acc_mesh is None:
                 acc_mesh = m1
         acc_tex.update(t1)
-        # Skip animation-library prop swaps (empty attach / slaughter dagger).
+        # Base-mesh props (head, idle weapon). Animation-only variants are
+        # mutually exclusive in 0 A.D.; _pick_variant keeps Idle, so gather
+        # tools live on sibling variants and are harvested below.
         if p1 and not anim_only:
-            pending_props.extend(p1)
+            pending_props.extend((a, ap, s, None) for a, ap, s in p1)
         if mtl1:
             acc_mat = mtl1
+        for v in g.findall("variant"):
+            resolved_v = resolve_variant_chain(vfs, v, vcache)
+            m_v, p_v, _, _ = _variant_children(vfs, resolved_v)
+            if m_v or not p_v:
+                continue
+            tags = _variant_tool_tags(resolved_v)
+            if not tags:
+                continue
+            for actor, ap, sel in p_v:
+                if _is_junk_tool_prop(actor, ap, tags):
+                    continue
+                for tag in tags:
+                    pending_props.append((actor, ap, sel, tag))
 
     flush()
     material_name = acc_mat or top_mat or ""
@@ -1391,9 +2043,12 @@ def compose_actor(vfs, actor_path, depth=0, tint=None, sources=None, skip_actors
     # attack_slaughter / attack_melee_female variants rather than the base group.
     # Ensure the dagger is equipped on weapon_R so villagers hold their knife.
     is_citizen_actor = any(w in actor_path.lower() for w in ("citizen", "villager"))
-    has_weapon_r = any((ap or "").lower() == "weapon_r" for _, ap, _ in pending_props)
+    has_weapon_r = any(
+        (item[1] or "").lower() == "weapon_r" and (len(item) < 4 or item[3] in (None, "Weapon"))
+        for item in pending_props
+    )
     if is_citizen_actor and not has_weapon_r:
-        pending_props.append(("props/units/weapons/dagger.xml", "weapon_R", None))
+        pending_props.append(("props/units/weapons/dagger.xml", "weapon_R", None, "Weapon"))
 
     if sources is not None:
         sources.add(("actor", actor_path))
@@ -1402,7 +2057,9 @@ def compose_actor(vfs, actor_path, depth=0, tint=None, sources=None, skip_actors
 
     # resolve props against the composed parts (CModel::ValidatePosition rule:
     # world = boneBindMatrix * propPoint.transform, or transform alone if unboned)
-    for actor_ref, attachpoint, _sel in pending_props:
+    for item in pending_props:
+        actor_ref, attachpoint = item[0], item[1]
+        tool_tag = item[3] if len(item) > 3 else None
         if any(s in actor_ref for s in ("decals/", "platforms/", "particle", "flag")):
             continue
         # ObjectEntry.cpp: attachpoint 'projectile' is plucked for LaunchProjectile, not drawn on the actor.
@@ -1415,32 +2072,34 @@ def compose_actor(vfs, actor_path, depth=0, tint=None, sources=None, skip_actors
         if not sub_parts:
             continue
         placed = False
+        ap_l = (attachpoint or "").lower()
+        tag = tool_tag or ("Weapon" if ap_l in ("weapon_r", "weapon_l") else None)
         for part in final_parts:
             for pp in part.mesh_data["prop_points"]:
-                if pp["name"].lower() == attachpoint.lower():
+                if pp["name"].lower() == ap_l:
                     local = trs(pp["pos"], pp["quat"])
+                    bone_i = 0xFF
                     if pp["bone"] != 0xFF and pp["bone"] < len(part.mesh_data["bones"]):
                         t, q = part.mesh_data["bones"][pp["bone"]]
                         world = mat_mul(trs(t, q), local)
+                        bone_i = pp["bone"]
                     else:
                         world = local
                     for sp in sub_parts:
                         child = sp.transform if sp.transform is not None else _identity()
                         sp.transform = mat_mul(world, child)
-                        sp.bone = pp["bone"] if pp["bone"] != 0xFF else 0xFF
+                        sp.bone = bone_i
+                        sp.attach_name = attachpoint
+                        sp.tool_tag = tag
+                        if bone_i != 0xFF:
+                            sp.force_rigid = True
                     final_parts.extend(sub_parts)
                     placed = True
                     break
             if placed:
                 break
         if not placed:
-            # CModel: boneIndex 0xFF => relative to object origin, not a bone
-            print(f"  ! attachpoint '{attachpoint}' not found for {sub_path}; origin-attach")
-            for sp in sub_parts:
-                if sp.transform is None:
-                    sp.transform = trs((0, 0, 0), (0, 0, 0, 1))
-                sp.bone = 0xFF
-            final_parts.extend(sub_parts)
+            print(f"[prop] SKIP attachpoint '{attachpoint}' not found for {sub_path}")
 
     return final_parts, material_name
 
@@ -1459,21 +2118,26 @@ _CLIP_CANON = {
     "build": "Build", "build_farm": "Build",
     "heal": "Heal",
     "promotion": "Promotion",
+    # ResourceGatherer.js SelectAnimation("gather_" + type). Keep each supply
+    # type as its own Godot clip so the renderer can swap with the resource.
+    "gather": "Gather", "gather_tree": "GatherTree", "gather_ore": "GatherOre",
+    "gather_rock": "GatherRock", "gather_ruins": "GatherOre",
+    "gather_grain": "GatherGrain", "gather_fruit": "GatherFruit",
+    "gather_fish": "GatherFish", "gather_meat": "GatherMeat",
 }
-# gather_* / carry_* fan out over every resource; the renderer has one state each.
-_CLIP_PREFIX_CANON = (("gather_", "Gather"), ("carry_", "Carry"))
+# carry_* still fans out to one laden Walk. Do not prefix-map gather_* or
+# gather_praise (a temple clip) would steal the generic Gather name.
+_CLIP_PREFIX_CANON = (("carry_", "Carry"),)
 # Anything outside this set is a 0 A.D. detail state we have no renderer hook
 # for; harvesting it would multiply every GLB by a clip nobody plays.
 _CLIP_WANTED = ("Idle", "Walk", "Run", "Attack", "Death",
-                "Gather", "Build", "Carry", "Heal", "Slaughter")
+                "Gather", "GatherTree", "GatherOre", "GatherRock",
+                "GatherFruit", "GatherGrain", "GatherMeat", "GatherFish",
+                "Build", "Carry", "Heal", "Slaughter")
 # Several 0 A.D. names fold onto one state; lowest rank wins so a swordsman
-# keeps attack_melee rather than the attack_capture shove, and a gatherer
-# keeps a tool swing rather than the fruit-picking crouch.
+# keeps attack_melee rather than the attack_capture shove.
 _CLIP_RANK = {
     "attack_melee": 0, "attack_ranged": 0, "attack": 0, "attack_capture": 3,
-    "gather_tree": 0, "gather_ore": 0, "gather_rock": 0, "gather_ruins": 0,
-    "gather_grain": 1, "gather_fruit": 2, "gather_fish": 2,
-    "gather_meat": 3, "gather_praise": 4,
     "carry_food": 0, "carry_wood": 0, "carry_stone": 0, "carry_metal": 0,
     "carry_meat": 1, "carry_fish": 1,
     "idle": 0, "feeding": 3, "idle_transition": 4,
@@ -1494,6 +2158,48 @@ def _canon_clip(name):
         if n.startswith(prefix):
             return state
     return n[0].upper() + n[1:]
+
+
+_TOOL_CLIPS = frozenset({
+    "Gather", "GatherTree", "GatherOre", "GatherRock",
+    "GatherFruit", "GatherGrain", "GatherMeat", "GatherFish", "Build",
+})
+
+
+def _variant_tool_tags(var):
+    """Clip names on an animation-only variant that should keep their props."""
+    tags = []
+    if var is None:
+        return tags
+    for anim in var.iter("animation"):
+        raw = (anim.get("name") or "").strip()
+        if not raw:
+            raw = os.path.splitext(os.path.basename(anim.get("file") or ""))[0]
+        tag = _canon_clip(raw)
+        if tag in _TOOL_CLIPS:
+            tags.append(tag)
+    vtag = _canon_clip(var.get("name") or "")
+    if vtag in _TOOL_CLIPS:
+        tags.append(vtag)
+    seen = set()
+    out = []
+    for t in tags:
+        if t not in seen:
+            seen.add(t)
+            out.append(t)
+    return out
+
+
+def _is_junk_tool_prop(actor, attach, tags):
+    al = (actor or "").lower()
+    ap = (attach or "").lower()
+    if not ap or ap == "root":
+        return True
+    if tags and all(t == "Slaughter" for t in tags):
+        return True
+    if "slaughter" in al:
+        return True
+    return False
 
 
 def _psa_for_dae(vfs, dae_file):
@@ -1695,6 +2401,11 @@ def resolve_anim_cfg(vfs, asset_id, actor_ref):
         for extra in ("Attack", "Death"):
             if extra not in merged:
                 merged[extra] = merged["Idle"]
+    # Generic Gather is the wood chop; keep it as a fallback name.
+    if "GatherTree" in merged and "Gather" not in merged:
+        merged["Gather"] = merged["GatherTree"]
+    elif "Gather" in merged and "GatherTree" not in merged:
+        merged["GatherTree"] = merged["Gather"]
     if not merged:
         return None
     preferred = base[0] if base else ""
@@ -2258,7 +2969,7 @@ class GlbBuilder:
 
 # ----------------------------------------------------------- model compile --
 
-def compile_asset(vfs, asset_id, actor_ref, fit, target, tint, out_dir):
+def compile_asset(vfs, asset_id, actor_ref, fit, target, tint, out_dir, rel_dir=None):
     print(f"[{asset_id}] {actor_ref}")
     sources = set()
     riders = resolve_riders(vfs, asset_id, actor_ref)
@@ -2343,7 +3054,7 @@ def compile_asset(vfs, asset_id, actor_ref, fit, target, tint, out_dir):
         glb.primitives[pi] = (pos2, nrm2, uv, idx, mi) + tuple(prim[5:])
     if abs(yaw - 0.5 * math.pi) < 0.01 or abs(yaw + 0.5 * math.pi) < 0.01:
         dim = (dim[2], dim[1], dim[0])
-    out_path = os.path.join(out_dir, asset_dir(asset_id), f"{asset_id}.glb")
+    out_path = _glb_out_path(out_dir, asset_id, rel_dir)
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     blob = glb.build(asset_id)
     with open(out_path, "wb") as f:
@@ -2366,7 +3077,7 @@ def compile_asset(vfs, asset_id, actor_ref, fit, target, tint, out_dir):
 
 
 def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
-                          skeleton_name, anims_map):
+                          skeleton_name, anims_map, rel_dir=None):
     """Like compile_asset but bakes a REAL skeletal (rigid-prop) animation.
 
     Builds a bone-node hierarchy from the unit's skeleton, attaches every mesh
@@ -2443,22 +3154,32 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
     parts = attach_rider_parts(vfs, parts, body, asset_id, tint, sources, riders)
     # Safety net: ensure any villager/citizen asset has the knife (dagger) on weapon_R
     is_villager = "villager" in asset_id or "female_citizen" in asset_id or "citizen" in asset_id
-    has_weapon_r = any(getattr(p, "bone", 0) == 25 for p in parts[1:])
+    has_weapon_r = any(
+        (getattr(p, "attach_name", "") or "").lower() == "weapon_r"
+        and getattr(p, "tool_tag", None) in (None, "Weapon")
+        for p in parts
+    )
     if is_villager and not has_weapon_r and body and "prop_points" in (body.mesh_data or {}):
         for pp in body.mesh_data["prop_points"]:
             if pp["name"].lower() == "weapon_r":
                 dparts, _ = compose_actor(vfs, "art/actors/props/units/weapons/dagger.xml", 1, tint, sources)
                 local = trs(pp["pos"], pp["quat"])
                 bones = body.mesh_data.get("bones") or []
+                bone_i = 0xFF
                 if pp["bone"] != 0xFF and pp["bone"] < len(bones):
                     t, q = bones[pp["bone"]]
                     world = mat_mul(trs(t, q), local)
+                    bone_i = pp["bone"]
                 else:
                     world = local
                 for dp in dparts:
                     child = dp.transform if dp.transform is not None else _identity()
                     dp.transform = mat_mul(world, child)
-                    dp.bone = pp["bone"] if pp["bone"] != 0xFF else 0xFF
+                    dp.bone = bone_i
+                    dp.attach_name = "weapon_R"
+                    dp.tool_tag = "Weapon"
+                    if bone_i != 0xFF:
+                        dp.force_rigid = True
                 parts.extend(dparts)
                 break
     bones_local = body.mesh_data.get("bones", [])
@@ -2494,12 +3215,26 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
         rest_tq.append((t, q))
         rest_worlds.append(trs(t, q))
 
+    prop_bones = []
+    has_live_rider = False
+    for part in parts:
+        if getattr(part, "rider_skin", False) and len((part.mesh_data or {}).get("bones") or []) >= 20:
+            has_live_rider = True
+        if part is body or getattr(part, "rider_skin", False):
+            continue
+        if not getattr(part, "force_rigid", False):
+            continue
+        b = getattr(part, "bone", 0)
+        if isinstance(b, int) and 0 <= b < num_bones and b != 0xFF and b not in prop_bones:
+            prop_bones.append(b)
+    prop_skin_i = (2 if has_live_rider else 1) if prop_bones else -1
+
     glb = GlbBuilder()
     all_pos = []
     fit_pos = []
     baked_cache = {}
     ao_img_cache = {}
-    part_info = []  # (prim_idx, bone_idx, world_xf, origin_locked, skin_i, oar_tq)
+    part_info = []  # (prim, bone_idx, xf, origin_locked, skin_i, oar_tq, tool_tag)
     for part in parts:
         md = part.mesh_data
         verts, uvs, faces = md["verts"], md["uvs"], md["faces"]
@@ -2567,6 +3302,11 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
         has_skin_blends = bool(md.get("blends")) and _blends_fit_skeleton(md["blends"], skin_n)
         # Cape etc. attach to root (0xFF) but still have a full matching skin.
         origin_locked = bone_idx == 0xFF and not use_rigid and not has_skin_blends and not rider_skin
+        is_prop_rigid = (
+            not is_oar and not rider_skin and part is not body
+            and use_rigid and isinstance(bone_idx, int)
+            and 0 <= bone_idx < num_bones and bone_idx != 0xFF
+        )
         if is_oar:
             # Keep oars as rigid child nodes so Walk can stroke them; they must
             # not ride the sail skeleton (2-bone oar PMD vs 41-bone sail).
@@ -2574,6 +3314,16 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
             use_rigid = False
             has_skin_blends = False
             joints, weights = None, None
+        elif is_prop_rigid:
+            # Bone-local verts + identity IBM on the prop skin so the mesh
+            # rides the hand without a second bind-world multiply.
+            ibm = rigid_inverse(rest_worlds[bone_idx])
+            positions = [mat_apply(ibm, p) for p in world_pos]
+            normals = [mat_apply(rot_only(ibm), n) for n in normals]
+            li = prop_bones.index(bone_idx)
+            joints = [(li, 0, 0, 0)] * len(positions)
+            weights = [(1.0, 0.0, 0.0, 0.0)] * len(positions)
+            origin_locked = False
         elif origin_locked:
             joints, weights = None, None
         elif use_rigid:
@@ -2587,7 +3337,9 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
                 bone_idx = 0
             joints, weights = _skin_attrs(md, len(positions), bone_idx, skin_n)
         prim = glb._add_primitive(positions, normals, flip_uvs, tri, mat_idx, joints, weights, flip_uv1, colors)
-        part_info.append((prim, bone_idx, xf, origin_locked, 1 if rider_skin else 0, oar_tq))
+        skin_i = prop_skin_i if is_prop_rigid else (1 if rider_skin else 0)
+        part_info.append((prim, bone_idx, xf, origin_locked, skin_i, oar_tq,
+                          getattr(part, "tool_tag", None)))
 
         if not getattr(part, "aux", False) and not is_oar:
             fit_pos.extend(world_pos)
@@ -2653,14 +3405,24 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
     for i in range(rider_n):
         t, q = rider_rest_tq[i]
         nodes.append({"name": f"rider_{i}", "translation": list(t), "rotation": list(q)})
-    for k, (prim, bidx, wxf, origin_locked, skin_i, oar_tq) in enumerate(part_info):
-        nd = {"name": f"oar_{k}" if oar_tq is not None else f"{asset_id}_part{k}", "mesh": prim}
+    tag_count = {}
+    for k, rec in enumerate(part_info):
+        prim, bidx, wxf, origin_locked, skin_i, oar_tq = rec[:6]
+        tool_tag = rec[6] if len(rec) > 6 else None
+        if oar_tq is not None:
+            nd_name = f"oar_{k}"
+        elif tool_tag:
+            tag_count[tool_tag] = tag_count.get(tool_tag, 0) + 1
+            nd_name = f"tool_{tool_tag}" if tag_count[tool_tag] == 1 else f"tool_{tool_tag}_{tag_count[tool_tag]}"
+        else:
+            nd_name = f"{asset_id}_part{k}"
+        nd = {"name": nd_name, "mesh": prim}
         if oar_tq is not None:
             ot, oq = oar_tq
             nd["translation"] = list(ot)
             nd["rotation"] = list(oq)
         if not origin_locked:
-            nd["skin"] = skin_i if (skin_i == 0 or rider_n > 0) else 0
+            nd["skin"] = skin_i if skin_i >= 0 else 0
         nodes.append(nd)
 
     # Animation clips: PSA keys are already root-relative (BuildBoneMatrices).
@@ -2765,8 +3527,15 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
             "inverseBindMatrices": [rigid_inverse(rider_rest_worlds[i]) for i in range(rider_n)],
             "skeleton": rider_joints[0],
         })
+    if prop_bones:
+        ident = [[1 if i == j else 0 for j in range(4)] for i in range(4)]
+        skins.append({
+            "joints": [bone_node[i] for i in prop_bones],
+            "inverseBindMatrices": [ident] * len(prop_bones),
+            "skeleton": bone_node[0],
+        })
 
-    out_path = os.path.join(out_dir, asset_dir(asset_id), f"{asset_id}.glb")
+    out_path = _glb_out_path(out_dir, asset_id, rel_dir)
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     blob = glb.build(asset_id, nodes=nodes, animations=animations, skins=skins)
     with open(out_path, "wb") as f:
@@ -3007,7 +3776,10 @@ UNIT_CFG = {
     "villager": ("biped", {
         "Idle": "citizen_idle", "Walk": "citizen_walk", "Run": "citizen_run",
         "Attack": "biped_attack", "Death": "biped_death",
-        "Gather": "gather_wood", "Build": "citizen_build",
+        "Gather": "gather_wood", "GatherTree": "gather_wood",
+        "GatherOre": "gather_mine", "GatherRock": "gather_mine",
+        "GatherFruit": "gather_fruit_m", "GatherGrain": "gather_grain",
+        "GatherMeat": "gather_meat", "Build": "citizen_build",
         "Carry": "carry_wood", "Slaughter": "slaughter"}),
     "swordsman": ("biped", {
         "Idle": "biped_idle", "Walk": "biped_walk", "Run": "biped_run",
@@ -3055,7 +3827,10 @@ UNIT_CFG = {
     "female_citizen": ("biped", {
         "Idle": "female_idle", "Walk": "female_walk", "Run": "female_run",
         "Attack": "biped_attack", "Death": "biped_death",
-        "Gather": "gather_wood", "Build": "citizen_build",
+        "Gather": "gather_wood", "GatherTree": "gather_wood",
+        "GatherOre": "gather_mine", "GatherRock": "gather_mine",
+        "GatherFruit": "gather_fruit_f", "GatherGrain": "gather_grain",
+        "GatherMeat": "gather_meat", "Build": "citizen_build",
         "Carry": "carry_wood", "Slaughter": "slaughter"}),
     "hero": ("biped", {
         "Idle": "biped_idle", "Walk": "biped_walk", "Run": "biped_run",
@@ -3078,10 +3853,119 @@ UNIT_CFG = {
     "sheep": ("sheep", {
         "Idle": "sheep_idle", "Walk": "sheep_walk", "Run": "sheep_run",
         "Death": "sheep_death"}),
+    # G7-H2 map-fauna (skeleton, clips). Actor XML is harvested first; these are
+    # fallbacks when an actor variant declares no <animation>. Key counts verified:
+    # mesh bones == skeleton bones == PSA keys (0 A.D. CSkeletonAnimDef ENSURE).
+    "goat": ("goat", {
+        "Idle": "goat_idle", "Walk": "goat_walk", "Run": "goat_walk",
+        "Death": "goat_death"}),
+    "zebra": ("zebra", {
+        "Idle": "zebra_idle", "Walk": "zebra_walk", "Run": "zebra_run",
+        "Attack": "zebra_attack", "Death": "zebra_death"}),
+    "chicken": ("chicken", {
+        "Idle": "chicken_idle", "Walk": "chicken_walk", "Run": "chicken_run",
+        "Attack": "chicken_attack", "Death": "chicken_death"}),
+    "crocodile": ("crocodile", {
+        "Idle": "croc_idle", "Walk": "croc_walk", "Run": "croc_run",
+        "Attack": "croc_attack", "Death": "croc_death"}),
+    "giraffe": ("giraffe", {
+        "Idle": "giraffe_idle", "Walk": "giraffe_walk", "Run": "giraffe_run",
+        "Death": "giraffe_death"}),
+    "rabbit": ("deer", {
+        "Idle": "rabbit_idle", "Walk": "rabbit_walk", "Run": "rabbit_walk",
+        "Death": "rabbit_death"}),
+    "gazelle": ("deer", {
+        "Idle": "deer_idle", "Walk": "deer_walk", "Run": "deer_walk",
+        "Attack": "deer_attack", "Death": "deer_death"}),
+    "bear": ("bear", {
+        "Idle": "bear_idle", "Walk": "bear_walk", "Run": "bear_run",
+        "Attack": "bear_attack", "Death": "bear_death"}),
+    "cow": ("cow", {
+        "Idle": "cow_idle", "Walk": "cow_walk", "Run": "cow_run",
+        "Attack": "cow_attack", "Death": "cow_death"}),
+    "pig": ("boar", {
+        "Idle": "pig_idle", "Walk": "pig_walk", "Run": "pig_run",
+        "Attack": "pig_attack", "Death": "pig_death"}),
+    "lion": ("lion", {
+        "Idle": "lion_idle", "Walk": "lion_walk", "Run": "lion_run",
+        "Attack": "lion_attack", "Death": "lion_death"}),
+    "lioness": ("lion", {
+        "Idle": "lion_idle", "Walk": "lion_walk", "Run": "lion_run",
+        "Attack": "lion_attack", "Death": "lion_death"}),
+    "donkey": ("donkey", {
+        "Idle": "donkey_idle", "Walk": "donkey_walk", "Run": "donkey_walk",
+        "Death": "donkey_death"}),
+    "fox": ("fox", {
+        "Idle": "fox_idle", "Walk": "fox_walk", "Run": "fox_run",
+        "Death": "fox_death"}),
+    "hawk": ("hawk", {
+        "Idle": "hawk_idle", "Walk": "hawk_walk", "Run": "hawk_walk",
+        "Death": "hawk_idle"}),
     "catapult": ("lithobolos", {
         "Idle": "catapult_idle", "Attack": "catapult_attack", "Death": "catapult_idle"}),
     "bolt_shooter": ("oxybeles", {
         "Idle": "bolt_idle", "Attack": "bolt_attack", "Death": "bolt_idle"}),
+    # G7-M siege engines. Actor <animation> tags are harvested first; these are
+    # fallbacks. Key counts verified: mesh bones == skeleton bones == PSA keys.
+    # ballista/med + lithobolos/light share the 33-key frame (lithobolos_light
+    # skeleton, 33 bones); oxybeles already maps to its 36-bone skeleton.
+    "siege_ballista": ("lithobolos", {
+        "Idle": "rome_ballista_idle", "Attack": "rome_ballista_attack",
+        "Death": "rome_ballista_idle"}),
+    "siege_ballista_med": ("lithobolos", {
+        "Idle": "rome_ballista_med_idle", "Attack": "rome_ballista_med_attack",
+        "Death": "rome_ballista_med_idle"}),
+    "siege_lithobolos": ("lithobolos", {
+        "Idle": "lithobolos_idle", "Attack": "lithobolos_attack",
+        "Death": "lithobolos_idle"}),
+    "siege_lithobolos_light": ("lithobolos", {
+        "Idle": "lithobolos_light_idle", "Attack": "lithobolos_light_attack",
+        "Death": "lithobolos_light_death"}),
+    "siege_oxybeles": ("oxybeles", {
+        "Idle": "bolt_idle", "Attack": "bolt_attack", "Death": "bolt_idle"}),
+    "siege_polybolos": ("polybolos_frame", {
+        "Idle": "polybolos_idle", "Attack": "polybolos_attack",
+        "Death": "polybolos_idle"}),
+    "siege_scorpio": ("scorpio_frame", {
+        "Idle": "scorpio_idle", "Attack": "scorpio_attack",
+        "Death": "scorpio_idle"}),
+    "siege_onager": ("onager_frame", {
+        "Idle": "onager_idle", "Attack": "onager_attack",
+        "Death": "onager_idle"}),
+    "siege_mangonel": ("mangonel_frame", {
+        "Idle": "han_mangonel_idle", "Attack": "han_mangonel_attack",
+        "Death": "han_mangonel_idle"}),
+    "siege_shoushe": ("shoushe_frame", {
+        "Idle": "han_shoushe_idle", "Walk": "han_shoushe_walk",
+        "Run": "han_shoushe_walk", "Attack": "han_shoushe_attack",
+        "Death": "han_shoushe_death"}),
+    "siege_tower": ("hele_siege_tower", {
+        "Idle": "hele_siege_tower_idle", "Walk": "hele_siege_tower_walk",
+        "Run": "hele_siege_tower_walk", "Death": "hele_siege_tower_idle"}),
+    # G7-Q hound/elephant/chariot variants + animated pentekonter hull.
+    # Triples verified: wolfhound 40==40==40, mastiff 42==42==42,
+    # elephant bush/forest 58==58==58, han chariot 15==15==15 (chariot rig),
+    # pentekonter 3==3==3 actor-harvested (ship_one_row skeleton).
+    "wolfhound": ("wolfhound", {
+        "Idle": "hound_idle", "Walk": "hound_walk", "Run": "hound_walk",
+        "Attack": "hound_attack", "Death": "hound_death"}),
+    "mastiff_gaia": ("mastiff", {
+        "Idle": "dog_idle", "Walk": "dog_walk", "Run": "dog_run",
+        "Attack": "dog_attack", "Death": "dog_death"}),
+    "elephant_bush": ("elephant_bush", {
+        "Idle": "elephant_bush_idle", "Walk": "elephant_bush_walk",
+        "Run": "elephant_bush_run", "Attack": "elephant_bush_attack",
+        "Death": "elephant_bush_death"}),
+    "elephant_forest": ("elephant_forest", {
+        "Idle": "elephant_forest_idle", "Walk": "elephant_forest_walk",
+        "Run": "elephant_forest_run", "Attack": "elephant_forest_attack",
+        "Death": "elephant_forest_death"}),
+    "chariot_han": ("chariot", {
+        "Idle": "chariot_idle", "Walk": "chariot_walk", "Run": "chariot_walk",
+        "Attack": "chariot_idle", "Death": "chariot_idle"}),
+    "pentekonter": ("ship_one_row", {
+        "Idle": "rowing_idle", "Walk": "rowing_walk", "Run": "rowing_walk",
+        "Attack": "rowing_idle", "Death": "rowing_idle"}),
     "fishing_boat": ("rowing_boat", {
         "Idle": "rowing_idle", "Walk": "rowing_walk", "Run": "rowing_walk",
         "Gather": "rowing_idle", "Attack": "rowing_idle",
@@ -3100,8 +3984,12 @@ UNIT_CFG = {
 # Ships only need Idle (hulls are often unskinned; sail/oar are harvested if
 # the actor declared them). Buildings have no skeletal clips.
 _KIND_WANTED_CLIPS = {
-    "villager": ("Idle", "Walk", "Run", "Attack", "Death", "Gather", "Build", "Carry", "Slaughter"),
-    "female_citizen": ("Idle", "Walk", "Run", "Attack", "Death", "Gather", "Build", "Carry", "Slaughter"),
+    "villager": ("Idle", "Walk", "Run", "Attack", "Death", "Gather",
+                 "GatherTree", "GatherOre", "GatherRock", "GatherFruit",
+                 "GatherGrain", "GatherMeat", "Build", "Carry", "Slaughter"),
+    "female_citizen": ("Idle", "Walk", "Run", "Attack", "Death", "Gather",
+                       "GatherTree", "GatherOre", "GatherRock", "GatherFruit",
+                       "GatherGrain", "GatherMeat", "Build", "Carry", "Slaughter"),
     "swordsman": ("Idle", "Walk", "Run", "Attack", "Death"),
     "spearman": ("Idle", "Walk", "Run", "Attack", "Death"),
     "archer": ("Idle", "Walk", "Run", "Attack", "Death"),
@@ -3119,13 +4007,48 @@ _KIND_WANTED_CLIPS = {
     "carnyx": ("Idle", "Walk", "Run", "Attack", "Death"),
     "archer_maiden": ("Idle", "Walk", "Run", "Attack", "Death"),
     "war_dog": ("Idle", "Walk", "Run", "Attack", "Death"),
+    # G7-Q animated variants (audit verifies these clips per GLB)
+    "wolfhound": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "mastiff_gaia": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "elephant_bush": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "elephant_forest": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "chariot_han": ("Idle", "Walk", "Death"),
+    "pentekonter": ("Idle", "Walk", "Run"),
     "catapult": ("Idle", "Attack"),
     "bolt_shooter": ("Idle", "Attack"),
+    "siege_ballista": ("Idle", "Attack"),
+    "siege_ballista_med": ("Idle", "Attack"),
+    "siege_lithobolos": ("Idle", "Attack"),
+    "siege_lithobolos_light": ("Idle", "Attack"),
+    "siege_oxybeles": ("Idle", "Attack"),
+    "siege_polybolos": ("Idle", "Attack"),
+    "siege_scorpio": ("Idle", "Attack"),
+    "siege_onager": ("Idle", "Attack"),
+    "siege_mangonel": ("Idle", "Attack"),
+    "siege_shoushe": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "siege_tower": ("Idle", "Walk", "Run"),
     "fishing_boat": ("Idle",),
     "trireme": ("Idle",),
     "merchant_ship": ("Idle",),
     "deer": ("Idle", "Walk", "Death"),
     "boar": ("Idle", "Walk", "Run", "Attack", "Death"),
+    # G7-H2 map-fauna: every GLB below ships all five (actor-harvested, with
+    # Walk->Run and Idle->Attack/Death fallbacks in resolve_anim_cfg).
+    "goat": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "zebra": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "chicken": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "crocodile": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "giraffe": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "rabbit": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "gazelle": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "bear": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "cow": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "pig": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "lion": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "lioness": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "donkey": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "fox": ("Idle", "Walk", "Run", "Attack", "Death"),
+    "hawk": ("Idle", "Walk", "Run", "Attack", "Death"),
     "wolf": ("Idle", "Walk", "Run", "Attack", "Death"),
     "sheep": ("Idle", "Walk", "Run", "Death"),
 }
@@ -3180,11 +4103,21 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--zip", default=os.path.normpath(DEFAULT_ZIP))
     ap.add_argument("--out", default=os.path.join(os.path.dirname(__file__), "..", "assets"))
-    ap.add_argument("--all", action="store_true", help="also extract FULL_ASSETS + FULL_TERRAIN catalogue")
+    ap.add_argument("--all", action="store_true", help="discover extra actors + all terrain types")
     ap.add_argument("--full", action="store_true", help=argparse.SUPPRESS)  # alias for --all, keeps docs ` --full` working
     ap.add_argument("--all-animations", action="store_true", help="extract all 650+ PSA animations (preserves folder structure)")
     ap.add_argument("--all-skeletons", action="store_true", help="extract all skeletons")
+    ap.add_argument("--skip-archive-actors", action="store_true",
+                    help="with --all, skip composing leftover actors into models/archive/")
     ap.add_argument("--only", nargs="+", help="extract only these asset ids")
+    ap.add_argument("--class", dest="klass", default=None,
+                    help="extract a curated HIGH-VISIBILITY class: g7h2 (map fauna + "
+                         "landmarks/civics + flora variety, 31 models), g7m (siege "
+                         "engines + towers/walls/docks + civics, 29 models), g7q "
+                         "(warships + smith/forge/field/harbor + hound/elephant/"
+                         "chariot variants, 32 models). Expands to --only ids.")
+    ap.add_argument("--pattern", default=None,
+                    help="extract asset ids matching a substring (e.g. fauna, stoa, tree)")
     ap.add_argument("--list-actors", action="store_true", help="list all art/actors/*.xml in zip and exit")
     ap.add_argument("--audit", action="store_true",
                     help="print clip coverage vs wanted runtime states and exit (uses existing manifest)")
@@ -3216,12 +4149,33 @@ def main():
         bld_ids = register_civ_building_assets(assets, zf)
         print(f"[civ] registered {len(civ_ids)} civilization unit meshes + {len(bld_ids)} buildings")
         terrain = dict(TERRAIN_TILES)
+        archive_actors = []
         if args.all:
             assets.update(FULL_ASSETS)
             register_civ_unit_assets(assets, zf)
             register_civ_building_assets(assets, zf)
-            terrain.update(FULL_TERRAIN)
-            print(f"[all] expanding to {len(assets)} models + {len(terrain)} terrain tiles")
+            terrain = discover_terrain_tiles(zf)
+            print(f"[all] roster {len(assets)} models + {len(terrain)} terrain tiles")
+            if args.skip_archive_actors:
+                print("[all] skipping leftover actors (--skip-archive-actors)")
+            else:
+                already_refs = {v[0] for v in assets.values()}
+                archive_actors = discover_archive_actors(zf, already_refs, set(assets))
+                print(f"[all] {len(archive_actors)} extra actors -> models/archive/")
+        if getattr(args, "klass", None):
+            cls = args.klass
+            if cls not in G7_CLASSSETS:
+                sys.exit(f"--class {cls!r} unknown. choices: {', '.join(sorted(G7_CLASSSETS))}")
+            extra = [i for i in G7_CLASSSETS[cls] if i in ASSETS]
+            args.only = list(args.only or []) + [i for i in extra if i not in (args.only or [])]
+            print(f"[class] {cls}: {len(extra)} ids")
+        if getattr(args, "pattern", None):
+            pat = args.pattern.lower()
+            hits = [k for k in ASSETS if pat in k.lower()]
+            if not hits:
+                sys.exit(f"--pattern {args.pattern!r} matched nothing")
+            args.only = list(args.only or []) + [i for i in hits if i not in (args.only or [])]
+            print(f"[pattern] {args.pattern!r}: {len(hits)} ids")
         if args.only:
             known = dict(ASSETS)
             known.update(FULL_ASSETS)
@@ -3255,6 +4209,31 @@ def main():
             except Exception as e:
                 print(f"[{asset_id}] FAILED: {e}")
                 continue
+        archive_ok = 0
+        archive_skip = 0
+        for asset_id, actor_ref in archive_actors:
+            fit, target = _archive_fit(actor_ref)
+            try:
+                cfg = resolve_anim_cfg(vfs, asset_id, actor_ref)
+                if cfg:
+                    sk, anims = cfg
+                    rec = compile_unit_animated(
+                        vfs, asset_id, actor_ref, fit, target, None, out_dir, sk, anims,
+                        rel_dir="models/archive")
+                else:
+                    rec = compile_asset(
+                        vfs, asset_id, actor_ref, fit, target, None, out_dir,
+                        rel_dir="models/archive")
+                rec["archive"] = True
+                rec["source"] = actor_ref
+                manifest.setdefault("archive", {})[asset_id] = rec
+                archive_ok += 1
+            except Exception as e:
+                archive_skip += 1
+                print(f"[archive] SKIP {asset_id}: {e}")
+                continue
+        if archive_actors:
+            print(f"[archive] composed {archive_ok}, skipped {archive_skip}")
         if not args.only:
             terr_dir = os.path.join(out_dir, "textures", "terrain")
             os.makedirs(terr_dir, exist_ok=True)

@@ -239,6 +239,7 @@ struct ResourceSoA {
 	float *z = nullptr;
 	int32_t *amount = nullptr;
 	uint8_t *type = nullptr; // 0=tree, 1=gold, 2=stone, 3=food
+	uint8_t *subtype = nullptr; // ResourceSubtype: meat carcass, grain field, …
 	uint8_t *alive = nullptr;
 	uint32_t *id = nullptr;
 
@@ -249,9 +250,10 @@ struct ResourceSoA {
 		if (z) free(z);
 		if (amount) free(amount);
 		if (type) free(type);
+		if (subtype) free(subtype);
 		if (alive) free(alive);
 		if (id) free(id);
-		x = z = nullptr; amount = nullptr; type = alive = nullptr; id = nullptr; cap = count = 0;
+		x = z = nullptr; amount = nullptr; type = subtype = alive = nullptr; id = nullptr; cap = count = 0;
 	}
 	~ResourceSoA() { free_all(); }
 
@@ -269,15 +271,16 @@ struct ResourceSoA {
 		};
 		ra(x, c * sizeof(float)); ra(z, c * sizeof(float));
 		ra(amount, c * sizeof(int32_t)); ra(type, c * sizeof(uint8_t));
+		ra(subtype, c * sizeof(uint8_t));
 		ra(alive, c * sizeof(uint8_t)); ra(id, c * sizeof(uint32_t));
 		cap = c;
 	}
 
-	size_t push(float rx, float rz, int32_t amt, uint8_t rtype, uint32_t rid) {
+	size_t push(float rx, float rz, int32_t amt, uint8_t rtype, uint32_t rid, uint8_t rsub = 0) {
 		if (count >= cap) reserve(cap ? cap * 2 : 256);
 		size_t i = count++;
 		x[i] = rx; z[i] = rz; amount[i] = amt;
-		type[i] = rtype; alive[i] = 1; id[i] = rid;
+		type[i] = rtype; subtype[i] = rsub; alive[i] = 1; id[i] = rid;
 		return i;
 	}
 
@@ -287,6 +290,7 @@ struct ResourceSoA {
 		if (idx != last) {
 			x[idx] = x[last]; z[idx] = z[last];
 			amount[idx] = amount[last]; type[idx] = type[last];
+			subtype[idx] = subtype[last];
 			alive[idx] = alive[last]; id[idx] = id[last];
 		}
 		count--;

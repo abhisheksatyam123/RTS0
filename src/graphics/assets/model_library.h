@@ -72,6 +72,8 @@ public:
 	// 0 A.D. stores tiling albedo on UV0 and unique AO on UV1. Godot's glTF
 	// importer enables AO but samples it with UV0 unless FLAG_AO_ON_UV2 is set.
 	static void apply_imported_material_fixups(godot::Node *root);
+	// Hide every tool_* mesh except the one for this clip (or tool_Weapon).
+	static void apply_clip_tools(godot::Node *root, const godot::StringName &clip);
 
 private:
 	static Entry load(const godot::String &category, const godot::String &id);

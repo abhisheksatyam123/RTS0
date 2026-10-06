@@ -100,6 +100,7 @@ bool NetHost::startHost(const NetConfig &c) {
 	peers_.clear();
 	pending_acks_.clear();
 	last_heartbeat_ms_ = get_now_ms();
+	game_start_sent_ = false;
 
 	lobby_rooms_.clear();
 	LobbyRoom room;
@@ -153,6 +154,7 @@ bool NetHost::startClient(const std::string &h, uint16_t p) {
 	peers_.clear();
 	pending_acks_.clear();
 	last_heartbeat_ms_ = get_now_ms();
+	game_start_sent_ = false;
 
 	NetPeer host_peer;
 	host_peer.id = 0;
@@ -196,6 +198,72 @@ NetPeer* NetHost::getPeer(uint32_t peer_id) {
 		if (p.id == peer_id) return &p;
 	}
 	return nullptr;
+}
+
+// --- G9: the sender peer_id==0 quirk ----------------------------------------
+// A client puts `hdr.peer_id = local_peer_id_` on the wire and leaves it 0 until
+// it sees the host's NET_FLAG_CONNECT_ACK, which carries the id the host assigned
+// (net_host.cpp startHost: next_peer_id_ starts at 1, the host itself is 0). So a
+// client's FIRST few datagrams legitimately carry peer_id 0, and the host rewrites
+// that to the table-assigned id when it accepts the peer -- which is why
+// handle_incoming_packet's fallbacks (`scm.client_id != 0 ? scm.client_id : peer_id`)
+// work at all. The residue is that peer_id 0 is AMBIGUOUS:
+//
+//   * the host's own id is 0 (startHost), and a client represents the host in its
+//     peer table as id 0 -- but handle_incoming_packet passes 0 to peer_connected_cb_
+//     for a client's own connection, so 0 is never a *remote* client id;
+//   * a client datagram that has not been acked yet still claims 0 on the wire.
+//
+// Callbacks therefore cannot trust a bare 0. resolve_sender_id() resolves it:
+//
+//   HOST   : 0 means "me". Any other value is looked up in the peer table and
+//            replaced with the table id, because the wire value is whatever the
+//            sender last believed and the table is authoritative. Unknown -> 0.
+//   CLIENT : 0 is the host (the only remote party RTS0 supports, and the only id
+//            present in peers_[0]). Anything else stays as received.
+//
+// The wire format is untouched -- ids stay append-only, cmd_type values stay
+// stable, and no message payload carries a sender id: this is purely an
+// interpretation rule for the existing NetWireHeader::peer_id field.
+uint32_t NetHost::resolve_sender_id(uint32_t wire_peer_id) const {
+	if (isClient()) {
+		// Single remote party (the host). A stale/unknown non-zero value is
+		// resolved through the table; the host is always peers_[0] with id 0.
+		if (wire_peer_id == 0) return 0;
+		for (const auto &p : peers_) {
+			if (p.id != 0 && p.id == wire_peer_id) return 0;
+		}
+		return wire_peer_id;
+	}
+	// Host: id 0 is the host itself.
+	if (wire_peer_id == 0) return 0;
+	for (const auto &p : peers_) {
+		if (p.id == wire_peer_id) return p.id;
+	}
+	return 0;
+}
+
+void NetHost::request_join_sync(uint32_t requested_turn) {
+	if (!isClient() || server_ip_.empty()) return;
+	JoinSyncMsg jsm;
+	jsm.role = JoinSyncMsg::ROLE_JOINER;
+	jsm.requested_turn = requested_turn;
+	std::vector<uint8_t> payload = NetPacketSerializer::frame_join_sync(jsm);
+	std::vector<uint8_t> msg = NetPacketSerializer::pack_message(NetMessageType::NMT_JOIN_SYNC_STATE, 0, payload);
+	broadcastCommand(msg.data(), msg.size());
+}
+
+static std::vector<uint8_t> join_sync_reply_packet(uint32_t role, uint32_t turn,
+                                                   uint8_t accepted, uint32_t hash,
+                                                   uint8_t error) {
+	JoinSyncCheckMsg c;
+	c.role = (uint8_t)role;
+	c.accepted = accepted;
+	c.error = error;
+	c.turn = turn;
+	c.hash = hash;
+	std::vector<uint8_t> payload = NetPacketSerializer::frame_join_sync_check(c);
+	return NetPacketSerializer::pack_message(NetMessageType::NMT_JOIN_SYNC_STATE, 0, payload);
 }
 
 void NetHost::send_raw_packet(const std::string &ip, uint16_t port, const uint8_t *data, size_t size) {
@@ -336,6 +404,18 @@ void NetHost::sendChat(const std::string &message, const std::string &receiver_g
 	broadcastCommand(msg.data(), msg.size());
 }
 
+void NetHost::sendDiplomacy(uint8_t player_id, uint8_t stance, uint32_t turn) {
+	// Mirrors sendChat(): one broadcast so host and client originate identically.
+	// diplomacy_state() feeds compute_sim_hash(), so every peer must run the same
+	// set_diplomacy() call -- dropping this packet is a guaranteed desync.
+	DiplomacyMsg dm;
+	dm.player_id = player_id;
+	dm.stance = stance;
+	std::vector<uint8_t> payload = NetPacketSerializer::frame_diplomacy(dm);
+	std::vector<uint8_t> msg = NetPacketSerializer::pack_message(NetMessageType::NMT_DIPLOMACY, turn, payload);
+	broadcastCommand(msg.data(), msg.size());
+}
+
 void NetHost::sendHandshake() {
 	if (isClient()) {
 		ClientHandshakeMsg chm;
@@ -374,6 +454,21 @@ void NetHost::sendGameStart(const std::string &attributes) {
 	std::vector<uint8_t> payload = NetPacketSerializer::frame_game_start(gsm);
 	std::vector<uint8_t> msg = NetPacketSerializer::pack_message(NetMessageType::NMT_GAME_START, 0, payload);
 	broadcastCommand(msg.data(), msg.size());
+	// A sent GAME_START is this host's authoritative setup; remember it so a peer
+	// admitted later can be answered (see request_join_sync / dispatchMessage).
+	if (isHost()) game_start_sent_ = true;
+}
+
+// Resend the authoritative setup to ONE admitted peer. Used by the late-join
+// path: the attributes are the same ones the host broadcast at Start, so this is
+// a pure replay and cannot diverge. public for TurnManager, which owns the payload
+// it hands here.
+void NetHost::sendGameStartTo(uint32_t peer_id, const std::string &attributes) {
+	GameStartMsg gsm;
+	gsm.init_attributes = attributes;
+	std::vector<uint8_t> payload = NetPacketSerializer::frame_game_start(gsm);
+	std::vector<uint8_t> msg = NetPacketSerializer::pack_message(NetMessageType::NMT_GAME_START, 0, payload);
+	sendCommand(peer_id, msg.data(), msg.size());
 }
 
 void NetHost::onCommand(std::function<void(uint32_t, const uint8_t*, size_t)> cb) {
@@ -394,6 +489,14 @@ void NetHost::onPeerDisconnected(std::function<void(uint32_t)> cb) {
 
 void NetHost::onChat(std::function<void(const ChatMsg&)> cb) {
 	chat_cb_ = std::move(cb);
+}
+
+void NetHost::onDiplomacy(std::function<void(uint32_t, const DiplomacyMsg&)> cb) {
+	diplomacy_cb_ = std::move(cb);
+}
+
+void NetHost::onJoinSyncRequest(std::function<bool(uint32_t, uint32_t, uint32_t &, uint32_t &)> cb) {
+	join_sync_request_cb_ = std::move(cb);
 }
 
 void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std::string &from_ip, uint16_t from_port) {
@@ -520,10 +623,12 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 
 		NetMessage net_msg;
 		if (NetPacketSerializer::unpack_message(payload_ptr, payload_size, net_msg)) {
+			// dispatchMessage() owns message_cb_ delivery for every type (once
+			// per message, with the resolved sender id). Firing it here as well
+			// would hand TurnManager every NMT_DIPLOMACY / NMT_JOIN_SYNC_* packet
+			// TWICE -- a duplicated stance queues twice and a duplicated resync
+			// request is answered twice.
 			dispatchMessage(sender_peer_id, net_msg);
-			if (message_cb_) {
-				message_cb_(sender_peer_id, net_msg);
-			}
 		} else {
 			if (command_cb_) {
 				command_cb_(sender_peer_id, payload_ptr, payload_size);
@@ -533,6 +638,10 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 }
 
 void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
+	// The authoritative sender id, resolved once for every branch below (see
+	// resolve_sender_id: a wire peer_id of 0 is ambiguous -- it is the host's own id
+	// AND what an un-acked client stamps).
+	const uint32_t author = resolve_sender_id(peerId);
 	if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_SIMULATION_COMMAND)) {
 		if (command_cb_) {
 			command_cb_(peerId, msg.payload.data(), msg.payload.size());
@@ -547,6 +656,80 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 				std::vector<uint8_t> payload = NetPacketSerializer::frame_chat(chat);
 				std::vector<uint8_t> pkt = NetPacketSerializer::pack_message(NetMessageType::NMT_CHAT, 0, payload);
 				broadcastCommand(pkt.data(), pkt.size(), peerId);
+			}
+		}
+	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_DIPLOMACY)) {
+		DiplomacyMsg dm;
+		if (!NetPacketSerializer::parse_diplomacy(msg.payload.data(), msg.payload.size(), dm)) {
+			std::cerr << "[NetHost] NMT_DIPLOMACY payload must be exactly 2 bytes (player_id, stance)\n";
+		} else if (dm.player_id >= 8) {
+			// Mirrors Simulation::set_diplomacy's own bound; reject out of range so a
+			// hostile/buggy peer cannot silently mutate nothing and still look applied.
+			std::cerr << "[NetHost] NMT_DIPLOMACY player_id " << (unsigned)dm.player_id << " out of range (0..7)\n";
+		} else if (dm.stance > 2) {
+			std::cerr << "[NetHost] NMT_DIPLOMACY stance " << (unsigned)dm.stance
+			          << " is not ally/neutral/enemy\n";
+		} else {
+			// The sender id is resolved, never taken verbatim: a client that has
+			// not been acked yet stamps 0 on the wire, which is also the host's own
+			// id. See resolve_sender_id() for the full rule.
+			if (diplomacy_cb_) diplomacy_cb_(author, dm);
+			if (isHost()) {
+				// Relay onward so client-originated stances reach every other peer
+				// (same shape as the NMT_CHAT / NMT_READY relays above).
+				std::vector<uint8_t> payload = NetPacketSerializer::frame_diplomacy(dm);
+				std::vector<uint8_t> pkt = NetPacketSerializer::pack_message(NetMessageType::NMT_DIPLOMACY, msg.turn, payload);
+				broadcastCommand(pkt.data(), pkt.size(), author != 0 ? peerId : 0xFFFFFFFFu);
+			}
+			// G9: forward to TurnManager's onMessage on BOTH roles so the stance is
+			// applied through the lockstep turn boundary on every peer. Without
+			// this the only applier is presentation-gated
+			// (src/presentation/main_node.cpp onDiplomacy) and a peer whose UI never
+			// ran the applier silently keeps the old stance -> desync, because
+			// diplomacy_state() is mixed into compute_sim_hash(). The forward to
+			// TurnManager::onMessage happens once, at the end of this function.
+		}
+	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_JOIN_SYNC_STATE)) {
+		// Late-join turn-0 state resync. Only a HOST answers, and only for an
+		// admitted peer: the attributes it replays are the ones it already
+		// broadcast at Start, so a stranger dialing in can never make the host
+		// reset its world (0 A.D. NetServer.cpp:1366 sends to a known session).
+		JoinSyncMsg jsm;
+		if (!NetPacketSerializer::parse_join_sync(msg.payload.data(), msg.payload.size(), jsm)) {
+			std::cerr << "[NetHost] NMT_JOIN_SYNC_STATE payload must be exactly 5 bytes (role, requested_turn)\n";
+		} else if (jsm.role != JoinSyncMsg::ROLE_JOINER) {
+			// Host-side replies are consumed by TurnManager::receive_join_sync.
+		} else if (!isHost()) {
+			// A client ignores a join request from anyone but its host.
+		} else {
+			const NetPeer *requester = getPeer(author);
+			uint8_t err = TurnStateSnapshotMsg::ERR_UNKNOWN;
+			bool accepted = false;
+			if (!requester || !requester->connected) {
+				err = TurnStateSnapshotMsg::ERR_PEER_ADMITTED;
+			} else if (!game_start_sent_) {
+				err = TurnStateSnapshotMsg::ERR_NOT_AUTHORITATIVE;
+			} else {
+				accepted = true;
+			}
+			if (accepted) {
+				// The owner decides whether it can actually serve the request (it
+				// may already have left the turn-0 sync point) and replies with the
+				// state the joiner can rebuild. Ordering is not relied upon: the
+				// NMT_GAME_START resend and this reply are independent reliable
+				// messages and the joiner tolerates either order.
+				uint32_t reply_turn = jsm.requested_turn;
+				uint32_t reply_hash = 0;
+				bool answered = join_sync_request_cb_ &&
+				                join_sync_request_cb_(author, jsm.requested_turn, reply_turn, reply_hash);
+				if (!answered) err = TurnStateSnapshotMsg::ERR_JOINED_LATE;
+				std::vector<uint8_t> pkt = join_sync_reply_packet(
+					JoinSyncMsg::ROLE_HOST, reply_turn, answered ? 1 : 0, reply_hash, answered ? 0 : err);
+				sendCommand(peerId, pkt.data(), pkt.size());
+			} else {
+				std::vector<uint8_t> pkt = join_sync_reply_packet(
+					JoinSyncMsg::ROLE_HOST, jsm.requested_turn, 0, 0, err);
+				sendCommand(peerId, pkt.data(), pkt.size());
 			}
 		}
 	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_READY)) {
@@ -606,6 +789,13 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 			sendAuthenticate(local_player_name_);
 		}
 	}
+	// Single delivery point for every message type, exactly once, with the
+	// resolved sender id: SYNC_CHECK / GAME_START / END_COMMAND_BATCH /
+	// NMT_DIPLOMACY / NMT_JOIN_SYNC_* and any future type land in
+	// TurnManager::onMessage, which owns them. dispatchMessage() is also the
+	// public entry point tests use, so this keeps direct calls and the socket path
+	// behaving identically.
+	if (message_cb_) message_cb_(author, msg);
 }
 
 void NetHost::check_retransmissions(uint64_t now_ms) {
@@ -698,6 +888,7 @@ void NetHost::stop() {
 	server_ip_.clear();
 	server_port_ = 0;
 	local_peer_id_ = 0;
+	game_start_sent_ = false;
 }
 
 } // namespace rtso

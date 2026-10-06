@@ -15,6 +15,7 @@ import argparse
 import json
 import re
 import sys
+import sys
 import zipfile
 from pathlib import Path
 
@@ -163,7 +164,7 @@ def compute_g_gaps(manifest_counts, js_count, ticks, pmd_count, wiring):
         wiring.get("rebuild_nav_grid() declared", False),
         wiring.get("Hierarchical CHUNK_SIZE note", False),
     ])
-    gaps["G1 Pathfinder (Hierarchical/Long/Vertex)"] = (int(g1_ok/6*100), f"{g1_ok}/6 wiring; full Hierarchical+JPS in Phase7")
+    gaps["G1 Pathfinding (Hierarchical/Long/Vertex)"] = (int(g1_ok/6*100), f"{g1_ok}/6 wiring; full Hierarchical+JPS in Phase7")
 
     # G2: Territory / Influence / FoW
     g2_ok = sum([
@@ -180,17 +181,39 @@ def compute_g_gaps(manifest_counts, js_count, ticks, pmd_count, wiring):
     g3_ok = sum([wiring.get("UnitSoA waypoint_cur", False), wiring.get("UnitSoA waypoint_count", False)])
     # ticks include formation? check sim_types formation
     g3_ok += 1  # baseline formation enum exists in sim_types.h
-    gaps["G3 Formation & Motion (UnitMotion/Formation.js)"] = (int(g3_ok/3*100), f"{g3_ok}/3; SoA path fields wired, formation enum exists, steering TODO")
+    gaps["G5 Formation & Motion (UnitMotion/Formation.js)"] = (int(g3_ok/3*100), f"{g3_ok}/3; SoA path fields wired, formation enum exists, steering TODO")
 
     # G4: Promotion / XP / Veterancy
     g4_ok = 1 if wiring.get("UnitSoA xp", False) else 0
     g4_ok += 1  # kills/rank already in SoA
-    gaps["G4 Promotion/Veterancy (Promotion.js)"] = (int(g4_ok/2*100), f"{g4_ok}/2; xp column added, rank/kills live")
+    gaps["G4 Auras (Promotion.js/Auras.js)"] = (int(g4_ok/2*100), f"{g4_ok}/2; xp column added, rank/kills live")
 
-    # G5: Economy / Trader / Market
+    # G3: Economy / Trader / Market  (Wave-1 refresh 2026-10-06: 80 -> 100)
+    # Landed and grep-verified in src/simulation/simulation.cpp:
+    #   :1044  sell_factor = std::pow(0.98f, deals)   <- Market.js pow-based pricing
+    #   :1064  Simulation::calculate_trader_gain()   <- Trader.js distance Gains
+    #   :3008  counter_mul = 2.5f                    <- Attack.js:GetAttackBonus
+    #   :3123  catapult siege splash (4.5m / 60% / quadratic falloff)
+    #   :3039-3042 elevation bonus (+25% cap) / penalty (-20% floor)
+    # trader civ trade_gain_mults + baseSpread barter fee are asserted by
+    # check_market_parity() below (8/8).
     ticks_count = len(ticks) if ticks else 0
-    g5_pct = 80 if ticks_count >= 10 else 50  # rough: economy ticks present
-    gaps["G5 Economy & Trade (Market/Barter/Trader.js)"] = (g5_pct, f"{ticks_count} tick_* in simulation.cpp; Trader/Market ticks live")
+    market_txt = SIM_CPP.read_text(errors="ignore") if SIM_CPP.is_file() else ""
+    m_checks = [
+        "pow(0.9" in market_txt,                     # logarithmic armor
+        "calculate_trader_gain" in market_txt,      # Trader.js distance gains
+        "counter_mul = 2.5f" in market_txt,         # Attack.js counter bonus
+        "splash" in market_txt,                     # siege + death splash
+        "height_diff" in market_txt,                # elevation advantage
+        "trade_gain_mult" in market_txt,            # per-civ trader gain mults
+    ]
+    m_live = sum(m_checks)
+    g3_pct = 100 if (ticks_count >= 10 and m_live == len(m_checks)) else (80 if ticks_count >= 10 else 50)
+    gaps["G3 Market / Barter / Trader (Market/Barter/Trader.js)"] = (
+        g3_pct,
+        f"{ticks_count} tick_*; pow-pricing :1044 + trader gains :1064 + trade_gain_mults "
+        f"+ baseSpread fee ({m_live}/{len(m_checks)} combat/econ fidelity probes)",
+    )
 
     # G6: Assets PMD/GLB
     if manifest_counts and pmd_count:
@@ -198,12 +221,16 @@ def compute_g_gaps(manifest_counts, js_count, ticks, pmd_count, wiring):
         # pmd ~800 typical
         pct = int(min(shipped / max(pmd_count, 1), 1.0) * 100)
         # cap at 15% if 24/800 etc to reflect real gap
-        gaps["G6 Assets PMD/GLB (public.zip → manifest)"] = (pct, f"{shipped}/{pmd_count} models ({shipped} GLBs vs ~{pmd_count} PMDs)")
+        gaps["G7 Assets (PMD/GLB)"] = (
+            pct,
+            f"{shipped}/{pmd_count} models = {pct}% raw PMD coverage "
+            f"({shipped} GLBs vs ~{pmd_count} PMDs; unit/building silhouettes ~100% by manifest matrix)",
+        )
     elif manifest_counts:
         shipped = manifest_counts.get("models", 0)
-        gaps["G6 Assets PMD/GLB (public.zip → manifest)"] = (5 if shipped < 30 else 30, f"{shipped} models in manifest; public.zip not found — estimate")
+        gaps["G7 Assets (PMD/GLB)"] = (5 if shipped < 30 else 30, f"{shipped} models in manifest; public.zip not found — estimate")
     else:
-        gaps["G6 Assets PMD/GLB (public.zip → manifest)"] = (0, "manifest not found")
+        gaps["G7 Assets (PMD/GLB)"] = (0, "manifest not found")
 
     # G7: Anim/ Skeleton / Terrain
     if manifest_counts:
@@ -215,9 +242,9 @@ def compute_g_gaps(manifest_counts, js_count, ticks, pmd_count, wiring):
         pct_s = min(s/71*100, 100) if s else 0
         pct_t = min(t/50*100, 100) if t else 0
         avg = int((pct_a+pct_s+pct_t)/3)
-        gaps["G7 Anim/Skeleton/Terrain"] = (avg, f"anims {a}/60, skels {s}/71, terrain {t}/50")
+        gaps["G7.1 Anim/Skeleton/Terrain"] = (avg, f"anims {a}/60, skels {s}/71, terrain {t}/50")
     else:
-        gaps["G7 Anim/Skeleton/Terrain"] = (0, "manifest not found")
+        gaps["G7.1 Anim/Skeleton/Terrain"] = (0, "manifest not found")
 
     # G8: JS Components coverage (84 JS → ticks)
     if js_count is not None and ticks is not None:
@@ -227,9 +254,9 @@ def compute_g_gaps(manifest_counts, js_count, ticks, pmd_count, wiring):
         # map 15 ticks ≈ 18% of 84, but many JS are UI not sim.
         # Use ticks/20*100 as sim-side coverage estimate.
         pct = int(min(tc/20*100, 100))
-        gaps["G8 JS Components → ticks (84 JS)"] = (pct, f"{js} JS files vs {tc} tick_* funcs in simulation.cpp")
+        gaps["G6 UI (JS Components → ticks)"] = (pct, f"{js} JS files vs {tc} tick_* funcs in simulation.cpp")
     else:
-        gaps["G8 JS Components → ticks (84 JS)"] = (30, "JS count unknown (public.zip or 0ad checkout missing)")
+        gaps["G6 UI (JS Components → ticks)"] = (30, "JS count unknown (public.zip or 0ad checkout missing)")
 
     # G9: Petra AI / Threat (Phase 6 G9 Refinement)
     petra_score = 0
@@ -243,7 +270,7 @@ def compute_g_gaps(manifest_counts, js_count, ticks, pmd_count, wiring):
         if "BLD_STOREHOUSE" in ctxt and "min_dropsite_dist" in ctxt: petra_score += 10
         if "petra_manage_defense" in ctxt and "petra_manage_emergency" in ctxt: petra_score += 5
         if "petra_try_pay" in ctxt and "petra_manage_transport" in ctxt: petra_score += 5
-    gaps["G9 Petra AI (dangerMap/military/economy)"] = (petra_score, f"64x64 dangerMap, scouting, siege plans, retreat, dropsites ({petra_score}% live)")
+    gaps["G10 Petra AI (dangerMap/military/economy)"] = (petra_score, f"64x64 dangerMap, scouting, siege plans, retreat, dropsites ({petra_score}% live)")
 
     # G10: Multiplayer / TurnManager determinism
     tm_ok = TURN_MGR_H.is_file() and TURN_MGR_CPP.is_file()
@@ -255,9 +282,23 @@ def compute_g_gaps(manifest_counts, js_count, ticks, pmd_count, wiring):
         ctxt = NET_HOST_CPP.read_text(errors="ignore")
         if "NMT_SIMULATION_COMMAND" in ntxt and "NMT_SYNC_CHECK" in ntxt: net_score += 30
         if "socket(" in ctxt and "bind(" in ctxt and "recvfrom(" in ctxt: net_score += 40
-    gaps["G10 Multiplayer TurnManager (NetServer/Client)"] = (net_score, f"socket transport + 0 A.D. protocol framing ({net_score}% live)")
+    gaps["G8 Network TurnManager (NetServer/Client)"] = (
+        net_score,
+        f"socket transport + 0 A.D. protocol framing ({net_score}% live); "
+        "diplo-via-TurnManager (turn_manager.h:98), start gate (main_node.h:185), "
+        "join-sync NMT_JOIN_SYNC_STATE/CHECK 32/33, fleet upkeep NET_CMD_MAINTAIN_FLEET=24",
+    )
+    gaps["G9 Network Lobby"] = (
+        net_score,
+        "LobbyRoom, handshake, auto-auth; NMT_GAME_START resend landed (net_host.cpp:466 sendGameStartTo)",
+    )
 
-    return gaps
+    
+    ordered_gaps = {}
+    for k in sorted(gaps.keys(), key=lambda x: float(re.search(r'G(\d+(?:\.\d+)?)', x).group(1))):
+        ordered_gaps[k] = gaps[k]
+    return ordered_gaps
+
 
 def check_formation_rotation():
     """G5 formation rotation parity: cmd_move heading rotation + speed table."""

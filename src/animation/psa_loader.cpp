@@ -7,6 +7,133 @@
 
 namespace rtso {
 
+// Unit-type -> clip alias table. Canonical per-variant clip names that have no
+// dedicated .psa on disk are folded onto the shipped generic clips.
+// 0AD refs: source/graphics/UnitAnimation.h:60 (SetAnimationState state names),
+//   source/graphics/UnitAnimation.cpp:113 (SetAnimationState),
+//   public.zip art/variants/biped/attack_ranged_archer.xml (archer attack_ranged),
+//   public.zip art/variants/biped/attack_melee_female.xml (female attack_melee),
+//   public.zip art/variants/biped/death_infantry.xml (infantry Death).
+static const std::pair<const char*, const char*> kPsaAliasTable[] = {
+	// legacy aliases (kept)
+	{"archer_shoot", "archer_attack"}, // art/variants/biped/attack_ranged_archer.xml
+	{"villager_gather", "gather_wood"},
+	{"gather", "gather_wood"},
+	{"villager_idle", "citizen_idle"},
+	{"villager_walk", "citizen_walk"},
+	{"villager_run", "citizen_run"},
+	{"villager_attack", "biped_attack"}, // art/variants/biped/attack_melee_female.xml
+	// citizen / spearman / swordsman generic infantry (death_infantry.xml)
+	{"citizen_attack", "biped_attack"},
+	{"citizen_death", "biped_death"},
+	{"spearman_idle", "biped_idle"},
+	{"spearman_walk", "biped_walk"},
+	{"spearman_run", "biped_run"},
+	{"spearman_attack", "biped_attack"},
+	{"spearman_death", "biped_death"},
+	{"swordsman_idle", "biped_idle"},
+	{"swordsman_walk", "biped_walk"},
+	{"swordsman_run", "biped_run"},
+	{"swordsman_attack", "biped_attack"},
+	{"swordsman_death", "biped_death"},
+	// female citizen (female_* movement exists; combat falls back to infantry)
+	{"female_attack", "biped_attack"}, // art/variants/biped/attack_melee_female.xml
+	{"female_death", "biped_death"}, // art/variants/biped/death_infantry.xml
+	{"female_citizen_idle", "female_idle"},
+	{"female_citizen_walk", "female_walk"},
+	{"female_citizen_run", "female_run"},
+	{"female_citizen_attack", "biped_attack"},
+	{"female_citizen_death", "biped_death"},
+	// archer maiden: female locomotion + ranged attack
+	{"archer_maiden_idle", "female_idle"},
+	{"archer_maiden_walk", "female_walk"},
+	{"archer_maiden_run", "female_run"},
+	{"archer_maiden_attack", "archer_attack"}, // attack_ranged_archer.xml
+	{"archer_maiden_death", "biped_death"},
+	// carnyx / hero: plain infantry clips
+	{"carnyx_idle", "biped_idle"},
+	{"carnyx_walk", "biped_walk"},
+	{"carnyx_run", "biped_run"},
+	{"carnyx_attack", "biped_attack"},
+	{"carnyx_death", "biped_death"},
+	{"hero_idle", "biped_idle"},
+	{"hero_walk", "biped_walk"},
+	{"hero_run", "biped_run"},
+	{"hero_attack", "biped_attack"},
+	{"hero_death", "biped_death"},
+	// cavalry rider (only walk/idle/attack/death shipped)
+	{"cavalry_run", "cavalry_walk"},
+	// traders on foot (only idle/walk/death shipped)
+	{"trader_run", "trader_walk"},
+	{"trader_attack", "biped_attack"},
+	// camel-borne traders use camel clips
+	{"cart_trader_idle", "camel_idle"},
+	{"cart_trader_walk", "camel_walk"},
+	{"cart_trader_run", "camel_run"},
+	{"cart_trader_attack", "camel_attack"},
+	{"cart_trader_death", "camel_death"},
+	{"pers_trader_idle", "camel_idle"},
+	{"pers_trader_walk", "camel_walk"},
+	{"pers_trader_run", "camel_run"},
+	{"pers_trader_attack", "camel_attack"},
+	{"pers_trader_death", "camel_death"},
+	// maurya chariot trader uses maur_ch clips
+	{"maur_trader_idle", "maur_ch_idle"},
+	{"maur_trader_walk", "maur_ch_move"},
+	{"maur_trader_run", "maur_ch_move"},
+	{"maur_trader_attack", "maur_ch_idle"},
+	{"maur_trader_death", "maur_ch_death"},
+	// ships: trireme/rowing only ship idle+walk; sail ships use merchant_sail_*
+	{"trireme_run", "trireme_walk"},
+	{"trireme_attack", "trireme_idle"},
+	{"trireme_death", "trireme_idle"},
+	{"rowing_run", "rowing_walk"},
+	{"rowing_attack", "rowing_idle"},
+	{"rowing_death", "rowing_idle"},
+	{"ship_idle", "trireme_idle"},
+	{"ship_walk", "trireme_walk"},
+	{"ship_run", "trireme_walk"},
+	{"ship_attack", "trireme_idle"},
+	{"ship_death", "trireme_idle"},
+	{"merchant_ship_idle", "merchant_sail_idle"},
+	{"merchant_ship_walk", "merchant_sail_walk"},
+	{"merchant_ship_run", "merchant_sail_run"},
+	{"merchant_ship_attack", "merchant_sail_idle"},
+	{"merchant_ship_death", "merchant_sail_idle"},
+	// fauna: sheep has no attack clip; war_dog reuses dog clips
+	{"sheep_attack", "sheep_idle"},
+	{"war_dog_idle", "dog_idle"},
+	{"war_dog_walk", "dog_walk"},
+	{"war_dog_run", "dog_run"},
+	{"war_dog_attack", "dog_attack"},
+	{"war_dog_death", "dog_death"},
+	// siege: bolt only ships idle+attack; catapult is static
+	{"bolt_shooter_idle", "bolt_idle"},
+	{"bolt_shooter_walk", "bolt_idle"},
+	{"bolt_shooter_run", "bolt_idle"},
+	{"bolt_shooter_attack", "bolt_attack"},
+	{"bolt_shooter_death", "bolt_idle"},
+	{"catapult_walk", "catapult_idle"},
+	{"catapult_run", "catapult_idle"},
+	{"catapult_death", "catapult_idle"},
+	// elephant crew / rams / chariots / healer / deer
+	{"worker_elephant_idle", "elephant_idle"},
+	{"worker_elephant_walk", "elephant_walk"},
+	{"worker_elephant_run", "elephant_run"},
+	{"worker_elephant_attack", "elephant_attack"},
+	{"worker_elephant_death", "elephant_death"},
+	{"ram_run", "ram_walk"},
+	{"chariot_attack", "chariot_idle"},
+	{"scythed_chariot_idle", "chariot_idle"},
+	{"scythed_chariot_walk", "chariot_walk"},
+	{"scythed_chariot_run", "chariot_run"},
+	{"scythed_chariot_attack", "chariot_idle"},
+	{"scythed_chariot_death", "chariot_death"},
+	{"healer_attack", "healer_heal"},
+	{"healer_death", "biped_death"},
+	{"deer_run", "deer_walk"},
+};
+
 static std::string resolve_psa_alias(const std::string& input) {
 	std::string s = input;
 	if (s.size() > 4 && s.substr(s.size() - 4) == ".psa") {
@@ -18,13 +145,9 @@ static std::string resolve_psa_alias(const std::string& input) {
 	if (last_slash != std::string::npos) {
 		s = s.substr(last_slash + 1);
 	}
-	if (s == "archer_shoot") return "archer_attack";
-	if (s == "villager_gather" || s == "gather") return "gather_wood";
-	if (s == "villager_idle") return "citizen_idle";
-	if (s == "villager_walk") return "citizen_walk";
-	if (s == "villager_run") return "citizen_run";
-	if (s == "villager_attack") return "biped_attack";
-	if (s == "trader_death") return "trader_death";
+	for (const auto& e : kPsaAliasTable) {
+		if (s == e.first) return e.second;
+	}
 	return s;
 }
 

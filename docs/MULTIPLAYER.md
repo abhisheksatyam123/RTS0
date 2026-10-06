@@ -103,3 +103,49 @@ Additional 0AD anchors: `NetServerTurnManager.cpp:43` `m_ReadyTurn(COMMAND_DELAY
 
 > **Parity note:** TurnManager now hashes **all SoA fields** (`pos_x/z, hp, unit_type, team, action_state, carry, building hp/progress/team/type, resources, techMask, fow_grid_, projectiles, relics, territory_grid_, market prices`) via FNV-1a (`turn_manager.cpp:26 compute_sim_hash // Phase4 HashSerializer parity`, `v2` replay). `save_replay` writes `turn_index` monotonic + `sim_state_hash` per frame; `load_replay` verifies ordering and hash (accepts `v1` legacy). `NetHost` now exposes `NetMessageType : uint8_t { NMT_SIMULATION_COMMAND=29 ... NMT_SYNC_CHECK/ERROR }` + `struct NetMessage {type, turn, payload}` header-only, plus `poll()` pseudocode `enet_host_service` / `ENET_EVENT_TYPE_CONNECT/DISCONNECT/RECEIVE` dispatching `onCommand`. `NetTypes` adds `Observer` role, `rtt_ms`, `snapshotRate 20Hz`. No `libenet` linkage required yet — `g++ -fsyntax-only` passes. Next: wire `ENetHost* m_Host` in `poll()` and coalesce `NMT_END_COMMAND_BATCH` in `NetServerTurnManager`.
 
+
+## Playtest harness (2026-10-05)
+
+Headless two-client lockstep OOS hunt without Godot/SCons (`docs/PLAN.md` P1):
+
+```bash
+python3 tools/playtest_lockstep.py --ticks 2000        # compiles tools/test_netcode.cpp, 2 seeds
+python3 tools/playtest_lockstep.py --help              # --seeds/--shadow/--through/--timeout
+# or drive the prebuilt binary directly:
+~/tmp/playtest/netcode_playtest --playtest <turns> <seed> [--shadow] [--through] [--verbose N]
+```
+
+- Exit 0 = all seeds in sync, 1 = first OOS turn dumped with context, 2 = build failure.
+- `--shadow` adds a third command-free peer; `--through` keeps hashing after match end (defeats frozen-sim false negatives). `tools/test_netcode.cpp` `--playtest` prints per-turn FNV-1a of all peers.
+- Link-probe note: `src/core/diagnostics/*` excluded (pulls godot-cpp, cannot link engine-less).
+
+**Result 2026-10-05:** seeds `4242`, `777001`, `20261005` × 2000 turns, `--shadow --through` → **3/3 PASS**, peers A=B=C every turn (e.g. seed 4242 `0x834C102F`, rng `3204712309` on all three). Zero OOS. Complements `tools/test_replay.cpp` (save_replay/load_replay round-trip + negative control, RC=0).
+
+## Two-client playtest automation (2026-10-05)
+
+Real host/join session driver: `tools/playtest_two_clients.py` (no CLI trigger exists — handlers are GUI-bound at `main_node.cpp:547/551/560`, host `:3634`, join `:3765`, start `:3655`; `scenes/menu/lobby.gd` is a print-only stub). The script runs two real Godot clients on **Xvfb** displays and drives the actual UI with **xdotool** (verified click coords at 3840x1080: Lobby `(3024,46)`, Host `(41,419)`, Join `(145,419)`; readiness gate = `[mem]` sim heartbeat at ~30-75s; single-click policy to avoid peer churn).
+
+```bash
+python3 tools/playtest_two_clients.py --probe          # env check (lobby_server, Xvfb, xdotool) — RC 0
+python3 tools/playtest_two_clients.py --run --minutes 5 # full session — artifacts in $HOME/tmp/playtest_two_clients/
+```
+
+- Exit 0 = session survived N minutes, no OOS/error/disconnect markers; 1 = OOS/error evidence dumped; 2 = environment failure.
+- Markers verified YES: `host_listening`, `peer_accepted`, `client_connecting`, `client_connected`, `sync_exchange`. Teardown-time "disconnected" lines are excluded from findings.
+- Honest limitations: `game_start` log marker may not match string-wise (NMT_GAME_START handling in `apply_net_game_start` — verify); fps=1-5 under Xvfb (software GL) does not affect lockstep; pause-menu "Lobby" route pauses the sim (`main_node.cpp:1666` `paused_via_menu`) and must NOT be used — the script clicks the top-bar Lobby button (visible only at >=3840 window width).
+
+**First live OOS found 2026-10-05 (turn 1):** `local_hash=2731923309 vs peer_hash=3034033795` — immediate divergence, not drift; contrast `playtest_lockstep.py` (identical-command harness) which passes.
+
+**ROOT-CAUSE + FIX 2026-10-06:** lockstep turns and sync-hash exchange started at Host/Join click, BEFORE Start — the peers hashed their *independent boot worlds* from turn 1 (and `reset()` at asymmetric wall times risked turn-counter offsets). Fix: `net_game_started_` gate (`main_node.h`) — turns/sync stay paused until NMT_GAME_START is applied on each peer (host at `_on_lobby_start_pressed`, joiner at `apply_net_game_start`); engine prints `[RTS0][GameStart] HOST broadcast setup` / `JOINER consumed` with map/seed/civs so runs are verifiable. The harness was made STRICT: it now sweeps for the Start button until the host broadcast line appears (Start measured at x=276,419 @3840x1080 — old pitch-estimate 353 missed) and fails `EXIT_NO_SESSION` if either peer's gate never opened (prevents vacuous passes). **Verified 2026-10-06: `--run --minutes 1` -> start_host YES, start_joiner YES, OOS 0, errors 0, EXIT 0.**
+
+---
+
+**Wave 1+2 parity-bookkeeping refresh 2026-10-06** (doc bookkeeping only; no `src/` changes). Landed-network items now recorded as shipped, with grep evidence:
+
+- **Start gate** — `src/presentation/main_node.h:185` `bool net_game_started_ = false;`; host broadcast `src/presentation/main_node.cpp:3743-3745` (`mark_game_started` + `note_game_start_sent` + `sendGameStart(format_game_start_full(setup))`); joiner consume `main_node.cpp:3803-3810` (`apply_net_game_start` → `take_pending_game_start_full` → `note_game_start_applied`).
+- **`NMT_GAME_START` resend** — `src/network/net_host.cpp:466 sendGameStartTo(peer_id, attributes)` resends the SAME authoritative setup to one late-joining peer; gated on `game_start_sent_` (`net_host.h:81-82`, `:175-177`, reset at `net_host.cpp:103/:157/:891`). Answers the "rejoin / join-sync" row that previously read *missing* above.
+- **Join-sync (turn-0 state resync)** — `NMT_JOIN_SYNC_STATE = 32` / `NMT_JOIN_SYNC_CHECK = 33` (`src/network/net_types.h:68`/`:71`), handshake documented `net_types.h:394-445`; joiner side `net_host.cpp:245 request_join_sync()`; host side `TurnManager::answer_join_sync` (`turn_manager.h:123`, `.h:153`).
+- **Fleet upkeep command** — `NET_CMD_MAINTAIN_FLEET = 24` (`net_types.h:134`); generator `turn_manager.cpp:481-551` (emits at `:544`), dispatch `:559 maintain_fleet_upkeep` called from `tick()` at `:861`; sim hook `Simulation::cmd_maintain_fleet` (`simulation.h:195`, impl `simulation.cpp:835`).
+- **Diplomacy via TurnManager** — `post_diplomacy` (`turn_manager.h:98`) queues stance through the same lockstep command stream; `apply_diplomacy()` (`:326-328`) is the single sim write point at the turn boundary (mirrors the ROOT-CAUSE/FIX note above: no pre-Start writes).
+
+G8 table value stays **98%** and G9 stays **96%** — the remaining gate for both is a real 2-Godot-client session / NAT, not missing protocol code. Overall `check_parity.py` parity **90% → 92%**.

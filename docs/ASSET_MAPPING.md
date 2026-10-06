@@ -1,5 +1,33 @@
 # 0 A.D. → RTS0 texture, skeleton, and UV mapping
 
+## 2026-09-30 verification addendum (scripts, not guesses)
+
+- Manifest: **507 models / 1223 anims / 83 skels / 652 terrain** vs public.zip
+  **4280 PMD** (GLB/PMD 11.8%; mesh-basename overlap 987/4213 = 23.4%;
+  actor-XML overlap 1354/5674 = 23.9%). `python3 tools/audit_assets.py` → exit 0
+  (242 unit/fauna, 16 static hulls, 0 missing wanted clips).
+- Canonical silhouettes: **23/23 units + 14/14 buildings + 4/4 fauna ship unique GLBs**
+  (full matrix in `docs/ASSET_MANIFEST_TODO.md`). No `cavalry.glb` stand-in for distinct
+  silhouettes; the old `model_library.cpp:616` alias block no longer exists — current
+  chain is `model_library.cpp:622-633` direct + `civ_` prefix-strip + procedural.
+- Civ variants: 205/299 unit + 182/182 building keys shipped; the 94 missing combos
+  (e.g. `athen_elephant`) have no civ-folder actor in `public.zip` and resolve via
+  prefix-strip to the base-unit GLB.
+- PSA: `biped_attack` (29f/46b), `biped_run` (24f/46b), `archer_attack` (74f/46b) each
+  verified extract-map (`tools/extract_0ad_assets.py:625-626,647`) → manifest →
+  `assets/animations/*.psa` on disk → `load_clip`
+  (`src/animation/animation_controller.cpp:35-36,44-45,53-54`). Caveat: crowd renderer
+  bakes GLB-embedded `AnimationPlayer` clips (`src/presentation/world_view_node.cpp:749`);
+  `AnimationController` is the CPU sampling path — same clips, no Godot headless bake run.
+- Terrain: `shaders/terrain.gdshader:60-62` samples `grass_tex`/`dirt_tex`/`rock_tex`,
+  bound `src/graphics/assets/assets.cpp:62-64` to existing PNGs; 653 terrain PNGs on disk.
+  Single global triple — no per-biome switching yet (`current_map_biome_` unconsumed by
+  `load_terrain_material`).
+
+---
+
+# 0 A.D. → RTS0 texture, skeleton, and UV mapping
+
 Extractor: `tools/extract_0ad_assets.py`  
 Runtime: `native/src/graphics/assets/model_library.cpp` (`apply_imported_material_fixups`)  
 Clip names: `native/src/presentation/world_view_node.cpp`

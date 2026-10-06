@@ -1,4 +1,4 @@
-[gd_scene load_steps=3 format=3 uid="uid://f4a1b2c3d5e6f"]
+[gd_scene load_steps=2 format=3 uid="uid://f4a1b2c3d5e6f"]
 
 [ext_resource type="Script" path="res://scenes/menu/gamesetup.gd" id="1"]
 
@@ -28,9 +28,10 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 offset_left = 20.0
-offset_top = 20.0
+offset_top = 16.0
 offset_right = -20.0
-offset_bottom = -20.0
+offset_bottom = -16.0
+theme_override_constants/separation = 8
 
 [node name="Header" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
@@ -40,7 +41,7 @@ custom_minimum_size = Vector2(400, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 22
-text = "Game Setup — 0 A.D. page_gamesetup.xml"
+text = "Game Setup — Skirmish vs Petra AI"
 
 [node name="BtnBack" type="Button" parent="VBox/Header"]
 custom_minimum_size = Vector2(120, 36)
@@ -50,68 +51,85 @@ text = "Back"
 [node name="HBox" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
 size_flags_vertical = 3
+theme_override_constants/separation = 16
 
 [node name="Left" type="VBoxContainer" parent="VBox/HBox"]
-custom_minimum_size = Vector2(320, 0)
+custom_minimum_size = Vector2(330, 0)
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="MapFilterLabel" type="Label" parent="VBox/HBox/Left"]
+layout_mode = 2
+text = "Map filter"
+
+[node name="MapFilterSlot" type="Control" parent="VBox/HBox/Left"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
 
 [node name="MapLabel" type="Label" parent="VBox/HBox/Left"]
 layout_mode = 2
-text = "Map (Gerasa — aegean_anatolia)"
+text = "Map"
 
-[node name="MapSlot" type="Control" parent="VBox/HBox/Left"]
-custom_minimum_size = Vector2(0, 32)
-layout_mode = 2
-
-[node name="CivLabel" type="Label" parent="VBox/HBox/Left"]
-layout_mode = 2
-text = "Civilization"
-
-[node name="CivSlot" type="Control" parent="VBox/HBox/Left"]
-custom_minimum_size = Vector2(0, 32)
-layout_mode = 2
-
-[node name="Players" type="HBoxContainer" parent="VBox/HBox/Left"]
-layout_mode = 2
-
-[node name="Label" type="Label" parent="VBox/HBox/Left/Players"]
-custom_minimum_size = Vector2(140, 0)
-layout_mode = 2
-text = "Players"
-
-[node name="SpinPlayers" type="SpinBox" parent="VBox/HBox/Left/Players"]
-layout_mode = 2
-size_flags_horizontal = 3
-min_value = 2.0
-max_value = 8.0
-value = 2.0
-
-[node name="Resources" type="HBoxContainer" parent="VBox/HBox/Left"]
-layout_mode = 2
-
-[node name="Label" type="Label" parent="VBox/HBox/Left/Resources"]
-custom_minimum_size = Vector2(140, 0)
-layout_mode = 2
-text = "Starting Resources"
-
-[node name="SpinRes" type="SpinBox" parent="VBox/HBox/Left/Resources"]
-layout_mode = 2
-size_flags_horizontal = 3
-min_value = 50.0
-max_value = 500.0
-step = 50.0
-value = 150.0
-
-[node name="Right" type="VBoxContainer" parent="VBox/HBox"]
-custom_minimum_size = Vector2(320, 0)
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="Preview" type="Panel" parent="VBox/HBox/Right"]
-custom_minimum_size = Vector2(0, 220)
+[node name="MapList" type="ItemList" parent="VBox/HBox/Left"]
+custom_minimum_size = Vector2(0, 190)
 layout_mode = 2
 size_flags_vertical = 3
+
+[node name="SeedRow" type="HBoxContainer" parent="VBox/HBox/Left"]
+layout_mode = 2
+
+[node name="SeedLabel" type="Label" parent="VBox/HBox/Left/SeedRow"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+text = "Seed (0 = random)"
+
+[node name="SpinSeed" type="SpinBox" parent="VBox/HBox/Left/SeedRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 0.0
+max_value = 999999999.0
+step = 1.0
+value = 0.0
+
+[node name="BtnReroll" type="Button" parent="VBox/HBox/Left/SeedRow"]
+custom_minimum_size = Vector2(80, 0)
+layout_mode = 2
+text = "Reroll"
+
+[node name="VictoryLabel" type="Label" parent="VBox/HBox/Left"]
+layout_mode = 2
+text = "Victory condition"
+
+[node name="VictorySlot" type="Control" parent="VBox/HBox/Left"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+
+[node name="ResLabel" type="Label" parent="VBox/HBox/Left"]
+layout_mode = 2
+text = "Starting resources"
+
+[node name="ResSlot" type="Control" parent="VBox/HBox/Left"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+
+[node name="BehaviorLabel" type="Label" parent="VBox/HBox/Left"]
+layout_mode = 2
+text = "AI behavior"
+
+[node name="BehaviorSlot" type="Control" parent="VBox/HBox/Left"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+
+[node name="Right" type="VBoxContainer" parent="VBox/HBox"]
+custom_minimum_size = Vector2(380, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="Preview" type="Panel" parent="VBox/HBox/Right"]
+custom_minimum_size = Vector2(0, 150)
+layout_mode = 2
 
 [node name="Label" type="Label" parent="VBox/HBox/Right/Preview"]
 layout_mode = 1
@@ -121,17 +139,68 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 offset_left = 12.0
-offset_top = 12.0
+offset_top = 10.0
 offset_right = -12.0
-offset_bottom = -12.0
-text = "Map Preview — Gerasa (2p) — Minimap + Territory"
-horizontal_alignment = 1
-vertical_alignment = 1
+offset_bottom = -10.0
+text = "Map preview"
+autowrap_mode = 2
+
+[node name="CivPreview" type="HBoxContainer" parent="VBox/HBox/Right"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Crest" type="TextureRect" parent="VBox/HBox/Right/CivPreview"]
+custom_minimum_size = Vector2(72, 72)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="CivLabel" type="Label" parent="VBox/HBox/Right/CivPreview"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Civilization"
+autowrap_mode = 2
+
+[node name="SlotsBox" type="VBoxContainer" parent="VBox/HBox/Right"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 4
+
+[node name="SlotCountRow" type="HBoxContainer" parent="VBox/HBox/Right/SlotsBox"]
+layout_mode = 2
+
+[node name="SlotsLabel" type="Label" parent="VBox/HBox/Right/SlotsBox/SlotCountRow"]
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+text = "Players (2-8)"
+
+[node name="SpinSlots" type="SpinBox" parent="VBox/HBox/Right/SlotsBox/SlotCountRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 2.0
+max_value = 8.0
+step = 1.0
+value = 2.0
+
+[node name="SlotsHeader" type="Label" parent="VBox/HBox/Right/SlotsBox"]
+layout_mode = 2
+text = "Slot      Type        Civ                Team   AI level"
+
+[node name="SlotsGrid" type="GridContainer" parent="VBox/HBox/Right/SlotsBox"]
+layout_mode = 2
+size_flags_vertical = 3
+columns = 5
+
+[node name="ErrorLabel" type="Label" parent="VBox/HBox/Right"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.45, 0.4, 1)
+text = ""
+autowrap_mode = 2
 
 [node name="BtnStart" type="Button" parent="VBox/HBox/Right"]
 custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
-text = "Start Game — Spawn SoA Simulation"
+text = "Start Game"
 
 [connection signal="pressed" from="VBox/Header/BtnBack" to="." method="_on_back_pressed"]
 [connection signal="pressed" from="VBox/HBox/Right/BtnStart" to="." method="_on_start_pressed"]

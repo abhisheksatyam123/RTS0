@@ -1,5 +1,7 @@
 # 0 A.D. to RTS0 Porting Roadmap & Master TODO
 
+> **Note on Parity vs Checklist:** Checklist completion (`[x]`) does NOT equal parity. It tracks scaffolding and porting stubs. For authoritative parity and fidelity, see `docs/REMAINING_GAPS.md` and run `python3 tools/track_progress.py`.
+
 This document tracks all remaining gameplay systems, UI elements, audio assets, and engine features to be ported from **0 A.D.** (`/home/abhi/project/0ad`) into **RTS0** (`/home/abhi/project/RTS0`).
 
 Each item is categorized by subsystem, prioritized, and linked to its 0 A.D. source reference and RTS0 target implementation.
@@ -198,7 +200,7 @@ Each item is categorized by subsystem, prioritized, and linked to its 0 A.D. sou
   - [x] Market prices fluctuate dynamically based on transaction supply and demand.
 - [x] **8.2 Barter UI Dialog**
   - [x] Interactive modal dialog with Quick Buy / Quick Sell 100 and 500 unit buttons.
-- [x] **8.3 Trade Routes - [ ] **8.3 Trade Routes & Caravans** Caravans**
+- [x] **8.3 Trade Routes & Caravans**
   - [x] Train Merchant Caravans from Market.
   - [x] Establish trade routes between friendly Markets for continuous passive gold generation.
 
@@ -226,7 +228,7 @@ Each item is categorized by subsystem, prioritized, and linked to its 0 A.D. sou
 > **0 A.D. Source Reference:** `gui/session/diplomacy/`, `gui/session/dialogs/`, `gui/session/Menu.xml`  
 > **RTS0 Target:** `scenes/session/`, `scenes/menu/`
 
-- [x] **10.1 Diplomacy - [ ] **10.1 Diplomacy & Tribute Window** Tribute Window**
+- [x] **10.1 Diplomacy & Tribute Window**
   - [x] List all players and AI factions with team, civ icon, and current diplomatic state (Ally / Neutral / Enemy).
   - [x] Tribute buttons to send Food, Wood, Gold, Stone to allies (with 100 / 500 increments).
   - [x] Toggle stance buttons (Ally / Enemy / Ceasefire request).
