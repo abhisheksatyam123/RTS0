@@ -1,10 +1,37 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=9 format=3]
 
-[ext_resource type="Script" path="res://scenes/menu/main_menu.gd" id="1_1"]
-[ext_resource type="PackedScene" path="res://scenes/menu/menu_diorama.tscn" id="2_diorama"]
-[ext_resource type="Texture2D" path="res://assets/textures/ui/emblems/athenians.png" id="3_crest"]
-[ext_resource type="AudioStream" path="res://assets/music/theme.ogg" id="4_music"]
-[ext_resource type="AudioStream" path="res://assets/sounds/combat/sword_hit_1.ogg" id="5_sfx"]
+[ext_resource type="Script" path="res://scenes/menu/main_menu.gd" id="1_script"]
+[ext_resource type="Theme" path="res://assets/themes/zeroad_theme.tres" id="2_theme"]
+[ext_resource type="Texture2D" path="res://assets/textures/ui/pregame/logo/0ad_logo.png" id="3_logo"]
+[ext_resource type="Texture2D" path="res://assets/textures/ui/pregame/logo/wfg_logo_white.png" id="4_wfg"]
+[ext_resource type="Texture2D" path="res://assets/textures/ui/global/stone_background.png" id="5_stone"]
+[ext_resource type="Texture2D" path="res://assets/textures/ui/pregame/menu_panel_background_shading.png" id="6_shading"]
+[ext_resource type="AudioStream" path="res://assets/music/honor_bound.ogg" id="7_music"]
+[ext_resource type="AudioStream" path="res://assets/sounds/ui/ui_button_click.ogg" id="8_sfx"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel_border"]
+bg_color = Color(0.1, 0.1, 0.12, 0.35)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.9, 0.75, 0.31, 1)
+shadow_color = Color(0, 0, 0, 0.7)
+shadow_size = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_subpanel"]
+bg_color = Color(0.12, 0.13, 0.16, 0.95)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.9, 0.75, 0.31, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+shadow_color = Color(0, 0, 0, 0.6)
+shadow_size = 6
 
 [node name="MainMenu" type="Control"]
 layout_mode = 3
@@ -13,20 +40,10 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_1")
+theme = ExtResource("2_theme")
+script = ExtResource("1_script")
 
-[node name="MenuDiorama" parent="." instance=ExtResource("2_diorama")]
-
-[node name="Background" type="ColorRect" parent="."]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-color = Color(0.05, 0.06, 0.09, 0.65)
-
-[node name="CenterContainer" type="CenterContainer" parent="."]
+[node name="ParallaxContainer" type="Control" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -34,118 +51,293 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer"]
-layout_mode = 2
-theme_override_constants/separation = 9
-alignment = 1
+[node name="Vignette" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 0.18)
 
-[node name="CivEmblem" type="TextureRect" parent="CenterContainer/VBoxContainer"]
-custom_minimum_size = Vector2(76, 76)
-layout_mode = 2
-size_flags_horizontal = 4
-texture = ExtResource("3_crest")
+[node name="MainPanel" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 9
+anchor_bottom = 1.0
+offset_left = 48.0
+offset_right = 308.0
+grow_vertical = 2
+
+[node name="StoneBg" type="TextureRect" parent="MainPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("5_stone")
+stretch_mode = 1
+
+[node name="ShadingOverlay" type="TextureRect" parent="MainPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("6_shading")
+expand_mode = 1
+
+[node name="GoldBorder" type="Panel" parent="MainPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel_border")
+
+[node name="LogoContainer" type="Control" parent="MainPanel"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 28.0
+offset_bottom = 140.0
+grow_horizontal = 2
+
+[node name="Logo" type="TextureRect" parent="MainPanel/LogoContainer"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -110.0
+offset_top = -55.0
+offset_right = 110.0
+offset_bottom = 55.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("3_logo")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="Title" type="Label" parent="CenterContainer/VBoxContainer"]
-custom_minimum_size = Vector2(0, 40)
-layout_mode = 2
-theme_override_font_sizes/font_size = 34
-theme_override_colors/font_color = Color(1, 0.88, 0.45, 1)
-text = "RTS0 — Empires of Antiquity"
-horizontal_alignment = 1
-vertical_alignment = 1
+[node name="Buttons" type="VBoxContainer" parent="MainPanel"]
+layout_mode = 1
+anchors_preset = 14
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = 14.0
+offset_top = -140.0
+offset_right = -14.0
+offset_bottom = 170.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 7
+alignment = 1
 
-[node name="Subtitle" type="Label" parent="CenterContainer/VBoxContainer"]
+[node name="BtnLearn" type="Button" parent="MainPanel/Buttons"]
+custom_minimum_size = Vector2(0, 34)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.75, 0.8, 0.9, 1)
-theme_override_font_sizes/font_size = 13
-text = "Pure C++20 GDExtension • Multi-Threaded SoA • 0 A.D. Simulation Parity"
-horizontal_alignment = 1
+text = "Learn to Play"
 
-[node name="Spacer" type="Control" parent="CenterContainer/VBoxContainer"]
-custom_minimum_size = Vector2(0, 8)
+[node name="BtnSingle" type="Button" parent="MainPanel/Buttons"]
+custom_minimum_size = Vector2(0, 34)
 layout_mode = 2
+text = "Single-player"
 
-[node name="BtnSingle" type="Button" parent="CenterContainer/VBoxContainer"]
-custom_minimum_size = Vector2(340, 42)
+[node name="BtnMulti" type="Button" parent="MainPanel/Buttons"]
+custom_minimum_size = Vector2(0, 34)
 layout_mode = 2
-size_flags_horizontal = 4
-text = "⚔️ Single Player — Skirmish & Waves"
+text = "Multiplayer"
 
-[node name="BtnSetup" type="Button" parent="CenterContainer/VBoxContainer"]
-custom_minimum_size = Vector2(340, 42)
+[node name="BtnSettings" type="Button" parent="MainPanel/Buttons"]
+custom_minimum_size = Vector2(0, 34)
 layout_mode = 2
-size_flags_horizontal = 4
-text = "🏛️ Custom Match Setup"
+text = "Settings"
 
-[node name="BtnEncyclopedia" type="Button" parent="CenterContainer/VBoxContainer"]
-custom_minimum_size = Vector2(340, 42)
+[node name="BtnEditor" type="Button" parent="MainPanel/Buttons"]
+custom_minimum_size = Vector2(0, 34)
 layout_mode = 2
-size_flags_horizontal = 4
-text = "📖 Civilization Manual & Stats"
+text = "Scenario Editor"
 
-[node name="BtnAssets" type="Button" parent="CenterContainer/VBoxContainer"]
-custom_minimum_size = Vector2(340, 42)
+[node name="BtnCredits" type="Button" parent="MainPanel/Buttons"]
+custom_minimum_size = Vector2(0, 34)
 layout_mode = 2
-size_flags_horizontal = 4
-text = "🎨 Asset Viewer — Models & Clips"
+text = "Credits"
 
-[node name="BtnReplays" type="Button" parent="CenterContainer/VBoxContainer"]
-custom_minimum_size = Vector2(340, 42)
+[node name="BtnExit" type="Button" parent="MainPanel/Buttons"]
+custom_minimum_size = Vector2(0, 34)
 layout_mode = 2
-size_flags_horizontal = 4
-text = "🎬 Match Replays"
-
-[node name="BtnMulti" type="Button" parent="CenterContainer/VBoxContainer"]
-custom_minimum_size = Vector2(340, 42)
-layout_mode = 2
-size_flags_horizontal = 4
-text = "🌐 Multiplayer — Lockstep Network"
-
-[node name="BtnOptions" type="Button" parent="CenterContainer/VBoxContainer"]
-custom_minimum_size = Vector2(340, 42)
-layout_mode = 2
-size_flags_horizontal = 4
-text = "⚙️ Settings & Keybindings"
-
-[node name="BtnExit" type="Button" parent="CenterContainer/VBoxContainer"]
-custom_minimum_size = Vector2(340, 42)
-layout_mode = 2
-size_flags_horizontal = 4
 text = "Exit"
 
-[node name="Version" type="Label" parent="."]
+[node name="Footer" type="VBoxContainer" parent="MainPanel"]
 layout_mode = 1
 anchors_preset = 12
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 16.0
-offset_top = -32.0
-offset_right = -16.0
-offset_bottom = -12.0
+offset_left = 12.0
+offset_top = -100.0
+offset_right = -12.0
+offset_bottom = -16.0
 grow_horizontal = 2
 grow_vertical = 0
+theme_override_constants/separation = 2
+alignment = 1
+
+[node name="WfgLogo" type="TextureRect" parent="MainPanel/Footer"]
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+size_flags_horizontal = 4
+texture = ExtResource("4_wfg")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="OrgLabel" type="Label" parent="MainPanel/Footer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.75, 0.31, 1)
 theme_override_font_sizes/font_size = 12
-theme_override_colors/font_color = Color(0.5, 0.55, 0.65, 1)
-text = "RTS0 v1.0 • 0 A.D. Reborn • Godot 4.3 Forward+"
+text = "WILDFIRE GAMES"
+horizontal_alignment = 1
+
+[node name="TitleLabel" type="Label" parent="MainPanel/Footer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.85, 0.85, 1)
+theme_override_font_sizes/font_size = 11
+text = "0 A.D. Empires Ascendant"
+horizontal_alignment = 1
+
+[node name="VersionLabel" type="Label" parent="MainPanel/Footer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 10
+text = "RTS0 C++20 • Godot 4.3"
+horizontal_alignment = 1
+
+[node name="SubmenuPanel" type="PanelContainer" parent="."]
+visible = false
+layout_mode = 0
+offset_left = 312.0
+offset_top = 220.0
+offset_right = 560.0
+offset_bottom = 430.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_subpanel")
+
+[node name="SubmenuContent" type="VBoxContainer" parent="SubmenuPanel"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SubmenuTitle" type="Label" parent="SubmenuPanel/SubmenuContent"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.75, 0.31, 1)
+theme_override_font_sizes/font_size = 13
+text = "SINGLE-PLAYER"
+horizontal_alignment = 1
+
+[node name="SubmenuButtons" type="VBoxContainer" parent="SubmenuPanel/SubmenuContent"]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="CivSwitcher" type="Button" parent="."]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -210.0
+offset_top = 18.0
+offset_right = -20.0
+offset_bottom = 50.0
+grow_horizontal = 0
+theme_override_font_sizes/font_size = 12
+text = "Switch Scene"
+
+[node name="CivLabel" type="Label" parent="CivSwitcher"]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = 4.0
+offset_bottom = 22.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_colors/font_color = Color(0.8, 0.75, 0.65, 0.9)
+theme_override_font_sizes/font_size = 11
+text = "CIVILIZATION: HELLENES"
 horizontal_alignment = 2
 
-[node name="MusicPlayer" type="AudioStreamPlayer" parent="."]
-stream = ExtResource("4_music")
-autoplay = true
-volume_db = -8.0
+[node name="CreditsModal" type="ColorRect" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.75)
 
-[node name="ClickSFX" type="AudioStreamPlayer" parent="."]
-stream = ExtResource("5_sfx")
+[node name="CreditsBox" type="PanelContainer" parent="CreditsModal"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -260.0
+offset_top = -200.0
+offset_right = 260.0
+offset_bottom = 200.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_subpanel")
+
+[node name="VBox" type="VBoxContainer" parent="CreditsModal/CreditsBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="CreditsTitle" type="Label" parent="CreditsModal/CreditsBox/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.75, 0.31, 1)
+theme_override_font_sizes/font_size = 18
+text = "0 A.D. & RTS0 CREDITS"
+horizontal_alignment = 1
+
+[node name="Scroll" type="ScrollContainer" parent="CreditsModal/CreditsBox/VBox"]
+custom_minimum_size = Vector2(0, 270)
+layout_mode = 2
+
+[node name="CreditsText" type="Label" parent="CreditsModal/CreditsBox/VBox/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 13
+text = "0 A.D.: Empires Ascendant
+Original Game & Concept by Wildfire Games
+Art, Audio, Civilizations, and History by the 0 A.D. Community
+
+Original Soundtrack:
+Omri Lahav and contributing composers
+
+RTS0 High-Performance Engine Port:
+Lead Architecture & Implementation: Abhi
+Deterministic Netcode & SoA Simulation: RTS0 Team
+Built with Godot Engine 4.3 & C++20 GDExtension"
+horizontal_alignment = 1
+
+[node name="BtnCloseCredits" type="Button" parent="CreditsModal/CreditsBox"]
+custom_minimum_size = Vector2(120, 32)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 8
+text = "Close"
+
+[node name="MusicPlayer" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("7_music")
 volume_db = -6.0
 
-[connection signal="pressed" from="CenterContainer/VBoxContainer/BtnSingle" to="." method="_on_single_pressed"]
-[connection signal="pressed" from="CenterContainer/VBoxContainer/BtnSetup" to="." method="_on_setup_pressed"]
-[connection signal="pressed" from="CenterContainer/VBoxContainer/BtnEncyclopedia" to="." method="_on_encyclopedia_pressed"]
-[connection signal="pressed" from="CenterContainer/VBoxContainer/BtnAssets" to="." method="_on_asset_viewer_pressed"]
-[connection signal="pressed" from="CenterContainer/VBoxContainer/BtnReplays" to="." method="_on_replays_pressed"]
-[connection signal="pressed" from="CenterContainer/VBoxContainer/BtnMulti" to="." method="_on_multi_pressed"]
-[connection signal="pressed" from="CenterContainer/VBoxContainer/BtnOptions" to="." method="_on_options_pressed"]
-[connection signal="pressed" from="CenterContainer/VBoxContainer/BtnExit" to="." method="_on_exit_pressed"]
+[node name="ClickSFX" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("8_sfx")
+volume_db = -2.0

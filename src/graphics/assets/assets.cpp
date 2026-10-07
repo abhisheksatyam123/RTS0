@@ -59,15 +59,19 @@ Ref<ShaderMaterial> Assets::load_terrain_material() {
 			Ref<Texture2D> tex = ResourceLoader::get_singleton()->load(path);
 			if (tex.is_valid()) mat->set_shader_parameter(param, tex);
 		};
-		bind("grass_tex", "res://assets/textures/terrain/savanna_grass.png");
-		bind("dirt_tex", "res://assets/textures/terrain/sand.png");
-		bind("rock_tex", "res://assets/textures/terrain/snow.png");
+		bind("grass_tex", "res://assets/textures/terrain/grass.png");
+		bind("dirt_tex", "res://assets/textures/terrain/dirt.png");
+		bind("rock_tex", "res://assets/textures/terrain/rock.png");
 	}
 	return mat;
 }
 
 Ref<ShaderMaterial> Assets::load_foliage_material() {
 	return try_load_mat(FoliageMaterial, FoliageShader);
+}
+
+Ref<ShaderMaterial> Assets::load_water_material() {
+	return try_load_mat("", WaterShader);
 }
 
 Ref<ShaderMaterial> Assets::try_load_mat(const String &tres, const String &shader_fallback) {

@@ -1,6 +1,21 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scenes/session/barter_dialog.gd" id="1"]
+[ext_resource type="Theme" path="res://assets/themes/zeroad_theme.tres" id="2_theme"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.12, 0.13, 0.17, 0.96)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.9, 0.75, 0.31, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+shadow_color = Color(0, 0, 0, 0.7)
+shadow_size = 8
 
 [node name="BarterDialog" type="CanvasLayer"]
 script = ExtResource("1")
@@ -11,70 +26,72 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme = ExtResource("2_theme")
 
-[node name="Panel" type="Panel" parent="CenterContainer"]
-custom_minimum_size = Vector2(460, 300)
+[node name="Panel" type="PanelContainer" parent="CenterContainer"]
+custom_minimum_size = Vector2(480, 310)
 layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 
 [node name="VBox" type="VBoxContainer" parent="CenterContainer/Panel"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = 16.0
-offset_top = 14.0
-offset_right = -16.0
-offset_bottom = -14.0
+layout_mode = 2
 theme_override_constants/separation = 12
 
 [node name="Title" type="Label" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 17
-text = "⚖️ Athenian Agora — Market & Barter Exchange"
+theme_override_colors/font_color = Color(0.9, 0.75, 0.31, 1)
+theme_override_font_sizes/font_size = 18
+text = "MARKET & BARTER EXCHANGE"
 horizontal_alignment = 1
 
 [node name="Desc" type="Label" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 12
 theme_override_colors/font_color = Color(0.8, 0.85, 0.9, 1)
-text = "Exchange surplus commodities for gold or scarce materials (prices fluctuate with supply/demand)."
+text = "Exchange surplus commodities for gold or scarce materials (prices fluctuate with supply and demand)."
 horizontal_alignment = 1
 
 [node name="Grid" type="GridContainer" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
-columns = 3
+columns = 2
 theme_override_constants/h_separation = 12
 theme_override_constants/v_separation = 8
 
 [node name="BtnSellWood" type="Button" parent="CenterContainer/Panel/VBox/Grid"]
+custom_minimum_size = Vector2(210, 32)
 layout_mode = 2
-text = "🌲 Sell 100 Wood (+75 Gold)"
+text = "Sell 100 Wood (+75 Gold)"
 
 [node name="BtnBuyWood" type="Button" parent="CenterContainer/Panel/VBox/Grid"]
+custom_minimum_size = Vector2(210, 32)
 layout_mode = 2
-text = "🌲 Buy 100 Wood (-100 Gold)"
+text = "Buy 100 Wood (-100 Gold)"
 
 [node name="BtnSellFood" type="Button" parent="CenterContainer/Panel/VBox/Grid"]
+custom_minimum_size = Vector2(210, 32)
 layout_mode = 2
-text = "🍞 Sell 100 Food (+75 Gold)"
+text = "Sell 100 Food (+75 Gold)"
 
 [node name="BtnBuyFood" type="Button" parent="CenterContainer/Panel/VBox/Grid"]
+custom_minimum_size = Vector2(210, 32)
 layout_mode = 2
-text = "🍞 Buy 100 Food (-100 Gold)"
+text = "Buy 100 Food (-100 Gold)"
 
 [node name="BtnSellStone" type="Button" parent="CenterContainer/Panel/VBox/Grid"]
+custom_minimum_size = Vector2(210, 32)
 layout_mode = 2
-text = "🪨 Sell 100 Stone (+75 Gold)"
+text = "Sell 100 Stone (+75 Gold)"
 
 [node name="BtnBuyStone" type="Button" parent="CenterContainer/Panel/VBox/Grid"]
+custom_minimum_size = Vector2(210, 32)
 layout_mode = 2
-text = "🪨 Buy 100 Stone (-100 Gold)"
+text = "Buy 100 Stone (-100 Gold)"
 
 [node name="PriceInfo" type="Label" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 10
+theme_override_font_sizes/font_size = 11
 theme_override_colors/font_color = Color(0.9, 0.85, 0.6, 1)
-text = "Dynamic prices: each trade adjusts buy +2% / sell -2% (clamped 0.5x-2.0x). Civ bonus: Carthaginian/Persian +13% spread."
+text = "Dynamic prices: each trade adjusts buy +2% / sell -2%. Civ bonus: Carthaginian/Persian +13% spread."
 horizontal_alignment = 1
 
 [node name="CloseBtn" type="Button" parent="CenterContainer/Panel/VBox"]

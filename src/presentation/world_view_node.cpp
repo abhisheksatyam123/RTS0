@@ -982,14 +982,21 @@ void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 	if (sim->water_height() > 0.0f) {
 		if (!water_mesh_node) {
 			water_mesh.instantiate();
-			water_mat.instantiate();
-			water_mat->set_albedo(Color(0.08f, 0.35f, 0.55f, 0.82f));
-			water_mat->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
-			water_mat->set_roughness(0.15f);
-			water_mat->set_metallic(0.2f);
+			water_mesh->set_subdivide_width(48);
+			water_mesh->set_subdivide_depth(48);
+			Ref<ShaderMaterial> water_shader_mat = rtso::Assets::load_water_material();
 			water_mesh_node = memnew(MeshInstance3D);
 			water_mesh_node->set_mesh(water_mesh);
-			water_mesh_node->set_material_override(water_mat);
+			if (water_shader_mat.is_valid()) {
+				water_mesh_node->set_material_override(water_shader_mat);
+			} else {
+				water_mat.instantiate();
+				water_mat->set_albedo(Color(0.08f, 0.35f, 0.55f, 0.82f));
+				water_mat->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
+				water_mat->set_roughness(0.15f);
+				water_mat->set_metallic(0.2f);
+				water_mesh_node->set_material_override(water_mat);
+			}
 			add_child(water_mesh_node);
 		}
 		water_mesh->set_size(Vector2(half * 2.2f, half * 2.2f));

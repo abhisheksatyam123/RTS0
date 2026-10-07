@@ -1,10 +1,12 @@
 [gd_scene load_steps=3 format=3 uid="uid://d2x8z0s5n7p3c"]
 
 [ext_resource type="Script" path="res://scenes/menu/lobby.gd" id="1"]
+[ext_resource type="Theme" path="res://assets/themes/zeroad_theme.tres" id="2_theme"]
 
 [node name="Lobby" type="Control"]
 layout_mode = 3
 anchors_preset = 15
+theme = ExtResource("2_theme")
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2

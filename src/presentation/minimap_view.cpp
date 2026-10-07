@@ -2,6 +2,10 @@
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/rect2.hpp>
 #include <godot_cpp/core/math.hpp>
+#include <godot_cpp/classes/image.hpp>
+#include <godot_cpp/classes/image_texture.hpp>
+#include <godot_cpp/variant/packed_byte_array.hpp>
+#include <cstring>
 
 using namespace godot;
 
@@ -93,11 +97,62 @@ void RtsoMiniMapView::_gui_input(const Ref<InputEvent> &event) {
 	}
 }
 
+// Territory tint upload — closes docs/REMAINING_GAPS.md:148 ("upload
+// territory_grid_ as texture, minimap overlay matches sim"). Rasterises
+// sim->territory_grid() (simulation.h:327; 64x64 cells written by
+// simulation.cpp:728-756 rebuild_territory -> blur_territory, cell = team+1,
+// 0 = unclaimed, same mapping as territory_owner_at simulation.cpp:762-769)
+// into a single RGBA8 ImageTexture. The grid bytes are memcmp'd once per
+// _draw() and the texture only re-uploaded when ownership actually changes.
+bool RtsoMiniMapView::ensure_territory_texture() {
+	if (!sim) return false;
+	const auto &grid = sim->territory_grid();
+	if (grid.blank() || grid.w <= 0 || grid.h <= 0 || grid.data.empty()) {
+		territory_tex_.unref();
+		territory_tex_cache_.clear();
+		return false;
+	}
+	const size_t n = grid.data.size();
+	if (territory_tex_cache_.size() != n ||
+			std::memcmp(territory_tex_cache_.data(), grid.data.data(), n) != 0) {
+		// Per-team tints mirror the circle overlay below (team0 blue / team1 red
+		// at minimap_view.cpp:182-183 pre-edit); alpha carries the blurred edge.
+		static const Color k_team_tint[4] = {
+			Color(0.20f, 0.55f, 1.00f, 0.32f), // team 0
+			Color(0.95f, 0.25f, 0.20f, 0.32f), // team 1
+			Color(0.25f, 0.85f, 0.35f, 0.32f), // team 2
+			Color(0.95f, 0.80f, 0.20f, 0.32f), // team 3
+		};
+		PackedByteArray px;
+		px.resize((int64_t)n * 4);
+		uint8_t *out = px.ptrw();
+		for (size_t i = 0; i < n; ++i) {
+			const uint8_t owner = grid.data[i]; // 0 = none, else team+1
+			if (owner == 0) {
+				out[i * 4 + 0] = 0; out[i * 4 + 1] = 0; out[i * 4 + 2] = 0; out[i * 4 + 3] = 0;
+				continue;
+			}
+			const int team = (owner - 1) & 3;
+			const Color &c = k_team_tint[team];
+			out[i * 4 + 0] = (uint8_t)(c.r * 255.0f + 0.5f);
+			out[i * 4 + 1] = (uint8_t)(c.g * 255.0f + 0.5f);
+			out[i * 4 + 2] = (uint8_t)(c.b * 255.0f + 0.5f);
+			out[i * 4 + 3] = (uint8_t)(c.a * 255.0f + 0.5f);
+		}
+		Ref<Image> img = Image::create_from_data(grid.w, grid.h, false, Image::FORMAT_RGBA8, px);
+		if (img.is_null()) return territory_tex_.is_valid();
+		if (territory_tex_.is_valid()) territory_tex_->set_image(img);
+		else territory_tex_ = ImageTexture::create_from_image(img);
+		territory_tex_cache_.assign(grid.data.begin(), grid.data.end());
+	}
+	return territory_tex_.is_valid();
+}
+
 void RtsoMiniMapView::_draw() {
 	Vector2 sz = get_size();
 	// Background Panel
-	draw_rect(Rect2(Vector2(0, 0), sz), Color(0.05f, 0.06f, 0.09f, 0.96f), true);
-	draw_rect(Rect2(Vector2(0, 0), sz), Color(0.40f, 0.44f, 0.55f, 1.0f), false, 2.0f);
+	draw_rect(Rect2(Vector2(0, 0), sz), Color(0.08f, 0.09f, 0.12f, 0.96f), true);
+	draw_rect(Rect2(Vector2(0, 0), sz), Color(0.90f, 0.75f, 0.31f, 1.0f), false, 2.0f);
 
 	if (!sim) return;
 
@@ -167,7 +222,21 @@ void RtsoMiniMapView::_draw() {
 	// Entity masking by shroud is active only in the normal (SHROUD_ON) state.
 	const bool mask_entities = (shroud_mode == SHROUD_ON);
 
-	// 1. Smoothed Territory Influence Outlines (0 A.D. Territory System)
+	// 1. Territory tint raster (territory_grid_ -> ImageTexture upload):
+	// drawn over terrain / under the smoothed circle outlines so the cells
+	// carry the blurred influence border and the circles keep the crisp edge.
+	// Data path: simulation.h:327 territory_grid() -> ensure_territory_texture()
+	// (minimap_view.cpp) -> RGBA8 overlay; closes REMAINING_GAPS.md:148.
+	if (show_territory && ensure_territory_texture()) {
+		draw_texture_rect(territory_tex_, Rect2(Vector2(0, 0), sz), false, Color(1, 1, 1, 1));
+	}
+
+	// 1b. Smoothed Territory Influence Outlines (0 A.D. Territory System).
+	// Circle-overlay -> territory_grid_ cell mapping (parity note): each circle
+	// below stamps the SAME TC(32m)/fortress(28m)/tower(18m) radii that
+	// simulation.cpp:735-752 rasterises into influence_grid_ before the 3x3
+	// blur_territory (grid_nav.h:501-530) drawn 1:1 by the texture above —
+	// circles = hard-radius approximation, texture = blurred sim ground truth.
 	if (show_territory) {
 		for (const auto &b : sim->buildings()) {
 			if (b.build_progress < 1.0f) continue;

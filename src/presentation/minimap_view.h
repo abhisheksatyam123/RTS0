@@ -8,6 +8,8 @@
 #include <godot_cpp/variant/vector2.hpp>
 #include <godot_cpp/variant/vector3.hpp>
 #include <godot_cpp/variant/color.hpp>
+#include <godot_cpp/classes/image_texture.hpp>
+#include <cstdint>
 #include <vector>
 #include "../simulation/simulation.h"
 
@@ -43,6 +45,16 @@ class RtsoMiniMapView : public Control {
 	};
 	int shroud_mode = SHROUD_ON;
 	std::vector<MapPing> pings;
+
+	// Territory tint overlay — docs/REMAINING_GAPS.md:148 "upload territory_grid_
+	// as texture, minimap overlay matches sim". RGBA8 ImageTexture rasterised from
+	// sim->territory_grid() (64x64 NavGrid res, cell = team+1, 0 = unclaimed;
+	// simulation.h:327 accessor / simulation.cpp:762-769 territory_owner_at) and
+	// rebuilt only when the grid bytes change. Drawn under the smoothed circle
+	// outlines in _draw(); see ensure_territory_texture() in minimap_view.cpp.
+	Ref<ImageTexture> territory_tex_;
+	std::vector<uint8_t> territory_tex_cache_;
+	bool ensure_territory_texture();
 
 protected:
 	static void _bind_methods();

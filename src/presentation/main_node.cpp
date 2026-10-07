@@ -1,4 +1,5 @@
 #include "main_node.h"
+#include <godot_cpp/classes/theme.hpp>
 #include "popup_safe.h"
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/classes/viewport.hpp>
@@ -159,7 +160,7 @@ static Ref<Texture2D> load_tex(const String &path) {
 }
 
 void RtsoMain::_ready() {
-	rtso::Logger::info("Main", "RTS0 0 A.D. Reborn Ready — Full 0 A.D. UI & Simulation");
+	rtso::Logger::info("Main", "RTS0 0 A.D. Reborn Ready - Full 0 A.D. UI & Simulation");
 
 	// Incoming chat: 0 A.D. NetMessages.h NMT_CHAT parity. Fires on the main
 	// thread from net_host_.poll() (_process), so appending to the chat
@@ -186,7 +187,7 @@ void RtsoMain::_ready() {
 
 	// Stash the GameSetup first: load_map_seeded needs view + cam_rig, which
 	// are created below. apply_match_settings() runs after they exist.
-	// (Map choice was previously dropped — map_index stored but never
+	// (Map choice was previously dropped - map_index stored but never
 	// consumed. Victory / Petra difficulty+behavior / starting resources /
 	// per-slot civs apply after the map load because reset()/generate()
 	// overwrite stocks.)
@@ -216,6 +217,11 @@ void RtsoMain::_ready() {
 
 	ui_layer = memnew(CanvasLayer);
 	add_child(ui_layer);
+
+	Ref<Theme> zeroad_theme;
+	if (ResourceLoader::get_singleton()->exists("res://assets/themes/zeroad_theme.tres")) {
+		zeroad_theme = ResourceLoader::get_singleton()->load("res://assets/themes/zeroad_theme.tres");
+	}
 
 	sel_rect = memnew(RtsoSelectionRect);
 	ui_layer->add_child(sel_rect);
@@ -277,11 +283,12 @@ void RtsoMain::_ready() {
 
 	Ref<StyleBoxFlat> top_style;
 	top_style.instantiate();
-	top_style->set_bg_color(Color(0.07f, 0.08f, 0.12f, 0.92f));
-	top_style->set_corner_radius_all(6);
-	top_style->set_border_width_all(1);
-	top_style->set_border_color(Color(0.35f, 0.38f, 0.48f, 0.85f));
+	top_style->set_bg_color(Color(0.10f, 0.11f, 0.15f, 0.94f));
+	top_style->set_corner_radius_all(3);
+	top_style->set_border_width_all(2);
+	top_style->set_border_color(Color(0.90f, 0.75f, 0.31f, 1.0f));
 	top_hud_panel->add_theme_stylebox_override("panel", top_style);
+	if (zeroad_theme.is_valid()) top_hud_panel->set_theme(zeroad_theme);
 	ui_layer->add_child(top_hud_panel);
 
 	HBoxContainer *top_hbox = memnew(HBoxContainer);
@@ -296,86 +303,7 @@ void RtsoMain::_ready() {
 	top_hbox->add_theme_constant_override("separation", 10);
 	top_hud_panel->add_child(top_hbox);
 
-	// Civ Emblem
-	civ_emblem = memnew(TextureRect);
-	civ_emblem->set_custom_minimum_size(Vector2(38, 38));
-	civ_emblem->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
-	civ_emblem->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
-	civ_emblem->set_texture(load_tex(rtso::civ_info(sim->player_civ()).emblem_path));
-	top_hbox->add_child(civ_emblem);
-
-	// Phase Emblem Badge (Village, Town, City)
-	phase_emblem = memnew(TextureRect);
-	phase_emblem->set_custom_minimum_size(Vector2(38, 38));
-	phase_emblem->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
-	phase_emblem->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
-	phase_emblem->set_texture(load_tex("res://assets/textures/ui/phases/village.png"));
-	top_hbox->add_child(phase_emblem);
-
-	// Resource Items (Food, Wood, Gold, Stone)
-	const char *res_paths[4] = {
-		"res://assets/textures/ui/icons/food.png",
-		"res://assets/textures/ui/icons/wood.png",
-		"res://assets/textures/ui/icons/metal.png",
-		"res://assets/textures/ui/icons/stone.png"
-	};
-	for (int i = 0; i < 4; ++i) {
-		HBoxContainer *rc = memnew(HBoxContainer);
-		rc->add_theme_constant_override("separation", 4);
-
-		res_icons[i] = memnew(TextureRect);
-		res_icons[i]->set_custom_minimum_size(Vector2(26, 26));
-		res_icons[i]->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
-		res_icons[i]->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
-		res_icons[i]->set_texture(load_tex(res_paths[i]));
-		rc->add_child(res_icons[i]);
-
-		res_labels[i] = memnew(Label);
-		res_labels[i]->set_custom_minimum_size(Vector2(95, 26));
-		res_labels[i]->add_theme_font_size_override("font_size", 13);
-		res_labels[i]->add_theme_color_override("font_color", Color(0.95f, 0.95f, 0.98f));
-		rc->add_child(res_labels[i]);
-
-		top_hbox->add_child(rc);
-	}
-
-	// Population Item
-	HBoxContainer *pop_box = memnew(HBoxContainer);
-	pop_box->add_theme_constant_override("separation", 4);
-	pop_icon = memnew(TextureRect);
-	pop_icon->set_custom_minimum_size(Vector2(26, 26));
-	pop_icon->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
-	pop_icon->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
-	pop_icon->set_texture(load_tex("res://assets/textures/ui/icons/population.png"));
-	pop_box->add_child(pop_icon);
-
-	pop_label = memnew(Label);
-	pop_label->set_custom_minimum_size(Vector2(75, 26));
-	pop_label->add_theme_font_size_override("font_size", 13);
-	pop_box->add_child(pop_label);
-	top_hbox->add_child(pop_box);
-
-	// Idle Worker Button
-	idle_worker_btn = memnew(Button);
-	idle_worker_btn->set_custom_minimum_size(Vector2(90, 30));
-	idle_worker_btn->set_text("Idle: 0");
-	idle_worker_btn->add_theme_font_size_override("font_size", 12);
-	idle_worker_btn->connect("pressed", Callable(this, "_on_idle_worker_clicked"));
-	top_hbox->add_child(idle_worker_btn);
-
-	// Clock & Wave
-	clock_label = memnew(Label);
-	clock_label->set_custom_minimum_size(Vector2(65, 26));
-	clock_label->add_theme_font_size_override("font_size", 13);
-	clock_label->add_theme_color_override("font_color", Color(1.0f, 0.85f, 0.4f));
-	clock_label->set_text("00:00");
-	top_hbox->add_child(clock_label);
-
-	wave_label = memnew(Label);
-	wave_label->set_custom_minimum_size(Vector2(140, 26));
-	wave_label->add_theme_font_size_override("font_size", 12);
-	wave_label->add_theme_color_override("font_color", Color(0.95f, 0.6f, 0.5f));
-	top_hbox->add_child(wave_label);
+	top_panel_.build(this, top_hbox, sim->player_civ());
 
 	// Speed & Menu
 	speed_btn = memnew(Button);
@@ -394,20 +322,15 @@ void RtsoMain::_ready() {
 
 	map_selector = memnew(RtsoSafeSelect);
 	map_selector->set_custom_minimum_size(Vector2(165, 28));
-	map_selector->add_item("Acropolis Bay (2P)", 0);
-	map_selector->add_item("Corinthian Isthmus (4P)", 1);
-	map_selector->add_item("Atlas Valleys (8P)", 2);
-	map_selector->add_item("Bactria (2P)", 3);
-	map_selector->add_item("Battle for Tiber (3P)", 4);
-	map_selector->add_item("Standard Arena (128m)", 5);
-	map_selector->add_item("Procedural Continental (RMS)", 6);
-	map_selector->add_item("Procedural Archipelago (RMS)", 7);
-	map_selector->add_item("Procedural Oasis (RMS)", 8);
-	map_selector->add_item("Procedural Highlands (RMS)", 9);
-	map_selector->add_item("Procedural Valley (RMS)", 10);
-	map_selector->add_item("Procedural Mediterranean (RMS)", 11);
-	map_selector->add_item("Procedural Acropolis (RMS)", 12);
-	map_selector->add_item("Procedural Spartan Valley (RMS)", 13);
+	PackedStringArray av_maps = get_available_maps();
+	for (int i = 0; i < av_maps.size(); ++i) {
+		String mid = av_maps[i];
+		String title = mid.replace("_", " ").capitalize();
+		if (mid.begins_with("random_")) {
+			title = "RMS: " + title.trim_prefix("Random ");
+		}
+		map_selector->add_item(title, i);
+	}
 	map_selector->connect("item_selected", Callable(this, "_on_map_selected"));
 	top_hbox->add_child(map_selector);
 
@@ -541,7 +464,7 @@ void RtsoMain::_ready() {
 	lobby_box->add_child(lobby_actions);
 
 	lobby_status = memnew(Label);
-	lobby_status->set_text("Lobby HTTP 127.0.0.1:8088 — run tools/lobby_server.py");
+	lobby_status->set_text("Lobby HTTP 127.0.0.1:8088 - run tools/lobby_server.py");
 	lobby_box->add_child(lobby_status);
 
 	// =========================================================================
@@ -559,11 +482,12 @@ void RtsoMain::_ready() {
 
 	Ref<StyleBoxFlat> insp_style;
 	insp_style.instantiate();
-	insp_style->set_bg_color(Color(0.08f, 0.09f, 0.13f, 0.94f));
-	insp_style->set_corner_radius_all(8);
-	insp_style->set_border_width_all(1);
-	insp_style->set_border_color(Color(0.42f, 0.45f, 0.56f, 0.85f));
+	insp_style->set_bg_color(Color(0.10f, 0.11f, 0.15f, 0.94f));
+	insp_style->set_corner_radius_all(3);
+	insp_style->set_border_width_all(2);
+	insp_style->set_border_color(Color(0.90f, 0.75f, 0.31f, 1.0f));
 	inspector_panel->add_theme_stylebox_override("panel", insp_style);
+	if (zeroad_theme.is_valid()) inspector_panel->set_theme(zeroad_theme);
 	ui_layer->add_child(inspector_panel);
 
 	inspector_portrait = memnew(TextureRect);
@@ -647,7 +571,7 @@ void RtsoMain::_ready() {
 	make_insp_bar(inspector_xp_bar, inspector_xp_label, 67, Color(0.95f, 0.75f, 0.20f), "XP", "res://assets/textures/ui/icons/insp_experience_fg.png");
 	// 4. Stamina / Energy Bar (Teal / Mint)
 	make_insp_bar(inspector_stamina_bar, inspector_stamina_label, 80, Color(0.20f, 0.85f, 0.75f), "STA", "res://assets/textures/ui/icons/insp_stamina_fg.png");
-	// 5. Aura Influence Bar (Magenta / Violet) — no public.zip session icon, fallback to text glyph badge
+	// 5. Aura Influence Bar (Magenta / Violet) - no public.zip session icon, fallback to text glyph badge
 	make_insp_bar(inspector_aura_bar, inspector_aura_label, 93, Color(0.85f, 0.35f, 0.85f), "AURA", nullptr);
 
 	inspector_stats = memnew(Label);
@@ -688,11 +612,12 @@ void RtsoMain::_ready() {
 
 	Ref<StyleBoxFlat> cmd_style;
 	cmd_style.instantiate();
-	cmd_style->set_bg_color(Color(0.08f, 0.09f, 0.13f, 0.94f));
-	cmd_style->set_corner_radius_all(8);
-	cmd_style->set_border_width_all(1);
-	cmd_style->set_border_color(Color(0.42f, 0.45f, 0.56f, 0.85f));
+	cmd_style->set_bg_color(Color(0.10f, 0.11f, 0.15f, 0.94f));
+	cmd_style->set_corner_radius_all(3);
+	cmd_style->set_border_width_all(2);
+	cmd_style->set_border_color(Color(0.90f, 0.75f, 0.31f, 1.0f));
 	command_panel->add_theme_stylebox_override("panel", cmd_style);
+	if (zeroad_theme.is_valid()) command_panel->set_theme(zeroad_theme);
 	ui_layer->add_child(command_panel);
 
 	command_title = memnew(Label);
@@ -758,56 +683,7 @@ void RtsoMain::_ready() {
 	queue_bar->add_theme_constant_override("separation", 6);
 	command_panel->add_child(queue_bar);
 
-	for (int q = 0; q < 8; ++q) {
-		Panel *sp = memnew(Panel);
-		sp->set_custom_minimum_size(Vector2(46, 48));
-
-		Ref<StyleBoxFlat> slot_sb;
-		slot_sb.instantiate();
-		slot_sb->set_bg_color(Color(0.09f, 0.11f, 0.15f, 0.90f));
-		slot_sb->set_border_width_all(1);
-		slot_sb->set_border_color(Color(0.35f, 0.38f, 0.48f, 0.70f));
-		slot_sb->set_corner_radius_all(4);
-		sp->add_theme_stylebox_override("panel", slot_sb);
-
-		TextureRect *ico = memnew(TextureRect);
-		ico->set_position(Vector2(3, 2));
-		ico->set_size(Vector2(40, 36));
-		ico->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
-		ico->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
-		ico->set_visible(false);
-		sp->add_child(ico);
-
-		ProgressBar *pb = memnew(ProgressBar);
-		pb->set_position(Vector2(3, 39));
-		pb->set_size(Vector2(40, 4));
-		pb->set_show_percentage(false);
-
-		Ref<StyleBoxFlat> pb_fg;
-		pb_fg.instantiate();
-		pb_fg->set_bg_color(Color(0.95f, 0.75f, 0.20f));
-		pb_fg->set_corner_radius_all(1);
-		pb->add_theme_stylebox_override("fill", pb_fg);
-		pb->set_visible(false);
-		sp->add_child(pb);
-
-		Label *chip = memnew(Label);
-		chip->set_position(Vector2(20, 1));
-		chip->set_size(Vector2(22, 12));
-		chip->add_theme_font_size_override("font_size", 9);
-		chip->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_RIGHT);
-		chip->add_theme_color_override("font_color", Color(1.0f, 0.9f, 0.3f));
-		chip->set_visible(false);
-		sp->add_child(chip);
-
-		sp->connect("gui_input", Callable(this, "_on_queue_slot_gui_input").bind(q));
-
-		queue_slots[q].panel = sp;
-		queue_slots[q].icon = ico;
-		queue_slots[q].progress = pb;
-		queue_slots[q].chip = chip;
-		queue_bar->add_child(sp);
-	}
+	production_queue_.build(this, queue_bar, this);
 
 	// =========================================================================
 	// 4. BANNER OVERLAY (Victory / Defeat)
@@ -960,7 +836,7 @@ void RtsoMain::_ready() {
 	add_child(rally_flag);
 
 	// (Unit selection now happens in apply_match_settings, after the map
-	// exists — the old block here ran before any map loaded and selected
+	// exists - the old block here ran before any map loaded and selected
 	// nothing. apply_net_game_start re-selects on GameStart via
 	// load_map_seeded -> clear_selection; selection follows in _process.)
 	// G3 Barter dialog wiring: connect BarterDialog.barter_requested -> _on_barter_requested
@@ -1439,7 +1315,7 @@ void RtsoMain::_process(double delta) {
 			if (turn_mgr_.has_out_of_sync() && lobby_status)
 				lobby_status->set_text("OOS turn " + String::num_int64(turn_mgr_.oos_turn()));
 		}
-		// else pre-Start lobby phase: poll + GAME_START consume only (above) —
+		// else pre-Start lobby phase: poll + GAME_START consume only (above) -
 		// no lockstep turns and no hash exchange across divergent boot worlds.
 	} else {
 		while (accumulator >= rtso::Simulation::FIXED_STEP) {
@@ -1451,7 +1327,7 @@ void RtsoMain::_process(double delta) {
 	}
 
 	// Shift-queued waypoints: issue the next staged point once the unit reaches
-	// the active one — 0 A.D. gui/session/input.js:1345 ("session.queue ... add
+	// the active one - 0 A.D. gui/session/input.js:1345 ("session.queue ... add
 	// the order to the unit's order queue"). RTS0's UnitView has one target_x/z,
 	// so pending points are staged presentation-side and flushed here.
 	if (!waypoint_queue.empty()) {
@@ -1466,7 +1342,7 @@ void RtsoMain::_process(double delta) {
 			for (size_t i = 0; i < uview.count; ++i) {
 				if (uview.alive[i] && uview.id[i] == it->first) { idx = i; break; }
 			}
-			if (idx == (size_t)-1) { // unit died — queue dies with it
+			if (idx == (size_t)-1) { // unit died - queue dies with it
 				it = waypoint_queue.erase(it);
 				continue;
 			}
@@ -1681,19 +1557,7 @@ void RtsoMain::_process(double delta) {
 	}
 
 	// Update 3D Rally Point Marker
-	if (rally_flag) {
-		bool show_rally = false;
-		if (selected_building_id != 0) {
-			for (const auto &b : sim->buildings()) {
-				if (b.id == selected_building_id && b.team == 0 && b.has_rally_point) {
-					rally_flag->set_global_position(Vector3(b.rally_x, 0.8f, b.rally_z));
-					show_rally = true;
-					break;
-				}
-			}
-		}
-		rally_flag->set_visible(show_rally);
-	}
+	rtso::update_rally_marker(rally_flag, sim, selected_building_id, 0);
 
 	static bool summary_shown = false;
 	if ((sim->is_victory() || sim->is_game_over()) && !summary_shown) {
@@ -1745,56 +1609,7 @@ std::pair<int, int> RtsoMain::mouse_cell(Vector2 mouse_pos) const {
 }
 
 void RtsoMain::update_hud() {
-	if (!res_labels[0]) return;
-
-	// Dynamic Civ Crest & Phase Badge Emblems
-	const auto &cinfo = rtso::civ_info(sim->player_civ());
-	if (civ_emblem) {
-		civ_emblem->set_texture(load_tex(cinfo.emblem_path));
-	}
-	if (phase_emblem) {
-		uint8_t pphase = sim->player_phase();
-		if (pphase == 1) phase_emblem->set_texture(load_tex("res://assets/textures/ui/phases/village.png"));
-		else if (pphase == 2) phase_emblem->set_texture(load_tex("res://assets/textures/ui/phases/town.png"));
-		else phase_emblem->set_texture(load_tex("res://assets/textures/ui/phases/city.png"));
-	}
-
-	// Resource counts & rates
-	res_labels[0]->set_text(String::num_int64(sim->food()) + " (+" + String::num(sim->food_rate(), 0) + "/m)");
-	res_labels[1]->set_text(String::num_int64(sim->wood()) + " (+" + String::num(sim->wood_rate(), 0) + "/m)");
-	res_labels[2]->set_text(String::num_int64(sim->gold()) + " (+" + String::num(sim->gold_rate(), 0) + "/m)");
-	res_labels[3]->set_text(String::num_int64(sim->stone()) + " (+" + String::num(sim->stone_rate(), 0) + "/m)");
-
-	// Pop & Idle
-	int cur_pop = sim->pop_current();
-	int max_pop = sim->pop_max();
-	pop_label->set_text(String::num_int64(cur_pop) + "/" + String::num_int64(max_pop));
-	if (cur_pop >= max_pop) pop_label->add_theme_color_override("font_color", Color(1.0f, 0.3f, 0.3f));
-	else pop_label->add_theme_color_override("font_color", Color(0.95f, 0.95f, 0.98f));
-
-	auto idle_workers = sim->get_idle_workers(0);
-	idle_worker_btn->set_text("Idle: " + String::num_int64(idle_workers.size()));
-	if (!idle_workers.empty()) idle_worker_btn->add_theme_color_override("font_color", Color(1.0f, 0.85f, 0.2f));
-	else idle_worker_btn->add_theme_color_override("font_color", Color(0.85f, 0.85f, 0.88f));
-
-	// Clock & Wave
-	int mins = (int)match_elapsed_time / 60;
-	int secs = (int)match_elapsed_time % 60;
-	String min_str = (mins < 10 ? "0" : "") + String::num_int64(mins);
-	String sec_str = (secs < 10 ? "0" : "") + String::num_int64(secs);
-	clock_label->set_text(min_str + ":" + sec_str);
-
-	String phase_name = (sim->player_phase() == 1) ? "Village Phase" : ((sim->player_phase() == 2) ? "Town Phase" : "City Phase");
-	if (sim->is_wonder_active()) {
-		int wmins = (int)sim->wonder_time_remaining() / 60;
-		int wsecs = (int)sim->wonder_time_remaining() % 60;
-		String wmin_str = (wmins < 10 ? "0" : "") + String::num_int64(wmins);
-		String wsec_str = (wsecs < 10 ? "0" : "") + String::num_int64(wsecs);
-		wave_label->set_text("Wonder Victory in " + wmin_str + ":" + wsec_str + " | " + phase_name);
-	} else {
-		wave_label->set_text("Wave " + String::num_int64(sim->wave_number()) +
-			" (" + String::num((double)sim->wave_time_remaining(), 0) + "s) | " + phase_name);
-	}
+	top_panel_.update(sim, match_elapsed_time);
 }
 
 void RtsoMain::update_inspector() {
@@ -1812,7 +1627,7 @@ void RtsoMain::update_inspector() {
 			inspector_portrait->set_texture(load_tex("res://assets/textures/ui/portraits/" + String(binfo.portrait_id) + ".png"));
 			inspector_title->set_text(String(binfo.name));
 			String civ_name = rtso::civ_info(sim->player_civ()).name;
-			inspector_class->set_text(civ_name + " Architecture • Garrison Cap: " + String::num_int64(found_b->garrison_cap));
+			inspector_class->set_text(civ_name + " Architecture - Garrison Cap: " + String::num_int64(found_b->garrison_cap));
 
 			// 1. Health Bar
 			inspector_hp_bar->set_max(found_b->max_hp);
@@ -1866,12 +1681,12 @@ void RtsoMain::update_inspector() {
 				status = "Researching " + String(rtso::tech_info(found_b->research_tech).name) +
 					" (" + String::num((double)(found_b->research_duration - found_b->research_timer), 1) + "s)";
 			} else if (!found_b->queue.empty()) {
-				status = "Training Active (" + String::num_int64(found_b->queue.size()) + "/8 queued) — Right-click slot to cancel";
+				status = "Training Active (" + String::num_int64(found_b->queue.size()) + "/8 queued) - Right-click slot to cancel";
 			}
 			inspector_stats->set_text(status);
 
-			String extra = "👥 Garrison: " + String::num_int64(found_b->garrisoned_units.size()) + " / " + String::num_int64(found_b->garrison_cap);
-			if (found_b->has_rally_point) extra += " | 🚩 Rally Point Set";
+			String extra = " Garrison: " + String::num_int64(found_b->garrisoned_units.size()) + " / " + String::num_int64(found_b->garrison_cap);
+			if (found_b->has_rally_point) extra += " |  Rally Point Set";
 			inspector_extra->set_text(extra);
 
 			ungarrison_btn->set_visible(!found_b->garrisoned_units.empty());
@@ -1940,7 +1755,7 @@ void RtsoMain::update_inspector() {
 			else if (single_utype == rtso::UNIT_CATAPULT || single_utype == rtso::UNIT_BOLT_SHOOTER || single_utype == rtso::UNIT_SIEGE_RAM) role_name = "Siege Artillery";
 			else if (single_utype == rtso::UNIT_TRIREME || single_utype == rtso::UNIT_FISHING_BOAT || single_utype == rtso::UNIT_MERCHANT_SHIP) role_name = "Naval Vessel";
 
-			inspector_class->set_text(String("Role: ") + role_name + " • Kills: " + String::num_int64(u_kills) + " • Speed: " + String::num(uinfo.speed, 1) + " m/s");
+			inspector_class->set_text(String("Role: ") + role_name + " - Kills: " + String::num_int64(u_kills) + " - Speed: " + String::num(uinfo.speed, 1) + " m/s");
 
 			// 1. Health Bar
 			inspector_hp_bar->set_max(hp_max_sum);
@@ -1975,20 +1790,20 @@ void RtsoMain::update_inspector() {
 			else if (single_utype == rtso::UNIT_FEMALE_CITIZEN) inspector_aura_label->set_text("Aura: 10m Civic Inspiration Aura (+15% Gather)");
 			else inspector_aura_label->set_text("Aura Influence: Active Standard");
 
-			String stats_line = "⚔️ Attack: " + String::num(uinfo.attack_damage, 0);
+			String stats_line = " Attack: " + String::num(uinfo.attack_damage, 0);
 			if (uinfo.attack_range > 2.0f) stats_line += " (" + String::num(uinfo.attack_range, 1) + "m)";
-			stats_line += " | 🛡️ Armor: " + String::num(uinfo.hack_armor, 0) + "H / " + String::num(uinfo.pierce_armor, 0) + "P / " + String::num(uinfo.crush_armor, 0) + "C";
-			if (uinfo.carry_capacity > 0) stats_line += " | 🎒 Cap: " + String::num_int64(uinfo.carry_capacity);
+			stats_line += " |  Armor: " + String::num(uinfo.hack_armor, 0) + "H / " + String::num(uinfo.pierce_armor, 0) + "P / " + String::num(uinfo.crush_armor, 0) + "C";
+			if (uinfo.carry_capacity > 0) stats_line += " |  Cap: " + String::num_int64(uinfo.carry_capacity);
 			inspector_stats->set_text(stats_line);
 
 			if (single_utype == rtso::UNIT_TRIREME) {
 				size_t p_count = sim->get_transport_passenger_count(uid);
 				if (p_count > 0) {
-					inspector_extra->set_text("🚢 Transport: " + String::num_int64(p_count) + " / " + String::num_int64(rtso::Simulation::TRANSPORT_CAPACITY) + " Passengers | [Z] Disembark All");
+					inspector_extra->set_text(" Transport: " + String::num_int64(p_count) + " / " + String::num_int64(rtso::Simulation::TRANSPORT_CAPACITY) + " Passengers | [Z] Disembark All");
 					ungarrison_btn->set_text("Disembark (Z)");
 					ungarrison_btn->set_visible(true);
 				} else {
-					inspector_extra->set_text("🚢 Arrow warship (ranged pierce, 3× vs ships) • Capacity: " + String::num_int64(rtso::Simulation::TRANSPORT_CAPACITY) + " troops");
+					inspector_extra->set_text(" Arrow warship (ranged pierce, 3x vs ships) - Capacity: " + String::num_int64(rtso::Simulation::TRANSPORT_CAPACITY) + " troops");
 					ungarrison_btn->set_text("Ungarrison (Z)");
 					ungarrison_btn->set_visible(false);
 				}
@@ -2001,7 +1816,7 @@ void RtsoMain::update_inspector() {
 			inspector_portrait->set_texture(load_tex("res://assets/textures/ui/portraits/swordsman.png"));
 			inspector_title->set_text("Selected Company (" + String::num_int64(selected_ids.size()) + " Units)");
 			String civ_name = rtso::civ_info(sim->player_civ()).name;
-			inspector_class->set_text(civ_name + " Taskforce • Combined Arms");
+			inspector_class->set_text(civ_name + " Taskforce - Combined Arms");
 
 			// 1. Health Bar
 			inspector_hp_bar->set_max(hp_max_sum);
@@ -2076,30 +1891,7 @@ void RtsoMain::update_command_panel() {
 		}
 
 		// Update 8-slot Visual Production Queue (ProductionQueue.js parity)
-		if (found_b) {
-			for (int q = 0; q < 8; ++q) {
-				if (q < (int)found_b->queue.size()) {
-					uint8_t utype = found_b->queue[q].unit_type;
-					const auto &uinfo = rtso::unit_type_info(utype);
-					queue_slots[q].icon->set_texture(load_tex("res://assets/textures/ui/portraits/" + String(uinfo.portrait_id) + ".png"));
-					queue_slots[q].icon->set_visible(true);
-					queue_slots[q].chip->set_text(String::num_int64(q + 1));
-					queue_slots[q].chip->set_visible(true);
-
-					if (q == 0) {
-						queue_slots[q].progress->set_visible(true);
-						queue_slots[q].progress->set_max(found_b->queue[0].duration);
-						queue_slots[q].progress->set_value(found_b->queue[0].timer);
-					} else {
-						queue_slots[q].progress->set_visible(false);
-					}
-				} else {
-					queue_slots[q].icon->set_visible(false);
-					queue_slots[q].progress->set_visible(false);
-					queue_slots[q].chip->set_visible(false);
-				}
-			}
-		}
+		production_queue_.update(found_b);
 
 		if (found_b && found_b->build_progress >= 1.0f) {
 			uint8_t pciv = sim->player_civ();
@@ -2176,11 +1968,7 @@ void RtsoMain::update_command_panel() {
 		}
 	} else {
 		// Non-building selected: clear visual queue slots
-		for (int q = 0; q < 8; ++q) {
-			queue_slots[q].icon->set_visible(false);
-			queue_slots[q].progress->set_visible(false);
-			queue_slots[q].chip->set_visible(false);
-		}
+		production_queue_.update(nullptr);
 
 		if (!selected_ids.is_empty()) {
 			auto uview = sim->units();
@@ -2331,7 +2119,7 @@ void RtsoMain::clear_selection() {
 	selected_building_id = 0;
 }
 
-// Drop staged Shift waypoints of the current selection — a stop (or any other
+// Drop staged Shift waypoints of the current selection - a stop (or any other
 // non-queued order) replaces the unit's queue; only input.js:1345 session.queue
 // (Shift) appends. 0 A.D. gui/session/input.js:1345.
 void RtsoMain::drop_staged_waypoints() {
@@ -2368,7 +2156,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		}
 
 		// Control groups: Ctrl+0-9 stores the current selection, bare 0-9 recalls
-		// it, Shift+0-9 appends to selection (alive player units only) — 0 A.D.
+		// it, Shift+0-9 appends to selection (alive player units only) - 0 A.D.
 		// gui/session/input.js:1684 performGroup("save"/"select"); dispatch at input.js:906.
 		if (key->get_keycode() >= KEY_0 && key->get_keycode() <= KEY_9) {
 			const int grp = (int)(key->get_keycode() - KEY_0);
@@ -2410,7 +2198,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			return;
 		}
 
-		if (key->get_keycode() == KEY_D) {
+		if (key->get_keycode() == KEY_D && (key->is_ctrl_pressed() || key->is_alt_pressed())) {
 			toggle_diplomacy();
 			return;
 		}
@@ -2426,9 +2214,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			return;
 		}
 
-		if (key->get_keycode() == KEY_S && !build_mode) {
+		if ((key->get_keycode() == KEY_H || (key->get_keycode() == KEY_S && key->is_ctrl_pressed())) && !build_mode) {
 			if (selected_ids.size() > 0) {
-				drop_staged_waypoints(); // stop replaces the unit order queue (0 A.D. input.js:1345)
+				drop_staged_waypoints(); // stop replaces the unit order queue (0 A.D. input.js:1345, H = canonical stop)
 				if (net_lockstep())
 					post_lockstep(2, (const uint32_t *)selected_ids.ptr(), selected_ids.size());
 				else
@@ -2474,7 +2262,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		}
 
 		// Hotkeys: Tactical Commands
-		if (key->get_keycode() == KEY_Q && !selected_ids.is_empty()) {
+		if (key->get_keycode() == KEY_Q && key->is_ctrl_pressed() && !selected_ids.is_empty()) {
 			attack_move_mode = true;
 			patrol_mode = false;
 			guard_mode = false;
@@ -2488,7 +2276,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			play_civ_voice("select");
 			return;
 		}
-		// G key — guard mode: next RMB click picks target to guard
+		// G key - guard mode: next RMB click picks target to guard
 		if (key->get_keycode() == KEY_G && !selected_ids.is_empty()) {
 			guard_mode = !guard_mode;
 			attack_move_mode = false;
@@ -2517,10 +2305,12 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (key->get_keycode() == KEY_O || key->get_keycode() == KEY_A) { enter_build_mode(true, rtso::BLD_CORRAL); return; } // cOrral / Animal
 		}
 
-		// Hotkeys: Training
-		if (key->get_keycode() == KEY_V) { try_train_unit(rtso::UNIT_VILLAGER); return; }
-		if (key->get_keycode() == KEY_A) { try_train_unit(rtso::UNIT_ARCHER); return; }
-		if (key->get_keycode() == KEY_C) { try_train_unit(rtso::UNIT_CAVALRY); return; }
+		// Hotkeys: Training (active when a production building is selected, avoiding camera pan key conflicts)
+		if (selected_building_id != 0) {
+			if (key->get_keycode() == KEY_V) { try_train_unit(rtso::UNIT_VILLAGER); return; }
+			if (key->get_keycode() == KEY_A) { try_train_unit(rtso::UNIT_ARCHER); return; }
+			if (key->get_keycode() == KEY_C) { try_train_unit(rtso::UNIT_CAVALRY); return; }
+		}
 
 		if (key->get_keycode() == KEY_F7) {
 			spawn_large_battle(500);
@@ -2663,13 +2453,13 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					dragging = false;
 					sel_rect->set_rect(Vector2(), Vector2(), false);
 					Vector2 drag_end = mouse_pos;
+					const bool is_shift = mb->is_shift_pressed();
+					const bool is_ctrl = mb->is_ctrl_pressed();
 
 					if (drag_start.distance_to(drag_end) < 8.0f) {
 						// Single click selection
 						Vector3 click_pos = get_ground_click_pos(mouse_pos);
 						auto uview = sim->units();
-						selected_ids.clear();
-						selected_building_id = 0;
 
 						// Check unit hit
 						size_t best_uidx = (size_t)-1;
@@ -2686,14 +2476,14 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						}
 
 						if (best_uidx != (size_t)-1) {
-							if (dbl_click) {
-								// Double-click selects every same-type player unit on screen —
-								// 0 A.D. gui/session/input.js:1022-1042 (ev.clicks == 2 →
-								// selectionGroupName/template match via
-								// Engine.PickSimilarPlayerEntities(showOffscreen=false)).
-								// RTS0 matches on unit_type (no selectionGroupName data yet).
+							if (dbl_click || is_ctrl) {
+								// Double-click or Ctrl+click selects every same-type player unit on screen (0 A.D. gui/session/input.js:1022-1042)
 								const uint8_t same_type = uview.unit_type[best_uidx];
 								Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
+								if (!is_shift) {
+									selected_ids.clear();
+								}
+								selected_building_id = 0;
 								if (cam) {
 									const Vector2 vp_size = get_viewport()->get_visible_rect().size;
 									for (size_t i = 0; i < uview.count; ++i) {
@@ -2704,26 +2494,55 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 										if (cam->is_position_behind(world_pos)) continue;
 										Vector2 screen_pos = cam->unproject_position(world_pos);
 										if (screen_pos.x >= 0.0f && screen_pos.x <= vp_size.x &&
-											screen_pos.y >= 0.0f && screen_pos.y <= vp_size.y)
-											selected_ids.push_back((int32_t)uview.id[i]);
+											screen_pos.y >= 0.0f && screen_pos.y <= vp_size.y) {
+											int32_t uid = (int32_t)uview.id[i];
+											if (!selected_ids.has(uid))
+												selected_ids.push_back(uid);
+										}
 									}
 								}
-								if (selected_ids.is_empty()) // camera-less fallback: keep the hit unit
+								if (selected_ids.is_empty())
 									selected_ids.push_back((int32_t)uview.id[best_uidx]);
+							} else if (is_shift) {
+								// Shift+click toggles membership of clicked unit
+								int32_t uid = (int32_t)uview.id[best_uidx];
+								int idx = -1;
+								for (int s = 0; s < selected_ids.size(); ++s) {
+									if (selected_ids[s] == uid) { idx = s; break; }
+								}
+								if (idx >= 0) {
+									selected_ids.remove_at(idx);
+								} else {
+									selected_ids.push_back(uid);
+								}
+								selected_building_id = 0;
 							} else {
+								selected_ids.clear();
+								selected_building_id = 0;
 								selected_ids.push_back((int32_t)uview.id[best_uidx]);
 							}
 							play_civ_voice("select");
 						} else {
 							// Check building hit
+							uint32_t hit_bld = 0;
 							for (const auto &b : sim->buildings()) {
 								if (b.team != 0) continue;
 								float dx = b.x - click_pos.x;
 								float dz = b.z - click_pos.z;
 								float hit_r = b.half_size + 0.6f;
 								if (dx * dx + dz * dz <= hit_r * hit_r) {
-									selected_building_id = b.id;
+									hit_bld = b.id;
 									break;
+								}
+							}
+							if (hit_bld != 0) {
+								selected_building_id = hit_bld;
+								if (!is_shift) selected_ids.clear();
+							} else {
+								// Clicked empty ground: deselect if shift not pressed
+								if (!is_shift) {
+									selected_ids.clear();
+									selected_building_id = 0;
 								}
 							}
 						}
@@ -2733,7 +2552,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						Vector2 max_p(std::max(drag_start.x, drag_end.x), std::max(drag_start.y, drag_end.y));
 
 						auto uview = sim->units();
-						selected_ids.clear();
+						if (!is_shift) {
+							selected_ids.clear();
+						}
 						selected_building_id = 0;
 						Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
 						if (cam) {
@@ -2743,7 +2564,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								Vector2 screen_pos = cam->unproject_position(world_pos);
 								if (screen_pos.x >= min_p.x && screen_pos.x <= max_p.x &&
 									screen_pos.y >= min_p.y && screen_pos.y <= max_p.y) {
-									selected_ids.push_back((int32_t)uview.id[i]);
+									int32_t uid = (int32_t)uview.id[i];
+									if (!selected_ids.has(uid)) {
+										selected_ids.push_back(uid);
+									}
 								}
 							}
 							if (selected_ids.size() > 0) {
@@ -2789,7 +2613,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (selected_ids.is_empty()) return;
 
 			// Staged Shift waypoints survive only if this click resolves to the
-			// default move order below — every other right-click order replaces the
+			// default move order below - every other right-click order replaces the
 			// unit's queue (0 A.D. gui/session/input.js:1345 session.queue appends;
 			// RTS0 queues plain move waypoints only). Stash here, restore below.
 			const bool queue_shift = mb->is_shift_pressed();
@@ -2803,7 +2627,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 			}
 
-			if (attack_move_mode) {
+			// Attack-move: Ctrl+RightClick (canonical 0 A.D. attackmove = Ctrl) or attack_move_mode toggled
+			if (attack_move_mode || mb->is_ctrl_pressed()) {
 				if (net_lockstep())
 					post_lockstep(10, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), click_pos.x, click_pos.z);
 				else
@@ -2998,7 +2823,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			// 5. Default: Move Order
 			if (queue_shift) {
 				// Shift+right-click queues the waypoint instead of replacing the
-				// order — 0 A.D. gui/session/input.js:1345 (session.queue hotkey
+				// order - 0 A.D. gui/session/input.js:1345 (session.queue hotkey
 				// appends to the unit's order queue). Restore stashed points, then
 				// append this click for units already walking a queue; units without
 				// one start a fresh queue with a single batched cmd_move so
@@ -3064,7 +2889,7 @@ void RtsoMain::apply_match_settings() {
 	int start_res = (int)ms->get("start_res");
 	Array slot_civs = ms->get("slot_civs");
 	// Normalize legacy fields: if the setup screen never ran, slot_civs
-	// may be empty — fall back to player_civ/ai_civ.
+	// may be empty - fall back to player_civ/ai_civ.
 	int civ = (int)ms->get("player_civ");
 	int ai = (int)ms->get("ai_civ");
 	if (slot_civs.size() >= 2) {
@@ -3072,7 +2897,7 @@ void RtsoMain::apply_match_settings() {
 		ai = (int)slot_civs[1];
 	}
 	if (!load_map_seeded(map_id, seed)) {
-		UtilityFunctions::printerr("[RtsoMain] GameSetup map failed: ", map_id, " — default arena.");
+		UtilityFunctions::printerr("[RtsoMain] GameSetup map failed: ", map_id, " - default arena.");
 		if (civ >= 0 && civ < rtso::CIV_COUNT) sim->set_player_civ((uint8_t)civ);
 		if (ai >= 0 && ai < rtso::CIV_COUNT) sim->set_team_civ(1, (uint8_t)ai);
 		sim->spawn_initial();
@@ -3090,7 +2915,7 @@ void RtsoMain::apply_match_settings() {
 	sim->set_starting_resources(kStartRes[start_res][0], kStartRes[start_res][1],
 			kStartRes[start_res][2], kStartRes[start_res][3]);
 	// Per-slot civs (slot 0 = human; extra slots honor team civs the
-	// RMS/JSON spawns actually created — Petra only drives team 1).
+	// RMS/JSON spawns actually created - Petra only drives team 1).
 	for (int t = 0; t < 4 && t < slot_civs.size(); ++t) {
 		int sc = (int)slot_civs[t];
 		if (sc >= 0 && sc < rtso::CIV_COUNT) sim->set_team_civ((uint8_t)t, (uint8_t)sc);
@@ -3098,7 +2923,7 @@ void RtsoMain::apply_match_settings() {
 	UtilityFunctions::print("[RtsoMain] GameSetup ", map_id, " seed ", (int64_t)seed,
 			" civ ", rtso::civ_info(sim->player_civ()).name,
 			" vs ", rtso::civ_info(sim->team_civ(1)).name);
-	// Map just (re)spawned — select the human player's units like the old
+	// Map just (re)spawned - select the human player's units like the old
 	// _ready tail did (it ran before any map existed, so it selected nothing).
 	clear_selection();
 	auto uview = sim->units();
@@ -3130,38 +2955,37 @@ Dictionary RtsoMain::get_match_summary() const {
 }
 
 void RtsoMain::_on_map_selected(int index) {
-	static const char *map_ids[] = {
-		"acropolis_bay",
-		"corinthian_isthmus",
-		"atlas_valleys",
-		"bactria",
-		"battle_for_the_tiber",
-		"default",
-		"random_continental",
-		"random_archipelago",
-		"random_oasis",
-		"random_highlands",
-		"random_valley",
-		"random_mediterranean",
-		"random_acropolis",
-		"random_spartan_valley",
-		"random_danubius",
-		"random_saharan_oases",
-		"random_anatolian_plateau",
-		"random_jebel_barkal"
-	};
-	if (index >= 0 && index < 18) {
-		load_map(map_ids[index]);
+	PackedStringArray maps = get_available_maps();
+	if (index >= 0 && index < maps.size()) {
+		load_map(maps[index]);
 	}
 }
 
 PackedStringArray RtsoMain::get_available_maps() const {
 	PackedStringArray maps;
-	maps.push_back("acropolis_bay");
-	maps.push_back("corinthian_isthmus");
-	maps.push_back("atlas_valleys");
-	maps.push_back("bactria");
-	maps.push_back("battle_for_the_tiber");
+	Ref<DirAccess> dir = DirAccess::open("res://data/maps");
+	if (dir.is_valid()) {
+		dir->list_dir_begin();
+		String fname = dir->get_next();
+		PackedStringArray json_maps;
+		while (!fname.is_empty()) {
+			if (!dir->current_is_dir() && fname.ends_with(".json")) {
+				json_maps.push_back(fname.get_basename());
+			}
+			fname = dir->get_next();
+		}
+		json_maps.sort();
+		for (int i = 0; i < json_maps.size(); ++i) {
+			maps.push_back(json_maps[i]);
+		}
+	}
+	if (maps.is_empty()) {
+		maps.push_back("acropolis_bay");
+		maps.push_back("corinthian_isthmus");
+		maps.push_back("atlas_valleys");
+		maps.push_back("bactria");
+		maps.push_back("battle_for_the_tiber");
+	}
 	maps.push_back("default");
 	maps.push_back("random_continental");
 	maps.push_back("random_archipelago");
@@ -3295,6 +3119,20 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		sim->spawn_resource_world(rx, rz, rtype, amt);
 	}
 
+	// Spawn Wildlife Fauna
+	Array fauna_arr = d.get("fauna", Array());
+	for (int i = 0; i < fauna_arr.size(); ++i) {
+		Dictionary f = fauna_arr[i];
+		String ftype_str = f.get("type", "deer");
+		float fx = (float)f.get("x", 0.0);
+		float fz = (float)f.get("z", 0.0);
+		uint8_t ftype = rtso::FAUNA_DEER;
+		if (ftype_str == "boar") ftype = rtso::FAUNA_BOAR;
+		else if (ftype_str == "sheep") ftype = rtso::FAUNA_SHEEP;
+		else if (ftype_str == "wolf") ftype = rtso::FAUNA_WOLF;
+		sim->spawn_fauna(fx, fz, ftype);
+	}
+
 	// Spawn Structures
 	Array str_arr = d.get("structures", Array());
 	for (int i = 0; i < str_arr.size(); ++i) {
@@ -3303,15 +3141,24 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		int player = (int)b.get("player", 1);
 		float bx = (float)b.get("x", 0.0);
 		float bz = (float)b.get("z", 0.0);
-		uint8_t team = (player == 1) ? 0 : 1;
+		uint8_t team = (player <= 1) ? 0 : (uint8_t)(player - 1);
+		if (team >= 4) team = 1;
 
 		uint8_t btype = rtso::BLD_HOUSE;
-		if (stype_str == "town_center" || stype_str == "civic") btype = rtso::BLD_TOWN_CENTER;
-		else if (stype_str == "barracks") btype = rtso::BLD_BARRACKS;
-		else if (stype_str == "house") btype = rtso::BLD_HOUSE;
-		else if (stype_str == "storehouse") btype = rtso::BLD_STOREHOUSE;
-		else if (stype_str == "tower") btype = rtso::BLD_TOWER;
-		else if (stype_str == "fortress") btype = rtso::BLD_FORTRESS;
+		if (stype_str == "town_center" || stype_str == "civic" || stype_str == "civil_centre") btype = rtso::BLD_TOWN_CENTER;
+		else if (stype_str == "house" || stype_str == "apartment" || stype_str == "hut" || stype_str == "longhouse") btype = rtso::BLD_HOUSE;
+		else if (stype_str == "barracks" || stype_str == "range" || stype_str == "stable" || stype_str == "hall" || stype_str == "arsenal" || stype_str == "elephant_stable") btype = rtso::BLD_BARRACKS;
+		else if (stype_str == "storehouse" || stype_str == "forge") btype = rtso::BLD_STOREHOUSE;
+		else if (stype_str == "farmstead" || stype_str == "field" || stype_str == "mill" || stype_str == "rotarymill") btype = rtso::BLD_FARMSTEAD;
+		else if (stype_str == "market") btype = rtso::BLD_MARKET;
+		else if (stype_str == "tower" || stype_str == "defense_tower" || stype_str == "sentry_tower" || stype_str == "outpost") btype = rtso::BLD_TOWER;
+		else if (stype_str == "fortress" || stype_str == "palisades_fort" || stype_str == "keep") btype = rtso::BLD_FORTRESS;
+		else if (stype_str == "gate" || stype_str == "wall_gate") btype = rtso::BLD_GATE;
+		else if (stype_str == "temple" || stype_str == "tophet" || stype_str == "shrine" || stype_str == "pyramid") btype = rtso::BLD_TEMPLE;
+		else if (stype_str == "wonder") btype = rtso::BLD_WONDER;
+		else if (stype_str == "dock") btype = rtso::BLD_DOCK;
+		else if (stype_str == "wall" || stype_str == "wall_segment" || stype_str == "palisade") btype = rtso::BLD_WALL_SEGMENT;
+		else if (stype_str == "corral") btype = rtso::BLD_CORRAL;
 
 		sim->spawn_building_world(bx, bz, btype, team, 1.0f);
 	}
@@ -3324,14 +3171,32 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		int player = (int)u.get("player", 1);
 		float ux = (float)u.get("x", 0.0);
 		float uz = (float)u.get("z", 0.0);
-		uint8_t team = (player == 1) ? 0 : 1;
+		uint8_t team = (player <= 1) ? 0 : (uint8_t)(player - 1);
+		if (team >= 4) team = 1;
 
 		rtso::UnitType utype = rtso::UNIT_VILLAGER;
 		if (utype_str == "swordsman") utype = rtso::UNIT_SWORDSMAN;
 		else if (utype_str == "spearman") utype = rtso::UNIT_SPEARMAN;
 		else if (utype_str == "archer") utype = rtso::UNIT_ARCHER;
 		else if (utype_str == "cavalry") utype = rtso::UNIT_CAVALRY;
+		else if (utype_str == "trader") utype = rtso::UNIT_TRADER;
 		else if (utype_str == "catapult") utype = rtso::UNIT_CATAPULT;
+		else if (utype_str == "hero") utype = rtso::UNIT_HERO;
+		else if (utype_str == "trireme") utype = rtso::UNIT_TRIREME;
+		else if (utype_str == "elephant") utype = rtso::UNIT_ELEPHANT;
+		else if (utype_str == "siege_ram") utype = rtso::UNIT_SIEGE_RAM;
+		else if (utype_str == "healer") utype = rtso::UNIT_HEALER;
+		else if (utype_str == "chariot") utype = rtso::UNIT_CHARIOT;
+		else if (utype_str == "war_dog") utype = rtso::UNIT_WAR_DOG;
+		else if (utype_str == "bolt_shooter") utype = rtso::UNIT_BOLT_SHOOTER;
+		else if (utype_str == "fishing_boat") utype = rtso::UNIT_FISHING_BOAT;
+		else if (utype_str == "merchant_ship") utype = rtso::UNIT_MERCHANT_SHIP;
+		else if (utype_str == "female_citizen") utype = rtso::UNIT_FEMALE_CITIZEN;
+		else if (utype_str == "carnyx") utype = rtso::UNIT_CARNYX;
+		else if (utype_str == "worker_elephant") utype = rtso::UNIT_WORKER_ELEPHANT;
+		else if (utype_str == "archer_maiden") utype = rtso::UNIT_ARCHER_MAIDEN;
+		else if (utype_str == "camel") utype = rtso::UNIT_CAMEL;
+		else if (utype_str == "scythed_chariot") utype = rtso::UNIT_SCYTHED_CHARIOT;
 
 		const auto &uinfo = rtso::unit_type_info(utype);
 		sim->spawn_unit(ux, uz, team, utype, uinfo.hp);
@@ -3394,7 +3259,7 @@ void RtsoMain::refresh_lobby_rooms() {
 	std::string body;
 	if (!rtso::lobby_http_get(lobby_http_host_, lobby_http_port_, "/rooms", body)) {
 		if (lobby_status)
-			lobby_status->set_text("Lobby unreachable — start: python3 tools/lobby_server.py");
+			lobby_status->set_text("Lobby unreachable - start: python3 tools/lobby_server.py");
 		return;
 	}
 	lobby_room_cache_ = rtso::parse_lobby_rooms(body);
@@ -3450,7 +3315,7 @@ void RtsoMain::_on_lobby_host_pressed() {
 void RtsoMain::_on_lobby_start_pressed() {
 	if (!sim) return;
 	if (!net_host_.isHost()) {
-		if (lobby_status) lobby_status->set_text("Start is host-only — Join waits for host Start");
+		if (lobby_status) lobby_status->set_text("Start is host-only - Join waits for host Start");
 		return;
 	}
 	// Seed-sync + full setup broadcast: the host's CURRENT match settings
@@ -3613,9 +3478,7 @@ void RtsoMain::set_civ(int civ_idx) {
 	sim->set_player_civ((uint8_t)civ_idx);
 
 	const auto &info = rtso::civ_info(civ_idx);
-	if (civ_emblem) {
-		civ_emblem->set_texture(load_tex(info.emblem_path));
-	}
+	top_panel_.set_civ(civ_idx);
 	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings"))) {
 		ms->set("player_civ", civ_idx);
 	}
@@ -3639,28 +3502,11 @@ Dictionary RtsoMain::get_civ_info(int civ_idx) const {
 }
 
 void RtsoMain::_on_queue_slot_gui_input(const Ref<InputEvent> &event, int slot_idx) {
-	Ref<InputEventMouseButton> mb = event;
-	if (mb.is_valid() && mb->is_pressed()) {
-		if (mb->get_button_index() == MOUSE_BUTTON_RIGHT || mb->get_button_index() == MOUSE_BUTTON_LEFT) {
-			_on_queue_slot_cancel(slot_idx);
-			get_viewport()->set_input_as_handled();
-		}
-	}
+	production_queue_.handle_gui_input(event, slot_idx, get_viewport());
 }
 
 void RtsoMain::_on_queue_slot_cancel(int slot_idx) {
-	if (selected_building_id != 0 && sim) {
-		if (net_lockstep()) {
-			post_lockstep(20, nullptr, 0, 0, 0, selected_building_id, (uint8_t)slot_idx);
-			play_sfx("res://assets/sounds/ui/cancel.ogg");
-			return;
-		}
-		if (sim->cmd_cancel_train(selected_building_id, (size_t)slot_idx)) {
-			play_sfx("res://assets/sounds/ui/cancel.ogg");
-			update_command_panel();
-			update_inspector();
-		}
-	}
+	production_queue_.cancel(slot_idx);
 }
 
 void RtsoMain::toggle_chat() {

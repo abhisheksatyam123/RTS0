@@ -18,6 +18,7 @@ public:
 	static constexpr const char *UnitShader = "res://shaders/unit_thronefall.gdshader";
 	static constexpr const char *TerrainShader = "res://shaders/terrain.gdshader";
 	static constexpr const char *FoliageShader = "res://shaders/foliage_wind.gdshader";
+	static constexpr const char *WaterShader = "res://shaders/water.gdshader";
 
 	static constexpr const char *UnitMaterial = "res://assets/materials/thronefall/unit.tres";
 	static constexpr const char *TerrainMaterial = "res://assets/materials/thronefall/terrain.tres";
@@ -35,6 +36,7 @@ public:
 	static Ref<ShaderMaterial> load_unit_material();
 	static Ref<ShaderMaterial> load_terrain_material();
 	static Ref<ShaderMaterial> load_foliage_material();
+	static Ref<ShaderMaterial> load_water_material();
 	static Ref<ShaderMaterial> try_load_mat(const String &tres, const String &shader_fallback);
 };
 

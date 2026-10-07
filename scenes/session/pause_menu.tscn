@@ -1,6 +1,21 @@
-[gd_scene load_steps=3 format=3 uid="uid://e3z9a1t6o8q4d"]
+[gd_scene load_steps=4 format=3 uid="uid://e3z9a1t6o8q4d"]
 
 [ext_resource type="Script" path="res://scenes/session/pause_menu.gd" id="1"]
+[ext_resource type="Theme" path="res://assets/themes/zeroad_theme.tres" id="2_theme"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.12, 0.13, 0.17, 0.96)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.9, 0.75, 0.31, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+shadow_color = Color(0, 0, 0, 0.7)
+shadow_size = 8
 
 [node name="PauseMenu" type="CanvasLayer"]
 visible = false
@@ -12,7 +27,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0, 0, 0, 0.6)
+color = Color(0, 0, 0, 0.65)
 visible = false
 
 [node name="CenterContainer" type="CenterContainer" parent="."]
@@ -21,51 +36,55 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme = ExtResource("2_theme")
 visible = false
 
-[node name="Panel" type="Panel" parent="CenterContainer"]
-custom_minimum_size = Vector2(360, 280)
+[node name="Panel" type="PanelContainer" parent="CenterContainer"]
+custom_minimum_size = Vector2(340, 270)
 layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 
 [node name="VBox" type="VBoxContainer" parent="CenterContainer/Panel"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-offset_left = 16.0
-offset_top = 16.0
-offset_right = -16.0
-offset_bottom = -16.0
+layout_mode = 2
+theme_override_constants/separation = 8
 
 [node name="Title" type="Label" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.75, 0.31, 1)
 theme_override_font_sizes/font_size = 18
-text = "Paused — 0 A.D. session/Menu.xml"
+text = "GAME PAUSED"
 horizontal_alignment = 1
 
-[node name="BtnResume" type="Button" parent="CenterContainer/Panel/VBox"]
+[node name="HSeparator" type="HSeparator" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
-text = "Resume (ESC)"
+
+[node name="BtnResume" type="Button" parent="CenterContainer/Panel/VBox"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+text = "Resume Game (ESC)"
 
 [node name="BtnSave" type="Button" parent="CenterContainer/Panel/VBox"]
+custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
-text = "💾 Save Game"
+text = "Save Game"
 
 [node name="BtnLoad" type="Button" parent="CenterContainer/Panel/VBox"]
+custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
-text = "📂 Load Game"
+text = "Load Game"
 
 [node name="BtnOptions" type="Button" parent="CenterContainer/Panel/VBox"]
+custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 text = "Options"
 
 [node name="BtnLobby" type="Button" parent="CenterContainer/Panel/VBox"]
+custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 text = "Lobby / Match Settings"
 
 [node name="BtnExit" type="Button" parent="CenterContainer/Panel/VBox"]
+custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 text = "Exit to Main Menu"
 

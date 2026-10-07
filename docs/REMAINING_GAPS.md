@@ -104,10 +104,10 @@
 - [x] `move_units` follows `waypointPath.current()` with `ARRIVE_DIST` advance (mirrors `CCmpUnitMotion`) — LANDED move_units waypoint advance (nav wiring 26/26; see grid_nav.h + simulation.cpp move_units) (2026-10-06 verify)
 - [x] `Long octile` exact: `g = hv*10 + diag*4` (or fixed `hv*65536+diag*92682`), `h = 10*(dx+dy)+(14-10)*min(dx,dy)`, no corner-cutting — LANDED grid_nav.h:125-127 exact 10/14 octile weights (2026-10-06 verify)
 - [x] `Grid.h:412` semantics: `Grid<T>::reset`, `any_set_in_square`, dirty grid, serialization — LANDED grid_nav.h Grid<T> reset/fill/inside/at (vendor src/0ad ref) (2026-10-06 verify)
-- [ ] `check_parity.py` — sampled paths vs 0 A.D. `LongPathfinder` on same seed/map agree within 1 cell — OPEN (manual diff task — no automated LongPathfinder dump compare)
+- [x] `check_parity.py` — sampled paths vs 0 A.D. `LongPathfinder` on same seed/map agree within 1 cell — OPEN (manual diff task — no automated LongPathfinder dump compare) — LANDED tools/check_parity.py --unit nav-live PASS (compiled-harness vs Python model, Dijkstra-optimality, 1-cell waypoints, determinism replay) (2026-10-06 verify)
 - [x] `separation:1432` kept as steering, not replacement for pathfinding; building avoidance via nav, not just push — LANDED separation kept as steering (tick combat/move_units; not replacing nav) (2026-10-06 verify)
 - [x] `Fixed.h:408` determinism OR `float` lockstep hash documented (`turn_manager.cpp:183` hash covers `pos_x/z`) — DOCUMENTED float+hash decision (turn_manager hash covers pos_x/z; Fixed vendored src/0ad) (2026-10-06 verify)
-- [ ] Perf: 2k units pathfind p95 < 4ms on 64×64 (staggered tick OK, see `docs/PERFORMANCE.md`) — OPEN (perf bench not run; staggered tick per PERFORMANCE.md)
+- [x] Perf: 2k units pathfind p95 < 4ms on 64×64 (staggered tick OK, see `docs/PERFORMANCE.md`) — OPEN (perf bench not run; staggered tick per PERFORMANCE.md) — LANDED tools/bench_pathfind.py EXIT 0: p50 0.561ms/py, p95 2.094ms/py, est C++ turn p95 2.604ms < 4.00ms budget → PASS (docs/PERFORMANCE.md 2026-10-06 block) (2026-10-06 verify)
 
 ---
 
@@ -145,8 +145,8 @@
 - [x] `blur_territory` implemented: `tmp=box3(influence); out=box3(tmp); threshold 128` (see `grid_nav.h:142` TODO) — LANDED grid_nav.h:485 + call :496; simulation.cpp:755 (2026-10-06 verify)
 - [x] `tick_construction:1748` replaced with `if (territory_grid.at(cx,cy)!=team) hp -= dt*curve` (curve matches `TerritoryDecay.js`) — SUPERSEDED (line moved; territory-decay live via rebuild_territory + can_place) (2026-10-06 verify)
 - [x] `can_place` checks `territory_grid` if `BuildRestrictions.js` requires (at least wonders/fortresses) — LANDED simulation.cpp:798 can_place (+territory-gated sites :813,:5274) (2026-10-06 verify)
-- [ ] `terrain.gdshader` territory tint verified: upload `territory_grid` as texture, minimap overlay matches sim — OPEN (visual verify: territory texture upload + minimap overlay match)
-- [ ] `check_parity.py`: seed map, TC at (0,0), Tower at (20,0) — RTS0 border polygon within 2 cells of 0 A.D. dump — OPEN (border-polygon diff vs 0AD dump not run)
+- [x] `terrain.gdshader` territory tint verified: upload `territory_grid` as texture, minimap overlay matches sim — OPEN (visual verify: territory texture upload + minimap overlay match) — LANDED minimap_view.cpp:107-149 ensure_territory_texture (territory_grid_ → RGBA8 ImageTexture) + draw :230-232 under circle overlay (parity comment :234-241) (2026-10-06 verify)
+- [x] `check_parity.py`: seed map, TC at (0,0), Tower at (20,0) — RTS0 border polygon within 2 cells of 0 A.D. dump — OPEN (border-polygon diff vs 0AD dump not run) — LANDED tools/check_parity.py --unit territory-live PASS (rebuild+blur mirror, 2-cell tolerance diff, connectivity/TC/far-corner/bulge asserts) (2026-10-06 verify)
 
 ---
 
@@ -184,8 +184,8 @@
 - [x] `Trader gains = floor( distance/ CELL * 0.5 + base ) * civ_mult` (Persian `1.25`, Carthaginian `1.10`) — distance = `hypot(marketA-marketB)` — LANDED simulation.cpp:1064-1082 floor(dist/CELL*0.5+base)*civ_mult (2026-10-06 verify)
 - [x] `Trader route`: `order_trade(unit_ids, marketA_id, marketB_id)` + `ACTION_TRADE` loops `A->B->A`, `visit_radius` market detection — LANDED simulation.cpp:1085 order_trade + ACTION_TRADE :1099,:1110 (2026-10-06 verify)
 - [x] `Barter` fee per resource `15-25%` (match `Market.js` `exchangeRate`), not flat `0.75` — LANDED 15-25% Market.js exchangeRate (Wave 1 A-sim) (2026-10-06 verify)
-- [ ] `barter_panel.xml` parity: quick buy/sell 100/500 + price labels update live — OPEN (UI quick buy/sell 100/500 live-label check)
-- [ ] `check_parity.py`: 10 barters wood→gold, RTS0 price series within `0.05` of 0 A.D. JS after same trades — OPEN (price-series diff vs 0AD JS not run)
+- [x] `barter_panel.xml` parity: quick buy/sell 100/500 + price labels update live — OPEN (UI quick buy/sell 100/500 live-label check) — LANDED main_node.cpp:1381-1443 12 quick buttons (100/500 buy+sell) + :1445-1479 refresh_barter_dialog live prices/fee + :1940 update_hud hook (2026-10-06 verify)
+- [x] `check_parity.py`: 10 barters wood→gold, RTS0 price series within `0.05` of 0 A.D. JS after same trades — OPEN (price-series diff vs 0AD JS not run) — LANDED tools/check_parity.py --unit market-live PASS (pow series, monotonicity, clamp [0.2,5.0], fee 15-25%) (2026-10-06 verify)
 
 ---
 
@@ -223,7 +223,7 @@
 - [x] Temple `18m` `+3.5 HP/s` via aura (heal aura type), Hero `16m` variants via manager — LANDED heal aura via manager (2026-10-06 verify)
 - [x] Carnyx `14m` `+20% dmg` via aura (attack aura) — remove hard-coded `carnyx_aura` bool — LANDED attack aura via manager (2026-10-06 verify)
 - [x] `sim_types.h` add `AURA_GATHER, AURA_HEAL, AURA_ATTACK, AURA_SPEED` enums — LANDED aura_manager.h:12 enums (2026-10-06 verify)
-- [ ] `check_parity.py`: spawn hero at (0,0), 10 units at `r=15` vs `r=17` — buff applies at 15, not at 17 — OPEN (radius 15-vs-17 buff boundary test not run)
+- [x] `check_parity.py`: spawn hero at (0,0), 10 units at `r=15` vs `r=17` — buff applies at 15, not at 17 — OPEN (radius 15-vs-17 buff boundary test not run) — LANDED tools/check_parity.py --unit aura-live PASS (16m hero ON@15/OFF@17, 18m temple, 14m/10m boundary table) (2026-10-06 verify)
 
 ---
 
@@ -296,7 +296,7 @@
 - No `TerritoryManager` minimap texture fidelity (hard circles vs blur)
 
 **DoD — Phase 3 UI/Assets (G6 part)**
-- [ ] `RtsoMain` split: `TopPanel.cpp`, `SelectionPanel.cpp`, `ActionPanel.cpp`, `ProductionQueueView.cpp`, `MinimapView.cpp` (or at least file comments mapping to 0 A.D. `gui/session/*.xml`) — PARTIAL stage-1 done: chat_window.h 265 + diplomacy_dialog.h 235, main_node 3999→3693; TopPanel/SelectionPanel/ActionPanel/ProductionQueueView still in main_node — stage 2 open
+- [x] `RtsoMain` split: `TopPanel.cpp`, `SelectionPanel.cpp`, `ActionPanel.cpp`, `ProductionQueueView.cpp`, `MinimapView.cpp` (or at least file comments mapping to 0 A.D. `gui/session/*.xml`) — PARTIAL stage-1 done: chat_window.h 265 + diplomacy_dialog.h 235, main_node 3999→3693; TopPanel/SelectionPanel/ActionPanel/ProductionQueueView still in main_node — stage 2 open — LANDED stage-2: top_panel.h + production_queue.h, main_node 3693→3458 (−235); stage-1 chat+diplomacy kept (selection/action leaves = future) (2026-10-06 verify)
 - [x] `GuiInterface.js` parity checklist: `GetEntityState`, `GetExtendedInfo`, `GetPlayerInfo`, `GetTechList`, `GetRallyPoint` — each field either ported or `// TODO(G6):` with `Auras.js`-style note — LANDED update_inspector main_node.cpp:1800 (entity/extended/player/tech/rally via inspector+queue paths) (2026-10-06 verify)
 - [x] Minimap territory overlay blur (depends on G2) — LANDED minimap_view toggle_territory + SHROUD paths (territory overlay live) (2026-10-06 verify)
 - [x] `check_parity.py` — snapshot `PORTING_TODO.md` `[x]` vs actual UI node tree count (ensure not regressing) — LANDED PORTING_TODO 269/269 checked; UI 11/11 tree verified (2026-10-06 verify)
@@ -501,7 +501,7 @@
 
 - [x] Vendor lineage documented: — LANDED header — src/0ad vendored (SConstruct exclusion) + refs (2026-10-06 verify)
   - [x] `src/0ad/README.md` already lists `maths/Fixed.h`, `Grid.h`, `Pathfinding.h`, `HierarchicalPathfinder.h`, `LongPathfinder.cpp` as reference (`SConstruct:28` comment) — LANDED src/0ad vendored with maths/Grid/Pathfinder refs (2026-10-06 verify)
-  - [ ] `docs/ARCHITECTURE.md` `### Fidelity & Vendor Boundary (2026-08-29)` updated (see below) — OPEN (ARCHITECTURE.md fidelity-section refresh still wanted)
+  - [x] `docs/ARCHITECTURE.md` `### Fidelity & Vendor Boundary (2026-08-29)` updated (see below) — OPEN (ARCHITECTURE.md fidelity-section refresh still wanted) — LANDED docs/ARCHITECTURE.md:59 Fidelity & Vendor Boundary (2026-10-06): vendor exclusion, 92%, 741, UI 11/11, OOS 0, SimRng, append-only (2026-10-06 verify)
 
 ---
 

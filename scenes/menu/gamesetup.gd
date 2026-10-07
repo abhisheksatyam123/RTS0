@@ -73,8 +73,21 @@ func _ready() -> void:
 
 func _load_maps() -> void:
 	_maps.clear()
-	for p in ["acropolis_bay", "corinthian_isthmus", "atlas_valleys", "bactria", "battle_for_the_tiber"]:
-		_maps.append(_read_scenario(p))
+	var dir := DirAccess.open("res://data/maps")
+	if dir != null:
+		dir.list_dir_begin()
+		var file_name := dir.get_next()
+		var scenario_ids: Array = []
+		while file_name != "":
+			if not dir.current_is_dir() and file_name.ends_with(".json"):
+				scenario_ids.append(file_name.get_basename())
+			file_name = dir.get_next()
+		scenario_ids.sort()
+		for sid in scenario_ids:
+			_maps.append(_read_scenario(sid))
+	if _maps.is_empty():
+		for p in ["acropolis_bay", "corinthian_isthmus", "atlas_valleys", "bactria", "battle_for_the_tiber"]:
+			_maps.append(_read_scenario(p))
 	for r in RMS_MAPS:
 		_maps.append({"id": r[0], "name": r[1], "kind": r[2], "players": r[3],
 			"size": r[4], "biome": r[5], "desc": r[6]})

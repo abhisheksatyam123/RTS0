@@ -16,9 +16,7 @@ def extract_pmp_heights(raw_pmp, target_res=64, height_scale=0.20):
     num_heights = vert_side * vert_side
     offset = 16
     raw_h = struct.unpack(f'<{num_heights}H', raw_pmp[offset:offset + num_heights * 2])
-    
-    # 0 A.D. maps raw 0..65535 to 0..512m
-    # We apply height_scale (e.g. 0.20 -> 0..25m hills)
+
     heights = []
     for r in range(target_res):
         for c in range(target_res):
@@ -28,25 +26,25 @@ def extract_pmp_heights(raw_pmp, target_res=64, height_scale=0.20):
             raw_val = raw_h[idx]
             val_m = (raw_val / 128.0) * height_scale
             heights.append(round(val_m, 2))
-            
-    return heights
+
+    return heights, vert_side
 
 def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean", height_scale=0.20):
     print(f"Porting map: {map_id} ({xml_rel})...")
     with zipfile.ZipFile(zip_path, 'r') as z:
         xml_data = z.read(xml_rel).decode('utf-8')
         root = ET.fromstring(xml_data)
-        
+
         # Script settings
         s_elem = root.find("ScriptSettings")
         settings = json.loads(s_elem.text) if s_elem is not None and s_elem.text else {}
         name = settings.get("Name", map_id.replace("_", " ").title())
         desc = settings.get("Description", "")
-        
+
         # Terrain heights from PMP
         raw_pmp = z.read(pmp_rel)
-        heightmap = extract_pmp_heights(raw_pmp, target_res=64, height_scale=height_scale)
-        
+        heightmap, vert_side = extract_pmp_heights(raw_pmp, target_res=64, height_scale=height_scale)
+
         # Water settings
         water_height = -1.0
         w_elem = root.find(".//WaterBody/Height")
@@ -56,79 +54,143 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 water_height = round(raw_w * height_scale, 2)
             except Exception:
                 pass
-                
-        # Scan raw entity bounds
+
+        # Coordinate transformation from 0 A.D. to RTS0 centered space
+        map_span_0ad = (vert_side - 1) * 4.0
+        center_x = map_span_0ad / 2.0
+        center_z = map_span_0ad / 2.0
+        scale = world_size_m / map_span_0ad
+
         entities_elem = root.find("Entities")
         raw_entities = []
-        min_x, max_x = float('inf'), float('-inf')
-        min_z, max_z = float('inf'), float('-inf')
-        
+
         if entities_elem is not None:
             for e in entities_elem.findall("Entity"):
-                tpl = e.find("Template").text if e.find("Template") is not None else ""
-                ply = int(e.find("Player").text) if e.find("Player") is not None else 0
+                tpl = e.find("Template").text if e.find("Template") is not None and e.find("Template").text else ""
+                ply = int(e.find("Player").text) if e.find("Player") is not None and e.find("Player").text else 0
                 pos = e.find("Position")
-                if pos is None: continue
+                if pos is None:
+                    continue
                 x = float(pos.get("x", 0))
                 z = float(pos.get("z", 0))
-                min_x, max_x = min(min_x, x), max(max_x, x)
-                min_z, max_z = min(min_z, z), max(max_z, z)
                 raw_entities.append((tpl, ply, x, z))
-                
-        center_x = (min_x + max_x) / 2.0
-        center_z = (min_z + max_z) / 2.0
-        raw_span = max(max_x - min_x, max_z - min_z, 1.0)
-        scale = (world_size_m * 0.90) / raw_span
-        
+
         # Convert entities into RTS0 format
         resources = []
+        fauna = []
         players = {}
         structures = []
         units = []
-        
+
         for tpl, ply, rx, rz in raw_entities:
-            # Map coordinates from 0AD space to centered RTS0 space [-world_size_m/2, world_size_m/2]
             wx = round((rx - center_x) * scale, 2)
             wz = round((rz - center_z) * scale, 2)
-            
+
+            # Clamp within map boundary
+            half = world_size_m * 0.48
+            wx = max(-half, min(half, wx))
+            wz = max(-half, min(half, wz))
+
             ltpl = tpl.lower()
+            if not ltpl or ltpl.startswith("actor|") or "decal" in ltpl or "particle" in ltpl:
+                continue
+
             if ply == 0:
-                # Gaia resource / nature
-                if "tree" in ltpl or "palm" in ltpl or "cedar" in ltpl or "cypress" in ltpl or "oak" in ltpl:
-                    res_type = "palm" if ("palm" in ltpl or "date" in ltpl) else ("pine" if ("pine" in ltpl or "cedar" in ltpl or "cypress" in ltpl) else "tree")
-                    resources.append({"type": res_type, "x": wx, "z": wz, "amount": 250})
-                elif "stone" in ltpl or "rock" in ltpl:
+                # Gaia resources & wildlife fauna
+                if any(k in ltpl for k in ["deer", "gazelle"]):
+                    fauna.append({"type": "deer", "x": wx, "z": wz})
+                elif "boar" in ltpl:
+                    fauna.append({"type": "boar", "x": wx, "z": wz})
+                elif any(k in ltpl for k in ["sheep", "goat", "cattle", "cow", "zebu", "sanga"]):
+                    fauna.append({"type": "sheep", "x": wx, "z": wz})
+                elif any(k in ltpl for k in ["wolf", "bear", "lion", "tiger"]):
+                    fauna.append({"type": "wolf", "x": wx, "z": wz})
+                elif any(k in ltpl for k in ["fruit", "berry", "apple", "date", "bush_berry", "grain", "food"]):
+                    resources.append({"type": "food", "x": wx, "z": wz, "amount": 300})
+                elif any(k in ltpl for k in ["stone", "rock"]):
                     resources.append({"type": "stone", "x": wx, "z": wz, "amount": 1000})
-                elif "metal" in ltpl or "gold" in ltpl or "silver" in ltpl or "iron" in ltpl:
+                elif any(k in ltpl for k in ["metal", "gold", "silver", "iron", "ore"]):
                     resources.append({"type": "gold", "x": wx, "z": wz, "amount": 1000})
+                elif any(k in ltpl for k in ["tree", "palm", "pine", "cedar", "cypress", "oak", "carob", "poplar", "wood", "forest"]):
+                    res_type = "palm" if ("palm" in ltpl or "date" in ltpl) else ("pine" if ("pine" in ltpl or "cedar" in ltpl or "cypress" in ltpl) else "tree")
+                    resources.append({"type": res_type, "x": wx, "z": wz, "amount": 300})
             else:
                 # Player base / units
                 if ply not in players:
                     players[ply] = {"id": ply, "team": ply - 1, "start_x": wx, "start_z": wz}
-                
-                if "civil_centre" in ltpl or "town_center" in ltpl or "civic" in ltpl:
+
+                # Structures
+                if any(k in ltpl for k in ["civil_centre", "town_center", "civic"]):
                     players[ply]["start_x"] = wx
                     players[ply]["start_z"] = wz
                     structures.append({"type": "town_center", "player": ply, "x": wx, "z": wz})
-                elif "barracks" in ltpl or "military" in ltpl:
+                elif any(k in ltpl for k in ["barracks", "range", "stable", "hall", "arsenal", "elephant_stable", "military"]):
                     structures.append({"type": "barracks", "player": ply, "x": wx, "z": wz})
-                elif "house" in ltpl:
+                elif any(k in ltpl for k in ["house", "apartment", "hut", "longhouse"]):
                     structures.append({"type": "house", "player": ply, "x": wx, "z": wz})
-                elif "storehouse" in ltpl or "mill" in ltpl or "farmstead" in ltpl:
+                elif any(k in ltpl for k in ["storehouse", "forge"]):
                     structures.append({"type": "storehouse", "player": ply, "x": wx, "z": wz})
-                elif "tower" in ltpl or "outpost" in ltpl or "wall" in ltpl:
+                elif any(k in ltpl for k in ["farmstead", "field", "mill", "rotarymill"]):
+                    structures.append({"type": "farmstead", "player": ply, "x": wx, "z": wz})
+                elif "market" in ltpl:
+                    structures.append({"type": "market", "player": ply, "x": wx, "z": wz})
+                elif any(k in ltpl for k in ["fortress", "palisades_fort", "keep"]):
+                    structures.append({"type": "fortress", "player": ply, "x": wx, "z": wz})
+                elif any(k in ltpl for k in ["gate", "wall_gate"]):
+                    structures.append({"type": "gate", "player": ply, "x": wx, "z": wz})
+                elif any(k in ltpl for k in ["temple", "tophet", "shrine", "pyramid"]):
+                    structures.append({"type": "temple", "player": ply, "x": wx, "z": wz})
+                elif "wonder" in ltpl:
+                    structures.append({"type": "wonder", "player": ply, "x": wx, "z": wz})
+                elif "dock" in ltpl:
+                    structures.append({"type": "dock", "player": ply, "x": wx, "z": wz})
+                elif any(k in ltpl for k in ["wall_tower", "defense_tower", "sentry_tower", "outpost", "tower"]):
                     structures.append({"type": "tower", "player": ply, "x": wx, "z": wz})
-                elif "infantry_melee" in ltpl or "swordsman" in ltpl:
-                    units.append({"type": "swordsman", "player": ply, "x": wx, "z": wz})
-                elif "spearman" in ltpl or "phalanx" in ltpl:
-                    units.append({"type": "spearman", "player": ply, "x": wx, "z": wz})
-                elif "ranged" in ltpl or "archer" in ltpl or "slinger" in ltpl or "skirmisher" in ltpl:
-                    units.append({"type": "archer", "player": ply, "x": wx, "z": wz})
-                elif "cavalry" in ltpl or "horse" in ltpl:
-                    units.append({"type": "cavalry", "player": ply, "x": wx, "z": wz})
-                elif "villager" in ltpl or "female" in ltpl or "citizen" in ltpl:
+                elif any(k in ltpl for k in ["wall", "palisade"]):
+                    structures.append({"type": "wall_segment", "player": ply, "x": wx, "z": wz})
+                elif "corral" in ltpl:
+                    structures.append({"type": "corral", "player": ply, "x": wx, "z": wz})
+
+                # Units
+                elif any(k in ltpl for k in ["villager", "support_civilian", "citizen", "female"]):
                     units.append({"type": "villager", "player": ply, "x": wx, "z": wz})
-                    
+                elif any(k in ltpl for k in ["infantry_melee", "swordsman", "champion"]):
+                    units.append({"type": "swordsman", "player": ply, "x": wx, "z": wz})
+                elif any(k in ltpl for k in ["spearman", "hoplite", "phalanx", "pikeman"]):
+                    units.append({"type": "spearman", "player": ply, "x": wx, "z": wz})
+                elif any(k in ltpl for k in ["infantry_ranged", "archer", "slinger", "skirmisher", "ranged"]):
+                    units.append({"type": "archer", "player": ply, "x": wx, "z": wz})
+                elif any(k in ltpl for k in ["cavalry", "horse"]):
+                    units.append({"type": "cavalry", "player": ply, "x": wx, "z": wz})
+                elif "trader" in ltpl:
+                    units.append({"type": "trader", "player": ply, "x": wx, "z": wz})
+                elif any(k in ltpl for k in ["catapult", "onager", "ballista"]):
+                    units.append({"type": "catapult", "player": ply, "x": wx, "z": wz})
+                elif any(k in ltpl for k in ["hero", "special_starting_unit"]):
+                    units.append({"type": "hero", "player": ply, "x": wx, "z": wz})
+                elif any(k in ltpl for k in ["trireme", "ship_arrow", "ship_scout", "warship", "ship"]):
+                    units.append({"type": "trireme", "player": ply, "x": wx, "z": wz})
+                elif "elephant" in ltpl:
+                    units.append({"type": "elephant", "player": ply, "x": wx, "z": wz})
+                elif any(k in ltpl for k in ["ram", "siege_ram"]):
+                    units.append({"type": "siege_ram", "player": ply, "x": wx, "z": wz})
+                elif any(k in ltpl for k in ["healer", "priest"]):
+                    units.append({"type": "healer", "player": ply, "x": wx, "z": wz})
+                elif "chariot" in ltpl:
+                    units.append({"type": "chariot", "player": ply, "x": wx, "z": wz})
+                elif any(k in ltpl for k in ["dog", "war_dog"]):
+                    units.append({"type": "war_dog", "player": ply, "x": wx, "z": wz})
+                elif "bolt_shooter" in ltpl:
+                    units.append({"type": "bolt_shooter", "player": ply, "x": wx, "z": wz})
+                elif any(k in ltpl for k in ["fishing_boat", "boat"]):
+                    units.append({"type": "fishing_boat", "player": ply, "x": wx, "z": wz})
+
+        # Ensure every detected player has a town center / start position
+        for p in players.values():
+            has_tc = any(s["type"] == "town_center" and s["player"] == p["id"] for s in structures)
+            if not has_tc:
+                structures.append({"type": "town_center", "player": p["id"], "x": p["start_x"], "z": p["start_z"]})
+
         map_data = {
             "id": map_id,
             "name": name,
@@ -140,23 +202,40 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             "heightmap": heightmap,
             "players": list(players.values()),
             "resources": resources,
+            "fauna": fauna,
             "structures": structures,
             "units": units
         }
-        
+
+        os.makedirs("data/maps", exist_ok=True)
         out_path = f"data/maps/{map_id}.json"
         with open(out_path, "w") as f:
             json.dump(map_data, f, indent=2)
-        print(f"  -> Generated {out_path}: {len(resources)} resources, {len(structures)} structures, {len(units)} units, {len(players)} players (Water={water_height}m).")
+        print(f"  -> Generated {out_path}: {len(resources)} resources, {len(fauna)} fauna, {len(structures)} structures, {len(units)} units, {len(players)} players (Water={water_height}m).")
 
 maps_list = [
     ("acropolis_bay", "maps/skirmishes/acropolis_bay_2p.xml", "maps/skirmishes/acropolis_bay_2p.pmp", 256.0, "mediterranean", 0.20),
     ("corinthian_isthmus", "maps/skirmishes/corinthian_isthmus_4p.xml", "maps/skirmishes/corinthian_isthmus_4p.pmp", 384.0, "mediterranean", 0.20),
     ("atlas_valleys", "maps/skirmishes/atlas_valleys_8p.xml", "maps/skirmishes/atlas_valleys_8p.pmp", 384.0, "savanna", 0.20),
     ("bactria", "maps/skirmishes/bactria_2p.xml", "maps/skirmishes/bactria_2p.pmp", 256.0, "desert", 0.15),
-    ("battle_for_the_tiber", "maps/scenarios/battle_for_the_tiber.xml", "maps/scenarios/battle_for_the_tiber.pmp", 320.0, "temperate", 0.20)
+    ("battle_for_the_tiber", "maps/scenarios/battle_for_the_tiber.xml", "maps/scenarios/battle_for_the_tiber.pmp", 320.0, "temperate", 0.20),
+    ("belgian_bog", "maps/skirmishes/belgian_bog_2p.xml", "maps/skirmishes/belgian_bog_2p.pmp", 256.0, "temperate", 0.15),
+    ("death_canyon", "maps/skirmishes/death_canyon_2p.xml", "maps/skirmishes/death_canyon_2p.pmp", 256.0, "desert", 0.25),
+    ("deccan_plateau", "maps/skirmishes/deccan_plateau_2p.xml", "maps/skirmishes/deccan_plateau_2p.pmp", 256.0, "tropical", 0.20),
+    ("cycladic_archipelago", "maps/skirmishes/cycladic_archipelago_2p.xml", "maps/skirmishes/cycladic_archipelago_2p.pmp", 256.0, "mediterranean", 0.20),
+    ("golden_island", "maps/skirmishes/golden_island_2p.xml", "maps/skirmishes/golden_island_2p.pmp", 256.0, "mediterranean", 0.20),
+    ("persian_highlands", "maps/skirmishes/persian_highlands_4p.xml", "maps/skirmishes/persian_highlands_4p.pmp", 384.0, "desert", 0.20),
+    ("saharan_oases", "maps/skirmishes/saharan_oases_4p.xml", "maps/skirmishes/saharan_oases_4p.pmp", 384.0, "desert", 0.15),
+    ("sicilia", "maps/skirmishes/sicilia_2p.xml", "maps/skirmishes/sicilia_2p.pmp", 256.0, "mediterranean", 0.20),
+    ("alpine_valleys", "maps/skirmishes/alpine_valleys_2p.xml", "maps/skirmishes/alpine_valleys_2p.pmp", 256.0, "alpine", 0.25),
+    ("tuscan_acropolis", "maps/skirmishes/tuscan_acropolis_4p.xml", "maps/skirmishes/tuscan_acropolis_4p.pmp", 384.0, "mediterranean", 0.20),
+    ("arcadia", "maps/scenarios/arcadia.xml", "maps/scenarios/arcadia.pmp", 256.0, "mediterranean", 0.20),
+    ("vesuvius", "maps/skirmishes/vesuvius_6p.xml", "maps/skirmishes/vesuvius_6p.pmp", 384.0, "mediterranean", 0.25),
+    ("mediterranean_cove", "maps/skirmishes/mediterranean_cove_2p.xml", "maps/skirmishes/mediterranean_cove_2p.pmp", 256.0, "mediterranean", 0.20),
+    ("nile_river", "maps/skirmishes/nile_river_4p.xml", "maps/skirmishes/nile_river_4p.pmp", 384.0, "desert", 0.15),
+    ("gallic_fields", "maps/skirmishes/gallic_fields_3p.xml", "maps/skirmishes/gallic_fields_3p.pmp", 320.0, "temperate", 0.20),
 ]
 
-for mid, xrel, prel, size, bome, hscale in maps_list:
-    port_map(mid, xrel, prel, size, bome, hscale)
-
+if __name__ == "__main__":
+    for mid, xrel, prel, size, bome, hscale in maps_list:
+        port_map(mid, xrel, prel, size, bome, hscale)

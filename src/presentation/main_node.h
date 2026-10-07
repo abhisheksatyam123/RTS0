@@ -26,6 +26,8 @@
 #include <godot_cpp/classes/audio_stream.hpp>
 #include <godot_cpp/classes/time.hpp>
 #include "safe_select.h"
+#include "top_panel.h"
+#include "production_queue.h"
 #include <godot_cpp/classes/control.hpp>
 #include <godot_cpp/classes/item_list.hpp>
 #include "../network/net_host.h"
@@ -54,7 +56,7 @@
 
 using namespace godot;
 
-class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost {
+class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, public RtsoProductionQueueHost {
 	GDCLASS(RtsoMain, Node3D);
 
 	rtso::Simulation *sim = nullptr;
@@ -77,15 +79,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost {
 
 	// 1. Top HUD Bar
 	Panel *top_hud_panel = nullptr;
-	TextureRect *civ_emblem = nullptr;
-	TextureRect *phase_emblem = nullptr;
-	TextureRect *res_icons[4] = {nullptr};
-	Label *res_labels[4] = {nullptr};
-	TextureRect *pop_icon = nullptr;
-	Label *pop_label = nullptr;
-	Button *idle_worker_btn = nullptr;
-	Label *clock_label = nullptr;
-	Label *wave_label = nullptr;
+	RtsoTopPanel top_panel_;
 	Button *speed_btn = nullptr;
 	Button *menu_btn = nullptr;
 	RtsoSafeSelect *map_selector = nullptr;
@@ -135,13 +129,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost {
 	HBoxContainer *queue_bar = nullptr;
 	Label *command_title = nullptr;
 
-	struct QueueSlotUI {
-		Panel *panel = nullptr;
-		TextureRect *icon = nullptr;
-		ProgressBar *progress = nullptr;
-		Label *chip = nullptr;
-	};
-	QueueSlotUI queue_slots[8];
+	RtsoProductionQueue production_queue_;
 
 	// 4. Banner Overlay
 	Panel *banner_panel = nullptr;
@@ -247,8 +235,29 @@ public:
 	// forwards to the existing sim/net path (NMT_CHAT + cmd 22 unchanged).
 	String chat_civ_name() { return rtso::civ_info(sim->player_civ()).name; }
 	void chat_send_wire(const std::string &wire) { net_host_.sendChat(wire); }
-	rtso::Simulation *ui_sim() { return sim; }
+	rtso::Simulation *ui_sim() override { return sim; }
+	uint32_t ui_selected_building_id() const override { return selected_building_id; }
 	void _on_barter_requested(int sell_type, int buy_type, int amount);
+
+	// ---- barter_panel.xml parity (docs/REMAINING_GAPS.md:187) -------------
+	// Runtime quick-amount (100/500) buy/sell buttons + live price/fee labels
+	// layered over scenes/session/barter_dialog.tscn from the C++ owner dir.
+	// Every button funnels into _on_barter_requested -> post_lockstep(23)/
+	// cmd_barter (main_node.cpp) — no new cmd types, wire format stable.
+	struct BarterQuickBtn {
+		Button *btn = nullptr;
+		int sell = -1;
+		int buy = -1;
+		int amount = 0;
+	};
+	std::vector<BarterQuickBtn> barter_quick_;
+	CanvasLayer *barter_dialog_ = nullptr;
+	Label *barter_price_label_ = nullptr;
+	Label *barter_fee_label_ = nullptr;
+	void setup_barter_dialog_extras();
+	void refresh_barter_dialog();
+	float barter_spread() const;              // mirrors cmd_barter baseSpread
+	int barter_quote(int sell, int buy, int amount) const; // mirrors received
 
 	void _on_queue_slot_gui_input(const Ref<InputEvent> &event, int slot_idx);
 	void _on_queue_slot_cancel(int slot_idx);

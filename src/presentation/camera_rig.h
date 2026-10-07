@@ -18,6 +18,9 @@ class RtsoCameraRig : public Node3D {
 	float target_zoom = 22.0f;
 	float yaw_angle = 0.0f;
 	float target_yaw = 0.0f;
+	float map_bounds_half = 64.0f;
+	bool mmb_dragging = false;
+	bool edge_scroll_enabled = true;
 
 protected:
 	static void _bind_methods();
@@ -34,10 +37,10 @@ public:
 	Vector3 get_target_pos() const { return target_pos; }
 	void set_target_pos(Vector3 pos);
 	void zoom(float delta_zoom);
+	void reset_camera();
 	void set_map_bounds_half(float h) { map_bounds_half = h; }
-
-private:
-	float map_bounds_half = 64.0f;
+	bool is_edge_scroll_enabled() const { return edge_scroll_enabled; }
+	void set_edge_scroll_enabled(bool enabled) { edge_scroll_enabled = enabled; }
 };
 
 #endif
