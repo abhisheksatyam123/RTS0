@@ -1957,7 +1957,7 @@ void Simulation::tick(float dt) {
 	tick_trickle(dt);        // Passive / trickle income
 
 	// 6. Waves, AI, and World simulation
-	tick_waves(dt);
+	if (waves_enabled_) tick_waves(dt);
 	tick_petra_ai(dt);
 	tick_fauna(dt);
 	check_victory_conditions(dt);

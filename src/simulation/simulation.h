@@ -308,6 +308,10 @@ public:
 	int pop_current() const;
 	int pop_max() const;
 	int wave_number() const { return wave_number_; }
+	// Legacy wave-defense mode (on by default). tools/bench_match.py turns it off
+	// so the benchmark measures a full-length skirmish against Petra.
+	void set_waves_enabled(bool on) { waves_enabled_ = on; }
+	bool waves_enabled() const { return waves_enabled_; }
 	float wave_time_remaining() const { return std::max(0.0f, 30.0f - wave_timer_); }
 	bool is_game_over() const { return game_over_; }
 	bool is_victory() const { return victory_; }
@@ -595,6 +599,7 @@ private:
 	uint32_t next_id_ = 1;
 	uint32_t sim_seed_ = 1337;
 	SimRng sim_rng_;
+	bool waves_enabled_ = true;
 	int food_ = 300;
 	int wood_ = 400;
 	int gold_ = 300;
