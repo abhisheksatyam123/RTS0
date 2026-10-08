@@ -726,6 +726,19 @@ inline uint64_t unit_tech_classes(uint8_t type) {
 	}
 }
 
+// 0 A.D. GarrisonHolder on land siege: template_unit_siege_tower.xml (Max 20) and
+// template_unit_siege_ram.xml (Max 10) take <List>Support Infantry</List> and
+// unload everyone below EjectHealth 0.1 or when destroyed. The siege tower's
+// BuildingAI fires no arrows of its own (DefaultArrowCount 0) and one per
+// garrisoned Infantry (GarrisonArrowMultiplier 1), up to MaxArrowCount 10.
+inline constexpr int SIEGE_TOWER_GARRISON = 20;
+inline constexpr int SIEGE_RAM_GARRISON = 10;
+inline constexpr int SIEGE_TOWER_MAX_ARROWS = 10;
+inline constexpr float SIEGE_EJECT_HEALTH = 0.1f;
+inline bool siege_garrison_allowed(uint8_t unit_type) {
+	return (unit_tech_classes(unit_type) & (TC_INFANTRY | TC_CIVILIAN)) != 0;
+}
+
 inline uint64_t building_tech_classes(uint8_t type) {
 	uint64_t c = TC_STRUCTURE;
 	uint8_t phase = building_required_phase(type);

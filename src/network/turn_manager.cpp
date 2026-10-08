@@ -340,6 +340,19 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_u8((uint8_t)((b.gate_open ? 1 : 0) | (b.gate_locked ? 2 : 0)));
 	}
 
+	// 2b. Passengers of ships and land siege, by carrier id
+	{
+		std::vector<uint32_t> carriers;
+		for (const auto &kv : sim.transport_passengers())
+			if (!kv.second.empty()) carriers.push_back(kv.first);
+		std::sort(carriers.begin(), carriers.end());
+		mix_u32((uint32_t)carriers.size());
+		for (uint32_t cid : carriers) {
+			mix_u32(cid);
+			for (uint32_t puid : sim.transport_passengers().at(cid)) mix_u32(puid);
+		}
+	}
+
 	// 3. Resource Nodes — amount, alive, type, coords
 	auto rview = sim.resources();
 	mix_u32((uint32_t)rview.count);
