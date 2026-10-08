@@ -293,7 +293,7 @@ int Simulation::pop_max(uint8_t player) const {
 			cap += (int)std::lround(building_type_info(b.type).pop_bonus * tech_mods(player).bld_pop_bonus[b.type]);
 		}
 	}
-	return cap;
+	return pop_cap_ > 0 ? std::min(cap, pop_cap_) : cap;
 }
 
 int Simulation::ai_pop_current() const { return pop_current(PETRA_PLAYER); }
@@ -3160,7 +3160,7 @@ void Simulation::tick_combat(float dt) {
 		// A. Existing unit target check
 		if (units_.target_unit_id[i] != 0) {
 			int32_t tidx = lookup_unit(units_.target_unit_id[i]);
-			if (tidx >= 0 && units_.alive[tidx] && units_.team[tidx] != units_.team[i]) {
+			if (tidx >= 0 && units_.alive[tidx] && can_attack(units_.team[i], units_.team[tidx])) {
 				found = tidx;
 			}
 		}
@@ -3195,7 +3195,7 @@ void Simulation::tick_combat(float dt) {
 				const float att_y = get_terrain_height(pxi, pzi);
 
 				grid.visit_radius(pxi, pzi, scan_range, [&](int32_t j) {
-					if (!units_.alive[j] || units_.team[j] == my_team) return;
+					if (!units_.alive[j] || !can_attack(my_team, units_.team[j])) return;
 
 					// Check leash distance from anchor for Hold/Defensive stances
 					if (units_.stance[i] == STANCE_HOLD_GROUND || units_.stance[i] == STANCE_DEFENSIVE) {
@@ -3559,7 +3559,7 @@ void Simulation::tick_combat(float dt) {
 			continue;
 		}
 		Building &b = buildings_[bit->second];
-		if (b.team == units_.team[i]) {
+		if (!can_attack(units_.team[i], b.team)) {
 			units_.target_building_id[i] = 0;
 			continue;
 		}
@@ -3710,7 +3710,7 @@ void Simulation::tick_combat(float dt) {
 
 				int32_t hit = -1;
 				grid.visit_radius(b.x, b.z, range, [&](int32_t i) {
-					if (hit >= 0 || !units_.alive[i] || units_.team[i] == b.team) return;
+					if (hit >= 0 || !units_.alive[i] || !can_attack(b.team, units_.team[i])) return;
 					float dx = b.x - units_.pos_x[i];
 					float dz = b.z - units_.pos_z[i];
 					float d2 = dx * dx + dz * dz;
@@ -3889,7 +3889,7 @@ void Simulation::tick_capture(float dt) {
 		}
 		const int owner = b.team < 4 ? b.team : 0;
 		auto enemy = [&](int source, int target) {
-			if (source == target) return false;
+			if (source == target || ceasefire_active()) return false;
 			if (source == 0) return target == 1;
 			return get_diplomacy(source) == DIPLO_ENEMY;
 		};

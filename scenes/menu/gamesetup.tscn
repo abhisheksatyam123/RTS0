@@ -118,6 +118,22 @@ layout_mode = 2
 tooltip_text = "Allies don't share a win: the match goes on until only one player is left."
 text = "Last man standing"
 
+[node name="PopCapLabel" type="Label" parent="VBox/HBox/Left"]
+layout_mode = 2
+text = "Population limit"
+
+[node name="PopCapSlot" type="Control" parent="VBox/HBox/Left"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+
+[node name="CeasefireLabel" type="Label" parent="VBox/HBox/Left"]
+layout_mode = 2
+text = "Ceasefire"
+
+[node name="CeasefireSlot" type="Control" parent="VBox/HBox/Left"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+
 [node name="MapSizeLabel" type="Label" parent="VBox/HBox/Left"]
 layout_mode = 2
 text = "Map size (random maps)"

@@ -210,6 +210,31 @@ int main() {
 		delete sim;
 	}
 
+	// 9e. Ceasefire: nobody takes damage until it ends; the population limit caps pop_max.
+	{
+		Simulation sim;
+		sim.reset();
+		sim.set_ceasefire_seconds(5.0f);
+		sim.spawn_unit(0.0f, 0.0f, 0, UNIT_SWORDSMAN);
+		sim.spawn_unit(1.5f, 0.0f, 1, UNIT_SWORDSMAN);
+		CHECK(sim.ceasefire_active() && !sim.can_attack(0, 1));
+		run(sim, 4.0f);
+		CHECK(sim.units_.hp[0] == sim.units_.max_hp[0] && sim.units_.hp[1] == sim.units_.max_hp[1]);
+		run(sim, 3.0f);
+		CHECK(!sim.ceasefire_active());
+		CHECK(sim.units_.hp[0] < sim.units_.max_hp[0] || sim.units_.hp[1] < sim.units_.max_hp[1] ||
+		      !sim.units_.alive[0] || !sim.units_.alive[1]);
+	}
+	{
+		Simulation *sim = fresh(VICTORY_CONQUEST);
+		int uncapped = sim->pop_max(0);
+		sim->set_pop_cap(15);
+		CHECK(uncapped > 15 && sim->pop_max(0) == 15);
+		sim->set_pop_cap(0);
+		CHECK(sim->pop_max(0) == uncapped);
+		delete sim;
+	}
+
 	// 10. Victory condition, wave mode and map size reach the joining peer in NMT_GAME_START.
 	{
 		GameSetupParams p;
@@ -219,9 +244,11 @@ int main() {
 		p.waves = 1;
 		p.map_size = 384;
 		p.lms = 1;
+		p.pop_cap = 300;
+		p.ceasefire = 10;
 		GameSetupParams q;
 		CHECK(parse_game_start_full(format_game_start_full(p), q));
-		CHECK(q.victory == VICTORY_REGICIDE && q.waves == 1 && q.map_size == 384 && q.lms == 1);
+		CHECK(q.victory == VICTORY_REGICIDE && q.waves == 1 && q.map_size == 384 && q.lms == 1 && q.pop_cap == 300 && q.ceasefire == 10);
 	}
 
 	if (failures) {

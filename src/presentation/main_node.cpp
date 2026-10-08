@@ -2981,6 +2981,8 @@ void RtsoMain::apply_match_settings() {
 	if (victory >= 0 && victory < rtso::VICTORY_COUNT) sim->set_victory_condition((uint8_t)victory);
 	sim->set_waves_enabled((bool)ms->get("waves_enabled"));
 	sim->set_last_man_standing((bool)ms->get("last_man_standing"));
+	sim->set_pop_cap((int)ms->get("pop_cap"));
+	sim->set_ceasefire_seconds(60.0f * (float)std::clamp((int)ms->get("ceasefire_min"), 0, 60));
 	// Game-setup teams (1-based T1..T4) decide allied victory, shared vision and territory.
 	Array slot_teams = ms->get("slot_teams");
 	for (int p = 0; p < 8 && p < slot_teams.size(); ++p) {
@@ -3432,6 +3434,8 @@ void RtsoMain::_on_lobby_start_pressed() {
 		setup.victory = (uint8_t)((int)ms->get("victory"));
 		setup.waves = (bool)ms->get("waves_enabled") ? 1 : 0;
 		setup.lms = (bool)ms->get("last_man_standing") ? 1 : 0;
+		setup.pop_cap = (uint16_t)std::clamp((int)ms->get("pop_cap"), 0, 1000);
+		setup.ceasefire = (uint8_t)std::clamp((int)ms->get("ceasefire_min"), 0, 60);
 		int msz = (int)ms->get("map_size");
 		setup.map_size = (uint16_t)((msz >= 128 && msz <= 512) ? msz : 128);
 		setup.difficulty = (uint8_t)((int)ms->get("ai_difficulty"));
@@ -3513,6 +3517,8 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	sim->set_victory_condition(setup.victory >= rtso::VICTORY_COUNT ? 0 : setup.victory);
 	sim->set_waves_enabled(setup.waves != 0);
 	sim->set_last_man_standing(setup.lms != 0);
+	sim->set_pop_cap(setup.pop_cap);
+	sim->set_ceasefire_seconds(60.0f * (float)setup.ceasefire);
 	for (uint8_t p = 0; p < 8 && p < setup.slot_count; ++p) {
 		if (setup.teams[p] >= 1 && setup.teams[p] <= 8) sim->set_player_team(p, (uint8_t)(setup.teams[p] - 1));
 	}
@@ -3540,6 +3546,8 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		ms->set("victory", (int)sim->victory_condition());
 		ms->set("waves_enabled", sim->waves_enabled());
 		ms->set("last_man_standing", sim->last_man_standing());
+		ms->set("pop_cap", sim->pop_cap());
+		ms->set("ceasefire_min", (int)(sim->ceasefire_seconds() / 60.0f));
 		ms->set("map_size", random_map_size);
 		ms->set("ai_difficulty", (int)sim->petra_difficulty());
 		ms->set("ai_behavior", (int)sim->petra_behavior());
