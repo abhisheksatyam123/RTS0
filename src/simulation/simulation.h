@@ -1244,6 +1244,7 @@ private:
 	void petra_garrison_units_inside(size_t holder_idx, bool allow_melee, std::vector<int> &incoming);
 	uint32_t petra_garrison_holder_for(size_t unit_idx, bool heals_only, bool siege, std::vector<int> &incoming) const;
 	void petra_manage_garrisons();
+	void petra_build_advanced();
 	void petra_manage_victory(float dt);
 	void petra_manage_diplomacy(float dt);
 	void petra_manage_emergency(float dt);
