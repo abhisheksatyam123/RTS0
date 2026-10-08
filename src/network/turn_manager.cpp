@@ -119,10 +119,6 @@ void TurnManager::reset() {
 	boot_hash_ = 0;
 	boot_hash_captured_ = false;
 	last_game_start_attributes_.clear();
-	pending_diplomacy_.clear();
-	has_applied_diplomacy_ = false;
-	for (int a = 0; a < 8; ++a)
-		for (int b = 0; b < 8; ++b) last_applied_diplomacy_[a][b] = 1; // DIPLO_NEUTRAL
 	fleet_upkeep_requests_ = 0;
 	fleet_upkeep_paused_ = false;
 	join_sync_round_trips_ = 0;
@@ -179,16 +175,6 @@ void TurnManager::set_net_host(NetHost *net_host, uint32_t client_id) {
 						          << gsm.init_attributes << "\n";
 					}
 				}
-			} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_DIPLOMACY)) {
-				// G9: the ONE route from the wire to the sim. This replaces the
-				// presentation-gated onDiplomacy applier: a stance now lands on
-				// every peer through the lockstep turn boundary regardless of UI
-				// state. NetHost::dispatchMessage forwards NMT_DIPLOMACY to this
-				// callback on host AND client, and has already rejected a malformed
-				// payload / out-of-range player_id / invalid stance.
-				DiplomacyMsg dm;
-				if (NetPacketSerializer::parse_diplomacy(msg.payload.data(), msg.payload.size(), dm))
-					this->post_diplomacy(dm.actor, dm.player_id, dm.stance, msg.turn);
 			} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_JOIN_SYNC_STATE)) {
 				// One id, two payload shapes (see net_types.h): a 5-byte
 				// ROLE_JOINER request, or an 11-byte ROLE_HOST reply. Try the
@@ -456,61 +442,6 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 	mix_u32(sim.sim_rng_state());
 
 	return hash;
-}
-
-// ---- G8/G9: deferred stance application -----------------------------------
-// Total order on (turn, player_id, sender_peer_id): a deterministic function of
-// the messages themselves, so two peers that received the same set of stances
-// apply them in the same sequence no matter the arrival order.
-bool TurnManager::post_diplomacy(uint8_t actor, uint8_t player_id, uint8_t stance, uint32_t origin_turn) {
-	if (is_replaying_) return false;
-	if (actor >= 8 || player_id >= 8 || actor == player_id || stance > 2) return false;
-	const uint32_t target = apply_base_turn_ + current_turn_ + DIPLOMACY_APPLY_DELAY;
-	PendingDiplomacy pd;
-	pd.turn = target;
-	pd.actor = actor;
-	pd.player_id = player_id;
-	pd.stance = stance;
-	pd.sender_peer_id = local_client_id_;
-	// The sender id is a tiebreaker only (see the header): net_host routes the
-	// authoritative id into post_diplomacy via this call site on the wire path;
-	// the local origination path uses local_client_id_. Identical on every peer
-	// because both are derived from the assignment the host made.
-	size_t pos = 0;
-	while (pos < pending_diplomacy_.size()) {
-		const PendingDiplomacy &q = pending_diplomacy_[pos];
-		if (q.turn != pd.turn) {
-			if (q.turn > pd.turn) break;
-		} else if (q.actor != pd.actor) {
-			if (q.actor > pd.actor) break;
-		} else if (q.player_id != pd.player_id) {
-			if (q.player_id > pd.player_id) break;
-		} else if (q.sender_peer_id > pd.sender_peer_id) {
-			break;
-		}
-		++pos;
-	}
-	pending_diplomacy_.insert(pending_diplomacy_.begin() + (long)pos, pd);
-	return true;
-}
-
-// Single sim write point for a stance. Every stance reaching the sim -- inbound
-// NMT_DIPLOMACY, the locally originated send, and the cmd_type 22 batch in tick()
-// -- goes through a validated Simulation::cmd_set_diplomacy call; recording what
-// was applied lets tests and the hash check see the same value.
-void TurnManager::apply_diplomacy(const std::vector<PendingDiplomacy> &batch, Simulation &sim) {
-	for (const PendingDiplomacy &pd : batch) {
-		// Each player writes its own row only, and the actor came from the
-		// originating peer, so every peer applies the same stance to the same row.
-		if (pd.player_id >= 8 || pd.actor >= 8 || pd.actor == pd.player_id) continue;
-		sim.cmd_set_diplomacy(pd.actor, pd.player_id, pd.stance);
-		last_applied_diplomacy_[pd.actor][pd.player_id] = pd.stance;
-		has_applied_diplomacy_ = true;
-	}
-}
-
-uint8_t TurnManager::last_applied_diplomacy(uint8_t from, uint8_t target) const {
-	return (from < 8 && target < 8) ? last_applied_diplomacy_[from][target] : (uint8_t)1;
 }
 
 // ---- P3: maintainFleet upkeep (0 A.D. navalManager.js:507-543) --------------
@@ -848,21 +779,6 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		});
 	}
 
-	// G8/G9: apply the stances queued by NMT_DIPLOMACY / post_diplomacy for THIS
-	// turn, immediately before the command batch so they are already reflected
-	// when the batch executes (identical ordering to a cmd_type 22 entry, which
-	// runs inside the batch below). Stances for a later turn stay queued.
-	if (!pending_diplomacy_.empty()) {
-		std::vector<PendingDiplomacy> due;
-		size_t keep = 0;
-		for (size_t i = 0; i < pending_diplomacy_.size(); ++i) {
-			if (pending_diplomacy_[i].turn <= current_turn_) due.push_back(pending_diplomacy_[i]);
-			else pending_diplomacy_[keep++] = pending_diplomacy_[i];
-		}
-		pending_diplomacy_.resize(keep);
-		if (!due.empty()) apply_diplomacy(due, sim);
-	}
-
 	// Execute turn commands into simulation (0 A.D. applies batch then advances sim).
 	// 0 A.D. Commands.js: each command runs as its sender's player, and FilterEntityList
 	// drops every unit the sender doesn't own, so a peer can only order its own side.
@@ -926,6 +842,9 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			sim.cmd_cancel_train(pl, c.target_id, (size_t)c.param);
 		} else if (c.cmd_type == 21) { // Guard
 			sim.order_guard(ids, n, c.target_id);
+		} else if (c.cmd_type == 25) { // Train roster template — target_id=building, target_x=template.
+			if (c.target_x >= 0.0f && c.target_x < (float)CIV_UNIT_TEMPLATE_COUNT)
+				sim.cmd_train_template(pl, c.target_id, (uint16_t)c.target_x);
 		} else if (c.cmd_type == 23) { // Barter — target_x=sell, target_z=buy, target_id=amount.
 			// 0 A.D. Barter.js / Market.js exchange. Legacy gap: UI previously called
 			// sim->cmd_barter locally even in lockstep -> resource/price divergence.

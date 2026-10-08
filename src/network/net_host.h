@@ -65,14 +65,6 @@ public:
 	void sendSimulationCommand(uint32_t peer, uint32_t turn, const std::vector<uint8_t> &payload);
 	void sendSyncCheck(uint32_t turn, uint32_t hash);
 	void sendChat(const std::string &msg, const std::string &receiver_guid = "");
-	// Symmetric like sendChat: broadcastCommand() routes host -> peers and
-	// client -> host alike. A client MAY originate a stance change; the host
-	// relays it on dispatch. `turn` rides the packet header so receivers can
-	// order it against the command batch.
-	// actor: the player whose stance row changes (the local player), player_id:
-	// the player the stance is toward. The actor rides on the wire so a relayed
-	// stance keeps its originator (see DiplomacyMsg in net_types.h).
-	void sendDiplomacy(uint8_t actor, uint8_t player_id, uint8_t stance, uint32_t turn = 0);
 	// Late-join turn-0 state resync (P3). Asks the host to resend the full
 	// NMT_GAME_START setup plus its current turn state. Client-only; the host
 	// answers through dispatchMessage() and a client replies with
@@ -114,15 +106,6 @@ public:
 	void onPeerConnected(std::function<void(uint32_t)> cb);
 	void onPeerDisconnected(std::function<void(uint32_t)> cb);
 	void onChat(std::function<void(const ChatMsg&)> cb);
-	// Fired from dispatchMessage() for every well-formed NMT_DIPLOMACY payload,
-	// on both host and client. The receiver owns applying the stance to its
-	// Simulation (src/simulation is a separate ownership stream); a malformed
-	// payload is dropped and never reaches this callback.
-	//
-	// NOTE the host ALSO forwards NMT_DIPLOMACY to message_cb_ so TurnManager can
-	// queue the turn-boundary apply (see resolve_sender_id for the peer_id==0
-	// quirk that makes the authoritative id necessary).
-	void onDiplomacy(std::function<void(uint32_t sender_peer_id, const DiplomacyMsg&)> cb);
 	// Fired for a late-join request this host may answer. Returns true when the
 	// owner answered it, filling turn_out / hash_out with the state it can prove a
 	// joiner can rebuild; returns false to have NetHost reply ERR_JOINED_LATE.
@@ -176,7 +159,6 @@ private:
 	std::function<void(uint32_t)> peer_connected_cb_;
 	std::function<void(uint32_t)> peer_disconnected_cb_;
 	std::function<void(const ChatMsg&)> chat_cb_;
-	std::function<void(uint32_t, const DiplomacyMsg&)> diplomacy_cb_;
 	std::function<bool(uint32_t, uint32_t, uint32_t &, uint32_t &)> join_sync_request_cb_;
 
 	std::vector<LobbyRoom> lobby_rooms_;

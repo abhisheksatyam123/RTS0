@@ -113,29 +113,10 @@ public:
 	// OOS regression the gate exists to prevent.
 	uint32_t gated_tick_count() const { return gated_ticks_; }
 
-	// --- G8/G9: NMT_DIPLOMACY routed through the lockstep turn boundary -------
-	// Queued by the onMessage NMT_DIPLOMACY branch, applied by tick() on turn
-	// apply_base_turn_ + DIPLOMACY_APPLY_DELAY. The sender applies locally
-	// through the same queue (post_diplomacy), so host and client run identical
-	// code for host-originated and client-originated stances.
-	// DIPLOMACY_APPLY_DELAY 1 == the inbound NMT_SIMULATION_COMMAND batch for the
-	// same turn rides the same reliable channel ahead of the stance (TurnManager
-	// sends SIMULATION_COMMAND before END_COMMAND_BATCH in tick()), so a stance
-	// ordered on turn N must not be applied on turn N or it would jump the
-	// command batch it is sorted into. Keep this in lockstep with the ordering in
-	// tick(); the wire format does not depend on it, but the APPLY ORDER does.
-	static constexpr uint32_t DIPLOMACY_APPLY_DELAY = 1;
-	// actor: whose stance row changes. The three-argument form is the local
-	// player's own stance, which is all a UI can originate.
-	bool post_diplomacy(uint8_t actor, uint8_t player_id, uint8_t stance, uint32_t origin_turn);
-	bool post_diplomacy(uint8_t player_id, uint8_t stance, uint32_t origin_turn) {
-		return post_diplomacy(local_player(), player_id, stance, origin_turn);
-	}
-	uint32_t pending_diplomacy_count() const { return (uint32_t)pending_diplomacy_.size(); }
-	// The stance recorded by the last apply_diplomacy(), for verification.
-	// One argument reads player 0's row, as the single-player HUD does.
-	uint8_t last_applied_diplomacy(uint8_t from, uint8_t target) const;
-	uint8_t last_applied_diplomacy(uint8_t target) const { return last_applied_diplomacy(0, target); }
+	// A stance reaches the sim only as lockstep cmd 22 (see tick()): it runs on
+	// the same turn on every peer and as the player the sending client is
+	// seated as, so no client can set another player's stances. NMT_DIPLOMACY
+	// used to be a second route and could do neither.
 
 	// --- P3: maintainFleet upkeep (navalManager.js:507) ----------------------
 	// Commission one warship / fishing boat per docking structure, once per turn.
@@ -330,25 +311,6 @@ private:
 	const Simulation *game_start_applied_sim_ = nullptr; // non-owning
 	std::string last_game_start_attributes_; // authoritative setup kept for resend
 
-	// --- G8/G9 deferred stance applications -----------------------------------
-	// Ordered by (turn, player_id, sender_peer_id) on insert, so every peer
-	// applies the same stances in the same order inside tick(). Deliberately NOT
-	// sorted by sender: cmd_type 22 NetCommands are ordered by client_id inside the
-	// turn batch (see tick's stable_sort), and client_id order is the sim's
-	// authoritative command order.
-	struct PendingDiplomacy {
-		uint32_t turn = 0;
-		uint8_t actor = 0;      // whose stance row changes
-		uint8_t player_id = 0;  // the player the stance is toward
-		uint8_t stance = 1;
-		uint32_t sender_peer_id = 0;
-	};
-	std::vector<PendingDiplomacy> pending_diplomacy_;
-	// [actor][target]: the actor is the sending client's player, so every peer
-	// records the same row without the stance's actor riding on the wire.
-	uint8_t last_applied_diplomacy_[8][8] = {};
-	bool has_applied_diplomacy_ = false;
-
 	// --- P3 maintainFleet ------------------------------------------------------
 	uint32_t fleet_upkeep_requests_ = 0;
 	bool fleet_upkeep_paused_ = false;
@@ -370,9 +332,8 @@ private:
 	// Hash the boot world for the late-join turn-0 proof (see arm_boot_capture).
 	void arm_boot_capture(const Simulation &sim);
 
-	// Turn-boundary helpers. apply_diplomacy() is the single sim write point for
-	// a stance; maintain_fleet_upkeep() is the single command generation point.
-	void apply_diplomacy(const std::vector<PendingDiplomacy> &batch, Simulation &sim);
+	// Turn-boundary helper: maintain_fleet_upkeep() is the single command
+	// generation point for the fleet upkeep.
 	void maintain_fleet_upkeep(Simulation &sim);
 };
 

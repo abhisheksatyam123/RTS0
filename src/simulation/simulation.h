@@ -324,6 +324,26 @@ public:
 	// Legacy wave-defense mode: enemy waves every 35s, survive wave 5 to win. Off by default.
 	bool waves_enabled() const { return waves_enabled_; }
 	void set_waves_enabled(bool on) { waves_enabled_ = on; }
+	// 0 A.D. "Last Man Standing": allies don't share a win; the match goes on until one player is left.
+	bool last_man_standing() const { return last_man_standing_; }
+	void set_last_man_standing(bool on) { last_man_standing_ = on; }
+	// 0 A.D. population limit per player (game setup); 0 means unlimited.
+	int pop_cap() const { return pop_cap_; }
+	void set_pop_cap(int cap) { pop_cap_ = std::max(0, cap); }
+	// 0 A.D. ceasefire: no player can attack another for the first N seconds of the match.
+	float ceasefire_seconds() const { return ceasefire_seconds_; }
+	void set_ceasefire_seconds(float s) { ceasefire_seconds_ = std::max(0.0f, s); }
+	float ceasefire_remaining() const { return std::max(0.0f, ceasefire_seconds_ - (float)ticks_ * FIXED_STEP); }
+	bool ceasefire_active() const { return ceasefire_remaining() > 0.0f; }
+	// Whether a unit or structure of player a may attack one of player b right now.
+	bool can_attack(uint8_t a, uint8_t b) const { return !ceasefire_active() && is_hostile(a, b); }
+	// Player 0's side for victory: itself, game-setup teammates, and mutual diplomatic allies.
+	bool is_ally_of_player0(uint8_t pid) const { return pid == 0 || same_team(0, pid) || is_mutual_ally(pid); }
+	// Match result from pid's seat: player 0's side won (victory_) or lost (game over without it).
+	bool is_victory_for(uint8_t pid) const {
+		if (!victory_ && !game_over_) return false;
+		return victory_ == is_ally_of_player0(pid);
+	}
 
 	// Battle Alerts (AlertRaiser.js)
 	void raise_alert(BattleAlert::Type type, float x, float z, uint32_t entity_id, uint8_t team = 0);
@@ -446,6 +466,13 @@ public:
 		TECH_ERR_PHASE, TECH_ERR_PREREQUISITE, TECH_ERR_STRUCTURES, TECH_ERR_BUILDING, TECH_ERR_COST
 	};
 	ResearchCheck research_check(uint8_t player_id, uint8_t tech_id, uint32_t building_id = 0) const;
+	// 0 A.D. Heal/Range and Heal/Interval after the player's technologies.
+	float healer_range(uint8_t player_id) const;
+	float healer_rate(uint8_t player_id) const; // hit points per second
+	// 0 A.D. unlock_champion_* / unlock_civilians_house_*: a unit the owner's
+	// civ gates behind an unlock technology can only be trained once it is in.
+	uint8_t train_unlock_tech(uint8_t player_id, uint8_t unit_type, uint8_t bld_type) const;
+	bool can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_type) const;
 	// 0 A.D. phase_town / phase_city requirement: finished Village (1) or Town (2) class structures.
 	int phase_structures(uint8_t player_id, uint8_t phase) const;
 	bool unit_has_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.has_order[idx]; }
@@ -692,11 +719,18 @@ private:
 		float speed[UNIT_TYPE_COUNT];
 		float range[UNIT_TYPE_COUNT];
 		float armor[UNIT_TYPE_COUNT][3]; // hack, pierce, crush
+		float train_time[UNIT_TYPE_COUNT];
+		float heal_range[UNIT_TYPE_COUNT];    // added metres
+		float heal_interval[UNIT_TYPE_COUNT]; // < 1 heals faster
+		float trade_gain[UNIT_TYPE_COUNT];
 		float bld_health[BLD_TYPE_COUNT];
 		float bld_attack[BLD_TYPE_COUNT];
 		float bld_range[BLD_TYPE_COUNT];
 		float bld_build_time[BLD_TYPE_COUNT];
+		float bld_research_time[BLD_TYPE_COUNT];
 		float bld_pop_bonus[BLD_TYPE_COUNT];
+		float bld_arrow_mul[BLD_TYPE_COUNT];
+		float bld_arrow_add[BLD_TYPE_COUNT];
 	};
 	void compute_tech_mods(uint8_t player_id, TechMods &out) const;
 	void rebuild_all_tech_mods();
@@ -778,6 +812,9 @@ private:
 	bool has_active_wonder_ = false;
 	VictoryCondition victory_condition_ = VICTORY_CONQUEST;
 	bool waves_enabled_ = false;
+	bool last_man_standing_ = false;
+	int pop_cap_ = 200;
+	float ceasefire_seconds_ = 0.0f;
 	float relic_victory_timer_ = 0.0f;
 	std::vector<BattleAlert> pending_alerts_;
 	float last_alert_time_[6] = {};
@@ -808,8 +845,8 @@ private:
 	// Player Petra is currently thinking for. tick_petra_ai sets it for each AI
 	// slot in turn and leaves it at PETRA_PLAYER between ticks.
 	uint8_t petra_pid_ = PETRA_PLAYER;
-	// Hostile to the AI being run: another player not on its team.
-	bool petra_foe(int t) const { return t >= 0 && t < MAX_PLAYERS && !same_team(petra_pid_, (uint8_t)t); }
+	// Hostile to the AI being run (is_hostile: teams, then its own stance).
+	bool petra_foe(int t) const { return t >= 0 && t < MAX_PLAYERS && is_hostile(petra_pid_, (uint8_t)t); }
 	float passive_timer_ = 0.0f;
 	float rate_window_timer_ = 0.0f;
 	float barter_timer_ = 0.0f;

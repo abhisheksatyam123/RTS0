@@ -34,6 +34,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_stance_selected", "stance"), &RtsoMain::_on_stance_selected);
 	ClassDB::bind_method(D_METHOD("_on_formation_selected", "formation"), &RtsoMain::_on_formation_selected);
 	ClassDB::bind_method(D_METHOD("_on_train_pressed", "utype"), &RtsoMain::_on_train_pressed);
+	ClassDB::bind_method(D_METHOD("_on_roster_item_clicked", "index", "at", "mouse_button"), &RtsoMain::_on_roster_item_clicked);
 	ClassDB::bind_method(D_METHOD("_on_build_btn_pressed", "btype"), &RtsoMain::_on_build_btn_pressed);
 	ClassDB::bind_method(D_METHOD("_on_tech_pressed", "tech_id"), &RtsoMain::_on_tech_pressed);
 	ClassDB::bind_method(D_METHOD("save_game", "path"), &RtsoMain::save_game, DEFVAL("user://saves/quicksave.rts0sav"));
@@ -641,6 +642,25 @@ void RtsoMain::_ready() {
 	if (zeroad_theme.is_valid()) command_panel->set_theme(zeroad_theme);
 	ui_layer->add_child(command_panel);
 
+	roster_list = memnew(ItemList);
+	roster_list->set_anchor(SIDE_LEFT, 1.0f);
+	roster_list->set_anchor(SIDE_RIGHT, 1.0f);
+	roster_list->set_anchor(SIDE_TOP, 1.0f);
+	roster_list->set_anchor(SIDE_BOTTOM, 1.0f);
+	roster_list->set_offset(SIDE_LEFT, -584.0f);
+	roster_list->set_offset(SIDE_RIGHT, -12.0f);
+	roster_list->set_offset(SIDE_TOP, -326.0f);
+	roster_list->set_offset(SIDE_BOTTOM, -202.0f);
+	roster_list->set_max_columns(3);
+	roster_list->set_same_column_width(true);
+	roster_list->set_fixed_column_width(180);
+	roster_list->add_theme_font_size_override("font_size", 11);
+	roster_list->add_theme_stylebox_override("panel", cmd_style);
+	if (zeroad_theme.is_valid()) roster_list->set_theme(zeroad_theme);
+	roster_list->set_visible(false);
+	roster_list->connect("item_clicked", Callable(this, "_on_roster_item_clicked"));
+	ui_layer->add_child(roster_list);
+
 	command_title = memnew(Label);
 	command_title->set_position(Vector2(10, 6));
 	command_title->set_size(Vector2(552, 16));
@@ -1207,6 +1227,14 @@ void RtsoMain::_on_train_pressed(int utype) {
 	try_train_unit((rtso::UnitType)utype);
 }
 
+void RtsoMain::_on_roster_item_clicked(int index, Vector2 at, int mouse_button) {
+	(void)at;
+	if (!roster_list || index < 0 || index >= roster_list->get_item_count()) return;
+	roster_list->deselect_all();
+	if (mouse_button != MOUSE_BUTTON_LEFT || roster_list->is_item_disabled(index)) return;
+	try_train_template(selected_building_id, (uint16_t)(int)roster_list->get_item_metadata(index));
+}
+
 void RtsoMain::_on_build_btn_pressed(int btype) {
 	enter_build_mode(true, (uint8_t)btype);
 }
@@ -1599,18 +1627,18 @@ void RtsoMain::_process(double delta) {
 			rec["total_wood"] = r.total_wood_gathered;
 			rec["total_gold"] = r.total_gold_gathered;
 			rec["total_stone"] = r.total_stone_gathered;
-			summary->call("show_summary", sim->is_victory(), rec, (float)match_elapsed_time);
+			summary->call("show_summary", sim->is_victory_for(local_player()), rec, (float)match_elapsed_time);
 		}
 	}
 
-	// Check Victory / Defeat Condition
-	if (sim->is_victory()) {
+	// Check Victory / Defeat Condition, from the local player's seat
+	if (sim->is_victory_for(local_player())) {
 		banner_panel->set_visible(true);
-		banner_label->set_text("VICTORY!\nYou successfully defended Athens against all enemy invasions!");
+		banner_label->set_text("VICTORY!\nYour side has prevailed.");
 		banner_label->add_theme_color_override("font_color", Color(0.3f, 1.0f, 0.5f));
-	} else if (sim->is_game_over()) {
+	} else if (sim->is_victory() || sim->is_game_over()) {
 		banner_panel->set_visible(true);
-		banner_label->set_text("DEFEAT!\nYour Athenian Town Center has fallen!");
+		banner_label->set_text("DEFEAT!\nYour side has been defeated.");
 		banner_label->add_theme_color_override("font_color", Color(1.0f, 0.3f, 0.3f));
 	}
 }
@@ -1916,6 +1944,7 @@ void RtsoMain::update_command_panel() {
 
 		// Update 8-slot Visual Production Queue (ProductionQueue.js parity)
 		production_queue_.update(found_b);
+		update_roster_list(found_b);
 
 		if (found_b && found_b->build_progress >= 1.0f) {
 			uint8_t pciv = sim->player_civ(local_player());
@@ -1925,6 +1954,12 @@ void RtsoMain::update_command_panel() {
 				if ((roster & rtso::unit_bit((uint8_t)t)) == 0) return;
 				Button *btn = memnew(Button);
 				btn->set_text(label);
+				// Champions wait for their unlock technology (0 A.D. unlock_champion_*).
+				uint8_t gate = sim->train_unlock_tech(local_player(), (uint8_t)t, found_b->type);
+				if (gate != rtso::TECH_NONE && !sim->player(local_player()).has_tech(gate)) {
+					btn->set_disabled(true);
+					btn->set_tooltip_text(String("Requires ") + rtso::tech_info(gate).name);
+				}
 				btn->connect("pressed", Callable(this, "_on_train_pressed").bind((int)t));
 				production_bar->add_child(btn);
 			};
@@ -1967,6 +2002,10 @@ void RtsoMain::update_command_panel() {
 				add_train(rtso::UNIT_TRADER, "Merchant Trader (60f,60w)");
 			} else if (found_b->type == rtso::BLD_TEMPLE) {
 				add_train(rtso::UNIT_HEALER, "Temple Healer (80f,60g)");
+			} else if (found_b->type == rtso::BLD_HOUSE) {
+				// Fertility Festival (unlock_civilians_house_*) turns houses into trainers.
+				add_train(rtso::UNIT_VILLAGER, "Villager (50f)");
+				add_train(rtso::UNIT_FEMALE_CITIZEN, "Female Citizen (40f)");
 			} else if (found_b->type == rtso::BLD_FARMSTEAD || found_b->type == rtso::BLD_CORRAL) {
 				add_train(rtso::UNIT_WAR_DOG, "Guard Dog (60f)");
 			}
@@ -2026,6 +2065,7 @@ void RtsoMain::update_command_panel() {
 	} else {
 		// Non-building selected: clear visual queue slots
 		production_queue_.update(nullptr);
+		update_roster_list(nullptr);
 
 		if (!selected_ids.is_empty()) {
 			auto uview = sim->units();
@@ -2184,6 +2224,70 @@ void RtsoMain::try_train_unit(rtso::UnitType utype) {
 	}
 	if (sim->cmd_train(local_player(), bid, utype))
 		play_civ_voice("select");
+}
+
+void RtsoMain::try_train_template(uint32_t building_id, uint16_t tmpl) {
+	if (building_id == 0 || tmpl >= rtso::CIV_UNIT_TEMPLATE_COUNT) return;
+	if (net_lockstep()) {
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_TRAIN_TEMPLATE, nullptr, 0, (float)tmpl, 0.0f, building_id, 0);
+		play_civ_voice("select");
+		return;
+	}
+	if (sim->cmd_train_template(local_player(), building_id, tmpl))
+		play_civ_voice("select");
+}
+
+// The selected building's trainable roster for the local player's civ: every
+// civ_unit_template_table() row whose trainers include this building type, with
+// 0 A.D. names and costs after team bonuses; rows above the player's phase are
+// listed but disabled with the phase they need.
+void RtsoMain::update_roster_list(const rtso::Simulation::Building *b) {
+	if (!roster_list) return;
+	const uint8_t pid = local_player();
+	if (!b || b->team != pid || b->build_progress < 1.0f) {
+		roster_list->set_visible(false);
+		roster_list_key_ = ~0ull;
+		return;
+	}
+	const uint8_t civ = sim->player_civ(pid);
+	const uint8_t phase = sim->player_phase(pid);
+	// Rebuild when the building, civ, phase or allies (team bonus prices) change.
+	const uint64_t key = ((uint64_t)b->id << 32) | ((uint64_t)sim->ally_civ_mask(pid) << 12) |
+		((uint64_t)(civ & 0x3F) << 2) | (uint64_t)(phase & 0x3);
+	if (key == roster_list_key_) return;
+	roster_list_key_ = key;
+	roster_list->clear();
+	for (uint16_t i = rtso::civ_roster_begin(civ); i < rtso::civ_roster_end(civ); ++i) {
+		const rtso::CivUnitTemplate &u = rtso::civ_unit_template(i);
+		if (!(u.trainers & rtso::bld_bit(b->type))) continue;
+		float cost[rtso::RES_COUNT];
+		sim->unit_train_cost(pid, i, rtso::civ_template_unit_info(i, u.unit_type), cost);
+		String costs;
+		auto add_cost = [&](float v, const char *suffix) {
+			if (v <= 0.0f) return;
+			if (!costs.is_empty()) costs += " ";
+			costs += String::num_int64((int64_t)v) + suffix;
+		};
+		add_cost(cost[rtso::RES_FOOD], "f");
+		add_cost(cost[rtso::RES_WOOD], "w");
+		add_cost(cost[rtso::RES_STONE], "s");
+		add_cost(cost[rtso::RES_GOLD], "m");
+		String label = String::utf8(u.name);
+		if (u.flags & rtso::ROSTER_HERO) label = String::utf8("\u2605 ") + label;
+		label += costs.is_empty() ? String(" (free)") : " (" + costs + ")";
+		int idx = roster_list->add_item(label);
+		roster_list->set_item_metadata(idx, (int)i);
+		String tip = String::utf8(u.name);
+		if (u.specific_name && u.specific_name[0]) tip += String::utf8(" \u2014 ") + String::utf8(u.specific_name);
+		tip += "\nHP " + String::num_int64((int64_t)u.hp) + ", attack " + String::num(u.attack_damage, 1) +
+			", train " + String::num(u.train_time, 0) + " s, pop " + String::num_int64(u.pop_cost);
+		if (u.phase > phase) {
+			roster_list->set_item_disabled(idx, true);
+			tip += u.phase >= 3 ? "\nRequires City Phase" : "\nRequires Town Phase";
+		}
+		roster_list->set_item_tooltip(idx, tip);
+	}
+	roster_list->set_visible(roster_list->get_item_count() > 0);
 }
 
 void RtsoMain::clear_selection() {
@@ -2980,6 +3084,16 @@ void RtsoMain::apply_match_settings() {
 	}
 	if (victory >= 0 && victory < rtso::VICTORY_COUNT) sim->set_victory_condition((uint8_t)victory);
 	sim->set_waves_enabled((bool)ms->get("waves_enabled"));
+	sim->set_last_man_standing((bool)ms->get("last_man_standing"));
+	sim->set_pop_cap((int)ms->get("pop_cap"));
+	sim->set_ceasefire_seconds(60.0f * (float)std::clamp((int)ms->get("ceasefire_min"), 0, 60));
+	// Game-setup teams (1-based T1..T4) decide allied victory, shared vision and territory.
+	Array slot_teams = ms->get("slot_teams");
+	for (int p = 0; p < 8 && p < slot_teams.size(); ++p) {
+		int tm = (int)slot_teams[p];
+		if (tm >= 1 && tm <= 8) sim->set_player_team((uint8_t)p, (uint8_t)(tm - 1));
+	}
+	sim->apply_team_diplomacy(); // stances follow the lobby's teams
 	sync_victory_selector();
 	if (diff >= 0 && diff <= 5) sim->set_petra_difficulty((uint8_t)diff);
 	if (behavior >= 0 && behavior <= 3) sim->set_petra_behavior((uint8_t)behavior);
@@ -3424,6 +3538,9 @@ void RtsoMain::_on_lobby_start_pressed() {
 		setup.seed = (uint32_t)(int64_t)(int)ms->get("seed");
 		setup.victory = (uint8_t)((int)ms->get("victory"));
 		setup.waves = (bool)ms->get("waves_enabled") ? 1 : 0;
+		setup.lms = (bool)ms->get("last_man_standing") ? 1 : 0;
+		setup.pop_cap = (uint16_t)std::clamp((int)ms->get("pop_cap"), 0, 1000);
+		setup.ceasefire = (uint8_t)std::clamp((int)ms->get("ceasefire_min"), 0, 60);
 		int msz = (int)ms->get("map_size");
 		setup.map_size = (uint16_t)((msz >= 128 && msz <= 512) ? msz : 128);
 		setup.difficulty = (uint8_t)((int)ms->get("ai_difficulty"));
@@ -3504,6 +3621,13 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	}
 	sim->set_victory_condition(setup.victory >= rtso::VICTORY_COUNT ? 0 : setup.victory);
 	sim->set_waves_enabled(setup.waves != 0);
+	sim->set_last_man_standing(setup.lms != 0);
+	sim->set_pop_cap(setup.pop_cap);
+	sim->set_ceasefire_seconds(60.0f * (float)setup.ceasefire);
+	for (uint8_t p = 0; p < 8 && p < setup.slot_count; ++p) {
+		if (setup.teams[p] >= 1 && setup.teams[p] <= 8) sim->set_player_team(p, (uint8_t)(setup.teams[p] - 1));
+	}
+	sim->apply_team_diplomacy();
 	sync_victory_selector();
 	sim->set_petra_difficulty(setup.difficulty > 5 ? 3 : setup.difficulty);
 	sim->set_petra_behavior(setup.behavior > 3 ? 2 : setup.behavior);
@@ -3533,6 +3657,9 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		ms->set("seed", (int64_t)setup.seed);
 		ms->set("victory", (int)sim->victory_condition());
 		ms->set("waves_enabled", sim->waves_enabled());
+		ms->set("last_man_standing", sim->last_man_standing());
+		ms->set("pop_cap", sim->pop_cap());
+		ms->set("ceasefire_min", (int)(sim->ceasefire_seconds() / 60.0f));
 		ms->set("map_size", random_map_size);
 		ms->set("ai_difficulty", (int)sim->petra_difficulty());
 		ms->set("ai_behavior", (int)sim->petra_behavior());
