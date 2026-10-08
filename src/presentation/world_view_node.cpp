@@ -1673,6 +1673,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			Transform3D xf(rot, Vector3(rx, ry + e_stone.y_offset, rz));
 			stone_mm->set_instance_transform((int)ist++, xf);
 		} else if (rview.type[i] == rtso::RES_FOOD && food_mm.is_valid()) {
+			// Fish float at the water surface (0 A.D. Position/Floating); the fruit-bush mesh
+			// stands in until the asset pipeline brings 0 A.D.'s fish shoal actor.
+			if (rview.subtype[i] == rtso::RES_SUB_FISH) ry = std::max(ry, sim->water_height());
 			Transform3D xf(rot, Vector3(rx, ry + e_food.y_offset, rz));
 			food_mm->set_instance_transform((int)ifd++, xf);
 		}
