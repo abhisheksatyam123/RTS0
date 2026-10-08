@@ -209,7 +209,21 @@ public:
 		float upgrade_timer = 0.0f;
 		float upgrade_duration = 0.0f;
 		std::array<float, RES_COUNT> upgrade_paid{};
+
+		// 0 A.D. Gate.js (BLD_GATE only). An unlocked gate never blocks long-range
+		// pathfinding and blocks movement only while closed; a locked gate stays
+		// closed and blocks both.
+		bool gate_open = false;
+		bool gate_locked = false;
 	};
+	// Whether `b` is rasterized into the nav grid (0 A.D. Obstruction BlockPathfinding).
+	static bool blocks_pathfinding(const Building &b) {
+		return building_blocks_movement(b.type) && (b.type != BLD_GATE || b.gate_locked);
+	}
+	// Whether units collide with `b` right now (0 A.D. Obstruction BlockMovement).
+	static bool blocks_movement_now(const Building &b) {
+		return building_blocks_movement(b.type) && !(b.type == BLD_GATE && b.gate_open);
+	}
 
 	Simulation();
 	~Simulation();
@@ -384,6 +398,8 @@ public:
 	bool cmd_upgrade_building(uint8_t player_id, uint32_t building_id);
 	// Stops an upgrade in progress and refunds what was paid (Upgrade.js CancelUpgrade).
 	bool cmd_cancel_upgrade(uint8_t player_id, uint32_t building_id);
+	// 0 A.D. Gate.js LockGate / UnlockGate: the owner keeps its own units out too.
+	bool cmd_lock_gate(uint8_t player_id, uint32_t building_id, bool lock);
 	// Maximum hit points of a `type` structure owned by `team`: template x civ bonus x techs.
 	float structure_max_hp(uint8_t type, uint8_t team) const;
 	// 0 A.D. Barter.js: sell 100 or 500 (DEAL_AMOUNT x 1 or BATCH_SIZE) of one
@@ -1119,6 +1135,10 @@ private:
 		bool wrecked;
 	};
 	std::vector<SteerObstacle> steer_obstacles_;
+	// Closed gates this tick: the only movement blockers the nav grid leaves out (0 A.D.
+	// gate Obstruction BlockMovement without BlockPathfinding), so move_units stops units
+	// at their edge instead of relying on the soft separation push.
+	std::vector<SteerObstacle> closed_gates_;
 	AuraManager aura_mgr_; // G4: unified aura sources (AuraManager)
 	float fow_timer_ = 0.0f;
 	float territory_timer_ = 0.0f;
