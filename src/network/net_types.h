@@ -159,6 +159,10 @@ enum class NetCommandType : uint8_t {
 	// 0 A.D. Heal order (UnitAI Heal): healers in entity_ids heal target_id (an injured
 	// allied unit). param bit NET_PARAM_QUEUED queues it.
 	NET_CMD_HEAL           = 32,
+	// 0 A.D. "set-trading-goods" (Player.js SetTradingGoods): the issuing player's
+	// trader goods shares in percent, one byte per ResourceType in target_id
+	// (byte r = share of resource r); see Simulation::cmd_set_trading_goods.
+	NET_CMD_SET_TRADING_GOODS = 33,
 	// Session control, not game commands (200+ is reserved for these; game command
 	// ids keep growing from 33). Only the host sends them, inside its own turn batch,
 	// so every client learns of a seat change before the turn it affects (0 A.D.
