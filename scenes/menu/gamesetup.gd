@@ -52,6 +52,12 @@ const RMS_MAPS := [
 	["random_gulf_of_bothnia", "Gulf of Bothnia (RMS)", "Random", 8, 128, "alpine", "A northern gulf cuts in from one edge; players around its shores. Supports 2-8 players."],
 	["random_ardennes_forest", "Ardennes Forest (RMS)", "Random", 8, 128, "temperate", "Dense hilly forest with clearings for each base. Supports 2-8 players."],
 	["random_nearestern_badlands", "Near-Eastern Badlands (RMS)", "Random", 8, 128, "oasis", "Eroded desert canyons with a few oases and rich mines. Supports 2-8 players."],
+	["random_rivers", "Rivers (RMS)", "Random", 8, 128, "temperate", "Rivers run from a central lake out between the players, crossed at fords. Supports 2-8 players."],
+	["random_canyon", "Canyon (RMS)", "Random", 8, 128, "oasis", "Each base sits in a gorge leading to a central basin. Supports 2-8 players."],
+	["random_corinthian_isthmus", "Corinthian Isthmus (RMS)", "Random", 8, 128, "mediterranean", "Two lands joined by a narrow isthmus between two gulfs. Supports 2-8 players."],
+	["random_belgian_uplands", "Belgian Uplands (RMS)", "Random", 8, 128, "temperate", "Steep wooded hills and valleys with no water. Supports 2-8 players."],
+	["random_lorraine_plain", "Lorraine Plain (RMS)", "Random", 8, 128, "temperate", "A flat plain split by a river with a few fords. Supports 2-8 players."],
+	["random_hyrcanian_shores", "Hyrcanian Shores (RMS)", "Random", 8, 128, "temperate", "A sea along one edge, a coastal strip and wooded highlands. Supports 2-8 players."],
 ]
 
 # 0 A.D. map sizes (width in meters) for random maps.

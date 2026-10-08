@@ -71,7 +71,13 @@ enum MapType : uint8_t {
 	MAP_GULF_OF_BOTHNIA = 18,
 	MAP_ARDENNES_FOREST = 19,
 	MAP_NEARESTERN_BADLANDS = 20,
-	MAP_TYPE_COUNT = 21
+	MAP_RIVERS = 21,
+	MAP_CANYON = 22,
+	MAP_CORINTHIAN_ISTHMUS = 23,
+	MAP_BELGIAN_UPLANDS = 24,
+	MAP_LORRAINE_PLAIN = 25,
+	MAP_HYRCANIAN_SHORES = 26,
+	MAP_TYPE_COUNT = 27
 };
 
 struct MapTypeInfo {
@@ -105,7 +111,13 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_LAKE, "lake", "Lake (RMS)", "temperate", true, "A great lake fills the middle of the map, ringed by the players' lands."},
 		{MAP_GULF_OF_BOTHNIA, "gulf_of_bothnia", "Gulf of Bothnia (RMS)", "alpine", true, "A northern gulf cuts into the land from one edge, players settle around its shores."},
 		{MAP_ARDENNES_FOREST, "ardennes_forest", "Ardennes Forest (RMS)", "temperate", true, "Dense hilly forest with clearings for each base; wood everywhere, little open ground."},
-		{MAP_NEARESTERN_BADLANDS, "nearestern_badlands", "Near-Eastern Badlands (RMS)", "oasis", true, "Dry eroded badlands split by canyons, with a few oases and rich mines."}
+		{MAP_NEARESTERN_BADLANDS, "nearestern_badlands", "Near-Eastern Badlands (RMS)", "oasis", true, "Dry eroded badlands split by canyons, with a few oases and rich mines."},
+		{MAP_RIVERS, "rivers", "Rivers (RMS)", "temperate", true, "Rivers run from a central lake out between the players, crossed by shallow fords."},
+		{MAP_CANYON, "canyon", "Canyon (RMS)", "oasis", true, "High rocky ground cut by canyons: each base sits in a gorge that leads to a central basin."},
+		{MAP_CORINTHIAN_ISTHMUS, "corinthian_isthmus", "Corinthian Isthmus (RMS)", "mediterranean", true, "Two lands joined by a narrow isthmus, with the sea on both sides of it."},
+		{MAP_BELGIAN_UPLANDS, "belgian_uplands", "Belgian Uplands (RMS)", "temperate", true, "Steep wooded hills and valleys with no water, high ground everywhere."},
+		{MAP_LORRAINE_PLAIN, "lorraine_plain", "Lorraine Plain (RMS)", "temperate", true, "A flat plain split by a river with a few fords, players on either bank."},
+		{MAP_HYRCANIAN_SHORES, "hyrcanian_shores", "Hyrcanian Shores (RMS)", "temperate", true, "A sea along one edge, a forested coastal strip and wooded highlands behind it."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
