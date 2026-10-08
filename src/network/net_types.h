@@ -72,7 +72,10 @@ enum class NetMessageType : uint8_t {
 	// Half-close of the late-join handshake: {accepted, hash}. Separate from
 	// NMT_SYNC_CHECK so it cannot pollute the per-turn OOS accounting.
 	NMT_JOIN_SYNC_CHECK           = 33,
-	NMT_COUNT                     = 34
+	// Rejoin of a game in progress (0 A.D. NetServer OnJoinSyncingLoadedGame /
+	// NMT_FILE_TRANSFER_* of the serialized state): see RejoinMsg.
+	NMT_REJOIN_STATE              = 34,
+	NMT_COUNT                     = 35
 };
 
 enum AuthenticateResultCode : uint32_t {
@@ -429,9 +432,34 @@ struct SyncErrorMsg {
 };
 
 struct ChatMsg {
-	std::string sender_guid;
+	std::string sender_guid;            // stamped by the host from the session (0 A.D. NetServer OnChat)
 	std::string message;
-	std::vector<std::string> receivers; // empty = broadcast to all
+	std::vector<std::string> receivers; // empty = broadcast to all; "peer-<id>" GUIDs otherwise
+};
+inline std::string peer_guid(uint32_t peer_id) { return "peer-" + std::to_string(peer_id); }
+
+// NMT_REJOIN_STATE: a client (re)joining a match in progress takes over a
+// human seat whose client dropped. It asks the host (REQUEST); at its next turn
+// boundary T the host answers with a HEADER (turn T, the seat, the client ->
+// player map, the lockstep peers and the turn each must send from, and every
+// command batch it holds for turns after T) and then the saved world in CHUNKs.
+// The rejoiner loads the world, takes the batches and runs on from turn T+1.
+struct RejoinMsg {
+	enum Kind : uint8_t { REQUEST = 0, REJECT = 1, HEADER = 2, CHUNK = 3 };
+	uint8_t kind = REQUEST;
+	uint32_t turn = 0;
+	uint32_t total = 0;  // HEADER: saved-world size; CHUNK: offset of these bytes
+	uint8_t reason = 0;  // REJECT: 1 = no free seat, 2 = match not started
+	std::vector<uint8_t> bytes; // HEADER: the rest of the header; CHUNK: world bytes
+	static constexpr size_t CHUNK_BYTES = 1024;
+};
+
+// NMT_CLIENT_PAUSED (0 A.D. NetMessages.h ClientPaused): a client pauses or
+// resumes the match. The host stamps guid with the sender's id ("<client id>"),
+// keeps the list of pausing clients and relays the message to everyone else.
+struct ClientPausedMsg {
+	std::string guid;
+	uint8_t pause = 0;
 };
 
 // NMT_JOIN_SYNC_STATE payload -- late-join turn-0 state resync request.
@@ -833,6 +861,40 @@ public:
 			msg.receivers.push_back(std::move(r));
 		}
 		return true;
+	}
+
+	static std::vector<uint8_t> frame_rejoin(const RejoinMsg &msg) {
+		std::vector<uint8_t> buf;
+		NetSerde::write_u8(buf, msg.kind);
+		NetSerde::write_u32(buf, msg.turn);
+		NetSerde::write_u32(buf, msg.total);
+		NetSerde::write_u8(buf, msg.reason);
+		buf.insert(buf.end(), msg.bytes.begin(), msg.bytes.end());
+		return buf;
+	}
+
+	static bool parse_rejoin(const uint8_t *data, size_t size, RejoinMsg &msg) {
+		size_t offset = 0;
+		if (!NetSerde::read_u8(data, size, offset, msg.kind) || msg.kind > RejoinMsg::CHUNK) return false;
+		if (!NetSerde::read_u32(data, size, offset, msg.turn)) return false;
+		if (!NetSerde::read_u32(data, size, offset, msg.total)) return false;
+		if (!NetSerde::read_u8(data, size, offset, msg.reason)) return false;
+		msg.bytes.assign(data + offset, data + size);
+		return true;
+	}
+
+	static std::vector<uint8_t> frame_client_paused(const ClientPausedMsg &msg) {
+		std::vector<uint8_t> buf;
+		NetSerde::write_string(buf, msg.guid);
+		NetSerde::write_u8(buf, msg.pause ? 1 : 0);
+		return buf;
+	}
+
+	static bool parse_client_paused(const uint8_t *data, size_t size, ClientPausedMsg &msg) {
+		size_t offset = 0;
+		if (!NetSerde::read_string(data, size, offset, msg.guid)) return false;
+		if (!NetSerde::read_u8(data, size, offset, msg.pause)) return false;
+		return offset == size;
 	}
 
 	static std::vector<uint8_t> frame_join_sync(const JoinSyncMsg &msg) {

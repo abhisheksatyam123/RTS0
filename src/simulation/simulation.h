@@ -65,6 +65,7 @@ struct Projectile {
 	uint32_t target_unit_id = 0;
 	uint32_t target_building_id = 0;
 	bool alive = true;
+	uint32_t source_id = 0; // firing unit or building: Promotion xp and Looter.js loot go to it
 };
 
 struct ProductionOrder {
@@ -79,6 +80,8 @@ struct ProductionOrder {
 // Stockpiles are float so AI trickle income accrues fractionally; whole-number
 // callers read them through int accessors.
 static constexpr uint8_t MAX_PLAYERS = 8;
+// Owner of a defeated player's leftovers (0 A.D.'s Gaia): hostile to everyone, owned by no slot.
+static constexpr uint8_t GAIA_PLAYER = 0xFE;
 
 struct PlayerState {
 	float res[RES_COUNT] = {};             // indexed by ResourceType
@@ -124,8 +127,8 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
+	static constexpr uint32_t SAVE_VERSION = 20; // save_state's format; see the history beside it
 	static constexpr size_t MAX_PROJECTILES = 384;
-	static constexpr uint32_t SAVE_VERSION = 18; // save_state format (see save_state for the history)
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
 	// resolution grows with the map: 64 cells on the default 128m map, 256 on a
@@ -355,6 +358,10 @@ public:
 	uint32_t formation_of_unit(uint32_t unit_id) const;
 	void order_garrison(const uint32_t *unit_ids, size_t count, uint32_t building_id);
 	void order_ungarrison(uint32_t building_id);
+	// GarrisonHolder.HasEnoughHealth: above EjectHealth of max health, so it may hold a garrison.
+	bool structure_has_enough_health(const Building &b) const;
+	// Hitpoints per second each unit garrisoned in `b` regains (BuffHeal plus Living Conditions).
+	float structure_garrison_heal(const Building &b) const;
 	void order_ungarrison_single(uint32_t building_id, uint32_t unit_id);
 	void order_guard(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id);
 
@@ -541,8 +548,14 @@ public:
 	const std::vector<Projectile> &projectiles() const { return projectiles_; }
 
 	// Per-player table. Out-of-range ids clamp to player 0 so stray team bytes can't index past the array.
-	const PlayerState &player(uint8_t pid) const { return players_[pid < MAX_PLAYERS ? pid : 0]; }
-	PlayerState &player(uint8_t pid) { return players_[pid < MAX_PLAYERS ? pid : 0]; }
+	// Gaia (and any other non-slot owner) gets an empty stock: nothing it earns or spends
+	// reaches a real player.
+	const PlayerState &player(uint8_t pid) const { return pid < MAX_PLAYERS ? players_[pid] : gaia_stock_; }
+	PlayerState &player(uint8_t pid) {
+		if (pid < MAX_PLAYERS) return players_[pid];
+		gaia_stock_ = PlayerState();
+		return gaia_stock_;
+	}
 	int player_resource(uint8_t pid, uint8_t res_type) const { return (res_type < RES_COUNT) ? (int)player(pid).res[res_type] : 0; }
 	void set_player_resources(uint8_t pid, int food, int wood, int gold, int stone) {
 		PlayerState &ps = player(pid);
@@ -762,6 +775,7 @@ public:
 	};
 	const AttackPlan &petra_attack_plan() const { return petra_attack_plan_; }
 	const AttackPlan &petra_raid_plan() const { return petra_raid_plan_; }
+	const PetraAttackManager &petra_attack_manager() const { return petra_attack_mgr_; }
 	int petra_opening_step() const { return petra_opening_step_; }
 
 	void set_petra_difficulty(uint8_t d) {
@@ -888,6 +902,7 @@ private:
 		float bld_pop_bonus[BLD_TYPE_COUNT];
 		float bld_arrow_mul[BLD_TYPE_COUNT];
 		float bld_arrow_add[BLD_TYPE_COUNT];
+		float bld_garrison_heal[BLD_TYPE_COUNT]; // added hp per second for garrisoned units
 	};
 	void compute_tech_mods(uint8_t player_id, TechMods &out) const;
 	void rebuild_all_tech_mods();
@@ -923,6 +938,8 @@ private:
 	void tick_upgrades(float dt);
 	// Unloads land siege below SIEGE_EJECT_HEALTH or dead (GarrisonHolder EjectHealth / OnDestroy).
 	void tick_siege_garrisons();
+	// Structures heal their garrison each second and unload it below EjectHealth (GarrisonHolder.js).
+	void tick_garrison_holders();
 	bool can_board(size_t transport_idx, size_t unit_idx) const;
 	void cancel_upgrade(Building &b, uint8_t refund_to);
 	void finish_upgrade(Building &b);
@@ -938,7 +955,6 @@ private:
 	void tick_upkeep(float dt);
 	void tick_entity_limits(float dt);
 	void tick_death_damage(float dt);
-	void tick_loot(float dt);
 	void tick_gates(float dt);
 	void tick_waves(float dt);
 	void tick_petra_ai(float dt);
@@ -955,12 +971,18 @@ private:
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
 	void rebuild_auras(); // G4: rebuild AuraManager from temples/heroes/carnyx/female citizens
-	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false, uint8_t visual = 0);
+	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false, uint8_t visual = 0, uint32_t source_id = 0);
 	void mark_building_wreck(Building &b);
 	void record_death(float x, float z, uint8_t team, uint8_t killer_team, uint8_t type, bool is_building);
 	void bind_unit_index(uint32_t id, size_t idx);
 	int32_t lookup_unit(uint32_t id) const;
-	void apply_loot_bounty(uint8_t killer_team, int food, int wood, int gold, int stone);
+	// 0 A.D. Loot.js / Looter.js / Promotion.js (see simulation.cpp).
+	void gain_xp(size_t idx, float amount);
+	void award_damage_xp(uint32_t attacker_id, size_t victim, float damage);
+	bool looter_present(uint32_t looter_id, bool *infantry) const;
+	void collect_loot(uint32_t looter_id, uint8_t looter_player, LootInfo loot, float mult, uint8_t carried_type, int32_t carried);
+	void collect_unit_loot(uint32_t looter_id, uint8_t looter_player, size_t victim);
+	void collect_building_loot(uint32_t looter_id, uint8_t looter_player, const Building &b);
 	void check_victory_conditions(float dt);
 	void spawn_regicide_heroes();
 
@@ -1018,6 +1040,9 @@ private:
 	std::unordered_map<uint32_t, uint32_t> field_bld_by_res_; // grain resource id -> field building id
 	struct FieldGatherers { int total = 0; int slots_taken = 0; };
 	std::unordered_map<uint32_t, FieldGatherers> field_gatherers_; // per tick, keyed by grain resource id
+	std::unordered_map<uint32_t, FieldGatherers> fish_gatherers_; // per tick, keyed by fish resource id
+	// Nearest fish on `sea` (ship region) within max_d of (x, z) with a free gatherer slot; 0 if none.
+	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0) const;
 	std::unordered_map<uint32_t, size_t> building_id_to_idx_;
 
 	struct CellHash {
@@ -1070,6 +1095,10 @@ private:
 	float relic_duration_ = 180.0f;
 	int relic_count_ = 0;
 	void apply_relic_count();
+	PlayerState gaia_stock_; // scratch for player(GAIA_PLAYER); never saved or hashed
+	// Player.js SetState("defeated"): hand every unit and structure of these players to Gaia.
+	void convert_to_gaia(uint8_t players);
+	void tick_capture_gaia(Building &b, float dt);
 	uint8_t participant_mask_ = 0; // save v10
 	uint8_t defeated_mask_ = 0;
 	uint8_t winner_mask_ = 0;
@@ -1113,6 +1142,7 @@ private:
 
 	AttackPlan petra_attack_plan_;
 	AttackPlan petra_raid_plan_;
+	PetraAttackManager petra_attack_mgr_; // attackManager.js plan counters and sizes
 	int petra_opening_step_ = 0;
 	float petra_opening_timer_ = 0.0f;
 	PetraConfig petra_config_;
@@ -1132,6 +1162,10 @@ private:
 	bool pick_petra_safe_staging(float base_x, float base_z, float target_x, float target_z, float &out_sx, float &out_sz) const;
 	uint32_t find_petra_attack_target(float &out_tx, float &out_tz) const;
 	uint32_t find_petra_raid_target(float &out_tx, float &out_tz) const;
+	uint32_t find_petra_rush_target(float &out_tx, float &out_tz) const;
+	void petra_set_rushes();
+	void petra_plan_sizes(uint8_t kind);
+	bool petra_raid_target_ok(uint32_t bld_id) const;
 	bool petra_unit_reserved(uint32_t uid) const;
 
 	std::vector<PetraBase> petra_bases_;
@@ -1209,7 +1243,7 @@ private:
 	X(petra_diplo_timer_) X(ai_wonder_victory_timer_) X(petra_bases_) X(petra_fnd_watch_) \
 	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
-	X(petra_fow_) X(petra_fleets_) X(petra_diplo_)
+	X(petra_fow_) X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};

@@ -248,6 +248,31 @@ int main() {
 		CHECK(loaded.is_defeated(0) && !loaded.is_defeated(2) && loaded.participant_mask() == sim->participant_mask());
 		delete sim;
 	}
+	// 9i. A defeated player's leftovers turn Gaia (Player.js): its structures stay, owned by
+	// no slot, hold no territory, and any player can capture them.
+	{
+		Simulation *sim = fresh(VICTORY_CONQUEST_UNITS);
+		sim->spawn_unit(-40.0f, 40.0f, 2, UNIT_SWORDSMAN);
+		const uint32_t house = sim->spawn_building(-30, -30, BLD_HOUSE, 1, 1.0f); // cells: (-60, -60) m
+		run(*sim, 0.5f);
+		wipe(*sim, 1, true, false);
+		run(*sim, 1.0f);
+		CHECK(sim->is_defeated(1) && !sim->is_game_over());
+		int gaia = 0, still_p1 = 0;
+		for (const auto &b : sim->buildings_) {
+			if (b.team == GAIA_PLAYER) gaia++;
+			if (b.team == 1) still_p1++;
+		}
+		CHECK(gaia > 0 && still_p1 == 0);
+		const Simulation::Building *hb = nullptr;
+		for (const auto &b : sim->buildings_) if (b.id == house) hb = &b;
+		CHECK(hb && hb->team == GAIA_PLAYER);
+		for (int k = 0; k < 6; ++k) sim->spawn_unit(hb->x + 4.0f + (float)k, hb->z + 4.0f, 0, UNIT_SWORDSMAN);
+		run(*sim, 60.0f);
+		for (const auto &b : sim->buildings_) if (b.id == house) hb = &b;
+		CHECK(hb->team == 0);
+		delete sim;
+	}
 	// 9d. An ally's wonder wins for player 0 in Wonder mode.
 	{
 		Simulation *sim = fresh(VICTORY_WONDER);
@@ -341,6 +366,19 @@ int main() {
 		run(*sim, 0.1f);
 		CHECK(sim->relics().size() == map_relics);
 		delete sim;
+	}
+
+	// 12. A 6-slot lobby (U6): the random map has a base per slot and every AI slot gets Petra.
+	{
+		Simulation sim;
+		sim.generate_random_map(MAP_MAINLAND, 11, 6, 128.0f);
+		for (uint8_t t = 0; t < MAX_PLAYERS; ++t) sim.set_player_active(t, t < 6, t > 0 && t < 6);
+		int tcs[MAX_PLAYERS] = {};
+		for (const auto &b : sim.buildings_)
+			if (b.type == BLD_TOWN_CENTER && b.team < MAX_PLAYERS) tcs[b.team]++;
+		for (uint8_t t = 0; t < 6; ++t) CHECK(tcs[t] == 1);
+		for (uint8_t t = 1; t < 6; ++t) CHECK(sim.petra_runs_for(t));
+		CHECK(!sim.petra_runs_for(0) && !sim.petra_runs_for(6));
 	}
 
 	if (failures) {
