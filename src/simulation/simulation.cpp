@@ -3,6 +3,7 @@
 #include "nav/building_steering.h"
 #include "nav/rasterize.h"
 #include "../core/job_system.h"
+#include <cstdio>
 #include <chrono>
 #include <cmath>
 #include <numeric>
@@ -271,6 +272,7 @@ void Simulation::reset() {
 	petra_reset_ai_state();
 	petra_chat_.clear();
 	petra_diplomacy_requests_.clear();
+	std::memset(petra_tribute_inbox_, 0, sizeof(petra_tribute_inbox_));
 	petra_fleets_.clear_sea_fleets();
 	apply_petra_config();
 	unit_paths_.assign(UNIT_CAP, WaypointPath{});
@@ -1109,6 +1111,7 @@ bool Simulation::cmd_tribute(uint8_t from, uint8_t to, const int amounts[RES_COU
 	for (int r = 0; r < RES_COUNT; ++r) {
 		players_[from].res[r] -= (float)amounts[r];
 		players_[to].res[r] += (float)amounts[r];
+		note_tribute(from, to, (uint8_t)r, amounts[r]); // Petra's TributeExchanged event
 	}
 	return true;
 }
@@ -7865,20 +7868,29 @@ bool Simulation::petra_try_pay(uint8_t queue, float food, float wood, float gold
 	return true;
 }
 
-void Simulation::petra_say(uint8_t kind, float x, float z) {
+void Simulation::petra_say(uint8_t kind, float x, float z, uint8_t to, int amount, uint8_t res) {
+	// chatHelper.js lines (English only).
 	static const char *kLines[] = {
 		"I am launching an attack against you.",
 		"Here is a gift. Make good use of it.",
 		"Our alliance is over. We are now enemies.",
-		"We are under attack — all forces, defend the city!"
+		"We are under attack — all forces, defend the city!",
+		"I will accept your offer.",
+		"I cannot accept your offer.",
+		"I will accept your offer if you send me a tribute of %d %s.",
+		"I am still waiting for your tribute of %d %s.",
+		"You did not send the tribute in time. I decline your offer.",
+		"You have declared war on me. So be it."
 	};
-	if (kind > PETRA_CHAT_EMERGENCY) kind = PETRA_CHAT_ATTACK;
+	static const char *kRes[] = { "wood", "metal", "stone", "food" }; // ResourceType order
+	if (kind > PETRA_CHAT_WAR_DECLARED) kind = PETRA_CHAT_ATTACK;
 	PetraChatLine line;
 	line.kind = kind;
+	line.from = petra_pid_;
+	line.to = to;
 	line.x = x;
 	line.z = z;
-	std::strncpy(line.text, kLines[kind], sizeof(line.text) - 1);
-	line.text[sizeof(line.text) - 1] = '\0';
+	std::snprintf(line.text, sizeof(line.text), kLines[kind], amount, kRes[res < RES_COUNT ? res : 0]);
 	petra_chat_.push_back(line);
 	if (petra_chat_.size() > 16) petra_chat_.erase(petra_chat_.begin());
 }
@@ -8315,52 +8327,243 @@ void Simulation::petra_manage_diplomacy(float dt) {
 		}
 	}
 
+	PetraDiplomacy &dip = petra_diplo_;
+	dip.elapsed += dt;
 	petra_diplo_timer_ += dt;
 	if (petra_diplo_timer_ < 8.0f) return;
 	petra_diplo_timer_ = 0.0f;
+	const uint8_t me = petra_pid_;
 
-	// Tribute and betrayal still only involve player 0 (the human).
-	const bool allied_to_human = is_ally(petra_pid_, 0);
-	if (allied_to_human && petra_config_.cooperative >= 0.35f) {
-		struct Gift { uint8_t res; float *stock; int player_have; };
-		Gift gifts[] = {
-			{ RES_FOOD,  &petra_ps().food(),  food() },
-			{ RES_WOOD,  &petra_ps().wood(),  wood() },
-			{ RES_GOLD,  &petra_ps().gold(),  gold() },
-			{ RES_STONE, &petra_ps().stone(), stone() }
-		};
-		for (auto &g : gifts) {
-			if (*g.stock > 700.0f && g.player_have < (int)(*g.stock * 0.25f)) {
-				int send = std::min(150, (int)(*g.stock * 0.20f));
-				if (send >= 50 && ai_send_tribute(g.res, send)) {
-					if (const auto *pbase = get_primary_petra_base())
-						petra_say(PETRA_CHAT_TRIBUTE, pbase->x, pbase->z);
-					else
-						petra_say(PETRA_CHAT_TRIBUTE);
-				}
+	// checkEvents TributeExchanged: a tribute of the asked resource and amount
+	// from a player we are waiting on seals the requested stance.
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+		PetraReceivedRequest &req = dip.received[p];
+		if (req.status == PetraReceivedRequest::WAITING_FOR_TRIBUTE) {
+			req.paid += petra_tribute_inbox_[me][p][req.resource];
+			if (req.paid >= (float)req.wanted) {
+				req.status = PetraReceivedRequest::ACCEPTED;
+				petra_change_diplomacy(p, req.type == 0 ? DIPLO_ALLY : DIPLO_NEUTRAL);
+				petra_say(PETRA_CHAT_DIPLO_ACCEPT, 0.0f, 0.0f, p);
 			}
+		}
+		for (uint8_t r = 0; r < RES_COUNT; ++r) petra_tribute_inbox_[me][p][r] = 0.0f;
+	}
+
+	// checkEvents DiplomacyChanged / init: another player's stance toward us
+	// changed. Allying with us or going neutral is a request we answer; RTS0
+	// also answers a declaration of war in kind, so our units fight back.
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+		if (p == me || players_[p].team == players_[me].team) continue;
+		const uint8_t theirs = get_diplomacy(p, me);
+		if (dip.seen_init && theirs == dip.seen_stance[p]) continue;
+		dip.seen_stance[p] = theirs;
+		if (!players_[p].active && !((participant_mask_ >> p) & 1)) continue;
+		if (is_defeated(p)) continue;
+		PetraReceivedRequest &req = dip.received[p];
+		// A player that had asked for a stance changed its mind.
+		if ((req.status == PetraReceivedRequest::WAITING_FOR_TRIBUTE) &&
+		    ((theirs != DIPLO_ALLY && req.type == 0) || (theirs == DIPLO_ENEMY && req.type == 1)))
+			req = PetraReceivedRequest{};
+		if (theirs == DIPLO_ALLY && get_diplomacy(me, p) != DIPLO_ALLY)
+			petra_handle_diplomacy_request(p, 0);
+		else if (theirs == DIPLO_NEUTRAL && get_diplomacy(me, p) == DIPLO_ENEMY)
+			petra_handle_diplomacy_request(p, 1);
+		else if (theirs == DIPLO_ENEMY && dip.seen_init && get_diplomacy(me, p) != DIPLO_ENEMY) {
+			petra_change_diplomacy(p, DIPLO_ENEMY);
+			petra_say(PETRA_CHAT_WAR_DECLARED, 0.0f, 0.0f, p);
+		}
+	}
+	dip.seen_init = true;
+
+	// checkRequestedTributes: warn once after 60 s, drop the offer 60 s later.
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+		PetraReceivedRequest &req = dip.received[p];
+		if (req.status != PetraReceivedRequest::WAITING_FOR_TRIBUTE || dip.elapsed < req.warn_time) continue;
+		if (req.sent_warning) {
+			req = PetraReceivedRequest{};
+			petra_say(PETRA_CHAT_DIPLO_LAPSED, 0.0f, 0.0f, p);
+		} else {
+			req.sent_warning = true;
+			req.warn_time = dip.elapsed + 60.0f;
+			petra_say(PETRA_CHAT_DIPLO_WARNING, 0.0f, 0.0f, p, req.wanted - (int)req.paid, req.resource);
 		}
 	}
 
-	// Last-man-standing betrayal (diplomacyManager lastManStandingCheck)
-	if (allied_to_human && players_[petra_pid_].team != players_[0].team &&
-	    petra_config_.aggressive > 0.72f && petra_ps().phase >= 3) {
-		int ai_mil = 0, player_mil = 0;
-		for (size_t i = 0; i < units_.count; ++i) {
-			if (!units_.alive[i] || !petra_is_combat_unit(units_.unit_type[i])) continue;
-			if (units_.team[i] == petra_pid_) ai_mil++;
-			else if (units_.team[i] == 0) player_mil++;
+	// lastManStandingCheck, re-run on its timer.
+	petra_last_man_standing_check();
+
+	// tributes(), every 30 s: help allies that are short of a resource we have
+	// plenty of. We give when we are the stronger one, or always under allied
+	// victory, and never a resource our own queues are short of.
+	if (dip.elapsed < dip.next_tribute) return;
+	dip.next_tribute = dip.elapsed + 30.0f;
+	float available[RES_COUNT];
+	for (uint8_t r = 0; r < RES_COUNT; ++r) available[r] = petra_ps().res[r];
+	for (const auto &acc : petra_queues_.accounts) {
+		available[RES_FOOD] -= acc.food;
+		available[RES_WOOD] -= acc.wood;
+		available[RES_GOLD] -= acc.gold;
+		available[RES_STONE] -= acc.stone;
+	}
+	// pickMostNeededResources: our two scarcest resources stay home.
+	uint8_t order[RES_COUNT] = { 0, 1, 2, 3 };
+	std::sort(order, order + RES_COUNT, [&](uint8_t x, uint8_t y) {
+		return available[x] != available[y] ? available[x] < available[y] : x < y;
+	});
+	const int own_entities = petra_player_entities(me);
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+		if (p == me || !is_ally(me, p) || !player_in_match(p)) continue;
+		const bool donor = !last_man_standing() || petra_player_entities(p) < own_entities;
+		if (!donor) continue;
+		int amounts[RES_COUNT] = {};
+		bool any = false;
+		for (uint8_t r = 0; r < RES_COUNT; ++r) {
+			if (r == order[0] || r == order[1]) continue;
+			const float ally = players_[p].res[r];
+			if (available[r] < 200.0f || ally > 0.2f * available[r]) continue;
+			amounts[r] = (int)std::floor(0.3f * available[r] - ally);
+			if (amounts[r] > 0) any = true;
+			else amounts[r] = 0;
 		}
-		if (ai_mil >= 12 && ai_mil > (int)((float)player_mil * 1.8f + 2.0f)) {
-			set_diplomacy(petra_pid_, 0, DIPLO_ENEMY); // the AI breaks its own side of the alliance
-			if (const auto *pbase = get_primary_petra_base()) {
-				raise_alert(BattleAlert::ALERT_UNDER_ATTACK, pbase->x, pbase->z, 0, 1);
-				petra_say(PETRA_CHAT_BETRAYAL, pbase->x, pbase->z);
-			} else {
-				petra_say(PETRA_CHAT_BETRAYAL);
-			}
+		if (any && cmd_tribute(me, p, amounts)) {
+			for (uint8_t r = 0; r < RES_COUNT; ++r) available[r] -= (float)amounts[r];
+			if (const auto *pbase = get_primary_petra_base())
+				petra_say(PETRA_CHAT_TRIBUTE, pbase->x, pbase->z, p);
+			else
+				petra_say(PETRA_CHAT_TRIBUTE, 0.0f, 0.0f, p);
 		}
 	}
+}
+
+int Simulation::petra_player_entities(uint8_t player) const {
+	int n = 0;
+	for (size_t i = 0; i < units_.count; ++i)
+		if (units_.alive[i] && units_.team[i] == player) ++n;
+	for (const auto &b : buildings_)
+		if (b.team == player && b.hp > 0.0f) ++n;
+	return n;
+}
+
+void Simulation::petra_change_diplomacy(uint8_t player, uint8_t stance) {
+	// diplomacyManager.js changePlayerDiplomacy: the AI only writes its own row.
+	cmd_set_diplomacy(petra_pid_, player, stance);
+}
+
+void Simulation::petra_handle_diplomacy_request(uint8_t player, uint8_t type) {
+	// diplomacyManager.js handleDiplomacyRequest. type 0 = ally, 1 = neutral.
+	const uint8_t me = petra_pid_;
+	PetraReceivedRequest &req = petra_diplo_.received[player];
+	int enemies = 1, allies = 0; // 0 A.D. counts Gaia as an enemy and us as an ally
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+		if (p != me && (!((participant_mask_ >> p) & 1) || is_defeated(p))) continue;
+		if (is_ally(me, p)) ++allies;
+		else if (is_hostile(me, p)) ++enemies;
+	}
+	const bool more_enemies_than_allies = enemies > allies;
+	uint8_t current_enemy = 0xFF;
+	if (petra_attack_plan_.state != AttackPlan::UNEXECUTED)
+		if (auto it = building_id_to_idx_.find(petra_attack_plan_.target_building_id); it != building_id_to_idx_.end())
+			current_enemy = buildings_[it->second].team;
+	auto rand_bool = [&](float chance) { return sim_rng_.range_float(0.0f, 1.0f) < chance; };
+
+	if (req.status == PetraReceivedRequest::DECLINED_FOREVER) {
+		petra_say(PETRA_CHAT_DIPLO_DECLINE, 0.0f, 0.0f, player);
+		return;
+	}
+	if (req.status == PetraReceivedRequest::WAITING_FOR_TRIBUTE) {
+		petra_say(PETRA_CHAT_DIPLO_WARNING, 0.0f, 0.0f, player, req.wanted - (int)req.paid, req.resource);
+		return;
+	}
+	// Be likely to decline for good, and always when it would leave us with
+	// no one to fight or when we are attacking that player.
+	if ((req.status == PetraReceivedRequest::NONE && civ_of(me) != civ_of(player) && rand_bool(0.6f)) ||
+	    !more_enemies_than_allies || player == current_enemy) {
+		req = PetraReceivedRequest{};
+		req.status = PetraReceivedRequest::DECLINED_FOREVER;
+		req.type = type;
+		petra_say(PETRA_CHAT_DIPLO_DECLINE, 0.0f, 0.0f, player);
+		return;
+	}
+	if ((type == 0 && petra_player_entities(player) < petra_player_entities(me) && rand_bool(0.4f)) ||
+	    (type == 1 && more_enemies_than_allies && rand_bool(0.8f))) {
+		req = PetraReceivedRequest{};
+		req.status = PetraReceivedRequest::ACCEPTED;
+		req.type = type;
+		petra_change_diplomacy(player, type == 0 ? DIPLO_ALLY : DIPLO_NEUTRAL);
+		petra_say(PETRA_CHAT_DIPLO_ACCEPT, 0.0f, 0.0f, player);
+		return;
+	}
+	// Accept for a tribute of the resource we are shortest of.
+	uint8_t need = RES_FOOD;
+	for (uint8_t r = 0; r < RES_COUNT; ++r)
+		if (petra_ps().res[r] < petra_ps().res[need]) need = r;
+	int own_units = 0;
+	for (size_t i = 0; i < units_.count; ++i)
+		if (units_.alive[i] && units_.team[i] == me) ++own_units;
+	req = PetraReceivedRequest{};
+	req.status = PetraReceivedRequest::WAITING_FOR_TRIBUTE;
+	req.type = type;
+	req.resource = need;
+	req.wanted = std::max(1000, own_units * (type == 0 ? 10 : 5));
+	req.warn_time = petra_diplo_.elapsed + 60.0f;
+	petra_say(PETRA_CHAT_DIPLO_TRIBUTE, 0.0f, 0.0f, player, req.wanted, need);
+}
+
+void Simulation::petra_last_man_standing_check() {
+	// diplomacyManager.js lastManStandingCheck: once no enemy is left, turn
+	// against the strongest remaining ally or neutral player. Teammates are
+	// locked (RTS0 teams always are), and nothing happens during a ceasefire.
+	PetraDiplomacy &dip = petra_diplo_;
+	const uint8_t me = petra_pid_;
+	if (ceasefire_active()) return;
+	bool has_enemies = false, has_others = false;
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+		if (p == me || !((participant_mask_ >> p) & 1) || is_defeated(p)) continue;
+		if (is_hostile(me, p)) has_enemies = true;
+		else if (players_[p].team != players_[me].team) has_others = true;
+	}
+	if (has_enemies || !has_others) {
+		dip.waiting_to_betray = false;
+		return;
+	}
+	// Wait a while before turning (randFloat(30, 60)).
+	if (!dip.waiting_to_betray) {
+		dip.betray_lapse = dip.elapsed + sim_rng_.range_float(30.0f, 60.0f);
+		dip.waiting_to_betray = true;
+		return;
+	}
+	if (dip.elapsed < dip.betray_lapse) return;
+	// Not yet strong enough.
+	int own_units = 0;
+	for (size_t i = 0; i < units_.count; ++i)
+		if (units_.alive[i] && units_.team[i] == me) ++own_units;
+	if (own_units < 50) {
+		dip.betray_lapse += 60.0f;
+		return;
+	}
+	int target = -1, best = 0;
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+		if (p == me || !((participant_mask_ >> p) & 1) || is_defeated(p)) continue;
+		if (players_[p].team == players_[me].team) continue;
+		int factor = petra_player_entities(p);
+		if (get_diplomacy(me, p) == DIPLO_NEUTRAL) factor += 150; // turn on neutrals first
+		if (factor < best) continue;
+		best = factor;
+		target = p;
+	}
+	if (target >= 0) {
+		petra_change_diplomacy((uint8_t)target, DIPLO_ENEMY);
+		dip.received[target] = PetraReceivedRequest{};
+		dip.received[target].status = PetraReceivedRequest::DECLINED_FOREVER;
+		if (const auto *pbase = get_primary_petra_base()) {
+			if (target == 0) raise_alert(BattleAlert::ALERT_UNDER_ATTACK, pbase->x, pbase->z, 0, 1);
+			petra_say(PETRA_CHAT_BETRAYAL, pbase->x, pbase->z, (uint8_t)target);
+		} else {
+			petra_say(PETRA_CHAT_BETRAYAL, 0.0f, 0.0f, (uint8_t)target);
+		}
+	}
+	dip.betray_lapse = -1.0f;
+	dip.waiting_to_betray = false;
 }
 
 void Simulation::petra_manage_emergency(float dt) {
@@ -8444,6 +8647,7 @@ void Simulation::petra_reset_ai_state() {
 	petra_defense_timer_ = 0.0f;
 	petra_victory_timer_ = 0.0f;
 	petra_diplo_timer_ = 0.0f;
+	petra_diplo_ = PetraDiplomacy{};
 	ai_wonder_victory_timer_ = 0.0f;
 }
 
