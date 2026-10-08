@@ -257,8 +257,8 @@ Result run_scenario(const Scenario &sc, int ticks, bool trace) {
 			uint64_t hv = tm.compute_sim_hash(*sim);
 			chain = (chain ^ hv) * 1099511628211ull;
 			// compute_sim_hash() does not cover the FoW grids: fold both in per tick.
-			chain = fnv1a64_fold(chain, sim->fow_grid(), Simulation::FOW_GRID * Simulation::FOW_GRID);
-			chain = fnv1a64_fold(chain, sim->petra_fow_grid(), Simulation::FOW_GRID * Simulation::FOW_GRID);
+			chain = fnv1a64_fold(chain, sim->fow_grid(), (size_t)sim->fow_res() * (size_t)sim->fow_res());
+			chain = fnv1a64_fold(chain, sim->petra_fow_grid(), (size_t)sim->fow_res() * (size_t)sim->fow_res());
 		}
 		if (sim->is_game_over()) {
 			r.game_over = true;
