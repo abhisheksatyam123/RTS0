@@ -6162,9 +6162,16 @@ void Simulation::petra_manage_military_production(float dt) {
 	}
 
 	// 2. Military Strike Force Production (Priority Queue 2) — Counter-Units to supply AttackPlan squads
-	// Our soldiers do not gather, so the army waits until the economy is
-	// mostly staffed; otherwise the village phase never reaches popPhase2.
-	{
+	// A mustering rush or raid trains its own units (attackPlan.js
+	// trainMoreUnits); a raid wants cavalry citizen soldiers.
+	const bool rush_wants = petra_attack_plan_.state == AttackPlan::MUSTER &&
+		petra_attack_mgr_.kind == PETRA_ATTACK_RUSH &&
+		petra_attack_plan_.squad.size() < (size_t)std::max(1, petra_attack_mgr_.target_size);
+	const bool raid_wants = petra_raid_plan_.state == AttackPlan::MUSTER && petra_raid_plan_.squad.size() < 4 &&
+		petra_raid_target_ok(petra_raid_plan_.target_building_id);
+	// Our soldiers do not gather, so the army otherwise waits until the economy
+	// is mostly staffed; else the village phase never reaches popPhase2.
+	if (!rush_wants && !raid_wants) {
 		int workers = 0;
 		for (size_t i = 0; i < units_.count; ++i)
 			if (units_.alive[i] && units_.team[i] == petra_pid_ &&
@@ -6233,6 +6240,7 @@ void Simulation::petra_manage_military_production(float dt) {
 	float archer_score   = 1.0f + (enemy_infantry * 3.0f + enemy_spearmen * 3.5f) * norm;
 	float swordsman_score = 1.0f + (enemy_spearmen * 1.8f) * norm;
 	float cavalry_score  = 0.8f + (enemy_archers * 4.0f + enemy_siege * 3.0f) * norm;
+	if (raid_wants) cavalry_score += 4.0f;
 	float siege_score    = (phase >= 2) ? (1.5f + (float)enemy_forts * 2.5f) : 0.2f;
 	if (petra_attack_plan_.type == AttackPlan::PLAN_SIEGE && phase >= 2) {
 		siege_score += 5.0f; // Prioritize siege engines before assault
@@ -6276,7 +6284,7 @@ void Simulation::petra_manage_military_production(float dt) {
 			score = class_score(t.unit_type);
 			if (score < 0.0f) continue;
 			// Village-phase armies stay infantry; mounted units come with the town phase.
-			if (phase < 2 && (t.unit_type == UNIT_CAVALRY || t.unit_type == UNIT_CAMEL || t.unit_type == UNIT_CHARIOT)) continue;
+			if (phase < 2 && !raid_wants && (t.unit_type == UNIT_CAVALRY || t.unit_type == UNIT_CAMEL || t.unit_type == UNIT_CHARIOT)) continue;
 			if (is_siege(t.unit_type) && own_siege >= siege_cap) continue;
 			if (t.flags & ROSTER_CHAMPION) {
 				if (phase < 3) continue;
@@ -7771,6 +7779,104 @@ uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz) cons
 	return 0;
 }
 
+// headquarters.js gameStart + attackManager.js setRushes: Petra plans village
+// rushes only when its base has wood to spare (one per 3000 above 8000) and
+// its personality is aggressive enough; a long ceasefire rules them out.
+void Simulation::petra_set_rushes() {
+	auto &m = petra_attack_mgr_;
+	m.rushes_set = 1;
+	m.max_rushes = 0;
+	const PetraBase *base = get_primary_petra_base();
+	if (!base || petra_config_.difficulty < PETRA_EASY) return;
+	float wood = petra_ps().res[RES_WOOD];
+	for (size_t r = 0; r < resources_.count; ++r) {
+		if (!resources_.alive[r] || resources_.type[r] != RES_WOOD) continue;
+		const float dx = resources_.x[r] - base->x, dz = resources_.z[r] - base->z;
+		if (dx * dx + dz * dz <= 60.0f * 60.0f) wood += resources_.amount[r];
+	}
+	int allowed = (int)std::ceil((wood - 8000.0f) / 3000.0f);
+	if (ceasefire_remaining() > 900.0f) allowed = 0;
+	else if (ceasefire_remaining() > 600.0f && allowed > 1) allowed = 1;
+	// config.js personalityCut: weak 0.3, medium 0.5, strong 0.7.
+	const float a = petra_config_.aggressive;
+	if (a > 0.7f && allowed > 2) {
+		m.max_rushes = 3;
+		m.rush_size[0] = 16; m.rush_size[1] = 20; m.rush_size[2] = 24;
+	} else if (a > 0.5f && allowed > 1) {
+		m.max_rushes = 2;
+		m.rush_size[0] = 18; m.rush_size[1] = 22;
+	} else if (a > 0.3f && allowed > 0) {
+		m.max_rushes = 1;
+		m.rush_size[0] = 20;
+	}
+}
+
+// attackPlan.js constructor: the plan's unitStat totals for its type, varied
+// by +/-20% and shrunk at the lower difficulties.
+void Simulation::petra_plan_sizes(uint8_t kind) {
+	auto &m = petra_attack_mgr_;
+	int target = 52, minimum = 12;           // Attack: citizen infantry and cavalry, a few champions, a hero
+	if (kind == PETRA_ATTACK_RUSH) {
+		target = m.rush_size[std::min<int>(m.rush_number, 2)];
+		if (target <= 0) target = 20;
+		minimum = 10;                        // Infantry only
+	} else if (kind == PETRA_ATTACK_HUGE) {
+		target = 147; minimum = 28;          // every class, champions included
+	} else if (kind == PETRA_ATTACK_RAID) {
+		target = 4; minimum = 3;             // Cavalry only
+	}
+	if (kind != PETRA_ATTACK_RAID) {
+		float variation = sim_rng_.range_float(0.8f, 1.2f);
+		if (petra_config_.difficulty < PETRA_EASY) variation *= 0.5f;
+		else if (petra_config_.difficulty < PETRA_MEDIUM) variation *= 0.8f;
+		target = std::max(1, (int)std::round(variation * (float)target));
+	}
+	m.kind = kind;
+	m.target_size = target;
+	m.min_size = std::min(minimum, target);
+}
+
+// attackPlan.js rushTargetFinder: the nearest enemy structure that does not
+// shoot and stands more than 80 m from every structure that does.
+uint32_t Simulation::find_petra_rush_target(float &out_tx, float &out_tz) const {
+	float bx = 36.0f, bz = 36.0f;
+	if (const auto *base = get_primary_petra_base()) { bx = base->x; bz = base->z; }
+	auto shoots = [](uint8_t t) {
+		return t == BLD_TOWN_CENTER || t == BLD_TOWER || t == BLD_SENTRY_TOWER || t == BLD_WALL_TOWER || t == BLD_FORTRESS;
+	};
+	uint32_t best = 0;
+	float best_d = 1e18f;
+	for (const auto &b : buildings_) {
+		if (!petra_foe(b.team) || b.hp <= 0 || shoots(b.type)) continue;
+		if (b.type == BLD_FIELD || b.type == BLD_WALL_SEGMENT || b.type == BLD_PALISADE || b.type == BLD_GATE) continue;
+		bool defended = false;
+		for (const auto &d : buildings_) {
+			if (!petra_foe(d.team) || d.hp <= 0 || !shoots(d.type)) continue;
+			const float dx = d.x - b.x, dz = d.z - b.z;
+			if (dx * dx + dz * dz < 6400.0f) { defended = true; break; }
+		}
+		if (defended) continue;
+		const float dx = b.x - bx, dz = b.z - bz;
+		const float dsq = dx * dx + dz * dz;
+		if (dsq < best_d) {
+			best_d = dsq;
+			best = b.id;
+			out_tx = b.x;
+			out_tz = b.z;
+		}
+	}
+	return best;
+}
+
+// defenseManager.js targetList: an enemy structure standing in our territory
+// is a raid target until it falls or the territory changes hands.
+bool Simulation::petra_raid_target_ok(uint32_t bld_id) const {
+	auto it = building_id_to_idx_.find(bld_id);
+	if (it == building_id_to_idx_.end()) return false;
+	const Building &b = buildings_[it->second];
+	return petra_foe(b.team) && b.hp > 0 && territory_owner_at(b.x, b.z) == (int)petra_pid_;
+}
+
 void Simulation::petra_manage_tactical_attacks(float dt) {
 	petra_attack_plan_.state_timer += dt;
 	petra_strike_force_.state_timer += dt;
@@ -7799,14 +7905,44 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 		return;
 	}
 
+	// A rush keeps to undefended structures (attackPlan.js rushTargetFinder).
+	auto petra_next_target = [&](float &tx, float &tz) {
+		return petra_attack_mgr_.kind == PETRA_ATTACK_RUSH ? find_petra_rush_target(tx, tz)
+		                                                   : find_petra_attack_target(tx, tz);
+	};
+
 	switch (petra_attack_plan_.state) {
 		case AttackPlan::UNEXECUTED: {
-			// attackManager.js: default attacks wait for the town phase; only
-			// strongly aggressive personalities plan a village rush.
-			if (petra_ps().phase < 2 && petra_config_.aggressive <= 0.70f) return;
+			// attackManager.js update(): rushes first while any are left and a
+			// barracks stands, then from the town phase an "Attack" plan, and
+			// from the third on a "HugeAttack".
+			auto &mgr = petra_attack_mgr_;
+			bool have_barracks = false, have_tc = false;
+			for (const auto &b : buildings_) {
+				if (b.team != petra_pid_ || b.build_progress < 1.0f) continue;
+				if (b.type == BLD_BARRACKS) have_barracks = true;
+				if (b.type == BLD_TOWN_CENTER) have_tc = true;
+			}
+			if (!mgr.rushes_set && have_tc) petra_set_rushes();
+			if (petra_config_.difficulty == PETRA_SANDBOX || !have_barracks) return;
 			float tx = 0.0f, tz = 0.0f;
-			uint32_t target_id = find_petra_attack_target(tx, tz);
-			if (target_id == 0) return;
+			uint32_t target_id = 0;
+			uint8_t kind;
+			if (mgr.rush_number < mgr.max_rushes && petra_ps().phase < 2) {
+				kind = PETRA_ATTACK_RUSH;
+				target_id = find_petra_rush_target(tx, tz);
+				// A rush that finds no undefended target fails, and counts as planned.
+				if (target_id == 0) { ++mgr.rush_number; return; }
+				petra_attack_plan_.type = AttackPlan::PLAN_ASSAULT;
+			} else {
+				if (petra_ps().phase < 2) return;
+				kind = mgr.attack_number < 2 ? PETRA_ATTACK_ATTACK : PETRA_ATTACK_HUGE;
+				target_id = find_petra_attack_target(tx, tz);
+				if (target_id == 0) return;
+			}
+			petra_plan_sizes(kind);
+			if (kind == PETRA_ATTACK_RUSH) ++mgr.rush_number;
+			else ++mgr.attack_number;
 
 			petra_attack_plan_.target_building_id = target_id;
 			petra_attack_plan_.target_x = tx;
@@ -7820,10 +7956,18 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 
 		case AttackPlan::MUSTER: {
 			petra_strike_force_.state = PetraStrikeForce::MUSTER;
+			const auto &mgr = petra_attack_mgr_;
+			// Rushes march with infantry only (attackPlan.js Rush unitStat "Infantry").
+			auto mounted = [](uint8_t t) {
+				return t == UNIT_CAVALRY || t == UNIT_CAMEL || t == UNIT_CHARIOT || t == UNIT_SCYTHED_CHARIOT || t == UNIT_ELEPHANT;
+			};
 			for (size_t i = 0; i < units_.count; ++i) {
+				if (squad.size() >= (size_t)std::max(1, mgr.target_size)) break;
 				if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
 				if (units_.id[i] == petra_scout_unit_id_) continue; // Scout remains on exploration
 				if (petra_is_support_unit(units_.unit_type[i]) || units_.unit_type[i] == UNIT_TRIREME) continue;
+				if (mgr.kind == PETRA_ATTACK_RUSH && (mounted(units_.unit_type[i]) || units_.unit_type[i] == UNIT_CATAPULT ||
+				    units_.unit_type[i] == UNIT_SIEGE_RAM || units_.unit_type[i] == UNIT_BOLT_SHOOTER)) continue;
 				uint32_t uid = units_.id[i];
 				if (std::find(petra_raid_plan_.squad.begin(), petra_raid_plan_.squad.end(), uid) != petra_raid_plan_.squad.end())
 					continue;
@@ -7841,28 +7985,30 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 				}
 			}
 
-			int raw_thresh = (petra_ps().phase == 1) ? 6 : ((petra_ps().phase == 2) ? 10 : 16);
-			raw_thresh += petra_config_.muster_delta;
-			if (petra_emergency_.active) raw_thresh += 4;
-			size_t army_threshold = (size_t)std::max(3, raw_thresh);
-			bool ready = false;
-
-			if (petra_attack_plan_.type == AttackPlan::PLAN_SIEGE) {
-				// Siege Plan: must muster siege units or wait for siege production if Phase >= 2
-				if (petra_ps().phase >= 2) {
-					ready = (squad.size() >= 8 && siege_units >= 1) || (squad.size() >= 12) || (squad.size() >= 6 && petra_attack_plan_.state_timer >= 50.0f);
-				} else {
-					ready = (squad.size() >= 6 || (squad.size() >= 4 && petra_attack_plan_.state_timer >= 45.0f));
-				}
-			} else if (petra_attack_plan_.type == AttackPlan::PLAN_RAID) {
-				ready = (squad.size() >= 4 || (squad.size() >= 3 && petra_attack_plan_.state_timer >= 30.0f));
-			} else {
-				ready = (squad.size() >= army_threshold || (squad.size() >= 4 && petra_attack_plan_.state_timer >= 45.0f));
+			// attackPlan.js updatePreparation: march once the army reaches its
+			// target size, or its minimum when the population is capped. RTS0
+			// also marches at the minimum after three minutes, since a plan
+			// here cannot reinforce on the way.
+			const size_t target = (size_t)std::max(1, mgr.target_size);
+			const size_t minimum = (size_t)std::max(1, std::min(mgr.min_size, mgr.target_size));
+			const bool capped = pop_max(petra_pid_) - pop_current(petra_pid_) < 5;
+			bool ready = squad.size() >= target ||
+			             (squad.size() >= minimum && (capped || petra_attack_plan_.state_timer >= 180.0f));
+			// A siege plan waits for its siege engines in the town phase on.
+			if (ready && petra_attack_plan_.type == AttackPlan::PLAN_SIEGE && petra_ps().phase >= 2 &&
+			    siege_units == 0 && petra_attack_plan_.state_timer < 240.0f)
+				ready = false;
+			// A rush is a village-phase plan: one not ready by the town phase is dropped.
+			if (mgr.kind == PETRA_ATTACK_RUSH && !ready && petra_ps().phase >= 2) {
+				squad.clear();
+				petra_attack_plan_.state = AttackPlan::UNEXECUTED;
+				petra_attack_plan_.state_timer = 0.0f;
+				return;
 			}
 
 			if (ready && !squad.empty()) {
 				float tx = 0.0f, tz = 0.0f;
-				uint32_t target_id = find_petra_attack_target(tx, tz);
+				uint32_t target_id = petra_next_target(tx, tz);
 				if (target_id == 0) {
 					petra_attack_plan_.state = AttackPlan::UNEXECUTED;
 					petra_attack_plan_.state_timer = 0.0f;
@@ -7898,6 +8044,7 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 					cmd_move(squad.data(), squad.size(), sx, sz);
 				}
 				petra_say(PETRA_CHAT_ATTACK, tx, tz);
+				++petra_attack_mgr_.launched[petra_attack_mgr_.kind];
 				petra_attack_plan_.initial_squad_size = squad.size();
 				petra_attack_plan_.state = AttackPlan::WALKING;
 				petra_attack_plan_.state_timer = 0.0f;
@@ -7953,7 +8100,7 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 
 			if (dsq_to_staging <= 144.0f || petra_attack_plan_.state_timer >= 18.0f) {
 				float tx = 0.0f, tz = 0.0f;
-				uint32_t target_id = find_petra_attack_target(tx, tz);
+				uint32_t target_id = petra_next_target(tx, tz);
 				if (target_id == 0) {
 					petra_attack_plan_.state = AttackPlan::REGROUP;
 					petra_attack_plan_.retreat_x = base_x;
@@ -7968,24 +8115,14 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 				petra_strike_force_.target_x = tx;
 				petra_strike_force_.target_z = tz;
 
-				// Tactical Formations & Role Specialization
+				// Siege engines and their escort (0 A.D. Petra uses no formations).
 				std::vector<uint32_t> siege_uids;
 				std::vector<uint32_t> escort_uids;
 
 				for (uint32_t uid : squad) {
 					int32_t idx = lookup_unit(uid);
 					if (idx < 0) continue;
-					if (units_.unit_type[idx] == UNIT_SWORDSMAN || units_.unit_type[idx] == UNIT_SPEARMAN || units_.unit_type[idx] == UNIT_ELEPHANT) {
-						units_.formation[idx] = FORMATION_PHALANX;
-						escort_uids.push_back(uid);
-					} else if (units_.unit_type[idx] == UNIT_CAVALRY || units_.unit_type[idx] == UNIT_CHARIOT || units_.unit_type[idx] == UNIT_SCYTHED_CHARIOT) {
-						units_.formation[idx] = FORMATION_WEDGE;
-						escort_uids.push_back(uid);
-					} else if (units_.unit_type[idx] == UNIT_ARCHER || units_.unit_type[idx] == UNIT_ARCHER_MAIDEN) {
-						units_.formation[idx] = FORMATION_SCATTER;
-						escort_uids.push_back(uid);
-					} else if (units_.unit_type[idx] == UNIT_CATAPULT || units_.unit_type[idx] == UNIT_SIEGE_RAM || units_.unit_type[idx] == UNIT_BOLT_SHOOTER) {
-						units_.formation[idx] = FORMATION_COLUMN;
+					if (units_.unit_type[idx] == UNIT_CATAPULT || units_.unit_type[idx] == UNIT_SIEGE_RAM || units_.unit_type[idx] == UNIT_BOLT_SHOOTER) {
 						// attackPlan.js: packable siege attacks on stand ground so it doesn't pack up to chase.
 						if (units_.pack_state[idx] != PACK_NONE) units_.stance[idx] = STANCE_STAND_GROUND;
 						siege_uids.push_back(uid);
@@ -8056,7 +8193,7 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 
 			if (!target_alive || petra_attack_plan_.state_timer >= 25.0f) {
 				float tx = 0.0f, tz = 0.0f;
-				uint32_t next_id = find_petra_attack_target(tx, tz);
+				uint32_t next_id = petra_next_target(tx, tz);
 				if (next_id != 0) {
 					petra_attack_plan_.target_building_id = next_id;
 					petra_attack_plan_.target_x = tx;
@@ -8157,9 +8294,26 @@ bool Simulation::petra_unit_reserved(uint32_t uid) const {
 }
 
 uint32_t Simulation::find_petra_raid_target(float &out_tx, float &out_tz) const {
+	float bx = 36.0f, bz = 36.0f;
+	if (const auto *base = get_primary_petra_base()) { bx = base->x; bz = base->z; }
+	// defenseManager.js targetList: the enemy structures in our territory,
+	// nearest to the base first (attackManager.js raids them with cavalry).
 	uint32_t best = 0;
-	int best_pri = -1;
-	float best_d = 1e9f;
+	float best_d = 1e18f;
+	for (const auto &b : buildings_) {
+		if (!petra_foe(b.team) || b.hp <= 0 || territory_owner_at(b.x, b.z) != (int)petra_pid_) continue;
+		const float dsq = (b.x - bx) * (b.x - bx) + (b.z - bz) * (b.z - bz);
+		if (dsq < best_d) {
+			best_d = dsq;
+			best = b.id;
+			out_tx = b.x;
+			out_tz = b.z;
+		}
+	}
+	if (best) return best;
+
+	// With warships at sea, a dock (or a coastal barracks) across the water is
+	// a raid target too: attackPlan.js lands at a dock as a bridgehead.
 	int own_warships = 0;
 	for (int s = 0; s < Petra::kMaxSeas; ++s) {
 		own_warships += petra_fleets_.sea_warship_count[s];
@@ -8173,56 +8327,31 @@ uint32_t Simulation::find_petra_raid_target(float &out_tx, float &out_tz) const 
 			}
 		}
 	}
-	for (const auto &b : buildings_) {
-		if (!petra_foe(b.team) || b.hp <= 0) continue;
-		if (b.type == BLD_FORTRESS || b.type == BLD_WONDER || b.type == BLD_TOWER || b.type == BLD_GATE)
-			continue;
-		int pri = 0;
-		if (b.type == BLD_HOUSE) pri = 4;
-		else if (b.type == BLD_FARMSTEAD || b.type == BLD_STOREHOUSE) pri = 3;
-		else if (b.type == BLD_MARKET || b.type == BLD_CORRAL) pri = 2;
-		else pri = 1;
-		// attackPlan.js chooses a dock/port as a bridgehead when the target
-		// region is separated by water; island raids must not march blindly.
-		if (b.type == BLD_DOCK) {
-			float bx = 36.0f, bz = 36.0f;
-			if (const auto *base = get_primary_petra_base()) { bx = base->x; bz = base->z; }
-			if (petra_path_crosses_water(bx, bz, b.x, b.z)) pri = 6;
-			// 0 A.D. navalManager.js:58 seaWarShips — prioritize dock within same sea region as warships
-			if (own_warships > 0) {
-				auto [bcx, bcz] = nav_grid_.world_to_cell(b.x, b.z);
-				for (int dz = -2; dz <= 2; ++dz) {
-					for (int dx = -2; dx <= 2; ++dx) {
-						uint16_t sreg = nav_grid_.global_region_at(bcx + dx, bcz + dz, PASS_SHIP);
-						if (sreg > 0 && static_cast<int>(sreg - 1) < Petra::kMaxSeas) {
-							int sid = static_cast<int>(sreg - 1);
-							if (petra_fleets_.sea_warship_count[sid] > 0) {
-								pri = 8;
-								break;
-							}
-						}
-					}
-					if (pri >= 8) break;
-				}
-				if (pri < 8) pri = std::max(pri, 6);
-			}
-		} else if (b.type == BLD_BARRACKS && own_warships > 0) {
-			// Coastal barracks reachable by sea
-			auto [bcx, bcz] = nav_grid_.world_to_cell(b.x, b.z);
-			for (int dz = -2; dz <= 2; ++dz) {
-				for (int dx = -2; dx <= 2; ++dx) {
-					uint16_t sreg = nav_grid_.global_region_at(bcx + dx, bcz + dz, PASS_SHIP);
-					if (sreg > 0 && static_cast<int>(sreg - 1) < Petra::kMaxSeas) {
-						int sid = static_cast<int>(sreg - 1);
-						if (petra_fleets_.sea_warship_count[sid] > 0) {
-							pri = 5;
-							break;
-						}
-					}
-				}
-				if (pri >= 5) break;
+	if (own_warships == 0) return 0;
+	int best_pri = -1;
+	best_d = 1e9f;
+	auto near_fleet = [&](const Building &b) {
+		auto [bcx, bcz] = nav_grid_.world_to_cell(b.x, b.z);
+		for (int dz = -2; dz <= 2; ++dz) {
+			for (int dx = -2; dx <= 2; ++dx) {
+				uint16_t sreg = nav_grid_.global_region_at(bcx + dx, bcz + dz, PASS_SHIP);
+				if (sreg > 0 && static_cast<int>(sreg - 1) < Petra::kMaxSeas &&
+				    petra_fleets_.sea_warship_count[sreg - 1] > 0)
+					return true;
 			}
 		}
+		return false;
+	};
+	for (const auto &b : buildings_) {
+		if (!petra_foe(b.team) || b.hp <= 0) continue;
+		int pri = -1;
+		// 0 A.D. navalManager.js:58 seaWarShips — prioritize a dock in the same sea region as our warships
+		if (b.type == BLD_DOCK) {
+			pri = near_fleet(b) ? 8 : (petra_path_crosses_water(bx, bz, b.x, b.z) ? 6 : -1);
+		} else if (b.type == BLD_BARRACKS && near_fleet(b)) {
+			pri = 5;
+		}
+		if (pri < 0) continue;
 		float dsq = b.x * b.x + b.z * b.z;
 		if (pri > best_pri || (pri == best_pri && dsq < best_d)) {
 			best_pri = pri;
@@ -8232,22 +8361,15 @@ uint32_t Simulation::find_petra_raid_target(float &out_tx, float &out_tz) const 
 			out_tz = b.z;
 		}
 	}
-	if (best) return best;
-	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || !petra_foe(units_.team[i])) continue;
-		if (!petra_is_support_unit(units_.unit_type[i]) && units_.unit_type[i] != UNIT_VILLAGER)
-			continue;
-		out_tx = units_.pos_x[i];
-		out_tz = units_.pos_z[i];
-		return units_.id[i];
-	}
-	return 0;
+	return best;
 }
 
+// attackManager.js raidTargetEntity / attackPlan.js "Raid": a few cavalry
+// citizen soldiers (minSize 3, targetSize 4) sent against one enemy
+// structure in our territory; military production trains the cavalry.
 void Simulation::petra_manage_raid(float dt) {
 	if (petra_config_.difficulty == PETRA_SANDBOX) return;
 	if (petra_emergency_.active) return;
-	if (petra_ps().phase < 2 && petra_config_.aggressive < 0.70f) return;
 
 	auto &plan = petra_raid_plan_;
 	plan.type = AttackPlan::PLAN_RAID;
@@ -8269,30 +8391,62 @@ void Simulation::petra_manage_raid(float dt) {
 		uint32_t tid = find_petra_raid_target(tx, tz);
 		if (!tid) return;
 		plan.squad.clear();
+		plan.target_building_id = tid;
+		plan.target_x = tx;
+		plan.target_z = tz;
+		plan.state = AttackPlan::MUSTER;
+		plan.state_timer = 0.0f;
+		return;
+	}
+
+	if (plan.state == AttackPlan::MUSTER) {
+		// The target fell or the land changed hands: drop the plan.
+		const bool naval = !petra_raid_target_ok(plan.target_building_id);
+		bool target_alive = false;
+		for (const auto &b : buildings_)
+			if (b.id == plan.target_building_id && petra_foe(b.team) && b.hp > 0) { target_alive = true; break; }
+		if (!target_alive || plan.state_timer > 150.0f) {
+			plan.squad.clear();
+			plan.target_building_id = 0;
+			plan.state = AttackPlan::UNEXECUTED;
+			plan.state_timer = 0.0f;
+			return;
+		}
+		// Cavalry citizen soldiers; a raid over water takes any land soldier.
 		for (size_t i = 0; i < units_.count && plan.squad.size() < 4; ++i) {
 			if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
 			uint8_t ut = units_.unit_type[i];
-			if (!petra_is_combat_unit(ut)) continue;
-			if (ut == UNIT_TRIREME || ut == UNIT_FISHING_BOAT || ut == UNIT_MERCHANT_SHIP) continue;
-			if (ut == UNIT_CATAPULT || ut == UNIT_SIEGE_RAM || ut == UNIT_BOLT_SHOOTER) continue;
+			if (!petra_is_combat_unit(ut) || unit_is_ship(ut) || ut == UNIT_TRIREME) continue;
+			if (ut == UNIT_CATAPULT || ut == UNIT_SIEGE_RAM || ut == UNIT_BOLT_SHOOTER || ut == UNIT_HERO) continue;
+			const bool cavalry = ut == UNIT_CAVALRY || ut == UNIT_CAMEL || ut == UNIT_CHARIOT;
+			if (!naval) {
+				if (!cavalry) continue;
+				if (units_.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(units_.tmpl[i]).flags & ROSTER_CHAMPION)) continue;
+			}
 			uint32_t uid = units_.id[i];
 			if (uid == petra_scout_unit_id_) continue;
-			if (std::find(petra_attack_plan_.squad.begin(), petra_attack_plan_.squad.end(), uid) != petra_attack_plan_.squad.end())
+			if (std::find(plan.squad.begin(), plan.squad.end(), uid) != plan.squad.end()) continue;
+			if (petra_attack_plan_.state != AttackPlan::MUSTER &&
+			    std::find(petra_attack_plan_.squad.begin(), petra_attack_plan_.squad.end(), uid) != petra_attack_plan_.squad.end())
 				continue;
 			if (std::find(petra_defense_army_.defender_ids.begin(), petra_defense_army_.defender_ids.end(), uid) != petra_defense_army_.defender_ids.end())
 				continue;
 			plan.squad.push_back(uid);
 		}
-		if (plan.squad.size() < 3) {
-			plan.squad.clear();
-			return;
+		if (petra_attack_plan_.state == AttackPlan::MUSTER) {
+			// A mustering main army gives up the riders the raid takes.
+			auto &main = petra_attack_plan_.squad;
+			main.erase(std::remove_if(main.begin(), main.end(), [&](uint32_t uid) {
+				return std::find(plan.squad.begin(), plan.squad.end(), uid) != plan.squad.end();
+			}), main.end());
 		}
-		plan.target_building_id = tid;
-		plan.target_x = tx;
-		plan.target_z = tz;
+		const bool ready = plan.squad.size() >= 4 || (plan.squad.size() >= 3 && plan.state_timer >= 30.0f);
+		if (!ready) return;
+		const float tx = plan.target_x, tz = plan.target_z;
 		plan.initial_squad_size = plan.squad.size();
 		plan.state = AttackPlan::WALKING;
 		plan.state_timer = 0.0f;
+		++petra_attack_mgr_.launched[PETRA_ATTACK_RAID];
 		petra_say(PETRA_CHAT_ATTACK, tx, tz);
 		// Mirror the assault plan's transportPlan.js branch: a raid that
 		// crosses water boards a transport instead of issuing a ground move.
@@ -8305,7 +8459,7 @@ void Simulation::petra_manage_raid(float dt) {
 		return;
 	}
 
-	if (plan.state == AttackPlan::WALKING || plan.state == AttackPlan::ATTACKED || plan.state == AttackPlan::MUSTER) {
+	if (plan.state == AttackPlan::WALKING || plan.state == AttackPlan::ATTACKED) {
 		if (plan.squad.size() < 2 ||
 		    (plan.initial_squad_size > 0 && (float)plan.squad.size() < 0.40f * (float)plan.initial_squad_size)) {
 			plan.state = AttackPlan::REGROUP;
@@ -8336,6 +8490,8 @@ void Simulation::petra_manage_raid(float dt) {
 				plan.retreat_x = base_x;
 				plan.retreat_z = base_z;
 				plan.state_timer = 0.0f;
+				if (!plan.squad.empty())
+					cmd_move(plan.squad.data(), plan.squad.size(), base_x, base_z);
 			}
 		} else if (plan.state_timer > 36.0f) {
 			plan.state = AttackPlan::REGROUP;
@@ -9267,6 +9423,7 @@ void Simulation::petra_reset_ai_state() {
 	petra_attack_plan_ = AttackPlan();
 	petra_raid_plan_ = AttackPlan();
 	petra_raid_plan_.type = AttackPlan::PLAN_RAID;
+	petra_attack_mgr_ = PetraAttackManager{};
 	petra_opening_step_ = 0;
 	petra_opening_timer_ = 0.0f;
 	petra_defense_army_ = PetraDefenseArmy();
@@ -9389,7 +9546,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 1024 animals with a held position (0 A.D. fauna)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 1024 animals with a held position (0 A.D. fauna)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 
@@ -10046,8 +10203,8 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	io_vec(ar, s.relics_, 1u << 16, relic);
 	static_assert(sizeof(S::FaunaStorage) == 68616, "list the new FaunaStorage field below");
 	if constexpr (Ar::loading) {
-		if (ar.version < 18) {
-			// Saves before v18 held 256 animals and no held position.
+		if (ar.version < 19) {
+			// Saves before v19 held 256 animals and no held position.
 			struct Fauna256 {
 				size_t count;
 				uint32_t id[256]; float pos_x[256], pos_z[256], vel_x[256], vel_z[256], rot_y[256], hp[256], max_hp[256];
@@ -10072,7 +10229,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			}
 		}
 	}
-	if (!Ar::loading || ar.version >= 18) ar.padded(s.fauna_, [&](S::FaunaStorage &d, const S::FaunaStorage &v) {
+	if (!Ar::loading || ar.version >= 19) ar.padded(s.fauna_, [&](S::FaunaStorage &d, const S::FaunaStorage &v) {
 		d.count = v.count;
 		arr(d.id, v.id); arr(d.pos_x, v.pos_x); arr(d.pos_z, v.pos_z); arr(d.vel_x, v.vel_x); arr(d.vel_z, v.vel_z);
 		arr(d.rot_y, v.rot_y); arr(d.hp, v.hp); arr(d.max_hp, v.max_hp); arr(d.food_amount, v.food_amount);
@@ -10160,6 +10317,9 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			io_vec(ar, v, 1u << 16, [&](S::PetraFoundationWatch &w) { ar.pod(w.id); ar.pod(w.progress); ar.pod(w.stall); ids(w.banned); });
 		} else if constexpr (std::is_same_v<T, std::vector<S::PetraBase>>) {
 			io_vec(ar, v, 1u << 16, base);
+		} else if constexpr (std::is_same_v<T, PetraAttackManager>) {
+			if (ar.version >= 18) ar.pod(v);
+			else v = PetraAttackManager{};
 		} else if constexpr (std::is_same_v<T, std::vector<uint8_t>>) {
 			io_vec_pod(ar, v, (uint32_t)S::MAX_GRID_RES * S::MAX_GRID_RES);
 		} else {
