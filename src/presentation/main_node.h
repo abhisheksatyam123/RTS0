@@ -57,6 +57,7 @@
 #include "attack_detection.h"
 #include "selection_grid.h"
 #include "objectives_dialog.h"
+#include "range_overlays.h"
 
 using namespace godot;
 
@@ -158,6 +159,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	Ref<StandardMaterial3D> ghost_mat_ok;
 	Ref<StandardMaterial3D> ghost_mat_bad;
 	MeshInstance3D *rally_flag = nullptr;
+	RtsoRangeOverlays range_overlays_;
 	std::vector<MeshInstance3D *> wall_ghosts;
 
 	bool build_mode = false;
