@@ -969,12 +969,15 @@ Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell
 	}
 
 	// 2. Terrain passability class: building-land has no water under the
-	// footprint, a wall (default-terrain-only, centre point only) stands at most
-	// 2 m (half a tile) deep, and a dock needs land under it and a sea beside it.
+	// footprint, a wall (default-terrain-only, centre point only) stands where
+	// land units can wade (NAV_SHALLOW, 2 m), and a dock needs land under it and
+	// a sea beside it.
 	const bool have_nav = !nav_grid_.cells.blank();
 	const float nav_cell = have_nav ? 2.0f * nav_grid_.map_half / (float)nav_grid_.res : GRID;
-	auto is_water = [&](int nx, int ny) {
-		return nx >= 0 && ny >= 0 && nx < nav_grid_.cells.w && ny < nav_grid_.cells.h && nav_grid_.cells.at(nx, ny) == NAV_WATER;
+	auto is_water = [&](int nx, int ny) { // any water, shallow included (building-land MaxWaterDepth 0)
+		if (nx < 0 || ny < 0 || nx >= nav_grid_.cells.w || ny >= nav_grid_.cells.h) return false;
+		const uint8_t c = nav_grid_.cells.at(nx, ny);
+		return c == NAV_WATER || c == NAV_SHALLOW;
 	};
 	if (have_nav) {
 		auto [nx0, ny0] = nav_grid_.world_to_cell(x0 + 0.01f, z0 + 0.01f);
@@ -984,8 +987,8 @@ Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell
 				for (int x = nx0; x <= nx1; ++x)
 					if (is_water(x, y)) return PLACE_TERRAIN;
 		} else if (rule.placement == PLACE_LAND_SHORE) {
-			if (terrain_water_height_ > -0.5f && get_terrain_height(cxw, czw) < terrain_water_height_ - 0.5f)
-				return PLACE_TERRAIN;
+			auto [ncx, ncy] = nav_grid_.world_to_cell(cxw, czw);
+			if (nav_grid_.cells.inside(ncx, ncy) && nav_grid_.cells.at(ncx, ncy) == NAV_WATER) return PLACE_TERRAIN;
 		} else {
 			// CheckShorePlacement: part of the footprint on land, a sea cell at its edge.
 			bool land = false, sea = false;
@@ -995,7 +998,7 @@ Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell
 			const int ring = std::max(1, (int)std::ceil(GRID / nav_cell));
 			for (int y = ny0 - ring; y <= ny1 + ring && !sea; ++y)
 				for (int x = nx0 - ring; x <= nx1 + ring && !sea; ++x)
-					sea = is_water(x, y) && nav_grid_.is_passable_for(x, y, PASS_SHIP) &&
+					sea = nav_grid_.is_passable_for(x, y, PASS_SHIP) &&
 							nav_grid_.global_region_at(x, y, PASS_SHIP) != 0;
 			if (!land) return PLACE_TERRAIN;
 			if (!sea) return PLACE_SHORE;
