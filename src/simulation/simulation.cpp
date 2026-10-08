@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <limits>
 #include <cstring>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
@@ -18,6 +19,9 @@
 #include <iostream>
 
 namespace rtso {
+
+// First save version with projectile sources and partial xp (0 A.D. Loot.js port).
+static constexpr uint32_t SAVE_VERSION_LOOT = 16;
 
 namespace {
 // Accumulates wall-clock microseconds for Simulation::MapScaleStats.
@@ -9071,7 +9075,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = 15; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 each unit's pack state; v15 the rest of the per-tick state (save_tick_state)
+	uint32_t version = 16; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 each unit's pack state; v15 the rest of the per-tick state (save_tick_state); v16 each projectile's source and each unit's partial xp (Loot.js)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 
@@ -9249,7 +9253,7 @@ bool Simulation::load_state(const char *filepath) {
 	uint32_t magic = 0, version = 0;
 	in.read((char *)&magic, sizeof(magic));
 	in.read((char *)&version, sizeof(version));
-	if (magic != 0x52545330 || version < 1 || version > 15) return false;
+	if (magic != 0x52545330 || version < 1 || version > 16) return false;
 
 	// 1. Sim scalars
 	in.read((char *)&ticks_, sizeof(ticks_));
@@ -9580,7 +9584,7 @@ bool Simulation::load_state(const char *filepath) {
 	}
 
 	if (version >= 15) {
-		if (!load_tick_state(in)) return false;
+		if (!load_tick_state(in, version)) return false;
 	} else {
 		// Older saves carry none of it: start the per-tick state fresh.
 		for (size_t u = 0; u < units_.count; ++u) {
@@ -9611,6 +9615,7 @@ bool Simulation::load_state(const char *filepath) {
 // struct's size fails the build when a field is added without listing it here.
 struct TickSaveAr {
 	std::ofstream &out;
+	uint32_t version = UINT32_MAX; // saves always write the newest layout
 	bool ok = true;
 	static constexpr bool loading = false;
 	template <class T> void pod(T &v) {
@@ -9627,6 +9632,7 @@ struct TickSaveAr {
 };
 struct TickLoadAr {
 	std::ifstream &in;
+	uint32_t version;
 	bool ok = true;
 	static constexpr bool loading = true;
 	template <class T> void pod(T &v) {
@@ -9662,8 +9668,17 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			d.has_goal = v.has_goal; d.goal_x = v.goal_x; d.goal_z = v.goal_z;
 		});
 	};
-	static_assert(sizeof(Projectile) == 72, "list the new Projectile field below");
+	static_assert(sizeof(Projectile) == 76, "list the new Projectile field below");
 	auto projectile = [&](Projectile &p) {
+		if constexpr (Ar::loading) {
+			// Before v16 a projectile ended at alive (72 bytes) and had no source.
+			if (ar.version < SAVE_VERSION_LOOT) {
+				ar.in.read((char *)&p, offsetof(Projectile, source_id));
+				p.source_id = 0;
+				ar.ok = ar.ok && ar.in.good();
+				return;
+			}
+		}
 		ar.padded(p, [&](Projectile &d, const Projectile &v) {
 			d.id = v.id; d.start_x = v.start_x; d.start_y = v.start_y; d.start_z = v.start_z;
 			d.target_x = v.target_x; d.target_y = v.target_y; d.target_z = v.target_z;
@@ -9671,6 +9686,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			d.progress = v.progress; d.speed = v.speed; d.arc_height = v.arc_height; d.damage = v.damage;
 			d.damage_type = v.damage_type; d.visual = v.visual; d.status_effect = v.status_effect; d.team = v.team;
 			d.target_unit_id = v.target_unit_id; d.target_building_id = v.target_building_id; d.alive = v.alive;
+			d.source_id = v.source_id;
 		});
 	};
 	static_assert(sizeof(S::TreasureRelic) == 24, "list the new TreasureRelic field below");
@@ -9710,6 +9726,8 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		ar.pod(U.poison_timer[i]); ar.pod(U.snare_timer[i]); ar.pod(U.knockback_timer[i]);
 		ar.pod(U.knockback_dir_x[i]); ar.pod(U.knockback_dir_z[i]);
 		ar.pod(U.slow_timer[i]); ar.pod(U.bleed_timer[i]); ar.pod(U.burning_timer[i]);
+		if (ar.version >= SAVE_VERSION_LOOT) ar.pod(U.xp_partial[i]);
+		else U.xp_partial[i] = 0.0f;
 		uint8_t has_path = i < s.unit_paths_.size() && s.unit_paths_[i].count > 0;
 		ar.pod(has_path);
 		if (!ar.ok) return;
@@ -9869,8 +9887,8 @@ void Simulation::save_tick_state(std::ofstream &out) const {
 	tick_state_io(ar, const_cast<Simulation &>(*this));
 }
 
-bool Simulation::load_tick_state(std::ifstream &in) {
-	TickLoadAr ar{in};
+bool Simulation::load_tick_state(std::ifstream &in, uint32_t version) {
+	TickLoadAr ar{in, version};
 	tick_state_io(ar, *this);
 	return ar.ok && in.good();
 }

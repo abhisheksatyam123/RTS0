@@ -873,7 +873,7 @@ private:
 	void tick_barter(float dt);
 	// v15: per-tick state the main save records leave out (velocities, paths, projectiles, timers...).
 	void save_tick_state(std::ofstream &out) const;
-	bool load_tick_state(std::ifstream &in);
+	bool load_tick_state(std::ifstream &in, uint32_t version);
 	// Player.js GetNextTradingGoods with the default equal split (25% each).
 	uint8_t next_trading_goods();
 	// Pays a trade gain into `player`'s stock and its gather statistics.
