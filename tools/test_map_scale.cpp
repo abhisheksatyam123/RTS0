@@ -206,6 +206,54 @@ int main() {
 		CHECK(map_fingerprint(a) == map_fingerprint(b), "size %d: same seed, different map", size);
 	}
 
+	// 6. Stronghold packs teammates together (game-setup teams).
+	{
+		const uint8_t teams[4] = {1, 2, 1, 2};
+		Simulation sim;
+		sim.generate_random_map(MAP_STRONGHOLD, 99, 4, 128.0f, teams);
+		float tx[8] = {}, tz[8] = {};
+		bool has[8] = {};
+		for (const auto &b : sim.buildings())
+			if (b.type == BLD_TOWN_CENTER && b.team < 8) { has[b.team] = true; tx[b.team] = b.x; tz[b.team] = b.z; }
+		CHECK(has[0] && has[1] && has[2] && has[3], "stronghold: a player has no town centre");
+		const float mate = std::hypot(tx[0] - tx[2], tz[0] - tz[2]), foe = std::hypot(tx[0] - tx[1], tz[0] - tz[1]);
+		CHECK(mate < foe, "stronghold: teammates %.1f apart, enemies %.1f", mate, foe);
+		CHECK(mate >= 17.0f, "stronghold: teammates' bases overlap (%.1f apart)", mate);
+	}
+
+	// 7. Shallow water (0 A.D. pathfinder.xml MaxWaterDepth 2): land units wade
+	// through it, ships sail it; deeper water stays ships only.
+	{
+		Simulation sim;
+		sim.generate_random_map(MAP_RHINE_MARSHLANDS, 5, 2, 128.0f);
+		const auto &g = sim.nav_grid();
+		int shallow = 0, deep = 0;
+		bool shallow_ok = true;
+		for (int y = 0; y < g.res; ++y)
+			for (int x = 0; x < g.res; ++x) {
+				const uint8_t c = g.cells.at(x, y);
+				if (c == NAV_SHALLOW) {
+					++shallow;
+					shallow_ok &= g.is_passable_for(x, y, PASS_INFANTRY) && g.is_passable_for(x, y, PASS_SHIP);
+				}
+				deep += c == NAV_WATER;
+			}
+		CHECK(shallow > 0, "rhine_marshlands: no shallow water");
+		CHECK(deep == 0, "rhine_marshlands: %d deep water cells", deep);
+		CHECK(shallow_ok, "shallow water is not walkable and sailable");
+		Simulation sea;
+		sea.generate_random_map(MAP_RANDOM_ARCHIPELAGO, 5, 2, 128.0f);
+		bool deep_ok = true;
+		int sea_deep = 0;
+		for (int y = 0; y < sea.nav_grid().res; ++y)
+			for (int x = 0; x < sea.nav_grid().res; ++x)
+				if (sea.nav_grid().cells.at(x, y) == NAV_WATER) {
+					++sea_deep;
+					deep_ok &= !sea.nav_grid().is_passable_for(x, y, PASS_INFANTRY) && sea.nav_grid().is_passable_for(x, y, PASS_SHIP);
+				}
+		CHECK(sea_deep > 0 && deep_ok, "deep water must be ships only (%d cells)", sea_deep);
+	}
+
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;

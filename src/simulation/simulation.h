@@ -66,6 +66,7 @@ struct Projectile {
 	uint32_t target_unit_id = 0;
 	uint32_t target_building_id = 0;
 	bool alive = true;
+	uint32_t source_id = 0; // firing unit or building: Promotion xp and Looter.js loot go to it
 };
 
 struct ProductionOrder {
@@ -127,7 +128,7 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
-	static constexpr uint32_t SAVE_VERSION = 19; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 20; // save_state's format; see the history beside it
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -240,7 +241,10 @@ public:
 	uint32_t next_id() const { return next_id_; }
 	void spawn_initial();
 	void spawn_war(int total_units = 2000);
-	void generate_random_map(MapType type = MAP_RANDOM_CONTINENTAL, uint32_t seed = 0, int num_players = 2, float map_half = 64.0f);
+	// teams[i] is player i's 1-based game-setup team (0 = none, nullptr = all none),
+	// for maps that place teams together (Stronghold).
+	void generate_random_map(MapType type = MAP_RANDOM_CONTINENTAL, uint32_t seed = 0, int num_players = 2, float map_half = 64.0f,
+	                         const uint8_t *teams = nullptr);
 
 	// Spawns the owner civ's unit for u_type (or roster template `tmpl`) with its
 	// 0 A.D. stats. hp > 0 overrides the template's health.
@@ -931,7 +935,6 @@ private:
 	void tick_upkeep(float dt);
 	void tick_entity_limits(float dt);
 	void tick_death_damage(float dt);
-	void tick_loot(float dt);
 	void tick_gates(float dt);
 	void tick_waves(float dt);
 	void tick_petra_ai(float dt);
@@ -948,12 +951,18 @@ private:
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
 	void rebuild_auras(); // G4: rebuild AuraManager from temples/heroes/carnyx/female citizens
-	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false, uint8_t visual = 0);
+	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false, uint8_t visual = 0, uint32_t source_id = 0);
 	void mark_building_wreck(Building &b);
 	void record_death(float x, float z, uint8_t team, uint8_t killer_team, uint8_t type, bool is_building);
 	void bind_unit_index(uint32_t id, size_t idx);
 	int32_t lookup_unit(uint32_t id) const;
-	void apply_loot_bounty(uint8_t killer_team, int food, int wood, int gold, int stone);
+	// 0 A.D. Loot.js / Looter.js / Promotion.js (see simulation.cpp).
+	void gain_xp(size_t idx, float amount);
+	void award_damage_xp(uint32_t attacker_id, size_t victim, float damage);
+	bool looter_present(uint32_t looter_id, bool *infantry) const;
+	void collect_loot(uint32_t looter_id, uint8_t looter_player, LootInfo loot, float mult, uint8_t carried_type, int32_t carried);
+	void collect_unit_loot(uint32_t looter_id, uint8_t looter_player, size_t victim);
+	void collect_building_loot(uint32_t looter_id, uint8_t looter_player, const Building &b);
 	void check_victory_conditions(float dt);
 	void spawn_regicide_heroes();
 

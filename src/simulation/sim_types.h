@@ -18,7 +18,7 @@ struct RecentDeath {
 	uint8_t type = 0;
 	bool is_building = false;
 	bool death_damage_applied = false;
-	bool loot_applied = false;
+	bool loot_applied = false; // unused: Looter.js loot is collected at the kill; kept for the save layout
 };
 enum BiomeType : uint8_t {
 	BIOME_AEGEAN = 0,
@@ -102,10 +102,13 @@ enum MapType : uint8_t {
 	MAP_ATLAS_MOUNTAINS = 46,
 	MAP_FRONTIER = 47,
 	MAP_WILD_LAKE = 48,
+	MAP_STRONGHOLD = 49,
+	MAP_CALEDONIAN_MEADOWS = 50,
+	MAP_RHINE_MARSHLANDS = 51,
 	// 0 A.D. trigger maps (maps/random/*_triggers.js run as map triggers, triggers.h)
-	MAP_FLOOD = 49,
-	MAP_EXTINCT_VOLCANO = 50,
-	MAP_TYPE_COUNT = 51
+	MAP_FLOOD = 52,
+	MAP_EXTINCT_VOLCANO = 53,
+	MAP_TYPE_COUNT = 54
 };
 
 struct MapTypeInfo {
@@ -168,6 +171,9 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_ATLAS_MOUNTAINS, "atlas_mountains", "Atlas Mountains (RMS)", "desert", true, "A rugged North African land with little room for buildings and scarce wood."},
 		{MAP_FRONTIER, "frontier", "Frontier (RMS)", "temperate", true, "A wild, unknown landscape of random hills, plateaus and lakes awaits rival explorers."},
 		{MAP_WILD_LAKE, "wild_lake", "Wild Lake (RMS)", "temperate", true, "Rough wild terrain round a lake, with about a fifth of the land under water."},
+		{MAP_STRONGHOLD, "stronghold", "Stronghold (RMS)", "temperate", true, "Teams start with nearly adjacent civic centres and must rely on each other to defend their rear."},
+		{MAP_CALEDONIAN_MEADOWS, "caledonian_meadows", "Caledonian Meadows (RMS)", "alpine", true, "Fertile meadows surrounded by harsh terrain and snowmelt rivers; not always balanced."},
+		{MAP_RHINE_MARSHLANDS, "rhine_marshlands", "Rhine Marshlands (RMS)", "temperate", true, "Shallow, passable wetlands with little room for building in the lowlands of the Rhine."},
 		{MAP_FLOOD, "flood", "Flood (RMS)", "temperate", true, "A great flood moves across the valley. The home islands go under, so evacuate your units by ship to the mainland."},
 		{MAP_EXTINCT_VOLCANO, "extinct_volcano", "Extinct Volcano (RMS)", "volcanic", true, "Rains raise the water from the 25th minute until only the hills and the great cone stay dry. Gaia towers guard the lowlands."}
 	};
@@ -1140,6 +1146,102 @@ inline bool unit_has_pack(uint16_t tmpl, uint8_t type) {
 inline bool unit_is_trader(uint8_t type) { return type == UNIT_TRADER || type == UNIT_MERCHANT_SHIP; }
 inline bool pack_state_can_move(uint8_t s) { return s == PACK_NONE || s == PACK_PACKED; }
 inline bool pack_state_can_attack(uint8_t s) { return s == PACK_NONE || s == PACK_UNPACKED; }
+
+// 0 A.D. Loot.js: what an entity yields when killed (resources to the killer's
+// owner through Looter.js) and the experience it gives for each hit point taken
+// from it (Health.js TakeDamage: xp * damage / max hp). Values are the resolved
+// template_* and per-unit templates; metal is RTS0 gold.
+struct LootInfo {
+	uint16_t xp, food, wood, stone, metal;
+};
+
+inline LootInfo unit_class_loot(uint8_t type) {
+	static const LootInfo table[UNIT_TYPE_COUNT] = {
+		{100, 5, 0, 0, 0},    // VILLAGER: template_unit_infantry (citizen)
+		{100, 5, 4, 0, 1},    // SWORDSMAN: infantry_melee_swordsman
+		{100, 5, 5, 0, 0},    // ARCHER: infantry_ranged_archer
+		{100, 5, 5, 0, 0},    // SPEARMAN: infantry_melee_spearman
+		{130, 10, 5, 0, 0},   // CAVALRY: template_unit_cavalry
+		{10, 10, 0, 0, 8},    // TRADER: support_trader
+		{250, 0, 80, 50, 0},  // CATAPULT: siege_stonethrower
+		{400, 10, 0, 0, 25},  // HERO: template_unit_hero
+		{50, 0, 12, 0, 8},    // TRIREME: ship_bireme
+		{300, 30, 0, 0, 20},  // ELEPHANT: champion_elephant
+		{200, 0, 60, 0, 30},  // SIEGE_RAM: siege_ram
+		{8, 10, 0, 0, 3},     // HEALER: support_healer
+		{200, 15, 8, 0, 10},  // CHARIOT: champion_cavalry
+		{100, 10, 0, 0, 0},   // WAR_DOG: champion_infantry_dog (Loot xp 100, food 10)
+		{200, 0, 50, 0, 50},  // BOLT_SHOOTER: siege_boltshooter
+		{0, 0, 10, 0, 0},     // FISHING_BOAT: ship_fishing
+		{0, 0, 0, 0, 20},     // MERCHANT_SHIP: ship_merchant
+		{3, 5, 0, 0, 0},      // FEMALE_CITIZEN: support_female_citizen
+		{150, 18, 0, 0, 12},  // CARNYX: champion_infantry with the Celtic war horn
+		{0, 10, 0, 0, 0},     // WORKER_ELEPHANT: support_elephant
+		{150, 8, 6, 0, 8},    // ARCHER_MAIDEN: champion_infantry_archer
+		{130, 10, 5, 0, 0},   // CAMEL: template_unit_cavalry
+		{200, 15, 8, 0, 10},  // SCYTHED_CHARIOT: champion_cavalry
+	};
+	return type < UNIT_TYPE_COUNT ? table[type] : LootInfo{};
+}
+
+// A roster unit takes its 0 A.D. rank template's loot: heroes, champions and siege towers
+// differ from the class their RTS0 UnitType names.
+inline LootInfo unit_loot(uint16_t tmpl, uint8_t type) {
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
+		const uint8_t flags = civ_unit_template(tmpl).flags;
+		if (flags & ROSTER_HERO) return {400, 10, 0, 0, 25};          // template_unit_hero
+		if (flags & ROSTER_SIEGE_TOWER) return {250, 0, 100, 0, 60};  // template_unit_siege_tower
+		if (flags & ROSTER_CHAMPION) {
+			switch (type) {
+				case UNIT_SWORDSMAN: case UNIT_ARCHER: case UNIT_SPEARMAN: case UNIT_ARCHER_MAIDEN:
+					return {150, 8, 6, 0, 8};                              // template_unit_champion_infantry
+				case UNIT_CAVALRY: case UNIT_CAMEL:
+					return {200, 15, 8, 0, 10};                            // template_unit_champion_cavalry
+				default: break;
+			}
+		}
+	}
+	return unit_class_loot(type);
+}
+
+// Structures yield resources only (no Loot/xp). Keyed by building type; a type
+// past the table (a civ-unique building appended later) yields nothing until it
+// gets a row here.
+inline LootInfo building_loot(uint8_t type) {
+	static const LootInfo table[] = {
+		{0, 0, 60, 60, 50},    // TOWN_CENTER: civic_civil_centre
+		{0, 0, 15, 0, 0},      // HOUSE: civic_house
+		{0, 0, 40, 20, 0},     // BARRACKS: military_barracks
+		{0, 0, 20, 0, 0},      // STOREHOUSE: economic_storehouse
+		{0, 0, 20, 20, 0},     // TOWER: defensive_tower_defense
+		{0, 0, 20, 0, 0},      // FARMSTEAD: economic_farmstead
+		{0, 0, 60, 0, 0},      // MARKET: economic_market
+		{0, 0, 60, 120, 0},    // FORTRESS: military_fortress
+		{0, 0, 2, 4, 0},       // GATE: defensive_wall_gate
+		{0, 0, 0, 60, 0},      // TEMPLE: civic_temple
+		{0, 0, 200, 300, 200}, // WONDER: wonder
+		{0, 0, 40, 0, 0},      // DOCK: military_dock
+		{0, 0, 0, 7, 0},       // WALL_SEGMENT: defensive_wall_long
+		{0, 0, 20, 0, 0},      // CORRAL: resource_corral
+		{0, 50, 0, 0, 0},      // FIELD: resource_field
+		{0, 0, 40, 10, 0},     // STABLE: military_stable
+		{0, 0, 40, 0, 0},      // RANGE: military_range
+		{0, 0, 40, 0, 0},      // FORGE: military_forge
+		{0, 0, 60, 0, 0},      // ARSENAL: military_arsenal
+		{0, 0, 20, 0, 0},      // SENTRY_TOWER: defensive_tower_sentry
+		{0, 0, 12, 0, 0},      // OUTPOST: defensive_outpost
+		{0, 0, 0, 0, 0},       // PALISADE: defensive_palisade
+		{0, 0, 0, 10, 0},      // WALL_TOWER: defensive_wall_tower
+		{0, 0, 40, 40, 0},     // ELEPHANT_STABLE: military_elephant_stable
+		{0, 0, 40, 120, 40},   // THEATER: special_theater
+		{0, 0, 0, 0, 0},       // EMBASSY: military_embassy
+	};
+	return type < sizeof(table) / sizeof(table[0]) ? table[type] : LootInfo{};
+}
+// 0 A.D. unit_advanced.json and unit_elite.json each multiply Loot/* by 1.2.
+inline float loot_rank_multiplier(uint8_t rank) {
+	return rank >= 3 ? 1.44f : (rank == 2 ? 1.2f : 1.0f);
+}
 
 // Units this civilization can train: every RTS0 class its 0 A.D. roster has.
 struct CivTrainMasks {
