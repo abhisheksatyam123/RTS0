@@ -706,7 +706,9 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	b.capture_garrison_regen_rate = binfo.capture_garrison_regen_rate;
 	b.territory_decay_rate = binfo.territory_decay_rate;
 	b.capture_points_by_team.fill(0.0f);
-	b.capture_points_by_team[b.team < 8 ? b.team : 0] = b.max_capture_points;
+	// A Gaia structure's points are Gaia's pool (what no player holds), not player 0's;
+	// giving them to player 0 handed it every Gaia tower on the first tick.
+	if (b.team < MAX_PLAYERS) b.capture_points_by_team[b.team] = b.max_capture_points;
 
 	buildings_.push_back(b);
 	building_id_to_idx_[bid] = buildings_.size() - 1;
