@@ -515,6 +515,12 @@ void wipe_player(Simulation &sim, uint8_t pid) {
         if (b.team == pid) b.hp = 0.0f;
 }
 
+unsigned building_type_of(const Simulation &sim, uint32_t id) {
+    for (const auto &b : sim.buildings())
+        if (b.id == id) return b.type;
+    return 255;
+}
+
 int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
         float loss, uint32_t defeat_turn, const char *log_path) {
     Simulation sim;
@@ -544,6 +550,8 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
     sim.spawn_building_world(0.0f, 40.0f, BLD_TOWN_CENTER, 2, 1.0f);
     for (int i = 0; i < 5; ++i)
         sim.spawn_unit(-4.0f + 2.0f * (float)i, 34.0f, 2, UNIT_VILLAGER, 100.0f);
+    // A wall segment the host turns into a gate (cmd 26, 0 A.D. Upgrade.js).
+    const uint32_t host_wall = sim.spawn_building_world(-30.0f, 14.0f, BLD_WALL_SEGMENT, 0, 1.0f);
     auto apply_setup = [&](const GameSetupParams &s) {
         sim.set_victory_condition(s.victory >= VICTORY_COUNT ? 0 : s.victory);
         for (uint8_t t = 0; t < MAX_PLAYERS; ++t) {
@@ -650,6 +658,26 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
                     batch.push_back(t);
                 }
             }
+            // Tribute (cmd 27): the joiner sends the host 77 stone at turn 330,
+            // and again at 480, after its defeat, when both peers must drop it.
+            if (st == 330 || st == 480) {
+                NetCommand t;
+                t.client_id = 1;
+                t.cmd_type = 27;
+                t.target_id = 0;
+                t.param = RES_STONE;
+                t.target_x = 77.0f;
+                batch.push_back(t);
+            }
+            // Structure upgrade (cmd 26): the host turns its wall into a gate.
+            if (st == 360) {
+                NetCommand u;
+                u.client_id = 0;
+                u.cmd_type = 26;
+                u.target_id = host_wall;
+                u.param = 0;
+                batch.push_back(u);
+            }
             for (const auto &c : batch)
                 if (c.client_id == me) tm.post_local_command(c);
         }
@@ -673,10 +701,12 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
                 if (cu.alive[i]) wounds += cu.max_hp[i] - cu.hp[i];
                 else ++dead;
             }
-            std::fprintf(log, "%u %08X %zu d01=%u d10=%u cf=%d wounds=%.0f dead=%u defeated=%u over=%d\n",
+            std::fprintf(log, "%u %08X %zu d01=%u d10=%u cf=%d wounds=%.0f dead=%u defeated=%u over=%d stone=%d,%d wall=%u\n",
                          f.turn_index, f.sim_state_hash, f.commands.size(), sim.get_diplomacy(0, 1),
                          sim.get_diplomacy(1, 0), sim.ceasefire_active() ? 1 : 0, wounds, dead,
-                         (unsigned)sim.defeated_mask(), sim.is_game_over() ? 1 : 0);
+                         (unsigned)sim.defeated_mask(), sim.is_game_over() ? 1 : 0,
+                         (int)sim.player(0).res[RES_STONE], (int)sim.player(1).res[RES_STONE],
+                         (unsigned)building_type_of(sim, host_wall));
         }
         if (tm.has_out_of_sync()) {
             std::fprintf(stderr, "[net-peer] %s: OOS at turn %u local=%08X peer=%08X\n",
