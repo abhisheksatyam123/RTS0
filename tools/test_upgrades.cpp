@@ -53,7 +53,8 @@ int main() {
 	// 2. Sentry tower -> defense tower: phase gate, payment, timer, health fraction.
 	{
 		fresh(s);
-		uint32_t st = s.spawn_building_world(0.0f, 0.0f, BLD_SENTRY_TOWER, 0, 1.0f);
+		// In the civic centre's territory, or the defense tower's own patch would decay to Gaia.
+		uint32_t st = s.spawn_building_world(-20.0f, -30.0f, BLD_SENTRY_TOWER, 0, 1.0f);
 		CHECK(s.upgrade_check(0, st) == Simulation::UPGRADE_ERR_PHASE);
 		CHECK(!s.cmd_upgrade_building(0, st));
 		s.player(0).phase = 2;
@@ -179,18 +180,18 @@ int main() {
 	// (tower_health: +25% on defense towers), not only the ones standing then.
 	{
 		fresh(s);
-		uint32_t old_tower = s.spawn_building_world(0.0f, 0.0f, BLD_TOWER, 0, 1.0f);
+		uint32_t old_tower = s.spawn_building_world(-20.0f, -30.0f, BLD_TOWER, 0, 1.0f); // in the civic centre's territory
 		const float base = find_bld(s, old_tower)->max_hp;
 		const TechInfo &ti = tech_info(TECH_TOWER_HEALTH);
 		s.player(0).phase = 3;
-		uint32_t lab = ti.researcher == BLD_TOWER ? old_tower : s.spawn_building_world(20.0f, 0.0f, ti.researcher, 0, 1.0f);
+		uint32_t lab = ti.researcher == BLD_TOWER ? old_tower : s.spawn_building_world(-25.0f, -12.0f, ti.researcher, 0, 1.0f);
 		s.set_player_resources(0, 5000, 5000, 5000, 5000);
 		if (ti.prerequisite != TECH_NONE) s.player(0).techs.set(ti.prerequisite);
 		CHECK(s.cmd_research(0, lab, TECH_TOWER_HEALTH));
 		run(s, ti.research_time + 1.0f);
 		CHECK(s.player(0).has_tech(TECH_TOWER_HEALTH));
 		CHECK(near(find_bld(s, old_tower)->max_hp, base * 1.25f));
-		uint32_t new_tower = s.spawn_building_world(-20.0f, 0.0f, BLD_TOWER, 0, 1.0f);
+		uint32_t new_tower = s.spawn_building_world(-46.0f, -15.0f, BLD_TOWER, 0, 1.0f);
 		CHECK(near(find_bld(s, new_tower)->max_hp, base * 1.25f));
 		std::printf("tower placed after Tower Health: %.0f hp (was %.0f)\n", find_bld(s, new_tower)->max_hp, base);
 	}
