@@ -1,7 +1,8 @@
 // 0 A.D. GarrisonHolder on land siege: siege towers (20) and rams (10) carry
 // Support and Infantry, a siege tower fires one arrow per garrisoned Infantry
 // (none when empty), and both unload below 10% health or when destroyed.
-// Passengers survive save/load and are in the lockstep hash.
+// Passengers survive save/load and are in the lockstep hash. Military Engineers
+// cuts siege pack and unpack time by 40%.
 //   g++ -std=c++20 -O2 -Isrc tools/test_siege_garrison.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_siege_garrison && /tmp/test_siege_garrison
@@ -183,6 +184,36 @@ int main() {
 		CHECK(tm.compute_sim_hash(s) == tm.compute_sim_hash(l));
 		l.order_disembark_all(tower);
 		CHECK(l.get_transport_passenger_count(tower) == 0 && alive(l, ids[0]));
+	}
+
+	// 7. Military Engineers (siege_pack_unpack.json): City phase, Arsenal, 800 food,
+	// Siege Engines -40% pack and unpack time; not for civs whose arsenal lacks it.
+	{
+		const TechInfo &ti = tech_info(TECH_SIEGE_PACK_UNPACK);
+		CHECK(ti.food_cost == 800 && ti.research_time == 40.0f && ti.required_phase == 3 && ti.researcher == BLD_ARSENAL);
+		CHECK((ti.civ_mask >> CIV_MACEDONIANS) & 1);
+		CHECK(!((ti.civ_mask >> CIV_BRITONS) & 1) && !((ti.civ_mask >> CIV_PERSIANS) & 1));
+		fresh(s);
+		uint32_t cat = s.spawn_unit(0.0f, 0.0f, 0, UNIT_CATAPULT);
+		uint32_t foe_cat = s.spawn_unit(30.0f, 30.0f, 1, UNIT_CATAPULT);
+		const float before = s.pack_time_s((size_t)idx_of(s, cat));
+		s.player(0).phase = 3;
+		s.set_player_resources(0, 5000, 5000, 5000, 5000);
+		uint32_t arsenal = s.spawn_building_world(-20.0f, 0.0f, BLD_ARSENAL, 0, 1.0f);
+		CHECK(s.cmd_research(0, arsenal, TECH_SIEGE_PACK_UNPACK));
+		run(s, ti.research_time + 1.0f);
+		CHECK(s.player(0).has_tech(TECH_SIEGE_PACK_UNPACK));
+		const float after = s.pack_time_s((size_t)idx_of(s, cat));
+		std::printf("catapult pack time: %.1f s, with Military Engineers %.1f s\n", before, after);
+		CHECK(std::fabs(after - before * 0.6f) < 1e-4f);
+		CHECK(s.pack_time_s((size_t)idx_of(s, foe_cat)) == before); // only the researcher's siege
+		// Unpacking now finishes in 6 s instead of 10.
+		const uint32_t cats[1] = {cat};
+		s.order_pack(cats, 1, false);
+		run(s, after - 0.5f);
+		CHECK(s.units().pack_state[idx_of(s, cat)] != PACK_UNPACKED);
+		run(s, 1.0f);
+		CHECK(s.units().pack_state[idx_of(s, cat)] == PACK_UNPACKED);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

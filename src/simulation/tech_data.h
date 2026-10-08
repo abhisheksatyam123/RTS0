@@ -61,36 +61,37 @@ enum TechnologyId : uint8_t {
 	TECH_SIEGE_ATTACK = 52, // siege_attack
 	TECH_SIEGE_COST_TIME = 53, // siege_cost_time
 	TECH_SIEGE_HEALTH = 54, // siege_health
-	TECH_SOLDIER_ATTACK_MELEE_02 = 55, // soldier_attack_melee_02
-	TECH_SOLDIER_ATTACK_MELEE_03 = 56, // soldier_attack_melee_03
-	TECH_SOLDIER_ATTACK_MELEE_03_VARIANT = 57, // soldier_attack_melee_03_variant
-	TECH_SOLDIER_ATTACK_RANGED_01 = 58, // soldier_attack_ranged_01
-	TECH_SOLDIER_ATTACK_RANGED_02 = 59, // soldier_attack_ranged_02
-	TECH_SOLDIER_ATTACK_RANGED_03 = 60, // soldier_attack_ranged_03
-	TECH_SOLDIER_RESISTANCE_HACK_02 = 61, // soldier_resistance_hack_02
-	TECH_SOLDIER_RESISTANCE_HACK_03 = 62, // soldier_resistance_hack_03
-	TECH_SOLDIER_RESISTANCE_PIERCE_01 = 63, // soldier_resistance_pierce_01
-	TECH_SOLDIER_RESISTANCE_PIERCE_02 = 64, // soldier_resistance_pierce_02
-	TECH_SOLDIER_RESISTANCE_PIERCE_03 = 65, // soldier_resistance_pierce_03
-	TECH_TOWER_GARRISON = 66, // tower_garrison
-	TECH_TOWER_HEALTH = 67, // tower_health
-	TECH_TOWER_RANGE = 68, // tower_range
-	TECH_TOWER_WATCH = 69, // tower_watch
-	TECH_TRADE_GAIN_01 = 70, // trade_gain_01
-	TECH_TRADE_GAIN_02 = 71, // trade_gain_02
-	TECH_TRADER_HEALTH = 72, // trader_health
-	TECH_UNLOCK_CHAMPION_CAVALRY = 73, // unlock_champion_cavalry
-	TECH_UNLOCK_CHAMPION_CHARIOTS = 74, // unlock_champion_chariots
-	TECH_UNLOCK_CHAMPION_INFANTRY = 75, // unlock_champion_infantry
-	TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC = 76, // unlock_civilians_house_generic
-	TECH_UNLOCK_CIVILIANS_HOUSE_KUSH = 77, // unlock_civilians_house_kush
-	TECH_WARSHIP_ARROW_ATTACK = 78, // warship_arrow_attack
-	TECH_WARSHIP_FIRESHIP_ATTACK = 79, // warship_fireship_attack
-	TECH_WARSHIP_HEALTH = 80, // warship_health
-	TECH_WARSHIP_RAMMING_ATTACK = 81, // warship_ramming_attack
-	TECH_WARSHIP_RANGED_ATTACK = 82, // warship_ranged_attack
-	TECH_WARSHIP_SIEGE_ATTACK = 83, // warship_siege_attack
-	TECH_COUNT = 84
+	TECH_SIEGE_PACK_UNPACK = 55, // siege_pack_unpack
+	TECH_SOLDIER_ATTACK_MELEE_02 = 56, // soldier_attack_melee_02
+	TECH_SOLDIER_ATTACK_MELEE_03 = 57, // soldier_attack_melee_03
+	TECH_SOLDIER_ATTACK_MELEE_03_VARIANT = 58, // soldier_attack_melee_03_variant
+	TECH_SOLDIER_ATTACK_RANGED_01 = 59, // soldier_attack_ranged_01
+	TECH_SOLDIER_ATTACK_RANGED_02 = 60, // soldier_attack_ranged_02
+	TECH_SOLDIER_ATTACK_RANGED_03 = 61, // soldier_attack_ranged_03
+	TECH_SOLDIER_RESISTANCE_HACK_02 = 62, // soldier_resistance_hack_02
+	TECH_SOLDIER_RESISTANCE_HACK_03 = 63, // soldier_resistance_hack_03
+	TECH_SOLDIER_RESISTANCE_PIERCE_01 = 64, // soldier_resistance_pierce_01
+	TECH_SOLDIER_RESISTANCE_PIERCE_02 = 65, // soldier_resistance_pierce_02
+	TECH_SOLDIER_RESISTANCE_PIERCE_03 = 66, // soldier_resistance_pierce_03
+	TECH_TOWER_GARRISON = 67, // tower_garrison
+	TECH_TOWER_HEALTH = 68, // tower_health
+	TECH_TOWER_RANGE = 69, // tower_range
+	TECH_TOWER_WATCH = 70, // tower_watch
+	TECH_TRADE_GAIN_01 = 71, // trade_gain_01
+	TECH_TRADE_GAIN_02 = 72, // trade_gain_02
+	TECH_TRADER_HEALTH = 73, // trader_health
+	TECH_UNLOCK_CHAMPION_CAVALRY = 74, // unlock_champion_cavalry
+	TECH_UNLOCK_CHAMPION_CHARIOTS = 75, // unlock_champion_chariots
+	TECH_UNLOCK_CHAMPION_INFANTRY = 76, // unlock_champion_infantry
+	TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC = 77, // unlock_civilians_house_generic
+	TECH_UNLOCK_CIVILIANS_HOUSE_KUSH = 78, // unlock_civilians_house_kush
+	TECH_WARSHIP_ARROW_ATTACK = 79, // warship_arrow_attack
+	TECH_WARSHIP_FIRESHIP_ATTACK = 80, // warship_fireship_attack
+	TECH_WARSHIP_HEALTH = 81, // warship_health
+	TECH_WARSHIP_RAMMING_ATTACK = 82, // warship_ramming_attack
+	TECH_WARSHIP_RANGED_ATTACK = 83, // warship_ranged_attack
+	TECH_WARSHIP_SIEGE_ATTACK = 84, // warship_siege_attack
+	TECH_COUNT = 85
 };
 
 enum TechClass : uint64_t {
@@ -281,6 +282,7 @@ inline const TechEffect *tech_effects_table() {
 		{TSTAT_RANGED_CRUSH, TOP_MUL, 23, 1, 1.25f}, // siege_attack
 		{TSTAT_BUILD_TIME, TOP_MUL, 23, 1, 0.8f}, // siege_cost_time
 		{TSTAT_HEALTH, TOP_MUL, 24, 1, 1.25f}, // siege_health
+		{TSTAT_PACK_TIME, TOP_MUL, 23, 1, 0.6f}, // siege_pack_unpack
 		{TSTAT_MELEE_HACK, TOP_MUL, 3, 1, 1.15f}, // soldier_attack_melee_02
 		{TSTAT_MELEE_PIERCE, TOP_MUL, 3, 1, 1.15f}, // soldier_attack_melee_02
 		{TSTAT_MELEE_CRUSH, TOP_MUL, 3, 1, 1.15f}, // soldier_attack_melee_02
@@ -322,7 +324,7 @@ inline const TechEffect *tech_effects_table() {
 	};
 	return kEffects + 1;
 }
-constexpr int TECH_EFFECT_COUNT = 120;
+constexpr int TECH_EFFECT_COUNT = 121;
 
 inline const TechInfo &tech_info(uint8_t tech_id) {
 	static const TechInfo kTable[TECH_COUNT] = {
@@ -381,35 +383,36 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Advanced Siege", "Siege Engines +25% attack crush damage.", 0, 800, 500, 0, 40.0f, 3, BLD_ARSENAL, TECH_NONE, 0x3fff, 78, 2, "siege_attack"},
 		{"Siegecraft", "Siege Engines −20% construction time.", 0, 600, 0, 0, 40.0f, 3, BLD_ARSENAL, TECH_NONE, 0x3fff, 80, 1, "siege_cost_time"},
 		{"Armor Plating", "Battering Rams and Siege Towers +25% health.", 0, 0, 600, 0, 40.0f, 3, BLD_ARSENAL, TECH_NONE, 0x3fff, 81, 1, "siege_health"},
-		{"Iron Weapons", "Soldiers +15% melee attack damage.", 350, 0, 250, 0, 40.0f, 2, BLD_FORGE, TECH_NONE, 0x3fff, 82, 3, "soldier_attack_melee_02"},
-		{"Carburization", "Soldiers +20% melee attack damage.", 500, 0, 400, 0, 60.0f, 3, BLD_FORGE, TECH_NONE, 0x3cff, 85, 3, "soldier_attack_melee_03"},
-		{"Steel Working", "Soldiers +20% melee attack damage. Swordsmen get an additional +20% bonus.", 500, 0, 400, 0, 60.0f, 3, BLD_FORGE, TECH_NONE, 0x0300, 88, 6, "soldier_attack_melee_03_variant"},
-		{"Improved Fletching", "Soldiers +15% ranged attack damage.", 0, 200, 100, 0, 20.0f, 2, BLD_FORGE, TECH_NONE, 0x3fff, 94, 3, "soldier_attack_ranged_01"},
-		{"Iron Arrowheads", "Soldiers +15% ranged attack damage.", 0, 350, 250, 0, 40.0f, 2, BLD_FORGE, TECH_NONE, 0x3fff, 97, 3, "soldier_attack_ranged_02"},
-		{"Trilobate Arrowheads", "Soldiers +20% ranged attack damage.", 0, 500, 400, 0, 60.0f, 3, BLD_FORGE, TECH_NONE, 0x3fff, 100, 3, "soldier_attack_ranged_03"},
-		{"Laminated Linen Body Armor", "Soldiers +1 hack resistance.", 350, 0, 250, 0, 40.0f, 2, BLD_FORGE, TECH_NONE, 0x3fff, 103, 1, "soldier_resistance_hack_02"},
-		{"Mail Body Armor", "Soldiers +2 hack resistance.", 500, 0, 400, 0, 60.0f, 3, BLD_FORGE, TECH_NONE, 0x3fff, 104, 1, "soldier_resistance_hack_03"},
-		{"Wooden Shield", "Soldiers +1 pierce resistance.", 0, 200, 100, 0, 20.0f, 2, BLD_FORGE, TECH_NONE, 0x3fff, 105, 1, "soldier_resistance_pierce_01"},
-		{"Metal Rim", "Soldiers +1 pierce resistance.", 0, 350, 250, 0, 40.0f, 2, BLD_FORGE, TECH_NONE, 0x3fff, 106, 1, "soldier_resistance_pierce_02"},
-		{"Improved Shield Alloys", "Soldiers +2 pierce resistance.", 0, 500, 400, 0, 60.0f, 3, BLD_FORGE, TECH_NONE, 0x3fff, 107, 1, "soldier_resistance_pierce_03"},
-		{"Professional Garrisons", "Fortresses +6 default arrows.", 400, 0, 200, 0, 50.0f, 1, BLD_FORTRESS, TECH_NONE, 0x3fff, 108, 1, "tower_garrison"},
-		{"Sturdy Foundations", "Towers +25% health.", 0, 0, 100, 500, 40.0f, 3, BLD_TOWER, TECH_NONE, 0x3fff, 109, 1, "tower_health"},
-		{"Arrow Shooters", "Sentry and Stone Towers +8 attack range.", 0, 500, 250, 0, 40.0f, 2, BLD_TOWER, TECH_NONE, 0x3fff, 110, 1, "tower_range"},
-		{"Sentries", "Sentry and Stone Towers +50% default arrow count.", 500, 0, 0, 0, 40.0f, 1, BLD_TOWER, TECH_NONE, 0x3fff, 111, 1, "tower_watch"},
-		{"Handicraft", "Traders +15% trade gain.", 0, 150, 150, 0, 40.0f, 2, BLD_MARKET, TECH_NONE, 0x3fff, 112, 1, "trade_gain_01"},
-		{"Advanced Handicraft", "Traders +15% trade gain.", 0, 300, 300, 0, 40.0f, 3, BLD_MARKET, TECH_NONE, 0x3fff, 113, 1, "trade_gain_02"},
-		{"Trade Caravan", "Land Traders +50% health.", 300, 0, 0, 0, 40.0f, 2, BLD_MARKET, TECH_NONE, 0x3fff, 114, 1, "trader_health"},
-		{"Unlock Champion Cavalry", "Unlock Champion Cavalry at the Stable.", 600, 0, 0, 0, 60.0f, 3, BLD_STABLE, TECH_NONE, 0x1dac, 115, 0, "unlock_champion_cavalry"},
-		{"Unlock Champion Chariots", "Unlock Champion Chariots at the Stable.", 600, 0, 0, 0, 60.0f, 3, BLD_STABLE, TECH_NONE, 0x1244, 115, 0, "unlock_champion_chariots"},
-		{"Unlock Champion Infantry", "Unlock Champions Infantry at the Barracks.", 600, 0, 0, 0, 60.0f, 3, BLD_BARRACKS, TECH_NONE, 0x0fec, 115, 0, "unlock_champion_infantry"},
-		{"Fertility Festival", "Unlock the ability to train Civilians from houses.", 250, 100, 100, 0, 60.0f, 1, BLD_HOUSE, TECH_NONE, 0x3bff, 115, 0, "unlock_civilians_house_generic"},
-		{"Fertility Festival", "Unlock the ability to train Civilians from houses.", 250, 100, 100, 0, 60.0f, 1, BLD_HOUSE, TECH_NONE, 0x0400, 115, 0, "unlock_civilians_house_kush"},
-		{"Naval Oxybeles", "Arrow Ships +10 crush attack damage and +10% attack range.", 0, 200, 200, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x3fff, 115, 2, "warship_arrow_attack"},
-		{"Burning Pitch", "Fire Ships +25% health and +25% attack damage.", 0, 300, 100, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x01c0, 117, 0, "warship_fireship_attack"},
-		{"Undergirding Cables", "Arrow Ships and Ramming Ships +20% health.", 0, 0, 400, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x003b, 117, 1, "warship_health"},
-		{"Bronze Ram", "Ramming Ships +30% attack damage.", 0, 0, 400, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x183f, 118, 0, "warship_ramming_attack"},
-		{"Flaming Projectiles", "Ranged Warships +10% attack damage.", 0, 400, 300, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x0400, 118, 2, "warship_ranged_attack"},
-		{"Naval Ballistae", "Siege Ships +20% attack range and vision range.", 0, 300, 300, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x3818, 120, 0, "warship_siege_attack"},
+		{"Military Engineers", "Siege Engines –40% pack and unpack time.", 800, 0, 0, 0, 40.0f, 3, BLD_ARSENAL, TECH_NONE, 0x383b, 82, 1, "siege_pack_unpack"},
+		{"Iron Weapons", "Soldiers +15% melee attack damage.", 350, 0, 250, 0, 40.0f, 2, BLD_FORGE, TECH_NONE, 0x3fff, 83, 3, "soldier_attack_melee_02"},
+		{"Carburization", "Soldiers +20% melee attack damage.", 500, 0, 400, 0, 60.0f, 3, BLD_FORGE, TECH_NONE, 0x3cff, 86, 3, "soldier_attack_melee_03"},
+		{"Steel Working", "Soldiers +20% melee attack damage. Swordsmen get an additional +20% bonus.", 500, 0, 400, 0, 60.0f, 3, BLD_FORGE, TECH_NONE, 0x0300, 89, 6, "soldier_attack_melee_03_variant"},
+		{"Improved Fletching", "Soldiers +15% ranged attack damage.", 0, 200, 100, 0, 20.0f, 2, BLD_FORGE, TECH_NONE, 0x3fff, 95, 3, "soldier_attack_ranged_01"},
+		{"Iron Arrowheads", "Soldiers +15% ranged attack damage.", 0, 350, 250, 0, 40.0f, 2, BLD_FORGE, TECH_NONE, 0x3fff, 98, 3, "soldier_attack_ranged_02"},
+		{"Trilobate Arrowheads", "Soldiers +20% ranged attack damage.", 0, 500, 400, 0, 60.0f, 3, BLD_FORGE, TECH_NONE, 0x3fff, 101, 3, "soldier_attack_ranged_03"},
+		{"Laminated Linen Body Armor", "Soldiers +1 hack resistance.", 350, 0, 250, 0, 40.0f, 2, BLD_FORGE, TECH_NONE, 0x3fff, 104, 1, "soldier_resistance_hack_02"},
+		{"Mail Body Armor", "Soldiers +2 hack resistance.", 500, 0, 400, 0, 60.0f, 3, BLD_FORGE, TECH_NONE, 0x3fff, 105, 1, "soldier_resistance_hack_03"},
+		{"Wooden Shield", "Soldiers +1 pierce resistance.", 0, 200, 100, 0, 20.0f, 2, BLD_FORGE, TECH_NONE, 0x3fff, 106, 1, "soldier_resistance_pierce_01"},
+		{"Metal Rim", "Soldiers +1 pierce resistance.", 0, 350, 250, 0, 40.0f, 2, BLD_FORGE, TECH_NONE, 0x3fff, 107, 1, "soldier_resistance_pierce_02"},
+		{"Improved Shield Alloys", "Soldiers +2 pierce resistance.", 0, 500, 400, 0, 60.0f, 3, BLD_FORGE, TECH_NONE, 0x3fff, 108, 1, "soldier_resistance_pierce_03"},
+		{"Professional Garrisons", "Fortresses +6 default arrows.", 400, 0, 200, 0, 50.0f, 1, BLD_FORTRESS, TECH_NONE, 0x3fff, 109, 1, "tower_garrison"},
+		{"Sturdy Foundations", "Towers +25% health.", 0, 0, 100, 500, 40.0f, 3, BLD_TOWER, TECH_NONE, 0x3fff, 110, 1, "tower_health"},
+		{"Arrow Shooters", "Sentry and Stone Towers +8 attack range.", 0, 500, 250, 0, 40.0f, 2, BLD_TOWER, TECH_NONE, 0x3fff, 111, 1, "tower_range"},
+		{"Sentries", "Sentry and Stone Towers +50% default arrow count.", 500, 0, 0, 0, 40.0f, 1, BLD_TOWER, TECH_NONE, 0x3fff, 112, 1, "tower_watch"},
+		{"Handicraft", "Traders +15% trade gain.", 0, 150, 150, 0, 40.0f, 2, BLD_MARKET, TECH_NONE, 0x3fff, 113, 1, "trade_gain_01"},
+		{"Advanced Handicraft", "Traders +15% trade gain.", 0, 300, 300, 0, 40.0f, 3, BLD_MARKET, TECH_NONE, 0x3fff, 114, 1, "trade_gain_02"},
+		{"Trade Caravan", "Land Traders +50% health.", 300, 0, 0, 0, 40.0f, 2, BLD_MARKET, TECH_NONE, 0x3fff, 115, 1, "trader_health"},
+		{"Unlock Champion Cavalry", "Unlock Champion Cavalry at the Stable.", 600, 0, 0, 0, 60.0f, 3, BLD_STABLE, TECH_NONE, 0x1dac, 116, 0, "unlock_champion_cavalry"},
+		{"Unlock Champion Chariots", "Unlock Champion Chariots at the Stable.", 600, 0, 0, 0, 60.0f, 3, BLD_STABLE, TECH_NONE, 0x1244, 116, 0, "unlock_champion_chariots"},
+		{"Unlock Champion Infantry", "Unlock Champions Infantry at the Barracks.", 600, 0, 0, 0, 60.0f, 3, BLD_BARRACKS, TECH_NONE, 0x0fec, 116, 0, "unlock_champion_infantry"},
+		{"Fertility Festival", "Unlock the ability to train Civilians from houses.", 250, 100, 100, 0, 60.0f, 1, BLD_HOUSE, TECH_NONE, 0x3bff, 116, 0, "unlock_civilians_house_generic"},
+		{"Fertility Festival", "Unlock the ability to train Civilians from houses.", 250, 100, 100, 0, 60.0f, 1, BLD_HOUSE, TECH_NONE, 0x0400, 116, 0, "unlock_civilians_house_kush"},
+		{"Naval Oxybeles", "Arrow Ships +10 crush attack damage and +10% attack range.", 0, 200, 200, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x3fff, 116, 2, "warship_arrow_attack"},
+		{"Burning Pitch", "Fire Ships +25% health and +25% attack damage.", 0, 300, 100, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x01c0, 118, 0, "warship_fireship_attack"},
+		{"Undergirding Cables", "Arrow Ships and Ramming Ships +20% health.", 0, 0, 400, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x003b, 118, 1, "warship_health"},
+		{"Bronze Ram", "Ramming Ships +30% attack damage.", 0, 0, 400, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x183f, 119, 0, "warship_ramming_attack"},
+		{"Flaming Projectiles", "Ranged Warships +10% attack damage.", 0, 400, 300, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x0400, 119, 2, "warship_ranged_attack"},
+		{"Naval Ballistae", "Siege Ships +20% attack range and vision range.", 0, 300, 300, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x3818, 121, 0, "warship_siege_attack"},
 	};
 	if (tech_id >= TECH_COUNT) return kTable[TECH_NONE];
 	return kTable[tech_id];

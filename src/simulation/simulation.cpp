@@ -1328,7 +1328,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		for (float &g : m.gather[t]) g = 1.0f;
 		for (int16_t &c : m.carry[t]) c = 0;
 		m.attack[t] = m.health[t] = m.speed[t] = 1.0f;
-		m.train_time[t] = m.heal_interval[t] = m.trade_gain[t] = 1.0f;
+		m.train_time[t] = m.heal_interval[t] = m.trade_gain[t] = m.pack_time[t] = 1.0f;
 		m.range[t] = m.heal_range[t] = 0.0f;
 		m.armor[t][0] = m.armor[t][1] = m.armor[t][2] = 0.0f;
 	}
@@ -1378,6 +1378,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_HEAL_RANGE: apply(m.heal_range[t]); break;
 					case TSTAT_HEAL_INTERVAL: apply(m.heal_interval[t]); break;
 					case TSTAT_TRADE_GAIN: apply(m.trade_gain[t]); break;
+					case TSTAT_PACK_TIME: apply(m.pack_time[t]); break;
 					default: break;
 				}
 			}
@@ -2026,11 +2027,23 @@ void Simulation::order_pack(const uint32_t *unit_ids, size_t count, bool pack) {
 	}
 }
 
+// Saves before v15 numbered techs without siege_pack_unpack (id 55); later ids moved up one.
+static uint8_t shift_tech_before_v15(uint8_t id) {
+	return id >= TECH_SIEGE_PACK_UNPACK && id + 1 < TECH_COUNT ? (uint8_t)(id + 1) : id;
+}
+
+static TechSet shift_techs_before_v15(const TechSet &old) {
+	TechSet out;
+	for (int id = 0; id < TECH_COUNT; ++id)
+		if (old.has((uint8_t)id)) out.set(shift_tech_before_v15((uint8_t)id));
+	return out;
+}
+
 float Simulation::pack_time_s(size_t unit_idx) const {
-	(void)unit_idx;
-	// 0 A.D.'s Military Engineers tech (siege_pack_unpack.json, Pack/Time x0.6) applies here
-	// once it is in tech_data.h.
-	return PACK_TIME_S;
+	// 0 A.D. Military Engineers (siege_pack_unpack.json): Pack/Time x0.6 for Siege.
+	const uint8_t team = units_.team[unit_idx], t = units_.unit_type[unit_idx];
+	if (team >= MAX_PLAYERS || t >= UNIT_TYPE_COUNT) return PACK_TIME_S;
+	return PACK_TIME_S * tech_mods_[team].pack_time[t];
 }
 
 void Simulation::order_set_formation(const uint32_t *unit_ids, size_t count, uint8_t formation) {
@@ -9109,6 +9122,7 @@ bool Simulation::load_state(const char *filepath) {
 			ps.techs.clear();
 			if (version >= 8) {
 				in.read((char *)ps.techs.words, sizeof(ps.techs.words));
+				if (version < 15) ps.techs = shift_techs_before_v15(ps.techs);
 			} else {
 				uint32_t mask = 0;
 				in.read((char *)&mask, sizeof(mask));
@@ -9339,6 +9353,7 @@ bool Simulation::load_state(const char *filepath) {
 		in.read((char *)&bld.rally_target_bld_id, sizeof(bld.rally_target_bld_id));
 		in.read((char *)&bld.garrison_cap, sizeof(bld.garrison_cap));
 		in.read((char *)&bld.research_tech, sizeof(bld.research_tech));
+		if (version < 15) bld.research_tech = shift_tech_before_v15(bld.research_tech);
 		in.read((char *)&bld.research_timer, sizeof(bld.research_timer));
 		in.read((char *)&bld.research_duration, sizeof(bld.research_duration));
 		in.read((char *)&bld.capture_points, sizeof(bld.capture_points));

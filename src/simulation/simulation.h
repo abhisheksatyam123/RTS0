@@ -837,6 +837,7 @@ private:
 		float heal_range[UNIT_TYPE_COUNT];    // added metres
 		float heal_interval[UNIT_TYPE_COUNT]; // < 1 heals faster
 		float trade_gain[UNIT_TYPE_COUNT];
+		float pack_time[UNIT_TYPE_COUNT];   // siege pack/unpack time multiplier
 		float bld_health[BLD_TYPE_COUNT];
 		float bld_attack[BLD_TYPE_COUNT];
 		float bld_range[BLD_TYPE_COUNT];
