@@ -68,19 +68,19 @@ int main() {
 
 	// Phase gating in cmd_build: forge needs Town, arsenal needs City.
 	fresh(s);
-	CHECK(s.cmd_build(0, 0, BLD_FORGE) == 0);
-	CHECK(s.cmd_build(0, 0, BLD_ARSENAL) == 0);
-	CHECK(s.cmd_build(0, 0, BLD_STABLE) != 0);
-	CHECK(s.cmd_build(4, 0, BLD_RANGE) != 0);
+	CHECK(s.cmd_build(0, 0, 0, BLD_FORGE) == 0);
+	CHECK(s.cmd_build(0, 0, 0, BLD_ARSENAL) == 0);
+	CHECK(s.cmd_build(0, 0, 0, BLD_STABLE) != 0);
+	CHECK(s.cmd_build(0, 4, 0, BLD_RANGE) != 0);
 	s.player(0).phase = 2;
-	CHECK(s.cmd_build(8, 0, BLD_FORGE) != 0);
-	CHECK(s.cmd_build(12, 0, BLD_ARSENAL) == 0);
+	CHECK(s.cmd_build(0, 8, 0, BLD_FORGE) != 0);
+	CHECK(s.cmd_build(0, 12, 0, BLD_ARSENAL) == 0);
 
 	// A field costs 100 wood; its builder starts farming once it is finished.
 	// (Each scenario stays under 35 s: the legacy wave mode attacks after that.)
 	fresh(s);
 	float wood0 = s.wood();
-	uint32_t field = s.cmd_build(4, 4, BLD_FIELD);
+	uint32_t field = s.cmd_build(0, 4, 4, BLD_FIELD);
 	CHECK(field != 0);
 	CHECK(s.wood() == wood0 - 100.0f);
 	s.spawn_building_world(6.0f, 16.0f, BLD_FARMSTEAD, 0, 1.0f);

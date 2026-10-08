@@ -156,6 +156,9 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	bool guard_mode = false;
 	uint8_t current_build_type = rtso::BLD_HOUSE;
 	uint32_t selected_building_id = 0;
+	// Width in world units (= 0 A.D. tiles) of generated random maps: 128 Tiny
+	// to 512 Giant. Set from MatchSettings.map_size; scenario maps use their own.
+	int random_map_size = 128;
 
 	bool dragging = false;
 	bool paused_via_menu = false;
@@ -230,11 +233,13 @@ public:
 	void _on_lobby_refresh_pressed();
 	void refresh_lobby_rooms();
 	bool net_lockstep() const { return net_host_.getRole() != rtso::NetRole::None; }
+	// The player this client controls: its lockstep slot in multiplayer, player 0 otherwise.
+	uint8_t local_player() const { return net_lockstep() ? turn_mgr_.local_player() : (uint8_t)0; }
 	void post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
 	                   float x = 0, float z = 0, uint32_t tid = 0, uint8_t param = 0);
 	// P4.1 host hooks for chat_window.h / diplomacy_dialog.h: thin inline
 	// forwards to the existing sim/net path (NMT_CHAT + cmd 22 unchanged).
-	String chat_civ_name() { return rtso::civ_info(sim->player_civ()).name; }
+	String chat_civ_name() { return rtso::civ_info(sim->player_civ(local_player())).name; }
 	void chat_send_wire(const std::string &wire) { net_host_.sendChat(wire); }
 	rtso::Simulation *ui_sim() override { return sim; }
 	uint32_t ui_selected_building_id() const override { return selected_building_id; }

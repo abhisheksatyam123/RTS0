@@ -7,6 +7,7 @@
 #include "network/turn_manager.h"
 #include <cstdio>
 #include <cstdlib>
+#include <vector>
 
 using namespace rtso;
 
@@ -60,11 +61,42 @@ int main() {
 	fresh(s);
 	s.set_player_resources(0, 5000, 5000, 5000, 5000);
 	uint32_t tc0 = s.spawn_building_world(-30.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
-	CHECK(s.cmd_research(tc0, TECH_PHASE_TOWN));
+	CHECK(s.cmd_research(0, tc0, TECH_PHASE_TOWN));
 	for (int t = 0; t < 20 * 400 && s.player_phase() < 2; ++t) s.tick(Simulation::FIXED_STEP);
 	CHECK(s.player_phase() == 2);
 	CHECK(s.is_tech_researched(TECH_PHASE_TOWN));
 	for (uint8_t p = 1; p < MAX_PLAYERS; ++p) CHECK(!s.player(p).has_tech(TECH_PHASE_TOWN));
+
+	// Commands run as their issuing player and only touch what that player owns.
+	fresh(s);
+	s.set_player_resources(0, 5000, 5000, 5000, 5000);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	uint32_t b0 = s.spawn_building_world(-30.0f, 0.0f, BLD_BARRACKS, 0, 1.0f);
+	uint32_t b1 = s.spawn_building_world(30.0f, 0.0f, BLD_BARRACKS, 1, 1.0f);
+	CHECK(!s.cmd_train(1, b0, UNIT_SWORDSMAN));   // player 1 can't use player 0's barracks
+	CHECK(s.food() == 5000);
+	CHECK(s.cmd_train(1, b1, UNIT_SWORDSMAN));
+	auto stock = [&](uint8_t p) { int t = 0; for (int r = 0; r < RES_COUNT; ++r) t += s.player_resource(p, r); return t; };
+	CHECK(stock(0) == 20000 && stock(1) < 20000);
+	CHECK(!s.cmd_cancel_train(0, b1, 0));          // nor cancel player 1's queue
+	int p1_stock = stock(1);
+	CHECK(s.cmd_cancel_train(1, b1, 0));
+	CHECK(stock(1) > p1_stock && stock(0) == 20000); // refund goes to the owner
+	CHECK(!s.cmd_research(1, b0, TECH_WEAPONS_1));
+	uint32_t built = s.cmd_build(1, 20, 20, BLD_HOUSE);
+	CHECK(built != 0 && s.owns_building(1, built) && !s.owns_building(0, built));
+	CHECK(s.food() == 5000);                       // player 1 paid
+	uint32_t u0 = s.spawn_unit(-20.0f, 5.0f, 0, UNIT_VILLAGER);
+	uint32_t u1 = s.spawn_unit(20.0f, 5.0f, 1, UNIT_VILLAGER);
+	uint32_t mixed[] = {u0, u1, 999999u};
+	std::vector<uint32_t> owned;
+	s.filter_owned_units(1, mixed, 3, owned);
+	CHECK(owned.size() == 1 && owned[0] == u1);
+	CHECK(s.pop_current(1) > 0 && s.pop_max(1) >= 10);
+	TurnManager tmc;
+	CHECK(tmc.player_for_client(0) == 0 && tmc.player_for_client(1) == 1 && tmc.player_for_client(50) == 0xFF);
+	tmc.set_client_player(50, 3);
+	CHECK(tmc.player_for_client(50) == 3);
 
 	// Save/load v6 round trip keeps every slot, and the lockstep hash covers every slot.
 	fresh(s);

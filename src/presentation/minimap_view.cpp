@@ -175,11 +175,12 @@ void RtsoMiniMapView::_draw() {
 	};
 
 	const uint8_t *fow = sim->fow_grid();
+	const int fow_res = sim->fow_res();
 	auto get_fow_state = [&](float x, float z) -> uint8_t {
 		if (!fow) return rtso::Simulation::FOW_VISIBLE;
-		int cx = std::clamp((int)((x + half_map) / (half_map * 2.0f) * rtso::Simulation::FOW_GRID), 0, rtso::Simulation::FOW_GRID - 1);
-		int cz = std::clamp((int)((z + half_map) / (half_map * 2.0f) * rtso::Simulation::FOW_GRID), 0, rtso::Simulation::FOW_GRID - 1);
-		return fow[cz * rtso::Simulation::FOW_GRID + cx];
+		int cx = std::clamp((int)((x + half_map) / (half_map * 2.0f) * fow_res), 0, fow_res - 1);
+		int cz = std::clamp((int)((z + half_map) / (half_map * 2.0f) * fow_res), 0, fow_res - 1);
+		return fow[cz * fow_res + cx];
 	};
 
 	// 3-Tier Fog of War shroud (Unexplored black, Explored fog 40%, Visible 100%)
@@ -191,22 +192,22 @@ void RtsoMiniMapView::_draw() {
 	//   SHROUD_OFF     -> not drawn at all (and no entity masking)
 	auto draw_shroud = [&]() {
 		if (!fow) return;
-		float cell_w = sz.x / (float)rtso::Simulation::FOW_GRID;
-		float cell_h = sz.y / (float)rtso::Simulation::FOW_GRID;
+		float cell_w = sz.x / (float)fow_res;
+		float cell_h = sz.y / (float)fow_res;
 
 		const Color black_shroud(0.03f, 0.04f, 0.06f, 1.0f);  // 100% black unexplored
 		const Color fog_shroud(0.01f, 0.02f, 0.04f, 0.40f);    // 40% explored fog
 
-		for (int z = 0; z < rtso::Simulation::FOW_GRID; ++z) {
+		for (int z = 0; z < fow_res; ++z) {
 			int x = 0;
-			while (x < rtso::Simulation::FOW_GRID) {
-				uint8_t st = fow[z * rtso::Simulation::FOW_GRID + x];
+			while (x < fow_res) {
+				uint8_t st = fow[z * fow_res + x];
 				if (st == rtso::Simulation::FOW_VISIBLE) {
 					x++;
 					continue;
 				}
 				int run_start = x;
-				while (x < rtso::Simulation::FOW_GRID && fow[z * rtso::Simulation::FOW_GRID + x] == st) {
+				while (x < fow_res && fow[z * fow_res + x] == st) {
 					x++;
 				}
 				int run_len = x - run_start;

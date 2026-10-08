@@ -70,6 +70,7 @@ struct ProductionOrder {
 	uint8_t unit_type;
 	float timer;
 	float duration;
+	uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE; // civ roster unit to spawn (NONE = civ default for unit_type)
 };
 
 // Per-player state (0 A.D. Player.js + ResourceCounter + TechnologyManager).
@@ -124,9 +125,13 @@ public:
 	static constexpr size_t UNIT_CAP = 4096;
 	static constexpr size_t MAX_PROJECTILES = 384;
 
-	// Fog of War (64x64 grid over the 128x128m map)
-	static constexpr int FOW_GRID = 64;
-	static constexpr float FOW_CELL_SIZE = (MAP_HALF * 2.0f) / (float)FOW_GRID; // 2.0m per cell
+	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
+	// resolution grows with the map: 64 cells on the default 128m map, 256 on a
+	// 512m 0 A.D. "Giant" map. grid_res_for_map() gives the resolution.
+	static constexpr float SPATIAL_CELL = 2.0f;
+	static constexpr int MIN_GRID_RES = 64;
+	static constexpr int MAX_GRID_RES = 256;
+	static int grid_res_for_map(float map_half);
 
 	enum FowState : uint8_t {
 		FOW_UNEXPLORED = 0, // black — never seen
@@ -134,8 +139,9 @@ public:
 		FOW_VISIBLE    = 2, // fully visible — currently in unit LOS
 	};
 
-	// Public accessor for the FoW grid (FOW_GRID*FOW_GRID flat array, row-major)
-	const uint8_t* fow_grid() const { return fow_grid_; }
+	// Public accessor for the FoW grid (fow_res()*fow_res() flat array, row-major)
+	const uint8_t* fow_grid() const { return fow_grid_.data(); }
+	int fow_res() const { return grid_res_; }
 	uint8_t fow_state_at(float x, float z, uint8_t viewer_team = 0) const;
 	bool is_entity_visible_to_viewer(float x, float z, uint8_t entity_team, uint8_t viewer_team = 0) const;
 
@@ -196,7 +202,13 @@ public:
 	void spawn_war(int total_units = 2000);
 	void generate_random_map(MapType type = MAP_RANDOM_CONTINENTAL, uint32_t seed = 0, int num_players = 2, float map_half = 64.0f);
 
-	uint32_t spawn_unit(float x, float z, uint8_t team = 0, UnitType u_type = UNIT_VILLAGER, float hp = 100.0f);
+	// Spawns the owner civ's unit for u_type (or roster template `tmpl`) with its
+	// 0 A.D. stats. hp > 0 overrides the template's health.
+	uint32_t spawn_unit(float x, float z, uint8_t team = 0, UnitType u_type = UNIT_VILLAGER, float hp = 0.0f,
+			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE);
+	// Stats of the unit at SoA index i (its civ roster template, else its class).
+	const UnitTypeInfo &unit_info_at(size_t i) const { return civ_template_unit_info(units_.tmpl[i], units_.unit_type[i]); }
+	uint16_t unit_template(uint32_t unit_id) const;
 	uint32_t spawn_resource(int cell_x, int cell_y, uint8_t type, int32_t amount = 600);
 	uint32_t spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount = 600, uint8_t subtype = 0);
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f);
@@ -212,11 +224,19 @@ public:
 	const std::string& current_map_name() const { return current_map_name_; }
 	const std::string& current_map_biome() const { return current_map_biome_; }
 
-	void set_map_half(float h) { map_half_ = h; }
+	// Sets the map extent and resizes the nav, FoW and territory grids to match.
+	// Call before spawning entities (after reset()).
+	void set_map_half(float h);
+	// Map loading: defer the nav-grid and territory rebuild that every finished
+	// building triggers until end_bulk_spawn(), which does it once. end also
+	// marks water on the nav grid, so call it even for maps with no buildings.
+	void begin_bulk_spawn() { bulk_spawn_ = true; }
+	void end_bulk_spawn();
 	void set_terrain_data(const std::vector<float> &heights, int res, float water_h) {
 		terrain_heights_ = heights;
 		terrain_res_ = res;
 		terrain_water_height_ = water_h;
+		fow_cell_height_.clear();
 	}
 	void set_map_info(const std::string &id, const std::string &name, const std::string &biome) {
 		current_map_id_ = id;
@@ -227,15 +247,19 @@ public:
 	// Commands
 	void cmd_move(const uint32_t *unit_ids, size_t count, float tx, float tz);
 	void cmd_stop(const uint32_t *unit_ids, size_t count);
-	uint32_t cmd_build(int cell_x, int cell_y, uint8_t b_type);
-	bool cmd_train(uint32_t building_id, UnitType u_type);
+	// Player commands (0 A.D. Commands.js): `player` is the issuing player id. Each one
+	// rejects buildings the player doesn't own and charges/refunds that player's stock.
+	uint32_t cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b_type);
+	bool cmd_train(uint8_t player, uint32_t building_id, UnitType u_type);
+	// Train a specific roster unit (a hero, a champion, a second unit of the same class).
+	bool cmd_train_template(uint8_t player, uint32_t building_id, uint16_t tmpl);
 	// P3 maintainFleet upkeep seam (0 A.D. navalManager.js:507-543): team-aware
 	// naval queue entry used by TurnManager NET_CMD_MAINTAIN_FLEET. Unlike
 	// cmd_train (team-0/human only) this honours the building's own team
 	// resources (Petra team 1 via petra_try_pay) so Petra docks can train.
 	bool cmd_maintain_fleet(uint32_t building_id, UnitType u_type, uint8_t team);
-	bool cmd_cancel_train(uint32_t building_id, size_t queue_idx);
-	void cmd_set_rally_point(uint32_t building_id, float rx, float rz, uint32_t res_id = 0, uint32_t bld_id = 0);
+	bool cmd_cancel_train(uint8_t player, uint32_t building_id, size_t queue_idx);
+	void cmd_set_rally_point(uint8_t player, uint32_t building_id, float rx, float rz, uint32_t res_id = 0, uint32_t bld_id = 0);
 
 	void order_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id);
 	void order_attack(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id);
@@ -252,7 +276,7 @@ public:
 
 	// Livestock & Corrals (Corral.js)
 	void order_herd(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
-	bool cmd_breed_livestock(uint32_t building_id);
+	bool cmd_breed_livestock(uint8_t player, uint32_t building_id);
 
 	// Naval Transport Logistics (GarrisonHolder.js / UnitAI.js)
 	static constexpr int TRANSPORT_CAPACITY = 15;
@@ -283,8 +307,8 @@ public:
 	const std::vector<BattleAlert> &pending_alerts() const { return pending_alerts_; }
 	void clear_alerts() { pending_alerts_.clear(); }
 
-	bool cmd_research(uint32_t building_id, uint8_t tech_id);
-	bool cmd_barter(ResourceType sell, ResourceType buy, int amount = 100);
+	bool cmd_research(uint8_t player, uint32_t building_id, uint8_t tech_id);
+	bool cmd_barter(uint8_t player, ResourceType sell, ResourceType buy, int amount = 100);
 	bool cmd_set_diplomacy(uint8_t player_id, uint8_t stance);
 	// G3 Market/Trader
 	int calculate_trader_gain(const Building& mA, const Building& mB, uint8_t team) const;
@@ -318,6 +342,7 @@ public:
 		const uint8_t *rank;
 		const uint8_t *status_effects;
 		const uint16_t *xp;
+		const uint16_t *tmpl; // civ roster template (civ_unit_template), CIV_UNIT_TEMPLATE_NONE = generic
 		size_t count;
 	};
 	UnitView units() const;
@@ -352,30 +377,35 @@ public:
 	// Same alliance team (0 A.D. "team" in game setup); a player is always its own ally.
 	bool same_team(uint8_t a, uint8_t b) const { return a == b || (a < MAX_PLAYERS && b < MAX_PLAYERS && players_[a].team == players_[b].team); }
 
-	// Player 0 (local human) shorthands kept for the HUD and tests.
-	int food() const { return (int)players_[0].food(); }
-	int wood() const { return (int)players_[0].wood(); }
-	int gold() const { return (int)players_[0].gold(); }
-	int stone() const { return (int)players_[0].stone(); }
+	// Whole-unit stock for the HUD; defaults to player 0 for single-player callers and tests.
+	int food(uint8_t pid = 0) const { return (int)player(pid).food(); }
+	int wood(uint8_t pid = 0) const { return (int)player(pid).wood(); }
+	int gold(uint8_t pid = 0) const { return (int)player(pid).gold(); }
+	int stone(uint8_t pid = 0) const { return (int)player(pid).stone(); }
 	// GameSetup starting-resources option (0 A.D. page_gamesetup "Starting Resources").
 	// Sets player 0 only (AI slots keep their reset() stock); use set_player_resources per slot.
 	// Must be called AFTER map load: reset()/generate() overwrite stocks.
 	void set_starting_resources(int food, int wood, int gold, int stone) { set_player_resources(0, food, wood, gold, stone); }
 
-	float food_rate() const { return players_[0].gathered_window[RES_FOOD] * 6.0f; } // per min approx
-	float wood_rate() const { return players_[0].gathered_window[RES_WOOD] * 6.0f; }
-	float gold_rate() const { return players_[0].gathered_window[RES_GOLD] * 6.0f; }
-	float stone_rate() const { return players_[0].gathered_window[RES_STONE] * 6.0f; }
+	float food_rate(uint8_t pid = 0) const { return player(pid).gathered_window[RES_FOOD] * 6.0f; } // per min approx
+	float wood_rate(uint8_t pid = 0) const { return player(pid).gathered_window[RES_WOOD] * 6.0f; }
+	float gold_rate(uint8_t pid = 0) const { return player(pid).gathered_window[RES_GOLD] * 6.0f; }
+	float stone_rate(uint8_t pid = 0) const { return player(pid).gathered_window[RES_STONE] * 6.0f; }
 
-	int pop_current() const;
-	int pop_max() const;
+	int pop_current(uint8_t player = 0) const;
+	int pop_max(uint8_t player = 0) const;
+	// Ownership checks for player commands (0 A.D. Commands.js FilterEntityList).
+	bool owns_unit(uint8_t player, uint32_t unit_id) const;
+	bool owns_building(uint8_t player, uint32_t building_id) const;
+	// Copies the ids of live units `player` owns into `out` (cleared first), keeping order.
+	void filter_owned_units(uint8_t player, const uint32_t *unit_ids, size_t count, std::vector<uint32_t> &out) const;
 	int wave_number() const { return wave_number_; }
 	float wave_time_remaining() const { return std::max(0.0f, 35.0f - wave_timer_); }
 	bool is_game_over() const { return game_over_; }
 	bool is_victory() const { return victory_; }
-	uint8_t player_phase() const { return players_[0].phase; }
+	uint8_t player_phase(uint8_t pid = 0) const { return player(pid).phase; }
 	void set_player_civ(uint8_t civ) { players_[0].civ = (Civilization)civ; }
-	uint8_t player_civ() const { return players_[0].civ; }
+	uint8_t player_civ(uint8_t pid = 0) const { return player(pid).civ; }
 	void set_team_civ(uint8_t team, uint8_t civ) { if (team < MAX_PLAYERS) players_[team].civ = (Civilization)civ; }
 	uint8_t team_civ(uint8_t team) const { return (team < MAX_PLAYERS) ? players_[team].civ : CIV_ATHENIANS; }
 	void set_biome(uint8_t b) { biome_ = b; }
@@ -434,7 +464,7 @@ public:
 	int ai_pop_current() const;
 	int ai_pop_max() const;
 
-	const uint8_t* petra_fow_grid() const { return petra_fow_; }
+	const uint8_t* petra_fow_grid() const { return petra_fow_.data(); }
 
 	// Petra Multi-Base HQ & BasesManager (0 A.D. ai/petra/headquarters.js / baseManager.js)
 	struct PetraBase {
@@ -555,6 +585,15 @@ public:
 
 	struct Stats { uint64_t tick_us; size_t ticks; };
 	Stats stats() const { return {tick_us_, ticks_}; }
+	// Wall-clock cost of the map-size-sensitive subsystems (tools/bench_map_scale.cpp).
+	// Diagnostic only: never read by the simulation, so lockstep is unaffected.
+	struct MapScaleStats {
+		uint64_t fow_us = 0, fow_calls = 0;
+		uint64_t path_us = 0, path_calls = 0;
+		uint64_t territory_us = 0, territory_calls = 0;
+		uint64_t threat_us = 0, threat_calls = 0;
+	};
+	const MapScaleStats &map_scale_stats() const { return map_scale_stats_; }
 
 	struct MatchRecord {
 		int units_trained = 0;
@@ -599,6 +638,8 @@ private:
 	void tick_petra_ai(float dt);
 	void tick_fauna(float dt);
 	void tick_fow();  // updates FoW each sim tick
+	void ensure_fow_cell_heights();
+	void reveal_fow(std::vector<uint8_t> &grid, float sx, float sz, float vr) const;
 	bool terrain_blocks_los(float sx, float sz, float sy, float tx, float tz, float ty) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
 	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
@@ -704,10 +745,11 @@ private:
 
 	uint64_t tick_us_ = 0;
 	uint64_t ticks_ = 0;
+	mutable MapScaleStats map_scale_stats_;
 	FrameArena frame_arena_{4 * 1024 * 1024};
 
 	// Petra AI Subsystems & Heuristics (0 A.D. Petra.js / dangerMap.js / military.js / economy.js / attackPlan.js)
-	// Phase6/G9: 64x64 high-resolution danger map matching NavGrid and FOW_GRID (2.0m cells)
+	// Phase6/G9: 64x64 danger map; cells stretch with the map (2m on the default 128m map)
 	static constexpr int THREAT_GRID_RES = 64;
 	static constexpr float THREAT_CELL_SIZE = (MAP_HALF * 2.0f) / (float)THREAT_GRID_RES;
 
@@ -792,11 +834,14 @@ private:
 	bool petra_start_transport(const std::vector<uint32_t> &unit_ids, float from_x, float from_z, float to_x, float to_z);
 	uint32_t petra_place_building(uint8_t btype, float near_x, float near_z, int min_r, int max_r, uint8_t queue);
 
-	uint8_t fow_grid_[FOW_GRID * FOW_GRID] = {}; // FoW state per tile
-	uint8_t petra_fow_[FOW_GRID * FOW_GRID] = {}; // FoW state per tile for Petra AI
+	bool bulk_spawn_ = false;
+	int grid_res_ = MIN_GRID_RES; // nav/FoW/territory resolution, grid_res_for_map(map_half_)
+	std::vector<uint8_t> fow_grid_ = std::vector<uint8_t>(MIN_GRID_RES * MIN_GRID_RES, 0); // FoW state per tile
+	std::vector<uint8_t> petra_fow_ = std::vector<uint8_t>(MIN_GRID_RES * MIN_GRID_RES, 0); // FoW state per tile for Petra AI
+	std::vector<float> fow_cell_height_; // terrain height at each FoW cell centre, lazily filled by tick_fow
 	NavGrid nav_grid_; // Phase1: SoA nav mesh (buildings + water), mirrors 0AD Grid<NavcellData>
-	Grid<uint8_t> territory_grid_; // 64x64 player id per cell, G2 (CCmpTerritoryManager)
-	Grid<uint8_t> influence_grid_; // 64x64 influence count per cell, G2
+	Grid<uint8_t> territory_grid_; // grid_res_^2 player id per cell, G2 (CCmpTerritoryManager)
+	Grid<uint8_t> influence_grid_; // grid_res_^2 influence count per cell, G2
 	std::vector<WaypointPath> unit_paths_; // per-unit path (UNIT_CAP), SoA waypoint_cur/count sync
 	AuraManager aura_mgr_; // G4: unified aura sources (AuraManager)
 	float fow_timer_ = 0.0f;

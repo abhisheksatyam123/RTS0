@@ -135,36 +135,37 @@ public:
 		}
 	}
 
-	void update(rtso::Simulation *sim, double match_elapsed_time) {
+	// `me` is the local player whose economy the panel shows.
+	void update(rtso::Simulation *sim, uint8_t me, double match_elapsed_time) {
 		using namespace godot;
 		if (!sim || !res_labels_[0]) return;
 
 		// Dynamic Civ Crest & Phase Badge Emblems
-		const auto &cinfo = rtso::civ_info(sim->player_civ());
+		const auto &cinfo = rtso::civ_info(sim->player_civ(me));
 		if (civ_emblem_) {
 			civ_emblem_->set_texture(rtso::load_ui_texture(cinfo.emblem_path));
 		}
 		if (phase_emblem_) {
-			uint8_t pphase = sim->player_phase();
+			uint8_t pphase = sim->player_phase(me);
 			if (pphase == 1) phase_emblem_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/phases/village.png"));
 			else if (pphase == 2) phase_emblem_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/phases/town.png"));
 			else phase_emblem_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/phases/city.png"));
 		}
 
 		// Resource counts & rates
-		res_labels_[0]->set_text(String::num_int64(sim->food()) + " (+" + String::num(sim->food_rate(), 0) + "/m)");
-		res_labels_[1]->set_text(String::num_int64(sim->wood()) + " (+" + String::num(sim->wood_rate(), 0) + "/m)");
-		res_labels_[2]->set_text(String::num_int64(sim->gold()) + " (+" + String::num(sim->gold_rate(), 0) + "/m)");
-		res_labels_[3]->set_text(String::num_int64(sim->stone()) + " (+" + String::num(sim->stone_rate(), 0) + "/m)");
+		res_labels_[0]->set_text(String::num_int64(sim->food(me)) + " (+" + String::num(sim->food_rate(me), 0) + "/m)");
+		res_labels_[1]->set_text(String::num_int64(sim->wood(me)) + " (+" + String::num(sim->wood_rate(me), 0) + "/m)");
+		res_labels_[2]->set_text(String::num_int64(sim->gold(me)) + " (+" + String::num(sim->gold_rate(me), 0) + "/m)");
+		res_labels_[3]->set_text(String::num_int64(sim->stone(me)) + " (+" + String::num(sim->stone_rate(me), 0) + "/m)");
 
 		// Pop & Idle
-		int cur_pop = sim->pop_current();
-		int max_pop = sim->pop_max();
+		int cur_pop = sim->pop_current(me);
+		int max_pop = sim->pop_max(me);
 		pop_label_->set_text(String::num_int64(cur_pop) + "/" + String::num_int64(max_pop));
 		if (cur_pop >= max_pop) pop_label_->add_theme_color_override("font_color", Color(1.0f, 0.3f, 0.3f));
 		else pop_label_->add_theme_color_override("font_color", Color(0.95f, 0.95f, 0.98f));
 
-		auto idle_workers = sim->get_idle_workers(0);
+		auto idle_workers = sim->get_idle_workers(me);
 		idle_worker_btn_->set_text("Idle: " + String::num_int64(idle_workers.size()));
 		if (!idle_workers.empty()) idle_worker_btn_->add_theme_color_override("font_color", Color(1.0f, 0.85f, 0.2f));
 		else idle_worker_btn_->add_theme_color_override("font_color", Color(0.85f, 0.85f, 0.88f));
@@ -176,7 +177,7 @@ public:
 		String sec_str = (secs < 10 ? "0" : "") + String::num_int64(secs);
 		clock_label_->set_text(min_str + ":" + sec_str);
 
-		String phase_name = (sim->player_phase() == 1) ? "Village Phase" : ((sim->player_phase() == 2) ? "Town Phase" : "City Phase");
+		String phase_name = (sim->player_phase(me) == 1) ? "Village Phase" : ((sim->player_phase(me) == 2) ? "Town Phase" : "City Phase");
 		if (sim->is_wonder_active()) {
 			int wmins = (int)sim->wonder_time_remaining() / 60;
 			int wsecs = (int)sim->wonder_time_remaining() % 60;

@@ -664,7 +664,8 @@ int run_legacy_tests() {
         assert(enemy && ally);
         // Enemy vision is not shared; allied unit vision is shared with player 0.
         for (int i = 0; i < 6; ++i) { enemy_only.tick(0.05f); allied.tick(0.05f); }
-        const int center = Simulation::FOW_GRID / 2 * Simulation::FOW_GRID + Simulation::FOW_GRID / 2;
+        const int G = enemy_only.fow_res();
+        const int center = G / 2 * G + G / 2;
         assert(enemy_only.fow_grid()[center] == Simulation::FOW_UNEXPLORED);
         allied.set_mutual_ally(1);
         for (int i = 0; i < 6; ++i) allied.tick(0.05f);
@@ -784,7 +785,8 @@ int run_legacy_tests() {
         flat.spawn_unit(0.0f, -10.0f, 0, UNIT_VILLAGER);
         blocked.spawn_unit(0.0f, -10.0f, 0, UNIT_VILLAGER);
         for (int i = 0; i < 6; ++i) { flat.tick(0.05f); blocked.tick(0.05f); }
-        const int center = Simulation::FOW_GRID / 2 * Simulation::FOW_GRID + Simulation::FOW_GRID / 2;
+        const int G = flat.fow_res();
+        const int center = G / 2 * G + G / 2;
         assert(flat.fow_state_at(0.0f, -10.0f) == Simulation::FOW_VISIBLE ||
                flat.fow_state_at(0.0f, -9.0f) == Simulation::FOW_VISIBLE);
         assert(blocked.fow_state_at(0.0f, 0.0f) != Simulation::FOW_VISIBLE);
@@ -819,7 +821,8 @@ int run_legacy_tests() {
         s.spawn_building_world(-40.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
         s.spawn_unit(0.0f, 0.0f, 1, UNIT_VILLAGER);
         for (int i = 0; i < 6; ++i) s.tick(0.05f);
-        const int center = Simulation::FOW_GRID / 2 * Simulation::FOW_GRID + Simulation::FOW_GRID / 2;
+        const int G = s.fow_res();
+        const int center = G / 2 * G + G / 2;
         assert(s.fow_grid()[center] == Simulation::FOW_VISIBLE);
         std::cout << "  [PASS] reciprocal alliance gates shared LOS." << std::endl;
     }
@@ -829,13 +832,13 @@ int run_legacy_tests() {
         Simulation s;
         const uint32_t tc = s.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
         s.set_starting_resources(1000, 1000, 1000, 1000);
-        assert(s.cmd_research(tc, TECH_PHASE_TOWN));
+        assert(s.cmd_research(0, tc, TECH_PHASE_TOWN));
         assert(s.buildings().back().research_tech == TECH_PHASE_TOWN);
         for (int i = 0; i < 32 && !s.is_tech_researched(TECH_PHASE_TOWN); ++i) s.tick(1.0f);
         assert(s.is_tech_researched(TECH_PHASE_TOWN));
         assert(s.player_phase() == 2);
         const int gold_before = s.gold();
-        assert(s.cmd_train(tc, UNIT_SWORDSMAN));
+        assert(s.cmd_train(0, tc, UNIT_SWORDSMAN));
         assert(s.gold() == gold_before - unit_type_info(UNIT_SWORDSMAN).gold_cost);
         // ProductionQueue.js queues the order; the training timer consumes it
         // during the next simulation tick, so a long tick is intentionally not

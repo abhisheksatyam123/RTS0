@@ -64,7 +64,14 @@ enum MapType : uint8_t {
 	MAP_SAHARAN_OASES = 12,
 	MAP_ANATOLIAN_PLATEAU = 13,
 	MAP_JEBEL_BARKAL = 14,
-	MAP_TYPE_COUNT = 15
+	// Modelled on 0 A.D. maps/random/*.js
+	MAP_MAINLAND = 15,
+	MAP_ALPINE_LAKES = 16,
+	MAP_LAKE = 17,
+	MAP_GULF_OF_BOTHNIA = 18,
+	MAP_ARDENNES_FOREST = 19,
+	MAP_NEARESTERN_BADLANDS = 20,
+	MAP_TYPE_COUNT = 21
 };
 
 struct MapTypeInfo {
@@ -92,7 +99,13 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_DANUBIUS, "danubius", "Danubius (RMS)", "temperate", true, "Meandering dual-channel river with fords, sandbars, and central island fortress."},
 		{MAP_SAHARAN_OASES, "saharan_oases", "Saharan Oases (RMS)", "oasis", true, "Arid desert with sinusoidal sand dunes, date palm groves, and freshwater oases."},
 		{MAP_ANATOLIAN_PLATEAU, "anatolian_plateau", "Anatolian Plateau (RMS)", "steppe", true, "High plateau steppe surrounded by perimeter canyon ravines and rich mineral outcrops."},
-		{MAP_JEBEL_BARKAL, "jebel_barkal", "Jebel Barkal (RMS)", "savanna", true, "Iconic central sandstone mesa landmark with high-ground elevation advantage and surrounding savanna quarries."}
+		{MAP_JEBEL_BARKAL, "jebel_barkal", "Jebel Barkal (RMS)", "savanna", true, "Iconic central sandstone mesa landmark with high-ground elevation advantage and surrounding savanna quarries."},
+		{MAP_MAINLAND, "mainland", "Mainland (RMS)", "mediterranean", true, "Open rolling land with no water barriers, scattered woods and mines. 0 A.D.'s standard land map."},
+		{MAP_ALPINE_LAKES, "alpine_lakes", "Alpine Lakes (RMS)", "alpine", true, "High mountain ridges cradling cold lakes, with valleys between the player bases."},
+		{MAP_LAKE, "lake", "Lake (RMS)", "temperate", true, "A great lake fills the middle of the map, ringed by the players' lands."},
+		{MAP_GULF_OF_BOTHNIA, "gulf_of_bothnia", "Gulf of Bothnia (RMS)", "alpine", true, "A northern gulf cuts into the land from one edge, players settle around its shores."},
+		{MAP_ARDENNES_FOREST, "ardennes_forest", "Ardennes Forest (RMS)", "temperate", true, "Dense hilly forest with clearings for each base; wood everywhere, little open ground."},
+		{MAP_NEARESTERN_BADLANDS, "nearestern_badlands", "Near-Eastern Badlands (RMS)", "oasis", true, "Dry eroded badlands split by canyons, with a few oases and rich mines."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
@@ -572,69 +585,6 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 	return kTable[tech_id];
 }
 
-struct CivInfo {
-	Civilization civ;
-	const char *code;
-	const char *name;
-	const char *emblem_path;
-	const char *description;
-	float metal_gather_mult;
-	float melee_damage_mult;
-	float hp_mult;
-	float build_speed_mult;
-	float trade_gain_mult;
-};
-
-inline const CivInfo &civ_info(uint8_t civ) {
-	static const CivInfo kTable[CIV_COUNT] = {
-		// civ, code, name, emblem, desc, metal_mult, melee_dmg_mult, hp_mult, build_speed_mult, trade_mult
-		{CIV_ATHENIANS, "athen", "Athenians", "res://assets/textures/ui/emblems/athenians.png",
-		 "Silver Owls: +15% metal gather rate. Classical Greek democracy with balanced hoplites and strong navy.",
-		 1.15f, 1.0f, 1.0f, 1.0f, 1.0f},
-		{CIV_SPARTANS, "spart", "Spartans", "res://assets/textures/ui/emblems/spartans.png",
-		 "Ritualistic Exercise & Agoge: +35% HP and +25% melee damage for Citizen-Soldiers and Champions.",
-		 1.0f, 1.25f, 1.35f, 1.0f, 1.0f},
-		{CIV_PERSIANS, "pers", "Persians", "res://assets/textures/ui/emblems/persians.png",
-		 "Achaemenid Trade & Immortals: +25% Market trade gain and faster cavalry production.",
-		 1.0f, 1.0f, 1.0f, 1.0f, 1.25f},
-		{CIV_ROMANS, "rome", "Romans", "res://assets/textures/ui/emblems/romans.png",
-		 "Legionary Discipline & Rapid Engineering: +30% building construction rate and heavy legionary armor.",
-		 1.0f, 1.10f, 1.15f, 1.30f, 1.0f},
-		{CIV_CARTHAGINIANS, "cart", "Carthaginians", "res://assets/textures/ui/emblems/carthaginians.png",
-		 "Phoenician Naval Mastery & War Elephants: Elite mercenary forces and formidable war elephants.",
-		 1.0f, 1.15f, 1.20f, 1.0f, 1.10f},
-		{CIV_MACEDONIANS, "mace", "Macedonians", "res://assets/textures/ui/emblems/macedonians.png",
-		 "Sarissa Phalanx & Companion Cavalry: Extended spear attack reach and rapid cavalry shock charges.",
-		 1.0f, 1.20f, 1.10f, 1.0f, 1.0f},
-		{CIV_BRITONS, "brit", "Britons", "res://assets/textures/ui/emblems/britons.png",
-		 "Celtic Chariot Raiders & War Dogs: Fast hit-and-run chariot raiders, ferocious war hounds, and rotary mills.",
-		 1.0f, 1.15f, 1.10f, 1.10f, 1.0f},
-		{CIV_GAULS, "gaul", "Gauls", "res://assets/textures/ui/emblems/gauls.png",
-		 "Carnyx Horn Morale Aura & Fanatical Champions: Morale-boosting war horns and fearless Celtic broadsword champions.",
-		 1.10f, 1.20f, 1.15f, 1.0f, 1.0f},
-		{CIV_IBERIANS, "iber", "Iberians", "res://assets/textures/ui/emblems/iberians.png",
-		 "Devotio Bodyguard Vow & Balearic Slingers: Elite Balearic mercenary slingers, rapid fire cavalry, and +20% mining rate.",
-		 1.20f, 1.10f, 1.10f, 1.20f, 1.0f},
-		{CIV_MAURYANS, "maur", "Mauryans", "res://assets/textures/ui/emblems/mauryans.png",
-		 "Worker Elephants & Archer Maidens: High economic stamina, worker elephants for construction/gathering, and Ashoka Pillars.",
-		 1.10f, 1.05f, 1.25f, 1.25f, 1.15f},
-		{CIV_KUSHITES, "kush", "Kushites", "res://assets/textures/ui/emblems/kushites.png",
-		 "Bleeding & Poison Arrows: Nubian archers with venomous arrows, Blemmye mercenaries, and monumental pyramid shrines.",
-		 1.0f, 1.10f, 1.15f, 1.15f, 1.10f},
-		{CIV_PTOLEMIES, "ptol", "Ptolemies", "res://assets/textures/ui/emblems/ptolemies.png",
-		 "Mercenary Camps & Library of Alexandria: Hellenistic-Egyptian synthesis, camel raiders, and +30% trade gain.",
-		 1.10f, 1.10f, 1.10f, 1.15f, 1.30f},
-		{CIV_SELEUCIDS, "sele", "Seleucids", "res://assets/textures/ui/emblems/seleucids.png",
-		 "Argyraspides Silver Shields & Scythed Chariots: Heavy cataphract shock cavalry, silver shield pikemen, and scythed chariots.",
-		 1.10f, 1.25f, 1.20f, 1.0f, 1.15f},
-		{CIV_HAN, "han", "Han Chinese", "res://assets/textures/ui/emblems/han.png",
-		 "Imperial Ministers & Crossbow Armies: Ministers boost the economy, crossbowmen and war chariots anchor the army.",
-		 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}
-	};
-	if (civ >= CIV_COUNT) return kTable[CIV_ATHENIANS];
-	return kTable[civ];
-}
-
 inline constexpr uint32_t unit_bit(uint8_t type) { return (type < 32) ? (1u << type) : 0u; }
 
 inline constexpr uint16_t bld_bit(uint8_t type) { return (type < 16) ? (uint16_t)(1u << type) : 0u; }
@@ -655,11 +605,40 @@ enum CivRosterFlag : uint8_t {
 	ROSTER_MERCENARY = 16
 };
 
+inline constexpr uint16_t civ_bit(uint8_t civ) { return (civ < 16) ? (uint16_t)(1u << civ) : 0u; }
+
+// Roster tables hold at most 64 * CIV_TEMPLATE_WORDS_MAX unit templates.
+inline constexpr uint16_t CIV_TEMPLATE_WORDS_MAX = 8;
+
 struct CivHeroAura {
 	const char *id;
 	const char *name;
 	const char *description;
 	float radius; // 0 A.D. metres; 0 = applies everywhere
+	// Strongest effect RTS0's AuraManager can model (AuraType; 255 = none yet).
+	uint8_t kind;
+	float value;
+	float range; // RTS0 units
+	uint64_t affects[CIV_TEMPLATE_WORDS_MAX]; // bitset of roster rows the aura buffs
+};
+
+enum CivBonusStat : uint8_t {
+	CIV_BONUS_BUILDING_HP = 1,
+	CIV_BONUS_BUILDING_BUILD_TIME = 2,
+	CIV_BONUS_BUILDING_WOOD_COST = 3,
+	CIV_BONUS_BUILDING_STONE_COST = 4,
+	CIV_BONUS_BUILDING_CAPTURE_POINTS = 5,
+	CIV_BONUS_POP_CAP = 6
+};
+
+// An auto-researched 0 A.D. civ bonus acting on buildings or the player.
+struct CivPlayerBonus {
+	uint16_t civs; // civ_bit() mask
+	uint8_t stat; // CivBonusStat
+	uint16_t buildings; // bld_bit() mask (0 for player-wide stats)
+	float mult;
+	const char *id;
+	const char *tooltip;
 };
 
 struct CivUnitTemplate {
@@ -695,6 +674,25 @@ struct CivUnitTemplate {
 #include "civ_roster_data.h"
 
 inline constexpr uint16_t CIV_UNIT_TEMPLATE_NONE = 0xFFFF;
+static_assert(CIV_UNIT_TEMPLATE_COUNT <= 64 * CIV_TEMPLATE_WORDS_MAX, "raise CIV_TEMPLATE_WORDS_MAX");
+
+// Product of the civ's 0 A.D. bonuses on `stat` for a building type
+// (pass BLD_TYPE_COUNT for player-wide stats such as CIV_BONUS_POP_CAP).
+inline float civ_bonus_mult(uint8_t civ, uint8_t stat, uint8_t building = BLD_TYPE_COUNT) {
+	float m = 1.0f;
+	const CivPlayerBonus *b = civ_player_bonus_table();
+	for (uint16_t i = 0; i < CIV_PLAYER_BONUS_COUNT; ++i) {
+		if (b[i].stat != stat || !(b[i].civs & civ_bit(civ))) continue;
+		if (building < BLD_TYPE_COUNT && !(b[i].buildings & bld_bit(building))) continue;
+		m *= b[i].mult;
+	}
+	return m;
+}
+
+inline bool civ_aura_affects(int16_t aura, uint16_t tmpl) {
+	if (aura < 0 || aura >= (int16_t)CIV_HERO_AURA_COUNT || tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
+	return (civ_hero_aura_table()[aura].affects[tmpl >> 6] >> (tmpl & 63)) & 1u;
+}
 
 inline const CivUnitTemplate &civ_unit_template(uint16_t id) {
 	const CivUnitTemplate *t = civ_unit_template_table();
@@ -756,6 +754,62 @@ inline uint16_t civ_default_template(uint8_t civ, uint8_t type) {
 	return cache.id[civ][type];
 }
 
+// UnitTypeInfo view of a roster unit: 0 A.D.'s stats for the civ unit, with
+// the class's model, portrait and aggro range. CIV_UNIT_TEMPLATE_NONE (or an
+// out-of-range id) falls back to the generic class row.
+struct CivTemplateInfos {
+	UnitTypeInfo info[CIV_UNIT_TEMPLATE_COUNT];
+};
+
+inline const UnitTypeInfo &civ_template_unit_info(uint16_t tmpl, uint8_t type) {
+	static const CivTemplateInfos table = [] {
+		CivTemplateInfos out{};
+		for (uint16_t i = 0; i < CIV_UNIT_TEMPLATE_COUNT; ++i) {
+			const CivUnitTemplate &t = civ_unit_template(i);
+			UnitTypeInfo u = unit_type_info(t.unit_type);
+			u.name = t.name;
+			u.hp = t.hp;
+			u.speed = t.speed;
+			u.attack_range = t.attack_range;
+			u.attack_damage = t.attack_damage;
+			u.attack_cooldown = t.attack_cooldown;
+			u.carry_capacity = t.carry_capacity;
+			if (t.attack_range > u.aggro_range) u.aggro_range = t.attack_range;
+			u.hack_armor = t.hack_armor;
+			u.pierce_armor = t.pierce_armor;
+			u.crush_armor = t.crush_armor;
+			u.food_cost = t.food_cost;
+			u.wood_cost = t.wood_cost;
+			u.gold_cost = t.gold_cost;
+			u.stone_cost = t.stone_cost;
+			u.pop_cost = t.pop_cost;
+			u.train_time = t.train_time;
+			u.hack_damage = t.hack_damage;
+			u.pierce_damage = t.pierce_damage;
+			u.crush_damage = t.crush_damage;
+			out.info[i] = u;
+		}
+		return out;
+	}();
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) return table.info[tmpl];
+	return unit_type_info(type);
+}
+
+// Stats of the unit a civ fields for an RTS0 class (its default template).
+inline const UnitTypeInfo &civ_unit_info(uint8_t civ, uint8_t type) {
+	return civ_template_unit_info(civ_default_template(civ, type), type);
+}
+
+// True if the unit attacks at range: the roster's 0 A.D. attack when the
+// unit has a template, else the class rule.
+inline bool template_has_ranged_attack(uint16_t tmpl, uint8_t type, uint8_t civ) {
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
+		const CivUnitTemplate &t = civ_unit_template(tmpl);
+		return (t.flags & ROSTER_RANGED) != 0 && t.attack_damage > 0.0f;
+	}
+	return unit_has_ranged_attack(type, civ);
+}
+
 // Units this civilization can train: every RTS0 class its 0 A.D. roster has.
 struct CivTrainMasks {
 	uint32_t mask[CIV_COUNT];
@@ -775,6 +829,69 @@ inline uint32_t civ_train_mask(uint8_t civ) {
 
 inline bool civ_can_train(uint8_t civ, uint8_t type) {
 	return (civ_train_mask(civ) & unit_bit(type)) != 0;
+}
+
+struct CivInfo {
+	Civilization civ;
+	const char *code;
+	const char *name;
+	const char *emblem_path;
+	const char *description;
+	// 0 A.D. civ bonuses that act on gathering and trade. Unit bonuses are
+	// folded into each civ's roster; building and population bonuses are in
+	// civ_player_bonus_table(). Both come from tools/extract_0ad_rosters.py.
+	float metal_gather_mult; // Athenian "Silver Owls"
+	float trade_gain_mult; // Persian "Darics", Carthaginian "Commercial Acumen"
+};
+
+inline const CivInfo &civ_info(uint8_t civ) {
+	static const CivInfo kTable[CIV_COUNT] = {
+		// civ, code, name, emblem, desc, metal_mult, trade_mult
+		{CIV_ATHENIANS, "athen", "Athenians", "res://assets/textures/ui/emblems/athenians.png",
+		 civ_bonus_text(CIV_ATHENIANS),
+		 1.10f, 1.0f},
+		{CIV_SPARTANS, "spart", "Spartans", "res://assets/textures/ui/emblems/spartans.png",
+		 civ_bonus_text(CIV_SPARTANS),
+		 1.0f, 1.0f},
+		{CIV_PERSIANS, "pers", "Persians", "res://assets/textures/ui/emblems/persians.png",
+		 civ_bonus_text(CIV_PERSIANS),
+		 1.0f, 1.25f},
+		{CIV_ROMANS, "rome", "Romans", "res://assets/textures/ui/emblems/romans.png",
+		 civ_bonus_text(CIV_ROMANS),
+		 1.0f, 1.0f},
+		{CIV_CARTHAGINIANS, "cart", "Carthaginians", "res://assets/textures/ui/emblems/carthaginians.png",
+		 civ_bonus_text(CIV_CARTHAGINIANS),
+		 1.0f, 1.25f},
+		{CIV_MACEDONIANS, "mace", "Macedonians", "res://assets/textures/ui/emblems/macedonians.png",
+		 civ_bonus_text(CIV_MACEDONIANS),
+		 1.0f, 1.0f},
+		{CIV_BRITONS, "brit", "Britons", "res://assets/textures/ui/emblems/britons.png",
+		 civ_bonus_text(CIV_BRITONS),
+		 1.0f, 1.0f},
+		{CIV_GAULS, "gaul", "Gauls", "res://assets/textures/ui/emblems/gauls.png",
+		 civ_bonus_text(CIV_GAULS),
+		 1.0f, 1.0f},
+		{CIV_IBERIANS, "iber", "Iberians", "res://assets/textures/ui/emblems/iberians.png",
+		 civ_bonus_text(CIV_IBERIANS),
+		 1.0f, 1.0f},
+		{CIV_MAURYANS, "maur", "Mauryans", "res://assets/textures/ui/emblems/mauryans.png",
+		 civ_bonus_text(CIV_MAURYANS),
+		 1.0f, 1.0f},
+		{CIV_KUSHITES, "kush", "Kushites", "res://assets/textures/ui/emblems/kushites.png",
+		 civ_bonus_text(CIV_KUSHITES),
+		 1.0f, 1.0f},
+		{CIV_PTOLEMIES, "ptol", "Ptolemies", "res://assets/textures/ui/emblems/ptolemies.png",
+		 civ_bonus_text(CIV_PTOLEMIES),
+		 1.0f, 1.0f},
+		{CIV_SELEUCIDS, "sele", "Seleucids", "res://assets/textures/ui/emblems/seleucids.png",
+		 civ_bonus_text(CIV_SELEUCIDS),
+		 1.0f, 1.0f},
+		{CIV_HAN, "han", "Han Chinese", "res://assets/textures/ui/emblems/han.png",
+		 civ_bonus_text(CIV_HAN),
+		 1.0f, 1.0f}
+	};
+	if (civ >= CIV_COUNT) return kTable[CIV_ATHENIANS];
+	return kTable[civ];
 }
 
 // Prefer extracted `{civcode}_{model}` GLB; ModelLibrary falls back to the generic mesh.

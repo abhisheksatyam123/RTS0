@@ -724,8 +724,8 @@ void RtsoWorldView::hide_unit_vis(UnitVis &v) {
 void RtsoWorldView::ensure_unit_batches(const rtso::Simulation *sim) {
 	uint8_t civs[CROWD_BANK_COUNT] = {rtso::CIV_ATHENIANS, rtso::CIV_SPARTANS};
 	if (sim) {
-		civs[0] = sim->player_civ();
-		civs[1] = sim->team_civ(1);
+		civs[0] = sim->player_civ(local_player_);
+		civs[1] = sim->team_civ(local_player_ == 0 ? 1 : 0);
 	}
 	for (int bank = 0; bank < CROWD_BANK_COUNT; ++bank) {
 		for (int t = 0; t < rtso::UNIT_TYPE_COUNT; ++t) {
@@ -933,13 +933,16 @@ void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 		PackedInt32Array indices;
 
 		float step = (half * 2.0f) / (float)(res - 1);
+		// Texture repeats 8 times across the default 128m map; keep that
+		// density on larger maps instead of stretching it.
+		const float uv_tiles = 8.0f * half / 64.0f;
 		for (int z = 0; z < res; ++z) {
 			float wz = -half + z * step;
 			for (int x = 0; x < res; ++x) {
 				float wx = -half + x * step;
 				float wy = heights[z * res + x];
 				vertices.push_back(Vector3(wx, wy, wz));
-				uvs.push_back(Vector2((float)x / (float)(res - 1) * 8.0f, (float)z / (float)(res - 1) * 8.0f));
+				uvs.push_back(Vector2((float)x / (float)(res - 1) * uv_tiles, (float)z / (float)(res - 1) * uv_tiles));
 
 				float h_left  = (x > 0) ? heights[z * res + (x - 1)] : wy;
 				float h_right = (x < res - 1) ? heights[z * res + (x + 1)] : wy;
@@ -1093,13 +1096,13 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (!entity_visible(uview.pos_x[i], uview.pos_z[i], uview.team[i])) continue;
 		uint8_t t = uview.unit_type[i];
 		if (t >= rtso::UNIT_TYPE_COUNT) t = rtso::UNIT_VILLAGER;
-		int bank = (uview.team[i] == 0) ? 0 : 1;
+		int bank = (uview.team[i] == local_player_) ? 0 : 1;
 		float vx = uview.vel_x[i];
 		float vz = uview.vel_z[i];
 		int clip = crowd_clip_of(uview.action_state[i], vx * vx + vz * vz, uview.alive[i] != 0);
 		counts[bank][t][clip]++;
 	}
-	uint8_t civs[CROWD_BANK_COUNT] = { sim->player_civ(), sim->team_civ(1) };
+	uint8_t civs[CROWD_BANK_COUNT] = { sim->player_civ(local_player_), sim->team_civ(local_player_ == 0 ? 1 : 0) };
 	for (int bank = 0; bank < CROWD_BANK_COUNT; ++bank) {
 		for (int t = 0; t < rtso::UNIT_TYPE_COUNT; ++t) {
 			int any = 0;
@@ -1129,7 +1132,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		uint32_t id = uview.id[i];
 		active_unit_ids.insert(id);
 
-		bool is_player = (uview.team[i] == 0);
+		bool is_player = (uview.team[i] == local_player_);
 		uint8_t utype = uview.unit_type[i];
 		if (utype >= rtso::UNIT_TYPE_COUNT) utype = rtso::UNIT_VILLAGER;
 		uint8_t uaction = uview.action_state[i];
@@ -1192,7 +1195,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		anim_controllers[utype].play(want.state);
 
 		int bank = is_player ? 0 : 1;
-		uint8_t uciv = is_player ? sim->player_civ() : sim->team_civ(uview.team[i]);
+		uint8_t uciv = sim->team_civ(uview.team[i]);
 		String utype_str = rtso::civ_unit_model(uciv, utype);
 		String cat_units3 = "units";
 		auto entry = rtso::ModelLibrary::get(cat_units3, utype_str);

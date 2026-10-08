@@ -57,7 +57,7 @@ void RtsoSimNode::cmd_move(const PackedInt32Array &unit_ids, Vector3 target) {
 void RtsoSimNode::cmd_build_house(Vector3 pos) {
 	int cx = (int)std::floor(pos.x / rtso::Simulation::GRID);
 	int cz = (int)std::floor(pos.z / rtso::Simulation::GRID);
-	sim->cmd_build(cx, cz, rtso::BLD_HOUSE);
+	sim->cmd_build(0, cx, cz, rtso::BLD_HOUSE);
 }
 
 int RtsoSimNode::get_gold() const { return sim->gold(); }
