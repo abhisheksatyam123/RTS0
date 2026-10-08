@@ -526,7 +526,8 @@ def check_petra_parity():
         "Scout outward spiral/radial FoW sweep": "petra_scout_angle_" in ctxt and "petra_scout_radius_" in ctxt and "FOW_UNEXPLORED" in ctxt,
         "Specialized AttackPlan state machine (PLAN_SIEGE / PLAN_ASSAULT / PLAN_RAID)": "PLAN_SIEGE" in htxt and "PLAN_ASSAULT" in htxt and "PLAN_RAID" in htxt,
         "Siege weapon mustering (Catapults/Rams before assault)": "UNIT_CATAPULT" in ctxt and "siege_units" in ctxt and "PLAN_SIEGE" in ctxt,
-        "Tactical formations in attack march (Phalanx/Wedge/Scatter/Column)": "FORMATION_PHALANX" in ctxt and "FORMATION_WEDGE" in ctxt and "FORMATION_SCATTER" in ctxt,
+        # 0 A.D. Petra marches without formations; packable siege attacks on stand ground (attackPlan.js).
+        "Attack march without formations, packable siege on stand ground (attackPlan.js)": "STANCE_STAND_GROUND" in ctxt and "FORMATION_" not in ctxt[ctxt.find("void Simulation::petra_manage_tactical_attacks"):ctxt.find("void Simulation::petra_manage_raid")],
         "Organized retreat/regroup mechanics on 60% casualties": "AttackPlan::REGROUP" in ctxt and "retreat_x" in ctxt and "retreat_base_id" in ctxt,
         "Dynamic villager allocation based on tech/military demand": "demand_food" in ctxt and "demand_wood" in ctxt and "target_food" in ctxt,
         "Dropsite proximity placement adjacent to resource clusters": "min_dropsite_dist" in ctxt and "BLD_STOREHOUSE" in ctxt and "BLD_FARMSTEAD" in ctxt,

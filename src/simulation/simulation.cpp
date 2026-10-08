@@ -8828,6 +8828,76 @@ void Simulation::petra_manage_buildings(float dt) {
 			}
 		}
 	}
+
+	// 7. headquarters.js constructTrainingBuildings, city phase: an elephant
+	// stable and an arsenal, then (from 80 pop) the civ's own advanced
+	// structures from config.js buildings, the next one only past 110 pop.
+	if (petra_ps().phase >= 3) petra_build_advanced();
+}
+
+// config.js `buildings`: each civ's advanced structures, in Petra's order
+// (Carthage's three embassies are RTS0's one; Kush's camps and Amun temple and
+// Rome's Vesta temple are not modelled yet).
+static std::vector<uint8_t> petra_advanced_buildings(uint8_t civ) {
+	switch (civ) {
+		case CIV_ATHENIANS: return {BLD_GYMNASIUM, BLD_PRYTANEION, BLD_THEATER};
+		case CIV_CARTHAGINIANS: return {BLD_EMBASSY};
+		case CIV_GAULS: return {BLD_ASSEMBLY};
+		case CIV_HAN: return {BLD_ACADEMY};
+		case CIV_IBERIANS: return {BLD_MONUMENT};
+		case CIV_KUSHITES: return {BLD_PYRAMID_LARGE, BLD_PYRAMID_SMALL};
+		case CIV_MACEDONIANS: case CIV_SELEUCIDS: return {BLD_THEATER};
+		case CIV_MAURYANS: return {BLD_PALACE, BLD_PILLAR};
+		case CIV_PERSIANS: return {BLD_TACHARA};
+		case CIV_PTOLEMIES: return {BLD_LIBRARY, BLD_THEATER};
+		case CIV_ROMANS: return {BLD_ARMY_CAMP};
+		case CIV_SPARTANS: return {BLD_SYSSITON, BLD_THEATER};
+		default: return {};
+	}
+}
+
+void Simulation::petra_build_advanced() {
+	const PetraBase *home = get_primary_petra_base();
+	if (!home) return;
+	const uint8_t civ = petra_ps().civ;
+	auto count = [&](uint8_t t) { // countEntitiesAndQueuedByType: foundations too
+		int n = 0;
+		for (const auto &b : buildings_)
+			if (b.team == petra_pid_ && b.type == t && b.hp > 0.0f && !b.wrecked) ++n;
+		return n;
+	};
+	auto build = [&](uint8_t t) {
+		const uint32_t bid = petra_place_building(t, home->x, home->z, 4, 16, PETRA_QUEUE_MILITARY);
+		if (!bid) return;
+		auto idle = get_idle_workers(petra_pid_);
+		if (!idle.empty()) order_build_or_repair(idle.data(), std::min((size_t)3, idle.size()), bid);
+	};
+	// canBuild: RTS0 lets every civ lay any generic structure, so the stable and
+	// arsenal count only when the civ's roster trains something there.
+	auto trains_at = [civ](uint8_t t) {
+		for (uint16_t k = 0; k < CIV_UNIT_TEMPLATE_COUNT; ++k)
+			if (civ_unit_template(k).civ == civ && (civ_unit_template(k).trainers & bld_bit(t))) return true;
+		return false;
+	};
+	for (uint8_t t : {BLD_ELEPHANT_STABLE, BLD_ARSENAL}) {
+		if (civ_can_build(civ, t) && trains_at(t) && count(t) == 0) {
+			build(t);
+			return;
+		}
+	}
+	std::vector<uint8_t> advanced;
+	for (uint8_t t : petra_advanced_buildings(civ))
+		if (civ_can_build(civ, t)) advanced.push_back(t);
+	const int pop = pop_current(petra_pid_);
+	if (pop < 80 || advanced.empty()) return;
+	int n = 0;
+	for (uint8_t t : advanced) n += count(t);
+	if (n && !(n < (int)advanced.size() && pop > 110)) return;
+	for (uint8_t t : advanced) {
+		if (count(t) > 0) continue;
+		build(t);
+		return;
+	}
 }
 
 void Simulation::petra_manage_research(float dt) {
@@ -9183,7 +9253,7 @@ void Simulation::petra_plan_sizes(uint8_t kind) {
 }
 
 // attackPlan.js rushTargetFinder: the nearest enemy structure that does not
-// shoot and stands more than 80 m from every structure that does.
+// shoot and stands more than 80 m (20 world units of 4 m) from every structure that does.
 uint32_t Simulation::find_petra_rush_target(float &out_tx, float &out_tz) const {
 	float bx = 36.0f, bz = 36.0f;
 	if (const auto *base = get_primary_petra_base()) { bx = base->x; bz = base->z; }
@@ -9199,7 +9269,7 @@ uint32_t Simulation::find_petra_rush_target(float &out_tx, float &out_tz) const 
 		for (const auto &d : buildings_) {
 			if (!petra_foe(d.team) || d.hp <= 0 || !shoots(d.type)) continue;
 			const float dx = d.x - b.x, dz = d.z - b.z;
-			if (dx * dx + dz * dz < 6400.0f) { defended = true; break; }
+			if (dx * dx + dz * dz < 20.0f * 20.0f) { defended = true; break; } // 80 m: 20 tiles
 		}
 		if (defended) continue;
 		const float dx = b.x - bx, dz = b.z - bz;
@@ -10283,13 +10353,13 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 	return 0;
 }
 
-// garrisonManager.js update: the enemies within a holder's arrow range (80 m
-// for a holder that doesn't shoot): defensive structures, melee or ranged
+// garrisonManager.js update: the enemies within a holder's arrow range (80 m,
+// 20 world units, for a holder that doesn't shoot): defensive structures, melee or ranged
 // siege, or other units (Gaia's only while fighting; Gaia is no foe here).
 Simulation::PetraAround Simulation::petra_around(const Building &holder) const {
 	PetraAround around;
 	const BuildingTypeInfo &info = building_type_info(holder.type);
-	const float range = info.attack_damage > 0.0f ? info.attack_range + tech_mods(holder.team).bld_range[holder.type] : 80.0f;
+	const float range = info.attack_damage > 0.0f ? info.attack_range + tech_mods(holder.team).bld_range[holder.type] : 20.0f;
 	for (const Building &b : buildings_) {
 		if (!petra_foe(b.team) || b.hp <= 0.0f || b.build_progress < 1.0f || building_type_info(b.type).attack_damage <= 0.0f) continue;
 		const float dx = b.x - holder.x, dz = b.z - holder.z;
