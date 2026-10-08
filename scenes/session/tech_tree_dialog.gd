@@ -84,10 +84,8 @@ func _refresh() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_T:
-			toggle()
-			get_viewport().set_input_as_handled()
-		elif is_open and event.keycode == KEY_ESCAPE:
+		# The structree hotkey (Alt+Shift+T) opens this from main_node.cpp.
+		if is_open and event.keycode == KEY_ESCAPE:
 			toggle()
 			get_viewport().set_input_as_handled()
 

@@ -78,6 +78,11 @@ jobs:
             /tmp/$t
           done
 
+      - name: Hotkey table tests (0 A.D. default.cfg)
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_hotkeys.cpp src/presentation/hotkeys.cpp -o /tmp/test_hotkeys
+          /tmp/test_hotkeys
+
       - name: Per-player economy tests
         run: |
           g++ -std=c++20 -O2 -Isrc tools/test_players.cpp src/simulation/simulation.cpp \
