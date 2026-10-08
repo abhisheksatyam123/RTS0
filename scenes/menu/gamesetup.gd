@@ -85,6 +85,9 @@ const RMS_MAPS := [
 	["random_rhine_marshlands", "Rhine Marshlands (RMS)", "Random", 8, 128, "temperate", "Shallow wetlands units can wade through. Supports 2-8 players."],
 	["random_red_sea", "Red Sea (RMS)", "Random", 8, 128, "desert", "The Red Sea coasts of Africa and Arabia from a real elevation map. Supports 2-8 players."],
 	["random_hellas", "Hellas (RMS)", "Random", 8, 128, "mediterranean", "A random part of Greece from a real elevation map. Supports 2-8 players."],
+	["random_english_channel", "English Channel (RMS)", "Random", 8, 128, "temperate", "Two coasts split by the Channel; ships needed to cross. Supports 2-8 players."],
+	["random_dodecanese", "Dodecanese (RMS)", "Random", 8, 128, "mediterranean", "Aegean islands, a few joined by bridges. Supports 2-8 players."],
+	["random_fortress", "Fortress (RMS)", "Random", 8, 128, "temperate", "Every player starts inside a walled fortress. Supports 2-8 players."],
 ]
 
 # 0 A.D. population limits per player (0 = unlimited) and ceasefire lengths in minutes.
