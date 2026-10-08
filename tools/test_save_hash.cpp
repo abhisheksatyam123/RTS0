@@ -123,6 +123,7 @@ static void compare(const Simulation &a, const Simulation &b) {
 		CMP("resource amount", i, ra.amount[i], rb.amount[i]);
 		CMP("resource alive", i, ra.alive[i], rb.alive[i]);
 		CMP("resource type", i, ra.type[i], rb.type[i]);
+		CMP("resource subtype", i, ra.subtype[i], rb.subtype[i]);
 	}
 	for (uint8_t p = 0; p < 8; ++p)
 		for (uint8_t q = 0; q < 8; ++q) CMP("diplomacy", p * 8 + q, a.get_diplomacy(p, q), b.get_diplomacy(p, q));
