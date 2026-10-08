@@ -8865,6 +8865,76 @@ void Simulation::petra_manage_buildings(float dt) {
 			}
 		}
 	}
+
+	// 7. headquarters.js constructTrainingBuildings, city phase: an elephant
+	// stable and an arsenal, then (from 80 pop) the civ's own advanced
+	// structures from config.js buildings, the next one only past 110 pop.
+	if (petra_ps().phase >= 3) petra_build_advanced();
+}
+
+// config.js `buildings`: each civ's advanced structures, in Petra's order
+// (Carthage's three embassies are RTS0's one; Kush's camps and Amun temple and
+// Rome's Vesta temple are not modelled yet).
+static std::vector<uint8_t> petra_advanced_buildings(uint8_t civ) {
+	switch (civ) {
+		case CIV_ATHENIANS: return {BLD_GYMNASIUM, BLD_PRYTANEION, BLD_THEATER};
+		case CIV_CARTHAGINIANS: return {BLD_EMBASSY};
+		case CIV_GAULS: return {BLD_ASSEMBLY};
+		case CIV_HAN: return {BLD_ACADEMY};
+		case CIV_IBERIANS: return {BLD_MONUMENT};
+		case CIV_KUSHITES: return {BLD_PYRAMID_LARGE, BLD_PYRAMID_SMALL};
+		case CIV_MACEDONIANS: case CIV_SELEUCIDS: return {BLD_THEATER};
+		case CIV_MAURYANS: return {BLD_PALACE, BLD_PILLAR};
+		case CIV_PERSIANS: return {BLD_TACHARA};
+		case CIV_PTOLEMIES: return {BLD_LIBRARY, BLD_THEATER};
+		case CIV_ROMANS: return {BLD_ARMY_CAMP};
+		case CIV_SPARTANS: return {BLD_SYSSITON, BLD_THEATER};
+		default: return {};
+	}
+}
+
+void Simulation::petra_build_advanced() {
+	const PetraBase *home = get_primary_petra_base();
+	if (!home) return;
+	const uint8_t civ = petra_ps().civ;
+	auto count = [&](uint8_t t) { // countEntitiesAndQueuedByType: foundations too
+		int n = 0;
+		for (const auto &b : buildings_)
+			if (b.team == petra_pid_ && b.type == t && b.hp > 0.0f && !b.wrecked) ++n;
+		return n;
+	};
+	auto build = [&](uint8_t t) {
+		const uint32_t bid = petra_place_building(t, home->x, home->z, 4, 16, PETRA_QUEUE_MILITARY);
+		if (!bid) return;
+		auto idle = get_idle_workers(petra_pid_);
+		if (!idle.empty()) order_build_or_repair(idle.data(), std::min((size_t)3, idle.size()), bid);
+	};
+	// canBuild: RTS0 lets every civ lay any generic structure, so the stable and
+	// arsenal count only when the civ's roster trains something there.
+	auto trains_at = [civ](uint8_t t) {
+		for (uint16_t k = 0; k < CIV_UNIT_TEMPLATE_COUNT; ++k)
+			if (civ_unit_template(k).civ == civ && (civ_unit_template(k).trainers & bld_bit(t))) return true;
+		return false;
+	};
+	for (uint8_t t : {BLD_ELEPHANT_STABLE, BLD_ARSENAL}) {
+		if (civ_can_build(civ, t) && trains_at(t) && count(t) == 0) {
+			build(t);
+			return;
+		}
+	}
+	std::vector<uint8_t> advanced;
+	for (uint8_t t : petra_advanced_buildings(civ))
+		if (civ_can_build(civ, t)) advanced.push_back(t);
+	const int pop = pop_current(petra_pid_);
+	if (pop < 80 || advanced.empty()) return;
+	int n = 0;
+	for (uint8_t t : advanced) n += count(t);
+	if (n && !(n < (int)advanced.size() && pop > 110)) return;
+	for (uint8_t t : advanced) {
+		if (count(t) > 0) continue;
+		build(t);
+		return;
+	}
 }
 
 void Simulation::petra_manage_research(float dt) {
@@ -9220,7 +9290,7 @@ void Simulation::petra_plan_sizes(uint8_t kind) {
 }
 
 // attackPlan.js rushTargetFinder: the nearest enemy structure that does not
-// shoot and stands more than 80 m from every structure that does.
+// shoot and stands more than 80 m (20 world units of 4 m) from every structure that does.
 uint32_t Simulation::find_petra_rush_target(float &out_tx, float &out_tz) const {
 	float bx = 36.0f, bz = 36.0f;
 	if (const auto *base = get_primary_petra_base()) { bx = base->x; bz = base->z; }
@@ -9236,7 +9306,7 @@ uint32_t Simulation::find_petra_rush_target(float &out_tx, float &out_tz) const 
 		for (const auto &d : buildings_) {
 			if (!petra_foe(d.team) || d.hp <= 0 || !shoots(d.type)) continue;
 			const float dx = d.x - b.x, dz = d.z - b.z;
-			if (dx * dx + dz * dz < 6400.0f) { defended = true; break; }
+			if (dx * dx + dz * dz < 20.0f * 20.0f) { defended = true; break; } // 80 m: 20 tiles
 		}
 		if (defended) continue;
 		const float dx = b.x - bx, dz = b.z - bz;
@@ -10320,13 +10390,13 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 	return 0;
 }
 
-// garrisonManager.js update: the enemies within a holder's arrow range (80 m
-// for a holder that doesn't shoot): defensive structures, melee or ranged
+// garrisonManager.js update: the enemies within a holder's arrow range (80 m,
+// 20 world units, for a holder that doesn't shoot): defensive structures, melee or ranged
 // siege, or other units (Gaia's only while fighting; Gaia is no foe here).
 Simulation::PetraAround Simulation::petra_around(const Building &holder) const {
 	PetraAround around;
 	const BuildingTypeInfo &info = building_type_info(holder.type);
-	const float range = info.attack_damage > 0.0f ? info.attack_range + tech_mods(holder.team).bld_range[holder.type] : 80.0f;
+	const float range = info.attack_damage > 0.0f ? info.attack_range + tech_mods(holder.team).bld_range[holder.type] : 20.0f;
 	for (const Building &b : buildings_) {
 		if (!petra_foe(b.team) || b.hp <= 0.0f || b.build_progress < 1.0f || building_type_info(b.type).attack_damage <= 0.0f) continue;
 		const float dx = b.x - holder.x, dz = b.z - holder.z;
@@ -11178,9 +11248,12 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
+	// v24: the map extent first, so a load into a sim at another size (a fresh
+	// reset(), a replay, a rejoin) sizes the FoW, nav and territory grids before reading them.
+	out.write((const char *)&map_half_, sizeof(map_half_));
 
 	// 1. Sim scalars
 	out.write((const char *)&ticks_, sizeof(ticks_));
@@ -11357,6 +11430,12 @@ bool Simulation::load_state(const char *filepath) {
 	in.read((char *)&magic, sizeof(magic));
 	in.read((char *)&version, sizeof(version));
 	if (magic != 0x52545330 || version < 1 || version > SAVE_VERSION) return false;
+	if (version >= 24) {
+		float half = 0.0f;
+		in.read((char *)&half, sizeof(half));
+		if (!in.good() || !(half > 0.0f) || half > 4096.0f) return false;
+		if (half != map_half_) set_map_half(half);
+	}
 
 	// 1. Sim scalars
 	in.read((char *)&ticks_, sizeof(ticks_));
@@ -11438,7 +11517,9 @@ bool Simulation::load_state(const char *filepath) {
 	// 2. Resources
 	uint32_t num_res = 0;
 	in.read((char *)&num_res, sizeof(num_res));
+	if (!in.good() || num_res > (1u << 22)) return false;
 	resources_.count = 0;
+	resources_.reserve(num_res); // a reset() sim holds 512; bigger maps have more
 	res_id_to_idx_.clear();
 	field_res_by_bld_.clear();
 	field_bld_by_res_.clear();
@@ -11465,6 +11546,7 @@ bool Simulation::load_state(const char *filepath) {
 	// 3. Units
 	uint32_t num_units = 0;
 	in.read((char *)&num_units, sizeof(num_units));
+	if (!in.good() || num_units > UNIT_CAP) return false;
 	units_.count = 0;
 	unit_id_to_idx_.clear();
 	unit_idx_by_id_.assign(UNIT_CAP + 1, -1);
