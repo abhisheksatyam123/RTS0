@@ -627,6 +627,10 @@ public:
 	}
 	// True when Petra drives this player: seated active AI slots, or player 1 when no slot is seated.
 	bool petra_runs_for(uint8_t pid) const;
+	// InitGame.js "AI Bonus": Petra players gather and trade at the difficulty's
+	// rate and build, train and research at its time multiplier; 1 for humans.
+	float ai_gather_mult(uint8_t pid) const { return petra_runs_for(pid) ? petra_config_.gather_rate : 1.0f; }
+	float ai_time_mult(uint8_t pid) const { return petra_runs_for(pid) ? petra_config_.build_time : 1.0f; }
 	uint8_t petra_difficulty() const { return petra_config_.difficulty; }
 	uint8_t petra_behavior() const { return petra_config_.behavior; }
 	const PetraConfig &petra_config() const { return petra_config_; }
