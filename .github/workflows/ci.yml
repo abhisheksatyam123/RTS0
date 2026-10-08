@@ -102,6 +102,9 @@ jobs:
       - name: Lockstep playtest
         run: python3 tools/playtest_lockstep.py
 
+      - name: Headless match benchmark
+        run: python3 tools/bench_match.py
+
   export-desktop:
     name: Export ${{ matrix.name }}
     runs-on: ubuntu-latest
