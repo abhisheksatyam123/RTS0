@@ -15,6 +15,4 @@ Assets pulled via `tools/extract_0ad_assets.py` from `../0ad/binaries/data/mods/
 - DDS DXT → PNG (grass/dirt/rock)
 - OGG music
 
-Migration status and todo: `docs/MIGRATION.md`.
-
 See `assets/models/manifest.json` for baked size_meters and `docs/0AD_ATTRIBUTION.md` for CC0.

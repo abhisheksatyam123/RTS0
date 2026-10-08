@@ -24,15 +24,15 @@ Status key: **Done**, ported and in use · **Ported**, ported and tested but not
 
 | Vendored file | Status | RTS0 location | Notes |
 |---|---|---|---|
-| `Fixed.h/.cpp`, `Sqrt.h/.cpp` | Ported | `src/core/math/fixed.h` | `rtso::Fixed` (16.16), `isqrt64`, `atan2_approx` and `sincos_approx`. Bit-identical to vendor across 7.4M checks. Tested by `tools/test_fixed.cpp`. The sim still uses `float` (see todo 2). |
+| `Fixed.h/.cpp`, `Sqrt.h/.cpp` | Ported | `src/core/math/fixed.h` | `rtso::Fixed` (16.16), `isqrt64`, `atan2_approx` and `sincos_approx`. Bit-identical to vendor across 7.4M checks. Tested by `tools/test_fixed.cpp`. The sim still uses `float` (see todo 5). |
 | `MathUtil.h` | Not planned | | Small helpers that `<algorithm>`/`<cmath>` already cover. |
-| `Vector2D.h`, `Vector3D.h`, `Matrix3D.h/.cpp` | Not planned | | Presentation uses Godot's `Vector2`/`Vector3`/`Transform3D`. A fixed-point sim would need `CFixedVector2D`, which isn't vendored. |
+| `Vector2D.h`, `Vector3D.h`, `Matrix3D.h/.cpp` | Not planned | | Presentation uses Godot's `Vector2`/`Vector3`/`Transform3D`. |
 
 ### Networking (`src/0ad/network/`)
 
 | Vendored file | Status | RTS0 location | Notes |
 |---|---|---|---|
-| `NetClientTurnManager`, `NetServerTurnManager` | Partial | `src/network/turn_manager.h/.cpp` | 200ms lockstep turns, state hashing and replay. Owned by the "Test two-player multiplayer" thread. See `docs/MULTIPLAYER.md`. |
+| `NetClientTurnManager`, `NetServerTurnManager` | Partial | `src/network/turn_manager.h/.cpp` | Owned by the "Test two-player multiplayer" thread. Design and status are in `docs/MULTIPLAYER.md`. |
 | `NetHost`, `NetServer`, `NetClient`, `NetSession`, `NetMessage(s)`, `NetProtocol`, `NetEnet` | Partial | `src/network/net_host.h/.cpp`, `net_types.h` | UDP transport and handshake instead of ENet. Owned by the multiplayer thread. |
 | `NetStats` | Partial | `src/network/net_host.h` `NetStats` | Owned by the multiplayer thread. |
 | `NetFileTransfer` | Todo | | Map and savegame transfer for rejoining players. `turn_manager.h:318` notes this gap. Owned by the multiplayer thread. |
@@ -46,12 +46,13 @@ Status key: **Done**, ported and in use · **Ported**, ported and tested but not
 
 ## Todo, in priority order
 
-1. **Obstruction manager and rasterization.** Track unit and building footprints (0 A.D. `CCmpObstructionManager`, which isn't vendored) and port `Rasterize.cpp` so buildings get correct clearance in the nav grid. This unblocks todo 3.
-2. **Fixed-point simulation.** Move determinism-critical sim state (positions, speeds, HP, ranges) from `float` to `rtso::Fixed`, starting with movement. The ~900 `float` uses in `simulation.cpp` are a cross-platform lockstep risk. Coordinate with the multiplayer thread, because this changes the state hash.
-3. **VertexPathfinder.** Port short-range steering on top of `nav/geometry.h` and the obstruction manager, replacing push-only `separation()` for units with an order.
-4. **Fixed-point vectors.** Port `CFixedVector2D` (from upstream 0 A.D.; it isn't vendored) once todo 2 starts.
-5. **JumpPointCache.** Only if maps grow past 64x64 and pathfinding shows up in profiles.
-6. **Cleanup.** Remove the legacy A* (`NavGrid::search_cells_astar`, `use_jps`) once JPS has run in real matches for a while.
+This list covers porting the vendored C++ only. Overall project priorities and gameplay-parity work are in `docs/PLAN.md` and `docs/NEXT_STEPS.md`; this list doesn't repeat them.
+
+1. **Obstruction manager and rasterization.** Track unit and building footprints (0 A.D. `CCmpObstructionManager`, which isn't vendored) and port `Rasterize.cpp` so buildings get correct clearance in the nav grid. This unblocks item 2.
+2. **VertexPathfinder.** Port short-range steering on top of `nav/geometry.h` and the obstruction manager, replacing push-only `separation()` for units with an order.
+3. **Cleanup.** Remove the legacy A* (`NavGrid::search_cells_astar`, `use_jps`) once JPS has run in real matches for a while.
+4. **JumpPointCache.** Only if maps grow past 64x64 and pathfinding shows up in profiles.
+5. **Fixed-point simulation (optional).** Whether the sim moves from `float` to `rtso::Fixed` is a multiplayer-model decision. See `docs/PLAN.md` P5 and `docs/MULTIPLAYER.md`. `src/core/math/fixed.h` is ready if that decision is made. It would also need `CFixedVector2D`, which isn't vendored.
 
 ## History
 
