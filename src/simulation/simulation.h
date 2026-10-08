@@ -1189,6 +1189,13 @@ private:
 	};
 	std::vector<SteerObstacle> steer_obstacles_;
 	std::vector<SteerObstacle> sep_obstacles_; // separation()'s list, built the same way
+	// tick_capture()'s count and strength of nearby capturers per building and team, and the grid of
+	// building reach it finds them with. Rebuilt every tick.
+	struct CaptureTally { int count[4]; float strength[4]; };
+	struct CaptureReach { uint32_t building; float x, z; };
+	std::vector<CaptureTally> capture_tally_;
+	std::vector<uint32_t> capture_cell_start_;
+	std::vector<CaptureReach> capture_cell_buildings_;
 
 	// Closed gates this tick: the only movement blockers the nav grid leaves out (0 A.D.
 	// gate Obstruction BlockMovement without BlockPathfinding), so move_units stops units
