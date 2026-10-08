@@ -21,6 +21,7 @@ RTS0 builds on **0 A.D.** (https://play0ad.com) by Wildfire Games.
 | `src/simulation/petra_ai.h`, `simulation.*` | `simulation/ai/petra/*.js`, `simulation/components/UnitAI.js` and other components | Port / native rewrite of game logic |
 | `PetraConfig::gather_rate`/`build_time`, `ai_gather_mult`/`ai_time_mult` | `simulation/helpers/InitGame.js` ("AI Bonus" difficulty modifiers) | Port |
 | `src/simulation/rms_generator.*` | 0 A.D. random map scripts (`maps/random/`) | Modelled on them, one row per map in the table below |
+| `src/simulation/simulation.*` (`cmd_tribute`, `cmd_barter`, `tick_barter`, `calculate_trade_gain`, trader routes) | `simulation/components/Player.js` (TributeResource, GetNextTradingGoods), `Barter.js`, `Market.js` (CalculateTraderGain), `Trader.js`, `globalscripts/Trade.js`, `template_unit_support_trader.xml`, `template_structure_economic_market.xml` | Port (formulas and constants) |
 | `src/network/turn_manager.*`, `net_types.h` | `source/network/NetServerTurnManager.*`, `NetClientTurnManager.*`, `NetMessages.h` | Port |
 | `tools/extract_0ad_assets.py` | `source/graphics/ModelDef.cpp`, `ps/FileIo.cpp`, `shaders/glsl/model_common.fs` | Port of file-format readers |
 
