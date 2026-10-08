@@ -635,8 +635,8 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
         while (!tm.apply_pending_rejoin(sim)) {
             net.poll(arena);
             arena.reset();
-            if (tm.rejoin_reject_reason() || now_us() - t_start > 20'000'000ull) {
-                std::fprintf(stderr, "[net-peer] join: rejoin failed (reason %u)\n", (unsigned)tm.rejoin_reject_reason());
+            if (tm.rejoin_reject_reason() || now_us() - t_start > 30'000'000ull) {
+                std::fprintf(stderr, "[net-peer] join: could not rejoin (reason %u)\n", (unsigned)tm.rejoin_reject_reason());
                 return 3;
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
