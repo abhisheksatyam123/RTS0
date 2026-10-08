@@ -34266,6 +34266,26 @@
   ],
   "fauna": [
     {
+      "type": "whale_fin",
+      "x": 69.4,
+      "z": 105.26
+    },
+    {
+      "type": "whale_fin",
+      "x": 45.87,
+      "z": 30.25
+    },
+    {
+      "type": "whale_fin",
+      "x": -40.89,
+      "z": -36.17
+    },
+    {
+      "type": "whale_fin",
+      "x": -118.04,
+      "z": -108.8
+    },
+    {
       "type": "sheep",
       "x": 31.47,
       "z": -116.24
@@ -46269,6 +46289,205 @@
       "player": 4,
       "x": 104.79,
       "z": -29.9
+    }
+  ],
+  "treasures": [
+    {
+      "type": "shipwreck",
+      "x": -86.4,
+      "z": -73.64
+    },
+    {
+      "type": "shipwreck_sail_boat_cut",
+      "x": -96.75,
+      "z": -86.94
+    },
+    {
+      "type": "food_jars",
+      "x": 75.9,
+      "z": 65.74
+    },
+    {
+      "type": "shipwreck_ram_bow",
+      "x": 77.47,
+      "z": 64.84
+    },
+    {
+      "type": "food_barrel",
+      "x": -135.32,
+      "z": 130.23
+    },
+    {
+      "type": "food_barrels_buried",
+      "x": -135.6,
+      "z": 129.61
+    },
+    {
+      "type": "stone",
+      "x": -119.51,
+      "z": 121.18
+    },
+    {
+      "type": "food_barrels_buried",
+      "x": 155.26,
+      "z": 63.56
+    },
+    {
+      "type": "food_barrel",
+      "x": 165.97,
+      "z": 68.55
+    },
+    {
+      "type": "food_jars",
+      "x": 134.51,
+      "z": -67.45
+    }
+  ],
+  "ruins": [
+    {
+      "type": "column_doric",
+      "x": 75.37,
+      "z": 64.83
+    },
+    {
+      "type": "column_doric",
+      "x": 74.09,
+      "z": 64.54
+    },
+    {
+      "type": "unfinished_greek_temple",
+      "x": 44.2,
+      "z": -0.61
+    },
+    {
+      "type": "stone_statues_roman",
+      "x": 43.06,
+      "z": 0.98
+    },
+    {
+      "type": "stone_statues_roman",
+      "x": 42.25,
+      "z": 0.31
+    },
+    {
+      "type": "stone_statues_roman",
+      "x": 41.85,
+      "z": -0.39
+    },
+    {
+      "type": "stone_statues_roman",
+      "x": 43.67,
+      "z": 1.6
+    },
+    {
+      "type": "stone_statues_roman",
+      "x": 44.81,
+      "z": -3.5
+    },
+    {
+      "type": "stone_statues_roman",
+      "x": 45.48,
+      "z": -2.98
+    },
+    {
+      "type": "stone_statues_roman",
+      "x": 46.15,
+      "z": -2.41
+    },
+    {
+      "type": "stone_statues_roman",
+      "x": 46.94,
+      "z": -1.79
+    },
+    {
+      "type": "stone_statues_roman",
+      "x": 12.29,
+      "z": -40.12
+    },
+    {
+      "type": "stone_statues_roman",
+      "x": 11.51,
+      "z": -40.74
+    },
+    {
+      "type": "stone_statues_roman",
+      "x": 10.83,
+      "z": -41.31
+    },
+    {
+      "type": "stone_statues_roman",
+      "x": 10.17,
+      "z": -41.83
+    },
+    {
+      "type": "stone_statues_roman",
+      "x": 9.03,
+      "z": -36.73
+    },
+    {
+      "type": "stone_statues_roman",
+      "x": 7.21,
+      "z": -38.73
+    },
+    {
+      "type": "stone_statues_roman",
+      "x": 7.61,
+      "z": -38.02
+    },
+    {
+      "type": "stone_statues_roman",
+      "x": 8.42,
+      "z": -37.35
+    },
+    {
+      "type": "unfinished_greek_temple",
+      "x": 9.56,
+      "z": -38.94
+    },
+    {
+      "type": "stone_statues_roman",
+      "x": 35.85,
+      "z": 137.16
+    },
+    {
+      "type": "stone_statues_roman",
+      "x": 35.18,
+      "z": 136.59
+    },
+    {
+      "type": "stone_statues_roman",
+      "x": 34.51,
+      "z": 136.07
+    },
+    {
+      "type": "stone_statues_roman",
+      "x": 33.37,
+      "z": 141.17
+    },
+    {
+      "type": "stone_statues_roman",
+      "x": 32.76,
+      "z": 140.55
+    },
+    {
+      "type": "unfinished_greek_temple",
+      "x": 33.9,
+      "z": 138.96
+    },
+    {
+      "type": "stone_statues_roman",
+      "x": 36.64,
+      "z": 137.78
+    },
+    {
+      "type": "stone_statues_roman",
+      "x": 31.55,
+      "z": 139.18
+    },
+    {
+      "type": "stone_statues_roman",
+      "x": 31.95,
+      "z": 139.88
     }
   ]
 }

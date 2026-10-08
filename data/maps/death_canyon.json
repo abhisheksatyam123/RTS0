@@ -6588,579 +6588,724 @@
   ],
   "fauna": [
     {
-      "type": "deer",
+      "type": "elephant_african_bush",
+      "x": 35.8,
+      "z": -21.02
+    },
+    {
+      "type": "elephant_african_bush",
+      "x": 37.09,
+      "z": -24.76
+    },
+    {
+      "type": "elephant_african_bush",
+      "x": 40.1,
+      "z": -29.35
+    },
+    {
+      "type": "elephant_african_infant",
+      "x": 38.1,
+      "z": -27.28
+    },
+    {
+      "type": "elephant_african_infant",
+      "x": 38.4,
+      "z": -26.51
+    },
+    {
+      "type": "elephant_african_infant",
+      "x": 38.23,
+      "z": -25.54
+    },
+    {
+      "type": "elephant_north_african",
+      "x": 39.48,
+      "z": -31.82
+    },
+    {
+      "type": "elephant_north_african",
+      "x": 41.26,
+      "z": -34.78
+    },
+    {
+      "type": "elephant_north_african",
+      "x": 42.91,
+      "z": -31.62
+    },
+    {
+      "type": "elephant_north_african",
+      "x": 30.31,
+      "z": -17.2
+    },
+    {
+      "type": "elephant_north_african",
+      "x": -55.3,
+      "z": 60.45
+    },
+    {
+      "type": "elephant_north_african",
+      "x": -52.45,
+      "z": 56.01
+    },
+    {
+      "type": "elephant_north_african",
+      "x": -51.33,
+      "z": 60.13
+    },
+    {
+      "type": "elephant_african_bush",
+      "x": -60.04,
+      "z": 64.35
+    },
+    {
+      "type": "elephant_african_bush",
+      "x": -57.66,
+      "z": 60.01
+    },
+    {
+      "type": "elephant_african_bush",
+      "x": -57.25,
+      "z": 64.0
+    },
+    {
+      "type": "elephant_african_infant",
+      "x": -56.71,
+      "z": 57.31
+    },
+    {
+      "type": "elephant_african_infant",
+      "x": -53.31,
+      "z": 57.74
+    },
+    {
+      "type": "elephant_african_infant",
+      "x": -54.27,
+      "z": 61.85
+    },
+    {
+      "type": "gazelle",
       "x": -40.49,
       "z": 27.05
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -36.76,
       "z": 23.5
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -33.08,
       "z": 24.83
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -33.94,
       "z": 28.07
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -38.4,
       "z": 27.31
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -41.7,
       "z": 27.37
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -46.72,
       "z": 30.59
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -48.75,
       "z": 30.54
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -45.08,
       "z": 27.31
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -41.77,
       "z": 25.69
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -38.19,
       "z": 26.0
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -35.42,
       "z": 27.88
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -32.41,
       "z": 26.65
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 65.91,
       "z": -25.57
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 68.57,
       "z": -27.31
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 69.38,
       "z": -29.31
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 69.77,
       "z": -30.92
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 73.62,
       "z": -31.01
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 74.77,
       "z": -31.83
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 74.6,
       "z": -34.98
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 71.92,
       "z": -35.29
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 72.49,
       "z": -32.8
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 71.67,
       "z": -29.9
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 71.16,
       "z": -27.34
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 75.94,
       "z": -30.3
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 76.42,
       "z": -31.25
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 74.33,
       "z": -28.35
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 70.66,
       "z": -25.94
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 67.66,
       "z": -59.56
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 61.63,
       "z": -47.52
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 104.61,
       "z": -52.34
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 107.74,
       "z": -53.49
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 91.62,
       "z": -51.93
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 82.5,
       "z": -67.18
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 64.06,
       "z": -46.29
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 37.04,
       "z": -2.96
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 13.71,
       "z": -10.39
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -4.93,
       "z": 7.38
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -25.98,
       "z": 43.61
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -64.27,
       "z": 43.14
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -76.15,
       "z": 75.16
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -80.33,
       "z": 80.86
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -87.04,
       "z": 60.03
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -70.27,
       "z": 46.77
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -68.03,
       "z": 41.06
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -67.31,
       "z": 48.06
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -74.95,
       "z": 80.08
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -17.06,
       "z": 63.36
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -15.48,
       "z": 60.74
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -16.44,
       "z": 64.76
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -17.87,
       "z": 68.05
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -40.13,
       "z": 77.58
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -46.24,
       "z": 80.62
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -41.36,
       "z": 63.64
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 1.36,
       "z": 47.47
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -2.54,
       "z": 33.47
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 9.79,
       "z": 46.61
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 15.98,
       "z": 26.63
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 24.67,
       "z": 25.99
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 25.27,
       "z": 28.63
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 27.55,
       "z": 31.79
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 30.41,
       "z": 34.95
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -10.19,
       "z": -14.93
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -12.12,
       "z": -15.58
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -16.62,
       "z": -20.08
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -17.68,
       "z": -21.64
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -19.8,
       "z": -12.78
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -18.49,
       "z": -8.35
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -0.62,
       "z": -8.53
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 4.13,
       "z": -6.42
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 5.71,
       "z": -3.97
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 10.56,
       "z": -6.45
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 46.54,
       "z": -7.1
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 46.16,
       "z": -52.11
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 54.53,
       "z": -59.03
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 59.63,
       "z": -61.76
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 90.77,
       "z": -37.17
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 98.09,
       "z": -42.21
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 98.98,
       "z": -42.99
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 89.68,
       "z": -76.18
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 95.94,
       "z": -75.79
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 115.41,
       "z": -48.71
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 121.9,
       "z": -27.13
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 121.15,
       "z": -29.88
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 102.45,
       "z": -20.68
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 104.5,
       "z": -25.27
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 79.84,
       "z": -12.62
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 36.83,
       "z": -77.99
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 51.77,
       "z": -84.05
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 55.34,
       "z": -86.32
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 73.43,
       "z": -99.12
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 55.78,
       "z": -63.33
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 35.2,
       "z": -61.75
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 21.8,
       "z": -54.57
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 11.98,
       "z": -30.19
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 2.74,
       "z": -26.48
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -46.83,
       "z": 9.0
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -66.21,
       "z": 19.24
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -86.89,
       "z": 37.85
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -111.43,
       "z": 50.44
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -113.8,
       "z": 42.65
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -99.75,
       "z": 49.57
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -112.92,
       "z": 46.84
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -65.95,
       "z": 39.5
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -41.29,
       "z": 21.18
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -40.82,
       "z": -40.54
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -48.35,
       "z": -45.15
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -53.91,
       "z": -44.59
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -51.27,
       "z": -40.56
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -49.49,
       "z": -39.0
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 63.33,
       "z": 52.94
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 61.99,
       "z": 49.77
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 64.61,
       "z": 52.21
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 65.51,
       "z": 56.54
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 65.6,
       "z": 54.45
+    },
+    {
+      "type": "chicken",
+      "x": -31.33,
+      "z": -80.05
+    },
+    {
+      "type": "chicken",
+      "x": -33.11,
+      "z": -81.54
+    },
+    {
+      "type": "chicken",
+      "x": -34.23,
+      "z": -82.58
+    },
+    {
+      "type": "chicken",
+      "x": -34.37,
+      "z": -83.26
+    },
+    {
+      "type": "chicken",
+      "x": -33.29,
+      "z": -83.88
+    },
+    {
+      "type": "chicken",
+      "x": 46.33,
+      "z": 58.97
+    },
+    {
+      "type": "chicken",
+      "x": 45.17,
+      "z": 57.91
+    },
+    {
+      "type": "chicken",
+      "x": 45.29,
+      "z": 60.64
+    },
+    {
+      "type": "chicken",
+      "x": 45.13,
+      "z": 63.02
+    },
+    {
+      "type": "chicken",
+      "x": 46.43,
+      "z": 63.16
     }
   ],
   "structures": [
@@ -7742,5 +7887,88 @@
       "x": -44.35,
       "z": -67.16
     }
-  ]
+  ],
+  "treasures": [
+    {
+      "type": "food_bin",
+      "x": -37.09,
+      "z": -79.84
+    },
+    {
+      "type": "food_bin",
+      "x": -35.16,
+      "z": -80.98
+    },
+    {
+      "type": "food_barrel",
+      "x": -36.25,
+      "z": -81.08
+    },
+    {
+      "type": "food_barrel",
+      "x": -35.87,
+      "z": -80.58
+    },
+    {
+      "type": "food_barrel",
+      "x": -35.82,
+      "z": -81.66
+    },
+    {
+      "type": "food_bin",
+      "x": -37.74,
+      "z": -80.36
+    },
+    {
+      "type": "food_crate",
+      "x": -36.26,
+      "z": -81.95
+    },
+    {
+      "type": "food_jars",
+      "x": -38.24,
+      "z": -82.33
+    },
+    {
+      "type": "food_jars",
+      "x": 38.73,
+      "z": 80.89
+    },
+    {
+      "type": "food_barrel",
+      "x": 37.48,
+      "z": 80.84
+    },
+    {
+      "type": "food_barrel",
+      "x": 37.23,
+      "z": 79.77
+    },
+    {
+      "type": "food_barrel",
+      "x": 36.8,
+      "z": 80.92
+    },
+    {
+      "type": "food_bin",
+      "x": 38.37,
+      "z": 79.27
+    },
+    {
+      "type": "food_bin",
+      "x": 37.84,
+      "z": 78.89
+    },
+    {
+      "type": "food_bin",
+      "x": 39.8,
+      "z": 80.06
+    },
+    {
+      "type": "food_crate",
+      "x": 36.53,
+      "z": 80.07
+    }
+  ],
+  "ruins": []
 }

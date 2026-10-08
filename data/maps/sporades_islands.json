@@ -16463,102 +16463,202 @@
   ],
   "fauna": [
     {
-      "type": "sheep",
+      "type": "chicken",
+      "x": 46.07,
+      "z": -46.39
+    },
+    {
+      "type": "chicken",
+      "x": 45.17,
+      "z": -48.0
+    },
+    {
+      "type": "chicken",
+      "x": 44.39,
+      "z": -49.54
+    },
+    {
+      "type": "chicken",
+      "x": 46.1,
+      "z": -48.58
+    },
+    {
+      "type": "chicken",
+      "x": 46.53,
+      "z": -47.22
+    },
+    {
+      "type": "chicken",
+      "x": 72.98,
+      "z": -35.19
+    },
+    {
+      "type": "chicken",
+      "x": 72.03,
+      "z": -36.75
+    },
+    {
+      "type": "chicken",
+      "x": 72.83,
+      "z": -37.69
+    },
+    {
+      "type": "chicken",
+      "x": 73.78,
+      "z": -36.01
+    },
+    {
+      "type": "chicken",
+      "x": 74.85,
+      "z": -34.48
+    },
+    {
+      "type": "chicken",
+      "x": -69.15,
+      "z": 33.64
+    },
+    {
+      "type": "chicken",
+      "x": -70.01,
+      "z": 32.4
+    },
+    {
+      "type": "chicken",
+      "x": -68.42,
+      "z": 32.38
+    },
+    {
+      "type": "chicken",
+      "x": -67.86,
+      "z": 33.51
+    },
+    {
+      "type": "chicken",
+      "x": -70.16,
+      "z": 34.59
+    },
+    {
+      "type": "chicken",
+      "x": -59.81,
+      "z": 58.0
+    },
+    {
+      "type": "chicken",
+      "x": -60.95,
+      "z": 56.29
+    },
+    {
+      "type": "chicken",
+      "x": -59.7,
+      "z": 56.72
+    },
+    {
+      "type": "chicken",
+      "x": -58.38,
+      "z": 58.42
+    },
+    {
+      "type": "chicken",
+      "x": -57.2,
+      "z": 57.32
+    },
+    {
+      "type": "goat",
       "x": -59.61,
       "z": -66.17
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -60.71,
       "z": -67.66
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -59.78,
       "z": -68.48
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -59.0,
       "z": -67.96
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -57.64,
       "z": -68.31
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -56.8,
       "z": -69.2
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -57.63,
       "z": -69.9
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -59.41,
       "z": -70.22
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -59.6,
       "z": -70.71
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -57.37,
       "z": -71.08
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -56.54,
       "z": -70.71
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -55.19,
       "z": -70.08
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -54.04,
       "z": -68.71
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -53.69,
       "z": -66.58
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -54.87,
       "z": -65.97
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -55.21,
       "z": -66.8
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -55.76,
       "z": -70.79
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -55.91,
       "z": -69.4
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -56.1,
       "z": -67.75
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -57.38,
       "z": -65.71
     },
@@ -16588,47 +16688,72 @@
       "z": 60.09
     },
     {
-      "type": "wolf",
+      "type": "bear_brown",
       "x": 66.3,
       "z": 68.43
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 34.47,
       "z": 77.28
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 37.66,
       "z": 78.51
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 69.62,
       "z": 46.29
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 67.17,
       "z": 42.88
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 72.17,
       "z": 45.78
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 42.07,
       "z": 89.87
     },
     {
-      "type": "wolf",
+      "type": "horse",
+      "x": -75.97,
+      "z": -67.38
+    },
+    {
+      "type": "horse",
+      "x": -73.89,
+      "z": -66.65
+    },
+    {
+      "type": "horse",
+      "x": -74.41,
+      "z": -67.87
+    },
+    {
+      "type": "shark",
+      "x": -141.01,
+      "z": -13.97
+    },
+    {
+      "type": "whale_fin",
+      "x": 131.22,
+      "z": 41.07
+    },
+    {
+      "type": "bear_brown",
       "x": -81.5,
       "z": 59.45
     },
     {
-      "type": "wolf",
+      "type": "bear_brown",
       "x": 76.12,
       "z": -60.78
     }
@@ -16779,6 +16904,115 @@
       "player": 2,
       "x": 37.14,
       "z": -15.03
+    }
+  ],
+  "treasures": [
+    {
+      "type": "shipwreck",
+      "x": -60.88,
+      "z": -94.15
+    },
+    {
+      "type": "shipwreck",
+      "x": -95.46,
+      "z": -79.79
+    },
+    {
+      "type": "shipwreck_ram_bow",
+      "x": -40.23,
+      "z": -55.52
+    },
+    {
+      "type": "special_argo",
+      "x": 62.62,
+      "z": 78.46
+    },
+    {
+      "type": "metal_persian_big",
+      "x": -80.82,
+      "z": -93.18
+    },
+    {
+      "type": "food_jars",
+      "x": 71.81,
+      "z": 54.8
+    },
+    {
+      "type": "stone_pile_granite",
+      "x": -75.98,
+      "z": -72.79
+    },
+    {
+      "type": "stone_pile_granite",
+      "x": 47.57,
+      "z": 67.04
+    },
+    {
+      "type": "stone_pile_granite_large",
+      "x": 50.16,
+      "z": 67.93
+    },
+    {
+      "type": "metal_persian_small",
+      "x": -76.03,
+      "z": -93.67
+    },
+    {
+      "type": "metal_weapons_small",
+      "x": 88.89,
+      "z": -21.78
+    },
+    {
+      "type": "metal_weapons_small",
+      "x": 89.39,
+      "z": -22.48
+    },
+    {
+      "type": "metal_weapons_small",
+      "x": -56.59,
+      "z": 82.23
+    },
+    {
+      "type": "metal_weapons_small",
+      "x": -55.73,
+      "z": 82.94
+    }
+  ],
+  "ruins": [
+    {
+      "type": "stone_structure_house",
+      "x": -81.66,
+      "z": -69.76
+    },
+    {
+      "type": "stone_structure_house",
+      "x": -78.45,
+      "z": -70.76
+    },
+    {
+      "type": "stone_structure_house",
+      "x": -81.48,
+      "z": -74.06
+    },
+    {
+      "type": "stone_structure_house",
+      "x": -85.35,
+      "z": -72.27
+    },
+    {
+      "type": "stone_structure_house",
+      "x": -78.4,
+      "z": -75.92
+    },
+    {
+      "type": "column_doric",
+      "x": 70.46,
+      "z": 55.78
+    },
+    {
+      "type": "column_doric",
+      "x": 57.51,
+      "z": 75.1
     }
   ]
 }

@@ -8,6 +8,7 @@
 #include <cmath>
 #include <numeric>
 #include <algorithm>
+#include <memory>
 #include <limits>
 #include <cstring>
 #include <cstdint>
@@ -1956,6 +1957,9 @@ void Simulation::order_gather(const uint32_t *unit_ids, size_t count, uint32_t r
 		if (uidx < 0 || !units_.alive[uidx]) continue;
 		// ResourceGatherer Rates: fishing boats only have food.fish, land gatherers none.
 		if ((units_.unit_type[uidx] == UNIT_FISHING_BOAT) != (resources_.subtype[ridx] == RES_SUB_FISH)) continue;
+		// Citizen cavalry gather meat only (template_unit_cavalry); champion cavalry gather nothing.
+		if (units_.unit_type[uidx] == UNIT_CAVALRY &&
+		    (resources_.subtype[ridx] != RES_SUB_MEAT || units_.carry_capacity[uidx] <= 0)) continue;
 
 		units_.target_x[uidx] = rx;
 		units_.target_z[uidx] = rz;
@@ -3290,7 +3294,8 @@ void Simulation::tick_gather(float dt) {
 		bool is_gatherer = (units_.unit_type[i] == UNIT_VILLAGER ||
 		                    units_.unit_type[i] == UNIT_FEMALE_CITIZEN ||
 		                    units_.unit_type[i] == UNIT_WORKER_ELEPHANT ||
-		                    units_.unit_type[i] == UNIT_FISHING_BOAT);
+		                    units_.unit_type[i] == UNIT_FISHING_BOAT ||
+		                    (units_.unit_type[i] == UNIT_CAVALRY && units_.carry_capacity[i] > 0)); // meat only, below
 		if (!units_.alive[i] || !is_gatherer) continue;
 		uint8_t uteam = units_.team[i];
 
@@ -3400,6 +3405,12 @@ void Simulation::tick_gather(float dt) {
 				units_.action_state[i] = ACTION_IDLE;
 				continue;
 			}
+			// template_unit_cavalry Rates: food.meat only.
+			if (units_.unit_type[i] == UNIT_CAVALRY && resources_.subtype[ridx] != RES_SUB_MEAT) {
+				units_.target_resource_id[i] = 0;
+				units_.action_state[i] = ACTION_IDLE;
+				continue;
+			}
 			if (fish) {
 				FieldGatherers &fg = fish_gatherers_[units_.target_resource_id[i]];
 				if (fg.slots_taken >= FISH_MAX_GATHERERS) {
@@ -3451,6 +3462,9 @@ void Simulation::tick_gather(float dt) {
 						harvest_rate /= civ_info(civ).metal_gather_mult;
 					}
 				}
+
+				// Cavalry butcher meat 5x as fast as infantry (template_unit_cavalry food.meat 5 vs 1).
+				if (units_.unit_type[i] == UNIT_CAVALRY) harvest_rate *= 0.2f;
 
 				// Female Citizen gathering bonus (+25% Food gather speed)
 				if (units_.unit_type[i] == UNIT_FEMALE_CITIZEN && resources_.type[ridx] == RES_FOOD) {
@@ -9375,7 +9389,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 1024 animals with a held position (0 A.D. fauna)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 
@@ -10031,7 +10045,34 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	io_vec(ar, s.projectiles_, 1u << 20, projectile);
 	io_vec(ar, s.relics_, 1u << 16, relic);
 	static_assert(sizeof(S::FaunaStorage) == 68616, "list the new FaunaStorage field below");
-	ar.padded(s.fauna_, [&](S::FaunaStorage &d, const S::FaunaStorage &v) {
+	if constexpr (Ar::loading) {
+		if (ar.version < 18) {
+			// Saves before v18 held 256 animals and no held position.
+			struct Fauna256 {
+				size_t count;
+				uint32_t id[256]; float pos_x[256], pos_z[256], vel_x[256], vel_z[256], rot_y[256], hp[256], max_hp[256];
+				int food_amount[256]; uint8_t fauna_type[256], behavior[256], alive[256];
+				float state_timer[256], attack_timer[256]; uint32_t target_unit_id[256], corral_id[256]; float fatten_timer[256];
+			};
+			static_assert(sizeof(Fauna256) == 15112);
+			auto old = std::make_unique<Fauna256>();
+			ar.pod(*old);
+			if (!ar.ok || old->count > 256) { ar.ok = false; return; }
+			S::FaunaStorage &F = s.fauna_;
+			F = S::FaunaStorage{};
+			F.count = old->count;
+			for (size_t f = 0; f < old->count; ++f) {
+				F.id[f] = old->id[f]; F.pos_x[f] = old->pos_x[f]; F.pos_z[f] = old->pos_z[f];
+				F.vel_x[f] = old->vel_x[f]; F.vel_z[f] = old->vel_z[f]; F.rot_y[f] = old->rot_y[f];
+				F.hp[f] = old->hp[f]; F.max_hp[f] = old->max_hp[f]; F.food_amount[f] = old->food_amount[f];
+				F.fauna_type[f] = old->fauna_type[f]; F.behavior[f] = old->behavior[f]; F.alive[f] = old->alive[f];
+				F.state_timer[f] = old->state_timer[f]; F.attack_timer[f] = old->attack_timer[f];
+				F.target_unit_id[f] = old->target_unit_id[f]; F.corral_id[f] = old->corral_id[f];
+				F.fatten_timer[f] = old->fatten_timer[f]; F.home_x[f] = F.pos_x[f]; F.home_z[f] = F.pos_z[f];
+			}
+		}
+	}
+	if (!Ar::loading || ar.version >= 18) ar.padded(s.fauna_, [&](S::FaunaStorage &d, const S::FaunaStorage &v) {
 		d.count = v.count;
 		arr(d.id, v.id); arr(d.pos_x, v.pos_x); arr(d.pos_z, v.pos_z); arr(d.vel_x, v.vel_x); arr(d.vel_z, v.vel_z);
 		arr(d.rot_y, v.rot_y); arr(d.hp, v.hp); arr(d.max_hp, v.max_hp); arr(d.food_amount, v.food_amount);

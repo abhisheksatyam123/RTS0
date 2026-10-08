@@ -9552,6 +9552,106 @@
   ],
   "fauna": [
     {
+      "type": "chicken",
+      "x": -84.32,
+      "z": 22.19
+    },
+    {
+      "type": "chicken",
+      "x": -83.66,
+      "z": 23.37
+    },
+    {
+      "type": "chicken",
+      "x": -84.98,
+      "z": 25.9
+    },
+    {
+      "type": "chicken",
+      "x": -84.51,
+      "z": 26.79
+    },
+    {
+      "type": "chicken",
+      "x": -83.2,
+      "z": 26.74
+    },
+    {
+      "type": "chicken",
+      "x": -82.74,
+      "z": 25.16
+    },
+    {
+      "type": "chicken",
+      "x": -81.83,
+      "z": 25.03
+    },
+    {
+      "type": "chicken",
+      "x": -81.29,
+      "z": 26.64
+    },
+    {
+      "type": "chicken",
+      "x": -81.46,
+      "z": 28.45
+    },
+    {
+      "type": "chicken",
+      "x": -80.55,
+      "z": 29.22
+    },
+    {
+      "type": "chicken",
+      "x": 60.26,
+      "z": 2.52
+    },
+    {
+      "type": "chicken",
+      "x": 59.19,
+      "z": -0.41
+    },
+    {
+      "type": "chicken",
+      "x": 59.09,
+      "z": -3.73
+    },
+    {
+      "type": "chicken",
+      "x": 57.66,
+      "z": -6.18
+    },
+    {
+      "type": "chicken",
+      "x": 57.11,
+      "z": -7.56
+    },
+    {
+      "type": "chicken",
+      "x": 58.71,
+      "z": -7.63
+    },
+    {
+      "type": "chicken",
+      "x": 59.55,
+      "z": -4.35
+    },
+    {
+      "type": "chicken",
+      "x": 59.1,
+      "z": -2.7
+    },
+    {
+      "type": "chicken",
+      "x": 58.55,
+      "z": -2.0
+    },
+    {
+      "type": "chicken",
+      "x": 58.62,
+      "z": 0.44
+    },
+    {
       "type": "deer",
       "x": 30.1,
       "z": -25.08
@@ -9652,102 +9752,102 @@
       "z": 17.54
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -14.42,
       "z": 61.13
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -17.11,
       "z": 55.52
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -21.15,
       "z": 52.34
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -20.01,
       "z": 53.74
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -16.77,
       "z": 73.33
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -11.77,
       "z": 66.71
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -13.62,
       "z": 61.5
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -23.74,
       "z": 50.47
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -28.49,
       "z": 48.64
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -30.93,
       "z": 42.64
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 98.18,
       "z": -47.77
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 96.1,
       "z": -52.8
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 97.25,
       "z": -54.69
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 97.29,
       "z": -58.23
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 98.3,
       "z": -59.8
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 87.32,
       "z": 42.76
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 86.34,
       "z": 39.47
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 87.83,
       "z": 38.61
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 89.29,
       "z": 42.72
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 90.39,
       "z": 33.57
     },
@@ -9772,17 +9872,17 @@
       "z": 32.8
     },
     {
-      "type": "wolf",
+      "type": "bear_brown",
       "x": -88.79,
       "z": 79.07
     },
     {
-      "type": "wolf",
+      "type": "bear_brown",
       "x": 115.13,
       "z": -43.84
     },
     {
-      "type": "wolf",
+      "type": "bear_brown",
       "x": 2.34,
       "z": 11.85
     },
@@ -10160,6 +10260,16 @@
       "type": "boar",
       "x": -14.79,
       "z": 16.28
+    },
+    {
+      "type": "whale_fin",
+      "x": 5.62,
+      "z": -108.78
+    },
+    {
+      "type": "whale_fin",
+      "x": 30.82,
+      "z": 113.5
     }
   ],
   "structures": [
@@ -10369,5 +10479,7 @@
       "x": 63.71,
       "z": -2.57
     }
-  ]
+  ],
+  "treasures": [],
+  "ruins": []
 }

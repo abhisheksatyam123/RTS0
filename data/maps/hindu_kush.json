@@ -9767,6 +9767,56 @@
       "z": -59.23
     },
     {
+      "type": "horse",
+      "x": -40.4,
+      "z": -81.27
+    },
+    {
+      "type": "horse",
+      "x": -41.67,
+      "z": -79.97
+    },
+    {
+      "type": "horse",
+      "x": 29.83,
+      "z": -42.46
+    },
+    {
+      "type": "horse",
+      "x": 31.37,
+      "z": -43.78
+    },
+    {
+      "type": "horse",
+      "x": -42.8,
+      "z": 26.36
+    },
+    {
+      "type": "horse",
+      "x": -41.11,
+      "z": 27.63
+    },
+    {
+      "type": "horse",
+      "x": 29.62,
+      "z": 55.57
+    },
+    {
+      "type": "horse",
+      "x": 30.87,
+      "z": 54.79
+    },
+    {
+      "type": "horse",
+      "x": 100.81,
+      "z": -0.75
+    },
+    {
+      "type": "horse",
+      "x": -95.95,
+      "z": -23.44
+    },
+    {
       "type": "boar",
       "x": -45.47,
       "z": -67.75
@@ -9827,82 +9877,82 @@
       "z": -43.99
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -85.16,
       "z": -78.25
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -86.92,
       "z": -78.7
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -86.0,
       "z": -78.15
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -85.91,
       "z": -79.25
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -66.08,
       "z": 9.67
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -64.9,
       "z": 10.66
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -65.27,
       "z": 9.19
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -64.22,
       "z": 10.3
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 84.44,
       "z": 29.67
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 83.21,
       "z": 27.89
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 83.86,
       "z": 27.08
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 85.0,
       "z": 29.18
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 103.52,
       "z": -26.72
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 101.47,
       "z": -27.57
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 101.84,
       "z": -25.04
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 101.02,
       "z": -26.09
     },
@@ -9937,22 +9987,67 @@
       "z": -29.41
     },
     {
-      "type": "wolf",
+      "type": "camel",
+      "x": -65.53,
+      "z": -61.0
+    },
+    {
+      "type": "camel",
+      "x": 52.94,
+      "z": -18.84
+    },
+    {
+      "type": "camel",
+      "x": 91.02,
+      "z": 24.17
+    },
+    {
+      "type": "camel",
+      "x": 46.45,
+      "z": 58.07
+    },
+    {
+      "type": "camel",
+      "x": -16.95,
+      "z": 113.24
+    },
+    {
+      "type": "camel",
+      "x": -59.26,
+      "z": 48.4
+    },
+    {
+      "type": "camel",
+      "x": -109.91,
+      "z": -36.17
+    },
+    {
+      "type": "camel",
+      "x": -20.97,
+      "z": -21.61
+    },
+    {
+      "type": "camel",
+      "x": 14.8,
+      "z": -11.58
+    },
+    {
+      "type": "bear_brown",
       "x": 55.92,
       "z": -11.13
     },
     {
-      "type": "wolf",
+      "type": "bear_brown",
       "x": 42.12,
       "z": 65.69
     },
     {
-      "type": "wolf",
+      "type": "bear_brown",
       "x": -85.17,
       "z": -2.03
     },
     {
-      "type": "wolf",
+      "type": "bear_brown",
       "x": -45.43,
       "z": -53.14
     },
@@ -10390,5 +10485,88 @@
       "x": 0.41,
       "z": -73.13
     }
-  ]
+  ],
+  "treasures": [
+    {
+      "type": "wood_lumber",
+      "x": -3.37,
+      "z": 15.88
+    },
+    {
+      "type": "wood_lumber",
+      "x": -2.82,
+      "z": 16.93
+    },
+    {
+      "type": "wood_lumber",
+      "x": -2.98,
+      "z": -45.73
+    },
+    {
+      "type": "wood_lumber",
+      "x": -1.53,
+      "z": -44.97
+    },
+    {
+      "type": "food_barrels_buried",
+      "x": -22.45,
+      "z": 3.36
+    },
+    {
+      "type": "food_barrels_buried",
+      "x": 22.17,
+      "z": -32.02
+    },
+    {
+      "type": "metal_weapons_small",
+      "x": -45.72,
+      "z": 44.49
+    },
+    {
+      "type": "metal_weapons_small",
+      "x": -46.44,
+      "z": 44.08
+    },
+    {
+      "type": "metal_weapons_small",
+      "x": -45.73,
+      "z": 43.83
+    },
+    {
+      "type": "metal_weapons_small",
+      "x": -45.18,
+      "z": -72.56
+    },
+    {
+      "type": "metal_weapons_small",
+      "x": -44.46,
+      "z": -72.15
+    },
+    {
+      "type": "metal_weapons_small",
+      "x": -44.47,
+      "z": -72.81
+    },
+    {
+      "type": "stone_pile_red",
+      "x": 41.3,
+      "z": 68.32
+    },
+    {
+      "type": "stone_pile_red",
+      "x": -88.05,
+      "z": -2.85
+    },
+    {
+      "type": "stone_pile_red",
+      "x": -48.79,
+      "z": -51.64
+    },
+    {
+      "type": "stone_pile_red",
+      "x": 57.14,
+      "z": -9.09
+    }
+  ],
+  "ruins": []
 }

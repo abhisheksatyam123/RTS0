@@ -92,6 +92,24 @@ int main() {
 		std::printf("hunt: hunter state %d carry %d\n", s.units_.action_state[c], s.units_.carry[c]);
 	}
 
+	// 2b. Citizen cavalry hunt and butcher meat (template_unit_cavalry: food.meat only, carry 20).
+	{
+		fresh(s);
+		uint32_t cav = s.spawn_unit(-40.0f, -40.0f, 0, UNIT_CAVALRY);
+		uint32_t gazelle = s.spawn_fauna(-34.0f, -40.0f, FAUNA_GAZELLE);
+		CHECK(s.units_.carry_capacity[uidx(s, cav)] == 20);
+		s.order_hunt(&cav, 1, gazelle);
+		const float food0 = s.player(0).res[RES_FOOD];
+		run(s, 40.0f);
+		CHECK(!f_alive(s, gazelle));
+		std::printf("cavalry: food %.0f -> %.0f, state %d\n", food0, s.player(0).res[RES_FOOD], s.units_.action_state[uidx(s, cav)]);
+		CHECK(s.player(0).res[RES_FOOD] > food0); // butchered and dropped at the town centre
+		// ...but not other resources.
+		uint32_t tree = s.spawn_resource_world(-38.0f, -36.0f, RES_WOOD, 200);
+		s.order_gather(&cav, 1, tree);
+		CHECK(s.units_.target_resource_id[uidx(s, cav)] != tree);
+	}
+
 	// 3. The deer flees when hit (skittish, vision 0: it doesn't flee on sight).
 	{
 		fresh(s);

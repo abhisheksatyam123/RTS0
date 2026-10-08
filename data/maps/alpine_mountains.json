@@ -16577,42 +16577,42 @@
       "z": -58.1
     },
     {
-      "type": "wolf",
+      "type": "wolf_arctic",
       "x": -84.54,
       "z": -32.83
     },
     {
-      "type": "wolf",
+      "type": "wolf_arctic",
       "x": -86.77,
       "z": -29.82
     },
     {
-      "type": "wolf",
+      "type": "wolf_arctic",
       "x": -77.06,
       "z": -30.05
     },
     {
-      "type": "wolf",
+      "type": "wolf_arctic",
       "x": -120.44,
       "z": -17.02
     },
     {
-      "type": "wolf",
+      "type": "wolf_arctic",
       "x": -119.22,
       "z": -16.83
     },
     {
-      "type": "wolf",
+      "type": "wolf_arctic",
       "x": -117.16,
       "z": -16.8
     },
     {
-      "type": "wolf",
+      "type": "wolf_arctic",
       "x": -95.52,
       "z": -2.75
     },
     {
-      "type": "wolf",
+      "type": "wolf_arctic",
       "x": -89.95,
       "z": -1.47
     },
@@ -17740,5 +17740,7 @@
       "x": 82.53,
       "z": 47.21
     }
-  ]
+  ],
+  "treasures": [],
+  "ruins": []
 }

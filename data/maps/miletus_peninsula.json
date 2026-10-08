@@ -18377,6 +18377,106 @@
   ],
   "fauna": [
     {
+      "type": "chicken",
+      "x": -18.15,
+      "z": -102.33
+    },
+    {
+      "type": "chicken",
+      "x": -19.59,
+      "z": -102.86
+    },
+    {
+      "type": "chicken",
+      "x": -19.94,
+      "z": -101.88
+    },
+    {
+      "type": "chicken",
+      "x": -19.08,
+      "z": -101.33
+    },
+    {
+      "type": "chicken",
+      "x": -18.52,
+      "z": -102.53
+    },
+    {
+      "type": "chicken",
+      "x": -2.06,
+      "z": -96.74
+    },
+    {
+      "type": "chicken",
+      "x": -2.66,
+      "z": -98.18
+    },
+    {
+      "type": "chicken",
+      "x": -1.66,
+      "z": -97.78
+    },
+    {
+      "type": "chicken",
+      "x": -2.78,
+      "z": -96.92
+    },
+    {
+      "type": "chicken",
+      "x": -1.37,
+      "z": -96.18
+    },
+    {
+      "type": "chicken",
+      "x": 29.39,
+      "z": 60.15
+    },
+    {
+      "type": "chicken",
+      "x": 27.59,
+      "z": 58.28
+    },
+    {
+      "type": "chicken",
+      "x": 28.62,
+      "z": 59.45
+    },
+    {
+      "type": "chicken",
+      "x": 25.3,
+      "z": 71.31
+    },
+    {
+      "type": "chicken",
+      "x": 22.97,
+      "z": 54.54
+    },
+    {
+      "type": "chicken",
+      "x": 10.77,
+      "z": 68.41
+    },
+    {
+      "type": "chicken",
+      "x": 10.24,
+      "z": 68.68
+    },
+    {
+      "type": "chicken",
+      "x": 10.15,
+      "z": 67.95
+    },
+    {
+      "type": "chicken",
+      "x": 10.48,
+      "z": 67.02
+    },
+    {
+      "type": "chicken",
+      "x": 10.68,
+      "z": 65.85
+    },
+    {
       "type": "deer",
       "x": -4.93,
       "z": -145.26
@@ -18667,7 +18767,7 @@
       "z": -131.02
     },
     {
-      "type": "wolf",
+      "type": "bear_brown",
       "x": 35.27,
       "z": -38.18
     },
@@ -18687,7 +18787,7 @@
       "z": -19.36
     },
     {
-      "type": "wolf",
+      "type": "bear_brown",
       "x": 67.64,
       "z": 13.09
     },
@@ -18782,6 +18882,11 @@
       "z": 37.42
     },
     {
+      "type": "shark",
+      "x": 88.91,
+      "z": -35.07
+    },
+    {
       "type": "deer",
       "x": -37.67,
       "z": -73.86
@@ -18802,54 +18907,114 @@
       "z": -85.18
     },
     {
-      "type": "sheep",
+      "type": "shark",
+      "x": -107.16,
+      "z": -10.83
+    },
+    {
+      "type": "goat",
       "x": 83.34,
       "z": 47.18
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 87.41,
       "z": 41.5
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 100.14,
       "z": 60.16
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 84.11,
       "z": 52.7
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -56.51,
       "z": -119.72
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -54.31,
       "z": -118.31
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -48.62,
       "z": -70.19
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -50.01,
       "z": -68.62
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -62.15,
       "z": -15.23
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -51.99,
       "z": -1.94
+    },
+    {
+      "type": "horse",
+      "x": -10.86,
+      "z": -136.81
+    },
+    {
+      "type": "horse",
+      "x": 43.1,
+      "z": 98.74
+    },
+    {
+      "type": "horse",
+      "x": 32.11,
+      "z": -35.51
+    },
+    {
+      "type": "horse",
+      "x": 39.49,
+      "z": -10.06
+    },
+    {
+      "type": "horse",
+      "x": 67.72,
+      "z": -99.59
+    },
+    {
+      "type": "horse",
+      "x": 81.52,
+      "z": 22.34
+    },
+    {
+      "type": "whale_fin",
+      "x": -5.91,
+      "z": 139.76
+    },
+    {
+      "type": "whale_fin",
+      "x": 128.53,
+      "z": -76.79
+    },
+    {
+      "type": "whale_fin",
+      "x": -132.6,
+      "z": 8.35
+    },
+    {
+      "type": "shark",
+      "x": 129.12,
+      "z": -23.72
+    },
+    {
+      "type": "shark",
+      "x": -126.68,
+      "z": -34.81
     }
   ],
   "structures": [
@@ -19562,6 +19727,80 @@
       "player": 2,
       "x": 14.36,
       "z": 55.89
+    }
+  ],
+  "treasures": [
+    {
+      "type": "food_bin",
+      "x": -19.06,
+      "z": -15.36
+    },
+    {
+      "type": "food_crate",
+      "x": -37.45,
+      "z": 38.42
+    },
+    {
+      "type": "food_bin",
+      "x": -36.82,
+      "z": 38.23
+    },
+    {
+      "type": "food_barrel",
+      "x": -37.31,
+      "z": 37.76
+    },
+    {
+      "type": "shipwreck",
+      "x": 82.08,
+      "z": -29.32
+    },
+    {
+      "type": "shipwreck_ram_bow",
+      "x": 82.18,
+      "z": -74.13
+    },
+    {
+      "type": "shipwreck_ram_bow",
+      "x": 107.78,
+      "z": 25.49
+    },
+    {
+      "type": "shipwreck",
+      "x": 109.74,
+      "z": -69.83
+    },
+    {
+      "type": "shipwreck_ram_bow",
+      "x": 91.68,
+      "z": -14.35
+    },
+    {
+      "type": "food_persian_big",
+      "x": 76.8,
+      "z": -109.92
+    },
+    {
+      "type": "food_persian_big",
+      "x": 80.68,
+      "z": 59.0
+    },
+    {
+      "type": "stone_pile_granite_large",
+      "x": 37.59,
+      "z": 7.57
+    },
+    {
+      "type": "stone_pile_granite_large",
+      "x": -25.14,
+      "z": -45.04
+    }
+  ],
+  "ruins": [
+    {
+      "type": "unfinished_greek_temple",
+      "x": -62.67,
+      "z": -2.47
     }
   ]
 }

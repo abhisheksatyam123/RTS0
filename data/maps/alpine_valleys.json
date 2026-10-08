@@ -12284,12 +12284,12 @@
       "z": 83.34
     },
     {
-      "type": "wolf",
+      "type": "wolf_arctic",
       "x": -57.61,
       "z": 43.83
     },
     {
-      "type": "wolf",
+      "type": "wolf_arctic",
       "x": 3.71,
       "z": 74.82
     },
@@ -12389,32 +12389,32 @@
       "z": 69.71
     },
     {
-      "type": "wolf",
+      "type": "wolf_arctic",
       "x": -4.56,
       "z": 115.59
     },
     {
-      "type": "wolf",
+      "type": "wolf_arctic",
       "x": 2.26,
       "z": 33.92
     },
     {
-      "type": "wolf",
+      "type": "bear_brown",
       "x": -107.81,
       "z": -35.7
     },
     {
-      "type": "wolf",
+      "type": "bear_brown",
       "x": 111.23,
       "z": 27.12
     },
     {
-      "type": "wolf",
+      "type": "bear_brown",
       "x": 22.71,
       "z": -118.1
     },
     {
-      "type": "wolf",
+      "type": "wolf_arctic",
       "x": 2.79,
       "z": 35.76
     },
@@ -12919,5 +12919,18 @@
       "x": 73.46,
       "z": 1.01
     }
-  ]
+  ],
+  "treasures": [
+    {
+      "type": "food_barrels_buried",
+      "x": -6.6,
+      "z": 18.19
+    },
+    {
+      "type": "food_barrels_buried",
+      "x": 29.52,
+      "z": -66.0
+    }
+  ],
+  "ruins": []
 }

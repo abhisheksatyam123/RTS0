@@ -9762,6 +9762,36 @@
       "z": -8.58
     },
     {
+      "type": "whale_fin",
+      "x": 50.3,
+      "z": 82.49
+    },
+    {
+      "type": "whale_fin",
+      "x": -14.58,
+      "z": 94.28
+    },
+    {
+      "type": "whale_fin",
+      "x": 98.9,
+      "z": 49.11
+    },
+    {
+      "type": "whale_fin",
+      "x": 91.35,
+      "z": -65.78
+    },
+    {
+      "type": "whale_fin",
+      "x": 42.28,
+      "z": -94.52
+    },
+    {
+      "type": "whale_fin",
+      "x": -43.26,
+      "z": -87.24
+    },
+    {
       "type": "deer",
       "x": 11.83,
       "z": -0.82
@@ -9822,24 +9852,94 @@
       "z": -34.98
     },
     {
-      "type": "wolf",
+      "type": "bear_brown",
       "x": -86.12,
       "z": 8.5
     },
     {
-      "type": "wolf",
+      "type": "bear_brown",
       "x": 44.15,
       "z": 20.85
     },
     {
-      "type": "sheep",
+      "type": "chicken",
+      "x": -68.1,
+      "z": -20.59
+    },
+    {
+      "type": "chicken",
+      "x": -67.15,
+      "z": -20.83
+    },
+    {
+      "type": "chicken",
+      "x": -67.78,
+      "z": -19.57
+    },
+    {
+      "type": "chicken",
+      "x": -66.58,
+      "z": -20.37
+    },
+    {
+      "type": "chicken",
+      "x": -65.06,
+      "z": -21.05
+    },
+    {
+      "type": "chicken",
+      "x": -66.16,
+      "z": -19.7
+    },
+    {
+      "type": "chicken",
+      "x": -65.94,
+      "z": -21.25
+    },
+    {
+      "type": "goat",
       "x": -18.3,
       "z": 12.01
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -19.07,
       "z": 10.0
+    },
+    {
+      "type": "chicken",
+      "x": 32.54,
+      "z": -4.77
+    },
+    {
+      "type": "chicken",
+      "x": 33.78,
+      "z": -5.28
+    },
+    {
+      "type": "chicken",
+      "x": 34.63,
+      "z": -5.32
+    },
+    {
+      "type": "chicken",
+      "x": 33.41,
+      "z": -4.61
+    },
+    {
+      "type": "chicken",
+      "x": 33.44,
+      "z": -5.59
+    },
+    {
+      "type": "chicken",
+      "x": 34.62,
+      "z": -4.88
+    },
+    {
+      "type": "chicken",
+      "x": 34.74,
+      "z": -5.9
     }
   ],
   "structures": [
@@ -9995,5 +10095,68 @@
       "x": 42.29,
       "z": 0.81
     }
-  ]
+  ],
+  "treasures": [
+    {
+      "type": "shipwreck_sail_boat_cut",
+      "x": -85.65,
+      "z": -22.88
+    },
+    {
+      "type": "food_barrels_buried",
+      "x": -83.5,
+      "z": -23.7
+    },
+    {
+      "type": "metal",
+      "x": -83.88,
+      "z": -24.69
+    },
+    {
+      "type": "metal",
+      "x": 74.78,
+      "z": 26.88
+    },
+    {
+      "type": "food_barrels_buried",
+      "x": 74.61,
+      "z": 26.28
+    },
+    {
+      "type": "shipwreck_sail_boat_cut",
+      "x": 76.63,
+      "z": 24.95
+    },
+    {
+      "type": "shipwreck_sail_boat",
+      "x": -20.74,
+      "z": -108.45
+    },
+    {
+      "type": "shipwreck_debris",
+      "x": -18.78,
+      "z": -108.75
+    },
+    {
+      "type": "food_barrels_buried",
+      "x": -17.43,
+      "z": -110.46
+    },
+    {
+      "type": "metal",
+      "x": -17.01,
+      "z": -111.5
+    },
+    {
+      "type": "food_crate",
+      "x": -16.33,
+      "z": -110.8
+    },
+    {
+      "type": "food_barrels_buried",
+      "x": -13.11,
+      "z": 31.8
+    }
+  ],
+  "ruins": []
 }

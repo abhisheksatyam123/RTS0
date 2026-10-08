@@ -8052,6 +8052,96 @@
   ],
   "fauna": [
     {
+      "type": "camel",
+      "x": -70.72,
+      "z": -38.62
+    },
+    {
+      "type": "camel",
+      "x": 32.08,
+      "z": -80.13
+    },
+    {
+      "type": "camel",
+      "x": -70.02,
+      "z": -39.63
+    },
+    {
+      "type": "camel",
+      "x": 31.75,
+      "z": -78.97
+    },
+    {
+      "type": "camel",
+      "x": 9.21,
+      "z": -25.59
+    },
+    {
+      "type": "camel",
+      "x": -28.57,
+      "z": -149.69
+    },
+    {
+      "type": "camel",
+      "x": 4.68,
+      "z": -9.35
+    },
+    {
+      "type": "camel",
+      "x": -7.9,
+      "z": 2.14
+    },
+    {
+      "type": "camel",
+      "x": 26.21,
+      "z": -18.68
+    },
+    {
+      "type": "camel",
+      "x": 14.87,
+      "z": 5.24
+    },
+    {
+      "type": "camel",
+      "x": -80.38,
+      "z": -1.04
+    },
+    {
+      "type": "camel",
+      "x": 18.86,
+      "z": 72.34
+    },
+    {
+      "type": "camel",
+      "x": 81.25,
+      "z": -27.38
+    },
+    {
+      "type": "camel",
+      "x": -18.19,
+      "z": -66.18
+    },
+    {
+      "type": "camel",
+      "x": 74.1,
+      "z": 30.48
+    },
+    {
+      "type": "camel",
+      "x": 75.09,
+      "z": 31.35
+    },
+    {
+      "type": "camel",
+      "x": -33.22,
+      "z": 73.8
+    },
+    {
+      "type": "camel",
+      "x": -33.7,
+      "z": 75.03
+    },
+    {
       "type": "boar",
       "x": 16.07,
       "z": -59.15
@@ -8072,64 +8162,214 @@
       "z": 57.05
     },
     {
-      "type": "deer",
+      "type": "crocodile_nile",
+      "x": -47.53,
+      "z": -58.31
+    },
+    {
+      "type": "crocodile_nile",
+      "x": 55.83,
+      "z": -55.43
+    },
+    {
+      "type": "crocodile_nile",
+      "x": 41.66,
+      "z": 33.54
+    },
+    {
+      "type": "crocodile_nile",
+      "x": -45.44,
+      "z": 45.26
+    },
+    {
+      "type": "gazelle",
       "x": -33.72,
       "z": -20.55
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -34.21,
       "z": -21.13
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -33.3,
       "z": -21.35
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 45.32,
       "z": 2.09
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 43.52,
       "z": 1.87
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 44.5,
       "z": 3.08
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -17.38,
       "z": 36.77
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -16.42,
       "z": 37.7
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -16.17,
       "z": 36.34
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 11.19,
       "z": -66.04
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 12.39,
       "z": -66.32
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 9.6,
       "z": -67.54
+    },
+    {
+      "type": "crocodile_nile",
+      "x": 12.89,
+      "z": 58.67
+    },
+    {
+      "type": "crocodile_nile",
+      "x": 26.6,
+      "z": 69.77
+    },
+    {
+      "type": "crocodile_nile",
+      "x": 28.12,
+      "z": 59.04
+    },
+    {
+      "type": "crocodile_nile",
+      "x": -0.48,
+      "z": -68.35
+    },
+    {
+      "type": "crocodile_nile",
+      "x": -18.76,
+      "z": -68.61
+    },
+    {
+      "type": "giraffe",
+      "x": -35.04,
+      "z": -49.11
+    },
+    {
+      "type": "giraffe",
+      "x": -28.13,
+      "z": 36.15
+    },
+    {
+      "type": "giraffe",
+      "x": 38.75,
+      "z": 13.86
+    },
+    {
+      "type": "giraffe",
+      "x": 42.88,
+      "z": -43.11
+    },
+    {
+      "type": "camel",
+      "x": 26.12,
+      "z": -118.09
+    },
+    {
+      "type": "camel",
+      "x": 106.44,
+      "z": -59.75
+    },
+    {
+      "type": "camel",
+      "x": 117.82,
+      "z": 4.41
+    },
+    {
+      "type": "camel",
+      "x": 85.94,
+      "z": 75.18
+    },
+    {
+      "type": "camel",
+      "x": 26.9,
+      "z": 101.28
+    },
+    {
+      "type": "camel",
+      "x": -43.12,
+      "z": 108.53
+    },
+    {
+      "type": "camel",
+      "x": -97.13,
+      "z": 74.73
+    },
+    {
+      "type": "camel",
+      "x": -115.47,
+      "z": -2.69
+    },
+    {
+      "type": "camel",
+      "x": -74.6,
+      "z": -95.53
+    },
+    {
+      "type": "horse",
+      "x": 61.3,
+      "z": -9.35
+    },
+    {
+      "type": "horse",
+      "x": 36.21,
+      "z": 50.02
+    },
+    {
+      "type": "horse",
+      "x": 5.63,
+      "z": 76.83
+    },
+    {
+      "type": "horse",
+      "x": -38.37,
+      "z": 25.27
+    },
+    {
+      "type": "horse",
+      "x": -58.61,
+      "z": -1.37
+    },
+    {
+      "type": "horse",
+      "x": -4.51,
+      "z": -46.78
+    },
+    {
+      "type": "horse",
+      "x": 70.43,
+      "z": -41.56
+    },
+    {
+      "type": "horse",
+      "x": -7.38,
+      "z": 15.03
     }
   ],
   "structures": [
@@ -8830,6 +9070,125 @@
       "player": 3,
       "x": 28.65,
       "z": -64.15
+    }
+  ],
+  "treasures": [
+    {
+      "type": "food_barrels_buried",
+      "x": 2.23,
+      "z": 8.5
+    },
+    {
+      "type": "food_barrels_buried",
+      "x": -76.99,
+      "z": -15.26
+    },
+    {
+      "type": "food_barrels_buried",
+      "x": 15.81,
+      "z": -81.75
+    },
+    {
+      "type": "food_barrels_buried",
+      "x": 72.95,
+      "z": -5.07
+    },
+    {
+      "type": "food_barrels_buried",
+      "x": 2.01,
+      "z": 75.91
+    },
+    {
+      "type": "wood_lumber",
+      "x": 58.07,
+      "z": -13.6
+    },
+    {
+      "type": "wood_lumber",
+      "x": 47.15,
+      "z": -31.45
+    },
+    {
+      "type": "wood_lumber",
+      "x": -40.03,
+      "z": -9.35
+    },
+    {
+      "type": "wood_lumber",
+      "x": -36.15,
+      "z": 9.78
+    },
+    {
+      "type": "metal_weapons_small",
+      "x": 60.64,
+      "z": -48.6
+    },
+    {
+      "type": "metal_weapons_small",
+      "x": 60.09,
+      "z": -48.79
+    },
+    {
+      "type": "metal_weapons_small",
+      "x": 31.17,
+      "z": 30.75
+    },
+    {
+      "type": "metal_weapons_small",
+      "x": 31.85,
+      "z": 29.79
+    },
+    {
+      "type": "metal_weapons_small",
+      "x": 31.59,
+      "z": 30.44
+    },
+    {
+      "type": "metal_weapons_small",
+      "x": -44.72,
+      "z": 36.08
+    },
+    {
+      "type": "metal_weapons_small",
+      "x": -44.34,
+      "z": 35.74
+    },
+    {
+      "type": "metal_weapons_small",
+      "x": -37.93,
+      "z": -60.27
+    },
+    {
+      "type": "metal_weapons_small",
+      "x": -38.46,
+      "z": -59.96
+    },
+    {
+      "type": "metal_weapons_small",
+      "x": -37.38,
+      "z": -60.59
+    },
+    {
+      "type": "metal_weapons_small",
+      "x": 59.94,
+      "z": -49.18
+    },
+    {
+      "type": "metal_weapons_small",
+      "x": -45.15,
+      "z": 35.74
+    }
+  ],
+  "ruins": [
+    {
+      "type": "stone_statues_egyptian",
+      "x": -73.3,
+      "z": 143.89
+    },
+    {
+      "type": "stone_statues_egyptian",
+      "x": -68.43,
+      "z": 145.69
     }
   ]
 }

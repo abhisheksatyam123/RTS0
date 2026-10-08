@@ -192,6 +192,16 @@ jobs:
             src/network/net_host.cpp -lpthread -o /tmp/test_pack
           /tmp/test_pack
 
+      - name: Fauna and hunting tests
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_fauna.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+            src/network/net_host.cpp -lpthread -o /tmp/test_fauna
+          /tmp/test_fauna
+
+      - name: Gaia data is generated from 0 A.D. (header has every species)
+        run: grep -q "FAUNA_COUNT = 61" src/simulation/gaia_data.h
+
       - name: Nav parity probe
         run: python3 tools/check_parity.py --unit nav-live
 
