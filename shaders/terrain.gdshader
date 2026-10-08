@@ -1,7 +1,9 @@
 // 0 A.D. Authentic High-Fidelity Terrain Shader
 // Triplanar cliff projection, organic multi-octave biome blending, and natural Mediterranean palette.
 shader_type spatial;
-render_mode blend_mix, depth_draw_opaque, cull_back, diffuse_burley;
+// cull_disabled: rebuild_terrain winds its triangles counter-clockwise seen from above,
+// which Vulkan (Forward+) culls as back faces.
+render_mode blend_mix, depth_draw_opaque, cull_disabled, diffuse_burley;
 
 uniform sampler2D noise_tex : hint_default_black, filter_linear_mipmap, repeat_enable;
 uniform sampler2D grass_tex : hint_default_white, filter_linear_mipmap, repeat_enable;
@@ -16,6 +18,12 @@ uniform vec3 territory_player : source_color = vec3(0.36, 0.62, 0.94);
 uniform vec3 territory_enemy : source_color = vec3(0.92, 0.32, 0.28);
 uniform float territory_strength : hint_range(0, 1) = 0.0;
 uniform sampler2D territory_map : hint_default_black;
+
+// Line of sight (0 A.D. CLOSTexture + terrain shader `color *= los`): one texel
+// per FoW cell over [-los_map_half, los_map_half]^2, 255 visible, ~127 explored,
+// 0 unexplored, blurred and eased by RtsoWorldView. los_map_half 0 = no fog.
+uniform sampler2D los_tex : hint_default_white, filter_linear, repeat_disable;
+uniform float los_map_half = 0.0;
 
 varying vec2 v_uv;
 varying vec3 v_world_pos;
@@ -81,7 +89,12 @@ void fragment() {
 		final_color = mix(final_color, t_color, t_data.r * territory_strength);
 	}
 
+	if (los_map_half > 0.0) {
+		vec2 los_uv = (v_world_pos.xz + vec2(los_map_half)) / (2.0 * los_map_half);
+		final_color *= texture(los_tex, los_uv).r;
+	}
+
 	ALBEDO = final_color;
 	ROUGHNESS = mix(0.85, 0.65, rock_weight);
-	SPECULAR = mix(0.15, 0.25, rock_weight);
+	SPECULAR = mix(0.15, 0.25, rock_weight) * (los_map_half > 0.0 ? texture(los_tex, (v_world_pos.xz + vec2(los_map_half)) / (2.0 * los_map_half)).r : 1.0);
 }
