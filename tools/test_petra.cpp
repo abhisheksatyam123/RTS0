@@ -54,19 +54,27 @@ static void test_phase_up() {
 	s->set_petra_difficulty(3);
 	s->set_petra_behavior(0);
 	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
-	float town_at = -1.0f;
-	int peak_workers = 0;
+	float town_at = -1.0f, city_at = -1.0f;
+	int peak_workers = 0, peak_fields = 0;
 	for (float t = 0.0f; t < 15.0f * 60.0f && !s->is_game_over(); t += Simulation::FIXED_STEP) {
 		s->tick(Simulation::FIXED_STEP);
 		if (town_at < 0.0f && s->petra_phase() >= 2) town_at = t;
+		if (city_at < 0.0f && s->petra_phase() >= 3) city_at = t;
 		if ((int)(t * 20.0f) % 200 == 0) {
 			int w = count_units(*s, 1, true);
 			if (w > peak_workers) peak_workers = w;
+			int f = 0;
+			for (const auto &b : s->buildings())
+				if (b.team == 1 && b.type == BLD_FIELD && b.build_progress >= 1.0f) ++f;
+			if (f > peak_fields) peak_fields = f;
 		}
 	}
-	std::printf("  continental: town phase at %.0fs, peak workers %d\n", town_at, peak_workers);
+	std::printf("  continental: town phase at %.0fs, city phase at %.0fs, peak workers %d, fields %d\n",
+	            town_at, city_at, peak_workers, peak_fields);
 	CHECK(town_at > 0.0f && town_at < 12.0f * 60.0f, "town phase within 12 minutes");
+	CHECK(city_at > 0.0f, "city phase within 15 minutes (Town structures built first)");
 	CHECK(peak_workers >= 25, "economy grows past 25 workers");
+	CHECK(peak_fields >= 2, "farms fields once hunt and berries run low");
 }
 
 static int count_buildings(const Simulation &s, uint8_t team) {

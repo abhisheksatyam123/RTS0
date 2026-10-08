@@ -890,6 +890,7 @@ private:
 	void apply_petra_config();
 	void petra_refresh_queue_accounts(float dt);
 	void petra_staff_foundations();
+	void petra_manage_fields(int target_food);
 	int petra_villager_target() const;
 	bool petra_can_place(int cell_x, int cell_y, int footprint) const;
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);

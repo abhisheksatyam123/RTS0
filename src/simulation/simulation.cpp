@@ -5364,7 +5364,9 @@ int Simulation::petra_villager_target() const {
 // pulled off gathering when nobody is idle, so houses and dropsites finish.
 void Simulation::petra_staff_foundations() {
 	// Runs once per economy pass (1 s).
-	constexpr float kStallRelease = 15.0f;
+	// Builders path around buildings now (VertexPathfinder steering), so this
+	// only catches foundations nobody can reach; 0 A.D. has no such timer.
+	constexpr float kStallRelease = 40.0f;
 	struct Need { uint32_t id; float x, z; int missing; PetraFoundationWatch *watch; };
 	std::vector<Need> needs;
 	std::vector<PetraFoundationWatch> watch;
@@ -5387,7 +5389,7 @@ void Simulation::petra_staff_foundations() {
 	for (auto &w : petra_fnd_watch_) {
 		const Building &b = buildings_[building_id_to_idx_.at(w.id)];
 		int want = (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_WONDER) ? 4
-		         : (b.type == BLD_HOUSE ? 1 : 2);
+		         : (b.type == BLD_HOUSE ? 1 : (b.type == BLD_FIELD ? 3 : 2));
 		needs.push_back({w.id, b.x, b.z, want, &w});
 	}
 
@@ -5570,9 +5572,17 @@ void Simulation::petra_manage_economy(float dt) {
 
 	// Safe, non-empty resources with their squared distance to our nearest
 	// dropsite, computed once per pass rather than once per idle worker.
-	struct Candidate { uint32_t id; float x, z, d2_drop; uint8_t type; };
+	// Fields cap their gatherers (FIELD_MAX_GATHERERS); slots counts the free ones.
+	struct Candidate { uint32_t id; float x, z, d2_drop; uint8_t type; int slots; };
 	std::vector<Candidate> candidates;
 	if (!reassignable_workers.empty()) {
+		std::unordered_map<uint32_t, int> field_users;
+		if (!field_bld_by_res_.empty()) {
+			for (size_t i = 0; i < units_.count; ++i) {
+				if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.target_resource_id[i] == 0) continue;
+				if (field_bld_by_res_.count(units_.target_resource_id[i])) field_users[units_.target_resource_id[i]]++;
+			}
+		}
 		std::vector<std::pair<float, float>> drops;
 		for (const auto &b : buildings_) {
 			if (b.team == petra_pid_ && b.hp > 0 &&
@@ -5583,13 +5593,22 @@ void Simulation::petra_manage_economy(float dt) {
 		for (size_t r = 0; r < resources_.count; ++r) {
 			if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
 			if (!is_position_safe(resources_.x[r], resources_.z[r], 6.0f)) continue;
+			int slots = 1 << 20;
+			auto fit = field_bld_by_res_.find(resources_.id[r]);
+			if (fit != field_bld_by_res_.end()) {
+				auto bit = building_id_to_idx_.find(fit->second);
+				if (bit == building_id_to_idx_.end() || buildings_[bit->second].team != petra_pid_) continue;
+				auto uit = field_users.find(resources_.id[r]);
+				slots = FIELD_MAX_GATHERERS - (uit == field_users.end() ? 0 : uit->second);
+				if (slots <= 0) continue;
+			}
 			float d2_drop = 1e9f;
 			for (const auto &d : drops) {
 				float bdx = resources_.x[r] - d.first;
 				float bdz = resources_.z[r] - d.second;
 				d2_drop = std::min(d2_drop, bdx * bdx + bdz * bdz);
 			}
-			candidates.push_back({resources_.id[r], resources_.x[r], resources_.z[r], d2_drop, resources_.type[r]});
+			candidates.push_back({resources_.id[r], resources_.x[r], resources_.z[r], d2_drop, resources_.type[r], slots});
 		}
 	}
 
@@ -5632,21 +5651,24 @@ void Simulation::petra_manage_economy(float dt) {
 		}
 
 		uint32_t best_rid = 0;
+		Candidate *best_c = nullptr;
 		uint8_t got_type = chosen_res_type;
 		for (uint8_t rt : order) {
 			float best_score = 1e9f;
-			for (const auto &c : candidates) {
-				if (c.type != rt) continue;
+			for (auto &c : candidates) {
+				if (c.type != rt || c.slots <= 0) continue;
 				float dx = wx - c.x;
 				float dz = wz - c.z;
 				float score = dx * dx + dz * dz + c.d2_drop * 0.5f;
 				if (score < best_score) {
 					best_score = score;
 					best_rid = c.id;
+					best_c = &c;
 				}
 			}
 			if (best_rid != 0) { got_type = rt; break; }
 		}
+		if (best_c) best_c->slots--;
 
 		if (best_rid != 0) {
 			uint32_t uid = units_.id[widx];
@@ -5657,6 +5679,52 @@ void Simulation::petra_manage_economy(float dt) {
 			else if (got_type == RES_STONE) workers_stone++;
 		}
 	}
+
+	petra_manage_fields(target_food);
+}
+
+// headquarters.js / baseManager.js: once the hunt and berries near our
+// dropsites can't feed the food gatherers, Petra farms. Each field holds
+// FIELD_MAX_GATHERERS, and one field is laid out at a time; its builders
+// start farming it when it's done.
+void Simulation::petra_manage_fields(int target_food) {
+	std::vector<std::pair<float, float>> drops;
+	const Building *farmstead = nullptr, *tc = nullptr;
+	int fields = 0;
+	bool field_pending = false;
+	for (const auto &b : buildings_) {
+		if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
+		if (b.type == BLD_FIELD) {
+			++fields;
+			if (b.build_progress < 1.0f) field_pending = true;
+			continue;
+		}
+		if (b.build_progress < 1.0f) continue;
+		if (b.type == BLD_TOWN_CENTER || b.type == BLD_FARMSTEAD) {
+			drops.push_back({b.x, b.z});
+			if (b.type == BLD_FARMSTEAD && !farmstead) farmstead = &b;
+			if (b.type == BLD_TOWN_CENTER && !tc) tc = &b;
+		}
+	}
+	if (field_pending || drops.empty()) return;
+
+	float natural_food = 0.0f;
+	for (size_t r = 0; r < resources_.count; ++r) {
+		if (!resources_.alive[r] || resources_.type[r] != RES_FOOD || resources_.amount[r] <= 0) continue;
+		if (field_bld_by_res_.count(resources_.id[r])) continue;
+		for (const auto &d : drops) {
+			const float dx = resources_.x[r] - d.first, dz = resources_.z[r] - d.second;
+			if (dx * dx + dz * dz <= 40.0f * 40.0f) { natural_food += (float)resources_.amount[r]; break; }
+		}
+	}
+	// About 150 food of hunt or berries per gatherer still in reach.
+	const int natural_slots = std::min(target_food, (int)(natural_food / 150.0f));
+	const int want = std::min(12, (target_food - natural_slots + FIELD_MAX_GATHERERS - 1) / FIELD_MAX_GATHERERS);
+	if (fields >= want) return;
+
+	const Building *anchor = farmstead ? farmstead : tc;
+	if (!anchor) return;
+	petra_place_building(BLD_FIELD, anchor->x, anchor->z, 2, 12, PETRA_QUEUE_VILLAGER);
 }
 
 void Simulation::petra_manage_trading(float dt) {
@@ -6333,31 +6401,62 @@ void Simulation::petra_manage_buildings(float dt) {
 
 void Simulation::petra_manage_research(float dt) {
 	(void)dt;
-	// Priority Queue 4: Technology / Phase Research — spend only from TECH account
-	Building *ai_tc = nullptr;
-	for (auto &b : buildings_) {
-		if (b.team == petra_pid_ && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) {
-			ai_tc = &b;
-			break;
-		}
-	}
-	if (!ai_tc || ai_tc->research_tech != TECH_NONE) return;
+	// Priority Queue 4: Technology / Phase Research — spend only from TECH account.
+	// researchManager.js researches each tech at the structure that offers it.
+	auto researcher_for = [&](uint8_t btype) -> Building * {
+		for (auto &b : buildings_)
+			if (b.team == petra_pid_ && b.type == btype && b.build_progress >= 1.0f && b.hp > 0.0f &&
+			    !b.wrecked && b.research_tech == TECH_NONE)
+				return &b;
+		return nullptr;
+	};
+	auto have_building = [&](uint8_t btype) {
+		for (const auto &b : buildings_)
+			if (b.team == petra_pid_ && b.type == btype && b.hp > 0.0f && !b.wrecked) return true;
+		return false;
+	};
+	const PetraBase *home = get_primary_petra_base();
 
 	auto start_tech = [&](uint8_t tech_id) -> bool {
 		if (petra_ps().has_tech(tech_id)) return false;
 		// Same civ / phase / prerequisite / structure rules as the player
 		// (cost is checked against the TECH account below).
-		ResearchCheck rc = research_check(PETRA_PLAYER, tech_id);
+		ResearchCheck rc = research_check(petra_pid_, tech_id);
 		if (rc != TECH_OK && rc != TECH_ERR_COST) return false;
 		const TechInfo &tinfo = tech_info(tech_id);
+		Building *at = researcher_for(tinfo.researcher);
+		if (!at) {
+			// No free researcher: lay one out if we have none at all.
+			if (!have_building(tinfo.researcher) && home && tinfo.researcher != BLD_TOWN_CENTER &&
+			    building_phase_class(tinfo.researcher) <= petra_ps().phase)
+				petra_place_building(tinfo.researcher, home->x, home->z, 4, 14, PETRA_QUEUE_TECH);
+			return false;
+		}
 		if (!petra_try_pay(PETRA_QUEUE_TECH, (float)tinfo.food_cost, (float)tinfo.wood_cost,
 		                   (float)tinfo.gold_cost, (float)tinfo.stone_cost)) {
 			return false;
 		}
-		ai_tc->research_tech = tech_id;
-		ai_tc->research_timer = 0.0f;
-		ai_tc->research_duration = tinfo.research_time * 0.75f;
+		at->research_tech = tech_id;
+		at->research_timer = 0.0f;
+		at->research_duration = tinfo.research_time * 0.75f;
 		return true;
+	};
+
+	// headquarters.js checkPhaseRequirements: build the structures the next
+	// phase asks for (5 Village / 3 Town class) before researching it.
+	auto build_phase_structures = [&](uint8_t cls, int need) {
+		if (!home || phase_structures(petra_pid_, cls) >= need) return;
+		for (const auto &b : buildings_)
+			if (b.team == petra_pid_ && b.build_progress < 1.0f && b.hp > 0.0f && building_phase_class(b.type) == cls)
+				return; // one at a time; it counts once finished
+		static constexpr uint8_t kVillage[] = {BLD_HOUSE};
+		static constexpr uint8_t kTown[] = {BLD_FORGE, BLD_TEMPLE, BLD_MARKET};
+		if (cls == 1) {
+			for (uint8_t t : kVillage) if (petra_place_building(t, home->x, home->z, 3, 16, PETRA_QUEUE_TECH)) return;
+		} else {
+			for (uint8_t t : kTown) if (!have_building(t) && petra_place_building(t, home->x, home->z, 4, 16, PETRA_QUEUE_TECH)) return;
+			petra_place_building(BLD_TEMPLE, home->x, home->z, 4, 16, PETRA_QUEUE_TECH);
+		}
 	};
 
 	// researchManager.js:15 checkPhase — Town at pop >= Economy.popPhase2,
@@ -6377,6 +6476,7 @@ void Simulation::petra_manage_research(float dt) {
 			if (start_tech(TECH_WOODCUTTING_1)) return;
 			return;
 		}
+		build_phase_structures(1, 5);
 		if (start_tech(TECH_PHASE_TOWN)) return;
 	}
 	if (petra_ps().phase >= 2) {
@@ -6384,7 +6484,10 @@ void Simulation::petra_manage_research(float dt) {
 		if (start_tech(TECH_WOODCUTTING_1)) return;
 		if (start_tech(TECH_MINING_1)) return;
 	}
-	if (petra_ps().phase == 2 && workers > petra_config_.work_phase3 && start_tech(TECH_PHASE_CITY)) return;
+	if (petra_ps().phase == 2 && workers > petra_config_.work_phase3) {
+		build_phase_structures(2, 3);
+		if (start_tech(TECH_PHASE_CITY)) return;
+	}
 	if (petra_ps().phase >= 3) {
 		if (start_tech(TECH_WEAPONS_1)) return;
 		if (start_tech(TECH_ARMOR_1)) return;
