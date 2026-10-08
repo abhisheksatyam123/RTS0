@@ -1441,7 +1441,9 @@ void RtsoMain::_process(double delta) {
 	update_hud();
 	if (sim && chat_window_.is_ready()) {
 		for (const auto &line : sim->pending_petra_chat()) {
-			chat_window_.append_line("[color=#88ccff]Petra:[/color] " + String(line.text) + "\n");
+			if (line.to != 0xFF && line.to != local_player()) continue; // addressed to someone else
+			chat_window_.append_line("[color=#88ccff]Player " + String::num_int64(line.from + 1) + " (AI):[/color] " +
+			                         String(line.text) + "\n");
 		}
 		if (!sim->pending_petra_chat().empty()) sim->clear_petra_chat();
 	}

@@ -10,7 +10,10 @@
 //     researchManager.js checkPhase at Config.Economy.popPhase2).
 //  3. No free income: with no workers Petra earns nothing; difficulty works
 //     through InitGame.js gather-rate and build-time multipliers instead.
-//  4. AI slots: Petra leaves a human slot alone, runs one AI per AI slot, and
+//  4. Diplomacy (diplomacyManager.js): Petra answers any player's offer to
+//     ally (accept, decline, or accept for a tribute), answers a declaration
+//     of war in kind, and under Last Man Standing turns on its last ally.
+//  5. AI slots: Petra leaves a human slot alone, runs one AI per AI slot, and
 //     AIs on the same team never fight each other.
 //  Exit: 0 = PASS, 1 = FAIL.
 // The ally check reads the sim's death log, which has no public accessor.
@@ -177,11 +180,96 @@ static void test_ai_slots() {
 	}
 }
 
+static bool said_to(const Simulation &s, uint8_t from, uint8_t to, uint8_t kind) {
+	for (const auto &l : s.pending_petra_chat())
+		if (l.from == from && l.to == to && l.kind == kind) return true;
+	return false;
+}
+
+static void run_for(Simulation &s, float seconds) {
+	for (float t = 0.0f; t < seconds && !s.is_game_over(); t += Simulation::FIXED_STEP) s.tick(Simulation::FIXED_STEP);
+}
+
+static std::unique_ptr<Simulation> three_player_match(uint32_t seed) {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(seed);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, seed, 3, 96.0f);
+	s->set_player_active(0, true, false);
+	s->set_player_active(1, true, true);
+	s->set_player_active(2, true, true);
+	return s;
+}
+
+static void test_diplomacy() {
+	// A human offers an alliance to each AI. Every offer gets an answer, and
+	// paying an asked-for tribute seals it.
+	int accepted = 0, declined = 0, paid = 0;
+	for (uint32_t seed = 1; seed <= 6; ++seed) {
+		auto s = three_player_match(seed);
+		run_for(*s, 20.0f);
+		s->clear_petra_chat();
+		s->cmd_set_diplomacy(0, 1, Simulation::DIPLO_ALLY);
+		run_for(*s, 10.0f);
+		const auto &req = s->petra_diplo_.received[0]; // AI 1's state lives in the members
+		if (said_to(*s, 1, 0, PETRA_CHAT_DIPLO_ACCEPT)) {
+			CHECK(s->is_ally(1, 0), "accepted offer makes the AI an ally");
+			++accepted;
+		} else if (said_to(*s, 1, 0, PETRA_CHAT_DIPLO_DECLINE)) {
+			CHECK(!s->is_ally(1, 0), "declined offer leaves the AI hostile");
+			++declined;
+		} else if (said_to(*s, 1, 0, PETRA_CHAT_DIPLO_TRIBUTE)) {
+			CHECK(req.status == PetraReceivedRequest::WAITING_FOR_TRIBUTE && req.wanted >= 1000, "asks for at least 1000");
+			s->players_[0].res[req.resource] += (float)req.wanted;
+			CHECK(s->send_tribute(1, req.resource, req.wanted), "human pays the tribute");
+			run_for(*s, 10.0f);
+			CHECK(s->is_ally(1, 0), "paid tribute seals the alliance");
+			++paid;
+		} else {
+			CHECK(false, "AI answers an alliance offer");
+		}
+	}
+	std::printf("  alliance offers over 6 seeds: accepted %d, declined %d, accepted for tribute %d\n",
+	            accepted, declined, paid);
+
+	// Allies with AI 2, then the human declares war: AI 2 answers in kind.
+	{
+		auto s = three_player_match(3);
+		s->set_mutual_ally(0, 2);
+		run_for(*s, 20.0f);
+		CHECK(s->is_ally(0, 2), "a standing alliance holds");
+		s->cmd_set_diplomacy(0, 2, Simulation::DIPLO_ENEMY);
+		run_for(*s, 10.0f);
+		const bool back = s->get_diplomacy(2, 0) == Simulation::DIPLO_ENEMY;
+		std::printf("  human declares war on its AI ally: AI answers with war: %s\n", back ? "yes" : "no");
+		CHECK(back, "AI declares war back");
+	}
+
+	// Last Man Standing: two allied AIs, the human is out. Once one is strong
+	// enough it turns on the other.
+	{
+		auto s = three_player_match(7);
+		s->set_last_man_standing(true);
+		s->set_mutual_ally(1, 2);
+		run_for(*s, 5.0f);
+		auto &u = s->units_;
+		for (size_t i = 0; i < u.count; ++i) if (u.team[i] == 0) u.alive[i] = false;
+		for (auto &b : s->buildings_) if (b.team == 0) b.hp = 0.0f;
+		float t = 0.0f;
+		for (; t < 20.0f * 60.0f && s->is_ally(1, 2); t += Simulation::FIXED_STEP) s->tick(Simulation::FIXED_STEP);
+		std::printf("  last man standing: human defeated %s, allied AIs fall out at %.0fs\n",
+		            s->is_defeated(0) ? "yes" : "no", s->is_ally(1, 2) ? -1.0f : t);
+		CHECK(s->is_defeated(0), "the human is out");
+		CHECK(!s->is_ally(1, 2), "one AI betrays the other once no enemy is left");
+	}
+}
+
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
 	test_phase_up();
 	test_no_free_income();
+	test_diplomacy();
 	test_ai_slots();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
