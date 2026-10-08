@@ -3375,7 +3375,9 @@ void RmsGenerator::synth_flood(HeightmapGrid &hm, RmsRng &rng, float &water_h, s
 		sp.base_height = 2.0f * k;
 		hm.level_area(sp.x, sp.z, island_r - shore, shore, 2.0f * k);
 	}
-	// The mainland: avoidClasses(clPlayer, 40), its shore blended over 6 tiles.
+	// The mainland ("central island", a ChainPlacer blob from the centre):
+	// avoidClasses(clPlayer, 40), its shore blended over 6 tiles, and sea
+	// all round it so the home islands' waters join up for ships.
 	const float clear = island_r + 40.0f;
 	const float step = (half * 2.0f) / (float)(hm.res - 1);
 	auto island_dist = [&](float wx, float wz) {
@@ -3388,7 +3390,7 @@ void RmsGenerator::synth_flood(HeightmapGrid &hm, RmsRng &rng, float &water_h, s
 		for (int x = 0; x < hm.res; ++x) {
 			const float wx = -half + x * step;
 			const float r = std::hypot(wx, wz);
-			const float t = smoothstep(clear, clear + shore, island_dist(wx, wz)) * (1.0f - smoothstep(half - 8.0f, half - 2.0f, r));
+			const float t = smoothstep(clear, clear + shore, island_dist(wx, wz)) * (1.0f - smoothstep(half - 22.0f, half - 16.0f, r));
 			if (t <= 0.0f) continue;
 			const float cur = hm.get(x, z);
 			hm.set(x, z, std::max(cur, cur + (6.0f * k - cur) * t));
@@ -3397,7 +3399,7 @@ void RmsGenerator::synth_flood(HeightmapGrid &hm, RmsRng &rng, float &water_h, s
 	// Hills (ELEVATION_SET 6-20) and mountains (ELEVATION_MODIFY 15-29) on the
 	// mainland: 6 tiles inside its shore and 40 clear of the home islands.
 	auto on_mainland = [&](float wx, float wz, float r) {
-		return island_dist(wx, wz) > clear + shore + r && std::hypot(wx, wz) < half - 8.0f - r &&
+		return island_dist(wx, wz) > clear + shore + r && std::hypot(wx, wz) < half - 22.0f - r &&
 		       hm.sample_world(wx, wz) > 6.0f * k - 0.5f;
 	};
 	const int hills = rng.range_int(20, 34);
