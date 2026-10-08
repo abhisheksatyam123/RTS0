@@ -69,6 +69,7 @@ static void test_phase_up() {
 	s->set_petra_difficulty(3);
 	s->set_petra_behavior(0);
 	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS); // keep playing once the idle player is beaten
 	float town_at = -1.0f, city_at = -1.0f;
 	int peak_workers = 0, peak_fields = 0;
 	for (float t = 0.0f; t < 15.0f * 60.0f && !s->is_game_over(); t += Simulation::FIXED_STEP) {
