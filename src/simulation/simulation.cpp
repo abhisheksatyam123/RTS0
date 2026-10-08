@@ -1563,17 +1563,61 @@ float Simulation::trader_gains(const Building *a, const Building *b) const {
 	return (float)calculate_trader_gain(*a, *b, a->team);
 }
 
-bool Simulation::can_trade_at(uint8_t trader_owner, const Building &b) const {
-	// Trader.js CanTrade: a finished land market (the Market class) whose owner
-	// the trader's owner is not at war with. Docks are for merchant ships.
-	return b.type == BLD_MARKET && b.build_progress >= 1.0f && b.hp > 0.0f &&
+bool Simulation::can_trade_at(uint8_t trader_owner, const Building &b, uint8_t trader_type) const {
+	// Trader.js CanTrade: a finished market whose owner the trader's owner is not
+	// at war with. Land traders use Markets, merchant ships Docks (Market TradeType).
+	const uint8_t kind = trader_type == UNIT_MERCHANT_SHIP ? BLD_DOCK : BLD_MARKET;
+	return b.type == kind && b.build_progress >= 1.0f && b.hp > 0.0f &&
 	       b.team < MAX_PLAYERS && trader_owner < MAX_PLAYERS && !is_hostile(trader_owner, b.team);
 }
 
-bool Simulation::has_trade_route(uint8_t player_id) const {
+uint16_t Simulation::dock_sea(const Building &b) const {
+	float x, z;
+	uint16_t sea = 0;
+	return nearest_ship_cell(b, x, z, &sea) ? sea : 0;
+}
+
+bool Simulation::nearest_ship_cell(const Building &b, float &out_x, float &out_z, uint16_t *out_sea) const {
+	// The nearest water cell within two cells of the footprint that belongs to a sea.
+	if (nav_grid_.cells.blank()) return false;
+	auto [cx, cy] = nav_grid_.world_to_cell(b.x, b.z);
+	const float cell = 2.0f * nav_grid_.map_half / (float)nav_grid_.res;
+	const int r = (int)std::ceil(b.half_size / cell) + 2;
+	int best_d2 = INT32_MAX, bx = 0, by = 0;
+	uint16_t best = 0;
+	for (int dy = -r; dy <= r; ++dy)
+		for (int dx = -r; dx <= r; ++dx) {
+			const int x = cx + dx, y = cy + dy;
+			if (x < 0 || y < 0 || x >= nav_grid_.cells.w || y >= nav_grid_.cells.h) continue;
+			if (!nav_grid_.is_passable_for(x, y, PASS_SHIP)) continue;
+			const int d2 = dx * dx + dy * dy;
+			if (d2 >= best_d2) continue;
+			const uint16_t reg = nav_grid_.global_region_at(x, y, PASS_SHIP);
+			if (reg) { best = reg; best_d2 = d2; bx = x; by = y; }
+		}
+	if (!best) return false;
+	out_x = ((float)bx + 0.5f) * cell - nav_grid_.map_half;
+	out_z = ((float)by + 0.5f) * cell - nav_grid_.map_half;
+	if (out_sea) *out_sea = best;
+	return true;
+}
+
+bool Simulation::has_trade_route(uint8_t player_id, uint8_t trader_type) const {
+	if (trader_type == UNIT_MERCHANT_SHIP) {
+		// Two docks on the same sea.
+		std::vector<uint16_t> seas;
+		for (const auto &b : buildings_) {
+			if (!can_trade_at(player_id, b, trader_type)) continue;
+			const uint16_t sea = dock_sea(b);
+			if (!sea) continue;
+			if (std::find(seas.begin(), seas.end(), sea) != seas.end()) return true;
+			seas.push_back(sea);
+		}
+		return false;
+	}
 	int n = 0;
 	for (const auto &b : buildings_)
-		if (can_trade_at(player_id, b) && ++n >= 2) return true;
+		if (can_trade_at(player_id, b, trader_type) && ++n >= 2) return true;
 	return false;
 }
 
@@ -1612,9 +1656,11 @@ void Simulation::order_trade(const uint32_t *unit_ids, size_t count, uint32_t ma
 	const Building &bB = buildings_[itB->second];
 	for (size_t k = 0; k < count; ++k) {
 		int32_t uidx = lookup_unit(unit_ids[k]);
-		if (uidx < 0 || !units_.alive[uidx] || units_.unit_type[uidx] != UNIT_TRADER) continue;
+		if (uidx < 0 || !units_.alive[uidx] || !unit_is_trader(units_.unit_type[uidx])) continue;
 		const uint8_t owner = units_.team[uidx];
-		if (!can_trade_at(owner, bA) || !can_trade_at(owner, bB)) continue;
+		const uint8_t ttype = units_.unit_type[uidx];
+		if (!can_trade_at(owner, bA, ttype) || !can_trade_at(owner, bB, ttype)) continue;
+		if (ttype == UNIT_MERCHANT_SHIP && (dock_sea(bA) == 0 || dock_sea(bA) != dock_sea(bB))) continue;
 		uint32_t uid = units_.id[uidx];
 		trader_routes_[uid] = {market_a_id, market_b_id};
 		trader_leg_[uid] = 0;
@@ -1634,14 +1680,22 @@ void Simulation::order_trade_auto(const uint32_t *unit_ids, size_t count) {
 	std::vector<const Building *> markets;
 	for (size_t k = 0; k < count; ++k) {
 		int32_t uidx = lookup_unit(unit_ids[k]);
-		if (uidx < 0 || !units_.alive[uidx] || units_.unit_type[uidx] != UNIT_TRADER) continue;
+		if (uidx < 0 || !units_.alive[uidx] || !unit_is_trader(units_.unit_type[uidx])) continue;
 		const uint8_t owner = units_.team[uidx];
+		const uint8_t ttype = units_.unit_type[uidx];
+		const bool ship = ttype == UNIT_MERCHANT_SHIP;
 		// The gain grows with distance, so the best route is the farthest pair of
 		// markets the owner can trade at, own or not. Starting at the nearer end
-		// of that pair saves the empty first walk.
+		// of that pair saves the empty first walk. A merchant ship's docks must
+		// share its own sea.
+		uint16_t my_sea = 0;
+		if (ship) {
+			auto [ucx, ucy] = nav_grid_.world_to_cell(units_.pos_x[uidx], units_.pos_z[uidx]);
+			my_sea = nav_grid_.global_region_at(ucx, ucy, PASS_SHIP);
+		}
 		markets.clear();
 		for (const auto &b : buildings_)
-			if (can_trade_at(owner, b)) markets.push_back(&b);
+			if (can_trade_at(owner, b, ttype) && (!ship || (my_sea && dock_sea(b) == my_sea))) markets.push_back(&b);
 		const Building *best_a = nullptr, *best_b = nullptr;
 		float best_d2 = -1.0f;
 		for (size_t i = 0; i < markets.size(); ++i) {
@@ -2525,9 +2579,10 @@ void Simulation::move_units(float dt, Arena &arena) {
 	// G3 Trader routes (0 A.D. Trader.js PerformTrade, UnitAI TRADE), run
 	// sequentially before the parallel movement pass.
 	for (size_t ti = 0; ti < n; ++ti) {
-		if (!alive[ti] || units_.unit_type[ti] != UNIT_TRADER) continue;
+		if (!alive[ti] || !unit_is_trader(units_.unit_type[ti])) continue;
 		uint32_t uid = units_.id[ti];
 		const uint8_t owner = units_.team[ti];
+		const uint8_t ttype = units_.unit_type[ti];
 		auto rit = trader_routes_.find(uid);
 		if (units_.action_state[ti] != ACTION_TRADE || rit == trader_routes_.end()) {
 			// An idle trader looks for a route, at most every 20 ticks (2 s).
@@ -2539,7 +2594,7 @@ void Simulation::move_units(float dt, Arena &arena) {
 		auto itB = building_id_to_idx_.find(rit->second.second);
 		const Building *bA = (itA != building_id_to_idx_.end()) ? &buildings_[itA->second] : nullptr;
 		const Building *bB = (itB != building_id_to_idx_.end()) ? &buildings_[itB->second] : nullptr;
-		if (!bA || !bB || !can_trade_at(owner, *bA) || !can_trade_at(owner, *bB)) {
+		if (!bA || !bB || !can_trade_at(owner, *bA, ttype) || !can_trade_at(owner, *bB, ttype)) {
 			// Market.js UpdateTraders: a market destroyed, captured by an enemy or
 			// at war with the trader's owner ends the route and drops the goods.
 			trader_routes_.erase(rit);
@@ -2562,14 +2617,16 @@ void Simulation::move_units(float dt, Arena &arena) {
 		const float dz = dest.z - pz[ti];
 		const float edge_dx = std::max(0.0f, std::fabs(dx) - dest.half_size);
 		const float edge_dz = std::max(0.0f, std::fabs(dz) - dest.half_size);
-		if (dx * dx + dz * dz >= 2.5f * 2.5f && edge_dx * edge_dx + edge_dz * edge_dz >= 2.0f * 2.0f) continue;
+		// A ship stops in the water beside the dock, a little further out.
+		const float reach = ttype == UNIT_MERCHANT_SHIP ? 4.0f : 2.0f;
+		if (dx * dx + dz * dz >= 2.5f * 2.5f && edge_dx * edge_dx + edge_dz * edge_dz >= reach * reach) continue;
 
 		// Arrived. Goods loaded at the other market pay out here (Trader.js
 		// GenerateResources): the trader's owner, and with markets of two
 		// different owners, each market's owner its international bonus.
 		if (units_.carry[ti] > 0) {
 			const uint8_t goods = units_.res_type_carried[ti];
-			const TradeGain g = calculate_trade_gain(origin, dest, owner);
+			const TradeGain g = calculate_trade_gain(origin, dest, owner, ttype);
 			credit_trade(owner, goods, g.trader);
 			credit_trade(origin.team, goods, g.market1);
 			credit_trade(dest.team, goods, g.market2);
@@ -3427,6 +3484,8 @@ void Simulation::tick_production(float dt) {
 					// Spawn unit near building
 					float sx = b.x + (b.footprint + 0.6f) * GRID;
 					float sz = b.z;
+					// Ships launch from the dock's water side (ProductionQueue.js FindSpawnPoint, ship passability).
+					if (unit_is_ship(utype)) nearest_ship_cell(b, sx, sz);
 					uint32_t uid = spawn_unit(sx, sz, bteam, (UnitType)utype, 0.0f, otmpl);
 
 					// Route to Rally Point if set
@@ -4297,8 +4356,57 @@ void Simulation::tick_capture(float dt) {
 	// Attacking units within reach reduce enemy capture pools and transfer points to capturer.
 	// Owner regenerates capture points back when unattacked; structure flips ownership when
 	// a team crosses the majority threshold (>50% max) or owner points hit 0.
-	const size_t n = units_.count;
-	for (auto &b : buildings_) {
+	// Count and strength of the capturers (alive, teams 0-3) within 11 of each building, per team.
+	// Units go in the outer loop, so each building's strength sums in unit order. A grid of building
+	// reach (11, plus 1 to spare) limits each unit to the buildings near its cell.
+	auto tally_capturers = [this] {
+		const float half = map_half_;
+		constexpr float CELL = 8.0f, REACH = 12.0f;
+		const int W = std::max(1, (int)std::ceil(2.0f * half / CELL) + 1);
+		auto cell_of = [half, W](float v) { // monotonic in v, so nearby units can't fall outside a building's cells
+			const float f = (v + half) / CELL;
+			return f >= 0.0f ? (f < (float)W ? (int)f : W - 1) : 0;
+		};
+		capture_cell_start_.assign((size_t)W * W + 1, 0);
+		for (int pass = 0; pass < 2; ++pass) {
+			for (uint32_t i = 0; i < (uint32_t)buildings_.size(); ++i) {
+				const Building &b = buildings_[i];
+				const int x0 = cell_of(b.x - REACH), x1 = cell_of(b.x + REACH);
+				const int z0 = cell_of(b.z - REACH), z1 = cell_of(b.z + REACH);
+				for (int cz = z0; cz <= z1; ++cz)
+					for (int cx = x0; cx <= x1; ++cx) {
+						if (pass == 0) capture_cell_start_[(size_t)cz * W + cx + 1]++;
+						else capture_cell_buildings_[capture_cell_start_[(size_t)cz * W + cx]++] = CaptureReach{i, b.x, b.z};
+					}
+			}
+			if (pass == 0) {
+				for (size_t c = 1; c < capture_cell_start_.size(); ++c) capture_cell_start_[c] += capture_cell_start_[c - 1];
+				capture_cell_buildings_.resize(capture_cell_start_.back());
+			} else {
+				// Filling advanced each cell's start to the next cell's; shift back.
+				for (size_t c = capture_cell_start_.size() - 1; c > 0; --c) capture_cell_start_[c] = capture_cell_start_[c - 1];
+				capture_cell_start_[0] = 0;
+			}
+		}
+		capture_tally_.assign(buildings_.size(), CaptureTally{{0, 0, 0, 0}, {0.0f, 0.0f, 0.0f, 0.0f}});
+		for (size_t u = 0; u < units_.count; ++u) {
+			if (!units_.alive[u] || units_.team[u] >= 4) continue;
+			const size_t c = (size_t)cell_of(units_.pos_z[u]) * W + cell_of(units_.pos_x[u]);
+			for (uint32_t k = capture_cell_start_[c]; k < capture_cell_start_[c + 1]; ++k) {
+				const CaptureReach &b = capture_cell_buildings_[k];
+				const float dx = units_.pos_x[u] - b.x;
+				const float dz = units_.pos_z[u] - b.z;
+				if (dx * dx + dz * dz <= 11.0f * 11.0f) {
+					CaptureTally &t = capture_tally_[b.building];
+					t.count[units_.team[u]]++;
+					t.strength[units_.team[u]] += unit_capture_strength(units_.unit_type[u]);
+				}
+			}
+		}
+	};
+	tally_capturers();
+	for (size_t bi = 0; bi < buildings_.size(); ++bi) {
+		Building &b = buildings_[bi];
 		if (b.build_progress < 1.0f || b.max_capture_points <= 0.0f) continue;
 		if (b.team >= MAX_PLAYERS) {
 			tick_capture_gaia(b, dt);
@@ -4308,17 +4416,8 @@ void Simulation::tick_capture(float dt) {
 			b.capture_points_by_team.fill(0.0f);
 			b.capture_points_by_team[b.team < 8 ? b.team : 0] = b.max_capture_points;
 		}
-		int count[4] = {0, 0, 0, 0};
-		float strength[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-		for (size_t u = 0; u < n; ++u) {
-			if (!units_.alive[u] || units_.team[u] >= 4) continue;
-			const float dx = units_.pos_x[u] - b.x;
-			const float dz = units_.pos_z[u] - b.z;
-			if (dx * dx + dz * dz <= 11.0f * 11.0f) {
-				count[units_.team[u]]++;
-				strength[units_.team[u]] += unit_capture_strength(units_.unit_type[u]);
-			}
-		}
+		const int *count = capture_tally_[bi].count;
+		const float *strength = capture_tally_[bi].strength;
 		const int owner = b.team < 4 ? b.team : 0;
 		auto enemy = [&](int source, int target) {
 			return can_attack((uint8_t)source, (uint8_t)target);
@@ -4399,6 +4498,7 @@ void Simulation::tick_capture(float dt) {
 		}
 		if (best != owner && (b.capture_points_by_team[best] > b.max_capture_points * 0.5f || b.capture_points_by_team[owner] <= 0.0001f)) {
 			order_ungarrison(b.id);
+			tally_capturers(); // the units it let out count for the buildings after this one
 			cancel_upgrade(b, b.team);
 			b.team = (uint8_t)best;
 			raise_alert(BattleAlert::ALERT_STRUCTURE_CAPTURED, b.x, b.z, b.id, b.team);
@@ -6521,6 +6621,30 @@ void Simulation::petra_manage_trading(float dt) {
 		auto bit = building_id_to_idx_.find(market_ids[0]);
 		if (tmpl != CIV_UNIT_TEMPLATE_NONE && bit != building_id_to_idx_.end() && buildings_[bit->second].queue.size() < 3)
 			petra_train_template(PETRA_QUEUE_TRADE, market_ids[0], tmpl);
+	}
+
+	// 2b. tradeManager.js on a sea: with two docks on one sea, merchant ships trade
+	// between them. Land routes (step 3) are scored separately, so ships only get
+	// their own block: train up to the trader target, and send idle ones out.
+	if (has_trade_route(petra_pid_, UNIT_MERCHANT_SHIP)) {
+		int ai_ships = 0;
+		for (size_t i = 0; i < units_.count; ++i)
+			if (units_.alive[i] && units_.team[i] == petra_pid_ && units_.unit_type[i] == UNIT_MERCHANT_SHIP) ai_ships++;
+		for (const Building &b : buildings_) // ships already queued count toward the target
+			if (b.team == petra_pid_ && b.type == BLD_DOCK)
+				for (const ProductionOrder &o : b.queue) if (o.unit_type == UNIT_MERCHANT_SHIP) ai_ships++;
+		const Building *dock = nullptr;
+		for (const Building &b : buildings_)
+			if (b.team == petra_pid_ && can_trade_at(petra_pid_, b, UNIT_MERCHANT_SHIP) && dock_sea(b) && b.queue.size() < 3) { dock = &b; break; }
+		const uint16_t stmpl = civ_default_template(civ_of(petra_pid_), UNIT_MERCHANT_SHIP);
+		if (dock && stmpl != CIV_UNIT_TEMPLATE_NONE && ai_ships < target_traders && pop_current(petra_pid_) < pop_max(petra_pid_))
+			petra_train_template(PETRA_QUEUE_TRADE, dock->id, stmpl);
+		for (size_t i = 0; i < units_.count; ++i) {
+			if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.unit_type[i] != UNIT_MERCHANT_SHIP) continue;
+			uint32_t uid = units_.id[i];
+			if (units_.action_state[i] == ACTION_IDLE || trader_routes_.find(uid) == trader_routes_.end())
+				order_trade_auto(&uid, 1);
+		}
 	}
 
 	// 3. tradeManager.js checkRoutes: the best route starts at one of our
@@ -9580,40 +9704,39 @@ bool Simulation::load_state(const char *filepath) {
 	return true;
 }
 
-// Raw copies of plain structs; a padding byte in the file is never read back as a value.
-template <class T> static void save_pod(std::ofstream &out, const T &v) {
-	static_assert(std::is_trivially_copyable<T>::value, "raw save needs a plain struct");
-	out.write((const char *)&v, sizeof(T));
-}
-template <class T> static bool load_pod(std::ifstream &in, T &v) {
-	static_assert(std::is_trivially_copyable<T>::value, "raw load needs a plain struct");
-	in.read((char *)&v, sizeof(T));
-	return in.good();
-}
-template <class T> static void save_vec(std::ofstream &out, const std::vector<T> &v) {
-	save_pod(out, (uint32_t)v.size());
-	for (const T &x : v) save_pod(out, x);
-}
-template <class T> static bool load_vec(std::ifstream &in, std::vector<T> &v, uint32_t max_n) {
-	uint32_t n = 0;
-	if (!load_pod(in, n) || n > max_n) return false;
-	v.resize(n);
-	for (T &x : v) if (!load_pod(in, x)) return false;
-	return true;
-}
-
-// One field list for both directions of the Petra state, so save and load can't drift apart.
-struct PetraSaveAr {
+// Per-tick state (save v15). One field list serves save and load, so the two
+// can't drift apart. Plain values and padding-free structs are copied raw; a
+// struct with padding bytes goes through ar.padded(), which writes a copy built
+// field by field in zeroed memory, so the file never carries uninitialised
+// padding (two identical runs write identical saves; test_save_hash checks it).
+// The file layout is the raw layout either way. A static_assert on each padded
+// struct's size fails the build when a field is added without listing it here.
+struct TickSaveAr {
 	std::ofstream &out;
 	bool ok = true;
 	static constexpr bool loading = false;
-	template <class T> void pod(T &v) { save_pod(out, v); }
+	template <class T> void pod(T &v) {
+		static_assert(std::is_trivially_copyable_v<T>, "raw save needs a plain value");
+		out.write((const char *)&v, sizeof(T));
+	}
+	template <class T, class F> void padded(T &v, F &&copy_fields) {
+		static_assert(std::is_trivially_copyable_v<T> && std::is_trivially_destructible_v<T>);
+		alignas(T) unsigned char buf[sizeof(T)] = {};
+		T *z = new (buf) T; // default member initialisers only; the padding stays zero
+		copy_fields(*z, v);
+		out.write((const char *)buf, sizeof(T));
+	}
 };
-struct PetraLoadAr {
+struct TickLoadAr {
 	std::ifstream &in;
 	bool ok = true;
 	static constexpr bool loading = true;
-	template <class T> void pod(T &v) { ok = load_pod(in, v) && ok; }
+	template <class T> void pod(T &v) {
+		static_assert(std::is_trivially_copyable_v<T>, "raw load needs a plain value");
+		in.read((char *)&v, sizeof(T));
+		ok = ok && in.good();
+	}
+	template <class T, class F> void padded(T &v, F &&) { pod(v); }
 };
 template <class Ar, class T, class F> static void io_vec(Ar &ar, std::vector<T> &v, uint32_t max_n, F &&each) {
 	uint32_t n = (uint32_t)v.size();
@@ -9624,10 +9747,132 @@ template <class Ar, class T, class F> static void io_vec(Ar &ar, std::vector<T> 
 	}
 	for (T &x : v) each(x);
 }
+template <class Ar, class T> static void io_vec_pod(Ar &ar, std::vector<T> &v, uint32_t max_n) {
+	io_vec(ar, v, max_n, [&](T &x) { ar.pod(x); });
+}
 
-template <class Ar> void petra_state_io(Ar &ar, Simulation &s) {
+template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	using S = Simulation;
-	auto ids = [&](std::vector<uint32_t> &v) { io_vec(ar, v, S::UNIT_CAP, [&](uint32_t &x) { ar.pod(x); }); };
+	auto ids = [&](std::vector<uint32_t> &v) { io_vec_pod(ar, v, S::UNIT_CAP); };
+	auto arr = [](auto &d, const auto &src) { std::memcpy(&d, &src, sizeof(d)); };
+
+	// Padded structs, field by field.
+	static_assert(sizeof(WaypointPath) == 532, "list the new WaypointPath field below");
+	auto path = [&](WaypointPath &p) {
+		ar.padded(p, [&](WaypointPath &d, const WaypointPath &v) {
+			arr(d.xs, v.xs); arr(d.zs, v.zs); d.count = v.count; d.cur = v.cur;
+			d.has_goal = v.has_goal; d.goal_x = v.goal_x; d.goal_z = v.goal_z;
+		});
+	};
+	static_assert(sizeof(Projectile) == 72, "list the new Projectile field below");
+	auto projectile = [&](Projectile &p) {
+		ar.padded(p, [&](Projectile &d, const Projectile &v) {
+			d.id = v.id; d.start_x = v.start_x; d.start_y = v.start_y; d.start_z = v.start_z;
+			d.target_x = v.target_x; d.target_y = v.target_y; d.target_z = v.target_z;
+			d.current_x = v.current_x; d.current_y = v.current_y; d.current_z = v.current_z;
+			d.progress = v.progress; d.speed = v.speed; d.arc_height = v.arc_height; d.damage = v.damage;
+			d.damage_type = v.damage_type; d.visual = v.visual; d.status_effect = v.status_effect; d.team = v.team;
+			d.target_unit_id = v.target_unit_id; d.target_building_id = v.target_building_id; d.alive = v.alive;
+		});
+	};
+	static_assert(sizeof(S::TreasureRelic) == 24, "list the new TreasureRelic field below");
+	auto relic = [&](S::TreasureRelic &r) {
+		ar.padded(r, [&](S::TreasureRelic &d, const S::TreasureRelic &v) {
+			d.id = v.id; d.x = v.x; d.z = v.z; d.res_type = v.res_type; d.amount = v.amount;
+			d.claimed = v.claimed; d.owner_team = v.owner_team;
+		});
+	};
+	static_assert(sizeof(RecentDeath) == 16, "list the new RecentDeath field below");
+	auto death = [&](RecentDeath &r) {
+		ar.padded(r, [&](RecentDeath &d, const RecentDeath &v) {
+			d.x = v.x; d.z = v.z; d.team = v.team; d.killer_team = v.killer_team; d.type = v.type;
+			d.is_building = v.is_building; d.death_damage_applied = v.death_damage_applied; d.loot_applied = v.loot_applied;
+		});
+	};
+	static_assert(sizeof(S::TerritoryRoot) == 16, "list the new TerritoryRoot field below");
+	auto root = [&](S::TerritoryRoot &r) {
+		ar.padded(r, [&](S::TerritoryRoot &d, const S::TerritoryRoot &v) { d.x = v.x; d.z = v.z; d.radius = v.radius; d.team = v.team; });
+	};
+	static_assert(sizeof(S::PetraBase) == 36, "list the new PetraBase field below");
+	auto base = [&](S::PetraBase &b) {
+		ar.padded(b, [&](S::PetraBase &d, const S::PetraBase &v) {
+			d.id = v.id; d.anchor_building_id = v.anchor_building_id; d.x = v.x; d.z = v.z;
+			d.is_primary = v.is_primary; d.assigned_workers = v.assigned_workers; d.radius = v.radius;
+			d.danger_level = v.danger_level; d.resources_depleted = v.resources_depleted;
+		});
+	};
+
+	// 1. Unit columns the main unit record leaves out, in unit order.
+	if constexpr (Ar::loading)
+		if (s.unit_paths_.size() < S::UNIT_CAP) s.unit_paths_.resize(S::UNIT_CAP);
+	auto &U = s.units_;
+	for (size_t i = 0; i < U.count; ++i) {
+		ar.pod(U.vel_x[i]); ar.pod(U.vel_z[i]); ar.pod(U.anchor_x[i]); ar.pod(U.anchor_z[i]);
+		ar.pod(U.status_effects[i]); ar.pod(U.xp[i]); ar.pod(U.waypoint_cur[i]); ar.pod(U.waypoint_count[i]);
+		ar.pod(U.poison_timer[i]); ar.pod(U.snare_timer[i]); ar.pod(U.knockback_timer[i]);
+		ar.pod(U.knockback_dir_x[i]); ar.pod(U.knockback_dir_z[i]);
+		ar.pod(U.slow_timer[i]); ar.pod(U.bleed_timer[i]); ar.pod(U.burning_timer[i]);
+		uint8_t has_path = i < s.unit_paths_.size() && s.unit_paths_[i].count > 0;
+		ar.pod(has_path);
+		if (!ar.ok) return;
+		if constexpr (Ar::loading) s.unit_paths_[i].clear();
+		if (has_path) path(s.unit_paths_[i]);
+	}
+	if constexpr (Ar::loading)
+		for (size_t i = U.count; i < s.unit_paths_.size(); ++i) s.unit_paths_[i].clear();
+	// Load guesses these from build_progress and hp; entity limits wreck structures with hp left.
+	for (S::Building &b : s.buildings_) { ar.pod(b.committed); ar.pod(b.wrecked); }
+	io_vec(ar, s.projectiles_, 1u << 20, projectile);
+	io_vec(ar, s.relics_, 1u << 16, relic);
+	static_assert(sizeof(S::FaunaStorage) == 15112, "list the new FaunaStorage field below");
+	ar.padded(s.fauna_, [&](S::FaunaStorage &d, const S::FaunaStorage &v) {
+		d.count = v.count;
+		arr(d.id, v.id); arr(d.pos_x, v.pos_x); arr(d.pos_z, v.pos_z); arr(d.vel_x, v.vel_x); arr(d.vel_z, v.vel_z);
+		arr(d.rot_y, v.rot_y); arr(d.hp, v.hp); arr(d.max_hp, v.max_hp); arr(d.food_amount, v.food_amount);
+		arr(d.fauna_type, v.fauna_type); arr(d.behavior, v.behavior); arr(d.alive, v.alive);
+		arr(d.state_timer, v.state_timer); arr(d.attack_timer, v.attack_timer); arr(d.target_unit_id, v.target_unit_id);
+		arr(d.corral_id, v.corral_id); arr(d.fatten_timer, v.fatten_timer);
+	});
+	if constexpr (Ar::loading) {
+		if (s.fauna_.count > S::FaunaStorage::MAX_FAUNA) { ar.ok = false; return; }
+		s.fauna_id_to_idx_.clear();
+		for (size_t f = 0; f < s.fauna_.count; ++f) s.fauna_id_to_idx_[s.fauna_.id[f]] = f;
+	}
+	// Transport ships' passengers, sorted so the file doesn't depend on hash-map order.
+	std::vector<std::pair<uint32_t, std::vector<uint32_t>>> ships(s.transport_passengers_.begin(), s.transport_passengers_.end());
+	std::sort(ships.begin(), ships.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
+	io_vec(ar, ships, S::UNIT_CAP, [&](std::pair<uint32_t, std::vector<uint32_t>> &kv) { ar.pod(kv.first); ids(kv.second); });
+	if constexpr (Ar::loading) {
+		s.transport_passengers_.clear();
+		for (auto &kv : ships) s.transport_passengers_[kv.first] = std::move(kv.second);
+	}
+
+	// 2. Timers and counters that ticks read.
+	ar.pod(s.rate_window_timer_); ar.pod(s.upkeep_timer_); ar.pod(s.entity_limits_timer_);
+	ar.pod(s.gate_timer_); ar.pod(s.fow_timer_); ar.pod(s.territory_timer_);
+	// Territory is recomputed once a second, so the saved grid can't be rebuilt from the buildings on load.
+	for (Grid<uint8_t> *g : {&s.territory_grid_, &s.influence_grid_}) {
+		int32_t w = g->w, h = g->h;
+		ar.pod(w); ar.pod(h);
+		if constexpr (Ar::loading) {
+			if (!ar.ok || w < 0 || h < 0 || w > S::MAX_GRID_RES || h > S::MAX_GRID_RES) { ar.ok = false; return; }
+			g->resize(w, h, 0);
+		}
+		io_vec_pod(ar, g->data, (uint32_t)(S::MAX_GRID_RES * S::MAX_GRID_RES));
+		if (g->data.size() != (size_t)w * (size_t)h) { ar.ok = false; return; }
+	}
+	io_vec(ar, s.territory_roots_, 1u << 16, root);
+	ar.pod(s.territory_roots_res_); ar.pod(s.territory_roots_half_);
+	ar.pod(s.aura_timer_); ar.pod(s.relic_victory_timer_); ar.pod(s.last_alert_time_);
+	for (RecentDeath &d : s.recent_deaths_) death(d);
+	ar.pod(s.recent_death_head_); ar.pod(s.record_);
+	for (PlayerState &ps : s.players_) ar.pod(ps.gathered_window);
+	// Match settings from Game Setup; ticks read them, so a save carries its own rules.
+	ar.pod(s.victory_condition_); ar.pod(s.waves_enabled_); ar.pod(s.last_man_standing_); ar.pod(s.pop_cap_);
+	ar.pod(s.ceasefire_seconds_); ar.pod(s.reveal_map_); ar.pod(s.explore_map_);
+	ar.pod(s.wonder_duration_); ar.pod(s.relic_duration_); ar.pod(s.relic_count_);
+
+	// 3. Every AI's Petra state.
 	auto field = [&](auto &v) {
 		using T = std::decay_t<decltype(v)>;
 		if constexpr (std::is_same_v<T, S::AttackPlan>) {
@@ -9645,14 +9890,33 @@ template <class Ar> void petra_state_io(Ar &ar, Simulation &s) {
 			ar.pod(v.state); ar.pod(v.ship_id); ids(v.passenger_ids);
 			ar.pod(v.pickup_x); ar.pod(v.pickup_z); ar.pod(v.drop_x); ar.pod(v.drop_z);
 			ar.pod(v.state_timer); ar.pod(v.failed);
+		} else if constexpr (std::is_same_v<T, PetraEmergency>) {
+			static_assert(sizeof(PetraEmergency) == 16, "list the new PetraEmergency field below");
+			ar.padded(v, [](PetraEmergency &d, const PetraEmergency &x) {
+				d.ref_pop = x.ref_pop; d.ref_structs = x.ref_structs; d.ref_roots = x.ref_roots; d.active = x.active;
+			});
+		} else if constexpr (std::is_same_v<T, PetraDiplomacy>) {
+			static_assert(sizeof(PetraDiplomacy) == 152 && sizeof(PetraReceivedRequest) == 16,
+			              "list the new PetraDiplomacy field below");
+			ar.padded(v, [&](PetraDiplomacy &d, const PetraDiplomacy &x) {
+				for (int p = 0; p < 8; ++p) {
+					const PetraReceivedRequest &r = x.received[p];
+					PetraReceivedRequest &o = d.received[p];
+					o.status = r.status; o.type = r.type; o.resource = r.resource; o.sent_warning = r.sent_warning;
+					o.wanted = r.wanted; o.paid = r.paid; o.warn_time = r.warn_time;
+				}
+				arr(d.seen_stance, x.seen_stance); d.seen_init = x.seen_init; d.waiting_to_betray = x.waiting_to_betray;
+				d.betray_lapse = x.betray_lapse; d.elapsed = x.elapsed; d.next_tribute = x.next_tribute;
+			});
 		} else if constexpr (std::is_same_v<T, std::vector<S::PetraFoundationWatch>>) {
 			io_vec(ar, v, 1u << 16, [&](S::PetraFoundationWatch &w) { ar.pod(w.id); ar.pod(w.progress); ar.pod(w.stall); ids(w.banned); });
 		} else if constexpr (std::is_same_v<T, std::vector<S::PetraBase>>) {
-			io_vec(ar, v, 1u << 16, [&](S::PetraBase &b) { ar.pod(b); });
+			io_vec(ar, v, 1u << 16, base);
 		} else if constexpr (std::is_same_v<T, std::vector<uint8_t>>) {
-			io_vec(ar, v, (uint32_t)S::MAX_GRID_RES * S::MAX_GRID_RES, [&](uint8_t &c) { ar.pod(c); });
+			io_vec_pod(ar, v, (uint32_t)S::MAX_GRID_RES * S::MAX_GRID_RES);
 		} else {
-			static_assert(std::is_trivially_copyable_v<T>, "give this Petra field its own case in petra_state_io");
+			// Raw: only plain values and structs without padding (check with -Wpadded).
+			static_assert(std::is_trivially_copyable_v<T>, "give this Petra field its own case in tick_state_io");
 			ar.pod(v);
 		}
 	};
@@ -9666,14 +9930,36 @@ template <class Ar> void petra_state_io(Ar &ar, Simulation &s) {
 		RTSO_PETRA_SLOT_FIELDS(RTSO_PETRA_IO_SLOT)
 #undef RTSO_PETRA_IO_SLOT
 	});
-	ar.pod(s.petra_config_);
+	static_assert(sizeof(PetraConfig) == 100, "list the new PetraConfig field below");
+	ar.padded(s.petra_config_, [](PetraConfig &d, const PetraConfig &v) {
+		d.difficulty = v.difficulty; d.behavior = v.behavior; d.aggressive = v.aggressive; d.defensive = v.defensive;
+		d.cooperative = v.cooperative; d.pop_scaling = v.pop_scaling; d.gather_rate = v.gather_rate; d.build_time = v.build_time;
+		d.defense_ratio_own = v.defense_ratio_own; d.army_compact_sq = v.army_compact_sq;
+		d.target_num_workers = v.target_num_workers; d.target_num_traders = v.target_num_traders;
+		d.pop_phase2 = v.pop_phase2; d.work_phase3 = v.work_phase3; d.muster_delta = v.muster_delta;
+		d.garrison_hp_low = v.garrison_hp_low; d.garrison_hp_high = v.garrison_hp_high;
+		d.emergency_pop_factor = v.emergency_pop_factor; d.emergency_struct_factor = v.emergency_struct_factor;
+		d.emergency_root_factor = v.emergency_root_factor;
+		d.prio_emergency = v.prio_emergency; d.prio_villager = v.prio_villager; d.prio_military = v.prio_military;
+		d.prio_tech = v.prio_tech; d.prio_trade = v.prio_trade; d.prio_naval = v.prio_naval;
+	});
 	ar.pod(s.petra_pid_);
 	ar.pod(s.petra_tribute_inbox_);
-	io_vec(ar, s.petra_chat_, 1u << 16, [&](PetraChatLine &c) { ar.pod(c); });
+	static_assert(sizeof(PetraChatLine) == 108, "list the new PetraChatLine field below");
+	io_vec(ar, s.petra_chat_, 1u << 16, [&](PetraChatLine &c) {
+		ar.padded(c, [&](PetraChatLine &d, const PetraChatLine &v) { d.kind = v.kind; d.x = v.x; d.z = v.z; arr(d.text, v.text); });
+	});
 	// Diplomacy requests by player, in player order.
 	std::vector<std::pair<uint8_t, PetraDiplomacyRequest>> reqs(s.petra_diplomacy_requests_.begin(), s.petra_diplomacy_requests_.end());
 	std::sort(reqs.begin(), reqs.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
-	io_vec(ar, reqs, MAX_PLAYERS, [&](std::pair<uint8_t, PetraDiplomacyRequest> &r) { ar.pod(r.first); ar.pod(r.second); });
+	static_assert(sizeof(PetraDiplomacyRequest) == 20, "list the new PetraDiplomacyRequest field below");
+	io_vec(ar, reqs, MAX_PLAYERS, [&](std::pair<uint8_t, PetraDiplomacyRequest> &r) {
+		ar.pod(r.first);
+		ar.padded(r.second, [](PetraDiplomacyRequest &d, const PetraDiplomacyRequest &v) {
+			d.status = v.status; d.request_type = v.request_type; d.warn_time = v.warn_time;
+			d.lapse_time = v.lapse_time; d.wanted = v.wanted; d.resource = v.resource;
+		});
+	});
 	if constexpr (Ar::loading) {
 		s.petra_diplomacy_requests_.clear();
 		for (const auto &r : reqs) s.petra_diplomacy_requests_[r.first] = r.second;
@@ -9681,155 +9967,13 @@ template <class Ar> void petra_state_io(Ar &ar, Simulation &s) {
 }
 
 void Simulation::save_tick_state(std::ofstream &out) const {
-	// Unit columns the main unit record leaves out, in unit order.
-	for (size_t u = 0; u < units_.count; ++u) {
-		save_pod(out, units_.vel_x[u]);
-		save_pod(out, units_.vel_z[u]);
-		save_pod(out, units_.anchor_x[u]);
-		save_pod(out, units_.anchor_z[u]);
-		save_pod(out, units_.status_effects[u]);
-		save_pod(out, units_.xp[u]);
-		save_pod(out, units_.waypoint_cur[u]);
-		save_pod(out, units_.waypoint_count[u]);
-		save_pod(out, units_.poison_timer[u]);
-		save_pod(out, units_.snare_timer[u]);
-		save_pod(out, units_.knockback_timer[u]);
-		save_pod(out, units_.knockback_dir_x[u]);
-		save_pod(out, units_.knockback_dir_z[u]);
-		save_pod(out, units_.slow_timer[u]);
-		save_pod(out, units_.bleed_timer[u]);
-		save_pod(out, units_.burning_timer[u]);
-		const bool has_path = u < unit_paths_.size() && unit_paths_[u].count > 0;
-		save_pod(out, (uint8_t)has_path);
-		if (has_path) save_pod(out, unit_paths_[u]);
-	}
-	// Load guesses these from build_progress and hp; entity limits wreck structures with hp left.
-	for (const Building &b : buildings_) { save_pod(out, b.committed); save_pod(out, b.wrecked); }
-	save_vec(out, projectiles_);
-	save_vec(out, relics_);
-	save_pod(out, fauna_);
-	// Transport ships' passengers, sorted so the file doesn't depend on hash-map order.
-	std::vector<std::pair<uint32_t, std::vector<uint32_t>>> ships(transport_passengers_.begin(), transport_passengers_.end());
-	std::sort(ships.begin(), ships.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
-	save_pod(out, (uint32_t)ships.size());
-	for (const auto &kv : ships) { save_pod(out, kv.first); save_vec(out, kv.second); }
-	// Timers and counters that ticks read.
-	save_pod(out, rate_window_timer_);
-	save_pod(out, upkeep_timer_);
-	save_pod(out, entity_limits_timer_);
-	save_pod(out, gate_timer_);
-	save_pod(out, fow_timer_);
-	save_pod(out, territory_timer_);
-	// Territory is recomputed once a second, so the saved grid can't be rebuilt from the buildings on load.
-	for (const Grid<uint8_t> *g : {&territory_grid_, &influence_grid_}) {
-		save_pod(out, (int32_t)g->w);
-		save_pod(out, (int32_t)g->h);
-		save_vec(out, g->data);
-	}
-	save_vec(out, territory_roots_);
-	save_pod(out, territory_roots_res_);
-	save_pod(out, territory_roots_half_);
-	save_pod(out, aura_timer_);
-	save_pod(out, relic_victory_timer_);
-	save_pod(out, last_alert_time_);
-	save_pod(out, recent_deaths_);
-	save_pod(out, recent_death_head_);
-	save_pod(out, record_);
-	for (const PlayerState &ps : players_) save_pod(out, ps.gathered_window);
-	// Match settings from Game Setup; ticks read them, so a save carries its own rules.
-	save_pod(out, victory_condition_);
-	save_pod(out, waves_enabled_);
-	save_pod(out, last_man_standing_);
-	save_pod(out, pop_cap_);
-	save_pod(out, ceasefire_seconds_);
-	save_pod(out, reveal_map_);
-	save_pod(out, explore_map_);
-	save_pod(out, wonder_duration_);
-	save_pod(out, relic_duration_);
-	save_pod(out, relic_count_);
-	PetraSaveAr ar{out};
-	petra_state_io(ar, const_cast<Simulation &>(*this));
+	TickSaveAr ar{out};
+	tick_state_io(ar, const_cast<Simulation &>(*this));
 }
 
 bool Simulation::load_tick_state(std::ifstream &in) {
-	for (size_t u = 0; u < units_.count; ++u) {
-		load_pod(in, units_.vel_x[u]);
-		load_pod(in, units_.vel_z[u]);
-		load_pod(in, units_.anchor_x[u]);
-		load_pod(in, units_.anchor_z[u]);
-		load_pod(in, units_.status_effects[u]);
-		load_pod(in, units_.xp[u]);
-		load_pod(in, units_.waypoint_cur[u]);
-		load_pod(in, units_.waypoint_count[u]);
-		load_pod(in, units_.poison_timer[u]);
-		load_pod(in, units_.snare_timer[u]);
-		load_pod(in, units_.knockback_timer[u]);
-		load_pod(in, units_.knockback_dir_x[u]);
-		load_pod(in, units_.knockback_dir_z[u]);
-		load_pod(in, units_.slow_timer[u]);
-		load_pod(in, units_.bleed_timer[u]);
-		load_pod(in, units_.burning_timer[u]);
-		uint8_t has_path = 0;
-		if (!load_pod(in, has_path)) return false;
-		if (unit_paths_.size() < UNIT_CAP) unit_paths_.resize(UNIT_CAP);
-		if (u < unit_paths_.size()) unit_paths_[u].clear();
-		if (has_path) {
-			WaypointPath wp;
-			if (!load_pod(in, wp)) return false;
-			if (u < unit_paths_.size()) unit_paths_[u] = wp;
-		}
-	}
-	for (size_t u = units_.count; u < unit_paths_.size(); ++u) unit_paths_[u].clear();
-	for (Building &b : buildings_) { load_pod(in, b.committed); load_pod(in, b.wrecked); }
-	if (!load_vec(in, projectiles_, 1u << 20)) return false;
-	if (!load_vec(in, relics_, 1u << 16)) return false;
-	if (!load_pod(in, fauna_)) return false;
-	if (fauna_.count > FaunaStorage::MAX_FAUNA) return false;
-	fauna_id_to_idx_.clear();
-	for (size_t f = 0; f < fauna_.count; ++f) fauna_id_to_idx_[fauna_.id[f]] = f;
-	uint32_t num_ships = 0;
-	if (!load_pod(in, num_ships) || num_ships > UNIT_CAP) return false;
-	transport_passengers_.clear();
-	for (uint32_t k = 0; k < num_ships; ++k) {
-		uint32_t ship = 0;
-		std::vector<uint32_t> passengers;
-		if (!load_pod(in, ship) || !load_vec(in, passengers, UNIT_CAP)) return false;
-		transport_passengers_[ship] = std::move(passengers);
-	}
-	load_pod(in, rate_window_timer_);
-	load_pod(in, upkeep_timer_);
-	load_pod(in, entity_limits_timer_);
-	load_pod(in, gate_timer_);
-	load_pod(in, fow_timer_);
-	load_pod(in, territory_timer_);
-	for (Grid<uint8_t> *g : {&territory_grid_, &influence_grid_}) {
-		int32_t w = 0, h = 0;
-		if (!load_pod(in, w) || !load_pod(in, h) || w < 0 || h < 0 || w > MAX_GRID_RES || h > MAX_GRID_RES) return false;
-		g->resize(w, h, 0);
-		if (!load_vec(in, g->data, (uint32_t)(w * h)) || g->data.size() != (size_t)w * (size_t)h) return false;
-	}
-	if (!load_vec(in, territory_roots_, 1u << 16)) return false;
-	load_pod(in, territory_roots_res_);
-	load_pod(in, territory_roots_half_);
-	load_pod(in, aura_timer_);
-	load_pod(in, relic_victory_timer_);
-	load_pod(in, last_alert_time_);
-	load_pod(in, recent_deaths_);
-	load_pod(in, recent_death_head_);
-	load_pod(in, record_);
-	for (PlayerState &ps : players_) load_pod(in, ps.gathered_window);
-	load_pod(in, victory_condition_);
-	load_pod(in, waves_enabled_);
-	load_pod(in, last_man_standing_);
-	load_pod(in, pop_cap_);
-	load_pod(in, ceasefire_seconds_);
-	load_pod(in, reveal_map_);
-	load_pod(in, explore_map_);
-	load_pod(in, wonder_duration_);
-	load_pod(in, relic_duration_);
-	load_pod(in, relic_count_);
-	PetraLoadAr ar{in};
-	petra_state_io(ar, *this);
+	TickLoadAr ar{in};
+	tick_state_io(ar, *this);
 	return ar.ok && in.good();
 }
 

@@ -442,10 +442,17 @@ public:
 	TradeGain calculate_trade_gain(const Building &from, const Building &to, uint8_t trader_owner,
 			uint8_t trader_type = UNIT_TRADER) const;
 	int calculate_trader_gain(const Building& mA, const Building& mB, uint8_t team) const { return calculate_trade_gain(mA, mB, team).trader; }
-	// Trader.js CanTrade: a finished Market whose owner `trader_owner` is not hostile to.
-	bool can_trade_at(uint8_t trader_owner, const Building &b) const;
-	// True when `player` has two markets it can trade between (own, allied or neutral).
-	bool has_trade_route(uint8_t player) const;
+	// Trader.js CanTrade: a finished market of the trader's kind (a Market for land
+	// traders, a Dock for merchant ships) whose owner `trader_owner` is not hostile to.
+	bool can_trade_at(uint8_t trader_owner, const Building &b, uint8_t trader_type = UNIT_TRADER) const;
+	// True when `player` has two markets of that kind it can trade between (own, allied or
+	// neutral); for merchant ships, two docks on the same sea.
+	bool has_trade_route(uint8_t player, uint8_t trader_type = UNIT_TRADER) const;
+	// Ship region of the water next to a dock (0 = no water beside it).
+	uint16_t dock_sea(const Building &b) const;
+	// Centre of the nearest ship-passable cell around a building's footprint, and its
+	// ship region; false when none is near (ProductionQueue.js spawns ships there).
+	bool nearest_ship_cell(const Building &b, float &out_x, float &out_z, uint16_t *out_sea = nullptr) const;
 	void order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id);
 	void order_trade_auto(const uint32_t *unit_ids, size_t count); // farthest pair of tradable markets
 	float get_market_buy_price(ResourceType t) const { return market_buy_price(t); }
@@ -1159,8 +1166,8 @@ private:
 	};
 	std::vector<PetraSlot> petra_slots_; // indexed by player id, sized on first use
 	void petra_swap_slot(uint8_t pid);
-	// Saves or loads every AI's Petra state (save v15); defined in simulation.cpp.
-	template <class Ar> friend void petra_state_io(Ar &ar, Simulation &s);
+	// Saves or loads save_tick_state's fields, every AI's Petra state included (save v15); simulation.cpp.
+	template <class Ar> friend void tick_state_io(Ar &ar, Simulation &s);
 	void petra_reset_ai_state();
 	std::vector<float> fow_cell_height_; // terrain height at each FoW cell centre, lazily filled by tick_fow
 	std::vector<float> fow_cell_hmax_; // highest heightmap sample an LOS ray can read in each FoW cell, filled with fow_cell_height_
@@ -1190,6 +1197,13 @@ private:
 	};
 	std::vector<SteerObstacle> steer_obstacles_;
 	std::vector<SteerObstacle> sep_obstacles_; // separation()'s list, built the same way
+	// tick_capture()'s count and strength of nearby capturers per building and team, and the grid of
+	// building reach it finds them with. Rebuilt every tick.
+	struct CaptureTally { int count[4]; float strength[4]; };
+	struct CaptureReach { uint32_t building; float x, z; };
+	std::vector<CaptureTally> capture_tally_;
+	std::vector<uint32_t> capture_cell_start_;
+	std::vector<CaptureReach> capture_cell_buildings_;
 
 	// Closed gates this tick: the only movement blockers the nav grid leaves out (0 A.D.
 	// gate Obstruction BlockMovement without BlockPathfinding), so move_units stops units

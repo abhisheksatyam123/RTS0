@@ -1872,6 +1872,279 @@ void RmsGenerator::synth_volcanic_lands(HeightmapGrid &hm, RmsRng &rng, float &w
 	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
 }
 
+namespace {
+// Sets terrain towards `h` within `w` of the segment a-b, blending out over
+// `blend` (rmgen SmoothElevationPainter ELEVATION_SET along a PathPlacer).
+void set_along_segment(HeightmapGrid &hm, float ax, float az, float bx, float bz, float w, float blend, float h) {
+	const float half = hm.map_half;
+	const float step = (half * 2.0f) / (float)(hm.res - 1);
+	const float reach = w + blend;
+	const int x0 = std::max(0, (int)((std::min(ax, bx) - reach + half) / step));
+	const int x1 = std::min(hm.res - 1, (int)((std::max(ax, bx) + reach + half) / step) + 1);
+	const int z0 = std::max(0, (int)((std::min(az, bz) - reach + half) / step));
+	const int z1 = std::min(hm.res - 1, (int)((std::max(az, bz) + reach + half) / step) + 1);
+	const float dx = bx - ax, dz = bz - az, len2 = dx * dx + dz * dz;
+	for (int z = z0; z <= z1; ++z) {
+		const float wz = -half + z * step;
+		for (int x = x0; x <= x1; ++x) {
+			const float wx = -half + x * step;
+			const float t = len2 > 0.0f ? std::clamp(((wx - ax) * dx + (wz - az) * dz) / len2, 0.0f, 1.0f) : 0.0f;
+			const float d = std::hypot(wx - (ax + dx * t), wz - (az + dz * t));
+			if (d >= reach) continue;
+			const float k = d <= w ? 1.0f : 1.0f - smoothstep(w, reach, d);
+			const float cur = hm.get(x, z);
+			hm.set(x, z, cur + (h - cur) * k);
+		}
+	}
+}
+
+// Point at angle a, distance r from the centre.
+inline std::pair<float, float> polar(float a, float r) { return {std::cos(a) * r, std::sin(a) * r}; }
+} // namespace
+
+void RmsGenerator::synth_lions_den(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// lions_den.js createSunkenTerrain: high ground (heightHill 50) with a
+	// sunken valley ring (f = 0.29, heightValley 0) round a central hill
+	// (f = 0.21). Each player's den (heightDen 15) sits in the high ground at
+	// f = 0.4, with ramps (heightPath 10) down to an expansion cut into the
+	// central hill and round to both neighbours; more expansions lie in the
+	// valley between players. 0 A.D. metres x 0.35.
+	water_h = -10.0f;
+	const float hill = 17.5f, den = 5.25f, path = 3.5f, valley = 0.0f;
+	hm.init(hm.res, hm.map_half, hill);
+	const float half = hm.map_half;
+	const int n = std::max(1, num_players);
+	hm.apply_fbm(rng, 3, 0.03f, 0.5f, 2.0f, 1.0f);
+	hm.level_area(0.0f, 0.0f, half * 0.58f, 3.0f, valley);
+	hm.level_area(0.0f, 0.0f, half * 0.42f, 3.0f, hill);
+	const float start = rng.range_float(0.0f, 6.2831853f);
+	const float exp_dist = (0.1f + (float)n / 200.0f) * 2.0f;
+	float exp_r = half * 0.28f / std::sqrt((float)n), exp_angle = 0.75f, n_road = 0.44f, n_exp = 0.425f;
+	if (n <= 2) { exp_r = half * 0.15f; exp_angle = 0.72f; }
+	if (n < 4) { n_road = 0.42f; n_exp = 0.40f; }
+	auto at = [&](float dist, int i, float off) { return polar(start + ((float)i + off) * 6.2831853f / (float)n, dist * 2.0f * half); };
+	for (int i = 0; i < n; ++i) {
+		const auto p = at(0.4f, i, 0.0f);
+		const auto e = polar(start + ((float)i + exp_angle) * 6.2831853f / (float)n, exp_dist * half);
+		set_along_segment(hm, p.first, p.second, e.first, e.second, 6.0f, 3.0f, path);
+		const auto pp = at(0.47f, i, 0.0f);
+		for (float off : {-0.5f, 0.5f}) {
+			const auto q = at(n_road, i, off);
+			set_along_segment(hm, pp.first, pp.second, q.first, q.second, 9.5f, 3.0f, path);
+		}
+		hm.level_area(p.first, p.second, half * 0.20f, 3.0f, den);
+		hm.level_area(e.first, e.second, exp_r, 3.0f, den);
+	}
+	for (int i = 0; i < n; ++i) {
+		const auto q = at(n_exp, i, 0.5f);
+		hm.level_area(q.first, q.second, exp_r, 3.0f, valley);
+	}
+	place_ring_spawns(hm, spawns, num_players, half * 0.80f, start, 6.2831853f, 0.0f);
+	hm.blur(1, 0.3f);
+	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 15.0f, 3.0f, sp.base_height);
+}
+
+void RmsGenerator::synth_hells_pass(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// hells_pass.js: each team on a line out from the centre (pattern
+	// "line", f = 0.2, 0.08 between teammates); between neighbouring teams
+	// a mountain spine (heightBarrier 30) runs from f = 0.075 to f = 0.42,
+	// leaving passes round the centre and along the map edge. RTS0 knows no
+	// teams here, so each player is a team. 0 A.D. metres x 0.35.
+	water_h = -10.0f;
+	hm.init(hm.res, hm.map_half, 1.0f);
+	const float half = hm.map_half;
+	const int n = std::max(1, num_players);
+	hm.apply_fbm(rng, 4, 0.025f, 0.5f, 2.0f, 1.5f);
+	const float start = rng.range_float(0.0f, 6.2831853f);
+	const float spine_w = (float)scale_by_map_size(14, n >= 5 ? 4 : 8, half) * 0.5f;
+	for (int i = 0; i < n; ++i) {
+		const float a = start + ((float)i + 0.5f) * 6.2831853f / (float)n;
+		const auto s = polar(a, half * 0.15f), e = polar(a, half * 0.84f);
+		// PathPlacer waviness: bend the spine through a jittered midpoint.
+		const auto m = polar(a + rng.range_float(-0.06f, 0.06f), half * 0.5f);
+		raise_ridge(hm, {s, m, e}, spine_w, 10.5f, -1.0f, 0.0f);
+	}
+	place_ring_spawns(hm, spawns, num_players, half * 0.40f, start, 6.2831853f, 0.0f);
+	scatter_hills(hm, rng, spawns, scale_by_map_size(1, 4, half), 3.0f, 5.0f, 2.0f, 4.0f, 30.0f);
+	hm.blur(1, 0.35f);
+	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
+}
+
+void RmsGenerator::synth_deep_forest(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// deep_forest.js: a forest filling the map, players at 5/8 to 3/4 of the
+	// map radius (angles jittered by a quarter of the spacing), forest paths
+	// (heightPath -2) linking every base to each other and to a central
+	// hill, and a height field of a middle hill (size/64 * (1 + cos(3/2 pi
+	// r/R))) plus rolling hills (5 * (1 + sin(x/10) sin(z/10))). Dense wood
+	// comes from distribute_neutral_resources. 0 A.D. metres x 0.35.
+	water_h = -10.0f;
+	hm.init(hm.res, hm.map_half, 0.0f);
+	const float half = hm.map_half;
+	const int n = std::max(1, num_players);
+	const float base_r = 20.0f;
+	const float rmin = std::min(half - 1.5f * base_r, 0.625f * half), rmax = std::min(half - base_r, 0.75f * half);
+	const float start = rng.range_float(0.0f, 6.2831853f);
+	std::vector<std::pair<float, float>> pos;
+	for (int i = 0; i < n; ++i) {
+		const float a = start + (float)i * 6.2831853f / (float)n + rng.range_float(0.0f, 6.2831853f / (float)n / 4.0f);
+		pos.push_back(polar(a, rng.range_float(rmin, rmax)));
+	}
+	pos.push_back({0.0f, 0.0f});
+	const bool blend_all = n <= 4;
+	for (int i = 0; i < n + 1; ++i)
+		for (int j = i + 1; j < n + 1; ++j)
+			if (blend_all || j == n || j == i + 1 || (i == 0 && j == n - 1))
+				set_along_segment(hm, pos[i].first, pos[i].second, pos[j].first, pos[j].second, 3.0f, 2.0f, -0.7f);
+	const float step = (half * 2.0f) / (float)(hm.res - 1);
+	for (int z = 0; z < hm.res; ++z) {
+		const float wz = -half + z * step;
+		for (int x = 0; x < hm.res; ++x) {
+			const float wx = -half + x * step;
+			const float r = std::hypot(wx, wz);
+			const float middle = (half / 32.0f) * (1.0f + std::cos(1.5f * 3.14159265f * std::min(r, half) / half));
+			const float hills = 5.0f * (1.0f + std::sin(wx / 10.0f) * std::sin(wz / 10.0f));
+			hm.add(x, z, (middle + hills + 1.0f) * 0.35f);
+		}
+	}
+	spawns.clear();
+	for (int i = 0; i < n && i < num_players; ++i) {
+		const float sx = pos[i].first, sz = pos[i].second, r = std::max(1e-3f, std::hypot(sx, sz));
+		const float bh = hm.sample_world(sx, sz);
+		spawns.push_back({(uint8_t)i, sx, sz, bh, -sx / r, -sz / r});
+		hm.level_area(sx, sz, 14.0f, 6.0f, bh);
+	}
+	hm.blur(1, 0.35f);
+	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
+}
+
+void RmsGenerator::synth_india(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// india.js: parched land (heightLand 1) with one half dried-up lake in
+	// the middle (clumps within scaleByMapSize(15, 40) of the centre, sea
+	// ground -3) with a jagged shore (heightShore 3), scaleByMapSize(300,
+	// 800) small bumps, players on a circle at f = 0.35.
+	water_h = 1.0f;
+	hm.init(hm.res, hm.map_half, 2.5f);
+	const float half = hm.map_half;
+	hm.apply_fbm(rng, 4, 0.05f, 0.5f, 2.0f, 0.8f);
+	const float lake_r = (float)scale_by_map_size(15, 40, half);
+	const int blobs = std::max(2, scale_by_map_size(2, 16, half) / 2);
+	for (int i = 0; i < blobs; ++i) {
+		const auto c = polar(rng.range_float(0.0f, 6.2831853f), lake_r * std::sqrt(rng.next_float()) * 0.7f);
+		hm.carve_crater_lake(c.first, c.second, lake_r * rng.range_float(0.35f, 0.6f) + 2.0f, 4.0f, 3.0f, water_h);
+	}
+	place_ring_spawns(hm, spawns, num_players, half * 0.70f, rng.range_float(0.0f, 6.2831853f), 6.2831853f, water_h + 1.5f);
+	hm.blur(1, 0.4f);
+	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
+}
+
+void RmsGenerator::synth_guadalquivir_river(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// guadalquivir_river.js: a continent (radius f = 0.49 round a point at
+	// f = 0.2 from the centre) in the sea, a river (f = 0.07 wide) through
+	// the map centre from the sea, with shallows 0.3-0.4, 0.5-0.6 and
+	// 0.7-0.8 along it. Players on arcs of radius f = 0.35 round the
+	// continent's centre, split between the two banks.
+	water_h = 1.0f;
+	hm.init(hm.res, hm.map_half, 3.0f);
+	const float half = hm.map_half;
+	hm.apply_fbm(rng, 3, 0.025f, 0.5f, 2.0f, 1.0f);
+	const float rot = rng.range_float(0.0f, 6.2831853f);
+	const float ux = std::cos(rot), uz = std::sin(rot); // towards the continent's centre and along the river
+	const float ccx = ux * half * 0.40f, ccz = uz * half * 0.40f;
+	const float land_r = half * 0.98f;
+	const float step = (half * 2.0f) / (float)(hm.res - 1);
+	const float p1 = rng.range_float(0.0f, 6.2831853f), p2 = rng.range_float(0.0f, 6.2831853f);
+	for (int z = 0; z < hm.res; ++z) {
+		const float wz = -half + z * step;
+		for (int x = 0; x < hm.res; ++x) {
+			const float wx = -half + x * step;
+			const float a = std::atan2(wz - ccz, wx - ccx);
+			const float r = land_r * (1.0f + 0.05f * std::sin(a * 5.0f + p1) + 0.03f * std::sin(a * 11.0f + p2));
+			const float d = std::hypot(wx - ccx, wz - ccz) - r;
+			if (d <= -6.0f) continue;
+			const float t = smoothstep(-6.0f, 6.0f, d);
+			const float cur = hm.get(x, z);
+			hm.set(x, z, cur + ((water_h - 4.0f) - cur) * t);
+		}
+	}
+	// The river runs from the far shore (through the continent) to the near one.
+	const float river_w = half * 0.07f;
+	std::vector<std::pair<float, float>> river;
+	for (int i = 0; i <= 8; ++i) {
+		const float s = -1.0f + 2.0f * (float)i / 8.0f; // -1 near edge, +1 far edge
+		const float wob = (i == 0 || i == 8) ? 0.0f : rng.range_float(-0.04f, 0.04f) * half;
+		river.push_back({ux * s * half - uz * wob, uz * s * half + ux * wob});
+	}
+	hm.carve_spline_path(river, river_w, 3.0f, water_h);
+	hm.blur(1, 0.4f);
+	for (float f : {0.35f, 0.55f, 0.75f}) {
+		// f from the far (top) end: s = 1 - 2 f.
+		const float s = 1.0f - 2.0f * f;
+		place_ford(hm, ux * s * half, uz * s * half, river_w + 4.0f, water_h);
+	}
+	// Two arcs facing away from the continent's centre, one per bank.
+	spawns.clear();
+	const int sides[2] = {(num_players + 1) / 2, num_players / 2};
+	const float rp = half * 0.70f;
+	const float base_a = rot + 3.14159265f;
+	for (int i = 0; i < num_players; ++i) {
+		const int side = i & 1, k = i / 2, cnt = sides[side];
+		const float off = cnt > 1 ? 0.18f + (0.62f - 0.18f) * (float)k / (float)(cnt - 1) : 0.38f;
+		const float a = base_a + (side ? 1.0f : -1.0f) * off * 3.14159265f;
+		const float sx = ccx + std::cos(a) * rp, sz = ccz + std::sin(a) * rp;
+		const float bh = std::max(water_h + 1.5f, hm.sample_world(sx, sz));
+		const float r = std::max(1e-3f, std::hypot(sx, sz));
+		spawns.push_back({(uint8_t)i, sx, sz, bh, -sx / r, -sz / r});
+		hm.level_area(sx, sz, 14.0f, 6.0f, bh);
+	}
+	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
+}
+
+void RmsGenerator::synth_fields_of_meroe(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// fields_of_meroe.js: the Nile (scaleByMapSize(12, 36) wide) at f = 0.25
+	// across the map, turned by pi/5; two cataracts (shallow passages,
+	// heightCataract -1 with bumps) cross it roughly at right angles near
+	// f = 0.2 and f = 0.8; players placed at random at least 15 from the
+	// river and 30 from each other; sand dunes and acacia groves.
+	water_h = 1.0f;
+	hm.init(hm.res, hm.map_half, 3.0f);
+	const float half = hm.map_half;
+	hm.apply_fbm(rng, 4, 0.03f, 0.5f, 2.0f, 1.0f);
+	const float ra = 3.14159265f / 5.0f;
+	const float dx = -std::sin(ra), dz = std::cos(ra); // along the river
+	const float ox = std::cos(ra) * -0.5f * half, oz = std::sin(ra) * -0.5f * half; // a point on it
+	const float river_w = (float)scale_by_map_size(12, 36, half) * 0.5f;
+	// Dunes (heightDunes 11), raised before the river so it cuts through them.
+	scatter_hills(hm, rng, {}, scale_by_map_size(2, 8, half), half * 0.04f + 2.0f, half * 0.07f + 3.0f, 2.0f, 4.0f, 0.0f);
+	hm.carve_spline_path({{ox - dx * 1.5f * half, oz - dz * 1.5f * half}, {ox, oz}, {ox + dx * 1.5f * half, oz + dz * 1.5f * half}},
+	                     river_w, 3.5f, water_h);
+	hm.blur(1, 0.4f);
+	for (float f : {rng.range_float(-0.7f, -0.5f), rng.range_float(0.5f, 0.7f)})
+		place_ford(hm, ox + dx * f * half, oz + dz * f * half, (float)scale_by_map_size(10, 15, half), water_h);
+	// playerPlacementRandom: rejection-sample positions clear of the river.
+	spawns.clear();
+	auto river_dist = [&](float x, float z) { return std::fabs((x - ox) * dz - (z - oz) * dx); };
+	float min_gap = half * 0.9f;
+	int tries = 0;
+	for (int i = 0; i < num_players && tries < 4000; ++tries) {
+		if (tries > 0 && tries % 200 == 0) min_gap *= 0.85f;
+		const auto p = polar(rng.range_float(0.0f, 6.2831853f), std::sqrt(rng.next_float()) * half * 0.80f);
+		if (river_dist(p.first, p.second) < river_w + 18.0f + 14.0f) continue;
+		bool ok = true;
+		for (const auto &sp : spawns)
+			if (std::hypot(p.first - sp.x, p.second - sp.z) < std::max(30.0f, min_gap)) { ok = false; break; }
+		if (!ok) continue;
+		const float bh = std::max(water_h + 1.5f, hm.sample_world(p.first, p.second));
+		const float r = std::max(1e-3f, std::hypot(p.first, p.second));
+		spawns.push_back({(uint8_t)i, p.first, p.second, bh, -p.first / r, -p.second / r});
+		hm.level_area(p.first, p.second, 14.0f, 6.0f, bh);
+		++i;
+	}
+	// Too crowded for random spots: fall back to a circle on the dry side.
+	if ((int)spawns.size() < num_players)
+		place_ring_spawns(hm, spawns, num_players, half * 0.70f, ra, 6.2831853f, water_h + 1.5f);
+	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
+}
+
 void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid &hm, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config) {
 	(void)config;
 	for (const auto &sp : spawns) {
@@ -1992,6 +2265,8 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 	else if (config.map_type == MAP_KERALA || config.map_type == MAP_AFRICAN_PLAINS) num_groves = num_groves * 4 / 3;
 	else if (config.map_type == MAP_SYRIA || config.map_type == MAP_PERSIAN_HIGHLANDS) num_groves = num_groves * 2 / 3;
 	else if (config.map_type == MAP_VOLCANIC_LANDS) num_groves = num_groves / 2;
+	else if (config.map_type == MAP_DEEP_FOREST) num_groves = num_groves * 3;
+	else if (config.map_type == MAP_INDIA || config.map_type == MAP_FIELDS_OF_MEROE) num_groves = num_groves * 2 / 3;
 
 	// Map-specific landmark resource clusters
 	if (config.map_type == MAP_DANUBIUS) {
@@ -2334,6 +2609,24 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 			break;
 		case MAP_VOLCANIC_LANDS:
 			synth_volcanic_lands(hm, rng, water_h, spawns, config.num_players);
+			break;
+		case MAP_LIONS_DEN:
+			synth_lions_den(hm, rng, water_h, spawns, config.num_players);
+			break;
+		case MAP_HELLS_PASS:
+			synth_hells_pass(hm, rng, water_h, spawns, config.num_players);
+			break;
+		case MAP_DEEP_FOREST:
+			synth_deep_forest(hm, rng, water_h, spawns, config.num_players);
+			break;
+		case MAP_INDIA:
+			synth_india(hm, rng, water_h, spawns, config.num_players);
+			break;
+		case MAP_GUADALQUIVIR_RIVER:
+			synth_guadalquivir_river(hm, rng, water_h, spawns, config.num_players);
+			break;
+		case MAP_FIELDS_OF_MEROE:
+			synth_fields_of_meroe(hm, rng, water_h, spawns, config.num_players);
 			break;
 		case MAP_PELOPONNESE:
 		case MAP_AEGEAN_ARCHIPELAGO:
