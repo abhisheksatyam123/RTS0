@@ -8,7 +8,8 @@
 //  1. grid_res_for_map keeps 2m cells: 64 cells on the default 128m map, 256 on 512m.
 //  2. Every random map type generates at every 0 A.D. size with matching nav and
 //     FoW grids, and paths between town centres stay on the map. On the land
-//     maps modelled on 0 A.D. (Mainland onwards) every base reaches every other.
+//     maps modelled on 0 A.D. (Mainland onwards) every base reaches every other
+//     (by sea on the naval maps).
 //  3. Map JSON loading (reset, then set_map_half) re-initialises the nav grid for
 //     the new extent, so a path across a 256m map reaches its far corner.
 //  4. A unit near the far corner of a Giant map lights up the FoW there.
@@ -18,6 +19,7 @@
 //  6. Stronghold keeps teammates together.
 //  7. Shallow water is walkable and sailable; deep water is ships only.
 //  8. Red Sea and Hellas are painted from 0 A.D.'s heightmap images.
+//  9. English Channel splits the players by sea; Fortress walls every base.
 //  Exit: 0 = PASS, 1 = FAIL.
 #include "simulation/simulation.h"
 #include "simulation/rms_generator.h"
@@ -39,6 +41,45 @@ static int g_failures = 0;
 			++g_failures;                                   \
 		}                                                   \
 	} while (0)
+
+// Whether land (or ship) units at a can reach b, by the nav grid's region
+// labels: find_path itself returns the nearest reachable spot instead of
+// failing (HierarchicalPathfinder MakeGoalReachable). Starts and goals are
+// snapped to a passable cell within 4, as find_path does.
+static std::pair<int, int> snap_cell(const NavGrid &g, std::pair<int, int> c, uint8_t pass) {
+	for (int r = 0; r <= 4; ++r)
+		for (int dy = -r; dy <= r; ++dy)
+			for (int dx = -r; dx <= r; ++dx)
+				if (g.is_passable_for(c.first + dx, c.second + dy, pass)) return {c.first + dx, c.second + dy};
+	return c;
+}
+
+static bool can_reach(const NavGrid &g, float ax, float az, float bx, float bz, uint8_t pass) {
+	const auto a = snap_cell(g, g.world_to_cell(ax, az), pass), b = snap_cell(g, g.world_to_cell(bx, bz), pass);
+	return g.is_passable_for(a.first, a.second, pass) && g.is_passable_for(b.first, b.second, pass) &&
+	       g.reachable(a.first, a.second, b.first, b.second, pass);
+}
+
+// Ship regions bordering the land that units at (x, z) can walk to.
+static std::vector<uint16_t> shore_ship_regions(const NavGrid &g, float x, float z) {
+	const auto s = snap_cell(g, g.world_to_cell(x, z), PASS_INFANTRY);
+	std::vector<uint16_t> out;
+	if (!g.is_passable_for(s.first, s.second, PASS_INFANTRY)) return out;
+	const uint16_t land = g.global_region_at(s.first, s.second, PASS_INFANTRY);
+	for (int y = 0; y < g.res; ++y)
+		for (int cx = 0; cx < g.res; ++cx) {
+			if (!g.is_passable_for(cx, y, PASS_SHIP)) continue;
+			bool shore = false;
+			for (int dy = -1; dy <= 1 && !shore; ++dy)
+				for (int dx = -1; dx <= 1 && !shore; ++dx)
+					shore = g.is_passable_for(cx + dx, y + dy, PASS_INFANTRY) &&
+					        g.global_region_at(cx + dx, y + dy, PASS_INFANTRY) == land;
+			if (!shore) continue;
+			const uint16_t r = g.global_region_at(cx, y, PASS_SHIP);
+			if (std::find(out.begin(), out.end(), r) == out.end()) out.push_back(r);
+		}
+	return out;
+}
 
 static const int kSizes[] = {128, 192, 256, 320, 384, 448, 512};
 
@@ -89,11 +130,19 @@ int main() {
 					float sx = tcs[i].first + 6.0f, sz = tcs[i].second + 6.0f;
 					float tx = tcs[j].first + 6.0f, tz = tcs[j].second + 6.0f;
 					WaypointPath wp;
-					bool reached = sim.nav_grid().find_path(sx, sz, tx, tz, wp, PASS_INFANTRY);
+					sim.nav_grid().find_path(sx, sz, tx, tz, wp, PASS_INFANTRY);
+					const bool reached = can_reach(sim.nav_grid(), sx, sz, tx, tz, PASS_INFANTRY);
 					++paths;
-					// The 0 A.D.-modelled land maps must connect every base on foot.
-					if (mt >= MAP_MAINLAND)
+					// The 0 A.D.-modelled land maps must connect every base on
+					// foot; on naval maps the bases share a sea instead.
+					if (mt >= MAP_MAINLAND && !map_is_naval(mt))
 						CHECK(reached, "%s %d: no land path from base %zu to base %zu", map_type_info(mt).id, size, i, j);
+					if (map_is_naval(mt) && !reached) {
+						const auto ra = shore_ship_regions(sim.nav_grid(), sx, sz), rb = shore_ship_regions(sim.nav_grid(), tx, tz);
+						bool shared = false;
+						for (uint16_t r : ra) shared |= std::find(rb.begin(), rb.end(), r) != rb.end();
+						CHECK(shared, "%s %d: bases %zu and %zu share no sea", map_type_info(mt).id, size, i, j);
+					}
 					if (wp.count >= WaypointPath::MAX_WP - 1) ++truncated;
 					// Island maps are allowed to be unreachable on foot; the path
 					// must still lie inside the map.
@@ -282,6 +331,35 @@ int main() {
 		// The land-ratio checks pick mostly land; heights reach 100 m x (size + 1) / 321.
 		CHECK(land > cells / 2, "hellas %d: only %d of %d cells are land", size, land, cells);
 		CHECK(top > hel.water_height() + 3.0f, "hellas %d: flat (top %.1f)", size, top);
+	}
+
+	// 9. Naval and walled maps.
+	{
+		Simulation sim;
+		sim.generate_random_map(MAP_ENGLISH_CHANNEL, 11, 2, 128.0f);
+		std::vector<std::pair<float, float>> tcs;
+		for (const auto &b : sim.buildings())
+			if (b.type == BLD_TOWN_CENTER) tcs.push_back({b.x + 6.0f, b.z + 6.0f});
+		CHECK(tcs.size() == 2 && !can_reach(sim.nav_grid(), tcs[0].first, tcs[0].second, tcs[1].first, tcs[1].second, PASS_INFANTRY),
+		      "english_channel: the channel can be crossed on foot");
+		Simulation fort;
+		fort.generate_random_map(MAP_FORTRESS, 11, 4, 128.0f);
+		int walls = 0, gates = 0, towers = 0, kinds[BLD_TYPE_COUNT] = {};
+		for (const auto &b : fort.buildings()) {
+			walls += b.type == BLD_WALL_SEGMENT;
+			gates += b.type == BLD_GATE;
+			towers += b.type == BLD_WALL_TOWER;
+			++kinds[b.type];
+		}
+		CHECK(walls >= 4 * 40 && gates == 4 * 4 && towers >= 4 * 8, "fortress: %d walls, %d gates, %d towers", walls, gates, towers);
+		CHECK(kinds[BLD_MARKET] == 4 && kinds[BLD_BARRACKS] == 4 && kinds[BLD_STABLE] == 4 && kinds[BLD_TEMPLE] == 4,
+		      "fortress: each player gets a market, barracks, stable and temple");
+		// The gates (unlocked) let units out of the walls.
+		std::vector<std::pair<float, float>> ftc;
+		for (const auto &b : fort.buildings())
+			if (b.type == BLD_TOWN_CENTER) ftc.push_back({b.x + 6.0f, b.z + 6.0f});
+		CHECK(ftc.size() == 4 && can_reach(fort.nav_grid(), ftc[0].first, ftc[0].second, ftc[1].first, ftc[1].second, PASS_INFANTRY),
+		      "fortress: no way out through the gates");
 	}
 
 	if (g_failures) {

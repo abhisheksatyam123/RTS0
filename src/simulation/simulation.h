@@ -4,6 +4,7 @@
 #include "../core/memory/arena.h"
 #include "../core/memory/soa_storage.h"
 #include "grid_nav.h"
+#include "nav/obstacle_grid.h"
 #include "aura_manager.h"
 #include "petra_ai.h"
 #include "sim_types.h"
@@ -1188,6 +1189,8 @@ private:
 	void petra_set_rushes();
 	void petra_plan_sizes(uint8_t kind);
 	bool petra_raid_target_ok(uint32_t bld_id) const;
+	bool petra_allow_capture(const std::vector<uint32_t> &squad, uint32_t uid, const Building &b) const;
+	void petra_check_captures(const std::vector<uint32_t> &squad, float tx, float tz);
 	bool petra_unit_reserved(uint32_t uid) const;
 
 	std::vector<PetraBase> petra_bases_;
@@ -1311,6 +1314,7 @@ private:
 	};
 	std::vector<SteerObstacle> steer_obstacles_;
 	std::vector<SteerObstacle> sep_obstacles_; // separation()'s list, built the same way
+	nav::ObstacleGrid sep_grid_; // sep_obstacles_ by cell, rebuilt with it
 	// tick_capture()'s count and strength of nearby capturers per building and team, and the grid of
 	// building reach it finds them with. Rebuilt every tick.
 	struct CaptureTally { int count[4]; float strength[4]; };
