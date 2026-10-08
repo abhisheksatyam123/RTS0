@@ -590,16 +590,60 @@ struct NavGrid {
         return (cell_w > 0.0f) ? ((max_h - min_h) / cell_w) : 0.0f;
     }
 
+    // Heightmap sampling results per navcell, kept for the next call. Terrain doesn't change during
+    // a match, but Simulation::rebuild_nav_grid calls set_water_from_heights at every building
+    // completion, and on a 512 map the sampling was most of that rebuild. The cache holds a copy
+    // of the heightmap and the settings the results came from; any bitwise difference recomputes.
+    struct HeightSampleCache {
+        std::vector<float> heights;
+        int h_res = -1, res = -1;
+        float map_half = 0.0f;
+        std::vector<uint8_t> steep; // compute_cell_slope() > steep_max_slope
+        float steep_max_slope = 0.0f;
+        bool steep_valid = false;
+        std::vector<uint8_t> water; // centre height < water_thresh
+        float water_thresh = 0.0f;
+        bool water_valid = false;
+    };
+    HeightSampleCache height_cache_;
+
+    static bool same_bits(float a, float b) { return std::memcmp(&a, &b, sizeof a) == 0; }
+
+    // Drops the cached results unless they came from this heightmap, h_res, res and map_half.
+    void sync_height_cache(const std::vector<float>& heights, int h_res) {
+        HeightSampleCache& c = height_cache_;
+        if (c.h_res == h_res && c.res == res && same_bits(c.map_half, map_half) &&
+            c.heights.size() == heights.size() &&
+            std::memcmp(c.heights.data(), heights.data(), heights.size() * sizeof(float)) == 0)
+            return;
+        c.heights = heights;
+        c.h_res = h_res;
+        c.res = res;
+        c.map_half = map_half;
+        c.steep_valid = false;
+        c.water_valid = false;
+    }
+
     // Computes slopes for all navcells from heightmap, flagging cells exceeding cavalry_max_slope.
     void compute_slopes_from_heights(const std::vector<float>& heights, int h_res) {
         if (heights.empty() || h_res <= 0 || res <= 0) return;
         if (steep_cells_.w != res || steep_cells_.h != res) {
             steep_cells_.resize(res, res, 0);
         }
+        sync_height_cache(heights, h_res);
+        HeightSampleCache& c = height_cache_;
+        if (!c.steep_valid || !same_bits(c.steep_max_slope, cavalry_max_slope)) {
+            c.steep.resize(static_cast<size_t>(res) * static_cast<size_t>(res));
+            for (int y = 0; y < res; ++y)
+                for (int x = 0; x < res; ++x)
+                    c.steep[static_cast<size_t>(y) * res + x] =
+                        (compute_cell_slope(x, y, heights, h_res) > cavalry_max_slope) ? 1 : 0;
+            c.steep_max_slope = cavalry_max_slope;
+            c.steep_valid = true;
+        }
         for (int y = 0; y < res; ++y) {
             for (int x = 0; x < res; ++x) {
-                float slope = compute_cell_slope(x, y, heights, h_res);
-                uint8_t steep = (slope > cavalry_max_slope) ? 1 : 0;
+                uint8_t steep = c.steep[static_cast<size_t>(y) * res + x];
                 if (steep_cells_.at(x, y) != steep) {
                     steep_cells_.at(x, y) = steep;
                     if (!dirty.blank()) dirty.at(x, y) = 1;
@@ -645,13 +689,24 @@ struct NavGrid {
         if (water_h < -0.5f) return;
 
         const float thresh = water_h + 0.3f;
+        sync_height_cache(heights, res);
+        HeightSampleCache& c = height_cache_;
+        if (!c.water_valid || !same_bits(c.water_thresh, thresh)) {
+            c.water.resize(static_cast<size_t>(this->res) * static_cast<size_t>(this->res));
+            for (int y = 0; y < this->res; ++y) {
+                for (int x = 0; x < this->res; ++x) {
+                    // Navcell center in world
+                    float wx = ((static_cast<float>(x) + 0.5f) / static_cast<float>(this->res)) * (map_half * 2.0f) - map_half;
+                    float wz = ((static_cast<float>(y) + 0.5f) / static_cast<float>(this->res)) * (map_half * 2.0f) - map_half;
+                    c.water[static_cast<size_t>(y) * this->res + x] = sample_height_bilinear(wx, wz, heights, res) < thresh;
+                }
+            }
+            c.water_thresh = thresh;
+            c.water_valid = true;
+        }
         for (int y = 0; y < this->res; ++y) {
             for (int x = 0; x < this->res; ++x) {
-                // Navcell center in world
-                float wx = ((static_cast<float>(x) + 0.5f) / static_cast<float>(this->res)) * (map_half * 2.0f) - map_half;
-                float wz = ((static_cast<float>(y) + 0.5f) / static_cast<float>(this->res)) * (map_half * 2.0f) - map_half;
-                float h = sample_height_bilinear(wx, wz, heights, res);
-                if (h < thresh) {
+                if (c.water[static_cast<size_t>(y) * this->res + x]) {
                     if (cells.at(x, y) != NAV_WATER) {
                         cells.at(x, y) = NAV_WATER;
                         dirty.at(x, y) = 1;
