@@ -3026,6 +3026,32 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				return;
 			}
 
+			// 1b. Healers right-clicking an injured own or allied unit heal it (0 A.D. "heal" cursor).
+			{
+				bool any_healer = false;
+				for (size_t k = 0; k < sel_n && !any_healer; ++k) {
+					for (size_t i = 0; i < uview.count; ++i)
+						if (uview.id[i] == sel_ptr[k]) { any_healer = uview.unit_type[i] == UNIT_HEALER; break; }
+				}
+				uint32_t heal_id = 0;
+				float best_hd2 = 2.2f * 2.2f;
+				for (size_t i = 0; any_healer && i < uview.count; ++i) {
+					if (!uview.alive[i] || uview.hp[i] >= uview.max_hp[i]) continue;
+					if (uview.team[i] != local_player() && !sim->is_ally(local_player(), uview.team[i])) continue;
+					const float dx = uview.pos_x[i] - click_pos.x, dz = uview.pos_z[i] - click_pos.z;
+					const float d2 = dx * dx + dz * dz;
+					if (d2 < best_hd2) { best_hd2 = d2; heal_id = uview.id[i]; }
+				}
+				if (heal_id != 0) {
+					if (net_lockstep())
+						post_lockstep(32, sel_ptr, sel_n, 0, 0, heal_id, qbit);
+					else
+						sim->order_heal(sel_ptr, sel_n, heal_id, queue_shift);
+					play_civ_voice("select");
+					return;
+				}
+			}
+
 			// 2. Right click on Enemy Unit (Attack)
 			uint32_t clicked_enemy_id = 0;
 			float best_ed2 = 2.2f * 2.2f;
