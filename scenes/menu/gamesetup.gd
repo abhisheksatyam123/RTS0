@@ -72,6 +72,10 @@ const RMS_MAPS := [
 	["random_volcanic_lands", "Volcanic Lands (RMS)", "Random", 8, 128, "volcanic", "A charred land around a smoking volcano. Supports 2-8 players."],
 ]
 
+# 0 A.D. population limits per player (0 = unlimited) and ceasefire lengths in minutes.
+const POP_CAPS := [[50, "50"], [100, "100"], [150, "150"], [200, "200"], [250, "250"], [300, "300"], [0, "Unlimited"]]
+const CEASEFIRES := [0, 1, 2, 3, 4, 5, 10, 15, 20, 30, 45, 60]
+
 # 0 A.D. map sizes (width in meters) for random maps.
 const MAP_SIZES := [[128, "Tiny (128 m)"], [192, "Small (192 m)"], [256, "Medium (256 m)"],
 	[320, "Normal (320 m)"], [384, "Large (384 m)"], [448, "Very Large (448 m)"], [512, "Giant (512 m)"]]
@@ -345,6 +349,14 @@ func _build_options() -> void:
 	for s in MAP_SIZES:
 		msz.add_item(s[1], s[0])
 	msz.select(0)
+	var pop := _make_option($VBox/HBox/Left/PopCapSlot)
+	for p in POP_CAPS:
+		pop.add_item(p[1])
+	pop.select(3)
+	var cf := _make_option($VBox/HBox/Left/CeasefireSlot)
+	for c in CEASEFIRES:
+		cf.add_item("No ceasefire" if c == 0 else "%d min" % c)
+	cf.select(0)
 	var res := _make_option($VBox/HBox/Left/ResSlot)
 	for r in START_RES:
 		res.add_item(r)
@@ -379,6 +391,13 @@ func _restore_settings() -> void:
 	var beh: RtsoSafeSelect = $VBox/HBox/Left/BehaviorSlot.get_child(0)
 	vic.select(clampi(int(ms.get("victory")), 0, VICTORIES.size() - 1))
 	$VBox/HBox/Left/Waves.button_pressed = bool(ms.get("waves_enabled"))
+	$VBox/HBox/Left/LastManStanding.button_pressed = bool(ms.get("last_man_standing"))
+	var pop: RtsoSafeSelect = $VBox/HBox/Left/PopCapSlot.get_child(0)
+	for i in range(POP_CAPS.size()):
+		if int(POP_CAPS[i][0]) == int(ms.get("pop_cap")):
+			pop.select(i)
+	var cf: RtsoSafeSelect = $VBox/HBox/Left/CeasefireSlot.get_child(0)
+	cf.select(maxi(CEASEFIRES.find(int(ms.get("ceasefire_min"))), 0))
 	var msz: RtsoSafeSelect = $VBox/HBox/Left/MapSizeSlot.get_child(0)
 	for i in range(MAP_SIZES.size()):
 		if int(MAP_SIZES[i][0]) == int(ms.get("map_size")):
@@ -421,6 +440,8 @@ func _collect_setup() -> Dictionary:
 	var res: RtsoSafeSelect = $VBox/HBox/Left/ResSlot.get_child(0)
 	var beh: RtsoSafeSelect = $VBox/HBox/Left/BehaviorSlot.get_child(0)
 	var msz: RtsoSafeSelect = $VBox/HBox/Left/MapSizeSlot.get_child(0)
+	var pop: RtsoSafeSelect = $VBox/HBox/Left/PopCapSlot.get_child(0)
+	var cf: RtsoSafeSelect = $VBox/HBox/Left/CeasefireSlot.get_child(0)
 	var n := int($VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value)
 	_ensure_slot_rows(n)
 	var types: Array = []
@@ -447,6 +468,9 @@ func _collect_setup() -> Dictionary:
 			break
 	return {"map": m, "seed": seed, "victory": vic.get_selected(),
 		"waves": $VBox/HBox/Left/Waves.button_pressed,
+		"lms": $VBox/HBox/Left/LastManStanding.button_pressed,
+		"pop_cap": int(POP_CAPS[maxi(pop.get_selected(), 0)][0]),
+		"ceasefire": int(CEASEFIRES[maxi(cf.get_selected(), 0)]),
 		"map_size": int(MAP_SIZES[maxi(msz.get_selected(), 0)][0]),
 		"res": res.get_selected(), "beh": beh.get_selected(), "diff": diff,
 		"types": types, "civs": civs, "teams": teams,
@@ -475,6 +499,9 @@ func _on_start_pressed() -> void:
 	ms.seed = int(st["seed"])
 	ms.victory = int(st["victory"])
 	ms.waves_enabled = bool(st["waves"])
+	ms.last_man_standing = bool(st["lms"])
+	ms.pop_cap = int(st["pop_cap"])
+	ms.ceasefire_min = int(st["ceasefire"])
 	ms.map_size = int(st["map_size"])
 	ms.ai_difficulty = int(st["diff"])
 	ms.ai_behavior = int(st["beh"])

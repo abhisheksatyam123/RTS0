@@ -8,8 +8,15 @@
 //  2. No village-phase stall: on a continental random map Petra keeps
 //     training workers and researches the town phase (headquarters.js /
 //     researchManager.js checkPhase at Config.Economy.popPhase2).
+//  3. No free income: with no workers Petra earns nothing; difficulty works
+//     through InitGame.js gather-rate and build-time multipliers instead.
+//  4. AI slots: Petra leaves a human slot alone, runs one AI per AI slot, and
+//     AIs on the same team never fight each other.
 //  Exit: 0 = PASS, 1 = FAIL.
+// The ally check reads the sim's death log, which has no public accessor.
+#define private public
 #include "simulation/simulation.h"
+#undef private
 #include <cstdio>
 #include <memory>
 using namespace rtso;
@@ -83,6 +90,27 @@ static int count_buildings(const Simulation &s, uint8_t team) {
 	return n;
 }
 
+// 0 A.D. gives the AI no flat income (InitGame.js "AI Bonus" scales gathering).
+static void test_no_free_income() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(1);
+	s->spawn_initial();
+	s->set_petra_difficulty(PETRA_VERY_HARD);
+	auto &u = s->units_;
+	for (size_t i = 0; i < u.count; ++i)
+		if (u.team[i] == 1) u.alive[i] = false;
+	int before = 0, after = 0;
+	for (uint8_t r = 0; r < RES_COUNT; ++r) before += s->player_resource(1, r);
+	for (float t = 0.0f; t < 30.0f; t += Simulation::FIXED_STEP) s->tick(Simulation::FIXED_STEP);
+	for (uint8_t r = 0; r < RES_COUNT; ++r) after += s->player_resource(1, r);
+	std::printf("  very hard AI with no workers: resources %d -> %d, gather x%.2f, time x%.2f (human x%.2f)\n",
+	            before, after, s->ai_gather_mult(1), s->ai_time_mult(1), s->ai_gather_mult(0));
+	CHECK(after <= before, "no resources without gatherers");
+	CHECK(s->ai_gather_mult(1) > 1.5f && s->ai_gather_mult(0) == 1.0f, "very hard gathers at 1.56x, humans at 1x");
+	s->set_petra_difficulty(PETRA_EASY);
+	CHECK(s->ai_gather_mult(1) == 0.75f && s->ai_time_mult(1) == 1.10f, "easy gathers slower and builds slower");
+}
+
 // Petra runs once per seated AI slot and never for a human slot.
 static void test_ai_slots() {
 	// Two humans: player 1 is seated as a human, so Petra must leave it alone.
@@ -123,12 +151,37 @@ static void test_ai_slots() {
 		CHECK(count_units(*s, 2, true) > w2 + 4, "AI player 2 trains workers");
 		CHECK(count_buildings(*s, 2) > b2 + 2, "AI player 2 builds");
 	}
+	// Human vs two allied AIs: teammates never kill each other's units.
+	{
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(7);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 7, 3, 96.0f);
+		s->set_player_active(0, true, false);
+		s->set_player_active(1, true, true);
+		s->set_player_active(2, true, true);
+		s->set_player_team(1, 5);
+		s->set_player_team(2, 5);
+		s->apply_team_diplomacy();
+		int friendly_kills = 0;
+		size_t seen = 0;
+		for (float t = 0.0f; t < 360.0f && !s->is_game_over(); t += Simulation::FIXED_STEP) {
+			s->tick(Simulation::FIXED_STEP);
+			for (; seen < s->recent_death_head_; ++seen) {
+				const auto &d = s->recent_deaths_[seen % Simulation::MAX_RECENT_DEATHS];
+				if ((d.team == 1 && d.killer_team == 2) || (d.team == 2 && d.killer_team == 1)) ++friendly_kills;
+			}
+		}
+		std::printf("  allied AIs: kills between teammates %d\n", friendly_kills);
+		CHECK(friendly_kills == 0, "AIs on one team never fight each other");
+	}
 }
 
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
 	test_phase_up();
+	test_no_free_income();
 	test_ai_slots();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;

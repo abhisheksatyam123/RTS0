@@ -562,6 +562,31 @@ inline uint8_t building_required_phase(uint8_t type) {
 	}
 }
 
+// 0 A.D. Upgrade component, for the structures RTS0 has both ends of:
+// template_structure_defensive_tower_sentry.xml (<Tower>) and
+// template_structure_defensive_wall_long.xml (<Gate>). iber/sentry_tower.xml
+// overrides the tower's stone cost and time (its wood cost is inherited).
+struct BuildingUpgradeInfo {
+	uint8_t to; // BLD_TYPE_COUNT: this structure has no upgrade
+	int food_cost, wood_cost, gold_cost, stone_cost;
+	float time;             // seconds
+	uint8_t required_phase; // 1 village, 2 town (phase_town), 3 city
+	const char *tooltip;
+};
+
+inline BuildingUpgradeInfo building_upgrade(uint8_t from, uint8_t civ) {
+	switch (from) {
+		case BLD_SENTRY_TOWER:
+			if (civ == CIV_IBERIANS)
+				return {BLD_TOWER, 0, 50, 0, 250, 120.0f, 2, "Reinforce with stone and upgrade to a defense tower."};
+			return {BLD_TOWER, 0, 50, 0, 100, 100.0f, 2, "Reinforce with stone and upgrade to a defense tower."};
+		case BLD_WALL_SEGMENT:
+			return {BLD_GATE, 0, 20, 0, 0, 12.0f, 1, "Allow units access through Walls. Can be locked to prevent access."};
+		default:
+			return {BLD_TYPE_COUNT, 0, 0, 0, 0, 0.0f, 1, nullptr};
+	}
+}
+
 // 0 A.D. VisibleClasses "Village" (1) / "Town" (2): the structures that count
 // toward phase_town_generic (five Village) and phase_city_generic (three Town).
 // Civic centres, fields, towers and walls count toward neither.
@@ -611,7 +636,7 @@ enum TechStat : uint8_t {
 	TSTAT_RANGED_HACK, TSTAT_RANGED_PIERCE, TSTAT_RANGED_CRUSH,
 	TSTAT_ARMOR_HACK, TSTAT_ARMOR_PIERCE, TSTAT_ARMOR_CRUSH,
 	TSTAT_HEALTH, TSTAT_SPEED, TSTAT_POP_BONUS, TSTAT_TRADE_GAIN, TSTAT_RANGE,
-	TSTAT_BUILD_TIME, TSTAT_HEAL_RANGE, TSTAT_HEAL_INTERVAL, TSTAT_ARROWS,
+	TSTAT_BUILD_TIME, TSTAT_RESEARCH_TIME, TSTAT_HEAL_RANGE, TSTAT_HEAL_INTERVAL, TSTAT_ARROWS,
 	TSTAT_COUNT
 };
 
@@ -748,7 +773,9 @@ enum CivRosterFlag : uint8_t {
 	ROSTER_CHAMPION = 2,
 	ROSTER_RANGED = 4,
 	ROSTER_CITIZEN = 8,
-	ROSTER_MERCENARY = 16
+	ROSTER_MERCENARY = 16,
+	ROSTER_PACKABLE = 32, // 0 A.D. Pack component (10 s to pack or unpack)
+	ROSTER_SIEGE_TOWER = 64
 };
 
 inline constexpr uint16_t civ_bit(uint8_t civ) { return (civ < 16) ? (uint16_t)(1u << civ) : 0u; }
@@ -840,6 +867,7 @@ struct CivUnitTemplate {
 	float train_time;
 	int16_t carry_capacity;
 	int16_t auras[3]; // index into civ_hero_aura_table(), -1 = none
+	uint8_t unlock_tech; // TechnologyId from 0 A.D. Identity/Requirements (unlock_champion_*), or TECH_NONE
 };
 
 #include "civ_roster_data.h"
@@ -939,7 +967,8 @@ inline uint16_t civ_default_template(uint8_t civ, uint8_t type) {
 				int best_score = 1 << 30;
 				for (uint16_t i = civ_roster_begin(c); i < civ_roster_end(c); ++i) {
 					const CivUnitTemplate &u = civ_unit_template(i);
-					if (u.unit_type != t) continue;
+					// Siege towers share the bolt shooter's class but are only trained by name.
+					if (u.unit_type != t || (u.flags & ROSTER_SIEGE_TOWER)) continue;
 					int score = u.phase * 4;
 					if (u.flags & ROSTER_HERO) score += 100;
 					if (u.flags & ROSTER_CHAMPION) score += 20;
@@ -1027,7 +1056,8 @@ inline uint32_t civ_train_mask(uint8_t civ) {
 		CivTrainMasks out{};
 		for (uint8_t c = 0; c < CIV_COUNT; ++c)
 			for (uint16_t i = civ_roster_begin(c); i < civ_roster_end(c); ++i)
-				out.mask[c] |= unit_bit(civ_unit_template(i).unit_type);
+				if (!(civ_unit_template(i).flags & ROSTER_SIEGE_TOWER))
+					out.mask[c] |= unit_bit(civ_unit_template(i).unit_type);
 		return out;
 	}();
 	if (civ >= CIV_COUNT) civ = CIV_ATHENIANS;

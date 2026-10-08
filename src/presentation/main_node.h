@@ -128,6 +128,11 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	HBoxContainer *production_bar = nullptr;
 	HBoxContainer *queue_bar = nullptr;
 	Label *command_title = nullptr;
+	// Every civ roster unit and hero the selected building trains (0 A.D. names,
+	// costs after team bonuses), above the command panel. Rebuilt only when
+	// roster_list_key_ changes so hover and tooltips survive between frames.
+	ItemList *roster_list = nullptr;
+	uint64_t roster_list_key_ = ~0ull;
 
 	RtsoProductionQueue production_queue_;
 
@@ -214,8 +219,10 @@ public:
 	void _on_stance_selected(int stance);
 	void _on_formation_selected(int formation);
 	void _on_train_pressed(int utype);
+	void _on_roster_item_clicked(int index, Vector2 at, int mouse_button);
 	void _on_build_btn_pressed(int btype);
 	void _on_tech_pressed(int tech_id);
+	void _on_upgrade_pressed(int cancel);
 	void _on_map_selected(int index);
 	void _on_civ_selected(int index);
 	void _on_ai_diff_selected(int index);
@@ -304,6 +311,8 @@ private:
 	void enter_build_mode(bool enable, uint8_t btype = rtso::BLD_HOUSE);
 	void update_ghost_mesh();
 	void try_train_unit(rtso::UnitType utype);
+	void try_train_template(uint32_t building_id, uint16_t tmpl);
+	void update_roster_list(const rtso::Simulation::Building *b);
 	void cycle_idle_worker();
 	void play_voice(const char *path);
 	void play_civ_voice(const char *action);

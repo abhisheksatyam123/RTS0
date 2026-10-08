@@ -145,6 +145,8 @@ public:
 	// falls back to the Petra AI's grid when Petra plays it, and others to
 	// all-unexplored.
 	const uint8_t* fow_grid(uint8_t player = 0) const {
+		// A defeated player observes: the whole map is revealed (0 A.D. parity).
+		if (player < MAX_PLAYERS && ((defeated_mask_ >> player) & 1)) return revealed_fow_.data();
 		if (player == 0 || player >= MAX_PLAYERS) return fow_grid_.data();
 		if (player_fow_[player].size() == fow_grid_.size()) return player_fow_[player].data();
 		if (player == PETRA_PLAYER && petra_runs_for(PETRA_PLAYER)) return petra_fow_.data();
@@ -171,7 +173,7 @@ public:
 		int cell_x, cell_y;
 		int footprint; // 1 or 2
 		float attack_timer; // for defensive arrows
-		bool is_burning; // Structure fire under 33% HP
+		bool is_burning = false; // Structure fire under 33% HP
 
 		// Multi-slot production queue
 		std::vector<ProductionOrder> queue;
@@ -200,6 +202,13 @@ public:
 		float capture_regen_rate;
 		float capture_garrison_regen_rate;
 		float territory_decay_rate;
+
+		// 0 A.D. Upgrade.js: the structure this one is turning into
+		// (BLD_TYPE_COUNT = not upgrading) and the resources paid for it.
+		uint8_t upgrade_to = BLD_TYPE_COUNT;
+		float upgrade_timer = 0.0f;
+		float upgrade_duration = 0.0f;
+		std::array<float, RES_COUNT> upgrade_paid{};
 	};
 
 	Simulation();
@@ -258,6 +267,8 @@ public:
 		terrain_res_ = res;
 		terrain_water_height_ = water_h;
 		fow_cell_height_.clear();
+		fow_cell_hmax_.clear();
+		fow_block_hmax_.clear();
 	}
 	void set_map_info(const std::string &id, const std::string &name, const std::string &biome) {
 		current_map_id_ = id;
@@ -322,6 +333,36 @@ public:
 	// Legacy wave-defense mode: enemy waves every 35s, survive wave 5 to win. Off by default.
 	bool waves_enabled() const { return waves_enabled_; }
 	void set_waves_enabled(bool on) { waves_enabled_ = on; }
+	// 0 A.D. "Last Man Standing": allies don't share a win; the match goes on until one player is left.
+	bool last_man_standing() const { return last_man_standing_; }
+	void set_last_man_standing(bool on) { last_man_standing_ = on; }
+	// 0 A.D. population limit per player (game setup); 0 means unlimited.
+	int pop_cap() const { return pop_cap_; }
+	void set_pop_cap(int cap) { pop_cap_ = std::max(0, cap); }
+	// 0 A.D. ceasefire: no player can attack another for the first N seconds of the match.
+	float ceasefire_seconds() const { return ceasefire_seconds_; }
+	void set_ceasefire_seconds(float s) { ceasefire_seconds_ = std::max(0.0f, s); }
+	float ceasefire_remaining() const { return std::max(0.0f, ceasefire_seconds_ - (float)ticks_ * FIXED_STEP); }
+	bool ceasefire_active() const { return ceasefire_remaining() > 0.0f; }
+	// Whether a unit or structure of player a may attack one of player b right now.
+	bool can_attack(uint8_t a, uint8_t b) const { return !ceasefire_active() && is_hostile(a, b); }
+	// Player 0's side for victory: itself, game-setup teammates, and mutual diplomatic allies.
+	bool is_ally_of_player0(uint8_t pid) const { return pid == 0 || same_team(0, pid) || is_mutual_ally(pid); }
+	// Match result from pid's seat: pid is one of the winners once the match has ended.
+	bool is_victory_for(uint8_t pid) const {
+		if (!victory_ && !game_over_) return false;
+		if (winner_mask_ || game_over_) return pid < MAX_PLAYERS && ((winner_mask_ >> pid) & 1);
+		return victory_ == is_ally_of_player0(pid); // wave win set without a mask
+	}
+	// 0 A.D. Player.js "defeated": a player out of the match. The match goes on until
+	// one side (or, under Last Man Standing, one player) is left; the defeated watch.
+	bool is_defeated(uint8_t pid) const { return pid < MAX_PLAYERS && ((defeated_mask_ >> pid) & 1); }
+	uint8_t defeated_mask() const { return defeated_mask_; }
+	uint8_t winner_mask() const { return winner_mask_; }
+	// Players that have held units or structures this match (only they can be defeated).
+	uint8_t participant_mask() const { return participant_mask_; }
+	// pid and every participant allied with it, or pid alone under Last Man Standing.
+	uint8_t side_of(uint8_t pid) const;
 
 	// Battle Alerts (AlertRaiser.js)
 	void raise_alert(BattleAlert::Type type, float x, float z, uint32_t entity_id, uint8_t team = 0);
@@ -329,6 +370,17 @@ public:
 	void clear_alerts() { pending_alerts_.clear(); }
 
 	bool cmd_research(uint8_t player, uint32_t building_id, uint8_t tech_id);
+	// 0 A.D. Upgrade.js: turn a finished structure into building_upgrade()'s
+	// target in place, keeping its health fraction, capture share and garrison.
+	enum UpgradeCheck : uint8_t {
+		UPGRADE_OK = 0, UPGRADE_ERR_NONE, UPGRADE_ERR_OWNER, UPGRADE_ERR_BUSY, UPGRADE_ERR_PHASE, UPGRADE_ERR_COST
+	};
+	UpgradeCheck upgrade_check(uint8_t player_id, uint32_t building_id) const;
+	bool cmd_upgrade_building(uint8_t player_id, uint32_t building_id);
+	// Stops an upgrade in progress and refunds what was paid (Upgrade.js CancelUpgrade).
+	bool cmd_cancel_upgrade(uint8_t player_id, uint32_t building_id);
+	// Maximum hit points of a `type` structure owned by `team`: template x civ bonus x techs.
+	float structure_max_hp(uint8_t type, uint8_t team) const;
 	bool cmd_barter(uint8_t player, ResourceType sell, ResourceType buy, int amount = 100);
 	bool cmd_set_diplomacy(uint8_t player_id, uint8_t target, uint8_t stance);
 	// G3 Market/Trader
@@ -444,6 +496,16 @@ public:
 		TECH_ERR_PHASE, TECH_ERR_PREREQUISITE, TECH_ERR_STRUCTURES, TECH_ERR_BUILDING, TECH_ERR_COST
 	};
 	ResearchCheck research_check(uint8_t player_id, uint8_t tech_id, uint32_t building_id = 0) const;
+	// 0 A.D. Heal/Range and Heal/Interval after the player's technologies.
+	float healer_range(uint8_t player_id) const;
+	float healer_rate(uint8_t player_id) const; // hit points per second
+	// 0 A.D. unlock_champion_* / unlock_civilians_house_*: a unit the owner's
+	// civ gates behind an unlock technology can only be trained once it is in.
+	// With `tmpl` (a roster row) the row's own 0 A.D. unlock tech decides.
+	uint8_t train_unlock_tech(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
+			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE) const;
+	bool can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
+			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE) const;
 	// 0 A.D. phase_town / phase_city requirement: finished Village (1) or Town (2) class structures.
 	int phase_structures(uint8_t player_id, uint8_t phase) const;
 	bool unit_has_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.has_order[idx]; }
@@ -598,6 +660,10 @@ public:
 	}
 	// True when Petra drives this player: seated active AI slots, or player 1 when no slot is seated.
 	bool petra_runs_for(uint8_t pid) const;
+	// InitGame.js "AI Bonus": Petra players gather and trade at the difficulty's
+	// rate and build, train and research at its time multiplier; 1 for humans.
+	float ai_gather_mult(uint8_t pid) const { return petra_runs_for(pid) ? petra_config_.gather_rate : 1.0f; }
+	float ai_time_mult(uint8_t pid) const { return petra_runs_for(pid) ? petra_config_.build_time : 1.0f; }
 	uint8_t petra_difficulty() const { return petra_config_.difficulty; }
 	uint8_t petra_behavior() const { return petra_config_.behavior; }
 	const PetraConfig &petra_config() const { return petra_config_; }
@@ -690,11 +756,18 @@ private:
 		float speed[UNIT_TYPE_COUNT];
 		float range[UNIT_TYPE_COUNT];
 		float armor[UNIT_TYPE_COUNT][3]; // hack, pierce, crush
+		float train_time[UNIT_TYPE_COUNT];
+		float heal_range[UNIT_TYPE_COUNT];    // added metres
+		float heal_interval[UNIT_TYPE_COUNT]; // < 1 heals faster
+		float trade_gain[UNIT_TYPE_COUNT];
 		float bld_health[BLD_TYPE_COUNT];
 		float bld_attack[BLD_TYPE_COUNT];
 		float bld_range[BLD_TYPE_COUNT];
 		float bld_build_time[BLD_TYPE_COUNT];
+		float bld_research_time[BLD_TYPE_COUNT];
 		float bld_pop_bonus[BLD_TYPE_COUNT];
+		float bld_arrow_mul[BLD_TYPE_COUNT];
+		float bld_arrow_add[BLD_TYPE_COUNT];
 	};
 	void compute_tech_mods(uint8_t player_id, TechMods &out) const;
 	void rebuild_all_tech_mods();
@@ -712,6 +785,9 @@ private:
 	void tick_repair(float dt);
 	void tick_production(float dt);
 	void tick_research(float dt);
+	void tick_upgrades(float dt);
+	void cancel_upgrade(Building &b, uint8_t refund_to);
+	void finish_upgrade(Building &b);
 	void tick_barter(float dt);
 	void tick_trickle(float dt);
 	void tick_upkeep(float dt);
@@ -776,6 +852,9 @@ private:
 	bool has_active_wonder_ = false;
 	VictoryCondition victory_condition_ = VICTORY_CONQUEST;
 	bool waves_enabled_ = false;
+	bool last_man_standing_ = false;
+	int pop_cap_ = 200;
+	float ceasefire_seconds_ = 0.0f;
 	float relic_victory_timer_ = 0.0f;
 	std::vector<BattleAlert> pending_alerts_;
 	float last_alert_time_[6] = {};
@@ -806,9 +885,8 @@ private:
 	// Player Petra is currently thinking for. tick_petra_ai sets it for each AI
 	// slot in turn and leaves it at PETRA_PLAYER between ticks.
 	uint8_t petra_pid_ = PETRA_PLAYER;
-	// Hostile to the AI being run: another player not on its team.
-	bool petra_foe(int t) const { return t >= 0 && t < MAX_PLAYERS && !same_team(petra_pid_, (uint8_t)t); }
-	float passive_timer_ = 0.0f;
+	// Hostile to the AI being run (is_hostile: teams, then its own stance).
+	bool petra_foe(int t) const { return t >= 0 && t < MAX_PLAYERS && is_hostile(petra_pid_, (uint8_t)t); }
 	float rate_window_timer_ = 0.0f;
 	float barter_timer_ = 0.0f;
 	float upkeep_timer_ = 0.0f;
@@ -834,6 +912,10 @@ private:
 	int wave_number_ = 0;
 	bool game_over_ = false;
 	bool victory_ = false;
+	uint8_t participant_mask_ = 0; // save v10
+	uint8_t defeated_mask_ = 0;
+	uint8_t winner_mask_ = 0;
+	float wonder_hold_[MAX_PLAYERS] = {}; // seconds each player has held a finished wonder
 
 	MatchRecord record_;
 
@@ -949,6 +1031,7 @@ private:
 	uint8_t fow_viewer_ = 0;
 	std::array<std::vector<uint8_t>, MAX_PLAYERS> player_fow_; // per-player FoW for players 1..7 (index 0 unused: fow_grid_)
 	std::vector<uint8_t> unexplored_fow_ = std::vector<uint8_t>((size_t)MAX_GRID_RES * MAX_GRID_RES, 0);
+	std::vector<uint8_t> revealed_fow_ = std::vector<uint8_t>((size_t)MAX_GRID_RES * MAX_GRID_RES, FOW_VISIBLE);
 
 	// Per-AI Petra state. The petra_* members above hold the state of the AI being
 	// run (PETRA_PLAYER between ticks); every other AI slot's state is parked here
@@ -971,10 +1054,32 @@ private:
 	void petra_swap_slot(uint8_t pid);
 	void petra_reset_ai_state();
 	std::vector<float> fow_cell_height_; // terrain height at each FoW cell centre, lazily filled by tick_fow
+	std::vector<float> fow_cell_hmax_; // highest heightmap sample an LOS ray can read in each FoW cell, filled with fow_cell_height_
+	static constexpr int FOW_LOS_BLOCK = 4; // FoW cells per side of a fow_block_hmax_ block
+	std::vector<float> fow_block_hmax_; // fow_cell_hmax_ max per block, filled with fow_cell_height_
 	NavGrid nav_grid_; // Phase1: SoA nav mesh (buildings + water), mirrors 0AD Grid<NavcellData>
 	Grid<uint8_t> territory_grid_; // grid_res_^2 player id per cell, G2 (CCmpTerritoryManager)
 	Grid<uint8_t> influence_grid_; // grid_res_^2 influence count per cell, G2
+	// rebuild_territory()'s inputs the last time it filled the grids: territory roots in buildings_
+	// order, the grid size and the map extent. Same inputs, same grids, so the 1 Hz refresh skips.
+	struct TerritoryRoot {
+		float x, z, radius;
+		uint8_t team;
+		bool operator==(const TerritoryRoot &) const = default;
+	};
+	std::vector<TerritoryRoot> territory_roots_, territory_roots_scratch_;
+	int territory_roots_res_ = 0;
+	float territory_roots_half_ = 0.0f;
 	std::vector<WaypointPath> unit_paths_; // per-unit path (UNIT_CAP), SoA waypoint_cur/count sync
+	// move_units' copy of the buildings that block movement, in buildings_ order, with only the
+	// fields nav/building_steering.h reads, so its per-unit scans read a short packed list.
+	struct SteerObstacle {
+		uint32_t id;
+		float x, z, half_size;
+		uint8_t type;
+		bool wrecked;
+	};
+	std::vector<SteerObstacle> steer_obstacles_;
 	AuraManager aura_mgr_; // G4: unified aura sources (AuraManager)
 	float fow_timer_ = 0.0f;
 	float territory_timer_ = 0.0f;
