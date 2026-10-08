@@ -3395,6 +3395,13 @@ void RtsoMain::apply_match_settings() {
 	for (int i = 0; i < slot_types.size() && i < rtso::MAX_PLAYERS; ++i)
 		if ((int)slot_types[i] != 2) seats = i + 1;
 	random_map_players = std::max(2, seats);
+	{
+		Array slot_teams_arr = ms->get("slot_teams");
+		for (int i = 0; i < rtso::MAX_PLAYERS; ++i) {
+			const int tm = i < slot_teams_arr.size() ? (int)slot_teams_arr[i] : 0;
+			random_map_teams[i] = (uint8_t)((tm >= 1 && tm <= 8) ? tm : 0);
+		}
+	}
 	if (!load_map_seeded(map_id, seed)) {
 		UtilityFunctions::printerr("[RtsoMain] GameSetup map failed: ", map_id, " - default arena.");
 		if (civ >= 0 && civ < rtso::CIV_COUNT) sim->set_player_civ((uint8_t)civ);
@@ -3566,7 +3573,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			if (map_id == id || map_id == "random_" + id) { mtype = (rtso::MapType)t; break; }
 		}
 
-		sim->generate_random_map(mtype, seed, num_p, (float)random_map_size * 0.5f);
+		sim->generate_random_map(mtype, seed, num_p, (float)random_map_size * 0.5f, random_map_teams);
 		view->rebuild_terrain(sim);
 
 		if (cam_rig) {
@@ -3962,6 +3969,8 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	random_map_players = 2;
 	for (uint8_t i = 0; i < setup.slot_count && i < rtso::MAX_PLAYERS; ++i)
 		if (setup.slot_types[i] != 'x') random_map_players = std::max(random_map_players, (int)i + 1);
+	for (uint8_t i = 0; i < rtso::MAX_PLAYERS; ++i)
+		random_map_teams[i] = (i < setup.slot_count && setup.teams[i] >= 1 && setup.teams[i] <= 8) ? setup.teams[i] : 0;
 	if (!load_map_seeded(String(setup.map_id.c_str()), setup.seed)) {
 		if (lobby_status) lobby_status->set_text("GameStart failed: map regen failed");
 		return;
