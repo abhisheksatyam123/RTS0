@@ -1276,7 +1276,7 @@ void RtsoMain::update_cursor() {
 				auto fv = sim->fauna();
 				for (size_t f = 0; f < fv.count && !*want; ++f) {
 					if (!fv.alive[f] || !near2(fv.pos_x[f], fv.pos_z[f], 2.5f)) continue;
-					want = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic ? "action-herd" : "action-gather-meat";
+					want = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic() && fv.behavior[f] != rtso::FAUNA_CORRALLED ? "action-herd" : "action-gather-meat";
 				}
 			}
 			if (!*want) {
