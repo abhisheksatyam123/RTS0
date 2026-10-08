@@ -758,9 +758,16 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	else if (std::strcmp(minfo.biome, "desert") == 0 || std::strcmp(minfo.biome, "persia") == 0) cfg.biome = BIOME_OASIS;
 	else if (std::strcmp(minfo.biome, "volcanic") == 0) cfg.biome = BIOME_STEPPE;
 	else cfg.biome = BIOME_AEGEAN;
+	if (biome_override_ >= 0) cfg.biome = (BiomeType)biome_override_;
 
 	set_sim_seed(seed);
 	RmsGenerator::generate(*this, cfg);
+	if (biome_override_ >= 0) {
+		// The ground textures follow the chosen biome too (Assets::apply_terrain_biome).
+		static const char *kBiomeNames[BIOME_COUNT] = {"aegean", "latium", "alpine", "oasis", "temperate",
+				"steppe", "savanna", "polar", "india"};
+		current_map_biome_ = kBiomeNames[biome_override_];
+	}
 	rebuild_nav_grid();
 	rebuild_territory();
 }
