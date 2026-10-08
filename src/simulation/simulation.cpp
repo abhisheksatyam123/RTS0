@@ -5972,9 +5972,15 @@ void Simulation::petra_manage_military_production(float dt) {
 		return a.score > b.score;
 	});
 
+	// A siege tower we cannot pay for yet holds the siege slot: cheaper siege
+	// engines don't take it in the meantime (queueManager waits for its plan).
+	bool siege_waiting = false;
 	for (const auto &opt : options) {
 		if (pop_current(petra_pid_) >= pop_max(petra_pid_)) break;
+		const bool siege_opt = is_siege(civ_unit_template(opt.tmpl).unit_type);
+		if (siege_opt && siege_waiting) continue;
 		if (petra_train_template(PETRA_QUEUE_MILITARY, opt.bld_id, opt.tmpl)) break;
+		if (is_tower(opt.tmpl)) siege_waiting = true;
 	}
 }
 
@@ -6401,7 +6407,43 @@ void Simulation::petra_manage_trading(float dt) {
 		}
 	}
 
-	if (market_count == 0) {
+	// Allied markets we could trade with (tradeManager.js counts allies' markets as route ends).
+	std::vector<const Building *> ally_markets;
+	for (const auto &b : buildings_)
+		if (b.team != petra_pid_ && b.type == BLD_MARKET && b.team < MAX_PLAYERS && is_ally(petra_pid_, b.team) &&
+		    can_trade_at(petra_pid_, b))
+			ally_markets.push_back(&b);
+
+	if (market_count == 0 && !ally_markets.empty()) {
+		// findMarketLocation: in our territory, as far as we can get from the
+		// allied market we would trade with (the gain grows with distance).
+		float base_x = 36.0f, base_z = 36.0f;
+		if (const auto *pbase = get_primary_petra_base()) {
+			base_x = pbase->x; base_z = pbase->z;
+		}
+		const int start_cx = (int)(base_x / GRID), start_cz = (int)(base_z / GRID);
+		int best_cx = 0, best_cz = 0;
+		float best_d2 = -1.0f;
+		for (int dx = -14; dx <= 14; ++dx) {
+			for (int dz = -14; dz <= 14; ++dz) {
+				if (std::abs(dx) < 4 && std::abs(dz) < 4) continue;
+				const int cx = start_cx + dx, cz = start_cz + dz;
+				const float wx = cx * GRID, wz = cz * GRID;
+				if (territory_owner_at(wx, wz) != petra_pid_ || !petra_can_place(cx, cz, 2) ||
+				    !is_position_safe(wx, wz, 6.0f)) continue;
+				float far2 = 0.0f;
+				for (const Building *m : ally_markets)
+					far2 = std::max(far2, (m->x - wx) * (m->x - wx) + (m->z - wz) * (m->z - wz));
+				if (far2 > best_d2) { best_d2 = far2; best_cx = cx; best_cz = cz; }
+			}
+		}
+		if (best_d2 >= 0.0f && petra_try_pay(PETRA_QUEUE_TRADE, 0.0f, 200.0f, 100.0f, 0.0f)) {
+			uint32_t bid = spawn_building(best_cx, best_cz, BLD_MARKET, petra_pid_, 0.0f);
+			auto idle_workers = get_idle_workers(petra_pid_);
+			if (!idle_workers.empty())
+				order_build_or_repair(idle_workers.data(), std::min((size_t)3, idle_workers.size()), bid);
+		}
+	} else if (market_count == 0) {
 		float base_x = 36.0f, base_z = 36.0f;
 		if (const auto *pbase = get_primary_petra_base()) {
 			base_x = pbase->x; base_z = pbase->z;
@@ -6427,7 +6469,7 @@ void Simulation::petra_manage_trading(float dt) {
 				}
 			}
 		}
-	} else if (market_count == 1 && petra_bases_.size() >= 2) {
+	} else if (market_count == 1 && ally_markets.empty() && petra_bases_.size() >= 2) {
 		// Build secondary market at forward base to establish optimal trade route
 		const PetraBase &fwd = petra_bases_[1];
 		int start_cx = (int)(fwd.x / GRID);
@@ -6465,26 +6507,53 @@ void Simulation::petra_manage_trading(float dt) {
 	if (petra_ps().phase >= 3) target_traders += 1;
 	// Traders need two markets to trade between (own or allied); without a route they would idle.
 	if (ai_traders < target_traders && !market_ids.empty() && has_trade_route(petra_pid_) && pop_current(petra_pid_) < pop_max(petra_pid_)) {
-		const UnitTypeInfo &tinfo = civ_unit_info(civ_of(petra_pid_), UNIT_TRADER);
-		if (petra_try_pay(PETRA_QUEUE_TRADE, (float)tinfo.food_cost, (float)tinfo.wood_cost, 0.0f, 0.0f)) {
-			auto bit = building_id_to_idx_.find(market_ids[0]);
-			if (bit != building_id_to_idx_.end() && buildings_[bit->second].queue.size() < 3) {
-				ProductionOrder order;
-				order.unit_type = UNIT_TRADER;
-				order.timer = 0.0f;
-				order.duration = tinfo.train_time * 0.75f * tech_mods(petra_pid_).train_time[UNIT_TRADER] * ai_time_mult(petra_pid_);
-				buildings_[bit->second].queue.push_back(order);
-			}
-		}
+		const uint16_t tmpl = civ_default_template(civ_of(petra_pid_), UNIT_TRADER);
+		auto bit = building_id_to_idx_.find(market_ids[0]);
+		if (tmpl != CIV_UNIT_TEMPLATE_NONE && bit != building_id_to_idx_.end() && buildings_[bit->second].queue.size() < 3)
+			petra_train_template(PETRA_QUEUE_TRADE, market_ids[0], tmpl);
 	}
 
-	// 3. Dispatch Idle Traders on Active Trade Routes
+	// 3. tradeManager.js checkRoutes: the best route starts at one of our
+	// markets and ends at ours or an ally's, scored by what we earn per leg:
+	// the trader's gain plus the 20% international bonus our market gets on a
+	// route with an ally.
+	auto building_of = [&](uint32_t id) -> const Building * {
+		auto it = building_id_to_idx_.find(id);
+		return it == building_id_to_idx_.end() ? nullptr : &buildings_[it->second];
+	};
+	auto route_gain = [&](const Building &m1, const Building &m2) {
+		const TradeGain g = calculate_trade_gain(m1, m2, petra_pid_);
+		return g.trader + (m1.team == petra_pid_ ? g.market1 : 0) + (m2.team == petra_pid_ ? g.market2 : 0);
+	};
+	const Building *best_a = nullptr, *best_b = nullptr;
+	int best_gain = 0;
+	for (const auto &m1 : buildings_) {
+		if (m1.team != petra_pid_ || !can_trade_at(petra_pid_, m1)) continue;
+		for (const auto &m2 : buildings_) {
+			if (&m2 == &m1 || !can_trade_at(petra_pid_, m2)) continue;
+			if (m2.team != petra_pid_ && !is_ally(petra_pid_, m2.team)) continue;
+			const int gain = route_gain(m1, m2);
+			if (gain > best_gain) { best_gain = gain; best_a = &m1; best_b = &m2; }
+		}
+	}
+	if (!best_a) return;
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.unit_type[i] != UNIT_TRADER) continue;
 		uint32_t uid = units_.id[i];
-		if (units_.action_state[i] == ACTION_IDLE || trader_routes_.find(uid) == trader_routes_.end()) {
-			order_trade_auto(&uid, 1);
+		auto rt = trader_routes_.find(uid);
+		bool reassign = units_.action_state[i] == ACTION_IDLE || rt == trader_routes_.end();
+		if (!reassign) {
+			const Building *a = building_of(rt->second.first), *b = building_of(rt->second.second);
+			// Move to a clearly better route (an ally's market further away).
+			reassign = !a || !b || !can_trade_at(petra_pid_, *a) || !can_trade_at(petra_pid_, *b) ||
+			           (float)route_gain(*a, *b) < 0.8f * (float)best_gain;
 		}
+		if (!reassign) continue;
+		const Building *a = best_a, *b = best_b;
+		const float px = units_.pos_x[i], pz = units_.pos_z[i];
+		if ((b->x - px) * (b->x - px) + (b->z - pz) * (b->z - pz) < (a->x - px) * (a->x - px) + (a->z - pz) * (a->z - pz))
+			std::swap(a, b); // start at the nearer end
+		order_trade(&uid, 1, a->id, b->id);
 	}
 }
 
