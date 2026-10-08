@@ -98,7 +98,11 @@ enum MapType : uint8_t {
 	MAP_INDIA = 42,
 	MAP_GUADALQUIVIR_RIVER = 43,
 	MAP_FIELDS_OF_MEROE = 44,
-	MAP_TYPE_COUNT = 45
+	MAP_GEAR = 45,
+	MAP_ATLAS_MOUNTAINS = 46,
+	MAP_FRONTIER = 47,
+	MAP_WILD_LAKE = 48,
+	MAP_TYPE_COUNT = 49
 };
 
 struct MapTypeInfo {
@@ -156,7 +160,11 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_DEEP_FOREST, "deep_forest", "Deep Forest (RMS)", "temperate", true, "A deep dark forest in Germania, crossed by paths between the bases and a central hill."},
 		{MAP_INDIA, "india", "India (RMS)", "india", true, "Parched central India before the monsoon; only one large, half dried-up lake remains."},
 		{MAP_GUADALQUIVIR_RIVER, "guadalquivir_river", "Guadalquivir River (RMS)", "mediterranean", true, "Players on the Mediterranean shore, split by a river with three shallow crossings."},
-		{MAP_FIELDS_OF_MEROE, "fields_of_meroe", "Fields of Meroe (RMS)", "savanna", true, "Kush's heartland by the Nile, crossed at two cataracts, with dunes and acacia groves."}
+		{MAP_FIELDS_OF_MEROE, "fields_of_meroe", "Fields of Meroe (RMS)", "savanna", true, "Kush's heartland by the Nile, crossed at two cataracts, with dunes and acacia groves."},
+		{MAP_GEAR, "gear", "Gear (RMS)", "temperate", true, "A land with waterways laid out like a spider web round a central lake and island."},
+		{MAP_ATLAS_MOUNTAINS, "atlas_mountains", "Atlas Mountains (RMS)", "desert", true, "A rugged North African land with little room for buildings and scarce wood."},
+		{MAP_FRONTIER, "frontier", "Frontier (RMS)", "temperate", true, "A wild, unknown landscape of random hills, plateaus and lakes awaits rival explorers."},
+		{MAP_WILD_LAKE, "wild_lake", "Wild Lake (RMS)", "temperate", true, "Rough wild terrain round a lake, with about a fifth of the land under water."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
