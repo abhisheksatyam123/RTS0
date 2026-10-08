@@ -499,6 +499,11 @@ void RtsoMain::_ready() {
 	lobby_port->set_text("20595");
 	lobby_port->set_custom_minimum_size(Vector2(70, 0));
 	rtso::parent_line_edit(name_row, lobby_port);
+	lobby_password = memnew(LineEdit);
+	lobby_password->set_placeholder("Password");
+	lobby_password->set_secret(true);
+	lobby_password->set_custom_minimum_size(Vector2(90, 0));
+	rtso::parent_line_edit(name_row, lobby_password);
 	lobby_box->add_child(name_row);
 
 	lobby_rooms = memnew(ItemList);
@@ -1093,6 +1098,22 @@ void RtsoMain::_on_flare_requested(Vector2 world_pos) {
 	net_host_.sendChat(wire);
 }
 
+void RtsoMain::chat_send_wire(const std::string &wire) {
+	// 0 A.D. gui/session/chat/ChatCommands.js: the host removes a player by name.
+	for (const char *cmd : {"/kick ", "/ban "}) {
+		const std::string prefix = cmd;
+		if (wire.compare(0, prefix.size(), prefix) != 0) continue;
+		const std::string name = wire.substr(prefix.size());
+		const bool ban = prefix == "/ban ";
+		String msg;
+		if (!net_host_.isHost()) msg = "Only the host can kick or ban players";
+		else if (!net_host_.kickPeer(net_host_.peerByName(name), ban)) msg = "No player named " + String::utf8(name.c_str());
+		if (!msg.is_empty() && lobby_status) lobby_status->set_text(msg);
+		return;
+	}
+	net_host_.sendChat(wire);
+}
+
 void RtsoMain::_on_minimap_clicked(Vector2 world_pos) {
 	if (cam_rig) {
 		cam_rig->set_target_pos(Vector3(world_pos.x, 0.0f, world_pos.y));
@@ -1286,7 +1307,7 @@ void RtsoMain::update_cursor() {
 				auto fv = sim->fauna();
 				for (size_t f = 0; f < fv.count && !*want; ++f) {
 					if (!fv.alive[f] || !near2(fv.pos_x[f], fv.pos_z[f], 2.5f)) continue;
-					want = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic ? "action-herd" : "action-gather-meat";
+					want = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic() && fv.behavior[f] != rtso::FAUNA_CORRALLED ? "action-herd" : "action-gather-meat";
 				}
 			}
 			if (!*want) {
@@ -1596,6 +1617,20 @@ void RtsoMain::_process(double delta) {
 
 	accumulator += scaled_delta;
 	int ticks = 0;
+	if (net_lockstep() && lobby_status) {
+		// 0 A.D. NetClient notices: the host refused us, or removed someone.
+		const int auth = net_host_.authResult();
+		if (auth == rtso::ARC_PASSWORD_INVALID) lobby_status->set_text("Wrong password");
+		else if (auth == rtso::ARC_BANNED) lobby_status->set_text("You have been banned from this game");
+		const auto &kicks = net_host_.kicks();
+		for (; kicks_shown_ < kicks.size(); ++kicks_shown_) {
+			const auto &k = kicks[kicks_shown_];
+			const String who = String::utf8(k.name.empty() ? k.guid.c_str() : k.name.c_str());
+			lobby_status->set_text(net_host_.kickedSelf() && k.guid == rtso::peer_guid(net_host_.getLocalPeerId())
+					? String(k.ban ? "You have been banned" : "You have been kicked")
+					: who + String(k.ban ? " has been banned" : " has been kicked"));
+		}
+	}
 	if (net_lockstep()) {
 		if (net_game_started_) {
 			// NetClientTurnManager: one 200ms turn batch, sim steps inside TurnManager::tick
@@ -1615,6 +1650,29 @@ void RtsoMain::_process(double delta) {
 					who += (who.is_empty() ? "" : ", ") + (pl < 8 ? "Player " + String::num_int64(pl + 1) : "an observer");
 				}
 				lobby_status->set_text("Game paused by " + who);
+			} else if (lobby_status) {
+				// 0 A.D. session.js network warnings: who the turn waits on, who
+				// is not responding and whose connection is bad.
+				auto name = [&](uint32_t c) {
+					const uint8_t pl = turn_mgr_.player_for_client(c);
+					return pl < 8 ? "Player " + String::num_int64(pl + 1) : "an observer";
+				};
+				String status;
+				if (turn_mgr_.waiting_ms() > rtso::NET_TIMEOUT_WARN_MS) {
+					String who;
+					for (uint32_t c : turn_mgr_.waiting_on()) who += (who.is_empty() ? "" : ", ") + name(c);
+					if (!who.is_empty()) status = "Waiting for " + who;
+				}
+				for (const auto &e : net_host_.clientPerformance()) {
+					String line;
+					if (e.silent_ms > rtso::NET_TIMEOUT_WARN_MS)
+						line = name(e.client) + " is not responding (" + String::num_int64(e.silent_ms / 1000) + " s)";
+					else if (e.rtt_ms > rtso::NET_LAG_WARN_RTT_MS)
+						line = name(e.client) + " has a bad connection (" + String::num_int64(e.rtt_ms) + " ms)";
+					if (!line.is_empty()) status += (status.is_empty() ? "" : ". ") + line;
+				}
+				if (!status.is_empty() || net_status_shown_) lobby_status->set_text(status);
+				net_status_shown_ = !status.is_empty();
 			}
 		}
 		// else pre-Start lobby phase: poll + GAME_START consume only (above) -
@@ -2331,59 +2389,51 @@ void RtsoMain::update_command_panel() {
 		if (!selected_ids.is_empty()) {
 			auto uview = sim->units();
 
-			// 0 A.D. Parity: gui/session/selection_panels.js:265-330 (g_SelectionPanels.Formation)
-			// and gui/session/selection_panels_left/formation_panel.xml:1-12 (unitFormationButton repeat=15).
-			// Reference: 0 A.D. template_player.xml:84-96 (12 actionable formations, skipping FORMATION_NONE).
-			// Active formation highlighted with gold font color, matching 0 A.D. guiSelection overlay.
-			static const struct FormationButtonDef {
-				const char *name;
-				uint8_t id;
-				const char *icon;
-			} kFormationButtons[12] = {
-				{"Line",       rtso::FORMATION_LINE,         "res://assets/textures/ui/formations/line.png"},
-				{"Box",        rtso::FORMATION_BOX,          "res://assets/textures/ui/formations/box.png"},
-				{"Col",        rtso::FORMATION_COLUMN,       "res://assets/textures/ui/formations/column.png"},
-				{"Phalanx",    rtso::FORMATION_PHALANX,      "res://assets/textures/ui/formations/phalanx.png"},
-				{"Wedge",      rtso::FORMATION_WEDGE,        "res://assets/textures/ui/formations/wedge.png"},
-				{"Skirmish",   rtso::FORMATION_SCATTER,      "res://assets/textures/ui/formations/scatter.png"},
-				{"LineOpen",   rtso::FORMATION_LINE_OPEN,    "res://assets/textures/ui/formations/line_open.png"},
-				{"ColOpen",    rtso::FORMATION_COLUMN_OPEN,  "res://assets/textures/ui/formations/column_open.png"},
-				{"Flank",      rtso::FORMATION_FLANK,        "res://assets/textures/ui/formations/flank.png"},
-				{"BattleLine", rtso::FORMATION_BATTLE_LINE,  "res://assets/textures/ui/formations/battle_line.png"},
-				{"ShipLine",   rtso::FORMATION_SHIPS_LINE,   "res://assets/textures/ui/formations/ship_line.png"},
-				{"ShipCol",    rtso::FORMATION_SHIPS_COLUMN, "res://assets/textures/ui/formations/ship_column.png"}
-			};
-
-			// Query active formation across selected units to highlight matching button
-			uint8_t active_formation = rtso::FORMATION_NONE;
-			for (int i = 0; i < selected_ids.size(); ++i) {
+			// 0 A.D. gui/session/selection_panels.js g_SelectionPanels.Formation: one button per
+			// formation the player has (Player.js GetFormations), disabled with the template's
+			// DisabledTooltip unless the selection can form it (Commands.js CanMoveEntsIntoFormation),
+			// highlighted when a selected unit is in it (GuiInterface IsFormationSelected).
+			static const char *const kFormationIcons[rtso::FORMATION_COUNT] = {
+				"null", "line_closed", "box", "column", "phalanx", "wedge", "skirmish", "line_open",
+				"column_open", "flank", "battle_line", "ship_line", "ship_column", "flank", "syntagma",
+				"testudo", "testudo"};
+			const uint32_t *sel_ids = (const uint32_t *)selected_ids.ptr();
+			const size_t sel_n = (size_t)selected_ids.size();
+			uint32_t in_use = 0;       // formations a selected unit is in (bit 0: a unit in none)
+			bool any_can_form = false; // the panel only shows for units that take formations
+			for (size_t i = 0; i < sel_n; ++i) {
 				for (size_t u = 0; u < uview.count; ++u) {
-					if (uview.id[u] == (uint32_t)selected_ids[i]) {
-						if (uview.formation[u] != rtso::FORMATION_NONE) {
-							active_formation = uview.formation[u];
-							break;
-						}
-					}
+					if (uview.id[u] != sel_ids[i]) continue;
+					in_use |= 1u << (uview.formation[u] < rtso::FORMATION_COUNT ? uview.formation[u] : 0);
+					break;
 				}
-				if (active_formation != rtso::FORMATION_NONE) break;
+				for (uint8_t f = 1; f < rtso::FORMATION_COUNT && !any_can_form; ++f)
+					any_can_form = sim->unit_can_use_formation(sel_ids[i], f);
 			}
-
-			for (int f = 0; f < 12; ++f) {
+			const uint32_t available = any_can_form ? sim->player_formation_mask(local_player()) : 0u;
+			for (uint8_t f = 0; f < rtso::FORMATION_COUNT; ++f) {
+				if (!((available >> f) & 1u)) continue;
+				const rtso::FormationTemplate &ft = rtso::formation_template(f);
+				const bool enabled = f == rtso::FORMATION_NONE || sim->can_move_into_formation(sel_ids, sel_n, f);
 				Button *fb = memnew(Button);
 				fb->set_custom_minimum_size(Vector2(44, 24));
 				fb->set_clip_text(true);
-				fb->set_tooltip_text(kFormationButtons[f].name);
-				fb->set_text(kFormationButtons[f].name);
-				Ref<Texture2D> f_ico = load_tex(kFormationButtons[f].icon);
+				String tip = String::utf8(ft.name);
+				const char *why = enabled ? ft.tooltip : ft.disabled_tooltip;
+				if (why && *why) tip += String("\n") + String::utf8(why);
+				fb->set_tooltip_text(tip);
+				fb->set_text(String::utf8(ft.name));
+				Ref<Texture2D> f_ico = load_tex(String("res://assets/textures/ui/formations/") + kFormationIcons[f] + ".png");
 				if (f_ico.is_valid()) {
 					fb->set_button_icon(f_ico);
 					fb->set_expand_icon(true);
 				}
 				fb->add_theme_font_size_override("font_size", 8);
-				if (active_formation == kFormationButtons[f].id) {
+				if ((in_use >> f) & 1u) {
 					fb->add_theme_color_override("font_color", Color(1.0f, 0.85f, 0.2f));
 				}
-				fb->connect("pressed", Callable(this, "_on_formation_selected").bind((int)kFormationButtons[f].id));
+				fb->set_disabled(!enabled);
+				fb->connect("pressed", Callable(this, "_on_formation_selected").bind((int)f));
 				actions_bar->add_child(fb);
 			}
 
@@ -3359,6 +3409,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			uint32_t clicked_fauna_id = 0;
 			uint8_t clicked_fauna_type = 0;
 			float best_fd2 = 2.5f * 2.5f;
+			size_t best_f = 0;
 			for (size_t f = 0; f < fview.count; ++f) {
 				if (!fview.alive[f]) continue;
 				float dx = fview.pos_x[f] - click_pos.x;
@@ -3368,11 +3419,12 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					best_fd2 = d2;
 					clicked_fauna_id = fview.id[f];
 					clicked_fauna_type = fview.fauna_type[f];
+					best_f = f;
 				}
 			}
 			if (clicked_fauna_id != 0) {
 				const auto &finfo = rtso::fauna_type_info(clicked_fauna_type);
-				uint8_t herd = finfo.is_domestic ? 1 : 0;
+				uint8_t herd = finfo.is_domestic() && fview.behavior[best_f] != rtso::FAUNA_CORRALLED ? 1 : 0;
 				if (turn_cmds())
 					post_lockstep(17, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0, 0, clicked_fauna_id, herd);
 				else if (herd)
@@ -3772,10 +3824,9 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		String ftype_str = f.get("type", "deer");
 		float fx = (float)f.get("x", 0.0);
 		float fz = (float)f.get("z", 0.0);
-		uint8_t ftype = rtso::FAUNA_DEER;
-		if (ftype_str == "boar") ftype = rtso::FAUNA_BOAR;
-		else if (ftype_str == "sheep") ftype = rtso::FAUNA_SHEEP;
-		else if (ftype_str == "wolf") ftype = rtso::FAUNA_WOLF;
+		// 0 A.D. template stem ("bear_brown" / "fauna_bear_brown"); older maps use deer/boar/sheep/wolf.
+		uint8_t ftype = rtso::fauna_type_by_name(ftype_str.utf8().get_data());
+		if (ftype >= rtso::FAUNA_COUNT) ftype = rtso::FAUNA_DEER;
 		sim->spawn_fauna(fx, fz, ftype);
 	}
 
@@ -3959,6 +4010,8 @@ void RtsoMain::_on_lobby_host_pressed() {
 	cfg.port = (uint16_t)lobby_port->get_text().to_int();
 	if (cfg.port == 0) cfg.port = rtso::PS_DEFAULT_PORT;
 	net_host_.setLocalPlayerName(lobby_name->get_text().utf8().get_data());
+	net_host_.setPassword(lobby_password ? lobby_password->get_text().utf8().get_data() : "");
+	kicks_shown_ = 0;
 	if (!net_host_.startHost(cfg)) {
 		if (lobby_status) lobby_status->set_text("Host bind failed");
 		return;
@@ -4193,6 +4246,8 @@ void RtsoMain::_on_lobby_join_pressed() {
 	if (port == 0) port = rtso::PS_DEFAULT_PORT;
 	if (ip.empty()) ip = "127.0.0.1";
 	net_host_.setLocalPlayerName(lobby_name->get_text().utf8().get_data());
+	net_host_.setPassword(lobby_password ? lobby_password->get_text().utf8().get_data() : "");
+	kicks_shown_ = 0;
 	if (!net_host_.startClient(ip, port)) {
 		if (lobby_status) lobby_status->set_text("Join failed");
 		return;
