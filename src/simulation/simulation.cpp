@@ -2882,6 +2882,12 @@ void Simulation::separation(float dt, Arena &arena) {
 	UnitGrid grid;
 	if (!grid.build(arena, n, px, pz, units_.alive, map_half_)) return;
 
+	// The building pass below only reads standing buildings that block movement now.
+	sep_obstacles_.clear();
+	for (const Building &b : buildings_)
+		if (!b.wrecked && blocks_movement_now(b))
+			sep_obstacles_.push_back(SteerObstacle{b.id, b.x, b.z, b.half_size, b.type, false});
+
 	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		if (!units_.alive[i]) return;
 		const float pxi = px[i];
@@ -2937,8 +2943,11 @@ void Simulation::separation(float dt, Arena &arena) {
 		});
 
 		// 2. Building Obstacle Non-Penetration (keep units outside the footprint rectangle)
-		for (const auto &b : buildings_) {
-			if (b.wrecked || !blocks_movement_now(b)) continue;
+		// A building more than b_req from the unit on either axis pushes nothing; the 0.5
+		// margin keeps that test clear of float rounding, so skipping it changes no result.
+		const float b_skip = ri + 0.35f + 0.5f;
+		for (const SteerObstacle &b : sep_obstacles_) {
+			if (std::fabs(pxi - b.x) > b.half_size + b_skip || std::fabs(pzi - b.z) > b.half_size + b_skip) continue;
 			float b_half = b.half_size;
 			float cx = std::clamp(pxi, b.x - b_half, b.x + b_half);
 			float cz = std::clamp(pzi, b.z - b_half, b.z + b_half);
