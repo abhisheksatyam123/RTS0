@@ -1,0 +1,215 @@
+// 0 A.D. Gaia content: treasures (Treasure.js / TreasureCollector.js, the CollectTreasure
+// order), ruins (template_gaia_ruins: stone.ruins at 4x a rock's rate, MaxGatherers),
+// capturable Gaia mercenary camps, random-map placement and save/load.
+//   g++ -std=c++20 -O2 -Isrc tools/test_treasures.cpp src/simulation/simulation.cpp \
+//       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+//       src/network/net_host.cpp -lpthread -o /tmp/test_treasures && /tmp/test_treasures
+#define private public
+#include "simulation/simulation.h"
+#undef private
+#include "network/turn_manager.h"
+#include <cmath>
+#include <cstdio>
+#include <cstring>
+
+using namespace rtso;
+
+static int failures = 0;
+#define CHECK(cond) do { if (!(cond)) { std::printf("FAIL %s:%d %s\n", __FILE__, __LINE__, #cond); ++failures; } } while (0)
+
+static void run(Simulation &s, float seconds) {
+	for (int t = 0; t < (int)std::lround(seconds / Simulation::FIXED_STEP); ++t) s.tick(Simulation::FIXED_STEP);
+}
+
+static void fresh(Simulation &s) {
+	s.set_sim_seed(5);
+	s.reset();
+	s.spawn_building_world(-50.0f, -50.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	s.spawn_building_world(50.0f, 50.0f, BLD_TOWN_CENTER, 1, 1.0f);
+}
+
+static int ruins_gathering(const Simulation &s, uint32_t rid) {
+	int n = 0;
+	for (size_t i = 0; i < s.units_.count; ++i)
+		if (s.units_.alive[i] && s.units_.action_state[i] == ACTION_GATHER && s.units_.target_resource_id[i] == rid) ++n;
+	return n;
+}
+
+int main() {
+	// 1. The tables: lookups by template stem, and the plain treasure of each resource.
+	{
+		CHECK(TREASURE_TYPE_COUNT == 27);
+		CHECK(treasure_type_by_name("food_barrel") == TREASURE_FOOD_BARREL);
+		CHECK(treasure_type_by_name("nothing") == TREASURE_TYPE_COUNT);
+		CHECK(treasure_type_for_resource(RES_WOOD) == TREASURE_WOOD);
+		CHECK(treasure_type_for_resource(RES_GOLD) == TREASURE_METAL);
+		CHECK(ruins_type_by_name("unfinished_greek_temple") < RUINS_TYPE_COUNT);
+		CHECK(ruins_type_info(ruins_type_by_name("column_doric")).max_gatherers == 1);
+	}
+
+	static Simulation s;
+
+	// 2. A woman collects a food treasure: after CollectTime its food is the player's, the
+	//    treasure is gone and she goes idle.
+	{
+		fresh(s);
+		const auto &info = treasure_type_info(TREASURE_FOOD_BARREL);
+		uint32_t w = s.spawn_unit(0.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		uint32_t t = s.spawn_treasure(8.0f, 0.0f, TREASURE_FOOD_BARREL);
+		CHECK(t != 0 && s.is_treasure_id(t));
+		const float food0 = s.player(0).res[RES_FOOD];
+		s.order_collect_treasure(&w, 1, t);
+		CHECK(s.units_.order_kind[s.lookup_unit(w)] == ORDER_COLLECT_TREASURE);
+		run(s, 6.0f + info.collect_time);
+		std::printf("collect: food %.0f -> %.0f (barrel %d), treasures left %zu\n", food0, s.player(0).res[RES_FOOD],
+		            info.amount[0], s.treasures().size());
+		CHECK(s.player(0).res[RES_FOOD] == food0 + (float)info.amount[0]);
+		CHECK(!s.is_treasure_id(t));
+		const int32_t wi = s.lookup_unit(w);
+		CHECK(s.units_.action_state[wi] == ACTION_IDLE && s.units_.order_kind[wi] == ORDER_NONE);
+	}
+
+	// 3. Two players race for one treasure: whoever gets there first takes it, and the other's
+	//    order ends. A war dog has no TreasureCollector.
+	{
+		fresh(s);
+		uint32_t near_u = s.spawn_unit(2.0f, 0.0f, 0, UNIT_SPEARMAN);
+		uint32_t far_u = s.spawn_unit(-14.0f, 0.0f, 1, UNIT_SPEARMAN);
+		uint32_t dog = s.spawn_unit(0.0f, 4.0f, 0, UNIT_WAR_DOG);
+		uint32_t t = s.spawn_treasure(6.0f, 0.0f, TREASURE_METAL);
+		const float m0 = s.player(0).res[RES_GOLD], m1 = s.player(1).res[RES_GOLD];
+		s.set_diplomacy(0, 1, Simulation::DIPLO_NEUTRAL);
+		s.set_diplomacy(1, 0, Simulation::DIPLO_NEUTRAL);
+		s.order_collect_treasure(&near_u, 1, t);
+		s.order_collect_treasure(&far_u, 1, t);
+		s.order_collect_treasure(&dog, 1, t);
+		CHECK(s.units_.order_kind[s.lookup_unit(dog)] != ORDER_COLLECT_TREASURE);
+		run(s, 12.0f);
+		CHECK(!s.is_treasure_id(t));
+		std::printf("race: metal p0 %.0f -> %.0f, p1 %.0f -> %.0f\n", m0, s.player(0).res[RES_GOLD], m1, s.player(1).res[RES_GOLD]);
+		CHECK(s.player(0).res[RES_GOLD] == m0 + (float)treasure_type_info(TREASURE_METAL).amount[3]);
+		CHECK(s.units_.order_kind[s.lookup_unit(far_u)] == ORDER_NONE);
+	}
+
+	// 4. A queued collect runs after the walk before it (Shift-click).
+	{
+		fresh(s);
+		uint32_t u = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN);
+		uint32_t t = s.spawn_treasure(0.0f, 10.0f, TREASURE_WOOD);
+		const float w0 = s.player(0).res[RES_WOOD];
+		s.order_walk(&u, 1, 10.0f, 0.0f, false);
+		s.order_collect_treasure(&u, 1, t, true);
+		run(s, 1.0f);
+		CHECK(s.is_treasure_id(t)); // still walking
+		run(s, 15.0f);
+		CHECK(!s.is_treasure_id(t) && s.player(0).res[RES_WOOD] > w0);
+	}
+
+	// 5. Ruins: stone.ruins at 2 against a rock's 0.5, and one gatherer at a time (MaxGatherers 1);
+	//    the second worker goes to the rock next to it.
+	{
+		fresh(s);
+		uint32_t a = s.spawn_unit(0.0f, 0.0f, 0, UNIT_VILLAGER);
+		uint32_t b = s.spawn_unit(0.0f, 2.0f, 0, UNIT_VILLAGER);
+		uint32_t ruin = s.spawn_ruins(4.0f, 0.0f, ruins_type_by_name("column_doric"));
+		uint32_t rock = s.spawn_resource_world(4.0f, 6.0f, RES_STONE, 1000);
+		CHECK(ruin != 0 && s.ruins_cap(ruin) == 1);
+		uint32_t both[2] = {a, b};
+		s.order_gather(both, 2, ruin);
+		run(s, 4.0f);
+		CHECK(ruins_gathering(s, ruin) <= 1);
+		// One works the ruin, the other the rock beside it.
+		const uint32_t ta = s.units_.target_resource_id[s.lookup_unit(a)], tb = s.units_.target_resource_id[s.lookup_unit(b)];
+		CHECK((ta == ruin && tb == rock) || (ta == rock && tb == ruin));
+		// Rate: one soldier on the ruin against one on a rock, a carry's worth each.
+		fresh(s);
+		uint32_t r1 = s.spawn_ruins(0.0f, 0.0f, ruins_type_by_name("stone_structure_tower"));
+		uint32_t r2 = s.spawn_resource_world(20.0f, 0.0f, RES_STONE, 1000);
+		uint32_t g1 = s.spawn_unit(1.5f, 0.0f, 0, UNIT_VILLAGER);
+		uint32_t g2 = s.spawn_unit(21.5f, 0.0f, 0, UNIT_VILLAGER);
+		s.order_gather(&g1, 1, r1);
+		s.order_gather(&g2, 1, r2);
+		// Time each takes to fill its 20-stone carry once at the supply.
+		float full1 = 0.0f, full2 = 0.0f, t = 0.0f;
+		auto at_supply = [&](uint32_t id, uint32_t res) {
+			const int32_t k = s.lookup_unit(id);
+			return s.units_.action_state[k] == ACTION_GATHER && s.units_.target_resource_id[k] == res;
+		};
+		float start1 = -1.0f, start2 = -1.0f;
+		for (; t < 30.0f && (full1 == 0.0f || full2 == 0.0f); t += Simulation::FIXED_STEP) {
+			s.tick(Simulation::FIXED_STEP);
+			const int32_t k1 = s.lookup_unit(g1), k2 = s.lookup_unit(g2);
+			if (start1 < 0.0f && at_supply(g1, r1) && s.units_.attack_timer[k1] > 0.0f) start1 = t;
+			if (start2 < 0.0f && at_supply(g2, r2) && s.units_.attack_timer[k2] > 0.0f) start2 = t;
+			if (full1 == 0.0f && s.units_.carry[k1] >= 20) full1 = t - start1;
+			if (full2 == 0.0f && s.units_.carry[k2] >= 20) full2 = t - start2;
+		}
+		std::printf("ruins: a full carry in %.1f s from ruins, %.1f s from a rock\n", full1, full2);
+		CHECK(full1 > 0.0f && full2 >= 3.0f * full1);
+	}
+
+	// 6. A Gaia mercenary camp: owned by Gaia, captured by a player's soldiers.
+	{
+		fresh(s);
+		uint32_t camp = s.spawn_building_world(0.0f, 0.0f, BLD_MERCENARY_CAMP, GAIA_PLAYER, 1.0f);
+		CHECK(camp != 0);
+		const Simulation::Building *b = nullptr;
+		for (const auto &x : s.buildings()) if (x.id == camp) b = &x;
+		CHECK(b && b->team == GAIA_PLAYER);
+		uint32_t army[10];
+		for (int k = 0; k < 10; ++k) army[k] = s.spawn_unit(-10.0f + (float)(k % 5) * 1.2f, -10.0f - (float)(k / 5) * 1.2f, 0, UNIT_SPEARMAN);
+		s.order_attack_building(army, 10, camp, false, true);
+		run(s, 90.0f);
+		b = nullptr;
+		for (const auto &x : s.buildings()) if (x.id == camp) b = &x;
+		std::printf("mercenary camp: owner %d after 90 s of capture\n", b ? (int)b->team : -1);
+		CHECK(b && b->team == 0);
+	}
+
+	// 7. Random maps place treasures and ruins where 0 A.D.'s scripts do.
+	{
+		s.generate_random_map(MAP_FORTRESS, 3, 2, 96.0f);
+		const size_t fortress = s.treasures().size();
+		s.generate_random_map(MAP_DEEP_FOREST, 3, 2, 96.0f);
+		int ruins = 0;
+		for (size_t r = 0; r < s.resources_.count; ++r) ruins += s.resources_.subtype[r] == RES_SUB_RUINS;
+		s.generate_random_map(MAP_RANDOM_CONTINENTAL, 3, 2, 96.0f);
+		const size_t mainland = s.treasures().size();
+		std::printf("maps: fortress %zu treasures, deep forest %d ruins, continental %zu treasures\n", fortress, ruins, mainland);
+		CHECK(fortress >= 20 && ruins == 1 && mainland == 0);
+	}
+
+	// 8. Save/load keeps treasures, ruins caps and the lockstep hash; the Treasures toggle clears them.
+	{
+		// A fresh sim: one reused after generate_random_map loads back different terrain.
+		static Simulation s;
+		fresh(s);
+		uint32_t u = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN);
+		uint32_t t = s.spawn_treasure(10.0f, 0.0f, TREASURE_STONE);
+		s.spawn_treasure(-10.0f, 4.0f, TREASURE_FOOD_BIN);
+		uint32_t ruin = s.spawn_ruins(0.0f, 8.0f, ruins_type_by_name("pyramid_minor"));
+		s.order_collect_treasure(&u, 1, t);
+		run(s, 1.0f);
+		const char *path = "/tmp/rts0_test_treasures.sav";
+		CHECK(s.save_state(path));
+		static Simulation l;
+		CHECK(l.load_state(path));
+		CHECK(l.treasures().size() == 2 && l.ruins_cap(ruin) == 90);
+		CHECK(TurnManager().boot_sim_hash(s) == TurnManager().boot_sim_hash(l));
+		run(s, 8.0f);
+		run(l, 8.0f);
+		CHECK(TurnManager().boot_sim_hash(s) == TurnManager().boot_sim_hash(l));
+		CHECK(s.treasures().size() == 1 && l.treasures().size() == 1);
+		std::remove(path);
+		s.clear_treasures();
+		CHECK(s.treasures().empty());
+		CHECK(s.spawn_resource_treasure(0.0f, 0.0f, RES_WOOD) != 0 && s.treasures()[0].type == TREASURE_WOOD);
+	}
+
+	if (failures) {
+		std::printf("test_treasures: %d failure(s)\n", failures);
+		return 1;
+	}
+	std::printf("test_treasures: all passed\n");
+	return 0;
+}

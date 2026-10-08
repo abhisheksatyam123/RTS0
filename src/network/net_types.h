@@ -163,8 +163,11 @@ enum class NetCommandType : uint8_t {
 	// trader goods shares in percent, one byte per ResourceType in target_id
 	// (byte r = share of resource r); see Simulation::cmd_set_trading_goods.
 	NET_CMD_SET_TRADING_GOODS = 33,
+	// 0 A.D. "returnresource" (UnitAI ReturnResource): carriers in entity_ids drop their
+	// load at dropsite target_id. param bit NET_PARAM_QUEUED queues it.
+	NET_CMD_RETURN_RESOURCE = 34,
 	// Session control, not game commands (200+ is reserved for these; game command
-	// ids keep growing from 33). Only the host sends them, inside its own turn batch,
+	// ids keep growing from 34). Only the host sends them, inside its own turn batch,
 	// so every client learns of a seat change before the turn it affects (0 A.D.
 	// NetServerTurnManager::InitialiseClient / UninitialiseClient). The sim ignores them.
 	// A client takes a seat: target_id = client id, param = player, target_x = the
