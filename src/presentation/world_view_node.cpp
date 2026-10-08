@@ -293,14 +293,12 @@ void RtsoWorldView::_ready() {
 	{
 		auto deer = rtso::ModelLibrary::get("units", "deer");
 		Ref<Mesh> deer_mesh = deer.mesh.is_valid() ? deer.mesh : rtso::ModelLibrary::get("units", "war_dog").mesh;
+		// Each 0 A.D. species is drawn with its RTS0 model (gaia_data.h model_id), or the deer.
 		Ref<Mesh> fauna_rest[rtso::FAUNA_COUNT];
-		fauna_rest[rtso::FAUNA_DEER] = deer_mesh;
-		auto boar = rtso::ModelLibrary::get("units", "boar");
-		fauna_rest[rtso::FAUNA_BOAR] = boar.mesh.is_valid() ? boar.mesh : deer_mesh;
-		auto sheep = rtso::ModelLibrary::get("units", "sheep");
-		fauna_rest[rtso::FAUNA_SHEEP] = sheep.mesh.is_valid() ? sheep.mesh : deer_mesh;
-		auto wolf = rtso::ModelLibrary::get("units", "wolf");
-		fauna_rest[rtso::FAUNA_WOLF] = wolf.mesh.is_valid() ? wolf.mesh : deer_mesh;
+		for (int f = 0; f < rtso::FAUNA_COUNT; ++f) {
+			auto m = rtso::ModelLibrary::get("units", rtso::fauna_type_info((uint8_t)f).model_id);
+			fauna_rest[f] = m.mesh.is_valid() ? m.mesh : deer_mesh;
+		}
 		for (int f = 0; f < rtso::FAUNA_COUNT; ++f) {
 			for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) {
 				fauna_mm[f][c] = create_multimesh(fauna_rest[f], false);
@@ -2233,6 +2231,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		float fx = fview.pos_x[f];
 		float fz = fview.pos_z[f];
 		float fy = sim->get_terrain_height(fx, fz);
+		if (rtso::fauna_type_info(ft).is_naval()) fy = std::max(fy, sim->water_height()); // whales and sharks swim
 		float frot = fview.rot_y[f];
 		const char *fid = rtso::fauna_type_info(ft).model_id;
 		auto fent = rtso::ModelLibrary::get("units", String(fid));
