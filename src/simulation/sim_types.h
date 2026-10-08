@@ -775,6 +775,31 @@ struct CivPlayerBonus {
 	const char *tooltip;
 };
 
+// What a 0 A.D. team bonus changes (data/auras/teambonuses).
+enum TeamBonusStat : uint8_t {
+	TEAM_BONUS_UNIT_COST = 1,          // per resource, units in the bitset
+	TEAM_BONUS_UNIT_TRAIN_TIME = 2,
+	TEAM_BONUS_BUILDING_COST = 3,      // per resource, buildings in the mask
+	TEAM_BONUS_BUILDING_BUILD_TIME = 4,
+	TEAM_BONUS_TECH_COST = 5,          // per resource, techs researched at the buildings in the mask
+	TEAM_BONUS_TECH_TIME = 6,
+	TEAM_BONUS_FOOD_TRICKLE = 7,       // food per second, added
+	TEAM_BONUS_TRADE_INTERNATIONAL = 8 // not modelled: RTS0 trade has no international bonus yet
+};
+
+struct CivTeamBonus {
+	uint8_t civ;
+	uint8_t stat; // TeamBonusStat
+	int8_t res; // ResourceType for cost stats, -1 otherwise
+	bool allies_only; // 0 A.D. ExclusiveMutualAlly: not the owner itself
+	uint32_t buildings; // bld_bit() mask
+	float value; // multiplier, or amount added for TEAM_BONUS_FOOD_TRICKLE
+	const char *id;
+	const char *name;
+	const char *description;
+	uint64_t units[CIV_TEMPLATE_WORDS_MAX]; // civ_unit_template_table() rows affected
+};
+
 struct CivUnitTemplate {
 	const char *id; // 0 A.D. template path under units/, e.g. "athen/infantry_spearman_b"
 	const char *name;
@@ -821,6 +846,42 @@ inline float civ_bonus_mult(uint8_t civ, uint8_t stat, uint8_t building = BLD_TY
 		m *= b[i].mult;
 	}
 	return m;
+}
+
+// Product of the 0 A.D. team bonuses a player gets on `stat`: `own_civ` is the
+// player's civ, `ally_civs` the civ_bit() mask of its allies still in the match.
+// Each civ's bonus counts once even when several allies share the civ, as 0 A.D.
+// auras of the same name don't stack. `res` is the ResourceType for cost stats;
+// `tmpl` the unit for unit stats; `building` the building for building and tech stats.
+inline float civ_team_bonus_mult(uint8_t own_civ, uint16_t ally_civs, uint8_t stat, int8_t res = -1,
+		uint16_t tmpl = 0xFFFF, uint8_t building = BLD_TYPE_COUNT) {
+	float m = 1.0f;
+	const CivTeamBonus *t = civ_team_bonus_table();
+	for (uint16_t i = 0; i < CIV_TEAM_BONUS_COUNT; ++i) {
+		const CivTeamBonus &b = t[i];
+		if (b.stat != stat || b.res != res) continue;
+		if (!(ally_civs & civ_bit(b.civ)) && (b.allies_only || b.civ != own_civ)) continue;
+		if (stat == TEAM_BONUS_UNIT_COST || stat == TEAM_BONUS_UNIT_TRAIN_TIME) {
+			if (tmpl >= CIV_UNIT_TEMPLATE_COUNT || !((b.units[tmpl >> 6] >> (tmpl & 63)) & 1u)) continue;
+		} else if (stat != TEAM_BONUS_FOOD_TRICKLE && stat != TEAM_BONUS_TRADE_INTERNATIONAL) {
+			if (!(b.buildings & bld_bit(building))) continue;
+		}
+		m *= b.value;
+	}
+	return m;
+}
+
+// Sum of the team bonus food trickle (food per second) a player gets.
+inline float civ_team_food_trickle(uint8_t own_civ, uint16_t ally_civs) {
+	float add = 0.0f;
+	const CivTeamBonus *t = civ_team_bonus_table();
+	for (uint16_t i = 0; i < CIV_TEAM_BONUS_COUNT; ++i) {
+		const CivTeamBonus &b = t[i];
+		if (b.stat != TEAM_BONUS_FOOD_TRICKLE) continue;
+		if (!(ally_civs & civ_bit(b.civ)) && (b.allies_only || b.civ != own_civ)) continue;
+		add += b.value;
+	}
+	return add;
 }
 
 inline bool civ_aura_affects(int16_t aura, uint16_t tmpl) {
