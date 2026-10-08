@@ -503,6 +503,20 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
     Simulation sim;
     playtest::ScriptRefs refs;
     playtest::build_world(sim, seed, refs);
+    // Seat the match the way RtsoMain::apply_game_setup does for a lobby of
+    // two humans on opposing teams plus one AI: slot 0 = host, slot 1 =
+    // joiner, slot 2 = Petra. Petra must not run for the human slots.
+    GameSetupParams seats;
+    seats.slot_count = 3;
+    seats.slot_types[0] = 'h';
+    seats.slot_types[1] = 'h';
+    seats.slot_types[2] = 'a';
+    sim.set_waves_enabled(false);
+    for (uint8_t t = 0; t < MAX_PLAYERS; ++t) {
+        const bool seated = t < seats.slot_count;
+        sim.set_player_active(t, seated, seated && seats.slot_types[t] == 'a');
+        sim.set_player_team(t, t);
+    }
 
     NetHost net;
     if (loss > 0.0f) net.set_simulated_loss(loss, seed ^ (host ? 0x1111u : 0x2222u));
@@ -532,12 +546,7 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
     // NMT_GAME_START (exercised separately by the legacy GameStart test).
     tm.mark_game_started(&sim);
     tm.set_lockstep_peers({0u, 1u});
-    // Two human slots, seated as the game does from NMT_GAME_START: host plays
-    // player 0, joiner player 1, on opposing teams.
-    GameSetupParams seats;
-    seats.slot_types[0] = 'h';
-    seats.slot_types[1] = 'h';
-    tm.assign_slot_players(seats);
+    tm.assign_slot_players(seats); // host -> player 0, joiner -> player 1
 
     FILE *log = std::fopen(log_path, "w");
     if (!log) { std::fprintf(stderr, "[net-peer] cannot open %s\n", log_path); return 3; }
@@ -559,6 +568,17 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
         if (scripted_turn <= tm.current_turn()) {
             scripted_turn = tm.current_turn() + 1;
             playtest::script_turn(refs, scripted_turn, script_rng, batch);
+            // Diplomacy through the lockstep (cmd 22, as the diplomacy dialog
+            // sends it): each human changes its own stance toward the other.
+            const uint32_t st = scripted_turn;
+            if (st % 300 == 0) {
+                NetCommand d;
+                d.client_id = (st / 300) % 2;          // alternate who acts
+                d.cmd_type = 22;
+                d.target_id = 1 - d.client_id;        // toward the other human
+                d.param = (uint8_t)((st / 300) % 3);  // ally / neutral / enemy
+                batch.push_back(d);
+            }
             for (const auto &c : batch)
                 if (c.client_id == me) tm.post_local_command(c);
         }
@@ -568,7 +588,8 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
         last = now;
         if (tm.tick(dt, sim)) {
             const auto &f = tm.turn_history().back();
-            std::fprintf(log, "%u %08X %zu\n", f.turn_index, f.sim_state_hash, f.commands.size());
+            std::fprintf(log, "%u %08X %zu d01=%u d10=%u\n", f.turn_index, f.sim_state_hash,
+                         f.commands.size(), sim.get_diplomacy(0, 1), sim.get_diplomacy(1, 0));
         }
         if (tm.has_out_of_sync()) {
             std::fprintf(stderr, "[net-peer] %s: OOS at turn %u local=%08X peer=%08X\n",
@@ -599,9 +620,17 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
         arena.reset();
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
-    std::printf("[net-peer] %s: done turns=%u hash=%08X oos=%d dropped=%u\n",
+    int units[3] = {0, 0, 0};
+    auto uv = sim.units();
+    for (size_t i = 0; i < uv.count; ++i)
+        if (uv.alive[i] && uv.team[i] < 3) ++units[uv.team[i]];
+    std::printf("[net-peer] %s: done turns=%u hash=%08X oos=%d dropped=%u game_over=%d "
+                "units p0=%d p1=%d p2=%d petra p0=%d p1=%d p2=%d diplo 0->1=%u 1->0=%u\n",
                 host ? "host" : "join", tm.current_turn(), tm.compute_sim_hash(sim),
-                tm.has_out_of_sync() ? 1 : 0, net.getStats().dropped_packets);
+                tm.has_out_of_sync() ? 1 : 0, net.getStats().dropped_packets,
+                sim.is_game_over() ? 1 : 0, units[0], units[1], units[2],
+                sim.petra_runs_for(0) ? 1 : 0, sim.petra_runs_for(1) ? 1 : 0,
+                sim.petra_runs_for(2) ? 1 : 0, sim.get_diplomacy(0, 1), sim.get_diplomacy(1, 0));
     return tm.has_out_of_sync() ? 1 : 0;
 }
 
