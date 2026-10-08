@@ -163,8 +163,11 @@ enum class NetCommandType : uint8_t {
 	// trader goods shares in percent, one byte per ResourceType in target_id
 	// (byte r = share of resource r); see Simulation::cmd_set_trading_goods.
 	NET_CMD_SET_TRADING_GOODS = 33,
+	// 0 A.D. "returnresource" (UnitAI ReturnResource): carriers in entity_ids drop their
+	// load at dropsite target_id. param bit NET_PARAM_QUEUED queues it.
+	NET_CMD_RETURN_RESOURCE = 34,
 	// Session control, not game commands (200+ is reserved for these; game command
-	// ids keep growing from 33). Only the host sends them, inside its own turn batch,
+	// ids keep growing from 34). Only the host sends them, inside its own turn batch,
 	// so every client learns of a seat change before the turn it affects (0 A.D.
 	// NetServerTurnManager::InitialiseClient / UninitialiseClient). The sim ignores them.
 	// A client takes a seat: target_id = client id, param = player, target_x = the
@@ -307,6 +310,8 @@ struct GameSetupParams {
 	uint8_t colors[8] = {0, 1, 2, 3, 4, 5, 6, 7}; // per-slot PLAYER_COLORS index 0..23 (one base-36 digit)
 	uint8_t nomad = 0;             // 1 = Nomad start (random maps)
 	uint8_t regicide_garrison = 0; // 1 = the Regicide hero may garrison
+	uint8_t water_level = 0; // Flood: 0 rising, 1 shallow, 2 deep (0 A.D. WaterLevel)
+	uint8_t sea_rise_min = 25; // Extinct Volcano: minutes until the water rises, 0..60 (0 A.D. SeaLevelRiseTime)
 	uint16_t map_size = 128; // random-map width in meters, 128..512
 	uint8_t difficulty = 3; // Petra 0..5 sandbox..very hard
 	uint8_t behavior = 2;   // Petra 0..3 random/def/bal/agg
@@ -346,6 +351,8 @@ inline std::string format_game_start_full(const GameSetupParams &p) {
 	}
 	s += ";nomad=" + std::to_string((unsigned)p.nomad);
 	s += ";rgarrison=" + std::to_string((unsigned)p.regicide_garrison);
+	s += ";waterlevel=" + std::to_string((unsigned)p.water_level);
+	s += ";searise=" + std::to_string((unsigned)p.sea_rise_min);
 	s += ";mapsize=" + std::to_string((unsigned)p.map_size);
 	s += ";diff=" + std::to_string((unsigned)p.difficulty);
 	s += ";behavior=" + std::to_string((unsigned)p.behavior);
@@ -433,6 +440,8 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 					if (c >= '0' && c <= (diffs ? '5' : '3')) (diffs ? out.diffs : out.behs)[slot] = (uint8_t)(c - '0');
 				}
 			}
+			else if (k == "waterlevel") { uint8_t x; if (detail::parse_u8(v, 0, 2, x)) out.water_level = x; }
+			else if (k == "searise") { uint8_t x; if (detail::parse_u8(v, 0, 60, x)) out.sea_rise_min = x; }
 			else if (k == "popcap" && !v.empty() && v.size() <= 4 && v.find_first_not_of("0123456789") == std::string::npos) {
 				unsigned x = (unsigned)std::stoul(v);
 				if (x <= 1000) out.pop_cap = (uint16_t)x;
