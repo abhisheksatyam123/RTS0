@@ -785,7 +785,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 	std::vector<uint32_t> owned;
 	for (const auto &c : frame.commands) {
 		const uint8_t pl = player_for_client(c.client_id);
-		if (pl >= MAX_PLAYERS) continue;
+		if (pl >= MAX_PLAYERS || sim.is_defeated(pl)) continue; // defeated players only watch
 		sim.filter_owned_units(pl, c.entity_ids.data(), c.entity_ids.size(), owned);
 		const uint32_t *ids = owned.data();
 		const size_t n = owned.size();

@@ -178,6 +178,113 @@ int main() {
 		CHECK(vc != VICTORY_REGICIDE || heroes == 2);
 	}
 
+	// 9c. Allied victory: player 2 is on player 0's team, so beating player 1 wins the match.
+	// Under Last Man Standing the ally must fall too.
+	for (bool lms : {false, true}) {
+		Simulation *sim = fresh(VICTORY_CONQUEST);
+		sim->set_last_man_standing(lms);
+		sim->set_player_team(2, sim->player(0).team);
+		sim->spawn_unit(-40.0f, 40.0f, 2, UNIT_SWORDSMAN);
+		CHECK(sim->is_ally_of_player0(2) && !sim->is_ally_of_player0(1));
+		wipe(*sim, 1, true, true);
+		run(*sim, 1.0f);
+		CHECK(sim->is_victory() == !lms);
+		if (!lms) CHECK(sim->is_victory_for(2) && !sim->is_victory_for(1));
+		if (lms) {
+			wipe(*sim, 2, true, true);
+			run(*sim, 1.0f);
+			CHECK(sim->is_victory());
+		}
+		delete sim;
+	}
+	// 9f. Player 0 falling doesn't end the match: it observes (map revealed, no orders reach
+	// the sim) while its ally fights on. The ally's win is the ally's alone.
+	{
+		Simulation *sim = fresh(VICTORY_CONQUEST);
+		sim->set_player_team(2, sim->player(0).team);
+		sim->spawn_unit(-40.0f, 40.0f, 2, UNIT_SWORDSMAN);
+		run(*sim, 0.5f);
+		wipe(*sim, 0, true, true);
+		run(*sim, 1.0f);
+		CHECK(!sim->is_game_over() && sim->is_defeated(0) && !sim->is_defeated(2));
+		CHECK(sim->fow_grid(0)[0] == Simulation::FOW_VISIBLE);
+		wipe(*sim, 1, true, true);
+		run(*sim, 1.0f);
+		CHECK(sim->is_game_over() && !sim->is_victory());
+		CHECK(sim->is_victory_for(2) && !sim->is_victory_for(0) && !sim->is_victory_for(1));
+		delete sim;
+	}
+	// 9g. Last Man Standing free-for-all: the match runs until one player is left.
+	{
+		Simulation *sim = fresh(VICTORY_CONQUEST);
+		sim->set_last_man_standing(true);
+		sim->spawn_unit(-40.0f, 40.0f, 2, UNIT_SWORDSMAN);
+		run(*sim, 0.5f);
+		wipe(*sim, 0, true, true);
+		run(*sim, 1.0f);
+		CHECK(!sim->is_game_over() && sim->is_defeated(0));
+		wipe(*sim, 1, true, true);
+		run(*sim, 1.0f);
+		CHECK(sim->is_game_over() && sim->winner_mask() == (1u << 2) && sim->is_victory_for(2));
+		delete sim;
+	}
+	// 9h. A defeated player stays out even if it gets units back, and defeat survives a save.
+	{
+		Simulation *sim = fresh(VICTORY_CONQUEST);
+		sim->set_player_team(2, sim->player(0).team);
+		sim->spawn_unit(-40.0f, 40.0f, 2, UNIT_SWORDSMAN);
+		run(*sim, 0.5f);
+		wipe(*sim, 0, true, true);
+		run(*sim, 1.0f);
+		sim->spawn_unit(0.0f, 0.0f, 0, UNIT_SWORDSMAN);
+		run(*sim, 1.0f);
+		CHECK(sim->is_defeated(0) && !sim->is_game_over());
+		const char *path = "test_victory_save.bin";
+		CHECK(sim->save_state(path));
+		Simulation loaded;
+		CHECK(loaded.load_state(path));
+		std::remove(path);
+		CHECK(loaded.is_defeated(0) && !loaded.is_defeated(2) && loaded.participant_mask() == sim->participant_mask());
+		delete sim;
+	}
+	// 9d. An ally's wonder wins for player 0 in Wonder mode.
+	{
+		Simulation *sim = fresh(VICTORY_WONDER);
+		sim->set_player_team(2, sim->player(0).team);
+		sim->spawn_building(-20, 20, BLD_WONDER, 2, 1.0f);
+		run(*sim, 2.0f);
+		CHECK(sim->is_wonder_active());
+		sim->wonder_hold_[2] = 599.9f;
+		run(*sim, 1.0f);
+		CHECK(sim->is_victory());
+		delete sim;
+	}
+
+	// 9e. Ceasefire: nobody takes damage until it ends; the population limit caps pop_max.
+	{
+		Simulation sim;
+		sim.reset();
+		sim.set_ceasefire_seconds(5.0f);
+		sim.spawn_unit(0.0f, 0.0f, 0, UNIT_SWORDSMAN);
+		sim.spawn_unit(1.5f, 0.0f, 1, UNIT_SWORDSMAN);
+		CHECK(sim.ceasefire_active() && !sim.can_attack(0, 1));
+		run(sim, 4.0f);
+		CHECK(sim.units_.hp[0] == sim.units_.max_hp[0] && sim.units_.hp[1] == sim.units_.max_hp[1]);
+		run(sim, 3.0f);
+		CHECK(!sim.ceasefire_active());
+		CHECK(sim.units_.hp[0] < sim.units_.max_hp[0] || sim.units_.hp[1] < sim.units_.max_hp[1] ||
+		      !sim.units_.alive[0] || !sim.units_.alive[1]);
+	}
+	{
+		Simulation *sim = fresh(VICTORY_CONQUEST);
+		int uncapped = sim->pop_max(0);
+		sim->set_pop_cap(15);
+		CHECK(uncapped > 15 && sim->pop_max(0) == 15);
+		sim->set_pop_cap(0);
+		CHECK(sim->pop_max(0) == uncapped);
+		delete sim;
+	}
+
 	// 10. Victory condition, wave mode and map size reach the joining peer in NMT_GAME_START.
 	{
 		GameSetupParams p;
@@ -186,9 +293,12 @@ int main() {
 		p.victory = VICTORY_REGICIDE;
 		p.waves = 1;
 		p.map_size = 384;
+		p.lms = 1;
+		p.pop_cap = 300;
+		p.ceasefire = 10;
 		GameSetupParams q;
 		CHECK(parse_game_start_full(format_game_start_full(p), q));
-		CHECK(q.victory == VICTORY_REGICIDE && q.waves == 1 && q.map_size == 384);
+		CHECK(q.victory == VICTORY_REGICIDE && q.waves == 1 && q.map_size == 384 && q.lms == 1 && q.pop_cap == 300 && q.ceasefire == 10);
 	}
 
 	if (failures) {

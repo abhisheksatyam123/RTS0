@@ -1627,19 +1627,28 @@ void RtsoMain::_process(double delta) {
 			rec["total_wood"] = r.total_wood_gathered;
 			rec["total_gold"] = r.total_gold_gathered;
 			rec["total_stone"] = r.total_stone_gathered;
-			summary->call("show_summary", sim->is_victory(), rec, (float)match_elapsed_time);
+			summary->call("show_summary", sim->is_victory_for(local_player()), rec, (float)match_elapsed_time);
 		}
 	}
 
-	// Check Victory / Defeat Condition
-	if (sim->is_victory()) {
+	// Check Victory / Defeat Condition, from the local player's seat
+	if (sim->is_victory_for(local_player())) {
 		banner_panel->set_visible(true);
-		banner_label->set_text("VICTORY!\nYou successfully defended Athens against all enemy invasions!");
+		banner_label->set_text("VICTORY!\nYour side has prevailed.");
 		banner_label->add_theme_color_override("font_color", Color(0.3f, 1.0f, 0.5f));
-	} else if (sim->is_game_over()) {
+	} else if (sim->is_victory() || sim->is_game_over()) {
 		banner_panel->set_visible(true);
-		banner_label->set_text("DEFEAT!\nYour Athenian Town Center has fallen!");
+		banner_label->set_text("DEFEAT!\nYour side has been defeated.");
 		banner_label->add_theme_color_override("font_color", Color(1.0f, 0.3f, 0.3f));
+	} else if (sim->is_defeated(local_player())) {
+		// 0 A.D.: a defeated player watches the rest of the match with the map revealed.
+		// The notice shows for a few seconds, then gets out of the way.
+		static double defeated_at = -1.0;
+		if (defeated_at < 0.0 || match_elapsed_time < defeated_at) defeated_at = match_elapsed_time;
+		banner_panel->set_visible(match_elapsed_time - defeated_at < 6.0);
+		banner_label->set_text("DEFEATED\nYou are now observing. The match goes on.");
+		banner_label->add_theme_color_override("font_color", Color(1.0f, 0.75f, 0.3f));
+		selected_ids.clear();
 	}
 }
 
@@ -1954,6 +1963,12 @@ void RtsoMain::update_command_panel() {
 				if ((roster & rtso::unit_bit((uint8_t)t)) == 0) return;
 				Button *btn = memnew(Button);
 				btn->set_text(label);
+				// Champions wait for their unlock technology (0 A.D. unlock_champion_*).
+				uint8_t gate = sim->train_unlock_tech(local_player(), (uint8_t)t, found_b->type);
+				if (gate != rtso::TECH_NONE && !sim->player(local_player()).has_tech(gate)) {
+					btn->set_disabled(true);
+					btn->set_tooltip_text(String("Requires ") + rtso::tech_info(gate).name);
+				}
 				btn->connect("pressed", Callable(this, "_on_train_pressed").bind((int)t));
 				production_bar->add_child(btn);
 			};
@@ -1996,6 +2011,10 @@ void RtsoMain::update_command_panel() {
 				add_train(rtso::UNIT_TRADER, "Merchant Trader (60f,60w)");
 			} else if (found_b->type == rtso::BLD_TEMPLE) {
 				add_train(rtso::UNIT_HEALER, "Temple Healer (80f,60g)");
+			} else if (found_b->type == rtso::BLD_HOUSE) {
+				// Fertility Festival (unlock_civilians_house_*) turns houses into trainers.
+				add_train(rtso::UNIT_VILLAGER, "Villager (50f)");
+				add_train(rtso::UNIT_FEMALE_CITIZEN, "Female Citizen (40f)");
 			} else if (found_b->type == rtso::BLD_FARMSTEAD || found_b->type == rtso::BLD_CORRAL) {
 				add_train(rtso::UNIT_WAR_DOG, "Guard Dog (60f)");
 			}
@@ -3074,6 +3093,16 @@ void RtsoMain::apply_match_settings() {
 	}
 	if (victory >= 0 && victory < rtso::VICTORY_COUNT) sim->set_victory_condition((uint8_t)victory);
 	sim->set_waves_enabled((bool)ms->get("waves_enabled"));
+	sim->set_last_man_standing((bool)ms->get("last_man_standing"));
+	sim->set_pop_cap((int)ms->get("pop_cap"));
+	sim->set_ceasefire_seconds(60.0f * (float)std::clamp((int)ms->get("ceasefire_min"), 0, 60));
+	// Game-setup teams (1-based T1..T4) decide allied victory, shared vision and territory.
+	Array slot_teams = ms->get("slot_teams");
+	for (int p = 0; p < 8 && p < slot_teams.size(); ++p) {
+		int tm = (int)slot_teams[p];
+		if (tm >= 1 && tm <= 8) sim->set_player_team((uint8_t)p, (uint8_t)(tm - 1));
+	}
+	sim->apply_team_diplomacy(); // stances follow the lobby's teams
 	sync_victory_selector();
 	if (diff >= 0 && diff <= 5) sim->set_petra_difficulty((uint8_t)diff);
 	if (behavior >= 0 && behavior <= 3) sim->set_petra_behavior((uint8_t)behavior);
@@ -3518,6 +3547,9 @@ void RtsoMain::_on_lobby_start_pressed() {
 		setup.seed = (uint32_t)(int64_t)(int)ms->get("seed");
 		setup.victory = (uint8_t)((int)ms->get("victory"));
 		setup.waves = (bool)ms->get("waves_enabled") ? 1 : 0;
+		setup.lms = (bool)ms->get("last_man_standing") ? 1 : 0;
+		setup.pop_cap = (uint16_t)std::clamp((int)ms->get("pop_cap"), 0, 1000);
+		setup.ceasefire = (uint8_t)std::clamp((int)ms->get("ceasefire_min"), 0, 60);
 		int msz = (int)ms->get("map_size");
 		setup.map_size = (uint16_t)((msz >= 128 && msz <= 512) ? msz : 128);
 		setup.difficulty = (uint8_t)((int)ms->get("ai_difficulty"));
@@ -3598,6 +3630,13 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	}
 	sim->set_victory_condition(setup.victory >= rtso::VICTORY_COUNT ? 0 : setup.victory);
 	sim->set_waves_enabled(setup.waves != 0);
+	sim->set_last_man_standing(setup.lms != 0);
+	sim->set_pop_cap(setup.pop_cap);
+	sim->set_ceasefire_seconds(60.0f * (float)setup.ceasefire);
+	for (uint8_t p = 0; p < 8 && p < setup.slot_count; ++p) {
+		if (setup.teams[p] >= 1 && setup.teams[p] <= 8) sim->set_player_team(p, (uint8_t)(setup.teams[p] - 1));
+	}
+	sim->apply_team_diplomacy();
 	sync_victory_selector();
 	sim->set_petra_difficulty(setup.difficulty > 5 ? 3 : setup.difficulty);
 	sim->set_petra_behavior(setup.behavior > 3 ? 2 : setup.behavior);
@@ -3627,6 +3666,9 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		ms->set("seed", (int64_t)setup.seed);
 		ms->set("victory", (int)sim->victory_condition());
 		ms->set("waves_enabled", sim->waves_enabled());
+		ms->set("last_man_standing", sim->last_man_standing());
+		ms->set("pop_cap", sim->pop_cap());
+		ms->set("ceasefire_min", (int)(sim->ceasefire_seconds() / 60.0f));
 		ms->set("map_size", random_map_size);
 		ms->set("ai_difficulty", (int)sim->petra_difficulty());
 		ms->set("ai_behavior", (int)sim->petra_behavior());
