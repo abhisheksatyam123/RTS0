@@ -79,6 +79,8 @@ struct ProductionOrder {
 // Stockpiles are float so AI trickle income accrues fractionally; whole-number
 // callers read them through int accessors.
 static constexpr uint8_t MAX_PLAYERS = 8;
+// Owner of a defeated player's leftovers (0 A.D.'s Gaia): hostile to everyone, owned by no slot.
+static constexpr uint8_t GAIA_PLAYER = 0xFE;
 
 struct PlayerState {
 	float res[RES_COUNT] = {};             // indexed by ResourceType
@@ -509,8 +511,14 @@ public:
 	const std::vector<Projectile> &projectiles() const { return projectiles_; }
 
 	// Per-player table. Out-of-range ids clamp to player 0 so stray team bytes can't index past the array.
-	const PlayerState &player(uint8_t pid) const { return players_[pid < MAX_PLAYERS ? pid : 0]; }
-	PlayerState &player(uint8_t pid) { return players_[pid < MAX_PLAYERS ? pid : 0]; }
+	// Gaia (and any other non-slot owner) gets an empty stock: nothing it earns or spends
+	// reaches a real player.
+	const PlayerState &player(uint8_t pid) const { return pid < MAX_PLAYERS ? players_[pid] : gaia_stock_; }
+	PlayerState &player(uint8_t pid) {
+		if (pid < MAX_PLAYERS) return players_[pid];
+		gaia_stock_ = PlayerState();
+		return gaia_stock_;
+	}
 	int player_resource(uint8_t pid, uint8_t res_type) const { return (res_type < RES_COUNT) ? (int)player(pid).res[res_type] : 0; }
 	void set_player_resources(uint8_t pid, int food, int wood, int gold, int stone) {
 		PlayerState &ps = player(pid);
@@ -1018,6 +1026,10 @@ private:
 	float relic_duration_ = 180.0f;
 	int relic_count_ = 0;
 	void apply_relic_count();
+	PlayerState gaia_stock_; // scratch for player(GAIA_PLAYER); never saved or hashed
+	// Player.js SetState("defeated"): hand every unit and structure of these players to Gaia.
+	void convert_to_gaia(uint8_t players);
+	void tick_capture_gaia(Building &b, float dt);
 	uint8_t participant_mask_ = 0; // save v10
 	uint8_t defeated_mask_ = 0;
 	uint8_t winner_mask_ = 0;
