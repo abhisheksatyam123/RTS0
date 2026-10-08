@@ -1,8 +1,8 @@
 // Civ roster wiring tests: spawned and trained units carry their civ's 0 A.D.
 // template, heroes train with their auras, civ bonuses come from data, and the
 // template survives a save/load round trip.
-//   g++ -std=c++20 -O2 -Isrc tools/test_civ_units.cpp src/simulation/simulation.cpp \
-//       src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o /tmp/test_civ_units \
+//   g++ -std=c++20 -O2 -Isrc tools/test_civ_units.cpp src/simulation/simulation.cpp
+//       src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o /tmp/test_civ_units
 //       && /tmp/test_civ_units
 #include "simulation/simulation.h"
 #include <cstdio>
@@ -101,6 +101,63 @@ int main() {
 		if (b.id == per_house) per_hp = b.max_hp;
 	}
 	CHECK(ath_hp > per_hp * 1.09f && ath_hp < per_hp * 1.11f);
+
+	// Team bonuses (0 A.D. data/auras/teambonuses) reach the civ's player and its allies.
+	{
+		static Simulation t;
+		t.set_sim_seed(7);
+		t.set_team_civ(0, CIV_ATHENIANS);
+		t.reset();
+		uint16_t pericles = find_template(CIV_ATHENIANS, "Pericles");
+		float cost[RES_COUNT];
+		const UnitTypeInfo &pinfo = civ_template_unit_info(pericles, UNIT_HERO);
+		t.unit_train_cost(0, pericles, pinfo, cost);
+		CHECK(cost[RES_FOOD] + cost[RES_GOLD] > 0.0f); // no Spartan ally yet: full price
+
+		// A Spartan ally still in the match makes heroes free (Peloponnesian League).
+		t.set_team_civ(2, CIV_SPARTANS);
+		t.set_player_team(2, t.player_team(0));
+		CHECK(t.ally_civ_mask(0) == 0); // owns nothing yet, so not in the match
+		t.spawn_building(30, -30, BLD_HOUSE, 2, 1.0f);
+		CHECK(t.ally_civ_mask(0) == civ_bit(CIV_SPARTANS));
+		t.unit_train_cost(0, pericles, pinfo, cost);
+		CHECK(cost[RES_FOOD] == 0.0f && cost[RES_WOOD] == 0.0f && cost[RES_GOLD] == 0.0f && cost[RES_STONE] == 0.0f);
+		t.set_player_resources(0, 5000, 5000, 5000, 5000);
+		uint32_t tc = t.spawn_building(-20, -20, BLD_TOWN_CENTER, 0, 1.0f);
+		for (int i = 0; i < 4; ++i) t.spawn_building(-30 + i * 3, -30, BLD_HOUSE, 0, 1.0f);
+		const float gold_before = t.player(0).gold();
+		CHECK(t.cmd_train_template(0, tc, pericles));
+		CHECK(t.player(0).gold() == gold_before);
+		CHECK(t.cmd_cancel_train(0, tc, 0)); // refund matches what was paid
+		CHECK(t.player(0).gold() == gold_before);
+
+		// Building and tech bonuses: Persian barracks, Athenian civic centre techs.
+		CHECK(civ_team_bonus_mult(CIV_PERSIANS, 0, TEAM_BONUS_BUILDING_COST, RES_WOOD, CIV_UNIT_TEMPLATE_NONE, BLD_BARRACKS) == 0.8f);
+		CHECK(civ_team_bonus_mult(CIV_PERSIANS, 0, TEAM_BONUS_BUILDING_COST, RES_WOOD, CIV_UNIT_TEMPLATE_NONE, BLD_HOUSE) == 1.0f);
+		CHECK(t.team_bonus_mult(0, TEAM_BONUS_TECH_TIME, -1, CIV_UNIT_TEMPLATE_NONE, BLD_TOWN_CENTER) == 0.5f);
+		// Han Silk Road reaches allies only, not the Han themselves.
+		CHECK(civ_team_bonus_mult(CIV_HAN, 0, TEAM_BONUS_TRADE_INTERNATIONAL) == 1.0f);
+		CHECK(civ_team_bonus_mult(CIV_ATHENIANS, civ_bit(CIV_HAN), TEAM_BONUS_TRADE_INTERNATIONAL) > 1.19f);
+		// Two allies of the same civ don't stack one bonus.
+		CHECK(civ_team_bonus_mult(CIV_SPARTANS, civ_bit(CIV_SPARTANS), TEAM_BONUS_UNIT_COST, RES_FOOD, pericles) == 0.0f);
+
+		// Ptolemaic allies trickle +1 food/s.
+		t.set_team_civ(3, CIV_PTOLEMIES);
+		t.set_player_team(3, t.player_team(0));
+		t.spawn_building(30, 30, BLD_HOUSE, 3, 1.0f);
+		const float food_before = t.player(3).food();
+		for (int i = 0; i < 20; ++i) t.tick(Simulation::FIXED_STEP);
+		CHECK(t.player(3).food() >= food_before + 0.9f);
+	}
+
+	// Mercenaries take 0 A.D.'s mercenary mixin: metal only, 30% faster training.
+	{
+		uint16_t merc = find_template(CIV_CARTHAGINIANS, "Gallic Mercenary Swordsman");
+		CHECK(merc != CIV_UNIT_TEMPLATE_NONE);
+		const CivUnitTemplate &u = civ_unit_template(merc);
+		CHECK((u.flags & ROSTER_MERCENARY) && u.food_cost == 0 && u.wood_cost == 0 && u.gold_cost > 0);
+		CHECK(civ_team_bonus_mult(CIV_CARTHAGINIANS, 0, TEAM_BONUS_UNIT_TRAIN_TIME, -1, merc) == 0.5f);
+	}
 
 	// Templates survive save/load.
 	const char *path = "/tmp/rtso_test_civ_units.sav";
