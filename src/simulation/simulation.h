@@ -888,10 +888,24 @@ private:
 	void tick_petra_ai_player(float dt);
 	void tick_fauna(float dt);
 	void tick_fow();  // updates FoW each sim tick
-	template <typename SharesVision>
-	void update_player_fow(std::vector<uint8_t> &grid, SharesVision shares_vision);
 	void ensure_fow_cell_heights();
-	void reveal_fow(std::vector<uint8_t> &grid, float sx, float sz, float vr) const;
+	// The cells one viewer lit, kept while it stands still (CCmpRangeManager likewise redoes a
+	// viewer's LOS only when it moves). Derived from the terrain alone: never saved or hashed, and
+	// a viewer at another position, or terrain rebuilt since, recomputes. Row k of `rows` holds the
+	// lit cells of FoW row cz - r + k, bit i for column cx - r + i.
+	struct FowView {
+		uint32_t sx = 0, sz = 0, vr = 0; // the bits of the last call's sx, sz and vr
+		uint32_t gen = 0; // fow_view_gen_ of that call; 0: no call yet
+		bool stored = false; // rows filled for that call
+		uint64_t rows[64];
+	};
+	static constexpr int FOW_VIEW_MAX_R = 31; // widest view the rows hold: 2r + 1 <= 63
+	struct FowViews {
+		std::vector<FowView> units, buildings;
+	};
+	void reveal_fow(std::vector<uint8_t> &grid, float sx, float sz, float vr, FowView *view = nullptr) const;
+	template <typename SharesVision>
+	void update_player_fow(std::vector<uint8_t> &grid, SharesVision shares_vision, FowViews &views);
 	bool terrain_blocks_los(float sx, float sz, float sy, float tx, float tz, float ty) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
 	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
@@ -1161,6 +1175,10 @@ private:
 	std::vector<float> fow_cell_hmax_; // highest heightmap sample an LOS ray can read in each FoW cell, filled with fow_cell_height_
 	static constexpr int FOW_LOS_BLOCK = 4; // FoW cells per side of a fow_block_hmax_ block
 	std::vector<float> fow_block_hmax_; // fow_cell_hmax_ max per block, filled with fow_cell_height_
+	uint32_t fow_view_gen_ = 0; // bumped each time fow_cell_height_ is filled, so FowViews from older terrain miss
+	// reveal_fow() views of units (by index) and buildings (by buildings_ index), for Petra's
+	// scouting and for update_player_fow(); their vision radii differ, so each keeps its own.
+	FowViews petra_fow_views_, player_fow_views_;
 	NavGrid nav_grid_; // Phase1: SoA nav mesh (buildings + water), mirrors 0AD Grid<NavcellData>
 	Grid<uint8_t> territory_grid_; // grid_res_^2 player id per cell, G2 (CCmpTerritoryManager)
 	Grid<uint8_t> influence_grid_; // grid_res_^2 influence count per cell, G2
