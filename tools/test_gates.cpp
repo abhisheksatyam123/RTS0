@@ -1,0 +1,191 @@
+// 0 A.D. gates (Gate.js): a wall across the map with one gate. The owner's units
+// open it and walk through; an enemy is kept out; a locked gate keeps everyone
+// out; a gate doesn't close on a unit standing in it; lock state reaches the nav
+// grid, open/closed doesn't; save/load and the lockstep hash cover both flags.
+//   g++ -std=c++20 -O2 -Isrc tools/test_gates.cpp src/simulation/simulation.cpp \
+//       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+//       src/network/net_host.cpp -lpthread -o /tmp/test_gates && /tmp/test_gates
+#include "simulation/simulation.h"
+#include "network/turn_manager.h"
+#include <cmath>
+#include <cstdio>
+
+using namespace rtso;
+
+static int failures = 0;
+#define CHECK(cond) do { if (!(cond)) { std::printf("FAIL %s:%d %s\n", __FILE__, __LINE__, #cond); ++failures; } } while (0)
+
+static void run(Simulation &s, float seconds) {
+	for (int t = 0; t < (int)std::lround(seconds / Simulation::FIXED_STEP); ++t) s.tick(Simulation::FIXED_STEP);
+}
+
+static const Simulation::Building *find_bld(const Simulation &s, uint32_t id) {
+	for (const auto &b : s.buildings()) if (b.id == id) return &b;
+	return nullptr;
+}
+
+static float unit_x(const Simulation &s, uint32_t id) {
+	auto uv = s.units();
+	for (size_t i = 0; i < uv.count; ++i) if (uv.id[i] == id) return uv.pos_x[i];
+	return NAN;
+}
+
+// A north-south wall along x = 1 from edge to edge, with a gate at z = 1.
+static uint32_t wall_with_gate(Simulation &s) {
+	s.set_sim_seed(5);
+	s.reset();
+	s.spawn_building_world(-40.0f, -40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	s.spawn_building_world(40.0f, 40.0f, BLD_TOWN_CENTER, 1, 1.0f);
+	const int half_cells = (int)(s.map_half() / Simulation::GRID);
+	uint32_t gate = 0;
+	for (int c = -half_cells; c < half_cells; ++c) {
+		const float z = c * Simulation::GRID + 1.0f;
+		if (c == 0) gate = s.spawn_building_world(1.0f, z, BLD_GATE, 0, 1.0f);
+		else s.spawn_building_world(1.0f, z, BLD_WALL_SEGMENT, 0, 1.0f);
+	}
+	return gate;
+}
+
+static bool nav_blocked_at(const Simulation &s, float x, float z) {
+	auto [cx, cy] = s.nav_grid().world_to_cell(x, z);
+	return s.nav_grid().cells.at(cx, cy) == NAV_OBSTRUCTED;
+}
+
+int main() {
+	static Simulation s;
+
+	// 1. The owner's unit opens the gate, walks through, and the gate closes behind it.
+	{
+		uint32_t gate = wall_with_gate(s);
+		CHECK(s.is_hostile(0, 1));
+		CHECK(!find_bld(s, gate)->gate_open);
+		CHECK(!nav_blocked_at(s, 1.0f, 1.0f));  // unlocked gate: long-range paths cross it
+		CHECK(nav_blocked_at(s, 1.0f, 9.0f));   // wall: they don't
+		uint32_t u = s.spawn_unit(-12.0f, 1.0f, 0, UNIT_SPEARMAN);
+		s.cmd_move(&u, 1, 14.0f, 1.0f);
+		bool opened = false;
+		for (int i = 0; i < 40 && unit_x(s, u) < 10.0f; ++i) {
+			run(s, 0.5f);
+			opened |= find_bld(s, gate)->gate_open;
+		}
+		CHECK(opened);
+		CHECK(unit_x(s, u) > 10.0f);
+		std::printf("own spearman crossed the gate: x = %.1f\n", unit_x(s, u));
+		s.cmd_move(&u, 1, 40.0f, 1.0f);
+		run(s, 6.0f);
+		CHECK(!find_bld(s, gate)->gate_open);
+	}
+
+	// 2. An enemy stays out: the gate only opens for its owner and allies.
+	{
+		uint32_t gate = wall_with_gate(s);
+		uint32_t e = s.spawn_unit(14.0f, 1.0f, 1, UNIT_SPEARMAN);
+		s.order_set_stance(&e, 1, STANCE_PASSIVE);
+		s.cmd_move(&e, 1, -14.0f, 1.0f);
+		run(s, 20.0f);
+		CHECK(!find_bld(s, gate)->gate_open);
+		CHECK(unit_x(s, e) > 1.5f);
+		std::printf("enemy spearman held at the gate: x = %.1f\n", unit_x(s, e));
+	}
+
+	// 3. Allies count as friends (Gate.js queries every ally of the owner).
+	{
+		uint32_t gate = wall_with_gate(s);
+		s.set_diplomacy(0, 1, Simulation::DIPLO_ALLY);
+		s.set_diplomacy(1, 0, Simulation::DIPLO_ALLY);
+		uint32_t a = s.spawn_unit(14.0f, 1.0f, 1, UNIT_SPEARMAN);
+		s.cmd_move(&a, 1, -14.0f, 1.0f);
+		run(s, 20.0f);
+		CHECK(unit_x(s, a) < -10.0f);
+		(void)gate;
+	}
+
+	// 4. Locked: shut for the owner too, and long-range paths no longer cross it.
+	{
+		uint32_t gate = wall_with_gate(s);
+		CHECK(!s.cmd_lock_gate(1, gate, true)); // not the owner
+		CHECK(s.cmd_lock_gate(0, gate, true));
+		CHECK(!s.cmd_lock_gate(0, gate, true)); // already locked
+		CHECK(nav_blocked_at(s, 1.0f, 1.0f));
+		uint32_t u = s.spawn_unit(-12.0f, 1.0f, 0, UNIT_SPEARMAN);
+		s.cmd_move(&u, 1, 14.0f, 1.0f);
+		run(s, 20.0f);
+		CHECK(!find_bld(s, gate)->gate_open);
+		CHECK(unit_x(s, u) < 0.5f);
+		CHECK(s.cmd_lock_gate(0, gate, false));
+		CHECK(!nav_blocked_at(s, 1.0f, 1.0f));
+		s.cmd_move(&u, 1, 14.0f, 1.0f);
+		run(s, 20.0f);
+		CHECK(unit_x(s, u) > 10.0f);
+	}
+
+	// 5. A gate doesn't close on a unit standing in it (CloseGate retries).
+	{
+		uint32_t gate = wall_with_gate(s);
+		uint32_t u = s.spawn_unit(1.0f, 1.0f, 0, UNIT_SPEARMAN); // in the opening
+		s.order_set_stance(&u, 1, STANCE_PASSIVE);
+		run(s, 0.5f);
+		CHECK(find_bld(s, gate)->gate_open);
+		CHECK(s.cmd_lock_gate(0, gate, true));
+		run(s, 2.0f);
+		CHECK(find_bld(s, gate)->gate_open); // locked, but someone is in the way
+		s.cmd_move(&u, 1, -20.0f, 1.0f);
+		run(s, 4.0f);
+		CHECK(!find_bld(s, gate)->gate_open);
+		CHECK(unit_x(s, u) < -2.0f);
+	}
+
+	// 6. Save/load keeps both flags, and the lockstep hash sees them.
+	{
+		uint32_t gate = wall_with_gate(s);
+		TurnManager tm;
+		const uint32_t h0 = tm.compute_sim_hash(s);
+		CHECK(s.cmd_lock_gate(0, gate, true));
+		CHECK(tm.compute_sim_hash(s) != h0);
+		const char *path = "/tmp/rts0_test_gates.sav";
+		CHECK(s.save_state(path));
+		static Simulation l;
+		wall_with_gate(l);
+		CHECK(l.load_state(path));
+		CHECK(find_bld(l, gate) && find_bld(l, gate)->gate_locked);
+		CHECK(tm.compute_sim_hash(s) == tm.compute_sim_hash(l));
+		CHECK(nav_blocked_at(l, 1.0f, 1.0f));
+	}
+
+	// 7. Lockstep command 27 locks and unlocks.
+	{
+		uint32_t gate = wall_with_gate(s);
+		TurnManager tm;
+		auto turns = [&](int n) { for (int i = 0; i < n; ++i) tm.tick(TurnManager::TURN_DURATION, s); };
+		NetCommand c;
+		c.client_id = 0;
+		c.cmd_type = (uint8_t)NetCommandType::NET_CMD_LOCK_GATE;
+		c.target_id = gate;
+		c.param = 1;
+		tm.post_local_command(c);
+		turns(5);
+		CHECK(find_bld(s, gate)->gate_locked);
+		c.param = 0;
+		tm.post_local_command(c);
+		turns(5);
+		CHECK(!find_bld(s, gate)->gate_locked);
+	}
+
+	// 8. Upgrading a wall segment into a gate opens a path through the wall.
+	{
+		wall_with_gate(s);
+		uint32_t w = 0;
+		for (const auto &b : s.buildings())
+			if (b.type == BLD_WALL_SEGMENT && std::fabs(b.z - 21.0f) < 0.1f) w = b.id;
+		CHECK(w != 0);
+		CHECK(nav_blocked_at(s, 1.0f, 21.0f));
+		s.set_player_resources(0, 1000, 1000, 1000, 1000);
+		CHECK(s.cmd_upgrade_building(0, w));
+		run(s, 12.5f);
+		CHECK(find_bld(s, w)->type == BLD_GATE);
+		CHECK(!nav_blocked_at(s, 1.0f, 21.0f));
+	}
+
+	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
+	return failures ? 1 : 0;
+}
