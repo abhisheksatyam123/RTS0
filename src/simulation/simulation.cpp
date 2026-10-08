@@ -1519,7 +1519,8 @@ static constexpr double TRADER_GAIN_MULTIPLIER = 0.75;
 // template_structure_economic_market.xml Market/InternationalBonus.
 static constexpr double MARKET_INTERNATIONAL_BONUS = 0.2;
 
-Simulation::TradeGain Simulation::calculate_trade_gain(const Building &from, const Building &to, uint8_t trader_owner) const {
+Simulation::TradeGain Simulation::calculate_trade_gain(const Building &from, const Building &to, uint8_t trader_owner,
+		uint8_t trader_type) const {
 	// 0 A.D. Market.js CalculateTraderGain: the trader's owner gets
 	// round(norm * GainMultiplier * TradeGain(d^2, mapSize)), which grows with
 	// the square of the distance. When the two markets have different owners,
@@ -1528,9 +1529,12 @@ Simulation::TradeGain Simulation::calculate_trade_gain(const Building &from, con
 	const double map_size = std::max(1.0, 2.0 * (double)map_half_ * TRADE_TILE_METRES);
 	const double dx = ((double)from.x - (double)to.x) * TRADE_TILE_METRES;
 	const double dz = ((double)from.z - (double)to.z) * TRADE_TILE_METRES;
-	// Trader/GainMultiplier with the civ bonus (Persian Darics +25%), the
-	// Handicraft / Advanced Handicraft techs and an AI player's difficulty applied.
-	const double mult = TRADER_GAIN_MULTIPLIER * (double)civ_info(civ_of(trader_owner)).trade_gain_mult *
+	// Trader/GainMultiplier with the civ bonus (Persian Darics +25% on land
+	// traders, Carthaginian +25% on merchant ships only), the Handicraft /
+	// Advanced Handicraft techs and an AI player's difficulty applied.
+	const CivInfo &ci = civ_info(civ_of(trader_owner));
+	const float civ_mult = trader_type == UNIT_MERCHANT_SHIP ? ci.ship_trade_gain_mult : ci.trade_gain_mult;
+	const double mult = TRADER_GAIN_MULTIPLIER * (double)civ_mult *
 	                    (double)tech_mods(trader_owner).trade_gain[UNIT_TRADER] * (double)ai_gather_mult(trader_owner);
 	g.trader = (int)std::lround(trade_gain_normalization(map_size) * mult * trade_gain_curve(dx * dx + dz * dz, map_size));
 	if (from.team != to.team) {

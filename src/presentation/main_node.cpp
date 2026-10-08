@@ -3827,6 +3827,7 @@ Dictionary RtsoMain::get_civ_info(int civ_idx) const {
 	d["desc"] = String(info.description);
 	d["metal_mult"] = info.metal_gather_mult;
 	d["trade_gain_mult"] = info.trade_gain_mult;
+	d["ship_trade_gain_mult"] = info.ship_trade_gain_mult;
 	return d;
 }
 
