@@ -528,6 +528,13 @@ unsigned pack_state_of(const Simulation &sim, uint32_t id) {
     return 255;
 }
 
+float hp_of(const Simulation &sim, uint32_t id) {
+    auto uv = sim.units();
+    for (size_t i = 0; i < uv.count; ++i)
+        if (uv.id[i] == id) return uv.alive[i] ? uv.hp[i] : 0.0f;
+    return 0.0f;
+}
+
 // The unit's current order kind (255 once it is dead or gone) and how many
 // Shift-queued orders follow it.
 unsigned order_kind_of(const Simulation &sim, uint32_t id) {
@@ -558,6 +565,7 @@ struct PeerOpts {
     uint32_t force_oos = 0;     // the joiner corrupts its world after this turn
     uint32_t quit_turn = 0;     // the joiner leaves the match after this turn
     bool rejoin = false;        // this joiner takes over a dropped seat mid-match
+    uint32_t humans = 2;        // human seats (the host and humans-1 joiners); 3+ takes the AI slot
     std::string oos_dir;        // where each peer writes its OOS dump
 };
 
@@ -579,7 +587,7 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     seats.slot_count = 3;
     seats.slot_types[0] = 'h';
     seats.slot_types[1] = 'h';
-    seats.slot_types[2] = 'a';
+    seats.slot_types[2] = opt.humans >= 3 ? 'h' : 'a';
     seats.teams[0] = 1;
     seats.teams[1] = 2;
     seats.teams[2] = 3;
@@ -589,9 +597,11 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     sim.set_waves_enabled(false);
     // Give the AI slot a base of its own (build_world leaves it only the
     // wonder), so the match can go on when a human falls.
-    sim.spawn_building_world(0.0f, 40.0f, BLD_TOWN_CENTER, 2, 1.0f);
+    // With three humans, the third joiner plays this base instead of Petra.
+    const uint32_t slot2_tc = sim.spawn_building_world(0.0f, 40.0f, BLD_TOWN_CENTER, 2, 1.0f);
+    std::vector<uint32_t> slot2_villagers;
     for (int i = 0; i < 5; ++i)
-        sim.spawn_unit(-4.0f + 2.0f * (float)i, 34.0f, 2, UNIT_VILLAGER, 100.0f);
+        slot2_villagers.push_back(sim.spawn_unit(-4.0f + 2.0f * (float)i, 34.0f, 2, UNIT_VILLAGER, 100.0f));
     // A wall segment the host turns into a gate (cmd 26, 0 A.D. Upgrade.js).
     const uint32_t host_wall = sim.spawn_building_world(-30.0f, 14.0f, BLD_WALL_SEGMENT, 0, 1.0f);
     // A stone thrower the host unpacks and packs again (cmd 29, 0 A.D. Pack.js).
@@ -603,6 +613,11 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     // A villager the host orders about with the Unit orders commands: gather,
     // walk with a Shift-queued walk after it, back to work (cmd 31), delete (cmd 30).
     const uint32_t host_worker = sim.spawn_unit(-34.0f, 10.0f, 0, UNIT_VILLAGER, 100.0f);
+    // A healer the host orders to heal (cmd 32) a swordsman wounded at turn 405.
+    // Passive, so it heals only when ordered.
+    const uint32_t host_healer = sim.spawn_unit(-44.0f, 6.0f, 0, UNIT_HEALER);
+    sim.order_set_stance(&host_healer, 1, STANCE_PASSIVE);
+    const uint32_t host_patient = sim.spawn_unit(-24.0f, -16.0f, 0, UNIT_SWORDSMAN);
     auto apply_setup = [&](const GameSetupParams &s) {
         sim.set_victory_condition(s.victory >= VICTORY_COUNT ? 0 : s.victory);
         for (uint8_t t = 0; t < MAX_PLAYERS; ++t) {
@@ -626,7 +641,7 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     if (!ok) { std::fprintf(stderr, "[net-peer] socket start failed\n"); return 3; }
 
     TurnManager tm;
-    const uint32_t me = host ? 0u : 1u;
+    uint32_t me = host ? 0u : 1u;
     tm.set_net_host(&net, me);
     Arena arena(1 << 16);
 
@@ -635,15 +650,17 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     net.onChat([&](const ChatMsg &cm) { chats.push_back(cm.sender_guid + ": " + cm.message); });
     if (!opt.oos_dir.empty()) tm.set_oos_dump_dir(opt.oos_dir);
 
-    // Wait until both sides see the session (host: a peer joined, client: ACK).
-    bool connected = false;
-    net.onPeerConnected([&](uint32_t) { connected = true; });
+    // Wait until the session is full (host: every joiner is in, client: ACK).
+    uint32_t joined = 0;
+    net.onPeerConnected([&](uint32_t) { ++joined; });
+    const uint32_t need = host && !opt.rejoin ? opt.humans - 1 : 1;
     uint64_t t_start = now_us();
-    while (!connected) {
+    while (joined < need) {
         net.poll(arena);
         arena.reset();
         if (now_us() - t_start > 10'000'000ull) {
-            std::fprintf(stderr, "[net-peer] %s: no connection after 10s\n", host ? "host" : "join");
+            std::fprintf(stderr, "[net-peer] %s: no connection after 10s (%u of %u)\n", host ? "host" : "join",
+                         joined, need);
             return 3;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
@@ -682,8 +699,16 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
         tm.take_pending_game_start_full(seats);
         apply_setup(seats);
     }
+    // The host numbers joiners 1, 2, ... in connect order (NetHost ACK).
+    if (!host && !opt.rejoin && net.getLocalPeerId()) me = net.getLocalPeerId();
+    // The seat this process plays, which picks its part of the script (a
+    // rejoiner plays the seat it took over).
+    const uint32_t script_id = opt.rejoin ? (uint32_t)tm.local_player() : me;
     if (!opt.rejoin) {
-        tm.set_lockstep_peers({0u, 1u});
+        tm.set_local_client_id(me);
+        std::vector<uint32_t> peers;
+        for (uint32_t c = 0; c < opt.humans; ++c) peers.push_back(c);
+        tm.set_lockstep_peers(peers);
         tm.assign_slot_players(seats); // host -> player 0, joiner -> player 1
     }
 
@@ -728,6 +753,23 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
             }
             // Train a roster unit by template (cmd 25, as the roster list sends
             // it): each human queues its civ's default spearman at its own TC.
+            if (opt.humans >= 3 && st % 100 == 50) {
+                NetCommand w;
+                w.client_id = 2;
+                w.cmd_type = 1;
+                w.entity_ids = slot2_villagers;
+                w.target_x = (st / 100) % 2 ? 8.0f : -8.0f;
+                w.target_z = 30.0f;
+                batch.push_back(w);
+            }
+            if (opt.humans >= 3 && st % 150 == 75) {
+                NetCommand t;
+                t.client_id = 2;
+                t.cmd_type = 25;
+                t.target_id = slot2_tc;
+                t.target_x = (float)civ_default_template(sim.team_civ(2), UNIT_SPEARMAN);
+                batch.push_back(t);
+            }
             if (st % 150 == 75) {
                 for (uint32_t who = 0; who < 2; ++who) {
                     NetCommand t;
@@ -780,6 +822,14 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
             // Unit orders (0 A.D. Commands.js): the host's worker gathers food,
             // walks off with a Shift-queued walk (param bit 0x80) after it, goes
             // back to work (cmd 31) and is finally deleted (cmd 30).
+            if (st == 410) {
+                NetCommand hl;
+                hl.client_id = 0;
+                hl.cmd_type = 32;
+                hl.entity_ids.push_back(host_healer);
+                hl.target_id = host_patient;
+                batch.push_back(hl);
+            }
             if (st == 390 || st == 400 || st == 402 || st == 470 || st == 580) {
                 NetCommand w;
                 w.client_id = 0;
@@ -797,7 +847,7 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
             if (!host && st == 130) net.sendChat("secret", peer_guid(5));
             if (host && st == 140) net.sendChat("hi all");
             for (const auto &c : batch)
-                if (c.client_id == me) tm.post_local_command(c);
+                if (c.client_id == script_id) tm.post_local_command(c);
         }
 
         uint64_t now = now_us();
@@ -825,6 +875,10 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
             // posting orders, which must now be dropped on both peers, while
             // the host plays on against Petra.
             if (defeat_turn && f.turn_index == defeat_turn) wipe_player(sim, 1);
+            if (f.turn_index == 405) { // both peers, at the same turn boundary
+                const int32_t pi = sim.lookup_unit(host_patient);
+                if (pi >= 0 && sim.units_.alive[pi]) sim.units_.hp[pi] = 40.0f;
+            }
             // Mid-session save and load (the world reloaded from its own save
             // must hash the same, and both peers carry on in sync from it).
             if (opt.saveload_turn && f.turn_index == opt.saveload_turn) {
@@ -851,14 +905,15 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
                 if (cu.alive[i]) wounds += cu.max_hp[i] - cu.hp[i];
                 else ++dead;
             }
-            std::fprintf(log, "%u %08X %zu d01=%u d10=%u cf=%d wounds=%.0f dead=%u defeated=%u over=%d stone=%d,%d wall=%u locked=%d pack=%u work=%u queue=%zu\n",
+            std::fprintf(log, "%u %08X %zu d01=%u d10=%u cf=%d wounds=%.0f dead=%u defeated=%u over=%d stone=%d,%d wall=%u locked=%d pack=%u work=%u queue=%zu heal=%u patient=%.0f\n",
                          f.turn_index, f.sim_state_hash, f.commands.size(), sim.get_diplomacy(0, 1),
                          sim.get_diplomacy(1, 0), sim.ceasefire_active() ? 1 : 0, wounds, dead,
                          (unsigned)sim.defeated_mask(), sim.is_game_over() ? 1 : 0,
                          (int)sim.player(0).res[RES_STONE], (int)sim.player(1).res[RES_STONE],
                          (unsigned)building_type_of(sim, host_wall), gate_locked_of(sim, host_wall),
                          pack_state_of(sim, host_catapult), order_kind_of(sim, host_worker),
-                         order_queue_len_of(sim, host_worker));
+                         order_queue_len_of(sim, host_worker), order_kind_of(sim, host_healer),
+                         hp_of(sim, host_patient));
         }
         if (tm.has_out_of_sync() && !opt.force_oos) {
             std::fprintf(stderr, "[net-peer] %s: OOS at turn %u local=%08X peer=%08X\n",
@@ -985,6 +1040,7 @@ int main(int argc, char **argv) {
             else if (std::strcmp(k, "--oos-dir") == 0) opt.oos_dir = v;
             else if (std::strcmp(k, "--quit-turn") == 0) opt.quit_turn = (uint32_t)std::atoi(v);
             else if (std::strcmp(k, "--rejoin") == 0) opt.rejoin = std::atoi(v) != 0;
+            else if (std::strcmp(k, "--humans") == 0) opt.humans = (uint32_t)std::max(2, std::min(3, std::atoi(v)));
         }
         return netpeer::run(std::strcmp(argv[2], "host") == 0, (uint16_t)std::atoi(argv[3]),
                             (uint32_t)std::strtoul(argv[4], nullptr, 10),
