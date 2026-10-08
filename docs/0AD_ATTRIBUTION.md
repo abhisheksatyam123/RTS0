@@ -15,6 +15,7 @@ RTS0 builds on **0 A.D.** (https://play0ad.com) by Wildfire Games.
 | `src/core/math/fixed.h` | `source/maths/Fixed.h`, `Sqrt.cpp` | Port |
 | `src/simulation/nav/long_pathfinder.h` | `source/simulation2/helpers/LongPathfinder.*` | Port (JPS) |
 | `src/simulation/nav/geometry.h` | `source/simulation2/helpers/Geometry.*` | Port |
+| `src/simulation/nav/rasterize.h` | `source/simulation2/helpers/Rasterize.*` | Port |
 | `src/simulation/grid_nav.h` | `Grid.h`, `HierarchicalPathfinder.*`, `Pathfinding.h` | Port |
 | `src/simulation/petra_ai.h`, `simulation.*` | `simulation/ai/petra/*.js`, `simulation/components/UnitAI.js` and other components | Port / native rewrite of game logic |
 | `src/simulation/rms_generator.*` | 0 A.D. random map scripts (`maps/random/`) | Modeled on them; how closely is not yet checked |

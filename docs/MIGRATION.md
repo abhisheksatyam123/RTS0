@@ -64,4 +64,4 @@ This list covers porting the vendored C++ only. Overall project priorities and g
 
 ## License
 
-`src/0ad/` is GPL-2.0-or-later. Ported files say so in their headers, but the repo `LICENSE` is MIT. The "Sort out licensing" thread is resolving this.
+RTS0's code is GPL-2.0-or-later, the same as `src/0ad/`. Every port names its 0 A.D. source in its header and gets a row in `docs/0AD_ATTRIBUTION.md` in the same PR.
