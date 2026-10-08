@@ -21344,5 +21344,99 @@
       "x": -199.3,
       "z": 52.34
     }
+  ],
+  "treasures": [
+    {
+      "type": "food_barrels_buried",
+      "x": -59.4,
+      "z": -195.53
+    },
+    {
+      "type": "food_barrel",
+      "x": -58.49,
+      "z": -194.57
+    },
+    {
+      "type": "shipwreck_debris",
+      "x": -63.85,
+      "z": -194.07
+    },
+    {
+      "type": "shipwreck_debris",
+      "x": -105.17,
+      "z": -120.02
+    },
+    {
+      "type": "shipwreck_debris",
+      "x": -130.79,
+      "z": -35.02
+    },
+    {
+      "type": "shipwreck_debris",
+      "x": 63.03,
+      "z": 107.95
+    },
+    {
+      "type": "shipwreck_debris",
+      "x": 5.95,
+      "z": 53.68
+    },
+    {
+      "type": "shipwreck",
+      "x": -8.42,
+      "z": 54.18
+    },
+    {
+      "type": "shipwreck",
+      "x": -52.6,
+      "z": -82.64
+    },
+    {
+      "type": "shipwreck",
+      "x": 49.77,
+      "z": -118.47
+    },
+    {
+      "type": "shipwreck",
+      "x": 237.07,
+      "z": 18.39
+    },
+    {
+      "type": "shipwreck",
+      "x": 178.15,
+      "z": -165.66
+    },
+    {
+      "type": "shipwreck",
+      "x": -232.27,
+      "z": -33.7
+    },
+    {
+      "type": "stone",
+      "x": -199.24,
+      "z": -18.59
+    },
+    {
+      "type": "stone",
+      "x": -111.35,
+      "z": 36.74
+    },
+    {
+      "type": "golden_fleece",
+      "x": 157.78,
+      "z": -163.13
+    }
+  ],
+  "ruins": [
+    {
+      "type": "stone_statues_roman",
+      "x": -81.61,
+      "z": 81.59
+    },
+    {
+      "type": "stone_statues_roman",
+      "x": -80.47,
+      "z": 80.13
+    }
   ]
 }

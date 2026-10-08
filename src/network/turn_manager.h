@@ -102,6 +102,10 @@ public:
 	bool rejoined() const { return rejoined_; }
 	uint32_t rejoin_turn() const { return rejoin_turn_; }
 	uint8_t rejoin_reject_reason() const { return rejoin_reject_; }
+	// 0 A.D. "Waiting for players": the lockstep clients whose batch the next turn
+	// still needs, and how long this peer has been held (0 while turns run).
+	std::vector<uint32_t> waiting_on();
+	uint64_t waiting_ms() const;
 	// Where the saved world is staged on disk (default: the system temp dir).
 	void set_rejoin_dir(const std::string &dir) { rejoin_dir_ = dir; }
 	const std::vector<uint32_t> &lockstep_peers() const { return lockstep_peers_; }
@@ -361,6 +365,7 @@ private:
 	// Host: seat changes (NET_CMD_PEER_JOINED / NET_CMD_PEER_LEFT) for its next batch.
 	std::vector<NetCommand> pending_control_;
 	bool peer_active(uint32_t id) const;
+	uint64_t stall_since_ms_ = 0;
 	void apply_peer_left(uint32_t client_id, uint32_t last_turn);
 	void apply_peer_control(const NetCommand &c);
 	std::vector<uint32_t> rejoin_requests_;

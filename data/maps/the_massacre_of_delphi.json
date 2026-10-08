@@ -12971,67 +12971,67 @@
       "z": -20.19
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -62.06,
       "z": -28.76
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -59.74,
       "z": -28.9
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -57.72,
       "z": -27.83
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -56.33,
       "z": -28.36
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -60.53,
       "z": -30.01
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -60.78,
       "z": -28.2
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -58.78,
       "z": -29.82
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 27.51,
       "z": 39.57
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 29.86,
       "z": 39.65
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 30.81,
       "z": 41.53
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 31.32,
       "z": 38.03
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 30.79,
       "z": 36.31
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 29.11,
       "z": 36.89
     },
@@ -13623,6 +13623,30 @@
       "player": 1,
       "x": -51.87,
       "z": 47.83
+    }
+  ],
+  "treasures": [
+    {
+      "type": "golden_fleece",
+      "x": -70.5,
+      "z": -50.79
+    },
+    {
+      "type": "pegasus",
+      "x": 89.59,
+      "z": 92.16
+    }
+  ],
+  "ruins": [
+    {
+      "type": "unfinished_greek_temple",
+      "x": 10.95,
+      "z": 14.27
+    },
+    {
+      "type": "unfinished_greek_temple",
+      "x": -3.64,
+      "z": 21.18
     }
   ]
 }

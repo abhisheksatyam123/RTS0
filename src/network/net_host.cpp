@@ -96,6 +96,9 @@ bool NetHost::startHost(const NetConfig &c) {
 	role = NetRole::Host;
 	local_peer_id_ = 0;
 	next_peer_id_ = 1;
+	banned_names_.clear();
+	banned_addresses_.clear();
+	kicks_.clear();
 	next_seq_ = 1;
 	peers_.clear();
 	pending_acks_.clear();
@@ -150,6 +153,9 @@ bool NetHost::startClient(const std::string &h, uint16_t p) {
 	socket_fd_ = static_cast<int64_t>(fd);
 	role = NetRole::Client;
 	local_peer_id_ = 0;
+	auth_result_ = -1;
+	kicks_.clear();
+	kicked_self_ = false;
 	next_seq_ = 1;
 	peers_.clear();
 	pending_acks_.clear();
@@ -375,7 +381,7 @@ void NetHost::broadcastCommand(const uint8_t *data, size_t size, uint32_t exclud
 		}
 	} else if (isHost()) {
 		for (const auto &peer : peers_) {
-			if (peer.connected && peer.id != exclude_peer) {
+			if (admitted(peer) && peer.id != exclude_peer) {
 				send_wire_packet(peer.address, peer.port, peer.id, 0, cfg.commandChannel, data, size, true);
 			}
 		}
@@ -437,7 +443,7 @@ void NetHost::route_chat(ChatMsg chat, uint32_t author) {
 	std::vector<uint8_t> payload = NetPacketSerializer::frame_chat(chat);
 	std::vector<uint8_t> pkt = NetPacketSerializer::pack_message(NetMessageType::NMT_CHAT, 0, payload);
 	for (const auto &p : peers_) {
-		if (p.connected && p.id != author && wants(p.id)) sendCommand(p.id, pkt.data(), pkt.size());
+		if (admitted(p) && p.id != author && wants(p.id)) sendCommand(p.id, pkt.data(), pkt.size());
 	}
 }
 
@@ -569,10 +575,7 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 				std::vector<uint8_t> payload = NetPacketSerializer::frame_server_handshake(shm);
 				std::vector<uint8_t> msg = NetPacketSerializer::pack_message(NetMessageType::NMT_SERVER_HANDSHAKE, 0, payload);
 				send_wire_packet(from_ip, from_port, peer->id, 0, cfg.commandChannel, msg.data(), msg.size(), true);
-
-				if (peer_connected_cb_) {
-					peer_connected_cb_(peer->id);
-				}
+				// It joins the session (peer_connected_cb_) once it authenticates.
 			}
 		} else if (peer) {
 			peer->last_seen_ms = now_ms;
@@ -581,6 +584,9 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 				send_wire_packet(from_ip, from_port, peer->id, NET_FLAG_CONNECT_ACK, 0, nullptr, 0, false);
 			}
 		}
+		// A datagram from an address that never connected (or a full or banned
+		// session) speaks for nobody: the id on its header is its own claim.
+		if (!peer) return;
 	} else if (isClient()) {
 		if (!peers_.empty()) {
 			peers_[0].last_seen_ms = now_ms;
@@ -588,9 +594,8 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 				local_peer_id_ = hdr.peer_id;
 				peers_[0].connected = true;
 				std::cout << "[NetHost] Connected to host, assigned local peer_id " << local_peer_id_ << "\n";
-				if (peer_connected_cb_) {
-					peer_connected_cb_(0);
-				}
+				// In the session (peer_connected_cb_) once the host accepts our
+				// authentication (NMT_AUTHENTICATE_RESULT).
 			}
 		}
 	}
@@ -659,7 +664,8 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 			// request is answered twice.
 			dispatchMessage(sender_peer_id, net_msg);
 		} else {
-			if (command_cb_) {
+			const NetPeer *from = isHost() ? getPeer(sender_peer_id) : nullptr;
+			if (command_cb_ && (!isHost() || (from && admitted(*from)))) {
 				command_cb_(sender_peer_id, payload_ptr, payload_size);
 			}
 		}
@@ -671,6 +677,14 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 	// resolve_sender_id: a wire peer_id of 0 is ambiguous -- it is the host's own id
 	// AND what an un-acked client stamps).
 	const uint32_t author = resolve_sender_id(peerId);
+	if (isHost() && author != 0) {
+		// 0 A.D. NetServer's session states: a client that has not authenticated
+		// (or was kicked) may only hand-shake; nothing else it says is heard.
+		const NetPeer *p = getPeer(author);
+		const bool hello = msg.type == static_cast<uint8_t>(NetMessageType::NMT_CLIENT_HANDSHAKE) ||
+		                   msg.type == static_cast<uint8_t>(NetMessageType::NMT_AUTHENTICATE);
+		if (!p || (!admitted(*p) && !(hello && p->connected && !p->kick_disconnect_ms))) return;
+	}
 	if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_SIMULATION_COMMAND)) {
 		if (command_cb_) {
 			command_cb_(peerId, msg.payload.data(), msg.payload.size());
@@ -680,6 +694,13 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 		if (NetPacketSerializer::parse_chat(msg.payload.data(), msg.payload.size(), chat)) {
 			if (isHost()) route_chat(std::move(chat), author);
 			else if (chat_cb_) chat_cb_(chat); // the host already stamped and routed it
+		}
+	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_CLIENT_PERFORMANCE)) {
+		ClientPerformanceMsg m;
+		if (isClient() && author == 0 &&
+				NetPacketSerializer::parse_client_performance(msg.payload.data(), msg.payload.size(), m)) {
+			client_perf_ = std::move(m.clients);
+			++client_perf_reports_;
 		}
 	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_DIPLOMACY)) {
 		// Retired: a stance is lockstep cmd 22 now (see net_types.h). Dropped
@@ -748,20 +769,50 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 		AuthenticateMsg auth;
 		if (NetPacketSerializer::parse_authenticate(msg.payload.data(), msg.payload.size(), auth)) {
 			NetPeer *p = getPeer(peerId);
-			if (p) {
-				p->player_name = auth.name;
-				p->is_authenticated = true;
-			}
-			if (isHost()) {
+			if (isHost() && p && !p->is_authenticated) {
+				// 0 A.D. NetServer::OnAuthenticate: a banned name or address, or the
+				// wrong password, is refused and the link closed.
 				AuthenticateResultMsg res;
-				res.code = ARC_OK;
 				res.host_id = static_cast<uint16_t>(peerId);
 				res.is_controller = 0;
-				res.message = "Welcome " + auth.name;
+				if (banned_names_.count(auth.name) || banned_addresses_.count(p->address)) {
+					res.code = ARC_BANNED;
+					res.message = "You have been banned from this game";
+				} else if (!password_.empty() && auth.password != password_) {
+					res.code = ARC_PASSWORD_INVALID;
+					res.message = "Wrong password";
+				} else {
+					res.code = ARC_OK;
+					res.message = "Welcome " + auth.name;
+				}
 				std::vector<uint8_t> payload = NetPacketSerializer::frame_authenticate_result(res);
 				std::vector<uint8_t> pkt = NetPacketSerializer::pack_message(NetMessageType::NMT_AUTHENTICATE_RESULT, 0, payload);
 				sendCommand(peerId, pkt.data(), pkt.size());
+				if (res.code == ARC_OK) {
+					p->player_name = auth.name;
+					p->is_authenticated = true;
+					if (peer_connected_cb_) peer_connected_cb_(p->id);
+				} else {
+					std::cout << "[NetHost] Refused peer " << p->id << " (" << auth.name << "): " << res.message << "\n";
+					p->kick_disconnect_ms = get_now_ms() + 2000; // the answer gets there first
+				}
 			}
+		}
+	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_AUTHENTICATE_RESULT)) {
+		AuthenticateResultMsg res;
+		if (isClient() && author == 0 &&
+				NetPacketSerializer::parse_authenticate_result(msg.payload.data(), msg.payload.size(), res) &&
+				auth_result_ < 0) {
+			auth_result_ = (int)res.code;
+			std::cout << "[NetHost] Host answered: " << res.message << "\n";
+			if (res.code == ARC_OK && peer_connected_cb_) peer_connected_cb_(0);
+		}
+	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_KICKED)) {
+		KickedMsg k;
+		if (isClient() && author == 0 && NetPacketSerializer::parse_kicked(msg.payload.data(), msg.payload.size(), k)) {
+			if (k.guid == peer_guid(local_peer_id_)) kicked_self_ = true;
+			std::cout << "[NetHost] " << k.name << (k.ban ? " was banned" : " was kicked") << "\n";
+			kicks_.push_back(std::move(k));
 		}
 	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_CLIENT_HANDSHAKE)) {
 		ClientHandshakeMsg chm;
@@ -784,7 +835,7 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 			if (!peers_.empty()) peers_[0].connected = true;
 			NetPeer *p = getPeer(peerId);
 			if (p) p->connected = true;
-			sendAuthenticate(local_player_name_);
+			sendAuthenticate(local_player_name_, password_);
 		}
 	}
 	// Single delivery point for every message type, exactly once, with the
@@ -831,6 +882,11 @@ void NetHost::send_heartbeats(uint64_t now_ms) {
 
 void NetHost::check_peer_timeouts(uint64_t now_ms) {
 	for (auto &p : peers_) {
+		if (p.connected && p.kick_disconnect_ms && now_ms >= p.kick_disconnect_ms) {
+			send_wire_packet(p.address, p.port, p.id, NET_FLAG_DISCONNECT, 0, nullptr, 0, false);
+			p.connected = false;
+			continue;
+		}
 		if (p.connected && p.last_seen_ms > 0 && (now_ms - p.last_seen_ms > 10000)) {
 			p.connected = false;
 			std::cout << "[NetHost] Peer " << p.id << " timed out\n";
@@ -864,6 +920,57 @@ void NetHost::poll(Arena &arena) {
 	check_retransmissions(now);
 	send_heartbeats(now);
 	check_peer_timeouts(now);
+	send_client_performance(now);
+}
+
+bool NetHost::kickPeer(uint32_t peer_id, bool ban) {
+	NetPeer *p = isHost() && peer_id != 0 ? getPeer(peer_id) : nullptr;
+	if (!p || !admitted(*p)) return false;
+	KickedMsg k;
+	k.guid = peer_guid(p->id);
+	k.name = p->player_name;
+	k.ban = ban ? 1 : 0;
+	kicks_.push_back(k);
+	if (ban) {
+		if (!p->player_name.empty()) banned_names_.insert(p->player_name);
+		banned_addresses_.insert(p->address);
+	}
+	// Everyone hears it, the kicked client included (reliable, before the link closes).
+	std::vector<uint8_t> payload = NetPacketSerializer::frame_kicked(k);
+	broadcastCommand(NetPacketSerializer::pack_message(NetMessageType::NMT_KICKED, 0, payload));
+	p->kick_disconnect_ms = get_now_ms() + 2000;
+	std::cout << "[NetHost] " << k.name << " (peer " << p->id << ")" << (ban ? " banned" : " kicked") << "\n";
+	if (peer_disconnected_cb_) peer_disconnected_cb_(p->id); // the lockstep drops it now
+	return true;
+}
+
+uint32_t NetHost::peerByName(const std::string &name) const {
+	for (const auto &p : peers_)
+		if (p.id != 0 && admitted(p) && p.player_name == name) return p.id;
+	return 0;
+}
+
+void NetHost::send_client_performance(uint64_t now_ms) {
+	if (!isHost() || now_ms - last_perf_ms_ < 1000) return;
+	last_perf_ms_ = now_ms;
+	ClientPerformanceMsg m;
+	for (const auto &p : peers_) {
+		if (!admitted(p) || p.id == 0) continue;
+		ClientPerformanceMsg::Entry e;
+		e.client = p.id;
+		e.rtt_ms = p.rtt_ms;
+		e.silent_ms = p.last_seen_ms && now_ms > p.last_seen_ms ? (uint32_t)std::min<uint64_t>(now_ms - p.last_seen_ms, 0xFFFFFFFFu) : 0;
+		m.clients.push_back(e);
+	}
+	client_perf_ = m.clients;
+	++client_perf_reports_;
+	if (m.clients.empty()) return;
+	std::vector<uint8_t> payload = NetPacketSerializer::frame_client_performance(m);
+	// Unreliable, like 0 A.D.'s: the next second's report replaces a lost one.
+	std::vector<uint8_t> msg = NetPacketSerializer::pack_message(NetMessageType::NMT_CLIENT_PERFORMANCE, 0, payload);
+	for (const auto &p : peers_)
+		if (admitted(p) && p.id != 0)
+			send_wire_packet(p.address, p.port, p.id, 0, cfg.commandChannel, msg.data(), msg.size(), false);
 }
 
 void NetHost::stop() {
