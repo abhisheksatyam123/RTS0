@@ -37,6 +37,12 @@ static void fresh(Simulation &s) {
 	s.spawn_building_world(-40.0f, -40.0f, BLD_TOWN_CENTER, 0, 1.0f);
 }
 
+// Garrison orders walk to the structure first (UnitAI GARRISON.APPROACHING).
+static void garrison(Simulation &s, uint32_t *ids, size_t n, uint32_t bld) {
+	s.order_garrison(ids, n, bld);
+	for (int t = 0; t < 900 && s.get_garrison_count(bld) < (int)n; ++t) s.tick(0.1f);
+}
+
 // A spearman at half health garrisoned in a new `type` structure; returns hp gained in `secs`.
 static float healed_in(Simulation &s, uint8_t type, float secs, float x = 0.0f) {
 	uint32_t bld = s.spawn_building_world(x, 0.0f, type, 0, 1.0f);
@@ -44,10 +50,11 @@ static float healed_in(Simulation &s, uint8_t type, float secs, float x = 0.0f) 
 	int32_t i = idx_of(s, u);
 	const float half = s.units().max_hp[i] * 0.5f;
 	const_cast<float *>(s.units().hp)[i] = half;
-	s.order_garrison(&u, 1, bld);
+	garrison(s, &u, 1, bld);
 	CHECK(s.get_garrison_count(bld) == 1);
+	const float in = s.units().hp[idx_of(s, u)];
 	run(s, secs);
-	return s.units().hp[idx_of(s, u)] - half;
+	return s.units().hp[idx_of(s, u)] - in;
 }
 
 int main() {
@@ -91,7 +98,7 @@ int main() {
 		uint32_t bk = s.spawn_building_world(0.0f, 0.0f, BLD_BARRACKS, 0, 1.0f);
 		uint32_t ids[3];
 		for (int k = 0; k < 3; ++k) ids[k] = s.spawn_unit(1.0f + k, 8.0f, 0, UNIT_SPEARMAN);
-		s.order_garrison(ids, 3, bk);
+		garrison(s, ids, 3, bk);
 		CHECK(s.get_garrison_count(bk) == 3);
 		Simulation::Building *b = find_bld(s, bk);
 		b->hp = b->max_hp * 0.11f;
@@ -105,10 +112,10 @@ int main() {
 		s.order_garrison(ids, 3, bk);
 		CHECK(s.get_garrison_count(bk) == 0);
 		// A fortress holds on down to 7.5%.
-		uint32_t fort = s.spawn_building_world(40.0f, 40.0f, BLD_FORTRESS, 0, 1.0f);
+		uint32_t fort = s.spawn_building_world(16.0f, 8.0f, BLD_FORTRESS, 0, 1.0f); // close by: under 33% it burns
 		b = find_bld(s, fort);
 		b->hp = b->max_hp * 0.09f;
-		s.order_garrison(ids, 3, fort);
+		garrison(s, ids, 3, fort);
 		CHECK(s.get_garrison_count(fort) == 3);
 	}
 

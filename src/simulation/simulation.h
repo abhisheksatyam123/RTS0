@@ -358,6 +358,9 @@ public:
 	float structure_garrison_heal(const Building &b) const;
 	void order_ungarrison_single(uint32_t building_id, uint32_t unit_id);
 	void order_guard(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
+	// UnitAI Heal: healers walk to an injured allied unit and heal it (Heal.js).
+	void order_heal(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
+	void set_unit_hp(uint32_t unit_id, float hp); // scenarios and tests: clamped to 0..max
 
 	// Livestock & Corrals (Corral.js)
 	void order_herd(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
@@ -1116,7 +1119,7 @@ private:
 	PlayerState gaia_stock_; // scratch for player(GAIA_PLAYER); never saved or hashed
 	// Player.js SetState("defeated"): hand every unit and structure of these players to Gaia.
 	void convert_to_gaia(uint8_t players);
-	void tick_capture_gaia(Building &b, float dt);
+	void capture_points_tick(Building &b, size_t bi, float dt); // Capturable.js Reduce, regen and owner change
 	uint8_t participant_mask_ = 0; // save v10
 	uint8_t defeated_mask_ = 0;
 	uint8_t winner_mask_ = 0;
@@ -1340,6 +1343,14 @@ private:
 	void on_construction_finished(const Building &b, size_t builder);
 	void destroy_building(Building &b);
 	bool can_capture_building(uint8_t player, const Building &b) const;
+	bool can_heal(size_t healer, int32_t target) const;         // Heal.js CanHeal
+	uint32_t find_heal_target(size_t healer) const;             // UnitAI FindNewHealTargets
+	void start_heal(size_t healer, uint32_t target, uint8_t flags);
+	void tick_heal(size_t healer);                              // UnitAI HEAL.APPROACHING / HEALING
+	bool garrison_in_range(size_t i, const Building &b) const;
+	void garrison_now(size_t i, Building &b);
+	void start_cheer(size_t i);                                 // UnitAI Cheer + notifyToCheerInRange
+	void note_kill(uint32_t killer_id, uint32_t victim_id);       // UnitAI shouldCheer
 
 	// Closed gates this tick: the only movement blockers the nav grid leaves out (0 A.D.
 	// gate Obstruction BlockMovement without BlockPathfinding), so move_units stops units

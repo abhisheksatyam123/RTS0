@@ -194,13 +194,13 @@ int main() {
 		s.player(0).phase = 3;
 		uint32_t temple = s.spawn_building_world(20.0f, -20.0f, BLD_TEMPLE, 0, 1.0f);
 		CHECK(std::fabs(s.healer_range(0) - 12.0f) < 0.01f);
-		CHECK(std::fabs(s.healer_rate(0) - 8.0f) < 0.01f);
+		CHECK(std::fabs(s.healer_rate(0) - 2.5f) < 0.01f); // Heal.js: 5 hp every 2 s
 		CHECK(s.cmd_research(0, temple, TECH_HEAL_RANGE));
 		run(s, tech_info(TECH_HEAL_RANGE).research_time + 1.0f);
 		CHECK(std::fabs(s.healer_range(0) - 17.0f) < 0.01f);
 		CHECK(s.cmd_research(0, temple, TECH_HEAL_RATE));
 		run(s, tech_info(TECH_HEAL_RATE).research_time + 1.0f);
-		CHECK(std::fabs(s.healer_rate(0) - 10.0f) < 0.01f);
+		CHECK(std::fabs(s.healer_rate(0) - 3.125f) < 0.01f); // Interval x0.8
 		CHECK(s.healer_range(1) == 12.0f); // another player's healers are unaffected
 	}
 
