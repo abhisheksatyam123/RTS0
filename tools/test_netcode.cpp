@@ -730,6 +730,7 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     uint32_t save_hash_before = 0, save_hash_after = 0;
     bool save_ok = false;
     uint64_t oos_since = 0;
+    std::set<uint32_t> waited_on;
 
     while (tm.current_turn() < turns) {
         net.poll(arena);
@@ -866,6 +867,9 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
             held_us += now - last;
             last_progress = now; // a pause is not a stall
         }
+        // 0 A.D. "Waiting for players": whom this peer was held on.
+        if (!tm.is_paused() && tm.waiting_ms() > 300)
+            for (uint32_t c : tm.waiting_on()) waited_on.insert(c);
         float dt = (float)(now - last) * 1e-6f * speed;
         last = now;
         if (tm.tick(dt, sim)) {
@@ -967,6 +971,16 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
                 sim.ceasefire_seconds(), (unsigned)sim.player_team(0), (unsigned)sim.player_team(1),
                 (unsigned)sim.player_team(2));
     for (const auto &c : chats) std::printf("[net-peer] %s: chat %s\n", host ? "host" : "join", c.c_str());
+    {
+        // Network status (0 A.D. NMT_CLIENT_PERFORMANCE): the host's last report.
+        std::string rtt, waited;
+        for (const auto &e : net.clientPerformance())
+            rtt += (rtt.empty() ? "" : ",") + std::to_string(e.client) + ":" + std::to_string(e.rtt_ms);
+        for (uint32_t c : waited_on) waited += (waited.empty() ? "" : ",") + std::to_string(c);
+        std::printf("[net-peer] %s: status reports=%llu rtt=%s waited_on=%s\n", host ? "host" : "join",
+                    (unsigned long long)net.clientPerformanceReports(), rtt.empty() ? "-" : rtt.c_str(),
+                    waited.empty() ? "-" : waited.c_str());
+    }
     if (opt.pause_turn)
         std::printf("[net-peer] %s: pause seen=%d by=%u at_turn=%u held_ms=%u\n", host ? "host" : "join",
                     pause_seen ? 1 : 0, paused_by, paused_at_turn, (unsigned)(held_us / 1000));

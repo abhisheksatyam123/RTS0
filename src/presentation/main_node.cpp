@@ -1489,6 +1489,29 @@ void RtsoMain::_process(double delta) {
 					who += (who.is_empty() ? "" : ", ") + (pl < 8 ? "Player " + String::num_int64(pl + 1) : "an observer");
 				}
 				lobby_status->set_text("Game paused by " + who);
+			} else if (lobby_status) {
+				// 0 A.D. session.js network warnings: who the turn waits on, who
+				// is not responding and whose connection is bad.
+				auto name = [&](uint32_t c) {
+					const uint8_t pl = turn_mgr_.player_for_client(c);
+					return pl < 8 ? "Player " + String::num_int64(pl + 1) : "an observer";
+				};
+				String status;
+				if (turn_mgr_.waiting_ms() > rtso::NET_TIMEOUT_WARN_MS) {
+					String who;
+					for (uint32_t c : turn_mgr_.waiting_on()) who += (who.is_empty() ? "" : ", ") + name(c);
+					if (!who.is_empty()) status = "Waiting for " + who;
+				}
+				for (const auto &e : net_host_.clientPerformance()) {
+					String line;
+					if (e.silent_ms > rtso::NET_TIMEOUT_WARN_MS)
+						line = name(e.client) + " is not responding (" + String::num_int64(e.silent_ms / 1000) + " s)";
+					else if (e.rtt_ms > rtso::NET_LAG_WARN_RTT_MS)
+						line = name(e.client) + " has a bad connection (" + String::num_int64(e.rtt_ms) + " ms)";
+					if (!line.is_empty()) status += (status.is_empty() ? "" : ". ") + line;
+				}
+				if (!status.is_empty() || net_status_shown_) lobby_status->set_text(status);
+				net_status_shown_ = !status.is_empty();
 			}
 		}
 		// else pre-Start lobby phase: poll + GAME_START consume only (above) -

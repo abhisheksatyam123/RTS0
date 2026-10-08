@@ -130,6 +130,10 @@ public:
 	NetPeer* getPeer(uint32_t peer_id);
 	const NetStats& getStats() const { return stats_; }
 	uint32_t getLocalPeerId() const { return local_peer_id_; }
+	// How every connected client is doing (0 A.D. NMT_CLIENT_PERFORMANCE): the
+	// host measures it, a client has the host's latest report.
+	const std::vector<ClientPerformanceMsg::Entry> &clientPerformance() const { return client_perf_; }
+	uint64_t clientPerformanceReports() const { return client_perf_reports_; }
 
 private:
 	void send_raw_packet(const std::string &ip, uint16_t port, const uint8_t *data, size_t size);
@@ -139,6 +143,10 @@ private:
 	void send_heartbeats(uint64_t now_ms);
 	void check_retransmissions(uint64_t now_ms);
 	void check_peer_timeouts(uint64_t now_ms);
+	void send_client_performance(uint64_t now_ms);
+	std::vector<ClientPerformanceMsg::Entry> client_perf_;
+	uint64_t client_perf_reports_ = 0;
+	uint64_t last_perf_ms_ = 0;
 
 	NetConfig cfg;
 	NetRole role = NetRole::None;

@@ -178,6 +178,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// applied here: host sets true in _on_lobby_start_pressed, joiner in
 	// apply_net_game_start; both set false at Host/Join press.
 	bool net_game_started_ = false;
+	bool net_status_shown_ = false; // a network warning is on lobby_status
 	float game_speed = 1.0f;
 	double match_elapsed_time = 0.0;
 

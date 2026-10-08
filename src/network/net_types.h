@@ -486,6 +486,23 @@ struct ClientPausedMsg {
 	uint8_t pause = 0;
 };
 
+// NMT_CLIENT_PERFORMANCE payload (0 A.D. CClientPerformanceMessage, with the
+// lastReceivedTime of CClientTimeoutMessage folded in): once a second the host
+// tells every client how each connected client is doing. rtt_ms is the host's
+// smoothed round trip to it; silent_ms how long since the host last heard it.
+struct ClientPerformanceMsg {
+	struct Entry {
+		uint32_t client = 0;
+		uint32_t rtt_ms = 0;
+		uint32_t silent_ms = 0;
+	};
+	std::vector<Entry> clients;
+};
+// 0 A.D. session.js: a round trip above this reads as a bad connection, and a
+// client unheard for longer than this is "not responding".
+inline constexpr uint32_t NET_LAG_WARN_RTT_MS = 500;
+inline constexpr uint32_t NET_TIMEOUT_WARN_MS = 1000;
+
 // NMT_JOIN_SYNC_STATE payload -- late-join turn-0 state resync request.
 // 0 A.D. parity: NetServer.cpp:1366 OnGameStart re-sends the game setup to a
 // session that arrives after the first broadcast, and NetClient.cpp:826 OnGameStart
@@ -918,6 +935,29 @@ public:
 		size_t offset = 0;
 		if (!NetSerde::read_string(data, size, offset, msg.guid)) return false;
 		if (!NetSerde::read_u8(data, size, offset, msg.pause)) return false;
+		return offset == size;
+	}
+
+	static std::vector<uint8_t> frame_client_performance(const ClientPerformanceMsg &msg) {
+		std::vector<uint8_t> buf;
+		const size_t n = std::min<size_t>(msg.clients.size(), 255);
+		NetSerde::write_u8(buf, (uint8_t)n);
+		for (size_t i = 0; i < n; ++i) {
+			NetSerde::write_u32(buf, msg.clients[i].client);
+			NetSerde::write_u32(buf, msg.clients[i].rtt_ms);
+			NetSerde::write_u32(buf, msg.clients[i].silent_ms);
+		}
+		return buf;
+	}
+
+	static bool parse_client_performance(const uint8_t *data, size_t size, ClientPerformanceMsg &msg) {
+		size_t offset = 0;
+		uint8_t n = 0;
+		if (!NetSerde::read_u8(data, size, offset, n)) return false;
+		msg.clients.assign(n, {});
+		for (auto &e : msg.clients)
+			if (!NetSerde::read_u32(data, size, offset, e.client) || !NetSerde::read_u32(data, size, offset, e.rtt_ms) ||
+					!NetSerde::read_u32(data, size, offset, e.silent_ms)) return false;
 		return offset == size;
 	}
 

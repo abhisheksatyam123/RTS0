@@ -265,6 +265,14 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
     pauses = peer_lines(outs, "pause")
     pause_ok = (len(pauses) == 2 and all(p.get("seen") == "1" and p.get("by") == "0" for p in pauses.values())
                 and int(pauses["join"].get("held_ms", "0")) >= 1000)
+    # Network status (NMT_CLIENT_PERFORMANCE): the host reports each client's round
+    # trip once a second, and the joiner hears it.
+    statuses = peer_lines(outs, "status")
+    def rtts(role):
+        v = statuses.get(role, {}).get("rtt", "-")
+        return {} if v == "-" else {int(k): int(r) for k, r in (x.split(":") for x in v.split(","))}
+    status_ok = (len(statuses) == 2 and int(statuses["join"].get("reports", "0")) >= 3
+                 and 0 < rtts("join").get(1, 0) < 2000 and 0 < rtts("host").get(1, 0) < 2000)
     # Save/load: each world reloads from its own save with the same hash.
     saves = peer_lines(outs, "saveload")
     save_ok = (len(saves) == 2 and all(v.get("ok") == "1" and v.get("before") == v.get("after") for v in saves.values())
@@ -335,12 +343,13 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
         "setup_ok": setup_ok, "setups": setups,
         "ceasefire_ok": ceasefire_ok, "ceasefire_end": cf_end, "ceasefire_hits": cf_hits[:5],
         "tribute_ok": tribute_ok, "tributes": tributes, "upgrade_ok": upgrade_ok, "gate_turn": gate_turn,
+        "status_ok": status_ok, "statuses": statuses,
         "heal_ok": heal_ok, "heal_turn": heal_turn, "healed": healed,
         "work_ok": work_ok, "works": works, "work_turns": work_turns,
         "lock_ok": lock_ok, "locks": locks, "pack_ok": pack_ok, "packs": packs, "chat_ok": chat_ok, "chats": chats,
         "pause_ok": pause_ok, "pauses": pauses, "save_ok": save_ok, "saves": saves,
         "defeat_ok": defeat_ok, "defeat_turn": out_turn, "game_over": over,
-        "ok": divergent is None and complete and setup_ok and ceasefire_ok and defeat_ok and tribute_ok and upgrade_ok and lock_ok and pack_ok and work_ok and heal_ok and chat_ok and pause_ok and save_ok and all(rc == 0 for rc in rcs),
+        "ok": divergent is None and complete and setup_ok and ceasefire_ok and defeat_ok and tribute_ok and upgrade_ok and lock_ok and pack_ok and work_ok and heal_ok and status_ok and chat_ok and pause_ok and save_ok and all(rc == 0 for rc in rcs),
     }
 
 
@@ -644,6 +653,8 @@ def main() -> int:
             print(f"[net] worker gathered at turn {wt['gather']}, walked at {wt['walk']} with a queued walk "
                   f"at {wt['queued']} (done at {wt['queue_done']}), back to work at {wt['back']}, "
                   f"deleted at {wt['deleted']}, on both peers")
+            print(f"[net] network status: the joiner got {nr['statuses']['join']['reports']} reports from the "
+                  f"host, last round trips (client:ms) {nr['statuses']['join']['rtt']}")
             print(f"[net] healer took the heal order at turn {nr['heal_turn']}; the swordsman wounded to 40 hp "
                   f"healed to {nr['healed']:.0f} on both peers")
             print(f"[net] chat: host got {nr['chats']['host']}, joiner got {nr['chats']['join']}; "
@@ -656,6 +667,8 @@ def main() -> int:
             print(f"[net] FAIL tribute: stone changes (host, join) {nr['tributes']}")
         elif not nr["pack_ok"]:
             print(f"[net] FAIL pack: state changes (turn, state) {nr['packs']}")
+        elif not nr["status_ok"]:
+            print(f"[net] FAIL network status: {nr['statuses']}")
         elif not nr["heal_ok"]:
             print(f"[net] FAIL heal: order at {nr['heal_turn']}, best hp {nr['healed']}")
         elif not nr["work_ok"]:

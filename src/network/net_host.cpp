@@ -681,6 +681,13 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 			if (isHost()) route_chat(std::move(chat), author);
 			else if (chat_cb_) chat_cb_(chat); // the host already stamped and routed it
 		}
+	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_CLIENT_PERFORMANCE)) {
+		ClientPerformanceMsg m;
+		if (isClient() && author == 0 &&
+				NetPacketSerializer::parse_client_performance(msg.payload.data(), msg.payload.size(), m)) {
+			client_perf_ = std::move(m.clients);
+			++client_perf_reports_;
+		}
 	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_DIPLOMACY)) {
 		// Retired: a stance is lockstep cmd 22 now (see net_types.h). Dropped
 		// here and never relayed, so an old or hostile peer cannot change
@@ -864,6 +871,30 @@ void NetHost::poll(Arena &arena) {
 	check_retransmissions(now);
 	send_heartbeats(now);
 	check_peer_timeouts(now);
+	send_client_performance(now);
+}
+
+void NetHost::send_client_performance(uint64_t now_ms) {
+	if (!isHost() || now_ms - last_perf_ms_ < 1000) return;
+	last_perf_ms_ = now_ms;
+	ClientPerformanceMsg m;
+	for (const auto &p : peers_) {
+		if (!p.connected || p.id == 0) continue;
+		ClientPerformanceMsg::Entry e;
+		e.client = p.id;
+		e.rtt_ms = p.rtt_ms;
+		e.silent_ms = p.last_seen_ms && now_ms > p.last_seen_ms ? (uint32_t)std::min<uint64_t>(now_ms - p.last_seen_ms, 0xFFFFFFFFu) : 0;
+		m.clients.push_back(e);
+	}
+	client_perf_ = m.clients;
+	++client_perf_reports_;
+	if (m.clients.empty()) return;
+	std::vector<uint8_t> payload = NetPacketSerializer::frame_client_performance(m);
+	// Unreliable, like 0 A.D.'s: the next second's report replaces a lost one.
+	std::vector<uint8_t> msg = NetPacketSerializer::pack_message(NetMessageType::NMT_CLIENT_PERFORMANCE, 0, payload);
+	for (const auto &p : peers_)
+		if (p.connected && p.id != 0)
+			send_wire_packet(p.address, p.port, p.id, 0, cfg.commandChannel, msg.data(), msg.size(), false);
 }
 
 void NetHost::stop() {
