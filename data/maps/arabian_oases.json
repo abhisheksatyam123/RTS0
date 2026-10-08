@@ -3,6 +3,7 @@
   "name": "Arabian Oases (2 players)",
   "desc": "An old favorite. An otherwise wide-open, flat desert map is pierced in the center by two lush oases.\n\nThis represents the Arabian Desert, South of Mesopotamia.",
   "biome": "desert",
+  "nomad": false,
   "world_size": 256.0,
   "water_height": 3.83,
   "heightmap_res": 65,
@@ -11296,34 +11297,10 @@
       "z": 70.06
     },
     {
-      "type": "barracks",
-      "player": 1,
-      "x": 39.12,
-      "z": 74.03
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": 40.51,
-      "z": 75.31
-    },
-    {
       "type": "town_center",
       "player": 2,
       "x": -52.75,
       "z": -62.58
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": -49.13,
-      "z": -57.65
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": -47.76,
-      "z": -59.31
     },
     {
       "type": "tower",
@@ -11706,6 +11683,18 @@
       "z": 74.55
     },
     {
+      "type": "archer",
+      "player": 1,
+      "x": 39.12,
+      "z": 74.03
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": 40.51,
+      "z": 75.31
+    },
+    {
       "type": "cavalry",
       "player": 2,
       "x": -58.28,
@@ -11722,6 +11711,18 @@
       "player": 2,
       "x": -57.35,
       "z": -66.39
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": -49.13,
+      "z": -57.65
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": -47.76,
+      "z": -59.31
     },
     {
       "type": "hero",
