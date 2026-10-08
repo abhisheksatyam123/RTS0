@@ -12,6 +12,10 @@ uniform float wave_height : hint_range(0.01, 0.5) = 0.06;
 uniform float roughness : hint_range(0.0, 1.0) = 0.08;
 uniform float metallic : hint_range(0.0, 1.0) = 0.2;
 
+// Line of sight, as in terrain.gdshader (0 A.D. water shaders multiply by losTex too).
+uniform sampler2D los_tex : hint_default_white, filter_linear, repeat_disable;
+uniform float los_map_half = 0.0;
+
 varying vec3 v_world_pos;
 
 void vertex() {
@@ -42,9 +46,16 @@ void fragment() {
 	vec4 water_base = mix(shallow_color, deep_color, 0.6);
 	vec3 final_color = mix(water_base.rgb, vec3(0.95, 0.98, 1.0), fresnel * 0.6);
 
-	ALBEDO = final_color;
+	float los = 1.0;
+	if (los_map_half > 0.0) {
+		vec2 los_uv = (v_world_pos.xz + vec2(los_map_half)) / (2.0 * los_map_half);
+		los = texture(los_tex, los_uv).r;
+	}
+
+	ALBEDO = final_color * los;
+	SPECULAR = 0.85 * los;
 	METALLIC = metallic;
 	ROUGHNESS = roughness;
-	SPECULAR = 0.85;
-	ALPHA = mix(water_base.a, 0.98, fresnel);
+	// Unexplored water goes opaque black instead of showing the seabed.
+	ALPHA = mix(mix(water_base.a, 0.98, fresnel), 1.0, 1.0 - los);
 }
