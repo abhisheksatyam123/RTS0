@@ -1357,6 +1357,10 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			sim.order_heal(ids, n, c.target_id, queued);
 		} else if (c.cmd_type == 34) { // Return resource
 			sim.order_return_resource(ids, n, c.target_id, queued);
+		} else if (c.cmd_type == 35) { // Trade route — target_id = first market, target_x = second market's id.
+			// Ids travel as floats; a whole number below 2^24 is exact.
+			if (c.target_x >= 1.0f && c.target_x < 16777216.0f && c.target_x == (float)(uint32_t)c.target_x)
+				sim.order_trade(ids, n, c.target_id, (uint32_t)c.target_x, queued);
 		} else if (c.cmd_type == 26) { // Structure upgrade — target_id=building, param 0 start / 1 cancel.
 			if (c.param == 1) sim.cmd_cancel_upgrade(pl, c.target_id);
 			else sim.cmd_upgrade_building(pl, c.target_id);
