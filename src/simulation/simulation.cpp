@@ -4867,7 +4867,7 @@ void Simulation::petra_manage_military_production(float dt) {
 			if (b.queue.size() >= 4 || ai_pop_current() >= ai_pop_max()) continue;
 
 			// Check if we can train Spearman
-			const UnitTypeInfo &sinfo = unit_type_info(UNIT_SPEARMAN);
+			const UnitTypeInfo &sinfo = civ_unit_info(civ_of(PETRA_PLAYER), UNIT_SPEARMAN);
 			if (petra_try_pay(PETRA_QUEUE_EMERGENCY, (float)sinfo.food_cost, (float)sinfo.wood_cost, (float)sinfo.gold_cost, 0.0f)) {
 				ProductionOrder order;
 				order.unit_type = UNIT_SPEARMAN;
@@ -4878,7 +4878,7 @@ void Simulation::petra_manage_military_production(float dt) {
 			}
 
 			// Check if we can train Archer
-			const UnitTypeInfo &ainfo = unit_type_info(UNIT_ARCHER);
+			const UnitTypeInfo &ainfo = civ_unit_info(civ_of(PETRA_PLAYER), UNIT_ARCHER);
 			if (petra_try_pay(PETRA_QUEUE_EMERGENCY, (float)ainfo.food_cost, (float)ainfo.wood_cost, (float)ainfo.gold_cost, 0.0f)) {
 				ProductionOrder order;
 				order.unit_type = UNIT_ARCHER;
@@ -4988,7 +4988,7 @@ void Simulation::petra_manage_military_production(float dt) {
 
 	for (const auto &opt : options) {
 		if (ai_pop_current() >= ai_pop_max()) break;
-		const UnitTypeInfo &uinfo = unit_type_info(opt.type);
+		const UnitTypeInfo &uinfo = civ_unit_info(civ_of(PETRA_PLAYER), opt.type);
 		if (petra_try_pay(PETRA_QUEUE_MILITARY, (float)uinfo.food_cost, (float)uinfo.wood_cost,
 		                  (float)uinfo.gold_cost, (float)uinfo.stone_cost)) {
 			auto bit = building_id_to_idx_.find(opt.bld_id);
@@ -5126,11 +5126,13 @@ void Simulation::petra_manage_economy(float dt) {
 	if (ai_villagers < target_villagers && ai_pop_current() < pop_max) {
 		for (auto &b : buildings_) {
 			if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f && b.queue.size() < 3) {
-				if (!petra_try_pay(PETRA_QUEUE_VILLAGER, 50.0f, 0.0f, 0.0f, 0.0f)) break;
+				const UnitTypeInfo &vinfo = civ_unit_info(civ_of(PETRA_PLAYER), UNIT_VILLAGER);
+				if (!petra_try_pay(PETRA_QUEUE_VILLAGER, (float)vinfo.food_cost, (float)vinfo.wood_cost,
+				                   (float)vinfo.gold_cost, (float)vinfo.stone_cost)) break;
 				ProductionOrder order;
 				order.unit_type = UNIT_VILLAGER;
 				order.timer = 0.0f;
-				order.duration = unit_type_info(UNIT_VILLAGER).train_time * 0.8f;
+				order.duration = vinfo.train_time * 0.8f;
 				b.queue.push_back(order);
 			}
 		}
@@ -5395,7 +5397,7 @@ void Simulation::petra_manage_trading(float dt) {
 	int target_traders = petra_config_.target_num_traders;
 	if (petra_ps().phase >= 3) target_traders += 1;
 	if (ai_traders < target_traders && !market_ids.empty() && ai_pop_current() < ai_pop_max()) {
-		const UnitTypeInfo &tinfo = unit_type_info(UNIT_TRADER);
+		const UnitTypeInfo &tinfo = civ_unit_info(civ_of(PETRA_PLAYER), UNIT_TRADER);
 		if (petra_try_pay(PETRA_QUEUE_TRADE, (float)tinfo.food_cost, (float)tinfo.wood_cost, 0.0f, 0.0f)) {
 			auto bit = building_id_to_idx_.find(market_ids[0]);
 			if (bit != building_id_to_idx_.end() && buildings_[bit->second].queue.size() < 3) {
@@ -5491,7 +5493,7 @@ void Simulation::petra_manage_naval(float dt) {
 
 	int target_triremes = (petra_ps().phase == 1) ? 1 : ((petra_ps().phase == 2) ? 2 : 4);
 	if (ai_triremes < target_triremes && !dock_ids.empty() && ai_pop_current() < ai_pop_max()) {
-		const UnitTypeInfo &tinfo = unit_type_info(UNIT_TRIREME);
+		const UnitTypeInfo &tinfo = civ_unit_info(civ_of(PETRA_PLAYER), UNIT_TRIREME);
 		if (petra_try_pay(PETRA_QUEUE_NAVAL, 0.0f, (float)tinfo.wood_cost, (float)tinfo.gold_cost, 0.0f)) {
 			auto bit = building_id_to_idx_.find(dock_ids[0]);
 			if (bit != building_id_to_idx_.end() && buildings_[bit->second].queue.size() < 3) {
@@ -5512,7 +5514,7 @@ void Simulation::petra_manage_naval(float dt) {
 	}
 	int target_fishers = (petra_ps().phase >= 2) ? 3 : 2;
 	if (ai_fishers < target_fishers && !dock_ids.empty() && ai_pop_current() < ai_pop_max()) {
-		const UnitTypeInfo &finfo = unit_type_info(UNIT_FISHING_BOAT);
+		const UnitTypeInfo &finfo = civ_unit_info(civ_of(PETRA_PLAYER), UNIT_FISHING_BOAT);
 		if (petra_try_pay(PETRA_QUEUE_NAVAL, 0.0f, (float)finfo.wood_cost, (float)finfo.gold_cost, 0.0f)) {
 			auto bit = building_id_to_idx_.find(dock_ids[0]);
 			if (bit != building_id_to_idx_.end() && buildings_[bit->second].queue.size() < 3) {
