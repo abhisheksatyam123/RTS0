@@ -174,7 +174,7 @@ static bool start_peers(NetHost &h, NetHost &c, uint16_t port, int budget_ms = 1
 struct StandaloneApplier {
 	Simulation *sim = nullptr;
 	bool landed = false;
-	uint8_t want_player = 0, want_stance = 0, got_player = 0, got_stance = 0;
+	uint8_t want_player = 0, want_stance = 0, got_player = 0, got_stance = 0, got_actor = 0;
 	uint32_t last_sender = 0xFFFFFFFFu;
 	uint32_t count = 0;
 	StandaloneApplier(Simulation *s, uint8_t p, uint8_t st) : sim(s), want_player(p), want_stance(st) {}
@@ -185,8 +185,11 @@ struct StandaloneApplier {
 		last_sender = peer;
 		got_player = m.player_id;
 		got_stance = m.stance;
+		got_actor = m.actor;
 		if (m.player_id == want_player && m.stance == want_stance && sim) {
-			sim->set_diplomacy(m.player_id, m.stance); // the sim-side applier
+			// The actor rides on the wire, so a relayed stance lands on the row
+			// its originator owns, not on the relaying host's row.
+			sim->set_diplomacy(m.actor, m.player_id, m.stance); // the sim-side applier
 			landed = true;
 		}
 	}
@@ -208,10 +211,10 @@ static bool run_wire_contract(const char *ph) {
 	CHECK(static_cast<uint8_t>(NetCommandType::NET_CMD_MAINTAIN_FLEET) == 24, ph);
 
 	DiplomacyMsg dm;
-	dm.player_id = 3; dm.stance = Simulation::DIPLO_ALLY;
+	dm.actor = 1; dm.player_id = 3; dm.stance = Simulation::DIPLO_ALLY;
 	std::vector<uint8_t> payload = NetPacketSerializer::frame_diplomacy(dm);
-	if (!check(payload.size() == 2, "NMT_DIPLOMACY payload is exactly 2 bytes", ph)) return false;
-	CHECK(payload[0] == 3 && payload[1] == Simulation::DIPLO_ALLY, ph);
+	if (!check(payload.size() == 3, "NMT_DIPLOMACY payload is exactly 3 bytes", ph)) return false;
+	CHECK(payload[0] == 1 && payload[1] == 3 && payload[2] == Simulation::DIPLO_ALLY, ph);
 
 	std::vector<uint8_t> wire = NetPacketSerializer::pack_message(NetMessageType::NMT_DIPLOMACY, 7, payload);
 	NetMessage rx;
@@ -221,22 +224,32 @@ static bool run_wire_contract(const char *ph) {
 
 	DiplomacyMsg got;
 	CHECK(NetPacketSerializer::parse_diplomacy(rx.payload.data(), rx.payload.size(), got), ph);
-	CHECK(got.player_id == 3 && got.stance == Simulation::DIPLO_ALLY, ph);
+	CHECK(got.actor == 1 && got.player_id == 3 && got.stance == Simulation::DIPLO_ALLY, ph);
 	// Exact-size parse rejects truncation and trailing bytes.
-	CHECK(!NetPacketSerializer::parse_diplomacy(rx.payload.data(), 1, got), ph);
-	CHECK(!NetPacketSerializer::parse_diplomacy(rx.payload.data(), 3, got), ph);
+	CHECK(!NetPacketSerializer::parse_diplomacy(rx.payload.data(), 2, got), ph);
+	CHECK(!NetPacketSerializer::parse_diplomacy(rx.payload.data(), 4, got), ph);
 
 	// Dispatch: a valid payload fires the callback; malformed / out-of-range do not.
 	g_dip_cb_fires = 0;
 	NetHost host;
 	host.onDiplomacy([](uint32_t, const DiplomacyMsg &) { ++g_dip_cb_fires; });
 
-	DiplomacyMsg bad_id; bad_id.player_id = 9; bad_id.stance = Simulation::DIPLO_ALLY;
+	DiplomacyMsg bad_id; bad_id.actor = 1; bad_id.player_id = 9; bad_id.stance = Simulation::DIPLO_ALLY;
 	NetMessage m_bad_id = rx; m_bad_id.payload = NetPacketSerializer::frame_diplomacy(bad_id);
 	host.dispatchMessage(1, m_bad_id);
 	CHECK(g_dip_cb_fires == 0, "player_id >= 8 rejected before the callback", ph);
 
-	DiplomacyMsg bad_stance; bad_stance.player_id = 2; bad_stance.stance = 7;
+	DiplomacyMsg bad_actor; bad_actor.actor = 9; bad_actor.player_id = 2; bad_actor.stance = Simulation::DIPLO_ALLY;
+	NetMessage m_bad_actor = rx; m_bad_actor.payload = NetPacketSerializer::frame_diplomacy(bad_actor);
+	host.dispatchMessage(1, m_bad_actor);
+	CHECK(g_dip_cb_fires == 0, "actor >= 8 rejected before the callback", ph);
+
+	DiplomacyMsg self; self.actor = 2; self.player_id = 2; self.stance = Simulation::DIPLO_ALLY;
+	NetMessage m_self = rx; m_self.payload = NetPacketSerializer::frame_diplomacy(self);
+	host.dispatchMessage(1, m_self);
+	CHECK(g_dip_cb_fires == 0, "a stance toward itself is rejected before the callback", ph);
+
+	DiplomacyMsg bad_stance; bad_stance.actor = 1; bad_stance.player_id = 2; bad_stance.stance = 7;
 	NetMessage m_bad_stance = rx; m_bad_stance.payload = NetPacketSerializer::frame_diplomacy(bad_stance);
 	host.dispatchMessage(1, m_bad_stance);
 	CHECK(g_dip_cb_fires == 0, "stance > DIPLO_ENEMY rejected before the callback", ph);
@@ -245,7 +258,7 @@ static bool run_wire_contract(const char *ph) {
 	host.dispatchMessage(1, m_short);
 	CHECK(g_dip_cb_fires == 0, "short payload rejected before the callback", ph);
 
-	DiplomacyMsg ok; ok.player_id = 5; ok.stance = Simulation::DIPLO_NEUTRAL;
+	DiplomacyMsg ok; ok.actor = 1; ok.player_id = 5; ok.stance = Simulation::DIPLO_NEUTRAL;
 	NetMessage m_ok = rx; m_ok.payload = NetPacketSerializer::frame_diplomacy(ok);
 	host.dispatchMessage(1, m_ok);
 	CHECK(g_dip_cb_fires == 1, "valid NMT_DIPLOMACY fires onDiplomacy", ph);
@@ -309,7 +322,7 @@ static bool run_replicated_stance(const char *ph) {
 
 	// A is the sender peer: it originates, then applies locally (the sender must
 	// not wait for its own packet back).
-	host.sendDiplomacy(kTarget, kStance, ta.current_turn());
+	host.sendDiplomacy(0, kTarget, kStance, ta.current_turn());
 	sa.set_diplomacy(kTarget, kStance);
 	pump(host, client, arena);
 
@@ -478,9 +491,10 @@ static bool run_client_originated_relay(const char *ph) {
 	}
 
 	const uint8_t kTarget = 3;
+	const uint8_t kActor = 1; // c1 plays as player 1, so its own row moves
 	const uint8_t kStance = Simulation::DIPLO_NEUTRAL; // starts DIPLO_ENEMY
-	CHECK(sc1.get_diplomacy(kTarget) == Simulation::DIPLO_ENEMY, ph);
-	CHECK(sh.get_diplomacy(kTarget) == Simulation::DIPLO_ENEMY, ph);
+	CHECK(sc1.get_diplomacy(kActor, kTarget) == Simulation::DIPLO_ENEMY, ph);
+	CHECK(sh.get_diplomacy(kActor, kTarget) == Simulation::DIPLO_ENEMY, ph);
 	StandaloneApplier ap_h(&sh, kTarget, kStance);
 	StandaloneApplier ap_c2(&sc2, kTarget, kStance);
 	host.onDiplomacy([&ap_h](uint32_t p, const DiplomacyMsg &m) { ap_h.handle(p, m); });
@@ -488,8 +502,11 @@ static bool run_client_originated_relay(const char *ph) {
 	// c1 has no handler: it is the third-peer control and must still see the state.
 
 	// A CLIENT originates the stance (sendDiplomacy is symmetric like sendChat).
-	c1.sendDiplomacy(kTarget, kStance, 12);
-	sc1.set_diplomacy(kTarget, kStance);
+	// The host relays it onward, so the actor has to ride on the wire: the second
+	// client sees the HOST as the sender and could not otherwise tell whose row
+	// moved.
+	c1.sendDiplomacy(kActor, kTarget, kStance, 12);
+	sc1.set_diplomacy(kActor, kTarget, kStance);
 	for (int i = 0; i < 40; ++i) {
 		host.poll(arena); c1.poll(arena); c2.poll(arena);
 		if (ap_h.landed && ap_c2.landed) break;
@@ -498,13 +515,18 @@ static bool run_client_originated_relay(const char *ph) {
 	CHECK(ap_h.landed, "host applied the client-originated stance", ph);
 	CHECK(ap_c2.landed, "second client applied the host-relayed stance", ph);
 	CHECK(ap_h.count == 1 && ap_c2.count == 1, "stance relayed exactly once to each peer", ph);
-	CHECK(sh.get_diplomacy(kTarget) == kStance, ph);
-	CHECK(sc1.get_diplomacy(kTarget) == kStance, "originating client holds the stance", ph);
-	CHECK(sc2.get_diplomacy(kTarget) == kStance, ph);
+	CHECK(ap_h.got_actor == kActor && ap_c2.got_actor == kActor,
+	      "the relayed stance keeps its originating player", ph);
+	CHECK(sh.get_diplomacy(kActor, kTarget) == kStance, ph);
+	CHECK(sc1.get_diplomacy(kActor, kTarget) == kStance, "originating client holds the stance", ph);
+	CHECK(sc2.get_diplomacy(kActor, kTarget) == kStance, ph);
 	// Every peer flipped away from its starting stance, so the relay is not vacuous.
-	CHECK(sc1.get_diplomacy(kTarget) != Simulation::DIPLO_ENEMY, ph);
-	CHECK(sh.get_diplomacy(kTarget) != Simulation::DIPLO_ENEMY, ph);
-	CHECK(sc2.get_diplomacy(kTarget) != Simulation::DIPLO_ENEMY, ph);
+	CHECK(sc1.get_diplomacy(kActor, kTarget) != Simulation::DIPLO_ENEMY, ph);
+	CHECK(sh.get_diplomacy(kActor, kTarget) != Simulation::DIPLO_ENEMY, ph);
+	CHECK(sc2.get_diplomacy(kActor, kTarget) != Simulation::DIPLO_ENEMY, ph);
+	// Nobody touched player 0's row.
+	CHECK(sh.get_diplomacy(0, kTarget) == Simulation::DIPLO_ENEMY, ph);
+	CHECK(sc2.get_diplomacy(0, kTarget) == Simulation::DIPLO_ENEMY, ph);
 
 	host.stop(); c1.stop(); c2.stop();
 	return true;
@@ -643,7 +665,7 @@ static bool run_diplo_via_turn_manager(const char *ph) {
 	// inbound packet takes, so host and client cannot apply on different turns.
 	CHECK(sh.get_diplomacy(kTarget) == Simulation::DIPLO_ENEMY, ph);
 	CHECK(th.post_diplomacy(kTarget, kStance, 0), "host queued its own stance");
-	host.sendDiplomacy(kTarget, kStance, 0);
+	host.sendDiplomacy(0, kTarget, kStance, 0);
 	pump(host, client, arena, 20);
 
 	CHECK(cb_fires == 1, "the presentation callback still fires (unchanged)", ph);
@@ -668,20 +690,28 @@ static bool run_diplo_via_turn_manager(const char *ph) {
 	      "peers stay hash-identical after the turn-boundary apply", ph);
 
 	// A stance originating at the CLIENT reaches the host through the same route.
-	const uint8_t kStance2 = Simulation::DIPLO_NEUTRAL; // ALLY -> NEUTRAL, a real change
+	// The client is player 1, so it writes ITS OWN row: player 0's stance toward
+	// the target is untouched on both peers, and row 1 moves on both.
+	const uint8_t kStance2 = Simulation::DIPLO_NEUTRAL; // ENEMY -> NEUTRAL, a real change
+	CHECK(sh.get_diplomacy(1, kTarget) == Simulation::DIPLO_ENEMY, ph);
 	CHECK(tc.post_diplomacy(kTarget, kStance2, tc.current_turn()), "client queued a stance", ph);
-	client.sendDiplomacy(kTarget, kStance2, tc.current_turn());
+	client.sendDiplomacy(1, kTarget, kStance2, tc.current_turn());
 	pump(host, client, arena, 20);
 	CHECK(th.pending_diplomacy_count() == 1, "client-originated stance reached the host TurnManager", ph);
 	CHECK(th.tick(TurnManager::TURN_DURATION, sh), ph);
 	CHECK(tc.tick(TurnManager::TURN_DURATION, sc), ph);
-	CHECK(sh.get_diplomacy(kTarget) == kStance2 && sc.get_diplomacy(kTarget) == kStance2,
-	      "client-originated stance applied on both peers on the same turn", ph);
+	CHECK(sh.get_diplomacy(1, kTarget) == kStance2 && sc.get_diplomacy(1, kTarget) == kStance2,
+	      "client-originated stance applied to the client's own row on both peers", ph);
+	CHECK(sh.get_diplomacy(0, kTarget) == kStance && sc.get_diplomacy(0, kTarget) == kStance,
+	      "the client cannot move player 0's row", ph);
+	CHECK(th.last_applied_diplomacy(1, kTarget) == kStance2, "the actor's row is recorded", ph);
 	CHECK(th.compute_sim_hash(sh) == tc.compute_sim_hash(sc), ph);
 
 	// Out-of-range / malformed stances never reach the queue.
 	CHECK(!th.post_diplomacy(9, kStance, 0), "player_id >= 8 is rejected", ph);
 	CHECK(!th.post_diplomacy(2, 7, 0), "stance > DIPLO_ENEMY is rejected", ph);
+	CHECK(!th.post_diplomacy(9, 2, kStance, 0), "actor >= 8 is rejected", ph);
+	CHECK(!th.post_diplomacy(2, 2, kStance, 0), "a stance toward itself is rejected", ph);
 	CHECK(th.pending_diplomacy_count() == 0, "rejected stances are not queued", ph);
 	// A malformed payload must not fire onDiplomacy or queue anything.
 	DiplomacyMsg dm; dm.player_id = 1; dm.stance = Simulation::DIPLO_ALLY;
