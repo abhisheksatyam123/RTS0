@@ -1640,6 +1640,15 @@ void RtsoMain::_process(double delta) {
 		banner_panel->set_visible(true);
 		banner_label->set_text("DEFEAT!\nYour side has been defeated.");
 		banner_label->add_theme_color_override("font_color", Color(1.0f, 0.3f, 0.3f));
+	} else if (sim->is_defeated(local_player())) {
+		// 0 A.D.: a defeated player watches the rest of the match with the map revealed.
+		// The notice shows for a few seconds, then gets out of the way.
+		static double defeated_at = -1.0;
+		if (defeated_at < 0.0 || match_elapsed_time < defeated_at) defeated_at = match_elapsed_time;
+		banner_panel->set_visible(match_elapsed_time - defeated_at < 6.0);
+		banner_label->set_text("DEFEATED\nYou are now observing. The match goes on.");
+		banner_label->add_theme_color_override("font_color", Color(1.0f, 0.75f, 0.3f));
+		selected_ids.clear();
 	}
 }
 
