@@ -105,10 +105,12 @@ enum MapType : uint8_t {
 	MAP_STRONGHOLD = 49,
 	MAP_CALEDONIAN_MEADOWS = 50,
 	MAP_RHINE_MARSHLANDS = 51,
+	MAP_RED_SEA = 52,
+	MAP_HELLAS = 53,
 	// 0 A.D. trigger maps (maps/random/*_triggers.js run as map triggers, triggers.h)
-	MAP_FLOOD = 52,
-	MAP_EXTINCT_VOLCANO = 53,
-	MAP_TYPE_COUNT = 54
+	MAP_FLOOD = 54,
+	MAP_EXTINCT_VOLCANO = 55,
+	MAP_TYPE_COUNT = 56
 };
 
 struct MapTypeInfo {
@@ -174,6 +176,8 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_STRONGHOLD, "stronghold", "Stronghold (RMS)", "temperate", true, "Teams start with nearly adjacent civic centres and must rely on each other to defend their rear."},
 		{MAP_CALEDONIAN_MEADOWS, "caledonian_meadows", "Caledonian Meadows (RMS)", "alpine", true, "Fertile meadows surrounded by harsh terrain and snowmelt rivers; not always balanced."},
 		{MAP_RHINE_MARSHLANDS, "rhine_marshlands", "Rhine Marshlands (RMS)", "temperate", true, "Shallow, passable wetlands with little room for building in the lowlands of the Rhine."},
+		{MAP_RED_SEA, "red_sea", "Red Sea (RMS)", "desert", true, "The Red Sea between Africa and Arabia, painted from a real elevation map."},
+		{MAP_HELLAS, "hellas", "Hellas (RMS)", "mediterranean", true, "A random corner of Greece and the Aegean, painted from a real elevation map."},
 		{MAP_FLOOD, "flood", "Flood (RMS)", "temperate", true, "A great flood moves across the valley. The home islands go under, so evacuate your units by ship to the mainland."},
 		{MAP_EXTINCT_VOLCANO, "extinct_volcano", "Extinct Volcano (RMS)", "volcanic", true, "Rains raise the water from the 25th minute until only the hills and the great cone stay dry. Gaia towers guard the lowlands."}
 	};

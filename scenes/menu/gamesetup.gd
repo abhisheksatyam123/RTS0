@@ -85,6 +85,8 @@ const RMS_MAPS := [
 	["random_stronghold", "Stronghold (RMS)", "Random", 8, 128, "temperate", "Teammates start side by side and defend together. Supports 2-8 players."],
 	["random_caledonian_meadows", "Caledonian Meadows (RMS)", "Random", 8, 128, "alpine", "Fertile meadows amid harsh terrain and rivers. Supports 2-8 players."],
 	["random_rhine_marshlands", "Rhine Marshlands (RMS)", "Random", 8, 128, "temperate", "Shallow wetlands units can wade through. Supports 2-8 players."],
+	["random_red_sea", "Red Sea (RMS)", "Random", 8, 128, "desert", "The Red Sea coasts of Africa and Arabia from a real elevation map. Supports 2-8 players."],
+	["random_hellas", "Hellas (RMS)", "Random", 8, 128, "mediterranean", "A random part of Greece from a real elevation map. Supports 2-8 players."],
 ]
 
 # 0 A.D. population limits per player (0 = unlimited) and ceasefire lengths in minutes.
