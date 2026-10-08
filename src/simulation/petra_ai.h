@@ -58,7 +58,7 @@ struct PetraConfig {
 	float army_compact_sq   = 2000.0f; // Defense.armyCompactSize
 	int   target_num_workers = 60;
 	int   target_num_traders = 3;
-	int   pop_phase2         = 55;   // config.js Economy.popPhase2
+	int   pop_phase2         = 38;   // config.js Economy.popPhase2
 	int   work_phase3        = 40;   // config.js Economy.workPhase3 (scaled down for our pop cap)
 	int   muster_delta       = 0;     // +/- army threshold from personality
 
@@ -107,9 +107,11 @@ struct PetraConfig {
 		muster_delta = 0;
 		if (aggressive > 0.70f) muster_delta = -2;
 		if (defensive > 0.70f) muster_delta = 2;
-		pop_phase2 = (aggressive > 0.70f) ? 50 : 55;
+		// config.js Economy.popPhase2 = 38; strongly aggressive personalities
+		// rush and delay the town phase to 50.
+		pop_phase2 = (aggressive > 0.70f) ? 50 : 38;
 		// config.js:314–319 popScaling clamp; workPhase3 floor 40 in 0 A.D., smaller here
-		pop_phase2 = std::max(20, (int)((float)pop_phase2 * pop_scaling));
+		pop_phase2 = std::max(20, (int)((float)pop_phase2 * std::min(1.0f, pop_scaling)));
 		work_phase3 = std::max(18, (int)(40.0f * pop_scaling));
 		if (difficulty == PETRA_SANDBOX)
 			work_phase3 = 999; // config.js:322 sandbox never cities
@@ -131,11 +133,22 @@ struct PetraQueueAccount {
 	float stone = 0.0f;
 };
 
+// queueManager.js only funds queues that hold a plan, and only up to that
+// plan's cost. A queue "wants" the cost of the item it last failed to pay for;
+// the want lapses after WANT_TTL seconds without a retry and the account's
+// reserve returns to the free pool, so idle queues cannot hoard income.
 struct PetraQueueManager {
 	static constexpr int QUEUE_COUNT = 6;
+	static constexpr float WANT_TTL = 5.0f;
 	PetraQueueAccount accounts[QUEUE_COUNT] = {};
+	PetraQueueAccount wants[QUEUE_COUNT] = {};
+	float want_age[QUEUE_COUNT] = {};
 	void reset() {
-		for (int i = 0; i < QUEUE_COUNT; ++i) accounts[i] = PetraQueueAccount{};
+		for (int i = 0; i < QUEUE_COUNT; ++i) {
+			accounts[i] = PetraQueueAccount{};
+			wants[i] = PetraQueueAccount{};
+			want_age[i] = WANT_TTL + 1.0f;
+		}
 	}
 };
 
