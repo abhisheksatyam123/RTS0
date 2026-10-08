@@ -3856,47 +3856,79 @@ void RmsGenerator::distribute_wildlife(Simulation &sim, const HeightmapGrid &hm,
 	}
 }
 
+// Gaia treasures and ruins, where 0 A.D.'s random map scripts place them (maps/random/*.js);
+// most scripts place none. Capture the Relic's relics come from the victory condition
+// (Simulation::apply_relic_count), not the map.
 void RmsGenerator::distribute_relics(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config) {
-	float half = hm.map_half;
-	int num_relics = scale_by_map_size(6, 12, half);
-
-	// Center relic if land is above water
-	float center_h = hm.sample_world(0.0f, 0.0f);
-	if (config.map_type == MAP_JEBEL_BARKAL) {
-		// Place sacred landmark relic on summit of Jebel Barkal
-		sim.spawn_relic(0.0f, half * 0.06f, RES_GOLD, 500);
-	} else if (config.map_type == MAP_DANUBIUS) {
-		// Place sacred relic on Island Fortress
-		sim.spawn_relic(0.0f, 0.0f, RES_GOLD, 450);
-	} else if (center_h > water_h + 0.2f) {
-		bool near_player = false;
-		for (const auto &sp : spawns) {
-			float d = std::sqrt(sp.x * sp.x + sp.z * sp.z);
-			if (d < 18.0f) { near_player = true; break; }
+	const float half = hm.map_half;
+	const int np = (int)spawns.size();
+	auto dry = [&](float x, float z) {
+		return std::abs(x) < half - 3.0f && std::abs(z) < half - 3.0f && hm.sample_world(x, z) > water_h + 0.3f;
+	};
+	auto far_from_bases = [&](float x, float z, float d) {
+		for (const auto &sp : spawns)
+			if (std::hypot(x - sp.x, z - sp.z) < d) return false;
+		return true;
+	};
+	// SimpleObject(template, n, n, 0, spread): n treasures within `spread` of (x, z).
+	auto cluster = [&](float x, float z, uint8_t type, int n, float spread) {
+		for (int k = 0; k < n; ++k) {
+			const float a = rng.range_float(0.0f, 6.2831853f), r = rng.range_float(0.0f, spread);
+			const float tx = x + std::cos(a) * r, tz = z + std::sin(a) * r;
+			if (dry(tx, tz)) sim.spawn_treasure(tx, tz, type);
 		}
-		if (!near_player) {
-			sim.spawn_relic(0.0f, 0.0f, RES_GOLD, 350);
+	};
+	// createObjectGroupsDeprecated(group, 0, avoid player `avoid`, count, 50 tries).
+	auto scatter = [&](uint8_t type, int groups, int lo, int hi, float avoid) {
+		for (int g = 0, tries = 0; g < groups && tries < groups * 50; ++tries) {
+			const float x = rng.range_float(-half * 0.9f, half * 0.9f), z = rng.range_float(-half * 0.9f, half * 0.9f);
+			if (!dry(x, z) || !far_from_bases(x, z, avoid)) continue;
+			cluster(x, z, type, rng.range_int(lo, hi), 2.0f);
+			++g;
 		}
-	}
+	};
+	// placePlayerBaseTreasures: the base's treasures on a ring round the civic centre.
+	auto base_ring = [&](uint8_t type, int n) {
+		for (const auto &sp : spawns)
+			for (int k = 0; k < n; ++k) {
+				const float a = rng.range_float(0.0f, 6.2831853f), r = rng.range_float(10.0f, 13.0f);
+				const float tx = sp.x + std::cos(a) * r, tz = sp.z + std::sin(a) * r;
+				if (dry(tx, tz)) sim.spawn_treasure(tx, tz, type);
+			}
+	};
 
-	for (int i = 0; i < num_relics; ++i) {
-		float rx = rng.range_float(-half * 0.65f, half * 0.65f);
-		float rz = rng.range_float(-half * 0.65f, half * 0.65f);
-
-		bool near_player = false;
-		for (const auto &sp : spawns) {
-			float d = std::sqrt((rx - sp.x) * (rx - sp.x) + (rz - sp.z) * (rz - sp.z));
-			if (d < 20.0f) { near_player = true; break; }
-		}
-		if (near_player) continue;
-
-		float h = hm.sample_world(rx, rz);
-		if (h < water_h + 0.3f) continue;
-
-		uint8_t rtype = (uint8_t)(i % RES_COUNT);
-		int amount = rng.range_int(250, 400);
-
-		sim.spawn_relic(rx, rz, rtype, amount);
+	switch (config.map_type) {
+		case MAP_ATLAS_MOUNTAINS: // atlas_mountains.js: 3 x players groups of 2-3 food bins, then of wood
+			scatter(TREASURE_FOOD_BIN, 3 * np, 2, 3, 18.0f);
+			scatter(TREASURE_WOOD, 3 * np, 2, 3, 18.0f);
+			break;
+		case MAP_CANYON: // canyon.js: 3-8 food bins and as many wood treasures within 7 of the centre
+			for (int i = 0, n = rng.range_int(3, 8); i < n; ++i)
+				for (uint8_t t : {TREASURE_FOOD_BIN, TREASURE_WOOD}) cluster(0.0f, 0.0f, t, 1, 7.0f);
+			break;
+		case MAP_POLAR_SEA: // polar_sea.js: 14 wood treasures in each base
+			base_ring(TREASURE_WOOD, 14);
+			break;
+		case MAP_FORTRESS: // fortress.js: 5 food, 5 wood, 4 metal and 2 stone treasures by each base
+			base_ring(TREASURE_FOOD_BIN, 5);
+			base_ring(TREASURE_WOOD, 5);
+			base_ring(TREASURE_METAL, 4);
+			base_ring(TREASURE_STONE, 2);
+			break;
+		case MAP_WILD_LAKE:          // wild_lake.js and caledonian_meadows.js: a food bin
+		case MAP_CALEDONIAN_MEADOWS: // beside each civic centre
+			for (const auto &sp : spawns) {
+				const float tx = sp.x + sp.forward_dir_x * 6.0f, tz = sp.z + sp.forward_dir_z * 6.0f;
+				if (dry(tx, tz)) sim.spawn_treasure(tx, tz, TREASURE_FOOD_BIN);
+			}
+			break;
+		case MAP_DEEP_FOREST: // deep_forest.js: the unfinished Greek temple on the central hill
+			sim.spawn_ruins(0.0f, 0.0f, ruins_type_by_name("unfinished_greek_temple"));
+			break;
+		// RTS0 landmarks: a rich treasure on the summit of Jebel Barkal and on the Danubius island fort.
+		case MAP_JEBEL_BARKAL: sim.spawn_treasure(0.0f, half * 0.06f, TREASURE_METAL_PERSIAN_BIG); break;
+		case MAP_DANUBIUS: sim.spawn_treasure(0.0f, 0.0f, TREASURE_METAL_PERSIAN_BIG); break;
+		default: break;
 	}
 }
 
