@@ -2285,6 +2285,8 @@ void RmsGenerator::synth_wild_lake(HeightmapGrid &hm, RmsRng &rng, float &water_
 	water_h = 1.0f;
 	place_ring_spawns(hm, spawns, num_players, half * 0.66f, rng.range_float(0.0f, 6.2831853f), 6.2831853f, water_h + 1.5f);
 	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 20.0f, 6.0f, sp.base_height);
+}
+
 // =========================================================================
 // 0 A.D. trigger maps: maps/random/flood.js and extinct_volcano.js. Their
 // rising water is a map trigger (triggers.h; the ported flood_triggers.js and
