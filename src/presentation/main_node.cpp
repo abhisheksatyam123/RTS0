@@ -1297,7 +1297,7 @@ void RtsoMain::update_cursor() {
 				auto fv = sim->fauna();
 				for (size_t f = 0; f < fv.count && !*want; ++f) {
 					if (!fv.alive[f] || !near2(fv.pos_x[f], fv.pos_z[f], 2.5f)) continue;
-					want = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic ? "action-herd" : "action-gather-meat";
+					want = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic() && fv.behavior[f] != rtso::FAUNA_CORRALLED ? "action-herd" : "action-gather-meat";
 				}
 			}
 			if (!*want) {
@@ -3388,6 +3388,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			uint32_t clicked_fauna_id = 0;
 			uint8_t clicked_fauna_type = 0;
 			float best_fd2 = 2.5f * 2.5f;
+			size_t best_f = 0;
 			for (size_t f = 0; f < fview.count; ++f) {
 				if (!fview.alive[f]) continue;
 				float dx = fview.pos_x[f] - click_pos.x;
@@ -3397,11 +3398,12 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					best_fd2 = d2;
 					clicked_fauna_id = fview.id[f];
 					clicked_fauna_type = fview.fauna_type[f];
+					best_f = f;
 				}
 			}
 			if (clicked_fauna_id != 0) {
 				const auto &finfo = rtso::fauna_type_info(clicked_fauna_type);
-				uint8_t herd = finfo.is_domestic ? 1 : 0;
+				uint8_t herd = finfo.is_domestic() && fview.behavior[best_f] != rtso::FAUNA_CORRALLED ? 1 : 0;
 				if (net_lockstep())
 					post_lockstep(17, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0, 0, clicked_fauna_id, herd);
 				else if (herd)
@@ -3796,10 +3798,9 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		String ftype_str = f.get("type", "deer");
 		float fx = (float)f.get("x", 0.0);
 		float fz = (float)f.get("z", 0.0);
-		uint8_t ftype = rtso::FAUNA_DEER;
-		if (ftype_str == "boar") ftype = rtso::FAUNA_BOAR;
-		else if (ftype_str == "sheep") ftype = rtso::FAUNA_SHEEP;
-		else if (ftype_str == "wolf") ftype = rtso::FAUNA_WOLF;
+		// 0 A.D. template stem ("bear_brown" / "fauna_bear_brown"); older maps use deer/boar/sheep/wolf.
+		uint8_t ftype = rtso::fauna_type_by_name(ftype_str.utf8().get_data());
+		if (ftype >= rtso::FAUNA_COUNT) ftype = rtso::FAUNA_DEER;
 		sim->spawn_fauna(fx, fz, ftype);
 	}
 

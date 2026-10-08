@@ -12073,6 +12073,106 @@
   ],
   "fauna": [
     {
+      "type": "chicken",
+      "x": 83.87,
+      "z": 83.26
+    },
+    {
+      "type": "chicken",
+      "x": 83.39,
+      "z": 81.02
+    },
+    {
+      "type": "chicken",
+      "x": 83.38,
+      "z": 83.31
+    },
+    {
+      "type": "chicken",
+      "x": 84.21,
+      "z": 84.74
+    },
+    {
+      "type": "chicken",
+      "x": 83.66,
+      "z": 86.57
+    },
+    {
+      "type": "chicken",
+      "x": 64.5,
+      "z": 78.38
+    },
+    {
+      "type": "chicken",
+      "x": 63.65,
+      "z": 80.0
+    },
+    {
+      "type": "chicken",
+      "x": 62.77,
+      "z": 78.32
+    },
+    {
+      "type": "chicken",
+      "x": 66.79,
+      "z": 78.08
+    },
+    {
+      "type": "chicken",
+      "x": 65.43,
+      "z": 79.81
+    },
+    {
+      "type": "chicken",
+      "x": -99.02,
+      "z": -96.39
+    },
+    {
+      "type": "chicken",
+      "x": -99.37,
+      "z": -93.99
+    },
+    {
+      "type": "chicken",
+      "x": -97.67,
+      "z": -94.15
+    },
+    {
+      "type": "chicken",
+      "x": -96.72,
+      "z": -93.94
+    },
+    {
+      "type": "chicken",
+      "x": -98.69,
+      "z": -93.05
+    },
+    {
+      "type": "chicken",
+      "x": -79.24,
+      "z": -73.04
+    },
+    {
+      "type": "chicken",
+      "x": -80.06,
+      "z": -74.61
+    },
+    {
+      "type": "chicken",
+      "x": -80.5,
+      "z": -72.83
+    },
+    {
+      "type": "chicken",
+      "x": -82.0,
+      "z": -71.91
+    },
+    {
+      "type": "chicken",
+      "x": -79.38,
+      "z": -71.95
+    },
+    {
       "type": "deer",
       "x": -107.8,
       "z": -52.5
@@ -12163,12 +12263,12 @@
       "z": 31.88
     },
     {
-      "type": "wolf",
+      "type": "bear_brown",
       "x": 17.81,
       "z": 109.77
     },
     {
-      "type": "wolf",
+      "type": "bear_brown",
       "x": -13.35,
       "z": -109.24
     },
@@ -12193,52 +12293,52 @@
       "z": 75.66
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -96.49,
       "z": 25.01
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -95.33,
       "z": 28.9
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -93.38,
       "z": 31.49
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -92.29,
       "z": 26.73
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -93.59,
       "z": 20.37
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 1.76,
       "z": -27.48
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 3.61,
       "z": -25.57
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 5.39,
       "z": -23.83
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 1.41,
       "z": -26.43
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -1.29,
       "z": -25.3
     },
@@ -12607,6 +12707,25 @@
       "player": 2,
       "x": -88.84,
       "z": -89.79
+    }
+  ],
+  "treasures": [
+    {
+      "type": "pegasus",
+      "x": -8.58,
+      "z": -22.57
+    },
+    {
+      "type": "pegasus",
+      "x": -120.48,
+      "z": 89.0
+    }
+  ],
+  "ruins": [
+    {
+      "type": "unfinished_greek_temple",
+      "x": 104.07,
+      "z": -59.27
     }
   ]
 }
