@@ -134,6 +134,7 @@ Open terrain items:
   - Phase icons: 3 (`phases/`: village, town, city).
   - Formations: 12 PNG (`formations/`). The 0 A.D. formation count of 14 comes from the 2026-08-29 audit and was not re-verified (zip absent).
   - Auras and minimap: 19 and 22 files matched by name. Runtime wiring of these was not re-audited.
+  - Cursors: 20 (`assets/textures/cursors/`: 19 `action-*` and `cursor-rally`), wired by `update_cursor`. 0 A.D.'s remaining cursors (trade, treasure, set-rally variants, the arrow) are not copied yet.
 - **Fauna skipped for rigging.** `elephant_african_bush` (58-bone mesh, no matching PSA key set) and `hippopotamus` (no matching PSA keys). See the G7-H2 log below.
 - **2026-08-29 gap list: closed.** The 18 missing GLBs from the 2026-08-29 gap list are all shipped (see the matrices above). Re-export a single id with `python3 tools/extract_0ad_assets.py --only <ids>` (see [assets/README.md](../assets/README.md)).
 
