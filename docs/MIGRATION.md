@@ -12,7 +12,7 @@ Status key: **Done**, ported and in use · **Ported**, ported and tested but not
 
 | Vendored file | Status | RTS0 location | Notes |
 |---|---|---|---|
-| `LongPathfinder.h/.cpp` | Done | `src/simulation/nav/long_pathfinder.h` | JPS search, used by `NavGrid::find_path`. Uses 10/14 costs and no JumpPointCache, and pushes the goal instead of clearing the open list. `ImprovePathWaypoints` is replaced by `NavGrid::string_pull`. Tested by `tools/test_long_pathfinder.cpp` and `check_parity.py --unit nav-live`. |
+| `LongPathfinder.h/.cpp` | Done | `src/simulation/nav/long_pathfinder.h` | JPS search, used by `NavGrid::find_path`. Uses 10/14 costs and no JumpPointCache, and pushes the goal instead of clearing the open list. `ImprovePathWaypoints` is replaced by `NavGrid::string_pull`. It is the only long-range search (the legacy A* is gone). Tested against an 8-way Dijkstra by `tools/test_long_pathfinder.cpp` and `check_parity.py --unit nav-live`. |
 | `HierarchicalPathfinder.h/.cpp` | Done | `src/simulation/grid_nav.h` (`rebuild_regions`, `reachable`, MakeGoalReachable snap) | `CHUNK_SIZE` is 8 navcells (0 A.D. uses 96). Separate region maps for infantry, cavalry and ships. Global region ids sit in flat per-chunk arrays (`GlobalRegionIds`) and are numbered in the vendor's `Recompute` order (chunk rows, then local regions), so they no longer depend on `std::unordered_map` iteration order, which differs between standard libraries (libc++ on Android). Petra uses ship region ids as sea indices. |
 | `Grid.h` | Partial | `src/simulation/grid_nav.h` `Grid<T>` | `std::vector`-backed. No `SparseGrid` or serialization. |
 | `Pathfinding.h/.cpp` | Partial | `src/simulation/grid_nav.h` | Covers passability classes, the octile `PathCost` model, `WaypointPath` and the cavalry slope limit. `CheckLineMovement` is replaced by the Bresenham `line_clear`. |
@@ -50,14 +50,14 @@ This list covers porting the vendored C++ only. Overall project priorities and g
 
 1. **Obstruction shapes.** Rasterization is done. 0 A.D.'s `CCmpObstructionManager` isn't vendored, and RTS0 doesn't need a full one yet: `buildings_` and the `UnitGrid` in `separation()` already give the shapes VertexPathfinder needs. Revisit if buildings get rotations or per-class clearances.
 2. **Units as short-path obstructions.** Steering passes only buildings to VertexPathfinder. 0 A.D. also passes nearby units (minus the moving group) when a unit is stuck. Add that if crowds jam at chokepoints, within a per-tick query budget (`test_vertex_pathfinder` times a query at ~8 µs near 10 squares, ~380 µs near 150).
-3. **Cleanup.** Remove the legacy A* (`NavGrid::search_cells_astar`, `use_jps`) once JPS has run in real matches for a while. `tools/test_long_pathfinder.cpp` and `check_parity.py` still use it as the reference search, so they need another oracle first.
-4. **JumpPointCache.** Not needed yet. Maps now reach 512, but on 2026-10-08 JPS long paths were only about 3% of a 20-minute Mainland match on a 512 map (callgrind). Revisit if that share grows.
-5. **Fixed-point simulation (optional).** Whether the sim moves from `float` to `rtso::Fixed` is a multiplayer-model decision. See `docs/PLAN.md` P5 and `docs/MULTIPLAYER.md`. `src/core/math/fixed.h` is ready if that decision is made. It would also need `CFixedVector2D`, which isn't vendored.
+3. **JumpPointCache.** Not needed yet. Maps now reach 512, but on 2026-10-08 JPS long paths were only about 3% of a 20-minute Mainland match on a 512 map (callgrind). Revisit if that share grows.
+4. **Fixed-point simulation (optional).** Whether the sim moves from `float` to `rtso::Fixed` is a multiplayer-model decision. See `docs/PLAN.md` P5 and `docs/MULTIPLAYER.md`. `src/core/math/fixed.h` is ready if that decision is made. It would also need `CFixedVector2D`, which isn't vendored.
 
 ## History
 
 | Date | PR | Change |
 |---|---|---|
+| 2026-10-08 | #94 | VertexPathfinder searches for building steering close vertices inside squares by trying the squares sorted by their left edge, and build terrain edges from 64-bit navcell rows. Bit-identical results, part of an 11% cheaper match. |
 | 2026-10-08 | #53 | HierarchicalPathfinder global regions in flat arrays, numbered in the vendor's order instead of hash-map order. Same regions; a 512-map match runs 4% fewer instructions. |
 | 2026-10-08 | #42 | Made VertexPathfinder searches cheaper for building steering (reused storage, terrain read by rows, no edge-square sort) with bit-identical results. |
 | 2026-10-08 | #8 | Ported `Rasterize` and used it for building footprints in the nav grid. Ported `VertexPathfinder` and used it to steer land units around buildings. GATHER, BUILD and RETURN_DROPSITE orders now get long paths when buildings block them. Added `tools/bench_sim.cpp`, a headless tick benchmark that CI smoke-runs. |

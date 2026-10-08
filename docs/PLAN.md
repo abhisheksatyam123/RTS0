@@ -57,7 +57,7 @@ Verify: `python3 tools/lobby_server.py` then two `./build/linux/RTS0.x86_64` Hos
 
 ### P2 — Long-path JPS (done)
 
-Shipped in PR #1; see the table above. Further pathfinding work (obstruction manager, `VertexPathfinder`, legacy A* removal) is porting of vendored code and is ordered in [MIGRATION.md](MIGRATION.md#todo-in-priority-order).
+Shipped in PR #1; see the table above. Further pathfinding work (obstruction manager, units as short-path obstructions) is porting of vendored code and is ordered in [MIGRATION.md](MIGRATION.md#todo-in-priority-order).
 
 ### P3 — Petra naval remaining
 
