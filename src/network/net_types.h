@@ -142,6 +142,8 @@ enum class NetCommandType : uint8_t {
 	// sends target_x (whole units, exact in a float) of resource `param`
 	// (ResourceType) to player target_id. All or nothing; see Simulation::cmd_tribute.
 	NET_CMD_TRIBUTE        = 27,
+	// 0 A.D. Gate.js LockGate / UnlockGate. target_id = gate, param = 1 lock / 0 unlock.
+	NET_CMD_LOCK_GATE      = 28,
 };
 
 struct NetCommand {
