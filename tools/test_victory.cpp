@@ -267,7 +267,10 @@ int main() {
 		const Simulation::Building *hb = nullptr;
 		for (const auto &b : sim->buildings_) if (b.id == house) hb = &b;
 		CHECK(hb && hb->team == GAIA_PLAYER);
-		for (int k = 0; k < 6; ++k) sim->spawn_unit(hb->x + 4.0f + (float)k, hb->z + 4.0f, 0, UNIT_SWORDSMAN);
+		// Capture is an attack (Attack.js Capture): the swordsmen are ordered to capture it.
+		uint32_t capturers[6];
+		for (int k = 0; k < 6; ++k) capturers[k] = sim->spawn_unit(hb->x + 4.0f + (float)k, hb->z + 4.0f, 0, UNIT_SWORDSMAN);
+		sim->order_attack_building(capturers, 6, house, false, true);
 		run(*sim, 60.0f);
 		for (const auto &b : sim->buildings_) if (b.id == house) hb = &b;
 		CHECK(hb->team == 0);
