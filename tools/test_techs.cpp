@@ -7,6 +7,7 @@
 #include "network/turn_manager.h"
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <vector>
 
 using namespace rtso;
@@ -226,21 +227,30 @@ int main() {
 		CHECK(hp_left[0] >= 0.0f && hp_left[1] > hp_left[0]);
 	}
 
-	// Champion unlock: Mauryan Maiden Guards wait for Unlock Champion Infantry.
+	// Champion unlock: each roster row carries 0 A.D.'s own Identity/Requirements.
+	// The Mauryan Warrior waits for Unlock Champion Infantry; Maiden Guards need
+	// only the City phase, as in 0 A.D.
 	{
 		fresh(s);
 		s.set_player_civ(CIV_MAURYANS);
 		s.player(0).phase = 3;
 		uint32_t bar = s.spawn_building_world(20.0f, -20.0f, BLD_BARRACKS, 0, 1.0f);
+		uint16_t warrior = CIV_UNIT_TEMPLATE_NONE, maiden = CIV_UNIT_TEMPLATE_NONE;
+		for (uint16_t i = civ_roster_begin(CIV_MAURYANS); i < civ_roster_end(CIV_MAURYANS); ++i) {
+			if (std::strcmp(civ_unit_template(i).id, "maur/champion_infantry_maceman") == 0) warrior = i;
+			if (std::strcmp(civ_unit_template(i).id, "maur/champion_maiden") == 0) maiden = i;
+		}
+		CHECK(warrior != CIV_UNIT_TEMPLATE_NONE && maiden != CIV_UNIT_TEMPLATE_NONE);
 		CHECK(tech_available_to_civ(TECH_UNLOCK_CHAMPION_INFANTRY, CIV_MAURYANS));
-		CHECK(s.train_unlock_tech(0, UNIT_ARCHER_MAIDEN, BLD_BARRACKS) == TECH_UNLOCK_CHAMPION_INFANTRY);
-		CHECK(!s.can_train_at(0, UNIT_ARCHER_MAIDEN, BLD_BARRACKS));
-		CHECK(!s.cmd_train(0, bar, UNIT_ARCHER_MAIDEN));
-		CHECK(s.can_train_at(0, UNIT_SPEARMAN, BLD_BARRACKS)); // not a champion
+		CHECK(s.train_unlock_tech(0, UNIT_SWORDSMAN, BLD_BARRACKS, warrior) == TECH_UNLOCK_CHAMPION_INFANTRY);
+		CHECK(s.train_unlock_tech(0, UNIT_ARCHER_MAIDEN, BLD_TOWN_CENTER, maiden) == TECH_NONE);
+		CHECK(s.train_unlock_tech(0, UNIT_ARCHER_MAIDEN, BLD_BARRACKS) == TECH_UNLOCK_CHAMPION_INFANTRY); // class fallback
+		CHECK(!s.cmd_train_template(0, bar, warrior));
+		CHECK(s.cmd_train(0, bar, UNIT_SWORDSMAN)); // citizen swordsman: no unlock
 		CHECK(s.cmd_research(0, bar, TECH_UNLOCK_CHAMPION_INFANTRY));
 		run(s, tech_info(TECH_UNLOCK_CHAMPION_INFANTRY).research_time + 1.0f);
-		CHECK(s.can_train_at(0, UNIT_ARCHER_MAIDEN, BLD_BARRACKS));
-		CHECK(s.cmd_train(0, bar, UNIT_ARCHER_MAIDEN));
+		CHECK(s.can_train_at(0, UNIT_SWORDSMAN, BLD_BARRACKS, warrior));
+		CHECK(s.cmd_train_template(0, bar, warrior));
 	}
 
 	// Fertility Festival: houses train citizens, and only citizens.

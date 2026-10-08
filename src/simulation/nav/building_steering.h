@@ -34,14 +34,22 @@ inline constexpr float BUILDING_STEER_CULL = BUILDING_STEER_RANGE * 1.6f;
 
 namespace detail {
 
+// Whether building `b` expanded by `radius` comes within `reach` of `pos` on both axes. Small enough
+// to inline, so the loops below reject far buildings without a call.
+template <class B>
+bool within_reach(const B& b, Vec2 pos, float radius, float reach)
+{
+	const float r = reach + b.half_size + radius;
+	return !(std::fabs(b.x - pos.x) > r || std::fabs(b.z - pos.y) > r);
+}
+
 // A building to steer around: standing, blocks movement, not ignored, within `reach` of `pos` on both
 // axes, and not the destination (its square expanded by `radius` does not contain `aim`).
 template <class B>
 bool is_steering_obstacle(const B& b, Vec2 pos, Vec2 aim, float radius, uint32_t ignore_building_id, float reach)
 {
+	if (!within_reach(b, pos, radius, reach)) return false;
 	if (b.wrecked || b.id == ignore_building_id || !building_blocks_movement(b.type)) return false;
-	const float r = reach + b.half_size + radius;
-	if (std::fabs(b.x - pos.x) > r || std::fabs(b.z - pos.y) > r) return false;
 	const Vec2 half(b.half_size + radius, b.half_size + radius);
 	return !PointIsInSquare(aim - Vec2(b.x, b.z), Vec2(1.0f, 0.0f), Vec2(0.0f, 1.0f), half);
 }
@@ -50,7 +58,8 @@ bool is_steering_obstacle(const B& b, Vec2 pos, Vec2 aim, float radius, uint32_t
 
 // True when the straight line from `pos` towards `aim`, cut at `max_len`, crosses a building expanded
 // by `radius`. False when the unit stands inside one (separation() pushes it out first).
-// `Buildings` is a range of Simulation::Building (fields id, type, wrecked, x, z, half_size). No allocation.
+// `Buildings` is a range of Simulation::Building, or of anything with its fields id, type, wrecked, x, z and
+// half_size. No allocation.
 template <class Buildings>
 bool line_blocked_by_buildings(Vec2 pos, Vec2 aim, float max_len, float radius,
 		const Buildings& buildings, uint32_t ignore_building_id)
@@ -63,7 +72,8 @@ bool line_blocked_by_buildings(Vec2 pos, Vec2 aim, float max_len, float radius,
 	const Vec2 u(1.0f, 0.0f), v(0.0f, 1.0f);
 	bool blocked = false;
 	for (const auto& b : buildings) {
-		if (!detail::is_steering_obstacle(b, pos, aim, radius, ignore_building_id, reach)) continue;
+		if (!detail::within_reach(b, pos, radius, reach) ||
+		    !detail::is_steering_obstacle(b, pos, aim, radius, ignore_building_id, reach)) continue;
 		const Vec2 c(b.x, b.z);
 		const Vec2 half(b.half_size + radius, b.half_size + radius);
 		if (PointIsInSquare(pos - c, u, v, half)) return false;
@@ -75,6 +85,7 @@ bool line_blocked_by_buildings(Vec2 pos, Vec2 aim, float max_len, float radius,
 // If the line from `pos` towards `aim` is blocked within BUILDING_STEER_RANGE, searches a short path
 // around the nearby buildings and returns its first waypoint in `out`. Returns false when the line is
 // clear, the unit is inside a building or no path was found; the caller then moves straight at `aim`.
+// Searches reuse per-thread storage, so this is safe to call from parallel jobs.
 template <class Buildings>
 bool steer_around_buildings(Vec2 pos, Vec2 aim, float radius,
 		const Buildings& buildings, uint32_t ignore_building_id,
@@ -83,9 +94,14 @@ bool steer_around_buildings(Vec2 pos, Vec2 aim, float radius,
 	if (!line_blocked_by_buildings(pos, aim, BUILDING_STEER_RANGE, radius, buildings, ignore_building_id))
 		return false;
 
-	std::vector<ShortPathSquare> statics;
+	thread_local std::vector<ShortPathSquare> statics;
+	thread_local std::vector<Vec2> path;
+	thread_local ShortPathScratch scratch;
+	static const std::vector<ShortPathSquare> no_units;
+	statics.clear();
 	for (const auto& b : buildings)
-		if (detail::is_steering_obstacle(b, pos, aim, radius, ignore_building_id, BUILDING_STEER_CULL))
+		if (detail::within_reach(b, pos, radius, BUILDING_STEER_CULL) &&
+		    detail::is_steering_obstacle(b, pos, aim, radius, ignore_building_id, BUILDING_STEER_CULL))
 			statics.push_back(ShortPathSquare{Vec2(b.x, b.z), Vec2(1.0f, 0.0f), Vec2(0.0f, 1.0f),
 					Vec2(b.half_size, b.half_size)});
 
@@ -97,12 +113,22 @@ bool steer_around_buildings(Vec2 pos, Vec2 aim, float radius,
 	req.goal.center = aim;
 
 	// Terrain edges: water only. Building navcells are covered by `statics`, and the destination
-	// building's own navcells must stay open.
-	auto land = [&nav](int i, int j) { return nav.cells.inside(i, j) && nav.cells.at(i, j) != NAV_WATER; };
+	// building's own navcells must stay open. Rows hold 1 for land, 0 for water and outside the
+	// grid (cells is res x res).
+	auto land_rows = [&nav](int i, int j, int n, uint8_t* out) {
+		const Grid<uint8_t>& cells = nav.cells;
+		if (j >= 0 && j < cells.h && i >= 0 && i + n <= cells.w) {
+			const uint8_t* c = &cells.at(i, j);
+			for (int k = 0; k < n; ++k)
+				out[k] = c[k] != NAV_WATER;
+		} else {
+			for (int k = 0; k < n; ++k)
+				out[k] = cells.inside(i + k, j) && cells.at(i + k, j) != NAV_WATER;
+		}
+	};
 	const float cell = 2.0f * nav.map_half / static_cast<float>(nav.res);
-	std::vector<Vec2> path;
-	compute_short_path(req, statics, std::vector<ShortPathSquare>{}, land, cell,
-			Vec2(-nav.map_half, -nav.map_half), nav.res, nav.res, path);
+	compute_short_path(req, statics, no_units, land_rows, cell,
+			Vec2(-nav.map_half, -nav.map_half), nav.res, nav.res, scratch, path);
 	if (path.empty()) return false;
 	out = path.front();
 	return true;
