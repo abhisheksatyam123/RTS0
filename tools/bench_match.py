@@ -91,7 +91,8 @@ def build(out_dir: str) -> str:
 
 
 def run(binary: str, name: str, args: argparse.Namespace) -> dict:
-    cmd = [binary, *SCENARIOS[name], "--seed", str(args.seed), "--map", str(args.map)]
+    cmd = [binary, *SCENARIOS[name], "--seed", str(args.seed), "--map", str(args.map),
+           "--map-size", str(args.map_size)]
     if args.minutes is not None:
         cmd += ["--minutes", str(args.minutes)]
     cmd += ["--sample", "120" if args.samples else "0"]
@@ -134,6 +135,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--map", type=int, default=5, help="MapType id (default 5 = random continental)")
+    ap.add_argument("--map-size", type=int, default=128,
+                    help="map width in world units / 0 A.D. tiles (128 Tiny .. 512 Giant)")
     ap.add_argument("--minutes", type=float, default=None, help="override sim minutes for every scenario")
     ap.add_argument("--samples", action="store_true", help="print a state sample every 2 sim minutes")
     ap.add_argument("--out", help="write results JSON here")

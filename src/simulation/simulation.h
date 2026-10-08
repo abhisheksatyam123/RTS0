@@ -140,8 +140,19 @@ public:
 	};
 
 	// Public accessor for the FoW grid (fow_res()*fow_res() flat array, row-major)
-	const uint8_t* fow_grid() const { return fow_grid_.data(); }
+	// player 0's grid is fow_grid_ (hashed for lockstep). Another player's grid
+	// exists once it is the FoW viewer (set_fow_viewer); until then player 1
+	// falls back to the Petra AI's grid and others to all-unexplored.
+	const uint8_t* fow_grid(uint8_t player = 0) const {
+		if (player == 0 || player >= MAX_PLAYERS) return fow_grid_.data();
+		if (player_fow_[player].size() == fow_grid_.size()) return player_fow_[player].data();
+		if (player == 1) return petra_fow_.data();
+		return unexplored_fow_.data();
+	}
 	int fow_res() const { return grid_res_; }
+	// Which non-zero player's fog tick_fow also computes (the local client's
+	// player in multiplayer). Presentation-only: not hashed, not used by the sim.
+	void set_fow_viewer(uint8_t player) { fow_viewer_ = player; }
 	uint8_t fow_state_at(float x, float z, uint8_t viewer_team = 0) const;
 	bool is_entity_visible_to_viewer(float x, float z, uint8_t entity_team, uint8_t viewer_team = 0) const;
 
@@ -667,6 +678,8 @@ private:
 	void tick_petra_ai(float dt);
 	void tick_fauna(float dt);
 	void tick_fow();  // updates FoW each sim tick
+	template <typename SharesVision>
+	void update_player_fow(std::vector<uint8_t> &grid, SharesVision shares_vision);
 	void ensure_fow_cell_heights();
 	void reveal_fow(std::vector<uint8_t> &grid, float sx, float sz, float vr) const;
 	bool terrain_blocks_los(float sx, float sz, float sy, float tx, float tz, float ty) const;
@@ -868,6 +881,9 @@ private:
 	int grid_res_ = MIN_GRID_RES; // nav/FoW/territory resolution, grid_res_for_map(map_half_)
 	std::vector<uint8_t> fow_grid_ = std::vector<uint8_t>(MIN_GRID_RES * MIN_GRID_RES, 0); // FoW state per tile
 	std::vector<uint8_t> petra_fow_ = std::vector<uint8_t>(MIN_GRID_RES * MIN_GRID_RES, 0); // FoW state per tile for Petra AI
+	uint8_t fow_viewer_ = 0;
+	std::array<std::vector<uint8_t>, MAX_PLAYERS> player_fow_; // per-player FoW for players 1..7 (index 0 unused: fow_grid_)
+	std::vector<uint8_t> unexplored_fow_ = std::vector<uint8_t>((size_t)MAX_GRID_RES * MAX_GRID_RES, 0);
 	std::vector<float> fow_cell_height_; // terrain height at each FoW cell centre, lazily filled by tick_fow
 	NavGrid nav_grid_; // Phase1: SoA nav mesh (buildings + water), mirrors 0AD Grid<NavcellData>
 	Grid<uint8_t> territory_grid_; // grid_res_^2 player id per cell, G2 (CCmpTerritoryManager)

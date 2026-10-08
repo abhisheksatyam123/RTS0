@@ -167,14 +167,16 @@ void RtsoMiniMapView::_draw() {
 	// stance toward entity team from sim->get_diplomacy (simulation.h:332,
 	// DIPLO_ALLY=0/DIPLO_NEUTRAL=1/DIPLO_ENEMY=2, simulation.h:328).
 	auto diplo_color = [&](uint8_t team, const Color &fallback) -> Color {
-		if (!show_diplo_palette || team == 0 || !sim) return fallback;
-		uint8_t st = sim->get_diplomacy(team);
+		if (!show_diplo_palette || team == local_player || !sim) return fallback;
+		// Diplomacy stances are player-0-relative; other slots use game-setup teams.
+		uint8_t st = (local_player == 0) ? sim->get_diplomacy(team)
+				: (sim->same_team(local_player, team) ? (uint8_t)rtso::Simulation::DIPLO_ALLY : (uint8_t)rtso::Simulation::DIPLO_ENEMY);
 		if (st == rtso::Simulation::DIPLO_ALLY) return Color(0.30f, 0.90f, 0.45f);
 		if (st == rtso::Simulation::DIPLO_NEUTRAL) return Color(0.95f, 0.80f, 0.25f);
 		return fallback; // enemy keeps the hostile red
 	};
 
-	const uint8_t *fow = sim->fow_grid();
+	const uint8_t *fow = sim->fow_grid(local_player);
 	const int fow_res = sim->fow_res();
 	auto get_fow_state = [&](float x, float z) -> uint8_t {
 		if (!fow) return rtso::Simulation::FOW_VISIBLE;
@@ -249,8 +251,8 @@ void RtsoMiniMapView::_draw() {
 
 			if (radius_m > 0.0f) {
 				float r_px = (radius_m / (half_map * 2.0f)) * sz.x;
-				Color territory_fill = (b.team == 0) ? Color(0.2f, 0.55f, 1.0f, 0.14f) : Color(0.95f, 0.25f, 0.2f, 0.14f);
-				Color territory_edge = (b.team == 0) ? Color(0.35f, 0.75f, 1.0f, 0.60f) : Color(1.0f, 0.40f, 0.35f, 0.60f);
+				Color territory_fill = (b.team == local_player) ? Color(0.2f, 0.55f, 1.0f, 0.14f) : Color(0.95f, 0.25f, 0.2f, 0.14f);
+				Color territory_edge = (b.team == local_player) ? Color(0.35f, 0.75f, 1.0f, 0.60f) : Color(1.0f, 0.40f, 0.35f, 0.60f);
 				draw_circle(pos, r_px, territory_fill);
 				draw_arc(pos, r_px, 0.0f, 6.2831853f, 48, territory_edge, 1.5f);
 			}
@@ -281,17 +283,17 @@ void RtsoMiniMapView::_draw() {
 	// 3. Draw Buildings
 	for (const auto &b : sim->buildings()) {
 		uint8_t f_state = get_fow_state(b.x, b.z);
-		if (mask_entities && b.team != 0 && f_state == rtso::Simulation::FOW_UNEXPLORED) continue;
+		if (mask_entities && b.team != local_player && f_state == rtso::Simulation::FOW_UNEXPLORED) continue;
 
 		Vector2 pos = map_to_mini(b.x, b.z);
 		Color col = Color(0.7f, 0.7f, 0.7f);
 		float box_sz = 6.0f;
 
 		if (b.type == rtso::BLD_TOWN_CENTER) {
-			col = (b.team == 0) ? Color(1.0f, 0.85f, 0.2f) : Color(0.95f, 0.2f, 0.2f);
+			col = (b.team == local_player) ? Color(1.0f, 0.85f, 0.2f) : Color(0.95f, 0.2f, 0.2f);
 			box_sz = 9.0f;
 		} else if (b.type == rtso::BLD_BARRACKS) {
-			col = (b.team == 0) ? Color(0.95f, 0.55f, 0.2f) : Color(0.85f, 0.3f, 0.3f);
+			col = (b.team == local_player) ? Color(0.95f, 0.55f, 0.2f) : Color(0.85f, 0.3f, 0.3f);
 			box_sz = 7.0f;
 		} else if (b.type == rtso::BLD_TOWER) {
 			col = Color(0.4f, 0.85f, 1.0f);
@@ -300,7 +302,7 @@ void RtsoMiniMapView::_draw() {
 			col = Color(0.75f, 0.55f, 0.35f);
 		}
 
-		if (mask_entities && f_state == rtso::Simulation::FOW_EXPLORED && b.team != 0) {
+		if (mask_entities && f_state == rtso::Simulation::FOW_EXPLORED && b.team != local_player) {
 			col.a *= 0.55f;
 		}
 		col = diplo_color(b.team, col);
@@ -312,13 +314,13 @@ void RtsoMiniMapView::_draw() {
 	for (size_t i = 0; i < units.count; ++i) {
 		if (!units.alive[i]) continue;
 		uint8_t f_state = get_fow_state(units.pos_x[i], units.pos_z[i]);
-		if (mask_entities && units.team[i] != 0 && f_state != rtso::Simulation::FOW_VISIBLE) {
+		if (mask_entities && units.team[i] != local_player && f_state != rtso::Simulation::FOW_VISIBLE) {
 			continue; // Enemy units invisible outside direct LOS
 		}
 
 		Vector2 pos = map_to_mini(units.pos_x[i], units.pos_z[i]);
 		Color col = diplo_color(units.team[i],
-				(units.team[i] == 0) ? Color(0.25f, 0.65f, 1.0f) : Color(0.95f, 0.25f, 0.2f));
+				(units.team[i] == local_player) ? Color(0.25f, 0.65f, 1.0f) : Color(0.95f, 0.25f, 0.2f));
 		float rad = (units.unit_type[i] == rtso::UNIT_CAVALRY || units.unit_type[i] == rtso::UNIT_TRADER) ? 3.0f : 2.0f;
 		draw_rect(Rect2(pos.x - rad * 0.5f, pos.y - rad * 0.5f, rad, rad), col, true);
 	}

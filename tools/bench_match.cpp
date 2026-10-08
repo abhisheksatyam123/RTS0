@@ -56,6 +56,7 @@ int main(int argc, char **argv) {
 	std::string scenario = "match";
 	uint32_t seed = 42;
 	int map = MAP_RANDOM_CONTINENTAL;
+	float map_size = 128.0f; // world units across (0 A.D. Tiny 128 .. Giant 512)
 	double minutes = 20.0;
 	int war_units = 2000;
 	float dt = 0.2f; // one lockstep turn (TurnManager TURN_DURATION)
@@ -65,6 +66,7 @@ int main(int argc, char **argv) {
 		if (!strcmp(argv[i], "--scenario")) scenario = next();
 		else if (!strcmp(argv[i], "--seed")) seed = (uint32_t)strtoul(next(), nullptr, 10);
 		else if (!strcmp(argv[i], "--map")) map = atoi(next());
+		else if (!strcmp(argv[i], "--map-size")) map_size = (float)atof(next());
 		else if (!strcmp(argv[i], "--minutes")) minutes = atof(next());
 		else if (!strcmp(argv[i], "--units")) war_units = atoi(next());
 		else if (!strcmp(argv[i], "--sample")) sample_every_s = atoi(next());
@@ -77,7 +79,7 @@ int main(int argc, char **argv) {
 	if (scenario == "war") {
 		s.spawn_war(war_units);
 	} else {
-		s.generate_random_map((MapType)map, seed, 2, 64.0f);
+		s.generate_random_map((MapType)map, seed, 2, map_size * 0.5f);
 	}
 
 	const int ticks = (int)(minutes * 60.0 / dt + 0.5);

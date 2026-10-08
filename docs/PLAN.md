@@ -37,7 +37,7 @@ The biggest gaps to 0 A.D. are game-level rather than per-system (see [REMAINING
 | C. AI (Petra) | Fix the phase-up stall, scale the economy, several AI players | In progress |
 | D. Civ rosters and heroes | Civ-specific units and heroes, add Han, civ bonuses as data | Landed: 367 civ units and Han from 0 A.D. templates (#10); units, heroes, hero auras and civ bonuses drive the sim (#12). Open: train panel lists roster units by name |
 | E. Buildings, techs, farming | Missing buildings, 0 A.D. tech tree, fields and farming | Buildings and fields landed (PR #11); 83 0 A.D. techs with researcher buildings, prerequisites and phase rules (tech tree PR); Town Center food trickle goes once Petra farms |
-| F. Maps and scale | Larger maps, more 0 A.D. random maps (coordinate with MIGRATION.md pathfinding work) | In progress: map sizes 128 to 512 with scaling grids done (PR #14, `tools/bench_map_scale.cpp`); six new 0 A.D. random maps added (21 types); Map Size option and multiplayer map size next |
+| F. Maps and scale | Larger maps, more 0 A.D. random maps (coordinate with MIGRATION.md pathfinding work) | In progress: map sizes 128 to 512 with scaling grids done (PR #14, `tools/bench_map_scale.cpp`); six new 0 A.D. random maps added (21 types); fog and minimap follow the local player; Map Size option and multiplayer map size next |
 
 Each thread times a fixed headless AI match before and after its change with the shared benchmark tool once it's on main.
 
