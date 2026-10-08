@@ -706,7 +706,8 @@ inline uint64_t building_tech_classes(uint8_t type) {
 
 inline constexpr uint32_t unit_bit(uint8_t type) { return (type < 32) ? (1u << type) : 0u; }
 
-inline constexpr uint16_t bld_bit(uint8_t type) { return (type < 16) ? (uint16_t)(1u << type) : 0u; }
+static_assert(BLD_TYPE_COUNT <= 32, "bld_bit() masks are uint32_t");
+inline constexpr uint32_t bld_bit(uint8_t type) { return (type < 32) ? (1u << type) : 0u; }
 
 // ---------------------------------------------------------------------------
 // Per-civ unit rosters, generated from 0 A.D.'s templates by
@@ -754,7 +755,7 @@ enum CivBonusStat : uint8_t {
 struct CivPlayerBonus {
 	uint16_t civs; // civ_bit() mask
 	uint8_t stat; // CivBonusStat
-	uint16_t buildings; // bld_bit() mask (0 for player-wide stats)
+	uint32_t buildings; // bld_bit() mask (0 for player-wide stats)
 	float mult;
 	const char *id;
 	const char *tooltip;
@@ -768,7 +769,7 @@ struct CivUnitTemplate {
 	uint8_t unit_type; // RTS0 behaviour class (UnitType)
 	uint8_t phase; // 1 village, 2 town, 3 city
 	uint8_t flags; // CivRosterFlag bits
-	uint16_t trainers; // bld_bit() of each BuildingType that trains it
+	uint32_t trainers; // bld_bit() of each BuildingType that trains it
 	float hp;
 	float speed;
 	float attack_range;

@@ -157,7 +157,10 @@ TRAINER_BUILDING = {
 BUILDING_BITS = ["BLD_TOWN_CENTER", "BLD_HOUSE", "BLD_BARRACKS", "BLD_STOREHOUSE",
                  "BLD_TOWER", "BLD_FARMSTEAD", "BLD_MARKET", "BLD_FORTRESS",
                  "BLD_GATE", "BLD_TEMPLE", "BLD_WONDER", "BLD_DOCK",
-                 "BLD_WALL_SEGMENT", "BLD_CORRAL"]
+                 "BLD_WALL_SEGMENT", "BLD_CORRAL", "BLD_FIELD", "BLD_STABLE",
+                 "BLD_RANGE", "BLD_FORGE", "BLD_ARSENAL", "BLD_SENTRY_TOWER",
+                 "BLD_OUTPOST", "BLD_PALISADE", "BLD_WALL_TOWER", "BLD_ELEPHANT_STABLE",
+                 "BLD_THEATER", "BLD_EMBASSY"]  # BuildingType order, every id
 
 PHASE_OF_TECH = {
     "phase_village": 1, "unlock_females_house": 1,
@@ -552,7 +555,8 @@ def apply_unit_bonuses(raw, classes, civ, bonuses):
 # 0 A.D. structure classes in civ bonus "affects" lists, as RTS0 BuildingTypes.
 BUILDING_CLASS = {
     "Structure": BUILDING_BITS,
-    "Wall": ["BLD_WALL_SEGMENT", "BLD_GATE"],
+    "Wall": ["BLD_WALL_SEGMENT", "BLD_GATE", "BLD_WALL_TOWER"],
+    "Tower": ["BLD_TOWER", "BLD_SENTRY_TOWER"], "Field": ["BLD_FIELD"],
     "Storehouse": ["BLD_STOREHOUSE"],
     "House": ["BLD_HOUSE"],
     "Economic": ["BLD_STOREHOUSE", "BLD_FARMSTEAD", "BLD_MARKET", "BLD_CORRAL", "BLD_HOUSE"],
@@ -829,7 +833,7 @@ def emit_header(rows, auras, civ_json, bonuses):
         flags = " | ".join(r["flags"]) or "0"
         trainers = " | ".join("bld_bit(%s)" % b for b in r["trainers"]) or "0"
         if len(r["trainers"]) > 1:
-            trainers = "(uint16_t)(%s)" % trainers
+            trainers = "(uint32_t)(%s)" % trainers
         a = r["auras"] + [-1, -1, -1]
         w("\t\t{%s, %s, %s, %s, %s, %d, %s, %s," % (
             cstr(r["id"]), cstr(r["name"]), cstr(r["specific_name"]),
@@ -858,7 +862,7 @@ def emit_header(rows, auras, civ_json, bonuses):
             civs = "(uint16_t)(%s)" % civs
         blds = " | ".join("bld_bit(%s)" % x for x in mask) or "0"
         if len(mask) > 1:
-            blds = "(uint16_t)(%s)" % blds
+            blds = "(uint32_t)(%s)" % blds
         w("\t\t{%s, %s, %s, %s, %s, %s}," % (civs, stat, blds, f(mult), cstr(b["id"]), cstr(b["tooltip"])))
     w("\t\t{0, 0, 0, 1.0f, \"\", \"\"}, // sentinel")
     w("\t};")
