@@ -3,6 +3,7 @@
   "name": "Coele-Syria (2)",
   "desc": "A barren land with little wood and few animals. Treasures dot the landscape and will be essential to early growth.\n\nThe player who sets up a profitable trade caravan earliest may gain a decisive advantage.",
   "biome": "desert",
+  "nomad": false,
   "world_size": 320.0,
   "water_height": 0.7,
   "heightmap_res": 81,
@@ -13568,30 +13569,6 @@
       "z": -28.36
     },
     {
-      "type": "barracks",
-      "player": 2,
-      "x": 103.76,
-      "z": -23.8
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 104.63,
-      "z": -25.1
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -80.2,
-      "z": -23.18
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -79.1,
-      "z": -24.28
-    },
-    {
       "type": "wall_segment",
       "player": 1,
       "x": -99.66,
@@ -13978,6 +13955,18 @@
       "z": -32.82
     },
     {
+      "type": "archer",
+      "player": 2,
+      "x": 103.76,
+      "z": -23.8
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 104.63,
+      "z": -25.1
+    },
+    {
       "type": "villager",
       "player": 2,
       "x": 93.94,
@@ -14036,6 +14025,18 @@
       "player": 1,
       "x": -80.11,
       "z": -30.91
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -80.2,
+      "z": -23.18
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -79.1,
+      "z": -24.28
     },
     {
       "type": "villager",

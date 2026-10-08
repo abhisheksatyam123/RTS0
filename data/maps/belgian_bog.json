@@ -3,6 +3,7 @@
   "name": "Belgian Bog (2)",
   "desc": "Two players face off across a large bog somewhere in the Rhine lowlands.\n\nWood is abundant, but Metal and Stone are hard to find and extract. Hunting and foraging is plentiful.",
   "biome": "temperate",
+  "nomad": false,
   "world_size": 256.0,
   "water_height": 3.02,
   "heightmap_res": 64,
@@ -17765,30 +17766,6 @@
       "z": 4.37
     },
     {
-      "type": "barracks",
-      "player": 2,
-      "x": -84.81,
-      "z": 9.39
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": -83.53,
-      "z": 7.77
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": 86.41,
-      "z": -8.47
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": 87.52,
-      "z": -9.71
-    },
-    {
       "type": "wall_segment",
       "player": 1,
       "x": 97.18,
@@ -18119,6 +18096,30 @@
       "player": 2,
       "x": -95.21,
       "z": 9.84
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": -84.81,
+      "z": 9.39
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": -83.53,
+      "z": 7.77
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": 86.41,
+      "z": -8.47
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": 87.52,
+      "z": -9.71
     },
     {
       "type": "swordsman",
