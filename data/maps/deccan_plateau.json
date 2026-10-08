@@ -3,6 +3,7 @@
   "name": "Deccan Plateau (2)",
   "desc": "Two players square off across the heavily forested Deccan Plateau of central India.\n\nEach player starts the match with a free farmstead and free storehouse.\n\nVirgin resources lie to the lowlands on either side of the plateau. The lowlands also offer opportunity for expansion and strategic maneuvering.",
   "biome": "tropical",
+  "nomad": false,
   "world_size": 256.0,
   "water_height": 3.71,
   "heightmap_res": 64,
@@ -19130,30 +19131,6 @@
       "z": 86.63
     },
     {
-      "type": "barracks",
-      "player": 2,
-      "x": 21.66,
-      "z": 81.61
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 22.55,
-      "z": 80.56
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -13.06,
-      "z": -73.59
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -12.26,
-      "z": -74.48
-    },
-    {
       "type": "wall_segment",
       "player": 1,
       "x": -0.35,
@@ -19234,6 +19211,18 @@
       "z": 73.31
     },
     {
+      "type": "archer",
+      "player": 2,
+      "x": 21.66,
+      "z": 81.61
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 22.55,
+      "z": 80.56
+    },
+    {
       "type": "cavalry",
       "player": 2,
       "x": 12.77,
@@ -19268,6 +19257,18 @@
       "player": 1,
       "x": -12.54,
       "z": -81.53
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -13.06,
+      "z": -73.59
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -12.26,
+      "z": -74.48
     },
     {
       "type": "villager",

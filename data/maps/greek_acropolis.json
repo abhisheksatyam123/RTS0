@@ -3,6 +3,7 @@
   "name": "Greek Acropolis (4)",
   "desc": "Three factions find themselves perched safely atop large rocky plateaus, whereas the fourth one is separated from their foes by a river branch.\n\nScout the lands to find free treasures and to secure new resources..",
   "biome": "aegean",
+  "nomad": false,
   "world_size": 320.0,
   "water_height": 3.71,
   "heightmap_res": 81,
@@ -22217,54 +22218,6 @@
       "player": 4,
       "x": 100.69,
       "z": -66.62
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": 75.2,
-      "z": 98.24
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": 76.13,
-      "z": 97.36
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": -108.03,
-      "z": 34.02
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": -107.22,
-      "z": 33.29
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": -39.44,
-      "z": -108.31
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": -38.57,
-      "z": -108.97
-    },
-    {
-      "type": "barracks",
-      "player": 4,
-      "x": 103.72,
-      "z": -61.62
-    },
-    {
-      "type": "barracks",
-      "player": 4,
-      "x": 104.66,
-      "z": -62.4
     }
   ],
   "units": [
@@ -22291,6 +22244,18 @@
       "player": 1,
       "x": 69.45,
       "z": 87.83
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": 75.2,
+      "z": 98.24
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": 76.13,
+      "z": 97.36
     },
     {
       "type": "swordsman",
@@ -22365,6 +22330,18 @@
       "z": 25.42
     },
     {
+      "type": "archer",
+      "player": 2,
+      "x": -108.03,
+      "z": 34.02
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": -107.22,
+      "z": 33.29
+    },
+    {
       "type": "villager",
       "player": 3,
       "x": -47.65,
@@ -22399,6 +22376,18 @@
       "player": 3,
       "x": -38.8,
       "z": -116.19
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": -39.44,
+      "z": -108.31
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": -38.57,
+      "z": -108.97
     },
     {
       "type": "hero",
@@ -22459,6 +22448,18 @@
       "player": 4,
       "x": 98.41,
       "z": -72.09
+    },
+    {
+      "type": "archer",
+      "player": 4,
+      "x": 103.72,
+      "z": -61.62
+    },
+    {
+      "type": "archer",
+      "player": 4,
+      "x": 104.66,
+      "z": -62.4
     }
   ]
 }

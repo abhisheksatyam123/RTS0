@@ -3,6 +3,7 @@
   "name": "Sporades Islands (2 player)",
   "desc": "An islands map designed for intense naval combat.",
   "biome": "aegean",
+  "nomad": false,
   "world_size": 320.0,
   "water_height": 7.38,
   "heightmap_res": 81,
@@ -16645,30 +16646,6 @@
       "player": 2,
       "x": 56.39,
       "z": -39.68
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -55.31,
-      "z": 46.55
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -54.04,
-      "z": 45.16
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 59.27,
-      "z": -35.17
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 60.55,
-      "z": -36.56
     }
   ],
   "units": [
@@ -16743,6 +16720,30 @@
       "player": 1,
       "x": -62.58,
       "z": 36.68
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -55.31,
+      "z": 46.55
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -54.04,
+      "z": 45.16
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 59.27,
+      "z": -35.17
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 60.55,
+      "z": -36.56
     },
     {
       "type": "swordsman",

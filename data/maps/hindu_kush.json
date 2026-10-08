@@ -3,6 +3,7 @@
   "name": "Hindu Kush (2)",
   "desc": "The Hindu Kush mountains separate India from Bactria (modern day Afghanistan) and form a frontier between the Seleucid and Mauryan realms. This area was later under the control of the Greco-Bactrian and Indo-Greek kingdoms of the later Hellenistic period. \n\nThe area is low on wood resources, but high on stone and metal. A trade route runs through the center of the map with Trade Depots that can be captured and used to gather resources via trade. ",
   "biome": "alpine",
+  "nomad": false,
   "world_size": 256.0,
   "water_height": -0.3,
   "heightmap_res": 65,
@@ -9969,40 +9970,16 @@
   ],
   "structures": [
     {
-      "type": "barracks",
-      "player": 1,
-      "x": 0.71,
-      "z": 47.9
-    },
-    {
       "type": "town_center",
       "player": 1,
       "x": -2.73,
       "z": 43.0
     },
     {
-      "type": "barracks",
-      "player": 1,
-      "x": 1.72,
-      "z": 46.8
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": -2.06,
-      "z": -65.64
-    },
-    {
       "type": "town_center",
       "player": 2,
       "x": -5.13,
       "z": -69.89
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": -1.05,
-      "z": -66.74
     },
     {
       "type": "tower",
@@ -10295,6 +10272,12 @@
   ],
   "units": [
     {
+      "type": "archer",
+      "player": 1,
+      "x": 0.71,
+      "z": 47.9
+    },
+    {
       "type": "swordsman",
       "player": 1,
       "x": -7.42,
@@ -10305,6 +10288,12 @@
       "player": 1,
       "x": -6.36,
       "z": 38.35
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": 1.72,
+      "z": 46.8
     },
     {
       "type": "cavalry",
@@ -10319,6 +10308,12 @@
       "z": 47.79
     },
     {
+      "type": "archer",
+      "player": 2,
+      "x": -2.06,
+      "z": -65.64
+    },
+    {
       "type": "swordsman",
       "player": 2,
       "x": -9.76,
@@ -10329,6 +10324,12 @@
       "player": 2,
       "x": -8.7,
       "z": -74.35
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": -1.05,
+      "z": -66.74
     },
     {
       "type": "cavalry",

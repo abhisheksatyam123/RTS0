@@ -21,6 +21,10 @@
 #include <vector>
 
 #include "../simulation/simulation.h"
+#include "fog_mirage.h"
+#include <godot_cpp/classes/image.hpp>
+#include <godot_cpp/classes/image_texture.hpp>
+#include <godot_cpp/classes/shader_material.hpp>
 #include "../graphics/assets/assets.h"
 #include "../graphics/assets/procedural.h"
 #include "../graphics/assets/model_library.h"
@@ -61,6 +65,7 @@ class RtsoWorldView : public Node3D {
 		uint8_t phase = 0; // 0 complete, 1 prebuild, 2 construct, 3 collapse, 4 rubble
 		float phase_t = 0.0f;
 		float build_progress = 1.0f;
+		float fog_dim = -1.0f; // overlay level last pushed (-1: none yet)
 		String model_id;
 	};
 
@@ -177,6 +182,7 @@ class RtsoWorldView : public Node3D {
 		float max_hp = 0.0f;
 		uint8_t type = 0;
 		float fire_timer = 0.0f;
+		bool live = true; // last frame showed the live structure, not a mirage
 	};
 	std::unordered_map<uint32_t, PrevBuildingState> tracked_buildings;
 
@@ -201,6 +207,22 @@ public:
 
 private:
 	uint8_t local_player_ = 0;
+
+	// Fog of war (0 A.D. Fogging.js/Mirage.js + CLOSTexture): what the local
+	// player remembers, and the smoothed LOS bitmap that shades the world.
+	rtso::FogMirages mirages_;
+	rtso::LosShading los_;
+	Ref<Image> los_image_;
+	Ref<ImageTexture> los_tex_;
+	PackedByteArray los_bytes_;
+	float los_upload_timer_ = 0.0f;
+	float los_half_ = 0.0f;
+	static constexpr int FOG_OVERLAY_LEVELS = 17;
+	Ref<ShaderMaterial> fog_overlay_mats_[FOG_OVERLAY_LEVELS]; // multiply a fogged structure by its LOS brightness
+	void update_fog(const rtso::Simulation *sim, float delta);
+	void bind_los(const Ref<Material> &mat);
+	float los_brightness(float x, float z) const;
+	void set_fog_overlay(Node *n, float brightness);
 	Ref<MultiMesh> create_multimesh(const Ref<Mesh> &mesh, bool use_colors = false);
 	UnitVis &acquire_unit_slot(uint32_t sim_id);
 	BuildingVis &acquire_building_slot(uint32_t sim_id);

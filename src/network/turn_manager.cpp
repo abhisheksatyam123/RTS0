@@ -62,6 +62,9 @@ bool TurnManager::lockstep_net_active() const {
 	return net_host_ && net_host_->getRole() != NetRole::None && !is_replaying_;
 }
 
+static constexpr uint8_t CMD_PEER_JOINED = static_cast<uint8_t>(NetCommandType::NET_CMD_PEER_JOINED);
+static constexpr uint8_t CMD_PEER_LEFT = static_cast<uint8_t>(NetCommandType::NET_CMD_PEER_LEFT);
+
 void TurnManager::ensure_lockstep_peers() {
 	if (!lockstep_peers_set_) {
 		lockstep_peers_.clear();
@@ -69,10 +72,80 @@ void TurnManager::ensure_lockstep_peers() {
 		if (net_host_->isHost()) {
 			for (const auto &p : net_host_->getPeers())
 				if (p.connected && !p.is_observer && p.id != 0) lockstep_peers_.push_back(p.id);
-		} else if (local_client_id_ != 0) {
-			lockstep_peers_.push_back(local_client_id_);
+		} else {
+			// Every seated human client (assign_slot_players numbers them 1, 2, ...
+			// in slot order, as the host numbers joiners in connect order): their
+			// batches reach us through the host's relay.
+			for (const auto &cp : client_player_)
+				if (cp.first != 0 && cp.second < MAX_PLAYERS) lockstep_peers_.push_back(cp.first);
+			if (local_client_id_ != 0 &&
+					std::find(lockstep_peers_.begin(), lockstep_peers_.end(), local_client_id_) == lockstep_peers_.end())
+				lockstep_peers_.push_back(local_client_id_);
+			std::sort(lockstep_peers_.begin() + 1, lockstep_peers_.end());
 		}
 		lockstep_peers_set_ = true;
+		if (net_host_->isHost()) {
+			// A human seat nobody connected to: clients would wait on it forever,
+			// so tell them it is empty.
+			for (const auto &cp : client_player_)
+				if (cp.first != 0 && cp.second < MAX_PLAYERS &&
+						std::find(lockstep_peers_.begin(), lockstep_peers_.end(), cp.first) == lockstep_peers_.end()) {
+					NetCommand c;
+					c.cmd_type = CMD_PEER_LEFT;
+					c.target_id = cp.first;
+					c.target_x = 0.0f;
+					pending_control_.push_back(c);
+				}
+		}
+	}
+}
+
+bool TurnManager::peer_active(uint32_t id) const {
+	return std::find(lockstep_peers_.begin(), lockstep_peers_.end(), id) != lockstep_peers_.end() &&
+	       lockstep_until_.find(id) == lockstep_until_.end();
+}
+
+// Every peer, on the host's word: the lockstep waits for the client's batches up
+// to last_turn (the host holds them, and relays them) and drops any after it.
+void TurnManager::apply_peer_left(uint32_t client_id, uint32_t last_turn) {
+	auto until = lockstep_until_.find(client_id);
+	if (until != lockstep_until_.end() && until->second <= last_turn) return;
+	lockstep_until_[client_id] = last_turn;
+	paused_clients_.erase(client_id); // a paused client that leaves no longer holds the match
+	// Its hashes for turns not yet run here are void: a batch it sent just
+	// before leaving may never arrive, so the host runs those turns without
+	// it (0 A.D. NetServerTurnManager::UninitialiseClient stops checking it).
+	left_clients_.insert(client_id);
+	for (auto &t : peer_hashes_)
+		if (t.first > current_turn_) t.second.erase(client_id);
+	for (auto &t : turn_remote_cmds_) {
+		if (t.first <= last_turn) continue;
+		t.second.erase(std::remove_if(t.second.begin(), t.second.end(),
+				[&](const NetCommand &c) { return c.client_id == client_id; }), t.second.end());
+	}
+	for (auto &t : received_batches_) {
+		if (t.first <= last_turn) continue;
+		t.second.erase(std::remove(t.second.begin(), t.second.end(), client_id), t.second.end());
+	}
+}
+
+// A client, from the host's batch as it arrives (before the turn it affects can run).
+void TurnManager::apply_peer_control(const NetCommand &c) {
+	ensure_lockstep_peers();
+	const uint32_t id = c.target_id;
+	if (id == 0 || id == local_client_id_) return;
+	if (c.cmd_type == CMD_PEER_LEFT) {
+		apply_peer_left(id, (uint32_t)c.target_x);
+		std::cerr << "[TurnManager] client " << id << " left after turn " << (uint32_t)c.target_x << "\n";
+	} else if (c.cmd_type == CMD_PEER_JOINED) {
+		if (std::find(lockstep_peers_.begin(), lockstep_peers_.end(), id) == lockstep_peers_.end())
+			lockstep_peers_.push_back(id);
+		lockstep_since_[id] = (uint32_t)c.target_x;
+		lockstep_until_.erase(id);
+		left_clients_.erase(id);
+		client_player_[id] = c.param;
+		std::cerr << "[TurnManager] client " << id << " takes player " << (unsigned)c.param
+		          << " from turn " << (uint32_t)c.target_x << "\n";
 	}
 }
 
@@ -83,6 +156,8 @@ bool TurnManager::turn_ready(uint32_t turn) {
 	for (uint32_t id : lockstep_peers_) {
 		auto since = lockstep_since_.find(id);
 		if (since != lockstep_since_.end() && turn < since->second) continue; // rejoined later
+		auto until = lockstep_until_.find(id);
+		if (until != lockstep_until_.end() && turn > until->second) continue; // left
 		if (it == received_batches_.end() ||
 				std::find(it->second.begin(), it->second.end(), id) == it->second.end()) return false;
 	}
@@ -90,17 +165,26 @@ bool TurnManager::turn_ready(uint32_t turn) {
 }
 
 void TurnManager::drop_client(uint32_t client_id) {
-	if (client_id == local_client_id_) return;
+	if (client_id == local_client_id_ || client_id == 0) return;
 	if (net_host_) ensure_lockstep_peers();
-	lockstep_peers_.erase(std::remove(lockstep_peers_.begin(), lockstep_peers_.end(), client_id), lockstep_peers_.end());
-	lockstep_since_.erase(client_id);
-	paused_clients_.erase(client_id); // a paused client that leaves no longer holds the match
-	// Its hashes for turns not yet run here are void: a batch it sent just
-	// before leaving may never arrive, so the host runs those turns without
-	// it (0 A.D. NetServerTurnManager::UninitialiseClient stops checking it).
-	left_clients_.insert(client_id);
-	for (auto &t : peer_hashes_)
-		if (t.first > current_turn_) t.second.erase(client_id);
+	paused_clients_.erase(client_id);
+	if (peer_active(client_id)) {
+		// The last turn whose batch from it is in hand: the lockstep still runs
+		// those (every client gets them through the relay), and no later ones.
+		uint32_t last = current_turn_;
+		for (;;) {
+			auto it = received_batches_.find(last + 1);
+			if (it == received_batches_.end() ||
+					std::find(it->second.begin(), it->second.end(), client_id) == it->second.end()) break;
+			++last;
+		}
+		apply_peer_left(client_id, last);
+		NetCommand c;
+		c.cmd_type = CMD_PEER_LEFT;
+		c.target_id = client_id;
+		c.target_x = (float)last;
+		pending_control_.push_back(c);
+	}
 	rejoin_requests_.erase(std::remove(rejoin_requests_.begin(), rejoin_requests_.end(), client_id), rejoin_requests_.end());
 	rejoin_outbox_.erase(std::remove_if(rejoin_outbox_.begin() + (std::ptrdiff_t)rejoin_outbox_next_, rejoin_outbox_.end(),
 			[&](const auto &e) { return e.first == client_id; }), rejoin_outbox_.end());
@@ -193,9 +277,7 @@ void TurnManager::serve_rejoin(uint32_t client_id, Simulation &sim) {
 		if (cp.second >= MAX_PLAYERS || cp.first == 0) continue;
 		bool held = false;
 		for (const auto &other : client_player_)
-			if (other.second == cp.second &&
-					std::find(lockstep_peers_.begin(), lockstep_peers_.end(), other.first) != lockstep_peers_.end())
-				held = true;
+			if (other.second == cp.second && peer_active(other.first)) held = true;
 		if (!held && (seat == 0xFF || cp.second < seat)) seat = cp.second;
 	}
 	if (seat == 0xFF) { reject(1); return; }
@@ -212,6 +294,17 @@ void TurnManager::serve_rejoin(uint32_t client_id, Simulation &sim) {
 	client_player_[client_id] = seat;
 	lockstep_peers_.push_back(client_id);
 	lockstep_since_[client_id] = T + COMMAND_DELAY + 1; // its first own batch
+	lockstep_until_.erase(client_id);
+	left_clients_.erase(client_id);
+	{
+		// The other clients learn of it in our next batch, the one for T+3 itself.
+		NetCommand c;
+		c.cmd_type = CMD_PEER_JOINED;
+		c.target_id = client_id;
+		c.param = seat;
+		c.target_x = (float)(T + COMMAND_DELAY + 1);
+		pending_control_.push_back(c);
+	}
 
 	RejoinMsg hdr;
 	hdr.kind = RejoinMsg::HEADER;
@@ -224,9 +317,11 @@ void TurnManager::serve_rejoin(uint32_t client_id, Simulation &sim) {
 	std::vector<std::pair<uint32_t, uint8_t>> seats(client_player_.begin(), client_player_.end());
 	std::sort(seats.begin(), seats.end());
 	for (size_t i = 0; i < seats.size() && i < 255; ++i) { NetSerde::write_u32(b, seats[i].first); NetSerde::write_u8(b, seats[i].second); }
-	NetSerde::write_u8(b, (uint8_t)std::min<size_t>(lockstep_peers_.size(), 255));
-	for (size_t i = 0; i < lockstep_peers_.size() && i < 255; ++i) {
-		const uint32_t id = lockstep_peers_[i];
+	std::vector<uint32_t> active;
+	for (uint32_t id : lockstep_peers_) if (peer_active(id)) active.push_back(id);
+	NetSerde::write_u8(b, (uint8_t)std::min<size_t>(active.size(), 255));
+	for (size_t i = 0; i < active.size() && i < 255; ++i) {
+		const uint32_t id = active[i];
 		auto since = lockstep_since_.find(id);
 		NetSerde::write_u32(b, id);
 		NetSerde::write_u32(b, since == lockstep_since_.end() ? 0 : since->second);
@@ -390,6 +485,8 @@ void TurnManager::reset() {
 	oos_dump_written_.clear();
 	paused_clients_.clear();
 	left_clients_.clear();
+	lockstep_until_.clear();
+	pending_control_.clear();
 	lockstep_since_.clear();
 	rejoin_requests_.clear();
 	rejoin_outbox_.clear();
@@ -429,7 +526,18 @@ void TurnManager::set_net_host(NetHost *net_host, uint32_t client_id) {
 		net_host_->onCommand([this](uint32_t peer_id, const uint8_t *data, size_t size) {
 			SimulationCommandMsg scm;
 			if (NetPacketSerializer::parse_simulation_command(data, size, scm)) {
-				this->receive_remote_turn_batch(scm.turn, scm.client_id != 0 ? scm.client_id : peer_id, scm.commands);
+				// The host knows who sent it; a client hears the other clients
+				// only through the host, which stamps each relayed batch.
+				const bool host = net_host_ && net_host_->isHost();
+				const uint32_t from = host && peer_id != 0 ? peer_id : (scm.client_id != 0 ? scm.client_id : peer_id);
+				if (this->receive_remote_turn_batch(scm.turn, from, scm.commands) && host && from != 0) {
+					// 0 A.D. NetServerTurnManager::NotifyFinishedClientCommands: the
+					// server forwards every client's commands to all the others.
+					scm.client_id = from;
+					std::vector<uint8_t> payload = NetPacketSerializer::frame_simulation_command(scm);
+					net_host_->broadcastCommand(NetPacketSerializer::pack_message(
+							NetMessageType::NMT_SIMULATION_COMMAND, scm.turn, payload), from);
+				}
 			}
 		});
 
@@ -533,8 +641,10 @@ void TurnManager::post_remote_commands(uint32_t client_id, const std::vector<Net
 	}
 }
 
-void TurnManager::receive_remote_turn_batch(uint32_t turn, uint32_t client_id, const std::vector<NetCommand> &cmds) {
-	if (is_replaying_) return;
+bool TurnManager::receive_remote_turn_batch(uint32_t turn, uint32_t client_id, const std::vector<NetCommand> &cmds) {
+	if (is_replaying_) return false;
+	auto until = lockstep_until_.find(client_id);
+	if (until != lockstep_until_.end() && turn > until->second) return false; // sent after it left
 	// One batch per (turn, client): a retransmitted or doubly-delivered batch
 	// must not queue its commands twice.
 	if (turn <= current_turn_) {
@@ -543,15 +653,19 @@ void TurnManager::receive_remote_turn_batch(uint32_t turn, uint32_t client_id, c
 		// longer run on the turn the sender ran them, so do not queue them.
 		std::cerr << "[TurnManager] late batch for turn " << turn << " from client " << client_id
 		          << " (current " << current_turn_ << ")\n";
-		return;
+		return false;
 	}
 	auto &got = received_batches_[turn];
-	if (std::find(got.begin(), got.end(), client_id) != got.end()) return;
+	if (std::find(got.begin(), got.end(), client_id) != got.end()) return false;
 	got.push_back(client_id);
+	if (client_id == 0 && net_host_ && !net_host_->isHost())
+		for (const auto &c : cmds)
+			if (c.cmd_type == CMD_PEER_JOINED || c.cmd_type == CMD_PEER_LEFT) apply_peer_control(c);
 	for (auto c : cmds) {
 		c.client_id = client_id;
 		turn_remote_cmds_[turn].push_back(c);
 	}
+	return true;
 }
 
 void TurnManager::receive_sync_check(uint32_t turn, uint32_t client_id, uint32_t hash) {
@@ -675,6 +789,7 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_u8(ps.team);
 		mix_u8(ps.active);
 		mix_u8(ps.is_ai);
+		for (int r = 0; r < RES_COUNT; ++r) mix_u8(sim.trading_goods(p)[r]);
 	}
 	// Match state: who is out (their orders are dropped) and who has won.
 	mix_u8(sim.participant_mask());
@@ -1073,6 +1188,15 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			SimulationCommandMsg scm;
 			scm.turn = sched;
 			scm.client_id = local_client_id_;
+			if (net_host_->isHost()) {
+				// Seat changes ride in our batch (see CMD_PEER_JOINED).
+				ensure_lockstep_peers();
+				for (auto &c : pending_control_) {
+					c.client_id = local_client_id_;
+					pending_local_cmds_.push_back(c);
+				}
+				pending_control_.clear();
+			}
 			scm.commands = pending_local_cmds_;
 			std::vector<uint8_t> payload = NetPacketSerializer::frame_simulation_command(scm);
 			std::vector<uint8_t> pkt = NetPacketSerializer::pack_message(NetMessageType::NMT_SIMULATION_COMMAND, sched, payload);
@@ -1198,6 +1322,10 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		} else if (c.cmd_type == 25) { // Train roster template — target_id=building, target_x=template.
 			if (c.target_x >= 0.0f && c.target_x < (float)CIV_UNIT_TEMPLATE_COUNT)
 				sim.cmd_train_template(pl, c.target_id, (uint16_t)c.target_x);
+		} else if (c.cmd_type == 33) { // Trading goods — target_id = one percent byte per ResourceType.
+			uint8_t pct[RES_COUNT];
+			for (int r = 0; r < RES_COUNT; ++r) pct[r] = (uint8_t)(c.target_id >> (8 * r));
+			sim.cmd_set_trading_goods(pl, pct);
 		} else if (c.cmd_type == 27) { // Tribute — target_id=recipient, target_x=amount, param=resource.
 			if (c.target_x > 0.0f && c.target_x <= 1e6f && c.target_id < MAX_PLAYERS)
 				sim.cmd_tribute(pl, (uint8_t)c.target_id, c.param, (int)c.target_x);
