@@ -9413,11 +9413,12 @@ void Simulation::apply_petra_config() {
 // AI runs (or between ticks for PETRA_PLAYER), else in its parked slot. While
 // another AI runs, PETRA_PLAYER's state sits in that AI's slot.
 PetraConfig &Simulation::petra_config_slot(uint8_t pid) {
-	if (pid == petra_pid_) return petra_config_;
+	// Seed the slots with the shared setting before any one AI's edit.
 	if (petra_slots_.size() < MAX_PLAYERS) {
 		petra_slots_.resize(MAX_PLAYERS);
 		for (PetraSlot &slot : petra_slots_) slot.petra_config_ = petra_config_;
 	}
+	if (pid == petra_pid_) return petra_config_;
 	if (pid == PETRA_PLAYER) return petra_slots_[petra_pid_].petra_config_;
 	return petra_slots_[pid].petra_config_;
 }
