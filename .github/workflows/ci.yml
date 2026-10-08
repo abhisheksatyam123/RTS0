@@ -65,9 +65,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Pathfinder, fixed-point and geometry tests
+      - name: Pathfinder, fixed-point, geometry and civ roster tests
         run: |
-          for t in test_long_pathfinder test_fixed test_geometry; do
+          for t in test_long_pathfinder test_fixed test_geometry test_civ_roster; do
             g++ -std=c++20 -O2 -Isrc tools/$t.cpp -o /tmp/$t
             /tmp/$t
           done
