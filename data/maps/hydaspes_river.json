@@ -3,6 +3,7 @@
   "name": "Hydaspes River (4)",
   "desc": "The Hydaspes, aka Jhelum, River in the Punjab of India. Here was the site of the great battle between the Macedonian forces under Alexander the Great and the Indian forces of the king Porus of Paurava.",
   "biome": "india",
+  "nomad": false,
   "world_size": 384.0,
   "water_height": 3.71,
   "heightmap_res": 97,
@@ -36788,34 +36789,10 @@
       "z": 47.77
     },
     {
-      "type": "barracks",
-      "player": 1,
-      "x": -58.46,
-      "z": 51.86
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -59.14,
-      "z": 52.56
-    },
-    {
       "type": "town_center",
       "player": 2,
       "x": 66.6,
       "z": 44.77
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 62.03,
-      "z": 41.08
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 62.66,
-      "z": 40.33
     },
     {
       "type": "dock",
@@ -37136,18 +37113,6 @@
       "z": -61.78
     },
     {
-      "type": "barracks",
-      "player": 3,
-      "x": -91.13,
-      "z": -57.68
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": -91.81,
-      "z": -56.99
-    },
-    {
       "type": "tower",
       "player": 3,
       "x": -75.24,
@@ -37316,22 +37281,10 @@
       "z": -71.36
     },
     {
-      "type": "barracks",
-      "player": 4,
-      "x": 75.71,
-      "z": -77.2
-    },
-    {
       "type": "town_center",
       "player": 4,
       "x": 80.17,
       "z": -73.55
-    },
-    {
-      "type": "barracks",
-      "player": 4,
-      "x": 76.23,
-      "z": -77.99
     },
     {
       "type": "tower",
@@ -37486,6 +37439,18 @@
       "z": 44.17
     },
     {
+      "type": "archer",
+      "player": 1,
+      "x": -58.46,
+      "z": 51.86
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -59.14,
+      "z": 52.56
+    },
+    {
       "type": "cavalry",
       "player": 1,
       "x": -68.65,
@@ -37508,6 +37473,18 @@
       "player": 2,
       "x": 61.94,
       "z": 48.8
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 62.03,
+      "z": 41.08
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 62.66,
+      "z": 40.33
     },
     {
       "type": "cavalry",
@@ -37558,6 +37535,18 @@
       "z": -65.37
     },
     {
+      "type": "archer",
+      "player": 3,
+      "x": -91.13,
+      "z": -57.68
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": -91.81,
+      "z": -56.99
+    },
+    {
       "type": "cavalry",
       "player": 3,
       "x": -101.32,
@@ -37576,6 +37565,12 @@
       "z": -61.88
     },
     {
+      "type": "archer",
+      "player": 4,
+      "x": 75.71,
+      "z": -77.2
+    },
+    {
       "type": "swordsman",
       "player": 4,
       "x": 76.61,
@@ -37586,6 +37581,12 @@
       "player": 4,
       "x": 75.59,
       "z": -69.43
+    },
+    {
+      "type": "archer",
+      "player": 4,
+      "x": 76.23,
+      "z": -77.99
     },
     {
       "type": "cavalry",
