@@ -6342,6 +6342,7 @@ void Simulation::petra_manage_economy(float dt) {
 		for (const auto &base : petra_bases_) drops.push_back({base.x, base.z});
 		for (size_t r = 0; r < resources_.count; ++r) {
 			if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
+			if (resources_.subtype[r] == RES_SUB_FISH) continue; // fishing boats' food, not villagers'
 			if (!is_position_safe(resources_.x[r], resources_.z[r], 6.0f)) continue;
 			int slots = 1 << 20;
 			auto fit = field_bld_by_res_.find(resources_.id[r]);
@@ -6461,6 +6462,7 @@ void Simulation::petra_manage_fields(int target_food) {
 	float natural_food = 0.0f;
 	for (size_t r = 0; r < resources_.count; ++r) {
 		if (!resources_.alive[r] || resources_.type[r] != RES_FOOD || resources_.amount[r] <= 0) continue;
+		if (resources_.subtype[r] == RES_SUB_FISH) continue; // villagers cannot gather fish
 		if (field_bld_by_res_.count(resources_.id[r])) continue;
 		for (const auto &d : drops) {
 			const float dx = resources_.x[r] - d.first, dz = resources_.z[r] - d.second;
@@ -7037,6 +7039,7 @@ void Simulation::petra_manage_buildings(float dt) {
 
 			for (size_t r = 0; r < resources_.count; ++r) {
 				if (!resources_.alive[r] || resources_.amount[r] < 300) continue;
+				if (resources_.subtype[r] == RES_SUB_FISH) continue; // the dock serves fish
 				float rx = resources_.x[r];
 				float rz = resources_.z[r];
 
@@ -7067,6 +7070,7 @@ void Simulation::petra_manage_buildings(float dt) {
 
 					for (size_t j = 0; j < resources_.count; ++j) {
 						if (!resources_.alive[j] || resources_.amount[j] <= 0) continue;
+						if (resources_.subtype[j] == RES_SUB_FISH) continue; // a land dropsite cannot take fish
 						float dj = std::hypot(resources_.x[j] - rx, resources_.z[j] - rz);
 						if (dj <= 14.0f) {
 							cluster_amount += (float)resources_.amount[j];
