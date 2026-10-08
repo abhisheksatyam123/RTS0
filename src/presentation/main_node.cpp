@@ -3422,6 +3422,8 @@ void RtsoMain::_on_lobby_start_pressed() {
 		setup.seed = (uint32_t)(int64_t)(int)ms->get("seed");
 		setup.victory = (uint8_t)((int)ms->get("victory"));
 		setup.waves = (bool)ms->get("waves_enabled") ? 1 : 0;
+		int msz = (int)ms->get("map_size");
+		setup.map_size = (uint16_t)((msz >= 128 && msz <= 512) ? msz : 128);
 		setup.difficulty = (uint8_t)((int)ms->get("ai_difficulty"));
 		setup.behavior = (uint8_t)((int)ms->get("ai_behavior"));
 		setup.start_res = (uint8_t)((int)ms->get("start_res"));
@@ -3492,9 +3494,8 @@ void RtsoMain::_on_lobby_start_pressed() {
 // Order mirrors _ready: map first (reset inside), options after.
 void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	if (!sim) return;
-	// Every peer must generate the same map; GameSetupParams has no map size
-	// yet, so multiplayer random maps stay at the default.
-	random_map_size = 128;
+	// Every peer generates the same map: the size rides in NMT_GAME_START.
+	random_map_size = (setup.map_size >= 128 && setup.map_size <= 512) ? setup.map_size : 128;
 	if (!load_map_seeded(String(setup.map_id.c_str()), setup.seed)) {
 		if (lobby_status) lobby_status->set_text("GameStart failed: map regen failed");
 		return;
@@ -3524,6 +3525,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		ms->set("seed", (int64_t)setup.seed);
 		ms->set("victory", (int)sim->victory_condition());
 		ms->set("waves_enabled", sim->waves_enabled());
+		ms->set("map_size", random_map_size);
 		ms->set("ai_difficulty", (int)sim->petra_difficulty());
 		ms->set("ai_behavior", (int)sim->petra_behavior());
 		ms->set("start_res", (int)sr);

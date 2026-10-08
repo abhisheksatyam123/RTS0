@@ -33,7 +33,7 @@ The biggest gaps to 0 A.D. are game-level rather than per-system (see [REMAINING
 | Area | Goal | Status |
 |---|---|---|
 | A. Per-player economy | Per-player resource/tech table for up to 8 players | Landed: 8-player stock/tech/phase/civ/team table with hash and save v6 (#7); every command runs as its sender's player with ownership checks, HUD follows the local player (this PR). Open: per-player diplomacy matrix, team-aware hostility, per-player fog of war, starting resources for all players |
-| B. Game modes | Wave mode off for skirmish; victory options | In progress |
+| B. Game modes | Wave mode off for skirmish; victory options | Landed: wave defense is an opt-in setup checkbox; 0 A.D. victory conditions (Conquest default, Conquest Units/Structures, Wonder, Relic, Regicide, Endless) and map size (128 to 512) in Game Setup, all sent to multiplayer peers (#6, #13). Open: allied victory (victory checks are player 0 vs everyone else) |
 | C. AI (Petra) | Fix the phase-up stall, scale the economy, several AI players | In progress |
 | D. Civ rosters and heroes | Civ-specific units and heroes, add Han, civ bonuses as data | Landed: 367 civ units and Han from 0 A.D. templates (#10); units, heroes, hero auras and civ bonuses drive the sim (#12). Open: train panel lists roster units by name |
 | E. Buildings, techs, farming | Missing buildings, 0 A.D. tech tree, fields and farming | Buildings and fields landed (PR #11); 83 0 A.D. techs with researcher buildings, prerequisites and phase rules (tech tree PR); Town Center food trickle goes once Petra farms |
