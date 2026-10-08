@@ -54,8 +54,9 @@ void fragment() {
 
 	ALBEDO = final_color * los;
 	SPECULAR = 0.85 * los;
-	METALLIC = metallic;
-	ROUGHNESS = roughness;
+	// No sky reflection off water the viewer has not explored.
+	METALLIC = metallic * los;
+	ROUGHNESS = mix(1.0, roughness, los);
 	// Unexplored water goes opaque black instead of showing the seabed.
 	ALPHA = mix(mix(water_base.a, 0.98, fresnel), 1.0, 1.0 - los);
 }

@@ -65,7 +65,7 @@ class RtsoWorldView : public Node3D {
 		uint8_t phase = 0; // 0 complete, 1 prebuild, 2 construct, 3 collapse, 4 rubble
 		float phase_t = 0.0f;
 		float build_progress = 1.0f;
-		float fog_dim = 1.0f; // brightness last pushed to the fog overlay
+		float fog_dim = -1.0f; // overlay level last pushed (-1: none yet)
 		String model_id;
 	};
 
@@ -217,7 +217,8 @@ private:
 	PackedByteArray los_bytes_;
 	float los_upload_timer_ = 0.0f;
 	float los_half_ = 0.0f;
-	Ref<ShaderMaterial> fog_overlay_mat_; // multiplies a fogged structure by its LOS brightness
+	static constexpr int FOG_OVERLAY_LEVELS = 17;
+	Ref<ShaderMaterial> fog_overlay_mats_[FOG_OVERLAY_LEVELS]; // multiply a fogged structure by its LOS brightness
 	void update_fog(const rtso::Simulation *sim, float delta);
 	void bind_los(const Ref<Material> &mat);
 	float los_brightness(float x, float z) const;

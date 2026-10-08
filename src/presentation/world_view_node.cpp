@@ -333,17 +333,21 @@ void RtsoWorldView::_ready() {
 
 	// Fog overlay: 0 A.D. model_common.fs multiplies every model by the LOS
 	// texture. Imported models keep their StandardMaterial3D, so a structure
-	// outside full sight gets a multiply pass with its LOS brightness instead.
+	// outside full sight gets a multiply pass with its LOS brightness instead,
+	// from a small set of materials (instance uniforms aren't in every renderer).
 	{
 		Ref<Shader> sh;
 		sh.instantiate();
 		sh->set_code(
 				"shader_type spatial;\n"
 				"render_mode blend_mul, unshaded, cull_back, depth_draw_never, shadows_disabled, fog_disabled;\n"
-				"instance uniform float los_dim = 1.0;\n"
+				"uniform float los_dim = 1.0;\n"
 				"void fragment() { ALBEDO = vec3(los_dim); }\n");
-		fog_overlay_mat_.instantiate();
-		fog_overlay_mat_->set_shader(sh);
+		for (int k = 0; k < FOG_OVERLAY_LEVELS; ++k) {
+			fog_overlay_mats_[k].instantiate();
+			fog_overlay_mats_[k]->set_shader(sh);
+			fog_overlay_mats_[k]->set_shader_parameter("los_dim", (float)k / (float)(FOG_OVERLAY_LEVELS - 1));
+		}
 	}
 
 	init_animation_controllers();
@@ -365,18 +369,16 @@ float RtsoWorldView::los_brightness(float x, float z) const {
 	return (float)shown[(size_t)cz * res + cx] / 255.0f;
 }
 
-static void set_overlay_recursive(Node *n, const Ref<Material> &mat, float brightness) {
+static void set_overlay_recursive(Node *n, const Ref<Material> &mat) {
 	if (!n) return;
-	if (GeometryInstance3D *gi = Object::cast_to<GeometryInstance3D>(n)) {
-		gi->set_material_overlay(mat);
-		if (mat.is_valid()) gi->set_instance_shader_parameter("los_dim", brightness);
-	}
-	for (int i = 0; i < n->get_child_count(); ++i) set_overlay_recursive(n->get_child(i), mat, brightness);
+	if (GeometryInstance3D *gi = Object::cast_to<GeometryInstance3D>(n)) gi->set_material_overlay(mat);
+	for (int i = 0; i < n->get_child_count(); ++i) set_overlay_recursive(n->get_child(i), mat);
 }
 
 void RtsoWorldView::set_fog_overlay(Node *n, float brightness) {
 	// Fully lit structures skip the extra pass.
-	set_overlay_recursive(n, brightness < 0.995f ? Ref<Material>(fog_overlay_mat_) : Ref<Material>(), brightness);
+	const int k = Math::clamp((int)Math::round(brightness * (FOG_OVERLAY_LEVELS - 1)), 0, FOG_OVERLAY_LEVELS - 1);
+	set_overlay_recursive(n, k >= FOG_OVERLAY_LEVELS - 1 ? Ref<Material>() : Ref<Material>(fog_overlay_mats_[k]));
 }
 
 void RtsoWorldView::update_fog(const rtso::Simulation *sim, float delta) {
@@ -1549,9 +1551,10 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		// by the LOS brightness, as model_common.fs does.
 		{
 			const float dim = los_brightness(b.x, b.z);
-			if (Math::abs(dim - v.fog_dim) > 0.02f || ((dim >= 0.995f) != (v.fog_dim >= 0.995f))) {
+			const float q = Math::round(dim * (FOG_OVERLAY_LEVELS - 1));
+			if (q != v.fog_dim) {
 				set_fog_overlay(v.root, dim);
-				v.fog_dim = dim;
+				v.fog_dim = q;
 			}
 		}
 

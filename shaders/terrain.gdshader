@@ -1,7 +1,9 @@
 // 0 A.D. Authentic High-Fidelity Terrain Shader
 // Triplanar cliff projection, organic multi-octave biome blending, and natural Mediterranean palette.
 shader_type spatial;
-render_mode blend_mix, depth_draw_opaque, cull_back, diffuse_burley;
+// cull_disabled: rebuild_terrain winds its triangles counter-clockwise seen from above,
+// which Vulkan (Forward+) culls as back faces.
+render_mode blend_mix, depth_draw_opaque, cull_disabled, diffuse_burley;
 
 uniform sampler2D noise_tex : hint_default_black, filter_linear_mipmap, repeat_enable;
 uniform sampler2D grass_tex : hint_default_white, filter_linear_mipmap, repeat_enable;
