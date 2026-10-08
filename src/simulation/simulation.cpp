@@ -2367,6 +2367,12 @@ void Simulation::move_units(float dt, Arena &arena) {
 		}
 	}
 
+	// Building steering only ever tests standing buildings that block movement.
+	steer_obstacles_.clear();
+	for (const Building &b : buildings_)
+		if (!b.wrecked && building_blocks_movement(b.type))
+			steer_obstacles_.push_back(SteerObstacle{b.id, b.x, b.z, b.half_size, b.type, false});
+
 	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		if (!alive[i]) {
 			vx[i] = vz[i] = 0;
@@ -2432,7 +2438,7 @@ void Simulation::move_units(float dt, Arena &arena) {
 			task_path = wp.has_goal && gdx * gdx + gdz * gdz <= 4.0f;
 			if (!task_path && rtso::nav::line_blocked_by_buildings(rtso::nav::Vec2(px[i], pz[i]),
 					rtso::nav::Vec2(tx[i], tz[i]), 2.0f * map_half_, unit_collision_radius(units_.unit_type[i]),
-					buildings_, units_.target_building_id[i])) {
+					steer_obstacles_, units_.target_building_id[i])) {
 				const uint8_t ut = units_.unit_type[i];
 				const bool mounted = ut == UNIT_CAVALRY || ut == UNIT_CHARIOT || ut == UNIT_CAMEL || ut == UNIT_SCYTHED_CHARIOT;
 				find_path(px[i], pz[i], tx[i], tz[i], wp, mounted ? PASS_CAVALRY : PASS_INFANTRY);
@@ -2532,7 +2538,7 @@ void Simulation::move_units(float dt, Arena &arena) {
 		if (!unit_is_ship(units_.unit_type[i])) {
 			rtso::nav::Vec2 steer;
 			if (rtso::nav::steer_around_buildings(rtso::nav::Vec2(px[i], pz[i]), rtso::nav::Vec2(aim_x, aim_z),
-					unit_collision_radius(units_.unit_type[i]), buildings_, units_.target_building_id[i],
+					unit_collision_radius(units_.unit_type[i]), steer_obstacles_, units_.target_building_id[i],
 					nav_grid_, steer)) {
 				const float sdx = steer.x - px[i];
 				const float sdz = steer.y - pz[i];
