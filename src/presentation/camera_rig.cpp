@@ -11,6 +11,7 @@
 #include <godot_cpp/classes/viewport.hpp>
 #include <godot_cpp/core/math.hpp>
 #include "../simulation/simulation.h"
+#include "hotkeys_godot.h"
 
 using namespace godot;
 
@@ -49,6 +50,11 @@ void RtsoCameraRig::zoom(float delta_zoom) {
 void RtsoCameraRig::reset_camera() {
 	target_yaw = 0.0f;
 	target_zoom = 28.0f;
+	target_pitch_deg = 50.6f;
+}
+
+void RtsoCameraRig::follow_to(Vector3 pos) {
+	set_target_pos(pos);
 }
 
 void RtsoCameraRig::_unhandled_input(const Ref<InputEvent> &event) {
@@ -60,10 +66,21 @@ void RtsoCameraRig::_unhandled_input(const Ref<InputEvent> &event) {
 			return;
 		}
 		if (mb->is_pressed()) {
-			if (mb->get_button_index() == MOUSE_BUTTON_WHEEL_UP) {
+			// 0 A.D. camera.zoom.wheel.* and camera.rotate.wheel.* (Shift+wheel rotates).
+			const auto hk = rtso::hotkeys::fired(mb);
+			if (rtso::hotkeys::has(hk, "camera.rotate.wheel.cw")) {
+				target_yaw += 0.2f;
+				return;
+			}
+			if (rtso::hotkeys::has(hk, "camera.rotate.wheel.ccw")) {
+				target_yaw -= 0.2f;
+				return;
+			}
+			if (rtso::hotkeys::has(hk, "camera.zoom.wheel.in")) {
 				zoom(-2.5f);
 				return;
-			} else if (mb->get_button_index() == MOUSE_BUTTON_WHEEL_DOWN) {
+			}
+			if (rtso::hotkeys::has(hk, "camera.zoom.wheel.out")) {
 				zoom(2.5f);
 				return;
 			}
@@ -73,6 +90,7 @@ void RtsoCameraRig::_unhandled_input(const Ref<InputEvent> &event) {
 	// Middle mouse drag motion
 	Ref<InputEventMouseMotion> mm = event;
 	if (mm.is_valid() && mmb_dragging) {
+		follow_id_ = 0;
 		Vector2 rel = mm->get_relative();
 		float cos_y = Math::cos(target_yaw);
 		float sin_y = Math::sin(target_yaw);
@@ -89,22 +107,8 @@ void RtsoCameraRig::_unhandled_input(const Ref<InputEvent> &event) {
 		return;
 	}
 
-	// Hotkeys for zoom and reset
-	Ref<InputEventKey> key = event;
-	if (key.is_valid() && key->is_pressed() && !key->is_echo()) {
-		if (key->get_keycode() == KEY_EQUAL || key->get_keycode() == KEY_PLUS || key->get_keycode() == KEY_KP_ADD) {
-			zoom(-3.0f);
-			return;
-		}
-		if (key->get_keycode() == KEY_MINUS || key->get_keycode() == KEY_KP_SUBTRACT) {
-			zoom(3.0f);
-			return;
-		}
-		if (key->get_keycode() == KEY_R && !key->is_ctrl_pressed()) {
-			reset_camera();
-			return;
-		}
-	}
+	// camera.reset is dispatched by the main node, since R also picks the
+	// barracks while placing a building.
 
 	// Pinch to Zoom (Touch / Trackpad)
 	Ref<InputEventMagnifyGesture> mag = event;
@@ -133,18 +137,31 @@ void RtsoCameraRig::_unhandled_input(const Ref<InputEvent> &event) {
 }
 
 void RtsoCameraRig::_process(double delta) {
-	Input *input = Input::get_singleton();
 	Vector3 input_dir(0, 0, 0);
 
-	// WASD and Arrow key panning
-	if (input->is_key_pressed(KEY_W) || input->is_key_pressed(KEY_UP)) input_dir.z -= 1.0f;
-	if (input->is_key_pressed(KEY_S) || input->is_key_pressed(KEY_DOWN)) input_dir.z += 1.0f;
-	if (input->is_key_pressed(KEY_A) || input->is_key_pressed(KEY_LEFT)) input_dir.x -= 1.0f;
-	if (input->is_key_pressed(KEY_D) || input->is_key_pressed(KEY_RIGHT)) input_dir.x += 1.0f;
-
-	// Q / E Rotation (0 A.D. canonical rotate.cw / rotate.ccw)
-	if (input->is_key_pressed(KEY_Q)) target_yaw += 2.0f * (float)delta;
-	if (input->is_key_pressed(KEY_E)) target_yaw -= 2.0f * (float)delta;
+	// Held camera hotkeys (0 A.D. [hotkey.camera]: WASD/arrows scroll, Q/E and
+	// Ctrl+A/D/arrows rotate, Ctrl+W/S tilt, +/- zoom). While placing a building
+	// the letters pick the building, so only the arrows scroll; while typing,
+	// no key moves the camera.
+	if (key_scroll_mode_ != KEYS_NONE) {
+		const bool arrows_only = key_scroll_mode_ == KEYS_ARROWS_ONLY;
+		const rtso::hotkeys::IsDown down = [arrows_only](const std::string &k) {
+			if (arrows_only && k.size() == 1 && k[0] >= 'a' && k[0] <= 'z') return false;
+			return rtso::hotkeys::is_down_now(k);
+		};
+		const auto &hk = rtso::hotkeys::table();
+		auto on = [&](const char *name) { return hk.is_held_exclusive(name, down); };
+		if (on("camera.up")) input_dir.z -= 1.0f;
+		if (on("camera.down")) input_dir.z += 1.0f;
+		if (on("camera.left")) input_dir.x -= 1.0f;
+		if (on("camera.right")) input_dir.x += 1.0f;
+		if (on("camera.rotate.cw")) target_yaw += 2.0f * (float)delta;
+		if (on("camera.rotate.ccw")) target_yaw -= 2.0f * (float)delta;
+		if (on("camera.rotate.up")) target_pitch_deg = Math::clamp(target_pitch_deg - 40.0f * (float)delta, 25.0f, 85.0f);
+		if (on("camera.rotate.down")) target_pitch_deg = Math::clamp(target_pitch_deg + 40.0f * (float)delta, 25.0f, 85.0f);
+		if (on("camera.zoom.in")) zoom(-30.0f * (float)delta);
+		if (on("camera.zoom.out")) zoom(30.0f * (float)delta);
+	}
 
 	// Edge scrolling (active when mouse is near viewport boundaries and no key pan active)
 	if (edge_scroll_enabled && input_dir.length_squared() < 0.001f) {
@@ -164,6 +181,7 @@ void RtsoCameraRig::_process(double delta) {
 
 	// Camera-relative panning
 	if (input_dir.length_squared() > 0.001f) {
+		follow_id_ = 0;
 		input_dir.normalize();
 		float cos_y = Math::cos(target_yaw);
 		float sin_y = Math::sin(target_yaw);
@@ -186,7 +204,10 @@ void RtsoCameraRig::_process(double delta) {
 	set_rotation(Vector3(0, yaw_angle, 0));
 
 	zoom_height = Math::lerp(zoom_height, target_zoom, (float)delta * 8.0f);
+	pitch_deg = Math::lerp(pitch_deg, target_pitch_deg, (float)delta * 8.0f);
 	if (cam) {
-		cam->set_position(Vector3(0, zoom_height, zoom_height * 0.82f));
+		const float pitch = Math::deg_to_rad(pitch_deg);
+		cam->set_position(Vector3(0, zoom_height, zoom_height / Math::tan(pitch)));
+		cam->set_rotation(Vector3(-pitch, 0, 0));
 	}
 }

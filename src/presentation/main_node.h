@@ -53,6 +53,7 @@
 #include "minimap_view.h"
 #include "chat_window.h"
 #include "diplomacy_dialog.h"
+#include "hotkeys_godot.h"
 
 using namespace godot;
 
@@ -179,7 +180,6 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	bool net_game_started_ = false;
 	float game_speed = 1.0f;
 	double match_elapsed_time = 0.0;
-	size_t last_idle_index = 0;
 
 	Vector2 drag_start;
 	PackedInt32Array selected_ids;
@@ -191,6 +191,23 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	//   Double-click selects same-type units on screen — input.js:1022.
 	PackedInt32Array selected_groups[10];
 	bool double_click_pending = false;
+	// Control-group double press (0 A.D. doublePressTime = 500 ms, input.js:90).
+	int last_group_pressed_ = -1;
+	uint64_t last_group_press_ms_ = 0;
+	// camera.jump.N / camera.jump.set.N bookmarks (F5-F8, Ctrl+F5-F8).
+	struct CameraBookmark {
+		bool set = false;
+		Vector3 pos;
+	};
+	CameraBookmark camera_bookmarks_[4];
+	// Single-player pause from the pause hotkey (Pause, Shift+Space).
+	bool hotkey_paused_ = false;
+	// Where the local player was last attacked (camera.lastattackfocus = Space).
+	bool has_last_attack_ = false;
+	Vector3 last_attack_pos_;
+	// findIdleUnit cycling (0 A.D. lastIdleUnit / lastIdleClasses, input.js:1645).
+	uint32_t last_idle_unit_ = 0;
+	int last_idle_kind_ = -1;
 
 	double accumulator = 0.0;
 	rtso::AnimationController anim_ctrl;
@@ -319,6 +336,8 @@ private:
 	void try_train_template(uint32_t building_id, uint16_t tmpl);
 	void update_roster_list(const rtso::Simulation::Building *b);
 	void cycle_idle_worker();
+	enum IdleKind { IDLE_WORKER, IDLE_WARRIOR, IDLE_ANY, IDLE_BUILDER };
+	void find_idle_unit(IdleKind kind);
 	void play_voice(const char *path);
 	void play_civ_voice(const char *action);
 	void play_alarm(const char *path);

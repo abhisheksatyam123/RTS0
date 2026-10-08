@@ -21,6 +21,15 @@
 //     the structure changes owner without losing hp. Ctrl (no capture) damages it.
 // 14. Save/load keeps orders and queues.
 // 15. Lockstep: queued bit, one client's commands in its order, delete (30), back to work (31).
+// 16. Heal order (Heal.js, UnitAI HEAL): the healer walks up and heals 5 hp every 2 s,
+//     then goes idle; lockstep heal (32).
+// 17. An idle healer heals injured allies nearby by itself, not enemies or siege.
+// 18. Garrison walks to the structure first and ignores enemies on the way.
+// 19. A unit that kills its target cheers (CheeringTime), and so do idle units nearby.
+// 20. Capturable.js: garrisoned units' capture attack adds to regen, the owner changes only
+//     once it holds no points, walls and palisades can't be captured, women don't capture.
+// 21. A gatherer whose tree runs out moves to the next one; with none left it drops off its load.
+// 22. Repairers move on to nearby work once the structure is repaired.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_unit_orders.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -478,6 +487,219 @@ static void test_lockstep() {
 	check(s.unit_order(w).kind == ORDER_GATHER && s.unit_order(w).target == tree, "command 31 sends it back to gather");
 }
 
+
+static void test_heal_order() {
+	std::printf("16. heal order\n");
+	Simulation s;
+	setup(s);
+	uint32_t h = s.spawn_unit(-15, 0, 0, UNIT_HEALER);
+	uint32_t w = s.spawn_unit(10, 0, 0, UNIT_SPEARMAN);
+	s.set_unit_hp(w, 20.0f);
+	s.order_set_stance(&w, 1, STANCE_STAND_GROUND);
+	s.order_heal(&h, 1, w);
+	check(act_of(s, h) == ACTION_HEAL, "the healer takes the order");
+	const bool near = run_until(s, 15.0f, [&] { return dist(s, h, x_of(s, w), z_of(s, w)) <= 12.0f; });
+	check(near, "walks into heal range");
+	run(s, 1.2f); // prepare time
+	const float hp0 = hp_of(s, w);
+	run(s, 10.0f);
+	const float gained = hp_of(s, w) - hp0;
+	check(gained >= 20.0f && gained <= 30.0f, "heals about 5 hp every 2 s");
+	check(dist(s, h, x_of(s, w), z_of(s, w)) > 10.0f, "from range, without walking up to it");
+	const float maxhp = s.units().max_hp[idx_of(s, w)];
+	const bool full = run_until(s, 120.0f, [&] { return hp_of(s, w) >= maxhp; });
+	check(full, "until it is fully healed");
+	run(s, 1.0f);
+	check(act_of(s, h) == ACTION_IDLE && s.unit_order(h).kind == ORDER_NONE, "then goes idle");
+
+	Simulation t;
+	setup(t);
+	uint32_t h2 = t.spawn_unit(0, 0, 0, UNIT_HEALER);
+	uint32_t e = t.spawn_unit(5, 0, 1, UNIT_SPEARMAN);
+	t.set_unit_hp(e, 20.0f);
+	t.order_set_stance(&e, 1, STANCE_PASSIVE);
+	t.order_heal(&h2, 1, e);
+	check(act_of(t, h2) != ACTION_HEAL, "it won't heal an enemy");
+
+	Simulation n;
+	setup(n);
+	TurnManager tm;
+	uint32_t h3 = n.spawn_unit(0, 0, 0, UNIT_HEALER);
+	n.order_set_stance(&h3, 1, STANCE_STAND_GROUND); // no auto-heal: only the command
+	uint32_t w3 = n.spawn_unit(15, 0, 0, UNIT_SPEARMAN);
+	n.set_unit_hp(w3, 20.0f);
+	n.order_set_stance(&w3, 1, STANCE_STAND_GROUND);
+	NetCommand c;
+	c.client_id = 0;
+	c.cmd_type = (uint8_t)NetCommandType::NET_CMD_HEAL;
+	c.entity_ids = {h3};
+	c.target_id = w3;
+	tm.post_local_command(c);
+	for (int k = 0; k < 10; ++k) tm.tick(TurnManager::TURN_DURATION, n);
+	check(n.unit_order(h3).kind == ORDER_HEAL || hp_of(n, w3) > 20.0f, "lockstep heal (cmd 32) works");
+}
+
+static void test_auto_heal() {
+	std::printf("17. idle healers heal injured allies nearby\n");
+	Simulation s;
+	setup(s);
+	uint32_t h = s.spawn_unit(0, 0, 0, UNIT_HEALER);
+	uint32_t w = s.spawn_unit(8, 0, 0, UNIT_SPEARMAN);
+	s.set_unit_hp(w, 20.0f);
+	s.order_set_stance(&w, 1, STANCE_STAND_GROUND);
+	uint32_t e = s.spawn_unit(-6, 0, 1, UNIT_SPEARMAN);
+	s.set_unit_hp(e, 20.0f);
+	s.order_set_stance(&e, 1, STANCE_PASSIVE);
+	uint32_t ram = s.spawn_unit(0, 6, 0, UNIT_SIEGE_RAM);
+	s.set_unit_hp(ram, 50.0f);
+	const float ehp = hp_of(s, e), rhp = hp_of(s, ram);
+	run(s, 6.0f);
+	check(s.unit_order(h).kind == ORDER_HEAL && s.unit_order(h).target == w, "picks the injured ally");
+	check(hp_of(s, w) > 20.0f, "and heals it");
+	check(hp_of(s, e) <= ehp && hp_of(s, ram) <= rhp, "not the enemy or the ram");
+}
+
+static void test_garrison_approach() {
+	std::printf("18. garrison walks to the structure\n");
+	Simulation s;
+	setup(s);
+	const uint32_t house = s.spawn_building_world(0, 0, BLD_HOUSE, 0, 1.0f);
+	uint32_t u = s.spawn_unit(-30, 0, 0, UNIT_SPEARMAN);
+	uint32_t e = post(s, -15, 3, UNIT_SPEARMAN, 5000.0f);
+	const float ehp = hp_of(s, e);
+	s.order_garrison(&u, 1, house);
+	run(s, 0.4f);
+	const auto *g = s.get_garrisoned_units(house);
+	check(!g || g->empty(), "not inside at once from 30 m away");
+	check(s.unit_order(u).kind == ORDER_GARRISON, "walking there with the order");
+	const bool in = run_until(s, 30.0f, [&] {
+		const auto *gg = s.get_garrisoned_units(house);
+		return gg && gg->size() == 1;
+	});
+	check(in, "gets in once it reaches the house");
+	check(hp_of(s, e) == ehp, "without fighting the enemy on the way");
+}
+
+static void test_cheer() {
+	std::printf("19. cheering after a kill\n");
+	Simulation s;
+	setup(s);
+	uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
+	uint32_t friend_ = s.spawn_unit(-6, 0, 0, UNIT_SPEARMAN);
+	uint32_t far_ = s.spawn_unit(-50, 0, 0, UNIT_SPEARMAN);
+	uint32_t e = s.spawn_unit(2, 0, 1, UNIT_SPEARMAN, 1.0f);
+	s.order_set_stance(&e, 1, STANCE_PASSIVE);
+	s.order_attack(&a, 1, e);
+	const bool killed = run_until(s, 10.0f, [&] { return !alive(s, e); });
+	check(killed, "kills the enemy");
+	const bool cheer = run_until(s, 1.0f, [&] { return act_of(s, a) == ACTION_CHEER; });
+	check(cheer, "the killer cheers");
+	check(act_of(s, friend_) == ACTION_CHEER, "an idle unit nearby cheers too");
+	check(act_of(s, far_) == ACTION_IDLE, "one 50 m away doesn't");
+	run(s, 2.0f);
+	check(act_of(s, a) == ACTION_CHEER, "for a while");
+	run(s, 1.4f);
+	check(act_of(s, a) == ACTION_IDLE, "then idles (2.8 s)");
+}
+
+static void test_capture_rules() {
+	std::printf("20. Capturable.js rules\n");
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t house = s.spawn_building_world(0, 0, BLD_HOUSE, 1, 1.0f);
+		uint32_t g[2] = {s.spawn_unit(0, 6, 1, UNIT_SPEARMAN), s.spawn_unit(1, 6, 1, UNIT_SPEARMAN)};
+		s.order_garrison(g, 2, house);
+		run(s, 10.0f);
+		const auto *gg = s.get_garrisoned_units(house);
+		check(gg && gg->size() == 2, "two spearmen garrisoned");
+		uint32_t c = s.spawn_unit(-6, 0, 0, UNIT_SPEARMAN);
+		s.order_attack_building(&c, 1, house, false, true);
+		run(s, 20.0f);
+		check(bld(s, house)->capture_points_by_team[1] >= 499.0f, "one spearman (2.5/s) can't beat 0.5 + 2 x 2.5 regen");
+	}
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t house = s.spawn_building_world(0, 0, BLD_HOUSE, 1, 1.0f);
+		uint32_t cap[4];
+		for (int k = 0; k < 4; ++k) cap[k] = s.spawn_unit(-6.0f, -3.0f + 2.0f * k, 0, UNIT_SPEARMAN);
+		s.order_attack_building(cap, 4, house, false, true);
+		const bool past_half = run_until(s, 120.0f, [&] { return bld(s, house)->capture_points_by_team[0] > 300.0f; });
+		check(past_half && bld(s, house)->team == 1, "over half the points isn't enough");
+		const bool flipped = run_until(s, 120.0f, [&] { return bld(s, house)->team == 0; });
+		check(flipped && bld(s, house)->capture_points_by_team[1] <= 0.01f, "it changes hands once the owner holds none");
+	}
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t pal = s.spawn_building_world(0, 0, BLD_PALISADE, 1, 1.0f);
+		const float cp = bld(s, pal)->capture_points_by_team[1], hp = bld(s, pal)->hp;
+		uint32_t c[3] = {s.spawn_unit(-5, 0, 0, UNIT_SWORDSMAN), s.spawn_unit(-5, 2, 0, UNIT_SWORDSMAN),
+				s.spawn_unit(-5, -2, 0, UNIT_SWORDSMAN)};
+		s.order_attack_building(c, 3, pal, false, true);
+		run(s, 20.0f);
+		check(bld(s, pal)->capture_points_by_team[1] >= cp - 0.01f, "a palisade can't be captured");
+		check(bld(s, pal)->hp < hp, "so a capture order attacks it");
+	}
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t house = s.spawn_building_world(0, 0, BLD_HOUSE, 1, 1.0f);
+		const float cp = bld(s, house)->capture_points_by_team[1];
+		uint32_t w = s.spawn_unit(-5, 0, 0, UNIT_FEMALE_CITIZEN);
+		s.order_attack_building(&w, 1, house, false, true);
+		run(s, 10.0f);
+		check(bld(s, house)->capture_points_by_team[1] >= cp - 0.01f, "women have no capture attack");
+	}
+}
+
+static void test_depletion() {
+	std::printf("21. gatherers when a resource runs out\n");
+	Simulation s;
+	setup(s);
+	const uint32_t store = s.spawn_building_world(-20, 0, BLD_STOREHOUSE, 0, 1.0f);
+	const uint32_t small = s.spawn_resource_world(0, 0, RES_WOOD, 4);
+	const uint32_t next = s.spawn_resource_world(5, 0, RES_WOOD, 500);
+	uint32_t w = s.spawn_unit(-1.5f, 0, 0, UNIT_FEMALE_CITIZEN);
+	s.order_gather(&w, 1, small);
+	const bool moved = run_until(s, 30.0f, [&] { return s.unit_order(w).target == next; });
+	check(moved, "moves on to the next tree");
+	(void)store;
+
+	Simulation t;
+	setup(t);
+	t.spawn_building_world(-20, 0, BLD_STOREHOUSE, 0, 1.0f);
+	const uint32_t only = t.spawn_resource_world(0, 0, RES_WOOD, 4);
+	uint32_t w2 = t.spawn_unit(-1.5f, 0, 0, UNIT_FEMALE_CITIZEN);
+	const float wood0 = t.player(0).res[RES_WOOD];
+	t.order_gather(&w2, 1, only);
+	const bool dropped = run_until(t, 40.0f, [&] { return t.player(0).res[RES_WOOD] >= wood0 + 4.0f; });
+	check(dropped, "with nothing left it drops off what it carries");
+	run(t, 2.0f);
+	check(act_of(t, w2) == ACTION_IDLE, "and then idles");
+}
+
+static void test_repair_follow_up() {
+	std::printf("22. repairers move on\n");
+	Simulation s;
+	setup(s);
+	const uint32_t store = s.spawn_building_world(0, 0, BLD_STOREHOUSE, 0, 1.0f);
+	const uint32_t tree = s.spawn_resource_world(10, 0, RES_WOOD, 500);
+	uint32_t e[6];
+	for (int k = 0; k < 6; ++k) e[k] = s.spawn_unit(-6.0f, -5.0f + 2.0f * k, 1, UNIT_SWORDSMAN);
+	s.order_attack_building(e, 6, store, false, false);
+	const bool hurt = run_until(s, 30.0f, [&] { return bld(s, store)->hp < bld(s, store)->max_hp * 0.9f; });
+	check(hurt, "the storehouse is damaged");
+	s.cmd_delete(1, e, 6);
+	uint32_t w = s.spawn_unit(-4, 4, 0, UNIT_FEMALE_CITIZEN);
+	s.order_build_or_repair(&w, 1, store);
+	const bool fixed = run_until(s, 120.0f, [&] { return bld(s, store)->hp >= bld(s, store)->max_hp; });
+	check(fixed, "repaired");
+	run(s, 1.0f);
+	check(s.unit_order(w).kind == ORDER_GATHER && s.unit_order(w).target == tree, "the repairer gathers the wood nearby");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -495,6 +717,13 @@ int main(int argc, char **argv) {
 	test_capture();
 	test_save_load(save.c_str());
 	test_lockstep();
+	test_heal_order();
+	test_auto_heal();
+	test_garrison_approach();
+	test_cheer();
+	test_capture_rules();
+	test_depletion();
+	test_repair_follow_up();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
