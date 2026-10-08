@@ -3,6 +3,7 @@
   "name": "Alpine Mountains (3)",
   "desc": "A map filled with impassable mountains and a great number of natural resources.",
   "biome": "alpine",
+  "nomad": false,
   "world_size": 256.0,
   "water_height": -0.3,
   "heightmap_res": 65,
@@ -17067,42 +17068,6 @@
       "z": 40.25
     },
     {
-      "type": "barracks",
-      "player": 1,
-      "x": -65.2,
-      "z": -84.2
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -64.36,
-      "z": -83.41
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": -90.04,
-      "z": 36.59
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": -89.22,
-      "z": 35.96
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 69.18,
-      "z": 48.59
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 70.16,
-      "z": 50.61
-    },
-    {
       "type": "gate",
       "player": 1,
       "x": -76.9,
@@ -17621,6 +17586,18 @@
       "z": -83.76
     },
     {
+      "type": "archer",
+      "player": 1,
+      "x": -65.2,
+      "z": -84.2
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -64.36,
+      "z": -83.41
+    },
+    {
       "type": "swordsman",
       "player": 1,
       "x": -73.76,
@@ -17675,6 +17652,18 @@
       "z": 36.77
     },
     {
+      "type": "archer",
+      "player": 3,
+      "x": -90.04,
+      "z": 36.59
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": -89.22,
+      "z": 35.96
+    },
+    {
       "type": "swordsman",
       "player": 3,
       "x": -82.17,
@@ -17709,6 +17698,18 @@
       "player": 2,
       "x": 78.94,
       "z": 42.88
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 69.18,
+      "z": 48.59
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 70.16,
+      "z": 50.61
     },
     {
       "type": "villager",
