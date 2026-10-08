@@ -12512,22 +12512,10 @@ void Simulation::update_player_fow(std::vector<uint8_t> &grid, SharesVision shar
 	for (auto &c : grid) c = c == FOW_VISIBLE ? (uint8_t)FOW_EXPLORED : std::max(c, floor);
 
 	// Steps 2 and 3: every unit and finished building whose vision the player shares lights the
-	// tiles within its vision radius. Vision radius per unit type (in world units):
-	//   Villager/Infantry: 16m, Cavalry: 20m, Archer: 22m, Catapult: 24m, Hero: 18m, Elephant: 20m, Trireme: 28m
-	auto vision_radius = [](uint8_t utype) -> float {
-		switch (utype) {
-			case UNIT_ARCHER:   return 22.0f;
-			case UNIT_CAVALRY:  return 20.0f;
-			case UNIT_CATAPULT: return 24.0f;
-			case UNIT_TRIREME:  return 28.0f;
-			case UNIT_ELEPHANT: return 20.0f;
-			case UNIT_HERO:     return 18.0f;
-			default:            return 16.0f;
-		}
-	};
+	// tiles within its vision radius (unit_vision_range, 0 A.D. Vision/Range).
 
 	reveal_viewers(grid, views,
-			[&](size_t u) { return units_.alive[u] && shares_vision(units_.team[u]) ? vision_radius(units_.unit_type[u]) : 0.0f; },
+			[&](size_t u) { return units_.alive[u] && shares_vision(units_.team[u]) ? unit_vision_range(units_.unit_type[u]) : 0.0f; },
 			[&](const Building &b) {
 				if (!shares_vision(b.team) || b.build_progress < 1.0f) return 0.0f;
 				float bvr = 18.0f; // default building vision
