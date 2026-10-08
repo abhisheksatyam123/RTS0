@@ -25,6 +25,23 @@ static void run(Simulation &s, float seconds) {
 	for (int t = 0; t < (int)(seconds / Simulation::FIXED_STEP); ++t) s.tick(Simulation::FIXED_STEP);
 }
 
+static float queued_duration(const Simulation &s, uint32_t bld) {
+	for (const auto &b : s.buildings())
+		if (b.id == bld && !b.queue.empty()) return b.queue.front().duration;
+	return -1.0f;
+}
+
+static float unit_hp(const Simulation &s, uint32_t id) {
+	auto u = s.units();
+	for (size_t i = 0; i < u.count; ++i) if (u.id[i] == id) return u.hp[i];
+	return -1.0f;
+}
+
+static const Simulation::Building *find_bld(const Simulation &s, uint32_t id) {
+	for (const auto &b : s.buildings()) if (b.id == id) return &b;
+	return nullptr;
+}
+
 static float unit_max_hp(const Simulation &s, uint32_t id) {
 	auto u = s.units();
 	for (size_t i = 0; i < u.count; ++i) if (u.id[i] == id) return u.max_hp[i];
@@ -119,16 +136,167 @@ int main() {
 	CHECK(s.cmd_research(0, house, TECH_POP_HOUSE_01));
 	run(s, tech_info(TECH_POP_HOUSE_01).research_time + 1.0f);
 	CHECK(s.pop_max() > pop0);
-
-	// Save/load keeps researched techs and their effects.
+	// Saved here, before the scenarios below reset the sim.
 	const char *path = "/tmp/rts0_test_techs.sav";
 	CHECK(s.save_state(path));
+	const int saved_pop_max = s.pop_max();
+
+	// Sacrificial Ritual: healers train 40% faster (Cost/BuildTime).
+	{
+		fresh(s);
+		s.player(0).phase = 2;
+		uint32_t temple = s.spawn_building_world(20.0f, -20.0f, BLD_TEMPLE, 0, 1.0f);
+		uint32_t tc2 = 0;
+		for (const auto &b : s.buildings()) if (b.type == BLD_TOWN_CENTER) tc2 = b.id;
+		CHECK(s.cmd_train(0, tc2, UNIT_HEALER));
+		float dur0 = queued_duration(s, tc2);
+		CHECK(dur0 > 0.0f);
+		CHECK(s.cmd_cancel_train(0, tc2, 0));
+		CHECK(s.cmd_research(0, temple, TECH_COST_HEALER));
+		run(s, tech_info(TECH_COST_HEALER).research_time + 1.0f);
+		CHECK(s.is_tech_researched(TECH_COST_HEALER));
+		CHECK(s.cmd_train(0, tc2, UNIT_HEALER));
+		CHECK(std::fabs(queued_duration(s, tc2) - dur0 * 0.6f) < 0.01f);
+	}
+
+	// Shipwrights: dock technologies research 20% faster.
+	{
+		fresh(s);
+		s.player(0).phase = 2;
+		uint32_t dock = s.spawn_building_world(30.0f, 30.0f, BLD_DOCK, 0, 1.0f);
+		CHECK(s.cmd_research(0, dock, TECH_DOCK_EFFICIENCY));
+		run(s, tech_info(TECH_DOCK_EFFICIENCY).research_time + 1.0f);
+		CHECK(s.is_tech_researched(TECH_DOCK_EFFICIENCY));
+		CHECK(s.cmd_research(0, dock, TECH_FISHING_BOAT_GATHER_RATE));
+		float expect = tech_info(TECH_FISHING_BOAT_GATHER_RATE).research_time * 0.8f;
+		for (const auto &b : s.buildings())
+			if (b.id == dock) CHECK(std::fabs(b.research_duration - expect) < 0.01f);
+	}
+
+	// Handicraft: traders gain 15% more per trip.
+	{
+		fresh(s);
+		s.player(0).phase = 2;
+		uint32_t m1 = s.spawn_building_world(-20.0f, -20.0f, BLD_MARKET, 0, 1.0f);
+		uint32_t m2 = s.spawn_building_world(30.0f, 30.0f, BLD_MARKET, 0, 1.0f);
+		const Simulation::Building *b1 = find_bld(s, m1), *b2 = find_bld(s, m2);
+		float gain0 = s.trader_gains(b1, b2);
+		CHECK(gain0 > 0.0f);
+		CHECK(s.cmd_research(0, m1, TECH_TRADE_GAIN_01));
+		run(s, tech_info(TECH_TRADE_GAIN_01).research_time + 1.0f);
+		CHECK(s.trader_gains(find_bld(s, m1), find_bld(s, m2)) > gain0);
+	}
+
+	// Healing Range and Healing Rate: a healer reaches further and heals faster.
+	{
+		fresh(s);
+		s.player(0).phase = 3;
+		uint32_t temple = s.spawn_building_world(20.0f, -20.0f, BLD_TEMPLE, 0, 1.0f);
+		CHECK(std::fabs(s.healer_range(0) - 12.0f) < 0.01f);
+		CHECK(std::fabs(s.healer_rate(0) - 8.0f) < 0.01f);
+		CHECK(s.cmd_research(0, temple, TECH_HEAL_RANGE));
+		run(s, tech_info(TECH_HEAL_RANGE).research_time + 1.0f);
+		CHECK(std::fabs(s.healer_range(0) - 17.0f) < 0.01f);
+		CHECK(s.cmd_research(0, temple, TECH_HEAL_RATE));
+		run(s, tech_info(TECH_HEAL_RATE).research_time + 1.0f);
+		CHECK(std::fabs(s.healer_rate(0) - 10.0f) < 0.01f);
+		CHECK(s.healer_range(1) == 12.0f); // another player's healers are unaffected
+	}
+
+	// A healer keeps a soldier under fire alive only once Healing Range reaches
+	// him: 14 m is outside 0 A.D.'s base 12 m.
+	{
+		float hp_left[2] = {0.0f, 0.0f};
+		for (int with = 0; with < 2; ++with) {
+			fresh(s);
+			s.player(0).phase = 2;
+			uint32_t temple = s.spawn_building_world(20.0f, -20.0f, BLD_TEMPLE, 0, 1.0f);
+			if (with) CHECK(s.cmd_research(0, temple, TECH_HEAL_RANGE));
+			run(s, tech_info(TECH_HEAL_RANGE).research_time + 1.0f);
+			CHECK(s.is_tech_researched(TECH_HEAL_RANGE) == (with != 0));
+			s.spawn_building_world(0.0f, 0.0f, BLD_TOWER, 1, 1.0f);   // enemy tower
+			uint32_t sp = s.spawn_unit(8.0f, 0.0f, 0, UNIT_SPEARMAN, 400.0f); // under its arrows
+			uint32_t healer = s.spawn_unit(22.0f, 0.0f, 0, UNIT_HEALER);
+			s.cmd_stop(&healer, 1);
+			s.cmd_stop(&sp, 1);
+			run(s, 10.0f);
+			hp_left[with] = unit_hp(s, sp);
+		}
+		std::printf("spearman hp after 10 s under fire: %.0f healed, %.0f not\n", hp_left[1], hp_left[0]);
+		CHECK(hp_left[0] >= 0.0f && hp_left[1] > hp_left[0]);
+	}
+
+	// Champion unlock: Mauryan Maiden Guards wait for Unlock Champion Infantry.
+	{
+		fresh(s);
+		s.set_player_civ(CIV_MAURYANS);
+		s.player(0).phase = 3;
+		uint32_t bar = s.spawn_building_world(20.0f, -20.0f, BLD_BARRACKS, 0, 1.0f);
+		CHECK(tech_available_to_civ(TECH_UNLOCK_CHAMPION_INFANTRY, CIV_MAURYANS));
+		CHECK(s.train_unlock_tech(0, UNIT_ARCHER_MAIDEN, BLD_BARRACKS) == TECH_UNLOCK_CHAMPION_INFANTRY);
+		CHECK(!s.can_train_at(0, UNIT_ARCHER_MAIDEN, BLD_BARRACKS));
+		CHECK(!s.cmd_train(0, bar, UNIT_ARCHER_MAIDEN));
+		CHECK(s.can_train_at(0, UNIT_SPEARMAN, BLD_BARRACKS)); // not a champion
+		CHECK(s.cmd_research(0, bar, TECH_UNLOCK_CHAMPION_INFANTRY));
+		run(s, tech_info(TECH_UNLOCK_CHAMPION_INFANTRY).research_time + 1.0f);
+		CHECK(s.can_train_at(0, UNIT_ARCHER_MAIDEN, BLD_BARRACKS));
+		CHECK(s.cmd_train(0, bar, UNIT_ARCHER_MAIDEN));
+	}
+
+	// Fertility Festival: houses train citizens, and only citizens.
+	{
+		fresh(s);
+		uint32_t h = s.spawn_building_world(-20.0f, 20.0f, BLD_HOUSE, 0, 1.0f);
+		CHECK(!s.can_train_at(0, UNIT_VILLAGER, BLD_HOUSE));
+		CHECK(!s.cmd_train(0, h, UNIT_VILLAGER));
+		CHECK(s.cmd_research(0, h, TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC));
+		run(s, tech_info(TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC).research_time + 1.0f);
+		CHECK(s.can_train_at(0, UNIT_VILLAGER, BLD_HOUSE));
+		CHECK(s.cmd_train(0, h, UNIT_VILLAGER));
+		CHECK(!s.can_train_at(0, UNIT_SWORDSMAN, BLD_HOUSE));
+	}
+
+	// Sentries: a tower shoots half again as many arrows, so it hurts more.
+	{
+		float dmg[2] = {0.0f, 0.0f};
+		for (int with = 0; with < 2; ++with) {
+			fresh(s);
+			s.player(0).phase = 2;
+			uint32_t tower = s.spawn_building_world(0.0f, 0.0f, BLD_TOWER, 0, 1.0f);
+			if (with) {
+				CHECK(s.cmd_research(0, tower, TECH_TOWER_WATCH));
+				run(s, tech_info(TECH_TOWER_WATCH).research_time + 1.0f);
+				CHECK(s.is_tech_researched(TECH_TOWER_WATCH));
+			}
+			uint32_t foe = s.spawn_unit(8.0f, 0.0f, 1, UNIT_SWORDSMAN, 4000.0f);
+			s.cmd_stop(&foe, 1);
+			float hp0 = unit_hp(s, foe);
+			run(s, 12.0f);
+			dmg[with] = hp0 - unit_hp(s, foe);
+		}
+		std::printf("tower damage in 12 s: %.0f with Sentries, %.0f without\n", dmg[1], dmg[0]);
+		CHECK(dmg[0] > 0.0f && dmg[1] > dmg[0]);
+	}
+
+	// Civ structure bonuses reach the buildings added after id 15 now that
+	// bld_bit() is 32 bits wide (Carthaginian walls, area D's PR #21).
+	{
+		fresh(s);
+		s.set_player_civ(CIV_CARTHAGINIANS);
+		s.player(0).phase = 2;
+		float stone0 = (float)s.stone();
+		CHECK(s.cmd_build(0, 10, 10, BLD_WALL_TOWER) != 0);
+		float paid = stone0 - (float)s.stone();
+		CHECK(std::fabs(paid - 2.0f * building_type_info(BLD_WALL_TOWER).stone_cost) < 1.01f);
+	}
+
+	// Save/load keeps researched techs and their effects.
 	static Simulation l;
 	fresh(l);
 	CHECK(l.load_state(path));
 	CHECK(l.is_tech_researched(TECH_PHASE_TOWN) && l.is_tech_researched(TECH_HEALTH_CIVILIANS_01));
 	CHECK(l.player_phase() == 2);
-	CHECK(l.pop_max() == s.pop_max());
+	CHECK(l.pop_max() == saved_pop_max);
 	uint32_t woman3 = l.spawn_unit(4.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
 	CHECK(std::fabs(unit_max_hp(l, woman3) - 2.0f * hp0) < 0.01f);
 	TurnManager tm;
