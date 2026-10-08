@@ -1925,6 +1925,12 @@ void RtsoMain::update_command_panel() {
 				if ((roster & rtso::unit_bit((uint8_t)t)) == 0) return;
 				Button *btn = memnew(Button);
 				btn->set_text(label);
+				// Champions wait for their unlock technology (0 A.D. unlock_champion_*).
+				uint8_t gate = sim->train_unlock_tech(local_player(), (uint8_t)t, found_b->type);
+				if (gate != rtso::TECH_NONE && !sim->player(local_player()).has_tech(gate)) {
+					btn->set_disabled(true);
+					btn->set_tooltip_text(String("Requires ") + rtso::tech_info(gate).name);
+				}
 				btn->connect("pressed", Callable(this, "_on_train_pressed").bind((int)t));
 				production_bar->add_child(btn);
 			};
@@ -1967,6 +1973,10 @@ void RtsoMain::update_command_panel() {
 				add_train(rtso::UNIT_TRADER, "Merchant Trader (60f,60w)");
 			} else if (found_b->type == rtso::BLD_TEMPLE) {
 				add_train(rtso::UNIT_HEALER, "Temple Healer (80f,60g)");
+			} else if (found_b->type == rtso::BLD_HOUSE) {
+				// Fertility Festival (unlock_civilians_house_*) turns houses into trainers.
+				add_train(rtso::UNIT_VILLAGER, "Villager (50f)");
+				add_train(rtso::UNIT_FEMALE_CITIZEN, "Female Citizen (40f)");
 			} else if (found_b->type == rtso::BLD_FARMSTEAD || found_b->type == rtso::BLD_CORRAL) {
 				add_train(rtso::UNIT_WAR_DOG, "Guard Dog (60f)");
 			}

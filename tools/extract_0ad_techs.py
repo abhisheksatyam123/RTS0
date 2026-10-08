@@ -103,6 +103,8 @@ def stat_of(path: str):
         "Heal/Range": "TSTAT_HEAL_RANGE",
         "Heal/Interval": "TSTAT_HEAL_INTERVAL",
         "BuildingAI/DefaultArrowCount": "TSTAT_ARROWS",
+        "BuildingAI/MaxArrowCount": "TSTAT_ARROWS",
+        "Researcher/TechCostMultiplier/time": "TSTAT_RESEARCH_TIME",
     }.get(path)
 
 
