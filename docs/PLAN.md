@@ -123,7 +123,7 @@ To preserve determinism and avoid regression in live multiplayer playtests:
 
 - **Component parity tests:** replace the broad 11-tick coverage estimate with per-component behavioral tests for weapons, research, vision, construction and victory conditions (see the G1–G10 table for what is already probed).
 - **Platform validation:** Windows/Linux plus Android/iOS export and runtime checks (`docs/BUILD.md`).
-- **Statistics, replays and saves (U14/U15, landed):** every player's 0 A.D. statistics with the tabbed summary and charts (save v20), every match recorded and watchable from the replay menu, named saves with save and load dialogs. Open: unit capture/bribe counters, observer perspective switch in replays, replays of matches continued from a save.
+- **Statistics, replays and saves (U14/U15, landed):** every player's 0 A.D. statistics with the tabbed summary and charts (save v21), every match recorded and watchable from the replay menu, named saves with save and load dialogs. Open: unit capture/bribe counters, observer perspective switch in replays, replays of matches continued from a save.
 - **Asset long tail:** high-use 0 A.D. actors beyond the canonical roster ([ASSET_MANIFEST_TODO.md](ASSET_MANIFEST_TODO.md)).
 
 ### P5 — Ranked lockstep (optional, last)

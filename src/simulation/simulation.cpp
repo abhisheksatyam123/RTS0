@@ -39,6 +39,9 @@ constexpr int kUnitGridRes = 64; // 64x64 grid cells (2.0m per cell over 128m ma
 constexpr float kBuildStandOff = 0.80f;
 constexpr float kBuildReach = 2.20f;
 
+// The save version that added UnitAI orders (tick_state_io section 4).
+static constexpr uint32_t SAVE_VERSION_UNIT_ORDERS = 20;
+
 // Stand on the nearest AABB edge so pathing never aims through the footprint.
 static void stand_outside_rect(float bx, float bz, float half, uint32_t uid,
 		float from_x, float from_z, float *ox, float *oz) {
@@ -1684,6 +1687,7 @@ void Simulation::order_trade(const uint32_t *unit_ids, size_t count, uint32_t ma
 		trader_leg_[uid] = 0;
 		units_.action_state[uidx] = ACTION_TRADE;
 		units_.has_order[uidx] = 1;
+		drop_orders(uidx);
 		// Empty until it loads goods at the first market (Trader.js: no gain on the first arrival).
 		units_.carry[uidx] = 0;
 		units_.target_x[uidx] = bA.x;
@@ -1938,6 +1942,7 @@ void Simulation::cmd_move(const uint32_t *unit_ids, size_t count, float tx, floa
 		units_.target_resource_id[idx] = 0;
 		units_.target_unit_id[idx] = 0;
 		units_.target_building_id[idx] = 0;
+		begin_walk_order(idx);
 	}
 	(void)formation_speed_mult;
 }
@@ -1956,16 +1961,23 @@ void Simulation::cmd_stop(const uint32_t *unit_ids, size_t count) {
 			units_.waypoint_cur[idx] = 0;
 			units_.waypoint_count[idx] = 0;
 			if ((size_t)idx < unit_paths_.size()) unit_paths_[idx].clear();
+			// UnitAI Stop drops the whole order queue.
+			set_order(idx, ORDER_NONE, 0, 0, units_.pos_x[idx], units_.pos_z[idx]);
+			order_queues_.erase(units_.id[idx]);
 		}
 	}
 }
 
-void Simulation::order_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id) {
+void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint32_t resource_id, bool queued) {
 	auto rit = res_id_to_idx_.find(resource_id);
 	if (rit == res_id_to_idx_.end()) return;
 	size_t ridx = rit->second;
 	float rx = resources_.x[ridx];
 	float rz = resources_.z[ridx];
+	UnitOrder o; o.kind = ORDER_GATHER; o.target = resource_id; o.x = rx; o.z = rz;
+	const std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
+	const uint32_t *unit_ids = now.data();
+	const size_t count = now.size();
 
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
@@ -1983,14 +1995,19 @@ void Simulation::order_gather(const uint32_t *unit_ids, size_t count, uint32_t r
 		units_.res_type_carried[uidx] = resources_.type[ridx];
 		units_.target_unit_id[uidx] = 0;
 		units_.target_building_id[uidx] = 0;
+		set_order(uidx, ORDER_GATHER, 0, resource_id, rx, rz);
 	}
 }
 
-void Simulation::order_attack(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id) {
+void Simulation::order_attack(const uint32_t *unit_ids_in, size_t count_in, uint32_t target_unit_id, bool queued) {
 	int32_t tidx = lookup_unit(target_unit_id);
 	if (tidx < 0) return;
 	float tx = units_.pos_x[tidx];
 	float tz = units_.pos_z[tidx];
+	UnitOrder o; o.kind = ORDER_ATTACK; o.flags = ORDER_FLAG_FORCE; o.target = target_unit_id; o.x = tx; o.z = tz;
+	const std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
+	const uint32_t *unit_ids = now.data();
+	const size_t count = now.size();
 
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
@@ -2004,18 +2021,26 @@ void Simulation::order_attack(const uint32_t *unit_ids, size_t count, uint32_t t
 		units_.target_unit_id[uidx] = target_unit_id;
 		units_.target_resource_id[uidx] = 0;
 		units_.target_building_id[uidx] = 0;
+		set_order(uidx, ORDER_ATTACK, ORDER_FLAG_FORCE, target_unit_id, tx, tz);
 	}
 }
 
-void Simulation::order_attack_building(const uint32_t *unit_ids, size_t count, uint32_t target_building_id) {
+void Simulation::order_attack_building(const uint32_t *unit_ids_in, size_t count_in, uint32_t target_building_id,
+		bool queued, bool allow_capture) {
 	auto bit = building_id_to_idx_.find(target_building_id);
 	if (bit == building_id_to_idx_.end()) return;
 	const Building &b = buildings_[bit->second];
+	const uint8_t flags = ORDER_FLAG_FORCE | (allow_capture ? ORDER_FLAG_ALLOW_CAPTURE : 0);
+	UnitOrder o; o.kind = ORDER_ATTACK_BUILDING; o.flags = flags; o.target = target_building_id; o.x = b.x; o.z = b.z;
+	const std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
+	const uint32_t *unit_ids = now.data();
+	const size_t count = now.size();
 
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx]) continue;
-		if (units_.attack_damage[uidx] <= 0.0f) continue;
+		const bool captures = allow_capture && unit_capture_strength(units_.unit_type[uidx]) > 0.0f;
+		if (units_.attack_damage[uidx] <= 0.0f && !captures) continue;
 
 		stand_outside_rect(b.x, b.z, b.half_size, units_.id[uidx],
 				units_.pos_x[uidx], units_.pos_z[uidx],
@@ -2025,35 +2050,60 @@ void Simulation::order_attack_building(const uint32_t *unit_ids, size_t count, u
 		units_.target_building_id[uidx] = target_building_id;
 		units_.target_unit_id[uidx] = 0;
 		units_.target_resource_id[uidx] = 0;
+		set_order(uidx, ORDER_ATTACK_BUILDING, flags, target_building_id, b.x, b.z);
 	}
 }
 
-void Simulation::order_attack_move(const uint32_t *unit_ids, size_t count, float tx, float tz) {
-	cmd_move(unit_ids, count, tx, tz);
-	for (size_t i = 0; i < count; ++i) {
-		int32_t idx = lookup_unit(unit_ids[i]);
+void Simulation::order_walk(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued) {
+	UnitOrder o; o.kind = ORDER_WALK; o.flags = ORDER_FLAG_FORCE; o.x = tx; o.z = tz;
+	const std::vector<uint32_t> now = split_queued(unit_ids, count, o, queued);
+	cmd_move(now.data(), now.size(), tx, tz);
+	for (uint32_t uid : now) {
+		const int32_t idx = lookup_unit(uid);
+		if (idx >= 0 && units_.alive[idx] && units_.order_kind[idx] == ORDER_WALK) units_.order_flags[idx] = ORDER_FLAG_FORCE;
+	}
+}
+
+// 0 A.D. UnitAI WalkAndFight. The stance is the player's: attack-move no longer
+// switches it to aggressive (nor patrol to defensive).
+void Simulation::order_attack_move(const uint32_t *unit_ids, size_t count, float tx, float tz,
+		bool queued, bool units_only, bool allow_capture) {
+	const uint8_t flags = ORDER_FLAG_FORCE | (units_only ? ORDER_FLAG_UNITS_ONLY : 0) |
+			(allow_capture ? ORDER_FLAG_ALLOW_CAPTURE : 0);
+	UnitOrder o; o.kind = ORDER_WALK_AND_FIGHT; o.flags = flags; o.x = tx; o.z = tz;
+	const std::vector<uint32_t> now = split_queued(unit_ids, count, o, queued);
+	cmd_move(now.data(), now.size(), tx, tz);
+	for (uint32_t uid : now) {
+		int32_t idx = lookup_unit(uid);
 		if (idx >= 0 && (size_t)idx < units_.count && units_.alive[idx]) {
 			units_.action_state[idx] = ACTION_ATTACK_MOVE;
-			units_.stance[idx] = STANCE_AGGRESSIVE;
+			set_order(idx, ORDER_WALK_AND_FIGHT, flags, 0, units_.target_x[idx], units_.target_z[idx]);
 		}
 	}
 }
 
-void Simulation::order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz) {
-	cmd_move(unit_ids, count, tx, tz);
-	for (size_t i = 0; i < count; ++i) {
-		int32_t idx = lookup_unit(unit_ids[i]);
+// 0 A.D. UnitAI Patrol: walk-and-fight between where the unit stands and (tx, tz).
+void Simulation::order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued) {
+	UnitOrder o; o.kind = ORDER_PATROL; o.flags = ORDER_FLAG_FORCE; o.x = tx; o.z = tz;
+	const std::vector<uint32_t> now = split_queued(unit_ids, count, o, queued);
+	cmd_move(now.data(), now.size(), tx, tz);
+	for (uint32_t uid : now) {
+		int32_t idx = lookup_unit(uid);
 		if (idx >= 0 && (size_t)idx < units_.count && units_.alive[idx]) {
 			units_.action_state[idx] = ACTION_PATROL;
-			units_.stance[idx] = STANCE_DEFENSIVE;
+			set_order(idx, ORDER_PATROL, ORDER_FLAG_FORCE, 0, units_.target_x[idx], units_.target_z[idx]);
 		}
 	}
 }
 
-void Simulation::order_build_or_repair(const uint32_t *unit_ids, size_t count, uint32_t building_id) {
+void Simulation::order_build_or_repair(const uint32_t *unit_ids_in, size_t count_in, uint32_t building_id, bool queued) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return;
 	const Building &b = buildings_[bit->second];
+	UnitOrder o; o.kind = ORDER_BUILD; o.target = building_id; o.x = b.x; o.z = b.z;
+	const std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
+	const uint32_t *unit_ids = now.data();
+	const size_t count = now.size();
 
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
@@ -2076,6 +2126,7 @@ void Simulation::order_build_or_repair(const uint32_t *unit_ids, size_t count, u
 		units_.target_building_id[uidx] = building_id;
 		units_.target_unit_id[uidx] = 0;
 		units_.target_resource_id[uidx] = 0;
+		set_order(uidx, ORDER_BUILD, 0, building_id, b.x, b.z);
 	}
 }
 
@@ -2233,11 +2284,15 @@ void Simulation::tick_siege_garrisons() {
 	}
 }
 
-void Simulation::order_garrison(const uint32_t *unit_ids, size_t count, uint32_t building_id) {
+void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, uint32_t building_id, bool queued) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return;
 	Building &b = buildings_[bit->second];
 	if (b.build_progress < 1.0f || !structure_has_enough_health(b)) return;
+	UnitOrder o; o.kind = ORDER_GARRISON; o.target = building_id; o.x = b.x; o.z = b.z;
+	const std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
+	const uint32_t *unit_ids = now.data();
+	const size_t count = now.size();
 
 	for (size_t i = 0; i < count; ++i) {
 		if ((int)b.garrisoned_units.size() >= b.garrison_cap) break;
@@ -2249,6 +2304,7 @@ void Simulation::order_garrison(const uint32_t *unit_ids, size_t count, uint32_t
 		units_.has_order[uidx] = 0;
 		units_.vel_x[uidx] = 0.0f;
 		units_.vel_z[uidx] = 0.0f;
+		set_order(uidx, ORDER_NONE, 0, 0, b.x, b.z); // inside: the order is done
 		b.garrisoned_units.push_back(unit_ids[i]);
 	}
 }
@@ -2349,6 +2405,7 @@ void Simulation::order_herd(const uint32_t *unit_ids, size_t count, uint32_t fau
 		if (uidx < 0 || !units_.alive[uidx] || units_.unit_type[uidx] != UNIT_VILLAGER) continue;
 		units_.action_state[uidx] = ACTION_MOVE;
 		units_.has_order[uidx] = 1;
+		drop_orders(uidx);
 		units_.target_unit_id[uidx] = fauna_id;
 		units_.target_x[uidx] = fauna_.pos_x[fidx];
 		units_.target_z[uidx] = fauna_.pos_z[fidx];
@@ -2408,6 +2465,7 @@ void Simulation::order_board_transport(const uint32_t *unit_ids, size_t count, u
 		} else {
 			units_.action_state[uidx] = ACTION_MOVE;
 			units_.has_order[uidx] = 1;
+			drop_orders(uidx);
 			units_.target_unit_id[uidx] = transport_id;
 			units_.target_x[uidx] = tx;
 			units_.target_z[uidx] = tz;
@@ -2901,6 +2959,7 @@ void Simulation::tick(float dt) {
 	// Master simulation tick pipeline in fixed, deterministic order:
 	// 1. Movement & spatial separation
 	tick_pack(dt);           // 0 A.D. Pack.js: siege engines pack to move, unpack to fire
+	tick_unit_ai(dt);        // 0 A.D. UnitAI.js: answer attacks, flee, patrol, resume and queue orders
 	move_units(dt, arena);
 	separation(dt, arena);
 
@@ -3580,7 +3639,13 @@ void Simulation::tick_gather(float dt) {
 		uint8_t uteam = units_.team[i];
 
 		// 1. Returning to dropsite
-		if (units_.carry[i] >= carry_cap(i, units_.res_type_carried[i]) || units_.action_state[i] == ACTION_RETURN_DROPSITE) {
+		// Gathering, idle or building workers with a full load return it (Petra's builders
+		// rely on this, as 0 A.D. builders drop carried resources at a dropsite); a full
+		// worker the player walks elsewhere or sends to fight keeps its order.
+		const uint8_t gst = units_.action_state[i];
+		if (((gst == ACTION_GATHER || gst == ACTION_IDLE || gst == ACTION_BUILD) &&
+					units_.carry[i] >= carry_cap(i, units_.res_type_carried[i])) ||
+				units_.action_state[i] == ACTION_RETURN_DROPSITE) {
 			float best_d2 = 1e9f;
 			float drop_x = 0, drop_z = 0, drop_half = 0;
 			bool found_dropsite = false;
@@ -3862,17 +3927,7 @@ void Simulation::tick_construction(float dt) {
 			b.hp = b.max_hp * b.build_progress;
 			if (b.build_progress >= 1.0f) {
 				stat_building_constructed(b);
-				units_.action_state[i] = ACTION_IDLE;
-				units_.target_building_id[i] = 0;
-				if (b.type == BLD_FIELD) {
-					// 0 A.D. UnitAI ConstructionFinished: the builders start farming.
-					uint32_t rid = ensure_field_resource(b);
-					for (size_t k = 0; k < n; ++k) {
-						if (units_.alive[k] && units_.team[k] == b.team &&
-								(k == i || (units_.action_state[k] == ACTION_BUILD && units_.target_building_id[k] == b.id)))
-							order_gather(&units_.id[k], 1, rid);
-					}
-				}
+				on_construction_finished(b, i); // 0 A.D. UnitAI ConstructionFinished
 				rebuild_nav_grid();
 				if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER) {
 					rebuild_territory();
@@ -3970,18 +4025,7 @@ void Simulation::tick_production(float dt) {
 					if (int32_t ti = lookup_unit(uid); ti >= 0) stat_unit_trained((size_t)ti);
 
 					// Route to Rally Point if set
-					if (b.has_rally_point) {
-						int32_t uidx = lookup_unit(uid);
-						if (uidx >= 0) {
-							if (b.rally_target_res_id != 0 && utype == UNIT_VILLAGER) {
-								order_gather(&uid, 1, b.rally_target_res_id);
-							} else if (b.rally_target_bld_id != 0 && utype == UNIT_VILLAGER) {
-								order_build_or_repair(&uid, 1, b.rally_target_bld_id);
-							} else {
-								cmd_move(&uid, 1, b.rally_x, b.rally_z);
-							}
-						}
-					}
+					if (b.has_rally_point) apply_rally_point(uid, b);
 				}
 			}
 		}
@@ -4099,126 +4143,144 @@ void Simulation::tick_combat(float dt) {
 		if (!units_.alive[i]) return;
 		if (units_.attack_damage[i] <= 0.0f) return;
 
-		// Passive stance / civilian gatherers do not auto-acquire combat targets
-		if (units_.stance[i] == STANCE_PASSIVE) return;
+		// 0 A.D. UnitAI target choice, by stance (g_Stances) and order:
+		//  - passive units never pick targets (an explicit attack order still stands);
+		//  - workers and fleeing units only answer attacks (tick_unit_ai);
+		//  - a player's walk order ignores enemies (order.data.force);
+		//  - a target the unit picked itself is dropped once the stance leash says so
+		//    (ShouldAbandonChase); a player's attack target never is.
+		const uint8_t st = units_.action_state[i];
+		const uint8_t stance = units_.stance[i];
+		const bool explicit_target = units_.order_kind[i] == ORDER_ATTACK && units_.target_unit_id[i] != 0 &&
+				units_.target_unit_id[i] == units_.order_target[i];
+		if (stance == STANCE_PASSIVE && !explicit_target) return;
 		// Walking to board a friendly ship or siege engine (0 A.D. Garrison order):
 		// keep the order instead of dropping target_unit_id for want of an enemy.
-		if (units_.action_state[i] == ACTION_MOVE && units_.target_unit_id[i] != 0) {
+		if (st == ACTION_MOVE && units_.target_unit_id[i] != 0) {
 			const int32_t c = lookup_unit(units_.target_unit_id[i]);
 			if (c >= 0 && units_.alive[c] && units_.team[c] == units_.team[i]) return;
 		}
-		if (units_.unit_type[i] == UNIT_VILLAGER &&
-				(units_.action_state[i] == ACTION_GATHER || units_.action_state[i] == ACTION_BUILD ||
-						units_.action_state[i] == ACTION_RETURN_DROPSITE)) {
+		if (st == ACTION_GATHER || st == ACTION_BUILD || st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE ||
+				st == ACTION_FLEE || st == ACTION_GARRISONED)
 			return;
-		}
+		if (st == ACTION_MOVE && units_.order_kind[i] == ORDER_WALK && (units_.order_flags[i] & ORDER_FLAG_FORCE)) return;
+		const bool guarding = st == ACTION_GUARD; // target_unit_id is the guarded unit
+		const bool walk_and_fight = st == ACTION_ATTACK_MOVE || st == ACTION_PATROL;
+
+		const float pxi = units_.pos_x[i];
+		const float pzi = units_.pos_z[i];
+		// The held position (UnitAI heldPosition): where the unit stands while it walks.
+		const bool on_the_move = st == ACTION_MOVE || walk_and_fight || guarding;
+		const float anc_x = on_the_move ? pxi : units_.anchor_x[i];
+		const float anc_z = on_the_move ? pzi : units_.anchor_z[i];
+		const float range = units_.attack_range[i];
+		const float vision = unit_vision_range(units_.unit_type[i]);
+		const float held_lim = vision * 0.5f + range; // CheckTargetDistanceFromHeldPosition
+		const float att_y = get_terrain_height(pxi, pzi);
+		// Would the stance let this unit (keep) fight j? (GetQueryRange / ShouldAbandonChase)
+		auto within_stance = [&](int32_t j) {
+			const float dx = units_.pos_x[j] - pxi, dz = units_.pos_z[j] - pzi;
+			const float d2 = dx * dx + dz * dz;
+			if (stance == STANCE_STAND_GROUND)
+				return in_parabolic_range(d2, att_y, get_terrain_height(units_.pos_x[j], units_.pos_z[j]), range);
+			if (stance == STANCE_DEFENSIVE) {
+				const float hx = units_.pos_x[j] - anc_x, hz = units_.pos_z[j] - anc_z;
+				return hx * hx + hz * hz < held_lim * held_lim;
+			}
+			return d2 <= vision * vision;
+		};
 
 		int32_t found = -1;
-		// A. Existing unit target check
-		if (units_.target_unit_id[i] != 0) {
+		// A. Existing unit target
+		if (!guarding && units_.target_unit_id[i] != 0) {
 			int32_t tidx = lookup_unit(units_.target_unit_id[i]);
-			if (tidx >= 0 && units_.alive[tidx] && can_attack(units_.team[i], units_.team[tidx])) {
+			if (tidx >= 0 && units_.alive[tidx] && can_attack(units_.team[i], units_.team[tidx]) &&
+					(explicit_target || within_stance(tidx))) {
 				found = tidx;
 			}
 		}
 
-		// B. Stance Leash & Auto-Aggro Scan
-		if (found < 0 && units_.target_building_id[i] == 0) {
-			float scan_range = unit_info_at(i).aggro_range;
-			float leash_radius = 24.0f;
+		// B. Look for a target in range of the stance (GetQueryRange)
+		int32_t found_bld = -1;
+		if (found < 0 && units_.target_building_id[i] == 0 && stance != STANCE_PASSIVE &&
+				((i + ticks_) % 4 == 0 || st == ACTION_ATTACK || walk_and_fight)) {
+			const float scan_range = stance == STANCE_STAND_GROUND ? range
+					: stance == STANCE_DEFENSIVE ? std::min(range + vision * 0.5f, vision) : vision;
+			float best_score = -999999.0f;
+			const uint8_t my_team = units_.team[i];
+			const uint8_t my_type = units_.unit_type[i];
 
-			if (units_.stance[i] == STANCE_STAND_GROUND) {
-				scan_range = units_.attack_range[i]; // Only attack targets already in weapon range
-				leash_radius = units_.attack_range[i];
-			} else if (units_.stance[i] == STANCE_HOLD_GROUND) {
-				scan_range = std::min(scan_range, 10.0f);
-				leash_radius = 8.0f; // Max pursuit 8m from anchor
-			} else if (units_.stance[i] == STANCE_DEFENSIVE) {
-				scan_range = std::min(scan_range, 18.0f);
-				leash_radius = 20.0f; // Max pursuit 20m from anchor
-			} else if (units_.stance[i] == STANCE_AGGRESSIVE) {
-				scan_range = std::max(scan_range, 24.0f);
-				leash_radius = 1000.0f;
-			}
+			grid.visit_radius(pxi, pzi, scan_range, [&](int32_t j) {
+				if (!units_.alive[j] || !can_attack(my_team, units_.team[j])) return;
+				float dx = pxi - units_.pos_x[j];
+				float dz = pzi - units_.pos_z[j];
+				float d2 = dx * dx + dz * dz;
+				if (d2 > scan_range * scan_range) return;
+				if (!within_stance(j)) return;
 
-			if ((i + ticks_) % 4 == 0 || units_.action_state[i] == ACTION_ATTACK || units_.action_state[i] == ACTION_ATTACK_MOVE) {
-				float best_score = -999999.0f;
-				const uint8_t my_team = units_.team[i];
-				const uint8_t my_type = units_.unit_type[i];
-				const float pxi = units_.pos_x[i];
-				const float pzi = units_.pos_z[i];
-				const float anc_x = units_.anchor_x[i];
-				const float anc_z = units_.anchor_z[i];
-				const float att_y = get_terrain_height(pxi, pzi);
+				// 0 A.D. Target Selection Heuristic: Counter-bonus preference + focus fire + proximity
+				float score = -sqrtf(d2);
+				uint8_t target_type = units_.unit_type[j];
 
-				grid.visit_radius(pxi, pzi, scan_range, [&](int32_t j) {
-					if (!units_.alive[j] || !can_attack(my_team, units_.team[j])) return;
+				// Tactical counter preference
+				if (my_type == UNIT_SPEARMAN && (target_type == UNIT_CAVALRY || target_type == UNIT_CAMEL || target_type == UNIT_CHARIOT)) score += 35.0f;
+				else if ((my_type == UNIT_CAVALRY || my_type == UNIT_CHARIOT) && (target_type == UNIT_ARCHER || target_type == UNIT_ARCHER_MAIDEN || target_type == UNIT_HEALER)) score += 30.0f;
+				else if (my_type == UNIT_SWORDSMAN && target_type == UNIT_SPEARMAN) score += 20.0f;
+				else if (my_type == UNIT_BOLT_SHOOTER && (target_type == UNIT_ELEPHANT || target_type == UNIT_WORKER_ELEPHANT || target_type == UNIT_HERO)) score += 40.0f;
 
-					// Check leash distance from anchor for Hold/Defensive stances
-					if (units_.stance[i] == STANCE_HOLD_GROUND || units_.stance[i] == STANCE_DEFENSIVE) {
-						float adx = units_.pos_x[j] - anc_x;
-						float adz = units_.pos_z[j] - anc_z;
-						if (adx * adx + adz * adz > leash_radius * leash_radius) return;
-					}
+				// Finishing blow focus fire on low-HP enemies
+				if (units_.max_hp[j] > 0.0f) {
+					score += (1.0f - units_.hp[j] / units_.max_hp[j]) * 15.0f;
+				}
 
-					float dx = pxi - units_.pos_x[j];
-					float dz = pzi - units_.pos_z[j];
-					float d2 = dx * dx + dz * dz;
+				if (score > best_score) {
+					best_score = score;
+					found = j;
+				}
+			});
 
-					// Stand ground strict weapon range check
-					if (units_.stance[i] == STANCE_STAND_GROUND) {
-						float def_y = get_terrain_height(units_.pos_x[j], units_.pos_z[j]);
-						if (!in_parabolic_range(d2, att_y, def_y, units_.attack_range[i])) return;
-					}
-
-					// 0 A.D. Target Selection Heuristic: Counter-bonus preference + focus fire + proximity
-					float score = -sqrtf(d2);
-					uint8_t target_type = units_.unit_type[j];
-
-					// Tactical counter preference
-					if (my_type == UNIT_SPEARMAN && (target_type == UNIT_CAVALRY || target_type == UNIT_CAMEL || target_type == UNIT_CHARIOT)) score += 35.0f;
-					else if ((my_type == UNIT_CAVALRY || my_type == UNIT_CHARIOT) && (target_type == UNIT_ARCHER || target_type == UNIT_ARCHER_MAIDEN || target_type == UNIT_HEALER)) score += 30.0f;
-					else if (my_type == UNIT_SWORDSMAN && target_type == UNIT_SPEARMAN) score += 20.0f;
-					else if (my_type == UNIT_BOLT_SHOOTER && (target_type == UNIT_ELEPHANT || target_type == UNIT_WORKER_ELEPHANT || target_type == UNIT_HERO)) score += 40.0f;
-
-					// Finishing blow focus fire on low-HP enemies
-					if (units_.max_hp[j] > 0.0f) {
-						score += (1.0f - units_.hp[j] / units_.max_hp[j]) * 15.0f;
-					}
-
-					if (score > best_score) {
-						best_score = score;
-						found = j;
-					}
-				});
+			// Attack-move and patrol also take structures when no unit is about
+			// (UnitAI FindWalkAndFightTargets, targetClasses Unit + Structure).
+			if (found < 0 && walk_and_fight && !(units_.order_flags[i] & ORDER_FLAG_UNITS_ONLY)) {
+				const bool capture = (units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE) &&
+						unit_capture_strength(units_.unit_type[i]) > 0.0f;
+				float best_d2 = vision * vision;
+				for (size_t bi = 0; bi < buildings_.size(); ++bi) {
+					const Building &b = buildings_[bi];
+					if (b.wrecked || b.hp <= 0.0f || b.team >= MAX_PLAYERS) continue;
+					if (!can_attack(my_team, b.team) && !(capture && can_capture_building(my_team, b))) continue;
+					const float ex = std::max(0.0f, std::fabs(b.x - pxi) - b.half_size);
+					const float ez = std::max(0.0f, std::fabs(b.z - pzi) - b.half_size);
+					const float d2 = ex * ex + ez * ez;
+					if (d2 < best_d2) { best_d2 = d2; found_bld = (int32_t)bi; }
+				}
 			}
 		}
 
 		if (found >= 0) {
+			if (units_.target_unit_id[i] != units_.id[found] && !explicit_target)
+				units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED; // go back to the order afterwards
 			units_.target_unit_id[i] = units_.id[found];
-			units_.has_order[i] = 1;
-			if (units_.stance[i] != STANCE_STAND_GROUND) {
+			units_.has_order[i] = stance != STANCE_STAND_GROUND;
+			if (stance != STANCE_STAND_GROUND) {
 				units_.target_x[i] = units_.pos_x[found];
 				units_.target_z[i] = units_.pos_z[found];
 			}
-			if (units_.unit_type[i] != UNIT_VILLAGER) {
-				units_.action_state[i] = ACTION_ATTACK;
+			if (st != ACTION_ATTACK) {
+				units_.waypoint_count[i] = 0; // chase directly, not along the walk path
+				if (on_the_move) { units_.anchor_x[i] = pxi; units_.anchor_z[i] = pzi; }
 			}
-		} else {
+			units_.action_state[i] = ACTION_ATTACK;
+		} else if (found_bld >= 0) {
+			units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED;
+			units_.anchor_x[i] = pxi; units_.anchor_z[i] = pzi;
+			units_.target_building_id[i] = buildings_[found_bld].id;
 			units_.target_unit_id[i] = 0;
-			// Return to leash anchor if hold/defensive stance and combat ended
-			if ((units_.stance[i] == STANCE_HOLD_GROUND || units_.stance[i] == STANCE_DEFENSIVE) &&
-				units_.action_state[i] == ACTION_ATTACK && units_.target_building_id[i] == 0) {
-				float adx = units_.pos_x[i] - units_.anchor_x[i];
-				float adz = units_.pos_z[i] - units_.anchor_z[i];
-				if (adx * adx + adz * adz > 2.0f * 2.0f) {
-					units_.target_x[i] = units_.anchor_x[i];
-					units_.target_z[i] = units_.anchor_z[i];
-					units_.action_state[i] = ACTION_MOVE;
-				} else {
-					units_.action_state[i] = ACTION_IDLE;
-				}
-			}
+			units_.waypoint_count[i] = 0;
+			units_.has_order[i] = 1;
+			units_.action_state[i] = ACTION_ATTACK;
+		} else if (!guarding && st == ACTION_ATTACK) {
+			units_.target_unit_id[i] = 0; // fight over: tick_unit_ai sends the unit back to its order
 		}
 		target_idx[i] = found;
 	});
@@ -4245,6 +4307,7 @@ void Simulation::tick_combat(float dt) {
 
 		units_.attack_timer[i] = units_.attack_cooldown[i];
 		units_.action_state[i] = ACTION_ATTACK;
+		units_.attacked_by[t] = units_.id[i]; // UnitAI "Attacked", answered by tick_unit_ai
 
 		// 0 A.D. Exact Exponential Armor Formula (Attack.js + Resistance.js):
 		// Damage = sum( Dmg[Type] * 0.9^Armor[Type] )
@@ -4496,11 +4559,16 @@ void Simulation::tick_combat(float dt) {
 	}
 
 	// 3. Units Attacking Buildings & Siege Demolition (0 A.D. Attack.js + BuildingDamage)
+	// A unit allowed to capture uses its Capture attack (Attack.js Capture: MaxRange 4,
+	// RepeatTime 1 s) on a structure it can capture; tick_capture spends the points.
+	capture_attack_.assign(buildings_.size(), std::array<float, MAX_PLAYERS>{});
 	for (size_t i = 0; i < n; ++i) {
 		if (!units_.alive[i] || units_.target_building_id[i] == 0 || units_.attack_timer[i] > 0) continue;
 		// Builders and repairers also carry target_building_id; leave them to tick_construction.
 		if (units_.action_state[i] == ACTION_BUILD) continue;
-		if (units_.attack_damage[i] <= 0.0f) continue;
+		const float capture_strength = (units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE) ?
+				unit_capture_strength(units_.unit_type[i]) : 0.0f;
+		if (units_.attack_damage[i] <= 0.0f && capture_strength <= 0.0f) continue;
 		auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
 		if (bit == building_id_to_idx_.end()) {
 			units_.target_building_id[i] = 0;
@@ -4508,7 +4576,8 @@ void Simulation::tick_combat(float dt) {
 			continue;
 		}
 		Building &b = buildings_[bit->second];
-		if (!can_attack(units_.team[i], b.team)) {
+		const bool capture = capture_strength > 0.0f && units_.team[i] < MAX_PLAYERS && can_capture_building(units_.team[i], b);
+		if (!capture && (!can_attack(units_.team[i], b.team) || units_.attack_damage[i] <= 0.0f)) {
 			units_.target_building_id[i] = 0;
 			continue;
 		}
@@ -4521,13 +4590,22 @@ void Simulation::tick_combat(float dt) {
 		float att_y = get_terrain_height(units_.pos_x[i], units_.pos_z[i]);
 		float bld_y = get_terrain_height(b.x, b.z);
 
-		if (!in_parabolic_range(eff_d * eff_d, att_y, bld_y, units_.attack_range[i])) {
+		const bool in_range = capture ? eff_d <= CAPTURE_RANGE
+				: in_parabolic_range(eff_d * eff_d, att_y, bld_y, units_.attack_range[i]);
+		if (!in_range) {
 			// Move toward building if out of range
 			stand_outside_rect(b.x, b.z, b.half_size, units_.id[i],
 					units_.pos_x[i], units_.pos_z[i],
 					&units_.target_x[i], &units_.target_z[i]);
 			units_.has_order[i] = 1;
 			units_.action_state[i] = ACTION_ATTACK;
+			continue;
+		}
+		if (capture) {
+			units_.attack_timer[i] = CAPTURE_REPEAT_S;
+			units_.action_state[i] = ACTION_ATTACK;
+			capture_attack_[bit->second][units_.team[i]] += capture_strength;
+			if (b.team == 0) raise_alert(BattleAlert::ALERT_BUILDING_UNDER_ATTACK, b.x, b.z, b.id, b.team);
 			continue;
 		}
 		if (!pack_state_can_attack(units_.pack_state[i])) continue; // Pack.js: unpack before firing
@@ -4888,6 +4966,7 @@ void Simulation::tick_capture(float dt) {
 		}
 	};
 	tally_capturers();
+	if (capture_attack_.size() != buildings_.size()) capture_attack_.resize(buildings_.size(), std::array<float, MAX_PLAYERS>{});
 	for (size_t bi = 0; bi < buildings_.size(); ++bi) {
 		Building &b = buildings_[bi];
 		if (b.build_progress < 1.0f || b.max_capture_points <= 0.0f) continue;
@@ -4900,17 +4979,11 @@ void Simulation::tick_capture(float dt) {
 			b.capture_points_by_team[b.team < 8 ? b.team : 0] = b.max_capture_points;
 		}
 		const int *count = capture_tally_[bi].count;
-		const float *strength = capture_tally_[bi].strength;
 		const int owner = b.team < 4 ? b.team : 0;
+		const int pl = b.team; // the owner, any of the 8 players
 		auto enemy = [&](int source, int target) {
 			return can_attack((uint8_t)source, (uint8_t)target);
 		};
-		int captor = -1;
-		float captor_strength = 0.0f;
-		for (int t = 0; t < 4; ++t) {
-			if (!enemy(t, owner) || count[t] == 0) continue;
-			if (strength[t] > captor_strength) { captor = t; captor_strength = strength[t]; }
-		}
 		// TerritoryDecay.js: only structures outside their owner's territory
 		// decay, and the points go to whoever owns the ground they stand on.
 		// RTS0 has no Gaia player, so no-man's land doesn't decay. (Decaying
@@ -4924,17 +4997,20 @@ void Simulation::tick_capture(float dt) {
 			b.capture_points_by_team[owner] -= decay;
 			b.capture_points_by_team[neighbour] += decay;
 		}
-		if (captor >= 0 && captor_strength > 0.0f) {
-			float remaining = std::min(captor_strength * dt, b.max_capture_points);
+		// Capturable.Reduce, once per capture attack that landed this tick (tick_combat),
+		// in player order: the points come off the capturer's enemies and go to it.
+		const std::array<float, MAX_PLAYERS> &cap = capture_attack_[bi];
+		auto reduce = [&](int to, float amount, auto &&from) {
+			float remaining = std::min(amount, b.max_capture_points);
 			while (remaining > 0.0001f) {
 				int pools = 0;
-				for (int t = 0; t < 4; ++t)
-					if (enemy(captor, t) && b.capture_points_by_team[t] > 0.0f) pools++;
+				for (int t = 0; t < MAX_PLAYERS; ++t)
+					if (t != to && from(t) && b.capture_points_by_team[t] > 0.0f) pools++;
 				if (pools == 0) break;
 				const float share = remaining / pools;
 				float removed = 0.0f;
-				for (int t = 0; t < 4; ++t) {
-					if (!enemy(captor, t) || b.capture_points_by_team[t] <= 0.0f) continue;
+				for (int t = 0; t < MAX_PLAYERS; ++t) {
+					if (t == to || !from(t) || b.capture_points_by_team[t] <= 0.0f) continue;
 					const float take = std::min(b.capture_points_by_team[t], share);
 					b.capture_points_by_team[t] -= take;
 					removed += take;
@@ -4943,43 +5019,28 @@ void Simulation::tick_capture(float dt) {
 				if (removed <= 0.0001f) break;
 			}
 			const float taken = b.max_capture_points - std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f);
-			b.capture_points_by_team[captor] += taken;
-		} else if (b.capture_points_by_team[owner] < b.max_capture_points && (b.capture_regen_rate > 0.0f || b.capture_garrison_regen_rate > 0.0f)) {
-			// 0 A.D. Capturable.js:183-201 GetRegenRate & TimerTick lines 233-238:
-			// Owner regenerates capture points back from enemies.
+			b.capture_points_by_team[to] += taken;
+		};
+		for (int p = 0; p < MAX_PLAYERS; ++p)
+			if (cap[p] > 0.0f) reduce(p, cap[p], [&](int t) { return enemy(p, t); });
+		// 0 A.D. Capturable.js:183-201 GetRegenRate & TimerTick: the owner (and its
+		// garrison) win points back from its enemies all the time.
+		if (b.capture_points_by_team[pl] < b.max_capture_points && (b.capture_regen_rate > 0.0f || b.capture_garrison_regen_rate > 0.0f)) {
 			const float garrison = (float)b.garrisoned_units.size() * b.capture_garrison_regen_rate;
 			const float total_regen = b.capture_regen_rate + garrison;
-			if (total_regen > 0.0f) {
-				float remaining = std::min(total_regen * dt, b.max_capture_points - b.capture_points_by_team[owner]);
-				while (remaining > 0.0001f) {
-					int enemy_pools = 0;
-					for (int t = 0; t < 4; ++t)
-						if (enemy(owner, t) && b.capture_points_by_team[t] > 0.0f) enemy_pools++;
-					if (enemy_pools == 0) break;
-					const float share = remaining / enemy_pools;
-					float removed = 0.0f;
-					for (int t = 0; t < 4; ++t) {
-						if (!enemy(owner, t) || b.capture_points_by_team[t] <= 0.0f) continue;
-						const float take = std::min(b.capture_points_by_team[t], share);
-						b.capture_points_by_team[t] -= take;
-						removed += take;
-					}
-					remaining -= removed;
-					if (removed <= 0.0001f) break;
-				}
-				const float restored = b.max_capture_points - std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f);
-				b.capture_points_by_team[owner] += restored;
-			}
+			if (total_regen > 0.0f)
+				reduce(pl, std::min(total_regen * dt, b.max_capture_points - b.capture_points_by_team[pl]),
+						[&](int t) { return enemy(pl, t); });
 		}
 
 		// Owner flip when a team crosses majority (> 50% max) or owner points reach 0 (Capturable.js:168-181)
-		int best = owner;
-		for (int t = 0; t < 4; ++t) {
+		int best = pl;
+		for (int t = 0; t < MAX_PLAYERS; ++t) {
 			if (b.capture_points_by_team[t] > b.capture_points_by_team[best]) {
 				best = t;
 			}
 		}
-		if (best != owner && (b.capture_points_by_team[best] > b.max_capture_points * 0.5f || b.capture_points_by_team[owner] <= 0.0001f)) {
+		if (best != pl && (b.capture_points_by_team[best] > b.max_capture_points * 0.5f || b.capture_points_by_team[pl] <= 0.0001f)) {
 			order_ungarrison(b.id);
 			tally_capturers(); // the units it let out count for the buildings after this one
 			cancel_upgrade(b, b.team);
@@ -4991,24 +5052,19 @@ void Simulation::tick_capture(float dt) {
 		}
 		b.capture_points = b.capture_points_by_team[b.team < 8 ? b.team : 0];
 	}
+	capture_attack_.clear(); // spent
 }
 
 void Simulation::tick_capture_gaia(Building &b, float dt) {
-	// A Gaia structure: the points no player holds are Gaia's. The strongest player in
-	// reach takes Gaia's points first, then its enemies'; with nobody capturing, Gaia
-	// regenerates. A player holding over half the points takes the structure.
+	// A Gaia structure: the points no player holds are Gaia's. The player whose capture
+	// attacks took most this tick takes Gaia's points first, then its enemies'; with
+	// nobody capturing, Gaia regenerates. A player holding over half the points takes it.
 	int count[MAX_PLAYERS] = {};
 	float strength[MAX_PLAYERS] = {};
-	for (size_t u = 0; u < units_.count; ++u) {
-		const uint8_t t = units_.team[u];
-		if (!units_.alive[u] || t >= MAX_PLAYERS) continue;
-		const float dx = units_.pos_x[u] - b.x;
-		const float dz = units_.pos_z[u] - b.z;
-		if (dx * dx + dz * dz <= 11.0f * 11.0f) {
-			count[t]++;
-			strength[t] += unit_capture_strength(units_.unit_type[u]);
-		}
-	}
+	const size_t bi = (size_t)(&b - buildings_.data());
+	if (bi < capture_attack_.size())
+		for (int t = 0; t < MAX_PLAYERS; ++t)
+			if (capture_attack_[bi][t] > 0.0f) { count[t] = 1; strength[t] = capture_attack_[bi][t]; }
 	int captor = -1;
 	for (int t = 0; t < MAX_PLAYERS && !ceasefire_active(); ++t) {
 		if (count[t] && strength[t] > 0.0f && (captor < 0 || strength[t] > strength[captor])) captor = t;
@@ -5016,7 +5072,7 @@ void Simulation::tick_capture_gaia(Building &b, float dt) {
 	auto &pts = b.capture_points_by_team;
 	float held = std::accumulate(pts.begin(), pts.end(), 0.0f);
 	if (captor >= 0) {
-		float amount = strength[captor] * dt;
+		float amount = strength[captor];
 		const float from_gaia = std::min(amount, std::max(0.0f, b.max_capture_points - held));
 		pts[captor] += from_gaia;
 		amount -= from_gaia;
@@ -5784,17 +5840,525 @@ bool Simulation::cmd_lock_gate(uint8_t player_id, uint32_t building_id, bool loc
 	return true;
 }
 
-void Simulation::order_guard(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id) {
+void Simulation::order_guard(const uint32_t *unit_ids_in, size_t count_in, uint32_t target_unit_id, bool queued) {
 	int32_t tidx = lookup_unit(target_unit_id);
 	if (tidx < 0 || !units_.alive[tidx]) return;
-	for (size_t k = 0; k < count; ++k) {
-		int32_t idx = lookup_unit(unit_ids[k]);
-		if (idx < 0 || !units_.alive[idx]) continue;
+	UnitOrder o; o.kind = ORDER_GUARD; o.target = target_unit_id;
+	const std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
+	for (uint32_t uid : now) {
+		int32_t idx = lookup_unit(uid);
+		if (idx < 0 || !units_.alive[idx] || uid == target_unit_id) continue;
+		set_order(idx, ORDER_GUARD, 0, target_unit_id, units_.pos_x[tidx], units_.pos_z[tidx]);
 		units_.action_state[idx] = ACTION_GUARD;
 		units_.has_order[idx] = 1;
 		units_.target_unit_id[idx] = target_unit_id;
+		units_.target_building_id[idx] = 0;
+		units_.target_resource_id[idx] = 0;
+		units_.waypoint_count[idx] = 0;
 		units_.target_x[idx] = units_.pos_x[tidx];
 		units_.target_z[idx] = units_.pos_z[tidx];
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 0 A.D. UnitAI orders (UnitAI.js orderQueue, FinishOrder, PushOrderFront,
+// RespondToTargetedEntities, Flee, Patrol, Guard; helpers/Commands.js
+// "delete-entities" and "back-to-work"). A unit's current order lives in the
+// SoA (order_*); its Shift-queued orders in order_queues_. An automatic fight
+// or a flight marks the order INTERRUPTED; tick_unit_ai sends the unit back to
+// it afterwards, and moves on to the next queued order once it is done.
+// ---------------------------------------------------------------------------
+
+void Simulation::set_order(size_t i, uint8_t kind, uint8_t flags, uint32_t target, float x, float z) {
+	units_.order_kind[i] = kind;
+	units_.order_flags[i] = flags;
+	units_.order_target[i] = target;
+	units_.order_x[i] = x;
+	units_.order_z[i] = z;
+	units_.order_x2[i] = units_.pos_x[i]; // a patrol starts where the unit stands
+	units_.order_z2[i] = units_.pos_z[i];
+	if (kind == ORDER_GATHER || kind == ORDER_BUILD) { // UnitAI workOrders, for Back to Work
+		units_.work_kind[i] = kind;
+		units_.work_target[i] = target;
+	}
+}
+
+void Simulation::begin_walk_order(size_t i) {
+	set_order(i, ORDER_WALK, 0, 0, units_.target_x[i], units_.target_z[i]);
+	if (!applying_queued_) order_queues_.erase(units_.id[i]);
+}
+
+void Simulation::drop_orders(size_t i) {
+	set_order(i, ORDER_NONE, 0, 0, units_.pos_x[i], units_.pos_z[i]);
+	order_queues_.erase(units_.id[i]);
+}
+
+UnitOrder Simulation::current_order(size_t i) const {
+	UnitOrder o;
+	o.kind = units_.order_kind[i];
+	o.flags = units_.order_flags[i];
+	o.target = units_.order_target[i];
+	o.x = units_.order_x[i]; o.z = units_.order_z[i];
+	o.x2 = units_.order_x2[i]; o.z2 = units_.order_z2[i];
+	return o;
+}
+
+UnitOrder Simulation::unit_order(uint32_t unit_id) const {
+	const int32_t i = lookup_unit(unit_id);
+	return i >= 0 ? current_order((size_t)i) : UnitOrder{};
+}
+
+const std::vector<UnitOrder> *Simulation::unit_order_queue(uint32_t unit_id) const {
+	auto it = order_queues_.find(unit_id);
+	return it == order_queues_.end() ? nullptr : &it->second;
+}
+
+std::vector<uint32_t> Simulation::split_queued(const uint32_t *ids, size_t count, const UnitOrder &o, bool queued) {
+	std::vector<uint32_t> now;
+	now.reserve(count);
+	if (!queued) {
+		for (size_t k = 0; k < count; ++k) {
+			const int32_t i = lookup_unit(ids[k]);
+			if (i < 0) continue;
+			if (!applying_queued_) order_queues_.erase(ids[k]);
+			now.push_back(ids[k]);
+		}
+		return now;
+	}
+	// Walks keep the group's shape: each unit's point is offset from the click as
+	// its previous destination was from the group's.
+	const bool walk = o.kind == ORDER_WALK || o.kind == ORDER_WALK_AND_FIGHT || o.kind == ORDER_PATROL;
+	auto last_dest = [&](size_t i, float &x, float &z) {
+		auto it = order_queues_.find(units_.id[i]);
+		if (it != order_queues_.end() && !it->second.empty()) { x = it->second.back().x; z = it->second.back().z; }
+		else if (units_.order_kind[i] != ORDER_NONE) { x = units_.order_x[i]; z = units_.order_z[i]; }
+		else { x = units_.pos_x[i]; z = units_.pos_z[i]; }
+	};
+	float cx = 0.0f, cz = 0.0f;
+	int busy_n = 0;
+	auto busy = [&](size_t i) {
+		return units_.alive[i] && (units_.order_kind[i] != ORDER_NONE || units_.action_state[i] != ACTION_IDLE);
+	};
+	for (size_t k = 0; k < count; ++k) {
+		const int32_t i = lookup_unit(ids[k]);
+		if (i < 0 || !busy((size_t)i)) continue;
+		float x, z;
+		last_dest((size_t)i, x, z);
+		cx += x; cz += z; ++busy_n;
+	}
+	if (busy_n) { cx /= (float)busy_n; cz /= (float)busy_n; }
+	for (size_t k = 0; k < count; ++k) {
+		const int32_t i = lookup_unit(ids[k]);
+		if (i < 0) continue;
+		if (!busy((size_t)i)) { now.push_back(ids[k]); continue; }
+		UnitOrder q = o;
+		float lx, lz;
+		last_dest((size_t)i, lx, lz);
+		if (walk && busy_n > 1) {
+			q.x = std::clamp(o.x + lx - cx, -map_half_ + 1.0f, map_half_ - 1.0f);
+			q.z = std::clamp(o.z + lz - cz, -map_half_ + 1.0f, map_half_ - 1.0f);
+		}
+		q.x2 = lx; q.z2 = lz; // a queued patrol starts where the previous order ends
+		std::vector<UnitOrder> &queue = order_queues_[ids[k]];
+		if (queue.size() < 64) queue.push_back(q);
+	}
+	return now;
+}
+
+void Simulation::apply_order(uint32_t uid, const UnitOrder &o) {
+	const bool was = applying_queued_;
+	applying_queued_ = true;
+	const bool capture = (o.flags & ORDER_FLAG_ALLOW_CAPTURE) != 0;
+	switch (o.kind) {
+		case ORDER_WALK: cmd_move(&uid, 1, o.x, o.z); break;
+		case ORDER_WALK_AND_FIGHT:
+			order_attack_move(&uid, 1, o.x, o.z, false, (o.flags & ORDER_FLAG_UNITS_ONLY) != 0, capture);
+			break;
+		case ORDER_PATROL: order_patrol(&uid, 1, o.x, o.z); break;
+		case ORDER_ATTACK: order_attack(&uid, 1, o.target); break;
+		case ORDER_ATTACK_BUILDING: order_attack_building(&uid, 1, o.target, false, capture); break;
+		case ORDER_GATHER: order_gather(&uid, 1, o.target); break;
+		case ORDER_BUILD: order_build_or_repair(&uid, 1, o.target); break;
+		case ORDER_GARRISON: order_garrison(&uid, 1, o.target); break;
+		case ORDER_GUARD: order_guard(&uid, 1, o.target); break;
+		default: break;
+	}
+	applying_queued_ = was;
+	const int32_t i = lookup_unit(uid);
+	if (i < 0 || units_.order_kind[i] != o.kind) return;
+	units_.order_flags[i] = o.flags & (uint8_t)~ORDER_FLAG_INTERRUPTED;
+	if (o.kind == ORDER_PATROL) { units_.order_x2[i] = o.x2; units_.order_z2[i] = o.z2; }
+}
+
+bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
+	const uint8_t team = units_.team[i];
+	auto building = [&](uint32_t id) -> const Building * {
+		auto it = building_id_to_idx_.find(id);
+		if (it == building_id_to_idx_.end()) return nullptr;
+		const Building &b = buildings_[it->second];
+		return b.wrecked || b.hp <= 0.0f ? nullptr : &b;
+	};
+	switch (o.kind) {
+		case ORDER_WALK: case ORDER_WALK_AND_FIGHT: case ORDER_PATROL: return true;
+		case ORDER_ATTACK: {
+			const int32_t t = lookup_unit(o.target);
+			return t >= 0 && units_.alive[t] && can_attack(team, units_.team[t]);
+		}
+		case ORDER_ATTACK_BUILDING: {
+			const Building *b = building(o.target);
+			return b && (can_attack(team, b->team) ||
+					((o.flags & ORDER_FLAG_ALLOW_CAPTURE) && can_capture_building(team, *b)));
+		}
+		case ORDER_GATHER: {
+			auto it = res_id_to_idx_.find(o.target);
+			return it != res_id_to_idx_.end() && resources_.alive[it->second] && resources_.amount[it->second] > 0;
+		}
+		case ORDER_BUILD: {
+			const Building *b = building(o.target);
+			return b && (b->team == team || is_ally(team, b->team)) && (b->build_progress < 1.0f || b->hp < b->max_hp ||
+					b->type == BLD_FIELD);
+		}
+		case ORDER_GARRISON: {
+			const Building *b = building(o.target);
+			return b && b->team == team && b->build_progress >= 1.0f && (int)b->garrisoned_units.size() < b->garrison_cap;
+		}
+		case ORDER_GUARD: {
+			const int32_t t = lookup_unit(o.target);
+			return t >= 0 && units_.alive[t];
+		}
+		default: return false;
+	}
+}
+
+// UnitAI FinishOrder: a gatherer whose resource ran out first looks for more of the
+// same type nearby (GATHER "ResourceExhausted"); then the next queued order runs.
+void Simulation::finish_order(size_t i) {
+	const uint32_t uid = units_.id[i];
+	if (units_.order_kind[i] == ORDER_GATHER && !order_still_valid(i, current_order(i))) {
+		const uint32_t r = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], units_.res_type_carried[i], units_.team[i]);
+		if (r != 0) {
+			UnitOrder o = current_order(i);
+			o.target = r;
+			apply_order(uid, o);
+			return;
+		}
+	}
+	auto it = order_queues_.find(uid);
+	if (it != order_queues_.end() && !it->second.empty()) {
+		const UnitOrder next = it->second.front();
+		it->second.erase(it->second.begin());
+		if (it->second.empty()) order_queues_.erase(it);
+		apply_order(uid, next);
+		return;
+	}
+	set_order(i, ORDER_NONE, 0, 0, units_.pos_x[i], units_.pos_z[i]);
+	if (units_.action_state[i] == ACTION_ATTACK || units_.action_state[i] == ACTION_FLEE) {
+		units_.action_state[i] = ACTION_IDLE;
+		units_.has_order[i] = 0;
+		units_.target_unit_id[i] = 0;
+		units_.target_building_id[i] = 0;
+	}
+}
+
+// Back to the order an automatic fight or a flight interrupted.
+void Simulation::resume_order(size_t i) {
+	units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_INTERRUPTED;
+	units_.target_unit_id[i] = 0;
+	units_.target_building_id[i] = 0;
+	const UnitOrder o = current_order(i);
+	if (o.kind == ORDER_NONE) {
+		units_.action_state[i] = ACTION_IDLE;
+		units_.has_order[i] = 0;
+		// UnitAI WalkToHeldPosition: a defensive unit goes back where it stood.
+		const float dx = units_.pos_x[i] - units_.anchor_x[i], dz = units_.pos_z[i] - units_.anchor_z[i];
+		if (units_.stance[i] == STANCE_DEFENSIVE && dx * dx + dz * dz > 2.0f * 2.0f) {
+			const uint32_t uid = units_.id[i];
+			cmd_move(&uid, 1, units_.anchor_x[i], units_.anchor_z[i]);
+		}
+		return;
+	}
+	if (order_still_valid(i, o)) apply_order(units_.id[i], o);
+	else finish_order(i);
+}
+
+// UnitAI "Attacked" -> RespondToTargetedEntities: fight back as the stance allows,
+// or flee (passive stance, or a unit that can't attack).
+void Simulation::respond_to_attack(size_t i) {
+	const int32_t a = lookup_unit(units_.attacked_by[i]);
+	if (a < 0 || !units_.alive[a] || !is_hostile(units_.team[i], units_.team[a])) return;
+	const uint8_t st = units_.action_state[i];
+	if (st == ACTION_ATTACK && (units_.target_unit_id[i] != 0 || units_.target_building_id[i] != 0)) return;
+	const uint8_t stance = units_.stance[i];
+	// Forced orders ignore attackers, unless the stance is violent (targetAttackersAlways).
+	if ((units_.order_flags[i] & ORDER_FLAG_FORCE) && stance != STANCE_VIOLENT && st != ACTION_IDLE && st != ACTION_FLEE) return;
+	const float dx = units_.pos_x[i] - units_.pos_x[a], dz = units_.pos_z[i] - units_.pos_z[a];
+	const float d2 = dx * dx + dz * dz;
+	const bool can_fight = units_.attack_damage[i] > 0.0f && stance != STANCE_PASSIVE;
+	if (!can_fight) {
+		if (unit_is_siege_engine(units_.unit_type[i]) || !pack_state_can_move(units_.pack_state[i])) return;
+		// UnitAI Flee: run FleeDistance away from the attacker, then carry on.
+		const float d = sqrtf(d2);
+		const float nx = d > 1e-3f ? dx / d : 1.0f, nz = d > 1e-3f ? dz / d : 0.0f;
+		units_.target_x[i] = std::clamp(units_.pos_x[i] + nx * FLEE_DISTANCE, -map_half_ + 1.0f, map_half_ - 1.0f);
+		units_.target_z[i] = std::clamp(units_.pos_z[i] + nz * FLEE_DISTANCE, -map_half_ + 1.0f, map_half_ - 1.0f);
+		units_.has_order[i] = 1;
+		units_.action_state[i] = ACTION_FLEE;
+		units_.target_unit_id[i] = 0;
+		units_.target_building_id[i] = 0;
+		units_.waypoint_cur[i] = units_.waypoint_count[i] = 0;
+		if (i < unit_paths_.size()) unit_paths_[i].clear();
+		units_.attack_timer[i] = 4.0f; // give up a flight that is stuck
+		units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED;
+		return;
+	}
+	const float range = units_.attack_range[i];
+	const float vision = unit_vision_range(units_.unit_type[i]);
+	if (stance == STANCE_STAND_GROUND && d2 > range * range) return;
+	if (stance == STANCE_DEFENSIVE) {
+		const float hx = units_.pos_x[a] - units_.anchor_x[i], hz = units_.pos_z[a] - units_.anchor_z[i];
+		const float lim = vision * 0.5f + range;
+		if (hx * hx + hz * hz >= lim * lim) return;
+	}
+	units_.target_unit_id[i] = units_.attacked_by[i];
+	units_.target_building_id[i] = 0;
+	units_.action_state[i] = ACTION_ATTACK;
+	units_.has_order[i] = stance != STANCE_STAND_GROUND;
+	units_.target_x[i] = units_.pos_x[a];
+	units_.target_z[i] = units_.pos_z[a];
+	units_.waypoint_count[i] = 0;
+	units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED;
+}
+
+uint32_t Simulation::find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team) const {
+	uint32_t best = 0;
+	float best_d2 = NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE;
+	for (size_t r = 0; r < resources_.count; ++r) {
+		if (!resources_.alive[r] || resources_.amount[r] <= 0 || resources_.type[r] != res_type) continue;
+		auto f = field_bld_by_res_.find(resources_.id[r]);
+		if (f != field_bld_by_res_.end()) { // only our own fields
+			auto b = building_id_to_idx_.find(f->second);
+			if (b == building_id_to_idx_.end() || buildings_[b->second].team != team) continue;
+		}
+		const float dx = resources_.x[r] - x, dz = resources_.z[r] - z;
+		const float d2 = dx * dx + dz * dz;
+		if (d2 < best_d2) { best_d2 = d2; best = resources_.id[r]; }
+	}
+	return best;
+}
+
+uint32_t Simulation::find_nearby_foundation(float x, float z, uint8_t team) const {
+	uint32_t best = 0;
+	float best_d2 = NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE;
+	for (const Building &b : buildings_) {
+		if (b.wrecked || b.team != team || b.build_progress >= 1.0f || b.hp < 0.0f) continue;
+		const float dx = b.x - x, dz = b.z - z;
+		const float d2 = dx * dx + dz * dz;
+		if (d2 < best_d2) { best_d2 = d2; best = b.id; }
+	}
+	return best;
+}
+
+static bool can_gather_type(uint8_t t) {
+	return t == UNIT_VILLAGER || t == UNIT_FEMALE_CITIZEN || t == UNIT_WORKER_ELEPHANT;
+}
+
+// 0 A.D. RallyPoint + Commands.js: a trained unit does what the rally target asks
+// for, if it can (gather, build, garrison, attack), and walks there otherwise.
+void Simulation::apply_rally_point(uint32_t uid, const Building &b) {
+	const int32_t i = lookup_unit(uid);
+	if (i < 0) return;
+	const uint8_t ut = units_.unit_type[i];
+	if (b.rally_target_res_id != 0 && can_gather_type(ut) && res_id_to_idx_.count(b.rally_target_res_id)) {
+		order_gather(&uid, 1, b.rally_target_res_id);
+		return;
+	}
+	if (b.rally_target_bld_id != 0) {
+		auto it = building_id_to_idx_.find(b.rally_target_bld_id);
+		if (it != building_id_to_idx_.end() && !buildings_[it->second].wrecked) {
+			const Building &t = buildings_[it->second];
+			if (t.team == b.team) {
+				if (can_gather_type(ut) && (t.build_progress < 1.0f || t.hp < t.max_hp || t.type == BLD_FIELD)) {
+					order_build_or_repair(&uid, 1, t.id);
+					return;
+				}
+				if ((int)t.garrisoned_units.size() < t.garrison_cap) {
+					order_garrison(&uid, 1, t.id);
+					return;
+				}
+			} else if (can_attack(b.team, t.team)) {
+				order_attack_building(&uid, 1, t.id, false, true);
+				return;
+			}
+		}
+	}
+	order_walk(&uid, 1, b.rally_x, b.rally_z);
+}
+
+// UnitAI ConstructionFinished for the builders of `b`: farm a field, gather the
+// nearest resource a new dropsite takes, else help with a foundation nearby.
+void Simulation::on_construction_finished(const Building &b, size_t builder) {
+	const size_t n = units_.count;
+	std::vector<uint32_t> builders;
+	for (size_t k = 0; k < n; ++k)
+		if (units_.alive[k] && units_.team[k] == b.team &&
+				(k == builder || (units_.action_state[k] == ACTION_BUILD && units_.target_building_id[k] == b.id)))
+			builders.push_back(units_.id[k]);
+	const bool food = b.type == BLD_FARMSTEAD || b.type == BLD_DOCK;
+	const bool other = b.type == BLD_STOREHOUSE;
+	for (uint32_t uid : builders) {
+		const int32_t k = lookup_unit(uid);
+		if (k < 0) continue;
+		units_.action_state[k] = ACTION_IDLE;
+		units_.target_building_id[k] = 0;
+		// A queued order goes first (FinishOrder); fields and dropsites only apply without one.
+		auto q = order_queues_.find(uid);
+		if (q != order_queues_.end() && !q->second.empty()) { finish_order((size_t)k); continue; }
+		if (b.type == BLD_FIELD) {
+			order_gather(&uid, 1, ensure_field_resource(b));
+			continue;
+		}
+		if (food || other || b.type == BLD_TOWN_CENTER) {
+			// Prefer what the unit gathered last (lastGathered), if the dropsite takes it.
+			uint8_t pref = units_.res_type_carried[k];
+			const bool takes_pref = b.type == BLD_TOWN_CENTER || (food ? pref == RES_FOOD : pref != RES_FOOD);
+			uint32_t r = takes_pref ? find_nearby_resource(b.x, b.z, pref, b.team) : 0;
+			if (r == 0) {
+				if (food) r = find_nearby_resource(b.x, b.z, RES_FOOD, b.team);
+				else for (uint8_t t : {(uint8_t)RES_WOOD, (uint8_t)RES_STONE, (uint8_t)RES_GOLD})
+					if (r == 0) r = find_nearby_resource(b.x, b.z, t, b.team);
+			}
+			if (r != 0) { order_gather(&uid, 1, r); continue; }
+		}
+		const uint32_t f = find_nearby_foundation(b.x, b.z, b.team);
+		if (f != 0) { order_build_or_repair(&uid, 1, f); continue; }
+		set_order((size_t)k, ORDER_NONE, 0, 0, units_.pos_x[k], units_.pos_z[k]);
+	}
+}
+
+void Simulation::tick_unit_ai(float dt) {
+	(void)dt;
+	const size_t n = units_.count;
+	for (size_t i = 0; i < n && i < units_.count; ++i) {
+		if (!units_.alive[i]) continue;
+		const uint8_t st = units_.action_state[i];
+		if (st == ACTION_DYING || st == ACTION_GARRISONED || st == ACTION_TRADE) continue;
+		if (units_.attacked_by[i] != 0) respond_to_attack(i);
+		// Guard.js: guards answer whoever attacks the unit they guard (GuardedAttacked).
+		if (units_.order_kind[i] == ORDER_GUARD && units_.action_state[i] == ACTION_GUARD) {
+			const int32_t g = lookup_unit(units_.order_target[i]);
+			if (g >= 0 && units_.alive[g] && units_.attacked_by[g] != 0 && units_.attack_damage[i] > 0.0f &&
+					units_.stance[i] != STANCE_PASSIVE) {
+				const int32_t a = lookup_unit(units_.attacked_by[g]);
+				if (a >= 0 && units_.alive[a] && can_attack(units_.team[i], units_.team[a])) {
+					units_.target_unit_id[i] = units_.id[a];
+					units_.action_state[i] = ACTION_ATTACK;
+					units_.has_order[i] = 1;
+					units_.target_x[i] = units_.pos_x[a];
+					units_.target_z[i] = units_.pos_z[a];
+					units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED;
+				}
+			}
+		}
+		const uint8_t now = units_.action_state[i];
+		const bool interrupted = (units_.order_flags[i] & ORDER_FLAG_INTERRUPTED) != 0;
+		if (now == ACTION_FLEE) {
+			const float dx = units_.target_x[i] - units_.pos_x[i], dz = units_.target_z[i] - units_.pos_z[i];
+			if (dx * dx + dz * dz <= 1.0f || units_.attack_timer[i] <= 0.0f) {
+				units_.attack_timer[i] = 0.0f;
+				resume_order(i);
+			}
+			continue;
+		}
+		// Patrol: turn round at each end (the queue's next order goes first).
+		if (now == ACTION_PATROL && units_.order_kind[i] == ORDER_PATROL) {
+			const float dx = units_.order_x[i] - units_.pos_x[i], dz = units_.order_z[i] - units_.pos_z[i];
+			if (dx * dx + dz * dz <= 1.0f) {
+				auto q = order_queues_.find(units_.id[i]);
+				if (q != order_queues_.end() && !q->second.empty()) { finish_order(i); continue; }
+				UnitOrder back = current_order(i);
+				std::swap(back.x, back.x2);
+				std::swap(back.z, back.z2);
+				apply_order(units_.id[i], back);
+			}
+			continue;
+		}
+		if (now == ACTION_ATTACK && units_.target_unit_id[i] == 0 && units_.target_building_id[i] == 0) {
+			if (interrupted) resume_order(i);
+			else if (units_.order_kind[i] != ORDER_NONE) finish_order(i);
+			continue;
+		}
+		if (now == ACTION_IDLE) {
+			if (interrupted) resume_order(i);
+			else if (units_.order_kind[i] != ORDER_NONE) finish_order(i);
+		}
+	}
+	for (size_t i = 0; i < units_.count; ++i) units_.attacked_by[i] = 0;
+}
+
+bool Simulation::can_capture_building(uint8_t player, const Building &b) const {
+	if (b.wrecked || b.hp <= 0.0f || b.build_progress < 1.0f || b.max_capture_points <= 0.0f) return false;
+	if (player >= MAX_PLAYERS || ceasefire_active()) return false;
+	if (b.team < MAX_PLAYERS && (b.team == player || is_ally(player, b.team))) return false; // UnitAI CanAttack: not our own
+	// Capturable.CanCapture: some of the points belong to an enemy of the capturer (or to Gaia).
+	float held = 0.0f;
+	for (int t = 0; t < MAX_PLAYERS; ++t) {
+		const float p = b.capture_points_by_team[t];
+		held += p;
+		if (p > 0.0f && t != player && is_hostile(player, (uint8_t)t)) return true;
+	}
+	return b.team >= MAX_PLAYERS && held < b.max_capture_points;
+}
+
+void Simulation::destroy_building(Building &b) {
+	order_ungarrison(b.id);
+	b.garrisoned_units.clear();
+	cancel_upgrade(b, b.team);
+	b.wrecked = true;
+	b.hp = 0.0f;
+	b.build_progress = 0.0f;
+	record_death((float)b.cell_x, (float)b.cell_y, b.team, b.team, b.type, true); // no killer, no loot
+	rebuild_nav_grid();
+	if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER) rebuild_territory();
+}
+
+void Simulation::cmd_delete(uint8_t player, const uint32_t *ids, size_t count) {
+	for (size_t k = 0; k < count; ++k) {
+		const uint32_t id = ids[k];
+		const int32_t i = lookup_unit(id);
+		if (i >= 0 && units_.alive[i] && units_.team[i] == player) {
+			units_.hp[i] = 0.0f;
+			units_.alive[i] = 0;
+			units_.action_state[i] = ACTION_DYING;
+			order_queues_.erase(id);
+			record_death(units_.pos_x[i], units_.pos_z[i], player, player, units_.unit_type[i], false);
+			continue;
+		}
+		auto it = building_id_to_idx_.find(id);
+		if (it == building_id_to_idx_.end()) continue;
+		Building &b = buildings_[it->second];
+		if (b.team != player || b.wrecked) continue;
+		// Commands.js delete-entities: not while the owner holds under half the capture points.
+		if (b.max_capture_points > 0.0f && b.build_progress >= 1.0f &&
+				b.capture_points_by_team[player] < b.max_capture_points * 0.5f)
+			continue;
+		destroy_building(b);
+	}
+}
+
+void Simulation::order_back_to_work(const uint32_t *unit_ids, size_t count) {
+	for (size_t k = 0; k < count; ++k) {
+		const int32_t i = lookup_unit(unit_ids[k]);
+		if (i < 0 || !units_.alive[i] || units_.work_kind[i] == ORDER_NONE) continue;
+		UnitOrder o;
+		o.kind = units_.work_kind[i];
+		o.target = units_.work_target[i];
+		order_queues_.erase(unit_ids[k]);
+		if (o.kind == ORDER_GATHER && !order_still_valid((size_t)i, o)) {
+			o.target = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], units_.res_type_carried[i], units_.team[i]);
+			if (o.target == 0) continue;
+		}
+		if (!order_still_valid((size_t)i, o)) continue;
+		apply_order(unit_ids[k], o);
 	}
 }
 
@@ -9776,7 +10340,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 every player's StatisticsTracker
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 every player's StatisticsTracker
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 
@@ -10591,7 +11155,34 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	if (ar.version >= 17)
 		for (size_t r = 0; r < s.resources_.count; ++r) ar.pod(s.resources_.subtype[r]);
 
-	// 5. StatisticsTracker (save v20). Older saves start the counters at zero.
+	// 4. UnitAI orders (save v20): each unit's order, last attacker and work order,
+	// then the order queues by unit id.
+	if (ar.version >= SAVE_VERSION_UNIT_ORDERS) {
+		for (size_t i = 0; i < U.count; ++i) {
+			ar.pod(U.order_kind[i]); ar.pod(U.order_flags[i]); ar.pod(U.order_target[i]);
+			ar.pod(U.order_x[i]); ar.pod(U.order_z[i]); ar.pod(U.order_x2[i]); ar.pod(U.order_z2[i]);
+			ar.pod(U.attacked_by[i]); ar.pod(U.work_kind[i]); ar.pod(U.work_target[i]);
+		}
+		std::vector<std::pair<uint32_t, std::vector<UnitOrder>>> queues(s.order_queues_.begin(), s.order_queues_.end());
+		std::sort(queues.begin(), queues.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
+		io_vec(ar, queues, S::UNIT_CAP, [&](std::pair<uint32_t, std::vector<UnitOrder>> &kv) {
+			ar.pod(kv.first);
+			io_vec_pod(ar, kv.second, 64);
+		});
+		if constexpr (Ar::loading) {
+			s.order_queues_.clear();
+			for (auto &kv : queues) s.order_queues_[kv.first] = std::move(kv.second);
+		}
+	} else if constexpr (Ar::loading) {
+		for (size_t i = 0; i < U.count; ++i) {
+			U.order_kind[i] = ORDER_NONE; U.order_flags[i] = 0; U.order_target[i] = 0;
+			U.order_x[i] = U.order_x2[i] = U.pos_x[i]; U.order_z[i] = U.order_z2[i] = U.pos_z[i];
+			U.attacked_by[i] = 0; U.work_kind[i] = ORDER_NONE; U.work_target[i] = 0;
+		}
+		s.order_queues_.clear();
+	}
+
+	// 5. StatisticsTracker (save v21). Older saves start the counters at zero.
 	if (ar.version < S::SAVE_VERSION_STATISTICS) return;
 	static_assert(sizeof(PlayerStatistics) == 4 * 91 && sizeof(StatisticsSample) == 4 + 8 * sizeof(PlayerStatistics) + 4 * 32,
 	              "PlayerStatistics holds 4-byte fields only (saved raw); update the sizes when adding one");
@@ -10916,6 +11507,7 @@ void Simulation::order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fau
 		if (uidx < 0 || !units_.alive[uidx]) continue;
 		units_.action_state[uidx] = ACTION_ATTACK;
 		units_.has_order[uidx] = 1;
+		drop_orders(uidx);
 		units_.target_unit_id[uidx] = fauna_id;
 		units_.target_x[uidx] = fauna_.pos_x[fidx];
 		units_.target_z[uidx] = fauna_.pos_z[fidx];
