@@ -19,6 +19,9 @@ Typical before/after flow for a change:
   python3 tools/bench_match.py --baseline /tmp/before.json
 
 Timings depend on the machine, so only compare runs made on the same box.
+Take the baseline from the same base commit you branched from: gameplay fixes
+on main (gathering, construction, AI) change the AI end state and the per-tick
+load a lot, so a baseline from an older main is not comparable.
 --fail-over PCT exits 1 when tick p95 regresses by more than PCT percent
 against --baseline.
 
