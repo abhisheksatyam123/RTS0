@@ -21,6 +21,7 @@ Vendor JS/C++ under `src/0ad/` and `/home/abhi/project/0ad` is **reference only*
 | JPS long pathfinder + dirty chunks | `LongPathfinder.cpp` `ComputeJPSPath`, `HierarchicalPathfinder.cpp:480` | `nav/long_pathfinder.h` used by `find_path` (PR #1); `rebuild_dirty_chunks` |
 | Cavalry slope class | `Pathfinding.h` passability classes | `grid_nav.h` `PASS_CAVALRY` + `steep_cells_`, own region map |
 | Idle ship `moveApart` | `navalManager.js:568` | `petra_manage_naval` nudge off dock |
+| Formations | `Formation.js`, `Commands.js` `GetFormationUnitAIs`, `UnitAI.js` `CanUseFormation`, `Player.js` `GetFormations`, `special/formations/*.xml` | `formation.h`, `formation_data.h` (`tools/extract_0ad_formations.py`), `tick_formations`; lockstep cmd 8; `tools/test_formations.cpp` |
 
 Verify: `python3 tools/check_parity.py --unit petra` and `--unit netcode`.
 
@@ -123,6 +124,7 @@ To preserve determinism and avoid regression in live multiplayer playtests:
 
 - **Component parity tests:** replace the broad 11-tick coverage estimate with per-component behavioral tests for weapons, research, vision, construction and victory conditions (see the G1–G10 table for what is already probed).
 - **Platform validation:** Windows/Linux plus Android/iOS export and runtime checks (`docs/BUILD.md`).
+- **Formation remainder:** twin-formation merge, `CanAttackAsFormation` (`FormationAttack.js`), formation patrol/guard orders, formation animation variants, Scatter (gaia only). Petra still writes the formation byte; the AI thread removes it (0 A.D. Petra uses no formations).
 - **Asset long tail:** high-use 0 A.D. actors beyond the canonical roster ([ASSET_MANIFEST_TODO.md](ASSET_MANIFEST_TODO.md)).
 
 ### P5 — Ranked lockstep (optional, last)
