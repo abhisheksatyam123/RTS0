@@ -17,6 +17,7 @@
 #include <godot_cpp/classes/audio_stream_player3d.hpp>
 #include <godot_cpp/classes/audio_stream.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
+#include <memory>
 #include <unordered_map>
 #include <vector>
 
@@ -65,7 +66,7 @@ class RtsoWorldView : public Node3D {
 		uint8_t phase = 0; // 0 complete, 1 prebuild, 2 construct, 3 collapse, 4 rubble
 		float phase_t = 0.0f;
 		float build_progress = 1.0f;
-		float fog_dim = 1.0f; // brightness last pushed to the fog overlay
+		float fog_dim = -1.0f; // overlay level last pushed (-1: none yet)
 		String model_id;
 	};
 
@@ -117,30 +118,34 @@ class RtsoWorldView : public Node3D {
 	Ref<StandardMaterial3D> hp_red_mat;
 	Ref<StandardMaterial3D> hp_blue_mat;
 
-	// Crowd units: MultiMesh per (civ-bank, UnitType, anim clip).
-	// Bank 0 = player civ meshes, bank 1 = AI civ meshes.
-	static constexpr int CROWD_BANK_COUNT = 2;
-	static constexpr int CROWD_CLIP_COUNT = 4;
+	// Crowd units: one MultiMesh per (civ, UnitType, crowd clip), made the first
+	// time a unit of that civ and type shows, so every civ in the match renders
+	// with its own 0 A.D. models. Each clip is a few baked poses cycled in place.
+	static constexpr int CROWD_CLIP_COUNT = 16; // see kCrowdClips in world_view_node.cpp
+	static constexpr int FAUNA_CLIP_COUNT = 4;  // idle, move, attack, death
 	static constexpr int CROWD_FRAMES_PER_CLIP = 6;
-	MultiMeshInstance3D *unit_mmi[CROWD_BANK_COUNT][rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT] = {};
-	Ref<MultiMesh> unit_mm[CROWD_BANK_COUNT][rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT];
 	struct CrowdPuppet {
-		Node *root = nullptr;
-		AnimationPlayer *anim = nullptr;
 		String clip;
 		Ref<ArrayMesh> posed_frames[CROWD_FRAMES_PER_CLIP];
 		int baked_count = 0;
 		int last_frame = -1;
-		rtso::ModelLibrary::CrowdSkin skin;
 	};
-	CrowdPuppet unit_puppet[CROWD_BANK_COUNT][rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT] = {};
-	bool unit_puppet_baked[CROWD_BANK_COUNT][rtso::UNIT_TYPE_COUNT] = {};
+	struct CrowdBatch {
+		MultiMeshInstance3D *mmi[CROWD_CLIP_COUNT] = {};
+		Ref<MultiMesh> mm[CROWD_CLIP_COUNT];
+		CrowdPuppet puppet[CROWD_CLIP_COUNT];
+		bool clip_baked[CROWD_CLIP_COUNT] = {};
+		Ref<Mesh> rest;
+		bool no_scene = false; // model has no skinned scene: rest pose only
+	};
+	std::unique_ptr<CrowdBatch> crowd_[rtso::CIV_COUNT][rtso::UNIT_TYPE_COUNT];
 	Node3D *crowd_bake_root = nullptr;
+	std::vector<uint8_t> crowd_slot_scratch_; // crowd clip slot per unit index this frame
 
 	// wildlife fauna batched (idle / move / attack / death)
-	MultiMeshInstance3D *fauna_mmi[rtso::FAUNA_COUNT][CROWD_CLIP_COUNT] = {};
-	Ref<MultiMesh> fauna_mm[rtso::FAUNA_COUNT][CROWD_CLIP_COUNT];
-	CrowdPuppet fauna_puppet[rtso::FAUNA_COUNT][CROWD_CLIP_COUNT] = {};
+	MultiMeshInstance3D *fauna_mmi[rtso::FAUNA_COUNT][FAUNA_CLIP_COUNT] = {};
+	Ref<MultiMesh> fauna_mm[rtso::FAUNA_COUNT][FAUNA_CLIP_COUNT];
+	CrowdPuppet fauna_puppet[rtso::FAUNA_COUNT][FAUNA_CLIP_COUNT] = {};
 	bool fauna_puppet_baked[rtso::FAUNA_COUNT] = {};
 
 	std::unordered_map<uint32_t, float> crowd_yaw;
@@ -217,11 +222,21 @@ private:
 	PackedByteArray los_bytes_;
 	float los_upload_timer_ = 0.0f;
 	float los_half_ = 0.0f;
-	Ref<ShaderMaterial> fog_overlay_mat_; // multiplies a fogged structure by its LOS brightness
+	static constexpr int FOG_OVERLAY_LEVELS = 17;
+	Ref<ShaderMaterial> fog_overlay_mats_[FOG_OVERLAY_LEVELS]; // multiply a fogged structure by its LOS brightness
 	void update_fog(const rtso::Simulation *sim, float delta);
 	void bind_los(const Ref<Material> &mat);
 	float los_brightness(float x, float z) const;
 	void set_fog_overlay(Node *n, float brightness);
+
+	// Territory borders draped on the terrain (0 A.D. CCmpTerritoryManager
+	// boundary lines), rebuilt when the territory grid changes.
+	MeshInstance3D *border_mi_ = nullptr;
+	Ref<ArrayMesh> border_mesh_;
+	Ref<ShaderMaterial> border_mat_;
+	std::vector<uint8_t> border_grid_cache_;
+	float border_half_ = 0.0f;
+	void update_territory_borders(const rtso::Simulation *sim);
 	Ref<MultiMesh> create_multimesh(const Ref<Mesh> &mesh, bool use_colors = false);
 	UnitVis &acquire_unit_slot(uint32_t sim_id);
 	BuildingVis &acquire_building_slot(uint32_t sim_id);
@@ -231,11 +246,13 @@ private:
 	static Node *instantiate_building_id(const String &id);
 	void play_unit_clip(UnitVis &v, const StringName &clip, bool loop);
 	void hide_unit_vis(UnitVis &v);
-	void ensure_unit_batches(const rtso::Simulation *sim);
-	void bake_puppet_clips(CrowdPuppet *row, AnimationPlayer *ap,
-			rtso::ModelLibrary::CrowdSkin &skin, bool skinned);
-	void cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts);
-	void ensure_crowd_frames(int bank, uint8_t utype, uint8_t civ);
+	CrowdBatch &crowd_batch(uint8_t civ, uint8_t utype);
+	MultiMesh *crowd_mm(CrowdBatch &b, int clip);
+	// Bakes the skinned poses of every clip in `want` (array of ClipId) that `done` lacks.
+	void bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, const uint8_t *want,
+			const bool *needed, int count, int death_slot);
+	void cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts, int count, int death_slot);
+	void ensure_crowd_frames(uint8_t civ, uint8_t utype, const int *counts);
 	void ensure_fauna_frames(uint8_t ftype);
 	void init_animation_controllers();
 };
