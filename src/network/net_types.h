@@ -144,6 +144,9 @@ enum class NetCommandType : uint8_t {
 	NET_CMD_TRIBUTE        = 27,
 	// 0 A.D. Gate.js LockGate / UnlockGate. target_id = gate, param = 1 lock / 0 unlock.
 	NET_CMD_LOCK_GATE      = 28,
+	// 0 A.D. Pack / Unpack command (UnitAI Order.Pack / Order.Unpack) on the
+	// selected siege engines. param = 1 pack / 0 unpack; see Simulation::order_pack.
+	NET_CMD_PACK           = 29,
 };
 
 struct NetCommand {
