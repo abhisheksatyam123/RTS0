@@ -6546,14 +6546,25 @@ void Simulation::tick_unit_ai(float dt) {
 				}
 			}
 		}
-		// Formation members take their orders from the controller (UnitAI FORMATIONMEMBER):
-		// tick_formations brings them back after a fight, so they don't resume their own.
-		if (!formations_.empty() && formation_group_[i] != 0) continue;
 		const uint8_t now = units_.action_state[i];
 		const bool interrupted = (units_.order_flags[i] & ORDER_FLAG_INTERRUPTED) != 0;
 		if (now == ACTION_HEAL) { tick_heal(i); continue; }
 		if (now == ACTION_CHEER) {
 			if (units_.attack_timer[i] <= 0.0f) units_.action_state[i] = ACTION_IDLE;
+			continue;
+		}
+		// Formation members take their orders from the controller (UnitAI FORMATIONMEMBER):
+		// tick_formations brings them back after a fight or a flight, so they don't resume their own.
+		if (!formations_.empty() && formation_group_[i] != 0) {
+			if (now == ACTION_FLEE) {
+				const float dx = units_.target_x[i] - units_.pos_x[i], dz = units_.target_z[i] - units_.pos_z[i];
+				if (dx * dx + dz * dz <= 1.0f || units_.attack_timer[i] <= 0.0f) {
+					units_.attack_timer[i] = 0.0f;
+					units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_INTERRUPTED;
+					units_.action_state[i] = ACTION_IDLE;
+					units_.has_order[i] = 0;
+				}
+			}
 			continue;
 		}
 		// Garrison: get in once within LoadingRange; give up if the walk ends short of it.
