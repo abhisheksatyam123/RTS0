@@ -8708,6 +8708,54 @@ bool Simulation::petra_raid_target_ok(uint32_t bld_id) const {
 	return petra_foe(b.team) && b.hp > 0 && territory_owner_at(b.x, b.z) == (int)petra_pid_;
 }
 
+// entityExtend.js allowCapture: capture a structure only when the squad's
+// capture strength beats its regeneration plus a share of its points (1/50 of
+// them for a garrisoned structure that shoots, 1/80 otherwise); a damaged
+// structure is easier. (0 A.D.'s always-recapture-from-an-ally case can't arise:
+// can_capture_building refuses allied structures.) The strength is the summed
+// Capture attack of the squad's units on the target or capturing within 20 m of
+// it (HQ.capturableTargets), with no capture bonuses in RTS0.
+bool Simulation::petra_allow_capture(const std::vector<uint32_t> &squad, uint32_t uid, const Building &b) const {
+	const int32_t idx = lookup_unit(uid);
+	if (idx < 0 || !units_.alive[idx] || unit_capture_strength(units_.unit_type[idx]) <= 0.0f) return false;
+	if (!can_capture_building(petra_pid_, b)) return false;
+	const int ground = territory_owner_at(b.x, b.z);
+	const bool decaying = b.territory_decay_rate > 0.0f && b.team < MAX_PLAYERS && ground >= 0 && ground < MAX_PLAYERS &&
+			ground != b.team && !is_ally((uint8_t)ground, b.team);
+
+	float anti = b.capture_regen_rate + b.capture_garrison_regen_rate * (float)b.garrisoned_units.size();
+	if (decaying) anti -= b.territory_decay_rate;
+	float capture = unit_capture_strength(units_.unit_type[idx]);
+	for (uint32_t other : squad) {
+		const int32_t j = lookup_unit(other);
+		if (other == uid || j < 0 || !units_.alive[j]) continue;
+		// Squad mates on the structure, or capturing ones closing in on it.
+		const float dx = units_.pos_x[j] - b.x, dz = units_.pos_z[j] - b.z;
+		const bool near = (units_.order_flags[j] & ORDER_FLAG_ALLOW_CAPTURE) && dx * dx + dz * dz <= 400.0f;
+		if (units_.target_building_id[j] == b.id || near) capture += unit_capture_strength(units_.unit_type[j]);
+	}
+	const float health = b.max_hp > 0.0f ? std::clamp(b.hp / b.max_hp, 0.0f, 1.0f) : 1.0f;
+	capture /= 0.1f + 0.9f * health;
+	const float points = std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f);
+	const bool fires = building_type_info(b.type).attack_damage > 0.0f && !b.garrisoned_units.empty();
+	return capture > anti + points / (fires ? 50.0f : 80.0f);
+}
+
+// attackPlan.js update: a unit capturing a structure it can't take switches to
+// damaging it (ent.attack(target, false)), then carries on to the attack target.
+void Simulation::petra_check_captures(const std::vector<uint32_t> &squad, float tx, float tz) {
+	for (uint32_t uid : squad) {
+		const int32_t idx = lookup_unit(uid);
+		if (idx < 0 || !units_.alive[idx] || !(units_.order_flags[idx] & ORDER_FLAG_ALLOW_CAPTURE)) continue;
+		const uint32_t target = units_.target_building_id[idx];
+		if (target == 0 || units_.action_state[idx] == ACTION_BUILD) continue;
+		auto it = building_id_to_idx_.find(target);
+		if (it == building_id_to_idx_.end() || petra_allow_capture(squad, uid, buildings_[it->second])) continue;
+		order_attack_building(&uid, 1, target, false, false);
+		order_attack_move(&uid, 1, tx, tz, true, false, true);
+	}
+}
+
 void Simulation::petra_manage_tactical_attacks(float dt) {
 	petra_attack_plan_.state_timer += dt;
 	petra_strike_force_.state_timer += dt;
@@ -8966,10 +9014,10 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 					// Specialized siege assault: siege weapons focus on fortifications, escort defends siege weapons
 					order_attack_building(siege_uids.data(), siege_uids.size(), target_id);
 					if (!escort_uids.empty()) {
-						order_attack_move(escort_uids.data(), escort_uids.size(), tx, tz);
+						order_attack_move(escort_uids.data(), escort_uids.size(), tx, tz, false, false, true);
 					}
 				} else {
-					order_attack_move(squad.data(), squad.size(), tx, tz);
+					order_attack_move(squad.data(), squad.size(), tx, tz, false, false, true);
 				}
 
 				petra_attack_plan_.state = AttackPlan::ATTACKED;
@@ -9022,6 +9070,7 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 				}
 			}
 
+			petra_check_captures(squad, petra_attack_plan_.target_x, petra_attack_plan_.target_z);
 			if (!target_alive || petra_attack_plan_.state_timer >= 25.0f) {
 				float tx = 0.0f, tz = 0.0f;
 				uint32_t next_id = petra_next_target(tx, tz);
@@ -9046,9 +9095,9 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 
 					if (petra_attack_plan_.type == AttackPlan::PLAN_SIEGE && !siege_uids.empty()) {
 						order_attack_building(siege_uids.data(), siege_uids.size(), next_id);
-						if (!escort_uids.empty()) order_attack_move(escort_uids.data(), escort_uids.size(), tx, tz);
+						if (!escort_uids.empty()) order_attack_move(escort_uids.data(), escort_uids.size(), tx, tz, false, false, true);
 					} else {
-						order_attack_move(squad.data(), squad.size(), tx, tz);
+						order_attack_move(squad.data(), squad.size(), tx, tz, false, false, true);
 					}
 					petra_attack_plan_.state_timer = 0.0f;
 				} else {
@@ -9283,9 +9332,9 @@ void Simulation::petra_manage_raid(float dt) {
 		// crosses water boards a transport instead of issuing a ground move.
 		if (petra_path_crosses_water(base_x, base_z, tx, tz)) {
 			if (!petra_start_transport(plan.squad, base_x, base_z, tx, tz))
-				order_attack_move(plan.squad.data(), plan.squad.size(), tx, tz);
+				order_attack_move(plan.squad.data(), plan.squad.size(), tx, tz, false, false, true);
 		} else {
-			order_attack_move(plan.squad.data(), plan.squad.size(), tx, tz);
+			order_attack_move(plan.squad.data(), plan.squad.size(), tx, tz, false, false, true);
 		}
 		return;
 	}
@@ -9315,7 +9364,7 @@ void Simulation::petra_manage_raid(float dt) {
 				plan.target_building_id = tid;
 				plan.target_x = tx;
 				plan.target_z = tz;
-				order_attack_move(plan.squad.data(), plan.squad.size(), tx, tz);
+				order_attack_move(plan.squad.data(), plan.squad.size(), tx, tz, false, false, true);
 			} else {
 				plan.state = AttackPlan::REGROUP;
 				plan.retreat_x = base_x;
@@ -9333,6 +9382,7 @@ void Simulation::petra_manage_raid(float dt) {
 				cmd_move(plan.squad.data(), plan.squad.size(), base_x, base_z);
 		} else {
 			plan.state = AttackPlan::ATTACKED;
+			petra_check_captures(plan.squad, plan.target_x, plan.target_z);
 		}
 		return;
 	}
