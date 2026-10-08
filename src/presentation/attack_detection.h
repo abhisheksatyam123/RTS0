@@ -9,6 +9,7 @@
 // (160 m, 80 m, 60 s), scaled to RTS0 world units (~4 m each, like ranges in
 // sim_types.h). Presentation only: never read by the simulation.
 
+#include <algorithm>
 #include <vector>
 
 namespace rtso {
@@ -57,6 +58,69 @@ private:
 		}
 	}
 	std::vector<Event> suppressed_;
+};
+
+// Port of 0 A.D. simulation/components/BattleDetection.js with the
+// template_player.xml values: damage the player deals to other players is
+// summed per 200 ms period over the last 12 periods; when the rate exceeds
+// 0.04 hp/ms alertness rises (up to 8), otherwise it falls. Alertness 4 means
+// BATTLE, 0 means PEACE. Drives the battle music (gui/session/session.js:747).
+class BattleDetection {
+public:
+	static constexpr double kInterval = 0.2; // TimerInterval, seconds
+	static constexpr int kRecordLength = 12;
+	static constexpr double kDamageRateThreshold = 0.04; // per millisecond
+	static constexpr int kBattleThreshold = 4;
+	static constexpr int kPeaceThreshold = 0;
+	static constexpr int kAlertnessMax = 8;
+
+	// Damage the player dealt to another (non-Gaia) player at game time t.
+	void add_damage(float dmg, double t) {
+		if (!timer_running_) {
+			timer_running_ = true;
+			next_tick_ = t; // StartTimer(0, interval)
+			record_control_ = 0;
+			damage_ = 0;
+		}
+		damage_ += dmg;
+	}
+
+	// Runs the 200 ms timer up to game time t.
+	void update(double t) {
+		while (timer_running_ && t >= next_tick_) {
+			next_tick_ += kInterval;
+			tick();
+		}
+	}
+
+	bool in_battle() const { return battle_; }
+	int alertness() const { return alertness_; }
+
+private:
+	void tick() {
+		record_.insert(record_.begin(), damage_);
+		if ((int)record_.size() > kRecordLength) record_.resize(kRecordLength);
+		damage_ = 0;
+		if (!alertness_ || record_control_++ == kRecordLength - 1) {
+			double sum = 0;
+			for (double d : record_) sum += d;
+			const double rate = sum / (kRecordLength * kInterval * 1000.0);
+			if (rate > kDamageRateThreshold) alertness_ = std::min(kAlertnessMax, alertness_ + 1);
+			else alertness_ = std::max(0, alertness_ - 1);
+			if (!alertness_) timer_running_ = false;
+			if (alertness_ >= kBattleThreshold) battle_ = true;
+			else if (alertness_ <= kPeaceThreshold) battle_ = false;
+		}
+		if (record_control_ > kRecordLength - 1) record_control_ = 0;
+	}
+
+	std::vector<double> record_;
+	double damage_ = 0;
+	double next_tick_ = 0;
+	int alertness_ = 0;
+	int record_control_ = 0;
+	bool timer_running_ = false;
+	bool battle_ = false;
 };
 
 } // namespace rtso
