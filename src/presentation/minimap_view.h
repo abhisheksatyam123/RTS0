@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <vector>
 #include "../simulation/simulation.h"
+#include "fog_mirage.h"
 
 using namespace godot;
 
@@ -45,6 +46,10 @@ class RtsoMiniMapView : public Control {
 		SHROUD_OFF = 2, // shroud off (observer / replay view)
 	};
 	int shroud_mode = SHROUD_ON;
+	// What the local player knows (0 A.D. Fogging.js): the minimap draws enemy
+	// structures and resources from this, never from live sim state, whatever
+	// the shroud mode (MiniMapTexture draws only entities the player can see).
+	rtso::FogMirages mirages_;
 	std::vector<MapPing> pings;
 
 	// Territory tint overlay — docs/REMAINING_GAPS.md:148 "upload territory_grid_
