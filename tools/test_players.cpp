@@ -28,7 +28,7 @@ int main() {
 	CHECK(s.food() == 350 && s.wood() == 450 && s.gold() == 300 && s.stone() == 250);
 	for (uint8_t p = 1; p < MAX_PLAYERS; ++p) {
 		CHECK(s.player(p).food() == 400.0f && s.player(p).wood() == 600.0f);
-		CHECK(s.player(p).phase == 1 && s.player(p).tech_mask == 0);
+		CHECK(s.player(p).phase == 1 && s.player(p).techs.empty());
 		CHECK(s.player_team(p) == p); // free-for-all by default
 	}
 	CHECK(s.ai_food() == s.player(Simulation::PETRA_PLAYER).food());
@@ -61,6 +61,7 @@ int main() {
 	fresh(s);
 	s.set_player_resources(0, 5000, 5000, 5000, 5000);
 	uint32_t tc0 = s.spawn_building_world(-30.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	for (int h = 0; h < 5; ++h) s.spawn_building_world(-20.0f + 6.0f * h, 10.0f, BLD_HOUSE, 0, 1.0f); // Town Phase needs 5 village structures
 	CHECK(s.cmd_research(0, tc0, TECH_PHASE_TOWN));
 	for (int t = 0; t < 20 * 400 && s.player_phase() < 2; ++t) s.tick(Simulation::FIXED_STEP);
 	CHECK(s.player_phase() == 2);
@@ -106,7 +107,8 @@ int main() {
 		s.set_player_team(p, p / 2);
 		s.set_player_active(p, true, p != 0);
 	}
-	s.player(6).tech_mask = 0x5u;
+	s.player(6).techs.set(TECH_PHASE_TOWN);
+	s.player(6).techs.set(200); // ids past 64 survive the round trip too
 	s.player(6).phase = 3;
 	const char *path = "/tmp/rts0_test_players.sav";
 	CHECK(s.save_state(path));
@@ -116,7 +118,7 @@ int main() {
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
 		const PlayerState &a = s.player(p), &b = l.player(p);
 		for (int r = 0; r < RES_COUNT; ++r) CHECK(a.res[r] == b.res[r]);
-		CHECK(a.tech_mask == b.tech_mask && a.phase == b.phase && a.civ == b.civ);
+		CHECK(a.techs == b.techs && a.phase == b.phase && a.civ == b.civ);
 		CHECK(a.team == b.team && a.active == b.active && a.is_ai == b.is_ai);
 	}
 	TurnManager tm;

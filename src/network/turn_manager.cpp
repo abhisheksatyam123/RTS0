@@ -362,7 +362,7 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
 		const PlayerState &ps = sim.player(p);
 		for (float r : ps.res) mix_float(r);
-		mix_u32(ps.tech_mask);
+		for (uint64_t w : ps.techs.words) { mix_u32((uint32_t)w); mix_u32((uint32_t)(w >> 32)); }
 		mix_u8(ps.phase);
 		mix_u8(ps.civ);
 		mix_u8(ps.team);

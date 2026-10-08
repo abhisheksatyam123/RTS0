@@ -282,6 +282,7 @@ public:
 	PackedStringArray get_available_maps() const;
 	void set_civ(int civ_idx);
 	Dictionary get_civ_info(int civ_idx) const;
+	Dictionary get_tech_tree() const;
 	Dictionary get_match_summary() const;
 	bool save_game(String path = "user://saves/quicksave.rts0sav");
 	bool load_game(String path = "user://saves/quicksave.rts0sav");

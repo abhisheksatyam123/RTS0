@@ -249,18 +249,6 @@ enum UnitFormation : uint8_t {
 	FORMATION_SHIPS_FLANK = FORMATION_FLANK
 };
 
-enum TechnologyId : uint8_t {
-	TECH_NONE = 0,
-	TECH_PHASE_TOWN = 1,
-	TECH_PHASE_CITY = 2,
-	TECH_FARMING_1 = 3,
-	TECH_WOODCUTTING_1 = 4,
-	TECH_MINING_1 = 5,
-	TECH_WEAPONS_1 = 6,
-	TECH_ARMOR_1 = 7,
-	TECH_COUNT = 8
-};
-
 enum StatusEffect : uint8_t {
 	EFFECT_NONE = 0,
 	EFFECT_POISON = 1,
@@ -536,6 +524,21 @@ inline uint8_t building_required_phase(uint8_t type) {
 	}
 }
 
+// 0 A.D. VisibleClasses "Village" (1) / "Town" (2): the structures that count
+// toward phase_town_generic (five Village) and phase_city_generic (three Town).
+// Civic centres, fields, towers and walls count toward neither.
+inline uint8_t building_phase_class(uint8_t type) {
+	switch (type) {
+		case BLD_HOUSE: case BLD_BARRACKS: case BLD_STOREHOUSE: case BLD_FARMSTEAD:
+		case BLD_DOCK: case BLD_CORRAL: case BLD_STABLE: case BLD_RANGE:
+			return 1;
+		case BLD_MARKET: case BLD_TEMPLE: case BLD_FORGE: case BLD_EMBASSY:
+			return 2;
+		default:
+			return 0;
+	}
+}
+
 // 0 A.D. template_structure_resource_field ResourceSupply.
 constexpr int32_t FIELD_FOOD_SUPPLY = 1000000000; // <Max>Infinity</Max>
 constexpr int FIELD_MAX_GATHERERS = 5;            // <MaxGatherers>
@@ -559,6 +562,31 @@ inline const char *building_type_name(uint8_t type) { return building_type_info(
 inline const char *building_type_model(uint8_t type) { return building_type_info(type).model_id; }
 inline const char *building_type_portrait(uint8_t type) { return building_type_info(type).portrait_id; }
 
+// Technology modifiers: a subset of 0 A.D.'s ModificationTemplates paths that
+// RTS0's simulation applies (tech_data.h maps each 0 A.D. path to one of these).
+enum TechStat : uint8_t {
+	TSTAT_NONE = 0,
+	TSTAT_GATHER_GRAIN, TSTAT_GATHER_FRUIT, TSTAT_GATHER_MEAT, TSTAT_GATHER_FISH,
+	TSTAT_GATHER_WOOD, TSTAT_GATHER_STONE, TSTAT_GATHER_METAL,
+	TSTAT_CARRY_FOOD, TSTAT_CARRY_WOOD, TSTAT_CARRY_STONE, TSTAT_CARRY_METAL,
+	TSTAT_MELEE_HACK, TSTAT_MELEE_PIERCE, TSTAT_MELEE_CRUSH,
+	TSTAT_RANGED_HACK, TSTAT_RANGED_PIERCE, TSTAT_RANGED_CRUSH,
+	TSTAT_ARMOR_HACK, TSTAT_ARMOR_PIERCE, TSTAT_ARMOR_CRUSH,
+	TSTAT_HEALTH, TSTAT_SPEED, TSTAT_POP_BONUS, TSTAT_TRADE_GAIN, TSTAT_RANGE,
+	TSTAT_BUILD_TIME, TSTAT_HEAL_RANGE, TSTAT_HEAL_INTERVAL, TSTAT_ARROWS,
+	TSTAT_COUNT
+};
+
+enum TechOp : uint8_t { TOP_MUL = 0, TOP_ADD = 1 };
+
+struct TechEffect {
+	uint8_t stat;          // TechStat
+	uint8_t op;            // TechOp
+	uint16_t affects;      // first row in tech_affects_table(), 0 = applies to everything
+	uint16_t affects_count; // alternatives (OR); each row is an AND of classes
+	float value;
+};
+
 struct TechInfo {
 	const char *name;
 	const char *desc;
@@ -567,22 +595,101 @@ struct TechInfo {
 	int gold_cost;
 	int stone_cost;
 	float research_time;
-	uint8_t required_phase;
+	uint8_t required_phase; // 1 = village, 2 = town, 3 = city
+	uint8_t researcher;     // BuildingType that researches it
+	uint8_t prerequisite;   // another TechnologyId, or TECH_NONE
+	uint16_t civ_mask;      // bit per Civilization allowed to research it
+	uint16_t effect_begin;  // index into tech_effects_table()
+	uint16_t effect_count;
+	const char *template_name; // 0 A.D. technology file name
 };
 
-inline const TechInfo &tech_info(uint8_t tech_id) {
-	static const TechInfo kTable[TECH_COUNT] = {
-		{"None", "", 0, 0, 0, 0, 0.0f, 0},
-		{"Town Phase", "Unlocks Barracks, Defense Towers, and Market technologies.", 200, 200, 100, 0, 30.0f, 1},
-		{"City Phase", "Unlocks Fortresses, Siege weapons, and Imperial tech.", 400, 400, 300, 200, 50.0f, 2},
-		{"Farming Tools", "+25% Food gather rate from fields and forage.", 100, 100, 0, 0, 20.0f, 1},
-		{"Iron Axes", "+25% Wood harvesting speed.", 50, 150, 50, 0, 20.0f, 1},
-		{"Shaft Mining", "+25% Gold and Stone mining rate.", 50, 50, 150, 100, 20.0f, 1},
-		{"Iron Weapons", "+20% Attack damage for infantry and cavalry.", 100, 100, 150, 0, 25.0f, 2},
-		{"Plate Armor", "+3 Hack and Pierce armor for all military units.", 100, 50, 200, 100, 25.0f, 2},
-	};
-	if (tech_id >= TECH_COUNT) return kTable[TECH_NONE];
-	return kTable[tech_id];
+#include "tech_data.h"
+
+// Researched technologies for one player. 256 bits covers every uint8_t id.
+struct TechSet {
+	uint64_t words[4] = {};
+	bool has(uint8_t id) const { return (words[id >> 6] >> (id & 63)) & 1u; }
+	void set(uint8_t id) { words[id >> 6] |= 1ull << (id & 63); }
+	void clear() { words[0] = words[1] = words[2] = words[3] = 0; }
+	bool empty() const { return (words[0] | words[1] | words[2] | words[3]) == 0; }
+	bool operator==(const TechSet &o) const {
+		return words[0] == o.words[0] && words[1] == o.words[1] && words[2] == o.words[2] && words[3] == o.words[3];
+	}
+};
+
+inline bool tech_available_to_civ(uint8_t tech_id, uint8_t civ) {
+	return civ < 16 && (tech_info(tech_id).civ_mask >> civ) & 1u;
+}
+
+// Does an entity with these TechClass bits match effect `e`'s affects list?
+inline bool tech_effect_applies(const TechEffect &e, uint64_t classes) {
+	if (e.affects_count == 0) return true;
+	const TechClassExpr *rows = tech_affects_table() + e.affects;
+	for (uint16_t i = 0; i < e.affects_count; ++i)
+		if ((classes & rows[i].need) == rows[i].need && (classes & rows[i].forbid) == 0) return true;
+	return false;
+}
+
+// 0 A.D. Identity/Classes for RTS0's unit types, as far as technologies need them.
+inline uint64_t unit_tech_classes(uint8_t type) {
+	const uint64_t org = TC_UNIT | TC_ORGANIC;
+	const uint64_t cs = org | TC_SOLDIER | TC_CITIZENSOLDIER | TC_CITIZEN;
+	switch (type) {
+		case UNIT_VILLAGER: return org | TC_WORKER | TC_CITIZEN | TC_CIVILIAN;
+		case UNIT_FEMALE_CITIZEN: return org | TC_WORKER | TC_CITIZEN | TC_CIVILIAN | TC_FEMALECITIZEN;
+		case UNIT_SWORDSMAN: return cs | TC_INFANTRY | TC_MELEE | TC_SWORDSMAN;
+		case UNIT_ARCHER: return cs | TC_INFANTRY | TC_RANGED | TC_ARCHER;
+		case UNIT_SPEARMAN: return cs | TC_INFANTRY | TC_MELEE | TC_SPEARMAN;
+		case UNIT_CAVALRY: return cs | TC_CAVALRY | TC_MELEE;
+		case UNIT_CAMEL: return cs | TC_CAVALRY | TC_MELEE;
+		case UNIT_TRADER: return org | TC_TRADER | TC_CIVILIAN;
+		case UNIT_HEALER: return org | TC_HEALER | TC_CIVILIAN;
+		case UNIT_HERO: return org | TC_HERO | TC_INFANTRY | TC_MELEE;
+		case UNIT_ELEPHANT: return org | TC_SOLDIER | TC_ELEPHANT | TC_CHAMPION | TC_MELEE;
+		case UNIT_CHARIOT: return org | TC_SOLDIER | TC_CAVALRY | TC_CHARIOT | TC_RANGED | TC_CHAMPION;
+		case UNIT_SCYTHED_CHARIOT: return org | TC_SOLDIER | TC_CAVALRY | TC_CHARIOT | TC_MELEE | TC_CHAMPION;
+		case UNIT_WAR_DOG: return org | TC_SOLDIER | TC_DOG | TC_MELEE;
+		case UNIT_CARNYX: return org | TC_SOLDIER | TC_INFANTRY | TC_MELEE;
+		case UNIT_ARCHER_MAIDEN: return org | TC_SOLDIER | TC_INFANTRY | TC_RANGED | TC_ARCHER | TC_CHAMPION;
+		case UNIT_WORKER_ELEPHANT: return org | TC_WORKER | TC_ELEPHANT;
+		case UNIT_CATAPULT: return TC_UNIT | TC_SIEGE | TC_RANGED | TC_STONETHROWER;
+		case UNIT_BOLT_SHOOTER: return TC_UNIT | TC_SIEGE | TC_RANGED | TC_BOLTSHOOTER;
+		case UNIT_SIEGE_RAM: return TC_UNIT | TC_SIEGE | TC_MELEE | TC_RAM;
+		case UNIT_TRIREME: return TC_UNIT | TC_SHIP | TC_WARSHIP | TC_ARROWSHIP | TC_RANGED;
+		case UNIT_FISHING_BOAT: return TC_UNIT | TC_SHIP | TC_FISHINGBOAT;
+		case UNIT_MERCHANT_SHIP: return TC_UNIT | TC_SHIP | TC_TRADER;
+		default: return TC_UNIT;
+	}
+}
+
+inline uint64_t building_tech_classes(uint8_t type) {
+	uint64_t c = TC_STRUCTURE;
+	uint8_t phase = building_required_phase(type);
+	c |= phase == 1 ? TC_VILLAGE : phase == 2 ? TC_TOWN : TC_CITY;
+	switch (type) {
+		case BLD_TOWN_CENTER: return c | TC_CIVCENTRE | TC_CIVIC;
+		case BLD_HOUSE: return c | TC_HOUSE | TC_CIVIC;
+		case BLD_BARRACKS: return c | TC_BARRACKS;
+		case BLD_STOREHOUSE: return c | TC_STOREHOUSE;
+		case BLD_TOWER: return c | TC_TOWER | TC_STONETOWER | TC_DEFENSIVE;
+		case BLD_SENTRY_TOWER: return c | TC_TOWER | TC_SENTRYTOWER | TC_DEFENSIVE;
+		case BLD_WALL_TOWER: return c | TC_WALL | TC_DEFENSIVE;
+		case BLD_FARMSTEAD: return c | TC_FARMSTEAD;
+		case BLD_FIELD: return c | TC_FIELD;
+		case BLD_CORRAL: return c | TC_CORRAL;
+		case BLD_MARKET: return c | TC_MARKET;
+		case BLD_FORTRESS: return c | TC_FORTRESS | TC_DEFENSIVE;
+		case BLD_GATE: case BLD_WALL_SEGMENT: case BLD_PALISADE: return c | TC_WALL | TC_DEFENSIVE;
+		case BLD_TEMPLE: return c | TC_TEMPLE | TC_CIVIC;
+		case BLD_WONDER: return c | TC_WONDER;
+		case BLD_DOCK: return c | TC_DOCK;
+		case BLD_STABLE: case BLD_ELEPHANT_STABLE: return c | TC_STABLE;
+		case BLD_FORGE: return c | TC_FORGE;
+		case BLD_ARSENAL: return c | TC_ARSENAL;
+		case BLD_OUTPOST: return c | TC_OUTPOST | TC_DEFENSIVE;
+		default: return c;
+	}
 }
 
 inline constexpr uint32_t unit_bit(uint8_t type) { return (type < 32) ? (1u << type) : 0u; }

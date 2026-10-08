@@ -1,0 +1,379 @@
+#!/usr/bin/env python3
+"""Generate src/simulation/tech_data.h from 0 A.D.'s technology tree.
+
+Reads 0 A.D.'s public mod (0.28): simulation/data/technologies/*.json for each
+technology's cost, research time, requirements and modifications, and
+simulation/templates/template_structure_*.xml for which structure researches
+it. Only technologies researched at one of RTS0's generic building types are
+kept. Modifications RTS0's simulation can apply become TechEffect rows; the
+others are dropped (the tech stays researchable for whatever effects remain).
+
+Usage:
+    python3 tools/extract_0ad_techs.py --public PATH [--out src/simulation/tech_data.h]
+
+PATH is either 0 A.D.'s public.zip or a directory it was unzipped into.
+The 0 A.D. data is CC BY-SA 3.0, (C) Wildfire Games; see docs/0AD_ATTRIBUTION.md.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import sys
+import xml.etree.ElementTree as ET
+import zipfile
+
+# RTS0 civ id order (sim_types.h Civilization) by 0 A.D. civ code.
+CIVS = ["athen", "spart", "pers", "rome", "cart", "mace", "brit", "gaul",
+        "iber", "maur", "kush", "ptol", "sele", "han"]
+
+# RTS0 BuildingType -> 0 A.D. generic structure template.
+BUILDINGS = [
+    ("BLD_TOWN_CENTER", "template_structure_civic_civil_centre"),
+    ("BLD_HOUSE", "template_structure_civic_house"),
+    ("BLD_BARRACKS", "template_structure_military_barracks"),
+    ("BLD_STOREHOUSE", "template_structure_economic_storehouse"),
+    ("BLD_TOWER", "template_structure_defensive_tower_stone"),
+    ("BLD_FARMSTEAD", "template_structure_economic_farmstead"),
+    ("BLD_MARKET", "template_structure_economic_market"),
+    ("BLD_FORTRESS", "template_structure_military_fortress"),
+    ("BLD_TEMPLE", "template_structure_civic_temple"),
+    ("BLD_WONDER", "template_structure_wonder"),
+    ("BLD_DOCK", "template_structure_military_dock"),
+    ("BLD_CORRAL", "template_structure_resource_corral"),
+    ("BLD_STABLE", "template_structure_military_stable"),
+    ("BLD_FORGE", "template_structure_military_forge"),
+    ("BLD_ARSENAL", "template_structure_military_arsenal"),
+    ("BLD_SENTRY_TOWER", "template_structure_defensive_tower_sentry"),
+    ("BLD_OUTPOST", "template_structure_defensive_outpost"),
+]
+
+# Technologies kept under the legacy RTS0 ids 1..7 (AI and UI refer to them).
+LEGACY = [
+    ("TECH_PHASE_TOWN", "phase_town_generic"),
+    ("TECH_PHASE_CITY", "phase_city_generic"),
+    ("TECH_FARMING_1", "gather_farming_plows"),
+    ("TECH_WOODCUTTING_1", "gather_lumbering_ironaxes"),
+    ("TECH_MINING_1", "gather_mining_wedgemallet"),
+    ("TECH_WEAPONS_1", "soldier_attack_melee_01"),
+    ("TECH_ARMOR_1", "soldier_resistance_hack_01"),
+]
+
+# 0 A.D. class tokens RTS0 knows (sim_types.h TechClass). Unknown tokens in an
+# "affects" expression make it never match (required) or are ignored (!negated).
+CLASSES = [
+    "Unit", "Organic", "Worker", "Citizen", "Civilian", "FemaleCitizen", "Soldier",
+    "CitizenSoldier", "Infantry", "Cavalry", "Melee", "Ranged", "Archer", "Spearman",
+    "Swordsman", "Champion", "Hero", "Elephant", "Siege", "Ram", "BoltShooter",
+    "StoneThrower", "Ship", "Warship", "ArrowShip", "FishingBoat", "Trader", "Healer",
+    "Chariot", "Dog", "Structure", "CivCentre", "House", "Barracks", "Stable", "Tower",
+    "SentryTower", "StoneTower", "Fortress", "Wall", "Temple", "Wonder", "Dock", "Market",
+    "Storehouse", "Farmstead", "Field", "Corral", "Forge", "Arsenal", "Outpost", "Civic",
+    "Defensive", "Village", "Town", "City", "Domestic",
+]
+
+GATHER_KINDS = {"food.grain": "GATHER_GRAIN", "food.fruit": "GATHER_FRUIT",
+                "food.meat": "GATHER_MEAT", "food.fish": "GATHER_FISH",
+                "wood.tree": "GATHER_WOOD", "stone.rock": "GATHER_STONE",
+                "metal.ore": "GATHER_METAL"}
+
+
+def stat_of(path: str):
+    """Map a 0 A.D. modification path to (TechStat, op hint) or None."""
+    m = re.fullmatch(r"ResourceGatherer/Rates/(.+)", path)
+    if m and m.group(1) in GATHER_KINDS:
+        return "TSTAT_" + GATHER_KINDS[m.group(1)]
+    if re.fullmatch(r"ResourceGatherer/Capacities/(food|wood|stone|metal)", path):
+        return "TSTAT_CARRY_" + path.rsplit("/", 1)[1].upper()
+    m = re.fullmatch(r"Attack/(Melee|Ranged)/Damage/(Hack|Pierce|Crush)", path)
+    if m:
+        return "TSTAT_" + m.group(1).upper() + "_" + m.group(2).upper()
+    m = re.fullmatch(r"Resistance/Entity/Damage/(Hack|Pierce|Crush)", path)
+    if m:
+        return "TSTAT_ARMOR_" + m.group(1).upper()
+    return {
+        "Health/Max": "TSTAT_HEALTH",
+        "UnitMotion/WalkSpeed": "TSTAT_SPEED",
+        "Population/Bonus": "TSTAT_POP_BONUS",
+        "Trader/GainMultiplier": "TSTAT_TRADE_GAIN",
+        "Attack/Ranged/MaxRange": "TSTAT_RANGE",
+        "Cost/BuildTime": "TSTAT_BUILD_TIME",
+        "Heal/Range": "TSTAT_HEAL_RANGE",
+        "Heal/Interval": "TSTAT_HEAL_INTERVAL",
+        "BuildingAI/DefaultArrowCount": "TSTAT_ARROWS",
+    }.get(path)
+
+
+class Source:
+    def __init__(self, path: str):
+        self.zip = zipfile.ZipFile(path) if path.endswith(".zip") else None
+        self.root = path
+
+    def read(self, rel: str) -> bytes | None:
+        if self.zip:
+            try:
+                return self.zip.read(rel)
+            except KeyError:
+                return None
+        p = os.path.join(self.root, rel)
+        return open(p, "rb").read() if os.path.exists(p) else None
+
+
+def template_researchables(src: Source, name: str) -> list[str]:
+    """Researcher/Technologies of a template, following parent templates."""
+    data = src.read(f"simulation/templates/{name}.xml")
+    if data is None:
+        data = src.read(f"simulation/templates/mixins/{name}.xml")
+    if data is None:
+        return []
+    root = ET.fromstring(data)
+    techs: list[str] = []
+    for parent in reversed((root.get("parent") or "").split("|")):
+        if parent:
+            techs = template_researchables(src, parent) or techs
+    node = root.find("Researcher/Technologies")
+    if node is not None and node.text:
+        own = node.text.split()
+        if node.get("datatype") == "tokens" and node.get("replace") is None:
+            for t in own:
+                if t.startswith("-"):
+                    techs = [x for x in techs if x != t[1:]]
+                elif t not in techs:
+                    techs.append(t)
+        else:
+            techs = own
+    return techs
+
+
+def civ_mask(req) -> int:
+    """Civs (bitmask over CIVS) for which a requirements tree can hold."""
+    full = (1 << len(CIVS)) - 1
+    if req is None:
+        return full
+    if isinstance(req, list):
+        req = {"all": req}
+    if "all" in req:
+        m = full
+        for r in req["all"]:
+            m &= civ_mask(r)
+        return m
+    if "any" in req:
+        m = 0
+        for r in req["any"]:
+            m |= civ_mask(r)
+        return m
+    if "civ" in req:
+        return 1 << CIVS.index(req["civ"]) if req["civ"] in CIVS else 0
+    if "notciv" in req:
+        return full & ~(1 << CIVS.index(req["notciv"])) if req["notciv"] in CIVS else full
+    return full
+
+
+def tech_reqs(req, out: list[str]) -> None:
+    if req is None:
+        return
+    if isinstance(req, list):
+        for r in req:
+            tech_reqs(r, out)
+        return
+    for key in ("all", "any"):
+        if key in req:
+            for r in req[key]:
+                tech_reqs(r, out)
+    if "tech" in req:
+        out.append(req["tech"])
+
+
+def c_str(s: str) -> str:
+    return json.dumps(s, ensure_ascii=False)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--public", required=True, help="0 A.D. public.zip or unzipped public mod dir")
+    ap.add_argument("--out", default=os.path.join(os.path.dirname(__file__), "..", "src", "simulation", "tech_data.h"))
+    args = ap.parse_args()
+    src = Source(args.public)
+
+    researcher: dict[str, str] = {}
+    for bld, tpl in BUILDINGS:
+        for t in template_researchables(src, tpl):
+            t = t.replace("{civ}", "generic")
+            researcher.setdefault(t, bld)
+
+    def load(name):
+        data = src.read(f"simulation/data/technologies/{name}.json")
+        return json.loads(data) if data else None
+
+    order = [name for _, name in LEGACY]
+    for name in sorted(researcher):
+        if name in order or name.startswith("pair_"):
+            continue
+        j = load(name)
+        if not j or not j.get("cost") or "researchTime" not in j:
+            continue
+        mods = [m for m in j.get("modifications", []) if stat_of(m["value"])]
+        if not mods and not name.startswith(("unlock_champion_", "unlock_civilians_")):
+            continue  # nothing RTS0 can apply yet (spies, shared LOS, spread, ...)
+        if civ_mask(j.get("requirements")) == 0:
+            continue  # only civs RTS0 doesn't have
+        order.append(name)
+    if len(order) + 1 > 255:
+        print("too many technologies for uint8_t ids", file=sys.stderr)
+        return 1
+
+    ids: dict[str, str | None] = {name: None for name in order}
+    for (sym, name) in LEGACY:
+        ids[name] = sym
+    for name in order:
+        if ids[name] is None:
+            ids[name] = "TECH_" + re.sub(r"[^A-Z0-9]", "_", name.upper())
+
+    affects_rows: list[tuple[str, ...]] = []
+    effects: list[str] = []
+    techs: list[str] = []
+
+    def class_expr(tokens: str) -> str | None:
+        need, forbid = [], []
+        for tok in tokens.split():
+            neg = tok.startswith("!")
+            tok = tok[1:] if neg else tok
+            if tok not in CLASSES:
+                if not neg:
+                    return None  # can never match an RTS0 entity
+                continue
+            (forbid if neg else need).append("TC_" + tok.upper())
+        n = " | ".join(need) or "0"
+        f = " | ".join(forbid) or "0"
+        return f"{{{n}, {f}}}"
+
+    def affects_index(aff) -> tuple[int, int]:
+        if not aff:
+            return (0, 0)
+        if isinstance(aff, str):
+            aff = [aff]
+        rows = [r for r in (class_expr(a) for a in aff) if r]
+        if not rows:
+            return (0, -1)
+        key = tuple(rows)
+        start = 0
+        for k in affects_rows:
+            if k == key:
+                break
+            start += len(k)
+        else:
+            affects_rows.append(key)
+        return (start + 1, len(rows))  # slot 0 is reserved for "no filter"
+
+    for name in order:
+        j = load(name)
+        cost = j.get("cost") or {}
+        reqs: list[str] = []
+        tech_reqs(j.get("requirements"), reqs)
+        phase = 1
+        prereq = "TECH_NONE"
+        for r in reqs:
+            if r == "phase_village":
+                phase = max(phase, 1)
+            elif r.startswith("phase_town"):
+                phase = max(phase, 2)
+            elif r.startswith("phase_city"):
+                phase = max(phase, 3)
+            elif r in ids:
+                prereq = ids[r]
+        if name == "phase_town_generic":
+            phase = 1
+        elif name == "phase_city_generic":
+            phase = 2
+        cmask = civ_mask(j.get("requirements"))
+        e_begin = len(effects)
+        tech_aff = j.get("affects")
+        for m in j.get("modifications", []):
+            stat = stat_of(m["value"])
+            if not stat:
+                continue
+            if "multiply" in m:
+                op, val = "TOP_MUL", float(m["multiply"])
+            elif "add" in m:
+                op, val = "TOP_ADD", float(m["add"])
+            else:
+                continue
+            a_start, a_count = affects_index(m.get("affects", tech_aff))
+            if a_count < 0:
+                continue
+            effects.append(f"\t\t{{{stat}, {op}, {a_start}, {a_count}, {val!r}f}}, // {name}")
+        e_count = len(effects) - e_begin
+        desc = j.get("tooltip", "").replace("\n", " ")
+        bld = researcher.get(name, "BLD_TOWN_CENTER")
+        if name in ("phase_town_generic", "phase_city_generic"):
+            bld = "BLD_TOWN_CENTER"
+        techs.append(
+            f"\t\t{{{c_str(j.get('genericName', name))}, {c_str(desc)}, "
+            f"{int(cost.get('food', 0))}, {int(cost.get('wood', 0))}, {int(cost.get('metal', 0))}, "
+            f"{int(cost.get('stone', 0))}, {float(j.get('researchTime', 0))!r}f, {phase}, {bld}, "
+            f"{prereq}, 0x{cmask:04x}, {e_begin}, {e_count}, {c_str(name)}}},")
+
+    lines = []
+    w = lines.append
+    w("// GENERATED by tools/extract_0ad_techs.py from 0 A.D. 0.28")
+    w("// simulation/data/technologies/*.json (CC BY-SA 3.0, Wildfire Games). Do not edit by hand.")
+    w("#ifndef RTSO_TECH_DATA_H")
+    w("#define RTSO_TECH_DATA_H")
+    w("")
+    w("// Included from sim_types.h after BuildingType and Civilization.")
+    w("")
+    w("enum TechnologyId : uint8_t {")
+    w("\tTECH_NONE = 0,")
+    for i, name in enumerate(order):
+        w(f"\t{ids[name]} = {i + 1}, // {name}")
+    w(f"\tTECH_COUNT = {len(order) + 1}")
+    w("};")
+    w("")
+    w("enum TechClass : uint64_t {")
+    for i, c in enumerate(CLASSES):
+        w(f"\tTC_{c.upper()} = 1ull << {i},")
+    w("};")
+    w("")
+    w("// One 0 A.D. \"affects\" alternative: every `need` class and no `forbid` class.")
+    w("struct TechClassExpr { uint64_t need; uint64_t forbid; };")
+    w("")
+    w("inline const TechClassExpr *tech_affects_table() {")
+    w("\tstatic const TechClassExpr kAffects[] = {")
+    w("\t\t{0, 0}, // unused: affects index 0 means \"no filter\"")
+    for row in affects_rows:
+        for expr in row:
+            w(f"\t\t{expr},")
+    w("\t};")
+    w("\treturn kAffects;")
+    w("}")
+    w("")
+    w("inline const TechEffect *tech_effects_table() {")
+    w("\tstatic const TechEffect kEffects[] = {")
+    w("\t\t{TSTAT_NONE, TOP_MUL, 0, 0, 1.0f},")
+    for e in effects:
+        w(e)
+    w("\t};")
+    w("\treturn kEffects + 1;")
+    w("}")
+    w(f"constexpr int TECH_EFFECT_COUNT = {len(effects)};")
+    w("")
+    w("inline const TechInfo &tech_info(uint8_t tech_id) {")
+    w("\tstatic const TechInfo kTable[TECH_COUNT] = {")
+    w("\t\t{\"None\", \"\", 0, 0, 0, 0, 0.0f, 0, BLD_TOWN_CENTER, TECH_NONE, 0, 0, 0, \"\"},")
+    lines.extend(techs)
+    w("\t};")
+    w("\tif (tech_id >= TECH_COUNT) return kTable[TECH_NONE];")
+    w("\treturn kTable[tech_id];")
+    w("}")
+    w("")
+    w("#endif // RTSO_TECH_DATA_H")
+    with open(args.out, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    print(f"wrote {args.out}: {len(order)} technologies, {len(effects)} effects")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
