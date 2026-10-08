@@ -381,6 +381,9 @@ public:
 	// 0 A.D. map visibility options: everything visible, or terrain known from the start.
 	bool reveal_map() const { return reveal_map_; }
 	void set_reveal_map(bool on) { reveal_map_ = on; }
+	// Game Setup biome for random maps: BIOME_* or -1 for the map's own.
+	void set_biome_override(int b) { biome_override_ = (b >= 0 && b < BIOME_COUNT) ? b : -1; }
+	int biome_override() const { return biome_override_; }
 	bool explore_map() const { return explore_map_; }
 	void set_explore_map(bool on) { explore_map_ = on; }
 	// Wonder and Capture the Relic: how long the wonder or all relics must be held, and how
@@ -1041,6 +1044,7 @@ private:
 	bool game_over_ = false;
 	bool victory_ = false;
 	bool reveal_map_ = false;
+	int biome_override_ = -1; // setup-time only: applied when a random map is generated
 	bool explore_map_ = false;
 	float wonder_duration_ = 600.0f;
 	float relic_duration_ = 180.0f;

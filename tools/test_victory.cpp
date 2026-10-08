@@ -327,10 +327,16 @@ int main() {
 		p.wonder_min = 5;
 		p.relic_min = 45;
 		p.relics = 6;
+		p.biome = BIOME_POLAR + 1;
+		p.slot_count = 3;
+		p.diffs[1] = 5; p.diffs[2] = 0;
+		p.behs[1] = 3; p.behs[2] = 1;
 		GameSetupParams q;
 		CHECK(parse_game_start_full(format_game_start_full(p), q));
 		CHECK(q.victory == VICTORY_REGICIDE && q.waves == 1 && q.map_size == 384 && q.lms == 1 && q.pop_cap == 300 && q.ceasefire == 10);
 		CHECK(q.reveal == 1 && q.explore == 1 && q.wonder_min == 5 && q.relic_min == 45 && q.relics == 6);
+		CHECK(q.biome == BIOME_POLAR + 1 && q.diffs[0] == 3 && q.diffs[1] == 5 && q.diffs[2] == 0);
+		CHECK(q.behs[0] == 2 && q.behs[1] == 3 && q.behs[2] == 1);
 		GameSetupParams d;
 		CHECK(d.wonder_min == 20 && d.relic_min == 20 && d.relics == 2); // 0 A.D.'s defaults
 	}
@@ -379,6 +385,17 @@ int main() {
 		for (uint8_t t = 0; t < 6; ++t) CHECK(tcs[t] == 1);
 		for (uint8_t t = 1; t < 6; ++t) CHECK(sim.petra_runs_for(t));
 		CHECK(!sim.petra_runs_for(0) && !sim.petra_runs_for(6));
+	}
+
+	// 13. Game Setup biome override for random maps (and back to the map's own).
+	{
+		Simulation sim;
+		sim.set_biome_override(BIOME_POLAR);
+		sim.generate_random_map(MAP_MAINLAND, 5, 2, 64.0f);
+		CHECK(sim.biome() == BIOME_POLAR && sim.current_map_biome() == "polar");
+		sim.set_biome_override(-1);
+		sim.generate_random_map(MAP_MAINLAND, 5, 2, 64.0f);
+		CHECK(sim.biome() != BIOME_POLAR && sim.current_map_biome() != "polar");
 	}
 
 	if (failures) {
