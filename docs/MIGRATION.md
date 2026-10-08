@@ -58,8 +58,7 @@ This list covers porting the vendored C++ only. Overall project priorities and g
 
 | Date | PR | Change |
 |---|---|---|
-| 2026-10-08 | (this PR) | Ported `VertexPathfinder` and used it to steer land units around buildings. GATHER, BUILD and RETURN_DROPSITE orders now get long paths when buildings block them. |
-| 2026-10-08 | #8 | Ported `Rasterize` and used it for building footprints in the nav grid. |
+| 2026-10-08 | #8 | Ported `Rasterize` and used it for building footprints in the nav grid. Ported `VertexPathfinder` and used it to steer land units around buildings. GATHER, BUILD and RETURN_DROPSITE orders now get long paths when buildings block them. Sim tick 6-8x faster (vision LOS stamping), with identical results. |
 | 2026-10-08 | #2 | Added this file. |
 | 2026-10-08 | #1 | JPS long pathfinder (fixes the A* missing ~5% of reachable goals). Ported `Fixed`/`Sqrt` and `Geometry`. Rewrote the nav-live parity probe. Fixed CI. |
 
