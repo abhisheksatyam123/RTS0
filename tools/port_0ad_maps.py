@@ -1,11 +1,46 @@
+"""Converts 0 A.D. scenario and skirmish maps (.xml + .pmp) to RTS0 JSON in data/maps/.
+
+  python3 tools/port_0ad_maps.py                  # the built-in list, from a local public.zip
+  python3 tools/port_0ad_maps.py --github NAME..  # skirmish maps by 0 A.D. file name (e.g.
+                                                  # libyan_oases_4p), fetched from 0 A.D.'s GitHub
+  python3 tools/port_0ad_maps.py --github-builtin # the built-in list, fetched from GitHub
+
+Maps fetched with --github get their world size from the .pmp (one RTS0 world unit per
+0 A.D. tile, clamped to 128..512) and a heightmap of one sample per 4 tiles.
+0 A.D. maps are CC BY-SA 3.0; see docs/0AD_ATTRIBUTION.md.
+"""
 import zipfile
 import xml.etree.ElementTree as ET
 import json
 import struct
 import math
 import os
+import sys
+import urllib.parse
+import urllib.request
 
 zip_path = "/home/abhi/project/0ad/binaries/data/mods/public/public.zip"
+GITHUB_RAW = "https://raw.githubusercontent.com/0ad/0ad/master/binaries/data/mods/public/"
+NAV_WATER_MARGIN = 0.3
+
+
+class GithubSource:
+    """Reads 0 A.D. files from its GitHub repository, like ZipFile.read."""
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def read(self, rel):
+        url = GITHUB_RAW + urllib.parse.quote(rel)
+        with urllib.request.urlopen(url, timeout=60) as r:
+            return r.read()
+
+
+def pmp_tiles(raw_pmp):
+    """Map width in tiles (16 tiles per patch)."""
+    return struct.unpack('<I', raw_pmp[12:16])[0] * 16
 
 def extract_pmp_heights(raw_pmp, target_res=64, height_scale=0.20):
     magic = raw_pmp[:4].decode('ascii', errors='ignore')
@@ -24,14 +59,16 @@ def extract_pmp_heights(raw_pmp, target_res=64, height_scale=0.20):
             src_c = int(c * (vert_side - 1) / (target_res - 1))
             idx = src_r * vert_side + src_c
             raw_val = raw_h[idx]
-            val_m = (raw_val / 128.0) * height_scale
+            # 0 A.D. source/graphics/Terrain.h: HEIGHT_UNITS_PER_METRE = 92. Water
+            # heights in the map XML are in metres too, so both scale the same way.
+            val_m = (raw_val / 92.0) * height_scale
             heights.append(round(val_m, 2))
 
     return heights, vert_side
 
-def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean", height_scale=0.20):
+def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean", height_scale=0.20, source=None):
     print(f"Porting map: {map_id} ({xml_rel})...")
-    with zipfile.ZipFile(zip_path, 'r') as z:
+    with (source if source is not None else zipfile.ZipFile(zip_path, 'r')) as z:
         xml_data = z.read(xml_rel).decode('utf-8')
         root = ET.fromstring(xml_data)
 
@@ -43,7 +80,12 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
 
         # Terrain heights from PMP
         raw_pmp = z.read(pmp_rel)
-        heightmap, vert_side = extract_pmp_heights(raw_pmp, target_res=64, height_scale=height_scale)
+        target_res = 64
+        if world_size_m is None:
+            # One RTS0 world unit per 0 A.D. tile, as for random maps.
+            world_size_m = float(min(512, max(128, pmp_tiles(raw_pmp))))
+            target_res = max(64, int(world_size_m) // 4 + 1)
+        heightmap, vert_side = extract_pmp_heights(raw_pmp, target_res=target_res, height_scale=height_scale)
 
         # Water settings
         water_height = -1.0
@@ -51,7 +93,10 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
         if w_elem is not None:
             try:
                 raw_w = float(w_elem.text)
-                water_height = round(raw_w * height_scale, 2)
+                # RTS0's nav grid counts a cell as water below water_height + 0.3
+                # (NavGrid::set_water_from_heights). Take that margin off here so
+                # only ground under 0 A.D.'s water line becomes water.
+                water_height = round(raw_w * height_scale - NAV_WATER_MARGIN, 2)
             except Exception:
                 pass
 
@@ -198,7 +243,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             "biome": biome,
             "world_size": world_size_m,
             "water_height": water_height,
-            "heightmap_res": 64,
+            "heightmap_res": target_res,
             "heightmap": heightmap,
             "players": list(players.values()),
             "resources": resources,
@@ -236,6 +281,34 @@ maps_list = [
     ("gallic_fields", "maps/skirmishes/gallic_fields_3p.xml", "maps/skirmishes/gallic_fields_3p.pmp", 320.0, "temperate", 0.20),
 ]
 
+# 0 A.D. skirmish maps fetched with --github: file name -> (RTS0 id, biome).
+github_skirmishes = {
+    "alpine_mountains_3p": ("alpine_mountains", "alpine"),
+    "gambia_river_3p": ("gambia_river", "savanna"),
+    "greek_acropolis_4p": ("greek_acropolis", "aegean"),
+    "libyan_oases_4p": ("libyan_oases", "desert"),
+    "lorraine_plain_2p": ("lorraine_plain", "temperate"),
+    "median_oasis_2p": ("median_oasis", "desert"),
+    "miletus_peninsula_2p": ("miletus_peninsula", "aegean"),
+    "neareastern_badlands_4p": ("neareastern_badlands", "desert"),
+    "punjab_2p": ("punjab", "india"),
+    "sahel_4p": ("sahel", "savanna"),
+    "savanna_river_2p": ("savanna_river", "savanna"),
+    "sporades_islands_2p": ("sporades_islands", "aegean"),
+    "syria_2p": ("syria", "desert"),
+    "two_seas_6p": ("two_seas", "mediterranean"),
+    "zagros_mountains_2p": ("zagros_mountains", "persia"),
+}
+
 if __name__ == "__main__":
-    for mid, xrel, prel, size, bome, hscale in maps_list:
-        port_map(mid, xrel, prel, size, bome, hscale)
+    if len(sys.argv) > 1 and sys.argv[1] == "--github":
+        names = sys.argv[2:] or sorted(github_skirmishes)
+        for name in names:
+            mid, bome = github_skirmishes.get(name, (name, "mediterranean"))
+            port_map(mid, f"maps/skirmishes/{name}.xml", f"maps/skirmishes/{name}.pmp", None, bome, 0.20,
+                     source=GithubSource())
+    else:
+        # --github-builtin: the built-in list, fetched from 0 A.D.'s GitHub.
+        src = GithubSource if len(sys.argv) > 1 and sys.argv[1] == "--github-builtin" else None
+        for mid, xrel, prel, size, bome, hscale in maps_list:
+            port_map(mid, xrel, prel, size, bome, hscale, source=src() if src else None)

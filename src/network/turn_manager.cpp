@@ -370,6 +370,11 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_u8(ps.active);
 		mix_u8(ps.is_ai);
 	}
+	// Match state: who is out (their orders are dropped) and who has won.
+	mix_u8(sim.participant_mask());
+	mix_u8(sim.defeated_mask());
+	mix_u8(sim.winner_mask());
+	mix_u8(sim.is_game_over() ? 1 : 0);
 
 	// 6. Active Projectiles & Relics
 	const auto &projs = sim.projectiles();
@@ -852,6 +857,9 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		} else if (c.cmd_type == 25) { // Train roster template — target_id=building, target_x=template.
 			if (c.target_x >= 0.0f && c.target_x < (float)CIV_UNIT_TEMPLATE_COUNT)
 				sim.cmd_train_template(pl, c.target_id, (uint16_t)c.target_x);
+		} else if (c.cmd_type == 27) { // Tribute — target_id=recipient, target_x=amount, param=resource.
+			if (c.target_x > 0.0f && c.target_x <= 1e6f && c.target_id < MAX_PLAYERS)
+				sim.cmd_tribute(pl, (uint8_t)c.target_id, c.param, (int)c.target_x);
 		} else if (c.cmd_type == 23) { // Barter — target_x=sell, target_z=buy, target_id=amount.
 			// 0 A.D. Barter.js / Market.js exchange. Legacy gap: UI previously called
 			// sim->cmd_barter locally even in lockstep -> resource/price divergence.

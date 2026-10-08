@@ -386,15 +386,36 @@ public:
 	bool cmd_cancel_upgrade(uint8_t player_id, uint32_t building_id);
 	// Maximum hit points of a `type` structure owned by `team`: template x civ bonus x techs.
 	float structure_max_hp(uint8_t type, uint8_t team) const;
+	// 0 A.D. Barter.js: sell 100 or 500 (DEAL_AMOUNT x 1 or BATCH_SIZE) of one
+	// resource for another. Needs a finished Market owned by `player`.
 	bool cmd_barter(uint8_t player, ResourceType sell, ResourceType buy, int amount = 100);
+	bool can_barter(uint8_t player) const;
+	// What selling `amount` of `sell` for `buy` would give right now (0 if invalid).
+	int barter_quote(ResourceType sell, ResourceType buy, int amount) const;
 	bool cmd_set_diplomacy(uint8_t player_id, uint8_t target, uint8_t stance);
-	// G3 Market/Trader
-	int calculate_trader_gain(const Building& mA, const Building& mB, uint8_t team) const;
+	// 0 A.D. Player.js TributeResource: `from` sends `amounts` (indexed by
+	// ResourceType) to `to`. All or nothing; both players must be in the
+	// match. The one tribute path for the UI, lockstep cmd 25 and Petra.
+	bool cmd_tribute(uint8_t from, uint8_t to, const int amounts[RES_COUNT]);
+	bool cmd_tribute(uint8_t from, uint8_t to, uint8_t res_type, int amount);
+	// G3 Market/Trader (0 A.D. Market.js CalculateTraderGain, Trader.js, globalscripts/Trade.js)
+	struct TradeGain {
+		int trader = 0;  // paid to the trader's owner
+		int market1 = 0; // international bonus to the owner of the market the leg starts at
+		int market2 = 0; // international bonus to the owner of the market the leg ends at
+	};
+	TradeGain calculate_trade_gain(const Building &from, const Building &to, uint8_t trader_owner) const;
+	int calculate_trader_gain(const Building& mA, const Building& mB, uint8_t team) const { return calculate_trade_gain(mA, mB, team).trader; }
+	// Trader.js CanTrade: a finished Market whose owner `trader_owner` is not hostile to.
+	bool can_trade_at(uint8_t trader_owner, const Building &b) const;
+	// True when `player` has two markets it can trade between (own, allied or neutral).
+	bool has_trade_route(uint8_t player) const;
 	void order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id);
-	void order_trade_auto(const uint32_t *unit_ids, size_t count); // auto-find best route
-	float get_market_buy_price(ResourceType t) const { return market_buy_price_[t]; }
-	float get_market_sell_price(ResourceType t) const { return market_sell_price_[t]; }
+	void order_trade_auto(const uint32_t *unit_ids, size_t count); // farthest pair of tradable markets
+	float get_market_buy_price(ResourceType t) const { return market_buy_price(t); }
+	float get_market_sell_price(ResourceType t) const { return market_sell_price(t); }
 	int get_market_history(ResourceType t) const { return market_trade_history_[t]; }
+	float barter_price_diff(uint8_t res) const { return res < RES_COUNT ? barter_price_diff_[res] : 0.0f; }
 	float trader_gains(const Building *a, const Building *b) const; // legacy helper
 	float trader_gains(Building *a, Building *b) { return trader_gains((const Building*)a,(const Building*)b); }
 
@@ -455,6 +476,8 @@ public:
 		players_[pid].is_ai = is_ai ? 1 : 0;
 	}
 	// Same alliance team (0 A.D. "team" in game setup); a player is always its own ally.
+	// Seated and not defeated (every slot counts when none is seated, as in tests).
+	bool player_in_match(uint8_t pid) const;
 	bool same_team(uint8_t a, uint8_t b) const { return a == b || (a < MAX_PLAYERS && b < MAX_PLAYERS && players_[a].team == players_[b].team); }
 
 	// Whole-unit stock for the HUD; defaults to player 0 for single-player callers and tests.
@@ -519,8 +542,10 @@ public:
 	const Grid<uint8_t>& territory_grid() const { return territory_grid_; }
 	const Grid<uint8_t>& influence_grid() const { return influence_grid_; }
 	const NavGrid& nav_grid() const { return nav_grid_; }
-	float market_buy_price(uint8_t res) const { return (res < 4) ? market_buy_price_[res] : 1.0f; }
-	float market_sell_price(uint8_t res) const { return (res < 4) ? market_sell_price_[res] : 1.0f; }
+	// Barter.js GetPrices as a fraction of a resource's true price (100):
+	// buy = (100 + CONSTANT_DIFFERENCE + diff) / 100, sell = (100 - CONSTANT_DIFFERENCE + diff) / 100.
+	float market_buy_price(uint8_t res) const { return (res < RES_COUNT) ? (110.0f + barter_price_diff_[res]) / 100.0f : 1.0f; }
+	float market_sell_price(uint8_t res) const { return (res < RES_COUNT) ? (90.0f + barter_price_diff_[res]) / 100.0f : 1.0f; }
 
 	// Diplomacy & Tribute (DiplomacyDialog.js)
 	enum DiplomacyStance : uint8_t {
@@ -575,7 +600,9 @@ public:
 	// Player 0's row, 8 contiguous bytes, for the HUD and the minimap.
 	const uint8_t *diplomacy_state() const { return diplomacy_[0]; }
 	const uint8_t *diplomacy_row(uint8_t player_id) const { return diplomacy_[player_id < MAX_PLAYERS ? player_id : 0]; }
+	// Player 0 tributes `player_id` (cmd_tribute(0, ...)).
 	bool send_tribute(uint8_t player_id, uint8_t res_type, int amount);
+	// The current Petra player tributes player 0 (cmd_tribute(petra_pid_, 0, ...)).
 	bool ai_send_tribute(uint8_t res_type, int amount);
 	// Accept a validated 0 A.D.-style Petra diplomacy request. The request
 	// remains in WAITING until the tribute policy is satisfied; callers can
@@ -797,6 +824,10 @@ private:
 	void cancel_upgrade(Building &b, uint8_t refund_to);
 	void finish_upgrade(Building &b);
 	void tick_barter(float dt);
+	// Player.js GetNextTradingGoods with the default equal split (25% each).
+	uint8_t next_trading_goods();
+	// Pays a trade gain into `player`'s stock and its gather statistics.
+	void credit_trade(uint8_t player, uint8_t res, int amount);
 	void tick_trickle(float dt);
 	void tick_upkeep(float dt);
 	void tick_entity_limits(float dt);
@@ -905,8 +936,8 @@ private:
 	size_t recent_death_head_ = 0;
 
 	// G3 Market / Barter dynamic prices (indexed by ResourceType: 0=WOOD,1=GOLD,2=STONE,3=FOOD)
-	float market_buy_price_[4] = {1.0f, 1.0f, 1.0f, 1.0f};
-	float market_sell_price_[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+	// Barter.js priceDifferences: per resource, in percent of the true price, within +-89.
+	float barter_price_diff_[RES_COUNT] = {};
 	int market_trade_history_[4] = {};
 	std::unordered_map<uint32_t, std::pair<uint32_t,uint32_t>> trader_routes_; // unit_id -> (marketA_id, marketB_id)
 	std::unordered_map<uint32_t,int> trader_leg_; // unit_id -> 0=A->B, 1=B->A (which target next)
