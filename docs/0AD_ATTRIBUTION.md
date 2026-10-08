@@ -20,6 +20,7 @@ RTS0 builds on **0 A.D.** (https://play0ad.com) by Wildfire Games.
 | `src/simulation/grid_nav.h` | `Grid.h`, `HierarchicalPathfinder.*`, `Pathfinding.h` | Port |
 | `src/simulation/petra_ai.h`, `simulation.*` | `simulation/ai/petra/*.js`, `simulation/components/UnitAI.js` and other components | Port / native rewrite of game logic |
 | `src/simulation/rms_generator.*` | 0 A.D. random map scripts (`maps/random/`) | Modelled on them, one row per map in the table below |
+| `src/simulation/simulation.cpp` (`tick_pack`, `order_pack`), `sim_types.h` (`PackState`, `unit_has_pack`) | `simulation/components/Pack.js`, the pack/unpack rules in `simulation/components/UnitAI.js` (`g_OrdersCancelUnpacking`, `EnsureCorrectPackStateForAttack`, PACKING/UNPACKING states), `Pack/Time` from `simulation/templates/template_unit_siege_{stonethrower,boltshooter}.xml`, and Petra's stand-ground stance for packable siege from `simulation/ai/petra/attackPlan.js` (0 A.D. commit 61a3b95) | Port |
 | `src/network/turn_manager.*`, `net_types.h` | `source/network/NetServerTurnManager.*`, `NetClientTurnManager.*`, `NetMessages.h` | Port |
 | `tools/extract_0ad_assets.py` | `source/graphics/ModelDef.cpp`, `ps/FileIo.cpp`, `shaders/glsl/model_common.fs` | Port of file-format readers |
 

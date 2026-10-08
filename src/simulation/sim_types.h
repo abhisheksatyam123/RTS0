@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <vector>
 
 namespace rtso {
@@ -1004,6 +1005,28 @@ inline bool template_has_ranged_attack(uint16_t tmpl, uint8_t type, uint8_t civ)
 	}
 	return unit_has_ranged_attack(type, civ);
 }
+
+// 0 A.D. Pack.js. Stone throwers and bolt shooters (template_unit_siege_stonethrower.xml,
+// template_unit_siege_boltshooter.xml) carry <Pack><Time>10000</Time></Pack>: they move as
+// their "_packed" template and must unpack before they can fire, and pack again to move.
+// A roster unit packs only when its 0 A.D. template is a "_packed" one, so siege engines
+// that disable Pack (Han Shoushe, Ptolemaic Juggernaut) are left alone.
+enum PackState : uint8_t {
+	PACK_NONE = 0, // no Pack component
+	PACK_PACKED = 1, // can move, cannot attack
+	PACK_UNPACKED = 2, // can attack, cannot move
+	PACK_PACKING = 3, // unpacked -> packed in progress
+	PACK_UNPACKING = 4, // packed -> unpacked in progress
+};
+inline constexpr float PACK_TIME_S = 10.0f; // template_unit_siege_*.xml Pack/Time 10000 ms
+
+inline bool unit_has_pack(uint16_t tmpl, uint8_t type) {
+	if (!(unit_tech_classes(type) & (TC_STONETHROWER | TC_BOLTSHOOTER))) return false;
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) return strstr(civ_unit_template(tmpl).id, "_packed") != nullptr;
+	return true;
+}
+inline bool pack_state_can_move(uint8_t s) { return s == PACK_NONE || s == PACK_PACKED; }
+inline bool pack_state_can_attack(uint8_t s) { return s == PACK_NONE || s == PACK_UNPACKED; }
 
 // Units this civilization can train: every RTS0 class its 0 A.D. roster has.
 struct CivTrainMasks {
