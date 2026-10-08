@@ -130,7 +130,7 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
-	static constexpr uint32_t SAVE_VERSION = 24; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 26; // save_state's format; see the history beside it
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -377,7 +377,7 @@ public:
 		std::vector<uint32_t> members;
 		std::vector<FormationSlot> slots;
 		WaypointPath path;
-		// v24: the attack order (UnitAI FORMATIONCONTROLLER.COMBAT / MEMBER) and patrol.
+		// v26: the attack order (UnitAI FORMATIONCONTROLLER.COMBAT / MEMBER) and patrol.
 		uint32_t target_unit = 0;       // Order.Attack target unit
 		uint32_t target_building = 0;   // Order.Attack target structure
 		uint8_t allow_capture = 0;      // Attack.js allowCapture for the members
@@ -547,7 +547,8 @@ public:
 	// Centre of the nearest ship-passable cell around a building's footprint, and its
 	// ship region; false when none is near (ProductionQueue.js spawns ships there).
 	bool nearest_ship_cell(const Building &b, float &out_x, float &out_z, uint16_t *out_sea = nullptr) const;
-	void order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id);
+	void order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id,
+			bool queued = false);
 	void order_trade_auto(const uint32_t *unit_ids, size_t count); // farthest pair of tradable markets
 	float get_market_buy_price(ResourceType t) const { return market_buy_price(t); }
 	float get_market_sell_price(ResourceType t) const { return market_sell_price(t); }
@@ -1323,6 +1324,7 @@ private:
 	void petra_garrison_units_inside(size_t holder_idx, bool allow_melee, std::vector<int> &incoming);
 	uint32_t petra_garrison_holder_for(size_t unit_idx, bool heals_only, bool siege, std::vector<int> &incoming) const;
 	void petra_manage_garrisons();
+	void petra_build_advanced();
 	void petra_manage_victory(float dt);
 	void petra_manage_diplomacy(float dt);
 	void petra_manage_emergency(float dt);
@@ -1432,13 +1434,14 @@ private:
 	void drop_orders(size_t i);      // orders UnitAI doesn't model (trade, hunt, board): no order, no queue
 	// Splits a Shift order: busy units get it queued, the rest are returned to run now.
 	// Without Shift every unit's queue is dropped and all of them run it now.
+	bool trade_route_ok(size_t i, uint32_t market_a_id, uint32_t market_b_id) const;
 	std::vector<uint32_t> split_queued(const uint32_t *ids, size_t count, const UnitOrder &o, bool queued);
 	void apply_order(uint32_t uid, const UnitOrder &o);
 	bool order_still_valid(size_t i, const UnitOrder &o) const;
 	void finish_order(size_t i);
 	void resume_order(size_t i);
 	void respond_to_attack(size_t i);
-	uint32_t find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team) const;
+	uint32_t find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team, int subtype = -1) const;
 	uint32_t find_nearby_foundation(float x, float z, uint8_t team) const;
 	void apply_rally_point(uint32_t uid, const Building &b);
 	void on_construction_finished(const Building &b, size_t builder);
