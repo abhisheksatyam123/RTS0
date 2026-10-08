@@ -268,7 +268,6 @@ public:
 	Label *barter_fee_label_ = nullptr;
 	void setup_barter_dialog_extras();
 	void refresh_barter_dialog();
-	float barter_spread() const;              // mirrors cmd_barter baseSpread
 	int barter_quote(int sell, int buy, int amount) const; // mirrors received
 
 	void _on_queue_slot_gui_input(const Ref<InputEvent> &event, int slot_idx);

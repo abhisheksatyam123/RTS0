@@ -784,7 +784,7 @@ enum TeamBonusStat : uint8_t {
 	TEAM_BONUS_TECH_COST = 5,          // per resource, techs researched at the buildings in the mask
 	TEAM_BONUS_TECH_TIME = 6,
 	TEAM_BONUS_FOOD_TRICKLE = 7,       // food per second, added
-	TEAM_BONUS_TRADE_INTERNATIONAL = 8 // not modelled: RTS0 trade has no international bonus yet
+	TEAM_BONUS_TRADE_INTERNATIONAL = 8 // Market/InternationalBonus of allies' markets (calculate_trade_gain)
 };
 
 struct CivTeamBonus {

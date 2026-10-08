@@ -25,6 +25,8 @@
 //     deterministic commission per turn, blocked while the dock is training or
 //     unfinished, and it rides the ordinary turn command stream (so it is in the
 //     replay history).
+//  8. tribute (cmd 26) and barter (cmd 23) on two lockstep peers: both apply on
+//     the same turn as the sending client's player, and the hashes stay equal.
 //
 // Exit: 0 = PASS, 1 = FAIL, 2 = bad usage.
 #include "network/turn_manager.h"
@@ -159,6 +161,8 @@ static bool run_wire_contract(const char *ph) {
 	CHECK(static_cast<uint8_t>(NetCommandType::NET_CMD_DIPLOMACY) == 22, ph);
 	CHECK(static_cast<uint8_t>(NetCommandType::NET_CMD_BARTER) == 23, ph);
 	CHECK(static_cast<uint8_t>(NetCommandType::NET_CMD_MAINTAIN_FLEET) == 24, ph);
+	CHECK(static_cast<uint8_t>(NetCommandType::NET_CMD_TRAIN_TEMPLATE) == 25, ph);
+	CHECK(static_cast<uint8_t>(NetCommandType::NET_CMD_TRIBUTE) == 26, ph);
 
 	// An old or hostile peer still sending NMT_DIPLOMACY: NetHost drops it before
 	// TurnManager's onMessage, so it can never queue a stance out of band.
@@ -695,7 +699,8 @@ static bool run_maintain_fleet_upkeep(const char *ph) {
 	// barracks training must NOT starve Petra's (team 1) navy -- navalManager.js:509
 	// reads Petra's own ship queue, and RTS0 docks are team 1.
 	const uint32_t barracks = sa.spawn_building_world(-26.0f, -4.0f, BLD_BARRACKS, 0, 1.0f);
-	CHECK(sa.cmd_train(0, barracks, UNIT_SWORDSMAN), "filled the human production queue", ph);
+	// Athenian swordsmen are a Town-phase unit since 0 A.D. phase requirements landed; hoplites are Village.
+	CHECK(sa.cmd_train(0, barracks, UNIT_SPEARMAN), "filled the human production queue", ph);
 	std::vector<NetCommand> while_busy = ta.generate_fleet_upkeep_commands(sa);
 	if (!check(while_busy.size() == 1, "a team-0 training queue does not block the naval upkeep", ph)) return false;
 	CHECK(fleet_upkeep_command_equal(while_busy[0], cmds[0]), "the commission is unchanged while the human trains", ph);
@@ -726,6 +731,63 @@ static bool run_maintain_fleet_upkeep(const char *ph) {
 	return true;
 }
 
+// ---- Phase 8: tribute and barter ride the turn stream ----------------------------
+static NetCommand tribute_cmd(uint8_t to, uint8_t res, int amount, uint32_t claimed_client) {
+	NetCommand c;
+	c.cmd_type = static_cast<uint8_t>(NetCommandType::NET_CMD_TRIBUTE);
+	c.client_id = claimed_client;
+	c.target_id = to;
+	c.target_x = (float)amount;
+	c.param = res;
+	return c;
+}
+
+static bool run_tribute_and_barter(const char *ph) {
+	Refs ra, rb;
+	Simulation sa, sb;
+	build_world(sa, 4242, ra);
+	build_world(sb, 4242, rb);
+	// Player 1 owns a finished market, so it may barter.
+	for (Simulation *s : {&sa, &sb}) s->spawn_building_world(20.0f, 20.0f, BLD_MARKET, 1, 1.0f);
+	TurnManager ta, tb;
+	tb.set_local_client_id(1); // peer B plays player 1
+	ScriptRng g(9001);
+	if (!run_turns(ra, ta, sa, tb, sb, g, 1, 2, 0, {}, {}, ph)) return false;
+	const int p0_food = sa.player_resource(0, RES_FOOD), p1_food = sa.player_resource(1, RES_FOOD);
+	const int p1_wood = sa.player_resource(1, RES_WOOD), p1_stone = sa.player_resource(1, RES_STONE);
+	const int quote = sa.barter_quote(RES_WOOD, RES_STONE, 100);
+	CHECK(quote == 82, "fresh market: 100 wood buys round(90/110*100) stone", ph);
+
+	// Turn 3: player 1 tributes 100 food to player 0 and sells 100 wood for stone.
+	// A tribute claiming client 0 still pays from player 1: the batch sender decides.
+	NetCommand barter;
+	barter.cmd_type = static_cast<uint8_t>(NetCommandType::NET_CMD_BARTER);
+	barter.client_id = 1;
+	barter.target_x = (float)RES_WOOD;
+	barter.target_z = (float)RES_STONE;
+	barter.target_id = 100;
+	const std::vector<NetCommand> from_b = {tribute_cmd(0, RES_FOOD, 100, 1), tribute_cmd(0, RES_FOOD, 50, 0), barter};
+	if (!run_turns(ra, ta, sa, tb, sb, g, 3, 3, 3, {}, from_b, ph)) return false;
+	for (Simulation *s : {&sa, &sb}) {
+		CHECK(s->player_resource(0, RES_FOOD) - p0_food == 150, "player 0 received both tributes", ph);
+		CHECK(p1_food - s->player_resource(1, RES_FOOD) == 150, "player 1 paid both tributes", ph);
+		CHECK(p1_wood - s->player_resource(1, RES_WOOD) == 100, "player 1 sold 100 wood", ph);
+		CHECK(s->player_resource(1, RES_STONE) - p1_stone == quote, "player 1 bought the quoted stone", ph);
+		CHECK(s->barter_price_diff(RES_WOOD) == -2.0f && s->barter_price_diff(RES_STONE) == 2.0f,
+		      "the deal moved the shared prices by 2%", ph);
+	}
+	// Player 0 has no market: its barter is refused on both peers.
+	NetCommand p0_barter = barter;
+	p0_barter.client_id = 0;
+	const int p0_wood = sa.player_resource(0, RES_WOOD);
+	if (!run_turns(ra, ta, sa, tb, sb, g, 4, 4, 4, {p0_barter}, {}, ph)) return false;
+	CHECK(sa.player_resource(0, RES_WOOD) == p0_wood && sb.player_resource(0, RES_WOOD) == p0_wood,
+	      "no market, no barter", ph);
+	if (!run_turns(ra, ta, sa, tb, sb, g, 5, 8, 0, {}, {}, ph)) return false;
+	CHECK(!ta.has_out_of_sync() && !tb.has_out_of_sync(), ph);
+	return true;
+}
+
 int main(int argc, char **argv) {
 	(void)argv;
 	if (argc > 1) {
@@ -742,6 +804,7 @@ int main(int argc, char **argv) {
 		{"G8 lockstep gate: no turn before NMT_GAME_START is applied", run_lockstep_gate},
 		{"P3 late-join GAME_START resend + turn-0 hash handshake", run_late_join_game_start_resend},
 		{"P3 maintainFleet upkeep: deterministic per-turn commission", run_maintain_fleet_upkeep},
+		{"tribute (cmd 26) and barter (cmd 23) on two lockstep peers", run_tribute_and_barter},
 	};
 	const size_t n = sizeof(phases) / sizeof(phases[0]);
 	for (size_t i = 0; i < n; ++i) {
