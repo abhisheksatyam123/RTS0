@@ -304,7 +304,7 @@ struct GameSetupParams {
 	uint8_t biome = 0;       // random-map biome: 0 = the map's own, else BIOME_* + 1
 	uint8_t diffs[8] = {3, 3, 3, 3, 3, 3, 3, 3}; // per-slot Petra difficulty 0..5
 	uint8_t behs[8] = {2, 2, 2, 2, 2, 2, 2, 2};  // per-slot Petra behaviour 0..3
-	uint8_t colors[8] = {0, 1, 2, 3, 4, 5, 6, 7}; // per-slot PLAYER_COLORS index 0..15
+	uint8_t colors[8] = {0, 1, 2, 3, 4, 5, 6, 7}; // per-slot PLAYER_COLORS index 0..23 (one base-36 digit)
 	uint8_t nomad = 0;             // 1 = Nomad start (random maps)
 	uint8_t regicide_garrison = 0; // 1 = the Regicide hero may garrison
 	uint16_t map_size = 128; // random-map width in meters, 128..512
@@ -340,7 +340,7 @@ inline std::string format_game_start_full(const GameSetupParams &p) {
 		std::string c;
 		for (unsigned i = 0; i < p.slot_count && i < 8; ++i) {
 			if (i) c += ',';
-			c += "0123456789abcdef"[p.colors[i] & 15];
+			c += "0123456789abcdefghijklmn"[p.colors[i] < 24 ? p.colors[i] : 0];
 		}
 		s += ";colors=" + c;
 	}
@@ -423,7 +423,7 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 				for (size_t i = 0, slot = 0; i < v.size() && slot < 8; i += 2, ++slot) {
 					const char c = v[i];
 					if (c >= '0' && c <= '9') out.colors[slot] = (uint8_t)(c - '0');
-					else if (c >= 'a' && c <= 'f') out.colors[slot] = (uint8_t)(c - 'a' + 10);
+					else if (c >= 'a' && c <= 'n') out.colors[slot] = (uint8_t)(c - 'a' + 10);
 				}
 			}
 			else if (k == "diffs" || k == "behs") {

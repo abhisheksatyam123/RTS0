@@ -334,7 +334,7 @@ int main() {
 		p.slot_count = 3;
 		p.diffs[1] = 5; p.diffs[2] = 0;
 		p.behs[1] = 3; p.behs[2] = 1;
-		p.colors[0] = 15; p.colors[1] = 0; p.colors[2] = 10;
+		p.colors[0] = 23; p.colors[1] = 0; p.colors[2] = 10;
 		p.nomad = 1; p.regicide_garrison = 1;
 		GameSetupParams q;
 		CHECK(parse_game_start_full(format_game_start_full(p), q));
@@ -342,7 +342,7 @@ int main() {
 		CHECK(q.reveal == 1 && q.explore == 1 && q.wonder_min == 5 && q.relic_min == 45 && q.relics == 6);
 		CHECK(q.biome == BIOME_POLAR + 1 && q.diffs[0] == 3 && q.diffs[1] == 5 && q.diffs[2] == 0);
 		CHECK(q.behs[0] == 2 && q.behs[1] == 3 && q.behs[2] == 1);
-		CHECK(q.colors[0] == 15 && q.colors[1] == 0 && q.colors[2] == 10 && q.colors[3] == 3);
+		CHECK(q.colors[0] == 23 && q.colors[1] == 0 && q.colors[2] == 10 && q.colors[3] == 3);
 		CHECK(q.nomad == 1 && q.regicide_garrison == 1);
 		GameSetupParams d;
 		CHECK(d.wonder_min == 20 && d.relic_min == 20 && d.relics == 2); // 0 A.D.'s defaults
@@ -459,13 +459,13 @@ int main() {
 		CHECK((sim.get_garrison_count(tc) > 0) == (on != 0));
 	}
 
-	// 17. Player colours: 0 A.D.'s default palette, one index per player, Gaia white.
+	// 17. Player colours: 0 A.D. player_defaults.json by default, Game Setup palette after, Gaia white.
 	{
 		Simulation sim;
-		CHECK(sim.player_color(0) == 0x0A0ABE && sim.player_color(1) == 0xE60A0A && sim.player_color(GAIA_PLAYER) == 0xFFFFFF);
-		sim.set_player_color(0, 15);
-		sim.set_player_color(1, 16); // out of range: ignored
-		CHECK(sim.player_color_index(0) == 15 && sim.player_color(0) == 0x505050 && sim.player_color_index(1) == 1);
+		CHECK(sim.player_color(0) == 0x153795 && sim.player_color(1) == 0x961414 && sim.player_color(GAIA_PLAYER) == 0xFFFFFF);
+		sim.set_player_color(0, 23);
+		sim.set_player_color(1, 24); // out of range: ignored
+		CHECK(sim.player_color_index(0) == 23 && sim.player_color(0) == 0x505050 && sim.player_color_index(1) == 1);
 	}
 
 	if (failures) {

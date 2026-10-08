@@ -111,8 +111,10 @@ const BEHAVIORS := ["Random", "Defensive", "Balanced", "Aggressive"]
 const BIOMES := ["Map default", "Aegean", "Latium", "Alpine", "Oasis", "Temperate", "Steppe", "Savanna", "Polar", "India"]
 const SPEEDS := [[0.5, "0.5x"], [0.75, "0.75x"], [1.0, "1x"], [1.25, "1.25x"], [1.5, "1.5x"], [2.0, "2x"]]
 const SLOT_KINDS := ["Human", "AI", "Closed"]
-# 0 A.D. gamesettings/attributes/PlayerColor.js DefaultColors (rtso::PLAYER_COLORS).
-const PLAYER_COLORS := [Color8(10, 10, 190), Color8(230, 10, 10), Color8(125, 235, 15), Color8(255, 255, 55),
+# rtso::PLAYER_COLORS: 0 A.D. player_defaults.json (each player's default), then PlayerColor.js DefaultColors.
+const PLAYER_COLORS := [Color8(21, 55, 149), Color8(150, 20, 20), Color8(86, 180, 31), Color8(231, 200, 5),
+	Color8(50, 170, 170), Color8(160, 80, 200), Color8(220, 115, 16), Color8(64, 64, 64),
+	Color8(10, 10, 190), Color8(230, 10, 10), Color8(125, 235, 15), Color8(255, 255, 55),
 	Color8(130, 0, 230), Color8(255, 130, 0), Color8(10, 230, 230), Color8(20, 80, 60),
 	Color8(220, 160, 220), Color8(80, 255, 190), Color8(50, 150, 255), Color8(100, 150, 30),
 	Color8(100, 60, 30), Color8(128, 0, 64), Color8(255, 200, 140), Color8(80, 80, 80)]

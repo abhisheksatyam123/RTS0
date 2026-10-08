@@ -35,9 +35,12 @@ enum BiomeType : uint8_t {
 	BIOME_COUNT = 9
 };
 
-// 0 A.D. gamesettings/attributes/PlayerColor.js DefaultColors, 0xRRGGBB. Game Setup picks one per player.
-constexpr int PLAYER_COLOR_COUNT = 16;
+// Player colours, 0xRRGGBB. The first 8 are 0 A.D. simulation/data/settings/player_defaults.json
+// (Player 1..8, each player's default); the other 16 are gamesettings/attributes/PlayerColor.js
+// DefaultColors, the Game Setup palette. Game Setup picks one index per player.
+constexpr int PLAYER_COLOR_COUNT = 24;
 inline constexpr uint32_t PLAYER_COLORS[PLAYER_COLOR_COUNT] = {
+	0x153795, 0x961414, 0x56B41F, 0xE7C805, 0x32AAAA, 0xA050C8, 0xDC7310, 0x404040,
 	0x0A0ABE, 0xE60A0A, 0x7DEB0F, 0xFFFF37, 0x8200E6, 0xFF8200, 0x0AE6E6, 0x14503C,
 	0xDCA0DC, 0x50FFBE, 0x3296FF, 0x64961E, 0x643C1E, 0x800040, 0xFFC88C, 0x505050,
 };

@@ -452,7 +452,7 @@ public:
 	// False for a Regicide hero while RegicideGarrison is off: it can't enter structures,
 	// siege engines or ships.
 	bool unit_garrisonable(size_t unit_idx) const;
-	// 0 A.D. PlayerColor: an index into PLAYER_COLORS (16 colours); player p defaults to p.
+	// 0 A.D. PlayerColor: an index into PLAYER_COLORS; player p defaults to p (player_defaults.json).
 	void set_player_color(uint8_t pid, uint8_t idx) { if (pid < MAX_PLAYERS && idx < PLAYER_COLOR_COUNT) player_color_[pid] = idx; }
 	uint8_t player_color_index(uint8_t pid) const { return pid < MAX_PLAYERS ? player_color_[pid] : 0; }
 	// 0xRRGGBB; Gaia (and anything outside the 8 slots) is 0 A.D.'s white.
