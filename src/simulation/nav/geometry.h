@@ -33,7 +33,11 @@ struct Vec2 {
 
 	float dot(const Vec2& o) const { return x * o.x + y * o.y; }
 
-	// Vendor CFixedVector2D::Perpendicular() (maths/FixedVector2D.h, not in tree): (-y, x).
+	// Stands in for vendor CFixedVector2D::Perpendicular() (maths/FixedVector2D.h, not in tree).
+	// The vendor is probably (y, -x): VertexPathfinder's visibility tests only hold with that sign
+	// (see vperp() in vertex_pathfinder.h). Here TestRaySquare, TestRayAASquare and
+	// DistanceToSegment don't depend on the sign. Only SquareSAT does, and TestSquareSquare's sign
+	// fix is written for (-y, x). All are checked against independent oracles in tools/test_geometry.cpp.
 	Vec2 perp() const { return Vec2(-y, x); }
 
 	// Vendor CFixedVector2D::RelativeOrientation(): signed 2D cross product this x o.

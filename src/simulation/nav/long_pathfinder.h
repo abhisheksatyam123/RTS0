@@ -29,6 +29,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
+#include <memory>
 #include <queue>
 #include <utility>
 #include <vector>
@@ -214,8 +215,11 @@ private:
 	void reset_tiles() {
 		const size_t n = static_cast<size_t>(w_) * static_cast<size_t>(h_);
 		status_.assign(n, STATUS_UNEXPLORED);
-		cost_.assign(n, 0);
-		pred_.assign(n, -1);
+		// cost_ and pred_ are only read for tiles whose status was set during this
+		// search (the start tile, or a tile that process_neighbour opened), so they
+		// need no zero fill. Uninitialised storage keeps every result identical.
+		cost_.reset(new uint32_t[n]);
+		pred_.reset(new int[n]);
 	}
 
 	// LongPathfinder::ProcessNeighbour (LongPathfinder.cpp:409).
@@ -337,8 +341,8 @@ private:
 	uint32_t steps_ = 0;
 	uint32_t pushes_ = 0;
 	std::vector<uint8_t> status_;
-	std::vector<uint32_t> cost_;
-	std::vector<int> pred_;
+	std::unique_ptr<uint32_t[]> cost_;
+	std::unique_ptr<int[]> pred_;
 	OpenList open_;
 };
 

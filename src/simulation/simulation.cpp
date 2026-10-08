@@ -1,5 +1,7 @@
 #include "simulation.h"
 #include "rms_generator.h"
+#include "nav/building_steering.h"
+#include "nav/rasterize.h"
 #include "../core/job_system.h"
 #include <chrono>
 #include <cmath>
@@ -728,19 +730,27 @@ void Simulation::rebuild_nav_grid() {
 	if (!nav_grid_.dirty.blank())
 		nav_grid_.dirty.fill(0);
 	nav_grid_.set_water_from_heights(terrain_heights_, terrain_res_, terrain_water_height_);
+	// Buildings are axis-aligned squares (spawn_building_world: half_size = footprint*GRID/2), rasterized
+	// with the 0 A.D. rule (nav/rasterize.h, clearance 0). A navcell is blocked only if it lies entirely
+	// inside the footprint plus the vendor extension. A footprint-1 building off the grid can match no
+	// navcell, so it falls back to the navcell under its centre (the cell the old footprint block marked).
+	const float nav_cell = 2.0f * nav_grid_.map_half / static_cast<float>(nav_grid_.res);
+	const rtso::nav::Vec2 nav_origin(-nav_grid_.map_half, -nav_grid_.map_half);
 	for (const auto &b : buildings_) {
 		if (b.build_progress < 0.99f || !building_blocks_movement(b.type)) continue;
-		auto [cx, cy] = nav_grid_.world_to_cell(b.x, b.z);
-		int footprint = b.footprint;
-		int sx = cx - footprint / 2;
-		int sy = cy - footprint / 2;
-		int f = std::max(1, footprint);
-		for (int dy = 0; dy < f; ++dy)
-			for (int dx = 0; dx < f; ++dx) {
-				int x = sx + dx, y = sy + dy;
-				if (nav_grid_.cells.inside(x, y))
-					nav_grid_.cells.at(x, y) = NAV_OBSTRUCTED;
-			}
+		int covered = 0;
+		rtso::nav::rasterize_rect_with_clearance(
+			rtso::nav::Vec2(b.x, b.z), rtso::nav::Vec2(1.0f, 0.0f), rtso::nav::Vec2(0.0f, 1.0f),
+			rtso::nav::Vec2(b.half_size, b.half_size), 0.0f, nav_cell, nav_origin,
+			nav_grid_.cells.w, nav_grid_.cells.h,
+			[&](int x, int y) {
+				nav_grid_.cells.at(x, y) = NAV_OBSTRUCTED;
+				++covered;
+			});
+		if (covered == 0) {
+			auto [cx, cy] = nav_grid_.world_to_cell(b.x, b.z);
+			nav_grid_.cells.at(cx, cy) = NAV_OBSTRUCTED;
+		}
 	}
 	// Precise dirty bits: diff new cells vs snapshot (covers placements,
 	// completions AND demolitions). Falls back to full remesh only when the
@@ -2331,12 +2341,38 @@ void Simulation::move_units(float dt, Arena &arena) {
 			return;
 		}
 
+		// GATHER, BUILD and RETURN_DROPSITE walk at (tx, tz) with no cmd_move path. When buildings
+		// block that line, path them too, as 0 A.D. UnitMotion paths every move. The path is kept
+		// while (tx, tz) stays within 2 world units of the target it was computed for.
+		const uint8_t st = units_.action_state[i];
+		bool task_path = false;
+		if ((st == ACTION_GATHER || st == ACTION_BUILD || st == ACTION_RETURN_DROPSITE) &&
+		    (size_t)i < unit_paths_.size() && !unit_is_ship(units_.unit_type[i])) {
+			WaypointPath &wp = unit_paths_[i];
+			const float gdx = wp.goal_x - tx[i];
+			const float gdz = wp.goal_z - tz[i];
+			task_path = wp.has_goal && gdx * gdx + gdz * gdz <= 4.0f;
+			if (!task_path && rtso::nav::line_blocked_by_buildings(rtso::nav::Vec2(px[i], pz[i]),
+					rtso::nav::Vec2(tx[i], tz[i]), 2.0f * map_half_, unit_collision_radius(units_.unit_type[i]),
+					buildings_, units_.target_building_id[i])) {
+				const uint8_t ut = units_.unit_type[i];
+				const bool mounted = ut == UNIT_CAVALRY || ut == UNIT_CHARIOT || ut == UNIT_CAMEL || ut == UNIT_SCYTHED_CHARIOT;
+				find_path(px[i], pz[i], tx[i], tz[i], wp, mounted ? PASS_CAVALRY : PASS_INFANTRY);
+				wp.has_goal = true;
+				wp.goal_x = tx[i];
+				wp.goal_z = tz[i];
+				units_.waypoint_cur[i] = static_cast<int16_t>(wp.cur);
+				units_.waypoint_count[i] = static_cast<int16_t>(wp.count);
+				task_path = true;
+			}
+		}
+
 		// G1: follow waypoint path if available (mirrors CCmpUnitMotion path following)
 		float aim_x;
 		float aim_z;
 		bool using_path = false;
 		if ((size_t)i < unit_paths_.size() && units_.waypoint_count[i] > 0 &&
-		    (units_.action_state[i] == ACTION_MOVE || units_.action_state[i] == ACTION_ATTACK_MOVE || units_.action_state[i] == ACTION_PATROL)) {
+		    (st == ACTION_MOVE || st == ACTION_ATTACK_MOVE || st == ACTION_PATROL || task_path)) {
 			int cur = units_.waypoint_cur[i];
 			int cnt = units_.waypoint_count[i];
 			if ((size_t)i < unit_paths_.size()) {
@@ -2344,12 +2380,18 @@ void Simulation::move_units(float dt, Arena &arena) {
 			}
 			if (cur >= 0 && cur < cnt) {
 				WaypointPath &wp = unit_paths_[i];
-				float wx = wp.xs[cur];
-				float wz = wp.zs[cur];
-				float pdx = wx - px[i];
-				float pdz = wz - pz[i];
-				if (pdx * pdx + pdz * pdz < ARRIVE_DIST * ARRIVE_DIST) {
+				// Skip every waypoint already within ARRIVE_DIST (inclusive). Advancing one per tick
+				// with a strict < let the arrival check below stop the unit on a waypoint exactly
+				// ARRIVE_DIST away, or on a second one just as close, short of its target.
+				bool advanced = false;
+				while (cur < cnt && cur < wp.count) {
+					const float pdx = wp.xs[cur] - px[i];
+					const float pdz = wp.zs[cur] - pz[i];
+					if (pdx * pdx + pdz * pdz > ARRIVE_DIST * ARRIVE_DIST) break;
 					cur++;
+					advanced = true;
+				}
+				if (advanced) {
 					units_.waypoint_cur[i] = static_cast<int16_t>(cur);
 					wp.cur = cur;
 				}
@@ -2405,6 +2447,23 @@ void Simulation::move_units(float dt, Arena &arena) {
 				tz[i] = -orig_z * 0.8f;
 			}
 			return;
+		}
+
+		// 0 A.D. UnitMotion short path: head for the first waypoint around a blocking building
+		// (nav/building_steering.h). The arrival check above still uses the real aim point.
+		if (!unit_is_ship(units_.unit_type[i])) {
+			rtso::nav::Vec2 steer;
+			if (rtso::nav::steer_around_buildings(rtso::nav::Vec2(px[i], pz[i]), rtso::nav::Vec2(aim_x, aim_z),
+					unit_collision_radius(units_.unit_type[i]), buildings_, units_.target_building_id[i],
+					nav_grid_, steer)) {
+				const float sdx = steer.x - px[i];
+				const float sdz = steer.y - pz[i];
+				if (sdx * sdx + sdz * sdz > 1e-6f) {
+					dx = sdx;
+					dz = sdz;
+					d2 = sdx * sdx + sdz * sdz;
+				}
+			}
 		}
 
 		float inv = 1.0f / sqrtf(d2);
