@@ -97,6 +97,14 @@ int main() {
 	CHECK(tmc.player_for_client(0) == 0 && tmc.player_for_client(1) == 1 && tmc.player_for_client(50) == 0xFF);
 	tmc.set_client_player(50, 3);
 	CHECK(tmc.player_for_client(50) == 3);
+	// NMT_GAME_START seating: client k takes the k-th human slot, the rest observe.
+	GameSetupParams seats;
+	seats.slot_count = 4;
+	seats.slot_types[0] = 'a'; seats.slot_types[1] = 'h'; seats.slot_types[2] = 'a'; seats.slot_types[3] = 'h';
+	tmc.assign_slot_players(seats);
+	CHECK(tmc.player_for_client(0) == 1 && tmc.player_for_client(1) == 3 && tmc.player_for_client(2) == 0xFF);
+	tmc.reset();
+	CHECK(tmc.player_for_client(1) == 1); // reset drops the seating
 
 	// Save/load v6 round trip keeps every slot, and the lockstep hash covers every slot.
 	fresh(s);
