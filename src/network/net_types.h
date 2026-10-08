@@ -307,6 +307,8 @@ struct GameSetupParams {
 	uint8_t biome = 0;       // random-map biome: 0 = the map's own, else BIOME_* + 1
 	uint8_t diffs[8] = {3, 3, 3, 3, 3, 3, 3, 3}; // per-slot Petra difficulty 0..5
 	uint8_t behs[8] = {2, 2, 2, 2, 2, 2, 2, 2};  // per-slot Petra behaviour 0..3
+	uint8_t water_level = 0; // Flood: 0 rising, 1 shallow, 2 deep (0 A.D. WaterLevel)
+	uint8_t sea_rise_min = 25; // Extinct Volcano: minutes until the water rises, 0..60 (0 A.D. SeaLevelRiseTime)
 	uint16_t map_size = 128; // random-map width in meters, 128..512
 	uint8_t difficulty = 3; // Petra 0..5 sandbox..very hard
 	uint8_t behavior = 2;   // Petra 0..3 random/def/bal/agg
@@ -338,6 +340,8 @@ inline std::string format_game_start_full(const GameSetupParams &p) {
 		}
 		s += ";diffs=" + d + ";behs=" + b;
 	}
+	s += ";waterlevel=" + std::to_string((unsigned)p.water_level);
+	s += ";searise=" + std::to_string((unsigned)p.sea_rise_min);
 	s += ";mapsize=" + std::to_string((unsigned)p.map_size);
 	s += ";diff=" + std::to_string((unsigned)p.difficulty);
 	s += ";behavior=" + std::to_string((unsigned)p.behavior);
@@ -416,6 +420,8 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 					if (c >= '0' && c <= (diffs ? '5' : '3')) (diffs ? out.diffs : out.behs)[slot] = (uint8_t)(c - '0');
 				}
 			}
+			else if (k == "waterlevel") { uint8_t x; if (detail::parse_u8(v, 0, 2, x)) out.water_level = x; }
+			else if (k == "searise") { uint8_t x; if (detail::parse_u8(v, 0, 60, x)) out.sea_rise_min = x; }
 			else if (k == "popcap" && !v.empty() && v.size() <= 4 && v.find_first_not_of("0123456789") == std::string::npos) {
 				unsigned x = (unsigned)std::stoul(v);
 				if (x <= 1000) out.pop_cap = (uint16_t)x;
