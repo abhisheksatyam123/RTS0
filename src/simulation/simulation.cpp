@@ -5673,20 +5673,14 @@ void Simulation::petra_manage_scouting(float dt) {
 		}
 	};
 
-	if (!revealed) ensure_fow_cell_heights();
-	auto &views = petra_fow_views_;
-	if (!revealed && views.units.size() < units_.count) views.units.resize(units_.count);
-	for (size_t u = 0; u < units_.count && !revealed; ++u) {
-		if (!units_.alive[u] || units_.team[u] != petra_pid_) continue;
-		reveal_fow(petra_fow_, units_.pos_x[u], units_.pos_z[u], vision_radius(units_.unit_type[u]), &views.units[u]);
-	}
-
-	if (!revealed && views.buildings.size() < buildings_.size()) views.buildings.resize(buildings_.size());
-	for (size_t bi = 0; bi < buildings_.size() && !revealed; ++bi) {
-		const auto &b = buildings_[bi];
-		if (b.team != petra_pid_ || b.build_progress < 0.5f) continue;
-		float bvr = (b.type == BLD_TOWER || b.type == BLD_FORTRESS) ? 24.0f : ((b.type == BLD_DOCK) ? 28.0f : 18.0f);
-		reveal_fow(petra_fow_, b.x, b.z, bvr, &views.buildings[bi]);
+	if (!revealed) {
+		ensure_fow_cell_heights();
+		reveal_viewers(petra_fow_, petra_fow_views_,
+				[&](size_t u) { return units_.alive[u] && units_.team[u] == petra_pid_ ? vision_radius(units_.unit_type[u]) : 0.0f; },
+				[&](const Building &b) {
+					if (b.team != petra_pid_ || b.build_progress < 0.5f) return 0.0f;
+					return (b.type == BLD_TOWER || b.type == BLD_FORTRESS) ? 24.0f : ((b.type == BLD_DOCK) ? 28.0f : 18.0f);
+				});
 	}
 
 	// 2. Validate current scout unit or recruit candidate
@@ -10259,8 +10253,8 @@ void Simulation::update_player_fow(std::vector<uint8_t> &grid, SharesVision shar
 	const uint8_t floor = explore_map_ ? FOW_EXPLORED : FOW_UNEXPLORED;
 	for (auto &c : grid) c = c == FOW_VISIBLE ? (uint8_t)FOW_EXPLORED : std::max(c, floor);
 
-	// Step 2: For every unit whose vision the player shares, illuminate tiles within its vision radius
-	// Vision radius per unit type (in world units):
+	// Steps 2 and 3: every unit and finished building whose vision the player shares lights the
+	// tiles within its vision radius. Vision radius per unit type (in world units):
 	//   Villager/Infantry: 16m, Cavalry: 20m, Archer: 22m, Catapult: 24m, Hero: 18m, Elephant: 20m, Trireme: 28m
 	auto vision_radius = [](uint8_t utype) -> float {
 		switch (utype) {
@@ -10274,22 +10268,41 @@ void Simulation::update_player_fow(std::vector<uint8_t> &grid, SharesVision shar
 		}
 	};
 
-	if (views.units.size() < units_.count) views.units.resize(units_.count);
-	for (size_t u = 0; u < units_.count; ++u) {
-		if (!units_.alive[u] || !shares_vision(units_.team[u])) continue;
-		reveal_fow(grid, units_.pos_x[u], units_.pos_z[u], vision_radius(units_.unit_type[u]), &views.units[u]);
-	}
+	reveal_viewers(grid, views,
+			[&](size_t u) { return units_.alive[u] && shares_vision(units_.team[u]) ? vision_radius(units_.unit_type[u]) : 0.0f; },
+			[&](const Building &b) {
+				if (!shares_vision(b.team) || b.build_progress < 1.0f) return 0.0f;
+				float bvr = 18.0f; // default building vision
+				if (b.type == BLD_TOWER || b.type == BLD_FORTRESS) bvr = 24.0f;
+				if (b.type == BLD_DOCK) bvr = 28.0f;
+				return bvr;
+			});
+}
 
-	// Step 3: Buildings also reveal their surroundings
+template <typename UnitVision, typename BuildingVision>
+void Simulation::reveal_viewers(std::vector<uint8_t> &grid, FowViews &views, UnitVision unit_vr, BuildingVision building_vr) {
+	// Calls reveal_fow() for each building and unit with a vision radius above 0. The result is the
+	// union of their views whatever the order, so buildings and units that have not moved go first
+	// (copies of their stored views), and the units that moved last: their LOS rays then skip
+	// every cell the others lit.
 	if (views.buildings.size() < buildings_.size()) views.buildings.resize(buildings_.size());
 	for (size_t bi = 0; bi < buildings_.size(); ++bi) {
 		const auto &b = buildings_[bi];
-		if (!shares_vision(b.team) || b.build_progress < 1.0f) continue;
-		float bvr = 18.0f; // default building vision
-		if (b.type == BLD_TOWER || b.type == BLD_FORTRESS) bvr = 24.0f;
-		if (b.type == BLD_DOCK) bvr = 28.0f;
-		reveal_fow(grid, b.x, b.z, bvr, &views.buildings[bi]);
+		const float vr = building_vr(b);
+		if (vr > 0.0f) reveal_fow(grid, b.x, b.z, vr, &views.buildings[bi]);
 	}
+	if (views.units.size() < units_.count) views.units.resize(units_.count);
+	fow_moved_units_.clear();
+	for (size_t u = 0; u < units_.count; ++u) {
+		const float vr = unit_vr(u);
+		if (vr <= 0.0f) continue;
+		if (views.units[u].same_spot(units_.pos_x[u], units_.pos_z[u], vr, fow_view_gen_))
+			reveal_fow(grid, units_.pos_x[u], units_.pos_z[u], vr, &views.units[u]);
+		else
+			fow_moved_units_.push_back((uint32_t)u);
+	}
+	for (const uint32_t u : fow_moved_units_)
+		reveal_fow(grid, units_.pos_x[u], units_.pos_z[u], unit_vr(u), &views.units[u]);
 }
 
 Simulation::FaunaView Simulation::fauna() const {

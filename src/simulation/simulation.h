@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <string>
 #include <array>
+#include <bit>
 #include <iosfwd>
 
 namespace rtso {
@@ -909,6 +910,10 @@ private:
 		uint32_t gen = 0; // fow_view_gen_ of that call; 0: no call yet
 		bool stored = false; // rows filled for that call
 		uint64_t rows[64];
+		// Whether a call with these arguments would find this view's last call.
+		bool same_spot(float x, float z, float r, uint32_t now) const {
+			return gen == now && sx == std::bit_cast<uint32_t>(x) && sz == std::bit_cast<uint32_t>(z) && vr == std::bit_cast<uint32_t>(r);
+		}
 	};
 	static constexpr int FOW_VIEW_MAX_R = 31; // widest view the rows hold: 2r + 1 <= 63
 	struct FowViews {
@@ -917,6 +922,8 @@ private:
 	void reveal_fow(std::vector<uint8_t> &grid, float sx, float sz, float vr, FowView *view = nullptr) const;
 	template <typename SharesVision>
 	void update_player_fow(std::vector<uint8_t> &grid, SharesVision shares_vision, FowViews &views);
+	template <typename UnitVision, typename BuildingVision>
+	void reveal_viewers(std::vector<uint8_t> &grid, FowViews &views, UnitVision unit_vr, BuildingVision building_vr);
 	bool terrain_blocks_los(float sx, float sz, float sy, float tx, float tz, float ty) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
 	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
@@ -1190,6 +1197,7 @@ private:
 	// reveal_fow() views of units (by index) and buildings (by buildings_ index), for Petra's
 	// scouting and for update_player_fow(); their vision radii differ, so each keeps its own.
 	FowViews petra_fow_views_, player_fow_views_;
+	std::vector<uint32_t> fow_moved_units_; // reveal_viewers() scratch: units revealed last
 	NavGrid nav_grid_; // Phase1: SoA nav mesh (buildings + water), mirrors 0AD Grid<NavcellData>
 	Grid<uint8_t> territory_grid_; // grid_res_^2 player id per cell, G2 (CCmpTerritoryManager)
 	Grid<uint8_t> influence_grid_; // grid_res_^2 influence count per cell, G2
