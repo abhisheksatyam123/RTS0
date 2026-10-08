@@ -2008,6 +2008,31 @@ void Simulation::order_set_stance(const uint32_t *unit_ids, size_t count, uint8_
 	}
 }
 
+void Simulation::order_pack(const uint32_t *unit_ids, size_t count, bool pack) {
+	for (size_t i = 0; i < count; ++i) {
+		int32_t idx = lookup_unit(unit_ids[i]);
+		if (idx < 0 || !units_.alive[idx]) continue;
+		const uint8_t ps = units_.pack_state[idx];
+		if (ps == PACK_NONE) continue;
+		// Order.Pack / Order.Unpack replace the unit's orders (UnitAI ReplaceOrder).
+		cmd_stop(&unit_ids[i], 1);
+		if (pack) {
+			if (ps == PACK_UNPACKED) { units_.pack_state[idx] = PACK_PACKING; units_.pack_elapsed[idx] = 0.0f; }
+			else if (ps == PACK_UNPACKING) { units_.pack_state[idx] = PACK_PACKED; units_.pack_elapsed[idx] = 0.0f; }
+		} else {
+			if (ps == PACK_PACKED) { units_.pack_state[idx] = PACK_UNPACKING; units_.pack_elapsed[idx] = 0.0f; }
+			else if (ps == PACK_PACKING) { units_.pack_state[idx] = PACK_UNPACKED; units_.pack_elapsed[idx] = 0.0f; }
+		}
+	}
+}
+
+float Simulation::pack_time_s(size_t unit_idx) const {
+	(void)unit_idx;
+	// 0 A.D.'s Military Engineers tech (siege_pack_unpack.json, Pack/Time x0.6) applies here
+	// once it is in tech_data.h.
+	return PACK_TIME_S;
+}
+
 void Simulation::order_set_formation(const uint32_t *unit_ids, size_t count, uint8_t formation) {
 	// 0 A.D. template_player.xml:84-96 defines 13 formations (indices 0..12).
 	// Values in 0..12 are accepted; invalid values (> 12) are clamped to 12.
@@ -2416,6 +2441,7 @@ void Simulation::tick(float dt) {
 
 	// Master simulation tick pipeline in fixed, deterministic order:
 	// 1. Movement & spatial separation
+	tick_pack(dt);           // 0 A.D. Pack.js: siege engines pack to move, unpack to fire
 	move_units(dt, arena);
 	separation(dt, arena);
 
@@ -2721,6 +2747,12 @@ void Simulation::move_units(float dt, Arena &arena) {
 				tx[i] = -orig_x * 0.8f;
 				tz[i] = -orig_z * 0.8f;
 			}
+			return;
+		}
+
+		// Pack.js: a siege engine moves only while packed (unpacked templates have WalkSpeed 0.001).
+		if (!pack_state_can_move(units_.pack_state[i])) {
+			vx[i] = vz[i] = 0;
 			return;
 		}
 
@@ -3424,6 +3456,72 @@ inline bool in_parabolic_range(float d2, float att_y, float def_y, float base_ra
 	return (max_r2 > 0.0f) && (d2 <= max_r2);
 }
 
+// 0 A.D. Pack.js + UnitAI's pack rules. A packed siege engine that has its target in range
+// unpacks before it fires; an unpacked one that has to move (a walk order, or a target out of
+// range) packs first. An order that needs the other state cancels a pack in progress and
+// resets it, as Pack.CancelPack does. move_units holds still anything not packed, and
+// tick_combat only lets unpacked engines fire.
+void Simulation::tick_pack(float dt) {
+	const size_t n = units_.count;
+	for (size_t i = 0; i < n; ++i) {
+		uint8_t ps = units_.pack_state[i];
+		if (ps == PACK_NONE || !units_.alive[i]) continue;
+		const uint8_t st = units_.action_state[i];
+		if (st == ACTION_GARRISONED || st == ACTION_DYING) continue;
+
+		// Is the current target in weapon range?
+		bool target_in_range = false;
+		const float att_y = get_terrain_height(units_.pos_x[i], units_.pos_z[i]);
+		if (units_.target_unit_id[i] != 0) {
+			int32_t t = lookup_unit(units_.target_unit_id[i]);
+			if (t >= 0 && units_.alive[t] && is_hostile(units_.team[i], units_.team[t])) {
+				float dx = units_.pos_x[i] - units_.pos_x[t];
+				float dz = units_.pos_z[i] - units_.pos_z[t];
+				target_in_range = in_parabolic_range(dx * dx + dz * dz, att_y,
+						get_terrain_height(units_.pos_x[t], units_.pos_z[t]), units_.attack_range[i]);
+			}
+		} else if (units_.target_building_id[i] != 0 && st != ACTION_BUILD) {
+			auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
+			if (bit != building_id_to_idx_.end()) {
+				const Building &b = buildings_[bit->second];
+				if (is_hostile(units_.team[i], b.team)) {
+					float dx = units_.pos_x[i] - b.x;
+					float dz = units_.pos_z[i] - b.z;
+					float eff_d = std::max(0.0f, sqrtf(dx * dx + dz * dz) - b.half_size);
+					target_in_range = in_parabolic_range(eff_d * eff_d, att_y, get_terrain_height(b.x, b.z),
+							units_.attack_range[i]);
+				}
+			}
+		}
+
+		// 0 = keep the current state, 1 = must be packed, 2 = must be unpacked
+		int want = 0;
+		if (target_in_range) want = 2;
+		else if (units_.has_order[i]) want = 1;
+
+		if (ps == PACK_PACKED && want == 2) {
+			ps = PACK_UNPACKING;
+			units_.pack_elapsed[i] = 0.0f;
+		} else if (ps == PACK_UNPACKED && want == 1) {
+			ps = PACK_PACKING;
+			units_.pack_elapsed[i] = 0.0f;
+		} else if (ps == PACK_UNPACKING && want == 1) {
+			ps = PACK_PACKED; // g_OrdersCancelUnpacking: a walk cancels unpacking at once
+			units_.pack_elapsed[i] = 0.0f;
+		} else if (ps == PACK_PACKING && want == 2) {
+			ps = PACK_UNPACKED; // EnsureCorrectPackStateForAttack: back in range, stop packing
+			units_.pack_elapsed[i] = 0.0f;
+		} else if (ps == PACK_PACKING || ps == PACK_UNPACKING) {
+			units_.pack_elapsed[i] += dt;
+			if (units_.pack_elapsed[i] >= pack_time_s(i)) {
+				ps = (ps == PACK_PACKING) ? PACK_PACKED : PACK_UNPACKED;
+				units_.pack_elapsed[i] = 0.0f;
+			}
+		}
+		units_.pack_state[i] = ps;
+	}
+}
+
 void Simulation::tick_combat(float dt) {
 	// G4: ensure auras rebuilt (tick_gather handles 0.4s timer); rebuild if empty for combat phase
 	if (aura_mgr_.sources.empty()) {
@@ -3569,6 +3667,7 @@ void Simulation::tick_combat(float dt) {
 		int32_t t = target_idx[i];
 		if (t < 0 || !units_.alive[i] || units_.attack_timer[i] > 0) continue;
 		if (units_.attack_damage[i] <= 0.0f) continue;
+		if (!pack_state_can_attack(units_.pack_state[i])) continue; // Pack.js: unpack before firing
 		float dx = units_.pos_x[i] - units_.pos_x[t];
 		float dz = units_.pos_z[i] - units_.pos_z[t];
 		float d2 = dx * dx + dz * dz;
@@ -3879,6 +3978,7 @@ void Simulation::tick_combat(float dt) {
 			units_.action_state[i] = ACTION_ATTACK;
 			continue;
 		}
+		if (!pack_state_can_attack(units_.pack_state[i])) continue; // Pack.js: unpack before firing
 
 		units_.attack_timer[i] = units_.attack_cooldown[i];
 		units_.action_state[i] = ACTION_ATTACK;
@@ -4795,6 +4895,8 @@ Simulation::UnitView Simulation::units() const {
 	v.rank = units_.rank;
 	v.status_effects = units_.status_effects;
 	v.xp = units_.xp;
+	v.pack_state = units_.pack_state;
+	v.pack_elapsed = units_.pack_elapsed;
 	v.count = units_.count;
 	return v;
 }
@@ -7319,6 +7421,8 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 						escort_uids.push_back(uid);
 					} else if (units_.unit_type[idx] == UNIT_CATAPULT || units_.unit_type[idx] == UNIT_SIEGE_RAM || units_.unit_type[idx] == UNIT_BOLT_SHOOTER) {
 						units_.formation[idx] = FORMATION_COLUMN;
+						// attackPlan.js: packable siege attacks on stand ground so it doesn't pack up to chase.
+						if (units_.pack_state[idx] != PACK_NONE) units_.stance[idx] = STANCE_STAND_GROUND;
 						siege_uids.push_back(uid);
 					} else {
 						escort_uids.push_back(uid);
@@ -8720,7 +8824,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = 13; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked
+	uint32_t version = 14; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 each unit's pack state
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 
@@ -8806,6 +8910,8 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&units_.target_unit_id[u], sizeof(uint32_t));
 		out.write((const char *)&units_.target_building_id[u], sizeof(uint32_t));
 		out.write((const char *)&units_.tmpl[u], sizeof(uint16_t));
+		out.write((const char *)&units_.pack_state[u], sizeof(uint8_t));
+		out.write((const char *)&units_.pack_elapsed[u], sizeof(float));
 	}
 
 	// 4. Buildings
@@ -8894,7 +9000,7 @@ bool Simulation::load_state(const char *filepath) {
 	uint32_t magic = 0, version = 0;
 	in.read((char *)&magic, sizeof(magic));
 	in.read((char *)&version, sizeof(version));
-	if (magic != 0x52545330 || version < 1 || version > 13) return false;
+	if (magic != 0x52545330 || version < 1 || version > 14) return false;
 
 	// 1. Sim scalars
 	in.read((char *)&ticks_, sizeof(ticks_));
@@ -9043,6 +9149,12 @@ bool Simulation::load_state(const char *filepath) {
 		uint16_t utmpl = CIV_UNIT_TEMPLATE_NONE;
 		if (version >= 7) in.read((char *)&utmpl, sizeof(utmpl));
 		else utmpl = civ_default_template(civ_of(team), utype); // pre-roster saves: the civ's unit for the class
+		uint8_t pstate = unit_has_pack(utmpl, utype) ? PACK_PACKED : PACK_NONE;
+		float pelapsed = 0.0f;
+		if (version >= 14) {
+			in.read((char *)&pstate, sizeof(pstate));
+			in.read((char *)&pelapsed, sizeof(pelapsed));
+		}
 
 		size_t idx = units_.count;
 		units_.id[idx] = uid;
@@ -9076,6 +9188,8 @@ bool Simulation::load_state(const char *filepath) {
 		units_.target_resource_id[idx] = tr;
 		units_.target_unit_id[idx] = tu;
 		units_.target_building_id[idx] = tb;
+		units_.pack_state[idx] = pstate;
+		units_.pack_elapsed[idx] = pelapsed;
 		units_.count++;
 
 		bind_unit_index(uid, idx);

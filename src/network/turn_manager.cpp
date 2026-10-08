@@ -315,6 +315,8 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_u8(uview.rank[i]);
 		mix_u8(uview.status_effects[i]);
 		mix_float(uview.death_timer[i]);
+		mix_u8(uview.pack_state[i]);
+		mix_float(uview.pack_elapsed[i]);
 	}
 
 	// 2. Buildings — hp, build_progress, type, team, capture_points, coords, queues
