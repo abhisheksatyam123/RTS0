@@ -227,15 +227,17 @@ public:
 	// Commands
 	void cmd_move(const uint32_t *unit_ids, size_t count, float tx, float tz);
 	void cmd_stop(const uint32_t *unit_ids, size_t count);
-	uint32_t cmd_build(int cell_x, int cell_y, uint8_t b_type);
-	bool cmd_train(uint32_t building_id, UnitType u_type);
+	// Player commands (0 A.D. Commands.js): `player` is the issuing player id. Each one
+	// rejects buildings the player doesn't own and charges/refunds that player's stock.
+	uint32_t cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b_type);
+	bool cmd_train(uint8_t player, uint32_t building_id, UnitType u_type);
 	// P3 maintainFleet upkeep seam (0 A.D. navalManager.js:507-543): team-aware
 	// naval queue entry used by TurnManager NET_CMD_MAINTAIN_FLEET. Unlike
 	// cmd_train (team-0/human only) this honours the building's own team
 	// resources (Petra team 1 via petra_try_pay) so Petra docks can train.
 	bool cmd_maintain_fleet(uint32_t building_id, UnitType u_type, uint8_t team);
-	bool cmd_cancel_train(uint32_t building_id, size_t queue_idx);
-	void cmd_set_rally_point(uint32_t building_id, float rx, float rz, uint32_t res_id = 0, uint32_t bld_id = 0);
+	bool cmd_cancel_train(uint8_t player, uint32_t building_id, size_t queue_idx);
+	void cmd_set_rally_point(uint8_t player, uint32_t building_id, float rx, float rz, uint32_t res_id = 0, uint32_t bld_id = 0);
 
 	void order_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id);
 	void order_attack(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id);
@@ -252,7 +254,7 @@ public:
 
 	// Livestock & Corrals (Corral.js)
 	void order_herd(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
-	bool cmd_breed_livestock(uint32_t building_id);
+	bool cmd_breed_livestock(uint8_t player, uint32_t building_id);
 
 	// Naval Transport Logistics (GarrisonHolder.js / UnitAI.js)
 	static constexpr int TRANSPORT_CAPACITY = 15;
@@ -283,8 +285,8 @@ public:
 	const std::vector<BattleAlert> &pending_alerts() const { return pending_alerts_; }
 	void clear_alerts() { pending_alerts_.clear(); }
 
-	bool cmd_research(uint32_t building_id, uint8_t tech_id);
-	bool cmd_barter(ResourceType sell, ResourceType buy, int amount = 100);
+	bool cmd_research(uint8_t player, uint32_t building_id, uint8_t tech_id);
+	bool cmd_barter(uint8_t player, ResourceType sell, ResourceType buy, int amount = 100);
 	bool cmd_set_diplomacy(uint8_t player_id, uint8_t stance);
 	// G3 Market/Trader
 	int calculate_trader_gain(const Building& mA, const Building& mB, uint8_t team) const;
@@ -352,30 +354,35 @@ public:
 	// Same alliance team (0 A.D. "team" in game setup); a player is always its own ally.
 	bool same_team(uint8_t a, uint8_t b) const { return a == b || (a < MAX_PLAYERS && b < MAX_PLAYERS && players_[a].team == players_[b].team); }
 
-	// Player 0 (local human) shorthands kept for the HUD and tests.
-	int food() const { return (int)players_[0].food(); }
-	int wood() const { return (int)players_[0].wood(); }
-	int gold() const { return (int)players_[0].gold(); }
-	int stone() const { return (int)players_[0].stone(); }
+	// Whole-unit stock for the HUD; defaults to player 0 for single-player callers and tests.
+	int food(uint8_t pid = 0) const { return (int)player(pid).food(); }
+	int wood(uint8_t pid = 0) const { return (int)player(pid).wood(); }
+	int gold(uint8_t pid = 0) const { return (int)player(pid).gold(); }
+	int stone(uint8_t pid = 0) const { return (int)player(pid).stone(); }
 	// GameSetup starting-resources option (0 A.D. page_gamesetup "Starting Resources").
 	// Sets player 0 only (AI slots keep their reset() stock); use set_player_resources per slot.
 	// Must be called AFTER map load: reset()/generate() overwrite stocks.
 	void set_starting_resources(int food, int wood, int gold, int stone) { set_player_resources(0, food, wood, gold, stone); }
 
-	float food_rate() const { return players_[0].gathered_window[RES_FOOD] * 6.0f; } // per min approx
-	float wood_rate() const { return players_[0].gathered_window[RES_WOOD] * 6.0f; }
-	float gold_rate() const { return players_[0].gathered_window[RES_GOLD] * 6.0f; }
-	float stone_rate() const { return players_[0].gathered_window[RES_STONE] * 6.0f; }
+	float food_rate(uint8_t pid = 0) const { return player(pid).gathered_window[RES_FOOD] * 6.0f; } // per min approx
+	float wood_rate(uint8_t pid = 0) const { return player(pid).gathered_window[RES_WOOD] * 6.0f; }
+	float gold_rate(uint8_t pid = 0) const { return player(pid).gathered_window[RES_GOLD] * 6.0f; }
+	float stone_rate(uint8_t pid = 0) const { return player(pid).gathered_window[RES_STONE] * 6.0f; }
 
-	int pop_current() const;
-	int pop_max() const;
+	int pop_current(uint8_t player = 0) const;
+	int pop_max(uint8_t player = 0) const;
+	// Ownership checks for player commands (0 A.D. Commands.js FilterEntityList).
+	bool owns_unit(uint8_t player, uint32_t unit_id) const;
+	bool owns_building(uint8_t player, uint32_t building_id) const;
+	// Copies the ids of live units `player` owns into `out` (cleared first), keeping order.
+	void filter_owned_units(uint8_t player, const uint32_t *unit_ids, size_t count, std::vector<uint32_t> &out) const;
 	int wave_number() const { return wave_number_; }
 	float wave_time_remaining() const { return std::max(0.0f, 35.0f - wave_timer_); }
 	bool is_game_over() const { return game_over_; }
 	bool is_victory() const { return victory_; }
-	uint8_t player_phase() const { return players_[0].phase; }
+	uint8_t player_phase(uint8_t pid = 0) const { return player(pid).phase; }
 	void set_player_civ(uint8_t civ) { players_[0].civ = (Civilization)civ; }
-	uint8_t player_civ() const { return players_[0].civ; }
+	uint8_t player_civ(uint8_t pid = 0) const { return player(pid).civ; }
 	void set_team_civ(uint8_t team, uint8_t civ) { if (team < MAX_PLAYERS) players_[team].civ = (Civilization)civ; }
 	uint8_t team_civ(uint8_t team) const { return (team < MAX_PLAYERS) ? players_[team].civ : CIV_ATHENIANS; }
 	void set_biome(uint8_t b) { biome_ = b; }

@@ -193,11 +193,14 @@ public:
 	void _ready() override;
 	void sync(const rtso::Simulation *sim, float delta, const PackedInt32Array &selected_ids);
 	void rebuild_terrain(const rtso::Simulation *sim);
+	// Player whose units draw as "own" (crowd bank 0, player colours).
+	void set_local_player(uint8_t p) { local_player_ = p; }
 
 	void play_spatial_sound(const Ref<AudioStream> &stream, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
 	void play_spatial_sound_path(const String &path, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
 
 private:
+	uint8_t local_player_ = 0;
 	Ref<MultiMesh> create_multimesh(const Ref<Mesh> &mesh, bool use_colors = false);
 	UnitVis &acquire_unit_slot(uint32_t sim_id);
 	BuildingVis &acquire_building_slot(uint32_t sim_id);

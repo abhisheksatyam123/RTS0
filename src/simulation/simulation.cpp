@@ -239,40 +239,41 @@ void Simulation::reset() {
 	aura_timer_ = 0.0f;
 }
 
-int Simulation::pop_current() const {
+int Simulation::pop_current(uint8_t player) const {
 	int count = 0;
 	for (size_t i = 0; i < units_.count; ++i) {
-		if (units_.team[i] == 0 && (units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED)) count++;
+		if (units_.team[i] == player && (units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED)) count++;
 	}
 	return count;
 }
 
-int Simulation::pop_max() const {
+int Simulation::pop_max(uint8_t player) const {
 	int cap = 10;
 	for (const auto &b : buildings_) {
-		if (b.team == 0 && b.build_progress >= 1.0f) {
+		if (b.team == player && b.build_progress >= 1.0f) {
 			cap += building_type_info(b.type).pop_bonus;
 		}
 	}
 	return cap;
 }
 
-int Simulation::ai_pop_current() const {
-	int count = 0;
-	for (size_t i = 0; i < units_.count; ++i) {
-		if (units_.team[i] == 1 && (units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED)) count++;
-	}
-	return count;
+int Simulation::ai_pop_current() const { return pop_current(PETRA_PLAYER); }
+int Simulation::ai_pop_max() const { return pop_max(PETRA_PLAYER); }
+
+bool Simulation::owns_unit(uint8_t player, uint32_t unit_id) const {
+	int32_t idx = lookup_unit(unit_id);
+	return idx >= 0 && (size_t)idx < units_.count && units_.alive[idx] && units_.team[idx] == player;
 }
 
-int Simulation::ai_pop_max() const {
-	int cap = 10;
-	for (const auto &b : buildings_) {
-		if (b.team == 1 && b.build_progress >= 1.0f) {
-			cap += building_type_info(b.type).pop_bonus;
-		}
-	}
-	return cap;
+bool Simulation::owns_building(uint8_t player, uint32_t building_id) const {
+	auto it = building_id_to_idx_.find(building_id);
+	return it != building_id_to_idx_.end() && buildings_[it->second].team == player;
+}
+
+void Simulation::filter_owned_units(uint8_t player, const uint32_t *unit_ids, size_t count, std::vector<uint32_t> &out) const {
+	out.clear();
+	for (size_t i = 0; i < count; ++i)
+		if (owns_unit(player, unit_ids[i])) out.push_back(unit_ids[i]);
 }
 
 std::vector<uint32_t> Simulation::get_idle_workers(uint8_t team) const {
@@ -811,15 +812,16 @@ bool Simulation::can_place(int cell_x, int cell_y, int footprint) const {
 	return true;
 }
 
-uint32_t Simulation::cmd_build(int cell_x, int cell_y, uint8_t b_type) {
+uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b_type) {
+	if (player >= MAX_PLAYERS) return 0;
 	const BuildingTypeInfo &binfo = building_type_info(b_type);
 	if (!can_place(cell_x, cell_y, binfo.footprint)) return 0;
 
-	if (!players_[0].pay((float)binfo.food_cost, (float)binfo.wood_cost, (float)binfo.gold_cost, (float)binfo.stone_cost))
+	if (!players_[player].pay((float)binfo.food_cost, (float)binfo.wood_cost, (float)binfo.gold_cost, (float)binfo.stone_cost))
 		return 0;
 
-	uint32_t bid = spawn_building(cell_x, cell_y, b_type, 0, 0.0f);
-	record_.buildings_constructed++;
+	uint32_t bid = spawn_building(cell_x, cell_y, b_type, player, 0.0f);
+	if (player == 0) record_.buildings_constructed++;
 	return bid;
 }
 
@@ -856,22 +858,22 @@ bool Simulation::cmd_maintain_fleet(uint32_t building_id, UnitType u_type, uint8
 	return true;
 }
 
-bool Simulation::cmd_train(uint32_t building_id, UnitType u_type) {
+bool Simulation::cmd_train(uint8_t player_id, uint32_t building_id, UnitType u_type) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return false;
 	Building &b = buildings_[bit->second];
-	if (b.team != 0 || b.build_progress < 1.0f) return false;
+	if (b.team != player_id || player_id >= MAX_PLAYERS || b.build_progress < 1.0f) return false;
 	if (b.queue.size() >= 8) return false;
 
 	if (b.type == BLD_CORRAL || u_type == UNIT_TYPE_NONE) {
-		return cmd_breed_livestock(building_id);
+		return cmd_breed_livestock(player_id, building_id);
 	}
 
-	PlayerState &ps = player(b.team);
+	PlayerState &ps = players_[player_id];
 	if (!civ_can_train(ps.civ, (uint8_t)u_type)) return false;
 
 	const UnitTypeInfo &uinfo = unit_type_info(u_type);
-	if (pop_current() >= pop_max()) return false;
+	if (pop_current(player_id) >= pop_max(player_id)) return false;
 
 	if (!ps.pay((float)uinfo.food_cost, (float)uinfo.wood_cost, (float)uinfo.gold_cost, (float)uinfo.stone_cost))
 		return false;
@@ -885,22 +887,23 @@ bool Simulation::cmd_train(uint32_t building_id, UnitType u_type) {
 	return true;
 }
 
-bool Simulation::cmd_cancel_train(uint32_t building_id, size_t queue_idx) {
+bool Simulation::cmd_cancel_train(uint8_t player_id, uint32_t building_id, size_t queue_idx) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return false;
 	Building &b = buildings_[bit->second];
+	if (b.team != player_id || player_id >= MAX_PLAYERS) return false;
 	if (queue_idx >= b.queue.size()) return false;
 
-	// Refunds go to player 0, as before; the owner-aware refund lands with per-player commands.
+	PlayerState &ps = players_[player_id];
 	uint8_t utype = b.queue[queue_idx].unit_type;
 	if (utype == UNIT_TYPE_NONE) {
-		players_[0].add(60.0f, 30.0f, 0.0f, 0.0f);
+		ps.add(60.0f, 30.0f, 0.0f, 0.0f);
 		b.queue.erase(b.queue.begin() + queue_idx);
 		return true;
 	}
 
 	const UnitTypeInfo &uinfo = unit_type_info(utype);
-	players_[0].add((float)uinfo.food_cost, (float)uinfo.wood_cost, (float)uinfo.gold_cost, (float)uinfo.stone_cost);
+	ps.add((float)uinfo.food_cost, (float)uinfo.wood_cost, (float)uinfo.gold_cost, (float)uinfo.stone_cost);
 
 	b.queue.erase(b.queue.begin() + queue_idx);
 	return true;
@@ -935,10 +938,11 @@ bool Simulation::ai_send_tribute(uint8_t res_type, int amount) {
 	return true;
 }
 
-void Simulation::cmd_set_rally_point(uint32_t building_id, float rx, float rz, uint32_t res_id, uint32_t bld_id) {
+void Simulation::cmd_set_rally_point(uint8_t player_id, uint32_t building_id, float rx, float rz, uint32_t res_id, uint32_t bld_id) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return;
 	Building &b = buildings_[bit->second];
+	if (b.team != player_id) return;
 	b.has_rally_point = true;
 	b.rally_x = rx;
 	b.rally_z = rz;
@@ -946,15 +950,15 @@ void Simulation::cmd_set_rally_point(uint32_t building_id, float rx, float rz, u
 	b.rally_target_bld_id = bld_id;
 }
 
-bool Simulation::cmd_research(uint32_t building_id, uint8_t tech_id) {
+bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t tech_id) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return false;
 	Building &b = buildings_[bit->second];
-	if (b.team != 0 || b.build_progress < 1.0f || b.research_tech != TECH_NONE) return false;
-	if (is_tech_researched(tech_id)) return false;
+	if (b.team != player_id || player_id >= MAX_PLAYERS || b.build_progress < 1.0f || b.research_tech != TECH_NONE) return false;
+	PlayerState &ps = players_[player_id];
+	if (ps.has_tech(tech_id)) return false;
 
 	const TechInfo &tinfo = tech_info(tech_id);
-	PlayerState &ps = players_[0];
 	if (tinfo.required_phase > ps.phase) return false;
 
 	if (!ps.pay((float)tinfo.food_cost, (float)tinfo.wood_cost, (float)tinfo.gold_cost, (float)tinfo.stone_cost))
@@ -966,10 +970,10 @@ bool Simulation::cmd_research(uint32_t building_id, uint8_t tech_id) {
 	return true;
 }
 
-bool Simulation::cmd_barter(ResourceType sell, ResourceType buy, int amount) {
-	if (sell == buy || amount <= 0) return false;
+bool Simulation::cmd_barter(uint8_t player_id, ResourceType sell, ResourceType buy, int amount) {
+	if (sell == buy || amount <= 0 || player_id >= MAX_PLAYERS) return false;
 	if (sell >= RES_COUNT || buy >= RES_COUNT) return false;
-	PlayerState &ps = players_[0];
+	PlayerState &ps = players_[player_id];
 	float *src = &ps.res[sell];
 	float *dst = &ps.res[buy];
 	if (*src < (float)amount) return false;
@@ -1604,11 +1608,11 @@ void Simulation::order_herd(const uint32_t *unit_ids, size_t count, uint32_t fau
 	}
 }
 
-bool Simulation::cmd_breed_livestock(uint32_t building_id) {
+bool Simulation::cmd_breed_livestock(uint8_t player_id, uint32_t building_id) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return false;
 	Building &b = buildings_[bit->second];
-	if (b.team != 0 || b.build_progress < 1.0f || b.type != BLD_CORRAL) return false;
+	if (b.team != player_id || b.build_progress < 1.0f || b.type != BLD_CORRAL) return false;
 	if (b.queue.size() >= 8) return false;
 	if (!player(b.team).pay(60.0f, 30.0f, 0.0f, 0.0f)) return false;
 	b.queue.push_back({(uint8_t)UNIT_TYPE_NONE, 0.0f, 15.0f});
@@ -2454,6 +2458,7 @@ void Simulation::tick_gather(float dt) {
 							else record_.total_food_gathered += amt;
 						} else {
 							ps.res[rt] = std::min(9999.0f, ps.res[rt] + (float)amt);
+							ps.gathered_window[rt] += (float)amt;
 						}
 					}
 

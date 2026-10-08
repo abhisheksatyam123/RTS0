@@ -38,6 +38,15 @@ public:
 	void set_net_host(NetHost *net_host, uint32_t client_id = 0);
 	NetHost* get_net_host() const { return net_host_; }
 	uint32_t local_client_id() const { return local_client_id_; }
+	// Lockstep client -> player slot. Defaults to client_id (host 0 = player 0, joiner 1 =
+	// player 1); game setup may remap. Ids that map past MAX_PLAYERS issue nothing.
+	void set_client_player(uint32_t client_id, uint8_t player) { client_player_[client_id] = player; }
+	uint8_t player_for_client(uint32_t client_id) const {
+		auto it = client_player_.find(client_id);
+		if (it != client_player_.end()) return it->second;
+		return client_id < MAX_PLAYERS ? (uint8_t)client_id : (uint8_t)0xFF;
+	}
+	uint8_t local_player() const { return player_for_client(local_client_id_); }
 	void set_local_client_id(uint32_t id) { local_client_id_ = id; }
 
 	// Post or receive remote commands
@@ -276,6 +285,7 @@ private:
 	// Network state
 	NetHost *net_host_ = nullptr;
 	uint32_t local_client_id_ = 0;
+	std::unordered_map<uint32_t, uint8_t> client_player_;
 	// Pending NMT_GAME_START seed-sync (P1 playtest gate). Set by the
 	// onMessage NMT_GAME_START branch; consumed by the game layer, which owns
 	// map loading (Simulation::generate_random_map). Cleared on reset() and
