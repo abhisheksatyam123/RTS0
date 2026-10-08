@@ -1062,8 +1062,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	ensure_unit_batches(sim);
 	auto uview = sim->units();
 	auto rview_g = sim->resources();
-	auto entity_visible = [sim](float x, float z, uint8_t team) {
-		return sim->is_entity_visible_to_viewer(x, z, team, 0);
+	auto entity_visible = [sim, this](float x, float z, uint8_t team) {
+		return sim->is_entity_visible_to_viewer(x, z, team, local_player_);
 	};
 	std::unordered_map<uint32_t, uint8_t> res_sub;
 	res_sub.reserve(rview_g.count);

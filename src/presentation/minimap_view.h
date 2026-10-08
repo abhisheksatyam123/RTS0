@@ -29,6 +29,7 @@ class RtsoMiniMapView : public Control {
 	bool dragging = false;
 	bool show_territory = true;
 	bool show_resources = true;
+	uint8_t local_player = 0; // player whose units read as "own" and whose fog is drawn
 	bool show_diplo_palette = false; // ally/enemy palette per DiplomacyDialog stances (UI_PARITY Minimap bullet)
 
 	// 3-state shroud view. 0 A.D. rasterises a 3-level LOS bitmap
@@ -68,6 +69,7 @@ public:
 	void sync(const rtso::Simulation *s, Vector3 p_cam_pos);
 	void add_ping(Vector2 world_pos, Color col = Color(1.0f, 0.85f, 0.2f));
 	void toggle_territory() { show_territory = !show_territory; queue_redraw(); }
+	void set_local_player(uint8_t p) { if (p != local_player) { local_player = p; queue_redraw(); } }
 	void toggle_resources() { show_resources = !show_resources; queue_redraw(); }
 	// Binary legacy API kept bound (docs/UI_PARITY.md still names toggle_fow):
 	// maps onto the 3-state cycle as OFF <-> ON.

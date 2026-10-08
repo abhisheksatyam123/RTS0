@@ -1253,7 +1253,7 @@ bool RtsoMain::load_game(String path) {
 
 PackedByteArray RtsoMain::get_fow_grid() const {
 	if (!sim) return PackedByteArray();
-	const uint8_t* grid = sim->fow_grid();
+	const uint8_t* grid = sim->fow_grid(local_player());
 	int sz = sim->fow_res() * sim->fow_res();
 	PackedByteArray arr;
 	arr.resize(sz);
@@ -1380,8 +1380,10 @@ void RtsoMain::_process(double delta) {
 	rtso::PerfTracker::record_draw((int)sim->unit_count(), (int)sim->building_count());
 
 	view->set_local_player(local_player());
+	sim->set_fow_viewer(local_player());
 	view->sync(sim, (float)delta, selected_ids);
 	if (cam_rig) {
+		minimap_view->set_local_player(local_player());
 		minimap_view->sync(sim, cam_rig->get_target_pos());
 	}
 	uint64_t after_sync_us = Time::get_singleton()->get_ticks_usec();

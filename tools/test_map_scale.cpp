@@ -12,6 +12,7 @@
 //  3. Map JSON loading (reset, then set_map_half) re-initialises the nav grid for
 //     the new extent, so a path across a 256m map reaches its far corner.
 //  4. A unit near the far corner of a Giant map lights up the FoW there.
+//  4b. The FoW viewer (a multiplayer joiner's slot) gets its own fog, shared within its team.
 //  5. Generation is deterministic: the same seed gives the same map at every size.
 //  Exit: 0 = PASS, 1 = FAIL.
 #include "simulation/simulation.h"
@@ -144,6 +145,26 @@ int main() {
 		for (int i = 0; i < 10; ++i) sim.tick(Simulation::FIXED_STEP);
 		CHECK(sim.fow_state_at(x, z) == Simulation::FOW_VISIBLE, "unit at (%.0f, %.0f) does not reveal its cell", x, z);
 		CHECK(sim.fow_state_at(x - 40.0f, z - 40.0f) != Simulation::FOW_VISIBLE, "cell 56m away visible");
+	}
+
+	// 4b. Per-player fog: the viewer (a joiner's slot) sees through its own units
+	// and its game-setup team's, and player 0's (hashed) view is unaffected.
+	{
+		Simulation sim;
+		sim.generate_random_map(MAP_MAINLAND, 7, 4, 128.0f);
+		const float x = -100.0f, z = 100.0f;
+		sim.spawn_unit(x, z, 2, UNIT_SPEARMAN);
+		sim.spawn_unit(-x, -z, 3, UNIT_SPEARMAN);
+		sim.set_player_team(2, 5);
+		sim.set_player_team(3, 5);
+		sim.set_fow_viewer(2);
+		for (int i = 0; i < 10; ++i) sim.tick(Simulation::FIXED_STEP);
+		CHECK(sim.fow_state_at(x, z, 2) == Simulation::FOW_VISIBLE, "player 2 can't see its own unit");
+		CHECK(sim.fow_state_at(-x, -z, 2) == Simulation::FOW_VISIBLE, "player 2 can't see its team-mate's unit");
+		CHECK(sim.fow_state_at(x, z, 0) != Simulation::FOW_VISIBLE, "player 0 sees player 2's unit");
+		CHECK(sim.fow_state_at(x, z, 1) != Simulation::FOW_VISIBLE, "player 1 sees player 2's unit");
+		CHECK(sim.is_entity_visible_to_viewer(-x, -z, 3, 2), "team-mate's unit hidden from player 2");
+		CHECK(sim.fow_grid(6)[0] == Simulation::FOW_UNEXPLORED, "player 6 (not the viewer) has explored cells");
 	}
 
 	// 5. Determinism.
