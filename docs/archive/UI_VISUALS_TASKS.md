@@ -1,3 +1,5 @@
+> **Archived 2026-10-08.** Historical record only; do not plan work from it. See [docs/README.md](../README.md) for the live docs.
+
 ## Systems
 
 **Project:** RTS0 — High-fidelity Godot 4.3 C++ GDExtension port of 0 A.D.

@@ -1,6 +1,6 @@
 # RTS0 plan (0 A.D. native port)
 
-> **Status 2026-09-06:** `simulation.cpp:7394` + 11 ticks, roster 23 units / 14 bldgs / 13 civs, `grid_nav.h:722` A*+hierarchical+string-pull, manifest 663 models / 1316 anims / 98 skels / 652 terrain, `check_parity.py` 92% overall (Wave 1+2 refresh 2026-10-06) (G6 models 11.8% is the long tail). `src/0ad/` stays reference-only (SConstruct excludes it).
+> **This is the one live, ordered todo list for RTS0.** Area docs (MIGRATION.md, ASSET_MANIFEST_TODO.md) keep detailed todos for their area and this list links to them; [docs/README.md](README.md) says which doc owns what. Current numbers live elsewhere: per-subsystem parity in the [G1–G10 table](REMAINING_GAPS.md#g1-g10-summary-table), asset counts in [ASSET_MANIFEST_TODO.md](ASSET_MANIFEST_TODO.md), and vendored 0 A.D. code in [MIGRATION.md](MIGRATION.md).
 
 Vendor JS/C++ under `src/0ad/` and `/home/abhi/project/0ad` is **reference only** (`SConstruct` excludes it). Runtime is C++ SoA in `src/simulation/`. Every remaining task below names the 0 A.D. file to copy semantics from.
 
@@ -18,12 +18,28 @@ Vendor JS/C++ under `src/0ad/` and `/home/abhi/project/0ad` is **reference only*
 | Lobby handshake + HTTP rooms | `NetMessages.h` `NMT_*`, `NetClient` handshake | `NetHost`, `lobby_client.h`, `tools/lobby_server.py`, Lobby HUD |
 | Unique models / PSA / civ voice | `art/meshes`, `art/animation` | `sim_types.h` `model_id`, `init_animation_controllers`, Voice EN/Civ |
 | Lockstep batch + hash-after-sim | `NetClientTurnManager.cpp:188`, `HashSerializer` | `TurnManager` 4×`FIXED_STEP` then `compute_sim_hash`; HUD `post_lockstep` 1–21 |
-| Cardinal JPS skip + dirty regions | `LongPathfinder.cpp` AddJumpedHoriz, `HierarchicalPathfinder.cpp:480` | `find_path` jump on cardinals; `rebuild_dirty_regions` |
+| JPS long pathfinder + dirty chunks | `LongPathfinder.cpp` `ComputeJPSPath`, `HierarchicalPathfinder.cpp:480` | `nav/long_pathfinder.h` used by `find_path` (PR #1); `rebuild_dirty_chunks` |
+| Cavalry slope class | `Pathfinding.h` passability classes | `grid_nav.h` `PASS_CAVALRY` + `steep_cells_`, own region map |
 | Idle ship `moveApart` | `navalManager.js:568` | `petra_manage_naval` nudge off dock |
 
 Verify: `python3 tools/check_parity.py --unit petra` and `--unit netcode`.
 
 ---
+
+## Game-level work (areas A–F)
+
+The biggest gaps to 0 A.D. are game-level rather than per-system (see [REMAINING_GAPS.md](REMAINING_GAPS.md#read-this-first-whole-game-parity-2026-10-08)). Each area is being built in its own thread as of 2026-10-08. **A lands first**, because it changes most of `simulation.cpp`; B–F follow in parallel. In `sim_types.h`, D owns the unit and civ enum entries and E owns the building and technology entries.
+
+| Area | Goal | Status |
+|---|---|---|
+| A. Per-player economy | Per-player resource/tech table for up to 8 players | In progress |
+| B. Game modes | Wave mode off for skirmish; victory options | In progress |
+| C. AI (Petra) | Fix the phase-up stall, scale the economy, several AI players | In progress |
+| D. Civ rosters and heroes | Civ-specific units and heroes, add Han, civ bonuses as data | In progress |
+| E. Buildings, techs, farming | Missing buildings, 0 A.D. tech tree, fields and farming | In progress |
+| F. Maps and scale | Larger maps, more 0 A.D. random maps (coordinate with MIGRATION.md pathfinding work) | In progress |
+
+Each thread times a fixed headless AI match before and after its change with the shared benchmark tool once it's on main.
 
 ## Next work (in order)
 
@@ -32,19 +48,19 @@ Verify: `python3 tools/check_parity.py --unit petra` and `--unit netcode`.
 **0 A.D.:** `NetClientTurnManager.cpp:188`, `HashSerializer.cpp`  
 **RTS0:** Host/Join + `TurnManager` hash-after-sim + deferred player cmds 1–21. Headless dual-sim hashes: `tools/test_netcode.cpp` Test 4.
 
-DONE 2026-10-05: `save_replay`/`load_replay` round-trip verified by `tools/test_replay.cpp` (357 lines, real TurnManager API, negative control, RC=0); headless two-client harness `tools/playtest_lockstep.py` PASS 3/3 seeds × 2000 turns `--shadow --through` (see `docs/MULTIPLAYER.md` "Playtest harness"). DONE 2026-10-06: first live OOS FOUND + FIXED (pre-Start lockstep ticked divergent boot worlds -> `net_game_started_` gate, main_node.h). **LANDED (Wave 1+2, grep-verified):** start gate flag `src/presentation/main_node.h:185` `bool net_game_started_ = false;`; host broadcast of the authoritative setup `src/presentation/main_node.cpp:3743-3745` (`turn_mgr_.mark_game_started(sim)`, `net_host_.note_game_start_sent()`, `net_host_.sendGameStart(rtso::format_game_start_full(setup))`); joiner consumption of `NMT_GAME_START` `src/presentation/main_node.cpp:3803-3810` (`apply_net_game_start` → `take_pending_game_start_full` → `turn_mgr_.note_game_start_applied(sim)`). Two-client automation verified EXIT 0 with strict start markers — see docs/MULTIPLAYER.md. Still needed: 5-minute (vs 1-minute) session run; long-drift OOS hunt (Petra `rand()`, wall-drag spawn).
+DONE 2026-10-05: `save_replay`/`load_replay` round-trip verified by `tools/test_replay.cpp` (357 lines, real TurnManager API, negative control, RC=0); headless two-client harness `tools/playtest_lockstep.py` PASS 3/3 seeds × 2000 turns `--shadow --through` (see `docs/MULTIPLAYER.md` "Playtest harness"). DONE 2026-10-06: first live OOS FOUND + FIXED (pre-Start lockstep ticked divergent boot worlds -> `net_game_started_` gate, main_node.h). **LANDED (Wave 1+2, grep-verified):** start gate flag `src/presentation/main_node.h:185` `bool net_game_started_ = false;`; host broadcast of the authoritative setup `src/presentation/main_node.cpp:3743-3745` (`turn_mgr_.mark_game_started(sim)`, `net_host_.note_game_start_sent()`, `net_host_.sendGameStart(rtso::format_game_start_full(setup))`); joiner consumption of `NMT_GAME_START` `src/presentation/main_node.cpp:3803-3810` (`apply_net_game_start` → `take_pending_game_start_full` → `turn_mgr_.note_game_start_applied(sim)`). Two-client automation verified EXIT 0 with strict start markers — see docs/MULTIPLAYER.md. A 5-minute two-client session passed on 2026-10-06 (docs/MULTIPLAYER.md "P1 Final Gate"). Still needed: long-drift OOS hunt (Petra `rand()`, wall-drag spawn) and a session on two real machines.
 
 DONE 2026-10-08: two-process UDP session. The in-process harness above gave both sims the same batch, so it could not see network timing. `tools/test_netcode.cpp --net-peer` runs host and joiner as separate processes with their own jittered clocks over real UDP with injected loss. Before the fix it went OOS on turn 1; it now runs 1500 turns (5 minutes real time, 5% loss, ~13k commands) with identical hashes. Caveat: the scripted world loses its town centre to enemy waves near turn 590, so the sim is frozen for the rest; disable waves in `--net-peer` once a waves setting exists. Fixes: lockstep gate + `COMMAND_DELAY` 2 (`turn_manager.cpp`, cites `NetServerTurnManager.cpp:43`), remote batches no longer applied twice (onCommand + onMessage), reliable UDP no longer loses packets on loss (per-packet ACK, per-peer seq, gap-aware dedupe in `net_host.cpp`), joiner keeps batches that arrive with GAME_START. Runs in CI via `playtest_lockstep.py` (600 turns, x8 speed, 5% loss). Still open: joiner commands team 0, not its own slot (`apply_game_setup` selects team-0 units; the sim has no per-client ownership check); >2 players need host relay of client batches.
 
 Verify: `python3 tools/lobby_server.py` then two `./build/linux/RTS0.x86_64` Host + Join.
 
-### P2 — Long-path JPS + dirty chunks (remaining)
+### P2 — Long-path JPS (done)
 
-Cardinal jump + per-chunk dirty rebuild DONE 2026-09-06 (`grid_nav.h` `flood_single_chunk`/`rebuild_dirty_chunks` + diff-based dirty in `rebuild_nav_grid`; single building = 1 chunk flood, 128k-query equivalence 0 mismatches). Remaining: optional `PASS_CAVALRY` slope class.
+Shipped in PR #1; see the table above. Further pathfinding work (obstruction manager, `VertexPathfinder`, legacy A* removal) is porting of vendored code and is ordered in [MIGRATION.md](MIGRATION.md#todo-in-priority-order).
 
 ### P3 — Petra naval remaining
 
-`moveApart` + fisher counts are in. DONE 2026-10-05: per-sea fleet registry (`petra_ai.h` sea_warships[8][16], sea id via `global_region_at(...,PASS_SHIP)`, cites navalManager.js:58/:546) + island `PLAN_RAID` dock targets (`find_petra_attack_target` same-sea dock P100/P80, coastal barracks P60/P40, cites attackPlan.js:930/:1100-1108, entityExtend.js:134-158; `check_parity --unit petra` 28/28). **LANDED 2026-10-06 (Wave 1+2, grep-verified) — `maintainFleet` upkeep is DONE:** generation `src/network/turn_manager.cpp:544` emits `NET_CMD_MAINTAIN_FLEET` (`net_types.h:134` = 24) once per turn (built-dock gate + own-queue-empty + wishlist-vs-fleet, `turn_manager.cpp:481-551`, citing navalManager.js:507-543); dispatch `turn_manager.cpp:559 maintain_fleet_upkeep(Simulation&)` called from `tick()` at `turn_manager.cpp:861`; **sim hook landed** `src/simulation/simulation.h:195 bool cmd_maintain_fleet(uint32_t building_id, UnitType u_type, uint8_t team)` implemented at `src/simulation/simulation.cpp:835` (team-aware naval queue seam). Remaining (non-blocking): per-sea wishlist registry on the Simulation side — `generate_fleet_upkeep_commands` currently uses `active_seas = 1` (`turn_manager.cpp:524`), so trireme/fisher targets scale correctly but not per-sea.
+`moveApart` + fisher counts are in. DONE 2026-10-05: per-sea fleet registry (`petra_ai.h` sea_warships[8][16], sea id via `global_region_at(...,PASS_SHIP)`, cites navalManager.js:58/:546) + island `PLAN_RAID` dock targets (`find_petra_attack_target` same-sea dock P100/P80, coastal barracks P60/P40, cites attackPlan.js:930/:1100-1108, entityExtend.js:134-158; `check_parity --unit petra` 28/28). **LANDED 2026-10-06 (Wave 1+2, grep-verified) — `maintainFleet` upkeep is DONE:** generation `src/network/turn_manager.cpp:544` emits `NET_CMD_MAINTAIN_FLEET` (`net_types.h:134` = 24) once per turn (built-dock gate + own-queue-empty + wishlist-vs-fleet, `turn_manager.cpp:481-551`, citing navalManager.js:507-543); dispatch `turn_manager.cpp:559 maintain_fleet_upkeep(Simulation&)` called from `tick()` at `turn_manager.cpp:861`; **sim hook landed** `src/simulation/simulation.h:195 bool cmd_maintain_fleet(uint32_t building_id, UnitType u_type, uint8_t team)` implemented at `src/simulation/simulation.cpp:835` (team-aware naval queue seam). Remaining (non-blocking): boarding and fighting enemy ships is still thin; per-sea wishlist registry on the Simulation side — `generate_fleet_upkeep_commands` currently uses `active_seas = 1` (`turn_manager.cpp:524`), so trireme/fisher targets scale correctly but not per-sea.
 
 ### P4 — Session UI split + civ actors
 
@@ -55,6 +71,8 @@ Cardinal jump + per-chunk dirty rebuild DONE 2026-09-06 (`grid_nav.h` `flood_sin
 2. Per-civ GLB/actor variants (`art/actors/`) after shared `model_id`s — do not add more cavalry fallbacks.
 
 #### P4 Session HUD Modularization Plan (Split `main_node.cpp:3961`)
+
+> **Progress 2026-10-08:** Phase 4.1 has landed (`chat_window.h`, `diplomacy_dialog.h`, included from `main_node.h`), and `top_panel.h` and `production_queue.h` exist as extracted headers. `main_node.cpp` is now 3,539 lines, so the `main_node.cpp` line numbers in the table below (taken from the 3,961-line version) are approximate.
 
 `RtsoMain` in `src/presentation/main_node.cpp` currently coordinates root scene lifecycle, 3D camera controls, selection raycasts, audio playback, net lockstep synchronization, and the entire 2D UI presentation tree (~3,960 lines). The P4 UI modularization separates the monolithic presentation layer into discrete Godot `Control` widgets mirroring 0 A.D.'s `gui/session/` architecture.
 
@@ -101,10 +119,16 @@ To preserve determinism and avoid regression in live multiplayer playtests:
 6. **Phase 4.6: RtsoMain Final Coordinator Slimming**
    - `RtsoMain` retains high-level orchestration, Godot scene hooks (`_ready`, `_process`, `_unhandled_input`), 3D spatial picking, and bridge between UI signals and network lockstep. Target size: ~900-1000 lines.
 
+### Also open (unordered, after P1–P4)
+
+- **Component parity tests:** replace the broad 11-tick coverage estimate with per-component behavioral tests for weapons, research, vision, construction and victory conditions (see the G1–G10 table for what is already probed).
+- **Platform validation:** Windows/Linux plus Android/iOS export and runtime checks (`docs/BUILD.md`).
+- **Asset long tail:** high-use 0 A.D. actors beyond the canonical roster ([ASSET_MANIFEST_TODO.md](ASSET_MANIFEST_TODO.md)).
+
 ### P5 — Ranked lockstep (optional, last)
 
 **0 A.D.:** `maths/Fixed.h` `CFixed_15_16`  
-Only if 1v1 ranked is a goal. Until then keep float sim + host-authoritative hash checks.
+Only if 1v1 ranked is a goal. Until then keep the float sim with lockstep hash checks.
 
 ---
 
@@ -113,4 +137,4 @@ Only if 1v1 ranked is a goal. Until then keep float sim + host-authoritative has
 - Read the 0 A.D. function first; port semantics, not JS.
 - New Petra/nav/net code cites `file:line` in a one-line comment.
 - Do not compile `src/0ad/`.
-- `docs/REMAINING_GAPS.md` body below the G1–G10 table may still describe old stubs — trust the table + this file.
+- When a task lands, update its line here and the matching row in the `REMAINING_GAPS.md` G1–G10 table in the same PR; don't add status notes to other docs.

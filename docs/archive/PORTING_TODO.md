@@ -1,3 +1,5 @@
+> **Archived 2026-10-08.** Historical record only; do not plan work from it. See [docs/README.md](../README.md) for the live docs.
+
 # 0 A.D. to RTS0 Porting Roadmap & Master TODO
 
 > **Note on Parity vs Checklist:** Checklist completion (`[x]`) does NOT equal parity. It tracks scaffolding and porting stubs. For authoritative parity and fidelity, see `docs/REMAINING_GAPS.md` and run `python3 tools/track_progress.py`.
