@@ -73,6 +73,9 @@ public:
 	// differs from `base` (the user.cfg a hotkey editor writes).
 	std::string diff_cfg(const HotkeyTable &base) const;
 
+	// Hotkeys bound to exactly this key set (0 A.D. Engine.GetConflicts).
+	std::vector<std::string> bound_to(const Combo &combo) const;
+
 	// First binding as text ("Ctrl+F5"), for tooltips; "" when unbound.
 	std::string label(const std::string &name) const;
 
