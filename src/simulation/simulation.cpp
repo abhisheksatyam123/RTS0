@@ -4355,24 +4355,64 @@ void Simulation::tick_capture(float dt) {
 	// Attacking units within reach reduce enemy capture pools and transfer points to capturer.
 	// Owner regenerates capture points back when unattacked; structure flips ownership when
 	// a team crosses the majority threshold (>50% max) or owner points hit 0.
-	const size_t n = units_.count;
-	for (auto &b : buildings_) {
+	// Count and strength of the capturers (alive, teams 0-3) within 11 of each building, per team.
+	// Units go in the outer loop, so each building's strength sums in unit order. A grid of building
+	// reach (11, plus 1 to spare) limits each unit to the buildings near its cell.
+	auto tally_capturers = [this] {
+		const float half = map_half_;
+		constexpr float CELL = 8.0f, REACH = 12.0f;
+		const int W = std::max(1, (int)std::ceil(2.0f * half / CELL) + 1);
+		auto cell_of = [half, W](float v) { // monotonic in v, so nearby units can't fall outside a building's cells
+			const float f = (v + half) / CELL;
+			return f >= 0.0f ? (f < (float)W ? (int)f : W - 1) : 0;
+		};
+		capture_cell_start_.assign((size_t)W * W + 1, 0);
+		for (int pass = 0; pass < 2; ++pass) {
+			for (uint32_t i = 0; i < (uint32_t)buildings_.size(); ++i) {
+				const Building &b = buildings_[i];
+				const int x0 = cell_of(b.x - REACH), x1 = cell_of(b.x + REACH);
+				const int z0 = cell_of(b.z - REACH), z1 = cell_of(b.z + REACH);
+				for (int cz = z0; cz <= z1; ++cz)
+					for (int cx = x0; cx <= x1; ++cx) {
+						if (pass == 0) capture_cell_start_[(size_t)cz * W + cx + 1]++;
+						else capture_cell_buildings_[capture_cell_start_[(size_t)cz * W + cx]++] = CaptureReach{i, b.x, b.z};
+					}
+			}
+			if (pass == 0) {
+				for (size_t c = 1; c < capture_cell_start_.size(); ++c) capture_cell_start_[c] += capture_cell_start_[c - 1];
+				capture_cell_buildings_.resize(capture_cell_start_.back());
+			} else {
+				// Filling advanced each cell's start to the next cell's; shift back.
+				for (size_t c = capture_cell_start_.size() - 1; c > 0; --c) capture_cell_start_[c] = capture_cell_start_[c - 1];
+				capture_cell_start_[0] = 0;
+			}
+		}
+		capture_tally_.assign(buildings_.size(), CaptureTally{{0, 0, 0, 0}, {0.0f, 0.0f, 0.0f, 0.0f}});
+		for (size_t u = 0; u < units_.count; ++u) {
+			if (!units_.alive[u] || units_.team[u] >= 4) continue;
+			const size_t c = (size_t)cell_of(units_.pos_z[u]) * W + cell_of(units_.pos_x[u]);
+			for (uint32_t k = capture_cell_start_[c]; k < capture_cell_start_[c + 1]; ++k) {
+				const CaptureReach &b = capture_cell_buildings_[k];
+				const float dx = units_.pos_x[u] - b.x;
+				const float dz = units_.pos_z[u] - b.z;
+				if (dx * dx + dz * dz <= 11.0f * 11.0f) {
+					CaptureTally &t = capture_tally_[b.building];
+					t.count[units_.team[u]]++;
+					t.strength[units_.team[u]] += unit_capture_strength(units_.unit_type[u]);
+				}
+			}
+		}
+	};
+	tally_capturers();
+	for (size_t bi = 0; bi < buildings_.size(); ++bi) {
+		Building &b = buildings_[bi];
 		if (b.build_progress < 1.0f || b.max_capture_points <= 0.0f) continue;
 		if (std::abs(std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f) - b.max_capture_points) > 0.01f) {
 			b.capture_points_by_team.fill(0.0f);
 			b.capture_points_by_team[b.team < 8 ? b.team : 0] = b.max_capture_points;
 		}
-		int count[4] = {0, 0, 0, 0};
-		float strength[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-		for (size_t u = 0; u < n; ++u) {
-			if (!units_.alive[u] || units_.team[u] >= 4) continue;
-			const float dx = units_.pos_x[u] - b.x;
-			const float dz = units_.pos_z[u] - b.z;
-			if (dx * dx + dz * dz <= 11.0f * 11.0f) {
-				count[units_.team[u]]++;
-				strength[units_.team[u]] += unit_capture_strength(units_.unit_type[u]);
-			}
-		}
+		const int *count = capture_tally_[bi].count;
+		const float *strength = capture_tally_[bi].strength;
 		const int owner = b.team < 4 ? b.team : 0;
 		auto enemy = [&](int source, int target) {
 			return can_attack((uint8_t)source, (uint8_t)target);
@@ -4453,6 +4493,7 @@ void Simulation::tick_capture(float dt) {
 		}
 		if (best != owner && (b.capture_points_by_team[best] > b.max_capture_points * 0.5f || b.capture_points_by_team[owner] <= 0.0001f)) {
 			order_ungarrison(b.id);
+			tally_capturers(); // the units it let out count for the buildings after this one
 			cancel_upgrade(b, b.team);
 			b.team = (uint8_t)best;
 			raise_alert(BattleAlert::ALERT_STRUCTURE_CAPTURED, b.x, b.z, b.id, b.team);
