@@ -248,7 +248,11 @@ enum VictoryCondition : uint8_t {
 	VICTORY_CONQUEST = 0,
 	VICTORY_WONDER = 1,
 	VICTORY_RELIC = 2,
-	VICTORY_ENDLESS = 3
+	VICTORY_ENDLESS = 3,
+	VICTORY_CONQUEST_UNITS = 4, // 0 A.D. "Conquest Units": kill every enemy unit
+	VICTORY_CONQUEST_STRUCTURES = 5, // 0 A.D. "Conquest Structures": raze every enemy structure
+	VICTORY_REGICIDE = 6, // 0 A.D. "Regicide": each player starts with a hero; lose it and you lose
+	VICTORY_COUNT
 };
 
 struct BattleAlert {
