@@ -47,6 +47,11 @@ public:
 		return client_id < MAX_PLAYERS ? (uint8_t)client_id : (uint8_t)0xFF;
 	}
 	uint8_t local_player() const { return player_for_client(local_client_id_); }
+	// Seat lockstep clients from NMT_GAME_START: client k takes the k-th human
+	// ('h') slot, so host 0 gets the first one and joiner 1 the second. Both
+	// peers run this on the same setup, so they agree. A client with no human
+	// slot left is seated as an observer (0xFF, its commands do nothing).
+	void assign_slot_players(const GameSetupParams &setup);
 	void set_local_client_id(uint32_t id) { local_client_id_ = id; }
 
 	// Post or receive remote commands
