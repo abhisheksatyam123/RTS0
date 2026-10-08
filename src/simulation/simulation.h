@@ -131,7 +131,7 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
-	static constexpr uint32_t SAVE_VERSION = 26; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 27; // save_state's format; see the history beside it
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -1283,6 +1283,13 @@ private:
 	PetraDiplomacy petra_diplo_;
 	// Tribute paid to each player since its Petra last looked: [to][from][resource].
 	float petra_tribute_inbox_[MAX_PLAYERS][MAX_PLAYERS][RES_COUNT] = {};
+	// AI-to-AI diplomacy (0 A.D. DiplomacyRequest / TributeRequest events), [to][from], save v27:
+	// the stance asked for (0 none, 1 ally, 2 neutral) and a tribute asked for in return.
+	uint8_t petra_diplo_request_inbox_[MAX_PLAYERS][MAX_PLAYERS] = {};
+	int32_t petra_tribute_request_wanted_[MAX_PLAYERS][MAX_PLAYERS] = {};
+	uint8_t petra_tribute_request_res_[MAX_PLAYERS][MAX_PLAYERS] = {};
+	PetraSentDiplomacy petra_sent_diplo_;
+	void petra_send_diplomacy_request();
 	float petra_defense_timer_ = 0.0f;
 	float petra_victory_timer_ = 0.0f;
 	float petra_diplo_timer_ = 0.0f;
@@ -1382,7 +1389,8 @@ private:
 	X(petra_diplo_timer_) X(ai_wonder_victory_timer_) X(petra_bases_) X(petra_fnd_watch_) \
 	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
-	X(petra_fow_) X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_)
+	X(petra_fow_) X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
+	X(petra_sent_diplo_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
