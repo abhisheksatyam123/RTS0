@@ -3248,20 +3248,6 @@ void RtsoMain::apply_match_settings() {
 	int map_size = (int)ms->get("map_size");
 	random_map_size = (map_size >= 128 && map_size <= 512) ? map_size : 128;
 	Array slot_civs = ms->get("slot_civs");
-	{
-		// Random maps give every seated slot a base (closed slots none).
-		Array types = ms->get("slot_types");
-		Array teams = ms->get("slot_teams");
-		random_map_seats = 0;
-		for (int i = 0; i < 8 && i < slot_civs.size(); ++i) {
-			const int ty = i < types.size() ? (int)types[i] : (i < 2 ? i : 2);
-			if (ty != 0 && ty != 1) continue;
-			const int tm = i < teams.size() ? (int)teams[i] : 0;
-			random_map_ids[random_map_seats] = (uint8_t)i;
-			random_map_teams[random_map_seats] = (uint8_t)((tm >= 1 && tm <= 8) ? tm : 0);
-			++random_map_seats;
-		}
-	}
 	// Normalize legacy fields: if the setup screen never ran, slot_civs
 	// may be empty - fall back to player_civ/ai_civ.
 	int civ = (int)ms->get("player_civ");
@@ -3433,12 +3419,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			if (map_id == id || map_id == "random_" + id) { mtype = (rtso::MapType)t; break; }
 		}
 
-		if (random_map_seats >= 2) {
-			num_p = random_map_seats;
-			sim->generate_random_map(mtype, seed, num_p, (float)random_map_size * 0.5f, random_map_ids, random_map_teams);
-		} else {
-			sim->generate_random_map(mtype, seed, num_p, (float)random_map_size * 0.5f);
-		}
+		sim->generate_random_map(mtype, seed, num_p, (float)random_map_size * 0.5f);
 		view->rebuild_terrain(sim);
 
 		if (cam_rig) {
@@ -3831,13 +3812,6 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	if (!sim) return;
 	// Every peer generates the same map: the size rides in NMT_GAME_START.
 	random_map_size = (setup.map_size >= 128 && setup.map_size <= 512) ? setup.map_size : 128;
-	random_map_seats = 0;
-	for (uint8_t i = 0; i < 8 && i < setup.slot_count; ++i) {
-		if (setup.slot_types[i] != 'h' && setup.slot_types[i] != 'a') continue;
-		random_map_ids[random_map_seats] = i;
-		random_map_teams[random_map_seats] = (setup.teams[i] >= 1 && setup.teams[i] <= 8) ? setup.teams[i] : 0;
-		++random_map_seats;
-	}
 	if (!load_map_seeded(String(setup.map_id.c_str()), setup.seed)) {
 		if (lobby_status) lobby_status->set_text("GameStart failed: map regen failed");
 		return;

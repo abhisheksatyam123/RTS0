@@ -744,7 +744,7 @@ void Simulation::rebuild_nav_grid() {
 	}
 	for (int y = 0; y < nav_grid_.res; ++y) {
 		for (int x = 0; x < nav_grid_.res; ++x) {
-			if (nav_grid_.cells.at(x, y) != NAV_WATER)
+			if (nav_grid_.cells.at(x, y) != NAV_WATER && nav_grid_.cells.at(x, y) != NAV_SHALLOW)
 				nav_grid_.cells.at(x, y) = NAV_PASSABLE;
 		}
 	}

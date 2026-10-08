@@ -82,6 +82,7 @@ const RMS_MAPS := [
 	["random_wild_lake", "Wild Lake (RMS)", "Random", 8, 128, "temperate", "Rough wild terrain round a lake. Supports 2-8 players."],
 	["random_stronghold", "Stronghold (RMS)", "Random", 8, 128, "temperate", "Teammates start side by side and defend together. Supports 2-8 players."],
 	["random_caledonian_meadows", "Caledonian Meadows (RMS)", "Random", 8, 128, "alpine", "Fertile meadows amid harsh terrain and rivers. Supports 2-8 players."],
+	["random_rhine_marshlands", "Rhine Marshlands (RMS)", "Random", 8, 128, "temperate", "Shallow wetlands units can wade through. Supports 2-8 players."],
 ]
 
 # 0 A.D. population limits per player (0 = unlimited) and ceasefire lengths in minutes.

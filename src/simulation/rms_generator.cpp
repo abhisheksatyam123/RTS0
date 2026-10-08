@@ -2416,6 +2416,47 @@ void RmsGenerator::synth_caledonian_meadows(HeightmapGrid &hm, RmsRng &rng, floa
 	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 20.0f, 6.0f, sp.base_height);
 }
 
+void RmsGenerator::synth_rhine_marshlands(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// rhine_marshlands.js: low land (heightLand 1) with scaleByMapSize(300,
+	// 800) bumps, then 7 rounds of scaleByMapSize(4, 20) marshes (chains of
+	// scaleByMapSize(6, 12) clumps) at heightMarsh -2, kept 20 from the bases
+	// and scaleByMapSize(7, 16) from each other, with bumps inside them.
+	// 2 m deep is just shallow enough to wade (pathfinder.xml MaxWaterDepth
+	// 2), so the marshes are NAV_SHALLOW: walkable water. Players on a circle
+	// at f = 0.35.
+	water_h = 1.0f;
+	const float line = water_h + NAV_WATER_MARGIN;
+	const float marsh = line - LAND_MAX_WATER_DEPTH + 0.05f; // 2 m below the nav water line
+	hm.init(hm.res, hm.map_half, line + 0.25f);
+	const float half = hm.map_half;
+	hm.apply_fbm(rng, 3, 0.06f, 0.5f, 2.0f, 0.25f);
+	place_ring_spawns(hm, spawns, num_players, half * 0.70f, rng.range_float(0.0f, 6.2831853f), 6.2831853f, line + 0.25f);
+	std::vector<std::pair<float, float>> marshes;
+	const float gap = (float)scale_by_map_size(7, 16, half);
+	const int per_round = scale_by_map_size(4, 20, half);
+	for (int round = 0; round < 7; ++round) {
+		for (int i = 0, tries = 0; i < per_round && tries < per_round * 20; ++tries) {
+			const auto c = polar(rng.range_float(0.0f, 6.2831853f), std::sqrt(rng.next_float()) * half * 0.95f);
+			const float r = (float)scale_by_map_size(4, 9, half) * rng.range_float(0.8f, 1.35f);
+			bool ok = true;
+			for (const auto &sp : spawns)
+				if (std::hypot(c.first - sp.x, c.second - sp.z) < 20.0f + 14.0f + r) { ok = false; break; }
+			for (const auto &m : marshes)
+				if (std::hypot(c.first - m.first, c.second - m.second) < gap + 2.0f * r) { ok = false; break; }
+			if (!ok) continue;
+			// A chain of clumps: the marsh's centre plus a few offset blobs.
+			const int clumps = std::max(1, scale_by_map_size(6, 12, half) / 3);
+			for (int k = 0; k < clumps; ++k) {
+				const auto o = polar(rng.range_float(0.0f, 6.2831853f), k == 0 ? 0.0f : r * 0.8f);
+				hm.level_area(c.first + o.first, c.second + o.second, r * rng.range_float(0.5f, 0.8f), 2.0f, marsh);
+			}
+			marshes.push_back(c);
+			++i;
+		}
+	}
+	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
+}
+
 void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid &hm, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config) {
 	(void)config;
 	for (const auto &sp : spawns) {
@@ -2917,6 +2958,9 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 			break;
 		case MAP_CALEDONIAN_MEADOWS:
 			synth_caledonian_meadows(hm, rng, water_h, spawns, config.num_players);
+			break;
+		case MAP_RHINE_MARSHLANDS:
+			synth_rhine_marshlands(hm, rng, water_h, spawns, config.num_players);
 			break;
 		case MAP_PELOPONNESE:
 		case MAP_AEGEAN_ARCHIPELAGO:

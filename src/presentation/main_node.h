@@ -164,11 +164,6 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// Width in world units (= 0 A.D. tiles) of generated random maps: 128 Tiny
 	// to 512 Giant. Set from MatchSettings.map_size; scenario maps use their own.
 	int random_map_size = 128;
-	// Seated game-setup slots for random maps: a base for each, in slot order,
-	// with its 1-based team (0 = none). Zero seats keeps the map's default.
-	int random_map_seats = 0;
-	uint8_t random_map_ids[8] = {};
-	uint8_t random_map_teams[8] = {};
 
 	bool dragging = false;
 	bool paused_via_menu = false;
