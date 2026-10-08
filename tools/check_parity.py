@@ -559,7 +559,7 @@ def check_petra_parity():
         "queueManager.js accounts + petra_try_pay": "petra_try_pay" in ctxt and "PetraQueueManager" in htxt and "petra_refresh_queue_accounts" in ctxt,
         "transportPlan.js boarding/sailing/unloading": "petra_manage_transport" in ctxt and "petra_start_transport" in ctxt and "PetraTransportPlan::BOARDING" in ctxt,
         "chatHelper.js attack/tribute/betrayal/emergency lines": "petra_say" in ctxt and "PETRA_CHAT_ATTACK" in ctxt and "pending_petra_chat" in htxt,
-        "tick_petra_ai wires transport + queue refresh": "petra_manage_transport(dt)" in ctxt and "petra_refresh_queue_accounts()" in ctxt,
+        "tick_petra_ai wires transport + queue refresh": "petra_manage_transport(dt)" in ctxt and "petra_refresh_queue_accounts(dt)" in ctxt,
         "Concurrent raid AttackPlan (petra_raid_plan_)": "petra_raid_plan_" in htxt and "petra_manage_raid" in ctxt and "find_petra_raid_target" in ctxt,
         "startingStrategy.js opening House/Storehouse/Barracks": "petra_manage_opening" in ctxt and "petra_opening_step_" in htxt,
         "naval fishing boats + gather": "UNIT_FISHING_BOAT" in ctxt and "target_fishers" in ctxt,
