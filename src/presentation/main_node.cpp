@@ -1237,8 +1237,20 @@ void RtsoMain::update_cursor() {
 			else if (guard_mode || rtso::hotkeys::held("session.guard")) want = "action-guard";
 			if (!*want) {
 				auto uv = sim->units();
-				for (size_t i = 0; i < uv.count && !*want; ++i)
-					if (uv.alive[i] && sim->is_hostile(me, uv.team[i]) && near2(uv.pos_x[i], uv.pos_z[i], 2.2f)) want = "action-attack";
+				bool healer = false;
+				for (int s = 0; s < selected_ids.size() && !healer; ++s)
+					for (size_t i = 0; i < uv.count; ++i)
+						if (uv.id[i] == (uint32_t)(int64_t)selected_ids[s]) {
+							healer = uv.unit_type[i] == rtso::UNIT_HEALER;
+							break;
+						}
+				for (size_t i = 0; i < uv.count && !*want; ++i) {
+					if (!uv.alive[i] || !near2(uv.pos_x[i], uv.pos_z[i], 2.2f)) continue;
+					if (sim->is_hostile(me, uv.team[i])) want = "action-attack";
+					// 0 A.D. unit_actions "heal": a healer over a wounded own or allied unit.
+					else if (healer && uv.hp[i] < uv.max_hp[i] && (uv.team[i] == me || sim->is_ally(me, uv.team[i])))
+						want = "action-heal";
+				}
 			}
 			if (!*want) {
 				auto fv = sim->fauna();
@@ -1265,7 +1277,13 @@ void RtsoMain::update_cursor() {
 			if (!*want) {
 				for (const auto &b : sim->buildings()) {
 					if (b.wrecked || !near2(b.x, b.z, b.half_size + 1.2f)) continue;
-					if (b.team != me) want = sim->is_hostile(me, b.team) ? "action-attack" : "";
+					// 0 A.D. "capture" is the default on enemy structures; session.attack
+					// (or attack-move's Ctrl) attacks instead.
+					if (b.team != me)
+						want = !sim->is_hostile(me, b.team) ? ""
+								: (rtso::hotkeys::held("session.attack") || rtso::hotkeys::held("session.attackmove") ||
+										  b.max_capture_points <= 0.0f)
+								? "action-attack" : "action-capture";
 					else if (b.build_progress < 1.0f || b.type == rtso::BLD_FIELD) want = "action-build";
 					else if (b.hp < b.max_hp) want = "action-repair";
 					else if (b.garrison_cap > 0) want = "action-garrison";
@@ -3263,7 +3281,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						post_lockstep(32, sel_ptr, sel_n, 0, 0, heal_id, qbit);
 					else
 						sim->order_heal(sel_ptr, sel_n, heal_id, queue_shift);
-					play_civ_voice("select");
+					play_civ_voice("heal");
 					return;
 				}
 			}
