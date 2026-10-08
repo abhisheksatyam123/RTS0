@@ -43,6 +43,9 @@ inline bool petra_is_combat_unit(uint8_t t) {
 	return !petra_is_support_unit(t);
 }
 
+// config.js garrisonHealthLevel.medium: an attacked support unit below it shelters.
+inline constexpr float PETRA_GARRISON_HP_MEDIUM = 0.55f;
+
 // config.js + difficultyLevel.js
 struct PetraConfig {
 	uint8_t difficulty = PETRA_MEDIUM;
