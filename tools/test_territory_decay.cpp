@@ -1,13 +1,13 @@
 // 0 A.D. TerritoryDecay.js + Capturable.js: territory regions are connected when they hold one of
 // their owner's civic centres. A structure decays (20 capture points a second, against its own
-// regeneration of 5) when it stands
+// regeneration) when it stands
 //   - in neutral land: to Gaia (outposts and docks don't decay there); off in RTS0 until
 //     placement keeps structures out of neutral land,
 //   - in another player's connected territory: to that player, unless they are allies,
 //   - in its owner's territory cut off from every civic centre: to the connected regions
 //     bordering it, or to Gaia when there are none; never next to a connected ally.
-// A Gaia structure in a player's connected territory decays to that player. When decay leaves
-// Gaia with the most points, the structure turns Gaia.
+// A Gaia structure in a player's connected territory decays to that player. A structure changes
+// hands once its owner holds no points, to whoever holds most (Gaia included).
 //   g++ -std=c++20 -O2 -Isrc tools/test_territory_decay.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_territory_decay && /tmp/test_territory_decay
@@ -108,7 +108,7 @@ int main() {
 		Simulation::Building *b = find_bld(s, bk);
 		b->team = GAIA_PLAYER;
 		b->capture_points_by_team.fill(0.0f);
-		run(s, b->max_capture_points * 0.5f / 15.0f + 5.0f);
+		run(s, b->max_capture_points / 15.0f + 5.0f);
 		CHECK(owner_of(s, bk) == 0);
 	}
 
