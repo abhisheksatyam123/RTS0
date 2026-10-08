@@ -127,7 +127,7 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
-	static constexpr uint32_t SAVE_VERSION = 19; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 20; // save_state's format; see the history beside it
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -750,20 +750,21 @@ public:
 	const PetraAttackManager &petra_attack_manager() const { return petra_attack_mgr_; }
 	int petra_opening_step() const { return petra_opening_step_; }
 
-	void set_petra_difficulty(uint8_t d) {
-		petra_config_.difficulty = (d > PETRA_VERY_HARD) ? PETRA_MEDIUM : d;
-		apply_petra_config();
-	}
-	void set_petra_behavior(uint8_t b) {
-		petra_config_.behavior = (b > PETRA_BEHAVIOR_AGGRESSIVE) ? PETRA_BEHAVIOR_BALANCED : b;
-		apply_petra_config();
-	}
+	// Every AI's difficulty or behaviour (0 A.D. game setup's AI settings).
+	void set_petra_difficulty(uint8_t d);
+	void set_petra_behavior(uint8_t b);
+	// One AI slot's difficulty or behaviour; set them after reset(), which
+	// gives every slot the shared setting.
+	void set_petra_difficulty(uint8_t pid, uint8_t d);
+	void set_petra_behavior(uint8_t pid, uint8_t b);
+	// The config of the AI on player `pid`, wherever its slot state is parked.
+	const PetraConfig &petra_config_for(uint8_t pid) const;
 	// True when Petra drives this player: seated active AI slots, or player 1 when no slot is seated.
 	bool petra_runs_for(uint8_t pid) const;
 	// InitGame.js "AI Bonus": Petra players gather and trade at the difficulty's
 	// rate and build, train and research at its time multiplier; 1 for humans.
-	float ai_gather_mult(uint8_t pid) const { return petra_runs_for(pid) ? petra_config_.gather_rate : 1.0f; }
-	float ai_time_mult(uint8_t pid) const { return petra_runs_for(pid) ? petra_config_.build_time : 1.0f; }
+	float ai_gather_mult(uint8_t pid) const { return petra_runs_for(pid) ? petra_config_for(pid).gather_rate : 1.0f; }
+	float ai_time_mult(uint8_t pid) const { return petra_runs_for(pid) ? petra_config_for(pid).build_time : 1.0f; }
 	uint8_t petra_difficulty() const { return petra_config_.difficulty; }
 	uint8_t petra_behavior() const { return petra_config_.behavior; }
 	const PetraConfig &petra_config() const { return petra_config_; }
@@ -1194,7 +1195,7 @@ private:
 	X(petra_diplo_timer_) X(ai_wonder_victory_timer_) X(petra_bases_) X(petra_fnd_watch_) \
 	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
-	X(petra_fow_) X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_)
+	X(petra_fow_) X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
@@ -1206,6 +1207,7 @@ private:
 	// Saves or loads save_tick_state's fields, every AI's Petra state included (save v15); simulation.cpp.
 	template <class Ar> friend void tick_state_io(Ar &ar, Simulation &s);
 	void petra_reset_ai_state();
+	PetraConfig &petra_config_slot(uint8_t pid);
 	std::vector<float> fow_cell_height_; // terrain height at each FoW cell centre, lazily filled by tick_fow
 	std::vector<float> fow_cell_hmax_; // highest heightmap sample an LOS ray can read in each FoW cell, filled with fow_cell_height_
 	static constexpr int FOW_LOS_BLOCK = 4; // FoW cells per side of a fow_block_hmax_ block
