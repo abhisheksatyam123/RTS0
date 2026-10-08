@@ -126,6 +126,7 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
+	static constexpr uint32_t SAVE_VERSION = 17; // save_state's format; see the history beside it
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -898,7 +899,7 @@ private:
 	void tick_barter(float dt);
 	// v15: per-tick state the main save records leave out (velocities, paths, projectiles, timers...).
 	void save_tick_state(std::ofstream &out) const;
-	bool load_tick_state(std::ifstream &in);
+	bool load_tick_state(std::ifstream &in, uint32_t version);
 	// Player.js GetNextTradingGoods with the default equal split (25% each).
 	uint8_t next_trading_goods();
 	// Pays a trade gain into `player`'s stock and its gather statistics.
@@ -980,6 +981,9 @@ private:
 	std::unordered_map<uint32_t, uint32_t> field_bld_by_res_; // grain resource id -> field building id
 	struct FieldGatherers { int total = 0; int slots_taken = 0; };
 	std::unordered_map<uint32_t, FieldGatherers> field_gatherers_; // per tick, keyed by grain resource id
+	std::unordered_map<uint32_t, FieldGatherers> fish_gatherers_; // per tick, keyed by fish resource id
+	// Nearest fish on `sea` (ship region) within max_d of (x, z) with a free gatherer slot; 0 if none.
+	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0) const;
 	std::unordered_map<uint32_t, size_t> building_id_to_idx_;
 
 	struct CellHash {
