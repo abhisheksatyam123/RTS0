@@ -351,6 +351,7 @@ private:
 	uint32_t local_hash_at(uint32_t turn) const;
 	std::string client_label(uint32_t client_id) const;
 	std::set<uint32_t> paused_clients_;
+	std::set<uint32_t> left_clients_; // host: clients drop_client removed; their hashes are ignored
 	// Rejoin: per-peer first turn whose batch is required (a rejoiner sends
 	// from T+COMMAND_DELAY+1), host-side requests, and the client's transfer.
 	std::unordered_map<uint32_t, uint32_t> lockstep_since_;

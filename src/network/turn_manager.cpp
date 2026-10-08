@@ -95,6 +95,12 @@ void TurnManager::drop_client(uint32_t client_id) {
 	lockstep_peers_.erase(std::remove(lockstep_peers_.begin(), lockstep_peers_.end(), client_id), lockstep_peers_.end());
 	lockstep_since_.erase(client_id);
 	paused_clients_.erase(client_id); // a paused client that leaves no longer holds the match
+	// Its hashes for turns not yet run here are void: a batch it sent just
+	// before leaving may never arrive, so the host runs those turns without
+	// it (0 A.D. NetServerTurnManager::UninitialiseClient stops checking it).
+	left_clients_.insert(client_id);
+	for (auto &t : peer_hashes_)
+		if (t.first > current_turn_) t.second.erase(client_id);
 	rejoin_requests_.erase(std::remove(rejoin_requests_.begin(), rejoin_requests_.end(), client_id), rejoin_requests_.end());
 	rejoin_outbox_.erase(std::remove_if(rejoin_outbox_.begin() + (std::ptrdiff_t)rejoin_outbox_next_, rejoin_outbox_.end(),
 			[&](const auto &e) { return e.first == client_id; }), rejoin_outbox_.end());
@@ -383,6 +389,7 @@ void TurnManager::reset() {
 	oos_dump_pending_ = false;
 	oos_dump_written_.clear();
 	paused_clients_.clear();
+	left_clients_.clear();
 	lockstep_since_.clear();
 	rejoin_requests_.clear();
 	rejoin_outbox_.clear();
@@ -548,6 +555,7 @@ void TurnManager::receive_remote_turn_batch(uint32_t turn, uint32_t client_id, c
 }
 
 void TurnManager::receive_sync_check(uint32_t turn, uint32_t client_id, uint32_t hash) {
+	if (left_clients_.count(client_id)) return;
 	peer_hashes_[turn][client_id] = hash;
 	if (turn <= current_turn_ && turn > 0) {
 		for (const auto &f : turn_history_) {
