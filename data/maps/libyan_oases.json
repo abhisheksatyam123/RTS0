@@ -3,6 +3,7 @@
   "name": "Libyan Oases (4)",
   "desc": "An otherwise wide-open, flat desert map is pierced in the center by two lush oases.\n\nThis represents the Libyan Desert, part of the Saharan Desert, West of the Nile River in Egypt.",
   "biome": "desert",
+  "nomad": false,
   "world_size": 320.0,
   "water_height": 3.83,
   "heightmap_res": 81,
@@ -16298,54 +16299,6 @@
       "z": 83.94
     },
     {
-      "type": "barracks",
-      "player": 4,
-      "x": 81.8,
-      "z": 79.01
-    },
-    {
-      "type": "barracks",
-      "player": 4,
-      "x": 80.75,
-      "z": 80.13
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -83.72,
-      "z": 75.84
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -82.75,
-      "z": 75.0
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 70.72,
-      "z": -97.34
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 69.31,
-      "z": -95.99
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": -78.15,
-      "z": -77.27
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": -80.35,
-      "z": -74.89
-    },
-    {
       "type": "wall_segment",
       "player": 1,
       "x": -90.33,
@@ -17164,6 +17117,18 @@
       "z": 80.51
     },
     {
+      "type": "archer",
+      "player": 4,
+      "x": 81.8,
+      "z": 79.01
+    },
+    {
+      "type": "archer",
+      "player": 4,
+      "x": 80.75,
+      "z": 80.13
+    },
+    {
       "type": "swordsman",
       "player": 4,
       "x": 90.62,
@@ -17200,6 +17165,30 @@
       "z": 84.16
     },
     {
+      "type": "archer",
+      "player": 1,
+      "x": -83.72,
+      "z": 75.84
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -82.75,
+      "z": 75.0
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 70.72,
+      "z": -97.34
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 69.31,
+      "z": -95.99
+    },
+    {
       "type": "swordsman",
       "player": 2,
       "x": 77.14,
@@ -17234,6 +17223,18 @@
       "player": 3,
       "x": -88.98,
       "z": -83.97
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": -78.15,
+      "z": -77.27
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": -80.35,
+      "z": -74.89
     },
     {
       "type": "hero",
