@@ -620,6 +620,39 @@ static void test_garrisons() {
 	CHECK(sheltered, "an attacked support unit below 55%% health shelters");
 }
 
+// diplomacyManager.js sendDiplomacyRequest between AIs: AI 1 asks the AI it
+// shares the most enemies with for a neutrality pact; that AI answers through
+// its own handleDiplomacyRequest (accepting, or asking a tribute AI 1 pays), and
+// AI 1 matches the stance it took.
+static void test_diplomacy_requests() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(7);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 7, 4, 128.0f);
+	s->set_player_active(0, true, false);
+	for (uint8_t p = 1; p < 4; ++p) s->set_player_active(p, true, true);
+	s->players_[3].civ = s->players_[1].civ; // the same civ never declines for good at once
+	run_for(*s, 20.0f);
+	s->petra_send_diplomacy_request(); // as AI 1, which runs between ticks
+	int target = -1;
+	for (int p = 0; p < 8; ++p) if (s->petra_sent_diplo_.sent_type[p]) target = p;
+	CHECK(target == 3, "asks the last of the players sharing the most enemies");
+	if (target != 3) return;
+	const bool asked_neutral = s->petra_sent_diplo_.sent_type[3] == 2;
+	float t = 0.0f;
+	for (; t < 120.0f && !(s->get_diplomacy(1, 3) == Simulation::DIPLO_NEUTRAL && s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL); t += Simulation::FIXED_STEP)
+		s->tick(Simulation::FIXED_STEP);
+	const auto &answer = s->petra_slots_[3].petra_diplo_.received[1];
+	std::printf("  AI 1 asks AI 3 for a %s: AI 3 %s, stances 1->3 %d and 3->1 %d after %.0fs\n",
+	            asked_neutral ? "neutrality pact" : "alliance",
+	            answer.status == PetraReceivedRequest::ACCEPTED ? "accepted" :
+	            answer.status == PetraReceivedRequest::WAITING_FOR_TRIBUTE ? "wants a tribute" : "declined",
+	            s->get_diplomacy(1, 3), s->get_diplomacy(3, 1), t);
+	CHECK(asked_neutral, "asks an enemy for a neutrality pact first");
+	CHECK(s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL && s->get_diplomacy(1, 3) == Simulation::DIPLO_NEUTRAL,
+	      "both AIs end up neutral to each other");
+}
+
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
@@ -632,6 +665,7 @@ int main() {
 	test_slot_config();
 	test_allow_capture();
 	test_garrisons();
+	test_diplomacy_requests();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }
