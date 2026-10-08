@@ -2,7 +2,7 @@
 
 This file tracks the migration of the vendored 0 A.D. C++ in `src/0ad/` (reference only; `SConstruct` skips it) into live RTS0 code. Update it in every PR that ports, changes or drops a piece. Gameplay parity with 0 A.D.'s JS systems is tracked separately in `docs/REMAINING_GAPS.md` and `docs/PLAN.md`. 0 A.D. data imported by tools rather than ported code (assets, maps, unit rosters and heroes from `tools/extract_0ad_rosters.py`) is listed in `docs/0AD_ATTRIBUTION.md`.
 
-Last updated: 2026-10-08 (Rasterize port).
+Last updated: 2026-10-08 (VertexPathfinder port).
 
 Status key: **Done**, ported and in use · **Ported**, ported and tested but not used by the sim yet · **Partial** · **Todo** · **Not planned**
 
@@ -17,7 +17,7 @@ Status key: **Done**, ported and in use · **Ported**, ported and tested but not
 | `Grid.h` | Partial | `src/simulation/grid_nav.h` `Grid<T>` | `std::vector`-backed. No `SparseGrid` or serialization. |
 | `Pathfinding.h/.cpp` | Partial | `src/simulation/grid_nav.h` | Covers passability classes, the octile `PathCost` model, `WaypointPath` and the cavalry slope limit. `CheckLineMovement` is replaced by the Bresenham `line_clear`. |
 | `Geometry.h/.cpp` | Ported | `src/simulation/nav/geometry.h` | Float port. Fixes a vendor sign bug in `TestSquareSquare` (containment). Tested by `tools/test_geometry.cpp`. Waiting on VertexPathfinder. |
-| `VertexPathfinder.h/.cpp` | Todo | `src/simulation/nav/vertex_pathfinder.h` (planned) | Short-range steering around units and buildings. Units currently rely on `separation()` pushing. Takes buildings and units as plain shape lists, since RTS0 has no obstruction manager. |
+| `VertexPathfinder.h/.cpp` | Ported | `src/simulation/nav/vertex_pathfinder.h` | `ComputeShortPath`: visibility-graph A* around buildings and units, given as plain shape lists (RTS0 has no obstruction manager), plus terrain edges from the nav grid. Fixes a vendor loop bound that skipped two edge squares when clipping vertices. Adds an optional exact-A* weight for tests. Not yet used by unit movement (see todo 2). Tested by `tools/test_vertex_pathfinder.cpp`: collision-free, optimal vs an independent Dijkstra, deterministic. ~14 µs per query near 10 obstructions, ~460 µs near 150. |
 | `Rasterize.h/.cpp` | Done | `src/simulation/nav/rasterize.h` | `RasterizeRectWithClearance`, used by `Simulation::rebuild_nav_grid` for building footprints. A navcell is blocked only if it lies fully inside the footprint plus the vendor's 1-unit extension (half an RTS0 navcell), so grid-aligned buildings block the same cells as before. An off-grid footprint-1 building that covers no full navcell falls back to the navcell under its centre. Tested by `tools/test_rasterize.cpp`. |
 
 ### Maths (`src/0ad/maths/`)
@@ -49,7 +49,7 @@ Status key: **Done**, ported and in use · **Ported**, ported and tested but not
 This list covers porting the vendored C++ only. Overall project priorities and gameplay-parity work are in `docs/PLAN.md` and `docs/NEXT_STEPS.md`; this list doesn't repeat them.
 
 1. **Obstruction shapes.** Rasterization is done. 0 A.D.'s `CCmpObstructionManager` isn't vendored, and RTS0 doesn't need a full one yet: `buildings_` and the `UnitGrid` in `separation()` already give the shapes VertexPathfinder needs. Revisit if buildings get rotations or per-class clearances.
-2. **VertexPathfinder.** Port short-range steering on top of `nav/geometry.h`, fed by `buildings_` and the unit grid, replacing push-only `separation()` for units with an order.
+2. **Use VertexPathfinder in unit movement.** The port is done. Next, call it from `move_units` when a unit's straight line to its next waypoint is blocked by a building or a cluster of units (0 A.D. `UnitMotion` does this), instead of relying on push-only `separation()`. Each query costs up to ~0.5 ms, so it needs a per-tick budget.
 3. **Cleanup.** Remove the legacy A* (`NavGrid::search_cells_astar`, `use_jps`) once JPS has run in real matches for a while.
 4. **JumpPointCache.** Only if maps grow past 64x64 and pathfinding shows up in profiles.
 5. **Fixed-point simulation (optional).** Whether the sim moves from `float` to `rtso::Fixed` is a multiplayer-model decision. See `docs/PLAN.md` P5 and `docs/MULTIPLAYER.md`. `src/core/math/fixed.h` is ready if that decision is made. It would also need `CFixedVector2D`, which isn't vendored.
@@ -58,7 +58,8 @@ This list covers porting the vendored C++ only. Overall project priorities and g
 
 | Date | PR | Change |
 |---|---|---|
-| 2026-10-08 | (this PR) | Ported `Rasterize` and used it for building footprints in the nav grid. |
+| 2026-10-08 | (this PR) | Ported `VertexPathfinder` (short-range paths), not yet wired into movement. |
+| 2026-10-08 | #8 | Ported `Rasterize` and used it for building footprints in the nav grid. |
 | 2026-10-08 | #2 | Added this file. |
 | 2026-10-08 | #1 | JPS long pathfinder (fixes the A* missing ~5% of reachable goals). Ported `Fixed`/`Sqrt` and `Geometry`. Rewrote the nav-live parity probe. Fixed CI. |
 
