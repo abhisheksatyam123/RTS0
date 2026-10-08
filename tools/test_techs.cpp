@@ -88,9 +88,10 @@ int main() {
 	CHECK(s.research_check(0, TECH_PHASE_TOWN, tc) == Simulation::TECH_ERR_COST);
 	s.set_player_resources(0, 5000, 5000, 5000, 5000);
 
-	// Town Phase: pays 500f/500w, takes its research time, then sets phase 2.
+	// Town Phase: 500f/500w, less the Athenian Democracy team bonus on civic centre
+	// techs (-30%), takes its research time, then sets phase 2.
 	CHECK(s.cmd_research(0, tc, TECH_PHASE_TOWN));
-	CHECK(s.food() == 4500.0f && s.wood() == 4500.0f);
+	CHECK(s.food() == 4650.0f && s.wood() == 4650.0f);
 	CHECK(s.research_check(0, TECH_PHASE_TOWN) == Simulation::TECH_ERR_IN_PROGRESS);
 	run(s, tech_info(TECH_PHASE_TOWN).research_time + 1.0f);
 	CHECK(s.is_tech_researched(TECH_PHASE_TOWN));

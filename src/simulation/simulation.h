@@ -221,6 +221,15 @@ public:
 	// Stats of the unit at SoA index i (its civ roster template, else its class).
 	const UnitTypeInfo &unit_info_at(size_t i) const { return civ_template_unit_info(units_.tmpl[i], units_.unit_type[i]); }
 	uint16_t unit_template(uint32_t unit_id) const;
+	// 0 A.D. team bonuses (data/auras/teambonuses): the product a player gets on `stat`
+	// from its own civ's bonus and its allies' (same team, still in the match).
+	// See civ_team_bonus_mult() for the arguments.
+	float team_bonus_mult(uint8_t pid, uint8_t stat, int8_t res = -1, uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE,
+		uint8_t building = BLD_TYPE_COUNT) const;
+	// civ_bit() mask of the civs of `pid`'s allies still in the match (owning a building or unit).
+	uint16_t ally_civ_mask(uint8_t pid) const;
+	// Resource cost of training template `tmpl` for `pid` after team bonuses, indexed by ResourceType.
+	void unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo &info, float out[RES_COUNT]) const;
 	uint32_t spawn_resource(int cell_x, int cell_y, uint8_t type, int32_t amount = 600);
 	uint32_t spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount = 600, uint8_t subtype = 0);
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f);

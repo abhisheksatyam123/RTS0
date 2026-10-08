@@ -840,9 +840,16 @@ uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b
 
 	// 0 A.D. civ structure cost bonuses (e.g. Iberian walls, Han stone discount).
 	const Civilization civ = civ_of(player);
-	const float wood = binfo.wood_cost * civ_bonus_mult(civ, CIV_BONUS_BUILDING_WOOD_COST, b_type);
-	const float stone = binfo.stone_cost * civ_bonus_mult(civ, CIV_BONUS_BUILDING_STONE_COST, b_type);
-	if (!players_[player].pay((float)binfo.food_cost, std::round(wood), (float)binfo.gold_cost, std::round(stone)))
+	// Team bonuses (e.g. Persian Training Regimes, Mauryan temples) from the player and its allies.
+	const uint16_t allies = ally_civ_mask(player);
+	auto team = [&](ResourceType r) {
+		return civ_team_bonus_mult(civ, allies, TEAM_BONUS_BUILDING_COST, (int8_t)r, CIV_UNIT_TEMPLATE_NONE, b_type);
+	};
+	const float wood = binfo.wood_cost * civ_bonus_mult(civ, CIV_BONUS_BUILDING_WOOD_COST, b_type) * team(RES_WOOD);
+	const float stone = binfo.stone_cost * civ_bonus_mult(civ, CIV_BONUS_BUILDING_STONE_COST, b_type) * team(RES_STONE);
+	const float food = binfo.food_cost * team(RES_FOOD);
+	const float gold = binfo.gold_cost * team(RES_GOLD);
+	if (!players_[player].pay(std::round(food), std::round(wood), std::round(gold), std::round(stone)))
 		return 0;
 
 	uint32_t bid = spawn_building(cell_x, cell_y, b_type, player, 0.0f);
@@ -912,14 +919,16 @@ bool Simulation::cmd_train_template(uint8_t player_id, uint32_t building_id, uin
 	const UnitTypeInfo &uinfo = civ_template_unit_info(tmpl, t.unit_type);
 	if (pop_current(player_id) >= pop_max(player_id)) return false;
 
-	if (!ps.pay((float)uinfo.food_cost, (float)uinfo.wood_cost, (float)uinfo.gold_cost, (float)uinfo.stone_cost))
+	float cost[RES_COUNT];
+	unit_train_cost(player_id, tmpl, uinfo, cost);
+	if (!ps.pay(cost[RES_FOOD], cost[RES_WOOD], cost[RES_GOLD], cost[RES_STONE]))
 		return false;
 
 	ProductionOrder order;
 	order.unit_type = t.unit_type;
 	order.tmpl = tmpl;
 	order.timer = 0.0f;
-	order.duration = uinfo.train_time;
+	order.duration = uinfo.train_time * team_bonus_mult(player_id, TEAM_BONUS_UNIT_TRAIN_TIME, -1, tmpl);
 	b.queue.push_back(order);
 	return true;
 }
@@ -927,6 +936,38 @@ bool Simulation::cmd_train_template(uint8_t player_id, uint32_t building_id, uin
 uint16_t Simulation::unit_template(uint32_t unit_id) const {
 	int32_t idx = lookup_unit(unit_id);
 	return (idx >= 0) ? units_.tmpl[idx] : CIV_UNIT_TEMPLATE_NONE;
+}
+
+uint16_t Simulation::ally_civ_mask(uint8_t pid) const {
+	uint16_t mask = 0;
+	if (pid >= MAX_PLAYERS) return 0;
+	for (uint8_t q = 0; q < MAX_PLAYERS; ++q) {
+		if (q == pid || !same_team(pid, q)) continue;
+		bool in_match = false;
+		for (const auto &b : buildings_)
+			if (b.team == q && b.hp > 0.0f) { in_match = true; break; }
+		for (size_t i = 0; !in_match && i < units_.count; ++i)
+			if (units_.team[i] == q && units_.alive[i]) in_match = true;
+		if (in_match) mask |= civ_bit(players_[q].civ);
+	}
+	return mask;
+}
+
+float Simulation::team_bonus_mult(uint8_t pid, uint8_t stat, int8_t res, uint16_t tmpl, uint8_t building) const {
+	if (pid >= MAX_PLAYERS) return 1.0f;
+	return civ_team_bonus_mult(players_[pid].civ, ally_civ_mask(pid), stat, res, tmpl, building);
+}
+
+void Simulation::unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo &info, float out[RES_COUNT]) const {
+	out[RES_FOOD] = (float)info.food_cost;
+	out[RES_WOOD] = (float)info.wood_cost;
+	out[RES_GOLD] = (float)info.gold_cost;
+	out[RES_STONE] = (float)info.stone_cost;
+	if (pid >= MAX_PLAYERS) return;
+	const uint8_t civ = players_[pid].civ;
+	const uint16_t allies = ally_civ_mask(pid);
+	for (int r = 0; r < RES_COUNT; ++r)
+		out[r] = std::round(out[r] * civ_team_bonus_mult(civ, allies, TEAM_BONUS_UNIT_COST, (int8_t)r, tmpl));
 }
 
 bool Simulation::cmd_cancel_train(uint8_t player_id, uint32_t building_id, size_t queue_idx) {
@@ -947,7 +988,9 @@ bool Simulation::cmd_cancel_train(uint8_t player_id, uint32_t building_id, size_
 	uint16_t qtmpl = b.queue[queue_idx].tmpl;
 	const UnitTypeInfo &uinfo = (qtmpl < CIV_UNIT_TEMPLATE_COUNT) ? civ_template_unit_info(qtmpl, utype)
 		: civ_unit_info(civ_of(b.team), utype);
-	ps.add((float)uinfo.food_cost, (float)uinfo.wood_cost, (float)uinfo.gold_cost, (float)uinfo.stone_cost);
+	float cost[RES_COUNT];
+	unit_train_cost(player_id, qtmpl, uinfo, cost);
+	ps.add(cost[RES_FOOD], cost[RES_WOOD], cost[RES_GOLD], cost[RES_STONE]);
 
 	b.queue.erase(b.queue.begin() + queue_idx);
 	return true;
@@ -1036,10 +1079,19 @@ bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t t
 	if (research_check(player_id, tech_id, building_id) != TECH_OK) return false;
 
 	const TechInfo &tinfo = tech_info(tech_id);
-	players_[player_id].pay((float)tinfo.food_cost, (float)tinfo.wood_cost, (float)tinfo.gold_cost, (float)tinfo.stone_cost);
+	// Team bonuses on techs researched here (e.g. Athenian Democracy at the civic centre).
+	const uint8_t civ = civ_of(player_id);
+	const uint16_t allies = ally_civ_mask(player_id);
+	auto team = [&](uint8_t stat, int8_t r) {
+		return civ_team_bonus_mult(civ, allies, stat, r, CIV_UNIT_TEMPLATE_NONE, b.type);
+	};
+	players_[player_id].pay(std::round(tinfo.food_cost * team(TEAM_BONUS_TECH_COST, RES_FOOD)),
+		std::round(tinfo.wood_cost * team(TEAM_BONUS_TECH_COST, RES_WOOD)),
+		std::round(tinfo.gold_cost * team(TEAM_BONUS_TECH_COST, RES_GOLD)),
+		std::round(tinfo.stone_cost * team(TEAM_BONUS_TECH_COST, RES_STONE)));
 	b.research_tech = tech_id;
 	b.research_timer = 0.0f;
-	b.research_duration = tinfo.research_time;
+	b.research_duration = tinfo.research_time * team(TEAM_BONUS_TECH_TIME, -1);
 	return true;
 }
 
@@ -2952,6 +3004,7 @@ void Simulation::tick_construction(float dt) {
 			if (units_.unit_type[i] == UNIT_WORKER_ELEPHANT) speed_mult *= 2.0f; // Worker elephant heavy construction
 			Civilization civ = civ_of(units_.team[i]);
 			speed_mult /= civ_bonus_mult(civ, CIV_BONUS_BUILDING_BUILD_TIME, b.type); // e.g. Celtic Wooden Construction
+			speed_mult /= team_bonus_mult(units_.team[i], TEAM_BONUS_BUILDING_BUILD_TIME, -1, CIV_UNIT_TEMPLATE_NONE, b.type);
 
 			// 0 A.D. Foundation.Commit: first builder on site → scaffold + construction preview.
 			b.committed = true;
@@ -3022,6 +3075,7 @@ void Simulation::tick_repair(float dt) {
 			if (units_.unit_type[i] == UNIT_WORKER_ELEPHANT) speed_mult *= 2.0f;
 			Civilization civ = civ_of(units_.team[i]);
 			speed_mult /= civ_bonus_mult(civ, CIV_BONUS_BUILDING_BUILD_TIME, b.type); // e.g. Celtic Wooden Construction
+			speed_mult /= team_bonus_mult(units_.team[i], TEAM_BONUS_BUILDING_BUILD_TIME, -1, CIV_UNIT_TEMPLATE_NONE, b.type);
 
 			// Repair finished building (0 A.D. Repairable.js:114-118 Repair rate)
 			b.hp = std::min(b.max_hp, b.hp + dt * 30.0f * speed_mult);
@@ -4440,6 +4494,22 @@ Simulation::ResourceView Simulation::resources() const {
 }
 
 void Simulation::tick_trickle(float dt) {
+	// Team bonus trickle (Ptolemaic Breadbasket of the Mediterranean: +1 food/s for
+	// the Ptolemies and their allies). Only players who own a building get it.
+	uint16_t civs_present = 0;
+	for (const auto &b : buildings_)
+		if (b.team < MAX_PLAYERS && b.hp > 0.0f) civs_present |= civ_bit(players_[b.team].civ);
+	if (civs_present & civ_bit(CIV_PTOLEMIES)) {
+		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+			bool owns = false;
+			for (const auto &b : buildings_)
+				if (b.team == p && b.hp > 0.0f) { owns = true; break; }
+			if (!owns) continue;
+			const float add = civ_team_food_trickle(players_[p].civ, ally_civ_mask(p));
+			if (add > 0.0f) players_[p].food() += add * dt;
+		}
+	}
+
 	// ResourceTrickle.js — passive income from key buildings
 	// Town Centers: +1 food/s, Farmstead: +0.5 food/s per field
 	// Market: +0.3 gold/s (simulates trade trickle), Wonder: +2 of all/s
