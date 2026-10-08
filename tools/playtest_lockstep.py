@@ -276,14 +276,34 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
     locks = [lock_spans(e) for e in extras]
     lock_ok = locks[0] == locks[1] and len(locks[0]) == 2
     # Pack (cmd 29): the stone thrower's pack state changes on the same turns on
-    # both peers and goes packed -> unpacking -> unpacked -> packing -> packed.
+    # both peers.
     def pack_steps(e):
         rows = [(t, e[t].get("pack")) for t in sorted(e)]
         return [(t, b) for (_, a), (t, b) in zip(rows, rows[1:]) if a != b]
     packs = [pack_steps(e) for e in extras]
-    # (Before the order it may unpack on its own against nearby enemies; only the
-    # ordered unpack at 380 and pack at 440 are checked for their sequence.)
-    pack_ok = packs[0] == packs[1] and [b for t, b in packs[0] if t > 380] == ["4", "2", "3", "1"]
+    # It is passive, so only the orders move it: unpacking (4) once the unpack
+    # posted at 380 runs COMMAND_DELAY turns later, unpacked (2), then packing (3)
+    # after the pack posted at 440, packed (1).
+    pack_ok = (packs[0] == packs[1] and [b for _, b in packs[0]] == ["4", "2", "3", "1"]
+               and 380 < packs[0][0][0] <= 384 and 440 < packs[0][2][0] <= 444)
+    # Unit orders on the host's worker: order kind (6 gather, 1 walk, 255 dead)
+    # and Shift-queue length, as (turn, kind, queue) changes.
+    def work_steps(e):
+        rows = [(t, e[t].get("work"), e[t].get("queue")) for t in sorted(e) if "work" in e[t]]
+        return [(t, k, q) for (_, a, aq), (t, k, q) in zip(rows, rows[1:]) if (a, aq) != (k, q)]
+    works = [work_steps(e) for e in extras]
+    def first(pred, lo, hi):
+        return next((t for t, k, q in works[0] if lo < t <= hi and pred(k, q)), None)
+    work_turns = {
+        "gather": first(lambda k, q: k == "6", 390, 394),       # cmd 4 at 390
+        "walk": first(lambda k, q: k == "1", 400, 404),         # cmd 1 at 400
+        "queued": first(lambda k, q: q == "1", 402, 406),       # cmd 1 + 0x80 at 402
+        "queue_done": first(lambda k, q: q == "0", 403, 470),   # reached the first walk's end
+        "back": first(lambda k, q: k == "6", 470, 474),         # cmd 31 at 470
+        "deleted": first(lambda k, q: k == "255", 580, 584),    # cmd 30 at 580
+    }
+    work_ok = (works[0] == works[1] and all(v is not None for v in work_turns.values())
+               and not any(k == "255" for t, k, q in works[0] if t <= 580))
     defeat_ok = (not defeat_turn) or (out_turn[0] is not None and out_turn[0] == out_turn[1]
                                       and out_turn[0] > defeat_turn and not any(over))
     common_turns = sorted(set(hashes[0]) & set(hashes[1]))
@@ -306,10 +326,11 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
         "setup_ok": setup_ok, "setups": setups,
         "ceasefire_ok": ceasefire_ok, "ceasefire_end": cf_end, "ceasefire_hits": cf_hits[:5],
         "tribute_ok": tribute_ok, "tributes": tributes, "upgrade_ok": upgrade_ok, "gate_turn": gate_turn,
+        "work_ok": work_ok, "works": works, "work_turns": work_turns,
         "lock_ok": lock_ok, "locks": locks, "pack_ok": pack_ok, "packs": packs, "chat_ok": chat_ok, "chats": chats,
         "pause_ok": pause_ok, "pauses": pauses, "save_ok": save_ok, "saves": saves,
         "defeat_ok": defeat_ok, "defeat_turn": out_turn, "game_over": over,
-        "ok": divergent is None and complete and setup_ok and ceasefire_ok and defeat_ok and tribute_ok and upgrade_ok and lock_ok and pack_ok and chat_ok and pause_ok and save_ok and all(rc == 0 for rc in rcs),
+        "ok": divergent is None and complete and setup_ok and ceasefire_ok and defeat_ok and tribute_ok and upgrade_ok and lock_ok and pack_ok and work_ok and chat_ok and pause_ok and save_ok and all(rc == 0 for rc in rcs),
     }
 
 
@@ -332,6 +353,9 @@ def run_rejoin_case(binary: str, seed: int, speed: float, loss: float, port: int
     turns, leave = 500, 200
     print(f"\n---- rejoin: joiner leaves after turn {leave}, a new client takes its seat ----")
     logs = {r: os.path.join(out_dir, f"rejoin_{r}.log") for r in ("host", "left", "back")}
+    for path in logs.values():
+        if os.path.exists(path):
+            os.remove(path)  # a stale log from an earlier run must not pass for this one
     common = ["--speed", str(speed), "--loss", str(loss)]
     def peer(role, log, *more):
         return subprocess.Popen([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
@@ -358,7 +382,7 @@ def run_rejoin_case(binary: str, seed: int, speed: float, loss: float, port: int
     t0 = int(rep.get("join", {}).get("turn", "0"))
     after = [t for t in sorted(b) if t > t0]
     bad = next((t for t in after if h.get(t) != b[t]), None)
-    ok = (rcs == [0, 0, 0] and t0 > leave and rep["join"].get("player") == "1" and len(h) == turns
+    ok = (rcs == [0, 0, 0] and t0 > leave and rep.get("join", {}).get("player") == "1" and len(h) == turns
           and after == list(range(t0 + 1, turns + 1)) and bad is None)
     if ok:
         print(f"[net] PASS rejoin: new client took player 2 at turn {t0}, then turns {t0 + 1}-{turns} "
@@ -546,7 +570,11 @@ def main() -> int:
                   f"post-defeat one was dropped; wall became a gate at turn {nr['gate_turn'][0]}, "
                   f"locked at turn {nr['locks'][0][0]} and unlocked at turn {nr['locks'][0][1]}")
             print(f"[net] stone thrower unpacked and packed again on both peers at turns "
-                  f"{[t for t, _ in nr['packs'][0] if t > 380]}")
+                  f"{[t for t, _ in nr['packs'][0]]}")
+            wt = nr["work_turns"]
+            print(f"[net] worker gathered at turn {wt['gather']}, walked at {wt['walk']} with a queued walk "
+                  f"at {wt['queued']} (done at {wt['queue_done']}), back to work at {wt['back']}, "
+                  f"deleted at {wt['deleted']}, on both peers")
             print(f"[net] chat: host got {nr['chats']['host']}, joiner got {nr['chats']['join']}; "
                   f"host paused at turn {PAUSE_TURN}, joiner held {nr['pauses']['join']['held_ms']} ms; "
                   f"save/load at turn {SAVELOAD_TURN} kept hash {nr['saves']['host']['before']} on both")
@@ -557,6 +585,8 @@ def main() -> int:
             print(f"[net] FAIL tribute: stone changes (host, join) {nr['tributes']}")
         elif not nr["pack_ok"]:
             print(f"[net] FAIL pack: state changes (turn, state) {nr['packs']}")
+        elif not nr["work_ok"]:
+            print(f"[net] FAIL unit orders: {nr['work_turns']}, changes (turn, kind, queue) {nr['works']}")
         elif not nr["chat_ok"]:
             print(f"[net] FAIL chat: received {nr['chats']}")
         elif not nr["pause_ok"]:
