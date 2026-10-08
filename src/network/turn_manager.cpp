@@ -76,7 +76,16 @@ bool TurnManager::turn_ready(uint32_t turn) {
 	return true;
 }
 
+void TurnManager::assign_slot_players(const GameSetupParams &setup) {
+	client_player_.clear();
+	uint32_t client = 0;
+	for (uint8_t slot = 0; slot < setup.slot_count && slot < 8; ++slot)
+		if (setup.slot_types[slot] == 'h') client_player_[client++] = slot;
+	for (; client < 8; ++client) client_player_[client] = 0xFF;
+}
+
 void TurnManager::reset() {
+	client_player_.clear();
 	current_turn_ = 0;
 	turn_timer_ = 0.0f;
 	pending_local_cmds_.clear();
@@ -362,7 +371,7 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
 		const PlayerState &ps = sim.player(p);
 		for (float r : ps.res) mix_float(r);
-		mix_u32(ps.tech_mask);
+		for (uint64_t w : ps.techs.words) { mix_u32((uint32_t)w); mix_u32((uint32_t)(w >> 32)); }
 		mix_u8(ps.phase);
 		mix_u8(ps.civ);
 		mix_u8(ps.team);

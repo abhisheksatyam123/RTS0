@@ -1620,6 +1620,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 	for (size_t i = 0; i < rview.count; ++i) {
 		if (!rview.alive[i] || rview.amount[i] <= 0 || !entity_visible(rview.x[i], rview.z[i], 255)) continue;
+		if (rview.subtype[i] == rtso::RES_SUB_GRAIN) continue; // a field's grain; the field model shows it
 		uint32_t h = rview.id[i];
 		if (rview.type[i] == rtso::RES_WOOD) {
 			if (h % 3 == 0) ta++;
@@ -1652,6 +1653,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 	for (size_t i = 0; i < rview.count; ++i) {
 		if (!rview.alive[i] || rview.amount[i] <= 0 || !entity_visible(rview.x[i], rview.z[i], 255)) continue;
+		if (rview.subtype[i] == rtso::RES_SUB_GRAIN) continue; // a field's grain; the field model shows it
 		float rx = rview.x[i], rz = rview.z[i];
 		float ry = sim->get_terrain_height(rx, rz);
 		uint32_t h = rview.id[i];

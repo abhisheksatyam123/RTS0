@@ -51,6 +51,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_barter_requested", "sell_type", "buy_type", "amount"), &RtsoMain::_on_barter_requested);
 	ClassDB::bind_method(D_METHOD("set_civ", "civ_idx"), &RtsoMain::set_civ);
 	ClassDB::bind_method(D_METHOD("get_civ_info", "civ_idx"), &RtsoMain::get_civ_info);
+	ClassDB::bind_method(D_METHOD("get_tech_tree"), &RtsoMain::get_tech_tree);
 	ClassDB::bind_method(D_METHOD("get_match_summary"), &RtsoMain::get_match_summary);
 
 	ClassDB::bind_method(D_METHOD("_on_queue_slot_gui_input", "event", "slot_idx"), &RtsoMain::_on_queue_slot_gui_input);
@@ -116,6 +117,18 @@ void RtsoMain::_bind_methods() {
 	bind_enum("BuildingType", "DOCK", rtso::BLD_DOCK);
 	bind_enum("BuildingType", "WALL_SEGMENT", rtso::BLD_WALL_SEGMENT);
 	bind_enum("BuildingType", "CORRAL", rtso::BLD_CORRAL);
+	bind_enum("BuildingType", "FIELD", rtso::BLD_FIELD);
+	bind_enum("BuildingType", "STABLE", rtso::BLD_STABLE);
+	bind_enum("BuildingType", "RANGE", rtso::BLD_RANGE);
+	bind_enum("BuildingType", "FORGE", rtso::BLD_FORGE);
+	bind_enum("BuildingType", "ARSENAL", rtso::BLD_ARSENAL);
+	bind_enum("BuildingType", "SENTRY_TOWER", rtso::BLD_SENTRY_TOWER);
+	bind_enum("BuildingType", "OUTPOST", rtso::BLD_OUTPOST);
+	bind_enum("BuildingType", "PALISADE", rtso::BLD_PALISADE);
+	bind_enum("BuildingType", "WALL_TOWER", rtso::BLD_WALL_TOWER);
+	bind_enum("BuildingType", "ELEPHANT_STABLE", rtso::BLD_ELEPHANT_STABLE);
+	bind_enum("BuildingType", "THEATER", rtso::BLD_THEATER);
+	bind_enum("BuildingType", "EMBASSY", rtso::BLD_EMBASSY);
 
 	bind_enum("Civilization", "ATHENIANS", rtso::CIV_ATHENIANS);
 	bind_enum("Civilization", "SPARTANS", rtso::CIV_SPARTANS);
@@ -1921,25 +1934,6 @@ void RtsoMain::update_command_panel() {
 				add_train(rtso::UNIT_FEMALE_CITIZEN, "Female Citizen (40f)");
 				add_train(rtso::UNIT_HEALER, "Healer (80f,60g)");
 
-				if (pphase == 1) {
-					Button *btn_phase = memnew(Button);
-					btn_phase->set_text("Town Phase (200f,200w,100g)");
-					// Tech icon parity: 0 A.D. phase buttons use portraits/technologies
-					// town_phase icon (extracted -> textures/ui/phases/town.png). Cost text kept.
-					btn_phase->set_button_icon(load_tex("res://assets/textures/ui/phases/town.png"));
-					btn_phase->set_icon_alignment(HORIZONTAL_ALIGNMENT_CENTER);
-					btn_phase->add_theme_constant_override("icon_max_width", 20);
-					btn_phase->connect("pressed", Callable(this, "_on_tech_pressed").bind((int)rtso::TECH_PHASE_TOWN));
-					production_bar->add_child(btn_phase);
-				} else if (pphase == 2) {
-					Button *btn_phase = memnew(Button);
-					btn_phase->set_text("City Phase (400f,400w,300g,200s)");
-					btn_phase->set_button_icon(load_tex("res://assets/textures/ui/phases/city.png"));
-					btn_phase->set_icon_alignment(HORIZONTAL_ALIGNMENT_CENTER);
-					btn_phase->add_theme_constant_override("icon_max_width", 20);
-					btn_phase->connect("pressed", Callable(this, "_on_tech_pressed").bind((int)rtso::TECH_PHASE_CITY));
-					production_bar->add_child(btn_phase);
-				}
 			} else if (found_b->type == rtso::BLD_BARRACKS || found_b->type == rtso::BLD_FORTRESS) {
 				add_train(rtso::UNIT_SWORDSMAN, "Swordsman (60g,30w)");
 				add_train(rtso::UNIT_ARCHER, "Archer (40g,50w)");
@@ -1975,6 +1969,58 @@ void RtsoMain::update_command_panel() {
 				add_train(rtso::UNIT_HEALER, "Temple Healer (80f,60g)");
 			} else if (found_b->type == rtso::BLD_FARMSTEAD || found_b->type == rtso::BLD_CORRAL) {
 				add_train(rtso::UNIT_WAR_DOG, "Guard Dog (60f)");
+			}
+
+			// Technologies researched here (0 A.D. ProductionQueue "technologies"):
+			// one button per tech whose researcher is this building type, greyed
+			// out with the reason research_check() gives.
+			for (int t = 1; t < rtso::TECH_COUNT; ++t) {
+				const rtso::TechInfo &ti = rtso::tech_info((uint8_t)t);
+				if (ti.researcher != found_b->type || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
+				rtso::Simulation::ResearchCheck rc = sim->research_check(local_player(), (uint8_t)t, found_b->id);
+				if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_CIV) continue;
+				Button *btn = memnew(Button);
+				String cost;
+				auto add_cost = [&](int v, const char *suffix) {
+					if (v <= 0) return;
+					if (!cost.is_empty()) cost += ",";
+					cost += String::num_int64(v) + suffix;
+				};
+				add_cost(ti.food_cost, "f");
+				add_cost(ti.wood_cost, "w");
+				add_cost(ti.gold_cost, "g");
+				add_cost(ti.stone_cost, "s");
+				btn->set_text(String(ti.name) + (cost.is_empty() ? String() : " (" + cost + ")"));
+				if (t == rtso::TECH_PHASE_TOWN || t == rtso::TECH_PHASE_CITY) {
+					btn->set_button_icon(load_tex(t == rtso::TECH_PHASE_TOWN
+							? "res://assets/textures/ui/phases/town.png" : "res://assets/textures/ui/phases/city.png"));
+					btn->set_icon_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+					btn->add_theme_constant_override("icon_max_width", 20);
+				}
+				String tip = String(ti.desc ? ti.desc : "");
+				const char *why = nullptr;
+				switch (rc) {
+					case rtso::Simulation::TECH_ERR_IN_PROGRESS: why = "Already being researched"; break;
+					case rtso::Simulation::TECH_ERR_PHASE:
+						why = ti.required_phase >= 3 ? "Requires City Phase" : "Requires Town Phase"; break;
+					case rtso::Simulation::TECH_ERR_PREREQUISITE: {
+						tip += String("\nRequires ") + rtso::tech_info(ti.prerequisite).name;
+						btn->set_disabled(true);
+						break;
+					}
+					case rtso::Simulation::TECH_ERR_STRUCTURES:
+						why = t == rtso::TECH_PHASE_CITY ? "Requires 3 Town Phase structures"
+								: "Requires 5 Village Phase structures"; break;
+					case rtso::Simulation::TECH_ERR_COST: why = "Not enough resources"; break;
+					default: break;
+				}
+				if (why) {
+					tip += String("\n") + why;
+					if (rc != rtso::Simulation::TECH_ERR_COST) btn->set_disabled(true);
+				}
+				btn->set_tooltip_text(tip);
+				btn->connect("pressed", Callable(this, "_on_tech_pressed").bind(t));
+				production_bar->add_child(btn);
 			}
 		}
 	} else {
@@ -2055,23 +2101,38 @@ void RtsoMain::update_command_panel() {
 			}
 
 			if (has_worker) {
-				const char *b_names[13] = {
-					"House (80w)", "Barracks (150w,50g)", "Tower (100w,100s)", "Storehouse (100w)",
-					"Farmstead (100w)", "Corral (100w)", "Market (200w,100g)", "Temple (150w,100g,100s)",
-					"Fortress (300w,200g,300s)", "Gate (100w,100s)", "Dock (200w,100s)", "Wall (40s)",
-					"Wonder (500f,500w,500g,500s)"
-				};
-				int b_types[13] = {
-					rtso::BLD_HOUSE, rtso::BLD_BARRACKS, rtso::BLD_TOWER, rtso::BLD_STOREHOUSE,
-					rtso::BLD_FARMSTEAD, rtso::BLD_CORRAL, rtso::BLD_MARKET, rtso::BLD_TEMPLE,
-					rtso::BLD_FORTRESS, rtso::BLD_GATE, rtso::BLD_DOCK, rtso::BLD_WALL_SEGMENT,
+				// Build menu in 0 A.D. order; cost and phase come from the building table.
+				static const int b_types[] = {
+					rtso::BLD_HOUSE, rtso::BLD_STOREHOUSE, rtso::BLD_FARMSTEAD, rtso::BLD_FIELD,
+					rtso::BLD_CORRAL, rtso::BLD_DOCK, rtso::BLD_BARRACKS, rtso::BLD_STABLE,
+					rtso::BLD_RANGE, rtso::BLD_SENTRY_TOWER, rtso::BLD_OUTPOST, rtso::BLD_PALISADE,
+					rtso::BLD_FORGE, rtso::BLD_MARKET, rtso::BLD_TEMPLE, rtso::BLD_TOWER,
+					rtso::BLD_EMBASSY, rtso::BLD_WALL_SEGMENT, rtso::BLD_WALL_TOWER, rtso::BLD_GATE,
+					rtso::BLD_FORTRESS, rtso::BLD_ARSENAL, rtso::BLD_ELEPHANT_STABLE, rtso::BLD_THEATER,
 					rtso::BLD_WONDER
 				};
-				for (int b = 0; b < 13; ++b) {
+				static const char *kPhaseNames[4] = {"", "Village", "Town", "City"};
+				for (int bt : b_types) {
+					const rtso::BuildingTypeInfo &bi = rtso::building_type_info((uint8_t)bt);
+					String cost;
+					auto add_cost = [&](int amount, const char *suffix) {
+						if (amount <= 0) return;
+						if (!cost.is_empty()) cost += ",";
+						cost += String::num_int64(amount) + suffix;
+					};
+					add_cost(bi.food_cost, "f");
+					add_cost(bi.wood_cost, "w");
+					add_cost(bi.gold_cost, "g");
+					add_cost(bi.stone_cost, "s");
+					uint8_t need = rtso::building_required_phase((uint8_t)bt);
 					Button *bb = memnew(Button);
-					bb->set_text(b_names[b]);
+					bb->set_text(String(bi.name) + (cost.is_empty() ? String() : " (" + cost + ")"));
 					bb->add_theme_font_size_override("font_size", 9);
-					bb->connect("pressed", Callable(this, "_on_build_btn_pressed").bind(b_types[b]));
+					if (need > sim->player_phase(local_player())) {
+						bb->set_disabled(true);
+						bb->set_tooltip_text(String("Requires ") + kPhaseNames[need] + " Phase");
+					}
+					bb->connect("pressed", Callable(this, "_on_build_btn_pressed").bind(bt));
 					production_bar->add_child(bb);
 				}
 			}
@@ -2810,7 +2871,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							sim->order_attack_building((const uint32_t *)selected_ids.ptr(), selected_ids.size(), b.id);
 						play_civ_voice("attack");
 					} else {
-						if (b.build_progress < 1.0f || b.hp < b.max_hp) {
+						if (b.build_progress < 1.0f || b.hp < b.max_hp || b.type == rtso::BLD_FIELD) { // finished fields: farm
 							if (net_lockstep())
 								post_lockstep(16, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0, 0, b.id);
 							else
@@ -3395,9 +3456,22 @@ void RtsoMain::_on_lobby_start_pressed() {
 	if (setup.difficulty > 5) setup.difficulty = sim->petra_difficulty();
 	if (setup.behavior > 3) setup.behavior = sim->petra_behavior();
 	if (setup.start_res > 3) setup.start_res = 1;
-	apply_game_setup(setup);
+	// Every connected joiner needs a human slot to play: if the lobby left too
+	// few, turn the first AI slots into human ones (before broadcast, so both
+	// peers seat players identically in assign_slot_players).
+	{
+		int need = 1;
+		for (const auto &p : net_host_.getPeers())
+			if (p.connected && !p.is_observer) ++need;
+		for (uint8_t i = 0; i < setup.slot_count; ++i)
+			if (setup.slot_types[i] == 'h') --need;
+		for (uint8_t i = 0; i < setup.slot_count && need > 0; ++i)
+			if (setup.slot_types[i] == 'a') { setup.slot_types[i] = 'h'; --need; }
+	}
 	turn_mgr_.reset();
 	turn_mgr_.set_net_host(&net_host_, 0);
+	turn_mgr_.assign_slot_players(setup);
+	apply_game_setup(setup);
 	turn_mgr_.set_game_start_applied_sim(sim);
 	turn_mgr_.mark_game_started(sim);
 	net_host_.note_game_start_sent();
@@ -3467,9 +3541,13 @@ void RtsoMain::apply_net_game_start() {
 	turn_mgr_.set_game_start_applied_sim(sim);
 	rtso::GameSetupParams setup;
 	if (!turn_mgr_.take_pending_game_start_full(setup)) return;
-	apply_game_setup(setup);
 	turn_mgr_.reset_keep_inbound(); // host batches can arrive in the same poll as GAME_START
-	turn_mgr_.set_net_host(&net_host_, net_host_.isHost() ? 0 : 1);
+	// The host numbers joiners 1, 2, ... in connect order; that id is our client id.
+	uint32_t my_client = 0;
+	if (!net_host_.isHost()) my_client = net_host_.getLocalPeerId() ? net_host_.getLocalPeerId() : 1;
+	turn_mgr_.set_net_host(&net_host_, my_client);
+	turn_mgr_.assign_slot_players(setup);
+	apply_game_setup(setup); // after seating, so it selects the local player's units
 	turn_mgr_.set_game_start_applied_sim(sim);
 	turn_mgr_.note_game_start_applied(sim);
 	net_game_started_ = true;
@@ -3535,6 +3613,45 @@ Dictionary RtsoMain::get_civ_info(int civ_idx) const {
 	d["desc"] = String(info.description);
 	d["metal_mult"] = info.metal_gather_mult;
 	d["trade_gain_mult"] = info.trade_gain_mult;
+	return d;
+}
+
+// Structure tree for the local player's civ: buildings and technologies by
+// phase, read from the simulation tables (tech_data.h, extracted from 0 A.D.).
+Dictionary RtsoMain::get_tech_tree() const {
+	Dictionary d;
+	Array blds, techs;
+	if (!sim) { d["buildings"] = blds; d["techs"] = techs; return d; }
+	uint8_t civ = sim->player_civ(local_player());
+	d["phase"] = (int)sim->player_phase(local_player());
+	for (uint8_t t = 0; t < rtso::BLD_TYPE_COUNT; ++t) {
+		const auto &bi = rtso::building_type_info(t);
+		Dictionary b;
+		b["id"] = (int)t;
+		b["name"] = String(bi.name);
+		b["phase"] = (int)rtso::building_required_phase(t);
+		blds.push_back(b);
+	}
+	for (int t = 1; t < rtso::TECH_COUNT; ++t) {
+		if (!rtso::tech_available_to_civ((uint8_t)t, civ)) continue;
+		const auto &ti = rtso::tech_info((uint8_t)t);
+		Dictionary e;
+		e["id"] = t;
+		e["name"] = String(ti.name);
+		e["desc"] = String(ti.desc ? ti.desc : "");
+		e["phase"] = (int)ti.required_phase;
+		e["researcher"] = String(rtso::building_type_info(ti.researcher).name);
+		e["food"] = ti.food_cost;
+		e["wood"] = ti.wood_cost;
+		e["metal"] = ti.gold_cost;
+		e["stone"] = ti.stone_cost;
+		e["time"] = ti.research_time;
+		e["prerequisite"] = ti.prerequisite ? String(rtso::tech_info(ti.prerequisite).name) : String();
+		e["researched"] = sim->player(local_player()).has_tech((uint8_t)t);
+		techs.push_back(e);
+	}
+	d["buildings"] = blds;
+	d["techs"] = techs;
 	return d;
 }
 
