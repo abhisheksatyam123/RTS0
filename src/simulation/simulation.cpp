@@ -9298,6 +9298,7 @@ template <class Ar> void petra_state_io(Ar &ar, Simulation &s) {
 	});
 	ar.pod(s.petra_config_);
 	ar.pod(s.petra_pid_);
+	ar.pod(s.petra_tribute_inbox_);
 	io_vec(ar, s.petra_chat_, 1u << 16, [&](PetraChatLine &c) { ar.pod(c); });
 	// Diplomacy requests by player, in player order.
 	std::vector<std::pair<uint8_t, PetraDiplomacyRequest>> reqs(s.petra_diplomacy_requests_.begin(), s.petra_diplomacy_requests_.end());
