@@ -9114,6 +9114,51 @@ void Simulation::petra_manage_opening(float dt) {
 
 void Simulation::apply_petra_config() {
 	petra_config_.recompute();
+	// Until a slot gets its own setting, every AI plays at the shared one.
+	for (PetraSlot &slot : petra_slots_) slot.petra_config_ = petra_config_;
+}
+
+// Where player pid's PetraConfig lives right now: in the members while that
+// AI runs (or between ticks for PETRA_PLAYER), else in its parked slot. While
+// another AI runs, PETRA_PLAYER's state sits in that AI's slot.
+PetraConfig &Simulation::petra_config_slot(uint8_t pid) {
+	if (pid == petra_pid_) return petra_config_;
+	if (petra_slots_.size() < MAX_PLAYERS) {
+		petra_slots_.resize(MAX_PLAYERS);
+		for (PetraSlot &slot : petra_slots_) slot.petra_config_ = petra_config_;
+	}
+	if (pid == PETRA_PLAYER) return petra_slots_[petra_pid_].petra_config_;
+	return petra_slots_[pid].petra_config_;
+}
+
+const PetraConfig &Simulation::petra_config_for(uint8_t pid) const {
+	if (pid >= MAX_PLAYERS || pid == petra_pid_ || petra_slots_.size() < MAX_PLAYERS) return petra_config_;
+	if (pid == PETRA_PLAYER) return petra_slots_[petra_pid_].petra_config_;
+	return petra_slots_[pid].petra_config_;
+}
+
+void Simulation::set_petra_difficulty(uint8_t d) {
+	petra_config_.difficulty = petra_clamp_difficulty(d);
+	apply_petra_config();
+}
+
+void Simulation::set_petra_behavior(uint8_t b) {
+	petra_config_.behavior = petra_clamp_behavior(b);
+	apply_petra_config();
+}
+
+void Simulation::set_petra_difficulty(uint8_t pid, uint8_t d) {
+	if (pid >= MAX_PLAYERS) return;
+	PetraConfig &c = petra_config_slot(pid);
+	c.difficulty = petra_clamp_difficulty(d);
+	c.recompute();
+}
+
+void Simulation::set_petra_behavior(uint8_t pid, uint8_t b) {
+	if (pid >= MAX_PLAYERS) return;
+	PetraConfig &c = petra_config_slot(pid);
+	c.behavior = petra_clamp_behavior(b);
+	c.recompute();
 }
 
 void Simulation::petra_refresh_queue_accounts(float dt) {
@@ -9978,7 +10023,10 @@ void Simulation::petra_reset_ai_state() {
 }
 
 void Simulation::petra_swap_slot(uint8_t pid) {
-	if (petra_slots_.size() < MAX_PLAYERS) petra_slots_.resize(MAX_PLAYERS);
+	if (petra_slots_.size() < MAX_PLAYERS) {
+		petra_slots_.resize(MAX_PLAYERS);
+		for (PetraSlot &s : petra_slots_) s.petra_config_ = petra_config_; // the shared setting
+	}
 	PetraSlot &slot = petra_slots_[pid];
 #define RTSO_PETRA_SLOT_SWAP(m) std::swap(m, slot.m);
 	RTSO_PETRA_SLOT_FIELDS(RTSO_PETRA_SLOT_SWAP)
@@ -10086,7 +10134,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 
@@ -10802,6 +10850,21 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	ar.pod(s.wonder_duration_); ar.pod(s.relic_duration_); ar.pod(s.relic_count_);
 
 	// 3. Every AI's Petra state.
+	static_assert(sizeof(PetraConfig) == 100, "list the new PetraConfig field below");
+	auto io_config = [&](PetraConfig &c) {
+		ar.padded(c, [](PetraConfig &d, const PetraConfig &v) {
+			d.difficulty = v.difficulty; d.behavior = v.behavior; d.aggressive = v.aggressive; d.defensive = v.defensive;
+			d.cooperative = v.cooperative; d.pop_scaling = v.pop_scaling; d.gather_rate = v.gather_rate; d.build_time = v.build_time;
+			d.defense_ratio_own = v.defense_ratio_own; d.army_compact_sq = v.army_compact_sq;
+			d.target_num_workers = v.target_num_workers; d.target_num_traders = v.target_num_traders;
+			d.pop_phase2 = v.pop_phase2; d.work_phase3 = v.work_phase3; d.muster_delta = v.muster_delta;
+			d.garrison_hp_low = v.garrison_hp_low; d.garrison_hp_high = v.garrison_hp_high;
+			d.emergency_pop_factor = v.emergency_pop_factor; d.emergency_struct_factor = v.emergency_struct_factor;
+			d.emergency_root_factor = v.emergency_root_factor;
+			d.prio_emergency = v.prio_emergency; d.prio_villager = v.prio_villager; d.prio_military = v.prio_military;
+			d.prio_tech = v.prio_tech; d.prio_trade = v.prio_trade; d.prio_naval = v.prio_naval;
+		});
+	};
 	auto field = [&](auto &v) {
 		using T = std::decay_t<decltype(v)>;
 		if constexpr (std::is_same_v<T, S::AttackPlan>) {
@@ -10841,6 +10904,8 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			io_vec(ar, v, 1u << 16, [&](S::PetraFoundationWatch &w) { ar.pod(w.id); ar.pod(w.progress); ar.pod(w.stall); ids(w.banned); });
 		} else if constexpr (std::is_same_v<T, std::vector<S::PetraBase>>) {
 			io_vec(ar, v, 1u << 16, base);
+		} else if constexpr (std::is_same_v<T, PetraConfig>) {
+			if (ar.version >= 21) io_config(v); // v21: one per AI slot
 		} else if constexpr (std::is_same_v<T, PetraAttackManager>) {
 			if (ar.version >= 18) ar.pod(v);
 			else v = PetraAttackManager{};
@@ -10862,19 +10927,11 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		RTSO_PETRA_SLOT_FIELDS(RTSO_PETRA_IO_SLOT)
 #undef RTSO_PETRA_IO_SLOT
 	});
-	static_assert(sizeof(PetraConfig) == 100, "list the new PetraConfig field below");
-	ar.padded(s.petra_config_, [](PetraConfig &d, const PetraConfig &v) {
-		d.difficulty = v.difficulty; d.behavior = v.behavior; d.aggressive = v.aggressive; d.defensive = v.defensive;
-		d.cooperative = v.cooperative; d.pop_scaling = v.pop_scaling; d.gather_rate = v.gather_rate; d.build_time = v.build_time;
-		d.defense_ratio_own = v.defense_ratio_own; d.army_compact_sq = v.army_compact_sq;
-		d.target_num_workers = v.target_num_workers; d.target_num_traders = v.target_num_traders;
-		d.pop_phase2 = v.pop_phase2; d.work_phase3 = v.work_phase3; d.muster_delta = v.muster_delta;
-		d.garrison_hp_low = v.garrison_hp_low; d.garrison_hp_high = v.garrison_hp_high;
-		d.emergency_pop_factor = v.emergency_pop_factor; d.emergency_struct_factor = v.emergency_struct_factor;
-		d.emergency_root_factor = v.emergency_root_factor;
-		d.prio_emergency = v.prio_emergency; d.prio_villager = v.prio_villager; d.prio_military = v.prio_military;
-		d.prio_tech = v.prio_tech; d.prio_trade = v.prio_trade; d.prio_naval = v.prio_naval;
-	});
+	if (ar.version < 21) {
+		// Saves before v21 hold one config that every AI shared.
+		io_config(s.petra_config_);
+		for (S::PetraSlot &slot : s.petra_slots_) slot.petra_config_ = s.petra_config_;
+	}
 	ar.pod(s.petra_pid_);
 	ar.pod(s.petra_tribute_inbox_);
 	static_assert(sizeof(PetraChatLine) == 108, "list the new PetraChatLine field below");
