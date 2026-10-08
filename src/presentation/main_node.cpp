@@ -1,5 +1,6 @@
 #include "main_node.h"
 #include <godot_cpp/classes/os.hpp>
+#include <unordered_set>
 #include <godot_cpp/classes/theme.hpp>
 #include "popup_safe.h"
 #include <godot_cpp/core/class_db.hpp>
@@ -32,6 +33,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_speed_button_pressed"), &RtsoMain::_on_speed_button_pressed);
 	ClassDB::bind_method(D_METHOD("_on_menu_button_pressed"), &RtsoMain::_on_menu_button_pressed);
 	ClassDB::bind_method(D_METHOD("get_audio_state"), &RtsoMain::get_audio_state);
+	ClassDB::bind_method(D_METHOD("get_trade_dialog_state"), &RtsoMain::get_trade_dialog_state);
+	ClassDB::bind_method(D_METHOD("_on_trading_goods_requested", "shares"), &RtsoMain::_on_trading_goods_requested);
 	ClassDB::bind_method(D_METHOD("_on_ungarrison_pressed"), &RtsoMain::_on_ungarrison_pressed);
 	ClassDB::bind_method(D_METHOD("_on_selection_group_clicked", "key"), &RtsoMain::_on_selection_group_clicked);
 	ClassDB::bind_method(D_METHOD("_on_garrison_group_clicked", "key"), &RtsoMain::_on_garrison_group_clicked);
@@ -906,6 +909,7 @@ void RtsoMain::_ready() {
 	Node *barter = get_node_or_null(NodePath("BarterDialog"));
 	if (barter) {
 		barter->connect("barter_requested", Callable(this, "_on_barter_requested"));
+		barter->connect("trading_goods_requested", Callable(this, "_on_trading_goods_requested"));
 	}
 
 	apply_match_settings();
@@ -1454,6 +1458,91 @@ void RtsoMain::_on_barter_requested(int sell_type, int buy_type, int amount) {
 		play_sfx("res://assets/sounds/ui/bonus.ogg");
 		// Price labels will be refreshed on next update_hud / barter dialog visibility
 	}
+}
+
+// 0 A.D. TradeDialog: everything the barter and trade panels show for the local
+// player. Barter quotes follow BarterButton.update (sell 100, or 500 with
+// session.massbarter); trader counts follow GuiInterface.GetTraderNumber, where a
+// land trader counts as garrisoned while it rides a merchant ship that is trading.
+Dictionary RtsoMain::get_trade_dialog_state() const {
+	Dictionary d;
+	if (!sim) return d;
+	const uint8_t me = local_player();
+	const auto &ps = sim->player(me);
+	d["player"] = (int)me;
+	d["can_barter"] = sim->can_barter(me);
+	d["controls"] = !sim->is_defeated(me);
+	// Barter.js: 100 per click, 5x with session.massbarter (the only amounts cmd_barter takes).
+	const int multiplier = 5;
+	const int amount = 100 * (rtso::hotkeys::held("session.massbarter") ? multiplier : 1);
+	d["amount"] = amount;
+	d["multiplier"] = multiplier;
+	PackedInt32Array stock, goods, quotes;
+	for (int r = 0; r < rtso::RES_COUNT; ++r) {
+		stock.push_back((int)ps.res[r]);
+		goods.push_back((int)sim->trading_goods(me)[r]);
+	}
+	// quotes[sell * RES_COUNT + buy]: what one click buys.
+	for (int sell = 0; sell < rtso::RES_COUNT; ++sell)
+		for (int buy = 0; buy < rtso::RES_COUNT; ++buy)
+			quotes.push_back(sim->barter_quote((rtso::ResourceType)sell, (rtso::ResourceType)buy, amount));
+	d["stock"] = stock;
+	d["trading_goods"] = goods;
+	d["quotes"] = quotes;
+
+	auto uv = sim->units();
+	std::unordered_set<uint32_t> trading_ships;
+	int land_total = 0, land_trading = 0, ship_total = 0, ship_trading = 0, land_garrisoned = 0;
+	for (size_t i = 0; i < uv.count; ++i) {
+		if (uv.team[i] != me || uv.hp[i] <= 0.0f || !rtso::unit_is_trader(uv.unit_type[i])) continue;
+		if (uv.action_state[i] == rtso::ACTION_DYING) continue;
+		const bool trading = uv.alive[i] && uv.action_state[i] == rtso::ACTION_TRADE;
+		if (uv.unit_type[i] == rtso::UNIT_MERCHANT_SHIP) {
+			++ship_total;
+			if (trading) { ++ship_trading; trading_ships.insert(uv.id[i]); }
+		} else {
+			++land_total;
+			if (trading) ++land_trading;
+		}
+	}
+	for (const auto &[ship, passengers] : sim->transport_passengers()) {
+		if (!trading_ships.count(ship)) continue;
+		for (uint32_t pid : passengers)
+			for (size_t i = 0; i < uv.count; ++i)
+				if (uv.id[i] == pid) {
+					if (uv.unit_type[i] == rtso::UNIT_TRADER && uv.team[i] == me && uv.hp[i] > 0.0f) ++land_garrisoned;
+					break;
+				}
+	}
+	Dictionary land, ship;
+	land["total"] = land_total;
+	land["trading"] = land_trading;
+	land["garrisoned"] = land_garrisoned;
+	ship["total"] = ship_total;
+	ship["trading"] = ship_trading;
+	d["land"] = land;
+	d["ship"] = ship;
+	return d;
+}
+
+// TradeButtonManager.setTradingGoods: shares by ResourceType, summing to 100.
+// Lockstep command 33 packs one percent byte per resource into target_id.
+void RtsoMain::_on_trading_goods_requested(const PackedInt32Array &shares) {
+	if (!sim || shares.size() != rtso::RES_COUNT) return;
+	uint8_t pct[rtso::RES_COUNT];
+	int sum = 0;
+	uint32_t packed = 0;
+	for (int r = 0; r < rtso::RES_COUNT; ++r) {
+		if (shares[r] < 0 || shares[r] > 100) return;
+		pct[r] = (uint8_t)shares[r];
+		sum += pct[r];
+		packed |= (uint32_t)pct[r] << (8 * r);
+	}
+	if (sum != 100) return;
+	if (net_lockstep())
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_SET_TRADING_GOODS, nullptr, 0, 0, 0, packed, 0);
+	else
+		sim->cmd_set_trading_goods(local_player(), pct);
 }
 
 bool RtsoMain::save_game(String path) {
