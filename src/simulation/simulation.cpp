@@ -933,7 +933,7 @@ bool Simulation::cmd_maintain_fleet(uint32_t building_id, UnitType u_type, uint8
 	ProductionOrder order;
 	order.unit_type = u_type;
 	order.timer = 0.0f;
-	order.duration = uinfo.train_time * 0.75f * tech_mods(team).train_time[u_type]; // navalManager AI train discount, matches petra_manage_naval
+	order.duration = uinfo.train_time * 0.75f * tech_mods(team).train_time[u_type] * ai_time_mult(team); // navalManager AI train discount, matches petra_manage_naval
 	if (b.queue.size() >= 3) return false;
 	b.queue.push_back(order);
 	return true;
@@ -1024,7 +1024,7 @@ bool Simulation::cmd_train_template(uint8_t player_id, uint32_t building_id, uin
 	order.tmpl = tmpl;
 	order.timer = 0.0f;
 	order.duration = uinfo.train_time * team_bonus_mult(player_id, TEAM_BONUS_UNIT_TRAIN_TIME, -1, tmpl)
-		* tech_mods(player_id).train_time[t.unit_type];
+		* tech_mods(player_id).train_time[t.unit_type] * ai_time_mult(player_id);
 	b.queue.push_back(order);
 	return true;
 }
@@ -1188,7 +1188,7 @@ bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t t
 	b.research_tech = tech_id;
 	b.research_timer = 0.0f;
 	b.research_duration = tinfo.research_time * team(TEAM_BONUS_TECH_TIME, -1)
-		* tech_mods(player_id).bld_research_time[b.type];
+		* tech_mods(player_id).bld_research_time[b.type] * ai_time_mult(player_id);
 	return true;
 }
 
@@ -1389,7 +1389,7 @@ int Simulation::calculate_trader_gain(const Building& mA, const Building& mB, ui
 	Civilization civ = civ_of(team);
 	const float civ_mult = civ_info(civ).trade_gain_mult;
 	// Handicraft / Advanced Handicraft (Trader/GainMultiplier).
-	const float tech_mult = tech_mods(team).trade_gain[UNIT_TRADER];
+	const float tech_mult = tech_mods(team).trade_gain[UNIT_TRADER] * ai_gather_mult(team);
 	int gains = static_cast<int>(std::floor((distance / CELL * 0.5f + base)) * civ_mult * tech_mult);
 	return std::max(0, gains);
 }
@@ -3013,7 +3013,7 @@ void Simulation::tick_gather(float dt) {
 						: units_.unit_type[i] == UNIT_FISHING_BOAT ? GK_FISH
 						: resources_.subtype[ridx] == RES_SUB_GRAIN ? GK_GRAIN
 						: resources_.subtype[ridx] == RES_SUB_MEAT ? GK_MEAT : GK_FRUIT;
-					harvest_rate /= tech_mods(uteam).gather[units_.unit_type[i]][kind];
+					harvest_rate /= tech_mods(uteam).gather[units_.unit_type[i]][kind] * ai_gather_mult(uteam);
 
 					Civilization civ = civ_of(uteam);
 					if ((rt == RES_GOLD || rt == RES_STONE) && civ_info(civ).metal_gather_mult > 1.0f) {
@@ -3121,7 +3121,8 @@ void Simulation::tick_construction(float dt) {
 			// 0 A.D. Foundation.Commit: first builder on site → scaffold + construction preview.
 			b.committed = true;
 			const BuildingTypeInfo &binfo = building_type_info(b.type);
-			float build_time = binfo.build_time * tech_mods(b.team).bld_build_time[b.type < BLD_TYPE_COUNT ? b.type : 0];
+			float build_time = binfo.build_time * tech_mods(b.team).bld_build_time[b.type < BLD_TYPE_COUNT ? b.type : 0]
+				* ai_time_mult(b.team);
 			float rate = (1.0f / std::max(5.0f, build_time)) * speed_mult * dt;
 			b.build_progress = std::min(1.0f, b.build_progress + rate);
 			b.hp = b.max_hp * b.build_progress;
@@ -5435,7 +5436,7 @@ void Simulation::petra_manage_military_production(float dt) {
 				ProductionOrder order;
 				order.unit_type = UNIT_SPEARMAN;
 				order.timer = 0.0f;
-				order.duration = sinfo.train_time * 0.70f * tech_mods(petra_pid_).train_time[UNIT_SPEARMAN]; // fast-track emergency training
+				order.duration = sinfo.train_time * 0.70f * tech_mods(petra_pid_).train_time[UNIT_SPEARMAN] * ai_time_mult(petra_pid_); // fast-track emergency training
 				b.queue.push_back(order);
 				continue;
 			}
@@ -5446,7 +5447,7 @@ void Simulation::petra_manage_military_production(float dt) {
 				ProductionOrder order;
 				order.unit_type = UNIT_ARCHER;
 				order.timer = 0.0f;
-				order.duration = ainfo.train_time * 0.70f * tech_mods(petra_pid_).train_time[UNIT_ARCHER];
+				order.duration = ainfo.train_time * 0.70f * tech_mods(petra_pid_).train_time[UNIT_ARCHER] * ai_time_mult(petra_pid_);
 				b.queue.push_back(order);
 			}
 		}
@@ -5697,7 +5698,7 @@ void Simulation::petra_manage_economy(float dt) {
 				ProductionOrder order;
 				order.unit_type = UNIT_VILLAGER;
 				order.timer = 0.0f;
-				order.duration = vinfo.train_time * 0.8f * tech_mods(petra_pid_).train_time[UNIT_VILLAGER];
+				order.duration = vinfo.train_time * 0.8f * tech_mods(petra_pid_).train_time[UNIT_VILLAGER] * ai_time_mult(petra_pid_);
 				b.queue.push_back(order);
 			}
 		}
@@ -6035,7 +6036,7 @@ void Simulation::petra_manage_trading(float dt) {
 				ProductionOrder order;
 				order.unit_type = UNIT_TRADER;
 				order.timer = 0.0f;
-				order.duration = tinfo.train_time * 0.75f * tech_mods(petra_pid_).train_time[UNIT_TRADER];
+				order.duration = tinfo.train_time * 0.75f * tech_mods(petra_pid_).train_time[UNIT_TRADER] * ai_time_mult(petra_pid_);
 				buildings_[bit->second].queue.push_back(order);
 			}
 		}
@@ -6131,7 +6132,7 @@ void Simulation::petra_manage_naval(float dt) {
 				ProductionOrder order;
 				order.unit_type = UNIT_TRIREME;
 				order.timer = 0.0f;
-				order.duration = tinfo.train_time * 0.75f * tech_mods(petra_pid_).train_time[UNIT_TRIREME];
+				order.duration = tinfo.train_time * 0.75f * tech_mods(petra_pid_).train_time[UNIT_TRIREME] * ai_time_mult(petra_pid_);
 				buildings_[bit->second].queue.push_back(order);
 			}
 		}
@@ -6152,7 +6153,7 @@ void Simulation::petra_manage_naval(float dt) {
 				ProductionOrder order;
 				order.unit_type = UNIT_FISHING_BOAT;
 				order.timer = 0.0f;
-				order.duration = finfo.train_time * 0.75f * tech_mods(petra_pid_).train_time[UNIT_FISHING_BOAT];
+				order.duration = finfo.train_time * 0.75f * tech_mods(petra_pid_).train_time[UNIT_FISHING_BOAT] * ai_time_mult(petra_pid_);
 				buildings_[bit->second].queue.push_back(order);
 			}
 		}
@@ -6659,7 +6660,7 @@ void Simulation::petra_manage_research(float dt) {
 		}
 		at->research_tech = tech_id;
 		at->research_timer = 0.0f;
-		at->research_duration = tinfo.research_time * 0.75f * tech_mods(petra_pid_).bld_research_time[at->type];
+		at->research_duration = tinfo.research_time * 0.75f * tech_mods(petra_pid_).bld_research_time[at->type] * ai_time_mult(petra_pid_);
 		return true;
 	};
 
@@ -8265,17 +8266,6 @@ void Simulation::tick_petra_ai(float dt) {
 void Simulation::tick_petra_ai_player(float dt) {
 	// 0 A.D. Petra Autonomous AI System
 	petra_timer_ += dt;
-
-	// AI economic passive baseline trickle (scaled by config.js difficulty)
-	const float tmul = petra_config_.trickle_mult;
-	petra_ps().food()  += 3.0f * dt * tmul;
-	petra_ps().wood()  += 3.0f * dt * tmul;
-	petra_ps().gold()  += 2.0f * dt * tmul;
-	petra_ps().stone() += 1.5f * dt * tmul;
-	petra_ps().food()  = std::min(petra_ps().food(),  9999.0f);
-	petra_ps().wood()  = std::min(petra_ps().wood(),  9999.0f);
-	petra_ps().gold()  = std::min(petra_ps().gold(),  9999.0f);
-	petra_ps().stone() = std::min(petra_ps().stone(), 9999.0f);
 
 	petra_refresh_queue_accounts(dt);
 
