@@ -208,6 +208,8 @@ static void check_reset_load(TurnManager &tm, const char *path) {
 	a.set_relic_count(2);
 	const uint8_t goods[RES_COUNT] = {10, 20, 30, 40};
 	a.cmd_set_trading_goods(1, goods);
+	a.set_water_level_mode(Simulation::WATER_LEVEL_DEEP);
+	a.set_sea_level_rise_minutes(40);
 	a.spawn_unit(-10.0f, 10.0f, 0, UNIT_CATAPULT);
 	const uint32_t unpacking = a.spawn_unit(-14.0f, 10.0f, 0, UNIT_CATAPULT);
 	a.order_pack(&unpacking, 1, false);
@@ -241,6 +243,10 @@ static void check_reset_load(TurnManager &tm, const char *path) {
 	}
 	if (!a.is_defeated(2) || a.is_defeated(1) || a.wonder_hold_[1] <= 0.0f || a.is_game_over()) {
 		std::printf("  FAIL expected player 2 defeated and player 1's wonder hold running (hold %.1f s)\n", a.wonder_hold_[1]);
+		++failures;
+	}
+	if (b.water_level_mode() != Simulation::WATER_LEVEL_DEEP || b.sea_level_rise_minutes() != 40) {
+		std::printf("  FAIL map trigger Game Setup options not restored (%d, %d)\n", b.water_level_mode(), b.sea_level_rise_minutes());
 		++failures;
 	}
 	if (failures == before) std::printf("Town Center + wall, packed/unpacked catapults, a defeated player and a wonder hold into a reset sim: ok\n");
@@ -279,11 +285,41 @@ static void check_identical_saves() {
 	}
 }
 
+// A save from a map at a non-default size loads into a freshly reset() sim:
+// the fog grids are read at the saved map's size, not the reset sim's.
+static void check_other_size_load(TurnManager &tm, const char *path) {
+	static Simulation a, b;
+	a.reset();
+	a.set_sim_seed(SEED);
+	a.set_waves_enabled(false);
+	a.generate_random_map((MapType)MAP, SEED, 2, 192.0f);
+	a.set_victory_condition(VICTORY_ENDLESS);
+	run(a, 200);
+	const int before = failures;
+	if (!a.save_state(path)) { std::printf("FAIL save (map half 192)\n"); ++failures; return; }
+	b.reset();
+	if (!b.load_state(path)) { std::printf("FAIL load (map half 192) into a reset sim\n"); ++failures; return; }
+	if (b.map_half() != a.map_half() || b.fow_grid_.size() != a.fow_grid_.size()) {
+		std::printf("  FAIL map half %.0f -> %.0f, fog %zu -> %zu cells\n", a.map_half(), b.map_half(),
+		            a.fow_grid_.size(), b.fow_grid_.size());
+		++failures;
+	}
+	compare(a, b);
+	if (tm.compute_sim_hash(a) != tm.compute_sim_hash(b)) {
+		std::printf("  FAIL map half 192: hash %08x saved, %08x loaded into a reset sim\n",
+		            tm.compute_sim_hash(a), tm.compute_sim_hash(b));
+		++failures;
+		print_diffs();
+	}
+	if (failures == before) std::printf("map half 192 into a reset sim: ok\n");
+}
+
 int main() {
 	static Simulation live, loaded;
 	TurnManager tm;
 	check_identical_saves();
 	check_reset_load(tm, "/tmp/rts0_test_save_hash.sav");
+	check_other_size_load(tm, "/tmp/rts0_test_save_hash.sav");
 	build(live);
 	const char *path = "/tmp/rts0_test_save_hash.sav";
 	// Save points: early game, mid game (armies, fields, traders), later.

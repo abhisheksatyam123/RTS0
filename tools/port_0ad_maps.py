@@ -67,7 +67,22 @@ def extract_pmp_heights(raw_pmp, target_res=64, height_scale=0.20):
 
     return heights, vert_side
 
-def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean", height_scale=0.20, source=None):
+def gaia_entity(ltpl, wx, wz):
+    """0 A.D. gaia/fauna_*, gaia/treasure/* and gaia/ruins/* templates as RTS0 map
+    entries, named by template stem (see src/simulation/gaia_data.h)."""
+    if "gaia/fish/" in ltpl:
+        return None
+    for prefix, key in (("gaia/treasure/", "treasures"), ("gaia/ruins/", "ruins")):
+        if prefix in ltpl:
+            return key, {"type": ltpl.split(prefix, 1)[1], "x": wx, "z": wz}
+    if "gaia/fauna_" in ltpl:
+        stem = ltpl.split("gaia/fauna_", 1)[1]
+        if stem.endswith("_trainable"):
+            stem = stem[: -len("_trainable")]
+        return "fauna", {"type": stem, "x": wx, "z": wz}
+    return None
+
+def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean", height_scale=0.20, source=None, gaia_only=False):
     print(f"Porting map: {map_id} ({xml_rel})...")
     with (source if source is not None else zipfile.ZipFile(zip_path, 'r')) as z:
         xml_data = z.read(xml_rel).decode('utf-8')
@@ -130,7 +145,8 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
 
         # Convert entities into RTS0 format
         resources = []
-        fauna = []
+        gaia = {"fauna": [], "treasures": [], "ruins": []}
+        fauna = gaia["fauna"]
         players = {}
         structures = []
         units = []
@@ -157,14 +173,9 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 if "gaia/fish/" in ltpl:
                     # template_gaia_fish.xml: 1000 food.fish, gathered only by fishing boats
                     resources.append({"type": "fish", "x": wx, "z": wz, "amount": 1000})
-                elif any(k in ltpl for k in ["deer", "gazelle"]):
-                    fauna.append({"type": "deer", "x": wx, "z": wz})
-                elif "boar" in ltpl:
-                    fauna.append({"type": "boar", "x": wx, "z": wz})
-                elif any(k in ltpl for k in ["sheep", "goat", "cattle", "cow", "zebu", "sanga"]):
-                    fauna.append({"type": "sheep", "x": wx, "z": wz})
-                elif any(k in ltpl for k in ["wolf", "bear", "lion", "tiger"]):
-                    fauna.append({"type": "wolf", "x": wx, "z": wz})
+                elif gaia_entity(ltpl, wx, wz):
+                    key, ent = gaia_entity(ltpl, wx, wz)
+                    gaia[key].append(ent)
                 elif any(k in ltpl for k in ["fruit", "berry", "apple", "date", "bush_berry", "grain", "food"]):
                     resources.append({"type": "food", "x": wx, "z": wz, "amount": 300})
                 elif any(k in ltpl for k in ["stone", "rock"]):
@@ -280,12 +291,25 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             "players": list(players.values()),
             "resources": resources,
             "fauna": fauna,
+            "treasures": gaia["treasures"],
+            "ruins": gaia["ruins"],
             "structures": structures,
             "units": units
         }
 
         os.makedirs("data/maps", exist_ok=True)
         out_path = f"data/maps/{map_id}.json"
+        if gaia_only:
+            # Keep the existing map; only refresh its Gaia arrays.
+            if not os.path.exists(out_path):
+                return
+            with open(out_path) as f:
+                old = json.load(f)
+            ws = old.get("world_size", world_size_m)
+            k = ws / world_size_m
+            for key in ("fauna", "treasures", "ruins"):
+                old[key] = [dict(e, x=round(e["x"] * k, 2), z=round(e["z"] * k, 2)) for e in gaia[key]]
+            map_data = old
         with open(out_path, "w") as f:
             json.dump(map_data, f, indent=2)
         print(f"  -> Generated {out_path}: {len(resources)} resources, {len(fauna)} fauna, {len(structures)} structures, {len(units)} units, {len(players)} players (Water={water_height}m).")
@@ -360,7 +384,26 @@ for _civ in ["athenians", "britons", "carthaginians", "gauls", "han", "iberians"
     github_scenarios[f"sandbox_{_civ}"] = (f"sandbox_{_civ}", "mediterranean")
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "--github-scenarios":
+    if len(sys.argv) > 1 and sys.argv[1] == "--gaia-only":
+        # Refresh fauna, treasures and ruins of every ported map from 0 A.D.'s GitHub.
+        for mid, xrel, prel, size, bome, hscale in maps_list:
+            try:
+                port_map(mid, xrel, prel, size, bome, hscale, source=GithubSource(), gaia_only=True)
+            except Exception as e:
+                print(f"  !! {mid}: {e}")
+        for name, (mid, bome) in sorted(github_skirmishes.items()):
+            try:
+                port_map(mid, f"maps/skirmishes/{name}.xml", f"maps/skirmishes/{name}.pmp", None, bome, 0.20,
+                         source=GithubSource(), gaia_only=True)
+            except Exception as e:
+                print(f"  !! {mid}: {e}")
+        for name, (mid, bome) in sorted(github_scenarios.items()):
+            try:
+                port_map(mid, f"maps/scenarios/{name}.xml", f"maps/scenarios/{name}.pmp", None, bome, 0.20,
+                         source=GithubSource(), gaia_only=True)
+            except Exception as e:
+                print(f"  !! {mid}: {e}")
+    elif len(sys.argv) > 1 and sys.argv[1] == "--github-scenarios":
         for name in sys.argv[2:] or sorted(github_scenarios):
             mid, bome = github_scenarios.get(name, (name, "mediterranean"))
             port_map(mid, f"maps/scenarios/{name}.xml", f"maps/scenarios/{name}.pmp", None, bome, 0.20,

@@ -7486,5 +7486,74 @@
       "x": -67.19,
       "z": 82.0
     }
+  ],
+  "treasures": [
+    {
+      "type": "shipwreck_debris",
+      "x": 42.3,
+      "z": 14.41
+    },
+    {
+      "type": "shipwreck_debris",
+      "x": 25.25,
+      "z": 16.62
+    },
+    {
+      "type": "shipwreck_debris",
+      "x": 42.69,
+      "z": 11.34
+    },
+    {
+      "type": "shipwreck_debris",
+      "x": 40.97,
+      "z": 12.29
+    },
+    {
+      "type": "shipwreck",
+      "x": 25.48,
+      "z": 11.44
+    },
+    {
+      "type": "shipwreck",
+      "x": -23.07,
+      "z": -84.66
+    },
+    {
+      "type": "shipwreck",
+      "x": 40.96,
+      "z": 38.11
+    },
+    {
+      "type": "shipwreck",
+      "x": 52.65,
+      "z": 74.45
+    },
+    {
+      "type": "shipwreck",
+      "x": 34.98,
+      "z": 85.59
+    },
+    {
+      "type": "shipwreck_debris",
+      "x": 48.41,
+      "z": 75.74
+    },
+    {
+      "type": "shipwreck_debris",
+      "x": 50.56,
+      "z": 75.85
+    },
+    {
+      "type": "shipwreck_debris",
+      "x": 48.54,
+      "z": 74.66
+    }
+  ],
+  "ruins": [
+    {
+      "type": "unfinished_greek_temple",
+      "x": -2.03,
+      "z": -39.05
+    }
   ]
 }

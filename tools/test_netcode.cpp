@@ -528,6 +528,27 @@ unsigned pack_state_of(const Simulation &sim, uint32_t id) {
     return 255;
 }
 
+// The formation a unit is in: "<template>:<order>:<members>", or "-".
+std::string formation_state_of(const Simulation &sim, uint32_t unit_id) {
+    const uint32_t f = sim.formation_of_unit(unit_id);
+    for (const auto &c : sim.formations())
+        if (c.id == f)
+            return std::to_string((unsigned)c.tmpl) + ":" + std::to_string((unsigned)c.order) + ":" +
+                   std::to_string(c.members.size());
+    return "-";
+}
+
+// Both humans' trading goods in ResourceType order, "p0/p1".
+std::string goods_of(const Simulation &sim) {
+    std::string out;
+    for (uint8_t p = 0; p < 2; ++p) {
+        if (p) out += "/";
+        const uint8_t *g = sim.trading_goods(p);
+        for (int r = 0; r < RES_COUNT; ++r) out += (r ? "," : "") + std::to_string((unsigned)g[r]);
+    }
+    return out;
+}
+
 float hp_of(const Simulation &sim, uint32_t id) {
     auto uv = sim.units();
     for (size_t i = 0; i < uv.count; ++i)
@@ -565,12 +586,19 @@ struct PeerOpts {
     uint32_t force_oos = 0;     // the joiner corrupts its world after this turn
     uint32_t quit_turn = 0;     // the joiner leaves the match after this turn
     bool rejoin = false;        // this joiner takes over a dropped seat mid-match
+    std::string name = "peer";  // the name this peer authenticates with
+    std::string password;       // host: required from joiners; client: what it sends
+    uint32_t kick_turn = 0;     // host: kicks the client named kick_name after this turn
+    std::string kick_name;
+    bool ban = false;           // ... and bans it
     uint32_t humans = 2;        // human seats (the host and humans-1 joiners); 3+ takes the AI slot
     std::string oos_dir;        // where each peer writes its OOS dump
 };
 
 int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts &opt,
         const char *log_path) {
+    // Line-buffered even into a file: the playtest waits on what a peer printed.
+    std::setvbuf(stdout, nullptr, _IOLBF, 0);
     const float speed = opt.speed, loss = opt.loss;
     const uint32_t defeat_turn = opt.defeat_turn;
     Simulation sim;
@@ -618,6 +646,9 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     const uint32_t host_healer = sim.spawn_unit(-44.0f, 6.0f, 0, UNIT_HEALER);
     sim.order_set_stance(&host_healer, 1, STANCE_PASSIVE);
     const uint32_t host_patient = sim.spawn_unit(-24.0f, -16.0f, 0, UNIT_SWORDSMAN);
+    // A squad the host forms up (cmd 8, 0 A.D. Formation.js), walks and attack-moves.
+    std::vector<uint32_t> host_squad;
+    for (int i = 0; i < 4; ++i) host_squad.push_back(sim.spawn_unit(-36.0f + 2.0f * (float)i, 22.0f, 0, UNIT_SPEARMAN));
     auto apply_setup = [&](const GameSetupParams &s) {
         sim.set_victory_condition(s.victory >= VICTORY_COUNT ? 0 : s.victory);
         for (uint8_t t = 0; t < MAX_PLAYERS; ++t) {
@@ -636,6 +667,8 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
 
     NetHost net;
     if (loss > 0.0f) net.set_simulated_loss(loss, seed ^ (host ? 0x1111u : 0x2222u));
+    net.setLocalPlayerName(opt.name);
+    net.setPassword(opt.password);
     bool ok = host ? net.startHost([&] { NetConfig c; c.port = port; return c; }())
                    : net.startClient("127.0.0.1", port);
     if (!ok) { std::fprintf(stderr, "[net-peer] socket start failed\n"); return 3; }
@@ -658,6 +691,11 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     while (joined < need) {
         net.poll(arena);
         arena.reset();
+        // 0 A.D. NetClient: a refused authentication (wrong password, banned) ends the join.
+        if (!host && net.authResult() > 0) {
+            std::printf("[net-peer] join: refused code=%d\n", net.authResult());
+            return 4;
+        }
         if (now_us() - t_start > 10'000'000ull) {
             std::fprintf(stderr, "[net-peer] %s: no connection after 10s (%u of %u)\n", host ? "host" : "join",
                          joined, need);
@@ -730,6 +768,8 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     uint32_t save_hash_before = 0, save_hash_after = 0;
     bool save_ok = false;
     uint64_t oos_since = 0;
+    std::set<uint32_t> waited_on;
+    bool kick_done = false;
 
     while (tm.current_turn() < turns) {
         net.poll(arena);
@@ -822,6 +862,25 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
             // Unit orders (0 A.D. Commands.js): the host's worker gathers food,
             // walks off with a Shift-queued walk (param bit 0x80) after it, goes
             // back to work (cmd 31) and is finally deleted (cmd 30).
+            // Trading goods (cmd 33, 0 A.D. Player.js SetTradingGoods): each human
+            // sets the mix its traders bring back, one percent byte per ResourceType.
+            if (st == 340 || st == 350) {
+                static const uint8_t mix[2][4] = {{10, 20, 30, 40}, {0, 0, 50, 50}};
+                NetCommand g;
+                g.client_id = st == 340 ? 0 : 1;
+                g.cmd_type = 33;
+                for (int r = 0; r < RES_COUNT && r < 4; ++r) g.target_id |= (uint32_t)mix[g.client_id][r] << (8 * r);
+                batch.push_back(g);
+            }
+            if (st == 345 || st == 355 || st == 365) {
+                NetCommand fm;
+                fm.client_id = 0;
+                fm.entity_ids = host_squad;
+                if (st == 345) { fm.cmd_type = 8; fm.param = FORMATION_BOX; }
+                else if (st == 355) { fm.cmd_type = 1; fm.target_x = -30.0f; fm.target_z = 30.0f; }
+                else { fm.cmd_type = 10; fm.target_x = -36.0f; fm.target_z = 24.0f; }
+                batch.push_back(fm);
+            }
             if (st == 410) {
                 NetCommand hl;
                 hl.client_id = 0;
@@ -866,8 +925,23 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
             held_us += now - last;
             last_progress = now; // a pause is not a stall
         }
+        // 0 A.D. "Waiting for players": whom this peer was held on.
+        if (!tm.is_paused() && tm.waiting_ms() > 300)
+            for (uint32_t c : tm.waiting_on()) waited_on.insert(c);
         float dt = (float)(now - last) * 1e-6f * speed;
         last = now;
+        if (net.kickedSelf()) {
+            std::printf("[net-peer] join: kicked at turn %u\n", tm.current_turn());
+            std::fclose(log);
+            net.stop();
+            return 0;
+        }
+        if (host && opt.kick_turn && tm.current_turn() >= opt.kick_turn && !kick_done) {
+            kick_done = true;
+            const uint32_t victim = net.peerByName(opt.kick_name);
+            std::printf("[net-peer] host: kick %s peer=%u turn=%u ok=%d\n", opt.kick_name.c_str(), victim,
+                        tm.current_turn(), net.kickPeer(victim, opt.ban) ? 1 : 0);
+        }
         if (tm.tick(dt, sim)) {
             const auto &f = tm.turn_history().back();
             // Both peers stand on the same state at this turn boundary: wipe the
@@ -905,7 +979,7 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
                 if (cu.alive[i]) wounds += cu.max_hp[i] - cu.hp[i];
                 else ++dead;
             }
-            std::fprintf(log, "%u %08X %zu d01=%u d10=%u cf=%d wounds=%.0f dead=%u defeated=%u over=%d stone=%d,%d wall=%u locked=%d pack=%u work=%u queue=%zu heal=%u patient=%.0f\n",
+            std::fprintf(log, "%u %08X %zu d01=%u d10=%u cf=%d wounds=%.0f dead=%u defeated=%u over=%d stone=%d,%d wall=%u locked=%d pack=%u work=%u queue=%zu heal=%u patient=%.0f goods=%s form=%s\n",
                          f.turn_index, f.sim_state_hash, f.commands.size(), sim.get_diplomacy(0, 1),
                          sim.get_diplomacy(1, 0), sim.ceasefire_active() ? 1 : 0, wounds, dead,
                          (unsigned)sim.defeated_mask(), sim.is_game_over() ? 1 : 0,
@@ -913,7 +987,7 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
                          (unsigned)building_type_of(sim, host_wall), gate_locked_of(sim, host_wall),
                          pack_state_of(sim, host_catapult), order_kind_of(sim, host_worker),
                          order_queue_len_of(sim, host_worker), order_kind_of(sim, host_healer),
-                         hp_of(sim, host_patient));
+                         hp_of(sim, host_patient), goods_of(sim).c_str(), formation_state_of(sim, host_squad[0]).c_str());
         }
         if (tm.has_out_of_sync() && !opt.force_oos) {
             std::fprintf(stderr, "[net-peer] %s: OOS at turn %u local=%08X peer=%08X\n",
@@ -967,6 +1041,18 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
                 sim.ceasefire_seconds(), (unsigned)sim.player_team(0), (unsigned)sim.player_team(1),
                 (unsigned)sim.player_team(2));
     for (const auto &c : chats) std::printf("[net-peer] %s: chat %s\n", host ? "host" : "join", c.c_str());
+    for (const auto &k : net.kicks())
+        std::printf("[net-peer] %s: kicks name=%s ban=%d\n", host ? "host" : "join", k.name.c_str(), (int)k.ban);
+    {
+        // Network status (0 A.D. NMT_CLIENT_PERFORMANCE): the host's last report.
+        std::string rtt, waited;
+        for (const auto &e : net.clientPerformance())
+            rtt += (rtt.empty() ? "" : ",") + std::to_string(e.client) + ":" + std::to_string(e.rtt_ms);
+        for (uint32_t c : waited_on) waited += (waited.empty() ? "" : ",") + std::to_string(c);
+        std::printf("[net-peer] %s: status reports=%llu rtt=%s waited_on=%s\n", host ? "host" : "join",
+                    (unsigned long long)net.clientPerformanceReports(), rtt.empty() ? "-" : rtt.c_str(),
+                    waited.empty() ? "-" : waited.c_str());
+    }
     if (opt.pause_turn)
         std::printf("[net-peer] %s: pause seen=%d by=%u at_turn=%u held_ms=%u\n", host ? "host" : "join",
                     pause_seen ? 1 : 0, paused_by, paused_at_turn, (unsigned)(held_us / 1000));
@@ -1040,6 +1126,11 @@ int main(int argc, char **argv) {
             else if (std::strcmp(k, "--oos-dir") == 0) opt.oos_dir = v;
             else if (std::strcmp(k, "--quit-turn") == 0) opt.quit_turn = (uint32_t)std::atoi(v);
             else if (std::strcmp(k, "--rejoin") == 0) opt.rejoin = std::atoi(v) != 0;
+            else if (std::strcmp(k, "--name") == 0) opt.name = v;
+            else if (std::strcmp(k, "--password") == 0) opt.password = v;
+            else if (std::strcmp(k, "--kick-turn") == 0) opt.kick_turn = (uint32_t)std::atoi(v);
+            else if (std::strcmp(k, "--kick-name") == 0) opt.kick_name = v;
+            else if (std::strcmp(k, "--ban") == 0) opt.ban = std::atoi(v) != 0;
             else if (std::strcmp(k, "--humans") == 0) opt.humans = (uint32_t)std::max(2, std::min(3, std::atoi(v)));
         }
         return netpeer::run(std::strcmp(argv[2], "host") == 0, (uint16_t)std::atoi(argv[3]),

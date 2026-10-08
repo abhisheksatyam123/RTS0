@@ -8,6 +8,7 @@
 #include "aura_manager.h"
 #include "petra_ai.h"
 #include "sim_types.h"
+#include "triggers.h"
 #include <cstdint>
 #include <vector>
 #include <unordered_map>
@@ -130,7 +131,7 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
-	static constexpr uint32_t SAVE_VERSION = 23; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 26; // save_state's format; see the history beside it
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -438,6 +439,9 @@ public:
 	// 0 A.D. map visibility options: everything visible, or terrain known from the start.
 	bool reveal_map() const { return reveal_map_; }
 	void set_reveal_map(bool on) { reveal_map_ = on; }
+	// Game Setup biome for random maps: BIOME_* or -1 for the map's own.
+	void set_biome_override(int b) { biome_override_ = (b >= 0 && b < BIOME_COUNT) ? b : -1; }
+	int biome_override() const { return biome_override_; }
 	bool explore_map() const { return explore_map_; }
 	void set_explore_map(bool on) { explore_map_ = on; }
 	// Wonder and Capture the Relic: how long the wonder or all relics must be held, and how
@@ -450,6 +454,27 @@ public:
 	void set_relic_duration(float s) { relic_duration_ = std::max(0.0f, s); }
 	int relic_count() const { return relic_count_; }
 	void set_relic_count(int n) { relic_count_ = std::clamp(n, 0, 16); }
+	// Rising-water maps (0 A.D. Flood's "WaterLevels" and Extinct Volcano's "SeaLevelRise"
+	// Game Setup options): Flood's water rises (0, default), stays (1, Shallow) or starts a
+	// metre higher (2, Deep); Extinct Volcano's water starts rising after N minutes (default 25).
+	enum WaterLevelMode : uint8_t { WATER_LEVEL_RISING = 0, WATER_LEVEL_SHALLOW = 1, WATER_LEVEL_DEEP = 2 };
+	uint8_t water_level_mode() const { return water_level_mode_; }
+	void set_water_level_mode(uint8_t m) { water_level_mode_ = m <= WATER_LEVEL_DEEP ? m : WATER_LEVEL_RISING; }
+	int sea_level_rise_minutes() const { return sea_level_rise_min_; }
+	void set_sea_level_rise_minutes(int m) { sea_level_rise_min_ = (uint8_t)std::clamp(m, 0, 60); }
+
+	// Map trigger scripts (0 A.D. Trigger.js; see triggers.h). Map generation registers
+	// the map's own triggers; tick() runs their timers and the sim calls trigger_event().
+	const TriggerState &trigger_state() const { return triggers_; }
+	uint32_t trigger_hash() const { return triggers_.hash(); }
+	void trigger_event(uint8_t event, const TriggerEventData &data = {});
+	// Time notifications (GuiInterface.AddTimeNotification) shown to `player` right now.
+	std::vector<const TimeNotification *> time_notifications_for(uint8_t player) const;
+	// WaterManager.SetWaterLevel as the rising-water scripts use it: moves the water
+	// to `h`, drowns organic units and animals more than `drown_depth` below it, and
+	// takes away submerged structures and resources (0 A.D. turns them into
+	// decorative actors). Ships and docks float.
+	void set_water_level(float h, float drown_depth);
 	float ceasefire_seconds() const { return ceasefire_seconds_; }
 	void set_ceasefire_seconds(float s) { ceasefire_seconds_ = std::max(0.0f, s); }
 	float ceasefire_remaining() const { return std::max(0.0f, ceasefire_seconds_ - (float)ticks_ * FIXED_STEP); }
@@ -533,7 +558,8 @@ public:
 	// Centre of the nearest ship-passable cell around a building's footprint, and its
 	// ship region; false when none is near (ProductionQueue.js spawns ships there).
 	bool nearest_ship_cell(const Building &b, float &out_x, float &out_z, uint16_t *out_sea = nullptr) const;
-	void order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id);
+	void order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id,
+			bool queued = false);
 	void order_trade_auto(const uint32_t *unit_ids, size_t count); // farthest pair of tradable markets
 	float get_market_buy_price(ResourceType t) const { return market_buy_price(t); }
 	float get_market_sell_price(ResourceType t) const { return market_sell_price(t); }
@@ -876,6 +902,7 @@ public:
 
 	uint32_t spawn_fauna(float x, float z, uint8_t ftype);
 	void order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
+	bool is_fauna_id(uint32_t id) const { return fauna_id_to_idx_.count(id) != 0; }
 
 	struct TreasureRelic {
 		uint32_t id;
@@ -1014,6 +1041,10 @@ private:
 	void tick_petra_ai(float dt);
 	void tick_petra_ai_player(float dt);
 	void tick_fauna(float dt);
+	void tick_hunters();                                  // units attacking animals (UnitAI Gather on KillBeforeGather)
+	void fauna_attacked(size_t f, uint32_t attacker_id);  // UnitAI "Attacked" for an animal
+	void fauna_hit_unit(size_t f, size_t u);              // an animal's melee attack lands on unit u
+	bool fauna_can_step(size_t f, float x, float z) const;
 	void tick_fow();  // updates FoW each sim tick
 	void ensure_fow_cell_heights();
 	// The cells one viewer lit, kept while it stands still (CCmpRangeManager likewise redoes a
@@ -1061,7 +1092,7 @@ private:
 	void spawn_regicide_heroes();
 
 	struct FaunaStorage {
-		static constexpr size_t MAX_FAUNA = 256;
+		static constexpr size_t MAX_FAUNA = 1024; // dead animals are compacted out each tick
 		size_t count = 0;
 		uint32_t id[MAX_FAUNA] = {};
 		float pos_x[MAX_FAUNA] = {};
@@ -1080,6 +1111,8 @@ private:
 		uint32_t target_unit_id[MAX_FAUNA] = {};
 		uint32_t corral_id[MAX_FAUNA] = {};
 		float fatten_timer[MAX_FAUNA] = {};
+		float home_x[MAX_FAUNA] = {}; // UnitAI heldPosition: where a hold-ground animal returns
+		float home_z[MAX_FAUNA] = {};
 	} fauna_;
 	std::unordered_map<uint32_t, size_t> fauna_id_to_idx_;
 	std::unordered_map<uint32_t, std::vector<uint32_t>> transport_passengers_;
@@ -1174,11 +1207,22 @@ private:
 	bool game_over_ = false;
 	bool victory_ = false;
 	bool reveal_map_ = false;
+	int biome_override_ = -1; // setup-time only: applied when a random map is generated
 	bool explore_map_ = false;
 	float wonder_duration_ = 600.0f;
 	float relic_duration_ = 180.0f;
 	int relic_count_ = 0;
 	void apply_relic_count();
+	uint8_t water_level_mode_ = WATER_LEVEL_RISING; // saved with the trigger state (v18)
+	uint8_t sea_level_rise_min_ = 25;
+	TriggerState triggers_;
+	void tick_triggers(float dt);
+	void register_map_triggers(MapType type);
+	void run_trigger_action(uint16_t action, float arg, const TriggerEventData &data);
+	// Ported map scripts (simulation.cpp, "Map trigger scripts").
+	void trigger_flood_rise_step(float final_level);
+	void trigger_volcano_rise_step();
+	void trigger_volcano_garrison_towers();
 	PlayerState gaia_stock_; // scratch for player(GAIA_PLAYER); never saved or hashed
 	// Player.js SetState("defeated"): hand every unit and structure of these players to Gaia.
 	void convert_to_gaia(uint8_t players);
@@ -1296,6 +1340,7 @@ private:
 	void petra_garrison_units_inside(size_t holder_idx, bool allow_melee, std::vector<int> &incoming);
 	uint32_t petra_garrison_holder_for(size_t unit_idx, bool heals_only, bool siege, std::vector<int> &incoming) const;
 	void petra_manage_garrisons();
+	void petra_build_advanced();
 	void petra_manage_victory(float dt);
 	void petra_manage_diplomacy(float dt);
 	void petra_manage_emergency(float dt);
@@ -1362,6 +1407,25 @@ private:
 	NavGrid nav_grid_; // Phase1: SoA nav mesh (buildings + water), mirrors 0AD Grid<NavcellData>
 	Grid<uint8_t> territory_grid_; // grid_res_^2 player id per cell, G2 (CCmpTerritoryManager)
 	Grid<uint8_t> influence_grid_; // grid_res_^2 influence count per cell, G2
+	// CCmpTerritoryManager connectivity, derived from territory_grid_ and the territory roots
+	// (civic centres and wonders): each 4-connected patch of one player's territory is a region,
+	// connected when it holds one of that player's roots. Unconnected regions keep the count of
+	// tiles of connected foreign regions bordering them (GetNeighbours(filterConnected)).
+	// Rebuilt on demand after the grid changes; not saved or hashed.
+	struct TerritoryRegion {
+		uint8_t owner;
+		bool connected;
+		std::array<uint32_t, MAX_PLAYERS> neighbours;
+	};
+	Grid<uint16_t> territory_region_;
+	std::vector<TerritoryRegion> territory_regions_;
+	bool territory_regions_dirty_ = true;
+	// Off until build placement keeps structures out of neutral land (see territory_decay_targets).
+	static constexpr bool TERRITORY_DECAY_IN_NEUTRAL_LAND = false;
+	void ensure_territory_regions();
+	// TerritoryDecay.IsConnected + GetConnectedNeighbours for a structure: false when it does not
+	// decay; otherwise `to` gets the weight each player receives, and `to_gaia` Gaia's.
+	bool territory_decay_targets(const Building &b, std::array<float, MAX_PLAYERS> &to, float &to_gaia);
 	// rebuild_territory()'s inputs the last time it filled the grids: territory roots in buildings_
 	// order, the grid size and the map extent. Same inputs, same grids, so the 1 Hz refresh skips.
 	struct TerritoryRoot {
@@ -1386,7 +1450,7 @@ private:
 	nav::ObstacleGrid sep_grid_; // sep_obstacles_ by cell, rebuilt with it
 	// tick_capture()'s count and strength of nearby capturers per building and team, and the grid of
 	// building reach it finds them with. Rebuilt every tick.
-	struct CaptureTally { int count[4]; float strength[4]; };
+	struct CaptureTally { int count[MAX_PLAYERS]; float strength[MAX_PLAYERS]; };
 	struct CaptureReach { uint32_t building; float x, z; };
 	std::vector<CaptureTally> capture_tally_;
 	std::vector<uint32_t> capture_cell_start_;
@@ -1405,13 +1469,14 @@ private:
 	void drop_orders(size_t i);      // orders UnitAI doesn't model (trade, hunt, board): no order, no queue
 	// Splits a Shift order: busy units get it queued, the rest are returned to run now.
 	// Without Shift every unit's queue is dropped and all of them run it now.
+	bool trade_route_ok(size_t i, uint32_t market_a_id, uint32_t market_b_id) const;
 	std::vector<uint32_t> split_queued(const uint32_t *ids, size_t count, const UnitOrder &o, bool queued);
 	void apply_order(uint32_t uid, const UnitOrder &o);
 	bool order_still_valid(size_t i, const UnitOrder &o) const;
 	void finish_order(size_t i);
 	void resume_order(size_t i);
 	void respond_to_attack(size_t i);
-	uint32_t find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team) const;
+	uint32_t find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team, int subtype = -1) const;
 	uint32_t find_nearby_foundation(float x, float z, uint8_t team) const;
 	void apply_rally_point(uint32_t uid, const Building &b);
 	void on_construction_finished(const Building &b, size_t builder);
