@@ -8860,87 +8860,217 @@
   ],
   "fauna": [
     {
-      "type": "deer",
+      "type": "chicken",
+      "x": -3.37,
+      "z": 94.46
+    },
+    {
+      "type": "chicken",
+      "x": -6.17,
+      "z": 95.7
+    },
+    {
+      "type": "chicken",
+      "x": -3.44,
+      "z": 97.36
+    },
+    {
+      "type": "chicken",
+      "x": -5.43,
+      "z": 94.91
+    },
+    {
+      "type": "chicken",
+      "x": -3.98,
+      "z": 95.23
+    },
+    {
+      "type": "chicken",
+      "x": -14.41,
+      "z": 97.16
+    },
+    {
+      "type": "chicken",
+      "x": -15.5,
+      "z": 99.4
+    },
+    {
+      "type": "chicken",
+      "x": -14.89,
+      "z": 97.5
+    },
+    {
+      "type": "chicken",
+      "x": -15.87,
+      "z": 97.89
+    },
+    {
+      "type": "chicken",
+      "x": -13.39,
+      "z": 98.38
+    },
+    {
+      "type": "chicken",
+      "x": 25.73,
+      "z": -97.84
+    },
+    {
+      "type": "chicken",
+      "x": 26.3,
+      "z": -96.59
+    },
+    {
+      "type": "chicken",
+      "x": 26.74,
+      "z": -97.75
+    },
+    {
+      "type": "chicken",
+      "x": 25.42,
+      "z": -96.78
+    },
+    {
+      "type": "chicken",
+      "x": 24.96,
+      "z": -96.01
+    },
+    {
+      "type": "chicken",
+      "x": -6.22,
+      "z": -93.0
+    },
+    {
+      "type": "chicken",
+      "x": -6.02,
+      "z": -89.9
+    },
+    {
+      "type": "chicken",
+      "x": -9.14,
+      "z": -92.22
+    },
+    {
+      "type": "chicken",
+      "x": -8.25,
+      "z": -91.77
+    },
+    {
+      "type": "chicken",
+      "x": -6.38,
+      "z": -89.34
+    },
+    {
+      "type": "camel",
+      "x": 56.8,
+      "z": -57.28
+    },
+    {
+      "type": "camel",
+      "x": 54.87,
+      "z": -56.55
+    },
+    {
+      "type": "camel",
+      "x": 44.25,
+      "z": 12.66
+    },
+    {
+      "type": "camel",
+      "x": 43.43,
+      "z": 11.24
+    },
+    {
+      "type": "gazelle",
       "x": -65.79,
       "z": -52.55
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -66.88,
       "z": -51.72
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": -65.23,
       "z": -52.76
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 28.47,
       "z": -29.82
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 24.0,
       "z": -40.14
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 28.68,
       "z": -30.84
     },
     {
-      "type": "wolf",
+      "type": "camel",
+      "x": -10.17,
+      "z": -29.99
+    },
+    {
+      "type": "camel",
+      "x": -37.24,
+      "z": -28.5
+    },
+    {
+      "type": "lion",
       "x": -30.95,
       "z": -52.53
     },
     {
-      "type": "wolf",
+      "type": "lion",
       "x": -25.32,
       "z": -50.15
     },
     {
-      "type": "wolf",
+      "type": "lion",
       "x": 28.34,
       "z": -30.82
     },
     {
-      "type": "wolf",
+      "type": "lion",
       "x": 46.93,
       "z": 13.28
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 43.91,
       "z": 8.62
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 44.36,
       "z": 8.62
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 49.0,
       "z": 14.01
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 44.04,
       "z": 10.72
     },
     {
-      "type": "deer",
+      "type": "gazelle",
       "x": 46.1,
       "z": 10.12
     },
     {
-      "type": "wolf",
+      "type": "lion",
       "x": 22.61,
       "z": 41.87
     },
     {
-      "type": "wolf",
+      "type": "lion",
       "x": 23.71,
       "z": 42.33
     },
@@ -8993,6 +9123,76 @@
       "type": "sheep",
       "x": -18.62,
       "z": 81.15
+    },
+    {
+      "type": "zebra",
+      "x": 63.77,
+      "z": -66.21
+    },
+    {
+      "type": "zebra",
+      "x": 11.67,
+      "z": -30.94
+    },
+    {
+      "type": "giraffe",
+      "x": -26.18,
+      "z": -31.72
+    },
+    {
+      "type": "giraffe",
+      "x": 12.31,
+      "z": 30.53
+    },
+    {
+      "type": "camel",
+      "x": -83.47,
+      "z": 42.36
+    },
+    {
+      "type": "camel",
+      "x": -88.09,
+      "z": -36.96
+    },
+    {
+      "type": "camel",
+      "x": -62.79,
+      "z": -89.27
+    },
+    {
+      "type": "camel",
+      "x": 80.7,
+      "z": 50.54
+    },
+    {
+      "type": "camel",
+      "x": 96.63,
+      "z": -22.13
+    },
+    {
+      "type": "camel",
+      "x": 72.14,
+      "z": -67.11
+    },
+    {
+      "type": "camel",
+      "x": 30.04,
+      "z": -98.82
+    },
+    {
+      "type": "camel",
+      "x": -18.8,
+      "z": 108.53
+    },
+    {
+      "type": "zebra",
+      "x": -38.32,
+      "z": -80.49
+    },
+    {
+      "type": "zebra",
+      "x": 15.59,
+      "z": 85.72
     }
   ],
   "structures": [
@@ -9916,5 +10116,7 @@
       "x": -21.18,
       "z": -85.85
     }
-  ]
+  ],
+  "treasures": [],
+  "ruins": []
 }
