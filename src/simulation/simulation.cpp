@@ -10554,9 +10554,12 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 the map extent (map_half_), so the fog grids load at their own size
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
+	// v23: the map extent first, so a load into a sim at another size (a fresh
+	// reset(), a replay, a rejoin) sizes the FoW, nav and territory grids before reading them.
+	out.write((const char *)&map_half_, sizeof(map_half_));
 
 	// 1. Sim scalars
 	out.write((const char *)&ticks_, sizeof(ticks_));
@@ -10733,6 +10736,12 @@ bool Simulation::load_state(const char *filepath) {
 	in.read((char *)&magic, sizeof(magic));
 	in.read((char *)&version, sizeof(version));
 	if (magic != 0x52545330 || version < 1 || version > SAVE_VERSION) return false;
+	if (version >= 23) {
+		float half = 0.0f;
+		in.read((char *)&half, sizeof(half));
+		if (!in.good() || !(half > 0.0f) || half > 4096.0f) return false;
+		if (half != map_half_) set_map_half(half);
+	}
 
 	// 1. Sim scalars
 	in.read((char *)&ticks_, sizeof(ticks_));
@@ -10814,7 +10823,9 @@ bool Simulation::load_state(const char *filepath) {
 	// 2. Resources
 	uint32_t num_res = 0;
 	in.read((char *)&num_res, sizeof(num_res));
+	if (!in.good() || num_res > (1u << 22)) return false;
 	resources_.count = 0;
+	resources_.reserve(num_res); // a reset() sim holds 512; bigger maps have more
 	res_id_to_idx_.clear();
 	field_res_by_bld_.clear();
 	field_bld_by_res_.clear();
@@ -10841,6 +10852,7 @@ bool Simulation::load_state(const char *filepath) {
 	// 3. Units
 	uint32_t num_units = 0;
 	in.read((char *)&num_units, sizeof(num_units));
+	if (!in.good() || num_units > UNIT_CAP) return false;
 	units_.count = 0;
 	unit_id_to_idx_.clear();
 	unit_idx_by_id_.assign(UNIT_CAP + 1, -1);
