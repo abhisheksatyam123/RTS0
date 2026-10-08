@@ -231,7 +231,6 @@ void Simulation::reset() {
 		ps.phase = 1;
 	}
 	rebuild_all_tech_mods();
-	passive_timer_ = 0.0f;
 	rate_window_timer_ = 0.0f;
 
 	wave_timer_ = 0.0f;
@@ -2277,14 +2276,6 @@ void Simulation::tick(float dt) {
 		rate_window_timer_ = 0.0f;
 		for (auto &ps : players_)
 			for (float &w : ps.gathered_window) w *= 0.5f;
-	}
-
-	// Passive income
-	passive_timer_ += dt;
-	if (passive_timer_ >= 1.0f) {
-		passive_timer_ = 0.0f;
-		players_[0].food() += 2.0f;
-		players_[0].wood() += 2.0f;
 	}
 
 	// Fog of War (Paced at 4 Hz to avoid unnecessary main thread recalculations)
@@ -4641,8 +4632,8 @@ void Simulation::tick_trickle(float dt) {
 	}
 
 	// ResourceTrickle.js — passive income from key buildings
-	// Town Centers: +1 food/s, Farmstead: +0.5 food/s per field
-	// Market: +0.3 gold/s (simulates trade trickle), Wonder: +2 of all/s
+	// Farmstead: +0.5 food/s per field, Market: +0.3 gold/s (simulates trade
+	// trickle), Wonder: +2 of all/s. 0 A.D.'s Town Center has no trickle.
 	for (const auto &b : buildings_) {
 		if (b.team != 0 || b.build_progress < 1.0f) continue;
 		PlayerState &ps = players_[0];
@@ -4651,9 +4642,6 @@ void Simulation::tick_trickle(float dt) {
 			ps.res[rt] = std::min(9999.0f, ps.res[rt] + (float)(int)(rate * dt));
 		};
 		switch (b.type) {
-			case BLD_TOWN_CENTER:
-				trickle(RES_FOOD, 1.0f);
-				break;
 			case BLD_FARMSTEAD:
 				trickle(RES_FOOD, 0.5f);
 				break;
@@ -8074,8 +8062,9 @@ void Simulation::petra_manage_diplomacy(float dt) {
 	if (petra_diplo_timer_ < 8.0f) return;
 	petra_diplo_timer_ = 0.0f;
 
-	uint8_t stance = get_diplomacy(petra_pid_);
-	if (stance == DIPLO_ALLY && petra_config_.cooperative >= 0.35f) {
+	// Tribute and betrayal still only involve player 0 (the human).
+	const bool allied_to_human = is_ally(petra_pid_, 0);
+	if (allied_to_human && petra_config_.cooperative >= 0.35f) {
 		struct Gift { uint8_t res; float *stock; int player_have; };
 		Gift gifts[] = {
 			{ RES_FOOD,  &petra_ps().food(),  food() },
@@ -8097,15 +8086,16 @@ void Simulation::petra_manage_diplomacy(float dt) {
 	}
 
 	// Last-man-standing betrayal (diplomacyManager lastManStandingCheck)
-	if (stance == DIPLO_ALLY && petra_config_.aggressive > 0.72f && petra_ps().phase >= 3) {
+	if (allied_to_human && players_[petra_pid_].team != players_[0].team &&
+	    petra_config_.aggressive > 0.72f && petra_ps().phase >= 3) {
 		int ai_mil = 0, player_mil = 0;
 		for (size_t i = 0; i < units_.count; ++i) {
 			if (!units_.alive[i] || !petra_is_combat_unit(units_.unit_type[i])) continue;
 			if (units_.team[i] == petra_pid_) ai_mil++;
-			else if (petra_foe(units_.team[i])) player_mil++;
+			else if (units_.team[i] == 0) player_mil++;
 		}
 		if (ai_mil >= 12 && ai_mil > (int)((float)player_mil * 1.8f + 2.0f)) {
-			set_diplomacy(petra_pid_, DIPLO_ENEMY);
+			set_diplomacy(petra_pid_, 0, DIPLO_ENEMY); // the AI breaks its own side of the alliance
 			if (const auto *pbase = get_primary_petra_base()) {
 				raise_alert(BattleAlert::ALERT_UNDER_ATTACK, pbase->x, pbase->z, 0, 1);
 				petra_say(PETRA_CHAT_BETRAYAL, pbase->x, pbase->z);
