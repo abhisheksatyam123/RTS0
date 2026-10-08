@@ -612,6 +612,12 @@ private:
 	void move_units(float dt, Arena &arena);
 	void separation(float dt, Arena &arena);
 	void tick_gather(float dt);
+	// Fields (0 A.D. template_structure_resource_field): a finished field owns
+	// one infinite grain resource at its centre. Derived from buildings_, so it
+	// is rebuilt after load rather than saved.
+	void sync_field_resources();
+	uint32_t ensure_field_resource(const Building &b);
+	uint32_t find_free_field(uint8_t team, float x, float z);
 	void tick_combat(float dt);
 	void tick_promotion(float dt);
 	void tick_capture(float dt);
@@ -688,6 +694,10 @@ private:
 	std::unordered_map<uint32_t, size_t> unit_id_to_idx_;
 	std::vector<int32_t> unit_idx_by_id_;
 	std::unordered_map<uint32_t, size_t> res_id_to_idx_;
+	std::unordered_map<uint32_t, uint32_t> field_res_by_bld_; // field building id -> grain resource id
+	std::unordered_map<uint32_t, uint32_t> field_bld_by_res_; // grain resource id -> field building id
+	struct FieldGatherers { int total = 0; int slots_taken = 0; };
+	std::unordered_map<uint32_t, FieldGatherers> field_gatherers_; // per tick, keyed by grain resource id
 	std::unordered_map<uint32_t, size_t> building_id_to_idx_;
 
 	struct CellHash {
