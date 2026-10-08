@@ -2287,6 +2287,135 @@ void RmsGenerator::synth_wild_lake(HeightmapGrid &hm, RmsRng &rng, float &water_
 	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 20.0f, 6.0f, sp.base_height);
 }
 
+void RmsGenerator::synth_stronghold(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players,
+		const uint8_t *teams) {
+	// stronghold.js: playerPlacementByPattern("stronghold") puts each team
+	// on a circle at f = 0.2-0.35 from the centre with its members packed
+	// round the team's spot (f = 0.05-0.1 apart), so teammates' civic
+	// centres nearly touch; then a random mix of bluffs, hills, mountains,
+	// plateaus and valleys on high land (heightLand 30). Players with no
+	// team each stand alone. 0 A.D. metres x 0.35.
+	water_h = -10.0f;
+	hm.init(hm.res, hm.map_half, 6.0f);
+	const float half = hm.map_half;
+	hm.apply_fbm(rng, 4, 0.03f, 0.5f, 2.0f, 1.5f);
+	// Group players by team, in player order (getTeamsArray).
+	std::vector<std::vector<int>> groups;
+	std::vector<int> team_group(MAX_PLAYERS + 1, -1);
+	for (int i = 0; i < num_players; ++i) {
+		const int t = teams ? teams[i] : 0;
+		if (t == 0) { groups.push_back({i}); continue; }
+		if (team_group[t] < 0) { team_group[t] = (int)groups.size(); groups.push_back({}); }
+		groups[team_group[t]].push_back(i);
+	}
+	const float dist = rng.range_float(0.4f, 0.7f) * half;
+	const float grouped = rng.range_float(0.1f, 0.2f) * half;
+	const float start = rng.range_float(0.0f, 6.2831853f);
+	spawns.assign(num_players, PlayerSpawn{});
+	const int ng = std::max(1, (int)groups.size());
+	for (int g = 0; g < (int)groups.size(); ++g) {
+		const float ta = start + (float)g * 6.2831853f / (float)ng;
+		const float cx = std::cos(ta) * dist, cz = std::sin(ta) * dist;
+		const int k = (int)groups[g].size();
+		// Keep teammates' bases from overlapping (18 apart at least).
+		const float r = k == 1 ? 0.0f : std::max(grouped, 9.0f / std::sin(3.14159265f / (float)k));
+		for (int m = 0; m < k; ++m) {
+			const float ma = ta + (float)m * 6.2831853f / (float)k;
+			float sx = cx + std::cos(ma) * r, sz = cz + std::sin(ma) * r;
+			sx = std::clamp(sx, -half + 16.0f, half - 16.0f);
+			sz = std::clamp(sz, -half + 16.0f, half - 16.0f);
+			const float l = std::max(1e-3f, std::hypot(sx, sz));
+			const int pid = groups[g][m];
+			spawns[pid] = {(uint8_t)pid, sx, sz, hm.sample_world(sx, sz), -sx / l, -sz / l};
+		}
+	}
+	// The feature mix (addElements with random amounts).
+	if (rng.range_int(0, 1)) scatter_hills(hm, rng, spawns, scale_by_map_size(2, 8, half), 4.0f, 7.0f, 2.0f, 4.0f, 30.0f);
+	if (rng.range_int(0, 1)) scatter_hills(hm, rng, spawns, scale_by_map_size(1, 6, half), 3.0f, 5.0f, 7.0f, 10.5f, 25.0f);
+	if (rng.range_int(0, 1)) {
+		const int plateaus = scale_by_map_size(1, 4, half);
+		for (int i = 0; i < plateaus; ++i) {
+			const auto p = polar(rng.range_float(0.0f, 6.2831853f), rng.range_float(0.0f, 0.9f) * half);
+			bool ok = true;
+			for (const auto &sp : spawns)
+				if (std::hypot(p.first - sp.x, p.second - sp.z) < 35.0f) { ok = false; break; }
+			if (ok) hm.raise_plateau(p.first, p.second, half * rng.range_float(0.05f, 0.09f), rng.range_float(0.0f, 6.2831853f), 0.4f, 6.0f, 3.0f);
+		}
+	}
+	if (rng.range_int(0, 1)) {
+		// Valleys: dry hollows down towards 0 A.D.'s valley floor.
+		const int valleys = scale_by_map_size(1, 5, half);
+		for (int i = 0; i < valleys; ++i) {
+			const auto p = polar(rng.range_float(0.0f, 6.2831853f), rng.range_float(0.0f, 0.9f) * half);
+			bool ok = true;
+			for (const auto &sp : spawns)
+				if (std::hypot(p.first - sp.x, p.second - sp.z) < 30.0f) { ok = false; break; }
+			if (ok) hm.level_area(p.first, p.second, half * rng.range_float(0.04f, 0.08f), 5.0f, 2.0f);
+		}
+	}
+	for (auto &sp : spawns) {
+		sp.base_height = hm.sample_world(sp.x, sp.z);
+		hm.level_area(sp.x, sp.z, 14.0f, 6.0f, sp.base_height);
+	}
+	hm.blur(1, 0.35f);
+	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
+}
+
+void RmsGenerator::synth_caledonian_meadows(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// caledonian_meadows.js: diamond-square terrain from a flat 2x2 seed
+	// (roughness 0.8), water level set so about a fifth is under water, and
+	// players at start locations whose height lies between 4/8 and 6/8 of
+	// the way from the water up to the top (getStartLocationsByHeightmap,
+	// 1000 tries, 30 apart), grouped in a cycle (groupPlayersCycle).
+	const float half = hm.map_half;
+	hm.init(hm.res, hm.map_half, 0.0f);
+	hm.diamond_square(rng, 7.0f, 0.8f);
+	hm.blur(2, 0.5f);
+	std::vector<float> sorted = hm.data;
+	std::nth_element(sorted.begin(), sorted.begin() + sorted.size() / 5, sorted.end());
+	const float shift = 1.0f - sorted[sorted.size() / 5];
+	for (float &h : hm.data) h += shift;
+	water_h = 1.0f;
+	const float top = *std::max_element(hm.data.begin(), hm.data.end());
+	const float lo = water_h + (top - water_h) * 4.0f / 8.0f, hi = water_h + (top - water_h) * 6.0f / 8.0f;
+	std::vector<std::pair<float, float>> cand;
+	for (int i = 0; i < 1000; ++i) {
+		const float x = rng.range_float(-0.85f, 0.85f) * half, z = rng.range_float(-0.85f, 0.85f) * half;
+		const float h = hm.sample_world(x, z);
+		if (h >= lo && h <= hi) cand.push_back({x, z});
+	}
+	// Spread the picks: each next start is the candidate farthest from those
+	// already taken, and at least 30 from all of them.
+	std::vector<std::pair<float, float>> picks;
+	if (!cand.empty()) picks.push_back(cand[0]);
+	while ((int)picks.size() < num_players) {
+		float best = -1.0f; int bi = -1;
+		for (int i = 0; i < (int)cand.size(); ++i) {
+			float d = 1e9f;
+			for (const auto &p : picks) d = std::min(d, std::hypot(cand[i].first - p.first, cand[i].second - p.second));
+			if (d > best) { best = d; bi = i; }
+		}
+		if (bi < 0 || best < std::max(30.0f, half * 0.35f)) break;
+		picks.push_back(cand[bi]);
+	}
+	if ((int)picks.size() < num_players) {
+		place_ring_spawns(hm, spawns, num_players, half * 0.66f, rng.range_float(0.0f, 6.2831853f), 6.2831853f, water_h + 1.5f);
+	} else {
+		// groupPlayersCycle: order the starts round the map centre.
+		std::sort(picks.begin(), picks.end(), [](const auto &a, const auto &b) {
+			return std::atan2(a.second, a.first) < std::atan2(b.second, b.first);
+		});
+		spawns.clear();
+		for (int i = 0; i < num_players; ++i) {
+			const float sx = picks[i].first, sz = picks[i].second, l = std::max(1e-3f, std::hypot(sx, sz));
+			const float bh = std::max(water_h + 1.5f, hm.sample_world(sx, sz));
+			spawns.push_back({(uint8_t)i, sx, sz, bh, -sx / l, -sz / l});
+			hm.level_area(sx, sz, 14.0f, 6.0f, bh);
+		}
+	}
+	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 20.0f, 6.0f, sp.base_height);
+}
+
 void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid &hm, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config) {
 	(void)config;
 	for (const auto &sp : spawns) {
@@ -2783,12 +2912,23 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 		case MAP_WILD_LAKE:
 			synth_wild_lake(hm, rng, water_h, spawns, config.num_players);
 			break;
+		case MAP_STRONGHOLD:
+			synth_stronghold(hm, rng, water_h, spawns, config.num_players, config.teams);
+			break;
+		case MAP_CALEDONIAN_MEADOWS:
+			synth_caledonian_meadows(hm, rng, water_h, spawns, config.num_players);
+			break;
 		case MAP_PELOPONNESE:
 		case MAP_AEGEAN_ARCHIPELAGO:
 		default:
 			synth_peloponnese(hm, rng, water_h, spawns, config.num_players);
 			break;
 	}
+
+	// Bases belong to the seated game-setup slots, in order (a closed slot
+	// between two seated ones gets no base).
+	if (config.has_player_ids)
+		for (size_t i = 0; i < spawns.size() && i < 8; ++i) spawns[i].team = config.player_ids[i];
 
 	// Transfer heightmap to simulation
 	sim.set_terrain_data(hm.data, hm.res, water_h);
