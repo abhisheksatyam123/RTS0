@@ -550,6 +550,31 @@ inline uint8_t building_required_phase(uint8_t type) {
 	}
 }
 
+// 0 A.D. Upgrade component, for the structures RTS0 has both ends of:
+// template_structure_defensive_tower_sentry.xml (<Tower>) and
+// template_structure_defensive_wall_long.xml (<Gate>). iber/sentry_tower.xml
+// overrides the tower's stone cost and time (its wood cost is inherited).
+struct BuildingUpgradeInfo {
+	uint8_t to; // BLD_TYPE_COUNT: this structure has no upgrade
+	int food_cost, wood_cost, gold_cost, stone_cost;
+	float time;             // seconds
+	uint8_t required_phase; // 1 village, 2 town (phase_town), 3 city
+	const char *tooltip;
+};
+
+inline BuildingUpgradeInfo building_upgrade(uint8_t from, uint8_t civ) {
+	switch (from) {
+		case BLD_SENTRY_TOWER:
+			if (civ == CIV_IBERIANS)
+				return {BLD_TOWER, 0, 50, 0, 250, 120.0f, 2, "Reinforce with stone and upgrade to a defense tower."};
+			return {BLD_TOWER, 0, 50, 0, 100, 100.0f, 2, "Reinforce with stone and upgrade to a defense tower."};
+		case BLD_WALL_SEGMENT:
+			return {BLD_GATE, 0, 20, 0, 0, 12.0f, 1, "Allow units access through Walls. Can be locked to prevent access."};
+		default:
+			return {BLD_TYPE_COUNT, 0, 0, 0, 0, 0.0f, 1, nullptr};
+	}
+}
+
 // 0 A.D. VisibleClasses "Village" (1) / "Town" (2): the structures that count
 // toward phase_town_generic (five Village) and phase_city_generic (three Town).
 // Civic centres, fields, towers and walls count toward neither.
