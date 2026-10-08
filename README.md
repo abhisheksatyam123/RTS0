@@ -105,3 +105,9 @@ Key invariants (from 0 A.D.):
 9. **Juice** — AnimationPlayer, sounds, minimap (`SubViewport`), health bars.
 
 See `docs/PERFORMANCE.md` for the multi-core/GPU plan (staggered AI, off-thread ticks, compute shaders) and hot-path rules.
+
+## License
+
+RTS0's code is **GPL-2.0-or-later** (`LICENSE`), because it copies and ports code from
+[0 A.D.](https://play0ad.com). Art, audio and maps from 0 A.D. are **CC BY-SA 3.0**
+(`assets/LICENSE`). Details: `docs/0AD_ATTRIBUTION.md`.

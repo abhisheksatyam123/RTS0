@@ -104,6 +104,6 @@ rewrites `assets/models/manifest.json`. Missing ids will fall back via
 
 ## License
 
-Art + music from 0 A.D. are **CC-BY-SA 3.0** (see `docs/0AD_ATTRIBUTION.md`). Keep
-the GPL header on ported code files (`src/Core/**`). Thronefall shaders + glue are
-yours, but shipped binary is GPL-2.0+ combined work.
+Art, audio and maps from 0 A.D. are **CC BY-SA 3.0** (see `assets/LICENSE`). RTS0's
+code, including the Thronefall-style shaders, is **GPL-2.0-or-later** (top-level
+`LICENSE`). See `docs/0AD_ATTRIBUTION.md` for what came from 0 A.D.

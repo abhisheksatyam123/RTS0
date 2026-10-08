@@ -4,7 +4,7 @@
 
 RTS0's deterministic core is a direct port of 0 A.D. (`../0ad`) — same files, same names where possible, so `diff -u` stays useful.
 
-> Per your request, **license is ignored** for this private port. No GPL header enforcement in these notes.
+> Licensing: RTS0 is GPL-2.0-or-later like 0 A.D.; ported files should name their 0 A.D. source. See `docs/0AD_ATTRIBUTION.md`.
 > **Status 2026-08-24: 103 C# files — organized build green. Maths 21/21, Helpers 14/14, JS 84/84, CCmp* 9/9, System 6, Serialization 2.**
 
 ## Folder mapping — System & Serialization (source/simulation2/system/ + serialization/)
