@@ -791,6 +791,7 @@ void Simulation::rebuild_territory() {
 		else if (b.type == BLD_FORTRESS) radius = 28.0f;
 		else if (b.type == BLD_TOWER) radius = 18.0f;
 		else continue;
+		if (b.team >= MAX_PLAYERS) continue; // Gaia holds no territory
 		roots.push_back({b.x, b.z, radius, b.team});
 	}
 	// The grids depend on nothing else, so unchanged inputs (most 1 Hz refreshes) keep them.
@@ -4099,7 +4100,7 @@ void Simulation::tick_combat(float dt) {
 			if (dx * dx + dz * dz <= 2.5f * 2.5f) {
 				rel.claimed = true;
 				rel.owner_team = units_.team[u];
-				if (rel.res_type < RES_COUNT) player(units_.team[u]).res[rel.res_type] += (float)rel.amount;
+				if (rel.res_type < RES_COUNT && units_.team[u] < MAX_PLAYERS) player(units_.team[u]).res[rel.res_type] += (float)rel.amount;
 				raise_alert(BattleAlert::ALERT_RELIC_CLAIMED, rel.x, rel.z, rel.id, units_.team[u]);
 				break;
 			}
@@ -4185,6 +4186,10 @@ void Simulation::tick_capture(float dt) {
 	const size_t n = units_.count;
 	for (auto &b : buildings_) {
 		if (b.build_progress < 1.0f || b.max_capture_points <= 0.0f) continue;
+		if (b.team >= MAX_PLAYERS) {
+			tick_capture_gaia(b, dt);
+			continue;
+		}
 		if (std::abs(std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f) - b.max_capture_points) > 0.01f) {
 			b.capture_points_by_team.fill(0.0f);
 			b.capture_points_by_team[b.team < 8 ? b.team : 0] = b.max_capture_points;
@@ -4286,6 +4291,60 @@ void Simulation::tick_capture(float dt) {
 			if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER) rebuild_territory();
 		}
 		b.capture_points = b.capture_points_by_team[b.team < 8 ? b.team : 0];
+	}
+}
+
+void Simulation::tick_capture_gaia(Building &b, float dt) {
+	// A Gaia structure: the points no player holds are Gaia's. The strongest player in
+	// reach takes Gaia's points first, then its enemies'; with nobody capturing, Gaia
+	// regenerates. A player holding over half the points takes the structure.
+	int count[MAX_PLAYERS] = {};
+	float strength[MAX_PLAYERS] = {};
+	for (size_t u = 0; u < units_.count; ++u) {
+		const uint8_t t = units_.team[u];
+		if (!units_.alive[u] || t >= MAX_PLAYERS) continue;
+		const float dx = units_.pos_x[u] - b.x;
+		const float dz = units_.pos_z[u] - b.z;
+		if (dx * dx + dz * dz <= 11.0f * 11.0f) {
+			count[t]++;
+			strength[t] += unit_capture_strength(units_.unit_type[u]);
+		}
+	}
+	int captor = -1;
+	for (int t = 0; t < MAX_PLAYERS && !ceasefire_active(); ++t) {
+		if (count[t] && strength[t] > 0.0f && (captor < 0 || strength[t] > strength[captor])) captor = t;
+	}
+	auto &pts = b.capture_points_by_team;
+	float held = std::accumulate(pts.begin(), pts.end(), 0.0f);
+	if (captor >= 0) {
+		float amount = strength[captor] * dt;
+		const float from_gaia = std::min(amount, std::max(0.0f, b.max_capture_points - held));
+		pts[captor] += from_gaia;
+		amount -= from_gaia;
+		for (int t = 0; t < MAX_PLAYERS && amount > 0.0f; ++t) {
+			if (t == captor || !is_hostile((uint8_t)captor, (uint8_t)t)) continue;
+			const float take = std::min(pts[t], amount);
+			pts[t] -= take;
+			pts[captor] += take;
+			amount -= take;
+		}
+	} else if (held > 0.0f) {
+		float regen = std::min(held, b.capture_regen_rate * dt);
+		for (int t = 0; t < MAX_PLAYERS && regen > 0.0f; ++t) {
+			const float take = std::min(pts[t], regen);
+			pts[t] -= take;
+			regen -= take;
+		}
+	}
+	b.capture_points = std::max(0.0f, b.max_capture_points - std::accumulate(pts.begin(), pts.end(), 0.0f));
+	if (captor >= 0 && pts[captor] > b.max_capture_points * 0.5f) {
+		order_ungarrison(b.id);
+		b.team = (uint8_t)captor;
+		pts.fill(0.0f);
+		pts[captor] = b.max_capture_points;
+		b.capture_points = b.max_capture_points;
+		raise_alert(BattleAlert::ALERT_STRUCTURE_CAPTURED, b.x, b.z, b.id, b.team);
+		if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER) rebuild_territory();
 	}
 }
 
@@ -4569,6 +4628,7 @@ void Simulation::check_victory_conditions(float dt) {
 	auto end_match = [&](uint8_t winners) {
 		winners &= (uint8_t)~defeated_mask_; // a defeated ally stays defeated (0 A.D.)
 		winner_mask_ = winners;
+		convert_to_gaia((uint8_t)(participant_mask_ & ~winners & ~defeated_mask_));
 		defeated_mask_ |= (uint8_t)(participant_mask_ & ~winners);
 		victory_ = (winners & 1) != 0;
 		game_over_ = true;
@@ -4656,9 +4716,14 @@ void Simulation::check_victory_conditions(float dt) {
 
 	// Defeat is permanent (Player.js SetState("defeated")). Wave defense keeps its old rule:
 	// lose the Town Center and the match is lost.
+	uint8_t fallen = 0;
 	for (int t = 0; t < MAX_TEAMS; ++t) {
 		if (!((participant_mask_ >> t) & 1) || is_defeated((uint8_t)t)) continue;
-		if (defeated(t) || (waves_enabled_ && t == 0 && tc_count[0] == 0)) defeated_mask_ |= (uint8_t)(1u << t);
+		if (defeated(t) || (waves_enabled_ && t == 0 && tc_count[0] == 0)) fallen |= (uint8_t)(1u << t);
+	}
+	if (fallen) {
+		convert_to_gaia(fallen);
+		defeated_mask_ |= fallen;
 	}
 	const uint8_t standing = participant_mask_ & ~defeated_mask_;
 	if (participant_mask_ && !standing) { // everyone fell on the same tick
@@ -4683,6 +4748,36 @@ void Simulation::check_victory_conditions(float dt) {
 	// Don't hand out a win on a map that never had an enemy on it.
 	bool fought = defeated_mask_ != 0 || record_.enemies_killed > 0 || record_.buildings_destroyed > 0 || wave_number_ > 0;
 	if (one_side && fought) end_match(standing);
+}
+
+void Simulation::convert_to_gaia(uint8_t players) {
+	if (!players) return;
+	auto out = [players](uint8_t t) { return t < MAX_PLAYERS && ((players >> t) & 1); };
+	for (size_t u = 0; u < units_.count; ++u) {
+		if (!out(units_.team[u])) continue;
+		units_.team[u] = GAIA_PLAYER;
+		units_.has_order[u] = 0;
+		units_.target_unit_id[u] = 0;
+		units_.target_building_id[u] = 0;
+		units_.target_resource_id[u] = 0;
+		if (units_.action_state[u] != ACTION_GARRISONED) units_.action_state[u] = ACTION_IDLE;
+		trader_routes_.erase(units_.id[u]);
+		trader_leg_.erase(units_.id[u]);
+	}
+	bool roots = false;
+	for (auto &b : buildings_) {
+		if (!out(b.team)) continue;
+		cancel_upgrade(b, b.team);
+		b.queue.clear();
+		b.research_tech = TECH_NONE;
+		b.research_timer = 0.0f;
+		b.has_rally_point = false;
+		b.team = GAIA_PLAYER;
+		b.capture_points_by_team.fill(0.0f); // every point is Gaia's
+		b.capture_points = 0.0f;
+		roots |= b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER;
+	}
+	if (roots) rebuild_territory();
 }
 
 void Simulation::apply_relic_count() {
@@ -8628,12 +8723,12 @@ bool Simulation::player_in_match(uint8_t pid) const {
 }
 
 bool Simulation::petra_runs_for(uint8_t pid) const {
-	if (pid >= MAX_PLAYERS) return false;
+	if (pid >= MAX_PLAYERS || is_defeated(pid)) return false;
 	// No slot seated (tests, skirmish without game setup): legacy player 1 AI.
 	bool any_active = false;
 	for (const PlayerState &ps : players_) any_active |= ps.active != 0;
 	if (!any_active) return pid == PETRA_PLAYER;
-	return players_[pid].active && players_[pid].is_ai && !is_defeated(pid);
+	return players_[pid].active && players_[pid].is_ai;
 }
 
 void Simulation::tick_petra_ai(float dt) {
