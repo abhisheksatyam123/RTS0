@@ -470,11 +470,15 @@ void RtsoWorldView::init_damage_fx() {
 	}
 	fx_smoke_ppm_->set_emission_shape(ParticleProcessMaterial::EMISSION_SHAPE_BOX);
 	fx_smoke_ppm_->set_color_ramp(fade(0.75f));
+	fx_smoke_ppm_->set_color(Color(0.6f, 0.6f, 0.6f, 1.0f)); // color.r 0.6-1.0, grey
 }
 
-void RtsoWorldView::update_damage_fx(BuildingVis &v, uint8_t level, float half_size) {
+void RtsoWorldView::update_damage_fx(BuildingVis &v, uint8_t level, float half_size, float height) {
 	if (level == v.fx_level || !v.root) return;
 	v.fx_level = level;
+	// On the roof, where 0 A.D.'s damage variants attach their fire props;
+	// inside the walls the flames would be hidden.
+	const float roof = height > 1.0f ? height : 4.0f;
 	auto make = [&](const Ref<QuadMesh> &quad, const Ref<ParticleProcessMaterial> &ppm, int amount, float life, float y) {
 		GPUParticles3D *p = memnew(GPUParticles3D);
 		Ref<ParticleProcessMaterial> pm = ppm->duplicate();
@@ -492,9 +496,9 @@ void RtsoWorldView::update_damage_fx(BuildingVis &v, uint8_t level, float half_s
 		return p;
 	};
 	if (level >= 1 && !v.fx_smoke && fx_smoke_ppm_.is_valid())
-		v.fx_smoke = make(fx_smoke_quad_, fx_smoke_ppm_, 54, 6.0f, 2.0f); // 9/s
+		v.fx_smoke = make(fx_smoke_quad_, fx_smoke_ppm_, 54, 6.0f, roof + 0.5f); // 9/s
 	if (level >= 2 && !v.fx_flame && fx_flame_ppm_.is_valid())
-		v.fx_flame = make(fx_flame_quad_, fx_flame_ppm_, 26, 1.25f, 0.8f); // 20/s
+		v.fx_flame = make(fx_flame_quad_, fx_flame_ppm_, 26, 1.25f, roof * 0.75f); // 20/s
 	if (v.fx_smoke) v.fx_smoke->set_emitting(level >= 1);
 	if (v.fx_flame) v.fx_flame->set_emitting(level >= 2);
 }
@@ -1938,7 +1942,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 				if (frac <= 0.35f || b.is_burning) lvl = 2;
 				else if (frac <= 0.65f) lvl = 1;
 			}
-			update_damage_fx(v, lvl, b.half_size);
+			update_damage_fx(v, lvl, b.half_size, entry.aabb.size.y * b_scale);
 		}
 
 		// Building Health & Construction Progress Bar
@@ -2172,10 +2176,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			stone_mm->set_instance_transform((int)ist, xf);
 			stone_mm->set_instance_color((int)ist++, tint);
 		} else if (r.subtype == rtso::RES_SUB_FISH) {
-			// 0 A.D.'s fish shoal swims just under the surface (Position/Floating);
-			// RTS0's smaller maps take it at 60%.
+			// 0 A.D.'s fish shoal swims just under the surface (Position/Floating).
+			// The water has no refraction pass, so the top fish break the
+			// surface to stay visible.
 			ry = std::max(ry, sim->water_height());
-			Transform3D xf(rot.scaled(Vector3(0.6f, 0.6f, 0.6f)), Vector3(rx, ry + 0.1f, rz));
+			Transform3D xf(rot, Vector3(rx, ry + 0.3f, rz));
 			fish_mm->set_instance_transform((int)ifish, xf);
 			fish_mm->set_instance_color((int)ifish++, tint);
 		} else if (r.type == rtso::RES_FOOD && food_mm.is_valid()) {

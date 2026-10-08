@@ -11,7 +11,8 @@ Manifest counts come from `assets/models/manifest.json`. The disk column was cou
 
 | Item | Manifest | On disk |
 |---|---|---|
-| models | **741** (units 363, buildings 367, vegetation 11) | 363 / 367 / 11 `.glb` |
+| models | **742** (units 363, buildings 367, vegetation 12) | 363 / 367 / 12 `.glb` (vegetation 12 includes the 0 A.D. fish shoal, `fish.glb`, from `tools/dae_to_glb.gd`) |
+| particles | **3** | `flame.png`, `smoke_64a.png`, `dust_256a.png` in `assets/textures/particles/` |
 | animations | **1316** | 1316 `.psa` + 1316 `.json` in `assets/animations/` |
 | skeletons | **98** | 98 `.xml` in `assets/skeletons/` |
 | terrain | **652** | 653 `.png` in `assets/textures/terrain/` (`splat.png` has no manifest entry) |

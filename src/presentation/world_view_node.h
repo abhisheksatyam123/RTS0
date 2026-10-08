@@ -253,7 +253,7 @@ private:
 	Ref<QuadMesh> fx_smoke_quad_, fx_flame_quad_;
 	Ref<ParticleProcessMaterial> fx_smoke_ppm_, fx_flame_ppm_;
 	void init_damage_fx();
-	void update_damage_fx(BuildingVis &v, uint8_t level, float half_size);
+	void update_damage_fx(BuildingVis &v, uint8_t level, float half_size, float height);
 
 	// Territory borders draped on the terrain (0 A.D. CCmpTerritoryManager
 	// boundary lines), rebuilt when the territory grid changes.

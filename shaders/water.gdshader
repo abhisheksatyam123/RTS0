@@ -22,7 +22,7 @@ uniform float los_map_half = 0.0;
 uniform sampler2D height_tex : hint_default_black, filter_linear, repeat_disable;
 uniform float terrain_half = 0.0;
 uniform float water_level = 0.0;
-uniform float murkiness : hint_range(0.0, 2.0) = 0.45;
+uniform float murkiness : hint_range(0.0, 2.0) = 0.8;
 
 varying vec3 v_world_pos;
 
