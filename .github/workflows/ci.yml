@@ -118,6 +118,19 @@ jobs:
           g++ -std=c++20 -O2 -Isrc tools/test_civ_units.cpp src/simulation/simulation.cpp \
             src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o /tmp/test_civ_units
           /tmp/test_civ_units
+      - name: Statistics tests (0 A.D. StatisticsTracker for every player)
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_statistics.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o /tmp/test_statistics
+          /tmp/test_statistics
+
+      - name: Replay round-trip
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_replay.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+            src/network/net_host.cpp -lpthread -o /tmp/test_replay
+          /tmp/test_replay
+
       - name: Victory-condition tests
         run: |
           g++ -std=c++20 -O2 -Isrc tools/test_victory.cpp src/simulation/simulation.cpp \
@@ -170,6 +183,13 @@ jobs:
             src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
             src/network/net_host.cpp -lpthread -o /tmp/test_siege_garrison
           /tmp/test_siege_garrison
+
+      - name: Structure garrison heal and eject tests
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_garrison_heal.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+            src/network/net_host.cpp -lpthread -o /tmp/test_garrison_heal
+          /tmp/test_garrison_heal
 
       - name: Building steering scenarios
         run: |

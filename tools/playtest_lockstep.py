@@ -179,8 +179,23 @@ def run_case(binary: str, seed: int, turns: int, verbose_every: int,
     }
 
 
+PAUSE_TURN, SAVELOAD_TURN = 200, 250
+
+
+def peer_lines(outs: list, tag: str) -> dict:
+    """'[net-peer] <role>: <tag> k=v ...' summary lines as {role: {k: v}}."""
+    found = {}
+    for out in outs:
+        for line in (out or "").splitlines():
+            m = re.match(r"\[net-peer\] (host|join): " + tag + r" (.*)", line)
+            if m:
+                found[m.group(1)] = dict(kv.split("=", 1) for kv in m.group(2).split() if "=" in kv)
+    return found
+
+
 def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
-                 port: int, out_dir: str, timeout: int, defeat_turn: int = 0) -> dict:
+                 port: int, out_dir: str, timeout: int, defeat_turn: int = 0,
+                 more: tuple = ()) -> dict:
     """Two real processes, one host and one joiner, over UDP loopback.
 
     Each process owns one sim, posts only its own player's commands and runs
@@ -189,7 +204,8 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
     """
     logs = [os.path.join(out_dir, f"net_{role}_{seed}.log") for role in ("host", "join")]
     common = [str(port), str(seed), str(turns)]
-    extra = ["--speed", str(speed), "--loss", str(loss), "--defeat-turn", str(defeat_turn)]
+    extra = ["--speed", str(speed), "--loss", str(loss), "--defeat-turn", str(defeat_turn),
+             "--pause-turn", str(PAUSE_TURN), "--saveload-turn", str(SAVELOAD_TURN), *more]
     t0 = time.time()
     host = subprocess.Popen([binary, "--net-peer", "host", *common, logs[0], *extra],
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -239,12 +255,35 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
     # Upgrade: the host's wall (12) becomes a gate (8) on the same turn on both peers.
     gate_turn = [next((t for t in sorted(e) if e[t].get("wall") == "8"), None) for e in extras]
     upgrade_ok = gate_turn[0] is not None and gate_turn[0] == gate_turn[1]
+    # Chat (0 A.D. NMT_CHAT through the host): the whisper reaches only the host,
+    # stamped with the joiner's id; the line to an absent player reaches nobody;
+    # the host's line to all reaches the joiner and is not echoed back.
+    chats = {role: [l.split(": chat ", 1)[1] for o in outs for l in (o or "").splitlines()
+                    if l.startswith(f"[net-peer] {role}: chat ")] for role in ("host", "join")}
+    chat_ok = chats["host"] == ["peer-1: gg"] and chats["join"] == ["peer-0: hi all"]
+    # Pause (NMT_CLIENT_PAUSED): both peers saw the host's pause and held turns.
+    pauses = peer_lines(outs, "pause")
+    pause_ok = (len(pauses) == 2 and all(p.get("seen") == "1" and p.get("by") == "0" for p in pauses.values())
+                and int(pauses["join"].get("held_ms", "0")) >= 1000)
+    # Save/load: each world reloads from its own save with the same hash.
+    saves = peer_lines(outs, "saveload")
+    save_ok = (len(saves) == 2 and all(v.get("ok") == "1" and v.get("before") == v.get("after") for v in saves.values())
+               and saves["host"].get("before") == saves["join"].get("before"))
     # Gate lock: the host locks the gate and later unlocks it, on the same turns on both peers.
     def lock_spans(e):
         rows = [(t, e[t].get("locked")) for t in sorted(e)]
         return [t for (_, a), (t, b) in zip(rows, rows[1:]) if a != b]
     locks = [lock_spans(e) for e in extras]
     lock_ok = locks[0] == locks[1] and len(locks[0]) == 2
+    # Pack (cmd 29): the stone thrower's pack state changes on the same turns on
+    # both peers and goes packed -> unpacking -> unpacked -> packing -> packed.
+    def pack_steps(e):
+        rows = [(t, e[t].get("pack")) for t in sorted(e)]
+        return [(t, b) for (_, a), (t, b) in zip(rows, rows[1:]) if a != b]
+    packs = [pack_steps(e) for e in extras]
+    # (Before the order it may unpack on its own against nearby enemies; only the
+    # ordered unpack at 380 and pack at 440 are checked for their sequence.)
+    pack_ok = packs[0] == packs[1] and [b for t, b in packs[0] if t > 380] == ["4", "2", "3", "1"]
     defeat_ok = (not defeat_turn) or (out_turn[0] is not None and out_turn[0] == out_turn[1]
                                       and out_turn[0] > defeat_turn and not any(over))
     common_turns = sorted(set(hashes[0]) & set(hashes[1]))
@@ -267,10 +306,121 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
         "setup_ok": setup_ok, "setups": setups,
         "ceasefire_ok": ceasefire_ok, "ceasefire_end": cf_end, "ceasefire_hits": cf_hits[:5],
         "tribute_ok": tribute_ok, "tributes": tributes, "upgrade_ok": upgrade_ok, "gate_turn": gate_turn,
-        "lock_ok": lock_ok, "locks": locks,
+        "lock_ok": lock_ok, "locks": locks, "pack_ok": pack_ok, "packs": packs, "chat_ok": chat_ok, "chats": chats,
+        "pause_ok": pause_ok, "pauses": pauses, "save_ok": save_ok, "saves": saves,
         "defeat_ok": defeat_ok, "defeat_turn": out_turn, "game_over": over,
-        "ok": divergent is None and complete and setup_ok and ceasefire_ok and defeat_ok and tribute_ok and upgrade_ok and lock_ok and all(rc == 0 for rc in rcs),
+        "ok": divergent is None and complete and setup_ok and ceasefire_ok and defeat_ok and tribute_ok and upgrade_ok and lock_ok and pack_ok and chat_ok and pause_ok and save_ok and all(rc == 0 for rc in rcs),
     }
+
+
+def read_hashes(path: str) -> dict:
+    rows = {}
+    if os.path.exists(path):
+        with open(path) as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 2:
+                    rows[int(parts[0])] = parts[1]
+    return rows
+
+
+def run_rejoin_case(binary: str, seed: int, speed: float, loss: float, port: int, out_dir: str,
+                    timeout: int) -> bool:
+    """0 A.D. rejoin: the joiner leaves after turn LEAVE, the host plays on alone,
+    then a new process rejoins into the empty seat from the host's saved world
+    and both must hash the same on every turn after the rejoin."""
+    turns, leave = 500, 200
+    print(f"\n---- rejoin: joiner leaves after turn {leave}, a new client takes its seat ----")
+    logs = {r: os.path.join(out_dir, f"rejoin_{r}.log") for r in ("host", "left", "back")}
+    common = ["--speed", str(speed), "--loss", str(loss)]
+    def peer(role, log, *more):
+        return subprocess.Popen([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    host = peer("host", logs["host"])
+    time.sleep(0.3)
+    left = peer("join", logs["left"], "--quit-turn", str(leave))
+    outs, rcs = [], []
+    def finish(p):
+        try:
+            out, _ = p.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            out, _ = p.communicate()
+        outs.append(out)
+        rcs.append(p.returncode)
+    finish(left)
+    time.sleep(0.5)
+    back = peer("join", logs["back"], "--rejoin", "1")
+    finish(back)
+    finish(host)
+    rep = peer_lines(outs, "rejoin")
+    h, b = read_hashes(logs["host"]), read_hashes(logs["back"])
+    t0 = int(rep.get("join", {}).get("turn", "0"))
+    after = [t for t in sorted(b) if t > t0]
+    bad = next((t for t in after if h.get(t) != b[t]), None)
+    ok = (rcs == [0, 0, 0] and t0 > leave and rep["join"].get("player") == "1" and len(h) == turns
+          and after == list(range(t0 + 1, turns + 1)) and bad is None)
+    if ok:
+        print(f"[net] PASS rejoin: new client took player 2 at turn {t0}, then turns {t0 + 1}-{turns} "
+              f"matched the host (final hash {h[turns]})")
+    else:
+        for o in outs:
+            for line in (o or "").splitlines():
+                if line.startswith("[net-peer]") or line.startswith("[TurnManager]"):
+                    print("   " + line)
+        print(f"[net] FAIL rejoin: rc={rcs} rejoin={rep} host_turns={len(h)} back_turns={len(b)} first_bad={bad}")
+    return ok
+
+
+def run_oos_case(binary: str, seed: int, speed: float, port: int, out_dir: str, timeout: int) -> bool:
+    """0 A.D. OOS report: the joiner corrupts its world after turn FORCE; the host
+    must report FORCE+1 (the first turn whose hashes differ) and both peers must
+    write an oos_dump."""
+    force = 100
+    print(f"\n---- forced out-of-sync: joiner corrupts its world after turn {force} ----")
+    dirs = {r: os.path.join(out_dir, f"oos_{r}") for r in ("host", "join")}
+    for d in dirs.values():
+        shutil.rmtree(d, ignore_errors=True)
+        os.makedirs(d)
+    procs = {}
+    for role in ("host", "join"):
+        procs[role] = subprocess.Popen(
+            [binary, "--net-peer", role, str(port), str(seed), "400", os.path.join(out_dir, f"oos_{role}.log"),
+             "--speed", str(speed), "--force-oos", str(force), "--oos-dir", dirs[role]],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        time.sleep(0.3)
+    outs, rcs = [], []
+    for role in ("join", "host"):
+        try:
+            out, _ = procs[role].communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            procs[role].kill()
+            out, _ = procs[role].communicate()
+        outs.append(out)
+        rcs.append(procs[role].returncode)
+    rep = peer_lines(outs, "oos")
+    dumps_ok = True
+    for role, d in dirs.items():
+        txt = os.path.join(d, "oos_dump.txt")
+        if not (os.path.exists(txt) and os.path.exists(os.path.join(d, "oos_dump.dat"))):
+            dumps_ok = False
+            continue
+        with open(txt) as f:
+            dumps_ok = dumps_ok and f.readline().strip() == f"oos turn: {force + 1}"
+    ok = (rcs == [0, 0] and len(rep) == 2 and all(r.get("turn") == str(force + 1) for r in rep.values())
+          and rep["join"].get("from_host") == "1" and rep["host"].get("players") == "Player"
+          and dumps_ok)
+    # players= prints "Player 2"; split() keeps only "Player", so check the raw line too.
+    ok = ok and any("players=Player 2 " in (o or "") for o in outs)
+    if ok:
+        print(f"[net] PASS forced OOS: both peers report turn {force + 1}, players Player 2, dumps written")
+    else:
+        for o in outs:
+            for line in (o or "").splitlines():
+                if line.startswith("[net-peer]") or "Out-of-sync" in line or "Out-Of-Sync" in line:
+                    print("   " + line)
+        print(f"[net] FAIL forced OOS: rc={rcs} reports={rep} dumps_ok={dumps_ok}")
+    return ok
 
 
 def main() -> int:
@@ -395,11 +545,24 @@ def main() -> int:
             print(f"[net] tribute of 77 stone landed at turn {nr['tributes'][0][0][0]} on both peers, the "
                   f"post-defeat one was dropped; wall became a gate at turn {nr['gate_turn'][0]}, "
                   f"locked at turn {nr['locks'][0][0]} and unlocked at turn {nr['locks'][0][1]}")
+            print(f"[net] stone thrower unpacked and packed again on both peers at turns "
+                  f"{[t for t, _ in nr['packs'][0] if t > 380]}")
+            print(f"[net] chat: host got {nr['chats']['host']}, joiner got {nr['chats']['join']}; "
+                  f"host paused at turn {PAUSE_TURN}, joiner held {nr['pauses']['join']['held_ms']} ms; "
+                  f"save/load at turn {SAVELOAD_TURN} kept hash {nr['saves']['host']['before']} on both")
             if args.net_defeat_turn:
                 print(f"[net] joiner's player wiped at turn {args.net_defeat_turn}, defeated at turn "
                       f"{nr['defeat_turn'][0]} on both peers; host and Petra played on to turn {nr['turns']}")
         elif not nr["tribute_ok"]:
             print(f"[net] FAIL tribute: stone changes (host, join) {nr['tributes']}")
+        elif not nr["pack_ok"]:
+            print(f"[net] FAIL pack: state changes (turn, state) {nr['packs']}")
+        elif not nr["chat_ok"]:
+            print(f"[net] FAIL chat: received {nr['chats']}")
+        elif not nr["pause_ok"]:
+            print(f"[net] FAIL pause: {nr['pauses']}")
+        elif not nr["save_ok"]:
+            print(f"[net] FAIL save/load: {nr['saves']}")
         elif not nr["lock_ok"]:
             print(f"[net] FAIL gate lock: lock changes at turns {nr['locks']} (host, join)")
         elif not nr["upgrade_ok"]:
@@ -415,6 +578,12 @@ def main() -> int:
         else:
             print(f"[net] FAIL rc={nr['rcs']} host_turns={nr['host_turns']} "
                   f"join_turns={nr['join_turns']} ({nr['seconds']:.1f}s)")
+
+    if args.net_turns > 0:
+        net_ok = run_oos_case(binary_path, args.seeds[0], args.net_speed, args.net_port + 1,
+                              out_dir, args.timeout) and net_ok
+        net_ok = run_rejoin_case(binary_path, args.seeds[0], args.net_speed, args.net_loss,
+                                 args.net_port + 2, out_dir, args.timeout) and net_ok
 
     oos = [r for r in results if r["divergent_turn"] is not None]
     if not net_ok and not oos:

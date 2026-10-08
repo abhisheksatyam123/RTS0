@@ -76,6 +76,10 @@ const RMS_MAPS := [
 	["random_india", "India (RMS)", "Random", 8, 128, "india", "Parched land round one half dried-up lake. Supports 2-8 players."],
 	["random_guadalquivir_river", "Guadalquivir River (RMS)", "Random", 8, 128, "mediterranean", "A coast split by a river with three shallows. Supports 2-8 players."],
 	["random_fields_of_meroe", "Fields of Meroe (RMS)", "Random", 8, 128, "savanna", "The Nile with two cataract crossings, dunes and acacias. Supports 2-8 players."],
+	["random_gear", "Gear (RMS)", "Random", 8, 128, "temperate", "Waterways like a spider web round a central lake. Supports 2-8 players."],
+	["random_atlas_mountains", "Atlas Mountains (RMS)", "Random", 8, 128, "desert", "Rugged mountains with little room and scarce wood. Supports 2-8 players."],
+	["random_frontier", "Frontier (RMS)", "Random", 8, 128, "temperate", "A random wild landscape of hills, plateaus and lakes. Supports 2-8 players."],
+	["random_wild_lake", "Wild Lake (RMS)", "Random", 8, 128, "temperate", "Rough wild terrain round a lake. Supports 2-8 players."],
 ]
 
 # 0 A.D. population limits per player (0 = unlimited) and ceasefire lengths in minutes.
@@ -487,6 +491,8 @@ func _collect_setup() -> Dictionary:
 		var k := int(_slot_rows[i]["kind"])
 		if i == 0:
 			k = 0
+		if k == 2:
+			continue # closed: 0 A.D. drops the slot, so later players move up
 		types.append(k)
 		civs.append(int(_slot_rows[i]["civ"]))
 		teams.append(int(_slot_rows[i]["team"]))
@@ -513,7 +519,7 @@ func _collect_setup() -> Dictionary:
 		"map_size": int(MAP_SIZES[maxi(msz.get_selected(), 0)][0]),
 		"res": res.get_selected(), "beh": beh.get_selected(), "diff": diff,
 		"types": types, "civs": civs, "teams": teams,
-		"humans": humans, "ai": ai_total, "slots": n}
+		"humans": humans, "ai": ai_total, "slots": types.size()}
 
 func _on_start_pressed() -> void:
 	var st := _collect_setup()

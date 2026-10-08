@@ -258,7 +258,7 @@ void RtsoMain::begin_match_recording(const rtso::GameSetupParams *mp_setup) {
 	replay_meta_ = Dictionary();
 	replay_meta_["format"] = (int64_t)kReplayFormat;
 	replay_meta_["engine_version"] = "RTS0";
-	replay_meta_["save_version"] = (int64_t)rtso::SAVE_VERSION;
+	replay_meta_["save_version"] = (int64_t)rtso::Simulation::SAVE_VERSION;
 	replay_meta_["timestamp"] = (int64_t)Time::get_singleton()->get_unix_time_from_system();
 	replay_meta_["date"] = Time::get_singleton()->get_datetime_string_from_system(false, true);
 	replay_meta_["map_id"] = String(sim->current_map_id().c_str());
@@ -399,7 +399,7 @@ void RtsoMain::tick_match_archive() {
 bool RtsoMain::write_save_metadata(const String &path, const String &description) const {
 	if (!sim) return false;
 	Dictionary meta;
-	meta["save_version"] = (int64_t)rtso::SAVE_VERSION;
+	meta["save_version"] = (int64_t)rtso::Simulation::SAVE_VERSION;
 	meta["timestamp"] = (int64_t)Time::get_singleton()->get_unix_time_from_system();
 	meta["date"] = Time::get_singleton()->get_datetime_string_from_system(false, true);
 	meta["description"] = description;

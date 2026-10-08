@@ -124,10 +124,6 @@ struct PlayerState {
 	}
 };
 
-// Save file format version (save_state / load_state); see the history in save_state.
-static constexpr uint32_t SAVE_VERSION = 17;
-static constexpr uint32_t SAVE_VERSION_STATISTICS = 17; // per-player StatisticsTracker in tick_state_io
-
 class Simulation {
 public:
 	// Player Petra drives. Area C ("Fix and scale the AI") makes Petra per-player.
@@ -139,6 +135,8 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
+	static constexpr uint32_t SAVE_VERSION = 19; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_STATISTICS = 19; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -338,6 +336,10 @@ public:
 	void order_set_formation(const uint32_t *unit_ids, size_t count, uint8_t formation);
 	void order_garrison(const uint32_t *unit_ids, size_t count, uint32_t building_id);
 	void order_ungarrison(uint32_t building_id);
+	// GarrisonHolder.HasEnoughHealth: above EjectHealth of max health, so it may hold a garrison.
+	bool structure_has_enough_health(const Building &b) const;
+	// Hitpoints per second each unit garrisoned in `b` regains (BuffHeal plus Living Conditions).
+	float structure_garrison_heal(const Building &b) const;
 	void order_ungarrison_single(uint32_t building_id, uint32_t unit_id);
 	void order_guard(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id);
 
@@ -751,6 +753,7 @@ public:
 	};
 	const AttackPlan &petra_attack_plan() const { return petra_attack_plan_; }
 	const AttackPlan &petra_raid_plan() const { return petra_raid_plan_; }
+	const PetraAttackManager &petra_attack_manager() const { return petra_attack_mgr_; }
 	int petra_opening_step() const { return petra_opening_step_; }
 
 	void set_petra_difficulty(uint8_t d) {
@@ -890,6 +893,7 @@ private:
 		float bld_pop_bonus[BLD_TYPE_COUNT];
 		float bld_arrow_mul[BLD_TYPE_COUNT];
 		float bld_arrow_add[BLD_TYPE_COUNT];
+		float bld_garrison_heal[BLD_TYPE_COUNT]; // added hp per second for garrisoned units
 	};
 	void compute_tech_mods(uint8_t player_id, TechMods &out) const;
 	void rebuild_all_tech_mods();
@@ -911,6 +915,8 @@ private:
 	void tick_upgrades(float dt);
 	// Unloads land siege below SIEGE_EJECT_HEALTH or dead (GarrisonHolder EjectHealth / OnDestroy).
 	void tick_siege_garrisons();
+	// Structures heal their garrison each second and unload it below EjectHealth (GarrisonHolder.js).
+	void tick_garrison_holders();
 	bool can_board(size_t transport_idx, size_t unit_idx) const;
 	void cancel_upgrade(Building &b, uint8_t refund_to);
 	void finish_upgrade(Building &b);
@@ -1009,6 +1015,9 @@ private:
 	std::unordered_map<uint32_t, uint32_t> field_bld_by_res_; // grain resource id -> field building id
 	struct FieldGatherers { int total = 0; int slots_taken = 0; };
 	std::unordered_map<uint32_t, FieldGatherers> field_gatherers_; // per tick, keyed by grain resource id
+	std::unordered_map<uint32_t, FieldGatherers> fish_gatherers_; // per tick, keyed by fish resource id
+	// Nearest fish on `sea` (ship region) within max_d of (x, z) with a free gatherer slot; 0 if none.
+	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0) const;
 	std::unordered_map<uint32_t, size_t> building_id_to_idx_;
 
 	struct CellHash {
@@ -1071,7 +1080,7 @@ private:
 	float wonder_hold_[MAX_PLAYERS] = {}; // seconds each player has held a finished wonder
 
 	MatchRecord record_;
-	// StatisticsTracker state, saved through tick_state_io (save v17+).
+	// StatisticsTracker state, saved through tick_state_io (save v19+).
 	std::array<PlayerStatistics, MAX_PLAYERS> stats_{};
 	std::vector<StatisticsSample> stat_samples_;
 	static constexpr size_t MAX_STATISTICS_SAMPLES = 4096; // 34 hours of 30 s rows
@@ -1115,6 +1124,7 @@ private:
 
 	AttackPlan petra_attack_plan_;
 	AttackPlan petra_raid_plan_;
+	PetraAttackManager petra_attack_mgr_; // attackManager.js plan counters and sizes
 	int petra_opening_step_ = 0;
 	float petra_opening_timer_ = 0.0f;
 	PetraConfig petra_config_;
@@ -1134,6 +1144,10 @@ private:
 	bool pick_petra_safe_staging(float base_x, float base_z, float target_x, float target_z, float &out_sx, float &out_sz) const;
 	uint32_t find_petra_attack_target(float &out_tx, float &out_tz) const;
 	uint32_t find_petra_raid_target(float &out_tx, float &out_tz) const;
+	uint32_t find_petra_rush_target(float &out_tx, float &out_tz) const;
+	void petra_set_rushes();
+	void petra_plan_sizes(uint8_t kind);
+	bool petra_raid_target_ok(uint32_t bld_id) const;
 	bool petra_unit_reserved(uint32_t uid) const;
 
 	std::vector<PetraBase> petra_bases_;
@@ -1211,7 +1225,7 @@ private:
 	X(petra_diplo_timer_) X(ai_wonder_victory_timer_) X(petra_bases_) X(petra_fnd_watch_) \
 	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
-	X(petra_fow_) X(petra_fleets_) X(petra_diplo_)
+	X(petra_fow_) X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
