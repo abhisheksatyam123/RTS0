@@ -63,6 +63,7 @@ jobs:
     name: Export ${{ matrix.name }}
     runs-on: ubuntu-latest
     needs: build-native
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -115,15 +116,19 @@ jobs:
 
       - name: Build GDExtension for ${{ matrix.platform }}
         run: |
+          # skip_export=1: SConstruct's post-build hook would otherwise run its
+          # own Godot export here; this job exports in the steps below.
+          # The editor loads the template_debug lib during import/export.
+          scons platform=linux target=template_debug skip_export=1 -j4
           if [ "${{ matrix.platform }}" = "linux" ]; then
-            scons platform=linux target=template_release -j4
+            scons platform=linux target=template_release skip_export=1 -j4
           else
             # Windows cross-build from linux using mingw - fallback to linux lib for now if mingw missing
             if which x86_64-w64-mingw32-g++ >/dev/null 2>&1; then
-              scons platform=windows target=template_release -j4
+              scons platform=windows target=template_release skip_export=1 -j4
             else
               echo "mingw not available, using linux lib as placeholder for windows export test"
-              scons platform=linux target=template_release -j4
+              scons platform=linux target=template_release skip_export=1 -j4
               cp bin/librtso.linux.template_release.x86_64.so bin/librtso.windows.template_release.x86_64.dll || true
             fi
           fi
