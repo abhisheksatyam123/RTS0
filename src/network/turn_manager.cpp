@@ -844,6 +844,9 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			sim.cmd_cancel_train(pl, c.target_id, (size_t)c.param);
 		} else if (c.cmd_type == 21) { // Guard
 			sim.order_guard(ids, n, c.target_id);
+		} else if (c.cmd_type == 25) { // Train roster template — target_id=building, target_x=template.
+			if (c.target_x >= 0.0f && c.target_x < (float)CIV_UNIT_TEMPLATE_COUNT)
+				sim.cmd_train_template(pl, c.target_id, (uint16_t)c.target_x);
 		} else if (c.cmd_type == 23) { // Barter — target_x=sell, target_z=buy, target_id=amount.
 			// 0 A.D. Barter.js / Market.js exchange. Legacy gap: UI previously called
 			// sim->cmd_barter locally even in lockstep -> resource/price divergence.

@@ -453,6 +453,13 @@ public:
 		TECH_ERR_PHASE, TECH_ERR_PREREQUISITE, TECH_ERR_STRUCTURES, TECH_ERR_BUILDING, TECH_ERR_COST
 	};
 	ResearchCheck research_check(uint8_t player_id, uint8_t tech_id, uint32_t building_id = 0) const;
+	// 0 A.D. Heal/Range and Heal/Interval after the player's technologies.
+	float healer_range(uint8_t player_id) const;
+	float healer_rate(uint8_t player_id) const; // hit points per second
+	// 0 A.D. unlock_champion_* / unlock_civilians_house_*: a unit the owner's
+	// civ gates behind an unlock technology can only be trained once it is in.
+	uint8_t train_unlock_tech(uint8_t player_id, uint8_t unit_type, uint8_t bld_type) const;
+	bool can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_type) const;
 	// 0 A.D. phase_town / phase_city requirement: finished Village (1) or Town (2) class structures.
 	int phase_structures(uint8_t player_id, uint8_t phase) const;
 	bool unit_has_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.has_order[idx]; }
@@ -699,11 +706,18 @@ private:
 		float speed[UNIT_TYPE_COUNT];
 		float range[UNIT_TYPE_COUNT];
 		float armor[UNIT_TYPE_COUNT][3]; // hack, pierce, crush
+		float train_time[UNIT_TYPE_COUNT];
+		float heal_range[UNIT_TYPE_COUNT];    // added metres
+		float heal_interval[UNIT_TYPE_COUNT]; // < 1 heals faster
+		float trade_gain[UNIT_TYPE_COUNT];
 		float bld_health[BLD_TYPE_COUNT];
 		float bld_attack[BLD_TYPE_COUNT];
 		float bld_range[BLD_TYPE_COUNT];
 		float bld_build_time[BLD_TYPE_COUNT];
+		float bld_research_time[BLD_TYPE_COUNT];
 		float bld_pop_bonus[BLD_TYPE_COUNT];
+		float bld_arrow_mul[BLD_TYPE_COUNT];
+		float bld_arrow_add[BLD_TYPE_COUNT];
 	};
 	void compute_tech_mods(uint8_t player_id, TechMods &out) const;
 	void rebuild_all_tech_mods();
