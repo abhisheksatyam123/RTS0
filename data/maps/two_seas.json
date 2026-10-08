@@ -3,6 +3,7 @@
   "name": "Two Seas (6)",
   "desc": "A large tropic map with two seas to the East and to the West. Good for two teams of three players or three teams of two players.",
   "biome": "mediterranean",
+  "nomad": false,
   "world_size": 512.0,
   "water_height": 7.09,
   "heightmap_res": 129,
@@ -59425,78 +59426,6 @@
       "z": 143.39
     },
     {
-      "type": "barracks",
-      "player": 6,
-      "x": -126.46,
-      "z": -139.17
-    },
-    {
-      "type": "barracks",
-      "player": 6,
-      "x": -127.2,
-      "z": -138.51
-    },
-    {
-      "type": "barracks",
-      "player": 5,
-      "x": -0.95,
-      "z": -208.9
-    },
-    {
-      "type": "barracks",
-      "player": 5,
-      "x": -0.21,
-      "z": -209.55
-    },
-    {
-      "type": "barracks",
-      "player": 4,
-      "x": 125.32,
-      "z": -145.47
-    },
-    {
-      "type": "barracks",
-      "player": 4,
-      "x": 126.06,
-      "z": -146.13
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": 129.1,
-      "z": 139.36
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": 129.83,
-      "z": 138.7
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": -1.08,
-      "z": 216.96
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": -0.35,
-      "z": 216.31
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -112.52,
-      "z": 146.31
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -111.79,
-      "z": 145.65
-    },
-    {
       "type": "tower",
       "player": 2,
       "x": -17.48,
@@ -60483,6 +60412,18 @@
       "z": -145.21
     },
     {
+      "type": "archer",
+      "player": 6,
+      "x": -126.46,
+      "z": -139.17
+    },
+    {
+      "type": "archer",
+      "player": 6,
+      "x": -127.2,
+      "z": -138.51
+    },
+    {
       "type": "cavalry",
       "player": 6,
       "x": -134.52,
@@ -60543,6 +60484,18 @@
       "z": -208.1
     },
     {
+      "type": "archer",
+      "player": 5,
+      "x": -0.95,
+      "z": -208.9
+    },
+    {
+      "type": "archer",
+      "player": 5,
+      "x": -0.21,
+      "z": -209.55
+    },
+    {
       "type": "swordsman",
       "player": 5,
       "x": 0.25,
@@ -60583,6 +60536,18 @@
       "player": 4,
       "x": 118.0,
       "z": -144.67
+    },
+    {
+      "type": "archer",
+      "player": 4,
+      "x": 125.32,
+      "z": -145.47
+    },
+    {
+      "type": "archer",
+      "player": 4,
+      "x": 126.06,
+      "z": -146.13
     },
     {
       "type": "swordsman",
@@ -60627,6 +60592,18 @@
       "z": 140.16
     },
     {
+      "type": "archer",
+      "player": 3,
+      "x": 129.1,
+      "z": 139.36
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": 129.83,
+      "z": 138.7
+    },
+    {
       "type": "swordsman",
       "player": 3,
       "x": 130.29,
@@ -60669,6 +60646,18 @@
       "z": 217.76
     },
     {
+      "type": "archer",
+      "player": 2,
+      "x": -1.08,
+      "z": 216.96
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": -0.35,
+      "z": 216.31
+    },
+    {
       "type": "swordsman",
       "player": 2,
       "x": 0.11,
@@ -60709,6 +60698,18 @@
       "player": 1,
       "x": -119.84,
       "z": 147.11
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -112.52,
+      "z": 146.31
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -111.79,
+      "z": 145.65
     },
     {
       "type": "swordsman",

@@ -3,6 +3,7 @@
   "name": "Tuscan Acropolis (4)",
   "desc": "Four factions find themselves perched safely atop large rocky plateaus.\n\nScout the lands to find free treasures and to secure new resources.",
   "biome": "mediterranean",
+  "nomad": false,
   "world_size": 384.0,
   "water_height": 3.31,
   "heightmap_res": 64,
@@ -15786,54 +15787,6 @@
       "z": -130.34
     },
     {
-      "type": "barracks",
-      "player": 2,
-      "x": 4.31,
-      "z": 131.32
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 5.12,
-      "z": 130.63
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": 121.88,
-      "z": -3.87
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": 122.69,
-      "z": -4.57
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": -105.62,
-      "z": -1.33
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": -104.81,
-      "z": -2.03
-    },
-    {
-      "type": "barracks",
-      "player": 4,
-      "x": -2.14,
-      "z": -126.73
-    },
-    {
-      "type": "barracks",
-      "player": 4,
-      "x": -1.32,
-      "z": -127.42
-    },
-    {
       "type": "wall_segment",
       "player": 1,
       "x": 109.02,
@@ -16172,6 +16125,18 @@
   ],
   "units": [
     {
+      "type": "archer",
+      "player": 2,
+      "x": 4.31,
+      "z": 131.32
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 5.12,
+      "z": 130.63
+    },
+    {
       "type": "hero",
       "player": 2,
       "x": -6.94,
@@ -16218,6 +16183,18 @@
       "player": 2,
       "x": 5.37,
       "z": 123.78
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": 121.88,
+      "z": -3.87
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": 122.69,
+      "z": -4.57
     },
     {
       "type": "hero",
@@ -16268,6 +16245,18 @@
       "z": -12.53
     },
     {
+      "type": "archer",
+      "player": 3,
+      "x": -105.62,
+      "z": -1.33
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": -104.81,
+      "z": -2.03
+    },
+    {
       "type": "hero",
       "player": 3,
       "x": -121.73,
@@ -16314,6 +16303,18 @@
       "player": 3,
       "x": -109.63,
       "z": -10.81
+    },
+    {
+      "type": "archer",
+      "player": 4,
+      "x": -2.14,
+      "z": -126.73
+    },
+    {
+      "type": "archer",
+      "player": 4,
+      "x": -1.32,
+      "z": -127.42
     },
     {
       "type": "hero",

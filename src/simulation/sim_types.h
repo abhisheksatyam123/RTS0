@@ -1,6 +1,8 @@
 #ifndef RTSO_SIM_TYPES_H
 #define RTSO_SIM_TYPES_H
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -387,39 +389,29 @@ inline constexpr float CHEER_TIME_S = 2.8f;
 inline constexpr float CHEER_NOTIFY_RANGE = 30.0f;
 inline constexpr float GARRISON_LOADING_RANGE = 2.0f;
 
-// 0 A.D. Formations (source: template_player.xml:84-96, exactly 13 entries indexed 0..12)
-// Appended AFTER existing 6 so network/replay order stays wire-compatible (values 0..6 unchanged).
-// 0 A.D. template_player.xml:84-96 token list:
-//   [84] special/formations/null                 -> FORMATION_NONE = 0
-//   [85] special/formations/box                  -> FORMATION_BOX = 2
-//   [86] special/formations/column_closed        -> FORMATION_COLUMN = 3
-//   [87] special/formations/line_closed          -> FORMATION_LINE = 1
-//   [88] special/formations/column_open          -> FORMATION_COLUMN_OPEN = 8
-//   [89] special/formations/line_open            -> FORMATION_LINE_OPEN = 7
-//   [90] special/formations/flank                -> FORMATION_FLANK = 9
-//   [91] special/formations/battle_line          -> FORMATION_BATTLE_LINE = 10
-//   [92] special/formations/skirmish             -> FORMATION_SCATTER = 6
-//   [93] special/formations/wedge                -> FORMATION_WEDGE = 5
-//   [94] special/formations/ships/line_staggered -> FORMATION_SHIPS_LINE = 11
-//   [95] special/formations/ships/flank          -> FORMATION_SHIPS_FLANK = 9 (alias FORMATION_FLANK)
-//   [96] special/formations/ships/column         -> FORMATION_SHIPS_COLUMN = 12
-// Note: FORMATION_PHALANX = 4 preserved from 0 A.D. special/formations/phalanx.xml (civ-specific).
+// 0 A.D. formation templates (special/formations/*.xml). Ids 0-12 keep their old values
+// (saves and lockstep cmd 8 carry them); 13-16 came with the Formation.js port.
+// formation.h has the templates, which civs and units may use each, and the layout code.
 enum UnitFormation : uint8_t {
-	FORMATION_NONE = 0,
-	FORMATION_LINE = 1,
-	FORMATION_BOX = 2,
-	FORMATION_COLUMN = 3,
-	FORMATION_PHALANX = 4,
-	FORMATION_WEDGE = 5,
-	FORMATION_SCATTER = 6,
-	FORMATION_LINE_OPEN = 7,
-	FORMATION_COLUMN_OPEN = 8,
-	FORMATION_FLANK = 9,
-	FORMATION_BATTLE_LINE = 10,
-	FORMATION_SHIPS_LINE = 11,
-	FORMATION_SHIPS_COLUMN = 12,
-	FORMATION_COUNT = 13,
-	FORMATION_SHIPS_FLANK = FORMATION_FLANK
+	FORMATION_NONE = 0,          // null
+	FORMATION_LINE = 1,          // line_closed ("Close Order")
+	FORMATION_BOX = 2,           // box
+	FORMATION_COLUMN = 3,        // column_closed ("Forced March")
+	FORMATION_PHALANX = 4,       // phalanx (hoplites; athen, cart, mace, pers, ptol, sele, spart)
+	FORMATION_WEDGE = 5,         // wedge (cavalry)
+	FORMATION_SKIRMISH = 6,      // skirmish (ranged)
+	FORMATION_LINE_OPEN = 7,     // line_open ("Open Order")
+	FORMATION_COLUMN_OPEN = 8,   // column_open
+	FORMATION_FLANK = 9,         // flank
+	FORMATION_BATTLE_LINE = 10,  // battle_line
+	FORMATION_SHIPS_LINE = 11,   // ships/line_staggered ("Fleet Battle Line")
+	FORMATION_SHIPS_COLUMN = 12, // ships/column ("Maneuvering Column")
+	FORMATION_SHIPS_FLANK = 13,  // ships/flank ("Flanking Formation")
+	FORMATION_SYNTAGMA = 14,     // syntagma (pikemen; kush, mace, ptol, sele)
+	FORMATION_TESTUDO = 15,      // testudo (melee infantry; rome)
+	FORMATION_ANTI_CAVALRY = 16, // anti_cavalry (han and roman spearmen; han, rome)
+	FORMATION_COUNT = 17,
+	FORMATION_SCATTER = FORMATION_SKIRMISH // old name
 };
 
 enum StatusEffect : uint8_t {
@@ -1071,6 +1063,7 @@ struct CivUnitTemplate {
 };
 
 #include "civ_roster_data.h"
+#include "formation.h"
 
 inline constexpr uint16_t CIV_UNIT_TEMPLATE_NONE = 0xFFFF;
 static_assert(CIV_UNIT_TEMPLATE_COUNT <= 64 * CIV_TEMPLATE_WORDS_MAX, "raise CIV_TEMPLATE_WORDS_MAX");
