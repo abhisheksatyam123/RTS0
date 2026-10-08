@@ -10,6 +10,8 @@ assets/imported/
 __pycache__/
 *.pyc
 assets/models/**/*_tex*.png
+# Godot unpacks a dae_to_glb.gd model's skin as <id>_0.png
+assets/models/**/*_[0-9].png
 # GDExtension build artifacts — rebuilt via SCons, do not commit
 .sconsign.dblite
 src/**/*.os

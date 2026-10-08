@@ -272,13 +272,15 @@ int main() {
 		for (int with = 0; with < 2; ++with) {
 			fresh(s);
 			s.player(0).phase = 2;
-			uint32_t tower = s.spawn_building_world(0.0f, 0.0f, BLD_TOWER, 0, 1.0f);
+			// Inside the civic centre's territory: a tower alone in no-man's land makes a cut-off
+			// patch of territory and decays to Gaia (TerritoryDecay).
+			uint32_t tower = s.spawn_building_world(-20.0f, -30.0f, BLD_TOWER, 0, 1.0f);
 			if (with) {
 				CHECK(s.cmd_research(0, tower, TECH_TOWER_WATCH));
 				run(s, tech_info(TECH_TOWER_WATCH).research_time + 1.0f);
 				CHECK(s.is_tech_researched(TECH_TOWER_WATCH));
 			}
-			uint32_t foe = s.spawn_unit(8.0f, 0.0f, 1, UNIT_SWORDSMAN, 4000.0f);
+			uint32_t foe = s.spawn_unit(-12.0f, -30.0f, 1, UNIT_SWORDSMAN, 4000.0f);
 			s.cmd_stop(&foe, 1);
 			float hp0 = unit_hp(s, foe);
 			run(s, 12.0f);
