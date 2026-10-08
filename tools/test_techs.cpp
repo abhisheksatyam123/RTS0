@@ -300,6 +300,57 @@ int main() {
 		CHECK(std::fabs(paid - 2.0f * building_type_info(BLD_WALL_TOWER).stone_cost) < 1.01f);
 	}
 
+	// Auras.js: Viriato's Guerrilla Tactics (+20% soldier speed) multiplies walk
+	// speed only while a soldier is in range, on top of Horse Racing (+10%), and
+	// never rewrites the speed technologies set.
+	{
+		fresh(s);
+		s.set_player_civ(CIV_IBERIANS);
+		uint32_t stable = s.spawn_building_world(20.0f, -20.0f, BLD_STABLE, 0, 1.0f);
+		CHECK(s.cmd_research(0, stable, TECH_CAVALRY_MOVEMENT_SPEED));
+		run(s, tech_info(TECH_CAVALRY_MOVEMENT_SPEED).research_time + 1.0f);
+		CHECK(s.is_tech_researched(TECH_CAVALRY_MOVEMENT_SPEED));
+		uint16_t viriato = CIV_UNIT_TEMPLATE_NONE;
+		for (uint16_t i = civ_roster_begin(CIV_IBERIANS); i < civ_roster_end(CIV_IBERIANS); ++i)
+			if (std::strcmp(civ_unit_template(i).specific_name, "Viriato") == 0) viriato = i;
+		CHECK(viriato != CIV_UNIT_TEMPLATE_NONE);
+		// Distance a horseman covers in the next second; ride() starts a fresh one
+		// riding east from (-20, z).
+		uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE;
+		uint32_t cav = 0;
+		auto x = [&] {
+			auto u = s.units();
+			for (size_t i = 0; i < u.count; ++i)
+				if (u.id[i] == cav) { tmpl = u.tmpl[i]; return u.pos_x[i]; }
+			return 0.0f;
+		};
+		auto second = [&] {
+			const float from = x();
+			run(s, 1.0f);
+			return x() - from;
+		};
+		auto ride = [&](float z) {
+			cav = s.spawn_unit(-20.0f, z, 0, UNIT_CAVALRY);
+			s.cmd_move(&cav, 1, 40.0f, z);
+			run(s, 0.2f);
+			return second();
+		};
+		const float alone = ride(0.0f);
+		const float teched = civ_unit_template(tmpl).speed * 1.1f;
+		CHECK(civ_aura_affects(civ_unit_template(viriato).auras[0], tmpl));
+		uint32_t hero = s.spawn_unit(-14.0f, 4.0f, 0, UNIT_HERO, 0.0f, viriato);
+		run(s, 0.5f); // auras are gathered every 0.4 s
+		const float inspired = ride(-4.0f);
+		s.cmd_delete(0, &hero, 1);
+		run(s, 0.5f);
+		const float after = second(); // the same horseman, the aura gone
+		std::printf("horseman in 1 s: %.2f m alone, %.2f m beside Viriato, %.2f m after (teched speed %.2f)\n",
+		            alone, inspired, after, teched);
+		CHECK(std::fabs(alone - teched) < 0.03f * teched);
+		CHECK(std::fabs(inspired - teched * 1.2f) < 0.03f * teched);
+		CHECK(std::fabs(after - teched) < 0.03f * teched);
+	}
+
 	// Save/load keeps researched techs and their effects.
 	static Simulation l;
 	fresh(l);

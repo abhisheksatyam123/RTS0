@@ -3101,6 +3101,7 @@ void Simulation::move_units(float dt, Arena &arena) {
 			if (b.type == BLD_GATE && b.build_progress >= 1.0f)
 				closed_gates_.push_back(SteerObstacle{b.id, b.x, b.z, b.half_size, b.type, false});
 		}
+	const bool speed_auras = aura_mgr_.has(AURA_SPEED);
 
 	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		if (!alive[i]) {
@@ -3284,7 +3285,13 @@ void Simulation::move_units(float dt, Arena &arena) {
 		float inv = 1.0f / sqrtf(d2);
 		float ux = dx * inv;
 		float uz = dz * inv;
-		float spd = units_.speed[i];
+		float spd = units_.speed[i]; // the template speed with this player's technologies
+		// Auras.js: a speed aura is a modifier on UnitMotion/WalkSpeed, so it applies
+		// only while the unit stands in it and stacks with technologies.
+		if (speed_auras) {
+			const float aura = aura_mgr_.query_modifier(px[i], pz[i], units_.team[i], AURA_SPEED, units_.tmpl[i]);
+			if (aura > 0.0f) spd *= aura;
+		}
 		// G5 formation speed modifiers (see cmd_move table): PHALANX slower, WEDGE faster
 		// Retain legacy symbol for parity checker: formation_speed_mult[7] = {1.0f, 1.0f, 1.0f, 0.95f, 0.85f, 1.1f, 1.05f};
 		{
@@ -4779,14 +4786,7 @@ void Simulation::tick_combat(float dt) {
 		}
 	}
 
-	// 6. Hero Unit Inspiration Auras via AuraManager (Auras.js / Heroes) - 16m heal 2.0 (Spartan) / speed 1.20 (Athenian)
-	for (size_t u = 0; u < n; ++u) {
-		if (!units_.alive[u]) continue;
-		float speedMod = aura_mgr_.query_modifier(units_.pos_x[u], units_.pos_z[u], units_.team[u], AURA_SPEED, units_.tmpl[u]);
-		if (speedMod > 1.001f) {
-			units_.speed[u] = unit_info_at(u).speed * speedMod;
-		}
-	}
+	// 6. Hero speed auras (Auras.js) multiply a unit's walk speed in move_units() while it stands in them.
 
 	// Multi-Team Structure Capture Mechanics extracted to tick_capture() (0 A.D. Capturable.js)
 
