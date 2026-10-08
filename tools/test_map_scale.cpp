@@ -206,26 +206,19 @@ int main() {
 		CHECK(map_fingerprint(a) == map_fingerprint(b), "size %d: same seed, different map", size);
 	}
 
-	// 6. Game-setup seats: bases go to the seated slots, and Stronghold packs
-	// teammates together.
+	// 6. Stronghold packs teammates together (game-setup teams).
 	{
-		const uint8_t ids[4] = {0, 2, 3, 5};
 		const uint8_t teams[4] = {1, 2, 1, 2};
-		for (int mt : {(int)MAP_MAINLAND, (int)MAP_STRONGHOLD}) {
-			Simulation sim;
-			sim.generate_random_map((MapType)mt, 99, 4, 128.0f, ids, teams);
-			float tx[8] = {}, tz[8] = {};
-			bool has[8] = {};
-			for (const auto &b : sim.buildings())
-				if (b.type == BLD_TOWN_CENTER && b.team < 8) { has[b.team] = true; tx[b.team] = b.x; tz[b.team] = b.z; }
-			CHECK(has[0] && has[2] && has[3] && has[5] && !has[1] && !has[4], "%s: town centres not on the seated slots",
-			      map_type_info(mt).id);
-			if (mt == MAP_STRONGHOLD) {
-				const float mate = std::hypot(tx[0] - tx[3], tz[0] - tz[3]), foe = std::hypot(tx[0] - tx[2], tz[0] - tz[2]);
-				CHECK(mate < foe, "stronghold: teammates %.1f apart, enemies %.1f", mate, foe);
-				CHECK(mate >= 17.0f, "stronghold: teammates' bases overlap (%.1f apart)", mate);
-			}
-		}
+		Simulation sim;
+		sim.generate_random_map(MAP_STRONGHOLD, 99, 4, 128.0f, teams);
+		float tx[8] = {}, tz[8] = {};
+		bool has[8] = {};
+		for (const auto &b : sim.buildings())
+			if (b.type == BLD_TOWN_CENTER && b.team < 8) { has[b.team] = true; tx[b.team] = b.x; tz[b.team] = b.z; }
+		CHECK(has[0] && has[1] && has[2] && has[3], "stronghold: a player has no town centre");
+		const float mate = std::hypot(tx[0] - tx[2], tz[0] - tz[2]), foe = std::hypot(tx[0] - tx[1], tz[0] - tz[1]);
+		CHECK(mate < foe, "stronghold: teammates %.1f apart, enemies %.1f", mate, foe);
+		CHECK(mate >= 17.0f, "stronghold: teammates' bases overlap (%.1f apart)", mate);
 	}
 
 	// 7. Shallow water (0 A.D. pathfinder.xml MaxWaterDepth 2): land units wade

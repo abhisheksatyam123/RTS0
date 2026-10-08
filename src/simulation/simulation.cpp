@@ -689,17 +689,13 @@ uint32_t Simulation::spawn_relic(float x, float z, uint8_t res_type, int amount)
 	return rid;
 }
 
-void Simulation::generate_random_map(MapType type, uint32_t seed, int num_players, float map_half,
-		const uint8_t *player_ids, const uint8_t *teams) {
+void Simulation::generate_random_map(MapType type, uint32_t seed, int num_players, float map_half, const uint8_t *teams) {
 	RmsGenerator::Config cfg;
 	cfg.map_type = type;
 	cfg.seed = seed;
-	cfg.num_players = std::clamp(num_players, 1, (int)MAX_PLAYERS);
-	for (int i = 0; i < cfg.num_players; ++i) {
-		if (player_ids) cfg.player_ids[i] = player_ids[i];
-		if (teams) cfg.teams[i] = teams[i];
-	}
-	cfg.has_player_ids = player_ids != nullptr;
+	cfg.num_players = num_players;
+	if (teams)
+		for (int i = 0; i < std::min(num_players, (int)MAX_PLAYERS); ++i) cfg.teams[i] = teams[i];
 	cfg.map_half = map_half;
 	// Keep roughly one heightmap sample per world unit on bigger maps
 	// (diamond-square needs 2^n + 1 samples).

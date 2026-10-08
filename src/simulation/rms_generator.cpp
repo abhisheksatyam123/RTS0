@@ -2969,11 +2969,6 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 			break;
 	}
 
-	// Bases belong to the seated game-setup slots, in order (a closed slot
-	// between two seated ones gets no base).
-	if (config.has_player_ids)
-		for (size_t i = 0; i < spawns.size() && i < 8; ++i) spawns[i].team = config.player_ids[i];
-
 	// Transfer heightmap to simulation
 	sim.set_terrain_data(hm.data, hm.res, water_h);
 

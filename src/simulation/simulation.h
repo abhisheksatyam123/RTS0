@@ -239,10 +239,10 @@ public:
 	uint32_t next_id() const { return next_id_; }
 	void spawn_initial();
 	void spawn_war(int total_units = 2000);
-	// player_ids[i] owns base i (game-setup slots, nullptr = 0..n-1); teams[i]
-	// is its 1-based setup team (0 = none, nullptr = all none).
+	// teams[i] is player i's 1-based game-setup team (0 = none, nullptr = all none),
+	// for maps that place teams together (Stronghold).
 	void generate_random_map(MapType type = MAP_RANDOM_CONTINENTAL, uint32_t seed = 0, int num_players = 2, float map_half = 64.0f,
-	                         const uint8_t *player_ids = nullptr, const uint8_t *teams = nullptr);
+	                         const uint8_t *teams = nullptr);
 
 	// Spawns the owner civ's unit for u_type (or roster template `tmpl`) with its
 	// 0 A.D. stats. hp > 0 overrides the template's health.

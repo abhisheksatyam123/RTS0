@@ -119,10 +119,7 @@ public:
 		float map_half = 64.0f;
 		int heightmap_res = 129; // 129x129 grid for high-fidelity terrain
 		BiomeType biome = BIOME_AEGEAN;
-		// Owner of base i (the game-setup slot), when has_player_ids; else i.
-		bool has_player_ids = false;
-		uint8_t player_ids[8] = {0, 1, 2, 3, 4, 5, 6, 7};
-		// Game-setup team of base i (1-based, 0 = no team), for team placement.
+		// Game-setup team of player i (1-based, 0 = no team), for team placement.
 		uint8_t teams[8] = {};
 	};
 
