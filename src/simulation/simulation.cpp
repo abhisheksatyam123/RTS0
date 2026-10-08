@@ -693,11 +693,13 @@ uint32_t Simulation::spawn_relic(float x, float z, uint8_t res_type, int amount)
 	return rid;
 }
 
-void Simulation::generate_random_map(MapType type, uint32_t seed, int num_players, float map_half) {
+void Simulation::generate_random_map(MapType type, uint32_t seed, int num_players, float map_half, const uint8_t *teams) {
 	RmsGenerator::Config cfg;
 	cfg.map_type = type;
 	cfg.seed = seed;
 	cfg.num_players = num_players;
+	if (teams)
+		for (int i = 0; i < std::min(num_players, (int)MAX_PLAYERS); ++i) cfg.teams[i] = teams[i];
 	cfg.map_half = map_half;
 	// Keep roughly one heightmap sample per world unit on bigger maps
 	// (diamond-square needs 2^n + 1 samples).
@@ -742,7 +744,7 @@ void Simulation::rebuild_nav_grid() {
 	}
 	for (int y = 0; y < nav_grid_.res; ++y) {
 		for (int x = 0; x < nav_grid_.res; ++x) {
-			if (nav_grid_.cells.at(x, y) != NAV_WATER)
+			if (nav_grid_.cells.at(x, y) != NAV_WATER && nav_grid_.cells.at(x, y) != NAV_SHALLOW)
 				nav_grid_.cells.at(x, y) = NAV_PASSABLE;
 		}
 	}
