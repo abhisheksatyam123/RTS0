@@ -8689,7 +8689,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = 14; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 the rest of the per-tick state (save_tick_state)
+	uint32_t version = 15; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 
@@ -8853,7 +8853,7 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&leg, sizeof(leg));
 	}
 
-	// 6. v14: everything else a tick reads (tools/test_save_hash.cpp checks it)
+	// 6. v15: everything else a tick reads (tools/test_save_hash.cpp checks it)
 	save_tick_state(out);
 	return true;
 }
@@ -8865,7 +8865,7 @@ bool Simulation::load_state(const char *filepath) {
 	uint32_t magic = 0, version = 0;
 	in.read((char *)&magic, sizeof(magic));
 	in.read((char *)&version, sizeof(version));
-	if (magic != 0x52545330 || version < 1 || version > 14) return false;
+	if (magic != 0x52545330 || version < 1 || version > 15) return false;
 
 	// 1. Sim scalars
 	in.read((char *)&ticks_, sizeof(ticks_));
@@ -9187,7 +9187,7 @@ bool Simulation::load_state(const char *filepath) {
 		next_id_ = max_id + 1;
 	}
 
-	if (version >= 14) {
+	if (version >= 15) {
 		if (!load_tick_state(in)) return false;
 	} else {
 		// Older saves carry none of it: start the per-tick state fresh.
