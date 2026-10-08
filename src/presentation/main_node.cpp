@@ -2747,9 +2747,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			const double now = Time::get_singleton()->get_ticks_msec() / 1000.0;
 			if (!rtso::hotkeys::held("session.noconfirmation") && now - delete_armed_at_ > 3.0) {
 				delete_armed_at_ = now;
-				chat_window_.post_overlay("[color=#ffaa44]Press " +
+				chat_window_.append_line("[color=#ffaa44]Press " +
 						String(rtso::hotkeys::table().label("session.kill").c_str()) +
-						" again to destroy the selection.[/color]");
+						" again to destroy the selection.[/color]\n");
 				return;
 			}
 			delete_armed_at_ = -10.0;
