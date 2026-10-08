@@ -4563,16 +4563,39 @@ void Simulation::tick_gather(float dt) {
 	}
 }
 
+// Foundation.js / Repairable.js CalculateBuildMultiplier: n builders at work
+// each do n^0.7 / n of their rate (BuildTimeModifier / buildTimePenalty 0.7).
+float Simulation::foundation_build_multiplier(int builders) {
+	return builders < 2 ? 1.0f : std::pow((float)builders, 0.7f) / (float)builders;
+}
+
+// Builder.js GetRate: 1 for citizens; worker elephants build twice as fast.
+float Simulation::builder_rate(size_t unit_idx) const {
+	return units_.unit_type[unit_idx] == UNIT_WORKER_ELEPHANT ? 2.0f : 1.0f;
+}
+
+// Cost.js GetBuildTime for the builder's player: the template time after
+// technologies, civ and team bonuses (Celtic Wooden Construction, ...) and the
+// AI difficulty multiplier.
+float Simulation::structure_build_time(const Building &b, uint8_t builder_team) const {
+	const uint8_t type = b.type < BLD_TYPE_COUNT ? b.type : 0;
+	float t = building_type_info(type).build_time * tech_mods(b.team).bld_build_time[type] * ai_time_mult(b.team);
+	t *= civ_bonus_mult(civ_of(builder_team), CIV_BONUS_BUILDING_BUILD_TIME, b.type);
+	t *= team_bonus_mult(builder_team, TEAM_BONUS_BUILDING_BUILD_TIME, -1, CIV_UNIT_TEMPLATE_NONE, b.type);
+	return std::max(1.0f, t);
+}
+
 void Simulation::tick_construction(float dt) {
-	// Count builders per building for multi-worker scaling (foundations only)
+	// Builders at work on each foundation (Foundation.js AddBuilder: those in range).
 	std::unordered_map<uint32_t, int> builders_per_bld;
 	const size_t n = units_.count;
 	for (size_t i = 0; i < n; ++i) {
 		if (units_.alive[i] && units_.action_state[i] == ACTION_BUILD && units_.target_building_id[i] != 0) {
 			auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
-			if (bit != building_id_to_idx_.end() && buildings_[bit->second].build_progress < 1.0f) {
-				builders_per_bld[units_.target_building_id[i]]++;
-			}
+			if (bit == building_id_to_idx_.end()) continue;
+			const Building &b = buildings_[bit->second];
+			if (b.build_progress < 1.0f && outside_and_in_build_range(b.x, b.z, b.half_size, units_.pos_x[i], units_.pos_z[i]))
+				builders_per_bld[b.id]++;
 		}
 	}
 
@@ -4601,22 +4624,18 @@ void Simulation::tick_construction(float dt) {
 		}
 
 		if (outside_and_in_build_range(b.x, b.z, b.half_size, units_.pos_x[i], units_.pos_z[i])) {
-			int worker_count = std::max(1, builders_per_bld[b.id]);
-			float speed_mult = sqrtf((float)worker_count) / (float)worker_count;
-			if (units_.unit_type[i] == UNIT_WORKER_ELEPHANT) speed_mult *= 2.0f; // Worker elephant heavy construction
-			Civilization civ = civ_of(units_.team[i]);
-			speed_mult /= civ_bonus_mult(civ, CIV_BONUS_BUILDING_BUILD_TIME, b.type); // e.g. Celtic Wooden Construction
-			speed_mult /= team_bonus_mult(units_.team[i], TEAM_BONUS_BUILDING_BUILD_TIME, -1, CIV_UNIT_TEMPLATE_NONE, b.type);
-
 			// 0 A.D. Foundation.Commit: first builder on site → scaffold + construction preview.
 			b.committed = true;
-			const BuildingTypeInfo &binfo = building_type_info(b.type);
-			float build_time = binfo.build_time * tech_mods(b.team).bld_build_time[b.type < BLD_TYPE_COUNT ? b.type : 0]
-				* ai_time_mult(b.team);
-			float rate = (1.0f / std::max(5.0f, build_time)) * speed_mult * dt;
-			b.build_progress = std::min(1.0f, b.build_progress + rate);
-			b.hp = b.max_hp * b.build_progress;
+			// Foundation.js Build: each builder adds work x MaxHitpoints / BuildTime x
+			// buildMultiplier HP, with buildMultiplier = n^0.7 / n for n builders at work
+			// (BuildTimeModifier 0.7). Progress is the best health fraction reached, so
+			// damage to a foundation has to be built back.
+			const float hp_rate = b.max_hp / structure_build_time(b, units_.team[i]);
+			const float work = foundation_build_multiplier(builders_per_bld[b.id]) * builder_rate(i);
+			b.hp = std::min(b.max_hp, b.hp + work * hp_rate * dt);
+			b.build_progress = std::min(1.0f, std::max(b.build_progress, b.hp / b.max_hp));
 			if (b.build_progress >= 1.0f) {
+				b.hp = std::max(b.hp, b.max_hp);
 				on_construction_finished(b, i); // 0 A.D. UnitAI ConstructionFinished
 				rebuild_nav_grid();
 				if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER) {
@@ -4648,7 +4667,8 @@ void Simulation::tick_repair(float dt) {
 			auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
 			if (bit != building_id_to_idx_.end()) {
 				const Building &b = buildings_[bit->second];
-				if (b.build_progress >= 1.0f && b.hp > 0.0f && b.hp < b.max_hp) {
+				if (b.build_progress >= 1.0f && b.hp > 0.0f && b.hp < b.max_hp &&
+						outside_and_in_build_range(b.x, b.z, b.half_size, units_.pos_x[i], units_.pos_z[i])) {
 					repairers_per_bld[b.id]++;
 				}
 			}
@@ -4663,15 +4683,11 @@ void Simulation::tick_repair(float dt) {
 		if (b.build_progress < 1.0f || b.hp <= 0.0f || b.hp >= b.max_hp) continue;
 
 		if (outside_and_in_build_range(b.x, b.z, b.half_size, units_.pos_x[i], units_.pos_z[i])) {
-			int worker_count = std::max(1, repairers_per_bld[b.id]);
-			float speed_mult = sqrtf((float)worker_count) / (float)worker_count;
-			if (units_.unit_type[i] == UNIT_WORKER_ELEPHANT) speed_mult *= 2.0f;
-			Civilization civ = civ_of(units_.team[i]);
-			speed_mult /= civ_bonus_mult(civ, CIV_BONUS_BUILDING_BUILD_TIME, b.type); // e.g. Celtic Wooden Construction
-			speed_mult /= team_bonus_mult(units_.team[i], TEAM_BONUS_BUILDING_BUILD_TIME, -1, CIV_UNIT_TEMPLATE_NONE, b.type);
-
-			// Repair finished building (0 A.D. Repairable.js:114-118 Repair rate)
-			b.hp = std::min(b.max_hp, b.hp + dt * 30.0f * speed_mult);
+			// Repairable.js Repair: work x buildMultiplier (n^0.7 / n) x GetRepairRate,
+			// GetRepairRate = MaxHitpoints / (RepairTimeRatio 2.0 x BuildTime).
+			const float repair_rate = b.max_hp / (REPAIR_TIME_RATIO * structure_build_time(b, units_.team[i]));
+			const float work = foundation_build_multiplier(repairers_per_bld[b.id]) * builder_rate(i);
+			b.hp = std::min(b.max_hp, b.hp + work * repair_rate * dt);
 			// Repairable sends ConstructionFinished too: the repairers move on to nearby work.
 			if (b.hp >= b.max_hp) on_construction_finished(b, i);
 		}
@@ -6590,6 +6606,7 @@ void Simulation::apply_order(uint32_t uid, const UnitOrder &o) {
 		case ORDER_GUARD: order_guard(&uid, 1, o.target); break;
 		case ORDER_HEAL: order_heal(&uid, 1, o.target); break;
 		case ORDER_TRADE: order_trade(&uid, 1, o.target, trade_market_id(o.x2)); break;
+		case ORDER_RETURN_RESOURCE: order_return_resource(&uid, 1, o.target); break;
 		case ORDER_COLLECT_TREASURE: order_collect_treasure(&uid, 1, o.target); break;
 		default: break;
 	}
@@ -6639,6 +6656,10 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 		}
 		case ORDER_HEAL: return can_heal(i, lookup_unit(o.target));
 		case ORDER_TRADE: return trade_route_ok(i, o.target, trade_market_id(o.x2));
+		case ORDER_RETURN_RESOURCE: {
+			const Building *b = building(o.target);
+			return b && units_.carry[i] > 0 && dropsite_accepts(i, *b);
+		}
 		case ORDER_COLLECT_TREASURE: return is_treasure_id(o.target);
 		default: return false;
 	}
@@ -6907,6 +6928,21 @@ void Simulation::tick_unit_ai(float dt) {
 			}
 			continue;
 		}
+		// RETURNRESOURCE: next to the dropsite (or the walk ended short of it), drop the load;
+		// tick_gather commits it at the nearest dropsite, which is now this one.
+		if (units_.order_kind[i] == ORDER_RETURN_RESOURCE && !interrupted && (now == ACTION_MOVE || now == ACTION_IDLE)) {
+			auto bit = building_id_to_idx_.find(units_.order_target[i]);
+			if (bit == building_id_to_idx_.end() || !order_still_valid(i, current_order(i))) { finish_order(i); continue; }
+			const Building &b = buildings_[bit->second];
+			const float ex = std::max(0.0f, std::fabs(units_.pos_x[i] - b.x) - b.half_size);
+			const float ez = std::max(0.0f, std::fabs(units_.pos_z[i] - b.z) - b.half_size);
+			const float reach = units_.unit_type[i] == UNIT_FISHING_BOAT ? 4.0f : 1.5f;
+			if (now == ACTION_IDLE || ex * ex + ez * ez < reach * reach) {
+				units_.action_state[i] = ACTION_RETURN_DROPSITE;
+				units_.target_resource_id[i] = 0;
+			}
+			continue;
+		}
 		// Garrison: get in once within LoadingRange; give up if the walk ends short of it.
 		if (units_.order_kind[i] == ORDER_GARRISON && !interrupted && (now == ACTION_MOVE || now == ACTION_IDLE)) {
 			auto bit = building_id_to_idx_.find(units_.order_target[i]);
@@ -7094,6 +7130,48 @@ void Simulation::start_heal(size_t h, uint32_t target, uint8_t flags) {
 void Simulation::set_unit_hp(uint32_t unit_id, float hp) {
 	const int32_t i = lookup_unit(unit_id);
 	if (i >= 0 && units_.alive[i]) units_.hp[i] = std::clamp(hp, 1.0f, units_.max_hp[i]);
+}
+
+// The dropsite rule tick_gather uses: the unit's own finished Civic Centre or civ dropsite,
+// a storehouse for wood/stone/metal, a farmstead or dock for food; boats only at docks.
+bool Simulation::dropsite_accepts(size_t i, const Building &b) const {
+	if (b.wrecked || b.hp <= 0.0f || b.team != units_.team[i] || b.build_progress < 1.0f) return false;
+	const uint8_t rt = units_.res_type_carried[i];
+	if (units_.unit_type[i] == UNIT_FISHING_BOAT) return b.type == BLD_DOCK;
+	if (b.type == BLD_TOWN_CENTER || civ_building_is_dropsite(b.type)) return true;
+	if (b.type == BLD_STOREHOUSE) return rt != RES_FOOD;
+	return (b.type == BLD_FARMSTEAD || b.type == BLD_DOCK) && rt == RES_FOOD;
+}
+
+bool Simulation::can_return_resource(uint32_t unit_id, uint32_t dropsite_id) const {
+	const int32_t i = lookup_unit(unit_id);
+	auto bit = building_id_to_idx_.find(dropsite_id);
+	return i >= 0 && units_.alive[i] && units_.carry[i] > 0 && bit != building_id_to_idx_.end() &&
+			dropsite_accepts((size_t)i, buildings_[bit->second]);
+}
+
+void Simulation::order_return_resource(const uint32_t *unit_ids_in, size_t count_in, uint32_t dropsite_id, bool queued) {
+	auto bit = building_id_to_idx_.find(dropsite_id);
+	if (bit == building_id_to_idx_.end()) return;
+	const Building &b = buildings_[bit->second];
+	std::vector<uint32_t> carriers;
+	for (size_t k = 0; k < count_in; ++k) {
+		const int32_t i = lookup_unit(unit_ids_in[k]);
+		// Queued: the load may only be picked up by an earlier order.
+		if (i >= 0 && units_.alive[i] && (queued || (units_.carry[i] > 0 && dropsite_accepts((size_t)i, b))))
+			carriers.push_back(unit_ids_in[k]);
+	}
+	UnitOrder o; o.kind = ORDER_RETURN_RESOURCE; o.target = dropsite_id; o.x = b.x; o.z = b.z;
+	const std::vector<uint32_t> now = split_queued(carriers.data(), carriers.size(), o, queued);
+	for (uint32_t uid : now) {
+		const int32_t i = lookup_unit(uid);
+		if (i < 0 || units_.carry[i] <= 0 || !dropsite_accepts((size_t)i, b)) continue;
+		// RETURNRESOURCE.APPROACHING: walk to this dropsite; tick_unit_ai drops the load there.
+		uint32_t id = uid;
+		cmd_move(&id, 1, b.x, b.z);
+		set_order((size_t)i, ORDER_RETURN_RESOURCE, 0, dropsite_id, b.x, b.z);
+		units_.target_resource_id[i] = 0;
+	}
 }
 
 void Simulation::order_heal(const uint32_t *unit_ids_in, size_t count_in, uint32_t target_unit_id, bool queued) {
