@@ -15,7 +15,7 @@ The game-level gaps below are each being built by its own parallel thread (areas
 | C. AI (Petra) | AI stays in the village phase all match (14 workers, unspent food); one AI player only. | `petra_*` in `simulation.cpp`, `petra_ai.h` |
 | D. Civ rosters and heroes | All 13 civs share 23 generic unit types with ~10 stat tweaks, some applying only to player 1. Han missing. | unit tables in `sim_types.h`, `spawn_unit`, `cmd_train` |
 | E. Buildings, techs, farming | 14 building types (a 0 A.D. civ has ~25: no fields, stables, ranges, forge, palisades); 7 techs (0 A.D.: 100+); no farming, food is a flat Town Center income. | building/tech tables in `sim_types.h`, `cmd_build`, `cmd_research`, `tick_gather`, `tick_trickle` |
-| F. Maps and scale | Random maps run at every 0 A.D. size (128 Tiny to 512 Giant) with nav, FoW and territory grids that scale at 2-unit cells (PR #14). Left: a Map Size option in game setup, map size in multiplayer setup, and more of 0 A.D.'s random maps. | `rms_generator.cpp`, `generate_random_map`, `rebuild_nav_grid`, `tick_fow` |
+| F. Maps and scale | Random maps run at every 0 A.D. size (128 Tiny to 512 Giant) with nav, FoW and territory grids that scale at 2-unit cells (PR #14). 21 random map types, including six modelled on 0 A.D.'s Mainland, Alpine Lakes, Lake, Gulf of Bothnia, Ardennes Forest and Near-Eastern Badlands. Left: a Map Size option in game setup, map size in multiplayer setup, and more of 0 A.D.'s ~60 random maps. | `rms_generator.cpp`, `generate_random_map`, `rebuild_nav_grid`, `tick_fow` |
 
 Two-real-client multiplayer is tracked in PLAN.md P1. In good shape today: pathfinding, territory, capture, garrisons, formations, trade, auras, promotion, naval transport and much of 0 A.D.'s art.
 

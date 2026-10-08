@@ -37,7 +37,7 @@ The biggest gaps to 0 A.D. are game-level rather than per-system (see [REMAINING
 | C. AI (Petra) | Fix the phase-up stall, scale the economy, several AI players | In progress |
 | D. Civ rosters and heroes | Civ-specific units and heroes, add Han, civ bonuses as data | In progress |
 | E. Buildings, techs, farming | Missing buildings, 0 A.D. tech tree, fields and farming | In progress |
-| F. Maps and scale | Larger maps, more 0 A.D. random maps (coordinate with MIGRATION.md pathfinding work) | In progress: map sizes 128 to 512 with scaling grids done (PR #14, `tools/bench_map_scale.cpp`); more random maps next |
+| F. Maps and scale | Larger maps, more 0 A.D. random maps (coordinate with MIGRATION.md pathfinding work) | In progress: map sizes 128 to 512 with scaling grids done (PR #14, `tools/bench_map_scale.cpp`); six new 0 A.D. random maps added (21 types); Map Size option and multiplayer map size next |
 
 Each thread times a fixed headless AI match before and after its change with the shared benchmark tool once it's on main.
 
