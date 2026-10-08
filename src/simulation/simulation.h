@@ -1407,6 +1407,25 @@ private:
 	NavGrid nav_grid_; // Phase1: SoA nav mesh (buildings + water), mirrors 0AD Grid<NavcellData>
 	Grid<uint8_t> territory_grid_; // grid_res_^2 player id per cell, G2 (CCmpTerritoryManager)
 	Grid<uint8_t> influence_grid_; // grid_res_^2 influence count per cell, G2
+	// CCmpTerritoryManager connectivity, derived from territory_grid_ and the territory roots
+	// (civic centres and wonders): each 4-connected patch of one player's territory is a region,
+	// connected when it holds one of that player's roots. Unconnected regions keep the count of
+	// tiles of connected foreign regions bordering them (GetNeighbours(filterConnected)).
+	// Rebuilt on demand after the grid changes; not saved or hashed.
+	struct TerritoryRegion {
+		uint8_t owner;
+		bool connected;
+		std::array<uint32_t, MAX_PLAYERS> neighbours;
+	};
+	Grid<uint16_t> territory_region_;
+	std::vector<TerritoryRegion> territory_regions_;
+	bool territory_regions_dirty_ = true;
+	// Off until build placement keeps structures out of neutral land (see territory_decay_targets).
+	static constexpr bool TERRITORY_DECAY_IN_NEUTRAL_LAND = false;
+	void ensure_territory_regions();
+	// TerritoryDecay.IsConnected + GetConnectedNeighbours for a structure: false when it does not
+	// decay; otherwise `to` gets the weight each player receives, and `to_gaia` Gaia's.
+	bool territory_decay_targets(const Building &b, std::array<float, MAX_PLAYERS> &to, float &to_gaia);
 	// rebuild_territory()'s inputs the last time it filled the grids: territory roots in buildings_
 	// order, the grid size and the map extent. Same inputs, same grids, so the 1 Hz refresh skips.
 	struct TerritoryRoot {
@@ -1431,7 +1450,7 @@ private:
 	nav::ObstacleGrid sep_grid_; // sep_obstacles_ by cell, rebuilt with it
 	// tick_capture()'s count and strength of nearby capturers per building and team, and the grid of
 	// building reach it finds them with. Rebuilt every tick.
-	struct CaptureTally { int count[4]; float strength[4]; };
+	struct CaptureTally { int count[MAX_PLAYERS]; float strength[MAX_PLAYERS]; };
 	struct CaptureReach { uint32_t building; float x, z; };
 	std::vector<CaptureTally> capture_tally_;
 	std::vector<uint32_t> capture_cell_start_;
