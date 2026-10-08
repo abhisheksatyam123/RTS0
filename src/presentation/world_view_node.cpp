@@ -710,6 +710,7 @@ enum ClipId : uint8_t {
 	CLIP_CARRY,
 	CLIP_HEAL,
 	CLIP_SLAUGHTER,
+	CLIP_PROMOTION,
 	CLIP_COUNT
 };
 
@@ -721,7 +722,7 @@ static const StringName &clip_name(ClipId id) {
 		StringName("GatherFruit"), StringName("GatherGrain"), StringName("GatherMeat"),
 		StringName("GatherFish"),
 		StringName("Build"), StringName("Carry"), StringName("Heal"),
-		StringName("Slaughter")
+		StringName("Slaughter"), StringName("Promotion")
 	};
 	return names[id < CLIP_COUNT ? id : CLIP_NONE];
 }
@@ -777,6 +778,18 @@ static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int
 		case rtso::ACTION_BUILD:
 			w.clip = CLIP_BUILD;
 			w.state = rtso::AnimState::Build;
+			return w;
+		// UnitAI INDIVIDUAL.HEAL: "heal" once in range, the move clip on the way.
+		case rtso::ACTION_HEAL:
+			if (speed2 > 0.001f) return w_move;
+			w.clip = CLIP_HEAL;
+			w.state = rtso::AnimState::Gather;
+			return w;
+		// UnitAI INDIVIDUAL.CHEERING: SelectAnimation("promotion").
+		case rtso::ACTION_CHEER:
+			w.clip = CLIP_PROMOTION;
+			w.loop = false;
+			w.state = rtso::AnimState::Idle;
 			return w;
 		case rtso::ACTION_ATTACK:
 			// Ships: Attack.js keeps attack_ranged until StopAttacking (sail falls back to idle).

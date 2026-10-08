@@ -95,8 +95,9 @@ void fragment() {
 	float ground = 1.0 - rock_weight;
 	if (paint_half > 0.0) {
 		vec3 paint = texture(paint_tex, (v_world_pos.xz + vec2(paint_half)) / (2.0 * paint_half)).rgb;
-		float fw = smoothstep(0.15, 0.85, paint.g + (noise_splat - 0.5) * 0.5) * ground;
-		vec3 forest_sample = texture(forest_tex, uv * 1.4).rgb;
+		float fw = smoothstep(0.15, 0.85, paint.g + (noise_splat - 0.5) * 0.5) * ground * 0.85;
+		// Shaded by the canopy, as 0 A.D.'s tree shadows darken it.
+		vec3 forest_sample = texture(forest_tex, uv * 1.4).rgb * 0.72;
 		final_color = mix(final_color, forest_sample, fw);
 		float mw = smoothstep(0.2, 0.9, paint.b + (noise_splat - 0.5) * 0.4) * ground;
 		final_color = mix(final_color, dirt_sample, mw);
