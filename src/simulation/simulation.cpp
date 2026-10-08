@@ -670,6 +670,8 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	else if (std::strcmp(minfo.biome, "temperate") == 0) cfg.biome = BIOME_TEMPERATE;
 	else if (std::strcmp(minfo.biome, "steppe") == 0) cfg.biome = BIOME_STEPPE;
 	else if (std::strcmp(minfo.biome, "savanna") == 0) cfg.biome = BIOME_SAVANNA;
+	else if (std::strcmp(minfo.biome, "polar") == 0) cfg.biome = BIOME_POLAR;
+	else if (std::strcmp(minfo.biome, "india") == 0) cfg.biome = BIOME_INDIA;
 	else cfg.biome = BIOME_AEGEAN;
 
 	set_sim_seed(seed);

@@ -58,6 +58,12 @@ const RMS_MAPS := [
 	["random_belgian_uplands", "Belgian Uplands (RMS)", "Random", 8, 128, "temperate", "Steep wooded hills and valleys with no water. Supports 2-8 players."],
 	["random_lorraine_plain", "Lorraine Plain (RMS)", "Random", 8, 128, "temperate", "A flat plain split by a river with a few fords. Supports 2-8 players."],
 	["random_hyrcanian_shores", "Hyrcanian Shores (RMS)", "Random", 8, 128, "temperate", "A sea along one edge, a coastal strip and wooded highlands. Supports 2-8 players."],
+	["random_northern_lights", "Northern Lights (RMS)", "Random", 8, 128, "polar", "Snowy land with a frozen sea and ice floes; scarce wood. Supports 2-8 players."],
+	["random_kerala", "Kerala (RMS)", "Random", 8, 128, "india", "India's south-western shore, between the sea and the mountains. Supports 2-8 players."],
+	["random_polar_sea", "Polar Sea (RMS)", "Random", 8, 128, "polar", "Icy land round a central sea, hardly any trees. Supports 2-8 players."],
+	["random_sahel", "Sahel (RMS)", "Random", 8, 128, "savanna", "Open savanna with a few water holes; little wood. Supports 2-8 players."],
+	["random_african_plains", "African Plains (RMS)", "Random", 8, 128, "savanna", "Lush plains with watering holes, hills and wildlife. Supports 2-8 players."],
+	["random_alpine_valley", "Alpine Valley (RMS)", "Random", 8, 128, "alpine", "Deep valleys walled off by mountain ranges with passes. Supports 2-8 players."],
 ]
 
 # 0 A.D. map sizes (width in meters) for random maps.
