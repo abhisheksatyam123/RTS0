@@ -371,6 +371,19 @@ int main() {
 		delete sim;
 	}
 
+	// 12. A 6-slot lobby (U6): the random map has a base per slot and every AI slot gets Petra.
+	{
+		Simulation sim;
+		sim.generate_random_map(MAP_MAINLAND, 11, 6, 128.0f);
+		for (uint8_t t = 0; t < MAX_PLAYERS; ++t) sim.set_player_active(t, t < 6, t > 0 && t < 6);
+		int tcs[MAX_PLAYERS] = {};
+		for (const auto &b : sim.buildings_)
+			if (b.type == BLD_TOWN_CENTER && b.team < MAX_PLAYERS) tcs[b.team]++;
+		for (uint8_t t = 0; t < 6; ++t) CHECK(tcs[t] == 1);
+		for (uint8_t t = 1; t < 6; ++t) CHECK(sim.petra_runs_for(t));
+		CHECK(!sim.petra_runs_for(0) && !sim.petra_runs_for(6));
+	}
+
 	if (failures) {
 		std::printf("%d check(s) failed\n", failures);
 		return 1;

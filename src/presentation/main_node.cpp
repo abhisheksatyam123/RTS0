@@ -1,4 +1,5 @@
 #include "main_node.h"
+#include <godot_cpp/classes/os.hpp>
 #include <godot_cpp/classes/theme.hpp>
 #include "popup_safe.h"
 #include <godot_cpp/core/class_db.hpp>
@@ -179,6 +180,8 @@ static Ref<Texture2D> load_tex(const String &path) {
 
 void RtsoMain::_ready() {
 	rtso::Logger::info("Main", "RTS0 0 A.D. Reborn Ready - Full 0 A.D. UI & Simulation");
+	// 0 A.D. writes oos_dump.txt/.dat to its log dir; ours is user://.
+	turn_mgr_.set_oos_dump_dir(OS::get_singleton()->get_user_data_dir().utf8().get_data());
 
 	// Incoming chat: 0 A.D. NetMessages.h NMT_CHAT parity. Fires on the main
 	// thread from net_host_.poll() (_process), so appending to the chat
@@ -1182,8 +1185,15 @@ void RtsoMain::_on_menu_button_pressed() {
 	Node *pause = get_node_or_null(NodePath("PauseMenu"));
 	if (pause) {
 		pause->call("toggle");
-		paused_via_menu = !paused_via_menu;
+		set_menu_paused(!paused_via_menu);
 	}
+}
+
+// In a networked match the pause menu pauses every peer (0 A.D.
+// NMT_CLIENT_PAUSED); offline it just stops the local sim.
+void RtsoMain::set_menu_paused(bool paused) {
+	paused_via_menu = paused;
+	if (net_lockstep()) turn_mgr_.set_local_paused(paused);
 }
 
 void RtsoMain::_on_ungarrison_pressed() {
@@ -1376,8 +1386,20 @@ void RtsoMain::_process(double delta) {
 		net_arena_.reset();
 		// Consume NMT_GAME_START seed-sync queued by TurnManager::onMessage.
 		apply_net_game_start();
+		// Rejoin of a match in progress: the host sent its world; load it and
+		// play on in the seat our dropped client had.
+		if (!net_host_.isHost() && !net_game_started_ && sim && turn_mgr_.apply_pending_rejoin(*sim)) {
+			net_game_started_ = true;
+			selected_ids.clear();
+			selected_building_id = 0;
+			if (lobby_status)
+				lobby_status->set_text("Rejoined the match at turn " + String::num_int64(turn_mgr_.rejoin_turn()) +
+						" as Player " + String::num_int64(turn_mgr_.local_player() + 1));
+		}
 	}
-	if (paused_via_menu) return;
+	// Networked: keep running TurnManager::tick, which holds turns for everyone
+	// while any client is paused, so this peer still sees remote pauses end.
+	if (paused_via_menu && !net_lockstep()) return;
 	double scaled_delta = delta * game_speed;
 	match_elapsed_time += scaled_delta;
 
@@ -1391,8 +1413,21 @@ void RtsoMain::_process(double delta) {
 			// NetClientTurnManager: one 200ms turn batch, sim steps inside TurnManager::tick
 			if (turn_mgr_.tick((float)scaled_delta, *sim))
 				ticks = rtso::TurnManager::TICKS_PER_TURN;
-			if (turn_mgr_.has_out_of_sync() && lobby_status)
-				lobby_status->set_text("OOS turn " + String::num_int64(turn_mgr_.oos_turn()));
+			if (turn_mgr_.has_out_of_sync() && lobby_status) {
+				// 0 A.D. session.js "Out-Of-Sync" notice: the first diverging turn and who.
+				String who;
+				for (const auto &n : turn_mgr_.oos_players()) who += (who.is_empty() ? "" : ", ") + String::utf8(n.c_str());
+				lobby_status->set_text("Out-Of-Sync on turn " + String::num_int64(turn_mgr_.oos_turn()) +
+						(who.is_empty() ? String() : ". Players: " + who) +
+						(turn_mgr_.oos_dump_path().empty() ? String() : ". Dump: " + String::utf8(turn_mgr_.oos_dump_path().c_str())));
+			} else if (turn_mgr_.is_paused() && lobby_status) {
+				String who;
+				for (uint32_t c : turn_mgr_.paused_clients()) {
+					const uint8_t pl = turn_mgr_.player_for_client(c);
+					who += (who.is_empty() ? "" : ", ") + (pl < 8 ? "Player " + String::num_int64(pl + 1) : "an observer");
+				}
+				lobby_status->set_text("Game paused by " + who);
+			}
 		}
 		// else pre-Start lobby phase: poll + GAME_START consume only (above) -
 		// no lockstep turns and no hash exchange across divergent boot worlds.
@@ -2413,7 +2448,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			Node *pause = get_node_or_null(NodePath("PauseMenu"));
 			if (pause) {
 				pause->call("toggle");
-				paused_via_menu = !paused_via_menu;
+				set_menu_paused(!paused_via_menu);
 				return;
 			}
 			if (build_mode) enter_build_mode(false);
@@ -3145,6 +3180,12 @@ void RtsoMain::apply_match_settings() {
 		civ = (int)slot_civs[0];
 		ai = (int)slot_civs[1];
 	}
+	// Seats from the lobby (0 human, 1 AI, 2 closed); a random map gets a base for each.
+	Array slot_types = ms->get("slot_types");
+	int seats = 0;
+	for (int i = 0; i < slot_types.size() && i < rtso::MAX_PLAYERS; ++i)
+		if ((int)slot_types[i] != 2) seats = i + 1;
+	random_map_players = std::max(2, seats);
 	if (!load_map_seeded(map_id, seed)) {
 		UtilityFunctions::printerr("[RtsoMain] GameSetup map failed: ", map_id, " - default arena.");
 		if (civ >= 0 && civ < rtso::CIV_COUNT) sim->set_player_civ((uint8_t)civ);
@@ -3182,9 +3223,17 @@ void RtsoMain::apply_match_settings() {
 			kStartRes[start_res][2], kStartRes[start_res][3]);
 	// Per-slot civs (slot 0 = human; extra slots honor team civs the
 	// RMS/JSON spawns actually created - Petra only drives team 1).
-	for (int t = 0; t < 4 && t < slot_civs.size(); ++t) {
+	for (int t = 0; t < rtso::MAX_PLAYERS && t < slot_civs.size(); ++t) {
 		int sc = (int)slot_civs[t];
 		if (sc >= 0 && sc < rtso::CIV_COUNT) sim->set_team_civ((uint8_t)t, (uint8_t)sc);
+	}
+	// Seat the lobby's slots so every AI slot runs its own Petra (as apply_game_setup does).
+	if (seats > 0) {
+		for (int t = 0; t < rtso::MAX_PLAYERS; ++t) {
+			const int ty = t < slot_types.size() ? (int)slot_types[t] : 2;
+			const bool seated = t < seats && ty != 2 && (t > 0 || ty == 0);
+			sim->set_player_active((uint8_t)t, seated || t == 0, t > 0 && seated && ty == 1);
+		}
 	}
 	UtilityFunctions::print("[RtsoMain] GameSetup ", map_id, " seed ", (int64_t)seed,
 			" civ ", rtso::civ_info(sim->player_civ()).name,
@@ -3290,7 +3339,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		map_id == "jebel_barkal" || map_id == "random_jebel_barkal") {
 		
 		rtso::MapType mtype = rtso::MAP_RANDOM_CONTINENTAL;
-		int num_p = 2;
+		int num_p = std::clamp(random_map_players, 2, (int)rtso::MAX_PLAYERS);
 		if (map_id.contains("archipelago")) mtype = rtso::MAP_RANDOM_ARCHIPELAGO;
 		else if (map_id.contains("saharan_oases")) mtype = rtso::MAP_SAHARAN_OASES;
 		else if (map_id.contains("oasis")) mtype = rtso::MAP_RANDOM_OASIS;
@@ -3301,7 +3350,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		else if (map_id.contains("danubius")) mtype = rtso::MAP_DANUBIUS;
 		else if (map_id.contains("anatolian")) mtype = rtso::MAP_ANATOLIAN_PLATEAU;
 		else if (map_id.contains("jebel") || map_id.contains("barkal")) mtype = rtso::MAP_JEBEL_BARKAL;
-		else if (map_id.contains("mediterranean")) { mtype = rtso::MAP_RANDOM_MEDITERRANEAN; num_p = 4; }
+		else if (map_id.contains("mediterranean")) mtype = rtso::MAP_RANDOM_MEDITERRANEAN;
 		// Newer maps resolve by id ("random_<id>" or "<id>"), see map_type_info.
 		for (int t = rtso::MAP_MAINLAND; t < rtso::MAP_TYPE_COUNT; ++t) {
 			String id = rtso::map_type_info((uint8_t)t).id;
@@ -3385,11 +3434,17 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		int amt = (int)r.get("amount", 600);
 
 		uint8_t rtype = rtso::RES_WOOD;
+		uint8_t rsub = rtso::RES_SUB_NONE;
 		if (rtype_str == "gold" || rtype_str == "metal") rtype = rtso::RES_GOLD;
 		else if (rtype_str == "stone" || rtype_str == "rock") rtype = rtso::RES_STONE;
 		else if (rtype_str == "food" || rtype_str == "fruit") rtype = rtso::RES_FOOD;
+		else if (rtype_str == "fish") { // 0 A.D. gaia/fish/*: only fishing boats gather it
+			rtype = rtso::RES_FOOD;
+			rsub = rtso::RES_SUB_FISH;
+			if (!r.has("amount")) amt = rtso::FISH_FOOD_SUPPLY;
+		}
 
-		sim->spawn_resource_world(rx, rz, rtype, amt);
+		sim->spawn_resource_world(rx, rz, rtype, amt, rsub);
 	}
 
 	// Spawn Wildlife Fauna
@@ -3695,6 +3750,9 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	if (!sim) return;
 	// Every peer generates the same map: the size rides in NMT_GAME_START.
 	random_map_size = (setup.map_size >= 128 && setup.map_size <= 512) ? setup.map_size : 128;
+	random_map_players = 2;
+	for (uint8_t i = 0; i < setup.slot_count && i < rtso::MAX_PLAYERS; ++i)
+		if (setup.slot_types[i] != 'x') random_map_players = std::max(random_map_players, (int)i + 1);
 	if (!load_map_seeded(String(setup.map_id.c_str()), setup.seed)) {
 		if (lobby_status) lobby_status->set_text("GameStart failed: map regen failed");
 		return;
@@ -3723,7 +3781,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	uint8_t sr = setup.start_res > 3 ? 1 : setup.start_res;
 	sim->set_starting_resources(kStartRes[sr][0], kStartRes[sr][1],
 			kStartRes[sr][2], kStartRes[sr][3]);
-	for (uint8_t t = 0; t < 4 && t < setup.slot_count; ++t) {
+	for (uint8_t t = 0; t < rtso::MAX_PLAYERS && t < setup.slot_count; ++t) {
 		if (setup.civs[t] < rtso::CIV_COUNT) sim->set_team_civ(t, setup.civs[t]);
 	}
 	// Seat every slot: Petra runs only for 'a' slots, so a second human in
@@ -3811,6 +3869,11 @@ void RtsoMain::_on_lobby_join_pressed() {
 	turn_mgr_.set_net_host(&net_host_, 1);
 	turn_mgr_.clear_game_started();
 	net_game_started_ = false; // wait for host's NMT_GAME_START before lockstep turns
+	// Once connected, ask to rejoin: a host still in its lobby declines and its
+	// NMT_GAME_START starts us as usual; a host mid-match sends its world.
+	net_host_.onPeerConnected([this](uint32_t) {
+		if (!net_host_.isHost() && !net_game_started_) turn_mgr_.request_rejoin();
+	});
 	if (lobby_status)
 		lobby_status->set_text("Connecting " + String(ip.c_str()) + ":" + String::num_int64(port));
 }
