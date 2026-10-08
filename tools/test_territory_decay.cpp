@@ -1,7 +1,8 @@
 // 0 A.D. TerritoryDecay.js + Capturable.js: territory regions are connected when they hold one of
 // their owner's civic centres. A structure decays (20 capture points a second, against its own
 // regeneration of 5) when it stands
-//   - in neutral land: to Gaia (outposts and docks don't decay there),
+//   - in neutral land: to Gaia (outposts and docks don't decay there); off in RTS0 until
+//     placement keeps structures out of neutral land,
 //   - in another player's connected territory: to that player, unless they are allies,
 //   - in its owner's territory cut off from every civic centre: to the connected regions
 //     bordering it, or to Gaia when there are none; never next to a connected ally.
@@ -57,19 +58,13 @@ int main() {
 		CHECK(points_of(s, bk, 0) == find_bld(s, bk)->max_capture_points);
 	}
 
-	// 2. Neutral land: decays to Gaia at 20 - 5 = 15 points a second, then turns Gaia.
+	// 2. Neutral land: no decay while RTS0 still lets any structure be placed there
+	// (TERRITORY_DECAY_IN_NEUTRAL_LAND; 0 A.D. decays them to Gaia).
 	{
 		fresh(s);
 		uint32_t bk = s.spawn_building_world(-40.0f, 30.0f, BLD_BARRACKS, 0, 1.0f);
-		uint32_t op = s.spawn_building_world(30.0f, -40.0f, BLD_OUTPOST, 0, 1.0f);
-		const float max = find_bld(s, bk)->max_capture_points;
-		run(s, 10.0f);
-		const float after10 = points_of(s, bk, 0);
-		std::printf("barracks in neutral land: %.0f of %.0f points after 10 s\n", after10, max);
-		CHECK(owner_of(s, bk) == 0 && std::fabs(after10 - (max - 150.0f)) < 20.0f);
-		run(s, max / 15.0f);
-		CHECK(owner_of(s, bk) == GAIA_PLAYER);
-		CHECK(owner_of(s, op) == 0); // outposts only decay in enemy territory
+		run(s, 40.0f);
+		CHECK(owner_of(s, bk) == 0 && points_of(s, bk, 0) == find_bld(s, bk)->max_capture_points);
 	}
 
 	// 3. An enemy's connected territory: to that enemy. An ally's: no decay.
@@ -120,7 +115,7 @@ int main() {
 	// 7. Save mid-decay: the loaded copy decays the same way and hashes the same.
 	{
 		fresh(s);
-		uint32_t bk = s.spawn_building_world(-40.0f, 30.0f, BLD_BARRACKS, 0, 1.0f);
+		uint32_t bk = s.spawn_building_world(25.0f, 30.0f, BLD_HOUSE, 0, 1.0f);
 		run(s, 8.0f);
 		const char *path = "/tmp/rts0_test_territory_decay.sav";
 		CHECK(s.save_state(path));
