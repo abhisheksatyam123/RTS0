@@ -3349,6 +3349,36 @@ void place_fortress_walls(Simulation &sim, const std::vector<RmsGenerator::Playe
 
 void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid &hm, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config) {
 	const bool fortress = config.map_type == MAP_FORTRESS;
+	// The island maps (aegean_sea.js to harbor.js) start players on land
+	// smaller than RTS0's base layout: resource clusters that would fall in
+	// the water are pulled back towards the civic centre onto dry land.
+	const MapType mt = config.map_type;
+	const bool keep_dry = mt == MAP_AEGEAN_SEA || mt == MAP_ARCHIPELAGO_0AD || mt == MAP_ISLANDS ||
+	                      mt == MAP_CYCLADIC_ARCHIPELAGO || mt == MAP_SNOWFLAKE_SEAROCKS || mt == MAP_HARBOR;
+	const float dry_h = sim.water_height() + 0.6f;
+	auto dry = [&](float px, float pz, float &cx, float &cz, float spread) {
+		if (!keep_dry) return;
+		auto wet = [&](float x, float z) {
+			if (hm.sample_world(x, z) < dry_h) return true;
+			for (int k = 0; k < 8; ++k) {
+				const float a = 0.7853982f * (float)k;
+				if (hm.sample_world(x + std::cos(a) * spread, z + std::sin(a) * spread) < dry_h) return true;
+			}
+			// Dry land across a strait (another island) does not count.
+			const float l = std::hypot(x - px, z - pz);
+			for (float t = 0.0f; t < l; t += 0.5f)
+				if (hm.sample_world(px + (x - px) * t / l, pz + (z - pz) * t / l) < dry_h) return true;
+			return false;
+		};
+		const float d = std::hypot(cx - px, cz - pz);
+		if (d < 1e-3f) return;
+		const float ux = (cx - px) / d, uz = (cz - pz) / d;
+		for (float r = d; r >= 7.0f; r -= 0.5f) {
+			cx = px + ux * r;
+			cz = pz + uz * r;
+			if (!wet(cx, cz)) return;
+		}
+	};
 	for (const auto &sp : spawns) {
 		uint8_t team = sp.team;
 		float px = sp.x;
@@ -3391,9 +3421,22 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 			continue;
 		}
 
+		// islands.js: a dock on the shore towards the map centre
+		// (findLocationInDirectionBasedOnHeight from the base to the centre).
+		if (mt == MAP_ISLANDS) {
+			const float d = std::hypot(px, pz);
+			for (float t = 8.0f; t < d; t += 0.5f) {
+				const float dx = px - px / d * t, dz = pz - pz / d * t;
+				if (hm.sample_world(dx, dz) >= sim.water_height() + NAV_WATER_MARGIN) continue;
+				sim.spawn_building_world(dx, dz, BLD_DOCK, team, 1.0f);
+				break;
+			}
+		}
+
 		// 4. Primary Food: Starter Berry Bushes (5 bushes, 450 food each)
 		float berry_cx = px + fx * 5.5f + rx * 6.5f;
 		float berry_cz = pz + fz * 5.5f + rz * 6.5f;
+		dry(px, pz, berry_cx, berry_cz, 2.5f);
 		for (int b = 0; b < 5; ++b) {
 			float ba = (6.2831853f * b) / 5.0f;
 			float bx = berry_cx + std::cos(ba) * 1.5f;
@@ -3404,6 +3447,7 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 		// 5. Primary Forest: Dense Woodline (10 trees, 800 wood each)
 		float forest_cx = px - fx * 10.5f + rx * 3.5f;
 		float forest_cz = pz - fz * 10.5f + rz * 3.5f;
+		dry(px, pz, forest_cx, forest_cz, 5.0f);
 		for (int t = 0; t < 10; ++t) {
 			float ta = -1.2f + (2.4f * t) / 9.0f;
 			float tx = forest_cx + std::cos(ta) * 4.0f + rng.range_float(-0.4f, 0.4f);
@@ -3414,6 +3458,7 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 		// 6. Primary Gold Mine (3 Gold Rocks, 1200 gold each)
 		float gold_cx = px + fx * 3.5f - rx * 11.5f;
 		float gold_cz = pz + fz * 3.5f - rz * 11.5f;
+		dry(px, pz, gold_cx, gold_cz, 2.8f);
 		for (int g = 0; g < 3; ++g) {
 			float ga = (6.2831853f * g) / 3.0f;
 			float gx = gold_cx + std::cos(ga) * 1.8f;
@@ -3424,6 +3469,7 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 		// 7. Primary Stone Mine (2 Stone Rocks, 1200 stone each)
 		float stone_cx = px - fx * 8.5f - rx * 9.5f;
 		float stone_cz = pz - fz * 8.5f - rz * 9.5f;
+		dry(px, pz, stone_cx, stone_cz, 2.5f);
 		for (int s = 0; s < 2; ++s) {
 			float sx = stone_cx + (s == 0 ? -1.2f : 1.2f);
 			float sz = stone_cz + (s == 0 ? -0.8f : 0.8f);
@@ -3433,6 +3479,7 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 		// 8. Secondary Forward Gold Mine (Expansion)
 		float sec_gold_cx = px + fx * 22.0f + rx * 6.0f;
 		float sec_gold_cz = pz + fz * 22.0f + rz * 6.0f;
+		dry(px, pz, sec_gold_cx, sec_gold_cz, 2.8f);
 		for (int g = 0; g < 3; ++g) {
 			float ga = (6.2831853f * g) / 3.0f;
 			sim.spawn_resource_world(sec_gold_cx + std::cos(ga) * 1.8f, sec_gold_cz + std::sin(ga) * 1.8f, RES_GOLD, 1500);
@@ -3441,6 +3488,7 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 		// 9. Secondary Stone Mine (Flank)
 		float sec_stone_cx = px + fx * 18.0f - rx * 16.0f;
 		float sec_stone_cz = pz + fz * 18.0f - rz * 16.0f;
+		dry(px, pz, sec_stone_cx, sec_stone_cz, 2.5f);
 		for (int s = 0; s < 2; ++s) {
 			sim.spawn_resource_world(sec_stone_cx + (s == 0 ? -1.3f : 1.3f), sec_stone_cz, RES_STONE, 1500);
 		}
@@ -3448,6 +3496,7 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 		// 10. Starter Wildlife: Passive Deer Herd (4 deer)
 		float deer_cx = px - fx * 14.0f - rx * 5.0f;
 		float deer_cz = pz - fz * 14.0f - rz * 5.0f;
+		dry(px, pz, deer_cx, deer_cz, 3.5f);
 		for (int d = 0; d < 4; ++d) {
 			float da = (6.2831853f * d) / 4.0f;
 			sim.spawn_fauna(deer_cx + std::cos(da) * 2.5f, deer_cz + std::sin(da) * 2.5f, FAUNA_DEER);
@@ -3456,6 +3505,7 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 		// 11. Starter Dangerous Prey: 2 Wild Boars
 		float boar_cx = px + fx * 19.0f - rx * 5.0f;
 		float boar_cz = pz + fz * 19.0f - rz * 5.0f;
+		dry(px, pz, boar_cx, boar_cz, 2.5f);
 		sim.spawn_fauna(boar_cx - 1.5f, boar_cz, FAUNA_BOAR);
 		sim.spawn_fauna(boar_cx + 1.5f, boar_cz, FAUNA_BOAR);
 	}
@@ -3691,6 +3741,767 @@ void RmsGenerator::distribute_relics(Simulation &sim, const HeightmapGrid &hm, f
 }
 
 // =========================================================================
+// Maps modelled on 0 A.D. maps/random/{aegean_sea,archipelago,islands,
+// cycladic_archipelago,snowflake_searocks,harbor}.js
+// =========================================================================
+
+namespace {
+
+constexpr float kSeasPi = 3.14159265f;
+
+// rmgen scaleByMapSize without rounding (0 A.D. returns a float).
+inline float seas_scale(float a, float b, float half) {
+	return a + (b - a) * std::max(0.0f, 2.0f * half - 128.0f) / 384.0f;
+}
+
+// Nearest grid vertex to a world point, clamped to the map.
+inline int seas_vertex(const HeightmapGrid &hm, float wx, float wz) {
+	const float sp = grid_spacing(hm);
+	const int x = std::clamp((int)std::lround((wx + hm.map_half) / sp), 0, hm.res - 1);
+	const int z = std::clamp((int)std::lround((wz + hm.map_half) / sp), 0, hm.res - 1);
+	return z * hm.res + x;
+}
+
+inline void seas_world(const HeightmapGrid &hm, int i, float &wx, float &wz) { hm.grid_to_world(i % hm.res, i / hm.res, wx, wz); }
+
+// Inside the circle a 0 A.D. circular map covers.
+inline bool seas_in_circle(const HeightmapGrid &hm, int i) {
+	float wx, wz;
+	seas_world(hm, i, wx, wz);
+	return wx * wx + wz * wz < hm.map_half * hm.map_half;
+}
+
+// ChainPlacer (rmgen placer/centered/ChainPlacer.js) on the vertex grid:
+// circles of min_r..max_r tiles (from `queue` first, last element first),
+// each centred on a random edge vertex of the area so far, edges kept within
+// max_dist tiles (Chebyshev, 0 = no limit) of the centre. Vertices `allow`
+// rejects are left out; more than fail_fraction of them fails the area
+// (returns an empty mask).
+template <class Allow>
+std::vector<uint8_t> seas_chain(const HeightmapGrid &hm, RmsRng &rng, float cx, float cz, int min_r, int max_r, int circles,
+		float fail_fraction, float max_dist, std::vector<int> queue, const Allow &allow) {
+	const int res = hm.res;
+	const float sp = grid_spacing(hm);
+	const int start = seas_vertex(hm, cx, cz);
+	if (!allow(start)) return {};
+	min_r = std::min(max_r, std::max(min_r, 1));
+	std::vector<int> state((size_t)res * (size_t)res, -1);
+	std::vector<uint8_t> mask((size_t)res * (size_t)res, 0);
+	std::vector<int> edges{start};
+	const int sx = start % res, sz = start / res;
+	int failed = 0, count = 0;
+	for (int c = 0; c < circles && !edges.empty(); ++c) {
+		const int e = edges[(size_t)rng.range_int(0, (int)edges.size() - 1)];
+		int r;
+		if (!queue.empty()) { r = queue.back(); queue.pop_back(); }
+		else r = rng.range_int(min_r, max_r);
+		const float rv = (float)r / sp, r2 = rv * rv;
+		const int ex = e % res, ez = e / res, ri = (int)std::ceil(rv);
+		const int x0 = std::max(0, ex - ri), x1 = std::min(res - 1, ex + ri);
+		const int z0 = std::max(0, ez - ri), z1 = std::min(res - 1, ez + ri);
+		for (int z = z0; z <= z1; ++z)
+			for (int x = x0; x <= x1; ++x) {
+				if ((float)((x - ex) * (x - ex) + (z - ez) * (z - ez)) >= r2) continue;
+				++count;
+				const int i = z * res + x;
+				if (!allow(i)) { ++failed; continue; }
+				int &st = state[(size_t)i];
+				if (st == -1) {
+					mask[(size_t)i] = 1;
+					st = -2;
+				} else if (st >= 0) {
+					const int k0 = st;
+					edges.erase(edges.begin() + k0);
+					st = -2;
+					for (size_t k = (size_t)k0; k < edges.size(); ++k) --state[(size_t)edges[k]];
+				}
+			}
+		for (int z = z0; z <= z1; ++z)
+			for (int x = x0; x <= x1; ++x) {
+				if (max_dist > 0.0f && ((float)std::abs(x - sx) * sp > max_dist || (float)std::abs(z - sz) * sp > max_dist)) continue;
+				const int i = z * res + x;
+				if (state[(size_t)i] != -2) continue;
+				if ((x > 0 && state[(size_t)i - 1] == -1) || (z > 0 && state[(size_t)(i - res)] == -1) ||
+				    (x < res - 1 && state[(size_t)i + 1] == -1) || (z < res - 1 && state[(size_t)(i + res)] == -1)) {
+					edges.push_back(i);
+					state[(size_t)i] = (int)edges.size() - 1;
+				}
+			}
+	}
+	if ((float)failed > (float)count * fail_fraction) return {};
+	return mask;
+}
+
+// ClumpPlacer (rmgen placer/centered/ClumpPlacer.js): a roughly round clump of
+// about `size` tiles; coherence 1 is a circle, smoothness sets how many
+// control points shape its border. Same failure rule as seas_chain.
+template <class Allow>
+std::vector<uint8_t> seas_clump(const HeightmapGrid &hm, RmsRng &rng, float size, float coherence, float smoothness,
+		float fail_fraction, float cx, float cz, const Allow &allow) {
+	const int res = hm.res;
+	const float sp = grid_spacing(hm);
+	const int start = seas_vertex(hm, cx, cz);
+	if (!allow(start)) return {};
+	const float radius = std::sqrt(size / kSeasPi) / sp;
+	const float perim = 4.0f * radius * 2.0f * kSeasPi;
+	const int int_perim = std::max(1, (int)std::ceil(perim));
+	int ctrl = 1 + (int)std::floor(1.0f / std::max(smoothness, 1.0f / (float)int_perim));
+	if ((float)ctrl > radius * 2.0f * kSeasPi) ctrl = (int)std::floor(radius * 2.0f * kSeasPi) + 1;
+	ctrl = std::max(1, ctrl);
+	std::vector<float> coords((size_t)ctrl + 1, 0.0f), vals((size_t)ctrl + 1, 0.0f), noise((size_t)int_perim, 0.0f);
+	for (int i = 0; i < ctrl; ++i) {
+		coords[(size_t)i] = (float)i * perim / (float)ctrl;
+		vals[(size_t)i] = rng.range_float(0.0f, 2.0f);
+	}
+	int c = 0;
+	bool looped = false;
+	for (int i = 0; i < int_perim; ++i) {
+		if (coords[(size_t)((c + 1) % ctrl)] < (float)i && !looped) {
+			c = (c + 1) % ctrl;
+			if (c == ctrl - 1) looped = true;
+		}
+		const float span = (looped ? perim : coords[(size_t)((c + 1) % ctrl)]) - coords[(size_t)c];
+		const float t = span > 0.0f ? ((float)i - coords[(size_t)c]) / span : 0.0f;
+		noise[(size_t)i] = cubic_weight(vals[(size_t)((c + ctrl - 1) % ctrl)], vals[(size_t)c], vals[(size_t)((c + 1) % ctrl)],
+		                                vals[(size_t)((c + 2) % ctrl)], t);
+	}
+	std::vector<uint8_t> mask((size_t)res * (size_t)res, 0);
+	int failed = 0, count = 0;
+	const float sx = (float)(start % res), sz = (float)(start / res);
+	for (int step = 0; step < int_perim; ++step) {
+		const float a = 2.0f * kSeasPi * (float)step / perim;
+		const float dx = std::sin(a), dz = std::cos(a);
+		const int steps = (int)std::ceil(radius * (1.0f + (1.0f - coherence) * noise[(size_t)step]));
+		count += steps;
+		float px = sx, pz = sz;
+		for (int s = 0; s < steps; ++s) {
+			const int ix = (int)std::lround(px), iz = (int)std::lround(pz);
+			const int i = iz * res + ix;
+			if (ix >= 0 && iz >= 0 && ix < res && iz < res && allow(i)) mask[(size_t)i] = 1;
+			else ++failed;
+			px += dx;
+			pz += dz;
+		}
+	}
+	if ((float)failed > (float)count * fail_fraction) return {};
+	return mask;
+}
+
+// PathPlacer (rmgen placer/noncentered/PathPlacer.js): a band `width` tiles
+// wide from a to b, bent by smoothed noise (waviness, smoothness, offset) and
+// tapered (width x (1 - t x tapering) along it). With fail_fraction 0 any
+// rejected vertex fails the whole path.
+template <class Allow>
+std::vector<uint8_t> seas_path(const HeightmapGrid &hm, RmsRng &rng, float ax, float az, float bx, float bz, float width,
+		float waviness, float smoothness, float offset, float tapering, float fail_fraction, const Allow &allow) {
+	const int res = hm.res;
+	const float sp = grid_spacing(hm), half = hm.map_half;
+	const float len = std::max(1e-3f, std::hypot(bx - ax, bz - az));
+	const int nw = 1 + (int)std::floor(len / 4.0f * waviness);
+	const int nl = 1 + (int)std::floor(len / 4.0f * smoothness);
+	const float off = 1.0f + std::floor(len / 4.0f * offset);
+	std::vector<float> ctrl((size_t)nw, 0.0f);
+	for (int j = 1; j < nw - 1; ++j) ctrl[(size_t)j] = rng.range_float(-off, off);
+	const int total = nw * nl;
+	std::vector<float> noise((size_t)total + 1, 0.0f);
+	for (int j = 0; j < nw; ++j)
+		for (int k = 0; k < nl; ++k)
+			noise[(size_t)(j * nl + k)] = cubic_weight(ctrl[(size_t)((j + nw - 1) % nw)], ctrl[(size_t)j], ctrl[(size_t)((j + 1) % nw)],
+			                                           ctrl[(size_t)((j + 2) % nw)], (float)k / (float)nl);
+	const float ux = (bx - ax) / len, uz = (bz - az) / len, px = -uz, pz = ux;
+	std::vector<uint8_t> mask((size_t)res * (size_t)res, 0);
+	int failed = 0;
+	for (int j = 0; j < total; ++j) {
+		const float s1 = (float)j / (float)total, s2 = (float)(j + 1) / (float)total;
+		const float p1x = ax + (bx - ax) * s1 + px * noise[(size_t)j], p1z = az + (bz - az) * s1 + pz * noise[(size_t)j];
+		const float p2x = ax + (bx - ax) * s2 + px * noise[(size_t)j + 1], p2z = az + (bz - az) * s2 + pz * noise[(size_t)j + 1];
+		const float w = std::max(0.0f, (1.0f - s1 * tapering) * width / 2.0f);
+		const float sl2 = (p2x - p1x) * (p2x - p1x) + (p2z - p1z) * (p2z - p1z);
+		const int x0 = std::max(0, (int)std::floor((std::min(p1x, p2x) - w + half) / sp));
+		const int x1 = std::min(res - 1, (int)std::ceil((std::max(p1x, p2x) + w + half) / sp));
+		const int z0 = std::max(0, (int)std::floor((std::min(p1z, p2z) - w + half) / sp));
+		const int z1 = std::min(res - 1, (int)std::ceil((std::max(p1z, p2z) + w + half) / sp));
+		for (int z = z0; z <= z1; ++z)
+			for (int x = x0; x <= x1; ++x) {
+				const float wx = -half + (float)x * sp, wz = -half + (float)z * sp;
+				float t = sl2 > 0.0f ? ((wx - p1x) * (p2x - p1x) + (wz - p1z) * (p2z - p1z)) / sl2 : 0.0f;
+				t = std::clamp(t, 0.0f, 1.0f);
+				const float qx = p1x + (p2x - p1x) * t, qz = p1z + (p2z - p1z) * t;
+				if ((wx - qx) * (wx - qx) + (wz - qz) * (wz - qz) > w * w) continue;
+				const int i = z * res + x;
+				if (!allow(i)) {
+					if (fail_fraction <= 0.0f) return {};
+					++failed;
+					continue;
+				}
+				mask[(size_t)i] = 1;
+			}
+	}
+	if ((float)failed > fail_fraction * width * len) return {};
+	return mask;
+}
+
+// SmoothElevationPainter(ELEVATION_MODIFY, dh, blend) over `mask`.
+void seas_paint_modify(HeightmapGrid &hm, const std::vector<uint8_t> &mask, float dh, float blend) {
+	std::vector<uint8_t> outside(mask.size());
+	for (size_t i = 0; i < mask.size(); ++i) outside[i] = !mask[i];
+	const auto d = distance_to_mask(outside, hm.res, grid_spacing(hm));
+	for (size_t i = 0; i < mask.size(); ++i)
+		if (mask[i]) hm.data[i] += dh * std::clamp(d[i] / std::max(blend, 1e-3f), 0.0f, 1.0f);
+}
+
+inline bool seas_any(const std::vector<uint8_t> &m) {
+	for (uint8_t v : m) if (v) return true;
+	return false;
+}
+
+inline void seas_add(std::vector<uint8_t> &dst, const std::vector<uint8_t> &src) {
+	for (size_t i = 0; i < src.size(); ++i) if (src[i]) dst[i] = 1;
+}
+
+// Distance in tiles from every vertex to the nearest point in `pts` minus r
+// (the player tile class: a disk of radius r round each base).
+std::vector<float> seas_dist_to_players(const HeightmapGrid &hm, const std::vector<std::pair<float, float>> &pts, float r) {
+	std::vector<float> d(hm.data.size(), 1e9f);
+	for (size_t i = 0; i < d.size(); ++i) {
+		float wx, wz;
+		seas_world(hm, (int)i, wx, wz);
+		for (const auto &p : pts) d[i] = std::min(d[i], std::hypot(wx - p.first, wz - p.second) - r);
+	}
+	return d;
+}
+
+// Distance to the nearest vertex outside `mask` (stayClasses) or inside it
+// (avoidClasses), by distance_to_mask.
+std::vector<float> seas_dist_outside(const HeightmapGrid &hm, const std::vector<uint8_t> &mask) {
+	std::vector<uint8_t> out(mask.size());
+	for (size_t i = 0; i < mask.size(); ++i) out[i] = !mask[i];
+	return distance_to_mask(out, hm.res, grid_spacing(hm));
+}
+inline std::vector<float> seas_dist_inside(const HeightmapGrid &hm, const std::vector<uint8_t> &mask) {
+	return distance_to_mask(mask, hm.res, grid_spacing(hm));
+}
+
+// g_Map.randomCoordinate on a circular map: a point inside the circle.
+std::pair<float, float> seas_random_point(const HeightmapGrid &hm, RmsRng &rng) {
+	const float half = hm.map_half;
+	for (int k = 0; k < 64; ++k) {
+		const float x = rng.range_float(-half, half), z = rng.range_float(-half, half);
+		if (x * x + z * z < half * half) return {x, z};
+	}
+	return {0.0f, 0.0f};
+}
+
+// playerPlacementCircle: players sorted by team (sortAllPlayers) on a circle.
+std::vector<std::pair<float, float>> seas_circle_players(int n, float start, float r, const uint8_t *teams) {
+	std::vector<int> order((size_t)n);
+	for (int i = 0; i < n; ++i) order[(size_t)i] = i;
+	if (teams) std::stable_sort(order.begin(), order.end(), [&](int a, int b) { return teams[a] < teams[b]; });
+	std::vector<std::pair<float, float>> locs((size_t)n);
+	for (int k = 0; k < n; ++k) locs[(size_t)order[(size_t)k]] = polar(start + 2.0f * kSeasPi * (float)k / (float)n, r);
+	return locs;
+}
+
+// rndRiver (gaia_terrain.js), in double like the JS original.
+double seas_rnd_river(double f, double seed) {
+	double rw = seed;
+	for (int i = 0; (double)i <= f; ++i) rw = 10.0 * std::fmod(rw, 1.0);
+	const double rr = std::fmod(f, 1.0);
+	double ret = (((long)std::floor(f)) % 2 ? -1.0 : 1.0) * rr * (rr - 1.0);
+	switch (((long)std::floor(rw)) % 5) {
+		case 0: ret *= 2.3 * (rr - 0.5) * (rr - 0.5); break;
+		case 1: ret *= 2.6 * (rr - 0.3) * (rr - 0.7); break;
+		case 2: ret *= 22.0 * (rr - 0.2) * (rr - 0.3) * (rr - 0.3) * (rr - 0.8); break;
+		case 3: ret *= 180.0 * (rr - 0.2) * (rr - 0.2) * (rr - 0.4) * (rr - 0.6) * (rr - 0.6) * (rr - 0.8); break;
+		default: ret *= 2.6 * (rr - 0.5) * (rr - 0.7); break;
+	}
+	return ret;
+}
+
+// paintRiver (gaia_terrain.js), banks meandering independently, no
+// deviation: the water between the banks gets `bed`, rising to `land` over
+// `fade` tiles at each bank.
+void seas_paint_river(HeightmapGrid &hm, RmsRng &rng, float sx, float sz, float ex, float ez, float width, float fade,
+		float bed, float land, float meander_short, float meander_long) {
+	const float half = hm.map_half, size = 2.0f * half;
+	const double ms = size * meander_short / seas_scale(35.0f, 160.0f, half);
+	const double ml = size * meander_long / seas_scale(35.0f, 100.0f, half);
+	const double seed1 = rng.range_float(2.0f, 3.0f), seed2 = rng.range_float(2.0f, 3.0f);
+	const double ang1 = rng.range_float(0.0f, 1.0f), ang2 = rng.range_float(0.0f, 1.0f);
+	auto curve = [&](double frac, double a, double seed) {
+		return ms * seas_rnd_river(a + size * frac / 128.0, seed) + ml * seas_rnd_river(a + size * frac / 256.0, seed);
+	};
+	const float len = std::hypot(sx - ex, sz - ez);
+	const float ux = (sx - ex) / len, uz = (sz - ez) / len;
+	for (int z = 0; z < hm.res; ++z)
+		for (int x = 0; x < hm.res; ++x) {
+			float wx, wz;
+			hm.grid_to_world(x, z, wx, wz);
+			const float d = ux * (wz - ez) - uz * (wx - ex);
+			const float along = (wx - ex) * ux + (wz - ez) * uz; // from the end towards the start
+			if (along < 0.0f || along > len) continue;
+			const double frac = (len - along) / len;
+			const double c1 = curve(frac, ang1, seed1), c2 = curve(frac, ang2, seed2);
+			const double sd1 = c1 + d - width / 2.0f, sd2 = c2 + d + width / 2.0f;
+			if (!(sd1 < 0.0 && sd2 > 0.0)) continue;
+			double h = bed;
+			if (sd1 > -fade) h += (land - bed) * (1.0 + sd1 / fade);
+			else if (sd2 < fade) h += (land - bed) * (1.0 - sd2 / fade);
+			hm.set(x, z, (float)h);
+		}
+}
+
+// createAreas: up to amount x retry tries at random centres.
+template <class Place>
+int seas_create_areas(const HeightmapGrid &hm, RmsRng &rng, float amount, int retry, const Place &place) {
+	int placed = 0;
+	for (int tries = 0; (float)placed < amount && (float)tries < amount * (float)retry; ++tries) {
+		const auto c = seas_random_point(hm, rng);
+		if (place(c.first, c.second)) ++placed;
+	}
+	return placed;
+}
+
+// createBumps: ChainPlacer(1, floor(scaleByMapSize(4, 6)), floor(scaleByMapSize(2, 5)), 0) raising 2 m.
+template <class Allow>
+void seas_bumps(HeightmapGrid &hm, RmsRng &rng, float amount, const Allow &allow) {
+	const float half = hm.map_half;
+	seas_create_areas(hm, rng, amount, 10, [&](float x, float z) {
+		const auto m = seas_chain(hm, rng, x, z, 1, (int)std::floor(seas_scale(4, 6, half)), (int)std::floor(seas_scale(2, 5, half)), 0.0f, 0.0f, {}, allow);
+		if (!seas_any(m)) return false;
+		seas_paint_modify(hm, m, 2.0f * kMetre, 2.0f);
+		return true;
+	});
+}
+
+// createHills (18 m, ChainPlacer(1, floor(scaleByMapSize(4, 6)),
+// floor(scaleByMapSize(16, 40)), 0.5)) or createMountains (cones of
+// scaleByMapSize(30, 50) m from circles of floor(scaleByMapSize(3, 4)) to
+// floor(scaleByMapSize(6, 12)) tiles), avoiding each other by `spacing`.
+// `allow` is the script's other constraints.
+template <class Allow>
+void seas_hills(HeightmapGrid &hm, RmsRng &rng, float water_h, float amount, bool mountains, float spacing, float hill_m,
+		const Allow &allow) {
+	const float half = hm.map_half;
+	std::vector<uint8_t> hills(hm.data.size(), 0);
+	std::vector<float> to_hill(hm.data.size(), 1e9f);
+	auto ok = [&](int i) { return allow(i) && to_hill[(size_t)i] > spacing; };
+	seas_create_areas(hm, rng, amount, 10, [&](float x, float z) {
+		std::vector<uint8_t> m;
+		if (mountains)
+			m = seas_chain(hm, rng, x, z, (int)std::floor(seas_scale(3, 4, half)), (int)std::floor(seas_scale(6, 12, half)),
+			               (int)std::floor(seas_scale(4, 10, half)), 0.5f, 0.0f, {}, ok);
+		else
+			m = seas_chain(hm, rng, x, z, 1, (int)std::floor(seas_scale(4, 6, half)), (int)std::floor(seas_scale(16, 40, half)), 0.5f, 0.0f, {}, ok);
+		if (!seas_any(m)) return false;
+		if (mountains) paint_mask_elevation(hm, m, metres(water_h, std::floor(seas_scale(30, 50, half))), (float)std::floor(seas_scale(6, 12, half)));
+		else paint_mask_elevation(hm, m, metres(water_h, hill_m), 2.0f);
+		seas_add(hills, m);
+		to_hill = seas_dist_inside(hm, hills);
+		return true;
+	});
+}
+
+// Flattens each start, keeps it at least at `min_h`, and faces the centre.
+void seas_spawns(HeightmapGrid &hm, std::vector<RmsGenerator::PlayerSpawn> &spawns, const std::vector<std::pair<float, float>> &locs,
+		float radius, float blend, float water_h, float min_h) {
+	make_heightmap_spawns(hm, spawns, locs, radius, blend, water_h);
+	for (auto &s : spawns) s.base_height = std::max(s.base_height, min_h);
+	for (const auto &s : spawns) lift_area(hm, s.x, s.z, radius, blend, s.base_height);
+}
+
+} // namespace
+
+void RmsGenerator::synth_aegean_sea(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players,
+		const uint8_t *teams) {
+	// aegean_sea.js: land at 2 m (the script starts at 1 m and paints 2 m at
+	// the river banks; RTS0 keeps the whole land at 2 m so it stays clear of
+	// the water line), a sea 0.35 of the map wide through the centre at a
+	// random angle (paintRiver, -3 m, fade scaleByMapSize(6, 25), meanderShort
+	// 20), players on both shores (playerPlacementRiver, 0.6 of the map
+	// apart), bumps, hills or mountains, -2.5 m undersea bumps and
+	// scaleByMapSize(1, 4) * players islands of 6 m in the sea (ChainPlacer(1,
+	// floor(scaleByMapSize(4, 6)), floor(scaleByMapSize(30, 80)), 0.5), 15
+	// apart, 6 from the shore). Crossing the sea needs ships.
+	water_h = 1.0f;
+	const float half = hm.map_half, size = 2.0f * half;
+	const float land = metres(water_h, 2.0f);
+	hm.init(hm.res, hm.map_half, land);
+	const float angle = rng.range_float(0.0f, 2.0f * kSeasPi);
+	const float nx = std::cos(angle), nz = std::sin(angle); // across the sea
+	const float ux = -nz, uz = nx;                          // along it
+	// playerPlacementRiver(angle, 0.6 * size).
+	std::vector<std::pair<float, float>> locs((size_t)num_players);
+	const bool even = num_players % 2 == 0;
+	for (int i = 0; i < num_players; ++i) {
+		const bool cur_even = i % 2 == 0;
+		const int divident = (even || cur_even) ? (i + 1) % 2 : 0;
+		const int divisor = even ? 0 : (cur_even ? 1 : -1);
+		const float across = (i % 2 ? 0.3f : -0.3f) * size;
+		const float f = ((float)(i - 1 + divident) / 2.0f + 1.0f) / ((float)(num_players + divisor) / 2.0f + 1.0f);
+		const float along = (f - 0.5f) * size;
+		locs[(size_t)i] = {ux * along + nx * across, uz * along + nz * across};
+	}
+	group_players_by_area(locs, num_players, teams);
+	const float pclass = seas_scale(15, 25, half) / 3.0f;
+	const auto to_player = seas_dist_to_players(hm, locs, pclass);
+	seas_paint_river(hm, rng, ux * half, uz * half, -ux * half, -uz * half, 0.35f * size, seas_scale(6, 25, half),
+	                 metres(water_h, -3.0f), land, 20.0f, 0.0f);
+	std::vector<uint8_t> water(hm.data.size());
+	for (size_t i = 0; i < water.size(); ++i) water[i] = hm.data[i] < metres(water_h, 0.7f);
+	const auto to_water = seas_dist_inside(hm, water);
+	const auto in_water = seas_dist_outside(hm, water);
+	seas_bumps(hm, rng, seas_scale(100, 200, half), [&](int i) { return to_water[(size_t)i] > 2.0f && to_player[(size_t)i] > 20.0f; });
+	const bool mountains = rng.range_int(0, 1) == 0;
+	seas_hills(hm, rng, water_h, seas_scale(3, 15, half), mountains, 15.0f, 18.0f,
+	           [&](int i) { return to_player[(size_t)i] > 20.0f && to_water[(size_t)i] > 3.0f; });
+	// Undersea bumps.
+	seas_create_areas(hm, rng, seas_scale(10, 50, half), 10, [&](float x, float z) {
+		const auto m = seas_chain(hm, rng, x, z, 1, (int)std::floor(seas_scale(4, 6, half)), (int)std::floor(seas_scale(16, 40, half)),
+		                          0.5f, 0.0f, {}, [&](int i) { return in_water[(size_t)i] > 6.0f; });
+		if (!seas_any(m)) return false;
+		paint_mask_elevation(hm, m, metres(water_h, -2.5f), 3.0f);
+		return true;
+	});
+	// Islands.
+	std::vector<uint8_t> islands(hm.data.size(), 0);
+	std::vector<float> to_island(hm.data.size(), 1e9f);
+	seas_create_areas(hm, rng, seas_scale(1, 4, half) * (float)num_players, 10, [&](float x, float z) {
+		const auto m = seas_chain(hm, rng, x, z, 1, (int)std::floor(seas_scale(4, 6, half)), (int)std::floor(seas_scale(30, 80, half)),
+		                          0.5f, 0.0f, {}, [&](int i) {
+			                          return to_player[(size_t)i] > 8.0f && to_island[(size_t)i] > 15.0f && in_water[(size_t)i] > 6.0f;
+		                          });
+		if (!seas_any(m)) return false;
+		paint_mask_elevation(hm, m, metres(water_h, 6.0f), 4.0f);
+		seas_add(islands, m);
+		to_island = seas_dist_inside(hm, islands);
+		return true;
+	});
+	seas_spawns(hm, spawns, locs, 16.0f, 6.0f, water_h, land);
+}
+
+void RmsGenerator::synth_archipelago_0ad(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players,
+		const uint8_t *teams) {
+	// archipelago.js: sea at -5 m, players on a circle at f = 0.35 each on an
+	// island (ChainPlacer(2, floor(scaleByMapSize(5, 10)),
+	// floor(scaleByMapSize(25, 60)), first circle scaleByMapSize(22, 31)) at
+	// 3 m; scaleByMapSize(1, 5) * randIntInclusive(5, 10) random islands
+	// (ChainPlacer(floor(scaleByMapSize(4, 8)), floor(scaleByMapSize(8, 14)),
+	// floor(scaleByMapSize(25, 60)), 0.07, spread scaleByMapSize(30, 70))) that
+	// may join others; bumps and hills or mountains on the land. Naval.
+	water_h = 1.0f;
+	const float half = hm.map_half, size = 2.0f * half;
+	const float land = metres(water_h, 3.0f);
+	hm.init(hm.res, hm.map_half, metres(water_h, -5.0f));
+	const float island_r = seas_scale(22, 31, half);
+	const auto locs = seas_circle_players(num_players, rng.range_float(0.0f, 2.0f * kSeasPi), 0.35f * size, teams);
+	std::vector<uint8_t> land_mask(hm.data.size(), 0);
+	auto in_map = [&](int i) { return seas_in_circle(hm, i); };
+	for (const auto &l : locs) {
+		const auto m = seas_chain(hm, rng, l.first, l.second, 2, (int)std::floor(seas_scale(5, 10, half)), (int)std::floor(seas_scale(25, 60, half)),
+		                          1e9f, 0.0f, {(int)std::floor(island_r)}, in_map);
+		paint_mask_elevation(hm, m, land, 4.0f);
+		seas_add(land_mask, m);
+	}
+	const float islands = seas_scale(1, 5, half) * (float)rng.range_int(5, 10);
+	seas_create_areas(hm, rng, islands, 10, [&](float x, float z) {
+		const auto m = seas_chain(hm, rng, x, z, (int)std::floor(seas_scale(4, 8, half)), (int)std::floor(seas_scale(8, 14, half)),
+		                          (int)std::floor(seas_scale(25, 60, half)), 0.07f, seas_scale(30, 70, half), {}, in_map);
+		if (!seas_any(m)) return false;
+		paint_mask_elevation(hm, m, land, 4.0f);
+		seas_add(land_mask, m);
+		return true;
+	});
+	const auto in_land = seas_dist_outside(hm, land_mask);
+	const float pclass = island_r / 3.0f;
+	const auto to_player = seas_dist_to_players(hm, locs, pclass);
+	seas_bumps(hm, rng, seas_scale(100, 200, half), [&](int i) { return to_player[(size_t)i] > 10.0f && in_land[(size_t)i] > 5.0f; });
+	const bool mountains = rng.range_int(0, 1) == 0;
+	seas_hills(hm, rng, water_h, seas_scale(1, 4, half) * (float)num_players, mountains, 15.0f, 18.0f,
+	           [&](int i) { return to_player[(size_t)i] > 2.0f && land_mask[(size_t)i]; });
+	seas_spawns(hm, spawns, locs, island_r * 0.6f, 4.0f, water_h, land);
+}
+
+void RmsGenerator::synth_islands(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players,
+		const uint8_t *teams) {
+	// islands.js: sea at -5 m, players on a circle at f = 0.35 each on a round
+	// island (ClumpPlacer(diskArea(scaleByMapSize(20, 29)), 0.8, 0.1), 3 m,
+	// blend 6) with a dock facing the centre; scaleByMapSize(4, 14) big and
+	// scaleByMapSize(6, 54) small islands kept scaleByMapSize(8, 12) off all
+	// land; 2 m bumps and scaleByMapSize(4, 13) hills of 18 m on the land
+	// outside the player islands. Every island needs ships.
+	water_h = 1.0f;
+	const float half = hm.map_half, size = 2.0f * half;
+	const float land = metres(water_h, 3.0f);
+	hm.init(hm.res, hm.map_half, metres(water_h, -5.0f));
+	const float island_r = seas_scale(20, 29, half);
+	const auto locs = seas_circle_players(num_players, rng.range_float(0.0f, 2.0f * kSeasPi), 0.35f * size, teams);
+	std::vector<uint8_t> land_mask(hm.data.size(), 0), player_mask(hm.data.size(), 0);
+	auto in_map = [&](int i) { return seas_in_circle(hm, i); };
+	for (const auto &l : locs) {
+		const auto m = seas_clump(hm, rng, kSeasPi * island_r * island_r, 0.8f, 0.1f, 1e9f, l.first, l.second, in_map);
+		paint_mask_elevation(hm, m, land, 6.0f);
+		seas_add(land_mask, m);
+		seas_add(player_mask, m);
+	}
+	const float gap = seas_scale(8, 12, half);
+	auto to_land = seas_dist_inside(hm, land_mask);
+	auto islands = [&](float amount, int min_r, int max_r, int circles) {
+		seas_create_areas(hm, rng, amount, 10, [&](float x, float z) {
+			const auto m = seas_chain(hm, rng, x, z, min_r, max_r, circles, 0.07f, 0.0f, {},
+			                          [&](int i) { return in_map(i) && to_land[(size_t)i] > gap; });
+			if (!seas_any(m)) return false;
+			paint_mask_elevation(hm, m, land, 6.0f);
+			seas_add(land_mask, m);
+			to_land = seas_dist_inside(hm, land_mask);
+			return true;
+		});
+	};
+	islands(seas_scale(4, 14, half), (int)std::floor(seas_scale(4, 8, half)), (int)std::floor(seas_scale(8, 14, half)), (int)std::floor(seas_scale(25, 60, half)));
+	islands(seas_scale(6, 54, half), (int)std::floor(seas_scale(4, 7, half)), (int)std::floor(seas_scale(7, 10, half)), (int)std::floor(seas_scale(16, 40, half)));
+	const auto in_land = seas_dist_outside(hm, land_mask);
+	const auto to_player = seas_dist_inside(hm, player_mask);
+	// Bumps: ClumpPlacer(scaleByMapSize(20, 50), 0.3, 0.06) raising 2 m.
+	seas_create_areas(hm, rng, seas_scale(20, 100, half), 10, [&](float x, float z) {
+		const auto m = seas_clump(hm, rng, seas_scale(20, 50, half), 0.3f, 0.06f, 1e9f, x, z,
+		                          [&](int i) { return to_player[(size_t)i] > 0.0f && in_land[(size_t)i] > 3.0f; });
+		if (!seas_any(m)) return false;
+		seas_paint_modify(hm, m, 2.0f * kMetre, 2.0f);
+		return true;
+	});
+	seas_hills(hm, rng, water_h, seas_scale(4, 13, half), false, 15.0f, 18.0f,
+	           [&](int i) { return to_player[(size_t)i] > 2.0f && land_mask[(size_t)i]; });
+	seas_spawns(hm, spawns, locs, island_r * 0.6f, 4.0f, water_h, land);
+}
+
+void RmsGenerator::synth_cycladic_archipelago(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns,
+		int num_players, const uint8_t *teams) {
+	// cycladic_archipelago.js: sea at -5 m; max(6, players) islands of
+	// scaleByMapSize(15, 40) tiles radius (ClumpPlacer 0.7, 0.1, 3 m, blend
+	// 5) on a circle at f = 0.39, players on the ones the script's
+	// startingPlaces table picks (all of them from 6 players); one central
+	// island of scaleByMapSize(15, 30) per player at f = 0.1-0.16 spread over
+	// floor(scaleByMapSize(1, 4)) directions; 2 m bumps and scaleByMapSize(5,
+	// 30) hills of 12 m grown from the islands, 15 off the city patches.
+	// Every island needs ships.
+	water_h = 1.0f;
+	const float half = hm.map_half, size = 2.0f * half;
+	const float land = metres(water_h, 3.0f);
+	hm.init(hm.res, hm.map_half, metres(water_h, -5.0f));
+	static const int kStarting[6][6] = {{0}, {0, 3}, {0, 2, 4}, {0, 1, 3, 4}, {0, 1, 2, 3, 4}, {0, 1, 2, 3, 4, 5}};
+	const float start = rng.range_float(0.0f, 2.0f * kSeasPi);
+	const float island_r = seas_scale(15, 40, half);
+	const int island_count = std::max(6, num_players);
+	const float central_r = seas_scale(15, 30, half);
+	const int central_count = std::max(1, (int)std::floor(seas_scale(1, 4, half)));
+	std::vector<std::pair<float, float>> central((size_t)num_players);
+	for (int i = 0; i < num_players; ++i) {
+		const float r = rng.range_float(0.1f, 0.16f) * size;
+		central[(size_t)i] = polar(start + kSeasPi * ((float)i * 2.0f / (float)central_count + rng.range_float(-1.0f, 1.0f) / 8.0f), r);
+	}
+	std::vector<uint8_t> player_mask(hm.data.size(), 0);
+	std::vector<std::vector<int>> areas;
+	std::vector<std::pair<float, float>> spots;
+	auto island = [&](float x, float z, float r, bool player) {
+		const auto m = seas_clump(hm, rng, kSeasPi * r * r, 0.7f, 0.1f, 1e9f, x, z, [&](int i) { return !player_mask[(size_t)i]; });
+		paint_mask_elevation(hm, m, land, 5.0f);
+		std::vector<int> pts;
+		for (size_t i = 0; i < m.size(); ++i) if (m[i]) pts.push_back((int)i);
+		if (!pts.empty()) areas.push_back(std::move(pts));
+		if (player) seas_add(player_mask, m);
+	};
+	int n_player = 0;
+	for (int i = 0; i < island_count; ++i) {
+		const auto p = polar(start + 2.0f * kSeasPi * (float)i / (float)island_count, 0.39f * size);
+		const bool is_player = num_players >= 6 || (n_player < num_players && i == kStarting[num_players - 1][n_player]);
+		if (is_player) { spots.push_back(p); ++n_player; }
+		island(p.first, p.second, island_r, is_player);
+	}
+	for (const auto &c : central) island(c.first, c.second, central_r, false);
+	// placePlayerBases with sortAllPlayers(): spots in team order.
+	std::vector<int> order((size_t)num_players);
+	for (int i = 0; i < num_players; ++i) order[(size_t)i] = i;
+	if (teams) std::stable_sort(order.begin(), order.end(), [&](int a, int b) { return teams[a] < teams[b]; });
+	std::vector<std::pair<float, float>> locs((size_t)num_players);
+	for (int k = 0; k < num_players; ++k) locs[(size_t)order[(size_t)k]] = spots[(size_t)k];
+	const auto to_city = seas_dist_to_players(hm, locs, 6.0f);
+	// createAreasInAreas: centres on a random point of a random island.
+	auto in_areas = [&](float amount, int retry, auto place) {
+		int placed = 0;
+		for (int tries = 0; (float)placed < amount && (float)tries < amount * (float)retry && !areas.empty(); ++tries) {
+			const auto &a = areas[(size_t)rng.range_int(0, (int)areas.size() - 1)];
+			float x, z;
+			seas_world(hm, a[(size_t)rng.range_int(0, (int)a.size() - 1)], x, z);
+			if (place(x, z)) ++placed;
+		}
+	};
+	in_areas(seas_scale(25, 75, half), 15, [&](float x, float z) {
+		const auto m = seas_clump(hm, rng, seas_scale(20, 60, half), 0.3f, 0.06f, 1e9f, x, z, [&](int i) { return to_city[(size_t)i] > 0.0f; });
+		if (!seas_any(m)) return false;
+		seas_paint_modify(hm, m, 2.0f * kMetre, 3.0f);
+		return true;
+	});
+	std::vector<uint8_t> hills(hm.data.size(), 0);
+	std::vector<float> to_hill(hm.data.size(), 1e9f);
+	in_areas(seas_scale(5, 30, half), 15, [&](float x, float z) {
+		const auto m = seas_clump(hm, rng, seas_scale(20, 150, half), 0.2f, 0.1f, 1e9f, x, z,
+		                          [&](int i) { return to_city[(size_t)i] > 15.0f && to_hill[(size_t)i] > 15.0f; });
+		if (!seas_any(m)) return false;
+		paint_mask_elevation(hm, m, metres(water_h, 12.0f), 2.0f);
+		seas_add(hills, m);
+		to_hill = seas_dist_inside(hm, hills);
+		return true;
+	});
+	seas_spawns(hm, spawns, locs, std::min(14.0f, island_r * 0.7f), 4.0f, water_h, land);
+}
+
+void RmsGenerator::synth_snowflake_searocks(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns,
+		int num_players, const uint8_t *teams) {
+	// snowflake_searocks.js: sea at -5 m, players on a circle at f = 0.35 on
+	// rocky islands of 20 m (ClumpPlacer(diskArea(scaleByMapSize(15, 30)),
+	// 0.95, 0.6), blend 2), more islands between and in front of them by the
+	// script's per-size layouts (tiny: one central island; up to 192 tiles, or
+	// many players on mid sizes: one island in front of each player; else a
+	// central island, islands between the players, between each player and
+	// the centre and at the map border), all joined by 11-tile causeways at
+	// 20 m (PathPlacer), so every base is reachable on foot.
+	water_h = 1.0f;
+	const float half = hm.map_half, size = 2.0f * half;
+	const float top = metres(water_h, 20.0f);
+	hm.init(hm.res, hm.map_half, metres(water_h, -5.0f));
+	const float pr = seas_scale(15, 30, half);
+	const float start = rng.range_float(0.0f, 2.0f * kSeasPi);
+	const auto locs = seas_circle_players(num_players, start, 0.35f * size, teams);
+	const int n = num_players;
+	std::vector<std::pair<float, float>> pos;
+	std::vector<std::pair<int, int>> links;
+	std::vector<float> isl_size;
+	auto at = [&](int id) -> std::pair<float, float> & {
+		if ((int)pos.size() <= id) { pos.resize((size_t)id + 1, {0.0f, 0.0f}); isl_size.resize((size_t)id + 1, 0.0f); }
+		return pos[(size_t)id];
+	};
+	auto radial = [&](int player, int id, int offset, float dist, float sz) {
+		const float a = start + (float)(player * 2 + offset) * kSeasPi / (float)n;
+		at(id) = polar(a, dist * size);
+		isl_size[(size_t)id] = sz;
+	};
+	const float between_center_dist = 0.16f, between_center_r = 0.81f, central_r = 0.36f;
+	std::vector<int> order; // creation order of the non-player islands
+	auto with_center = [&](float tert_dist, float tert_r, float between_dist, float between_r) {
+		const int center = 4 * n;
+		at(center) = {0.0f, 0.0f};
+		isl_size[(size_t)center] = central_r;
+		order.push_back(center);
+		for (int p = 0; p < n; ++p) {
+			const int nb = p + 1 < n ? p + 1 : 0;
+			const int between = p + n, bc = p + 2 * n, bc_nb = nb + 2 * n, tert = p + 3 * n;
+			links.push_back({between, p});
+			links.push_back({between, nb});
+			radial(p, between, 1, between_dist, between_r);
+			order.push_back(between);
+			links.push_back({bc, p});
+			links.push_back({bc, center});
+			links.push_back({bc, bc_nb});
+			radial(p, bc, 0, between_center_dist, between_center_r);
+			order.push_back(bc);
+			links.push_back({tert, between});
+			radial(p, tert, 1, tert_dist, tert_r);
+			order.push_back(tert);
+		}
+	};
+	auto without_center = [&]() {
+		for (int p = 0; p < n; ++p) {
+			const int nb = p + 1 < n ? p + 1 : 0;
+			links.push_back({p, nb});
+			links.push_back({p, p + n});
+			links.push_back({p + n, nb + n});
+			radial(p, p + n, 0, between_center_dist, between_center_r);
+			order.push_back(p + n);
+		}
+	};
+	auto tiny = [&]() {
+		at(n) = {0.0f, 0.0f};
+		isl_size[(size_t)n] = 1.0f;
+		order.push_back(n);
+		for (int p = 0; p < n; ++p) links.push_back({p, n});
+	};
+	if (size <= 128.0f) tiny();
+	else if (size <= 192.0f) without_center();
+	else if (size <= 256.0f) { if (n < 6) with_center(0.41f, 0.49f, 0.26f, 1.0f); else without_center(); }
+	else if (size <= 320.0f) { if (n < 8) with_center(0.41f, 0.49f, 0.26f, 1.0f); else without_center(); }
+	else if (n < 6) with_center(0.41f, 0.49f, 0.24f, 1.0f);
+	else with_center(0.41f, 0.36f, 0.28f, 0.81f);
+	auto anywhere = [](int) { return true; };
+	auto island = [&](float x, float z, float sz) {
+		const auto m = seas_clump(hm, rng, sz * kSeasPi * pr * pr, 0.95f, 0.6f, 1e9f, x, z, anywhere);
+		paint_mask_elevation(hm, m, top, 2.0f);
+	};
+	for (int id : order) island(pos[(size_t)id].first, pos[(size_t)id].second, isl_size[(size_t)id]);
+	for (int p = 0; p < n; ++p) {
+		at(p) = locs[(size_t)p];
+		island(locs[(size_t)p].first, locs[(size_t)p].second, 1.0f);
+	}
+	// The script loops over isConnected[i][j] in island order.
+	std::sort(links.begin(), links.end());
+	links.erase(std::unique(links.begin(), links.end()), links.end());
+	for (const auto &l : links) {
+		const auto &a = pos[(size_t)l.first], &b = pos[(size_t)l.second];
+		const auto m = seas_path(hm, rng, a.first, a.second, b.first, b.second, 11.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1e9f, anywhere);
+		paint_mask_elevation(hm, m, top, 2.0f);
+	}
+	seas_spawns(hm, spawns, locs, std::min(14.0f, pr * 0.7f), 4.0f, water_h, top);
+}
+
+void RmsGenerator::synth_harbor(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players,
+		const uint8_t *teams) {
+	// harbor.js: land at 2 m, players on a circle at f = 0.38; a central lake
+	// (ChainPlacer(2, floor(scaleByMapSize(2, 12)), floor(scaleByMapSize(35,
+	// 160)), first circle 0.2 of the map) at -18 m, blend 10, 20 off the
+	// bases; on maps of 192 tiles or more a harbor in front of each base
+	// (ClumpPlacer(1200, 0.5, 0.5) 2/5 of the way to the centre, lowered 11 m,
+	// 15 off the bases); and rocky spines (PathPlacer, scaleByMapSize(14,
+	// 0.02 or 0.5) wide, tapered, raised 20 m or 35 m) from f = 0.12 to 0.4
+	// between the players, dropped where they would touch a base. The bases
+	// meet on foot round the ends of the spines. 0 A.D. metres x 0.35.
+	water_h = 1.0f;
+	const float half = hm.map_half, size = 2.0f * half;
+	const float land = metres(water_h, 2.0f);
+	hm.init(hm.res, hm.map_half, land);
+	const float start = rng.range_float(0.0f, 2.0f * kSeasPi);
+	const auto locs = seas_circle_players(num_players, start, 0.38f * size, teams);
+	const float pclass = seas_scale(15, 25, half) / 3.0f;
+	const auto to_player = seas_dist_to_players(hm, locs, pclass);
+	{
+		const auto m = seas_chain(hm, rng, 0.0f, 0.0f, 2, (int)std::floor(seas_scale(2, 12, half)), (int)std::floor(seas_scale(35, 160, half)),
+		                          1e9f, 0.0f, {(int)std::floor(0.2f * size)}, [&](int i) { return to_player[(size_t)i] > 20.0f; });
+		paint_mask_elevation(hm, m, metres(water_h, -18.0f), 10.0f);
+	}
+	if (size >= 192.0f) {
+		for (const auto &l : locs) {
+			const float hx = std::round(l.first - l.first / 2.5f), hz = std::round(l.second - l.second / 2.5f);
+			const auto m = seas_clump(hm, rng, 1200.0f, 0.5f, 0.5f, 1e9f, hx, hz, [&](int i) { return to_player[(size_t)i] > 15.0f; });
+			seas_paint_modify(hm, m, -11.0f * kMetre, 3.0f);
+		}
+	}
+	const bool small = size <= 192.0f;
+	const float spine_w = seas_scale(14.0f, small ? 0.02f : 0.5f, half);
+	const float taper = small ? -0.1f : -1.4f, rise = small ? 20.0f : 35.0f;
+	const int split = (num_players <= 3 || (size >= 320.0f && num_players <= 4)) ? 2 : 1;
+	for (int i = 0; i < num_players * split; ++i) {
+		const float a = start + ((float)i + 0.5f) * 2.0f * kSeasPi / (float)(num_players * split);
+		const auto s = polar(a, 0.12f * size), e = polar(a, 0.4f * size);
+		const auto m = seas_path(hm, rng, s.first, s.second, e.first, e.second, spine_w, 0.6f, 0.1f, 0.4f, taper, 0.0f,
+		                         [&](int k) { return to_player[(size_t)k] > 5.0f; });
+		if (seas_any(m)) seas_paint_modify(hm, m, rise * kMetre, 3.0f);
+	}
+	// rmgen2's random hills (its mountains, plateaus and bluffs are left out).
+	std::vector<PlayerSpawn> probe;
+	for (const auto &l : locs) probe.push_back({0, l.first, l.second, land, 0.0f, 0.0f});
+	scatter_dry_hills(hm, rng, probe, scale_by_map_size(1, 4, half) * num_players, pclass + 20.0f, 2.0f, water_h);
+	seas_spawns(hm, spawns, locs, 16.0f, 6.0f, water_h, land);
+}
+
+// =========================================================================
 // Main RmsGenerator Entry Point
 // =========================================================================
 
@@ -3875,6 +4686,24 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 			break;
 		case MAP_FORTRESS:
 			synth_fortress(hm, rng, water_h, spawns, config.num_players);
+			break;
+		case MAP_AEGEAN_SEA:
+			synth_aegean_sea(hm, rng, water_h, spawns, config.num_players, config.teams);
+			break;
+		case MAP_ARCHIPELAGO_0AD:
+			synth_archipelago_0ad(hm, rng, water_h, spawns, config.num_players, config.teams);
+			break;
+		case MAP_ISLANDS:
+			synth_islands(hm, rng, water_h, spawns, config.num_players, config.teams);
+			break;
+		case MAP_CYCLADIC_ARCHIPELAGO:
+			synth_cycladic_archipelago(hm, rng, water_h, spawns, config.num_players, config.teams);
+			break;
+		case MAP_SNOWFLAKE_SEAROCKS:
+			synth_snowflake_searocks(hm, rng, water_h, spawns, config.num_players, config.teams);
+			break;
+		case MAP_HARBOR:
+			synth_harbor(hm, rng, water_h, spawns, config.num_players, config.teams);
 			break;
 		case MAP_PELOPONNESE:
 		case MAP_AEGEAN_ARCHIPELAGO:

@@ -112,7 +112,13 @@ enum MapType : uint8_t {
 	MAP_ENGLISH_CHANNEL = 54,
 	MAP_DODECANESE = 55,
 	MAP_FORTRESS = 56,
-	MAP_TYPE_COUNT = 57
+	MAP_AEGEAN_SEA = 57,
+	MAP_ARCHIPELAGO_0AD = 58,
+	MAP_ISLANDS = 59,
+	MAP_CYCLADIC_ARCHIPELAGO = 60,
+	MAP_SNOWFLAKE_SEAROCKS = 61,
+	MAP_HARBOR = 62,
+	MAP_TYPE_COUNT = 63
 };
 
 struct MapTypeInfo {
@@ -182,7 +188,13 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_HELLAS, "hellas", "Hellas (RMS)", "mediterranean", true, "A random corner of Greece and the Aegean, painted from a real elevation map."},
 		{MAP_ENGLISH_CHANNEL, "english_channel", "English Channel (RMS)", "temperate", true, "Players start on both sides of the English Channel; crossing it takes ships."},
 		{MAP_DODECANESE, "dodecanese", "Dodecanese (RMS)", "mediterranean", true, "A group of islands in the Aegean, a few joined by bridges; the rest need ships."},
-		{MAP_FORTRESS, "fortress", "Fortress (RMS)", "temperate", true, "Players start inside walled fortresses with a market, barracks, stable and temple."}
+		{MAP_FORTRESS, "fortress", "Fortress (RMS)", "temperate", true, "Players start inside walled fortresses with a market, barracks, stable and temple."},
+		{MAP_AEGEAN_SEA, "aegean_sea", "Aegean Sea (RMS)", "aegean", true, "Players start on two sides of a sea with scattered islands."},
+		{MAP_ARCHIPELAGO_0AD, "archipelago_0ad", "Archipelago, 0 A.D. (RMS)", "temperate", true, "A maze of islands of different sizes and shapes."},
+		{MAP_ISLANDS, "islands", "Islands (RMS)", "temperate", true, "Players start in small islands while there are many others around."},
+		{MAP_CYCLADIC_ARCHIPELAGO, "cycladic_archipelago", "Cycladic Archipelago (RMS)", "aegean", true, "Each player starts on an island surrounded by water."},
+		{MAP_SNOWFLAKE_SEAROCKS, "snowflake_searocks", "Snowflake Searocks (RMS)", "temperate", true, "Many small islands connected to each other by narrow passages."},
+		{MAP_HARBOR, "harbor", "Harbor (RMS)", "temperate", true, "A sheltered harbor for each player, a deep sea beyond, and narrow passages round the cliffs."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
@@ -194,7 +206,8 @@ inline bool is_procedural_map(uint8_t type) {
 
 // Naval maps: bases may sit on separate land, so armies need ships to meet.
 inline bool map_is_naval(int type) {
-	return type == MAP_ENGLISH_CHANNEL || type == MAP_DODECANESE;
+	return type == MAP_ENGLISH_CHANNEL || type == MAP_DODECANESE || type == MAP_AEGEAN_SEA || type == MAP_ARCHIPELAGO_0AD ||
+	       type == MAP_ISLANDS || type == MAP_CYCLADIC_ARCHIPELAGO;
 }
 
 enum UnitType : uint8_t {
