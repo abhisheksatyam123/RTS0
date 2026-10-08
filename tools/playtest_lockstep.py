@@ -302,6 +302,15 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
         "back": first(lambda k, q: k == "6", 470, 474),         # cmd 31 at 470
         "deleted": first(lambda k, q: k == "255", 580, 584),    # cmd 30 at 580
     }
+    # Heal (cmd 32): the healer takes the order (kind 10) once it runs, and the
+    # swordsman wounded to 40 hp at turn 405 gains health.
+    def heal_rows(e):
+        return [(t, e[t].get("heal"), float(e[t].get("patient", "0"))) for t in sorted(e) if "heal" in e[t]]
+    heals = [heal_rows(e) for e in extras]
+    heal_turn = next((t for t, k, _ in heals[0] if 410 < t <= 414 and k == "10"), None)
+    hp_at = {t: hp for t, _, hp in heals[0]}
+    healed = max((hp for t, _, hp in heals[0] if 414 < t <= 480), default=0.0)
+    heal_ok = heals[0] == heals[1] and heal_turn is not None and 0.0 < hp_at.get(410, 0.0) < 100.0 and healed >= hp_at[410] + 10.0
     work_ok = (works[0] == works[1] and all(v is not None for v in work_turns.values())
                and not any(k == "255" for t, k, q in works[0] if t <= 580))
     defeat_ok = (not defeat_turn) or (out_turn[0] is not None and out_turn[0] == out_turn[1]
@@ -326,11 +335,12 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
         "setup_ok": setup_ok, "setups": setups,
         "ceasefire_ok": ceasefire_ok, "ceasefire_end": cf_end, "ceasefire_hits": cf_hits[:5],
         "tribute_ok": tribute_ok, "tributes": tributes, "upgrade_ok": upgrade_ok, "gate_turn": gate_turn,
+        "heal_ok": heal_ok, "heal_turn": heal_turn, "healed": healed,
         "work_ok": work_ok, "works": works, "work_turns": work_turns,
         "lock_ok": lock_ok, "locks": locks, "pack_ok": pack_ok, "packs": packs, "chat_ok": chat_ok, "chats": chats,
         "pause_ok": pause_ok, "pauses": pauses, "save_ok": save_ok, "saves": saves,
         "defeat_ok": defeat_ok, "defeat_turn": out_turn, "game_over": over,
-        "ok": divergent is None and complete and setup_ok and ceasefire_ok and defeat_ok and tribute_ok and upgrade_ok and lock_ok and pack_ok and work_ok and chat_ok and pause_ok and save_ok and all(rc == 0 for rc in rcs),
+        "ok": divergent is None and complete and setup_ok and ceasefire_ok and defeat_ok and tribute_ok and upgrade_ok and lock_ok and pack_ok and work_ok and heal_ok and chat_ok and pause_ok and save_ok and all(rc == 0 for rc in rcs),
     }
 
 
@@ -393,6 +403,65 @@ def run_rejoin_case(binary: str, seed: int, speed: float, loss: float, port: int
                 if line.startswith("[net-peer]") or line.startswith("[TurnManager]"):
                     print("   " + line)
         print(f"[net] FAIL rejoin: rc={rcs} rejoin={rep} host_turns={len(h)} back_turns={len(b)} first_bad={bad}")
+    return ok
+
+
+def run_three_human_case(binary: str, seed: int, speed: float, loss: float, port: int, out_dir: str,
+                          timeout: int) -> bool:
+    """Three humans (0 A.D. hosts up to 8): the host relays each joiner's batches
+    to the other. The third player leaves after turn LEAVE and a new process
+    takes its seat; every peer must hash the same on every turn it ran."""
+    turns, leave = 500, 200
+    print(f"\n---- three humans: player 3 leaves after turn {leave}, a new client takes its seat ----")
+    roles = ("host", "j1", "j2", "back")
+    logs = {r: os.path.join(out_dir, f"three_{r}.log") for r in roles}
+    for path in logs.values():
+        if os.path.exists(path):
+            os.remove(path)
+    common = ["--speed", str(speed), "--loss", str(loss), "--humans", "3"]
+    def peer(role, log, *more):
+        return subprocess.Popen([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    procs = {"host": peer("host", logs["host"])}
+    time.sleep(0.3)
+    procs["j1"] = peer("join", logs["j1"])
+    time.sleep(0.3)  # connect order numbers the joiners: j1 is client 1, j2 client 2
+    procs["j2"] = peer("join", logs["j2"], "--quit-turn", str(leave))
+    outs, rcs = {}, {}
+    def finish(role):
+        p = procs[role]
+        try:
+            out, _ = p.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            out, _ = p.communicate()
+        outs[role] = out or ""
+        rcs[role] = p.returncode
+    finish("j2")
+    time.sleep(0.5)
+    procs["back"] = peer("join", logs["back"], "--rejoin", "1")
+    for role in ("back", "j1", "host"):
+        finish(role)
+    h = {r: read_hashes(logs[r]) for r in roles}
+    rep = peer_lines([outs["back"]], "rejoin").get("join", {})
+    t0 = int(rep.get("turn", "0"))
+    bad = {r: next((t for t in sorted(h[r]) if h[r][t] != h["host"].get(t)), None) for r in ("j1", "j2", "back")}
+    relayed = ("client 2 left after turn" in outs["j1"] and "client 3 takes player 2" in outs["j1"])
+    ok = (all(rc == 0 for rc in rcs.values()) and len(h["host"]) == turns and len(h["j1"]) == turns
+          and len(h["j2"]) >= leave - 1 and rep.get("player") == "2" and t0 > leave
+          and sorted(h["back"]) == list(range(t0 + 1, turns + 1)) and relayed
+          and all(v is None for v in bad.values()))
+    if ok:
+        print(f"[net] PASS three humans: all {turns} turns matched on host and player 2, player 3 left at "
+              f"turn {leave} and a new client took its seat at turn {t0}, then matched to turn {turns} "
+              f"(final hash {h['host'][turns]})")
+    else:
+        for role in roles:
+            for line in outs.get(role, "").splitlines():
+                if line.startswith("[net-peer]") or line.startswith("[TurnManager]"):
+                    print(f"   {role}: {line}")
+        print(f"[net] FAIL three humans: rc={rcs} rejoin={rep} turns={ {r: len(v) for r, v in h.items()} } "
+              f"first_bad={bad} relayed={relayed}")
     return ok
 
 
@@ -575,6 +644,8 @@ def main() -> int:
             print(f"[net] worker gathered at turn {wt['gather']}, walked at {wt['walk']} with a queued walk "
                   f"at {wt['queued']} (done at {wt['queue_done']}), back to work at {wt['back']}, "
                   f"deleted at {wt['deleted']}, on both peers")
+            print(f"[net] healer took the heal order at turn {nr['heal_turn']}; the swordsman wounded to 40 hp "
+                  f"healed to {nr['healed']:.0f} on both peers")
             print(f"[net] chat: host got {nr['chats']['host']}, joiner got {nr['chats']['join']}; "
                   f"host paused at turn {PAUSE_TURN}, joiner held {nr['pauses']['join']['held_ms']} ms; "
                   f"save/load at turn {SAVELOAD_TURN} kept hash {nr['saves']['host']['before']} on both")
@@ -585,6 +656,8 @@ def main() -> int:
             print(f"[net] FAIL tribute: stone changes (host, join) {nr['tributes']}")
         elif not nr["pack_ok"]:
             print(f"[net] FAIL pack: state changes (turn, state) {nr['packs']}")
+        elif not nr["heal_ok"]:
+            print(f"[net] FAIL heal: order at {nr['heal_turn']}, best hp {nr['healed']}")
         elif not nr["work_ok"]:
             print(f"[net] FAIL unit orders: {nr['work_turns']}, changes (turn, kind, queue) {nr['works']}")
         elif not nr["chat_ok"]:
@@ -614,6 +687,8 @@ def main() -> int:
                               out_dir, args.timeout) and net_ok
         net_ok = run_rejoin_case(binary_path, args.seeds[0], args.net_speed, args.net_loss,
                                  args.net_port + 2, out_dir, args.timeout) and net_ok
+        net_ok = run_three_human_case(binary_path, args.seeds[0], args.net_speed, args.net_loss,
+                                      args.net_port + 3, out_dir, args.timeout) and net_ok
 
     oos = [r for r in results if r["divergent_turn"] is not None]
     if not net_ok and not oos:
