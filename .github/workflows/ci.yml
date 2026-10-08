@@ -85,6 +85,12 @@ jobs:
             src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o /tmp/test_victory
           /tmp/test_victory
 
+      - name: Map size test (nav, fog and territory grids at 0 A.D. sizes)
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_map_scale.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp -o /tmp/test_map_scale -lpthread
+          /tmp/test_map_scale
+
       - name: Nav parity probe
         run: python3 tools/check_parity.py --unit nav-live
 

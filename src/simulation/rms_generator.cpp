@@ -72,6 +72,13 @@ private:
 	}
 };
 
+// 0 A.D. rmgen scaleByMapSize(min, max): linear from a 128-tile (Tiny) map to
+// a 512-tile (Giant) map. One RTS0 world unit is one 0 A.D. tile.
+inline int scale_by_map_size(int min_val, int max_val, float map_half) {
+	const float size = map_half * 2.0f;
+	return min_val + (int)((float)(max_val - min_val) * std::max(0.0f, size - 128.0f) / 384.0f);
+}
+
 inline float smoothstep(float edge0, float edge1, float x) {
 	float t = std::clamp((x - edge0) / (edge1 - edge0), 0.0f, 1.0f);
 	return t * t * (3.0f - 2.0f * t);
@@ -1360,7 +1367,7 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 	}
 
 	// 2. Contested Neutral Gold & Stone Quarries
-	int num_neutral_mines = std::max(4, config.num_players * 2);
+	int num_neutral_mines = std::max(4, config.num_players * 2) * scale_by_map_size(1, 4, half);
 	for (int m = 0; m < num_neutral_mines; ++m) {
 		float mx = rng.range_float(-half * 0.70f, half * 0.70f);
 		float mz = rng.range_float(-half * 0.70f, half * 0.70f);
@@ -1387,7 +1394,7 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 void RmsGenerator::distribute_wildlife(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config) {
 	(void)config;
 	float half = hm.map_half;
-	int num_packs = 10;
+	int num_packs = scale_by_map_size(10, 40, half);
 
 	for (int p = 0; p < num_packs; ++p) {
 		float px = rng.range_float(-half * 0.75f, half * 0.75f);
@@ -1416,7 +1423,7 @@ void RmsGenerator::distribute_wildlife(Simulation &sim, const HeightmapGrid &hm,
 
 void RmsGenerator::distribute_relics(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config) {
 	float half = hm.map_half;
-	int num_relics = 6;
+	int num_relics = scale_by_map_size(6, 12, half);
 
 	// Center relic if land is above water
 	float center_h = hm.sample_world(0.0f, 0.0f);

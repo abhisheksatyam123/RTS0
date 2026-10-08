@@ -933,13 +933,16 @@ void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 		PackedInt32Array indices;
 
 		float step = (half * 2.0f) / (float)(res - 1);
+		// Texture repeats 8 times across the default 128m map; keep that
+		// density on larger maps instead of stretching it.
+		const float uv_tiles = 8.0f * half / 64.0f;
 		for (int z = 0; z < res; ++z) {
 			float wz = -half + z * step;
 			for (int x = 0; x < res; ++x) {
 				float wx = -half + x * step;
 				float wy = heights[z * res + x];
 				vertices.push_back(Vector3(wx, wy, wz));
-				uvs.push_back(Vector2((float)x / (float)(res - 1) * 8.0f, (float)z / (float)(res - 1) * 8.0f));
+				uvs.push_back(Vector2((float)x / (float)(res - 1) * uv_tiles, (float)z / (float)(res - 1) * uv_tiles));
 
 				float h_left  = (x > 0) ? heights[z * res + (x - 1)] : wy;
 				float h_right = (x < res - 1) ? heights[z * res + (x + 1)] : wy;

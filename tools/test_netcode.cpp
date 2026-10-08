@@ -664,7 +664,8 @@ int run_legacy_tests() {
         assert(enemy && ally);
         // Enemy vision is not shared; allied unit vision is shared with player 0.
         for (int i = 0; i < 6; ++i) { enemy_only.tick(0.05f); allied.tick(0.05f); }
-        const int center = Simulation::FOW_GRID / 2 * Simulation::FOW_GRID + Simulation::FOW_GRID / 2;
+        const int G = enemy_only.fow_res();
+        const int center = G / 2 * G + G / 2;
         assert(enemy_only.fow_grid()[center] == Simulation::FOW_UNEXPLORED);
         allied.set_mutual_ally(1);
         for (int i = 0; i < 6; ++i) allied.tick(0.05f);
@@ -784,7 +785,8 @@ int run_legacy_tests() {
         flat.spawn_unit(0.0f, -10.0f, 0, UNIT_VILLAGER);
         blocked.spawn_unit(0.0f, -10.0f, 0, UNIT_VILLAGER);
         for (int i = 0; i < 6; ++i) { flat.tick(0.05f); blocked.tick(0.05f); }
-        const int center = Simulation::FOW_GRID / 2 * Simulation::FOW_GRID + Simulation::FOW_GRID / 2;
+        const int G = flat.fow_res();
+        const int center = G / 2 * G + G / 2;
         assert(flat.fow_state_at(0.0f, -10.0f) == Simulation::FOW_VISIBLE ||
                flat.fow_state_at(0.0f, -9.0f) == Simulation::FOW_VISIBLE);
         assert(blocked.fow_state_at(0.0f, 0.0f) != Simulation::FOW_VISIBLE);
@@ -819,7 +821,8 @@ int run_legacy_tests() {
         s.spawn_building_world(-40.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
         s.spawn_unit(0.0f, 0.0f, 1, UNIT_VILLAGER);
         for (int i = 0; i < 6; ++i) s.tick(0.05f);
-        const int center = Simulation::FOW_GRID / 2 * Simulation::FOW_GRID + Simulation::FOW_GRID / 2;
+        const int G = s.fow_res();
+        const int center = G / 2 * G + G / 2;
         assert(s.fow_grid()[center] == Simulation::FOW_VISIBLE);
         std::cout << "  [PASS] reciprocal alliance gates shared LOS." << std::endl;
     }
