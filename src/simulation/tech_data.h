@@ -91,7 +91,8 @@ enum TechnologyId : uint8_t {
 	TECH_WARSHIP_RAMMING_ATTACK = 82, // warship_ramming_attack
 	TECH_WARSHIP_RANGED_ATTACK = 83, // warship_ranged_attack
 	TECH_WARSHIP_SIEGE_ATTACK = 84, // warship_siege_attack
-	TECH_COUNT = 85
+	TECH_GARRISON_HEAL = 85, // garrison_heal
+	TECH_COUNT = 86
 };
 
 enum TechClass : uint64_t {
@@ -193,6 +194,7 @@ inline const TechClassExpr *tech_affects_table() {
 		{TC_TRADER, TC_SHIP},
 		{TC_ARROWSHIP, 0},
 		{TC_RANGED | TC_WARSHIP, 0},
+		{TC_STRUCTURE, TC_OUTPOST | TC_WALL},
 	};
 	return kAffects;
 }
@@ -321,10 +323,11 @@ inline const TechEffect *tech_effects_table() {
 		{TSTAT_HEALTH, TOP_MUL, 32, 1, 1.2f}, // warship_health
 		{TSTAT_RANGED_CRUSH, TOP_MUL, 33, 1, 1.1f}, // warship_ranged_attack
 		{TSTAT_RANGED_PIERCE, TOP_MUL, 33, 1, 1.1f}, // warship_ranged_attack
+		{TSTAT_GARRISON_HEAL, TOP_ADD, 34, 1, 1.0f}, // garrison_heal
 	};
 	return kEffects + 1;
 }
-constexpr int TECH_EFFECT_COUNT = 121;
+constexpr int TECH_EFFECT_COUNT = 122;
 
 inline const TechInfo &tech_info(uint8_t tech_id) {
 	static const TechInfo kTable[TECH_COUNT] = {
@@ -413,6 +416,7 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Bronze Ram", "Ramming Ships +30% attack damage.", 0, 0, 400, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x183f, 119, 0, "warship_ramming_attack"},
 		{"Flaming Projectiles", "Ranged Warships +10% attack damage.", 0, 400, 300, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x0400, 119, 2, "warship_ranged_attack"},
 		{"Naval Ballistae", "Siege Ships +20% attack range and vision range.", 0, 300, 300, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x3818, 121, 0, "warship_siege_attack"},
+		{"Living Conditions", "Structures +1 garrison heal rate.", 500, 0, 250, 0, 40.0f, 2, BLD_TEMPLE, TECH_NONE, 0x3fff, 121, 1, "garrison_heal"},
 	};
 	if (tech_id >= TECH_COUNT) return kTable[TECH_NONE];
 	return kTable[tech_id];
