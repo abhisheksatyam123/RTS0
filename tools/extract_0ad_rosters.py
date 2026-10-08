@@ -456,6 +456,188 @@ def structure_kind(stem):
     return stem
 
 
+# ---------------------------------------------------------------------------
+# Civ bonuses (simulation/data/technologies/civbonuses/*.json, auto-researched)
+# ---------------------------------------------------------------------------
+
+def req_civs(req):
+    if not isinstance(req, dict):
+        return set()
+    out = set()
+    if "civ" in req:
+        out.add(req["civ"])
+    for key in ("any", "all"):
+        for sub in req.get(key, []):
+            out |= req_civs(sub)
+    return out
+
+
+def affects_match(affects, classes):
+    if not affects:
+        return False
+    for entry in affects:
+        ok = True
+        for tok in entry.split():
+            if tok.startswith("!"):
+                if tok[1:] in classes:
+                    ok = False
+            elif tok not in classes:
+                ok = False
+        if ok:
+            return True
+    return False
+
+
+def load_civ_bonuses(sim_root):
+    bdir = os.path.join(sim_root, "data", "technologies", "civbonuses")
+    out = []
+    for fn in sorted(os.listdir(bdir)):
+        if not fn.endswith(".json"):
+            continue
+        with open(os.path.join(bdir, fn), encoding="utf-8") as f:
+            d = json.load(f)
+        if not d.get("autoResearch"):
+            continue
+        out.append({
+            "id": fn[:-5],
+            "name": d.get("genericName", fn[:-5]),
+            "tooltip": d.get("tooltip", ""),
+            "civs": sorted(req_civs(d.get("requirements"))),
+            "affects": d.get("affects") or [],
+            "modifications": d.get("modifications", []),
+        })
+    return out
+
+
+def _modify(value, mod):
+    if "multiply" in mod:
+        return value * mod["multiply"]
+    if "add" in mod:
+        return value + mod["add"]
+    if "replace" in mod:
+        return mod["replace"]
+    return value
+
+
+def apply_unit_bonuses(raw, classes, civ, bonuses):
+    """Fold a civ's auto-researched unit bonuses into raw 0 A.D. stats.
+    Returns the ids of the bonuses that applied."""
+    kind = "Ranged" if raw["ranged"] else "Melee"
+    paths = {
+        "UnitMotion/WalkSpeed": "speed", "Health/Max": "hp", "Cost/BuildTime": "train_time",
+        "Cost/Resources/food": "food", "Cost/Resources/wood": "wood",
+        "Cost/Resources/metal": "gold", "Cost/Resources/stone": "stone",
+        "Attack/%s/Damage/Hack" % kind: "hack_dmg", "Attack/%s/Damage/Pierce" % kind: "pierce_dmg",
+        "Attack/%s/Damage/Crush" % kind: "crush_dmg", "Attack/%s/RepeatTime" % kind: "cooldown",
+        "Resistance/Entity/Damage/Hack": "hack_armor", "Resistance/Entity/Damage/Pierce": "pierce_armor",
+        "Resistance/Entity/Damage/Crush": "crush_armor",
+    }
+    applied = []
+    for b in bonuses:
+        if civ not in b["civs"] or not affects_match(b["affects"], classes):
+            continue
+        hit = False
+        for m in b["modifications"]:
+            field = paths.get(m.get("value"))
+            if field is None:
+                continue
+            raw[field] = _modify(raw[field], m)
+            hit = True
+        if hit:
+            applied.append(b["id"])
+    raw["damage"] = raw["hack_dmg"] + raw["pierce_dmg"] + raw["crush_dmg"]
+    return applied
+
+
+# 0 A.D. structure classes in civ bonus "affects" lists, as RTS0 BuildingTypes.
+BUILDING_CLASS = {
+    "Structure": BUILDING_BITS,
+    "Wall": ["BLD_WALL_SEGMENT", "BLD_GATE"],
+    "Storehouse": ["BLD_STOREHOUSE"],
+    "House": ["BLD_HOUSE"],
+    "Economic": ["BLD_STOREHOUSE", "BLD_FARMSTEAD", "BLD_MARKET", "BLD_CORRAL", "BLD_HOUSE"],
+    "CivCentre": ["BLD_TOWN_CENTER"], "Naval": ["BLD_DOCK"], "Wonder": ["BLD_WONDER"],
+}
+BUILDING_STAT = {
+    "Health/Max": "CIV_BONUS_BUILDING_HP", "Cost/BuildTime": "CIV_BONUS_BUILDING_BUILD_TIME",
+    "Cost/Resources/wood": "CIV_BONUS_BUILDING_WOOD_COST",
+    "Cost/Resources/stone": "CIV_BONUS_BUILDING_STONE_COST",
+    "Capturable/CapturePoints": "CIV_BONUS_BUILDING_CAPTURE_POINTS",
+}
+
+
+def building_mask(affects):
+    out = set()
+    for entry in affects:
+        include = None
+        exclude = set()
+        for tok in entry.split():
+            if tok.startswith("!"):
+                exclude |= set(BUILDING_CLASS.get(tok[1:], []))
+            elif tok in BUILDING_CLASS:
+                include = set(BUILDING_CLASS[tok]) if include is None else include & set(BUILDING_CLASS[tok])
+            else:
+                include = set()
+        if include:
+            out |= include - exclude
+    return sorted(out, key=BUILDING_BITS.index)
+
+
+def player_bonus_rows(bonuses):
+    """Bonuses that act on a civ's buildings or the player rather than units."""
+    rows = []
+    for b in bonuses:
+        for m in b["modifications"]:
+            v = m.get("value")
+            mult = m.get("multiply")
+            if mult is None:
+                continue
+            if v == "Player/MaxPopulation":
+                rows.append((b, "CIV_BONUS_POP_CAP", [], mult))
+            elif v in BUILDING_STAT:
+                mask = building_mask(b["affects"])
+                if mask:
+                    rows.append((b, BUILDING_STAT[v], mask, mult))
+    return rows
+
+
+# RTS0 AuraManager kinds (aura_manager.h AuraType).
+AURA_KIND = {"AURA_GATHER": 0, "AURA_HEAL": 1, "AURA_ATTACK": 2, "AURA_SPEED": 3, "AURA_ARMOR": 4}
+GLOBAL_AURA_RANGE = 1000.0
+
+
+def rts0_aura_effect(a):
+    """Strongest effect of a 0 A.D. aura that RTS0's AuraManager can model:
+    (kind, value, range) or None."""
+    best = None
+    for m in a.get("modifications", []):
+        v = m.get("value", "")
+        kind = value = None
+        if v.startswith("Attack/") and "/Damage/" in v and "multiply" in m:
+            kind, value = "AURA_ATTACK", m["multiply"]
+        elif v.startswith("Attack/") and v.endswith("/RepeatTime") and "multiply" in m and m["multiply"] > 0:
+            kind, value = "AURA_ATTACK", 1.0 / m["multiply"]
+        elif v == "UnitMotion/WalkSpeed" and "multiply" in m:
+            kind, value = "AURA_SPEED", m["multiply"]
+        elif v.startswith("Resistance/Entity/Damage/") and "add" in m:
+            kind, value = "AURA_ARMOR", m["add"]
+        elif v in ("Health/IdleRegenRate", "Health/RegenRate") and "add" in m:
+            kind, value = "AURA_HEAL", m["add"]
+        elif v.startswith("ResourceGatherer/") and "multiply" in m and m["multiply"] > 1:
+            kind, value = "AURA_GATHER", 1.0 - 1.0 / m["multiply"]
+        if kind is None:
+            continue
+        gain = value - 1.0 if kind in ("AURA_ATTACK", "AURA_SPEED") else value
+        if gain <= 0:
+            continue
+        if best is None or gain > best[3]:
+            best = (kind, value, None, gain)
+    if best is None:
+        return None
+    rng = a["radius"] * RANGED_RANGE_SCALE if a["type"] == "range" and a["radius"] > 0 else GLOBAL_AURA_RANGE
+    return best[0], best[1], rng
+
+
 def collect(sim_root):
     loader = TemplateLoader(sim_root)
     civ_json = {}
@@ -467,6 +649,7 @@ def collect(sim_root):
     for cls, tmpl in GENERIC.items():
         generic[cls] = raw_stats(loader.load(tmpl))
 
+    bonuses = load_civ_bonuses(sim_root)
     rows = []
     auras = []
     skipped = []
@@ -508,8 +691,9 @@ def collect(sim_root):
                 unpacked = raw_stats(loader.load(name[:-len("_packed")] + "_unpacked"))
                 for k in ("range", "damage", "cooldown", "hack_dmg", "pierce_dmg", "crush_dmg", "ranged"):
                     raw[k] = unpacked[k]
-            stats = convert(cls, raw, generic[cls])
             c = classes_of(t)
+            civ_bonus_ids = apply_unit_bonuses(raw, c, civ, bonuses)
+            stats = convert(cls, raw, generic[cls])
             flags = []
             if "Hero" in c:
                 flags.append("ROSTER_HERO")
@@ -545,6 +729,7 @@ def collect(sim_root):
                     "affects": a.get("affects", []),
                     "modifications": a.get("modifications", []),
                 })
+                auras[-1]["rts0"] = rts0_aura_effect(auras[-1])
             rows.append({
                 "id": name.split("units/", 1)[-1],
                 "civ": civ,
@@ -556,6 +741,8 @@ def collect(sim_root):
                 "trained_at_0ad": sorted(trainers[name]["kinds"]),
                 "flags": flags,
                 "auras": hero_auras,
+                "civ_bonuses": civ_bonus_ids,
+                "classes": sorted(c),
                 "stats": stats,
             })
         # RTS0-only classes every civ (or a named civ) keeps.
@@ -575,9 +762,13 @@ def collect(sim_root):
                 "phase": 1,
                 "trainers": ["BLD_TOWN_CENTER"],
                 "trained_at_0ad": [], "flags": ["ROSTER_CITIZEN"],
+                "classes": ["Citizen", "Human", "Organic", "Unit", "Worker"],
                 "auras": [], "stats": stats,
             })
-    return rows, auras, skipped, civ_json
+    # Which roster units each aura affects (0 A.D. "affects" class lists).
+    for a in auras:
+        a["affects_rows"] = [i for i, r in enumerate(rows) if affects_match(a["affects"], set(r["classes"]))]
+    return rows, auras, skipped, civ_json, bonuses
 
 # ---------------------------------------------------------------------------
 # Emitters
@@ -594,7 +785,7 @@ def f(x):
     return s + "f"
 
 
-def emit_header(rows, auras, civ_json):
+def emit_header(rows, auras, civ_json, bonuses):
     out = []
     w = out.append
     w("// GENERATED by tools/extract_0ad_rosters.py from 0 A.D. simulation templates.")
@@ -606,13 +797,24 @@ def emit_header(rows, auras, civ_json):
     w("")
     w("inline constexpr uint16_t CIV_UNIT_TEMPLATE_COUNT = %d;" % len(rows))
     w("inline constexpr uint16_t CIV_HERO_AURA_COUNT = %d;" % len(auras))
+    words = (len(rows) + 63) // 64
+    w("inline constexpr uint16_t CIV_TEMPLATE_WORDS = %d; // uint64 words in a per-template bitset" % words)
     w("")
     w("inline const CivHeroAura *civ_hero_aura_table() {")
     w("\tstatic const CivHeroAura kAuras[CIV_HERO_AURA_COUNT] = {")
-    w("\t\t// id, name, description, radius (0 A.D. metres; 0 = global)")
+    w("\t\t// id, name, description, radius (0 A.D. metres; 0 = global),")
+    w("\t\t// RTS0 AuraManager effect: kind (AuraType, 255 = none modelled), value, range,")
+    w("\t\t// bitset of civ_unit_template_table() rows the aura affects")
     for a in auras:
+        bits = [0] * words
+        for i in a["affects_rows"]:
+            bits[i // 64] |= 1 << (i % 64)
+        bitset = "{" + ", ".join("0x%016xull" % b for b in bits) + "}"
         radius = a["radius"] if a["type"] == "range" else 0.0
-        w("\t\t{%s, %s, %s, %s}," % (cstr(a["id"]), cstr(a["name"]), cstr(a["description"]), f(radius)))
+        eff = a.get("rts0")
+        kind, value, rng = (AURA_KIND[eff[0]], eff[1], eff[2]) if eff else (255, 0.0, 0.0)
+        w("\t\t{%s, %s, %s, %s, %d, %s, %s, %s}," % (cstr(a["id"]), cstr(a["name"]), cstr(a["description"]),
+                                                 f(radius), kind, f(value), f(rng), bitset))
     w("\t};")
     w("\treturn kAuras;")
     w("}")
@@ -642,6 +844,41 @@ def emit_header(rows, auras, civ_json):
     w("\treturn kTable;")
     w("}")
     w("")
+    prow = player_bonus_rows(bonuses)
+    w("inline constexpr uint16_t CIV_PLAYER_BONUS_COUNT = %d;" % len(prow))
+    w("")
+    w("// 0 A.D. auto-researched civ bonuses that act on buildings or the player.")
+    w("// Bonuses on units are already folded into civ_unit_template_table().")
+    w("inline const CivPlayerBonus *civ_player_bonus_table() {")
+    w("\tstatic const CivPlayerBonus kBonuses[CIV_PLAYER_BONUS_COUNT + 1] = {")
+    w("\t\t// civ mask, stat, buildings, multiplier, 0 A.D. bonus id, tooltip")
+    for b, stat, mask, mult in prow:
+        civs = " | ".join("civ_bit(%s)" % CIV_ENUM[CIVS.index(c)] for c in b["civs"] if c in CIVS) or "0"
+        if len(b["civs"]) > 1:
+            civs = "(uint16_t)(%s)" % civs
+        blds = " | ".join("bld_bit(%s)" % x for x in mask) or "0"
+        if len(mask) > 1:
+            blds = "(uint16_t)(%s)" % blds
+        w("\t\t{%s, %s, %s, %s, %s, %s}," % (civs, stat, blds, f(mult), cstr(b["id"]), cstr(b["tooltip"])))
+    w("\t\t{0, 0, 0, 1.0f, \"\", \"\"}, // sentinel")
+    w("\t};")
+    w("\treturn kBonuses;")
+    w("}")
+    w("")
+    w("// Each civ's 0 A.D. bonuses as one line of text for the civ picker.")
+    w("inline const char *civ_bonus_text(uint8_t civ) {")
+    w("\tstatic const char *kText[CIV_COUNT] = {")
+    for civ in CIVS:
+        parts = ["%s: %s" % (b.get("Name", ""), b.get("Description", ""))
+                 for b in civ_json[civ].get("CivBonuses", [])]
+        named = {b.get("Name") for b in civ_json[civ].get("CivBonuses", [])}
+        parts += ["%s: %s" % (b["name"], b["tooltip"]) for b in bonuses
+                  if civ in b["civs"] and b["name"] not in named]
+        w("\t\t%s," % cstr(" ".join(p if p.endswith(".") else p + "." for p in parts)))
+    w("\t};")
+    w("\treturn kText[civ < CIV_COUNT ? civ : 0];")
+    w("}")
+    w("")
     # Per-civ ranges into the table (rows are grouped by civ).
     w("// [first, last) rows of civ_unit_template_table() for each civ.")
     w("inline const uint16_t *civ_roster_offsets() {")
@@ -659,7 +896,7 @@ def emit_header(rows, auras, civ_json):
     return "\n".join(out)
 
 
-def emit_json(rows, auras, civ_json):
+def emit_json(rows, auras, civ_json, bonuses):
     civs = []
     for civ in CIVS:
         j = civ_json[civ]
@@ -671,13 +908,15 @@ def emit_json(rows, auras, civ_json):
             "team_bonuses": [{"name": b.get("Name", ""), "description": b.get("Description", "")}
                              for b in j.get("TeamBonuses", [])],
             "units": [r["id"] for r in rows if r["civ"] == civ],
+            "auto_bonuses": [{"id": b["id"], "name": b["name"], "tooltip": b["tooltip"]}
+                             for b in bonuses if civ in b["civs"]],
         })
     doc = {
         "generator": "tools/extract_0ad_rosters.py",
         "license": "0 A.D. data, CC BY-SA 3.0, Wildfire Games",
         "civs": civs,
         "units": rows,
-        "auras": auras,
+        "auras": [{k: v for k, v in a.items() if k != "affects_rows"} for a in auras],
     }
     return json.dumps(doc, indent=1, ensure_ascii=False, sort_keys=False) + "\n"
 
@@ -689,9 +928,9 @@ def main():
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
     sim_root = os.path.join(args.zad, "binaries", "data", "mods", "public", "simulation")
-    rows, auras, skipped, civ_json = collect(sim_root)
-    header = emit_header(rows, auras, civ_json)
-    js = emit_json(rows, auras, civ_json)
+    rows, auras, skipped, civ_json, bonuses = collect(sim_root)
+    header = emit_header(rows, auras, civ_json, bonuses)
+    js = emit_json(rows, auras, civ_json, bonuses)
     if args.verbose:
         for s in skipped:
             print("skipped:", s, file=sys.stderr)

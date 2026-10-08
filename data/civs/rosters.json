@@ -45,6 +45,18 @@
     "athen/support_healer_b",
     "athen/support_trader",
     "athen/rts0_villager"
+   ],
+   "auto_bonuses": [
+    {
+     "id": "delian_league",
+     "name": "Delian League",
+     "tooltip": "Ships −25% construction time."
+    },
+    {
+     "id": "greek_structures",
+     "name": "Hellenic Architecture",
+     "tooltip": "Structures +10% health and +10% capture points."
+    }
    ]
   },
   {
@@ -84,6 +96,13 @@
     "spart/support_healer_b",
     "spart/support_trader",
     "spart/rts0_villager"
+   ],
+   "auto_bonuses": [
+    {
+     "id": "greek_structures",
+     "name": "Hellenic Architecture",
+     "tooltip": "Structures +10% health and +10% capture points."
+    }
    ]
   },
   {
@@ -135,6 +154,13 @@
     "pers/support_healer_b",
     "pers/support_trader",
     "pers/rts0_villager"
+   ],
+   "auto_bonuses": [
+    {
+     "id": "pers_population",
+     "name": "Great King's Levy",
+     "tooltip": "+10% maximum population limit."
+    }
    ]
   },
   {
@@ -187,6 +213,13 @@
     "rome/support_healer_b",
     "rome/support_trader",
     "rome/rts0_villager"
+   ],
+   "auto_bonuses": [
+    {
+     "id": "rome_siege",
+     "name": "Legionary Engineers",
+     "tooltip": "Siege Catapults and Onagers 10% faster fire rate and +20% movement speed."
+    }
    ]
   },
   {
@@ -234,6 +267,13 @@
     "cart/support_healer_b",
     "cart/support_trader",
     "cart/rts0_villager"
+   ],
+   "auto_bonuses": [
+    {
+     "id": "cart_walls",
+     "name": "Triple Walls",
+     "tooltip": "City Walls +100% build time, +100% stone cost, and +200% health."
+    }
    ]
   },
   {
@@ -268,6 +308,18 @@
     "mace/support_healer_b",
     "mace/support_trader",
     "mace/rts0_villager"
+   ],
+   "auto_bonuses": [
+    {
+     "id": "greek_structures",
+     "name": "Hellenic Architecture",
+     "tooltip": "Structures +10% health and +10% capture points."
+    },
+    {
+     "id": "mace_storehouse",
+     "name": "Resource-Rich Economy",
+     "tooltip": "Storehouse technologies −100% research time."
+    }
    ]
   },
   {
@@ -307,6 +359,18 @@
     "brit/support_trader",
     "brit/war_dog",
     "brit/rts0_villager"
+   ],
+   "auto_bonuses": [
+    {
+     "id": "brit_woad_warriors",
+     "name": "Woad Warriors",
+     "tooltip": "All Infantry Units +5% movement speed, and gain +1 loot taking."
+    },
+    {
+     "id": "celt_structures",
+     "name": "Wooden Construction",
+     "tooltip": "Structures −20% build time, −20% health, and −20% capture points."
+    }
    ]
   },
   {
@@ -343,6 +407,18 @@
     "gaul/support_healer_b",
     "gaul/support_trader",
     "gaul/rts0_villager"
+   ],
+   "auto_bonuses": [
+    {
+     "id": "celt_structures",
+     "name": "Wooden Construction",
+     "tooltip": "Structures −20% build time, −20% health, and −20% capture points."
+    },
+    {
+     "id": "gaul_cavalry",
+     "name": "Superior Cavalry",
+     "tooltip": "Cavalry +10% melee attack damage."
+    }
    ]
   },
   {
@@ -382,7 +458,8 @@
     "iber/support_healer_b",
     "iber/support_trader",
     "iber/rts0_villager"
-   ]
+   ],
+   "auto_bonuses": []
   },
   {
    "code": "maur",
@@ -415,6 +492,23 @@
     "maur/support_healer_b",
     "maur/support_trader",
     "maur/rts0_villager"
+   ],
+   "auto_bonuses": [
+    {
+     "id": "maur_elephants",
+     "name": "Elephant Tradition",
+     "tooltip": "Elephants −30% training time."
+    },
+    {
+     "id": "maur_population",
+     "name": "Emperor of Emperors",
+     "tooltip": "+10% maximum population limit."
+    },
+    {
+     "id": "maur_walls",
+     "name": "Wooden Walls",
+     "tooltip": "City Walls −20% build time and −20% health."
+    }
    ]
   },
   {
@@ -456,7 +550,8 @@
     "kush/support_healer_e",
     "kush/support_trader",
     "kush/rts0_villager"
-   ]
+   ],
+   "auto_bonuses": []
   },
   {
    "code": "ptol",
@@ -502,6 +597,13 @@
     "ptol/support_healer_b",
     "ptol/support_trader",
     "ptol/rts0_villager"
+   ],
+   "auto_bonuses": [
+    {
+     "id": "ptol_structures",
+     "name": "Sun-dried Mud Bricks",
+     "tooltip": "Houses and Economic Structures −40% wood cost, health, and capture points as well as +50% build time."
+    }
    ]
   },
   {
@@ -539,6 +641,13 @@
     "sele/support_healer_b",
     "sele/support_trader",
     "sele/rts0_villager"
+   ],
+   "auto_bonuses": [
+    {
+     "id": "sele_farms",
+     "name": "Fertile Crescent",
+     "tooltip": "Farms −25% wood cost and −75% build time."
+    }
    ]
   },
   {
@@ -573,6 +682,18 @@
     "han/support_healer_b",
     "han/support_trader",
     "han/rts0_villager"
+   ],
+   "auto_bonuses": [
+    {
+     "id": "han_population",
+     "name": "Federated States",
+     "tooltip": "+10% maximum population limit."
+    },
+    {
+     "id": "han_walls",
+     "name": "Great Wall",
+     "tooltip": "City Walls +50% health."
+    }
    ]
   }
  ],
@@ -597,6 +718,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.25,
@@ -635,6 +770,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 160.0,
     "cooldown": 0.75,
@@ -673,6 +822,18 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 0.9,
@@ -711,6 +872,18 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 0.75,
@@ -749,6 +922,18 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 0.75,
@@ -788,6 +973,18 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 120.0,
     "cooldown": 1.0,
@@ -828,6 +1025,16 @@
    "auras": [
     0,
     1
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Healer",
+    "Hero",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
    ],
    "stats": {
     "hp": 600.0,
@@ -871,6 +1078,18 @@
     2,
     3
    ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 1000.0,
     "cooldown": 1.25,
@@ -911,6 +1130,18 @@
    "auras": [
     4,
     5
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
    ],
    "stats": {
     "hp": 1000.0,
@@ -953,6 +1184,18 @@
     6,
     7
    ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 1000.0,
     "cooldown": 0.75,
@@ -993,6 +1236,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.0,
@@ -1032,6 +1290,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.0,
@@ -1072,6 +1345,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.25,
@@ -1114,6 +1402,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Slinger",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.25,
@@ -1154,6 +1457,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -1192,6 +1510,18 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [
+    "delian_league"
+   ],
+   "classes": [
+    "ArrowShip",
+    "ConquestCritical",
+    "Ranged",
+    "Ship",
+    "Trireme",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 500.0,
     "cooldown": 1.5,
@@ -1205,7 +1535,7 @@
     "wood": 120,
     "gold": 80,
     "stone": 0,
-    "train_time": 24.0,
+    "train_time": 18.0,
     "pop": 3,
     "speed": 4.984,
     "damage": 15.0,
@@ -1228,6 +1558,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [
+    "delian_league"
+   ],
+   "classes": [
+    "FishingBoat",
+    "Ship",
+    "Unit"
+   ],
    "stats": {
     "hp": 120.0,
     "cooldown": 1.0,
@@ -1241,7 +1579,7 @@
     "wood": 50,
     "gold": 0,
     "stone": 0,
-    "train_time": 15.0,
+    "train_time": 11.25,
     "pop": 1,
     "speed": 3.5244,
     "damage": 10.0,
@@ -1264,6 +1602,15 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [
+    "delian_league"
+   ],
+   "classes": [
+    "Bribable",
+    "Ship",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 240.0,
     "cooldown": 1.0,
@@ -1277,7 +1624,7 @@
     "wood": 0,
     "gold": 100,
     "stone": 0,
-    "train_time": 20.0,
+    "train_time": 15.0,
     "pop": 1,
     "speed": 4.3254,
     "damage": 0.0,
@@ -1300,6 +1647,18 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [
+    "delian_league"
+   ],
+   "classes": [
+    "ConquestCritical",
+    "Melee",
+    "NavalRam",
+    "Ship",
+    "Trireme",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 400.0,
     "cooldown": 8.0,
@@ -1313,7 +1672,7 @@
     "wood": 100,
     "gold": 50,
     "stone": 0,
-    "train_time": 24.0,
+    "train_time": 18.0,
     "pop": 3,
     "speed": 5.696,
     "damage": 200.0,
@@ -1338,6 +1697,18 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [
+    "delian_league"
+   ],
+   "classes": [
+    "Bireme",
+    "ConquestCritical",
+    "Ranged",
+    "ScoutShip",
+    "Ship",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 3.0,
@@ -1351,7 +1722,7 @@
     "wood": 80,
     "gold": 0,
     "stone": 0,
-    "train_time": 12.0,
+    "train_time": 9.0,
     "pop": 2,
     "speed": 5.696,
     "damage": 12.0,
@@ -1376,6 +1747,14 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Ranged",
+    "Siege",
+    "StoneThrower",
+    "Unit"
+   ],
    "stats": {
     "hp": 375.0,
     "cooldown": 7.0,
@@ -1414,6 +1793,14 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "BoltShooter",
+    "ConquestCritical",
+    "Ranged",
+    "Siege",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 6.0,
@@ -1450,6 +1837,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Melee",
+    "Ram",
+    "Siege",
+    "Unit"
+   ],
    "stats": {
     "hp": 400.0,
     "cooldown": 1.5,
@@ -1488,6 +1883,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 25.0,
     "cooldown": 1.0,
@@ -1526,6 +1933,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 25.0,
     "cooldown": 1.0,
@@ -1562,6 +1981,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
    "stats": {
     "hp": 85.0,
     "cooldown": 1.0,
@@ -1598,6 +2025,15 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Human",
+    "Organic",
+    "Support",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -1632,6 +2068,13 @@
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
+   ],
+   "classes": [
+    "Citizen",
+    "Human",
+    "Organic",
+    "Unit",
+    "Worker"
    ],
    "auras": [],
    "stats": {
@@ -1675,6 +2118,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.25,
@@ -1713,6 +2170,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 160.0,
     "cooldown": 1.25,
@@ -1751,6 +2222,18 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 0.9,
@@ -1789,6 +2272,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 0.75,
@@ -1830,6 +2328,18 @@
     8,
     9
    ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 1500.0,
     "cooldown": 0.9,
@@ -1870,6 +2380,18 @@
    "auras": [
     10
    ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 1000.0,
     "cooldown": 0.75,
@@ -1909,6 +2431,18 @@
    ],
    "auras": [
     11
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
    ],
    "stats": {
     "hp": 1000.0,
@@ -1952,6 +2486,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.25,
@@ -1992,6 +2541,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -2030,6 +2594,19 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -2068,6 +2645,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ArrowShip",
+    "ConquestCritical",
+    "Ranged",
+    "Ship",
+    "Trireme",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 500.0,
     "cooldown": 1.5,
@@ -2104,6 +2691,12 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "FishingBoat",
+    "Ship",
+    "Unit"
+   ],
    "stats": {
     "hp": 120.0,
     "cooldown": 1.0,
@@ -2140,6 +2733,13 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Ship",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 240.0,
     "cooldown": 1.0,
@@ -2176,6 +2776,16 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Melee",
+    "NavalRam",
+    "Ship",
+    "Trireme",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 400.0,
     "cooldown": 8.0,
@@ -2214,6 +2824,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bireme",
+    "ConquestCritical",
+    "Ranged",
+    "ScoutShip",
+    "Ship",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 3.0,
@@ -2252,6 +2872,14 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "BoltShooter",
+    "ConquestCritical",
+    "Ranged",
+    "Siege",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 6.0,
@@ -2288,6 +2916,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Melee",
+    "Ram",
+    "Siege",
+    "Unit"
+   ],
    "stats": {
     "hp": 400.0,
     "cooldown": 1.5,
@@ -2326,6 +2962,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 35.0,
     "cooldown": 1.0,
@@ -2364,6 +3012,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 35.0,
     "cooldown": 1.0,
@@ -2400,6 +3060,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
    "stats": {
     "hp": 85.0,
     "cooldown": 1.0,
@@ -2436,6 +3104,15 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Human",
+    "Organic",
+    "Support",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -2470,6 +3147,13 @@
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
+   ],
+   "classes": [
+    "Citizen",
+    "Human",
+    "Organic",
+    "Unit",
+    "Worker"
    ],
    "auras": [],
    "stats": {
@@ -2513,6 +3197,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -2553,6 +3251,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Axeman",
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 160.0,
     "cooldown": 1.0,
@@ -2594,6 +3306,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.25,
@@ -2634,6 +3360,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 160.0,
     "cooldown": 1.25,
@@ -2672,6 +3412,20 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cataphract",
+    "Cavalry",
+    "Champion",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 300.0,
     "cooldown": 1.25,
@@ -2711,6 +3465,19 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Cavalry",
+    "Champion",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 240.0,
     "cooldown": 1.0,
@@ -2750,6 +3517,20 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Cavalry",
+    "Champion",
+    "Chariot",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 300.0,
     "cooldown": 1.0,
@@ -2788,6 +3569,18 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Elephant",
+    "Human",
+    "IndianElephant",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 1100.0,
     "cooldown": 1.5,
@@ -2826,6 +3619,19 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Immortal",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 120.0,
     "cooldown": 0.9,
@@ -2869,6 +3675,19 @@
    ],
    "auras": [
     12
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "ConquestCritical",
+    "FastMoving",
+    "Hero",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
    ],
    "stats": {
     "hp": 1200.0,
@@ -2915,6 +3734,20 @@
    "auras": [
     13
    ],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Cavalry",
+    "Chariot",
+    "ConquestCritical",
+    "FastMoving",
+    "Hero",
+    "Human",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 1500.0,
     "cooldown": 1.0,
@@ -2960,6 +3793,18 @@
    "auras": [
     14
    ],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 1000.0,
     "cooldown": 1.0,
@@ -3002,6 +3847,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.0,
@@ -3042,6 +3902,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.25,
@@ -3082,6 +3957,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -3120,6 +4010,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ArrowShip",
+    "ConquestCritical",
+    "Ranged",
+    "Ship",
+    "Trireme",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 500.0,
     "cooldown": 1.5,
@@ -3156,6 +4056,12 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "FishingBoat",
+    "Ship",
+    "Unit"
+   ],
    "stats": {
     "hp": 120.0,
     "cooldown": 1.0,
@@ -3192,6 +4098,13 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Ship",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 240.0,
     "cooldown": 1.0,
@@ -3228,6 +4141,16 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Melee",
+    "NavalRam",
+    "Ship",
+    "Trireme",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 400.0,
     "cooldown": 8.0,
@@ -3266,6 +4189,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bireme",
+    "ConquestCritical",
+    "Ranged",
+    "ScoutShip",
+    "Ship",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 3.0,
@@ -3302,6 +4235,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Melee",
+    "Ram",
+    "Siege",
+    "Unit"
+   ],
    "stats": {
     "hp": 400.0,
     "cooldown": 1.5,
@@ -3340,6 +4281,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 25.0,
     "cooldown": 1.0,
@@ -3385,6 +4338,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 25.0,
     "cooldown": 1.0,
@@ -3421,6 +4386,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
    "stats": {
     "hp": 85.0,
     "cooldown": 1.0,
@@ -3457,6 +4430,15 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Human",
+    "Organic",
+    "Support",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -3491,6 +4473,13 @@
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
+   ],
+   "classes": [
+    "Citizen",
+    "Human",
+    "Organic",
+    "Unit",
+    "Worker"
    ],
    "auras": [],
    "stats": {
@@ -3532,6 +4521,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.25,
@@ -3572,6 +4575,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 160.0,
     "cooldown": 1.25,
@@ -3610,6 +4627,19 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Champion",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 300.0,
     "cooldown": 0.75,
@@ -3648,6 +4678,22 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Gladiator",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -3686,6 +4732,22 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Gladiator",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 0.75,
@@ -3724,6 +4786,18 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 0.75,
@@ -3762,6 +4836,19 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Centurion",
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 0.75,
@@ -3803,6 +4890,19 @@
     15,
     16
    ],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "ConquestCritical",
+    "FastMoving",
+    "Hero",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 1200.0,
     "cooldown": 0.75,
@@ -3843,6 +4943,19 @@
    "auras": [
     17
    ],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "ConquestCritical",
+    "FastMoving",
+    "Hero",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 1200.0,
     "cooldown": 0.75,
@@ -3882,6 +4995,19 @@
    ],
    "auras": [
     18
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "ConquestCritical",
+    "FastMoving",
+    "Hero",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
    ],
    "stats": {
     "hp": 1200.0,
@@ -3925,6 +5051,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.25,
@@ -3966,6 +5107,22 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Legionary",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 0.75,
@@ -4004,6 +5161,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -4042,6 +5214,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -4080,6 +5267,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 0.75,
@@ -4120,6 +5322,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 0.75,
@@ -4158,6 +5375,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ArrowShip",
+    "ConquestCritical",
+    "Ranged",
+    "Ship",
+    "Trireme",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 500.0,
     "cooldown": 1.5,
@@ -4194,6 +5421,12 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "FishingBoat",
+    "Ship",
+    "Unit"
+   ],
    "stats": {
     "hp": 120.0,
     "cooldown": 1.0,
@@ -4230,6 +5463,13 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Ship",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 240.0,
     "cooldown": 1.0,
@@ -4266,6 +5506,16 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Melee",
+    "NavalRam",
+    "Ship",
+    "Trireme",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 400.0,
     "cooldown": 8.0,
@@ -4304,6 +5554,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bireme",
+    "ConquestCritical",
+    "Ranged",
+    "ScoutShip",
+    "Ship",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 3.0,
@@ -4342,6 +5602,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Heavy",
+    "NavalSiege",
+    "Quinquereme",
+    "Ship",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 800.0,
     "cooldown": 4.0,
@@ -4380,9 +5650,19 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [
+    "rome_siege"
+   ],
+   "classes": [
+    "ConquestCritical",
+    "Ranged",
+    "Siege",
+    "StoneThrower",
+    "Unit"
+   ],
    "stats": {
     "hp": 375.0,
-    "cooldown": 7.0,
+    "cooldown": 6.3,
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 250.0,
@@ -4395,7 +5675,7 @@
     "stone": 250,
     "train_time": 25.0,
     "pop": 3,
-    "speed": 2.5632,
+    "speed": 3.07584,
     "damage": 250.0,
     "range": 23.8,
     "carry": 0
@@ -4418,9 +5698,19 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [
+    "rome_siege"
+   ],
+   "classes": [
+    "ConquestCritical",
+    "Ranged",
+    "Siege",
+    "StoneThrower",
+    "Unit"
+   ],
    "stats": {
     "hp": 250.0,
-    "cooldown": 5.0,
+    "cooldown": 4.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 40.0,
@@ -4433,7 +5723,7 @@
     "stone": 150,
     "train_time": 25.0,
     "pop": 3,
-    "speed": 2.5632,
+    "speed": 3.07584,
     "damage": 40.0,
     "range": 19.6,
     "carry": 0
@@ -4456,6 +5746,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Melee",
+    "Ram",
+    "Siege",
+    "Unit"
+   ],
    "stats": {
     "hp": 400.0,
     "cooldown": 1.5,
@@ -4494,6 +5792,14 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "BoltShooter",
+    "ConquestCritical",
+    "Ranged",
+    "Siege",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 6.0,
@@ -4532,6 +5838,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 25.0,
     "cooldown": 1.0,
@@ -4570,6 +5888,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 25.0,
     "cooldown": 1.0,
@@ -4608,6 +5938,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
    "stats": {
     "hp": 85.0,
     "cooldown": 1.0,
@@ -4644,6 +5982,15 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Human",
+    "Organic",
+    "Support",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -4678,6 +6025,13 @@
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
+   ],
+   "classes": [
+    "Citizen",
+    "Human",
+    "Organic",
+    "Unit",
+    "Worker"
    ],
    "auras": [],
    "stats": {
@@ -4721,6 +6075,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.25,
@@ -4760,6 +6128,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 160.0,
     "cooldown": 1.25,
@@ -4799,6 +6181,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 160.0,
     "cooldown": 0.75,
@@ -4838,6 +6234,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 160.0,
     "cooldown": 0.75,
@@ -4876,6 +6286,19 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Champion",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 300.0,
     "cooldown": 1.25,
@@ -4914,6 +6337,18 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "AfricanElephant",
+    "Champion",
+    "ConquestCritical",
+    "Elephant",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 900.0,
     "cooldown": 1.5,
@@ -4952,6 +6387,18 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 0.9,
@@ -4993,6 +6440,19 @@
     19,
     20
    ],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "ConquestCritical",
+    "FastMoving",
+    "Hero",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 1200.0,
     "cooldown": 0.75,
@@ -5033,6 +6493,17 @@
    "auras": [
     21
    ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Elephant",
+    "Hero",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 1500.0,
     "cooldown": 1.5,
@@ -5072,6 +6543,19 @@
    ],
    "auras": [
     22
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "ConquestCritical",
+    "FastMoving",
+    "Hero",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
    ],
    "stats": {
     "hp": 1200.0,
@@ -5115,6 +6599,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.0,
@@ -5155,6 +6654,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.25,
@@ -5195,6 +6709,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Slinger",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.25,
@@ -5235,6 +6764,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -5274,6 +6818,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 0.75,
@@ -5313,6 +6872,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 0.75,
@@ -5352,6 +6926,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ArrowShip",
+    "ConquestCritical",
+    "Ranged",
+    "Ship",
+    "Trireme",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 500.0,
     "cooldown": 1.5,
@@ -5388,6 +6972,12 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "FishingBoat",
+    "Ship",
+    "Unit"
+   ],
    "stats": {
     "hp": 120.0,
     "cooldown": 1.0,
@@ -5424,6 +7014,13 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Ship",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 240.0,
     "cooldown": 1.0,
@@ -5461,6 +7058,16 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Melee",
+    "NavalRam",
+    "Ship",
+    "Trireme",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 400.0,
     "cooldown": 8.0,
@@ -5500,6 +7107,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bireme",
+    "ConquestCritical",
+    "Ranged",
+    "ScoutShip",
+    "Ship",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 3.0,
@@ -5539,6 +7156,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Heavy",
+    "NavalSiege",
+    "Quinquereme",
+    "Ship",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 800.0,
     "cooldown": 4.0,
@@ -5577,6 +7204,14 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Ranged",
+    "Siege",
+    "StoneThrower",
+    "Unit"
+   ],
    "stats": {
     "hp": 375.0,
     "cooldown": 7.0,
@@ -5615,6 +7250,14 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "BoltShooter",
+    "ConquestCritical",
+    "Ranged",
+    "Siege",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 6.0,
@@ -5651,6 +7294,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Melee",
+    "Ram",
+    "Siege",
+    "Unit"
+   ],
    "stats": {
     "hp": 400.0,
     "cooldown": 1.5,
@@ -5689,6 +7340,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 25.0,
     "cooldown": 1.0,
@@ -5728,6 +7391,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 25.0,
     "cooldown": 1.0,
@@ -5765,6 +7440,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
    "stats": {
     "hp": 85.0,
     "cooldown": 1.0,
@@ -5801,6 +7484,15 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Human",
+    "Organic",
+    "Support",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -5835,6 +7527,13 @@
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
+   ],
+   "classes": [
+    "Citizen",
+    "Human",
+    "Organic",
+    "Unit",
+    "Worker"
    ],
    "auras": [],
    "stats": {
@@ -5876,6 +7575,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.25,
@@ -5916,6 +7629,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 160.0,
     "cooldown": 1.25,
@@ -5954,6 +7681,19 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Champion",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 300.0,
     "cooldown": 1.25,
@@ -5995,6 +7735,18 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Crossbowman",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 120.0,
     "cooldown": 3.0,
@@ -6033,6 +7785,18 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 0.9,
@@ -6071,6 +7835,19 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Longsword",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 1.0,
@@ -6113,6 +7890,19 @@
     24,
     25
    ],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "ConquestCritical",
+    "FastMoving",
+    "Hero",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 1200.0,
     "cooldown": 0.75,
@@ -6152,6 +7942,18 @@
    ],
    "auras": [
     26
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
    ],
    "stats": {
     "hp": 1000.0,
@@ -6193,6 +7995,19 @@
    "auras": [
     27
    ],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "ConquestCritical",
+    "FastMoving",
+    "Hero",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 1200.0,
     "cooldown": 1.25,
@@ -6233,6 +8048,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.0,
@@ -6275,6 +8105,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.25,
@@ -6315,6 +8160,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Pikeman",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 2.0,
@@ -6355,6 +8215,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Slinger",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.25,
@@ -6393,6 +8268,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ArrowShip",
+    "ConquestCritical",
+    "Ranged",
+    "Ship",
+    "Trireme",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 500.0,
     "cooldown": 1.5,
@@ -6429,6 +8314,12 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "FishingBoat",
+    "Ship",
+    "Unit"
+   ],
    "stats": {
     "hp": 120.0,
     "cooldown": 1.0,
@@ -6465,6 +8356,13 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Ship",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 240.0,
     "cooldown": 1.0,
@@ -6501,6 +8399,16 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Melee",
+    "NavalRam",
+    "Ship",
+    "Trireme",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 400.0,
     "cooldown": 8.0,
@@ -6539,6 +8447,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bireme",
+    "ConquestCritical",
+    "Ranged",
+    "ScoutShip",
+    "Ship",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 3.0,
@@ -6577,6 +8495,14 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Ranged",
+    "Siege",
+    "StoneThrower",
+    "Unit"
+   ],
    "stats": {
     "hp": 375.0,
     "cooldown": 7.0,
@@ -6615,6 +8541,14 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "BoltShooter",
+    "ConquestCritical",
+    "Ranged",
+    "Siege",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 6.0,
@@ -6651,6 +8585,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Melee",
+    "Ram",
+    "Siege",
+    "Unit"
+   ],
    "stats": {
     "hp": 400.0,
     "cooldown": 1.5,
@@ -6689,6 +8631,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 25.0,
     "cooldown": 1.0,
@@ -6727,6 +8681,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 25.0,
     "cooldown": 1.0,
@@ -6763,6 +8729,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
    "stats": {
     "hp": 85.0,
     "cooldown": 1.0,
@@ -6799,6 +8773,15 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Human",
+    "Organic",
+    "Support",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -6833,6 +8816,13 @@
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
+   ],
+   "classes": [
+    "Citizen",
+    "Human",
+    "Organic",
+    "Unit",
+    "Worker"
    ],
    "auras": [],
    "stats": {
@@ -6877,6 +8867,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.25,
@@ -6915,6 +8919,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 160.0,
     "cooldown": 0.75,
@@ -6954,6 +8972,20 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Champion",
+    "Chariot",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 300.0,
     "cooldown": 1.25,
@@ -6992,6 +9024,20 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [
+    "brit_woad_warriors"
+   ],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 0.75,
@@ -7007,7 +9053,7 @@
     "stone": 0,
     "train_time": 20.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3642000000000003,
     "damage": 11.0,
     "range": 1.7999999999999998,
     "carry": 0
@@ -7032,6 +9078,20 @@
    ],
    "auras": [
     28
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Chariot",
+    "ConquestCritical",
+    "FastMoving",
+    "Hero",
+    "Human",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
    ],
    "stats": {
     "hp": 1500.0,
@@ -7073,6 +9133,20 @@
    "auras": [
     29
    ],
+   "civ_bonuses": [
+    "brit_woad_warriors"
+   ],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 1000.0,
     "cooldown": 0.75,
@@ -7088,7 +9162,7 @@
     "stone": 0,
     "train_time": 50.0,
     "pop": 0,
-    "speed": 3.2039999999999997,
+    "speed": 3.3642000000000003,
     "damage": 22.0,
     "range": 1.7999999999999998,
     "carry": 0
@@ -7112,6 +9186,19 @@
    ],
    "auras": [
     30
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "ConquestCritical",
+    "FastMoving",
+    "Hero",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
    ],
    "stats": {
     "hp": 1200.0,
@@ -7153,6 +9240,23 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [
+    "brit_woad_warriors"
+   ],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.25,
@@ -7168,7 +9272,7 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 4.0584,
+    "speed": 4.26132,
     "damage": 16.0,
     "range": 8.4,
     "carry": 0
@@ -7196,6 +9300,23 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [
+    "brit_woad_warriors"
+   ],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Slinger",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.25,
@@ -7211,7 +9332,7 @@
     "stone": 30,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.8447999999999993,
+    "speed": 4.03704,
     "damage": 12.6,
     "range": 12.600000000000001,
     "carry": 0
@@ -7237,6 +9358,23 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [
+    "brit_woad_warriors"
+   ],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -7252,7 +9390,7 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3642000000000003,
     "damage": 5.5,
     "range": 2.4,
     "carry": 0
@@ -7275,6 +9413,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ArrowShip",
+    "ConquestCritical",
+    "Ranged",
+    "Ship",
+    "Trireme",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 700.0,
     "cooldown": 1.5,
@@ -7311,6 +9459,16 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Fire",
+    "Fireship",
+    "Melee",
+    "Ship",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 500.0,
     "cooldown": 1.0,
@@ -7349,6 +9507,12 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "FishingBoat",
+    "Ship",
+    "Unit"
+   ],
    "stats": {
     "hp": 120.0,
     "cooldown": 1.0,
@@ -7387,6 +9551,13 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Ship",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 240.0,
     "cooldown": 1.0,
@@ -7425,6 +9596,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bireme",
+    "ConquestCritical",
+    "Ranged",
+    "ScoutShip",
+    "Ship",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 3.0,
@@ -7461,6 +9642,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Melee",
+    "Ram",
+    "Siege",
+    "Unit"
+   ],
    "stats": {
     "hp": 400.0,
     "cooldown": 1.5,
@@ -7500,6 +9689,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 25.0,
     "cooldown": 1.0,
@@ -7538,6 +9739,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 25.0,
     "cooldown": 1.0,
@@ -7574,6 +9787,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
    "stats": {
     "hp": 85.0,
     "cooldown": 1.0,
@@ -7610,6 +9831,15 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Human",
+    "Organic",
+    "Support",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -7646,6 +9876,16 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Dog",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Unit"
+   ],
    "stats": {
     "hp": 110.0,
     "cooldown": 1.0,
@@ -7680,6 +9920,13 @@
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
+   ],
+   "classes": [
+    "Citizen",
+    "Human",
+    "Organic",
+    "Unit",
+    "Worker"
    ],
    "auras": [],
    "stats": {
@@ -7723,6 +9970,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.25,
@@ -7761,10 +10022,26 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [
+    "gaul_cavalry"
+   ],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 160.0,
     "cooldown": 0.75,
-    "hack_dmg": 6.5,
+    "hack_dmg": 7.15,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 3.0,
@@ -7777,7 +10054,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 6.4079999999999995,
-    "damage": 6.5,
+    "damage": 7.15,
     "range": 2.4,
     "carry": 0
    }
@@ -7799,11 +10076,26 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [
+    "gaul_cavalry"
+   ],
+   "classes": [
+    "Cavalry",
+    "Champion",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 300.0,
     "cooldown": 1.25,
-    "hack_dmg": 8.0,
-    "pierce_dmg": 6.0,
+    "hack_dmg": 8.8,
+    "pierce_dmg": 6.6000000000000005,
     "crush_dmg": 0.0,
     "hack_armor": 8.0,
     "pierce_armor": 7.0,
@@ -7815,7 +10107,7 @@
     "train_time": 25.0,
     "pop": 1,
     "speed": 6.4079999999999995,
-    "damage": 14.0,
+    "damage": 15.400000000000002,
     "range": 2.4,
     "carry": 0
    }
@@ -7837,6 +10129,18 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 0.9,
@@ -7875,6 +10179,18 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 0.75,
@@ -7913,6 +10229,18 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Trumpeter",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 1.0,
@@ -7952,6 +10280,18 @@
    ],
    "auras": [
     31
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
    ],
    "stats": {
     "hp": 1000.0,
@@ -7993,6 +10333,19 @@
    "auras": [
     32
    ],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "ConquestCritical",
+    "FastMoving",
+    "Hero",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 1200.0,
     "cooldown": 0.75,
@@ -8032,6 +10385,18 @@
    ],
    "auras": [
     33
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
    ],
    "stats": {
     "hp": 1000.0,
@@ -8075,6 +10440,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.25,
@@ -8115,6 +10495,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Slinger",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.25,
@@ -8155,6 +10550,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -8193,6 +10603,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ArrowShip",
+    "ConquestCritical",
+    "Ranged",
+    "Ship",
+    "Trireme",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 700.0,
     "cooldown": 1.5,
@@ -8229,6 +10649,16 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Fire",
+    "Fireship",
+    "Melee",
+    "Ship",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 500.0,
     "cooldown": 1.0,
@@ -8265,6 +10695,12 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "FishingBoat",
+    "Ship",
+    "Unit"
+   ],
    "stats": {
     "hp": 120.0,
     "cooldown": 1.0,
@@ -8301,6 +10737,13 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Ship",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 240.0,
     "cooldown": 1.0,
@@ -8339,6 +10782,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bireme",
+    "ConquestCritical",
+    "Ranged",
+    "ScoutShip",
+    "Ship",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 3.0,
@@ -8375,6 +10828,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Melee",
+    "Ram",
+    "Siege",
+    "Unit"
+   ],
    "stats": {
     "hp": 400.0,
     "cooldown": 1.5,
@@ -8413,6 +10874,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 25.0,
     "cooldown": 1.0,
@@ -8453,6 +10926,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 25.0,
     "cooldown": 1.0,
@@ -8489,6 +10974,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
    "stats": {
     "hp": 85.0,
     "cooldown": 1.0,
@@ -8525,6 +11018,15 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Human",
+    "Organic",
+    "Support",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -8559,6 +11061,13 @@
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
+   ],
+   "classes": [
+    "Citizen",
+    "Human",
+    "Organic",
+    "Unit",
+    "Worker"
    ],
    "auras": [],
    "stats": {
@@ -8602,6 +11111,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.25,
@@ -8640,6 +11163,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 160.0,
     "cooldown": 1.25,
@@ -8679,6 +11216,19 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Champion",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 240.0,
     "cooldown": 1.5,
@@ -8717,6 +11267,18 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 0.75,
@@ -8758,6 +11320,18 @@
     34,
     35
    ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 1000.0,
     "cooldown": 0.75,
@@ -8797,6 +11371,19 @@
    ],
    "auras": [
     36
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "ConquestCritical",
+    "FastMoving",
+    "Hero",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
    ],
    "stats": {
     "hp": 1200.0,
@@ -8838,6 +11425,18 @@
    "auras": [
     37,
     38
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
    ],
    "stats": {
     "hp": 1000.0,
@@ -8881,6 +11480,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.25,
@@ -8921,6 +11535,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Slinger",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.25,
@@ -8959,6 +11588,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -8999,6 +11643,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 0.75,
@@ -9037,6 +11696,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ArrowShip",
+    "ConquestCritical",
+    "Ranged",
+    "Ship",
+    "Trireme",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 700.0,
     "cooldown": 1.5,
@@ -9073,6 +11742,16 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Fire",
+    "Fireship",
+    "Melee",
+    "Ship",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 500.0,
     "cooldown": 1.0,
@@ -9109,6 +11788,12 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "FishingBoat",
+    "Ship",
+    "Unit"
+   ],
    "stats": {
     "hp": 120.0,
     "cooldown": 1.0,
@@ -9145,6 +11830,13 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Ship",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 240.0,
     "cooldown": 1.0,
@@ -9183,6 +11875,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bireme",
+    "ConquestCritical",
+    "Ranged",
+    "ScoutShip",
+    "Ship",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 3.0,
@@ -9219,6 +11921,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Melee",
+    "Ram",
+    "Siege",
+    "Unit"
+   ],
    "stats": {
     "hp": 400.0,
     "cooldown": 1.5,
@@ -9257,6 +11967,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 25.0,
     "cooldown": 1.0,
@@ -9295,6 +12017,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 25.0,
     "cooldown": 1.0,
@@ -9331,6 +12065,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
    "stats": {
     "hp": 85.0,
     "cooldown": 1.0,
@@ -9367,6 +12109,15 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Human",
+    "Organic",
+    "Support",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -9401,6 +12152,13 @@
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
+   ],
+   "classes": [
+    "Citizen",
+    "Human",
+    "Organic",
+    "Unit",
+    "Worker"
    ],
    "auras": [],
    "stats": {
@@ -9444,6 +12202,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.25,
@@ -9482,6 +12254,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 160.0,
     "cooldown": 0.75,
@@ -9521,6 +12307,20 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Cavalry",
+    "Champion",
+    "Chariot",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 300.0,
     "cooldown": 1.0,
@@ -9559,6 +12359,20 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [
+    "maur_elephants"
+   ],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Elephant",
+    "Human",
+    "IndianElephant",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 1100.0,
     "cooldown": 1.5,
@@ -9572,7 +12386,7 @@
     "wood": 0,
     "gold": 220,
     "stone": 0,
-    "train_time": 39.6,
+    "train_time": 27.72,
     "pop": 3,
     "speed": 3.2039999999999997,
     "damage": 83.60000000000001,
@@ -9597,6 +12411,18 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Maceman",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 1.0,
@@ -9635,6 +12461,18 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 0.75,
@@ -9674,6 +12512,18 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 120.0,
     "cooldown": 1.0,
@@ -9713,6 +12563,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [
+    "maur_elephants"
+   ],
+   "classes": [
+    "Archer",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Elephant",
+    "Human",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 1.0,
@@ -9726,7 +12591,7 @@
     "wood": 75,
     "gold": 0,
     "stone": 0,
-    "train_time": 20.0,
+    "train_time": 14.0,
     "pop": 2,
     "speed": 3.2039999999999997,
     "damage": 14.0,
@@ -9753,6 +12618,21 @@
    ],
    "auras": [
     39
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Ashoka",
+    "Cavalry",
+    "Chariot",
+    "ConquestCritical",
+    "FastMoving",
+    "Hero",
+    "Human",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
    ],
    "stats": {
     "hp": 1500.0,
@@ -9795,6 +12675,16 @@
     40,
     41
    ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Healer",
+    "Hero",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
    "stats": {
     "hp": 1000.0,
     "cooldown": 0.8,
@@ -9835,6 +12725,17 @@
    "auras": [
     42,
     43
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Elephant",
+    "Hero",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Unit"
    ],
    "stats": {
     "hp": 1500.0,
@@ -9878,6 +12779,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.0,
@@ -9918,6 +12834,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -9956,6 +12887,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 0.75,
@@ -9994,6 +12940,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ArrowShip",
+    "ConquestCritical",
+    "Ranged",
+    "Ship",
+    "Trireme",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 700.0,
     "cooldown": 1.5,
@@ -10030,6 +12986,12 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "FishingBoat",
+    "Ship",
+    "Unit"
+   ],
    "stats": {
     "hp": 120.0,
     "cooldown": 1.0,
@@ -10066,6 +13028,13 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Ship",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 240.0,
     "cooldown": 1.0,
@@ -10104,6 +13073,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bireme",
+    "ConquestCritical",
+    "Ranged",
+    "ScoutShip",
+    "Ship",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 3.0,
@@ -10140,6 +13119,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Melee",
+    "Ram",
+    "Siege",
+    "Unit"
+   ],
    "stats": {
     "hp": 400.0,
     "cooldown": 1.5,
@@ -10178,6 +13165,18 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [
+    "maur_elephants"
+   ],
+   "classes": [
+    "Builder",
+    "ConquestCritical",
+    "Elephant",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
    "stats": {
     "hp": 300.0,
     "cooldown": 1.2,
@@ -10191,7 +13190,7 @@
     "wood": 0,
     "gold": 0,
     "stone": 0,
-    "train_time": 15.0,
+    "train_time": 10.5,
     "pop": 1,
     "speed": 1.9223999999999997,
     "damage": 0.0,
@@ -10216,6 +13215,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 25.0,
     "cooldown": 1.0,
@@ -10254,6 +13265,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 25.0,
     "cooldown": 1.0,
@@ -10290,6 +13313,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
    "stats": {
     "hp": 85.0,
     "cooldown": 1.0,
@@ -10326,6 +13357,15 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Human",
+    "Organic",
+    "Support",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -10360,6 +13400,13 @@
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
+   ],
+   "classes": [
+    "Citizen",
+    "Human",
+    "Organic",
+    "Unit",
+    "Worker"
    ],
    "auras": [],
    "stats": {
@@ -10403,6 +13450,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.25,
@@ -10442,6 +13503,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Camel",
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.25,
@@ -10480,6 +13556,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 160.0,
     "cooldown": 1.25,
@@ -10518,6 +13608,19 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Champion",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 300.0,
     "cooldown": 1.25,
@@ -10556,6 +13659,18 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "AfricanElephant",
+    "Champion",
+    "ConquestCritical",
+    "Elephant",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 900.0,
     "cooldown": 1.5,
@@ -10594,6 +13709,19 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "AmunGuard",
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 0.75,
@@ -10632,6 +13760,19 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ApedemakGuard",
+    "Axeman",
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 1.0,
@@ -10672,6 +13813,18 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 120.0,
     "cooldown": 1.0,
@@ -10712,6 +13865,20 @@
    ],
    "auras": [
     44
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Cavalry",
+    "Chariot",
+    "ConquestCritical",
+    "FastMoving",
+    "Hero",
+    "Human",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
    ],
    "stats": {
     "hp": 1500.0,
@@ -10755,6 +13922,17 @@
     46,
     47
    ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Elephant",
+    "Hero",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 1500.0,
     "cooldown": 1.5,
@@ -10795,6 +13973,19 @@
    "auras": [
     48,
     49
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "ConquestCritical",
+    "FastMoving",
+    "Hero",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
    ],
    "stats": {
     "hp": 1200.0,
@@ -10838,6 +14029,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.0,
@@ -10877,6 +14083,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.25,
@@ -10915,6 +14136,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Maceman",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -10953,6 +14189,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Pikeman",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 2.0,
@@ -10993,6 +14244,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -11031,6 +14297,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 0.75,
@@ -11069,6 +14350,17 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ArrowShip",
+    "ConquestCritical",
+    "KushTrireme",
+    "Ranged",
+    "Ship",
+    "Trireme",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 500.0,
     "cooldown": 1.5,
@@ -11105,6 +14397,12 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "FishingBoat",
+    "Ship",
+    "Unit"
+   ],
    "stats": {
     "hp": 120.0,
     "cooldown": 1.0,
@@ -11141,6 +14439,13 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Ship",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 240.0,
     "cooldown": 1.0,
@@ -11179,6 +14484,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bireme",
+    "ConquestCritical",
+    "Ranged",
+    "ScoutShip",
+    "Ship",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 3.0,
@@ -11215,6 +14530,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Melee",
+    "Ram",
+    "Siege",
+    "Unit"
+   ],
    "stats": {
     "hp": 400.0,
     "cooldown": 1.5,
@@ -11253,6 +14576,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 25.0,
     "cooldown": 1.0,
@@ -11291,6 +14626,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 25.0,
     "cooldown": 1.0,
@@ -11327,6 +14674,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
    "stats": {
     "hp": 85.0,
     "cooldown": 1.0,
@@ -11363,6 +14718,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
    "stats": {
     "hp": 85.0,
     "cooldown": 1.0,
@@ -11399,6 +14762,15 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Human",
+    "Organic",
+    "Support",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -11433,6 +14805,13 @@
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
+   ],
+   "classes": [
+    "Citizen",
+    "Human",
+    "Organic",
+    "Unit",
+    "Worker"
    ],
    "auras": [],
    "stats": {
@@ -11476,6 +14855,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Camel",
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -11517,6 +14911,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.25,
@@ -11557,6 +14965,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 160.0,
     "cooldown": 1.25,
@@ -11595,6 +15017,19 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Champion",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 300.0,
     "cooldown": 1.25,
@@ -11633,6 +15068,18 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "AfricanElephant",
+    "Champion",
+    "ConquestCritical",
+    "Elephant",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 900.0,
     "cooldown": 1.5,
@@ -11672,6 +15119,18 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Pikeman",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 2.0,
@@ -11715,6 +15174,18 @@
     51,
     52
    ],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 1000.0,
     "cooldown": 1.0,
@@ -11756,6 +15227,17 @@
     53,
     54
    ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Elephant",
+    "Hero",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 1500.0,
     "cooldown": 1.5,
@@ -11795,6 +15277,20 @@
    ],
    "auras": [
     55
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "ConquestCritical",
+    "FastMoving",
+    "Hero",
+    "Human",
+    "Melee",
+    "Organic",
+    "PtolemyIV",
+    "Soldier",
+    "Swordsman",
+    "Unit"
    ],
    "stats": {
     "hp": 1200.0,
@@ -11837,6 +15333,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.0,
@@ -11878,6 +15389,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.25,
@@ -11919,6 +15445,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Pikeman",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 2.0,
@@ -11962,6 +15503,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Slinger",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.25,
@@ -12002,6 +15558,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -12042,6 +15613,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 0.75,
@@ -12080,6 +15666,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ArrowShip",
+    "ConquestCritical",
+    "Ranged",
+    "Ship",
+    "Trireme",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 500.0,
     "cooldown": 1.5,
@@ -12116,6 +15712,12 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "FishingBoat",
+    "Ship",
+    "Unit"
+   ],
    "stats": {
     "hp": 120.0,
     "cooldown": 1.0,
@@ -12152,6 +15754,13 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Ship",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 240.0,
     "cooldown": 1.0,
@@ -12188,6 +15797,16 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Melee",
+    "NavalRam",
+    "Ship",
+    "Trireme",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 400.0,
     "cooldown": 8.0,
@@ -12226,6 +15845,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bireme",
+    "ConquestCritical",
+    "Ranged",
+    "ScoutShip",
+    "Ship",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 3.0,
@@ -12264,6 +15893,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Heavy",
+    "NavalSiege",
+    "Quinquereme",
+    "Ship",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 800.0,
     "cooldown": 4.0,
@@ -12302,6 +15941,14 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Ranged",
+    "Siege",
+    "StoneThrower",
+    "Unit"
+   ],
    "stats": {
     "hp": 375.0,
     "cooldown": 7.0,
@@ -12340,6 +15987,14 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "BoltShooter",
+    "ConquestCritical",
+    "Ranged",
+    "Siege",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 3.0,
@@ -12376,6 +16031,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Melee",
+    "Ram",
+    "Siege",
+    "Unit"
+   ],
    "stats": {
     "hp": 400.0,
     "cooldown": 1.5,
@@ -12415,6 +16078,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 25.0,
     "cooldown": 1.0,
@@ -12453,6 +16128,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 25.0,
     "cooldown": 1.0,
@@ -12489,6 +16176,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
    "stats": {
     "hp": 85.0,
     "cooldown": 1.0,
@@ -12525,6 +16220,15 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Human",
+    "Organic",
+    "Support",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -12559,6 +16263,13 @@
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
+   ],
+   "classes": [
+    "Citizen",
+    "Human",
+    "Organic",
+    "Unit",
+    "Worker"
    ],
    "auras": [],
    "stats": {
@@ -12600,6 +16311,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -12641,6 +16366,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.25,
@@ -12679,6 +16418,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 160.0,
     "cooldown": 1.25,
@@ -12717,6 +16470,20 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cataphract",
+    "Cavalry",
+    "Champion",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 300.0,
     "cooldown": 1.25,
@@ -12756,6 +16523,20 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Cavalry",
+    "Champion",
+    "Chariot",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 300.0,
     "cooldown": 1.0,
@@ -12794,6 +16575,18 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Elephant",
+    "Human",
+    "IndianElephant",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 1100.0,
     "cooldown": 1.5,
@@ -12832,6 +16625,18 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Pikeman",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 2.0,
@@ -12870,6 +16675,18 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 0.75,
@@ -12909,6 +16726,19 @@
    ],
    "auras": [
     56
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "ConquestCritical",
+    "FastMoving",
+    "Hero",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
    ],
    "stats": {
     "hp": 1200.0,
@@ -12950,6 +16780,19 @@
    "auras": [
     57
    ],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "ConquestCritical",
+    "FastMoving",
+    "Hero",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 1200.0,
     "cooldown": 0.75,
@@ -12990,6 +16833,17 @@
    "auras": [
     58
    ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Elephant",
+    "Hero",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 1500.0,
     "cooldown": 1.5,
@@ -13029,6 +16883,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.0,
@@ -13071,6 +16940,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.25,
@@ -13109,6 +16993,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Pikeman",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 2.0,
@@ -13149,6 +17048,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -13187,6 +17101,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 0.75,
@@ -13225,6 +17154,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ArrowShip",
+    "ConquestCritical",
+    "Ranged",
+    "Ship",
+    "Trireme",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 500.0,
     "cooldown": 1.5,
@@ -13261,6 +17200,12 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "FishingBoat",
+    "Ship",
+    "Unit"
+   ],
    "stats": {
     "hp": 120.0,
     "cooldown": 1.0,
@@ -13297,6 +17242,13 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Ship",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 240.0,
     "cooldown": 1.0,
@@ -13333,6 +17285,16 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Melee",
+    "NavalRam",
+    "Ship",
+    "Trireme",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 400.0,
     "cooldown": 8.0,
@@ -13371,6 +17333,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bireme",
+    "ConquestCritical",
+    "Ranged",
+    "ScoutShip",
+    "Ship",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 3.0,
@@ -13409,6 +17381,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Heavy",
+    "NavalSiege",
+    "Quinquereme",
+    "Ship",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 800.0,
     "cooldown": 4.0,
@@ -13447,6 +17429,14 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Ranged",
+    "Siege",
+    "StoneThrower",
+    "Unit"
+   ],
    "stats": {
     "hp": 375.0,
     "cooldown": 7.0,
@@ -13483,6 +17473,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Melee",
+    "Ram",
+    "Siege",
+    "Unit"
+   ],
    "stats": {
     "hp": 400.0,
     "cooldown": 1.5,
@@ -13522,6 +17520,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 25.0,
     "cooldown": 1.0,
@@ -13560,6 +17570,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 25.0,
     "cooldown": 1.0,
@@ -13596,6 +17618,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
    "stats": {
     "hp": 85.0,
     "cooldown": 1.0,
@@ -13632,6 +17662,15 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Human",
+    "Organic",
+    "Support",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -13666,6 +17705,13 @@
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
+   ],
+   "classes": [
+    "Citizen",
+    "Human",
+    "Organic",
+    "Unit",
+    "Worker"
    ],
    "auras": [],
    "stats": {
@@ -13707,6 +17753,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -13745,6 +17805,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 160.0,
     "cooldown": 1.25,
@@ -13786,6 +17860,20 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
    "stats": {
     "hp": 160.0,
     "cooldown": 0.75,
@@ -13824,6 +17912,19 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Champion",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 300.0,
     "cooldown": 1.25,
@@ -13863,6 +17964,20 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Cavalry",
+    "Champion",
+    "Chariot",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 300.0,
     "cooldown": 1.0,
@@ -13902,6 +18017,18 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Crossbowman",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 120.0,
     "cooldown": 3.0,
@@ -13940,6 +18067,18 @@
     "ROSTER_CHAMPION"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 0.9,
@@ -13983,6 +18122,19 @@
     59,
     60
    ],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "ConquestCritical",
+    "FastMoving",
+    "Hero",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
    "stats": {
     "hp": 1200.0,
     "cooldown": 1.25,
@@ -14025,6 +18177,19 @@
    "auras": [
     61,
     62
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "ConquestCritical",
+    "FastMoving",
+    "Hero",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
    ],
    "stats": {
     "hp": 1200.0,
@@ -14070,6 +18235,20 @@
     63,
     64
    ],
+   "civ_bonuses": [],
+   "classes": [
+    "Cavalry",
+    "Chariot",
+    "ConquestCritical",
+    "Crossbowman",
+    "FastMoving",
+    "Hero",
+    "Human",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
    "stats": {
     "hp": 1500.0,
     "cooldown": 3.0,
@@ -14111,6 +18290,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Archer",
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 1.0,
@@ -14155,6 +18349,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Crossbowman",
+    "Human",
+    "Infantry",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 50.0,
     "cooldown": 3.0,
@@ -14193,6 +18402,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Pikeman",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 2.0,
@@ -14234,6 +18458,21 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -14272,6 +18511,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ArrowShip",
+    "ConquestCritical",
+    "Ranged",
+    "Ship",
+    "Trireme",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 500.0,
     "cooldown": 1.5,
@@ -14308,6 +18557,12 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "FishingBoat",
+    "Ship",
+    "Unit"
+   ],
    "stats": {
     "hp": 120.0,
     "cooldown": 1.0,
@@ -14344,6 +18599,13 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Ship",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 240.0,
     "cooldown": 1.0,
@@ -14382,6 +18644,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bireme",
+    "ConquestCritical",
+    "Ranged",
+    "ScoutShip",
+    "Ship",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 200.0,
     "cooldown": 3.0,
@@ -14420,6 +18692,16 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Heavy",
+    "NavalSiege",
+    "Quinquereme",
+    "Ship",
+    "Unit",
+    "Warship"
+   ],
    "stats": {
     "hp": 800.0,
     "cooldown": 4.0,
@@ -14458,6 +18740,14 @@
     "ROSTER_RANGED"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Ranged",
+    "Siege",
+    "StoneThrower",
+    "Unit"
+   ],
    "stats": {
     "hp": 375.0,
     "cooldown": 7.0,
@@ -14494,6 +18784,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Melee",
+    "Ram",
+    "Siege",
+    "Unit"
+   ],
    "stats": {
     "hp": 400.0,
     "cooldown": 1.5,
@@ -14533,6 +18831,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 25.0,
     "cooldown": 1.0,
@@ -14571,6 +18881,18 @@
     "ROSTER_CITIZEN"
    ],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "ConquestCritical",
+    "FemaleCitizen",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
    "stats": {
     "hp": 25.0,
     "cooldown": 1.0,
@@ -14607,6 +18929,14 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
    "stats": {
     "hp": 85.0,
     "cooldown": 1.0,
@@ -14643,6 +18973,15 @@
    ],
    "flags": [],
    "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Bribable",
+    "Human",
+    "Organic",
+    "Support",
+    "Trader",
+    "Unit"
+   ],
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
@@ -14677,6 +19016,13 @@
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
+   ],
+   "classes": [
+    "Citizen",
+    "Human",
+    "Organic",
+    "Unit",
+    "Worker"
    ],
    "auras": [],
    "stats": {
@@ -14716,6 +19062,11 @@
      "value": "Health/RegenRate",
      "add": 0.5
     }
+   ],
+   "rts0": [
+    "AURA_HEAL",
+    0.5,
+    9.8
    ]
   },
   {
@@ -14732,7 +19083,8 @@
      "value": "Heal/Health",
      "add": 1.0
     }
-   ]
+   ],
+   "rts0": null
   },
   {
    "id": "athen_hero_iphicrates_1",
@@ -14756,6 +19108,11 @@
      "value": "Resistance/Entity/Damage/Crush",
      "add": 2
     }
+   ],
+   "rts0": [
+    "AURA_ARMOR",
+    2,
+    11.200000000000001
    ]
   },
   {
@@ -14772,6 +19129,11 @@
      "value": "UnitMotion/WalkSpeed",
      "multiply": 1.15
     }
+   ],
+   "rts0": [
+    "AURA_SPEED",
+    1.15,
+    1000.0
    ]
   },
   {
@@ -14811,7 +19173,8 @@
      "value": "Capturable/CapturePoints",
      "multiply": 1.5
     }
-   ]
+   ],
+   "rts0": null
   },
   {
    "id": "athen_hero_pericles_2",
@@ -14843,7 +19206,8 @@
      "value": "Researcher/TechCostMultiplier/time",
      "multiply": 0.5
     }
-   ]
+   ],
+   "rts0": null
   },
   {
    "id": "athen_hero_themistocles_1",
@@ -14867,6 +19231,11 @@
      "value": "UnitMotion/WalkSpeed",
      "multiply": 1.15
     }
+   ],
+   "rts0": [
+    "AURA_SPEED",
+    1.15,
+    1000.0
    ]
   },
   {
@@ -14892,7 +19261,8 @@
      "value": "Cost/Resources/wood",
      "multiply": 0.5
     }
-   ]
+   ],
+   "rts0": null
   },
   {
    "id": "spart_hero_agis_1",
@@ -14912,7 +19282,8 @@
      "value": "Cost/Resources/metal",
      "multiply": 0.75
     }
-   ]
+   ],
+   "rts0": null
   },
   {
    "id": "spart_hero_agis_2",
@@ -14921,7 +19292,8 @@
    "type": "range",
    "radius": 0.0,
    "affects": [],
-   "modifications": []
+   "modifications": [],
+   "rts0": null
   },
   {
    "id": "spart_hero_brasidas",
@@ -14949,6 +19321,11 @@
      "value": "Resistance/Entity/Damage/Crush",
      "add": 1
     }
+   ],
+   "rts0": [
+    "AURA_ARMOR",
+    1,
+    16.8
    ]
   },
   {
@@ -14977,6 +19354,11 @@
      "value": "Attack/Melee/Damage/Crush",
      "multiply": 1.25
     }
+   ],
+   "rts0": [
+    "AURA_ATTACK",
+    1.25,
+    8.4
    ]
   },
   {
@@ -15017,6 +19399,11 @@
      "value": "Attack/Ranged/Damage/Crush",
      "multiply": 1.2
     }
+   ],
+   "rts0": [
+    "AURA_ATTACK",
+    1.2,
+    12.600000000000001
    ]
   },
   {
@@ -15035,6 +19422,11 @@
      "value": "UnitMotion/WalkSpeed",
      "multiply": 1.15
     }
+   ],
+   "rts0": [
+    "AURA_SPEED",
+    1.15,
+    1000.0
    ]
   },
   {
@@ -15056,6 +19448,11 @@
      "multiply": 1.15,
      "affects": "Builder"
     }
+   ],
+   "rts0": [
+    "AURA_GATHER",
+    0.13043478260869557,
+    16.8
    ]
   },
   {
@@ -15092,6 +19489,11 @@
      "value": "Attack/Ranged/Damage/Crush",
      "multiply": 1.15
     }
+   ],
+   "rts0": [
+    "AURA_ATTACK",
+    1.15,
+    16.8
    ]
   },
   {
@@ -15128,7 +19530,8 @@
      "value": "Attack/Ranged/Damage/Crush",
      "multiply": 0.9
     }
-   ]
+   ],
+   "rts0": null
   },
   {
    "id": "rome_hero_maximus",
@@ -15153,6 +19556,11 @@
      "value": "Resistance/Entity/Damage/Crush",
      "add": 1
     }
+   ],
+   "rts0": [
+    "AURA_ARMOR",
+    1,
+    1000.0
    ]
   },
   {
@@ -15194,6 +19602,11 @@
      "value": "Attack/Ranged/Damage/Crush",
      "multiply": 1.2
     }
+   ],
+   "rts0": [
+    "AURA_ATTACK",
+    1.2,
+    8.4
    ]
   },
   {
@@ -15211,6 +19624,11 @@
      "value": "UnitMotion/WalkSpeed",
      "multiply": 1.15
     }
+   ],
+   "rts0": [
+    "AURA_SPEED",
+    1.15,
+    16.8
    ]
   },
   {
@@ -15247,7 +19665,8 @@
      "value": "Attack/Ranged/Damage/Crush",
      "multiply": 0.8
     }
-   ]
+   ],
+   "rts0": null
   },
   {
    "id": "cart_hero_hannibal",
@@ -15288,6 +19707,11 @@
      "value": "Attack/Ranged/Damage/Crush",
      "multiply": 1.2
     }
+   ],
+   "rts0": [
+    "AURA_ATTACK",
+    1.2,
+    16.8
    ]
   },
   {
@@ -15312,6 +19736,11 @@
      "value": "Attack/Melee/Damage/Crush",
      "multiply": 1.3
     }
+   ],
+   "rts0": [
+    "AURA_ATTACK",
+    1.3,
+    16.8
    ]
   },
   {
@@ -15352,6 +19781,11 @@
      "value": "UnitMotion/WalkSpeed",
      "multiply": 1.15
     }
+   ],
+   "rts0": [
+    "AURA_SPEED",
+    1.15,
+    16.8
    ]
   },
   {
@@ -15389,7 +19823,8 @@
      "value": "Attack/Ranged/Damage/Crush",
      "multiply": 0.9
     }
-   ]
+   ],
+   "rts0": null
   },
   {
    "id": "mace_hero_alexander_iii_3",
@@ -15405,7 +19840,8 @@
      "value": "Capturable/GarrisonRegenRate",
      "multiply": 0.5
     }
-   ]
+   ],
+   "rts0": null
   },
   {
    "id": "mace_hero_demetrius_i",
@@ -15461,6 +19897,11 @@
      "value": "Vision/Range",
      "multiply": 1.1
     }
+   ],
+   "rts0": [
+    "AURA_ARMOR",
+    1,
+    16.8
    ]
   },
   {
@@ -15501,6 +19942,11 @@
      "value": "Attack/Ranged/Damage/Crush",
      "multiply": 1.2
     }
+   ],
+   "rts0": [
+    "AURA_ATTACK",
+    1.2,
+    16.8
    ]
   },
   {
@@ -15545,6 +19991,11 @@
      "value": "UnitMotion/WalkSpeed",
      "multiply": 1.1
     }
+   ],
+   "rts0": [
+    "AURA_ATTACK",
+    1.2,
+    11.200000000000001
    ]
   },
   {
@@ -15574,6 +20025,11 @@
      "value": "UnitMotion/WalkSpeed",
      "multiply": 1.15
     }
+   ],
+   "rts0": [
+    "AURA_ARMOR",
+    1,
+    1000.0
    ]
   },
   {
@@ -15590,6 +20046,11 @@
      "value": "Health/RegenRate",
      "add": 0.8
     }
+   ],
+   "rts0": [
+    "AURA_HEAL",
+    0.8,
+    8.4
    ]
   },
   {
@@ -15608,7 +20069,8 @@
      "value": "Looter/Resource/metal",
      "add": 15
     }
-   ]
+   ],
+   "rts0": null
   },
   {
    "id": "gaul_hero_vercingetorix",
@@ -15649,6 +20111,11 @@
      "value": "Attack/Ranged/Damage/Crush",
      "multiply": 1.2
     }
+   ],
+   "rts0": [
+    "AURA_ATTACK",
+    1.2,
+    16.8
    ]
   },
   {
@@ -15665,6 +20132,11 @@
      "value": "ResourceGatherer/BaseSpeed",
      "multiply": 1.15
     }
+   ],
+   "rts0": [
+    "AURA_GATHER",
+    0.13043478260869557,
+    1000.0
    ]
   },
   {
@@ -15686,7 +20158,8 @@
      "value": "BuildingAI/MaxArrowCount",
      "multiply": 1.75
     }
-   ]
+   ],
+   "rts0": null
   },
   {
    "id": "iber_hero_caros_2",
@@ -15710,6 +20183,11 @@
      "value": "Resistance/Entity/Damage/Crush",
      "add": 1
     }
+   ],
+   "rts0": [
+    "AURA_ARMOR",
+    1,
+    14.000000000000002
    ]
   },
   {
@@ -15742,7 +20220,8 @@
      "value": "Cost/Resources/metal",
      "multiply": 0.85
     }
-   ]
+   ],
+   "rts0": null
   },
   {
    "id": "iber_hero_viriato_1",
@@ -15758,6 +20237,11 @@
      "value": "UnitMotion/WalkSpeed",
      "multiply": 1.2
     }
+   ],
+   "rts0": [
+    "AURA_SPEED",
+    1.2,
+    16.8
    ]
   },
   {
@@ -15787,7 +20271,8 @@
      "value": "Looter/Resource/metal",
      "multiply": 2
     }
-   ]
+   ],
+   "rts0": null
   },
   {
    "id": "maur_hero_ashoka",
@@ -15831,7 +20316,8 @@
      "value": "Researcher/TechCostMultiplier/time",
      "multiply": 0.5
     }
-   ]
+   ],
+   "rts0": null
   },
   {
    "id": "maur_hero_chanakya_1",
@@ -15863,7 +20349,8 @@
      "value": "Researcher/TechCostMultiplier/time",
      "multiply": 0.7
     }
-   ]
+   ],
+   "rts0": null
   },
   {
    "id": "maur_hero_chanakya_2",
@@ -15879,6 +20366,11 @@
      "value": "Health/RegenRate",
      "add": 0.8
     }
+   ],
+   "rts0": [
+    "AURA_HEAL",
+    0.8,
+    9.8
    ]
   },
   {
@@ -15903,6 +20395,11 @@
      "value": "Resistance/Entity/Damage/Crush",
      "add": 1
     }
+   ],
+   "rts0": [
+    "AURA_ARMOR",
+    1,
+    16.8
    ]
   },
   {
@@ -15927,6 +20424,11 @@
      "value": "UnitMotion/WalkSpeed",
      "multiply": 1.1
     }
+   ],
+   "rts0": [
+    "AURA_ATTACK",
+    1.1764705882352942,
+    1000.0
    ]
   },
   {
@@ -15967,6 +20469,11 @@
      "value": "Attack/Ranged/Damage/Crush",
      "multiply": 1.2
     }
+   ],
+   "rts0": [
+    "AURA_ATTACK",
+    1.2,
+    16.8
    ]
   },
   {
@@ -16000,7 +20507,8 @@
      "value": "Cost/Resources/metal",
      "multiply": 1.2
     }
-   ]
+   ],
+   "rts0": null
   },
   {
    "id": "kush_hero_arakamani_2",
@@ -16033,7 +20541,8 @@
      "value": "Cost/Resources/metal",
      "multiply": 0.8
     }
-   ]
+   ],
+   "rts0": null
   },
   {
    "id": "kush_hero_arakamani_3",
@@ -16049,7 +20558,8 @@
      "value": "Heal/HP",
      "multiply": 0.5
     }
-   ]
+   ],
+   "rts0": null
   },
   {
    "id": "kush_hero_nastasen_1",
@@ -16101,6 +20611,11 @@
      "value": "Looter/Resource/metal",
      "multiply": 1.5
     }
+   ],
+   "rts0": [
+    "AURA_ATTACK",
+    1.1,
+    16.8
    ]
   },
   {
@@ -16121,7 +20636,8 @@
      "value": "Cost/Resources/metal",
      "add": -50
     }
-   ]
+   ],
+   "rts0": null
   },
   {
    "id": "ptol_hero_cleopatra_vii_1",
@@ -16142,6 +20658,11 @@
      "value": "Attack/Ranged/RepeatTime",
      "multiply": 0.8
     }
+   ],
+   "rts0": [
+    "AURA_ATTACK",
+    1.25,
+    16.8
    ]
   },
   {
@@ -16158,7 +20679,8 @@
      "value": "Health/Max",
      "multiply": 1.1
     }
-   ]
+   ],
+   "rts0": null
   },
   {
    "id": "ptol_hero_cleopatra_vii_3",
@@ -16174,7 +20696,8 @@
      "value": "Health/Max",
      "multiply": 0.9
     }
-   ]
+   ],
+   "rts0": null
   },
   {
    "id": "ptol_hero_ptolemy_i_1",
@@ -16190,7 +20713,8 @@
      "value": "Builder/Rate",
      "multiply": 1.1
     }
-   ]
+   ],
+   "rts0": null
   },
   {
    "id": "ptol_hero_ptolemy_i_2",
@@ -16218,7 +20742,8 @@
      "value": "Cost/Resources/metal",
      "multiply": 0.65
     }
-   ]
+   ],
+   "rts0": null
   },
   {
    "id": "ptol_hero_ptolemy_iv",
@@ -16234,7 +20759,8 @@
      "value": "Health/Max",
      "multiply": 1.4
     }
-   ]
+   ],
+   "rts0": null
   },
   {
    "id": "sele_hero_antiochus_iii",
@@ -16258,6 +20784,11 @@
      "value": "Resistance/Entity/Damage/Crush",
      "add": 2
     }
+   ],
+   "rts0": [
+    "AURA_ARMOR",
+    2,
+    12.600000000000001
    ]
   },
   {
@@ -16276,7 +20807,8 @@
      "value": "Health/Max",
      "multiply": 0.8
     }
-   ]
+   ],
+   "rts0": null
   },
   {
    "id": "sele_hero_seleucus_i",
@@ -16304,6 +20836,11 @@
      "value": "UnitMotion/WalkSpeed",
      "multiply": 1.2
     }
+   ],
+   "rts0": [
+    "AURA_ATTACK",
+    1.2,
+    16.8
    ]
   },
   {
@@ -16320,7 +20857,8 @@
      "value": "Promotion/RequiredXp",
      "multiply": 0.8
     }
-   ]
+   ],
+   "rts0": null
   },
   {
    "id": "han_hero_han_xin_2",
@@ -16336,7 +20874,8 @@
      "value": "Vision/Range",
      "multiply": 1.25
     }
-   ]
+   ],
+   "rts0": null
   },
   {
    "id": "han_hero_liu_bang_1",
@@ -16352,6 +20891,11 @@
      "value": "Health/RegenRate",
      "add": 10
     }
+   ],
+   "rts0": [
+    "AURA_HEAL",
+    10,
+    1000.0
    ]
   },
   {
@@ -16388,6 +20932,11 @@
      "value": "Attack/Ranged/Damage/Crush",
      "multiply": 1.2
     }
+   ],
+   "rts0": [
+    "AURA_ATTACK",
+    1.2,
+    11.200000000000001
    ]
   },
   {
@@ -16428,6 +20977,11 @@
      "value": "Attack/Ranged/Damage/Crush",
      "multiply": 1.2
     }
+   ],
+   "rts0": [
+    "AURA_ATTACK",
+    1.2,
+    16.8
    ]
   },
   {
@@ -16464,7 +21018,8 @@
      "value": "Attack/Ranged/Damage/Crush",
      "multiply": 0.9
     }
-   ]
+   ],
+   "rts0": null
   }
  ]
 }

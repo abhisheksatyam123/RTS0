@@ -6,6 +6,8 @@
 #include <cmath>
 #include <cstdint>
 
+#include "sim_types.h"
+
 namespace rtso {
 
 enum AuraType : uint8_t {
@@ -26,6 +28,7 @@ struct AuraSource {
     float x = 0.0f;
     float z = 0.0f;
     bool alive = true;
+    int16_t aura = -1; // civ_hero_aura_table() index: buffs only the roster units that aura affects
 };
 
 class AuraManager {
@@ -34,7 +37,8 @@ public:
 
     void clear() { sources.clear(); }
 
-    void register_source(uint32_t id, AuraType type, float range, float value, uint8_t team, float x, float z) {
+    void register_source(uint32_t id, AuraType type, float range, float value, uint8_t team, float x, float z,
+            int16_t aura = -1) {
         AuraSource s;
         s.source_id = id;
         s.type = type;
@@ -44,6 +48,7 @@ public:
         s.x = x;
         s.z = z;
         s.alive = true;
+        s.aura = aura;
         sources.push_back(s);
     }
 
@@ -52,7 +57,10 @@ public:
             [id](const AuraSource &s) { return s.source_id == id; }), sources.end());
     }
 
-    float query_modifier(float qx, float qz, uint8_t qteam, AuraType type) const {
+    // qtmpl is the querying unit's roster template; hero auras skip units their
+    // 0 A.D. "affects" classes exclude.
+    float query_modifier(float qx, float qz, uint8_t qteam, AuraType type,
+            uint16_t qtmpl = CIV_UNIT_TEMPLATE_NONE) const {
         float mod = 0.0f;
         if (type == AURA_HEAL) {
             // Sum-stacking for healing
@@ -60,6 +68,7 @@ public:
                 if (!s.alive) continue;
                 if (s.team != qteam) continue;
                 if (s.type != type) continue;
+                if (s.aura >= 0 && !civ_aura_affects(s.aura, qtmpl)) continue;
                 float dx = qx - s.x;
                 float dz = qz - s.z;
                 if (dx * dx + dz * dz <= s.range * s.range) {
@@ -72,6 +81,7 @@ public:
                 if (!s.alive) continue;
                 if (s.team != qteam) continue;
                 if (s.type != type) continue;
+                if (s.aura >= 0 && !civ_aura_affects(s.aura, qtmpl)) continue;
                 float dx = qx - s.x;
                 float dz = qz - s.z;
                 if (dx * dx + dz * dz <= s.range * s.range) {

@@ -35,7 +35,7 @@ The biggest gaps to 0 A.D. are game-level rather than per-system (see [REMAINING
 | A. Per-player economy | Per-player resource/tech table for up to 8 players | In progress |
 | B. Game modes | Wave mode off for skirmish; victory options | In progress |
 | C. AI (Petra) | Fix the phase-up stall, scale the economy, several AI players | In progress |
-| D. Civ rosters and heroes | Civ-specific units and heroes, add Han, civ bonuses as data | In progress |
+| D. Civ rosters and heroes | Civ-specific units and heroes, add Han, civ bonuses as data | Landed: 367 civ units and Han from 0 A.D. templates (#10); units, heroes, hero auras and civ bonuses drive the sim (#12). Open: train panel lists roster units by name |
 | E. Buildings, techs, farming | Missing buildings, 0 A.D. tech tree, fields and farming | In progress |
 | F. Maps and scale | Larger maps, more 0 A.D. random maps (coordinate with MIGRATION.md pathfinding work) | In progress: map sizes 128 to 512 with scaling grids done (PR #14, `tools/bench_map_scale.cpp`); more random maps next |
 

@@ -70,6 +70,7 @@ struct ProductionOrder {
 	uint8_t unit_type;
 	float timer;
 	float duration;
+	uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE; // civ roster unit to spawn (NONE = civ default for unit_type)
 };
 
 // Per-player state (0 A.D. Player.js + ResourceCounter + TechnologyManager).
@@ -201,7 +202,13 @@ public:
 	void spawn_war(int total_units = 2000);
 	void generate_random_map(MapType type = MAP_RANDOM_CONTINENTAL, uint32_t seed = 0, int num_players = 2, float map_half = 64.0f);
 
-	uint32_t spawn_unit(float x, float z, uint8_t team = 0, UnitType u_type = UNIT_VILLAGER, float hp = 100.0f);
+	// Spawns the owner civ's unit for u_type (or roster template `tmpl`) with its
+	// 0 A.D. stats. hp > 0 overrides the template's health.
+	uint32_t spawn_unit(float x, float z, uint8_t team = 0, UnitType u_type = UNIT_VILLAGER, float hp = 0.0f,
+			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE);
+	// Stats of the unit at SoA index i (its civ roster template, else its class).
+	const UnitTypeInfo &unit_info_at(size_t i) const { return civ_template_unit_info(units_.tmpl[i], units_.unit_type[i]); }
+	uint16_t unit_template(uint32_t unit_id) const;
 	uint32_t spawn_resource(int cell_x, int cell_y, uint8_t type, int32_t amount = 600);
 	uint32_t spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount = 600, uint8_t subtype = 0);
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f);
@@ -242,6 +249,8 @@ public:
 	void cmd_stop(const uint32_t *unit_ids, size_t count);
 	uint32_t cmd_build(int cell_x, int cell_y, uint8_t b_type);
 	bool cmd_train(uint32_t building_id, UnitType u_type);
+	// Train a specific roster unit (a hero, a champion, a second unit of the same class).
+	bool cmd_train_template(uint32_t building_id, uint16_t tmpl);
 	// P3 maintainFleet upkeep seam (0 A.D. navalManager.js:507-543): team-aware
 	// naval queue entry used by TurnManager NET_CMD_MAINTAIN_FLEET. Unlike
 	// cmd_train (team-0/human only) this honours the building's own team
@@ -331,6 +340,7 @@ public:
 		const uint8_t *rank;
 		const uint8_t *status_effects;
 		const uint16_t *xp;
+		const uint16_t *tmpl; // civ roster template (civ_unit_template), CIV_UNIT_TEMPLATE_NONE = generic
 		size_t count;
 	};
 	UnitView units() const;

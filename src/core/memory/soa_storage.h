@@ -37,6 +37,7 @@ struct UnitSoA {
 	uint32_t *id = nullptr;
 	uint8_t *team = nullptr; // 0=Player, 1=Enemy
 	uint8_t *unit_type = nullptr; // UnitType
+	uint16_t *tmpl = nullptr; // civ roster template (civ_unit_template), CIV_UNIT_TEMPLATE_NONE = generic class
 	uint8_t *action_state = nullptr; // 0=Idle, 1=Move, 2=Attack, 3=Gather, 4=ReturnDropsite, 5=Build, 6=Garrisoned, 7=Dying
 	uint8_t *res_type_carried = nullptr; // 0=wood, 1=gold, 2=stone, 3=food
 	int32_t *carry = nullptr;
@@ -76,7 +77,7 @@ struct UnitSoA {
 		FREE(pos_x); FREE(pos_z); FREE(vel_x); FREE(vel_z);
 		FREE(target_x); FREE(target_z); FREE(anchor_x); FREE(anchor_z); FREE(has_order); FREE(alive);
 		FREE(hp); FREE(max_hp); FREE(id); FREE(team);
-		FREE(unit_type); FREE(action_state); FREE(res_type_carried);
+		FREE(unit_type); FREE(tmpl); FREE(action_state); FREE(res_type_carried);
 		FREE(carry); FREE(carry_capacity); FREE(speed);
 		FREE(attack_timer); FREE(attack_range); FREE(attack_damage); FREE(attack_cooldown);
 		FREE(death_timer); FREE(target_unit_id); FREE(target_resource_id); FREE(target_building_id);
@@ -118,6 +119,7 @@ struct UnitSoA {
 		realloc_aligned(id, c * sizeof(uint32_t));
 		realloc_aligned(team, c * sizeof(uint8_t));
 		realloc_aligned(unit_type, c * sizeof(uint8_t));
+		realloc_aligned(tmpl, c * sizeof(uint16_t));
 		realloc_aligned(action_state, c * sizeof(uint8_t));
 		realloc_aligned(res_type_carried, c * sizeof(uint8_t));
 		realloc_aligned(carry, c * sizeof(int32_t));
@@ -150,7 +152,8 @@ struct UnitSoA {
 		cap = c;
 	}
 
-	size_t push(float x, float z, uint32_t uid, uint8_t u_team = 0, uint8_t u_type = UNIT_VILLAGER) {
+	size_t push(float x, float z, uint32_t uid, uint8_t u_team = 0, uint8_t u_type = UNIT_VILLAGER,
+			uint16_t u_tmpl = CIV_UNIT_TEMPLATE_NONE) {
 		if (count >= cap) reserve(cap ? cap * 2 : 1024);
 		size_t i = count++;
 		pos_x[i] = x; pos_z[i] = z;
@@ -160,9 +163,10 @@ struct UnitSoA {
 		has_order[i] = 0; alive[i] = 1;
 		id[i] = uid; team[i] = u_team;
 		unit_type[i] = u_type;
+		tmpl[i] = u_tmpl;
 		action_state[i] = ACTION_IDLE;
 		res_type_carried[i] = RES_WOOD;
-		const UnitTypeInfo &info = unit_type_info(u_type);
+		const UnitTypeInfo &info = civ_template_unit_info(u_tmpl, u_type);
 		carry[i] = 0; carry_capacity[i] = info.carry_capacity;
 		speed[i] = info.speed;
 		death_timer[i] = 0.0f;
@@ -203,6 +207,7 @@ struct UnitSoA {
 			hp[idx] = hp[last]; max_hp[idx] = max_hp[last];
 			id[idx] = id[last]; team[idx] = team[last];
 			unit_type[idx] = unit_type[last];
+			tmpl[idx] = tmpl[last];
 			action_state[idx] = action_state[last];
 			res_type_carried[idx] = res_type_carried[last];
 			carry[idx] = carry[last]; carry_capacity[idx] = carry_capacity[last];

@@ -549,40 +549,23 @@ int32_t Simulation::lookup_unit(uint32_t id) const {
 	return unit_idx_by_id_[id];
 }
 
-uint32_t Simulation::spawn_unit(float x, float z, uint8_t team, UnitType u_type, float hp) {
+uint32_t Simulation::spawn_unit(float x, float z, uint8_t team, UnitType u_type, float hp, uint16_t tmpl) {
 	uint32_t uid = alloc_id();
-	size_t idx = units_.push(x, z, uid, team, u_type);
-	const UnitTypeInfo &uinfo = unit_type_info(u_type);
-	if (hp > 0.0f) {
-		units_.hp[idx] = units_.max_hp[idx] = hp;
-	} else {
-		units_.hp[idx] = units_.max_hp[idx] = uinfo.hp;
-	}
+	Civilization civ = civ_of(team);
+	// The owner civ's own unit for this class (0 A.D. roster); its stats already
+	// carry the civ's auto-researched unit bonuses.
+	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT) tmpl = civ_default_template(civ, (uint8_t)u_type);
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT && civ_unit_template(tmpl).unit_type != (uint8_t)u_type)
+		tmpl = CIV_UNIT_TEMPLATE_NONE;
+	size_t idx = units_.push(x, z, uid, team, u_type, tmpl);
+	if (hp > 0.0f) units_.hp[idx] = units_.max_hp[idx] = hp;
 
-	// Apply researched military tech bonuses & Civilization traits
+	// Apply researched military tech bonuses
 	uint32_t tech_mask = player(team).tech_mask;
-	Civilization civ = (team < MAX_PLAYERS) ? players_[team].civ : CIV_ATHENIANS;
-	const CivInfo &cinfo = civ_info(civ);
-
-	units_.max_hp[idx] *= cinfo.hp_mult;
-	units_.hp[idx] = units_.max_hp[idx];
-
 	if ((tech_mask & (1u << TECH_WEAPONS_1)) != 0) units_.attack_damage[idx] *= 1.20f;
 	if ((tech_mask & (1u << TECH_ARMOR_1)) != 0) {
 		units_.max_hp[idx] += 30.0f;
 		units_.hp[idx] = units_.max_hp[idx];
-	}
-	// Civ bonuses
-	if (civ == CIV_SPARTANS && (u_type == UNIT_SWORDSMAN || u_type == UNIT_SPEARMAN)) {
-		units_.max_hp[idx] *= 1.25f;
-		units_.hp[idx] = units_.max_hp[idx];
-		units_.attack_damage[idx] *= 1.15f;
-	} else if (civ == CIV_PERSIANS && (u_type == UNIT_CAVALRY || u_type == UNIT_CAMEL)) {
-		units_.speed[idx] *= 1.20f;
-	} else if (civ == CIV_BRITONS && (u_type == UNIT_CHARIOT || u_type == UNIT_WAR_DOG)) {
-		units_.speed[idx] *= 1.15f;
-	} else if (civ == CIV_MAURYANS && u_type == UNIT_ELEPHANT) {
-		units_.attack_range[idx] = 16.0f;
 	}
 
 	if (team == 0) {
@@ -632,7 +615,8 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	b.type = type;
 	b.team = team;
 	b.max_hp = binfo.max_hp;
-	if (team == 0 && players_[0].civ == CIV_ROMANS) b.max_hp *= 1.20f; // Roman architecture bonus
+	// 0 A.D. civ structure bonuses (Hellenic Architecture, Wooden Construction, walls, ...)
+	if (team < MAX_PLAYERS) b.max_hp *= civ_bonus_mult(civ_of(team), CIV_BONUS_BUILDING_HP, type);
 	// 0 A.D. foundation.xml: Health/Initial is 1. Progress 0 = plot only (not a wreck).
 	if (progress <= 0.0f) {
 		b.build_progress = 0.0f;
@@ -886,7 +870,7 @@ bool Simulation::cmd_maintain_fleet(uint32_t building_id, UnitType u_type, uint8
 	if (b.type != BLD_DOCK) return false;
 	if (!b.queue.empty()) return false; // queues.ships.hasQueuedUnits()
 	if (u_type != UNIT_TRIREME && u_type != UNIT_FISHING_BOAT) return false;
-	const UnitTypeInfo &uinfo = unit_type_info(u_type);
+	const UnitTypeInfo &uinfo = civ_unit_info(civ_of(team), u_type);
 	if (team == 0) {
 		if (pop_current() >= pop_max()) return false;
 		if (!players_[0].pay((float)uinfo.food_cost, (float)uinfo.wood_cost,
@@ -909,30 +893,46 @@ bool Simulation::cmd_maintain_fleet(uint32_t building_id, UnitType u_type, uint8
 bool Simulation::cmd_train(uint32_t building_id, UnitType u_type) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return false;
+	const Building &b = buildings_[bit->second];
+	if (b.type == BLD_CORRAL || u_type == UNIT_TYPE_NONE) {
+		if (b.team != 0 || b.build_progress < 1.0f || b.queue.size() >= 8) return false;
+		return cmd_breed_livestock(building_id);
+	}
+	uint16_t tmpl = civ_default_template(civ_of(b.team), (uint8_t)u_type);
+	if (tmpl == CIV_UNIT_TEMPLATE_NONE) return false; // not in this civ's roster
+	return cmd_train_template(building_id, tmpl);
+}
+
+bool Simulation::cmd_train_template(uint32_t building_id, uint16_t tmpl) {
+	auto bit = building_id_to_idx_.find(building_id);
+	if (bit == building_id_to_idx_.end()) return false;
 	Building &b = buildings_[bit->second];
 	if (b.team != 0 || b.build_progress < 1.0f) return false;
 	if (b.queue.size() >= 8) return false;
-
-	if (b.type == BLD_CORRAL || u_type == UNIT_TYPE_NONE) {
-		return cmd_breed_livestock(building_id);
-	}
+	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
 
 	PlayerState &ps = player(b.team);
-	if (!civ_can_train(ps.civ, (uint8_t)u_type)) return false;
+	const CivUnitTemplate &t = civ_unit_template(tmpl);
+	if (t.civ != ps.civ) return false;
 
-	const UnitTypeInfo &uinfo = unit_type_info(u_type);
+	const UnitTypeInfo &uinfo = civ_template_unit_info(tmpl, t.unit_type);
 	if (pop_current() >= pop_max()) return false;
 
 	if (!ps.pay((float)uinfo.food_cost, (float)uinfo.wood_cost, (float)uinfo.gold_cost, (float)uinfo.stone_cost))
 		return false;
 
 	ProductionOrder order;
-	order.unit_type = u_type;
+	order.unit_type = t.unit_type;
+	order.tmpl = tmpl;
 	order.timer = 0.0f;
 	order.duration = uinfo.train_time;
-	if (ps.civ == CIV_PERSIANS && u_type == UNIT_CAVALRY) order.duration *= 0.80f;
 	b.queue.push_back(order);
 	return true;
+}
+
+uint16_t Simulation::unit_template(uint32_t unit_id) const {
+	int32_t idx = lookup_unit(unit_id);
+	return (idx >= 0) ? units_.tmpl[idx] : CIV_UNIT_TEMPLATE_NONE;
 }
 
 bool Simulation::cmd_cancel_train(uint32_t building_id, size_t queue_idx) {
@@ -949,7 +949,9 @@ bool Simulation::cmd_cancel_train(uint32_t building_id, size_t queue_idx) {
 		return true;
 	}
 
-	const UnitTypeInfo &uinfo = unit_type_info(utype);
+	uint16_t qtmpl = b.queue[queue_idx].tmpl;
+	const UnitTypeInfo &uinfo = (qtmpl < CIV_UNIT_TEMPLATE_COUNT) ? civ_template_unit_info(qtmpl, utype)
+		: civ_unit_info(civ_of(b.team), utype);
 	players_[0].add((float)uinfo.food_cost, (float)uinfo.wood_cost, (float)uinfo.gold_cost, (float)uinfo.stone_cost);
 
 	b.queue.erase(b.queue.begin() + queue_idx);
@@ -1027,10 +1029,8 @@ bool Simulation::cmd_barter(ResourceType sell, ResourceType buy, int amount) {
 	// 0 A.D. Market.js:42 & Barter.js:26 (CONSTANT_DIFFERENCE = 10, DEAL_AMOUNT = 100):
 	// Exchange rate sell/buy = (100 - 10) / (100 + 10) = 90 / 110 ~= 0.8182 (18.18% barter fee).
 	// Barter fee matches Market.js exchangeRate range (15% - 25%):
-	// - Specialized trading civilizations (Carthaginians 1.10x, Persians 1.25x) receive 15% barter fee (baseSpread = 0.85f).
-	// - Default civilizations pay ~18.2% barter fee (baseSpread = 0.8182f, within 15-25% range; not flat 0.75).
-	float baseSpread = 0.8182f;
-	if (ps.civ == CIV_CARTHAGINIANS || ps.civ == CIV_PERSIANS) baseSpread = 0.85f;
+	// Every civ pays the same ~18.2% fee; 0 A.D. has no civ-specific barter rate.
+	const float baseSpread = 0.8182f;
 	float priceRatio = market_sell_price_[sell] / std::max(0.01f, market_buy_price_[buy]);
 	int received = int(amount * baseSpread * priceRatio);
 	received = std::clamp(received, 1, amount * 3);
@@ -1427,7 +1427,7 @@ void Simulation::order_attack(const uint32_t *unit_ids, size_t count, uint32_t t
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx]) continue;
-		if (!unit_can_attack(units_.unit_type[uidx])) continue;
+		if (units_.attack_damage[uidx] <= 0.0f) continue;
 
 		units_.target_x[uidx] = tx;
 		units_.target_z[uidx] = tz;
@@ -1447,7 +1447,7 @@ void Simulation::order_attack_building(const uint32_t *unit_ids, size_t count, u
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx]) continue;
-		if (!unit_can_attack(units_.unit_type[uidx])) continue;
+		if (units_.attack_damage[uidx] <= 0.0f) continue;
 
 		stand_outside_rect(b.x, b.z, b.half_size, units_.id[uidx],
 				units_.pos_x[uidx], units_.pos_z[uidx],
@@ -2638,7 +2638,7 @@ void Simulation::tick_construction(float dt) {
 			float speed_mult = sqrtf((float)worker_count) / (float)worker_count;
 			if (units_.unit_type[i] == UNIT_WORKER_ELEPHANT) speed_mult *= 2.0f; // Worker elephant heavy construction
 			Civilization civ = civ_of(units_.team[i]);
-			speed_mult *= civ_info(civ).build_speed_mult;
+			speed_mult /= civ_bonus_mult(civ, CIV_BONUS_BUILDING_BUILD_TIME, b.type); // e.g. Celtic Wooden Construction
 
 			// 0 A.D. Foundation.Commit: first builder on site → scaffold + construction preview.
 			b.committed = true;
@@ -2698,7 +2698,7 @@ void Simulation::tick_repair(float dt) {
 			float speed_mult = sqrtf((float)worker_count) / (float)worker_count;
 			if (units_.unit_type[i] == UNIT_WORKER_ELEPHANT) speed_mult *= 2.0f;
 			Civilization civ = civ_of(units_.team[i]);
-			speed_mult *= civ_info(civ).build_speed_mult;
+			speed_mult /= civ_bonus_mult(civ, CIV_BONUS_BUILDING_BUILD_TIME, b.type); // e.g. Celtic Wooden Construction
 
 			// Repair finished building (0 A.D. Repairable.js:114-118 Repair rate)
 			b.hp = std::min(b.max_hp, b.hp + dt * 30.0f * speed_mult);
@@ -2721,6 +2721,7 @@ void Simulation::tick_production(float dt) {
 			order.timer += dt;
 			if (order.timer >= order.duration) {
 				uint8_t utype = order.unit_type;
+				uint16_t otmpl = order.tmpl;
 				b.queue.erase(b.queue.begin());
 
 				if (b.type == BLD_CORRAL || utype == UNIT_TYPE_NONE) {
@@ -2738,7 +2739,7 @@ void Simulation::tick_production(float dt) {
 					// Spawn unit near building
 					float sx = b.x + (b.footprint + 0.6f) * GRID;
 					float sz = b.z;
-					uint32_t uid = spawn_unit(sx, sz, bteam, (UnitType)utype);
+					uint32_t uid = spawn_unit(sx, sz, bteam, (UnitType)utype, 0.0f, otmpl);
 
 					// Route to Rally Point if set
 					if (b.has_rally_point) {
@@ -2802,7 +2803,7 @@ void Simulation::tick_combat(float dt) {
 		if (units_.attack_timer[i] > 0) units_.attack_timer[i] -= dt;
 		target_idx[i] = -1;
 		if (!units_.alive[i]) return;
-		if (!unit_can_attack(units_.unit_type[i])) return;
+		if (units_.attack_damage[i] <= 0.0f) return;
 
 		// Passive stance / civilian gatherers do not auto-acquire combat targets
 		if (units_.stance[i] == STANCE_PASSIVE) return;
@@ -2823,7 +2824,7 @@ void Simulation::tick_combat(float dt) {
 
 		// B. Stance Leash & Auto-Aggro Scan
 		if (found < 0 && units_.target_building_id[i] == 0) {
-			float scan_range = unit_type_info(units_.unit_type[i]).aggro_range;
+			float scan_range = unit_info_at(i).aggro_range;
 			float leash_radius = 24.0f;
 
 			if (units_.stance[i] == STANCE_STAND_GROUND) {
@@ -2926,7 +2927,7 @@ void Simulation::tick_combat(float dt) {
 	for (size_t i = 0; i < n; ++i) {
 		int32_t t = target_idx[i];
 		if (t < 0 || !units_.alive[i] || units_.attack_timer[i] > 0) continue;
-		if (!unit_can_attack(units_.unit_type[i])) continue;
+		if (units_.attack_damage[i] <= 0.0f) continue;
 		float dx = units_.pos_x[i] - units_.pos_x[t];
 		float dz = units_.pos_z[i] - units_.pos_z[t];
 		float d2 = dx * dx + dz * dz;
@@ -2943,8 +2944,8 @@ void Simulation::tick_combat(float dt) {
 
 		// 0 A.D. Exact Exponential Armor Formula (Attack.js + Resistance.js):
 		// Damage = sum( Dmg[Type] * 0.9^Armor[Type] )
-		const auto &uinfo_att = unit_type_info(units_.unit_type[i]);
-		const auto &uinfo_dst = unit_type_info(units_.unit_type[t]);
+		const auto &uinfo_att = unit_info_at(i);
+		const auto &uinfo_dst = unit_info_at(t);
 		float target_hack = uinfo_dst.hack_armor;
 		float target_pierce = uinfo_dst.pierce_armor;
 		float target_crush = uinfo_dst.crush_armor;
@@ -2962,14 +2963,8 @@ void Simulation::tick_combat(float dt) {
 			target_pierce += 3.0f;
 		}
 
-		// Iberian Devotio Bodyguard Vow: +2 armor
-		if (civ_of(units_.team[t]) == CIV_IBERIANS) {
-			target_hack += 2.0f;
-			target_pierce += 2.0f;
-		}
-
 		// AuraManager defensive armor buff
-		float armorAura = aura_mgr_.query_modifier(units_.pos_x[t], units_.pos_z[t], units_.team[t], AURA_ARMOR);
+		float armorAura = aura_mgr_.query_modifier(units_.pos_x[t], units_.pos_z[t], units_.team[t], AURA_ARMOR, units_.tmpl[t]);
 		if (armorAura > 0.001f) {
 			target_hack += armorAura;
 			target_pierce += armorAura;
@@ -2988,8 +2983,6 @@ void Simulation::tick_combat(float dt) {
 
 		uint8_t att_team = units_.team[i];
 		Civilization att_civ = civ_of(att_team);
-		float civ_melee_mult = civ_info(att_civ).melee_damage_mult;
-		hack_dmg *= civ_melee_mult;
 
 		// 0 A.D. Attack.js:GetAttackBonus counters (template bonuses):
 		// Spearman deals 2.5x counter bonus against cavalry, camel, and chariot classes.
@@ -3011,7 +3004,7 @@ void Simulation::tick_combat(float dt) {
 		crush_dmg *= counter_mul;
 
 		// Carnyx Horn Morale Aura via AuraManager (14m +20% dmg)
-		float dmgMult = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], att_team, AURA_ATTACK);
+		float dmgMult = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], att_team, AURA_ATTACK, units_.tmpl[i]);
 		if (dmgMult > 1.001f) {
 			hack_dmg *= dmgMult;
 			pierce_dmg *= dmgMult;
@@ -3034,12 +3027,12 @@ void Simulation::tick_combat(float dt) {
 			final_dmg *= std::max(0.80f, 1.0f + height_diff * 0.04f); // Uphill attack penalty (-20% max)
 		}
 
-		bool maur_elephant_archer = (u_att == UNIT_ELEPHANT && att_civ == CIV_MAURYANS);
-		bool is_ranged_attack = unit_has_ranged_attack(u_att, att_civ);
+		bool is_ranged_attack = template_has_ranged_attack(units_.tmpl[i], u_att, att_civ);
+		bool maur_elephant_archer = (u_att == UNIT_ELEPHANT && is_ranged_attack);
 
 		if (is_ranged_attack) {
 			uint8_t effect = EFFECT_NONE;
-			if (att_civ == CIV_KUSHITES || u_att == UNIT_ARCHER_MAIDEN) {
+			if (u_att == UNIT_ARCHER_MAIDEN) {
 				effect |= EFFECT_POISON;
 			}
 			// Warship LaunchPoint y=3; elephant archer LaunchPoint y=9 (scaled).
@@ -3126,7 +3119,7 @@ void Simulation::tick_combat(float dt) {
 					float dist2 = sx * sx + sz * sz;
 					if (dist2 >= blast_r2) return;
 					float falloff = 1.0f - (dist2 / blast_r2);
-					float s_hack = unit_type_info(units_.unit_type[s_idx]).hack_armor;
+					float s_hack = unit_info_at(s_idx).hack_armor;
 					float s_dmg = std::max(1.0f, final_dmg * 0.60f * falloff * powf(0.9f, s_hack * 0.5f));
 					units_.hp[s_idx] -= s_dmg;
 					if (units_.hp[s_idx] <= 0) {
@@ -3139,8 +3132,7 @@ void Simulation::tick_combat(float dt) {
 							record_.enemies_killed++;
 						}
 						// Dynamic Loot bounty from splash casualty
-						uint8_t stype = units_.unit_type[s_idx];
-						const auto &s_info = unit_type_info(stype);
+						const auto &s_info = unit_info_at(s_idx);
 						int sf_loot = (int)std::round(s_info.food_cost * 0.10f);
 						int sw_loot = (int)std::round(s_info.wood_cost * 0.10f);
 						int sg_loot = (int)std::round(s_info.gold_cost * 0.10f);
@@ -3161,8 +3153,7 @@ void Simulation::tick_combat(float dt) {
 				}
 
 				// Dynamic Loot Tables (Loot.js, Looter.js) - 10% food/wood/stone/gold return to killer + carried resources
-				uint8_t v_type = units_.unit_type[t];
-				const auto &v_info = unit_type_info(v_type);
+				const auto &v_info = unit_info_at(t);
 				int f_loot = (int)std::round(v_info.food_cost * 0.10f);
 				int w_loot = (int)std::round(v_info.wood_cost * 0.10f);
 				int g_loot = (int)std::round(v_info.gold_cost * 0.10f);
@@ -3213,7 +3204,7 @@ void Simulation::tick_combat(float dt) {
 	// 3. Units Attacking Buildings & Siege Demolition (0 A.D. Attack.js + BuildingDamage)
 	for (size_t i = 0; i < n; ++i) {
 		if (!units_.alive[i] || units_.target_building_id[i] == 0 || units_.attack_timer[i] > 0) continue;
-		if (!unit_can_attack(units_.unit_type[i])) continue;
+		if (units_.attack_damage[i] <= 0.0f) continue;
 		auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
 		if (bit == building_id_to_idx_.end()) {
 			units_.target_building_id[i] = 0;
@@ -3247,17 +3238,13 @@ void Simulation::tick_combat(float dt) {
 		units_.attack_timer[i] = units_.attack_cooldown[i];
 		units_.action_state[i] = ACTION_ATTACK;
 
-		const auto &uinfo_att = unit_type_info(units_.unit_type[i]);
+		const auto &uinfo_att = unit_info_at(i);
 		float hack_dmg = uinfo_att.hack_damage;
 		float pierce_dmg = uinfo_att.pierce_damage;
 		float crush_dmg = uinfo_att.crush_damage;
 
-		// Battering Ram & Elephant Siege Demolition Bonus
-		if (units_.unit_type[i] == UNIT_SIEGE_RAM) {
-			crush_dmg *= 4.0f; // 4x Crush damage vs fortifications
-		} else if (units_.unit_type[i] == UNIT_ELEPHANT || units_.unit_type[i] == UNIT_CATAPULT) {
-			crush_dmg *= 2.0f;
-		}
+		// Siege demolition power comes from 0 A.D.'s own crush damage (rams 150,
+		// stone throwers 250 in their templates); no extra multiplier on top.
 
 		// Structure Armor: Hack 3.0, Pierce 15.0 (arrow-resistant), Crush 3.0
 		float b_hack_armor = (b.type == BLD_FORTRESS || b.type == BLD_WALL_SEGMENT) ? 5.0f : 3.0f;
@@ -3270,7 +3257,7 @@ void Simulation::tick_combat(float dt) {
 			crush_dmg * powf(0.9f, b_crush_armor)
 		);
 
-		bool is_ranged_attack = unit_has_ranged_attack(units_.unit_type[i],
+		bool is_ranged_attack = template_has_ranged_attack(units_.tmpl[i], units_.unit_type[i],
 				civ_of(units_.team[i]));
 
 		if (is_ranged_attack) {
@@ -3401,7 +3388,7 @@ void Simulation::tick_combat(float dt) {
 	// 3. Temple + Hero Healing Aura via AuraManager (Heal.js + Auras.js) - 18m 3.5 / 16m 2.0
 	for (size_t u = 0; u < n; ++u) {
 		if (!units_.alive[u] || units_.hp[u] >= units_.max_hp[u]) continue;
-		float healMod = aura_mgr_.query_modifier(units_.pos_x[u], units_.pos_z[u], units_.team[u], AURA_HEAL);
+		float healMod = aura_mgr_.query_modifier(units_.pos_x[u], units_.pos_z[u], units_.team[u], AURA_HEAL, units_.tmpl[u]);
 		if (healMod > 0.001f) {
 			units_.hp[u] = std::min(units_.max_hp[u], units_.hp[u] + dt * healMod);
 		}
@@ -3461,9 +3448,9 @@ void Simulation::tick_combat(float dt) {
 	// 6. Hero Unit Inspiration Auras via AuraManager (Auras.js / Heroes) - 16m heal 2.0 (Spartan) / speed 1.20 (Athenian)
 	for (size_t u = 0; u < n; ++u) {
 		if (!units_.alive[u]) continue;
-		float speedMod = aura_mgr_.query_modifier(units_.pos_x[u], units_.pos_z[u], units_.team[u], AURA_SPEED);
+		float speedMod = aura_mgr_.query_modifier(units_.pos_x[u], units_.pos_z[u], units_.team[u], AURA_SPEED, units_.tmpl[u]);
 		if (speedMod > 1.001f) {
-			units_.speed[u] = unit_type_info(units_.unit_type[u]).speed * speedMod;
+			units_.speed[u] = unit_info_at(u).speed * speedMod;
 		}
 	}
 
@@ -3673,8 +3660,7 @@ void Simulation::tick_projectiles(float dt) {
 							record_.enemies_killed++;
 						}
 						// Dynamic Loot bounty from projectile kill
-						uint8_t pt_type = units_.unit_type[tidx];
-						const auto &pt_info = unit_type_info(pt_type);
+						const auto &pt_info = unit_info_at(tidx);
 						int pf_loot = (int)std::round(pt_info.food_cost * 0.10f);
 						int pw_loot = (int)std::round(pt_info.wood_cost * 0.10f);
 						int pg_loot = (int)std::round(pt_info.gold_cost * 0.10f);
@@ -3738,7 +3724,7 @@ void Simulation::tick_projectiles(float dt) {
 					float dist2 = sx * sx + sz * sz;
 					if (dist2 >= blast_r2) continue;
 					float falloff = 1.0f - (dist2 / blast_r2);
-					float s_hack = unit_type_info(units_.unit_type[s_idx]).hack_armor;
+					float s_hack = unit_info_at(s_idx).hack_armor;
 					float s_dmg = std::max(1.0f, p.damage * 0.60f * falloff * powf(0.9f, s_hack * 0.5f));
 					units_.hp[s_idx] -= s_dmg;
 					if (units_.hp[s_idx] <= 0) {
@@ -3751,8 +3737,7 @@ void Simulation::tick_projectiles(float dt) {
 							record_.enemies_killed++;
 						}
 						// Dynamic Loot bounty from splash kill
-						uint8_t stype = units_.unit_type[s_idx];
-						const auto &s_info = unit_type_info(stype);
+						const auto &s_info = unit_info_at(s_idx);
 						int sf_loot = (int)std::round(s_info.food_cost * 0.10f);
 						int sw_loot = (int)std::round(s_info.wood_cost * 0.10f);
 						int sg_loot = (int)std::round(s_info.gold_cost * 0.10f);
@@ -3790,7 +3775,7 @@ void Simulation::tick_status_effects(float dt) {
 				record_death(units_.pos_x[i], units_.pos_z[i], units_.team[i], (uint8_t)(1 - units_.team[i]), units_.unit_type[i], false);
 				if (units_.team[i] == 0) record_.units_lost++;
 				else record_.enemies_killed++;
-				const auto &v_info = unit_type_info(units_.unit_type[i]);
+				const auto &v_info = unit_info_at(i);
 				apply_loot_bounty(1 - units_.team[i], (int)std::round(v_info.food_cost * 0.1f), (int)std::round(v_info.wood_cost * 0.1f), (int)std::round(v_info.gold_cost * 0.1f), (int)std::round(v_info.stone_cost * 0.1f));
 			}
 			if (units_.poison_timer[i] <= 0.0f) {
@@ -3825,7 +3810,7 @@ void Simulation::tick_status_effects(float dt) {
 				record_death(units_.pos_x[i], units_.pos_z[i], units_.team[i], (uint8_t)(1 - units_.team[i]), units_.unit_type[i], false);
 				if (units_.team[i] == 0) record_.units_lost++;
 				else record_.enemies_killed++;
-				const auto &v_info = unit_type_info(units_.unit_type[i]);
+				const auto &v_info = unit_info_at(i);
 				apply_loot_bounty(1 - units_.team[i], (int)std::round(v_info.food_cost * 0.1f), (int)std::round(v_info.wood_cost * 0.1f), (int)std::round(v_info.gold_cost * 0.1f), (int)std::round(v_info.stone_cost * 0.1f));
 			}
 			if (units_.bleed_timer[i] <= 0.0f) {
@@ -3844,7 +3829,7 @@ void Simulation::tick_status_effects(float dt) {
 				record_death(units_.pos_x[i], units_.pos_z[i], units_.team[i], (uint8_t)(1 - units_.team[i]), units_.unit_type[i], false);
 				if (units_.team[i] == 0) record_.units_lost++;
 				else record_.enemies_killed++;
-				const auto &v_info = unit_type_info(units_.unit_type[i]);
+				const auto &v_info = unit_info_at(i);
 				apply_loot_bounty(1 - units_.team[i], (int)std::round(v_info.food_cost * 0.1f), (int)std::round(v_info.wood_cost * 0.1f), (int)std::round(v_info.gold_cost * 0.1f), (int)std::round(v_info.stone_cost * 0.1f));
 			}
 			if (units_.burning_timer[i] <= 0.0f) {
@@ -4085,6 +4070,7 @@ Simulation::UnitView Simulation::units() const {
 	v.id = units_.id;
 	v.alive = units_.alive;
 	v.team = units_.team;
+	v.tmpl = units_.tmpl;
 	v.unit_type = units_.unit_type;
 	v.action_state = units_.action_state;
 	v.res_type_carried = units_.res_type_carried;
@@ -7430,7 +7416,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = 6; // v6 replaces the player-0 scalars with the per-player table
+	uint32_t version = 7; // v6 per-player table; v7 adds each unit's and queued order's civ roster template
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 
@@ -7509,6 +7495,7 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&units_.target_resource_id[u], sizeof(uint32_t));
 		out.write((const char *)&units_.target_unit_id[u], sizeof(uint32_t));
 		out.write((const char *)&units_.target_building_id[u], sizeof(uint32_t));
+		out.write((const char *)&units_.tmpl[u], sizeof(uint16_t));
 	}
 
 	// 4. Buildings
@@ -7547,6 +7534,7 @@ bool Simulation::save_state(const char *filepath) const {
 			out.write((const char *)&po.unit_type, sizeof(po.unit_type));
 			out.write((const char *)&po.timer, sizeof(po.timer));
 			out.write((const char *)&po.duration, sizeof(po.duration));
+			out.write((const char *)&po.tmpl, sizeof(po.tmpl));
 		}
 
 		uint32_t g_sz = (uint32_t)b.garrisoned_units.size();
@@ -7589,7 +7577,7 @@ bool Simulation::load_state(const char *filepath) {
 	uint32_t magic = 0, version = 0;
 	in.read((char *)&magic, sizeof(magic));
 	in.read((char *)&version, sizeof(version));
-	if (magic != 0x52545330 || version < 1 || version > 6) return false;
+	if (magic != 0x52545330 || version < 1 || version > 7) return false;
 
 	// 1. Sim scalars
 	in.read((char *)&ticks_, sizeof(ticks_));
@@ -7712,6 +7700,9 @@ bool Simulation::load_state(const char *filepath) {
 		in.read((char *)&tr, sizeof(tr));
 		in.read((char *)&tu, sizeof(tu));
 		in.read((char *)&tb, sizeof(tb));
+		uint16_t utmpl = CIV_UNIT_TEMPLATE_NONE;
+		if (version >= 7) in.read((char *)&utmpl, sizeof(utmpl));
+		else utmpl = civ_default_template(civ_of(team), utype); // pre-roster saves: the civ's unit for the class
 
 		size_t idx = units_.count;
 		units_.id[idx] = uid;
@@ -7734,6 +7725,7 @@ bool Simulation::load_state(const char *filepath) {
 		units_.kills[idx] = kills;
 		units_.team[idx] = team;
 		units_.unit_type[idx] = utype;
+		units_.tmpl[idx] = (utmpl < CIV_UNIT_TEMPLATE_COUNT) ? utmpl : CIV_UNIT_TEMPLATE_NONE;
 		units_.action_state[idx] = astate;
 		units_.res_type_carried[idx] = res_carried;
 		units_.stance[idx] = stance;
@@ -7800,6 +7792,8 @@ bool Simulation::load_state(const char *filepath) {
 			in.read((char *)&bld.queue[q].unit_type, sizeof(bld.queue[q].unit_type));
 			in.read((char *)&bld.queue[q].timer, sizeof(bld.queue[q].timer));
 			in.read((char *)&bld.queue[q].duration, sizeof(bld.queue[q].duration));
+			bld.queue[q].tmpl = CIV_UNIT_TEMPLATE_NONE;
+			if (version >= 7) in.read((char *)&bld.queue[q].tmpl, sizeof(bld.queue[q].tmpl));
 		}
 
 		uint32_t g_sz = 0;
@@ -8278,7 +8272,7 @@ void Simulation::rebuild_auras() {
 			aura_mgr_.register_source(b.id, AURA_HEAL, 18.f, 3.5f, b.team, b.x, b.z);
 		}
 	}
-	// Units: female gather, carnyx attack, hero heal/speed
+	// Units: female gather, carnyx attack, hero auras from the civ roster
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i]) continue;
 		uint8_t ut = units_.unit_type[i];
@@ -8292,14 +8286,14 @@ void Simulation::rebuild_auras() {
 		if (ut == UNIT_CARNYX) {
 			aura_mgr_.register_source(id, AURA_ATTACK, 14.f, 1.20f, team, x, z);
 		}
-		if (ut == UNIT_HERO) {
-			Civilization civ = civ_of(team);
-			if (civ == CIV_SPARTANS) {
-				aura_mgr_.register_source(id, AURA_HEAL, 16.f, 2.0f, team, x, z);
-			} else if (civ == CIV_ATHENIANS) {
-				aura_mgr_.register_source(id, AURA_SPEED, 16.f, 1.20f, team, x, z);
-			} else {
-				aura_mgr_.register_source(id, AURA_HEAL, 16.f, 2.0f, team, x, z);
+		// Heroes (and other roster units with auras) project their own 0 A.D. auras.
+		uint16_t tmpl = units_.tmpl[i];
+		if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
+			for (int16_t a : civ_unit_template(tmpl).auras) {
+				if (a < 0) continue;
+				const CivHeroAura &aura = civ_hero_aura(a);
+				if (aura.kind >= AURA_COUNT) continue; // effect RTS0 does not model yet
+				aura_mgr_.register_source(id, (AuraType)aura.kind, aura.range, aura.value, team, x, z, a);
 			}
 		}
 	}
