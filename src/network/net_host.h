@@ -102,6 +102,20 @@ public:
 	const std::vector<LobbyRoom> &lobbyRooms() const { return lobby_rooms_; }
 	void clearLobbyRooms() { lobby_rooms_.clear(); }
 	void setLocalPlayerName(const std::string &name) { local_player_name_ = name; }
+	// Host: the password joiners must give (empty = open game; 0 A.D. lobby
+	// password). Client: the password this client sends.
+	void setPassword(const std::string &password) { password_ = password; }
+	// Host: 0 A.D. NetServer::KickPlayer. Tells every client, drops the peer (the
+	// lockstep goes on without it) and, with ban, refuses its name and address
+	// from then on. False if there is no such admitted client.
+	bool kickPeer(uint32_t peer_id, bool ban);
+	// Host: the admitted client with this name (0 if none).
+	uint32_t peerByName(const std::string &name) const;
+	// Client: the host's answer to our authentication (ARC_*; -1 until it came).
+	int authResult() const { return auth_result_; }
+	// Every kick this peer was told about, and whether it was us.
+	const std::vector<KickedMsg> &kicks() const { return kicks_; }
+	bool kickedSelf() const { return kicked_self_; }
 
 	// Callbacks
 	void onCommand(std::function<void(uint32_t, const uint8_t*, size_t)> cb);
@@ -144,6 +158,12 @@ private:
 	void check_retransmissions(uint64_t now_ms);
 	void check_peer_timeouts(uint64_t now_ms);
 	void send_client_performance(uint64_t now_ms);
+	bool admitted(const NetPeer &p) const { return p.connected && p.is_authenticated && !p.kick_disconnect_ms; }
+	std::string password_;
+	std::set<std::string> banned_names_, banned_addresses_;
+	int auth_result_ = -1;
+	std::vector<KickedMsg> kicks_;
+	bool kicked_self_ = false;
 	std::vector<ClientPerformanceMsg::Entry> client_perf_;
 	uint64_t client_perf_reports_ = 0;
 	uint64_t last_perf_ms_ = 0;

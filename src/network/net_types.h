@@ -82,7 +82,8 @@ enum AuthenticateResultCode : uint32_t {
 	ARC_OK = 0,
 	ARC_OK_SAVED_GAME = 1,
 	ARC_OK_REJOINING = 2,
-	ARC_PASSWORD_INVALID = 3
+	ARC_PASSWORD_INVALID = 3,
+	ARC_BANNED = 4 // 0 A.D. NDR_BANNED: the host banned this name or address
 };
 
 // NetCommand::cmd_type values. APPEND-ONLY: 1..23 are frozen wire values and
@@ -203,7 +204,8 @@ struct NetPeer {
 	std::string guid;
 	std::string player_name;
 	bool is_ready = false;
-	bool is_authenticated = false;
+	bool is_authenticated = false; // host: admitted to the session (right password, not banned)
+	uint64_t kick_disconnect_ms = 0; // host: kicked; the link closes at this time, after NMT_KICKED got there
 	uint64_t last_seen_ms = 0;
 	uint32_t last_sent_seq = 0;
 	uint32_t last_recv_seq = 0;   // every reliable seq <= this has been delivered
@@ -490,6 +492,14 @@ struct ClientPausedMsg {
 // lastReceivedTime of CClientTimeoutMessage folded in): once a second the host
 // tells every client how each connected client is doing. rtt_ms is the host's
 // smoothed round trip to it; silent_ms how long since the host last heard it.
+// NMT_KICKED payload (0 A.D. CKickedMessage): the host removed a client, by
+// guid ("peer-<id>") and name; ban = it may not come back.
+struct KickedMsg {
+	std::string guid;
+	std::string name;
+	uint8_t ban = 0;
+};
+
 struct ClientPerformanceMsg {
 	struct Entry {
 		uint32_t client = 0;
@@ -935,6 +945,22 @@ public:
 		size_t offset = 0;
 		if (!NetSerde::read_string(data, size, offset, msg.guid)) return false;
 		if (!NetSerde::read_u8(data, size, offset, msg.pause)) return false;
+		return offset == size;
+	}
+
+	static std::vector<uint8_t> frame_kicked(const KickedMsg &msg) {
+		std::vector<uint8_t> buf;
+		NetSerde::write_string(buf, msg.guid);
+		NetSerde::write_string(buf, msg.name);
+		NetSerde::write_u8(buf, msg.ban ? 1 : 0);
+		return buf;
+	}
+
+	static bool parse_kicked(const uint8_t *data, size_t size, KickedMsg &msg) {
+		size_t offset = 0;
+		if (!NetSerde::read_string(data, size, offset, msg.guid)) return false;
+		if (!NetSerde::read_string(data, size, offset, msg.name)) return false;
+		if (!NetSerde::read_u8(data, size, offset, msg.ban)) return false;
 		return offset == size;
 	}
 

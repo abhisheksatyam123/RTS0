@@ -73,7 +73,8 @@ void TurnManager::ensure_lockstep_peers() {
 		lockstep_peers_.push_back(0);
 		if (net_host_->isHost()) {
 			for (const auto &p : net_host_->getPeers())
-				if (p.connected && !p.is_observer && p.id != 0) lockstep_peers_.push_back(p.id);
+				if (p.connected && p.is_authenticated && !p.kick_disconnect_ms && !p.is_observer && p.id != 0)
+					lockstep_peers_.push_back(p.id);
 		} else {
 			// Every seated human client (assign_slot_players numbers them 1, 2, ...
 			// in slot order, as the host numbers joiners in connect order): their

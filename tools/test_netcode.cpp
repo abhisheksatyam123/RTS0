@@ -565,6 +565,11 @@ struct PeerOpts {
     uint32_t force_oos = 0;     // the joiner corrupts its world after this turn
     uint32_t quit_turn = 0;     // the joiner leaves the match after this turn
     bool rejoin = false;        // this joiner takes over a dropped seat mid-match
+    std::string name = "peer";  // the name this peer authenticates with
+    std::string password;       // host: required from joiners; client: what it sends
+    uint32_t kick_turn = 0;     // host: kicks the client named kick_name after this turn
+    std::string kick_name;
+    bool ban = false;           // ... and bans it
     uint32_t humans = 2;        // human seats (the host and humans-1 joiners); 3+ takes the AI slot
     std::string oos_dir;        // where each peer writes its OOS dump
 };
@@ -636,6 +641,8 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
 
     NetHost net;
     if (loss > 0.0f) net.set_simulated_loss(loss, seed ^ (host ? 0x1111u : 0x2222u));
+    net.setLocalPlayerName(opt.name);
+    net.setPassword(opt.password);
     bool ok = host ? net.startHost([&] { NetConfig c; c.port = port; return c; }())
                    : net.startClient("127.0.0.1", port);
     if (!ok) { std::fprintf(stderr, "[net-peer] socket start failed\n"); return 3; }
@@ -658,6 +665,11 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     while (joined < need) {
         net.poll(arena);
         arena.reset();
+        // 0 A.D. NetClient: a refused authentication (wrong password, banned) ends the join.
+        if (!host && net.authResult() > 0) {
+            std::printf("[net-peer] join: refused code=%d\n", net.authResult());
+            return 4;
+        }
         if (now_us() - t_start > 10'000'000ull) {
             std::fprintf(stderr, "[net-peer] %s: no connection after 10s (%u of %u)\n", host ? "host" : "join",
                          joined, need);
@@ -731,6 +743,7 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     bool save_ok = false;
     uint64_t oos_since = 0;
     std::set<uint32_t> waited_on;
+    bool kick_done = false;
 
     while (tm.current_turn() < turns) {
         net.poll(arena);
@@ -872,6 +885,18 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
             for (uint32_t c : tm.waiting_on()) waited_on.insert(c);
         float dt = (float)(now - last) * 1e-6f * speed;
         last = now;
+        if (net.kickedSelf()) {
+            std::printf("[net-peer] join: kicked at turn %u\n", tm.current_turn());
+            std::fclose(log);
+            net.stop();
+            return 0;
+        }
+        if (host && opt.kick_turn && tm.current_turn() >= opt.kick_turn && !kick_done) {
+            kick_done = true;
+            const uint32_t victim = net.peerByName(opt.kick_name);
+            std::printf("[net-peer] host: kick %s peer=%u turn=%u ok=%d\n", opt.kick_name.c_str(), victim,
+                        tm.current_turn(), net.kickPeer(victim, opt.ban) ? 1 : 0);
+        }
         if (tm.tick(dt, sim)) {
             const auto &f = tm.turn_history().back();
             // Both peers stand on the same state at this turn boundary: wipe the
@@ -971,6 +996,8 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
                 sim.ceasefire_seconds(), (unsigned)sim.player_team(0), (unsigned)sim.player_team(1),
                 (unsigned)sim.player_team(2));
     for (const auto &c : chats) std::printf("[net-peer] %s: chat %s\n", host ? "host" : "join", c.c_str());
+    for (const auto &k : net.kicks())
+        std::printf("[net-peer] %s: kicks name=%s ban=%d\n", host ? "host" : "join", k.name.c_str(), (int)k.ban);
     {
         // Network status (0 A.D. NMT_CLIENT_PERFORMANCE): the host's last report.
         std::string rtt, waited;
@@ -1054,6 +1081,11 @@ int main(int argc, char **argv) {
             else if (std::strcmp(k, "--oos-dir") == 0) opt.oos_dir = v;
             else if (std::strcmp(k, "--quit-turn") == 0) opt.quit_turn = (uint32_t)std::atoi(v);
             else if (std::strcmp(k, "--rejoin") == 0) opt.rejoin = std::atoi(v) != 0;
+            else if (std::strcmp(k, "--name") == 0) opt.name = v;
+            else if (std::strcmp(k, "--password") == 0) opt.password = v;
+            else if (std::strcmp(k, "--kick-turn") == 0) opt.kick_turn = (uint32_t)std::atoi(v);
+            else if (std::strcmp(k, "--kick-name") == 0) opt.kick_name = v;
+            else if (std::strcmp(k, "--ban") == 0) opt.ban = std::atoi(v) != 0;
             else if (std::strcmp(k, "--humans") == 0) opt.humans = (uint32_t)std::max(2, std::min(3, std::atoi(v)));
         }
         return netpeer::run(std::strcmp(argv[2], "host") == 0, (uint16_t)std::atoi(argv[3]),

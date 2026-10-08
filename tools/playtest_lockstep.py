@@ -428,23 +428,34 @@ def run_three_human_case(binary: str, seed: int, speed: float, loss: float, port
         if os.path.exists(path):
             os.remove(path)
     common = ["--speed", str(speed), "--loss", str(loss), "--humans", "3"]
+    # Output goes to files, so the script can wait on what a peer printed.
     def peer(role, log, *more):
-        return subprocess.Popen([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
-                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        with open(log + ".out", "w") as out:
+            return subprocess.Popen([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
+                                    stdout=out, stderr=subprocess.STDOUT, text=True)
+    def printed(log, text, secs=20.0):
+        end = time.time() + secs
+        while time.time() < end:
+            if os.path.exists(log + ".out") and text in open(log + ".out").read():
+                return True
+            time.sleep(0.05)
+        return False
     procs = {"host": peer("host", logs["host"])}
     time.sleep(0.3)
     procs["j1"] = peer("join", logs["j1"])
-    time.sleep(0.3)  # connect order numbers the joiners: j1 is client 1, j2 client 2
+    # Connect order numbers the joiners: j2 starts only once j1 is client 1,
+    # however loaded the machine is.
+    printed(logs["j1"], "assigned local peer_id 1")
     procs["j2"] = peer("join", logs["j2"], "--quit-turn", str(leave))
     outs, rcs = {}, {}
     def finish(role):
         p = procs[role]
         try:
-            out, _ = p.communicate(timeout=timeout)
+            p.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
             p.kill()
-            out, _ = p.communicate()
-        outs[role] = out or ""
+            p.wait()
+        outs[role] = open(logs[role] + ".out").read()
         rcs[role] = p.returncode
     finish("j2")
     time.sleep(0.5)
@@ -471,6 +482,70 @@ def run_three_human_case(binary: str, seed: int, speed: float, loss: float, port
                     print(f"   {role}: {line}")
         print(f"[net] FAIL three humans: rc={rcs} rejoin={rep} turns={ {r: len(v) for r, v in h.items()} } "
               f"first_bad={bad} relayed={relayed}")
+    return ok
+
+
+def run_kick_case(binary: str, seed: int, speed: float, loss: float, port: int, out_dir: str,
+                  timeout: int) -> bool:
+    """0 A.D. password-protected hosting and kick/ban: three humans join a game
+    with a password, a client with the wrong one is refused, the host bans the
+    third player after turn KICK, and that name cannot come back. The host and
+    player 2 play on in sync."""
+    turns, kick = 400, 150
+    print(f"\n---- password and ban: wrong password refused, player 3 banned after turn {kick} ----")
+    roles = ("host", "j1", "j2", "wrong", "banned")
+    logs = {r: os.path.join(out_dir, f"kick_{r}.log") for r in roles}
+    for path in logs.values():
+        if os.path.exists(path):
+            os.remove(path)
+    common = ["--speed", str(speed), "--loss", str(loss), "--humans", "3"]
+    def peer(role, log, *more):
+        return subprocess.Popen([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    procs = {"host": peer("host", logs["host"], "--name", "host", "--password", "pw",
+                          "--kick-turn", str(kick), "--kick-name", "carol", "--ban", "1")}
+    time.sleep(0.3)
+    procs["j1"] = peer("join", logs["j1"], "--name", "alice", "--password", "pw")
+    time.sleep(0.3)
+    procs["j2"] = peer("join", logs["j2"], "--name", "carol", "--password", "pw")
+    time.sleep(1.5)  # the match is running
+    procs["wrong"] = peer("join", logs["wrong"], "--name", "mallory", "--password", "nope")
+    outs, rcs = {}, {}
+    def finish(role):
+        p = procs[role]
+        try:
+            out, _ = p.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            out, _ = p.communicate()
+        outs[role] = out or ""
+        rcs[role] = p.returncode
+    finish("wrong")
+    finish("j2")
+    time.sleep(0.5)
+    procs["banned"] = peer("join", logs["banned"], "--name", "carol", "--password", "pw", "--rejoin", "1")
+    for role in ("banned", "j1", "host"):
+        finish(role)
+    h, j1 = read_hashes(logs["host"]), read_hashes(logs["j1"])
+    refused = {r: next((l.split("code=")[1] for l in outs[r].splitlines() if "refused code=" in l), None)
+               for r in ("wrong", "banned")}
+    kicked = any("join: kicked at turn" in l for l in outs["j2"].splitlines())
+    j1_heard = "join: kicks name=carol ban=1" in outs["j1"]
+    bad = next((t for t in sorted(h) if j1.get(t) != h[t]), None)
+    ok = (rcs["host"] == 0 and rcs["j1"] == 0 and rcs["j2"] == 0 and rcs["wrong"] == 4 and rcs["banned"] == 4
+          and refused == {"wrong": "3", "banned": "4"} and kicked and j1_heard
+          and len(h) == turns and len(j1) == turns and bad is None)
+    if ok:
+        print(f"[net] PASS password and ban: wrong password refused (code 3), player 3 banned after turn {kick} "
+              f"and refused on its way back (code 4); host and player 2 matched on all {turns} turns "
+              f"(final hash {h[turns]})")
+    else:
+        for role in roles:
+            for line in outs.get(role, "").splitlines():
+                if line.startswith("[net-peer]") or line.startswith("[TurnManager]") or "Refused" in line:
+                    print(f"   {role}: {line}")
+        print(f"[net] FAIL password and ban: rc={rcs} refused={refused} kicked={kicked} heard={j1_heard} "
+              f"turns={len(h)},{len(j1)} first_bad={bad}")
     return ok
 
 
@@ -702,6 +777,8 @@ def main() -> int:
                                  args.net_port + 2, out_dir, args.timeout) and net_ok
         net_ok = run_three_human_case(binary_path, args.seeds[0], args.net_speed, args.net_loss,
                                       args.net_port + 3, out_dir, args.timeout) and net_ok
+        net_ok = run_kick_case(binary_path, args.seeds[0], args.net_speed, args.net_loss,
+                               args.net_port + 4, out_dir, args.timeout) and net_ok
 
     oos = [r for r in results if r["divergent_turn"] is not None]
     if not net_ok and not oos:
