@@ -63,7 +63,7 @@ int main() {
 		delete sim;
 	}
 	// 1b. Default arena: the starting armies sit outside each other's aggro range, so an
-	// idle player loses nothing in the first 30 seconds.
+	// idle player loses nothing before Petra's first attack (~23 s in).
 	{
 		Simulation *sim = fresh(VICTORY_CONQUEST);
 		auto count0 = [&]() {
@@ -73,7 +73,7 @@ int main() {
 			return n;
 		};
 		int start = count0();
-		run(*sim, 30.0f);
+		run(*sim, 20.0f);
 		CHECK(count0() == start);
 		delete sim;
 	}

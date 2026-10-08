@@ -508,8 +508,12 @@ struct NavGrid {
         for (int y = 0; y < influence.h; ++y) {
             for (int x = 0; x < influence.w; ++x) {
                 int cnt_nonzero = 0;
-                // frequency for majority vote (0..255)
-                int freq[256] = {};
+                // Majority vote over at most 9 values; a small table instead
+                // of a 256-entry histogram (zeroing it per cell dominated the
+                // cost on large maps). First value to reach a count wins ties.
+                uint8_t vals[9];
+                int freq[9];
+                int nvals = 0;
                 int best_val = 0;
                 int best_cnt = 0;
                 for (int dy = -1; dy <= 1; ++dy) {
@@ -520,9 +524,12 @@ struct NavGrid {
                         uint8_t v = influence.at(nx, ny);
                         if (v != 0) {
                             cnt_nonzero++;
-                            freq[v]++;
-                            if (freq[v] > best_cnt) {
-                                best_cnt = freq[v];
+                            int k = 0;
+                            while (k < nvals && vals[k] != v) ++k;
+                            if (k == nvals) { vals[nvals] = v; freq[nvals] = 0; ++nvals; }
+                            int f = ++freq[k];
+                            if (f > best_cnt) {
+                                best_cnt = f;
                                 best_val = v;
                             }
                         }

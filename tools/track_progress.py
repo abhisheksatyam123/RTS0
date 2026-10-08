@@ -57,7 +57,7 @@ def main():
     print("-" * 78)
     
     # 2. Checkbox counts
-    files = ["docs/PORTING_TODO.md", "docs/REMAINING_GAPS.md", "docs/UI_PARITY.md"]
+    files = ["docs/REMAINING_GAPS.md", "docs/UI_PARITY.md"]
     total_checked = 0
     total_boxes = 0
     

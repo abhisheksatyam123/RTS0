@@ -156,6 +156,9 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	bool guard_mode = false;
 	uint8_t current_build_type = rtso::BLD_HOUSE;
 	uint32_t selected_building_id = 0;
+	// Width in world units (= 0 A.D. tiles) of generated random maps: 128 Tiny
+	// to 512 Giant. Set from MatchSettings.map_size; scenario maps use their own.
+	int random_map_size = 128;
 
 	bool dragging = false;
 	bool paused_via_menu = false;
