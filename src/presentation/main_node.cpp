@@ -3031,7 +3031,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				bool any_healer = false;
 				for (size_t k = 0; k < sel_n && !any_healer; ++k) {
 					for (size_t i = 0; i < uview.count; ++i)
-						if (uview.id[i] == sel_ptr[k]) { any_healer = uview.unit_type[i] == UNIT_HEALER; break; }
+						if (uview.id[i] == sel_ptr[k]) { any_healer = uview.unit_type[i] == rtso::UNIT_HEALER; break; }
 				}
 				uint32_t heal_id = 0;
 				float best_hd2 = 2.2f * 2.2f;
