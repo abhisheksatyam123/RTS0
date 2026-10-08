@@ -146,6 +146,7 @@ Simulation::Simulation() {
 		players_[p].civ = kDefaultCivs[p];
 		players_[p].team = p;
 	}
+	apply_team_diplomacy(); // free-for-all: self ally, everyone else enemy
 	apply_petra_config();
 }
 
@@ -229,9 +230,8 @@ void Simulation::reset() {
 	trader_routes_.clear();
 	trader_leg_.clear();
 
-	// Diplomacy reset (Player 0 is self/ally, others default enemy)
-	diplomacy_[0] = DIPLO_ALLY;
-	for (int p = 1; p < 8; ++p) { diplomacy_[p] = DIPLO_ENEMY; diplomacy_reverse_[p] = DIPLO_ENEMY; }
+	// Diplomacy reset: every player allies itself and its team, enemies the rest.
+	apply_team_diplomacy();
 
 	// Reset Petra AI State
 	petra_timer_ = 0.0f;
@@ -1231,11 +1231,13 @@ bool Simulation::cmd_barter(uint8_t player_id, ResourceType sell, ResourceType b
 	return true;
 }
 
-bool Simulation::cmd_set_diplomacy(uint8_t player_id, uint8_t stance) {
+bool Simulation::cmd_set_diplomacy(uint8_t player_id, uint8_t target, uint8_t stance) {
 	// 0 A.D. Diplomacy.js / DiplomacyDialog.js parity: deterministic user command path for stance changes
 	// to maintain lockstep sync across peers before local state modification.
-	if (player_id >= 8 || stance > DIPLO_ENEMY) return false;
-	set_diplomacy(player_id, stance);
+	// A player only ever writes its own row, so no player can set another's stance.
+	if (player_id >= MAX_PLAYERS || target >= MAX_PLAYERS || player_id == target || stance > DIPLO_ENEMY)
+		return false;
+	set_diplomacy(player_id, target, stance);
 	return true;
 }
 
@@ -3160,7 +3162,7 @@ void Simulation::tick_combat(float dt) {
 		// A. Existing unit target check
 		if (units_.target_unit_id[i] != 0) {
 			int32_t tidx = lookup_unit(units_.target_unit_id[i]);
-			if (tidx >= 0 && units_.alive[tidx] && units_.team[tidx] != units_.team[i]) {
+			if (tidx >= 0 && units_.alive[tidx] && is_hostile(units_.team[i], units_.team[tidx])) {
 				found = tidx;
 			}
 		}
@@ -3195,7 +3197,7 @@ void Simulation::tick_combat(float dt) {
 				const float att_y = get_terrain_height(pxi, pzi);
 
 				grid.visit_radius(pxi, pzi, scan_range, [&](int32_t j) {
-					if (!units_.alive[j] || units_.team[j] == my_team) return;
+					if (!units_.alive[j] || !is_hostile(my_team, units_.team[j])) return;
 
 					// Check leash distance from anchor for Hold/Defensive stances
 					if (units_.stance[i] == STANCE_HOLD_GROUND || units_.stance[i] == STANCE_DEFENSIVE) {
@@ -3458,7 +3460,7 @@ void Simulation::tick_combat(float dt) {
 				float tx = units_.pos_x[t];
 				float tz = units_.pos_z[t];
 				grid.visit_radius(tx, tz, blast_r, [&](int32_t s_idx) {
-					if (!units_.alive[s_idx] || units_.team[s_idx] == att_team || s_idx == t) return;
+					if (!units_.alive[s_idx] || !is_hostile(att_team, units_.team[s_idx]) || s_idx == t) return;
 					float sx = units_.pos_x[s_idx] - tx;
 					float sz = units_.pos_z[s_idx] - tz;
 					float dist2 = sx * sx + sz * sz;
@@ -3559,7 +3561,7 @@ void Simulation::tick_combat(float dt) {
 			continue;
 		}
 		Building &b = buildings_[bit->second];
-		if (b.team == units_.team[i]) {
+		if (!is_hostile(units_.team[i], b.team)) {
 			units_.target_building_id[i] = 0;
 			continue;
 		}
@@ -3710,7 +3712,7 @@ void Simulation::tick_combat(float dt) {
 
 				int32_t hit = -1;
 				grid.visit_radius(b.x, b.z, range, [&](int32_t i) {
-					if (hit >= 0 || !units_.alive[i] || units_.team[i] == b.team) return;
+					if (hit >= 0 || !units_.alive[i] || !is_hostile(b.team, units_.team[i])) return;
 					float dx = b.x - units_.pos_x[i];
 					float dz = b.z - units_.pos_z[i];
 					float d2 = dx * dx + dz * dz;
@@ -3889,9 +3891,7 @@ void Simulation::tick_capture(float dt) {
 		}
 		const int owner = b.team < 4 ? b.team : 0;
 		auto enemy = [&](int source, int target) {
-			if (source == target) return false;
-			if (source == 0) return target == 1;
-			return get_diplomacy(source) == DIPLO_ENEMY;
+			return is_hostile((uint8_t)source, (uint8_t)target);
 		};
 		int captor = -1;
 		float captor_strength = 0.0f;
@@ -4073,7 +4073,7 @@ void Simulation::tick_projectiles(float dt) {
 				const int32_t direct_target = (p.target_unit_id != 0) ? lookup_unit(p.target_unit_id) : -1;
 				const size_t total_u = units_.size();
 				for (size_t s_idx = 0; s_idx < total_u; ++s_idx) {
-					if (!units_.alive[s_idx] || units_.team[s_idx] == p.team || (int32_t)s_idx == direct_target) continue;
+					if (!units_.alive[s_idx] || !is_hostile(p.team, units_.team[s_idx]) || (int32_t)s_idx == direct_target) continue;
 					float sx = units_.pos_x[s_idx] - impact_x;
 					float sz = units_.pos_z[s_idx] - impact_z;
 					float dist2 = sx * sx + sz * sz;
@@ -4575,7 +4575,7 @@ void Simulation::tick_death_damage(float dt) {
 		// Deterministic iteration over units_ by index
 		for (size_t i = 0; i < units_.count; ++i) {
 			if (!units_.alive[i]) continue;
-			if (units_.team[i] == death.team) continue; // FriendlyFire: false (DeathDamage.js:9)
+			if (!is_hostile(death.team, units_.team[i])) continue; // FriendlyFire: false (DeathDamage.js:9)
 			float dx = units_.pos_x[i] - death.x;
 			float dz = units_.pos_z[i] - death.z;
 			float d2 = dx * dx + dz * dz;
@@ -7782,7 +7782,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = 8; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player
+	uint32_t version = 9; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 
@@ -7801,6 +7801,7 @@ bool Simulation::save_state(const char *filepath) const {
 	}
 	out.write((const char *)&biome_, sizeof(biome_));
 	out.write((const char *)&map_preset_, sizeof(map_preset_));
+	out.write((const char *)diplomacy_, sizeof(diplomacy_)); // v9: every player's own row
 	out.write((const char *)&wave_number_, sizeof(wave_number_));
 	out.write((const char *)&wave_timer_, sizeof(wave_timer_));
 	out.write((const char *)&wonder_victory_timer_, sizeof(wonder_victory_timer_));
@@ -7943,7 +7944,7 @@ bool Simulation::load_state(const char *filepath) {
 	uint32_t magic = 0, version = 0;
 	in.read((char *)&magic, sizeof(magic));
 	in.read((char *)&version, sizeof(version));
-	if (magic != 0x52545330 || version < 1 || version > 8) return false;
+	if (magic != 0x52545330 || version < 1 || version > 9) return false;
 
 	// 1. Sim scalars
 	in.read((char *)&ticks_, sizeof(ticks_));
@@ -7970,6 +7971,7 @@ bool Simulation::load_state(const char *filepath) {
 		}
 		in.read((char *)&biome_, sizeof(biome_));
 		in.read((char *)&map_preset_, sizeof(map_preset_));
+		if (version >= 9) in.read((char *)diplomacy_, sizeof(diplomacy_));
 	} else {
 		// v1-v5 stored player 0's stock as ints and civs for slots 0-3 only; other slots keep their state.
 		uint8_t legacy_phase = 1;
@@ -7988,6 +7990,9 @@ bool Simulation::load_state(const char *filepath) {
 		players_[0].techs.clear();
 		players_[0].techs.words[0] = legacy_mask;
 	}
+	// A save older than v9 carries no stances: rebuild them from the teams it
+	// does carry, which is what those saves played with (free-for-all by default).
+	if (version < 9) apply_team_diplomacy();
 	in.read((char *)&wave_number_, sizeof(wave_number_));
 	in.read((char *)&wave_timer_, sizeof(wave_timer_));
 	in.read((char *)&wonder_victory_timer_, sizeof(wonder_victory_timer_));
@@ -8265,10 +8270,8 @@ uint8_t Simulation::fow_state_at(float x, float z, uint8_t viewer_team) const {
 }
 
 bool Simulation::is_entity_visible_to_viewer(float x, float z, uint8_t entity_team, uint8_t viewer_team) const {
-	if (entity_team == viewer_team) return true;
-	// Reciprocal alliances expose allied entities without exposing enemies.
-	if (viewer_team == 0 && is_mutual_ally(entity_team)) return true;
-	if (viewer_team != 0 && same_team(viewer_team, entity_team)) return true;
+	// Teams and reciprocal alliances expose allied entities, never enemies.
+	if (is_ally(viewer_team, entity_team)) return true;
 	return fow_state_at(x, z, viewer_team) == FOW_VISIBLE;
 }
 
@@ -8321,10 +8324,9 @@ void Simulation::tick_fow() {
 	ensure_fow_cell_heights();
 
 	// VisionSharing.js: allied players share the visibility generated by
-	// their units/buildings. Player 0's view keeps its diplomacy-based
-	// predicate (diplomacy_[] is player-0-relative); fow_grid_ is the one
-	// hashed for lockstep.
-	update_player_fow(fow_grid_, [this](uint8_t owner) { return owner == 0 || is_mutual_ally(owner); });
+	// their units/buildings -- teammates, or a mutual alliance both sides chose.
+	// fow_grid_ is player 0's view and the one hashed for lockstep.
+	update_player_fow(fow_grid_, [this](uint8_t owner) { return is_ally(0, owner); });
 
 	// The local viewer's own view when it is not player 0 (a multiplayer
 	// joiner). It is presentation-only state: never hashed or read by the
@@ -8333,7 +8335,7 @@ void Simulation::tick_fow() {
 	if (p != 0 && p < MAX_PLAYERS) {
 		auto &grid = player_fow_[p];
 		if (grid.size() != fow_grid_.size()) grid.assign(fow_grid_.size(), FOW_UNEXPLORED);
-		update_player_fow(grid, [this, p](uint8_t owner) { return owner == p || same_team(p, owner); });
+		update_player_fow(grid, [this, p](uint8_t owner) { return is_ally(p, owner); });
 	}
 }
 

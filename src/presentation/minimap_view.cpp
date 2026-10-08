@@ -168,9 +168,8 @@ void RtsoMiniMapView::_draw() {
 	// DIPLO_ALLY=0/DIPLO_NEUTRAL=1/DIPLO_ENEMY=2, simulation.h:328).
 	auto diplo_color = [&](uint8_t team, const Color &fallback) -> Color {
 		if (!show_diplo_palette || team == local_player || !sim) return fallback;
-		// Diplomacy stances are player-0-relative; other slots use game-setup teams.
-		uint8_t st = (local_player == 0) ? sim->get_diplomacy(team)
-				: (sim->same_team(local_player, team) ? (uint8_t)rtso::Simulation::DIPLO_ALLY : (uint8_t)rtso::Simulation::DIPLO_ENEMY);
+		// Every player keeps its own stance row, so read the local player's.
+		uint8_t st = sim->get_diplomacy(local_player, team);
 		if (st == rtso::Simulation::DIPLO_ALLY) return Color(0.30f, 0.90f, 0.45f);
 		if (st == rtso::Simulation::DIPLO_NEUTRAL) return Color(0.95f, 0.80f, 0.25f);
 		return fallback; // enemy keeps the hostile red
