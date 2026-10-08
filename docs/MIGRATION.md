@@ -58,6 +58,7 @@ This list covers porting the vendored C++ only. Overall project priorities and g
 
 | Date | PR | Change |
 |---|---|---|
+| 2026-10-08 | #53 | HierarchicalPathfinder global regions in flat arrays, numbered in the vendor's order instead of hash-map order. Same regions; a 512-map match runs 4% fewer instructions. |
 | 2026-10-08 | #42 | Made VertexPathfinder searches cheaper for building steering (reused storage, terrain read by rows, no edge-square sort) with bit-identical results. |
 | 2026-10-08 | #8 | Ported `Rasterize` and used it for building footprints in the nav grid. Ported `VertexPathfinder` and used it to steer land units around buildings. GATHER, BUILD and RETURN_DROPSITE orders now get long paths when buildings block them. Added `tools/bench_sim.cpp`, a headless tick benchmark that CI smoke-runs. |
 | 2026-10-08 | #2 | Added this file. |
