@@ -61,6 +61,22 @@ public:
 	// with peers is held closed.
 	// Defined in turn_manager.cpp: NetHost is only forward-declared here.
 	bool net_game_started() const;
+	// Lockstep command delay (0 A.D. NetClientTurnManager COMMAND_DELAY_MP,
+	// NetServerTurnManager.cpp:43). A command posted while turn T runs is
+	// scheduled for turn T + COMMAND_DELAY on every peer, and no peer runs turn
+	// N until it holds every player's batch for N (empty batches included).
+	// Turns 1..COMMAND_DELAY have no batches and run unconditionally.
+	static constexpr uint32_t COMMAND_DELAY = 2;
+	// Client ids whose batch every turn waits on. Defaults on the first networked
+	// turn to {0} + connected peer ids (host) or {0, local id} (joiner).
+	void set_lockstep_peers(const std::vector<uint32_t> &ids) { lockstep_peers_ = ids; lockstep_peers_set_ = true; }
+	const std::vector<uint32_t> &lockstep_peers() const { return lockstep_peers_; }
+	// Ticks refused because a peer's batch for the next turn had not arrived.
+	uint32_t waiting_tick_count() const { return waiting_ticks_; }
+	// reset() for a joiner applying NMT_GAME_START: batches and sync checks the
+	// host sent in the same poll as GAME_START must survive, or the joiner waits
+	// forever on a turn the host already scheduled.
+	void reset_keep_inbound();
 	// `sim` is the world the session starts from; it is hashed NOW (boot state) so
 	// a late joiner has a turn-0 value it can actually reproduce. Non-owning.
 	void mark_game_started(const Simulation *sim = nullptr) {
@@ -269,6 +285,12 @@ private:
 	std::vector<NetCommand> pending_remote_cmds_;
 	std::unordered_map<uint32_t, std::vector<NetCommand>> turn_remote_cmds_;
 	std::unordered_map<uint32_t, std::unordered_map<uint32_t, uint32_t>> peer_hashes_;
+	std::unordered_map<uint32_t, std::vector<uint32_t>> received_batches_; // turn -> client ids
+	std::vector<uint32_t> lockstep_peers_;
+	bool lockstep_peers_set_ = false;
+	uint32_t waiting_ticks_ = 0;
+	bool lockstep_net_active() const;
+	bool turn_ready(uint32_t turn);
 
 	bool oos_detected_ = false;
 	uint32_t oos_turn_ = 0;

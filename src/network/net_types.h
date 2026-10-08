@@ -4,6 +4,7 @@
 #include <string>
 #include <cstring>
 #include <utility>
+#include <set>
 
 namespace rtso {
 
@@ -164,8 +165,9 @@ struct NetPeer {
 	bool is_authenticated = false;
 	uint64_t last_seen_ms = 0;
 	uint32_t last_sent_seq = 0;
-	uint32_t last_recv_seq = 0;
+	uint32_t last_recv_seq = 0;   // every reliable seq <= this has been delivered
 	uint32_t last_ack_seq = 0;
+	std::set<uint32_t> recv_ahead; // delivered reliable seqs > last_recv_seq (arrived out of order)
 };
 
 struct NetConfig {
