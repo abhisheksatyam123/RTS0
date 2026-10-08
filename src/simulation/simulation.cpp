@@ -7311,10 +7311,6 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 					continue;
 				if (std::find(squad.begin(), squad.end(), uid) == squad.end()) {
 					squad.push_back(uid);
-					// Packable siege stands its ground: it fires where it unpacks
-					// instead of packing up to chase every passing unit.
-					if (units_.pack_state[i] != PACK_NONE && units_.stance[i] != STANCE_STAND_GROUND)
-						order_set_stance(&uid, 1, STANCE_STAND_GROUND);
 				}
 			}
 
