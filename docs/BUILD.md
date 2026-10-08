@@ -50,6 +50,9 @@ GODOT=/path/to/Godot ./tools/build.sh android # -> build/android/RTS0.apk
 `.github/workflows/ci.yml`:
 - Every PR and every push to `main`: builds the C++ GDExtension (`template_release`) and runs the headless C++ tests (pathfinder, fixed-point, geometry), the nav parity probe and the lockstep playtest.
 - Pushes to `main` and `v*` tags (not PRs): also export **Windows + Linux** and upload the builds and the GDExtension library as artifacts.
+  - Assets are imported with `tools/godot_import.py` (see Known pitfalls). The import is cached by a hash of `assets/`, `audio/` and `project.godot`, and each tracked file's modified time is pinned to its git blob first, so a run only imports the assets that changed since the cached one.
+  - Each platform runs one export per branch at a time. A newer push waits for it, and a waiting export is dropped when an even newer push arrives.
+- A new push to a PR cancels that PR's older run.
 - Manual dispatch ("Run workflow" button): the `android` checkbox also builds the **Android APK** (debug-signed).
 - iOS is not automated until signing assets exist.
 
@@ -60,5 +63,7 @@ GODOT=/path/to/Godot ./tools/build.sh android # -> build/android/RTS0.apk
 
 ## Known pitfalls
 - `scons` succeeds but export fails → almost always a template/editor version mismatch.
+- The CI runner dies with "received a shutdown signal" during the import, or a local import gets killed → Godot 4.3 keeps memory from every file it imports until it exits, and a full import of RTS0's assets grows past 10 GB. Import with `python3 tools/godot_import.py` instead of `godot --import` (`tools/build.py` already does). It moves the files Godot would import out of the project and brings them back in batches, one Godot run each; a full import peaks around 2.3 GB.
+- Godot reimports everything after a fresh clone or a checkout that touches many files → Godot 4.3 reimports any file whose modified time differs from its file cache, even when the content is the same. `tools/godot_import.py` batches those too.
 - Android export hangs in CI → Gradle downloading dependencies; first run takes several minutes.
 - Missing console window on Windows debug builds → `debug/export_console_wrapper` writes a second `_console.exe`; ship the main exe only.
