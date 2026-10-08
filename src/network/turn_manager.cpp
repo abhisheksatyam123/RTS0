@@ -141,6 +141,9 @@ void TurnManager::receive_rejoin(uint32_t author, const RejoinMsg &msg) {
 	}
 	if (author != 0 || !rejoin_wanted_ || rejoined_) return; // only the host's answer counts
 	if (msg.kind == RejoinMsg::REJECT) {
+		// No free seat yet: the host has not noticed the old client leave.
+		// Keep waiting; apply_pending_rejoin asks again after REJOIN_RETRY_MS.
+		if (msg.reason == 1) { rejoin_progress_ms_ = rejoin_now_ms(); return; }
 		rejoin_reject_ = msg.reason ? msg.reason : 255;
 		rejoin_wanted_ = false;
 	} else if (msg.kind == RejoinMsg::HEADER) {
