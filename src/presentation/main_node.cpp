@@ -1783,7 +1783,8 @@ void RtsoMain::_process(double delta) {
 		Vector2 mouse_pos = get_viewport()->get_mouse_position();
 		if (wall_drag_mode) {
 			if (ghost_mesh && ghost_mesh->is_visible()) ghost_mesh->set_visible(false);
-			Vector3 drag_curr_pos = get_ground_click_pos(mouse_pos);
+			bool end_snapped = false;
+			Vector3 drag_curr_pos = snap_wall_point(get_ground_click_pos(mouse_pos), end_snapped);
 			float dist = wall_drag_start_pos.distance_to(drag_curr_pos);
 			int seg_count = std::max(1, (int)(dist / 6.0f));
 			Vector3 step_vec = (drag_curr_pos - wall_drag_start_pos) / (float)seg_count;
@@ -1830,8 +1831,9 @@ void RtsoMain::_process(double delta) {
 				g->set_visible(true);
 			};
 
-			// Start node tower
-			configure_ghost(0, wall_drag_start_pos, true, 0.0f);
+			// Start node tower (none over a tower the wall snapped to)
+			configure_ghost(0, wall_drag_start_pos, true, wall_rot_y);
+			if (wall_start_snapped) wall_ghosts[0]->set_visible(false);
 
 			// Intermediate wall segments
 			for (int s = 0; s < seg_count; ++s) {
@@ -1841,7 +1843,8 @@ void RtsoMain::_process(double delta) {
 
 			// End node tower
 			Vector3 end_p = wall_drag_start_pos + step_vec * (float)seg_count;
-			configure_ghost(seg_count + 1, end_p, true, 0.0f);
+			configure_ghost(seg_count + 1, end_p, true, wall_rot_y);
+			if (end_snapped) wall_ghosts[seg_count + 1]->set_visible(false);
 
 			for (size_t i = total_ghosts; i < wall_ghosts.size(); ++i) {
 				if (wall_ghosts[i] && wall_ghosts[i]->is_visible()) {
@@ -1855,11 +1858,25 @@ void RtsoMain::_process(double delta) {
 			if (ghost_mesh) {
 				ghost_mesh->set_visible(true);
 				auto [cell_x, cell_y] = mouse_cell(mouse_pos);
+				if (build_click_pending) {
+					cell_x = build_click_cell_x;
+					cell_y = build_click_cell_y;
+					// Dragging turns the building toward the cursor; back near the
+					// click it snaps to the default facing (input.js getMaxDragDelta).
+					if (build_click_screen.distance_to(mouse_pos) >= 4.0f) {
+						const Vector3 cur = get_ground_click_pos(mouse_pos);
+						placement_angle = std::atan2(cur.x - build_click_ground.x, cur.z - build_click_ground.z);
+					} else {
+						placement_angle = rtso::Simulation::DEFAULT_BUILDING_ROT;
+					}
+				}
 				int footprint = rtso::building_type_info(current_build_type).footprint;
 
 				float gx = (cell_x + footprint * 0.5f) * rtso::Simulation::GRID;
 				float gz = (cell_y + footprint * 0.5f) * rtso::Simulation::GRID;
 				ghost_mesh->set_global_position(Vector3(gx, 0.05f, gz));
+				ghost_mesh->set_rotation(Vector3(0.0f,
+						placement_angle_at(current_build_type, gx, gz) - rtso::Simulation::DEFAULT_BUILDING_ROT, 0.0f));
 
 				bool can_build = sim->check_placement(local_player(), cell_x, cell_y, current_build_type) == rtso::Simulation::PLACE_OK;
 				ghost_mesh->set_material_override(can_build ? ghost_mat_ok : ghost_mat_bad);
@@ -2534,6 +2551,8 @@ void RtsoMain::update_command_panel() {
 void RtsoMain::enter_build_mode(bool enable, uint8_t btype) {
 	build_mode = enable;
 	current_build_type = btype;
+	build_click_pending = false;
+	placement_angle = rtso::Simulation::DEFAULT_BUILDING_ROT; // placementSupport.Reset()
 	if (!enable) {
 		wall_drag_mode = false;
 		for (auto *wg : wall_ghosts) {
@@ -2542,6 +2561,32 @@ void RtsoMain::enter_build_mode(bool enable, uint8_t btype) {
 	}
 	update_ghost_mesh();
 	if (ghost_mesh) ghost_mesh->set_visible(build_mode && !wall_drag_mode);
+}
+
+float RtsoMain::placement_angle_at(uint8_t btype, float x, float z) const {
+	if (btype == rtso::BLD_DOCK && sim) {
+		const float a = sim->dock_angle(x, z, rtso::building_type_info(btype).footprint * rtso::Simulation::GRID * 0.5f);
+		if (!std::isnan(a)) return a;
+	}
+	return placement_angle;
+}
+
+Vector3 RtsoMain::snap_wall_point(const Vector3 &p, bool &snapped) const {
+	snapped = false;
+	if (!sim) return p;
+	const float radius = std::max(1.5f, rtso::building_type_info(rtso::BLD_WALL_TOWER).footprint * rtso::Simulation::GRID * 0.5f);
+	float best = radius * radius;
+	Vector3 out = p;
+	for (const auto &b : sim->buildings()) {
+		if (b.type != rtso::BLD_WALL_TOWER || b.team != local_player() || b.wrecked) continue;
+		const float d2 = (b.x - p.x) * (b.x - p.x) + (b.z - p.z) * (b.z - p.z);
+		if (d2 <= best) {
+			best = d2;
+			out = Vector3(b.x, p.y, b.z);
+			snapped = true;
+		}
+	}
+	return out;
 }
 
 void RtsoMain::try_train_unit(rtso::UnitType utype) {
@@ -2704,7 +2749,13 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					return;
 				}
 			}
-			if (fired("rts0.build.menu")) {
+			if (build_mode && !wall_drag_mode) {
+			constexpr float ROTATION_STEP = 3.14159265f / 12.0f; // 24 presses make a full turn
+			if (fired("session.rotate.cw")) { placement_angle += ROTATION_STEP; return; }
+			if (fired("session.rotate.ccw")) { placement_angle -= ROTATION_STEP; return; }
+		}
+
+		if (fired("rts0.build.menu")) {
 				enter_build_mode(false);
 				return;
 			}
@@ -2978,23 +3029,16 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				if (build_mode) {
 					if (current_build_type == rtso::BLD_WALL_SEGMENT) {
 						wall_drag_mode = true;
-						wall_drag_start_pos = get_ground_click_pos(mouse_pos);
+						wall_drag_start_pos = snap_wall_point(get_ground_click_pos(mouse_pos), wall_start_snapped);
 						return;
 					}
+					// The site is fixed at the press; the release places it (input.js INPUT_BUILDING_CLICK).
 					auto [cell_x, cell_y] = mouse_cell(mouse_pos);
-					if (net_lockstep()) {
-						post_lockstep(5, (const uint32_t *)selected_ids.ptr(), selected_ids.size(),
-								(float)cell_x, (float)cell_y, 0, current_build_type);
-						play_civ_voice("build");
-						enter_build_mode(false);
-					} else if (uint32_t bid = sim->cmd_build(local_player(), cell_x, cell_y, current_build_type)) {
-						if (!selected_ids.is_empty())
-							sim->order_build_or_repair((const uint32_t *)selected_ids.ptr(), selected_ids.size(), bid);
-						play_civ_voice("build");
-						enter_build_mode(false);
-					} else {
-						session_audio_.play_invalid_placement();
-					}
+					build_click_pending = true;
+					build_click_screen = mouse_pos;
+					build_click_ground = get_ground_click_pos(mouse_pos);
+					build_click_cell_x = cell_x;
+					build_click_cell_y = cell_y;
 					return;
 				}
 				// Godot flags the second press of a double-click (0 A.D. ev.clicks == 2,
@@ -3006,16 +3050,40 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			} else {
 				const bool dbl_click = double_click_pending;
 				double_click_pending = false;
+				if (build_click_pending) {
+					build_click_pending = false;
+					const int cell_x = build_click_cell_x, cell_y = build_click_cell_y;
+					const float fp = (float)rtso::building_type_info(current_build_type).footprint;
+					const float angle = placement_angle_at(current_build_type, (cell_x + fp * 0.5f) * rtso::Simulation::GRID,
+							(cell_y + fp * 0.5f) * rtso::Simulation::GRID);
+					if (net_lockstep()) {
+						post_lockstep(5, (const uint32_t *)selected_ids.ptr(), selected_ids.size(),
+								(float)cell_x, (float)cell_y, rtso::Simulation::pack_angle(angle), current_build_type);
+						play_civ_voice("build");
+						enter_build_mode(false);
+					} else if (uint32_t bid = sim->cmd_build(local_player(), cell_x, cell_y, current_build_type, angle)) {
+						if (!selected_ids.is_empty())
+							sim->order_build_or_repair((const uint32_t *)selected_ids.ptr(), selected_ids.size(), bid);
+						play_civ_voice("build");
+						enter_build_mode(false);
+					} else {
+						session_audio_.play_invalid_placement();
+					}
+					return;
+				}
 				if (wall_drag_mode) {
 					wall_drag_mode = false;
 					for (auto *wg : wall_ghosts) {
 						if (wg) wg->set_visible(false);
 					}
-					Vector3 drag_end_pos = get_ground_click_pos(mouse_pos);
+					bool end_snapped = false;
+					Vector3 drag_end_pos = snap_wall_point(get_ground_click_pos(mouse_pos), end_snapped);
 					float dist = wall_drag_start_pos.distance_to(drag_end_pos);
 					if (dist > 1.5f) {
 						int seg_count = std::max(1, (int)(dist / 6.0f));
 						Vector3 step_vec = (drag_end_pos - wall_drag_start_pos) / (float)seg_count;
+						// Every piece faces along the wall.
+						const float wall_angle = std::atan2(step_vec.x, step_vec.z) + rtso::Simulation::DEFAULT_BUILDING_ROT;
 
 						// Commit wall nodes through existing lockstep/build command paths
 						// (0 A.D. gui/session/building_placement.js:45-92 / placement.js)
@@ -3024,23 +3092,23 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							int cz = (int)std::floor(p.z / rtso::Simulation::GRID);
 							if (net_lockstep()) {
 								post_lockstep(5, (const uint32_t *)selected_ids.ptr(), selected_ids.size(),
-								              (float)cx, (float)cz, 0, btype);
+								              (float)cx, (float)cz, rtso::Simulation::pack_angle(wall_angle), btype);
 							} else if (sim) {
-								uint32_t bid = sim->cmd_build(local_player(), cx, cz, btype);
+								uint32_t bid = sim->cmd_build(local_player(), cx, cz, btype, wall_angle);
 								if (bid && !selected_ids.is_empty()) {
 									sim->order_build_or_repair((const uint32_t *)selected_ids.ptr(), selected_ids.size(), bid);
 								}
 							}
 						};
 
-						// Start node tower
-						place_wall_node(wall_drag_start_pos, rtso::BLD_WALL_TOWER);
+						// Start node tower, unless the wall continues from an existing one
+						if (!wall_start_snapped) place_wall_node(wall_drag_start_pos, rtso::BLD_WALL_TOWER);
 
 						for (int s = 0; s < seg_count; ++s) {
 							Vector3 mid_p = wall_drag_start_pos + step_vec * ((float)s + 0.5f);
 							place_wall_node(mid_p, rtso::BLD_WALL_SEGMENT);
 
-							if (s == seg_count - 1) {
+							if (s == seg_count - 1 && !end_snapped) {
 								Vector3 end_p = wall_drag_start_pos + step_vec * ((float)s + 1.0f);
 								place_wall_node(end_p, rtso::BLD_WALL_TOWER);
 							}

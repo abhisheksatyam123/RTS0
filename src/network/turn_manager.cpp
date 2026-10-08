@@ -1304,7 +1304,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		} else if (c.cmd_type == 4) { // Gather
 			sim.order_gather(ids, n, c.target_id, queued);
 		} else if (c.cmd_type == 5) { // Build
-			uint32_t bid = sim.cmd_build(pl, (int)c.target_x, (int)c.target_z, c.param);
+			uint32_t bid = sim.cmd_build(pl, (int)c.target_x, (int)c.target_z, c.param, Simulation::unpack_angle(c.target_id));
 			if (bid && n)
 				sim.order_build_or_repair(ids, n, bid);
 		} else if (c.cmd_type == 6) { // Train

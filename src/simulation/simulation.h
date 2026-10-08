@@ -131,7 +131,10 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
-	static constexpr uint32_t SAVE_VERSION = 27; // save_state's format; see the history beside it
+	// Facing of a building nobody rotated: toward -z, the way every building was drawn
+	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
+	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
+	static constexpr uint32_t SAVE_VERSION = 28; // save_state's format; see the history beside it
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -181,6 +184,7 @@ public:
 		bool wrecked = false;   // hp already applied; keep entity for collapse + rubble
 		int cell_x, cell_y;
 		int footprint; // 1 or 2
+		float rot = DEFAULT_BUILDING_ROT; // 0 A.D. Position rotation: 0 faces +z, pi/2 faces +x (the obstruction stays an axis-aligned square)
 		float attack_timer; // for defensive arrows
 		bool is_burning = false; // Structure fire under 33% HP
 
@@ -307,7 +311,15 @@ public:
 	void cmd_stop(const uint32_t *unit_ids, size_t count);
 	// Player commands (0 A.D. Commands.js): `player` is the issuing player id. Each one
 	// rejects buildings the player doesn't own and charges/refunds that player's stock.
-	uint32_t cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b_type);
+	// `angle` is the placement rotation (0 A.D. placementSupport.angle); docks ignore it and face the sea.
+	uint32_t cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b_type, float angle = DEFAULT_BUILDING_ROT);
+	// 0 A.D. Commands.js GetDockAngle: the facing of a dock at (x, z) toward the most open water,
+	// or NAN when no shoreline is in reach.
+	float dock_angle(float x, float z, float half_size) const;
+	// Lockstep cmd 5 carries the angle in target_id, in 1/65536ths of a turn from
+	// DEFAULT_BUILDING_ROT, so older commands (target_id 0) keep the default facing.
+	static uint32_t pack_angle(float angle);
+	static float unpack_angle(uint32_t packed);
 	bool cmd_train(uint8_t player, uint32_t building_id, UnitType u_type);
 	// Train a specific roster unit (a hero, a champion, a second unit of the same class).
 	bool cmd_train_template(uint8_t player, uint32_t building_id, uint16_t tmpl);

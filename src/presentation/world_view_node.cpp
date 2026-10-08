@@ -1895,7 +1895,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		auto entry = rtso::ModelLibrary::get(cat_b, visual_id);
 		float b_scale = entry.scale > 0.05f ? entry.scale : 1.0f;
 
-		v.root->set_transform(Transform3D(Basis(), Vector3(b.x, base_y, b.z)));
+		// Models face -z unrotated, so the sim's 0 A.D. rotation is offset by DEFAULT_BUILDING_ROT.
+		v.root->set_transform(Transform3D(Basis(Vector3(0, 1, 0), b.rot - rtso::Simulation::DEFAULT_BUILDING_ROT),
+				Vector3(b.x, base_y, b.z)));
 		set_building_site_visible(v, v.phase == 1 || v.phase == 2, v.phase == 2, b.type);
 
 		if (Node3D *n3 = Object::cast_to<Node3D>(v.model)) {
