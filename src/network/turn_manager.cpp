@@ -356,8 +356,9 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 
 	// 7. FoW Grid
 	const uint8_t *fow = sim.fow_grid();
-	for (int i = 0; i < Simulation::FOW_GRID * Simulation::FOW_GRID; ++i) {
-		if ((i & 3) == 0 && i + 3 < Simulation::FOW_GRID * Simulation::FOW_GRID) {
+	const int fow_cells = sim.fow_res() * sim.fow_res();
+	for (int i = 0; i < fow_cells; ++i) {
+		if ((i & 3) == 0 && i + 3 < fow_cells) {
 			uint32_t chunk = (uint32_t)fow[i] | ((uint32_t)fow[i+1] << 8) | ((uint32_t)fow[i+2] << 16) | ((uint32_t)fow[i+3] << 24);
 			mix_u32(chunk);
 		} else if ((i & 3) == 0) {

@@ -15,6 +15,16 @@
 namespace rtso {
 
 namespace {
+// Accumulates wall-clock microseconds for Simulation::MapScaleStats.
+struct ScopedUs {
+	uint64_t &us, &calls;
+	std::chrono::high_resolution_clock::time_point t0 = std::chrono::high_resolution_clock::now();
+	ScopedUs(uint64_t &us_, uint64_t &calls_) : us(us_), calls(calls_) {}
+	~ScopedUs() {
+		us += (uint64_t)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - t0).count();
+		++calls;
+	}
+};
 constexpr int kUnitGridRes = 64; // 64x64 grid cells (2.0m per cell over 128m map)
 // 0 A.D. Builder.GetRange: max ≈ 2 + unit obstruction. Stand on the AABB edge, never inside.
 constexpr float kBuildStandOff = 0.80f;
@@ -124,7 +134,7 @@ Simulation::Simulation() {
 	units_.init(UNIT_CAP);
 	resources_.init(512);
 	unit_paths_.assign(UNIT_CAP, WaypointPath{});
-	nav_grid_.init(map_half_, NavGrid::DEFAULT_RES);
+	nav_grid_.init(map_half_, grid_res_);
 	// Default civ per slot (game setup overrides via set_team_civ). Slots 0-3 keep the legacy
 	// player_civ_[4] defaults; teams start free-for-all (each player its own team).
 	static constexpr Civilization kDefaultCivs[MAX_PLAYERS] = {
@@ -135,6 +145,27 @@ Simulation::Simulation() {
 		players_[p].team = p;
 	}
 	apply_petra_config();
+}
+
+int Simulation::grid_res_for_map(float map_half) {
+	// Round up to whole hierarchical-pathfinder chunks.
+	int res = (int)std::ceil(map_half * 2.0f / SPATIAL_CELL);
+	res = (res + CHUNK_SIZE - 1) / CHUNK_SIZE * CHUNK_SIZE;
+	return std::clamp(res, MIN_GRID_RES, MAX_GRID_RES);
+}
+
+void Simulation::set_map_half(float h) {
+	map_half_ = h;
+	grid_res_ = grid_res_for_map(h);
+	const size_t cells = (size_t)grid_res_ * (size_t)grid_res_;
+	fow_grid_.assign(cells, FOW_UNEXPLORED);
+	petra_fow_.assign(cells, FOW_UNEXPLORED);
+	fow_cell_height_.clear();
+	// The nav grid caches map_half for world<->cell conversion, so it must be
+	// re-initialised whenever the extent changes.
+	nav_grid_.init(map_half_, grid_res_);
+	territory_grid_.clear();
+	influence_grid_.clear();
 }
 
 Simulation::~Simulation() = default;
@@ -175,7 +206,7 @@ void Simulation::reset() {
 	record_ = MatchRecord();
 	tick_us_ = ticks_ = 0;
 	frame_arena_.reset_all();
-	memset(fow_grid_, 0, sizeof(fow_grid_));
+	std::fill(fow_grid_.begin(), fow_grid_.end(), (uint8_t)FOW_UNEXPLORED);
 	barter_timer_ = 0.0f;
 	upkeep_timer_ = 0.0f;
 	entity_limits_timer_ = 0.0f;
@@ -206,7 +237,7 @@ void Simulation::reset() {
 	petra_scout_radius_ = 12.0f;
 	petra_bases_.clear();
 	petra_bases_.push_back({1, 0, 48.0f, 48.0f, true, 0, 32.0f, 0.0f, false});
-	memset(petra_fow_, 0, sizeof(petra_fow_));
+	std::fill(petra_fow_.begin(), petra_fow_.end(), (uint8_t)FOW_UNEXPLORED);
 	memset(petra_threat_map_.danger, 0, sizeof(petra_threat_map_.danger));
 	memset(petra_threat_map_.enemy_threat, 0, sizeof(petra_threat_map_.enemy_threat));
 	memset(petra_threat_map_.friendly_defense, 0, sizeof(petra_threat_map_.friendly_defense));
@@ -230,11 +261,12 @@ void Simulation::reset() {
 	s_petra_fleets.clear_sea_fleets();
 	apply_petra_config();
 	unit_paths_.assign(UNIT_CAP, WaypointPath{});
-	nav_grid_.init(map_half_, NavGrid::DEFAULT_RES);
+	nav_grid_.init(map_half_, grid_res_);
 	territory_grid_.clear();
 	influence_grid_.clear();
 	territory_timer_ = 0.0f;
 	fow_timer_ = 0.0f;
+	bulk_spawn_ = false;
 	aura_mgr_.clear();
 	aura_timer_ = 0.0f;
 }
@@ -398,8 +430,8 @@ void Simulation::spawn_war(int total_units) {
 	building_id_to_idx_.clear();
 	occupied_cells_.clear();
 	relics_.clear();
-	memset(fow_grid_, 0, sizeof(fow_grid_));
-	memset(petra_fow_, 0, sizeof(petra_fow_));
+	std::fill(fow_grid_.begin(), fow_grid_.end(), (uint8_t)FOW_UNEXPLORED);
+	std::fill(petra_fow_.begin(), petra_fow_.end(), (uint8_t)FOW_UNEXPLORED);
 
 	total_units = std::clamp(total_units, 4, (int)UNIT_CAP - 64);
 	const int half = total_units / 2;
@@ -644,7 +676,7 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 			occupied_cells_.insert({cell_x + dx, cell_y + dy});
 		}
 	}
-	if (progress >= 0.99f) {
+	if (progress >= 0.99f && !bulk_spawn_) {
 		rebuild_nav_grid();
 		if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER) {
 			rebuild_territory();
@@ -665,6 +697,9 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	cfg.seed = seed;
 	cfg.num_players = num_players;
 	cfg.map_half = map_half;
+	// Keep roughly one heightmap sample per world unit on bigger maps
+	// (diamond-square needs 2^n + 1 samples).
+	cfg.heightmap_res = map_half > 96.0f ? 257 : 129;
 	const auto &minfo = map_type_info(type);
 	if (std::strcmp(minfo.biome, "alpine") == 0) cfg.biome = BIOME_ALPINE;
 	else if (std::strcmp(minfo.biome, "oasis") == 0) cfg.biome = BIOME_OASIS;
@@ -680,6 +715,12 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	rebuild_territory();
 }
 
+void Simulation::end_bulk_spawn() {
+	bulk_spawn_ = false;
+	rebuild_nav_grid();
+	rebuild_territory();
+}
+
 void Simulation::rebuild_nav_grid() {
 	// Snapshot pre-rebuild cells so only navcells whose passability actually
 	// changed are flagged dirty (HierarchicalPathfinder dirtinessGrid,
@@ -691,7 +732,7 @@ void Simulation::rebuild_nav_grid() {
 		old_cells = nav_grid_.cells.data;
 		have_old = true;
 	} else {
-		nav_grid_.init(map_half_, NavGrid::DEFAULT_RES);
+		nav_grid_.init(map_half_, grid_res_);
 	}
 	for (int y = 0; y < nav_grid_.res; ++y) {
 		for (int x = 0; x < nav_grid_.res; ++x) {
@@ -730,7 +771,8 @@ void Simulation::rebuild_nav_grid() {
 }
 
 void Simulation::rebuild_territory() {
-	const int R = NavGrid::DEFAULT_RES;
+	ScopedUs prof(map_scale_stats_.territory_us, map_scale_stats_.territory_calls);
+	const int R = grid_res_;
 	influence_grid_.resize(R, R, 0);
 	territory_grid_.resize(R, R, 0);
 	influence_grid_.fill(0);
@@ -743,8 +785,15 @@ void Simulation::rebuild_territory() {
 		else if (b.type == BLD_TOWER) radius = 18.0f;
 		else continue;
 		float r2 = radius * radius;
-		for (int y = 0; y < R; ++y) {
-			for (int x = 0; x < R; ++x) {
+		// Only cells whose centre can fall inside the radius (one-cell margin
+		// keeps the exact distance test below authoritative).
+		const float to_cell = static_cast<float>(R) / (map_half_ * 2.0f);
+		const int x0 = std::max(0, static_cast<int>((b.x - radius + map_half_) * to_cell) - 1);
+		const int x1 = std::min(R - 1, static_cast<int>((b.x + radius + map_half_) * to_cell) + 1);
+		const int y0 = std::max(0, static_cast<int>((b.z - radius + map_half_) * to_cell) - 1);
+		const int y1 = std::min(R - 1, static_cast<int>((b.z + radius + map_half_) * to_cell) + 1);
+		for (int y = y0; y <= y1; ++y) {
+			for (int x = x0; x <= x1; ++x) {
 				float wx = ((static_cast<float>(x) + 0.5f) / static_cast<float>(R)) * (map_half_ * 2.0f) - map_half_;
 				float wz = ((static_cast<float>(y) + 0.5f) / static_cast<float>(R)) * (map_half_ * 2.0f) - map_half_;
 				float dx = wx - b.x;
@@ -759,6 +808,7 @@ void Simulation::rebuild_territory() {
 }
 
 bool Simulation::find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass) const {
+	ScopedUs prof(map_scale_stats_.path_us, map_scale_stats_.path_calls);
 	return nav_grid_.find_path(sx, sz, tx, tz, out, pass);
 }
 
@@ -4270,6 +4320,7 @@ void Simulation::update_petra_threat_map(float dt) {
 	petra_threat_map_.update_timer += dt;
 	if (petra_threat_map_.update_timer < 0.4f) return;
 	petra_threat_map_.update_timer = 0.0f;
+	ScopedUs prof(map_scale_stats_.threat_us, map_scale_stats_.threat_calls);
 
 	float cell_size = (map_half_ * 2.0f) / (float)THREAT_GRID_RES;
 	float inv_cell = 1.0f / cell_size;
@@ -4559,13 +4610,13 @@ void Simulation::update_petra_bases(float dt) {
 
 void Simulation::petra_manage_scouting(float dt) {
 	// 1. Update Petra Fog of War from Team 1 vision
-	for (int i = 0; i < FOW_GRID * FOW_GRID; ++i) {
-		if (petra_fow_[i] == FOW_VISIBLE) petra_fow_[i] = FOW_EXPLORED;
+	for (auto &c : petra_fow_) {
+		if (c == FOW_VISIBLE) c = FOW_EXPLORED;
 	}
 
 	const float half = map_half_;
-	const float cell = (half * 2.0f) / (float)FOW_GRID;
-	const int G = FOW_GRID;
+	const int G = grid_res_;
+	const float cell = (half * 2.0f) / (float)G;
 
 	auto vision_radius = [](uint8_t utype) -> float {
 		switch (utype) {
@@ -4579,58 +4630,16 @@ void Simulation::petra_manage_scouting(float dt) {
 		}
 	};
 
+	ensure_fow_cell_heights();
 	for (size_t u = 0; u < units_.count; ++u) {
 		if (!units_.alive[u] || units_.team[u] != 1) continue;
-		float vr = vision_radius(units_.unit_type[u]);
-		float ux = units_.pos_x[u];
-		float uz = units_.pos_z[u];
-
-		float norm_x = (ux + half) / (2.0f * half);
-		float norm_z = (uz + half) / (2.0f * half);
-		int cx = (int)(norm_x * G);
-		int cz = (int)(norm_z * G);
-		int r = (int)(vr / cell) + 1;
-
-		for (int dz = -r; dz <= r; ++dz) {
-			for (int dx = -r; dx <= r; ++dx) {
-				int gx = cx + dx;
-				int gz = cz + dz;
-				if (gx < 0 || gx >= G || gz < 0 || gz >= G) continue;
-				float wx = (gx + 0.5f) * cell - half;
-				float wz = (gz + 0.5f) * cell - half;
-				float ddx = wx - ux;
-				float ddz = wz - uz;
-				if (ddx * ddx + ddz * ddz <= vr * vr &&
-				    !terrain_blocks_los(ux, uz, get_terrain_height(ux, uz) + 1.6f, wx, wz, get_terrain_height(wx, wz) + 0.4f)) {
-				    petra_fow_[gz * G + gx] = FOW_VISIBLE;
-				}
-			}
-		}
+		reveal_fow(petra_fow_, units_.pos_x[u], units_.pos_z[u], vision_radius(units_.unit_type[u]));
 	}
 
 	for (const auto &b : buildings_) {
 		if (b.team != 1 || b.build_progress < 0.5f) continue;
 		float bvr = (b.type == BLD_TOWER || b.type == BLD_FORTRESS) ? 24.0f : ((b.type == BLD_DOCK) ? 28.0f : 18.0f);
-		float norm_x = (b.x + half) / (2.0f * half);
-		float norm_z = (b.z + half) / (2.0f * half);
-		int cx = (int)(norm_x * G);
-		int cz = (int)(norm_z * G);
-		int r = (int)(bvr / cell) + 1;
-		for (int dz = -r; dz <= r; ++dz) {
-			for (int dx = -r; dx <= r; ++dx) {
-				int gx = cx + dx;
-				int gz = cz + dz;
-				if (gx < 0 || gx >= G || gz < 0 || gz >= G) continue;
-				float wx = (gx + 0.5f) * cell - half;
-				float wz = (gz + 0.5f) * cell - half;
-				float ddx = wx - b.x;
-				float ddz = wz - b.z;
-				if (ddx * ddx + ddz * ddz <= bvr * bvr &&
-				    !terrain_blocks_los(b.x, b.z, get_terrain_height(b.x, b.z) + 1.6f, wx, wz, get_terrain_height(wx, wz) + 0.4f)) {
-					petra_fow_[gz * G + gx] = FOW_VISIBLE;
-				}
-			}
-		}
+		reveal_fow(petra_fow_, b.x, b.z, bvr);
 	}
 
 	// 2. Validate current scout unit or recruit candidate
@@ -5651,9 +5660,10 @@ void Simulation::petra_manage_buildings(float dt) {
 				float rz = resources_.z[r];
 
 				// Check if explored in Petra FoW
-				int rcx = std::clamp((int)((rx + map_half_) / FOW_CELL_SIZE), 0, FOW_GRID - 1);
-				int rcz = std::clamp((int)((rz + map_half_) / FOW_CELL_SIZE), 0, FOW_GRID - 1);
-				if (petra_fow_[rcz * FOW_GRID + rcx] == FOW_UNEXPLORED) continue;
+				const float fow_cell = (map_half_ * 2.0f) / (float)grid_res_;
+				int rcx = std::clamp((int)((rx + map_half_) / fow_cell), 0, grid_res_ - 1);
+				int rcz = std::clamp((int)((rz + map_half_) / fow_cell), 0, grid_res_ - 1);
+				if (petra_fow_[rcz * grid_res_ + rcx] == FOW_UNEXPLORED) continue;
 				if (!is_position_safe(rx, rz, 5.0f)) continue;
 
 				// Check distance to nearest existing dropsite
@@ -7451,8 +7461,9 @@ bool Simulation::save_state(const char *filepath) const {
 	out.write((const char *)&sim_seed_, sizeof(sim_seed_));
 	out.write((const char *)&rng_state, sizeof(rng_state));
 	// v4 FoW: retain explored terrain and current visibility across saves.
-	out.write((const char *)fow_grid_, sizeof(fow_grid_));
-	out.write((const char *)petra_fow_, sizeof(petra_fow_));
+	// Sized by the current map's grid; load expects the same map to be loaded.
+	out.write((const char *)fow_grid_.data(), (std::streamsize)fow_grid_.size());
+	out.write((const char *)petra_fow_.data(), (std::streamsize)petra_fow_.size());
 
 	// 2. Resources
 	uint32_t num_res = (uint32_t)resources_.count;
@@ -7630,8 +7641,8 @@ bool Simulation::load_state(const char *filepath) {
 		sim_rng_.set_state(rng_state);
 	}
 	if (version >= 4) {
-		in.read((char *)fow_grid_, sizeof(fow_grid_));
-		in.read((char *)petra_fow_, sizeof(petra_fow_));
+		in.read((char *)fow_grid_.data(), (std::streamsize)fow_grid_.size());
+		in.read((char *)petra_fow_.data(), (std::streamsize)petra_fow_.size());
 		if (!in.good()) return false;
 	}
 
@@ -7876,10 +7887,11 @@ bool Simulation::terrain_blocks_los(float sx, float sz, float sy, float tx, floa
 uint8_t Simulation::fow_state_at(float x, float z, uint8_t viewer_team) const {
 	if (map_half_ <= 0.0f || x < -map_half_ || x > map_half_ || z < -map_half_ || z > map_half_)
 		return FOW_UNEXPLORED;
-	const int cx = std::clamp((int)((x + map_half_) / (map_half_ * 2.0f) * FOW_GRID), 0, FOW_GRID - 1);
-	const int cz = std::clamp((int)((z + map_half_) / (map_half_ * 2.0f) * FOW_GRID), 0, FOW_GRID - 1);
-	const uint8_t *grid = (viewer_team == 1) ? petra_fow_ : fow_grid_;
-	return grid[cz * FOW_GRID + cx];
+	const int G = grid_res_;
+	const int cx = std::clamp((int)((x + map_half_) / (map_half_ * 2.0f) * G), 0, G - 1);
+	const int cz = std::clamp((int)((z + map_half_) / (map_half_ * 2.0f) * G), 0, G - 1);
+	const std::vector<uint8_t> &grid = (viewer_team == 1) ? petra_fow_ : fow_grid_;
+	return grid[cz * G + cx];
 }
 
 bool Simulation::is_entity_visible_to_viewer(float x, float z, uint8_t entity_team, uint8_t viewer_team) const {
@@ -7889,10 +7901,55 @@ bool Simulation::is_entity_visible_to_viewer(float x, float z, uint8_t entity_te
 	return fow_state_at(x, z, viewer_team) == FOW_VISIBLE;
 }
 
+void Simulation::ensure_fow_cell_heights() {
+	// Terrain height at every FoW cell centre is fixed for the map, so sample
+	// it once instead of once per viewer per cell.
+	const int G = grid_res_;
+	if (fow_cell_height_.size() == (size_t)G * (size_t)G) return;
+	const float half = map_half_;
+	const float cell = (half * 2.0f) / (float)G;
+	fow_cell_height_.resize((size_t)G * (size_t)G);
+	for (int gz = 0; gz < G; ++gz)
+		for (int gx = 0; gx < G; ++gx)
+			fow_cell_height_[gz * G + gx] = get_terrain_height((gx + 0.5f) * cell - half, (gz + 0.5f) * cell - half);
+}
+
+void Simulation::reveal_fow(std::vector<uint8_t> &grid, float sx, float sz, float vr) const {
+	// Marks every cell within vr of (sx, sz) that the terrain does not hide.
+	// A cell already VISIBLE this pass is skipped: another viewer lit it, and
+	// the LOS ray can only ever set it VISIBLE again. Needs ensure_fow_cell_heights().
+	const float half = map_half_;
+	const int G = grid_res_;
+	const float cell = (half * 2.0f) / (float)G;
+	const int cx = (int)((sx + half) / (2.0f * half) * G);
+	const int cz = (int)((sz + half) / (2.0f * half) * G);
+	const int r = (int)(vr / cell) + 1;
+	const float eye_y = get_terrain_height(sx, sz) + 1.6f;
+	const float vr2 = vr * vr;
+	const int gz0 = std::max(0, cz - r), gz1 = std::min(G - 1, cz + r);
+	const int gx0 = std::max(0, cx - r), gx1 = std::min(G - 1, cx + r);
+	for (int gz = gz0; gz <= gz1; ++gz) {
+		const float wz = (gz + 0.5f) * cell - half;
+		const float ddz = wz - sz;
+		uint8_t *row = &grid[(size_t)gz * G];
+		const float *hrow = &fow_cell_height_[(size_t)gz * G];
+		for (int gx = gx0; gx <= gx1; ++gx) {
+			if (row[gx] == FOW_VISIBLE) continue;
+			const float wx = (gx + 0.5f) * cell - half;
+			const float ddx = wx - sx;
+			if (ddx * ddx + ddz * ddz <= vr2 &&
+			    !terrain_blocks_los(sx, sz, eye_y, wx, wz, hrow[gx] + 0.4f)) {
+				row[gx] = FOW_VISIBLE;
+			}
+		}
+	}
+}
+
 void Simulation::tick_fow() {
+	ScopedUs prof(map_scale_stats_.fow_us, map_scale_stats_.fow_calls);
 	// Step 1: Reset all VISIBLE tiles back to EXPLORED (preserve explored history)
-	for (int i = 0; i < FOW_GRID * FOW_GRID; ++i) {
-		if (fow_grid_[i] == FOW_VISIBLE) fow_grid_[i] = FOW_EXPLORED;
+	for (auto &c : fow_grid_) {
+		if (c == FOW_VISIBLE) c = FOW_EXPLORED;
 	}
 
 	// Step 2: For every player unit, illuminate tiles within its vision radius
@@ -7910,9 +7967,8 @@ void Simulation::tick_fow() {
 		}
 	};
 
-	const float half = map_half_;
-	const float cell = (half * 2.0f) / (float)FOW_GRID;
-	const int G = FOW_GRID;
+	ensure_fow_cell_heights();
+	auto reveal = [this](float sx, float sz, float vr) { reveal_fow(fow_grid_, sx, sz, vr); };
 
 	// VisionSharing.js: allied players share the visibility generated by
 	// their units/buildings. RTS0 stores the player-relative diplomacy stance
@@ -7924,33 +7980,7 @@ void Simulation::tick_fow() {
 
 	for (size_t u = 0; u < units_.count; ++u) {
 		if (!units_.alive[u] || !visible_to_player(units_.team[u])) continue;
-		float vr = vision_radius(units_.unit_type[u]);
-		float ux = units_.pos_x[u];
-		float uz = units_.pos_z[u];
-
-		// Convert world pos to grid coords
-		float norm_x = (ux + half) / (2.0f * half); // [0,1]
-		float norm_z = (uz + half) / (2.0f * half);
-		int cx = (int)(norm_x * G);
-		int cz = (int)(norm_z * G);
-		int r = (int)(vr / cell) + 1;
-
-		for (int dz = -r; dz <= r; ++dz) {
-			for (int dx = -r; dx <= r; ++dx) {
-				int gx = cx + dx;
-				int gz = cz + dz;
-				if (gx < 0 || gx >= G || gz < 0 || gz >= G) continue;
-				// World position of grid cell center
-				float wx = (gx + 0.5f) * cell - half;
-				float wz = (gz + 0.5f) * cell - half;
-				float ddx = wx - ux;
-				float ddz = wz - uz;
-				if (ddx * ddx + ddz * ddz <= vr * vr &&
-				    !terrain_blocks_los(ux, uz, get_terrain_height(ux, uz) + 1.6f, wx, wz, get_terrain_height(wx, wz) + 0.4f)) {
-				    fow_grid_[gz * G + gx] = FOW_VISIBLE;
-				}
-			}
-		}
+		reveal(units_.pos_x[u], units_.pos_z[u], vision_radius(units_.unit_type[u]));
 	}
 
 	// Step 3: Player buildings also reveal their surroundings
@@ -7959,26 +7989,7 @@ void Simulation::tick_fow() {
 		float bvr = 18.0f; // default building vision
 		if (b.type == BLD_TOWER || b.type == BLD_FORTRESS) bvr = 24.0f;
 		if (b.type == BLD_DOCK) bvr = 28.0f;
-		float norm_x = (b.x + half) / (2.0f * half);
-		float norm_z = (b.z + half) / (2.0f * half);
-		int cx = (int)(norm_x * G);
-		int cz = (int)(norm_z * G);
-		int r = (int)(bvr / cell) + 1;
-		for (int dz = -r; dz <= r; ++dz) {
-			for (int dx = -r; dx <= r; ++dx) {
-				int gx = cx + dx;
-				int gz = cz + dz;
-				if (gx < 0 || gx >= G || gz < 0 || gz >= G) continue;
-				float wx = (gx + 0.5f) * cell - half;
-				float wz = (gz + 0.5f) * cell - half;
-				float ddx = wx - b.x;
-				float ddz = wz - b.z;
-				if (ddx * ddx + ddz * ddz <= bvr * bvr &&
-				    !terrain_blocks_los(b.x, b.z, get_terrain_height(b.x, b.z) + 1.6f, wx, wz, get_terrain_height(wx, wz) + 0.4f)) {
-					fow_grid_[gz * G + gx] = FOW_VISIBLE;
-				}
-			}
-		}
+		reveal(b.x, b.z, bvr);
 	}
 }
 

@@ -1254,7 +1254,7 @@ bool RtsoMain::load_game(String path) {
 PackedByteArray RtsoMain::get_fow_grid() const {
 	if (!sim) return PackedByteArray();
 	const uint8_t* grid = sim->fow_grid();
-	int sz = rtso::Simulation::FOW_GRID * rtso::Simulation::FOW_GRID;
+	int sz = sim->fow_res() * sim->fow_res();
 	PackedByteArray arr;
 	arr.resize(sz);
 	for (int i = 0; i < sz; ++i) arr.set(i, grid[i]);
@@ -2895,6 +2895,9 @@ void RtsoMain::apply_match_settings() {
 	int diff = (int)ms->get("ai_difficulty");
 	int behavior = (int)ms->get("ai_behavior");
 	int start_res = (int)ms->get("start_res");
+	// 0 A.D. map sizes; absent or out of range keeps the 128 default.
+	int map_size = (int)ms->get("map_size");
+	random_map_size = (map_size >= 128 && map_size <= 512) ? map_size : 128;
 	Array slot_civs = ms->get("slot_civs");
 	// Normalize legacy fields: if the setup screen never ran, slot_civs
 	// may be empty - fall back to player_civ/ai_civ.
@@ -3045,7 +3048,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		else if (map_id.contains("jebel") || map_id.contains("barkal")) mtype = rtso::MAP_JEBEL_BARKAL;
 		else if (map_id.contains("mediterranean")) { mtype = rtso::MAP_RANDOM_MEDITERRANEAN; num_p = 4; }
 
-		sim->generate_random_map(mtype, seed, num_p, 64.0f);
+		sim->generate_random_map(mtype, seed, num_p, (float)random_map_size * 0.5f);
 		view->rebuild_terrain(sim);
 
 		if (cam_rig) {
@@ -3143,7 +3146,9 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		sim->spawn_fauna(fx, fz, ftype);
 	}
 
-	// Spawn Structures
+	// Spawn Structures. Each finished building would otherwise rebuild the
+	// whole nav grid and territory map; do that once after the last one.
+	sim->begin_bulk_spawn();
 	Array str_arr = d.get("structures", Array());
 	for (int i = 0; i < str_arr.size(); ++i) {
 		Dictionary b = str_arr[i];
@@ -3172,6 +3177,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 
 		sim->spawn_building_world(bx, bz, btype, team, 1.0f);
 	}
+	sim->end_bulk_spawn();
 
 	// Spawn Starting Units
 	Array units_arr = d.get("units", Array());
@@ -3404,6 +3410,9 @@ void RtsoMain::_on_lobby_start_pressed() {
 // Order mirrors _ready: map first (reset inside), options after.
 void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	if (!sim) return;
+	// Every peer must generate the same map; GameSetupParams has no map size
+	// yet, so multiplayer random maps stay at the default.
+	random_map_size = 128;
 	if (!load_map_seeded(String(setup.map_id.c_str()), setup.seed)) {
 		if (lobby_status) lobby_status->set_text("GameStart failed: map regen failed");
 		return;

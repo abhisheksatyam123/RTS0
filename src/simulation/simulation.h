@@ -124,9 +124,13 @@ public:
 	static constexpr size_t UNIT_CAP = 4096;
 	static constexpr size_t MAX_PROJECTILES = 384;
 
-	// Fog of War (64x64 grid over the 128x128m map)
-	static constexpr int FOW_GRID = 64;
-	static constexpr float FOW_CELL_SIZE = (MAP_HALF * 2.0f) / (float)FOW_GRID; // 2.0m per cell
+	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
+	// resolution grows with the map: 64 cells on the default 128m map, 256 on a
+	// 512m 0 A.D. "Giant" map. grid_res_for_map() gives the resolution.
+	static constexpr float SPATIAL_CELL = 2.0f;
+	static constexpr int MIN_GRID_RES = 64;
+	static constexpr int MAX_GRID_RES = 256;
+	static int grid_res_for_map(float map_half);
 
 	enum FowState : uint8_t {
 		FOW_UNEXPLORED = 0, // black — never seen
@@ -134,8 +138,9 @@ public:
 		FOW_VISIBLE    = 2, // fully visible — currently in unit LOS
 	};
 
-	// Public accessor for the FoW grid (FOW_GRID*FOW_GRID flat array, row-major)
-	const uint8_t* fow_grid() const { return fow_grid_; }
+	// Public accessor for the FoW grid (fow_res()*fow_res() flat array, row-major)
+	const uint8_t* fow_grid() const { return fow_grid_.data(); }
+	int fow_res() const { return grid_res_; }
 	uint8_t fow_state_at(float x, float z, uint8_t viewer_team = 0) const;
 	bool is_entity_visible_to_viewer(float x, float z, uint8_t entity_team, uint8_t viewer_team = 0) const;
 
@@ -212,11 +217,19 @@ public:
 	const std::string& current_map_name() const { return current_map_name_; }
 	const std::string& current_map_biome() const { return current_map_biome_; }
 
-	void set_map_half(float h) { map_half_ = h; }
+	// Sets the map extent and resizes the nav, FoW and territory grids to match.
+	// Call before spawning entities (after reset()).
+	void set_map_half(float h);
+	// Map loading: defer the nav-grid and territory rebuild that every finished
+	// building triggers until end_bulk_spawn(), which does it once. end also
+	// marks water on the nav grid, so call it even for maps with no buildings.
+	void begin_bulk_spawn() { bulk_spawn_ = true; }
+	void end_bulk_spawn();
 	void set_terrain_data(const std::vector<float> &heights, int res, float water_h) {
 		terrain_heights_ = heights;
 		terrain_res_ = res;
 		terrain_water_height_ = water_h;
+		fow_cell_height_.clear();
 	}
 	void set_map_info(const std::string &id, const std::string &name, const std::string &biome) {
 		current_map_id_ = id;
@@ -434,7 +447,7 @@ public:
 	int ai_pop_current() const;
 	int ai_pop_max() const;
 
-	const uint8_t* petra_fow_grid() const { return petra_fow_; }
+	const uint8_t* petra_fow_grid() const { return petra_fow_.data(); }
 
 	// Petra Multi-Base HQ & BasesManager (0 A.D. ai/petra/headquarters.js / baseManager.js)
 	struct PetraBase {
@@ -555,6 +568,15 @@ public:
 
 	struct Stats { uint64_t tick_us; size_t ticks; };
 	Stats stats() const { return {tick_us_, ticks_}; }
+	// Wall-clock cost of the map-size-sensitive subsystems (tools/bench_map_scale.cpp).
+	// Diagnostic only: never read by the simulation, so lockstep is unaffected.
+	struct MapScaleStats {
+		uint64_t fow_us = 0, fow_calls = 0;
+		uint64_t path_us = 0, path_calls = 0;
+		uint64_t territory_us = 0, territory_calls = 0;
+		uint64_t threat_us = 0, threat_calls = 0;
+	};
+	const MapScaleStats &map_scale_stats() const { return map_scale_stats_; }
 
 	struct MatchRecord {
 		int units_trained = 0;
@@ -593,6 +615,8 @@ private:
 	void tick_petra_ai(float dt);
 	void tick_fauna(float dt);
 	void tick_fow();  // updates FoW each sim tick
+	void ensure_fow_cell_heights();
+	void reveal_fow(std::vector<uint8_t> &grid, float sx, float sz, float vr) const;
 	bool terrain_blocks_los(float sx, float sz, float sy, float tx, float tz, float ty) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
 	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
@@ -694,10 +718,11 @@ private:
 
 	uint64_t tick_us_ = 0;
 	uint64_t ticks_ = 0;
+	mutable MapScaleStats map_scale_stats_;
 	FrameArena frame_arena_{4 * 1024 * 1024};
 
 	// Petra AI Subsystems & Heuristics (0 A.D. Petra.js / dangerMap.js / military.js / economy.js / attackPlan.js)
-	// Phase6/G9: 64x64 high-resolution danger map matching NavGrid and FOW_GRID (2.0m cells)
+	// Phase6/G9: 64x64 danger map; cells stretch with the map (2m on the default 128m map)
 	static constexpr int THREAT_GRID_RES = 64;
 	static constexpr float THREAT_CELL_SIZE = (MAP_HALF * 2.0f) / (float)THREAT_GRID_RES;
 
@@ -782,11 +807,14 @@ private:
 	bool petra_start_transport(const std::vector<uint32_t> &unit_ids, float from_x, float from_z, float to_x, float to_z);
 	uint32_t petra_place_building(uint8_t btype, float near_x, float near_z, int min_r, int max_r, uint8_t queue);
 
-	uint8_t fow_grid_[FOW_GRID * FOW_GRID] = {}; // FoW state per tile
-	uint8_t petra_fow_[FOW_GRID * FOW_GRID] = {}; // FoW state per tile for Petra AI
+	bool bulk_spawn_ = false;
+	int grid_res_ = MIN_GRID_RES; // nav/FoW/territory resolution, grid_res_for_map(map_half_)
+	std::vector<uint8_t> fow_grid_ = std::vector<uint8_t>(MIN_GRID_RES * MIN_GRID_RES, 0); // FoW state per tile
+	std::vector<uint8_t> petra_fow_ = std::vector<uint8_t>(MIN_GRID_RES * MIN_GRID_RES, 0); // FoW state per tile for Petra AI
+	std::vector<float> fow_cell_height_; // terrain height at each FoW cell centre, lazily filled by tick_fow
 	NavGrid nav_grid_; // Phase1: SoA nav mesh (buildings + water), mirrors 0AD Grid<NavcellData>
-	Grid<uint8_t> territory_grid_; // 64x64 player id per cell, G2 (CCmpTerritoryManager)
-	Grid<uint8_t> influence_grid_; // 64x64 influence count per cell, G2
+	Grid<uint8_t> territory_grid_; // grid_res_^2 player id per cell, G2 (CCmpTerritoryManager)
+	Grid<uint8_t> influence_grid_; // grid_res_^2 influence count per cell, G2
 	std::vector<WaypointPath> unit_paths_; // per-unit path (UNIT_CAP), SoA waypoint_cur/count sync
 	AuraManager aura_mgr_; // G4: unified aura sources (AuraManager)
 	float fow_timer_ = 0.0f;
