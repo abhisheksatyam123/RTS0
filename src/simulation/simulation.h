@@ -11,6 +11,7 @@
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
+#include <array>
 #include <cmath>
 #include <utility>
 #include <algorithm>
@@ -128,7 +129,7 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
-	static constexpr uint32_t SAVE_VERSION = 19; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 20; // save_state's format; see the history beside it
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -241,7 +242,10 @@ public:
 	uint32_t next_id() const { return next_id_; }
 	void spawn_initial();
 	void spawn_war(int total_units = 2000);
-	void generate_random_map(MapType type = MAP_RANDOM_CONTINENTAL, uint32_t seed = 0, int num_players = 2, float map_half = 64.0f);
+	// teams[i] is player i's 1-based game-setup team (0 = none, nullptr = all none),
+	// for maps that place teams together (Stronghold).
+	void generate_random_map(MapType type = MAP_RANDOM_CONTINENTAL, uint32_t seed = 0, int num_players = 2, float map_half = 64.0f,
+	                         const uint8_t *teams = nullptr);
 
 	// Spawns the owner civ's unit for u_type (or roster template `tmpl`) with its
 	// 0 A.D. stats. hp > 0 overrides the template's health.
@@ -313,12 +317,32 @@ public:
 	bool cmd_cancel_train(uint8_t player, uint32_t building_id, size_t queue_idx);
 	void cmd_set_rally_point(uint8_t player, uint32_t building_id, float rx, float rz, uint32_t res_id = 0, uint32_t bld_id = 0);
 
-	void order_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id);
-	void order_attack(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id);
-	void order_attack_building(const uint32_t *unit_ids, size_t count, uint32_t target_building_id);
-	void order_attack_move(const uint32_t *unit_ids, size_t count, float tx, float tz);
-	void order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz);
-	void order_build_or_repair(const uint32_t *unit_ids, size_t count, uint32_t building_id);
+	// Player orders (0 A.D. Commands.js / UnitAI.js). `queued` is the Shift key: the order
+	// goes to the end of each busy unit's order queue instead of replacing its orders.
+	// Player orders are forced (order.data.force); Petra's cmd_move walks are not, so its
+	// units still turn to fight on the way.
+	void order_walk(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false);
+	void order_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id, bool queued = false);
+	void order_attack(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
+	// allow_capture: capture the structure (0 A.D.'s default right-click) instead of
+	// damaging it (Ctrl). Units that can't capture, or structures that can't be
+	// captured, fall back to damage.
+	void order_attack_building(const uint32_t *unit_ids, size_t count, uint32_t target_building_id,
+			bool queued = false, bool allow_capture = false);
+	// Attack-move (UnitAI WalkAndFight): fight units, then structures unless units_only,
+	// on the way, and carry on to (tx, tz) afterwards.
+	void order_attack_move(const uint32_t *unit_ids, size_t count, float tx, float tz,
+			bool queued = false, bool units_only = false, bool allow_capture = false);
+	void order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false);
+	void order_build_or_repair(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false);
+	// 0 A.D. "delete-entities": kills the player's own units and destroys its own
+	// structures (not ones it holds under half the capture points of).
+	void cmd_delete(uint8_t player, const uint32_t *ids, size_t count);
+	// 0 A.D. "back-to-work" (UnitAI BackToWork): resume the last gather or build order.
+	void order_back_to_work(const uint32_t *unit_ids, size_t count);
+	// The unit's current order and its Shift-queued ones (empty if none).
+	UnitOrder unit_order(uint32_t unit_id) const;
+	const std::vector<UnitOrder> *unit_order_queue(uint32_t unit_id) const;
 	void order_set_stance(const uint32_t *unit_ids, size_t count, uint8_t stance);
 	// 0 A.D. Pack/Unpack command (UnitAI Order.Pack / Order.Unpack): drops the units' current
 	// orders and packs (pack=true) or unpacks them. Units without Pack are ignored.
@@ -326,14 +350,14 @@ public:
 	// Seconds a pack or unpack takes for this unit (0 A.D. Pack/Time).
 	float pack_time_s(size_t unit_idx) const;
 	void order_set_formation(const uint32_t *unit_ids, size_t count, uint8_t formation);
-	void order_garrison(const uint32_t *unit_ids, size_t count, uint32_t building_id);
+	void order_garrison(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false);
 	void order_ungarrison(uint32_t building_id);
 	// GarrisonHolder.HasEnoughHealth: above EjectHealth of max health, so it may hold a garrison.
 	bool structure_has_enough_health(const Building &b) const;
 	// Hitpoints per second each unit garrisoned in `b` regains (BuffHeal plus Living Conditions).
 	float structure_garrison_heal(const Building &b) const;
 	void order_ungarrison_single(uint32_t building_id, uint32_t unit_id);
-	void order_guard(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id);
+	void order_guard(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
 
 	// Livestock & Corrals (Corral.js)
 	void order_herd(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
@@ -885,6 +909,9 @@ private:
 	void tick_pack(float dt);
 	void tick_promotion(float dt);
 	void tick_capture(float dt);
+	// 0 A.D. UnitAI per-unit order logic, before movement: answers attacks (fight back or
+	// flee), returns fighters to their order, turns patrols, follows the order queue.
+	void tick_unit_ai(float dt);
 	void tick_status_effects(float dt);
 	void tick_projectiles(float dt);
 	void tick_construction(float dt);
@@ -1264,6 +1291,32 @@ private:
 	std::vector<CaptureTally> capture_tally_;
 	std::vector<uint32_t> capture_cell_start_;
 	std::vector<CaptureReach> capture_cell_buildings_;
+	// Capture points each player's capture attacks took from each building this tick
+	// (tick_combat fills it, tick_capture spends it). Indexed like buildings_.
+	std::vector<std::array<float, MAX_PLAYERS>> capture_attack_;
+
+	// UnitAI orders (0 A.D. UnitAI.js orderQueue). The current order lives in the unit
+	// SoA; these are the Shift-queued ones after it, by unit id.
+	std::unordered_map<uint32_t, std::vector<UnitOrder>> order_queues_;
+	bool applying_queued_ = false; // set while an order from a queue is applied: keep the rest
+	UnitOrder current_order(size_t i) const;
+	void set_order(size_t i, uint8_t kind, uint8_t flags, uint32_t target, float x, float z);
+	void begin_walk_order(size_t i); // cmd_move's walk: not forced, replaces the queue
+	void drop_orders(size_t i);      // orders UnitAI doesn't model (trade, hunt, board): no order, no queue
+	// Splits a Shift order: busy units get it queued, the rest are returned to run now.
+	// Without Shift every unit's queue is dropped and all of them run it now.
+	std::vector<uint32_t> split_queued(const uint32_t *ids, size_t count, const UnitOrder &o, bool queued);
+	void apply_order(uint32_t uid, const UnitOrder &o);
+	bool order_still_valid(size_t i, const UnitOrder &o) const;
+	void finish_order(size_t i);
+	void resume_order(size_t i);
+	void respond_to_attack(size_t i);
+	uint32_t find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team) const;
+	uint32_t find_nearby_foundation(float x, float z, uint8_t team) const;
+	void apply_rally_point(uint32_t uid, const Building &b);
+	void on_construction_finished(const Building &b, size_t builder);
+	void destroy_building(Building &b);
+	bool can_capture_building(uint8_t player, const Building &b) const;
 
 	// Closed gates this tick: the only movement blockers the nav grid leaves out (0 A.D.
 	// gate Obstruction BlockMovement without BlockPathfinding), so move_units stops units
