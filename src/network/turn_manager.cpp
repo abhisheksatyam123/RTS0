@@ -121,7 +121,8 @@ void TurnManager::reset() {
 	last_game_start_attributes_.clear();
 	pending_diplomacy_.clear();
 	has_applied_diplomacy_ = false;
-	for (int i = 0; i < 8; ++i) last_applied_diplomacy_[i] = 1; // DIPLO_NEUTRAL
+	for (int a = 0; a < 8; ++a)
+		for (int b = 0; b < 8; ++b) last_applied_diplomacy_[a][b] = 1; // DIPLO_NEUTRAL
 	fleet_upkeep_requests_ = 0;
 	fleet_upkeep_paused_ = false;
 	join_sync_round_trips_ = 0;
@@ -187,7 +188,7 @@ void TurnManager::set_net_host(NetHost *net_host, uint32_t client_id) {
 				// payload / out-of-range player_id / invalid stance.
 				DiplomacyMsg dm;
 				if (NetPacketSerializer::parse_diplomacy(msg.payload.data(), msg.payload.size(), dm))
-					this->post_diplomacy(dm.player_id, dm.stance, msg.turn);
+					this->post_diplomacy(dm.actor, dm.player_id, dm.stance, msg.turn);
 			} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_JOIN_SYNC_STATE)) {
 				// One id, two payload shapes (see net_types.h): a 5-byte
 				// ROLE_JOINER request, or an 11-byte ROLE_HOST reply. Try the
@@ -364,8 +365,9 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 
 	// Diplomacy state: include reciprocal stances because shared LOS and
 	// capture eligibility depend on mutual alliance, not only player 0's view.
-	for (size_t i = 0; i < 8; ++i) mix_u8(sim.diplomacy_state()[i]);
-	for (size_t i = 0; i < 8; ++i) mix_u8(sim.diplomacy_reverse_state()[i]);
+	// Every player's own stances: the full 8x8 matrix is simulation state.
+	for (uint8_t a = 0; a < 8; ++a)
+		for (uint8_t b = 0; b < 8; ++b) mix_u8(sim.get_diplomacy(a, b));
 
 	// 4-5. Per-player table: stockpiles, researched techs, phase, civ, team, slot flags
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
@@ -460,12 +462,13 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 // Total order on (turn, player_id, sender_peer_id): a deterministic function of
 // the messages themselves, so two peers that received the same set of stances
 // apply them in the same sequence no matter the arrival order.
-bool TurnManager::post_diplomacy(uint8_t player_id, uint8_t stance, uint32_t origin_turn) {
+bool TurnManager::post_diplomacy(uint8_t actor, uint8_t player_id, uint8_t stance, uint32_t origin_turn) {
 	if (is_replaying_) return false;
-	if (player_id >= 8 || stance > 2) return false;
+	if (actor >= 8 || player_id >= 8 || actor == player_id || stance > 2) return false;
 	const uint32_t target = apply_base_turn_ + current_turn_ + DIPLOMACY_APPLY_DELAY;
 	PendingDiplomacy pd;
 	pd.turn = target;
+	pd.actor = actor;
 	pd.player_id = player_id;
 	pd.stance = stance;
 	pd.sender_peer_id = local_client_id_;
@@ -478,6 +481,8 @@ bool TurnManager::post_diplomacy(uint8_t player_id, uint8_t stance, uint32_t ori
 		const PendingDiplomacy &q = pending_diplomacy_[pos];
 		if (q.turn != pd.turn) {
 			if (q.turn > pd.turn) break;
+		} else if (q.actor != pd.actor) {
+			if (q.actor > pd.actor) break;
 		} else if (q.player_id != pd.player_id) {
 			if (q.player_id > pd.player_id) break;
 		} else if (q.sender_peer_id > pd.sender_peer_id) {
@@ -495,15 +500,17 @@ bool TurnManager::post_diplomacy(uint8_t player_id, uint8_t stance, uint32_t ori
 // was applied lets tests and the hash check see the same value.
 void TurnManager::apply_diplomacy(const std::vector<PendingDiplomacy> &batch, Simulation &sim) {
 	for (const PendingDiplomacy &pd : batch) {
-		if (pd.player_id >= 8) continue;
-		sim.cmd_set_diplomacy(pd.player_id, pd.stance);
-		last_applied_diplomacy_[pd.player_id] = pd.stance;
+		// Each player writes its own row only, and the actor came from the
+		// originating peer, so every peer applies the same stance to the same row.
+		if (pd.player_id >= 8 || pd.actor >= 8 || pd.actor == pd.player_id) continue;
+		sim.cmd_set_diplomacy(pd.actor, pd.player_id, pd.stance);
+		last_applied_diplomacy_[pd.actor][pd.player_id] = pd.stance;
 		has_applied_diplomacy_ = true;
 	}
 }
 
-uint8_t TurnManager::last_applied_diplomacy(uint8_t player_id) const {
-	return (player_id < 8) ? last_applied_diplomacy_[player_id] : (uint8_t)1;
+uint8_t TurnManager::last_applied_diplomacy(uint8_t from, uint8_t target) const {
+	return (from < 8 && target < 8) ? last_applied_diplomacy_[from][target] : (uint8_t)1;
 }
 
 // ---- P3: maintainFleet upkeep (0 A.D. navalManager.js:507-543) --------------
@@ -932,8 +939,9 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			// boundary on EVERY peer (deterministic: diplomacy_state() is mixed into
 			// compute_sim_hash at turn_manager.cpp:213, so a local-only change OOSes).
 			// UI entry: main_node.cpp _on_diplo_stance_changed -> post_lockstep(22, ...).
-			// The sim stores player 0's stances only, so only player 0 may set them.
-			if (pl == 0) sim.cmd_set_diplomacy((uint8_t)c.target_id, c.param);
+			// Every player writes its own row, so cmd_set_diplomacy takes the
+			// issuing player the command was filtered for.
+			sim.cmd_set_diplomacy(pl, (uint8_t)c.target_id, c.param);
 		}
 	}
 

@@ -3611,6 +3611,12 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	for (uint8_t t = 0; t < 4 && t < setup.slot_count; ++t) {
 		if (setup.civs[t] < rtso::CIV_COUNT) sim->set_team_civ(t, setup.civs[t]);
 	}
+	// Seat every slot: Petra runs only for 'a' slots, so a second human in
+	// slot 1 plays their own units instead of sharing them with the AI.
+	for (uint8_t t = 0; t < rtso::MAX_PLAYERS; ++t) {
+		const bool seated = t < setup.slot_count && setup.slot_types[t] != 'x';
+		sim->set_player_active(t, seated, seated && setup.slot_types[t] == 'a');
+	}
 	clear_selection();
 	auto uview = sim->units();
 	for (size_t i = 0; i < uview.count; ++i) {
