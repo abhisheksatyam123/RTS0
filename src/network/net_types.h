@@ -234,14 +234,16 @@ struct GameStartMsg {
 //   "map=<map_id>;seed=<u32>"  (extra keys ignored on parse)
 // Full game setup rides as extra keys (0 A.D. NetServer game-start
 // attributes broadcast before the first turn, NetMessages.h NMT_GAME_START):
-//   victory=<0..3>;diff=<0..5>;behavior=<0..3>;res=<0..3>;
+//   victory=<0..6>;waves=<0|1>;diff=<0..5>;behavior=<0..3>;res=<0..3>;
 //   civ0=<civ>;civ1=<civ>;teams=<t0,t1,...> (+ up to 8 slots: civ2..civ7,
 //   types=<ht,ht,...> with h=human a=ai x=closed, slots count = teams len)
 // Old peers parse map+seed and ignore the rest.
 struct GameSetupParams {
 	std::string map_id;
 	uint32_t seed = 0;
-	uint8_t victory = 0;    // 0 conquest, 1 wonder, 2 relic, 3 endless
+	uint8_t victory = 0;    // rtso::VictoryCondition: 0 conquest, 1 wonder, 2 relic, 3 endless,
+	                        // 4 conquest units, 5 conquest structures, 6 regicide
+	uint8_t waves = 0;      // 1 = legacy wave-defense mode on
 	uint8_t difficulty = 3; // Petra 0..5 sandbox..very hard
 	uint8_t behavior = 2;   // Petra 0..3 random/def/bal/agg
 	uint8_t start_res = 1;  // 0 sparse, 1 normal, 2 generous, 3 abundant
@@ -253,6 +255,7 @@ struct GameSetupParams {
 inline std::string format_game_start_full(const GameSetupParams &p) {
 	std::string s = "map=" + p.map_id + ";seed=" + std::to_string(p.seed);
 	s += ";victory=" + std::to_string((unsigned)p.victory);
+	s += ";waves=" + std::to_string((unsigned)p.waves);
 	s += ";diff=" + std::to_string((unsigned)p.difficulty);
 	s += ";behavior=" + std::to_string((unsigned)p.behavior);
 	s += ";res=" + std::to_string((unsigned)p.start_res);
@@ -313,12 +316,13 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 				out.seed = val;
 				have_seed = true;
 			}
-			else if (k == "victory") { uint8_t x; if (detail::parse_u8(v, 0, 3, x)) out.victory = x; }
+			else if (k == "victory") { uint8_t x; if (detail::parse_u8(v, 0, 6, x)) out.victory = x; }
+			else if (k == "waves") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.waves = x; }
 			else if (k == "diff") { uint8_t x; if (detail::parse_u8(v, 0, 5, x)) out.difficulty = x; }
 			else if (k == "behavior") { uint8_t x; if (detail::parse_u8(v, 0, 3, x)) out.behavior = x; }
 			else if (k == "res") { uint8_t x; if (detail::parse_u8(v, 0, 3, x)) out.start_res = x; }
 			else if (k.size() == 4 && k[0] == 'c' && k[1] == 'i' && k[2] == 'v' && k[3] >= '0' && k[3] <= '7') {
-				uint8_t x; if (detail::parse_u8(v, 0, 12, x)) out.civs[k[3] - '0'] = x;
+				uint8_t x; if (detail::parse_u8(v, 0, 13, x)) out.civs[k[3] - '0'] = x;
 			}
 			else if (k == "types") {
 				for (size_t i = 0; i < v.size() && i < 8; ++i)

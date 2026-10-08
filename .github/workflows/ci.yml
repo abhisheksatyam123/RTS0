@@ -84,6 +84,11 @@ jobs:
           g++ -std=c++20 -O2 -Isrc tools/test_civ_units.cpp src/simulation/simulation.cpp \
             src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o /tmp/test_civ_units
           /tmp/test_civ_units
+      - name: Victory-condition tests
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_victory.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o /tmp/test_victory
+          /tmp/test_victory
 
       - name: Nav parity probe
         run: python3 tools/check_parity.py --unit nav-live

@@ -10,8 +10,11 @@ var player_count: int = 2
 # RtsoMain.get_available_maps(), 0 = randomize at start.
 var map_id: String = "random_continental"
 var seed: int = 0
-# Victory: 0 conquest, 1 wonder, 2 relic, 3 endless.
+# Victory: rtso::VictoryCondition id. 0 conquest, 1 wonder, 2 relic, 3 endless,
+# 4 conquest units, 5 conquest structures, 6 regicide.
 var victory: int = 0
+# Legacy wave-defense mode (enemy waves every 35s). Off for skirmish.
+var waves_enabled: bool = false
 # Petra difficulty 0..5 (sandbox..very hard), behavior 0..3.
 var ai_difficulty: int = 3
 var ai_behavior: int = 2
