@@ -1,0 +1,375 @@
+#ifndef RTSO_SESSION_AUDIO_H
+#define RTSO_SESSION_AUDIO_H
+
+// In-game sound events, ported from 0 A.D. (GPL-2.0-or-later code, CC BY-SA 3.0
+// sounds in assets/audio/):
+// - Sound groups (audio/**/*.xml): a group is every file in its folder with the
+//   group's name prefix, picked at random (RandOrder), with the group's Gain.
+// - Alarms heard by the owner: research done (alarm_techcomplete), new phase
+//   (alarm_phase), victory, defeat, no idle unit, invalid placement, and the
+//   "trained" sound group of template_unit_{infantry,cavalry,support_female_citizen,...}.
+// - Structures: complete_<structure> when building finishes (Foundation.js
+//   PlaySound("constructed")), sel_<structure> when the player selects one.
+// - Unit voices (template_unit_*.xml SoundGroups voice/{lang}/civ/civ_{phenotype}_*):
+//   per unit phenotype (male/female) and the civ's language.
+// - Deaths (actor/human/death, actor/mounted/death), heard where they happen.
+// - BattleDetection (simulation/components/BattleDetection.js) fed with the
+//   damage the player deals to other players, which drives the music state.
+
+#include <godot_cpp/classes/audio_stream_player.hpp>
+#include <godot_cpp/classes/dir_access.hpp>
+#include <godot_cpp/classes/node.hpp>
+#include <godot_cpp/core/memory.hpp>
+#include <godot_cpp/variant/packed_string_array.hpp>
+
+#include <cmath>
+#include <cstdint>
+#include <functional>
+#include <random>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+
+#include "../simulation/simulation.h"
+#include "../simulation/tech_data.h"
+#include "attack_detection.h"
+#include "music_manager.h" // load_audio
+
+namespace rtso {
+
+inline const char *kAudioRoot = "res://assets/audio/";
+
+// Every .ogg in assets/audio/<dir>/ whose name starts with prefix (a sound group).
+inline const std::vector<godot::String> &sound_group(const char *dir, const char *prefix) {
+	static std::unordered_map<std::string, std::vector<godot::String>> cache;
+	const std::string key = std::string(dir) + "|" + prefix;
+	auto it = cache.find(key);
+	if (it != cache.end()) return it->second;
+	std::vector<godot::String> &out = cache[key];
+	const godot::String folder = godot::String(kAudioRoot) + dir + "/";
+	const godot::String pre = godot::String(prefix).to_lower();
+	godot::PackedStringArray files = godot::DirAccess::get_files_at(folder);
+	for (int i = 0; i < files.size(); ++i) {
+		godot::String f = files[i];
+		if (f.ends_with(".import")) f = f.substr(0, f.length() - 7); // exported builds list imports
+		if (!f.ends_with(".ogg") || !f.to_lower().begins_with(pre)) continue;
+		const godot::String p = folder + f;
+		bool dup = false;
+		for (const auto &e : out) dup = dup || e == p;
+		if (!dup) out.push_back(p);
+	}
+	return out;
+}
+
+// Template Identity/Lang -> voice folder. Civs whose language isn't in
+// assets/audio/voice/ (punic, celtic, iberian, sanskrit, chinese) borrow the
+// nearest one RTS0 ships.
+inline const char *voice_language(uint8_t civ) {
+	switch (civ) {
+		case CIV_ROMANS: case CIV_BRITONS: case CIV_GAULS: case CIV_IBERIANS: return "latin";
+		case CIV_PERSIANS: case CIV_CARTHAGINIANS: case CIV_MAURYANS: case CIV_HAN: return "persian";
+		case CIV_KUSHITES: return "napatan";
+		default: return "greek";
+	}
+}
+
+enum class VoiceKind : uint8_t { NONE, MALE, FEMALE, DOG, HORSE, ELEPHANT };
+
+// Phenotype of a unit type: template_unit_support_female_citizen and archer
+// maidens are female; siege, ships and traders have no voice in 0 A.D.
+inline VoiceKind voice_kind(uint8_t unit_type) {
+	switch (unit_type) {
+		case UNIT_FEMALE_CITIZEN: case UNIT_ARCHER_MAIDEN: return VoiceKind::FEMALE;
+		case UNIT_CATAPULT: case UNIT_SIEGE_RAM: case UNIT_BOLT_SHOOTER: case UNIT_TRIREME:
+		case UNIT_FISHING_BOAT: case UNIT_MERCHANT_SHIP: return VoiceKind::NONE;
+		case UNIT_WAR_DOG: return VoiceKind::DOG;
+		case UNIT_WORKER_ELEPHANT: return VoiceKind::ELEPHANT;
+		default: return VoiceKind::MALE;
+	}
+}
+
+// 0 A.D. voice sound group names (select, order_walk, order_attack, ...) mapped
+// to the line stems each language folder has, most specific first.
+inline const std::vector<const char *> &voice_stems(const std::string &action) {
+	static const std::unordered_map<std::string, std::vector<const char *>> m = {
+		{"select", {"what_is_it", "hello", "my_lord", "my_king", "yes", "ready", "your_soldier", "Asyouwish"}},
+		{"move", {"walk", "march", "forward", "I_will_go", "Imcoming", "by_your_order", "yes"}},
+		{"attack", {"attack", "go_out_against", "fight", "to_war"}},
+		{"build", {"build"}},
+		{"repair", {"repair", "build"}},
+		{"gather", {"gather", "work_land", "gather_together", "wood", "mine"}},
+		{"farm", {"work_land", "gather"}},
+		{"fish", {"fish", "gather"}},
+		{"hunt", {"hunt", "gather"}},
+		{"herd", {"herd", "gather"}},
+		{"garrison", {"garrison"}},
+		{"heal", {"heal"}},
+		{"retreat", {"retreat", "walk"}},
+		{"trained", {"ready", "yes", "my_lord", "what_is_it", "hello"}},
+	};
+	static const std::vector<const char *> none;
+	auto it = m.find(action);
+	return it == m.end() ? none : it->second;
+}
+
+class RtsoSessionAudio {
+public:
+	using SpatialFn = std::function<void(const godot::Ref<godot::AudioStream> &, godot::Vector3, float)>;
+
+	void build(godot::Node *parent) {
+		for (auto &p : pool_) {
+			p = memnew(godot::AudioStreamPlayer);
+			parent->add_child(p);
+		}
+		rng_.seed(std::random_device{}());
+	}
+	void set_spatial(SpatialFn fn) { spatial_ = std::move(fn); }
+
+	// Plays a random member of a sound group, omnipresent (0 A.D. Omnipresent /
+	// Distanceless sound groups). gain is the group's linear Gain.
+	bool play_group(const char *dir, const char *prefix, float gain = 1.0f) {
+		const auto &g = sound_group(dir, prefix);
+		if (g.empty()) return false;
+		return play_path(g[rng_() % g.size()], gain);
+	}
+
+	bool play_path(const godot::String &path, float gain = 1.0f) {
+		godot::Ref<godot::AudioStream> s = stream(path);
+		if (s.is_null()) return false;
+		godot::AudioStreamPlayer *p = pool_[next_++ % kPool];
+		if (!p) return false;
+		p->set_stream(s);
+		p->set_volume_db(gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f);
+		p->play();
+		last_played_ = path;
+		return true;
+	}
+
+	// The unit's own voice line for a 0 A.D. sound group (select, order_*,
+	// trained). One voice at a time, like 0 A.D.'s Priority-ordered voice.
+	bool play_voice(uint8_t civ, uint8_t unit_type, const std::string &action) {
+		const VoiceKind kind = voice_kind(unit_type);
+		if (kind == VoiceKind::NONE) return false;
+		if (kind == VoiceKind::DOG) return play_group("voice/global", action == "select" ? "civ_dog_bark" : "civ_dog_move", 0.8f);
+		if (kind == VoiceKind::HORSE || kind == VoiceKind::ELEPHANT) {
+			const char *pre = action == "select" ? "elephant_select" : action == "attack" ? "elephant_attack" : "elephant_order";
+			return play_group("actor/fauna/animal", pre, 0.8f);
+		}
+		const std::string dir = std::string("voice/") + voice_language(civ) + "/civ";
+		const char *sex = kind == VoiceKind::FEMALE ? "civ_female_" : "civ_male_";
+		for (const char *stem : voice_stems(action)) {
+			const std::string pre = std::string(sex) + stem + "_";
+			if (play_group(dir.c_str(), pre.c_str(), 1.0f)) return true;
+		}
+		// A language without this phenotype's line: borrow the other phenotype's,
+		// then Greek's (the fullest set).
+		const char *other = kind == VoiceKind::FEMALE ? "civ_male_" : "civ_female_";
+		for (const char *stem : voice_stems(action))
+			if (play_group(dir.c_str(), (std::string(other) + stem + "_").c_str(), 1.0f)) return true;
+		if (std::string(voice_language(civ)) != "greek")
+			for (const char *stem : voice_stems(action))
+				if (play_group("voice/greek/civ", (std::string(sex) + stem + "_").c_str(), 1.0f)) return true;
+		return false;
+	}
+
+	// sel_<structure> (interface/select/building).
+	void play_building_select(uint8_t type) { play_group("interface/select/building", building_sound_name(type, true), 1.0f); }
+
+	// alarm_victory / alarm_defeated.
+	void play_victory() { play_group("interface/alarm", "alarmvictory", 1.0f); }
+	void play_defeat() { play_group("interface/alarm", "alarmdefeat", 1.0f); }
+	void play_no_idle_unit() { play_group("interface/alarm", "alarm_no_idle_unit", 1.0f); }
+	void play_invalid_placement() { play_group("interface/alarm", "alarm_invalid_building_placement", 0.3f); }
+
+	// Diffs the world each frame for events 0 A.D. sends as messages: structures
+	// finished, techs researched, units trained and units killed. Feeds
+	// BattleDetection with the damage `me` deals to other players.
+	void tick(const Simulation *sim, uint8_t me, double t, bool voices_on) {
+		if (!sim) return;
+		if (me != seat_) {
+			seat_ = me;
+			primed_ = false;
+			known_.clear();
+			battle_ = BattleDetection();
+		}
+		const bool fire = primed_; // the first frame of a seat only takes a snapshot
+
+		// Structures finished (owner hears complete_<structure>).
+		std::unordered_map<uint32_t, float> progress;
+		for (const auto &b : sim->buildings()) {
+			if (b.wrecked) continue;
+			if (b.team == me) {
+				progress[b.id] = b.build_progress;
+				auto it = bld_progress_.find(b.id);
+				if (fire && it != bld_progress_.end() && it->second < 1.0f && b.build_progress >= 1.0f)
+					play_group("interface/complete/building", building_sound_name(b.type, false), 1.0f);
+			}
+		}
+		bld_progress_.swap(progress);
+
+		// Techs: phases use alarm_phase, everything else alarm_techcomplete (Gain 0.25).
+		const auto &ps = sim->player(me);
+		for (uint8_t tech = 1; tech < TECH_COUNT; ++tech) {
+			const bool has = ps.has_tech(tech);
+			if (has && !techs_[tech] && fire) {
+				if (tech == TECH_PHASE_TOWN || tech == TECH_PHASE_CITY) play_group("interface/alarm", "alarmresearchphase", 1.0f);
+				else play_group("interface/alarm", "alarmresearchtech", 0.25f);
+			}
+			techs_[tech] = has;
+		}
+
+		// Units: trained (new own units), deaths (visible), damage dealt by me.
+		auto uv = sim->units();
+		std::unordered_map<uint32_t, Seen> seen;
+		seen.reserve(seen_.size() + 8);
+		int deaths = 0;
+		for (size_t i = 0; i < uv.count; ++i) {
+			const uint32_t id = uv.id[i];
+			auto prev = seen_.find(id);
+			if (!uv.alive[i]) {
+				// Garrisoned units are not alive either, but keep their health.
+				if (prev != seen_.end() && uv.hp[i] <= 0.0f && fire && deaths < 3) {
+					++deaths;
+					play_death(sim, me, uv.unit_type[i], uv.team[i], uv.pos_x[i], uv.pos_z[i]);
+				}
+				if (uv.hp[i] > 0.0f) known_.insert(id);
+				continue;
+			}
+			seen[id] = {uv.hp[i], uv.unit_type[i], uv.team[i]};
+			if (prev == seen_.end()) {
+				if (!known_.insert(id).second) continue; // back out of a garrison
+				if (fire && uv.team[i] == me && !trained_this_frame_) {
+					trained_this_frame_ = true;
+					play_trained(sim->player_civ(me), uv.unit_type[i], voices_on);
+				}
+				continue;
+			}
+			// Damage to another (non-Gaia) player's unit near one of mine.
+			if (uv.hp[i] < prev->second.hp && uv.team[i] != me && uv.team[i] != GAIA_PLAYER &&
+					sim->is_hostile(me, uv.team[i]) && mine_near(uv, me, uv.pos_x[i], uv.pos_z[i]))
+				battle_.add_damage(prev->second.hp - uv.hp[i], t);
+		}
+		seen_.swap(seen);
+		trained_this_frame_ = false;
+		battle_.update(t);
+		primed_ = true;
+	}
+
+	bool in_battle() const { return battle_.in_battle(); }
+	godot::String last_played() const { return last_played_; }
+
+	static const char *building_sound_name(uint8_t type, bool select) {
+		const char *n = "universal";
+		switch (type) {
+			case BLD_TOWN_CENTER: n = "civ_center"; break;
+			case BLD_HOUSE: n = "house"; break;
+			case BLD_BARRACKS: n = "barracks"; break;
+			case BLD_STOREHOUSE: n = "storehouse"; break;
+			case BLD_TOWER: case BLD_SENTRY_TOWER: case BLD_OUTPOST: n = "tower"; break;
+			case BLD_FARMSTEAD: n = "farmstead"; break;
+			case BLD_MARKET: n = "market"; break;
+			case BLD_FORTRESS: n = "fortress"; break;
+			case BLD_GATE: n = "gate"; break;
+			case BLD_TEMPLE: n = "temple"; break;
+			case BLD_WONDER: n = "wonder"; break;
+			case BLD_DOCK: n = "dock"; break;
+			case BLD_WALL_SEGMENT: case BLD_PALISADE: case BLD_WALL_TOWER: n = "wall"; break;
+			case BLD_CORRAL: n = "corral"; break;
+			case BLD_FIELD: n = "field"; break;
+			case BLD_STABLE: n = "stable"; break;
+			case BLD_RANGE: n = select ? "universal" : "range"; break;
+			case BLD_FORGE: n = "forge"; break;
+			case BLD_ELEPHANT_STABLE: n = "elephant_stable"; break;
+			case BLD_THEATER: n = "theater"; break;
+			default: break;
+		}
+		static thread_local std::string s;
+		s = std::string(select ? "sel_" : "complete_") + n;
+		return s.c_str();
+	}
+
+private:
+	struct Seen {
+		float hp;
+		uint8_t type, team;
+	};
+	static constexpr int kPool = 8;
+
+	godot::Ref<godot::AudioStream> stream(const godot::String &path) {
+		const std::string key = path.utf8().get_data();
+		auto it = streams_.find(key);
+		if (it != streams_.end()) return it->second;
+		godot::Ref<godot::AudioStream> s = load_audio(path);
+		streams_[key] = s;
+		return s;
+	}
+
+	static bool mine_near(const Simulation::UnitView &uv, uint8_t me, float x, float z) {
+		constexpr float kReach2 = 30.0f * 30.0f; // longest RTS0 attack reach plus a margin
+		for (size_t j = 0; j < uv.count; ++j) {
+			if (!uv.alive[j] || uv.team[j] != me) continue;
+			const float dx = uv.pos_x[j] - x, dz = uv.pos_z[j] - z;
+			if (dx * dx + dz * dz < kReach2) return true;
+		}
+		return false;
+	}
+
+	// template_unit_*.xml <trained>: alarm_create_{infantry,cav,female,worker,priest,warship}.
+	void play_trained(uint8_t civ, uint8_t type, bool voices_on) {
+		switch (type) {
+			case UNIT_FEMALE_CITIZEN: play_group("interface/alarm", "alarmcreatefemale", 1.0f); break;
+			case UNIT_VILLAGER: play_group("interface/alarm", "alarmcreateworker", 1.0f); break;
+			case UNIT_CAVALRY: case UNIT_CAMEL: case UNIT_CHARIOT: case UNIT_SCYTHED_CHARIOT: case UNIT_ELEPHANT:
+				play_group("interface/alarm", "alarmcreatecavalry", 1.0f);
+				break;
+			case UNIT_HEALER: play_group("interface/alarm", "alarmcreatepriest", 1.0f); break;
+			case UNIT_TRIREME: case UNIT_FISHING_BOAT: case UNIT_MERCHANT_SHIP:
+				play_group("interface/alarm", "alarm_warship", 1.0f);
+				break;
+			default: play_group("actor/singlesteps", "fs_gravel", 1.0f); break;
+		}
+		if (voices_on) play_voice(civ, type, "trained");
+	}
+
+	void play_death(const Simulation *sim, uint8_t me, uint8_t type, uint8_t team, float x, float z) {
+		if (!spatial_ || !sim->is_entity_visible_to_viewer(x, z, team, me)) return;
+		const char *dir = "actor/human/death", *pre = "male_death";
+		switch (voice_kind(type)) {
+			case VoiceKind::FEMALE: pre = "female_death"; break;
+			case VoiceKind::NONE: return; // siege and ships break apart (world view plays those)
+			case VoiceKind::ELEPHANT: dir = "actor/fauna/animal"; pre = "elephant_death"; break;
+			default:
+				if (type == UNIT_CAVALRY || type == UNIT_CAMEL || type == UNIT_CHARIOT) {
+					dir = "actor/mounted/death";
+					pre = "death_horse";
+				} else if (type == UNIT_ELEPHANT) {
+					dir = "actor/fauna/animal";
+					pre = "elephant_death";
+				}
+		}
+		const auto &g = sound_group(dir, pre);
+		if (g.empty()) return;
+		godot::Ref<godot::AudioStream> s = stream(g[rng_() % g.size()]);
+		if (s.is_valid()) spatial_(s, godot::Vector3(x, 0.5f, z), -3.0f);
+	}
+
+	godot::AudioStreamPlayer *pool_[kPool] = {};
+	unsigned next_ = 0;
+	std::unordered_map<std::string, godot::Ref<godot::AudioStream>> streams_;
+	std::unordered_map<uint32_t, float> bld_progress_;
+	std::unordered_map<uint32_t, Seen> seen_;
+	std::unordered_set<uint32_t> known_;
+	bool techs_[256] = {};
+	uint8_t seat_ = 0xFF;
+	bool primed_ = false;
+	bool trained_this_frame_ = false;
+	BattleDetection battle_;
+	SpatialFn spatial_;
+	std::mt19937 rng_;
+	godot::String last_played_;
+};
+
+} // namespace rtso
+
+#endif

@@ -820,7 +820,8 @@
    "specific_name": "Epílektos",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_GYMNASIUM"
    ],
    "trained_at_0ad": [
     "gymnasium"
@@ -871,7 +872,8 @@
    "specific_name": "Epibátēs Athēnaîos",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_GYMNASIUM"
    ],
    "trained_at_0ad": [
     "gymnasium"
@@ -973,7 +975,8 @@
    "specific_name": "Toxótēs Skythikós",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_GYMNASIUM"
    ],
    "trained_at_0ad": [
     "gymnasium"
@@ -1077,7 +1080,8 @@
    "specific_name": "Iphikratēs",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_PRYTANEION"
    ],
    "trained_at_0ad": [
     "prytaneion"
@@ -1132,7 +1136,8 @@
    "specific_name": "Periklēs",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_PRYTANEION"
    ],
    "trained_at_0ad": [
     "prytaneion"
@@ -1186,7 +1191,8 @@
    "specific_name": "Themistoklēs",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_PRYTANEION"
    ],
    "trained_at_0ad": [
     "prytaneion"
@@ -2255,7 +2261,8 @@
    "specific_name": "Spartiátēs",
    "phase": 1,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_SYSSITON"
    ],
    "trained_at_0ad": [
     "syssiton"
@@ -2360,7 +2367,8 @@
    "specific_name": "Agis",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_SYSSITON"
    ],
    "trained_at_0ad": [
     "syssiton"
@@ -2414,7 +2422,8 @@
    "specific_name": "Brasidas",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_SYSSITON"
    ],
    "trained_at_0ad": [
     "syssiton"
@@ -2467,7 +2476,8 @@
    "specific_name": "Leōnidēs",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_SYSSITON"
    ],
    "trained_at_0ad": [
     "syssiton"
@@ -3732,7 +3742,8 @@
    "specific_name": "Kuruš",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_TACHARA"
    ],
    "trained_at_0ad": [
     "tachara",
@@ -3790,7 +3801,8 @@
    "specific_name": "Dārayavahuš",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_TACHARA"
    ],
    "trained_at_0ad": [
     "tachara",
@@ -3850,7 +3862,8 @@
    "specific_name": "Xšayāršā",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_TACHARA"
    ],
    "trained_at_0ad": [
     "tachara",
@@ -4759,7 +4772,8 @@
    "specific_name": "Hoplomachus",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_AMPHITHEATER"
    ],
    "trained_at_0ad": [
     "amphitheater_pompeii"
@@ -4814,7 +4828,8 @@
    "specific_name": "Murmillo",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_AMPHITHEATER"
    ],
    "trained_at_0ad": [
     "amphitheater_pompeii"
@@ -5194,7 +5209,8 @@
    "phase": 3,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_ARMY_CAMP"
    ],
    "trained_at_0ad": [
     "army_camp",
@@ -5251,7 +5267,8 @@
    "specific_name": "Triārius",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_ARMY_CAMP"
    ],
    "trained_at_0ad": [
     "army_camp"
@@ -5359,7 +5376,8 @@
    "specific_name": "Hastātus",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_ARMY_CAMP"
    ],
    "trained_at_0ad": [
     "army_camp"
@@ -5851,7 +5869,8 @@
    "phase": 3,
    "trainers": [
     "BLD_BARRACKS",
-    "BLD_FORTRESS"
+    "BLD_FORTRESS",
+    "BLD_ARMY_CAMP"
    ],
    "trained_at_0ad": [
     "army_camp",
@@ -10135,7 +10154,8 @@
    "specific_name": "Agrocuna",
    "phase": 1,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_KENNEL"
    ],
    "trained_at_0ad": [
     "kennel"
@@ -10492,7 +10512,8 @@
    "specific_name": "Carnucos",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_ASSEMBLY"
    ],
    "trained_at_0ad": [
     "assembly"
@@ -10543,7 +10564,8 @@
    "specific_name": "Brennos",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_ASSEMBLY"
    ],
    "trained_at_0ad": [
     "assembly"
@@ -10596,7 +10618,8 @@
    "specific_name": "Uercingetorix",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_ASSEMBLY"
    ],
    "trained_at_0ad": [
     "assembly"
@@ -10650,7 +10673,8 @@
    "specific_name": "Britomaros",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_ASSEMBLY"
    ],
    "trained_at_0ad": [
     "assembly"
@@ -12767,7 +12791,8 @@
    "specific_name": "Visha Kanya",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_PALACE"
    ],
    "trained_at_0ad": [
     "palace"
@@ -12818,7 +12843,8 @@
    "specific_name": "Visha Kanya",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_PALACE"
    ],
    "trained_at_0ad": [
     "palace"
@@ -12925,7 +12951,8 @@
    "specific_name": "Aśoka Devānāmpriya",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_PALACE"
    ],
    "trained_at_0ad": [
     "palace"
@@ -12982,7 +13009,8 @@
    "specific_name": "Acharya Chāṇakya",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_PALACE"
    ],
    "trained_at_0ad": [
     "palace"
@@ -13034,7 +13062,8 @@
    "specific_name": "Chandragupta Maurya",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_PALACE"
    ],
    "trained_at_0ad": [
     "palace"
@@ -15316,7 +15345,9 @@
    "phase": 2,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP",
+    "BLD_MILITARY_COLONY"
    ],
    "trained_at_0ad": [
     "mercenary_camp",
@@ -15374,7 +15405,9 @@
    "phase": 2,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP",
+    "BLD_MILITARY_COLONY"
    ],
    "trained_at_0ad": [
     "mercenary_camp",
@@ -15533,7 +15566,8 @@
    "specific_name": "Phalangitès Agema",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
@@ -15749,7 +15783,8 @@
    "specific_name": "Toxótēs Krētikós",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
@@ -15808,7 +15843,8 @@
    "specific_name": "Thureophóros Akrobolistḗs",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
@@ -15868,7 +15904,8 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
@@ -15925,7 +15962,8 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
@@ -15984,7 +16022,9 @@
    "phase": 2,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP",
+    "BLD_MILITARY_COLONY"
    ],
    "trained_at_0ad": [
     "mercenary_camp",
@@ -16042,7 +16082,9 @@
    "phase": 2,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP",
+    "BLD_MILITARY_COLONY"
    ],
    "trained_at_0ad": [
     "mercenary_camp",
@@ -16569,7 +16611,8 @@
    "specific_name": "Gýnē Aigýptia",
    "phase": 1,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_MILITARY_COLONY"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -16916,7 +16959,8 @@
    "specific_name": "Hippos Hetairike",
    "phase": 2,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_MILITARY_COLONY"
    ],
    "trained_at_0ad": [
     "military_colony"
@@ -17391,7 +17435,8 @@
    "specific_name": "Toxótēs Syrías",
    "phase": 2,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_MILITARY_COLONY"
    ],
    "trained_at_0ad": [
     "military_colony"
@@ -17616,7 +17661,8 @@
    "specific_name": "Rhomphaiaphoros Thrakikós",
    "phase": 2,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_MILITARY_COLONY"
    ],
    "trained_at_0ad": [
     "military_colony"
@@ -18094,7 +18140,8 @@
    "specific_name": "Syrías Gýnē",
    "phase": 1,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_MILITARY_COLONY"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -18494,7 +18541,8 @@
    "specific_name": "Wu Wei Yin Cao Cao Guard",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_ACADEMY"
    ],
    "trained_at_0ad": [
     "academy"
@@ -18546,7 +18594,8 @@
    "specific_name": "Zhanche",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_ACADEMY"
    ],
    "trained_at_0ad": [
     "academy"
@@ -18600,7 +18649,8 @@
    "specific_name": "Juezhang",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_ACADEMY"
    ],
    "trained_at_0ad": [
     "academy"
@@ -18652,7 +18702,8 @@
    "specific_name": "Hǔ Bēn",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_ACADEMY"
    ],
    "trained_at_0ad": [
     "academy"

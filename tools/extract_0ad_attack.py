@@ -69,6 +69,27 @@ BUILDINGS = [
     ("BLD_ELEPHANT_STABLE", "template_structure_military_elephant_stable"),
     ("BLD_THEATER", "template_structure_special_theater"),
     ("BLD_EMBASSY", "template_structure_military_embassy"),
+    # Civ-specific structures (civ_building_data.h, extract_0ad_rosters.py)
+    ("BLD_GYMNASIUM", "structures/athen/gymnasium"),
+    ("BLD_PRYTANEION", "structures/athen/prytaneion"),
+    ("BLD_GEROUSIA", "structures/spart/gerousia"),
+    ("BLD_SYSSITON", "structures/spart/syssiton"),
+    ("BLD_TACHARA", "structures/pers/tachara"),
+    ("BLD_ARMY_CAMP", "structures/rome/army_camp"),
+    ("BLD_AMPHITHEATER", "structures/rome/amphitheater_pompeii"),
+    ("BLD_LIBRARY", "structures/mace/library"),
+    ("BLD_KENNEL", "structures/brit/kennel"),
+    ("BLD_ASSEMBLY", "structures/gaul/assembly"),
+    ("BLD_MONUMENT", "structures/iber/monument"),
+    ("BLD_PALACE", "structures/maur/palace"),
+    ("BLD_PILLAR", "structures/maur/pillar_ashoka"),
+    ("BLD_PYRAMID_LARGE", "structures/kush/pyramid_large"),
+    ("BLD_PYRAMID_SMALL", "structures/kush/pyramid_small"),
+    ("BLD_MERCENARY_CAMP", "structures/ptol/mercenary_camp"),
+    ("BLD_LIGHTHOUSE", "structures/ptol/lighthouse"),
+    ("BLD_MILITARY_COLONY", "structures/ptol/military_colony"),
+    ("BLD_ACADEMY", "structures/han/academy"),
+    ("BLD_MINISTRY", "structures/han/ministry"),
 ]
 
 MAX_BONUSES = 4
@@ -135,10 +156,16 @@ def collect(sim_root):
     return units, generic, buildings
 
 
+# Classes RTS0 code tests directly (aura filters, structure checks), kept even when
+# no attack names them.
+CODE_CLASSES = {"Human", "Organic", "Soldier", "Structure", "Unit"}
+
+
 def class_list(units, generic, buildings):
-    names = set()
+    """Only the classes some attack's RestrictedClasses or Bonuses name (plus
+    CODE_CLASSES): a class nothing tests never changes a result."""
+    names = set(CODE_CLASSES)
     for row in [r for _, r in units] + [r for _, _, r in generic] + [r for _, _, r in buildings]:
-        names.update(row["classes"])
         names.update(row["attack"]["restricted"])
         for classes, _m, _c in row["attack"]["bonuses"]:
             names.update(classes)
@@ -151,6 +178,8 @@ def class_list(units, generic, buildings):
 def mask(names, index):
     lo = hi = 0
     for n in names:
+        if n not in index:
+            continue  # a class no attack tests
         i = index[n]
         if i < 64:
             lo |= 1 << i
