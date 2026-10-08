@@ -25,6 +25,15 @@ uniform sampler2D territory_map : hint_default_black;
 uniform sampler2D los_tex : hint_default_white, filter_linear, repeat_disable;
 uniform float los_map_half = 0.0;
 
+// Painted ground, as 0 A.D. random maps paint tiles (rmbiome shore and
+// forestFloor terrains, dirt under mines). paint_tex: g = forest floor,
+// b = mine dirt, per terrain cell; the shore follows the water level.
+uniform sampler2D shore_tex : hint_default_white, filter_linear_mipmap, repeat_enable;
+uniform sampler2D forest_tex : hint_default_white, filter_linear_mipmap, repeat_enable;
+uniform sampler2D paint_tex : hint_default_black, filter_linear, repeat_disable;
+uniform float paint_half = 0.0;
+uniform float water_level = -1000.0;
+
 varying vec2 v_uv;
 varying vec3 v_world_pos;
 varying vec3 v_world_normal;
@@ -81,6 +90,23 @@ void fragment() {
 
 	// Composite albedo
 	vec3 final_color = grass_sample * grass_weight + dirt_sample * dirt_weight + rock_sample * rock_weight;
+
+	// Painted tiles go under cliffs: rock keeps its share.
+	float ground = 1.0 - rock_weight;
+	if (paint_half > 0.0) {
+		vec3 paint = texture(paint_tex, (v_world_pos.xz + vec2(paint_half)) / (2.0 * paint_half)).rgb;
+		float fw = smoothstep(0.15, 0.85, paint.g + (noise_splat - 0.5) * 0.5) * ground;
+		vec3 forest_sample = texture(forest_tex, uv * 1.4).rgb;
+		final_color = mix(final_color, forest_sample, fw);
+		float mw = smoothstep(0.2, 0.9, paint.b + (noise_splat - 0.5) * 0.4) * ground;
+		final_color = mix(final_color, dirt_sample, mw);
+	}
+	if (water_level > -999.0) {
+		float shore_h = v_height + (noise_splat - 0.5) * 0.8;
+		float sw = (1.0 - smoothstep(water_level + 0.3, water_level + 1.4, shore_h)) * (1.0 - cliff_weight * 0.7);
+		vec3 shore_sample = texture(shore_tex, uv * 1.6).rgb;
+		final_color = mix(final_color, shore_sample, sw);
+	}
 
 	// Optional territory border overlay if enabled
 	if (territory_strength > 0.001) {
