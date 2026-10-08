@@ -76,7 +76,16 @@ bool TurnManager::turn_ready(uint32_t turn) {
 	return true;
 }
 
+void TurnManager::assign_slot_players(const GameSetupParams &setup) {
+	client_player_.clear();
+	uint32_t client = 0;
+	for (uint8_t slot = 0; slot < setup.slot_count && slot < 8; ++slot)
+		if (setup.slot_types[slot] == 'h') client_player_[client++] = slot;
+	for (; client < 8; ++client) client_player_[client] = 0xFF;
+}
+
 void TurnManager::reset() {
+	client_player_.clear();
 	current_turn_ = 0;
 	turn_timer_ = 0.0f;
 	pending_local_cmds_.clear();

@@ -532,6 +532,12 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
     // NMT_GAME_START (exercised separately by the legacy GameStart test).
     tm.mark_game_started(&sim);
     tm.set_lockstep_peers({0u, 1u});
+    // Two human slots, seated as the game does from NMT_GAME_START: host plays
+    // player 0, joiner player 1, on opposing teams.
+    GameSetupParams seats;
+    seats.slot_types[0] = 'h';
+    seats.slot_types[1] = 'h';
+    tm.assign_slot_players(seats);
 
     FILE *log = std::fopen(log_path, "w");
     if (!log) { std::fprintf(stderr, "[net-peer] cannot open %s\n", log_path); return 3; }

@@ -3454,9 +3454,22 @@ void RtsoMain::_on_lobby_start_pressed() {
 	if (setup.difficulty > 5) setup.difficulty = sim->petra_difficulty();
 	if (setup.behavior > 3) setup.behavior = sim->petra_behavior();
 	if (setup.start_res > 3) setup.start_res = 1;
-	apply_game_setup(setup);
+	// Every connected joiner needs a human slot to play: if the lobby left too
+	// few, turn the first AI slots into human ones (before broadcast, so both
+	// peers seat players identically in assign_slot_players).
+	{
+		int need = 1;
+		for (const auto &p : net_host_.getPeers())
+			if (p.connected && !p.is_observer) ++need;
+		for (uint8_t i = 0; i < setup.slot_count; ++i)
+			if (setup.slot_types[i] == 'h') --need;
+		for (uint8_t i = 0; i < setup.slot_count && need > 0; ++i)
+			if (setup.slot_types[i] == 'a') { setup.slot_types[i] = 'h'; --need; }
+	}
 	turn_mgr_.reset();
 	turn_mgr_.set_net_host(&net_host_, 0);
+	turn_mgr_.assign_slot_players(setup);
+	apply_game_setup(setup);
 	turn_mgr_.set_game_start_applied_sim(sim);
 	turn_mgr_.mark_game_started(sim);
 	net_host_.note_game_start_sent();
@@ -3526,9 +3539,13 @@ void RtsoMain::apply_net_game_start() {
 	turn_mgr_.set_game_start_applied_sim(sim);
 	rtso::GameSetupParams setup;
 	if (!turn_mgr_.take_pending_game_start_full(setup)) return;
-	apply_game_setup(setup);
 	turn_mgr_.reset_keep_inbound(); // host batches can arrive in the same poll as GAME_START
-	turn_mgr_.set_net_host(&net_host_, net_host_.isHost() ? 0 : 1);
+	// The host numbers joiners 1, 2, ... in connect order; that id is our client id.
+	uint32_t my_client = 0;
+	if (!net_host_.isHost()) my_client = net_host_.getLocalPeerId() ? net_host_.getLocalPeerId() : 1;
+	turn_mgr_.set_net_host(&net_host_, my_client);
+	turn_mgr_.assign_slot_players(setup);
+	apply_game_setup(setup); // after seating, so it selects the local player's units
 	turn_mgr_.set_game_start_applied_sim(sim);
 	turn_mgr_.note_game_start_applied(sim);
 	net_game_started_ = true;
