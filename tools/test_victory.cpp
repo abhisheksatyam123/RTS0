@@ -159,6 +159,25 @@ int main() {
 		delete sim;
 	}
 
+	// 9b. Players who start with units but no buildings are alive in Conquest, and in
+	// Regicide they still get a hero.
+	for (VictoryCondition vc : {VICTORY_CONQUEST, VICTORY_REGICIDE}) {
+		Simulation sim;
+		sim.reset();
+		sim.set_victory_condition(vc);
+		sim.spawn_building(0, 0, BLD_TOWN_CENTER, 0, 1.0f);
+		sim.spawn_unit(3.0f, 3.0f, 0, UNIT_VILLAGER);
+		sim.spawn_unit(-40.0f, 40.0f, 2, UNIT_SWORDSMAN);
+		sim.spawn_unit(-35.0f, 40.0f, 3, UNIT_SWORDSMAN);
+		sim.record_.enemies_killed = 1;
+		run(sim, 2.0f);
+		CHECK(!sim.is_game_over() && !sim.is_victory());
+		int heroes = 0;
+		for (size_t i = 0; i < sim.units_.count; ++i)
+			if (sim.units_.alive[i] && sim.units_.unit_type[i] == UNIT_HERO && sim.units_.team[i] >= 2) heroes++;
+		CHECK(vc != VICTORY_REGICIDE || heroes == 2);
+	}
+
 	// 10. Victory condition and wave mode reach the joining peer in NMT_GAME_START.
 	{
 		GameSetupParams p;

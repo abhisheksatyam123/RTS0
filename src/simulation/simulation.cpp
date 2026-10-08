@@ -4013,13 +4013,20 @@ void Simulation::check_victory_conditions(float dt) {
 }
 
 void Simulation::spawn_regicide_heroes() {
-	// Regicide.js: every player gets a hero next to their first Town Center at match start.
+	// Regicide.js: every player gets a hero next to their first Town Center at match start,
+	// or next to their first unit if they start without one (nomad-style starts).
 	bool done[8] = {};
 	std::vector<std::pair<uint8_t, std::pair<float, float>>> spots;
 	for (const auto &b : buildings_) {
 		if (b.type != BLD_TOWN_CENTER || b.team >= 8 || done[b.team]) continue;
 		done[b.team] = true;
 		spots.push_back({b.team, {b.x, b.z}});
+	}
+	for (size_t u = 0; u < units_.count; ++u) {
+		uint8_t t = units_.team[u];
+		if (t >= 8 || done[t] || !units_.alive[u]) continue;
+		done[t] = true;
+		spots.push_back({t, {units_.pos_x[u], units_.pos_z[u]}});
 	}
 	for (const auto &s : spots) {
 		spawn_unit(s.second.first + 4.0f, s.second.second + 4.0f, s.first, UNIT_HERO, 0.0f);
