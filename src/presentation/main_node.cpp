@@ -1,4 +1,5 @@
 #include "main_node.h"
+#include <godot_cpp/classes/os.hpp>
 #include <godot_cpp/classes/theme.hpp>
 #include "popup_safe.h"
 #include <godot_cpp/core/class_db.hpp>
@@ -179,6 +180,8 @@ static Ref<Texture2D> load_tex(const String &path) {
 
 void RtsoMain::_ready() {
 	rtso::Logger::info("Main", "RTS0 0 A.D. Reborn Ready - Full 0 A.D. UI & Simulation");
+	// 0 A.D. writes oos_dump.txt/.dat to its log dir; ours is user://.
+	turn_mgr_.set_oos_dump_dir(OS::get_singleton()->get_user_data_dir().utf8().get_data());
 
 	// Incoming chat: 0 A.D. NetMessages.h NMT_CHAT parity. Fires on the main
 	// thread from net_host_.poll() (_process), so appending to the chat
@@ -1185,8 +1188,15 @@ void RtsoMain::_on_menu_button_pressed() {
 	Node *pause = get_node_or_null(NodePath("PauseMenu"));
 	if (pause) {
 		pause->call("toggle");
-		paused_via_menu = !paused_via_menu;
+		set_menu_paused(!paused_via_menu);
 	}
+}
+
+// In a networked match the pause menu pauses every peer (0 A.D.
+// NMT_CLIENT_PAUSED); offline it just stops the local sim.
+void RtsoMain::set_menu_paused(bool paused) {
+	paused_via_menu = paused;
+	if (net_lockstep()) turn_mgr_.set_local_paused(paused);
 }
 
 void RtsoMain::_on_ungarrison_pressed() {
@@ -1379,8 +1389,20 @@ void RtsoMain::_process(double delta) {
 		net_arena_.reset();
 		// Consume NMT_GAME_START seed-sync queued by TurnManager::onMessage.
 		apply_net_game_start();
+		// Rejoin of a match in progress: the host sent its world; load it and
+		// play on in the seat our dropped client had.
+		if (!net_host_.isHost() && !net_game_started_ && sim && turn_mgr_.apply_pending_rejoin(*sim)) {
+			net_game_started_ = true;
+			selected_ids.clear();
+			selected_building_id = 0;
+			if (lobby_status)
+				lobby_status->set_text("Rejoined the match at turn " + String::num_int64(turn_mgr_.rejoin_turn()) +
+						" as Player " + String::num_int64(turn_mgr_.local_player() + 1));
+		}
 	}
-	if (paused_via_menu) return;
+	// Networked: keep running TurnManager::tick, which holds turns for everyone
+	// while any client is paused, so this peer still sees remote pauses end.
+	if (paused_via_menu && !net_lockstep()) return;
 	double scaled_delta = delta * game_speed;
 	match_elapsed_time += scaled_delta;
 
@@ -1394,8 +1416,21 @@ void RtsoMain::_process(double delta) {
 			// NetClientTurnManager: one 200ms turn batch, sim steps inside TurnManager::tick
 			if (turn_mgr_.tick((float)scaled_delta, *sim))
 				ticks = rtso::TurnManager::TICKS_PER_TURN;
-			if (turn_mgr_.has_out_of_sync() && lobby_status)
-				lobby_status->set_text("OOS turn " + String::num_int64(turn_mgr_.oos_turn()));
+			if (turn_mgr_.has_out_of_sync() && lobby_status) {
+				// 0 A.D. session.js "Out-Of-Sync" notice: the first diverging turn and who.
+				String who;
+				for (const auto &n : turn_mgr_.oos_players()) who += (who.is_empty() ? "" : ", ") + String::utf8(n.c_str());
+				lobby_status->set_text("Out-Of-Sync on turn " + String::num_int64(turn_mgr_.oos_turn()) +
+						(who.is_empty() ? String() : ". Players: " + who) +
+						(turn_mgr_.oos_dump_path().empty() ? String() : ". Dump: " + String::utf8(turn_mgr_.oos_dump_path().c_str())));
+			} else if (turn_mgr_.is_paused() && lobby_status) {
+				String who;
+				for (uint32_t c : turn_mgr_.paused_clients()) {
+					const uint8_t pl = turn_mgr_.player_for_client(c);
+					who += (who.is_empty() ? "" : ", ") + (pl < 8 ? "Player " + String::num_int64(pl + 1) : "an observer");
+				}
+				lobby_status->set_text("Game paused by " + who);
+			}
 		}
 		// else pre-Start lobby phase: poll + GAME_START consume only (above) -
 		// no lockstep turns and no hash exchange across divergent boot worlds.
@@ -2464,7 +2499,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			Node *pause = get_node_or_null(NodePath("PauseMenu"));
 			if (pause) {
 				pause->call("toggle");
-				paused_via_menu = !paused_via_menu;
+				set_menu_paused(!paused_via_menu);
 				return;
 			}
 			if (build_mode) enter_build_mode(false);
@@ -3919,6 +3954,11 @@ void RtsoMain::_on_lobby_join_pressed() {
 	turn_mgr_.set_net_host(&net_host_, 1);
 	turn_mgr_.clear_game_started();
 	net_game_started_ = false; // wait for host's NMT_GAME_START before lockstep turns
+	// Once connected, ask to rejoin: a host still in its lobby declines and its
+	// NMT_GAME_START starts us as usual; a host mid-match sends its world.
+	net_host_.onPeerConnected([this](uint32_t) {
+		if (!net_host_.isHost() && !net_game_started_) turn_mgr_.request_rejoin();
+	});
 	if (lobby_status)
 		lobby_status->set_text("Connecting " + String(ip.c_str()) + ":" + String::num_int64(port));
 }
