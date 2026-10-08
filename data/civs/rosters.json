@@ -303,6 +303,7 @@
     "mace/siege_lithobolos_packed",
     "mace/siege_oxybeles_packed",
     "mace/siege_ram",
+    "mace/siege_tower",
     "mace/support_female_citizen",
     "mace/support_female_citizen_house",
     "mace/support_healer_b",
@@ -544,6 +545,7 @@
     "kush/ship_merchant",
     "kush/ship_scout",
     "kush/siege_ram",
+    "kush/siege_tower",
     "kush/support_female_citizen",
     "kush/support_female_citizen_house",
     "kush/support_healer_b",
@@ -592,6 +594,7 @@
     "ptol/siege_lithobolos_packed",
     "ptol/siege_polybolos_packed",
     "ptol/siege_ram",
+    "ptol/siege_tower",
     "ptol/support_female_citizen",
     "ptol/support_female_citizen_house",
     "ptol/support_healer_b",
@@ -636,6 +639,7 @@
     "sele/ship_siege",
     "sele/siege_lithobolos_packed",
     "sele/siege_ram",
+    "sele/siege_tower",
     "sele/support_female_citizen",
     "sele/support_female_citizen_house",
     "sele/support_healer_b",
@@ -677,6 +681,7 @@
     "han/ship_siege",
     "han/siege_mangonel_packed",
     "han/siege_ram",
+    "han/siege_tower",
     "han/support_female_citizen",
     "han/support_female_citizen_house",
     "han/support_healer_b",
@@ -1750,7 +1755,8 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
    "auras": [],
    "civ_bonuses": [],
@@ -1796,7 +1802,8 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
    "auras": [],
    "civ_bonuses": [],
@@ -2875,7 +2882,8 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
    "auras": [],
    "civ_bonuses": [],
@@ -5653,7 +5661,8 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
    "auras": [],
    "civ_bonuses": [
@@ -5701,7 +5710,8 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
    "auras": [],
    "civ_bonuses": [
@@ -5795,7 +5805,8 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
    "auras": [],
    "civ_bonuses": [],
@@ -7221,7 +7232,8 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
    "auras": [],
    "civ_bonuses": [],
@@ -7267,7 +7279,8 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
    "auras": [],
    "civ_bonuses": [],
@@ -8518,7 +8531,8 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
    "auras": [],
    "civ_bonuses": [],
@@ -8564,7 +8578,8 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
    "auras": [],
    "civ_bonuses": [],
@@ -8637,6 +8652,53 @@
     "speed": 2.5632,
     "damage": 150.0,
     "range": 3.9,
+    "carry": 0
+   }
+  },
+  {
+   "id": "mace/siege_tower",
+   "civ": "mace",
+   "class": "UNIT_BOLT_SHOOTER",
+   "name": "Siege Tower",
+   "specific_name": "Helépolis",
+   "phase": 3,
+   "trainers": [
+    "BLD_FORTRESS"
+   ],
+   "trained_at_0ad": [
+    "arsenal"
+   ],
+   "flags": [
+    "ROSTER_RANGED",
+    "ROSTER_SIEGE_TOWER"
+   ],
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Ranged",
+    "Siege",
+    "SiegeTower",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 500.0,
+    "cooldown": 2.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 12.0,
+    "crush_dmg": 2.5,
+    "hack_armor": 1.0,
+    "pierce_armor": 50.0,
+    "crush_armor": 5.0,
+    "food": 0,
+    "wood": 500,
+    "gold": 300,
+    "stone": 0,
+    "train_time": 40.0,
+    "pop": 3,
+    "speed": 2.2428,
+    "damage": 14.5,
+    "range": 15.400000000000002,
     "carry": 0
    }
   },
@@ -14592,6 +14654,53 @@
    }
   },
   {
+   "id": "kush/siege_tower",
+   "civ": "kush",
+   "class": "UNIT_BOLT_SHOOTER",
+   "name": "Kushite Siege Tower",
+   "specific_name": "iwn n ms",
+   "phase": 3,
+   "trainers": [
+    "BLD_FORTRESS"
+   ],
+   "trained_at_0ad": [
+    "arsenal"
+   ],
+   "flags": [
+    "ROSTER_RANGED",
+    "ROSTER_SIEGE_TOWER"
+   ],
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Ranged",
+    "Siege",
+    "SiegeTower",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 500.0,
+    "cooldown": 2.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 12.0,
+    "crush_dmg": 2.5,
+    "hack_armor": 1.0,
+    "pierce_armor": 50.0,
+    "crush_armor": 5.0,
+    "food": 0,
+    "wood": 500,
+    "gold": 300,
+    "stone": 0,
+    "train_time": 40.0,
+    "pop": 3,
+    "speed": 2.2428,
+    "damage": 14.5,
+    "range": 15.400000000000002,
+    "carry": 0
+   }
+  },
+  {
    "id": "kush/support_female_citizen",
    "civ": "kush",
    "class": "UNIT_FEMALE_CITIZEN",
@@ -15982,7 +16091,8 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
    "auras": [],
    "civ_bonuses": [],
@@ -16028,7 +16138,8 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
    "auras": [],
    "civ_bonuses": [],
@@ -16101,6 +16212,53 @@
     "speed": 2.5632,
     "damage": 150.0,
     "range": 3.9,
+    "carry": 0
+   }
+  },
+  {
+   "id": "ptol/siege_tower",
+   "civ": "ptol",
+   "class": "UNIT_BOLT_SHOOTER",
+   "name": "Siege Tower",
+   "specific_name": "Helépolis",
+   "phase": 3,
+   "trainers": [
+    "BLD_FORTRESS"
+   ],
+   "trained_at_0ad": [
+    "arsenal"
+   ],
+   "flags": [
+    "ROSTER_RANGED",
+    "ROSTER_SIEGE_TOWER"
+   ],
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Ranged",
+    "Siege",
+    "SiegeTower",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 500.0,
+    "cooldown": 2.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 12.0,
+    "crush_dmg": 2.5,
+    "hack_armor": 1.0,
+    "pierce_armor": 50.0,
+    "crush_armor": 5.0,
+    "food": 0,
+    "wood": 500,
+    "gold": 300,
+    "stone": 0,
+    "train_time": 40.0,
+    "pop": 3,
+    "speed": 2.2428,
+    "damage": 14.5,
+    "range": 15.400000000000002,
     "carry": 0
    }
   },
@@ -17476,7 +17634,8 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
    "auras": [],
    "civ_bonuses": [],
@@ -17549,6 +17708,53 @@
     "speed": 2.5632,
     "damage": 150.0,
     "range": 3.9,
+    "carry": 0
+   }
+  },
+  {
+   "id": "sele/siege_tower",
+   "civ": "sele",
+   "class": "UNIT_BOLT_SHOOTER",
+   "name": "Siege Tower",
+   "specific_name": "Helépolis",
+   "phase": 3,
+   "trainers": [
+    "BLD_FORTRESS"
+   ],
+   "trained_at_0ad": [
+    "arsenal"
+   ],
+   "flags": [
+    "ROSTER_RANGED",
+    "ROSTER_SIEGE_TOWER"
+   ],
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Ranged",
+    "Siege",
+    "SiegeTower",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 500.0,
+    "cooldown": 2.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 12.0,
+    "crush_dmg": 2.5,
+    "hack_armor": 1.0,
+    "pierce_armor": 50.0,
+    "crush_armor": 5.0,
+    "food": 0,
+    "wood": 500,
+    "gold": 300,
+    "stone": 0,
+    "train_time": 40.0,
+    "pop": 3,
+    "speed": 2.2428,
+    "damage": 14.5,
+    "range": 15.400000000000002,
     "carry": 0
    }
   },
@@ -18787,7 +18993,8 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
    "auras": [],
    "civ_bonuses": [],
@@ -18860,6 +19067,53 @@
     "speed": 2.5632,
     "damage": 150.0,
     "range": 3.9,
+    "carry": 0
+   }
+  },
+  {
+   "id": "han/siege_tower",
+   "civ": "han",
+   "class": "UNIT_BOLT_SHOOTER",
+   "name": "Siege Tower",
+   "specific_name": "Gōngchéng Tǎ",
+   "phase": 3,
+   "trainers": [
+    "BLD_FORTRESS"
+   ],
+   "trained_at_0ad": [
+    "arsenal"
+   ],
+   "flags": [
+    "ROSTER_RANGED",
+    "ROSTER_SIEGE_TOWER"
+   ],
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Ranged",
+    "Siege",
+    "SiegeTower",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 500.0,
+    "cooldown": 2.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 12.0,
+    "crush_dmg": 2.5,
+    "hack_armor": 1.0,
+    "pierce_armor": 50.0,
+    "crush_armor": 5.0,
+    "food": 0,
+    "wood": 500,
+    "gold": 300,
+    "stone": 0,
+    "train_time": 40.0,
+    "pop": 3,
+    "speed": 2.2428,
+    "damage": 14.5,
+    "range": 15.400000000000002,
     "carry": 0
    }
   },

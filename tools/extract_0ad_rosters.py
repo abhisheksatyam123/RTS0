@@ -420,7 +420,9 @@ def rts0_class(name, t, civ):
             return "UNIT_CATAPULT"
         if "BoltShooter" in c:
             return "UNIT_BOLT_SHOOTER"
-        return None  # siege towers and flamethrowers have no RTS0 class yet
+        if "SiegeTower" in c:
+            return "UNIT_BOLT_SHOOTER"  # fires its own Bow attack; flagged ROSTER_SIEGE_TOWER
+        return None  # flamethrowers have no RTS0 class yet
     if "trumpeter" in stem:
         return "UNIT_CARNYX"
     if "Dog" in c:
@@ -777,6 +779,10 @@ def collect(sim_root):
                 flags.append("ROSTER_CITIZEN")
             if "Mercenary" in c:
                 flags.append("ROSTER_MERCENARY")
+            if t.value("Pack/Time", ""):
+                flags.append("ROSTER_PACKABLE")  # 0 A.D. Pack: unpack before firing, pack to move
+            if "SiegeTower" in c:
+                flags.append("ROSTER_SIEGE_TOWER")
             hero_auras = []
             for aname in t.tokens("Auras"):
                 apath = os.path.join(sim_root, "data", "auras", aname + ".json")
