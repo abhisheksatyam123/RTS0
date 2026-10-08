@@ -26,6 +26,21 @@ Verify: `python3 tools/check_parity.py --unit petra` and `--unit netcode`.
 
 ---
 
+## Game-level work (areas A–F)
+
+The biggest gaps to 0 A.D. are game-level rather than per-system (see [REMAINING_GAPS.md](REMAINING_GAPS.md#read-this-first-whole-game-parity-2026-10-08)). Each area is being built in its own thread as of 2026-10-08. **A lands first**, because it changes most of `simulation.cpp`; B–F follow in parallel. In `sim_types.h`, D owns the unit and civ enum entries and E owns the building and technology entries.
+
+| Area | Goal | Status |
+|---|---|---|
+| A. Per-player economy | Per-player resource/tech table for up to 8 players | In progress |
+| B. Game modes | Wave mode off for skirmish; victory options | In progress |
+| C. AI (Petra) | Fix the phase-up stall, scale the economy, several AI players | In progress |
+| D. Civ rosters and heroes | Civ-specific units and heroes, add Han, civ bonuses as data | In progress |
+| E. Buildings, techs, farming | Missing buildings, 0 A.D. tech tree, fields and farming | In progress |
+| F. Maps and scale | Larger maps, more 0 A.D. random maps (coordinate with MIGRATION.md pathfinding work) | In progress |
+
+Each thread times a fixed headless AI match before and after its change with the shared benchmark tool once it's on main.
+
 ## Next work (in order)
 
 ### P1 — Two-client lockstep playtest (remaining)

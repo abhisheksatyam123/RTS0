@@ -7,7 +7,7 @@ Each doc owns one topic. When a fact belongs to another doc's topic, link to tha
 | Topic | Owner doc | Notes |
 |---|---|---|
 | What to work on next, in order | [PLAN.md](PLAN.md) | The one ordered todo list. Area docs below may keep a detailed todo for their area; PLAN.md links to them. |
-| Parity with 0 A.D., per subsystem (G1–G10) | [REMAINING_GAPS.md](REMAINING_GAPS.md) | The only place fidelity percentages live. |
+| How close RTS0 is to 0 A.D. (whole-game areas A–F, per-system G1–G10) | [REMAINING_GAPS.md](REMAINING_GAPS.md) | The only place fidelity percentages live. |
 | Vendored 0 A.D. C++ in `src/0ad/`: what's ported, what's left | [MIGRATION.md](MIGRATION.md) | Updated by every PR that ports vendored code. |
 | 0 A.D. domain → RTS0 code map | [0AD_TO_RTS0_FEATURE_MAP.md](0AD_TO_RTS0_FEATURE_MAP.md) | Where each 0 A.D. feature lives in RTS0. |
 | Code layout and invariants | [ARCHITECTURE.md](ARCHITECTURE.md) | |

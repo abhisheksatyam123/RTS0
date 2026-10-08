@@ -1,8 +1,25 @@
 # Remaining Gaps — 0 A.D. parity by subsystem
 
-This doc owns one thing: how close each RTS0 subsystem is to 0 A.D.'s behavior (the G1–G10 table). The todo list is [docs/PLAN.md](PLAN.md), vendored-code porting is [docs/MIGRATION.md](MIGRATION.md), and asset counts are [docs/ASSET_MANIFEST_TODO.md](ASSET_MANIFEST_TODO.md). The 2026-08-29 per-gap audit bodies and Phase 0 checklist that used to follow the table are in [docs/archive/REMAINING_GAPS_2026-08-29_DETAIL.md](archive/REMAINING_GAPS_2026-08-29_DETAIL.md).
+This doc owns how close RTS0 is to 0 A.D.: the whole-game gaps (areas A–F) and the per-system G1–G10 table. The todo list is [docs/PLAN.md](PLAN.md), vendored-code porting is [docs/MIGRATION.md](MIGRATION.md), and asset counts are [docs/ASSET_MANIFEST_TODO.md](ASSET_MANIFEST_TODO.md). The 2026-08-29 per-gap audit bodies and Phase 0 checklist that used to follow the table are in [docs/archive/REMAINING_GAPS_2026-08-29_DETAIL.md](archive/REMAINING_GAPS_2026-08-29_DETAIL.md).
 
-Last refreshed 2026-10-06 (Wave 1+2); `python3 tools/check_parity.py` reports 92% overall.
+## Read this first: whole-game parity (2026-10-08)
+
+The G1–G10 table below grades individual systems against 0 A.D.'s semantics, and `python3 tools/check_parity.py` reports 92% for them. Those scores are self-graded and only cover the systems listed. Judged by what a match actually plays like, RTS0 is roughly **a quarter of the way** to 0 A.D. (estimate from an 18-minute headless match against the AI plus a code read on 2026-10-08). It is a small two-player prototype with many of 0 A.D.'s systems in early form.
+
+The game-level gaps below are each being built by its own parallel thread (areas A–F). Their order and status live in [PLAN.md](PLAN.md#game-level-work-areas-af); update the row here when an area lands.
+
+| Area | Gap today | Where in code |
+|---|---|---|
+| A. Per-player economy | Resources and techs are hard-wired as "human" vs "AI"; play is two players only (0 A.D.: up to 8 in teams). Lands first; B–F build on it. | `simulation.h` (~`:598`, `:702`), `turn_manager.cpp` hash, `main_node.cpp` top panel, save/load |
+| B. Game modes | Wave-defense mode is on in every match (a wave every 35 s, win by surviving wave 5). No skirmish/conquest victory options. | `tick_waves`, `check_victory_conditions`, `scenes/menu/gamesetup.gd` |
+| C. AI (Petra) | AI stays in the village phase all match (14 workers, unspent food); one AI player only. | `petra_*` in `simulation.cpp`, `petra_ai.h` |
+| D. Civ rosters and heroes | All 13 civs share 23 generic unit types with ~10 stat tweaks, some applying only to player 1. Han missing. | unit tables in `sim_types.h`, `spawn_unit`, `cmd_train` |
+| E. Buildings, techs, farming | 14 building types (a 0 A.D. civ has ~25: no fields, stables, ranges, forge, palisades); 7 techs (0 A.D.: 100+); no farming, food is a flat Town Center income. | building/tech tables in `sim_types.h`, `cmd_build`, `cmd_research`, `tick_gather`, `tick_trickle` |
+| F. Maps and scale | Maps are small (128 units across); few of 0 A.D.'s random maps. | `rms_generator.cpp`, `generate_random_map`, `rebuild_nav_grid`, `tick_fow` |
+
+Two-real-client multiplayer is tracked in PLAN.md P1. In good shape today: pathfinding, territory, capture, garrisons, formations, trade, auras, promotion, naval transport and much of 0 A.D.'s art.
+
+The G1–G10 system table was last refreshed 2026-10-06 (Wave 1+2).
 
 ## How to read this doc
 
