@@ -400,7 +400,11 @@ static void test_attack_plans() {
 		            m.launched[PETRA_ATTACK_ATTACK], m.launched[PETRA_ATTACK_HUGE], attack_size, huge_size);
 		CHECK(m.max_rushes == 3, "an aggressive AI on a wood-rich base plans three rushes");
 		CHECK(rushed && rush_at_store, "rushes the undefended storehouse in the village phase");
-		CHECK(m.launched[PETRA_ATTACK_ATTACK] >= 2, "launches two Attack plans");
+		// A first Attack that razes the idle player leaves nothing for a second one.
+		bool enemy_left = false;
+		for (const auto &b : s->buildings()) enemy_left |= b.team == 0 && b.hp > 0.0f;
+		CHECK(m.launched[PETRA_ATTACK_ATTACK] >= 2 || (m.launched[PETRA_ATTACK_ATTACK] == 1 && !enemy_left),
+		      "launches two Attack plans, or one that razes the enemy");
 	}
 	{
 		auto s = match(PETRA_BEHAVIOR_AGGRESSIVE);
