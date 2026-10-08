@@ -8,8 +8,13 @@
 //  2. No village-phase stall: on a continental random map Petra keeps
 //     training workers and researches the town phase (headquarters.js /
 //     researchManager.js checkPhase at Config.Economy.popPhase2).
+//  3. AI slots: Petra leaves a human slot alone, runs one AI per AI slot, and
+//     AIs on the same team never fight each other.
 //  Exit: 0 = PASS, 1 = FAIL.
+// The ally check reads the sim's death log, which has no public accessor.
+#define private public
 #include "simulation/simulation.h"
+#undef private
 #include <cstdio>
 #include <memory>
 using namespace rtso;
@@ -122,6 +127,30 @@ static void test_ai_slots() {
 		CHECK(count_units(*s, 1, true) > w1 + 4, "AI player 1 trains workers");
 		CHECK(count_units(*s, 2, true) > w2 + 4, "AI player 2 trains workers");
 		CHECK(count_buildings(*s, 2) > b2 + 2, "AI player 2 builds");
+	}
+	// Human vs two allied AIs: teammates never kill each other's units.
+	{
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(7);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 7, 3, 96.0f);
+		s->set_player_active(0, true, false);
+		s->set_player_active(1, true, true);
+		s->set_player_active(2, true, true);
+		s->set_player_team(1, 5);
+		s->set_player_team(2, 5);
+		s->apply_team_diplomacy();
+		int friendly_kills = 0;
+		size_t seen = 0;
+		for (float t = 0.0f; t < 360.0f && !s->is_game_over(); t += Simulation::FIXED_STEP) {
+			s->tick(Simulation::FIXED_STEP);
+			for (; seen < s->recent_death_head_; ++seen) {
+				const auto &d = s->recent_deaths_[seen % Simulation::MAX_RECENT_DEATHS];
+				if ((d.team == 1 && d.killer_team == 2) || (d.team == 2 && d.killer_team == 1)) ++friendly_kills;
+			}
+		}
+		std::printf("  allied AIs: kills between teammates %d\n", friendly_kills);
+		CHECK(friendly_kills == 0, "AIs on one team never fight each other");
 	}
 }
 
