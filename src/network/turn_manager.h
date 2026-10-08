@@ -363,6 +363,14 @@ private:
 	std::set<uint32_t> rejoin_chunks_;
 	size_t rejoin_received_ = 0;
 	std::string rejoin_dir_;
+	// Host: world chunks still to send, paced so a ~500-packet burst does not
+	// overflow the rejoiner's socket buffer. Client: last transfer progress, to
+	// ask again when a transfer stalls.
+	std::vector<std::pair<uint32_t, std::vector<uint8_t>>> rejoin_outbox_;
+	size_t rejoin_outbox_next_ = 0;
+	uint64_t rejoin_progress_ms_ = 0;
+	static constexpr size_t REJOIN_CHUNKS_PER_TICK = 16;
+	static constexpr uint64_t REJOIN_RETRY_MS = 5000;
 	void ensure_lockstep_peers();
 	std::string rejoin_path(const char *tag) const;
 	void receive_rejoin(uint32_t author, const RejoinMsg &msg);
