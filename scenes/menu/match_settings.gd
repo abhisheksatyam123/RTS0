@@ -27,6 +27,10 @@ var explore_map: bool = false
 var wonder_min: int = 20
 var relic_min: int = 20
 var relic_count: int = 2
+# Map trigger options (0 A.D. WaterLevel, SeaLevelRiseTime): Flood water level
+# 0 rising, 1 shallow, 2 deep; Extinct Volcano minutes until the water rises.
+var water_level: int = 0
+var sea_level_rise_min: int = 25
 # Random-map width in meters, 0 A.D.'s sizes 128 (Tiny) to 512 (Giant).
 var map_size: int = 128
 # Petra difficulty 0..5 (sandbox..very hard), behavior 0..3.

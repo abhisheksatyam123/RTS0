@@ -2285,6 +2285,189 @@ void RmsGenerator::synth_wild_lake(HeightmapGrid &hm, RmsRng &rng, float &water_
 	water_h = 1.0f;
 	place_ring_spawns(hm, spawns, num_players, half * 0.66f, rng.range_float(0.0f, 6.2831853f), 6.2831853f, water_h + 1.5f);
 	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 20.0f, 6.0f, sp.base_height);
+// =========================================================================
+// 0 A.D. trigger maps: maps/random/flood.js and extinct_volcano.js. Their
+// rising water is a map trigger (triggers.h; the ported flood_triggers.js and
+// extinct_volcano_triggers.js are in simulation.cpp). Heights are 0 A.D.'s
+// metres above the water times kTriggerMapHeight, the same factor the
+// triggers use for the water's rise, so the hills drown in 0 A.D.'s order.
+// =========================================================================
+
+namespace {
+constexpr float kTriggerMapHeight = 0.5f;
+}
+
+void RmsGenerator::synth_flood(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// flood.js: sea ground -2, a home island at 2 for each player on a circle
+	// at f = 0.38, and a mainland at 6 wherever the ground is 40 tiles clear
+	// of every home island, with hills (set to 6-20) and mountains (+15-29)
+	// on it. The water starts at 0 and rises (flood_triggers.js).
+	const float k = kTriggerMapHeight;
+	water_h = 0.0f;
+	hm.init(hm.res, hm.map_half, -2.0f * k);
+	const float half = hm.map_half;
+	const float island_r = 1.4f * (float)scale_by_map_size(15, 25, half); // diskArea(1.4 * defaultPlayerBaseRadius())
+	const float shore = 6.0f;
+	place_ring_spawns(hm, spawns, num_players, 0.38f * 2.0f * half, rng.range_float(0.0f, 6.2831853f), 6.2831853f, 2.0f * k);
+	for (auto &sp : spawns) {
+		sp.base_height = 2.0f * k;
+		hm.level_area(sp.x, sp.z, island_r - shore, shore, 2.0f * k);
+	}
+	// The mainland: avoidClasses(clPlayer, 40), its shore blended over 6 tiles.
+	const float clear = island_r + 40.0f;
+	const float step = (half * 2.0f) / (float)(hm.res - 1);
+	auto island_dist = [&](float wx, float wz) {
+		float d = 1e9f;
+		for (const auto &sp : spawns) d = std::min(d, std::hypot(wx - sp.x, wz - sp.z));
+		return d;
+	};
+	for (int z = 0; z < hm.res; ++z) {
+		const float wz = -half + z * step;
+		for (int x = 0; x < hm.res; ++x) {
+			const float wx = -half + x * step;
+			const float r = std::hypot(wx, wz);
+			const float t = smoothstep(clear, clear + shore, island_dist(wx, wz)) * (1.0f - smoothstep(half - 8.0f, half - 2.0f, r));
+			if (t <= 0.0f) continue;
+			const float cur = hm.get(x, z);
+			hm.set(x, z, std::max(cur, cur + (6.0f * k - cur) * t));
+		}
+	}
+	// Hills (ELEVATION_SET 6-20) and mountains (ELEVATION_MODIFY 15-29) on the
+	// mainland: 6 tiles inside its shore and 40 clear of the home islands.
+	auto on_mainland = [&](float wx, float wz, float r) {
+		return island_dist(wx, wz) > clear + shore + r && std::hypot(wx, wz) < half - 8.0f - r &&
+		       hm.sample_world(wx, wz) > 6.0f * k - 0.5f;
+	};
+	const int hills = rng.range_int(20, 34);
+	for (int i = 0, tries = 0; i < hills && tries < hills * 30; ++tries) {
+		const float hx = rng.range_float(-half, half), hz = rng.range_float(-half, half);
+		const float r = rng.range_float(7.0f, 15.0f);
+		if (!on_mainland(hx, hz, 0.0f)) continue;
+		const float elev = (float)rng.range_int(6, 20);
+		hm.level_area(hx, hz, std::max(1.0f, r - elev / 3.0f), elev / 3.0f, elev * k);
+		++i;
+	}
+	const int mountains = rng.range_int(8, 17);
+	for (int i = 0, tries = 0; i < mountains && tries < mountains * 30; ++tries) {
+		const float mx = rng.range_float(-half, half), mz = rng.range_float(-half, half);
+		const float r = rng.range_float(5.0f, 8.0f);
+		if (!on_mainland(mx, mz, r)) continue;
+		const float elev = (float)rng.range_int(15, 29);
+		hm.raise_plateau(mx, mz, r, 0.0f, 0.0f, elev * k, elev / 3.0f);
+		++i;
+	}
+	hm.blur(1, 0.35f);
+	for (const auto &sp : spawns) hm.level_area(sp.x, sp.z, 14.0f, 4.0f, sp.base_height);
+}
+
+void RmsGenerator::synth_extinct_volcano(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// extinct_volcano.js: land at 1, each player on a hill of 25 on a circle at
+	// f = 0.35, a volcano in the centre (rmgen createVolcano: 15, 25, 45 and
+	// 62 high rings round a crater at 42), lakes at -4 and hills at 18. The
+	// water starts at 0 and rises from minute 25 (extinct_volcano_triggers.js).
+	const float k = kTriggerMapHeight;
+	water_h = 0.0f;
+	hm.init(hm.res, hm.map_half, 1.0f * k);
+	const float half = hm.map_half;
+	const float player_r = (float)scale_by_map_size(15, 25, half); // defaultPlayerBaseRadius()
+	place_ring_spawns(hm, spawns, num_players, 0.35f * 2.0f * half, rng.range_float(0.0f, 6.2831853f), 6.2831853f, 25.0f * k);
+	for (auto &sp : spawns) {
+		sp.base_height = 25.0f * k;
+		// createMountain's omnidirectional ramp, then the flattened Civic Centre area.
+		hm.level_area(sp.x, sp.z, 14.0f, player_r, 25.0f * k);
+	}
+	// createVolcano(mapCenter, ..., ELEVATION_SET): each ring inside the last.
+	const float rings[5][2] = {
+		{(float)scale_by_map_size(18, 25, half), 15.0f}, {(float)scale_by_map_size(16, 23, half), 25.0f},
+		{(float)scale_by_map_size(10, 15, half), 45.0f}, {(float)scale_by_map_size(8, 11, half), 62.0f},
+		{(float)scale_by_map_size(4, 6, half), 42.0f}};
+	for (int i = 0; i < 5; ++i)
+		hm.level_area(0.0f, 0.0f, std::max(1.0f, rings[i][0] - (i == 4 ? 1.0f : 3.0f)), i == 4 ? 1.0f : 3.0f, rings[i][1] * k);
+	const float volcano_r = rings[0][0];
+	auto clear_of = [&](float x, float z, float r, float gap) {
+		for (const auto &sp : spawns)
+			if (std::hypot(x - sp.x, z - sp.z) < player_r + 14.0f + r + gap) return false;
+		return std::hypot(x, z) > volcano_r + r + gap && std::hypot(x, z) < half - 4.0f - r;
+	};
+	// Lakes: avoidClasses(clPlayer, 0, clHill, 2, clWater, 12).
+	std::vector<std::pair<float, float>> lakes;
+	const int num_lakes = (int)std::round((float)scale_by_map_size(6, 12, half));
+	for (int i = 0, tries = 0; i < num_lakes && tries < num_lakes * 40; ++tries) {
+		const float lx = rng.range_float(-half, half), lz = rng.range_float(-half, half);
+		const float r = (float)scale_by_map_size(10, 14, half) * 0.6f;
+		if (!clear_of(lx, lz, r, 2.0f)) continue;
+		bool ok = true;
+		for (const auto &l : lakes)
+			if (std::hypot(lx - l.first, lz - l.second) < 2.0f * r + 12.0f) { ok = false; break; }
+		if (!ok) continue;
+		hm.level_area(lx, lz, r, 3.0f, -4.0f * k);
+		lakes.push_back({lx, lz});
+		++i;
+	}
+	// Bumps (createBumps, +scaleByMapSize(4, 10)) and hills of 18.
+	const float bump = (float)scale_by_map_size(4, 10, half) * k;
+	const int bumps = scale_by_map_size(50, 300, half) / 4;
+	for (int i = 0, tries = 0; i < bumps && tries < bumps * 20; ++tries) {
+		const float bx = rng.range_float(-half, half), bz = rng.range_float(-half, half);
+		const float r = rng.range_float(2.0f, 5.0f);
+		if (!clear_of(bx, bz, r, 0.0f) || hm.sample_world(bx, bz) < 0.0f) continue;
+		hm.raise_plateau(bx, bz, r, 0.0f, 0.0f, bump, 2.0f);
+		++i;
+	}
+	const int hills = scale_by_map_size(2, 8, half) * std::max(1, num_players);
+	std::vector<std::pair<float, float>> placed;
+	for (int i = 0, tries = 0; i < hills && tries < hills * 40; ++tries) {
+		const float hx = rng.range_float(-half, half), hz = rng.range_float(-half, half);
+		const float r = std::sqrt((float)rng.range_int(scale_by_map_size(20, 150, half) / 2, scale_by_map_size(20, 150, half)) / 3.1415927f);
+		if (!clear_of(hx, hz, r, 2.0f) || hm.sample_world(hx, hz) < 0.0f) continue;
+		bool ok = true;
+		for (const auto &p : placed)
+			if (std::hypot(hx - p.first, hz - p.second) < 2.0f * r + 15.0f) { ok = false; break; }
+		if (!ok) continue;
+		hm.level_area(hx, hz, r, 2.0f, 18.0f * k);
+		placed.push_back({hx, hz});
+		++i;
+	}
+	for (const auto &sp : spawns) hm.level_area(sp.x, sp.z, 14.0f, 4.0f, sp.base_height);
+}
+
+// Map-specific entities of the trigger maps.
+void RmsGenerator::place_trigger_map_entities(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config) {
+	const float half = hm.map_half;
+	if (config.map_type == MAP_FLOOD) {
+		// flood.js: large metal and stone mines (3-6 of each) near the centre of the mainland.
+		for (uint8_t res : {RES_GOLD, RES_STONE}) {
+			const int n = rng.range_int(3, 6);
+			for (int i = 0, tries = 0; i < n && tries < 200; ++tries) {
+				const float a = rng.range_float(0.0f, 6.2831853f);
+				const float d = rng.range_float(0.0f, 0.25f * 2.0f * half);
+				const float x = std::cos(a) * d, z = std::sin(a) * d;
+				if (hm.sample_world(x, z) < 6.0f * kTriggerMapHeight - 0.5f || hm.compute_slope_world(x, z) > 0.7f) continue;
+				sim.spawn_resource_world(x, z, res, 5000);
+				++i;
+			}
+		}
+	} else if (config.map_type == MAP_EXTINCT_VOLCANO) {
+		// extinct_volcano.js "Creating towers": Gaia palisade forts on the
+		// lowland bumps, 60 tiles apart and 10 clear of the players. The
+		// trigger script garrisons them (GarrisonWoodenTowers).
+		std::vector<std::pair<float, float>> towers;
+		for (int tries = 0; tries < 500; ++tries) {
+			const float x = rng.range_float(-half * 0.92f, half * 0.92f), z = rng.range_float(-half * 0.92f, half * 0.92f);
+			if (std::hypot(x, z) > half * 0.92f) continue;
+			const float h = hm.sample_world(x, z);
+			if (h < water_h + 1.0f * kTriggerMapHeight + 0.5f || h > 18.0f * kTriggerMapHeight - 1.0f) continue;
+			if (hm.compute_slope_world(x, z) > 0.6f) continue;
+			bool ok = true;
+			for (const auto &sp : spawns)
+				if (std::hypot(x - sp.x, z - sp.z) < (float)scale_by_map_size(15, 25, half) + 24.0f) { ok = false; break; }
+			for (const auto &t : towers)
+				if (std::hypot(x - t.first, z - t.second) < 60.0f) { ok = false; break; }
+			if (!ok) continue;
+			sim.spawn_building_world(x, z, BLD_TOWER, GAIA_PLAYER, 1.0f);
+			towers.push_back({x, z});
+		}
+	}
 }
 
 void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid &hm, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config) {
@@ -2783,6 +2966,12 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 		case MAP_WILD_LAKE:
 			synth_wild_lake(hm, rng, water_h, spawns, config.num_players);
 			break;
+		case MAP_FLOOD:
+			synth_flood(hm, rng, water_h, spawns, config.num_players);
+			break;
+		case MAP_EXTINCT_VOLCANO:
+			synth_extinct_volcano(hm, rng, water_h, spawns, config.num_players);
+			break;
 		case MAP_PELOPONNESE:
 		case MAP_AEGEAN_ARCHIPELAGO:
 		default:
@@ -2807,6 +2996,9 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 
 	// Fish in open water, for fishing boats
 	distribute_fish(sim, hm, water_h, config);
+
+	// Entities only the trigger maps have (Gaia towers, central mines)
+	place_trigger_map_entities(sim, hm, water_h, spawns, rng, config);
 
 	return true;
 }

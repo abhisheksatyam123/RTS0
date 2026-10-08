@@ -102,7 +102,10 @@ enum MapType : uint8_t {
 	MAP_ATLAS_MOUNTAINS = 46,
 	MAP_FRONTIER = 47,
 	MAP_WILD_LAKE = 48,
-	MAP_TYPE_COUNT = 49
+	// 0 A.D. trigger maps (maps/random/*_triggers.js run as map triggers, triggers.h)
+	MAP_FLOOD = 49,
+	MAP_EXTINCT_VOLCANO = 50,
+	MAP_TYPE_COUNT = 51
 };
 
 struct MapTypeInfo {
@@ -164,7 +167,9 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_GEAR, "gear", "Gear (RMS)", "temperate", true, "A land with waterways laid out like a spider web round a central lake and island."},
 		{MAP_ATLAS_MOUNTAINS, "atlas_mountains", "Atlas Mountains (RMS)", "desert", true, "A rugged North African land with little room for buildings and scarce wood."},
 		{MAP_FRONTIER, "frontier", "Frontier (RMS)", "temperate", true, "A wild, unknown landscape of random hills, plateaus and lakes awaits rival explorers."},
-		{MAP_WILD_LAKE, "wild_lake", "Wild Lake (RMS)", "temperate", true, "Rough wild terrain round a lake, with about a fifth of the land under water."}
+		{MAP_WILD_LAKE, "wild_lake", "Wild Lake (RMS)", "temperate", true, "Rough wild terrain round a lake, with about a fifth of the land under water."},
+		{MAP_FLOOD, "flood", "Flood (RMS)", "temperate", true, "A great flood moves across the valley. The home islands go under, so evacuate your units by ship to the mainland."},
+		{MAP_EXTINCT_VOLCANO, "extinct_volcano", "Extinct Volcano (RMS)", "volcanic", true, "Rains raise the water from the 25th minute until only the hills and the great cone stay dry. Gaia towers guard the lowlands."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
