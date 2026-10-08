@@ -3346,6 +3346,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 		setup.map_id = mid.is_empty() ? sim->current_map_id() : mid.utf8().get_data();
 		setup.seed = (uint32_t)(int64_t)(int)ms->get("seed");
 		setup.victory = (uint8_t)((int)ms->get("victory"));
+		setup.waves = (bool)ms->get("waves_enabled") ? 1 : 0;
 		setup.difficulty = (uint8_t)((int)ms->get("ai_difficulty"));
 		setup.behavior = (uint8_t)((int)ms->get("ai_behavior"));
 		setup.start_res = (uint8_t)((int)ms->get("start_res"));
@@ -3374,7 +3375,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 	}
 	if (setup.map_id.empty()) setup.map_id = "random_continental";
 	if (setup.seed == 0) setup.seed = (uint32_t)Time::get_singleton()->get_ticks_msec();
-	if (setup.victory > 3) setup.victory = sim->victory_condition();
+	if (setup.victory >= rtso::VICTORY_COUNT) setup.victory = sim->victory_condition();
 	if (setup.difficulty > 5) setup.difficulty = sim->petra_difficulty();
 	if (setup.behavior > 3) setup.behavior = sim->petra_behavior();
 	if (setup.start_res > 3) setup.start_res = 1;
@@ -3407,9 +3408,8 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		if (lobby_status) lobby_status->set_text("GameStart failed: map regen failed");
 		return;
 	}
-	sim->set_victory_condition(setup.victory > 3 ? 0 : setup.victory);
-	// Wave defense isn't part of the network setup, so multiplayer matches never run it.
-	sim->set_waves_enabled(false);
+	sim->set_victory_condition(setup.victory >= rtso::VICTORY_COUNT ? 0 : setup.victory);
+	sim->set_waves_enabled(setup.waves != 0);
 	sync_victory_selector();
 	sim->set_petra_difficulty(setup.difficulty > 5 ? 3 : setup.difficulty);
 	sim->set_petra_behavior(setup.behavior > 3 ? 2 : setup.behavior);
@@ -3432,6 +3432,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		ms->set("map_id", String(setup.map_id.c_str()));
 		ms->set("seed", (int64_t)setup.seed);
 		ms->set("victory", (int)sim->victory_condition());
+		ms->set("waves_enabled", sim->waves_enabled());
 		ms->set("ai_difficulty", (int)sim->petra_difficulty());
 		ms->set("ai_behavior", (int)sim->petra_behavior());
 		ms->set("start_res", (int)sr);

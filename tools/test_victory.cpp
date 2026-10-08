@@ -5,6 +5,7 @@
 #define private public
 #include "simulation/simulation.h"
 #undef private
+#include "network/net_types.h"
 #include <cstdio>
 #include <cstdlib>
 
@@ -59,6 +60,21 @@ int main() {
 		run(*sim, 300.0f);
 		CHECK(sim->wave_number() == 0);
 		CHECK(!sim->is_victory());
+		delete sim;
+	}
+	// 1b. Default arena: the starting armies sit outside each other's aggro range, so an
+	// idle player loses nothing in the first 30 seconds.
+	{
+		Simulation *sim = fresh(VICTORY_CONQUEST);
+		auto count0 = [&]() {
+			int n = 0;
+			for (size_t i = 0; i < sim->units_.count; ++i)
+				if (sim->units_.team[i] == 0 && sim->units_.alive[i]) n++;
+			return n;
+		};
+		int start = count0();
+		run(*sim, 30.0f);
+		CHECK(count0() == start);
 		delete sim;
 	}
 	// 2. Wave mode still works when turned on.
@@ -141,6 +157,18 @@ int main() {
 		run(*sim, 1.0f);
 		CHECK(!sim->is_wonder_active());
 		delete sim;
+	}
+
+	// 10. Victory condition and wave mode reach the joining peer in NMT_GAME_START.
+	{
+		GameSetupParams p;
+		p.map_id = "random_continental";
+		p.seed = 7;
+		p.victory = VICTORY_REGICIDE;
+		p.waves = 1;
+		GameSetupParams q;
+		CHECK(parse_game_start_full(format_game_start_full(p), q));
+		CHECK(q.victory == VICTORY_REGICIDE && q.waves == 1);
 	}
 
 	if (failures) {

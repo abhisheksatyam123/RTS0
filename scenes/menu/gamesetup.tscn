@@ -110,7 +110,7 @@ layout_mode = 2
 
 [node name="Waves" type="CheckBox" parent="VBox/HBox/Left"]
 layout_mode = 2
-tooltip_text = "Legacy wave defense: enemy waves attack every 35 seconds; survive the fifth to win. Single player only."
+tooltip_text = "Legacy wave defense: enemy waves attack every 35 seconds; survive the fifth to win."
 text = "Wave defense"
 
 [node name="ResLabel" type="Label" parent="VBox/HBox/Left"]
