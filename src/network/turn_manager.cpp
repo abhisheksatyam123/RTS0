@@ -847,72 +847,81 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		if (!due.empty()) apply_diplomacy(due, sim);
 	}
 
-	// Execute turn commands into simulation (0 A.D. applies batch then advances sim)
+	// Execute turn commands into simulation (0 A.D. applies batch then advances sim).
+	// 0 A.D. Commands.js: each command runs as its sender's player, and FilterEntityList
+	// drops every unit the sender doesn't own, so a peer can only order its own side.
+	std::vector<uint32_t> owned;
 	for (const auto &c : frame.commands) {
+		const uint8_t pl = player_for_client(c.client_id);
+		if (pl >= MAX_PLAYERS) continue;
+		sim.filter_owned_units(pl, c.entity_ids.data(), c.entity_ids.size(), owned);
+		const uint32_t *ids = owned.data();
+		const size_t n = owned.size();
 		if (c.cmd_type == 1) { // Move
-			sim.cmd_move(c.entity_ids.data(), c.entity_ids.size(), c.target_x, c.target_z);
+			sim.cmd_move(ids, n, c.target_x, c.target_z);
 		} else if (c.cmd_type == 2) { // Stop
-			sim.cmd_stop(c.entity_ids.data(), c.entity_ids.size());
+			sim.cmd_stop(ids, n);
 		} else if (c.cmd_type == 3) { // Attack
-			sim.order_attack(c.entity_ids.data(), c.entity_ids.size(), c.target_id);
+			sim.order_attack(ids, n, c.target_id);
 		} else if (c.cmd_type == 4) { // Gather
-			sim.order_gather(c.entity_ids.data(), c.entity_ids.size(), c.target_id);
+			sim.order_gather(ids, n, c.target_id);
 		} else if (c.cmd_type == 5) { // Build
-			uint32_t bid = sim.cmd_build((int)c.target_x, (int)c.target_z, c.param);
-			if (bid && !c.entity_ids.empty())
-				sim.order_build_or_repair(c.entity_ids.data(), c.entity_ids.size(), bid);
+			uint32_t bid = sim.cmd_build(pl, (int)c.target_x, (int)c.target_z, c.param);
+			if (bid && n)
+				sim.order_build_or_repair(ids, n, bid);
 		} else if (c.cmd_type == 6) { // Train
-			sim.cmd_train(c.target_id, (UnitType)c.param);
+			sim.cmd_train(pl, c.target_id, (UnitType)c.param);
 		} else if (c.cmd_type == 7) { // Stance
-			sim.order_set_stance(c.entity_ids.data(), c.entity_ids.size(), c.param);
+			sim.order_set_stance(ids, n, c.param);
 		} else if (c.cmd_type == 8) { // Formation
-			sim.order_set_formation(c.entity_ids.data(), c.entity_ids.size(), c.param);
+			sim.order_set_formation(ids, n, c.param);
 		} else if (c.cmd_type == 9) { // Research
-			sim.cmd_research(c.target_id, c.param);
+			sim.cmd_research(pl, c.target_id, c.param);
 		} else if (c.cmd_type == 10) { // Attack-move
-			sim.order_attack_move(c.entity_ids.data(), c.entity_ids.size(), c.target_x, c.target_z);
+			sim.order_attack_move(ids, n, c.target_x, c.target_z);
 		} else if (c.cmd_type == 11) { // Patrol
-			sim.order_patrol(c.entity_ids.data(), c.entity_ids.size(), c.target_x, c.target_z);
+			sim.order_patrol(ids, n, c.target_x, c.target_z);
 		} else if (c.cmd_type == 12) { // Garrison
-			sim.order_garrison(c.entity_ids.data(), c.entity_ids.size(), c.target_id);
+			sim.order_garrison(ids, n, c.target_id);
 		} else if (c.cmd_type == 13) { // Ungarrison / disembark-all
-			if (c.param == 1 && !c.entity_ids.empty())
-				sim.order_disembark_all(c.entity_ids[0]);
-			else
+			if (c.param == 1) {
+				if (n) sim.order_disembark_all(ids[0]);
+			} else if (sim.owns_building(pl, c.target_id)) {
 				sim.order_ungarrison(c.target_id);
-		} else if (c.cmd_type == 14) { // Rally
+			}
+		} else if (c.cmd_type == 14) { // Rally (entity_ids carry target ids, not units)
 			uint32_t res = c.entity_ids.size() > 0 ? c.entity_ids[0] : 0;
 			uint32_t bld = c.entity_ids.size() > 1 ? c.entity_ids[1] : 0;
-			sim.cmd_set_rally_point(c.target_id, c.target_x, c.target_z, res, bld);
+			sim.cmd_set_rally_point(pl, c.target_id, c.target_x, c.target_z, res, bld);
 		} else if (c.cmd_type == 15) { // Attack building
-			sim.order_attack_building(c.entity_ids.data(), c.entity_ids.size(), c.target_id);
+			sim.order_attack_building(ids, n, c.target_id);
 		} else if (c.cmd_type == 16) { // Build / repair
-			sim.order_build_or_repair(c.entity_ids.data(), c.entity_ids.size(), c.target_id);
+			sim.order_build_or_repair(ids, n, c.target_id);
 		} else if (c.cmd_type == 17) { // Hunt / herd
 			if (c.param == 1)
-				sim.order_herd(c.entity_ids.data(), c.entity_ids.size(), c.target_id);
+				sim.order_herd(ids, n, c.target_id);
 			else
-				sim.order_hunt(c.entity_ids.data(), c.entity_ids.size(), c.target_id);
+				sim.order_hunt(ids, n, c.target_id);
 		} else if (c.cmd_type == 18) { // Board
-			sim.order_board_transport(c.entity_ids.data(), c.entity_ids.size(), c.target_id);
+			sim.order_board_transport(ids, n, c.target_id);
 		} else if (c.cmd_type == 19) { // Disembark
-			if (!c.entity_ids.empty())
-				sim.order_disembark(c.entity_ids[0], c.target_x, c.target_z);
+			if (n) sim.order_disembark(ids[0], c.target_x, c.target_z);
 		} else if (c.cmd_type == 20) { // Cancel train
-			sim.cmd_cancel_train(c.target_id, (size_t)c.param);
+			sim.cmd_cancel_train(pl, c.target_id, (size_t)c.param);
 		} else if (c.cmd_type == 21) { // Guard
-			sim.order_guard(c.entity_ids.data(), c.entity_ids.size(), c.target_id);
+			sim.order_guard(ids, n, c.target_id);
 		} else if (c.cmd_type == 23) { // Barter — target_x=sell, target_z=buy, target_id=amount.
 			// 0 A.D. Barter.js / Market.js exchange. Legacy gap: UI previously called
 			// sim->cmd_barter locally even in lockstep -> resource/price divergence.
-			sim.cmd_barter((rtso::ResourceType)(int)c.target_x,
+			sim.cmd_barter(pl, (rtso::ResourceType)(int)c.target_x,
 			               (rtso::ResourceType)(int)c.target_z, (int)c.target_id);
 		} else if (c.cmd_type == 22) { // Diplomacy stance — target_id=player, param=stance.
 			// 0 A.D. Diplomacy.js / DiplomacyDialog.js parity. Applied at the turn
 			// boundary on EVERY peer (deterministic: diplomacy_state() is mixed into
 			// compute_sim_hash at turn_manager.cpp:213, so a local-only change OOSes).
 			// UI entry: main_node.cpp _on_diplo_stance_changed -> post_lockstep(22, ...).
-			sim.cmd_set_diplomacy((uint8_t)c.target_id, c.param);
+			// The sim stores player 0's stances only, so only player 0 may set them.
+			if (pl == 0) sim.cmd_set_diplomacy((uint8_t)c.target_id, c.param);
 		}
 	}
 

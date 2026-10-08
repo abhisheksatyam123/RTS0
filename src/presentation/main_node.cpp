@@ -923,7 +923,7 @@ void RtsoMain::play_civ_voice(const char *action) {
 		return;
 	}
 
-	uint8_t current_civ = sim ? sim->player_civ() : (uint8_t)rtso::CIV_ATHENIANS;
+	uint8_t current_civ = sim ? sim->player_civ(local_player()) : (uint8_t)rtso::CIV_ATHENIANS;
 	const char *chosen_file = nullptr;
 
 	if (current_civ == rtso::CIV_ATHENIANS || current_civ == rtso::CIV_SPARTANS ||
@@ -1117,7 +1117,7 @@ void RtsoMain::_on_idle_worker_clicked() {
 }
 
 void RtsoMain::cycle_idle_worker() {
-	auto idle_ids = sim->get_idle_workers(0);
+	auto idle_ids = sim->get_idle_workers(local_player());
 	if (idle_ids.empty()) return;
 
 	last_idle_index = (last_idle_index + 1) % idle_ids.size();
@@ -1203,7 +1203,7 @@ void RtsoMain::_on_tech_pressed(int tech_id) {
 		if (net_lockstep())
 			post_lockstep(9, nullptr, 0, 0, 0, selected_building_id, (uint8_t)tech_id);
 		else
-			sim->cmd_research(selected_building_id, (uint8_t)tech_id);
+			sim->cmd_research(local_player(), selected_building_id, (uint8_t)tech_id);
 	}
 }
 
@@ -1217,7 +1217,7 @@ void RtsoMain::_on_barter_requested(int sell_type, int buy_type, int amount) {
 		post_lockstep(23, nullptr, 0, (float)sell_type, (float)buy_type, (uint32_t)amount, 0);
 		ok = true; // validated deterministically on every peer at the boundary
 	} else {
-		ok = sim->cmd_barter((rtso::ResourceType)sell_type, (rtso::ResourceType)buy_type, amount);
+		ok = sim->cmd_barter(local_player(), (rtso::ResourceType)sell_type, (rtso::ResourceType)buy_type, amount);
 	}
 	if (ok) {
 		play_sfx("res://assets/sounds/ui/bonus.ogg");
@@ -1285,7 +1285,7 @@ void RtsoMain::update_ghost_mesh() {
 	const char *fid = rtso::civ_building_foundation(current_build_type);
 	auto bentry = rtso::ModelLibrary::get(cat, String(fid));
 	if (!bentry.valid) {
-		uint8_t pciv = sim ? sim->player_civ() : (uint8_t)rtso::CIV_ATHENIANS;
+		uint8_t pciv = sim ? sim->player_civ(local_player()) : (uint8_t)rtso::CIV_ATHENIANS;
 		bentry = rtso::ModelLibrary::get(cat, String(rtso::civ_building_model(pciv, current_build_type)));
 	}
 	if (bentry.valid) {
@@ -1379,6 +1379,7 @@ void RtsoMain::_process(double delta) {
 	rtso::PerfTracker::record_tick((after_sim_us - start_us) / 1000);
 	rtso::PerfTracker::record_draw((int)sim->unit_count(), (int)sim->building_count());
 
+	view->set_local_player(local_player());
 	view->sync(sim, (float)delta, selected_ids);
 	if (cam_rig) {
 		minimap_view->sync(sim, cam_rig->get_target_pos());
@@ -1489,7 +1490,7 @@ void RtsoMain::_process(double delta) {
 				wall_ghosts.push_back(g);
 			}
 
-			uint8_t pciv = sim ? sim->player_civ() : (uint8_t)rtso::CIV_ATHENIANS;
+			uint8_t pciv = sim ? sim->player_civ(local_player()) : (uint8_t)rtso::CIV_ATHENIANS;
 			auto tower_entry = rtso::ModelLibrary::get("buildings", String(rtso::civ_building_foundation(rtso::BLD_TOWER)));
 			if (!tower_entry.valid) {
 				tower_entry = rtso::ModelLibrary::get("buildings", String(rtso::civ_building_model(pciv, rtso::BLD_TOWER)));
@@ -1617,7 +1618,7 @@ std::pair<int, int> RtsoMain::mouse_cell(Vector2 mouse_pos) const {
 }
 
 void RtsoMain::update_hud() {
-	top_panel_.update(sim, match_elapsed_time);
+	top_panel_.update(sim, local_player(), match_elapsed_time);
 }
 
 void RtsoMain::update_inspector() {
@@ -1634,7 +1635,7 @@ void RtsoMain::update_inspector() {
 			const auto &binfo = rtso::building_type_info(found_b->type);
 			inspector_portrait->set_texture(load_tex("res://assets/textures/ui/portraits/" + String(binfo.portrait_id) + ".png"));
 			inspector_title->set_text(String(binfo.name));
-			String civ_name = rtso::civ_info(sim->player_civ()).name;
+			String civ_name = rtso::civ_info(sim->player_civ(local_player())).name;
 			inspector_class->set_text(civ_name + " Architecture - Garrison Cap: " + String::num_int64(found_b->garrison_cap));
 
 			// 1. Health Bar
@@ -1823,7 +1824,7 @@ void RtsoMain::update_inspector() {
 		} else {
 			inspector_portrait->set_texture(load_tex("res://assets/textures/ui/portraits/swordsman.png"));
 			inspector_title->set_text("Selected Company (" + String::num_int64(selected_ids.size()) + " Units)");
-			String civ_name = rtso::civ_info(sim->player_civ()).name;
+			String civ_name = rtso::civ_info(sim->player_civ(local_player())).name;
 			inspector_class->set_text(civ_name + " Taskforce - Combined Arms");
 
 			// 1. Health Bar
@@ -1902,8 +1903,8 @@ void RtsoMain::update_command_panel() {
 		production_queue_.update(found_b);
 
 		if (found_b && found_b->build_progress >= 1.0f) {
-			uint8_t pciv = sim->player_civ();
-			uint8_t pphase = sim->player_phase();
+			uint8_t pciv = sim->player_civ(local_player());
+			uint8_t pphase = sim->player_phase(local_player());
 			uint32_t roster = rtso::civ_train_mask(pciv);
 			auto add_train = [&](rtso::UnitType t, const char *label) {
 				if ((roster & rtso::unit_bit((uint8_t)t)) == 0) return;
@@ -2090,11 +2091,11 @@ void RtsoMain::enter_build_mode(bool enable, uint8_t btype) {
 }
 
 void RtsoMain::try_train_unit(rtso::UnitType utype) {
-	if (!sim || !rtso::civ_can_train(sim->player_civ(), (uint8_t)utype)) return;
+	if (!sim || !rtso::civ_can_train(sim->player_civ(local_player()), (uint8_t)utype)) return;
 	uint32_t bid = selected_building_id;
 	if (bid == 0) {
 		for (const auto &b : sim->buildings()) {
-			if (b.team != 0 || b.build_progress < 1.0f) continue;
+			if (b.team != local_player() || b.build_progress < 1.0f) continue;
 			bool match = false;
 			if ((utype == rtso::UNIT_VILLAGER || utype == rtso::UNIT_FEMALE_CITIZEN) && b.type == rtso::BLD_TOWN_CENTER)
 				match = true;
@@ -2118,7 +2119,7 @@ void RtsoMain::try_train_unit(rtso::UnitType utype) {
 		play_civ_voice("select");
 		return;
 	}
-	if (sim->cmd_train(bid, utype))
+	if (sim->cmd_train(local_player(), bid, utype))
 		play_civ_voice("select");
 }
 
@@ -2178,7 +2179,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				for (int g = 0; g < selected_groups[grp].size(); ++g) {
 					const int32_t gid = selected_groups[grp][g];
 					for (size_t i = 0; i < gview.count; ++i) {
-						if (gview.alive[i] && gview.id[i] == (uint32_t)gid && gview.team[i] == 0) {
+						if (gview.alive[i] && gview.id[i] == (uint32_t)gid && gview.team[i] == local_player()) {
 							recall.push_back(gid);
 							break;
 						}
@@ -2392,7 +2393,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								(float)cell_x, (float)cell_y, 0, current_build_type);
 						play_civ_voice("build");
 						enter_build_mode(false);
-					} else if (uint32_t bid = sim->cmd_build(cell_x, cell_y, current_build_type)) {
+					} else if (uint32_t bid = sim->cmd_build(local_player(), cell_x, cell_y, current_build_type)) {
 						if (!selected_ids.is_empty())
 							sim->order_build_or_repair((const uint32_t *)selected_ids.ptr(), selected_ids.size(), bid);
 						play_civ_voice("build");
@@ -2429,7 +2430,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								post_lockstep(5, (const uint32_t *)selected_ids.ptr(), selected_ids.size(),
 								              (float)cx, (float)cz, 0, btype);
 							} else if (sim) {
-								uint32_t bid = sim->cmd_build(cx, cz, btype);
+								uint32_t bid = sim->cmd_build(local_player(), cx, cz, btype);
 								if (!bid) {
 									// Sandbox / cost-fallback placement
 									bid = sim->spawn_building_world(p.x, p.z, btype, 0, 0.0f);
@@ -2473,7 +2474,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						size_t best_uidx = (size_t)-1;
 						float best_ud2 = 2.0f * 2.0f;
 						for (size_t i = 0; i < uview.count; ++i) {
-							if (!uview.alive[i] || uview.team[i] != 0) continue;
+							if (!uview.alive[i] || uview.team[i] != local_player()) continue;
 							float dx = uview.pos_x[i] - click_pos.x;
 							float dz = uview.pos_z[i] - click_pos.z;
 							float d2 = dx * dx + dz * dz;
@@ -2495,7 +2496,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								if (cam) {
 									const Vector2 vp_size = get_viewport()->get_visible_rect().size;
 									for (size_t i = 0; i < uview.count; ++i) {
-										if (!uview.alive[i] || uview.team[i] != 0 ||
+										if (!uview.alive[i] || uview.team[i] != local_player() ||
 											uview.unit_type[i] != same_type)
 											continue;
 										Vector3 world_pos(uview.pos_x[i], 0, uview.pos_z[i]);
@@ -2534,7 +2535,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							// Check building hit
 							uint32_t hit_bld = 0;
 							for (const auto &b : sim->buildings()) {
-								if (b.team != 0) continue;
+								if (b.team != local_player()) continue;
 								float dx = b.x - click_pos.x;
 								float dz = b.z - click_pos.z;
 								float hit_r = b.half_size + 0.6f;
@@ -2567,7 +2568,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
 						if (cam) {
 							for (size_t i = 0; i < uview.count; ++i) {
-								if (!uview.alive[i] || uview.team[i] != 0) continue;
+								if (!uview.alive[i] || uview.team[i] != local_player()) continue;
 								Vector3 world_pos(uview.pos_x[i], 0, uview.pos_z[i]);
 								Vector2 screen_pos = cam->unproject_position(world_pos);
 								if (screen_pos.x >= min_p.x && screen_pos.x <= max_p.x &&
@@ -2612,7 +2613,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					uint32_t extra[2] = {target_res, target_bld};
 					post_lockstep(14, extra, 2, click_pos.x, click_pos.z, selected_building_id);
 				} else {
-					sim->cmd_set_rally_point(selected_building_id, click_pos.x, click_pos.z, target_res, target_bld);
+					sim->cmd_set_rally_point(local_player(), selected_building_id, click_pos.x, click_pos.z, target_res, target_bld);
 				}
 				play_civ_voice("select");
 				return;
@@ -2659,7 +2660,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				uint32_t target_ally_id = 0;
 				float best_ad2 = 3.0f * 3.0f;
 				for (size_t i = 0; i < uview.count; ++i) {
-					if (!uview.alive[i] || uview.team[i] != 0) continue;
+					if (!uview.alive[i] || uview.team[i] != local_player()) continue;
 					float dx = uview.pos_x[i] - click_pos.x;
 					float dz = uview.pos_z[i] - click_pos.z;
 					float d2 = dx * dx + dz * dz;
@@ -2703,7 +2704,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			// 1. Right click on Allied War Trireme / Transport (Board Naval Transport)
 			uint32_t clicked_transport_id = 0;
 			for (size_t i = 0; i < uview.count; ++i) {
-				if (!uview.alive[i] || uview.team[i] != 0 || uview.unit_type[i] != rtso::UNIT_TRIREME) continue;
+				if (!uview.alive[i] || uview.team[i] != local_player() || uview.unit_type[i] != rtso::UNIT_TRIREME) continue;
 				float dx = uview.pos_x[i] - click_pos.x;
 				float dz = uview.pos_z[i] - click_pos.z;
 				if (dx * dx + dz * dz <= 3.2f * 3.2f) {
@@ -2724,7 +2725,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			uint32_t clicked_enemy_id = 0;
 			float best_ed2 = 2.2f * 2.2f;
 			for (size_t i = 0; i < uview.count; ++i) {
-				if (!uview.alive[i] || uview.team[i] == 0) continue;
+				if (!uview.alive[i] || uview.team[i] == local_player()) continue;
 				float dx = uview.pos_x[i] - click_pos.x;
 				float dz = uview.pos_z[i] - click_pos.z;
 				float d2 = dx * dx + dz * dz;
@@ -2800,7 +2801,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				float dz = b.z - click_pos.z;
 				float hit_r = b.half_size + 1.2f;
 				if (dx * dx + dz * dz <= hit_r * hit_r) {
-					if (b.team != 0) {
+					if (b.team != local_player()) {
 						if (net_lockstep())
 							post_lockstep(15, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0, 0, b.id);
 						else
@@ -2941,7 +2942,7 @@ void RtsoMain::apply_match_settings() {
 	clear_selection();
 	auto uview = sim->units();
 	for (size_t i = 0; i < uview.count; ++i) {
-		if (uview.team[i] == 0) selected_ids.push_back((int32_t)uview.id[i]);
+		if (uview.team[i] == local_player()) selected_ids.push_back((int32_t)uview.id[i]);
 	}
 }
 
@@ -2956,11 +2957,11 @@ Dictionary RtsoMain::get_match_summary() const {
 	d["victory"] = (int)sim->victory_condition();
 	d["petra_diff"] = (int)sim->petra_difficulty();
 	d["petra_behavior"] = (int)sim->petra_behavior();
-	d["food"] = sim->food();
-	d["wood"] = sim->wood();
-	d["gold"] = sim->gold();
-	d["stone"] = sim->stone();
-	d["player_civ"] = (int)sim->player_civ();
+	d["food"] = sim->food(local_player());
+	d["wood"] = sim->wood(local_player());
+	d["gold"] = sim->gold(local_player());
+	d["stone"] = sim->stone(local_player());
+	d["player_civ"] = (int)sim->player_civ(local_player());
 	d["ai_civ"] = (int)sim->team_civ(1);
 	d["units"] = (int64_t)sim->unit_count();
 	d["buildings"] = (int64_t)sim->building_count();
@@ -3054,7 +3055,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		if (cam_rig) {
 			cam_rig->set_map_bounds_half(sim->map_half());
 			for (const auto &b : sim->buildings()) {
-				if (b.team == 0 && b.type == rtso::BLD_TOWN_CENTER) {
+				if (b.team == local_player() && b.type == rtso::BLD_TOWN_CENTER) {
 					cam_rig->set_target_pos(Vector3(b.x, 0, b.z));
 					break;
 				}
@@ -3435,7 +3436,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	clear_selection();
 	auto uview = sim->units();
 	for (size_t i = 0; i < uview.count; ++i) {
-		if (uview.team[i] == 0) selected_ids.push_back((int32_t)uview.id[i]);
+		if (uview.team[i] == local_player()) selected_ids.push_back((int32_t)uview.id[i]);
 	}
 	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings"))) {
 		ms->set("map_id", String(setup.map_id.c_str()));

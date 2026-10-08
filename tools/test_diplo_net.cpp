@@ -261,6 +261,7 @@ static bool run_replicated_stance(const char *ph) {
 	// Sanity: the pristine worlds agree, so everything below is attributable to
 	// the stance and not to setup.
 	TurnManager ta, tb;
+	tb.set_local_client_id(1); // peer B is the joiner: its commands run as player 1
 	CHECK(ta.compute_sim_hash(sa) == tb.compute_sim_hash(sb), ph);
 
 	// Players 1..7 start mutually hostile (Simulation ctor,
@@ -358,6 +359,7 @@ static bool run_one_sided_negative_control(const char *ph) {
 	build_world(sa, 4242, ra);
 	build_world(sb, 4242, rb);
 	TurnManager ta, tb;
+	tb.set_local_client_id(1); // peer B is the joiner: its commands run as player 1
 	CHECK(ta.compute_sim_hash(sa) == tb.compute_sim_hash(sb), ph);
 
 	ScriptRng g(9001);
@@ -415,6 +417,7 @@ static bool run_one_sided_negative_control(const char *ph) {
 	build_world(sa2, 4242, ra2);
 	build_world(sb2, 4242, rb2);
 	TurnManager ta2, tb2;
+	tb2.set_local_client_id(1); // peer B is the joiner: its commands run as player 1
 	sa2.set_diplomacy(2, Simulation::DIPLO_ALLY);
 	sb2.set_diplomacy(2, Simulation::DIPLO_ALLY);
 	ScriptRng g2(9001);
@@ -927,7 +930,7 @@ static bool run_maintain_fleet_upkeep(const char *ph) {
 	// barracks training must NOT starve Petra's (team 1) navy -- navalManager.js:509
 	// reads Petra's own ship queue, and RTS0 docks are team 1.
 	const uint32_t barracks = sa.spawn_building_world(-26.0f, -4.0f, BLD_BARRACKS, 0, 1.0f);
-	CHECK(sa.cmd_train(barracks, UNIT_SWORDSMAN), "filled the human production queue", ph);
+	CHECK(sa.cmd_train(0, barracks, UNIT_SWORDSMAN), "filled the human production queue", ph);
 	std::vector<NetCommand> while_busy = ta.generate_fleet_upkeep_commands(sa);
 	if (!check(while_busy.size() == 1, "a team-0 training queue does not block the naval upkeep", ph)) return false;
 	CHECK(fleet_upkeep_command_equal(while_busy[0], cmds[0]), "the commission is unchanged while the human trains", ph);

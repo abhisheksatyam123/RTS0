@@ -73,10 +73,10 @@ int main() {
 	m.set_player_resources(0, 5000, 5000, 5000, 5000);
 	uint32_t tc = m.spawn_building(-20, -20, BLD_TOWN_CENTER, 0, 1.0f);
 	for (int i = 0; i < 4; ++i) m.spawn_building(-30 + i * 3, -30, BLD_HOUSE, 0, 1.0f);
-	CHECK(m.cmd_train_template(tc, peri));
-	CHECK(!m.cmd_train_template(tc, find_template(CIV_HAN, "Infantry Crossbowman"))); // other civ's unit
+	CHECK(m.cmd_train_template(0, tc, peri));
+	CHECK(!m.cmd_train_template(0, tc, find_template(CIV_HAN, "Infantry Crossbowman"))); // other civ's unit
 	const float food_before = m.player(0).food();
-	CHECK(m.cmd_train(tc, UNIT_FEMALE_CITIZEN));
+	CHECK(m.cmd_train(0, tc, UNIT_FEMALE_CITIZEN));
 	CHECK(m.player(0).food() < food_before);
 	// Pericles trains in 0 A.D.'s 50 s; look for him as soon as he is out.
 	bool got_pericles = false;
@@ -89,7 +89,7 @@ int main() {
 	CHECK(got_pericles);
 
 	// Classes a civ lacks are refused (Athenians field no elephants).
-	CHECK(!m.cmd_train(tc, UNIT_ELEPHANT));
+	CHECK(!m.cmd_train(0, tc, UNIT_ELEPHANT));
 
 	// Building health takes 0 A.D.'s civ structure bonus (Hellenic Architecture +10%).
 	uint32_t ath_house = s.spawn_building(10, 10, BLD_HOUSE, 0, 1.0f);

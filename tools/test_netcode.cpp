@@ -832,13 +832,13 @@ int run_legacy_tests() {
         Simulation s;
         const uint32_t tc = s.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
         s.set_starting_resources(1000, 1000, 1000, 1000);
-        assert(s.cmd_research(tc, TECH_PHASE_TOWN));
+        assert(s.cmd_research(0, tc, TECH_PHASE_TOWN));
         assert(s.buildings().back().research_tech == TECH_PHASE_TOWN);
         for (int i = 0; i < 32 && !s.is_tech_researched(TECH_PHASE_TOWN); ++i) s.tick(1.0f);
         assert(s.is_tech_researched(TECH_PHASE_TOWN));
         assert(s.player_phase() == 2);
         const int gold_before = s.gold();
-        assert(s.cmd_train(tc, UNIT_SWORDSMAN));
+        assert(s.cmd_train(0, tc, UNIT_SWORDSMAN));
         assert(s.gold() == gold_before - unit_type_info(UNIT_SWORDSMAN).gold_cost);
         // ProductionQueue.js queues the order; the training timer consumes it
         // during the next simulation tick, so a long tick is intentionally not

@@ -92,6 +92,7 @@ public:
 	virtual void update_inspector() = 0;
 	virtual rtso::Simulation *ui_sim() = 0;
 	virtual uint32_t ui_selected_building_id() const = 0;
+	virtual uint8_t local_player() const = 0;
 };
 
 class RtsoProductionQueue {
@@ -224,7 +225,7 @@ public:
 				host_->play_sfx("res://assets/sounds/ui/cancel.ogg");
 				return;
 			}
-			if (sim->cmd_cancel_train(bld_id, (size_t)slot_idx)) {
+			if (sim->cmd_cancel_train(host_->local_player(), bld_id, (size_t)slot_idx)) {
 				host_->play_sfx("res://assets/sounds/ui/cancel.ogg");
 				host_->update_command_panel();
 				host_->update_inspector();
