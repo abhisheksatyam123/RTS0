@@ -494,6 +494,11 @@ void RtsoMain::_ready() {
 	lobby_port->set_text("20595");
 	lobby_port->set_custom_minimum_size(Vector2(70, 0));
 	rtso::parent_line_edit(name_row, lobby_port);
+	lobby_password = memnew(LineEdit);
+	lobby_password->set_placeholder("Password");
+	lobby_password->set_secret(true);
+	lobby_password->set_custom_minimum_size(Vector2(90, 0));
+	rtso::parent_line_edit(name_row, lobby_password);
 	lobby_box->add_child(name_row);
 
 	lobby_rooms = memnew(ItemList);
@@ -1083,6 +1088,22 @@ void RtsoMain::_on_flare_requested(Vector2 world_pos) {
 	net_host_.sendChat(wire);
 }
 
+void RtsoMain::chat_send_wire(const std::string &wire) {
+	// 0 A.D. gui/session/chat/ChatCommands.js: the host removes a player by name.
+	for (const char *cmd : {"/kick ", "/ban "}) {
+		const std::string prefix = cmd;
+		if (wire.compare(0, prefix.size(), prefix) != 0) continue;
+		const std::string name = wire.substr(prefix.size());
+		const bool ban = prefix == "/ban ";
+		String msg;
+		if (!net_host_.isHost()) msg = "Only the host can kick or ban players";
+		else if (!net_host_.kickPeer(net_host_.peerByName(name), ban)) msg = "No player named " + String::utf8(name.c_str());
+		if (!msg.is_empty() && lobby_status) lobby_status->set_text(msg);
+		return;
+	}
+	net_host_.sendChat(wire);
+}
+
 void RtsoMain::_on_minimap_clicked(Vector2 world_pos) {
 	if (cam_rig) {
 		cam_rig->set_target_pos(Vector3(world_pos.x, 0.0f, world_pos.y));
@@ -1578,6 +1599,20 @@ void RtsoMain::_process(double delta) {
 
 	accumulator += scaled_delta;
 	int ticks = 0;
+	if (net_lockstep() && lobby_status) {
+		// 0 A.D. NetClient notices: the host refused us, or removed someone.
+		const int auth = net_host_.authResult();
+		if (auth == rtso::ARC_PASSWORD_INVALID) lobby_status->set_text("Wrong password");
+		else if (auth == rtso::ARC_BANNED) lobby_status->set_text("You have been banned from this game");
+		const auto &kicks = net_host_.kicks();
+		for (; kicks_shown_ < kicks.size(); ++kicks_shown_) {
+			const auto &k = kicks[kicks_shown_];
+			const String who = String::utf8(k.name.empty() ? k.guid.c_str() : k.name.c_str());
+			lobby_status->set_text(net_host_.kickedSelf() && k.guid == rtso::peer_guid(net_host_.getLocalPeerId())
+					? String(k.ban ? "You have been banned" : "You have been kicked")
+					: who + String(k.ban ? " has been banned" : " has been kicked"));
+		}
+	}
 	if (net_lockstep()) {
 		if (net_game_started_) {
 			// NetClientTurnManager: one 200ms turn batch, sim steps inside TurnManager::tick
@@ -1597,6 +1632,29 @@ void RtsoMain::_process(double delta) {
 					who += (who.is_empty() ? "" : ", ") + (pl < 8 ? "Player " + String::num_int64(pl + 1) : "an observer");
 				}
 				lobby_status->set_text("Game paused by " + who);
+			} else if (lobby_status) {
+				// 0 A.D. session.js network warnings: who the turn waits on, who
+				// is not responding and whose connection is bad.
+				auto name = [&](uint32_t c) {
+					const uint8_t pl = turn_mgr_.player_for_client(c);
+					return pl < 8 ? "Player " + String::num_int64(pl + 1) : "an observer";
+				};
+				String status;
+				if (turn_mgr_.waiting_ms() > rtso::NET_TIMEOUT_WARN_MS) {
+					String who;
+					for (uint32_t c : turn_mgr_.waiting_on()) who += (who.is_empty() ? "" : ", ") + name(c);
+					if (!who.is_empty()) status = "Waiting for " + who;
+				}
+				for (const auto &e : net_host_.clientPerformance()) {
+					String line;
+					if (e.silent_ms > rtso::NET_TIMEOUT_WARN_MS)
+						line = name(e.client) + " is not responding (" + String::num_int64(e.silent_ms / 1000) + " s)";
+					else if (e.rtt_ms > rtso::NET_LAG_WARN_RTT_MS)
+						line = name(e.client) + " has a bad connection (" + String::num_int64(e.rtt_ms) + " ms)";
+					if (!line.is_empty()) status += (status.is_empty() ? "" : ". ") + line;
+				}
+				if (!status.is_empty() || net_status_shown_) lobby_status->set_text(status);
+				net_status_shown_ = !status.is_empty();
 			}
 		}
 		// else pre-Start lobby phase: poll + GAME_START consume only (above) -
@@ -3941,6 +3999,8 @@ void RtsoMain::_on_lobby_host_pressed() {
 	cfg.port = (uint16_t)lobby_port->get_text().to_int();
 	if (cfg.port == 0) cfg.port = rtso::PS_DEFAULT_PORT;
 	net_host_.setLocalPlayerName(lobby_name->get_text().utf8().get_data());
+	net_host_.setPassword(lobby_password ? lobby_password->get_text().utf8().get_data() : "");
+	kicks_shown_ = 0;
 	if (!net_host_.startHost(cfg)) {
 		if (lobby_status) lobby_status->set_text("Host bind failed");
 		return;
@@ -4192,6 +4252,8 @@ void RtsoMain::_on_lobby_join_pressed() {
 	if (port == 0) port = rtso::PS_DEFAULT_PORT;
 	if (ip.empty()) ip = "127.0.0.1";
 	net_host_.setLocalPlayerName(lobby_name->get_text().utf8().get_data());
+	net_host_.setPassword(lobby_password ? lobby_password->get_text().utf8().get_data() : "");
+	kicks_shown_ = 0;
 	if (!net_host_.startClient(ip, port)) {
 		if (lobby_status) lobby_status->set_text("Join failed");
 		return;
