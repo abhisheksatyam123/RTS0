@@ -70,6 +70,12 @@ const RMS_MAPS := [
 	["random_sahel_watering_holes", "Sahel Watering Holes (RMS)", "Random", 8, 128, "savanna", "Lines of water with shallows between the players. Supports 2-8 players."],
 	["random_persian_highlands", "Persian Highlands (RMS)", "Random", 8, 128, "persia", "A dry sunken plateau rich in minerals, ringed by rocky hills. Supports 2-8 players."],
 	["random_volcanic_lands", "Volcanic Lands (RMS)", "Random", 8, 128, "volcanic", "A charred land around a smoking volcano. Supports 2-8 players."],
+	["random_lions_den", "Lion's Den (RMS)", "Random", 8, 128, "steppe", "Cliff-ringed dens with ramps down to a sunken valley. Supports 2-8 players."],
+	["random_hells_pass", "Hell's Pass (RMS)", "Random", 8, 128, "alpine", "Mountain spines between the players, with narrow passes. Supports 2-8 players."],
+	["random_deep_forest", "Deep Forest (RMS)", "Random", 8, 128, "temperate", "A deep forest crossed by paths between the bases. Supports 2-8 players."],
+	["random_india", "India (RMS)", "Random", 8, 128, "india", "Parched land round one half dried-up lake. Supports 2-8 players."],
+	["random_guadalquivir_river", "Guadalquivir River (RMS)", "Random", 8, 128, "mediterranean", "A coast split by a river with three shallows. Supports 2-8 players."],
+	["random_fields_of_meroe", "Fields of Meroe (RMS)", "Random", 8, 128, "savanna", "The Nile with two cataract crossings, dunes and acacias. Supports 2-8 players."],
 ]
 
 # 0 A.D. population limits per player (0 = unlimited) and ceasefire lengths in minutes.
