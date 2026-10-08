@@ -31,6 +31,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_idle_worker_clicked"), &RtsoMain::_on_idle_worker_clicked);
 	ClassDB::bind_method(D_METHOD("_on_speed_button_pressed"), &RtsoMain::_on_speed_button_pressed);
 	ClassDB::bind_method(D_METHOD("_on_menu_button_pressed"), &RtsoMain::_on_menu_button_pressed);
+	ClassDB::bind_method(D_METHOD("get_audio_state"), &RtsoMain::get_audio_state);
 	ClassDB::bind_method(D_METHOD("_on_ungarrison_pressed"), &RtsoMain::_on_ungarrison_pressed);
 	ClassDB::bind_method(D_METHOD("_on_selection_group_clicked", "key"), &RtsoMain::_on_selection_group_clicked);
 	ClassDB::bind_method(D_METHOD("_on_garrison_group_clicked", "key"), &RtsoMain::_on_garrison_group_clicked);
@@ -796,29 +797,13 @@ void RtsoMain::_ready() {
 	add_child(sfx_player);
 	add_child(alarm_player);
 
-	if (ResourceLoader::get_singleton()->exists("res://assets/music/peace_1.ogg")) {
-		Ref<AudioStream> stream = ResourceLoader::get_singleton()->load("res://assets/music/peace_1.ogg");
-		if (stream.is_valid()) {
-			music_player = memnew(AudioStreamPlayer);
-			music_player->set_stream(stream);
-			music_player->set_autoplay(true);
-			music_player->set_volume_db(-8.0f);
-			add_child(music_player);
-			music_player->play();
-		}
-	}
-
-	if (ResourceLoader::get_singleton()->exists("res://assets/music/battle_1.ogg")) {
-		Ref<AudioStream> bstream = ResourceLoader::get_singleton()->load("res://assets/music/battle_1.ogg");
-		if (bstream.is_valid()) {
-			battle_music_player = memnew(AudioStreamPlayer);
-			battle_music_player->set_stream(bstream);
-			battle_music_player->set_autoplay(true);
-			battle_music_player->set_volume_db(-80.0f);
-			add_child(battle_music_player);
-			battle_music_player->play();
-		}
-	}
+	// 0 A.D. music.js playlists and in-game sound events (music_manager.h,
+	// session_audio.h).
+	music_.build(this);
+	session_audio_.build(this);
+	session_audio_.set_spatial([this](const Ref<AudioStream> &s, Vector3 pos, float db) {
+		if (view) view->play_spatial_sound(s, pos, db, 75.0f, 1.0f);
+	});
 
 	if (ResourceLoader::get_singleton()->exists("res://assets/sounds/ambient/nature_ambient.ogg")) {
 		Ref<AudioStream> amb_stream = ResourceLoader::get_singleton()->load("res://assets/sounds/ambient/nature_ambient.ogg");
@@ -976,140 +961,62 @@ void RtsoMain::play_civ_voice(const char *action) {
 		return;
 	}
 
-	uint8_t current_civ = sim ? sim->player_civ(local_player()) : (uint8_t)rtso::CIV_ATHENIANS;
-	const char *chosen_file = nullptr;
-
-	if (current_civ == rtso::CIV_ATHENIANS || current_civ == rtso::CIV_SPARTANS ||
-		current_civ == rtso::CIV_MACEDONIANS || current_civ == rtso::CIV_PTOLEMIES ||
-		current_civ == rtso::CIV_SELEUCIDS) {
-		// Ancient Hellenic voice lines pool (audio/voice/hellenes/)
-		if (act == "select") {
-			// Selection: "Khaire", "Ti estin", "Hetoimos"
-			const char *opts[][2] = {
-				{ "res://assets/sounds/voice/hellenes/khaire.ogg", "res://assets/sounds/voice/greek/civ_female_what_is_it_1.ogg" },
-				{ "res://assets/sounds/voice/hellenes/ti_estin.ogg", "res://assets/sounds/voice/greek/civ_female_what_is_it_2.ogg" },
-				{ "res://assets/sounds/voice/hellenes/hetoimos.ogg", "res://assets/sounds/voice/greek/civ_female_what_is_it_3.ogg" }
-			};
-			int idx = voice_rand_idx % 3;
-			chosen_file = ResourceLoader::get_singleton()->exists(opts[idx][0]) ? opts[idx][0] : opts[idx][1];
-		} else if (act == "move") {
-			// Move orders: "Poreuomai", "Baino"
-			const char *opts[][2] = {
-				{ "res://assets/sounds/voice/hellenes/poreuomai.ogg", "res://assets/sounds/voice/greek/civ_female_walk_1.ogg" },
-				{ "res://assets/sounds/voice/hellenes/baino.ogg", "res://assets/sounds/voice/greek/civ_female_march_1.ogg" }
-			};
-			int idx = voice_rand_idx % 2;
-			chosen_file = ResourceLoader::get_singleton()->exists(opts[idx][0]) ? opts[idx][0] : opts[idx][1];
-		} else if (act == "attack") {
-			// Attack orders: "Epi tous polemious!", "Eis makhen!"
-			const char *opts[][2] = {
-				{ "res://assets/sounds/voice/hellenes/epi_tous_polemious.ogg", "res://assets/sounds/voice/greek/civ_female_attack_1.ogg" },
-				{ "res://assets/sounds/voice/hellenes/eis_makhen.ogg", "res://assets/sounds/voice/greek/civ_female_go_out_against_1.ogg" }
-			};
-			int idx = voice_rand_idx % 2;
-			chosen_file = ResourceLoader::get_singleton()->exists(opts[idx][0]) ? opts[idx][0] : opts[idx][1];
-		} else if (act == "build") {
-			// Build orders: "Poieso"
-			chosen_file = ResourceLoader::get_singleton()->exists("res://assets/sounds/voice/hellenes/poieso.ogg")
-				? "res://assets/sounds/voice/hellenes/poieso.ogg"
-				: "res://assets/sounds/voice/greek/civ_female_build_1.ogg";
-		} else if (act == "gather") {
-			// Gather orders: "Ergon"
-			chosen_file = ResourceLoader::get_singleton()->exists("res://assets/sounds/voice/hellenes/ergon.ogg")
-				? "res://assets/sounds/voice/hellenes/ergon.ogg"
-				: "res://assets/sounds/voice/greek/civ_female_work_land_1.ogg";
-		}
-	} else if (current_civ == rtso::CIV_ROMANS || current_civ == rtso::CIV_BRITONS ||
-	           current_civ == rtso::CIV_GAULS) {
-		// Latin / Roman voice pool
-		if (act == "select") {
-			const char *opts[] = {
-				"res://assets/sounds/voice/latin/civ_male_hello_1.ogg",
-				"res://assets/sounds/voice/latin/civ_male_what_is_it_1.ogg",
-				"res://assets/sounds/voice/latin/civ_female_hello_1.ogg"
-			};
-			chosen_file = opts[voice_rand_idx % 3];
-		} else if (act == "move") {
-			const char *opts[] = {
-				"res://assets/sounds/voice/latin/civ_male_march_1.ogg",
-				"res://assets/sounds/voice/latin/civ_male_walk_1.ogg"
-			};
-			chosen_file = opts[voice_rand_idx % 2];
-		} else if (act == "attack") {
-			const char *opts[] = {
-				"res://assets/sounds/voice/latin/civ_male_attack_1.ogg",
-				"res://assets/sounds/voice/latin/civ_male_fight_1.ogg"
-			};
-			chosen_file = opts[voice_rand_idx % 2];
-		} else if (act == "build") {
-			chosen_file = "res://assets/sounds/voice/latin/civ_male_build_1.ogg";
-		} else if (act == "gather") {
-			chosen_file = "res://assets/sounds/voice/latin/civ_male_work_land_1.ogg";
-		}
-	} else if (current_civ == rtso::CIV_PERSIANS || current_civ == rtso::CIV_CARTHAGINIANS ||
-	           current_civ == rtso::CIV_IBERIANS || current_civ == rtso::CIV_MAURYANS) {
-		// Persian voice pool
-		if (act == "select") {
-			const char *opts[] = {
-				"res://assets/sounds/voice/persian/civ_male_hello_1.ogg",
-				"res://assets/sounds/voice/persian/civ_female_hello_1.ogg"
-			};
-			chosen_file = opts[voice_rand_idx % 2];
-		} else if (act == "move") {
-			const char *opts[] = {
-				"res://assets/sounds/voice/persian/civ_male_forward_1.ogg",
-				"res://assets/sounds/voice/persian/civ_male_forward_2.ogg"
-			};
-			chosen_file = opts[voice_rand_idx % 2];
-		} else if (act == "attack") {
-			const char *opts[] = {
-				"res://assets/sounds/voice/persian/civ_male_attack_1.ogg",
-				"res://assets/sounds/voice/persian/civ_female_to_war_1.ogg"
-			};
-			chosen_file = opts[voice_rand_idx % 2];
-		} else if (act == "build") {
-			chosen_file = "res://assets/sounds/voice/persian/civ_male_build_1.ogg";
-		} else if (act == "gather") {
-			chosen_file = "res://assets/sounds/voice/persian/civ_male_gather_1.ogg";
-		}
-	} else if (current_civ == rtso::CIV_KUSHITES) {
-		// Napatan / Kushite voice pool
-		if (act == "select") {
-			const char *opts[] = {
-				"res://assets/sounds/voice/napatan/civ_male_what_is_it_01.ogg",
-				"res://assets/sounds/voice/napatan/civ_female_hello_01.ogg"
-			};
-			chosen_file = opts[voice_rand_idx % 2];
-		} else if (act == "move") {
-			const char *opts[] = {
-				"res://assets/sounds/voice/napatan/civ_male_walk_01.ogg",
-				"res://assets/sounds/voice/napatan/civ_female_march_01.ogg"
-			};
-			chosen_file = opts[voice_rand_idx % 2];
-		} else if (act == "attack") {
-			const char *opts[] = {
-				"res://assets/sounds/voice/napatan/civ_male_attack_01.ogg",
-				"res://assets/sounds/voice/napatan/civ_male_go_out_against_01.ogg"
-			};
-			chosen_file = opts[voice_rand_idx % 2];
-		} else if (act == "build") {
-			chosen_file = "res://assets/sounds/voice/napatan/civ_male_build_01.ogg";
-		} else if (act == "gather") {
-			chosen_file = "res://assets/sounds/voice/napatan/civ_male_gather_01.ogg";
-		}
-	}
-
-	// Fallback to default voices if specific civ file doesn't exist
-	if (chosen_file && ResourceLoader::get_singleton()->exists(chosen_file)) {
-		play_voice(chosen_file);
+	// 0 A.D. plays the voice of the selection's first unit (its template's
+	// SoundGroups), in its civ's language and phenotype.
+	if (!sim) return;
+	if (selected_ids.is_empty()) {
+		if (selected_building_id != 0 && act == "select")
+			for (const auto &b : sim->buildings())
+				if (b.id == selected_building_id) {
+					session_audio_.play_building_select(b.type);
+					break;
+				}
 		return;
 	}
+	const uint32_t first = (uint32_t)(int64_t)selected_ids[0];
+	auto uv = sim->units();
+	for (size_t i = 0; i < uv.count; ++i) {
+		if (uv.id[i] != first) continue;
+		session_audio_.play_voice(sim->player_civ(uv.team[i]), uv.unit_type[i], act);
+		return;
+	}
+}
 
-	if (act == "select") play_voice("res://assets/sounds/voice/select_1.ogg");
-	else if (act == "move") play_voice("res://assets/sounds/voice/move_1.ogg");
-	else if (act == "attack") play_voice("res://assets/sounds/voice/attack_1.ogg");
-	else if (act == "build") play_voice("res://assets/sounds/voice/build_1.ogg");
-	else if (act == "gather") play_voice("res://assets/sounds/voice/gather_1.ogg");
+// music.js states: civ peace tracks for the local player's civ, battle while
+// BattleDetection says the player is fighting, victory or defeat at the end
+// (with alarm_victory / alarm_defeated).
+// Music state, current track and last sound event (headless smoke tests).
+Dictionary RtsoMain::get_audio_state() const {
+	static const char *kStates[] = {"off", "menu", "peace", "battle", "victory", "defeat"};
+	Dictionary d;
+	d["music_state"] = kStates[music_.state()];
+	d["track"] = music_.current_track();
+	d["last_sound"] = session_audio_.last_played();
+	d["in_battle"] = session_audio_.in_battle();
+	return d;
+}
+
+void RtsoMain::update_music_state() {
+	if (!sim) return;
+	const uint8_t me = local_player();
+	const uint8_t civ = sim->player_civ(me);
+	if (civ != music_civ_) {
+		music_civ_ = civ;
+		music_.store_civ_tracks(civ);
+		if (music_.state() != rtso::RtsoMusic::OFF) {
+			const auto keep = music_.state();
+			music_.set_state(rtso::RtsoMusic::OFF);
+			music_.set_state(keep);
+		}
+	}
+	rtso::RtsoMusic::State want = session_audio_.in_battle() ? rtso::RtsoMusic::BATTLE : rtso::RtsoMusic::PEACE;
+	if (sim->is_victory_for(me)) want = rtso::RtsoMusic::VICTORY;
+	else if (sim->is_victory() || sim->is_game_over() || sim->is_defeated(me)) want = rtso::RtsoMusic::DEFEAT;
+	const auto was = music_.state();
+	if (want == was) return;
+	if (want == rtso::RtsoMusic::VICTORY) session_audio_.play_victory();
+	else if (want == rtso::RtsoMusic::DEFEAT) session_audio_.play_defeat();
+	music_.set_state(want);
 }
 
 void RtsoMain::play_spatial_sfx(const char *path, Vector3 pos) {
@@ -1202,6 +1109,7 @@ void RtsoMain::find_idle_unit(IdleKind kind) {
 	}
 	if (idle.empty()) {
 		last_idle_unit_ = 0;
+		session_audio_.play_no_idle_unit();
 		return;
 	}
 	if (!append) {
@@ -1296,7 +1204,7 @@ void RtsoMain::notify_attack(Vector3 pos, uint8_t attacker, bool structure) {
 	last_attack_pos_ = pos;
 	if (minimap_view) minimap_view->add_ping(Vector2(pos.x, pos.z), Color(1.0f, 0.15f, 0.1f));
 	const bool gaia = attacker == rtso::GAIA_PLAYER;
-	play_alarm(gaia ? "res://assets/sounds/alarm_under_attack.ogg" : "res://audio/alarm_under_attack.ogg");
+	session_audio_.play_group("interface/alarm", gaia ? "alarm_attacked_gaia" : "alarmattackplayer", 0.25f);
 	if (!chat_window_.is_ready()) return;
 	String who = gaia ? String("Gaia")
 			: "Player " + String::num_int64(attacker + 1) + " (" + String(rtso::civ_info(sim->player_civ(attacker)).name) + ")";
@@ -1625,6 +1533,7 @@ void RtsoMain::_process(double delta) {
 	}
 	// Networked: keep running TurnManager::tick, which holds turns for everyone
 	// while any client is paused, so this peer still sees remote pauses end.
+	music_.tick(delta);
 	if ((paused_via_menu || hotkey_paused_) && !net_lockstep()) return;
 	double scaled_delta = delta * game_speed;
 	match_elapsed_time += scaled_delta;
@@ -1745,29 +1654,10 @@ void RtsoMain::_process(double delta) {
 	chat_window_.tick_overlay();
 	if (objectives_dialog_.is_open()) objectives_dialog_.refresh(sim, local_player());
 
-	// Adaptive Dynamic Music Crossfader (Music.js)
-	int active_combatants = 0;
-	auto uview = sim->units();
-	for (size_t i = 0; i < uview.count; ++i) {
-		if (uview.alive[i] && uview.action_state[i] == rtso::ACTION_ATTACK) {
-			active_combatants++;
-		}
-	}
-	int active_projectiles = (int)sim->projectiles().size();
-	float target_intensity = (active_combatants >= 3 || active_projectiles >= 2) ? 1.0f : 0.0f;
-
-	if (target_intensity > combat_intensity) {
-		combat_intensity = std::min(1.0f, combat_intensity + (float)delta * 0.75f); // Fast cross-fade to battle
-	} else {
-		combat_intensity = std::max(0.0f, combat_intensity - (float)delta * 0.20f); // Slow return to peace
-	}
-
-	if (music_player && battle_music_player) {
-		float peace_db = -8.0f - (combat_intensity * 60.0f);
-		float battle_db = -80.0f + (combat_intensity * 74.0f); // up to -6.0dB
-		music_player->set_volume_db(peace_db);
-		battle_music_player->set_volume_db(battle_db);
-	}
+	// Sound events and the music state (0 A.D. music.js: battle while
+	// BattleDetection says so, victory and defeat playlists at the end).
+	session_audio_.tick(sim, local_player(), match_elapsed_time, true);
+	update_music_state();
 
 	// Environmental Ambience: Viewport Elevation & Coastal Water Proximity
 	Vector3 cam_world_pos(0, 30, 0);
@@ -3003,6 +2893,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							sim->order_build_or_repair((const uint32_t *)selected_ids.ptr(), selected_ids.size(), bid);
 						play_civ_voice("build");
 						enter_build_mode(false);
+					} else {
+						session_audio_.play_invalid_placement();
 					}
 					return;
 				}

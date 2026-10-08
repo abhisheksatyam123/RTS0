@@ -58,6 +58,8 @@
 #include "selection_grid.h"
 #include "objectives_dialog.h"
 #include "range_overlays.h"
+#include "music_manager.h"
+#include "session_audio.h"
 
 using namespace godot;
 
@@ -71,8 +73,6 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	RtsoDebugOverlay *debug_overlay = nullptr;
 	RtsoMiniMapView *minimap_view = nullptr;
 	CanvasLayer *ui_layer = nullptr;
-	AudioStreamPlayer *music_player = nullptr;
-	AudioStreamPlayer *battle_music_player = nullptr;
 	AudioStreamPlayer *voice_player = nullptr;
 	AudioStreamPlayer *alarm_player = nullptr;
 	AudioStreamPlayer *sfx_player = nullptr;
@@ -80,7 +80,6 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	AudioStreamPlayer *ambient_wind_player = nullptr;
 	AudioStreamPlayer *ambient_water_player = nullptr;
 	AudioStreamPlayer3D *spatial_sfx_player = nullptr;
-	float combat_intensity = 0.0f;
 
 	// 1. Top HUD Bar
 	Panel *top_hud_panel = nullptr;
@@ -358,6 +357,11 @@ private:
 	void notify_attack(Vector3 pos, uint8_t attacker, bool structure);
 	void play_voice(const char *path);
 	void play_civ_voice(const char *action);
+	void update_music_state();
+	Dictionary get_audio_state() const;
+	rtso::RtsoMusic music_;
+	rtso::RtsoSessionAudio session_audio_;
+	uint8_t music_civ_ = 0xFF;
 	void play_alarm(const char *path);
 	void play_sfx(const char *path);
 	void play_spatial_sfx(const char *path, Vector3 pos);
