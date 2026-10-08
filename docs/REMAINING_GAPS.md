@@ -10,7 +10,7 @@ The game-level gaps below are each being built by its own parallel thread (areas
 
 | Area | Gap today | Where in code |
 |---|---|---|
-| A. Per-player economy | Resources and techs are hard-wired as "human" vs "AI"; play is two players only (0 A.D.: up to 8 in teams). Lands first; B–F build on it. | `simulation.h` (~`:598`, `:702`), `turn_manager.cpp` hash, `main_node.cpp` top panel, save/load |
+| A. Per-player economy | Landed 2026-10-08 (#7 and the command-ownership PR): 8 player slots each with their own stock, techs, phase, civ and team; lockstep commands run as the sending player and can only order what it owns; the HUD shows the local player. Left: diplomacy is still player 0's view only (no 8x8 matrix), combat ignores teams, fog of war is player 0's, and the starting-resources option sets player 0 only. | `PlayerState` in `simulation.h`, `TurnManager::player_for_client`, `filter_owned_units`, `main_node.cpp` `local_player()` |
 | B. Game modes | Wave-defense mode is on in every match (a wave every 35 s, win by surviving wave 5). No skirmish/conquest victory options. | `tick_waves`, `check_victory_conditions`, `scenes/menu/gamesetup.gd` |
 | C. AI (Petra) | AI stays in the village phase all match (14 workers, unspent food); one AI player only. | `petra_*` in `simulation.cpp`, `petra_ai.h` |
 | D. Civ rosters and heroes | Landed 2026-10-08 (#10, #12): all 14 civs including Han field their own 0 A.D. units and heroes with 0 A.D. stats, civ bonuses are data, and 36 of 65 hero auras are modelled. Left: the other 29 auras (loot, capture and similar effects), a train panel that lists roster units by name, and Petra pricing from the roster. | `tools/extract_0ad_rosters.py`, `civ_roster_data.h`, `spawn_unit`, `cmd_train_template` |
