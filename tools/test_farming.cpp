@@ -104,7 +104,7 @@ int main() {
 
 	// Food arrives at the farmstead and the field never runs out.
 	int gathered0 = s.record().total_food_gathered;
-	run(s, 15.0f);
+	run(s, 40.0f); // food.grain 0.5 a second, 10 a trip
 	CHECK(s.record().total_food_gathered > gathered0);
 	int32_t amount = 0;
 	CHECK(count_grain(s, &amount) == 1 && amount == FIELD_FOOD_SUPPLY);
@@ -138,7 +138,7 @@ int main() {
 	// Units walk onto fields (they don't block movement) and the food comes in.
 	s.spawn_building_world(10.0f, 16.0f, BLD_FARMSTEAD, 0, 1.0f);
 	int before = s.record().total_food_gathered;
-	run(s, 15.0f);
+	run(s, 40.0f);
 	CHECK(s.record().total_food_gathered > before);
 
 	// Lockstep: two identical sims stay in sync while farming.
@@ -152,8 +152,8 @@ int main() {
 		p->order_build_or_repair(w.data(), w.size(), f);
 	}
 	TurnManager tm;
-	run(a, 20.0f);
-	run(b, 20.0f);
+	run(a, 60.0f);
+	run(b, 60.0f);
 	CHECK(tm.compute_sim_hash(a) == tm.compute_sim_hash(b));
 	CHECK(a.food() > 5000.0f);
 

@@ -304,7 +304,9 @@ static void test_rally() {
 	const bool sp = run_until(s, 30.0f, [&] { return find_new() != 0; });
 	run(s, 1.0f);
 	const uint32_t spear = find_new();
-	check(sp && s.unit_order(spear).kind == ORDER_WALK, "a unit that can't gather walks to the rally point");
+	// Citizen soldiers gather (template_unit_infantry ResourceGatherer).
+	check(sp && s.unit_order(spear).kind == ORDER_GATHER && s.unit_order(spear).target == tree,
+			"a citizen soldier rallied onto a tree gathers it");
 }
 
 static void test_builders_after_dropsite() {
