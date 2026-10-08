@@ -49,10 +49,15 @@ jobs:
           scons target=template_release -j4
           ls -lh bin/
 
+      # Artifacts are for downloads from main/tags/manual runs only. PR runs skip
+      # them, and a full artifact quota must not fail an otherwise green build.
       - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
         with:
           name: gdextension-linux
           path: bin/
+          retention-days: 3
 
   export-desktop:
     name: Export ${{ matrix.name }}
@@ -80,13 +85,6 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq build-essential python3 scons mesa-vulkan-drivers libgl1-mesa-dri xvfb
 
-      - name: Restore GDExtension artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: gdextension-linux
-          path: bin/
-        # For Windows we rebuild; for Linux we reuse. Window build needs cross compile - for now reuse linux lib and build windows natively if on linux with mingw
-        # Simpler: rebuild for target platform
       - name: Cache Godot binaries + templates
         id: cache-godot
         uses: actions/cache@v4
@@ -125,6 +123,7 @@ jobs:
               scons platform=windows target=template_release -j4
             else
               echo "mingw not available, using linux lib as placeholder for windows export test"
+              scons platform=linux target=template_release -j4
               cp bin/librtso.linux.template_release.x86_64.so bin/librtso.windows.template_release.x86_64.dll || true
             fi
           fi
@@ -146,9 +145,12 @@ jobs:
           esac
 
       - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
         with:
           name: RTS0-${{ matrix.name }}
           path: ${{ matrix.out }}
+          retention-days: 7
 
   export-android:
     name: Export Android APK
@@ -229,6 +231,8 @@ jobs:
           xvfb-run godot --path . --export-debug "Android" build/android/RTS0.apk
 
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: RTS0-Android
           path: build/android/
+          retention-days: 7
