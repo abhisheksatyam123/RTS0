@@ -406,8 +406,9 @@ void Simulation::spawn_initial() {
 	spawn_fauna(22.0f, -16.0f, FAUNA_BOAR);
 	spawn_fauna(-25.0f, -20.0f, FAUNA_SHEEP);
 	spawn_fauna(-27.0f, -22.0f, FAUNA_SHEEP);
-	spawn_fauna(30.0f, 25.0f, FAUNA_WOLF);
-	spawn_fauna(32.0f, 28.0f, FAUNA_WOLF);
+	// Wolves are aggressive (0 A.D. fauna_wolf), so their pack sits away from both bases.
+	spawn_fauna(38.0f, -36.0f, FAUNA_WOLF);
+	spawn_fauna(40.0f, -33.0f, FAUNA_WOLF);
 
 	// 7. Enemy Base (Team 1) — Spartan Base for Petra Autonomous AI.
 	// Sits ~68 m from the player's Town Center so neither side's starting units are inside

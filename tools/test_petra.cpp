@@ -405,7 +405,8 @@ static void test_attack_plans() {
 	{
 		auto s = match(PETRA_BEHAVIOR_AGGRESSIVE);
 		int attack_size = 0, huge_size = 0;
-		for (float t = 0.0f; t < 12.0f * 60.0f; t += Simulation::FIXED_STEP) {
+		// HugeAttack launches around 11-12 min on this map; 14 min leaves room for map changes.
+		for (float t = 0.0f; t < 14.0f * 60.0f; t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			const auto &m = s->petra_attack_manager();
 			if (s->petra_attack_plan().state != Simulation::AttackPlan::WALKING) continue;
