@@ -21,6 +21,7 @@
 #include <cstring>
 #include <map>
 #include <string>
+#include <vector>
 
 using namespace rtso;
 
@@ -240,9 +241,43 @@ static void check_reset_load(TurnManager &tm, const char *path) {
 	if (failures == before) std::printf("Town Center + wall, packed/unpacked catapults, a defeated player and a wonder hold into a reset sim: ok\n");
 }
 
+// Two identical runs must write byte-identical saves: a raw-saved struct's
+// uninitialised padding would make them differ (and break bench_sim's state_fnv64).
+static std::vector<char> read_file(const char *path) {
+	std::vector<char> v;
+	if (FILE *f = std::fopen(path, "rb")) {
+		char buf[65536];
+		size_t n;
+		while ((n = std::fread(buf, 1, sizeof(buf), f)) > 0) v.insert(v.end(), buf, buf + n);
+		std::fclose(f);
+	}
+	return v;
+}
+static void check_identical_saves() {
+	static Simulation a, b;
+	build(a);
+	run(a, 3000);
+	a.save_state("/tmp/rts0_test_save_a.sav");
+	build(b);
+	run(b, 3000);
+	b.save_state("/tmp/rts0_test_save_b.sav");
+	const std::vector<char> fa = read_file("/tmp/rts0_test_save_a.sav"), fb = read_file("/tmp/rts0_test_save_b.sav");
+	size_t differ = 0, first = 0;
+	for (size_t i = 0; i < fa.size() && i < fb.size(); ++i)
+		if (fa[i] != fb[i] && differ++ == 0) first = i;
+	if (fa.empty() || fa.size() != fb.size() || differ) {
+		std::printf("  FAIL two identical runs wrote different saves: %zu vs %zu bytes, %zu differ, first at %zu\n",
+		            fa.size(), fb.size(), differ, first);
+		++failures;
+	} else {
+		std::printf("two identical runs: byte-identical saves (%zu bytes)\n", fa.size());
+	}
+}
+
 int main() {
 	static Simulation live, loaded;
 	TurnManager tm;
+	check_identical_saves();
 	check_reset_load(tm, "/tmp/rts0_test_save_hash.sav");
 	build(live);
 	const char *path = "/tmp/rts0_test_save_hash.sav";

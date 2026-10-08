@@ -92,7 +92,13 @@ enum MapType : uint8_t {
 	MAP_SAHEL_WATERING_HOLES = 36,
 	MAP_PERSIAN_HIGHLANDS = 37,
 	MAP_VOLCANIC_LANDS = 38,
-	MAP_TYPE_COUNT = 39
+	MAP_LIONS_DEN = 39,
+	MAP_HELLS_PASS = 40,
+	MAP_DEEP_FOREST = 41,
+	MAP_INDIA = 42,
+	MAP_GUADALQUIVIR_RIVER = 43,
+	MAP_FIELDS_OF_MEROE = 44,
+	MAP_TYPE_COUNT = 45
 };
 
 struct MapTypeInfo {
@@ -144,7 +150,13 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_PYRENEAN_SIERRA, "pyrenean_sierra", "Pyrenean Sierra (RMS)", "alpine", true, "High mountains with two passes separate the enemies."},
 		{MAP_SAHEL_WATERING_HOLES, "sahel_watering_holes", "Sahel Watering Holes (RMS)", "savanna", true, "Lines of water with shallows run between the players across the savanna."},
 		{MAP_PERSIAN_HIGHLANDS, "persian_highlands", "Persian Highlands (RMS)", "persia", true, "A dry sunken plateau rich in minerals, ringed by rocky hills."},
-		{MAP_VOLCANIC_LANDS, "volcanic_lands", "Volcanic Lands (RMS)", "volcanic", true, "A charred, dead land where players start around a smoking volcano."}
+		{MAP_VOLCANIC_LANDS, "volcanic_lands", "Volcanic Lands (RMS)", "volcanic", true, "A charred, dead land where players start around a smoking volcano."},
+		{MAP_LIONS_DEN, "lions_den", "Lion's Den (RMS)", "steppe", true, "High cliffs protect each player's den; ramps lead down to a sunken valley and expansions."},
+		{MAP_HELLS_PASS, "hells_pass", "Hell's Pass (RMS)", "alpine", true, "Steep mountain spines between the players leave narrow passes in the centre and along the edge."},
+		{MAP_DEEP_FOREST, "deep_forest", "Deep Forest (RMS)", "temperate", true, "A deep dark forest in Germania, crossed by paths between the bases and a central hill."},
+		{MAP_INDIA, "india", "India (RMS)", "india", true, "Parched central India before the monsoon; only one large, half dried-up lake remains."},
+		{MAP_GUADALQUIVIR_RIVER, "guadalquivir_river", "Guadalquivir River (RMS)", "mediterranean", true, "Players on the Mediterranean shore, split by a river with three shallow crossings."},
+		{MAP_FIELDS_OF_MEROE, "fields_of_meroe", "Fields of Meroe (RMS)", "savanna", true, "Kush's heartland by the Nile, crossed at two cataracts, with dunes and acacia groves."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
@@ -1092,6 +1104,8 @@ inline bool unit_has_pack(uint16_t tmpl, uint8_t type) {
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) return (civ_unit_template(tmpl).flags & ROSTER_PACKABLE) != 0;
 	return (unit_tech_classes(type) & (TC_STONETHROWER | TC_BOLTSHOOTER)) != 0;
 }
+// 0 A.D. Trader units: land traders trade between Markets, merchant ships between Docks.
+inline bool unit_is_trader(uint8_t type) { return type == UNIT_TRADER || type == UNIT_MERCHANT_SHIP; }
 inline bool pack_state_can_move(uint8_t s) { return s == PACK_NONE || s == PACK_PACKED; }
 inline bool pack_state_can_attack(uint8_t s) { return s == PACK_NONE || s == PACK_UNPACKED; }
 

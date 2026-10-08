@@ -39,6 +39,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_tech_pressed", "tech_id"), &RtsoMain::_on_tech_pressed);
 	ClassDB::bind_method(D_METHOD("_on_upgrade_pressed", "cancel"), &RtsoMain::_on_upgrade_pressed);
 	ClassDB::bind_method(D_METHOD("_on_gate_lock_pressed", "lock"), &RtsoMain::_on_gate_lock_pressed);
+	ClassDB::bind_method(D_METHOD("_on_pack_pressed", "pack"), &RtsoMain::_on_pack_pressed);
 	ClassDB::bind_method(D_METHOD("save_game", "path"), &RtsoMain::save_game, DEFVAL("user://saves/quicksave.rts0sav"));
 	ClassDB::bind_method(D_METHOD("load_game", "path"), &RtsoMain::load_game, DEFVAL("user://saves/quicksave.rts0sav"));
 	ClassDB::bind_method(D_METHOD("get_fow_grid"), &RtsoMain::get_fow_grid);
@@ -1290,6 +1291,16 @@ void RtsoMain::_on_gate_lock_pressed(int lock) {
 		sim->cmd_lock_gate(local_player(), selected_building_id, lock != 0);
 }
 
+// 0 A.D. Pack / Unpack on the selected siege engines through lockstep command 29.
+void RtsoMain::_on_pack_pressed(int pack) {
+	if (selected_ids.is_empty()) return;
+	if (net_lockstep())
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_PACK, (const uint32_t *)selected_ids.ptr(),
+				selected_ids.size(), 0, 0, 0, pack ? 1 : 0);
+	else
+		sim->order_pack((const uint32_t *)selected_ids.ptr(), selected_ids.size(), pack != 0);
+}
+
 void RtsoMain::_on_barter_requested(int sell_type, int buy_type, int amount) {
 	if (!sim) return;
 	if (sell_type < 0 || sell_type >= 4 || buy_type < 0 || buy_type >= 4) return;
@@ -2252,6 +2263,38 @@ void RtsoMain::update_command_panel() {
 							break;
 						}
 					}
+				}
+			}
+
+			// 0 A.D. Pack / Unpack buttons (gui/session unit_actions.js "pack"): shown when the
+			// selection has siege engines with a Pack component, enabled for the state they can go to.
+			bool can_pack = false, can_unpack = false;
+			for (int i = 0; i < selected_ids.size(); ++i) {
+				for (size_t u = 0; u < uview.count; ++u) {
+					if (uview.id[u] != (uint32_t)selected_ids[i] || !uview.alive[u]) continue;
+					const uint8_t ps = uview.pack_state[u];
+					if (ps == rtso::PACK_UNPACKED || ps == rtso::PACK_UNPACKING) can_pack = true;
+					if (ps == rtso::PACK_PACKED || ps == rtso::PACK_PACKING) can_unpack = true;
+					break;
+				}
+			}
+			if (can_pack || can_unpack) {
+				static const struct { const char *label; const char *tip; const char *icon; int pack; } kPackButtons[2] = {
+					{"Pack", "Pack the siege engine so it can move (10 s)", "res://assets/textures/ui/archive/icons/pack_fg.png", 1},
+					{"Unpack", "Unpack the siege engine so it can attack (10 s)", "res://assets/textures/ui/archive/icons/unpack.png", 0},
+				};
+				for (const auto &pb : kPackButtons) {
+					Button *btn = memnew(Button);
+					btn->set_text(pb.label);
+					btn->set_tooltip_text(pb.tip);
+					Ref<Texture2D> p_ico = load_tex(pb.icon);
+					if (p_ico.is_valid()) {
+						btn->set_button_icon(p_ico);
+						btn->add_theme_constant_override("icon_max_width", 20);
+					}
+					btn->set_disabled(pb.pack ? !can_pack : !can_unpack);
+					btn->connect("pressed", Callable(this, "_on_pack_pressed").bind(pb.pack));
+					production_bar->add_child(btn);
 				}
 			}
 
