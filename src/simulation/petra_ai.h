@@ -52,7 +52,10 @@ struct PetraConfig {
 	float defensive    = 0.5f;
 	float cooperative  = 0.5f;
 	float pop_scaling  = 1.0f;
-	float trickle_mult = 1.0f;
+	// 0 A.D. has no AI income; difficulty scales gathering and build times
+	// (simulation/helpers/InitGame.js "AI Bonus" modifiers).
+	float gather_rate = 1.0f;  // ResourceGatherer/BaseSpeed, Trader/GainMultiplier
+	float build_time  = 1.0f;  // Cost/BuildTime (units, structures, technologies)
 
 	float defense_ratio_own = 2.0f;   // Defense.defenseRatio.own
 	float army_compact_sq   = 2000.0f; // Defense.armyCompactSize
@@ -90,13 +93,17 @@ struct PetraConfig {
 
 		// difficultyLevel.js scaling (sandbox..veryHard)
 		static const float kPop[6]     = { 0.40f, 0.50f, 0.70f, 1.00f, 1.15f, 1.30f };
-		static const float kTrickle[6] = { 0.35f, 0.55f, 0.80f, 1.00f, 1.25f, 1.50f };
+		// InitGame.js: rate applies to gathering and trading, time to building,
+		// training and technologies.
+		static const float kRate[6]    = { 0.42f, 0.56f, 0.75f, 1.00f, 1.25f, 1.56f };
+		static const float kTime[6]    = { 1.40f, 1.25f, 1.10f, 1.00f, 1.00f, 1.00f };
 		static const int   kWorkers[6] = { 18, 28, 40, 60, 80, 100 };
 		static const int   kTraders[6] = { 0, 1, 2, 3, 4, 5 };
 		static const float kEmerg[6]   = { 0.80f, 0.80f, 0.70f, 0.60f, 0.50f, 0.35f };
 		uint8_t d = (difficulty > PETRA_VERY_HARD) ? PETRA_MEDIUM : difficulty;
 		pop_scaling = kPop[d];
-		trickle_mult = kTrickle[d];
+		gather_rate = kRate[d];
+		build_time = kTime[d];
 		target_num_workers = kWorkers[d];
 		target_num_traders = kTraders[d];
 		emergency_pop_factor = kEmerg[d];
