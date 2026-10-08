@@ -3,6 +3,7 @@
   "name": "Vesuvius (6)",
   "desc": "Skirmish as ash lightly falls around this recently erupted volcano. The scorched landscape offers little food, though the blasted forests are still laden with useful wood.",
   "biome": "mediterranean",
+  "nomad": false,
   "world_size": 384.0,
   "water_height": 0.95,
   "heightmap_res": 64,
@@ -33998,18 +33999,6 @@
       "z": 13.67
     },
     {
-      "type": "barracks",
-      "player": 1,
-      "x": -75.33,
-      "z": 107.43
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -77.24,
-      "z": 106.63
-    },
-    {
       "type": "gate",
       "player": 1,
       "x": -90.9,
@@ -34104,66 +34093,6 @@
       "player": 1,
       "x": -79.93,
       "z": 129.06
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 13.24,
-      "z": -127.83
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 12.02,
-      "z": -126.15
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": 128.76,
-      "z": 55.45
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": 127.86,
-      "z": 53.58
-    },
-    {
-      "type": "barracks",
-      "player": 4,
-      "x": -96.89,
-      "z": -97.94
-    },
-    {
-      "type": "barracks",
-      "player": 4,
-      "x": -98.93,
-      "z": -98.32
-    },
-    {
-      "type": "barracks",
-      "player": 5,
-      "x": 107.05,
-      "z": -81.01
-    },
-    {
-      "type": "barracks",
-      "player": 5,
-      "x": 106.55,
-      "z": -78.99
-    },
-    {
-      "type": "barracks",
-      "player": 6,
-      "x": -139.41,
-      "z": 16.2
-    },
-    {
-      "type": "barracks",
-      "player": 6,
-      "x": -138.46,
-      "z": 18.05
     },
     {
       "type": "gate",
@@ -34942,6 +34871,30 @@
       "z": 119.38
     },
     {
+      "type": "archer",
+      "player": 1,
+      "x": -75.33,
+      "z": 107.43
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -77.24,
+      "z": 106.63
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 13.24,
+      "z": -127.83
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 12.02,
+      "z": -126.15
+    },
+    {
       "type": "swordsman",
       "player": 2,
       "x": 23.11,
@@ -34982,6 +34935,18 @@
       "player": 2,
       "x": 14.11,
       "z": -115.0
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": 128.76,
+      "z": 55.45
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": 127.86,
+      "z": 53.58
     },
     {
       "type": "swordsman",
@@ -35026,6 +34991,18 @@
       "z": 50.19
     },
     {
+      "type": "archer",
+      "player": 4,
+      "x": -96.89,
+      "z": -97.94
+    },
+    {
+      "type": "archer",
+      "player": 4,
+      "x": -98.93,
+      "z": -98.32
+    },
+    {
       "type": "swordsman",
       "player": 4,
       "x": -101.86,
@@ -35068,6 +35045,18 @@
       "z": -91.65
     },
     {
+      "type": "archer",
+      "player": 5,
+      "x": 107.05,
+      "z": -81.01
+    },
+    {
+      "type": "archer",
+      "player": 5,
+      "x": 106.55,
+      "z": -78.99
+    },
+    {
       "type": "swordsman",
       "player": 5,
       "x": 120.05,
@@ -35108,6 +35097,18 @@
       "player": 5,
       "x": 112.72,
       "z": -69.47
+    },
+    {
+      "type": "archer",
+      "player": 6,
+      "x": -139.41,
+      "z": 16.2
+    },
+    {
+      "type": "archer",
+      "player": 6,
+      "x": -138.46,
+      "z": 18.05
     },
     {
       "type": "swordsman",
