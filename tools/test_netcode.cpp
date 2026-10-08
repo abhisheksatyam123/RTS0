@@ -1,3 +1,8 @@
+// The --net-peer defeat case wipes a player's units and structures directly,
+// as tools/test_victory.cpp does.
+#define private public
+#include "simulation/simulation.h"
+#undef private
 #include "network/net_host.h"
 #include "network/turn_manager.h"
 #include "simulation/simulation.h"
@@ -498,8 +503,20 @@ uint64_t now_us() {
     return (uint64_t)duration_cast<microseconds>(steady_clock::now().time_since_epoch()).count();
 }
 
+void wipe_player(Simulation &sim, uint8_t pid) {
+    for (size_t i = 0; i < sim.units_.count; ++i) {
+        if (sim.units_.alive[i] && sim.units_.team[i] == pid) {
+            sim.units_.hp[i] = 0.0f;
+            sim.units_.alive[i] = 0;
+            sim.units_.action_state[i] = ACTION_IDLE;
+        }
+    }
+    for (auto &b : sim.buildings_)
+        if (b.team == pid) b.hp = 0.0f;
+}
+
 int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
-        float loss, const char *log_path) {
+        float loss, uint32_t defeat_turn, const char *log_path) {
     Simulation sim;
     playtest::ScriptRefs refs;
     playtest::build_world(sim, seed, refs);
@@ -522,7 +539,13 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
     seats.pop_cap = 150;
     seats.ceasefire = 1;
     sim.set_waves_enabled(false);
+    // Give the AI slot a base of its own (build_world leaves it only the
+    // wonder), so the match can go on when a human falls.
+    sim.spawn_building_world(0.0f, 40.0f, BLD_TOWN_CENTER, 2, 1.0f);
+    for (int i = 0; i < 5; ++i)
+        sim.spawn_unit(-4.0f + 2.0f * (float)i, 34.0f, 2, UNIT_VILLAGER, 100.0f);
     auto apply_setup = [&](const GameSetupParams &s) {
+        sim.set_victory_condition(s.victory >= VICTORY_COUNT ? 0 : s.victory);
         for (uint8_t t = 0; t < MAX_PLAYERS; ++t) {
             const bool seated = t < s.slot_count;
             sim.set_player_active(t, seated, seated && s.slot_types[t] == 'a');
@@ -636,6 +659,11 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
         last = now;
         if (tm.tick(dt, sim)) {
             const auto &f = tm.turn_history().back();
+            // Both peers stand on the same state at this turn boundary: wipe the
+            // joiner's player out so the conquest check defeats it. It keeps
+            // posting orders, which must now be dropped on both peers, while
+            // the host plays on against Petra.
+            if (defeat_turn && f.turn_index == defeat_turn) wipe_player(sim, 1);
             // Combat footprint: wounds on living units plus dead ones. It must
             // stay 0 on both peers while the ceasefire holds.
             float wounds = 0.0f;
@@ -645,9 +673,10 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
                 if (cu.alive[i]) wounds += cu.max_hp[i] - cu.hp[i];
                 else ++dead;
             }
-            std::fprintf(log, "%u %08X %zu d01=%u d10=%u cf=%d wounds=%.0f dead=%u\n", f.turn_index,
-                         f.sim_state_hash, f.commands.size(), sim.get_diplomacy(0, 1),
-                         sim.get_diplomacy(1, 0), sim.ceasefire_active() ? 1 : 0, wounds, dead);
+            std::fprintf(log, "%u %08X %zu d01=%u d10=%u cf=%d wounds=%.0f dead=%u defeated=%u over=%d\n",
+                         f.turn_index, f.sim_state_hash, f.commands.size(), sim.get_diplomacy(0, 1),
+                         sim.get_diplomacy(1, 0), sim.ceasefire_active() ? 1 : 0, wounds, dead,
+                         (unsigned)sim.defeated_mask(), sim.is_game_over() ? 1 : 0);
         }
         if (tm.has_out_of_sync()) {
             std::fprintf(stderr, "[net-peer] %s: OOS at turn %u local=%08X peer=%08X\n",
@@ -733,15 +762,18 @@ int main(int argc, char **argv) {
         return playtest::run(seed, turns, verbose_every, shadow, through);
     }
     // Real UDP peer: --net-peer <host|join> <port> <seed> <turns> <log> [--speed X] [--loss P]
+    //   [--defeat-turn N]  (wipe out the joiner's player at turn N; 0 = never)
     if (argc >= 7 && std::strcmp(argv[1], "--net-peer") == 0) {
         float speed = 1.0f, loss = 0.0f;
+        uint32_t defeat_turn = 0;
         for (int i = 7; i + 1 < argc; i += 2) {
-            if (std::strcmp(argv[i], "--speed") == 0) speed = (float)std::atof(argv[i + 1]);
+            if (std::strcmp(argv[i], "--defeat-turn") == 0) defeat_turn = (uint32_t)std::atoi(argv[i + 1]);
+            else if (std::strcmp(argv[i], "--speed") == 0) speed = (float)std::atof(argv[i + 1]);
             else if (std::strcmp(argv[i], "--loss") == 0) loss = (float)std::atof(argv[i + 1]);
         }
         return netpeer::run(std::strcmp(argv[2], "host") == 0, (uint16_t)std::atoi(argv[3]),
                             (uint32_t)std::strtoul(argv[4], nullptr, 10),
-                            (uint32_t)std::atoi(argv[5]), speed, loss, argv[6]);
+                            (uint32_t)std::atoi(argv[5]), speed, loss, defeat_turn, argv[6]);
     }
     if (argc >= 2 && std::strcmp(argv[1], "--help") == 0) {
         playtest::usage(argv[0]);

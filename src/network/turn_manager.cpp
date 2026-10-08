@@ -368,6 +368,11 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_u8(ps.active);
 		mix_u8(ps.is_ai);
 	}
+	// Match state: who is out (their orders are dropped) and who has won.
+	mix_u8(sim.participant_mask());
+	mix_u8(sim.defeated_mask());
+	mix_u8(sim.winner_mask());
+	mix_u8(sim.is_game_over() ? 1 : 0);
 
 	// 6. Active Projectiles & Relics
 	const auto &projs = sim.projectiles();
