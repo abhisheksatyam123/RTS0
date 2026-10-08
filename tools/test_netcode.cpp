@@ -528,6 +528,16 @@ unsigned pack_state_of(const Simulation &sim, uint32_t id) {
     return 255;
 }
 
+// The formation a unit is in: "<template>:<order>:<members>", or "-".
+std::string formation_state_of(const Simulation &sim, uint32_t unit_id) {
+    const uint32_t f = sim.formation_of_unit(unit_id);
+    for (const auto &c : sim.formations())
+        if (c.id == f)
+            return std::to_string((unsigned)c.tmpl) + ":" + std::to_string((unsigned)c.order) + ":" +
+                   std::to_string(c.members.size());
+    return "-";
+}
+
 // Both humans' trading goods in ResourceType order, "p0/p1".
 std::string goods_of(const Simulation &sim) {
     std::string out;
@@ -636,6 +646,9 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     const uint32_t host_healer = sim.spawn_unit(-44.0f, 6.0f, 0, UNIT_HEALER);
     sim.order_set_stance(&host_healer, 1, STANCE_PASSIVE);
     const uint32_t host_patient = sim.spawn_unit(-24.0f, -16.0f, 0, UNIT_SWORDSMAN);
+    // A squad the host forms up (cmd 8, 0 A.D. Formation.js), walks and attack-moves.
+    std::vector<uint32_t> host_squad;
+    for (int i = 0; i < 4; ++i) host_squad.push_back(sim.spawn_unit(-36.0f + 2.0f * (float)i, 22.0f, 0, UNIT_SPEARMAN));
     auto apply_setup = [&](const GameSetupParams &s) {
         sim.set_victory_condition(s.victory >= VICTORY_COUNT ? 0 : s.victory);
         for (uint8_t t = 0; t < MAX_PLAYERS; ++t) {
@@ -859,6 +872,15 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
                 for (int r = 0; r < RES_COUNT && r < 4; ++r) g.target_id |= (uint32_t)mix[g.client_id][r] << (8 * r);
                 batch.push_back(g);
             }
+            if (st == 345 || st == 355 || st == 365) {
+                NetCommand fm;
+                fm.client_id = 0;
+                fm.entity_ids = host_squad;
+                if (st == 345) { fm.cmd_type = 8; fm.param = FORMATION_BOX; }
+                else if (st == 355) { fm.cmd_type = 1; fm.target_x = -30.0f; fm.target_z = 30.0f; }
+                else { fm.cmd_type = 10; fm.target_x = -36.0f; fm.target_z = 24.0f; }
+                batch.push_back(fm);
+            }
             if (st == 410) {
                 NetCommand hl;
                 hl.client_id = 0;
@@ -957,7 +979,7 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
                 if (cu.alive[i]) wounds += cu.max_hp[i] - cu.hp[i];
                 else ++dead;
             }
-            std::fprintf(log, "%u %08X %zu d01=%u d10=%u cf=%d wounds=%.0f dead=%u defeated=%u over=%d stone=%d,%d wall=%u locked=%d pack=%u work=%u queue=%zu heal=%u patient=%.0f goods=%s\n",
+            std::fprintf(log, "%u %08X %zu d01=%u d10=%u cf=%d wounds=%.0f dead=%u defeated=%u over=%d stone=%d,%d wall=%u locked=%d pack=%u work=%u queue=%zu heal=%u patient=%.0f goods=%s form=%s\n",
                          f.turn_index, f.sim_state_hash, f.commands.size(), sim.get_diplomacy(0, 1),
                          sim.get_diplomacy(1, 0), sim.ceasefire_active() ? 1 : 0, wounds, dead,
                          (unsigned)sim.defeated_mask(), sim.is_game_over() ? 1 : 0,
@@ -965,7 +987,7 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
                          (unsigned)building_type_of(sim, host_wall), gate_locked_of(sim, host_wall),
                          pack_state_of(sim, host_catapult), order_kind_of(sim, host_worker),
                          order_queue_len_of(sim, host_worker), order_kind_of(sim, host_healer),
-                         hp_of(sim, host_patient), goods_of(sim).c_str());
+                         hp_of(sim, host_patient), goods_of(sim).c_str(), formation_state_of(sim, host_squad[0]).c_str());
         }
         if (tm.has_out_of_sync() && !opt.force_oos) {
             std::fprintf(stderr, "[net-peer] %s: OOS at turn %u local=%08X peer=%08X\n",

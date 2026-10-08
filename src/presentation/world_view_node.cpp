@@ -1,4 +1,5 @@
 #include "world_view_node.h"
+#include "territory_boundary.h"
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/transform3d.hpp>
 #include <godot_cpp/variant/basis.hpp>
@@ -14,6 +15,11 @@
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/classes/sphere_mesh.hpp>
 #include <godot_cpp/classes/shader.hpp>
+#include <godot_cpp/classes/gradient.hpp>
+#include <godot_cpp/classes/gradient_texture1_d.hpp>
+#include <godot_cpp/classes/curve.hpp>
+#include <godot_cpp/classes/curve_texture.hpp>
+#include <godot_cpp/classes/texture2d.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 #include <algorithm>
 #include <cstdint>
@@ -265,16 +271,17 @@ void RtsoWorldView::_ready() {
 		enable_instance_tint(m);
 		return m;
 	};
-	tree_a_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "tree").mesh), true);
-	tree_b_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "pine").mesh), true);
-	tree_c_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "palm").mesh), true);
+	for (int k = 0; k < TREE_KINDS; ++k) {
+		tree_mm[k] = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "tree").mesh), true);
+		tree_mmi[k] = memnew(MultiMeshInstance3D);
+		tree_mmi[k]->set_multimesh(tree_mm[k]);
+		add_child(tree_mmi[k]);
+	}
+	pick_tree_kinds("mediterranean");
 	gold_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "gold_vein").mesh), true);
 	stone_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "stone_mine").mesh), true);
 	food_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "fruit_bush").mesh), true);
 
-	tree_a_mmi = memnew(MultiMeshInstance3D); tree_a_mmi->set_multimesh(tree_a_mm); add_child(tree_a_mmi);
-	tree_b_mmi = memnew(MultiMeshInstance3D); tree_b_mmi->set_multimesh(tree_b_mm); add_child(tree_b_mmi);
-	tree_c_mmi = memnew(MultiMeshInstance3D); tree_c_mmi->set_multimesh(tree_c_mm); add_child(tree_c_mmi);
 	gold_mmi = memnew(MultiMeshInstance3D); gold_mmi->set_multimesh(gold_mm); add_child(gold_mmi);
 	stone_mmi = memnew(MultiMeshInstance3D); stone_mmi->set_multimesh(stone_mm); add_child(stone_mmi);
 	food_mmi = memnew(MultiMeshInstance3D); food_mmi->set_multimesh(food_mm); add_child(food_mmi);
@@ -282,6 +289,9 @@ void RtsoWorldView::_ready() {
 	treasure_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "treasure_chest").mesh), true);
 	ruins_mmi = memnew(MultiMeshInstance3D); ruins_mmi->set_multimesh(ruins_mm); add_child(ruins_mmi);
 	treasure_mmi = memnew(MultiMeshInstance3D); treasure_mmi->set_multimesh(treasure_mm); add_child(treasure_mmi);
+	fish_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "fish").mesh), true);
+	fish_mmi = memnew(MultiMeshInstance3D); fish_mmi->set_multimesh(fish_mm); add_child(fish_mmi);
+	fish_mmi->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
 
 	// Fauna — never fall back to trees/stones (those looked like walking mines)
 	{
@@ -294,7 +304,7 @@ void RtsoWorldView::_ready() {
 			fauna_rest[f] = m.mesh.is_valid() ? m.mesh : deer_mesh;
 		}
 		for (int f = 0; f < rtso::FAUNA_COUNT; ++f) {
-			for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
+			for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) {
 				fauna_mm[f][c] = create_multimesh(fauna_rest[f], false);
 				fauna_mmi[f][c] = memnew(MultiMeshInstance3D);
 				fauna_mmi[f][c]->set_multimesh(fauna_mm[f][c]);
@@ -352,6 +362,7 @@ void RtsoWorldView::_ready() {
 		}
 	}
 
+	init_damage_fx();
 	init_animation_controllers();
 }
 
@@ -373,6 +384,7 @@ float RtsoWorldView::los_brightness(float x, float z) const {
 
 static void set_overlay_recursive(Node *n, const Ref<Material> &mat) {
 	if (!n) return;
+	if (Object::cast_to<GPUParticles3D>(n)) return; // fire and smoke keep their own light
 	if (GeometryInstance3D *gi = Object::cast_to<GeometryInstance3D>(n)) gi->set_material_overlay(mat);
 	for (int i = 0; i < n->get_child_count(); ++i) set_overlay_recursive(n->get_child(i), mat);
 }
@@ -381,6 +393,229 @@ void RtsoWorldView::set_fog_overlay(Node *n, float brightness) {
 	// Fully lit structures skip the extra pass.
 	const int k = Math::clamp((int)Math::round(brightness * (FOG_OVERLAY_LEVELS - 1)), 0, FOG_OVERLAY_LEVELS - 1);
 	set_overlay_recursive(n, k >= FOG_OVERLAY_LEVELS - 1 ? Ref<Material>() : Ref<Material>(fog_overlay_mats_[k]));
+}
+
+// Damaged-structure fire and smoke, from 0 A.D. art/particles/flame.xml and
+// smoke.xml (rates, lifetimes, speeds and sizes), shown by the Health
+// DamageVariants of template_structure.xml: mediumdamage (65% hit points)
+// smokes, heavydamage (35%) burns. Smoke lives 6 s instead of 14-16 s so a
+// burning town does not fill the smaller RTS0 maps.
+void RtsoWorldView::init_damage_fx() {
+	auto particle_mat = [](const char *tex_path, bool additive) {
+		Ref<StandardMaterial3D> m;
+		m.instantiate();
+		m->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+		m->set_billboard_mode(BaseMaterial3D::BILLBOARD_PARTICLES);
+		m->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
+		if (additive) m->set_blend_mode(BaseMaterial3D::BLEND_MODE_ADD);
+		m->set_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, true);
+		m->set_cull_mode(BaseMaterial3D::CULL_DISABLED);
+		if (rtso::Assets::res_exists(tex_path)) {
+			Ref<Texture2D> t = ResourceLoader::get_singleton()->load(tex_path);
+			if (t.is_valid()) m->set_texture(BaseMaterial3D::TEXTURE_ALBEDO, t);
+		}
+		return m;
+	};
+	auto fade = [](float peak) {
+		Ref<Gradient> g;
+		g.instantiate();
+		g->set_offsets(PackedFloat32Array({ 0.0f, 0.15f, 1.0f }));
+		g->set_colors(PackedColorArray({ Color(1, 1, 1, 0), Color(1, 1, 1, peak), Color(1, 1, 1, 0) }));
+		Ref<GradientTexture1D> gt;
+		gt.instantiate();
+		gt->set_gradient(g);
+		return gt;
+	};
+
+	fx_flame_quad_.instantiate();
+	fx_flame_quad_->set_size(Vector2(1.0f, 1.0f));
+	fx_flame_quad_->set_material(particle_mat("res://assets/textures/particles/flame.png", true));
+	fx_flame_ppm_.instantiate();
+	fx_flame_ppm_->set_direction(Vector3(0, 1, 0));
+	fx_flame_ppm_->set_spread(8.0f);
+	fx_flame_ppm_->set_param_min(ParticleProcessMaterial::PARAM_INITIAL_LINEAR_VELOCITY, 2.0f);
+	fx_flame_ppm_->set_param_max(ParticleProcessMaterial::PARAM_INITIAL_LINEAR_VELOCITY, 2.5f);
+	fx_flame_ppm_->set_gravity(Vector3(0, 0, 0));
+	fx_flame_ppm_->set_param_min(ParticleProcessMaterial::PARAM_SCALE, 1.0f);
+	fx_flame_ppm_->set_param_max(ParticleProcessMaterial::PARAM_SCALE, 2.0f);
+	fx_flame_ppm_->set_param_min(ParticleProcessMaterial::PARAM_ANGLE, -28.0f);
+	fx_flame_ppm_->set_param_max(ParticleProcessMaterial::PARAM_ANGLE, 28.0f);
+	fx_flame_ppm_->set_emission_shape(ParticleProcessMaterial::EMISSION_SHAPE_BOX);
+	fx_flame_ppm_->set_color_ramp(fade(1.0f));
+
+	fx_smoke_quad_.instantiate();
+	fx_smoke_quad_->set_size(Vector2(1.0f, 1.0f));
+	fx_smoke_quad_->set_material(particle_mat("res://assets/textures/particles/smoke_64a.png", false));
+	fx_smoke_ppm_.instantiate();
+	fx_smoke_ppm_->set_direction(Vector3(0.1f, 1, 0));
+	fx_smoke_ppm_->set_spread(12.0f);
+	fx_smoke_ppm_->set_param_min(ParticleProcessMaterial::PARAM_INITIAL_LINEAR_VELOCITY, 2.0f);
+	fx_smoke_ppm_->set_param_max(ParticleProcessMaterial::PARAM_INITIAL_LINEAR_VELOCITY, 2.5f);
+	fx_smoke_ppm_->set_gravity(Vector3(0.15f, 0, 0));
+	fx_smoke_ppm_->set_param_min(ParticleProcessMaterial::PARAM_SCALE, 1.5f);
+	fx_smoke_ppm_->set_param_max(ParticleProcessMaterial::PARAM_SCALE, 2.5f);
+	fx_smoke_ppm_->set_param_min(ParticleProcessMaterial::PARAM_ANGLE, -180.0f);
+	fx_smoke_ppm_->set_param_max(ParticleProcessMaterial::PARAM_ANGLE, 180.0f);
+	fx_smoke_ppm_->set_param_min(ParticleProcessMaterial::PARAM_ANGULAR_VELOCITY, -60.0f);
+	fx_smoke_ppm_->set_param_max(ParticleProcessMaterial::PARAM_ANGULAR_VELOCITY, 60.0f);
+	{
+		// size.growthRate 1.0 m/s: 2 m at birth, about 8 m after 6 s.
+		Ref<Curve> grow;
+		grow.instantiate();
+		grow->set_max_value(4.0f);
+		grow->add_point(Vector2(0.0f, 1.0f));
+		grow->add_point(Vector2(1.0f, 4.0f));
+		Ref<CurveTexture> ct;
+		ct.instantiate();
+		ct->set_curve(grow);
+		fx_smoke_ppm_->set_param_texture(ParticleProcessMaterial::PARAM_SCALE, ct);
+	}
+	fx_smoke_ppm_->set_emission_shape(ParticleProcessMaterial::EMISSION_SHAPE_BOX);
+	fx_smoke_ppm_->set_color_ramp(fade(0.75f));
+	fx_smoke_ppm_->set_color(Color(0.6f, 0.6f, 0.6f, 1.0f)); // color.r 0.6-1.0, grey
+}
+
+void RtsoWorldView::update_damage_fx(BuildingVis &v, uint8_t level, float half_size, float height) {
+	if (level == v.fx_level || !v.root) return;
+	v.fx_level = level;
+	// On the roof, where 0 A.D.'s damage variants attach their fire props;
+	// inside the walls the flames would be hidden.
+	const float roof = height > 1.0f ? height : 4.0f;
+	auto make = [&](const Ref<QuadMesh> &quad, const Ref<ParticleProcessMaterial> &ppm, int amount, float life, float y) {
+		GPUParticles3D *p = memnew(GPUParticles3D);
+		Ref<ParticleProcessMaterial> pm = ppm->duplicate();
+		const float spread = std::max(0.5f, half_size * 0.5f);
+		pm->set_emission_box_extents(Vector3(spread, 0.3f, spread));
+		p->set_process_material(pm);
+		p->set_draw_pass_mesh(0, quad);
+		p->set_amount(amount);
+		p->set_lifetime(life);
+		p->set_randomness_ratio(0.2f);
+		p->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+		p->set_visibility_aabb(AABB(Vector3(-8, -1, -8), Vector3(16, 40, 16)));
+		p->set_position(Vector3(0, y, 0));
+		v.root->add_child(p);
+		return p;
+	};
+	if (level >= 1 && !v.fx_smoke && fx_smoke_ppm_.is_valid())
+		v.fx_smoke = make(fx_smoke_quad_, fx_smoke_ppm_, 54, 6.0f, roof + 0.5f); // 9/s
+	if (level >= 2 && !v.fx_flame && fx_flame_ppm_.is_valid())
+		v.fx_flame = make(fx_flame_quad_, fx_flame_ppm_, 26, 1.25f, roof * 0.75f); // 20/s
+	if (v.fx_smoke) v.fx_smoke->set_emitting(level >= 1);
+	if (v.fx_flame) v.fx_flame->set_emitting(level >= 2);
+}
+
+// 0 A.D. player_defaults.json colours for players 1-8 (RTS0 player ids 0-7).
+static Color player_display_color(uint8_t pid) {
+	static const uint8_t rgb[8][3] = {
+		{ 21, 55, 149 }, { 150, 20, 20 }, { 86, 180, 31 }, { 231, 200, 5 },
+		{ 50, 170, 170 }, { 160, 80, 200 }, { 220, 115, 16 }, { 64, 64, 64 },
+	};
+	const uint8_t *c = rgb[pid % 8];
+	return Color(c[0] / 255.0f, c[1] / 255.0f, c[2] / 255.0f, 1.0f);
+}
+
+void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
+	const auto &grid = sim->territory_grid();
+	if (grid.w <= 0 || grid.h <= 0) return;
+	if (grid.data == border_grid_cache_ && border_half_ == sim->map_half()) return;
+	border_grid_cache_ = grid.data;
+	border_half_ = sim->map_half();
+
+	if (!border_mi_) {
+		Ref<Shader> sh;
+		sh.instantiate();
+		// Player-coloured stripe on the outer edge fading inward; darkened by LOS
+		// and hidden in unexplored land like 0 A.D.'s textured overlay lines.
+		sh->set_code(
+				"shader_type spatial;\n"
+				"render_mode blend_mix, unshaded, cull_disabled, depth_draw_never, shadows_disabled, fog_disabled;\n"
+				"uniform sampler2D los_tex : hint_default_white, filter_linear, repeat_disable;\n"
+				"uniform float los_map_half = 0.0;\n"
+				"varying vec3 wpos;\n"
+				"void vertex() { wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }\n"
+				"void fragment() {\n"
+				"  float v = UV.y;\n"
+				"  float core = smoothstep(0.0, 0.10, v) * (1.0 - smoothstep(0.28, 0.40, v));\n"
+				"  float glow = (1.0 - smoothstep(0.28, 1.0, v)) * 0.40;\n"
+				"  float dash = 0.8 + 0.2 * step(0.5, fract(UV.x));\n"
+				"  float los = 1.0;\n"
+				"  if (los_map_half > 0.0) los = texture(los_tex, (wpos.xz + vec2(los_map_half)) / (2.0 * los_map_half)).r;\n"
+				"  ALBEDO = COLOR.rgb * mix(0.5, 1.0, los) * dash;\n"
+				"  ALPHA = max(core, glow) * smoothstep(0.02, 0.25, los);\n"
+				"}\n");
+		border_mat_.instantiate();
+		border_mat_->set_shader(sh);
+		border_mi_ = memnew(MeshInstance3D);
+		border_mi_->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+		border_mi_->set_material_override(border_mat_);
+		add_child(border_mi_);
+		bind_los(border_mat_);
+	}
+
+	// RTS0 maps are a quarter of 0 A.D.'s scale (Tiny: 128 m against 512 m).
+	const float kScale = 0.25f;
+	const float thickness = 3.5f * kScale;  // BorderThickness
+	const float separation = 0.5f * kScale; // BorderSeparation
+	const float cell = (border_half_ * 2.0f) / (float)grid.w;
+
+	PackedVector3Array verts;
+	PackedColorArray cols;
+	PackedVector2Array uvs;
+	PackedInt32Array idx;
+	auto boundaries = rtso::compute_territory_boundaries(grid.data.data(), grid.w, grid.h);
+	for (auto &b : boundaries) {
+		if (b.points.size() < 3) continue;
+		rtso::smooth_points_average(b.points);
+		rtso::interpolate_points_rns(b.points, separation / cell);
+		const Color col = player_display_color((uint8_t)(b.owner - 1));
+		const int n = (int)b.points.size();
+		const int base = verts.size();
+		float run = 0.0f;
+		for (int k = 0; k <= n; ++k) {
+			const rtso::BoundaryPoint &p = b.points[k % n];
+			const rtso::BoundaryPoint &pn = b.points[(k + 1) % n];
+			const rtso::BoundaryPoint &pp = b.points[(k + n - 1) % n];
+			const float wx = -border_half_ + p.x * cell;
+			const float wz = -border_half_ + p.y * cell;
+			float tx = pn.x - pp.x, tz = pn.y - pp.y;
+			const float tl = Math::sqrt(tx * tx + tz * tz);
+			if (tl > 1e-5f) { tx /= tl; tz /= tl; }
+			// Owner's land is on the left of the walk: (-t.z, t.x) points inward.
+			const float ix = wx - tz * thickness, iz = wz + tx * thickness;
+			if (k > 0) {
+				const rtso::BoundaryPoint &q = b.points[(k - 1) % n];
+				const float dx = (p.x - q.x) * cell, dz = (p.y - q.y) * cell;
+				run += Math::sqrt(dx * dx + dz * dz);
+			}
+			verts.push_back(Vector3(wx, sim->get_terrain_height(wx, wz) + 0.12f, wz));
+			verts.push_back(Vector3(ix, sim->get_terrain_height(ix, iz) + 0.12f, iz));
+			uvs.push_back(Vector2(run / 1.5f, 0.0f));
+			uvs.push_back(Vector2(run / 1.5f, 1.0f));
+			cols.push_back(col);
+			cols.push_back(col);
+			if (k > 0) {
+				const int a = base + (k - 1) * 2;
+				idx.push_back(a);
+				idx.push_back(a + 1);
+				idx.push_back(a + 2);
+				idx.push_back(a + 1);
+				idx.push_back(a + 3);
+				idx.push_back(a + 2);
+			}
+		}
+	}
+	border_mesh_.instantiate();
+	if (verts.size() > 0) {
+		Array arrays;
+		arrays.resize(Mesh::ARRAY_MAX);
+		arrays[Mesh::ARRAY_VERTEX] = verts;
+		arrays[Mesh::ARRAY_COLOR] = cols;
+		arrays[Mesh::ARRAY_TEX_UV] = uvs;
+		arrays[Mesh::ARRAY_INDEX] = idx;
+		border_mesh_->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, arrays);
+	}
+	border_mi_->set_mesh(border_mesh_);
 }
 
 void RtsoWorldView::update_fog(const rtso::Simulation *sim, float delta) {
@@ -395,6 +630,7 @@ void RtsoWorldView::update_fog(const rtso::Simulation *sim, float delta) {
 		los_tex_ = ImageTexture::create_from_image(los_image_);
 		if (terrain) bind_los(terrain->get_material_override());
 		if (water_mesh_node) bind_los(water_mesh_node->get_material_override());
+		bind_los(border_mat_);
 		los_upload_timer_ = 1.0f;
 	}
 	// Ease at most 30 times a second; the texture upload is the costly part.
@@ -480,6 +716,7 @@ enum ClipId : uint8_t {
 	CLIP_CARRY,
 	CLIP_HEAL,
 	CLIP_SLAUGHTER,
+	CLIP_PROMOTION,
 	CLIP_COUNT
 };
 
@@ -491,7 +728,7 @@ static const StringName &clip_name(ClipId id) {
 		StringName("GatherFruit"), StringName("GatherGrain"), StringName("GatherMeat"),
 		StringName("GatherFish"),
 		StringName("Build"), StringName("Carry"), StringName("Heal"),
-		StringName("Slaughter")
+		StringName("Slaughter"), StringName("Promotion")
 	};
 	return names[id < CLIP_COUNT ? id : CLIP_NONE];
 }
@@ -547,6 +784,18 @@ static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int
 		case rtso::ACTION_BUILD:
 			w.clip = CLIP_BUILD;
 			w.state = rtso::AnimState::Build;
+			return w;
+		// UnitAI INDIVIDUAL.HEAL: "heal" once in range, the move clip on the way.
+		case rtso::ACTION_HEAL:
+			if (speed2 > 0.001f) return w_move;
+			w.clip = CLIP_HEAL;
+			w.state = rtso::AnimState::Gather;
+			return w;
+		// UnitAI INDIVIDUAL.CHEERING: SelectAnimation("promotion").
+		case rtso::ACTION_CHEER:
+			w.clip = CLIP_PROMOTION;
+			w.loop = false;
+			w.state = rtso::AnimState::Idle;
 			return w;
 		case rtso::ACTION_ATTACK:
 			// Ships: Attack.js keeps attack_ranged until StopAttacking (sail falls back to idle).
@@ -679,13 +928,14 @@ static void apply_unit_death_xform(Transform3D &xf, uint8_t utype, float death_t
 	}
 }
 
-static void disable_mesh_shadows(Node *n) {
+// 0 A.D. unit actors declare <castshadow/>: units cast shadows.
+static void enable_mesh_shadows(Node *n) {
 	if (!n) return;
 	if (GeometryInstance3D *gi = Object::cast_to<GeometryInstance3D>(n)) {
-		gi->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+		gi->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_ON);
 	}
 	for (int i = 0; i < n->get_child_count(); ++i) {
-		disable_mesh_shadows(n->get_child(i));
+		enable_mesh_shadows(n->get_child(i));
 	}
 }
 
@@ -712,7 +962,7 @@ void RtsoWorldView::attach_unit_model(UnitVis &v, const String &model_name) {
 		v.model = entry.scene->instantiate();
 		rtso::ModelLibrary::apply_imported_material_fixups(v.model);
 		v.root->add_child(v.model);
-		disable_mesh_shadows(v.model);
+		enable_mesh_shadows(v.model);
 		v.anim = find_anim_player(v.model);
 		if (v.anim) {
 			v.anim->set_active(true);
@@ -730,7 +980,7 @@ void RtsoWorldView::attach_unit_model(UnitVis &v, const String &model_name) {
 	}
 	v.model = mi;
 	v.root->add_child(mi);
-	disable_mesh_shadows(mi);
+	enable_mesh_shadows(mi);
 	v.anim = nullptr;
 }
 
@@ -816,52 +1066,87 @@ void RtsoWorldView::hide_unit_vis(UnitVis &v) {
 		v.anim->set_active(false);
 }
 
-void RtsoWorldView::ensure_unit_batches(const rtso::Simulation *sim) {
-	uint8_t civs[CROWD_BANK_COUNT] = {rtso::CIV_ATHENIANS, rtso::CIV_SPARTANS};
-	if (sim) {
-		civs[0] = sim->player_civ(local_player_);
-		civs[1] = sim->team_civ(local_player_ == 0 ? 1 : 0);
-	}
-	for (int bank = 0; bank < CROWD_BANK_COUNT; ++bank) {
-		for (int t = 0; t < rtso::UNIT_TYPE_COUNT; ++t) {
-			String id_str = rtso::civ_unit_model(civs[bank], (uint8_t)t);
-			String cat_units2 = "units";
-			auto entry = rtso::ModelLibrary::get(cat_units2, id_str);
-			Ref<Mesh> rest = entry.crowd_mesh.is_valid() ? entry.crowd_mesh : entry.mesh;
+// Crowd clip slots. 0 A.D. plays the real clip for every unit (gather_*,
+// build, carry, heal...); the crowd keeps one baked MultiMesh per slot.
+static const uint8_t kCrowdClips[] = {
+	CLIP_IDLE, CLIP_WALK, CLIP_ATTACK, CLIP_DEATH, CLIP_RUN, CLIP_CARRY, CLIP_BUILD,
+	CLIP_GATHER_TREE, CLIP_GATHER_ORE, CLIP_GATHER_ROCK, CLIP_GATHER_FRUIT, CLIP_GATHER_GRAIN,
+	CLIP_GATHER_MEAT, CLIP_GATHER_FISH, CLIP_HEAL, CLIP_SLAUGHTER,
+};
+static_assert(sizeof(kCrowdClips) == 16, "kCrowdClips must match CROWD_CLIP_COUNT");
+static constexpr int CROWD_DEATH_SLOT = 3;
 
-			for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
-				if (unit_mmi[bank][t][c]) continue;
-				unit_mm[bank][t][c] = create_multimesh(rest, true);
-				unit_mmi[bank][t][c] = memnew(MultiMeshInstance3D);
-				unit_mmi[bank][t][c]->set_multimesh(unit_mm[bank][t][c]);
-				unit_mmi[bank][t][c]->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
-				add_child(unit_mmi[bank][t][c]);
-			}
-		}
+static int crowd_slot_of(ClipId clip) {
+	switch (clip) {
+		case CLIP_WALK: return 1;
+		case CLIP_ATTACK: return 2;
+		case CLIP_DEATH: return 3;
+		case CLIP_RUN: return 4;
+		case CLIP_CARRY: return 5;
+		case CLIP_BUILD: return 6;
+		case CLIP_GATHER:
+		case CLIP_GATHER_TREE: return 7;
+		case CLIP_GATHER_ORE: return 8;
+		case CLIP_GATHER_ROCK: return 9;
+		case CLIP_GATHER_FRUIT: return 10;
+		case CLIP_GATHER_GRAIN: return 11;
+		case CLIP_GATHER_MEAT: return 12;
+		case CLIP_GATHER_FISH: return 13;
+		case CLIP_HEAL: return 14;
+		case CLIP_SLAUGHTER: return 15;
+		default: return 0;
 	}
 }
 
-void RtsoWorldView::bake_puppet_clips(CrowdPuppet *row, AnimationPlayer *ap,
-		rtso::ModelLibrary::CrowdSkin &skin, bool skinned) {
-	static const ClipId kWant[CROWD_CLIP_COUNT] = {
-		CLIP_IDLE, CLIP_WALK, CLIP_ATTACK, CLIP_DEATH
-	};
-	bool fauna_row = false;
-	for (int fi = 0; fi < rtso::FAUNA_COUNT; ++fi) {
-		if (row == fauna_puppet[fi]) {
-			fauna_row = true;
-			break;
-		}
+RtsoWorldView::CrowdBatch &RtsoWorldView::crowd_batch(uint8_t civ, uint8_t utype) {
+	if (civ >= rtso::CIV_COUNT) civ = rtso::CIV_ATHENIANS;
+	if (utype >= rtso::UNIT_TYPE_COUNT) utype = rtso::UNIT_VILLAGER;
+	std::unique_ptr<CrowdBatch> &slot = crowd_[civ][utype];
+	if (!slot) {
+		slot = std::make_unique<CrowdBatch>();
+		auto entry = rtso::ModelLibrary::get("units", rtso::civ_unit_model(civ, utype));
+		slot->rest = entry.crowd_mesh.is_valid() ? entry.crowd_mesh : entry.mesh;
+		slot->no_scene = !entry.scene.is_valid();
 	}
-	for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
-		ClipId want = kWant[c];
-		if (c == 1 && fauna_row && ap && ap->has_animation(clip_name(CLIP_RUN))) {
-			want = CLIP_RUN;
-		}
-		ClipId play = resolve_clip_fallback(ap, want);
+	return *slot;
+}
+
+MultiMesh *RtsoWorldView::crowd_mm(CrowdBatch &b, int clip) {
+	if (!b.mmi[clip]) {
+		Ref<Mesh> m = b.puppet[clip].posed_frames[0].is_valid() ? Ref<Mesh>(b.puppet[clip].posed_frames[0]) : b.rest;
+		b.mm[clip] = create_multimesh(m, true);
+		b.mmi[clip] = memnew(MultiMeshInstance3D);
+		b.mmi[clip]->set_multimesh(b.mm[clip]);
+		// 0 A.D. unit actors carry <castshadow/>.
+		b.mmi[clip]->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_ON);
+		add_child(b.mmi[clip]);
+	}
+	return b.mm[clip].ptr();
+}
+
+void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, const uint8_t *want,
+		const bool *needed, int count, int death_slot) {
+	AnimationPlayer *ap = find_anim_player(inst);
+	if (ap) {
+		ap->set_active(true);
+		ap->set_callback_mode_process(AnimationMixer::ANIMATION_CALLBACK_MODE_PROCESS_MANUAL);
+	}
+	for (int c = 0; c < count; ++c) {
+		if (!needed[c] || done[c]) continue;
+		done[c] = true;
+		ClipId play = resolve_clip_fallback(ap, (ClipId)want[c]);
 		int valid = 0;
-		if (skinned && ap && play != CLIP_NONE) {
+		if (ap && play != CLIP_NONE) {
 			const StringName &name = clip_name(play);
+			// Show the clip's tool (axe, pick, hammer...) before capturing, as
+			// capture skips hidden props.
+			apply_unit_tools(inst, name);
+			rtso::ModelLibrary::CrowdSkin skin;
+			if (!rtso::ModelLibrary::capture_crowd_skin(inst, skin)) {
+				row[c].baked_count = 0;
+				row[c].last_frame = -1;
+				continue;
+			}
 			double len = 0.0;
 			Ref<Animation> a = ap->get_animation(name);
 			if (a.is_valid()) len = a->get_length();
@@ -870,7 +1155,7 @@ void RtsoWorldView::bake_puppet_clips(CrowdPuppet *row, AnimationPlayer *ap,
 			for (int f = 0; f < n; ++f) {
 				double t = 0.0;
 				if (len > 0.0) {
-					if (c == 3) {
+					if (c == death_slot) {
 						t = (n > 1) ? len * (double)f / (double)(n - 1) : 0.0;
 					} else {
 						t = len * (double)f / (double)n;
@@ -891,11 +1176,11 @@ void RtsoWorldView::bake_puppet_clips(CrowdPuppet *row, AnimationPlayer *ap,
 	if (ap) ap->stop();
 }
 
-void RtsoWorldView::cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts) {
-	for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
+void RtsoWorldView::cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts, int count, int death_slot) {
+	for (int c = 0; c < count; ++c) {
 		if (!meshes[c].is_valid() || row[c].baked_count <= 0 || counts[c] <= 0) continue;
 		int frame;
-		if (c == 3) {
+		if (c == death_slot) {
 			frame = (int)(anim_time * 5.0f);
 			if (frame > row[c].baked_count - 1) frame = row[c].baked_count - 1;
 		} else {
@@ -908,46 +1193,45 @@ void RtsoWorldView::cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes
 	}
 }
 
-void RtsoWorldView::ensure_crowd_frames(int bank, uint8_t utype, uint8_t civ) {
-	if (bank < 0 || bank >= CROWD_BANK_COUNT) return;
-	if (utype >= rtso::UNIT_TYPE_COUNT) return;
-	if (unit_puppet_baked[bank][utype]) return;
-	unit_puppet_baked[bank][utype] = true;
+static Node *instantiate_for_bake(Node3D *bake_root, const Ref<PackedScene> &scene) {
+	Node *inst = scene->instantiate();
+	if (!inst) return nullptr;
+	bake_root->add_child(inst);
+	if (Node3D *n3 = Object::cast_to<Node3D>(inst)) {
+		n3->set_position(Vector3(0, -1000, 0));
+	}
+	rtso::ModelLibrary::apply_imported_material_fixups(inst);
+	rtso::ModelLibrary::apply_clip_tools(inst, StringName("Idle"));
+	return inst;
+}
 
-	String cat_units = "units";
-	String id_str = rtso::civ_unit_model(civ, utype);
-	auto entry = rtso::ModelLibrary::get(cat_units, id_str);
-	if (!entry.scene.is_valid()) return;
+void RtsoWorldView::ensure_crowd_frames(uint8_t civ, uint8_t utype, const int *counts) {
+	CrowdBatch &b = crowd_batch(civ, utype);
+	if (b.no_scene) return;
+	bool needed[CROWD_CLIP_COUNT] = {};
+	bool any = false;
+	for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
+		needed[c] = counts[c] > 0 && !b.clip_baked[c];
+		any = any || needed[c];
+	}
+	if (!any) return;
 
+	auto entry = rtso::ModelLibrary::get("units", rtso::civ_unit_model(civ, utype));
+	if (!entry.scene.is_valid()) {
+		b.no_scene = true;
+		return;
+	}
 	if (!crowd_bake_root) {
 		crowd_bake_root = memnew(Node3D);
 		crowd_bake_root->set_visible(false);
 		add_child(crowd_bake_root);
 	}
-	Node *inst = entry.scene->instantiate();
+	Node *inst = instantiate_for_bake(crowd_bake_root, entry.scene);
 	if (!inst) return;
-	crowd_bake_root->add_child(inst);
-	if (Node3D *n3 = Object::cast_to<Node3D>(inst)) {
-		n3->set_position(Vector3(0, -1000, 0));
-	}
-	rtso::ModelLibrary::apply_imported_material_fixups(inst);
-	apply_unit_tools(inst, StringName("Idle"));
-
-	AnimationPlayer *ap = find_anim_player(inst);
-	if (ap) {
-		ap->set_active(true);
-		ap->set_callback_mode_process(AnimationMixer::ANIMATION_CALLBACK_MODE_PROCESS_MANUAL);
-	}
-	rtso::ModelLibrary::CrowdSkin skin;
-	bool captured = rtso::ModelLibrary::capture_crowd_skin(inst, skin);
-	bake_puppet_clips(unit_puppet[bank][utype], ap, skin, captured);
+	bake_puppet_clips(inst, b.puppet, b.clip_baked, kCrowdClips, needed, CROWD_CLIP_COUNT, CROWD_DEATH_SLOT);
 	for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
-		if (unit_mm[bank][utype][c].is_valid() && unit_puppet[bank][utype][c].posed_frames[0].is_valid()) {
-			unit_mm[bank][utype][c]->set_mesh(unit_puppet[bank][utype][c].posed_frames[0]);
-		}
-		unit_puppet[bank][utype][c].skin = rtso::ModelLibrary::CrowdSkin();
-		unit_puppet[bank][utype][c].root = nullptr;
-		unit_puppet[bank][utype][c].anim = nullptr;
+		if (needed[c] && b.mm[c].is_valid() && b.puppet[c].posed_frames[0].is_valid())
+			b.mm[c]->set_mesh(b.puppet[c].posed_frames[0]);
 	}
 	crowd_bake_root->remove_child(inst);
 	inst->queue_free();
@@ -968,30 +1252,19 @@ void RtsoWorldView::ensure_fauna_frames(uint8_t ftype) {
 		crowd_bake_root->set_visible(false);
 		add_child(crowd_bake_root);
 	}
-	Node *inst = entry.scene->instantiate();
+	Node *inst = instantiate_for_bake(crowd_bake_root, entry.scene);
 	if (!inst) return;
-	crowd_bake_root->add_child(inst);
-	if (Node3D *n3 = Object::cast_to<Node3D>(inst)) {
-		n3->set_position(Vector3(0, -1000, 0));
-	}
-	rtso::ModelLibrary::apply_imported_material_fixups(inst);
-	apply_unit_tools(inst, StringName("Idle"));
-
+	// Animals flee at a run when they have one.
 	AnimationPlayer *ap = find_anim_player(inst);
-	if (ap) {
-		ap->set_active(true);
-		ap->set_callback_mode_process(AnimationMixer::ANIMATION_CALLBACK_MODE_PROCESS_MANUAL);
-	}
-	rtso::ModelLibrary::CrowdSkin skin;
-	bool captured = rtso::ModelLibrary::capture_crowd_skin(inst, skin);
-	bake_puppet_clips(fauna_puppet[ftype], ap, skin, captured);
-	for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
+	uint8_t want[FAUNA_CLIP_COUNT] = { CLIP_IDLE, CLIP_WALK, CLIP_ATTACK, CLIP_DEATH };
+	if (ap && ap->has_animation(clip_name(CLIP_RUN))) want[1] = CLIP_RUN;
+	const bool needed[FAUNA_CLIP_COUNT] = { true, true, true, true };
+	bool done[FAUNA_CLIP_COUNT] = {};
+	bake_puppet_clips(inst, fauna_puppet[ftype], done, want, needed, FAUNA_CLIP_COUNT, 3);
+	for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) {
 		if (fauna_mm[ftype][c].is_valid() && fauna_puppet[ftype][c].posed_frames[0].is_valid()) {
 			fauna_mm[ftype][c]->set_mesh(fauna_puppet[ftype][c].posed_frames[0]);
 		}
-		fauna_puppet[ftype][c].skin = rtso::ModelLibrary::CrowdSkin();
-		fauna_puppet[ftype][c].root = nullptr;
-		fauna_puppet[ftype][c].anim = nullptr;
 	}
 	crowd_bake_root->remove_child(inst);
 	inst->queue_free();
@@ -1009,6 +1282,103 @@ void RtsoWorldView::play_unit_clip(UnitVis &v, const StringName &clip, bool loop
 	v.anim->play(clip);
 	v.anim->advance(0.0);
 	apply_unit_tools(v.model, clip);
+}
+
+// Tree models per biome, from the 0 A.D. flora each biome's random maps
+// plant (maps/random/rmbiome/*.json forest templates). Scales bring the wide
+// savanna trees down and the shorter oak up to the height of the other trees.
+void RtsoWorldView::pick_tree_kinds(const std::string &biome) {
+	struct Kind { const char *id; float scale; };
+	struct Set { const char *biome; Kind kinds[TREE_KINDS]; };
+	static const Set kSets[] = {
+		{ "mediterranean", { { "tree", 1.0f }, { "pine", 1.0f }, { "oak", 1.15f } } },
+		{ "aegean", { { "tree", 1.0f }, { "pine", 1.0f }, { "palm", 1.0f } } },
+		{ "latium", { { "pine", 1.0f }, { "tree", 1.0f }, { "oak", 1.15f } } },
+		{ "alpine", { { "pine", 1.0f }, { "pine", 0.85f }, { "tree", 1.0f } } },
+		{ "polar", { { "pine", 1.0f }, { "pine", 0.8f }, { nullptr, 1.0f } } },
+		{ "temperate", { { "oak", 1.15f }, { "tree", 1.0f }, { "pine", 1.0f } } },
+		{ "steppe", { { "pine", 1.0f }, { "tree", 0.9f }, { nullptr, 1.0f } } },
+		{ "savanna", { { "baobab", 0.8f }, { "acacia", 0.9f }, { "acacia", 0.8f } } },
+		{ "oasis", { { "palm", 1.0f }, { "palm", 1.2f }, { "acacia", 0.8f } } },
+		{ "desert", { { "palm", 1.0f }, { "acacia", 0.8f }, { nullptr, 1.0f } } },
+		{ "persia", { { "palm", 1.0f }, { "acacia", 0.8f }, { "tree", 0.9f } } },
+		{ "india", { { "palm", 1.0f }, { "bamboo", 1.0f }, { "tree", 1.0f } } },
+		{ "tropical", { { "palm", 1.0f }, { "bamboo", 1.0f }, { "palm", 1.2f } } },
+		{ "volcanic", { { "pine", 1.0f }, { "tree", 0.9f }, { nullptr, 1.0f } } },
+	};
+	const Set *set = &kSets[0];
+	for (const auto &s : kSets)
+		if (biome == s.biome) { set = &s; break; }
+	tree_biome_ = biome;
+	tree_kind_count = 0;
+	for (int k = 0; k < TREE_KINDS; ++k) {
+		const Kind &kd = set->kinds[k];
+		if (!kd.id) break;
+		auto e = rtso::ModelLibrary::get("vegetation", kd.id);
+		if (e.mesh.is_null()) continue;
+		enable_instance_tint(e.mesh);
+		const int slot = tree_kind_count++;
+		tree_mm[slot]->set_instance_count(0);
+		tree_mm[slot]->set_mesh(e.mesh);
+		tree_scale[slot] = kd.scale;
+		tree_y[slot] = e.y_offset * kd.scale;
+	}
+	if (tree_kind_count == 0) {
+		tree_kind_count = 1;
+		tree_scale[0] = 1.0f;
+		tree_y[0] = rtso::ModelLibrary::get("vegetation", "tree").y_offset;
+	}
+	for (int k = tree_kind_count; k < TREE_KINDS; ++k) tree_mm[k]->set_instance_count(0);
+}
+
+// 0 A.D. random maps paint forest floor under every forest and dirt round
+// every mine (rmgen createForests / createMines tile painting). RTS0 maps carry
+// no tile textures, so the view paints the same from where the map put them.
+void RtsoWorldView::build_ground_paint(const rtso::Simulation *sim) {
+	Ref<ShaderMaterial> tm = terrain ? Ref<ShaderMaterial>(terrain->get_material_override()) : Ref<ShaderMaterial>();
+	if (tm.is_null()) return;
+	const float half = sim->map_half();
+	const int res = std::clamp(sim->terrain_res() > 1 ? sim->terrain_res() : 128, 32, 1024);
+	if (half <= 0.0f) return;
+	const float cell = (half * 2.0f) / (float)res;
+	std::vector<float> forest((size_t)res * res, 0.0f), mine((size_t)res * res, 0.0f);
+	auto splat = [&](std::vector<float> &dst, float x, float z, float radius) {
+		const int cx = (int)((x + half) / cell), cz = (int)((z + half) / cell);
+		const int r = (int)std::ceil(radius / cell);
+		for (int dz = -r; dz <= r; ++dz) {
+			const int zz = cz + dz;
+			if (zz < 0 || zz >= res) continue;
+			for (int dx = -r; dx <= r; ++dx) {
+				const int xx = cx + dx;
+				if (xx < 0 || xx >= res) continue;
+				const float d = std::sqrt((float)(dx * dx + dz * dz)) * cell;
+				const float w = 1.0f - d / radius;
+				float &v = dst[(size_t)zz * res + xx];
+				if (w > v) v = w;
+			}
+		}
+	};
+	const auto rv = sim->resources();
+	for (size_t i = 0; i < rv.count; ++i) {
+		if (!rv.alive[i]) continue;
+		const uint8_t sub = rv.subtype ? rv.subtype[i] : 0;
+		if (rv.type[i] == rtso::RES_WOOD) splat(forest, rv.x[i], rv.z[i], 3.0f);
+		else if ((rv.type[i] == rtso::RES_GOLD || rv.type[i] == rtso::RES_STONE) && sub != rtso::RES_SUB_FISH)
+			splat(mine, rv.x[i], rv.z[i], 2.6f);
+	}
+	PackedByteArray bytes;
+	bytes.resize((int64_t)res * res * 3);
+	uint8_t *p = bytes.ptrw();
+	for (size_t k = 0; k < (size_t)res * res; ++k) {
+		p[k * 3 + 0] = 0;
+		p[k * 3 + 1] = (uint8_t)std::lround(std::min(1.0f, forest[k] * 1.6f) * 255.0f);
+		p[k * 3 + 2] = (uint8_t)std::lround(std::min(1.0f, mine[k] * 1.6f) * 255.0f);
+	}
+	Ref<Image> img = Image::create_from_data(res, res, false, Image::FORMAT_RGB8, bytes);
+	paint_tex_ = ImageTexture::create_from_image(img);
+	tm->set_shader_parameter("paint_tex", paint_tex_);
+	tm->set_shader_parameter("paint_half", half);
+	paint_dirty_ = false;
 }
 
 void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
@@ -1079,6 +1449,9 @@ void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 	// Ground textures follow the map's biome.
 	rtso::Assets::apply_terrain_biome(terrain->get_material_override(),
 	                                  String(sim->current_map_biome().c_str()));
+	if (Ref<ShaderMaterial> tm = terrain->get_material_override(); tm.is_valid())
+		tm->set_shader_parameter("water_level", sim->water_height() > -0.5f ? sim->water_height() : -1000.0f);
+	paint_dirty_ = true;
 
 	// Water Body (water_height < -0.5 means a dry map, as in NavGrid::set_water_from_heights)
 	if (sim->water_height() > -0.5f) {
@@ -1104,6 +1477,19 @@ void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 		}
 		water_mesh->set_size(Vector2(half * 2.2f, half * 2.2f));
 		water_mesh_node->set_position(Vector3(0.0f, sim->water_height(), 0.0f));
+		// Seabed heights for depth-tinted water and shore foam.
+		Ref<ShaderMaterial> wsm = water_mesh_node->get_material_override();
+		if (wsm.is_valid() && !heights.empty() && res > 1) {
+			PackedByteArray bytes;
+			bytes.resize((int64_t)res * res * sizeof(float));
+			std::memcpy(bytes.ptrw(), heights.data(), (size_t)res * res * sizeof(float));
+			Ref<Image> him = Image::create_from_data(res, res, false, Image::FORMAT_RF, bytes);
+			water_height_tex_ = ImageTexture::create_from_image(him);
+			wsm->set_shader_parameter("height_tex", water_height_tex_);
+			// Height samples sit on the cell corners; map them across the full extent.
+			wsm->set_shader_parameter("terrain_half", half * (float)res / (float)(res - 1));
+			wsm->set_shader_parameter("water_level", sim->water_height());
+		}
 		water_mesh_node->set_visible(true);
 	} else if (water_mesh_node) {
 		water_mesh_node->set_visible(false);
@@ -1119,6 +1505,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	if (unit_vis_stamp == 0) unit_vis_stamp = 1;
 
 	update_fog(sim, delta);
+	if (paint_dirty_ && sim->resources().count > 0) build_ground_paint(sim);
+	update_territory_borders(sim);
 
 	// Update skeletal animation controllers
 	for (int t = 0; t < rtso::UNIT_TYPE_COUNT; ++t) {
@@ -1138,30 +1526,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	const float anim_dist_sq = 24.0f * 24.0f;
 	(void)anim_dist_sq;
 
-	// 0 A.D. CCmpVisualActor::SelectMovementAnimation only swaps idle/walk/run.
-	// Attack.js SelectAnimation("attack_*") and ResourceGatherer "gather_*" stay put.
-	auto crowd_clip_of = [](uint8_t uaction, float speed2, bool alive) -> int {
-		if (!alive || uaction == rtso::ACTION_DYING) return 3;
-		switch (uaction) {
-			case rtso::ACTION_GATHER:
-			case rtso::ACTION_BUILD:
-				return 0;
-			case rtso::ACTION_ATTACK:
-				return 2;
-			case rtso::ACTION_MOVE:
-			case rtso::ACTION_RETURN_DROPSITE:
-			case rtso::ACTION_ATTACK_MOVE:
-			case rtso::ACTION_PATROL:
-				return 1;
-			default:
-				return speed2 > 0.001f ? 1 : 0;
-		}
-	};
-
 	// =========================================================================
 	// 1. Units Presentation: Real 0 A.D. models, 3D animations, and Health Bars
 	// =========================================================================
-	ensure_unit_batches(sim);
 	auto uview = sim->units();
 	auto rview_g = sim->resources();
 	auto entity_visible = [sim, this](float x, float z, uint8_t team) {
@@ -1175,7 +1542,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	}
 
 	std::unordered_set<uint32_t> detailed;
-	// Ships always need the real GLB (sail clips + oar nodes). Crowd is rest-pose.
+	// Ships always need the real GLB (sail clips + oar nodes). Everyone else is
+	// crowd, which bakes the clip each unit plays (gather, build, carry...).
 	for (size_t i = 0; i < uview.count; ++i) {
 		if (rtso::unit_is_ship(uview.unit_type[i]))
 			detailed.insert(uview.id[i]);
@@ -1185,44 +1553,56 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (dying)
 			detailed.insert(uview.id[i]);
 	}
-	for (size_t i = 0; i < uview.count && (int)detailed.size() < MAX_DETAILED_UNITS; ++i) {
-		if (uview.action_state[i] == rtso::ACTION_GATHER)
-			detailed.insert(uview.id[i]);
-	}
 	for (int s = 0; s < selected_ids.size() && (int)detailed.size() < MAX_DETAILED_UNITS; ++s) {
 		detailed.insert((uint32_t)selected_ids[s]);
 	}
 
-	int counts[CROWD_BANK_COUNT][rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT] = {};
+	// The clip each visible unit plays (0 A.D. VisualActor: the real clip for
+	// every unit, not just the nearby ones), and how many share each batch.
+	auto anim_of = [&](size_t i) -> WantAnim {
+		uint8_t ut = uview.unit_type[i];
+		if (ut >= rtso::UNIT_TYPE_COUNT) ut = rtso::UNIT_VILLAGER;
+		const float vx = uview.vel_x[i], vz = uview.vel_z[i];
+		uint8_t sub = 0;
+		if (uview.target_resource_id && uview.target_resource_id[i]) {
+			auto it = res_sub.find(uview.target_resource_id[i]);
+			if (it != res_sub.end()) sub = it->second;
+		}
+		return resolve_unit_anim(uview.action_state[i], vx * vx + vz * vz, uview.alive[i] != 0,
+				uview.carry[i], ut, uview.res_type_carried[i], sub);
+	};
+	crowd_slot_scratch_.assign(uview.count, 0xFF);
+	static int counts[rtso::CIV_COUNT][rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT];
+	std::memset(counts, 0, sizeof(counts));
 	for (size_t i = 0; i < uview.count; ++i) {
 		if (!entity_visible(uview.pos_x[i], uview.pos_z[i], uview.team[i])) continue;
 		uint8_t t = uview.unit_type[i];
 		if (t >= rtso::UNIT_TYPE_COUNT) t = rtso::UNIT_VILLAGER;
-		int bank = (uview.team[i] == local_player_) ? 0 : 1;
-		float vx = uview.vel_x[i];
-		float vz = uview.vel_z[i];
-		int clip = crowd_clip_of(uview.action_state[i], vx * vx + vz * vz, uview.alive[i] != 0);
-		counts[bank][t][clip]++;
+		uint8_t civ = sim->team_civ(uview.team[i]);
+		if (civ >= rtso::CIV_COUNT) civ = rtso::CIV_ATHENIANS;
+		const int slot = crowd_slot_of(anim_of(i).clip);
+		crowd_slot_scratch_[i] = (uint8_t)slot;
+		counts[civ][t][slot]++;
 	}
-	uint8_t civs[CROWD_BANK_COUNT] = { sim->player_civ(local_player_), sim->team_civ(local_player_ == 0 ? 1 : 0) };
-	for (int bank = 0; bank < CROWD_BANK_COUNT; ++bank) {
+	for (int civ = 0; civ < rtso::CIV_COUNT; ++civ) {
 		for (int t = 0; t < rtso::UNIT_TYPE_COUNT; ++t) {
 			int any = 0;
-			for (int c = 0; c < CROWD_CLIP_COUNT; ++c) any += counts[bank][t][c];
-			if (any > 0) ensure_crowd_frames(bank, (uint8_t)t, civs[bank]);
-			cycle_puppet_meshes(unit_puppet[bank][t], unit_mm[bank][t], counts[bank][t]);
-		}
-	}
-	int written[CROWD_BANK_COUNT][rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT] = {};
-	for (int bank = 0; bank < CROWD_BANK_COUNT; ++bank) {
-		for (int t = 0; t < rtso::UNIT_TYPE_COUNT; ++t) {
-			for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
-				if (unit_mm[bank][t][c].is_valid()) {
-					unit_mm[bank][t][c]->set_instance_count(counts[bank][t][c]);
-				}
+			for (int c = 0; c < CROWD_CLIP_COUNT; ++c) any += counts[civ][t][c];
+			if (any == 0 && !crowd_[civ][t]) continue;
+			if (any > 0) {
+				CrowdBatch &cb = crowd_batch((uint8_t)civ, (uint8_t)t);
+				ensure_crowd_frames((uint8_t)civ, (uint8_t)t, counts[civ][t]);
+				for (int c = 0; c < CROWD_CLIP_COUNT; ++c)
+					if (counts[civ][t][c] > 0) crowd_mm(cb, c);
 			}
+			CrowdBatch &cb = *crowd_[civ][t];
+			cycle_puppet_meshes(cb.puppet, cb.mm, counts[civ][t], CROWD_CLIP_COUNT, CROWD_DEATH_SLOT);
+			for (int c = 0; c < CROWD_CLIP_COUNT; ++c)
+				if (cb.mm[c].is_valid()) cb.mm[c]->set_instance_count(counts[civ][t][c]);
 		}
 	}
+	static int written[rtso::CIV_COUNT][rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT];
+	std::memset(written, 0, sizeof(written));
 
 	const Color col_player(0.55f, 0.72f, 1.0f);
 	const Color col_enemy(1.0f, 0.52f, 0.42f);
@@ -1289,15 +1669,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		yaw += diff * Math::clamp(delta * 14.0f, 0.0f, 1.0f);
 		crowd_yaw[id] = yaw;
 
-		WantAnim want = resolve_unit_anim(uaction, speed2, uview.alive[i] != 0, uview.carry[i], utype,
-				uview.res_type_carried[i],
-				(uview.target_resource_id && uview.target_resource_id[i])
-					? (res_sub.count(uview.target_resource_id[i]) ? res_sub[uview.target_resource_id[i]] : 0)
-					: 0);
+		WantAnim want = anim_of(i);
 		anim_controllers[utype].play(want.state);
 
-		int bank = is_player ? 0 : 1;
 		uint8_t uciv = sim->team_civ(uview.team[i]);
+		if (uciv >= rtso::CIV_COUNT) uciv = rtso::CIV_ATHENIANS;
 		String utype_str = rtso::civ_unit_model(uciv, utype);
 		String cat_units3 = "units";
 		auto entry = rtso::ModelLibrary::get(cat_units3, utype_str);
@@ -1313,16 +1689,17 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (dying) {
 			apply_unit_death_xform(xf, utype, death_t, x, z, entry.aabb.size.y * sc, false);
 		}
-		int clip = crowd_clip_of(uaction, speed2, uview.alive[i] != 0);
-		int slot = written[bank][utype][clip]++;
-		if (unit_mm[bank][utype][clip].is_valid()) {
+		const int clip = crowd_slot_scratch_[i];
+		MultiMesh *cmm = crowd_[uciv][utype] ? crowd_[uciv][utype]->mm[clip].ptr() : nullptr;
+		if (cmm) {
+			const int slot = written[uciv][utype][clip]++;
 			if (detailed.count(id) > 0) {
 				Transform3D hidden;
 				hidden.origin = Vector3(x, y, z);
 				hidden.basis = hidden.basis.scaled(Vector3(0.001f, 0.001f, 0.001f));
-				unit_mm[bank][utype][clip]->set_instance_transform(slot, hidden);
+				cmm->set_instance_transform(slot, hidden);
 			} else {
-				unit_mm[bank][utype][clip]->set_instance_transform(slot, xf);
+				cmm->set_instance_transform(slot, xf);
 			}
 			// model_common.fs: color *= LOS. Own units in the fog read darker.
 			const float lit = los_brightness(x, z);
@@ -1330,7 +1707,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			tint.r *= lit;
 			tint.g *= lit;
 			tint.b *= lit;
-			unit_mm[bank][utype][clip]->set_instance_color(slot, tint);
+			cmm->set_instance_color(slot, tint);
 		}
 
 		if (detailed.count(id) == 0) continue;
@@ -1560,6 +1937,16 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			}
 		}
 
+		{
+			const float frac = b.max_hp > 0.0f ? b.hp / b.max_hp : 1.0f;
+			uint8_t lvl = 0;
+			if (v.phase == 0) {
+				if (frac <= 0.35f || b.is_burning) lvl = 2;
+				else if (frac <= 0.65f) lvl = 1;
+			}
+			update_damage_fx(v, lvl, b.half_size, entry.aabb.size.y * b_scale);
+		}
+
 		// Building Health & Construction Progress Bar
 		bool show_bhp = !destroyed && (b_progress < 1.0f || b.hp < b.max_hp * 0.98f);
 		v.hp_bg->set_visible(show_bhp);
@@ -1632,6 +2019,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			building_pool[s].model = nullptr;
 			building_pool[s].foundation = nullptr;
 			building_pool[s].scaffold = nullptr;
+			building_pool[s].fx_smoke = nullptr;
+			building_pool[s].fx_flame = nullptr;
+			building_pool[s].fx_level = 0;
 			building_slot.erase(building_pool[s].sim_id);
 		}
 	}
@@ -1737,30 +2127,32 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	// =========================================================================
 	// Explored supplies show as last seen (Fogging.js); unexplored ones not at all.
 	const auto &fres = mirages_.resources();
-	size_t n_tree = 0, g = 0, st = 0, fd = 0, nru = 0;
+	size_t n_tree = 0, g = 0, st = 0, fd = 0, nru = 0, fish_n = 0;
 	for (const auto &r : fres) {
 		if (r.subtype == rtso::RES_SUB_GRAIN) continue; // a field's grain; the field model shows it
 		if (r.subtype == rtso::RES_SUB_RUINS) nru++;
 		else if (r.type == rtso::RES_WOOD) n_tree++;
 		else if (r.type == rtso::RES_GOLD) g++;
 		else if (r.type == rtso::RES_STONE) st++;
+		else if (r.subtype == rtso::RES_SUB_FISH) fish_n++;
 		else if (r.type == rtso::RES_FOOD) fd++;
 	}
 
-	// All wood on tree.glb — pine/palm were easy to mistake for walking fauna
-	tree_a_mm->set_instance_count((int)n_tree);
-	tree_b_mm->set_instance_count(0);
-	tree_c_mm->set_instance_count(0);
+	if (sim->current_map_biome() != tree_biome_) pick_tree_kinds(sim->current_map_biome());
+	size_t n_kind[TREE_KINDS] = {};
+	for (const auto &r : fres)
+		if (r.type == rtso::RES_WOOD && r.subtype != rtso::RES_SUB_GRAIN) n_kind[r.id % (uint32_t)tree_kind_count]++;
+	for (int k = 0; k < TREE_KINDS; ++k) tree_mm[k]->set_instance_count((int)n_kind[k]);
 	gold_mm->set_instance_count((int)g);
 	stone_mm->set_instance_count((int)st);
 	if (food_mm.is_valid())
 		food_mm->set_instance_count((int)fd);
 	ruins_mm->set_instance_count((int)nru);
+	fish_mm->set_instance_count((int)fish_n);
 
-	size_t ia = 0, ig = 0, ist = 0, ifd = 0, iru = 0;
+	size_t ia[TREE_KINDS] = {}, ig = 0, ist = 0, ifd = 0, iru = 0, ifish = 0;
 	auto e_ruins = rtso::ModelLibrary::get("buildings", "ruins");
 	String cat_veg = "vegetation";
-	String id_tree = "tree"; auto e_tree = rtso::ModelLibrary::get(cat_veg, id_tree);
 	String id_gold = "gold_vein"; auto e_gold = rtso::ModelLibrary::get(cat_veg, id_gold);
 	String id_stone = "stone_mine"; auto e_stone = rtso::ModelLibrary::get(cat_veg, id_stone);
 	String id_food = "fruit_bush"; auto e_food = rtso::ModelLibrary::get(cat_veg, id_food);
@@ -1779,9 +2171,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			ruins_mm->set_instance_transform((int)iru, xf);
 			ruins_mm->set_instance_color((int)iru++, tint);
 		} else if (r.type == rtso::RES_WOOD) {
-			Transform3D xf(rot, Vector3(rx, ry + e_tree.y_offset, rz));
-			tree_a_mm->set_instance_transform((int)ia, xf);
-			tree_a_mm->set_instance_color((int)ia++, tint);
+			const int k = (int)(h % (uint32_t)tree_kind_count);
+			const float sc = tree_scale[k];
+			Transform3D xf(rot.scaled(Vector3(sc, sc, sc)), Vector3(rx, ry + tree_y[k], rz));
+			tree_mm[k]->set_instance_transform((int)ia[k], xf);
+			tree_mm[k]->set_instance_color((int)ia[k]++, tint);
 		} else if (r.type == rtso::RES_GOLD) {
 			Transform3D xf(rot, Vector3(rx, ry + e_gold.y_offset, rz));
 			gold_mm->set_instance_transform((int)ig, xf);
@@ -1790,10 +2184,15 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			Transform3D xf(rot, Vector3(rx, ry + e_stone.y_offset, rz));
 			stone_mm->set_instance_transform((int)ist, xf);
 			stone_mm->set_instance_color((int)ist++, tint);
+		} else if (r.subtype == rtso::RES_SUB_FISH) {
+			// 0 A.D.'s fish shoal swims just under the surface (Position/Floating).
+			// The water has no refraction pass, so the top fish break the
+			// surface to stay visible.
+			ry = std::max(ry, sim->water_height());
+			Transform3D xf(rot, Vector3(rx, ry + 0.3f, rz));
+			fish_mm->set_instance_transform((int)ifish, xf);
+			fish_mm->set_instance_color((int)ifish++, tint);
 		} else if (r.type == rtso::RES_FOOD && food_mm.is_valid()) {
-			// Fish float at the water surface (0 A.D. Position/Floating); the fruit-bush mesh
-			// stands in until the asset pipeline brings 0 A.D.'s fish shoal actor.
-			if (r.subtype == rtso::RES_SUB_FISH) ry = std::max(ry, sim->water_height());
 			Transform3D xf(rot, Vector3(rx, ry + e_food.y_offset, rz));
 			food_mm->set_instance_transform((int)ifd, xf);
 			food_mm->set_instance_color((int)ifd++, tint);
@@ -1829,7 +2228,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (speed2 > 0.001f) return 1;
 		return 0;
 	};
-	int f_counts[rtso::FAUNA_COUNT][CROWD_CLIP_COUNT] = {};
+	int f_counts[rtso::FAUNA_COUNT][FAUNA_CLIP_COUNT] = {};
 	for (size_t f = 0; f < fview.count; ++f) {
 		if (!entity_visible(fview.pos_x[f], fview.pos_z[f], 255)) continue;
 		uint8_t ft = fview.fauna_type[f];
@@ -1841,16 +2240,16 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	}
 	for (int ft = 0; ft < rtso::FAUNA_COUNT; ++ft) {
 		int any = 0;
-		for (int c = 0; c < CROWD_CLIP_COUNT; ++c) any += f_counts[ft][c];
+		for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) any += f_counts[ft][c];
 		if (any > 0) ensure_fauna_frames((uint8_t)ft);
-		cycle_puppet_meshes(fauna_puppet[ft], fauna_mm[ft], f_counts[ft]);
-		for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
+		cycle_puppet_meshes(fauna_puppet[ft], fauna_mm[ft], f_counts[ft], FAUNA_CLIP_COUNT, 3);
+		for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) {
 			if (fauna_mm[ft][c].is_valid()) {
 				fauna_mm[ft][c]->set_instance_count(f_counts[ft][c]);
 			}
 		}
 	}
-	int f_written[rtso::FAUNA_COUNT][CROWD_CLIP_COUNT] = {};
+	int f_written[rtso::FAUNA_COUNT][FAUNA_CLIP_COUNT] = {};
 	for (size_t f = 0; f < fview.count; ++f) {
 		if (!entity_visible(fview.pos_x[f], fview.pos_z[f], 255)) continue;
 		uint8_t ft = fview.fauna_type[f];
