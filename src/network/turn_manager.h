@@ -58,7 +58,8 @@ public:
 	// Post or receive remote commands
 	void post_remote_command(uint32_t client_id, const NetCommand &cmd);
 	void post_remote_commands(uint32_t client_id, const std::vector<NetCommand> &cmds);
-	void receive_remote_turn_batch(uint32_t turn, uint32_t client_id, const std::vector<NetCommand> &cmds);
+	// True when the batch is new (not a duplicate or a late one); the host relays it.
+	bool receive_remote_turn_batch(uint32_t turn, uint32_t client_id, const std::vector<NetCommand> &cmds);
 	void receive_sync_check(uint32_t turn, uint32_t client_id, uint32_t hash);
 
 	// --- G8: NMT_GAME_START lockstep gate ------------------------------------
@@ -355,6 +356,13 @@ private:
 	// Rejoin: per-peer first turn whose batch is required (a rejoiner sends
 	// from T+COMMAND_DELAY+1), host-side requests, and the client's transfer.
 	std::unordered_map<uint32_t, uint32_t> lockstep_since_;
+	// A client that left: the last turn the lockstep still waits for its batch.
+	std::unordered_map<uint32_t, uint32_t> lockstep_until_;
+	// Host: seat changes (NET_CMD_PEER_JOINED / NET_CMD_PEER_LEFT) for its next batch.
+	std::vector<NetCommand> pending_control_;
+	bool peer_active(uint32_t id) const;
+	void apply_peer_left(uint32_t client_id, uint32_t last_turn);
+	void apply_peer_control(const NetCommand &c);
 	std::vector<uint32_t> rejoin_requests_;
 	bool rejoin_wanted_ = false, rejoin_have_header_ = false, rejoined_ = false;
 	uint32_t rejoin_turn_ = 0;
