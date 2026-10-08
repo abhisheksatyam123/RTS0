@@ -736,7 +736,9 @@ enum CivRosterFlag : uint8_t {
 	ROSTER_CHAMPION = 2,
 	ROSTER_RANGED = 4,
 	ROSTER_CITIZEN = 8,
-	ROSTER_MERCENARY = 16
+	ROSTER_MERCENARY = 16,
+	ROSTER_PACKABLE = 32, // 0 A.D. Pack component (10 s to pack or unpack)
+	ROSTER_SIEGE_TOWER = 64
 };
 
 inline constexpr uint16_t civ_bit(uint8_t civ) { return (civ < 16) ? (uint16_t)(1u << civ) : 0u; }
@@ -828,6 +830,7 @@ struct CivUnitTemplate {
 	float train_time;
 	int16_t carry_capacity;
 	int16_t auras[3]; // index into civ_hero_aura_table(), -1 = none
+	uint8_t unlock_tech; // TechnologyId from 0 A.D. Identity/Requirements (unlock_champion_*), or TECH_NONE
 };
 
 #include "civ_roster_data.h"
@@ -927,7 +930,8 @@ inline uint16_t civ_default_template(uint8_t civ, uint8_t type) {
 				int best_score = 1 << 30;
 				for (uint16_t i = civ_roster_begin(c); i < civ_roster_end(c); ++i) {
 					const CivUnitTemplate &u = civ_unit_template(i);
-					if (u.unit_type != t) continue;
+					// Siege towers share the bolt shooter's class but are only trained by name.
+					if (u.unit_type != t || (u.flags & ROSTER_SIEGE_TOWER)) continue;
 					int score = u.phase * 4;
 					if (u.flags & ROSTER_HERO) score += 100;
 					if (u.flags & ROSTER_CHAMPION) score += 20;
@@ -1015,7 +1019,8 @@ inline uint32_t civ_train_mask(uint8_t civ) {
 		CivTrainMasks out{};
 		for (uint8_t c = 0; c < CIV_COUNT; ++c)
 			for (uint16_t i = civ_roster_begin(c); i < civ_roster_end(c); ++i)
-				out.mask[c] |= unit_bit(civ_unit_template(i).unit_type);
+				if (!(civ_unit_template(i).flags & ROSTER_SIEGE_TOWER))
+					out.mask[c] |= unit_bit(civ_unit_template(i).unit_type);
 		return out;
 	}();
 	if (civ >= CIV_COUNT) civ = CIV_ATHENIANS;

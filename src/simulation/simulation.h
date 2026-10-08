@@ -506,8 +506,11 @@ public:
 	float healer_rate(uint8_t player_id) const; // hit points per second
 	// 0 A.D. unlock_champion_* / unlock_civilians_house_*: a unit the owner's
 	// civ gates behind an unlock technology can only be trained once it is in.
-	uint8_t train_unlock_tech(uint8_t player_id, uint8_t unit_type, uint8_t bld_type) const;
-	bool can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_type) const;
+	// With `tmpl` (a roster row) the row's own 0 A.D. unlock tech decides.
+	uint8_t train_unlock_tech(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
+			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE) const;
+	bool can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
+			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE) const;
 	// 0 A.D. phase_town / phase_city requirement: finished Village (1) or Town (2) class structures.
 	int phase_structures(uint8_t player_id, uint8_t phase) const;
 	bool unit_has_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.has_order[idx]; }
@@ -666,6 +669,10 @@ public:
 	}
 	// True when Petra drives this player: seated active AI slots, or player 1 when no slot is seated.
 	bool petra_runs_for(uint8_t pid) const;
+	// InitGame.js "AI Bonus": Petra players gather and trade at the difficulty's
+	// rate and build, train and research at its time multiplier; 1 for humans.
+	float ai_gather_mult(uint8_t pid) const { return petra_runs_for(pid) ? petra_config_.gather_rate : 1.0f; }
+	float ai_time_mult(uint8_t pid) const { return petra_runs_for(pid) ? petra_config_.build_time : 1.0f; }
 	uint8_t petra_difficulty() const { return petra_config_.difficulty; }
 	uint8_t petra_behavior() const { return petra_config_.behavior; }
 	const PetraConfig &petra_config() const { return petra_config_; }
@@ -1074,6 +1081,15 @@ private:
 	int territory_roots_res_ = 0;
 	float territory_roots_half_ = 0.0f;
 	std::vector<WaypointPath> unit_paths_; // per-unit path (UNIT_CAP), SoA waypoint_cur/count sync
+	// move_units' copy of the buildings that block movement, in buildings_ order, with only the
+	// fields nav/building_steering.h reads, so its per-unit scans read a short packed list.
+	struct SteerObstacle {
+		uint32_t id;
+		float x, z, half_size;
+		uint8_t type;
+		bool wrecked;
+	};
+	std::vector<SteerObstacle> steer_obstacles_;
 	AuraManager aura_mgr_; // G4: unified aura sources (AuraManager)
 	float fow_timer_ = 0.0f;
 	float territory_timer_ = 0.0f;

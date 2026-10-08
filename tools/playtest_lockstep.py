@@ -207,26 +207,44 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
         rcs.append(p.returncode)
     dt = time.time() - t0
 
-    hashes = []
+    hashes, extras = [], []
     for path in logs:
-        rows = {}
+        rows, ext = {}, {}
         if os.path.exists(path):
             with open(path) as f:
                 for line in f:
                     parts = line.split()
                     if len(parts) >= 2:
                         rows[int(parts[0])] = parts[1]
+                        ext[int(parts[0])] = dict(p.split("=", 1) for p in parts[3:] if "=" in p)
         hashes.append(rows)
+        extras.append(ext)
+    # Ceasefire: it must lift on the same turn on both peers, and no unit may
+    # be hurt or killed while it holds.
+    cf_end = [next((t for t in sorted(e) if e[t].get("cf") == "0"), None) for e in extras]
+    cf_hits = [t for e in extras for t in sorted(e)
+               if e[t].get("cf") == "1" and (e[t].get("wounds", "0") != "0" or e[t].get("dead", "0") != "0")]
+    ceasefire_ok = cf_end[0] == cf_end[1] and not cf_hits
     common_turns = sorted(set(hashes[0]) & set(hashes[1]))
     divergent = next((t for t in common_turns if hashes[0][t] != hashes[1][t]), None)
     complete = len(hashes[0]) == turns and len(hashes[1]) == turns
+    # Game options and teams must reach the joiner through NMT_GAME_START.
+    setups = {}
+    for out in outs:
+        for line in (out or "").splitlines():
+            m = re.match(r"\[net-peer\] (host|join): setup (.*)", line)
+            if m:
+                setups[m.group(1)] = m.group(2).strip()
+    setup_ok = len(setups) == 2 and setups["host"] == setups["join"]
     return {
         "seed": seed, "turns": turns, "rcs": rcs, "seconds": dt,
         "host_turns": len(hashes[0]), "join_turns": len(hashes[1]),
         "divergent_turn": divergent,
         "final_hash": hashes[0].get(turns),
         "output": "".join(o for o in outs if o),
-        "ok": divergent is None and complete and all(rc == 0 for rc in rcs),
+        "setup_ok": setup_ok, "setups": setups,
+        "ceasefire_ok": ceasefire_ok, "ceasefire_end": cf_end, "ceasefire_hits": cf_hits[:5],
+        "ok": divergent is None and complete and setup_ok and ceasefire_ok and all(rc == 0 for rc in rcs),
     }
 
 
@@ -344,6 +362,13 @@ def main() -> int:
         elif nr["ok"]:
             print(f"[net] PASS  {nr['turns']} turns on both peers, "
                   f"final_hash={nr['final_hash']} ({nr['seconds']:.1f}s)")
+            print(f"[net] ceasefire lifted at turn {nr['ceasefire_end'][0]} on both peers, "
+                  f"no combat before it; setup {nr['setups'].get('host')}")
+        elif not nr["ceasefire_ok"]:
+            print(f"[net] FAIL ceasefire: lifted at turns {nr['ceasefire_end']} "
+                  f"(host, join), combat during it at {nr['ceasefire_hits']}")
+        elif not nr["setup_ok"]:
+            print(f"[net] FAIL game setup differs between peers: {nr['setups']}")
         else:
             print(f"[net] FAIL rc={nr['rcs']} host_turns={nr['host_turns']} "
                   f"join_turns={nr['join_turns']} ({nr['seconds']:.1f}s)")

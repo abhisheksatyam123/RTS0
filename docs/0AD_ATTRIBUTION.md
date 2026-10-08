@@ -19,6 +19,7 @@ RTS0 builds on **0 A.D.** (https://play0ad.com) by Wildfire Games.
 | `src/simulation/nav/vertex_pathfinder.h` | `source/simulation2/helpers/VertexPathfinder.*` | Port |
 | `src/simulation/grid_nav.h` | `Grid.h`, `HierarchicalPathfinder.*`, `Pathfinding.h` | Port |
 | `src/simulation/petra_ai.h`, `simulation.*` | `simulation/ai/petra/*.js`, `simulation/components/UnitAI.js` and other components | Port / native rewrite of game logic |
+| `PetraConfig::gather_rate`/`build_time`, `ai_gather_mult`/`ai_time_mult` | `simulation/helpers/InitGame.js` ("AI Bonus" difficulty modifiers) | Port |
 | `src/simulation/rms_generator.*` | 0 A.D. random map scripts (`maps/random/`) | Modelled on them, one row per map in the table below |
 | `src/simulation/simulation.*` (`cmd_tribute`, `cmd_barter`, `tick_barter`, `calculate_trade_gain`, trader routes) | `simulation/components/Player.js` (TributeResource, GetNextTradingGoods), `Barter.js`, `Market.js` (CalculateTraderGain), `Trader.js`, `globalscripts/Trade.js`, `template_unit_support_trader.xml`, `template_structure_economic_market.xml` | Port (formulas and constants) |
 | `src/network/turn_manager.*`, `net_types.h` | `source/network/NetServerTurnManager.*`, `NetClientTurnManager.*`, `NetMessages.h` | Port |
@@ -59,6 +60,7 @@ Each `synth_<id>` function generates RTS0's version of the 0 A.D. map script of 
 | `data/maps/` | Scenario maps converted to JSON | `tools/port_0ad_maps.py` |
 | `src/simulation/civ_roster_data.h`, `data/civs/rosters.json` | Per-civ unit rosters, unit stats, hero auras and civ bonus text from `simulation/templates/` and `simulation/data/{civs,auras}/` | `tools/extract_0ad_rosters.py` |
 | `src/simulation/civ_roster_data.h` (`civ_team_bonus_table`) | Each civ's team bonus from `simulation/data/auras/teambonuses/*.json`; mercenary costs and train times from `simulation/templates/mixins/{mercenary,merc_*}.xml` | `tools/extract_0ad_rosters.py` |
+| `src/simulation/civ_roster_data.h` (siege tower rows, `ROSTER_PACKABLE`) | Siege towers from `simulation/templates/template_unit_siege_tower.xml` and `units/{mace,kush,ptol,sele,han}/siege_tower.xml`; packable siege from each template's `Pack` component | `tools/extract_0ad_rosters.py` |
 | `src/simulation/sim_types.h` (building table rows 14-25, field supply constants) | Structure stats from 0 A.D. 0.28 `simulation/templates/template_structure_*.xml` (Health, Cost, GarrisonHolder, Capturable, Identity/Requirements) and the field `ResourceSupply` (MaxGatherers, DiminishingReturns); the diminishing-returns formula follows `simulation/components/ResourceSupply.js` | Read by hand from the 0.28 `public.zip` |
 | `src/simulation/tech_data.h` | 83 technologies (names, descriptions, costs, research times, researcher structure, phase, prerequisites, civ limits, modifications) from 0 A.D. 0.28 `simulation/data/technologies/*.json`; the Village/Town structure counts for phasing follow `phase_town_generic.json` / `phase_city_generic.json`; modification paths cover `Cost/BuildTime`, `Researcher/TechCostMultiplier/time`, `Heal/*`, `Trader/GainMultiplier` and `BuildingAI` arrow counts | `tools/extract_0ad_techs.py` |
 
