@@ -274,6 +274,25 @@ inline const TreasureTypeInfo &treasure_type_info(uint8_t t) {
 	return kTable[t < TREASURE_TYPE_COUNT ? t : 0];
 }
 
+// By template stem ("food_barrel"), as maps name them; TREASURE_TYPE_COUNT if unknown.
+inline uint8_t treasure_type_by_name(const char *s) {
+	if (!s) return TREASURE_TYPE_COUNT;
+	auto eq = [](const char *a, const char *b) { while (*a && *a == *b) { ++a; ++b; } return *a == *b; };
+	for (uint8_t i = 0; i < TREASURE_TYPE_COUNT; ++i)
+		if (eq(treasure_type_info(i).template_name, s)) return i;
+	return TREASURE_TYPE_COUNT;
+}
+
+// The plain treasure of one resource (rmgen placePlayersNomad: gaia/treasure/{food_bin,wood,stone,metal}).
+inline uint8_t treasure_type_for_resource(uint8_t res_type) {
+	switch (res_type) {
+		case RES_FOOD: return TREASURE_FOOD_BIN;
+		case RES_WOOD: return TREASURE_WOOD;
+		case RES_STONE: return TREASURE_STONE;
+		default: return TREASURE_METAL;
+	}
+}
+
 // template_gaia_ruins: ruins are a resource supply (stone.ruins, or metal for the Isis statue).
 struct RuinsTypeInfo {
 	const char *template_name; // gaia/ruins/<template_name>.xml
@@ -306,6 +325,14 @@ inline const RuinsTypeInfo &ruins_type_info(uint8_t t) {
 		{"unfinished_greek_temple", "Unfinished Greek Temple", RES_STONE, 2000, 30},
 	};
 	return kTable[t < RUINS_TYPE_COUNT ? t : 0];
+}
+
+inline uint8_t ruins_type_by_name(const char *s) {
+	if (!s) return RUINS_TYPE_COUNT;
+	auto eq = [](const char *a, const char *b) { while (*a && *a == *b) { ++a; ++b; } return *a == *b; };
+	for (uint8_t i = 0; i < RUINS_TYPE_COUNT; ++i)
+		if (eq(ruins_type_info(i).template_name, s)) return i;
+	return RUINS_TYPE_COUNT;
 }
 
 } // namespace rtso
