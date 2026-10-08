@@ -2957,6 +2957,12 @@ void Simulation::separation(float dt, Arena &arena) {
 	UnitGrid grid;
 	if (!grid.build(arena, n, px, pz, units_.alive, map_half_)) return;
 
+	// The building pass below only reads standing buildings that block movement now.
+	sep_obstacles_.clear();
+	for (const Building &b : buildings_)
+		if (!b.wrecked && blocks_movement_now(b))
+			sep_obstacles_.push_back(SteerObstacle{b.id, b.x, b.z, b.half_size, b.type, false});
+
 	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		if (!units_.alive[i]) return;
 		const float pxi = px[i];
@@ -3012,8 +3018,11 @@ void Simulation::separation(float dt, Arena &arena) {
 		});
 
 		// 2. Building Obstacle Non-Penetration (keep units outside the footprint rectangle)
-		for (const auto &b : buildings_) {
-			if (b.wrecked || !blocks_movement_now(b)) continue;
+		// A building more than b_req from the unit on either axis pushes nothing; the 0.5
+		// margin keeps that test clear of float rounding, so skipping it changes no result.
+		const float b_skip = ri + 0.35f + 0.5f;
+		for (const SteerObstacle &b : sep_obstacles_) {
+			if (std::fabs(pxi - b.x) > b.half_size + b_skip || std::fabs(pzi - b.z) > b.half_size + b_skip) continue;
 			float b_half = b.half_size;
 			float cx = std::clamp(pxi, b.x - b_half, b.x + b_half);
 			float cz = std::clamp(pzi, b.z - b_half, b.z + b_half);
@@ -5786,46 +5795,45 @@ void Simulation::petra_manage_military_production(float dt) {
 	}
 	bool is_emergency = (max_threat >= 7.0f);
 
-	// Find available AI military production buildings
-	std::vector<uint32_t> barracks_list;
-	std::vector<uint32_t> fortress_list;
+	// Our finished buildings that train soldiers (roster `trainers`: barracks,
+	// fortress, and the Town Center and temple for heroes).
+	std::vector<uint32_t> trainers;
 	for (const auto &b : buildings_) {
-		if (b.team != petra_pid_ || b.build_progress < 1.0f) continue;
-		if (b.type == BLD_BARRACKS && b.queue.size() < 4) barracks_list.push_back(b.id);
-		if (b.type == BLD_FORTRESS && b.queue.size() < 4) fortress_list.push_back(b.id);
+		if (b.team != petra_pid_ || b.build_progress < 1.0f || b.queue.size() >= 4) continue;
+		if (b.type == BLD_BARRACKS || b.type == BLD_FORTRESS || b.type == BLD_TOWN_CENTER || b.type == BLD_TEMPLE)
+			trainers.push_back(b.id);
 	}
-
-	if (barracks_list.empty() && fortress_list.empty()) return;
+	if (trainers.empty()) return;
 	if (pop_current(petra_pid_) >= pop_max(petra_pid_)) return;
+	const uint8_t ai_civ = petra_ps().civ;
+	const uint8_t phase = petra_ps().phase;
 
-	// 1. Emergency Defense (Priority Queue 0: Threat >= 7.0f)
-	if (is_emergency && !barracks_list.empty()) {
-		// Prioritize spearmen (anti-cavalry/melee) and archers (ranged defense)
-		for (uint32_t bid : barracks_list) {
+	// A building of ours that trains roster unit `tmpl` (heroes and soldiers
+	// only at the Town Center or temple when no barracks or fortress can).
+	auto trainer_for = [&](uint16_t tmpl) -> uint32_t {
+		const CivUnitTemplate &t = civ_unit_template(tmpl);
+		const bool hero = (t.flags & ROSTER_HERO) != 0;
+		for (uint32_t bid : trainers) {
 			auto bit = building_id_to_idx_.find(bid);
 			if (bit == building_id_to_idx_.end()) continue;
-			Building &b = buildings_[bit->second];
-			if (b.queue.size() >= 4 || pop_current(petra_pid_) >= pop_max(petra_pid_)) continue;
+			const Building &b = buildings_[bit->second];
+			if (!(t.trainers & bld_bit(b.type))) continue;
+			if (!hero && (b.type == BLD_TOWN_CENTER || b.type == BLD_TEMPLE)) continue;
+			if (b.queue.size() >= 4 || !can_train_at(petra_pid_, t.unit_type, b.type, tmpl)) continue;
+			return bid;
+		}
+		return 0;
+	};
 
-			// Check if we can train Spearman
-			const UnitTypeInfo &sinfo = civ_unit_info(civ_of(petra_pid_), UNIT_SPEARMAN);
-			if (petra_try_pay(PETRA_QUEUE_EMERGENCY, (float)sinfo.food_cost, (float)sinfo.wood_cost, (float)sinfo.gold_cost, 0.0f)) {
-				ProductionOrder order;
-				order.unit_type = UNIT_SPEARMAN;
-				order.timer = 0.0f;
-				order.duration = sinfo.train_time * 0.70f * tech_mods(petra_pid_).train_time[UNIT_SPEARMAN] * ai_time_mult(petra_pid_); // fast-track emergency training
-				b.queue.push_back(order);
-				continue;
-			}
-
-			// Check if we can train Archer
-			const UnitTypeInfo &ainfo = civ_unit_info(civ_of(petra_pid_), UNIT_ARCHER);
-			if (petra_try_pay(PETRA_QUEUE_EMERGENCY, (float)ainfo.food_cost, (float)ainfo.wood_cost, (float)ainfo.gold_cost, 0.0f)) {
-				ProductionOrder order;
-				order.unit_type = UNIT_ARCHER;
-				order.timer = 0.0f;
-				order.duration = ainfo.train_time * 0.70f * tech_mods(petra_pid_).train_time[UNIT_ARCHER] * ai_time_mult(petra_pid_);
-				b.queue.push_back(order);
+	// 1. Emergency Defense (Priority Queue 0: Threat >= 7.0f): the civ's
+	// spearmen, then its archers, from any barracks.
+	if (is_emergency) {
+		for (UnitType type : { UNIT_SPEARMAN, UNIT_ARCHER }) {
+			const uint16_t tmpl = civ_default_template(ai_civ, type);
+			if (tmpl == CIV_UNIT_TEMPLATE_NONE || civ_unit_template(tmpl).phase > phase) continue;
+			for (int n = 0; n < 4; ++n) {
+				const uint32_t bid = trainer_for(tmpl);
+				if (!bid || !petra_train_template(PETRA_QUEUE_EMERGENCY, bid, tmpl)) break;
 			}
 		}
 		return;
@@ -5840,7 +5848,7 @@ void Simulation::petra_manage_military_production(float dt) {
 			if (units_.alive[i] && units_.team[i] == petra_pid_ &&
 			    (units_.unit_type[i] == UNIT_VILLAGER || units_.unit_type[i] == UNIT_FEMALE_CITIZEN))
 				++workers;
-		const float staffed = (petra_ps().phase == 1) ? 0.8f : 0.5f;
+		const float staffed = (phase == 1) ? 0.8f : 0.5f;
 		if ((float)workers < staffed * (float)petra_villager_target()) return;
 	}
 
@@ -5872,6 +5880,29 @@ void Simulation::petra_manage_military_production(float dt) {
 		}
 	}
 
+	// What we field already, queued orders included (attackPlan.js unitStat
+	// targetSize: one hero, a few siege engines).
+	int own_heroes = 0, own_siege = 0, own_towers = 0;
+	auto is_tower = [](uint16_t tmpl) {
+		return tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(tmpl).flags & ROSTER_SIEGE_TOWER);
+	};
+	auto is_siege = [](uint8_t t) { return t == UNIT_CATAPULT || t == UNIT_SIEGE_RAM || t == UNIT_BOLT_SHOOTER; };
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
+		if (units_.unit_type[i] == UNIT_HERO) ++own_heroes;
+		if (is_siege(units_.unit_type[i])) ++own_siege;
+		if (is_tower(units_.tmpl[i])) ++own_towers;
+	}
+	for (const auto &b : buildings_) {
+		if (b.team != petra_pid_) continue;
+		for (const auto &o : b.queue) {
+			if (o.unit_type == UNIT_HERO) ++own_heroes;
+			if (is_siege(o.unit_type)) ++own_siege;
+			if (is_tower(o.tmpl)) ++own_towers;
+		}
+	}
+	const int siege_cap = (phase >= 3) ? 4 : 2;
+
 	int total_enemy_mil = enemy_infantry + enemy_spearmen + enemy_archers + enemy_cavalry + enemy_siege + enemy_champions;
 	float norm = 1.0f / (float)std::max(1, total_enemy_mil);
 
@@ -5880,69 +5911,96 @@ void Simulation::petra_manage_military_production(float dt) {
 	float archer_score   = 1.0f + (enemy_infantry * 3.0f + enemy_spearmen * 3.5f) * norm;
 	float swordsman_score = 1.0f + (enemy_spearmen * 1.8f) * norm;
 	float cavalry_score  = 0.8f + (enemy_archers * 4.0f + enemy_siege * 3.0f) * norm;
-	float siege_score    = (petra_ps().phase >= 2) ? (1.5f + (float)enemy_forts * 2.5f) : 0.2f;
-	if (petra_attack_plan_.type == AttackPlan::PLAN_SIEGE && petra_ps().phase >= 2) {
+	float siege_score    = (phase >= 2) ? (1.5f + (float)enemy_forts * 2.5f) : 0.2f;
+	if (petra_attack_plan_.type == AttackPlan::PLAN_SIEGE && phase >= 2) {
 		siege_score += 5.0f; // Prioritize siege engines before assault
 	}
-	float champion_score = (petra_ps().phase >= 3) ? 2.5f : 0.0f;
+	float champion_score = (phase >= 3) ? 2.5f : 0.0f;
+	auto class_score = [&](uint8_t t) -> float {
+		switch (t) {
+			case UNIT_SPEARMAN: return spearman_score;
+			case UNIT_ARCHER: case UNIT_ARCHER_MAIDEN: return archer_score;
+			case UNIT_SWORDSMAN: case UNIT_WAR_DOG: return swordsman_score;
+			case UNIT_CAVALRY: case UNIT_CAMEL: return cavalry_score;
+			case UNIT_CHARIOT: return cavalry_score * 0.95f;
+			case UNIT_ELEPHANT: case UNIT_SCYTHED_CHARIOT: return champion_score;
+			case UNIT_CATAPULT: return siege_score;
+			case UNIT_SIEGE_RAM: return siege_score * 0.95f;
+			case UNIT_BOLT_SHOOTER: return siege_score * 0.85f;
+			default: return -1.0f; // support units, ships, healers: trained elsewhere
+		}
+	};
 
+	// Score every roster unit our buildings can train now: citizen soldiers by
+	// counters, champions and the hero in the city phase, siege up to a cap.
 	struct Option {
-		UnitType type;
+		uint16_t tmpl;
 		float score;
 		uint32_t bld_id;
 	};
 	std::vector<Option> options;
-
-	uint8_t ai_civ = petra_ps().civ;
-	auto push_if_civ = [&](UnitType t, float score, uint32_t bid) {
-		if (civ_can_train(ai_civ, (uint8_t)t))
-			options.push_back({t, score, bid});
-	};
-
-	for (uint32_t bid : barracks_list) {
-		push_if_civ(UNIT_SPEARMAN, spearman_score, bid);
-		push_if_civ(UNIT_ARCHER, archer_score, bid);
-		push_if_civ(UNIT_SWORDSMAN, swordsman_score, bid);
-		if (petra_ps().phase >= 2) {
-			push_if_civ(UNIT_CAVALRY, cavalry_score, bid);
-			push_if_civ(UNIT_CAMEL, cavalry_score, bid);
-			push_if_civ(UNIT_CHARIOT, cavalry_score * 0.95f, bid);
+	for (uint16_t tmpl = civ_roster_begin(ai_civ); tmpl < civ_roster_end(ai_civ); ++tmpl) {
+		const CivUnitTemplate &t = civ_unit_template(tmpl);
+		if (t.phase > phase) continue;
+		float score;
+		if (t.flags & ROSTER_HERO) {
+			if (own_heroes > 0 || phase < 3) continue;
+			score = champion_score * 1.2f;
+		} else if (t.flags & ROSTER_SIEGE_TOWER) {
+			// One tower to carry soldiers over walls, once the siege train has started.
+			if (own_siege >= siege_cap || own_towers > 0) continue;
+			score = siege_score * (own_siege > 0 ? 1.1f : 0.8f);
+		} else {
+			score = class_score(t.unit_type);
+			if (score < 0.0f) continue;
+			// Village-phase armies stay infantry; mounted units come with the town phase.
+			if (phase < 2 && (t.unit_type == UNIT_CAVALRY || t.unit_type == UNIT_CAMEL || t.unit_type == UNIT_CHARIOT)) continue;
+			if (is_siege(t.unit_type) && own_siege >= siege_cap) continue;
+			if (t.flags & ROSTER_CHAMPION) {
+				if (phase < 3) continue;
+				score = champion_score + 0.3f * score;
+			}
+			if (t.flags & ROSTER_MERCENARY) score *= 0.9f;
+			// Among units of one class, the civ's standard one first.
+			if (tmpl == civ_default_template(ai_civ, t.unit_type)) score += 0.05f;
 		}
+		const uint32_t bid = trainer_for(tmpl);
+		if (bid) options.push_back({tmpl, score, bid});
 	}
 
-	for (uint32_t fid : fortress_list) {
-		if (petra_ps().phase >= 2) {
-			push_if_civ(UNIT_CATAPULT, siege_score, fid);
-			push_if_civ(UNIT_SIEGE_RAM, siege_score * 0.95f, fid);
-			push_if_civ(UNIT_BOLT_SHOOTER, siege_score * 0.85f, fid);
-		}
-		if (petra_ps().phase >= 3) {
-			push_if_civ(UNIT_ELEPHANT, champion_score, fid);
-			push_if_civ(UNIT_HERO, champion_score * 0.9f, fid);
-			push_if_civ(UNIT_SCYTHED_CHARIOT, champion_score * 0.85f, fid);
-		}
-	}
-
-	std::sort(options.begin(), options.end(), [](const Option &a, const Option &b) {
+	std::stable_sort(options.begin(), options.end(), [](const Option &a, const Option &b) {
 		return a.score > b.score;
 	});
 
 	for (const auto &opt : options) {
 		if (pop_current(petra_pid_) >= pop_max(petra_pid_)) break;
-		const UnitTypeInfo &uinfo = civ_unit_info(civ_of(petra_pid_), opt.type);
-		if (petra_try_pay(PETRA_QUEUE_MILITARY, (float)uinfo.food_cost, (float)uinfo.wood_cost,
-		                  (float)uinfo.gold_cost, (float)uinfo.stone_cost)) {
-			auto bit = building_id_to_idx_.find(opt.bld_id);
-			if (bit != building_id_to_idx_.end()) {
-				ProductionOrder order;
-				order.unit_type = opt.type;
-				order.timer = 0.0f;
-				order.duration = uinfo.train_time * 0.75f * tech_mods(petra_pid_).train_time[opt.type];
-				buildings_[bit->second].queue.push_back(order);
-			}
-			break;
-		}
+		if (petra_train_template(PETRA_QUEUE_MILITARY, opt.bld_id, opt.tmpl)) break;
 	}
+}
+
+// Queue roster unit `tmpl` at one of our buildings, paid from Petra's queue
+// account: cmd_train_template's checks, prices and training time.
+bool Simulation::petra_train_template(uint8_t queue, uint32_t building_id, uint16_t tmpl) {
+	auto bit = building_id_to_idx_.find(building_id);
+	if (bit == building_id_to_idx_.end() || tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
+	Building &b = buildings_[bit->second];
+	const uint8_t pid = petra_pid_;
+	if (b.team != pid || b.build_progress < 1.0f || b.queue.size() >= 8 || b.upgrade_to != BLD_TYPE_COUNT) return false;
+	const CivUnitTemplate &t = civ_unit_template(tmpl);
+	if (t.civ != players_[pid].civ || t.phase > players_[pid].phase) return false;
+	if (pop_current(pid) >= pop_max(pid) || !can_train_at(pid, t.unit_type, b.type, tmpl)) return false;
+	const UnitTypeInfo &uinfo = civ_template_unit_info(tmpl, t.unit_type);
+	float cost[RES_COUNT];
+	unit_train_cost(pid, tmpl, uinfo, cost);
+	if (!petra_try_pay(queue, cost[RES_FOOD], cost[RES_WOOD], cost[RES_GOLD], cost[RES_STONE])) return false;
+	ProductionOrder order;
+	order.unit_type = t.unit_type;
+	order.tmpl = tmpl;
+	order.timer = 0.0f;
+	order.duration = uinfo.train_time * team_bonus_mult(pid, TEAM_BONUS_UNIT_TRAIN_TIME, -1, tmpl)
+		* tech_mods(pid).train_time[t.unit_type] * ai_time_mult(pid);
+	b.queue.push_back(order);
+	return true;
 }
 
 // Workers Petra aims for: most of the population while booming in the
@@ -7346,9 +7404,7 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 			for (size_t i = 0; i < units_.count; ++i) {
 				if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
 				if (units_.id[i] == petra_scout_unit_id_) continue; // Scout remains on exploration
-				if (units_.unit_type[i] == UNIT_VILLAGER || units_.unit_type[i] == UNIT_TRADER ||
-				    units_.unit_type[i] == UNIT_TRIREME || units_.unit_type[i] == UNIT_FISHING_BOAT ||
-				    units_.unit_type[i] == UNIT_MERCHANT_SHIP) continue;
+				if (petra_is_support_unit(units_.unit_type[i]) || units_.unit_type[i] == UNIT_TRIREME) continue;
 				uint32_t uid = units_.id[i];
 				if (std::find(petra_raid_plan_.squad.begin(), petra_raid_plan_.squad.end(), uid) != petra_raid_plan_.squad.end())
 					continue;
@@ -9603,6 +9659,17 @@ void Simulation::save_tick_state(std::ofstream &out) const {
 	save_pod(out, recent_death_head_);
 	save_pod(out, record_);
 	for (const PlayerState &ps : players_) save_pod(out, ps.gathered_window);
+	// Match settings from Game Setup; ticks read them, so a save carries its own rules.
+	save_pod(out, victory_condition_);
+	save_pod(out, waves_enabled_);
+	save_pod(out, last_man_standing_);
+	save_pod(out, pop_cap_);
+	save_pod(out, ceasefire_seconds_);
+	save_pod(out, reveal_map_);
+	save_pod(out, explore_map_);
+	save_pod(out, wonder_duration_);
+	save_pod(out, relic_duration_);
+	save_pod(out, relic_count_);
 	PetraSaveAr ar{out};
 	petra_state_io(ar, const_cast<Simulation &>(*this));
 }
@@ -9674,6 +9741,16 @@ bool Simulation::load_tick_state(std::ifstream &in) {
 	load_pod(in, recent_death_head_);
 	load_pod(in, record_);
 	for (PlayerState &ps : players_) load_pod(in, ps.gathered_window);
+	load_pod(in, victory_condition_);
+	load_pod(in, waves_enabled_);
+	load_pod(in, last_man_standing_);
+	load_pod(in, pop_cap_);
+	load_pod(in, ceasefire_seconds_);
+	load_pod(in, reveal_map_);
+	load_pod(in, explore_map_);
+	load_pod(in, wonder_duration_);
+	load_pod(in, relic_duration_);
+	load_pod(in, relic_count_);
 	PetraLoadAr ar{in};
 	petra_state_io(ar, *this);
 	return ar.ok && in.good();
