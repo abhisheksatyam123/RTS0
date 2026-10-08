@@ -1,5 +1,6 @@
 #include "turn_manager.h"
 #include "net_host.h"
+#include <chrono>
 #include <cstdio>
 #include <iostream>
 #include <iterator>
@@ -94,8 +95,21 @@ void TurnManager::drop_client(uint32_t client_id) {
 	lockstep_peers_.erase(std::remove(lockstep_peers_.begin(), lockstep_peers_.end(), client_id), lockstep_peers_.end());
 	lockstep_since_.erase(client_id);
 	paused_clients_.erase(client_id); // a paused client that leaves no longer holds the match
+	// Its hashes for turns not yet run here are void: a batch it sent just
+	// before leaving may never arrive, so the host runs those turns without
+	// it (0 A.D. NetServerTurnManager::UninitialiseClient stops checking it).
+	left_clients_.insert(client_id);
+	for (auto &t : peer_hashes_)
+		if (t.first > current_turn_) t.second.erase(client_id);
 	rejoin_requests_.erase(std::remove(rejoin_requests_.begin(), rejoin_requests_.end(), client_id), rejoin_requests_.end());
+	rejoin_outbox_.erase(std::remove_if(rejoin_outbox_.begin() + (std::ptrdiff_t)rejoin_outbox_next_, rejoin_outbox_.end(),
+			[&](const auto &e) { return e.first == client_id; }), rejoin_outbox_.end());
 	std::cerr << "[TurnManager] client " << client_id << " left at turn " << current_turn_ << "\n";
+}
+
+static uint64_t rejoin_now_ms() {
+	return (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
+		std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
 std::string TurnManager::rejoin_path(const char *tag) const {
@@ -116,6 +130,7 @@ void TurnManager::request_rejoin() {
 	rejoin_world_.clear();
 	rejoin_chunks_.clear();
 	rejoin_received_ = 0;
+	rejoin_progress_ms_ = rejoin_now_ms();
 	RejoinMsg req;
 	req.kind = RejoinMsg::REQUEST;
 	std::vector<uint8_t> payload = NetPacketSerializer::frame_rejoin(req);
@@ -132,12 +147,16 @@ void TurnManager::receive_rejoin(uint32_t author, const RejoinMsg &msg) {
 	}
 	if (author != 0 || !rejoin_wanted_ || rejoined_) return; // only the host's answer counts
 	if (msg.kind == RejoinMsg::REJECT) {
+		// No free seat yet: the host has not noticed the old client leave.
+		// Keep waiting; apply_pending_rejoin asks again after REJOIN_RETRY_MS.
+		if (msg.reason == 1) { rejoin_progress_ms_ = rejoin_now_ms(); return; }
 		rejoin_reject_ = msg.reason ? msg.reason : 255;
 		rejoin_wanted_ = false;
 	} else if (msg.kind == RejoinMsg::HEADER) {
 		if (msg.total == 0 || msg.total > 256u * 1024u * 1024u) return;
 		rejoin_header_ = msg;
 		rejoin_have_header_ = true;
+		rejoin_progress_ms_ = rejoin_now_ms();
 		rejoin_world_.assign(msg.total, 0);
 		rejoin_chunks_.clear();
 		rejoin_received_ = 0;
@@ -146,6 +165,7 @@ void TurnManager::receive_rejoin(uint32_t author, const RejoinMsg &msg) {
 		if (!rejoin_chunks_.insert(msg.total).second) return; // a resent chunk
 		std::memcpy(rejoin_world_.data() + msg.total, msg.bytes.data(), msg.bytes.size());
 		rejoin_received_ += msg.bytes.size();
+		rejoin_progress_ms_ = rejoin_now_ms();
 	}
 }
 
@@ -160,6 +180,12 @@ void TurnManager::serve_rejoin(uint32_t client_id, Simulation &sim) {
 	};
 	if (!net_game_started() || current_turn_ == 0) { reject(2); return; }
 	ensure_lockstep_peers();
+	// A repeated request (the transfer stalled): start over from this turn.
+	lockstep_peers_.erase(std::remove(lockstep_peers_.begin(), lockstep_peers_.end(), client_id), lockstep_peers_.end());
+	lockstep_since_.erase(client_id);
+	client_player_.erase(client_id);
+	rejoin_outbox_.erase(std::remove_if(rejoin_outbox_.begin() + (std::ptrdiff_t)rejoin_outbox_next_, rejoin_outbox_.end(),
+			[&](const auto &e) { return e.first == client_id; }), rejoin_outbox_.end());
 	// A human seat with no client left in the lockstep (0 A.D. rejoins a
 	// client into its old player; RTS0 hands the first such seat over).
 	uint8_t seat = 0xFF;
@@ -240,14 +266,22 @@ void TurnManager::serve_rejoin(uint32_t client_id, Simulation &sim) {
 		c.turn = T;
 		c.total = (uint32_t)off;
 		c.bytes.assign(world.begin() + off, world.begin() + std::min(world.size(), off + RejoinMsg::CHUNK_BYTES));
-		send(c);
+		rejoin_outbox_.emplace_back(client_id, NetPacketSerializer::pack_message(
+				NetMessageType::NMT_REJOIN_STATE, T, NetPacketSerializer::frame_rejoin(c)));
 	}
 	std::cerr << "[TurnManager] rejoin: client " << client_id << " takes player " << (unsigned)seat
 	          << " at turn " << T << " (" << world.size() << " bytes, " << batches.size() << " batches)\n";
 }
 
 bool TurnManager::apply_pending_rejoin(Simulation &sim) {
-	if (!rejoin_wanted_ || rejoined_ || !rejoin_have_header_ || rejoin_received_ != rejoin_world_.size()) return false;
+	if (!rejoin_wanted_ || rejoined_) return false;
+	if (!rejoin_have_header_ || rejoin_received_ != rejoin_world_.size()) {
+		if (rejoin_now_ms() - rejoin_progress_ms_ > REJOIN_RETRY_MS) {
+			std::cerr << "[TurnManager] rejoin transfer stalled; asking the host again\n";
+			request_rejoin();
+		}
+		return false;
+	}
 	const std::string path = rejoin_path("client");
 	{
 		std::ofstream out(path, std::ios::binary | std::ios::trunc);
@@ -355,8 +389,11 @@ void TurnManager::reset() {
 	oos_dump_pending_ = false;
 	oos_dump_written_.clear();
 	paused_clients_.clear();
+	left_clients_.clear();
 	lockstep_since_.clear();
 	rejoin_requests_.clear();
+	rejoin_outbox_.clear();
+	rejoin_outbox_next_ = 0;
 	oos_expected_hash_ = 0;
 	oos_received_hash_ = 0;
 	oos_peers_.clear();
@@ -518,6 +555,7 @@ void TurnManager::receive_remote_turn_batch(uint32_t turn, uint32_t client_id, c
 }
 
 void TurnManager::receive_sync_check(uint32_t turn, uint32_t client_id, uint32_t hash) {
+	if (left_clients_.count(client_id)) return;
 	peer_hashes_[turn][client_id] = hash;
 	if (turn <= current_turn_ && turn > 0) {
 		for (const auto &f : turn_history_) {
@@ -961,6 +999,14 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		std::vector<uint32_t> reqs;
 		reqs.swap(rejoin_requests_);
 		for (uint32_t c : reqs) serve_rejoin(c, sim);
+	}
+	if (rejoin_outbox_next_ < rejoin_outbox_.size() && net_host_) {
+		const size_t end = std::min(rejoin_outbox_.size(), rejoin_outbox_next_ + REJOIN_CHUNKS_PER_TICK);
+		for (; rejoin_outbox_next_ < end; ++rejoin_outbox_next_) {
+			const auto &e = rejoin_outbox_[rejoin_outbox_next_];
+			net_host_->sendCommand(e.first, e.second);
+		}
+		if (rejoin_outbox_next_ == rejoin_outbox_.size()) { rejoin_outbox_.clear(); rejoin_outbox_next_ = 0; }
 	}
 	// 0 A.D. pause: no turn runs anywhere while any client is paused, and the
 	// paused time is not banked (no catch-up burst on resume).
