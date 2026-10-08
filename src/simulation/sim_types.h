@@ -1,6 +1,8 @@
 #ifndef RTSO_SIM_TYPES_H
 #define RTSO_SIM_TYPES_H
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -348,7 +350,8 @@ enum UnitOrderKind : uint8_t {
 	ORDER_GARRISON = 8,       // target building
 	ORDER_GUARD = 9,          // target unit (Guard.js)
 	ORDER_HEAL = 10,          // target unit (UnitAI Heal)
-	ORDER_KIND_COUNT = 11
+	ORDER_TRADE = 11,         // target = first market, x2 holds the second market's id bits (UnitAI Trade)
+	ORDER_KIND_COUNT = 12
 };
 
 enum UnitOrderFlag : uint8_t {
@@ -357,6 +360,12 @@ enum UnitOrderFlag : uint8_t {
 	ORDER_FLAG_UNITS_ONLY = 4,   // attack-move targetClasses "Unit" (session.attackmoveUnit)
 	ORDER_FLAG_INTERRUPTED = 8,  // fighting or fleeing; go back to the order afterwards
 	ORDER_FLAG_CHEER = 16        // killed its target (UnitAI shouldCheer)
+};
+// A gather order keeps its resource's subtype (ResourceSubtype) in flag bits 5-7, so the
+// unit can look for the same kind once the resource is gone (UnitAI GATHER FINDINGNEWTARGET).
+enum : uint8_t {
+	ORDER_FLAG_SUB_SHIFT = 5,
+	ORDER_FLAG_SUB_MASK = 0xE0
 };
 
 // One order: the unit's current one (in the SoA) or a Shift-queued one. No padding.
@@ -386,40 +395,39 @@ inline constexpr float HEAL_PREPARE_S = 1.0f;
 inline constexpr float CHEER_TIME_S = 2.8f;
 inline constexpr float CHEER_NOTIFY_RANGE = 30.0f;
 inline constexpr float GARRISON_LOADING_RANGE = 2.0f;
+// Attack.js Ranged MinRange as a share of MaxRange: template_unit_siege_stonethrower.xml
+// 26 of 85, template_unit_siege_boltshooter.xml 15 of 90. Scaled to each unit's own range.
+inline float unit_min_range_ratio(uint8_t type) {
+	switch (type) {
+		case UNIT_CATAPULT: return 26.0f / 85.0f;
+		case UNIT_BOLT_SHOOTER: return 15.0f / 90.0f;
+		default: return 0.0f;
+	}
+}
 
-// 0 A.D. Formations (source: template_player.xml:84-96, exactly 13 entries indexed 0..12)
-// Appended AFTER existing 6 so network/replay order stays wire-compatible (values 0..6 unchanged).
-// 0 A.D. template_player.xml:84-96 token list:
-//   [84] special/formations/null                 -> FORMATION_NONE = 0
-//   [85] special/formations/box                  -> FORMATION_BOX = 2
-//   [86] special/formations/column_closed        -> FORMATION_COLUMN = 3
-//   [87] special/formations/line_closed          -> FORMATION_LINE = 1
-//   [88] special/formations/column_open          -> FORMATION_COLUMN_OPEN = 8
-//   [89] special/formations/line_open            -> FORMATION_LINE_OPEN = 7
-//   [90] special/formations/flank                -> FORMATION_FLANK = 9
-//   [91] special/formations/battle_line          -> FORMATION_BATTLE_LINE = 10
-//   [92] special/formations/skirmish             -> FORMATION_SCATTER = 6
-//   [93] special/formations/wedge                -> FORMATION_WEDGE = 5
-//   [94] special/formations/ships/line_staggered -> FORMATION_SHIPS_LINE = 11
-//   [95] special/formations/ships/flank          -> FORMATION_SHIPS_FLANK = 9 (alias FORMATION_FLANK)
-//   [96] special/formations/ships/column         -> FORMATION_SHIPS_COLUMN = 12
-// Note: FORMATION_PHALANX = 4 preserved from 0 A.D. special/formations/phalanx.xml (civ-specific).
+// 0 A.D. formation templates (special/formations/*.xml). Ids 0-12 keep their old values
+// (saves and lockstep cmd 8 carry them); 13-16 came with the Formation.js port.
+// formation.h has the templates, which civs and units may use each, and the layout code.
 enum UnitFormation : uint8_t {
-	FORMATION_NONE = 0,
-	FORMATION_LINE = 1,
-	FORMATION_BOX = 2,
-	FORMATION_COLUMN = 3,
-	FORMATION_PHALANX = 4,
-	FORMATION_WEDGE = 5,
-	FORMATION_SCATTER = 6,
-	FORMATION_LINE_OPEN = 7,
-	FORMATION_COLUMN_OPEN = 8,
-	FORMATION_FLANK = 9,
-	FORMATION_BATTLE_LINE = 10,
-	FORMATION_SHIPS_LINE = 11,
-	FORMATION_SHIPS_COLUMN = 12,
-	FORMATION_COUNT = 13,
-	FORMATION_SHIPS_FLANK = FORMATION_FLANK
+	FORMATION_NONE = 0,          // null
+	FORMATION_LINE = 1,          // line_closed ("Close Order")
+	FORMATION_BOX = 2,           // box
+	FORMATION_COLUMN = 3,        // column_closed ("Forced March")
+	FORMATION_PHALANX = 4,       // phalanx (hoplites; athen, cart, mace, pers, ptol, sele, spart)
+	FORMATION_WEDGE = 5,         // wedge (cavalry)
+	FORMATION_SKIRMISH = 6,      // skirmish (ranged)
+	FORMATION_LINE_OPEN = 7,     // line_open ("Open Order")
+	FORMATION_COLUMN_OPEN = 8,   // column_open
+	FORMATION_FLANK = 9,         // flank
+	FORMATION_BATTLE_LINE = 10,  // battle_line
+	FORMATION_SHIPS_LINE = 11,   // ships/line_staggered ("Fleet Battle Line")
+	FORMATION_SHIPS_COLUMN = 12, // ships/column ("Maneuvering Column")
+	FORMATION_SHIPS_FLANK = 13,  // ships/flank ("Flanking Formation")
+	FORMATION_SYNTAGMA = 14,     // syntagma (pikemen; kush, mace, ptol, sele)
+	FORMATION_TESTUDO = 15,      // testudo (melee infantry; rome)
+	FORMATION_ANTI_CAVALRY = 16, // anti_cavalry (han and roman spearmen; han, rome)
+	FORMATION_COUNT = 17,
+	FORMATION_SCATTER = FORMATION_SKIRMISH // old name
 };
 
 enum StatusEffect : uint8_t {
@@ -1073,6 +1081,7 @@ struct CivUnitTemplate {
 
 #include "civ_roster_data.h"
 #include "civ_attack_data.h"
+#include "formation.h"
 
 inline constexpr uint16_t CIV_UNIT_TEMPLATE_NONE = 0xFFFF;
 static_assert(CIV_UNIT_TEMPLATE_COUNT <= 64 * CIV_TEMPLATE_WORDS_MAX, "raise CIV_TEMPLATE_WORDS_MAX");

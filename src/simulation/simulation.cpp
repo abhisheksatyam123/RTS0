@@ -298,6 +298,9 @@ void Simulation::reset() {
 	fauna_.count = 0;
 	fauna_id_to_idx_.clear();
 	transport_passengers_.clear();
+	formations_.clear();
+	next_formation_id_ = 1;
+	formation_group_.assign(UNIT_CAP, 0u);
 
 	// G3 Market dynamic pricing reset
 	for (int i = 0; i < 4; ++i) { barter_price_diff_[i] = 0.0f; market_trade_history_[i] = 0; }
@@ -1854,26 +1857,63 @@ void Simulation::credit_trade(uint8_t player_id, uint8_t res, int amount) {
 	ps.gathered_window[res] += (float)amount;
 }
 
-void Simulation::order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id) {
+bool Simulation::trade_route_ok(size_t i, uint32_t market_a_id, uint32_t market_b_id) const {
+	if (market_a_id == 0 || market_b_id == 0 || market_a_id == market_b_id) return false;
+	if (!units_.alive[i] || !unit_is_trader(units_.unit_type[i])) return false;
+	auto itA = building_id_to_idx_.find(market_a_id);
+	auto itB = building_id_to_idx_.find(market_b_id);
+	if (itA == building_id_to_idx_.end() || itB == building_id_to_idx_.end()) return false;
+	const Building &bA = buildings_[itA->second];
+	const Building &bB = buildings_[itB->second];
+	const uint8_t owner = units_.team[i];
+	const uint8_t ttype = units_.unit_type[i];
+	if (!can_trade_at(owner, bA, ttype) || !can_trade_at(owner, bB, ttype)) return false;
+	return ttype != UNIT_MERCHANT_SHIP || (dock_sea(bA) != 0 && dock_sea(bA) == dock_sea(bB));
+}
+
+// UnitAI Trade order: target is the first market, x2 carries the second market's id bits.
+static float trade_market_bits(uint32_t id) { float f; std::memcpy(&f, &id, sizeof f); return f; }
+static uint32_t trade_market_id(float bits) { uint32_t id; std::memcpy(&id, &bits, sizeof id); return id; }
+
+void Simulation::order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id,
+		bool queued) {
 	if (count == 0 || market_a_id == 0 || market_b_id == 0 || market_a_id == market_b_id) return;
 	auto itA = building_id_to_idx_.find(market_a_id);
 	auto itB = building_id_to_idx_.find(market_b_id);
 	if (itA == building_id_to_idx_.end() || itB == building_id_to_idx_.end()) return;
 	const Building &bA = buildings_[itA->second];
-	const Building &bB = buildings_[itB->second];
+	std::vector<uint32_t> traders;
 	for (size_t k = 0; k < count; ++k) {
-		int32_t uidx = lookup_unit(unit_ids[k]);
-		if (uidx < 0 || !units_.alive[uidx] || !unit_is_trader(units_.unit_type[uidx])) continue;
-		const uint8_t owner = units_.team[uidx];
-		const uint8_t ttype = units_.unit_type[uidx];
-		if (!can_trade_at(owner, bA, ttype) || !can_trade_at(owner, bB, ttype)) continue;
-		if (ttype == UNIT_MERCHANT_SHIP && (dock_sea(bA) == 0 || dock_sea(bA) != dock_sea(bB))) continue;
-		uint32_t uid = units_.id[uidx];
+		const int32_t uidx = lookup_unit(unit_ids[k]);
+		if (uidx >= 0 && trade_route_ok((size_t)uidx, market_a_id, market_b_id)) traders.push_back(unit_ids[k]);
+	}
+	UnitOrder o; o.kind = ORDER_TRADE; o.target = market_a_id; o.x = bA.x; o.z = bA.z;
+	o.x2 = trade_market_bits(market_b_id);
+	const std::vector<uint32_t> now = split_queued(traders.data(), traders.size(), o, queued);
+	for (uint32_t uid : now) {
+		const int32_t uidx = lookup_unit(uid);
+		if (uidx < 0) continue;
+		// A trader already on this route (back from a flight) keeps its leg and goods.
+		auto rit = trader_routes_.find(uid);
+		if (rit != trader_routes_.end() && rit->second.first == market_a_id && rit->second.second == market_b_id &&
+				applying_queued_) {
+			const int leg = trader_leg_.count(uid) ? trader_leg_[uid] : 0;
+			auto dit = building_id_to_idx_.find(leg == 0 ? market_a_id : market_b_id);
+			units_.action_state[uidx] = ACTION_TRADE;
+			units_.has_order[uidx] = 1;
+			units_.target_unit_id[uidx] = 0;
+			units_.target_building_id[uidx] = 0;
+			units_.waypoint_cur[uidx] = units_.waypoint_count[uidx] = 0;
+			units_.target_x[uidx] = buildings_[dit->second].x;
+			units_.target_z[uidx] = buildings_[dit->second].z;
+			continue;
+		}
 		trader_routes_[uid] = {market_a_id, market_b_id};
 		trader_leg_[uid] = 0;
 		units_.action_state[uidx] = ACTION_TRADE;
 		units_.has_order[uidx] = 1;
-		drop_orders(uidx);
+		set_order(uidx, ORDER_TRADE, 0, market_a_id, bA.x, bA.z);
+		units_.order_x2[uidx] = o.x2;
 		// Empty until it loads goods at the first market (Trader.js: no gain on the first arrival).
 		units_.carry[uidx] = 0;
 		units_.target_x[uidx] = bA.x;
@@ -1925,46 +1965,35 @@ void Simulation::order_trade_auto(const uint32_t *unit_ids, size_t count) {
 
 void Simulation::cmd_move(const uint32_t *unit_ids, size_t count, float tx, float tz) {
 	if (count == 0) return;
-
-	// Check leader formation
-	uint8_t form = FORMATION_NONE;
-	for (size_t i = 0; i < count; ++i) {
-		int32_t idx = lookup_unit(unit_ids[i]);
-		if (idx >= 0 && units_.formation[idx] != FORMATION_NONE) {
-			form = units_.formation[idx];
-			break;
+	// 0 A.D. Commands.js "walk": GetFormationUnitAIs splits the units into formation
+	// controllers and individuals. One unit on its own always leaves its formation.
+	if (count == 1) {
+		formation_remove_units(unit_ids, count);
+		cmd_move_individual(unit_ids, count, tx, tz);
+		return;
+	}
+	std::vector<uint32_t> individual;
+	const std::vector<size_t> ctrls = formation_controllers_for(unit_ids, count, FORMATION_NONE, false, individual);
+	for (size_t ci : ctrls) {
+		FormationController &fc = formations_[ci];
+		fc.goal_x = std::clamp(tx, -map_half_ + 1.0f, map_half_ - 1.0f);
+		fc.goal_z = std::clamp(tz, -map_half_ + 1.0f, map_half_ - 1.0f);
+		fc.order = FORDER_WALK;
+		formation_move_members_into(ci, true, true);
+		for (uint32_t id : fc.members) { // the members carry the walk order (order_walk adds force)
+			const int32_t idx = lookup_unit(id);
+			if (idx >= 0) begin_walk_order((size_t)idx);
 		}
 	}
-	if (form >= FORMATION_COUNT) {
-		form = FORMATION_NONE;
-	}
+	if (!individual.empty()) cmd_move_individual(individual.data(), individual.size(), tx, tz);
+}
 
-	// Per-formation metrics table {spacing_x, spacing_z, facing} per formation ID (0..12).
-	// Coefficients and layout behaviors cite 0 A.D. Formation.js (ComputeFormationOffsets lines 655-804)
-	// and special/formations/*.xml template definitions.
-	struct FormationMetrics {
-		float spacing_x; // Width spacing (Formation.js:658: separation.width *= separationMultiplier.width)
-		float spacing_z; // Depth spacing (Formation.js:659: separation.depth *= separationMultiplier.depth)
-		float facing;    // Heading rotation offset in radians (Formation.js:873: Vector2D.rotate(offset, -rot))
-	};
-	static const FormationMetrics formation_metrics[13] = {
-		{ 1.35f, 1.35f, 0.0f }, // 0: FORMATION_NONE (Grid) - Formation.js:658 default separation
-		{ 1.40f, 1.40f, 0.0f }, // 1: FORMATION_LINE (Close Order line_closed) - Formation.js:658, line_closed.xml
-		{ 1.35f, 1.35f, 0.0f }, // 2: FORMATION_BOX (Box square) - Formation.js:753, box.xml
-		{ 1.20f, 1.20f, 0.0f }, // 3: FORMATION_COLUMN (Forced March column_closed) - Formation.js:699, column_closed.xml
-		{ 0.85f, 0.85f, 0.0f }, // 4: FORMATION_PHALANX (Phalanx syntagma) - phalanx.xml w_mult=0.6, d_mult=0.6
-		{ 1.30f, 1.30f, 0.0f }, // 5: FORMATION_WEDGE (Wedge triangle) - Formation.js:758, wedge.xml mult=1.1
-		{ 2.00f, 2.00f, 0.0f }, // 6: FORMATION_SCATTER (Skirmish cloud) - Formation.js:722, skirmish.xml w_mult=2.0
-		{ 2.10f, 2.10f, 0.0f }, // 7: FORMATION_LINE_OPEN (Open Order line_open) - Formation.js:658, line_open.xml w_mult=1.5, d_mult=1.5
-		{ 2.40f, 1.20f, 0.0f }, // 8: FORMATION_COLUMN_OPEN (Column Open column_open) - Formation.js:658, column_open.xml w_mult=2.0
-		{ 1.40f, 1.40f, 0.0f }, // 9: FORMATION_FLANK (Flank split wings) - Formation.js:774 centerGap=12, flank.xml
-		{ 1.40f, 1.40f, 0.0f }, // 10: FORMATION_BATTLE_LINE (Battle Line ranks) - Formation.js:708 ratio=2, battle_line.xml
-		{ 4.50f, 3.50f, 0.0f }, // 11: FORMATION_SHIPS_LINE (Fleet Battle Line) - Formation.js:658, ships/line_staggered.xml w_mult=3.5
-		{ 3.60f, 3.50f, 0.0f }  // 12: FORMATION_SHIPS_COLUMN (Maneuvering Column) - Formation.js:658, ships/column.xml w_mult=3.0, d_mult=1.25
-	};
+void Simulation::cmd_move_individual(const uint32_t *unit_ids, size_t count, float tx, float tz) {
+	if (count == 0) return;
 
-	// Formation heading rotation (G5): compute group centroid heading so LINE etc. face the move direction
-	// 0 A.D. Formation.js GetFormationOffsets rotates offsets to face movement vector.
+	// Units not in a formation spread over a square grid around the target, turned to face
+	// the walk (RTS0's group move; 0 A.D. sends them all to the point and lets them push).
+	const float spacing = 1.35f;
 	float centerX = 0.0f, centerZ = 0.0f;
 	int validCount = 0;
 	for (size_t i = 0; i < count; ++i) {
@@ -1975,126 +2004,24 @@ void Simulation::cmd_move(const uint32_t *unit_ids, size_t count, float tx, floa
 			++validCount;
 		}
 	}
-	float heading = 0.0f;
 	float cosH = 1.0f, sinH = 0.0f;
 	if (validCount > 0) {
 		centerX /= (float)validCount;
 		centerZ /= (float)validCount;
-		heading = atan2f(tz - centerZ, tx - centerX);
-		if (form < 13) {
-			heading += formation_metrics[form].facing;
-		}
+		const float heading = atan2f(tz - centerZ, tx - centerX);
 		cosH = cosf(heading);
 		sinH = sinf(heading);
 	}
-	// Formation speed modifiers (G5): 0 A.D. Phalanx is slower/tighter, Wedge charges faster
-	// Keep table here per spec; also applied in move_units() for continuous speed scaling.
-	// Retain legacy symbol for parity checker: formation_speed_mult[7] = {1.0f, 1.0f, 1.0f, 0.95f, 0.85f, 1.1f, 1.05f};
-	static const float formation_speed_mult[13] = {
-		1.00f, 1.00f, 1.00f, 0.95f, 0.85f, 1.10f, 1.05f, // 0..6 (NONE,LINE,BOX,COLUMN,PHALANX,WEDGE,SCATTER)
-		1.00f, 1.00f, 1.00f, 1.00f, 1.00f, 1.25f          // 7..12 (ships/column: 1.25x per 0 A.D. ships/column.xml SpeedMultiplier, Formation.js:198)
-	};
 
 	for (size_t i = 0; i < count; ++i) {
 		int32_t idx = lookup_unit(unit_ids[i]);
 		if (idx < 0 || (size_t)idx >= units_.count || !units_.alive[idx]) continue;
 
-		float ox = 0.0f, oz = 0.0f;
-
-		if (form == FORMATION_LINE) {
-			// Horizontal Battle Line (existing behavior unchanged)
-			float spacing = formation_metrics[FORMATION_LINE].spacing_x;
-			ox = ((int)i - (int)(count - 1) * 0.5f) * spacing;
-			oz = 0.0f;
-		} else if (form == FORMATION_COLUMN) {
-			// Two parallel marching files (existing behavior unchanged)
-			float spacing = formation_metrics[FORMATION_COLUMN].spacing_x;
-			ox = ((int)(i % 2) - 0.5f) * spacing;
-			oz = -((int)(i / 2)) * spacing;
-		} else if (form == FORMATION_PHALANX) {
-			// Dense Syntagma Shield Wall (4 ranks wide) (existing behavior unchanged)
-			int ranks = 4;
-			float spacing = formation_metrics[FORMATION_PHALANX].spacing_x;
-			int col = (int)i % ranks;
-			int row = (int)i / ranks;
-			ox = (col - (ranks - 1) * 0.5f) * spacing;
-			oz = -row * spacing;
-		} else if (form == FORMATION_WEDGE) {
-			// Spearhead Wedge (existing behavior unchanged)
-			int row = (int)std::floor(std::sqrt((float)(2 * i)));
-			int row_start = row * (row + 1) / 2;
-			int pos_in_row = (int)i - row_start;
-			float spacing = formation_metrics[FORMATION_WEDGE].spacing_x;
-			ox = (pos_in_row - row * 0.5f) * spacing;
-			oz = -row * spacing;
-		} else if (form == FORMATION_SCATTER) {
-			// Dispersed skirmish cloud (existing behavior unchanged)
-			float a = (float)i * 2.3999632f; // Golden ratio spiral
-			float r = std::sqrt((float)i + 1.0f) * 2.0f;
-			ox = cosf(a) * r;
-			oz = sinf(a) * r;
-		} else if (form == FORMATION_LINE_OPEN) {
-			// Dispersed open order line (0 A.D. line_open.xml w_mult=1.5, Formation.js:766)
-			float sp_x = formation_metrics[FORMATION_LINE_OPEN].spacing_x;
-			ox = ((int)i - (int)(count - 1) * 0.5f) * sp_x;
-			oz = 0.0f;
-		} else if (form == FORMATION_COLUMN_OPEN) {
-			// Dispersed open column marching files (0 A.D. column_open.xml w_mult=2.0, Formation.js:699)
-			float sp_x = formation_metrics[FORMATION_COLUMN_OPEN].spacing_x;
-			float sp_z = formation_metrics[FORMATION_COLUMN_OPEN].spacing_z;
-			ox = ((int)(i % 2) - 0.5f) * sp_x;
-			oz = -((int)(i / 2)) * sp_z;
-		} else if (form == FORMATION_FLANK) {
-			// Dual flanking wings with center gap (0 A.D. flank.xml centerGap=12, Formation.js:774-777)
-			float sp_x = formation_metrics[FORMATION_FLANK].spacing_x;
-			float sp_z = formation_metrics[FORMATION_FLANK].spacing_z;
-			int half = (count + 1) / 2;
-			bool right = (i >= (size_t)half);
-			int wing_i = right ? (i - half) : i;
-			int wing_cnt = right ? (count - half) : half;
-			int cols = std::max(1, (int)std::ceil(std::sqrt((float)wing_cnt)));
-			int col = wing_i % cols;
-			int row = wing_i / cols;
-			float wing_ox = (col - (cols - 1) * 0.5f) * sp_x;
-			float center_offset = right ? 6.0f : -6.0f; // CenterGap 12m halved per Formation.js:777
-			ox = center_offset + wing_ox;
-			oz = -row * sp_z;
-		} else if (form == FORMATION_BATTLE_LINE) {
-			// Multi-rank structured battle line (0 A.D. battle_line.xml MinColumns=5, MaxRows=4, Formation.js:708)
-			float sp_x = formation_metrics[FORMATION_BATTLE_LINE].spacing_x;
-			float sp_z = formation_metrics[FORMATION_BATTLE_LINE].spacing_z;
-			int cols = std::clamp((int)count, 4, 8);
-			int col = (int)i % cols;
-			int row = (int)i / cols;
-			ox = (col - (cols - 1) * 0.5f) * sp_x;
-			oz = -row * sp_z;
-		} else if (form == FORMATION_SHIPS_LINE) {
-			// Staggered fleet battle line (0 A.D. ships/line_staggered.xml w_mult=3.5, Formation.js:753)
-			float sp_x = formation_metrics[FORMATION_SHIPS_LINE].spacing_x;
-			float sp_z = formation_metrics[FORMATION_SHIPS_LINE].spacing_z;
-			int cols = std::clamp((int)count, 3, 6);
-			int col = (int)i % cols;
-			int row = (int)i / cols;
-			float stagger = (row % 2 == 1) ? (sp_x * 0.5f) : 0.0f;
-			ox = (col - (cols - 1) * 0.5f) * sp_x + stagger;
-			oz = -row * sp_z;
-		} else if (form == FORMATION_SHIPS_COLUMN) {
-			// Naval maneuvering column (0 A.D. ships/column.xml w_mult=3.0, d_mult=1.25, Formation.js:699)
-			float sp_x = formation_metrics[FORMATION_SHIPS_COLUMN].spacing_x;
-			float sp_z = formation_metrics[FORMATION_SHIPS_COLUMN].spacing_z;
-			ox = ((int)(i % 2) - 0.5f) * sp_x;
-			oz = -((int)(i / 2)) * sp_z;
-		} else {
-			// Standard Square Grid (FORMATION_BOX / FORMATION_NONE) (existing behavior unchanged)
-			int side = std::max(1, (int)std::ceil(std::sqrt((float)count)));
-			float spacing = formation_metrics[FORMATION_NONE].spacing_x;
-			int row = (int)i / side;
-			int col = (int)i % side;
-			ox = (col - (side - 1) * 0.5f) * spacing;
-			oz = (row - (side - 1) * 0.5f) * spacing;
-		}
-
-		// Rotate offset by heading so formation faces movement direction (fixes axis-aligned LINE)
+		const int side = std::max(1, (int)std::ceil(std::sqrt((float)count)));
+		const int row = (int)i / side;
+		const int col = (int)i % side;
+		const float ox = (col - (side - 1) * 0.5f) * spacing;
+		const float oz = (row - (side - 1) * 0.5f) * spacing;
 		float rx = ox * cosH - oz * sinH;
 		float rz = ox * sinH + oz * cosH;
 
@@ -2130,10 +2057,10 @@ void Simulation::cmd_move(const uint32_t *unit_ids, size_t count, float tx, floa
 		units_.target_building_id[idx] = 0;
 		begin_walk_order(idx);
 	}
-	(void)formation_speed_mult;
 }
 
 void Simulation::cmd_stop(const uint32_t *unit_ids, size_t count) {
+	formation_stop(unit_ids, count); // a stopped formation stops walking (UnitAI Order.Stop)
 	for (size_t i = 0; i < count; ++i) {
 		int32_t idx = lookup_unit(unit_ids[i]);
 		if (idx >= 0 && (size_t)idx < units_.count && units_.alive[idx]) {
@@ -2160,7 +2087,8 @@ void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint
 	size_t ridx = rit->second;
 	float rx = resources_.x[ridx];
 	float rz = resources_.z[ridx];
-	UnitOrder o; o.kind = ORDER_GATHER; o.target = resource_id; o.x = rx; o.z = rz;
+	const uint8_t sub_bits = (uint8_t)((resources_.subtype[ridx] << ORDER_FLAG_SUB_SHIFT) & ORDER_FLAG_SUB_MASK);
+	UnitOrder o; o.kind = ORDER_GATHER; o.flags = sub_bits; o.target = resource_id; o.x = rx; o.z = rz;
 	const std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
 	const uint32_t *unit_ids = now.data();
 	const size_t count = now.size();
@@ -2181,7 +2109,7 @@ void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint
 		units_.res_type_carried[uidx] = resources_.type[ridx];
 		units_.target_unit_id[uidx] = 0;
 		units_.target_building_id[uidx] = 0;
-		set_order(uidx, ORDER_GATHER, 0, resource_id, rx, rz);
+		set_order(uidx, ORDER_GATHER, sub_bits, resource_id, rx, rz);
 	}
 }
 
@@ -2259,6 +2187,14 @@ void Simulation::order_attack_move(const uint32_t *unit_ids, size_t count, float
 	UnitOrder o; o.kind = ORDER_WALK_AND_FIGHT; o.flags = flags; o.x = tx; o.z = tz;
 	const std::vector<uint32_t> now = split_queued(unit_ids, count, o, queued);
 	cmd_move(now.data(), now.size(), tx, tz);
+	// Formations attack-walk as a whole (UnitAI FORMATIONCONTROLLER.WALKING with attack-move).
+	for (FormationController &fc : formations_)
+		if (fc.order == FORDER_WALK)
+			for (uint32_t uid : now)
+				if (std::find(fc.members.begin(), fc.members.end(), uid) != fc.members.end()) {
+					fc.order = FORDER_ATTACK_WALK;
+					break;
+				}
 	for (uint32_t uid : now) {
 		int32_t idx = lookup_unit(uid);
 		if (idx >= 0 && (size_t)idx < units_.count && units_.alive[idx]) {
@@ -2272,7 +2208,8 @@ void Simulation::order_attack_move(const uint32_t *unit_ids, size_t count, float
 void Simulation::order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued) {
 	UnitOrder o; o.kind = ORDER_PATROL; o.flags = ORDER_FLAG_FORCE; o.x = tx; o.z = tz;
 	const std::vector<uint32_t> now = split_queued(unit_ids, count, o, queued);
-	cmd_move(now.data(), now.size(), tx, tz);
+	formation_remove_units(now.data(), now.size());
+	cmd_move_individual(now.data(), now.size(), tx, tz); // patrol has no formation controller here
 	for (uint32_t uid : now) {
 		int32_t idx = lookup_unit(uid);
 		if (idx >= 0 && (size_t)idx < units_.count && units_.alive[idx]) {
@@ -2362,16 +2299,563 @@ float Simulation::pack_time_s(size_t unit_idx) const {
 	return PACK_TIME_S * tech_mods_[team].pack_time[t];
 }
 
-void Simulation::order_set_formation(const uint32_t *unit_ids, size_t count, uint8_t formation) {
-	// 0 A.D. template_player.xml:84-96 defines 13 formations (indices 0..12).
-	// Values in 0..12 are accepted; invalid values (> 12) are clamped to 12.
-	if (formation > FORMATION_SHIPS_COLUMN) {
-		formation = FORMATION_SHIPS_COLUMN;
+// ---------------------------------------------------------------------------
+// Formations: 0 A.D. Formation.js controllers and Commands.js formation commands
+// (layout and templates in formation.h / formation_data.h).
+// ---------------------------------------------------------------------------
+
+static bool formation_unit_mounted(uint8_t t) {
+	return t == UNIT_CAVALRY || t == UNIT_CHARIOT || t == UNIT_CAMEL || t == UNIT_SCYTHED_CHARIOT;
+}
+
+FormationUnitInfo Simulation::formation_unit_info(size_t i) const {
+	const uint16_t t = units_.tmpl[i];
+	FormationUnitInfo info = t < CIV_UNIT_TEMPLATE_COUNT ? formation_unit_table()[t] : formation_generic_info(units_.unit_type[i]);
+	// Promotion.js swaps in the next rank's template, and its Identity/Rank class with it.
+	const uint8_t rank = units_.rank[i];
+	if ((rank == 2 || rank == 3) && (info.classes & FCLASS_RANKS))
+		info.classes = (uint16_t)((info.classes & ~FCLASS_RANKS) | (rank == 3 ? FCLASS_ELITE : FCLASS_ADVANCED));
+	return info;
+}
+
+uint32_t Simulation::player_formation_mask(uint8_t player) const {
+	return player < MAX_PLAYERS ? civ_formation_mask((uint8_t)civ_of(player)) : 0u;
+}
+
+bool Simulation::unit_idx_can_use_formation(size_t i, uint8_t f) const {
+	if (f == FORMATION_NONE || f >= FORMATION_COUNT || i >= units_.count || !units_.alive[i]) return false;
+	// UnitAI.js CanUseFormation (the unit's UnitAI/Formations), limited to the formations its
+	// player has (Player.js GetFormations, which the 0 A.D. GUI offers).
+	return ((formation_unit_info(i).formations >> f) & 1u) && ((player_formation_mask(units_.team[i]) >> f) & 1u);
+}
+
+bool Simulation::unit_can_use_formation(uint32_t unit_id, uint8_t f) const {
+	const int32_t idx = lookup_unit(unit_id);
+	return idx >= 0 && unit_idx_can_use_formation((size_t)idx, f);
+}
+
+bool Simulation::can_move_into_formation(const uint32_t *unit_ids, size_t count, uint8_t f) const {
+	if (f == FORMATION_NONE || f >= FORMATION_COUNT) return false;
+	size_t n = 0;
+	for (size_t i = 0; i < count; ++i)
+		if (unit_can_use_formation(unit_ids[i], f)) ++n;
+	return n >= formation_template(f).required_members;
+}
+
+void Simulation::formation_refresh_groups() {
+	formation_group_.assign(UNIT_CAP, 0u);
+	for (const FormationController &fc : formations_)
+		for (uint32_t id : fc.members) {
+			const int32_t idx = lookup_unit(id);
+			if (idx >= 0 && (size_t)idx < formation_group_.size()) formation_group_[idx] = fc.id;
+		}
+}
+
+uint32_t Simulation::formation_of_unit(uint32_t unit_id) const {
+	for (const FormationController &fc : formations_)
+		if (std::find(fc.members.begin(), fc.members.end(), unit_id) != fc.members.end()) return fc.id;
+	return 0;
+}
+
+float Simulation::formation_walking_distance(const FormationController &fc) const {
+	// UnitAI.js ComputeWalkingDistance: along the remaining path, then to the goal.
+	float d = 0.0f, px = fc.x, pz = fc.z;
+	for (int k = fc.path.cur; k < fc.path.count; ++k) {
+		d += std::hypot(fc.path.xs[k] - px, fc.path.zs[k] - pz);
+		px = fc.path.xs[k];
+		pz = fc.path.zs[k];
 	}
+	return d + std::hypot(fc.goal_x - px, fc.goal_z - pz);
+}
+
+void Simulation::formation_disband(size_t ci) {
+	// Formation.js Disband: every member leaves; their current orders carry on.
+	for (uint32_t id : formations_[ci].members) {
+		const int32_t idx = lookup_unit(id);
+		if (idx >= 0) units_.formation[idx] = FORMATION_NONE;
+	}
+	formations_.erase(formations_.begin() + ci);
+	formation_refresh_groups();
+}
+
+void Simulation::formation_remove_units(const uint32_t *unit_ids, size_t count) {
+	// Commands.js RemoveFromFormation -> Formation.js RemoveMembers: below
+	// RequiredMemberCount the formation disbands, else the rest re-form.
+	for (size_t ci = formations_.size(); ci-- > 0;) {
+		FormationController &fc = formations_[ci];
+		bool changed = false;
+		for (size_t i = 0; i < count; ++i) {
+			auto it = std::find(fc.members.begin(), fc.members.end(), unit_ids[i]);
+			if (it == fc.members.end()) continue;
+			fc.members.erase(it);
+			const int32_t idx = lookup_unit(unit_ids[i]);
+			if (idx >= 0) units_.formation[idx] = FORMATION_NONE;
+			changed = true;
+		}
+		if (!changed) continue;
+		if (fc.members.size() < formation_template(fc.tmpl).required_members) {
+			formation_disband(ci);
+			continue;
+		}
+		fc.has_offsets = 0;
+		formation_move_members_into(ci, true, false);
+	}
+	formation_refresh_groups();
+}
+
+void Simulation::formation_stop(const uint32_t *unit_ids, size_t count) {
+	for (FormationController &fc : formations_) {
+		if (fc.order == FORDER_IDLE) continue;
+		for (size_t i = 0; i < count; ++i)
+			if (std::find(fc.members.begin(), fc.members.end(), unit_ids[i]) != fc.members.end()) {
+				fc.order = FORDER_IDLE;
+				fc.path.clear();
+				for (FormationSlot &s : fc.slots) s.following = 0;
+				break;
+			}
+	}
+}
+
+void Simulation::formation_move_members_into(size_t ci, bool move_center, bool force) {
+	// Formation.js MoveMembersIntoFormation. With `force` every member's order is replaced;
+	// without, members busy with another task (fighting, gathering) are left to it.
+	FormationController &fc = formations_[ci];
+	const FormationTemplate &t = formation_template(fc.tmpl);
+	std::vector<FormationMember> active;
+	float ax = 0.0f, az = 0.0f;
+	bool mounted = false;
+	for (uint32_t id : fc.members) {
+		const int32_t idx = lookup_unit(id);
+		if (idx < 0 || !units_.alive[idx]) continue;
+		const FormationUnitInfo info = formation_unit_info((size_t)idx);
+		const float w = 2.0f * unit_collision_radius(units_.unit_type[idx]); // GetAvgFootprint
+		active.push_back(FormationMember{id, info.classes, units_.pos_x[idx], units_.pos_z[idx], w, w});
+		ax += units_.pos_x[idx];
+		az += units_.pos_z[idx];
+		mounted = mounted || formation_unit_mounted(units_.unit_type[idx]);
+	}
+	if (active.empty()) return;
+	fc.pass = mounted ? PASS_CAVALRY : PASS_INFANTRY; // ComputeMotionParameters: the widest member's class
+	if (move_center) {
+		ax /= active.size();
+		az /= active.size();
+		const bool walking = fc.order != FORDER_IDLE;
+		const float gdx = fc.goal_x - ax, gdz = fc.goal_z - az;
+		const float new_rot = walking && gdx * gdx + gdz * gdz > FORMATION_ROTATE_DISTANCE * FORMATION_ROTATE_DISTANCE
+				? std::atan2(gdx, gdz) : fc.rot; // Vector2D.angleTo
+		if (!formation_turn_allowed(t, new_rot, fc.offsets_rot)) fc.has_offsets = 0;
+		fc.x = ax;
+		fc.z = az;
+		fc.rot = new_rot;
+		if (walking) {
+			find_path(fc.x, fc.z, fc.goal_x, fc.goal_z, fc.path, fc.pass);
+			// Navcell-centre waypoints next to the start or the goal would turn the whole
+			// formation round for a step; the controller walks straight there instead.
+			WaypointPath &p = fc.path;
+			int first = p.cur, last = p.count;
+			while (last > first && std::hypot(p.xs[last - 1] - fc.goal_x, p.zs[last - 1] - fc.goal_z) < 3.0f) --last;
+			while (first < last && std::hypot(p.xs[first] - fc.x, p.zs[first] - fc.z) < 2.0f) ++first;
+			p.cur = first;
+			p.count = last;
+		} else {
+			fc.path.clear();
+		}
+	}
+	const bool columnar = fc.order != FORDER_IDLE && formation_walking_distance(fc) > FORMATION_COLUMN_DISTANCE;
+	if (columnar != (fc.columnar != 0)) {
+		fc.columnar = columnar;
+		fc.has_offsets = 0;
+	}
+	if (!fc.has_offsets || fc.slots.size() != active.size()) {
+		// Sloppiness draws from a stream seeded by the controller and tick, so it is
+		// deterministic for lockstep without touching the shared sim RNG.
+		FormationRng rng{(fc.id * 2654435761u) ^ (uint32_t)(ticks_ * 40503u) ^ 0x9E3779B9u};
+		if (!rng.s) rng.s = 1;
+		fc.slots = compute_formation_offsets(t, fc.columnar != 0, active, fc.x, fc.z, fc.rot, rng, &fc.max_rows_used);
+		fc.offsets_rot = fc.rot;
+		fc.has_offsets = 1;
+	}
+	// Members walk to their slots: each tick in tick_formations while the controller walks
+	// (UnitAI FormationWalk), or straight away when forming up in place.
+	for (FormationSlot &s : fc.slots) {
+		const int32_t idx = lookup_unit(s.ent);
+		s.following = 0;
+		if (idx < 0 || !units_.alive[idx]) continue;
+		const uint8_t st = units_.action_state[idx];
+		if (!force && st != ACTION_IDLE && st != ACTION_MOVE && st != ACTION_ATTACK_MOVE) continue;
+		s.following = 1;
+		float wx, wz;
+		formation_slot_world(fc.x, fc.z, fc.rot, s.x, s.y, wx, wz);
+		wx = std::clamp(wx, -map_half_ + 1.0f, map_half_ - 1.0f);
+		wz = std::clamp(wz, -map_half_ + 1.0f, map_half_ - 1.0f);
+		units_.target_x[idx] = wx;
+		units_.target_z[idx] = wz;
+		units_.anchor_x[idx] = wx;
+		units_.anchor_z[idx] = wz;
+		units_.has_order[idx] = 1;
+		units_.action_state[idx] = fc.order == FORDER_ATTACK_WALK ? ACTION_ATTACK_MOVE : ACTION_MOVE;
+		units_.target_resource_id[idx] = 0;
+		units_.target_unit_id[idx] = 0;
+		units_.target_building_id[idx] = 0;
+		if (unit_paths_.size() < UNIT_CAP) unit_paths_.resize(UNIT_CAP);
+		WaypointPath &wp = unit_paths_[idx];
+		if (fc.order != FORDER_IDLE) {
+			wp.clear(); // tick_formations paths members that are far from their slot
+			units_.waypoint_cur[idx] = units_.waypoint_count[idx] = 0;
+			continue;
+		}
+		find_path(units_.pos_x[idx], units_.pos_z[idx], wx, wz, wp,
+				formation_unit_mounted(units_.unit_type[idx]) ? PASS_CAVALRY : PASS_INFANTRY);
+		wp.has_goal = true;
+		wp.goal_x = wx;
+		wp.goal_z = wz;
+		units_.waypoint_cur[idx] = static_cast<int16_t>(wp.cur);
+		units_.waypoint_count[idx] = static_cast<int16_t>(wp.count);
+	}
+	// Forming up in place has nothing more to steer.
+	if (fc.order == FORDER_IDLE)
+		for (FormationSlot &s : fc.slots) s.following = 0;
+}
+
+std::vector<size_t> Simulation::formation_controllers_for(const uint32_t *unit_ids, size_t count, uint8_t tmpl,
+		bool force_template, std::vector<uint32_t> &individual) {
+	// Commands.js GetFormationUnitAIs. Without force_template the units keep the formation
+	// they are in (a plain walk); with it they are put into `tmpl` (the formation command).
+	std::vector<size_t> result;
+	std::vector<uint32_t> sel;
+	sel.reserve(count);
 	for (size_t i = 0; i < count; ++i) {
-		int32_t idx = lookup_unit(unit_ids[i]);
-		if (idx >= 0) {
-			units_.formation[idx] = formation;
+		const int32_t idx = lookup_unit(unit_ids[i]);
+		if (idx >= 0 && units_.alive[idx] && std::find(sel.begin(), sel.end(), unit_ids[i]) == sel.end())
+			sel.push_back(unit_ids[i]);
+	}
+	if (sel.empty()) return result;
+	constexpr uint8_t UNDEFINED = 0xFF;
+	uint8_t want = force_template ? tmpl : UNDEFINED;
+	auto ctrl_of = [&](uint32_t id) -> int {
+		for (size_t ci = 0; ci < formations_.size(); ++ci)
+			if (std::find(formations_[ci].members.begin(), formations_[ci].members.end(), id) != formations_[ci].members.end())
+				return (int)ci;
+		return -1;
+	};
+	if (want != FORMATION_NONE) {
+		// ExtractFormations.
+		std::vector<int> ctrls;
+		size_t in_formation = 0;
+		for (uint32_t id : sel) {
+			const int ci = ctrl_of(id);
+			if (ci < 0) continue;
+			++in_formation;
+			if (std::find(ctrls.begin(), ctrls.end(), ci) == ctrls.end()) ctrls.push_back(ci);
+		}
+		if (ctrls.size() == 1) {
+			FormationController &fc = formations_[ctrls[0]];
+			if (fc.members.size() == in_formation && fc.members.size() == sel.size()) {
+				// The whole formation was selected, so its controller takes the command.
+				if (!force_template || want == fc.tmpl) {
+					want = fc.tmpl;
+					result.push_back((size_t)ctrls[0]);
+				} else if (can_move_into_formation(sel.data(), sel.size(), want)) {
+					// Formation.js LoadFormation: same controller, new template. Members that
+					// cannot use it leave.
+					std::vector<uint32_t> leave;
+					for (uint32_t id : fc.members)
+						if (!unit_can_use_formation(id, want)) leave.push_back(id);
+					fc.tmpl = want;
+					fc.has_offsets = 0;
+					formation_refresh_groups();
+					for (uint32_t id : fc.members) {
+						const int32_t idx = lookup_unit(id);
+						if (idx >= 0) units_.formation[idx] = want;
+					}
+					const size_t keep = (size_t)ctrls[0];
+					const uint32_t keep_id = fc.id;
+					if (!leave.empty()) formation_remove_units(leave.data(), leave.size());
+					for (size_t ci = 0; ci < formations_.size(); ++ci)
+						if (formations_[ci].id == keep_id) { result.push_back(ci); break; }
+					(void)keep;
+					for (uint32_t id : leave) individual.push_back(id);
+					return result;
+				}
+			} else if (!force_template) {
+				want = fc.tmpl;
+			}
+		} else if (ctrls.size() > 1 && !force_template) {
+			uint8_t common = formations_[ctrls[0]].tmpl;
+			for (size_t k = 1; k < ctrls.size(); ++k)
+				if (formations_[ctrls[k]].tmpl != common) { common = UNDEFINED; break; }
+			if (common != UNDEFINED) want = common;
+		}
+	}
+
+	// Separate out the units that don't support the chosen formation.
+	std::vector<uint32_t> formed;
+	std::vector<uint32_t> leaving;
+	for (uint32_t id : sel) {
+		const int ci = ctrl_of(id);
+		const uint8_t current = ci >= 0 ? formations_[ci].tmpl : FORMATION_NONE;
+		const uint8_t f = want != UNDEFINED ? want : current;
+		const bool null_formation = f == FORMATION_NONE;
+		if (null_formation || !unit_can_use_formation(id, f)) {
+			if (null_formation && ci >= 0) leaving.push_back(id); // UnitAI LeaveFormation
+			individual.push_back(id);
+		} else {
+			formed.push_back(id);
+		}
+	}
+	if (!leaving.empty()) formation_remove_units(leaving.data(), leaving.size());
+	if (individual.size() == sel.size()) return {};
+	if (!result.empty()) {
+		// The reused controller may have moved in formations_ when others disbanded.
+		return result;
+	}
+
+	// New controllers, one per cluster of units closer than FORMATION_CLUSTER_DISTANCE
+	// (Commands.js ClusterEntities: single-link clusters, i.e. connected components).
+	const size_t m = formed.size();
+	std::vector<int> comp(m, -1);
+	std::vector<float> fx(m), fz(m);
+	for (size_t i = 0; i < m; ++i) {
+		const int32_t idx = lookup_unit(formed[i]);
+		fx[i] = units_.pos_x[idx];
+		fz[i] = units_.pos_z[idx];
+	}
+	const float link2 = FORMATION_CLUSTER_DISTANCE * FORMATION_CLUSTER_DISTANCE;
+	int n_comp = 0;
+	for (size_t i = 0; i < m; ++i) {
+		if (comp[i] >= 0) continue;
+		comp[i] = n_comp;
+		std::vector<size_t> stack{i};
+		while (!stack.empty()) {
+			const size_t a = stack.back();
+			stack.pop_back();
+			for (size_t b = 0; b < m; ++b) {
+				if (comp[b] >= 0) continue;
+				const float dx = fx[a] - fx[b], dz = fz[a] - fz[b];
+				if (dx * dx + dz * dz < link2) { comp[b] = n_comp; stack.push_back(b); }
+			}
+		}
+		++n_comp;
+	}
+	std::vector<uint32_t> new_ids;
+	for (int c = 0; c < n_comp; ++c) {
+		std::vector<uint32_t> cluster;
+		for (size_t i = 0; i < m; ++i)
+			if (comp[i] == c) cluster.push_back(formed[i]);
+		formation_remove_units(cluster.data(), cluster.size());
+		if (want == UNDEFINED || !can_move_into_formation(cluster.data(), cluster.size(), want)) {
+			individual.insert(individual.end(), cluster.begin(), cluster.end());
+			continue;
+		}
+		FormationController fc;
+		fc.id = next_formation_id_++;
+		const int32_t idx0 = lookup_unit(cluster[0]);
+		fc.owner = units_.team[idx0];
+		fc.tmpl = want;
+		fc.members = cluster;
+		// Formation.js MoveToMembersCenter: the members' centre and average facing.
+		float vx = 0.0f, vz = 0.0f;
+		for (uint32_t id : cluster) {
+			const int32_t idx = lookup_unit(id);
+			fc.x += units_.pos_x[idx];
+			fc.z += units_.pos_z[idx];
+			vx += units_.vel_x[idx];
+			vz += units_.vel_z[idx];
+			units_.formation[idx] = want;
+		}
+		fc.x /= cluster.size();
+		fc.z /= cluster.size();
+		fc.rot = (vx * vx + vz * vz > 1e-6f) ? std::atan2(vx, vz) : 0.0f;
+		fc.offsets_rot = fc.rot;
+		fc.goal_x = fc.x;
+		fc.goal_z = fc.z;
+		formations_.push_back(std::move(fc));
+		new_ids.push_back(formations_.back().id);
+	}
+	for (size_t ci = 0; ci < formations_.size(); ++ci)
+		if (std::find(new_ids.begin(), new_ids.end(), formations_[ci].id) != new_ids.end()) result.push_back(ci);
+	formation_refresh_groups();
+	return result;
+}
+
+void Simulation::order_set_formation(const uint32_t *unit_ids, size_t count, uint8_t formation) {
+	// Commands.js "formation" -> GetFormationUnitAIs(forceTemplate) -> UnitAI MoveIntoFormation:
+	// the units form up where they stand. The null formation (or one unit) leaves formations.
+	if (count == 0 || formation >= FORMATION_COUNT) return;
+	if (formation == FORMATION_NONE || count == 1) {
+		formation_remove_units(unit_ids, count);
+		return;
+	}
+	std::vector<uint32_t> individual;
+	const std::vector<size_t> ctrls = formation_controllers_for(unit_ids, count, formation, true, individual);
+	std::vector<uint32_t> ids;
+	for (size_t ci : ctrls) ids.push_back(formations_[ci].id);
+	for (uint32_t fid : ids)
+		for (size_t ci = 0; ci < formations_.size(); ++ci)
+			if (formations_[ci].id == fid) {
+				FormationController &fc = formations_[ci];
+				fc.order = FORDER_IDLE;
+				fc.goal_x = fc.x;
+				fc.goal_z = fc.z;
+				formation_move_members_into(ci, true, true);
+				break;
+			}
+}
+
+void Simulation::tick_formations(float dt) {
+	for (size_t ci = formations_.size(); ci-- > 0;) {
+		FormationController &fc = formations_[ci];
+		const FormationTemplate &t = formation_template(fc.tmpl);
+
+		// Formation.js OnGlobalOwnershipChanged / RemoveMembers: the dead, the captured and
+		// the garrisoned leave.
+		bool changed = false;
+		for (size_t k = fc.members.size(); k-- > 0;) {
+			const int32_t idx = lookup_unit(fc.members[k]);
+			if (idx >= 0 && units_.alive[idx] && units_.team[idx] == fc.owner &&
+					units_.action_state[idx] != ACTION_GARRISONED)
+				continue;
+			if (idx >= 0) units_.formation[idx] = FORMATION_NONE;
+			fc.members.erase(fc.members.begin() + k);
+			changed = true;
+		}
+		if (fc.members.size() < t.required_members) {
+			formation_disband(ci);
+			continue;
+		}
+		if (changed) {
+			formation_refresh_groups();
+			fc.has_offsets = 0;
+			formation_move_members_into(ci, true, false);
+		}
+
+		// Formation.js ShapeUpdate (every second): column for long walks, the real shape near the goal.
+		fc.shape_timer += dt;
+		if (fc.shape_timer >= FORMATION_SHAPE_UPDATE_S) {
+			fc.shape_timer -= FORMATION_SHAPE_UPDATE_S;
+			if (fc.order != FORDER_IDLE) {
+				const bool columnar = formation_walking_distance(fc) > FORMATION_COLUMN_DISTANCE;
+				if (columnar != (fc.columnar != 0)) {
+					fc.columnar = columnar;
+					fc.has_offsets = 0;
+					formation_move_members_into(ci, false, false);
+				}
+			}
+		}
+		if (fc.order == FORDER_IDLE) continue;
+
+		// Which members still walk with the controller. Any other task (an attack, a gather,
+		// a garrison) takes a member out of the walk; an attack-walk takes back its idle fighters.
+		float speed = INFINITY;
+		float max_lag = 0.0f;
+		bool any_following = false, any_fighting = false;
+		for (FormationSlot &s : fc.slots) {
+			const int32_t idx = lookup_unit(s.ent);
+			if (idx < 0 || !units_.alive[idx]) { s.following = 0; continue; }
+			const uint8_t st = units_.action_state[idx];
+			// tick_combat leaves a unit whose foe died in ACTION_ATTACK with no target.
+			const bool fighting = st == ACTION_ATTACK && (units_.target_unit_id[idx] || units_.target_building_id[idx]);
+			if (fighting) any_fighting = true;
+			if (s.following) {
+				if (st != ACTION_IDLE && st != ACTION_MOVE && st != ACTION_ATTACK_MOVE) s.following = 0;
+			} else if (fc.order == FORDER_ATTACK_WALK && !fighting &&
+					((st == ACTION_IDLE && !units_.has_order[idx]) || st == ACTION_ATTACK)) {
+				s.following = 1; // done fighting: back into the attack-walk
+			}
+			if (!s.following) continue;
+			any_following = true;
+			speed = std::min(speed, units_.speed[idx]);
+			float wx, wz;
+			formation_slot_world(fc.x, fc.z, fc.rot, s.x, s.y, wx, wz);
+			max_lag = std::max(max_lag, std::hypot(units_.pos_x[idx] - wx, units_.pos_z[idx] - wz));
+		}
+		if (!any_following && !(fc.order == FORDER_ATTACK_WALK && any_fighting)) {
+			fc.order = FORDER_IDLE;
+			fc.path.clear();
+			continue;
+		}
+
+		// Formation.js ComputeMotionParameters: the slowest member's walk speed times the
+		// template SpeedMultiplier. RTS0 also holds the controller back while members lag
+		// their slots, so the shape stays together. An attack-walk halts while members fight.
+		float step = 0.0f;
+		if (any_following && !(fc.order == FORDER_ATTACK_WALK && any_fighting)) {
+			const float slack = 2.0f;
+			const float keep_up = max_lag <= slack ? 1.0f : std::max(0.0f, 1.0f - (max_lag - slack) / (2.0f * slack));
+			step = speed * t.speed_multiplier * keep_up * dt;
+		}
+		bool arrived = false;
+		while (step > 0.0f) {
+			const bool on_path = fc.path.cur < fc.path.count;
+			const float ax = on_path ? fc.path.xs[fc.path.cur] : fc.goal_x;
+			const float az = on_path ? fc.path.zs[fc.path.cur] : fc.goal_z;
+			const float dx = ax - fc.x, dz = az - fc.z;
+			const float d = std::sqrt(dx * dx + dz * dz);
+			if (d > 0.5f) fc.rot = std::atan2(dx, dz); // the controller faces its walk
+			if (d > step) {
+				fc.x += dx / d * step;
+				fc.z += dz / d * step;
+				break;
+			}
+			fc.x = ax;
+			fc.z = az;
+			step -= d;
+			if (on_path) ++fc.path.cur;
+			else { arrived = true; break; }
+		}
+		{
+			const float gdx = fc.goal_x - fc.x, gdz = fc.goal_z - fc.z;
+			if (fc.path.cur >= fc.path.count && gdx * gdx + gdz * gdz <= ARRIVE_DIST * ARRIVE_DIST) arrived = true;
+		}
+
+		// Send each walking member to its slot (UnitAI FormationWalk).
+		const uint8_t walk_state = fc.order == FORDER_ATTACK_WALK ? ACTION_ATTACK_MOVE : ACTION_MOVE;
+		for (FormationSlot &s : fc.slots) {
+			if (!s.following) continue;
+			const int32_t idx = lookup_unit(s.ent);
+			if (idx < 0) continue;
+			float wx, wz;
+			formation_slot_world(fc.x, fc.z, fc.rot, s.x, s.y, wx, wz);
+			wx = std::clamp(wx, -map_half_ + 1.0f, map_half_ - 1.0f);
+			wz = std::clamp(wz, -map_half_ + 1.0f, map_half_ - 1.0f);
+			units_.target_x[idx] = wx;
+			units_.target_z[idx] = wz;
+			units_.anchor_x[idx] = wx;
+			units_.anchor_z[idx] = wz;
+			units_.has_order[idx] = 1;
+			units_.action_state[idx] = walk_state;
+			units_.target_unit_id[idx] = 0;
+			units_.target_building_id[idx] = 0;
+			units_.target_resource_id[idx] = 0;
+			// Near its slot a member heads straight for it; farther off (or once the controller
+			// has arrived) it paths there, refreshed when the slot has moved on.
+			if (unit_paths_.size() < UNIT_CAP) unit_paths_.resize(UNIT_CAP);
+			WaypointPath &wp = unit_paths_[idx];
+			const float mdx = wx - units_.pos_x[idx], mdz = wz - units_.pos_z[idx];
+			const bool far = mdx * mdx + mdz * mdz > 6.0f * 6.0f;
+			if (!far && !arrived) {
+				wp.clear();
+				units_.waypoint_cur[idx] = units_.waypoint_count[idx] = 0;
+				continue;
+			}
+			const float gdx = wp.goal_x - wx, gdz = wp.goal_z - wz;
+			const bool stale = !wp.has_goal || wp.count == 0 || gdx * gdx + gdz * gdz > 4.0f * 4.0f;
+			if (arrived || (stale && (ticks_ + s.ent) % 10 == 0)) {
+				find_path(units_.pos_x[idx], units_.pos_z[idx], wx, wz, wp,
+						formation_unit_mounted(units_.unit_type[idx]) ? PASS_CAVALRY : PASS_INFANTRY);
+				wp.has_goal = true;
+				wp.goal_x = wx;
+				wp.goal_z = wz;
+				units_.waypoint_cur[idx] = static_cast<int16_t>(wp.cur);
+				units_.waypoint_count[idx] = static_cast<int16_t>(wp.count);
+			}
+		}
+		if (arrived) {
+			// The controller is at the goal: members finish walking to their last slot on
+			// their own, and the formation goes idle (FORMATIONCONTROLLER.WALKING MovementUpdate).
+			fc.order = FORDER_IDLE;
+			fc.path.clear();
+			for (FormationSlot &s : fc.slots) s.following = 0;
 		}
 	}
 }
@@ -2958,9 +3442,11 @@ void Simulation::tick(float dt) {
 	// Master simulation tick pipeline in fixed, deterministic order:
 	// 1. Movement & spatial separation
 	tick_pack(dt);           // 0 A.D. Pack.js: siege engines pack to move, unpack to fire
+	if (!formations_.empty()) formation_refresh_groups(); // unit indices move when the dead are removed
 	tick_unit_ai(dt);        // 0 A.D. UnitAI.js: answer attacks, flee, patrol, resume and queue orders
 	move_units(dt, arena);
 	separation(dt, arena);
+	tick_formations(dt);     // 0 A.D. Formation.js: controllers walk, members follow their slots
 
 	// 2. Economy & Gathering
 	tick_gather(dt);
@@ -3241,7 +3727,19 @@ void Simulation::move_units(float dt, Arena &arena) {
 		float dz = aim_z - pz[i];
 		float d2 = dx * dx + dz * dz;
 		float stop_dist = ARRIVE_DIST;
-		if (units_.action_state[i] == ACTION_ATTACK) {
+		// Attack.js MinRange: a siege engine too close to its target walks away from it
+		// (UnitMotion MoveToTargetRange with a minimum); tick_pack unpacks it once past MinRange.
+		bool backing_off = false;
+		if (units_.action_state[i] == ACTION_ATTACK && units_.target_unit_id[i] != 0 && !using_path) {
+			const float minr = units_.attack_range[i] * unit_min_range_ratio(units_.unit_type[i]);
+			if (minr > 0.0f && d2 < minr * minr) {
+				backing_off = true;
+				if (d2 < 1e-6f) { dx = 1.0f; dz = 0.0f; }
+				dx = -dx; dz = -dz;
+				d2 = dx * dx + dz * dz;
+			}
+		}
+		if (units_.action_state[i] == ACTION_ATTACK && !backing_off) {
 			float r_att = units_.attack_range[i];
 			if (r_att > 3.0f) {
 				// Ranged units (Archers, Catapults, Triremes) stop comfortably within volley distance
@@ -3252,7 +3750,7 @@ void Simulation::move_units(float dt, Arena &arena) {
 			}
 		}
 
-		if (d2 <= stop_dist * stop_dist) {
+		if (!backing_off && d2 <= stop_dist * stop_dist) {
 			vx[i] = 0;
 			vz[i] = 0;
 			if (units_.action_state[i] == ACTION_MOVE || units_.action_state[i] == ACTION_ATTACK_MOVE) {
@@ -3274,7 +3772,7 @@ void Simulation::move_units(float dt, Arena &arena) {
 
 		// 0 A.D. UnitMotion short path: head for the first waypoint around a blocking building
 		// (nav/building_steering.h). The arrival check above still uses the real aim point.
-		if (!unit_is_ship(units_.unit_type[i])) {
+		if (!unit_is_ship(units_.unit_type[i]) && !backing_off) {
 			rtso::nav::Vec2 steer;
 			if (rtso::nav::steer_around_buildings(rtso::nav::Vec2(px[i], pz[i]), rtso::nav::Vec2(aim_x, aim_z),
 					unit_collision_radius(units_.unit_type[i]), steer_obstacles_, units_.target_building_id[i],
@@ -3293,21 +3791,10 @@ void Simulation::move_units(float dt, Arena &arena) {
 		float ux = dx * inv;
 		float uz = dz * inv;
 		float spd = units_.speed[i];
-		// G5 formation speed modifiers (see cmd_move table): PHALANX slower, WEDGE faster
-		// Retain legacy symbol for parity checker: formation_speed_mult[7] = {1.0f, 1.0f, 1.0f, 0.95f, 0.85f, 1.1f, 1.05f};
-		{
-			static const float formation_speed_mult[13] = {
-				1.00f, 1.00f, 1.00f, 0.95f, 0.85f, 1.10f, 1.05f, // 0..6 (NONE,LINE,BOX,COLUMN,PHALANX,WEDGE,SCATTER)
-				1.00f, 1.00f, 1.00f, 1.00f, 1.00f, 1.25f          // 7..12 (ships/column: 1.25x per 0 A.D. ships/column.xml SpeedMultiplier, Formation.js:198)
-			};
-			uint8_t f = units_.formation[i];
-			if (f < 13) spd *= formation_speed_mult[f];
-		}
 		if (units_.status_effects[i] & (EFFECT_SNARE | EFFECT_SLOW)) {
 			spd *= 0.55f; // Slow/Snare speed penalty (0 A.D. status effect)
 		}
-		// G5 formation-slot correction: cmd_move already rotated offsets into per-unit target_x/z slots
-		// (rx,rz). move_units respects has_order slot directly; future find_path (G1) will path to slot not center.
+		// Formation members walk to the slot tick_formations gives them (Formation.js FormationWalk).
 		float move_dx = ux * spd * dt;
 		float move_dz = uz * spd * dt;
 		if (units_.status_effects[i] & EFFECT_KNOCKBACK) {
@@ -3418,10 +3905,13 @@ void Simulation::separation(float dt, Arena &arena) {
 		float az = 0.0f;
 
 		// 1. Unit-to-Unit Collision & Physical Separation
+		const uint32_t my_group = (size_t)i < formation_group_.size() ? formation_group_[i] : 0u;
 		// A unit beyond comfort_dist on either axis pushes nothing, so the grid skips cells that
 		// hold only such units (0.5 more for float rounding).
 		grid.visit_radius_within(pxi, pzi, scan_radius, ri + r_max + 0.40f + 0.5f, [&](int32_t j) {
 			if ((size_t)j == i || !units_.alive[j]) return;
+			// 0 A.D. gives a formation's members one obstruction group: they never push each other.
+			if (my_group && (size_t)j < formation_group_.size() && formation_group_[j] == my_group) return;
 			const float rj = unit_collision_radius(units_.unit_type[j]);
 			const float min_dist = ri + rj;           // Exact physical body contact boundary
 			const float comfort_dist = min_dist + 0.40f; // Personal clearance space
@@ -4070,7 +4560,9 @@ void Simulation::tick_pack(float dt) {
 			if (t >= 0 && units_.alive[t] && is_hostile(units_.team[i], units_.team[t])) {
 				float dx = units_.pos_x[i] - units_.pos_x[t];
 				float dz = units_.pos_z[i] - units_.pos_z[t];
-				target_in_range = in_parabolic_range(dx * dx + dz * dz, att_y,
+				const float d2 = dx * dx + dz * dz;
+				const float minr = units_.attack_range[i] * unit_min_range_ratio(units_.unit_type[i]);
+				target_in_range = d2 >= minr * minr && in_parabolic_range(d2, att_y,
 						get_terrain_height(units_.pos_x[t], units_.pos_z[t]), units_.attack_range[i]);
 			}
 		} else if (units_.target_building_id[i] != 0 && st != ACTION_BUILD) {
@@ -4170,6 +4662,8 @@ void Simulation::tick_combat(float dt) {
 		const float anc_x = on_the_move ? pxi : units_.anchor_x[i];
 		const float anc_z = on_the_move ? pzi : units_.anchor_z[i];
 		const float range = units_.attack_range[i];
+		// Attack.js MinRange (catapults, bolt shooters): the range query skips anything closer.
+		const float minr = range * unit_min_range_ratio(units_.unit_type[i]);
 		const float vision = unit_vision_range(units_.unit_type[i]);
 		const float held_lim = vision * 0.5f + range; // CheckTargetDistanceFromHeldPosition
 		const float att_y = get_terrain_height(pxi, pzi);
@@ -4192,7 +4686,10 @@ void Simulation::tick_combat(float dt) {
 			int32_t tidx = lookup_unit(units_.target_unit_id[i]);
 			if (tidx >= 0 && units_.alive[tidx] && can_attack(units_.team[i], units_.team[tidx]) &&
 					unit_can_target(i, (size_t)tidx) && (explicit_target || within_stance(tidx))) {
-				found = tidx;
+				const float tx = units_.pos_x[tidx] - pxi, tz = units_.pos_z[tidx] - pzi;
+				// A target it picked itself that came too close is dropped; a player's
+				// target stays and move_units backs away from it.
+				if (explicit_target || tx * tx + tz * tz >= minr * minr) found = tidx;
 			}
 		}
 
@@ -4212,7 +4709,7 @@ void Simulation::tick_combat(float dt) {
 				float dx = pxi - units_.pos_x[j];
 				float dz = pzi - units_.pos_z[j];
 				float d2 = dx * dx + dz * dz;
-				if (d2 > scan_range * scan_range) return;
+				if (d2 > scan_range * scan_range || d2 < minr * minr) return;
 				if (!within_stance(j)) return;
 
 				// 0 A.D. Target Selection Heuristic: Counter-bonus preference + focus fire + proximity
@@ -4302,6 +4799,8 @@ void Simulation::tick_combat(float dt) {
 
 		// 0 A.D. Exact Parabolic Range Equation (CCmpRangeManager.cpp)
 		if (!in_parabolic_range(d2, att_y, def_y, units_.attack_range[i])) continue;
+		const float minr = units_.attack_range[i] * unit_min_range_ratio(units_.unit_type[i]);
+		if (d2 < minr * minr) continue; // Attack.js MinRange
 
 		units_.attack_timer[i] = units_.attack_cooldown[i];
 		units_.action_state[i] = ACTION_ATTACK;
@@ -4314,13 +4813,6 @@ void Simulation::tick_combat(float dt) {
 		float target_hack = uinfo_dst.hack_armor;
 		float target_pierce = uinfo_dst.pierce_armor;
 		float target_crush = uinfo_dst.crush_armor;
-
-		// Tactical formation armor bonuses
-		if (units_.formation[t] == FORMATION_PHALANX) {
-			target_pierce += 4.0f; // Shield wall arrow immunity
-			target_hack += 3.0f;
-		}
-		if (units_.formation[t] == FORMATION_SCATTER) target_pierce += 3.0f; // Loose skirmish evasion
 
 		// Researched armor tech bonuses
 		if (units_.team[t] < MAX_PLAYERS && units_.unit_type[t] < UNIT_TYPE_COUNT) {
@@ -4342,12 +4834,6 @@ void Simulation::tick_combat(float dt) {
 		float hack_dmg = uinfo_att.hack_damage * dmg_scale;
 		float pierce_dmg = uinfo_att.pierce_damage * dmg_scale;
 		float crush_dmg = uinfo_att.crush_damage * dmg_scale;
-
-		if (units_.formation[i] == FORMATION_WEDGE) {
-			hack_dmg *= 1.25f; // Wedge charge bonus
-			pierce_dmg *= 1.25f;
-			crush_dmg *= 1.25f;
-		}
 
 		uint8_t att_team = units_.team[i];
 		Civilization att_civ = civ_of(att_team);
@@ -5869,7 +6355,7 @@ std::vector<uint32_t> Simulation::split_queued(const uint32_t *ids, size_t count
 			q.x = std::clamp(o.x + lx - cx, -map_half_ + 1.0f, map_half_ - 1.0f);
 			q.z = std::clamp(o.z + lz - cz, -map_half_ + 1.0f, map_half_ - 1.0f);
 		}
-		q.x2 = lx; q.z2 = lz; // a queued patrol starts where the previous order ends
+		if (o.kind == ORDER_PATROL) { q.x2 = lx; q.z2 = lz; } // a queued patrol starts where the previous order ends
 		std::vector<UnitOrder> &queue = order_queues_[ids[k]];
 		if (queue.size() < 64) queue.push_back(q);
 	}
@@ -5893,6 +6379,7 @@ void Simulation::apply_order(uint32_t uid, const UnitOrder &o) {
 		case ORDER_GARRISON: order_garrison(&uid, 1, o.target); break;
 		case ORDER_GUARD: order_guard(&uid, 1, o.target); break;
 		case ORDER_HEAL: order_heal(&uid, 1, o.target); break;
+		case ORDER_TRADE: order_trade(&uid, 1, o.target, trade_market_id(o.x2)); break;
 		default: break;
 	}
 	applying_queued_ = was;
@@ -5900,6 +6387,7 @@ void Simulation::apply_order(uint32_t uid, const UnitOrder &o) {
 	if (i < 0 || units_.order_kind[i] != o.kind) return;
 	units_.order_flags[i] = o.flags & (uint8_t)~ORDER_FLAG_INTERRUPTED;
 	if (o.kind == ORDER_PATROL) { units_.order_x2[i] = o.x2; units_.order_z2[i] = o.z2; }
+	if (o.kind == ORDER_TRADE) units_.order_x2[i] = o.x2;
 }
 
 bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
@@ -5939,6 +6427,7 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 			return t >= 0 && units_.alive[t];
 		}
 		case ORDER_HEAL: return can_heal(i, lookup_unit(o.target));
+		case ORDER_TRADE: return trade_route_ok(i, o.target, trade_market_id(o.x2));
 		default: return false;
 	}
 }
@@ -5948,7 +6437,11 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 void Simulation::finish_order(size_t i) {
 	const uint32_t uid = units_.id[i];
 	if (units_.order_kind[i] == ORDER_GATHER && !order_still_valid(i, current_order(i))) {
-		const uint32_t r = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], units_.res_type_carried[i], units_.team[i]);
+		// FINDINGNEWTARGET: the same kind of resource, near the unit, else near where it was.
+		const int sub = (units_.order_flags[i] & ORDER_FLAG_SUB_MASK) >> ORDER_FLAG_SUB_SHIFT;
+		uint32_t r = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], units_.res_type_carried[i], units_.team[i], sub);
+		if (r == 0)
+			r = find_nearby_resource(units_.order_x[i], units_.order_z[i], units_.res_type_carried[i], units_.team[i], sub);
 		if (r != 0) {
 			UnitOrder o = current_order(i);
 			o.target = r;
@@ -6049,11 +6542,12 @@ void Simulation::respond_to_attack(size_t i) {
 	units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED;
 }
 
-uint32_t Simulation::find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team) const {
+uint32_t Simulation::find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team, int subtype) const {
 	uint32_t best = 0;
 	float best_d2 = NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE;
 	for (size_t r = 0; r < resources_.count; ++r) {
 		if (!resources_.alive[r] || resources_.amount[r] <= 0 || resources_.type[r] != res_type) continue;
+		if (subtype >= 0 && resources_.subtype[r] != subtype) continue; // the same kind (type.specific)
 		auto f = field_bld_by_res_.find(resources_.id[r]);
 		if (f != field_bld_by_res_.end()) { // only our own fields
 			auto b = building_id_to_idx_.find(f->second);
@@ -6161,8 +6655,9 @@ void Simulation::tick_unit_ai(float dt) {
 	for (size_t i = 0; i < n && i < units_.count; ++i) {
 		if (!units_.alive[i]) continue;
 		const uint8_t st = units_.action_state[i];
-		if (st == ACTION_DYING || st == ACTION_GARRISONED || st == ACTION_TRADE) continue;
-		if (units_.attacked_by[i] != 0) respond_to_attack(i);
+		if (st == ACTION_DYING || st == ACTION_GARRISONED) continue;
+		if (units_.attacked_by[i] != 0) respond_to_attack(i); // traders flee, then resume_order
+		if (units_.action_state[i] == ACTION_TRADE) continue;
 		// Guard.js: guards answer whoever attacks the unit they guard (GuardedAttacked).
 		if (units_.order_kind[i] == ORDER_GUARD && units_.action_state[i] == ACTION_GUARD) {
 			const int32_t g = lookup_unit(units_.order_target[i]);
@@ -6184,6 +6679,20 @@ void Simulation::tick_unit_ai(float dt) {
 		if (now == ACTION_HEAL) { tick_heal(i); continue; }
 		if (now == ACTION_CHEER) {
 			if (units_.attack_timer[i] <= 0.0f) units_.action_state[i] = ACTION_IDLE;
+			continue;
+		}
+		// Formation members take their orders from the controller (UnitAI FORMATIONMEMBER):
+		// tick_formations brings them back after a fight or a flight, so they don't resume their own.
+		if (!formations_.empty() && formation_group_[i] != 0) {
+			if (now == ACTION_FLEE) {
+				const float dx = units_.target_x[i] - units_.pos_x[i], dz = units_.target_z[i] - units_.pos_z[i];
+				if (dx * dx + dz * dz <= 1.0f || units_.attack_timer[i] <= 0.0f) {
+					units_.attack_timer[i] = 0.0f;
+					units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_INTERRUPTED;
+					units_.action_state[i] = ACTION_IDLE;
+					units_.has_order[i] = 0;
+				}
+			}
 			continue;
 		}
 		// Garrison: get in once within LoadingRange; give up if the walk ends short of it.
@@ -6998,7 +7507,8 @@ void Simulation::petra_manage_workers(float dt) {
 					float dx = units_.pos_x[i] - sb.x;
 					float dz = units_.pos_z[i] - sb.z;
 					const float reach = sb.half_size + 2.5f;
-					if (dx * dx + dz * dz <= reach * reach && (int)sb.garrisoned_units.size() < sb.garrison_cap) {
+					if (dx * dx + dz * dz <= reach * reach && (int)sb.garrisoned_units.size() < sb.garrison_cap &&
+					    petra_around(sb).unit) { // else garrisonManager would let it straight out
 						uint32_t uid = units_.id[i];
 						order_garrison(&uid, 1, sb.id);
 					}
@@ -7007,19 +7517,7 @@ void Simulation::petra_manage_workers(float dt) {
 		}
 	}
 
-	// Ungarrison workers when threat is cleared — leave military in towers (garrisonManager.js)
-	if (best_shelter_score < 2.0f) {
-		for (auto &b : buildings_) {
-			if (b.team != petra_pid_ || b.garrisoned_units.empty()) continue;
-			std::vector<uint32_t> eject;
-			eject.reserve(b.garrisoned_units.size());
-			for (uint32_t uid : b.garrisoned_units) {
-				int32_t idx = lookup_unit(uid);
-				if (idx >= 0 && units_.unit_type[idx] == UNIT_VILLAGER) eject.push_back(uid);
-			}
-			for (uint32_t uid : eject) order_ungarrison_single(b.id, uid);
-		}
-	}
+	// petra_manage_garrisons lets them out once no enemy is near (garrisonManager.js).
 }
 
 void Simulation::petra_manage_military_production(float dt) {
@@ -8400,6 +8898,76 @@ void Simulation::petra_manage_buildings(float dt) {
 			}
 		}
 	}
+
+	// 7. headquarters.js constructTrainingBuildings, city phase: an elephant
+	// stable and an arsenal, then (from 80 pop) the civ's own advanced
+	// structures from config.js buildings, the next one only past 110 pop.
+	if (petra_ps().phase >= 3) petra_build_advanced();
+}
+
+// config.js `buildings`: each civ's advanced structures, in Petra's order
+// (Carthage's three embassies are RTS0's one; Kush's camps and Amun temple and
+// Rome's Vesta temple are not modelled yet).
+static std::vector<uint8_t> petra_advanced_buildings(uint8_t civ) {
+	switch (civ) {
+		case CIV_ATHENIANS: return {BLD_GYMNASIUM, BLD_PRYTANEION, BLD_THEATER};
+		case CIV_CARTHAGINIANS: return {BLD_EMBASSY};
+		case CIV_GAULS: return {BLD_ASSEMBLY};
+		case CIV_HAN: return {BLD_ACADEMY};
+		case CIV_IBERIANS: return {BLD_MONUMENT};
+		case CIV_KUSHITES: return {BLD_PYRAMID_LARGE, BLD_PYRAMID_SMALL};
+		case CIV_MACEDONIANS: case CIV_SELEUCIDS: return {BLD_THEATER};
+		case CIV_MAURYANS: return {BLD_PALACE, BLD_PILLAR};
+		case CIV_PERSIANS: return {BLD_TACHARA};
+		case CIV_PTOLEMIES: return {BLD_LIBRARY, BLD_THEATER};
+		case CIV_ROMANS: return {BLD_ARMY_CAMP};
+		case CIV_SPARTANS: return {BLD_SYSSITON, BLD_THEATER};
+		default: return {};
+	}
+}
+
+void Simulation::petra_build_advanced() {
+	const PetraBase *home = get_primary_petra_base();
+	if (!home) return;
+	const uint8_t civ = petra_ps().civ;
+	auto count = [&](uint8_t t) { // countEntitiesAndQueuedByType: foundations too
+		int n = 0;
+		for (const auto &b : buildings_)
+			if (b.team == petra_pid_ && b.type == t && b.hp > 0.0f && !b.wrecked) ++n;
+		return n;
+	};
+	auto build = [&](uint8_t t) {
+		const uint32_t bid = petra_place_building(t, home->x, home->z, 4, 16, PETRA_QUEUE_MILITARY);
+		if (!bid) return;
+		auto idle = get_idle_workers(petra_pid_);
+		if (!idle.empty()) order_build_or_repair(idle.data(), std::min((size_t)3, idle.size()), bid);
+	};
+	// canBuild: RTS0 lets every civ lay any generic structure, so the stable and
+	// arsenal count only when the civ's roster trains something there.
+	auto trains_at = [civ](uint8_t t) {
+		for (uint16_t k = 0; k < CIV_UNIT_TEMPLATE_COUNT; ++k)
+			if (civ_unit_template(k).civ == civ && (civ_unit_template(k).trainers & bld_bit(t))) return true;
+		return false;
+	};
+	for (uint8_t t : {BLD_ELEPHANT_STABLE, BLD_ARSENAL}) {
+		if (civ_can_build(civ, t) && trains_at(t) && count(t) == 0) {
+			build(t);
+			return;
+		}
+	}
+	std::vector<uint8_t> advanced;
+	for (uint8_t t : petra_advanced_buildings(civ))
+		if (civ_can_build(civ, t)) advanced.push_back(t);
+	const int pop = pop_current(petra_pid_);
+	if (pop < 80 || advanced.empty()) return;
+	int n = 0;
+	for (uint8_t t : advanced) n += count(t);
+	if (n && !(n < (int)advanced.size() && pop > 110)) return;
+	for (uint8_t t : advanced) {
+		if (count(t) > 0) continue;
+		build(t);
+		return;
+	}
 }
 
 void Simulation::petra_manage_research(float dt) {
@@ -8755,7 +9323,7 @@ void Simulation::petra_plan_sizes(uint8_t kind) {
 }
 
 // attackPlan.js rushTargetFinder: the nearest enemy structure that does not
-// shoot and stands more than 80 m from every structure that does.
+// shoot and stands more than 80 m (20 world units of 4 m) from every structure that does.
 uint32_t Simulation::find_petra_rush_target(float &out_tx, float &out_tz) const {
 	float bx = 36.0f, bz = 36.0f;
 	if (const auto *base = get_primary_petra_base()) { bx = base->x; bz = base->z; }
@@ -8771,7 +9339,7 @@ uint32_t Simulation::find_petra_rush_target(float &out_tx, float &out_tz) const 
 		for (const auto &d : buildings_) {
 			if (!petra_foe(d.team) || d.hp <= 0 || !shoots(d.type)) continue;
 			const float dx = d.x - b.x, dz = d.z - b.z;
-			if (dx * dx + dz * dz < 6400.0f) { defended = true; break; }
+			if (dx * dx + dz * dz < 20.0f * 20.0f) { defended = true; break; } // 80 m: 20 tiles
 		}
 		if (defended) continue;
 		const float dx = b.x - bx, dz = b.z - bz;
@@ -9855,10 +10423,159 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 	return 0;
 }
 
+// garrisonManager.js update: the enemies within a holder's arrow range (80 m,
+// 20 world units, for a holder that doesn't shoot): defensive structures, melee or ranged
+// siege, or other units (Gaia's only while fighting; Gaia is no foe here).
+Simulation::PetraAround Simulation::petra_around(const Building &holder) const {
+	PetraAround around;
+	const BuildingTypeInfo &info = building_type_info(holder.type);
+	const float range = info.attack_damage > 0.0f ? info.attack_range + tech_mods(holder.team).bld_range[holder.type] : 20.0f;
+	for (const Building &b : buildings_) {
+		if (!petra_foe(b.team) || b.hp <= 0.0f || b.build_progress < 1.0f || building_type_info(b.type).attack_damage <= 0.0f) continue;
+		const float dx = b.x - holder.x, dz = b.z - holder.z;
+		if (dx * dx + dz * dz <= range * range) { around.defense_structure = true; break; }
+	}
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || !petra_foe(units_.team[i])) continue;
+		const float dx = units_.pos_x[i] - holder.x, dz = units_.pos_z[i] - holder.z;
+		if (dx * dx + dz * dz > range * range) continue;
+		const uint64_t c = unit_tech_classes(units_.unit_type[i]);
+		if (c & TC_SIEGE) {
+			if (c & TC_MELEE) around.melee_siege = true;
+			else around.range_siege = true;
+		} else {
+			around.unit = true;
+			break;
+		}
+	}
+	return around;
+}
+
+// garrisonManager.js keepGarrisoned. Petra garrisons for protection (a hurt
+// unit healing, infantry adding arrows, support units and siege sheltering),
+// and its hero for an emergency.
+bool Simulation::petra_keep_garrisoned(size_t i, const Building &holder, const PetraAround &around) const {
+	const uint8_t type = units_.unit_type[i];
+	const uint64_t c = unit_tech_classes(type);
+	const float health = units_.max_hp[i] > 0.0f ? units_.hp[i] / units_.max_hp[i] : 1.0f;
+	const bool heals = structure_garrison_heal(holder) > 0.0f && unit_is_human(type);
+	const bool needs_heal = heals && health < 1.0f;
+	if (heals && health < petra_config_.garrison_hp_high) return true;
+	if (type == UNIT_HERO) // TYPE_EMERGENCY
+		return around.unit || around.defense_structure || around.melee_siege ||
+			(around.range_siege && health < petra_config_.garrison_hp_high) || needs_heal;
+	if (c & TC_INFANTRY) { // the holder's GarrisonArrowClasses
+		if (around.unit || around.defense_structure) return true;
+		if (around.melee_siege || around.range_siege) return !(c & TC_MELEE) || health < petra_config_.garrison_hp_low;
+		return false;
+	}
+	if (c & TC_MELEE) return false;
+	if (around.unit) return (c & (TC_CIVILIAN | TC_SIEGE)) != 0;
+	if (c & TC_SIEGE) return around.melee_siege;
+	return needs_heal;
+}
+
+// defenseManager.js garrisonUnitsInside: our nearest infantry (melee too unless
+// only siege threatens it) fill a shooting structure an enemy is in range of.
+// Units in an attack or raid plan stay with it; defenders leave the army.
+void Simulation::petra_garrison_units_inside(size_t holder_idx, bool allow_melee, std::vector<int> &incoming) {
+	const Building &holder = buildings_[holder_idx];
+	if (!structure_has_enough_health(holder)) return;
+	int slots = (int)holder.garrisoned_units.size() + incoming[holder_idx];
+	if (slots >= holder.garrison_cap) return;
+	std::vector<std::pair<float, uint32_t>> near;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
+		const uint64_t c = unit_tech_classes(units_.unit_type[i]);
+		if (!(c & TC_INFANTRY) || units_.unit_type[i] == UNIT_HERO || (!allow_melee && (c & TC_MELEE))) continue;
+		if (units_.order_kind[i] == ORDER_GARRISON || units_.id[i] == petra_scout_unit_id_) continue;
+		const uint32_t uid = units_.id[i];
+		const auto &main = petra_attack_plan_.squad, &raid = petra_raid_plan_.squad;
+		if (std::find(main.begin(), main.end(), uid) != main.end() || std::find(raid.begin(), raid.end(), uid) != raid.end()) continue;
+		const float dx = units_.pos_x[i] - holder.x, dz = units_.pos_z[i] - holder.z;
+		near.push_back({dx * dx + dz * dz, uid});
+	}
+	std::sort(near.begin(), near.end());
+	auto &def = petra_defense_army_.defender_ids;
+	for (const auto &[d2, uid] : near) {
+		if (slots >= holder.garrison_cap) break;
+		def.erase(std::remove(def.begin(), def.end(), uid), def.end());
+		order_garrison(&uid, 1, holder.id);
+		++slots;
+		++incoming[holder_idx];
+	}
+}
+
+// defenseManager.js garrisonAttackedUnit (the nearest healing structure) and
+// garrisonSiegeUnit (the nearest fortress) with room and enough health.
+uint32_t Simulation::petra_garrison_holder_for(size_t i, bool heals_only, bool siege, std::vector<int> &incoming) const {
+	size_t best = SIZE_MAX;
+	float best_d2 = 1e18f;
+	for (size_t bi = 0; bi < buildings_.size(); ++bi) {
+		const Building &b = buildings_[bi];
+		if (b.team != petra_pid_ || b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0) continue;
+		if (heals_only && structure_garrison_heal(b) <= 0.0f) continue;
+		if (siege && b.type != BLD_FORTRESS) continue;
+		if (!structure_has_enough_health(b) || (int)b.garrisoned_units.size() + incoming[bi] >= b.garrison_cap) continue;
+		const float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
+		const float d2 = dx * dx + dz * dz;
+		if (d2 < best_d2) { best_d2 = d2; best = bi; }
+	}
+	if (best == SIZE_MAX) return 0;
+	++incoming[best];
+	return buildings_[best].id;
+}
+
+void Simulation::petra_manage_garrisons() {
+	// garrisonManager.js numberOfGarrisonedSlots counts ours on the way too.
+	std::vector<int> incoming(buildings_.size(), 0);
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.order_kind[i] != ORDER_GARRISON) continue;
+		auto it = building_id_to_idx_.find(units_.order_target[i]);
+		if (it != building_id_to_idx_.end()) ++incoming[it->second];
+	}
+	// garrisonManager.js update: unload whoever no longer needs the shelter, then
+	// defenseManager.js checkEvents: arrows from a structure with an enemy in range.
+	for (size_t bi = 0; bi < buildings_.size(); ++bi) {
+		const Building &b = buildings_[bi];
+		if (b.team != petra_pid_ || b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0) continue;
+		const bool shoots = building_type_info(b.type).attack_damage > 0.0f;
+		if (b.garrisoned_units.empty() && !shoots) continue;
+		const PetraAround around = petra_around(b);
+		std::vector<uint32_t> leave;
+		for (uint32_t uid : b.garrisoned_units) {
+			const int32_t idx = lookup_unit(uid);
+			if (idx >= 0 && units_.team[idx] == petra_pid_ && !petra_keep_garrisoned((size_t)idx, b, around)) leave.push_back(uid);
+		}
+		for (uint32_t uid : leave) order_ungarrison_single(b.id, uid);
+		if (shoots && (around.unit || around.melee_siege || around.range_siege))
+			petra_garrison_units_inside(bi, around.defense_structure || around.unit, incoming);
+	}
+
+	// defenseManager.js checkEvents: a support unit under attack below medium
+	// health shelters in a healing structure; an attacked stone thrower in a fortress.
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || !petra_foe(units_.team[i]) || units_.target_unit_id[i] == 0) continue;
+		const int32_t t = lookup_unit(units_.target_unit_id[i]);
+		if (t < 0 || !units_.alive[t] || units_.team[t] != petra_pid_ || units_.order_kind[t] == ORDER_GARRISON) continue;
+		if (petra_unit_reserved(units_.id[t])) continue;
+		const uint64_t c = unit_tech_classes(units_.unit_type[t]);
+		const float health = units_.max_hp[t] > 0.0f ? units_.hp[t] / units_.max_hp[t] : 1.0f;
+		uint32_t holder = 0;
+		if ((c & TC_CIVILIAN) && health < PETRA_GARRISON_HP_MEDIUM) holder = petra_garrison_holder_for((size_t)t, true, false, incoming);
+		else if (c & TC_STONETHROWER) holder = petra_garrison_holder_for((size_t)t, false, true, incoming);
+		if (holder) {
+			const uint32_t uid = units_.id[t];
+			order_garrison(&uid, 1, holder);
+		}
+	}
+}
+
 void Simulation::petra_manage_defense(float dt) {
 	petra_defense_timer_ += dt;
 	if (petra_defense_timer_ < 0.5f) return;
 	petra_defense_timer_ = 0.0f;
+	petra_manage_garrisons();
 
 	auto &army = petra_defense_army_;
 	army.foe_ids.clear();
@@ -9939,6 +10656,7 @@ void Simulation::petra_manage_defense(float dt) {
 		if (!petra_is_combat_unit(units_.unit_type[i])) continue;
 		if (units_.id[i] == petra_scout_unit_id_) continue;
 		if (units_.action_state[i] == ACTION_GARRISONED || units_.action_state[i] == ACTION_DYING) continue;
+		if (units_.order_kind[i] == ORDER_GARRISON) continue; // garrisonManager has it
 		if (in_attack_squad(units_.id[i]) && !petra_emergency_.active) continue;
 		if (std::find(army.defender_ids.begin(), army.defender_ids.end(), units_.id[i]) != army.defender_ids.end())
 			continue;
@@ -10563,9 +11281,12 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
+	// v24: the map extent first, so a load into a sim at another size (a fresh
+	// reset(), a replay, a rejoin) sizes the FoW, nav and territory grids before reading them.
+	out.write((const char *)&map_half_, sizeof(map_half_));
 
 	// 1. Sim scalars
 	out.write((const char *)&ticks_, sizeof(ticks_));
@@ -10742,6 +11463,12 @@ bool Simulation::load_state(const char *filepath) {
 	in.read((char *)&magic, sizeof(magic));
 	in.read((char *)&version, sizeof(version));
 	if (magic != 0x52545330 || version < 1 || version > SAVE_VERSION) return false;
+	if (version >= 24) {
+		float half = 0.0f;
+		in.read((char *)&half, sizeof(half));
+		if (!in.good() || !(half > 0.0f) || half > 4096.0f) return false;
+		if (half != map_half_) set_map_half(half);
+	}
 
 	// 1. Sim scalars
 	in.read((char *)&ticks_, sizeof(ticks_));
@@ -10823,7 +11550,9 @@ bool Simulation::load_state(const char *filepath) {
 	// 2. Resources
 	uint32_t num_res = 0;
 	in.read((char *)&num_res, sizeof(num_res));
+	if (!in.good() || num_res > (1u << 22)) return false;
 	resources_.count = 0;
+	resources_.reserve(num_res); // a reset() sim holds 512; bigger maps have more
 	res_id_to_idx_.clear();
 	field_res_by_bld_.clear();
 	field_bld_by_res_.clear();
@@ -10850,6 +11579,7 @@ bool Simulation::load_state(const char *filepath) {
 	// 3. Units
 	uint32_t num_units = 0;
 	in.read((char *)&num_units, sizeof(num_units));
+	if (!in.good() || num_units > UNIT_CAP) return false;
 	units_.count = 0;
 	unit_id_to_idx_.clear();
 	unit_idx_by_id_.assign(UNIT_CAP + 1, -1);
@@ -11075,6 +11805,9 @@ bool Simulation::load_state(const char *filepath) {
 
 	if (version >= 15) {
 		if (!load_tick_state(in, version)) return false;
+		if (version < 23)
+			for (size_t u = 0; u < units_.count; ++u) units_.formation[u] = FORMATION_NONE; // no controllers saved
+		formation_refresh_groups();
 	} else {
 		// Older saves carry none of it: start the per-tick state fresh.
 		for (size_t u = 0; u < units_.count; ++u) {
@@ -11419,6 +12152,24 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		for (auto &row : s.trading_goods_) for (uint8_t &v : row) ar.pod(v);
 	else if constexpr (Ar::loading)
 		for (auto &row : s.trading_goods_) std::fill(std::begin(row), std::end(row), (uint8_t)25);
+
+	// 6. Formation controllers (v23).
+	if (ar.version >= 23) {
+		ar.pod(s.next_formation_id_);
+		io_vec(ar, s.formations_, 1u << 16, [&](S::FormationController &f) {
+			ar.pod(f.id); ar.pod(f.owner); ar.pod(f.tmpl); ar.pod(f.columnar); ar.pod(f.order);
+			ar.pod(f.x); ar.pod(f.z); ar.pod(f.rot); ar.pod(f.offsets_rot); ar.pod(f.goal_x); ar.pod(f.goal_z);
+			ar.pod(f.shape_timer); ar.pod(f.pass); ar.pod(f.has_offsets); ar.pod(f.max_rows_used);
+			ids(f.members);
+			io_vec_pod(ar, f.slots, S::UNIT_CAP);
+			path(f.path);
+			if constexpr (Ar::loading)
+				if (f.tmpl >= FORMATION_COUNT) ar.ok = false;
+		});
+	} else if constexpr (Ar::loading) {
+		s.formations_.clear();
+		s.next_formation_id_ = 1;
+	}
 }
 
 void Simulation::save_tick_state(std::ofstream &out) const {
