@@ -2495,7 +2495,7 @@ void Simulation::tick_gather(float dt) {
 		// 1. Returning to dropsite
 		if (units_.carry[i] >= units_.carry_capacity[i] || units_.action_state[i] == ACTION_RETURN_DROPSITE) {
 			float best_d2 = 1e9f;
-			float drop_x = 0, drop_z = 0;
+			float drop_x = 0, drop_z = 0, drop_half = 0;
 			bool found_dropsite = false;
 
 			for (const auto &b : buildings_) {
@@ -2512,7 +2512,7 @@ void Simulation::tick_gather(float dt) {
 					float d2 = dx * dx + dz * dz;
 					if (d2 < best_d2) {
 						best_d2 = d2;
-						drop_x = b.x; drop_z = b.z;
+						drop_x = b.x; drop_z = b.z; drop_half = b.half_size;
 						found_dropsite = true;
 					}
 				}
@@ -2521,7 +2521,11 @@ void Simulation::tick_gather(float dt) {
 			if (found_dropsite) {
 				float dx = units_.pos_x[i] - drop_x;
 				float dz = units_.pos_z[i] - drop_z;
-				if (dx * dx + dz * dz < 2.5f * 2.5f) {
+				// Drop off at the centre or anywhere along the footprint: units
+				// queued around a large dropsite never get within 2.5 m of its centre.
+				float edge_dx = std::max(0.0f, std::fabs(dx) - drop_half);
+				float edge_dz = std::max(0.0f, std::fabs(dz) - drop_half);
+				if (dx * dx + dz * dz < 2.5f * 2.5f || edge_dx * edge_dx + edge_dz * edge_dz < 1.5f * 1.5f) {
 					int amt = units_.carry[i];
 					uint8_t rt = units_.res_type_carried[i];
 					if (rt < RES_COUNT) {
