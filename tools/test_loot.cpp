@@ -1,0 +1,315 @@
+// RTS0 loot and experience test (headless: no SCons, no Godot).
+// Checks the port of 0 A.D.'s Loot.js, Looter.js and the xp rules of Health.js, Heal.js
+// and Promotion.js:
+//  1. Tables: unit loot by class with hero, champion and siege tower overrides; building
+//     loot by type, nothing for a type past the table.
+//  2. A melee kill pays the victim's loot plus what it carried to the killer's owner.
+//  3. Advanced and elite victims pay 1.2x and 1.44x (unit_advanced/unit_elite Loot/*).
+//  4. Britons infantry loot 1 more of each resource (brit_woad_warriors).
+//  5. Xp per hit: Loot/xp * health taken / max health, nothing for overkill.
+//  6. Healer xp below one point accumulates (Heal.js PerformHeal).
+//  7. Arrows: the shooter's owner loots; an arrow whose shooter died loots nothing.
+//  8. Structures: towers loot, destroyed buildings pay their table row.
+//  9. Status-effect deaths (no attacker) pay nothing.
+// 10. Save/load keeps projectile sources and partial xp.
+// Build and run:
+//   g++ -std=c++20 -O2 -Isrc tools/test_loot.cpp src/simulation/simulation.cpp \
+//     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+//     src/network/net_host.cpp -lpthread -o /tmp/test_loot && /tmp/test_loot
+// Exit: 0 = PASS, 1 = FAIL.
+#define private public
+#include "simulation/simulation.h"
+#undef private
+
+#include <cmath>
+#include <cstdio>
+
+using namespace rtso;
+
+static constexpr float DT = 0.2f;
+
+static int g_failures = 0;
+static void check(bool ok, const char *what) {
+	std::printf("  [%s] %s\n", ok ? " ok " : "FAIL", what);
+	if (!ok) ++g_failures;
+}
+static bool near(float a, float b) { return std::fabs(a - b) < 0.01f; }
+
+static void setup(Simulation &s) {
+	s.set_sim_seed(4242);
+	s.reset();
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.spawn_building_world(-56.0f, -56.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	s.spawn_building_world(56.0f, 56.0f, BLD_TOWN_CENTER, 1, 1.0f);
+}
+static int idx_of(const Simulation &s, uint32_t uid) { return s.lookup_unit(uid); }
+
+struct Res {
+	float food, wood, stone, gold;
+};
+static Res res_of(const Simulation &s, uint8_t p) {
+	const auto &ps = s.player(p);
+	return {ps.res[RES_FOOD], ps.res[RES_WOOD], ps.res[RES_STONE], ps.res[RES_GOLD]};
+}
+static bool gained(const Res &a, const Res &b, float food, float wood, float stone, float gold) {
+	return near(b.food - a.food, food) && near(b.wood - a.wood, wood) && near(b.stone - a.stone, stone) &&
+			near(b.gold - a.gold, gold);
+}
+static void print_gain(const Res &a, const Res &b) {
+	std::printf("      gained food %.2f wood %.2f stone %.2f gold %.2f\n", b.food - a.food, b.wood - a.wood,
+			b.stone - a.stone, b.gold - a.gold);
+}
+
+static uint16_t find_template(uint8_t flags_all, uint8_t type) {
+	for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t) {
+		const auto &u = civ_unit_template(t);
+		if ((u.flags & flags_all) == flags_all && (type == UNIT_TYPE_NONE || u.unit_type == type)) return t;
+	}
+	return CIV_UNIT_TEMPLATE_NONE;
+}
+
+static void test_tables() {
+	std::printf("1. loot tables\n");
+	LootInfo sw = unit_loot(CIV_UNIT_TEMPLATE_NONE, UNIT_SWORDSMAN);
+	check(sw.xp == 100 && sw.food == 5 && sw.wood == 4 && sw.metal == 1, "swordsman: xp 100, food 5, wood 4, metal 1");
+	LootInfo fem = unit_loot(CIV_UNIT_TEMPLATE_NONE, UNIT_FEMALE_CITIZEN);
+	check(fem.xp == 3 && fem.food == 5, "female citizen: xp 3, food 5");
+	uint16_t hero = find_template(ROSTER_HERO, UNIT_TYPE_NONE);
+	LootInfo h = unit_loot(hero, civ_unit_template(hero).unit_type);
+	check(hero != CIV_UNIT_TEMPLATE_NONE && h.xp == 400 && h.metal == 25, "roster hero: template_unit_hero loot");
+	uint16_t champ = find_template(ROSTER_CHAMPION, UNIT_SPEARMAN);
+	LootInfo c = unit_loot(champ, UNIT_SPEARMAN);
+	check(champ != CIV_UNIT_TEMPLATE_NONE && c.xp == 150 && c.metal == 8, "champion spearman: champion_infantry loot");
+	uint16_t tower = find_template(ROSTER_SIEGE_TOWER, UNIT_TYPE_NONE);
+	LootInfo t = unit_loot(tower, civ_unit_template(tower).unit_type);
+	check(tower != CIV_UNIT_TEMPLATE_NONE && t.wood == 100 && t.metal == 60, "siege tower: wood 100, metal 60");
+	LootInfo tc = building_loot(BLD_TOWN_CENTER);
+	check(tc.wood == 60 && tc.stone == 60 && tc.metal == 50 && tc.xp == 0, "civic centre: wood 60, stone 60, metal 50");
+	LootInfo past = building_loot(BLD_TYPE_COUNT + 7);
+	check(past.food == 0 && past.wood == 0 && past.stone == 0 && past.metal == 0, "a type past the table loots nothing");
+	check(near(loot_rank_multiplier(1), 1.0f) && near(loot_rank_multiplier(2), 1.2f) && near(loot_rank_multiplier(3), 1.44f),
+			"rank multipliers 1, 1.2, 1.44");
+}
+
+// Swordsman of `killer_team` next to a 1 hp victim; fight until the victim dies.
+static bool melee_kill(Simulation &s, uint32_t killer, uint32_t victim) {
+	s.order_attack(&killer, 1, victim);
+	for (int k = 0; k < 100; ++k) {
+		s.tick(DT);
+		int v = idx_of(s, victim);
+		if (v < 0 || !s.units_.alive[v]) return true;
+	}
+	return false;
+}
+
+static void test_melee_kill() {
+	std::printf("2. melee kill pays loot and carried resources\n");
+	Simulation s;
+	setup(s);
+	uint32_t sw = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
+	uint32_t fem = s.spawn_unit(1.0f, 0, 1, UNIT_FEMALE_CITIZEN, 1.0f);
+	int v = idx_of(s, fem);
+	s.units_.carry[v] = 10;
+	s.units_.res_type_carried[v] = RES_WOOD;
+	Res a = res_of(s, 0);
+	bool died = melee_kill(s, sw, fem);
+	Res b = res_of(s, 0);
+	check(died, "victim died");
+	print_gain(a, b);
+	check(gained(a, b, 5, 10, 0, 0), "killer's owner gets food 5 + the 10 wood carried");
+	check(s.units_.kills[idx_of(s, sw)] == 1, "kill counted");
+}
+
+static void test_rank() {
+	std::printf("3. advanced and elite victims pay more\n");
+	for (uint8_t rank = 2; rank <= 3; ++rank) {
+		Simulation s;
+		setup(s);
+		uint32_t sw = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
+		uint32_t vic = s.spawn_unit(1.0f, 0, 1, UNIT_SWORDSMAN, 1.0f);
+		s.units_.rank[idx_of(s, vic)] = rank;
+		Res a = res_of(s, 0);
+		melee_kill(s, sw, vic);
+		Res b = res_of(s, 0);
+		float m = rank == 2 ? 1.2f : 1.44f;
+		print_gain(a, b);
+		check(gained(a, b, 5 * m, 4 * m, 0, 1 * m), rank == 2 ? "advanced: x1.2" : "elite: x1.44");
+	}
+}
+
+static void test_britons() {
+	std::printf("4. Britons infantry loot +1 of each resource\n");
+	Simulation s;
+	setup(s);
+	s.set_team_civ(0, CIV_BRITONS);
+	uint32_t sw = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
+	uint32_t fem = s.spawn_unit(1.0f, 0, 1, UNIT_FEMALE_CITIZEN, 1.0f);
+	Res a = res_of(s, 0);
+	melee_kill(s, sw, fem);
+	Res b = res_of(s, 0);
+	print_gain(a, b);
+	check(gained(a, b, 6, 1, 1, 1), "female citizen pays food 6, wood 1, stone 1, metal 1");
+	s.set_team_civ(0, CIV_ATHENIANS);
+	uint32_t cav = s.spawn_unit(0, 3.0f, 0, UNIT_CAVALRY);
+	uint32_t fem2 = s.spawn_unit(1.0f, 3.0f, 1, UNIT_FEMALE_CITIZEN, 1.0f);
+	s.set_team_civ(0, CIV_BRITONS);
+	a = res_of(s, 0);
+	melee_kill(s, cav, fem2);
+	b = res_of(s, 0);
+	print_gain(a, b);
+	check(gained(a, b, 5, 0, 0, 0), "Briton cavalry (not infantry) get no bonus");
+}
+
+static void test_damage_xp() {
+	std::printf("5. xp per hit\n");
+	Simulation s;
+	setup(s);
+	uint32_t att = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
+	uint32_t vic = s.spawn_unit(30.0f, 30.0f, 1, UNIT_SWORDSMAN);
+	int a = idx_of(s, att), v = idx_of(s, vic);
+	float max_hp = s.units_.max_hp[v];
+	s.award_damage_xp(att, (size_t)v, max_hp * 0.25f);
+	check(s.units_.xp[a] == 25, "a quarter of a swordsman's health gives 25 xp");
+	s.units_.hp[v] = max_hp * 0.10f;
+	s.award_damage_xp(att, (size_t)v, max_hp * 5.0f);
+	check(s.units_.xp[a] == 35, "overkill counts only the health left (10 more)");
+	s.units_.rank[v] = 3;
+	s.units_.hp[v] = max_hp;
+	s.award_damage_xp(att, (size_t)v, max_hp * 0.5f);
+	check(s.units_.xp[a] == 35 + 72, "elite victim gives 1.44x xp");
+	// Far from the first pair so only this swordsman fights.
+	uint32_t killer = s.spawn_unit(-30.0f, 30.0f, 0, UNIT_SWORDSMAN);
+	uint32_t fem = s.spawn_unit(-29.0f, 30.0f, 1, UNIT_FEMALE_CITIZEN);
+	melee_kill(s, killer, fem);
+	int c = idx_of(s, killer);
+	std::printf("      killer xp %u + %.3f\n", s.units_.xp[c], s.units_.xp_partial[c]);
+	check(near(s.units_.xp[c] + s.units_.xp_partial[c], 3.0f), "killing a female citizen gives her 3 xp, not a flat 100");
+}
+
+static void test_healer_xp() {
+	std::printf("6. healer xp\n");
+	Simulation s;
+	setup(s);
+	uint32_t healer = s.spawn_unit(0, 0, 0, UNIT_HEALER);
+	uint32_t hurt = s.spawn_unit(1.0f, 0, 0, UNIT_SWORDSMAN);
+	int h = idx_of(s, healer), u = idx_of(s, hurt);
+	float max_hp = s.units_.max_hp[u];
+	s.units_.hp[u] = max_hp * 0.5f;
+	for (int k = 0; k < 2000 && s.units_.hp[u] < max_hp; ++k) s.tick(DT);
+	float total = s.units_.xp[h] + s.units_.xp_partial[h];
+	std::printf("      healer xp %u + %.3f after healing half a swordsman\n", s.units_.xp[h], s.units_.xp_partial[h]);
+	check(near(s.units_.hp[u], max_hp), "swordsman healed to full");
+	// The civ's swordsman template sets its Loot/xp (a champion's is 150).
+	float want = unit_loot(s.units_.tmpl[u], UNIT_SWORDSMAN).xp * 0.5f;
+	std::printf("      expected %.1f\n", want);
+	check(std::fabs(total - want) < 0.5f, "healing half the health gives half the target's Loot/xp");
+}
+
+static void test_arrows() {
+	std::printf("7. arrows loot for their shooter\n");
+	Simulation s;
+	setup(s);
+	uint32_t archer = s.spawn_unit(0, 0, 0, UNIT_ARCHER);
+	uint32_t fem = s.spawn_unit(10.0f, 0, 1, UNIT_FEMALE_CITIZEN, 1.0f);
+	uint32_t fem2 = s.spawn_unit(10.0f, 4.0f, 1, UNIT_FEMALE_CITIZEN, 1.0f);
+	s.order_set_stance(&archer, 1, STANCE_PASSIVE);
+	int v = idx_of(s, fem);
+	Res a = res_of(s, 0);
+	s.fire_arrow(0, 1.4f, 0, 10.0f, 0.8f, 0, 50.0f, 0, fem, 0, 1, false, 0, archer);
+	check(s.projectiles_.size() == 1 && s.projectiles_[0].source_id == archer, "projectile records its shooter");
+	for (int k = 0; k < 20 && s.units_.alive[v]; ++k) s.tick(DT);
+	Res b = res_of(s, 0);
+	check(!s.units_.alive[v], "arrow killed the victim");
+	check(gained(a, b, 5, 0, 0, 0), "shooter's owner gets food 5");
+	check(s.units_.xp[idx_of(s, archer)] + s.units_.xp_partial[idx_of(s, archer)] > 2.9f, "shooter gets the victim's xp");
+
+	s.fire_arrow(0, 1.4f, 0, 10.0f, 0.8f, 4.0f, 50.0f, 0, fem2, 0, 1, false, 0, archer);
+	int ar = idx_of(s, archer);
+	s.units_.hp[ar] = 0.0f;
+	s.units_.alive[ar] = 0;
+	s.units_.action_state[ar] = ACTION_DYING;
+	int v2 = idx_of(s, fem2);
+	a = res_of(s, 0);
+	for (int k = 0; k < 20 && s.units_.alive[v2]; ++k) s.tick(DT);
+	b = res_of(s, 0);
+	check(!s.units_.alive[v2], "second arrow still kills");
+	check(gained(a, b, 0, 0, 0, 0), "no loot once the shooter is dead (no Looter left)");
+}
+
+static void test_structures() {
+	std::printf("8. structures\n");
+	Simulation s;
+	setup(s);
+	uint32_t tower = s.spawn_building_world(0, 0, BLD_SENTRY_TOWER, 0, 1.0f);
+	uint32_t fem = s.spawn_unit(30.0f, 30.0f, 1, UNIT_FEMALE_CITIZEN);
+	Res a = res_of(s, 0);
+	s.collect_unit_loot(tower, 0, (size_t)idx_of(s, fem));
+	Res b = res_of(s, 0);
+	check(gained(a, b, 5, 0, 0, 0), "a tower loots like a unit (no Britons infantry bonus)");
+	uint32_t house = s.spawn_building_world(20.0f, -20.0f, BLD_BARRACKS, 1, 1.0f);
+	const Simulation::Building *bp = nullptr;
+	for (const auto &bb : s.buildings_) if (bb.id == house) bp = &bb;
+	uint32_t sw = s.spawn_unit(0, 3.0f, 0, UNIT_SWORDSMAN);
+	a = res_of(s, 0);
+	s.collect_building_loot(sw, 0, *bp);
+	b = res_of(s, 0);
+	check(gained(a, b, 0, 40, 20, 0), "destroying barracks pays wood 40, stone 20");
+	Simulation::Building fake = *bp;
+	fake.type = BLD_TYPE_COUNT + 3;
+	a = res_of(s, 0);
+	s.collect_building_loot(sw, 0, fake);
+	b = res_of(s, 0);
+	check(gained(a, b, 0, 0, 0, 0), "an unknown building type pays nothing");
+}
+
+static void test_status_death() {
+	std::printf("9. status-effect deaths pay nothing\n");
+	Simulation s;
+	setup(s);
+	uint32_t fem = s.spawn_unit(30.0f, 30.0f, 1, UNIT_FEMALE_CITIZEN, 1.0f);
+	int v = idx_of(s, fem);
+	s.units_.status_effects[v] |= EFFECT_POISON;
+	s.units_.poison_timer[v] = 5.0f;
+	Res a0 = res_of(s, 0);
+	for (int k = 0; k < 10 && s.units_.alive[v]; ++k) s.tick(DT);
+	Res b0 = res_of(s, 0);
+	check(!s.units_.alive[v], "poison killed her");
+	check(gained(a0, b0, 0, 0, 0, 0), "player 0 gets nothing");
+}
+
+static void test_save_load() {
+	std::printf("10. save/load keeps sources and partial xp\n");
+	Simulation s;
+	setup(s);
+	uint32_t archer = s.spawn_unit(0, 0, 0, UNIT_ARCHER);
+	uint32_t fem = s.spawn_unit(60.0f, 0, 1, UNIT_FEMALE_CITIZEN);
+	s.gain_xp((size_t)idx_of(s, archer), 12.375f);
+	s.fire_arrow(0, 1.4f, 0, 60.0f, 0.8f, 0, 5.0f, 0, fem, 0, 1, false, 0, archer);
+	const char *path = "/tmp/rts0_test_loot.sav";
+	check(s.save_state(path), "saved");
+	Simulation t;
+	check(t.load_state(path), "loaded");
+	int a = t.lookup_unit(archer);
+	check(a >= 0 && t.units_.xp[a] == 12 && near(t.units_.xp_partial[a], 0.375f), "xp 12 + 0.375 kept");
+	check(t.projectiles_.size() == 1 && t.projectiles_[0].source_id == archer, "projectile source kept");
+	std::remove(path);
+}
+
+int main() {
+	test_tables();
+	test_melee_kill();
+	test_rank();
+	test_britons();
+	test_damage_xp();
+	test_healer_xp();
+	test_arrows();
+	test_structures();
+	test_status_death();
+	test_save_load();
+	if (g_failures) {
+		std::printf("test_loot: FAIL (%d)\n", g_failures);
+		return 1;
+	}
+	std::printf("test_loot: PASS\n");
+	return 0;
+}

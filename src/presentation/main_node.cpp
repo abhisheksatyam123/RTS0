@@ -695,17 +695,14 @@ void RtsoMain::_ready() {
 	stances_bar->add_theme_constant_override("separation", 6);
 	command_panel->add_child(stances_bar);
 
-	const char *stance_names[5] = {"Aggressive", "Defensive", "Stand Ground", "Hold Ground", "Passive"};
-	// Icons mapped by BEHAVIOR parity to 0 A.D. g_Stances (UnitAI.js:80):
-	// RTS0 Aggressive leashes 1000m = 0AD "violent" (respondChaseBeyondVision, UnitAI.js:80);
-	// RTS0 Defensive 18m/20m leash = 0AD "aggressive" (respondChase, UnitAI.js:92);
-	// RTS0 Hold Ground 8m leash = 0AD "defensive" (respondHoldGround, UnitAI.js:104).
-	// All 5 icons distinct (0AD stance_panel.xml repeat=5; icon set violent/aggressive/defensive/standground/passive).
+	// Indexed by UnitStance (0 A.D. g_Stances).
+	const char *stance_names[5] = {"Aggressive", "Defensive", "Stand Ground", "Violent", "Passive"};
+	// 0 A.D. stance icons (art/textures/ui/session/stances), same order as the names.
 	const char *stance_icons[5] = {
-		"res://assets/textures/ui/stances/violent.png",
 		"res://assets/textures/ui/stances/aggressive.png",
-		"res://assets/textures/ui/stances/standground.png",
 		"res://assets/textures/ui/stances/defensive.png",
+		"res://assets/textures/ui/stances/standground.png",
+		"res://assets/textures/ui/stances/violent.png",
 		"res://assets/textures/ui/stances/passive.png"
 	};
 	for (int s = 0; s < 5; ++s) {
@@ -1575,46 +1572,6 @@ void RtsoMain::_process(double delta) {
 		}
 	}
 
-	// Shift-queued waypoints: issue the next staged point once the unit reaches
-	// the active one - 0 A.D. gui/session/input.js:1345 ("session.queue ... add
-	// the order to the unit's order queue"). RTS0's UnitView has one target_x/z,
-	// so pending points are staged presentation-side and flushed here.
-	if (!waypoint_queue.empty()) {
-		auto uview = sim->units();
-		for (auto it = waypoint_queue.begin(); it != waypoint_queue.end();) {
-			QueuedWaypoint &qw = it->second;
-			if (qw.active >= (int)qw.pts.size()) {
-				it = waypoint_queue.erase(it);
-				continue;
-			}
-			size_t idx = (size_t)-1;
-			for (size_t i = 0; i < uview.count; ++i) {
-				if (uview.alive[i] && uview.id[i] == it->first) { idx = i; break; }
-			}
-			if (idx == (size_t)-1) { // unit died - queue dies with it
-				it = waypoint_queue.erase(it);
-				continue;
-			}
-			// Reached the unit's own destination (formation offset aware) or
-			// stopped (sim sets ACTION_IDLE on arrival, simulation.cpp cmd_move).
-			const float dx = uview.pos_x[idx] - uview.target_x[idx];
-			const float dz = uview.pos_z[idx] - uview.target_z[idx];
-			const bool reached = dx * dx + dz * dz <= 1.5f * 1.5f ||
-				uview.action_state[idx] == (uint8_t)rtso::ACTION_IDLE;
-			if (!reached) { ++it; continue; }
-			if (qw.active + 1 >= (int)qw.pts.size()) {
-				it = waypoint_queue.erase(it); // last waypoint reached
-				continue;
-			}
-			++qw.active;
-			const Vector3 &next = qw.pts[qw.active];
-			if (net_lockstep())
-				post_lockstep(1, &it->first, 1, next.x, next.z);
-			else
-				sim->cmd_move(&it->first, 1, next.x, next.z);
-			++it;
-		}
-	}
 
 	uint64_t after_sim_us = Time::get_singleton()->get_ticks_usec();
 	rtso::PerfTracker::record_tick((after_sim_us - start_us) / 1000);
@@ -2580,14 +2537,6 @@ void RtsoMain::clear_selection() {
 	selected_building_id = 0;
 }
 
-// Drop staged Shift waypoints of the current selection - a stop (or any other
-// non-queued order) replaces the unit's queue; only input.js:1345 session.queue
-// (Shift) appends. 0 A.D. gui/session/input.js:1345.
-void RtsoMain::drop_staged_waypoints() {
-	for (int s = 0; s < selected_ids.size(); ++s)
-		waypoint_queue.erase((uint32_t)selected_ids[s]);
-}
-
 void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 	// Keys go through named 0 A.D. hotkeys (hotkeys.h, config/default.cfg
 	// [hotkey.*]; user overrides in user://config/user.cfg). Same-specificity
@@ -2776,7 +2725,6 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		// Unit commands (0 A.D. [hotkey.session], misc.xml).
 		if (fired("session.stop")) {
 			if (!selected_ids.is_empty()) {
-				drop_staged_waypoints(); // stop replaces the unit order queue (0 A.D. input.js:1345)
 				if (net_lockstep())
 					post_lockstep(2, ids_ptr(), selected_ids.size());
 				else
@@ -2798,7 +2746,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (fired("rts0.stance.aggressive")) { apply_stance(rtso::STANCE_AGGRESSIVE); return; }
 		if (fired("rts0.stance.defensive")) { apply_stance(rtso::STANCE_DEFENSIVE); return; }
 		if (fired("rts0.stance.standground")) { apply_stance(rtso::STANCE_STAND_GROUND); return; }
-		if (fired("rts0.stance.holdground")) { apply_stance(rtso::STANCE_HOLD_GROUND); return; }
+		if (fired("rts0.stance.violent")) { apply_stance(rtso::STANCE_VIOLENT); return; }
 		if (fired("rts0.stance.passive")) { apply_stance(rtso::STANCE_PASSIVE); return; }
 		if (fired("session.attackmoveunit")) {
 			if (!selected_ids.is_empty()) {
@@ -3141,18 +3089,27 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 
 			if (selected_ids.is_empty()) return;
 
-			// Staged Shift waypoints survive only if this click resolves to the
-			// default move order below - every other right-click order replaces the
-			// unit's queue (0 A.D. gui/session/input.js:1345 session.queue appends;
-			// RTS0 queues plain move waypoints only). Stash here, restore below.
+			// Shift queues the order behind the units' current ones (0 A.D.
+			// gui/session/input.js:1345 session.queue); without it the order replaces them.
 			const bool queue_shift = rtso::hotkeys::held("session.queue");
-			std::vector<std::pair<uint32_t, QueuedWaypoint>> stashed_wp;
-			for (int s = 0; s < selected_ids.size(); ++s) {
-				const uint32_t sid = (uint32_t)selected_ids[s];
-				auto wit = waypoint_queue.find(sid);
-				if (wit != waypoint_queue.end()) {
-					stashed_wp.push_back(*wit);
-					waypoint_queue.erase(wit);
+			const uint8_t qbit = queue_shift ? rtso::NET_PARAM_QUEUED : 0;
+			const uint32_t *sel_ptr = (const uint32_t *)selected_ids.ptr();
+			const size_t sel_n = selected_ids.size();
+
+			// Ctrl over an enemy structure attacks it instead of capturing it (0 A.D.
+			// session.attack); Ctrl over anything else is attack-move (session.attackmove).
+			if ((rtso::hotkeys::held("session.attack") || rtso::hotkeys::held("session.attackmove")) && !attack_move_mode) {
+				for (const auto &b : sim->buildings()) {
+					if (b.wrecked || b.team == local_player()) continue;
+					const float dx = b.x - click_pos.x, dz = b.z - click_pos.z;
+					const float hit_r = b.half_size + 1.2f;
+					if (dx * dx + dz * dz > hit_r * hit_r) continue;
+					if (net_lockstep())
+						post_lockstep(15, sel_ptr, sel_n, 0, 0, b.id, (uint8_t)(qbit | rtso::NET_PARAM_NO_CAPTURE));
+					else
+						sim->order_attack_building(sel_ptr, sel_n, b.id, queue_shift, false);
+					play_civ_voice("attack");
+					return;
 				}
 			}
 
@@ -3171,9 +3128,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 			if (attack_move_mode || (!garrison_click && rtso::hotkeys::held("session.attackmove"))) {
 				if (net_lockstep())
-					post_lockstep(10, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), click_pos.x, click_pos.z);
+					post_lockstep(10, sel_ptr, sel_n, click_pos.x, click_pos.z, 0, qbit);
 				else
-					sim->order_attack_move((const uint32_t *)selected_ids.ptr(), selected_ids.size(), click_pos.x, click_pos.z);
+					sim->order_attack_move(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift, false, true);
 				play_civ_voice("attack");
 				attack_move_mode = false;
 				return;
@@ -3182,9 +3139,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			// right-clicking (0 A.D. session.patrol / session.guard modifiers).
 			if (patrol_mode || rtso::hotkeys::held("session.patrol")) {
 				if (net_lockstep())
-					post_lockstep(11, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), click_pos.x, click_pos.z);
+					post_lockstep(11, sel_ptr, sel_n, click_pos.x, click_pos.z, 0, qbit);
 				else
-					sim->order_patrol((const uint32_t *)selected_ids.ptr(), selected_ids.size(), click_pos.x, click_pos.z);
+					sim->order_patrol(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift);
 				play_civ_voice("select");
 				patrol_mode = false;
 				return;
@@ -3205,9 +3162,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 				if (target_ally_id != 0) {
 					if (net_lockstep())
-						post_lockstep(21, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0, 0, target_ally_id);
+						post_lockstep(21, sel_ptr, sel_n, 0, 0, target_ally_id, qbit);
 					else
-						sim->order_guard((const uint32_t *)selected_ids.ptr(), selected_ids.size(), target_ally_id);
+						sim->order_guard(sel_ptr, sel_n, target_ally_id, queue_shift);
 					play_civ_voice("select");
 				}
 				guard_mode = false;
@@ -3270,9 +3227,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 			if (clicked_enemy_id != 0) {
 				if (net_lockstep())
-					post_lockstep(3, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0, 0, clicked_enemy_id);
+					post_lockstep(3, sel_ptr, sel_n, 0, 0, clicked_enemy_id, qbit);
 				else
-					sim->order_attack((const uint32_t *)selected_ids.ptr(), selected_ids.size(), clicked_enemy_id);
+					sim->order_attack(sel_ptr, sel_n, clicked_enemy_id, queue_shift);
 				play_civ_voice("attack");
 				return;
 			}
@@ -3322,9 +3279,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 			if (clicked_res_id != 0) {
 				if (net_lockstep())
-					post_lockstep(4, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0, 0, clicked_res_id);
+					post_lockstep(4, sel_ptr, sel_n, 0, 0, clicked_res_id, qbit);
 				else
-					sim->order_gather((const uint32_t *)selected_ids.ptr(), selected_ids.size(), clicked_res_id);
+					sim->order_gather(sel_ptr, sel_n, clicked_res_id, queue_shift);
 				play_civ_voice("gather");
 				return;
 			}
@@ -3337,25 +3294,25 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				if (dx * dx + dz * dz <= hit_r * hit_r) {
 					if (b.team != local_player()) {
 						if (net_lockstep())
-							post_lockstep(15, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0, 0, b.id);
+							post_lockstep(15, sel_ptr, sel_n, 0, 0, b.id, qbit); // capture (0 A.D. default)
 						else
-							sim->order_attack_building((const uint32_t *)selected_ids.ptr(), selected_ids.size(), b.id);
+							sim->order_attack_building(sel_ptr, sel_n, b.id, queue_shift, true);
 						play_civ_voice("attack");
 					} else {
 						if (b.build_progress < 1.0f || b.hp < b.max_hp || b.type == rtso::BLD_FIELD) { // finished fields: farm
 							if (net_lockstep())
-								post_lockstep(16, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0, 0, b.id);
+								post_lockstep(16, sel_ptr, sel_n, 0, 0, b.id, qbit);
 							else
-								sim->order_build_or_repair((const uint32_t *)selected_ids.ptr(), selected_ids.size(), b.id);
+								sim->order_build_or_repair(sel_ptr, sel_n, b.id, queue_shift);
 							play_civ_voice("build");
 						} else if (b.type == rtso::BLD_WALL_SEGMENT && Input::get_singleton()->is_key_pressed(KEY_CTRL)) {
 							sim->spawn_building_world(b.x, b.z, rtso::BLD_GATE, 0, 1.0f);
 							play_civ_voice("build");
 						} else {
 							if (net_lockstep())
-								post_lockstep(12, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0, 0, b.id);
+								post_lockstep(12, sel_ptr, sel_n, 0, 0, b.id, qbit);
 							else
-								sim->order_garrison((const uint32_t *)selected_ids.ptr(), selected_ids.size(), b.id);
+								sim->order_garrison(sel_ptr, sel_n, b.id, queue_shift);
 							clear_selection();
 						}
 					}
@@ -3363,44 +3320,11 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 			}
 
-			// 5. Default: Move Order
-			if (queue_shift) {
-				// Shift+right-click queues the waypoint instead of replacing the
-				// order - 0 A.D. gui/session/input.js:1345 (session.queue hotkey
-				// appends to the unit's order queue). Restore stashed points, then
-				// append this click for units already walking a queue; units without
-				// one start a fresh queue with a single batched cmd_move so
-				// formation offsets still apply (simulation.cpp cmd_move).
-				for (auto &entry : stashed_wp)
-					waypoint_queue.insert(std::move(entry));
-				stashed_wp.clear();
-				PackedInt32Array fresh;
-				for (int s = 0; s < selected_ids.size(); ++s) {
-					const uint32_t sid = (uint32_t)selected_ids[s];
-					auto wit = waypoint_queue.find(sid);
-					if (wit == waypoint_queue.end())
-						fresh.push_back((int32_t)sid);
-					else
-						wit->second.pts.push_back(click_pos);
-				}
-				if (!fresh.is_empty()) {
-					if (net_lockstep())
-						post_lockstep(1, (const uint32_t *)fresh.ptr(), fresh.size(), click_pos.x, click_pos.z);
-					else
-						sim->cmd_move((const uint32_t *)fresh.ptr(), fresh.size(), click_pos.x, click_pos.z);
-					QueuedWaypoint nq;
-					nq.pts.push_back(click_pos);
-					for (int s = 0; s < fresh.size(); ++s)
-						waypoint_queue[(uint32_t)fresh[s]] = nq;
-				}
-				play_civ_voice("move");
-				return;
-			}
-			// Plain right-click: stashed waypoints dropped (order replaced).
+			// 5. Default: Move Order (a player's walk ignores enemies until it arrives)
 			if (net_lockstep())
-				post_lockstep(1, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), click_pos.x, click_pos.z);
+				post_lockstep(1, sel_ptr, sel_n, click_pos.x, click_pos.z, 0, qbit);
 			else
-				sim->cmd_move((const uint32_t *)selected_ids.ptr(), selected_ids.size(), click_pos.x, click_pos.z);
+				sim->order_walk(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift);
 			play_civ_voice("move");
 		}
 	}
@@ -3448,6 +3372,13 @@ void RtsoMain::apply_match_settings() {
 	for (int i = 0; i < slot_types.size() && i < rtso::MAX_PLAYERS; ++i)
 		if ((int)slot_types[i] != 2) seats = i + 1;
 	random_map_players = std::max(2, seats);
+	{
+		Array slot_teams_arr = ms->get("slot_teams");
+		for (int i = 0; i < rtso::MAX_PLAYERS; ++i) {
+			const int tm = i < slot_teams_arr.size() ? (int)slot_teams_arr[i] : 0;
+			random_map_teams[i] = (uint8_t)((tm >= 1 && tm <= 8) ? tm : 0);
+		}
+	}
 	if (!load_map_seeded(map_id, seed)) {
 		UtilityFunctions::printerr("[RtsoMain] GameSetup map failed: ", map_id, " - default arena.");
 		if (civ >= 0 && civ < rtso::CIV_COUNT) sim->set_player_civ((uint8_t)civ);
@@ -3619,7 +3550,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			if (map_id == id || map_id == "random_" + id) { mtype = (rtso::MapType)t; break; }
 		}
 
-		sim->generate_random_map(mtype, seed, num_p, (float)random_map_size * 0.5f);
+		sim->generate_random_map(mtype, seed, num_p, (float)random_map_size * 0.5f, random_map_teams);
 		view->rebuild_terrain(sim);
 
 		if (cam_rig) {
@@ -4015,6 +3946,8 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	random_map_players = 2;
 	for (uint8_t i = 0; i < setup.slot_count && i < rtso::MAX_PLAYERS; ++i)
 		if (setup.slot_types[i] != 'x') random_map_players = std::max(random_map_players, (int)i + 1);
+	for (uint8_t i = 0; i < rtso::MAX_PLAYERS; ++i)
+		random_map_teams[i] = (i < setup.slot_count && setup.teams[i] >= 1 && setup.teams[i] <= 8) ? setup.teams[i] : 0;
 	if (!load_map_seeded(String(setup.map_id.c_str()), setup.seed)) {
 		if (lobby_status) lobby_status->set_text("GameStart failed: map regen failed");
 		return;
