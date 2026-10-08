@@ -1,6 +1,8 @@
 #ifndef RTSO_SIM_TYPES_H
 #define RTSO_SIM_TYPES_H
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -270,8 +272,32 @@ enum BuildingType : uint8_t {
 	BLD_ELEPHANT_STABLE = 23, // military_elephant_stable
 	BLD_THEATER = 24,         // special_theater
 	BLD_EMBASSY = 25,         // military_embassy
-	BLD_TYPE_COUNT = 26
+	// 0 A.D. civ-specific structures (area D, generated rows in civ_building_data.h).
+	// Only the civs in civ_building_civ_mask() may build them.
+	BLD_GYMNASIUM = 26,       // athen/gymnasium
+	BLD_PRYTANEION = 27,      // athen/prytaneion
+	BLD_GEROUSIA = 28,        // spart/gerousia
+	BLD_SYSSITON = 29,        // spart/syssiton
+	BLD_TACHARA = 30,         // pers/tachara
+	BLD_ARMY_CAMP = 31,       // rome/army_camp
+	BLD_AMPHITHEATER = 32,    // rome/amphitheater_pompeii
+	BLD_LIBRARY = 33,         // mace, ptol, sele library
+	BLD_KENNEL = 34,          // brit/kennel
+	BLD_ASSEMBLY = 35,        // gaul/assembly
+	BLD_MONUMENT = 36,        // iber/monument
+	BLD_PALACE = 37,          // maur/palace
+	BLD_PILLAR = 38,          // maur/pillar_ashoka
+	BLD_PYRAMID_LARGE = 39,   // kush/pyramid_large
+	BLD_PYRAMID_SMALL = 40,   // kush/pyramid_small
+	BLD_MERCENARY_CAMP = 41,  // ptol/mercenary_camp
+	BLD_LIGHTHOUSE = 42,      // ptol/lighthouse
+	BLD_MILITARY_COLONY = 43, // ptol, sele military_colony
+	BLD_ACADEMY = 44,         // han/academy
+	BLD_MINISTRY = 45,        // han/ministry
+	BLD_TYPE_COUNT = 46
 };
+
+#include "civ_building_data.h"
 
 enum ResourceType : uint8_t {
 	RES_WOOD = 0,
@@ -363,39 +389,29 @@ inline constexpr float CHEER_TIME_S = 2.8f;
 inline constexpr float CHEER_NOTIFY_RANGE = 30.0f;
 inline constexpr float GARRISON_LOADING_RANGE = 2.0f;
 
-// 0 A.D. Formations (source: template_player.xml:84-96, exactly 13 entries indexed 0..12)
-// Appended AFTER existing 6 so network/replay order stays wire-compatible (values 0..6 unchanged).
-// 0 A.D. template_player.xml:84-96 token list:
-//   [84] special/formations/null                 -> FORMATION_NONE = 0
-//   [85] special/formations/box                  -> FORMATION_BOX = 2
-//   [86] special/formations/column_closed        -> FORMATION_COLUMN = 3
-//   [87] special/formations/line_closed          -> FORMATION_LINE = 1
-//   [88] special/formations/column_open          -> FORMATION_COLUMN_OPEN = 8
-//   [89] special/formations/line_open            -> FORMATION_LINE_OPEN = 7
-//   [90] special/formations/flank                -> FORMATION_FLANK = 9
-//   [91] special/formations/battle_line          -> FORMATION_BATTLE_LINE = 10
-//   [92] special/formations/skirmish             -> FORMATION_SCATTER = 6
-//   [93] special/formations/wedge                -> FORMATION_WEDGE = 5
-//   [94] special/formations/ships/line_staggered -> FORMATION_SHIPS_LINE = 11
-//   [95] special/formations/ships/flank          -> FORMATION_SHIPS_FLANK = 9 (alias FORMATION_FLANK)
-//   [96] special/formations/ships/column         -> FORMATION_SHIPS_COLUMN = 12
-// Note: FORMATION_PHALANX = 4 preserved from 0 A.D. special/formations/phalanx.xml (civ-specific).
+// 0 A.D. formation templates (special/formations/*.xml). Ids 0-12 keep their old values
+// (saves and lockstep cmd 8 carry them); 13-16 came with the Formation.js port.
+// formation.h has the templates, which civs and units may use each, and the layout code.
 enum UnitFormation : uint8_t {
-	FORMATION_NONE = 0,
-	FORMATION_LINE = 1,
-	FORMATION_BOX = 2,
-	FORMATION_COLUMN = 3,
-	FORMATION_PHALANX = 4,
-	FORMATION_WEDGE = 5,
-	FORMATION_SCATTER = 6,
-	FORMATION_LINE_OPEN = 7,
-	FORMATION_COLUMN_OPEN = 8,
-	FORMATION_FLANK = 9,
-	FORMATION_BATTLE_LINE = 10,
-	FORMATION_SHIPS_LINE = 11,
-	FORMATION_SHIPS_COLUMN = 12,
-	FORMATION_COUNT = 13,
-	FORMATION_SHIPS_FLANK = FORMATION_FLANK
+	FORMATION_NONE = 0,          // null
+	FORMATION_LINE = 1,          // line_closed ("Close Order")
+	FORMATION_BOX = 2,           // box
+	FORMATION_COLUMN = 3,        // column_closed ("Forced March")
+	FORMATION_PHALANX = 4,       // phalanx (hoplites; athen, cart, mace, pers, ptol, sele, spart)
+	FORMATION_WEDGE = 5,         // wedge (cavalry)
+	FORMATION_SKIRMISH = 6,      // skirmish (ranged)
+	FORMATION_LINE_OPEN = 7,     // line_open ("Open Order")
+	FORMATION_COLUMN_OPEN = 8,   // column_open
+	FORMATION_FLANK = 9,         // flank
+	FORMATION_BATTLE_LINE = 10,  // battle_line
+	FORMATION_SHIPS_LINE = 11,   // ships/line_staggered ("Fleet Battle Line")
+	FORMATION_SHIPS_COLUMN = 12, // ships/column ("Maneuvering Column")
+	FORMATION_SHIPS_FLANK = 13,  // ships/flank ("Flanking Formation")
+	FORMATION_SYNTAGMA = 14,     // syntagma (pikemen; kush, mace, ptol, sele)
+	FORMATION_TESTUDO = 15,      // testudo (melee infantry; rome)
+	FORMATION_ANTI_CAVALRY = 16, // anti_cavalry (han and roman spearmen; han, rome)
+	FORMATION_COUNT = 17,
+	FORMATION_SCATTER = FORMATION_SKIRMISH // old name
 };
 
 enum StatusEffect : uint8_t {
@@ -672,6 +688,8 @@ inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 		{"Elephant Stable", "stable_elephant", "elephant_stable", 3000.0f, 2, 0, 200, 0, 200, 0, 5, 45.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		{"Theater", "theater", "theater", 3000.0f, 2, 0, 200, 200, 600, 0, 5, 125.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		{"Embassy", "embassy", "embassy", 2000.0f, 2, 0, 200, 0, 0, 0, 6, 38.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		// Civ-specific structures, BLD_GYMNASIUM onwards (civ_building_data.h).
+		RTSO_CIV_BUILDING_INFO_ROWS
 	};
 	if (type >= BLD_TYPE_COUNT) return kTable[BLD_HOUSE];
 	return kTable[type];
@@ -688,7 +706,7 @@ inline uint8_t building_required_phase(uint8_t type) {
 		case BLD_ELEPHANT_STABLE: case BLD_THEATER:
 			return 3;
 		default:
-			return 1;
+			return type >= CIV_BUILDING_FIRST ? civ_building_phase(type) : 1;
 	}
 }
 
@@ -930,8 +948,8 @@ inline uint64_t building_tech_classes(uint8_t type) {
 
 inline constexpr uint32_t unit_bit(uint8_t type) { return (type < 32) ? (1u << type) : 0u; }
 
-static_assert(BLD_TYPE_COUNT <= 32, "bld_bit() masks are uint32_t");
-inline constexpr uint32_t bld_bit(uint8_t type) { return (type < 32) ? (1u << type) : 0u; }
+static_assert(BLD_TYPE_COUNT <= 64, "bld_bit() masks are uint64_t");
+inline constexpr uint64_t bld_bit(uint8_t type) { return (type < 64) ? (1ull << type) : 0ull; }
 
 // ---------------------------------------------------------------------------
 // Per-civ unit rosters, generated from 0 A.D.'s templates by
@@ -981,7 +999,7 @@ enum CivBonusStat : uint8_t {
 struct CivPlayerBonus {
 	uint16_t civs; // civ_bit() mask
 	uint8_t stat; // CivBonusStat
-	uint32_t buildings; // bld_bit() mask (0 for player-wide stats)
+	uint64_t buildings; // bld_bit() mask (0 for player-wide stats)
 	float mult;
 	const char *id;
 	const char *tooltip;
@@ -1004,7 +1022,7 @@ struct CivTeamBonus {
 	uint8_t stat; // TeamBonusStat
 	int8_t res; // ResourceType for cost stats, -1 otherwise
 	bool allies_only; // 0 A.D. ExclusiveMutualAlly: not the owner itself
-	uint32_t buildings; // bld_bit() mask
+	uint64_t buildings; // bld_bit() mask
 	float value; // multiplier, or amount added for TEAM_BONUS_FOOD_TRICKLE
 	const char *id;
 	const char *name;
@@ -1020,7 +1038,7 @@ struct CivUnitTemplate {
 	uint8_t unit_type; // RTS0 behaviour class (UnitType)
 	uint8_t phase; // 1 village, 2 town, 3 city
 	uint8_t flags; // CivRosterFlag bits
-	uint32_t trainers; // bld_bit() of each BuildingType that trains it
+	uint64_t trainers; // bld_bit() of each BuildingType that trains it
 	float hp;
 	float speed;
 	float attack_range;
@@ -1044,6 +1062,7 @@ struct CivUnitTemplate {
 };
 
 #include "civ_roster_data.h"
+#include "formation.h"
 
 inline constexpr uint16_t CIV_UNIT_TEMPLATE_NONE = 0xFFFF;
 static_assert(CIV_UNIT_TEMPLATE_COUNT <= 64 * CIV_TEMPLATE_WORDS_MAX, "raise CIV_TEMPLATE_WORDS_MAX");
@@ -1310,9 +1329,8 @@ inline float unit_capture_attack(uint16_t tmpl, uint8_t type) {
 	return base;
 }
 
-// Structures yield resources only (no Loot/xp). Keyed by building type; a type
-// past the table (a civ-unique building appended later) yields nothing until it
-// gets a row here.
+// Structures yield resources (and no xp, but for the Han Imperial Ministry). Keyed by building type; the
+// civ-specific structures (ids 26-45) take their rows from civ_building_data.h.
 inline LootInfo building_loot(uint8_t type) {
 	static const LootInfo table[] = {
 		{0, 0, 60, 60, 50},    // TOWN_CENTER: civic_civil_centre
@@ -1341,8 +1359,10 @@ inline LootInfo building_loot(uint8_t type) {
 		{0, 0, 40, 40, 0},     // ELEPHANT_STABLE: military_elephant_stable
 		{0, 0, 40, 120, 40},   // THEATER: special_theater
 		{0, 0, 0, 0, 0},       // EMBASSY: military_embassy
+		RTSO_CIV_BUILDING_LOOT_ROWS
 	};
-	return type < sizeof(table) / sizeof(table[0]) ? table[type] : LootInfo{};
+	static_assert(sizeof(table) / sizeof(table[0]) == BLD_TYPE_COUNT, "one loot row per BuildingType");
+	return type < BLD_TYPE_COUNT ? table[type] : LootInfo{};
 }
 // 0 A.D. unit_advanced.json and unit_elite.json each multiply Loot/* by 1.2.
 inline float loot_rank_multiplier(uint8_t rank) {
@@ -1365,6 +1385,12 @@ inline uint32_t civ_train_mask(uint8_t civ) {
 	}();
 	if (civ >= CIV_COUNT) civ = CIV_ATHENIANS;
 	return masks.mask[civ];
+}
+
+// Structures this civilization may build: every generic one, plus its own
+// civ-specific ones (0 A.D. structures/<civ>/, civ_building_civ_mask()).
+inline bool civ_can_build(uint8_t civ, uint8_t type) {
+	return type < BLD_TYPE_COUNT && civ < 16 && ((civ_building_civ_mask(type) >> civ) & 1u);
 }
 
 inline bool civ_can_train(uint8_t civ, uint8_t type) {

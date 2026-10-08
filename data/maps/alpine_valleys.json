@@ -3,6 +3,7 @@
   "name": "Alpine Valleys (2)",
   "desc": "The high peaks and valleys of the Alps.\n\nEach player starts the match nestled in a safe green valley. Between lies the treacherous Alps mountain range.",
   "biome": "alpine",
+  "nomad": false,
   "world_size": 256.0,
   "water_height": -0.3,
   "heightmap_res": 64,
@@ -12498,30 +12499,6 @@
       "z": 6.28
     },
     {
-      "type": "barracks",
-      "player": 1,
-      "x": -67.37,
-      "z": -22.8
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -66.24,
-      "z": -24.51
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 79.25,
-      "z": 11.11
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 80.35,
-      "z": 10.12
-    },
-    {
       "type": "tower",
       "player": 1,
       "x": -94.86,
@@ -12836,6 +12813,18 @@
       "z": -31.47
     },
     {
+      "type": "archer",
+      "player": 1,
+      "x": -67.37,
+      "z": -22.8
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -66.24,
+      "z": -24.51
+    },
+    {
       "type": "cavalry",
       "player": 1,
       "x": -76.81,
@@ -12870,6 +12859,18 @@
       "player": 2,
       "x": 80.01,
       "z": 1.84
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 79.25,
+      "z": 11.11
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 80.35,
+      "z": 10.12
     },
     {
       "type": "villager",
