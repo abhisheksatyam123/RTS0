@@ -131,6 +131,10 @@ enum class NetCommandType : uint8_t {
 	// param = reserved (0). Queued, never applied directly: see
 	// TurnManager::request_fleet_upkeep / TurnManager::maintain_fleet_upkeep.
 	NET_CMD_MAINTAIN_FLEET = 24,
+	// Train one civ roster unit by template (a hero, champion or mercenary that
+	// the class-based NET_CMD_TRAIN can't name). target_id = building,
+	// target_x = civ_unit_template_table() row (exact in a float), param = 0.
+	NET_CMD_TRAIN_TEMPLATE = 25,
 };
 
 struct NetCommand {
