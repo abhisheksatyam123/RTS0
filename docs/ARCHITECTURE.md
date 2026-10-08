@@ -1,66 +1,53 @@
 # RTS0 Architecture
 
-Deterministic RTS core + Godot 4.3 presentation built with pure C++20 GDExtension and data-oriented Structure-of-Arrays (SoA) simulation.
+Deterministic RTS core + Godot 4.3 presentation built with pure C++20 GDExtension and data-oriented Structure-of-Arrays (SoA) simulation. This doc owns the code layout and the invariants new code must keep; status and todo live elsewhere (see [docs/README.md](README.md)).
 
 ## Layout
 
 ```
 src/
   register_types.h / .cpp       GDExtension module entry point & class registration
-  simulation/
-    simulation.h / .cpp         Deterministic SoA simulation (units, combat, gathering, formations, FoW)
-    sim_types.h                 Sim types, enums (Civs, Biomes, Units, Buildings), stats tables
-  presentation/
-    main_node.h / .cpp          UI menus, HUD, game orchestration, command dispatch, audio
-    world_view_node.h / .cpp    MultiMesh 3D rendering (units, buildings, resources, health bars)
-    camera_rig.h / .cpp         RTS camera rig (pan, zoom, rotate, terrain raycast)
-    minimap_view.h / .cpp       Interactive 2D minimap with FoW shroud & frustum overlay
-    debug_overlay.h / .cpp      In-game performance metrics and unit/fps counters
-    selection_rect.h / .cpp     2D box selection marquee
-    sim_node.h / .cpp           Node wrapping deterministic simulation ticks
-  animation/
-    animation_controller.h/.cpp Skeletal / clip animation manager
-    psa_loader.h / .cpp         0 A.D. PSA animation format loader
-    skeleton.h / .cpp           Skeleton bone hierarchy & transforms
-  graphics/assets/
-    model_library.h / .cpp      Mesh library & GLB/procedural asset caching
-    assets.h / .cpp             Texture and resource loading utilities
-    procedural.h / .cpp         Procedural unit/building geometry generators
+  simulation/                   Deterministic sim; never touches Godot nodes
+    simulation.h / .cpp         SoA simulation: units, combat, gathering, formations, FoW, territory, ticks
+    sim_types.h                 Enums (civs, biomes, units, buildings) and stats tables
+    grid_nav.h                  NavGrid: passability classes, hierarchical regions, territory blur
+    nav/long_pathfinder.h       JPS long-range pathfinder (port of 0 A.D. LongPathfinder)
+    nav/geometry.h              Shape/geometry helpers (port of 0 A.D. Geometry)
+    aura_manager.h              Aura stacking (0 A.D. Auras.js)
+    petra_ai.h                  Petra AI managers (0 A.D. ai/petra)
+    rms_generator.h / .cpp      Random map generation
   network/
-    turn_manager.h / .cpp       Deterministic lockstep turn manager & replay recording
-    net_host.h / .cpp           ENet networking host wrapper
-    net_types.h                 Network packet and peer structures
+    turn_manager.h / .cpp       Lockstep turns, sim hash, replay record/load
+    net_host.h / .cpp           Host/peer transport and NMT_* handshake
+    net_types.h                 Wire enums and packet structs (append-only)
+    lobby_client.h              HTTP lobby client (server: tools/lobby_server.py)
+  presentation/
+    main_node.h / .cpp          RtsoMain: scene lifecycle, input, order routing, HUD coordinator
+    top_panel.h, production_queue.h, chat_window.h, diplomacy_dialog.h
+                                HUD widgets extracted from main_node (PLAN.md P4)
+    world_view_node.h / .cpp    MultiMesh rendering of units, buildings, resources, health bars
+    camera_rig.h / .cpp         RTS camera (pan, zoom, rotate, terrain raycast)
+    minimap_view.h / .cpp       Minimap with FoW shroud & frustum overlay
+    asset_viewer.h / .cpp       In-game asset viewer
+    debug_overlay, selection_rect, safe_select, popup_safe, sim_node
+  animation/                    PSA loader, skeletons, clip controller
+  graphics/assets/              Model library (GLB + procedural fallback), texture loading
   core/
-    job_system.h / .cpp         Multi-threaded worker pool
-    memory/soa_storage.h        Structure-of-Arrays columnar unit storage
-    memory/arena.h              Frame and tick linear arena allocators
-    memory/pool.h               Fixed-size object pools
-    diagnostics/logger.h/.cpp   Diagnostics file/console logger
-    diagnostics/perf_tracker.*  Performance profiler and tick timers
-  0ad/                          Vendored 0 A.D. C++ reference code
-shaders/
-  unit_thronefall.gdshader      Flat ramp + outline
-  foliage_wind.gdshader         Tree sway (VERTEX wind)
-  terrain.gdshader              3-way splat + territory tint + LOS fog
-  water.gdshader                Water surface shading
-
-scenes/
-  main.tscn                     Root scene
-  env.tres                      Environment configuration
+    job_system.h / .cpp         Worker pool
+    math/fixed.h                16.16 fixed point (port of 0 A.D. Fixed/Sqrt; not used by the sim yet)
+    memory/                     SoA storage, arenas, pools
+    diagnostics/                Logger, perf tracker
+  0ad/                          Vendored 0 A.D. C++ — reference only, not built (see docs/MIGRATION.md)
+shaders/                        terrain, water, foliage_wind, unit_thronefall, compute/
+scenes/                         main.tscn, env.tres, menu/, session/, test scenes
+tools/                          build, asset extraction, parity checks, playtest harnesses, tests
 ```
 
-## Performance & Invariants
+## Invariants
 
-- **Structure-of-Arrays (SoA)**: Entity attributes (positions, velocities, HP, targets, states) are contiguous arrays in memory (`SoAStorage` & `Arena`), maximizing CPU L1/L2 cache hit rates.
-- **Pure C++ GDExtension**: No C# / Mono runtime overhead.
-- **Separation of Sim and Presentation**: Simulation logic never references Godot nodes.
-- **Rendering**: MultiMesh instances render thousands of units in a handful of draw calls.
-
-### Fidelity & Vendor Boundary (2026-10-06)
-
-- **Vendor Boundary (`src/0ad/` excluded):** As validated by `SConstruct`, the original 0 A.D. vendor sources are excluded from the GDExtension build (`src/0ad` is reference only).
-- **Parity & Manifest:** Parity reached 92% across all engine and simulation features. Manifest counts 741 assets.
-- **UI Architecture:** UI parity is 11/11 for leaf widgets. The presentation layer delegates cleanly via host hooks.
-- **Network & OOS:** 5-min 2-client Out-Of-Sync (OOS) count is 0.
-- **Determinism:** The game simulation relies on a seeded RNG (`SimRng`, h:23) for predictable lockstep execution.
-- **Wire Compatibility Rules:** To preserve network protocol stability, enums are append-only. Start gate synchronization is strictly observed.
+- **Sim / presentation split:** `src/simulation/` never references Godot nodes, so it can run headless and in lockstep. Presentation reads sim state and never mutates it directly.
+- **Every player action is a command** routed through `TurnManager`, so lockstep, replay and OOS hashing see it. Rules for this are in [MULTIPLAYER.md](MULTIPLAYER.md).
+- **Determinism:** the sim uses the seeded `SimRng` (`simulation.h`), never `rand()` or wall-clock time.
+- **Wire compatibility:** enums in `net_types.h` are append-only, and the game-start gate must be respected.
+- **Vendor boundary:** `SConstruct` skips `src/0ad/`. Ported code lives under `src/` and cites the 0 A.D. `file:line` it follows.
+- **SoA + MultiMesh:** entity data stays in contiguous SoA columns; units render as MultiMesh instances in a handful of draw calls. Hot-path rules are in [PERFORMANCE.md](PERFORMANCE.md).

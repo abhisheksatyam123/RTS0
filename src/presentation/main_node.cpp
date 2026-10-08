@@ -3449,7 +3449,7 @@ void RtsoMain::apply_net_game_start() {
 	rtso::GameSetupParams setup;
 	if (!turn_mgr_.take_pending_game_start_full(setup)) return;
 	apply_game_setup(setup);
-	turn_mgr_.reset();
+	turn_mgr_.reset_keep_inbound(); // host batches can arrive in the same poll as GAME_START
 	turn_mgr_.set_net_host(&net_host_, net_host_.isHost() ? 0 : 1);
 	turn_mgr_.set_game_start_applied_sim(sim);
 	turn_mgr_.note_game_start_applied(sim);

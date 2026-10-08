@@ -51,6 +51,10 @@ public:
 	void poll(Arena &arena);
 	void stop();
 
+	// Test hook: drop this fraction of outgoing datagrams (0 = off). Used by
+	// tools/test_netcode.cpp --net-peer to prove reliable delivery survives loss.
+	void set_simulated_loss(float fraction, uint32_t seed = 1) { sim_loss_ = fraction; sim_loss_rng_ = seed ? seed : 1; }
+
 	// Packet transmission
 	void sendCommand(uint32_t peer_id, const uint8_t *data, size_t size);
 	void sendCommand(uint32_t peer_id, const std::vector<uint8_t> &data);
@@ -151,6 +155,8 @@ private:
 	NetRole role = NetRole::None;
 	int64_t socket_fd_ = -1;
 	uint32_t local_peer_id_ = 0;
+	float sim_loss_ = 0.0f;
+	uint32_t sim_loss_rng_ = 1;
 	uint32_t next_peer_id_ = 1;
 	uint32_t next_seq_ = 1;
 	uint64_t last_heartbeat_ms_ = 0;

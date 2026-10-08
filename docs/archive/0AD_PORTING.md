@@ -1,3 +1,5 @@
+> **Archived 2026-10-08.** Historical record only; do not plan work from it. See [docs/README.md](../README.md) for the live docs.
+
 # 0 A.D. Porting Map
 
 > **2026-08-29 Audit** PORTING_TODO all [x] are MVP stubs. See docs/REMAINING_GAPS.md for true parity. Native SoA in src/simulation/simulation.cpp:4194 collapses 31 CCmp + 84 JS into single class; src/0ad/ vendor is reference only (SConstruct:28).
