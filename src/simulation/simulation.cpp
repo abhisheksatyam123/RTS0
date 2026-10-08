@@ -259,7 +259,7 @@ void Simulation::reset() {
 	transport_passengers_.clear();
 
 	// G3 Market dynamic pricing reset
-	for (int i = 0; i < 4; ++i) { market_buy_price_[i] = 1.0f; market_sell_price_[i] = 1.0f; market_trade_history_[i] = 0; }
+	for (int i = 0; i < 4; ++i) { barter_price_diff_[i] = 0.0f; market_trade_history_[i] = 0; }
 	trader_routes_.clear();
 	trader_leg_.clear();
 
@@ -706,6 +706,8 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	else if (std::strcmp(minfo.biome, "savanna") == 0) cfg.biome = BIOME_SAVANNA;
 	else if (std::strcmp(minfo.biome, "polar") == 0) cfg.biome = BIOME_POLAR;
 	else if (std::strcmp(minfo.biome, "india") == 0) cfg.biome = BIOME_INDIA;
+	else if (std::strcmp(minfo.biome, "desert") == 0 || std::strcmp(minfo.biome, "persia") == 0) cfg.biome = BIOME_OASIS;
+	else if (std::strcmp(minfo.biome, "volcanic") == 0) cfg.biome = BIOME_STEPPE;
 	else cfg.biome = BIOME_AEGEAN;
 
 	set_sim_seed(seed);
@@ -1093,15 +1095,36 @@ bool Simulation::cmd_cancel_train(uint8_t player_id, uint32_t building_id, size_
 	return true;
 }
 
-bool Simulation::send_tribute(uint8_t player_id, uint8_t res_type, int amount) {
-	// 0 A.D. Player.js TributeResource: player 0 pays any other player from its own stock.
-	if (amount <= 0 || player_id == 0 || player_id >= MAX_PLAYERS || res_type >= RES_COUNT) return false;
-	float &src = players_[0].res[res_type];
-	if (src < (float)amount) return false;
-	src -= (float)amount;
-	players_[player_id].res[res_type] += (float)amount;
-	note_tribute(0, player_id, res_type, amount);
+bool Simulation::cmd_tribute(uint8_t from, uint8_t to, const int amounts[RES_COUNT]) {
+	// 0 A.D. Player.js TributeResource: both players must still be in the
+	// match, amounts are non-negative integers, and the payment is all or
+	// nothing (SubtractResourcesOrNotify).
+	if (!amounts || from >= MAX_PLAYERS || to >= MAX_PLAYERS || from == to) return false;
+	if (!player_in_match(from) || !player_in_match(to)) return false;
+	int total = 0;
+	for (int r = 0; r < RES_COUNT; ++r) {
+		if (amounts[r] < 0) return false;
+		if ((float)amounts[r] > players_[from].res[r]) return false;
+		total += amounts[r];
+	}
+	if (total == 0) return false;
+	for (int r = 0; r < RES_COUNT; ++r) {
+		players_[from].res[r] -= (float)amounts[r];
+		players_[to].res[r] += (float)amounts[r];
+		note_tribute(from, to, (uint8_t)r, amounts[r]); // Petra's TributeExchanged event
+	}
 	return true;
+}
+
+bool Simulation::cmd_tribute(uint8_t from, uint8_t to, uint8_t res_type, int amount) {
+	if (res_type >= RES_COUNT || amount <= 0) return false;
+	int amounts[RES_COUNT] = {};
+	amounts[res_type] = amount;
+	return cmd_tribute(from, to, amounts);
+}
+
+bool Simulation::send_tribute(uint8_t player_id, uint8_t res_type, int amount) {
+	return cmd_tribute(0, player_id, res_type, amount);
 }
 
 void Simulation::receive_petra_diplomacy_request(uint8_t player_id, bool ally, int wanted, uint8_t resource) {
@@ -1115,13 +1138,7 @@ void Simulation::receive_petra_diplomacy_request(uint8_t player_id, bool ally, i
 }
 
 bool Simulation::ai_send_tribute(uint8_t res_type, int amount) {
-	if (amount <= 0 || res_type >= RES_COUNT) return false;
-	float &src = petra_ps().res[res_type];
-	if (src < (float)amount) return false;
-	src -= (float)amount;
-	players_[0].res[res_type] += (float)amount;
-	note_tribute(petra_pid_, 0, res_type, amount);
-	return true;
+	return cmd_tribute(petra_pid_, 0, res_type, amount);
 }
 
 void Simulation::cmd_set_rally_point(uint8_t player_id, uint32_t building_id, float rx, float rz, uint32_t res_id, uint32_t bld_id) {
@@ -1436,42 +1453,47 @@ int32_t Simulation::carry_cap(size_t i, uint8_t res) const {
 	return units_.carry_capacity[i] + tech_mods_[team].carry[t][res];
 }
 
+// 0 A.D. Barter.js constants.
+static constexpr int BARTER_DEAL_AMOUNT = 100;
+static constexpr int BARTER_BATCH_SIZE = 5;
+static constexpr float BARTER_CONSTANT_DIFFERENCE = 10.0f;
+static constexpr float BARTER_DIFFERENCE_PER_DEAL = 2.0f;
+static constexpr float BARTER_DIFFERENCE_RESTORE = 0.5f;
+static constexpr float BARTER_RESTORE_INTERVAL = 5.0f; // RESTORE_TIMER_INTERVAL, 5000 ms
+// The overall difference (dynamic + constant) stays within +-99% of the true price.
+static constexpr float BARTER_MAX_DIFFERENCE = BARTER_DEAL_AMOUNT * 0.99f - BARTER_CONSTANT_DIFFERENCE;
+
+bool Simulation::can_barter(uint8_t player_id) const {
+	// Player.js CanBarter: the player owns an entity with the Barter class (the Market).
+	if (player_id >= MAX_PLAYERS) return false;
+	for (const auto &b : buildings_)
+		if (b.team == player_id && b.type == BLD_MARKET && b.build_progress >= 1.0f && b.hp > 0.0f) return true;
+	return false;
+}
+
+int Simulation::barter_quote(ResourceType sell, ResourceType buy, int amount) const {
+	// Barter.js ExchangeResources: round(sell price / buy price * amount), with
+	// every resource's true price 100 and the player BarterMultiplier 1.0.
+	if (sell == buy || sell >= RES_COUNT || buy >= RES_COUNT) return 0;
+	if (amount != BARTER_DEAL_AMOUNT && amount != BARTER_BATCH_SIZE * BARTER_DEAL_AMOUNT) return 0;
+	return (int)std::lround(market_sell_price(sell) / market_buy_price(buy) * (float)amount);
+}
+
 bool Simulation::cmd_barter(uint8_t player_id, ResourceType sell, ResourceType buy, int amount) {
-	if (sell == buy || amount <= 0 || player_id >= MAX_PLAYERS) return false;
-	if (sell >= RES_COUNT || buy >= RES_COUNT) return false;
+	if (player_id >= MAX_PLAYERS) return false;
+	const int received = barter_quote(sell, buy, amount);
+	if (received <= 0 || !can_barter(player_id)) return false;
 	PlayerState &ps = players_[player_id];
-	float *src = &ps.res[sell];
-	float *dst = &ps.res[buy];
-	if (*src < (float)amount) return false;
+	if (ps.res[sell] < (float)amount) return false;
+	ps.res[sell] -= (float)amount;
+	ps.res[buy] += (float)received;
 
-	// 0 A.D. Market.js:42 & Barter.js:26 (CONSTANT_DIFFERENCE = 10, DEAL_AMOUNT = 100):
-	// Exchange rate sell/buy = (100 - 10) / (100 + 10) = 90 / 110 ~= 0.8182 (18.18% barter fee).
-	// Barter fee matches Market.js exchangeRate range (15% - 25%):
-	// Every civ pays the same ~18.2% fee; 0 A.D. has no civ-specific barter rate.
-	const float baseSpread = 0.8182f;
-	float priceRatio = market_sell_price_[sell] / std::max(0.01f, market_buy_price_[buy]);
-	int received = int(amount * baseSpread * priceRatio);
-	received = std::clamp(received, 1, amount * 3);
-
-	*src -= amount;
-	*dst += received;
-
-	// 0 A.D. Market.js:42 / Barter.js:31 (DIFFERENCE_PER_DEAL = 2% per 100 units):
-	// Pow-based price fluctuation: price = base * pow(1.02f, deals) for demand, pow(0.98f, deals) for supply.
-	// Clamped to [0.2f, 5.0f] range across per-resource buy and sell arrays.
-	// When buying resource buy: market_buy_price_[buy] *= 1.02f, market_sell_price_[buy] *= 1.02f
-	// When selling resource sell: market_buy_price_[sell] *= 0.98f, market_sell_price_[sell] *= 0.98f
-	const float deals = (float)amount / 100.0f;
-	const float buy_factor = std::pow(1.02f, deals);
-	const float sell_factor = std::pow(0.98f, deals);
-	market_buy_price_[buy] = std::clamp(market_buy_price_[buy] * buy_factor, 0.2f, 5.0f);
-	market_sell_price_[buy] = std::clamp(market_sell_price_[buy] * buy_factor, 0.2f, 5.0f);
-	market_buy_price_[sell] = std::clamp(market_buy_price_[sell] * sell_factor, 0.2f, 5.0f);
-	market_sell_price_[sell] = std::clamp(market_sell_price_[sell] * sell_factor, 0.2f, 5.0f);
-
+	// Each deal of 100 moves the sold resource's price down and the bought one's up by 2%.
+	const float difference = BARTER_DIFFERENCE_PER_DEAL * (float)amount / (float)BARTER_DEAL_AMOUNT;
+	barter_price_diff_[sell] = std::clamp(barter_price_diff_[sell] - difference, -BARTER_MAX_DIFFERENCE, BARTER_MAX_DIFFERENCE);
+	barter_price_diff_[buy] = std::clamp(barter_price_diff_[buy] + difference, -BARTER_MAX_DIFFERENCE, BARTER_MAX_DIFFERENCE);
 	market_trade_history_[sell]++;
 	market_trade_history_[buy]++;
-
 	return true;
 }
 
@@ -1485,27 +1507,89 @@ bool Simulation::cmd_set_diplomacy(uint8_t player_id, uint8_t target, uint8_t st
 	return true;
 }
 
-int Simulation::calculate_trader_gain(const Building& mA, const Building& mB, uint8_t team) const {
-	// 0 A.D. Market.js:68 (CalculateTraderGain) & Trader.js:33 (CalculateGain) & globalscripts/Trade.js:12:
-	// Calculate Euclidean distance between markets: distance = hypot(mA.x - mB.x, mA.z - mB.z).
-	// Gains formula: gains = floor(distance / CELL * 0.5f + base) * civ_mult
-	// where CELL = 2.0f (NavGrid cell resolution / 2.0m), base = 0.0f (base route offset),
-	// and civ_mult applies civilization bonuses: Persian 1.25x, Carthaginian 1.10x.
-	// Reference baseline: (distance / 20.0f) * 30.0f
-	const float distance = std::hypot(mA.x - mB.x, mA.z - mB.z);
-	const float CELL = 2.0f;
-	const float base = 0.0f;
-	Civilization civ = civ_of(team);
-	const float civ_mult = civ_info(civ).trade_gain_mult;
-	// Handicraft / Advanced Handicraft (Trader/GainMultiplier).
-	const float tech_mult = tech_mods(team).trade_gain[UNIT_TRADER] * ai_gather_mult(team);
-	int gains = static_cast<int>(std::floor((distance / CELL * 0.5f + base)) * civ_mult * tech_mult);
-	return std::max(0, gains);
+// globalscripts/Trade.js. Distances and the map size are in metres; one RTS0
+// world unit is one 0 A.D. terrain tile, 4 m.
+static constexpr double TRADE_TILE_METRES = 4.0;
+static double trade_gain_curve(double distance_sq, double map_size) {
+	return distance_sq / (1.0 + 0.25 * std::sqrt(distance_sq) / map_size);
+}
+static double trade_gain_normalization(double map_size) {
+	// 1 resource for a 100 m route on a 1024 m map, before the trader's GainMultiplier.
+	return std::sqrt(1024.0 / map_size) / trade_gain_curve(10000.0, map_size);
+}
+// template_unit_support_trader.xml Trader/GainMultiplier.
+static constexpr double TRADER_GAIN_MULTIPLIER = 0.75;
+// template_structure_economic_market.xml Market/InternationalBonus.
+static constexpr double MARKET_INTERNATIONAL_BONUS = 0.2;
+
+Simulation::TradeGain Simulation::calculate_trade_gain(const Building &from, const Building &to, uint8_t trader_owner) const {
+	// 0 A.D. Market.js CalculateTraderGain: the trader's owner gets
+	// round(norm * GainMultiplier * TradeGain(d^2, mapSize)), which grows with
+	// the square of the distance. When the two markets have different owners,
+	// each owner also gets that gain times its market's InternationalBonus.
+	TradeGain g;
+	const double map_size = std::max(1.0, 2.0 * (double)map_half_ * TRADE_TILE_METRES);
+	const double dx = ((double)from.x - (double)to.x) * TRADE_TILE_METRES;
+	const double dz = ((double)from.z - (double)to.z) * TRADE_TILE_METRES;
+	// Trader/GainMultiplier with the civ bonus (Persian Darics +25%), the
+	// Handicraft / Advanced Handicraft techs and an AI player's difficulty applied.
+	const double mult = TRADER_GAIN_MULTIPLIER * (double)civ_info(civ_of(trader_owner)).trade_gain_mult *
+	                    (double)tech_mods(trader_owner).trade_gain[UNIT_TRADER] * (double)ai_gather_mult(trader_owner);
+	g.trader = (int)std::lround(trade_gain_normalization(map_size) * mult * trade_gain_curve(dx * dx + dz * dz, map_size));
+	if (from.team != to.team) {
+		// Han "Silk Road": allies' markets get +20% international bonus.
+		auto bonus = [&](uint8_t owner) {
+			return MARKET_INTERNATIONAL_BONUS * (double)team_bonus_mult(owner, TEAM_BONUS_TRADE_INTERNATIONAL);
+		};
+		g.market1 = (int)std::lround(g.trader * bonus(from.team));
+		g.market2 = (int)std::lround(g.trader * bonus(to.team));
+	}
+	return g;
 }
 
 float Simulation::trader_gains(const Building *a, const Building *b) const {
 	if (!a || !b) return 0.0f;
 	return (float)calculate_trader_gain(*a, *b, a->team);
+}
+
+bool Simulation::can_trade_at(uint8_t trader_owner, const Building &b) const {
+	// Trader.js CanTrade: a finished land market (the Market class) whose owner
+	// the trader's owner is not at war with. Docks are for merchant ships.
+	return b.type == BLD_MARKET && b.build_progress >= 1.0f && b.hp > 0.0f &&
+	       b.team < MAX_PLAYERS && trader_owner < MAX_PLAYERS && !is_hostile(trader_owner, b.team);
+}
+
+bool Simulation::has_trade_route(uint8_t player_id) const {
+	int n = 0;
+	for (const auto &b : buildings_)
+		if (can_trade_at(player_id, b) && ++n >= 2) return true;
+	return false;
+}
+
+uint8_t Simulation::next_trading_goods() {
+	// Player.js GetNextTradingGoods with the default tradingGoods split
+	// (food, wood, stone, metal at 25% each): a random draw per load.
+	const uint32_t r = sim_rng_.next_u32() % 100u;
+	if (r < 25) return RES_FOOD;
+	if (r < 50) return RES_WOOD;
+	if (r < 75) return RES_STONE;
+	return RES_GOLD;
+}
+
+void Simulation::credit_trade(uint8_t player_id, uint8_t res, int amount) {
+	if (player_id >= MAX_PLAYERS || res >= RES_COUNT || amount <= 0) return;
+	PlayerState &ps = players_[player_id];
+	// Same accounting as a gather drop-off (tick_gather): player 0 feeds the match record.
+	if (player_id == 0) {
+		ps.res[res] += (float)amount;
+		if (res == RES_WOOD) record_.total_wood_gathered += amount;
+		else if (res == RES_GOLD) record_.total_gold_gathered += amount;
+		else if (res == RES_STONE) record_.total_stone_gathered += amount;
+		else record_.total_food_gathered += amount;
+	} else {
+		ps.res[res] = std::min(9999.0f, ps.res[res] + (float)amount);
+	}
+	ps.gathered_window[res] += (float)amount;
 }
 
 void Simulation::order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id) {
@@ -1515,17 +1599,18 @@ void Simulation::order_trade(const uint32_t *unit_ids, size_t count, uint32_t ma
 	if (itA == building_id_to_idx_.end() || itB == building_id_to_idx_.end()) return;
 	const Building &bA = buildings_[itA->second];
 	const Building &bB = buildings_[itB->second];
-	if (bA.build_progress < 1.0f || bB.build_progress < 1.0f) return;
 	for (size_t k = 0; k < count; ++k) {
 		int32_t uidx = lookup_unit(unit_ids[k]);
 		if (uidx < 0 || !units_.alive[uidx] || units_.unit_type[uidx] != UNIT_TRADER) continue;
+		const uint8_t owner = units_.team[uidx];
+		if (!can_trade_at(owner, bA) || !can_trade_at(owner, bB)) continue;
 		uint32_t uid = units_.id[uidx];
 		trader_routes_[uid] = {market_a_id, market_b_id};
 		trader_leg_[uid] = 0;
 		units_.action_state[uidx] = ACTION_TRADE;
 		units_.has_order[uidx] = 1;
+		// Empty until it loads goods at the first market (Trader.js: no gain on the first arrival).
 		units_.carry[uidx] = 0;
-		// Head to first market
 		units_.target_x[uidx] = bA.x;
 		units_.target_z[uidx] = bA.z;
 		units_.anchor_x[uidx] = bA.x;
@@ -1535,57 +1620,33 @@ void Simulation::order_trade(const uint32_t *unit_ids, size_t count, uint32_t ma
 
 void Simulation::order_trade_auto(const uint32_t *unit_ids, size_t count) {
 	if (count == 0) return;
+	std::vector<const Building *> markets;
 	for (size_t k = 0; k < count; ++k) {
 		int32_t uidx = lookup_unit(unit_ids[k]);
 		if (uidx < 0 || !units_.alive[uidx] || units_.unit_type[uidx] != UNIT_TRADER) continue;
-		uint8_t team = units_.team[uidx];
-		// Find two best markets / TCs for this team: prefer Market+Market, else Market+TC
-		uint32_t bestA = 0, bestB = 0;
-		float bestDist = -1.0f;
-		// Collect candidates: Markets and TownCenters of same team with build_progress >=1
-		std::vector<const Building*> cands;
-		for (const auto &b : buildings_) {
-			if (b.team != team || b.build_progress < 1.0f) continue;
-			if (b.type == BLD_MARKET || b.type == BLD_TOWN_CENTER) cands.push_back(&b);
-		}
-		if (cands.size() >= 2) {
-			for (size_t i = 0; i < cands.size(); ++i) {
-				for (size_t j = i + 1; j < cands.size(); ++j) {
-					float d = std::hypot(cands[i]->x - cands[j]->x, cands[i]->z - cands[j]->z);
-					if (d > bestDist) { bestDist = d; bestA = cands[i]->id; bestB = cands[j]->id; }
-				}
+		const uint8_t owner = units_.team[uidx];
+		// The gain grows with distance, so the best route is the farthest pair of
+		// markets the owner can trade at, own or not. Starting at the nearer end
+		// of that pair saves the empty first walk.
+		markets.clear();
+		for (const auto &b : buildings_)
+			if (can_trade_at(owner, b)) markets.push_back(&b);
+		const Building *best_a = nullptr, *best_b = nullptr;
+		float best_d2 = -1.0f;
+		for (size_t i = 0; i < markets.size(); ++i) {
+			for (size_t j = i + 1; j < markets.size(); ++j) {
+				const Building &bi = *markets[i], &bj = *markets[j];
+				const float d2 = (bi.x - bj.x) * (bi.x - bj.x) + (bi.z - bj.z) * (bi.z - bj.z);
+				if (d2 > best_d2) { best_d2 = d2; best_a = &bi; best_b = &bj; }
 			}
-		} else if (cands.size() == 1) {
-			// Single market/tc: pair with opposite map edge fallback (simulate distant partner)
-			bestA = cands[0]->id;
-			// create virtual second point mirror
-			bestB = 0;
 		}
-		if (bestA != 0 && bestB != 0) {
-			order_trade(&units_.id[uidx], 1, bestA, bestB);
-		} else if (bestA != 0) {
-			// Single dropsite: ping-pong between it and a distant point using map_half
-			auto it = building_id_to_idx_.find(bestA);
-			if (it != building_id_to_idx_.end()) {
-				const Building &b = buildings_[it->second];
-				trader_routes_[units_.id[uidx]] = {bestA, 0}; // 0 sentinel = fallback
-				trader_leg_[units_.id[uidx]] = 0;
-				units_.action_state[uidx] = ACTION_TRADE;
-				units_.has_order[uidx] = 1;
-				units_.target_x[uidx] = b.x;
-				units_.target_z[uidx] = b.z;
-			}
-		} else {
-			// No markets: keep idle fallback trader behaviour (will use map_half distance for gain)
-			trader_routes_[units_.id[uidx]] = {0,0};
-			trader_leg_[units_.id[uidx]] = 0;
-			units_.action_state[uidx] = ACTION_TRADE;
-			units_.has_order[uidx] = 1;
-			// Distant ping-pong across map_half
-			float half = map_half_;
-			if (units_.pos_x[uidx] > 0) { units_.target_x[uidx] = -half * 0.6f; units_.target_z[uidx] = -half * 0.6f; }
-			else { units_.target_x[uidx] = half * 0.6f; units_.target_z[uidx] = half * 0.6f; }
-		}
+		if (!best_a) continue; // no route: the trader waits until two markets exist
+		const float px = units_.pos_x[uidx], pz = units_.pos_z[uidx];
+		const float da = (best_a->x - px) * (best_a->x - px) + (best_a->z - pz) * (best_a->z - pz);
+		const float db = (best_b->x - px) * (best_b->x - px) + (best_b->z - pz) * (best_b->z - pz);
+		if (db < da) std::swap(best_a, best_b);
+		uint32_t uid = units_.id[uidx];
+		order_trade(&uid, 1, best_a->id, best_b->id);
 	}
 }
 
@@ -2375,7 +2436,7 @@ void Simulation::tick(float dt) {
 	tick_gates(dt);          // 0 A.D. Gate.js:145-180: auto open / close when allied units in pass range
 
 	// 5. Commerce & Trade
-	tick_barter(dt);         // 0 A.D. Barter.js: periodic market price restore & drift
+	tick_barter(dt);         // 0 A.D. Barter.js: prices drift back after deals
 	tick_upkeep(dt);         // 0 A.D. Upkeep.js:51-60: periodic entity upkeep drain
 	tick_trickle(dt);        // Passive / trickle income
 
@@ -2424,113 +2485,68 @@ void Simulation::move_units(float dt, Arena &arena) {
 	memcpy(npx, px, n * sizeof(float));
 	memcpy(npz, pz, n * sizeof(float));
 
-	// G3 Trader dynamic route handling (sequential, before parallel movement)
+	// G3 Trader routes (0 A.D. Trader.js PerformTrade, UnitAI TRADE), run
+	// sequentially before the parallel movement pass.
 	for (size_t ti = 0; ti < n; ++ti) {
 		if (!alive[ti] || units_.unit_type[ti] != UNIT_TRADER) continue;
 		uint32_t uid = units_.id[ti];
-		// Auto-initialize traders that aren't yet in TRADE state but are idle/moving
-		if (units_.action_state[ti] != ACTION_TRADE) {
-			// If trader spawned from Market and is idle, auto-assign trade route
-			if (units_.action_state[ti] == ACTION_IDLE && !units_.has_order[ti]) {
-				// Lazily assign if not already routed
-				if (trader_routes_.find(uid) == trader_routes_.end()) {
-					order_trade_auto(&uid, 1);
-				}
-			}
+		const uint8_t owner = units_.team[ti];
+		auto rit = trader_routes_.find(uid);
+		if (units_.action_state[ti] != ACTION_TRADE || rit == trader_routes_.end()) {
+			// An idle trader looks for a route, at most every 20 ticks (2 s).
+			if (units_.action_state[ti] == ACTION_IDLE && !units_.has_order[ti] && (ticks_ + uid) % 20 == 0)
+				order_trade_auto(&uid, 1);
 			continue;
 		}
-		// Ensure trader has a route; if not, auto-find
-		auto rit = trader_routes_.find(uid);
-		if (rit == trader_routes_.end() || (rit->second.first == 0 && rit->second.second == 0)) {
-			order_trade_auto(&uid, 1);
-			rit = trader_routes_.find(uid);
-			if (rit == trader_routes_.end()) continue;
+		auto itA = building_id_to_idx_.find(rit->second.first);
+		auto itB = building_id_to_idx_.find(rit->second.second);
+		const Building *bA = (itA != building_id_to_idx_.end()) ? &buildings_[itA->second] : nullptr;
+		const Building *bB = (itB != building_id_to_idx_.end()) ? &buildings_[itB->second] : nullptr;
+		if (!bA || !bB || !can_trade_at(owner, *bA) || !can_trade_at(owner, *bB)) {
+			// Market.js UpdateTraders: a market destroyed, captured by an enemy or
+			// at war with the trader's owner ends the route and drops the goods.
+			trader_routes_.erase(rit);
+			trader_leg_.erase(uid);
+			units_.carry[ti] = 0;
+			units_.action_state[ti] = ACTION_IDLE;
+			units_.has_order[ti] = 0;
+			continue;
 		}
-		float dx = tx[ti] - px[ti];
-		float dz = tz[ti] - pz[ti];
-		if (dx * dx + dz * dz < 2.5f * 2.5f) {
-			uint32_t aId = rit->second.first;
-			uint32_t bId = rit->second.second;
-			int leg = 0;
-			auto lit = trader_leg_.find(uid);
-			if (lit != trader_leg_.end()) leg = lit->second;
-			int gain = 15; // fallback
-			bool hasBoth = false;
-			const Building *bA = nullptr, *bB = nullptr;
-			if (aId != 0 && bId != 0) {
-				auto itA = building_id_to_idx_.find(aId);
-				auto itB = building_id_to_idx_.find(bId);
-				if (itA != building_id_to_idx_.end() && itB != building_id_to_idx_.end()) {
-					bA = &buildings_[itA->second];
-					bB = &buildings_[itB->second];
-					if (bA->build_progress >= 1.0f && bB->build_progress >= 1.0f) {
-						gain = calculate_trader_gain(*bA, *bB, units_.team[ti]);
-						hasBoth = true;
-					}
-				}
-			}
-			if (!hasBoth) {
-				// Fallback gain based on map size or single market distance
-				// 0 A.D. Market.js:68 & Trader.js:33: gains = floor(distance / CELL * 0.5f + base) * civ_mult
-				float fallbackDist = map_half_ * 1.2f;
-				if (aId != 0) {
-					auto itA = building_id_to_idx_.find(aId);
-					if (itA != building_id_to_idx_.end()) {
-						fallbackDist = std::hypot(buildings_[itA->second].x, buildings_[itA->second].z) + map_half_;
-					}
-				}
-				const float CELL = 2.0f;
-				const float base = 0.0f;
-				Civilization civ = civ_of(units_.team[ti]);
-				float mult = civ_info(civ).trade_gain_mult;
-				gain = static_cast<int>(std::floor((fallbackDist / CELL * 0.5f + base)) * mult);
-				gain = std::clamp(gain, 10, 120);
-				// If single market route, use fallback ping-pong across map
-			}
-			// Award gold only when arriving at a market/TC (not every ping); but for fallback we still reward
-			PlayerState &tps = player(units_.team[ti]);
-			if (units_.team[ti] == 0) {
-				tps.gold() += (float)gain;
-				tps.gathered_window[RES_GOLD] += (float)gain;
-				record_.total_gold_gathered += gain;
-			} else {
-				tps.gold() = std::min(9999.0f, tps.gold() + (float)gain);
-			}
-
-			// Toggle carry to indicate loaded vs empty (visual)
-			units_.carry[ti] = (leg == 0) ? 10 : 0;
-
-			// Swap destination
-			int newLeg = 1 - leg;
-			trader_leg_[uid] = newLeg;
-			if (hasBoth && bA && bB) {
-				if (newLeg == 0) { tx[ti] = bA->x; tz[ti] = bA->z; }
-				else { tx[ti] = bB->x; tz[ti] = bB->z; }
-				units_.anchor_x[ti] = tx[ti];
-				units_.anchor_z[ti] = tz[ti];
-				units_.has_order[ti] = 1;
-			} else {
-				// Fallback: ping-pong across map_half
-				if (aId != 0) {
-					auto itA = building_id_to_idx_.find(aId);
-					if (itA != building_id_to_idx_.end()) {
-						const Building &bm = buildings_[itA->second];
-						if (newLeg == 0) { tx[ti] = bm.x; tz[ti] = bm.z; }
-						else { tx[ti] = -bm.x * 0.5f; tz[ti] = -bm.z * 0.5f; if (std::abs(tx[ti])<2 && std::abs(tz[ti])<2) { tx[ti]=map_half_*0.6f; tz[ti]=map_half_*0.6f; } }
-					} else {
-						// no building, simple alternating corners
-						if (newLeg == 0) { tx[ti] =  map_half_*0.6f; tz[ti]= map_half_*0.6f; }
-						else { tx[ti]= -map_half_*0.6f; tz[ti]= -map_half_*0.6f; }
-					}
-				} else {
-					if (newLeg == 0) { tx[ti] =  map_half_*0.6f; tz[ti]= map_half_*0.6f; }
-					else { tx[ti]= -map_half_*0.6f; tz[ti]= -map_half_*0.6f; }
-				}
-				units_.anchor_x[ti] = tx[ti];
-				units_.anchor_z[ti] = tz[ti];
-				units_.has_order[ti] = 1;
-			}
+		int leg = 0;
+		auto lit = trader_leg_.find(uid);
+		if (lit != trader_leg_.end()) leg = lit->second;
+		const Building &dest = leg == 0 ? *bA : *bB;
+		const Building &origin = leg == 0 ? *bB : *bA;
+		// Keep walking toward the destination market.
+		if (!has[ti] && units_.action_state[ti] == ACTION_TRADE) {
+			tx[ti] = dest.x; tz[ti] = dest.z; has[ti] = 1;
 		}
+		const float dx = dest.x - px[ti];
+		const float dz = dest.z - pz[ti];
+		const float edge_dx = std::max(0.0f, std::fabs(dx) - dest.half_size);
+		const float edge_dz = std::max(0.0f, std::fabs(dz) - dest.half_size);
+		if (dx * dx + dz * dz >= 2.5f * 2.5f && edge_dx * edge_dx + edge_dz * edge_dz >= 2.0f * 2.0f) continue;
+
+		// Arrived. Goods loaded at the other market pay out here (Trader.js
+		// GenerateResources): the trader's owner, and with markets of two
+		// different owners, each market's owner its international bonus.
+		if (units_.carry[ti] > 0) {
+			const uint8_t goods = units_.res_type_carried[ti];
+			const TradeGain g = calculate_trade_gain(origin, dest, owner);
+			credit_trade(owner, goods, g.trader);
+			credit_trade(origin.team, goods, g.market1);
+			credit_trade(dest.team, goods, g.market2);
+		}
+		// Load the next goods (Player.js GetNextTradingGoods) and head back.
+		units_.res_type_carried[ti] = next_trading_goods();
+		units_.carry[ti] = 10; // shows the caravan as loaded
+		const int new_leg = 1 - leg;
+		trader_leg_[uid] = new_leg;
+		const Building &next = new_leg == 0 ? *bA : *bB;
+		tx[ti] = next.x; tz[ti] = next.z;
+		units_.anchor_x[ti] = next.x;
+		units_.anchor_z[ti] = next.z;
+		has[ti] = 1;
 	}
 
 	// Building steering only ever tests standing buildings that block movement.
@@ -4494,34 +4510,17 @@ void Simulation::tick_status_effects(float dt) {
 }
 
 void Simulation::tick_barter(float dt) {
-	// 0 A.D. Barter.js:41-46 (RESTORE_TIMER_INTERVAL = 5000ms, DIFFERENCE_RESTORE = 0.5%),
-	// Barter.js:130-147 (ProgressTimeout), and Market.js:18-35
-	// Periodic market price restore towards equilibrium (1.0f) on a 5-second cadence and deterministic
-	// natural price drift across goods.
+	// 0 A.D. Barter.js ProgressTimeout: every 5 s each price difference moves
+	// back toward 0 by at most 0.5%. The timer runs only while a difference is
+	// left, so it starts with the first deal as in Barter.js.
+	bool any = false;
+	for (float d : barter_price_diff_) any |= d != 0.0f;
+	if (!any) { barter_timer_ = 0.0f; return; }
 	barter_timer_ += dt;
-	if (barter_timer_ < 5.0f) return;
-	barter_timer_ = 0.0f;
-
-	for (int r = 0; r < 4; ++r) {
-		// Restore buy prices towards 1.0f base equilibrium (DIFFERENCE_RESTORE = 0.5%)
-		if (market_buy_price_[r] > 1.0f) {
-			market_buy_price_[r] = std::max(1.0f, market_buy_price_[r] - 0.005f);
-		} else if (market_buy_price_[r] < 1.0f) {
-			market_buy_price_[r] = std::min(1.0f, market_buy_price_[r] + 0.005f);
-		}
-
-		// Restore sell prices towards 1.0f base equilibrium (DIFFERENCE_RESTORE = 0.5%)
-		if (market_sell_price_[r] > 1.0f) {
-			market_sell_price_[r] = std::max(1.0f, market_sell_price_[r] - 0.005f);
-		} else if (market_sell_price_[r] < 1.0f) {
-			market_sell_price_[r] = std::min(1.0f, market_sell_price_[r] + 0.005f);
-		}
-
-		// Deterministic schedule drift (fixed schedule cycle ~120s with +/-0.25% market fluctuation)
-		float drift = 0.0025f * std::sin((float)(ticks_ + (uint64_t)r * 150) * 0.001f);
-		market_buy_price_[r] = std::clamp(market_buy_price_[r] + drift, 0.2f, 5.0f);
-		market_sell_price_[r] = std::clamp(market_sell_price_[r] + drift, 0.2f, 5.0f);
-	}
+	if (barter_timer_ < BARTER_RESTORE_INTERVAL) return;
+	barter_timer_ -= BARTER_RESTORE_INTERVAL;
+	for (float &d : barter_price_diff_)
+		d -= std::clamp(d, -BARTER_DIFFERENCE_RESTORE, BARTER_DIFFERENCE_RESTORE);
 }
 
 uint8_t Simulation::side_of(uint8_t pid) const {
@@ -6139,7 +6138,8 @@ void Simulation::petra_manage_trading(float dt) {
 
 	int target_traders = petra_config_.target_num_traders;
 	if (petra_ps().phase >= 3) target_traders += 1;
-	if (ai_traders < target_traders && !market_ids.empty() && pop_current(petra_pid_) < pop_max(petra_pid_)) {
+	// Traders need two markets to trade between (own or allied); without a route they would idle.
+	if (ai_traders < target_traders && !market_ids.empty() && has_trade_route(petra_pid_) && pop_current(petra_pid_) < pop_max(petra_pid_)) {
 		const UnitTypeInfo &tinfo = civ_unit_info(civ_of(petra_pid_), UNIT_TRADER);
 		if (petra_try_pay(PETRA_QUEUE_TRADE, (float)tinfo.food_cost, (float)tinfo.wood_cost, 0.0f, 0.0f)) {
 			auto bit = building_id_to_idx_.find(market_ids[0]);
@@ -8277,27 +8277,45 @@ void Simulation::petra_manage_diplomacy(float dt) {
 	// lastManStandingCheck, re-run on its timer.
 	petra_last_man_standing_check();
 
-	// Tribute still only goes to player 0 (the human) until the general tribute
-	// command lands.
-	const bool allied_to_human = me != 0 && is_ally(me, 0);
-	if (allied_to_human && petra_config_.cooperative >= 0.35f) {
-		struct Gift { uint8_t res; float *stock; int player_have; };
-		Gift gifts[] = {
-			{ RES_FOOD,  &petra_ps().food(),  food() },
-			{ RES_WOOD,  &petra_ps().wood(),  wood() },
-			{ RES_GOLD,  &petra_ps().gold(),  gold() },
-			{ RES_STONE, &petra_ps().stone(), stone() }
-		};
-		for (auto &g : gifts) {
-			if (*g.stock > 700.0f && g.player_have < (int)(*g.stock * 0.25f)) {
-				int send = std::min(150, (int)(*g.stock * 0.20f));
-				if (send >= 50 && ai_send_tribute(g.res, send)) {
-					if (const auto *pbase = get_primary_petra_base())
-						petra_say(PETRA_CHAT_TRIBUTE, pbase->x, pbase->z, 0);
-					else
-						petra_say(PETRA_CHAT_TRIBUTE, 0.0f, 0.0f, 0);
-				}
-			}
+	// tributes(), every 30 s: help allies that are short of a resource we have
+	// plenty of. We give when we are the stronger one, or always under allied
+	// victory, and never a resource our own queues are short of.
+	if (dip.elapsed < dip.next_tribute) return;
+	dip.next_tribute = dip.elapsed + 30.0f;
+	float available[RES_COUNT];
+	for (uint8_t r = 0; r < RES_COUNT; ++r) available[r] = petra_ps().res[r];
+	for (const auto &acc : petra_queues_.accounts) {
+		available[RES_FOOD] -= acc.food;
+		available[RES_WOOD] -= acc.wood;
+		available[RES_GOLD] -= acc.gold;
+		available[RES_STONE] -= acc.stone;
+	}
+	// pickMostNeededResources: our two scarcest resources stay home.
+	uint8_t order[RES_COUNT] = { 0, 1, 2, 3 };
+	std::sort(order, order + RES_COUNT, [&](uint8_t x, uint8_t y) {
+		return available[x] != available[y] ? available[x] < available[y] : x < y;
+	});
+	const int own_entities = petra_player_entities(me);
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+		if (p == me || !is_ally(me, p) || !player_in_match(p)) continue;
+		const bool donor = !last_man_standing() || petra_player_entities(p) < own_entities;
+		if (!donor) continue;
+		int amounts[RES_COUNT] = {};
+		bool any = false;
+		for (uint8_t r = 0; r < RES_COUNT; ++r) {
+			if (r == order[0] || r == order[1]) continue;
+			const float ally = players_[p].res[r];
+			if (available[r] < 200.0f || ally > 0.2f * available[r]) continue;
+			amounts[r] = (int)std::floor(0.3f * available[r] - ally);
+			if (amounts[r] > 0) any = true;
+			else amounts[r] = 0;
+		}
+		if (any && cmd_tribute(me, p, amounts)) {
+			for (uint8_t r = 0; r < RES_COUNT; ++r) available[r] -= (float)amounts[r];
+			if (const auto *pbase = get_primary_petra_base())
+				petra_say(PETRA_CHAT_TRIBUTE, pbase->x, pbase->z, p);
+			else
+				petra_say(PETRA_CHAT_TRIBUTE, 0.0f, 0.0f, p);
 		}
 	}
 }
@@ -8526,6 +8544,14 @@ void Simulation::petra_swap_slot(uint8_t pid) {
 #undef RTSO_PETRA_SLOT_SWAP
 }
 
+bool Simulation::player_in_match(uint8_t pid) const {
+	if (pid >= MAX_PLAYERS || is_defeated(pid)) return false;
+	// No slot seated (tests, skirmish without game setup): every slot counts.
+	bool any_active = false;
+	for (const PlayerState &ps : players_) any_active |= ps.active != 0;
+	return !any_active || players_[pid].active;
+}
+
 bool Simulation::petra_runs_for(uint8_t pid) const {
 	if (pid >= MAX_PLAYERS) return false;
 	// No slot seated (tests, skirmish without game setup): legacy player 1 AI.
@@ -8619,7 +8645,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = 11; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and the burning flag
+	uint32_t version = 12; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 
@@ -8759,8 +8785,8 @@ bool Simulation::save_state(const char *filepath) const {
 	}
 
 	// 5. G3 Market prices & trader routes (version 2+)
-	out.write((const char *)market_buy_price_, sizeof(market_buy_price_));
-	out.write((const char *)market_sell_price_, sizeof(market_sell_price_));
+	out.write((const char *)barter_price_diff_, sizeof(barter_price_diff_));
+	out.write((const char *)&barter_timer_, sizeof(barter_timer_));
 	out.write((const char *)market_trade_history_, sizeof(market_trade_history_));
 	uint32_t num_routes = (uint32_t)trader_routes_.size();
 	out.write((const char *)&num_routes, sizeof(num_routes));
@@ -8791,7 +8817,7 @@ bool Simulation::load_state(const char *filepath) {
 	uint32_t magic = 0, version = 0;
 	in.read((char *)&magic, sizeof(magic));
 	in.read((char *)&version, sizeof(version));
-	if (magic != 0x52545330 || version < 1 || version > 11) return false;
+	if (magic != 0x52545330 || version < 1 || version > 12) return false;
 
 	// 1. Sim scalars
 	in.read((char *)&ticks_, sizeof(ticks_));
@@ -9015,6 +9041,7 @@ bool Simulation::load_state(const char *filepath) {
 			in.read((char *)bld.capture_points_by_team.data(), sizeof(bld.capture_points_by_team));
 		else
 			bld.capture_points_by_team.fill(0.0f);
+		bld.is_burning = false; // not saved before v11
 		if (version >= 11) {
 			in.read((char *)&bld.upgrade_to, sizeof(bld.upgrade_to));
 			in.read((char *)&bld.upgrade_timer, sizeof(bld.upgrade_timer));
@@ -9058,8 +9085,16 @@ bool Simulation::load_state(const char *filepath) {
 
 	// 5. G3 Market prices & trader routes (version 2+, fallback for v1)
 	if (version >= 2) {
-		in.read((char *)market_buy_price_, sizeof(market_buy_price_));
-		in.read((char *)market_sell_price_, sizeof(market_sell_price_));
+		if (version >= 12) {
+			in.read((char *)barter_price_diff_, sizeof(barter_price_diff_));
+			in.read((char *)&barter_timer_, sizeof(barter_timer_));
+		} else {
+			// v2-v11 kept invented multiplicative buy and sell prices; start 0 A.D. prices fresh.
+			float old_prices[2][4];
+			in.read((char *)old_prices, sizeof(old_prices));
+			for (float &d : barter_price_diff_) d = 0.0f;
+			barter_timer_ = 0.0f;
+		}
 		in.read((char *)market_trade_history_, sizeof(market_trade_history_));
 		uint32_t num_routes = 0;
 		in.read((char *)&num_routes, sizeof(num_routes));
@@ -9081,7 +9116,8 @@ bool Simulation::load_state(const char *filepath) {
 			trader_leg_[uid] = leg;
 		}
 	} else {
-		for (int i = 0; i < 4; ++i) { market_buy_price_[i] = 1.0f; market_sell_price_[i] = 1.0f; market_trade_history_[i] = 0; }
+		for (int i = 0; i < 4; ++i) { barter_price_diff_[i] = 0.0f; market_trade_history_[i] = 0; }
+		barter_timer_ = 0.0f;
 		trader_routes_.clear();
 		trader_leg_.clear();
 	}

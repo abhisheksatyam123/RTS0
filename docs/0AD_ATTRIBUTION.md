@@ -21,6 +21,7 @@ RTS0 builds on **0 A.D.** (https://play0ad.com) by Wildfire Games.
 | `src/simulation/petra_ai.h`, `simulation.*` | `simulation/ai/petra/*.js`, `simulation/components/UnitAI.js` and other components | Port / native rewrite of game logic |
 | `PetraConfig::gather_rate`/`build_time`, `ai_gather_mult`/`ai_time_mult` | `simulation/helpers/InitGame.js` ("AI Bonus" difficulty modifiers) | Port |
 | `src/simulation/rms_generator.*` | 0 A.D. random map scripts (`maps/random/`) | Modelled on them, one row per map in the table below |
+| `src/simulation/simulation.*` (`cmd_tribute`, `cmd_barter`, `tick_barter`, `calculate_trade_gain`, trader routes) | `simulation/components/Player.js` (TributeResource, GetNextTradingGoods), `Barter.js`, `Market.js` (CalculateTraderGain), `Trader.js`, `globalscripts/Trade.js`, `template_unit_support_trader.xml`, `template_structure_economic_market.xml` | Port (formulas and constants) |
 | `src/network/turn_manager.*`, `net_types.h` | `source/network/NetServerTurnManager.*`, `NetClientTurnManager.*`, `NetMessages.h` | Port |
 | `tools/extract_0ad_assets.py` | `source/graphics/ModelDef.cpp`, `ps/FileIo.cpp`, `shaders/glsl/model_common.fs` | Port of file-format readers |
 
@@ -48,6 +49,12 @@ Each `synth_<id>` function generates RTS0's version of the 0 A.D. map script of 
 | Sahel | `maps/random/sahel.js` | Layout read from the script: players at f = 0.35, 1-3 water holes 24 tiles from bases, scarce wood |
 | African Plains | `maps/random/african_plains.js` | Layout read from the script: players at f = 0.35, 6-16 hills, 4-10 watering holes |
 | Alpine Valley | `maps/random/alpine_valley.js` | Layout read from the script: mountain ranges from f = 0.49 to 0.18 between players, with passages |
+| Syria | `maps/random/syria.js` | Layout read from the script: players at f = 0.35, scaleByMapSize(1, 3) * 3 hills per player |
+| Cantabrian Highlands | `maps/random/cantabrian_highlands.js` | Layout read from the script: each player on a cliff-ringed hill with a ramp towards the centre, 1-4 lakes per player |
+| Pyrenean Sierra | `maps/random/pyrenean_sierra.js` | Layout read from the script: a range f = 0.68 long through the centre, passes at 0.35 and 0.65; RTS0 leaves out the ocean |
+| Sahel Watering Holes | `maps/random/sahel_watering_holes.js` | Layout read from the script: water lines from f = 0.15 to 0.49 between neighbours, pools at both ends, shallows |
+| Persian Highlands | `maps/random/persian_highlands.js` | Layout read from the script: high land with a sunken central plateau, rocky hills, players at f = 0.35 |
+| Volcanic Lands | `maps/random/volcanic_lands.js` | Layout read from the script: a volcano (cone and crater) in the centre, 2-8 hills per player |
 
 ## Data from 0 A.D. (CC BY-SA 3.0)
 
@@ -56,7 +63,7 @@ Each `synth_<id>` function generates RTS0's version of the 0 A.D. map script of 
 | `assets/models/`, `assets/animations/`, `assets/skeletons/` | Unit, building and flora meshes, PSA clips, skeletons | `tools/extract_0ad_assets.py` |
 | `assets/textures/terrain/`, `assets/textures/ui/` | Terrain textures, portraits, icons, emblems | `tools/extract_0ad_assets.py`, `tools/extract_ui_assets.py` |
 | `assets/music/`, `assets/sounds/`, `assets/audio/`, `audio/` | Music, sound effects, voice lines | `tools/extract_ui_assets.py`, `tools/extract_combat_sfx.py` |
-| `data/maps/` | Scenario maps converted to JSON | `tools/port_0ad_maps.py` |
+| `data/maps/` | 0 A.D. skirmish maps (`maps/skirmishes/*_Np.xml` + `.pmp`: Acropolis Bay, Alpine Mountains, Alpine Valleys, Atlas Valleys, Bactria, Belgian Bog, Corinthian Isthmus, Cycladic Archipelago, Death Canyon, Deccan Plateau, Gallic Fields, Gambia River, Golden Island, Greek Acropolis, Libyan Oases, Lorraine Plain, Median Oasis, Mediterranean Cove, Miletus Peninsula, Near-Eastern Badlands, Nile River, Persian Highlands, Punjab, Saharan Oases, Sahel, Savanna River, Sicilia, Sporades Islands, Syria, Tuscan Acropolis, Two Seas, Vesuvius, Zagros Mountains) and scenarios (Arcadia, Battle for the Tiber), converted to JSON | `tools/port_0ad_maps.py` (`--github` fetches from 0 A.D.'s repository) |
 | `src/simulation/civ_roster_data.h`, `data/civs/rosters.json` | Per-civ unit rosters, unit stats, hero auras and civ bonus text from `simulation/templates/` and `simulation/data/{civs,auras}/` | `tools/extract_0ad_rosters.py` |
 | `src/simulation/civ_roster_data.h` (`civ_team_bonus_table`) | Each civ's team bonus from `simulation/data/auras/teambonuses/*.json`; mercenary costs and train times from `simulation/templates/mixins/{mercenary,merc_*}.xml` | `tools/extract_0ad_rosters.py` |
 | `src/simulation/civ_roster_data.h` (siege tower rows, `ROSTER_PACKABLE`) | Siege towers from `simulation/templates/template_unit_siege_tower.xml` and `units/{mace,kush,ptol,sele,han}/siege_tower.xml`; packable siege from each template's `Pack` component | `tools/extract_0ad_rosters.py` |

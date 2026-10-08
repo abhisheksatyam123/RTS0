@@ -215,6 +215,7 @@ struct PetraDiplomacy {
 	bool waiting_to_betray = false;
 	float betray_lapse = -1.0f;
 	float elapsed = 0.0f;
+	float next_tribute = 90.0f;  // nextTributeUpdate
 };
 
 // chatHelper.js — short English taunts (no i18n)

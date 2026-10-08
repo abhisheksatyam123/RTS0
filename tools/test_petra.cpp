@@ -245,6 +245,26 @@ static void test_diplomacy() {
 		CHECK(back, "AI declares war back");
 	}
 
+	// Tribute: an AI helps a broke ally with what it has plenty of.
+	{
+		auto s = three_player_match(5);
+		s->set_mutual_ally(1, 2);
+		for (uint8_t r = 0; r < RES_COUNT; ++r) {
+			s->players_[1].res[r] = 3000.0f;
+			s->players_[2].res[r] = 0.0f;
+		}
+		float t = 0.0f;
+		bool sent = false;
+		for (; t < 120.0f && !sent; t += Simulation::FIXED_STEP) {
+			s->tick(Simulation::FIXED_STEP);
+			sent = said_to(*s, 1, 2, PETRA_CHAT_TRIBUTE);
+		}
+		const float got = s->players_[2].res[RES_FOOD] + s->players_[2].res[RES_STONE];
+		std::printf("  AI 1 tributes its broke ally AI 2: %s at %.0fs, AI 2 food+stone %.0f, AI 1 keeps %.0f food\n",
+		            sent ? "yes" : "no", t, got, s->players_[1].res[RES_FOOD]);
+		CHECK(sent && got > 0.0f, "an AI tributes an ally short of resources");
+	}
+
 	// Last Man Standing: two allied AIs, the human is out. Once one is strong
 	// enough it turns on the other.
 	{
