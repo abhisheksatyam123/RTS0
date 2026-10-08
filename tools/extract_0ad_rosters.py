@@ -420,7 +420,9 @@ def rts0_class(name, t, civ):
             return "UNIT_CATAPULT"
         if "BoltShooter" in c:
             return "UNIT_BOLT_SHOOTER"
-        return None  # siege towers and flamethrowers have no RTS0 class yet
+        if "SiegeTower" in c:
+            return "UNIT_BOLT_SHOOTER"  # fires its own Bow attack; flagged ROSTER_SIEGE_TOWER
+        return None  # flamethrowers have no RTS0 class yet
     if "trumpeter" in stem:
         return "UNIT_CARNYX"
     if "Dog" in c:
@@ -450,6 +452,33 @@ def rts0_class(name, t, civ):
     if "Worker" in c and "support_slave" in stem:
         return "UNIT_VILLAGER"
     return None
+
+
+_TECH_ENUMS = None
+
+
+def tech_enums():
+    """0 A.D. technology name -> RTS0 TechnologyId enum, read from tech_data.h."""
+    global _TECH_ENUMS
+    if _TECH_ENUMS is None:
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "simulation", "tech_data.h")
+        _TECH_ENUMS = {}
+        with open(path, encoding="utf-8") as f:
+            for m in re.finditer(r"^\s*(TECH_[A-Z0-9_]+) = \d+, // (\S+)", f.read(), re.M):
+                _TECH_ENUMS.setdefault(m.group(2), m.group(1))
+    return _TECH_ENUMS
+
+
+def unlock_tech_of(t):
+    """The non-phase technology 0 A.D.'s Identity/Requirements names (e.g.
+    unlock_champion_infantry), as an RTS0 enum, or TECH_NONE."""
+    for tech in t.tokens("Identity/Requirements/Techs"):
+        if tech.startswith("phase_"):
+            continue
+        enum = tech_enums().get(tech)
+        if enum:
+            return enum
+    return "TECH_NONE"
 
 
 def phase_of(t):
@@ -777,6 +806,10 @@ def collect(sim_root):
                 flags.append("ROSTER_CITIZEN")
             if "Mercenary" in c:
                 flags.append("ROSTER_MERCENARY")
+            if t.value("Pack/Time", ""):
+                flags.append("ROSTER_PACKABLE")  # 0 A.D. Pack: unpack before firing, pack to move
+            if "SiegeTower" in c:
+                flags.append("ROSTER_SIEGE_TOWER")
             hero_auras = []
             for aname in t.tokens("Auras"):
                 apath = os.path.join(sim_root, "data", "auras", aname + ".json")
@@ -812,6 +845,7 @@ def collect(sim_root):
                 "trainers": sorted(trainers[name]["buildings"], key=BUILDING_BITS.index),
                 "trained_at_0ad": sorted(trainers[name]["kinds"]),
                 "flags": flags,
+                "unlock_tech": unlock_tech_of(t),
                 "auras": hero_auras,
                 "civ_bonuses": civ_bonus_ids,
                 "classes": sorted(c),
@@ -896,7 +930,7 @@ def emit_header(rows, auras, civ_json, bonuses, team):
     w("\tstatic const CivUnitTemplate kTable[CIV_UNIT_TEMPLATE_COUNT] = {")
     w("\t\t// id, name, specific name, civ, class, phase, flags, trainers,")
     w("\t\t// hp, speed, range, damage, cooldown, hack/pierce/crush dmg, hack/pierce/crush armour,")
-    w("\t\t// food, wood, gold, stone, pop, train_time, carry, aura slots (-1 = none)")
+    w("\t\t// food, wood, gold, stone, pop, train_time, carry, aura slots (-1 = none), unlock tech")
     for r in rows:
         s = r["stats"]
         flags = " | ".join(r["flags"]) or "0"
@@ -907,12 +941,12 @@ def emit_header(rows, auras, civ_json, bonuses, team):
         w("\t\t{%s, %s, %s, %s, %s, %d, %s, %s," % (
             cstr(r["id"]), cstr(r["name"]), cstr(r["specific_name"]),
             CIV_ENUM[CIVS.index(r["civ"])], r["class"], r["phase"], flags, trainers))
-        w("\t\t %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %d, %d, %d, %d, %d, %s, %d, %d, %d, %d}," % (
+        w("\t\t %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %d, %d, %d, %d, %d, %s, %d, %d, %d, %d, %s}," % (
             f(s["hp"]), f(s["speed"]), f(s["range"]), f(s["damage"]), f(s["cooldown"]),
             f(s["hack_dmg"]), f(s["pierce_dmg"]), f(s["crush_dmg"]),
             f(s["hack_armor"]), f(s["pierce_armor"]), f(s["crush_armor"]),
             s["food"], s["wood"], s["gold"], s["stone"], s["pop"], f(s["train_time"]),
-            s["carry"], a[0], a[1], a[2]))
+            s["carry"], a[0], a[1], a[2], r.get("unlock_tech", "TECH_NONE")))
     w("\t};")
     w("\treturn kTable;")
     w("}")

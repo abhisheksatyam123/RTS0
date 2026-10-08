@@ -303,6 +303,7 @@
     "mace/siege_lithobolos_packed",
     "mace/siege_oxybeles_packed",
     "mace/siege_ram",
+    "mace/siege_tower",
     "mace/support_female_citizen",
     "mace/support_female_citizen_house",
     "mace/support_healer_b",
@@ -544,6 +545,7 @@
     "kush/ship_merchant",
     "kush/ship_scout",
     "kush/siege_ram",
+    "kush/siege_tower",
     "kush/support_female_citizen",
     "kush/support_female_citizen_house",
     "kush/support_healer_b",
@@ -592,6 +594,7 @@
     "ptol/siege_lithobolos_packed",
     "ptol/siege_polybolos_packed",
     "ptol/siege_ram",
+    "ptol/siege_tower",
     "ptol/support_female_citizen",
     "ptol/support_female_citizen_house",
     "ptol/support_healer_b",
@@ -636,6 +639,7 @@
     "sele/ship_siege",
     "sele/siege_lithobolos_packed",
     "sele/siege_ram",
+    "sele/siege_tower",
     "sele/support_female_citizen",
     "sele/support_female_citizen_house",
     "sele/support_healer_b",
@@ -677,6 +681,7 @@
     "han/ship_siege",
     "han/siege_mangonel_packed",
     "han/siege_ram",
+    "han/siege_tower",
     "han/support_female_citizen",
     "han/support_female_citizen_house",
     "han/support_healer_b",
@@ -717,6 +722,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -769,6 +775,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -821,6 +828,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -871,6 +879,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -921,6 +930,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -972,6 +982,7 @@
     "ROSTER_CHAMPION",
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -1022,6 +1033,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     0,
     1
@@ -1074,6 +1086,7 @@
     "ROSTER_HERO",
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     2,
     3
@@ -1127,6 +1140,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     4,
     5
@@ -1180,6 +1194,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     6,
     7
@@ -1236,6 +1251,7 @@
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -1292,6 +1308,7 @@
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -1349,6 +1366,7 @@
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -1407,6 +1425,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -1462,6 +1481,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -1515,6 +1535,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [
     "delian_league"
@@ -1563,6 +1584,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [
     "delian_league"
@@ -1607,6 +1629,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [
     "delian_league"
@@ -1652,6 +1675,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [
     "delian_league"
@@ -1702,6 +1726,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [
     "delian_league"
@@ -1750,8 +1775,10 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -1796,8 +1823,10 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -1842,6 +1871,7 @@
     "arsenal"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -1888,6 +1918,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -1938,6 +1969,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -1986,6 +2018,7 @@
     "temple"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -2030,6 +2063,7 @@
     "market"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -2123,6 +2157,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -2175,6 +2210,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -2227,6 +2263,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -2277,6 +2314,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -2330,6 +2368,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     8,
     9
@@ -2383,6 +2422,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     10
    ],
@@ -2435,6 +2475,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     11
    ],
@@ -2491,6 +2532,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -2546,6 +2588,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -2599,6 +2642,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -2650,6 +2694,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -2696,6 +2741,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -2738,6 +2784,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -2781,6 +2828,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -2829,6 +2877,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -2875,8 +2924,10 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -2921,6 +2972,7 @@
     "arsenal"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -2967,6 +3019,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -3017,6 +3070,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -3065,6 +3119,7 @@
     "temple"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -3109,6 +3164,7 @@
     "market"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -3202,6 +3258,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -3256,6 +3313,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -3311,6 +3369,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -3365,6 +3424,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -3417,6 +3477,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_CAVALRY",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -3470,6 +3531,7 @@
     "ROSTER_CHAMPION",
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_CAVALRY",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -3522,6 +3584,7 @@
     "ROSTER_CHAMPION",
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_CHARIOTS",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -3574,6 +3637,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -3624,6 +3688,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_INFANTRY",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -3679,6 +3744,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     12
    ],
@@ -3737,6 +3803,7 @@
     "ROSTER_HERO",
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     13
    ],
@@ -3796,6 +3863,7 @@
     "ROSTER_HERO",
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     14
    ],
@@ -3852,6 +3920,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -3907,6 +3976,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -3962,6 +4032,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -4015,6 +4086,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -4061,6 +4133,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -4103,6 +4176,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -4146,6 +4220,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -4194,6 +4269,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -4240,6 +4316,7 @@
     "arsenal"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -4286,6 +4363,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -4343,6 +4421,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -4391,6 +4470,7 @@
     "temple"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -4435,6 +4515,7 @@
     "market"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -4526,6 +4607,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -4580,6 +4662,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -4632,6 +4715,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_CAVALRY",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -4683,6 +4767,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -4737,6 +4822,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -4791,6 +4877,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_INFANTRY",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -4841,6 +4928,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -4892,6 +4980,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     15,
     16
@@ -4946,6 +5035,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     17
    ],
@@ -4999,6 +5089,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     18
    ],
@@ -5056,6 +5147,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -5112,6 +5204,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -5166,6 +5259,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -5219,6 +5313,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -5272,6 +5367,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -5327,6 +5423,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -5380,6 +5477,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -5426,6 +5524,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -5468,6 +5567,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -5511,6 +5611,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -5559,6 +5660,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -5607,6 +5709,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -5653,8 +5756,10 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [
     "rome_siege"
@@ -5701,8 +5806,10 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [
     "rome_siege"
@@ -5751,6 +5858,7 @@
     "arsenal"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -5795,8 +5903,10 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -5843,6 +5953,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -5893,6 +6004,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -5943,6 +6055,7 @@
     "temple_vesta"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -5987,6 +6100,7 @@
     "market"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -6080,6 +6194,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -6134,6 +6249,7 @@
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -6189,6 +6305,7 @@
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -6244,6 +6361,7 @@
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -6297,6 +6415,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -6348,6 +6467,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -6398,6 +6518,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -6448,6 +6569,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     19,
     20
@@ -6502,6 +6624,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     21
    ],
@@ -6553,6 +6676,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     22
    ],
@@ -6610,6 +6734,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -6666,6 +6791,7 @@
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -6723,6 +6849,7 @@
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -6779,6 +6906,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -6834,6 +6962,7 @@
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -6890,6 +7019,7 @@
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -6945,6 +7075,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -6991,6 +7122,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -7033,6 +7165,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -7077,6 +7210,7 @@
     "super_dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -7126,6 +7260,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -7175,6 +7310,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -7221,8 +7357,10 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -7267,8 +7405,10 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -7313,6 +7453,7 @@
     "arsenal"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -7359,6 +7500,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -7410,6 +7552,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -7459,6 +7602,7 @@
     "tophet"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -7503,6 +7647,7 @@
     "market"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -7595,6 +7740,7 @@
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -7650,6 +7796,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -7702,6 +7849,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_CAVALRY",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -7756,6 +7904,7 @@
     "ROSTER_CHAMPION",
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -7806,6 +7955,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_INFANTRY",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -7856,6 +8006,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_INFANTRY",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -7907,6 +8058,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     23,
     24,
@@ -7962,6 +8114,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     26
    ],
@@ -8014,6 +8167,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     27
    ],
@@ -8070,6 +8224,7 @@
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -8128,6 +8283,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -8183,6 +8339,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -8239,6 +8396,7 @@
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -8293,6 +8451,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -8339,6 +8498,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -8381,6 +8541,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -8424,6 +8585,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -8472,6 +8634,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -8518,8 +8681,10 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -8564,8 +8729,10 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -8610,6 +8777,7 @@
     "arsenal"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -8641,6 +8809,54 @@
    }
   },
   {
+   "id": "mace/siege_tower",
+   "civ": "mace",
+   "class": "UNIT_BOLT_SHOOTER",
+   "name": "Siege Tower",
+   "specific_name": "Helépolis",
+   "phase": 3,
+   "trainers": [
+    "BLD_FORTRESS"
+   ],
+   "trained_at_0ad": [
+    "arsenal"
+   ],
+   "flags": [
+    "ROSTER_RANGED",
+    "ROSTER_SIEGE_TOWER"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Ranged",
+    "Siege",
+    "SiegeTower",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 500.0,
+    "cooldown": 2.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 12.0,
+    "crush_dmg": 2.5,
+    "hack_armor": 1.0,
+    "pierce_armor": 50.0,
+    "crush_armor": 5.0,
+    "food": 0,
+    "wood": 500,
+    "gold": 300,
+    "stone": 0,
+    "train_time": 40.0,
+    "pop": 3,
+    "speed": 2.2428,
+    "damage": 14.5,
+    "range": 15.400000000000002,
+    "carry": 0
+   }
+  },
+  {
    "id": "mace/support_female_citizen",
    "civ": "mace",
    "class": "UNIT_FEMALE_CITIZEN",
@@ -8656,6 +8872,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -8706,6 +8923,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -8754,6 +8972,7 @@
     "temple"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -8798,6 +9017,7 @@
     "market"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -8892,6 +9112,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -8944,6 +9165,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -8997,6 +9219,7 @@
     "ROSTER_CHAMPION",
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_CHARIOTS",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -9049,6 +9272,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_INFANTRY",
    "auras": [],
    "civ_bonuses": [
     "brit_woad_warriors"
@@ -9102,6 +9326,7 @@
     "ROSTER_HERO",
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     28
    ],
@@ -9156,6 +9381,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     29
    ],
@@ -9210,6 +9436,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     30
    ],
@@ -9265,6 +9492,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [
     "brit_woad_warriors"
@@ -9325,6 +9553,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [
     "brit_woad_warriors"
@@ -9383,6 +9612,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [
     "brit_woad_warriors"
@@ -9438,6 +9668,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -9484,6 +9715,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -9532,6 +9764,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -9576,6 +9809,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -9621,6 +9855,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -9667,6 +9902,7 @@
     "arsenal"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -9714,6 +9950,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -9764,6 +10001,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -9812,6 +10050,7 @@
     "temple"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -9856,6 +10095,7 @@
     "market"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -9901,6 +10141,7 @@
     "kennel"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -9995,6 +10236,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -10047,6 +10289,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [
     "gaul_cavalry"
@@ -10101,6 +10344,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_CAVALRY",
    "auras": [],
    "civ_bonuses": [
     "gaul_cavalry"
@@ -10154,6 +10398,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -10204,6 +10449,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_INFANTRY",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -10254,6 +10500,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -10304,6 +10551,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     31
    ],
@@ -10356,6 +10604,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     32
    ],
@@ -10409,6 +10658,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     33
    ],
@@ -10465,6 +10715,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -10520,6 +10771,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -10575,6 +10827,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -10628,6 +10881,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -10674,6 +10928,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -10720,6 +10975,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -10762,6 +11018,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -10807,6 +11064,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -10853,6 +11111,7 @@
     "arsenal"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -10899,6 +11158,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -10951,6 +11211,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -10999,6 +11260,7 @@
     "temple"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -11043,6 +11305,7 @@
     "market"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -11136,6 +11399,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -11188,6 +11452,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -11241,6 +11506,7 @@
     "ROSTER_CHAMPION",
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_CAVALRY",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -11292,6 +11558,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_INFANTRY",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -11342,6 +11609,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     34,
     35
@@ -11395,6 +11663,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     36
    ],
@@ -11448,6 +11717,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     37,
     38
@@ -11505,6 +11775,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -11560,6 +11831,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -11613,6 +11885,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -11668,6 +11941,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -11721,6 +11995,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -11767,6 +12042,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -11813,6 +12089,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -11855,6 +12132,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -11900,6 +12178,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -11946,6 +12225,7 @@
     "arsenal"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -11992,6 +12272,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -12042,6 +12323,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -12090,6 +12372,7 @@
     "temple"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -12134,6 +12417,7 @@
     "market"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -12227,6 +12511,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -12279,6 +12564,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -12332,6 +12618,7 @@
     "ROSTER_CHAMPION",
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_CHARIOTS",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -12384,6 +12671,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [
     "maur_elephants"
@@ -12436,6 +12724,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_INFANTRY",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -12486,6 +12775,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -12537,6 +12827,7 @@
     "ROSTER_CHAMPION",
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -12588,6 +12879,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [
     "maur_elephants"
@@ -12642,6 +12934,7 @@
     "ROSTER_HERO",
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     39
    ],
@@ -12697,6 +12990,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     40,
     41
@@ -12748,6 +13042,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     42,
     43
@@ -12804,6 +13099,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -12859,6 +13155,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -12912,6 +13209,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -12965,6 +13263,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -13011,6 +13310,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -13053,6 +13353,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -13098,6 +13399,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -13144,6 +13446,7 @@
     "arsenal"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -13190,6 +13493,7 @@
     "elephant_stable"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [
     "maur_elephants"
@@ -13240,6 +13544,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -13290,6 +13595,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -13338,6 +13644,7 @@
     "temple"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -13382,6 +13689,7 @@
     "market"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -13475,6 +13783,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -13529,6 +13838,7 @@
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -13583,6 +13893,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -13635,6 +13946,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_CAVALRY",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -13686,6 +13998,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -13736,6 +14049,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -13787,6 +14101,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -13840,6 +14155,7 @@
     "ROSTER_CHAMPION",
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_INFANTRY",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -13891,6 +14207,7 @@
     "ROSTER_HERO",
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     44
    ],
@@ -13945,6 +14262,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     45,
     46,
@@ -13998,6 +14316,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     48,
     49
@@ -14056,6 +14375,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -14111,6 +14431,7 @@
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -14166,6 +14487,7 @@
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -14220,6 +14542,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -14275,6 +14598,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -14328,6 +14652,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -14381,6 +14706,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -14428,6 +14754,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -14470,6 +14797,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -14515,6 +14843,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -14561,6 +14890,7 @@
     "arsenal"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -14592,6 +14922,54 @@
    }
   },
   {
+   "id": "kush/siege_tower",
+   "civ": "kush",
+   "class": "UNIT_BOLT_SHOOTER",
+   "name": "Kushite Siege Tower",
+   "specific_name": "iwn n ms",
+   "phase": 3,
+   "trainers": [
+    "BLD_FORTRESS"
+   ],
+   "trained_at_0ad": [
+    "arsenal"
+   ],
+   "flags": [
+    "ROSTER_RANGED",
+    "ROSTER_SIEGE_TOWER"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Ranged",
+    "Siege",
+    "SiegeTower",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 500.0,
+    "cooldown": 2.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 12.0,
+    "crush_dmg": 2.5,
+    "hack_armor": 1.0,
+    "pierce_armor": 50.0,
+    "crush_armor": 5.0,
+    "food": 0,
+    "wood": 500,
+    "gold": 300,
+    "stone": 0,
+    "train_time": 40.0,
+    "pop": 3,
+    "speed": 2.2428,
+    "damage": 14.5,
+    "range": 15.400000000000002,
+    "carry": 0
+   }
+  },
+  {
    "id": "kush/support_female_citizen",
    "civ": "kush",
    "class": "UNIT_FEMALE_CITIZEN",
@@ -14607,6 +14985,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -14657,6 +15036,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -14705,6 +15085,7 @@
     "temple"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -14749,6 +15130,7 @@
     "temple_amun"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -14793,6 +15175,7 @@
     "market"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -14886,6 +15269,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -14943,6 +15327,7 @@
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -14999,6 +15384,7 @@
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -15052,6 +15438,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_CAVALRY",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -15103,6 +15490,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -15154,6 +15542,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_INFANTRY",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -15205,6 +15594,7 @@
     "ROSTER_HERO",
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     50,
     51,
@@ -15259,6 +15649,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     53,
     54
@@ -15311,6 +15702,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     55
    ],
@@ -15369,6 +15761,7 @@
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -15427,6 +15820,7 @@
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -15484,6 +15878,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -15542,6 +15937,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -15598,6 +15994,7 @@
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -15655,6 +16052,7 @@
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -15709,6 +16107,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -15755,6 +16154,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -15797,6 +16197,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -15840,6 +16241,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -15888,6 +16290,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -15936,6 +16339,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -15982,8 +16386,10 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -16028,8 +16434,10 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -16074,6 +16482,7 @@
     "arsenal"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -16105,6 +16514,54 @@
    }
   },
   {
+   "id": "ptol/siege_tower",
+   "civ": "ptol",
+   "class": "UNIT_BOLT_SHOOTER",
+   "name": "Siege Tower",
+   "specific_name": "Helépolis",
+   "phase": 3,
+   "trainers": [
+    "BLD_FORTRESS"
+   ],
+   "trained_at_0ad": [
+    "arsenal"
+   ],
+   "flags": [
+    "ROSTER_RANGED",
+    "ROSTER_SIEGE_TOWER"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Ranged",
+    "Siege",
+    "SiegeTower",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 500.0,
+    "cooldown": 2.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 12.0,
+    "crush_dmg": 2.5,
+    "hack_armor": 1.0,
+    "pierce_armor": 50.0,
+    "crush_armor": 5.0,
+    "food": 0,
+    "wood": 500,
+    "gold": 300,
+    "stone": 0,
+    "train_time": 40.0,
+    "pop": 3,
+    "speed": 2.2428,
+    "damage": 14.5,
+    "range": 15.400000000000002,
+    "carry": 0
+   }
+  },
+  {
    "id": "ptol/support_female_citizen",
    "civ": "ptol",
    "class": "UNIT_FEMALE_CITIZEN",
@@ -16121,6 +16578,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -16171,6 +16629,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -16219,6 +16678,7 @@
     "temple"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -16263,6 +16723,7 @@
     "market"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -16354,6 +16815,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -16409,6 +16871,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -16462,6 +16925,7 @@
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -16515,6 +16979,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_CAVALRY",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -16568,6 +17033,7 @@
     "ROSTER_CHAMPION",
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_CHARIOTS",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -16620,6 +17086,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -16670,6 +17137,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -16720,6 +17188,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -16770,6 +17239,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     56
    ],
@@ -16823,6 +17293,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     57
    ],
@@ -16876,6 +17347,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     58
    ],
@@ -16929,6 +17401,7 @@
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -16987,6 +17460,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -17040,6 +17514,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -17095,6 +17570,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -17149,6 +17625,7 @@
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -17203,6 +17680,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -17249,6 +17727,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -17291,6 +17770,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -17334,6 +17814,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -17382,6 +17863,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -17430,6 +17912,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -17476,8 +17959,10 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -17522,6 +18007,7 @@
     "arsenal"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -17553,6 +18039,54 @@
    }
   },
   {
+   "id": "sele/siege_tower",
+   "civ": "sele",
+   "class": "UNIT_BOLT_SHOOTER",
+   "name": "Siege Tower",
+   "specific_name": "Helépolis",
+   "phase": 3,
+   "trainers": [
+    "BLD_FORTRESS"
+   ],
+   "trained_at_0ad": [
+    "arsenal"
+   ],
+   "flags": [
+    "ROSTER_RANGED",
+    "ROSTER_SIEGE_TOWER"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Ranged",
+    "Siege",
+    "SiegeTower",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 500.0,
+    "cooldown": 2.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 12.0,
+    "crush_dmg": 2.5,
+    "hack_armor": 1.0,
+    "pierce_armor": 50.0,
+    "crush_armor": 5.0,
+    "food": 0,
+    "wood": 500,
+    "gold": 300,
+    "stone": 0,
+    "train_time": 40.0,
+    "pop": 3,
+    "speed": 2.2428,
+    "damage": 14.5,
+    "range": 15.400000000000002,
+    "carry": 0
+   }
+  },
+  {
    "id": "sele/support_female_citizen",
    "civ": "sele",
    "class": "UNIT_FEMALE_CITIZEN",
@@ -17569,6 +18103,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -17619,6 +18154,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -17667,6 +18203,7 @@
     "temple"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -17711,6 +18248,7 @@
     "market"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -17802,6 +18340,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -17854,6 +18393,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -17909,6 +18449,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -17961,6 +18502,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -18013,6 +18555,7 @@
     "ROSTER_CHAMPION",
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -18066,6 +18609,7 @@
     "ROSTER_CHAMPION",
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -18116,6 +18660,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -18168,6 +18713,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     59,
     60
@@ -18224,6 +18770,7 @@
    "flags": [
     "ROSTER_HERO"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     61,
     62
@@ -18281,6 +18828,7 @@
     "ROSTER_HERO",
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [
     63,
     64
@@ -18339,6 +18887,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -18398,6 +18947,7 @@
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -18451,6 +19001,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -18507,6 +19058,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -18560,6 +19112,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -18606,6 +19159,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -18648,6 +19202,7 @@
     "dock"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -18693,6 +19248,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -18741,6 +19297,7 @@
    "flags": [
     "ROSTER_RANGED"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -18787,8 +19344,10 @@
     "arsenal"
    ],
    "flags": [
-    "ROSTER_RANGED"
+    "ROSTER_RANGED",
+    "ROSTER_PACKABLE"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -18833,6 +19392,7 @@
     "arsenal"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -18864,6 +19424,54 @@
    }
   },
   {
+   "id": "han/siege_tower",
+   "civ": "han",
+   "class": "UNIT_BOLT_SHOOTER",
+   "name": "Siege Tower",
+   "specific_name": "Gōngchéng Tǎ",
+   "phase": 3,
+   "trainers": [
+    "BLD_FORTRESS"
+   ],
+   "trained_at_0ad": [
+    "arsenal"
+   ],
+   "flags": [
+    "ROSTER_RANGED",
+    "ROSTER_SIEGE_TOWER"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Ranged",
+    "Siege",
+    "SiegeTower",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 500.0,
+    "cooldown": 2.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 12.0,
+    "crush_dmg": 2.5,
+    "hack_armor": 1.0,
+    "pierce_armor": 50.0,
+    "crush_armor": 5.0,
+    "food": 0,
+    "wood": 500,
+    "gold": 300,
+    "stone": 0,
+    "train_time": 40.0,
+    "pop": 3,
+    "speed": 2.2428,
+    "damage": 14.5,
+    "range": 15.400000000000002,
+    "carry": 0
+   }
+  },
+  {
    "id": "han/support_female_citizen",
    "civ": "han",
    "class": "UNIT_FEMALE_CITIZEN",
@@ -18880,6 +19488,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -18930,6 +19539,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -18978,6 +19588,7 @@
     "temple"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -19022,6 +19633,7 @@
     "market"
    ],
    "flags": [],
+   "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
