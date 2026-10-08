@@ -106,21 +106,22 @@ int main() {
 	}
 
 	// 5. Ruins: stone.ruins at 2 against a rock's 0.5, and one gatherer at a time (MaxGatherers 1);
-	//    the second worker goes to the rock next to it.
+	//    the second worker finds no other ruin (UnitAI only switches to the same type.specific) and stops.
 	{
 		fresh(s);
 		uint32_t a = s.spawn_unit(0.0f, 0.0f, 0, UNIT_VILLAGER);
 		uint32_t b = s.spawn_unit(0.0f, 2.0f, 0, UNIT_VILLAGER);
 		uint32_t ruin = s.spawn_ruins(4.0f, 0.0f, ruins_type_by_name("column_doric"));
 		uint32_t rock = s.spawn_resource_world(4.0f, 6.0f, RES_STONE, 1000);
-		CHECK(ruin != 0 && s.ruins_cap(ruin) == 1);
+		CHECK(ruin != 0 && s.resource_max_gatherers(ruin) == 1);
 		uint32_t both[2] = {a, b};
 		s.order_gather(both, 2, ruin);
 		run(s, 4.0f);
 		CHECK(ruins_gathering(s, ruin) <= 1);
-		// One works the ruin, the other the rock beside it.
+		// One works the ruin; the other doesn't take the rock beside it.
 		const uint32_t ta = s.units_.target_resource_id[s.lookup_unit(a)], tb = s.units_.target_resource_id[s.lookup_unit(b)];
-		CHECK((ta == ruin && tb == rock) || (ta == rock && tb == ruin));
+		CHECK((ta == ruin && tb == 0) || (ta == 0 && tb == ruin));
+		CHECK(rock != 0);
 		// Rate: one soldier on the ruin against one on a rock, a carry's worth each.
 		fresh(s);
 		uint32_t r1 = s.spawn_ruins(0.0f, 0.0f, ruins_type_by_name("stone_structure_tower"));
@@ -129,20 +130,20 @@ int main() {
 		uint32_t g2 = s.spawn_unit(21.5f, 0.0f, 0, UNIT_VILLAGER);
 		s.order_gather(&g1, 1, r1);
 		s.order_gather(&g2, 1, r2);
-		// Time each takes to fill its 20-stone carry once at the supply.
+		// Time each takes to fill its 10-stone carry (template_unit_infantry Capacities) once at the supply.
 		float full1 = 0.0f, full2 = 0.0f, t = 0.0f;
 		auto at_supply = [&](uint32_t id, uint32_t res) {
 			const int32_t k = s.lookup_unit(id);
 			return s.units_.action_state[k] == ACTION_GATHER && s.units_.target_resource_id[k] == res;
 		};
 		float start1 = -1.0f, start2 = -1.0f;
-		for (; t < 30.0f && (full1 == 0.0f || full2 == 0.0f); t += Simulation::FIXED_STEP) {
+		for (; t < 60.0f && (full1 == 0.0f || full2 == 0.0f); t += Simulation::FIXED_STEP) {
 			s.tick(Simulation::FIXED_STEP);
 			const int32_t k1 = s.lookup_unit(g1), k2 = s.lookup_unit(g2);
 			if (start1 < 0.0f && at_supply(g1, r1) && s.units_.attack_timer[k1] > 0.0f) start1 = t;
 			if (start2 < 0.0f && at_supply(g2, r2) && s.units_.attack_timer[k2] > 0.0f) start2 = t;
-			if (full1 == 0.0f && s.units_.carry[k1] >= 20) full1 = t - start1;
-			if (full2 == 0.0f && s.units_.carry[k2] >= 20) full2 = t - start2;
+			if (full1 == 0.0f && s.units_.carry[k1] >= 10) full1 = t - start1;
+			if (full2 == 0.0f && s.units_.carry[k2] >= 10) full2 = t - start2;
 		}
 		std::printf("ruins: a full carry in %.1f s from ruins, %.1f s from a rock\n", full1, full2);
 		CHECK(full1 > 0.0f && full2 >= 3.0f * full1);
@@ -194,7 +195,7 @@ int main() {
 		CHECK(s.save_state(path));
 		static Simulation l;
 		CHECK(l.load_state(path));
-		CHECK(l.treasures().size() == 2 && l.ruins_cap(ruin) == 90);
+		CHECK(l.treasures().size() == 2 && l.resource_max_gatherers(ruin) == 90);
 		CHECK(TurnManager().boot_sim_hash(s) == TurnManager().boot_sim_hash(l));
 		run(s, 8.0f);
 		run(l, 8.0f);

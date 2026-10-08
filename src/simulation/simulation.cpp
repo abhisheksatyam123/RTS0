@@ -4473,7 +4473,7 @@ void Simulation::tick_gather(float dt) {
 			if (dx * dx + dz * dz < reach * reach) {
 				if (!fish && field_efficiency <= 0.0f) {
 					// MaxGatherers: the first units working it take its slots; the rest look for
-					// another supply of the same kind nearby (UnitAI FINDINGNEWTARGET) or wait.
+					// another supply of the same kind nearby (UnitAI FINDINGNEWTARGET) or give up.
 					const uint32_t rid = units_.target_resource_id[i];
 					FieldGatherers &sg = supply_gatherers_[rid];
 					if (sg.slots_taken >= resources_.max_gatherers[ridx]) {
@@ -4485,6 +4485,11 @@ void Simulation::tick_gather(float dt) {
 							UnitOrder o = current_order(i);
 							o.target = alt;
 							apply_order(units_.id[i], o);
+						} else {
+							sg.total--;
+							units_.target_resource_id[i] = 0;
+							units_.action_state[i] = ACTION_IDLE;
+							finish_order(i);
 						}
 						continue;
 					}
