@@ -272,8 +272,32 @@ enum BuildingType : uint8_t {
 	BLD_ELEPHANT_STABLE = 23, // military_elephant_stable
 	BLD_THEATER = 24,         // special_theater
 	BLD_EMBASSY = 25,         // military_embassy
-	BLD_TYPE_COUNT = 26
+	// 0 A.D. civ-specific structures (area D, generated rows in civ_building_data.h).
+	// Only the civs in civ_building_civ_mask() may build them.
+	BLD_GYMNASIUM = 26,       // athen/gymnasium
+	BLD_PRYTANEION = 27,      // athen/prytaneion
+	BLD_GEROUSIA = 28,        // spart/gerousia
+	BLD_SYSSITON = 29,        // spart/syssiton
+	BLD_TACHARA = 30,         // pers/tachara
+	BLD_ARMY_CAMP = 31,       // rome/army_camp
+	BLD_AMPHITHEATER = 32,    // rome/amphitheater_pompeii
+	BLD_LIBRARY = 33,         // mace, ptol, sele library
+	BLD_KENNEL = 34,          // brit/kennel
+	BLD_ASSEMBLY = 35,        // gaul/assembly
+	BLD_MONUMENT = 36,        // iber/monument
+	BLD_PALACE = 37,          // maur/palace
+	BLD_PILLAR = 38,          // maur/pillar_ashoka
+	BLD_PYRAMID_LARGE = 39,   // kush/pyramid_large
+	BLD_PYRAMID_SMALL = 40,   // kush/pyramid_small
+	BLD_MERCENARY_CAMP = 41,  // ptol/mercenary_camp
+	BLD_LIGHTHOUSE = 42,      // ptol/lighthouse
+	BLD_MILITARY_COLONY = 43, // ptol, sele military_colony
+	BLD_ACADEMY = 44,         // han/academy
+	BLD_MINISTRY = 45,        // han/ministry
+	BLD_TYPE_COUNT = 46
 };
+
+#include "civ_building_data.h"
 
 enum ResourceType : uint8_t {
 	RES_WOOD = 0,
@@ -664,6 +688,8 @@ inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 		{"Elephant Stable", "stable_elephant", "elephant_stable", 3000.0f, 2, 0, 200, 0, 200, 0, 5, 45.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		{"Theater", "theater", "theater", 3000.0f, 2, 0, 200, 200, 600, 0, 5, 125.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		{"Embassy", "embassy", "embassy", 2000.0f, 2, 0, 200, 0, 0, 0, 6, 38.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		// Civ-specific structures, BLD_GYMNASIUM onwards (civ_building_data.h).
+		RTSO_CIV_BUILDING_INFO_ROWS
 	};
 	if (type >= BLD_TYPE_COUNT) return kTable[BLD_HOUSE];
 	return kTable[type];
@@ -680,7 +706,7 @@ inline uint8_t building_required_phase(uint8_t type) {
 		case BLD_ELEPHANT_STABLE: case BLD_THEATER:
 			return 3;
 		default:
-			return 1;
+			return type >= CIV_BUILDING_FIRST ? civ_building_phase(type) : 1;
 	}
 }
 
@@ -922,8 +948,8 @@ inline uint64_t building_tech_classes(uint8_t type) {
 
 inline constexpr uint32_t unit_bit(uint8_t type) { return (type < 32) ? (1u << type) : 0u; }
 
-static_assert(BLD_TYPE_COUNT <= 32, "bld_bit() masks are uint32_t");
-inline constexpr uint32_t bld_bit(uint8_t type) { return (type < 32) ? (1u << type) : 0u; }
+static_assert(BLD_TYPE_COUNT <= 64, "bld_bit() masks are uint64_t");
+inline constexpr uint64_t bld_bit(uint8_t type) { return (type < 64) ? (1ull << type) : 0ull; }
 
 // ---------------------------------------------------------------------------
 // Per-civ unit rosters, generated from 0 A.D.'s templates by
@@ -973,7 +999,7 @@ enum CivBonusStat : uint8_t {
 struct CivPlayerBonus {
 	uint16_t civs; // civ_bit() mask
 	uint8_t stat; // CivBonusStat
-	uint32_t buildings; // bld_bit() mask (0 for player-wide stats)
+	uint64_t buildings; // bld_bit() mask (0 for player-wide stats)
 	float mult;
 	const char *id;
 	const char *tooltip;
@@ -996,7 +1022,7 @@ struct CivTeamBonus {
 	uint8_t stat; // TeamBonusStat
 	int8_t res; // ResourceType for cost stats, -1 otherwise
 	bool allies_only; // 0 A.D. ExclusiveMutualAlly: not the owner itself
-	uint32_t buildings; // bld_bit() mask
+	uint64_t buildings; // bld_bit() mask
 	float value; // multiplier, or amount added for TEAM_BONUS_FOOD_TRICKLE
 	const char *id;
 	const char *name;
@@ -1012,7 +1038,7 @@ struct CivUnitTemplate {
 	uint8_t unit_type; // RTS0 behaviour class (UnitType)
 	uint8_t phase; // 1 village, 2 town, 3 city
 	uint8_t flags; // CivRosterFlag bits
-	uint32_t trainers; // bld_bit() of each BuildingType that trains it
+	uint64_t trainers; // bld_bit() of each BuildingType that trains it
 	float hp;
 	float speed;
 	float attack_range;
@@ -1303,9 +1329,8 @@ inline float unit_capture_attack(uint16_t tmpl, uint8_t type) {
 	return base;
 }
 
-// Structures yield resources only (no Loot/xp). Keyed by building type; a type
-// past the table (a civ-unique building appended later) yields nothing until it
-// gets a row here.
+// Structures yield resources (and no xp, but for the Han Imperial Ministry). Keyed by building type; the
+// civ-specific structures (ids 26-45) take their rows from civ_building_data.h.
 inline LootInfo building_loot(uint8_t type) {
 	static const LootInfo table[] = {
 		{0, 0, 60, 60, 50},    // TOWN_CENTER: civic_civil_centre
@@ -1334,8 +1359,10 @@ inline LootInfo building_loot(uint8_t type) {
 		{0, 0, 40, 40, 0},     // ELEPHANT_STABLE: military_elephant_stable
 		{0, 0, 40, 120, 40},   // THEATER: special_theater
 		{0, 0, 0, 0, 0},       // EMBASSY: military_embassy
+		RTSO_CIV_BUILDING_LOOT_ROWS
 	};
-	return type < sizeof(table) / sizeof(table[0]) ? table[type] : LootInfo{};
+	static_assert(sizeof(table) / sizeof(table[0]) == BLD_TYPE_COUNT, "one loot row per BuildingType");
+	return type < BLD_TYPE_COUNT ? table[type] : LootInfo{};
 }
 // 0 A.D. unit_advanced.json and unit_elite.json each multiply Loot/* by 1.2.
 inline float loot_rank_multiplier(uint8_t rank) {
@@ -1358,6 +1385,12 @@ inline uint32_t civ_train_mask(uint8_t civ) {
 	}();
 	if (civ >= CIV_COUNT) civ = CIV_ATHENIANS;
 	return masks.mask[civ];
+}
+
+// Structures this civilization may build: every generic one, plus its own
+// civ-specific ones (0 A.D. structures/<civ>/, civ_building_civ_mask()).
+inline bool civ_can_build(uint8_t civ, uint8_t type) {
+	return type < BLD_TYPE_COUNT && civ < 16 && ((civ_building_civ_mask(type) >> civ) & 1u);
 }
 
 inline bool civ_can_train(uint8_t civ, uint8_t type) {
