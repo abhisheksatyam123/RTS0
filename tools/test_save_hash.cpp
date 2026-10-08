@@ -208,6 +208,8 @@ static void check_reset_load(TurnManager &tm, const char *path) {
 	a.set_relic_count(2);
 	const uint8_t goods[RES_COUNT] = {10, 20, 30, 40};
 	a.cmd_set_trading_goods(1, goods);
+	a.set_water_level_mode(Simulation::WATER_LEVEL_DEEP);
+	a.set_sea_level_rise_minutes(40);
 	a.spawn_unit(-10.0f, 10.0f, 0, UNIT_CATAPULT);
 	const uint32_t unpacking = a.spawn_unit(-14.0f, 10.0f, 0, UNIT_CATAPULT);
 	a.order_pack(&unpacking, 1, false);
@@ -241,6 +243,10 @@ static void check_reset_load(TurnManager &tm, const char *path) {
 	}
 	if (!a.is_defeated(2) || a.is_defeated(1) || a.wonder_hold_[1] <= 0.0f || a.is_game_over()) {
 		std::printf("  FAIL expected player 2 defeated and player 1's wonder hold running (hold %.1f s)\n", a.wonder_hold_[1]);
+		++failures;
+	}
+	if (b.water_level_mode() != Simulation::WATER_LEVEL_DEEP || b.sea_level_rise_minutes() != 40) {
+		std::printf("  FAIL map trigger Game Setup options not restored (%d, %d)\n", b.water_level_mode(), b.sea_level_rise_minutes());
 		++failures;
 	}
 	if (failures == before) std::printf("Town Center + wall, packed/unpacked catapults, a defeated player and a wonder hold into a reset sim: ok\n");

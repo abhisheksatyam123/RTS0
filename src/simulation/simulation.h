@@ -8,6 +8,7 @@
 #include "aura_manager.h"
 #include "petra_ai.h"
 #include "sim_types.h"
+#include "triggers.h"
 #include <cstdint>
 #include <vector>
 #include <unordered_map>
@@ -130,7 +131,7 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
-	static constexpr uint32_t SAVE_VERSION = 25; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 26; // save_state's format; see the history beside it
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -453,6 +454,27 @@ public:
 	void set_relic_duration(float s) { relic_duration_ = std::max(0.0f, s); }
 	int relic_count() const { return relic_count_; }
 	void set_relic_count(int n) { relic_count_ = std::clamp(n, 0, 16); }
+	// Rising-water maps (0 A.D. Flood's "WaterLevels" and Extinct Volcano's "SeaLevelRise"
+	// Game Setup options): Flood's water rises (0, default), stays (1, Shallow) or starts a
+	// metre higher (2, Deep); Extinct Volcano's water starts rising after N minutes (default 25).
+	enum WaterLevelMode : uint8_t { WATER_LEVEL_RISING = 0, WATER_LEVEL_SHALLOW = 1, WATER_LEVEL_DEEP = 2 };
+	uint8_t water_level_mode() const { return water_level_mode_; }
+	void set_water_level_mode(uint8_t m) { water_level_mode_ = m <= WATER_LEVEL_DEEP ? m : WATER_LEVEL_RISING; }
+	int sea_level_rise_minutes() const { return sea_level_rise_min_; }
+	void set_sea_level_rise_minutes(int m) { sea_level_rise_min_ = (uint8_t)std::clamp(m, 0, 60); }
+
+	// Map trigger scripts (0 A.D. Trigger.js; see triggers.h). Map generation registers
+	// the map's own triggers; tick() runs their timers and the sim calls trigger_event().
+	const TriggerState &trigger_state() const { return triggers_; }
+	uint32_t trigger_hash() const { return triggers_.hash(); }
+	void trigger_event(uint8_t event, const TriggerEventData &data = {});
+	// Time notifications (GuiInterface.AddTimeNotification) shown to `player` right now.
+	std::vector<const TimeNotification *> time_notifications_for(uint8_t player) const;
+	// WaterManager.SetWaterLevel as the rising-water scripts use it: moves the water
+	// to `h`, drowns organic units and animals more than `drown_depth` below it, and
+	// takes away submerged structures and resources (0 A.D. turns them into
+	// decorative actors). Ships and docks float.
+	void set_water_level(float h, float drown_depth);
 	float ceasefire_seconds() const { return ceasefire_seconds_; }
 	void set_ceasefire_seconds(float s) { ceasefire_seconds_ = std::max(0.0f, s); }
 	float ceasefire_remaining() const { return std::max(0.0f, ceasefire_seconds_ - (float)ticks_ * FIXED_STEP); }
@@ -1191,6 +1213,16 @@ private:
 	float relic_duration_ = 180.0f;
 	int relic_count_ = 0;
 	void apply_relic_count();
+	uint8_t water_level_mode_ = WATER_LEVEL_RISING; // saved with the trigger state (v18)
+	uint8_t sea_level_rise_min_ = 25;
+	TriggerState triggers_;
+	void tick_triggers(float dt);
+	void register_map_triggers(MapType type);
+	void run_trigger_action(uint16_t action, float arg, const TriggerEventData &data);
+	// Ported map scripts (simulation.cpp, "Map trigger scripts").
+	void trigger_flood_rise_step(float final_level);
+	void trigger_volcano_rise_step();
+	void trigger_volcano_garrison_towers();
 	PlayerState gaia_stock_; // scratch for player(GAIA_PLAYER); never saved or hashed
 	// Player.js SetState("defeated"): hand every unit and structure of these players to Gaia.
 	void convert_to_gaia(uint8_t players);
