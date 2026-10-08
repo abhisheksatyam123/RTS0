@@ -337,6 +337,8 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_u32((uint32_t)b.queue.size());
 		mix_u32((uint32_t)b.garrisoned_units.size());
 		mix_u8(b.is_burning ? 1 : 0);
+		mix_u8(b.upgrade_to);
+		mix_float(b.upgrade_timer);
 	}
 
 	// 3. Resource Nodes — amount, alive, type, coords
@@ -844,6 +846,9 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			sim.cmd_cancel_train(pl, c.target_id, (size_t)c.param);
 		} else if (c.cmd_type == 21) { // Guard
 			sim.order_guard(ids, n, c.target_id);
+		} else if (c.cmd_type == 26) { // Structure upgrade — target_id=building, param 0 start / 1 cancel.
+			if (c.param == 1) sim.cmd_cancel_upgrade(pl, c.target_id);
+			else sim.cmd_upgrade_building(pl, c.target_id);
 		} else if (c.cmd_type == 25) { // Train roster template — target_id=building, target_x=template.
 			if (c.target_x >= 0.0f && c.target_x < (float)CIV_UNIT_TEMPLATE_COUNT)
 				sim.cmd_train_template(pl, c.target_id, (uint16_t)c.target_x);

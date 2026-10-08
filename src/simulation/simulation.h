@@ -173,7 +173,7 @@ public:
 		int cell_x, cell_y;
 		int footprint; // 1 or 2
 		float attack_timer; // for defensive arrows
-		bool is_burning; // Structure fire under 33% HP
+		bool is_burning = false; // Structure fire under 33% HP
 
 		// Multi-slot production queue
 		std::vector<ProductionOrder> queue;
@@ -202,6 +202,13 @@ public:
 		float capture_regen_rate;
 		float capture_garrison_regen_rate;
 		float territory_decay_rate;
+
+		// 0 A.D. Upgrade.js: the structure this one is turning into
+		// (BLD_TYPE_COUNT = not upgrading) and the resources paid for it.
+		uint8_t upgrade_to = BLD_TYPE_COUNT;
+		float upgrade_timer = 0.0f;
+		float upgrade_duration = 0.0f;
+		std::array<float, RES_COUNT> upgrade_paid{};
 	};
 
 	Simulation();
@@ -368,6 +375,17 @@ public:
 	void clear_alerts() { pending_alerts_.clear(); }
 
 	bool cmd_research(uint8_t player, uint32_t building_id, uint8_t tech_id);
+	// 0 A.D. Upgrade.js: turn a finished structure into building_upgrade()'s
+	// target in place, keeping its health fraction, capture share and garrison.
+	enum UpgradeCheck : uint8_t {
+		UPGRADE_OK = 0, UPGRADE_ERR_NONE, UPGRADE_ERR_OWNER, UPGRADE_ERR_BUSY, UPGRADE_ERR_PHASE, UPGRADE_ERR_COST
+	};
+	UpgradeCheck upgrade_check(uint8_t player_id, uint32_t building_id) const;
+	bool cmd_upgrade_building(uint8_t player_id, uint32_t building_id);
+	// Stops an upgrade in progress and refunds what was paid (Upgrade.js CancelUpgrade).
+	bool cmd_cancel_upgrade(uint8_t player_id, uint32_t building_id);
+	// Maximum hit points of a `type` structure owned by `team`: template x civ bonus x techs.
+	float structure_max_hp(uint8_t type, uint8_t team) const;
 	bool cmd_barter(uint8_t player, ResourceType sell, ResourceType buy, int amount = 100);
 	bool cmd_set_diplomacy(uint8_t player_id, uint8_t target, uint8_t stance);
 	// G3 Market/Trader
@@ -649,6 +667,10 @@ public:
 	}
 	// True when Petra drives this player: seated active AI slots, or player 1 when no slot is seated.
 	bool petra_runs_for(uint8_t pid) const;
+	// InitGame.js "AI Bonus": Petra players gather and trade at the difficulty's
+	// rate and build, train and research at its time multiplier; 1 for humans.
+	float ai_gather_mult(uint8_t pid) const { return petra_runs_for(pid) ? petra_config_.gather_rate : 1.0f; }
+	float ai_time_mult(uint8_t pid) const { return petra_runs_for(pid) ? petra_config_.build_time : 1.0f; }
 	uint8_t petra_difficulty() const { return petra_config_.difficulty; }
 	uint8_t petra_behavior() const { return petra_config_.behavior; }
 	const PetraConfig &petra_config() const { return petra_config_; }
@@ -771,6 +793,9 @@ private:
 	void tick_repair(float dt);
 	void tick_production(float dt);
 	void tick_research(float dt);
+	void tick_upgrades(float dt);
+	void cancel_upgrade(Building &b, uint8_t refund_to);
+	void finish_upgrade(Building &b);
 	void tick_barter(float dt);
 	void tick_trickle(float dt);
 	void tick_upkeep(float dt);
