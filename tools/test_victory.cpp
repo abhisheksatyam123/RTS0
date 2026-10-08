@@ -7,6 +7,7 @@
 #undef private
 #include "network/net_types.h"
 #include <cstdio>
+#include <cmath>
 #include <cstdlib>
 
 using namespace rtso;
@@ -296,9 +297,50 @@ int main() {
 		p.lms = 1;
 		p.pop_cap = 300;
 		p.ceasefire = 10;
+		p.reveal = 1;
+		p.explore = 1;
+		p.wonder_min = 5;
+		p.relic_min = 45;
+		p.relics = 6;
 		GameSetupParams q;
 		CHECK(parse_game_start_full(format_game_start_full(p), q));
 		CHECK(q.victory == VICTORY_REGICIDE && q.waves == 1 && q.map_size == 384 && q.lms == 1 && q.pop_cap == 300 && q.ceasefire == 10);
+		CHECK(q.reveal == 1 && q.explore == 1 && q.wonder_min == 5 && q.relic_min == 45 && q.relics == 6);
+		GameSetupParams d;
+		CHECK(d.wonder_min == 20 && d.relic_min == 20 && d.relics == 2); // 0 A.D.'s defaults
+	}
+	// 11. Wonder hold time and relic count from game setup.
+	{
+		Simulation *sim = fresh(VICTORY_WONDER);
+		sim->set_wonder_duration(120.0f);
+		sim->spawn_building(-20, 20, BLD_WONDER, 0, 1.0f);
+		run(*sim, 119.0f);
+		CHECK(!sim->is_game_over() && sim->wonder_time_remaining() < 2.0f);
+		run(*sim, 2.0f);
+		CHECK(sim->is_victory());
+		delete sim;
+	}
+	for (int want : {1, 2, 9}) {
+		Simulation *sim = fresh(VICTORY_RELIC);
+		const size_t map_relics = sim->relics().size();
+		sim->set_relic_count(want);
+		sim->set_relic_duration(60.0f);
+		run(*sim, 0.1f);
+		CHECK(sim->relics().size() == (size_t)want);
+		bool spread = true; // no two relics on the same spot
+		for (size_t i = 0; i < sim->relics().size(); ++i)
+			for (size_t j = i + 1; j < sim->relics().size(); ++j)
+				spread &= std::hypot(sim->relics()[i].x - sim->relics()[j].x, sim->relics()[i].z - sim->relics()[j].z) > 1.0f;
+		CHECK(spread);
+		CHECK(map_relics > 0);
+		delete sim;
+	}
+	{
+		Simulation *sim = fresh(VICTORY_RELIC); // no setting: the map's relics stay
+		const size_t map_relics = sim->relics().size();
+		run(*sim, 0.1f);
+		CHECK(sim->relics().size() == map_relics);
+		delete sim;
 	}
 
 	if (failures) {

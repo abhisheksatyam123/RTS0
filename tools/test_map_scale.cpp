@@ -13,6 +13,7 @@
 //     the new extent, so a path across a 256m map reaches its far corner.
 //  4. A unit near the far corner of a Giant map lights up the FoW there.
 //  4b. The FoW viewer (a multiplayer joiner's slot) gets its own fog, shared within its team.
+//  4c. Explored and revealed map options.
 //  5. Generation is deterministic: the same seed gives the same map at every size.
 //  Exit: 0 = PASS, 1 = FAIL.
 #include "simulation/simulation.h"
@@ -165,6 +166,36 @@ int main() {
 		CHECK(sim.fow_state_at(x, z, 1) != Simulation::FOW_VISIBLE, "player 1 sees player 2's unit");
 		CHECK(sim.is_entity_visible_to_viewer(-x, -z, 3, 2), "team-mate's unit hidden from player 2");
 		CHECK(sim.fow_grid(6)[0] == Simulation::FOW_UNEXPLORED, "player 6 (not the viewer) has explored cells");
+	}
+
+	// 4c. Game-setup visibility: "Explored map" knows the terrain but not what moves there;
+	// "Revealed map" shows everyone everything without the per-cell fog work.
+	{
+		Simulation sim;
+		sim.generate_random_map(MAP_MAINLAND, 7, 4, 128.0f);
+		sim.spawn_unit(-100.0f, 100.0f, 2, UNIT_SPEARMAN);
+		sim.set_explore_map(true);
+		sim.set_fow_viewer(2);
+		for (int i = 0; i < 10; ++i) sim.tick(Simulation::FIXED_STEP);
+		CHECK(sim.fow_state_at(100.0f, -100.0f, 0) == Simulation::FOW_EXPLORED, "explored map: far cell not explored for player 0");
+		CHECK(sim.fow_state_at(100.0f, -100.0f, 2) == Simulation::FOW_EXPLORED, "explored map: far cell not explored for the viewer");
+		CHECK(sim.fow_state_at(-100.0f, 100.0f, 2) == Simulation::FOW_VISIBLE, "explored map: viewer can't see its own unit");
+		CHECK(!sim.is_entity_visible_to_viewer(-100.0f, 100.0f, 2, 0), "explored map shows player 0 an enemy unit");
+	}
+	{
+		Simulation sim;
+		sim.generate_random_map(MAP_MAINLAND, 7, 4, 128.0f);
+		sim.set_reveal_map(true);
+		sim.set_fow_viewer(3);
+		for (int i = 0; i < 10; ++i) sim.tick(Simulation::FIXED_STEP);
+		const int n = sim.fow_res() * sim.fow_res();
+		bool all0 = true, all3 = true;
+		for (int i = 0; i < n; ++i) {
+			all0 &= sim.fow_grid(0)[i] == Simulation::FOW_VISIBLE;
+			all3 &= sim.fow_grid(3)[i] == Simulation::FOW_VISIBLE;
+		}
+		CHECK(all0 && all3, "revealed map: some cell is not visible");
+		CHECK(sim.map_scale_stats().fow_calls > 0, "fow never ticked");
 	}
 
 	// 5. Determinism.

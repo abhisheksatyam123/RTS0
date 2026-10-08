@@ -118,6 +118,49 @@ layout_mode = 2
 tooltip_text = "Allies don't share a win: the match goes on until only one player is left."
 text = "Last man standing"
 
+[node name="MapVisRow" type="HBoxContainer" parent="VBox/HBox/Left"]
+layout_mode = 2
+
+[node name="RevealMap" type="CheckBox" parent="VBox/HBox/Left/MapVisRow"]
+layout_mode = 2
+tooltip_text = "Everyone sees the whole map all match."
+text = "Revealed map"
+
+[node name="ExploreMap" type="CheckBox" parent="VBox/HBox/Left/MapVisRow"]
+layout_mode = 2
+tooltip_text = "The terrain is known from the start; enemy units stay hidden outside your vision."
+text = "Explored map"
+
+[node name="VictoryTimesRow" type="HBoxContainer" parent="VBox/HBox/Left"]
+layout_mode = 2
+
+[node name="WonderLabel" type="Label" parent="VBox/HBox/Left/VictoryTimesRow"]
+layout_mode = 2
+tooltip_text = "Wonder victory: how long a finished wonder must stand."
+mouse_filter = 1
+text = "Wonder"
+
+[node name="WonderTimeSlot" type="Control" parent="VBox/HBox/Left/VictoryTimesRow"]
+custom_minimum_size = Vector2(70, 32)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="RelicLabel" type="Label" parent="VBox/HBox/Left/VictoryTimesRow"]
+layout_mode = 2
+tooltip_text = "Capture the Relic: how many relics, and how long all of them must be held."
+mouse_filter = 1
+text = "Relics"
+
+[node name="RelicCountSlot" type="Control" parent="VBox/HBox/Left/VictoryTimesRow"]
+custom_minimum_size = Vector2(50, 32)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="RelicTimeSlot" type="Control" parent="VBox/HBox/Left/VictoryTimesRow"]
+custom_minimum_size = Vector2(70, 32)
+layout_mode = 2
+size_flags_horizontal = 3
+
 [node name="PopCapLabel" type="Label" parent="VBox/HBox/Left"]
 layout_mode = 2
 text = "Population limit"
