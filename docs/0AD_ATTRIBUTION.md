@@ -63,6 +63,10 @@ Each `synth_<id>` function generates RTS0's version of the 0 A.D. map script of 
 | India | `maps/random/india.js` | Layout read from the script: players at f = 0.35, one half dried-up lake within scaleByMapSize(15, 40) of the centre |
 | Guadalquivir River | `maps/random/guadalquivir_river.js` | Layout read from the script: continent of radius f = 0.49 round a point f = 0.2 off centre, a river f = 0.07 wide with shallows at 0.3-0.4, 0.5-0.6 and 0.7-0.8 of its length, players on arcs at f = 0.35 split by the river |
 | Fields of Meroe | `maps/random/fields_of_meroe.js` | Layout read from the script: the Nile at f = 0.25 turned by pi/5, two cataract crossings, players placed at random clear of the river, dunes |
+| Gear | `maps/random/gear.js` | Layout read from the script: central lake (f = 0.27), land ring (0.21), shallow ring (0.17), island (0.14) and hill (0.12), rivers and paths as spokes with 0 A.D.'s per-size split table; fords where paths cross the shallow ring |
+| Atlas Mountains | `maps/random/atlas_mountains.js` | Layout read from the script: players at f = 0.35, scaleByMapSize(20, 120) mountains kept 20 tiles from bases, scarce wood |
+| Frontier | `maps/random/frontier.js` | Layout read from the script: random base elevation, a random placement pattern at f = 0.2-0.35, a random mix of hills, mountains, plateaus and lakes; no teams, so one player per spoke |
+| Wild Lake | `maps/random/wild_lake.js` | Layout read from the script: diamond-square terrain seeded low in the middle, water level set so about a fifth is under water; RTS0 places players on a circle |
 
 ## Data from 0 A.D. (CC BY-SA 3.0)
 
