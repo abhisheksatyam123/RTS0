@@ -30,6 +30,9 @@
 //     once it holds no points, walls and palisades can't be captured, women don't capture.
 // 21. A gatherer whose tree runs out moves to the next one; with none left it drops off its load.
 // 22. Repairers move on to nearby work once the structure is repaired.
+// 23. The next resource is of the same kind (type.specific): berries after berries, not grain.
+// 24. Attack.js MinRange: a catapult won't fire at a target too close; ordered to, it backs off.
+// 25. Trade orders queue; a trader flees an attack and goes back to its route with its goods.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_unit_orders.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -700,6 +703,71 @@ static void test_repair_follow_up() {
 	check(s.unit_order(w).kind == ORDER_GATHER && s.unit_order(w).target == tree, "the repairer gathers the wood nearby");
 }
 
+static void test_same_kind_next() {
+	std::printf("23. the next resource is of the same kind\n");
+	Simulation s;
+	setup(s);
+	s.spawn_building_world(-20, 0, BLD_STOREHOUSE, 0, 1.0f);
+	s.spawn_building_world(-20, 12, BLD_FARMSTEAD, 0, 1.0f);
+	const uint32_t bush = s.spawn_resource_world(0, 0, RES_FOOD, 4);
+	const uint32_t grain = s.spawn_resource_world(4, 0, RES_FOOD, 500, RES_SUB_GRAIN);
+	const uint32_t bush2 = s.spawn_resource_world(12, 0, RES_FOOD, 500);
+	uint32_t w = s.spawn_unit(-1.5f, 0, 0, UNIT_FEMALE_CITIZEN);
+	s.order_gather(&w, 1, bush);
+	const bool moved = run_until(s, 60.0f, [&] { return s.unit_order(w).target != bush; });
+	check(moved, "the bush runs out");
+	check(s.unit_order(w).kind == ORDER_GATHER && s.unit_order(w).target == bush2,
+			"the gatherer takes the farther bush, not the grain beside it");
+	(void)grain;
+}
+
+static void test_min_range() {
+	std::printf("24. siege minimum range\n");
+	Simulation s;
+	setup(s);
+	uint32_t cat = s.spawn_unit(0, 0, 0, UNIT_CATAPULT);
+	const float range = unit_type_info(UNIT_CATAPULT).attack_range;
+	const float minr = range * unit_min_range_ratio(UNIT_CATAPULT);
+	check(minr > 5.0f && minr < range, "a catapult has a minimum range");
+	uint32_t near = post(s, 0, minr * 0.4f, UNIT_SPEARMAN, 5000.0f);
+	const float hp0 = hp_of(s, near);
+	run(s, 15.0f);
+	check(hp_of(s, near) == hp0, "it leaves a unit inside its minimum range alone");
+	s.order_attack(&cat, 1, near);
+	bool fired = run_until(s, 90.0f, [&] { return hp_of(s, near) < hp0; });
+	check(fired, "ordered to attack it, it backs off and fires");
+	check(dist(s, cat, x_of(s, near), z_of(s, near)) >= minr, "from beyond its minimum range");
+}
+
+static void test_trade_orders() {
+	std::printf("25. trade orders\n");
+	Simulation s;
+	setup(s);
+	const uint32_t ma = s.spawn_building_world(-40, 0, BLD_MARKET, 0, 1.0f);
+	const uint32_t mb = s.spawn_building_world(40, 0, BLD_MARKET, 0, 1.0f);
+	uint32_t t = s.spawn_unit(-40, 12, 0, UNIT_TRADER);
+	s.order_walk(&t, 1, -30, 12);
+	s.order_trade(&t, 1, ma, mb, true);
+	check(s.unit_order(t).kind == ORDER_WALK, "the trade order waits behind the walk");
+	const bool trading = run_until(s, 20.0f, [&] { return act_of(s, t) == ACTION_TRADE; });
+	check(trading && s.unit_order(t).kind == ORDER_TRADE, "then the trader starts its route");
+	const bool loaded = run_until(s, 40.0f, [&] { return s.units().carry[idx_of(s, t)] > 0; });
+	check(loaded, "it loads goods at the first market");
+	run(s, 6.0f);
+	const uint8_t goods = s.units().res_type_carried[idx_of(s, t)];
+	uint32_t archer = post(s, x_of(s, t) + 6.0f, z_of(s, t) + 6.0f, UNIT_ARCHER);
+	const bool fled = run_until(s, 10.0f, [&] { return act_of(s, t) == ACTION_FLEE; });
+	check(fled, "attacked, the passive trader flees");
+	s.cmd_delete(1, &archer, 1);
+	const bool back = run_until(s, 10.0f, [&] { return act_of(s, t) == ACTION_TRADE; });
+	check(back && s.unit_order(t).kind == ORDER_TRADE, "then goes back to its route");
+	check(s.units().carry[idx_of(s, t)] > 0 && s.units().res_type_carried[idx_of(s, t)] == goods,
+			"still carrying its goods");
+	const float before = s.player(0).res[goods];
+	const bool paid = run_until(s, 60.0f, [&] { return s.player(0).res[goods] > before; });
+	check(paid, "and delivers them at the second market");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -724,6 +792,9 @@ int main(int argc, char **argv) {
 	test_capture_rules();
 	test_depletion();
 	test_repair_follow_up();
+	test_same_kind_next();
+	test_min_range();
+	test_trade_orders();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
