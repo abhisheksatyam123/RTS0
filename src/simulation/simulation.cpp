@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <limits>
 #include <cstring>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
@@ -18,6 +19,9 @@
 #include <iostream>
 
 namespace rtso {
+
+// First save version with projectile sources and partial xp (0 A.D. Loot.js port).
+static constexpr uint32_t SAVE_VERSION_LOOT = 19;
 
 namespace {
 // Accumulates wall-clock microseconds for Simulation::MapScaleStats.
@@ -2659,15 +2663,76 @@ void Simulation::order_disembark_single(uint32_t transport_id, uint32_t unit_id)
 	}
 }
 
-void Simulation::apply_loot_bounty(uint8_t killer_team, int food, int wood, int gold, int stone) {
-	if (killer_team >= MAX_PLAYERS) return;
-	players_[killer_team].add((float)food, (float)wood, (float)gold, (float)stone);
-	if (killer_team == 0) {
-		record_.total_food_gathered += food;
-		record_.total_wood_gathered += wood;
-		record_.total_gold_gathered += gold;
-		record_.total_stone_gathered += stone;
+// 0 A.D. Promotion.js IncreaseXp. Xp is whole points; what healing grants below a
+// point waits in xp_partial.
+void Simulation::gain_xp(size_t idx, float amount) {
+	if (idx >= units_.count || !(amount > 0.0f)) return;
+	float total = units_.xp_partial[idx] + amount;
+	float whole = std::floor(total);
+	units_.xp_partial[idx] = total - whole;
+	units_.xp[idx] = (uint16_t)std::min(65535.0f, (float)units_.xp[idx] + whole);
+}
+
+// 0 A.D. Health.js TakeDamage: the attacker gains Loot/xp * health taken / max health
+// (the health actually lost, so overkill gives nothing). Call before applying damage.
+void Simulation::award_damage_xp(uint32_t attacker_id, size_t victim, float damage) {
+	if (attacker_id == 0 || victim >= units_.count) return;
+	int32_t a = lookup_unit(attacker_id);
+	if (a < 0 || !units_.alive[a]) return;
+	float lost = std::min(damage, std::max(0.0f, units_.hp[victim]));
+	if (!(lost > 0.0f) || !(units_.max_hp[victim] > 0.0f)) return;
+	float xp = unit_loot(units_.tmpl[victim], units_.unit_type[victim]).xp * loot_rank_multiplier(units_.rank[victim]);
+	gain_xp((size_t)a, xp * lost / units_.max_hp[victim]);
+}
+
+// 0 A.D. Attack.js HandleAttackEffects: loot goes to the attacking entity's Looter, so
+// none is collected once the attacker is gone. Structures are looters too.
+bool Simulation::looter_present(uint32_t looter_id, bool *infantry) const {
+	*infantry = false;
+	int32_t u = lookup_unit(looter_id);
+	if (u >= 0) {
+		if (!units_.alive[u]) return false;
+		*infantry = (unit_tech_classes(units_.unit_type[u]) & TC_INFANTRY) != 0;
+		return true;
 	}
+	auto bit = building_id_to_idx_.find(looter_id);
+	return bit != building_id_to_idx_.end() && !buildings_[bit->second].wrecked;
+}
+
+// 0 A.D. Looter.js Collect: the victim's Loot (times its rank's Loot modifiers) with
+// the looter's Looter/Resource modifiers, plus whatever the victim carried, to the
+// looter's owner. Britons infantry add 1 of each (civbonuses/brit_woad_warriors.json).
+// looter_id 0 means an older save's projectile with no recorded source.
+void Simulation::collect_loot(uint32_t looter_id, uint8_t looter_player, LootInfo loot, float mult,
+		uint8_t carried_type, int32_t carried) {
+	if (looter_player >= MAX_PLAYERS) return;
+	bool infantry = false;
+	if (looter_id != 0 && !looter_present(looter_id, &infantry)) return;
+	float res[RES_COUNT] = {};
+	res[RES_FOOD] = loot.food * mult;
+	res[RES_WOOD] = loot.wood * mult;
+	res[RES_STONE] = loot.stone * mult;
+	res[RES_GOLD] = loot.metal * mult;
+	if (infantry && civ_of(looter_player) == CIV_BRITONS)
+		for (float &r : res) r += 1.0f;
+	if (carried > 0 && carried_type < RES_COUNT) res[carried_type] += (float)carried;
+	players_[looter_player].add(res[RES_FOOD], res[RES_WOOD], res[RES_GOLD], res[RES_STONE]);
+	if (looter_player == 0) {
+		record_.total_food_gathered += (int)std::lround(res[RES_FOOD]);
+		record_.total_wood_gathered += (int)std::lround(res[RES_WOOD]);
+		record_.total_gold_gathered += (int)std::lround(res[RES_GOLD]);
+		record_.total_stone_gathered += (int)std::lround(res[RES_STONE]);
+	}
+}
+
+void Simulation::collect_unit_loot(uint32_t looter_id, uint8_t looter_player, size_t victim) {
+	if (victim >= units_.count) return;
+	collect_loot(looter_id, looter_player, unit_loot(units_.tmpl[victim], units_.unit_type[victim]),
+			loot_rank_multiplier(units_.rank[victim]), units_.res_type_carried[victim], units_.carry[victim]);
+}
+
+void Simulation::collect_building_loot(uint32_t looter_id, uint8_t looter_player, const Building &b) {
+	collect_loot(looter_id, looter_player, building_loot(b.type), 1.0f, RES_COUNT, 0);
 }
 
 void Simulation::raise_alert(BattleAlert::Type type, float x, float z, uint32_t entity_id, uint8_t team) {
@@ -2705,7 +2770,7 @@ void Simulation::record_death(float x, float z, uint8_t team, uint8_t killer_tea
 	recent_death_head_++;
 }
 
-void Simulation::fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect, uint8_t dmg_type, bool hits_building, uint8_t visual) {
+void Simulation::fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect, uint8_t dmg_type, bool hits_building, uint8_t visual, uint32_t source_id) {
 	if (projectiles_.size() >= MAX_PROJECTILES) return;
 	Projectile p;
 	p.id = alloc_id();
@@ -2728,6 +2793,7 @@ void Simulation::fire_arrow(float sx, float sy, float sz, float tx, float ty, fl
 	p.damage_type = dmg_type;
 	p.status_effect = effect;
 	p.team = team;
+	p.source_id = source_id;
 	if (hits_building) {
 		p.target_building_id = target_id;
 		p.target_unit_id = 0;
@@ -2761,7 +2827,6 @@ void Simulation::tick(float dt) {
 	tick_status_effects(dt);
 	tick_projectiles(dt);
 	tick_death_damage(dt);   // 0 A.D. DeathDamage.js:38-58: on-death splash damage to nearby units
-	tick_loot(dt);           // 0 A.D. Loot.js:15-26, Looter.js:14-41: on-death bounty grant to killer
 
 	// 4. Infrastructure & Production
 	tick_construction(dt);   // 0 A.D. Foundation.js / Builder.js: building construction
@@ -4191,7 +4256,7 @@ void Simulation::tick_combat(float dt) {
 				float disp_z = (sim_rng_.range_float(0.0f, 1.0f) - 0.5f) * spread_factor;
 				fire_arrow(units_.pos_x[i], launch_y, units_.pos_z[i],
 				           units_.pos_x[t] + disp_x, land_y, units_.pos_z[t] + disp_z,
-				           final_dmg, units_.team[i], units_.id[t], effect, 1, false, proj_vis);
+				           final_dmg, units_.team[i], units_.id[t], effect, 1, false, proj_vis, units_.id[i]);
 			}
 
 			// If War Trireme has garrisoned passengers, fire deck archer barrage
@@ -4218,11 +4283,12 @@ void Simulation::tick_combat(float dt) {
 						float hit_y = get_terrain_height(units_.pos_x[t], units_.pos_z[t]) + 0.8f;
 						fire_arrow(units_.pos_x[i] + sp, deck_y, units_.pos_z[i] + sp,
 								   units_.pos_x[t], hit_y, units_.pos_z[t],
-								   12.0f + p_bonus_dmg, units_.team[i], units_.id[t]);
+								   12.0f + p_bonus_dmg, units_.team[i], units_.id[t], 0, 1, false, 0, units_.id[i]);
 					}
 				}
 			}
 		} else {
+			award_damage_xp(units_.id[i], (size_t)t, final_dmg);
 			units_.hp[t] -= final_dmg;
 			if (units_.team[t] == 0) {
 				raise_alert(BattleAlert::ALERT_UNDER_ATTACK, units_.pos_x[t], units_.pos_z[t], units_.id[t], units_.team[t]);
@@ -4265,6 +4331,7 @@ void Simulation::tick_combat(float dt) {
 					float falloff = 1.0f - (dist2 / blast_r2);
 					float s_hack = unit_info_at(s_idx).hack_armor;
 					float s_dmg = std::max(1.0f, final_dmg * 0.60f * falloff * powf(0.9f, s_hack * 0.5f));
+					award_damage_xp(units_.id[i], (size_t)s_idx, s_dmg);
 					units_.hp[s_idx] -= s_dmg;
 					if (units_.hp[s_idx] <= 0) {
 						units_.alive[s_idx] = 0;
@@ -4275,13 +4342,7 @@ void Simulation::tick_combat(float dt) {
 						} else {
 							record_.enemies_killed++;
 						}
-						// Dynamic Loot bounty from splash casualty
-						const auto &s_info = unit_info_at(s_idx);
-						int sf_loot = (int)std::round(s_info.food_cost * 0.10f);
-						int sw_loot = (int)std::round(s_info.wood_cost * 0.10f);
-						int sg_loot = (int)std::round(s_info.gold_cost * 0.10f);
-						int ss_loot = (int)std::round(s_info.stone_cost * 0.10f);
-						apply_loot_bounty(att_team, sf_loot, sw_loot, sg_loot, ss_loot);
+						collect_unit_loot(units_.id[i], att_team, (size_t)s_idx);
 					}
 				});
 			}
@@ -4296,20 +4357,8 @@ void Simulation::tick_combat(float dt) {
 					record_.enemies_killed++;
 				}
 
-				// Dynamic Loot Tables (Loot.js, Looter.js) - 10% food/wood/stone/gold return to killer + carried resources
-				const auto &v_info = unit_info_at(t);
-				int f_loot = (int)std::round(v_info.food_cost * 0.10f);
-				int w_loot = (int)std::round(v_info.wood_cost * 0.10f);
-				int g_loot = (int)std::round(v_info.gold_cost * 0.10f);
-				int s_loot = (int)std::round(v_info.stone_cost * 0.10f);
-				if (units_.carry[t] > 0) {
-					uint8_t rtype = units_.res_type_carried[t];
-					if (rtype == RES_FOOD) f_loot += units_.carry[t];
-					else if (rtype == RES_WOOD) w_loot += units_.carry[t];
-					else if (rtype == RES_GOLD) g_loot += units_.carry[t];
-					else if (rtype == RES_STONE) s_loot += units_.carry[t];
-				}
-				apply_loot_bounty(units_.team[i], f_loot, w_loot, g_loot, s_loot);
+				// 0 A.D. Looter.js: template loot plus carried resources to the killer's owner
+				collect_unit_loot(units_.id[i], units_.team[i], (size_t)t);
 
 				// Trireme destruction: disembark survivors near shore or drown
 				// (land siege unloads in tick_siege_garrisons instead).
@@ -4339,9 +4388,8 @@ void Simulation::tick_combat(float dt) {
 					}
 				}
 
-				// Promotion.js - Unit Veterancy & Experience
+				// Promotion.js xp came with each hit (award_damage_xp); count the kill.
 				units_.kills[i]++;
-				units_.xp[i] += 100;
 			}
 		}
 	}
@@ -4416,7 +4464,7 @@ void Simulation::tick_combat(float dt) {
 			float land_y = get_terrain_height(b.x, b.z) + 1.5f;
 			fire_arrow(units_.pos_x[i], launch_y, units_.pos_z[i],
 			           b.x, land_y, b.z,
-			           bld_dmg, units_.team[i], b.id, EFFECT_BURNING, 2, true, vis);
+			           bld_dmg, units_.team[i], b.id, EFFECT_BURNING, 2, true, vis, units_.id[i]);
 		} else {
 			b.hp -= bld_dmg;
 			if (b.team == 0) {
@@ -4436,13 +4484,7 @@ void Simulation::tick_combat(float dt) {
 					raise_alert(BattleAlert::ALERT_BUILDING_DESTROYED, b.x, b.z, b.id, b.team);
 				}
 
-				// Dynamic Loot bounty upon building destruction (10% food/wood/stone/gold return to killer)
-				const auto &b_info = building_type_info(b.type);
-				int bf_loot = std::max(10, (int)std::round(b_info.food_cost * 0.10f));
-				int bw_loot = std::max(15, (int)std::round(b_info.wood_cost * 0.10f));
-				int bg_loot = std::max(10, (int)std::round(b_info.gold_cost * 0.10f));
-				int bs_loot = std::max(10, (int)std::round(b_info.stone_cost * 0.10f));
-				apply_loot_bounty(units_.team[i], bf_loot, bw_loot, bg_loot, bs_loot);
+				collect_building_loot(units_.id[i], units_.team[i], b); // 0 A.D. Looter.js
 
 				// Evacuate garrisoned units with casualty damage
 				for (uint32_t guid : b.garrisoned_units) {
@@ -4534,7 +4576,7 @@ void Simulation::tick_combat(float dt) {
 						float hit_y = get_terrain_height(units_.pos_x[hit], units_.pos_z[hit]) + 0.8f;
 						fire_arrow(b.x + spread, wall_y, b.z + spread,
 								   units_.pos_x[hit], hit_y, units_.pos_z[hit],
-								   final_turret_dmg, b.team, units_.id[hit]);
+								   final_turret_dmg, b.team, units_.id[hit], 0, 1, false, 0, b.id);
 					}
 				}
 			}
@@ -4577,8 +4619,14 @@ void Simulation::tick_combat(float dt) {
 		});
 
 		if (heal_target >= 0 && (lowest_hp_ratio < 0.999f || (units_.status_effects[heal_target] & (EFFECT_POISON | EFFECT_SNARE | EFFECT_SLOW | EFFECT_BLEED | EFFECT_BURNING)))) {
+			const float hp_before = units_.hp[heal_target];
 			units_.hp[heal_target] = std::min(units_.max_hp[heal_target],
 					units_.hp[heal_target] + dt * healer_rate(h_team));
+			// 0 A.D. Heal.js PerformHeal: health healed / max health * the target's Loot/xp.
+			if (units_.max_hp[heal_target] > 0.0f)
+				gain_xp(h, (units_.hp[heal_target] - hp_before) / units_.max_hp[heal_target] *
+						unit_loot(units_.tmpl[heal_target], units_.unit_type[heal_target]).xp *
+						loot_rank_multiplier(units_.rank[heal_target]));
 			if (units_.status_effects[heal_target] & (EFFECT_POISON | EFFECT_SNARE | EFFECT_SLOW | EFFECT_BLEED | EFFECT_BURNING)) {
 				units_.status_effects[heal_target] &= ~(EFFECT_POISON | EFFECT_SNARE | EFFECT_SLOW | EFFECT_BLEED | EFFECT_BURNING);
 				units_.poison_timer[heal_target] = 0.0f;
@@ -4907,6 +4955,7 @@ void Simulation::tick_projectiles(float dt) {
 			if (p.target_unit_id != 0) {
 				int32_t tidx = lookup_unit(p.target_unit_id);
 				if (tidx >= 0 && units_.alive[tidx]) {
+					award_damage_xp(p.source_id, (size_t)tidx, p.damage);
 					units_.hp[tidx] -= p.damage;
 					if (units_.team[tidx] == 0) {
 						raise_alert(BattleAlert::ALERT_UNDER_ATTACK, units_.pos_x[tidx], units_.pos_z[tidx], units_.id[tidx], units_.team[tidx]);
@@ -4928,20 +4977,7 @@ void Simulation::tick_projectiles(float dt) {
 						} else {
 							record_.enemies_killed++;
 						}
-						// Dynamic Loot bounty from projectile kill
-						const auto &pt_info = unit_info_at(tidx);
-						int pf_loot = (int)std::round(pt_info.food_cost * 0.10f);
-						int pw_loot = (int)std::round(pt_info.wood_cost * 0.10f);
-						int pg_loot = (int)std::round(pt_info.gold_cost * 0.10f);
-						int ps_loot = (int)std::round(pt_info.stone_cost * 0.10f);
-						if (units_.carry[tidx] > 0) {
-							uint8_t rtype = units_.res_type_carried[tidx];
-							if (rtype == RES_FOOD) pf_loot += units_.carry[tidx];
-							else if (rtype == RES_WOOD) pw_loot += units_.carry[tidx];
-							else if (rtype == RES_GOLD) pg_loot += units_.carry[tidx];
-							else if (rtype == RES_STONE) ps_loot += units_.carry[tidx];
-						}
-						apply_loot_bounty(p.team, pf_loot, pw_loot, pg_loot, ps_loot);
+						collect_unit_loot(p.source_id, p.team, (size_t)tidx);
 					}
 				}
 			} else if (p.target_building_id != 0) {
@@ -4961,12 +4997,7 @@ void Simulation::tick_projectiles(float dt) {
 								record_.buildings_destroyed++;
 							if (b.team == 0)
 								raise_alert(BattleAlert::ALERT_BUILDING_DESTROYED, b.x, b.z, b.id, b.team);
-							const auto &b_info = building_type_info(b.type);
-							apply_loot_bounty(p.team,
-									std::max(10, (int)std::round(b_info.food_cost * 0.10f)),
-									std::max(15, (int)std::round(b_info.wood_cost * 0.10f)),
-									std::max(10, (int)std::round(b_info.gold_cost * 0.10f)),
-									std::max(10, (int)std::round(b_info.stone_cost * 0.10f)));
+							collect_building_loot(p.source_id, p.team, b);
 							mark_building_wreck(b);
 							rebuild_nav_grid();
 							if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER)
@@ -4995,6 +5026,7 @@ void Simulation::tick_projectiles(float dt) {
 					float falloff = 1.0f - (dist2 / blast_r2);
 					float s_hack = unit_info_at(s_idx).hack_armor;
 					float s_dmg = std::max(1.0f, p.damage * 0.60f * falloff * powf(0.9f, s_hack * 0.5f));
+					award_damage_xp(p.source_id, s_idx, s_dmg);
 					units_.hp[s_idx] -= s_dmg;
 					if (units_.hp[s_idx] <= 0) {
 						units_.alive[s_idx] = 0;
@@ -5005,13 +5037,7 @@ void Simulation::tick_projectiles(float dt) {
 						} else {
 							record_.enemies_killed++;
 						}
-						// Dynamic Loot bounty from splash kill
-						const auto &s_info = unit_info_at(s_idx);
-						int sf_loot = (int)std::round(s_info.food_cost * 0.10f);
-						int sw_loot = (int)std::round(s_info.wood_cost * 0.10f);
-						int sg_loot = (int)std::round(s_info.gold_cost * 0.10f);
-						int ss_loot = (int)std::round(s_info.stone_cost * 0.10f);
-						apply_loot_bounty(p.team, sf_loot, sw_loot, sg_loot, ss_loot);
+						collect_unit_loot(p.source_id, p.team, s_idx);
 					}
 				}
 			}
@@ -5044,8 +5070,6 @@ void Simulation::tick_status_effects(float dt) {
 				record_death(units_.pos_x[i], units_.pos_z[i], units_.team[i], (uint8_t)(1 - units_.team[i]), units_.unit_type[i], false);
 				if (units_.team[i] == 0) record_.units_lost++;
 				else record_.enemies_killed++;
-				const auto &v_info = unit_info_at(i);
-				apply_loot_bounty(1 - units_.team[i], (int)std::round(v_info.food_cost * 0.1f), (int)std::round(v_info.wood_cost * 0.1f), (int)std::round(v_info.gold_cost * 0.1f), (int)std::round(v_info.stone_cost * 0.1f));
 			}
 			if (units_.poison_timer[i] <= 0.0f) {
 				units_.status_effects[i] &= ~EFFECT_POISON;
@@ -5079,8 +5103,6 @@ void Simulation::tick_status_effects(float dt) {
 				record_death(units_.pos_x[i], units_.pos_z[i], units_.team[i], (uint8_t)(1 - units_.team[i]), units_.unit_type[i], false);
 				if (units_.team[i] == 0) record_.units_lost++;
 				else record_.enemies_killed++;
-				const auto &v_info = unit_info_at(i);
-				apply_loot_bounty(1 - units_.team[i], (int)std::round(v_info.food_cost * 0.1f), (int)std::round(v_info.wood_cost * 0.1f), (int)std::round(v_info.gold_cost * 0.1f), (int)std::round(v_info.stone_cost * 0.1f));
 			}
 			if (units_.bleed_timer[i] <= 0.0f) {
 				units_.status_effects[i] &= ~EFFECT_BLEED;
@@ -5098,8 +5120,6 @@ void Simulation::tick_status_effects(float dt) {
 				record_death(units_.pos_x[i], units_.pos_z[i], units_.team[i], (uint8_t)(1 - units_.team[i]), units_.unit_type[i], false);
 				if (units_.team[i] == 0) record_.units_lost++;
 				else record_.enemies_killed++;
-				const auto &v_info = unit_info_at(i);
-				apply_loot_bounty(1 - units_.team[i], (int)std::round(v_info.food_cost * 0.1f), (int)std::round(v_info.wood_cost * 0.1f), (int)std::round(v_info.gold_cost * 0.1f), (int)std::round(v_info.stone_cost * 0.1f));
 			}
 			if (units_.burning_timer[i] <= 0.0f) {
 				units_.status_effects[i] &= ~EFFECT_BURNING;
@@ -5596,29 +5616,6 @@ void Simulation::tick_death_damage(float dt) {
 				}
 			}
 		}
-	}
-}
-
-// 0 A.D. Loot.js:15-26, Looter.js:14-41: on-death bounty grant to killer's stockpile
-void Simulation::tick_loot(float dt) {
-	const size_t start = (recent_death_head_ > MAX_RECENT_DEATHS) ? (recent_death_head_ - MAX_RECENT_DEATHS) : 0;
-	const size_t end = recent_death_head_;
-
-	for (size_t k = start; k < end; ++k) {
-		auto &death = recent_deaths_[k % MAX_RECENT_DEATHS];
-		if (death.loot_applied) continue;
-		death.loot_applied = true;
-
-		// 0 A.D. Looter.js:34-41: cmpPlayer.AddResources(resources)
-		uint8_t killer = death.killer_team;
-		if (killer == death.team || killer >= 2) continue;
-
-		int food_bounty = death.is_building ? 20 : 5;
-		int wood_bounty = death.is_building ? 20 : 5;
-
-		PlayerState &kps = players_[killer];
-		kps.food() = std::min(9999.0f, kps.food() + (float)food_bounty);
-		kps.wood() = std::min(9999.0f, kps.wood() + (float)wood_bounty);
 	}
 }
 
@@ -9664,7 +9661,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 
@@ -10259,8 +10256,17 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			d.has_goal = v.has_goal; d.goal_x = v.goal_x; d.goal_z = v.goal_z;
 		});
 	};
-	static_assert(sizeof(Projectile) == 72, "list the new Projectile field below");
+	static_assert(sizeof(Projectile) == 76, "list the new Projectile field below");
 	auto projectile = [&](Projectile &p) {
+		if constexpr (Ar::loading) {
+			// Before v19 a projectile ended at alive (72 bytes) and had no source.
+			if (ar.version < SAVE_VERSION_LOOT) {
+				ar.in.read((char *)&p, offsetof(Projectile, source_id));
+				p.source_id = 0;
+				ar.ok = ar.ok && ar.in.good();
+				return;
+			}
+		}
 		ar.padded(p, [&](Projectile &d, const Projectile &v) {
 			d.id = v.id; d.start_x = v.start_x; d.start_y = v.start_y; d.start_z = v.start_z;
 			d.target_x = v.target_x; d.target_y = v.target_y; d.target_z = v.target_z;
@@ -10268,6 +10274,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			d.progress = v.progress; d.speed = v.speed; d.arc_height = v.arc_height; d.damage = v.damage;
 			d.damage_type = v.damage_type; d.visual = v.visual; d.status_effect = v.status_effect; d.team = v.team;
 			d.target_unit_id = v.target_unit_id; d.target_building_id = v.target_building_id; d.alive = v.alive;
+			d.source_id = v.source_id;
 		});
 	};
 	static_assert(sizeof(S::TreasureRelic) == 24, "list the new TreasureRelic field below");
@@ -10307,6 +10314,8 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		ar.pod(U.poison_timer[i]); ar.pod(U.snare_timer[i]); ar.pod(U.knockback_timer[i]);
 		ar.pod(U.knockback_dir_x[i]); ar.pod(U.knockback_dir_z[i]);
 		ar.pod(U.slow_timer[i]); ar.pod(U.bleed_timer[i]); ar.pod(U.burning_timer[i]);
+		if (ar.version >= SAVE_VERSION_LOOT) ar.pod(U.xp_partial[i]);
+		else U.xp_partial[i] = 0.0f;
 		uint8_t has_path = i < s.unit_paths_.size() && s.unit_paths_[i].count > 0;
 		ar.pod(has_path);
 		if (!ar.ok) return;

@@ -3252,6 +3252,12 @@ void RtsoMain::apply_match_settings() {
 		civ = (int)slot_civs[0];
 		ai = (int)slot_civs[1];
 	}
+	// Seats from the lobby (0 human, 1 AI, 2 closed); a random map gets a base for each.
+	Array slot_types = ms->get("slot_types");
+	int seats = 0;
+	for (int i = 0; i < slot_types.size() && i < rtso::MAX_PLAYERS; ++i)
+		if ((int)slot_types[i] != 2) seats = i + 1;
+	random_map_players = std::max(2, seats);
 	if (!load_map_seeded(map_id, seed)) {
 		UtilityFunctions::printerr("[RtsoMain] GameSetup map failed: ", map_id, " - default arena.");
 		if (civ >= 0 && civ < rtso::CIV_COUNT) sim->set_player_civ((uint8_t)civ);
@@ -3289,9 +3295,17 @@ void RtsoMain::apply_match_settings() {
 			kStartRes[start_res][2], kStartRes[start_res][3]);
 	// Per-slot civs (slot 0 = human; extra slots honor team civs the
 	// RMS/JSON spawns actually created - Petra only drives team 1).
-	for (int t = 0; t < 4 && t < slot_civs.size(); ++t) {
+	for (int t = 0; t < rtso::MAX_PLAYERS && t < slot_civs.size(); ++t) {
 		int sc = (int)slot_civs[t];
 		if (sc >= 0 && sc < rtso::CIV_COUNT) sim->set_team_civ((uint8_t)t, (uint8_t)sc);
+	}
+	// Seat the lobby's slots so every AI slot runs its own Petra (as apply_game_setup does).
+	if (seats > 0) {
+		for (int t = 0; t < rtso::MAX_PLAYERS; ++t) {
+			const int ty = t < slot_types.size() ? (int)slot_types[t] : 2;
+			const bool seated = t < seats && ty != 2 && (t > 0 || ty == 0);
+			sim->set_player_active((uint8_t)t, seated || t == 0, t > 0 && seated && ty == 1);
+		}
 	}
 	UtilityFunctions::print("[RtsoMain] GameSetup ", map_id, " seed ", (int64_t)seed,
 			" civ ", rtso::civ_info(sim->player_civ()).name,
@@ -3397,7 +3411,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		map_id == "jebel_barkal" || map_id == "random_jebel_barkal") {
 		
 		rtso::MapType mtype = rtso::MAP_RANDOM_CONTINENTAL;
-		int num_p = 2;
+		int num_p = std::clamp(random_map_players, 2, (int)rtso::MAX_PLAYERS);
 		if (map_id.contains("archipelago")) mtype = rtso::MAP_RANDOM_ARCHIPELAGO;
 		else if (map_id.contains("saharan_oases")) mtype = rtso::MAP_SAHARAN_OASES;
 		else if (map_id.contains("oasis")) mtype = rtso::MAP_RANDOM_OASIS;
@@ -3408,7 +3422,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		else if (map_id.contains("danubius")) mtype = rtso::MAP_DANUBIUS;
 		else if (map_id.contains("anatolian")) mtype = rtso::MAP_ANATOLIAN_PLATEAU;
 		else if (map_id.contains("jebel") || map_id.contains("barkal")) mtype = rtso::MAP_JEBEL_BARKAL;
-		else if (map_id.contains("mediterranean")) { mtype = rtso::MAP_RANDOM_MEDITERRANEAN; num_p = 4; }
+		else if (map_id.contains("mediterranean")) mtype = rtso::MAP_RANDOM_MEDITERRANEAN;
 		// Newer maps resolve by id ("random_<id>" or "<id>"), see map_type_info.
 		for (int t = rtso::MAP_MAINLAND; t < rtso::MAP_TYPE_COUNT; ++t) {
 			String id = rtso::map_type_info((uint8_t)t).id;
@@ -3808,6 +3822,9 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	if (!sim) return;
 	// Every peer generates the same map: the size rides in NMT_GAME_START.
 	random_map_size = (setup.map_size >= 128 && setup.map_size <= 512) ? setup.map_size : 128;
+	random_map_players = 2;
+	for (uint8_t i = 0; i < setup.slot_count && i < rtso::MAX_PLAYERS; ++i)
+		if (setup.slot_types[i] != 'x') random_map_players = std::max(random_map_players, (int)i + 1);
 	if (!load_map_seeded(String(setup.map_id.c_str()), setup.seed)) {
 		if (lobby_status) lobby_status->set_text("GameStart failed: map regen failed");
 		return;
@@ -3836,7 +3853,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	uint8_t sr = setup.start_res > 3 ? 1 : setup.start_res;
 	sim->set_starting_resources(kStartRes[sr][0], kStartRes[sr][1],
 			kStartRes[sr][2], kStartRes[sr][3]);
-	for (uint8_t t = 0; t < 4 && t < setup.slot_count; ++t) {
+	for (uint8_t t = 0; t < rtso::MAX_PLAYERS && t < setup.slot_count; ++t) {
 		if (setup.civs[t] < rtso::CIV_COUNT) sim->set_team_civ(t, setup.civs[t]);
 	}
 	// Seat every slot: Petra runs only for 'a' slots, so a second human in
