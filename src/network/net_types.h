@@ -322,7 +322,7 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 			else if (k == "behavior") { uint8_t x; if (detail::parse_u8(v, 0, 3, x)) out.behavior = x; }
 			else if (k == "res") { uint8_t x; if (detail::parse_u8(v, 0, 3, x)) out.start_res = x; }
 			else if (k.size() == 4 && k[0] == 'c' && k[1] == 'i' && k[2] == 'v' && k[3] >= '0' && k[3] <= '7') {
-				uint8_t x; if (detail::parse_u8(v, 0, 12, x)) out.civs[k[3] - '0'] = x;
+				uint8_t x; if (detail::parse_u8(v, 0, 13, x)) out.civs[k[3] - '0'] = x;
 			}
 			else if (k == "types") {
 				for (size_t i = 0; i < v.size() && i < 8; ++i)

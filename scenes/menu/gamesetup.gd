@@ -27,6 +27,7 @@ const CIVS := [
 	{"code": "kush", "name": "Kushites", "emblem": "res://assets/textures/ui/emblems/kushites.png", "blurb": "Bleeding and poison arrows. Nubian archers, pyramid shrines."},
 	{"code": "ptol", "name": "Ptolemies", "emblem": "res://assets/textures/ui/emblems/ptolemies.png", "blurb": "Mercenary camps, camel raiders, +30% trade gain."},
 	{"code": "sele", "name": "Seleucids", "emblem": "res://assets/textures/ui/emblems/seleucids.png", "blurb": "Silver shields, cataphracts, and scythed chariots."},
+	{"code": "han", "name": "Han Chinese", "emblem": "res://assets/textures/ui/emblems/han.png", "blurb": "Crossbowmen, war chariots and imperial ministers."},
 ]
 
 # (map_id, display name, kind, players, size_m, biome, description)
