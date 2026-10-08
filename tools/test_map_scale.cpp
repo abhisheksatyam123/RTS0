@@ -15,10 +15,14 @@
 //  4b. The FoW viewer (a multiplayer joiner's slot) gets its own fog, shared within its team.
 //  4c. Explored and revealed map options.
 //  5. Generation is deterministic: the same seed gives the same map at every size.
+//  6. Stronghold keeps teammates together.
+//  7. Shallow water is walkable and sailable; deep water is ships only.
+//  8. Red Sea and Hellas are painted from 0 A.D.'s heightmap images.
 //  Exit: 0 = PASS, 1 = FAIL.
 #include "simulation/simulation.h"
 #include "simulation/rms_generator.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <vector>
@@ -252,6 +256,32 @@ int main() {
 					deep_ok &= !sea.nav_grid().is_passable_for(x, y, PASS_INFANTRY) && sea.nav_grid().is_passable_for(x, y, PASS_SHIP);
 				}
 		CHECK(sea_deep > 0 && deep_ok, "deep water must be ships only (%d cells)", sea_deep);
+	}
+
+	// 8. Heightmap maps (rmgen LoadHeightmapImage / HeightmapPainter).
+	for (int size : {128, 512}) {
+		const float half = size * 0.5f;
+		Simulation sim;
+		sim.generate_random_map(MAP_RED_SEA, 3, 4, half);
+		const float wh = sim.water_height();
+		// red_sea.png pixel (111, 145) is mid Red Sea, (162, 102) inland Arabia.
+		auto at_px = [&](float px, float py) {
+			return sim.get_terrain_height(-half + px / 255.0f * size, -half + py / 255.0f * size);
+		};
+		CHECK(at_px(111.0f, 145.0f) < wh, "red_sea %d: the Red Sea is dry (%.2f)", size, at_px(111.0f, 145.0f));
+		CHECK(at_px(162.0f, 102.0f) > wh + 0.3f, "red_sea %d: Arabia is under water (%.2f)", size, at_px(162.0f, 102.0f));
+		Simulation hel;
+		hel.generate_random_map(MAP_HELLAS, 3, 4, half);
+		int land = 0, cells = 0;
+		float top = -1e9f;
+		for (float h : hel.terrain_heights()) {
+			++cells;
+			land += h > hel.water_height() + 0.3f;
+			top = std::max(top, h);
+		}
+		// The land-ratio checks pick mostly land; heights reach 100 m x (size + 1) / 321.
+		CHECK(land > cells / 2, "hellas %d: only %d of %d cells are land", size, land, cells);
+		CHECK(top > hel.water_height() + 3.0f, "hellas %d: flat (top %.1f)", size, top);
 	}
 
 	if (g_failures) {
