@@ -112,7 +112,13 @@ enum MapType : uint8_t {
 	MAP_ENGLISH_CHANNEL = 54,
 	MAP_DODECANESE = 55,
 	MAP_FORTRESS = 56,
-	MAP_TYPE_COUNT = 57
+	MAP_CORSICA = 57,
+	MAP_PHOENICIAN_LEVANT = 58,
+	MAP_MARMARA = 59,
+	MAP_BAHRAIN = 60,
+	MAP_BOTSWANAN_HAVEN = 61,
+	MAP_SCYTHIAN_RIVULET = 62,
+	MAP_TYPE_COUNT = 63
 };
 
 struct MapTypeInfo {
@@ -182,7 +188,13 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_HELLAS, "hellas", "Hellas (RMS)", "mediterranean", true, "A random corner of Greece and the Aegean, painted from a real elevation map."},
 		{MAP_ENGLISH_CHANNEL, "english_channel", "English Channel (RMS)", "temperate", true, "Players start on both sides of the English Channel; crossing it takes ships."},
 		{MAP_DODECANESE, "dodecanese", "Dodecanese (RMS)", "mediterranean", true, "A group of islands in the Aegean, a few joined by bridges; the rest need ships."},
-		{MAP_FORTRESS, "fortress", "Fortress (RMS)", "temperate", true, "Players start inside walled fortresses with a market, barracks, stable and temple."}
+		{MAP_FORTRESS, "fortress", "Fortress (RMS)", "temperate", true, "Players start inside walled fortresses with a market, barracks, stable and temple."},
+		{MAP_CORSICA, "corsica", "Corsica vs Sardinia (RMS)", "mediterranean", true, "The players start on two opposing islands, both with a very jagged relief that will make landing difficult."},
+		{MAP_PHOENICIAN_LEVANT, "phoenician_levant", "Phoenician Levant (RMS)", "mediterranean", true, "Players start in the eastern part of the map while a great sea is located to the west."},
+		{MAP_MARMARA, "marmara", "Marmara (RMS)", "aegean", true, "The Propontis (Sea of Marmara) between Thrace and Asia Minor, joined by the Bosporus and the Hellespont; players start on fertile land."},
+		{MAP_BAHRAIN, "bahrain", "Bahrain (RMS)", "desert", true, "Bahrain, the pearl island of the Sinus Persicus, stands empty between the coasts of Arabia: will you be its next ruler?"},
+		{MAP_BOTSWANAN_HAVEN, "botswanan_haven", "Botswanan Haven (RMS)", "savanna", true, "Botswana in the wet season: herds graze amid tall, lush grasses where lions wait, and crocodiles lurk in the shallow pools."},
+		{MAP_SCYTHIAN_RIVULET, "scythian_rivulet", "Scythian Rivulet (RMS)", "polar", true, "Carpeted in snow, a land of wolf packs either side of a frozen rivulet; players must conquer - or be conquered."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
@@ -194,7 +206,7 @@ inline bool is_procedural_map(uint8_t type) {
 
 // Naval maps: bases may sit on separate land, so armies need ships to meet.
 inline bool map_is_naval(int type) {
-	return type == MAP_ENGLISH_CHANNEL || type == MAP_DODECANESE;
+	return type == MAP_ENGLISH_CHANNEL || type == MAP_DODECANESE || type == MAP_CORSICA || type == MAP_BAHRAIN;
 }
 
 enum UnitType : uint8_t {

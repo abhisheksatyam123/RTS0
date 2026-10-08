@@ -88,6 +88,12 @@ const RMS_MAPS := [
 	["random_english_channel", "English Channel (RMS)", "Random", 8, 128, "temperate", "Two coasts split by the Channel; ships needed to cross. Supports 2-8 players."],
 	["random_dodecanese", "Dodecanese (RMS)", "Random", 8, 128, "mediterranean", "Aegean islands, a few joined by bridges. Supports 2-8 players."],
 	["random_fortress", "Fortress (RMS)", "Random", 8, 128, "temperate", "Every player starts inside a walled fortress. Supports 2-8 players."],
+	["random_corsica", "Corsica vs Sardinia (RMS)", "Random", 8, 128, "mediterranean", "Two opposing islands with jagged relief; ships needed to land. Supports 2-8 players."],
+	["random_phoenician_levant", "Phoenician Levant (RMS)", "Random", 8, 128, "mediterranean", "Players start in the east, a great sea and Cyprus to the west. Supports 2-8 players."],
+	["random_marmara", "Marmara (RMS)", "Random", 8, 128, "aegean", "The Sea of Marmara between Thrace and Asia Minor from a real elevation map. Supports 2-8 players."],
+	["random_bahrain", "Bahrain (RMS)", "Random", 8, 128, "desert", "Arabian coasts round the island of Bahrain from a real elevation map; ships needed. Supports 2-8 players."],
+	["random_botswanan_haven", "Botswanan Haven (RMS)", "Random", 8, 128, "savanna", "Wet-season savanna with hills and shallow marsh pools. Supports 2-8 players."],
+	["random_scythian_rivulet", "Scythian Rivulet (RMS)", "Random", 8, 128, "polar", "Snowy land either side of a shallow frozen rivulet. Supports 2-8 players."],
 ]
 
 # 0 A.D. population limits per player (0 = unlimited) and ceasefire lengths in minutes.
