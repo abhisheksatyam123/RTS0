@@ -59,11 +59,33 @@ jobs:
           path: bin/
           retention-days: 3
 
+  headless-tests:
+    name: Headless C++ tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pathfinder, fixed-point and geometry tests
+        run: |
+          for t in test_long_pathfinder test_fixed test_geometry; do
+            g++ -std=c++20 -O2 -Isrc tools/$t.cpp -o /tmp/$t
+            /tmp/$t
+          done
+
+      - name: Nav parity probe
+        run: python3 tools/check_parity.py --unit nav-live
+
+      - name: Lockstep playtest
+        run: python3 tools/playtest_lockstep.py
+
   export-desktop:
     name: Export ${{ matrix.name }}
     runs-on: ubuntu-latest
     needs: build-native
-    timeout-minutes: 60
+    # Importing ~750MB of 0 A.D. assets takes longer than a PR check should;
+    # exports run on main, tags and manual runs only.
+    if: github.event_name != 'pull_request'
+    timeout-minutes: 150
     strategy:
       fail-fast: false
       matrix:
