@@ -314,6 +314,11 @@ public:
 	void order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz);
 	void order_build_or_repair(const uint32_t *unit_ids, size_t count, uint32_t building_id);
 	void order_set_stance(const uint32_t *unit_ids, size_t count, uint8_t stance);
+	// 0 A.D. Pack/Unpack command (UnitAI Order.Pack / Order.Unpack): drops the units' current
+	// orders and packs (pack=true) or unpacks them. Units without Pack are ignored.
+	void order_pack(const uint32_t *unit_ids, size_t count, bool pack);
+	// Seconds a pack or unpack takes for this unit (0 A.D. Pack/Time).
+	float pack_time_s(size_t unit_idx) const;
 	void order_set_formation(const uint32_t *unit_ids, size_t count, uint8_t formation);
 	void order_garrison(const uint32_t *unit_ids, size_t count, uint32_t building_id);
 	void order_ungarrison(uint32_t building_id);
@@ -354,6 +359,21 @@ public:
 	int pop_cap() const { return pop_cap_; }
 	void set_pop_cap(int cap) { pop_cap_ = std::max(0, cap); }
 	// 0 A.D. ceasefire: no player can attack another for the first N seconds of the match.
+	// 0 A.D. map visibility options: everything visible, or terrain known from the start.
+	bool reveal_map() const { return reveal_map_; }
+	void set_reveal_map(bool on) { reveal_map_ = on; }
+	bool explore_map() const { return explore_map_; }
+	void set_explore_map(bool on) { explore_map_ = on; }
+	// Wonder and Capture the Relic: how long the wonder or all relics must be held, and how
+	// many relics a Capture the Relic match has (0 = the map's own). Game Setup passes
+	// 0 A.D.'s defaults (20 min, 20 min, 2 relics); the sim keeps RTS0's older 10 min / 3 min
+	// for matches started without it.
+	float wonder_duration() const { return wonder_duration_; }
+	void set_wonder_duration(float s) { wonder_duration_ = std::max(0.0f, s); }
+	float relic_duration() const { return relic_duration_; }
+	void set_relic_duration(float s) { relic_duration_ = std::max(0.0f, s); }
+	int relic_count() const { return relic_count_; }
+	void set_relic_count(int n) { relic_count_ = std::clamp(n, 0, 16); }
 	float ceasefire_seconds() const { return ceasefire_seconds_; }
 	void set_ceasefire_seconds(float s) { ceasefire_seconds_ = std::max(0.0f, s); }
 	float ceasefire_remaining() const { return std::max(0.0f, ceasefire_seconds_ - (float)ticks_ * FIXED_STEP); }
@@ -406,7 +426,7 @@ public:
 	bool cmd_set_diplomacy(uint8_t player_id, uint8_t target, uint8_t stance);
 	// 0 A.D. Player.js TributeResource: `from` sends `amounts` (indexed by
 	// ResourceType) to `to`. All or nothing; both players must be in the
-	// match. The one tribute path for the UI, lockstep cmd 25 and Petra.
+	// match. The one tribute path for the UI, lockstep cmd 27 and Petra.
 	bool cmd_tribute(uint8_t from, uint8_t to, const int amounts[RES_COUNT]);
 	bool cmd_tribute(uint8_t from, uint8_t to, uint8_t res_type, int amount);
 	// G3 Market/Trader (0 A.D. Market.js CalculateTraderGain, Trader.js, globalscripts/Trade.js)
@@ -453,6 +473,8 @@ public:
 		const uint8_t *status_effects;
 		const uint16_t *xp;
 		const uint16_t *tmpl; // civ roster template (civ_unit_template), CIV_UNIT_TEMPLATE_NONE = generic
+		const uint8_t *pack_state; // PackState: siege engines pack to move and unpack to fire
+		const float *pack_elapsed; // seconds into the current pack/unpack
 		size_t count;
 	};
 	UnitView units() const;
@@ -750,7 +772,7 @@ public:
 		uint8_t owner_team = 255;
 	};
 
-	float wonder_time_remaining() const { return std::max(0.0f, 600.0f - wonder_victory_timer_); }
+	float wonder_time_remaining() const { return std::max(0.0f, wonder_duration_ - wonder_victory_timer_); }
 	bool is_wonder_active() const { return has_active_wonder_; }
 	const std::vector<TreasureRelic> &relics() const { return relics_; }
 
@@ -825,6 +847,7 @@ private:
 	int32_t carry_cap(size_t unit_idx, uint8_t res) const;
 	uint32_t find_free_field(uint8_t team, float x, float z);
 	void tick_combat(float dt);
+	void tick_pack(float dt);
 	void tick_promotion(float dt);
 	void tick_capture(float dt);
 	void tick_status_effects(float dt);
@@ -964,6 +987,12 @@ private:
 	int wave_number_ = 0;
 	bool game_over_ = false;
 	bool victory_ = false;
+	bool reveal_map_ = false;
+	bool explore_map_ = false;
+	float wonder_duration_ = 600.0f;
+	float relic_duration_ = 180.0f;
+	int relic_count_ = 0;
+	void apply_relic_count();
 	uint8_t participant_mask_ = 0; // save v10
 	uint8_t defeated_mask_ = 0;
 	uint8_t winner_mask_ = 0;
