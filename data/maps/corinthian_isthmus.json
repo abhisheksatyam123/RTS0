@@ -3,6 +3,7 @@
   "name": "Corinthian Isthmus (4)",
   "desc": "Two Mediterranean land masses connected by a narrow spit of land, called an 'Isthmus'.",
   "biome": "mediterranean",
+  "nomad": false,
   "world_size": 384.0,
   "water_height": 7.11,
   "heightmap_res": 64,
@@ -45501,18 +45502,6 @@
       "z": -105.85
     },
     {
-      "type": "barracks",
-      "player": 3,
-      "x": 41.56,
-      "z": -116.48
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": 41.12,
-      "z": -115.69
-    },
-    {
       "type": "town_center",
       "player": 3,
       "x": 38.57,
@@ -45685,18 +45674,6 @@
       "player": 1,
       "x": -25.38,
       "z": 136.24
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -16.79,
-      "z": 130.24
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -17.44,
-      "z": 131.15
     },
     {
       "type": "town_center",
@@ -45873,18 +45850,6 @@
       "z": 45.18
     },
     {
-      "type": "barracks",
-      "player": 2,
-      "x": -126.93,
-      "z": 39.13
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": -127.58,
-      "z": 40.03
-    },
-    {
       "type": "town_center",
       "player": 2,
       "x": -129.83,
@@ -45895,18 +45860,6 @@
       "player": 4,
       "x": 107.08,
       "z": -32.68
-    },
-    {
-      "type": "barracks",
-      "player": 4,
-      "x": 109.64,
-      "z": -30.0
-    },
-    {
-      "type": "barracks",
-      "player": 4,
-      "x": 110.09,
-      "z": -30.78
     },
     {
       "type": "wall_segment",
@@ -46091,6 +46044,18 @@
       "z": -116.65
     },
     {
+      "type": "archer",
+      "player": 3,
+      "x": 41.56,
+      "z": -116.48
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": 41.12,
+      "z": -115.69
+    },
+    {
       "type": "swordsman",
       "player": 3,
       "x": 36.41,
@@ -46151,6 +46116,18 @@
       "z": 124.71
     },
     {
+      "type": "archer",
+      "player": 1,
+      "x": -16.79,
+      "z": 130.24
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -17.44,
+      "z": 131.15
+    },
+    {
       "type": "swordsman",
       "player": 1,
       "x": -21.3,
@@ -46197,6 +46174,18 @@
       "player": 2,
       "x": -128.34,
       "z": 33.6
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": -126.93,
+      "z": 39.13
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": -127.58,
+      "z": 40.03
     },
     {
       "type": "swordsman",
@@ -46257,6 +46246,18 @@
       "player": 4,
       "x": 104.94,
       "z": -35.62
+    },
+    {
+      "type": "archer",
+      "player": 4,
+      "x": 109.64,
+      "z": -30.0
+    },
+    {
+      "type": "archer",
+      "player": 4,
+      "x": 110.09,
+      "z": -30.78
     },
     {
       "type": "cavalry",

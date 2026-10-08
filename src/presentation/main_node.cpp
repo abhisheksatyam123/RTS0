@@ -3658,6 +3658,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 
 	// Spawn Starting Units
 	Array units_arr = d.get("units", Array());
+	std::vector<uint32_t> unit_ids(units_arr.size(), 0);
 	for (int i = 0; i < units_arr.size(); ++i) {
 		Dictionary u = units_arr[i];
 		String utype_str = u.get("type", "villager");
@@ -3692,7 +3693,15 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		else if (utype_str == "scythed_chariot") utype = rtso::UNIT_SCYTHED_CHARIOT;
 
 		const auto &uinfo = rtso::unit_type_info(utype);
-		sim->spawn_unit(ux, uz, team, utype, uinfo.hp);
+		unit_ids[i] = sim->spawn_unit(ux, uz, team, utype, uinfo.hp);
+	}
+	// "garrison_in": index of the ship the unit starts aboard (0 A.D. <Garrison>,
+	// e.g. sicilia_nomad_2p). Passengers sit on the ship, so boarding is instant.
+	for (int i = 0; i < units_arr.size(); ++i) {
+		Dictionary u = units_arr[i];
+		int holder = (int)u.get("garrison_in", -1);
+		if (holder < 0 || holder >= (int)unit_ids.size() || !unit_ids[i] || !unit_ids[holder]) continue;
+		sim->order_board_transport(&unit_ids[i], 1, unit_ids[holder]);
 	}
 
 	// Rebuild World View 3D terrain and bounds
