@@ -7,6 +7,7 @@
 #include <cmath>
 #include <numeric>
 #include <algorithm>
+#include <limits>
 #include <cstring>
 #include <cstdint>
 #include <cstdlib>
@@ -129,6 +130,35 @@ struct UnitGrid {
 	}
 };
 // 0 A.D. navalManager.js:58 seaWarShips — per-sea fleet accounting registry
+
+// For reveal_fow()'s LOS shortcut: terrain_blocks_los()'s 0.35 clearance less a margin for float
+// rounding, and the widest block window it handles (vision up to ~56 FoW cells).
+constexpr float FOW_LOS_CLEARANCE = 0.35f - 0.01f;
+constexpr int FOW_BOX_MAX_W = 32;
+// For each block of the (2rb+1)^2 window centred on block (bcx, bcz), the highest block_hmax in
+// the box of blocks from the centre to that block. Fills the blocks inside the GB x GB grid; the
+// window is row-major in `out`.
+void fow_box_max(const float *block_hmax, int GB, int bcx, int bcz, int rb, float *out) {
+	const int WB = 2 * rb + 1;
+	for (int zs = -1; zs <= 1; zs += 2)
+		for (int xs = -1; xs <= 1; xs += 2)
+			for (int j = 0; j <= rb; ++j) {
+				const int bz = bcz + zs * j;
+				if (bz < 0 || bz >= GB) break;
+				const float *hm = &block_hmax[(size_t)bz * GB];
+				float *row = &out[(zs * j + rb) * WB + rb];
+				const float *nearer = j ? row - zs * WB : nullptr; // the row one step towards the centre
+				for (int i = 0; i <= rb; ++i) {
+					const int bx = bcx + xs * i;
+					if (bx < 0 || bx >= GB) break;
+					float m = hm[bx];
+					if (i) m = std::max(m, row[xs * (i - 1)]);
+					if (nearer) m = std::max(m, nearer[xs * i]);
+					row[xs * i] = m;
+				}
+			}
+}
+
 } // namespace
 
 Simulation::Simulation() {
@@ -164,6 +194,8 @@ void Simulation::set_map_half(float h) {
 	for (auto &g : player_fow_) g.clear();
 	petra_fow_.assign(cells, FOW_UNEXPLORED);
 	fow_cell_height_.clear();
+	fow_cell_hmax_.clear();
+	fow_block_hmax_.clear();
 	// The nav grid caches map_half for world<->cell conversion, so it must be
 	// re-initialised whenever the extent changes.
 	nav_grid_.init(map_half_, grid_res_);
@@ -746,10 +778,8 @@ void Simulation::rebuild_nav_grid() {
 void Simulation::rebuild_territory() {
 	ScopedUs prof(map_scale_stats_.territory_us, map_scale_stats_.territory_calls);
 	const int R = grid_res_;
-	influence_grid_.resize(R, R, 0);
-	territory_grid_.resize(R, R, 0);
-	influence_grid_.fill(0);
-	territory_grid_.fill(0);
+	auto &roots = territory_roots_scratch_;
+	roots.clear();
 	for (const auto &b : buildings_) {
 		if (b.build_progress < 0.99f) continue;
 		float radius = 0.0f;
@@ -757,6 +787,22 @@ void Simulation::rebuild_territory() {
 		else if (b.type == BLD_FORTRESS) radius = 28.0f;
 		else if (b.type == BLD_TOWER) radius = 18.0f;
 		else continue;
+		roots.push_back({b.x, b.z, radius, b.team});
+	}
+	// The grids depend on nothing else, so unchanged inputs (most 1 Hz refreshes) keep them.
+	if (roots == territory_roots_ && territory_roots_res_ == R && territory_roots_half_ == map_half_ &&
+			influence_grid_.w == R && influence_grid_.h == R && territory_grid_.w == R && territory_grid_.h == R)
+		return;
+	territory_roots_.swap(roots);
+	territory_roots_res_ = R;
+	territory_roots_half_ = map_half_;
+
+	influence_grid_.resize(R, R, 0);
+	territory_grid_.resize(R, R, 0);
+	influence_grid_.fill(0);
+	territory_grid_.fill(0);
+	for (const TerritoryRoot &b : territory_roots_) {
+		const float radius = b.radius;
 		float r2 = radius * radius;
 		// Only cells whose centre can fall inside the radius (one-cell margin
 		// keeps the exact distance test below authoritative).
@@ -8762,6 +8808,45 @@ void Simulation::ensure_fow_cell_heights() {
 	for (int gz = 0; gz < G; ++gz)
 		for (int gx = 0; gx < G; ++gx)
 			fow_cell_height_[gz * G + gx] = get_terrain_height((gx + 0.5f) * cell - half, (gz + 0.5f) * cell - half);
+
+	// fow_cell_hmax_: the highest heightmap sample that get_terrain_height() can read for a point
+	// in the cell. A point's bilinear lookup reads the samples on both sides of it, so take the
+	// samples under the cell plus one more on each side, and one beyond that for rounding.
+	fow_cell_hmax_.clear();
+	fow_block_hmax_.clear();
+	const int N = terrain_res_;
+	if (terrain_heights_.empty() || N <= 1) return;
+	auto sample_span = [N, G](int g, int &lo, int &hi) {
+		lo = std::max(0, (int)((int64_t)g * (N - 1) / G) - 1);
+		hi = std::min(N - 1, (int)((int64_t)(g + 1) * (N - 1) / G) + 2);
+	};
+	std::vector<float> col_max((size_t)N * (size_t)G); // per sample row, the max over each cell's columns
+	for (int z = 0; z < N; ++z)
+		for (int gx = 0; gx < G; ++gx) {
+			int lo, hi;
+			sample_span(gx, lo, hi);
+			float m = terrain_heights_[(size_t)z * N + lo];
+			for (int x = lo + 1; x <= hi; ++x) m = std::max(m, terrain_heights_[(size_t)z * N + x]);
+			col_max[(size_t)z * G + gx] = m;
+		}
+	fow_cell_hmax_.resize((size_t)G * (size_t)G);
+	for (int gz = 0; gz < G; ++gz) {
+		int lo, hi;
+		sample_span(gz, lo, hi);
+		for (int gx = 0; gx < G; ++gx) {
+			float m = col_max[(size_t)lo * G + gx];
+			for (int z = lo + 1; z <= hi; ++z) m = std::max(m, col_max[(size_t)z * G + gx]);
+			fow_cell_hmax_[(size_t)gz * G + gx] = m;
+		}
+	}
+	// The same per block of FOW_LOS_BLOCK x FOW_LOS_BLOCK cells, for reveal_fow().
+	const int GB = (G + FOW_LOS_BLOCK - 1) / FOW_LOS_BLOCK;
+	fow_block_hmax_.assign((size_t)GB * (size_t)GB, -std::numeric_limits<float>::infinity());
+	for (int gz = 0; gz < G; ++gz)
+		for (int gx = 0; gx < G; ++gx) {
+			float &m = fow_block_hmax_[(size_t)(gz / FOW_LOS_BLOCK) * GB + gx / FOW_LOS_BLOCK];
+			m = std::max(m, fow_cell_hmax_[(size_t)gz * G + gx]);
+		}
 }
 
 void Simulation::reveal_fow(std::vector<uint8_t> &grid, float sx, float sz, float vr) const {
@@ -8778,19 +8863,65 @@ void Simulation::reveal_fow(std::vector<uint8_t> &grid, float sx, float sz, floa
 	const float vr2 = vr * vr;
 	const int gz0 = std::max(0, cz - r), gz1 = std::min(G - 1, cz + r);
 	const int gx0 = std::max(0, cx - r), gx1 = std::min(G - 1, cx + r);
+
+	// Exact shortcut for terrain_blocks_los(): every height a ray from the viewer to a cell samples
+	// lies in the box of cells between the viewer's cell and that cell, so it is at most the highest
+	// fow_cell_hmax_ in that box, and at most the highest fow_block_hmax_ in the box of blocks around
+	// it. The ray stays at or above min(eye, target) and is blocked only by terrain more than 0.35
+	// above it, so a box no higher than min(eye, target) + 0.35 (less a margin for float rounding)
+	// cannot block, and the ray test is skipped. Same result, fewer height samples.
+	struct LosShortcut {
+		const float *block_hmax;
+		int GB, bcx, bcz, rb, WB;
+		float eye_y;
+		bool ready = false;
+		float box_max[FOW_BOX_MAX_W * FOW_BOX_MAX_W]; // filled on first use, not zeroed per call
+		LosShortcut(const float *bh, int gb, int bx, int bz, int r_blocks, float eye) :
+				block_hmax(bh), GB(gb), bcx(bx), bcz(bz), rb(r_blocks), WB(2 * r_blocks + 1), eye_y(eye) {}
+		// True when no terrain between the viewer and cell (gx, gz) can block the ray to height ty.
+		[[gnu::noinline]] bool clear(int gx, int gz, float ty) {
+			if (!ready) { // in a crowd, many calls find every cell lit already
+				fow_box_max(block_hmax, GB, bcx, bcz, rb, box_max);
+				ready = true;
+			}
+			const int i = (gz / FOW_LOS_BLOCK - bcz + rb) * WB + (gx / FOW_LOS_BLOCK - bcx + rb);
+			return box_max[i] <= std::min(eye_y, ty) + FOW_LOS_CLEARANCE;
+		}
+	};
+	const int GB = (G + FOW_LOS_BLOCK - 1) / FOW_LOS_BLOCK;
+	const int bcx = cx / FOW_LOS_BLOCK, bcz = cz / FOW_LOS_BLOCK;
+	const int rb = r / FOW_LOS_BLOCK + 1;
+	LosShortcut los(fow_block_hmax_.data(), GB, bcx, bcz, rb, eye_y);
+	// Every box holds the viewer's own block, so when that block is already higher than the eye
+	// allows, no cell can pass and the shortcut is off.
+	const bool shortcut = !fow_block_hmax_.empty() && cx >= 0 && cx < G && cz >= 0 && cz < G &&
+			los.WB <= FOW_BOX_MAX_W && fow_block_hmax_[(size_t)bcz * GB + bcx] <= eye_y + FOW_LOS_CLEARANCE;
+
+	constexpr uint64_t VISIBLE_X8 = 0x0101010101010101ull * FOW_VISIBLE;
 	for (int gz = gz0; gz <= gz1; ++gz) {
 		const float wz = (gz + 0.5f) * cell - half;
 		const float ddz = wz - sz;
+		const float rem = vr2 - ddz * ddz;
+		if (rem < 0.0f) continue; // no cell of this row is within vr
+		// The viewer is inside cell cx, so a cell k > half-width / cell + 1 columns away is more
+		// than half a cell outside the circle and fails the distance test below anyway.
+		const int span = (int)(std::sqrt(rem) / cell) + 1;
+		const int lo = std::max(gx0, cx - span), hi = std::min(gx1, cx + span);
 		uint8_t *row = &grid[(size_t)gz * G];
 		const float *hrow = &fow_cell_height_[(size_t)gz * G];
-		for (int gx = gx0; gx <= gx1; ++gx) {
-			if (row[gx] == FOW_VISIBLE) continue;
+		for (int gx = lo; gx <= hi; ++gx) {
+			if (row[gx] == FOW_VISIBLE) {
+				// Skip runs of cells other viewers already lit, eight at a time.
+				uint64_t next8;
+				while (gx + 8 <= hi && (std::memcpy(&next8, row + gx + 1, 8), next8 == VISIBLE_X8)) gx += 8;
+				continue;
+			}
 			const float wx = (gx + 0.5f) * cell - half;
 			const float ddx = wx - sx;
-			if (ddx * ddx + ddz * ddz <= vr2 &&
-			    !terrain_blocks_los(sx, sz, eye_y, wx, wz, hrow[gx] + 0.4f)) {
+			if (ddx * ddx + ddz * ddz > vr2) continue;
+			const float ty = hrow[gx] + 0.4f;
+			if ((shortcut && los.clear(gx, gz, ty)) || !terrain_blocks_los(sx, sz, eye_y, wx, wz, ty))
 				row[gx] = FOW_VISIBLE;
-			}
 		}
 	}
 }
