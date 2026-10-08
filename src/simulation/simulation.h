@@ -354,6 +354,21 @@ public:
 	int pop_cap() const { return pop_cap_; }
 	void set_pop_cap(int cap) { pop_cap_ = std::max(0, cap); }
 	// 0 A.D. ceasefire: no player can attack another for the first N seconds of the match.
+	// 0 A.D. map visibility options: everything visible, or terrain known from the start.
+	bool reveal_map() const { return reveal_map_; }
+	void set_reveal_map(bool on) { reveal_map_ = on; }
+	bool explore_map() const { return explore_map_; }
+	void set_explore_map(bool on) { explore_map_ = on; }
+	// Wonder and Capture the Relic: how long the wonder or all relics must be held, and how
+	// many relics a Capture the Relic match has (0 = the map's own). Game Setup passes
+	// 0 A.D.'s defaults (20 min, 20 min, 2 relics); the sim keeps RTS0's older 10 min / 3 min
+	// for matches started without it.
+	float wonder_duration() const { return wonder_duration_; }
+	void set_wonder_duration(float s) { wonder_duration_ = std::max(0.0f, s); }
+	float relic_duration() const { return relic_duration_; }
+	void set_relic_duration(float s) { relic_duration_ = std::max(0.0f, s); }
+	int relic_count() const { return relic_count_; }
+	void set_relic_count(int n) { relic_count_ = std::clamp(n, 0, 16); }
 	float ceasefire_seconds() const { return ceasefire_seconds_; }
 	void set_ceasefire_seconds(float s) { ceasefire_seconds_ = std::max(0.0f, s); }
 	float ceasefire_remaining() const { return std::max(0.0f, ceasefire_seconds_ - (float)ticks_ * FIXED_STEP); }
@@ -750,7 +765,7 @@ public:
 		uint8_t owner_team = 255;
 	};
 
-	float wonder_time_remaining() const { return std::max(0.0f, 600.0f - wonder_victory_timer_); }
+	float wonder_time_remaining() const { return std::max(0.0f, wonder_duration_ - wonder_victory_timer_); }
 	bool is_wonder_active() const { return has_active_wonder_; }
 	const std::vector<TreasureRelic> &relics() const { return relics_; }
 
@@ -964,6 +979,12 @@ private:
 	int wave_number_ = 0;
 	bool game_over_ = false;
 	bool victory_ = false;
+	bool reveal_map_ = false;
+	bool explore_map_ = false;
+	float wonder_duration_ = 600.0f;
+	float relic_duration_ = 180.0f;
+	int relic_count_ = 0;
+	void apply_relic_count();
 	uint8_t participant_mask_ = 0; // save v10
 	uint8_t defeated_mask_ = 0;
 	uint8_t winner_mask_ = 0;

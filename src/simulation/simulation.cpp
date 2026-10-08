@@ -4563,6 +4563,7 @@ void Simulation::check_victory_conditions(float dt) {
 	// 0 A.D. "Endless": no victory conditions, nobody is ever defeated.
 	if (victory_condition_ == VICTORY_ENDLESS) return;
 	if (victory_condition_ == VICTORY_REGICIDE && ticks_ == 0) spawn_regicide_heroes();
+	if (victory_condition_ == VICTORY_RELIC && ticks_ == 0 && relic_count_ > 0) apply_relic_count();
 
 	// The match ends with these players as the winners; everyone else has lost.
 	auto end_match = [&](uint8_t winners) {
@@ -4609,7 +4610,7 @@ void Simulation::check_victory_conditions(float dt) {
 			if (wonder[t] && !is_defeated((uint8_t)t)) wonder_hold_[t] += dt;
 			else wonder_hold_[t] = 0.0f;
 			if (wonder[t] && (side_of(0) >> t & 1)) { any_ours = true; ours = std::max(ours, wonder_hold_[t]); }
-			if (wonder_hold_[t] >= 600.0f && (holder < 0 || wonder_hold_[t] > wonder_hold_[holder])) holder = t;
+			if (wonder_hold_[t] >= wonder_duration_ && (holder < 0 || wonder_hold_[t] > wonder_hold_[holder])) holder = t;
 		}
 		has_active_wonder_ = any_ours;
 		wonder_victory_timer_ = ours;
@@ -4632,7 +4633,7 @@ void Simulation::check_victory_conditions(float dt) {
 			}
 			if (all_claimed && owner >= 0 && owner < MAX_TEAMS) {
 				relic_victory_timer_ += dt;
-				if (relic_victory_timer_ >= 180.0f) {
+				if (relic_victory_timer_ >= relic_duration_) {
 					end_match(side_of((uint8_t)owner));
 					return;
 				}
@@ -4682,6 +4683,31 @@ void Simulation::check_victory_conditions(float dt) {
 	// Don't hand out a win on a map that never had an enemy on it.
 	bool fought = defeated_mask_ != 0 || record_.enemies_killed > 0 || record_.buildings_destroyed > 0 || wave_number_ > 0;
 	if (one_side && fought) end_match(standing);
+}
+
+void Simulation::apply_relic_count() {
+	// CaptureTheRelic.js "relicCount": the map's relics are cut down to the setting, or
+	// topped up with copies turned about the map centre (or on a ring if it has none).
+	const size_t want = (size_t)relic_count_;
+	if (relics_.size() > want) relics_.resize(want);
+	const size_t have = relics_.size();
+	const size_t rounds = have ? (want - std::min(want, have) + have - 1) / have : 0;
+	for (size_t k = 0; relics_.size() < want; ++k) {
+		float x, z;
+		if (have > 0) {
+			// Round r turns every original relic by 2*pi*(r+1)/(rounds+1): one extra round is
+			// the mirror through the centre, and no copy lands back on an original.
+			const TreasureRelic src = relics_[k % have];
+			const float turn = 6.28318530718f * (float)(k / have + 1) / (float)(rounds + 1);
+			x = src.x * cosf(turn) - src.z * sinf(turn);
+			z = src.x * sinf(turn) + src.z * cosf(turn);
+		} else {
+			const float a = 6.28318530718f * (float)k / (float)want;
+			x = cosf(a) * map_half_ * 0.45f;
+			z = sinf(a) * map_half_ * 0.45f;
+		}
+		spawn_relic(x, z, RES_GOLD, 250);
+	}
 }
 
 void Simulation::spawn_regicide_heroes() {
@@ -5311,9 +5337,14 @@ void Simulation::update_petra_bases(float dt) {
 }
 
 void Simulation::petra_manage_scouting(float dt) {
-	// 1. Update Petra Fog of War from Team 1 vision
-	for (auto &c : petra_fow_) {
-		if (c == FOW_VISIBLE) c = FOW_EXPLORED;
+	// 1. Update Petra Fog of War from Team 1 vision. A revealed map shows Petra
+	// everything too; an explored one starts it with the terrain known.
+	const bool revealed = reveal_map_;
+	if (revealed) {
+		if (!petra_fow_.empty() && petra_fow_[0] != FOW_VISIBLE) std::fill(petra_fow_.begin(), petra_fow_.end(), (uint8_t)FOW_VISIBLE);
+	} else {
+		const uint8_t floor = explore_map_ ? FOW_EXPLORED : FOW_UNEXPLORED;
+		for (auto &c : petra_fow_) c = c == FOW_VISIBLE ? (uint8_t)FOW_EXPLORED : std::max(c, floor);
 	}
 
 	const float half = map_half_;
@@ -5332,13 +5363,14 @@ void Simulation::petra_manage_scouting(float dt) {
 		}
 	};
 
-	ensure_fow_cell_heights();
-	for (size_t u = 0; u < units_.count; ++u) {
+	if (!revealed) ensure_fow_cell_heights();
+	for (size_t u = 0; u < units_.count && !revealed; ++u) {
 		if (!units_.alive[u] || units_.team[u] != petra_pid_) continue;
 		reveal_fow(petra_fow_, units_.pos_x[u], units_.pos_z[u], vision_radius(units_.unit_type[u]));
 	}
 
 	for (const auto &b : buildings_) {
+		if (revealed) break;
 		if (b.team != petra_pid_ || b.build_progress < 0.5f) continue;
 		float bvr = (b.type == BLD_TOWER || b.type == BLD_FORTRESS) ? 24.0f : ((b.type == BLD_DOCK) ? 28.0f : 18.0f);
 		reveal_fow(petra_fow_, b.x, b.z, bvr);
@@ -9355,6 +9387,15 @@ void Simulation::reveal_fow(std::vector<uint8_t> &grid, float sx, float sz, floa
 
 void Simulation::tick_fow() {
 	ScopedUs prof(map_scale_stats_.fow_us, map_scale_stats_.fow_calls);
+	// 0 A.D. "Revealed map": everyone sees everything, so there is no per-cell work.
+	// The grids are filled once (a game-setup option, so every peer hashes the same).
+	if (reveal_map_) {
+		if (!fow_grid_.empty() && fow_grid_[0] != FOW_VISIBLE) std::fill(fow_grid_.begin(), fow_grid_.end(), (uint8_t)FOW_VISIBLE);
+		const uint8_t v = fow_viewer_;
+		if (v != 0 && v < MAX_PLAYERS && (player_fow_[v].size() != fow_grid_.size() || player_fow_[v][0] != FOW_VISIBLE))
+			player_fow_[v].assign(fow_grid_.size(), FOW_VISIBLE);
+		return;
+	}
 	ensure_fow_cell_heights();
 
 	// VisionSharing.js: allied players share the visibility generated by
@@ -9375,10 +9416,10 @@ void Simulation::tick_fow() {
 
 template <typename SharesVision>
 void Simulation::update_player_fow(std::vector<uint8_t> &grid, SharesVision shares_vision) {
-	// Step 1: Reset all VISIBLE tiles back to EXPLORED (preserve explored history)
-	for (auto &c : grid) {
-		if (c == FOW_VISIBLE) c = FOW_EXPLORED;
-	}
+	// Step 1: Reset all VISIBLE tiles back to EXPLORED (preserve explored history).
+	// 0 A.D. "Explored map": nothing is ever unexplored (terrain known, units hidden).
+	const uint8_t floor = explore_map_ ? FOW_EXPLORED : FOW_UNEXPLORED;
+	for (auto &c : grid) c = c == FOW_VISIBLE ? (uint8_t)FOW_EXPLORED : std::max(c, floor);
 
 	// Step 2: For every unit whose vision the player shares, illuminate tiles within its vision radius
 	// Vision radius per unit type (in world units):
