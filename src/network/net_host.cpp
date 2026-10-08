@@ -415,11 +415,12 @@ void NetHost::sendChat(const std::string &message, const std::string &receiver_g
 	broadcastCommand(msg.data(), msg.size());
 }
 
-void NetHost::sendDiplomacy(uint8_t player_id, uint8_t stance, uint32_t turn) {
+void NetHost::sendDiplomacy(uint8_t actor, uint8_t player_id, uint8_t stance, uint32_t turn) {
 	// Mirrors sendChat(): one broadcast so host and client originate identically.
-	// diplomacy_state() feeds compute_sim_hash(), so every peer must run the same
-	// set_diplomacy() call -- dropping this packet is a guaranteed desync.
+	// The diplomacy matrix feeds compute_sim_hash(), so every peer must run the
+	// same set_diplomacy() call -- dropping this packet is a guaranteed desync.
 	DiplomacyMsg dm;
+	dm.actor = actor;
 	dm.player_id = player_id;
 	dm.stance = stance;
 	std::vector<uint8_t> payload = NetPacketSerializer::frame_diplomacy(dm);
@@ -680,11 +681,15 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_DIPLOMACY)) {
 		DiplomacyMsg dm;
 		if (!NetPacketSerializer::parse_diplomacy(msg.payload.data(), msg.payload.size(), dm)) {
-			std::cerr << "[NetHost] NMT_DIPLOMACY payload must be exactly 2 bytes (player_id, stance)\n";
-		} else if (dm.player_id >= 8) {
+			std::cerr << "[NetHost] NMT_DIPLOMACY payload must be exactly 3 bytes (actor, player_id, stance)\n";
+		} else if (dm.player_id >= 8 || dm.actor >= 8) {
 			// Mirrors Simulation::set_diplomacy's own bound; reject out of range so a
 			// hostile/buggy peer cannot silently mutate nothing and still look applied.
-			std::cerr << "[NetHost] NMT_DIPLOMACY player_id " << (unsigned)dm.player_id << " out of range (0..7)\n";
+			std::cerr << "[NetHost] NMT_DIPLOMACY actor " << (unsigned)dm.actor << " / player_id "
+			          << (unsigned)dm.player_id << " out of range (0..7)\n";
+		} else if (dm.actor == dm.player_id) {
+			// A player's stance toward itself is not a stance.
+			std::cerr << "[NetHost] NMT_DIPLOMACY actor and player_id are the same player\n";
 		} else if (dm.stance > 2) {
 			std::cerr << "[NetHost] NMT_DIPLOMACY stance " << (unsigned)dm.stance
 			          << " is not ally/neutral/enemy\n";

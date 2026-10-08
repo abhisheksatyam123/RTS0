@@ -406,13 +406,17 @@ struct ChatMsg {
 };
 
 // NMT_DIPLOMACY payload. `stance` is Simulation::DiplomacyStance
-// (0=ally, 1=neutral, 2=enemy). diplomacy_state() is part of the lockstep
+// (0=ally, 1=neutral, 2=enemy). The diplomacy matrix is part of the lockstep
 // hash (TurnManager::compute_sim_hash), so a stance applied on ONE peer only
-// desyncs the session; every peer must apply it. Wire layout is fixed at two
-// bytes: [player_id, stance].
+// desyncs the session; every peer must apply it. Wire layout is fixed at three
+// bytes: [actor, player_id, stance].
+// `actor` is the player whose own stance row changes, and it rides on the wire
+// because a host RELAYS a client's stance onward: the receiving peer sees the
+// host as the sender and could not otherwise tell which player originated it.
 struct DiplomacyMsg {
-	uint8_t player_id = 0;
-	uint8_t stance = 1; // DIPLO_NEUTRAL
+	uint8_t actor = 0;      // whose row changes
+	uint8_t player_id = 0;  // the player the stance is toward
+	uint8_t stance = 1;     // DIPLO_NEUTRAL
 };
 
 // NMT_JOIN_SYNC_STATE payload -- late-join turn-0 state resync request.
@@ -818,6 +822,7 @@ public:
 
 	static std::vector<uint8_t> frame_diplomacy(const DiplomacyMsg &msg) {
 		std::vector<uint8_t> buf;
+		NetSerde::write_u8(buf, msg.actor);
 		NetSerde::write_u8(buf, msg.player_id);
 		NetSerde::write_u8(buf, msg.stance);
 		return buf;
@@ -826,8 +831,9 @@ public:
 	// Exact-size parse: a truncated or over-long payload is rejected instead of
 	// being accepted with zero-extended fields.
 	static bool parse_diplomacy(const uint8_t *data, size_t size, DiplomacyMsg &msg) {
-		if (size != 2) return false;
+		if (size != 3) return false;
 		size_t offset = 0;
+		if (!NetSerde::read_u8(data, size, offset, msg.actor)) return false;
 		if (!NetSerde::read_u8(data, size, offset, msg.player_id)) return false;
 		if (!NetSerde::read_u8(data, size, offset, msg.stance)) return false;
 		return true;

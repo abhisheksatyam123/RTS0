@@ -2989,6 +2989,7 @@ void RtsoMain::apply_match_settings() {
 		int tm = (int)slot_teams[p];
 		if (tm >= 1 && tm <= 8) sim->set_player_team((uint8_t)p, (uint8_t)(tm - 1));
 	}
+	sim->apply_team_diplomacy(); // stances follow the lobby's teams
 	sync_victory_selector();
 	if (diff >= 0 && diff <= 5) sim->set_petra_difficulty((uint8_t)diff);
 	if (behavior >= 0 && behavior <= 3) sim->set_petra_behavior((uint8_t)behavior);
@@ -3522,6 +3523,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	for (uint8_t p = 0; p < 8 && p < setup.slot_count; ++p) {
 		if (setup.teams[p] >= 1 && setup.teams[p] <= 8) sim->set_player_team(p, (uint8_t)(setup.teams[p] - 1));
 	}
+	sim->apply_team_diplomacy();
 	sync_victory_selector();
 	sim->set_petra_difficulty(setup.difficulty > 5 ? 3 : setup.difficulty);
 	sim->set_petra_behavior(setup.behavior > 3 ? 2 : setup.behavior);
