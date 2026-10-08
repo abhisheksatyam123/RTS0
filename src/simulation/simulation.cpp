@@ -1,5 +1,6 @@
 #include "simulation.h"
 #include "rms_generator.h"
+#include "nav/rasterize.h"
 #include "../core/job_system.h"
 #include <chrono>
 #include <cmath>
@@ -728,19 +729,27 @@ void Simulation::rebuild_nav_grid() {
 	if (!nav_grid_.dirty.blank())
 		nav_grid_.dirty.fill(0);
 	nav_grid_.set_water_from_heights(terrain_heights_, terrain_res_, terrain_water_height_);
+	// Buildings are axis-aligned squares (spawn_building_world: half_size = footprint*GRID/2), rasterized
+	// with the 0 A.D. rule (nav/rasterize.h, clearance 0). A navcell is blocked only if it lies entirely
+	// inside the footprint plus the vendor extension. A footprint-1 building off the grid can match no
+	// navcell, so it falls back to the navcell under its centre (the cell the old footprint block marked).
+	const float nav_cell = 2.0f * nav_grid_.map_half / static_cast<float>(nav_grid_.res);
+	const rtso::nav::Vec2 nav_origin(-nav_grid_.map_half, -nav_grid_.map_half);
 	for (const auto &b : buildings_) {
 		if (b.build_progress < 0.99f || !building_blocks_movement(b.type)) continue;
-		auto [cx, cy] = nav_grid_.world_to_cell(b.x, b.z);
-		int footprint = b.footprint;
-		int sx = cx - footprint / 2;
-		int sy = cy - footprint / 2;
-		int f = std::max(1, footprint);
-		for (int dy = 0; dy < f; ++dy)
-			for (int dx = 0; dx < f; ++dx) {
-				int x = sx + dx, y = sy + dy;
-				if (nav_grid_.cells.inside(x, y))
-					nav_grid_.cells.at(x, y) = NAV_OBSTRUCTED;
-			}
+		int covered = 0;
+		rtso::nav::rasterize_rect_with_clearance(
+			rtso::nav::Vec2(b.x, b.z), rtso::nav::Vec2(1.0f, 0.0f), rtso::nav::Vec2(0.0f, 1.0f),
+			rtso::nav::Vec2(b.half_size, b.half_size), 0.0f, nav_cell, nav_origin,
+			nav_grid_.cells.w, nav_grid_.cells.h,
+			[&](int x, int y) {
+				nav_grid_.cells.at(x, y) = NAV_OBSTRUCTED;
+				++covered;
+			});
+		if (covered == 0) {
+			auto [cx, cy] = nav_grid_.world_to_cell(b.x, b.z);
+			nav_grid_.cells.at(cx, cy) = NAV_OBSTRUCTED;
+		}
 	}
 	// Precise dirty bits: diff new cells vs snapshot (covers placements,
 	// completions AND demolitions). Falls back to full remesh only when the
