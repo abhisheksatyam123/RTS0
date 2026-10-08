@@ -176,9 +176,23 @@ int main() {
 		CHECK(civ_can_build(CIV_ATHENIANS, BLD_HOUSE) && civ_can_build(CIV_HAN, BLD_MINISTRY));
 		CHECK(civ_can_build(CIV_PTOLEMIES, BLD_LIBRARY) && civ_can_build(CIV_SELEUCIDS, BLD_LIBRARY) &&
 			civ_can_build(CIV_MACEDONIANS, BLD_LIBRARY) && !civ_can_build(CIV_ROMANS, BLD_LIBRARY));
-		CHECK(c.cmd_build(0, 0, 0, BLD_GYMNASIUM) == 0); // Athenian only
-		CHECK(c.cmd_build(0, 0, 0, BLD_GEROUSIA) == 0);  // Spartan, but Town phase
-		CHECK(c.cmd_build(0, 0, 0, BLD_SYSSITON) != 0);  // Village phase in 0 A.D.
+		// A cell in player 0's territory where a Syssiton-sized structure fits.
+		int px = 0, py = 0;
+		bool found = false;
+		c.spawn_building_world(-30.0f, -30.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		for (int i = 0; i < 60; ++i) c.tick(Simulation::FIXED_STEP); // territory refreshes at 1 Hz
+		for (int r = 2; r < 20 && !found; ++r)
+			for (int dy = -r; dy <= r && !found; ++dy)
+				for (int dx = -r; dx <= r && !found; ++dx) {
+					const int x = (int)std::floor(-30.0f / Simulation::GRID) + dx, y = (int)std::floor(-30.0f / Simulation::GRID) + dy;
+					if (c.check_placement(0, x, y, BLD_SYSSITON) == Simulation::PLACE_OK) { px = x; py = y; found = true; }
+				}
+		CHECK(found);
+		// 0 A.D.'s Military Colony keeps 120 m from any CivilCentre.
+		CHECK(c.check_placement(0, px, py, BLD_MILITARY_COLONY) != Simulation::PLACE_OK);
+		CHECK(c.cmd_build(0, px, py, BLD_GYMNASIUM) == 0); // Athenian only
+		CHECK(c.cmd_build(0, px, py, BLD_GEROUSIA) == 0);  // Spartan, but Town phase
+		CHECK(c.cmd_build(0, px, py, BLD_SYSSITON) != 0);  // Village phase in 0 A.D.
 		const BuildingTypeInfo &sy = building_type_info(BLD_SYSSITON);
 		CHECK(std::strcmp(sy.name, "Military Mess Hall") == 0 && sy.max_hp == 2000.0f && sy.stone_cost == 200);
 		// Spartan champions and heroes train at the Syssiton, as in 0 A.D.
