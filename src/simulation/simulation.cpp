@@ -283,6 +283,8 @@ void Simulation::reset() {
 	participant_mask_ = defeated_mask_ = winner_mask_ = 0;
 	for (float &w : wonder_hold_) w = 0.0f;
 	relics_.clear();
+	treasures_.clear();
+	ruins_caps_.clear();
 	wonder_victory_timer_ = 0.0f;
 	has_active_wonder_ = false;
 	record_ = MatchRecord();
@@ -495,6 +497,8 @@ void Simulation::spawn_war(int total_units) {
 	building_id_to_idx_.clear();
 	occupied_cells_.clear();
 	relics_.clear();
+	treasures_.clear();
+	ruins_caps_.clear();
 	std::fill(fow_grid_.begin(), fow_grid_.end(), (uint8_t)FOW_UNEXPLORED);
 	for (auto &g : player_fow_) g.clear();
 	std::fill(petra_fow_.begin(), petra_fow_.end(), (uint8_t)FOW_UNEXPLORED);
@@ -3483,6 +3487,7 @@ void Simulation::tick(float dt) {
 	if (waves_enabled_) tick_waves(dt);
 	tick_petra_ai(dt);
 	tick_fauna(dt);
+	tick_treasures(dt);      // 0 A.D. Treasure.js / TreasureCollector.js
 	check_victory_conditions(dt);
 
 	// Income rate rolling decay
@@ -4131,6 +4136,7 @@ void Simulation::tick_gather(float dt) {
 		if (!units_.alive[i] || units_.unit_type[i] != UNIT_FISHING_BOAT || units_.action_state[i] != ACTION_GATHER) continue;
 		if (units_.target_resource_id[i] != 0) fish_gatherers_[units_.target_resource_id[i]].total++;
 	}
+	ruins_gatherers_.clear();
 	for (size_t i = 0; i < n; ++i) {
 		bool is_gatherer = (units_.unit_type[i] == UNIT_VILLAGER ||
 		                    units_.unit_type[i] == UNIT_FEMALE_CITIZEN ||
@@ -4267,6 +4273,36 @@ void Simulation::tick_gather(float dt) {
 				}
 				fg.slots_taken++;
 			}
+			if (resources_.subtype[ridx] == RES_SUB_RUINS) {
+				// ResourceSupply MaxGatherers: a full ruin sends the worker to the nearest other
+				// ruin with room, else to a rock or mine of the same resource (FINDINGNEWTARGET).
+				const uint32_t rid = units_.target_resource_id[i];
+				FieldGatherers &rg = ruins_gatherers_[rid];
+				if (rg.slots_taken >= ruins_cap(rid)) {
+					const uint8_t rt = resources_.type[ridx];
+					uint32_t alt = 0;
+					float best = NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE;
+					for (size_t r = 0; r < resources_.count; ++r) {
+						if (!resources_.alive[r] || resources_.amount[r] <= 0 || resources_.type[r] != rt || r == ridx) continue;
+						if (resources_.subtype[r] == RES_SUB_RUINS) {
+							auto g = ruins_gatherers_.find(resources_.id[r]);
+							if (g != ruins_gatherers_.end() && g->second.slots_taken >= ruins_cap(resources_.id[r])) continue;
+						} else if (resources_.subtype[r] != RES_SUB_NONE) {
+							continue;
+						}
+						const float ex = resources_.x[r] - units_.pos_x[i], ez = resources_.z[r] - units_.pos_z[i];
+						if (ex * ex + ez * ez < best) { best = ex * ex + ez * ez; alt = resources_.id[r]; }
+					}
+					if (alt) {
+						order_gather(&units_.id[i], 1, alt);
+					} else {
+						units_.target_resource_id[i] = 0;
+						units_.action_state[i] = ACTION_IDLE;
+					}
+					continue;
+				}
+				rg.slots_taken++;
+			}
 			float field_efficiency = 0.0f; // > 0 only while farming a field
 			auto field_it = field_bld_by_res_.find(units_.target_resource_id[i]);
 			if (field_it != field_bld_by_res_.end()) {
@@ -4312,6 +4348,11 @@ void Simulation::tick_gather(float dt) {
 
 				// Cavalry butcher meat 5x as fast as infantry (template_unit_cavalry food.meat 5 vs 1).
 				if (units_.unit_type[i] == UNIT_CAVALRY) harvest_rate *= 0.2f;
+
+				// template_gaia_ruins: stone.ruins / metal.ruins gather at 2 against a rock's 0.5
+				// (citizen soldiers) or 0.35 (women).
+				if (resources_.subtype[ridx] == RES_SUB_RUINS)
+					harvest_rate *= (units_.unit_type[i] == UNIT_FEMALE_CITIZEN ? 0.35f : 0.5f) / 2.0f;
 
 				// Female Citizen gathering bonus (+25% Food gather speed)
 				if (units_.unit_type[i] == UNIT_FEMALE_CITIZEN && resources_.type[ridx] == RES_FOOD) {
@@ -4699,7 +4740,8 @@ void Simulation::tick_combat(float dt) {
 		// A. Existing unit target
 		if (!guarding && units_.target_unit_id[i] != 0) {
 			int32_t tidx = lookup_unit(units_.target_unit_id[i]);
-			if (tidx < 0 && is_fauna_id(units_.target_unit_id[i])) return; // hunting: tick_hunters drives it
+			// Hunting (tick_hunters) or collecting a treasure (tick_treasures) drives it.
+			if (tidx < 0 && (is_fauna_id(units_.target_unit_id[i]) || is_treasure_id(units_.target_unit_id[i]))) return;
 			if (tidx >= 0 && units_.alive[tidx] && can_attack(units_.team[i], units_.team[tidx]) &&
 					(explicit_target || within_stance(tidx))) {
 				const float tx = units_.pos_x[tidx] - pxi, tz = units_.pos_z[tidx] - pzi;
@@ -6395,6 +6437,7 @@ void Simulation::apply_order(uint32_t uid, const UnitOrder &o) {
 		case ORDER_GUARD: order_guard(&uid, 1, o.target); break;
 		case ORDER_HEAL: order_heal(&uid, 1, o.target); break;
 		case ORDER_TRADE: order_trade(&uid, 1, o.target, trade_market_id(o.x2)); break;
+		case ORDER_COLLECT_TREASURE: order_collect_treasure(&uid, 1, o.target); break;
 		default: break;
 	}
 	applying_queued_ = was;
@@ -6443,6 +6486,7 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 		}
 		case ORDER_HEAL: return can_heal(i, lookup_unit(o.target));
 		case ORDER_TRADE: return trade_route_ok(i, o.target, trade_market_id(o.x2));
+		case ORDER_COLLECT_TREASURE: return is_treasure_id(o.target);
 		default: return false;
 	}
 }
@@ -11296,7 +11340,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 Gaia treasures and each ruin's gatherer cap
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -11815,6 +11859,7 @@ bool Simulation::load_state(const char *filepath) {
 		for (const auto &pr : projectiles_) max_id = std::max(max_id, pr.id);
 		for (const auto &rl : relics_) max_id = std::max(max_id, rl.id);
 		for (size_t f = 0; f < fauna_.count; ++f) max_id = std::max(max_id, fauna_.id[f]);
+		for (const auto &t : treasures_) max_id = std::max(max_id, t.id);
 		next_id_ = max_id + 1;
 	}
 
@@ -11978,6 +12023,15 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	for (S::Building &b : s.buildings_) { ar.pod(b.committed); ar.pod(b.wrecked); }
 	io_vec(ar, s.projectiles_, 1u << 20, projectile);
 	io_vec(ar, s.relics_, 1u << 16, relic);
+	static_assert(sizeof(S::Treasure) == 24, "Treasure is saved raw (no padding: pad[] is explicit and zeroed); list a new field here");
+	static_assert(sizeof(S::RuinsCap) == 8, "RuinsCap is saved raw; list a new field here");
+	if (ar.version >= 26) {
+		io_vec_pod(ar, s.treasures_, 1u << 16);
+		io_vec_pod(ar, s.ruins_caps_, 1u << 20);
+	} else if constexpr (Ar::loading) {
+		s.treasures_.clear();
+		s.ruins_caps_.clear();
+	}
 	static_assert(sizeof(S::FaunaStorage) == 68616, "list the new FaunaStorage field below");
 	if constexpr (Ar::loading) {
 		if (ar.version < 25) {
@@ -13061,6 +13115,119 @@ void Simulation::tick_fauna(float dt) {
 		fauna_.count = w;
 		fauna_id_to_idx_.clear();
 		for (size_t f = 0; f < fauna_.count; ++f) fauna_id_to_idx_[fauna_.id[f]] = f;
+	}
+}
+
+uint32_t Simulation::spawn_treasure(float x, float z, uint8_t type) {
+	if (type >= TREASURE_TYPE_COUNT) return 0;
+	Treasure t{};
+	t.id = alloc_id();
+	t.x = std::clamp(x, -map_half_ + 2.0f, map_half_ - 2.0f);
+	t.z = std::clamp(z, -map_half_ + 2.0f, map_half_ - 2.0f);
+	t.type = type;
+	treasures_.push_back(t);
+	return t.id;
+}
+
+uint32_t Simulation::spawn_ruins(float x, float z, uint8_t ruins_type) {
+	const RuinsTypeInfo &r = ruins_type_info(ruins_type);
+	const uint32_t id = spawn_resource_world(x, z, r.res_type, r.amount, RES_SUB_RUINS);
+	if (id) ruins_caps_.push_back({id, (uint16_t)std::max<int>(1, r.max_gatherers), 0});
+	return id;
+}
+
+// UnitAI Order.CollectTreasure: walk to the treasure. Ships, war dogs and animals have no
+// TreasureCollector (template_unit_ship.xml, template_unit_dog.xml disable it).
+void Simulation::order_collect_treasure(const uint32_t *unit_ids, size_t count, uint32_t treasure_id, bool queued) {
+	const Treasure *t = nullptr;
+	for (const auto &tr : treasures_) if (tr.id == treasure_id) t = &tr;
+	if (!t) return;
+	std::vector<uint32_t> collectors;
+	for (size_t k = 0; k < count; ++k) {
+		int32_t u = lookup_unit(unit_ids[k]);
+		if (u < 0 || !units_.alive[u] || units_.team[u] >= MAX_PLAYERS) continue;
+		const uint8_t ut = units_.unit_type[u];
+		if (unit_is_ship(ut) || ut == UNIT_WAR_DOG || units_.action_state[u] == ACTION_GARRISONED) continue;
+		collectors.push_back(unit_ids[k]);
+	}
+	UnitOrder o; o.kind = ORDER_COLLECT_TREASURE; o.target = treasure_id; o.x = t->x; o.z = t->z;
+	for (uint32_t uid : split_queued(collectors.data(), collectors.size(), o, queued)) {
+		const int32_t u = lookup_unit(uid);
+		if (u < 0) continue;
+		set_order((size_t)u, ORDER_COLLECT_TREASURE, 0, treasure_id, t->x, t->z);
+		units_.action_state[u] = ACTION_MOVE;
+		units_.has_order[u] = 1;
+		units_.target_unit_id[u] = treasure_id;
+		units_.target_building_id[u] = 0;
+		units_.target_resource_id[u] = 0;
+		units_.target_x[u] = t->x;
+		units_.target_z[u] = t->z;
+		units_.waypoint_cur[u] = units_.waypoint_count[u] = 0;
+	}
+}
+
+// TreasureCollector.js: a collector within MaxDistance (2 m, plus the treasure's footprint) takes
+// CollectTime to collect; Treasure.Reward gives its owner the resources and the treasure is gone.
+void Simulation::tick_treasures(float dt) {
+	if (treasures_.empty()) return;
+	const float reach = 2.0f * 0.6f + 1.0f;
+	const size_t n = units_.count;
+	std::vector<uint8_t> in_range(treasures_.size(), 0);
+	for (size_t i = 0; i < n; ++i) {
+		const uint32_t tid = units_.target_unit_id[i];
+		if (tid == 0 || !units_.alive[i] || lookup_unit(tid) >= 0) continue;
+		const uint8_t st = units_.action_state[i];
+		if (st != ACTION_MOVE && st != ACTION_IDLE) continue;
+		for (size_t k = 0; k < treasures_.size(); ++k) {
+			Treasure &t = treasures_[k];
+			if (t.id != tid) continue;
+			const float dx = units_.pos_x[i] - t.x, dz = units_.pos_z[i] - t.z;
+			if (dx * dx + dz * dz > reach * reach) break;
+			// One collector at a time; another in range takes over if it stops.
+			if (t.collector_id == 0 || lookup_unit(t.collector_id) < 0 || !units_.alive[lookup_unit(t.collector_id)] ||
+			    units_.target_unit_id[lookup_unit(t.collector_id)] != t.id) {
+				t.collector_id = units_.id[i];
+				t.collect_progress = 0.0f;
+			}
+			if (t.collector_id == units_.id[i] && !in_range[k]) {
+				in_range[k] = 1;
+				t.collect_progress += dt;
+			}
+			break;
+		}
+	}
+	for (size_t k = 0; k < treasures_.size();) {
+		Treasure &t = treasures_[k];
+		if (!in_range[k]) {
+			t.collect_progress = 0.0f;
+			t.collector_id = 0;
+		}
+		const TreasureTypeInfo &info = treasure_type_info(t.type);
+		const int32_t c = t.collector_id ? lookup_unit(t.collector_id) : -1;
+		if (c < 0 || t.collect_progress + 1e-4f < info.collect_time) { ++k; continue; }
+		const uint8_t owner = units_.team[c];
+		if (owner < MAX_PLAYERS) {
+			static const uint8_t kRes[4] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD};
+			PlayerState &ps = player(owner);
+			for (int r = 0; r < 4; ++r) ps.res[kRes[r]] += (float)info.amount[r];
+			raise_alert(BattleAlert::ALERT_RELIC_CLAIMED, t.x, t.z, t.id, owner);
+		}
+		treasures_.erase(treasures_.begin() + (std::ptrdiff_t)k);
+		in_range.erase(in_range.begin() + (std::ptrdiff_t)k);
+	}
+	// Collected (by anyone): its collectors stop and take their next order.
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.order_kind[i] != ORDER_COLLECT_TREASURE) continue;
+		if (units_.order_flags[i] & ORDER_FLAG_INTERRUPTED) continue;
+		if (is_treasure_id(units_.order_target[i])) {
+			// A walk that ended short of the treasure (blocked) gives up, as UnitAI does.
+			if (units_.action_state[i] == ACTION_IDLE && units_.target_unit_id[i] != units_.order_target[i]) finish_order(i);
+			continue;
+		}
+		if (units_.target_unit_id[i] == units_.order_target[i]) units_.target_unit_id[i] = 0;
+		if (units_.action_state[i] == ACTION_MOVE) units_.action_state[i] = ACTION_IDLE;
+		units_.has_order[i] = 0;
+		finish_order(i);
 	}
 }
 

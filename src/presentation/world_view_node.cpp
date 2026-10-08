@@ -278,6 +278,10 @@ void RtsoWorldView::_ready() {
 	gold_mmi = memnew(MultiMeshInstance3D); gold_mmi->set_multimesh(gold_mm); add_child(gold_mmi);
 	stone_mmi = memnew(MultiMeshInstance3D); stone_mmi->set_multimesh(stone_mm); add_child(stone_mmi);
 	food_mmi = memnew(MultiMeshInstance3D); food_mmi->set_multimesh(food_mm); add_child(food_mmi);
+	ruins_mm = create_multimesh(tinted(rtso::ModelLibrary::get("buildings", "ruins").mesh), true);
+	treasure_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "treasure_chest").mesh), true);
+	ruins_mmi = memnew(MultiMeshInstance3D); ruins_mmi->set_multimesh(ruins_mm); add_child(ruins_mmi);
+	treasure_mmi = memnew(MultiMeshInstance3D); treasure_mmi->set_multimesh(treasure_mm); add_child(treasure_mmi);
 
 	// Fauna — never fall back to trees/stones (those looked like walking mines)
 	{
@@ -1733,10 +1737,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	// =========================================================================
 	// Explored supplies show as last seen (Fogging.js); unexplored ones not at all.
 	const auto &fres = mirages_.resources();
-	size_t n_tree = 0, g = 0, st = 0, fd = 0;
+	size_t n_tree = 0, g = 0, st = 0, fd = 0, nru = 0;
 	for (const auto &r : fres) {
 		if (r.subtype == rtso::RES_SUB_GRAIN) continue; // a field's grain; the field model shows it
-		if (r.type == rtso::RES_WOOD) n_tree++;
+		if (r.subtype == rtso::RES_SUB_RUINS) nru++;
+		else if (r.type == rtso::RES_WOOD) n_tree++;
 		else if (r.type == rtso::RES_GOLD) g++;
 		else if (r.type == rtso::RES_STONE) st++;
 		else if (r.type == rtso::RES_FOOD) fd++;
@@ -1750,8 +1755,10 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	stone_mm->set_instance_count((int)st);
 	if (food_mm.is_valid())
 		food_mm->set_instance_count((int)fd);
+	ruins_mm->set_instance_count((int)nru);
 
-	size_t ia = 0, ig = 0, ist = 0, ifd = 0;
+	size_t ia = 0, ig = 0, ist = 0, ifd = 0, iru = 0;
+	auto e_ruins = rtso::ModelLibrary::get("buildings", "ruins");
 	String cat_veg = "vegetation";
 	String id_tree = "tree"; auto e_tree = rtso::ModelLibrary::get(cat_veg, id_tree);
 	String id_gold = "gold_vein"; auto e_gold = rtso::ModelLibrary::get(cat_veg, id_gold);
@@ -1767,7 +1774,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		const float lit = los_brightness(rx, rz);
 		const Color tint(lit, lit, lit, 1.0f);
 
-		if (r.type == rtso::RES_WOOD) {
+		if (r.subtype == rtso::RES_SUB_RUINS) {
+			Transform3D xf(rot, Vector3(rx, ry + e_ruins.y_offset, rz));
+			ruins_mm->set_instance_transform((int)iru, xf);
+			ruins_mm->set_instance_color((int)iru++, tint);
+		} else if (r.type == rtso::RES_WOOD) {
 			Transform3D xf(rot, Vector3(rx, ry + e_tree.y_offset, rz));
 			tree_a_mm->set_instance_transform((int)ia, xf);
 			tree_a_mm->set_instance_color((int)ia++, tint);
@@ -1786,6 +1797,24 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			Transform3D xf(rot, Vector3(rx, ry + e_food.y_offset, rz));
 			food_mm->set_instance_transform((int)ifd, xf);
 			food_mm->set_instance_color((int)ifd++, tint);
+		}
+	}
+
+	// Treasures sit still, so an explored one stays drawn (darker) in the fog.
+	{
+		const auto &tv = sim->treasures();
+		auto e_chest = rtso::ModelLibrary::get("vegetation", "treasure_chest");
+		int nt = 0;
+		for (const auto &t : tv) if (los_brightness(t.x, t.z) > 0.0f) ++nt;
+		treasure_mm->set_instance_count(nt);
+		int it = 0;
+		for (const auto &t : tv) {
+			const float lit = los_brightness(t.x, t.z);
+			if (lit <= 0.0f) continue;
+			Basis rot(Vector3(0, 1, 0), (float)(t.id % 12) * 0.52f);
+			Transform3D xf(rot, Vector3(t.x, sim->get_terrain_height(t.x, t.z) + e_chest.y_offset, t.z));
+			treasure_mm->set_instance_transform(it, xf);
+			treasure_mm->set_instance_color(it++, Color(lit, lit * 0.85f, lit * 0.4f, 1.0f));
 		}
 	}
 
