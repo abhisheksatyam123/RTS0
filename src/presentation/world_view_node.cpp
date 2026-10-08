@@ -981,8 +981,12 @@ void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 		terrain->set_mesh(terrain_array_mesh);
 	}
 
-	// Water Body
-	if (sim->water_height() > 0.0f) {
+	// Ground textures follow the map's biome.
+	rtso::Assets::apply_terrain_biome(terrain->get_material_override(),
+	                                  String(sim->current_map_biome().c_str()));
+
+	// Water Body (water_height < -0.5 means a dry map, as in NavGrid::set_water_from_heights)
+	if (sim->water_height() > -0.5f) {
 		if (!water_mesh_node) {
 			water_mesh.instantiate();
 			water_mesh->set_subdivide_width(48);
