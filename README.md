@@ -46,3 +46,9 @@ Start at **[docs/README.md](docs/README.md)**, which lists every doc and the one
 - [docs/REMAINING_GAPS.md](docs/REMAINING_GAPS.md): how close each subsystem is to 0 A.D.
 - [docs/MIGRATION.md](docs/MIGRATION.md): status of the vendored 0 A.D. code in `src/0ad/`.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): code layout and the rules new code must follow.
+
+## License
+
+RTS0's code is **GPL-2.0-or-later** (`LICENSE`), because it copies and ports code from
+[0 A.D.](https://play0ad.com). Art, audio and maps from 0 A.D. are **CC BY-SA 3.0**
+(`assets/LICENSE`). Details: `docs/0AD_ATTRIBUTION.md`.

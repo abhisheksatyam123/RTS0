@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Extract game-ready assets from 0 A.D.'s public mod archive into RTS0's asset folders.
+"""Derived from 0 A.D., GPL-2.0-or-later (Copyright (C) Wildfire Games).
+
+Extract game-ready assets from 0 A.D.'s public mod archive into RTS0's asset folders.
 
 Pipeline (mirrors 0ad source/graphics/ModelDef.cpp + ps/FileIo.cpp formats):
   public.zip (.pmd meshes, .xml actors, .cached.dds skins)

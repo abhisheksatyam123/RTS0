@@ -62,4 +62,6 @@ public.zip
 
 ## License
 
-See [docs/0AD_ATTRIBUTION.md](../docs/0AD_ATTRIBUTION.md).
+Art, audio and maps from 0 A.D. are **CC BY-SA 3.0** (see `assets/LICENSE`). RTS0's
+code, including the Thronefall-style shaders, is **GPL-2.0-or-later** (top-level
+`LICENSE`). See `docs/0AD_ATTRIBUTION.md` for what came from 0 A.D.
