@@ -69,6 +69,19 @@ struct UnitSoA {
 	float *burning_timer = nullptr;
 	uint8_t *pack_state = nullptr; // PackState (0 A.D. Pack.js); PACK_NONE for units without Pack
 	float *pack_elapsed = nullptr; // seconds into the current pack/unpack
+	// 0 A.D. UnitAI order state (see UnitOrderKind): the current order, who hit the
+	// unit last (UnitAI "Attacked" message, answered next tick) and the last work
+	// order for Back to Work.
+	uint8_t *order_kind = nullptr;
+	uint8_t *order_flags = nullptr;
+	uint32_t *order_target = nullptr;
+	float *order_x = nullptr;
+	float *order_z = nullptr;
+	float *order_x2 = nullptr;
+	float *order_z2 = nullptr;
+	uint32_t *attacked_by = nullptr;
+	uint8_t *work_kind = nullptr;
+	uint32_t *work_target = nullptr;
 	float *xp_partial = nullptr; // Promotion.js xp below one point (healing grants a little each tick)
 
 	size_t cap = 0;
@@ -89,7 +102,9 @@ struct UnitSoA {
 		FREE(poison_timer); FREE(snare_timer); FREE(knockback_timer);
 		FREE(knockback_dir_x); FREE(knockback_dir_z);
 		FREE(slow_timer); FREE(bleed_timer); FREE(burning_timer);
-		FREE(pack_state); FREE(pack_elapsed); FREE(xp_partial);
+		FREE(pack_state); FREE(pack_elapsed);
+		FREE(order_kind); FREE(order_flags); FREE(order_target); FREE(order_x); FREE(order_z); FREE(order_x2); FREE(order_z2); FREE(attacked_by); FREE(work_kind); FREE(work_target);
+		FREE(xp_partial);
 		#undef FREE
 		cap = count = 0;
 	}
@@ -155,6 +170,16 @@ struct UnitSoA {
 		realloc_aligned(burning_timer, c * sizeof(float));
 		realloc_aligned(pack_state, c * sizeof(uint8_t));
 		realloc_aligned(pack_elapsed, c * sizeof(float));
+		realloc_aligned(order_kind, c * sizeof(uint8_t));
+		realloc_aligned(order_flags, c * sizeof(uint8_t));
+		realloc_aligned(order_target, c * sizeof(uint32_t));
+		realloc_aligned(order_x, c * sizeof(float));
+		realloc_aligned(order_z, c * sizeof(float));
+		realloc_aligned(order_x2, c * sizeof(float));
+		realloc_aligned(order_z2, c * sizeof(float));
+		realloc_aligned(attacked_by, c * sizeof(uint32_t));
+		realloc_aligned(work_kind, c * sizeof(uint8_t));
+		realloc_aligned(work_target, c * sizeof(uint32_t));
 		realloc_aligned(xp_partial, c * sizeof(float));
 		cap = c;
 	}
@@ -197,6 +222,16 @@ struct UnitSoA {
 		// 0 A.D. trains siege engines as their "_packed" template.
 		pack_state[i] = unit_has_pack(u_tmpl, u_type) ? PACK_PACKED : PACK_NONE;
 		pack_elapsed[i] = 0.0f;
+		order_kind[i] = 0;
+		order_flags[i] = 0;
+		order_target[i] = 0;
+		order_x[i] = x;
+		order_z[i] = z;
+		order_x2[i] = x;
+		order_z2[i] = z;
+		attacked_by[i] = 0;
+		work_kind[i] = 0;
+		work_target[i] = 0;
 		xp_partial[i] = 0.0f;
 		hp[i] = max_hp[i] = info.hp;
 		attack_range[i] = info.attack_range;
@@ -246,6 +281,16 @@ struct UnitSoA {
 			burning_timer[idx] = burning_timer[last];
 			pack_state[idx] = pack_state[last];
 			pack_elapsed[idx] = pack_elapsed[last];
+			order_kind[idx] = order_kind[last];
+			order_flags[idx] = order_flags[last];
+			order_target[idx] = order_target[last];
+			order_x[idx] = order_x[last];
+			order_z[idx] = order_z[last];
+			order_x2[idx] = order_x2[last];
+			order_z2[idx] = order_z2[last];
+			attacked_by[idx] = attacked_by[last];
+			work_kind[idx] = work_kind[last];
+			work_target[idx] = work_target[last];
 			xp_partial[idx] = xp_partial[last];
 		}
 		count--;

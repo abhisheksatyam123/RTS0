@@ -15,10 +15,14 @@
 //  4b. The FoW viewer (a multiplayer joiner's slot) gets its own fog, shared within its team.
 //  4c. Explored and revealed map options.
 //  5. Generation is deterministic: the same seed gives the same map at every size.
+//  6. Stronghold keeps teammates together.
+//  7. Shallow water is walkable and sailable; deep water is ships only.
+//  8. Red Sea and Hellas are painted from 0 A.D.'s heightmap images.
 //  Exit: 0 = PASS, 1 = FAIL.
 #include "simulation/simulation.h"
 #include "simulation/rms_generator.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <vector>
@@ -204,6 +208,80 @@ int main() {
 		a.generate_random_map(MAP_DANUBIUS, 77, 2, size * 0.5f);
 		b.generate_random_map(MAP_DANUBIUS, 77, 2, size * 0.5f);
 		CHECK(map_fingerprint(a) == map_fingerprint(b), "size %d: same seed, different map", size);
+	}
+
+	// 6. Stronghold packs teammates together (game-setup teams).
+	{
+		const uint8_t teams[4] = {1, 2, 1, 2};
+		Simulation sim;
+		sim.generate_random_map(MAP_STRONGHOLD, 99, 4, 128.0f, teams);
+		float tx[8] = {}, tz[8] = {};
+		bool has[8] = {};
+		for (const auto &b : sim.buildings())
+			if (b.type == BLD_TOWN_CENTER && b.team < 8) { has[b.team] = true; tx[b.team] = b.x; tz[b.team] = b.z; }
+		CHECK(has[0] && has[1] && has[2] && has[3], "stronghold: a player has no town centre");
+		const float mate = std::hypot(tx[0] - tx[2], tz[0] - tz[2]), foe = std::hypot(tx[0] - tx[1], tz[0] - tz[1]);
+		CHECK(mate < foe, "stronghold: teammates %.1f apart, enemies %.1f", mate, foe);
+		CHECK(mate >= 17.0f, "stronghold: teammates' bases overlap (%.1f apart)", mate);
+	}
+
+	// 7. Shallow water (0 A.D. pathfinder.xml MaxWaterDepth 2): land units wade
+	// through it, ships sail it; deeper water stays ships only.
+	{
+		Simulation sim;
+		sim.generate_random_map(MAP_RHINE_MARSHLANDS, 5, 2, 128.0f);
+		const auto &g = sim.nav_grid();
+		int shallow = 0, deep = 0;
+		bool shallow_ok = true;
+		for (int y = 0; y < g.res; ++y)
+			for (int x = 0; x < g.res; ++x) {
+				const uint8_t c = g.cells.at(x, y);
+				if (c == NAV_SHALLOW) {
+					++shallow;
+					shallow_ok &= g.is_passable_for(x, y, PASS_INFANTRY) && g.is_passable_for(x, y, PASS_SHIP);
+				}
+				deep += c == NAV_WATER;
+			}
+		CHECK(shallow > 0, "rhine_marshlands: no shallow water");
+		CHECK(deep == 0, "rhine_marshlands: %d deep water cells", deep);
+		CHECK(shallow_ok, "shallow water is not walkable and sailable");
+		Simulation sea;
+		sea.generate_random_map(MAP_RANDOM_ARCHIPELAGO, 5, 2, 128.0f);
+		bool deep_ok = true;
+		int sea_deep = 0;
+		for (int y = 0; y < sea.nav_grid().res; ++y)
+			for (int x = 0; x < sea.nav_grid().res; ++x)
+				if (sea.nav_grid().cells.at(x, y) == NAV_WATER) {
+					++sea_deep;
+					deep_ok &= !sea.nav_grid().is_passable_for(x, y, PASS_INFANTRY) && sea.nav_grid().is_passable_for(x, y, PASS_SHIP);
+				}
+		CHECK(sea_deep > 0 && deep_ok, "deep water must be ships only (%d cells)", sea_deep);
+	}
+
+	// 8. Heightmap maps (rmgen LoadHeightmapImage / HeightmapPainter).
+	for (int size : {128, 512}) {
+		const float half = size * 0.5f;
+		Simulation sim;
+		sim.generate_random_map(MAP_RED_SEA, 3, 4, half);
+		const float wh = sim.water_height();
+		// red_sea.png pixel (111, 145) is mid Red Sea, (162, 102) inland Arabia.
+		auto at_px = [&](float px, float py) {
+			return sim.get_terrain_height(-half + px / 255.0f * size, -half + py / 255.0f * size);
+		};
+		CHECK(at_px(111.0f, 145.0f) < wh, "red_sea %d: the Red Sea is dry (%.2f)", size, at_px(111.0f, 145.0f));
+		CHECK(at_px(162.0f, 102.0f) > wh + 0.3f, "red_sea %d: Arabia is under water (%.2f)", size, at_px(162.0f, 102.0f));
+		Simulation hel;
+		hel.generate_random_map(MAP_HELLAS, 3, 4, half);
+		int land = 0, cells = 0;
+		float top = -1e9f;
+		for (float h : hel.terrain_heights()) {
+			++cells;
+			land += h > hel.water_height() + 0.3f;
+			top = std::max(top, h);
+		}
+		// The land-ratio checks pick mostly land; heights reach 100 m x (size + 1) / 321.
+		CHECK(land > cells / 2, "hellas %d: only %d of %d cells are land", size, land, cells);
+		CHECK(top > hel.water_height() + 3.0f, "hellas %d: flat (top %.1f)", size, top);
 	}
 
 	if (g_failures) {
