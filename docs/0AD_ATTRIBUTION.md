@@ -26,6 +26,7 @@ RTS0 builds on **0 A.D.** (https://play0ad.com) by Wildfire Games.
 | `src/simulation/simulation.*` (fish gathering, `find_free_fish`, regrowth), `src/simulation/rms_generator.cpp` (`distribute_fish`), `tools/port_0ad_maps.py` (`gaia/fish/`), fish entries in `data/maps/*.json` | `templates/template_gaia_fish.xml` (ResourceSupply food.fish 1000, MaxGatherers 4, regen), `template_unit_ship_fishing.xml` (ResourceGatherer food.fish), `maps/random/rmgen` fish placement (`scaleByMapSize(15, 50)` groups, avoid land 2, other fish 20), the 0 A.D. skirmish maps' fish entities | Port (constants, placement rules and map data) |
 | `src/network/turn_manager.*`, `net_types.h` | `source/network/NetServerTurnManager.*`, `NetClientTurnManager.*`, `NetMessages.h` | Port |
 | `tools/extract_0ad_assets.py` | `source/graphics/ModelDef.cpp`, `ps/FileIo.cpp`, `shaders/glsl/model_common.fs` | Port of file-format readers |
+| `src/presentation/fog_mirage.{h,cpp}` (`FogMirages`, `LosShading`), fog use in `world_view_node.cpp`, `minimap_view.cpp`, `shaders/terrain.gdshader`, `shaders/water.gdshader` | Mirages of fogged structures and resources from `simulation/components/Fogging.js`, `Mirage.js` and `CCmpRangeManager::ComputeLosVisibility`; the 255/127/0 LOS bitmap, 7-tap binomial blur and eased updates from `source/graphics/LOSTexture.cpp` (`GenerateBitmap`, `InterpolateLOS`) | Port |
 
 ## Random maps modelled on 0 A.D. (`src/simulation/rms_generator.cpp`)
 
