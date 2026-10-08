@@ -98,7 +98,11 @@ enum MapType : uint8_t {
 	MAP_INDIA = 42,
 	MAP_GUADALQUIVIR_RIVER = 43,
 	MAP_FIELDS_OF_MEROE = 44,
-	MAP_TYPE_COUNT = 45
+	MAP_GEAR = 45,
+	MAP_ATLAS_MOUNTAINS = 46,
+	MAP_FRONTIER = 47,
+	MAP_WILD_LAKE = 48,
+	MAP_TYPE_COUNT = 49
 };
 
 struct MapTypeInfo {
@@ -156,7 +160,11 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_DEEP_FOREST, "deep_forest", "Deep Forest (RMS)", "temperate", true, "A deep dark forest in Germania, crossed by paths between the bases and a central hill."},
 		{MAP_INDIA, "india", "India (RMS)", "india", true, "Parched central India before the monsoon; only one large, half dried-up lake remains."},
 		{MAP_GUADALQUIVIR_RIVER, "guadalquivir_river", "Guadalquivir River (RMS)", "mediterranean", true, "Players on the Mediterranean shore, split by a river with three shallow crossings."},
-		{MAP_FIELDS_OF_MEROE, "fields_of_meroe", "Fields of Meroe (RMS)", "savanna", true, "Kush's heartland by the Nile, crossed at two cataracts, with dunes and acacia groves."}
+		{MAP_FIELDS_OF_MEROE, "fields_of_meroe", "Fields of Meroe (RMS)", "savanna", true, "Kush's heartland by the Nile, crossed at two cataracts, with dunes and acacia groves."},
+		{MAP_GEAR, "gear", "Gear (RMS)", "temperate", true, "A land with waterways laid out like a spider web round a central lake and island."},
+		{MAP_ATLAS_MOUNTAINS, "atlas_mountains", "Atlas Mountains (RMS)", "desert", true, "A rugged North African land with little room for buildings and scarce wood."},
+		{MAP_FRONTIER, "frontier", "Frontier (RMS)", "temperate", true, "A wild, unknown landscape of random hills, plateaus and lakes awaits rival explorers."},
+		{MAP_WILD_LAKE, "wild_lake", "Wild Lake (RMS)", "temperate", true, "Rough wild terrain round a lake, with about a fifth of the land under water."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
@@ -659,7 +667,7 @@ enum TechStat : uint8_t {
 	TSTAT_ARMOR_HACK, TSTAT_ARMOR_PIERCE, TSTAT_ARMOR_CRUSH,
 	TSTAT_HEALTH, TSTAT_SPEED, TSTAT_POP_BONUS, TSTAT_TRADE_GAIN, TSTAT_RANGE,
 	TSTAT_BUILD_TIME, TSTAT_RESEARCH_TIME, TSTAT_HEAL_RANGE, TSTAT_HEAL_INTERVAL, TSTAT_ARROWS,
-	TSTAT_PACK_TIME,
+	TSTAT_PACK_TIME, TSTAT_GARRISON_HEAL,
 	TSTAT_COUNT
 };
 
@@ -754,6 +762,28 @@ inline uint64_t unit_tech_classes(uint8_t type) {
 // unload everyone below EjectHealth 0.1 or when destroyed. The siege tower's
 // BuildingAI fires no arrows of its own (DefaultArrowCount 0) and one per
 // garrisoned Infantry (GarrisonArrowMultiplier 1), up to MaxArrowCount 10.
+// 0 A.D. GarrisonHolder on structures (template_structure_*.xml): BuffHeal is the
+// hitpoints each garrisoned unit regains per second; below EjectHealth of its
+// maximum health a structure unloads its garrison and takes no one in. 0 = no
+// garrison in 0 A.D. (storehouse, farmstead, market, gate, dock, walls, outpost).
+inline float building_garrison_heal(uint8_t type) {
+	switch (type) {
+		case BLD_TOWN_CENTER: case BLD_CORRAL: return 1.0f;
+		case BLD_TEMPLE: return 3.0f;
+		case BLD_WONDER: return 5.0f;
+		default: return 0.0f;
+	}
+}
+inline float building_eject_health(uint8_t type) {
+	switch (type) {
+		case BLD_FORTRESS: return 0.075f;
+		case BLD_CORRAL: return 0.5f;
+		case BLD_STOREHOUSE: case BLD_FARMSTEAD: case BLD_MARKET: case BLD_GATE: case BLD_DOCK:
+		case BLD_WALL_SEGMENT: case BLD_FIELD: case BLD_OUTPOST: case BLD_PALISADE: return 0.0f;
+		default: return 0.1f;
+	}
+}
+
 inline constexpr int SIEGE_TOWER_GARRISON = 20;
 inline constexpr int SIEGE_RAM_GARRISON = 10;
 inline constexpr int SIEGE_TOWER_MAX_ARROWS = 10;
