@@ -528,6 +528,17 @@ unsigned pack_state_of(const Simulation &sim, uint32_t id) {
     return 255;
 }
 
+// Both humans' trading goods in ResourceType order, "p0/p1".
+std::string goods_of(const Simulation &sim) {
+    std::string out;
+    for (uint8_t p = 0; p < 2; ++p) {
+        if (p) out += "/";
+        const uint8_t *g = sim.trading_goods(p);
+        for (int r = 0; r < RES_COUNT; ++r) out += (r ? "," : "") + std::to_string((unsigned)g[r]);
+    }
+    return out;
+}
+
 float hp_of(const Simulation &sim, uint32_t id) {
     auto uv = sim.units();
     for (size_t i = 0; i < uv.count; ++i)
@@ -576,6 +587,8 @@ struct PeerOpts {
 
 int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts &opt,
         const char *log_path) {
+    // Line-buffered even into a file: the playtest waits on what a peer printed.
+    std::setvbuf(stdout, nullptr, _IOLBF, 0);
     const float speed = opt.speed, loss = opt.loss;
     const uint32_t defeat_turn = opt.defeat_turn;
     Simulation sim;
@@ -836,6 +849,16 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
             // Unit orders (0 A.D. Commands.js): the host's worker gathers food,
             // walks off with a Shift-queued walk (param bit 0x80) after it, goes
             // back to work (cmd 31) and is finally deleted (cmd 30).
+            // Trading goods (cmd 33, 0 A.D. Player.js SetTradingGoods): each human
+            // sets the mix its traders bring back, one percent byte per ResourceType.
+            if (st == 340 || st == 350) {
+                static const uint8_t mix[2][4] = {{10, 20, 30, 40}, {0, 0, 50, 50}};
+                NetCommand g;
+                g.client_id = st == 340 ? 0 : 1;
+                g.cmd_type = 33;
+                for (int r = 0; r < RES_COUNT && r < 4; ++r) g.target_id |= (uint32_t)mix[g.client_id][r] << (8 * r);
+                batch.push_back(g);
+            }
             if (st == 410) {
                 NetCommand hl;
                 hl.client_id = 0;
@@ -934,7 +957,7 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
                 if (cu.alive[i]) wounds += cu.max_hp[i] - cu.hp[i];
                 else ++dead;
             }
-            std::fprintf(log, "%u %08X %zu d01=%u d10=%u cf=%d wounds=%.0f dead=%u defeated=%u over=%d stone=%d,%d wall=%u locked=%d pack=%u work=%u queue=%zu heal=%u patient=%.0f\n",
+            std::fprintf(log, "%u %08X %zu d01=%u d10=%u cf=%d wounds=%.0f dead=%u defeated=%u over=%d stone=%d,%d wall=%u locked=%d pack=%u work=%u queue=%zu heal=%u patient=%.0f goods=%s\n",
                          f.turn_index, f.sim_state_hash, f.commands.size(), sim.get_diplomacy(0, 1),
                          sim.get_diplomacy(1, 0), sim.ceasefire_active() ? 1 : 0, wounds, dead,
                          (unsigned)sim.defeated_mask(), sim.is_game_over() ? 1 : 0,
@@ -942,7 +965,7 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
                          (unsigned)building_type_of(sim, host_wall), gate_locked_of(sim, host_wall),
                          pack_state_of(sim, host_catapult), order_kind_of(sim, host_worker),
                          order_queue_len_of(sim, host_worker), order_kind_of(sim, host_healer),
-                         hp_of(sim, host_patient));
+                         hp_of(sim, host_patient), goods_of(sim).c_str());
         }
         if (tm.has_out_of_sync() && !opt.force_oos) {
             std::fprintf(stderr, "[net-peer] %s: OOS at turn %u local=%08X peer=%08X\n",
