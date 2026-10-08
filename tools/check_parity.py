@@ -168,7 +168,7 @@ def check_pathfinder_wiring():
 
 def compute_g_gaps(manifest_counts, js_count, ticks, pmd_count, wiring):
     """
-    G1-G10 heuristic buckets derived from docs/PORTING_TODO + ASSET_MAPPING.
+    G1-G10 heuristic buckets derived from the (now archived) docs/archive/PORTING_TODO.md + ASSET_MAPPING.
     Each returns (pct, note). 0-100.
     """
     gaps = {}
@@ -1904,7 +1904,7 @@ def main():
         print("  Status: high parity — polish & perf remain")
     print()
     print("="*78)
-    print("Docs: docs/ASSET_MAPPING.md G6+G7  •  docs/MULTIPLAYER.md G8-G9  •  docs/PORTING_TODO.md")
+    print("Docs: docs/REMAINING_GAPS.md (G1-G10 parity)  •  docs/PLAN.md (todo)  •  docs/MIGRATION.md (vendored code)")
     print("Vendor ref: src/0ad/simulation2/helpers/Grid.h:412  HierarchicalPathfinder.cpp:865  LongPathfinder.cpp:400")
     print("Active:     src/simulation/grid_nav.h  src/simulation/nav/README.md  src/core/memory/soa_storage.h (xp/waypoint)")
     print("="*78)

@@ -477,6 +477,130 @@ void usage(const char *argv0) {
 
 } // namespace playtest
 
+// ---------------------------------------------------------------------------
+// Real two-process lockstep peer (docs/PLAN.md P1 "two clients for 5 minutes").
+//
+// Unlike --playtest, which hands both sims the same batch in-process, each
+// --net-peer process owns ONE Simulation, ONE NetHost and ONE TurnManager and
+// talks to the other process over real UDP loopback. Each peer advances turns
+// from its own wall clock with random frame jitter and only posts the commands
+// its own player owns (client_id 0 = host, 1 = joiner), so a command reaches
+// the other side only through the wire. Every turn's post-sim hash is written
+// to a log; tools/playtest_lockstep.py --net compares the two logs.
+//
+// Exit codes: 0 = ran to the end with no OOS reported, 1 = TurnManager raised
+// OOS, 3 = never connected / peer vanished.
+// ---------------------------------------------------------------------------
+namespace netpeer {
+
+uint64_t now_us() {
+    using namespace std::chrono;
+    return (uint64_t)duration_cast<microseconds>(steady_clock::now().time_since_epoch()).count();
+}
+
+int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
+        float loss, const char *log_path) {
+    Simulation sim;
+    playtest::ScriptRefs refs;
+    playtest::build_world(sim, seed, refs);
+
+    NetHost net;
+    if (loss > 0.0f) net.set_simulated_loss(loss, seed ^ (host ? 0x1111u : 0x2222u));
+    bool ok = host ? net.startHost([&] { NetConfig c; c.port = port; return c; }())
+                   : net.startClient("127.0.0.1", port);
+    if (!ok) { std::fprintf(stderr, "[net-peer] socket start failed\n"); return 3; }
+
+    TurnManager tm;
+    const uint32_t me = host ? 0u : 1u;
+    tm.set_net_host(&net, me);
+    Arena arena(1 << 16);
+
+    // Wait until both sides see the session (host: a peer joined, client: ACK).
+    bool connected = false;
+    net.onPeerConnected([&](uint32_t) { connected = true; });
+    uint64_t t_start = now_us();
+    while (!connected) {
+        net.poll(arena);
+        arena.reset();
+        if (now_us() - t_start > 10'000'000ull) {
+            std::fprintf(stderr, "[net-peer] %s: no connection after 10s\n", host ? "host" : "join");
+            return 3;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    // Both worlds were built from the same seed above, so this stands in for
+    // NMT_GAME_START (exercised separately by the legacy GameStart test).
+    tm.mark_game_started(&sim);
+    tm.set_lockstep_peers({0u, 1u});
+
+    FILE *log = std::fopen(log_path, "w");
+    if (!log) { std::fprintf(stderr, "[net-peer] cannot open %s\n", log_path); return 3; }
+
+    playtest::ScriptRng script_rng(seed ^ 0xA5A5A5A5u);
+    playtest::ScriptRng jitter(seed ^ (host ? 0x5151u : 0x7373u));
+    std::vector<NetCommand> batch;
+    uint32_t scripted_turn = 0;
+    uint64_t last = now_us();
+    uint64_t last_progress = last;
+    uint32_t last_turn_seen = 0;
+
+    while (tm.current_turn() < turns) {
+        net.poll(arena);
+        arena.reset();
+
+        // Script one batch per local turn boundary (same pure script on both
+        // peers); keep only this peer's commands -- the rest must arrive by wire.
+        if (scripted_turn <= tm.current_turn()) {
+            scripted_turn = tm.current_turn() + 1;
+            playtest::script_turn(refs, scripted_turn, script_rng, batch);
+            for (const auto &c : batch)
+                if (c.client_id == me) tm.post_local_command(c);
+        }
+
+        uint64_t now = now_us();
+        float dt = (float)(now - last) * 1e-6f * speed;
+        last = now;
+        if (tm.tick(dt, sim)) {
+            const auto &f = tm.turn_history().back();
+            std::fprintf(log, "%u %08X %zu\n", f.turn_index, f.sim_state_hash, f.commands.size());
+        }
+        if (tm.has_out_of_sync()) {
+            std::fprintf(stderr, "[net-peer] %s: OOS at turn %u local=%08X peer=%08X\n",
+                         host ? "host" : "join", tm.oos_turn(), tm.oos_expected_hash(), tm.oos_received_hash());
+            std::fclose(log);
+            return 1;
+        }
+        if (tm.current_turn() != last_turn_seen) {
+            last_turn_seen = tm.current_turn();
+            last_progress = now;
+        } else if (now - last_progress > 15'000'000ull) {
+            std::fprintf(stderr, "[net-peer] %s: stalled at turn %u for 15s\n",
+                         host ? "host" : "join", tm.current_turn());
+            std::fclose(log);
+            return 3;
+        }
+        // Frame jitter: 2-25 ms, independent per peer, so the two clocks drift.
+        std::this_thread::sleep_for(std::chrono::microseconds(2000 + jitter.range(0, 23000)));
+    }
+    std::fclose(log);
+
+    // Keep serving the wire (no more turns) so the slower peer gets the batches
+    // it still needs -- we already sent ours through turns + COMMAND_DELAY --
+    // and our final sync checks get acknowledged.
+    uint64_t linger = now_us();
+    while (now_us() - linger < 3'000'000ull) {
+        net.poll(arena);
+        arena.reset();
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    std::printf("[net-peer] %s: done turns=%u hash=%08X oos=%d dropped=%u\n",
+                host ? "host" : "join", tm.current_turn(), tm.compute_sim_hash(sim),
+                tm.has_out_of_sync() ? 1 : 0, net.getStats().dropped_packets);
+    return tm.has_out_of_sync() ? 1 : 0;
+}
+
+} // namespace netpeer
+
 int main(int argc, char **argv) {
     // P1 playtest mode: --playtest <turns> <seed>
     if (argc >= 2 && std::strcmp(argv[1], "--playtest") == 0) {
@@ -509,6 +633,17 @@ int main(int argc, char **argv) {
             return 2;
         }
         return playtest::run(seed, turns, verbose_every, shadow, through);
+    }
+    // Real UDP peer: --net-peer <host|join> <port> <seed> <turns> <log> [--speed X] [--loss P]
+    if (argc >= 7 && std::strcmp(argv[1], "--net-peer") == 0) {
+        float speed = 1.0f, loss = 0.0f;
+        for (int i = 7; i + 1 < argc; i += 2) {
+            if (std::strcmp(argv[i], "--speed") == 0) speed = (float)std::atof(argv[i + 1]);
+            else if (std::strcmp(argv[i], "--loss") == 0) loss = (float)std::atof(argv[i + 1]);
+        }
+        return netpeer::run(std::strcmp(argv[2], "host") == 0, (uint16_t)std::atoi(argv[3]),
+                            (uint32_t)std::strtoul(argv[4], nullptr, 10),
+                            (uint32_t)std::atoi(argv[5]), speed, loss, argv[6]);
     }
     if (argc >= 2 && std::strcmp(argv[1], "--help") == 0) {
         playtest::usage(argv[0]);
