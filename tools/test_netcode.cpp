@@ -542,6 +542,8 @@ struct PeerOpts {
     uint32_t pause_ms = 1500;
     uint32_t saveload_turn = 0; // both peers save and reload their world here
     uint32_t force_oos = 0;     // the joiner corrupts its world after this turn
+    uint32_t quit_turn = 0;     // the joiner leaves the match after this turn
+    bool rejoin = false;        // this joiner takes over a dropped seat mid-match
     std::string oos_dir;        // where each peer writes its OOS dump
 };
 
@@ -625,9 +627,23 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
-    // Both worlds were built from the same seed above; the game options and
-    // seats travel in NMT_GAME_START like a lobby start.
-    if (host) {
+    // Rejoin (0 A.D. join-syncing): this process takes over the seat of a
+    // joiner that left; the world and pending batches come from the host.
+    if (opt.rejoin) {
+        tm.request_rejoin();
+        t_start = now_us();
+        while (!tm.apply_pending_rejoin(sim)) {
+            net.poll(arena);
+            arena.reset();
+            if (tm.rejoin_reject_reason() || now_us() - t_start > 20'000'000ull) {
+                std::fprintf(stderr, "[net-peer] join: rejoin failed (reason %u)\n", (unsigned)tm.rejoin_reject_reason());
+                return 3;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        }
+        std::printf("[net-peer] join: rejoin turn=%u client=%u player=%u\n", tm.rejoin_turn(),
+                    tm.local_client_id(), (unsigned)tm.local_player());
+    } else if (host) {
         tm.mark_game_started(&sim);
         net.sendGameStart(format_game_start_full(seats));
     } else {
@@ -645,8 +661,10 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
         tm.take_pending_game_start_full(seats);
         apply_setup(seats);
     }
-    tm.set_lockstep_peers({0u, 1u});
-    tm.assign_slot_players(seats); // host -> player 0, joiner -> player 1
+    if (!opt.rejoin) {
+        tm.set_lockstep_peers({0u, 1u});
+        tm.assign_slot_players(seats); // host -> player 0, joiner -> player 1
+    }
 
     FILE *log = std::fopen(log_path, "w");
     if (!log) { std::fprintf(stderr, "[net-peer] cannot open %s\n", log_path); return 3; }
@@ -780,6 +798,13 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
                 save_ok = sim.save_state(path.c_str()) && sim.load_state(path.c_str());
                 save_hash_after = tm.compute_sim_hash(sim);
             }
+            // Leave: the joiner drops out (NetHost sends the disconnect).
+            if (!host && opt.quit_turn && f.turn_index == opt.quit_turn) {
+                std::fclose(log);
+                net.stop();
+                std::printf("[net-peer] join: left at turn %u hash=%08X\n", f.turn_index, f.sim_state_hash);
+                return 0;
+            }
             // Forced OOS: the joiner alone gains one food after this turn.
             if (!host && opt.force_oos && f.turn_index == opt.force_oos) sim.players_[0].res[RES_FOOD] += 1.0f;
             // Combat footprint: wounds on living units plus dead ones. It must
@@ -908,6 +933,8 @@ int main(int argc, char **argv) {
     //   [--saveload-turn N] both peers save and reload their world after turn N
     //   [--force-oos N]     the joiner corrupts its world after turn N
     //   [--oos-dir DIR]     where this peer writes oos_dump.txt/.dat
+    //   [--quit-turn N]     the joiner leaves the match after turn N
+    //   [--rejoin 1]        this joiner takes over a dropped seat mid-match
     if (argc >= 7 && std::strcmp(argv[1], "--net-peer") == 0) {
         netpeer::PeerOpts opt;
         for (int i = 7; i + 1 < argc; i += 2) {
@@ -920,6 +947,8 @@ int main(int argc, char **argv) {
             else if (std::strcmp(k, "--saveload-turn") == 0) opt.saveload_turn = (uint32_t)std::atoi(v);
             else if (std::strcmp(k, "--force-oos") == 0) opt.force_oos = (uint32_t)std::atoi(v);
             else if (std::strcmp(k, "--oos-dir") == 0) opt.oos_dir = v;
+            else if (std::strcmp(k, "--quit-turn") == 0) opt.quit_turn = (uint32_t)std::atoi(v);
+            else if (std::strcmp(k, "--rejoin") == 0) opt.rejoin = std::atoi(v) != 0;
         }
         return netpeer::run(std::strcmp(argv[2], "host") == 0, (uint16_t)std::atoi(argv[3]),
                             (uint32_t)std::strtoul(argv[4], nullptr, 10),

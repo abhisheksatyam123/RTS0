@@ -1389,6 +1389,16 @@ void RtsoMain::_process(double delta) {
 		net_arena_.reset();
 		// Consume NMT_GAME_START seed-sync queued by TurnManager::onMessage.
 		apply_net_game_start();
+		// Rejoin of a match in progress: the host sent its world; load it and
+		// play on in the seat our dropped client had.
+		if (!net_host_.isHost() && !net_game_started_ && sim && turn_mgr_.apply_pending_rejoin(*sim)) {
+			net_game_started_ = true;
+			selected_ids.clear();
+			selected_building_id = 0;
+			if (lobby_status)
+				lobby_status->set_text("Rejoined the match at turn " + String::num_int64(turn_mgr_.rejoin_turn()) +
+						" as Player " + String::num_int64(turn_mgr_.local_player() + 1));
+		}
 	}
 	// Networked: keep running TurnManager::tick, which holds turns for everyone
 	// while any client is paused, so this peer still sees remote pauses end.
@@ -3912,6 +3922,11 @@ void RtsoMain::_on_lobby_join_pressed() {
 	turn_mgr_.set_net_host(&net_host_, 1);
 	turn_mgr_.clear_game_started();
 	net_game_started_ = false; // wait for host's NMT_GAME_START before lockstep turns
+	// Once connected, ask to rejoin: a host still in its lobby declines and its
+	// NMT_GAME_START starts us as usual; a host mid-match sends its world.
+	net_host_.onPeerConnected([this](uint32_t) {
+		if (!net_host_.isHost() && !net_game_started_) turn_mgr_.request_rejoin();
+	});
 	if (lobby_status)
 		lobby_status->set_text("Connecting " + String(ip.c_str()) + ":" + String::num_int64(port));
 }

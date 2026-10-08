@@ -85,6 +85,24 @@ public:
 	// Client ids whose batch every turn waits on. Defaults on the first networked
 	// turn to {0} + connected peer ids (host) or {0, local id} (joiner).
 	void set_lockstep_peers(const std::vector<uint32_t> &ids) { lockstep_peers_ = ids; lockstep_peers_set_ = true; }
+	// Host: a client left (NetHost disconnect or timeout). Turns stop waiting for
+	// its batches (0 A.D. NetServerTurnManager::UninitialiseClient); its seat
+	// stays in the match and can be taken back by a rejoining client.
+	void drop_client(uint32_t client_id);
+
+	// --- Rejoin of a game in progress (0 A.D. NetServer join-syncing) --------
+	// Client: ask the host for the match. The host answers at its next turn
+	// boundary T with the saved world and the batches for turns after T (see
+	// RejoinMsg); apply_pending_rejoin() then loads it and the client plays on
+	// from turn T+1 in its old seat. tick() also applies it.
+	void request_rejoin();
+	bool apply_pending_rejoin(Simulation &sim);
+	bool rejoin_requested() const { return rejoin_wanted_; }
+	bool rejoined() const { return rejoined_; }
+	uint32_t rejoin_turn() const { return rejoin_turn_; }
+	uint8_t rejoin_reject_reason() const { return rejoin_reject_; }
+	// Where the saved world is staged on disk (default: the system temp dir).
+	void set_rejoin_dir(const std::string &dir) { rejoin_dir_ = dir; }
 	const std::vector<uint32_t> &lockstep_peers() const { return lockstep_peers_; }
 	// Ticks refused because a peer's batch for the next turn had not arrived.
 	uint32_t waiting_tick_count() const { return waiting_ticks_; }
@@ -333,6 +351,22 @@ private:
 	uint32_t local_hash_at(uint32_t turn) const;
 	std::string client_label(uint32_t client_id) const;
 	std::set<uint32_t> paused_clients_;
+	// Rejoin: per-peer first turn whose batch is required (a rejoiner sends
+	// from T+COMMAND_DELAY+1), host-side requests, and the client's transfer.
+	std::unordered_map<uint32_t, uint32_t> lockstep_since_;
+	std::vector<uint32_t> rejoin_requests_;
+	bool rejoin_wanted_ = false, rejoin_have_header_ = false, rejoined_ = false;
+	uint32_t rejoin_turn_ = 0;
+	uint8_t rejoin_reject_ = 0;
+	RejoinMsg rejoin_header_;
+	std::vector<uint8_t> rejoin_world_;
+	std::set<uint32_t> rejoin_chunks_;
+	size_t rejoin_received_ = 0;
+	std::string rejoin_dir_;
+	void ensure_lockstep_peers();
+	std::string rejoin_path(const char *tag) const;
+	void receive_rejoin(uint32_t author, const RejoinMsg &msg);
+	void serve_rejoin(uint32_t client_id, Simulation &sim);
 	void receive_client_paused(uint32_t author, const ClientPausedMsg &msg);
 
 	// --- G8 lockstep gate (see the public section for the rationale) ---------
