@@ -1,46 +1,27 @@
-// RTS0 diplomacy wire-replication test (headless: no SCons, no Godot).
+// RTS0 diplomacy lockstep test (headless: no SCons, no Godot).
 //
-// Companion to tools/test_replay.cpp / tools/test_netcode.cpp covering the
-// NMT_DIPLOMACY path of src/network/{net_types.h,net_host.{h,cpp}}. Every call
-// hits the REAL public API: two NetHost peers (one Host, one Client) bound to
-// 127.0.0.1 over the real UDP transport, two TurnManagers and two Simulations
-// in one process. Nothing in src/network is stubbed.
+// Companion to tools/test_replay.cpp / tools/test_netcode.cpp. The diplomacy
+// matrix is mixed into TurnManager::compute_sim_hash(), so a stance applied on
+// one peer only, or on different turns, desyncs every other peer. A stance
+// therefore reaches the sim through exactly one route: lockstep cmd 22, run on
+// the same turn on every peer and as the player the sending client is seated
+// as. The old NMT_DIPLOMACY carrier is retired (it scheduled by the receiver's
+// own turn and trusted an actor byte from the wire).
 //
-// Why this test exists: Simulation::set_diplomacy() is an inline local setter
-// with no command path, and diplomacy_state() IS fed into
-// TurnManager::compute_sim_hash(), so a stance applied on one peer only
-// desyncs every other peer. NMT_DIPLOMACY is the wire path that prevents that.
-//
-//  1. wire round-trip: NMT_DIPLOMACY type id / payload frame+parse / dispatch
-//     validation (bad player_id, bad stance, truncated payload).
-//  2. replication over the real socket: host + client peers, identical scripted
-//     command stream through post_local_command / receive_remote_turn_batch,
-//     a stance applied to BOTH peers from the NMT_DIPLOMACY payload through
-//     Simulation::set_diplomacy(), then further turns. compute_sim_hash() must
-//     stay equal and get_diplomacy() must agree on both peers.
-//
-//     DEPENDENCY (cross-stream: src/simulation is owned by another stream):
-//     there is no simulation command type for diplomacy yet, so the stance is
-//     applied here straight through the sim applier Simulation::set_diplomacy()
-//     on every peer. When the sim-side command path lands (a cmd_type routed
-//     from TurnManager::tick), keep driving every peer from NMT_DIPLOMACY but
-//     assert against the command applier instead of the raw setter.
+//  1. wire contract: frozen ids, and a retired NMT_DIPLOMACY packet is dropped
+//     before it reaches TurnManager.
+//  2. cmd 22 on two lockstep peers: each player writes only its own row, on the
+//     same turn on both peers, and the hashes stay equal.
 //  3. negative control: the same stance applied to ONE peer only must make the
-//     lockstep hashes DIVERGE -- proving the phase-2 check detects exactly the
-//     out-of-sync this feature prevents. The OOS detector is exercised through
-//     receive_sync_check().
-//  4. three-peer host relay: host + two clients, one client originates the
-//     stance; the host must relay it and every peer must apply it.
+//     lockstep hashes DIVERGE, and receive_sync_check() must flag it.
+//  4. a client cannot set another player's row: the batch sender decides the
+//     player, whatever client_id the command claims.
 //  5. G8 lockstep gate: with a live peer and no NMT_GAME_START applied, tick()
 //     must refuse to advance (turn 1 OOS fix); mark_game_started() releases it.
-//  6. G9 diplo-via-TurnManager round-trip: NMT_DIPLOMACY dispatched through
-//     NetHost reaches TurnManager::onMessage and is applied by tick() on EVERY
-//     peer -- the sender's id is resolved (peer_id==0 quirk) and the stance lands
-//     through the lockstep boundary, not the presentation applier.
-//  7. P3 late-join GAME_START resend: a client admitted AFTER the host broadcast
+//  6. P3 late-join GAME_START resend: a client admitted AFTER the host broadcast
 //     GAME_START asks for setup + turn-0 state, the host resends, and the joiner
 //     only releases its lockstep gate after the turn-0 hash is confirmed.
-//  8. P3 maintainFleet upkeep: a built dock with no fleet produces exactly one
+//  7. P3 maintainFleet upkeep: a built dock with no fleet produces exactly one
 //     deterministic commission per turn, blocked while the dock is training or
 //     unfinished, and it rides the ordinary turn command stream (so it is in the
 //     replay history).
@@ -78,9 +59,6 @@ static bool check(bool cond, const char *expr, const char *phase) {
 #define CHECK(cond, ...) RTSO_SEL(RTSO_NARG(__VA_ARGS__))(cond, __VA_ARGS__)
 #define CHECK_PLAIN(cond, ph) check((cond), #cond, (ph))
 #define CHECK_MSG(cond, msg, ph) check((cond), (msg), (ph))
-
-// Counts onDiplomacy callbacks for the phase-1 dispatch validation.
-static int g_dip_cb_fires = 0;
 
 struct Refs { std::vector<uint32_t> villagers, soldiers, resources; };
 
@@ -171,197 +149,97 @@ static bool start_peers(NetHost &h, NetHost &c, uint16_t port, int budget_ms = 1
 	return false;
 }
 
-struct StandaloneApplier {
-	Simulation *sim = nullptr;
-	bool landed = false;
-	uint8_t want_player = 0, want_stance = 0, got_player = 0, got_stance = 0, got_actor = 0;
-	uint32_t last_sender = 0xFFFFFFFFu;
-	uint32_t count = 0;
-	StandaloneApplier(Simulation *s, uint8_t p, uint8_t st) : sim(s), want_player(p), want_stance(st) {}
-	// Installed as NetHost::onDiplomacy. Only a payload matching want_player /
-	// want_stance is applied, so a test cannot "pass" on a wrong stance landing.
-	void handle(uint32_t peer, const DiplomacyMsg &m) {
-		count++;
-		last_sender = peer;
-		got_player = m.player_id;
-		got_stance = m.stance;
-		got_actor = m.actor;
-		if (m.player_id == want_player && m.stance == want_stance && sim) {
-			// The actor rides on the wire, so a relayed stance lands on the row
-			// its originator owns, not on the relaying host's row.
-			sim->set_diplomacy(m.actor, m.player_id, m.stance); // the sim-side applier
-			landed = true;
-		}
-	}
-};
-
-// ---- Phase 1: type id, payload framing and dispatch validation ----------------
+// ---- Phase 1: frozen ids; a retired NMT_DIPLOMACY packet is dropped ---------
 static bool run_wire_contract(const char *ph) {
 	CHECK(static_cast<uint8_t>(NetMessageType::NMT_DIPLOMACY) == 31, ph);
 	CHECK(static_cast<uint8_t>(NetMessageType::NMT_COUNT) == 34, ph);
-	CHECK(static_cast<uint8_t>(NetMessageType::NMT_DIPLOMACY) <
-	          static_cast<uint8_t>(NetMessageType::NMT_COUNT), ph);
 	// Append-only NMT ids 32/33 (late-join sync) and the frozen cmd_type block.
 	CHECK(static_cast<uint8_t>(NetMessageType::NMT_JOIN_SYNC_STATE) == 32, ph);
 	CHECK(static_cast<uint8_t>(NetMessageType::NMT_JOIN_SYNC_CHECK) == 33, ph);
-	CHECK(static_cast<uint8_t>(NetMessageType::NMT_JOIN_SYNC_STATE) >
-	          static_cast<uint8_t>(NetMessageType::NMT_DIPLOMACY), ph);
 	CHECK(static_cast<uint8_t>(NetCommandType::NET_CMD_DIPLOMACY) == 22, ph);
 	CHECK(static_cast<uint8_t>(NetCommandType::NET_CMD_BARTER) == 23, ph);
 	CHECK(static_cast<uint8_t>(NetCommandType::NET_CMD_MAINTAIN_FLEET) == 24, ph);
 
-	DiplomacyMsg dm;
-	dm.actor = 1; dm.player_id = 3; dm.stance = Simulation::DIPLO_ALLY;
-	std::vector<uint8_t> payload = NetPacketSerializer::frame_diplomacy(dm);
-	if (!check(payload.size() == 3, "NMT_DIPLOMACY payload is exactly 3 bytes", ph)) return false;
-	CHECK(payload[0] == 1 && payload[1] == 3 && payload[2] == Simulation::DIPLO_ALLY, ph);
-
-	std::vector<uint8_t> wire = NetPacketSerializer::pack_message(NetMessageType::NMT_DIPLOMACY, 7, payload);
+	// An old or hostile peer still sending NMT_DIPLOMACY: NetHost drops it before
+	// TurnManager's onMessage, so it can never queue a stance out of band.
+	NetHost host;
+	int forwarded = 0;
+	host.onMessage([&forwarded](uint32_t, const NetMessage &m) {
+		if (m.type == static_cast<uint8_t>(NetMessageType::NMT_DIPLOMACY)) ++forwarded;
+	});
+	const std::vector<uint8_t> payload = {1, 0, (uint8_t)Simulation::DIPLO_ALLY}; // "player 1 sets player 0's row"
+	std::vector<uint8_t> wire = NetPacketSerializer::pack_message(NetMessageType::NMT_DIPLOMACY, 3, payload);
 	NetMessage rx;
 	if (!check(NetPacketSerializer::unpack_message(wire.data(), wire.size(), rx), "pack/unpack round-trip", ph)) return false;
-	CHECK(rx.type == static_cast<uint8_t>(NetMessageType::NMT_DIPLOMACY) && rx.turn == 7, ph);
-	CHECK(rx.payload == payload, ph);
-
-	DiplomacyMsg got;
-	CHECK(NetPacketSerializer::parse_diplomacy(rx.payload.data(), rx.payload.size(), got), ph);
-	CHECK(got.actor == 1 && got.player_id == 3 && got.stance == Simulation::DIPLO_ALLY, ph);
-	// Exact-size parse rejects truncation and trailing bytes.
-	CHECK(!NetPacketSerializer::parse_diplomacy(rx.payload.data(), 2, got), ph);
-	CHECK(!NetPacketSerializer::parse_diplomacy(rx.payload.data(), 4, got), ph);
-
-	// Dispatch: a valid payload fires the callback; malformed / out-of-range do not.
-	g_dip_cb_fires = 0;
-	NetHost host;
-	host.onDiplomacy([](uint32_t, const DiplomacyMsg &) { ++g_dip_cb_fires; });
-
-	DiplomacyMsg bad_id; bad_id.actor = 1; bad_id.player_id = 9; bad_id.stance = Simulation::DIPLO_ALLY;
-	NetMessage m_bad_id = rx; m_bad_id.payload = NetPacketSerializer::frame_diplomacy(bad_id);
-	host.dispatchMessage(1, m_bad_id);
-	CHECK(g_dip_cb_fires == 0, "player_id >= 8 rejected before the callback", ph);
-
-	DiplomacyMsg bad_actor; bad_actor.actor = 9; bad_actor.player_id = 2; bad_actor.stance = Simulation::DIPLO_ALLY;
-	NetMessage m_bad_actor = rx; m_bad_actor.payload = NetPacketSerializer::frame_diplomacy(bad_actor);
-	host.dispatchMessage(1, m_bad_actor);
-	CHECK(g_dip_cb_fires == 0, "actor >= 8 rejected before the callback", ph);
-
-	DiplomacyMsg self; self.actor = 2; self.player_id = 2; self.stance = Simulation::DIPLO_ALLY;
-	NetMessage m_self = rx; m_self.payload = NetPacketSerializer::frame_diplomacy(self);
-	host.dispatchMessage(1, m_self);
-	CHECK(g_dip_cb_fires == 0, "a stance toward itself is rejected before the callback", ph);
-
-	DiplomacyMsg bad_stance; bad_stance.actor = 1; bad_stance.player_id = 2; bad_stance.stance = 7;
-	NetMessage m_bad_stance = rx; m_bad_stance.payload = NetPacketSerializer::frame_diplomacy(bad_stance);
-	host.dispatchMessage(1, m_bad_stance);
-	CHECK(g_dip_cb_fires == 0, "stance > DIPLO_ENEMY rejected before the callback", ph);
-
-	NetMessage m_short = rx; m_short.payload = payload; m_short.payload.resize(1);
-	host.dispatchMessage(1, m_short);
-	CHECK(g_dip_cb_fires == 0, "short payload rejected before the callback", ph);
-
-	DiplomacyMsg ok; ok.actor = 1; ok.player_id = 5; ok.stance = Simulation::DIPLO_NEUTRAL;
-	NetMessage m_ok = rx; m_ok.payload = NetPacketSerializer::frame_diplomacy(ok);
-	host.dispatchMessage(1, m_ok);
-	CHECK(g_dip_cb_fires == 1, "valid NMT_DIPLOMACY fires onDiplomacy", ph);
+	host.dispatchMessage(1, rx);
+	CHECK(forwarded == 0, "a retired NMT_DIPLOMACY never reaches TurnManager", ph);
 	return true;
 }
 
-// ---- Phase 2: replicated stance over the real wire keeps both peers in sync ---
-static bool run_replicated_stance(const char *ph) {
-	Refs ra, rb;
-	Simulation sa, sb;
-	build_world(sa, 4242, ra);
-	build_world(sb, 4242, rb);
-	// Sanity: the pristine worlds agree, so everything below is attributable to
-	// the stance and not to setup.
-	TurnManager ta, tb;
-	tb.set_local_client_id(1); // peer B is the joiner: its commands run as player 1
-	CHECK(ta.compute_sim_hash(sa) == tb.compute_sim_hash(sb), ph);
+static NetCommand stance_cmd(uint8_t target, uint8_t stance, uint32_t claimed_client) {
+	NetCommand c;
+	c.cmd_type = 22;
+	c.client_id = claimed_client;
+	c.target_id = target;
+	c.param = stance;
+	return c;
+}
 
-	// Players 1..7 start mutually hostile (Simulation ctor,
-	// simulation.cpp:184), so ALLY is a real state change on both peers.
-	const uint8_t kTarget = 2;
-	const uint8_t kStance = Simulation::DIPLO_ALLY;
-	CHECK(sa.get_diplomacy(kTarget) == Simulation::DIPLO_ENEMY, ph);
-	CHECK(sb.get_diplomacy(kTarget) == Simulation::DIPLO_ENEMY, ph);
-
-	// Identical command stream on both peers; the remote batch is delivered to
-	// the turn the NEXT tick will produce, exactly as test_replay.cpp does it.
-	ScriptRng g(9001);
+// Run turns [from, to] on two lockstep peers with the scripted stream; extra
+// commands for a turn ride along in each peer's own batch.
+static bool run_turns(const Refs &ra, TurnManager &ta, Simulation &sa, TurnManager &tb, Simulation &sb,
+                      ScriptRng &g, uint32_t from, uint32_t to, uint32_t extra_turn,
+                      const std::vector<NetCommand> &extra_a, const std::vector<NetCommand> &extra_b,
+                      const char *ph) {
 	std::vector<NetCommand> local, remote;
-	for (uint32_t t = 1; t <= 6; ++t) {
+	for (uint32_t t = from; t <= to; ++t) {
 		script_turn(ra, t, g, local, remote);
+		if (t == extra_turn) {
+			local.insert(local.end(), extra_a.begin(), extra_a.end());
+			remote.insert(remote.end(), extra_b.begin(), extra_b.end());
+		}
 		for (size_t i = 0; i < local.size(); ++i) ta.post_local_command(local[i]);
 		for (size_t i = 0; i < remote.size(); ++i) tb.post_local_command(remote[i]);
 		ta.receive_remote_turn_batch(t, 1, remote);
 		tb.receive_remote_turn_batch(t, 0, local);
 		if (!check(ta.tick(TurnManager::TURN_DURATION, sa), "peer A tick advanced", ph)) return false;
 		if (!check(tb.tick(TurnManager::TURN_DURATION, sb), "peer B tick advanced", ph)) return false;
-		if (!check(ta.compute_sim_hash(sa) == tb.compute_sim_hash(sb), "peers identical before stance", ph)) return false;
+		if (!check(ta.compute_sim_hash(sa) == tb.compute_sim_hash(sb), "peers hash-identical every turn", ph)) return false;
 	}
+	return true;
+}
+
+// ---- Phase 2: cmd 22 on two lockstep peers ------------------------------------
+static bool run_replicated_stance(const char *ph) {
+	Refs ra, rb;
+	Simulation sa, sb;
+	build_world(sa, 4242, ra);
+	build_world(sb, 4242, rb);
+	TurnManager ta, tb;
+	tb.set_local_client_id(1); // peer B is the joiner: its commands run as player 1
+	CHECK(ta.compute_sim_hash(sa) == tb.compute_sim_hash(sb), ph);
+	// Every player starts hostile to every other (free-for-all).
+	CHECK(sa.get_diplomacy(0, 2) == Simulation::DIPLO_ENEMY && sa.get_diplomacy(1, 3) == Simulation::DIPLO_ENEMY, ph);
+
+	ScriptRng g(9001);
+	if (!run_turns(ra, ta, sa, tb, sb, g, 1, 3, 0, {}, {}, ph)) return false;
 	const uint32_t base_hash = ta.compute_sim_hash(sa);
 
-	// The wire: a real Host peer and a real Client peer on loopback UDP. Peer A
-	// originates NMT_DIPLOMACY; peer B receives it through NetHost::dispatchMessage
-	// -> onDiplomacy and applies it with the sim applier. Both peers then set the
-	// same stance (A locally + via its own send, B through the received payload),
-	// which is what a lobby + NMT_DIPLOMACY delivery produces in production.
-	NetHost host, client;
-	Arena arena;
-	uint16_t port = 0;
-	for (uint16_t cand = 21500; cand < 21600 && port == 0; ++cand)
-		if (start_peers(host, client, cand)) port = cand;
-	if (!check(port != 0, "host/client peers established over UDP loopback", ph)) {
-		host.stop(); client.stop();
-		return false;
+	// Turn 4: player 0 allies player 2; player 1 goes neutral toward player 3.
+	const std::vector<NetCommand> from_a = {stance_cmd(2, Simulation::DIPLO_ALLY, 0)};
+	const std::vector<NetCommand> from_b = {stance_cmd(3, Simulation::DIPLO_NEUTRAL, 1)};
+	if (!run_turns(ra, ta, sa, tb, sb, g, 4, 4, 4, from_a, from_b, ph)) return false;
+	for (Simulation *s : {&sa, &sb}) {
+		CHECK(s->get_diplomacy(0, 2) == Simulation::DIPLO_ALLY, "player 0's own row moved", ph);
+		CHECK(s->get_diplomacy(1, 3) == Simulation::DIPLO_NEUTRAL, "player 1's own row moved", ph);
+		CHECK(s->get_diplomacy(1, 2) == Simulation::DIPLO_ENEMY, "player 0's stance did not touch row 1", ph);
+		CHECK(s->get_diplomacy(0, 3) == Simulation::DIPLO_ENEMY, "player 1's stance did not touch row 0", ph);
 	}
+	CHECK(ta.compute_sim_hash(sa) != base_hash, "the stances are observable in the lockstep hash", ph);
 
-	StandaloneApplier ap_b(&sb, kTarget, kStance);
-	client.onDiplomacy([&ap_b](uint32_t peer, const DiplomacyMsg &m) { ap_b.handle(peer, m); });
-	int host_fires = 0;
-	host.onDiplomacy([&host_fires](uint32_t, const DiplomacyMsg &) { ++host_fires; });
-
-	// A is the sender peer: it originates, then applies locally (the sender must
-	// not wait for its own packet back).
-	host.sendDiplomacy(0, kTarget, kStance, ta.current_turn());
-	sa.set_diplomacy(kTarget, kStance);
-	pump(host, client, arena);
-
-	CHECK(ap_b.count == 1, "peer B received exactly one NMT_DIPLOMACY", ph);
-	if (ap_b.count == 1) {
-		CHECK(ap_b.got_player == kTarget && ap_b.got_stance == kStance, "received payload matches sent payload", ph);
-		// The host's own wire peer id is 0 (NetHost::startHost sets
-		// local_peer_id_ = 0, and a client's peer table lists the host as id 0),
-		// which is why turn_manager.cpp falls back to scm.client_id when
-		// peer_id == 0. OnDiplomacy must still deliver that sender id.
-		CHECK(ap_b.last_sender == 0, "onDiplomacy reports the sending peer id", ph);
-	}
-	CHECK(sb.get_diplomacy(kTarget) == kStance, "peer B applied the stance via the sim applier", ph);
-	CHECK(sa.get_diplomacy(kTarget) == kStance, "peer A holds the same stance", ph);
-	// Host relay only fires for host-originated stances it receives; the host sent
-	// this one itself, so it must NOT have looped back.
-	CHECK(host_fires == 0, "host does not receive its own broadcast", ph);
-
-	// Advance a few more turns on both peers with the stance applied on both.
-	for (uint32_t t = 7; t <= 10; ++t) {
-		script_turn(ra, t, g, local, remote);
-		for (size_t i = 0; i < local.size(); ++i) ta.post_local_command(local[i]);
-		for (size_t i = 0; i < remote.size(); ++i) tb.post_local_command(remote[i]);
-		ta.receive_remote_turn_batch(t, 1, remote);
-		tb.receive_remote_turn_batch(t, 0, local);
-		if (!check(ta.tick(TurnManager::TURN_DURATION, sa), "peer A post-stance tick", ph)) break;
-		if (!check(tb.tick(TurnManager::TURN_DURATION, sb), "peer B post-stance tick", ph)) break;
-	}
-	const uint32_t hash_a = ta.compute_sim_hash(sa);
-	const uint32_t hash_b = tb.compute_sim_hash(sb);
-	if (!check(hash_a == hash_b, "hashes still equal after the replicated stance", ph)) {
-		std::fprintf(stderr, "         peer_a=%u peer_b=%u (pre-stance=%u)\n", hash_a, hash_b, base_hash);
-		host.stop(); client.stop();
-		return false;
-	}
-	CHECK(hash_a != base_hash, "the applied stance is observable in the lockstep hash", ph);
-	CHECK(ta.has_out_of_sync() == false && tb.has_out_of_sync() == false, ph);
-	host.stop();
-	client.stop();
+	// Further turns with the stances applied stay in sync.
+	if (!run_turns(ra, ta, sa, tb, sb, g, 5, 10, 0, {}, {}, ph)) return false;
+	CHECK(!ta.has_out_of_sync() && !tb.has_out_of_sync(), ph);
 	return true;
 }
 
@@ -461,74 +339,36 @@ static bool run_one_sided_negative_control(const char *ph) {
 	return true;
 }
 
-// ---- Phase 4: host relay of a CLIENT-originated stance (three peers) ---------
-static bool run_client_originated_relay(const char *ph) {
-	Refs r0, r1, r2;
-	Simulation sh, sc1, sc2;
-	build_world(sh, 4242, r0);
-	build_world(sc1, 4242, r1);
-	build_world(sc2, 4242, r2);
+// ---- Phase 4: a client cannot set another player's row ----------------------
+// The batch sender decides the player: receive_remote_turn_batch stamps the
+// sender's id over whatever client_id the command claims, and tick() runs cmd
+// 22 as player_for_client(sender). A joiner claiming to be the host still only
+// moves its own row.
+static bool run_client_cannot_forge_actor(const char *ph) {
+	Refs ra, rb;
+	Simulation sa, sb;
+	build_world(sa, 4242, ra);
+	build_world(sb, 4242, rb);
+	TurnManager ta, tb;
+	tb.set_local_client_id(1);
+	ScriptRng g(77);
+	if (!run_turns(ra, ta, sa, tb, sb, g, 1, 2, 0, {}, {}, ph)) return false;
 
-	NetHost host, c1, c2;
-	Arena arena;
-	uint16_t port = 0;
-	NetConfig cfg;
-	cfg.port = 21650;
-	for (; port == 0 && cfg.port < 21700; ++cfg.port) {
-		if (!host.startHost(cfg)) continue;
-		if (c1.startClient("127.0.0.1", cfg.port) && c2.startClient("127.0.0.1", cfg.port)) port = cfg.port;
+	const std::vector<NetCommand> forged = {stance_cmd(4, Simulation::DIPLO_ALLY, 0 /* claims to be the host */)};
+	if (!run_turns(ra, ta, sa, tb, sb, g, 3, 3, 3, {}, forged, ph)) return false;
+	for (Simulation *s : {&sa, &sb}) {
+		CHECK(s->get_diplomacy(0, 4) == Simulation::DIPLO_ENEMY, "the host's row is untouched", ph);
+		CHECK(s->get_diplomacy(1, 4) == Simulation::DIPLO_ALLY, "the stance landed on the sender's own row", ph);
 	}
-	if (!check(port != 0, "host with two clients established", ph)) { host.stop(); c1.stop(); c2.stop(); return false; }
-	for (int waited = 0; waited < 1500; waited += 5) {
-		host.poll(arena); c1.poll(arena); c2.poll(arena);
-		bool both = host.getPeers().size() >= 2;
-		for (size_t i = 0; i < host.getPeers().size(); ++i) both = both && host.getPeers()[i].connected;
-		if (both) break;
-		sleep_ms(5);
+	// A stance toward oneself, out of range, or unknown changes nothing, and the
+	// peers stay in sync (run_turns checks the hash every turn).
+	const std::vector<NetCommand> bad = {stance_cmd(1, Simulation::DIPLO_ALLY, 1), stance_cmd(9, Simulation::DIPLO_ALLY, 1),
+	                                     stance_cmd(5, 7, 1)};
+	if (!run_turns(ra, ta, sa, tb, sb, g, 4, 4, 4, {}, bad, ph)) return false;
+	for (Simulation *s : {&sa, &sb}) {
+		CHECK(s->get_diplomacy(1, 1) == Simulation::DIPLO_ALLY, "a player's own diagonal never moves", ph);
+		CHECK(s->get_diplomacy(1, 5) == Simulation::DIPLO_ENEMY, "an unknown stance is rejected", ph);
 	}
-	if (!check(host.getPeers().size() == 2, "host admitted both clients", ph)) {
-		host.stop(); c1.stop(); c2.stop(); return false;
-	}
-
-	const uint8_t kTarget = 3;
-	const uint8_t kActor = 1; // c1 plays as player 1, so its own row moves
-	const uint8_t kStance = Simulation::DIPLO_NEUTRAL; // starts DIPLO_ENEMY
-	CHECK(sc1.get_diplomacy(kActor, kTarget) == Simulation::DIPLO_ENEMY, ph);
-	CHECK(sh.get_diplomacy(kActor, kTarget) == Simulation::DIPLO_ENEMY, ph);
-	StandaloneApplier ap_h(&sh, kTarget, kStance);
-	StandaloneApplier ap_c2(&sc2, kTarget, kStance);
-	host.onDiplomacy([&ap_h](uint32_t p, const DiplomacyMsg &m) { ap_h.handle(p, m); });
-	c2.onDiplomacy([&ap_c2](uint32_t p, const DiplomacyMsg &m) { ap_c2.handle(p, m); });
-	// c1 has no handler: it is the third-peer control and must still see the state.
-
-	// A CLIENT originates the stance (sendDiplomacy is symmetric like sendChat).
-	// The host relays it onward, so the actor has to ride on the wire: the second
-	// client sees the HOST as the sender and could not otherwise tell whose row
-	// moved.
-	c1.sendDiplomacy(kActor, kTarget, kStance, 12);
-	sc1.set_diplomacy(kActor, kTarget, kStance);
-	for (int i = 0; i < 40; ++i) {
-		host.poll(arena); c1.poll(arena); c2.poll(arena);
-		if (ap_h.landed && ap_c2.landed) break;
-		sleep_ms(5);
-	}
-	CHECK(ap_h.landed, "host applied the client-originated stance", ph);
-	CHECK(ap_c2.landed, "second client applied the host-relayed stance", ph);
-	CHECK(ap_h.count == 1 && ap_c2.count == 1, "stance relayed exactly once to each peer", ph);
-	CHECK(ap_h.got_actor == kActor && ap_c2.got_actor == kActor,
-	      "the relayed stance keeps its originating player", ph);
-	CHECK(sh.get_diplomacy(kActor, kTarget) == kStance, ph);
-	CHECK(sc1.get_diplomacy(kActor, kTarget) == kStance, "originating client holds the stance", ph);
-	CHECK(sc2.get_diplomacy(kActor, kTarget) == kStance, ph);
-	// Every peer flipped away from its starting stance, so the relay is not vacuous.
-	CHECK(sc1.get_diplomacy(kActor, kTarget) != Simulation::DIPLO_ENEMY, ph);
-	CHECK(sh.get_diplomacy(kActor, kTarget) != Simulation::DIPLO_ENEMY, ph);
-	CHECK(sc2.get_diplomacy(kActor, kTarget) != Simulation::DIPLO_ENEMY, ph);
-	// Nobody touched player 0's row.
-	CHECK(sh.get_diplomacy(0, kTarget) == Simulation::DIPLO_ENEMY, ph);
-	CHECK(sc2.get_diplomacy(0, kTarget) == Simulation::DIPLO_ENEMY, ph);
-
-	host.stop(); c1.stop(); c2.stop();
 	return true;
 }
 
@@ -623,112 +463,7 @@ static bool run_lockstep_gate(const char *ph) {
 	return true;
 }
 
-// ---- Phase 6: G9 NMT_DIPLOMACY -> TurnManager -> turn-boundary apply -------
-// The production path: NetHost::dispatchMessage resolves the sender id, forwards
-// NMT_DIPLOMACY to TurnManager::onMessage (no presentation involved), and tick()
-// applies the queued stance at the lockstep turn boundary on BOTH peers.
-static bool run_diplo_via_turn_manager(const char *ph) {
-	Refs rh, rc;
-	Simulation sh, sc;
-	build_world(sh, 4242, rh);
-	build_world(sc, 4242, rc);
-	const uint8_t kTarget = 4;                       // starts DIPLO_ENEMY
-	const uint8_t kStance = Simulation::DIPLO_ALLY;
-
-	NetHost host, client;
-	Arena arena;
-	uint16_t port = 0;
-	for (uint16_t cand = 21810; cand < 21900 && port == 0; ++cand)
-		if (start_peers(host, client, cand)) port = cand;
-	if (!check(port != 0, "host/client peers established for the TurnManager diplo path", ph)) {
-		host.stop(); client.stop();
-		return false;
-	}
-
-	// Both peers own a TurnManager bound to their own NetHost, exactly like
-	// main_node.cpp's turn_mgr_.
-	TurnManager th(&host, 0);
-	TurnManager tc(&client, 1);
-	// A host owns its world from bind; a client is released by the GAME_START the
-	// host broadcasts at Start, which this phase stands in for (phase 5 and phase
-	// 7 cover the gated window itself).
-	th.mark_game_started(&sh);
-	tc.mark_game_started(&sc);
-	CHECK(th.net_game_started() && tc.net_game_started(), "both peers have their GAME_START", ph);
-
-	// StandaloneApplier is deliberately NOT installed here: this phase must not
-	// apply through the presentation applier at all.
-	uint32_t cb_fires = 0;
-	client.onDiplomacy([&cb_fires](uint32_t, const DiplomacyMsg &) { ++cb_fires; });
-
-	// The host originates: it queues its own stance through the SAME path the
-	// inbound packet takes, so host and client cannot apply on different turns.
-	CHECK(sh.get_diplomacy(kTarget) == Simulation::DIPLO_ENEMY, ph);
-	CHECK(th.post_diplomacy(kTarget, kStance, 0), "host queued its own stance");
-	host.sendDiplomacy(0, kTarget, kStance, 0);
-	pump(host, client, arena, 20);
-
-	CHECK(cb_fires == 1, "the presentation callback still fires (unchanged)", ph);
-	// Queued, NOT applied: a stance must not land mid-turn.
-	CHECK(th.pending_diplomacy_count() == 1, "sender's stance is queued", ph);
-	CHECK(tc.pending_diplomacy_count() == 1, "receiver's stance is queued via TurnManager::onMessage", ph);
-	CHECK(th.current_turn() == 0 && tc.current_turn() == 0, "no turn has run yet", ph);
-	CHECK(sh.get_diplomacy(kTarget) == Simulation::DIPLO_ENEMY,
-	      "queued stance is not applied before the turn boundary");
-	CHECK(sc.get_diplomacy(kTarget) == Simulation::DIPLO_ENEMY, ph);
-
-	// Turn 1 consumes turn 0's queue on BOTH peers (DIPLOMACY_APPLY_DELAY == 1).
-	CHECK(th.tick(TurnManager::TURN_DURATION, sh), "host tick advanced", ph);
-	CHECK(tc.tick(TurnManager::TURN_DURATION, sc), "client tick advanced", ph);
-	CHECK(th.current_turn() == 1 && tc.current_turn() == 1, ph);
-	CHECK(sh.get_diplomacy(kTarget) == kStance, "host applied the stance at the turn boundary", ph);
-	CHECK(sc.get_diplomacy(kTarget) == kStance, "client applied the SAME stance at the SAME turn", ph);
-	CHECK(th.last_applied_diplomacy(kTarget) == kStance, "TurnManager recorded the applied stance", ph);
-	CHECK(th.pending_diplomacy_count() == 0 && tc.pending_diplomacy_count() == 0,
-	      "the queue is drained exactly once", ph);
-	CHECK(th.compute_sim_hash(sh) == tc.compute_sim_hash(sc),
-	      "peers stay hash-identical after the turn-boundary apply", ph);
-
-	// A stance originating at the CLIENT reaches the host through the same route.
-	// The client is player 1, so it writes ITS OWN row: player 0's stance toward
-	// the target is untouched on both peers, and row 1 moves on both.
-	const uint8_t kStance2 = Simulation::DIPLO_NEUTRAL; // ENEMY -> NEUTRAL, a real change
-	CHECK(sh.get_diplomacy(1, kTarget) == Simulation::DIPLO_ENEMY, ph);
-	CHECK(tc.post_diplomacy(kTarget, kStance2, tc.current_turn()), "client queued a stance", ph);
-	client.sendDiplomacy(1, kTarget, kStance2, tc.current_turn());
-	pump(host, client, arena, 20);
-	CHECK(th.pending_diplomacy_count() == 1, "client-originated stance reached the host TurnManager", ph);
-	CHECK(th.tick(TurnManager::TURN_DURATION, sh), ph);
-	CHECK(tc.tick(TurnManager::TURN_DURATION, sc), ph);
-	CHECK(sh.get_diplomacy(1, kTarget) == kStance2 && sc.get_diplomacy(1, kTarget) == kStance2,
-	      "client-originated stance applied to the client's own row on both peers", ph);
-	CHECK(sh.get_diplomacy(0, kTarget) == kStance && sc.get_diplomacy(0, kTarget) == kStance,
-	      "the client cannot move player 0's row", ph);
-	CHECK(th.last_applied_diplomacy(1, kTarget) == kStance2, "the actor's row is recorded", ph);
-	CHECK(th.compute_sim_hash(sh) == tc.compute_sim_hash(sc), ph);
-
-	// Out-of-range / malformed stances never reach the queue.
-	CHECK(!th.post_diplomacy(9, kStance, 0), "player_id >= 8 is rejected", ph);
-	CHECK(!th.post_diplomacy(2, 7, 0), "stance > DIPLO_ENEMY is rejected", ph);
-	CHECK(!th.post_diplomacy(9, 2, kStance, 0), "actor >= 8 is rejected", ph);
-	CHECK(!th.post_diplomacy(2, 2, kStance, 0), "a stance toward itself is rejected", ph);
-	CHECK(th.pending_diplomacy_count() == 0, "rejected stances are not queued", ph);
-	// A malformed payload must not fire onDiplomacy or queue anything.
-	DiplomacyMsg dm; dm.player_id = 1; dm.stance = Simulation::DIPLO_ALLY;
-	NetMessage bad;
-	bad.type = static_cast<uint8_t>(NetMessageType::NMT_DIPLOMACY);
-	bad.turn = 0;
-	bad.payload = NetPacketSerializer::frame_diplomacy(dm);
-	bad.payload.resize(1);
-	client.dispatchMessage(0, bad);
-	CHECK(tc.pending_diplomacy_count() == 0, "a truncated payload is dropped, not queued", ph);
-
-	host.stop();
-	client.stop();
-	return true;
-}
-
-// ---- Phase 7: P3 late-join GAME_START resend + turn-0 hash handshake -------
+// ---- Phase 6: P3 late-join GAME_START resend + turn-0 hash handshake -------
 static bool run_late_join_game_start_resend(const char *ph) {
 	GameSetupParams setup;
 	setup.map_id = "random_continental";
@@ -915,7 +650,7 @@ static bool run_late_join_game_start_resend(const char *ph) {
 	return true;
 }
 
-// ---- Phase 8: P3 maintainFleet upkeep (navalManager.js:507) ----------------
+// ---- Phase 7: P3 maintainFleet upkeep (navalManager.js:507) ----------------
 // Generation half: one deterministic commission per turn from a built dock with
 // no fleet, blocked while the dock is training or unfinished, and carried on the
 // ordinary turn command stream so it lands in the replay history.
@@ -997,19 +732,14 @@ int main(int argc, char **argv) {
 		std::fprintf(stdout, "usage: test_diplo_net\n");
 		return 2;
 	}
-	std::fprintf(stdout, "[test_diplo_net] NMT_DIPLOMACY wire replication (2-3 UDP peers, one process)\n");
-	std::fprintf(stdout, "[test_diplo_net] NMT_DIPLOMACY=%u NMT_COUNT=%u TURN_DURATION=%gs\n",
-	             (unsigned)static_cast<uint8_t>(NetMessageType::NMT_DIPLOMACY),
-	             (unsigned)static_cast<uint8_t>(NetMessageType::NMT_COUNT),
-	             (double)TurnManager::TURN_DURATION);
+	std::fprintf(stdout, "[test_diplo_net] diplomacy over lockstep cmd 22 (two peers, one process)\n");
 	struct Phase { const char *name; bool (*fn)(const char *); };
 	const Phase phases[] = {
-		{"wire contract: type id, frame/parse, dispatch validation", run_wire_contract},
-		{"two-peer replication over UDP + hash/stance agreement", run_replicated_stance},
+		{"wire contract: frozen ids, retired NMT_DIPLOMACY is dropped", run_wire_contract},
+		{"cmd 22 on two lockstep peers: own rows, same turn, same hash", run_replicated_stance},
 		{"negative control: one-sided stance diverges the hash", run_one_sided_negative_control},
-		{"client-originated stance relayed by the host", run_client_originated_relay},
+		{"a client cannot set another player's row", run_client_cannot_forge_actor},
 		{"G8 lockstep gate: no turn before NMT_GAME_START is applied", run_lockstep_gate},
-		{"G9 diplo-via-TurnManager round-trip (turn-boundary apply)", run_diplo_via_turn_manager},
 		{"P3 late-join GAME_START resend + turn-0 hash handshake", run_late_join_game_start_resend},
 		{"P3 maintainFleet upkeep: deterministic per-turn commission", run_maintain_fleet_upkeep},
 	};
