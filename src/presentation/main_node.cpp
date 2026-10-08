@@ -1983,7 +1983,8 @@ void RtsoMain::update_command_panel() {
 				Button *btn = memnew(Button);
 				btn->set_text(label);
 				// Champions wait for their unlock technology (0 A.D. unlock_champion_*).
-				uint8_t gate = sim->train_unlock_tech(local_player(), (uint8_t)t, found_b->type);
+				uint8_t gate = sim->train_unlock_tech(local_player(), (uint8_t)t, found_b->type,
+						rtso::civ_default_template(sim->player_civ(local_player()), (uint8_t)t));
 				if (gate != rtso::TECH_NONE && !sim->player(local_player()).has_tech(gate)) {
 					btn->set_disabled(true);
 					btn->set_tooltip_text(String("Requires ") + rtso::tech_info(gate).name);
@@ -2321,9 +2322,13 @@ void RtsoMain::update_roster_list(const rtso::Simulation::Building *b) {
 	}
 	const uint8_t civ = sim->player_civ(pid);
 	const uint8_t phase = sim->player_phase(pid);
-	// Rebuild when the building, civ, phase or allies (team bonus prices) change.
+	// Rebuild when the building, civ, phase, champion unlocks or allies (team bonus prices) change.
+	const auto &ps = sim->player(pid);
+	const uint64_t unlocks = (ps.has_tech(rtso::TECH_UNLOCK_CHAMPION_INFANTRY) ? 1u : 0u) |
+		(ps.has_tech(rtso::TECH_UNLOCK_CHAMPION_CAVALRY) ? 2u : 0u) |
+		(ps.has_tech(rtso::TECH_UNLOCK_CHAMPION_CHARIOTS) ? 4u : 0u);
 	const uint64_t key = ((uint64_t)b->id << 32) | ((uint64_t)sim->ally_civ_mask(pid) << 12) |
-		((uint64_t)(civ & 0x3F) << 2) | (uint64_t)(phase & 0x3);
+		(unlocks << 8) | ((uint64_t)(civ & 0x3F) << 2) | (uint64_t)(phase & 0x3);
 	if (key == roster_list_key_) return;
 	roster_list_key_ = key;
 	roster_list->clear();
@@ -2354,6 +2359,10 @@ void RtsoMain::update_roster_list(const rtso::Simulation::Building *b) {
 		if (u.phase > phase) {
 			roster_list->set_item_disabled(idx, true);
 			tip += u.phase >= 3 ? "\nRequires City Phase" : "\nRequires Town Phase";
+		} else if (!sim->can_train_at(pid, u.unit_type, b->type, i)) {
+			roster_list->set_item_disabled(idx, true);
+			uint8_t gate = sim->train_unlock_tech(pid, u.unit_type, b->type, i);
+			if (gate != rtso::TECH_NONE) tip += String("\nRequires ") + rtso::tech_info(gate).name;
 		}
 		roster_list->set_item_tooltip(idx, tip);
 	}
