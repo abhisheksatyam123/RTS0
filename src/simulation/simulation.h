@@ -1043,6 +1043,15 @@ private:
 	int territory_roots_res_ = 0;
 	float territory_roots_half_ = 0.0f;
 	std::vector<WaypointPath> unit_paths_; // per-unit path (UNIT_CAP), SoA waypoint_cur/count sync
+	// move_units' copy of the buildings that block movement, in buildings_ order, with only the
+	// fields nav/building_steering.h reads, so its per-unit scans read a short packed list.
+	struct SteerObstacle {
+		uint32_t id;
+		float x, z, half_size;
+		uint8_t type;
+		bool wrecked;
+	};
+	std::vector<SteerObstacle> steer_obstacles_;
 	AuraManager aura_mgr_; // G4: unified aura sources (AuraManager)
 	float fow_timer_ = 0.0f;
 	float territory_timer_ = 0.0f;

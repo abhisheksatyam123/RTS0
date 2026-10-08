@@ -15,7 +15,7 @@
 //   CheckVisibility Left/Right/Bottom/Top ..... vendor 159-269
 //   AddTerrainEdges (vertices 293-340, edges 342-458) ... vendor 278-459
 //   SplitAAEdges .............................. vendor 461-516
-//   SquareSort / UnalignedEdgesSort ........... vendor 521-542
+//   UnalignedEdgesSort ........................ vendor 534-544 (SquareSort is not used, deviation 11)
 //   ComputeShortPath:
 //     range box and goal shift ................ vendor 558-579
 //     domain edges ............................ vendor 581-586
@@ -58,11 +58,15 @@
 //     Pathfinding.h:65-72).
 //  8. The return value says whether the goal was reached. The vendor always returns its best partial path.
 //     A partial path is still written to out_waypoints when the function returns false.
-//  9. The open list is std::priority_queue with lazy deletion in place of PriorityQueueHeap::promote (vendor
-//     860 and 884). Ordering is (f, h, id), so ties resolve the same way on every run.
+//  9. The open list is a binary heap (std::push_heap and std::pop_heap, as in std::priority_queue) with lazy
+//     deletion in place of PriorityQueueHeap::promote (vendor 860 and 884). Ordering is (f, h, id), so ties
+//     resolve the same way on every run.
 // 10. Vertex overflow (vendor ENSURE at 730, u16 indices) returns false instead of aborting.
-// 11. The partial_sort calls (780-794) are kept. They only change how fast the visibility tests exit early,
-//     because visibility is an AND over all edges and so does not depend on edge order.
+// 11. The partial_sort of edge squares (780-781) is dropped and the one of unaligned edges (792-794) kept.
+//     Both only change how fast the visibility tests exit early, because visibility is an AND over all
+//     edges and so does not depend on edge order. Sorting the squares cost more than it saved: RTS0's
+//     building steering spent 2% of a match's ticks on it, and test_vertex_pathfinder's timings did not
+//     change with up to 150 obstructions.
 // 12. DEVIATION: the perpendicular is (Y, -X), see vperp(). The vendor's visibility tests only block the
 //     right crossings with that convention. geometry.h's Vec2::perp() is (-Y, X) and is not used here.
 //     With (-Y, X), 427 of 3000 test paths crossed building faces.
@@ -75,7 +79,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <queue>
+#include <cstring>
 #include <utility>
 #include <vector>
 
@@ -271,23 +275,66 @@ inline bool check_visibility_top(Vec2 a, Vec2 b, const std::vector<EdgeAA>& edge
 	return true;
 }
 
-// Vendor AddTerrainEdges (278-459). Navcells i0..i1, j0..j1 are considered. `pass` must
-// return false outside the grid (DEVIATION 3). World position of navcell corner (x, y) is
-// origin + (x, y) * cell.
-template <class PassFn>
+// Working storage for add_terrain_edges.
+struct TerrainEdgeScratch {
+	std::vector<int> segA, segB;
+	std::vector<uint8_t> pass;  // pass() over the box and a one-navcell ring around it, by rows
+	std::vector<uint8_t> passT; // the same by columns
+};
+
+// Vendor AddTerrainEdges (278-459). Navcells i0..i1, j0..j1 are considered. World position of
+// navcell corner (x, y) is origin + (x, y) * cell.
+// ADDITION: passability comes in by rows. pass_row(i, j, n, out) sets out[k] to 1 when navcell
+// (i + k, j) is passable and to 0 when it is not or lies outside the grid (DEVIATION 3). The box
+// and a one-navcell ring are read once into ts (the loops below would read most navcells five
+// times), a box with no impassable navcell is done there, and rows or columns with nothing to
+// add are skipped. The edges and vertices are the same as the vendor's loops give.
+template <class PassRowFn>
 void add_terrain_edges(std::vector<Edge>& edges, std::vector<Vertex>& vertexes,
-		int i0, int j0, int i1, int j1, PassFn& pass, int W, int H, float cell, Vec2 origin) {
+		int i0, int j0, int i1, int j1, PassRowFn& pass_row, int W, int H, float cell,
+		Vec2 origin, TerrainEdgeScratch& ts) {
 	// Vendor 288-291: clamp so the outermost ring (always impassable) is never sampled.
 	i0 = std::min(std::max(i0, 1), W - 2);
 	j0 = std::min(std::max(j0, 1), H - 2);
 	i1 = std::min(std::max(i1, 1), W - 2);
 	j1 = std::min(std::max(j1, 1), H - 2);
 
+	// The loops below read navcells i0 - 1 .. i1 + 1, j0 - 1 .. j1 + 1.
+	const int bw = i1 - i0 + 3;
+	const int bh = j1 - j0 + 3;
+	if (bw <= 2 || bh <= 2) return;
+	ts.pass.resize(static_cast<size_t>(bw) * static_cast<size_t>(bh));
+	for (int bj = 0; bj < bh; ++bj)
+		pass_row(i0 - 1, j0 - 1 + bj, bw, ts.pass.data() + static_cast<size_t>(bj) * bw);
+	const uint8_t* const passBox = ts.pass.data();
+	// Navcells i0..i1 of row j.
+	const size_t rowLen = static_cast<size_t>(i1 - i0 + 1);
+	auto row = [&](int j) { return passBox + static_cast<size_t>(j - j0 + 1) * bw + 1; };
+
+	// Every vertex below needs an impassable navcell (i, j) of the box, and every edge a pair of
+	// navcells of the box that differ.
+	bool allPassable = true;
+	for (int j = j0; j <= j1 && allPassable; ++j)
+		allPassable = !std::memchr(row(j), 0, rowLen);
+	if (allPassable) return;
+
+	ts.passT.resize(ts.pass.size());
+	for (int bj = 0; bj < bh; ++bj)
+		for (int bi = 0; bi < bw; ++bi)
+			ts.passT[static_cast<size_t>(bi) * bh + bj] = passBox[static_cast<size_t>(bj) * bw + bi];
+	auto pass = [passBox, bw, i0, j0](int i, int j) {
+		return passBox[static_cast<size_t>(j - j0 + 1) * bw + (i - i0 + 1)] != 0;
+	};
+	// Navcells j0..j1 of column i.
+	const size_t colLen = static_cast<size_t>(j1 - j0 + 1);
+	auto col = [&](int i) { return ts.passT.data() + static_cast<size_t>(i - i0 + 1) * bh + 1; };
+
 	auto world = [&](float x, float y) { return origin + Vec2(x * cell, y * cell); };
 	const float d = EDGE_EXPAND_DELTA_CELLS;
 
 	// Vertices at the convex corners of impassable navcells (vendor 293-340).
 	for (int j = j0; j <= j1; ++j) {
+		if (!std::memchr(row(j), 0, rowLen)) continue; // no impassable navcell in this row
 		for (int i = i0; i <= i1; ++i) {
 			if (pass(i, j)) continue;
 
@@ -323,8 +370,10 @@ void add_terrain_edges(std::vector<Edge>& edges, std::vector<Vertex>& vertexes,
 	}
 
 	// Edges along passability boundaries, one run per row or column (vendor 342-458).
-	std::vector<int> segR, segL;
+	std::vector<int>& segR = ts.segA;
+	std::vector<int>& segL = ts.segB;
 	for (int j = j0; j < j1; ++j) {
+		if (std::memcmp(row(j), row(j + 1), rowLen) == 0) continue; // no boundary between the rows
 		segR.clear();
 		segL.clear();
 		for (int i = i0; i <= i1; ++i) {
@@ -363,8 +412,10 @@ void add_terrain_edges(std::vector<Edge>& edges, std::vector<Vertex>& vertexes,
 		}
 	}
 
-	std::vector<int> segU, segD;
+	std::vector<int>& segU = ts.segA;
+	std::vector<int>& segD = ts.segB;
 	for (int i = i0; i < i1; ++i) {
+		if (std::memcmp(col(i), col(i + 1), colLen) == 0) continue; // no boundary between the columns
 		segU.clear();
 		segD.clear();
 		for (int j = j0; j <= j1; ++j) {
@@ -404,6 +455,16 @@ void add_terrain_edges(std::vector<Edge>& edges, std::vector<Vertex>& vertexes,
 	}
 }
 
+// ADDITION: rows read through pass(i, j), a callable bool that must return false outside the grid.
+template <class PassFn>
+struct PassRowsFrom {
+	PassFn& pass;
+	void operator()(int i, int j, int n, uint8_t* out) const {
+		for (int k = 0; k < n; ++k)
+			out[k] = pass(i + k, j) ? 1 : 0;
+	}
+};
+
 // Vendor SplitAAEdges (461-516): sorts the obstruction edges by which side of 'a' they can block.
 inline void split_aa_edges(Vec2 a, const std::vector<Edge>& edges, const std::vector<Square>& squares,
 		std::vector<Edge>& unaligned,
@@ -438,14 +499,7 @@ inline void split_aa_edges(Vec2 a, const std::vector<Edge>& edges, const std::ve
 	}
 }
 
-// Vendor SquareSort (521-531) and UnalignedEdgesSort (534-544): proximity order for partial_sort.
-struct SquareSort {
-	Vec2 src;
-	bool operator()(const Square& a, const Square& b) const {
-		return (a.p0 - src).lengthSq() < (b.p0 - src).lengthSq();
-	}
-};
-
+// Vendor UnalignedEdgesSort (534-544): proximity order for partial_sort.
 struct UnalignedEdgesSort {
 	Vec2 src;
 	bool operator()(const Edge& a, const Edge& b) const {
@@ -471,6 +525,19 @@ struct OpenItemGreater {
 
 } // namespace vp
 
+// ADDITION: working storage for compute_short_path. Callers that search often pass the same
+// scratch each time (one per thread) to reuse its allocations; results do not depend on it.
+struct ShortPathScratch {
+	std::vector<vp::Edge> edges;
+	std::vector<vp::Square> edgeSquares;
+	std::vector<vp::Vertex> vertexes;
+	std::vector<vp::OpenItem> open;
+	std::vector<vp::Edge> edgesUnaligned;
+	std::vector<vp::EdgeAA> edgesLeft, edgesRight, edgesBottom, edgesTop;
+	vp::TerrainEdgeScratch terrain;
+	std::vector<Vec2> reversed;
+};
+
 // Compute a short path from request.start towards request.goal over the visibility graph of
 // the obstructions, expanded by request.clearance. The search is restricted to a box of
 // half-width request.range around the start (shifted slightly towards the goal, vendor 563-579).
@@ -478,19 +545,25 @@ struct OpenItemGreater {
 //   statics, units       obstruction squares (see ShortPathSquare). Units use
 //                        clearance - request.unit_clearance_bias.
 //   terrain_passable     callable bool(int i, int j) over the navcell grid; cells outside
-//                        [0, grid_w) x [0, grid_h) count as impassable.
+//                        [0, grid_w) x [0, grid_h) count as impassable. The overload with a
+//                        scratch takes terrain_pass_row instead, a callable
+//                        void(int i, int j, int n, uint8_t* out) setting out[k] to 1 when
+//                        navcell (i + k, j) is passable and 0 when not (or outside the grid).
 //   cell_size, grid_origin  navcell size and world position of navcell (0, 0)'s corner.
 //
 // On success (goal reached) returns true. Otherwise returns false and out_waypoints holds the
 // best partial path (vendor: the explored vertex with the lowest heuristic). Waypoints are in
 // walking order, start excluded, goal last. An empty result means no movement is possible.
-template <class PassFn>
+//
+// This overload works in `scratch`, whose allocations later calls reuse. The overload below,
+// with terrain_passable and no scratch, gives the same results.
+template <class PassRowFn>
 bool compute_short_path(const ShortPathRequest& req,
 		const std::vector<ShortPathSquare>& statics,
 		const std::vector<ShortPathSquare>& units,
-		PassFn terrain_passable,
+		PassRowFn terrain_pass_row,
 		float cell_size, Vec2 grid_origin, int grid_w, int grid_h,
-		std::vector<Vec2>& out_waypoints) {
+		ShortPathScratch& scratch, std::vector<Vec2>& out_waypoints) {
 	using namespace vp;
 	out_waypoints.clear();
 	if (!(cell_size > 0.0f) || grid_w <= 0 || grid_h <= 0) return false;
@@ -515,9 +588,12 @@ bool compute_short_path(const ShortPathRequest& req,
 		rangeZMax += d.y;
 	}
 
-	std::vector<Edge> edges;
-	std::vector<Square> edgeSquares;
-	std::vector<Vertex> vertexes;
+	std::vector<Edge>& edges = scratch.edges;
+	std::vector<Square>& edgeSquares = scratch.edgeSquares;
+	std::vector<Vertex>& vertexes = scratch.vertexes;
+	edges.clear();
+	edgeSquares.clear();
+	vertexes.clear();
 
 	// Domain edges form an inside-out square so the search cannot leave the box (vendor 581-586).
 	edges.push_back(Edge{Vec2(rangeXMin, rangeZMin), Vec2(rangeXMin, rangeZMax)});
@@ -609,9 +685,6 @@ bool compute_short_path(const ShortPathRequest& req,
 
 	// Terrain edges within the search box (vendor 702-708).
 	if (grid_w >= 3 && grid_h >= 3) {
-		auto pass = [&](int i, int j) {
-			return i >= 0 && j >= 0 && i < grid_w && j < grid_h && terrain_passable(i, j);
-		};
 		auto nearest_navcell = [&](float x, float z, int& i, int& j) {
 			const float fi = std::floor((x - grid_origin.x) / cell_size);
 			const float fj = std::floor((z - grid_origin.y) / cell_size);
@@ -621,7 +694,9 @@ bool compute_short_path(const ShortPathRequest& req,
 		int i0, j0, i1, j1;
 		nearest_navcell(rangeXMin, rangeZMin, i0, j0);
 		nearest_navcell(rangeXMax, rangeZMax, i1, j1);
-		add_terrain_edges(edges, vertexes, i0, j0, i1, j1, pass, grid_w, grid_h, cell_size, grid_origin);
+		// add_terrain_edges reads navcells 0 .. grid_w - 1 and 0 .. grid_h - 1 only.
+		add_terrain_edges(edges, vertexes, i0, j0, i1, j1, terrain_pass_row, grid_w, grid_h, cell_size,
+				grid_origin, scratch.terrain);
 	}
 
 	// Close vertices inside an edge square: they are trivially unreachable (vendor 710-728).
@@ -643,19 +718,30 @@ bool compute_short_path(const ShortPathRequest& req,
 	const float heuristicWeight = req.heuristic_weight > 0.0f ? req.heuristic_weight
 		: ((edges.size() > 100 || edgeSquares.size() > 100) ? HEURISTIC_WEIGHT_LARGE : HEURISTIC_WEIGHT_SMALL);
 
-	std::priority_queue<OpenItem, std::vector<OpenItem>, OpenItemGreater> open;
-	open.push(OpenItem{start.h, start.h, 0.0f, START_VERTEX_ID});
+	// The heap operations std::priority_queue performs, on a reusable vector.
+	std::vector<OpenItem>& open = scratch.open;
+	open.clear();
+	const OpenItemGreater openCmp;
+	auto open_push = [&](const OpenItem& item) {
+		open.push_back(item);
+		std::push_heap(open.begin(), open.end(), openCmp);
+	};
+	open_push(OpenItem{start.h, start.h, 0.0f, START_VERTEX_ID});
 
 	uint16_t idBest = START_VERTEX_ID;
 	float hBest = start.h;
 	bool goalPopped = false;
 
-	std::vector<Edge> edgesUnaligned;
-	std::vector<EdgeAA> edgesLeft, edgesRight, edgesBottom, edgesTop;
+	std::vector<Edge>& edgesUnaligned = scratch.edgesUnaligned;
+	std::vector<EdgeAA>& edgesLeft = scratch.edgesLeft;
+	std::vector<EdgeAA>& edgesRight = scratch.edgesRight;
+	std::vector<EdgeAA>& edgesBottom = scratch.edgesBottom;
+	std::vector<EdgeAA>& edgesTop = scratch.edgesTop;
 
 	while (!open.empty()) {
-		const OpenItem top = open.top();
-		open.pop();
+		const OpenItem top = open.front();
+		std::pop_heap(open.begin(), open.end(), openCmp);
+		open.pop_back();
 		// Lazy deletion stands in for PriorityQueueHeap::promote (DEVIATION 9).
 		if (vertexes[top.id].status == VERTEX_CLOSED || top.g != vertexes[top.id].g)
 			continue;
@@ -672,10 +758,7 @@ bool compute_short_path(const ShortPathRequest& req,
 		const float curG = vertexes[top.id].g;
 		const uint8_t curOutward = vertexes[top.id].quadOutward;
 
-		// Partial sort for early exits (vendor 780-794). Results do not depend on this order (deviation 11).
-		if (edgeSquares.size() > 8)
-			std::partial_sort(edgeSquares.begin(), edgeSquares.begin() + 8, edgeSquares.end(), SquareSort{curP});
-
+		// No partial sort of edgeSquares (vendor 780-781, deviation 11).
 		edgesUnaligned.clear();
 		edgesLeft.clear();
 		edgesRight.clear();
@@ -683,6 +766,7 @@ bool compute_short_path(const ShortPathRequest& req,
 		edgesTop.clear();
 		split_aa_edges(curP, edges, edgeSquares, edgesUnaligned, edgesLeft, edgesRight, edgesBottom, edgesTop);
 
+		// Partial sort for early exits (vendor 792-794). Results do not depend on this order (deviation 11).
 		if (edgesUnaligned.size() > 28)
 			std::partial_sort(edgesUnaligned.begin(), edgesUnaligned.begin() + 28, edgesUnaligned.end(),
 				UnalignedEdgesSort{curP});
@@ -716,6 +800,13 @@ bool compute_short_path(const ShortPathRequest& req,
 					continue;
 			}
 
+			// An open vertex is only updated by a shorter path (vendor 873), so its visibility test is
+			// skipped when this one is not shorter. The result is the same as testing first.
+			const float g = curG + (curP - npos).length();
+			Vertex& nv = vertexes[n];
+			if (nv.status == VERTEX_OPEN && g >= nv.g)
+				continue;
+
 			const bool visible =
 				check_visibility_left(curP, npos, edgesLeft) &&
 				check_visibility_right(curP, npos, edgesRight) &&
@@ -725,8 +816,6 @@ bool compute_short_path(const ShortPathRequest& req,
 			if (!visible)
 				continue;
 
-			const float g = curG + (curP - npos).length();
-			Vertex& nv = vertexes[n];
 			if (nv.status == VERTEX_UNEXPLORED) {
 				nv.status = VERTEX_OPEN;
 				nv.g = g;
@@ -734,7 +823,7 @@ bool compute_short_path(const ShortPathRequest& req,
 				nv.pred = top.id;
 				if (n == GOAL_VERTEX_ID)
 					nv.p = npos; // remember the best goal position
-				open.push(OpenItem{g + nv.h, nv.h, g, static_cast<uint16_t>(n)});
+				open_push(OpenItem{g + nv.h, nv.h, g, static_cast<uint16_t>(n)});
 
 				// Remember the heuristically best vertex in case the goal is never reached.
 				if (nv.h < hBest) {
@@ -742,14 +831,12 @@ bool compute_short_path(const ShortPathRequest& req,
 					hBest = nv.h;
 				}
 			} else {
-				// OPEN: keep the old entry only if it is no worse (vendor 873).
-				if (g >= nv.g)
-					continue;
+				// OPEN and shorter (checked above, vendor 873).
 				nv.g = g;
 				nv.pred = top.id;
 				if (n == GOAL_VERTEX_ID)
 					nv.p = npos;
-				open.push(OpenItem{g + nv.h, nv.h, g, static_cast<uint16_t>(n)});
+				open_push(OpenItem{g + nv.h, nv.h, g, static_cast<uint16_t>(n)});
 			}
 		}
 	}
@@ -759,12 +846,28 @@ bool compute_short_path(const ShortPathRequest& req,
 	const bool reached = goalPopped || start.h == 0.0f;
 
 	// Reconstruct backwards, then reverse into walking order (vendor 890-894, deviation 7).
-	std::vector<Vec2> reversed;
+	std::vector<Vec2>& reversed = scratch.reversed;
+	reversed.clear();
 	for (uint16_t id = idBest; id != START_VERTEX_ID; id = vertexes[id].pred)
 		reversed.push_back(vertexes[id].p);
 	out_waypoints.assign(reversed.rbegin(), reversed.rend());
 
 	return reached;
+}
+
+template <class PassFn>
+bool compute_short_path(const ShortPathRequest& req,
+		const std::vector<ShortPathSquare>& statics,
+		const std::vector<ShortPathSquare>& units,
+		PassFn terrain_passable,
+		float cell_size, Vec2 grid_origin, int grid_w, int grid_h,
+		std::vector<Vec2>& out_waypoints) {
+	auto pass = [&](int i, int j) {
+		return i >= 0 && j >= 0 && i < grid_w && j < grid_h && terrain_passable(i, j);
+	};
+	ShortPathScratch scratch;
+	return compute_short_path(req, statics, units, vp::PassRowsFrom<decltype(pass)>{pass}, cell_size,
+			grid_origin, grid_w, grid_h, scratch, out_waypoints);
 }
 
 } // namespace nav
