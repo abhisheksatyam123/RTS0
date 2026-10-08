@@ -13,13 +13,8 @@ func toggle() -> void:
 	if panel.visible:
 		line_edit.grab_focus()
 
-func _input(event: InputEvent) -> void:
-	if event is InputEventKey and event.is_pressed() and not event.is_echo():
-		if event.keycode == KEY_ENTER:
-			if panel.visible and line_edit.text.strip_edges() != "":
-				_on_send_pressed()
-			else:
-				toggle()
+# The chat hotkey (Return) opens the session chat in chat_window.h; this
+# overlay no longer toggles on Enter, so one key doesn't open two chats.
 
 func _on_send_pressed() -> void:
 	var msg = line_edit.text.strip_edges()
