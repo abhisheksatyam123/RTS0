@@ -15,6 +15,11 @@ var seed: int = 0
 var victory: int = 0
 # Legacy wave-defense mode (enemy waves every 35s). Off for skirmish.
 var waves_enabled: bool = false
+# 0 A.D. "Last Man Standing": no allied victory, play until one player is left.
+var last_man_standing: bool = false
+# 0 A.D. population limit per player (0 = unlimited) and ceasefire length in minutes.
+var pop_cap: int = 200
+var ceasefire_min: int = 0
 # Random-map width in meters, 0 A.D.'s sizes 128 (Tiny) to 512 (Giant).
 var map_size: int = 128
 # Petra difficulty 0..5 (sandbox..very hard), behavior 0..3.
