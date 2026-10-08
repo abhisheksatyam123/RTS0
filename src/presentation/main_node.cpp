@@ -3496,11 +3496,17 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		int amt = (int)r.get("amount", 600);
 
 		uint8_t rtype = rtso::RES_WOOD;
+		uint8_t rsub = rtso::RES_SUB_NONE;
 		if (rtype_str == "gold" || rtype_str == "metal") rtype = rtso::RES_GOLD;
 		else if (rtype_str == "stone" || rtype_str == "rock") rtype = rtso::RES_STONE;
 		else if (rtype_str == "food" || rtype_str == "fruit") rtype = rtso::RES_FOOD;
+		else if (rtype_str == "fish") { // 0 A.D. gaia/fish/*: only fishing boats gather it
+			rtype = rtso::RES_FOOD;
+			rsub = rtso::RES_SUB_FISH;
+			if (!r.has("amount")) amt = rtso::FISH_FOOD_SUPPLY;
+		}
 
-		sim->spawn_resource_world(rx, rz, rtype, amt);
+		sim->spawn_resource_world(rx, rz, rtype, amt, rsub);
 	}
 
 	// Spawn Wildlife Fauna
