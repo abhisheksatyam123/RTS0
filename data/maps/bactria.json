@@ -3,6 +3,7 @@
   "name": "Bactriana (2)",
   "desc": "In the Eastern land of Bactria lies the rich valley carved by the Oxus River.\n\nSouth of the river are rich arable lands and plentiful wood and forage. North of the river lie a mountain range pierced by wide mountain passes and guarded by natural defensive positions.\n\nWithin the mountains can be found riches as well as danger. The player who can exploit the mountainous area the best will have a significant advantage over their adversary.",
   "biome": "desert",
+  "nomad": false,
   "world_size": 256.0,
   "water_height": 6.71,
   "heightmap_res": 64,
@@ -12649,30 +12650,6 @@
       "player": 2,
       "x": 59.32,
       "z": -68.75
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -71.78,
-      "z": -49.06
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -70.78,
-      "z": -50.03
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 62.95,
-      "z": -66.04
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 61.99,
-      "z": -65.05
     }
   ],
   "units": [
@@ -12701,6 +12678,18 @@
       "z": -49.11
     },
     {
+      "type": "archer",
+      "player": 1,
+      "x": -71.78,
+      "z": -49.06
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -70.78,
+      "z": -50.03
+    },
+    {
       "type": "cavalry",
       "player": 2,
       "x": 63.32,
@@ -12711,6 +12700,18 @@
       "player": 2,
       "x": 62.18,
       "z": -72.68
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 62.95,
+      "z": -66.04
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 61.99,
+      "z": -65.05
     },
     {
       "type": "swordsman",

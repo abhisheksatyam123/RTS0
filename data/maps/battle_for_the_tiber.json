@@ -3,6 +3,7 @@
   "name": "Battle for the Tiber",
   "desc": "Rome battles against the Etruscan city of Veii for control of the Tiber River basin.",
   "biome": "temperate",
+  "nomad": false,
   "world_size": 320.0,
   "water_height": 3.56,
   "heightmap_res": 64,

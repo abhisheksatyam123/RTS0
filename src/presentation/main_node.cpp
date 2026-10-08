@@ -138,6 +138,26 @@ void RtsoMain::_bind_methods() {
 	bind_enum("BuildingType", "ELEPHANT_STABLE", rtso::BLD_ELEPHANT_STABLE);
 	bind_enum("BuildingType", "THEATER", rtso::BLD_THEATER);
 	bind_enum("BuildingType", "EMBASSY", rtso::BLD_EMBASSY);
+	bind_enum("BuildingType", "GYMNASIUM", rtso::BLD_GYMNASIUM);
+	bind_enum("BuildingType", "PRYTANEION", rtso::BLD_PRYTANEION);
+	bind_enum("BuildingType", "GEROUSIA", rtso::BLD_GEROUSIA);
+	bind_enum("BuildingType", "SYSSITON", rtso::BLD_SYSSITON);
+	bind_enum("BuildingType", "TACHARA", rtso::BLD_TACHARA);
+	bind_enum("BuildingType", "ARMY_CAMP", rtso::BLD_ARMY_CAMP);
+	bind_enum("BuildingType", "AMPHITHEATER", rtso::BLD_AMPHITHEATER);
+	bind_enum("BuildingType", "LIBRARY", rtso::BLD_LIBRARY);
+	bind_enum("BuildingType", "KENNEL", rtso::BLD_KENNEL);
+	bind_enum("BuildingType", "ASSEMBLY", rtso::BLD_ASSEMBLY);
+	bind_enum("BuildingType", "MONUMENT", rtso::BLD_MONUMENT);
+	bind_enum("BuildingType", "PALACE", rtso::BLD_PALACE);
+	bind_enum("BuildingType", "PILLAR", rtso::BLD_PILLAR);
+	bind_enum("BuildingType", "PYRAMID_LARGE", rtso::BLD_PYRAMID_LARGE);
+	bind_enum("BuildingType", "PYRAMID_SMALL", rtso::BLD_PYRAMID_SMALL);
+	bind_enum("BuildingType", "MERCENARY_CAMP", rtso::BLD_MERCENARY_CAMP);
+	bind_enum("BuildingType", "LIGHTHOUSE", rtso::BLD_LIGHTHOUSE);
+	bind_enum("BuildingType", "MILITARY_COLONY", rtso::BLD_MILITARY_COLONY);
+	bind_enum("BuildingType", "ACADEMY", rtso::BLD_ACADEMY);
+	bind_enum("BuildingType", "MINISTRY", rtso::BLD_MINISTRY);
 
 	bind_enum("Civilization", "ATHENIANS", rtso::CIV_ATHENIANS);
 	bind_enum("Civilization", "SPARTANS", rtso::CIV_SPARTANS);
@@ -2290,59 +2310,51 @@ void RtsoMain::update_command_panel() {
 		if (!selected_ids.is_empty()) {
 			auto uview = sim->units();
 
-			// 0 A.D. Parity: gui/session/selection_panels.js:265-330 (g_SelectionPanels.Formation)
-			// and gui/session/selection_panels_left/formation_panel.xml:1-12 (unitFormationButton repeat=15).
-			// Reference: 0 A.D. template_player.xml:84-96 (12 actionable formations, skipping FORMATION_NONE).
-			// Active formation highlighted with gold font color, matching 0 A.D. guiSelection overlay.
-			static const struct FormationButtonDef {
-				const char *name;
-				uint8_t id;
-				const char *icon;
-			} kFormationButtons[12] = {
-				{"Line",       rtso::FORMATION_LINE,         "res://assets/textures/ui/formations/line.png"},
-				{"Box",        rtso::FORMATION_BOX,          "res://assets/textures/ui/formations/box.png"},
-				{"Col",        rtso::FORMATION_COLUMN,       "res://assets/textures/ui/formations/column.png"},
-				{"Phalanx",    rtso::FORMATION_PHALANX,      "res://assets/textures/ui/formations/phalanx.png"},
-				{"Wedge",      rtso::FORMATION_WEDGE,        "res://assets/textures/ui/formations/wedge.png"},
-				{"Skirmish",   rtso::FORMATION_SCATTER,      "res://assets/textures/ui/formations/scatter.png"},
-				{"LineOpen",   rtso::FORMATION_LINE_OPEN,    "res://assets/textures/ui/formations/line_open.png"},
-				{"ColOpen",    rtso::FORMATION_COLUMN_OPEN,  "res://assets/textures/ui/formations/column_open.png"},
-				{"Flank",      rtso::FORMATION_FLANK,        "res://assets/textures/ui/formations/flank.png"},
-				{"BattleLine", rtso::FORMATION_BATTLE_LINE,  "res://assets/textures/ui/formations/battle_line.png"},
-				{"ShipLine",   rtso::FORMATION_SHIPS_LINE,   "res://assets/textures/ui/formations/ship_line.png"},
-				{"ShipCol",    rtso::FORMATION_SHIPS_COLUMN, "res://assets/textures/ui/formations/ship_column.png"}
-			};
-
-			// Query active formation across selected units to highlight matching button
-			uint8_t active_formation = rtso::FORMATION_NONE;
-			for (int i = 0; i < selected_ids.size(); ++i) {
+			// 0 A.D. gui/session/selection_panels.js g_SelectionPanels.Formation: one button per
+			// formation the player has (Player.js GetFormations), disabled with the template's
+			// DisabledTooltip unless the selection can form it (Commands.js CanMoveEntsIntoFormation),
+			// highlighted when a selected unit is in it (GuiInterface IsFormationSelected).
+			static const char *const kFormationIcons[rtso::FORMATION_COUNT] = {
+				"null", "line_closed", "box", "column", "phalanx", "wedge", "skirmish", "line_open",
+				"column_open", "flank", "battle_line", "ship_line", "ship_column", "flank", "syntagma",
+				"testudo", "testudo"};
+			const uint32_t *sel_ids = (const uint32_t *)selected_ids.ptr();
+			const size_t sel_n = (size_t)selected_ids.size();
+			uint32_t in_use = 0;       // formations a selected unit is in (bit 0: a unit in none)
+			bool any_can_form = false; // the panel only shows for units that take formations
+			for (size_t i = 0; i < sel_n; ++i) {
 				for (size_t u = 0; u < uview.count; ++u) {
-					if (uview.id[u] == (uint32_t)selected_ids[i]) {
-						if (uview.formation[u] != rtso::FORMATION_NONE) {
-							active_formation = uview.formation[u];
-							break;
-						}
-					}
+					if (uview.id[u] != sel_ids[i]) continue;
+					in_use |= 1u << (uview.formation[u] < rtso::FORMATION_COUNT ? uview.formation[u] : 0);
+					break;
 				}
-				if (active_formation != rtso::FORMATION_NONE) break;
+				for (uint8_t f = 1; f < rtso::FORMATION_COUNT && !any_can_form; ++f)
+					any_can_form = sim->unit_can_use_formation(sel_ids[i], f);
 			}
-
-			for (int f = 0; f < 12; ++f) {
+			const uint32_t available = any_can_form ? sim->player_formation_mask(local_player()) : 0u;
+			for (uint8_t f = 0; f < rtso::FORMATION_COUNT; ++f) {
+				if (!((available >> f) & 1u)) continue;
+				const rtso::FormationTemplate &ft = rtso::formation_template(f);
+				const bool enabled = f == rtso::FORMATION_NONE || sim->can_move_into_formation(sel_ids, sel_n, f);
 				Button *fb = memnew(Button);
 				fb->set_custom_minimum_size(Vector2(44, 24));
 				fb->set_clip_text(true);
-				fb->set_tooltip_text(kFormationButtons[f].name);
-				fb->set_text(kFormationButtons[f].name);
-				Ref<Texture2D> f_ico = load_tex(kFormationButtons[f].icon);
+				String tip = String::utf8(ft.name);
+				const char *why = enabled ? ft.tooltip : ft.disabled_tooltip;
+				if (why && *why) tip += String("\n") + String::utf8(why);
+				fb->set_tooltip_text(tip);
+				fb->set_text(String::utf8(ft.name));
+				Ref<Texture2D> f_ico = load_tex(String("res://assets/textures/ui/formations/") + kFormationIcons[f] + ".png");
 				if (f_ico.is_valid()) {
 					fb->set_button_icon(f_ico);
 					fb->set_expand_icon(true);
 				}
 				fb->add_theme_font_size_override("font_size", 8);
-				if (active_formation == kFormationButtons[f].id) {
+				if ((in_use >> f) & 1u) {
 					fb->add_theme_color_override("font_color", Color(1.0f, 0.85f, 0.2f));
 				}
-				fb->connect("pressed", Callable(this, "_on_formation_selected").bind((int)kFormationButtons[f].id));
+				fb->set_disabled(!enabled);
+				fb->connect("pressed", Callable(this, "_on_formation_selected").bind((int)f));
 				actions_bar->add_child(fb);
 			}
 
@@ -2404,7 +2416,12 @@ void RtsoMain::update_command_panel() {
 					rtso::BLD_WONDER
 				};
 				static const char *kPhaseNames[4] = {"", "Village", "Town", "City"};
-				for (int bt : b_types) {
+				// Generic structures, then the local civ's own (0 A.D. structures/<civ>/).
+				const uint8_t my_civ = sim->player_civ(local_player());
+				std::vector<int> menu(std::begin(b_types), std::end(b_types));
+				for (int bt = rtso::CIV_BUILDING_FIRST; bt < rtso::BLD_TYPE_COUNT; ++bt)
+					if (rtso::civ_can_build(my_civ, (uint8_t)bt)) menu.push_back(bt);
+				for (int bt : menu) {
 					const rtso::BuildingTypeInfo &bi = rtso::building_type_info((uint8_t)bt);
 					String cost;
 					auto add_cost = [&](int amount, const char *suffix) {
@@ -2418,7 +2435,7 @@ void RtsoMain::update_command_panel() {
 					add_cost(bi.stone_cost, "s");
 					uint8_t need = rtso::building_required_phase((uint8_t)bt);
 					Button *bb = memnew(Button);
-					bb->set_text(String(bi.name) + (cost.is_empty() ? String() : " (" + cost + ")"));
+					bb->set_text(String::utf8(bi.name) + (cost.is_empty() ? String() : " (" + cost + ")"));
 					bb->add_theme_font_size_override("font_size", 9);
 					if (need > sim->player_phase(local_player())) {
 						bb->set_disabled(true);
@@ -3763,6 +3780,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 
 	// Spawn Starting Units
 	Array units_arr = d.get("units", Array());
+	std::vector<uint32_t> unit_ids(units_arr.size(), 0);
 	for (int i = 0; i < units_arr.size(); ++i) {
 		Dictionary u = units_arr[i];
 		String utype_str = u.get("type", "villager");
@@ -3797,7 +3815,15 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		else if (utype_str == "scythed_chariot") utype = rtso::UNIT_SCYTHED_CHARIOT;
 
 		const auto &uinfo = rtso::unit_type_info(utype);
-		sim->spawn_unit(ux, uz, team, utype, uinfo.hp);
+		unit_ids[i] = sim->spawn_unit(ux, uz, team, utype, uinfo.hp);
+	}
+	// "garrison_in": index of the ship the unit starts aboard (0 A.D. <Garrison>,
+	// e.g. sicilia_nomad_2p). Passengers sit on the ship, so boarding is instant.
+	for (int i = 0; i < units_arr.size(); ++i) {
+		Dictionary u = units_arr[i];
+		int holder = (int)u.get("garrison_in", -1);
+		if (holder < 0 || holder >= (int)unit_ids.size() || !unit_ids[i] || !unit_ids[holder]) continue;
+		sim->order_board_transport(&unit_ids[i], 1, unit_ids[holder]);
 	}
 
 	// Rebuild World View 3D terrain and bounds
@@ -4183,10 +4209,11 @@ Dictionary RtsoMain::get_tech_tree() const {
 	uint8_t civ = sim->player_civ(local_player());
 	d["phase"] = (int)sim->player_phase(local_player());
 	for (uint8_t t = 0; t < rtso::BLD_TYPE_COUNT; ++t) {
+		if (!rtso::civ_can_build(civ, t)) continue; // other civs' own structures
 		const auto &bi = rtso::building_type_info(t);
 		Dictionary b;
 		b["id"] = (int)t;
-		b["name"] = String(bi.name);
+		b["name"] = String::utf8(bi.name);
 		b["phase"] = (int)rtso::building_required_phase(t);
 		blds.push_back(b);
 	}

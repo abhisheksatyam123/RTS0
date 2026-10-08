@@ -3,6 +3,7 @@
   "name": "Sahel (4)",
   "desc": "Situated Southside of the Atlas mountain range in North Africa.\n\nA somewhat open map with an abundance of animals and mineral resources, while wood is scarce.",
   "biome": "savanna",
+  "nomad": false,
   "world_size": 320.0,
   "water_height": 3.81,
   "heightmap_res": 81,
@@ -12076,54 +12077,6 @@
       "player": 1,
       "x": 80.94,
       "z": 56.13
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": 73.16,
-      "z": 82.43
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": 74.3,
-      "z": 81.13
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": -71.69,
-      "z": -70.18
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": -70.65,
-      "z": -71.24
-    },
-    {
-      "type": "barracks",
-      "player": 4,
-      "x": 74.83,
-      "z": -67.41
-    },
-    {
-      "type": "barracks",
-      "player": 4,
-      "x": 75.81,
-      "z": -68.74
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": -70.27,
-      "z": 69.88
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": -68.99,
-      "z": 68.46
     }
   ],
   "units": [
@@ -12150,6 +12103,18 @@
       "player": 1,
       "x": 67.36,
       "z": 71.77
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": 73.16,
+      "z": 82.43
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": 74.3,
+      "z": 81.13
     },
     {
       "type": "swordsman",
@@ -12198,6 +12163,18 @@
       "player": 2,
       "x": -71.12,
       "z": -78.27
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": -71.69,
+      "z": -70.18
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": -70.65,
+      "z": -71.24
     },
     {
       "type": "villager",
@@ -12260,6 +12237,18 @@
       "z": -76.41
     },
     {
+      "type": "archer",
+      "player": 4,
+      "x": 74.83,
+      "z": -67.41
+    },
+    {
+      "type": "archer",
+      "player": 4,
+      "x": 75.81,
+      "z": -68.74
+    },
+    {
       "type": "cavalry",
       "player": 4,
       "x": 65.96,
@@ -12318,6 +12307,18 @@
       "player": 3,
       "x": -69.6,
       "z": 61.66
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": -70.27,
+      "z": 69.88
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": -68.99,
+      "z": 68.46
     }
   ]
 }

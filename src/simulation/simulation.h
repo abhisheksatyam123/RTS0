@@ -130,7 +130,7 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
-	static constexpr uint32_t SAVE_VERSION = 21; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 23; // save_state's format; see the history beside it
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -350,7 +350,38 @@ public:
 	void order_pack(const uint32_t *unit_ids, size_t count, bool pack);
 	// Seconds a pack or unpack takes for this unit (0 A.D. Pack/Time).
 	float pack_time_s(size_t unit_idx) const;
+	// 0 A.D. "formation" command (Commands.js): the units form up in `formation` where they
+	// stand, in clusters (Commands.js ClusterEntities); FORMATION_NONE disbands. Units that may
+	// not use it (UnitAI/Formations, Player formations) are left out.
 	void order_set_formation(const uint32_t *unit_ids, size_t count, uint8_t formation);
+	// Formation.js / Player.js queries for the formation panel.
+	uint32_t player_formation_mask(uint8_t player) const; // Player.js GetFormations
+	bool unit_can_use_formation(uint32_t unit_id, uint8_t formation) const; // UnitAI.js CanUseFormation
+	bool can_move_into_formation(const uint32_t *unit_ids, size_t count, uint8_t formation) const; // Commands.js
+	// Formation controllers (0 A.D. formation entities), for the HUD and tests.
+	struct FormationController {
+		uint32_t id = 0;
+		uint8_t owner = 0;
+		uint8_t tmpl = FORMATION_NONE;  // UnitFormation
+		uint8_t columnar = 0;           // marching in column (long walk)
+		uint8_t order = 0;              // FormationOrder
+		float x = 0.0f, z = 0.0f;      // controller position (members' centre when formed)
+		float rot = 0.0f;               // facing (0 A.D. rotation: 0 faces +z, pi/2 faces +x)
+		float offsets_rot = 0.0f;       // facing the slots were assigned for
+		float goal_x = 0.0f, goal_z = 0.0f;
+		float shape_timer = 0.0f;       // Formation.js ShapeUpdate interval
+		uint8_t pass = 0;               // PassClass the controller paths with
+		uint8_t has_offsets = 0;        // slots valid (Formation.js this.offsets)
+		uint8_t max_rows_used = 0;
+		uint8_t pad_ = 0;
+		std::vector<uint32_t> members;
+		std::vector<FormationSlot> slots;
+		WaypointPath path;
+	};
+	enum FormationOrder : uint8_t { FORDER_IDLE = 0, FORDER_WALK = 1, FORDER_ATTACK_WALK = 2 };
+	const std::vector<FormationController> &formations() const { return formations_; }
+	// Controller id of the formation unit_id belongs to, 0 when none.
+	uint32_t formation_of_unit(uint32_t unit_id) const;
 	void order_garrison(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false);
 	void order_ungarrison(uint32_t building_id);
 	// GarrisonHolder.HasEnoughHealth: above EjectHealth of max health, so it may hold a garrison.
@@ -472,6 +503,13 @@ public:
 	// 0 A.D. Player.js TributeResource: `from` sends `amounts` (indexed by
 	// ResourceType) to `to`. All or nothing; both players must be in the
 	// match. The one tribute path for the UI, lockstep cmd 27 and Petra.
+	// 0 A.D. Player.js SetTradingGoods / GetTradingGoods: the share (percent) of
+	// each resource, by ResourceType, that `player`'s traders bring back. A set
+	// that doesn't sum to 100 is refused.
+	bool cmd_set_trading_goods(uint8_t player, const uint8_t pct[RES_COUNT]);
+	const uint8_t *trading_goods(uint8_t player) const {
+		return trading_goods_[player < MAX_PLAYERS ? player : 0];
+	}
 	bool cmd_tribute(uint8_t from, uint8_t to, const int amounts[RES_COUNT]);
 	bool cmd_tribute(uint8_t from, uint8_t to, uint8_t res_type, int amount);
 	// G3 Market/Trader (0 A.D. Market.js CalculateTraderGain, Trader.js, globalscripts/Trade.js)
@@ -926,6 +964,20 @@ private:
 	uint32_t find_free_field(uint8_t team, float x, float z);
 	void tick_combat(float dt);
 	void tick_pack(float dt);
+	// Formation.js port (formation.h): controllers walk, members follow their slots.
+	void tick_formations(float dt);
+	FormationUnitInfo formation_unit_info(size_t unit_idx) const;
+	bool unit_idx_can_use_formation(size_t unit_idx, uint8_t formation) const;
+	// Commands.js GetFormationUnitAIs: puts the units that can into formation controllers
+	// (reusing a whole selected formation) and returns the controllers; `individual` gets the rest.
+	std::vector<size_t> formation_controllers_for(const uint32_t *unit_ids, size_t count, uint8_t tmpl,
+			bool force_template, std::vector<uint32_t> &individual);
+	void formation_remove_units(const uint32_t *unit_ids, size_t count); // Commands.js RemoveFromFormation
+	void formation_disband(size_t ci);
+	void formation_move_members_into(size_t ci, bool move_center, bool force); // Formation.js MoveMembersIntoFormation
+	float formation_walking_distance(const FormationController &fc) const; // UnitAI.js ComputeWalkingDistance
+	void formation_stop(const uint32_t *unit_ids, size_t count);
+	void cmd_move_individual(const uint32_t *unit_ids, size_t count, float tx, float tz);
 	void tick_promotion(float dt);
 	void tick_capture(float dt);
 	// 0 A.D. UnitAI per-unit order logic, before movement: answers attacks (fight back or
@@ -950,7 +1002,7 @@ private:
 	void save_tick_state(std::ofstream &out) const;
 	bool load_tick_state(std::ifstream &in, uint32_t version);
 	// Player.js GetNextTradingGoods with the default equal split (25% each).
-	uint8_t next_trading_goods();
+	uint8_t next_trading_goods(uint8_t player);
 	// Pays a trade gain into `player`'s stock and its gather statistics.
 	void credit_trade(uint8_t player, uint8_t res, int amount);
 	void tick_trickle(float dt);
@@ -1031,6 +1083,13 @@ private:
 	} fauna_;
 	std::unordered_map<uint32_t, size_t> fauna_id_to_idx_;
 	std::unordered_map<uint32_t, std::vector<uint32_t>> transport_passengers_;
+	std::vector<FormationController> formations_; // in creation order
+	uint32_t next_formation_id_ = 1;
+	// Controller id per unit index, 0 outside formations: members of one formation share an
+	// obstruction group and don't push each other in separation(). Derived from formations_
+	// by formation_refresh_groups() whenever membership changes, so it is never saved.
+	std::vector<uint32_t> formation_group_;
+	void formation_refresh_groups();
 
 	UnitSoA units_;
 	ResourceSoA resources_;
@@ -1098,6 +1157,9 @@ private:
 	// G3 Market / Barter dynamic prices (indexed by ResourceType: 0=WOOD,1=GOLD,2=STONE,3=FOOD)
 	// Barter.js priceDifferences: per resource, in percent of the true price, within +-89.
 	float barter_price_diff_[RES_COUNT] = {};
+	// Player.js tradingGoods: the percent chance of each resource a player's
+	// traders load per trip (sums to 100; 25 each by default). Indexed by ResourceType.
+	uint8_t trading_goods_[MAX_PLAYERS][RES_COUNT] = {};
 	int market_trade_history_[4] = {};
 	std::unordered_map<uint32_t, std::pair<uint32_t,uint32_t>> trader_routes_; // unit_id -> (marketA_id, marketB_id)
 	std::unordered_map<uint32_t,int> trader_leg_; // unit_id -> 0=A->B, 1=B->A (which target next)
@@ -1226,6 +1288,14 @@ private:
 	void petra_manage_raid(float dt);
 	void petra_manage_opening(float dt);
 	void petra_manage_defense(float dt);
+	// garrisonManager.js / defenseManager.js garrisons: what is near a holder of ours.
+	struct PetraAround { bool defense_structure = false, melee_siege = false, range_siege = false, unit = false; };
+	PetraAround petra_around(const Building &holder) const;
+	bool petra_keep_garrisoned(size_t unit_idx, const Building &holder, const PetraAround &around) const;
+	// incoming[building index]: our units walking to garrison there.
+	void petra_garrison_units_inside(size_t holder_idx, bool allow_melee, std::vector<int> &incoming);
+	uint32_t petra_garrison_holder_for(size_t unit_idx, bool heals_only, bool siege, std::vector<int> &incoming) const;
+	void petra_manage_garrisons();
 	void petra_manage_victory(float dt);
 	void petra_manage_diplomacy(float dt);
 	void petra_manage_emergency(float dt);
