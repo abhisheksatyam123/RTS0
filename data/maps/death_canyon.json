@@ -3,6 +3,7 @@
   "name": "Death Canyon (2)",
   "desc": "A deep rocky canyon slicing through the desert.\n\nEach player starts their colony on a plateau on either side of the ravine.",
   "biome": "desert",
+  "nomad": false,
   "world_size": 256.0,
   "water_height": 4.11,
   "heightmap_res": 64,
@@ -7423,34 +7424,10 @@
       "z": -72.49
     },
     {
-      "type": "barracks",
-      "player": 2,
-      "x": -44.31,
-      "z": -75.9
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": -43.23,
-      "z": -77.16
-    },
-    {
       "type": "town_center",
       "player": 1,
       "x": 38.88,
       "z": 72.12
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": 33.98,
-      "z": 69.0
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": 34.77,
-      "z": 68.22
     },
     {
       "type": "wall_segment",
@@ -7671,6 +7648,18 @@
       "z": -75.77
     },
     {
+      "type": "archer",
+      "player": 2,
+      "x": -44.31,
+      "z": -75.9
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": -43.23,
+      "z": -77.16
+    },
+    {
       "type": "swordsman",
       "player": 2,
       "x": -35.51,
@@ -7711,6 +7700,18 @@
       "player": 1,
       "x": 44.3,
       "z": 67.65
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": 33.98,
+      "z": 69.0
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": 34.77,
+      "z": 68.22
     },
     {
       "type": "swordsman",

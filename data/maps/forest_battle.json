@@ -3,6 +3,7 @@
   "name": "Forest Battle (4)",
   "desc": "A forest battle map where all players fight for supremacy and control over the middle.",
   "biome": "temperate",
+  "nomad": false,
   "world_size": 192.0,
   "water_height": 2.89,
   "heightmap_res": 64,
@@ -13862,78 +13863,6 @@
   ],
   "structures": [
     {
-      "type": "barracks",
-      "player": 2,
-      "x": -55.88,
-      "z": 62.75
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": -55.56,
-      "z": 63.16
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": -55.2,
-      "z": 63.66
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": 71.64,
-      "z": 54.39
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": 71.28,
-      "z": 53.89
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": 70.96,
-      "z": 53.49
-    },
-    {
-      "type": "barracks",
-      "player": 4,
-      "x": 52.34,
-      "z": -55.91
-    },
-    {
-      "type": "barracks",
-      "player": 4,
-      "x": 52.1,
-      "z": -56.35
-    },
-    {
-      "type": "barracks",
-      "player": 4,
-      "x": 51.66,
-      "z": -56.82
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -44.0,
-      "z": -64.42
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -43.61,
-      "z": -64.7
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -44.41,
-      "z": -64.0
-    },
-    {
       "type": "town_center",
       "player": 1,
       "x": -53.75,
@@ -13984,6 +13913,24 @@
       "z": 61.07
     },
     {
+      "type": "archer",
+      "player": 2,
+      "x": -55.88,
+      "z": 62.75
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": -55.56,
+      "z": 63.16
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": -55.2,
+      "z": 63.66
+    },
+    {
       "type": "villager",
       "player": 2,
       "x": -56.05,
@@ -14018,6 +13965,24 @@
       "player": 3,
       "x": 70.78,
       "z": 52.29
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": 71.64,
+      "z": 54.39
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": 71.28,
+      "z": 53.89
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": 70.96,
+      "z": 53.49
     },
     {
       "type": "swordsman",
@@ -14062,6 +14027,24 @@
       "z": -58.02
     },
     {
+      "type": "archer",
+      "player": 4,
+      "x": 52.34,
+      "z": -55.91
+    },
+    {
+      "type": "archer",
+      "player": 4,
+      "x": 52.1,
+      "z": -56.35
+    },
+    {
+      "type": "archer",
+      "player": 4,
+      "x": 51.66,
+      "z": -56.82
+    },
+    {
       "type": "swordsman",
       "player": 4,
       "x": 50.0,
@@ -14090,6 +14073,24 @@
       "player": 1,
       "x": -43.25,
       "z": -64.32
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -44.0,
+      "z": -64.42
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -43.61,
+      "z": -64.7
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -44.41,
+      "z": -64.0
     },
     {
       "type": "swordsman",
