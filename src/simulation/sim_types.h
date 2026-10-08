@@ -112,7 +112,10 @@ enum MapType : uint8_t {
 	MAP_ENGLISH_CHANNEL = 54,
 	MAP_DODECANESE = 55,
 	MAP_FORTRESS = 56,
-	MAP_TYPE_COUNT = 57
+	// 0 A.D. trigger maps (maps/random/*_triggers.js run as map triggers, triggers.h)
+	MAP_FLOOD = 57,
+	MAP_EXTINCT_VOLCANO = 58,
+	MAP_TYPE_COUNT = 59
 };
 
 struct MapTypeInfo {
@@ -182,7 +185,9 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_HELLAS, "hellas", "Hellas (RMS)", "mediterranean", true, "A random corner of Greece and the Aegean, painted from a real elevation map."},
 		{MAP_ENGLISH_CHANNEL, "english_channel", "English Channel (RMS)", "temperate", true, "Players start on both sides of the English Channel; crossing it takes ships."},
 		{MAP_DODECANESE, "dodecanese", "Dodecanese (RMS)", "mediterranean", true, "A group of islands in the Aegean, a few joined by bridges; the rest need ships."},
-		{MAP_FORTRESS, "fortress", "Fortress (RMS)", "temperate", true, "Players start inside walled fortresses with a market, barracks, stable and temple."}
+		{MAP_FORTRESS, "fortress", "Fortress (RMS)", "temperate", true, "Players start inside walled fortresses with a market, barracks, stable and temple."},
+		{MAP_FLOOD, "flood", "Flood (RMS)", "temperate", true, "A great flood moves across the valley. The home islands go under, so evacuate your units by ship to the mainland."},
+		{MAP_EXTINCT_VOLCANO, "extinct_volcano", "Extinct Volcano (RMS)", "volcanic", true, "Rains raise the water from the 25th minute until only the hills and the great cone stay dry. Gaia towers guard the lowlands."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
@@ -194,7 +199,8 @@ inline bool is_procedural_map(uint8_t type) {
 
 // Naval maps: bases may sit on separate land, so armies need ships to meet.
 inline bool map_is_naval(int type) {
-	return type == MAP_ENGLISH_CHANNEL || type == MAP_DODECANESE;
+	// Flood (flood.js): each player starts on a home island in a sea.
+	return type == MAP_ENGLISH_CHANNEL || type == MAP_DODECANESE || type == MAP_FLOOD;
 }
 
 enum UnitType : uint8_t {
@@ -383,8 +389,10 @@ static_assert(sizeof(UnitOrder) == 24, "UnitOrder is saved raw");
 // UnitAI FindNearbyResource / FindNearbyFoundation.
 inline constexpr float FLEE_DISTANCE = 12.0f;
 inline constexpr float NEARBY_SEARCH_RANGE = 64.0f;
-// Attack.js Capture: template_unit_*.xml Capture MaxRange 4, RepeatTime 1000.
-inline constexpr float CAPTURE_RANGE = 4.0f;
+// Attack.js Capture: template_unit_*.xml Capture MaxRange 4, RepeatTime 1000. 0 A.D.
+// measures edge to edge; RTS0 melee reach is ~0.28 x R plus the radii, so Capture
+// MaxRange 4 is the spearman's reach, as in 0 A.D. (Melee MaxRange 4): 2.4.
+inline constexpr float CAPTURE_RANGE = 2.4f;
 inline constexpr float CAPTURE_REPEAT_S = 1.0f;
 // template_unit_support_healer.xml Heal (Health 5 every Interval 2000 ms) and Heal.js
 // GetTimers (prepare 1000 ms); template_unit.xml UnitAI CheeringTime 2800 ms and
@@ -394,7 +402,7 @@ inline constexpr float HEAL_INTERVAL_S = 2.0f;
 inline constexpr float HEAL_PREPARE_S = 1.0f;
 inline constexpr float CHEER_TIME_S = 2.8f;
 inline constexpr float CHEER_NOTIFY_RANGE = 30.0f;
-inline constexpr float GARRISON_LOADING_RANGE = 2.0f;
+inline constexpr float GARRISON_LOADING_RANGE = 2.0f * 0.28f; // 0 A.D. metres to RTS0, plus the unit's radius
 // Attack.js Ranged MinRange as a share of MaxRange: template_unit_siege_stonethrower.xml
 // 26 of 85, template_unit_siege_boltshooter.xml 15 of 90. Scaled to each unit's own range.
 inline float unit_min_range_ratio(uint8_t type) {
@@ -500,7 +508,7 @@ inline const UnitTypeInfo &unit_type_info(uint8_t type) {
 		{"Swordsman", "swordsman", "swordsman", 100.0f, 3.4f, 2.0f, 8.0f, 0.75f, 0, 10.0f, 3.0f, 3.0f, 15.0f, 0, 30, 60, 0, 1, 14.0f, 8.0f, 0.0f, 0.0f},
 		{"Archer", "archer", "archer", 80.0f, 3.3f, 16.0f, 7.2f, 1.25f, 0, 16.0f, 1.0f, 1.0f, 15.0f, 0, 50, 40, 0, 1, 12.0f, 0.0f, 7.2f, 0.0f},
 		{"Spearman", "spearman", "spearman", 100.0f, 3.2f, 2.4f, 8.5f, 1.0f, 0, 10.0f, 3.0f, 3.0f, 15.0f, 30, 40, 20, 0, 1, 12.0f, 4.25f, 4.25f, 0.0f},
-		{"Cavalry", "cavalry", "cavalry", 180.0f, 5.5f, 2.2f, 11.5f, 1.25f, 0, 12.0f, 3.0f, 3.0f, 15.0f, 50, 0, 80, 0, 2, 18.0f, 11.5f, 0.0f, 0.0f},
+		{"Cavalry", "cavalry", "cavalry", 180.0f, 5.5f, 2.2f, 11.5f, 1.25f, 20, 12.0f, 3.0f, 3.0f, 15.0f, 50, 0, 80, 0, 2, 18.0f, 11.5f, 0.0f, 0.0f},
 		{"Merchant Trader", "trader", "trader", 120.0f, 4.2f, 1.0f, 0.0f, 1.0f, 50, 0.0f, 2.0f, 2.0f, 10.0f, 60, 60, 0, 0, 1, 12.0f, 0.0f, 0.0f, 0.0f},
 		{"Catapult Artillery", "catapult", "catapult", 220.0f, 2.0f, 24.0f, 45.0f, 3.5f, 0, 24.0f, 2.0f, 5.0f, 20.0f, 0, 150, 100, 50, 3, 28.0f, 0.0f, 0.0f, 45.0f},
 		{"Historical Champion Hero", "hero", "hero", 350.0f, 4.2f, 2.8f, 18.0f, 0.8f, 0, 16.0f, 6.0f, 6.0f, 25.0f, 200, 0, 200, 0, 3, 30.0f, 12.0f, 6.0f, 0.0f},
@@ -1221,6 +1229,8 @@ inline const UnitTypeInfo &civ_template_unit_info(uint16_t tmpl, uint8_t type) {
 			u.attack_damage = t.attack_damage;
 			u.attack_cooldown = t.attack_cooldown;
 			u.carry_capacity = t.carry_capacity;
+			// template_unit_cavalry ResourceGatherer: citizen cavalry carry 20 meat (Capacities/food).
+			if (t.unit_type == UNIT_CAVALRY && (t.flags & ROSTER_CITIZEN) && u.carry_capacity == 0) u.carry_capacity = 20;
 			if (t.attack_range > u.aggro_range) u.aggro_range = t.attack_range;
 			u.hack_armor = t.hack_armor;
 			u.pierce_armor = t.pierce_armor;
@@ -1633,48 +1643,21 @@ inline const char *civ_building_scaffold(uint8_t type) {
 	}
 }
 
-enum FaunaType : uint8_t {
-	FAUNA_DEER   = 0, // 150 Food, Passive Flee
-	FAUNA_BOAR   = 1, // 300 Food, Aggressive Defense
-	FAUNA_SHEEP  = 2, // 100 Food, Domesticable Herd
-	FAUNA_WOLF   = 3, // 200 Food, Hostile Predator
-	FAUNA_COUNT  = 4
-};
+// Fauna species, treasures and ruins: generated from 0 A.D.'s Gaia templates
+// (tools/extract_0ad_fauna.py -> gaia_data.h, included below the namespace).
 
 enum FaunaBehavior : uint8_t {
-	FAUNA_IDLE_GRAZE = 0,
-	FAUNA_FLEE       = 1,
-	FAUNA_ATTACK     = 2,
+	FAUNA_IDLE_GRAZE = 0, // UnitAI ANIMAL IDLE.LINGERING (feeding)
+	FAUNA_FLEE       = 1, // INDIVIDUAL.FLEEING
+	FAUNA_ATTACK     = 2, // INDIVIDUAL.COMBAT
 	FAUNA_HERDED     = 3,
 	FAUNA_CARCASS    = 4,
-	FAUNA_CORRALLED  = 5
+	FAUNA_CORRALLED  = 5,
+	FAUNA_ROAMING    = 6  // IDLE.ROAMING
 };
-
-struct FaunaTypeInfo {
-	const char *name;
-	const char *model_id;
-	float max_hp;
-	float speed;
-	int food_amount;
-	float agro_range;
-	float attack_damage;
-	float attack_cooldown;
-	bool is_predator;
-	bool is_domestic;
-};
-
-inline const FaunaTypeInfo &fauna_type_info(uint8_t ftype) {
-	static const FaunaTypeInfo kTable[FAUNA_COUNT] = {
-		// name, model, hp, speed, food, agro, dmg, cd, predator, domestic
-		{"Red Deer", "deer", 45.0f, 4.5f, 150, 12.0f, 0.0f, 1.0f, false, false},
-		{"Wild Boar", "boar", 120.0f, 3.8f, 300, 8.0f, 12.0f, 1.2f, true, false},
-		{"Mountain Sheep", "sheep", 35.0f, 2.5f, 100, 10.0f, 0.0f, 1.0f, false, true},
-		{"Gray Wolf", "wolf", 80.0f, 4.8f, 200, 10.0f, 10.0f, 1.0f, true, false}
-	};
-	if (ftype >= FAUNA_COUNT) return kTable[FAUNA_DEER];
-	return kTable[ftype];
-}
 
 } // namespace rtso
+
+#include "gaia_data.h"
 
 #endif
