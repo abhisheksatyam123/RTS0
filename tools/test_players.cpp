@@ -74,9 +74,10 @@ int main() {
 	s.set_player_resources(1, 5000, 5000, 5000, 5000);
 	uint32_t b0 = s.spawn_building_world(-30.0f, 0.0f, BLD_BARRACKS, 0, 1.0f);
 	uint32_t b1 = s.spawn_building_world(30.0f, 0.0f, BLD_BARRACKS, 1, 1.0f);
-	CHECK(!s.cmd_train(1, b0, UNIT_SWORDSMAN));   // player 1 can't use player 0's barracks
+	// Archers are Village phase for every civ (several civs' swordsmen need Town phase).
+	CHECK(!s.cmd_train(1, b0, UNIT_ARCHER));   // player 1 can't use player 0's barracks
 	CHECK(s.food() == 5000);
-	CHECK(s.cmd_train(1, b1, UNIT_SWORDSMAN));
+	CHECK(s.cmd_train(1, b1, UNIT_ARCHER));
 	auto stock = [&](uint8_t p) { int t = 0; for (int r = 0; r < RES_COUNT; ++r) t += s.player_resource(p, r); return t; };
 	CHECK(stock(0) == 20000 && stock(1) < 20000);
 	CHECK(!s.cmd_cancel_train(0, b1, 0));          // nor cancel player 1's queue
