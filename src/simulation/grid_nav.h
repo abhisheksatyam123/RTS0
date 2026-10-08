@@ -129,6 +129,22 @@ struct WaypointPath;
 //     (see src/0ad/.../Pathfinding.h:85, LongPathfinder.cpp:400: di=|dx|, dj=|dz|, diag=min(di,dj),
 //      return PathCost(di-diag+dj-diag, diag) ). find_path below uses exact 10/14 octile weights.
 // ---------------------------------------------------------------------------
+// Global region ids of one passability class, stored per chunk and local region: the local
+// regions of chunk c (c = cj * chunks_per_axis + ci) are entries first[c] .. first[c + 1] - 1 of
+// id, local region r at first[c] + r - 1. Mirrors HierarchicalPathfinder::m_GlobalRegions
+// (HierarchicalPathfinder.h:298) without its std::map.
+struct GlobalRegionIds {
+    std::vector<uint32_t> first; // per chunk, plus one past the last
+    std::vector<uint16_t> id;    // global id per local region, 0 = none
+
+    void clear() { first.clear(); id.clear(); }
+    uint16_t get(size_t chunk, uint8_t local_r) const {
+        if (local_r == 0 || chunk + 1 >= first.size()) return 0;
+        const uint32_t k = first[chunk] + local_r - 1u;
+        return k < first[chunk + 1] ? id[k] : 0;
+    }
+};
+
 struct NavGrid {
     static constexpr int DEFAULT_RES = 64;
     int res = DEFAULT_RES;
@@ -142,13 +158,11 @@ struct NavGrid {
     // Mirrors HierarchicalPathfinder::Chunk::m_Regions[][].
     Grid<uint8_t> chunk_regions_; // local region id per navcell (within its chunk)
 
-    // Global region flood-fill: maps encoded chunk+region key -> global region id.
-    // Key = ci * CHUNKS_PER_AXIS * 256 + cj * 256 + local_r.
-    // Two navcells are connected iff global_region_[key(A)] == global_region_[key(B)] != 0.
-    // Mirrors HierarchicalPathfinder::m_GlobalRegions (HierarchicalPathfinder.h:298).
-    std::unordered_map<uint32_t, uint16_t> global_region_map_;
+    // Global region per chunk and local region (GlobalRegionIds). Two navcells are connected
+    // iff their global ids are equal and non-zero.
+    GlobalRegionIds global_region_map_;
     Grid<uint8_t> ship_chunk_regions_;
-    std::unordered_map<uint32_t, uint16_t> ship_region_map_;
+    GlobalRegionIds ship_region_map_;
 
     // Phase 8A / P2: Cavalry passability & hierarchical chunk region data.
     // steep_cells_: res x res, 1 = cell slope exceeds cavalry_max_slope (impassable for PASS_CAVALRY).
@@ -156,7 +170,7 @@ struct NavGrid {
     // cavalry_region_map_: global connected-region map for PASS_CAVALRY.
     Grid<uint8_t> steep_cells_;
     Grid<uint8_t> cavalry_chunk_regions_;
-    std::unordered_map<uint32_t, uint16_t> cavalry_region_map_;
+    GlobalRegionIds cavalry_region_map_;
     float cavalry_max_slope = DEFAULT_CAVALRY_MAX_SLOPE;
 
     bool regions_ready_ = false;
@@ -270,17 +284,13 @@ struct NavGrid {
         cells.swap(out);
     }
 
-    static uint32_t region_key(int ci, int cj, uint8_t local_r) {
-        return (static_cast<uint32_t>(ci) << 16) | (static_cast<uint32_t>(cj) << 8) | static_cast<uint32_t>(local_r);
-    }
-
     // Port of HierarchicalPathfinder::Chunk::InitRegions (scan/flood per CHUNK_SIZE)
     // + ComputeNeighbors (union across chunk edges) + UpdateGlobalRegions.
     // Vendor: src/0ad/simulation2/helpers/HierarchicalPathfinder.cpp:50, :523, :652
     // Full remesh over all chunks (cold start / water-table swap).
     // Delegates to flood_single_chunk + recompute_global_regions so the
     // per-chunk and full paths share one implementation.
-    void flood_chunk_regions(uint8_t pass, Grid<uint8_t> &local, std::unordered_map<uint32_t, uint16_t> &global) {
+    void flood_chunk_regions(uint8_t pass, Grid<uint8_t> &local, GlobalRegionIds &global) {
         local.fill(0);
         global.clear();
         if (cells.blank()) return;
@@ -359,19 +369,44 @@ struct NavGrid {
     // ComputeNeighbors + UpdateGlobalRegions, HierarchicalPathfinder.cpp:523,
     // :575, :652). Like 0 A.D., the global flood runs at most once per update
     // even when only a few chunks were re-flooded (:467).
-    void recompute_global_regions(Grid<uint8_t> &local, std::unordered_map<uint32_t, uint16_t> &global) {
+    // Global ids are numbered in the order of HierarchicalPathfinder::Recompute (:420-438):
+    // chunks by row (cj, then ci), local regions in order, a new id at each region not yet
+    // reached. So ids depend only on the regions, never on a hash map's iteration order.
+    void recompute_global_regions(Grid<uint8_t> &local, GlobalRegionIds &global) {
         global.clear();
         if (cells.blank()) return;
-        std::unordered_map<uint32_t, uint32_t> parent;
+        const int cpa = chunks_per_axis_;
+        if (cpa <= 0) return;
+        const size_t nchunks = static_cast<size_t>(cpa) * static_cast<size_t>(cpa);
+
+        // Local regions per chunk: flood_single_chunk numbers them 1..n.
+        global.first.assign(nchunks + 1, 0);
+        for (int cj = 0; cj < cpa; ++cj)
+            for (int ci = 0; ci < cpa; ++ci) {
+                const int x0 = ci * CHUNK_SIZE, y0 = cj * CHUNK_SIZE;
+                const int x1 = std::min(x0 + CHUNK_SIZE, res), y1 = std::min(y0 + CHUNK_SIZE, res);
+                uint8_t n = 0;
+                for (int y = y0; y < y1; ++y)
+                    for (int x = x0; x < x1; ++x)
+                        n = std::max(n, local.at(x, y));
+                global.first[static_cast<size_t>(cj) * cpa + ci + 1] = n;
+            }
+        for (size_t c = 0; c < nchunks; ++c)
+            global.first[c + 1] += global.first[c];
+        const uint32_t nregions = global.first[nchunks];
+        auto index = [&](int ci, int cj, uint8_t r) {
+            return global.first[static_cast<size_t>(cj) * cpa + ci] + r - 1u;
+        };
+
+        std::vector<uint32_t> parent(nregions);
+        for (uint32_t k = 0; k < nregions; ++k) parent[k] = k;
         auto findp = [&](uint32_t k) {
-            if (!parent.count(k)) parent[k] = k;
             uint32_t p = k;
             while (parent[p] != p) p = parent[p];
-            uint32_t c = k;
-            while (parent[c] != p) {
-                uint32_t n = parent[c];
-                parent[c] = p;
-                c = n;
+            while (parent[k] != p) {
+                const uint32_t n = parent[k];
+                parent[k] = p;
+                k = n;
             }
             return p;
         };
@@ -381,52 +416,43 @@ struct NavGrid {
             if (a != b) parent[b] = a;
         };
 
-        auto seed_key = [&](int x, int y) {
-            uint8_t lr = local.at(x, y);
-            if (!lr) return;
-            parent[region_key(x / CHUNK_SIZE, y / CHUNK_SIZE, lr)] =
-                region_key(x / CHUNK_SIZE, y / CHUNK_SIZE, lr);
-        };
-        for (int y = 0; y < res; ++y)
-            for (int x = 0; x < res; ++x)
-                seed_key(x, y);
-
-        for (int cj = 0; cj < chunks_per_axis_; ++cj) {
-            for (int ci = 0; ci < chunks_per_axis_ - 1; ++ci) {
+        for (int cj = 0; cj < cpa; ++cj) {
+            for (int ci = 0; ci < cpa - 1; ++ci) {
                 int x = (ci + 1) * CHUNK_SIZE - 1;
                 int x2 = x + 1;
                 if (x2 >= res) continue;
                 for (int y = cj * CHUNK_SIZE; y < (cj + 1) * CHUNK_SIZE && y < res; ++y) {
                     uint8_t r1 = local.at(x, y), r2 = local.at(x2, y);
-                    if (r1 && r2) unite(region_key(ci, cj, r1), region_key(ci + 1, cj, r2));
+                    if (r1 && r2) unite(index(ci, cj, r1), index(ci + 1, cj, r2));
                 }
             }
         }
-        for (int ci = 0; ci < chunks_per_axis_; ++ci) {
-            for (int cj = 0; cj < chunks_per_axis_ - 1; ++cj) {
+        for (int ci = 0; ci < cpa; ++ci) {
+            for (int cj = 0; cj < cpa - 1; ++cj) {
                 int y = (cj + 1) * CHUNK_SIZE - 1;
                 int y2 = y + 1;
                 if (y2 >= res) continue;
                 for (int x = ci * CHUNK_SIZE; x < (ci + 1) * CHUNK_SIZE && x < res; ++x) {
                     uint8_t r1 = local.at(x, y), r2 = local.at(x, y2);
-                    if (r1 && r2) unite(region_key(ci, cj, r1), region_key(ci, cj + 1, r2));
+                    if (r1 && r2) unite(index(ci, cj, r1), index(ci, cj + 1, r2));
                 }
             }
         }
 
+        global.id.assign(nregions, 0);
+        std::vector<uint16_t> root_id(nregions, 0);
         uint16_t next_g = 1;
-        std::unordered_map<uint32_t, uint16_t> root_ids;
-        for (const auto &kv : parent) {
-            uint32_t root = findp(kv.first);
-            if (!root_ids.count(root)) root_ids[root] = next_g++;
-            global[kv.first] = root_ids[root];
+        for (uint32_t k = 0; k < nregions; ++k) {
+            const uint32_t root = findp(k);
+            if (!root_id[root]) root_id[root] = next_g++;
+            global.id[k] = root_id[root];
         }
     }
 
     // HierarchicalPathfinder::Update — re-flood only dirty chunks, then
     // rebuild the global map once (HierarchicalPathfinder.cpp:440-520).
     // Returns the number of chunk floods performed (0 when clean).
-    int rebuild_dirty_chunks(uint8_t pass, Grid<uint8_t> &local, std::unordered_map<uint32_t, uint16_t> &global) {
+    int rebuild_dirty_chunks(uint8_t pass, Grid<uint8_t> &local, GlobalRegionIds &global) {
         int floods = 0;
         for (int cj = 0; cj < chunks_per_axis_; ++cj)
             for (int ci = 0; ci < chunks_per_axis_; ++ci) {
@@ -468,8 +494,9 @@ struct NavGrid {
         if (local->blank() || !local->inside(cx, cy)) return 0;
         uint8_t lr = local->at(cx, cy);
         if (!lr) return 0;
-        auto it = gmap->find(region_key(cx / CHUNK_SIZE, cy / CHUNK_SIZE, lr));
-        return it == gmap->end() ? 0 : it->second;
+        const int ci = cx / CHUNK_SIZE, cj = cy / CHUNK_SIZE;
+        if (ci >= chunks_per_axis_ || cj >= chunks_per_axis_) return 0;
+        return gmap->get(static_cast<size_t>(cj) * chunks_per_axis_ + ci, lr);
     }
 
     uint16_t global_region_cavalry_at(int cx, int cy) const {
