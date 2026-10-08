@@ -1562,17 +1562,51 @@ float Simulation::trader_gains(const Building *a, const Building *b) const {
 	return (float)calculate_trader_gain(*a, *b, a->team);
 }
 
-bool Simulation::can_trade_at(uint8_t trader_owner, const Building &b) const {
-	// Trader.js CanTrade: a finished land market (the Market class) whose owner
-	// the trader's owner is not at war with. Docks are for merchant ships.
-	return b.type == BLD_MARKET && b.build_progress >= 1.0f && b.hp > 0.0f &&
+bool Simulation::can_trade_at(uint8_t trader_owner, const Building &b, uint8_t trader_type) const {
+	// Trader.js CanTrade: a finished market whose owner the trader's owner is not
+	// at war with. Land traders use Markets, merchant ships Docks (Market TradeType).
+	const uint8_t kind = trader_type == UNIT_MERCHANT_SHIP ? BLD_DOCK : BLD_MARKET;
+	return b.type == kind && b.build_progress >= 1.0f && b.hp > 0.0f &&
 	       b.team < MAX_PLAYERS && trader_owner < MAX_PLAYERS && !is_hostile(trader_owner, b.team);
 }
 
-bool Simulation::has_trade_route(uint8_t player_id) const {
+uint16_t Simulation::dock_sea(const Building &b) const {
+	// The ship region of the nearest water cell around the dock's footprint.
+	if (nav_grid_.cells.blank()) return 0;
+	auto [cx, cy] = nav_grid_.world_to_cell(b.x, b.z);
+	const float cell = 2.0f * nav_grid_.map_half / (float)nav_grid_.res;
+	const int r = (int)std::ceil(b.half_size / cell) + 2;
+	uint16_t best = 0;
+	int best_d2 = INT32_MAX;
+	for (int dy = -r; dy <= r; ++dy)
+		for (int dx = -r; dx <= r; ++dx) {
+			const int x = cx + dx, y = cy + dy;
+			if (x < 0 || y < 0 || x >= nav_grid_.cells.w || y >= nav_grid_.cells.h) continue;
+			if (!nav_grid_.is_passable_for(x, y, PASS_SHIP)) continue;
+			const int d2 = dx * dx + dy * dy;
+			if (d2 >= best_d2) continue;
+			const uint16_t reg = nav_grid_.global_region_at(x, y, PASS_SHIP);
+			if (reg) { best = reg; best_d2 = d2; }
+		}
+	return best;
+}
+
+bool Simulation::has_trade_route(uint8_t player_id, uint8_t trader_type) const {
+	if (trader_type == UNIT_MERCHANT_SHIP) {
+		// Two docks on the same sea.
+		std::vector<uint16_t> seas;
+		for (const auto &b : buildings_) {
+			if (!can_trade_at(player_id, b, trader_type)) continue;
+			const uint16_t sea = dock_sea(b);
+			if (!sea) continue;
+			if (std::find(seas.begin(), seas.end(), sea) != seas.end()) return true;
+			seas.push_back(sea);
+		}
+		return false;
+	}
 	int n = 0;
 	for (const auto &b : buildings_)
-		if (can_trade_at(player_id, b) && ++n >= 2) return true;
+		if (can_trade_at(player_id, b, trader_type) && ++n >= 2) return true;
 	return false;
 }
 
@@ -1611,9 +1645,11 @@ void Simulation::order_trade(const uint32_t *unit_ids, size_t count, uint32_t ma
 	const Building &bB = buildings_[itB->second];
 	for (size_t k = 0; k < count; ++k) {
 		int32_t uidx = lookup_unit(unit_ids[k]);
-		if (uidx < 0 || !units_.alive[uidx] || units_.unit_type[uidx] != UNIT_TRADER) continue;
+		if (uidx < 0 || !units_.alive[uidx] || !unit_is_trader(units_.unit_type[uidx])) continue;
 		const uint8_t owner = units_.team[uidx];
-		if (!can_trade_at(owner, bA) || !can_trade_at(owner, bB)) continue;
+		const uint8_t ttype = units_.unit_type[uidx];
+		if (!can_trade_at(owner, bA, ttype) || !can_trade_at(owner, bB, ttype)) continue;
+		if (ttype == UNIT_MERCHANT_SHIP && (dock_sea(bA) == 0 || dock_sea(bA) != dock_sea(bB))) continue;
 		uint32_t uid = units_.id[uidx];
 		trader_routes_[uid] = {market_a_id, market_b_id};
 		trader_leg_[uid] = 0;
@@ -1633,14 +1669,22 @@ void Simulation::order_trade_auto(const uint32_t *unit_ids, size_t count) {
 	std::vector<const Building *> markets;
 	for (size_t k = 0; k < count; ++k) {
 		int32_t uidx = lookup_unit(unit_ids[k]);
-		if (uidx < 0 || !units_.alive[uidx] || units_.unit_type[uidx] != UNIT_TRADER) continue;
+		if (uidx < 0 || !units_.alive[uidx] || !unit_is_trader(units_.unit_type[uidx])) continue;
 		const uint8_t owner = units_.team[uidx];
+		const uint8_t ttype = units_.unit_type[uidx];
+		const bool ship = ttype == UNIT_MERCHANT_SHIP;
 		// The gain grows with distance, so the best route is the farthest pair of
 		// markets the owner can trade at, own or not. Starting at the nearer end
-		// of that pair saves the empty first walk.
+		// of that pair saves the empty first walk. A merchant ship's docks must
+		// share its own sea.
+		uint16_t my_sea = 0;
+		if (ship) {
+			auto [ucx, ucy] = nav_grid_.world_to_cell(units_.pos_x[uidx], units_.pos_z[uidx]);
+			my_sea = nav_grid_.global_region_at(ucx, ucy, PASS_SHIP);
+		}
 		markets.clear();
 		for (const auto &b : buildings_)
-			if (can_trade_at(owner, b)) markets.push_back(&b);
+			if (can_trade_at(owner, b, ttype) && (!ship || (my_sea && dock_sea(b) == my_sea))) markets.push_back(&b);
 		const Building *best_a = nullptr, *best_b = nullptr;
 		float best_d2 = -1.0f;
 		for (size_t i = 0; i < markets.size(); ++i) {
@@ -2524,9 +2568,10 @@ void Simulation::move_units(float dt, Arena &arena) {
 	// G3 Trader routes (0 A.D. Trader.js PerformTrade, UnitAI TRADE), run
 	// sequentially before the parallel movement pass.
 	for (size_t ti = 0; ti < n; ++ti) {
-		if (!alive[ti] || units_.unit_type[ti] != UNIT_TRADER) continue;
+		if (!alive[ti] || !unit_is_trader(units_.unit_type[ti])) continue;
 		uint32_t uid = units_.id[ti];
 		const uint8_t owner = units_.team[ti];
+		const uint8_t ttype = units_.unit_type[ti];
 		auto rit = trader_routes_.find(uid);
 		if (units_.action_state[ti] != ACTION_TRADE || rit == trader_routes_.end()) {
 			// An idle trader looks for a route, at most every 20 ticks (2 s).
@@ -2538,7 +2583,7 @@ void Simulation::move_units(float dt, Arena &arena) {
 		auto itB = building_id_to_idx_.find(rit->second.second);
 		const Building *bA = (itA != building_id_to_idx_.end()) ? &buildings_[itA->second] : nullptr;
 		const Building *bB = (itB != building_id_to_idx_.end()) ? &buildings_[itB->second] : nullptr;
-		if (!bA || !bB || !can_trade_at(owner, *bA) || !can_trade_at(owner, *bB)) {
+		if (!bA || !bB || !can_trade_at(owner, *bA, ttype) || !can_trade_at(owner, *bB, ttype)) {
 			// Market.js UpdateTraders: a market destroyed, captured by an enemy or
 			// at war with the trader's owner ends the route and drops the goods.
 			trader_routes_.erase(rit);
@@ -2561,14 +2606,16 @@ void Simulation::move_units(float dt, Arena &arena) {
 		const float dz = dest.z - pz[ti];
 		const float edge_dx = std::max(0.0f, std::fabs(dx) - dest.half_size);
 		const float edge_dz = std::max(0.0f, std::fabs(dz) - dest.half_size);
-		if (dx * dx + dz * dz >= 2.5f * 2.5f && edge_dx * edge_dx + edge_dz * edge_dz >= 2.0f * 2.0f) continue;
+		// A ship stops in the water beside the dock, a little further out.
+		const float reach = ttype == UNIT_MERCHANT_SHIP ? 4.0f : 2.0f;
+		if (dx * dx + dz * dz >= 2.5f * 2.5f && edge_dx * edge_dx + edge_dz * edge_dz >= reach * reach) continue;
 
 		// Arrived. Goods loaded at the other market pay out here (Trader.js
 		// GenerateResources): the trader's owner, and with markets of two
 		// different owners, each market's owner its international bonus.
 		if (units_.carry[ti] > 0) {
 			const uint8_t goods = units_.res_type_carried[ti];
-			const TradeGain g = calculate_trade_gain(origin, dest, owner);
+			const TradeGain g = calculate_trade_gain(origin, dest, owner, ttype);
 			credit_trade(owner, goods, g.trader);
 			credit_trade(origin.team, goods, g.market1);
 			credit_trade(dest.team, goods, g.market2);
@@ -6393,9 +6440,28 @@ void Simulation::petra_manage_trading(float dt) {
 		}
 	}
 
-	// 3. Dispatch Idle Traders on Active Trade Routes
+	// 2b. tradeManager.js: with no land route but two docks on one sea, trade by sea instead.
+	if (!has_trade_route(petra_pid_) && has_trade_route(petra_pid_, UNIT_MERCHANT_SHIP) && pop_current(petra_pid_) < pop_max(petra_pid_)) {
+		int ai_ships = 0;
+		for (size_t i = 0; i < units_.count; ++i)
+			if (units_.alive[i] && units_.team[i] == petra_pid_ && units_.unit_type[i] == UNIT_MERCHANT_SHIP) ai_ships++;
+		Building *dock = nullptr;
+		for (Building &b : buildings_)
+			if (b.team == petra_pid_ && can_trade_at(petra_pid_, b, UNIT_MERCHANT_SHIP) && dock_sea(b) && b.queue.size() < 3) { dock = &b; break; }
+		const UnitTypeInfo &sinfo = civ_unit_info(civ_of(petra_pid_), UNIT_MERCHANT_SHIP);
+		if (dock && ai_ships < target_traders &&
+		    petra_try_pay(PETRA_QUEUE_TRADE, (float)sinfo.food_cost, (float)sinfo.wood_cost, (float)sinfo.gold_cost, (float)sinfo.stone_cost)) {
+			ProductionOrder order;
+			order.unit_type = UNIT_MERCHANT_SHIP;
+			order.timer = 0.0f;
+			order.duration = sinfo.train_time * 0.75f * tech_mods(petra_pid_).train_time[UNIT_MERCHANT_SHIP] * ai_time_mult(petra_pid_);
+			dock->queue.push_back(order);
+		}
+	}
+
+	// 3. Dispatch Idle Traders and merchant ships on Active Trade Routes
 	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.unit_type[i] != UNIT_TRADER) continue;
+		if (!units_.alive[i] || units_.team[i] != petra_pid_ || !unit_is_trader(units_.unit_type[i])) continue;
 		uint32_t uid = units_.id[i];
 		if (units_.action_state[i] == ACTION_IDLE || trader_routes_.find(uid) == trader_routes_.end()) {
 			order_trade_auto(&uid, 1);

@@ -1066,6 +1066,8 @@ inline bool unit_has_pack(uint16_t tmpl, uint8_t type) {
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) return (civ_unit_template(tmpl).flags & ROSTER_PACKABLE) != 0;
 	return (unit_tech_classes(type) & (TC_STONETHROWER | TC_BOLTSHOOTER)) != 0;
 }
+// 0 A.D. Trader units: land traders trade between Markets, merchant ships between Docks.
+inline bool unit_is_trader(uint8_t type) { return type == UNIT_TRADER || type == UNIT_MERCHANT_SHIP; }
 inline bool pack_state_can_move(uint8_t s) { return s == PACK_NONE || s == PACK_PACKED; }
 inline bool pack_state_can_attack(uint8_t s) { return s == PACK_NONE || s == PACK_UNPACKED; }
 
