@@ -11,6 +11,7 @@
 #include <memory>
 #include <limits>
 #include <cstring>
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -145,10 +146,18 @@ struct UnitGrid {
 // rounding, and the widest block window it handles (vision up to ~56 FoW cells).
 constexpr float FOW_LOS_CLEARANCE = 0.35f - 0.01f;
 constexpr int FOW_BOX_MAX_W = 32;
+// kFowByteMask[b]: 0xFF in byte i for each bit i set in b, for reveal_fow()'s FowView copy.
+constexpr std::array<uint64_t, 256> kFowByteMask = [] {
+	std::array<uint64_t, 256> t{};
+	for (int b = 0; b < 256; ++b)
+		for (int i = 0; i < 8; ++i)
+			if (b >> i & 1) t[b] |= 0xFFull << (8 * i);
+	return t;
+}();
 // For each block of the (2rb+1)^2 window centred on block (bcx, bcz), the highest block_hmax in
 // the box of blocks from the centre to that block. Fills the blocks inside the GB x GB grid; the
 // window is row-major in `out`.
-void fow_box_max(const float *block_hmax, int GB, int bcx, int bcz, int rb, float *out) {
+[[gnu::noinline]] void fow_box_max(const float *block_hmax, int GB, int bcx, int bcz, int rb, float *out) {
 	const int WB = 2 * rb + 1;
 	for (int zs = -1; zs <= 1; zs += 2)
 		for (int xs = -1; xs <= 1; xs += 2)
@@ -897,10 +906,153 @@ bool Simulation::can_place(int cell_x, int cell_y, int footprint) const {
 	return true;
 }
 
+namespace {
+// 0 A.D. BuildRestrictions per structure template. template_structure.xml
+// defaults to land placement in own territory; the overrides are
+// civil_centre (own neutral, 200 m from a CivilCentre), dock (shore, own ally
+// neutral), defensive_wall and its gate and tower (land-shore), palisade
+// (land-shore, own neutral), outpost (own neutral, 50 m from an Outpost),
+// defensive_tower (60 m from a Tower) and fortress (80 m from a Fortress).
+enum : uint8_t { PLACE_LAND, PLACE_SHORE_TYPE, PLACE_LAND_SHORE };
+enum : uint8_t { TERR_OWN = 1, TERR_ALLY = 2, TERR_NEUTRAL = 4, TERR_ENEMY = 8 };
+enum : uint8_t { DIST_NONE, DIST_CIVIL_CENTRE, DIST_TOWER, DIST_FORTRESS, DIST_OUTPOST };
+struct BuildRestriction {
+	uint8_t placement, territory, distance_class;
+	float min_distance; // world units (one tile, 4 m)
+};
+BuildRestriction build_restriction(uint8_t type) {
+	switch (type) {
+	case BLD_TOWN_CENTER: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_CIVIL_CENTRE, 200.0f / 4.0f};
+	case BLD_DOCK: return {PLACE_SHORE_TYPE, TERR_OWN | TERR_ALLY | TERR_NEUTRAL, DIST_NONE, 0.0f};
+	case BLD_WALL_SEGMENT: case BLD_GATE: case BLD_WALL_TOWER: return {PLACE_LAND_SHORE, TERR_OWN, DIST_NONE, 0.0f};
+	case BLD_PALISADE: return {PLACE_LAND_SHORE, TERR_OWN | TERR_NEUTRAL, DIST_NONE, 0.0f};
+	case BLD_OUTPOST: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_OUTPOST, 50.0f / 4.0f};
+	case BLD_TOWER: case BLD_SENTRY_TOWER: return {PLACE_LAND, TERR_OWN, DIST_TOWER, 60.0f / 4.0f};
+	case BLD_FORTRESS: return {PLACE_LAND, TERR_OWN, DIST_FORTRESS, 80.0f / 4.0f};
+	default: return {PLACE_LAND, TERR_OWN, DIST_NONE, 0.0f};
+	}
+}
+uint8_t distance_class_of(uint8_t type) {
+	switch (type) {
+	case BLD_TOWN_CENTER: return DIST_CIVIL_CENTRE;
+	case BLD_TOWER: case BLD_SENTRY_TOWER: return DIST_TOWER; // both carry the Tower class
+	case BLD_FORTRESS: return DIST_FORTRESS;
+	case BLD_OUTPOST: return DIST_OUTPOST;
+	default: return DIST_NONE;
+	}
+}
+} // namespace
+
+Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell_x, int cell_y, uint8_t b_type) const {
+	if (player >= MAX_PLAYERS || b_type >= BLD_TYPE_COUNT) return PLACE_OBSTRUCTED;
+	const BuildingTypeInfo &binfo = building_type_info(b_type);
+	const BuildRestriction rule = build_restriction(b_type);
+	const int foot = binfo.footprint;
+	// 1. Obstruction (CheckFoundation): the map edge, other buildings, and resources
+	// (trees, mines, bushes; a field's grain and carcasses don't block).
+	if (!can_place(cell_x, cell_y, foot)) return PLACE_OBSTRUCTED;
+	const float x0 = cell_x * GRID, z0 = cell_y * GRID;
+	const float x1 = x0 + foot * GRID, z1 = z0 + foot * GRID;
+	const float cxw = 0.5f * (x0 + x1), czw = 0.5f * (z0 + z1);
+	{
+		const int w = std::max(1, (int)std::ceil(2.0f * map_half_ / GRID));
+		if (resource_block_tick_ != ticks_ || resource_block_count_ != resources_.count || resource_block_w_ != w) {
+			resource_block_tick_ = ticks_;
+			resource_block_count_ = resources_.count;
+			resource_block_w_ = w;
+			resource_block_cells_.assign((size_t)w * w, 0);
+			for (size_t r = 0; r < resources_.count; ++r) {
+				if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
+				const uint8_t sub = resources_.subtype[r];
+				if (sub == RES_SUB_GRAIN || sub == RES_SUB_MEAT) continue;
+				// Gaia resource obstructions are about 1.5 m (3/8 tile) across their centre.
+				const int gx0 = std::max(0, (int)std::floor((resources_.x[r] - 0.375f + map_half_) / GRID));
+				const int gx1 = std::min(w - 1, (int)std::floor((resources_.x[r] + 0.375f + map_half_) / GRID));
+				const int gz0 = std::max(0, (int)std::floor((resources_.z[r] - 0.375f + map_half_) / GRID));
+				const int gz1 = std::min(w - 1, (int)std::floor((resources_.z[r] + 0.375f + map_half_) / GRID));
+				for (int z = gz0; z <= gz1; ++z)
+					for (int x = gx0; x <= gx1; ++x) resource_block_cells_[(size_t)z * w + x] = 1;
+			}
+		}
+		const int off = (int)std::lround(map_half_ / GRID);
+		for (int dz = 0; dz < foot; ++dz)
+			for (int dx = 0; dx < foot; ++dx) {
+				const int x = cell_x + dx + off, z = cell_y + dz + off;
+				if (x >= 0 && z >= 0 && x < w && z < w && resource_block_cells_[(size_t)z * w + x]) return PLACE_OBSTRUCTED;
+			}
+	}
+
+	// 2. Terrain passability class: building-land has no water under the
+	// footprint, a wall (default-terrain-only, centre point only) stands where
+	// land units can wade (NAV_SHALLOW, 2 m), and a dock needs land under it and
+	// a sea beside it.
+	const bool have_nav = !nav_grid_.cells.blank();
+	const float nav_cell = have_nav ? 2.0f * nav_grid_.map_half / (float)nav_grid_.res : GRID;
+	auto is_water = [&](int nx, int ny) { // any water, shallow included (building-land MaxWaterDepth 0)
+		if (nx < 0 || ny < 0 || nx >= nav_grid_.cells.w || ny >= nav_grid_.cells.h) return false;
+		const uint8_t c = nav_grid_.cells.at(nx, ny);
+		return c == NAV_WATER || c == NAV_SHALLOW;
+	};
+	if (have_nav) {
+		auto [nx0, ny0] = nav_grid_.world_to_cell(x0 + 0.01f, z0 + 0.01f);
+		auto [nx1, ny1] = nav_grid_.world_to_cell(x1 - 0.01f, z1 - 0.01f);
+		if (rule.placement == PLACE_LAND) {
+			for (int y = ny0; y <= ny1; ++y)
+				for (int x = nx0; x <= nx1; ++x)
+					if (is_water(x, y)) return PLACE_TERRAIN;
+		} else if (rule.placement == PLACE_LAND_SHORE) {
+			auto [ncx, ncy] = nav_grid_.world_to_cell(cxw, czw);
+			if (nav_grid_.cells.inside(ncx, ncy) && nav_grid_.cells.at(ncx, ncy) == NAV_WATER) return PLACE_TERRAIN;
+		} else {
+			// CheckShorePlacement: part of the footprint on land, a sea cell at its edge.
+			bool land = false, sea = false;
+			for (int y = ny0; y <= ny1 && !land; ++y)
+				for (int x = nx0; x <= nx1 && !land; ++x)
+					land = !is_water(x, y);
+			const int ring = std::max(1, (int)std::ceil(GRID / nav_cell));
+			for (int y = ny0 - ring; y <= ny1 + ring && !sea; ++y)
+				for (int x = nx0 - ring; x <= nx1 + ring && !sea; ++x)
+					sea = nav_grid_.is_passable_for(x, y, PASS_SHIP) &&
+							nav_grid_.global_region_at(x, y, PASS_SHIP) != 0;
+			if (!land) return PLACE_TERRAIN;
+			if (!sea) return PLACE_SHORE;
+		}
+	} else if (rule.placement == PLACE_SHORE_TYPE) {
+		return PLACE_SHORE;
+	}
+
+	// 3. Territory at the centre. Every RTS0 territory cell comes from a root
+	// building, so none is unconnected. Before the first territory pass sizes the
+	// grid (a scenario still being set up) there is nothing to check against.
+	if (!territory_grid_.blank()) {
+		const int owner = territory_owner_at(cxw, czw);
+		uint8_t kind;
+		if (owner == (int)player) kind = TERR_OWN;
+		else if (owner < 0 || owner >= MAX_PLAYERS) kind = TERR_NEUTRAL;
+		else if (is_ally(player, (uint8_t)owner) && is_ally((uint8_t)owner, player)) kind = TERR_ALLY;
+		else kind = TERR_ENEMY;
+		if (!(rule.territory & kind)) return PLACE_TERRITORY;
+	}
+
+	// 4. Distance from the player's own structures (foundations included) of the
+	// same class, measured between footprint edges.
+	if (rule.distance_class != DIST_NONE) {
+		const float half = 0.5f * foot * GRID;
+		for (const Building &b : buildings_) {
+			if (b.team != player || b.hp <= 0.0f || distance_class_of(b.type) != rule.distance_class) continue;
+			const float d = std::hypot(b.x - cxw, b.z - czw) - half - b.half_size;
+			if (d < rule.min_distance) return PLACE_DISTANCE;
+		}
+	}
+	return PLACE_OK;
+}
+
 uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b_type) {
 	if (player >= MAX_PLAYERS) return 0;
+	if (b_type >= BLD_TYPE_COUNT) return 0;
 	const BuildingTypeInfo &binfo = building_type_info(b_type);
-	if (!can_place(cell_x, cell_y, binfo.footprint)) return 0;
+	rebuild_territory(); // territory from every finished root so far (a no-op when nothing changed)
+	if (check_placement(player, cell_x, cell_y, b_type) != PLACE_OK) return 0;
 	if (building_required_phase(b_type) > players_[player].phase) return 0;
 
 	// 0 A.D. civ structure cost bonuses (e.g. Iberian walls, Han stone discount).
@@ -6135,8 +6287,9 @@ void Simulation::order_back_to_work(const uint32_t *unit_ids, size_t count) {
 // Petra keeps a free ring of cells around everything it builds so units can
 // always walk around and reach foundations (0 A.D. placement uses obstruction
 // clearance for the same reason); tight packing left builders stranded.
-bool Simulation::petra_can_place(int cell_x, int cell_y, int footprint) const {
-	return can_place(cell_x - 1, cell_y - 1, footprint + 2);
+bool Simulation::petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype) const {
+	if (!can_place(cell_x - 1, cell_y - 1, footprint + 2)) return false;
+	return btype >= BLD_TYPE_COUNT || check_placement(petra_pid_, cell_x, cell_y, btype) == PLACE_OK;
 }
 
 void Simulation::update_petra_threat_map(float dt) {
@@ -6450,17 +6603,14 @@ void Simulation::petra_manage_scouting(float dt) {
 		}
 	};
 
-	if (!revealed) ensure_fow_cell_heights();
-	for (size_t u = 0; u < units_.count && !revealed; ++u) {
-		if (!units_.alive[u] || units_.team[u] != petra_pid_) continue;
-		reveal_fow(petra_fow_, units_.pos_x[u], units_.pos_z[u], vision_radius(units_.unit_type[u]));
-	}
-
-	for (const auto &b : buildings_) {
-		if (revealed) break;
-		if (b.team != petra_pid_ || b.build_progress < 0.5f) continue;
-		float bvr = (b.type == BLD_TOWER || b.type == BLD_FORTRESS) ? 24.0f : ((b.type == BLD_DOCK) ? 28.0f : 18.0f);
-		reveal_fow(petra_fow_, b.x, b.z, bvr);
+	if (!revealed) {
+		ensure_fow_cell_heights();
+		reveal_viewers(petra_fow_, petra_fow_views_,
+				[&](size_t u) { return units_.alive[u] && units_.team[u] == petra_pid_ ? vision_radius(units_.unit_type[u]) : 0.0f; },
+				[&](const Building &b) {
+					if (b.team != petra_pid_ || b.build_progress < 0.5f) return 0.0f;
+					return (b.type == BLD_TOWER || b.type == BLD_FORTRESS) ? 24.0f : ((b.type == BLD_DOCK) ? 28.0f : 18.0f);
+				});
 	}
 
 	// 2. Validate current scout unit or recruit candidate
@@ -7325,7 +7475,7 @@ void Simulation::petra_manage_trading(float dt) {
 				if (std::abs(dx) < 4 && std::abs(dz) < 4) continue;
 				const int cx = start_cx + dx, cz = start_cz + dz;
 				const float wx = cx * GRID, wz = cz * GRID;
-				if (territory_owner_at(wx, wz) != petra_pid_ || !petra_can_place(cx, cz, 2) ||
+				if (territory_owner_at(wx, wz) != petra_pid_ || !petra_can_place(cx, cz, 2, BLD_MARKET) ||
 				    !is_position_safe(wx, wz, 6.0f)) continue;
 				float far2 = 0.0f;
 				for (const Building *m : ally_markets)
@@ -7353,7 +7503,7 @@ void Simulation::petra_manage_trading(float dt) {
 					if (std::abs(dx) != r && std::abs(dz) != r) continue;
 					int cx = start_cx + dx;
 					int cz = start_cz + dz;
-					if (petra_can_place(cx, cz, 2) && is_position_safe(cx * GRID, cz * GRID, 6.0f) &&
+					if (petra_can_place(cx, cz, 2, BLD_MARKET) && is_position_safe(cx * GRID, cz * GRID, 6.0f) &&
 					    petra_try_pay(PETRA_QUEUE_TRADE, 0.0f, 200.0f, 100.0f, 0.0f)) {
 						uint32_t bid = spawn_building(cx, cz, BLD_MARKET, petra_pid_, 0.0f);
 						auto idle_workers = get_idle_workers(petra_pid_);
@@ -7377,7 +7527,7 @@ void Simulation::petra_manage_trading(float dt) {
 					if (std::abs(dx) != r && std::abs(dz) != r) continue;
 					int cx = start_cx + dx;
 					int cz = start_cz + dz;
-					if (petra_can_place(cx, cz, 2) && is_position_safe(cx * GRID, cz * GRID, 6.0f) &&
+					if (petra_can_place(cx, cz, 2, BLD_MARKET) && is_position_safe(cx * GRID, cz * GRID, 6.0f) &&
 					    petra_try_pay(PETRA_QUEUE_TRADE, 0.0f, 200.0f, 100.0f, 0.0f)) {
 						uint32_t bid = spawn_building(cx, cz, BLD_MARKET, petra_pid_, 0.0f);
 						auto idle_workers = get_idle_workers(petra_pid_);
@@ -7525,7 +7675,7 @@ void Simulation::petra_manage_naval(float dt) {
 					float wz = cz * GRID;
 					float h = get_terrain_height(wx, wz);
 					if (h >= terrain_water_height_ - 0.5f && h <= terrain_water_height_ + 1.8f) {
-						if (petra_can_place(cx, cz, 2) && is_position_safe(wx, wz, 6.0f) &&
+						if (petra_can_place(cx, cz, 2, BLD_DOCK) && is_position_safe(wx, wz, 6.0f) &&
 						    petra_try_pay(PETRA_QUEUE_NAVAL, 0.0f, 200.0f, 0.0f, 100.0f)) {
 							uint32_t bid = spawn_building(cx, cz, BLD_DOCK, petra_pid_, 0.0f);
 							auto idle_workers = get_idle_workers(petra_pid_);
@@ -7739,7 +7889,7 @@ void Simulation::petra_manage_buildings(float dt) {
 					if (std::abs(dx) != r && std::abs(dz) != r) continue;
 					int cx = start_cx + dx;
 					int cz = start_cz + dz;
-					if (petra_can_place(cx, cz, 1) &&
+					if (petra_can_place(cx, cz, 1, BLD_TOWER) &&
 					    petra_try_pay(PETRA_QUEUE_EMERGENCY, 0.0f, 100.0f, 0.0f, 100.0f)) {
 						uint32_t bid = spawn_building(cx, cz, BLD_TOWER, petra_pid_, 0.0f);
 						auto idle_workers = get_idle_workers(petra_pid_);
@@ -7800,7 +7950,7 @@ void Simulation::petra_manage_buildings(float dt) {
 
 				int cx = (int)(rx / GRID);
 				int cz = (int)(rz / GRID);
-				if (petra_can_place(cx, cz, 2)) {
+				if (petra_can_place(cx, cz, 2, BLD_TOWN_CENTER)) {
 					// Score based on surrounding resources
 					float score = 0.0f;
 					for (size_t j = 0; j < resources_.count; ++j) {
@@ -7911,7 +8061,7 @@ void Simulation::petra_manage_buildings(float dt) {
 							if (std::abs(dx) != r && std::abs(dz) != r) continue;
 							int cx = start_cx + dx;
 							int cz = start_cz + dz;
-							if (petra_can_place(cx, cz, 1) && is_position_safe(cx * GRID, cz * GRID, 5.0f) &&
+							if (petra_can_place(cx, cz, 1, dropsite_type) && is_position_safe(cx * GRID, cz * GRID, 5.0f) &&
 							    petra_try_pay(PETRA_QUEUE_VILLAGER, 0.0f, 100.0f, 0.0f, 0.0f)) {
 								uint32_t bid = spawn_building(cx, cz, dropsite_type, petra_pid_, 0.0f);
 								auto idle_workers = get_idle_workers(petra_pid_);
@@ -7965,7 +8115,7 @@ void Simulation::petra_manage_buildings(float dt) {
 				for (int dz = -r; dz <= r && !placed; ++dz) {
 					int cx = start_cx + dx;
 					int cz = start_cz + dz;
-					if (petra_can_place(cx, cz, 2) &&
+					if (petra_can_place(cx, cz, 2, BLD_BARRACKS) &&
 					    petra_try_pay(PETRA_QUEUE_MILITARY, 0.0f, 150.0f, 50.0f, 50.0f)) {
 						uint32_t bid = spawn_building(cx, cz, BLD_BARRACKS, petra_pid_, 0.0f);
 						auto idle_workers = get_idle_workers(petra_pid_);
@@ -7998,7 +8148,7 @@ void Simulation::petra_manage_buildings(float dt) {
 					for (int dz = -r; dz <= 0 && !placed; ++dz) {
 						int cx = start_cx + dx;
 						int cz = start_cz + dz;
-						if (petra_can_place(cx, cz, 1) &&
+						if (petra_can_place(cx, cz, 1, BLD_TOWER) &&
 						    petra_try_pay(PETRA_QUEUE_MILITARY, 0.0f, 100.0f, 0.0f, 100.0f)) {
 							uint32_t bid = spawn_building(cx, cz, BLD_TOWER, petra_pid_, 0.0f);
 							auto idle_workers = get_idle_workers(petra_pid_);
@@ -8032,7 +8182,7 @@ void Simulation::petra_manage_buildings(float dt) {
 					for (int dz = -r; dz <= 0 && !placed; ++dz) {
 						int cx = start_cx + dx;
 						int cz = start_cz + dz;
-						if (petra_can_place(cx, cz, 2)) {
+						if (petra_can_place(cx, cz, 2, BLD_FORTRESS)) {
 							if (!petra_try_pay(PETRA_QUEUE_MILITARY, 0.0f, 300.0f, 200.0f, 300.0f)) break;
 							uint32_t bid = spawn_building(cx, cz, BLD_FORTRESS, petra_pid_, 0.0f);
 							auto idle_workers = get_idle_workers(petra_pid_);
@@ -9438,7 +9588,7 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 				if (std::abs(dx) != r && std::abs(dz) != r) continue;
 				int cx = start_cx + dx;
 				int cz = start_cz + dz;
-				if (!petra_can_place(cx, cz, foot)) continue;
+				if (!petra_can_place(cx, cz, foot, btype)) continue;
 				if (!petra_try_pay(queue, (float)info.food_cost, (float)info.wood_cost,
 				                   (float)info.gold_cost, (float)info.stone_cost)) {
 					return 0;
@@ -11113,6 +11263,7 @@ void Simulation::ensure_fow_cell_heights() {
 	// it once instead of once per viewer per cell.
 	const int G = grid_res_;
 	if (fow_cell_height_.size() == (size_t)G * (size_t)G) return;
+	if (++fow_view_gen_ == 0) ++fow_view_gen_; // 0 marks a FowView never filled
 	const float half = map_half_;
 	const float cell = (half * 2.0f) / (float)G;
 	fow_cell_height_.resize((size_t)G * (size_t)G);
@@ -11160,7 +11311,7 @@ void Simulation::ensure_fow_cell_heights() {
 		}
 }
 
-void Simulation::reveal_fow(std::vector<uint8_t> &grid, float sx, float sz, float vr) const {
+void Simulation::reveal_fow(std::vector<uint8_t> &grid, float sx, float sz, float vr, FowView *view) const {
 	// Marks every cell within vr of (sx, sz) that the terrain does not hide.
 	// A cell already VISIBLE this pass is skipped: another viewer lit it, and
 	// the LOS ray can only ever set it VISIBLE again. Needs ensure_fow_cell_heights().
@@ -11181,59 +11332,112 @@ void Simulation::reveal_fow(std::vector<uint8_t> &grid, float sx, float sz, floa
 	// it. The ray stays at or above min(eye, target) and is blocked only by terrain more than 0.35
 	// above it, so a box no higher than min(eye, target) + 0.35 (less a margin for float rounding)
 	// cannot block, and the ray test is skipped. Same result, fewer height samples.
-	struct LosShortcut {
-		const float *block_hmax;
-		int GB, bcx, bcz, rb, WB;
-		float eye_y;
-		bool ready = false;
-		float box_max[FOW_BOX_MAX_W * FOW_BOX_MAX_W]; // filled on first use, not zeroed per call
-		LosShortcut(const float *bh, int gb, int bx, int bz, int r_blocks, float eye) :
-				block_hmax(bh), GB(gb), bcx(bx), bcz(bz), rb(r_blocks), WB(2 * r_blocks + 1), eye_y(eye) {}
-		// True when no terrain between the viewer and cell (gx, gz) can block the ray to height ty.
-		[[gnu::noinline]] bool clear(int gx, int gz, float ty) {
-			if (!ready) { // in a crowd, many calls find every cell lit already
-				fow_box_max(block_hmax, GB, bcx, bcz, rb, box_max);
-				ready = true;
-			}
-			const int i = ((int)((unsigned)gz / FOW_LOS_BLOCK) - bcz + rb) * WB + ((int)((unsigned)gx / FOW_LOS_BLOCK) - bcx + rb);
-			return box_max[i] <= std::min(eye_y, ty) + FOW_LOS_CLEARANCE;
-		}
-	};
 	const int GB = (G + FOW_LOS_BLOCK - 1) / FOW_LOS_BLOCK;
 	const int bcx = cx / FOW_LOS_BLOCK, bcz = cz / FOW_LOS_BLOCK;
 	const int rb = r / FOW_LOS_BLOCK + 1;
-	LosShortcut los(fow_block_hmax_.data(), GB, bcx, bcz, rb, eye_y);
+	const int WB = 2 * rb + 1;
+	// box_max[(block row - bcz + rb) * WB + (block column - bcx + rb)]: the highest fow_block_hmax_
+	// between the viewer's block and that block. Filled the first time a cell needs it (in a crowd,
+	// many calls find every cell lit already), not zeroed per call.
+	float box_max[FOW_BOX_MAX_W * FOW_BOX_MAX_W];
+	bool box_ready = false;
 	// Every box holds the viewer's own block, so when that block is already higher than the eye
 	// allows, no cell can pass and the shortcut is off.
 	const bool shortcut = !fow_block_hmax_.empty() && cx >= 0 && cx < G && cz >= 0 && cz < G &&
-			los.WB <= FOW_BOX_MAX_W && fow_block_hmax_[(size_t)bcz * GB + bcx] <= eye_y + FOW_LOS_CLEARANCE;
+			WB <= FOW_BOX_MAX_W && fow_block_hmax_[(size_t)bcz * GB + bcx] <= eye_y + FOW_LOS_CLEARANCE;
 
+	// Calls visit(gx, lit) for each cell of row gz within vr, lit: the viewer sees it. With
+	// skip_lit, cells already VISIBLE in `row` are skipped.
 	constexpr uint64_t VISIBLE_X8 = 0x0101010101010101ull * FOW_VISIBLE;
-	for (int gz = gz0; gz <= gz1; ++gz) {
+	auto scan_row = [&](int gz, auto skip_lit, const uint8_t *row, auto &&visit) {
 		const float wz = (gz + 0.5f) * cell - half;
 		const float ddz = wz - sz;
 		const float rem = vr2 - ddz * ddz;
-		if (rem < 0.0f) continue; // no cell of this row is within vr
+		if (rem < 0.0f) return; // no cell of this row is within vr
 		// The viewer is inside cell cx, so a cell k > half-width / cell + 1 columns away is more
 		// than half a cell outside the circle and fails the distance test below anyway.
 		const int span = (int)(std::sqrt(rem) / cell) + 1;
 		const int lo = std::max(gx0, cx - span), hi = std::min(gx1, cx + span);
-		uint8_t *row = &grid[(size_t)gz * G];
 		const float *hrow = &fow_cell_height_[(size_t)gz * G];
+		const int box_row = shortcut ? ((int)((unsigned)gz / FOW_LOS_BLOCK) - bcz + rb) * WB - bcx + rb : 0; // + column / FOW_LOS_BLOCK
 		for (int gx = lo; gx <= hi; ++gx) {
-			if (row[gx] == FOW_VISIBLE) {
-				// Skip runs of cells other viewers already lit, eight at a time.
-				uint64_t next8;
-				while (gx + 8 <= hi && (std::memcpy(&next8, row + gx + 1, 8), next8 == VISIBLE_X8)) gx += 8;
-				continue;
+			if constexpr (decltype(skip_lit)::value) {
+				if (row[gx] == FOW_VISIBLE) {
+					// Skip runs of cells other viewers already lit, eight at a time.
+					uint64_t next8;
+					while (gx + 8 <= hi && (std::memcpy(&next8, row + gx + 1, 8), next8 == VISIBLE_X8)) gx += 8;
+					continue;
+				}
 			}
 			const float wx = (gx + 0.5f) * cell - half;
 			const float ddx = wx - sx;
 			if (ddx * ddx + ddz * ddz > vr2) continue;
 			const float ty = hrow[gx] + 0.4f;
-			if ((shortcut && los.clear(gx, gz, ty)) || !terrain_blocks_los(sx, sz, eye_y, wx, wz, ty))
-				row[gx] = FOW_VISIBLE;
+			bool clear = false; // no terrain between the viewer and this cell can block the ray
+			if (shortcut) {
+				if (!box_ready) [[unlikely]] {
+					fow_box_max(fow_block_hmax_.data(), GB, bcx, bcz, rb, box_max);
+					box_ready = true;
+				}
+				clear = box_max[box_row + (int)((unsigned)gx / FOW_LOS_BLOCK)] <= std::min(eye_y, ty) + FOW_LOS_CLEARANCE;
+			}
+			visit(gx, clear || !terrain_blocks_los(sx, sz, eye_y, wx, wz, ty));
 		}
+	};
+
+	// A viewer that has not moved since its last call lights the same cells, so the second call
+	// from the same spot keeps them as bit rows and later ones copy them back.
+	if (view) {
+		const uint32_t kx = std::bit_cast<uint32_t>(sx), kz = std::bit_cast<uint32_t>(sz);
+		const uint32_t kv = std::bit_cast<uint32_t>(vr);
+		if (view->gen != fow_view_gen_ || view->sx != kx || view->sz != kz || view->vr != kv) {
+			view->sx = kx;
+			view->sz = kz;
+			view->vr = kv;
+			view->gen = fow_view_gen_;
+			view->stored = false;
+		} else if (r <= FOW_VIEW_MAX_R) { // same spot: the same r
+			if (!view->stored) {
+				std::fill(view->rows, view->rows + 2 * r + 1, 0ull);
+				for (int gz = gz0; gz <= gz1; ++gz) {
+					uint64_t &bits = view->rows[gz - cz + r];
+					scan_row(gz, std::false_type{}, nullptr, [&](int gx, bool lit) {
+						if (lit) bits |= 1ull << (gx - cx + r);
+					});
+				}
+				view->stored = true;
+			}
+			const int x0 = cx - r, chunks = (2 * r + 1 + 7) / 8;
+			if (x0 >= 0 && x0 + chunks * 8 <= G) {
+				// Eight cells at a time: FOW_VISIBLE in the bytes whose bits are set, the rest kept.
+				for (int gz = gz0; gz <= gz1; ++gz) {
+					uint8_t *row = &grid[(size_t)gz * G + x0];
+					const uint64_t bits = view->rows[gz - cz + r];
+					for (int k = 0; k < chunks && bits >> (8 * k); ++k) {
+						const uint64_t mask = kFowByteMask[(bits >> (8 * k)) & 0xFF];
+						if (!mask) continue;
+						uint64_t cells;
+						std::memcpy(&cells, row + 8 * k, 8);
+						cells = (cells & ~mask) | (VISIBLE_X8 & mask);
+						std::memcpy(row + 8 * k, &cells, 8);
+					}
+				}
+			} else {
+				for (int gz = gz0; gz <= gz1; ++gz) {
+					uint8_t *row = &grid[(size_t)gz * G];
+					for (uint64_t bits = view->rows[gz - cz + r]; bits; bits &= bits - 1)
+						row[x0 + std::countr_zero(bits)] = FOW_VISIBLE;
+				}
+			}
+			return;
+		}
+	}
+
+	for (int gz = gz0; gz <= gz1; ++gz) {
+		uint8_t *row = &grid[(size_t)gz * G];
+		scan_row(gz, std::true_type{}, row, [&](int gx, bool lit) {
+			if (lit) row[gx] = FOW_VISIBLE;
+		});
 	}
 }
 
@@ -11253,7 +11457,7 @@ void Simulation::tick_fow() {
 	// VisionSharing.js: allied players share the visibility generated by
 	// their units/buildings -- teammates, or a mutual alliance both sides chose.
 	// fow_grid_ is player 0's view and the one hashed for lockstep.
-	update_player_fow(fow_grid_, [this](uint8_t owner) { return is_ally(0, owner); });
+	update_player_fow(fow_grid_, [this](uint8_t owner) { return is_ally(0, owner); }, player_fow_views_);
 
 	// The local viewer's own view when it is not player 0 (a multiplayer
 	// joiner). It is presentation-only state: never hashed or read by the
@@ -11262,19 +11466,19 @@ void Simulation::tick_fow() {
 	if (p != 0 && p < MAX_PLAYERS) {
 		auto &grid = player_fow_[p];
 		if (grid.size() != fow_grid_.size()) grid.assign(fow_grid_.size(), FOW_UNEXPLORED);
-		update_player_fow(grid, [this, p](uint8_t owner) { return is_ally(p, owner); });
+		update_player_fow(grid, [this, p](uint8_t owner) { return is_ally(p, owner); }, player_fow_views_);
 	}
 }
 
 template <typename SharesVision>
-void Simulation::update_player_fow(std::vector<uint8_t> &grid, SharesVision shares_vision) {
+void Simulation::update_player_fow(std::vector<uint8_t> &grid, SharesVision shares_vision, FowViews &views) {
 	// Step 1: Reset all VISIBLE tiles back to EXPLORED (preserve explored history).
 	// 0 A.D. "Explored map": nothing is ever unexplored (terrain known, units hidden).
 	const uint8_t floor = explore_map_ ? FOW_EXPLORED : FOW_UNEXPLORED;
 	for (auto &c : grid) c = c == FOW_VISIBLE ? (uint8_t)FOW_EXPLORED : std::max(c, floor);
 
-	// Step 2: For every unit whose vision the player shares, illuminate tiles within its vision radius
-	// Vision radius per unit type (in world units):
+	// Steps 2 and 3: every unit and finished building whose vision the player shares lights the
+	// tiles within its vision radius. Vision radius per unit type (in world units):
 	//   Villager/Infantry: 16m, Cavalry: 20m, Archer: 22m, Catapult: 24m, Hero: 18m, Elephant: 20m, Trireme: 28m
 	auto vision_radius = [](uint8_t utype) -> float {
 		switch (utype) {
@@ -11288,19 +11492,41 @@ void Simulation::update_player_fow(std::vector<uint8_t> &grid, SharesVision shar
 		}
 	};
 
-	for (size_t u = 0; u < units_.count; ++u) {
-		if (!units_.alive[u] || !shares_vision(units_.team[u])) continue;
-		reveal_fow(grid, units_.pos_x[u], units_.pos_z[u], vision_radius(units_.unit_type[u]));
-	}
+	reveal_viewers(grid, views,
+			[&](size_t u) { return units_.alive[u] && shares_vision(units_.team[u]) ? vision_radius(units_.unit_type[u]) : 0.0f; },
+			[&](const Building &b) {
+				if (!shares_vision(b.team) || b.build_progress < 1.0f) return 0.0f;
+				float bvr = 18.0f; // default building vision
+				if (b.type == BLD_TOWER || b.type == BLD_FORTRESS) bvr = 24.0f;
+				if (b.type == BLD_DOCK) bvr = 28.0f;
+				return bvr;
+			});
+}
 
-	// Step 3: Buildings also reveal their surroundings
-	for (const auto& b : buildings_) {
-		if (!shares_vision(b.team) || b.build_progress < 1.0f) continue;
-		float bvr = 18.0f; // default building vision
-		if (b.type == BLD_TOWER || b.type == BLD_FORTRESS) bvr = 24.0f;
-		if (b.type == BLD_DOCK) bvr = 28.0f;
-		reveal_fow(grid, b.x, b.z, bvr);
+template <typename UnitVision, typename BuildingVision>
+void Simulation::reveal_viewers(std::vector<uint8_t> &grid, FowViews &views, UnitVision unit_vr, BuildingVision building_vr) {
+	// Calls reveal_fow() for each building and unit with a vision radius above 0. The result is the
+	// union of their views whatever the order, so buildings and units that have not moved go first
+	// (copies of their stored views), and the units that moved last: their LOS rays then skip
+	// every cell the others lit.
+	if (views.buildings.size() < buildings_.size()) views.buildings.resize(buildings_.size());
+	for (size_t bi = 0; bi < buildings_.size(); ++bi) {
+		const auto &b = buildings_[bi];
+		const float vr = building_vr(b);
+		if (vr > 0.0f) reveal_fow(grid, b.x, b.z, vr, &views.buildings[bi]);
 	}
+	if (views.units.size() < units_.count) views.units.resize(units_.count);
+	fow_moved_units_.clear();
+	for (size_t u = 0; u < units_.count; ++u) {
+		const float vr = unit_vr(u);
+		if (vr <= 0.0f) continue;
+		if (views.units[u].same_spot(units_.pos_x[u], units_.pos_z[u], vr, fow_view_gen_))
+			reveal_fow(grid, units_.pos_x[u], units_.pos_z[u], vr, &views.units[u]);
+		else
+			fow_moved_units_.push_back((uint32_t)u);
+	}
+	for (const uint32_t u : fow_moved_units_)
+		reveal_fow(grid, units_.pos_x[u], units_.pos_z[u], unit_vr(u), &views.units[u]);
 }
 
 Simulation::FaunaView Simulation::fauna() const {

@@ -17,7 +17,8 @@ static void fresh(Simulation &s) {
 	s.set_sim_seed(7);
 	s.reset();
 	s.set_player_resources(0, 5000, 5000, 5000, 5000);
-	s.spawn_building_world(-40.0f, -40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	// Close enough that the test's building sites are in its territory (BuildRestrictions).
+	s.spawn_building_world(-8.0f, -8.0f, BLD_TOWN_CENTER, 0, 1.0f);
 }
 
 static void run(Simulation &s, float seconds) {

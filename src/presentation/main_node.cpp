@@ -1587,8 +1587,8 @@ void RtsoMain::_process(double delta) {
 
 				int cx = (int)std::floor(pos.x / rtso::Simulation::GRID);
 				int cy = (int)std::floor(pos.z / rtso::Simulation::GRID);
-				int footprint = is_tower ? 2 : 1;
-				bool can_place = sim ? sim->can_place(cx, cy, footprint) : true;
+				const uint8_t btype = is_tower ? rtso::BLD_WALL_TOWER : rtso::BLD_WALL_SEGMENT;
+				bool can_place = sim ? sim->check_placement(local_player(), cx, cy, btype) == rtso::Simulation::PLACE_OK : true;
 				g->set_material_override(can_place ? ghost_mat_ok : ghost_mat_bad);
 				g->set_visible(true);
 			};
@@ -1624,7 +1624,7 @@ void RtsoMain::_process(double delta) {
 				float gz = (cell_y + footprint * 0.5f) * rtso::Simulation::GRID;
 				ghost_mesh->set_global_position(Vector3(gx, 0.05f, gz));
 
-				bool can_build = sim->can_place(cell_x, cell_y, footprint);
+				bool can_build = sim->check_placement(local_player(), cell_x, cell_y, current_build_type) == rtso::Simulation::PLACE_OK;
 				ghost_mesh->set_material_override(can_build ? ghost_mat_ok : ghost_mat_bad);
 			}
 		}
@@ -2727,10 +2727,6 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								              (float)cx, (float)cz, 0, btype);
 							} else if (sim) {
 								uint32_t bid = sim->cmd_build(local_player(), cx, cz, btype);
-								if (!bid) {
-									// Sandbox / cost-fallback placement
-									bid = sim->spawn_building_world(p.x, p.z, btype, 0, 0.0f);
-								}
 								if (bid && !selected_ids.is_empty()) {
 									sim->order_build_or_repair((const uint32_t *)selected_ids.ptr(), selected_ids.size(), bid);
 								}
@@ -2738,7 +2734,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						};
 
 						// Start node tower
-						place_wall_node(wall_drag_start_pos, rtso::BLD_TOWER);
+						place_wall_node(wall_drag_start_pos, rtso::BLD_WALL_TOWER);
 
 						for (int s = 0; s < seg_count; ++s) {
 							Vector3 mid_p = wall_drag_start_pos + step_vec * ((float)s + 0.5f);
@@ -2746,7 +2742,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 
 							if (s == seg_count - 1) {
 								Vector3 end_p = wall_drag_start_pos + step_vec * ((float)s + 1.0f);
-								place_wall_node(end_p, rtso::BLD_TOWER);
+								place_wall_node(end_p, rtso::BLD_WALL_TOWER);
 							}
 						}
 						play_civ_voice("build");
