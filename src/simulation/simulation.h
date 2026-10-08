@@ -209,7 +209,21 @@ public:
 		float upgrade_timer = 0.0f;
 		float upgrade_duration = 0.0f;
 		std::array<float, RES_COUNT> upgrade_paid{};
+
+		// 0 A.D. Gate.js (BLD_GATE only). An unlocked gate never blocks long-range
+		// pathfinding and blocks movement only while closed; a locked gate stays
+		// closed and blocks both.
+		bool gate_open = false;
+		bool gate_locked = false;
 	};
+	// Whether `b` is rasterized into the nav grid (0 A.D. Obstruction BlockPathfinding).
+	static bool blocks_pathfinding(const Building &b) {
+		return building_blocks_movement(b.type) && (b.type != BLD_GATE || b.gate_locked);
+	}
+	// Whether units collide with `b` right now (0 A.D. Obstruction BlockMovement).
+	static bool blocks_movement_now(const Building &b) {
+		return building_blocks_movement(b.type) && !(b.type == BLD_GATE && b.gate_open);
+	}
 
 	Simulation();
 	~Simulation();
@@ -394,6 +408,8 @@ public:
 	bool cmd_upgrade_building(uint8_t player_id, uint32_t building_id);
 	// Stops an upgrade in progress and refunds what was paid (Upgrade.js CancelUpgrade).
 	bool cmd_cancel_upgrade(uint8_t player_id, uint32_t building_id);
+	// 0 A.D. Gate.js LockGate / UnlockGate: the owner keeps its own units out too.
+	bool cmd_lock_gate(uint8_t player_id, uint32_t building_id, bool lock);
 	// Maximum hit points of a `type` structure owned by `team`: template x civ bonus x techs.
 	float structure_max_hp(uint8_t type, uint8_t team) const;
 	// 0 A.D. Barter.js: sell 100 or 500 (DEAL_AMOUNT x 1 or BATCH_SIZE) of one
@@ -709,6 +725,11 @@ public:
 	uint8_t petra_difficulty() const { return petra_config_.difficulty; }
 	uint8_t petra_behavior() const { return petra_config_.behavior; }
 	const PetraConfig &petra_config() const { return petra_config_; }
+	// Record a tribute so the receiving AI can answer a pending diplomacy request.
+	void note_tribute(uint8_t from, uint8_t to, uint8_t res, int amount) {
+		if (from < MAX_PLAYERS && to < MAX_PLAYERS && res < RES_COUNT && amount > 0)
+			petra_tribute_inbox_[to][from][res] += (float)amount;
+	}
 	bool petra_in_emergency() const { return petra_emergency_.active; }
 	const PetraDefenseArmy &petra_defense_army() const { return petra_defense_army_; }
 	const PetraQueueManager &petra_queues() const { return petra_queues_; }
@@ -1016,6 +1037,9 @@ private:
 	PetraTransportPlan petra_transport_;
 	std::vector<PetraChatLine> petra_chat_;
 	std::unordered_map<uint8_t, PetraDiplomacyRequest> petra_diplomacy_requests_;
+	PetraDiplomacy petra_diplo_;
+	// Tribute paid to each player since its Petra last looked: [to][from][resource].
+	float petra_tribute_inbox_[MAX_PLAYERS][MAX_PLAYERS][RES_COUNT] = {};
 	float petra_defense_timer_ = 0.0f;
 	float petra_victory_timer_ = 0.0f;
 	float petra_diplo_timer_ = 0.0f;
@@ -1070,7 +1094,11 @@ private:
 	int petra_villager_target() const;
 	bool petra_can_place(int cell_x, int cell_y, int footprint) const;
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
-	void petra_say(uint8_t kind, float x = 0.0f, float z = 0.0f);
+	void petra_say(uint8_t kind, float x = 0.0f, float z = 0.0f, uint8_t to = 0xFF, int amount = 0, uint8_t res = 0);
+	void petra_handle_diplomacy_request(uint8_t player, uint8_t type);
+	void petra_change_diplomacy(uint8_t player, uint8_t stance);
+	void petra_last_man_standing_check();
+	int petra_player_entities(uint8_t player) const;
 	bool petra_path_crosses_water(float x0, float z0, float x1, float z1) const;
 	bool petra_find_beach(float land_x, float land_z, float toward_x, float toward_z, float &out_x, float &out_z) const;
 	bool petra_start_transport(const std::vector<uint32_t> &unit_ids, float from_x, float from_z, float to_x, float to_z);
@@ -1095,7 +1123,7 @@ private:
 	X(petra_diplo_timer_) X(ai_wonder_victory_timer_) X(petra_bases_) X(petra_fnd_watch_) \
 	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
-	X(petra_fow_) X(petra_fleets_)
+	X(petra_fow_) X(petra_fleets_) X(petra_diplo_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
@@ -1132,6 +1160,10 @@ private:
 		bool wrecked;
 	};
 	std::vector<SteerObstacle> steer_obstacles_;
+	// Closed gates this tick: the only movement blockers the nav grid leaves out (0 A.D.
+	// gate Obstruction BlockMovement without BlockPathfinding), so move_units stops units
+	// at their edge instead of relying on the soft separation push.
+	std::vector<SteerObstacle> closed_gates_;
 	AuraManager aura_mgr_; // G4: unified aura sources (AuraManager)
 	float fow_timer_ = 0.0f;
 	float territory_timer_ = 0.0f;
