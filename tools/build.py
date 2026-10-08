@@ -88,8 +88,12 @@ def main():
         if not targets:
             sys.exit(0)
 
-    # 1. import
-    run([str(godot), "--headless", "--path", str(REPO), "--import"])
+    # 1. import, in batches: one Godot 4.3 import of every asset runs out of memory
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from godot_import import import_assets
+    status = import_assets(str(godot))
+    if status != 0:
+        sys.exit(status)
 
     # 2. export each preset
     for t in targets:
