@@ -180,7 +180,7 @@ def run_case(binary: str, seed: int, turns: int, verbose_every: int,
 
 
 def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
-                 port: int, out_dir: str, timeout: int) -> dict:
+                 port: int, out_dir: str, timeout: int, defeat_turn: int = 0) -> dict:
     """Two real processes, one host and one joiner, over UDP loopback.
 
     Each process owns one sim, posts only its own player's commands and runs
@@ -189,7 +189,7 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
     """
     logs = [os.path.join(out_dir, f"net_{role}_{seed}.log") for role in ("host", "join")]
     common = [str(port), str(seed), str(turns)]
-    extra = ["--speed", str(speed), "--loss", str(loss)]
+    extra = ["--speed", str(speed), "--loss", str(loss), "--defeat-turn", str(defeat_turn)]
     t0 = time.time()
     host = subprocess.Popen([binary, "--net-peer", "host", *common, logs[0], *extra],
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -225,6 +225,12 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
     cf_hits = [t for e in extras for t in sorted(e)
                if e[t].get("cf") == "1" and (e[t].get("wounds", "0") != "0" or e[t].get("dead", "0") != "0")]
     ceasefire_ok = cf_end[0] == cf_end[1] and not cf_hits
+    # Defeat: the joiner's player (bit 1) falls on the same turn on both peers,
+    # and the match goes on (host vs Petra) to the last turn.
+    out_turn = [next((t for t in sorted(e) if int(e[t].get("defeated", "0")) & 2), None) for e in extras]
+    over = [any(e[t].get("over") == "1" for t in e) for e in extras]
+    defeat_ok = (not defeat_turn) or (out_turn[0] is not None and out_turn[0] == out_turn[1]
+                                      and out_turn[0] > defeat_turn and not any(over))
     common_turns = sorted(set(hashes[0]) & set(hashes[1]))
     divergent = next((t for t in common_turns if hashes[0][t] != hashes[1][t]), None)
     complete = len(hashes[0]) == turns and len(hashes[1]) == turns
@@ -244,7 +250,8 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
         "output": "".join(o for o in outs if o),
         "setup_ok": setup_ok, "setups": setups,
         "ceasefire_ok": ceasefire_ok, "ceasefire_end": cf_end, "ceasefire_hits": cf_hits[:5],
-        "ok": divergent is None and complete and setup_ok and ceasefire_ok and all(rc == 0 for rc in rcs),
+        "defeat_ok": defeat_ok, "defeat_turn": out_turn, "game_over": over,
+        "ok": divergent is None and complete and setup_ok and ceasefire_ok and defeat_ok and all(rc == 0 for rc in rcs),
     }
 
 
@@ -277,6 +284,8 @@ def main() -> int:
     ap.add_argument("--net-loss", type=float, default=0.05,
                     help="fraction of datagrams each peer drops on send")
     ap.add_argument("--net-port", type=int, default=20611)
+    ap.add_argument("--net-defeat-turn", type=int, default=450,
+                    help="wipe out the joiner's player at this turn of the UDP session (0 = off)")
     args = ap.parse_args()
 
     if not shutil.which(compiler()) and not os.path.exists(compiler()):
@@ -352,7 +361,8 @@ def main() -> int:
         print(f"\n---- two-process UDP session seed {seed} : {args.net_turns} turns "
               f"speed x{args.net_speed} loss {args.net_loss:.0%} ----")
         nr = run_net_case(binary_path, seed, args.net_turns, args.net_speed,
-                          args.net_loss, args.net_port, out_dir, args.timeout)
+                          args.net_loss, args.net_port, out_dir, args.timeout,
+                          args.net_defeat_turn)
         net_ok = nr["ok"]
         for line in nr["output"].splitlines():
             if not line.startswith("[NetHost]"):
@@ -364,6 +374,12 @@ def main() -> int:
                   f"final_hash={nr['final_hash']} ({nr['seconds']:.1f}s)")
             print(f"[net] ceasefire lifted at turn {nr['ceasefire_end'][0]} on both peers, "
                   f"no combat before it; setup {nr['setups'].get('host')}")
+            if args.net_defeat_turn:
+                print(f"[net] joiner's player wiped at turn {args.net_defeat_turn}, defeated at turn "
+                      f"{nr['defeat_turn'][0]} on both peers; host and Petra played on to turn {nr['turns']}")
+        elif not nr["defeat_ok"]:
+            print(f"[net] FAIL defeat: defeated at turns {nr['defeat_turn']} (host, join), "
+                  f"game over {nr['game_over']}")
         elif not nr["ceasefire_ok"]:
             print(f"[net] FAIL ceasefire: lifted at turns {nr['ceasefire_end']} "
                   f"(host, join), combat during it at {nr['ceasefire_hits']}")
