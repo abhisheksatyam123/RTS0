@@ -155,6 +155,16 @@ enum class NetCommandType : uint8_t {
 	NET_CMD_DELETE         = 30,
 	// 0 A.D. "back-to-work" (UnitAI BackToWork) on the selected units.
 	NET_CMD_BACK_TO_WORK   = 31,
+	// Session control, not game commands (200+ is reserved for these; game command
+	// ids keep growing from 32). Only the host sends them, inside its own turn batch,
+	// so every client learns of a seat change before the turn it affects (0 A.D.
+	// NetServerTurnManager::InitialiseClient / UninitialiseClient). The sim ignores them.
+	// A client takes a seat: target_id = client id, param = player, target_x = the
+	// first turn it sends a batch for.
+	NET_CMD_PEER_JOINED    = 200,
+	// A client left: target_id = client id, target_x = the last turn whose batch from
+	// it the host holds; its batches after that are dropped everywhere.
+	NET_CMD_PEER_LEFT      = 201,
 };
 
 // param bits on unit orders (move 1, attack 3, gather 4, attack-move 10, patrol 11,

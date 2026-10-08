@@ -396,6 +396,65 @@ def run_rejoin_case(binary: str, seed: int, speed: float, loss: float, port: int
     return ok
 
 
+def run_three_human_case(binary: str, seed: int, speed: float, loss: float, port: int, out_dir: str,
+                          timeout: int) -> bool:
+    """Three humans (0 A.D. hosts up to 8): the host relays each joiner's batches
+    to the other. The third player leaves after turn LEAVE and a new process
+    takes its seat; every peer must hash the same on every turn it ran."""
+    turns, leave = 500, 200
+    print(f"\n---- three humans: player 3 leaves after turn {leave}, a new client takes its seat ----")
+    roles = ("host", "j1", "j2", "back")
+    logs = {r: os.path.join(out_dir, f"three_{r}.log") for r in roles}
+    for path in logs.values():
+        if os.path.exists(path):
+            os.remove(path)
+    common = ["--speed", str(speed), "--loss", str(loss), "--humans", "3"]
+    def peer(role, log, *more):
+        return subprocess.Popen([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    procs = {"host": peer("host", logs["host"])}
+    time.sleep(0.3)
+    procs["j1"] = peer("join", logs["j1"])
+    time.sleep(0.3)  # connect order numbers the joiners: j1 is client 1, j2 client 2
+    procs["j2"] = peer("join", logs["j2"], "--quit-turn", str(leave))
+    outs, rcs = {}, {}
+    def finish(role):
+        p = procs[role]
+        try:
+            out, _ = p.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            out, _ = p.communicate()
+        outs[role] = out or ""
+        rcs[role] = p.returncode
+    finish("j2")
+    time.sleep(0.5)
+    procs["back"] = peer("join", logs["back"], "--rejoin", "1")
+    for role in ("back", "j1", "host"):
+        finish(role)
+    h = {r: read_hashes(logs[r]) for r in roles}
+    rep = peer_lines([outs["back"]], "rejoin").get("join", {})
+    t0 = int(rep.get("turn", "0"))
+    bad = {r: next((t for t in sorted(h[r]) if h[r][t] != h["host"].get(t)), None) for r in ("j1", "j2", "back")}
+    relayed = ("client 2 left after turn" in outs["j1"] and "client 3 takes player 2" in outs["j1"])
+    ok = (all(rc == 0 for rc in rcs.values()) and len(h["host"]) == turns and len(h["j1"]) == turns
+          and len(h["j2"]) >= leave - 1 and rep.get("player") == "2" and t0 > leave
+          and sorted(h["back"]) == list(range(t0 + 1, turns + 1)) and relayed
+          and all(v is None for v in bad.values()))
+    if ok:
+        print(f"[net] PASS three humans: all {turns} turns matched on host and player 2, player 3 left at "
+              f"turn {leave} and a new client took its seat at turn {t0}, then matched to turn {turns} "
+              f"(final hash {h['host'][turns]})")
+    else:
+        for role in roles:
+            for line in outs.get(role, "").splitlines():
+                if line.startswith("[net-peer]") or line.startswith("[TurnManager]"):
+                    print(f"   {role}: {line}")
+        print(f"[net] FAIL three humans: rc={rcs} rejoin={rep} turns={ {r: len(v) for r, v in h.items()} } "
+              f"first_bad={bad} relayed={relayed}")
+    return ok
+
+
 def run_oos_case(binary: str, seed: int, speed: float, port: int, out_dir: str, timeout: int) -> bool:
     """0 A.D. OOS report: the joiner corrupts its world after turn FORCE; the host
     must report FORCE+1 (the first turn whose hashes differ) and both peers must
@@ -614,6 +673,8 @@ def main() -> int:
                               out_dir, args.timeout) and net_ok
         net_ok = run_rejoin_case(binary_path, args.seeds[0], args.net_speed, args.net_loss,
                                  args.net_port + 2, out_dir, args.timeout) and net_ok
+        net_ok = run_three_human_case(binary_path, args.seeds[0], args.net_speed, args.net_loss,
+                                      args.net_port + 3, out_dir, args.timeout) and net_ok
 
     oos = [r for r in results if r["divergent_turn"] is not None]
     if not net_ok and not oos:
