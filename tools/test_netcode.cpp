@@ -518,6 +518,8 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
         sim.set_player_team(t, t);
     }
 
+    const uint8_t sim_civ[2] = {sim.team_civ(0), sim.team_civ(1)};
+
     NetHost net;
     if (loss > 0.0f) net.set_simulated_loss(loss, seed ^ (host ? 0x1111u : 0x2222u));
     bool ok = host ? net.startHost([&] { NetConfig c; c.port = port; return c; }())
@@ -578,6 +580,18 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
                 d.target_id = 1 - d.client_id;        // toward the other human
                 d.param = (uint8_t)((st / 300) % 3);  // ally / neutral / enemy
                 batch.push_back(d);
+            }
+            // Train a roster unit by template (cmd 25, as the roster list sends
+            // it): each human queues its civ's default spearman at its own TC.
+            if (st % 150 == 75) {
+                for (uint32_t who = 0; who < 2; ++who) {
+                    NetCommand t;
+                    t.client_id = who;
+                    t.cmd_type = 25;
+                    t.target_id = who == 0 ? refs.town_center : refs.enemy_buildings[2];
+                    t.target_x = (float)civ_default_template(sim_civ[who], UNIT_SPEARMAN);
+                    batch.push_back(t);
+                }
             }
             for (const auto &c : batch)
                 if (c.client_id == me) tm.post_local_command(c);
