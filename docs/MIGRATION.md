@@ -57,6 +57,7 @@ This list covers porting the vendored C++ only. Overall project priorities and g
 
 | Date | PR | Change |
 |---|---|---|
+| 2026-10-08 | #103 | Removed the legacy grid A* (`search_cells_astar`, `use_jps`): `find_path` always runs the ported JPS, and `test_long_pathfinder` checks it against an 8-way Dijkstra. |
 | 2026-10-08 | #94 | VertexPathfinder searches for building steering close vertices inside squares by trying the squares sorted by their left edge, and build terrain edges from 64-bit navcell rows. Bit-identical results, part of an 11% cheaper match. |
 | 2026-10-08 | #53 | HierarchicalPathfinder global regions in flat arrays, numbered in the vendor's order instead of hash-map order. Same regions; a 512-map match runs 4% fewer instructions. |
 | 2026-10-08 | #42 | Made VertexPathfinder searches cheaper for building steering (reused storage, terrain read by rows, no edge-square sort) with bit-identical results. |
