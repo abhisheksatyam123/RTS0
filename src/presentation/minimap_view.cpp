@@ -177,12 +177,6 @@ void RtsoMiniMapView::_draw() {
 
 	const uint8_t *fow = sim->fow_grid(local_player);
 	const int fow_res = sim->fow_res();
-	auto get_fow_state = [&](float x, float z) -> uint8_t {
-		if (!fow) return rtso::Simulation::FOW_VISIBLE;
-		int cx = std::clamp((int)((x + half_map) / (half_map * 2.0f) * fow_res), 0, fow_res - 1);
-		int cz = std::clamp((int)((z + half_map) / (half_map * 2.0f) * fow_res), 0, fow_res - 1);
-		return fow[cz * fow_res + cx];
-	};
 
 	// 3-Tier Fog of War shroud (Unexplored black, Explored fog 40%, Visible 100%)
 	// matching 0 A.D.'s LOS bitmap (visible=255 / explored=127 / unexplored=0,
@@ -221,8 +215,9 @@ void RtsoMiniMapView::_draw() {
 	// Terrain-only shroud pass (entities are drawn on top, unaffected).
 	if (shroud_mode == SHROUD_TERRAIN) draw_shroud();
 
-	// Entity masking by shroud is active only in the normal (SHROUD_ON) state.
-	const bool mask_entities = (shroud_mode == SHROUD_ON);
+	// Entities follow the local player's LOS in every shroud mode: the mode only
+	// changes how the shroud itself is drawn, so it can't reveal enemy state.
+	mirages_.update(*sim, local_player);
 
 	// 1. Territory tint raster (territory_grid_ -> ImageTexture upload):
 	// drawn over terrain / under the smoothed circle outlines so the cells
@@ -240,7 +235,7 @@ void RtsoMiniMapView::_draw() {
 	// blur_territory (grid_nav.h:501-530) drawn 1:1 by the texture above —
 	// circles = hard-radius approximation, texture = blurred sim ground truth.
 	if (show_territory) {
-		for (const auto &b : sim->buildings()) {
+		for (const auto &b : mirages_.buildings()) {
 			if (b.build_progress < 1.0f) continue;
 			Vector2 pos = map_to_mini(b.x, b.z);
 			float radius_m = 0.0f;
@@ -258,32 +253,24 @@ void RtsoMiniMapView::_draw() {
 		}
 	}
 
-	// 2. Draw Resource Nodes (masked by explored / visible)
+	// 2. Draw Resource Nodes: what the player has seen (mirages dimmed)
 	if (show_resources) {
-		auto res = sim->resources();
-		for (size_t i = 0; i < res.count; ++i) {
-			if (!res.alive[i] || res.amount[i] <= 0) continue;
-			uint8_t f_state = get_fow_state(res.x[i], res.z[i]);
-			if (mask_entities && f_state == rtso::Simulation::FOW_UNEXPLORED) continue;
-
-			Vector2 pos = map_to_mini(res.x[i], res.z[i]);
+		for (const auto &r : mirages_.resources()) {
+			Vector2 pos = map_to_mini(r.x, r.z);
 			Color col = Color(0.2f, 0.8f, 0.25f, 0.85f); // Wood
-			if (res.type[i] == rtso::RES_GOLD) col = Color(1.0f, 0.85f, 0.15f, 0.95f); // Gold
-			else if (res.type[i] == rtso::RES_STONE) col = Color(0.70f, 0.70f, 0.78f, 0.85f); // Stone
-			else if (res.type[i] == rtso::RES_FOOD) col = Color(0.95f, 0.45f, 0.2f, 0.85f); // Food
+			if (r.type == rtso::RES_GOLD) col = Color(1.0f, 0.85f, 0.15f, 0.95f); // Gold
+			else if (r.type == rtso::RES_STONE) col = Color(0.70f, 0.70f, 0.78f, 0.85f); // Stone
+			else if (r.type == rtso::RES_FOOD) col = Color(0.95f, 0.45f, 0.2f, 0.85f); // Food
 
-			if (mask_entities && f_state == rtso::Simulation::FOW_EXPLORED) {
+			if (mirages_.los_at(r.x, r.z) != rtso::Simulation::FOW_VISIBLE) {
 				col.a *= 0.55f;
 			}
 			draw_rect(Rect2(pos - Vector2(1.5f, 1.5f), Vector2(3.0f, 3.0f)), col, true);
 		}
 	}
 
-	// 3. Draw Buildings
-	for (const auto &b : sim->buildings()) {
-		uint8_t f_state = get_fow_state(b.x, b.z);
-		if (mask_entities && b.team != local_player && f_state == rtso::Simulation::FOW_UNEXPLORED) continue;
-
+	// 3. Draw Buildings: own and allied live, others as last seen
+	for (const auto &b : mirages_.buildings()) {
 		Vector2 pos = map_to_mini(b.x, b.z);
 		Color col = Color(0.7f, 0.7f, 0.7f);
 		float box_sz = 6.0f;
@@ -301,19 +288,18 @@ void RtsoMiniMapView::_draw() {
 			col = Color(0.75f, 0.55f, 0.35f);
 		}
 
-		if (mask_entities && f_state == rtso::Simulation::FOW_EXPLORED && b.team != local_player) {
+		if (b.miraged) {
 			col.a *= 0.55f;
 		}
 		col = diplo_color(b.team, col);
 		draw_rect(Rect2(pos - Vector2(box_sz * 0.5f, box_sz * 0.5f), Vector2(box_sz, box_sz)), col, true);
 	}
 
-	// 4. Draw Units (Enemy units hidden in fog or unexplored areas)
+	// 4. Draw Units: own and allied always, others only in direct LOS
 	auto units = sim->units();
 	for (size_t i = 0; i < units.count; ++i) {
 		if (!units.alive[i]) continue;
-		uint8_t f_state = get_fow_state(units.pos_x[i], units.pos_z[i]);
-		if (mask_entities && units.team[i] != local_player && f_state != rtso::Simulation::FOW_VISIBLE) {
+		if (!sim->is_entity_visible_to_viewer(units.pos_x[i], units.pos_z[i], units.team[i], local_player)) {
 			continue; // Enemy units invisible outside direct LOS
 		}
 

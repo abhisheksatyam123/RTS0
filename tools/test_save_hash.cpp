@@ -127,6 +127,8 @@ static void compare(const Simulation &a, const Simulation &b) {
 	}
 	for (uint8_t p = 0; p < 8; ++p)
 		for (uint8_t q = 0; q < 8; ++q) CMP("diplomacy", p * 8 + q, a.get_diplomacy(p, q), b.get_diplomacy(p, q));
+	for (uint8_t p = 0; p < 8; ++p)
+		for (int r = 0; r < RES_COUNT; ++r) CMP("trading goods", p * RES_COUNT + r, a.trading_goods(p)[r], b.trading_goods(p)[r]);
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
 		const PlayerState &x = a.player(p), &y = b.player(p);
 		for (int r = 0; r < RES_COUNT; ++r) CMP("player res", p * 4 + r, x.res[r], y.res[r]);
@@ -204,6 +206,8 @@ static void check_reset_load(TurnManager &tm, const char *path) {
 	a.set_wonder_duration(1200.0f);
 	a.set_relic_duration(1200.0f);
 	a.set_relic_count(2);
+	const uint8_t goods[RES_COUNT] = {10, 20, 30, 40};
+	a.cmd_set_trading_goods(1, goods);
 	a.set_water_level_mode(Simulation::WATER_LEVEL_DEEP);
 	a.set_sea_level_rise_minutes(40);
 	a.spawn_unit(-10.0f, 10.0f, 0, UNIT_CATAPULT);
