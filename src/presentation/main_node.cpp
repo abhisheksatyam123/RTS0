@@ -31,7 +31,10 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_idle_worker_clicked"), &RtsoMain::_on_idle_worker_clicked);
 	ClassDB::bind_method(D_METHOD("_on_speed_button_pressed"), &RtsoMain::_on_speed_button_pressed);
 	ClassDB::bind_method(D_METHOD("_on_menu_button_pressed"), &RtsoMain::_on_menu_button_pressed);
+	ClassDB::bind_method(D_METHOD("get_audio_state"), &RtsoMain::get_audio_state);
 	ClassDB::bind_method(D_METHOD("_on_ungarrison_pressed"), &RtsoMain::_on_ungarrison_pressed);
+	ClassDB::bind_method(D_METHOD("_on_selection_group_clicked", "key"), &RtsoMain::_on_selection_group_clicked);
+	ClassDB::bind_method(D_METHOD("_on_garrison_group_clicked", "key"), &RtsoMain::_on_garrison_group_clicked);
 	ClassDB::bind_method(D_METHOD("_on_stance_selected", "stance"), &RtsoMain::_on_stance_selected);
 	ClassDB::bind_method(D_METHOD("_on_formation_selected", "formation"), &RtsoMain::_on_formation_selected);
 	ClassDB::bind_method(D_METHOD("_on_train_pressed", "utype"), &RtsoMain::_on_train_pressed);
@@ -66,6 +69,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_chat_text_submitted", "text"), &RtsoMain::_on_chat_text_submitted);
 	ClassDB::bind_method(D_METHOD("_on_chat_channel_btn_pressed", "channel_idx"), &RtsoMain::_on_chat_channel_btn_pressed);
 	ClassDB::bind_method(D_METHOD("toggle_diplomacy"), &RtsoMain::toggle_diplomacy);
+	ClassDB::bind_method(D_METHOD("toggle_objectives"), &RtsoMain::toggle_objectives);
 	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);
 	ClassDB::bind_method(D_METHOD("_on_diplo_tribute_pressed", "player_idx", "res_type"), &RtsoMain::_on_diplo_tribute_pressed);
 	ClassDB::bind_method(D_METHOD("set_use_english_voice_orders", "enable"), &RtsoMain::set_use_english_voice_orders);
@@ -134,6 +138,26 @@ void RtsoMain::_bind_methods() {
 	bind_enum("BuildingType", "ELEPHANT_STABLE", rtso::BLD_ELEPHANT_STABLE);
 	bind_enum("BuildingType", "THEATER", rtso::BLD_THEATER);
 	bind_enum("BuildingType", "EMBASSY", rtso::BLD_EMBASSY);
+	bind_enum("BuildingType", "GYMNASIUM", rtso::BLD_GYMNASIUM);
+	bind_enum("BuildingType", "PRYTANEION", rtso::BLD_PRYTANEION);
+	bind_enum("BuildingType", "GEROUSIA", rtso::BLD_GEROUSIA);
+	bind_enum("BuildingType", "SYSSITON", rtso::BLD_SYSSITON);
+	bind_enum("BuildingType", "TACHARA", rtso::BLD_TACHARA);
+	bind_enum("BuildingType", "ARMY_CAMP", rtso::BLD_ARMY_CAMP);
+	bind_enum("BuildingType", "AMPHITHEATER", rtso::BLD_AMPHITHEATER);
+	bind_enum("BuildingType", "LIBRARY", rtso::BLD_LIBRARY);
+	bind_enum("BuildingType", "KENNEL", rtso::BLD_KENNEL);
+	bind_enum("BuildingType", "ASSEMBLY", rtso::BLD_ASSEMBLY);
+	bind_enum("BuildingType", "MONUMENT", rtso::BLD_MONUMENT);
+	bind_enum("BuildingType", "PALACE", rtso::BLD_PALACE);
+	bind_enum("BuildingType", "PILLAR", rtso::BLD_PILLAR);
+	bind_enum("BuildingType", "PYRAMID_LARGE", rtso::BLD_PYRAMID_LARGE);
+	bind_enum("BuildingType", "PYRAMID_SMALL", rtso::BLD_PYRAMID_SMALL);
+	bind_enum("BuildingType", "MERCENARY_CAMP", rtso::BLD_MERCENARY_CAMP);
+	bind_enum("BuildingType", "LIGHTHOUSE", rtso::BLD_LIGHTHOUSE);
+	bind_enum("BuildingType", "MILITARY_COLONY", rtso::BLD_MILITARY_COLONY);
+	bind_enum("BuildingType", "ACADEMY", rtso::BLD_ACADEMY);
+	bind_enum("BuildingType", "MINISTRY", rtso::BLD_MINISTRY);
 
 	bind_enum("Civilization", "ATHENIANS", rtso::CIV_ATHENIANS);
 	bind_enum("Civilization", "SPARTANS", rtso::CIV_SPARTANS);
@@ -162,6 +186,8 @@ RtsoMain::~RtsoMain() {
 
 void RtsoMain::_notification(int p_what) {
 	if (p_what == NOTIFICATION_EXIT_TREE) {
+		// Menus get the normal arrow back (update_cursor sets action cursors).
+		if (!cursor_name_.empty()) Input::get_singleton()->set_custom_mouse_cursor(Ref<Resource>());
 		if (SceneTree *t = get_tree()) {
 			rtso::hide_node_popups(t->get_root());
 		} else {
@@ -628,6 +654,10 @@ void RtsoMain::_ready() {
 	ungarrison_btn->set_visible(false);
 	inspector_panel->add_child(ungarrison_btn);
 
+	// Multi-selection and garrison icon grids (0 A.D. selection_panels.js).
+	selection_grid_.build(inspector_panel, Vector2(102, 60), Vector2(404, 120), this, "_on_selection_group_clicked", 10, 36.0f);
+	garrison_grid_.build(inspector_panel, Vector2(102, 148), Vector2(404, 34), this, "_on_garrison_group_clicked", 12, 30.0f);
+
 	// =========================================================================
 	// 3. COMMAND & ACTION PANEL (Stances, Formations, Training, 8-Slot Queue)
 	// =========================================================================
@@ -767,6 +797,7 @@ void RtsoMain::_ready() {
 	// handler methods below delegate into them).
 	chat_window_.build(this, ui_layer, this);
 	diplo_dialog_.build(this, ui_layer, this, &chat_window_);
+	objectives_dialog_.build(ui_layer, this, "toggle_objectives");
 	rtso::strip_engine_popups(ui_layer);
 
 	// =========================================================================
@@ -783,29 +814,13 @@ void RtsoMain::_ready() {
 	add_child(sfx_player);
 	add_child(alarm_player);
 
-	if (ResourceLoader::get_singleton()->exists("res://assets/music/peace_1.ogg")) {
-		Ref<AudioStream> stream = ResourceLoader::get_singleton()->load("res://assets/music/peace_1.ogg");
-		if (stream.is_valid()) {
-			music_player = memnew(AudioStreamPlayer);
-			music_player->set_stream(stream);
-			music_player->set_autoplay(true);
-			music_player->set_volume_db(-8.0f);
-			add_child(music_player);
-			music_player->play();
-		}
-	}
-
-	if (ResourceLoader::get_singleton()->exists("res://assets/music/battle_1.ogg")) {
-		Ref<AudioStream> bstream = ResourceLoader::get_singleton()->load("res://assets/music/battle_1.ogg");
-		if (bstream.is_valid()) {
-			battle_music_player = memnew(AudioStreamPlayer);
-			battle_music_player->set_stream(bstream);
-			battle_music_player->set_autoplay(true);
-			battle_music_player->set_volume_db(-80.0f);
-			add_child(battle_music_player);
-			battle_music_player->play();
-		}
-	}
+	// 0 A.D. music.js playlists and in-game sound events (music_manager.h,
+	// session_audio.h).
+	music_.build(this);
+	session_audio_.build(this);
+	session_audio_.set_spatial([this](const Ref<AudioStream> &s, Vector3 pos, float db) {
+		if (view) view->play_spatial_sound(s, pos, db, 75.0f, 1.0f);
+	});
 
 	if (ResourceLoader::get_singleton()->exists("res://assets/sounds/ambient/nature_ambient.ogg")) {
 		Ref<AudioStream> amb_stream = ResourceLoader::get_singleton()->load("res://assets/sounds/ambient/nature_ambient.ogg");
@@ -881,6 +896,7 @@ void RtsoMain::_ready() {
 	rally_flag->set_material_override(flag_mat);
 	rally_flag->set_visible(false);
 	add_child(rally_flag);
+	range_overlays_.build(this);
 
 	// (Unit selection now happens in apply_match_settings, after the map
 	// exists - the old block here ran before any map loaded and selected
@@ -962,140 +978,62 @@ void RtsoMain::play_civ_voice(const char *action) {
 		return;
 	}
 
-	uint8_t current_civ = sim ? sim->player_civ(local_player()) : (uint8_t)rtso::CIV_ATHENIANS;
-	const char *chosen_file = nullptr;
-
-	if (current_civ == rtso::CIV_ATHENIANS || current_civ == rtso::CIV_SPARTANS ||
-		current_civ == rtso::CIV_MACEDONIANS || current_civ == rtso::CIV_PTOLEMIES ||
-		current_civ == rtso::CIV_SELEUCIDS) {
-		// Ancient Hellenic voice lines pool (audio/voice/hellenes/)
-		if (act == "select") {
-			// Selection: "Khaire", "Ti estin", "Hetoimos"
-			const char *opts[][2] = {
-				{ "res://assets/sounds/voice/hellenes/khaire.ogg", "res://assets/sounds/voice/greek/civ_female_what_is_it_1.ogg" },
-				{ "res://assets/sounds/voice/hellenes/ti_estin.ogg", "res://assets/sounds/voice/greek/civ_female_what_is_it_2.ogg" },
-				{ "res://assets/sounds/voice/hellenes/hetoimos.ogg", "res://assets/sounds/voice/greek/civ_female_what_is_it_3.ogg" }
-			};
-			int idx = voice_rand_idx % 3;
-			chosen_file = ResourceLoader::get_singleton()->exists(opts[idx][0]) ? opts[idx][0] : opts[idx][1];
-		} else if (act == "move") {
-			// Move orders: "Poreuomai", "Baino"
-			const char *opts[][2] = {
-				{ "res://assets/sounds/voice/hellenes/poreuomai.ogg", "res://assets/sounds/voice/greek/civ_female_walk_1.ogg" },
-				{ "res://assets/sounds/voice/hellenes/baino.ogg", "res://assets/sounds/voice/greek/civ_female_march_1.ogg" }
-			};
-			int idx = voice_rand_idx % 2;
-			chosen_file = ResourceLoader::get_singleton()->exists(opts[idx][0]) ? opts[idx][0] : opts[idx][1];
-		} else if (act == "attack") {
-			// Attack orders: "Epi tous polemious!", "Eis makhen!"
-			const char *opts[][2] = {
-				{ "res://assets/sounds/voice/hellenes/epi_tous_polemious.ogg", "res://assets/sounds/voice/greek/civ_female_attack_1.ogg" },
-				{ "res://assets/sounds/voice/hellenes/eis_makhen.ogg", "res://assets/sounds/voice/greek/civ_female_go_out_against_1.ogg" }
-			};
-			int idx = voice_rand_idx % 2;
-			chosen_file = ResourceLoader::get_singleton()->exists(opts[idx][0]) ? opts[idx][0] : opts[idx][1];
-		} else if (act == "build") {
-			// Build orders: "Poieso"
-			chosen_file = ResourceLoader::get_singleton()->exists("res://assets/sounds/voice/hellenes/poieso.ogg")
-				? "res://assets/sounds/voice/hellenes/poieso.ogg"
-				: "res://assets/sounds/voice/greek/civ_female_build_1.ogg";
-		} else if (act == "gather") {
-			// Gather orders: "Ergon"
-			chosen_file = ResourceLoader::get_singleton()->exists("res://assets/sounds/voice/hellenes/ergon.ogg")
-				? "res://assets/sounds/voice/hellenes/ergon.ogg"
-				: "res://assets/sounds/voice/greek/civ_female_work_land_1.ogg";
-		}
-	} else if (current_civ == rtso::CIV_ROMANS || current_civ == rtso::CIV_BRITONS ||
-	           current_civ == rtso::CIV_GAULS) {
-		// Latin / Roman voice pool
-		if (act == "select") {
-			const char *opts[] = {
-				"res://assets/sounds/voice/latin/civ_male_hello_1.ogg",
-				"res://assets/sounds/voice/latin/civ_male_what_is_it_1.ogg",
-				"res://assets/sounds/voice/latin/civ_female_hello_1.ogg"
-			};
-			chosen_file = opts[voice_rand_idx % 3];
-		} else if (act == "move") {
-			const char *opts[] = {
-				"res://assets/sounds/voice/latin/civ_male_march_1.ogg",
-				"res://assets/sounds/voice/latin/civ_male_walk_1.ogg"
-			};
-			chosen_file = opts[voice_rand_idx % 2];
-		} else if (act == "attack") {
-			const char *opts[] = {
-				"res://assets/sounds/voice/latin/civ_male_attack_1.ogg",
-				"res://assets/sounds/voice/latin/civ_male_fight_1.ogg"
-			};
-			chosen_file = opts[voice_rand_idx % 2];
-		} else if (act == "build") {
-			chosen_file = "res://assets/sounds/voice/latin/civ_male_build_1.ogg";
-		} else if (act == "gather") {
-			chosen_file = "res://assets/sounds/voice/latin/civ_male_work_land_1.ogg";
-		}
-	} else if (current_civ == rtso::CIV_PERSIANS || current_civ == rtso::CIV_CARTHAGINIANS ||
-	           current_civ == rtso::CIV_IBERIANS || current_civ == rtso::CIV_MAURYANS) {
-		// Persian voice pool
-		if (act == "select") {
-			const char *opts[] = {
-				"res://assets/sounds/voice/persian/civ_male_hello_1.ogg",
-				"res://assets/sounds/voice/persian/civ_female_hello_1.ogg"
-			};
-			chosen_file = opts[voice_rand_idx % 2];
-		} else if (act == "move") {
-			const char *opts[] = {
-				"res://assets/sounds/voice/persian/civ_male_forward_1.ogg",
-				"res://assets/sounds/voice/persian/civ_male_forward_2.ogg"
-			};
-			chosen_file = opts[voice_rand_idx % 2];
-		} else if (act == "attack") {
-			const char *opts[] = {
-				"res://assets/sounds/voice/persian/civ_male_attack_1.ogg",
-				"res://assets/sounds/voice/persian/civ_female_to_war_1.ogg"
-			};
-			chosen_file = opts[voice_rand_idx % 2];
-		} else if (act == "build") {
-			chosen_file = "res://assets/sounds/voice/persian/civ_male_build_1.ogg";
-		} else if (act == "gather") {
-			chosen_file = "res://assets/sounds/voice/persian/civ_male_gather_1.ogg";
-		}
-	} else if (current_civ == rtso::CIV_KUSHITES) {
-		// Napatan / Kushite voice pool
-		if (act == "select") {
-			const char *opts[] = {
-				"res://assets/sounds/voice/napatan/civ_male_what_is_it_01.ogg",
-				"res://assets/sounds/voice/napatan/civ_female_hello_01.ogg"
-			};
-			chosen_file = opts[voice_rand_idx % 2];
-		} else if (act == "move") {
-			const char *opts[] = {
-				"res://assets/sounds/voice/napatan/civ_male_walk_01.ogg",
-				"res://assets/sounds/voice/napatan/civ_female_march_01.ogg"
-			};
-			chosen_file = opts[voice_rand_idx % 2];
-		} else if (act == "attack") {
-			const char *opts[] = {
-				"res://assets/sounds/voice/napatan/civ_male_attack_01.ogg",
-				"res://assets/sounds/voice/napatan/civ_male_go_out_against_01.ogg"
-			};
-			chosen_file = opts[voice_rand_idx % 2];
-		} else if (act == "build") {
-			chosen_file = "res://assets/sounds/voice/napatan/civ_male_build_01.ogg";
-		} else if (act == "gather") {
-			chosen_file = "res://assets/sounds/voice/napatan/civ_male_gather_01.ogg";
-		}
-	}
-
-	// Fallback to default voices if specific civ file doesn't exist
-	if (chosen_file && ResourceLoader::get_singleton()->exists(chosen_file)) {
-		play_voice(chosen_file);
+	// 0 A.D. plays the voice of the selection's first unit (its template's
+	// SoundGroups), in its civ's language and phenotype.
+	if (!sim) return;
+	if (selected_ids.is_empty()) {
+		if (selected_building_id != 0 && act == "select")
+			for (const auto &b : sim->buildings())
+				if (b.id == selected_building_id) {
+					session_audio_.play_building_select(b.type);
+					break;
+				}
 		return;
 	}
+	const uint32_t first = (uint32_t)(int64_t)selected_ids[0];
+	auto uv = sim->units();
+	for (size_t i = 0; i < uv.count; ++i) {
+		if (uv.id[i] != first) continue;
+		session_audio_.play_voice(sim->player_civ(uv.team[i]), uv.unit_type[i], act);
+		return;
+	}
+}
 
-	if (act == "select") play_voice("res://assets/sounds/voice/select_1.ogg");
-	else if (act == "move") play_voice("res://assets/sounds/voice/move_1.ogg");
-	else if (act == "attack") play_voice("res://assets/sounds/voice/attack_1.ogg");
-	else if (act == "build") play_voice("res://assets/sounds/voice/build_1.ogg");
-	else if (act == "gather") play_voice("res://assets/sounds/voice/gather_1.ogg");
+// music.js states: civ peace tracks for the local player's civ, battle while
+// BattleDetection says the player is fighting, victory or defeat at the end
+// (with alarm_victory / alarm_defeated).
+// Music state, current track and last sound event (headless smoke tests).
+Dictionary RtsoMain::get_audio_state() const {
+	static const char *kStates[] = {"off", "menu", "peace", "battle", "victory", "defeat"};
+	Dictionary d;
+	d["music_state"] = kStates[music_.state()];
+	d["track"] = music_.current_track();
+	d["last_sound"] = session_audio_.last_played();
+	d["in_battle"] = session_audio_.in_battle();
+	return d;
+}
+
+void RtsoMain::update_music_state() {
+	if (!sim) return;
+	const uint8_t me = local_player();
+	const uint8_t civ = sim->player_civ(me);
+	if (civ != music_civ_) {
+		music_civ_ = civ;
+		music_.store_civ_tracks(civ);
+		if (music_.state() != rtso::RtsoMusic::OFF) {
+			const auto keep = music_.state();
+			music_.set_state(rtso::RtsoMusic::OFF);
+			music_.set_state(keep);
+		}
+	}
+	rtso::RtsoMusic::State want = session_audio_.in_battle() ? rtso::RtsoMusic::BATTLE : rtso::RtsoMusic::PEACE;
+	if (sim->is_victory_for(me)) want = rtso::RtsoMusic::VICTORY;
+	else if (sim->is_victory() || sim->is_game_over() || sim->is_defeated(me)) want = rtso::RtsoMusic::DEFEAT;
+	const auto was = music_.state();
+	if (want == was) return;
+	if (want == rtso::RtsoMusic::VICTORY) session_audio_.play_victory();
+	else if (want == rtso::RtsoMusic::DEFEAT) session_audio_.play_defeat();
+	music_.set_state(want);
 }
 
 void RtsoMain::play_spatial_sfx(const char *path, Vector3 pos) {
@@ -1188,6 +1126,7 @@ void RtsoMain::find_idle_unit(IdleKind kind) {
 	}
 	if (idle.empty()) {
 		last_idle_unit_ = 0;
+		session_audio_.play_no_idle_unit();
 		return;
 	}
 	if (!append) {
@@ -1214,6 +1153,174 @@ void RtsoMain::find_idle_unit(IdleKind kind) {
 	selected_ids.push_back((int32_t)uview.id[pick]);
 	if (cam_rig) cam_rig->set_target_pos(Vector3(uview.pos_x[pick], 0, uview.pos_z[pick]));
 	play_civ_voice("select");
+}
+
+// Under-attack alerts. 0 A.D. raises them from the sim's Attacked message
+// (AttackDetection.js OnGlobalAttacked); RTS0's sim has no attack events, so
+// the UI notices a local unit or structure losing health with a hostile unit
+// near it, and runs 0 A.D.'s suppression rules (attack_detection.h) on that.
+void RtsoMain::detect_attacks() {
+	if (!sim) return;
+	const uint8_t me = local_player();
+	if (me != attack_watch_player_) {
+		// New match seat (load, net start): forget old health so nothing fires.
+		attack_watch_player_ = me;
+		prev_unit_hp_.clear();
+		prev_building_hp_.clear();
+		attack_detection_.clear();
+	}
+	auto uview = sim->units();
+	// Nearest hostile unit within reach of (x, z): the attacker, if any.
+	auto attacker_near = [&](float x, float z, float reach) -> int {
+		int best = -1;
+		float best_d2 = reach * reach;
+		for (size_t i = 0; i < uview.count; ++i) {
+			if (!uview.alive[i] || !sim->is_hostile(me, uview.team[i])) continue;
+			const float dx = uview.pos_x[i] - x, dz = uview.pos_z[i] - z;
+			const float d2 = dx * dx + dz * dz;
+			if (d2 < best_d2) {
+				best_d2 = d2;
+				best = (int)uview.team[i];
+			}
+		}
+		return best;
+	};
+	// Longest RTS0 attack reach (siege and archers) plus a margin.
+	constexpr float kReach = 30.0f;
+	std::unordered_map<uint32_t, float> unit_hp;
+	unit_hp.reserve(prev_unit_hp_.size() + 8);
+	for (size_t i = 0; i < uview.count; ++i) {
+		if (!uview.alive[i] || uview.team[i] != me) continue;
+		unit_hp[uview.id[i]] = uview.hp[i];
+		auto it = prev_unit_hp_.find(uview.id[i]);
+		if (it == prev_unit_hp_.end() || uview.hp[i] >= it->second) continue;
+		const int attacker = attacker_near(uview.pos_x[i], uview.pos_z[i], kReach);
+		if (attacker >= 0 && attack_detection_.report(uview.pos_x[i], uview.pos_z[i], match_elapsed_time))
+			notify_attack(Vector3(uview.pos_x[i], 0, uview.pos_z[i]), (uint8_t)attacker, false);
+	}
+	prev_unit_hp_.swap(unit_hp);
+	std::unordered_map<uint32_t, float> bld_hp;
+	bld_hp.reserve(prev_building_hp_.size() + 4);
+	for (const auto &b : sim->buildings()) {
+		if (b.team != me || b.wrecked) continue;
+		bld_hp[b.id] = b.hp;
+		auto it = prev_building_hp_.find(b.id);
+		if (it == prev_building_hp_.end() || b.hp >= it->second) continue;
+		const int attacker = attacker_near(b.x, b.z, kReach + b.half_size);
+		if (attacker >= 0 && attack_detection_.report(b.x, b.z, match_elapsed_time))
+			notify_attack(Vector3(b.x, 0, b.z), (uint8_t)attacker, true);
+	}
+	prev_building_hp_.swap(bld_hp);
+}
+
+// 0 A.D. messages.js "attack" notification: remember the spot for
+// camera.lastattackfocus, ping the minimap, play the "attacked" sound group
+// (alarm_attackplayer, or alarm_attacked_gaia for Gaia) and add a chat line.
+void RtsoMain::notify_attack(Vector3 pos, uint8_t attacker, bool structure) {
+	has_last_attack_ = true;
+	last_attack_pos_ = pos;
+	if (minimap_view) minimap_view->add_ping(Vector2(pos.x, pos.z), Color(1.0f, 0.15f, 0.1f));
+	const bool gaia = attacker == rtso::GAIA_PLAYER;
+	session_audio_.play_group("interface/alarm", gaia ? "alarm_attacked_gaia" : "alarmattackplayer", 0.25f);
+	if (!chat_window_.is_ready()) return;
+	String who = gaia ? String("Gaia")
+			: "Player " + String::num_int64(attacker + 1) + " (" + String(rtso::civ_info(sim->player_civ(attacker)).name) + ")";
+	(void)structure; // 0 A.D. words unit and structure attacks the same way
+	const String what = "You have been attacked";
+	const String key = rtso::hotkeys::table().label("camera.lastattackfocus").c_str();
+	chat_window_.append_line("[color=#ff6644]" + what + " by " + who + "![/color]" +
+			(key.is_empty() ? String() : " [color=#aaaaaa](" + key + " to view)[/color]") + "\n");
+}
+
+// Context cursors (0 A.D. gui/session/unit_actions.js "cursor" of each action
+// and input.js updateCursorAndTooltip, art/textures/cursors/action-*.png): the
+// cursor shows what a right-click would do with the current selection.
+void RtsoMain::update_cursor() {
+	Viewport *vp = get_viewport();
+	if (!sim || !vp) return;
+	const char *want = "";
+	Vector2 hot(1, 1);
+	const Vector2 mouse = vp->get_mouse_position();
+	const bool over_ui = vp->gui_get_hovered_control() != nullptr;
+	if (!over_ui && !build_mode) {
+		if (rtso::hotkeys::held("session.flare")) {
+			want = "action-flare";
+		} else if (selected_building_id != 0 && selected_ids.is_empty()) {
+			want = "cursor-rally";
+			hot = Vector2(5, 31);
+		} else if (!selected_ids.is_empty()) {
+			const Vector3 at = get_ground_click_pos(mouse);
+			const uint8_t me = local_player();
+			auto near2 = [&](float x, float z, float r) { return (x - at.x) * (x - at.x) + (z - at.z) * (z - at.z) <= r * r; };
+			if (attack_move_mode || rtso::hotkeys::held("session.attackmove")) want = "action-attack-move";
+			else if (patrol_mode || rtso::hotkeys::held("session.patrol")) want = "action-patrol";
+			else if (guard_mode || rtso::hotkeys::held("session.guard")) want = "action-guard";
+			if (!*want) {
+				auto uv = sim->units();
+				bool healer = false;
+				for (int s = 0; s < selected_ids.size() && !healer; ++s)
+					for (size_t i = 0; i < uv.count; ++i)
+						if (uv.id[i] == (uint32_t)(int64_t)selected_ids[s]) {
+							healer = uv.unit_type[i] == rtso::UNIT_HEALER;
+							break;
+						}
+				for (size_t i = 0; i < uv.count && !*want; ++i) {
+					if (!uv.alive[i] || !near2(uv.pos_x[i], uv.pos_z[i], 2.2f)) continue;
+					if (sim->is_hostile(me, uv.team[i])) want = "action-attack";
+					// 0 A.D. unit_actions "heal": a healer over a wounded own or allied unit.
+					else if (healer && uv.hp[i] < uv.max_hp[i] && (uv.team[i] == me || sim->is_ally(me, uv.team[i])))
+						want = "action-heal";
+				}
+			}
+			if (!*want) {
+				auto fv = sim->fauna();
+				for (size_t f = 0; f < fv.count && !*want; ++f) {
+					if (!fv.alive[f] || !near2(fv.pos_x[f], fv.pos_z[f], 2.5f)) continue;
+					want = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic ? "action-herd" : "action-gather-meat";
+				}
+			}
+			if (!*want) {
+				auto rv = sim->resources();
+				for (size_t r = 0; r < rv.count && !*want; ++r) {
+					if (!rv.alive[r] || rv.amount[r] <= 0 || !near2(rv.x[r], rv.z[r], 2.2f)) continue;
+					switch (rv.type[r]) {
+						case rtso::RES_WOOD: want = "action-gather-tree"; break;
+						case rtso::RES_GOLD: want = "action-gather-ore"; break;
+						case rtso::RES_STONE: want = "action-gather-rock"; break;
+						default:
+							want = rv.subtype[r] == rtso::RES_SUB_MEAT ? "action-gather-meat"
+									: rv.subtype[r] == rtso::RES_SUB_GRAIN ? "action-gather-grain"
+									: rv.subtype[r] == rtso::RES_SUB_FISH ? "action-gather-fish" : "action-gather-fruit";
+					}
+				}
+			}
+			if (!*want) {
+				for (const auto &b : sim->buildings()) {
+					if (b.wrecked || !near2(b.x, b.z, b.half_size + 1.2f)) continue;
+					// 0 A.D. "capture" is the default on enemy structures; session.attack
+					// (or attack-move's Ctrl) attacks instead.
+					if (b.team != me)
+						want = !sim->is_hostile(me, b.team) ? ""
+								: (rtso::hotkeys::held("session.attack") || rtso::hotkeys::held("session.attackmove") ||
+										  b.max_capture_points <= 0.0f)
+								? "action-attack" : "action-capture";
+					else if (b.build_progress < 1.0f || b.type == rtso::BLD_FIELD) want = "action-build";
+					else if (b.hp < b.max_hp) want = "action-repair";
+					else if (b.garrison_cap > 0) want = "action-garrison";
+					break;
+				}
+			}
+		}
+	}
+	if (cursor_name_ == want) return;
+	cursor_name_ = want;
+	Input *in = Input::get_singleton();
+	if (!*want) {
+		in->set_custom_mouse_cursor(Ref<Resource>());
+		return;
+	}
+	Ref<Texture2D> tex = load_tex(String("res://assets/textures/cursors/") + want + ".png");
+	in->set_custom_mouse_cursor(tex, Input::CURSOR_ARROW, hot);
 }
 
 void RtsoMain::_on_speed_button_pressed() {
@@ -1461,6 +1568,7 @@ void RtsoMain::_process(double delta) {
 	}
 	// Networked: keep running TurnManager::tick, which holds turns for everyone
 	// while any client is paused, so this peer still sees remote pauses end.
+	music_.tick(delta);
 	if ((paused_via_menu || hotkey_paused_) && !net_lockstep()) return;
 	double scaled_delta = delta * game_speed;
 	match_elapsed_time += scaled_delta;
@@ -1536,30 +1644,15 @@ void RtsoMain::_process(double delta) {
 	}
 	update_inspector();
 	update_command_panel();
+	detect_attacks();
+	update_cursor();
+	chat_window_.tick_overlay();
+	if (objectives_dialog_.is_open()) objectives_dialog_.refresh(sim, local_player());
 
-	// Adaptive Dynamic Music Crossfader (Music.js)
-	int active_combatants = 0;
-	auto uview = sim->units();
-	for (size_t i = 0; i < uview.count; ++i) {
-		if (uview.alive[i] && uview.action_state[i] == rtso::ACTION_ATTACK) {
-			active_combatants++;
-		}
-	}
-	int active_projectiles = (int)sim->projectiles().size();
-	float target_intensity = (active_combatants >= 3 || active_projectiles >= 2) ? 1.0f : 0.0f;
-
-	if (target_intensity > combat_intensity) {
-		combat_intensity = std::min(1.0f, combat_intensity + (float)delta * 0.75f); // Fast cross-fade to battle
-	} else {
-		combat_intensity = std::max(0.0f, combat_intensity - (float)delta * 0.20f); // Slow return to peace
-	}
-
-	if (music_player && battle_music_player) {
-		float peace_db = -8.0f - (combat_intensity * 60.0f);
-		float battle_db = -80.0f + (combat_intensity * 74.0f); // up to -6.0dB
-		music_player->set_volume_db(peace_db);
-		battle_music_player->set_volume_db(battle_db);
-	}
+	// Sound events and the music state (0 A.D. music.js: battle while
+	// BattleDetection says so, victory and defeat playlists at the end).
+	session_audio_.tick(sim, local_player(), match_elapsed_time, true);
+	update_music_state();
 
 	// Environmental Ambience: Viewport Elevation & Coastal Water Proximity
 	Vector3 cam_world_pos(0, 30, 0);
@@ -1698,7 +1791,8 @@ void RtsoMain::_process(double delta) {
 	}
 
 	// Update 3D Rally Point Marker
-	rtso::update_rally_marker(rally_flag, sim, selected_building_id, 0);
+	rtso::update_rally_marker(rally_flag, sim, selected_building_id, local_player());
+	range_overlays_.update(sim, local_player(), selected_building_id, selected_ids.ptr(), selected_ids.size());
 
 	static bool summary_shown = false;
 	if ((sim->is_victory() || sim->is_game_over()) && !summary_shown) {
@@ -1762,13 +1856,36 @@ void RtsoMain::update_hud() {
 	top_panel_.update(sim, local_player(), match_elapsed_time);
 }
 
+// Selection details (0 A.D. gui/session/selection_details.js): real values
+// only. Health always; capture points for capturable structures; experience
+// toward the next rank for units (thresholds from Simulation::tick_promotion);
+// construction, upgrade or research progress for structures; aura names from
+// the unit's roster template; carried resources. Several units show the
+// multi-selection icon grid (selection_panels.js "Selection") and a structure
+// with a garrison shows the garrison grid ("Garrison").
 void RtsoMain::update_inspector() {
 	if (!inspector_panel) return;
+	auto show_bar = [](ProgressBar *bar, Label *lbl, bool v) {
+		bar->set_visible(v);
+		lbl->set_visible(v);
+	};
+	auto set_bar = [&](ProgressBar *bar, Label *lbl, float value, float max, const String &text) {
+		show_bar(bar, lbl, true);
+		bar->set_max(max > 0.0f ? max : 1.0f);
+		bar->set_value(value);
+		lbl->set_text(text);
+	};
+	auto armour_text = [](float hack, float pierce, float crush) {
+		return "Armor: " + String::num(hack, 0) + " hack, " + String::num(pierce, 0) + " pierce, " + String::num(crush, 0) + " crush";
+	};
+	// The stamina bar has no 0 A.D. counterpart.
+	show_bar(inspector_stamina_bar, inspector_stamina_label, false);
+	selection_grid_.set_visible(false);
+	garrison_grid_.set_visible(false);
 
 	if (selected_building_id != 0) {
-		const auto &bldgs = sim->buildings();
 		const rtso::Simulation::Building *found_b = nullptr;
-		for (const auto &b : bldgs) {
+		for (const auto &b : sim->buildings()) {
 			if (b.id == selected_building_id) { found_b = &b; break; }
 		}
 
@@ -1776,255 +1893,218 @@ void RtsoMain::update_inspector() {
 			const auto &binfo = rtso::building_type_info(found_b->type);
 			inspector_portrait->set_texture(load_tex("res://assets/textures/ui/portraits/" + String(binfo.portrait_id) + ".png"));
 			inspector_title->set_text(String(binfo.name));
-			String civ_name = rtso::civ_info(sim->player_civ(local_player())).name;
-			inspector_class->set_text(civ_name + " Architecture - Garrison Cap: " + String::num_int64(found_b->garrison_cap));
+			const uint8_t owner = found_b->team;
+			String owner_name = owner == rtso::GAIA_PLAYER ? String("Gaia")
+					: "Player " + String::num_int64(owner + 1) + " (" + String(rtso::civ_info(sim->player_civ(owner)).name) + ")";
+			inspector_class->set_text(owner_name + (found_b->garrison_cap > 0
+					? " - Garrison: " + String::num_int64(found_b->garrisoned_units.size()) + " / " + String::num_int64(found_b->garrison_cap)
+					: String()));
 
-			// 1. Health Bar
-			inspector_hp_bar->set_max(found_b->max_hp);
-			inspector_hp_bar->set_value(found_b->hp);
-			inspector_hp_label->set_text("HP: " + String::num((double)found_b->hp, 0) + " / " + String::num((double)found_b->max_hp, 0));
+			set_bar(inspector_hp_bar, inspector_hp_label, found_b->hp, found_b->max_hp,
+					"Health: " + String::num((double)found_b->hp, 0) + " / " + String::num((double)found_b->max_hp, 0));
 
-			// 2. Capture Points Bar
-			float max_cp = (found_b->max_capture_points > 0.0f) ? found_b->max_capture_points : 1000.0f;
-			float cur_cp = (found_b->max_capture_points > 0.0f) ? found_b->capture_points : (found_b->hp / found_b->max_hp * max_cp);
-			inspector_capture_bar->set_max(max_cp);
-			inspector_capture_bar->set_value(cur_cp);
-			inspector_capture_label->set_text("Capture: " + String::num((double)cur_cp, 0) + " / " + String::num((double)max_cp, 0));
+			if (found_b->max_capture_points > 0.0f)
+				set_bar(inspector_capture_bar, inspector_capture_label, found_b->capture_points, found_b->max_capture_points,
+						"Capture points: " + String::num((double)found_b->capture_points, 0) + " / " + String::num((double)found_b->max_capture_points, 0));
+			else
+				show_bar(inspector_capture_bar, inspector_capture_label, false);
 
-			// 3. Veterancy / Tech Research XP Bar
-			if (found_b->upgrade_to != rtso::BLD_TYPE_COUNT && found_b->upgrade_duration > 0.0f) {
-				inspector_xp_bar->set_max(found_b->upgrade_duration);
-				inspector_xp_bar->set_value(found_b->upgrade_timer);
-				inspector_xp_label->set_text("Upgrading to " + String(rtso::building_type_name(found_b->upgrade_to)) + " (" + String::num(found_b->upgrade_timer, 1) + "s / " + String::num(found_b->upgrade_duration, 1) + "s)");
-			} else if (found_b->research_tech != rtso::TECH_NONE && found_b->research_duration > 0.0f) {
-				inspector_xp_bar->set_max(found_b->research_duration);
-				inspector_xp_bar->set_value(found_b->research_timer);
-				inspector_xp_label->set_text("Research: " + String(rtso::tech_info(found_b->research_tech).name) + " (" + String::num(found_b->research_timer, 1) + "s / " + String::num(found_b->research_duration, 1) + "s)");
-			} else {
-				inspector_xp_bar->set_max(100.0f);
-				inspector_xp_bar->set_value(100.0f);
-				inspector_xp_label->set_text("Technology Research: Ready");
-			}
-
-			// 4. Stamina / Structure Gauge
-			float struct_prog = std::clamp(found_b->build_progress * 100.0f, 0.0f, 100.0f);
-			inspector_stamina_bar->set_max(100.0f);
-			inspector_stamina_bar->set_value(struct_prog);
-			inspector_stamina_label->set_text(struct_prog >= 100.0f ? "Structure: 100% Integrity" : ("Construction: " + String::num(struct_prog, 0) + "%"));
-
-			// 5. Aura Influence Gauge
-			float aura_r = (found_b->type == rtso::BLD_TOWN_CENTER) ? 32.0f : ((found_b->type == rtso::BLD_FORTRESS) ? 28.0f : ((found_b->type == rtso::BLD_TOWER) ? 18.0f : ((found_b->type == rtso::BLD_TEMPLE) ? 18.0f : 0.0f)));
-			if (aura_r > 0.0f) {
-				inspector_aura_bar->set_max(32.0f);
-				inspector_aura_bar->set_value(aura_r);
-				inspector_aura_label->set_text("Aura: " + String::num(aura_r, 0) + "m Territory Influence (Active)");
-			} else if (found_b->garrison_cap > 0) {
-				inspector_aura_bar->set_max((float)found_b->garrison_cap);
-				inspector_aura_bar->set_value((float)found_b->garrisoned_units.size());
-				inspector_aura_label->set_text("Garrison: " + String::num_int64(found_b->garrisoned_units.size()) + " / " + String::num_int64(found_b->garrison_cap));
-			} else {
-				inspector_aura_bar->set_max(100.0f);
-				inspector_aura_bar->set_value(100.0f);
-				inspector_aura_label->set_text("Aura: Standard Influence");
-			}
-
-			String status = "State: Operational";
 			if (found_b->build_progress < 1.0f) {
-				status = "Under Construction (" + String::num((double)(found_b->build_progress * 100.0f), 0) + "%)";
-			} else if (found_b->type == rtso::BLD_GATE) {
-				status = found_b->gate_locked ? "Gate: locked" : (found_b->gate_open ? "Gate: open" : "Gate: closed");
-			} else if (found_b->upgrade_to != rtso::BLD_TYPE_COUNT) {
-				status = "Upgrading to " + String(rtso::building_type_name(found_b->upgrade_to)) +
-					" (" + String::num((double)(found_b->upgrade_duration - found_b->upgrade_timer), 1) + "s)";
-			} else if (found_b->research_tech != rtso::TECH_NONE) {
-				status = "Researching " + String(rtso::tech_info(found_b->research_tech).name) +
-					" (" + String::num((double)(found_b->research_duration - found_b->research_timer), 1) + "s)";
-			} else if (!found_b->queue.empty()) {
-				status = "Training Active (" + String::num_int64(found_b->queue.size()) + "/8 queued) - Right-click slot to cancel";
+				set_bar(inspector_xp_bar, inspector_xp_label, found_b->build_progress, 1.0f,
+						"Construction: " + String::num((double)(found_b->build_progress * 100.0f), 0) + "%");
+			} else if (found_b->upgrade_to != rtso::BLD_TYPE_COUNT && found_b->upgrade_duration > 0.0f) {
+				set_bar(inspector_xp_bar, inspector_xp_label, found_b->upgrade_timer, found_b->upgrade_duration,
+						"Upgrading to " + String(rtso::building_type_name(found_b->upgrade_to)) + " (" +
+						String::num(found_b->upgrade_duration - found_b->upgrade_timer, 0) + " s left)");
+			} else if (found_b->research_tech != rtso::TECH_NONE && found_b->research_duration > 0.0f) {
+				set_bar(inspector_xp_bar, inspector_xp_label, found_b->research_timer, found_b->research_duration,
+						"Researching " + String(rtso::tech_info(found_b->research_tech).name) + " (" +
+						String::num(found_b->research_duration - found_b->research_timer, 0) + " s left)");
+			} else {
+				show_bar(inspector_xp_bar, inspector_xp_label, false);
 			}
+			show_bar(inspector_aura_bar, inspector_aura_label, false);
+
+			String status;
+			if (found_b->type == rtso::BLD_GATE)
+				status = found_b->gate_locked ? "Gate: locked" : (found_b->gate_open ? "Gate: open" : "Gate: closed");
+			else if (!found_b->queue.empty())
+				status = "Training: " + String::num_int64(found_b->queue.size()) + " in queue (right-click a slot to cancel)";
+			if (binfo.attack_damage > 0.0f)
+				status += String(status.is_empty() ? "" : "\n") + "Attack: " + String::num(binfo.attack_damage, 0) + " pierce per arrow, interval " +
+						String::num(binfo.attack_cooldown, 1) + " s, range " + String::num(binfo.attack_range * rtso::AttackDetection::kMetresPerUnit, 0) + " m";
 			inspector_stats->set_text(status);
+			inspector_extra->set_text(found_b->has_rally_point ? "Rally point set" : "");
 
-			String extra = " Garrison: " + String::num_int64(found_b->garrisoned_units.size()) + " / " + String::num_int64(found_b->garrison_cap);
-			if (found_b->has_rally_point) extra += " |  Rally Point Set";
-			inspector_extra->set_text(extra);
-
-			ungarrison_btn->set_visible(!found_b->garrisoned_units.empty());
+			// Garrison panel: one icon per unit type inside, click to unload one,
+			// Shift+click (session.unloadtype) to unload that type, U unloads all.
+			if (!found_b->garrisoned_units.empty() && owner == local_player()) {
+				auto uview = sim->units();
+				garrison_grid_.update(RtsoSelectionGrid::group_units(uview, found_b->garrisoned_units.data(), found_b->garrisoned_units.size()),
+						"Click to unload one, Shift+click to unload all of this type.");
+				garrison_grid_.set_visible(true);
+			}
+			ungarrison_btn->set_text("Unload all (" + String(rtso::hotkeys::table().label("session.unload").c_str()) + ")");
+			ungarrison_btn->set_visible(!found_b->garrisoned_units.empty() && owner == local_player());
 			inspector_panel->set_visible(true);
 			return;
 		}
 	}
 
-	if (!selected_ids.is_empty()) {
-		auto uview = sim->units();
-		int v_cnt = 0, f_cnt = 0, s_cnt = 0, a_cnt = 0, sp_cnt = 0, c_cnt = 0;
-		int h_cnt = 0, ch_cnt = 0, ele_cnt = 0, siege_cnt = 0, naval_cnt = 0;
-		float hp_sum = 0, hp_max_sum = 0;
-		uint8_t single_utype = rtso::UNIT_VILLAGER;
+	if (selected_ids.is_empty()) {
+		inspector_panel->set_visible(false);
+		return;
+	}
+	auto uview = sim->units();
+	const uint32_t *ids = (const uint32_t *)selected_ids.ptr();
+	const auto groups = RtsoSelectionGrid::group_units(uview, ids, selected_ids.size());
+	float hp_sum = 0, hp_max_sum = 0;
+	for (const auto &g : groups) {
+		hp_sum += g.hp;
+		hp_max_sum += g.max_hp;
+	}
+	set_bar(inspector_hp_bar, inspector_hp_label, hp_sum, hp_max_sum,
+			"Health: " + String::num((double)hp_sum, 0) + " / " + String::num((double)hp_max_sum, 0));
+	show_bar(inspector_capture_bar, inspector_capture_label, false);
 
-		for (int i = 0; i < selected_ids.size(); ++i) {
-			uint32_t uid = (uint32_t)selected_ids[i];
-			for (size_t u = 0; u < uview.count; ++u) {
-				if (uview.id[u] == uid && uview.alive[u]) {
-					hp_sum += uview.hp[u];
-					hp_max_sum += uview.max_hp[u];
-					uint8_t ut = uview.unit_type[u];
-					single_utype = ut;
-					if (ut == rtso::UNIT_VILLAGER) v_cnt++;
-					else if (ut == rtso::UNIT_FEMALE_CITIZEN) f_cnt++;
-					else if (ut == rtso::UNIT_SWORDSMAN) s_cnt++;
-					else if (ut == rtso::UNIT_ARCHER || ut == rtso::UNIT_ARCHER_MAIDEN) a_cnt++;
-					else if (ut == rtso::UNIT_SPEARMAN || ut == rtso::UNIT_CARNYX) sp_cnt++;
-					else if (ut == rtso::UNIT_CAVALRY || ut == rtso::UNIT_CAMEL || ut == rtso::UNIT_HERO) c_cnt++;
-					else if (ut == rtso::UNIT_HEALER) h_cnt++;
-					else if (ut == rtso::UNIT_CHARIOT || ut == rtso::UNIT_SCYTHED_CHARIOT) ch_cnt++;
-					else if (ut == rtso::UNIT_ELEPHANT || ut == rtso::UNIT_WORKER_ELEPHANT) ele_cnt++;
-					else if (ut == rtso::UNIT_CATAPULT || ut == rtso::UNIT_SIEGE_RAM || ut == rtso::UNIT_BOLT_SHOOTER) siege_cnt++;
-					else if (ut == rtso::UNIT_TRIREME || ut == rtso::UNIT_FISHING_BOAT || ut == rtso::UNIT_MERCHANT_SHIP) naval_cnt++;
-					else v_cnt++;
-					break;
-				}
-			}
+	if (selected_ids.size() == 1 && !groups.empty()) {
+		size_t u = 0;
+		for (; u < uview.count; ++u)
+			if (uview.id[u] == (uint32_t)selected_ids[0]) break;
+		if (u == uview.count) {
+			inspector_panel->set_visible(false);
+			return;
+		}
+		const uint8_t utype = uview.unit_type[u];
+		const uint16_t tmpl = uview.tmpl ? uview.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE;
+		const auto &uinfo = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_template_unit_info(tmpl, utype) : rtso::unit_type_info(utype);
+		inspector_portrait->set_texture(load_tex("res://assets/textures/ui/portraits/" + String(rtso::unit_type_portrait(utype)) + ".png"));
+
+		// 0 A.D. ranks: Basic, Advanced, Elite (Promotion.js).
+		const int rank = std::max(1, (int)uview.rank[u]);
+		static const char *kRank[] = {"", "", "Advanced ", "Elite "};
+		String name = String(kRank[std::min(rank, 3)]) + String::utf8(uinfo.name);
+		if (tmpl != rtso::CIV_UNIT_TEMPLATE_NONE) {
+			const char *specific = rtso::civ_unit_template(tmpl).specific_name;
+			if (specific && specific[0]) name += String::utf8(" (") + String::utf8(specific) + ")";
+		}
+		inspector_title->set_text(name);
+		const uint8_t owner = uview.team[u];
+		inspector_class->set_text("Player " + String::num_int64(owner + 1) + " (" + String(rtso::civ_info(sim->player_civ(owner)).name) +
+				") - Kills: " + String::num_int64(uview.kills[u]));
+
+		// Experience toward the next rank (Simulation::tick_promotion: 300, 700).
+		if (rank < 3) {
+			const float need = rank < 2 ? 300.0f : 700.0f;
+			set_bar(inspector_xp_bar, inspector_xp_label, (float)uview.xp[u], need,
+					"Experience: " + String::num_int64(uview.xp[u]) + " / " + String::num(need, 0));
+		} else {
+			show_bar(inspector_xp_bar, inspector_xp_label, false);
 		}
 
-		if (selected_ids.size() == 1) {
-			const auto &uinfo = rtso::unit_type_info(single_utype);
-			inspector_portrait->set_texture(load_tex("res://assets/textures/ui/portraits/" + String(uinfo.portrait_id) + ".png"));
-			
-			uint32_t uid = (uint32_t)selected_ids[0];
-			int u_kills = 0;
-			int u_rank = 1;
-			for (size_t u = 0; u < uview.count; ++u) {
-				if (uview.id[u] == uid) {
-					u_kills = (int)uview.kills[u];
-					u_rank = (int)uview.rank[u];
-					break;
-				}
+		String auras;
+		if (tmpl != rtso::CIV_UNIT_TEMPLATE_NONE) {
+			for (int16_t a : rtso::civ_unit_template(tmpl).auras) {
+				if (a < 0) continue;
+				if (!auras.is_empty()) auras += ", ";
+				auras += String::utf8(rtso::civ_hero_aura(a).name);
 			}
+		}
+		if (!auras.is_empty()) set_bar(inspector_aura_bar, inspector_aura_label, 1.0f, 1.0f, "Auras: " + auras);
+		else show_bar(inspector_aura_bar, inspector_aura_label, false);
 
-			String rank_badge = (u_rank == 3) ? " [Elite]" : ((u_rank == 2) ? " [Advanced]" : " [Citizen]");
-			inspector_title->set_text(String(uinfo.name) + rank_badge);
+		// Attack and armour (gui/common/tooltips.js getAttackTooltip / getArmorTooltip).
+		String stats;
+		if (uinfo.attack_damage > 0.0f) {
+			String dmg;
+			auto add = [&](float v, const char *kind) {
+				if (v <= 0.0f) return;
+				if (!dmg.is_empty()) dmg += ", ";
+				dmg += String::num(v, 1) + " " + kind;
+			};
+			add(uinfo.hack_damage, "hack");
+			add(uinfo.pierce_damage, "pierce");
+			add(uinfo.crush_damage, "crush");
+			if (dmg.is_empty()) dmg = String::num(uinfo.attack_damage, 1);
+			stats = "Attack: " + dmg + ", interval " + String::num(uinfo.attack_cooldown, 2) + " s";
+			if (uinfo.attack_range > 2.5f) stats += ", range " + String::num(uinfo.attack_range * rtso::AttackDetection::kMetresPerUnit, 0) + " m";
+			stats += "\n";
+		}
+		stats += armour_text(uinfo.hack_armor, uinfo.pierce_armor, uinfo.crush_armor);
+		inspector_stats->set_text(stats);
 
-			const char *role_name = "Infantry";
-			if (single_utype == rtso::UNIT_VILLAGER || single_utype == rtso::UNIT_FEMALE_CITIZEN) role_name = "Economic Citizen";
-			else if (single_utype == rtso::UNIT_ARCHER || single_utype == rtso::UNIT_ARCHER_MAIDEN) role_name = "Ranged Skirmisher";
-			else if (single_utype == rtso::UNIT_CAVALRY || single_utype == rtso::UNIT_CAMEL) role_name = "Shock Cavalry";
-			else if (single_utype == rtso::UNIT_CHARIOT || single_utype == rtso::UNIT_SCYTHED_CHARIOT) role_name = "War Chariot";
-			else if (single_utype == rtso::UNIT_ELEPHANT || single_utype == rtso::UNIT_WORKER_ELEPHANT) role_name = "War Elephant";
-			else if (single_utype == rtso::UNIT_HEALER) role_name = "Temple Healer";
-			else if (single_utype == rtso::UNIT_CATAPULT || single_utype == rtso::UNIT_BOLT_SHOOTER || single_utype == rtso::UNIT_SIEGE_RAM) role_name = "Siege Artillery";
-			else if (single_utype == rtso::UNIT_TRIREME || single_utype == rtso::UNIT_FISHING_BOAT || single_utype == rtso::UNIT_MERCHANT_SHIP) role_name = "Naval Vessel";
-
-			inspector_class->set_text(String("Role: ") + role_name + " - Kills: " + String::num_int64(u_kills) + " - Speed: " + String::num(uinfo.speed, 1) + " m/s");
-
-			// 1. Health Bar
-			inspector_hp_bar->set_max(hp_max_sum);
-			inspector_hp_bar->set_value(hp_sum);
-			inspector_hp_label->set_text("HP: " + String::num((double)hp_sum, 0) + " / " + String::num((double)hp_max_sum, 0));
-
-			// 2. Capture Resistance Bar
-			inspector_capture_bar->set_max(100.0f);
-			inspector_capture_bar->set_value(100.0f);
-			inspector_capture_label->set_text("Capture Resistance: 100 / 100");
-
-			// 3. Veterancy / Experience XP Bar
-			float req_xp = (float)(u_rank * 100);
-			float cur_xp = (float)(u_kills * 15 + (u_rank - 1) * 50);
-			if (cur_xp > req_xp && u_rank >= 3) cur_xp = req_xp;
-			inspector_xp_bar->set_max(req_xp);
-			inspector_xp_bar->set_value(cur_xp);
-			inspector_xp_label->set_text("Veterancy XP: " + String::num(cur_xp, 0) + " / " + String::num(req_xp, 0) + " (" + String::num_int64(u_kills) + " Kills)");
-
-			// 4. Stamina / Energy Gauge
-			inspector_stamina_bar->set_max(100.0f);
-			inspector_stamina_bar->set_value(100.0f);
-			inspector_stamina_label->set_text("Stamina: 100 / 100 (Energy)");
-
-			// 5. Aura Influence Gauge
-			bool has_hero_aura = (single_utype == rtso::UNIT_HERO || single_utype == rtso::UNIT_HEALER || single_utype == rtso::UNIT_CARNYX || single_utype == rtso::UNIT_FEMALE_CITIZEN);
-			inspector_aura_bar->set_max(100.0f);
-			inspector_aura_bar->set_value(has_hero_aura ? 100.0f : 50.0f);
-			if (single_utype == rtso::UNIT_HERO) inspector_aura_label->set_text("Aura: 16m Heroic Morale Aura (Active)");
-			else if (single_utype == rtso::UNIT_HEALER) inspector_aura_label->set_text("Aura: 12m Divine Healing Aura (Active)");
-			else if (single_utype == rtso::UNIT_CARNYX) inspector_aura_label->set_text("Aura: 14m Carnyx Battle Cry Aura (Active)");
-			else if (single_utype == rtso::UNIT_FEMALE_CITIZEN) inspector_aura_label->set_text("Aura: 10m Civic Inspiration Aura (+15% Gather)");
-			else inspector_aura_label->set_text("Aura Influence: Active Standard");
-
-			String stats_line = " Attack: " + String::num(uinfo.attack_damage, 0);
-			if (uinfo.attack_range > 2.0f) stats_line += " (" + String::num(uinfo.attack_range, 1) + "m)";
-			stats_line += " |  Armor: " + String::num(uinfo.hack_armor, 0) + "H / " + String::num(uinfo.pierce_armor, 0) + "P / " + String::num(uinfo.crush_armor, 0) + "C";
-			if (uinfo.carry_capacity > 0) stats_line += " |  Cap: " + String::num_int64(uinfo.carry_capacity);
-			inspector_stats->set_text(stats_line);
-
-			if (single_utype == rtso::UNIT_TRIREME) {
-				size_t p_count = sim->get_transport_passenger_count(uid);
-				if (p_count > 0) {
-					inspector_extra->set_text(" Transport: " + String::num_int64(p_count) + " / " + String::num_int64(rtso::Simulation::TRANSPORT_CAPACITY) + " Passengers | [Z] Disembark All");
-					ungarrison_btn->set_text("Disembark (Z)");
-					ungarrison_btn->set_visible(true);
-				} else {
-					inspector_extra->set_text(" Arrow warship (ranged pierce, 3x vs ships) - Capacity: " + String::num_int64(rtso::Simulation::TRANSPORT_CAPACITY) + " troops");
-					ungarrison_btn->set_text("Ungarrison (Z)");
-					ungarrison_btn->set_visible(false);
-				}
-			} else {
-				inspector_extra->set_text("Orders: [RMB] Move/Attack/Gather | Stances: [F1-F5] | Formations: [Z,X,C,V]");
-				ungarrison_btn->set_text("Ungarrison (Z)");
-				ungarrison_btn->set_visible(false);
-			}
+		static const char *kRes[] = {"wood", "metal", "stone", "food"};
+		String extra;
+		if (uview.carry[u] > 0 && uview.res_type_carried[u] < rtso::RES_COUNT)
+			extra = "Carrying " + String::num_int64(uview.carry[u]) + " " + kRes[uview.res_type_carried[u]];
+		if (sim->is_transport((uint32_t)selected_ids[0])) {
+			const size_t p_count = sim->get_transport_passenger_count((uint32_t)selected_ids[0]);
+			extra = "Passengers: " + String::num_int64(p_count) + " / " + String::num_int64(rtso::Simulation::TRANSPORT_CAPACITY);
+			ungarrison_btn->set_text("Unload all (" + String(rtso::hotkeys::table().label("session.unload").c_str()) + ")");
+			ungarrison_btn->set_visible(p_count > 0);
 		} else {
-			inspector_portrait->set_texture(load_tex("res://assets/textures/ui/portraits/swordsman.png"));
-			inspector_title->set_text("Selected Company (" + String::num_int64(selected_ids.size()) + " Units)");
-			String civ_name = rtso::civ_info(sim->player_civ(local_player())).name;
-			inspector_class->set_text(civ_name + " Taskforce - Combined Arms");
-
-			// 1. Health Bar
-			inspector_hp_bar->set_max(hp_max_sum);
-			inspector_hp_bar->set_value(hp_sum);
-			inspector_hp_label->set_text("HP: " + String::num((double)hp_sum, 0) + " / " + String::num((double)hp_max_sum, 0));
-
-			// 2. Capture Resistance Bar
-			inspector_capture_bar->set_max(100.0f);
-			inspector_capture_bar->set_value(100.0f);
-			inspector_capture_label->set_text("Capture Resistance: 100%");
-
-			// 3. Veterancy / Company XP Bar
-			inspector_xp_bar->set_max((float)(selected_ids.size() * 100));
-			inspector_xp_bar->set_value((float)(selected_ids.size() * 50));
-			inspector_xp_label->set_text("Company Experience: " + String::num_int64(selected_ids.size()) + " Battlegroup");
-
-			// 4. Stamina Gauge
-			inspector_stamina_bar->set_max(100.0f);
-			inspector_stamina_bar->set_value(100.0f);
-			inspector_stamina_label->set_text("Company Stamina: 100 / 100");
-
-			// 5. Aura Influence Gauge
-			inspector_aura_bar->set_max(100.0f);
-			inspector_aura_bar->set_value(100.0f);
-			inspector_aura_label->set_text("Aura: Combined Arms Influence");
-
-			String comp_str = "Comp: ";
-			if (v_cnt > 0) comp_str += String::num_int64(v_cnt) + " Citizens, ";
-			if (f_cnt > 0) comp_str += String::num_int64(f_cnt) + " Females, ";
-			if (s_cnt > 0) comp_str += String::num_int64(s_cnt) + " Swords, ";
-			if (a_cnt > 0) comp_str += String::num_int64(a_cnt) + " Archers, ";
-			if (sp_cnt > 0) comp_str += String::num_int64(sp_cnt) + " Spears, ";
-			if (c_cnt > 0) comp_str += String::num_int64(c_cnt) + " Cav, ";
-			if (ch_cnt > 0) comp_str += String::num_int64(ch_cnt) + " Chariots, ";
-			if (ele_cnt > 0) comp_str += String::num_int64(ele_cnt) + " Elephants, ";
-			if (h_cnt > 0) comp_str += String::num_int64(h_cnt) + " Healers, ";
-			if (siege_cnt > 0) comp_str += String::num_int64(siege_cnt) + " Siege, ";
-			if (naval_cnt > 0) comp_str += String::num_int64(naval_cnt) + " Ships, ";
-			if (comp_str.ends_with(", ")) comp_str = comp_str.substr(0, comp_str.length() - 2);
-			inspector_stats->set_text(comp_str);
-
-			inspector_extra->set_text("Stances: [F1-F5] | Formations: [Z,X,C,V]");
 			ungarrison_btn->set_visible(false);
 		}
-
-		inspector_panel->set_visible(true);
+		inspector_extra->set_text(extra);
 	} else {
-		inspector_panel->set_visible(false);
+		inspector_portrait->set_texture(groups.empty() ? Ref<Texture2D>()
+				: load_tex("res://assets/textures/ui/portraits/" + String(rtso::unit_type_portrait(groups.front().unit_type)) + ".png"));
+		inspector_title->set_text(String::num_int64(selected_ids.size()) + " units selected");
+		inspector_class->set_text(String::num_int64(groups.size()) + (groups.size() == 1 ? " type" : " types"));
+		show_bar(inspector_xp_bar, inspector_xp_label, false);
+		show_bar(inspector_aura_bar, inspector_aura_label, false);
+		inspector_stats->set_text("");
+		inspector_extra->set_text("");
+		ungarrison_btn->set_visible(false);
+		selection_grid_.update(groups, "Click to select only these, Ctrl+click to deselect them.");
+		selection_grid_.set_visible(true);
 	}
+	inspector_panel->set_visible(true);
+}
+
+// Multi-selection icon click (0 A.D. selection_panels.js Selection.execute):
+// select only that group, or drop it with session.deselectgroup (Ctrl).
+void RtsoMain::_on_selection_group_clicked(int key) {
+	if (!sim) return;
+	const bool drop = rtso::hotkeys::held("session.deselectgroup");
+	auto uview = sim->units();
+	PackedInt32Array kept;
+	for (int s = 0; s < selected_ids.size(); ++s) {
+		for (size_t i = 0; i < uview.count; ++i) {
+			if (uview.id[i] != (uint32_t)selected_ids[s]) continue;
+			const uint16_t tmpl = uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
+			const bool in_group = RtsoSelectionGrid::group_key(uview.unit_type[i], tmpl) == key;
+			if (in_group != drop) kept.push_back(selected_ids[s]);
+			break;
+		}
+	}
+	selected_ids = kept;
+}
+
+// Garrison icon click (selection_panels.js Garrison.execute -> unloadTemplate):
+// unload one unit of the group, or all of them with session.unloadtype (Shift).
+// Networked games have no single-unit unload command yet, so they unload all.
+void RtsoMain::_on_garrison_group_clicked(int key) {
+	if (!sim || selected_building_id == 0) return;
+	const auto *inside = sim->get_garrisoned_units(selected_building_id);
+	if (!inside || inside->empty()) return;
+	if (net_lockstep()) {
+		post_lockstep(13, nullptr, 0, 0, 0, selected_building_id, 0);
+		return;
+	}
+	const bool all = rtso::hotkeys::held("session.unloadtype");
+	auto uview = sim->units();
+	std::vector<uint32_t> out;
+	for (uint32_t gid : *inside) {
+		for (size_t i = 0; i < uview.count; ++i) {
+			if (uview.id[i] != gid) continue;
+			const uint16_t tmpl = uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
+			if (RtsoSelectionGrid::group_key(uview.unit_type[i], tmpl) == key) out.push_back(gid);
+			break;
+		}
+		if (!all && !out.empty()) break;
+	}
+	for (uint32_t gid : out) sim->order_ungarrison_single(selected_building_id, gid);
 }
 
 void RtsoMain::update_command_panel() {
@@ -2344,7 +2424,12 @@ void RtsoMain::update_command_panel() {
 					rtso::BLD_WONDER
 				};
 				static const char *kPhaseNames[4] = {"", "Village", "Town", "City"};
-				for (int bt : b_types) {
+				// Generic structures, then the local civ's own (0 A.D. structures/<civ>/).
+				const uint8_t my_civ = sim->player_civ(local_player());
+				std::vector<int> menu(std::begin(b_types), std::end(b_types));
+				for (int bt = rtso::CIV_BUILDING_FIRST; bt < rtso::BLD_TYPE_COUNT; ++bt)
+					if (rtso::civ_can_build(my_civ, (uint8_t)bt)) menu.push_back(bt);
+				for (int bt : menu) {
 					const rtso::BuildingTypeInfo &bi = rtso::building_type_info((uint8_t)bt);
 					String cost;
 					auto add_cost = [&](int amount, const char *suffix) {
@@ -2358,7 +2443,7 @@ void RtsoMain::update_command_panel() {
 					add_cost(bi.stone_cost, "s");
 					uint8_t need = rtso::building_required_phase((uint8_t)bt);
 					Button *bb = memnew(Button);
-					bb->set_text(String(bi.name) + (cost.is_empty() ? String() : " (" + cost + ")"));
+					bb->set_text(String::utf8(bi.name) + (cost.is_empty() ? String() : " (" + cost + ")"));
 					bb->add_theme_font_size_override("font_size", 9);
 					if (need > sim->player_phase(local_player())) {
 						bb->set_disabled(true);
@@ -2516,6 +2601,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				diplo_dialog_.close();
 				return;
 			}
+			if (objectives_dialog_.is_open()) {
+				objectives_dialog_.close();
+				return;
+			}
 			if (build_mode) enter_build_mode(false);
 			else if (attack_move_mode || patrol_mode || guard_mode)
 				attack_move_mode = patrol_mode = guard_mode = false;
@@ -2616,6 +2705,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (fired("selection.idlebuilder")) { find_idle_unit(IDLE_BUILDER); return; }
 
 		if (fired("session.gui.diplomacy.toggle")) { toggle_diplomacy(); return; }
+		if (fired("session.gui.objectives.toggle")) { toggle_objectives(); return; }
 		if (fired("session.gui.barter.toggle")) {
 			if (Node *barter = get_node_or_null(NodePath("BarterDialog"))) barter->call("toggle");
 			return;
@@ -2689,6 +2779,40 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			_on_ungarrison_pressed();
 			return;
 		}
+		// Delete (0 A.D. session.kill, unit_actions "delete"): asks first, like
+		// 0 A.D.'s confirmation box; a second press within 3 s or holding
+		// session.noconfirmation (Shift) destroys the selection.
+		if (fired("session.kill")) {
+			std::vector<uint32_t> ids;
+			for (int s = 0; s < selected_ids.size(); ++s) ids.push_back((uint32_t)(int64_t)selected_ids[s]);
+			if (selected_building_id != 0) ids.push_back(selected_building_id);
+			if (ids.empty()) return;
+			const double now = Time::get_singleton()->get_ticks_msec() / 1000.0;
+			if (!rtso::hotkeys::held("session.noconfirmation") && now - delete_armed_at_ > 3.0) {
+				delete_armed_at_ = now;
+				chat_window_.append_line("[color=#ffaa44]Press " +
+						String(rtso::hotkeys::table().label("session.kill").c_str()) +
+						" again to destroy the selection.[/color]\n");
+				return;
+			}
+			delete_armed_at_ = -10.0;
+			if (net_lockstep())
+				post_lockstep(30, ids.data(), ids.size());
+			else
+				sim->cmd_delete(local_player(), ids.data(), ids.size());
+			clear_selection();
+			return;
+		}
+		// Back to work (session.backtowork): resume the last gather or build.
+		if (fired("session.backtowork")) {
+			if (selected_ids.is_empty()) return;
+			if (net_lockstep())
+				post_lockstep(31, ids_ptr(), selected_ids.size());
+			else
+				sim->order_back_to_work(ids_ptr(), selected_ids.size());
+			play_civ_voice("gather");
+			return;
+		}
 		auto apply_stance = [&](uint8_t st) {
 			if (selected_ids.is_empty()) return;
 			if (net_lockstep())
@@ -2731,6 +2855,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (fired("rts0.debug.battle500")) { spawn_large_battle(500); return; }
 		if (fired("rts0.debug.battle1000")) { spawn_large_battle(1000); return; }
 		if (fired("rts0.debug.battle2000")) { spawn_large_battle(2000); return; }
+
+		if (fired("session.toggleattackrange")) { range_overlays_.show_attack = !range_overlays_.show_attack; return; }
+		if (fired("session.toggleaurasrange")) { range_overlays_.show_auras = !range_overlays_.show_auras; return; }
+		if (fired("session.togglehealrange")) { range_overlays_.show_heal = !range_overlays_.show_heal; return; }
 
 		if (fired("fps.toggle")) {
 			if (debug_overlay) debug_overlay->set_visible(!debug_overlay->is_visible());
@@ -2790,6 +2918,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							sim->order_build_or_repair((const uint32_t *)selected_ids.ptr(), selected_ids.size(), bid);
 						play_civ_voice("build");
 						enter_build_mode(false);
+					} else {
+						session_audio_.play_invalid_placement();
 					}
 					return;
 				}
@@ -3176,7 +3306,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						post_lockstep(32, sel_ptr, sel_n, 0, 0, heal_id, qbit);
 					else
 						sim->order_heal(sel_ptr, sel_n, heal_id, queue_shift);
-					play_civ_voice("select");
+					play_civ_voice("heal");
 					return;
 				}
 			}
@@ -4079,10 +4209,11 @@ Dictionary RtsoMain::get_tech_tree() const {
 	uint8_t civ = sim->player_civ(local_player());
 	d["phase"] = (int)sim->player_phase(local_player());
 	for (uint8_t t = 0; t < rtso::BLD_TYPE_COUNT; ++t) {
+		if (!rtso::civ_can_build(civ, t)) continue; // other civs' own structures
 		const auto &bi = rtso::building_type_info(t);
 		Dictionary b;
 		b["id"] = (int)t;
-		b["name"] = String(bi.name);
+		b["name"] = String::utf8(bi.name);
 		b["phase"] = (int)rtso::building_required_phase(t);
 		blds.push_back(b);
 	}
@@ -4132,6 +4263,10 @@ void RtsoMain::_on_chat_send_pressed() {
 void RtsoMain::_on_chat_text_submitted(const String &text) {
 	(void)text;
 	chat_window_.send_pressed();
+}
+
+void RtsoMain::toggle_objectives() {
+	objectives_dialog_.toggle(sim, local_player());
 }
 
 void RtsoMain::toggle_diplomacy() {
