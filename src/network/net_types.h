@@ -138,8 +138,12 @@ enum class NetCommandType : uint8_t {
 	// 0 A.D. Upgrade.js on a structure (sentry tower -> defense tower, wall ->
 	// gate). target_id = building, param = 0 start / 1 cancel and refund.
 	NET_CMD_UPGRADE_BUILDING = 26,
+	// 0 A.D. "tribute" command (Player.js TributeResource): the issuing player
+	// sends target_x (whole units, exact in a float) of resource `param`
+	// (ResourceType) to player target_id. All or nothing; see Simulation::cmd_tribute.
+	NET_CMD_TRIBUTE        = 27,
 	// 0 A.D. Gate.js LockGate / UnlockGate. target_id = gate, param = 1 lock / 0 unlock.
-	NET_CMD_LOCK_GATE = 27,
+	NET_CMD_LOCK_GATE      = 28,
 };
 
 struct NetCommand {

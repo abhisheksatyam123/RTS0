@@ -85,7 +85,13 @@ enum MapType : uint8_t {
 	MAP_SAHEL = 30,
 	MAP_AFRICAN_PLAINS = 31,
 	MAP_ALPINE_VALLEY = 32,
-	MAP_TYPE_COUNT = 33
+	MAP_SYRIA = 33,
+	MAP_CANTABRIAN_HIGHLANDS = 34,
+	MAP_PYRENEAN_SIERRA = 35,
+	MAP_SAHEL_WATERING_HOLES = 36,
+	MAP_PERSIAN_HIGHLANDS = 37,
+	MAP_VOLCANIC_LANDS = 38,
+	MAP_TYPE_COUNT = 39
 };
 
 struct MapTypeInfo {
@@ -131,7 +137,13 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_POLAR_SEA, "polar_sea", "Polar Sea (RMS)", "polar", true, "Icy land round a central sea, with small lakes and hardly any trees."},
 		{MAP_SAHEL, "sahel", "Sahel (RMS)", "savanna", true, "Open, nearly flat savanna with a few water holes; plenty of food and mines, little wood."},
 		{MAP_AFRICAN_PLAINS, "african_plains", "African Plains (RMS)", "savanna", true, "Lush plains cluttered with watering holes and hills, teeming with wildlife."},
-		{MAP_ALPINE_VALLEY, "alpine_valley", "Alpine Valley (RMS)", "alpine", true, "Deep valleys for each player, walled off by high mountain ranges with passes."}
+		{MAP_ALPINE_VALLEY, "alpine_valley", "Alpine Valley (RMS)", "alpine", true, "Deep valleys for each player, walled off by high mountain ranges with passes."},
+		{MAP_SYRIA, "syria", "Syria (RMS)", "desert", true, "Dry plains with slightly rolling highlands."},
+		{MAP_CANTABRIAN_HIGHLANDS, "cantabrian_highlands", "Cantabrian Highlands (RMS)", "temperate", true, "Each player starts on a hill ringed by steep cliffs, with one ramp down."},
+		{MAP_PYRENEAN_SIERRA, "pyrenean_sierra", "Pyrenean Sierra (RMS)", "alpine", true, "High mountains with two passes separate the enemies."},
+		{MAP_SAHEL_WATERING_HOLES, "sahel_watering_holes", "Sahel Watering Holes (RMS)", "savanna", true, "Lines of water with shallows run between the players across the savanna."},
+		{MAP_PERSIAN_HIGHLANDS, "persian_highlands", "Persian Highlands (RMS)", "persia", true, "A dry sunken plateau rich in minerals, ringed by rocky hills."},
+		{MAP_VOLCANIC_LANDS, "volcanic_lands", "Volcanic Lands (RMS)", "volcanic", true, "A charred, dead land where players start around a smoking volcano."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
@@ -811,7 +823,7 @@ enum TeamBonusStat : uint8_t {
 	TEAM_BONUS_TECH_COST = 5,          // per resource, techs researched at the buildings in the mask
 	TEAM_BONUS_TECH_TIME = 6,
 	TEAM_BONUS_FOOD_TRICKLE = 7,       // food per second, added
-	TEAM_BONUS_TRADE_INTERNATIONAL = 8 // not modelled: RTS0 trade has no international bonus yet
+	TEAM_BONUS_TRADE_INTERNATIONAL = 8 // Market/InternationalBonus of allies' markets (calculate_trade_gain)
 };
 
 struct CivTeamBonus {

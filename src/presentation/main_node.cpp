@@ -3311,7 +3311,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		map_id == "highlands" || map_id == "valley" || map_id == "mediterranean" ||
 		map_id == "random_acropolis" || map_id == "random_spartan_valley" ||
 		map_id == "danubius" || map_id == "random_danubius" ||
-		map_id == "saharan_oases" || map_id == "random_saharan_oases" ||
+		map_id == "random_saharan_oases" ||
 		map_id == "anatolian_plateau" || map_id == "random_anatolian_plateau" ||
 		map_id == "jebel_barkal" || map_id == "random_jebel_barkal") {
 		
@@ -3443,7 +3443,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		float bx = (float)b.get("x", 0.0);
 		float bz = (float)b.get("z", 0.0);
 		uint8_t team = (player <= 1) ? 0 : (uint8_t)(player - 1);
-		if (team >= 4) team = 1;
+		if (team >= rtso::MAX_PLAYERS) team = 1;
 
 		uint8_t btype = rtso::BLD_HOUSE;
 		if (stype_str == "town_center" || stype_str == "civic" || stype_str == "civil_centre") btype = rtso::BLD_TOWN_CENTER;
@@ -3474,7 +3474,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		float ux = (float)u.get("x", 0.0);
 		float uz = (float)u.get("z", 0.0);
 		uint8_t team = (player <= 1) ? 0 : (uint8_t)(player - 1);
-		if (team >= 4) team = 1;
+		if (team >= rtso::MAX_PLAYERS) team = 1;
 
 		rtso::UnitType utype = rtso::UNIT_VILLAGER;
 		if (utype_str == "swordsman") utype = rtso::UNIT_SWORDSMAN;
