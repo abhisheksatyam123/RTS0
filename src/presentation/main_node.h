@@ -186,16 +186,10 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 
 	// Selection input parity (0 A.D. gui/session/input.js):
 	//   Ctrl+0-9 saves / bare 0-9 recalls the selection — input.js:1684 performGroup.
-	//   Shift+right-click stages waypoints (session.queue) — input.js:1345; RTS0's
-	//   UnitView keeps a single target_x/z, so pending points are staged here and
-	//   issued from _process as the active one is reached.
+	//   Shift+right-click queues the order (session.queue) — input.js:1345; the sim
+	//   keeps each unit's order queue (Simulation::order_* `queued`).
 	//   Double-click selects same-type units on screen — input.js:1022.
 	PackedInt32Array selected_groups[10];
-	struct QueuedWaypoint {
-		std::vector<Vector3> pts; // pts[active] = destination last issued to the sim
-		int active = 0;
-	};
-	std::unordered_map<uint32_t, QueuedWaypoint> waypoint_queue;
 	bool double_click_pending = false;
 	// Control-group double press (0 A.D. doublePressTime = 500 ms, input.js:90).
 	int last_group_pressed_ = -1;
@@ -325,7 +319,6 @@ private:
 	Vector3 get_ground_click_pos(Vector2 mouse_pos) const;
 	std::pair<int, int> mouse_cell(Vector2 mouse_pos) const;
 	void clear_selection();
-	void drop_staged_waypoints();
 	void update_hud();
 	void update_inspector();
 	void update_command_panel();

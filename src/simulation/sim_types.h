@@ -105,7 +105,9 @@ enum MapType : uint8_t {
 	MAP_STRONGHOLD = 49,
 	MAP_CALEDONIAN_MEADOWS = 50,
 	MAP_RHINE_MARSHLANDS = 51,
-	MAP_TYPE_COUNT = 52
+	MAP_RED_SEA = 52,
+	MAP_HELLAS = 53,
+	MAP_TYPE_COUNT = 54
 };
 
 struct MapTypeInfo {
@@ -170,7 +172,9 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_WILD_LAKE, "wild_lake", "Wild Lake (RMS)", "temperate", true, "Rough wild terrain round a lake, with about a fifth of the land under water."},
 		{MAP_STRONGHOLD, "stronghold", "Stronghold (RMS)", "temperate", true, "Teams start with nearly adjacent civic centres and must rely on each other to defend their rear."},
 		{MAP_CALEDONIAN_MEADOWS, "caledonian_meadows", "Caledonian Meadows (RMS)", "alpine", true, "Fertile meadows surrounded by harsh terrain and snowmelt rivers; not always balanced."},
-		{MAP_RHINE_MARSHLANDS, "rhine_marshlands", "Rhine Marshlands (RMS)", "temperate", true, "Shallow, passable wetlands with little room for building in the lowlands of the Rhine."}
+		{MAP_RHINE_MARSHLANDS, "rhine_marshlands", "Rhine Marshlands (RMS)", "temperate", true, "Shallow, passable wetlands with little room for building in the lowlands of the Rhine."},
+		{MAP_RED_SEA, "red_sea", "Red Sea (RMS)", "desert", true, "The Red Sea between Africa and Arabia, painted from a real elevation map."},
+		{MAP_HELLAS, "hellas", "Hellas (RMS)", "mediterranean", true, "A random corner of Greece and the Aegean, painted from a real elevation map."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
@@ -220,7 +224,8 @@ enum UnitAction : uint8_t {
 	ACTION_DYING = 8,
 	ACTION_ATTACK_MOVE = 9,
 	ACTION_PATROL = 10,
-	ACTION_GUARD  = 11
+	ACTION_GUARD  = 11,
+	ACTION_FLEE   = 12  // 0 A.D. UnitAI INDIVIDUAL.FLEEING: running from attacked_by
 };
 
 enum BuildingType : uint8_t {
@@ -280,13 +285,59 @@ constexpr float FISH_REGROW_INTERVAL_S = 2.0f;
 // Fish footprint radius (10 m) plus a fishing boat's ResourceGatherer MaxDistance (6 m), in tiles.
 constexpr float FISH_GATHER_REACH = 4.0f;
 
+// 0 A.D. UnitAI.js g_Stances. Values are saved and sent over the wire; 3 was an
+// invented "hold ground" and is now 0 A.D.'s "violent".
 enum UnitStance : uint8_t {
-	STANCE_AGGRESSIVE = 0,
-	STANCE_DEFENSIVE = 1,
-	STANCE_STAND_GROUND = 2,
-	STANCE_HOLD_GROUND = 3,
-	STANCE_PASSIVE = 4
+	STANCE_AGGRESSIVE = 0,  // chase visible enemies until they leave vision
+	STANCE_DEFENSIVE = 1,   // chase only near the held position (respondHoldGround)
+	STANCE_STAND_GROUND = 2,// attack what is in range, never move
+	STANCE_VIOLENT = 3,     // aggressive, and answers attackers even on forced orders
+	STANCE_PASSIVE = 4      // never attack, flee when attacked (respondFlee)
 };
+
+// The order a unit is carrying out (0 A.D. UnitAI order types). action_state says
+// what the unit is doing this tick; when an automatic fight or a flight ends the
+// unit goes back to this order, and when the order is done it takes the next one
+// from its queue (UnitAI FinishOrder).
+enum UnitOrderKind : uint8_t {
+	ORDER_NONE = 0,
+	ORDER_WALK = 1,           // target x/z
+	ORDER_WALK_AND_FIGHT = 2, // attack-move to x/z
+	ORDER_PATROL = 3,         // between x2/z2 and x/z
+	ORDER_ATTACK = 4,         // target unit
+	ORDER_ATTACK_BUILDING = 5,// target building (capture or damage)
+	ORDER_GATHER = 6,         // target resource
+	ORDER_BUILD = 7,          // target building (build or repair)
+	ORDER_GARRISON = 8,       // target building
+	ORDER_GUARD = 9,          // target unit (Guard.js)
+	ORDER_KIND_COUNT = 10
+};
+
+enum UnitOrderFlag : uint8_t {
+	ORDER_FLAG_FORCE = 1,        // given by a player (order.data.force): walks ignore enemies, chases ignore the stance leash
+	ORDER_FLAG_ALLOW_CAPTURE = 2,// Attack.js allowCapture: capture structures instead of damaging them
+	ORDER_FLAG_UNITS_ONLY = 4,   // attack-move targetClasses "Unit" (session.attackmoveUnit)
+	ORDER_FLAG_INTERRUPTED = 8   // fighting or fleeing; go back to the order afterwards
+};
+
+// One order: the unit's current one (in the SoA) or a Shift-queued one. No padding.
+struct UnitOrder {
+	uint8_t kind = ORDER_NONE;
+	uint8_t flags = 0;
+	uint8_t pad[2] = {0, 0};
+	uint32_t target = 0;
+	float x = 0.0f, z = 0.0f;   // destination
+	float x2 = 0.0f, z2 = 0.0f; // patrol start
+};
+static_assert(sizeof(UnitOrder) == 24, "UnitOrder is saved raw");
+
+// 0 A.D. template_unit.xml UnitAI/FleeDistance and the 64 m search of
+// UnitAI FindNearbyResource / FindNearbyFoundation.
+inline constexpr float FLEE_DISTANCE = 12.0f;
+inline constexpr float NEARBY_SEARCH_RANGE = 64.0f;
+// Attack.js Capture: template_unit_*.xml Capture MaxRange 4, RepeatTime 1000.
+inline constexpr float CAPTURE_RANGE = 4.0f;
+inline constexpr float CAPTURE_REPEAT_S = 1.0f;
 
 // 0 A.D. Formations (source: template_player.xml:84-96, exactly 13 entries indexed 0..12)
 // Appended AFTER existing 6 so network/replay order stays wire-compatible (values 0..6 unchanged).
@@ -503,14 +554,32 @@ inline bool unit_has_ranged_attack(uint8_t type, uint8_t civ = CIV_ATHENIANS) {
 	}
 }
 
+// 0 A.D. UnitAI/DefaultStance: support units (women, healers, traders) and
+// civilian ships are passive, so they flee when attacked.
 inline uint8_t unit_default_stance(uint8_t type) {
 	switch (type) {
 		case UNIT_FISHING_BOAT:
 		case UNIT_MERCHANT_SHIP:
 		case UNIT_TRADER:
+		case UNIT_FEMALE_CITIZEN:
+		case UNIT_HEALER:
 			return STANCE_PASSIVE;
 		default:
 			return STANCE_AGGRESSIVE;
+	}
+}
+
+// Vision range (0 A.D. Vision/Range, scaled like the rest of RTS0): fog of war and
+// UnitAI's attack queries both use it.
+inline float unit_vision_range(uint8_t type) {
+	switch (type) {
+		case UNIT_ARCHER:   return 22.0f;
+		case UNIT_CAVALRY:  return 20.0f;
+		case UNIT_CATAPULT: return 24.0f;
+		case UNIT_TRIREME:  return 28.0f;
+		case UNIT_ELEPHANT: return 20.0f;
+		case UNIT_HERO:     return 18.0f;
+		default:            return 16.0f;
 	}
 }
 

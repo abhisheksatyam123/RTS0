@@ -274,7 +274,7 @@ corral = O
 aggressive = ""
 defensive = ""
 standground = ""
-holdground = ""
+violent = ""
 passive = ""
 
 [hotkey.rts0.debug]          ; Developer battles
