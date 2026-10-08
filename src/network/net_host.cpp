@@ -298,7 +298,9 @@ void NetHost::send_wire_packet(const std::string &ip, uint16_t port, uint32_t pe
 	NetWireHeader hdr;
 	hdr.magic = PS_PROTOCOL_MAGIC;
 	hdr.protocol_ver = PS_PROTOCOL_VERSION;
-	hdr.peer_id = local_peer_id_;
+	// A connect ACK carries the id the host gave the client (0 A.D.
+	// NMT_AUTHENTICATE_RESULT's host id); everything else carries the sender's.
+	hdr.peer_id = (flags & NET_FLAG_CONNECT_ACK) && isHost() ? peer_id : local_peer_id_;
 	// Reliable seqs are numbered per destination so the receiver sees a gapless
 	// stream and can tell a retransmit from a packet it never got.
 	if (reliable) {
