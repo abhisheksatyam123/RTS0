@@ -1,0 +1,104 @@
+{
+	"categories": {
+		"rts0": {
+			"name": "RTS0 Build and Debug",
+			"desc": "RTS0 hotkeys with no 0 A.D. equivalent: build-menu letters while placing, debug battles."
+		}
+	},
+	"mapped_hotkeys": {
+		"rts0": {
+			"rts0.build.menu": {
+				"name": "Build menu",
+				"desc": "Open the build menu for the selected workers."
+			},
+			"rts0.build.civilcentre": {
+				"name": "Place Civic Center",
+				"desc": "While placing a structure, switch to the Civic Center."
+			},
+			"rts0.build.house": {
+				"name": "Place House",
+				"desc": "While placing a structure, switch to the House."
+			},
+			"rts0.build.barracks": {
+				"name": "Place Barracks",
+				"desc": "While placing a structure, switch to the Barracks."
+			},
+			"rts0.build.storehouse": {
+				"name": "Place Storehouse",
+				"desc": "While placing a structure, switch to the Storehouse."
+			},
+			"rts0.build.defensetower": {
+				"name": "Place Defense Tower",
+				"desc": "While placing a structure, switch to the Defense Tower."
+			},
+			"rts0.build.farmstead": {
+				"name": "Place Farmstead",
+				"desc": "While placing a structure, switch to the Farmstead."
+			},
+			"rts0.build.market": {
+				"name": "Place Market",
+				"desc": "While placing a structure, switch to the Market."
+			},
+			"rts0.build.fortress": {
+				"name": "Place Fortress",
+				"desc": "While placing a structure, switch to the Fortress."
+			},
+			"rts0.build.gate": {
+				"name": "Place Gate",
+				"desc": "While placing a structure, switch to the Gate."
+			},
+			"rts0.build.temple": {
+				"name": "Place Temple",
+				"desc": "While placing a structure, switch to the Temple."
+			},
+			"rts0.build.wonder": {
+				"name": "Place Wonder",
+				"desc": "While placing a structure, switch to the Wonder."
+			},
+			"rts0.build.dock": {
+				"name": "Place Dock",
+				"desc": "While placing a structure, switch to the Dock."
+			},
+			"rts0.build.wall": {
+				"name": "Place Wall",
+				"desc": "While placing a structure, switch to the Wall."
+			},
+			"rts0.build.corral": {
+				"name": "Place Corral",
+				"desc": "While placing a structure, switch to the Corral."
+			},
+			"rts0.debug.battle500": {
+				"name": "Debug battle (500 units)",
+				"desc": "Spawn a test battle with 500 units."
+			},
+			"rts0.debug.battle1000": {
+				"name": "Debug battle (1000 units)",
+				"desc": "Spawn a test battle with 1000 units."
+			},
+			"rts0.debug.battle2000": {
+				"name": "Debug battle (2000 units)",
+				"desc": "Spawn a test battle with 2000 units."
+			},
+			"rts0.stance.aggressive": {
+				"name": "Aggressive stance",
+				"desc": "Set the selected units' stance to aggressive."
+			},
+			"rts0.stance.defensive": {
+				"name": "Defensive stance",
+				"desc": "Set the selected units' stance to defensive."
+			},
+			"rts0.stance.standground": {
+				"name": "Stand ground stance",
+				"desc": "Set the selected units' stance to stand ground."
+			},
+			"rts0.stance.passive": {
+				"name": "Passive stance",
+				"desc": "Set the selected units' stance to passive."
+			},
+			"rts0.stance.violent": {
+				"name": "Violent stance",
+				"desc": "Set the selected units' stance to violent."
+			}
+		}
+	}
+}

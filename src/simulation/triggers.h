@@ -1,0 +1,233 @@
+#ifndef RTSO_TRIGGERS_H
+#define RTSO_TRIGGERS_H
+
+// Map trigger scripting, ported from 0 A.D. (GPL-2.0-or-later):
+//   binaries/data/mods/public/simulation/components/Trigger.js      (events, RegisterTrigger, DoAfterDelay, DoRepeatedly)
+//   binaries/data/mods/public/simulation/components/TriggerPoint.js (named trigger points)
+//   binaries/data/mods/public/simulation/components/Timer.js        (timer ordering: by time, then by id)
+//   binaries/data/mods/public/simulation/components/GuiInterface.js AddTimeNotification
+//
+// 0 A.D. runs a map's *_triggers.js as JavaScript against the simulation. RTS0's
+// simulation is C++, so each map script is ported to C++ actions on Simulation
+// (simulation.cpp, "Map trigger scripts") and this header holds the engine they
+// run on: the registered triggers, the timer queue, trigger points and the time
+// notifications shown to players. Everything here is deterministic simulation
+// state (lockstep peers run the same timers on the same turns), saved through
+// tick_state_io and mixed into the sync hash.
+
+#include <algorithm>
+#include <cstdint>
+#include <cstring>
+#include <vector>
+
+namespace rtso {
+
+// Trigger.js eventNames, the events a trigger can listen on.
+enum TriggerEvent : uint8_t {
+	TRIGGER_ON_INIT_GAME = 0,       // first turn, after Game Setup has been applied
+	TRIGGER_ON_INTERVAL,            // timer, every interval_ms after delay_ms
+	TRIGGER_ON_RANGE,               // a unit entered or left a trigger point's range
+	TRIGGER_ON_STRUCTURE_BUILT,     // a foundation finished
+	TRIGGER_ON_CONSTRUCTION_STARTED,
+	TRIGGER_ON_TRAINING_QUEUED,
+	TRIGGER_ON_TRAINING_FINISHED,
+	TRIGGER_ON_RESEARCH_QUEUED,
+	TRIGGER_ON_RESEARCH_FINISHED,
+	TRIGGER_ON_OWNERSHIP_CHANGED,   // capture or conversion to Gaia
+	TRIGGER_ON_PLAYER_DEFEATED,
+	TRIGGER_ON_PLAYER_WON,
+	TRIGGER_ON_DIPLOMACY_CHANGED,
+	TRIGGER_ON_TREASURE_COLLECTED,
+	TRIGGER_ON_PLAYER_COMMAND,
+	TRIGGER_ON_DESERIALIZED,        // a saved game was loaded
+	TRIGGER_EVENT_COUNT
+};
+
+// The ported actions (Trigger.prototype.<name> in the map scripts). Values are
+// saved, so append only.
+enum TriggerAction : uint16_t {
+	TRIGGER_ACTION_NONE = 0,
+	// maps/random/flood_triggers.js
+	TRIGGER_ACTION_FLOOD_INIT = 1,
+	TRIGGER_ACTION_FLOOD_RISE_STEP = 2,   // RiseWaterLevelStep(finalWaterLevel = arg)
+	TRIGGER_ACTION_FLOOD_WARNING = 3,     // DisplayWarning
+	// maps/random/extinct_volcano_triggers.js
+	TRIGGER_ACTION_VOLCANO_INIT = 4,
+	TRIGGER_ACTION_VOLCANO_NOTIFY = 5,    // RaisingWaterNotification
+	TRIGGER_ACTION_VOLCANO_RISE_STEP = 6, // RaiseWaterLevelStep
+	TRIGGER_ACTION_COUNT
+};
+
+// Payload of an event (Trigger.js passes a JS object; these are the fields the
+// ported scripts read).
+struct TriggerEventData {
+	uint32_t entity = 0;   // unit or building id
+	uint32_t other = 0;    // foundation id, trainer id, ...
+	uint8_t player = 0xFF; // acting / owning player
+	uint8_t from = 0xFF;   // OnOwnershipChanged
+	uint8_t to = 0xFF;
+	uint16_t value = 0;    // template, tech or command type
+	uint16_t count = 0;    // batch size
+};
+
+// Timer.js timer: fires at time_ms, then every repeat_ms when repeat_ms > 0.
+struct TriggerTimer {
+	uint32_t id = 0;
+	uint32_t time_ms = 0;
+	uint32_t repeat_ms = 0;
+	uint16_t action = TRIGGER_ACTION_NONE;
+	uint16_t trigger = 0xFFFF; // index of the OnInterval registration that owns it, 0xFFFF for DoAfterDelay
+	float arg = 0.0f;          // eventData the ported action reads
+};
+static_assert(sizeof(TriggerTimer) == 20, "TriggerTimer is saved raw: keep it free of padding");
+
+// Trigger.js RegisterTrigger(event, name, triggerData).
+struct TriggerRegistration {
+	uint16_t action = TRIGGER_ACTION_NONE;
+	uint8_t event = TRIGGER_ON_INIT_GAME;
+	uint8_t enabled = 0;
+	uint32_t interval_ms = 0; // OnInterval
+	uint32_t delay_ms = 0;    // OnInterval first delay
+	uint32_t timer_id = 0;    // OnInterval: running timer, 0 when disabled
+	float range = 0.0f;       // OnRange: max range around the trigger points
+	uint8_t point_ref = 0;    // OnRange: trigger point reference ('A', 'B', ...)
+	uint8_t players = 0;      // OnRange: bitmask of players counted (0 = all)
+	uint8_t reserved[2] = {};
+};
+static_assert(sizeof(TriggerRegistration) == 24, "TriggerRegistration is saved raw: keep it free of padding");
+
+// TriggerPoint.js: a named spot on the map scripts spawn at or watch.
+struct TriggerPoint {
+	float x = 0.0f;
+	float z = 0.0f;
+	uint8_t ref = 0;
+	uint8_t reserved[3] = {};
+};
+static_assert(sizeof(TriggerPoint) == 12, "TriggerPoint is saved raw: keep it free of padding");
+
+// GuiInterface.AddTimeNotification: a message shown to players until end_ms.
+struct TimeNotification {
+	uint32_t id = 0;
+	uint32_t end_ms = 0;
+	uint8_t players = 0xFF; // bitmask of player ids it is shown to
+	uint8_t reserved[3] = {};
+	char text[180] = {};
+};
+static_assert(sizeof(TimeNotification) == 192, "TimeNotification is saved raw: keep it free of padding");
+
+struct TriggerState {
+	uint32_t time_ms = 0;       // Timer.js GetTime(): simulation time since the match started
+	uint32_t next_timer_id = 1; // Timer.js id counter
+	uint32_t next_notification_id = 1;
+	uint8_t init_game_done = 0; // OnInitGame has fired
+	uint8_t difficulty = 3;     // Trigger.js SetDifficulty (data/settings/trigger_difficulties.json: 3 = Medium)
+	uint8_t reserved[2] = {};
+	std::vector<TriggerRegistration> triggers;
+	std::vector<TriggerTimer> timers;
+	std::vector<TriggerPoint> points;
+	std::vector<TimeNotification> notifications;
+
+	void clear() { *this = TriggerState(); }
+	bool active() const { return !triggers.empty() || !timers.empty(); }
+
+	// Timer.js SetTimeout / SetInterval, relative to now.
+	uint32_t set_timeout(uint32_t delay_ms, uint16_t action, float arg = 0.0f) {
+		return add_timer(delay_ms, 0, action, 0xFFFF, arg);
+	}
+	uint32_t set_interval(uint32_t delay_ms, uint32_t interval_ms, uint16_t action, float arg = 0.0f) {
+		return add_timer(delay_ms, interval_ms ? interval_ms : 1, action, 0xFFFF, arg);
+	}
+	void cancel_timer(uint32_t id) {
+		timers.erase(std::remove_if(timers.begin(), timers.end(), [id](const TriggerTimer &t) { return t.id == id; }), timers.end());
+	}
+
+	// Trigger.js RegisterTrigger. Returns the registration's index.
+	uint16_t register_trigger(uint8_t event, uint16_t action, bool enabled, uint32_t interval_ms = 0, uint32_t delay_ms = 0) {
+		TriggerRegistration r;
+		r.event = event;
+		r.action = action;
+		r.interval_ms = interval_ms;
+		r.delay_ms = delay_ms;
+		triggers.push_back(r);
+		const uint16_t idx = (uint16_t)(triggers.size() - 1);
+		if (enabled) enable_trigger(idx);
+		return idx;
+	}
+	void enable_trigger(uint16_t idx) {
+		if (idx >= triggers.size()) return;
+		TriggerRegistration &r = triggers[idx];
+		if (r.enabled) return;
+		r.enabled = 1;
+		if (r.event == TRIGGER_ON_INTERVAL && r.interval_ms > 0)
+			r.timer_id = add_timer(r.delay_ms, r.interval_ms, r.action, idx, 0.0f);
+	}
+	void disable_trigger(uint16_t idx) {
+		if (idx >= triggers.size()) return;
+		TriggerRegistration &r = triggers[idx];
+		if (!r.enabled) return;
+		r.enabled = 0;
+		if (r.timer_id) { cancel_timer(r.timer_id); r.timer_id = 0; }
+	}
+
+	void add_point(uint8_t ref, float x, float z) {
+		TriggerPoint p;
+		p.ref = ref;
+		p.x = x;
+		p.z = z;
+		points.push_back(p);
+	}
+
+	void add_notification(const char *text, uint32_t duration_ms, uint8_t players = 0xFF) {
+		TimeNotification n;
+		n.id = next_notification_id++;
+		n.end_ms = time_ms + duration_ms;
+		n.players = players;
+		std::strncpy(n.text, text, sizeof(n.text) - 1);
+		notifications.push_back(n);
+	}
+
+	// Index of the timer with this id, or -1 (it ran out or was cancelled).
+	int find_timer(uint32_t id) const {
+		for (size_t i = 0; i < timers.size(); ++i)
+			if (timers[i].id == id) return (int)i;
+		return -1;
+	}
+
+	// Drops notifications whose time is up.
+	void expire_notifications() {
+		notifications.erase(std::remove_if(notifications.begin(), notifications.end(),
+				[this](const TimeNotification &n) { return n.end_ms <= time_ms; }), notifications.end());
+	}
+
+	uint32_t hash() const {
+		uint32_t h = 2166136261u;
+		auto mix = [&](uint32_t v) { h = (h ^ v) * 16777619u; };
+		mix(time_ms); mix(next_timer_id); mix(init_game_done); mix(difficulty);
+		mix((uint32_t)triggers.size());
+		for (const auto &r : triggers) { mix(r.action); mix(r.event); mix(r.enabled); mix(r.timer_id); }
+		mix((uint32_t)timers.size());
+		for (const auto &t : timers) {
+			uint32_t arg_bits;
+			std::memcpy(&arg_bits, &t.arg, sizeof(arg_bits));
+			mix(t.id); mix(t.time_ms); mix(t.repeat_ms); mix(t.action); mix(arg_bits);
+		}
+		return h;
+	}
+
+private:
+	uint32_t add_timer(uint32_t delay_ms, uint32_t repeat_ms, uint16_t action, uint16_t trigger, float arg) {
+		TriggerTimer t;
+		t.id = next_timer_id++;
+		t.time_ms = time_ms + delay_ms;
+		t.repeat_ms = repeat_ms;
+		t.action = action;
+		t.trigger = trigger;
+		t.arg = arg;
+		timers.push_back(t);
+		return t.id;
+	}
+};
+
+} // namespace rtso
+
+#endif // RTSO_TRIGGERS_H
