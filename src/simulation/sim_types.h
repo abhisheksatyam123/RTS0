@@ -107,7 +107,10 @@ enum MapType : uint8_t {
 	MAP_RHINE_MARSHLANDS = 51,
 	MAP_RED_SEA = 52,
 	MAP_HELLAS = 53,
-	MAP_TYPE_COUNT = 54
+	MAP_ENGLISH_CHANNEL = 54,
+	MAP_DODECANESE = 55,
+	MAP_FORTRESS = 56,
+	MAP_TYPE_COUNT = 57
 };
 
 struct MapTypeInfo {
@@ -174,7 +177,10 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_CALEDONIAN_MEADOWS, "caledonian_meadows", "Caledonian Meadows (RMS)", "alpine", true, "Fertile meadows surrounded by harsh terrain and snowmelt rivers; not always balanced."},
 		{MAP_RHINE_MARSHLANDS, "rhine_marshlands", "Rhine Marshlands (RMS)", "temperate", true, "Shallow, passable wetlands with little room for building in the lowlands of the Rhine."},
 		{MAP_RED_SEA, "red_sea", "Red Sea (RMS)", "desert", true, "The Red Sea between Africa and Arabia, painted from a real elevation map."},
-		{MAP_HELLAS, "hellas", "Hellas (RMS)", "mediterranean", true, "A random corner of Greece and the Aegean, painted from a real elevation map."}
+		{MAP_HELLAS, "hellas", "Hellas (RMS)", "mediterranean", true, "A random corner of Greece and the Aegean, painted from a real elevation map."},
+		{MAP_ENGLISH_CHANNEL, "english_channel", "English Channel (RMS)", "temperate", true, "Players start on both sides of the English Channel; crossing it takes ships."},
+		{MAP_DODECANESE, "dodecanese", "Dodecanese (RMS)", "mediterranean", true, "A group of islands in the Aegean, a few joined by bridges; the rest need ships."},
+		{MAP_FORTRESS, "fortress", "Fortress (RMS)", "temperate", true, "Players start inside walled fortresses with a market, barracks, stable and temple."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
@@ -182,6 +188,11 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 
 inline bool is_procedural_map(uint8_t type) {
 	return type < MAP_TYPE_COUNT;
+}
+
+// Naval maps: bases may sit on separate land, so armies need ships to meet.
+inline bool map_is_naval(int type) {
+	return type == MAP_ENGLISH_CHANNEL || type == MAP_DODECANESE;
 }
 
 enum UnitType : uint8_t {
