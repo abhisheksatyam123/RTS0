@@ -16263,6 +16263,22 @@
    ],
    "upstream_material": "basic_trans_norm_spec.xml"
   },
+  "fish": {
+   "file": "models/vegetation/fish.glb",
+   "origin": "surface-center",
+   "parts": 1,
+   "size_meters": [
+    8.89,
+    2.388,
+    6.147
+   ],
+   "sources": [
+    "actor:art/actors/fauna/fish_generic.xml",
+    "mesh:skeletal/fish_generic.dae",
+    "skin:skeletal/animal_fish_generic.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
   "fishing_boat": {
    "animated": true,
    "animations": [

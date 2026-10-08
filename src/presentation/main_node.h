@@ -147,6 +147,8 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// 4. Banner Overlay
 	Panel *banner_panel = nullptr;
 	Label *banner_label = nullptr;
+	// Map trigger messages (0 A.D. GuiInterface AddTimeNotification), centred under the top bar.
+	Label *time_notification_label_ = nullptr;
 
 	// 5/6. In-Game Chat Overlay + Diplomacy & Tribute Dialog: P4.1 leaf
 	// widgets (chat_window.h / diplomacy_dialog.h) own their panel trees;
