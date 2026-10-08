@@ -60,6 +60,9 @@ int main(int argc, char **argv) {
 	int war_units = 2000;
 	float dt = 0.2f; // one lockstep turn (TurnManager TURN_DURATION)
 	int sample_every_s = 120;
+	// Endless (0 A.D. "Endless"): nobody is ever defeated, so the match always
+	// runs its full length even once Petra overruns the idle player 0.
+	int victory = VICTORY_ENDLESS;
 	for (int i = 1; i < argc; ++i) {
 		auto next = [&]() { return (i + 1 < argc) ? argv[++i] : (char *)"0"; };
 		if (!strcmp(argv[i], "--scenario")) scenario = next();
@@ -68,6 +71,7 @@ int main(int argc, char **argv) {
 		else if (!strcmp(argv[i], "--minutes")) minutes = atof(next());
 		else if (!strcmp(argv[i], "--units")) war_units = atoi(next());
 		else if (!strcmp(argv[i], "--sample")) sample_every_s = atoi(next());
+		else if (!strcmp(argv[i], "--victory")) victory = atoi(next());
 	}
 
 	Simulation s;
@@ -79,6 +83,7 @@ int main(int argc, char **argv) {
 	} else {
 		s.generate_random_map((MapType)map, seed, 2, 64.0f);
 	}
+	s.set_victory_condition((uint8_t)victory);
 
 	const int ticks = (int)(minutes * 60.0 / dt + 0.5);
 	std::vector<double> tick_ms;

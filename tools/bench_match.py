@@ -22,6 +22,9 @@ Timings depend on the machine, so only compare runs made on the same box.
 Take the baseline from the same base commit you branched from: gameplay fixes
 on main (gathering, construction, AI) change the AI end state and the per-tick
 load a lot, so a baseline from an older main is not comparable.
+The match is played in Endless mode (nobody is defeated), so it always runs
+the full 20 minutes; baselines taken before that change ended early once Petra
+beat the idle player and are not comparable.
 --fail-over PCT exits 1 when tick p95 regresses by more than PCT percent
 against --baseline.
 
