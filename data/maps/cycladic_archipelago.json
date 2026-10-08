@@ -12083,6 +12083,106 @@
       "z": -42.92
     },
     {
+      "type": "chicken",
+      "x": -52.34,
+      "z": -38.02
+    },
+    {
+      "type": "chicken",
+      "x": -52.34,
+      "z": -39.21
+    },
+    {
+      "type": "chicken",
+      "x": -52.27,
+      "z": -40.14
+    },
+    {
+      "type": "chicken",
+      "x": -53.12,
+      "z": -40.72
+    },
+    {
+      "type": "chicken",
+      "x": -52.94,
+      "z": -38.82
+    },
+    {
+      "type": "chicken",
+      "x": -52.0,
+      "z": -38.8
+    },
+    {
+      "type": "chicken",
+      "x": -51.75,
+      "z": -39.39
+    },
+    {
+      "type": "chicken",
+      "x": -52.71,
+      "z": -39.69
+    },
+    {
+      "type": "chicken",
+      "x": -52.15,
+      "z": -40.76
+    },
+    {
+      "type": "chicken",
+      "x": -51.46,
+      "z": -40.93
+    },
+    {
+      "type": "chicken",
+      "x": 40.4,
+      "z": -1.65
+    },
+    {
+      "type": "chicken",
+      "x": 39.54,
+      "z": -3.18
+    },
+    {
+      "type": "chicken",
+      "x": 39.82,
+      "z": -0.71
+    },
+    {
+      "type": "chicken",
+      "x": 39.35,
+      "z": -1.92
+    },
+    {
+      "type": "chicken",
+      "x": 39.82,
+      "z": -2.1
+    },
+    {
+      "type": "chicken",
+      "x": 40.09,
+      "z": -3.58
+    },
+    {
+      "type": "chicken",
+      "x": 40.01,
+      "z": -4.22
+    },
+    {
+      "type": "chicken",
+      "x": 40.47,
+      "z": -3.05
+    },
+    {
+      "type": "chicken",
+      "x": 40.59,
+      "z": -2.3
+    },
+    {
+      "type": "chicken",
+      "x": 40.97,
+      "z": -0.69
+    },
+    {
       "type": "boar",
       "x": 51.07,
       "z": -0.77
@@ -12093,72 +12193,72 @@
       "z": 15.56
     },
     {
-      "type": "wolf",
+      "type": "bear_brown",
       "x": 9.42,
       "z": -47.35
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 8.41,
       "z": -59.16
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 10.22,
       "z": -58.98
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 12.09,
       "z": -58.68
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 11.56,
       "z": -58.04
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 9.47,
       "z": -59.8
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 8.24,
       "z": -60.55
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 6.74,
       "z": -60.08
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 6.73,
       "z": -58.7
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 19.88,
       "z": -51.64
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 20.55,
       "z": -51.32
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 21.95,
       "z": -52.26
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 22.58,
       "z": -54.68
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 23.26,
       "z": -54.39
     },
@@ -12258,64 +12358,164 @@
       "z": 72.66
     },
     {
-      "type": "sheep",
+      "type": "whale_fin",
+      "x": -25.27,
+      "z": -19.93
+    },
+    {
+      "type": "whale_fin",
+      "x": -40.91,
+      "z": 4.12
+    },
+    {
+      "type": "whale_fin",
+      "x": 5.58,
+      "z": 26.65
+    },
+    {
+      "type": "whale_fin",
+      "x": 27.99,
+      "z": 45.69
+    },
+    {
+      "type": "whale_fin",
+      "x": 23.42,
+      "z": -36.45
+    },
+    {
+      "type": "whale_fin",
+      "x": 9.01,
+      "z": -89.72
+    },
+    {
+      "type": "whale_fin",
+      "x": -46.68,
+      "z": -81.28
+    },
+    {
+      "type": "whale_fin",
+      "x": 87.59,
+      "z": 12.21
+    },
+    {
+      "type": "shark",
+      "x": -51.01,
+      "z": -70.95
+    },
+    {
+      "type": "shark",
+      "x": -48.64,
+      "z": -6.47
+    },
+    {
+      "type": "shark",
+      "x": 14.39,
+      "z": 47.84
+    },
+    {
+      "type": "shark",
+      "x": 64.8,
+      "z": -44.09
+    },
+    {
+      "type": "shark",
+      "x": 35.7,
+      "z": -27.71
+    },
+    {
+      "type": "shark",
+      "x": -14.54,
+      "z": -34.48
+    },
+    {
+      "type": "shark",
+      "x": 23.18,
+      "z": -85.37
+    },
+    {
+      "type": "shark",
+      "x": -83.94,
+      "z": 46.27
+    },
+    {
+      "type": "goat",
       "x": -14.52,
       "z": 115.4
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -6.0,
       "z": 114.59
     },
     {
-      "type": "wolf",
+      "type": "bear_black",
       "x": -60.33,
       "z": 30.51
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -16.37,
       "z": 115.19
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -17.3,
       "z": 115.22
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -17.58,
       "z": 114.65
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -16.66,
       "z": 114.29
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -16.12,
       "z": 114.72
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -15.9,
       "z": 115.65
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -15.45,
       "z": 116.19
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -15.33,
       "z": 115.48
     },
     {
-      "type": "wolf",
+      "type": "dog_wolfhound",
       "x": -14.07,
       "z": 114.84
+    },
+    {
+      "type": "horse_pony",
+      "x": -7.3,
+      "z": 114.71
+    },
+    {
+      "type": "horse_breed",
+      "x": 8.4,
+      "z": -48.97
+    },
+    {
+      "type": "horse_persian",
+      "x": 7.49,
+      "z": -48.69
+    },
+    {
+      "type": "donkey",
+      "x": -10.27,
+      "z": 61.9
     },
     {
       "type": "boar",
@@ -12323,14 +12523,84 @@
       "z": 67.76
     },
     {
-      "type": "sheep",
+      "type": "pig",
+      "x": -51.63,
+      "z": 30.7
+    },
+    {
+      "type": "pig",
+      "x": -51.04,
+      "z": 31.13
+    },
+    {
+      "type": "pig",
+      "x": -50.23,
+      "z": 31.34
+    },
+    {
+      "type": "pig",
+      "x": -50.46,
+      "z": 30.34
+    },
+    {
+      "type": "pig",
+      "x": -51.15,
+      "z": 29.9
+    },
+    {
+      "type": "pig",
+      "x": -52.39,
+      "z": 29.47
+    },
+    {
+      "type": "pig",
+      "x": -53.15,
+      "z": 30.13
+    },
+    {
+      "type": "pig",
+      "x": -6.1,
+      "z": -0.6
+    },
+    {
+      "type": "pig",
+      "x": -6.69,
+      "z": -1.42
+    },
+    {
+      "type": "pig",
+      "x": -5.94,
+      "z": -1.48
+    },
+    {
+      "type": "pig",
+      "x": 50.35,
+      "z": -64.63
+    },
+    {
+      "type": "pig",
+      "x": 54.53,
+      "z": -65.91
+    },
+    {
+      "type": "pig",
+      "x": 89.63,
+      "z": -12.58
+    },
+    {
+      "type": "goat",
       "x": 87.54,
       "z": -15.26
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -65.79,
       "z": -88.04
+    },
+    {
+      "type": "pig",
+      "x": -60.66,
+      "z": -88.72
     },
     {
       "type": "boar",
@@ -12508,6 +12778,175 @@
       "player": 2,
       "x": -44.13,
       "z": -45.08
+    }
+  ],
+  "treasures": [
+    {
+      "type": "stone_pile_granite",
+      "x": -4.42,
+      "z": -2.73
+    },
+    {
+      "type": "food_jars",
+      "x": -4.4,
+      "z": -3.82
+    },
+    {
+      "type": "food_crate",
+      "x": -4.96,
+      "z": -2.79
+    },
+    {
+      "type": "food_barrel",
+      "x": -3.88,
+      "z": -3.16
+    },
+    {
+      "type": "food_barrel",
+      "x": -3.8,
+      "z": -2.79
+    },
+    {
+      "type": "shipwreck",
+      "x": -25.06,
+      "z": -3.42
+    },
+    {
+      "type": "shipwreck",
+      "x": -59.24,
+      "z": 11.47
+    },
+    {
+      "type": "wood_lumber",
+      "x": -11.81,
+      "z": -85.04
+    },
+    {
+      "type": "wood_lumber",
+      "x": 78.39,
+      "z": 41.79
+    },
+    {
+      "type": "wood_lumber",
+      "x": 83.74,
+      "z": 32.36
+    },
+    {
+      "type": "food_bin",
+      "x": 52.61,
+      "z": -61.59
+    },
+    {
+      "type": "food_jars",
+      "x": 53.19,
+      "z": -61.57
+    },
+    {
+      "type": "food_jars",
+      "x": -58.4,
+      "z": 77.09
+    },
+    {
+      "type": "shipwreck",
+      "x": 39.79,
+      "z": 60.11
+    },
+    {
+      "type": "shipwreck",
+      "x": -11.85,
+      "z": 70.59
+    },
+    {
+      "type": "stone_pile_granite",
+      "x": -48.93,
+      "z": 35.63
+    },
+    {
+      "type": "stone_pile_granite",
+      "x": -49.8,
+      "z": 35.2
+    },
+    {
+      "type": "wood_lumber",
+      "x": -108.7,
+      "z": -11.49
+    },
+    {
+      "type": "metal_weapons_small",
+      "x": -1.85,
+      "z": 59.39
+    },
+    {
+      "type": "metal_weapons_small",
+      "x": -0.89,
+      "z": 60.17
+    },
+    {
+      "type": "metal_weapons_small",
+      "x": -0.67,
+      "z": 60.65
+    },
+    {
+      "type": "metal_weapons_small",
+      "x": -2.05,
+      "z": 59.08
+    },
+    {
+      "type": "metal_weapons_small",
+      "x": -0.26,
+      "z": 60.15
+    }
+  ],
+  "ruins": [
+    {
+      "type": "column_doric",
+      "x": 6.64,
+      "z": -47.27
+    },
+    {
+      "type": "column_doric",
+      "x": 7.9,
+      "z": -46.71
+    },
+    {
+      "type": "column_doric",
+      "x": 5.61,
+      "z": -48.83
+    },
+    {
+      "type": "unfinished_greek_temple",
+      "x": -56.34,
+      "z": 77.42
+    },
+    {
+      "type": "stone_structure_house",
+      "x": -5.1,
+      "z": 115.35
+    },
+    {
+      "type": "stone_structure_tower",
+      "x": 28.99,
+      "z": 76.19
+    },
+    {
+      "type": "stone_structure_farmstead",
+      "x": 42.16,
+      "z": 27.18
+    },
+    {
+      "type": "stone_structure_farmstead",
+      "x": -51.07,
+      "z": -26.39
+    },
+    {
+      "type": "stone_structure_house",
+      "x": 53.26,
+      "z": -66.44
+    },
+    {
+      "type": "stone_statues_roman",
+      "x": -14.4,
+      "z": -1.73
     }
   ]
 }

@@ -2292,6 +2292,26 @@ void RmsGenerator::synth_wild_lake(HeightmapGrid &hm, RmsRng &rng, float &water_
 	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 20.0f, 6.0f, sp.base_height);
 }
 
+// 0 A.D. rmbiome Gaia animals (maps/random/rmbiome/generic/*.json, savanna.js): the starting
+// animal by each civic centre, the main and secondary huntable animals, plus a predator that
+// RTS0 mixes into every fourth wildlife pack.
+struct BiomeFauna { uint8_t starting, main_hunt, secondary_hunt, predator; };
+static BiomeFauna biome_fauna(BiomeType biome, int pick) {
+	switch (biome) {
+		case BIOME_ALPINE: return {FAUNA_CHICKEN, FAUNA_GOAT, FAUNA_DEER, FAUNA_BEAR_BROWN};
+		case BIOME_OASIS: return {FAUNA_GOAT, FAUNA_CAMEL, FAUNA_GAZELLE, FAUNA_LION};
+		case BIOME_STEPPE: return {FAUNA_CHICKEN, FAUNA_HORSE, FAUNA_HORSE, FAUNA_WOLF};
+		case BIOME_SAVANNA: {
+			static const uint8_t kMain[4] = {FAUNA_WILDEBEEST, FAUNA_ZEBRA, FAUNA_GIRAFFE, FAUNA_GAZELLE};
+			return {FAUNA_CHICKEN, kMain[pick & 3], FAUNA_ELEPHANT_AFRICAN_BUSH, FAUNA_LION};
+		}
+		case BIOME_POLAR: return {FAUNA_CHICKEN, FAUNA_MUSKOX, FAUNA_WALRUS, FAUNA_WOLF_ARCTIC};
+		case BIOME_INDIA: return {FAUNA_PEACOCK, FAUNA_PEACOCK, FAUNA_ELEPHANT_ASIAN, FAUNA_TIGER};
+		case BIOME_TEMPERATE: return {FAUNA_CHICKEN, FAUNA_DEER, FAUNA_SHEEP, FAUNA_WOLF};
+		default: return {FAUNA_CHICKEN, FAUNA_DEER, FAUNA_SHEEP, FAUNA_BOAR}; // aegean (and latium)
+	}
+}
+
 void RmsGenerator::synth_stronghold(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players,
 		const uint8_t *teams) {
 	// stronghold.js: playerPlacementByPattern("stronghold") puts each team
@@ -3445,19 +3465,20 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 			sim.spawn_resource_world(sec_stone_cx + (s == 0 ? -1.3f : 1.3f), sec_stone_cz, RES_STONE, 1500);
 		}
 
-		// 10. Starter Wildlife: Passive Deer Herd (4 deer)
+		const BiomeFauna bf = biome_fauna(config.biome, (int)config.seed);
+		// 10. Starter animals near the base (rmbiome startingAnimal, e.g. chickens)
 		float deer_cx = px - fx * 14.0f - rx * 5.0f;
 		float deer_cz = pz - fz * 14.0f - rz * 5.0f;
 		for (int d = 0; d < 4; ++d) {
 			float da = (6.2831853f * d) / 4.0f;
-			sim.spawn_fauna(deer_cx + std::cos(da) * 2.5f, deer_cz + std::sin(da) * 2.5f, FAUNA_DEER);
+			sim.spawn_fauna(deer_cx + std::cos(da) * 2.5f, deer_cz + std::sin(da) * 2.5f, bf.starting);
 		}
 
-		// 11. Starter Dangerous Prey: 2 Wild Boars
+		// 11. Starter hunt: 2 of the biome's main huntable animal
 		float boar_cx = px + fx * 19.0f - rx * 5.0f;
 		float boar_cz = pz + fz * 19.0f - rz * 5.0f;
-		sim.spawn_fauna(boar_cx - 1.5f, boar_cz, FAUNA_BOAR);
-		sim.spawn_fauna(boar_cx + 1.5f, boar_cz, FAUNA_BOAR);
+		sim.spawn_fauna(boar_cx - 1.5f, boar_cz, bf.main_hunt);
+		sim.spawn_fauna(boar_cx + 1.5f, boar_cz, bf.main_hunt);
 	}
 }
 
@@ -3617,7 +3638,6 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 }
 
 void RmsGenerator::distribute_wildlife(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config) {
-	(void)config;
 	float half = hm.map_half;
 	int num_packs = scale_by_map_size(10, 40, half);
 
@@ -3635,8 +3655,11 @@ void RmsGenerator::distribute_wildlife(Simulation &sim, const HeightmapGrid &hm,
 		float h = hm.sample_world(px, pz);
 		if (h < water_h + 0.3f || hm.compute_slope_world(px, pz) > 0.8f) continue;
 
-		uint8_t ftype = (uint8_t)(p % FAUNA_COUNT);
-		int pack_size = (ftype == FAUNA_DEER || ftype == FAUNA_SHEEP) ? rng.range_int(3, 5) : rng.range_int(2, 3);
+		const BiomeFauna bf = biome_fauna(config.biome, p / 4);
+		const uint8_t kinds[4] = {bf.main_hunt, bf.predator, bf.secondary_hunt, bf.main_hunt};
+		uint8_t ftype = kinds[p % 4];
+		const bool herd = !fauna_type_info(ftype).is_dangerous() && fauna_type_info(ftype).food_amount < 300;
+		int pack_size = herd ? rng.range_int(3, 5) : rng.range_int(2, 3);
 
 		for (int i = 0; i < pack_size; ++i) {
 			float a = (6.2831853f * i) / (float)pack_size;

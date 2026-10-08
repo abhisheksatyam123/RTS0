@@ -7168,9 +7168,254 @@
   ],
   "fauna": [
     {
-      "type": "wolf",
+      "type": "camel",
+      "x": 57.98,
+      "z": -90.94
+    },
+    {
+      "type": "camel",
+      "x": 70.77,
+      "z": -82.35
+    },
+    {
+      "type": "camel",
+      "x": 71.6,
+      "z": 5.13
+    },
+    {
+      "type": "elephant_north_african",
+      "x": 60.38,
+      "z": 67.69
+    },
+    {
+      "type": "elephant_african_bush",
+      "x": 63.18,
+      "z": 66.63
+    },
+    {
+      "type": "elephant_african_infant",
+      "x": 61.05,
+      "z": 66.45
+    },
+    {
+      "type": "giraffe",
+      "x": -101.87,
+      "z": 2.7
+    },
+    {
+      "type": "giraffe",
+      "x": -96.51,
+      "z": 0.78
+    },
+    {
+      "type": "giraffe",
+      "x": -92.64,
+      "z": 1.43
+    },
+    {
+      "type": "giraffe",
+      "x": -98.37,
+      "z": -0.36
+    },
+    {
+      "type": "giraffe",
+      "x": -100.0,
+      "z": 0.96
+    },
+    {
+      "type": "giraffe",
+      "x": -1.29,
+      "z": -94.94
+    },
+    {
+      "type": "giraffe",
+      "x": -0.27,
+      "z": -76.46
+    },
+    {
+      "type": "giraffe_infant",
+      "x": -0.02,
+      "z": -78.12
+    },
+    {
+      "type": "giraffe_infant",
+      "x": -101.02,
+      "z": -0.31
+    },
+    {
+      "type": "giraffe_infant",
+      "x": -95.16,
+      "z": -0.05
+    },
+    {
+      "type": "horse",
+      "x": -96.98,
+      "z": -18.39
+    },
+    {
+      "type": "horse",
+      "x": -96.1,
+      "z": -18.96
+    },
+    {
+      "type": "horse",
+      "x": 0.53,
+      "z": -37.92
+    },
+    {
+      "type": "horse",
+      "x": 1.08,
+      "z": -40.93
+    },
+    {
+      "type": "horse",
+      "x": 2.48,
+      "z": -37.66
+    },
+    {
+      "type": "horse",
+      "x": 3.39,
+      "z": -41.54
+    },
+    {
+      "type": "horse",
+      "x": 46.89,
+      "z": -81.77
+    },
+    {
+      "type": "horse",
+      "x": 87.63,
+      "z": 49.21
+    },
+    {
+      "type": "horse",
+      "x": 62.16,
+      "z": 96.2
+    },
+    {
+      "type": "horse",
+      "x": -11.86,
+      "z": 119.87
+    },
+    {
+      "type": "horse",
+      "x": -52.77,
+      "z": 45.51
+    },
+    {
+      "type": "lion",
       "x": 30.53,
       "z": -70.05
+    },
+    {
+      "type": "wildebeest",
+      "x": -64.42,
+      "z": -102.58
+    },
+    {
+      "type": "wildebeest",
+      "x": -65.66,
+      "z": -103.88
+    },
+    {
+      "type": "wildebeest",
+      "x": -65.91,
+      "z": -101.72
+    },
+    {
+      "type": "wildebeest",
+      "x": -63.44,
+      "z": -99.28
+    },
+    {
+      "type": "wildebeest",
+      "x": -62.92,
+      "z": -101.26
+    },
+    {
+      "type": "wildebeest",
+      "x": -62.94,
+      "z": -101.95
+    },
+    {
+      "type": "wildebeest",
+      "x": -64.35,
+      "z": -104.31
+    },
+    {
+      "type": "wildebeest",
+      "x": -63.47,
+      "z": -105.09
+    },
+    {
+      "type": "wildebeest",
+      "x": -62.0,
+      "z": -103.54
+    },
+    {
+      "type": "wildebeest",
+      "x": -61.8,
+      "z": -102.71
+    },
+    {
+      "type": "wildebeest",
+      "x": -62.06,
+      "z": -100.45
+    },
+    {
+      "type": "wildebeest",
+      "x": -62.75,
+      "z": -99.87
+    },
+    {
+      "type": "wildebeest",
+      "x": -64.83,
+      "z": -100.41
+    },
+    {
+      "type": "wildebeest",
+      "x": -64.97,
+      "z": -98.98
+    },
+    {
+      "type": "wildebeest",
+      "x": -67.07,
+      "z": -101.9
+    },
+    {
+      "type": "wildebeest",
+      "x": -61.8,
+      "z": -106.56
+    },
+    {
+      "type": "wildebeest",
+      "x": -60.86,
+      "z": -105.46
+    },
+    {
+      "type": "wildebeest",
+      "x": -60.01,
+      "z": -103.15
+    },
+    {
+      "type": "wildebeest",
+      "x": -59.5,
+      "z": -103.54
+    },
+    {
+      "type": "wildebeest",
+      "x": -60.46,
+      "z": -106.64
+    },
+    {
+      "type": "wildebeest",
+      "x": -60.57,
+      "z": -107.1
+    },
+    {
+      "type": "wildebeest",
+      "x": -60.47,
+      "z": -108.36
     }
   ],
   "structures": [
@@ -8693,6 +8938,165 @@
       "player": 1,
       "x": -33.3,
       "z": -7.16
+    }
+  ],
+  "treasures": [
+    {
+      "type": "food_jars",
+      "x": -122.74,
+      "z": -6.9
+    },
+    {
+      "type": "golden_fleece",
+      "x": -4.8,
+      "z": 90.15
+    },
+    {
+      "type": "pegasus",
+      "x": 110.29,
+      "z": -32.35
+    },
+    {
+      "type": "standing_stone",
+      "x": 40.65,
+      "z": 6.96
+    },
+    {
+      "type": "standing_stone",
+      "x": 41.77,
+      "z": 6.7
+    },
+    {
+      "type": "standing_stone",
+      "x": 39.32,
+      "z": 7.03
+    },
+    {
+      "type": "standing_stone",
+      "x": 45.23,
+      "z": 7.11
+    },
+    {
+      "type": "standing_stone",
+      "x": 47.31,
+      "z": 6.88
+    },
+    {
+      "type": "standing_stone",
+      "x": 46.26,
+      "z": 6.89
+    },
+    {
+      "type": "standing_stone",
+      "x": 34.5,
+      "z": 7.06
+    },
+    {
+      "type": "standing_stone",
+      "x": 35.52,
+      "z": 7.05
+    },
+    {
+      "type": "standing_stone",
+      "x": 36.57,
+      "z": 6.96
+    },
+    {
+      "type": "standing_stone",
+      "x": 29.7,
+      "z": 7.0
+    },
+    {
+      "type": "standing_stone",
+      "x": 30.92,
+      "z": 7.0
+    },
+    {
+      "type": "standing_stone",
+      "x": 32.3,
+      "z": 6.99
+    },
+    {
+      "type": "stone",
+      "x": 88.27,
+      "z": 68.89
+    },
+    {
+      "type": "wood",
+      "x": -45.05,
+      "z": -64.11
+    },
+    {
+      "type": "wood",
+      "x": -43.87,
+      "z": -63.69
+    },
+    {
+      "type": "wood",
+      "x": -43.39,
+      "z": -66.22
+    },
+    {
+      "type": "shipwreck_debris",
+      "x": -71.81,
+      "z": 39.86
+    },
+    {
+      "type": "shipwreck_debris",
+      "x": -22.88,
+      "z": -4.26
+    },
+    {
+      "type": "shipwreck_debris",
+      "x": -50.04,
+      "z": -16.45
+    },
+    {
+      "type": "shipwreck",
+      "x": -90.82,
+      "z": 25.98
+    },
+    {
+      "type": "shipwreck",
+      "x": -54.52,
+      "z": 33.72
+    },
+    {
+      "type": "shipwreck",
+      "x": -10.44,
+      "z": -13.3
+    },
+    {
+      "type": "shipwreck_debris",
+      "x": -119.5,
+      "z": 22.97
+    },
+    {
+      "type": "food_jars",
+      "x": 37.37,
+      "z": -71.83
+    }
+  ],
+  "ruins": [
+    {
+      "type": "pyramid_minor",
+      "x": 85.76,
+      "z": 28.39
+    },
+    {
+      "type": "pyramid_great",
+      "x": 77.48,
+      "z": 12.43
+    },
+    {
+      "type": "unfinished_greek_temple",
+      "x": -54.06,
+      "z": -89.24
+    },
+    {
+      "type": "unfinished_greek_temple",
+      "x": 49.8,
+      "z": -99.4
     }
   ]
 }
