@@ -11,7 +11,7 @@ What moved it: every civ now fields 0 A.D.'s own units (367 unit templates acros
 What still separates it from a 0 A.D. match, in rough order of impact:
 
 1. **Setup options 0 A.D. has and RTS0 doesn't:** population cap (RTS0 has no cap at all; 0 A.D. defaults to 300), ceasefire, revealed map and nomad starts (`scenes/menu/gamesetup.gd` header lists them as missing sim setters). Allied victory is also still missing.
-2. **AI diplomacy.** Petra treats everyone off its team as an enemy, and its tribute and diplomacy logic only talks to player 0.
+2. **AI diplomacy.** Petra picks targets by diplomacy, but its tribute and betrayal logic only talks to player 0.
 3. **Multiplayer between two real game clients** is still untested outside the headless harness (PLAN.md P1).
 4. **Content breadth:** 33 of 0 A.D.'s ~60 random maps, no scenario or skirmish maps, and 29 of 65 hero auras not yet modelled.
 
