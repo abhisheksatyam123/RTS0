@@ -142,11 +142,12 @@ public:
 	// Public accessor for the FoW grid (fow_res()*fow_res() flat array, row-major)
 	// player 0's grid is fow_grid_ (hashed for lockstep). Another player's grid
 	// exists once it is the FoW viewer (set_fow_viewer); until then player 1
-	// falls back to the Petra AI's grid and others to all-unexplored.
+	// falls back to the Petra AI's grid when Petra plays it, and others to
+	// all-unexplored.
 	const uint8_t* fow_grid(uint8_t player = 0) const {
 		if (player == 0 || player >= MAX_PLAYERS) return fow_grid_.data();
 		if (player_fow_[player].size() == fow_grid_.size()) return player_fow_[player].data();
-		if (player == 1) return petra_fow_.data();
+		if (player == PETRA_PLAYER && petra_runs_for(PETRA_PLAYER)) return petra_fow_.data();
 		return unexplored_fow_.data();
 	}
 	int fow_res() const { return grid_res_; }
@@ -602,6 +603,8 @@ public:
 		petra_config_.behavior = (b > PETRA_BEHAVIOR_AGGRESSIVE) ? PETRA_BEHAVIOR_BALANCED : b;
 		apply_petra_config();
 	}
+	// True when Petra drives this player: seated active AI slots, or player 1 when no slot is seated.
+	bool petra_runs_for(uint8_t pid) const;
 	uint8_t petra_difficulty() const { return petra_config_.difficulty; }
 	uint8_t petra_behavior() const { return petra_config_.behavior; }
 	const PetraConfig &petra_config() const { return petra_config_; }
@@ -732,6 +735,7 @@ private:
 	void tick_gates(float dt);
 	void tick_waves(float dt);
 	void tick_petra_ai(float dt);
+	void tick_petra_ai_player(float dt);
 	void tick_fauna(float dt);
 	void tick_fow();  // updates FoW each sim tick
 	template <typename SharesVision>
@@ -810,9 +814,14 @@ private:
 	uint32_t sim_seed_ = 1337;
 	SimRng sim_rng_;
 	std::array<PlayerState, MAX_PLAYERS> players_{};
-	PlayerState &petra_ps() { return players_[PETRA_PLAYER]; }
+	PlayerState &petra_ps() { return players_[petra_pid_]; }
 	Civilization civ_of(uint8_t pid) const { return (pid < MAX_PLAYERS) ? players_[pid].civ : CIV_ATHENIANS; }
-	const PlayerState &petra_ps() const { return players_[PETRA_PLAYER]; }
+	const PlayerState &petra_ps() const { return players_[petra_pid_]; }
+	// Player Petra is currently thinking for. tick_petra_ai sets it for each AI
+	// slot in turn and leaves it at PETRA_PLAYER between ticks.
+	uint8_t petra_pid_ = PETRA_PLAYER;
+	// Hostile to the AI being run: another player not on its team.
+	bool petra_foe(int t) const { return t >= 0 && t < MAX_PLAYERS && !same_team(petra_pid_, (uint8_t)t); }
 	float passive_timer_ = 0.0f;
 	float rate_window_timer_ = 0.0f;
 	float barter_timer_ = 0.0f;
@@ -906,6 +915,7 @@ private:
 		std::vector<uint32_t> banned;
 	};
 	std::vector<PetraFoundationWatch> petra_fnd_watch_;
+	mutable Petra petra_fleets_; // per-sea warship registry (navalManager.seaWarShips)
 	float petra_timer_  = 0.0f;
 	float petra_econ_timer_ = 0.0f;
 	float petra_trade_timer_ = 0.0f;
@@ -936,6 +946,7 @@ private:
 	void apply_petra_config();
 	void petra_refresh_queue_accounts(float dt);
 	void petra_staff_foundations();
+	void petra_manage_fields(int target_food);
 	int petra_villager_target() const;
 	bool petra_can_place(int cell_x, int cell_y, int footprint) const;
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
@@ -952,6 +963,27 @@ private:
 	uint8_t fow_viewer_ = 0;
 	std::array<std::vector<uint8_t>, MAX_PLAYERS> player_fow_; // per-player FoW for players 1..7 (index 0 unused: fow_grid_)
 	std::vector<uint8_t> unexplored_fow_ = std::vector<uint8_t>((size_t)MAX_GRID_RES * MAX_GRID_RES, 0);
+
+	// Per-AI Petra state. The petra_* members above hold the state of the AI being
+	// run (PETRA_PLAYER between ticks); every other AI slot's state is parked here
+	// and swapped in while that AI thinks (0 A.D. runs one Petra instance per AI).
+#define RTSO_PETRA_SLOT_FIELDS(X) \
+	X(petra_threat_map_) X(petra_strike_force_) X(petra_attack_plan_) X(petra_raid_plan_) \
+	X(petra_opening_step_) X(petra_opening_timer_) X(petra_defense_army_) X(petra_emergency_) \
+	X(petra_queues_) X(petra_transport_) X(petra_defense_timer_) X(petra_victory_timer_) \
+	X(petra_diplo_timer_) X(ai_wonder_victory_timer_) X(petra_bases_) X(petra_fnd_watch_) \
+	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
+	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
+	X(petra_fow_) X(petra_fleets_)
+	struct PetraSlot {
+		bool initialized = false;
+#define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
+		RTSO_PETRA_SLOT_FIELDS(RTSO_PETRA_SLOT_DECL)
+#undef RTSO_PETRA_SLOT_DECL
+	};
+	std::vector<PetraSlot> petra_slots_; // indexed by player id, sized on first use
+	void petra_swap_slot(uint8_t pid);
+	void petra_reset_ai_state();
 	std::vector<float> fow_cell_height_; // terrain height at each FoW cell centre, lazily filled by tick_fow
 	NavGrid nav_grid_; // Phase1: SoA nav mesh (buildings + water), mirrors 0AD Grid<NavcellData>
 	Grid<uint8_t> territory_grid_; // grid_res_^2 player id per cell, G2 (CCmpTerritoryManager)
