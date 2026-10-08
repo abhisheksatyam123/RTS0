@@ -229,8 +229,72 @@ static void test_trader_route() {
 	CHECK(total(s, 0) - total(c, 0) == frozen); // no route, no income
 }
 
+// Player.js SetTradingGoods / GetNextTradingGoods: each player picks the share
+// of each resource its traders load; 25% each until it does.
+static void test_trading_goods() {
+	static Simulation s;
+	fresh(s);
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
+		for (int r = 0; r < RES_COUNT; ++r) CHECK(s.trading_goods(p)[r] == 25);
+	uint8_t bad[RES_COUNT] = {50, 50, 10, 0}; // sums to 110
+	CHECK(!s.cmd_set_trading_goods(0, bad));
+	CHECK(s.trading_goods(0)[RES_WOOD] == 25);
+	uint8_t stone_only[RES_COUNT] = {};
+	stone_only[RES_STONE] = 100;
+	CHECK(!s.cmd_set_trading_goods(MAX_PLAYERS, stone_only));
+	CHECK(s.cmd_set_trading_goods(0, stone_only));
+	CHECK(s.trading_goods(0)[RES_STONE] == 100 && s.trading_goods(1)[RES_STONE] == 25);
+
+	// A stone-only player's trader brings back nothing but stone, and the other
+	// market's owner gets its bonus in stone too.
+	s.spawn_building_world(-80.0f, 0.0f, BLD_MARKET, 0, 1.0f);
+	s.spawn_building_world(80.0f, 0.0f, BLD_MARKET, 1, 1.0f);
+	s.set_diplomacy(0, 1, Simulation::DIPLO_NEUTRAL);
+	static Simulation c; // the same world without the trader
+	fresh(c);
+	c.spawn_building_world(-80.0f, 0.0f, BLD_MARKET, 0, 1.0f);
+	c.spawn_building_world(80.0f, 0.0f, BLD_MARKET, 1, 1.0f);
+	c.set_diplomacy(0, 1, Simulation::DIPLO_NEUTRAL);
+	s.spawn_unit(-74.0f, 4.0f, 0, UNIT_TRADER);
+	run(s, 240.0f);
+	run(c, 240.0f);
+	const int stone = s.player_resource(0, RES_STONE) - c.player_resource(0, RES_STONE);
+	std::printf("  trading goods: stone-only trader brought %d stone\n", stone);
+	CHECK(stone > 0);
+	for (uint8_t r : {RES_FOOD, RES_WOOD, RES_GOLD}) {
+		CHECK(s.player_resource(0, r) == c.player_resource(0, r));
+		CHECK(s.player_resource(1, r) == c.player_resource(1, r));
+	}
+
+	// Saved and hashed: a load keeps the shares, and a change on one peer shows in the hash.
+	const char *path = "/tmp/rtso_test_trading_goods.sav";
+	CHECK(s.save_state(path));
+	static Simulation l;
+	fresh(l);
+	CHECK(l.load_state(path));
+	CHECK(l.trading_goods(0)[RES_STONE] == 100 && l.trading_goods(0)[RES_FOOD] == 0);
+	TurnManager tm;
+	CHECK(tm.compute_sim_hash(s) == tm.compute_sim_hash(l));
+	uint8_t even[RES_COUNT] = {25, 25, 25, 25};
+	CHECK(l.cmd_set_trading_goods(0, even));
+	CHECK(tm.compute_sim_hash(s) != tm.compute_sim_hash(l));
+
+	// Lockstep command 33 carries one percent byte per ResourceType.
+	NetCommand cmd;
+	cmd.client_id = 0;
+	cmd.cmd_type = (uint8_t)NetCommandType::NET_CMD_SET_TRADING_GOODS;
+	uint8_t mix[RES_COUNT] = {};
+	mix[RES_FOOD] = 40; mix[RES_WOOD] = 30; mix[RES_GOLD] = 30;
+	for (int r = 0; r < RES_COUNT; ++r) cmd.target_id |= (uint32_t)mix[r] << (8 * r);
+	TurnManager net;
+	net.post_local_command(cmd);
+	for (int i = 0; i < 5; ++i) net.tick(TurnManager::TURN_DURATION, l);
+	for (int r = 0; r < RES_COUNT; ++r) CHECK(l.trading_goods(0)[r] == mix[r]);
+}
+
 int main() {
 	test_tribute();
+	test_trading_goods();
 	test_barter();
 	test_trade_gain();
 	test_trader_route();

@@ -301,6 +301,7 @@ void Simulation::reset() {
 
 	// G3 Market dynamic pricing reset
 	for (int i = 0; i < 4; ++i) { barter_price_diff_[i] = 0.0f; market_trade_history_[i] = 0; }
+	for (auto &row : trading_goods_) std::fill(std::begin(row), std::end(row), (uint8_t)25);
 	trader_routes_.clear();
 	trader_leg_.clear();
 
@@ -1812,14 +1813,27 @@ bool Simulation::has_trade_route(uint8_t player_id, uint8_t trader_type) const {
 	return false;
 }
 
-uint8_t Simulation::next_trading_goods() {
-	// Player.js GetNextTradingGoods with the default tradingGoods split
-	// (food, wood, stone, metal at 25% each): a random draw per load.
+uint8_t Simulation::next_trading_goods(uint8_t player) {
+	// Player.js GetNextTradingGoods: a random draw per load against the player's
+	// tradingGoods, in 0 A.D.'s order (food, wood, stone, metal), the last one
+	// taking whatever is left.
+	const uint8_t *pct = trading_goods(player);
 	const uint32_t r = sim_rng_.next_u32() % 100u;
-	if (r < 25) return RES_FOOD;
-	if (r < 50) return RES_WOOD;
-	if (r < 75) return RES_STONE;
+	uint32_t sum = 0;
+	for (uint8_t res : {RES_FOOD, RES_WOOD, RES_STONE}) {
+		sum += pct[res];
+		if (r < sum) return res;
+	}
 	return RES_GOLD;
+}
+
+bool Simulation::cmd_set_trading_goods(uint8_t player, const uint8_t pct[RES_COUNT]) {
+	if (player >= MAX_PLAYERS || !pct) return false;
+	int sum = 0;
+	for (int r = 0; r < RES_COUNT; ++r) sum += pct[r];
+	if (sum != 100) return false; // Player.js: "Invalid trading goods probability"
+	for (int r = 0; r < RES_COUNT; ++r) trading_goods_[player][r] = pct[r];
+	return true;
 }
 
 void Simulation::credit_trade(uint8_t player_id, uint8_t res, int amount) {
@@ -3067,7 +3081,7 @@ void Simulation::move_units(float dt, Arena &arena) {
 			credit_trade(dest.team, goods, g.market2);
 		}
 		// Load the next goods (Player.js GetNextTradingGoods) and head back.
-		units_.res_type_carried[ti] = next_trading_goods();
+		units_.res_type_carried[ti] = next_trading_goods(owner);
 		units_.carry[ti] = 10; // shows the caravan as loaded
 		const int new_leg = 1 - leg;
 		trader_leg_[uid] = new_leg;
@@ -10540,7 +10554,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 
@@ -11390,6 +11404,12 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		}
 		s.order_queues_.clear();
 	}
+
+	// 5. v22: each player's trading goods shares (Player.js tradingGoods).
+	if (ar.version >= 22)
+		for (auto &row : s.trading_goods_) for (uint8_t &v : row) ar.pod(v);
+	else if constexpr (Ar::loading)
+		for (auto &row : s.trading_goods_) std::fill(std::begin(row), std::end(row), (uint8_t)25);
 }
 
 void Simulation::save_tick_state(std::ofstream &out) const {
