@@ -2310,59 +2310,51 @@ void RtsoMain::update_command_panel() {
 		if (!selected_ids.is_empty()) {
 			auto uview = sim->units();
 
-			// 0 A.D. Parity: gui/session/selection_panels.js:265-330 (g_SelectionPanels.Formation)
-			// and gui/session/selection_panels_left/formation_panel.xml:1-12 (unitFormationButton repeat=15).
-			// Reference: 0 A.D. template_player.xml:84-96 (12 actionable formations, skipping FORMATION_NONE).
-			// Active formation highlighted with gold font color, matching 0 A.D. guiSelection overlay.
-			static const struct FormationButtonDef {
-				const char *name;
-				uint8_t id;
-				const char *icon;
-			} kFormationButtons[12] = {
-				{"Line",       rtso::FORMATION_LINE,         "res://assets/textures/ui/formations/line.png"},
-				{"Box",        rtso::FORMATION_BOX,          "res://assets/textures/ui/formations/box.png"},
-				{"Col",        rtso::FORMATION_COLUMN,       "res://assets/textures/ui/formations/column.png"},
-				{"Phalanx",    rtso::FORMATION_PHALANX,      "res://assets/textures/ui/formations/phalanx.png"},
-				{"Wedge",      rtso::FORMATION_WEDGE,        "res://assets/textures/ui/formations/wedge.png"},
-				{"Skirmish",   rtso::FORMATION_SCATTER,      "res://assets/textures/ui/formations/scatter.png"},
-				{"LineOpen",   rtso::FORMATION_LINE_OPEN,    "res://assets/textures/ui/formations/line_open.png"},
-				{"ColOpen",    rtso::FORMATION_COLUMN_OPEN,  "res://assets/textures/ui/formations/column_open.png"},
-				{"Flank",      rtso::FORMATION_FLANK,        "res://assets/textures/ui/formations/flank.png"},
-				{"BattleLine", rtso::FORMATION_BATTLE_LINE,  "res://assets/textures/ui/formations/battle_line.png"},
-				{"ShipLine",   rtso::FORMATION_SHIPS_LINE,   "res://assets/textures/ui/formations/ship_line.png"},
-				{"ShipCol",    rtso::FORMATION_SHIPS_COLUMN, "res://assets/textures/ui/formations/ship_column.png"}
-			};
-
-			// Query active formation across selected units to highlight matching button
-			uint8_t active_formation = rtso::FORMATION_NONE;
-			for (int i = 0; i < selected_ids.size(); ++i) {
+			// 0 A.D. gui/session/selection_panels.js g_SelectionPanels.Formation: one button per
+			// formation the player has (Player.js GetFormations), disabled with the template's
+			// DisabledTooltip unless the selection can form it (Commands.js CanMoveEntsIntoFormation),
+			// highlighted when a selected unit is in it (GuiInterface IsFormationSelected).
+			static const char *const kFormationIcons[rtso::FORMATION_COUNT] = {
+				"null", "line_closed", "box", "column", "phalanx", "wedge", "skirmish", "line_open",
+				"column_open", "flank", "battle_line", "ship_line", "ship_column", "flank", "syntagma",
+				"testudo", "testudo"};
+			const uint32_t *sel_ids = (const uint32_t *)selected_ids.ptr();
+			const size_t sel_n = (size_t)selected_ids.size();
+			uint32_t in_use = 0;       // formations a selected unit is in (bit 0: a unit in none)
+			bool any_can_form = false; // the panel only shows for units that take formations
+			for (size_t i = 0; i < sel_n; ++i) {
 				for (size_t u = 0; u < uview.count; ++u) {
-					if (uview.id[u] == (uint32_t)selected_ids[i]) {
-						if (uview.formation[u] != rtso::FORMATION_NONE) {
-							active_formation = uview.formation[u];
-							break;
-						}
-					}
+					if (uview.id[u] != sel_ids[i]) continue;
+					in_use |= 1u << (uview.formation[u] < rtso::FORMATION_COUNT ? uview.formation[u] : 0);
+					break;
 				}
-				if (active_formation != rtso::FORMATION_NONE) break;
+				for (uint8_t f = 1; f < rtso::FORMATION_COUNT && !any_can_form; ++f)
+					any_can_form = sim->unit_can_use_formation(sel_ids[i], f);
 			}
-
-			for (int f = 0; f < 12; ++f) {
+			const uint32_t available = any_can_form ? sim->player_formation_mask(local_player()) : 0u;
+			for (uint8_t f = 0; f < rtso::FORMATION_COUNT; ++f) {
+				if (!((available >> f) & 1u)) continue;
+				const rtso::FormationTemplate &ft = rtso::formation_template(f);
+				const bool enabled = f == rtso::FORMATION_NONE || sim->can_move_into_formation(sel_ids, sel_n, f);
 				Button *fb = memnew(Button);
 				fb->set_custom_minimum_size(Vector2(44, 24));
 				fb->set_clip_text(true);
-				fb->set_tooltip_text(kFormationButtons[f].name);
-				fb->set_text(kFormationButtons[f].name);
-				Ref<Texture2D> f_ico = load_tex(kFormationButtons[f].icon);
+				String tip = String::utf8(ft.name);
+				const char *why = enabled ? ft.tooltip : ft.disabled_tooltip;
+				if (why && *why) tip += String("\n") + String::utf8(why);
+				fb->set_tooltip_text(tip);
+				fb->set_text(String::utf8(ft.name));
+				Ref<Texture2D> f_ico = load_tex(String("res://assets/textures/ui/formations/") + kFormationIcons[f] + ".png");
 				if (f_ico.is_valid()) {
 					fb->set_button_icon(f_ico);
 					fb->set_expand_icon(true);
 				}
 				fb->add_theme_font_size_override("font_size", 8);
-				if (active_formation == kFormationButtons[f].id) {
+				if ((in_use >> f) & 1u) {
 					fb->add_theme_color_override("font_color", Color(1.0f, 0.85f, 0.2f));
 				}
-				fb->connect("pressed", Callable(this, "_on_formation_selected").bind((int)kFormationButtons[f].id));
+				fb->set_disabled(!enabled);
+				fb->connect("pressed", Callable(this, "_on_formation_selected").bind((int)f));
 				actions_bar->add_child(fb);
 			}
 
