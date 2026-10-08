@@ -19423,6 +19423,31 @@
       "z": 139.89
     },
     {
+      "type": "muskox",
+      "x": -31.17,
+      "z": -27.27
+    },
+    {
+      "type": "muskox",
+      "x": 37.88,
+      "z": 13.54
+    },
+    {
+      "type": "muskox",
+      "x": -83.71,
+      "z": 19.08
+    },
+    {
+      "type": "muskox",
+      "x": 42.15,
+      "z": -121.28
+    },
+    {
+      "type": "muskox",
+      "x": 149.57,
+      "z": -15.32
+    },
+    {
       "type": "boar",
       "x": -48.87,
       "z": 2.63
@@ -19478,17 +19503,17 @@
       "z": 20.05
     },
     {
-      "type": "wolf",
+      "type": "bear_brown",
       "x": -130.37,
       "z": -21.91
     },
     {
-      "type": "wolf",
+      "type": "bear_brown",
       "x": 27.24,
       "z": -112.74
     },
     {
-      "type": "wolf",
+      "type": "bear_brown",
       "x": 74.13,
       "z": 24.0
     },
@@ -21467,6 +21492,390 @@
       "player": 3,
       "x": 3.2,
       "z": 75.58
+    }
+  ],
+  "treasures": [
+    {
+      "type": "food_barrel",
+      "x": -11.31,
+      "z": -23.68
+    },
+    {
+      "type": "food_bin",
+      "x": -9.87,
+      "z": -23.92
+    },
+    {
+      "type": "food_crate",
+      "x": -10.65,
+      "z": -23.02
+    },
+    {
+      "type": "stone",
+      "x": 26.35,
+      "z": 10.69
+    },
+    {
+      "type": "wood",
+      "x": 33.17,
+      "z": -11.16
+    },
+    {
+      "type": "wood",
+      "x": 138.09,
+      "z": 11.99
+    },
+    {
+      "type": "wood",
+      "x": 137.5,
+      "z": 5.97
+    },
+    {
+      "type": "wood",
+      "x": 114.75,
+      "z": 9.26
+    },
+    {
+      "type": "wood",
+      "x": 116.88,
+      "z": 10.38
+    },
+    {
+      "type": "wood",
+      "x": -17.04,
+      "z": -132.15
+    },
+    {
+      "type": "wood",
+      "x": -18.44,
+      "z": -130.73
+    },
+    {
+      "type": "stone",
+      "x": 1.57,
+      "z": -117.85
+    },
+    {
+      "type": "stone",
+      "x": -67.11,
+      "z": 58.26
+    }
+  ],
+  "ruins": [
+    {
+      "type": "standing_stone",
+      "x": -120.14,
+      "z": -11.2
+    },
+    {
+      "type": "standing_stone",
+      "x": -119.87,
+      "z": -9.29
+    },
+    {
+      "type": "standing_stone",
+      "x": -118.57,
+      "z": -7.96
+    },
+    {
+      "type": "standing_stone",
+      "x": -117.01,
+      "z": -7.37
+    },
+    {
+      "type": "standing_stone",
+      "x": -115.15,
+      "z": -7.35
+    },
+    {
+      "type": "standing_stone",
+      "x": -113.49,
+      "z": -8.32
+    },
+    {
+      "type": "standing_stone",
+      "x": -112.5,
+      "z": -10.09
+    },
+    {
+      "type": "standing_stone",
+      "x": -112.39,
+      "z": -12.07
+    },
+    {
+      "type": "standing_stone",
+      "x": -113.1,
+      "z": -13.9
+    },
+    {
+      "type": "standing_stone",
+      "x": -114.66,
+      "z": -14.82
+    },
+    {
+      "type": "standing_stone",
+      "x": -116.78,
+      "z": -15.2
+    },
+    {
+      "type": "standing_stone",
+      "x": -118.51,
+      "z": -14.45
+    },
+    {
+      "type": "standing_stone",
+      "x": -119.7,
+      "z": -13.18
+    },
+    {
+      "type": "standing_stone",
+      "x": 32.02,
+      "z": -50.35
+    },
+    {
+      "type": "standing_stone",
+      "x": 32.09,
+      "z": -46.43
+    },
+    {
+      "type": "standing_stone",
+      "x": 31.94,
+      "z": -42.23
+    },
+    {
+      "type": "standing_stone",
+      "x": 31.9,
+      "z": -39.87
+    },
+    {
+      "type": "standing_stone",
+      "x": 28.31,
+      "z": -40.74
+    },
+    {
+      "type": "standing_stone",
+      "x": 28.64,
+      "z": -42.92
+    },
+    {
+      "type": "standing_stone",
+      "x": 28.85,
+      "z": -46.43
+    },
+    {
+      "type": "standing_stone",
+      "x": 28.9,
+      "z": -50.6
+    },
+    {
+      "type": "standing_stone",
+      "x": 83.2,
+      "z": -4.05
+    },
+    {
+      "type": "standing_stone",
+      "x": 81.86,
+      "z": -5.15
+    },
+    {
+      "type": "standing_stone",
+      "x": 80.91,
+      "z": -6.62
+    },
+    {
+      "type": "standing_stone",
+      "x": 80.97,
+      "z": -8.4
+    },
+    {
+      "type": "standing_stone",
+      "x": 81.66,
+      "z": -9.82
+    },
+    {
+      "type": "standing_stone",
+      "x": 82.81,
+      "z": -10.81
+    },
+    {
+      "type": "standing_stone",
+      "x": 84.65,
+      "z": -11.31
+    },
+    {
+      "type": "standing_stone",
+      "x": 86.7,
+      "z": -11.17
+    },
+    {
+      "type": "standing_stone",
+      "x": 88.45,
+      "z": -10.28
+    },
+    {
+      "type": "standing_stone",
+      "x": 89.12,
+      "z": -8.84
+    },
+    {
+      "type": "standing_stone",
+      "x": 89.08,
+      "z": -6.75
+    },
+    {
+      "type": "standing_stone",
+      "x": 88.17,
+      "z": -5.1
+    },
+    {
+      "type": "standing_stone",
+      "x": 86.72,
+      "z": -4.16
+    },
+    {
+      "type": "standing_stone",
+      "x": 84.96,
+      "z": -3.87
+    },
+    {
+      "type": "standing_stone",
+      "x": 21.56,
+      "z": 132.76
+    },
+    {
+      "type": "standing_stone",
+      "x": 20.08,
+      "z": 132.03
+    },
+    {
+      "type": "standing_stone",
+      "x": 18.98,
+      "z": 131.02
+    },
+    {
+      "type": "standing_stone",
+      "x": 18.62,
+      "z": 129.84
+    },
+    {
+      "type": "standing_stone",
+      "x": 18.49,
+      "z": 128.48
+    },
+    {
+      "type": "standing_stone",
+      "x": 18.73,
+      "z": 127.45
+    },
+    {
+      "type": "standing_stone",
+      "x": 19.54,
+      "z": 126.29
+    },
+    {
+      "type": "standing_stone",
+      "x": 20.94,
+      "z": 125.49
+    },
+    {
+      "type": "standing_stone",
+      "x": 22.63,
+      "z": 125.12
+    },
+    {
+      "type": "standing_stone",
+      "x": 24.15,
+      "z": 125.57
+    },
+    {
+      "type": "standing_stone",
+      "x": 25.43,
+      "z": 126.54
+    },
+    {
+      "type": "standing_stone",
+      "x": 26.25,
+      "z": 128.32
+    },
+    {
+      "type": "standing_stone",
+      "x": 26.1,
+      "z": 129.99
+    },
+    {
+      "type": "standing_stone",
+      "x": 25.76,
+      "z": 131.29
+    },
+    {
+      "type": "standing_stone",
+      "x": 24.67,
+      "z": 132.27
+    },
+    {
+      "type": "standing_stone",
+      "x": 23.1,
+      "z": 132.82
+    },
+    {
+      "type": "standing_stone",
+      "x": -42.81,
+      "z": 79.63
+    },
+    {
+      "type": "standing_stone",
+      "x": -43.91,
+      "z": 79.45
+    },
+    {
+      "type": "standing_stone",
+      "x": -46.31,
+      "z": 79.05
+    },
+    {
+      "type": "standing_stone",
+      "x": -43.88,
+      "z": 73.72
+    },
+    {
+      "type": "standing_stone",
+      "x": -42.12,
+      "z": 75.37
+    },
+    {
+      "type": "standing_stone",
+      "x": -75.34,
+      "z": -88.58
+    },
+    {
+      "type": "standing_stone",
+      "x": -73.44,
+      "z": -91.63
+    },
+    {
+      "type": "standing_stone",
+      "x": -71.91,
+      "z": -93.83
+    },
+    {
+      "type": "standing_stone",
+      "x": -76.68,
+      "z": -87.5
+    },
+    {
+      "type": "standing_stone",
+      "x": 74.65,
+      "z": -121.6
+    },
+    {
+      "type": "standing_stone",
+      "x": 75.67,
+      "z": -125.96
+    },
+    {
+      "type": "standing_stone",
+      "x": 75.33,
+      "z": -129.04
     }
   ]
 }

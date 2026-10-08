@@ -130,7 +130,7 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
-	static constexpr uint32_t SAVE_VERSION = 24; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 25; // save_state's format; see the history beside it
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -533,7 +533,8 @@ public:
 	// Centre of the nearest ship-passable cell around a building's footprint, and its
 	// ship region; false when none is near (ProductionQueue.js spawns ships there).
 	bool nearest_ship_cell(const Building &b, float &out_x, float &out_z, uint16_t *out_sea = nullptr) const;
-	void order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id);
+	void order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id,
+			bool queued = false);
 	void order_trade_auto(const uint32_t *unit_ids, size_t count); // farthest pair of tradable markets
 	float get_market_buy_price(ResourceType t) const { return market_buy_price(t); }
 	float get_market_sell_price(ResourceType t) const { return market_sell_price(t); }
@@ -876,6 +877,7 @@ public:
 
 	uint32_t spawn_fauna(float x, float z, uint8_t ftype);
 	void order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
+	bool is_fauna_id(uint32_t id) const { return fauna_id_to_idx_.count(id) != 0; }
 
 	struct TreasureRelic {
 		uint32_t id;
@@ -1028,6 +1030,10 @@ private:
 	void tick_petra_ai(float dt);
 	void tick_petra_ai_player(float dt);
 	void tick_fauna(float dt);
+	void tick_hunters();                                  // units attacking animals (UnitAI Gather on KillBeforeGather)
+	void fauna_attacked(size_t f, uint32_t attacker_id);  // UnitAI "Attacked" for an animal
+	void fauna_hit_unit(size_t f, size_t u);              // an animal's melee attack lands on unit u
+	bool fauna_can_step(size_t f, float x, float z) const;
 	void tick_fow();  // updates FoW each sim tick
 	void ensure_fow_cell_heights();
 	// The cells one viewer lit, kept while it stands still (CCmpRangeManager likewise redoes a
@@ -1075,7 +1081,7 @@ private:
 	void spawn_regicide_heroes();
 
 	struct FaunaStorage {
-		static constexpr size_t MAX_FAUNA = 256;
+		static constexpr size_t MAX_FAUNA = 1024; // dead animals are compacted out each tick
 		size_t count = 0;
 		uint32_t id[MAX_FAUNA] = {};
 		float pos_x[MAX_FAUNA] = {};
@@ -1094,6 +1100,8 @@ private:
 		uint32_t target_unit_id[MAX_FAUNA] = {};
 		uint32_t corral_id[MAX_FAUNA] = {};
 		float fatten_timer[MAX_FAUNA] = {};
+		float home_x[MAX_FAUNA] = {}; // UnitAI heldPosition: where a hold-ground animal returns
+		float home_z[MAX_FAUNA] = {};
 	} fauna_;
 	std::unordered_map<uint32_t, size_t> fauna_id_to_idx_;
 	std::unordered_map<uint32_t, std::vector<uint32_t>> transport_passengers_;
@@ -1420,13 +1428,14 @@ private:
 	void drop_orders(size_t i);      // orders UnitAI doesn't model (trade, hunt, board): no order, no queue
 	// Splits a Shift order: busy units get it queued, the rest are returned to run now.
 	// Without Shift every unit's queue is dropped and all of them run it now.
+	bool trade_route_ok(size_t i, uint32_t market_a_id, uint32_t market_b_id) const;
 	std::vector<uint32_t> split_queued(const uint32_t *ids, size_t count, const UnitOrder &o, bool queued);
 	void apply_order(uint32_t uid, const UnitOrder &o);
 	bool order_still_valid(size_t i, const UnitOrder &o) const;
 	void finish_order(size_t i);
 	void resume_order(size_t i);
 	void respond_to_attack(size_t i);
-	uint32_t find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team) const;
+	uint32_t find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team, int subtype = -1) const;
 	uint32_t find_nearby_foundation(float x, float z, uint8_t team) const;
 	void apply_rally_point(uint32_t uid, const Building &b);
 	void on_construction_finished(const Building &b, size_t builder);
