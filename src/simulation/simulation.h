@@ -847,7 +847,6 @@ private:
 	uint8_t petra_pid_ = PETRA_PLAYER;
 	// Hostile to the AI being run: another player not on its team.
 	bool petra_foe(int t) const { return t >= 0 && t < MAX_PLAYERS && !same_team(petra_pid_, (uint8_t)t); }
-	float passive_timer_ = 0.0f;
 	float rate_window_timer_ = 0.0f;
 	float barter_timer_ = 0.0f;
 	float upkeep_timer_ = 0.0f;
