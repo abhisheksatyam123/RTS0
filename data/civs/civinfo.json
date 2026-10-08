@@ -1,0 +1,401 @@
+[
+	{
+		"code": "athen",
+		"culture": "hele",
+		"bonuses": [
+			{
+				"name": "Silver Owls",
+				"description": "Workers +10% metal gather rate per phase advance.",
+				"history": "The mines at Laureion in Attica provided Athens with a wealth of silver from which to mint her famous and highly prized coin, The Athenian Owl."
+			},
+			{
+				"name": "Epilektoi Infantry",
+				"description": "Elite Hoplites can promote to Champion Spearmen.",
+				"history": "The best of the hoplites were chosen to form a group of elite professional soldiers."
+			}
+		],
+		"ai_names": [
+			"Cimon",
+			"Aristides",
+			"Xenophon",
+			"Hippias",
+			"Cleisthenes",
+			"Thucydides",
+			"Alcibiades",
+			"Miltiades",
+			"Cleon",
+			"Cleophon",
+			"Thrasybulus",
+			"Demosthenes"
+		]
+	},
+	{
+		"code": "spart",
+		"culture": "hele",
+		"bonuses": [
+			{
+				"name": "Spartan Women",
+				"description": "Female Citizens +40% health and +50% melee attack hack damage.",
+				"history": ""
+			},
+			{
+				"name": "Laws of Lycurgus",
+				"description": "Champion Hoplites are available in village phase, and can promote to highly experienced Olympic Champions.",
+				"history": "Under the constitution written by the mythical lawgiver Lycurgus, the institution of the Agoge was established, where Spartans were trained from the age of 6 to be superior warriors in defense of the Spartan state."
+			}
+		],
+		"ai_names": [
+			"Dienekes",
+			"Agis II",
+			"Archidamus",
+			"Lysander",
+			"Pausanias",
+			"Agesilaus",
+			"Echestratus",
+			"Eurycrates",
+			"Eucleidas",
+			"Agesipolis"
+		]
+	},
+	{
+		"code": "pers",
+		"culture": "pers",
+		"bonuses": [
+			{
+				"name": "Darics",
+				"description": "Land Traders +25% trade gain.",
+				"history": ""
+			},
+			{
+				"name": "Large Rams",
+				"description": "Battering Rams +20% attack damage and +2 garrison capacity.",
+				"history": ""
+			},
+			{
+				"name": "Times of War",
+				"description": "The batch training time of units trained in Stables decreases each phase advance.",
+				"history": "The Persians were known for their large cavalry contingent."
+			},
+			{
+				"name": "Satrapy Tribute",
+				"description": "Upgrade the Throne Hall to receive a free trickle of a desired resource.",
+				"history": "The empire was divided into provinces, called “Satrapies,” that sent yearly tribute to the ruling Persian dynasty in Persepolis as a form of tax."
+			}
+		],
+		"ai_names": [
+			"Cambyses II",
+			"Bardiya",
+			"Artaxshacha I",
+			"Darayavahush II",
+			"Darayavahush III",
+			"Artaxshacha II",
+			"Artaxshacha III",
+			"Haxamanish",
+			"Xsayarsa II"
+		]
+	},
+	{
+		"code": "rome",
+		"culture": "rome",
+		"bonuses": [
+			{
+				"name": "Fertility",
+				"description": "Women train from houses without the need to research Fertility Festival.",
+				"history": "Rome was one of the most populous cities in the ancient world."
+			},
+			{
+				"name": "Testudo Formation",
+				"description": "Roman Legionaries can form a Testudo.",
+				"history": "The Romans commonly used the Testudo or 'turtle' formation for defense: Legionaries were formed into hollow squares with twelve men on each side, standing so close together that their shields overlapped like fish scales."
+			},
+			{
+				"name": "Centurions",
+				"description": "Promote Elite Rank Spearmen or Swordsmen to Champion Centurions.",
+				"history": "Centurions were the officers responsible for a centuria, a group of 100 soldiers."
+			}
+		],
+		"ai_names": [
+			"Lucius Junius Brutus",
+			"Lucius Tarquinius Collatinus",
+			"Gaius Julius Caesar Octavianus",
+			"Marcus Vipsanius Agrippa",
+			"Gaius Iulius Iullus",
+			"Gaius Servilius Structus Ahala",
+			"Publius Cornelius Rufinus",
+			"Lucius Papirius Cursor",
+			"Aulus Manlius Capitolinus",
+			"Publius Sempronius Tuditanus",
+			"Marcus Cornelius Cethegus",
+			"Quintus Caecilius Metellus Pius",
+			"Marcus Licinius Crassus"
+		]
+	},
+	{
+		"code": "cart",
+		"culture": "cart",
+		"bonuses": [
+			{
+				"name": "Commercial Acumen",
+				"description": "Merchant Ships +25% trade gain.",
+				"history": ""
+			},
+			{
+				"name": "Desirable Products",
+				"description": "Docks and Markets +10% international trade bonus.",
+				"history": ""
+			}
+		],
+		"ai_names": [
+			"Hasdrubal Barca",
+			"Hasdrubal Gisco",
+			"Hanno the Elder",
+			"Mago Barca",
+			"Hasdrubal the Fair",
+			"Hanno the Great",
+			"Himilco",
+			"Hampsicora",
+			"Hannibal Gisco",
+			"Dido",
+			"Xanthippus",
+			"Himilco Phameas",
+			"Hasdrubal the Boetharch"
+		]
+	},
+	{
+		"code": "mace",
+		"culture": "hele",
+		"bonuses": [],
+		"ai_names": [
+			"Antipater",
+			"Philip IV",
+			"Lysander",
+			"Lysimachus",
+			"Pyrrhus of Epirus",
+			"Antigonus II Gonatas",
+			"Demetrius II Aetolicus",
+			"Philip V",
+			"Perseus",
+			"Craterus",
+			"Meleager"
+		]
+	},
+	{
+		"code": "brit",
+		"culture": "celt",
+		"bonuses": [
+			{
+				"name": "Deas Celtica",
+				"description": "Druids increase attack rates of soldiers near them by 5%.",
+				"history": "Celtic religion and druidry inspired their warlike mindset."
+			},
+			{
+				"name": "Woad Warriors",
+				"description": "All Infantry Units +5% movement speed, and gain +1 loot taking.",
+				"history": "Britons paint their bodies with Woad, which produces a blue color and gives them a fiercesome appearance in battle."
+			}
+		],
+		"ai_names": [
+			"Prasutagus",
+			"Venutius",
+			"Cogidubnus",
+			"Commius",
+			"Comux",
+			"Adminius",
+			"Dubnovellaunus",
+			"Vosenius"
+		]
+	},
+	{
+		"code": "gaul",
+		"culture": "celt",
+		"bonuses": [
+			{
+				"name": "Deas Celtica",
+				"description": "Druids increase attack rates of soldiers near them by 5%.",
+				"history": "Celtic religion and druidry inspired their warlike mindset."
+			}
+		],
+		"ai_names": [
+			"Cativolcus",
+			"Cingetorix",
+			"Divico",
+			"Ambiorix",
+			"Liscus",
+			"Orgetorix",
+			"Valetiacus",
+			"Viridovix"
+		]
+	},
+	{
+		"code": "iber",
+		"culture": "iber",
+		"bonuses": [
+			{
+				"name": "Starting Walls",
+				"description": "Iberians start with City Walls around their base on most maps.",
+				"history": "With exception to alluvial plains and river valleys, stone is abundant in the Iberian Peninsula and was greatly used in construction of structures of all types."
+			},
+			{
+				"name": "Massive Towers",
+				"description": "Stone Towers −50% wood cost, +150% stone cost, +33% build time, +60% health, +3 garrison capacity, and +1 default arrow count.",
+				"history": ""
+			}
+		],
+		"ai_names": [
+			"Audax",
+			"Calcus",
+			"Ditalcus",
+			"Minurus",
+			"Olyndicus",
+			"Orison",
+			"Tanginus",
+			"Tautalus"
+		]
+	},
+	{
+		"code": "maur",
+		"culture": "maur",
+		"bonuses": [],
+		"ai_names": [
+			"Bindusara Maurya",
+			"Brihadratha Maurya",
+			"Dasharatha Maurya",
+			"Devavarman Maurya",
+			"Kunala Maurya",
+			"Samprati Maurya",
+			"Shalishuka Maurya",
+			"Shatadhanvan Maurya",
+			"Tivala Maurya"
+		]
+	},
+	{
+		"code": "kush",
+		"culture": "egyptian",
+		"bonuses": [
+			{
+				"name": "Large Rams",
+				"description": "Battering Rams +20% attack damage and +2 garrison capacity.",
+				"history": ""
+			}
+		],
+		"ai_names": [
+			"Kashta",
+			"Alara",
+			"Pebatjma",
+			"Shabaka",
+			"Shebitku",
+			"Qalhata",
+			"Takahatenamun",
+			"Tantamani",
+			"Atlanersa",
+			"Nasalsa",
+			"Malewiebamani",
+			"Shanakdakhete",
+			"Amanishakheto"
+		]
+	},
+	{
+		"code": "ptol",
+		"culture": "ptol",
+		"bonuses": [
+			{
+				"name": "Polybolos",
+				"description": "Bolt Shooters −33% attack damage and −33% attack time.",
+				"history": ""
+			},
+			{
+				"name": "Nile Delta",
+				"description": "The three farming technologies are available in Village Phase.",
+				"history": "The Nile Delta is a region where the Nile River divides into several branches to flow into the Mediterranean Sea, in northern Egypt."
+			}
+		],
+		"ai_names": [
+			"Ptolemy Philadelphus",
+			"Ptolemy Epigone",
+			"Ptolemy Eurgetes",
+			"Ptolemy Epiphanes",
+			"Ptolemy Philometor",
+			"Ptolemy Eupator",
+			"Ptolemy Alexander",
+			"Ptolemy Neos Dionysos",
+			"Ptolemy Neos Philopater",
+			"Berenice Philopater",
+			"Cleopatra Tryphaena",
+			"Berenice Epiphaneia",
+			"Cleopatra Philopater",
+			"Cleopatra Selene",
+			"Cleopatra II Philometora Soteira",
+			"Arsinoe IV",
+			"Arsinoe II"
+		]
+	},
+	{
+		"code": "sele",
+		"culture": "sele",
+		"bonuses": [],
+		"ai_names": [
+			"Antiochus I Soter",
+			"Antiochus II Theos",
+			"Seleucus II Callinicus",
+			"Seleucus III Ceraunus",
+			"Seleucus IV Philopator",
+			"Antiochus V Eupator",
+			"Demetrius I Soter",
+			"Alexander I Balas",
+			"Demetrius II Nicator",
+			"Antiochus VI Dionysus",
+			"Diodotus Tryphon",
+			"Antiochus VII Sidetes",
+			"Demetrius II Nicator",
+			"Alexander II Zabinas",
+			"Cleopatra Thea",
+			"Seleucus V Philometor",
+			"Antiochus VIII Grypus",
+			"Antiochus IX Cyzicenus",
+			"Seleucus VI Epiphanes",
+			"Antiochus X Eusebes",
+			"Demetrius III Eucaerus",
+			"Antiochus XI Epiphanes",
+			"Philip I Philadelphus",
+			"Antiochus XII Dionysus",
+			"Seleucus VII Kybiosaktes",
+			"Antiochus XIII Asiaticus",
+			"Philip II Philoromaeus"
+		]
+	},
+	{
+		"code": "han",
+		"culture": "china",
+		"bonuses": [],
+		"ai_names": [
+			"Liu Ying",
+			"Liu Gong",
+			"Liu Hong",
+			"Liu Heng",
+			"Liu Qi",
+			"Liu Che",
+			"Liu Fuling",
+			"Liu He",
+			"Liu Bingyi",
+			"Liu Shi",
+			"Liu Ao",
+			"Liu Xin",
+			"Liu Kan",
+			"Liu Xuan",
+			"Liu Xiu",
+			"Liu Zhuang",
+			"Liu Da",
+			"Liu Zhao",
+			"Liu Long",
+			"Liu Hu",
+			"Liu Yi",
+			"Liu Bao",
+			"Liu Bing",
+			"Liu Zuan",
+			"Liu Zhi",
+			"Liu Hong",
+			"Liu Bian",
+			"Liu Xie"
+		]
+	}
+]

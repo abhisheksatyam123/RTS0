@@ -60,6 +60,8 @@ const RMS_MAPS := [
 	["random_hyrcanian_shores", "Hyrcanian Shores (RMS)", "Random", 8, 128, "temperate", "A sea along one edge, a coastal strip and wooded highlands. Supports 2-8 players."],
 	["random_northern_lights", "Northern Lights (RMS)", "Random", 8, 128, "polar", "Snowy land with a frozen sea and ice floes; scarce wood. Supports 2-8 players."],
 	["random_kerala", "Kerala (RMS)", "Random", 8, 128, "india", "India's south-western shore, between the sea and the mountains. Supports 2-8 players."],
+	["random_flood", "Flood (RMS)", "Random", 8, 128, "temperate", "A great flood moves across the valley. The home islands go under, so evacuate your units by ship to the mainland. Supports 2-8 players."],
+	["random_extinct_volcano", "Extinct Volcano (RMS)", "Random", 8, 128, "volcanic", "Rains raise the water from the 25th minute until only the hills and the great cone stay dry. Gaia towers guard the lowlands. Supports 2-8 players."],
 	["random_polar_sea", "Polar Sea (RMS)", "Random", 8, 128, "polar", "Icy land round a central sea, hardly any trees. Supports 2-8 players."],
 	["random_sahel", "Sahel (RMS)", "Random", 8, 128, "savanna", "Open savanna with a few water holes; little wood. Supports 2-8 players."],
 	["random_african_plains", "African Plains (RMS)", "Random", 8, 128, "savanna", "Lush plains with watering holes, hills and wildlife. Supports 2-8 players."],
@@ -96,6 +98,9 @@ const CEASEFIRES := [0, 1, 2, 3, 4, 5, 10, 15, 20, 30, 45, 60]
 # 0 A.D. Wonder / Capture the Relic hold times in minutes (default 20) and relic counts (default 2).
 const VICTORY_TIMES := [0, 1, 2, 5, 10, 15, 20, 30, 45, 60]
 const RELIC_COUNTS := [1, 2, 3, 4, 5, 6, 8, 10, 12, 16]
+# 0 A.D. map trigger options: Flood's WaterLevel and Extinct Volcano's SeaLevelRiseTime.
+const WATER_LEVELS := ["Rising water", "Shallow water", "Deep water"]
+const SEA_RISE_TIMES := [0, 5, 10, 15, 20, 25, 30, 40, 50, 60]
 
 # 0 A.D. map sizes (width in meters) for random maps.
 const MAP_SIZES := [[128, "Tiny (128 m)"], [192, "Small (192 m)"], [256, "Medium (256 m)"],
@@ -220,12 +225,25 @@ func _on_map_list_selected(idx: int) -> void:
 	_update_preview()
 	_clamp_slots_to_map()
 
+# 0 A.D. shows WaterLevel and SeaLevelRiseTime only for the maps whose triggers read them.
+func _update_map_options() -> void:
+	var id := str(_selected_map().get("id", ""))
+	var row := $VBox/HBox/Left/MapOptionsRow
+	if row == null:
+		return
+	$VBox/HBox/Left/MapOptionsRow/WaterLevelLabel.visible = id == "random_flood"
+	$VBox/HBox/Left/MapOptionsRow/WaterLevelSlot.visible = id == "random_flood"
+	$VBox/HBox/Left/MapOptionsRow/SeaRiseLabel.visible = id == "random_extinct_volcano"
+	$VBox/HBox/Left/MapOptionsRow/SeaRiseSlot.visible = id == "random_extinct_volcano"
+	row.visible = id == "random_flood" or id == "random_extinct_volcano"
+
 func _selected_map() -> Dictionary:
 	if _filtered.is_empty():
 		return {}
 	return _filtered[clampi(_sel_map, 0, _filtered.size() - 1)]
 
 func _update_preview() -> void:
+	_update_map_options()
 	var m := _selected_map()
 	var lbl := $VBox/HBox/Right/Preview/Label as Label
 	var crest := $VBox/HBox/Right/CivPreview/Crest as TextureRect
@@ -407,6 +425,14 @@ func _build_options() -> void:
 	for c in RELIC_COUNTS:
 		rc.add_item(str(c))
 	rc.select(RELIC_COUNTS.find(2))
+	var wl := _make_option($VBox/HBox/Left/MapOptionsRow/WaterLevelSlot)
+	for w in WATER_LEVELS:
+		wl.add_item(w)
+	wl.select(0)
+	var sr := _make_option($VBox/HBox/Left/MapOptionsRow/SeaRiseSlot)
+	for t in SEA_RISE_TIMES:
+		sr.add_item("rise at %d min" % t)
+	sr.select(SEA_RISE_TIMES.find(25))
 	var res := _make_option($VBox/HBox/Left/ResSlot)
 	for r in START_RES:
 		res.add_item(r)
@@ -464,6 +490,11 @@ func _restore_settings() -> void:
 	wt.select(wi if wi >= 0 else VICTORY_TIMES.find(20))
 	rt.select(ri if ri >= 0 else VICTORY_TIMES.find(20))
 	rc.select(ci if ci >= 0 else RELIC_COUNTS.find(2))
+	var wl: RtsoSafeSelect = $VBox/HBox/Left/MapOptionsRow/WaterLevelSlot.get_child(0)
+	wl.select(clampi(int(ms.get("water_level")), 0, WATER_LEVELS.size() - 1))
+	var sr: RtsoSafeSelect = $VBox/HBox/Left/MapOptionsRow/SeaRiseSlot.get_child(0)
+	var si := SEA_RISE_TIMES.find(int(ms.get("sea_level_rise_min")))
+	sr.select(si if si >= 0 else SEA_RISE_TIMES.find(25))
 	var msz: RtsoSafeSelect = $VBox/HBox/Left/MapSizeSlot.get_child(0)
 	for i in range(MAP_SIZES.size()):
 		if int(MAP_SIZES[i][0]) == int(ms.get("map_size")):
@@ -521,6 +552,8 @@ func _collect_setup() -> Dictionary:
 	var wt: RtsoSafeSelect = $VBox/HBox/Left/VictoryTimesRow/WonderTimeSlot.get_child(0)
 	var rt: RtsoSafeSelect = $VBox/HBox/Left/VictoryTimesRow/RelicTimeSlot.get_child(0)
 	var rc: RtsoSafeSelect = $VBox/HBox/Left/VictoryTimesRow/RelicCountSlot.get_child(0)
+	var wl: RtsoSafeSelect = $VBox/HBox/Left/MapOptionsRow/WaterLevelSlot.get_child(0)
+	var sr: RtsoSafeSelect = $VBox/HBox/Left/MapOptionsRow/SeaRiseSlot.get_child(0)
 	var n := int($VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value)
 	_ensure_slot_rows(n)
 	var types: Array = []
@@ -566,6 +599,8 @@ func _collect_setup() -> Dictionary:
 		"wonder_min": int(VICTORY_TIMES[maxi(wt.get_selected(), 0)]),
 		"relic_min": int(VICTORY_TIMES[maxi(rt.get_selected(), 0)]),
 		"relic_count": int(RELIC_COUNTS[maxi(rc.get_selected(), 0)]),
+		"water_level": maxi(wl.get_selected(), 0),
+		"sea_level_rise_min": int(SEA_RISE_TIMES[maxi(sr.get_selected(), 0)]),
 		"map_size": int(MAP_SIZES[maxi(msz.get_selected(), 0)][0]),
 		"res": res.get_selected(), "beh": beh, "diff": diff,
 		"biome": maxi(bio.get_selected(), 0),
@@ -604,6 +639,8 @@ func _on_start_pressed() -> void:
 	ms.wonder_min = int(st["wonder_min"])
 	ms.relic_min = int(st["relic_min"])
 	ms.relic_count = int(st["relic_count"])
+	ms.water_level = int(st["water_level"])
+	ms.sea_level_rise_min = int(st["sea_level_rise_min"])
 	ms.map_size = int(st["map_size"])
 	ms.ai_difficulty = int(st["diff"])
 	ms.ai_behavior = int(st["beh"])
