@@ -298,6 +298,15 @@ github_skirmishes = {
     "syria_2p": ("syria", "desert"),
     "two_seas_6p": ("two_seas", "mediterranean"),
     "zagros_mountains_2p": ("zagros_mountains", "persia"),
+    "arabian_oases_2p": ("arabian_oases", "desert"),
+    "farmland_2p": ("farmland", "temperate"),
+    "forest_battle_4p": ("forest_battle", "temperate"),
+    "hindu_kush_2p": ("hindu_kush", "alpine"),
+    "hydaspes_river_4p": ("hydaspes_river", "india"),
+    "isthmus_of_corinth_2p": ("isthmus_of_corinth", "aegean"),
+    "northern_island_2p": ("northern_island", "polar"),
+    "oceanside_2p": ("oceanside", "mediterranean"),
+    "watering_holes_4p": ("watering_holes", "savanna"),
 }
 
 if __name__ == "__main__":
