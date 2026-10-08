@@ -19,6 +19,8 @@
 //     let aggressive AIs rush an undefended structure in the village phase,
 //     the first two town-phase plans are "Attack" and later ones "HugeAttack",
 //     and cavalry raid an enemy structure inside Petra's territory.
+//  7. Each AI slot keeps its own difficulty and behaviour (game setup's
+//     per-player AI settings), through its turns and a save and load.
 //  Exit: 0 = PASS, 1 = FAIL.
 // The ally check reads the sim's death log, which has no public accessor.
 #define private public
@@ -26,6 +28,7 @@
 #undef private
 #include <cstdio>
 #include <memory>
+#include <vector>
 using namespace rtso;
 
 static int g_failures = 0;
@@ -403,22 +406,34 @@ static void test_attack_plans() {
 		CHECK(m.launched[PETRA_ATTACK_ATTACK] >= 2, "launches two Attack plans");
 	}
 	{
+		// The kind of each plan as it starts mustering (whether a HugeAttack
+		// marches before the idle player runs out of buildings depends on timing).
 		auto s = match(PETRA_BEHAVIOR_AGGRESSIVE);
 		int attack_size = 0, huge_size = 0;
+		std::vector<int> kinds;
+		auto last = Simulation::AttackPlan::UNEXECUTED;
 		// HugeAttack launches around 11-12 min on this map; 14 min leaves room for map changes.
 		for (float t = 0.0f; t < 14.0f * 60.0f; t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			const auto &m = s->petra_attack_manager();
-			if (s->petra_attack_plan().state != Simulation::AttackPlan::WALKING) continue;
-			if (m.kind == PETRA_ATTACK_ATTACK) attack_size = m.target_size;
-			if (m.kind == PETRA_ATTACK_HUGE) huge_size = m.target_size;
+			const auto st = s->petra_attack_plan().state;
+			if (st == Simulation::AttackPlan::MUSTER && last != st) {
+				kinds.push_back(m.kind);
+				if (m.kind == PETRA_ATTACK_ATTACK) attack_size = m.target_size;
+				if (m.kind == PETRA_ATTACK_HUGE) huge_size = m.target_size;
+			}
+			last = st;
 		}
 		const auto &m = s->petra_attack_manager();
-		std::printf("  no rush target: rushes planned %d, launched attack %d then huge %d, target sizes %d / %d\n",
-		            m.rush_number, m.launched[PETRA_ATTACK_ATTACK], m.launched[PETRA_ATTACK_HUGE], attack_size, huge_size);
+		std::printf("  no rush target: rushes planned %d, plans", m.rush_number);
+		for (int k : kinds) std::printf(" %s", k == PETRA_ATTACK_ATTACK ? "Attack" : k == PETRA_ATTACK_HUGE ? "HugeAttack" : "other");
+		std::printf(", launched attack %d huge %d, target sizes %d / %d\n",
+		            m.launched[PETRA_ATTACK_ATTACK], m.launched[PETRA_ATTACK_HUGE], attack_size, huge_size);
 		CHECK(m.launched[PETRA_ATTACK_RUSH] == 0, "no rush without an undefended target");
-		CHECK(m.launched[PETRA_ATTACK_ATTACK] == 2, "the first two plans are Attack");
-		CHECK(m.launched[PETRA_ATTACK_HUGE] >= 1, "then HugeAttack");
+		CHECK(kinds.size() >= 3 && kinds[0] == PETRA_ATTACK_ATTACK && kinds[1] == PETRA_ATTACK_ATTACK,
+		      "the first two plans are Attack");
+		CHECK(kinds.size() >= 3 && kinds[2] == PETRA_ATTACK_HUGE, "then HugeAttack");
+		CHECK(m.launched[PETRA_ATTACK_ATTACK] == 2, "both Attack plans march");
 		CHECK(huge_size > 2 * attack_size, "a HugeAttack musters a much larger army");
 	}
 	{
@@ -455,6 +470,31 @@ static void test_attack_plans() {
 	}
 }
 
+// Game setup gives each AI player its own difficulty and behaviour.
+static void test_slot_config() {
+	auto s = three_player_match(4);
+	s->set_petra_difficulty(1, PETRA_VERY_EASY);
+	s->set_petra_difficulty(2, PETRA_VERY_HARD);
+	s->set_petra_behavior(2, PETRA_BEHAVIOR_AGGRESSIVE);
+	run_for(*s, 60.0f);
+	auto same = [&](const Simulation &x, const char *when) {
+		const PetraConfig &a = x.petra_config_for(1), &b = x.petra_config_for(2);
+		std::printf("  per-slot config %s: AI 1 difficulty %d gather x%.2f, AI 2 difficulty %d gather x%.2f time x%.2f aggressive %.2f\n",
+		            when, a.difficulty, x.ai_gather_mult(1), b.difficulty, x.ai_gather_mult(2), x.ai_time_mult(2), b.aggressive);
+		CHECK(a.difficulty == PETRA_VERY_EASY && b.difficulty == PETRA_VERY_HARD, "each AI keeps its own difficulty");
+		CHECK(a.behavior == PETRA_BEHAVIOR_BALANCED && b.behavior == PETRA_BEHAVIOR_AGGRESSIVE, "each AI keeps its own behaviour");
+		CHECK(x.ai_gather_mult(1) < 0.6f && x.ai_gather_mult(2) > 1.5f, "gather rate follows each AI's difficulty");
+		CHECK(x.ai_gather_mult(0) == 1.0f, "the human gathers at the base rate");
+	};
+	same(*s, "after a minute");
+	const char *path = "/tmp/rtso_test_petra_slots.sav";
+	CHECK(s->save_state(path), "saves");
+	auto t = three_player_match(4); // the game builds the same map, then loads
+	CHECK(t->load_state(path), "loads");
+	same(*t, "after save and load");
+	std::remove(path);
+}
+
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
@@ -464,6 +504,7 @@ int main() {
 	test_diplomacy();
 	test_ai_slots();
 	test_attack_plans();
+	test_slot_config();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }
