@@ -14,20 +14,17 @@ func _on_options_pressed():
 func _on_lobby_pressed():
 	MatchSettings.go("res://scenes/menu/lobby.tscn")
 
+# Save / Load open 0 A.D.'s saved-game dialogs (gui/savedgames); F5 / F6 still quicksave and quickload.
+const SavegameDialog = preload("res://scenes/session/savegame_dialog.gd")
+
 func _on_save_pressed():
-	var parent = get_parent()
-	if parent and parent.has_method("save_game"):
-		parent.save_game("user://saves/quicksave.rts0sav")
+	var d = SavegameDialog.open(get_parent(), "save", get_parent())
+	d.closed.connect(func():
 		if has_node("CenterContainer/Panel/VBox/Title"):
-			$CenterContainer/Panel/VBox/Title.text = "Game Saved! (quicksave.rts0sav)"
+			$CenterContainer/Panel/VBox/Title.text = "GAME PAUSED")
 
 func _on_load_pressed():
-	var parent = get_parent()
-	if parent and parent.has_method("load_game"):
-		if parent.load_game("user://saves/quicksave.rts0sav"):
-			if has_node("CenterContainer/Panel/VBox/Title"):
-				$CenterContainer/Panel/VBox/Title.text = "Game Loaded!"
-			_on_resume_pressed()
+	SavegameDialog.open(get_parent(), "load", get_parent())
 
 func _on_exit_pressed():
 	get_tree().paused = false

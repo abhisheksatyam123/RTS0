@@ -38,6 +38,8 @@ class RtsoDiplomacyHost {
 public:
 	virtual ~RtsoDiplomacyHost() = default;
 	virtual bool net_lockstep() const = 0; // existing RtsoMain hook
+	// Orders go through the TurnManager (always in a match, so replays record them).
+	virtual bool turn_cmds() const = 0;
 	// Existing RtsoMain hook -> TurnManager cmd 22 dispatch (stance).
 	virtual void post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
 			float x, float z, uint32_t tid, uint8_t param) = 0;
@@ -195,7 +197,7 @@ public:
 		// — diplomacy_state() is hashed (turn_manager.cpp:213), so a local-only change
 		// desyncs peers. Offline applies immediately via the validated sim cmd.
 		// 0 A.D. Diplomacy.js / DiplomacyDialog.js OnStanceChange parity.
-		if (host_->net_lockstep())
+		if (host_->turn_cmds())
 			host_->post_lockstep(22, nullptr, 0, 0, 0, (uint32_t)player_idx, (uint8_t)stance);
 		else
 			host_->ui_sim()->cmd_set_diplomacy(host_->local_player(), (uint8_t)player_idx, (uint8_t)stance);
@@ -214,7 +216,7 @@ public:
 		if (player_idx == me) return;
 		rtso::Simulation *sim = host_->ui_sim();
 		bool ok;
-		if (host_->net_lockstep()) {
+		if (host_->turn_cmds()) {
 			// Checked here only to give feedback; the sim validates again when the turn runs.
 			ok = sim->player_resource(me, (uint8_t)res_type) >= 100;
 			if (ok) host_->post_lockstep(27, nullptr, 0, 100.0f, 0, (uint32_t)player_idx, (uint8_t)res_type);
