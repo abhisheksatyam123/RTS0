@@ -1250,6 +1250,14 @@ private:
 	void petra_manage_raid(float dt);
 	void petra_manage_opening(float dt);
 	void petra_manage_defense(float dt);
+	// garrisonManager.js / defenseManager.js garrisons: what is near a holder of ours.
+	struct PetraAround { bool defense_structure = false, melee_siege = false, range_siege = false, unit = false; };
+	PetraAround petra_around(const Building &holder) const;
+	bool petra_keep_garrisoned(size_t unit_idx, const Building &holder, const PetraAround &around) const;
+	// incoming[building index]: our units walking to garrison there.
+	void petra_garrison_units_inside(size_t holder_idx, bool allow_melee, std::vector<int> &incoming);
+	uint32_t petra_garrison_holder_for(size_t unit_idx, bool heals_only, bool siege, std::vector<int> &incoming) const;
+	void petra_manage_garrisons();
 	void petra_manage_victory(float dt);
 	void petra_manage_diplomacy(float dt);
 	void petra_manage_emergency(float dt);

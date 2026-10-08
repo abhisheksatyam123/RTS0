@@ -7033,7 +7033,8 @@ void Simulation::petra_manage_workers(float dt) {
 					float dx = units_.pos_x[i] - sb.x;
 					float dz = units_.pos_z[i] - sb.z;
 					const float reach = sb.half_size + 2.5f;
-					if (dx * dx + dz * dz <= reach * reach && (int)sb.garrisoned_units.size() < sb.garrison_cap) {
+					if (dx * dx + dz * dz <= reach * reach && (int)sb.garrisoned_units.size() < sb.garrison_cap &&
+					    petra_around(sb).unit) { // else garrisonManager would let it straight out
 						uint32_t uid = units_.id[i];
 						order_garrison(&uid, 1, sb.id);
 					}
@@ -7042,19 +7043,7 @@ void Simulation::petra_manage_workers(float dt) {
 		}
 	}
 
-	// Ungarrison workers when threat is cleared — leave military in towers (garrisonManager.js)
-	if (best_shelter_score < 2.0f) {
-		for (auto &b : buildings_) {
-			if (b.team != petra_pid_ || b.garrisoned_units.empty()) continue;
-			std::vector<uint32_t> eject;
-			eject.reserve(b.garrisoned_units.size());
-			for (uint32_t uid : b.garrisoned_units) {
-				int32_t idx = lookup_unit(uid);
-				if (idx >= 0 && units_.unit_type[idx] == UNIT_VILLAGER) eject.push_back(uid);
-			}
-			for (uint32_t uid : eject) order_ungarrison_single(b.id, uid);
-		}
-	}
+	// petra_manage_garrisons lets them out once no enemy is near (garrisonManager.js).
 }
 
 void Simulation::petra_manage_military_production(float dt) {
@@ -9890,10 +9879,159 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 	return 0;
 }
 
+// garrisonManager.js update: the enemies within a holder's arrow range (80 m
+// for a holder that doesn't shoot): defensive structures, melee or ranged
+// siege, or other units (Gaia's only while fighting; Gaia is no foe here).
+Simulation::PetraAround Simulation::petra_around(const Building &holder) const {
+	PetraAround around;
+	const BuildingTypeInfo &info = building_type_info(holder.type);
+	const float range = info.attack_damage > 0.0f ? info.attack_range + tech_mods(holder.team).bld_range[holder.type] : 80.0f;
+	for (const Building &b : buildings_) {
+		if (!petra_foe(b.team) || b.hp <= 0.0f || b.build_progress < 1.0f || building_type_info(b.type).attack_damage <= 0.0f) continue;
+		const float dx = b.x - holder.x, dz = b.z - holder.z;
+		if (dx * dx + dz * dz <= range * range) { around.defense_structure = true; break; }
+	}
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || !petra_foe(units_.team[i])) continue;
+		const float dx = units_.pos_x[i] - holder.x, dz = units_.pos_z[i] - holder.z;
+		if (dx * dx + dz * dz > range * range) continue;
+		const uint64_t c = unit_tech_classes(units_.unit_type[i]);
+		if (c & TC_SIEGE) {
+			if (c & TC_MELEE) around.melee_siege = true;
+			else around.range_siege = true;
+		} else {
+			around.unit = true;
+			break;
+		}
+	}
+	return around;
+}
+
+// garrisonManager.js keepGarrisoned. Petra garrisons for protection (a hurt
+// unit healing, infantry adding arrows, support units and siege sheltering),
+// and its hero for an emergency.
+bool Simulation::petra_keep_garrisoned(size_t i, const Building &holder, const PetraAround &around) const {
+	const uint8_t type = units_.unit_type[i];
+	const uint64_t c = unit_tech_classes(type);
+	const float health = units_.max_hp[i] > 0.0f ? units_.hp[i] / units_.max_hp[i] : 1.0f;
+	const bool heals = structure_garrison_heal(holder) > 0.0f && unit_is_human(type);
+	const bool needs_heal = heals && health < 1.0f;
+	if (heals && health < petra_config_.garrison_hp_high) return true;
+	if (type == UNIT_HERO) // TYPE_EMERGENCY
+		return around.unit || around.defense_structure || around.melee_siege ||
+			(around.range_siege && health < petra_config_.garrison_hp_high) || needs_heal;
+	if (c & TC_INFANTRY) { // the holder's GarrisonArrowClasses
+		if (around.unit || around.defense_structure) return true;
+		if (around.melee_siege || around.range_siege) return !(c & TC_MELEE) || health < petra_config_.garrison_hp_low;
+		return false;
+	}
+	if (c & TC_MELEE) return false;
+	if (around.unit) return (c & (TC_CIVILIAN | TC_SIEGE)) != 0;
+	if (c & TC_SIEGE) return around.melee_siege;
+	return needs_heal;
+}
+
+// defenseManager.js garrisonUnitsInside: our nearest infantry (melee too unless
+// only siege threatens it) fill a shooting structure an enemy is in range of.
+// Units in an attack or raid plan stay with it; defenders leave the army.
+void Simulation::petra_garrison_units_inside(size_t holder_idx, bool allow_melee, std::vector<int> &incoming) {
+	const Building &holder = buildings_[holder_idx];
+	if (!structure_has_enough_health(holder)) return;
+	int slots = (int)holder.garrisoned_units.size() + incoming[holder_idx];
+	if (slots >= holder.garrison_cap) return;
+	std::vector<std::pair<float, uint32_t>> near;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
+		const uint64_t c = unit_tech_classes(units_.unit_type[i]);
+		if (!(c & TC_INFANTRY) || units_.unit_type[i] == UNIT_HERO || (!allow_melee && (c & TC_MELEE))) continue;
+		if (units_.order_kind[i] == ORDER_GARRISON || units_.id[i] == petra_scout_unit_id_) continue;
+		const uint32_t uid = units_.id[i];
+		const auto &main = petra_attack_plan_.squad, &raid = petra_raid_plan_.squad;
+		if (std::find(main.begin(), main.end(), uid) != main.end() || std::find(raid.begin(), raid.end(), uid) != raid.end()) continue;
+		const float dx = units_.pos_x[i] - holder.x, dz = units_.pos_z[i] - holder.z;
+		near.push_back({dx * dx + dz * dz, uid});
+	}
+	std::sort(near.begin(), near.end());
+	auto &def = petra_defense_army_.defender_ids;
+	for (const auto &[d2, uid] : near) {
+		if (slots >= holder.garrison_cap) break;
+		def.erase(std::remove(def.begin(), def.end(), uid), def.end());
+		order_garrison(&uid, 1, holder.id);
+		++slots;
+		++incoming[holder_idx];
+	}
+}
+
+// defenseManager.js garrisonAttackedUnit (the nearest healing structure) and
+// garrisonSiegeUnit (the nearest fortress) with room and enough health.
+uint32_t Simulation::petra_garrison_holder_for(size_t i, bool heals_only, bool siege, std::vector<int> &incoming) const {
+	size_t best = SIZE_MAX;
+	float best_d2 = 1e18f;
+	for (size_t bi = 0; bi < buildings_.size(); ++bi) {
+		const Building &b = buildings_[bi];
+		if (b.team != petra_pid_ || b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0) continue;
+		if (heals_only && structure_garrison_heal(b) <= 0.0f) continue;
+		if (siege && b.type != BLD_FORTRESS) continue;
+		if (!structure_has_enough_health(b) || (int)b.garrisoned_units.size() + incoming[bi] >= b.garrison_cap) continue;
+		const float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
+		const float d2 = dx * dx + dz * dz;
+		if (d2 < best_d2) { best_d2 = d2; best = bi; }
+	}
+	if (best == SIZE_MAX) return 0;
+	++incoming[best];
+	return buildings_[best].id;
+}
+
+void Simulation::petra_manage_garrisons() {
+	// garrisonManager.js numberOfGarrisonedSlots counts ours on the way too.
+	std::vector<int> incoming(buildings_.size(), 0);
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.order_kind[i] != ORDER_GARRISON) continue;
+		auto it = building_id_to_idx_.find(units_.order_target[i]);
+		if (it != building_id_to_idx_.end()) ++incoming[it->second];
+	}
+	// garrisonManager.js update: unload whoever no longer needs the shelter, then
+	// defenseManager.js checkEvents: arrows from a structure with an enemy in range.
+	for (size_t bi = 0; bi < buildings_.size(); ++bi) {
+		const Building &b = buildings_[bi];
+		if (b.team != petra_pid_ || b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0) continue;
+		const bool shoots = building_type_info(b.type).attack_damage > 0.0f;
+		if (b.garrisoned_units.empty() && !shoots) continue;
+		const PetraAround around = petra_around(b);
+		std::vector<uint32_t> leave;
+		for (uint32_t uid : b.garrisoned_units) {
+			const int32_t idx = lookup_unit(uid);
+			if (idx >= 0 && units_.team[idx] == petra_pid_ && !petra_keep_garrisoned((size_t)idx, b, around)) leave.push_back(uid);
+		}
+		for (uint32_t uid : leave) order_ungarrison_single(b.id, uid);
+		if (shoots && (around.unit || around.melee_siege || around.range_siege))
+			petra_garrison_units_inside(bi, around.defense_structure || around.unit, incoming);
+	}
+
+	// defenseManager.js checkEvents: a support unit under attack below medium
+	// health shelters in a healing structure; an attacked stone thrower in a fortress.
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || !petra_foe(units_.team[i]) || units_.target_unit_id[i] == 0) continue;
+		const int32_t t = lookup_unit(units_.target_unit_id[i]);
+		if (t < 0 || !units_.alive[t] || units_.team[t] != petra_pid_ || units_.order_kind[t] == ORDER_GARRISON) continue;
+		if (petra_unit_reserved(units_.id[t])) continue;
+		const uint64_t c = unit_tech_classes(units_.unit_type[t]);
+		const float health = units_.max_hp[t] > 0.0f ? units_.hp[t] / units_.max_hp[t] : 1.0f;
+		uint32_t holder = 0;
+		if ((c & TC_CIVILIAN) && health < PETRA_GARRISON_HP_MEDIUM) holder = petra_garrison_holder_for((size_t)t, true, false, incoming);
+		else if (c & TC_STONETHROWER) holder = petra_garrison_holder_for((size_t)t, false, true, incoming);
+		if (holder) {
+			const uint32_t uid = units_.id[t];
+			order_garrison(&uid, 1, holder);
+		}
+	}
+}
+
 void Simulation::petra_manage_defense(float dt) {
 	petra_defense_timer_ += dt;
 	if (petra_defense_timer_ < 0.5f) return;
 	petra_defense_timer_ = 0.0f;
+	petra_manage_garrisons();
 
 	auto &army = petra_defense_army_;
 	army.foe_ids.clear();
@@ -9974,6 +10112,7 @@ void Simulation::petra_manage_defense(float dt) {
 		if (!petra_is_combat_unit(units_.unit_type[i])) continue;
 		if (units_.id[i] == petra_scout_unit_id_) continue;
 		if (units_.action_state[i] == ACTION_GARRISONED || units_.action_state[i] == ACTION_DYING) continue;
+		if (units_.order_kind[i] == ORDER_GARRISON) continue; // garrisonManager has it
 		if (in_attack_squad(units_.id[i]) && !petra_emergency_.active) continue;
 		if (std::find(army.defender_ids.begin(), army.defender_ids.end(), units_.id[i]) != army.defender_ids.end())
 			continue;
