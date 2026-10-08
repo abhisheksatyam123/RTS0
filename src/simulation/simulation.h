@@ -711,6 +711,11 @@ public:
 	uint8_t petra_difficulty() const { return petra_config_.difficulty; }
 	uint8_t petra_behavior() const { return petra_config_.behavior; }
 	const PetraConfig &petra_config() const { return petra_config_; }
+	// Record a tribute so the receiving AI can answer a pending diplomacy request.
+	void note_tribute(uint8_t from, uint8_t to, uint8_t res, int amount) {
+		if (from < MAX_PLAYERS && to < MAX_PLAYERS && res < RES_COUNT && amount > 0)
+			petra_tribute_inbox_[to][from][res] += (float)amount;
+	}
 	bool petra_in_emergency() const { return petra_emergency_.active; }
 	const PetraDefenseArmy &petra_defense_army() const { return petra_defense_army_; }
 	const PetraQueueManager &petra_queues() const { return petra_queues_; }
@@ -1015,6 +1020,9 @@ private:
 	PetraTransportPlan petra_transport_;
 	std::vector<PetraChatLine> petra_chat_;
 	std::unordered_map<uint8_t, PetraDiplomacyRequest> petra_diplomacy_requests_;
+	PetraDiplomacy petra_diplo_;
+	// Tribute paid to each player since its Petra last looked: [to][from][resource].
+	float petra_tribute_inbox_[MAX_PLAYERS][MAX_PLAYERS][RES_COUNT] = {};
 	float petra_defense_timer_ = 0.0f;
 	float petra_victory_timer_ = 0.0f;
 	float petra_diplo_timer_ = 0.0f;
@@ -1069,7 +1077,11 @@ private:
 	int petra_villager_target() const;
 	bool petra_can_place(int cell_x, int cell_y, int footprint) const;
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
-	void petra_say(uint8_t kind, float x = 0.0f, float z = 0.0f);
+	void petra_say(uint8_t kind, float x = 0.0f, float z = 0.0f, uint8_t to = 0xFF, int amount = 0, uint8_t res = 0);
+	void petra_handle_diplomacy_request(uint8_t player, uint8_t type);
+	void petra_change_diplomacy(uint8_t player, uint8_t stance);
+	void petra_last_man_standing_check();
+	int petra_player_entities(uint8_t player) const;
 	bool petra_path_crosses_water(float x0, float z0, float x1, float z1) const;
 	bool petra_find_beach(float land_x, float land_z, float toward_x, float toward_z, float &out_x, float &out_z) const;
 	bool petra_start_transport(const std::vector<uint32_t> &unit_ids, float from_x, float from_z, float to_x, float to_z);
@@ -1094,7 +1106,7 @@ private:
 	X(petra_diplo_timer_) X(ai_wonder_victory_timer_) X(petra_bases_) X(petra_fnd_watch_) \
 	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
-	X(petra_fow_) X(petra_fleets_)
+	X(petra_fow_) X(petra_fleets_) X(petra_diplo_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
