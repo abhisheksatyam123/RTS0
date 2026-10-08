@@ -1,0 +1,3 @@
+Godot skips this folder. separation.glsl is not used yet (docs/PERFORMANCE.md), and importing it
+hangs `godot --headless --import` in CI. Delete this file when a RenderingDevice compute pass
+starts loading the shader.
