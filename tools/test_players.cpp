@@ -128,6 +128,7 @@ int main() {
 	CHECK(s.cmd_cancel_train(1, b1, 0));
 	CHECK(stock(1) > p1_stock && stock(0) == 20000); // refund goes to the owner
 	CHECK(!s.cmd_research(1, b0, TECH_WEAPONS_1));
+	s.spawn_building_world(48.0f, 48.0f, BLD_TOWN_CENTER, 1, 1.0f); // houses need own territory
 	uint32_t built = s.cmd_build(1, 20, 20, BLD_HOUSE);
 	CHECK(built != 0 && s.owns_building(1, built) && !s.owns_building(0, built));
 	CHECK(s.food() == 5000);                       // player 1 paid
