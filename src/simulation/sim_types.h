@@ -294,7 +294,12 @@ enum BuildingType : uint8_t {
 	BLD_MILITARY_COLONY = 43, // ptol, sele military_colony
 	BLD_ACADEMY = 44,         // han/academy
 	BLD_MINISTRY = 45,        // han/ministry
-	BLD_TYPE_COUNT = 46
+	BLD_CAMP_BLEMMYE = 46,    // kush/camp_blemmye
+	BLD_CAMP_NOBA = 47,       // kush/camp_noba
+	BLD_TEMPLE_AMUN = 48,     // kush/temple_amun
+	BLD_TEMPLE_VESTA = 49,    // rome/temple_vesta
+	BLD_TEMPLE_MARS = 50,     // rome/temple_mars
+	BLD_TYPE_COUNT = 51
 };
 
 #include "civ_building_data.h"

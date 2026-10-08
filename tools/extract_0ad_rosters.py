@@ -178,18 +178,17 @@ UNIQUE_BUILDINGS = [
     ("BLD_MILITARY_COLONY", ["military_colony"], "town_center", "military_colony"),
     ("BLD_ACADEMY", ["academy"], "academy", "academy"),
     ("BLD_MINISTRY", ["ministry"], "imperial_ministry", "ministry"),
+    ("BLD_CAMP_BLEMMYE", ["camp_blemmye"], "barracks", "camp_blemmye"),
+    ("BLD_CAMP_NOBA", ["camp_noba"], "barracks", "camp_noba"),
+    ("BLD_TEMPLE_AMUN", ["temple_amun"], "temple", "temple_amun"),
+    ("BLD_TEMPLE_VESTA", ["temple_vesta"], "temple", "temple_vesta"),
+    ("BLD_TEMPLE_MARS", ["temple_mars"], "temple", "temple_mars"),
 ]
-# Units of a civ-specific structure also stay trainable at the generic building
-# they fell back to before it existed, so Petra (which does not build these
-# structures yet) keeps its heroes and champions.
-TRAINER_FALLBACK = {}
+# Units of a civ-specific structure train only there, as in 0 A.D. (Petra builds
+# these structures since #105).
 for _enum, _stems, _model, _portrait in UNIQUE_BUILDINGS:
     for _st in _stems:
-        if _st in TRAINER_BUILDING:
-            TRAINER_FALLBACK[_st] = TRAINER_BUILDING[_st]
         TRAINER_BUILDING[_st] = _enum
-for _st in ("tachara_food", "tachara_wood", "tachara_stone", "tachara_metal", "imperial_ministry"):
-    TRAINER_FALLBACK[_st] = TRAINER_BUILDING[_st]
 TRAINER_BUILDING.update({"tachara_food": "BLD_TACHARA", "tachara_wood": "BLD_TACHARA",
                          "tachara_stone": "BLD_TACHARA", "tachara_metal": "BLD_TACHARA",
                          "imperial_ministry": "BLD_MINISTRY"})
@@ -837,8 +836,6 @@ def collect(sim_root):
                     continue
                 slot = trainers.setdefault(e, {"buildings": set(), "kinds": set(), "phase": 9})
                 slot["buildings"].add(bld)
-                if kind in TRAINER_FALLBACK:
-                    slot["buildings"].add(TRAINER_FALLBACK[kind])
                 slot["kinds"].add(kind)
                 slot["phase"] = min(slot["phase"], sphase)
         for name in sorted(trainers):

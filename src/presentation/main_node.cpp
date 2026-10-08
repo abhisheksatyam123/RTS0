@@ -158,6 +158,11 @@ void RtsoMain::_bind_methods() {
 	bind_enum("BuildingType", "MILITARY_COLONY", rtso::BLD_MILITARY_COLONY);
 	bind_enum("BuildingType", "ACADEMY", rtso::BLD_ACADEMY);
 	bind_enum("BuildingType", "MINISTRY", rtso::BLD_MINISTRY);
+	bind_enum("BuildingType", "CAMP_BLEMMYE", rtso::BLD_CAMP_BLEMMYE);
+	bind_enum("BuildingType", "CAMP_NOBA", rtso::BLD_CAMP_NOBA);
+	bind_enum("BuildingType", "TEMPLE_AMUN", rtso::BLD_TEMPLE_AMUN);
+	bind_enum("BuildingType", "TEMPLE_VESTA", rtso::BLD_TEMPLE_VESTA);
+	bind_enum("BuildingType", "TEMPLE_MARS", rtso::BLD_TEMPLE_MARS);
 
 	bind_enum("Civilization", "ATHENIANS", rtso::CIV_ATHENIANS);
 	bind_enum("Civilization", "SPARTANS", rtso::CIV_SPARTANS);
