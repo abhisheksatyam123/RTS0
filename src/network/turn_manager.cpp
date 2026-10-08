@@ -42,6 +42,40 @@ bool TurnManager::net_game_started() const {
 	return net_game_started_;
 }
 
+void TurnManager::reset_keep_inbound() {
+	auto cmds = std::move(turn_remote_cmds_);
+	auto batches = std::move(received_batches_);
+	auto hashes = std::move(peer_hashes_);
+	reset();
+	turn_remote_cmds_ = std::move(cmds);
+	received_batches_ = std::move(batches);
+	peer_hashes_ = std::move(hashes);
+}
+
+bool TurnManager::lockstep_net_active() const {
+	return net_host_ && net_host_->getRole() != NetRole::None && !is_replaying_;
+}
+
+bool TurnManager::turn_ready(uint32_t turn) {
+	if (turn <= COMMAND_DELAY) return true;
+	if (!lockstep_peers_set_) {
+		lockstep_peers_.clear();
+		lockstep_peers_.push_back(0);
+		if (net_host_->isHost()) {
+			for (const auto &p : net_host_->getPeers())
+				if (p.connected && !p.is_observer && p.id != 0) lockstep_peers_.push_back(p.id);
+		} else if (local_client_id_ != 0) {
+			lockstep_peers_.push_back(local_client_id_);
+		}
+		lockstep_peers_set_ = true;
+	}
+	auto it = received_batches_.find(turn);
+	if (it == received_batches_.end()) return false;
+	for (uint32_t id : lockstep_peers_)
+		if (std::find(it->second.begin(), it->second.end(), id) == it->second.end()) return false;
+	return true;
+}
+
 void TurnManager::reset() {
 	current_turn_ = 0;
 	turn_timer_ = 0.0f;
@@ -49,6 +83,10 @@ void TurnManager::reset() {
 	pending_remote_cmds_.clear();
 	turn_remote_cmds_.clear();
 	peer_hashes_.clear();
+	received_batches_.clear();
+	lockstep_peers_.clear();
+	lockstep_peers_set_ = false;
+	waiting_ticks_ = 0;
 	turn_history_.clear();
 	has_pending_game_start_ = false;
 	pending_game_start_ = GameSetupParams();
@@ -106,12 +144,10 @@ void TurnManager::set_net_host(NetHost *net_host, uint32_t client_id) {
 		// before this callback runs -- peer_id 0 is ambiguous on the wire, so a
 		// bare `peer_id` here is not an authoritative sender id.
 		net_host_->onMessage([this](uint32_t peer_id, const NetMessage &msg) {
-			if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_SIMULATION_COMMAND)) {
-				SimulationCommandMsg scm;
-				if (NetPacketSerializer::parse_simulation_command(msg.payload.data(), msg.payload.size(), scm)) {
-					this->receive_remote_turn_batch(scm.turn != 0 ? scm.turn : msg.turn, scm.client_id != 0 ? scm.client_id : peer_id, scm.commands);
-				}
-			} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_SYNC_CHECK)) {
+			// NMT_SIMULATION_COMMAND is NOT handled here: NetHost::dispatchMessage
+			// already hands it to the onCommand callback above, and handling it in
+			// both places queued every remote command twice.
+			if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_SYNC_CHECK)) {
 				SyncCheckMsg scm;
 				if (NetPacketSerializer::parse_sync_check(msg.payload.data(), msg.payload.size(), scm)) {
 					this->receive_sync_check(scm.turn != 0 ? scm.turn : msg.turn, peer_id, scm.hash);
@@ -202,6 +238,19 @@ void TurnManager::post_remote_commands(uint32_t client_id, const std::vector<Net
 
 void TurnManager::receive_remote_turn_batch(uint32_t turn, uint32_t client_id, const std::vector<NetCommand> &cmds) {
 	if (is_replaying_) return;
+	// One batch per (turn, client): a retransmitted or doubly-delivered batch
+	// must not queue its commands twice.
+	if (turn <= current_turn_) {
+		// Gating makes this unreachable for a lockstep peer (a retransmitted
+		// batch for a turn already run is the benign case). Its commands can no
+		// longer run on the turn the sender ran them, so do not queue them.
+		std::cerr << "[TurnManager] late batch for turn " << turn << " from client " << client_id
+		          << " (current " << current_turn_ << ")\n";
+		return;
+	}
+	auto &got = received_batches_[turn];
+	if (std::find(got.begin(), got.end(), client_id) != got.end()) return;
+	got.push_back(client_id);
 	for (auto c : cmds) {
 		c.client_id = client_id;
 		turn_remote_cmds_[turn].push_back(c);
@@ -702,6 +751,15 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		boot_hash_ = compute_sim_hash(*sim_boot_hash_ptr_);
 	}
 
+	// Lockstep gate (NetClientTurnManager.cpp:188): turn N runs only once every
+	// player's batch for N is here. Time keeps accruing so a peer that waited can
+	// catch up, but capped so a long stall does not replay as a burst.
+	if (lockstep_net_active() && !turn_ready(current_turn_ + 1)) {
+		++waiting_ticks_;
+		if (turn_timer_ > 5.0f * TURN_DURATION) turn_timer_ = 5.0f * TURN_DURATION;
+		return false;
+	}
+
 	turn_timer_ -= TURN_DURATION;
 	current_turn_++;
 
@@ -722,15 +780,21 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			c.client_id = local_client_id_;
 		}
 
-		// If connected to network, broadcast our local command batch
-		if (net_host_ && net_host_->getRole() != NetRole::None) {
+		// If connected to network, broadcast our local command batch for
+		// current_turn_ + COMMAND_DELAY and keep our own copy for that turn: every
+		// peer, us included, runs it there.
+		const bool lockstep = lockstep_net_active();
+		if (lockstep) {
+			const uint32_t sched = current_turn_ + COMMAND_DELAY;
 			SimulationCommandMsg scm;
-			scm.turn = current_turn_;
+			scm.turn = sched;
 			scm.client_id = local_client_id_;
 			scm.commands = pending_local_cmds_;
 			std::vector<uint8_t> payload = NetPacketSerializer::frame_simulation_command(scm);
-			std::vector<uint8_t> pkt = NetPacketSerializer::pack_message(NetMessageType::NMT_SIMULATION_COMMAND, current_turn_, payload);
+			std::vector<uint8_t> pkt = NetPacketSerializer::pack_message(NetMessageType::NMT_SIMULATION_COMMAND, sched, payload);
 			net_host_->broadcastCommand(pkt);
+			receive_remote_turn_batch(sched, local_client_id_, pending_local_cmds_);
+			pending_local_cmds_.clear();
 
 			if (net_host_->isHost()) {
 				EndCommandBatchMsg ebm;
@@ -745,6 +809,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		frame.commands = std::move(pending_local_cmds_);
 		pending_local_cmds_.clear();
 
+		received_batches_.erase(current_turn_);
 		auto it = turn_remote_cmds_.find(current_turn_);
 		if (it != turn_remote_cmds_.end()) {
 			for (auto &rc : it->second) {

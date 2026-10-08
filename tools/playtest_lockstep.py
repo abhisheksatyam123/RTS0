@@ -179,6 +179,57 @@ def run_case(binary: str, seed: int, turns: int, verbose_every: int,
     }
 
 
+def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
+                 port: int, out_dir: str, timeout: int) -> dict:
+    """Two real processes, one host and one joiner, over UDP loopback.
+
+    Each process owns one sim, posts only its own player's commands and runs
+    turns off its own jittered wall clock, so this exercises the real
+    TurnManager gate and NetHost reliable delivery (with injected packet loss).
+    """
+    logs = [os.path.join(out_dir, f"net_{role}_{seed}.log") for role in ("host", "join")]
+    common = [str(port), str(seed), str(turns)]
+    extra = ["--speed", str(speed), "--loss", str(loss)]
+    t0 = time.time()
+    host = subprocess.Popen([binary, "--net-peer", "host", *common, logs[0], *extra],
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    time.sleep(0.3)
+    join = subprocess.Popen([binary, "--net-peer", "join", *common, logs[1], *extra],
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    outs, rcs = [], []
+    for p in (join, host):
+        try:
+            out, _ = p.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            out, _ = p.communicate()
+        outs.append(out)
+        rcs.append(p.returncode)
+    dt = time.time() - t0
+
+    hashes = []
+    for path in logs:
+        rows = {}
+        if os.path.exists(path):
+            with open(path) as f:
+                for line in f:
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        rows[int(parts[0])] = parts[1]
+        hashes.append(rows)
+    common_turns = sorted(set(hashes[0]) & set(hashes[1]))
+    divergent = next((t for t in common_turns if hashes[0][t] != hashes[1][t]), None)
+    complete = len(hashes[0]) == turns and len(hashes[1]) == turns
+    return {
+        "seed": seed, "turns": turns, "rcs": rcs, "seconds": dt,
+        "host_turns": len(hashes[0]), "join_turns": len(hashes[1]),
+        "divergent_turn": divergent,
+        "final_hash": hashes[0].get(turns),
+        "output": "".join(o for o in outs if o),
+        "ok": divergent is None and complete and all(rc == 0 for rc in rcs),
+    }
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="RTS0 two-client lockstep playtest (compile + run OOS hunt)")
@@ -201,6 +252,13 @@ def main() -> int:
     ap.add_argument("--rebuild", action="store_true",
                     help="force rebuild even if the binary is newer than sources")
     ap.add_argument("--verbose-build", action="store_true")
+    ap.add_argument("--net-turns", type=int, default=600,
+                    help="turns for the two-process UDP session (0 = skip; 1500 = 5 min)")
+    ap.add_argument("--net-speed", type=float, default=8.0,
+                    help="wall-clock speed-up for the UDP session (1 = real time)")
+    ap.add_argument("--net-loss", type=float, default=0.05,
+                    help="fraction of datagrams each peer drops on send")
+    ap.add_argument("--net-port", type=int, default=20611)
     args = ap.parse_args()
 
     if not shutil.which(compiler()) and not os.path.exists(compiler()):
@@ -270,7 +328,29 @@ def main() -> int:
     print(f"  -> {passed}/{len(results)} seeds in sync")
     print("=" * 72)
 
+    net_ok = True
+    if args.net_turns > 0:
+        seed = args.seeds[0]
+        print(f"\n---- two-process UDP session seed {seed} : {args.net_turns} turns "
+              f"speed x{args.net_speed} loss {args.net_loss:.0%} ----")
+        nr = run_net_case(binary_path, seed, args.net_turns, args.net_speed,
+                          args.net_loss, args.net_port, out_dir, args.timeout)
+        net_ok = nr["ok"]
+        for line in nr["output"].splitlines():
+            if not line.startswith("[NetHost]"):
+                print("   " + line)
+        if nr["divergent_turn"] is not None:
+            print(f"[net] OOS at turn {nr['divergent_turn']} ({nr['seconds']:.1f}s)")
+        elif nr["ok"]:
+            print(f"[net] PASS  {nr['turns']} turns on both peers, "
+                  f"final_hash={nr['final_hash']} ({nr['seconds']:.1f}s)")
+        else:
+            print(f"[net] FAIL rc={nr['rcs']} host_turns={nr['host_turns']} "
+                  f"join_turns={nr['join_turns']} ({nr['seconds']:.1f}s)")
+
     oos = [r for r in results if r["divergent_turn"] is not None]
+    if not net_ok and not oos:
+        return 1
     if oos:
         for r in oos:
             print(f"\n### OOS REPORT seed={r['seed']} first divergent turn="
