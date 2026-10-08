@@ -8,7 +8,7 @@ extends Control
 ##
 ## Sim constraints honored (see scratchpad/todo.md GameSetup section):
 ## - victory / petra difficulty / behavior / starting-res have sim setters
-## - NO popcap / reveal / nomad / regicide / ceasefire setters exist -> not shown
+## - NO popcap / reveal / nomad / ceasefire setters exist -> not shown
 ## - Petra only drives team 1, RMS spawns team-per-spawn-index -> slots > 4
 ##   still spawn (base+units) but have no AI economy; teams beyond 2 share
 ##   teams 0/1 via diplomacy defaults. Slot cap is 8 like 0 A.D.
@@ -47,7 +47,9 @@ const RMS_MAPS := [
 	["random_jebel_barkal", "Jebel Barkal (RMS)", "Random", 8, 128, "savanna", "Central sandstone mesa with high-ground advantage. Supports 2-8 players."],
 ]
 
-const VICTORIES := ["Conquest — destroy all enemies", "Wonder — hold a Wonder 10 min", "Relic — claim and hold all relics", "Endless — no victory, sandbox"]
+# Index == rtso::VictoryCondition id (sim_types.h).
+const VICTORIES := ["Conquest — destroy all enemies", "Wonder — hold a Wonder 10 min", "Relic — claim and hold all relics", "Endless — no victory, sandbox",
+	"Conquest Units — kill every enemy unit", "Conquest Structures — raze every enemy structure", "Regicide — kill the enemy hero, keep yours"]
 const START_RES := ["Sparse (150/200/150/100)", "Normal (300/400/300/200)", "Generous (500/700/500/350)", "Abundant (900/1200/900/600)"]
 const DIFFS := ["Sandbox", "Very Easy", "Easy", "Medium", "Hard", "Very Hard"]
 const BEHAVIORS := ["Random", "Defensive", "Balanced", "Aggressive"]
@@ -342,7 +344,8 @@ func _restore_settings() -> void:
 	var vic: RtsoSafeSelect = $VBox/HBox/Left/VictorySlot.get_child(0)
 	var res: RtsoSafeSelect = $VBox/HBox/Left/ResSlot.get_child(0)
 	var beh: RtsoSafeSelect = $VBox/HBox/Left/BehaviorSlot.get_child(0)
-	vic.select(clampi(int(ms.get("victory")), 0, 3))
+	vic.select(clampi(int(ms.get("victory")), 0, VICTORIES.size() - 1))
+	$VBox/HBox/Left/Waves.button_pressed = bool(ms.get("waves_enabled"))
 	res.select(clampi(int(ms.get("start_res")), 0, 3))
 	beh.select(clampi(int(ms.get("ai_behavior")), 0, 3))
 	$VBox/HBox/Left/SeedRow/SpinSeed.value = int(ms.get("seed"))
@@ -405,6 +408,7 @@ func _collect_setup() -> Dictionary:
 			diff = int(_slot_rows[i]["diff"])
 			break
 	return {"map": m, "seed": seed, "victory": vic.get_selected(),
+		"waves": $VBox/HBox/Left/Waves.button_pressed,
 		"res": res.get_selected(), "beh": beh.get_selected(), "diff": diff,
 		"types": types, "civs": civs, "teams": teams,
 		"humans": humans, "ai": ai_total, "slots": n}
@@ -431,6 +435,7 @@ func _on_start_pressed() -> void:
 	ms.map_id = str(m["id"])
 	ms.seed = int(st["seed"])
 	ms.victory = int(st["victory"])
+	ms.waves_enabled = bool(st["waves"])
 	ms.ai_difficulty = int(st["diff"])
 	ms.ai_behavior = int(st["beh"])
 	ms.start_res = int(st["res"])

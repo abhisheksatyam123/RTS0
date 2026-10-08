@@ -382,6 +382,12 @@ void RtsoMain::_ready() {
 	victory_selector->add_item("Wonder", rtso::VICTORY_WONDER);
 	victory_selector->add_item("Relics", rtso::VICTORY_RELIC);
 	victory_selector->add_item("Endless", rtso::VICTORY_ENDLESS);
+	victory_selector->add_item("Conquest Units", rtso::VICTORY_CONQUEST_UNITS);
+	victory_selector->add_item("Conquest Structures", rtso::VICTORY_CONQUEST_STRUCTURES);
+	victory_selector->add_item("Regicide", rtso::VICTORY_REGICIDE);
+	// The victory condition is fixed in Game Setup; changing it mid-match would desync lockstep peers.
+	victory_selector->set_disabled(true);
+	victory_selector->set_tooltip_text("Victory condition (set in Game Setup)");
 	victory_selector->connect("item_selected", Callable(this, "_on_victory_selected"));
 	top_hbox->add_child(victory_selector);
 
@@ -2905,7 +2911,9 @@ void RtsoMain::apply_match_settings() {
 		sim->spawn_initial();
 		return;
 	}
-	if (victory >= 0 && victory <= 3) sim->set_victory_condition((uint8_t)victory);
+	if (victory >= 0 && victory < rtso::VICTORY_COUNT) sim->set_victory_condition((uint8_t)victory);
+	sim->set_waves_enabled((bool)ms->get("waves_enabled"));
+	sync_victory_selector();
 	if (diff >= 0 && diff <= 5) sim->set_petra_difficulty((uint8_t)diff);
 	if (behavior >= 0 && behavior <= 3) sim->set_petra_behavior((uint8_t)behavior);
 	// Starting-resources presets (0 sparse / 1 normal / 2 generous / 3 abundant).
@@ -3236,6 +3244,13 @@ void RtsoMain::_on_ai_behavior_selected(int index) {
 	sim->set_petra_behavior((uint8_t)ai_behavior_selector->get_item_id(index));
 }
 
+void RtsoMain::sync_victory_selector() {
+	if (!sim || !victory_selector) return;
+	for (int i = 0; i < victory_selector->get_item_count(); ++i) {
+		if (victory_selector->get_item_id(i) == (int)sim->victory_condition()) victory_selector->select(i);
+	}
+}
+
 void RtsoMain::_on_victory_selected(int index) {
 	if (!sim || !victory_selector) return;
 	sim->set_victory_condition((uint8_t)victory_selector->get_item_id(index));
@@ -3393,6 +3408,9 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		return;
 	}
 	sim->set_victory_condition(setup.victory > 3 ? 0 : setup.victory);
+	// Wave defense isn't part of the network setup, so multiplayer matches never run it.
+	sim->set_waves_enabled(false);
+	sync_victory_selector();
 	sim->set_petra_difficulty(setup.difficulty > 5 ? 3 : setup.difficulty);
 	sim->set_petra_behavior(setup.behavior > 3 ? 2 : setup.behavior);
 	static const int kStartRes[4][4] = {
