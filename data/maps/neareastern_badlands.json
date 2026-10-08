@@ -3,6 +3,7 @@
   "name": "Neareastern Badlands (4)",
   "desc": "The 'Cappadocia' region of Central-Eastern Anatolia.\n\nAll players start on the Western end of the map, with a vast unclaimed wilderness lying open before them ripe for conquest and depredation.\n\nStone and Metal resources are in abundance, especially Stone, but Wood is somewhat scarce.",
   "biome": "desert",
+  "nomad": false,
   "world_size": 320.0,
   "water_height": 0.7,
   "heightmap_res": 81,
@@ -15052,54 +15053,6 @@
       "z": -121.05
     },
     {
-      "type": "barracks",
-      "player": 1,
-      "x": -109.92,
-      "z": -53.76
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -108.48,
-      "z": -55.41
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": -23.15,
-      "z": 106.66
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": -22.1,
-      "z": 105.67
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": -91.82,
-      "z": 64.3
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": -91.0,
-      "z": 63.39
-    },
-    {
-      "type": "barracks",
-      "player": 4,
-      "x": -35.72,
-      "z": -124.41
-    },
-    {
-      "type": "barracks",
-      "player": 4,
-      "x": -34.61,
-      "z": -125.63
-    },
-    {
       "type": "wall_segment",
       "player": 1,
       "x": -97.6,
@@ -15738,6 +15691,18 @@
       "z": -53.11
     },
     {
+      "type": "archer",
+      "player": 1,
+      "x": -109.92,
+      "z": -53.76
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -108.48,
+      "z": -55.41
+    },
+    {
       "type": "swordsman",
       "player": 1,
       "x": -101.65,
@@ -15786,6 +15751,18 @@
       "z": 108.14
     },
     {
+      "type": "archer",
+      "player": 2,
+      "x": -23.15,
+      "z": 106.66
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": -22.1,
+      "z": 105.67
+    },
+    {
       "type": "swordsman",
       "player": 2,
       "x": -14.31,
@@ -15832,6 +15809,18 @@
       "player": 3,
       "x": -90.51,
       "z": 57.82
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": -91.82,
+      "z": 64.3
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": -91.0,
+      "z": 63.39
     },
     {
       "type": "swordsman",
@@ -15904,6 +15893,18 @@
       "player": 4,
       "x": -26.51,
       "z": -117.66
+    },
+    {
+      "type": "archer",
+      "player": 4,
+      "x": -35.72,
+      "z": -124.41
+    },
+    {
+      "type": "archer",
+      "player": 4,
+      "x": -34.61,
+      "z": -125.63
     }
   ],
   "treasures": [],

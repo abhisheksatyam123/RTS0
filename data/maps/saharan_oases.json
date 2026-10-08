@@ -3,6 +3,7 @@
   "name": "Saharan Oases (4)",
   "desc": "In the deep Sahara Desert of Africa lies an  area of rocky outcrops and small oases. \n\nLarge stone quarries can be found in the cliffs, while wood and animal resources can be found near the oases dotting the landscape. Nearby fruiting Date Palms give an nice initial burst of food.",
   "biome": "desert",
+  "nomad": false,
   "world_size": 384.0,
   "water_height": 2.71,
   "heightmap_res": 64,
@@ -8380,34 +8381,10 @@
       "z": -34.69
     },
     {
-      "type": "barracks",
-      "player": 1,
-      "x": -50.15,
-      "z": -32.45
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -50.87,
-      "z": -31.77
-    },
-    {
       "type": "town_center",
       "player": 2,
       "x": 61.89,
       "z": 19.46
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 64.75,
-      "z": 21.65
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 64.02,
-      "z": 22.29
     },
     {
       "type": "town_center",
@@ -8416,34 +8393,10 @@
       "z": -61.98
     },
     {
-      "type": "barracks",
-      "player": 3,
-      "x": 35.29,
-      "z": -59.7
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": 34.56,
-      "z": -59.06
-    },
-    {
       "type": "town_center",
       "player": 4,
       "x": -25.01,
       "z": 59.24
-    },
-    {
-      "type": "barracks",
-      "player": 4,
-      "x": -22.14,
-      "z": 61.51
-    },
-    {
-      "type": "barracks",
-      "player": 4,
-      "x": -22.87,
-      "z": 62.16
     },
     {
       "type": "tower",
@@ -8904,6 +8857,18 @@
       "z": -37.7
     },
     {
+      "type": "archer",
+      "player": 1,
+      "x": -50.15,
+      "z": -32.45
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -50.87,
+      "z": -31.77
+    },
+    {
       "type": "swordsman",
       "player": 2,
       "x": 64.32,
@@ -8914,6 +8879,18 @@
       "player": 2,
       "x": 65.0,
       "z": 16.36
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 64.75,
+      "z": 21.65
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 64.02,
+      "z": 22.29
     },
     {
       "type": "hero",
@@ -8940,6 +8917,18 @@
       "z": -64.99
     },
     {
+      "type": "archer",
+      "player": 3,
+      "x": 35.29,
+      "z": -59.7
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": 34.56,
+      "z": -59.06
+    },
+    {
       "type": "hero",
       "player": 3,
       "x": 29.0,
@@ -8962,6 +8951,18 @@
       "player": 4,
       "x": -21.89,
       "z": 56.23
+    },
+    {
+      "type": "archer",
+      "player": 4,
+      "x": -22.14,
+      "z": 61.51
+    },
+    {
+      "type": "archer",
+      "player": 4,
+      "x": -22.87,
+      "z": 62.16
     },
     {
       "type": "hero",

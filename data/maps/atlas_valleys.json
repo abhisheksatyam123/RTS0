@@ -3,6 +3,7 @@
   "name": "Atlas Valleys (8)",
   "desc": "Skirmish high in the Atlas mountains, where snowcapped mountains loom over desert oases. A wild landscape awaits; every player will experience different advantages and challenges based on their location.",
   "biome": "savanna",
+  "nomad": false,
   "world_size": 384.0,
   "water_height": 3.68,
   "heightmap_res": 64,
@@ -17934,40 +17935,10 @@
       "z": -145.88
     },
     {
-      "type": "barracks",
-      "player": 1,
-      "x": 40.0,
-      "z": -126.79
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": 39.21,
-      "z": -125.97
-    },
-    {
-      "type": "barracks",
-      "player": 5,
-      "x": -64.3,
-      "z": -119.76
-    },
-    {
       "type": "town_center",
       "player": 5,
       "x": -66.97,
       "z": -115.4
-    },
-    {
-      "type": "barracks",
-      "player": 5,
-      "x": -63.45,
-      "z": -119.01
-    },
-    {
-      "type": "barracks",
-      "player": 8,
-      "x": -134.81,
-      "z": -34.11
     },
     {
       "type": "town_center",
@@ -17976,34 +17947,10 @@
       "z": -31.76
     },
     {
-      "type": "barracks",
-      "player": 8,
-      "x": -134.11,
-      "z": -35.02
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": -120.41,
-      "z": 67.82
-    },
-    {
       "type": "town_center",
       "player": 2,
       "x": -116.12,
       "z": 70.62
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": -119.62,
-      "z": 66.99
-    },
-    {
-      "type": "barracks",
-      "player": 6,
-      "x": -37.83,
-      "z": 133.38
     },
     {
       "type": "town_center",
@@ -18012,34 +17959,10 @@
       "z": 132.38
     },
     {
-      "type": "barracks",
-      "player": 6,
-      "x": -37.86,
-      "z": 132.24
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": 64.68,
-      "z": 119.44
-    },
-    {
       "type": "town_center",
       "player": 3,
       "x": 68.62,
       "z": 116.17
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": 64.12,
-      "z": 118.45
-    },
-    {
-      "type": "barracks",
-      "player": 7,
-      "x": 129.08,
-      "z": 40.65
     },
     {
       "type": "town_center",
@@ -18048,28 +17971,10 @@
       "z": 35.66
     },
     {
-      "type": "barracks",
-      "player": 7,
-      "x": 128.03,
-      "z": 40.2
-    },
-    {
-      "type": "barracks",
-      "player": 4,
-      "x": 117.83,
-      "z": -64.24
-    },
-    {
       "type": "town_center",
       "player": 4,
       "x": 115.04,
       "z": -68.53
-    },
-    {
-      "type": "barracks",
-      "player": 4,
-      "x": 116.78,
-      "z": -63.79
     },
     {
       "type": "wall_segment",
@@ -19268,6 +19173,18 @@
       "z": -132.03
     },
     {
+      "type": "archer",
+      "player": 1,
+      "x": 40.0,
+      "z": -126.79
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": 39.21,
+      "z": -125.97
+    },
+    {
       "type": "villager",
       "player": 1,
       "x": 37.96,
@@ -19322,6 +19239,12 @@
       "z": -119.43
     },
     {
+      "type": "archer",
+      "player": 5,
+      "x": -64.3,
+      "z": -119.76
+    },
+    {
       "type": "cavalry",
       "player": 5,
       "x": -61.4,
@@ -19338,6 +19261,12 @@
       "player": 5,
       "x": -69.19,
       "z": -110.87
+    },
+    {
+      "type": "archer",
+      "player": 5,
+      "x": -63.45,
+      "z": -119.01
     },
     {
       "type": "villager",
@@ -19370,6 +19299,12 @@
       "z": -27.69
     },
     {
+      "type": "archer",
+      "player": 8,
+      "x": -134.81,
+      "z": -34.11
+    },
+    {
       "type": "cavalry",
       "player": 8,
       "x": -126.34,
@@ -19386,6 +19321,12 @@
       "player": 8,
       "x": -125.59,
       "z": -29.87
+    },
+    {
+      "type": "archer",
+      "player": 8,
+      "x": -134.11,
+      "z": -35.02
     },
     {
       "type": "villager",
@@ -19418,6 +19359,12 @@
       "z": 74.29
     },
     {
+      "type": "archer",
+      "player": 2,
+      "x": -120.41,
+      "z": 67.82
+    },
+    {
       "type": "cavalry",
       "player": 2,
       "x": -111.63,
@@ -19434,6 +19381,12 @@
       "player": 2,
       "x": -111.66,
       "z": 72.98
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": -119.62,
+      "z": 66.99
     },
     {
       "type": "villager",
@@ -19466,6 +19419,12 @@
       "z": 137.9
     },
     {
+      "type": "archer",
+      "player": 6,
+      "x": -37.83,
+      "z": 133.38
+    },
+    {
       "type": "cavalry",
       "player": 6,
       "x": -33.41,
@@ -19482,6 +19441,12 @@
       "player": 6,
       "x": -27.98,
       "z": 130.95
+    },
+    {
+      "type": "archer",
+      "player": 6,
+      "x": -37.86,
+      "z": 132.24
     },
     {
       "type": "villager",
@@ -19514,6 +19479,12 @@
       "z": 121.21
     },
     {
+      "type": "archer",
+      "player": 3,
+      "x": 64.68,
+      "z": 119.44
+    },
+    {
       "type": "cavalry",
       "player": 3,
       "x": 64.74,
@@ -19530,6 +19501,12 @@
       "player": 3,
       "x": 72.18,
       "z": 112.61
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": 64.12,
+      "z": 118.45
     },
     {
       "type": "villager",
@@ -19562,6 +19539,12 @@
       "z": 38.29
     },
     {
+      "type": "archer",
+      "player": 7,
+      "x": 129.08,
+      "z": 40.65
+    },
+    {
       "type": "cavalry",
       "player": 7,
       "x": 123.59,
@@ -19578,6 +19561,12 @@
       "player": 7,
       "x": 130.92,
       "z": 30.66
+    },
+    {
+      "type": "archer",
+      "player": 7,
+      "x": 128.03,
+      "z": 40.2
     },
     {
       "type": "villager",
@@ -19610,6 +19599,12 @@
       "z": -70.21
     },
     {
+      "type": "archer",
+      "player": 4,
+      "x": 117.83,
+      "z": -64.24
+    },
+    {
       "type": "cavalry",
       "player": 4,
       "x": 108.74,
@@ -19626,6 +19621,12 @@
       "player": 4,
       "x": 111.92,
       "z": -72.49
+    },
+    {
+      "type": "archer",
+      "player": 4,
+      "x": 116.78,
+      "z": -63.79
     },
     {
       "type": "villager",

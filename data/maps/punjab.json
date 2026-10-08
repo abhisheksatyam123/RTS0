@@ -3,6 +3,7 @@
   "name": "Punjab (2)",
   "desc": "Northwest India. Nearby rivers swell with monsoon rains, allowing for only a few treacherous crossings.\n\nThe rivers are heavily forested, while grasslands carpet the surrounding countryside. Watch out for Tigers in the tall grass! Asian elephants are also a common sight.",
   "biome": "india",
+  "nomad": false,
   "world_size": 256.0,
   "water_height": 4.06,
   "heightmap_res": 65,
@@ -24105,30 +24106,6 @@
       "z": 31.12
     },
     {
-      "type": "barracks",
-      "player": 2,
-      "x": -71.99,
-      "z": 35.44
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": -70.8,
-      "z": 33.83
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": 80.07,
-      "z": -27.48
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": 80.77,
-      "z": -28.6
-    },
-    {
       "type": "wall_segment",
       "player": 1,
       "x": 59.01,
@@ -24527,6 +24504,18 @@
       "z": 26.46
     },
     {
+      "type": "archer",
+      "player": 2,
+      "x": -71.99,
+      "z": 35.44
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": -70.8,
+      "z": 33.83
+    },
+    {
       "type": "cavalry",
       "player": 2,
       "x": -81.72,
@@ -24561,6 +24550,18 @@
       "player": 1,
       "x": 80.69,
       "z": -36.35
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": 80.07,
+      "z": -27.48
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": 80.77,
+      "z": -28.6
     },
     {
       "type": "villager",

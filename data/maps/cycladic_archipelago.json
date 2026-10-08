@@ -3,6 +3,7 @@
   "name": "Cycladic Archipelago (2 players)",
   "desc": "A \"small island\"-style map set in the Aegean Sea.",
   "biome": "mediterranean",
+  "nomad": false,
   "world_size": 256.0,
   "water_height": 6.31,
   "heightmap_res": 64,
@@ -12621,30 +12622,6 @@
       "z": -42.93
     },
     {
-      "type": "barracks",
-      "player": 2,
-      "x": -48.45,
-      "z": -45.96
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": -49.32,
-      "z": -45.31
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": 41.89,
-      "z": -6.56
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": 42.45,
-      "z": -7.17
-    },
-    {
       "type": "dock",
       "player": 2,
       "x": -53.77,
@@ -12683,6 +12660,18 @@
   ],
   "units": [
     {
+      "type": "archer",
+      "player": 2,
+      "x": -48.45,
+      "z": -45.96
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": -49.32,
+      "z": -45.31
+    },
+    {
       "type": "swordsman",
       "player": 2,
       "x": -44.61,
@@ -12705,6 +12694,18 @@
       "player": 1,
       "x": 41.01,
       "z": -1.32
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": 41.89,
+      "z": -6.56
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": 42.45,
+      "z": -7.17
     },
     {
       "type": "swordsman",

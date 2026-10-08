@@ -3,6 +3,7 @@
   "name": "Watering Holes (4 players)",
   "desc": "A small Savanna map with 4 watering holes. \n\nAs with all Savanna maps, huntable animals foragable plants are abundant, but there are no farmlands on the entire map, so farming is difficult.\n\nWood is scattered, but comes in high-yield Baobab trees. The watering holes give life to clusters of trees and life to dangerous fauna, such as crocodiles and elephants.",
   "biome": "savanna",
+  "nomad": false,
   "world_size": 256.0,
   "water_height": 34.59,
   "heightmap_res": 65,
@@ -10077,54 +10078,6 @@
       "player": 4,
       "x": -61.09,
       "z": 59.53
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": 58.57,
-      "z": 64.76
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": 59.52,
-      "z": 63.87
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 66.72,
-      "z": -52.04
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 65.77,
-      "z": -51.15
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": -58.16,
-      "z": -55.43
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": -59.11,
-      "z": -54.54
-    },
-    {
-      "type": "barracks",
-      "player": 4,
-      "x": -57.36,
-      "z": 63.36
-    },
-    {
-      "type": "barracks",
-      "player": 4,
-      "x": -58.31,
-      "z": 64.25
     }
   ],
   "units": [
@@ -10139,6 +10092,18 @@
       "player": 1,
       "x": 51.19,
       "z": 65.48
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": 58.57,
+      "z": 64.76
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": 59.52,
+      "z": 63.87
     },
     {
       "type": "swordsman",
@@ -10165,6 +10130,18 @@
       "z": -59.91
     },
     {
+      "type": "archer",
+      "player": 2,
+      "x": 66.72,
+      "z": -52.04
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 65.77,
+      "z": -51.15
+    },
+    {
       "type": "hero",
       "player": 2,
       "x": 57.94,
@@ -10189,6 +10166,18 @@
       "z": -63.45
     },
     {
+      "type": "archer",
+      "player": 3,
+      "x": -58.16,
+      "z": -55.43
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": -59.11,
+      "z": -54.54
+    },
+    {
       "type": "hero",
       "player": 3,
       "x": -66.94,
@@ -10211,6 +10200,18 @@
       "player": 4,
       "x": -57.51,
       "z": 55.07
+    },
+    {
+      "type": "archer",
+      "player": 4,
+      "x": -57.36,
+      "z": 63.36
+    },
+    {
+      "type": "archer",
+      "player": 4,
+      "x": -58.31,
+      "z": 64.25
     },
     {
       "type": "hero",

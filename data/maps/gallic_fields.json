@@ -3,6 +3,7 @@
   "name": "Gallic Fields (3)",
   "desc": "Defend your Gallic outpost against attacks from your treacherous neighbors!\n\nEach player begins the match with a wooden palisade and some guard towers atop a low embankment.\n\nWatch out for Romans passing by!",
   "biome": "temperate",
+  "nomad": false,
   "world_size": 320.0,
   "water_height": 3.92,
   "heightmap_res": 64,
@@ -21221,42 +21222,6 @@
       "z": -75.08
     },
     {
-      "type": "barracks",
-      "player": 1,
-      "x": -61.86,
-      "z": -45.15
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -60.71,
-      "z": -43.79
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 54.15,
-      "z": -58.55
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 55.28,
-      "z": -57.42
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": 3.57,
-      "z": 73.2
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": 4.63,
-      "z": 74.14
-    },
-    {
       "type": "fortress",
       "player": 1,
       "x": -60.73,
@@ -21373,6 +21338,18 @@
       "z": -45.08
     },
     {
+      "type": "archer",
+      "player": 1,
+      "x": -61.86,
+      "z": -45.15
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -60.71,
+      "z": -43.79
+    },
+    {
       "type": "swordsman",
       "player": 1,
       "x": -63.21,
@@ -21427,6 +21404,18 @@
       "z": -60.54
     },
     {
+      "type": "archer",
+      "player": 2,
+      "x": 54.15,
+      "z": -58.55
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 55.28,
+      "z": -57.42
+    },
+    {
       "type": "swordsman",
       "player": 2,
       "x": 53.22,
@@ -21479,6 +21468,18 @@
       "player": 3,
       "x": 6.24,
       "z": 73.39
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": 3.57,
+      "z": 73.2
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": 4.63,
+      "z": 74.14
     },
     {
       "type": "swordsman",

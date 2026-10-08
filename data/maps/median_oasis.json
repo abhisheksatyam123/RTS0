@@ -3,6 +3,7 @@
   "name": "Median Oasis (2)",
   "desc": "A large oasis acts as the hub of mountainous spokes that divide the home territories of each player.",
   "biome": "desert",
+  "nomad": false,
   "world_size": 256.0,
   "water_height": 3.43,
   "heightmap_res": 65,

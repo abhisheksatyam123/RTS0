@@ -3,6 +3,7 @@
   "name": "Zagros Mountains (2 players)",
   "desc": "The mountains buffering the Persian homeland, straddling Persis, Susiana, and Media. This map simulates the many valleys and choke points that criss cross the mountain range. \n\nPlayers start the match nestled in their own province with 1 free Persian temple. Access to untapped resources and territories can be found through the rugged hinterlands, but is also chock full of dangerous animals, such as Asian bears and Caspian tigers.\n\nThe central valley is wide open for expansion, with an unclaimed Civic Center, farms, and Trading Posts. Cliffs along the valley's edge may offer vantage points for defensive or offensive fortifications.",
   "biome": "persia",
+  "nomad": false,
   "world_size": 256.0,
   "water_height": -0.3,
   "heightmap_res": 65,
@@ -20682,30 +20683,6 @@
       "player": 2,
       "x": 28.97,
       "z": 88.63
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -9.51,
-      "z": -86.68
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -8.2,
-      "z": -88.3
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 32.22,
-      "z": 93.22
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 33.54,
-      "z": 91.6
     }
   ],
   "units": [
@@ -20758,6 +20735,18 @@
       "z": -95.55
     },
     {
+      "type": "archer",
+      "player": 1,
+      "x": -9.51,
+      "z": -86.68
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -8.2,
+      "z": -88.3
+    },
+    {
       "type": "villager",
       "player": 2,
       "x": 33.07,
@@ -20780,6 +20769,18 @@
       "player": 2,
       "x": 33.89,
       "z": 85.73
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 32.22,
+      "z": 93.22
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 33.54,
+      "z": 91.6
     },
     {
       "type": "swordsman",

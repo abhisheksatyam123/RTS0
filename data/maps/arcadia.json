@@ -3,6 +3,7 @@
   "name": "Arcadia",
   "desc": "Springtime in Arcadia, Greece. Spring rains have gorged what would otherwise be dry creek beds throughout the rest of the year, dividing the lands between two warring tribes. \n\nPlayers start on either side of a mountainous region rich in resources. Extra starting buildings help players jumpstart building their new colonies.",
   "biome": "mediterranean",
+  "nomad": false,
   "world_size": 256.0,
   "water_height": 2.85,
   "heightmap_res": 64,

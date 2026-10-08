@@ -3,6 +3,7 @@
   "name": "Miletus Peninsula (2)",
   "desc": "Each player starts the match atop a large flat plateau, otherwise known as an acropolis.\n\nTo the East lies a large bay with fishing opportunities. To the West is an unclaimed acropolis overlooking the Aegean Sea.",
   "biome": "aegean",
+  "nomad": false,
   "world_size": 320.0,
   "water_height": 3.71,
   "heightmap_res": 81,
@@ -19031,30 +19032,6 @@
       "z": -99.2
     },
     {
-      "type": "barracks",
-      "player": 2,
-      "x": 21.15,
-      "z": 64.64
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 22.2,
-      "z": 63.57
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -7.54,
-      "z": -95.25
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -6.56,
-      "z": -96.11
-    },
-    {
       "type": "tower",
       "player": 1,
       "x": -22.93,
@@ -19645,6 +19622,18 @@
       "z": 56.66
     },
     {
+      "type": "archer",
+      "player": 2,
+      "x": 21.15,
+      "z": 64.64
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 22.2,
+      "z": 63.57
+    },
+    {
       "type": "cavalry",
       "player": 2,
       "x": 12.89,
@@ -19679,6 +19668,18 @@
       "player": 1,
       "x": -6.23,
       "z": -103.15
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -7.54,
+      "z": -95.25
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -6.56,
+      "z": -96.11
     },
     {
       "type": "villager",

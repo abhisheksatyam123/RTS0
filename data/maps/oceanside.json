@@ -3,6 +3,7 @@
   "name": "Oceanside (2)",
   "desc": "A Lush temperate biome along an ocean. ",
   "biome": "mediterranean",
+  "nomad": false,
   "world_size": 256.0,
   "water_height": 35.09,
   "heightmap_res": 65,
@@ -10940,42 +10941,6 @@
       "z": 59.38
     },
     {
-      "type": "barracks",
-      "player": 1,
-      "x": -78.48,
-      "z": 63.19
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -79.13,
-      "z": 61.89
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -79.73,
-      "z": 60.73
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 59.52,
-      "z": -67.17
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 60.68,
-      "z": -66.56
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 61.95,
-      "z": -65.85
-    },
-    {
       "type": "town_center",
       "player": 2,
       "x": 65.1,
@@ -11006,6 +10971,24 @@
       "player": 1,
       "x": -76.52,
       "z": 54.58
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -78.48,
+      "z": 63.19
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -79.13,
+      "z": 61.89
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -79.73,
+      "z": 60.73
     },
     {
       "type": "hero",
@@ -11078,6 +11061,24 @@
       "player": 2,
       "x": 70.03,
       "z": -77.94
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 59.52,
+      "z": -67.17
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 60.68,
+      "z": -66.56
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 61.95,
+      "z": -65.85
     },
     {
       "type": "swordsman",

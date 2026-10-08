@@ -3,6 +3,7 @@
   "name": "Gambia River (3)",
   "desc": "All players start on one bank of the river, with minimal harvestable metal. Across the Gambia River is a savanna with many deposits of metal to be claimed. \n\n(Warning: Large map. Good computer specs recommended)",
   "biome": "savanna",
+  "nomad": false,
   "world_size": 384.0,
   "water_height": 3.54,
   "heightmap_res": 97,
@@ -45531,42 +45532,6 @@
       "z": -110.66
     },
     {
-      "type": "barracks",
-      "player": 1,
-      "x": -105.65,
-      "z": -78.55
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -104.65,
-      "z": -80.59
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 3.9,
-      "z": -113.26
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 5.03,
-      "z": -114.8
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": 102.38,
-      "z": -105.59
-    },
-    {
-      "type": "barracks",
-      "player": 3,
-      "x": 103.2,
-      "z": -106.79
-    },
-    {
       "type": "tower",
       "player": 1,
       "x": -109.5,
@@ -45623,6 +45588,18 @@
       "z": -88.65
     },
     {
+      "type": "archer",
+      "player": 1,
+      "x": -105.65,
+      "z": -78.55
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -104.65,
+      "z": -80.59
+    },
+    {
       "type": "cavalry",
       "player": 1,
       "x": -114.99,
@@ -45677,6 +45654,18 @@
       "z": -122.06
     },
     {
+      "type": "archer",
+      "player": 2,
+      "x": 3.9,
+      "z": -113.26
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 5.03,
+      "z": -114.8
+    },
+    {
       "type": "cavalry",
       "player": 2,
       "x": -4.98,
@@ -45699,6 +45688,18 @@
       "player": 3,
       "x": 102.7,
       "z": -114.7
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": 102.38,
+      "z": -105.59
+    },
+    {
+      "type": "archer",
+      "player": 3,
+      "x": 103.2,
+      "z": -106.79
     },
     {
       "type": "villager",

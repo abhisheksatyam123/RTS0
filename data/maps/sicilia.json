@@ -3,6 +3,7 @@
   "name": "Sicilia (2)",
   "desc": "The large Mediterranean island of Sicily is open for conquest.",
   "biome": "mediterranean",
+  "nomad": false,
   "world_size": 256.0,
   "water_height": 3.67,
   "heightmap_res": 64,
@@ -10280,34 +10281,10 @@
       "z": 14.39
     },
     {
-      "type": "barracks",
-      "player": 1,
-      "x": -71.28,
-      "z": 19.28
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -69.8,
-      "z": 17.61
-    },
-    {
       "type": "town_center",
       "player": 2,
       "x": 68.67,
       "z": -7.86
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 71.97,
-      "z": -3.45
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 72.99,
-      "z": -4.7
     },
     {
       "type": "house",
@@ -10420,6 +10397,18 @@
       "z": 10.57
     },
     {
+      "type": "archer",
+      "player": 1,
+      "x": -71.28,
+      "z": 19.28
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -69.8,
+      "z": 17.61
+    },
+    {
       "type": "cavalry",
       "player": 1,
       "x": -81.37,
@@ -10466,6 +10455,18 @@
       "player": 2,
       "x": 72.96,
       "z": -12.01
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 71.97,
+      "z": -3.45
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 72.99,
+      "z": -4.7
     },
     {
       "type": "cavalry",

@@ -3,6 +3,7 @@
   "name": "Isthmus of Corinth (2)",
   "desc": "isth\u00b7mus\n/\u02c8is(TH)m\u0259s/\nnoun\na narrow strip of land with sea on either side, forming a link between two larger areas of land.\n\nThis is the Ithmus at Corinth in Greece. The land is rich in raw resources and treasure, and the seas on either side of the isthmus are stocked with fish. Mercenary Camps can be found as well as large Metal Mine deposits.\n\nWatch out for pirate ships and brigands, though, as war-torn Greece is not without its share of dangers. And the enemy, marshalling their forces across the isthmus on the opposing landmass, will be looking for opportunities to invade your lands and take the strategic Corinthian Isthmus for themselves!",
   "biome": "aegean",
+  "nomad": false,
   "world_size": 320.0,
   "water_height": 3.71,
   "heightmap_res": 81,
@@ -21886,34 +21887,10 @@
       "z": -84.0
     },
     {
-      "type": "barracks",
-      "player": 2,
-      "x": 0.01,
-      "z": -80.41
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": -1.24,
-      "z": -78.99
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": 8.55,
-      "z": 87.29
-    },
-    {
       "type": "town_center",
       "player": 1,
       "x": 4.71,
       "z": 82.28
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": 9.8,
-      "z": 85.87
     },
     {
       "type": "dock",
@@ -22272,6 +22249,18 @@
       "z": -88.69
     },
     {
+      "type": "archer",
+      "player": 2,
+      "x": 0.01,
+      "z": -80.41
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": -1.24,
+      "z": -78.99
+    },
+    {
       "type": "hero",
       "player": 2,
       "x": -10.41,
@@ -22290,10 +22279,22 @@
       "z": -80.04
     },
     {
+      "type": "archer",
+      "player": 1,
+      "x": 8.55,
+      "z": 87.29
+    },
+    {
       "type": "cavalry",
       "player": 1,
       "x": 0.48,
       "z": 77.59
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": 9.8,
+      "z": 85.87
     },
     {
       "type": "hero",

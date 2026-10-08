@@ -3,6 +3,7 @@
   "name": "Savanna River (2)",
   "desc": "A large savanna is bisected by a narrow jungle stream.",
   "biome": "savanna",
+  "nomad": false,
   "world_size": 256.0,
   "water_height": 3.48,
   "heightmap_res": 65,
@@ -19000,30 +19001,6 @@
       "player": 2,
       "x": 42.65,
       "z": 87.13
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -39.02,
-      "z": -87.03
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -38.05,
-      "z": -88.05
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 46.26,
-      "z": 91.4
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 47.37,
-      "z": 90.15
     }
   ],
   "units": [
@@ -19064,6 +19041,18 @@
       "z": -95.11
     },
     {
+      "type": "archer",
+      "player": 1,
+      "x": -39.02,
+      "z": -87.03
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -38.05,
+      "z": -88.05
+    },
+    {
       "type": "cavalry",
       "player": 1,
       "x": -48.7,
@@ -19098,6 +19087,18 @@
       "player": 2,
       "x": 47.32,
       "z": 82.72
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 46.26,
+      "z": 91.4
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 47.37,
+      "z": 90.15
     },
     {
       "type": "villager",
