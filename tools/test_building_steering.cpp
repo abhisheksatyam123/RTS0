@@ -14,8 +14,10 @@
 //  4. Gather behind a long wall: the wall is too long for the short-path range, so the gatherer
 //     needs the long path move_units requests when buildings block a GATHER/BUILD/RETURN_DROPSITE
 //     unit's straight line.
-//  For every scenario the unit bodies must never overlap a building footprint by more than
-//  MAX_PENETRATION (separation() alone allows deep overlap when a unit walks head-on into a wall).
+//  5. Walk across fields: fields don't block movement (0 A.D. BlockMovement=false), so a unit
+//     walks straight over a row of them instead of around.
+//  For every scenario the unit bodies must never overlap a footprint that blocks movement by more
+//  than MAX_PENETRATION (separation() alone allows deep overlap when a unit walks head-on into a wall).
 //  Exit: 0 = PASS, 1 = FAIL. Prints the measurements either way.
 #include "simulation/simulation.h"
 
@@ -53,7 +55,7 @@ static float max_penetration(const Simulation &s) {
 		if (!u.alive[i] || u.team[i] != 0) continue;
 		const float r = unit_collision_radius(u.unit_type[i]);
 		for (const auto &b : s.buildings()) {
-			if (b.wrecked) continue;
+			if (b.wrecked || !building_blocks_movement(b.type)) continue;
 			const float ex = b.half_size + r - std::fabs(u.pos_x[i] - b.x);
 			const float ez = b.half_size + r - std::fabs(u.pos_z[i] - b.z);
 			if (ex > 0.0f && ez > 0.0f) worst = std::max(worst, std::min(ex, ez));
@@ -182,12 +184,44 @@ static void move_through_gap() {
 	check(pen <= MAX_PENETRATION, "unit overlapped a barracks");
 }
 
+// 5. Walk across fields.
+static void walk_across_fields() {
+	Simulation s;
+	setup(s);
+	// A touching column of fields across the straight line from x = -12 to x = 12.
+	s.spawn_building_world(0.0f, 0.0f, BLD_FIELD, 0, 1.0f);
+	const float half = s.buildings().back().half_size;
+	for (int k = 1; k <= 2; ++k) {
+		s.spawn_building_world(0.0f, 2.0f * half * k, BLD_FIELD, 0, 1.0f);
+		s.spawn_building_world(0.0f, -2.0f * half * k, BLD_FIELD, 0, 1.0f);
+	}
+	const uint32_t walker = s.spawn_unit(-12.0f, 0.0f, 0, UNIT_SWORDSMAN, 160.0f);
+	s.cmd_move(&walker, 1, 12.0f, 0.0f);
+	int arrived = -1;
+	float max_dev = 0.0f;
+	for (int t = 0; t < 1200 && arrived < 0; ++t) {
+		s.tick(DT);
+		const int i = index_of(s, walker);
+		if (i < 0) break;
+		const Simulation::UnitView u = s.units();
+		max_dev = std::max(max_dev, std::fabs(u.pos_z[i]));
+		const float dx = u.pos_x[i] - 12.0f, dz = u.pos_z[i];
+		if (dx * dx + dz * dz <= 1.0f) arrived = t;
+	}
+	std::printf("  walk across fields: arrived after %d ticks (-1 = never in 1200), max sideways %.3f\n", arrived, max_dev);
+	check(arrived >= 0, "unit never crossed the fields");
+	// Long-path waypoints sit on navcell centres, 1 world unit off the line; going around the
+	// fields would take the unit more than 10 units sideways.
+	check(max_dev <= 2.0f, "unit walked around the fields instead of across");
+}
+
 int main() {
 	std::printf("RTS0 building steering test (src/simulation/nav/building_steering.h)\n");
 	guard_behind_wall();
 	gather_around_houses();
 	move_through_gap();
 	gather_behind_long_wall();
+	walk_across_fields();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;

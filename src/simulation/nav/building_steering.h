@@ -12,10 +12,12 @@
 //
 // Buildings are axis-aligned squares (Building::x/z/half_size). A building whose clearance-expanded
 // square contains the aim point is the unit's destination (dropsite, construction site, attack
-// target), so it is never treated as an obstacle, and neither is `ignore_building_id`.
+// target), so it is never treated as an obstacle, and neither is `ignore_building_id`. Buildings
+// that don't block movement (fields, building_blocks_movement) are walked across.
 
 #include "simulation/grid_nav.h"
 #include "simulation/nav/vertex_pathfinder.h"
+#include "simulation/sim_types.h"
 
 #include <algorithm>
 #include <cmath>
@@ -32,12 +34,12 @@ inline constexpr float BUILDING_STEER_CULL = BUILDING_STEER_RANGE * 1.6f;
 
 namespace detail {
 
-// A building to steer around: standing, not ignored, within `reach` of `pos` on both axes, and not
-// the destination (its square expanded by `radius` does not contain `aim`).
+// A building to steer around: standing, blocks movement, not ignored, within `reach` of `pos` on both
+// axes, and not the destination (its square expanded by `radius` does not contain `aim`).
 template <class B>
 bool is_steering_obstacle(const B& b, Vec2 pos, Vec2 aim, float radius, uint32_t ignore_building_id, float reach)
 {
-	if (b.wrecked || b.id == ignore_building_id) return false;
+	if (b.wrecked || b.id == ignore_building_id || !building_blocks_movement(b.type)) return false;
 	const float r = reach + b.half_size + radius;
 	if (std::fabs(b.x - pos.x) > r || std::fabs(b.z - pos.y) > r) return false;
 	const Vec2 half(b.half_size + radius, b.half_size + radius);
@@ -48,7 +50,7 @@ bool is_steering_obstacle(const B& b, Vec2 pos, Vec2 aim, float radius, uint32_t
 
 // True when the straight line from `pos` towards `aim`, cut at `max_len`, crosses a building expanded
 // by `radius`. False when the unit stands inside one (separation() pushes it out first).
-// `Buildings` is a range of Simulation::Building (fields id, wrecked, x, z, half_size). No allocation.
+// `Buildings` is a range of Simulation::Building (fields id, type, wrecked, x, z, half_size). No allocation.
 template <class Buildings>
 bool line_blocked_by_buildings(Vec2 pos, Vec2 aim, float max_len, float radius,
 		const Buildings& buildings, uint32_t ignore_building_id)
