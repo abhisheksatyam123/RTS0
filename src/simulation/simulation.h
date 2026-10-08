@@ -750,6 +750,9 @@ public:
 	const PetraAttackManager &petra_attack_manager() const { return petra_attack_mgr_; }
 	int petra_opening_step() const { return petra_opening_step_; }
 
+	// Out-of-range settings fall back to Medium and Balanced.
+	static uint8_t petra_clamp_difficulty(uint8_t d) { return d > PETRA_VERY_HARD ? PETRA_MEDIUM : d; }
+	static uint8_t petra_clamp_behavior(uint8_t b) { return b > PETRA_BEHAVIOR_AGGRESSIVE ? PETRA_BEHAVIOR_BALANCED : b; }
 	// Every AI's difficulty or behaviour (0 A.D. game setup's AI settings).
 	void set_petra_difficulty(uint8_t d);
 	void set_petra_behavior(uint8_t b);

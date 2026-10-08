@@ -8574,26 +8574,26 @@ const PetraConfig &Simulation::petra_config_for(uint8_t pid) const {
 }
 
 void Simulation::set_petra_difficulty(uint8_t d) {
-	petra_config_.difficulty = (d > PETRA_VERY_HARD) ? PETRA_MEDIUM : d;
+	petra_config_.difficulty = petra_clamp_difficulty(d);
 	apply_petra_config();
 }
 
 void Simulation::set_petra_behavior(uint8_t b) {
-	petra_config_.behavior = (b > PETRA_BEHAVIOR_AGGRESSIVE) ? PETRA_BEHAVIOR_BALANCED : b;
+	petra_config_.behavior = petra_clamp_behavior(b);
 	apply_petra_config();
 }
 
 void Simulation::set_petra_difficulty(uint8_t pid, uint8_t d) {
 	if (pid >= MAX_PLAYERS) return;
 	PetraConfig &c = petra_config_slot(pid);
-	c.difficulty = (d > PETRA_VERY_HARD) ? PETRA_MEDIUM : d;
+	c.difficulty = petra_clamp_difficulty(d);
 	c.recompute();
 }
 
 void Simulation::set_petra_behavior(uint8_t pid, uint8_t b) {
 	if (pid >= MAX_PLAYERS) return;
 	PetraConfig &c = petra_config_slot(pid);
-	c.behavior = (b > PETRA_BEHAVIOR_AGGRESSIVE) ? PETRA_BEHAVIOR_BALANCED : b;
+	c.behavior = petra_clamp_behavior(b);
 	c.recompute();
 }
 
