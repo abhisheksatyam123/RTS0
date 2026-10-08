@@ -112,7 +112,10 @@ enum MapType : uint8_t {
 	MAP_ENGLISH_CHANNEL = 54,
 	MAP_DODECANESE = 55,
 	MAP_FORTRESS = 56,
-	MAP_TYPE_COUNT = 57
+	// 0 A.D. trigger maps (maps/random/*_triggers.js run as map triggers, triggers.h)
+	MAP_FLOOD = 57,
+	MAP_EXTINCT_VOLCANO = 58,
+	MAP_TYPE_COUNT = 59
 };
 
 struct MapTypeInfo {
@@ -182,7 +185,9 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_HELLAS, "hellas", "Hellas (RMS)", "mediterranean", true, "A random corner of Greece and the Aegean, painted from a real elevation map."},
 		{MAP_ENGLISH_CHANNEL, "english_channel", "English Channel (RMS)", "temperate", true, "Players start on both sides of the English Channel; crossing it takes ships."},
 		{MAP_DODECANESE, "dodecanese", "Dodecanese (RMS)", "mediterranean", true, "A group of islands in the Aegean, a few joined by bridges; the rest need ships."},
-		{MAP_FORTRESS, "fortress", "Fortress (RMS)", "temperate", true, "Players start inside walled fortresses with a market, barracks, stable and temple."}
+		{MAP_FORTRESS, "fortress", "Fortress (RMS)", "temperate", true, "Players start inside walled fortresses with a market, barracks, stable and temple."},
+		{MAP_FLOOD, "flood", "Flood (RMS)", "temperate", true, "A great flood moves across the valley. The home islands go under, so evacuate your units by ship to the mainland."},
+		{MAP_EXTINCT_VOLCANO, "extinct_volcano", "Extinct Volcano (RMS)", "volcanic", true, "Rains raise the water from the 25th minute until only the hills and the great cone stay dry. Gaia towers guard the lowlands."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
@@ -194,7 +199,8 @@ inline bool is_procedural_map(uint8_t type) {
 
 // Naval maps: bases may sit on separate land, so armies need ships to meet.
 inline bool map_is_naval(int type) {
-	return type == MAP_ENGLISH_CHANNEL || type == MAP_DODECANESE;
+	// Flood (flood.js): each player starts on a home island in a sea.
+	return type == MAP_ENGLISH_CHANNEL || type == MAP_DODECANESE || type == MAP_FLOOD;
 }
 
 enum UnitType : uint8_t {
@@ -351,7 +357,8 @@ enum UnitOrderKind : uint8_t {
 	ORDER_GUARD = 9,          // target unit (Guard.js)
 	ORDER_HEAL = 10,          // target unit (UnitAI Heal)
 	ORDER_TRADE = 11,         // target = first market, x2 holds the second market's id bits (UnitAI Trade)
-	ORDER_KIND_COUNT = 12
+	ORDER_RETURN_RESOURCE = 12, // target = the dropsite (UnitAI ReturnResource)
+	ORDER_KIND_COUNT = 13
 };
 
 enum UnitOrderFlag : uint8_t {

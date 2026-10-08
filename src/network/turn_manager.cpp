@@ -821,6 +821,9 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 	mix_u8(sim.defeated_mask());
 	mix_u8(sim.winner_mask());
 	mix_u8(sim.is_game_over() ? 1 : 0);
+	// Map triggers (Trigger.js timers) and the water level the rising-water maps move.
+	mix_u32(sim.trigger_hash());
+	mix_float(sim.water_height());
 
 	// 6. Active Projectiles & Relics
 	const auto &projs = sim.projectiles();
@@ -1352,6 +1355,8 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			sim.order_back_to_work(ids, n);
 		} else if (c.cmd_type == 32) { // Heal
 			sim.order_heal(ids, n, c.target_id, queued);
+		} else if (c.cmd_type == 34) { // Return resource
+			sim.order_return_resource(ids, n, c.target_id, queued);
 		} else if (c.cmd_type == 26) { // Structure upgrade — target_id=building, param 0 start / 1 cancel.
 			if (c.param == 1) sim.cmd_cancel_upgrade(pl, c.target_id);
 			else sim.cmd_upgrade_building(pl, c.target_id);
