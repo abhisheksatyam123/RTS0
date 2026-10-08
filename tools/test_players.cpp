@@ -57,6 +57,49 @@ int main() {
 	s.set_player_team(3, 1);
 	CHECK(s.same_team(2, 3) && !s.same_team(2, 4) && s.same_team(4, 4));
 
+	// Teammates are allies and never hostile, whatever the stances say.
+	CHECK(s.is_ally(2, 3) && !s.is_hostile(2, 3) && !s.is_hostile(3, 2));
+	s.set_diplomacy(2, 3, Simulation::DIPLO_ENEMY);
+	CHECK(!s.is_hostile(2, 3));
+	CHECK(s.is_hostile(2, 4) && s.is_hostile(4, 2));
+	CHECK(!s.is_hostile(5, 5) && s.is_ally(5, 5));
+
+	// Each player owns its own row: one player's stance never moves another's.
+	fresh(s);
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) s.set_player_team(p, p); // back to free-for-all
+	s.apply_team_diplomacy();
+	CHECK(s.cmd_set_diplomacy(3, 6, Simulation::DIPLO_ALLY));
+	CHECK(s.get_diplomacy(3, 6) == Simulation::DIPLO_ALLY);
+	CHECK(s.get_diplomacy(6, 3) == Simulation::DIPLO_ENEMY);
+	CHECK(s.get_diplomacy(0, 6) == Simulation::DIPLO_ENEMY);
+	// A one-sided alliance holds fire one way only (0 A.D. parity).
+	CHECK(!s.is_hostile(3, 6) && s.is_hostile(6, 3));
+	CHECK(!s.is_ally(3, 6));
+	CHECK(s.cmd_set_diplomacy(6, 3, Simulation::DIPLO_ALLY));
+	CHECK(s.is_ally(3, 6) && s.is_ally(6, 3));
+	CHECK(!s.is_hostile(3, 6) && !s.is_hostile(6, 3));
+	// Rejected: self, out of range, unknown stance.
+	CHECK(!s.cmd_set_diplomacy(2, 2, Simulation::DIPLO_ALLY));
+	CHECK(!s.cmd_set_diplomacy(2, 8, Simulation::DIPLO_ALLY));
+	CHECK(!s.cmd_set_diplomacy(8, 2, Simulation::DIPLO_ALLY));
+	CHECK(!s.cmd_set_diplomacy(2, 3, 7));
+	CHECK(s.get_diplomacy(2, 3) == Simulation::DIPLO_ENEMY);
+	// Teams rewrite every stance when game setup assigns them.
+	s.set_player_team(4, 1);
+	s.set_player_team(5, 1);
+	s.apply_team_diplomacy();
+	CHECK(s.get_diplomacy(4, 5) == Simulation::DIPLO_ALLY && s.get_diplomacy(5, 4) == Simulation::DIPLO_ALLY);
+	CHECK(s.get_diplomacy(3, 6) == Simulation::DIPLO_ENEMY); // the alliance above is gone
+	CHECK(s.get_diplomacy(0, 4) == Simulation::DIPLO_ENEMY);
+
+	// The game-setup starting-resources preset reaches every slot, not just player 0.
+	fresh(s);
+	s.set_starting_resources(300, 400, 300, 200);
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+		CHECK(s.player(p).food() == 300.0f && s.player(p).wood() == 400.0f);
+		CHECK(s.player(p).gold() == 300.0f && s.player(p).stone() == 200.0f);
+	}
+
 	// Research completes for the building's owner only.
 	fresh(s);
 	s.set_player_resources(0, 5000, 5000, 5000, 5000);
@@ -107,7 +150,8 @@ int main() {
 	tmc.reset();
 	CHECK(tmc.player_for_client(1) == 1); // reset drops the seating
 
-	// Save/load v6 round trip keeps every slot, and the lockstep hash covers every slot.
+	// Save/load v9 round trip keeps every slot and every stance, and the lockstep
+	// hash covers them all.
 	fresh(s);
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
 		s.set_player_resources(p, 11 * p, 22 * p, 33 * p, 44 * p);
@@ -115,6 +159,8 @@ int main() {
 		s.set_player_team(p, p / 2);
 		s.set_player_active(p, true, p != 0);
 	}
+	s.apply_team_diplomacy();
+	s.set_diplomacy(2, 7, Simulation::DIPLO_NEUTRAL); // a mid-match stance, not a team's
 	s.player(6).techs.set(TECH_PHASE_TOWN);
 	s.player(6).techs.set(200); // ids past 64 survive the round trip too
 	s.player(6).phase = 3;
@@ -129,12 +175,20 @@ int main() {
 		CHECK(a.techs == b.techs && a.phase == b.phase && a.civ == b.civ);
 		CHECK(a.team == b.team && a.active == b.active && a.is_ai == b.is_ai);
 	}
+	for (uint8_t x = 0; x < MAX_PLAYERS; ++x)
+		for (uint8_t y = 0; y < MAX_PLAYERS; ++y)
+			CHECK(s.get_diplomacy(x, y) == l.get_diplomacy(x, y));
+	CHECK(l.get_diplomacy(2, 7) == Simulation::DIPLO_NEUTRAL);
 	TurnManager tm;
 	CHECK(tm.compute_sim_hash(s) == tm.compute_sim_hash(l));
 	l.player(7).res[RES_STONE] += 1.0f;
 	CHECK(tm.compute_sim_hash(s) != tm.compute_sim_hash(l));
 	l.player(7).res[RES_STONE] -= 1.0f;
 	l.set_player_team(7, 0);
+	CHECK(tm.compute_sim_hash(s) != tm.compute_sim_hash(l));
+	l.set_player_team(7, s.player_team(7));
+	CHECK(tm.compute_sim_hash(s) == tm.compute_sim_hash(l));
+	l.set_diplomacy(5, 1, Simulation::DIPLO_ALLY); // a row other than player 0's
 	CHECK(tm.compute_sim_hash(s) != tm.compute_sim_hash(l));
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

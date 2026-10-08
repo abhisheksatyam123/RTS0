@@ -142,11 +142,12 @@ public:
 	// Public accessor for the FoW grid (fow_res()*fow_res() flat array, row-major)
 	// player 0's grid is fow_grid_ (hashed for lockstep). Another player's grid
 	// exists once it is the FoW viewer (set_fow_viewer); until then player 1
-	// falls back to the Petra AI's grid and others to all-unexplored.
+	// falls back to the Petra AI's grid when Petra plays it, and others to
+	// all-unexplored.
 	const uint8_t* fow_grid(uint8_t player = 0) const {
 		if (player == 0 || player >= MAX_PLAYERS) return fow_grid_.data();
 		if (player_fow_[player].size() == fow_grid_.size()) return player_fow_[player].data();
-		if (player == 1) return petra_fow_.data();
+		if (player == PETRA_PLAYER && petra_runs_for(PETRA_PLAYER)) return petra_fow_.data();
 		return unexplored_fow_.data();
 	}
 	int fow_res() const { return grid_res_; }
@@ -331,7 +332,7 @@ public:
 
 	bool cmd_research(uint8_t player, uint32_t building_id, uint8_t tech_id);
 	bool cmd_barter(uint8_t player, ResourceType sell, ResourceType buy, int amount = 100);
-	bool cmd_set_diplomacy(uint8_t player_id, uint8_t stance);
+	bool cmd_set_diplomacy(uint8_t player_id, uint8_t target, uint8_t stance);
 	// G3 Market/Trader
 	int calculate_trader_gain(const Building& mA, const Building& mB, uint8_t team) const;
 	void order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id);
@@ -405,9 +406,12 @@ public:
 	int gold(uint8_t pid = 0) const { return (int)player(pid).gold(); }
 	int stone(uint8_t pid = 0) const { return (int)player(pid).stone(); }
 	// GameSetup starting-resources option (0 A.D. page_gamesetup "Starting Resources").
-	// Sets player 0 only (AI slots keep their reset() stock); use set_player_resources per slot.
+	// The lobby setting is one global amount in 0 A.D., so every player slot gets
+	// it, not just player 0; use set_player_resources for one slot on its own.
 	// Must be called AFTER map load: reset()/generate() overwrite stocks.
-	void set_starting_resources(int food, int wood, int gold, int stone) { set_player_resources(0, food, wood, gold, stone); }
+	void set_starting_resources(int food, int wood, int gold, int stone) {
+		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) set_player_resources(p, food, wood, gold, stone);
+	}
 
 	float food_rate(uint8_t pid = 0) const { return player(pid).gathered_window[RES_FOOD] * 6.0f; } // per min approx
 	float wood_rate(uint8_t pid = 0) const { return player(pid).gathered_window[RES_WOOD] * 6.0f; }
@@ -457,23 +461,53 @@ public:
 		DIPLO_NEUTRAL = 1,
 		DIPLO_ENEMY = 2
 	};
-	uint8_t get_diplomacy(uint8_t player_id) const { return (player_id < 8) ? diplomacy_[player_id] : (uint8_t)DIPLO_ENEMY; }
-	uint8_t get_diplomacy_from(uint8_t player_id, uint8_t other) const {
-		return (other < 8) ? diplomacy_[other] : (uint8_t)DIPLO_ENEMY;
+	// diplomacy_[a][b] is player a's own stance toward player b, the 0 A.D.
+	// Diplomacy.js model (every player keeps its own row; the diagonal is self).
+	// The one-argument calls below are player 0's row, which is what the
+	// single-player HUD, the capture rules and Petra still ask for.
+	uint8_t get_diplomacy(uint8_t from, uint8_t to) const {
+		return (from < MAX_PLAYERS && to < MAX_PLAYERS) ? diplomacy_[from][to] : (uint8_t)DIPLO_ENEMY;
 	}
-	void set_diplomacy(uint8_t player_id, uint8_t stance) { if (player_id < 8) diplomacy_[player_id] = stance; }
-	void set_mutual_ally(uint8_t player_id) {
-		if (player_id == 0 || player_id >= 8) return;
-		diplomacy_[player_id] = DIPLO_ALLY;
-		diplomacy_reverse_[player_id] = DIPLO_ALLY;
+	uint8_t get_diplomacy(uint8_t player_id) const { return get_diplomacy(0, player_id); }
+	uint8_t get_diplomacy_from(uint8_t player_id, uint8_t other) const { return get_diplomacy(player_id, other); }
+	void set_diplomacy(uint8_t from, uint8_t to, uint8_t stance) {
+		if (from < MAX_PLAYERS && to < MAX_PLAYERS && from != to && stance <= DIPLO_ENEMY)
+			diplomacy_[from][to] = stance;
 	}
-	bool is_mutual_ally(uint8_t player_id) const {
-		return player_id != 0 && player_id < 8 &&
-		       get_diplomacy(player_id) == DIPLO_ALLY &&
-		       diplomacy_reverse_[player_id] == DIPLO_ALLY;
+	void set_diplomacy(uint8_t player_id, uint8_t stance) { set_diplomacy(0, player_id, stance); }
+	void set_mutual_ally(uint8_t a, uint8_t b) {
+		set_diplomacy(a, b, DIPLO_ALLY);
+		set_diplomacy(b, a, DIPLO_ALLY);
 	}
-	const uint8_t *diplomacy_state() const { return diplomacy_; }
-	const uint8_t *diplomacy_reverse_state() const { return diplomacy_reverse_; }
+	void set_mutual_ally(uint8_t player_id) { set_mutual_ally(0, player_id); }
+	// Allied: the same alliance team from game setup, or a stance both players
+	// chose. Teams win over stances, as 0 A.D.'s locked teams do.
+	bool is_ally(uint8_t a, uint8_t b) const {
+		if (a == b) return true;
+		if (a >= MAX_PLAYERS || b >= MAX_PLAYERS) return false;
+		if (players_[a].team == players_[b].team) return true;
+		return diplomacy_[a][b] == DIPLO_ALLY && diplomacy_[b][a] == DIPLO_ALLY;
+	}
+	bool is_mutual_ally(uint8_t player_id) const { return player_id != 0 && is_ally(0, player_id); }
+	// Hostile: whom a may shoot at. a's own stance decides, so a one-sided
+	// alliance leaves a holding fire while b keeps attacking (0 A.D. parity).
+	// Teammates are never hostile whatever the stances say.
+	bool is_hostile(uint8_t a, uint8_t b) const {
+		if (a == b) return false;
+		if (a >= MAX_PLAYERS || b >= MAX_PLAYERS) return true;
+		if (players_[a].team == players_[b].team) return false;
+		return diplomacy_[a][b] == DIPLO_ENEMY;
+	}
+	// Rewrite every stance from the alliance teams: teammates ally, everyone
+	// else enemy. For game setup, once the lobby's teams are assigned.
+	void apply_team_diplomacy() {
+		for (uint8_t a = 0; a < MAX_PLAYERS; ++a)
+			for (uint8_t b = 0; b < MAX_PLAYERS; ++b)
+				diplomacy_[a][b] = (a == b || players_[a].team == players_[b].team) ? DIPLO_ALLY : DIPLO_ENEMY;
+	}
+	// Player 0's row, 8 contiguous bytes, for the HUD and the minimap.
+	const uint8_t *diplomacy_state() const { return diplomacy_[0]; }
+	const uint8_t *diplomacy_row(uint8_t player_id) const { return diplomacy_[player_id < MAX_PLAYERS ? player_id : 0]; }
 	bool send_tribute(uint8_t player_id, uint8_t res_type, int amount);
 	bool ai_send_tribute(uint8_t res_type, int amount);
 	// Accept a validated 0 A.D.-style Petra diplomacy request. The request
@@ -564,6 +598,8 @@ public:
 		petra_config_.behavior = (b > PETRA_BEHAVIOR_AGGRESSIVE) ? PETRA_BEHAVIOR_BALANCED : b;
 		apply_petra_config();
 	}
+	// True when Petra drives this player: seated active AI slots, or player 1 when no slot is seated.
+	bool petra_runs_for(uint8_t pid) const;
 	uint8_t petra_difficulty() const { return petra_config_.difficulty; }
 	uint8_t petra_behavior() const { return petra_config_.behavior; }
 	const PetraConfig &petra_config() const { return petra_config_; }
@@ -687,6 +723,7 @@ private:
 	void tick_gates(float dt);
 	void tick_waves(float dt);
 	void tick_petra_ai(float dt);
+	void tick_petra_ai_player(float dt);
 	void tick_fauna(float dt);
 	void tick_fow();  // updates FoW each sim tick
 	template <typename SharesVision>
@@ -765,9 +802,14 @@ private:
 	uint32_t sim_seed_ = 1337;
 	SimRng sim_rng_;
 	std::array<PlayerState, MAX_PLAYERS> players_{};
-	PlayerState &petra_ps() { return players_[PETRA_PLAYER]; }
+	PlayerState &petra_ps() { return players_[petra_pid_]; }
 	Civilization civ_of(uint8_t pid) const { return (pid < MAX_PLAYERS) ? players_[pid].civ : CIV_ATHENIANS; }
-	const PlayerState &petra_ps() const { return players_[PETRA_PLAYER]; }
+	const PlayerState &petra_ps() const { return players_[petra_pid_]; }
+	// Player Petra is currently thinking for. tick_petra_ai sets it for each AI
+	// slot in turn and leaves it at PETRA_PLAYER between ticks.
+	uint8_t petra_pid_ = PETRA_PLAYER;
+	// Hostile to the AI being run: another player not on its team.
+	bool petra_foe(int t) const { return t >= 0 && t < MAX_PLAYERS && !same_team(petra_pid_, (uint8_t)t); }
 	float passive_timer_ = 0.0f;
 	float rate_window_timer_ = 0.0f;
 	float barter_timer_ = 0.0f;
@@ -785,8 +827,8 @@ private:
 	std::unordered_map<uint32_t, std::pair<uint32_t,uint32_t>> trader_routes_; // unit_id -> (marketA_id, marketB_id)
 	std::unordered_map<uint32_t,int> trader_leg_; // unit_id -> 0=A->B, 1=B->A (which target next)
 
-	uint8_t diplomacy_[8] = {0, 2, 2, 2, 2, 2, 2, 2}; // player 0 stance toward each player
-	uint8_t diplomacy_reverse_[8] = {0, 2, 2, 2, 2, 2, 2, 2}; // reciprocal stance for shared LOS
+	// Row a = player a's stances; set in reset() (self ally, everyone else enemy).
+	uint8_t diplomacy_[MAX_PLAYERS][MAX_PLAYERS] = {};
 	uint8_t biome_ = BIOME_AEGEAN;
 	uint8_t map_preset_ = MAP_AEGEAN_ARCHIPELAGO;
 
@@ -861,6 +903,7 @@ private:
 		std::vector<uint32_t> banned;
 	};
 	std::vector<PetraFoundationWatch> petra_fnd_watch_;
+	mutable Petra petra_fleets_; // per-sea warship registry (navalManager.seaWarShips)
 	float petra_timer_  = 0.0f;
 	float petra_econ_timer_ = 0.0f;
 	float petra_trade_timer_ = 0.0f;
@@ -891,6 +934,7 @@ private:
 	void apply_petra_config();
 	void petra_refresh_queue_accounts(float dt);
 	void petra_staff_foundations();
+	void petra_manage_fields(int target_food);
 	int petra_villager_target() const;
 	bool petra_can_place(int cell_x, int cell_y, int footprint) const;
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
@@ -907,6 +951,27 @@ private:
 	uint8_t fow_viewer_ = 0;
 	std::array<std::vector<uint8_t>, MAX_PLAYERS> player_fow_; // per-player FoW for players 1..7 (index 0 unused: fow_grid_)
 	std::vector<uint8_t> unexplored_fow_ = std::vector<uint8_t>((size_t)MAX_GRID_RES * MAX_GRID_RES, 0);
+
+	// Per-AI Petra state. The petra_* members above hold the state of the AI being
+	// run (PETRA_PLAYER between ticks); every other AI slot's state is parked here
+	// and swapped in while that AI thinks (0 A.D. runs one Petra instance per AI).
+#define RTSO_PETRA_SLOT_FIELDS(X) \
+	X(petra_threat_map_) X(petra_strike_force_) X(petra_attack_plan_) X(petra_raid_plan_) \
+	X(petra_opening_step_) X(petra_opening_timer_) X(petra_defense_army_) X(petra_emergency_) \
+	X(petra_queues_) X(petra_transport_) X(petra_defense_timer_) X(petra_victory_timer_) \
+	X(petra_diplo_timer_) X(ai_wonder_victory_timer_) X(petra_bases_) X(petra_fnd_watch_) \
+	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
+	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
+	X(petra_fow_) X(petra_fleets_)
+	struct PetraSlot {
+		bool initialized = false;
+#define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
+		RTSO_PETRA_SLOT_FIELDS(RTSO_PETRA_SLOT_DECL)
+#undef RTSO_PETRA_SLOT_DECL
+	};
+	std::vector<PetraSlot> petra_slots_; // indexed by player id, sized on first use
+	void petra_swap_slot(uint8_t pid);
+	void petra_reset_ai_state();
 	std::vector<float> fow_cell_height_; // terrain height at each FoW cell centre, lazily filled by tick_fow
 	std::vector<float> fow_cell_hmax_; // highest heightmap sample an LOS ray can read in each FoW cell, filled with fow_cell_height_
 	static constexpr int FOW_LOS_BLOCK = 4; // FoW cells per side of a fow_block_hmax_ block

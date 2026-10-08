@@ -45,6 +45,8 @@ public:
 	virtual void play_sfx(const char *path) = 0; // existing RtsoMain hook
 	virtual void play_alarm(const char *path) = 0; // existing RtsoMain hook
 	virtual void update_hud() = 0; // existing RtsoMain hook
+	// The player this client plays as: the row of the stance matrix it owns.
+	virtual uint8_t local_player() const = 0; // existing RtsoMain hook
 	virtual rtso::Simulation *ui_sim() = 0; // existing sim member forward
 };
 
@@ -197,7 +199,7 @@ public:
 		if (host_->net_lockstep())
 			host_->post_lockstep(22, nullptr, 0, 0, 0, (uint32_t)player_idx, (uint8_t)stance);
 		else
-			host_->ui_sim()->cmd_set_diplomacy((uint8_t)player_idx, (uint8_t)stance);
+			host_->ui_sim()->cmd_set_diplomacy(host_->local_player(), (uint8_t)player_idx, (uint8_t)stance);
 		String st_name = (stance == 0) ? "Ally" : ((stance == 1) ? "Neutral" : "Enemy");
 		UtilityFunctions::print("[RTS0] Set diplomacy stance with Player ", player_idx + 1, " to ", st_name);
 		if (chat_) {
