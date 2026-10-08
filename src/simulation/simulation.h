@@ -258,6 +258,8 @@ public:
 		terrain_res_ = res;
 		terrain_water_height_ = water_h;
 		fow_cell_height_.clear();
+		fow_cell_hmax_.clear();
+		fow_block_hmax_.clear();
 	}
 	void set_map_info(const std::string &id, const std::string &name, const std::string &biome) {
 		current_map_id_ = id;
@@ -994,9 +996,22 @@ private:
 	void petra_swap_slot(uint8_t pid);
 	void petra_reset_ai_state();
 	std::vector<float> fow_cell_height_; // terrain height at each FoW cell centre, lazily filled by tick_fow
+	std::vector<float> fow_cell_hmax_; // highest heightmap sample an LOS ray can read in each FoW cell, filled with fow_cell_height_
+	static constexpr int FOW_LOS_BLOCK = 4; // FoW cells per side of a fow_block_hmax_ block
+	std::vector<float> fow_block_hmax_; // fow_cell_hmax_ max per block, filled with fow_cell_height_
 	NavGrid nav_grid_; // Phase1: SoA nav mesh (buildings + water), mirrors 0AD Grid<NavcellData>
 	Grid<uint8_t> territory_grid_; // grid_res_^2 player id per cell, G2 (CCmpTerritoryManager)
 	Grid<uint8_t> influence_grid_; // grid_res_^2 influence count per cell, G2
+	// rebuild_territory()'s inputs the last time it filled the grids: territory roots in buildings_
+	// order, the grid size and the map extent. Same inputs, same grids, so the 1 Hz refresh skips.
+	struct TerritoryRoot {
+		float x, z, radius;
+		uint8_t team;
+		bool operator==(const TerritoryRoot &) const = default;
+	};
+	std::vector<TerritoryRoot> territory_roots_, territory_roots_scratch_;
+	int territory_roots_res_ = 0;
+	float territory_roots_half_ = 0.0f;
 	std::vector<WaypointPath> unit_paths_; // per-unit path (UNIT_CAP), SoA waypoint_cur/count sync
 	AuraManager aura_mgr_; // G4: unified aura sources (AuraManager)
 	float fow_timer_ = 0.0f;
