@@ -360,6 +360,22 @@ void RtsoMain::_ready() {
 
 	top_panel_.build(this, top_hbox, sim->player_civ());
 
+	time_notification_label_ = memnew(Label);
+	time_notification_label_->set_anchor(SIDE_LEFT, 0.0f);
+	time_notification_label_->set_anchor(SIDE_RIGHT, 1.0f);
+	time_notification_label_->set_anchor(SIDE_TOP, 0.0f);
+	time_notification_label_->set_anchor(SIDE_BOTTOM, 0.0f);
+	time_notification_label_->set_offset(SIDE_TOP, 62.0f);
+	time_notification_label_->set_offset(SIDE_BOTTOM, 140.0f);
+	time_notification_label_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+	time_notification_label_->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
+	time_notification_label_->add_theme_font_size_override("font_size", 16);
+	time_notification_label_->add_theme_color_override("font_color", Color(1.0f, 0.92f, 0.6f));
+	time_notification_label_->add_theme_color_override("font_outline_color", Color(0.0f, 0.0f, 0.0f));
+	time_notification_label_->add_theme_constant_override("outline_size", 4);
+	time_notification_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+	ui_layer->add_child(time_notification_label_);
+
 	// Speed & Menu
 	speed_btn = memnew(Button);
 	speed_btn->set_custom_minimum_size(Vector2(45, 28));
@@ -1697,6 +1713,14 @@ void RtsoMain::_process(double delta) {
 	debug_overlay->update_info(perf_txt);
 
 	update_hud();
+	if (sim && time_notification_label_) {
+		String txt;
+		for (const rtso::TimeNotification *n : sim->time_notifications_for(local_player())) {
+			if (!txt.is_empty()) txt += "\n";
+			txt += String::utf8(n->text);
+		}
+		if (time_notification_label_->get_text() != txt) time_notification_label_->set_text(txt);
+	}
 	if (sim && chat_window_.is_ready()) {
 		for (const auto &line : sim->pending_petra_chat()) {
 			if (line.to != 0xFF && line.to != local_player()) continue; // addressed to someone else
@@ -3455,7 +3479,16 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							sim->order_attack_building(sel_ptr, sel_n, b.id, queue_shift, true);
 						play_civ_voice("attack");
 					} else {
-						if (b.build_progress < 1.0f || b.hp < b.max_hp || b.type == rtso::BLD_FIELD) { // finished fields: farm
+						// 0 A.D. "returnresource" comes first: carriers take their load to this dropsite.
+						bool carriers = false;
+						for (size_t k = 0; k < sel_n && !carriers; ++k) carriers = sim->can_return_resource(sel_ptr[k], b.id);
+						if (carriers) {
+							if (net_lockstep())
+								post_lockstep(34, sel_ptr, sel_n, 0, 0, b.id, qbit);
+							else
+								sim->order_return_resource(sel_ptr, sel_n, b.id, queue_shift);
+							play_civ_voice("gather");
+						} else if (b.build_progress < 1.0f || b.hp < b.max_hp || b.type == rtso::BLD_FIELD) { // finished fields: farm
 							if (net_lockstep())
 								post_lockstep(16, sel_ptr, sel_n, 0, 0, b.id, qbit);
 							else
@@ -3535,6 +3568,7 @@ void RtsoMain::apply_match_settings() {
 			random_map_teams[i] = (uint8_t)((tm >= 1 && tm <= 8) ? tm : 0);
 		}
 	}
+	sim->set_biome_override((int)ms->get("biome") - 1); // 0 = the map's own biome
 	if (!load_map_seeded(map_id, seed)) {
 		UtilityFunctions::printerr("[RtsoMain] GameSetup map failed: ", map_id, " - default arena.");
 		if (civ >= 0 && civ < rtso::CIV_COUNT) sim->set_player_civ((uint8_t)civ);
@@ -3552,6 +3586,8 @@ void RtsoMain::apply_match_settings() {
 	sim->set_wonder_duration(60.0f * (float)std::clamp((int)ms->get("wonder_min"), 0, 60));
 	sim->set_relic_duration(60.0f * (float)std::clamp((int)ms->get("relic_min"), 0, 60));
 	sim->set_relic_count((int)ms->get("relic_count"));
+	sim->set_water_level_mode(std::clamp((int)ms->get("water_level"), 0, 2));
+	sim->set_sea_level_rise_minutes(std::clamp((int)ms->get("sea_level_rise_min"), 0, 60));
 	// Game-setup teams (1-based T1..T4) decide allied victory, shared vision and territory.
 	Array slot_teams = ms->get("slot_teams");
 	for (int p = 0; p < 8 && p < slot_teams.size(); ++p) {
@@ -3562,6 +3598,20 @@ void RtsoMain::apply_match_settings() {
 	sync_victory_selector();
 	if (diff >= 0 && diff <= 5) sim->set_petra_difficulty((uint8_t)diff);
 	if (behavior >= 0 && behavior <= 3) sim->set_petra_behavior((uint8_t)behavior);
+	// Each AI slot's own difficulty and behaviour (slot index == player id; after the shared setters).
+	{
+		Array sdiffs = ms->get("slot_diffs");
+		Array sbehs = ms->get("slot_behs");
+		for (int p = 0; p < rtso::MAX_PLAYERS; ++p) {
+			if (p < sdiffs.size()) sim->set_petra_difficulty((uint8_t)p, (uint8_t)std::clamp((int)sdiffs[p], 0, 5));
+			if (p < sbehs.size()) sim->set_petra_behavior((uint8_t)p, (uint8_t)std::clamp((int)sbehs[p], 0, 3));
+		}
+	}
+	// Game Setup speed (0 A.D. gameSpeed); the in-game speed button still cycles from here.
+	{
+		const float sp = (float)(double)ms->get("game_speed");
+		game_speed = (sp >= 0.25f && sp <= 3.0f) ? sp : 1.0f;
+	}
 	// Starting-resources presets (0 sparse / 1 normal / 2 generous / 3 abundant).
 	static const int kStartRes[4][4] = {
 		{150, 200, 150, 100}, {300, 400, 300, 200},
@@ -3670,6 +3720,7 @@ PackedStringArray RtsoMain::get_available_maps() const {
 
 bool RtsoMain::load_map(String map_id) {
 	uint32_t seed = (uint32_t)Time::get_singleton()->get_ticks_msec();
+	if (sim) sim->set_biome_override(-1); // a map picked in game keeps its own biome
 	return load_map_seeded(map_id, seed);
 }
 
@@ -4035,6 +4086,15 @@ void RtsoMain::_on_lobby_start_pressed() {
 		setup.wonder_min = (uint8_t)std::clamp((int)ms->get("wonder_min"), 0, 60);
 		setup.relic_min = (uint8_t)std::clamp((int)ms->get("relic_min"), 0, 60);
 		setup.relics = (uint8_t)std::clamp((int)ms->get("relic_count"), 1, 16);
+		setup.biome = (uint8_t)std::clamp((int)ms->get("biome"), 0, (int)rtso::BIOME_COUNT);
+		Array sdiffs = ms->get("slot_diffs");
+		Array sbehs = ms->get("slot_behs");
+		for (int i = 0; i < 8; ++i) {
+			if (i < sdiffs.size()) setup.diffs[i] = (uint8_t)std::clamp((int)sdiffs[i], 0, 5);
+			if (i < sbehs.size()) setup.behs[i] = (uint8_t)std::clamp((int)sbehs[i], 0, 3);
+		}
+		setup.water_level = (uint8_t)std::clamp((int)ms->get("water_level"), 0, 2);
+		setup.sea_rise_min = (uint8_t)std::clamp((int)ms->get("sea_level_rise_min"), 0, 60);
 		int msz = (int)ms->get("map_size");
 		setup.map_size = (uint16_t)((msz >= 128 && msz <= 512) ? msz : 128);
 		setup.difficulty = (uint8_t)((int)ms->get("ai_difficulty"));
@@ -4114,6 +4174,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		if (setup.slot_types[i] != 'x') random_map_players = std::max(random_map_players, (int)i + 1);
 	for (uint8_t i = 0; i < rtso::MAX_PLAYERS; ++i)
 		random_map_teams[i] = (i < setup.slot_count && setup.teams[i] >= 1 && setup.teams[i] <= 8) ? setup.teams[i] : 0;
+	sim->set_biome_override((int)setup.biome - 1);
 	if (!load_map_seeded(String(setup.map_id.c_str()), setup.seed)) {
 		if (lobby_status) lobby_status->set_text("GameStart failed: map regen failed");
 		return;
@@ -4128,6 +4189,8 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	sim->set_wonder_duration(60.0f * (float)setup.wonder_min);
 	sim->set_relic_duration(60.0f * (float)setup.relic_min);
 	sim->set_relic_count(setup.relics);
+	sim->set_water_level_mode(setup.water_level);
+	sim->set_sea_level_rise_minutes(setup.sea_rise_min);
 	for (uint8_t p = 0; p < 8 && p < setup.slot_count; ++p) {
 		if (setup.teams[p] >= 1 && setup.teams[p] <= 8) sim->set_player_team(p, (uint8_t)(setup.teams[p] - 1));
 	}
@@ -4135,6 +4198,10 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	sync_victory_selector();
 	sim->set_petra_difficulty(setup.difficulty > 5 ? 3 : setup.difficulty);
 	sim->set_petra_behavior(setup.behavior > 3 ? 2 : setup.behavior);
+	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
+		sim->set_petra_difficulty(p, setup.diffs[p]);
+		sim->set_petra_behavior(p, setup.behs[p]);
+	}
 	static const int kStartRes[4][4] = {
 		{150, 200, 150, 100}, {300, 400, 300, 200},
 		{500, 700, 500, 350}, {900, 1200, 900, 600},
@@ -4169,6 +4236,16 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		ms->set("wonder_min", (int)(sim->wonder_duration() / 60.0f));
 		ms->set("relic_min", (int)(sim->relic_duration() / 60.0f));
 		ms->set("relic_count", sim->relic_count());
+		ms->set("biome", (int)setup.biome);
+		Array sdiffs, sbehs;
+		for (uint8_t i = 0; i < setup.slot_count && i < 8; ++i) {
+			sdiffs.push_back((int)setup.diffs[i]);
+			sbehs.push_back((int)setup.behs[i]);
+		}
+		ms->set("slot_diffs", sdiffs);
+		ms->set("slot_behs", sbehs);
+		ms->set("water_level", sim->water_level_mode());
+		ms->set("sea_level_rise_min", sim->sea_level_rise_minutes());
 		ms->set("map_size", random_map_size);
 		ms->set("ai_difficulty", (int)sim->petra_difficulty());
 		ms->set("ai_behavior", (int)sim->petra_behavior());

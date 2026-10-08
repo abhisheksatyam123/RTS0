@@ -190,7 +190,13 @@ enum PetraChatKind : uint8_t {
 	PETRA_CHAT_DIPLO_TRIBUTE  = 6, // accept once the player pays a tribute
 	PETRA_CHAT_DIPLO_WARNING  = 7, // the tribute has not arrived yet
 	PETRA_CHAT_DIPLO_LAPSED   = 8,
-	PETRA_CHAT_WAR_DECLARED   = 9  // answering a declaration of war
+	PETRA_CHAT_WAR_DECLARED   = 9, // answering a declaration of war
+	// diplomacyManager.js sendDiplomacyRequest / checkSentDiplomacyRequests, tributes()
+	PETRA_CHAT_ALLY_REQUEST     = 10,
+	PETRA_CHAT_NEUTRAL_REQUEST  = 11,
+	PETRA_CHAT_ALLY_EXPIRED     = 12,
+	PETRA_CHAT_NEUTRAL_EXPIRED  = 13,
+	PETRA_CHAT_TRIBUTE_REQUEST  = 14 // to an ally: "I am in need of <res>"
 };
 
 // diplomacyManager.js receivedDiplomacyRequests: what one AI decided about a
@@ -220,6 +226,17 @@ struct PetraDiplomacy {
 	float elapsed = 0.0f;
 	float next_tribute = 90.0f;  // nextTributeUpdate
 };
+
+// diplomacyManager.js sentDiplomacyRequests, sentDiplomacyRequestLapseTime and
+// nextTributeRequest (save v27). Padding-free: saved raw.
+struct PetraSentDiplomacy {
+	float sent_time[8] = {};          // when we asked each player
+	float sent_lapse = -1.0f;         // next chance to ask anyone (set on the first update)
+	float next_tribute_request_all = 240.0f;
+	float next_tribute_request[4] = {};  // per resource
+	uint8_t sent_type[8] = {};        // 0 none, 1 ally, 2 neutral
+};
+static_assert(sizeof(PetraSentDiplomacy) == 64, "PetraSentDiplomacy is saved raw: keep it padding-free");
 
 // chatHelper.js — short English taunts (no i18n)
 struct PetraDiplomacyRequest {

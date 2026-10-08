@@ -8,6 +8,7 @@
 #include "aura_manager.h"
 #include "petra_ai.h"
 #include "sim_types.h"
+#include "triggers.h"
 #include <cstdint>
 #include <vector>
 #include <unordered_map>
@@ -130,7 +131,7 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
-	static constexpr uint32_t SAVE_VERSION = 25; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 27; // save_state's format; see the history beside it
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -393,6 +394,11 @@ public:
 	void order_guard(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
 	// UnitAI Heal: healers walk to an injured allied unit and heal it (Heal.js).
 	void order_heal(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
+	// 0 A.D. "returnresource" (UnitAI ReturnResource): carriers take their load to this
+	// dropsite, drop it, then take the next queued order or idle.
+	void order_return_resource(const uint32_t *unit_ids, size_t count, uint32_t dropsite_id, bool queued = false);
+	bool dropsite_accepts(size_t unit_idx, const Building &b) const; // carried type, owner, finished
+	bool can_return_resource(uint32_t unit_id, uint32_t dropsite_id) const; // carries a load b accepts
 	void set_unit_hp(uint32_t unit_id, float hp); // scenarios and tests: clamped to 0..max
 
 	// Livestock & Corrals (Corral.js)
@@ -439,6 +445,9 @@ public:
 	// 0 A.D. map visibility options: everything visible, or terrain known from the start.
 	bool reveal_map() const { return reveal_map_; }
 	void set_reveal_map(bool on) { reveal_map_ = on; }
+	// Game Setup biome for random maps: BIOME_* or -1 for the map's own.
+	void set_biome_override(int b) { biome_override_ = (b >= 0 && b < BIOME_COUNT) ? b : -1; }
+	int biome_override() const { return biome_override_; }
 	bool explore_map() const { return explore_map_; }
 	void set_explore_map(bool on) { explore_map_ = on; }
 	// Wonder and Capture the Relic: how long the wonder or all relics must be held, and how
@@ -451,6 +460,27 @@ public:
 	void set_relic_duration(float s) { relic_duration_ = std::max(0.0f, s); }
 	int relic_count() const { return relic_count_; }
 	void set_relic_count(int n) { relic_count_ = std::clamp(n, 0, 16); }
+	// Rising-water maps (0 A.D. Flood's "WaterLevels" and Extinct Volcano's "SeaLevelRise"
+	// Game Setup options): Flood's water rises (0, default), stays (1, Shallow) or starts a
+	// metre higher (2, Deep); Extinct Volcano's water starts rising after N minutes (default 25).
+	enum WaterLevelMode : uint8_t { WATER_LEVEL_RISING = 0, WATER_LEVEL_SHALLOW = 1, WATER_LEVEL_DEEP = 2 };
+	uint8_t water_level_mode() const { return water_level_mode_; }
+	void set_water_level_mode(uint8_t m) { water_level_mode_ = m <= WATER_LEVEL_DEEP ? m : WATER_LEVEL_RISING; }
+	int sea_level_rise_minutes() const { return sea_level_rise_min_; }
+	void set_sea_level_rise_minutes(int m) { sea_level_rise_min_ = (uint8_t)std::clamp(m, 0, 60); }
+
+	// Map trigger scripts (0 A.D. Trigger.js; see triggers.h). Map generation registers
+	// the map's own triggers; tick() runs their timers and the sim calls trigger_event().
+	const TriggerState &trigger_state() const { return triggers_; }
+	uint32_t trigger_hash() const { return triggers_.hash(); }
+	void trigger_event(uint8_t event, const TriggerEventData &data = {});
+	// Time notifications (GuiInterface.AddTimeNotification) shown to `player` right now.
+	std::vector<const TimeNotification *> time_notifications_for(uint8_t player) const;
+	// WaterManager.SetWaterLevel as the rising-water scripts use it: moves the water
+	// to `h`, drowns organic units and animals more than `drown_depth` below it, and
+	// takes away submerged structures and resources (0 A.D. turns them into
+	// decorative actors). Ships and docks float.
+	void set_water_level(float h, float drown_depth);
 	float ceasefire_seconds() const { return ceasefire_seconds_; }
 	void set_ceasefire_seconds(float s) { ceasefire_seconds_ = std::max(0.0f, s); }
 	float ceasefire_remaining() const { return std::max(0.0f, ceasefire_seconds_ - (float)ticks_ * FIXED_STEP); }
@@ -1004,6 +1034,10 @@ private:
 	void tick_projectiles(float dt);
 	void tick_construction(float dt);
 	void tick_repair(float dt);
+	static constexpr float REPAIR_TIME_RATIO = 2.0f; // template_structure.xml Repairable/RepairTimeRatio
+	static float foundation_build_multiplier(int builders);
+	float builder_rate(size_t unit_idx) const;
+	float structure_build_time(const Building &b, uint8_t builder_team) const;
 	void tick_production(float dt);
 	void tick_research(float dt);
 	void tick_upgrades(float dt);
@@ -1197,11 +1231,22 @@ private:
 	bool game_over_ = false;
 	bool victory_ = false;
 	bool reveal_map_ = false;
+	int biome_override_ = -1; // setup-time only: applied when a random map is generated
 	bool explore_map_ = false;
 	float wonder_duration_ = 600.0f;
 	float relic_duration_ = 180.0f;
 	int relic_count_ = 0;
 	void apply_relic_count();
+	uint8_t water_level_mode_ = WATER_LEVEL_RISING; // saved with the trigger state (v18)
+	uint8_t sea_level_rise_min_ = 25;
+	TriggerState triggers_;
+	void tick_triggers(float dt);
+	void register_map_triggers(MapType type);
+	void run_trigger_action(uint16_t action, float arg, const TriggerEventData &data);
+	// Ported map scripts (simulation.cpp, "Map trigger scripts").
+	void trigger_flood_rise_step(float final_level);
+	void trigger_volcano_rise_step();
+	void trigger_volcano_garrison_towers();
 	PlayerState gaia_stock_; // scratch for player(GAIA_PLAYER); never saved or hashed
 	// Player.js SetState("defeated"): hand every unit and structure of these players to Gaia.
 	void convert_to_gaia(uint8_t players);
@@ -1262,6 +1307,13 @@ private:
 	PetraDiplomacy petra_diplo_;
 	// Tribute paid to each player since its Petra last looked: [to][from][resource].
 	float petra_tribute_inbox_[MAX_PLAYERS][MAX_PLAYERS][RES_COUNT] = {};
+	// AI-to-AI diplomacy (0 A.D. DiplomacyRequest / TributeRequest events), [to][from], save v27:
+	// the stance asked for (0 none, 1 ally, 2 neutral) and a tribute asked for in return.
+	uint8_t petra_diplo_request_inbox_[MAX_PLAYERS][MAX_PLAYERS] = {};
+	int32_t petra_tribute_request_wanted_[MAX_PLAYERS][MAX_PLAYERS] = {};
+	uint8_t petra_tribute_request_res_[MAX_PLAYERS][MAX_PLAYERS] = {};
+	PetraSentDiplomacy petra_sent_diplo_;
+	void petra_send_diplomacy_request();
 	float petra_defense_timer_ = 0.0f;
 	float petra_victory_timer_ = 0.0f;
 	float petra_diplo_timer_ = 0.0f;
@@ -1361,7 +1413,8 @@ private:
 	X(petra_diplo_timer_) X(ai_wonder_victory_timer_) X(petra_bases_) X(petra_fnd_watch_) \
 	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
-	X(petra_fow_) X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_)
+	X(petra_fow_) X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
+	X(petra_sent_diplo_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
@@ -1386,6 +1439,25 @@ private:
 	NavGrid nav_grid_; // Phase1: SoA nav mesh (buildings + water), mirrors 0AD Grid<NavcellData>
 	Grid<uint8_t> territory_grid_; // grid_res_^2 player id per cell, G2 (CCmpTerritoryManager)
 	Grid<uint8_t> influence_grid_; // grid_res_^2 influence count per cell, G2
+	// CCmpTerritoryManager connectivity, derived from territory_grid_ and the territory roots
+	// (civic centres and wonders): each 4-connected patch of one player's territory is a region,
+	// connected when it holds one of that player's roots. Unconnected regions keep the count of
+	// tiles of connected foreign regions bordering them (GetNeighbours(filterConnected)).
+	// Rebuilt on demand after the grid changes; not saved or hashed.
+	struct TerritoryRegion {
+		uint8_t owner;
+		bool connected;
+		std::array<uint32_t, MAX_PLAYERS> neighbours;
+	};
+	Grid<uint16_t> territory_region_;
+	std::vector<TerritoryRegion> territory_regions_;
+	bool territory_regions_dirty_ = true;
+	// Off until build placement keeps structures out of neutral land (see territory_decay_targets).
+	static constexpr bool TERRITORY_DECAY_IN_NEUTRAL_LAND = false;
+	void ensure_territory_regions();
+	// TerritoryDecay.IsConnected + GetConnectedNeighbours for a structure: false when it does not
+	// decay; otherwise `to` gets the weight each player receives, and `to_gaia` Gaia's.
+	bool territory_decay_targets(const Building &b, std::array<float, MAX_PLAYERS> &to, float &to_gaia);
 	// rebuild_territory()'s inputs the last time it filled the grids: territory roots in buildings_
 	// order, the grid size and the map extent. Same inputs, same grids, so the 1 Hz refresh skips.
 	struct TerritoryRoot {
@@ -1410,7 +1482,7 @@ private:
 	nav::ObstacleGrid sep_grid_; // sep_obstacles_ by cell, rebuilt with it
 	// tick_capture()'s count and strength of nearby capturers per building and team, and the grid of
 	// building reach it finds them with. Rebuilt every tick.
-	struct CaptureTally { int count[4]; float strength[4]; };
+	struct CaptureTally { int count[MAX_PLAYERS]; float strength[MAX_PLAYERS]; };
 	struct CaptureReach { uint32_t building; float x, z; };
 	std::vector<CaptureTally> capture_tally_;
 	std::vector<uint32_t> capture_cell_start_;

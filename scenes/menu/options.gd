@@ -27,7 +27,21 @@ func _ready() -> void:
 		ob.add_item("150%")
 		ob.select(2)
 		scale_slot.add_child(ob)
+	# 0 A.D. options "Hotkeys" button opens gui/hotkeys (hotkeys.gd).
+	var header := get_node_or_null("CenterContainer/Panel/VBox/Header")
+	if header and not header.has_node("BtnHotkeys"):
+		var hk := Button.new()
+		hk.name = "BtnHotkeys"
+		hk.text = "Hotkeys"
+		hk.custom_minimum_size = Vector2(120, 36)
+		hk.pressed.connect(_on_hotkeys_pressed)
+		header.add_child(hk)
+		header.move_child(hk, header.get_node("BtnBack").get_index())
 	load_settings()
+
+func _on_hotkeys_pressed() -> void:
+	save_settings()
+	MatchSettings.go("res://scenes/menu/hotkeys.tscn")
 
 func load_settings() -> void:
 	var cfg = ConfigFile.new()

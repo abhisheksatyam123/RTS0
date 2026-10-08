@@ -43,6 +43,9 @@ static uint32_t wall_with_gate(Simulation &s) {
 		if (c == 0) gate = s.spawn_building_world(1.0f, z, BLD_GATE, 0, 1.0f);
 		else s.spawn_building_world(1.0f, z, BLD_WALL_SEGMENT, 0, 1.0f);
 	}
+	// The wall stands in no-man's land, where it would decay to Gaia (TerritoryDecay); these
+	// cases are about the gate, so keep it player 0's.
+	for (const auto &b : s.buildings()) const_cast<Simulation::Building &>(b).territory_decay_rate = 0.0f;
 	return gate;
 }
 
