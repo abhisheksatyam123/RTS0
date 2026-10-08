@@ -68,30 +68,31 @@ Ref<ShaderMaterial> Assets::load_terrain_material() {
 
 void Assets::apply_terrain_biome(const Ref<ShaderMaterial> &mat, const String &biome) {
 	if (mat.is_null()) return;
-	// {biome, grass (lowlands), dirt (slopes), rock (cliffs and peaks)}: 0 A.D.
-	// terrain textures from art/textures/terrains/, picked to match the
-	// biome's 0 A.D. random-map palettes. "mediterranean" keeps the defaults.
-	static const char *const kSets[][4] = {
-		{"mediterranean", "grass", "dirt", "rock"},
-		{"aegean", "aegean_anatolia_grass_02", "aegean_anatolia_dirt_01", "aegean_anatolia_cliff_02"},
-		{"latium", "medit_grass_wild", "medit_dirt_c", "medit_cliff_italia"},
-		{"alpine", "alpine_grass_b", "alpine_dirt", "alpine_cliff_snow"},
-		{"oasis", "desert_sand_smooth", "desert_dirt_rough", "desert_cliff_2"},
-		{"temperate", "temperate_grass_02", "temperate_grass_dirt_01", "temperate_cliff_01"},
-		{"steppe", "steppe_grass_b", "steppe_dirt_a", "temp_cliff_b"},
-		{"savanna", "savanna_grass_a", "savanna_dirt_a_red", "savanna_cliff_a_red"},
-		{"polar", "polar_snow_a", "polar_tundra_snow", "polar_cliff_snow"},
-		{"india", "india_grass_01", "india_dirt_01", "india_cliff_02"},
-		{"desert", "desert_grass_a", "desert_dirt_rocks_1", "desert_cliff_persia_1"},
-		{"persia", "desert_dirt_persia_1", "desert_dirt_persia_rocky", "desert_cliff_persia_2"},
-		{"volcanic", "cliff volcanic light", "ocean_rock_a", "cliff volcanic coarse"},
-		{"tropical", "tropic_grass_b", "tropic_dirt_a", "tropic_cliff_a"},
+	// {biome, grass (lowlands), dirt (slopes), rock (cliffs and peaks), shore,
+	// forest floor}: 0 A.D. terrain textures from art/textures/terrains/,
+	// picked to match the biome's 0 A.D. random-map palettes (rmbiome/*.json
+	// shore and forestFloor1). "mediterranean" keeps the defaults.
+	static const char *const kSets[][6] = {
+		{"mediterranean", "grass", "dirt", "rock", "medit_sand", "medit_forestfloor_a"},
+		{"aegean", "aegean_anatolia_grass_02", "aegean_anatolia_dirt_01", "aegean_anatolia_cliff_02", "aegean_anatolia_sand_01", "aegean_anatolia_forestfloor_01"},
+		{"latium", "medit_grass_wild", "medit_dirt_c", "medit_cliff_italia", "medit_sand", "medit_forestfloor_a"},
+		{"alpine", "alpine_grass_b", "alpine_dirt", "alpine_cliff_snow", "alpine_shore_rocks_grass_50", "alpine_arctic_forestfloor_01"},
+		{"oasis", "desert_sand_smooth", "desert_dirt_rough", "desert_cliff_2", "desert_sand_wet", "desert_forestfloor_palms"},
+		{"temperate", "temperate_grass_02", "temperate_grass_dirt_01", "temperate_cliff_01", "temperate_grass_mud_01", "temperate_forestfloor_003"},
+		{"steppe", "steppe_grass_b", "steppe_dirt_a", "temp_cliff_b", "steppe_grass_mud_01", "steppe_grass_dirt_01"},
+		{"savanna", "savanna_grass_a", "savanna_dirt_a_red", "savanna_cliff_a_red", "savanna_mud_a", "savanna_forestfloor_a"},
+		{"polar", "polar_snow_a", "polar_tundra_snow", "polar_cliff_snow", "alpine_shore_rocks_icy", "alpine_arctic_forestfloor_02"},
+		{"india", "india_grass_01", "india_dirt_01", "india_cliff_02", "india_sand_01", "india_forestfloor_001"},
+		{"desert", "desert_grass_a", "desert_dirt_rocks_1", "desert_cliff_persia_1", "desert_sand_wet", "desert_forestfloor_palms"},
+		{"persia", "desert_dirt_persia_1", "desert_dirt_persia_rocky", "desert_cliff_persia_2", "desert_shore_stones", "desert_forestfloor_palms"},
+		{"volcanic", "cliff volcanic light", "ocean_rock_a", "cliff volcanic coarse", "tropic_beach_volcanic", "tropic_forestfloor_a"},
+		{"tropical", "tropic_grass_b", "tropic_dirt_a", "tropic_cliff_a", "tropic_beach_wet", "tropic_forestfloor_a"},
 	};
 	const char *const *set = kSets[0];
 	for (const auto &s : kSets)
 		if (biome == s[0]) { set = s; break; }
-	const char *params[3] = {"grass_tex", "dirt_tex", "rock_tex"};
-	for (int i = 0; i < 3; ++i) {
+	const char *params[5] = {"grass_tex", "dirt_tex", "rock_tex", "shore_tex", "forest_tex"};
+	for (int i = 0; i < 5; ++i) {
 		String path = String("res://assets/textures/terrain/") + set[i + 1] + ".png";
 		if (!res_exists(path)) continue;
 		Ref<Texture2D> tex = ResourceLoader::get_singleton()->load(path);

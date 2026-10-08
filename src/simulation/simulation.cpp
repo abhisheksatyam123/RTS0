@@ -249,6 +249,7 @@ void Simulation::set_map_half(float h) {
 Simulation::~Simulation() = default;
 
 void Simulation::reset() {
+	territory_regions_dirty_ = true;
 	units_.free_all(); units_.init(UNIT_CAP);
 	resources_.free_all(); resources_.init(512);
 	buildings_.clear();
@@ -865,6 +866,7 @@ void Simulation::rebuild_territory() {
 	territory_grid_.resize(R, R, 0);
 	influence_grid_.fill(0);
 	territory_grid_.fill(0);
+	territory_regions_dirty_ = true;
 	for (const TerritoryRoot &b : territory_roots_) {
 		const float radius = b.radius;
 		float r2 = radius * radius;
@@ -893,6 +895,113 @@ void Simulation::rebuild_territory() {
 bool Simulation::find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass) const {
 	ScopedUs prof(map_scale_stats_.path_us, map_scale_stats_.path_calls);
 	return nav_grid_.find_path(sx, sz, tx, tz, out, pass);
+}
+
+void Simulation::ensure_territory_regions() {
+	const int W = territory_grid_.w, Hh = territory_grid_.h;
+	if (!territory_regions_dirty_ && territory_region_.w == W && territory_region_.h == Hh) return;
+	territory_regions_dirty_ = false;
+	territory_regions_.clear();
+	territory_region_.resize(W, Hh, 0);
+	territory_region_.fill(0);
+	if (W <= 0 || Hh <= 0) return;
+	// Label 4-connected patches of one owner (region ids from 1; 0 = no territory).
+	std::vector<int> stack;
+	for (int y = 0; y < Hh; ++y) {
+		for (int x = 0; x < W; ++x) {
+			const uint8_t v = territory_grid_.at(x, y);
+			if (v == 0 || territory_region_.at(x, y) != 0) continue;
+			territory_regions_.push_back(TerritoryRegion{(uint8_t)(v - 1), false, {}});
+			const uint16_t id = (uint16_t)territory_regions_.size();
+			territory_region_.at(x, y) = id;
+			stack.assign(1, y * W + x);
+			while (!stack.empty()) {
+				const int c = stack.back();
+				stack.pop_back();
+				const int cx = c % W, cy = c / W;
+				const int nx[4] = {cx - 1, cx + 1, cx, cx};
+				const int ny[4] = {cy, cy, cy - 1, cy + 1};
+				for (int k = 0; k < 4; ++k) {
+					if (nx[k] < 0 || ny[k] < 0 || nx[k] >= W || ny[k] >= Hh) continue;
+					if (territory_grid_.at(nx[k], ny[k]) != v || territory_region_.at(nx[k], ny[k]) != 0) continue;
+					territory_region_.at(nx[k], ny[k]) = id;
+					stack.push_back(ny[k] * W + nx[k]);
+				}
+			}
+		}
+	}
+	// Roots: template_structure_civic_civil_centre.xml and template_structure_wonder.xml
+	// TerritoryInfluence/Root.
+	for (const auto &b : buildings_) {
+		if (b.build_progress < 0.99f || b.team >= MAX_PLAYERS || b.wrecked) continue;
+		if (b.type != BLD_TOWN_CENTER && b.type != BLD_WONDER) continue;
+		const int tx = std::clamp((int)((b.x + map_half_) / (map_half_ * 2.0f) * (float)W), 0, W - 1);
+		const int tz = std::clamp((int)((b.z + map_half_) / (map_half_ * 2.0f) * (float)Hh), 0, Hh - 1);
+		const uint16_t id = territory_region_.at(tx, tz);
+		if (id && territory_regions_[id - 1].owner == b.team) territory_regions_[id - 1].connected = true;
+	}
+	// Bordering tiles of connected foreign regions, for each unconnected region.
+	for (int y = 0; y < Hh; ++y) {
+		for (int x = 0; x < W; ++x) {
+			const uint16_t id = territory_region_.at(x, y);
+			if (!id || territory_regions_[id - 1].connected) continue;
+			TerritoryRegion &r = territory_regions_[id - 1];
+			const int nx[4] = {x - 1, x + 1, x, x};
+			const int ny[4] = {y, y, y - 1, y + 1};
+			for (int k = 0; k < 4; ++k) {
+				if (nx[k] < 0 || ny[k] < 0 || nx[k] >= W || ny[k] >= Hh) continue;
+				const uint16_t n = territory_region_.at(nx[k], ny[k]);
+				if (!n || n == id || !territory_regions_[n - 1].connected) continue;
+				const uint8_t o = territory_regions_[n - 1].owner;
+				if (o != r.owner && o < MAX_PLAYERS) r.neighbours[o]++;
+			}
+		}
+	}
+}
+
+bool Simulation::territory_decay_targets(const Building &b, std::array<float, MAX_PLAYERS> &to, float &to_gaia) {
+	to.fill(0.0f);
+	to_gaia = 0.0f;
+	if (b.territory_decay_rate <= 0.0f) return false;
+	// template_structure.xml decays in "neutral enemy" territory; outposts and docks only in "enemy".
+	const bool neutral = b.type != BLD_OUTPOST && b.type != BLD_DOCK;
+	const bool gaia = b.team >= MAX_PLAYERS;
+	ensure_territory_regions();
+	const int W = territory_grid_.w, Hh = territory_grid_.h;
+	if (W <= 0 || Hh <= 0) return false;
+	const int tx = std::clamp((int)((b.x + map_half_) / (map_half_ * 2.0f) * (float)W), 0, W - 1);
+	const int tz = std::clamp((int)((b.z + map_half_) / (map_half_ * 2.0f) * (float)Hh), 0, Hh - 1);
+	const uint16_t id = territory_region_.at(tx, tz);
+	if (!id) { // neutral ground: Gaia's own structures don't decay there
+		// 0 A.D. only lets outposts (which don't decay there) and military colonies be placed in
+		// neutral land (BuildRestrictions/Territory). Until RTS0's placement follows those rules
+		// (gap U5), structures standing there keep their points rather than all turning Gaia.
+		if (!TERRITORY_DECAY_IN_NEUTRAL_LAND) return false;
+		if (gaia || !neutral) return false;
+		to_gaia = 1.0f;
+		return true;
+	}
+	const TerritoryRegion &r = territory_regions_[id - 1];
+	if (r.connected && (gaia || !is_ally(b.team, r.owner))) {
+		to[r.owner] = 1.0f;
+		return true;
+	}
+	if (r.connected) return false;
+	if (gaia || r.owner != b.team) { // unconnected foreign territory: towards Gaia
+		if (gaia) return false;
+		to_gaia = 1.0f;
+		return true;
+	}
+	// Own unconnected territory: safe next to a connected ally, else towards the neighbours.
+	uint32_t total = 0;
+	for (int p = 0; p < MAX_PLAYERS; ++p) {
+		if (!r.neighbours[p]) continue;
+		if (is_ally(b.team, (uint8_t)p)) return false;
+		total += r.neighbours[p];
+	}
+	if (!total) { to_gaia = 1.0f; return true; }
+	for (int p = 0; p < MAX_PLAYERS; ++p) to[p] = (float)r.neighbours[p] / (float)total;
+	return true;
 }
 
 int Simulation::territory_owner_at(float x, float z) const {
@@ -5407,9 +5516,9 @@ void Simulation::tick_capture(float dt) {
 				capture_cell_start_[0] = 0;
 			}
 		}
-		capture_tally_.assign(buildings_.size(), CaptureTally{{0, 0, 0, 0}, {0.0f, 0.0f, 0.0f, 0.0f}});
+		capture_tally_.assign(buildings_.size(), CaptureTally{});
 		for (size_t u = 0; u < units_.count; ++u) {
-			if (!units_.alive[u] || units_.team[u] >= 4) continue;
+			if (!units_.alive[u] || units_.team[u] >= MAX_PLAYERS) continue;
 			const size_t c = (size_t)cell_of(units_.pos_z[u]) * W + cell_of(units_.pos_x[u]);
 			for (uint32_t k = capture_cell_start_[c]; k < capture_cell_start_[c + 1]; ++k) {
 				const CaptureReach &b = capture_cell_buildings_[k];
@@ -5429,29 +5538,35 @@ void Simulation::tick_capture(float dt) {
 		Building &b = buildings_[bi];
 		if (b.build_progress < 1.0f || b.max_capture_points <= 0.0f) continue;
 		if (b.team >= MAX_PLAYERS) {
+			// TerritoryDecay: a Gaia structure in a player's connected territory decays to that player.
+			std::array<float, MAX_PLAYERS> decay_to;
+			float decay_gaia = 0.0f;
+			if (territory_decay_targets(b, decay_to, decay_gaia)) {
+				const float held = std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f);
+				const float decay = std::min(b.territory_decay_rate * dt, std::max(0.0f, b.max_capture_points - held));
+				for (int p = 0; p < MAX_PLAYERS; ++p) b.capture_points_by_team[p] += decay * decay_to[p];
+			}
 			capture_points_tick(b, bi, dt);
 			b.capture_points = std::max(0.0f, b.max_capture_points -
 					std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f));
 			continue;
 		}
-		if (std::abs(std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f) - b.max_capture_points) > 0.01f) {
+		// Points no player holds are Gaia's (territory decay), so only more than the maximum is invalid.
+		if (std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f) > b.max_capture_points + 0.01f) {
 			b.capture_points_by_team.fill(0.0f);
 			b.capture_points_by_team[b.team < 8 ? b.team : 0] = b.max_capture_points;
 		}
-		const int *count = capture_tally_[bi].count;
-		const int owner = b.team < 4 ? b.team : 0;
-		// TerritoryDecay.js: only structures outside their owner's territory
-		// decay, and the points go to whoever owns the ground they stand on.
-		// RTS0 has no Gaia player, so no-man's land doesn't decay. (Decaying
-		// every unguarded building toward player 1 made them flip back and
-		// forth between players every few seconds.)
-		const int ground = territory_owner_at(b.x, b.z);
-		if (b.territory_decay_rate > 0.0f && count[owner] == 0 && ground >= 0 && ground < 4 &&
-				ground != owner && !is_ally((uint8_t)ground, (uint8_t)owner)) {
-			const int neighbour = ground;
-			const float decay = std::min(b.territory_decay_rate * dt, b.capture_points_by_team[owner]);
-			b.capture_points_by_team[owner] -= decay;
-			b.capture_points_by_team[neighbour] += decay;
+		const int pl = b.team; // the owner, any of the 8 players
+		// TerritoryDecay.js + Capturable.js TimerTick: a structure in enemy territory, or in its
+		// owner's territory cut off from every civic centre, loses DecayRate points a second to
+		// the territory's owner, to the connected neighbours of its region, or to Gaia.
+		std::array<float, MAX_PLAYERS> decay_to;
+		float decay_gaia = 0.0f;
+		if (territory_decay_targets(b, decay_to, decay_gaia)) {
+			const float decay = std::min(b.territory_decay_rate * dt, b.capture_points_by_team[pl]);
+			b.capture_points_by_team[pl] -= decay;
+			for (int p = 0; p < MAX_PLAYERS; ++p) b.capture_points_by_team[p] += decay * decay_to[p];
+			// decay * decay_gaia stays unheld: Gaia's.
 		}
 		capture_points_tick(b, bi, dt);
 		b.capture_points = b.team < MAX_PLAYERS ? b.capture_points_by_team[b.team] : std::max(0.0f, b.max_capture_points -
@@ -11964,6 +12079,7 @@ bool Simulation::load_state(const char *filepath) {
 
 	if (version >= 15) {
 		if (!load_tick_state(in, version)) return false;
+		territory_regions_dirty_ = true;
 		if (version < 23)
 			for (size_t u = 0; u < units_.count; ++u) units_.formation[u] = FORMATION_NONE; // no controllers saved
 		formation_refresh_groups();
