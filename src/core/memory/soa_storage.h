@@ -69,6 +69,7 @@ struct UnitSoA {
 	float *burning_timer = nullptr;
 	uint8_t *pack_state = nullptr; // PackState (0 A.D. Pack.js); PACK_NONE for units without Pack
 	float *pack_elapsed = nullptr; // seconds into the current pack/unpack
+	float *xp_partial = nullptr; // Promotion.js xp below one point (healing grants a little each tick)
 
 	size_t cap = 0;
 	size_t count = 0;
@@ -88,7 +89,7 @@ struct UnitSoA {
 		FREE(poison_timer); FREE(snare_timer); FREE(knockback_timer);
 		FREE(knockback_dir_x); FREE(knockback_dir_z);
 		FREE(slow_timer); FREE(bleed_timer); FREE(burning_timer);
-		FREE(pack_state); FREE(pack_elapsed);
+		FREE(pack_state); FREE(pack_elapsed); FREE(xp_partial);
 		#undef FREE
 		cap = count = 0;
 	}
@@ -154,6 +155,7 @@ struct UnitSoA {
 		realloc_aligned(burning_timer, c * sizeof(float));
 		realloc_aligned(pack_state, c * sizeof(uint8_t));
 		realloc_aligned(pack_elapsed, c * sizeof(float));
+		realloc_aligned(xp_partial, c * sizeof(float));
 		cap = c;
 	}
 
@@ -195,6 +197,7 @@ struct UnitSoA {
 		// 0 A.D. trains siege engines as their "_packed" template.
 		pack_state[i] = unit_has_pack(u_tmpl, u_type) ? PACK_PACKED : PACK_NONE;
 		pack_elapsed[i] = 0.0f;
+		xp_partial[i] = 0.0f;
 		hp[i] = max_hp[i] = info.hp;
 		attack_range[i] = info.attack_range;
 		attack_damage[i] = info.attack_damage;
@@ -243,6 +246,7 @@ struct UnitSoA {
 			burning_timer[idx] = burning_timer[last];
 			pack_state[idx] = pack_state[last];
 			pack_elapsed[idx] = pack_elapsed[last];
+			xp_partial[idx] = xp_partial[last];
 		}
 		count--;
 	}
