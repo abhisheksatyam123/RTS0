@@ -31,6 +31,30 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{"Imperial Ministry", "imperial_ministry", "ministry", 3000.0f, 2, 0, 0, 200, 200, 20, 9, 50.0f, 0.0f, 0.0f, 0.0f, 3000.0f, 5.0f, 1.0f, 20.0f}, /* structures/han/ministry */ \
 
 
+// LootInfo rows (xp, food, wood, stone, metal) for building_loot(), in BuildingType order.
+#define RTSO_CIV_BUILDING_LOOT_ROWS \
+		{0, 0, 0, 40, 40}, /* structures/athen/gymnasium */ \
+		{0, 0, 0, 20, 40}, /* structures/athen/prytaneion */ \
+		{0, 0, 0, 20, 40}, /* structures/spart/gerousia */ \
+		{0, 0, 0, 40, 40}, /* structures/spart/syssiton */ \
+		{0, 0, 0, 40, 40}, /* structures/pers/tachara */ \
+		{0, 0, 80, 30, 0}, /* structures/rome/army_camp */ \
+		{0, 0, 0, 100, 100}, /* structures/rome/amphitheater_pompeii */ \
+		{0, 0, 0, 40, 40}, /* structures/mace/library */ \
+		{0, 0, 20, 0, 0}, /* structures/brit/kennel */ \
+		{0, 0, 80, 0, 0}, /* structures/gaul/assembly */ \
+		{0, 0, 0, 20, 20}, /* structures/iber/monument */ \
+		{0, 0, 0, 40, 40}, /* structures/maur/palace */ \
+		{0, 0, 0, 20, 20}, /* structures/maur/pillar_ashoka */ \
+		{0, 0, 0, 90, 30}, /* structures/kush/pyramid_large */ \
+		{0, 0, 0, 30, 15}, /* structures/kush/pyramid_small */ \
+		{0, 0, 20, 0, 20}, /* structures/ptol/mercenary_camp */ \
+		{0, 0, 0, 40, 40}, /* structures/ptol/lighthouse */ \
+		{0, 0, 40, 40, 30}, /* structures/ptol/military_colony */ \
+		{0, 0, 0, 60, 60}, /* structures/han/academy */ \
+		{200, 0, 0, 40, 40}, /* structures/han/ministry */ \
+
+
 // Civilizations (bit per Civilization) that may build a civ-specific structure.
 inline uint16_t civ_building_civ_mask(uint8_t type) {
 	switch (type) {

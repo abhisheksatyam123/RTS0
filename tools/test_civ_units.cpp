@@ -187,6 +187,9 @@ int main() {
 			if (civ_unit_template(i).trainers & bld_bit(BLD_SYSSITON)) ++at_syssiton;
 		CHECK(at_syssiton >= 3);
 		CHECK(bld_bit(BLD_MINISTRY) == (1ull << 45));
+		// 0 A.D. Loot of civ-specific structures (Looter.js), metal as gold.
+		CHECK(building_loot(BLD_ARMY_CAMP).wood == 80 && building_loot(BLD_ARMY_CAMP).stone == 30);
+		CHECK(building_loot(BLD_PYRAMID_LARGE).stone == 90 && building_loot(BLD_PYRAMID_LARGE).metal == 30);
 		// A Military Colony is a territory root and a dropsite; the Lighthouse sees far.
 		CHECK(civ_building_territory_radius(BLD_MILITARY_COLONY) > 10.0f && civ_building_is_dropsite(BLD_MILITARY_COLONY));
 		CHECK(civ_building_territory_radius(BLD_LIBRARY) == 0.0f && !civ_building_is_dropsite(BLD_LIBRARY));

@@ -1140,6 +1140,8 @@ def unique_building_rows(sim_root):
             # Vision/Range on RTS0's scale (x0.3, never below the 18 every structure gets).
             "vision": max(18.0, t.num("Vision/Range") * 0.3),
             "dropsite": bool(t.tokens("ResourceDropsite/Types")),
+            # Loot/* a destroyed or captured structure yields (Looter.js), metal -> gold.
+            "loot": [int(t.num("Loot/" + k)) for k in ("xp", "food", "wood", "stone", "metal")],
         })
     return out
 
@@ -1163,6 +1165,12 @@ def emit_buildings(rows):
             cstr(r["name"]), cstr(r["model"]), cstr(r["portrait"]), f(r["hp"]), r["foot"],
             r["food"], r["wood"], r["gold"], r["stone"], r["pop"], r["garrison"], f(r["build_time"]),
             f(r["capture"]), f(r["regen"]), f(r["garrison_regen"]), f(r["decay"]), r["src"]))
+    w("")
+    w("")
+    w("// LootInfo rows (xp, food, wood, stone, metal) for building_loot(), in BuildingType order.")
+    w("#define RTSO_CIV_BUILDING_LOOT_ROWS \\")
+    for r in rows:
+        w("\t\t{%d, %d, %d, %d, %d}, /* %s */ \\" % tuple(r["loot"] + [r["src"]]))
     w("")
     w("")
     w("// Civilizations (bit per Civilization) that may build a civ-specific structure.")

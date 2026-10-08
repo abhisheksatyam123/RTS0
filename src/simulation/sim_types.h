@@ -1219,9 +1219,8 @@ inline LootInfo unit_loot(uint16_t tmpl, uint8_t type) {
 	return unit_class_loot(type);
 }
 
-// Structures yield resources only (no Loot/xp). Keyed by building type; a type
-// past the table (a civ-unique building appended later) yields nothing until it
-// gets a row here.
+// Structures yield resources (and no xp, but for the Han Imperial Ministry). Keyed by building type; the
+// civ-specific structures (ids 26-45) take their rows from civ_building_data.h.
 inline LootInfo building_loot(uint8_t type) {
 	static const LootInfo table[] = {
 		{0, 0, 60, 60, 50},    // TOWN_CENTER: civic_civil_centre
@@ -1250,8 +1249,10 @@ inline LootInfo building_loot(uint8_t type) {
 		{0, 0, 40, 40, 0},     // ELEPHANT_STABLE: military_elephant_stable
 		{0, 0, 40, 120, 40},   // THEATER: special_theater
 		{0, 0, 0, 0, 0},       // EMBASSY: military_embassy
+		RTSO_CIV_BUILDING_LOOT_ROWS
 	};
-	return type < sizeof(table) / sizeof(table[0]) ? table[type] : LootInfo{};
+	static_assert(sizeof(table) / sizeof(table[0]) == BLD_TYPE_COUNT, "one loot row per BuildingType");
+	return type < BLD_TYPE_COUNT ? table[type] : LootInfo{};
 }
 // 0 A.D. unit_advanced.json and unit_elite.json each multiply Loot/* by 1.2.
 inline float loot_rank_multiplier(uint8_t rank) {
