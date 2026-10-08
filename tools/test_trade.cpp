@@ -279,7 +279,7 @@ static void test_trading_goods() {
 	CHECK(l.cmd_set_trading_goods(0, even));
 	CHECK(tm.compute_sim_hash(s) != tm.compute_sim_hash(l));
 
-	// Lockstep command 32 carries one percent byte per ResourceType.
+	// Lockstep command 33 carries one percent byte per ResourceType.
 	NetCommand cmd;
 	cmd.client_id = 0;
 	cmd.cmd_type = (uint8_t)NetCommandType::NET_CMD_SET_TRADING_GOODS;

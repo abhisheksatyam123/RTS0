@@ -1187,6 +1187,8 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			sim.cmd_delete(pl, c.entity_ids.data(), c.entity_ids.size());
 		} else if (c.cmd_type == 31) { // Back to work
 			sim.order_back_to_work(ids, n);
+		} else if (c.cmd_type == 32) { // Heal
+			sim.order_heal(ids, n, c.target_id, queued);
 		} else if (c.cmd_type == 26) { // Structure upgrade — target_id=building, param 0 start / 1 cancel.
 			if (c.param == 1) sim.cmd_cancel_upgrade(pl, c.target_id);
 			else sim.cmd_upgrade_building(pl, c.target_id);
@@ -1197,7 +1199,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		} else if (c.cmd_type == 25) { // Train roster template — target_id=building, target_x=template.
 			if (c.target_x >= 0.0f && c.target_x < (float)CIV_UNIT_TEMPLATE_COUNT)
 				sim.cmd_train_template(pl, c.target_id, (uint16_t)c.target_x);
-		} else if (c.cmd_type == 32) { // Trading goods — target_id = one percent byte per ResourceType.
+		} else if (c.cmd_type == 33) { // Trading goods — target_id = one percent byte per ResourceType.
 			uint8_t pct[RES_COUNT];
 			for (int r = 0; r < RES_COUNT; ++r) pct[r] = (uint8_t)(c.target_id >> (8 * r));
 			sim.cmd_set_trading_goods(pl, pct);
