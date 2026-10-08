@@ -66,13 +66,21 @@ struct Grid {
 // ---------------------------------------------------------------------------
 // Nav cell types - matches passability intent from Pathfinding.h:IS_PASSABLE
 // NAV_PASSABLE = free for PATHFINDING pass class, NAV_OBSTRUCTED = building/impassable,
-// NAV_WATER = below water_height (ships only, Phase 19 triremes will use separate mask).
+// NAV_WATER = water too deep to wade (ships only), NAV_SHALLOW = water land units can wade
+// and ships can sail (0 A.D. pathfinder.xml: default MaxWaterDepth 2 overlaps ship MinWaterDepth).
 // ---------------------------------------------------------------------------
 enum NavCell : uint8_t {
     NAV_PASSABLE   = 0,
     NAV_OBSTRUCTED = 1,
-    NAV_WATER      = 2
+    NAV_WATER      = 2,
+    NAV_SHALLOW    = 3
 };
+
+// 0 A.D. mods/mod/simulation/data/pathfinder.xml: land classes (default, large) have
+// MaxWaterDepth 2 m. Depth is measured from the nav water line (water_h + 0.3, where cells
+// turn to water); RTS0 heights are 0 A.D. metres x 0.2 (tools/port_0ad_maps.py), so 2 m is 0.4.
+static constexpr float NAV_WATER_MARGIN = 0.3f;
+static constexpr float LAND_MAX_WATER_DEPTH = 0.4f;
 
 // ---------------------------------------------------------------------------
 // Phase 8A / P2: Passability mask constants — mirrors 0 A.D. CCmpPathfinder pass classes.
@@ -244,8 +252,8 @@ struct NavGrid {
     bool is_passable_for(int cx, int cy, uint8_t pass) const {
         if (!cells.inside(cx, cy)) return false;
         uint8_t c = cells.at(cx, cy);
-        if (pass == PASS_SHIP || (pass & PASS_SHIP)) return c == NAV_WATER;
-        if (c != NAV_PASSABLE) return false;
+        if (pass == PASS_SHIP || (pass & PASS_SHIP)) return c == NAV_WATER || c == NAV_SHALLOW;
+        if (c != NAV_PASSABLE && c != NAV_SHALLOW) return false;
         if ((pass == PASS_CAVALRY || (pass & PASS_CAVALRY)) && is_steep(cx, cy)) return false;
         return true;
     }
@@ -628,7 +636,7 @@ struct NavGrid {
         std::vector<uint8_t> steep; // compute_cell_slope() > steep_max_slope
         float steep_max_slope = 0.0f;
         bool steep_valid = false;
-        std::vector<uint8_t> water; // centre height < water_thresh
+        std::vector<uint8_t> water; // NAV_WATER, NAV_SHALLOW or NAV_PASSABLE by centre height
         float water_thresh = 0.0f;
         bool water_valid = false;
     };
@@ -703,7 +711,8 @@ struct NavGrid {
     // Tag water navcells and compute cavalry slopes from heightmap.
     // heights is res x res row-major with [-map_half, +map_half] extent.
     // Slopes exceeding cavalry_max_slope are marked in steep_cells_ (PASS_CAVALRY exclusion).
-    // Any navcell whose bilinear-sampled height < water_h+0.3 becomes NAV_WATER (and dirty=1).
+    // Any navcell whose bilinear-sampled height < water_h+0.3 becomes water (and dirty=1):
+    // NAV_SHALLOW within LAND_MAX_WATER_DEPTH of that line, NAV_WATER below it.
     void set_water_from_heights(const std::vector<float>& heights, int res, float water_h) {
         if (heights.empty() || res <= 0) return;
         if (cells.blank()) return;
@@ -715,7 +724,8 @@ struct NavGrid {
         // treat as "no water" — leave grid untouched (matches rms_generator behaviour).
         if (water_h < -0.5f) return;
 
-        const float thresh = water_h + 0.3f;
+        const float thresh = water_h + NAV_WATER_MARGIN;
+        const float deep = thresh - LAND_MAX_WATER_DEPTH;
         sync_height_cache(heights, res);
         HeightSampleCache& c = height_cache_;
         if (!c.water_valid || !same_bits(c.water_thresh, thresh)) {
@@ -725,7 +735,9 @@ struct NavGrid {
                     // Navcell center in world
                     float wx = ((static_cast<float>(x) + 0.5f) / static_cast<float>(this->res)) * (map_half * 2.0f) - map_half;
                     float wz = ((static_cast<float>(y) + 0.5f) / static_cast<float>(this->res)) * (map_half * 2.0f) - map_half;
-                    c.water[static_cast<size_t>(y) * this->res + x] = sample_height_bilinear(wx, wz, heights, res) < thresh;
+                    const float h = sample_height_bilinear(wx, wz, heights, res);
+                    c.water[static_cast<size_t>(y) * this->res + x] =
+                        h < deep ? NAV_WATER : (h < thresh ? NAV_SHALLOW : NAV_PASSABLE);
                 }
             }
             c.water_thresh = thresh;
@@ -733,14 +745,15 @@ struct NavGrid {
         }
         for (int y = 0; y < this->res; ++y) {
             for (int x = 0; x < this->res; ++x) {
-                if (c.water[static_cast<size_t>(y) * this->res + x]) {
-                    if (cells.at(x, y) != NAV_WATER) {
-                        cells.at(x, y) = NAV_WATER;
+                const uint8_t w = c.water[static_cast<size_t>(y) * this->res + x];
+                if (w != NAV_PASSABLE) {
+                    if (cells.at(x, y) != w) {
+                        cells.at(x, y) = w;
                         dirty.at(x, y) = 1;
                     }
                 } else {
                     // Only clear water tag if it was previously water; don't overwrite buildings
-                    if (cells.at(x, y) == NAV_WATER) {
+                    if (cells.at(x, y) == NAV_WATER || cells.at(x, y) == NAV_SHALLOW) {
                         cells.at(x, y) = NAV_PASSABLE;
                         dirty.at(x, y) = 1;
                     }

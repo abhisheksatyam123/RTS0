@@ -272,6 +272,7 @@ static void test_attack_walk() {
 	Simulation s;
 	setup(s, CIV_ATHENIANS);
 	auto inf = spawn_block(s, 8, -30, 0, 0, UNIT_SWORDSMAN);
+	s.order_set_stance(inf.data(), inf.size(), STANCE_AGGRESSIVE); // passive units never fight (g_Stances)
 	s.order_set_formation(inf.data(), inf.size(), FORMATION_BOX);
 	run(s, 4.0f);
 	// Two passive enemy dummies on the way.
