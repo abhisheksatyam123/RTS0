@@ -154,7 +154,8 @@ static bool start_peers(NetHost &h, NetHost &c, uint16_t port, int budget_ms = 1
 // ---- Phase 1: frozen ids; a retired NMT_DIPLOMACY packet is dropped ---------
 static bool run_wire_contract(const char *ph) {
 	CHECK(static_cast<uint8_t>(NetMessageType::NMT_DIPLOMACY) == 31, ph);
-	CHECK(static_cast<uint8_t>(NetMessageType::NMT_COUNT) == 34, ph);
+	CHECK(static_cast<uint8_t>(NetMessageType::NMT_COUNT) == 35, ph);
+	CHECK(static_cast<uint8_t>(NetMessageType::NMT_REJOIN_STATE) == 34, ph);
 	// Append-only NMT ids 32/33 (late-join sync) and the frozen cmd_type block.
 	CHECK(static_cast<uint8_t>(NetMessageType::NMT_JOIN_SYNC_STATE) == 32, ph);
 	CHECK(static_cast<uint8_t>(NetMessageType::NMT_JOIN_SYNC_CHECK) == 33, ph);

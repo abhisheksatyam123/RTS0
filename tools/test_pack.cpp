@@ -58,10 +58,11 @@ static float x_of(const Simulation &s, uint32_t uid) { return s.units().pos_x[id
 static float z_of(const Simulation &s, uint32_t uid) { return s.units().pos_z[idx_of(s, uid)]; }
 static float hp_of(const Simulation &s, uint32_t uid) { return s.units().hp[idx_of(s, uid)]; }
 
-// A tough enemy dummy that never fights back or walks off.
+// A tough enemy dummy that never fights back or walks off: stand ground (a passive
+// unit flees when attacked, 0 A.D. UnitAI respondFlee), out of its own reach.
 static uint32_t dummy(Simulation &s, float x, float z) {
 	uint32_t id = s.spawn_unit(x, z, 1, UNIT_SPEARMAN, 1.0e6f);
-	s.order_set_stance(&id, 1, STANCE_PASSIVE);
+	s.order_set_stance(&id, 1, STANCE_STAND_GROUND);
 	return id;
 }
 

@@ -267,7 +267,10 @@ int main() {
 		const Simulation::Building *hb = nullptr;
 		for (const auto &b : sim->buildings_) if (b.id == house) hb = &b;
 		CHECK(hb && hb->team == GAIA_PLAYER);
-		for (int k = 0; k < 6; ++k) sim->spawn_unit(hb->x + 4.0f + (float)k, hb->z + 4.0f, 0, UNIT_SWORDSMAN);
+		// Capture is an attack (Attack.js Capture): the swordsmen are ordered to capture it.
+		uint32_t capturers[6];
+		for (int k = 0; k < 6; ++k) capturers[k] = sim->spawn_unit(hb->x + 4.0f + (float)k, hb->z + 4.0f, 0, UNIT_SWORDSMAN);
+		sim->order_attack_building(capturers, 6, house, false, true);
 		run(*sim, 60.0f);
 		for (const auto &b : sim->buildings_) if (b.id == house) hb = &b;
 		CHECK(hb->team == 0);
@@ -366,6 +369,19 @@ int main() {
 		run(*sim, 0.1f);
 		CHECK(sim->relics().size() == map_relics);
 		delete sim;
+	}
+
+	// 12. A 6-slot lobby (U6): the random map has a base per slot and every AI slot gets Petra.
+	{
+		Simulation sim;
+		sim.generate_random_map(MAP_MAINLAND, 11, 6, 128.0f);
+		for (uint8_t t = 0; t < MAX_PLAYERS; ++t) sim.set_player_active(t, t < 6, t > 0 && t < 6);
+		int tcs[MAX_PLAYERS] = {};
+		for (const auto &b : sim.buildings_)
+			if (b.type == BLD_TOWN_CENTER && b.team < MAX_PLAYERS) tcs[b.team]++;
+		for (uint8_t t = 0; t < 6; ++t) CHECK(tcs[t] == 1);
+		for (uint8_t t = 1; t < 6; ++t) CHECK(sim.petra_runs_for(t));
+		CHECK(!sim.petra_runs_for(0) && !sim.petra_runs_for(6));
 	}
 
 	if (failures) {
