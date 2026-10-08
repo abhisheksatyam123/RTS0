@@ -19,9 +19,34 @@ RTS0 builds on **0 A.D.** (https://play0ad.com) by Wildfire Games.
 | `src/simulation/nav/vertex_pathfinder.h` | `source/simulation2/helpers/VertexPathfinder.*` | Port |
 | `src/simulation/grid_nav.h` | `Grid.h`, `HierarchicalPathfinder.*`, `Pathfinding.h` | Port |
 | `src/simulation/petra_ai.h`, `simulation.*` | `simulation/ai/petra/*.js`, `simulation/components/UnitAI.js` and other components | Port / native rewrite of game logic |
-| `src/simulation/rms_generator.*` | 0 A.D. random map scripts (`maps/random/`) | Modeled on them; how closely is not yet checked |
+| `src/simulation/rms_generator.*` | 0 A.D. random map scripts (`maps/random/`) | Modelled on them, one row per map in the table below |
 | `src/network/turn_manager.*`, `net_types.h` | `source/network/NetServerTurnManager.*`, `NetClientTurnManager.*`, `NetMessages.h` | Port |
 | `tools/extract_0ad_assets.py` | `source/graphics/ModelDef.cpp`, `ps/FileIo.cpp`, `shaders/glsl/model_common.fs` | Port of file-format readers |
+
+## Random maps modelled on 0 A.D. (`src/simulation/rms_generator.cpp`)
+
+Each `synth_<id>` function generates RTS0's version of the 0 A.D. map script of the same name. The older RTS0 random maps (Continental, Archipelago, Danubius, Jebel Barkal and others) are RTS0's own and not listed. The scripts are 0 A.D. code (GPL-2.0-or-later).
+
+| RTS0 map | 0 A.D. source | Kind |
+|---|---|---|
+| Mainland | `maps/random/mainland.js` | Modelled on it, layout from memory |
+| Alpine Lakes | `maps/random/alpine_lakes.js` | Modelled on it, layout from memory |
+| Lake | `maps/random/lake.js` | Modelled on it, layout from memory |
+| Gulf of Bothnia | `maps/random/gulf_of_bothnia.js` | Modelled on it, layout from memory |
+| Ardennes Forest | `maps/random/ardennes_forest.js` | Modelled on it, layout from memory |
+| Near-Eastern Badlands (`nearestern_badlands`) | `maps/random/neareastern_badlands.js` | Modelled on it, layout from memory |
+| Rivers | `maps/random/rivers.js` | Modelled on it, layout from memory |
+| Canyon | `maps/random/canyon.js` | Modelled on it, layout from memory |
+| Corinthian Isthmus | `maps/random/corinthian_isthmus.js` | Modelled on it, layout from memory |
+| Belgian Uplands | `maps/random/belgian_uplands.js` | Modelled on it, layout from memory |
+| Lorraine Plain | `maps/random/lorraine_plain.js` | Modelled on it, layout from memory |
+| Hyrcanian Shores | `maps/random/hyrcanian_shores.js` | Modelled on it, layout from memory |
+| Northern Lights | `maps/random/northern_lights.js` | Layout read from the script: sea shore at f = 0.69, player line at f = 0.45, ice floes, 1-4 lakes per player |
+| Kerala | `maps/random/kerala.js` | Layout read from the script: sea shore at f = 0.31, player line at f = 0.55, mountains past f = 0.69 |
+| Polar Sea | `maps/random/polar_sea.js` | Layout read from the script: central sea, 10-16 small lakes, players at f = 0.35; RTS0 keeps a few groves |
+| Sahel | `maps/random/sahel.js` | Layout read from the script: players at f = 0.35, 1-3 water holes 24 tiles from bases, scarce wood |
+| African Plains | `maps/random/african_plains.js` | Layout read from the script: players at f = 0.35, 6-16 hills, 4-10 watering holes |
+| Alpine Valley | `maps/random/alpine_valley.js` | Layout read from the script: mountain ranges from f = 0.49 to 0.18 between players, with passages |
 
 ## Data from 0 A.D. (CC BY-SA 3.0)
 

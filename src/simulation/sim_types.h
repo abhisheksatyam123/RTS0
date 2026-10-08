@@ -27,7 +27,9 @@ enum BiomeType : uint8_t {
 	BIOME_TEMPERATE = 4,
 	BIOME_STEPPE = 5,
 	BIOME_SAVANNA = 6,
-	BIOME_COUNT = 7
+	BIOME_POLAR = 7,
+	BIOME_INDIA = 8,
+	BIOME_COUNT = 9
 };
 
 enum Civilization : uint8_t {
@@ -77,7 +79,13 @@ enum MapType : uint8_t {
 	MAP_BELGIAN_UPLANDS = 24,
 	MAP_LORRAINE_PLAIN = 25,
 	MAP_HYRCANIAN_SHORES = 26,
-	MAP_TYPE_COUNT = 27
+	MAP_NORTHERN_LIGHTS = 27,
+	MAP_KERALA = 28,
+	MAP_POLAR_SEA = 29,
+	MAP_SAHEL = 30,
+	MAP_AFRICAN_PLAINS = 31,
+	MAP_ALPINE_VALLEY = 32,
+	MAP_TYPE_COUNT = 33
 };
 
 struct MapTypeInfo {
@@ -117,7 +125,13 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_CORINTHIAN_ISTHMUS, "corinthian_isthmus", "Corinthian Isthmus (RMS)", "mediterranean", true, "Two lands joined by a narrow isthmus, with the sea on both sides of it."},
 		{MAP_BELGIAN_UPLANDS, "belgian_uplands", "Belgian Uplands (RMS)", "temperate", true, "Steep wooded hills and valleys with no water, high ground everywhere."},
 		{MAP_LORRAINE_PLAIN, "lorraine_plain", "Lorraine Plain (RMS)", "temperate", true, "A flat plain split by a river with a few fords, players on either bank."},
-		{MAP_HYRCANIAN_SHORES, "hyrcanian_shores", "Hyrcanian Shores (RMS)", "temperate", true, "A sea along one edge, a forested coastal strip and wooded highlands behind it."}
+		{MAP_HYRCANIAN_SHORES, "hyrcanian_shores", "Hyrcanian Shores (RMS)", "temperate", true, "A sea along one edge, a forested coastal strip and wooded highlands behind it."},
+		{MAP_NORTHERN_LIGHTS, "northern_lights", "Northern Lights (RMS)", "polar", true, "Snowy land with a frozen sea and ice floes to the north; wood is scarce."},
+		{MAP_KERALA, "kerala", "Kerala (RMS)", "india", true, "Players on India's south-western shore, between the sea and the mountains."},
+		{MAP_POLAR_SEA, "polar_sea", "Polar Sea (RMS)", "polar", true, "Icy land round a central sea, with small lakes and hardly any trees."},
+		{MAP_SAHEL, "sahel", "Sahel (RMS)", "savanna", true, "Open, nearly flat savanna with a few water holes; plenty of food and mines, little wood."},
+		{MAP_AFRICAN_PLAINS, "african_plains", "African Plains (RMS)", "savanna", true, "Lush plains cluttered with watering holes and hills, teeming with wildlife."},
+		{MAP_ALPINE_VALLEY, "alpine_valley", "Alpine Valley (RMS)", "alpine", true, "Deep valleys for each player, walled off by high mountain ranges with passes."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
