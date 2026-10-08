@@ -50,6 +50,15 @@ static void test_no_early_rush() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(1);
 	s->spawn_initial();
+	// The idle player is truly idle: passive, so its archer doesn't pick a fight with
+	// Petra's gatherers passing by (which is not a rush, and they fight back).
+	{
+		const auto u = s->units();
+		std::vector<uint32_t> mine;
+		for (size_t i = 0; i < u.count; ++i)
+			if (u.alive[i] && u.team[i] == 0) mine.push_back(u.id[i]);
+		s->order_set_stance(mine.data(), mine.size(), STANCE_PASSIVE);
+	}
 	const int start_units = count_units(*s, 0, false);
 	bool attacked = false;
 	float t = 0.0f;
@@ -111,9 +120,15 @@ static void test_roster_army() {
 		// A fortress outlasts the infantry's first wave, so the siege has something to fire at.
 		s->spawn_building_world(42.0f, 42.0f, BLD_FORTRESS, 0, 1.0f);
 		bool hero = false, champion = false, siege = false, tower = false, packed_moved = false, unpacked_fired = false;
+		bool advanced = false, arsenal = false;
 		for (float t = 0.0f; t < 20.0f * 60.0f && !s->is_game_over(); t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			if (s->ticks_ % 20 != 0) continue; // once a second
+			for (const auto &b : s->buildings())
+				if (b.team == 1 && b.build_progress >= 1.0f && !b.wrecked) {
+					if (b.type == BLD_GYMNASIUM || b.type == BLD_THEATER) advanced = true;
+					if (b.type == BLD_ARSENAL) arsenal = true;
+				}
 			const auto u = s->units();
 			for (size_t i = 0; i < u.count; ++i) {
 				if (!u.alive[i] || u.team[i] != 1 || u.tmpl[i] >= CIV_UNIT_TEMPLATE_COUNT) continue;
@@ -127,10 +142,12 @@ static void test_roster_army() {
 				else if (u.unit_type[i] == UNIT_CATAPULT || u.unit_type[i] == UNIT_SIEGE_RAM || u.unit_type[i] == UNIT_BOLT_SHOOTER) siege = true;
 			}
 		}
-		std::printf("  %s by 20 min: phase %d, hero %s, champions %s, siege %s, siege tower %s, siege moves packed %s, fires unpacked %s\n",
+		std::printf("  %s by 20 min: phase %d, hero %s, champions %s, siege %s, siege tower %s, siege moves packed %s, fires unpacked %s, arsenal %s, %s %s\n",
 		            civ_info((Civilization)civ).name, s->petra_phase(), hero ? "yes" : "no", champion ? "yes" : "no",
 		            siege ? "yes" : "no", tower ? "yes" : "no",
-		            packed_moved ? "yes" : "no", unpacked_fired ? "yes" : "no");
+		            packed_moved ? "yes" : "no", unpacked_fired ? "yes" : "no", arsenal ? "yes" : "no",
+		            civ == CIV_ATHENIANS ? "gymnasium" : "theater", advanced ? "yes" : "no");
+		CHECK(advanced, "builds the civ's advanced structure (config.js buildings)");
 		CHECK(hero, "trains a hero in the city phase");
 		CHECK(champion, "trains roster champions in the city phase");
 		CHECK(siege, "trains siege engines");
@@ -418,7 +435,8 @@ static void test_attack_plans() {
 		int attack_size = 0, huge_size = 0;
 		std::vector<int> kinds;
 		auto last = Simulation::AttackPlan::UNEXECUTED;
-		for (float t = 0.0f; t < 12.0f * 60.0f; t += Simulation::FIXED_STEP) {
+		// HugeAttack launches around 11-12 min on this map; 14 min leaves room for map changes.
+		for (float t = 0.0f; t < 14.0f * 60.0f; t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			const auto &m = s->petra_attack_manager();
 			const auto st = s->petra_attack_plan().state;

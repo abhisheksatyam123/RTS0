@@ -98,6 +98,8 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	LineEdit *lobby_name = nullptr;
 	LineEdit *lobby_host = nullptr;
 	LineEdit *lobby_port = nullptr;
+	LineEdit *lobby_password = nullptr; // 0 A.D. password-protected game (host sets, joiner gives)
+	size_t kicks_shown_ = 0;           // NetHost::kicks() already announced
 	Label *lobby_status = nullptr;
 	rtso::NetHost net_host_;
 	rtso::TurnManager turn_mgr_;
@@ -187,6 +189,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// applied here: host sets true in _on_lobby_start_pressed, joiner in
 	// apply_net_game_start; both set false at Host/Join press.
 	bool net_game_started_ = false;
+	bool net_status_shown_ = false; // a network warning is on lobby_status
 	float game_speed = 1.0f;
 	double match_elapsed_time = 0.0;
 
@@ -279,7 +282,8 @@ public:
 	// P4.1 host hooks for chat_window.h / diplomacy_dialog.h: thin inline
 	// forwards to the existing sim/net path (NMT_CHAT + cmd 22 unchanged).
 	String chat_civ_name() { return rtso::civ_info(sim->player_civ(local_player())).name; }
-	void chat_send_wire(const std::string &wire) { net_host_.sendChat(wire); }
+	// NMT_CHAT, or a host's 0 A.D. chat command (/kick name, /ban name).
+	void chat_send_wire(const std::string &wire);
 	rtso::Simulation *ui_sim() override { return sim; }
 	uint32_t ui_selected_building_id() const override { return selected_building_id; }
 	void _on_barter_requested(int sell_type, int buy_type, int amount);

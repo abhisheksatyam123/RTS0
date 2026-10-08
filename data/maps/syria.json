@@ -14062,5 +14062,249 @@
       "x": -87.0,
       "z": -32.54
     }
+  ],
+  "treasures": [
+    {
+      "type": "food_jars",
+      "x": -115.98,
+      "z": -21.32
+    },
+    {
+      "type": "food_jars",
+      "x": 107.78,
+      "z": 1.48
+    },
+    {
+      "type": "food_persian_big",
+      "x": 64.79,
+      "z": -55.26
+    },
+    {
+      "type": "food_persian_big",
+      "x": -50.79,
+      "z": -7.75
+    },
+    {
+      "type": "metal_persian_big",
+      "x": 1.9,
+      "z": -118.48
+    },
+    {
+      "type": "metal_persian_small",
+      "x": 40.02,
+      "z": -111.83
+    },
+    {
+      "type": "metal_persian_small",
+      "x": -8.32,
+      "z": 38.81
+    },
+    {
+      "type": "metal_persian_big",
+      "x": 40.7,
+      "z": 50.84
+    },
+    {
+      "type": "metal_persian_big",
+      "x": -113.29,
+      "z": -99.15
+    },
+    {
+      "type": "metal_persian_big",
+      "x": 141.79,
+      "z": 42.85
+    },
+    {
+      "type": "stone",
+      "x": 107.68,
+      "z": -40.93
+    },
+    {
+      "type": "stone",
+      "x": -99.47,
+      "z": -32.38
+    },
+    {
+      "type": "wood",
+      "x": -95.01,
+      "z": -53.21
+    },
+    {
+      "type": "wood",
+      "x": -93.99,
+      "z": -52.09
+    },
+    {
+      "type": "wood",
+      "x": -93.78,
+      "z": -53.49
+    },
+    {
+      "type": "wood",
+      "x": 125.95,
+      "z": -28.56
+    },
+    {
+      "type": "wood",
+      "x": 125.11,
+      "z": -29.9
+    },
+    {
+      "type": "wood",
+      "x": 126.49,
+      "z": -29.93
+    },
+    {
+      "type": "wood",
+      "x": 7.99,
+      "z": -24.64
+    },
+    {
+      "type": "wood",
+      "x": 8.48,
+      "z": -151.85
+    },
+    {
+      "type": "wood",
+      "x": 11.6,
+      "z": 123.65
+    },
+    {
+      "type": "food_barrels_buried",
+      "x": 84.25,
+      "z": -26.34
+    },
+    {
+      "type": "food_barrels_buried",
+      "x": -57.9,
+      "z": -27.6
+    },
+    {
+      "type": "food_barrels_buried",
+      "x": -52.15,
+      "z": -119.44
+    },
+    {
+      "type": "food_barrels_buried",
+      "x": 42.72,
+      "z": -124.7
+    },
+    {
+      "type": "food_barrels_buried",
+      "x": 3.63,
+      "z": 21.78
+    },
+    {
+      "type": "food_bin",
+      "x": 80.47,
+      "z": -50.33
+    },
+    {
+      "type": "food_bin",
+      "x": 81.38,
+      "z": -50.81
+    },
+    {
+      "type": "food_bin",
+      "x": 80.89,
+      "z": -51.43
+    },
+    {
+      "type": "food_bin",
+      "x": -54.98,
+      "z": -37.13
+    },
+    {
+      "type": "food_bin",
+      "x": -55.81,
+      "z": -35.92
+    },
+    {
+      "type": "food_bin",
+      "x": -55.15,
+      "z": -35.68
+    }
+  ],
+  "ruins": [
+    {
+      "type": "stone_statues_egyptian",
+      "x": -15.07,
+      "z": 113.94
+    },
+    {
+      "type": "stone_statues_egyptian",
+      "x": 31.75,
+      "z": 122.1
+    },
+    {
+      "type": "column_doric",
+      "x": -38.45,
+      "z": 113.49
+    },
+    {
+      "type": "column_doric",
+      "x": 12.53,
+      "z": 53.92
+    },
+    {
+      "type": "column_doric",
+      "x": 11.68,
+      "z": 52.58
+    },
+    {
+      "type": "column_doric",
+      "x": 11.4,
+      "z": 51.14
+    },
+    {
+      "type": "column_doric",
+      "x": 10.62,
+      "z": 49.8
+    },
+    {
+      "type": "unfinished_greek_temple",
+      "x": 14.8,
+      "z": -121.32
+    },
+    {
+      "type": "column_doric",
+      "x": 18.03,
+      "z": -124.42
+    },
+    {
+      "type": "column_doric",
+      "x": 18.62,
+      "z": -117.83
+    },
+    {
+      "type": "stone_structure_house",
+      "x": -137.78,
+      "z": 53.03
+    },
+    {
+      "type": "stone_structure_house",
+      "x": -134.43,
+      "z": 55.44
+    },
+    {
+      "type": "stone_structure_house",
+      "x": -133.57,
+      "z": 50.43
+    },
+    {
+      "type": "stone_structure_house",
+      "x": 97.34,
+      "z": -105.07
+    },
+    {
+      "type": "stone_structure_house",
+      "x": 100.01,
+      "z": -108.44
+    },
+    {
+      "type": "stone_structure_house",
+      "x": 99.97,
+      "z": -100.91
+    }
   ]
 }

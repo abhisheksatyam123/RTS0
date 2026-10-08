@@ -62,6 +62,8 @@ bool TurnManager::lockstep_net_active() const {
 	return net_host_ && net_host_->getRole() != NetRole::None && !is_replaying_;
 }
 
+static uint64_t rejoin_now_ms();
+
 static constexpr uint8_t CMD_PEER_JOINED = static_cast<uint8_t>(NetCommandType::NET_CMD_PEER_JOINED);
 static constexpr uint8_t CMD_PEER_LEFT = static_cast<uint8_t>(NetCommandType::NET_CMD_PEER_LEFT);
 
@@ -71,7 +73,8 @@ void TurnManager::ensure_lockstep_peers() {
 		lockstep_peers_.push_back(0);
 		if (net_host_->isHost()) {
 			for (const auto &p : net_host_->getPeers())
-				if (p.connected && !p.is_observer && p.id != 0) lockstep_peers_.push_back(p.id);
+				if (p.connected && p.is_authenticated && !p.kick_disconnect_ms && !p.is_observer && p.id != 0)
+					lockstep_peers_.push_back(p.id);
 		} else {
 			// Every seated human client (assign_slot_players numbers them 1, 2, ...
 			// in slot order, as the host numbers joiners in connect order): their
@@ -98,6 +101,27 @@ void TurnManager::ensure_lockstep_peers() {
 				}
 		}
 	}
+}
+
+std::vector<uint32_t> TurnManager::waiting_on() {
+	std::vector<uint32_t> out;
+	const uint32_t turn = current_turn_ + 1;
+	if (!lockstep_net_active() || turn <= COMMAND_DELAY) return out;
+	ensure_lockstep_peers();
+	auto it = received_batches_.find(turn);
+	for (uint32_t id : lockstep_peers_) {
+		auto since = lockstep_since_.find(id);
+		if (since != lockstep_since_.end() && turn < since->second) continue;
+		auto until = lockstep_until_.find(id);
+		if (until != lockstep_until_.end() && turn > until->second) continue;
+		if (it == received_batches_.end() || std::find(it->second.begin(), it->second.end(), id) == it->second.end())
+			out.push_back(id);
+	}
+	return out;
+}
+
+uint64_t TurnManager::waiting_ms() const {
+	return stall_since_ms_ ? rejoin_now_ms() - stall_since_ms_ : 0;
 }
 
 bool TurnManager::peer_active(uint32_t id) const {
@@ -487,6 +511,7 @@ void TurnManager::reset() {
 	left_clients_.clear();
 	lockstep_until_.clear();
 	pending_control_.clear();
+	stall_since_ms_ = 0;
 	lockstep_since_.clear();
 	rejoin_requests_.clear();
 	rejoin_outbox_.clear();
@@ -833,6 +858,19 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_u8(r.claimed ? 1 : 0);
 	}
 
+	// Wildlife: animals move, fight and die in the sim, so they are lockstep state.
+	const auto fv = sim.fauna();
+	mix_u32((uint32_t)fv.count);
+	for (size_t f = 0; f < fv.count; ++f) {
+		mix_u32(fv.id[f]);
+		mix_float(fv.pos_x[f]);
+		mix_float(fv.pos_z[f]);
+		mix_float(fv.hp[f]);
+		mix_i32(fv.food_amount[f]);
+		mix_u8(fv.fauna_type[f]);
+		mix_u8(fv.behavior[f]);
+	}
+
 	// 7. FoW Grid
 	const uint8_t *fow = sim.fow_grid();
 	const int fow_cells = sim.fow_res() * sim.fow_res();
@@ -1157,6 +1195,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 	// player's batch for N is here. Time keeps accruing so a peer that waited can
 	// catch up, but capped so a long stall does not replay as a burst.
 	if (lockstep_net_active() && !turn_ready(current_turn_ + 1)) {
+		if (!stall_since_ms_) stall_since_ms_ = rejoin_now_ms();
 		++waiting_ticks_;
 		if (turn_timer_ > 5.0f * TURN_DURATION) turn_timer_ = 5.0f * TURN_DURATION;
 		return false;
@@ -1164,6 +1203,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 
 	turn_timer_ -= TURN_DURATION;
 	current_turn_++;
+	stall_since_ms_ = 0;
 
 	TurnFrame frame;
 	frame.turn_index = current_turn_;
