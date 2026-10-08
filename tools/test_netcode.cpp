@@ -521,6 +521,12 @@ unsigned building_type_of(const Simulation &sim, uint32_t id) {
     return 255;
 }
 
+int gate_locked_of(const Simulation &sim, uint32_t id) {
+    for (const auto &b : sim.buildings())
+        if (b.id == id) return b.gate_locked ? 1 : 0;
+    return 0;
+}
+
 int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
         float loss, uint32_t defeat_turn, const char *log_path) {
     Simulation sim;
@@ -678,6 +684,16 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
                 u.param = 0;
                 batch.push_back(u);
             }
+            // Gate lock (cmd 28, 0 A.D. Gate.js): the host locks its new gate
+            // at turn 500 and unlocks it at 560.
+            if (st == 500 || st == 560) {
+                NetCommand g;
+                g.client_id = 0;
+                g.cmd_type = 28;
+                g.target_id = host_wall;
+                g.param = st == 500 ? 1 : 0;
+                batch.push_back(g);
+            }
             for (const auto &c : batch)
                 if (c.client_id == me) tm.post_local_command(c);
         }
@@ -701,12 +717,12 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
                 if (cu.alive[i]) wounds += cu.max_hp[i] - cu.hp[i];
                 else ++dead;
             }
-            std::fprintf(log, "%u %08X %zu d01=%u d10=%u cf=%d wounds=%.0f dead=%u defeated=%u over=%d stone=%d,%d wall=%u\n",
+            std::fprintf(log, "%u %08X %zu d01=%u d10=%u cf=%d wounds=%.0f dead=%u defeated=%u over=%d stone=%d,%d wall=%u locked=%d\n",
                          f.turn_index, f.sim_state_hash, f.commands.size(), sim.get_diplomacy(0, 1),
                          sim.get_diplomacy(1, 0), sim.ceasefire_active() ? 1 : 0, wounds, dead,
                          (unsigned)sim.defeated_mask(), sim.is_game_over() ? 1 : 0,
                          (int)sim.player(0).res[RES_STONE], (int)sim.player(1).res[RES_STONE],
-                         (unsigned)building_type_of(sim, host_wall));
+                         (unsigned)building_type_of(sim, host_wall), gate_locked_of(sim, host_wall));
         }
         if (tm.has_out_of_sync()) {
             std::fprintf(stderr, "[net-peer] %s: OOS at turn %u local=%08X peer=%08X\n",

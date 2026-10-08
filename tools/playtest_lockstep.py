@@ -239,6 +239,12 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
     # Upgrade: the host's wall (12) becomes a gate (8) on the same turn on both peers.
     gate_turn = [next((t for t in sorted(e) if e[t].get("wall") == "8"), None) for e in extras]
     upgrade_ok = gate_turn[0] is not None and gate_turn[0] == gate_turn[1]
+    # Gate lock: the host locks the gate and later unlocks it, on the same turns on both peers.
+    def lock_spans(e):
+        rows = [(t, e[t].get("locked")) for t in sorted(e)]
+        return [t for (_, a), (t, b) in zip(rows, rows[1:]) if a != b]
+    locks = [lock_spans(e) for e in extras]
+    lock_ok = locks[0] == locks[1] and len(locks[0]) == 2
     defeat_ok = (not defeat_turn) or (out_turn[0] is not None and out_turn[0] == out_turn[1]
                                       and out_turn[0] > defeat_turn and not any(over))
     common_turns = sorted(set(hashes[0]) & set(hashes[1]))
@@ -261,8 +267,9 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
         "setup_ok": setup_ok, "setups": setups,
         "ceasefire_ok": ceasefire_ok, "ceasefire_end": cf_end, "ceasefire_hits": cf_hits[:5],
         "tribute_ok": tribute_ok, "tributes": tributes, "upgrade_ok": upgrade_ok, "gate_turn": gate_turn,
+        "lock_ok": lock_ok, "locks": locks,
         "defeat_ok": defeat_ok, "defeat_turn": out_turn, "game_over": over,
-        "ok": divergent is None and complete and setup_ok and ceasefire_ok and defeat_ok and tribute_ok and upgrade_ok and all(rc == 0 for rc in rcs),
+        "ok": divergent is None and complete and setup_ok and ceasefire_ok and defeat_ok and tribute_ok and upgrade_ok and lock_ok and all(rc == 0 for rc in rcs),
     }
 
 
@@ -386,12 +393,15 @@ def main() -> int:
             print(f"[net] ceasefire lifted at turn {nr['ceasefire_end'][0]} on both peers, "
                   f"no combat before it; setup {nr['setups'].get('host')}")
             print(f"[net] tribute of 77 stone landed at turn {nr['tributes'][0][0][0]} on both peers, the "
-                  f"post-defeat one was dropped; wall became a gate at turn {nr['gate_turn'][0]}")
+                  f"post-defeat one was dropped; wall became a gate at turn {nr['gate_turn'][0]}, "
+                  f"locked at turn {nr['locks'][0][0]} and unlocked at turn {nr['locks'][0][1]}")
             if args.net_defeat_turn:
                 print(f"[net] joiner's player wiped at turn {args.net_defeat_turn}, defeated at turn "
                       f"{nr['defeat_turn'][0]} on both peers; host and Petra played on to turn {nr['turns']}")
         elif not nr["tribute_ok"]:
             print(f"[net] FAIL tribute: stone changes (host, join) {nr['tributes']}")
+        elif not nr["lock_ok"]:
+            print(f"[net] FAIL gate lock: lock changes at turns {nr['locks']} (host, join)")
         elif not nr["upgrade_ok"]:
             print(f"[net] FAIL upgrade: wall became a gate at turns {nr['gate_turn']} (host, join)")
         elif not nr["defeat_ok"]:
