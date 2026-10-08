@@ -35,7 +35,10 @@ class AuraManager {
 public:
     std::vector<AuraSource> sources;
 
-    void clear() { sources.clear(); }
+    void clear() {
+        sources.clear();
+        for (auto &v : of_type_) v.clear();
+    }
 
     void register_source(uint32_t id, AuraType type, float range, float value, uint8_t team, float x, float z,
             int16_t aura = -1) {
@@ -49,25 +52,34 @@ public:
         s.z = z;
         s.alive = true;
         s.aura = aura;
+        if (type < AURA_COUNT) of_type_[type].push_back((uint32_t)sources.size());
         sources.push_back(s);
     }
 
     void unregister(uint32_t id) {
         sources.erase(std::remove_if(sources.begin(), sources.end(),
             [id](const AuraSource &s) { return s.source_id == id; }), sources.end());
+        for (auto &v : of_type_) v.clear();
+        for (uint32_t k = 0; k < sources.size(); ++k)
+            if (sources[k].type < AURA_COUNT) of_type_[sources[k].type].push_back(k);
     }
+
+    bool has(AuraType type) const { return type < AURA_COUNT && !of_type_[type].empty(); }
 
     // qtmpl is the querying unit's roster template; hero auras skip units their
     // 0 A.D. "affects" classes exclude.
     float query_modifier(float qx, float qz, uint8_t qteam, AuraType type,
             uint16_t qtmpl = CIV_UNIT_TEMPLATE_NONE) const {
         float mod = 0.0f;
+        if (type >= AURA_COUNT) return mod;
+        // Only this type's sources, in the order they were registered.
+        const std::vector<uint32_t> &of_type = of_type_[type];
         if (type == AURA_HEAL) {
             // Sum-stacking for healing
-            for (const auto &s : sources) {
+            for (uint32_t k : of_type) {
+                const AuraSource &s = sources[k];
                 if (!s.alive) continue;
                 if (s.team != qteam) continue;
-                if (s.type != type) continue;
                 if (s.aura >= 0 && !civ_aura_affects(s.aura, qtmpl)) continue;
                 float dx = qx - s.x;
                 float dz = qz - s.z;
@@ -77,10 +89,10 @@ public:
             }
         } else {
             // Max-stacking for buffs (GATHER, ATTACK, SPEED, ARMOR)
-            for (const auto &s : sources) {
+            for (uint32_t k : of_type) {
+                const AuraSource &s = sources[k];
                 if (!s.alive) continue;
                 if (s.team != qteam) continue;
-                if (s.type != type) continue;
                 if (s.aura >= 0 && !civ_aura_affects(s.aura, qtmpl)) continue;
                 float dx = qx - s.x;
                 float dz = qz - s.z;
@@ -91,6 +103,9 @@ public:
         }
         return mod;
     }
+
+private:
+    std::vector<uint32_t> of_type_[AURA_COUNT]; // indices into sources, per AuraType
 };
 
 } // namespace rtso
