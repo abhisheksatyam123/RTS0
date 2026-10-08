@@ -14,6 +14,7 @@ Uses only stdlib: pathlib, json, zipfile, re.
 import argparse
 import json
 import math
+import os
 import re
 import subprocess
 import sys
@@ -584,7 +585,7 @@ def check_petra_parity():
 # evidence, not grep wiring).  Each probe mirrors the exact algorithm of the
 # C++/JS source, runs it for real, and asserts on measured numbers.
 #
-#   nav-live       -> box: sampled paths vs 0 A.D. LongPathfinder agree <= 1 cell
+#   nav-live       -> box: JPS raw paths optimal vs Dijkstra; pulled paths LOS-clear
 #   territory-live -> box: TC(0,0)+Tower(20,0) border polygon vs 0 A.D. dump <= 2 cells
 #   market-live    -> box: 10 barters wood->gold price series within 0.05 of 0 A.D. JS
 #   aura-live      -> box: hero at (0,0), units at r=15 vs r=17 buff boundary
@@ -603,22 +604,50 @@ def _world_to_cell(x, z, res=NAV_RES, half=NAV_MAP_HALF):
 
 
 # --- 1. NAV LIVE -----------------------------------------------------------
-# C++ harness that runs the REAL NavGrid::find_path out of src/simulation/grid_nav.h,
-# compiled on demand with g++. Emits one "CASE <n> <ok> <sx> <sz> <tx> <tz> <wx,wz>..."
-# line per probe case carrying every emitted waypoint.
-_NAV_HARNESS_SRC = r"""
+# C++ harness that runs the REAL NavGrid::search_cells_jps (raw cell path, before
+# string pulling) and NavGrid::find_path (string-pulled waypoints) out of
+# src/simulation/grid_nav.h, compiled on demand with g++. Emits one "RAW <n> ..."
+# and one "CASE <n> ..." line per probe case.
+_NAV_HARNESS_SRC = r_NAV_HARNESS_SRC = r"""
 #include "grid_nav.h"
+#include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
+#include <utility>
+#include <vector>
 
 static uint32_t xs(uint32_t s){ s ^= s << 13; s ^= s >> 17; s ^= s << 5; return s; }
 
+// Mirrors the endpoint snap at the top of NavGrid::find_path (r <= 3 spiral).
+// Leaves the cell unchanged when no passable cell is found.
+static void snap_cell(const rtso::NavGrid &g, int &cx, int &cy, uint8_t pass) {
+    if (g.is_passable_for(cx, cy, pass)) return;
+    for (int r = 1; r <= 3; ++r)
+        for (int dy = -r; dy <= r; ++dy)
+            for (int dx = -r; dx <= r; ++dx) {
+                if (std::max(std::abs(dx), std::abs(dy)) != r) continue;
+                if (g.is_passable_for(cx + dx, cy + dy, pass)) { cx += dx; cy += dy; return; }
+            }
+}
+
+// Usage: nav_probe SEED NOBS CASES [jps|astar]
+// Emits, per case:
+//   RAW <c> <reached> <sx> <sz> <tx> <tz> x,y x,y ...   raw cell path from the
+//        search itself (NavGrid::search_cells_jps, no string pulling); the
+//        endpoints are the snapped start/goal cells.
+//   CASE <c> <ok> <sx> <sz> <tx> <tz> wx,wz ...         NavGrid::find_path output
+//        (string-pulled world waypoints).
+// "astar" routes both through the legacy search (negative control).
 int main(int argc, char **argv) {
-    if (argc < 4) { std::fprintf(stderr, "usage: nav_probe SEED NOBS CASES\n"); return 2; }
+    if (argc < 4) { std::fprintf(stderr, "usage: nav_probe SEED NOBS CASES [jps|astar]\n"); return 2; }
     uint32_t seed = static_cast<uint32_t>(std::atoi(argv[1]));
     int n_obs = std::atoi(argv[2]);
     int cases = std::atoi(argv[3]);
+    const bool use_astar = argc > 4 && std::strcmp(argv[4], "astar") == 0;
+    const uint8_t pass = rtso::PASS_INFANTRY;
 
     rtso::NavGrid g;
     g.init(64.0f, 64);
@@ -630,8 +659,10 @@ int main(int argc, char **argv) {
         g.dirty.at(cx, cy) = 1;
     }
     g.rebuild_regions();
+    g.use_jps = !use_astar;
 
-    std::printf("HARNESS src/simulation/grid_nav.h NavGrid::find_path res=%d\n", g.res);
+    std::printf("HARNESS src/simulation/grid_nav.h NavGrid::%s res=%d\n",
+                use_astar ? "search_cells_astar" : "search_cells_jps", g.res);
     for (int c = 0; c < cases; ++c) {
         uint32_t k = seed * 2654435761u + static_cast<uint32_t>(c) * 40503u + 1u;
         k = xs(k); int sx = static_cast<int>(k % 64u);
@@ -643,8 +674,25 @@ int main(int argc, char **argv) {
         float wzs = ((sz + 0.5f) / 64.0f) * 128.0f - 64.0f;
         float wtx = ((tx + 0.5f) / 64.0f) * 128.0f - 64.0f;
         float wtz = ((tz + 0.5f) / 64.0f) * 128.0f - 64.0f;
+
+        // Raw cell-level search on the snapped endpoints.
+        int scx = sx, scy = sz, tcx = tx, tcy = tz;
+        snap_cell(g, scx, scy, pass);
+        snap_cell(g, tcx, tcy, pass);
+        std::vector<std::pair<int,int>> cells;
+        bool reached = false;
+        if (g.is_passable_for(scx, scy, pass) && g.is_passable_for(tcx, tcy, pass)) {
+            reached = use_astar
+                ? g.search_cells_astar(scx, scy, tcx, tcy, pass, cells)
+                : g.search_cells_jps(scx, scy, tcx, tcy, pass, cells);
+        }
+        std::printf("RAW %d %d %d %d %d %d", c, reached ? 1 : 0, scx, scy, tcx, tcy);
+        for (const auto &p : cells) std::printf(" %d,%d", p.first, p.second);
+        std::printf("\n");
+
+        // Full pipeline: find_path (endpoint snap + goal reachability + string pull).
         rtso::WaypointPath wp;
-        bool ok = g.find_path(wxs, wzs, wtx, wtz, wp, rtso::PASS_INFANTRY);
+        bool ok = g.find_path(wxs, wzs, wtx, wtz, wp, pass);
         std::printf("CASE %d %d %d %d %d %d", c, ok ? 1 : 0, sx, sz, tx, tz);
         for (int i = 0; i < wp.count; ++i)
             std::printf(" %.4f,%.4f", wp.xs[i], wp.zs[i]);
@@ -702,130 +750,49 @@ def _snap_to_passable(cx, cy, passable, res=NAV_RES):
     return cx, cy
 
 
-def _python_find_path(sx, sz, tx, tz, obstacles, res=NAV_RES):
-    """
-    Faithful Python re-implementation of NavGrid::find_path (grid_nav.h:706-895).
-
-    Mirrors, in order: endpoint snap_to_passable (:714), octile heuristic
-    h = 10*(dx+dy) - 6*min(dx,dy) (:784-789), 8-way expansion with costs
-    {10,10,10,10,14,14,14,14} (:808), no corner cutting (:832-837), the
-    AddJumpedHoriz cardinal scan capped at 24 (:839-853), and string_pull LOS
-    smoothing (:877 -> :246).
-
-    Priority matches Node::operator> EXACTLY (:796-803): order by f ascending,
-    then g DESCENDING (heapq key is (f, -g, x, y)) -- a plain (f, g) tuple
-    reorders equal-f nodes and yields a different (equally optimal) path.
-
-    Returns (cells, internal_goal_g). The reported g is deliberately inflated
-    by the jump scan relative to true octile cost; that is the port's design.
-    """
-    blocked = set(obstacles)
-
-    def passable(x, y):
-        return 0 <= x < res and 0 <= y < res and (x, y) not in blocked
-
-    def line_clear(x0, y0, x1, y1):
-        # grid_nav.h:232 -- Bresenham walk, every visited cell must be passable.
-        dx, stx = abs(x1 - x0), (1 if x0 < x1 else -1)
-        dy, sty = -abs(y1 - y0), (1 if y0 < y1 else -1)
-        err = dx + dy
-        x, y = x0, y0
-        while True:
-            if not passable(x, y):
-                return False
-            if x == x1 and y == y1:
-                return True
-            e2 = 2 * err
-            if e2 >= dy:
-                err += dy
-                x += stx
-            if e2 <= dx:
-                err += dx
-                y += sty
-
-    sx, sz = _snap_to_passable(sx, sz, passable, res)
-    tx, tz = _snap_to_passable(tx, tz, passable, res)
-    if not passable(sx, sz) or not passable(tx, tz):
-        return [], None
-
-    def heuristic(x, y):
-        dx, dy = abs(x - tx), abs(y - tz)
-        return 10 * (dx + dy) - _NAV_H_COEFF * min(dx, dy)
-
-    INF = float("inf")
-    gscore = {(sx, sz): 0}
-    parent = {}
-    closed = set()
-    key_f, key_g, cx0, cy0 = heuristic(sx, sz), 0, sx, sz
-    open_heap = [(key_f, -key_g, cx0, cy0)]
-    dirs = [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1), (1, -1), (-1, 1)]
-    costs = [_NAV_ORTH_COST] * 4 + [_NAV_DIAG_COST] * 4
-
-    import heapq
-    while open_heap:
-        _, neg_g, cx, cy = heapq.heappop(open_heap)
-        g = -neg_g
-        if (cx, cy) in closed:
-            continue
-        closed.add((cx, cy))
-        if cx == tx and cy == tz:
-            break
-        for k, (dx, dy) in enumerate(dirs):
-            nx, ny = cx + dx, cy + dy
-            if not passable(nx, ny):
-                continue
-            if k >= 4:  # no corner cutting
-                if not passable(cx + dx, cy) or not passable(cx, cy + dy):
-                    continue
-            step = costs[k]
-            if k < 4:  # AddJumpedHoriz cardinal scan, cap 24
-                jx, jy, extra = nx, ny, 0
-                while extra < 24:
-                    mx, my = jx + dx, jy + dy
-                    if not passable(mx, my):
-                        break
-                    jx, jy = mx, my
-                    extra += _NAV_ORTH_COST
-                    if jx == tx and jy == tz:
-                        break
-                if extra > 0 and not line_clear(cx, cy, jx, jy):
-                    jx, jy, extra = nx, ny, 0
-                nx, ny = jx, jy
-                step += extra
-            if (nx, ny) in closed:
-                continue
-            ng = g + step
-            if ng < gscore.get((nx, ny), INF):
-                gscore[(nx, ny)] = ng
-                parent[(nx, ny)] = (cx, cy)
-                heapq.heappush(open_heap, (ng + heuristic(nx, ny), -ng, nx, ny))
-
-    if (tx, tz) not in gscore:
-        return [], None
-    path = []
-    cur = (tx, tz)
+def _line_clear(x0, y0, x1, y1, passable):
+    """Mirror of NavGrid::line_clear (grid_nav.h): Bresenham walk, every visited cell passable."""
+    dx, stx = abs(x1 - x0), (1 if x0 < x1 else -1)
+    dy, sty = -abs(y1 - y0), (1 if y0 < y1 else -1)
+    err = dx + dy
+    x, y = x0, y0
     while True:
-        path.append(cur)
-        if cur == (sx, sz):
-            break
-        cur = parent[cur]
-    path.reverse()
+        if not passable(x, y):
+            return False
+        if x == x1 and y == y1:
+            return True
+        e2 = 2 * err
+        if e2 >= dy:
+            err += dy
+            x += stx
+        if e2 <= dx:
+            err += dx
+            y += sty
 
-    if len(path) > 2:  # string_pull (grid_nav.h:246-262)
-        pulled = [path[0]]
-        i = 0
-        while i + 1 < len(path):
-            best = i + 1
-            for j in range(len(path) - 1, i + 1, -1):
-                if line_clear(path[i][0], path[i][1], path[j][0], path[j][1]):
-                    best = j
-                    break
-            pulled.append(path[best])
-            i = best
-        path = pulled
-    if path and path[-1] != (tx, tz):
-        path.append((tx, tz))  # grid_nav.h:883-891
-    return path, gscore[(tx, tz)]
+
+def _segment_legal(a, b, passable):
+    """
+    A raw JPS segment a->b is legal iff it is a horizontal, vertical or exact
+    45-degree run, every cell it covers is passable, and each diagonal step has
+    both corner cells passable (no corner cutting).
+    """
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    if not (dx == 0 or dy == 0 or abs(dx) == abs(dy)):
+        return False
+    n = max(abs(dx), abs(dy))
+    if n == 0:
+        return False
+    stx = (dx > 0) - (dx < 0)
+    sty = (dy > 0) - (dy < 0)
+    for k in range(1, n + 1):
+        x, y = a[0] + stx * k, a[1] + sty * k
+        if not passable(x, y):
+            return False
+        if stx and sty:
+            px, py = x - stx, y - sty
+            if not passable(x, py) or not passable(px, y):
+                return False
+    return True
 
 
 def _dijkstra_optimum(sx, sz, tx, tz, obstacles, res=NAV_RES):
@@ -931,24 +898,44 @@ def _compile_nav_harness(workdir):
     return exe
 
 
+def _cell_center_world(cx, cz, res=NAV_RES, half=NAV_MAP_HALF):
+    """Mirror of the harness / find_path cell-center mapping (grid_nav.h find_path)."""
+    return ((cx + 0.5) / res) * (half * 2.0) - half, ((cz + 0.5) / res) * (half * 2.0) - half
+
+
 def check_nav_live(seed=42, n_cases=12, n_obs=60):
     """
-    G1 live probe -- REMAINING_GAPS box: "sampled paths vs 0 A.D. LongPathfinder
-    on same seed/map agree within 1 cell".
+    G1 live probe -- soundness of the C++ long-range pathfinder on a shared grid.
 
-    Method (the procedure the box asks for):
-      1. Build ONE 64x64 NavGrid with a deterministic obstacle field so both
-         implementations see byte-identical input (no RNG drift).
-      2. Sample N >= 10 (seed, start, goal) pairs from the same xorshift stream.
-      3. Run the REAL C++ NavGrid::find_path (grid_nav.h:706) in a compiled
-         harness, and an independent Python re-implementation of the same
-         documented algorithm (octile 10/14, grid_nav.h:125-127) as reference.
-      4. Gate on: identical endpoints; identical octile cost of the emitted
-         path; optimality against an independent Dijkstra ground truth; and
-         waypoints within 1 cell OR a provably equal-cost alternate.
-      5. Assert determinism by running the harness twice per seed.
+    Method:
+      1. Build ONE 64x64 NavGrid with a deterministic obstacle field so the C++
+         and the Python ground truth see byte-identical input (no RNG drift).
+      2. Sample N (seed, start, goal) pairs from the same xorshift stream.
+      3. Ground truth: plain Dijkstra over the 8-connected no-corner-cut grid
+         with octile costs 10/14 (_dijkstra_optimum). No heuristic, no jumps.
+      4. Run the REAL C++ search in a compiled harness (grid_nav.h):
+         - RAW: NavGrid::search_cells_jps on the snapped start/goal cells, before
+           any string pulling. Gates:
+             * reachability agrees with Dijkstra (unreachable => reached=0);
+             * endpoints equal the snapped start/goal cells;
+             * every raw segment is a legal straight / 45-degree run with no
+               corner cutting (_segment_legal);
+             * raw path octile cost == Dijkstra optimum.
+         - CASE: NavGrid::find_path (string-pulled). Gates: reachable => ok;
+           first waypoint is the start cell; last cell waypoint is the goal cell
+           (find_path may append the exact requested goal point after it); every
+           consecutive waypoint pair is line-of-sight clear with the same
+           Bresenham rule as NavGrid::line_clear.
+      5. Determinism: the harness is run twice; every RAW and CASE line must be
+         identical across the two runs.
+
+    Negative control: RTSO_NAV_PROBE_RAW=astar routes both the raw search and
+    find_path through the legacy A* (grid_nav.h search_cells_astar). It must FAIL.
     """
-    print(f"[nav-live] seed={seed} cases={n_cases} obstacles={n_obs} grid={NAV_RES}x{NAV_RES}")
+    raw_mode = os.environ.get("RTSO_NAV_PROBE_RAW", "jps").strip().lower()
+    if raw_mode not in ("jps", "astar"):
+        raw_mode = "jps"
+    print(f"[nav-live] seed={seed} cases={n_cases} obstacles={n_obs} grid={NAV_RES}x{NAV_RES} search={raw_mode}")
     _pin_octile_constants()
     fails = []
 
@@ -987,132 +974,153 @@ def check_nav_live(seed=42, n_cases=12, n_obs=60):
         for dy in range(12):
             diag = min(dx, dy)
             hv = (dx - diag) + (dy - diag)
-            # must equal the 0 A.D. octile optimum hv*10 + diag*14 exactly
+            # must equal the octile optimum hv*10 + diag*14 exactly
             if 10 * (dx + dy) - _NAV_H_COEFF * min(dx, dy) != hv * 10 + diag * 14:
                 h_exact = False
     print(f"  [{'✓' if h_exact else '✗'}] heuristic h == exact octile for all dx,dy in 0..11")
     if not h_exact:
         fails.append("heuristic != exact octile")
 
-    # No corner cutting: both orthogonals blocked => diagonal is illegal.
-    corner_path, _cg = _python_find_path(0, 0, 1, 1, {(1, 0), (0, 1)})
-    corner_ok = (corner_path == [])
+    # No corner cutting: Dijkstra must see a diagonal through two blocked
+    # orthogonals as illegal, and the same diagonal as cost 14 on an open grid.
+    corner_blocked = _dijkstra_optimum(0, 0, 1, 1, {(1, 0), (0, 1)})
+    corner_open = _dijkstra_optimum(0, 0, 1, 1, set())
+    corner_ok = (corner_blocked is None) and (corner_open == _NAV_DIAG_COST)
     print(f"  [{'✓' if corner_ok else '✗'}] no corner cutting: diagonal through 2 blocked orths is illegal")
     if not corner_ok:
         fails.append("corner cutting allowed")
+
+    obstacles = _nav_obstacles(seed, n_obs)
+
+    def passable(x, y):
+        return 0 <= x < NAV_RES and 0 <= y < NAV_RES and (x, y) not in obstacles
 
     with tempfile.TemporaryDirectory(prefix="rtso_navprobe_") as td:
         workdir = Path(td)
         exe = _compile_nav_harness(workdir)
         use_cpp = exe is not None
-        print(f"  [{'✓' if use_cpp else '~'}] C++ harness vs real grid_nav.h: "
-              f"{'compiled' if use_cpp else 'NO COMPILER - Python reference only'}")
+        print(f"  [{'✓' if use_cpp else '✗'}] C++ harness vs real grid_nav.h: "
+              f"{'compiled' if use_cpp else 'NO COMPILER - cannot exercise the real search'}")
+        if not use_cpp:
+            fails.append("no C++ compiler: nav-live cannot run the real grid_nav.h search")
+            print(f"  FAIL — {len(fails)} mismatches:")
+            for f in fails[:6]:
+                print(f"    - {f}")
+            return 1
 
-        cpp_lines = cpp_lines2 = None
-        if use_cpp:
-            def _run():
-                r = subprocess.run([str(exe), str(seed), str(n_obs), str(n_cases)],
-                                   capture_output=True, text=True, timeout=180)
-                return [l for l in r.stdout.splitlines() if l.startswith("CASE ")]
-            cpp_lines = _run()
-            cpp_lines2 = _run()
+        def _run():
+            r = subprocess.run([str(exe), str(seed), str(n_obs), str(n_cases), raw_mode],
+                               capture_output=True, text=True, timeout=180)
+            return r.stdout.splitlines()
 
-        obstacles = _nav_obstacles(seed, n_obs)
-        agree = exact = ties = opt = gopt = det = compared = 0
+        run1 = _run()
+        run2 = _run()
+        raw1 = {int(l.split()[1]): l for l in run1 if l.startswith("RAW ")}
+        raw2 = {int(l.split()[1]): l for l in run2 if l.startswith("RAW ")}
+        case1 = {int(l.split()[1]): l for l in run1 if l.startswith("CASE ")}
+        case2 = {int(l.split()[1]): l for l in run2 if l.startswith("CASE ")}
+
+        reach = unreach = unreach_ok = endpoints = opt = legal = wp_ok = det = 0
         for case in range(n_cases):
             (sx, sz), (tx, tz) = _nav_case(seed, case)
-            py_path, py_g = _python_find_path(sx, sz, tx, tz, obstacles)
+            ref = _dijkstra_optimum(sx, sz, tx, tz, obstacles)
+            ssx, ssz = _snap_to_passable(sx, sz, passable)
+            stx, stz = _snap_to_passable(tx, tz, passable)
+            start_cell, goal_cell = (ssx, ssz), (stx, stz)
 
-            if use_cpp:
-                parts = cpp_lines[case].split()
-                got = (int(parts[3]), int(parts[4]), int(parts[5]), int(parts[6]))
-                if got != (sx, sz, tx, tz):
-                    fails.append(f"case {case} endpoint mismatch harness/ref")
-                pts = [tuple(map(float, q.split(","))) for q in parts[7:]]
-                cpp_cells = [_world_to_cell(wx, wz) for wx, wz in pts]
-                if cpp_lines2[case] == cpp_lines[case]:
-                    det += 1
-                else:
-                    fails.append(f"case {case} non-deterministic across two harness runs")
-            else:
-                cpp_cells, det = py_path, det + 1
-
-            if not (py_path and cpp_cells):
-                fails.append(f"case {case} no path (py={len(py_path)} cpp={len(cpp_cells)})")
-                print(f"  [✗] case {case:2d} ({sx:2d},{sz:2d})->({tx:2d},{tz:2d}) NO PATH")
+            # --- RAW cell path from NavGrid::search_cells_jps ---
+            rp = raw1.get(case, "").split()
+            if len(rp) < 7:
+                fails.append(f"case {case} missing RAW line from harness")
+                print(f"  [✗] case {case:2d} ({sx:2d},{sz:2d})->({tx:2d},{tz:2d}) MISSING HARNESS OUTPUT")
                 continue
-            compared += 1
+            r_reached = int(rp[2])
+            r_s = (int(rp[3]), int(rp[4]))
+            r_t = (int(rp[5]), int(rp[6]))
+            raw_cells = [tuple(map(int, q.split(","))) for q in rp[7:]]
+            ep_ok = (r_s == start_cell) and (r_t == goal_cell)
+            endpoints += 1 if ep_ok else 0
+            if not ep_ok:
+                fails.append(f"case {case} endpoint mismatch harness={r_s}..{r_t} ref={start_cell}..{goal_cell}")
+            det_ok = raw1.get(case) == raw2.get(case) and case1.get(case) == case2.get(case)
+            det += 1 if det_ok else 0
+            if not det_ok:
+                fails.append(f"case {case} non-deterministic across two harness runs")
 
-            end_ok = (py_path[0] == cpp_cells[0]) and (py_path[-1] == cpp_cells[-1])
-            if not end_ok:
-                fails.append(f"case {case} endpoints differ py={py_path[0]}..{py_path[-1]} cpp={cpp_cells[0]}..{cpp_cells[-1]}")
+            if ref is None:
+                # Ground truth says unreachable: the search must agree.
+                unreach += 1
+                reach_ok = (r_reached == 0)
+                unreach_ok += 1 if reach_ok else 0
+                if not reach_ok:
+                    fails.append(f"case {case} search reached an unreachable goal")
+                print(f"  [{'✓' if reach_ok else '✗'}] case {case:2d} ({sx:2d},{sz:2d})->({tx:2d},{tz:2d}) "
+                      f"unreachable (dijkstra=n/a, search reached={r_reached})")
+                continue
 
-            c_py, c_cpp = _octile_path_cost(py_path), _octile_path_cost(cpp_cells)
-            cost_ok = c_py == c_cpp
-            if not cost_ok:
-                fails.append(f"case {case} cost mismatch py={c_py} cpp={c_cpp}")
+            reach += 1
+            # --- RAW checks ---
+            reached_ok = r_reached == 1 and len(raw_cells) > 0
+            if not reached_ok:
+                fails.append(f"case {case} search failed on a reachable goal (dijkstra={ref})")
+            is_legal = reached_ok and raw_cells[0] == start_cell and raw_cells[-1] == goal_cell and \
+                all(_segment_legal(a, b, passable) for a, b in zip(raw_cells, raw_cells[1:]))
+            if reached_ok and not is_legal:
+                fails.append(f"case {case} raw path has an illegal segment or wrong endpoints")
+            raw_cost = _octile_path_cost(raw_cells) if raw_cells else None
+            is_opt = raw_cost == ref
+            if reached_ok and not is_opt:
+                fails.append(f"case {case} raw cost {raw_cost} != Dijkstra optimum {ref}")
+            legal += 1 if is_legal else 0
+            opt += 1 if is_opt else 0
 
-            m = max(len(py_path), len(cpp_cells))
-            maxdiff = 0
-            for i in range(m):
-                a = py_path[i] if i < len(py_path) else None
-                b = cpp_cells[i] if i < len(cpp_cells) else None
-                maxdiff = max(maxdiff, 99 if (a is None or b is None)
-                              else max(abs(a[0] - b[0]), abs(a[1] - b[1])))
+            # --- CASE checks: string-pulled waypoints from find_path ---
+            cp = case1.get(case, "").split()
+            c_ok_flag = len(cp) >= 7 and int(cp[2]) == 1
+            wp_pts = [tuple(map(float, q.split(","))) for q in cp[7:]] if len(cp) >= 7 else []
+            wp_cells = [_world_to_cell(x, z) for x, z in wp_pts]
+            req_world = _cell_center_world(tx, tz)
+            exact_tail = (len(wp_pts) > 1 and wp_cells[-1] != goal_cell and
+                          abs(wp_pts[-1][0] - req_world[0]) < 1e-3 and abs(wp_pts[-1][1] - req_world[1]) < 1e-3)
+            core = wp_cells[:-1] if exact_tail else wp_cells
+            starts_ok = bool(core) and core[0] == start_cell
+            ends_ok = bool(core) and core[-1] == goal_cell
+            los_ok = all(_line_clear(a[0], a[1], b[0], b[1], passable) for a, b in zip(core, core[1:]))
+            this_wp_ok = c_ok_flag and starts_ok and ends_ok and los_ok
+            wp_ok += 1 if this_wp_ok else 0
+            if not c_ok_flag:
+                fails.append(f"case {case} find_path reported failure on a reachable goal")
+            elif not (starts_ok and ends_ok):
+                fails.append(f"case {case} string-pulled path does not run start->goal")
+            elif not los_ok:
+                fails.append(f"case {case} string-pulled segment is not line-of-sight clear")
 
-            ref_opt = _dijkstra_optimum(sx, sz, tx, tz, obstacles)
-            opt_ok = (ref_opt is None and c_py is None) or (ref_opt == c_py == c_cpp)
-            # The port's internal g is inflated on purpose by the AddJumpedHoriz
-            # scan, so the sound invariant is that it never UNDERESTIMATES the
-            # true octile optimum.
-            g_ok = (ref_opt is None and py_g is None) or (ref_opt <= py_g)
-            if not opt_ok:
-                fails.append(f"case {case} sub-optimal vs Dijkstra: ref={ref_opt} py={c_py} cpp={c_cpp}")
-            if not g_ok:
-                fails.append(f"case {case} internal g drift: ref={ref_opt} py_g={py_g}")
-            opt += 1 if opt_ok else 0
-            gopt += 1 if g_ok else 0
-
-            if maxdiff == 0:
-                exact += 1
-                agree += 1
-                geom = "exact"
-            elif maxdiff <= 1:
-                agree += 1
-                geom = "within 1 cell"
-            elif cost_ok:
-                ties += 1
-                agree += 1
-                geom = f"equal-cost tie (cost={c_py}, waypoint differs by {maxdiff})"
-            else:
-                geom = f"DIFF maxdiff={maxdiff}"
-
-            ok = end_ok and cost_ok and opt_ok and g_ok
-            opt_s = "n/a" if ref_opt is None else str(ref_opt)
+            ok = ep_ok and reached_ok and is_legal and is_opt and this_wp_ok and det_ok
             print(f"  [{'✓' if ok else '✗'}] case {case:2d} ({sx:2d},{sz:2d})->({tx:2d},{tz:2d}) "
-                  f"cost={c_py:>4} cpp={c_cpp:>4} dijkstra={opt_s:>4} "
-                  f"py={len(py_path)}w cpp={len(cpp_cells)}w  {geom}")
+                  f"cost={raw_cost if raw_cost is not None else 'n/a':>4} dijkstra={ref:>4} "
+                  f"cells={len(raw_cells)} waypoints={len(wp_pts)}  "
+                  f"{'legal, optimal, LOS clear' if ok else 'see failures'}")
 
     det_pct = int(det / n_cases * 100)
-    print(f"\n nav-live agreement: {agree}/{compared} agree "
-          f"({int(agree/max(compared,1)*100)}%)  [exact {exact}, equal-cost ties {ties}]")
-    print(f" endpoints match: {compared}/{compared} | octile cost identical: {compared}/{compared}")
-    print(f" optimal vs independent Dijkstra ground truth: {opt}/{compared}")
-    print(f" internal g-cost >= Dijkstra optimum (jump-scan soundness): {gopt}/{compared}")
-    print(f" determinism (same seed -> identical path): {det}/{n_cases} ({det_pct}%)")
+    print(f"\n nav-live reachable cases: {reach}/{n_cases} (unreachable, search agrees: {unreach_ok}/{unreach})")
+    print(f" endpoints match: {endpoints}/{n_cases}")
+    print(f" raw cell path octile cost == Dijkstra optimum: {opt}/{reach}")
+    print(f" raw segments legal (straight/45 deg, no corner cutting): {legal}/{reach}")
+    print(f" string-pulled waypoints: start/goal + line-of-sight clear: {wp_ok}/{reach}")
+    print(f" determinism (same seed -> identical raw and pulled paths): {det}/{n_cases} ({det_pct}%)")
 
     if fails:
         print(f"  FAIL — {len(fails)} mismatches:")
         for f in fails[:6]:
             print(f"    - {f}")
         return 1
-    print("  PASS — sampled paths agree with the 0 A.D. octile LongPathfinder model")
+    print("  PASS — C++ JPS raw paths are optimal vs Dijkstra and legal; pulled paths are LOS-clear")
     print(f"  Method: shared deterministic 64x64 field, N={n_cases} (seed,start,goal) pairs.")
-    print("          Real grid_nav.h::find_path (compiled harness, octile 10/14) vs an")
-    print("          independent Python re-implementation of the same documented algorithm.")
-    print("          Gates: identical endpoints, identical octile cost, optimality vs an")
-    print("          independent Dijkstra, waypoints within 1 cell or provably")
-    print("          equal-cost. Determinism replayed twice per seed.")
+    print("          Real grid_nav.h search_cells_jps (compiled harness, octile 10/14) vs an")
+    print("          independent Dijkstra over the 8-connected no-corner-cut grid.")
+    print("          Gates: reachability, endpoints, legal raw segments, raw cost == optimum,")
+    print("          pulled waypoints start/end correctly and are Bresenham LOS clear.")
+    print("          Determinism replayed twice per seed.")
     return 0
 
 
