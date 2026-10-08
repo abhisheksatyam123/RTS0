@@ -36286,82 +36286,492 @@
   ],
   "fauna": [
     {
-      "type": "wolf",
+      "type": "tiger",
       "x": -82.94,
       "z": 81.39
     },
     {
-      "type": "wolf",
+      "type": "bear_black",
       "x": -98.56,
       "z": 65.16
     },
     {
-      "type": "wolf",
+      "type": "horse",
+      "x": -53.56,
+      "z": 75.28
+    },
+    {
+      "type": "horse",
+      "x": -88.69,
+      "z": 32.86
+    },
+    {
+      "type": "peacock",
+      "x": -88.46,
+      "z": 53.04
+    },
+    {
+      "type": "peacock",
+      "x": -89.99,
+      "z": 51.78
+    },
+    {
+      "type": "peacock",
+      "x": -89.89,
+      "z": 54.75
+    },
+    {
+      "type": "peacock",
+      "x": -80.86,
+      "z": 52.5
+    },
+    {
+      "type": "peacock",
+      "x": -84.59,
+      "z": 48.76
+    },
+    {
+      "type": "peacock",
+      "x": -87.32,
+      "z": 53.84
+    },
+    {
+      "type": "peacock",
+      "x": -87.63,
+      "z": 52.36
+    },
+    {
+      "type": "peacock",
+      "x": -89.03,
+      "z": 51.96
+    },
+    {
+      "type": "peacock",
+      "x": -90.19,
+      "z": 49.6
+    },
+    {
+      "type": "peacock",
+      "x": -87.38,
+      "z": 55.22
+    },
+    {
+      "type": "pig",
+      "x": -66.57,
+      "z": 31.06
+    },
+    {
+      "type": "pig",
+      "x": -67.17,
+      "z": 31.4
+    },
+    {
+      "type": "tiger",
       "x": -80.66,
       "z": 66.82
     },
     {
-      "type": "wolf",
+      "type": "tiger",
       "x": -50.39,
       "z": 17.49
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -77.84,
       "z": 37.52
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -77.22,
       "z": 37.77
     },
     {
-      "type": "wolf",
+      "type": "elephant_asian",
+      "x": -84.79,
+      "z": 59.46
+    },
+    {
+      "type": "elephant_asian",
+      "x": -87.23,
+      "z": 57.54
+    },
+    {
+      "type": "elephant_asian",
+      "x": -84.32,
+      "z": 56.6
+    },
+    {
+      "type": "elephant_asian",
+      "x": -69.01,
+      "z": 23.88
+    },
+    {
+      "type": "elephant_asian",
+      "x": -67.12,
+      "z": 24.46
+    },
+    {
+      "type": "elephant_asian",
+      "x": -65.73,
+      "z": 22.7
+    },
+    {
+      "type": "elephant_asian",
+      "x": -41.14,
+      "z": 64.77
+    },
+    {
+      "type": "elephant_asian",
+      "x": -40.8,
+      "z": 67.45
+    },
+    {
+      "type": "elephant_asian",
+      "x": -43.77,
+      "z": 69.18
+    },
+    {
+      "type": "bear_black",
       "x": -47.1,
       "z": 0.06
     },
     {
-      "type": "sheep",
+      "type": "elephant_asian",
+      "x": 72.91,
+      "z": 67.68
+    },
+    {
+      "type": "peacock",
+      "x": 87.7,
+      "z": 40.07
+    },
+    {
+      "type": "peacock",
+      "x": 88.07,
+      "z": 41.35
+    },
+    {
+      "type": "goat",
       "x": 81.88,
       "z": 53.58
     },
     {
-      "type": "wolf",
+      "type": "peacock",
+      "x": 93.84,
+      "z": 40.73
+    },
+    {
+      "type": "tiger",
       "x": 84.01,
       "z": 9.65
     },
     {
-      "type": "wolf",
+      "type": "bear_black",
       "x": 100.91,
       "z": 24.54
     },
     {
-      "type": "wolf",
+      "type": "elephant_asian",
+      "x": 71.67,
+      "z": 69.54
+    },
+    {
+      "type": "horse",
+      "x": 55.23,
+      "z": 18.14
+    },
+    {
+      "type": "elephant_asian",
+      "x": 74.85,
+      "z": 68.1
+    },
+    {
+      "type": "horse",
+      "x": 93.72,
+      "z": 57.54
+    },
+    {
+      "type": "peacock",
+      "x": 91.82,
+      "z": 40.66
+    },
+    {
+      "type": "peacock",
+      "x": 93.98,
+      "z": 42.56
+    },
+    {
+      "type": "peacock",
+      "x": 92.72,
+      "z": 40.0
+    },
+    {
+      "type": "elephant_asian",
+      "x": 90.24,
+      "z": 33.06
+    },
+    {
+      "type": "peacock",
+      "x": 88.11,
+      "z": 38.77
+    },
+    {
+      "type": "peacock",
+      "x": 93.4,
+      "z": 38.65
+    },
+    {
+      "type": "peacock",
+      "x": 92.5,
+      "z": 38.47
+    },
+    {
+      "type": "peacock",
+      "x": 91.89,
+      "z": 36.51
+    },
+    {
+      "type": "pig",
+      "x": 71.82,
+      "z": 61.14
+    },
+    {
+      "type": "pig",
+      "x": 72.39,
+      "z": 60.75
+    },
+    {
+      "type": "tiger",
       "x": 82.54,
       "z": 25.77
     },
     {
-      "type": "wolf",
+      "type": "tiger",
       "x": 56.81,
       "z": 76.0
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": 82.53,
       "z": 53.79
     },
     {
-      "type": "wolf",
+      "type": "elephant_asian",
+      "x": 87.65,
+      "z": 31.35
+    },
+    {
+      "type": "elephant_asian",
+      "x": 87.43,
+      "z": 34.26
+    },
+    {
+      "type": "elephant_asian",
+      "x": 43.71,
+      "z": 29.63
+    },
+    {
+      "type": "elephant_asian",
+      "x": 44.08,
+      "z": 25.0
+    },
+    {
+      "type": "elephant_asian",
+      "x": 45.62,
+      "z": 27.8
+    },
+    {
+      "type": "bear_black",
       "x": 54.96,
       "z": 93.64
     },
     {
-      "type": "wolf",
+      "type": "elephant_asian",
+      "x": -55.13,
+      "z": 125.03
+    },
+    {
+      "type": "elephant_asian",
+      "x": -44.9,
+      "z": 102.35
+    },
+    {
+      "type": "elephant_asian",
+      "x": -42.05,
+      "z": 128.68
+    },
+    {
+      "type": "elephant_asian",
+      "x": -61.65,
+      "z": 146.2
+    },
+    {
+      "type": "elephant_asian",
+      "x": -18.69,
+      "z": 134.92
+    },
+    {
+      "type": "elephant_asian",
+      "x": -92.59,
+      "z": 108.78
+    },
+    {
+      "type": "elephant_asian",
+      "x": 46.17,
+      "z": 136.67
+    },
+    {
+      "type": "elephant_asian",
+      "x": 30.32,
+      "z": 101.17
+    },
+    {
+      "type": "elephant_asian",
+      "x": 59.53,
+      "z": 127.59
+    },
+    {
+      "type": "elephant_asian",
+      "x": 79.45,
+      "z": 100.83
+    },
+    {
+      "type": "elephant_asian",
+      "x": 92.07,
+      "z": 110.82
+    },
+    {
+      "type": "elephant_asian",
+      "x": 101.44,
+      "z": 96.05
+    },
+    {
+      "type": "elephant_asian_infant",
+      "x": 79.15,
+      "z": 122.28
+    },
+    {
+      "type": "elephant_asian_infant",
+      "x": -41.14,
+      "z": 128.63
+    },
+    {
+      "type": "peacock",
+      "x": -74.35,
+      "z": -5.56
+    },
+    {
+      "type": "peacock",
+      "x": -72.84,
+      "z": -5.22
+    },
+    {
+      "type": "peacock",
+      "x": -74.82,
+      "z": -3.92
+    },
+    {
+      "type": "peacock",
+      "x": 73.71,
+      "z": -12.28
+    },
+    {
+      "type": "peacock",
+      "x": 71.68,
+      "z": -14.24
+    },
+    {
+      "type": "peacock",
+      "x": 73.91,
+      "z": -14.64
+    },
+    {
+      "type": "peacock",
+      "x": 71.21,
+      "z": 126.96
+    },
+    {
+      "type": "peacock",
+      "x": 68.98,
+      "z": 125.18
+    },
+    {
+      "type": "peacock",
+      "x": 69.54,
+      "z": 127.75
+    },
+    {
+      "type": "peacock",
+      "x": -55.24,
+      "z": 136.53
+    },
+    {
+      "type": "peacock",
+      "x": -56.65,
+      "z": 134.41
+    },
+    {
+      "type": "peacock",
+      "x": -54.96,
+      "z": 134.78
+    },
+    {
+      "type": "peacock",
+      "x": -28.44,
+      "z": 71.68
+    },
+    {
+      "type": "peacock",
+      "x": -28.04,
+      "z": -0.07
+    },
+    {
+      "type": "peacock",
+      "x": -58.74,
+      "z": -53.92
+    },
+    {
+      "type": "peacock",
+      "x": -95.65,
+      "z": -17.95
+    },
+    {
+      "type": "peacock",
+      "x": -101.39,
+      "z": 93.89
+    },
+    {
+      "type": "peacock",
+      "x": 81.4,
+      "z": 111.49
+    },
+    {
+      "type": "peacock",
+      "x": 43.7,
+      "z": 119.11
+    },
+    {
+      "type": "peacock",
+      "x": 36.59,
+      "z": 64.67
+    },
+    {
+      "type": "peacock",
+      "x": 118.79,
+      "z": 72.41
+    },
+    {
+      "type": "peacock",
+      "x": 104.32,
+      "z": 95.32
+    },
+    {
+      "type": "tiger",
       "x": 41.22,
       "z": -28.86
     },
     {
-      "type": "wolf",
+      "type": "tiger",
       "x": -62.03,
       "z": -31.3
     },
@@ -36526,37 +36936,172 @@
       "z": 163.92
     },
     {
-      "type": "sheep",
+      "type": "peacock",
+      "x": -60.12,
+      "z": -109.49
+    },
+    {
+      "type": "elephant_asian",
+      "x": -99.19,
+      "z": -84.95
+    },
+    {
+      "type": "peacock",
+      "x": -116.67,
+      "z": -60.65
+    },
+    {
+      "type": "peacock",
+      "x": -120.54,
+      "z": -56.38
+    },
+    {
+      "type": "goat",
       "x": -109.29,
       "z": -71.64
     },
     {
-      "type": "wolf",
+      "type": "peacock",
+      "x": -122.27,
+      "z": -59.81
+    },
+    {
+      "type": "tiger",
       "x": -115.01,
       "z": -28.03
     },
     {
-      "type": "wolf",
+      "type": "bear_black",
       "x": -130.64,
       "z": -44.26
     },
     {
-      "type": "wolf",
+      "type": "peacock",
+      "x": -106.42,
+      "z": -114.97
+    },
+    {
+      "type": "elephant_asian",
+      "x": -97.8,
+      "z": -86.71
+    },
+    {
+      "type": "peacock",
+      "x": -106.89,
+      "z": -113.33
+    },
+    {
+      "type": "horse",
+      "x": -85.63,
+      "z": -34.13
+    },
+    {
+      "type": "elephant_asian",
+      "x": -101.09,
+      "z": -85.54
+    },
+    {
+      "type": "horse",
+      "x": -120.76,
+      "z": -76.56
+    },
+    {
+      "type": "peacock",
+      "x": -122.07,
+      "z": -57.63
+    },
+    {
+      "type": "peacock",
+      "x": -121.97,
+      "z": -54.66
+    },
+    {
+      "type": "peacock",
+      "x": -112.94,
+      "z": -56.91
+    },
+    {
+      "type": "elephant_asian",
+      "x": -119.3,
+      "z": -51.88
+    },
+    {
+      "type": "peacock",
+      "x": -119.39,
+      "z": -55.57
+    },
+    {
+      "type": "peacock",
+      "x": -119.7,
+      "z": -57.06
+    },
+    {
+      "type": "peacock",
+      "x": -121.11,
+      "z": -57.45
+    },
+    {
+      "type": "peacock",
+      "x": -119.45,
+      "z": -54.19
+    },
+    {
+      "type": "pig",
+      "x": -98.64,
+      "z": -78.35
+    },
+    {
+      "type": "pig",
+      "x": -99.25,
+      "z": -78.01
+    },
+    {
+      "type": "tiger",
       "x": -112.74,
       "z": -42.59
     },
     {
-      "type": "wolf",
+      "type": "tiger",
       "x": -82.46,
       "z": -91.93
     },
     {
-      "type": "sheep",
+      "type": "goat",
       "x": -109.92,
       "z": -71.9
     },
     {
-      "type": "wolf",
+      "type": "elephant_asian",
+      "x": -116.87,
+      "z": -49.96
+    },
+    {
+      "type": "elephant_asian",
+      "x": -116.39,
+      "z": -52.81
+    },
+    {
+      "type": "elephant_asian",
+      "x": -73.21,
+      "z": -44.64
+    },
+    {
+      "type": "elephant_asian",
+      "x": -72.87,
+      "z": -41.97
+    },
+    {
+      "type": "elephant_asian",
+      "x": -75.84,
+      "z": -40.23
+    },
+    {
+      "type": "peacock",
+      "x": -133.46,
+      "z": -15.52
+    },
+    {
+      "type": "bear_black",
       "x": -79.18,
       "z": -109.36
     },
@@ -36564,6 +37109,11 @@
       "type": "deer",
       "x": -77.09,
       "z": -121.36
+    },
+    {
+      "type": "peacock",
+      "x": -104.91,
+      "z": -114.63
     },
     {
       "type": "deer",
@@ -36591,9 +37141,29 @@
       "z": -10.77
     },
     {
+      "type": "elephant_asian",
+      "x": 57.2,
+      "z": -52.85
+    },
+    {
+      "type": "peacock",
+      "x": 106.12,
+      "z": -76.57
+    },
+    {
       "type": "deer",
       "x": 111.71,
       "z": -124.11
+    },
+    {
+      "type": "peacock",
+      "x": 106.85,
+      "z": -82.59
+    },
+    {
+      "type": "peacock",
+      "x": 85.25,
+      "z": -132.55
     },
     {
       "type": "deer",
@@ -36601,12 +37171,27 @@
       "z": -125.47
     },
     {
+      "type": "peacock",
+      "x": 87.48,
+      "z": -132.96
+    },
+    {
       "type": "deer",
       "x": 108.73,
       "z": -124.15
     },
     {
-      "type": "wolf",
+      "type": "peacock",
+      "x": 107.47,
+      "z": -76.44
+    },
+    {
+      "type": "peacock",
+      "x": 108.65,
+      "z": -77.06
+    },
+    {
+      "type": "tiger",
       "x": 53.77,
       "z": -146.18
     },
@@ -36621,62 +37206,172 @@
       "z": -121.62
     },
     {
-      "type": "sheep",
+      "type": "horse",
+      "x": 68.8,
+      "z": -100.18
+    },
+    {
+      "type": "peacock",
+      "x": 107.2,
+      "z": -80.59
+    },
+    {
+      "type": "peacock",
+      "x": 105.61,
+      "z": -78.82
+    },
+    {
+      "type": "peacock",
+      "x": 106.36,
+      "z": -81.34
+    },
+    {
+      "type": "elephant_asian",
+      "x": 103.81,
+      "z": -85.25
+    },
+    {
+      "type": "peacock",
+      "x": 101.56,
+      "z": -81.11
+    },
+    {
+      "type": "peacock",
+      "x": 104.92,
+      "z": -80.8
+    },
+    {
+      "type": "peacock",
+      "x": 102.13,
+      "z": -75.16
+    },
+    {
+      "type": "elephant_asian",
+      "x": 101.22,
+      "z": -86.97
+    },
+    {
+      "type": "elephant_asian",
+      "x": 101.0,
+      "z": -84.06
+    },
+    {
+      "type": "elephant_asian",
+      "x": 57.57,
+      "z": -57.48
+    },
+    {
+      "type": "elephant_asian",
+      "x": 59.12,
+      "z": -54.68
+    },
+    {
+      "type": "peacock",
+      "x": 87.29,
+      "z": -130.6
+    },
+    {
+      "type": "goat",
       "x": 95.83,
       "z": -65.76
     },
     {
-      "type": "sheep",
+      "type": "pig",
+      "x": 85.97,
+      "z": -57.57
+    },
+    {
+      "type": "elephant_asian",
+      "x": 84.49,
+      "z": -102.64
+    },
+    {
+      "type": "peacock",
+      "x": 50.16,
+      "z": -53.65
+    },
+    {
+      "type": "peacock",
+      "x": 132.36,
+      "z": -45.91
+    },
+    {
+      "type": "goat",
       "x": 94.77,
       "z": -64.26
     },
     {
-      "type": "wolf",
+      "type": "elephant_asian",
+      "x": 85.85,
+      "z": -104.42
+    },
+    {
+      "type": "elephant_asian",
+      "x": 82.58,
+      "z": -103.2
+    },
+    {
+      "type": "horse",
+      "x": 107.29,
+      "z": -60.78
+    },
+    {
+      "type": "pig",
+      "x": 85.39,
+      "z": -57.18
+    },
+    {
+      "type": "tiger",
       "x": 111.88,
       "z": -102.21
     },
     {
-      "type": "wolf",
+      "type": "tiger",
       "x": 7.09,
       "z": -159.26
     },
     {
-      "type": "wolf",
+      "type": "tiger",
       "x": 168.49,
       "z": -2.7
     },
     {
-      "type": "wolf",
+      "type": "bear_black",
       "x": 146.66,
       "z": 2.88
     },
     {
-      "type": "wolf",
+      "type": "tiger",
       "x": -159.57,
       "z": 31.64
     },
     {
-      "type": "wolf",
+      "type": "bear_black",
       "x": -139.09,
       "z": 22.26
     },
     {
-      "type": "wolf",
+      "type": "tiger",
       "x": 78.27,
       "z": -38.0
     },
     {
-      "type": "wolf",
+      "type": "bear_black",
       "x": 57.94,
       "z": -47.72
     },
     {
-      "type": "wolf",
+      "type": "tiger",
       "x": 75.28,
       "z": -53.91
     },
     {
-      "type": "wolf",
+      "type": "peacock",
+      "x": -133.58,
+      "z": 12.94
+    },
+    {
+      "type": "tiger",
       "x": -171.45,
       "z": 19.51
     },
@@ -37714,5 +38409,68 @@
       "x": 83.32,
       "z": -69.5
     }
-  ]
+  ],
+  "treasures": [
+    {
+      "type": "food_jars",
+      "x": 85.87,
+      "z": 93.52
+    },
+    {
+      "type": "food_bin",
+      "x": 86.81,
+      "z": 92.27
+    },
+    {
+      "type": "food_bin",
+      "x": 87.42,
+      "z": 93.12
+    },
+    {
+      "type": "food_bin",
+      "x": -37.51,
+      "z": 90.04
+    },
+    {
+      "type": "food_jars",
+      "x": -35.92,
+      "z": 90.17
+    },
+    {
+      "type": "food_bin",
+      "x": -37.2,
+      "z": 91.06
+    },
+    {
+      "type": "food_jars",
+      "x": -75.13,
+      "z": -131.52
+    },
+    {
+      "type": "food_bin",
+      "x": -74.69,
+      "z": -129.98
+    },
+    {
+      "type": "food_bin",
+      "x": -73.85,
+      "z": -130.64
+    },
+    {
+      "type": "food_bin",
+      "x": 53.87,
+      "z": -121.79
+    },
+    {
+      "type": "food_bin",
+      "x": 54.17,
+      "z": -120.79
+    },
+    {
+      "type": "food_jars",
+      "x": 55.47,
+      "z": -121.66
+    }
+  ],
+  "ruins": []
 }
