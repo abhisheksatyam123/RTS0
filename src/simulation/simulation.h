@@ -392,6 +392,11 @@ public:
 	void order_guard(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
 	// UnitAI Heal: healers walk to an injured allied unit and heal it (Heal.js).
 	void order_heal(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
+	// 0 A.D. "returnresource" (UnitAI ReturnResource): carriers take their load to this
+	// dropsite, drop it, then take the next queued order or idle.
+	void order_return_resource(const uint32_t *unit_ids, size_t count, uint32_t dropsite_id, bool queued = false);
+	bool dropsite_accepts(size_t unit_idx, const Building &b) const; // carried type, owner, finished
+	bool can_return_resource(uint32_t unit_id, uint32_t dropsite_id) const; // carries a load b accepts
 	void set_unit_hp(uint32_t unit_id, float hp); // scenarios and tests: clamped to 0..max
 
 	// Livestock & Corrals (Corral.js)

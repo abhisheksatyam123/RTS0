@@ -6538,6 +6538,7 @@ void Simulation::apply_order(uint32_t uid, const UnitOrder &o) {
 		case ORDER_GUARD: order_guard(&uid, 1, o.target); break;
 		case ORDER_HEAL: order_heal(&uid, 1, o.target); break;
 		case ORDER_TRADE: order_trade(&uid, 1, o.target, trade_market_id(o.x2)); break;
+		case ORDER_RETURN_RESOURCE: order_return_resource(&uid, 1, o.target); break;
 		default: break;
 	}
 	applying_queued_ = was;
@@ -6586,6 +6587,10 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 		}
 		case ORDER_HEAL: return can_heal(i, lookup_unit(o.target));
 		case ORDER_TRADE: return trade_route_ok(i, o.target, trade_market_id(o.x2));
+		case ORDER_RETURN_RESOURCE: {
+			const Building *b = building(o.target);
+			return b && units_.carry[i] > 0 && dropsite_accepts(i, *b);
+		}
 		default: return false;
 	}
 }
@@ -6853,6 +6858,21 @@ void Simulation::tick_unit_ai(float dt) {
 			}
 			continue;
 		}
+		// RETURNRESOURCE: next to the dropsite (or the walk ended short of it), drop the load;
+		// tick_gather commits it at the nearest dropsite, which is now this one.
+		if (units_.order_kind[i] == ORDER_RETURN_RESOURCE && !interrupted && (now == ACTION_MOVE || now == ACTION_IDLE)) {
+			auto bit = building_id_to_idx_.find(units_.order_target[i]);
+			if (bit == building_id_to_idx_.end() || !order_still_valid(i, current_order(i))) { finish_order(i); continue; }
+			const Building &b = buildings_[bit->second];
+			const float ex = std::max(0.0f, std::fabs(units_.pos_x[i] - b.x) - b.half_size);
+			const float ez = std::max(0.0f, std::fabs(units_.pos_z[i] - b.z) - b.half_size);
+			const float reach = units_.unit_type[i] == UNIT_FISHING_BOAT ? 4.0f : 1.5f;
+			if (now == ACTION_IDLE || ex * ex + ez * ez < reach * reach) {
+				units_.action_state[i] = ACTION_RETURN_DROPSITE;
+				units_.target_resource_id[i] = 0;
+			}
+			continue;
+		}
 		// Garrison: get in once within LoadingRange; give up if the walk ends short of it.
 		if (units_.order_kind[i] == ORDER_GARRISON && !interrupted && (now == ACTION_MOVE || now == ACTION_IDLE)) {
 			auto bit = building_id_to_idx_.find(units_.order_target[i]);
@@ -7040,6 +7060,48 @@ void Simulation::start_heal(size_t h, uint32_t target, uint8_t flags) {
 void Simulation::set_unit_hp(uint32_t unit_id, float hp) {
 	const int32_t i = lookup_unit(unit_id);
 	if (i >= 0 && units_.alive[i]) units_.hp[i] = std::clamp(hp, 1.0f, units_.max_hp[i]);
+}
+
+// The dropsite rule tick_gather uses: the unit's own finished Civic Centre or civ dropsite,
+// a storehouse for wood/stone/metal, a farmstead or dock for food; boats only at docks.
+bool Simulation::dropsite_accepts(size_t i, const Building &b) const {
+	if (b.wrecked || b.hp <= 0.0f || b.team != units_.team[i] || b.build_progress < 1.0f) return false;
+	const uint8_t rt = units_.res_type_carried[i];
+	if (units_.unit_type[i] == UNIT_FISHING_BOAT) return b.type == BLD_DOCK;
+	if (b.type == BLD_TOWN_CENTER || civ_building_is_dropsite(b.type)) return true;
+	if (b.type == BLD_STOREHOUSE) return rt != RES_FOOD;
+	return (b.type == BLD_FARMSTEAD || b.type == BLD_DOCK) && rt == RES_FOOD;
+}
+
+bool Simulation::can_return_resource(uint32_t unit_id, uint32_t dropsite_id) const {
+	const int32_t i = lookup_unit(unit_id);
+	auto bit = building_id_to_idx_.find(dropsite_id);
+	return i >= 0 && units_.alive[i] && units_.carry[i] > 0 && bit != building_id_to_idx_.end() &&
+			dropsite_accepts((size_t)i, buildings_[bit->second]);
+}
+
+void Simulation::order_return_resource(const uint32_t *unit_ids_in, size_t count_in, uint32_t dropsite_id, bool queued) {
+	auto bit = building_id_to_idx_.find(dropsite_id);
+	if (bit == building_id_to_idx_.end()) return;
+	const Building &b = buildings_[bit->second];
+	std::vector<uint32_t> carriers;
+	for (size_t k = 0; k < count_in; ++k) {
+		const int32_t i = lookup_unit(unit_ids_in[k]);
+		// Queued: the load may only be picked up by an earlier order.
+		if (i >= 0 && units_.alive[i] && (queued || (units_.carry[i] > 0 && dropsite_accepts((size_t)i, b))))
+			carriers.push_back(unit_ids_in[k]);
+	}
+	UnitOrder o; o.kind = ORDER_RETURN_RESOURCE; o.target = dropsite_id; o.x = b.x; o.z = b.z;
+	const std::vector<uint32_t> now = split_queued(carriers.data(), carriers.size(), o, queued);
+	for (uint32_t uid : now) {
+		const int32_t i = lookup_unit(uid);
+		if (i < 0 || units_.carry[i] <= 0 || !dropsite_accepts((size_t)i, b)) continue;
+		// RETURNRESOURCE.APPROACHING: walk to this dropsite; tick_unit_ai drops the load there.
+		uint32_t id = uid;
+		cmd_move(&id, 1, b.x, b.z);
+		set_order((size_t)i, ORDER_RETURN_RESOURCE, 0, dropsite_id, b.x, b.z);
+		units_.target_resource_id[i] = 0;
+	}
 }
 
 void Simulation::order_heal(const uint32_t *unit_ids_in, size_t count_in, uint32_t target_unit_id, bool queued) {

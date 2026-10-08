@@ -3450,7 +3450,16 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							sim->order_attack_building(sel_ptr, sel_n, b.id, queue_shift, true);
 						play_civ_voice("attack");
 					} else {
-						if (b.build_progress < 1.0f || b.hp < b.max_hp || b.type == rtso::BLD_FIELD) { // finished fields: farm
+						// 0 A.D. "returnresource" comes first: carriers take their load to this dropsite.
+						bool carriers = false;
+						for (size_t k = 0; k < sel_n && !carriers; ++k) carriers = sim->can_return_resource(sel_ptr[k], b.id);
+						if (carriers) {
+							if (net_lockstep())
+								post_lockstep(34, sel_ptr, sel_n, 0, 0, b.id, qbit);
+							else
+								sim->order_return_resource(sel_ptr, sel_n, b.id, queue_shift);
+							play_civ_voice("gather");
+						} else if (b.build_progress < 1.0f || b.hp < b.max_hp || b.type == rtso::BLD_FIELD) { // finished fields: farm
 							if (net_lockstep())
 								post_lockstep(16, sel_ptr, sel_n, 0, 0, b.id, qbit);
 							else

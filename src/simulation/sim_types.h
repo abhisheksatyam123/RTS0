@@ -351,7 +351,8 @@ enum UnitOrderKind : uint8_t {
 	ORDER_GUARD = 9,          // target unit (Guard.js)
 	ORDER_HEAL = 10,          // target unit (UnitAI Heal)
 	ORDER_TRADE = 11,         // target = first market, x2 holds the second market's id bits (UnitAI Trade)
-	ORDER_KIND_COUNT = 12
+	ORDER_RETURN_RESOURCE = 12, // target = the dropsite (UnitAI ReturnResource)
+	ORDER_KIND_COUNT = 13
 };
 
 enum UnitOrderFlag : uint8_t {
