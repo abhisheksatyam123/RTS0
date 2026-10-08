@@ -281,6 +281,22 @@ std::string HotkeyTable::diff_cfg(const HotkeyTable &base) const {
 	return out;
 }
 
+std::vector<std::string> HotkeyTable::bound_to(const Combo &combo) const {
+	std::vector<std::string> out;
+	if (combo.keys.empty()) return out;
+	std::vector<std::string> want = combo.keys;
+	std::sort(want.begin(), want.end());
+	auto it = by_primary_.find(combo.primary());
+	if (it == by_primary_.end()) return out;
+	for (const Entry &e : it->second) {
+		std::vector<std::string> keys = e.combo.keys;
+		std::sort(keys.begin(), keys.end());
+		if (keys == want && std::find(out.begin(), out.end(), e.name) == out.end()) out.push_back(e.name);
+	}
+	std::sort(out.begin(), out.end());
+	return out;
+}
+
 std::string HotkeyTable::label(const std::string &name) const {
 	const auto *c = get(name);
 	return c && !c->empty() ? combo_to_string(c->front()) : std::string();

@@ -112,7 +112,10 @@ enum MapType : uint8_t {
 	MAP_ENGLISH_CHANNEL = 54,
 	MAP_DODECANESE = 55,
 	MAP_FORTRESS = 56,
-	MAP_TYPE_COUNT = 57
+	// 0 A.D. trigger maps (maps/random/*_triggers.js run as map triggers, triggers.h)
+	MAP_FLOOD = 57,
+	MAP_EXTINCT_VOLCANO = 58,
+	MAP_TYPE_COUNT = 59
 };
 
 struct MapTypeInfo {
@@ -182,7 +185,9 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_HELLAS, "hellas", "Hellas (RMS)", "mediterranean", true, "A random corner of Greece and the Aegean, painted from a real elevation map."},
 		{MAP_ENGLISH_CHANNEL, "english_channel", "English Channel (RMS)", "temperate", true, "Players start on both sides of the English Channel; crossing it takes ships."},
 		{MAP_DODECANESE, "dodecanese", "Dodecanese (RMS)", "mediterranean", true, "A group of islands in the Aegean, a few joined by bridges; the rest need ships."},
-		{MAP_FORTRESS, "fortress", "Fortress (RMS)", "temperate", true, "Players start inside walled fortresses with a market, barracks, stable and temple."}
+		{MAP_FORTRESS, "fortress", "Fortress (RMS)", "temperate", true, "Players start inside walled fortresses with a market, barracks, stable and temple."},
+		{MAP_FLOOD, "flood", "Flood (RMS)", "temperate", true, "A great flood moves across the valley. The home islands go under, so evacuate your units by ship to the mainland."},
+		{MAP_EXTINCT_VOLCANO, "extinct_volcano", "Extinct Volcano (RMS)", "volcanic", true, "Rains raise the water from the 25th minute until only the hills and the great cone stay dry. Gaia towers guard the lowlands."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
@@ -194,7 +199,8 @@ inline bool is_procedural_map(uint8_t type) {
 
 // Naval maps: bases may sit on separate land, so armies need ships to meet.
 inline bool map_is_naval(int type) {
-	return type == MAP_ENGLISH_CHANNEL || type == MAP_DODECANESE;
+	// Flood (flood.js): each player starts on a home island in a sea.
+	return type == MAP_ENGLISH_CHANNEL || type == MAP_DODECANESE || type == MAP_FLOOD;
 }
 
 enum UnitType : uint8_t {
@@ -313,7 +319,8 @@ enum ResourceSubtype : uint8_t {
 	RES_SUB_NONE = 0,
 	RES_SUB_MEAT = 1,
 	RES_SUB_GRAIN = 2,
-	RES_SUB_FISH = 3 // food.fish: only fishing boats gather it
+	RES_SUB_FISH = 3, // food.fish: only fishing boats gather it
+	RES_SUB_RUINS = 4 // stone.ruins / metal.ruins (template_gaia_ruins): gather_class_ruins_rate
 };
 
 // 0 A.D. template_gaia_fish.xml ResourceSupply: 1000 food, at most 4 gatherers,
@@ -351,7 +358,9 @@ enum UnitOrderKind : uint8_t {
 	ORDER_GUARD = 9,          // target unit (Guard.js)
 	ORDER_HEAL = 10,          // target unit (UnitAI Heal)
 	ORDER_TRADE = 11,         // target = first market, x2 holds the second market's id bits (UnitAI Trade)
-	ORDER_KIND_COUNT = 12
+	ORDER_RETURN_RESOURCE = 12, // target = the dropsite (UnitAI ReturnResource)
+	ORDER_COLLECT_TREASURE = 13, // target treasure (UnitAI CollectTreasure)
+	ORDER_KIND_COUNT = 14
 };
 
 enum UnitOrderFlag : uint8_t {
@@ -383,8 +392,10 @@ static_assert(sizeof(UnitOrder) == 24, "UnitOrder is saved raw");
 // UnitAI FindNearbyResource / FindNearbyFoundation.
 inline constexpr float FLEE_DISTANCE = 12.0f;
 inline constexpr float NEARBY_SEARCH_RANGE = 64.0f;
-// Attack.js Capture: template_unit_*.xml Capture MaxRange 4, RepeatTime 1000.
-inline constexpr float CAPTURE_RANGE = 4.0f;
+// Attack.js Capture: template_unit_*.xml Capture MaxRange 4, RepeatTime 1000. 0 A.D.
+// measures edge to edge; RTS0 melee reach is ~0.28 x R plus the radii, so Capture
+// MaxRange 4 is the spearman's reach, as in 0 A.D. (Melee MaxRange 4): 2.4.
+inline constexpr float CAPTURE_RANGE = 2.4f;
 inline constexpr float CAPTURE_REPEAT_S = 1.0f;
 // template_unit_support_healer.xml Heal (Health 5 every Interval 2000 ms) and Heal.js
 // GetTimers (prepare 1000 ms); template_unit.xml UnitAI CheeringTime 2800 ms and
@@ -394,7 +405,7 @@ inline constexpr float HEAL_INTERVAL_S = 2.0f;
 inline constexpr float HEAL_PREPARE_S = 1.0f;
 inline constexpr float CHEER_TIME_S = 2.8f;
 inline constexpr float CHEER_NOTIFY_RANGE = 30.0f;
-inline constexpr float GARRISON_LOADING_RANGE = 2.0f;
+inline constexpr float GARRISON_LOADING_RANGE = 2.0f * 0.28f; // 0 A.D. metres to RTS0, plus the unit's radius
 // Attack.js Ranged MinRange as a share of MaxRange: template_unit_siege_stonethrower.xml
 // 26 of 85, template_unit_siege_boltshooter.xml 15 of 90. Scaled to each unit's own range.
 inline float unit_min_range_ratio(uint8_t type) {
@@ -1174,6 +1185,13 @@ inline float gather_class_rate(uint8_t cls, uint8_t kind) {
 		{0, 0, 0, 1.8f, 0, 0, 0},                   // fishing ship: food.fish only
 	};
 	return cls < 5 && kind < 7 ? kRates[cls][kind] : 0.0f;
+}
+
+// Rates for template_gaia_ruins supplies: wood.ruins 5, stone.ruins and metal.ruins 2, the
+// same for citizen infantry and women; cavalry and ships have none.
+inline float gather_class_ruins_rate(uint8_t cls, uint8_t res_type) {
+	if (cls != GATHER_INFANTRY && cls != GATHER_FEMALE) return 0.0f;
+	return res_type == RES_WOOD ? 5.0f : (res_type == RES_STONE || res_type == RES_GOLD) ? 2.0f : 0.0f;
 }
 
 // ResourceGatherer/Capacities (the same for every type the class gathers).

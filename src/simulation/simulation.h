@@ -8,6 +8,7 @@
 #include "aura_manager.h"
 #include "petra_ai.h"
 #include "sim_types.h"
+#include "triggers.h"
 #include <cstdint>
 #include <vector>
 #include <unordered_map>
@@ -130,7 +131,7 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
-	static constexpr uint32_t SAVE_VERSION = 26; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 29; // save_state's format; see the history beside it
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -393,6 +394,11 @@ public:
 	void order_guard(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
 	// UnitAI Heal: healers walk to an injured allied unit and heal it (Heal.js).
 	void order_heal(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
+	// 0 A.D. "returnresource" (UnitAI ReturnResource): carriers take their load to this
+	// dropsite, drop it, then take the next queued order or idle.
+	void order_return_resource(const uint32_t *unit_ids, size_t count, uint32_t dropsite_id, bool queued = false);
+	bool dropsite_accepts(size_t unit_idx, const Building &b) const; // carried type, owner, finished
+	bool can_return_resource(uint32_t unit_id, uint32_t dropsite_id) const; // carries a load b accepts
 	void set_unit_hp(uint32_t unit_id, float hp); // scenarios and tests: clamped to 0..max
 
 	// Livestock & Corrals (Corral.js)
@@ -454,6 +460,27 @@ public:
 	void set_relic_duration(float s) { relic_duration_ = std::max(0.0f, s); }
 	int relic_count() const { return relic_count_; }
 	void set_relic_count(int n) { relic_count_ = std::clamp(n, 0, 16); }
+	// Rising-water maps (0 A.D. Flood's "WaterLevels" and Extinct Volcano's "SeaLevelRise"
+	// Game Setup options): Flood's water rises (0, default), stays (1, Shallow) or starts a
+	// metre higher (2, Deep); Extinct Volcano's water starts rising after N minutes (default 25).
+	enum WaterLevelMode : uint8_t { WATER_LEVEL_RISING = 0, WATER_LEVEL_SHALLOW = 1, WATER_LEVEL_DEEP = 2 };
+	uint8_t water_level_mode() const { return water_level_mode_; }
+	void set_water_level_mode(uint8_t m) { water_level_mode_ = m <= WATER_LEVEL_DEEP ? m : WATER_LEVEL_RISING; }
+	int sea_level_rise_minutes() const { return sea_level_rise_min_; }
+	void set_sea_level_rise_minutes(int m) { sea_level_rise_min_ = (uint8_t)std::clamp(m, 0, 60); }
+
+	// Map trigger scripts (0 A.D. Trigger.js; see triggers.h). Map generation registers
+	// the map's own triggers; tick() runs their timers and the sim calls trigger_event().
+	const TriggerState &trigger_state() const { return triggers_; }
+	uint32_t trigger_hash() const { return triggers_.hash(); }
+	void trigger_event(uint8_t event, const TriggerEventData &data = {});
+	// Time notifications (GuiInterface.AddTimeNotification) shown to `player` right now.
+	std::vector<const TimeNotification *> time_notifications_for(uint8_t player) const;
+	// WaterManager.SetWaterLevel as the rising-water scripts use it: moves the water
+	// to `h`, drowns organic units and animals more than `drown_depth` below it, and
+	// takes away submerged structures and resources (0 A.D. turns them into
+	// decorative actors). Ships and docks float.
+	void set_water_level(float h, float drown_depth);
 	float ceasefire_seconds() const { return ceasefire_seconds_; }
 	void set_ceasefire_seconds(float s) { ceasefire_seconds_ = std::max(0.0f, s); }
 	float ceasefire_remaining() const { return std::max(0.0f, ceasefire_seconds_ - (float)ticks_ * FIXED_STEP); }
@@ -892,6 +919,32 @@ public:
 		uint8_t owner_team = 255;
 	};
 
+	// Treasure.js / TreasureCollector.js: a Gaia treasure any land unit can be ordered to
+	// collect; after CollectTime in range its owner gets the treasure's resources.
+	struct Treasure {
+		uint32_t id;
+		float x, z;
+		float collect_progress;   // seconds spent collecting by collector_id
+		uint32_t collector_id;
+		uint8_t type;             // TreasureType (gaia_data.h)
+		uint8_t pad[3];
+	};
+	uint32_t spawn_treasure(float x, float z, uint8_t type);
+	void order_collect_treasure(const uint32_t *unit_ids, size_t count, uint32_t treasure_id, bool queued = false);
+	const std::vector<Treasure> &treasures() const { return treasures_; }
+	bool is_treasure_id(uint32_t id) const {
+		for (const auto &t : treasures_) if (t.id == id) return true;
+		return false;
+	}
+	// One plain treasure of a resource (rmgen placePlayersNomad's food_bin / wood / stone / metal);
+	// its amount is the kind's, treasure_type_info(treasure_type_for_resource(res)).amount.
+	uint32_t spawn_resource_treasure(float x, float z, uint8_t res_type) {
+		return spawn_treasure(x, z, treasure_type_for_resource(res_type));
+	}
+	void clear_treasures() { treasures_.clear(); } // Game Setup "Treasures" off
+	// template_gaia_ruins: a stone (or metal) supply gathered 4x as fast as a rock.
+	uint32_t spawn_ruins(float x, float z, uint8_t ruins_type);
+
 	float wonder_time_remaining() const { return std::max(0.0f, wonder_duration_ - wonder_victory_timer_); }
 	bool is_wonder_active() const { return has_active_wonder_; }
 	const std::vector<TreasureRelic> &relics() const { return relics_; }
@@ -993,6 +1046,10 @@ private:
 	void tick_projectiles(float dt);
 	void tick_construction(float dt);
 	void tick_repair(float dt);
+	static constexpr float REPAIR_TIME_RATIO = 2.0f; // template_structure.xml Repairable/RepairTimeRatio
+	static float foundation_build_multiplier(int builders);
+	float builder_rate(size_t unit_idx) const;
+	float structure_build_time(const Building &b, uint8_t builder_team) const;
 	void tick_production(float dt);
 	void tick_research(float dt);
 	void tick_upgrades(float dt);
@@ -1108,6 +1165,8 @@ private:
 	std::vector<Building> buildings_;
 	std::vector<Projectile> projectiles_;
 	std::vector<TreasureRelic> relics_;
+	std::vector<Treasure> treasures_;
+	void tick_treasures(float dt);
 	float wonder_victory_timer_ = 0.0f;
 	bool has_active_wonder_ = false;
 	VictoryCondition victory_condition_ = VICTORY_CONQUEST;
@@ -1129,6 +1188,8 @@ private:
 	std::unordered_map<uint32_t, FieldGatherers> fish_gatherers_; // per tick, keyed by fish resource id
 	// Per tick, every other resource: units ordered to gather it (total) and the ones working it (slots_taken, up to MaxGatherers).
 	std::unordered_map<uint32_t, FieldGatherers> supply_gatherers_;
+	// v28 saves kept each ruin's MaxGatherers in a list; resources_.max_gatherers holds it since.
+	struct RuinsCap { uint32_t res_id; uint16_t max_gatherers; uint16_t pad; };
 	// Nearest fish on `sea` (ship region) within max_d of (x, z) with a free gatherer slot; 0 if none.
 	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0) const;
 	std::unordered_map<uint32_t, size_t> building_id_to_idx_;
@@ -1194,6 +1255,16 @@ private:
 	float relic_duration_ = 180.0f;
 	int relic_count_ = 0;
 	void apply_relic_count();
+	uint8_t water_level_mode_ = WATER_LEVEL_RISING; // saved with the trigger state (v18)
+	uint8_t sea_level_rise_min_ = 25;
+	TriggerState triggers_;
+	void tick_triggers(float dt);
+	void register_map_triggers(MapType type);
+	void run_trigger_action(uint16_t action, float arg, const TriggerEventData &data);
+	// Ported map scripts (simulation.cpp, "Map trigger scripts").
+	void trigger_flood_rise_step(float final_level);
+	void trigger_volcano_rise_step();
+	void trigger_volcano_garrison_towers();
 	PlayerState gaia_stock_; // scratch for player(GAIA_PLAYER); never saved or hashed
 	// Player.js SetState("defeated"): hand every unit and structure of these players to Gaia.
 	void convert_to_gaia(uint8_t players);
@@ -1254,6 +1325,13 @@ private:
 	PetraDiplomacy petra_diplo_;
 	// Tribute paid to each player since its Petra last looked: [to][from][resource].
 	float petra_tribute_inbox_[MAX_PLAYERS][MAX_PLAYERS][RES_COUNT] = {};
+	// AI-to-AI diplomacy (0 A.D. DiplomacyRequest / TributeRequest events), [to][from], save v27:
+	// the stance asked for (0 none, 1 ally, 2 neutral) and a tribute asked for in return.
+	uint8_t petra_diplo_request_inbox_[MAX_PLAYERS][MAX_PLAYERS] = {};
+	int32_t petra_tribute_request_wanted_[MAX_PLAYERS][MAX_PLAYERS] = {};
+	uint8_t petra_tribute_request_res_[MAX_PLAYERS][MAX_PLAYERS] = {};
+	PetraSentDiplomacy petra_sent_diplo_;
+	void petra_send_diplomacy_request();
 	float petra_defense_timer_ = 0.0f;
 	float petra_victory_timer_ = 0.0f;
 	float petra_diplo_timer_ = 0.0f;
@@ -1353,7 +1431,8 @@ private:
 	X(petra_diplo_timer_) X(ai_wonder_victory_timer_) X(petra_bases_) X(petra_fnd_watch_) \
 	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
-	X(petra_fow_) X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_)
+	X(petra_fow_) X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
+	X(petra_sent_diplo_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};

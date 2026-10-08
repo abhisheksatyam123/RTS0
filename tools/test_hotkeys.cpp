@@ -4,6 +4,7 @@
 
 #include "presentation/hotkeys.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <initializer_list>
 #include <set>
@@ -97,6 +98,13 @@ int main() {
 	HotkeyTable again = t;
 	again.load_cfg(diff);
 	CHECK(again.diff_cfg(t) == diff);
+
+	// Conflicts (0 A.D. GetConflicts): every hotkey on the same key set.
+	const auto b = t.bound_to(parse_combo("B"));
+	CHECK(std::find(b.begin(), b.end(), "rts0.build.menu") != b.end());
+	CHECK(std::find(b.begin(), b.end(), "session.queueunit.5") != b.end());
+	CHECK(t.bound_to(parse_combo("Ctrl+F5")) == std::vector<std::string>{"camera.jump.set.1"});
+	CHECK(t.bound_to(parse_combo("F5+Ctrl")) == std::vector<std::string>{"camera.jump.set.1"});
 
 	if (g_fail) {
 		std::printf("test_hotkeys: %d failure(s)\n", g_fail);

@@ -33,6 +33,8 @@
 // 23. The next resource is of the same kind (type.specific): berries after berries, not grain.
 // 24. Attack.js MinRange: a catapult won't fire at a target too close; ordered to, it backs off.
 // 25. Trade orders queue; a trader flees an attack and goes back to its route with its goods.
+// 26. Return resource (UnitAI ReturnResource): carriers take their load to the dropsite they
+//     are sent to, not the nearest, then idle; it queues; lockstep cmd 34.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_unit_orders.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -770,6 +772,58 @@ static void test_trade_orders() {
 	check(paid, "and delivers them at the second market");
 }
 
+static void test_return_resource() {
+	std::printf("26. return resource\n");
+	Simulation s;
+	setup(s);
+	const uint32_t near_store = s.spawn_building_world(-10, 0, BLD_STOREHOUSE, 0, 1.0f);
+	const uint32_t far_store = s.spawn_building_world(30, 0, BLD_STOREHOUSE, 0, 1.0f);
+	const uint32_t farmstead = s.spawn_building_world(0, 20, BLD_FARMSTEAD, 0, 1.0f);
+	const uint32_t tree = s.spawn_resource_world(0, 0, RES_WOOD, 500);
+	uint32_t w = s.spawn_unit(1.5f, 0, 0, UNIT_FEMALE_CITIZEN);
+	s.order_gather(&w, 1, tree);
+	const bool loaded = run_until(s, 30.0f, [&] { return s.units().carry[idx_of(s, w)] >= 5; });
+	check(loaded, "the worker carries some wood");
+	check(!s.can_return_resource(w, farmstead) && s.can_return_resource(w, far_store),
+			"a farmstead takes no wood, a storehouse does");
+	const float wood0 = s.player(0).res[RES_WOOD];
+	s.order_return_resource(&w, 1, far_store);
+	check(s.unit_order(w).kind == ORDER_RETURN_RESOURCE, "the order is ReturnResource");
+	const bool dropped = run_until(s, 40.0f, [&] { return s.units().carry[idx_of(s, w)] == 0; });
+	check(dropped && s.player(0).res[RES_WOOD] > wood0, "the wood is dropped off");
+	check(dist(s, w, 30, 0) < dist(s, w, -10, 0), "at the storehouse it was sent to, not the nearer one");
+	run(s, 2.0f);
+	check(act_of(s, w) == ACTION_IDLE && s.unit_order(w).kind == ORDER_NONE, "then it idles (FinishOrder)");
+	(void)near_store;
+
+	// Queued after a gather: the worker gathers, then takes its load to the storehouse
+	// and goes on to the walk queued after it.
+	uint32_t v = s.spawn_unit(1.5f, 1.5f, 0, UNIT_FEMALE_CITIZEN);
+	s.order_gather(&v, 1, tree);
+	run(s, 6.0f);
+	s.order_return_resource(&v, 1, far_store, true);
+	s.order_walk(&v, 1, 10, 30, true);
+	check(s.unit_order_queue(v) && s.unit_order_queue(v)->size() == 2, "return and walk wait in the queue");
+
+	// Lockstep: cmd 34 on a carrying worker.
+	Simulation l;
+	setup(l);
+	const uint32_t store2 = l.spawn_building_world(-20, 0, BLD_STOREHOUSE, 0, 1.0f);
+	const uint32_t tree2 = l.spawn_resource_world(0, 0, RES_WOOD, 500);
+	uint32_t x = l.spawn_unit(1.5f, 0, 0, UNIT_FEMALE_CITIZEN);
+	l.order_gather(&x, 1, tree2);
+	run_until(l, 30.0f, [&] { return l.units().carry[idx_of(l, x)] >= 5; });
+	TurnManager tm;
+	NetCommand c;
+	c.client_id = 0;
+	c.entity_ids = {x};
+	c.cmd_type = (uint8_t)NetCommandType::NET_CMD_RETURN_RESOURCE;
+	c.target_id = store2;
+	tm.post_local_command(c);
+	for (int i = 0; i < 4; ++i) tm.tick(TurnManager::TURN_DURATION, l);
+	check(c.cmd_type == 34 && l.unit_order(x).kind == ORDER_RETURN_RESOURCE, "lockstep return resource (34)");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -797,6 +851,7 @@ int main(int argc, char **argv) {
 	test_same_kind_next();
 	test_min_range();
 	test_trade_orders();
+	test_return_resource();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
