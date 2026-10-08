@@ -168,9 +168,34 @@ static void compare(const Simulation &a, const Simulation &b) {
 	CMP("sim_rng_state", 0, a.sim_rng_state(), b.sim_rng_state());
 }
 
+// Buildings thread repro: a Town Center and a wall on a fresh sim, saved and
+// loaded into a reset() sim (no map built first), must hash the same.
+static void check_reset_load(TurnManager &tm, const char *path) {
+	static Simulation a, b;
+	a.reset();
+	a.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 0);
+	a.spawn_building_world(20.0f, 0.0f, BLD_WALL_SEGMENT, 0);
+	const int before = failures;
+	for (int ticks : {0, 100}) {
+		run(a, ticks);
+		if (!a.save_state(path)) { std::printf("FAIL save (reset sim)\n"); ++failures; return; }
+		b.reset();
+		if (!b.load_state(path)) { std::printf("FAIL load (reset sim)\n"); ++failures; return; }
+		const uint32_t ha = tm.compute_sim_hash(a), hb = tm.compute_sim_hash(b);
+		if (ha != hb) {
+			std::printf("  FAIL Town Center + wall, %d ticks: hash %08x saved, %08x loaded into a reset sim\n", ticks, ha, hb);
+			++failures;
+			compare(a, b);
+			print_diffs();
+		}
+	}
+	if (failures == before) std::printf("Town Center + wall into a reset sim: ok\n");
+}
+
 int main() {
 	static Simulation live, loaded;
 	TurnManager tm;
+	check_reset_load(tm, "/tmp/rts0_test_save_hash.sav");
 	build(live);
 	const char *path = "/tmp/rts0_test_save_hash.sav";
 	// Save points: early game, mid game (armies, fields, traders), later.

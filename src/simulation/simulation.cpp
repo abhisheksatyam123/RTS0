@@ -750,7 +750,7 @@ void Simulation::rebuild_nav_grid() {
 	const float nav_cell = 2.0f * nav_grid_.map_half / static_cast<float>(nav_grid_.res);
 	const rtso::nav::Vec2 nav_origin(-nav_grid_.map_half, -nav_grid_.map_half);
 	for (const auto &b : buildings_) {
-		if (b.build_progress < 0.99f || !building_blocks_movement(b.type)) continue;
+		if (b.build_progress < 0.99f || !blocks_pathfinding(b)) continue;
 		int covered = 0;
 		rtso::nav::rasterize_rect_with_clearance(
 			rtso::nav::Vec2(b.x, b.z), rtso::nav::Vec2(1.0f, 0.0f), rtso::nav::Vec2(0.0f, 1.0f),
@@ -1304,6 +1304,11 @@ void Simulation::finish_upgrade(Building &b) {
 	b.upgrade_timer = 0.0f;
 	b.upgrade_duration = 0.0f;
 	if (to == BLD_TOWN_CENTER || to == BLD_FORTRESS || to == BLD_TOWER) rebuild_territory();
+	if (to == BLD_GATE) {
+		b.gate_open = false;
+		b.gate_locked = false;
+		rebuild_nav_grid(); // a wall blocks long-range paths, an unlocked gate doesn't
+	}
 }
 
 // Upgrade.js UpgradeProgress: the timer runs whether or not anyone is near.
@@ -2549,9 +2554,13 @@ void Simulation::move_units(float dt, Arena &arena) {
 
 	// Building steering only ever tests standing buildings that block movement.
 	steer_obstacles_.clear();
+	closed_gates_.clear();
 	for (const Building &b : buildings_)
-		if (!b.wrecked && building_blocks_movement(b.type))
+		if (!b.wrecked && blocks_movement_now(b)) {
 			steer_obstacles_.push_back(SteerObstacle{b.id, b.x, b.z, b.half_size, b.type, false});
+			if (b.type == BLD_GATE && b.build_progress >= 1.0f)
+				closed_gates_.push_back(SteerObstacle{b.id, b.x, b.z, b.half_size, b.type, false});
+		}
 
 	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		if (!alive[i]) {
@@ -2757,6 +2766,22 @@ void Simulation::move_units(float dt, Arena &arena) {
 		}
 		npx[i] = std::clamp(px[i] + move_dx, -map_half_, map_half_);
 		npz[i] = std::clamp(pz[i] + move_dz, -map_half_, map_half_);
+		// A closed gate is solid: slide along it, never step into it.
+		if (!closed_gates_.empty()) {
+			const float r = unit_collision_radius(units_.unit_type[i]);
+			auto inside = [&](float x, float z) {
+				for (const auto &g : closed_gates_) {
+					const float h = g.half_size + r;
+					if (std::fabs(x - g.x) < h && std::fabs(z - g.z) < h) return true;
+				}
+				return false;
+			};
+			if (inside(npx[i], npz[i]) && !inside(px[i], pz[i])) {
+				if (!inside(npx[i], pz[i])) npz[i] = pz[i];
+				else if (!inside(px[i], npz[i])) npx[i] = px[i];
+				else { npx[i] = px[i]; npz[i] = pz[i]; }
+			}
+		}
 		vx[i] = ux * spd;
 		vz[i] = uz * spd;
 	});
@@ -2875,7 +2900,7 @@ void Simulation::separation(float dt, Arena &arena) {
 
 		// 2. Building Obstacle Non-Penetration (keep units outside the footprint rectangle)
 		for (const auto &b : buildings_) {
-			if (b.wrecked || !building_blocks_movement(b.type)) continue;
+			if (b.wrecked || !blocks_movement_now(b)) continue;
 			float b_half = b.half_size;
 			float cx = std::clamp(pxi, b.x - b_half, b.x + b_half);
 			float cz = std::clamp(pzi, b.z - b_half, b.z + b_half);
@@ -4929,36 +4954,54 @@ void Simulation::tick_loot(float dt) {
 	}
 }
 
-// 0 A.D. Gate.js:145-180: auto open / close when allied units in pass range
+// 0 A.D. Gate.js OperateGate: a gate opens while a unit of its owner or an ally
+// that can move is within PassRange, closes once none is, and never closes on a
+// unit standing in it (CloseGate retries). A locked gate never opens.
+// RTS0 gates are one 2 m cell; PassRange is 0 A.D.'s 2 m from the gate's edge
+// plus what a unit covers between checks (0.2 s, one lockstep turn).
 void Simulation::tick_gates(float dt) {
 	gate_timer_ += dt;
-	if (gate_timer_ < 0.5f) return;
+	if (gate_timer_ < 0.2f) return;
 	gate_timer_ = 0.0f;
-
-	// In 0 A.D. Gate.js:145-180 (OperateGate / ShouldOpen), gates detect approaching
-	// allied units within PassRange (20m in 0 A.D., scaled to 10m in RTS0)
-	for (const auto &b : buildings_) {
-		if (b.type != BLD_GATE || b.hp <= 0.0f || b.wrecked) continue;
-		float gx = (float)b.cell_x;
-		float gz = (float)b.cell_y;
-		float pass_range_sq = 10.0f * 10.0f;
-		bool ally_in_range = false;
+	constexpr float PASS_RANGE = 4.0f;
+	bool nav_changed = false;
+	for (auto &b : buildings_) {
+		if (b.type != BLD_GATE || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) continue;
+		const bool blocked_paths = blocks_pathfinding(b);
+		bool ally_near = false, unit_inside = false;
+		const float reach = b.half_size + PASS_RANGE;
 		for (size_t i = 0; i < units_.count; ++i) {
 			if (!units_.alive[i]) continue;
-			if (units_.team[i] != b.team) continue;
-			float dx = units_.pos_x[i] - gx;
-			float dz = units_.pos_z[i] - gz;
-			if (dx * dx + dz * dz <= pass_range_sq) {
-				ally_in_range = true;
-				break;
-			}
+			const float dx = std::fabs(units_.pos_x[i] - b.x), dz = std::fabs(units_.pos_z[i] - b.z);
+			if (dx > reach || dz > reach) continue;
+			const float inside = b.half_size + unit_collision_radius(units_.unit_type[i]);
+			if (dx < inside && dz < inside) unit_inside = true;
+			if (!ally_near && b.team < MAX_PLAYERS && units_.team[i] < MAX_PLAYERS && is_ally(b.team, units_.team[i])
+			    && units_.action_state[i] != ACTION_DYING)
+				ally_near = true;
+			if (ally_near && unit_inside) break;
 		}
-		(void)ally_in_range;
+		const bool should_open = ally_near && !b.gate_locked;
+		if (b.gate_open && !should_open && !unit_inside) b.gate_open = false;
+		else if (!b.gate_open && should_open) b.gate_open = true;
+		if (blocks_pathfinding(b) != blocked_paths) nav_changed = true;
 	}
+	if (nav_changed) rebuild_nav_grid();
 }
 
-
-
+bool Simulation::cmd_lock_gate(uint8_t player_id, uint32_t building_id, bool lock) {
+	auto bit = building_id_to_idx_.find(building_id);
+	if (bit == building_id_to_idx_.end()) return false;
+	Building &b = buildings_[bit->second];
+	if (b.team != player_id || b.type != BLD_GATE || b.build_progress < 1.0f || b.wrecked) return false;
+	if (b.gate_locked == lock) return false;
+	const bool blocked_paths = blocks_pathfinding(b);
+	b.gate_locked = lock;
+	// LockGate: an open gate closes on the next check once nobody stands in it.
+	// Only locking and unlocking change what long-range paths may cross.
+	if (blocks_pathfinding(b) != blocked_paths) rebuild_nav_grid();
+	return true;
+}
 
 void Simulation::order_guard(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id) {
 	int32_t tidx = lookup_unit(target_unit_id);
@@ -8442,7 +8485,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = 13; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 the rest of the per-tick state (save_tick_state)
+	uint32_t version = 14; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 the rest of the per-tick state (save_tick_state)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 
@@ -8564,6 +8607,8 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&b.upgrade_duration, sizeof(b.upgrade_duration));
 		out.write((const char *)b.upgrade_paid.data(), sizeof(b.upgrade_paid));
 		out.write((const char *)&b.is_burning, sizeof(b.is_burning));
+		out.write((const char *)&b.gate_open, sizeof(b.gate_open));
+		out.write((const char *)&b.gate_locked, sizeof(b.gate_locked));
 
 		uint32_t q_sz = (uint32_t)b.queue.size();
 		out.write((const char *)&q_sz, sizeof(q_sz));
@@ -8604,7 +8649,7 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&leg, sizeof(leg));
 	}
 
-	// 6. v13: everything else a tick reads (tools/test_save_hash.cpp checks it)
+	// 6. v14: everything else a tick reads (tools/test_save_hash.cpp checks it)
 	save_tick_state(out);
 	return true;
 }
@@ -8616,7 +8661,7 @@ bool Simulation::load_state(const char *filepath) {
 	uint32_t magic = 0, version = 0;
 	in.read((char *)&magic, sizeof(magic));
 	in.read((char *)&version, sizeof(version));
-	if (magic != 0x52545330 || version < 1 || version > 13) return false;
+	if (magic != 0x52545330 || version < 1 || version > 14) return false;
 
 	// 1. Sim scalars
 	in.read((char *)&ticks_, sizeof(ticks_));
@@ -8848,6 +8893,10 @@ bool Simulation::load_state(const char *filepath) {
 			in.read((char *)bld.upgrade_paid.data(), sizeof(bld.upgrade_paid));
 			in.read((char *)&bld.is_burning, sizeof(bld.is_burning));
 		}
+		if (version >= 13) {
+			in.read((char *)&bld.gate_open, sizeof(bld.gate_open));
+			in.read((char *)&bld.gate_locked, sizeof(bld.gate_locked));
+		}
 		const auto &bi = building_type_info(bld.type);
 		bld.capture_regen_rate = bi.capture_regen_rate;
 		bld.capture_garrison_regen_rate = bi.capture_garrison_regen_rate;
@@ -8934,7 +8983,7 @@ bool Simulation::load_state(const char *filepath) {
 		next_id_ = max_id + 1;
 	}
 
-	if (version >= 13) {
+	if (version >= 14) {
 		if (!load_tick_state(in)) return false;
 	} else {
 		// Older saves carry none of it: start the per-tick state fresh.
@@ -8952,9 +9001,8 @@ bool Simulation::load_state(const char *filepath) {
 		projectiles_.clear();
 	}
 
-	// The loaded structures block movement; the map we loaded into only had its own.
-	rebuild_nav_grid();
 	rebuild_all_tech_mods();
+	rebuild_nav_grid(); // the loaded structures (and locked gates) block paths, not the old ones
 	return true;
 }
 
@@ -9097,6 +9145,15 @@ void Simulation::save_tick_state(std::ofstream &out) const {
 	save_pod(out, gate_timer_);
 	save_pod(out, fow_timer_);
 	save_pod(out, territory_timer_);
+	// Territory is recomputed once a second, so the saved grid can't be rebuilt from the buildings on load.
+	for (const Grid<uint8_t> *g : {&territory_grid_, &influence_grid_}) {
+		save_pod(out, (int32_t)g->w);
+		save_pod(out, (int32_t)g->h);
+		save_vec(out, g->data);
+	}
+	save_vec(out, territory_roots_);
+	save_pod(out, territory_roots_res_);
+	save_pod(out, territory_roots_half_);
 	save_pod(out, aura_timer_);
 	save_pod(out, relic_victory_timer_);
 	save_pod(out, last_alert_time_);
@@ -9159,6 +9216,15 @@ bool Simulation::load_tick_state(std::ifstream &in) {
 	load_pod(in, gate_timer_);
 	load_pod(in, fow_timer_);
 	load_pod(in, territory_timer_);
+	for (Grid<uint8_t> *g : {&territory_grid_, &influence_grid_}) {
+		int32_t w = 0, h = 0;
+		if (!load_pod(in, w) || !load_pod(in, h) || w < 0 || h < 0 || w > MAX_GRID_RES || h > MAX_GRID_RES) return false;
+		g->resize(w, h, 0);
+		if (!load_vec(in, g->data, (uint32_t)(w * h)) || g->data.size() != (size_t)w * (size_t)h) return false;
+	}
+	if (!load_vec(in, territory_roots_, 1u << 16)) return false;
+	load_pod(in, territory_roots_res_);
+	load_pod(in, territory_roots_half_);
 	load_pod(in, aura_timer_);
 	load_pod(in, relic_victory_timer_);
 	load_pod(in, last_alert_time_);

@@ -92,6 +92,13 @@ jobs:
             src/network/net_host.cpp -lpthread -o /tmp/test_trade
           /tmp/test_trade
 
+      - name: Save/load keeps the lockstep hash
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_save_hash.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+            src/network/net_host.cpp -lpthread -o /tmp/test_save_hash
+          /tmp/test_save_hash
+
       - name: Civ roster wiring tests
         run: |
           g++ -std=c++20 -O2 -Isrc tools/test_civ_units.cpp src/simulation/simulation.cpp \
@@ -135,6 +142,13 @@ jobs:
             src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
             src/network/net_host.cpp -lpthread -o /tmp/test_upgrades
           /tmp/test_upgrades
+
+      - name: Gate tests
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_gates.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+            src/network/net_host.cpp -lpthread -o /tmp/test_gates
+          /tmp/test_gates
 
       - name: Building steering scenarios
         run: |
