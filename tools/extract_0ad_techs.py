@@ -105,6 +105,7 @@ def stat_of(path: str):
         "BuildingAI/DefaultArrowCount": "TSTAT_ARROWS",
         "BuildingAI/MaxArrowCount": "TSTAT_ARROWS",
         "Researcher/TechCostMultiplier/time": "TSTAT_RESEARCH_TIME",
+        "Pack/Time": "TSTAT_PACK_TIME",
     }.get(path)
 
 

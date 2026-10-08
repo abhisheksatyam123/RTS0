@@ -792,6 +792,7 @@ void Simulation::rebuild_territory() {
 		else if (b.type == BLD_FORTRESS) radius = 28.0f;
 		else if (b.type == BLD_TOWER) radius = 18.0f;
 		else if ((radius = civ_building_territory_radius(b.type)) <= 0.0f) continue;
+		if (b.team >= MAX_PLAYERS) continue; // Gaia holds no territory
 		roots.push_back({b.x, b.z, radius, b.team});
 	}
 	// The grids depend on nothing else, so unchanged inputs (most 1 Hz refreshes) keep them.
@@ -1330,7 +1331,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		for (float &g : m.gather[t]) g = 1.0f;
 		for (int16_t &c : m.carry[t]) c = 0;
 		m.attack[t] = m.health[t] = m.speed[t] = 1.0f;
-		m.train_time[t] = m.heal_interval[t] = m.trade_gain[t] = 1.0f;
+		m.train_time[t] = m.heal_interval[t] = m.trade_gain[t] = m.pack_time[t] = 1.0f;
 		m.range[t] = m.heal_range[t] = 0.0f;
 		m.armor[t][0] = m.armor[t][1] = m.armor[t][2] = 0.0f;
 	}
@@ -1380,6 +1381,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_HEAL_RANGE: apply(m.heal_range[t]); break;
 					case TSTAT_HEAL_INTERVAL: apply(m.heal_interval[t]); break;
 					case TSTAT_TRADE_GAIN: apply(m.trade_gain[t]); break;
+					case TSTAT_PACK_TIME: apply(m.pack_time[t]); break;
 					default: break;
 				}
 			}
@@ -2086,11 +2088,23 @@ void Simulation::order_pack(const uint32_t *unit_ids, size_t count, bool pack) {
 	}
 }
 
+// Saves before v16 numbered techs without siege_pack_unpack (id 55); later ids moved up one.
+static uint8_t shift_tech_before_v16(uint8_t id) {
+	return id >= TECH_SIEGE_PACK_UNPACK && id + 1 < TECH_COUNT ? (uint8_t)(id + 1) : id;
+}
+
+static TechSet shift_techs_before_v16(const TechSet &old) {
+	TechSet out;
+	for (int id = 0; id < TECH_COUNT; ++id)
+		if (old.has((uint8_t)id)) out.set(shift_tech_before_v16((uint8_t)id));
+	return out;
+}
+
 float Simulation::pack_time_s(size_t unit_idx) const {
-	(void)unit_idx;
-	// 0 A.D.'s Military Engineers tech (siege_pack_unpack.json, Pack/Time x0.6) applies here
-	// once it is in tech_data.h.
-	return PACK_TIME_S;
+	// 0 A.D. Military Engineers (siege_pack_unpack.json): Pack/Time x0.6 for Siege.
+	const uint8_t team = units_.team[unit_idx], t = units_.unit_type[unit_idx];
+	if (team >= MAX_PLAYERS || t >= UNIT_TYPE_COUNT) return PACK_TIME_S;
+	return PACK_TIME_S * tech_mods_[team].pack_time[t];
 }
 
 void Simulation::order_set_formation(const uint32_t *unit_ids, size_t count, uint8_t formation) {
@@ -2131,14 +2145,74 @@ int Simulation::get_transport_capacity(uint32_t transport_id) const {
 	uint8_t utype = units_.unit_type[idx];
 	if (utype == UNIT_TRIREME) return TRANSPORT_CAPACITY;
 	if (utype == UNIT_MERCHANT_SHIP) return 10;
-	return 0;
+	return siege_garrison_capacity((size_t)idx);
 }
 
 bool Simulation::is_transport(uint32_t unit_id) const {
 	int32_t idx = lookup_unit(unit_id);
 	if (idx < 0 || !units_.alive[idx]) return false;
 	uint8_t utype = units_.unit_type[idx];
-	return utype == UNIT_TRIREME || utype == UNIT_MERCHANT_SHIP;
+	return utype == UNIT_TRIREME || utype == UNIT_MERCHANT_SHIP || siege_garrison_capacity((size_t)idx) > 0;
+}
+
+bool Simulation::is_siege_tower_at(size_t i) const {
+	const uint16_t tmpl = units_.tmpl[i];
+	return tmpl != CIV_UNIT_TEMPLATE_NONE && tmpl < CIV_UNIT_TEMPLATE_COUNT
+		&& (civ_unit_template(tmpl).flags & ROSTER_SIEGE_TOWER) != 0;
+}
+
+int Simulation::siege_garrison_capacity(size_t i) const {
+	if (is_siege_tower_at(i)) return SIEGE_TOWER_GARRISON;
+	if (units_.unit_type[i] == UNIT_SIEGE_RAM) return SIEGE_RAM_GARRISON;
+	return 0;
+}
+
+int Simulation::siege_tower_arrows(size_t i) const {
+	auto pit = transport_passengers_.find(units_.id[i]);
+	if (pit == transport_passengers_.end()) return 0;
+	int infantry = 0;
+	for (uint32_t puid : pit->second) {
+		int32_t p = lookup_unit(puid);
+		if (p >= 0 && (unit_tech_classes(units_.unit_type[p]) & TC_INFANTRY)) ++infantry;
+	}
+	return std::min(infantry, SIEGE_TOWER_MAX_ARROWS);
+}
+
+// Who may board: same owner, not a transport itself; land siege only takes
+// 0 A.D.'s Support and Infantry classes.
+bool Simulation::can_board(size_t transport_idx, size_t unit_idx) const {
+	if (units_.team[unit_idx] != units_.team[transport_idx]) return false;
+	if (is_transport(units_.id[unit_idx])) return false;
+	if (siege_garrison_capacity(transport_idx) > 0 && !siege_garrison_allowed(units_.unit_type[unit_idx])) return false;
+	return true;
+}
+
+void Simulation::tick_siege_garrisons() {
+	if (transport_passengers_.empty()) return;
+	// Index order, not map order, so every peer unloads identically.
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (siege_garrison_capacity(i) == 0) continue;
+		if (units_.action_state[i] == ACTION_GARRISONED) continue;
+		const bool dead = !units_.alive[i];
+		if (!dead && units_.hp[i] >= units_.max_hp[i] * SIEGE_EJECT_HEALTH) continue;
+		auto pit = transport_passengers_.find(units_.id[i]);
+		if (pit == transport_passengers_.end() || pit->second.empty()) continue;
+		const float cx = units_.pos_x[i], cz = units_.pos_z[i];
+		const float step = 6.2831853f / (float)pit->second.size();
+		int k = 0;
+		for (uint32_t puid : pit->second) {
+			int32_t p = lookup_unit(puid);
+			if (p < 0) continue;
+			const float a = step * (float)k++;
+			units_.pos_x[p] = std::clamp(cx + cosf(a) * 2.0f, -map_half_ + 1.0f, map_half_ - 1.0f);
+			units_.pos_z[p] = std::clamp(cz + sinf(a) * 2.0f, -map_half_ + 1.0f, map_half_ - 1.0f);
+			units_.alive[p] = 1;
+			units_.action_state[p] = ACTION_IDLE;
+			units_.has_order[p] = 0;
+			units_.vel_x[p] = units_.vel_z[p] = 0.0f;
+		}
+		transport_passengers_.erase(pit);
+	}
 }
 
 void Simulation::order_garrison(const uint32_t *unit_ids, size_t count, uint32_t building_id) {
@@ -2270,7 +2344,7 @@ void Simulation::order_board_transport(const uint32_t *unit_ids, size_t count, u
 		if ((int)passengers.size() >= max_cap) break;
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx] || units_.team[uidx] != team) continue;
-		if (is_transport(unit_ids[i])) continue;
+		if (!can_board((size_t)tidx, (size_t)uidx)) continue;
 
 		float dx = units_.pos_x[uidx] - tx;
 		float dz = units_.pos_z[uidx] - tz;
@@ -2523,6 +2597,7 @@ void Simulation::tick(float dt) {
 	tick_production(dt);     // 0 A.D. ProductionQueue.js: unit training queues
 	tick_research(dt);       // 0 A.D. ProductionQueue.js / Researcher.js: technology research progress
 	tick_upgrades(dt);       // 0 A.D. Upgrade.js: structure upgrades (sentry tower -> tower, wall -> gate)
+	tick_siege_garrisons();  // 0 A.D. GarrisonHolder EjectHealth / OnDestroy for siege towers and rams
 	tick_entity_limits(dt);  // 0 A.D. EntityLimits.js:7-12: enforce category limits per player (Wonder: 1, Fortress: 10)
 	tick_gates(dt);          // 0 A.D. Gate.js:145-180: auto open / close when allied units in pass range
 
@@ -2891,7 +2966,7 @@ void Simulation::move_units(float dt, Arena &arena) {
 		if (!units_.alive[i] || is_transport(units_.id[i])) continue;
 		if (units_.action_state[i] == ACTION_MOVE && units_.target_unit_id[i] != 0) {
 			int32_t tidx = lookup_unit(units_.target_unit_id[i]);
-			if (tidx >= 0 && units_.alive[tidx] && is_transport(units_.id[tidx]) && units_.team[tidx] == units_.team[i]) {
+			if (tidx >= 0 && units_.alive[tidx] && is_transport(units_.id[tidx]) && can_board((size_t)tidx, i)) {
 				float dx = px[i] - px[tidx];
 				float dz = pz[i] - pz[tidx];
 				if (dx * dx + dz * dz <= 4.5f * 4.5f) {
@@ -3620,6 +3695,12 @@ void Simulation::tick_combat(float dt) {
 
 		// Passive stance / civilian gatherers do not auto-acquire combat targets
 		if (units_.stance[i] == STANCE_PASSIVE) return;
+		// Walking to board a friendly ship or siege engine (0 A.D. Garrison order):
+		// keep the order instead of dropping target_unit_id for want of an enemy.
+		if (units_.action_state[i] == ACTION_MOVE && units_.target_unit_id[i] != 0) {
+			const int32_t c = lookup_unit(units_.target_unit_id[i]);
+			if (c >= 0 && units_.alive[c] && units_.team[c] == units_.team[i]) return;
+		}
 		if (units_.unit_type[i] == UNIT_VILLAGER &&
 				(units_.action_state[i] == ACTION_GATHER || units_.action_state[i] == ACTION_BUILD ||
 						units_.action_state[i] == ACTION_RETURN_DROPSITE)) {
@@ -3742,6 +3823,9 @@ void Simulation::tick_combat(float dt) {
 		if (t < 0 || !units_.alive[i] || units_.attack_timer[i] > 0) continue;
 		if (units_.attack_damage[i] <= 0.0f) continue;
 		if (!pack_state_can_attack(units_.pack_state[i])) continue; // Pack.js: unpack before firing
+		// Siege tower BuildingAI: DefaultArrowCount 0, one arrow per garrisoned Infantry.
+		const int volley = is_siege_tower_at(i) ? siege_tower_arrows(i) : 1;
+		if (volley <= 0) continue;
 		float dx = units_.pos_x[i] - units_.pos_x[t];
 		float dz = units_.pos_z[i] - units_.pos_z[t];
 		float d2 = dx * dx + dz * dz;
@@ -3857,14 +3941,15 @@ void Simulation::tick_combat(float dt) {
 			// 0 A.D. Spread dispersion
 			float dist = sqrtf(d2);
 			float spread_factor = (dist / units_.attack_range[i]) * 0.25f;
-			float disp_x = (sim_rng_.range_float(0.0f, 1.0f) - 0.5f) * spread_factor;
-			float disp_z = (sim_rng_.range_float(0.0f, 1.0f) - 0.5f) * spread_factor;
 			float launch_y = get_terrain_height(units_.pos_x[i], units_.pos_z[i]) + arrow_sy;
 			float land_y = get_terrain_height(units_.pos_x[t], units_.pos_z[t]) + 0.8f;
-
-			fire_arrow(units_.pos_x[i], launch_y, units_.pos_z[i],
-			           units_.pos_x[t] + disp_x, land_y, units_.pos_z[t] + disp_z,
-			           final_dmg, units_.team[i], units_.id[t], effect, 1, false, proj_vis);
+			for (int v = 0; v < volley; ++v) {
+				float disp_x = (sim_rng_.range_float(0.0f, 1.0f) - 0.5f) * spread_factor;
+				float disp_z = (sim_rng_.range_float(0.0f, 1.0f) - 0.5f) * spread_factor;
+				fire_arrow(units_.pos_x[i], launch_y, units_.pos_z[i],
+				           units_.pos_x[t] + disp_x, land_y, units_.pos_z[t] + disp_z,
+				           final_dmg, units_.team[i], units_.id[t], effect, 1, false, proj_vis);
+			}
 
 			// If War Trireme has garrisoned passengers, fire deck archer barrage
 			if (u_att == UNIT_TRIREME) {
@@ -3984,7 +4069,8 @@ void Simulation::tick_combat(float dt) {
 				apply_loot_bounty(units_.team[i], f_loot, w_loot, g_loot, s_loot);
 
 				// Trireme destruction: disembark survivors near shore or drown
-				if (is_transport(units_.id[t])) {
+				// (land siege unloads in tick_siege_garrisons instead).
+				if (is_transport(units_.id[t]) && unit_is_ship(units_.unit_type[t])) {
 					auto pit = transport_passengers_.find(units_.id[t]);
 					if (pit != transport_passengers_.end()) {
 						float ship_x = units_.pos_x[t];
@@ -4273,7 +4359,7 @@ void Simulation::tick_combat(float dt) {
 			if (dx * dx + dz * dz <= 2.5f * 2.5f) {
 				rel.claimed = true;
 				rel.owner_team = units_.team[u];
-				if (rel.res_type < RES_COUNT) player(units_.team[u]).res[rel.res_type] += (float)rel.amount;
+				if (rel.res_type < RES_COUNT && units_.team[u] < MAX_PLAYERS) player(units_.team[u]).res[rel.res_type] += (float)rel.amount;
 				raise_alert(BattleAlert::ALERT_RELIC_CLAIMED, rel.x, rel.z, rel.id, units_.team[u]);
 				break;
 			}
@@ -4408,6 +4494,10 @@ void Simulation::tick_capture(float dt) {
 	for (size_t bi = 0; bi < buildings_.size(); ++bi) {
 		Building &b = buildings_[bi];
 		if (b.build_progress < 1.0f || b.max_capture_points <= 0.0f) continue;
+		if (b.team >= MAX_PLAYERS) {
+			tick_capture_gaia(b, dt);
+			continue;
+		}
 		if (std::abs(std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f) - b.max_capture_points) > 0.01f) {
 			b.capture_points_by_team.fill(0.0f);
 			b.capture_points_by_team[b.team < 8 ? b.team : 0] = b.max_capture_points;
@@ -4501,6 +4591,60 @@ void Simulation::tick_capture(float dt) {
 			if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER) rebuild_territory();
 		}
 		b.capture_points = b.capture_points_by_team[b.team < 8 ? b.team : 0];
+	}
+}
+
+void Simulation::tick_capture_gaia(Building &b, float dt) {
+	// A Gaia structure: the points no player holds are Gaia's. The strongest player in
+	// reach takes Gaia's points first, then its enemies'; with nobody capturing, Gaia
+	// regenerates. A player holding over half the points takes the structure.
+	int count[MAX_PLAYERS] = {};
+	float strength[MAX_PLAYERS] = {};
+	for (size_t u = 0; u < units_.count; ++u) {
+		const uint8_t t = units_.team[u];
+		if (!units_.alive[u] || t >= MAX_PLAYERS) continue;
+		const float dx = units_.pos_x[u] - b.x;
+		const float dz = units_.pos_z[u] - b.z;
+		if (dx * dx + dz * dz <= 11.0f * 11.0f) {
+			count[t]++;
+			strength[t] += unit_capture_strength(units_.unit_type[u]);
+		}
+	}
+	int captor = -1;
+	for (int t = 0; t < MAX_PLAYERS && !ceasefire_active(); ++t) {
+		if (count[t] && strength[t] > 0.0f && (captor < 0 || strength[t] > strength[captor])) captor = t;
+	}
+	auto &pts = b.capture_points_by_team;
+	float held = std::accumulate(pts.begin(), pts.end(), 0.0f);
+	if (captor >= 0) {
+		float amount = strength[captor] * dt;
+		const float from_gaia = std::min(amount, std::max(0.0f, b.max_capture_points - held));
+		pts[captor] += from_gaia;
+		amount -= from_gaia;
+		for (int t = 0; t < MAX_PLAYERS && amount > 0.0f; ++t) {
+			if (t == captor || !is_hostile((uint8_t)captor, (uint8_t)t)) continue;
+			const float take = std::min(pts[t], amount);
+			pts[t] -= take;
+			pts[captor] += take;
+			amount -= take;
+		}
+	} else if (held > 0.0f) {
+		float regen = std::min(held, b.capture_regen_rate * dt);
+		for (int t = 0; t < MAX_PLAYERS && regen > 0.0f; ++t) {
+			const float take = std::min(pts[t], regen);
+			pts[t] -= take;
+			regen -= take;
+		}
+	}
+	b.capture_points = std::max(0.0f, b.max_capture_points - std::accumulate(pts.begin(), pts.end(), 0.0f));
+	if (captor >= 0 && pts[captor] > b.max_capture_points * 0.5f) {
+		order_ungarrison(b.id);
+		b.team = (uint8_t)captor;
+		pts.fill(0.0f);
+		pts[captor] = b.max_capture_points;
+		b.capture_points = b.max_capture_points;
+		raise_alert(BattleAlert::ALERT_STRUCTURE_CAPTURED, b.x, b.z, b.id, b.team);
+		if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER) rebuild_territory();
 	}
 }
 
@@ -4784,6 +4928,7 @@ void Simulation::check_victory_conditions(float dt) {
 	auto end_match = [&](uint8_t winners) {
 		winners &= (uint8_t)~defeated_mask_; // a defeated ally stays defeated (0 A.D.)
 		winner_mask_ = winners;
+		convert_to_gaia((uint8_t)(participant_mask_ & ~winners & ~defeated_mask_));
 		defeated_mask_ |= (uint8_t)(participant_mask_ & ~winners);
 		victory_ = (winners & 1) != 0;
 		game_over_ = true;
@@ -4871,9 +5016,14 @@ void Simulation::check_victory_conditions(float dt) {
 
 	// Defeat is permanent (Player.js SetState("defeated")). Wave defense keeps its old rule:
 	// lose the Town Center and the match is lost.
+	uint8_t fallen = 0;
 	for (int t = 0; t < MAX_TEAMS; ++t) {
 		if (!((participant_mask_ >> t) & 1) || is_defeated((uint8_t)t)) continue;
-		if (defeated(t) || (waves_enabled_ && t == 0 && tc_count[0] == 0)) defeated_mask_ |= (uint8_t)(1u << t);
+		if (defeated(t) || (waves_enabled_ && t == 0 && tc_count[0] == 0)) fallen |= (uint8_t)(1u << t);
+	}
+	if (fallen) {
+		convert_to_gaia(fallen);
+		defeated_mask_ |= fallen;
 	}
 	const uint8_t standing = participant_mask_ & ~defeated_mask_;
 	if (participant_mask_ && !standing) { // everyone fell on the same tick
@@ -4898,6 +5048,36 @@ void Simulation::check_victory_conditions(float dt) {
 	// Don't hand out a win on a map that never had an enemy on it.
 	bool fought = defeated_mask_ != 0 || record_.enemies_killed > 0 || record_.buildings_destroyed > 0 || wave_number_ > 0;
 	if (one_side && fought) end_match(standing);
+}
+
+void Simulation::convert_to_gaia(uint8_t players) {
+	if (!players) return;
+	auto out = [players](uint8_t t) { return t < MAX_PLAYERS && ((players >> t) & 1); };
+	for (size_t u = 0; u < units_.count; ++u) {
+		if (!out(units_.team[u])) continue;
+		units_.team[u] = GAIA_PLAYER;
+		units_.has_order[u] = 0;
+		units_.target_unit_id[u] = 0;
+		units_.target_building_id[u] = 0;
+		units_.target_resource_id[u] = 0;
+		if (units_.action_state[u] != ACTION_GARRISONED) units_.action_state[u] = ACTION_IDLE;
+		trader_routes_.erase(units_.id[u]);
+		trader_leg_.erase(units_.id[u]);
+	}
+	bool roots = false;
+	for (auto &b : buildings_) {
+		if (!out(b.team)) continue;
+		cancel_upgrade(b, b.team);
+		b.queue.clear();
+		b.research_tech = TECH_NONE;
+		b.research_timer = 0.0f;
+		b.has_rally_point = false;
+		b.team = GAIA_PLAYER;
+		b.capture_points_by_team.fill(0.0f); // every point is Gaia's
+		b.capture_points = 0.0f;
+		roots |= b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER;
+	}
+	if (roots) rebuild_territory();
 }
 
 void Simulation::apply_relic_count() {
@@ -8988,12 +9168,12 @@ bool Simulation::player_in_match(uint8_t pid) const {
 }
 
 bool Simulation::petra_runs_for(uint8_t pid) const {
-	if (pid >= MAX_PLAYERS) return false;
+	if (pid >= MAX_PLAYERS || is_defeated(pid)) return false;
 	// No slot seated (tests, skirmish without game setup): legacy player 1 AI.
 	bool any_active = false;
 	for (const PlayerState &ps : players_) any_active |= ps.active != 0;
 	if (!any_active) return pid == PETRA_PLAYER;
-	return players_[pid].active && players_[pid].is_ai && !is_defeated(pid);
+	return players_[pid].active && players_[pid].is_ai;
 }
 
 void Simulation::tick_petra_ai(float dt) {
@@ -9080,7 +9260,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = 15; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 each unit's pack state; v15 the rest of the per-tick state (save_tick_state)
+	uint32_t version = 16; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 
@@ -9258,7 +9438,7 @@ bool Simulation::load_state(const char *filepath) {
 	uint32_t magic = 0, version = 0;
 	in.read((char *)&magic, sizeof(magic));
 	in.read((char *)&version, sizeof(version));
-	if (magic != 0x52545330 || version < 1 || version > 15) return false;
+	if (magic != 0x52545330 || version < 1 || version > 16) return false;
 
 	// 1. Sim scalars
 	in.read((char *)&ticks_, sizeof(ticks_));
@@ -9272,6 +9452,7 @@ bool Simulation::load_state(const char *filepath) {
 			ps.techs.clear();
 			if (version >= 8) {
 				in.read((char *)ps.techs.words, sizeof(ps.techs.words));
+				if (version < 16) ps.techs = shift_techs_before_v16(ps.techs);
 			} else {
 				uint32_t mask = 0;
 				in.read((char *)&mask, sizeof(mask));
@@ -9482,6 +9663,7 @@ bool Simulation::load_state(const char *filepath) {
 		in.read((char *)&bld.rally_target_bld_id, sizeof(bld.rally_target_bld_id));
 		in.read((char *)&bld.garrison_cap, sizeof(bld.garrison_cap));
 		in.read((char *)&bld.research_tech, sizeof(bld.research_tech));
+		if (version < 16) bld.research_tech = shift_tech_before_v16(bld.research_tech);
 		in.read((char *)&bld.research_timer, sizeof(bld.research_timer));
 		in.read((char *)&bld.research_duration, sizeof(bld.research_duration));
 		in.read((char *)&bld.capture_points, sizeof(bld.capture_points));
