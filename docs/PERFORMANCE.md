@@ -12,6 +12,7 @@ Goal: high frame rates with hundreds to thousands of units on desktop, acceptabl
 | **MultiMesh rendering** | `RtsoWorldView::create_multimesh` (`src/presentation/world_view_node.cpp:32`); unit batches in `unit_mmi` (`:742`) | Each batch is one draw call; no per-unit node transforms to sync |
 | **Arena and pool storage** | `Arena &arena` passed through sim passes; `src/core/memory/arena.h`, `pool.h` | Avoids per-frame heap allocation |
 | **Render interpolation** | `src/presentation/world_view_node.cpp:1150-1158` eases rendered positions toward sim targets | Smooth visuals between 20 Hz ticks |
+| **Headless tick benchmark** | `tools/bench_sim.cpp` (build line in its header; CI runs a short smoke run) | Times `Simulation::tick` for 150, 600 and 1,500 units and prints state hashes, so a speedup can be proven not to change results. On 2026-10-08 it found vision LOS stamping (Petra scouting and `tick_fow`) at ~80% of tick time; `reveal_fow()` (PR #14) now skips lit cells and caches cell heights, and a 1,500-unit tick takes ~1.5 ms. Next hot spots: `separation()`, the `tick_combat()` aggro scan, building steering in `move_units`. |
 
 ## Rules for all future code
 1. No heap allocation (`new`, growing `std::vector`, building `std::string`) in per-unit or per-frame loops. Reuse arena or pool storage.
@@ -24,7 +25,7 @@ Goal: high frame rates with hundreds to thousands of units on desktop, acceptabl
 2. **Off-thread simulation**: not started. The sim already runs parallel loops inside `tick` through `JobSystem`. Any off-thread model must respect the lockstep turn boundary.
 3. **GPU compute**: `shaders/compute/separation.glsl` exists but is not wired (no `RenderingDevice` use under `src/`). A CPU fallback is required, because the Compatibility renderer has no compute.
 4. **Particles**: GPUParticles3D only, never CPUParticles3D. None are in the tree yet (see G6).
-5. **Profiling first**: use the Godot debugger's Monitors and Profiler tabs, then optimise what they report.
+5. **Profiling first**: use the Godot debugger's Monitors and Profiler tabs for frame time, and `tools/bench_sim.cpp` under callgrind for sim tick time, then optimise what they report.
 
 ## Mobile renderer note
 Handhelds use the Mobile renderer: no Forward+-only effects (SDFGI/volumetric fog). Test Android builds weekly so perf regressions surface early.

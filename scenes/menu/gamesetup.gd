@@ -46,7 +46,17 @@ const RMS_MAPS := [
 	["random_saharan_oases", "Saharan Oases (RMS)", "Random", 8, 128, "oasis", "Arid dunes, date palm groves, and freshwater oases. Supports 2-8 players."],
 	["random_anatolian_plateau", "Anatolian Plateau (RMS)", "Random", 8, 128, "steppe", "High plateau steppe with canyon ravines and rich minerals. Supports 2-8 players."],
 	["random_jebel_barkal", "Jebel Barkal (RMS)", "Random", 8, 128, "savanna", "Central sandstone mesa with high-ground advantage. Supports 2-8 players."],
+	["random_mainland", "Mainland (RMS)", "Random", 8, 128, "mediterranean", "Open rolling land with no water barriers. Supports 2-8 players."],
+	["random_alpine_lakes", "Alpine Lakes (RMS)", "Random", 8, 128, "alpine", "Ridged mountains cradling cold lakes. Supports 2-8 players."],
+	["random_lake", "Lake (RMS)", "Random", 8, 128, "temperate", "A great central lake ringed by the players. Supports 2-8 players."],
+	["random_gulf_of_bothnia", "Gulf of Bothnia (RMS)", "Random", 8, 128, "alpine", "A northern gulf cuts in from one edge; players around its shores. Supports 2-8 players."],
+	["random_ardennes_forest", "Ardennes Forest (RMS)", "Random", 8, 128, "temperate", "Dense hilly forest with clearings for each base. Supports 2-8 players."],
+	["random_nearestern_badlands", "Near-Eastern Badlands (RMS)", "Random", 8, 128, "oasis", "Eroded desert canyons with a few oases and rich mines. Supports 2-8 players."],
 ]
+
+# 0 A.D. map sizes (width in meters) for random maps.
+const MAP_SIZES := [[128, "Tiny (128 m)"], [192, "Small (192 m)"], [256, "Medium (256 m)"],
+	[320, "Normal (320 m)"], [384, "Large (384 m)"], [448, "Very Large (448 m)"], [512, "Giant (512 m)"]]
 
 # Index == rtso::VictoryCondition id (sim_types.h).
 const VICTORIES := ["Conquest — destroy all enemies", "Wonder — hold a Wonder 10 min", "Relic — claim and hold all relics", "Endless — no victory, sandbox",
@@ -313,6 +323,10 @@ func _build_options() -> void:
 	for v in VICTORIES:
 		vic.add_item(v)
 	vic.select(0)
+	var msz := _make_option($VBox/HBox/Left/MapSizeSlot)
+	for s in MAP_SIZES:
+		msz.add_item(s[1], s[0])
+	msz.select(0)
 	var res := _make_option($VBox/HBox/Left/ResSlot)
 	for r in START_RES:
 		res.add_item(r)
@@ -347,6 +361,10 @@ func _restore_settings() -> void:
 	var beh: RtsoSafeSelect = $VBox/HBox/Left/BehaviorSlot.get_child(0)
 	vic.select(clampi(int(ms.get("victory")), 0, VICTORIES.size() - 1))
 	$VBox/HBox/Left/Waves.button_pressed = bool(ms.get("waves_enabled"))
+	var msz: RtsoSafeSelect = $VBox/HBox/Left/MapSizeSlot.get_child(0)
+	for i in range(MAP_SIZES.size()):
+		if int(MAP_SIZES[i][0]) == int(ms.get("map_size")):
+			msz.select(i)
 	res.select(clampi(int(ms.get("start_res")), 0, 3))
 	beh.select(clampi(int(ms.get("ai_behavior")), 0, 3))
 	$VBox/HBox/Left/SeedRow/SpinSeed.value = int(ms.get("seed"))
@@ -384,6 +402,7 @@ func _collect_setup() -> Dictionary:
 	var vic: RtsoSafeSelect = $VBox/HBox/Left/VictorySlot.get_child(0)
 	var res: RtsoSafeSelect = $VBox/HBox/Left/ResSlot.get_child(0)
 	var beh: RtsoSafeSelect = $VBox/HBox/Left/BehaviorSlot.get_child(0)
+	var msz: RtsoSafeSelect = $VBox/HBox/Left/MapSizeSlot.get_child(0)
 	var n := int($VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value)
 	_ensure_slot_rows(n)
 	var types: Array = []
@@ -410,6 +429,7 @@ func _collect_setup() -> Dictionary:
 			break
 	return {"map": m, "seed": seed, "victory": vic.get_selected(),
 		"waves": $VBox/HBox/Left/Waves.button_pressed,
+		"map_size": int(MAP_SIZES[maxi(msz.get_selected(), 0)][0]),
 		"res": res.get_selected(), "beh": beh.get_selected(), "diff": diff,
 		"types": types, "civs": civs, "teams": teams,
 		"humans": humans, "ai": ai_total, "slots": n}
@@ -437,6 +457,7 @@ func _on_start_pressed() -> void:
 	ms.seed = int(st["seed"])
 	ms.victory = int(st["victory"])
 	ms.waves_enabled = bool(st["waves"])
+	ms.map_size = int(st["map_size"])
 	ms.ai_difficulty = int(st["diff"])
 	ms.ai_behavior = int(st["beh"])
 	ms.start_res = int(st["res"])
