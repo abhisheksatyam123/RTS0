@@ -503,6 +503,17 @@ public:
 	bool load_state(const char *filepath);
 
 	bool can_place(int cell_x, int cell_y, int footprint) const;
+	// 0 A.D. BuildRestrictions.js CheckPlacement for `player` placing `b_type` at cell_x/cell_y:
+	// obstruction, terrain (land, shore, land-shore), territory, dock shoreline and distance rules.
+	enum PlacementResult : uint8_t {
+		PLACE_OK = 0,
+		PLACE_OBSTRUCTED, // off the map, on another building or on a resource
+		PLACE_TERRAIN,    // water under a land building, deep water under a wall
+		PLACE_TERRITORY,  // territory the template does not allow
+		PLACE_SHORE,      // a dock not on a shoreline facing a sea
+		PLACE_DISTANCE,   // too close to the player's own building of the same class
+	};
+	PlacementResult check_placement(uint8_t player, int cell_x, int cell_y, uint8_t b_type) const;
 
 	void tick(float dt);
 
@@ -1030,6 +1041,13 @@ private:
 		}
 	};
 	std::unordered_set<std::pair<int, int>, CellHash> occupied_cells_;
+	// check_placement's cells (GRID-sized, from -map_half_) that a Gaia resource's
+	// obstruction touches. A cache of resources_, rebuilt when the tick or the
+	// resource count changes; never saved or hashed.
+	mutable std::vector<uint8_t> resource_block_cells_;
+	mutable uint64_t resource_block_tick_ = UINT64_MAX;
+	mutable size_t resource_block_count_ = SIZE_MAX;
+	mutable int resource_block_w_ = 0;
 
 	uint32_t next_id_ = 1;
 	uint32_t sim_seed_ = 1337;
@@ -1190,7 +1208,7 @@ private:
 	void petra_staff_foundations();
 	void petra_manage_fields(int target_food);
 	int petra_villager_target() const;
-	bool petra_can_place(int cell_x, int cell_y, int footprint) const;
+	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
 	void petra_say(uint8_t kind, float x = 0.0f, float z = 0.0f, uint8_t to = 0xFF, int amount = 0, uint8_t res = 0);
 	void petra_handle_diplomacy_request(uint8_t player, uint8_t type);
