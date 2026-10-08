@@ -82,7 +82,8 @@ enum AuthenticateResultCode : uint32_t {
 	ARC_OK = 0,
 	ARC_OK_SAVED_GAME = 1,
 	ARC_OK_REJOINING = 2,
-	ARC_PASSWORD_INVALID = 3
+	ARC_PASSWORD_INVALID = 3,
+	ARC_BANNED = 4 // 0 A.D. NDR_BANNED: the host banned this name or address
 };
 
 // NetCommand::cmd_type values. APPEND-ONLY: 1..23 are frozen wire values and
@@ -207,7 +208,8 @@ struct NetPeer {
 	std::string guid;
 	std::string player_name;
 	bool is_ready = false;
-	bool is_authenticated = false;
+	bool is_authenticated = false; // host: admitted to the session (right password, not banned)
+	uint64_t kick_disconnect_ms = 0; // host: kicked; the link closes at this time, after NMT_KICKED got there
 	uint64_t last_seen_ms = 0;
 	uint32_t last_sent_seq = 0;
 	uint32_t last_recv_seq = 0;   // every reliable seq <= this has been delivered
@@ -299,6 +301,9 @@ struct GameSetupParams {
 	uint8_t wonder_min = 20; // Wonder victory: minutes a wonder must stand, 0..60
 	uint8_t relic_min = 20;  // Capture the Relic: minutes all relics must be held, 0..60
 	uint8_t relics = 2;      // Capture the Relic: relic count, 1..16
+	uint8_t biome = 0;       // random-map biome: 0 = the map's own, else BIOME_* + 1
+	uint8_t diffs[8] = {3, 3, 3, 3, 3, 3, 3, 3}; // per-slot Petra difficulty 0..5
+	uint8_t behs[8] = {2, 2, 2, 2, 2, 2, 2, 2};  // per-slot Petra behaviour 0..3
 	uint16_t map_size = 128; // random-map width in meters, 128..512
 	uint8_t difficulty = 3; // Petra 0..5 sandbox..very hard
 	uint8_t behavior = 2;   // Petra 0..3 random/def/bal/agg
@@ -320,6 +325,16 @@ inline std::string format_game_start_full(const GameSetupParams &p) {
 	s += ";wonderdur=" + std::to_string((unsigned)p.wonder_min);
 	s += ";relicdur=" + std::to_string((unsigned)p.relic_min);
 	s += ";relics=" + std::to_string((unsigned)p.relics);
+	s += ";biome=" + std::to_string((unsigned)p.biome);
+	{
+		std::string d, b;
+		for (unsigned i = 0; i < p.slot_count && i < 8; ++i) {
+			if (i) { d += ','; b += ','; }
+			d += (char)('0' + (p.diffs[i] <= 5 ? p.diffs[i] : 3));
+			b += (char)('0' + (p.behs[i] <= 3 ? p.behs[i] : 2));
+		}
+		s += ";diffs=" + d + ";behs=" + b;
+	}
 	s += ";mapsize=" + std::to_string((unsigned)p.map_size);
 	s += ";diff=" + std::to_string((unsigned)p.difficulty);
 	s += ";behavior=" + std::to_string((unsigned)p.behavior);
@@ -390,6 +405,14 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 			else if (k == "wonderdur") { uint8_t x; if (detail::parse_u8(v, 0, 60, x)) out.wonder_min = x; }
 			else if (k == "relicdur") { uint8_t x; if (detail::parse_u8(v, 0, 60, x)) out.relic_min = x; }
 			else if (k == "relics") { uint8_t x; if (detail::parse_u8(v, 1, 16, x)) out.relics = x; }
+			else if (k == "biome") { uint8_t x; if (detail::parse_u8(v, 0, 9, x)) out.biome = x; }
+			else if (k == "diffs" || k == "behs") {
+				const bool diffs = k == "diffs";
+				for (size_t i = 0, slot = 0; i < v.size() && slot < 8; i += 2, ++slot) {
+					const char c = v[i];
+					if (c >= '0' && c <= (diffs ? '5' : '3')) (diffs ? out.diffs : out.behs)[slot] = (uint8_t)(c - '0');
+				}
+			}
 			else if (k == "popcap" && !v.empty() && v.size() <= 4 && v.find_first_not_of("0123456789") == std::string::npos) {
 				unsigned x = (unsigned)std::stoul(v);
 				if (x <= 1000) out.pop_cap = (uint16_t)x;
@@ -489,6 +512,31 @@ struct ClientPausedMsg {
 	std::string guid;
 	uint8_t pause = 0;
 };
+
+// NMT_CLIENT_PERFORMANCE payload (0 A.D. CClientPerformanceMessage, with the
+// lastReceivedTime of CClientTimeoutMessage folded in): once a second the host
+// tells every client how each connected client is doing. rtt_ms is the host's
+// smoothed round trip to it; silent_ms how long since the host last heard it.
+// NMT_KICKED payload (0 A.D. CKickedMessage): the host removed a client, by
+// guid ("peer-<id>") and name; ban = it may not come back.
+struct KickedMsg {
+	std::string guid;
+	std::string name;
+	uint8_t ban = 0;
+};
+
+struct ClientPerformanceMsg {
+	struct Entry {
+		uint32_t client = 0;
+		uint32_t rtt_ms = 0;
+		uint32_t silent_ms = 0;
+	};
+	std::vector<Entry> clients;
+};
+// 0 A.D. session.js: a round trip above this reads as a bad connection, and a
+// client unheard for longer than this is "not responding".
+inline constexpr uint32_t NET_LAG_WARN_RTT_MS = 500;
+inline constexpr uint32_t NET_TIMEOUT_WARN_MS = 1000;
 
 // NMT_JOIN_SYNC_STATE payload -- late-join turn-0 state resync request.
 // 0 A.D. parity: NetServer.cpp:1366 OnGameStart re-sends the game setup to a
@@ -922,6 +970,45 @@ public:
 		size_t offset = 0;
 		if (!NetSerde::read_string(data, size, offset, msg.guid)) return false;
 		if (!NetSerde::read_u8(data, size, offset, msg.pause)) return false;
+		return offset == size;
+	}
+
+	static std::vector<uint8_t> frame_kicked(const KickedMsg &msg) {
+		std::vector<uint8_t> buf;
+		NetSerde::write_string(buf, msg.guid);
+		NetSerde::write_string(buf, msg.name);
+		NetSerde::write_u8(buf, msg.ban ? 1 : 0);
+		return buf;
+	}
+
+	static bool parse_kicked(const uint8_t *data, size_t size, KickedMsg &msg) {
+		size_t offset = 0;
+		if (!NetSerde::read_string(data, size, offset, msg.guid)) return false;
+		if (!NetSerde::read_string(data, size, offset, msg.name)) return false;
+		if (!NetSerde::read_u8(data, size, offset, msg.ban)) return false;
+		return offset == size;
+	}
+
+	static std::vector<uint8_t> frame_client_performance(const ClientPerformanceMsg &msg) {
+		std::vector<uint8_t> buf;
+		const size_t n = std::min<size_t>(msg.clients.size(), 255);
+		NetSerde::write_u8(buf, (uint8_t)n);
+		for (size_t i = 0; i < n; ++i) {
+			NetSerde::write_u32(buf, msg.clients[i].client);
+			NetSerde::write_u32(buf, msg.clients[i].rtt_ms);
+			NetSerde::write_u32(buf, msg.clients[i].silent_ms);
+		}
+		return buf;
+	}
+
+	static bool parse_client_performance(const uint8_t *data, size_t size, ClientPerformanceMsg &msg) {
+		size_t offset = 0;
+		uint8_t n = 0;
+		if (!NetSerde::read_u8(data, size, offset, n)) return false;
+		msg.clients.assign(n, {});
+		for (auto &e : msg.clients)
+			if (!NetSerde::read_u32(data, size, offset, e.client) || !NetSerde::read_u32(data, size, offset, e.rtt_ms) ||
+					!NetSerde::read_u32(data, size, offset, e.silent_ms)) return false;
 		return offset == size;
 	}
 

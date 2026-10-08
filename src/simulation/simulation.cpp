@@ -9,6 +9,7 @@
 #include <numeric>
 #include <bit>
 #include <algorithm>
+#include <memory>
 #include <limits>
 #include <cstring>
 #include <bit>
@@ -449,8 +450,9 @@ void Simulation::spawn_initial() {
 	spawn_fauna(22.0f, -16.0f, FAUNA_BOAR);
 	spawn_fauna(-25.0f, -20.0f, FAUNA_SHEEP);
 	spawn_fauna(-27.0f, -22.0f, FAUNA_SHEEP);
-	spawn_fauna(30.0f, 25.0f, FAUNA_WOLF);
-	spawn_fauna(32.0f, 28.0f, FAUNA_WOLF);
+	// Wolves are aggressive (0 A.D. fauna_wolf), so their pack sits away from both bases.
+	spawn_fauna(38.0f, -36.0f, FAUNA_WOLF);
+	spawn_fauna(40.0f, -33.0f, FAUNA_WOLF);
 
 	// 7. Enemy Base (Team 1) — Spartan Base for Petra Autonomous AI.
 	// Sits ~68 m from the player's Town Center so neither side's starting units are inside
@@ -756,9 +758,16 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	else if (std::strcmp(minfo.biome, "desert") == 0 || std::strcmp(minfo.biome, "persia") == 0) cfg.biome = BIOME_OASIS;
 	else if (std::strcmp(minfo.biome, "volcanic") == 0) cfg.biome = BIOME_STEPPE;
 	else cfg.biome = BIOME_AEGEAN;
+	if (biome_override_ >= 0) cfg.biome = (BiomeType)biome_override_;
 
 	set_sim_seed(seed);
 	RmsGenerator::generate(*this, cfg);
+	if (biome_override_ >= 0) {
+		// The ground textures follow the chosen biome too (Assets::apply_terrain_biome).
+		static const char *kBiomeNames[BIOME_COUNT] = {"aegean", "latium", "alpine", "oasis", "temperate",
+				"steppe", "savanna", "polar", "india"};
+		current_map_biome_ = kBiomeNames[biome_override_];
+	}
 	rebuild_nav_grid();
 	rebuild_territory();
 }
@@ -2096,6 +2105,9 @@ void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint
 		if (uidx < 0 || !units_.alive[uidx]) continue;
 		// ResourceGatherer Rates: fishing boats only have food.fish, land gatherers none.
 		if ((units_.unit_type[uidx] == UNIT_FISHING_BOAT) != (resources_.subtype[ridx] == RES_SUB_FISH)) continue;
+		// Citizen cavalry gather meat only (template_unit_cavalry); champion cavalry gather nothing.
+		if (units_.unit_type[uidx] == UNIT_CAVALRY &&
+		    (resources_.subtype[ridx] != RES_SUB_MEAT || units_.carry_capacity[uidx] <= 0)) continue;
 
 		units_.target_x[uidx] = rx;
 		units_.target_z[uidx] = rz;
@@ -3084,17 +3096,25 @@ void Simulation::order_herd(const uint32_t *unit_ids, size_t count, uint32_t fau
 	if (!fauna_.alive[fidx]) return;
 
 	const auto &info = fauna_type_info(fauna_.fauna_type[fidx]);
-	if (!info.is_domestic) {
-		order_hunt(unit_ids, count, fauna_id);
+	if (!info.is_domestic() || fauna_.behavior[fidx] == FAUNA_CORRALLED) {
+		order_hunt(unit_ids, count, fauna_id); // wild game, or slaughtering penned livestock
 		return;
 	}
 
+	// The first living land unit herds it to its own player's corral.
+	uint32_t herder = 0;
+	for (size_t k = 0; k < count && herder == 0; ++k) {
+		int32_t uidx = lookup_unit(unit_ids[k]);
+		if (uidx >= 0 && units_.alive[uidx] && units_.team[uidx] < MAX_PLAYERS && !unit_is_ship(units_.unit_type[uidx]))
+			herder = unit_ids[k];
+	}
+	if (herder == 0) return;
 	fauna_.behavior[fidx] = FAUNA_HERDED;
-	fauna_.target_unit_id[fidx] = count > 0 ? unit_ids[0] : 0;
+	fauna_.target_unit_id[fidx] = herder;
 
 	for (size_t k = 0; k < count; ++k) {
 		int32_t uidx = lookup_unit(unit_ids[k]);
-		if (uidx < 0 || !units_.alive[uidx] || units_.unit_type[uidx] != UNIT_VILLAGER) continue;
+		if (uidx < 0 || !units_.alive[uidx] || unit_is_ship(units_.unit_type[uidx])) continue;
 		units_.action_state[uidx] = ACTION_MOVE;
 		units_.has_order[uidx] = 1;
 		drop_orders(uidx);
@@ -4143,7 +4163,8 @@ void Simulation::tick_gather(float dt) {
 		bool is_gatherer = (units_.unit_type[i] == UNIT_VILLAGER ||
 		                    units_.unit_type[i] == UNIT_FEMALE_CITIZEN ||
 		                    units_.unit_type[i] == UNIT_WORKER_ELEPHANT ||
-		                    units_.unit_type[i] == UNIT_FISHING_BOAT);
+		                    units_.unit_type[i] == UNIT_FISHING_BOAT ||
+		                    (units_.unit_type[i] == UNIT_CAVALRY && units_.carry_capacity[i] > 0)); // meat only, below
 		if (!units_.alive[i] || !is_gatherer) continue;
 		uint8_t uteam = units_.team[i];
 
@@ -4259,6 +4280,12 @@ void Simulation::tick_gather(float dt) {
 				units_.action_state[i] = ACTION_IDLE;
 				continue;
 			}
+			// template_unit_cavalry Rates: food.meat only.
+			if (units_.unit_type[i] == UNIT_CAVALRY && resources_.subtype[ridx] != RES_SUB_MEAT) {
+				units_.target_resource_id[i] = 0;
+				units_.action_state[i] = ACTION_IDLE;
+				continue;
+			}
 			if (fish) {
 				FieldGatherers &fg = fish_gatherers_[units_.target_resource_id[i]];
 				if (fg.slots_taken >= FISH_MAX_GATHERERS) {
@@ -4310,6 +4337,9 @@ void Simulation::tick_gather(float dt) {
 						harvest_rate /= civ_info(civ).metal_gather_mult;
 					}
 				}
+
+				// Cavalry butcher meat 5x as fast as infantry (template_unit_cavalry food.meat 5 vs 1).
+				if (units_.unit_type[i] == UNIT_CAVALRY) harvest_rate *= 0.2f;
 
 				// Female Citizen gathering bonus (+25% Food gather speed)
 				if (units_.unit_type[i] == UNIT_FEMALE_CITIZEN && resources_.type[ridx] == RES_FOOD) {
@@ -4697,6 +4727,7 @@ void Simulation::tick_combat(float dt) {
 		// A. Existing unit target
 		if (!guarding && units_.target_unit_id[i] != 0) {
 			int32_t tidx = lookup_unit(units_.target_unit_id[i]);
+			if (tidx < 0 && is_fauna_id(units_.target_unit_id[i])) return; // hunting: tick_hunters drives it
 			if (tidx >= 0 && units_.alive[tidx] && can_attack(units_.team[i], units_.team[tidx]) &&
 					(explicit_target || within_stance(tidx))) {
 				const float tx = units_.pos_x[tidx] - pxi, tz = units_.pos_z[tidx] - pzi;
@@ -11293,7 +11324,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -11975,14 +12006,42 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	for (S::Building &b : s.buildings_) { ar.pod(b.committed); ar.pod(b.wrecked); }
 	io_vec(ar, s.projectiles_, 1u << 20, projectile);
 	io_vec(ar, s.relics_, 1u << 16, relic);
-	static_assert(sizeof(S::FaunaStorage) == 15112, "list the new FaunaStorage field below");
-	ar.padded(s.fauna_, [&](S::FaunaStorage &d, const S::FaunaStorage &v) {
+	static_assert(sizeof(S::FaunaStorage) == 68616, "list the new FaunaStorage field below");
+	if constexpr (Ar::loading) {
+		if (ar.version < 25) {
+			// Saves before v25 held 256 animals and no held position.
+			struct Fauna256 {
+				size_t count;
+				uint32_t id[256]; float pos_x[256], pos_z[256], vel_x[256], vel_z[256], rot_y[256], hp[256], max_hp[256];
+				int food_amount[256]; uint8_t fauna_type[256], behavior[256], alive[256];
+				float state_timer[256], attack_timer[256]; uint32_t target_unit_id[256], corral_id[256]; float fatten_timer[256];
+			};
+			static_assert(sizeof(Fauna256) == 15112);
+			auto old = std::make_unique<Fauna256>();
+			ar.pod(*old);
+			if (!ar.ok || old->count > 256) { ar.ok = false; return; }
+			S::FaunaStorage &F = s.fauna_;
+			F = S::FaunaStorage{};
+			F.count = old->count;
+			for (size_t f = 0; f < old->count; ++f) {
+				F.id[f] = old->id[f]; F.pos_x[f] = old->pos_x[f]; F.pos_z[f] = old->pos_z[f];
+				F.vel_x[f] = old->vel_x[f]; F.vel_z[f] = old->vel_z[f]; F.rot_y[f] = old->rot_y[f];
+				F.hp[f] = old->hp[f]; F.max_hp[f] = old->max_hp[f]; F.food_amount[f] = old->food_amount[f];
+				F.fauna_type[f] = old->fauna_type[f]; F.behavior[f] = old->behavior[f]; F.alive[f] = old->alive[f];
+				F.state_timer[f] = old->state_timer[f]; F.attack_timer[f] = old->attack_timer[f];
+				F.target_unit_id[f] = old->target_unit_id[f]; F.corral_id[f] = old->corral_id[f];
+				F.fatten_timer[f] = old->fatten_timer[f]; F.home_x[f] = F.pos_x[f]; F.home_z[f] = F.pos_z[f];
+			}
+		}
+	}
+	if (!Ar::loading || ar.version >= 25) ar.padded(s.fauna_, [&](S::FaunaStorage &d, const S::FaunaStorage &v) {
 		d.count = v.count;
 		arr(d.id, v.id); arr(d.pos_x, v.pos_x); arr(d.pos_z, v.pos_z); arr(d.vel_x, v.vel_x); arr(d.vel_z, v.vel_z);
 		arr(d.rot_y, v.rot_y); arr(d.hp, v.hp); arr(d.max_hp, v.max_hp); arr(d.food_amount, v.food_amount);
 		arr(d.fauna_type, v.fauna_type); arr(d.behavior, v.behavior); arr(d.alive, v.alive);
 		arr(d.state_timer, v.state_timer); arr(d.attack_timer, v.attack_timer); arr(d.target_unit_id, v.target_unit_id);
 		arr(d.corral_id, v.corral_id); arr(d.fatten_timer, v.fatten_timer);
+		arr(d.home_x, v.home_x); arr(d.home_z, v.home_z);
 	});
 	if constexpr (Ar::loading) {
 		if (s.fauna_.count > S::FaunaStorage::MAX_FAUNA) { ar.ok = false; return; }
@@ -12534,7 +12593,7 @@ Simulation::FaunaView Simulation::fauna() const {
 }
 
 uint32_t Simulation::spawn_fauna(float x, float z, uint8_t ftype) {
-	if (fauna_.count >= FaunaStorage::MAX_FAUNA) return 0;
+	if (fauna_.count >= FaunaStorage::MAX_FAUNA || ftype >= FAUNA_COUNT) return 0;
 	size_t idx = fauna_.count++;
 	uint32_t fid = alloc_id();
 	const auto &info = fauna_type_info(ftype);
@@ -12550,15 +12609,20 @@ uint32_t Simulation::spawn_fauna(float x, float z, uint8_t ftype) {
 	fauna_.fauna_type[idx] = ftype;
 	fauna_.behavior[idx] = FAUNA_IDLE_GRAZE;
 	fauna_.alive[idx] = 1;
-	fauna_.state_timer[idx] = 2.0f + (float)sim_rng_.range_int(0, 3);
+	// UnitAI IDLE: "Go linger first to prevent all roaming entities to move all at the same time on map init."
+	fauna_.state_timer[idx] = info.feed_time_min + (float)sim_rng_.range_int(0, (int)std::max(0.0f, info.feed_time_max - info.feed_time_min));
 	fauna_.attack_timer[idx] = 0.0f;
 	fauna_.target_unit_id[idx] = 0;
 	fauna_.corral_id[idx] = 0;
 	fauna_.fatten_timer[idx] = 0.0f;
+	fauna_.home_x[idx] = fauna_.pos_x[idx];
+	fauna_.home_z[idx] = fauna_.pos_z[idx];
 	fauna_id_to_idx_[fid] = idx;
 	return fid;
 }
 
+// 0 A.D. UnitAI Gather order on a KillBeforeGather supply (an animal): the unit attacks it,
+// then gathers the carcass (tick_hunters). Any unit with an attack can hunt.
 void Simulation::order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id) {
 	auto it = fauna_id_to_idx_.find(fauna_id);
 	if (it == fauna_id_to_idx_.end()) return;
@@ -12567,29 +12631,208 @@ void Simulation::order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fau
 
 	for (size_t k = 0; k < count; ++k) {
 		int32_t uidx = lookup_unit(unit_ids[k]);
-		if (uidx < 0 || !units_.alive[uidx]) continue;
+		if (uidx < 0 || !units_.alive[uidx] || units_.attack_damage[uidx] <= 0.0f) continue;
+		if (units_.action_state[uidx] == ACTION_GARRISONED) continue;
 		units_.action_state[uidx] = ACTION_ATTACK;
 		units_.has_order[uidx] = 1;
 		drop_orders(uidx);
 		units_.target_unit_id[uidx] = fauna_id;
+		units_.target_building_id[uidx] = 0;
+		units_.target_resource_id[uidx] = 0;
 		units_.target_x[uidx] = fauna_.pos_x[fidx];
 		units_.target_z[uidx] = fauna_.pos_z[fidx];
 	}
 }
 
+// Animals walk on land (or swim, for SeaCreatures) and stay inside the map.
+bool Simulation::fauna_can_step(size_t f, float x, float z) const {
+	if (x < -map_half_ + 2.0f || x > map_half_ - 2.0f || z < -map_half_ + 2.0f || z > map_half_ - 2.0f) return false;
+	if (nav_grid_.res <= 0) return true;
+	auto [cx, cy] = nav_grid_.world_to_cell(x, z);
+	const bool naval = fauna_type_info(fauna_.fauna_type[f]).is_naval();
+	return nav_grid_.is_passable_for(cx, cy, naval ? PASS_SHIP : PASS_INFANTRY);
+}
+
+// UnitAI "Attacked" for an animal: passive and skittish animals flee (respondFlee),
+// the rest fight back (respondHoldGround / respondChase).
+void Simulation::fauna_attacked(size_t f, uint32_t attacker_id) {
+	if (!fauna_.alive[f]) return;
+	const uint8_t b = fauna_.behavior[f];
+	if (b == FAUNA_CORRALLED || b == FAUNA_HERDED) return; // livestock stays put while slaughtered
+	const auto &info = fauna_type_info(fauna_.fauna_type[f]);
+	if (info.attack_damage() > 0.0f && info.stance != FAUNA_STANCE_PASSIVE && info.stance != FAUNA_STANCE_SKITTISH) {
+		if (b != FAUNA_ATTACK) {
+			fauna_.behavior[f] = FAUNA_ATTACK;
+			fauna_.target_unit_id[f] = attacker_id;
+			fauna_.home_x[f] = fauna_.pos_x[f];
+			fauna_.home_z[f] = fauna_.pos_z[f];
+		}
+		return;
+	}
+	fauna_.behavior[f] = FAUNA_FLEE;
+	fauna_.target_unit_id[f] = attacker_id;
+	fauna_.state_timer[f] = 8.0f; // give up a flee that can't open the distance
+}
+
+// An animal's Attack/Melee lands on a unit: 0 A.D. Attack.js damage, sum(Dmg * 0.9^Armor).
+void Simulation::fauna_hit_unit(size_t f, size_t u) {
+	const auto &info = fauna_type_info(fauna_.fauna_type[f]);
+	const auto &uinfo = unit_info_at(u);
+	float hack_a = uinfo.hack_armor, pierce_a = uinfo.pierce_armor, crush_a = uinfo.crush_armor;
+	if (units_.team[u] < MAX_PLAYERS && units_.unit_type[u] < UNIT_TYPE_COUNT) {
+		const float *armor = tech_mods(units_.team[u]).armor[units_.unit_type[u]];
+		hack_a += armor[0];
+		pierce_a += armor[1];
+		crush_a += armor[2];
+	}
+	const float dmg = info.hack_damage * powf(0.9f, hack_a) + info.pierce_damage * powf(0.9f, pierce_a) +
+	                  info.crush_damage * powf(0.9f, crush_a);
+	units_.hp[u] -= std::max(1.0f, dmg);
+	if (units_.hp[u] <= 0.0f) {
+		units_.alive[u] = 0;
+		units_.action_state[u] = ACTION_DYING;
+		record_death(units_.pos_x[u], units_.pos_z[u], units_.team[u], GAIA_PLAYER, units_.unit_type[u], false);
+		if (units_.team[u] == 0) record_.units_lost++;
+		return;
+	}
+	// The victim's UnitAI "Attacked": soldiers turn on the animal; women and other passive units keep going.
+	if (units_.attack_damage[u] > 0.0f && units_.stance[u] != STANCE_PASSIVE &&
+	    (units_.action_state[u] == ACTION_IDLE || (units_.action_state[u] == ACTION_ATTACK && units_.target_unit_id[u] == 0))) {
+		units_.action_state[u] = ACTION_ATTACK;
+		units_.has_order[u] = 1;
+		units_.target_unit_id[u] = fauna_.id[f];
+		units_.target_x[u] = fauna_.pos_x[f];
+		units_.target_z[u] = fauna_.pos_z[f];
+	}
+}
+
+// Units whose attack target is an animal (order_hunt, or fighting back): chase it, strike it with
+// their own damage against its armour, and gather the carcass once it falls (ResourceGatherer).
+void Simulation::tick_hunters() {
+	if (fauna_.count == 0) return;
+	const size_t n = units_.count;
+	for (size_t i = 0; i < n; ++i) {
+		const uint32_t tid = units_.target_unit_id[i];
+		if (tid == 0 || !units_.alive[i] || lookup_unit(tid) >= 0) continue;
+		const uint8_t st = units_.action_state[i];
+		if (st != ACTION_ATTACK && st != ACTION_MOVE) continue;
+		auto it = fauna_id_to_idx_.find(tid);
+		if (it == fauna_id_to_idx_.end()) continue;
+		const size_t f = it->second;
+		if (st == ACTION_MOVE) continue; // herding: order_herd walks the herder over
+		if (!fauna_.alive[f] || fauna_.hp[f] <= 0.0f) {
+			units_.target_unit_id[i] = 0;
+			units_.action_state[i] = ACTION_IDLE;
+			units_.has_order[i] = 0;
+			continue;
+		}
+		const float fx = fauna_.pos_x[f], fz = fauna_.pos_z[f];
+		units_.target_x[i] = fx;
+		units_.target_z[i] = fz;
+		units_.has_order[i] = 1;
+		if (units_.attack_timer[i] > 0.0f || !pack_state_can_attack(units_.pack_state[i])) continue;
+		const auto &finfo = fauna_type_info(fauna_.fauna_type[f]);
+		const uint8_t ut = units_.unit_type[i];
+		// Attack/Slaughter (infantry, cavalry, women): 1000 hack at 2 m, every second, Domestic animals only.
+		const bool slaughter = finfo.is_domestic() && !unit_is_ship(ut) && !unit_is_siege_engine(ut);
+		const float dx = units_.pos_x[i] - fx, dz = units_.pos_z[i] - fz;
+		// The animal's footprint; a penned animal is reached over the corral fence.
+		float reach = (slaughter ? std::max(units_.attack_range[i], 2.0f * 0.6f) : units_.attack_range[i]) + 1.0f;
+		if (fauna_.behavior[f] == FAUNA_CORRALLED) reach += 3.0f;
+		if (dx * dx + dz * dz > reach * reach) continue;
+
+		const auto &uinfo = unit_info_at(i);
+		float dmg;
+		if (slaughter) {
+			units_.attack_timer[i] = 1.0f;
+			dmg = 1000.0f * powf(0.9f, finfo.hack_armor);
+		} else {
+			units_.attack_timer[i] = units_.attack_cooldown[i];
+			const float scale = uinfo.attack_damage > 0.0f ? units_.attack_damage[i] / uinfo.attack_damage : 1.0f;
+			dmg = uinfo.hack_damage * scale * powf(0.9f, finfo.hack_armor) +
+			      uinfo.pierce_damage * scale * powf(0.9f, finfo.pierce_armor) +
+			      uinfo.crush_damage * scale * powf(0.9f, finfo.crush_armor);
+			if (uinfo.hack_damage + uinfo.pierce_damage + uinfo.crush_damage <= 0.0f) dmg = units_.attack_damage[i];
+		}
+		fauna_.hp[f] -= std::max(1.0f, dmg);
+		fauna_attacked(f, units_.id[i]);
+		if (fauna_.hp[f] > 0.0f) continue;
+
+		// The kill: Looter.js grants the animal's Loot xp; the carcass becomes a meat supply.
+		units_.xp[i] = (uint16_t)std::min(65535.0f, (float)units_.xp[i] + finfo.loot_xp);
+		fauna_.alive[f] = 0;
+		fauna_.behavior[f] = FAUNA_CARCASS;
+		uint32_t rid = 0;
+		if (fauna_.food_amount[f] > 0)
+			rid = spawn_resource_world(fx, fz, RES_FOOD, fauna_.food_amount[f], RES_SUB_MEAT);
+		for (size_t h = 0; h < n; ++h) {
+			if (units_.target_unit_id[h] != tid || !units_.alive[h]) continue;
+			units_.target_unit_id[h] = 0;
+			if (rid != 0 && carry_cap(h, RES_FOOD) > 0 && !unit_is_ship(units_.unit_type[h])) {
+				order_gather(&units_.id[h], 1, rid);
+			} else {
+				units_.action_state[h] = ACTION_IDLE;
+				units_.has_order[h] = 0;
+			}
+		}
+	}
+}
+
 void Simulation::tick_fauna(float dt) {
+	tick_hunters();
+	if (fauna_.count == 0) return;
+
+	// Animals react to player units (Gaia is every player's enemy); Gaia's own units are their side.
+	UnitGrid grid;
+	Arena &arena = frame_arena_.current();
+	const bool have_grid = units_.count > 0 && grid.build(arena, units_.count, units_.pos_x, units_.pos_z, units_.alive, map_half_);
+	auto foe = [&](int32_t u) {
+		return units_.alive[u] && units_.team[u] < MAX_PLAYERS && units_.action_state[u] != ACTION_GARRISONED;
+	};
+	// Attack/Melee RestrictedClasses "Structure Ship Siege".
+	auto can_bite = [&](int32_t u) {
+		return foe(u) && !unit_is_ship(units_.unit_type[u]) && !unit_is_siege_engine(units_.unit_type[u]);
+	};
+	auto nearest_foe = [&](float x, float z, float range, bool biteable) -> int32_t {
+		int32_t best = -1;
+		float best_d2 = range * range;
+		if (!have_grid || range <= 0.0f) return -1;
+		grid.visit_radius(x, z, range, [&](int32_t u) {
+			if (biteable ? !can_bite(u) : !foe(u)) return;
+			const float dx = units_.pos_x[u] - x, dz = units_.pos_z[u] - z;
+			const float d2 = dx * dx + dz * dz;
+			if (d2 < best_d2 || (d2 == best_d2 && best >= 0 && units_.id[u] < units_.id[best])) {
+				best_d2 = d2;
+				best = u;
+			}
+		});
+		return best;
+	};
+	auto step = [&](size_t i, float vx, float vz) {
+		const float nx = fauna_.pos_x[i] + vx * dt, nz = fauna_.pos_z[i] + vz * dt;
+		if (fauna_can_step(i, nx, nz)) {
+			fauna_.pos_x[i] = nx;
+			fauna_.pos_z[i] = nz;
+		} else {
+			fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
+		}
+	};
+	auto timer = [&](float lo, float hi) {
+		return lo + (float)sim_rng_.range_int(0, (int)std::max(0.0f, hi - lo));
+	};
+
+	bool any_dead = false;
 	for (size_t i = 0; i < fauna_.count; ++i) {
-		if (!fauna_.alive[i]) continue;
+		if (!fauna_.alive[i]) { any_dead = true; continue; }
 		const auto &info = fauna_type_info(fauna_.fauna_type[i]);
 
-		// Dead check -> Carcass conversion (preserves fattened food value!)
+		// Killed by something other than a hunter (splash, a status effect): leave the carcass.
 		if (fauna_.hp[i] <= 0.0f) {
-			if (fauna_.behavior[i] != FAUNA_CARCASS) {
-				fauna_.behavior[i] = FAUNA_CARCASS;
-				// Spawn rich food resource node where animal fell with fattened food yield
+			if (fauna_.food_amount[i] > 0)
 				spawn_resource_world(fauna_.pos_x[i], fauna_.pos_z[i], RES_FOOD, fauna_.food_amount[i], RES_SUB_MEAT);
-			}
+			fauna_.behavior[i] = FAUNA_CARCASS;
 			fauna_.alive[i] = 0;
+			any_dead = true;
 			continue;
 		}
 
@@ -12599,7 +12842,7 @@ void Simulation::tick_fauna(float dt) {
 		float fx = fauna_.pos_x[i];
 		float fz = fauna_.pos_z[i];
 
-		// 1. Domestic Corralled Livestock Behavior & Passive Fattening (Corral.js)
+		// 1. Corralled livestock: fattens and wanders inside its corral.
 		if (fauna_.behavior[i] == FAUNA_CORRALLED) {
 			auto bit = building_id_to_idx_.find(fauna_.corral_id[i]);
 			if (bit == building_id_to_idx_.end() || buildings_[bit->second].hp <= 0.0f) {
@@ -12607,17 +12850,16 @@ void Simulation::tick_fauna(float dt) {
 				fauna_.corral_id[i] = 0;
 			} else {
 				const auto &corral = buildings_[bit->second];
-				// Passive Fattening over time: steadily increases food yield from 100 up to 400!
+				const int fat_cap = std::max(400, info.food_amount);
 				fauna_.fatten_timer[i] += dt;
 				if (fauna_.fatten_timer[i] >= 2.0f) {
 					fauna_.fatten_timer[i] -= 2.0f;
-					if (fauna_.food_amount[i] < 400) {
-						fauna_.food_amount[i] = std::min(400, fauna_.food_amount[i] + 5);
+					if (fauna_.food_amount[i] < fat_cap) {
+						fauna_.food_amount[i] = std::min(fat_cap, fauna_.food_amount[i] + 5);
 						fauna_.hp[i] = std::min(fauna_.max_hp[i] * 1.5f, fauna_.hp[i] + 0.5f);
 					}
 				}
 
-				// Gentle wandering inside/near corral perimeter
 				float cdx = fx - corral.x;
 				float cdz = fz - corral.z;
 				float cd2 = cdx * cdx + cdz * cdz;
@@ -12647,14 +12889,22 @@ void Simulation::tick_fauna(float dt) {
 			}
 		}
 
-		// 2. Herded Animals (Following Villager / Moving toward friendly Corral)
+		// 2. Herded livestock follows its herder to the herder's own nearest corral (or town centre).
 		if (fauna_.behavior[i] == FAUNA_HERDED) {
-			float nearest_corral_d2 = 99999.0f;
+			const int32_t herder_idx = lookup_unit(fauna_.target_unit_id[i]);
+			if (herder_idx < 0 || !units_.alive[herder_idx] || units_.team[herder_idx] >= MAX_PLAYERS) {
+				fauna_.behavior[i] = FAUNA_IDLE_GRAZE;
+				fauna_.target_unit_id[i] = 0;
+				fauna_.state_timer[i] = timer(info.feed_time_min, info.feed_time_max);
+				continue;
+			}
+			const uint8_t owner = units_.team[herder_idx];
+			float nearest_corral_d2 = 1e18f;
 			float target_cx = 0.0f, target_cz = 0.0f;
 			uint32_t nearest_cid = 0;
 
 			for (const auto &b : buildings_) {
-				if (b.team != 0 || b.build_progress < 1.0f) continue;
+				if (b.team != owner || b.build_progress < 1.0f || b.hp <= 0.0f) continue;
 				if (b.type == BLD_CORRAL || (b.type == BLD_TOWN_CENTER && nearest_cid == 0)) {
 					float dx = b.x - fx;
 					float dz = b.z - fz;
@@ -12674,7 +12924,6 @@ void Simulation::tick_fauna(float dt) {
 				float dz = target_cz - fz;
 				float len = std::hypot(dx, dz);
 				if (len <= 3.8f) {
-					// Arrived safely at corral!
 					fauna_.corral_id[i] = nearest_cid;
 					fauna_.behavior[i] = FAUNA_CORRALLED;
 					fauna_.vel_x[i] = 0.0f;
@@ -12685,121 +12934,161 @@ void Simulation::tick_fauna(float dt) {
 					fauna_.rot_y[i] = std::atan2(dx, dz);
 				}
 			} else {
-				int32_t herder_idx = lookup_unit(fauna_.target_unit_id[i]);
-				if (herder_idx >= 0 && units_.alive[herder_idx]) {
-					float dx = units_.pos_x[herder_idx] - fx;
-					float dz = units_.pos_z[herder_idx] - fz;
-					float len = std::hypot(dx, dz);
-					if (len > 2.5f) {
-						fauna_.vel_x[i] = (dx / len) * (info.speed * 1.1f);
-						fauna_.vel_z[i] = (dz / len) * (info.speed * 1.1f);
-						fauna_.rot_y[i] = std::atan2(dx, dz);
-					} else {
-						fauna_.vel_x[i] = 0.0f;
-						fauna_.vel_z[i] = 0.0f;
-					}
-				} else {
-					fauna_.behavior[i] = FAUNA_IDLE_GRAZE;
-				}
-			}
-
-			fauna_.pos_x[i] += fauna_.vel_x[i] * dt;
-			fauna_.pos_z[i] += fauna_.vel_z[i] * dt;
-			fauna_.pos_x[i] = std::clamp(fauna_.pos_x[i], -map_half_ + 2.0f, map_half_ - 2.0f);
-			fauna_.pos_z[i] = std::clamp(fauna_.pos_z[i], -map_half_ + 2.0f, map_half_ - 2.0f);
-			continue;
-		}
-
-		// 3. Scan for nearest player unit within agro/flee range
-		float nearest_u_dist2 = 99999.0f;
-		float nearest_ux = 0, nearest_uz = 0;
-		uint32_t nearest_uid = 0;
-		int32_t nearest_uidx = -1;
-
-		for (size_t u = 0; u < units_.count; ++u) {
-			if (!units_.alive[u]) continue;
-			float dx = units_.pos_x[u] - fx;
-			float dz = units_.pos_z[u] - fz;
-			float d2 = dx * dx + dz * dz;
-			if (d2 < nearest_u_dist2) {
-				nearest_u_dist2 = d2;
-				nearest_ux = units_.pos_x[u];
-				nearest_uz = units_.pos_z[u];
-				nearest_uid = units_.id[u];
-				nearest_uidx = (int32_t)u;
-			}
-		}
-
-		float agro_r = info.agro_range;
-		float agro_r2 = agro_r * agro_r;
-
-		if (!info.is_predator) {
-			// Passive Game (Deer, Sheep): Flee when approached
-			if (nearest_u_dist2 < agro_r2) {
-				fauna_.behavior[i] = FAUNA_FLEE;
-				float dx = fx - nearest_ux;
-				float dz = fz - nearest_uz;
-				float len = std::sqrt(dx * dx + dz * dz);
-				if (len > 0.01f) {
-					fauna_.vel_x[i] = (dx / len) * info.speed;
-					fauna_.vel_z[i] = (dz / len) * info.speed;
+				float dx = units_.pos_x[herder_idx] - fx;
+				float dz = units_.pos_z[herder_idx] - fz;
+				float len = std::hypot(dx, dz);
+				if (len > 2.5f) {
+					fauna_.vel_x[i] = (dx / len) * (info.speed * 1.1f);
+					fauna_.vel_z[i] = (dz / len) * (info.speed * 1.1f);
 					fauna_.rot_y[i] = std::atan2(dx, dz);
-				}
-			} else if (fauna_.state_timer[i] <= 0.0f) {
-				fauna_.behavior[i] = FAUNA_IDLE_GRAZE;
-				fauna_.state_timer[i] = 3.0f + (float)sim_rng_.range_int(0, 4);
-				// Random slow wander
-				if (sim_rng_.range_int(0, 1) == 0) {
-					float angle = (float)sim_rng_.range_int(0, 359) * 0.0174533f;
-					fauna_.vel_x[i] = std::sin(angle) * (info.speed * 0.35f);
-					fauna_.vel_z[i] = std::cos(angle) * (info.speed * 0.35f);
-					fauna_.rot_y[i] = angle;
 				} else {
 					fauna_.vel_x[i] = 0.0f;
 					fauna_.vel_z[i] = 0.0f;
 				}
 			}
-		} else {
-			// Predator (Wolf, Boar): Attack nearest unit within territory
-			if (nearest_u_dist2 < agro_r2 && nearest_uidx >= 0) {
-				fauna_.behavior[i] = FAUNA_ATTACK;
-				fauna_.target_unit_id[i] = nearest_uid;
-				float dx = nearest_ux - fx;
-				float dz = nearest_uz - fz;
-				float len = std::sqrt(dx * dx + dz * dz);
-				if (len > 1.4f) {
-					fauna_.vel_x[i] = (dx / len) * info.speed;
-					fauna_.vel_z[i] = (dz / len) * info.speed;
-					fauna_.rot_y[i] = std::atan2(dx, dz);
-				} else {
-					fauna_.vel_x[i] = 0;
-					fauna_.vel_z[i] = 0;
-					// Attack unit
-					if (fauna_.attack_timer[i] <= 0.0f) {
-						fauna_.attack_timer[i] = info.attack_cooldown;
-						units_.hp[nearest_uidx] -= info.attack_damage;
-					}
+
+			step(i, fauna_.vel_x[i], fauna_.vel_z[i]);
+			continue;
+		}
+
+		// 3. Combat: an animal fights back or hunts per its stance (UnitAI g_Stances).
+		if (fauna_.behavior[i] == FAUNA_ATTACK) {
+			const int32_t t = lookup_unit(fauna_.target_unit_id[i]);
+			bool keep = t >= 0 && can_bite(t);
+			if (keep) {
+				const float tdx = units_.pos_x[t] - fx, tdz = units_.pos_z[t] - fz;
+				const float td2 = tdx * tdx + tdz * tdz;
+				if (info.stance == FAUNA_STANCE_AGGRESSIVE) {
+					keep = td2 <= info.vision * info.vision; // respondChase, not beyond vision
+				} else if (info.stance != FAUNA_STANCE_VIOLENT) {
+					// respondHoldGround: fight near the held position, back home when drawn > 10 m away.
+					const float hdx = fx - fauna_.home_x[i], hdz = fz - fauna_.home_z[i];
+					const float leash = 10.0f * FAUNA_DISTANCE_SCALE + info.vision;
+					keep = hdx * hdx + hdz * hdz <= leash * leash;
 				}
-			} else if (fauna_.state_timer[i] <= 0.0f) {
+			}
+			if (!keep) {
+				fauna_.behavior[i] = FAUNA_ROAMING;
+				fauna_.target_unit_id[i] = 0;
+				const float hdx = fauna_.home_x[i] - fx, hdz = fauna_.home_z[i] - fz;
+				const float hl = std::hypot(hdx, hdz);
+				fauna_.vel_x[i] = hl > 0.5f ? hdx / hl * info.speed : 0.0f;
+				fauna_.vel_z[i] = hl > 0.5f ? hdz / hl * info.speed : 0.0f;
+				fauna_.state_timer[i] = info.speed > 0.0f ? std::min(10.0f, hl / info.speed) : 0.0f;
+				continue;
+			}
+			const float dx = units_.pos_x[t] - fx, dz = units_.pos_z[t] - fz;
+			const float len = std::sqrt(dx * dx + dz * dz);
+			if (len > info.attack_range + 0.6f) {
+				const float sp = info.speed * info.run_mult;
+				fauna_.vel_x[i] = dx / len * sp;
+				fauna_.vel_z[i] = dz / len * sp;
+				fauna_.rot_y[i] = std::atan2(dx, dz);
+				step(i, fauna_.vel_x[i], fauna_.vel_z[i]);
+			} else {
+				fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
+				if (fauna_.attack_timer[i] <= 0.0f) {
+					fauna_.attack_timer[i] = info.attack_cooldown > 0.0f ? info.attack_cooldown : 1.0f;
+					fauna_hit_unit(i, (size_t)t);
+				}
+			}
+			continue;
+		}
+
+		// 4. Fleeing (INDIVIDUAL.FLEEING): run from the attacker until FleeDistance away.
+		if (fauna_.behavior[i] == FAUNA_FLEE) {
+			const int32_t t = lookup_unit(fauna_.target_unit_id[i]);
+			float away_x = 0.0f, away_z = 0.0f, dist = 1e9f;
+			if (t >= 0 && units_.alive[t]) {
+				away_x = fx - units_.pos_x[t];
+				away_z = fz - units_.pos_z[t];
+				dist = std::sqrt(away_x * away_x + away_z * away_z);
+			}
+			if (dist >= info.flee_distance || fauna_.state_timer[i] <= 0.0f) {
 				fauna_.behavior[i] = FAUNA_IDLE_GRAZE;
-				fauna_.state_timer[i] = 3.0f + (float)sim_rng_.range_int(0, 4);
-				if (sim_rng_.range_int(0, 1) == 0) {
-					float angle = (float)sim_rng_.range_int(0, 359) * 0.0174533f;
-					fauna_.vel_x[i] = std::sin(angle) * (info.speed * 0.3f);
-					fauna_.vel_z[i] = std::cos(angle) * (info.speed * 0.3f);
-					fauna_.rot_y[i] = angle;
-				} else {
-					fauna_.vel_x[i] = 0;
-					fauna_.vel_z[i] = 0;
+				fauna_.target_unit_id[i] = 0;
+				fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
+				fauna_.state_timer[i] = timer(info.feed_time_min, info.feed_time_max);
+				continue;
+			}
+			if (dist < 0.01f) { away_x = std::sin(fauna_.rot_y[i]); away_z = std::cos(fauna_.rot_y[i]); dist = 1.0f; }
+			const float sp = info.speed * info.run_mult;
+			fauna_.vel_x[i] = away_x / dist * sp;
+			fauna_.vel_z[i] = away_z / dist * sp;
+			fauna_.rot_y[i] = std::atan2(away_x, away_z);
+			const float before_x = fauna_.pos_x[i], before_z = fauna_.pos_z[i];
+			step(i, fauna_.vel_x[i], fauna_.vel_z[i]);
+			if (fauna_.pos_x[i] == before_x && fauna_.pos_z[i] == before_z) {
+				// Cornered (water, cliff or map edge): slide sideways.
+				const float sx = -away_z / dist * sp, sz = away_x / dist * sp;
+				step(i, sx, sz);
+			}
+			continue;
+		}
+
+		// 5. Idle (UnitAI ANIMAL IDLE): react to units in sight per stance, otherwise linger and roam.
+		if ((i + ticks_) % 4 == 0) {
+			if (info.stance == FAUNA_STANCE_SKITTISH) {
+				// respondFleeOnSight inside Vision/Range.
+				const int32_t u = nearest_foe(fx, fz, info.vision, false);
+				if (u >= 0) { fauna_attacked(i, units_.id[u]); continue; }
+			} else if (info.attack_damage() > 0.0f &&
+			           (info.stance == FAUNA_STANCE_AGGRESSIVE || info.stance == FAUNA_STANCE_VIOLENT ||
+			            info.stance == FAUNA_STANCE_DEFENSIVE)) {
+				// GetQueryRange(IID_Attack): vision when chasing, min(range + vision / 2, vision) when holding ground.
+				const float q = info.stance == FAUNA_STANCE_DEFENSIVE ? std::min(info.attack_range + info.vision * 0.5f, info.vision) : info.vision;
+				const int32_t u = nearest_foe(fx, fz, q, true);
+				if (u >= 0) {
+					fauna_.behavior[i] = FAUNA_ATTACK;
+					fauna_.target_unit_id[i] = units_.id[u];
+					fauna_.home_x[i] = fx;
+					fauna_.home_z[i] = fz;
+					continue;
 				}
 			}
 		}
 
-		// Move & clamp bounds
-		fauna_.pos_x[i] += fauna_.vel_x[i] * dt;
-		fauna_.pos_z[i] += fauna_.vel_z[i] * dt;
-		fauna_.pos_x[i] = std::clamp(fauna_.pos_x[i], -map_half_ + 2.0f, map_half_ - 2.0f);
-		fauna_.pos_z[i] = std::clamp(fauna_.pos_z[i], -map_half_ + 2.0f, map_half_ - 2.0f);
+		if (fauna_.state_timer[i] <= 0.0f) {
+			if (fauna_.behavior[i] == FAUNA_ROAMING) {
+				// ROAMING Timer -> LINGERING (feeding).
+				fauna_.behavior[i] = FAUNA_IDLE_GRAZE;
+				fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
+				fauna_.state_timer[i] = timer(info.feed_time_min, info.feed_time_max);
+			} else {
+				// LINGERING Timer -> ROAMING: MoveRandomly(RoamDistance) for RoamTime.
+				fauna_.behavior[i] = FAUNA_ROAMING;
+				const float angle = (float)sim_rng_.range_int(0, 359) * 0.0174533f;
+				const float roam_t = timer(info.roam_time_min, info.roam_time_max);
+				const float sp = info.speed;
+				fauna_.vel_x[i] = std::sin(angle) * sp;
+				fauna_.vel_z[i] = std::cos(angle) * sp;
+				fauna_.rot_y[i] = angle;
+				fauna_.state_timer[i] = sp > 0.0f ? std::min(roam_t, info.roam_distance / sp) : roam_t;
+			}
+		}
+		if (fauna_.behavior[i] == FAUNA_ROAMING) step(i, fauna_.vel_x[i], fauna_.vel_z[i]);
+	}
+
+	// Compact dead animals out (their carcasses live on as resources); keeps spawn order.
+	if (any_dead) {
+		size_t w = 0;
+		for (size_t r = 0; r < fauna_.count; ++r) {
+			if (!fauna_.alive[r]) continue;
+			if (w != r) {
+				fauna_.id[w] = fauna_.id[r]; fauna_.pos_x[w] = fauna_.pos_x[r]; fauna_.pos_z[w] = fauna_.pos_z[r];
+				fauna_.vel_x[w] = fauna_.vel_x[r]; fauna_.vel_z[w] = fauna_.vel_z[r]; fauna_.rot_y[w] = fauna_.rot_y[r];
+				fauna_.hp[w] = fauna_.hp[r]; fauna_.max_hp[w] = fauna_.max_hp[r]; fauna_.food_amount[w] = fauna_.food_amount[r];
+				fauna_.fauna_type[w] = fauna_.fauna_type[r]; fauna_.behavior[w] = fauna_.behavior[r]; fauna_.alive[w] = 1;
+				fauna_.state_timer[w] = fauna_.state_timer[r]; fauna_.attack_timer[w] = fauna_.attack_timer[r];
+				fauna_.target_unit_id[w] = fauna_.target_unit_id[r]; fauna_.corral_id[w] = fauna_.corral_id[r];
+				fauna_.fatten_timer[w] = fauna_.fatten_timer[r]; fauna_.home_x[w] = fauna_.home_x[r]; fauna_.home_z[w] = fauna_.home_z[r];
+			}
+			++w;
+		}
+		for (size_t r = w; r < fauna_.count; ++r) fauna_.alive[r] = 0;
+		fauna_.count = w;
+		fauna_id_to_idx_.clear();
+		for (size_t f = 0; f < fauna_.count; ++f) fauna_id_to_idx_[fauna_.id[f]] = f;
 	}
 }
 
