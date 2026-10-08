@@ -132,6 +132,26 @@ void RtsoMain::_bind_methods() {
 	bind_enum("BuildingType", "ELEPHANT_STABLE", rtso::BLD_ELEPHANT_STABLE);
 	bind_enum("BuildingType", "THEATER", rtso::BLD_THEATER);
 	bind_enum("BuildingType", "EMBASSY", rtso::BLD_EMBASSY);
+	bind_enum("BuildingType", "GYMNASIUM", rtso::BLD_GYMNASIUM);
+	bind_enum("BuildingType", "PRYTANEION", rtso::BLD_PRYTANEION);
+	bind_enum("BuildingType", "GEROUSIA", rtso::BLD_GEROUSIA);
+	bind_enum("BuildingType", "SYSSITON", rtso::BLD_SYSSITON);
+	bind_enum("BuildingType", "TACHARA", rtso::BLD_TACHARA);
+	bind_enum("BuildingType", "ARMY_CAMP", rtso::BLD_ARMY_CAMP);
+	bind_enum("BuildingType", "AMPHITHEATER", rtso::BLD_AMPHITHEATER);
+	bind_enum("BuildingType", "LIBRARY", rtso::BLD_LIBRARY);
+	bind_enum("BuildingType", "KENNEL", rtso::BLD_KENNEL);
+	bind_enum("BuildingType", "ASSEMBLY", rtso::BLD_ASSEMBLY);
+	bind_enum("BuildingType", "MONUMENT", rtso::BLD_MONUMENT);
+	bind_enum("BuildingType", "PALACE", rtso::BLD_PALACE);
+	bind_enum("BuildingType", "PILLAR", rtso::BLD_PILLAR);
+	bind_enum("BuildingType", "PYRAMID_LARGE", rtso::BLD_PYRAMID_LARGE);
+	bind_enum("BuildingType", "PYRAMID_SMALL", rtso::BLD_PYRAMID_SMALL);
+	bind_enum("BuildingType", "MERCENARY_CAMP", rtso::BLD_MERCENARY_CAMP);
+	bind_enum("BuildingType", "LIGHTHOUSE", rtso::BLD_LIGHTHOUSE);
+	bind_enum("BuildingType", "MILITARY_COLONY", rtso::BLD_MILITARY_COLONY);
+	bind_enum("BuildingType", "ACADEMY", rtso::BLD_ACADEMY);
+	bind_enum("BuildingType", "MINISTRY", rtso::BLD_MINISTRY);
 
 	bind_enum("Civilization", "ATHENIANS", rtso::CIV_ATHENIANS);
 	bind_enum("Civilization", "SPARTANS", rtso::CIV_SPARTANS);
@@ -2247,7 +2267,12 @@ void RtsoMain::update_command_panel() {
 					rtso::BLD_WONDER
 				};
 				static const char *kPhaseNames[4] = {"", "Village", "Town", "City"};
-				for (int bt : b_types) {
+				// Generic structures, then the local civ's own (0 A.D. structures/<civ>/).
+				const uint8_t my_civ = sim->player_civ(local_player());
+				std::vector<int> menu(std::begin(b_types), std::end(b_types));
+				for (int bt = rtso::CIV_BUILDING_FIRST; bt < rtso::BLD_TYPE_COUNT; ++bt)
+					if (rtso::civ_can_build(my_civ, (uint8_t)bt)) menu.push_back(bt);
+				for (int bt : menu) {
 					const rtso::BuildingTypeInfo &bi = rtso::building_type_info((uint8_t)bt);
 					String cost;
 					auto add_cost = [&](int amount, const char *suffix) {
@@ -2261,7 +2286,7 @@ void RtsoMain::update_command_panel() {
 					add_cost(bi.stone_cost, "s");
 					uint8_t need = rtso::building_required_phase((uint8_t)bt);
 					Button *bb = memnew(Button);
-					bb->set_text(String(bi.name) + (cost.is_empty() ? String() : " (" + cost + ")"));
+					bb->set_text(String::utf8(bi.name) + (cost.is_empty() ? String() : " (" + cost + ")"));
 					bb->add_theme_font_size_override("font_size", 9);
 					if (need > sim->player_phase(local_player())) {
 						bb->set_disabled(true);
@@ -3884,10 +3909,11 @@ Dictionary RtsoMain::get_tech_tree() const {
 	uint8_t civ = sim->player_civ(local_player());
 	d["phase"] = (int)sim->player_phase(local_player());
 	for (uint8_t t = 0; t < rtso::BLD_TYPE_COUNT; ++t) {
+		if (!rtso::civ_can_build(civ, t)) continue; // other civs' own structures
 		const auto &bi = rtso::building_type_info(t);
 		Dictionary b;
 		b["id"] = (int)t;
-		b["name"] = String(bi.name);
+		b["name"] = String::utf8(bi.name);
 		b["phase"] = (int)rtso::building_required_phase(t);
 		blds.push_back(b);
 	}

@@ -791,7 +791,7 @@ void Simulation::rebuild_territory() {
 		if (b.type == BLD_TOWN_CENTER) radius = 32.0f;
 		else if (b.type == BLD_FORTRESS) radius = 28.0f;
 		else if (b.type == BLD_TOWER) radius = 18.0f;
-		else continue;
+		else if ((radius = civ_building_territory_radius(b.type)) <= 0.0f) continue;
 		roots.push_back({b.x, b.z, radius, b.team});
 	}
 	// The grids depend on nothing else, so unchanged inputs (most 1 Hz refreshes) keep them.
@@ -886,7 +886,8 @@ bool Simulation::can_place(int cell_x, int cell_y, int footprint) const {
 }
 
 uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b_type) {
-	if (player >= MAX_PLAYERS) return 0;
+	if (player >= MAX_PLAYERS || b_type >= BLD_TYPE_COUNT) return 0;
+	if (!civ_can_build(players_[player].civ, b_type)) return 0; // civ-specific structures
 	const BuildingTypeInfo &binfo = building_type_info(b_type);
 	if (!can_place(cell_x, cell_y, binfo.footprint)) return 0;
 	if (building_required_phase(b_type) > players_[player].phase) return 0;
@@ -3103,7 +3104,7 @@ void Simulation::tick_gather(float dt) {
 			for (const auto &b : buildings_) {
 				if (b.team != uteam || b.build_progress < 1.0f) continue;
 				bool valid_drop = false;
-				if (b.type == BLD_TOWN_CENTER) valid_drop = true;
+				if (b.type == BLD_TOWN_CENTER || civ_building_is_dropsite(b.type)) valid_drop = true;
 				else if (b.type == BLD_STOREHOUSE && (units_.res_type_carried[i] != RES_FOOD)) valid_drop = true;
 				else if (b.type == BLD_FARMSTEAD && (units_.res_type_carried[i] == RES_FOOD)) valid_drop = true;
 				else if (b.type == BLD_DOCK && (units_.unit_type[i] == UNIT_FISHING_BOAT || units_.res_type_carried[i] == RES_FOOD)) valid_drop = true;
@@ -5489,6 +5490,7 @@ void Simulation::petra_manage_scouting(float dt) {
 		if (revealed) break;
 		if (b.team != petra_pid_ || b.build_progress < 0.5f) continue;
 		float bvr = (b.type == BLD_TOWER || b.type == BLD_FORTRESS) ? 24.0f : ((b.type == BLD_DOCK) ? 28.0f : 18.0f);
+		if (const float cv = civ_building_vision(b.type); cv > 0.0f) bvr = cv; // e.g. the Ptolemaic Lighthouse
 		reveal_fow(petra_fow_, b.x, b.z, bvr);
 	}
 

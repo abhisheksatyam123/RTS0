@@ -48,6 +48,7 @@ import xml.etree.ElementTree as ET
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_HEADER = os.path.join(REPO, "src", "simulation", "civ_roster_data.h")
 OUT_JSON = os.path.join(REPO, "data", "civs", "rosters.json")
+OUT_BUILDINGS = os.path.join(REPO, "src", "simulation", "civ_building_data.h")
 
 # RTS0 Civilization enum order (sim_types.h). Han is appended last so saved
 # games and network messages keep their civ ids.
@@ -154,13 +155,43 @@ TRAINER_BUILDING = {
     "temple_mars": "BLD_TEMPLE", "temple_vesta": "BLD_TEMPLE", "tophet": "BLD_TEMPLE",
     "super_dock": "BLD_DOCK",
 }
+# Civ-specific 0 A.D. structures RTS0 models as their own BuildingType
+# (appended after BLD_EMBASSY): enum, 0 A.D. file stems, model id, portrait id.
+UNIQUE_BUILDINGS = [
+    ("BLD_GYMNASIUM", ["gymnasium"], "gymnasium", "gymnasium"),
+    ("BLD_PRYTANEION", ["prytaneion"], "prytaneion", "prytaneion"),
+    ("BLD_GEROUSIA", ["gerousia"], "great_hall", "gerousia"),
+    ("BLD_SYSSITON", ["syssiton"], "great_hall", "syssiton"),
+    ("BLD_TACHARA", ["tachara"], "palace", "tachara"),
+    ("BLD_ARMY_CAMP", ["army_camp"], "barracks", "army_camp"),
+    ("BLD_AMPHITHEATER", ["amphitheater_pompeii"], "amphitheater", "amphitheater"),
+    ("BLD_LIBRARY", ["library"], "library", "library"),
+    ("BLD_KENNEL", ["kennel"], "kennel", "kennel"),
+    ("BLD_ASSEMBLY", ["assembly"], "great_hall", "assembly"),
+    ("BLD_MONUMENT", ["monument"], "pyramid_minor", "monument"),
+    ("BLD_PALACE", ["palace"], "palace", "palace"),
+    ("BLD_PILLAR", ["pillar_ashoka"], "pyramid_minor", "pillar"),
+    ("BLD_PYRAMID_LARGE", ["pyramid_large"], "pyramid_large", "pyramid_large"),
+    ("BLD_PYRAMID_SMALL", ["pyramid_small"], "pyramid_small", "pyramid_small"),
+    ("BLD_MERCENARY_CAMP", ["mercenary_camp"], "barracks", "mercenary_camp"),
+    ("BLD_LIGHTHOUSE", ["lighthouse"], "lighthouse", "lighthouse"),
+    ("BLD_MILITARY_COLONY", ["military_colony"], "town_center", "military_colony"),
+    ("BLD_ACADEMY", ["academy"], "academy", "academy"),
+    ("BLD_MINISTRY", ["ministry"], "imperial_ministry", "ministry"),
+]
+for _enum, _stems, _model, _portrait in UNIQUE_BUILDINGS:
+    for _st in _stems:
+        TRAINER_BUILDING[_st] = _enum
+TRAINER_BUILDING.update({"tachara_food": "BLD_TACHARA", "tachara_wood": "BLD_TACHARA",
+                         "tachara_stone": "BLD_TACHARA", "tachara_metal": "BLD_TACHARA",
+                         "imperial_ministry": "BLD_MINISTRY"})
 BUILDING_BITS = ["BLD_TOWN_CENTER", "BLD_HOUSE", "BLD_BARRACKS", "BLD_STOREHOUSE",
                  "BLD_TOWER", "BLD_FARMSTEAD", "BLD_MARKET", "BLD_FORTRESS",
                  "BLD_GATE", "BLD_TEMPLE", "BLD_WONDER", "BLD_DOCK",
                  "BLD_WALL_SEGMENT", "BLD_CORRAL", "BLD_FIELD", "BLD_STABLE",
                  "BLD_RANGE", "BLD_FORGE", "BLD_ARSENAL", "BLD_SENTRY_TOWER",
                  "BLD_OUTPOST", "BLD_PALISADE", "BLD_WALL_TOWER", "BLD_ELEPHANT_STABLE",
-                 "BLD_THEATER", "BLD_EMBASSY"]  # BuildingType order, every id
+                 "BLD_THEATER", "BLD_EMBASSY"] + [u[0] for u in UNIQUE_BUILDINGS]  # BuildingType order, every id
 
 PHASE_OF_TECH = {
     "phase_village": 1, "unlock_females_house": 1,
@@ -936,7 +967,7 @@ def emit_header(rows, auras, civ_json, bonuses, team):
         flags = " | ".join(r["flags"]) or "0"
         trainers = " | ".join("bld_bit(%s)" % b for b in r["trainers"]) or "0"
         if len(r["trainers"]) > 1:
-            trainers = "(uint32_t)(%s)" % trainers
+            trainers = "(uint64_t)(%s)" % trainers
         a = r["auras"] + [-1, -1, -1]
         w("\t\t{%s, %s, %s, %s, %s, %d, %s, %s," % (
             cstr(r["id"]), cstr(r["name"]), cstr(r["specific_name"]),
@@ -965,7 +996,7 @@ def emit_header(rows, auras, civ_json, bonuses, team):
             civs = "(uint16_t)(%s)" % civs
         blds = " | ".join("bld_bit(%s)" % x for x in mask) or "0"
         if len(mask) > 1:
-            blds = "(uint32_t)(%s)" % blds
+            blds = "(uint64_t)(%s)" % blds
         w("\t\t{%s, %s, %s, %s, %s, %s}," % (civs, stat, blds, f(mult), cstr(b["id"]), cstr(b["tooltip"])))
     w("\t\t{0, 0, 0, 1.0f, \"\", \"\"}, // sentinel")
     w("\t};")
@@ -987,7 +1018,7 @@ def emit_header(rows, auras, civ_json, bonuses, team):
         bitset = "{" + ", ".join("0x%016xull" % b for b in bits) + "}"
         blds = " | ".join("bld_bit(%s)" % x for x in t["buildings"]) or "0"
         if len(t["buildings"]) > 1:
-            blds = "(uint32_t)(%s)" % blds
+            blds = "(uint64_t)(%s)" % blds
         w("\t\t{%s, %s, %d, %s, %s, %s, %s, %s, %s, %s}," % (
             CIV_ENUM[CIVS.index(t["civ"])], t["stat"], t["res"], "true" if t["allies_only"] else "false",
             blds, f(t["value"]), cstr(t["id"]), cstr(t["name"]), cstr(t["description"]), bitset))
@@ -1052,6 +1083,129 @@ def emit_json(rows, auras, civ_json, bonuses):
     return json.dumps(doc, indent=1, ensure_ascii=False, sort_keys=False) + "\n"
 
 
+def unique_building_rows(sim_root):
+    """BuildingTypeInfo rows, civ masks and phases for UNIQUE_BUILDINGS, read
+    from each structure's 0 A.D. template the way the generic rows in
+    sim_types.h were: Health, Cost (metal -> gold), GarrisonHolder,
+    Population/Bonus, Capturable, TerritoryDecay; BuildTime x0.25; footprint
+    2 cells when wider than 15 m."""
+    loader = TemplateLoader(sim_root)
+    out = []
+    for enum, stems, model, portrait in UNIQUE_BUILDINGS:
+        civs, t, src = [], None, None
+        for civ in CIVS:
+            for st in stems:
+                name = "structures/%s/%s" % (civ, st)
+                if loader.exists(name):
+                    civs.append(civ)
+                    if t is None:
+                        t, src = loader.load(name), name
+                    break
+        if t is None:
+            raise SystemExit("no 0 A.D. template for %s" % enum)
+        fp = t.get("Footprint/Square")
+        width = float(fp.attrs.get("width", 0)) if fp is not None else 0.0
+        if width == 0.0:
+            c = t.get("Footprint/Circle")
+            width = 2.0 * float(c.attrs.get("radius", 0)) if c is not None else 0.0
+        out.append({
+            "enum": enum, "src": src, "civs": civs,
+            "name": t.value("Identity/GenericName", "") or t.value("Identity/SpecificName", ""),
+            "generic": t.value("Identity/GenericName", ""),
+            "model": model, "portrait": portrait,
+            "hp": t.num("Health/Max", 1000.0),
+            "foot": 2 if width > 15.0 else 1,
+            "food": int(t.num("Cost/Resources/food")), "wood": int(t.num("Cost/Resources/wood")),
+            "gold": int(t.num("Cost/Resources/metal")), "stone": int(t.num("Cost/Resources/stone")),
+            "pop": int(t.num("Population/Bonus")), "garrison": int(t.num("GarrisonHolder/Max")),
+            "build_time": t.num("Cost/BuildTime", 100.0) * 0.25,
+            "capture": t.num("Capturable/CapturePoints", 500.0),
+            "regen": t.num("Capturable/RegenRate", 5.0),
+            "garrison_regen": t.num("Capturable/GarrisonRegenRate", 1.0),
+            "decay": t.num("TerritoryDecay/DecayRate", 20.0),
+            "phase": phase_of(t),
+            # TerritoryInfluence roots on RTS0's scale (0 A.D. civil centre 140 m -> 32).
+            "territory": (t.num("TerritoryInfluence/Radius") * 32.0 / 140.0
+                          if t.value("TerritoryInfluence/Root") == "true" else 0.0),
+            # Vision/Range on RTS0's scale (x0.3, never below the 18 every structure gets).
+            "vision": max(18.0, t.num("Vision/Range") * 0.3),
+            "dropsite": bool(t.tokens("ResourceDropsite/Types")),
+        })
+    return out
+
+
+def emit_buildings(rows):
+    out = []
+    w = out.append
+    w("// GENERATED by tools/extract_0ad_rosters.py from 0 A.D. simulation/templates/structures/")
+    w("// (CC BY-SA 3.0, Wildfire Games). Do not edit by hand.")
+    w("#ifndef RTSO_CIV_BUILDING_DATA_H")
+    w("#define RTSO_CIV_BUILDING_DATA_H")
+    w("")
+    w("// Included from sim_types.h after BuildingType. Civ-specific structures that")
+    w("// RTS0 models as their own BuildingType, appended after BLD_EMBASSY.")
+    w("inline constexpr uint8_t CIV_BUILDING_FIRST = %s;" % rows[0]["enum"])
+    w("")
+    w("// BuildingTypeInfo rows for building_type_info(), in BuildingType order.")
+    w("#define RTSO_CIV_BUILDING_INFO_ROWS \\")
+    for r in rows:
+        w("\t\t{%s, %s, %s, %s, %d, %d, %d, %d, %d, %d, %d, %s, 0.0f, 0.0f, 0.0f, %s, %s, %s, %s}, /* %s */ \\" % (
+            cstr(r["name"]), cstr(r["model"]), cstr(r["portrait"]), f(r["hp"]), r["foot"],
+            r["food"], r["wood"], r["gold"], r["stone"], r["pop"], r["garrison"], f(r["build_time"]),
+            f(r["capture"]), f(r["regen"]), f(r["garrison_regen"]), f(r["decay"]), r["src"]))
+    w("")
+    w("")
+    w("// Civilizations (bit per Civilization) that may build a civ-specific structure.")
+    w("inline uint16_t civ_building_civ_mask(uint8_t type) {")
+    w("\tswitch (type) {")
+    for r in rows:
+        mask = 0
+        for c in r["civs"]:
+            mask |= 1 << CIVS.index(c)
+        w("\t\tcase %s: return 0x%04x; // %s" % (r["enum"], mask, " ".join(r["civs"])))
+    w("\t\tdefault: return 0xFFFF;")
+    w("\t}")
+    w("}")
+    w("")
+    w("// 0 A.D. Identity/Requirements phase of a civ-specific structure (0 = not one).")
+    w("inline uint8_t civ_building_phase(uint8_t type) {")
+    w("\tswitch (type) {")
+    for r in rows:
+        w("\t\tcase %s: return %d;" % (r["enum"], r["phase"]))
+    w("\t\tdefault: return 0;")
+    w("\t}")
+    w("}")
+    w("")
+    w("// TerritoryInfluence radius of a civ-specific territory root (0 = not a root).")
+    w("inline float civ_building_territory_radius(uint8_t type) {")
+    w("\tswitch (type) {")
+    for r in rows:
+        if r["territory"] > 0:
+            w("\t\tcase %s: return %s;" % (r["enum"], f(round(r["territory"], 1))))
+    w("\t\tdefault: return 0.0f;")
+    w("\t}")
+    w("}")
+    w("")
+    w("// Vision range of a civ-specific structure (0 = the default structure vision).")
+    w("inline float civ_building_vision(uint8_t type) {")
+    w("\tswitch (type) {")
+    for r in rows:
+        if r["vision"] > 18.0:
+            w("\t\tcase %s: return %s;" % (r["enum"], f(round(r["vision"], 1))))
+    w("\t\tdefault: return 0.0f;")
+    w("\t}")
+    w("}")
+    w("")
+    w("// True for a civ-specific structure that takes every resource (ResourceDropsite).")
+    w("inline bool civ_building_is_dropsite(uint8_t type) {")
+    drops = [r["enum"] for r in rows if r["dropsite"]]
+    w("\treturn %s;" % (" || ".join("type == %s" % e for e in drops) or "false"))
+    w("}")
+    w("")
+    w("#endif // RTSO_CIV_BUILDING_DATA_H")
+    return "\n".join(out) + "\n"
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     ap.add_argument("--0ad", dest="zad", required=True, help="0 A.D. source checkout")
@@ -1062,12 +1216,13 @@ def main():
     rows, auras, skipped, civ_json, bonuses, team = collect(sim_root)
     header = emit_header(rows, auras, civ_json, bonuses, team)
     js = emit_json(rows, auras, civ_json, bonuses)
+    bld = emit_buildings(unique_building_rows(sim_root))
     if args.verbose:
         for s in skipped:
             print("skipped:", s, file=sys.stderr)
     if args.check:
         stale = []
-        for path, text in ((OUT_HEADER, header), (OUT_JSON, js)):
+        for path, text in ((OUT_HEADER, header), (OUT_JSON, js), (OUT_BUILDINGS, bld)):
             if not os.path.isfile(path) or open(path, encoding="utf-8").read() != text:
                 stale.append(os.path.relpath(path, REPO))
         if stale:
@@ -1079,6 +1234,8 @@ def main():
         fh.write(header)
     with open(OUT_JSON, "w", encoding="utf-8") as fh:
         fh.write(js)
+    with open(OUT_BUILDINGS, "w", encoding="utf-8") as fh:
+        fh.write(bld)
     per_civ = {c: sum(1 for r in rows if r["civ"] == c) for c in CIVS}
     heroes = {c: sum(1 for r in rows if r["civ"] == c and "ROSTER_HERO" in r["flags"]) for c in CIVS}
     print("%d unit templates, %d hero auras, %d skipped" % (len(rows), len(auras), len(skipped)))

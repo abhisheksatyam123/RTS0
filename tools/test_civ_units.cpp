@@ -164,6 +164,46 @@ int main() {
 		CHECK(civ_team_bonus_mult(CIV_CARTHAGINIANS, 0, TEAM_BONUS_UNIT_TRAIN_TIME, -1, merc) == 0.5f);
 	}
 
+	// Civ-specific structures (0 A.D. structures/<civ>/): only their civ builds
+	// them, at their 0 A.D. phase, and the civ's units train there.
+	{
+		static Simulation c;
+		c.set_sim_seed(9);
+		c.set_team_civ(0, CIV_SPARTANS);
+		c.reset();
+		c.set_player_resources(0, 5000, 5000, 5000, 5000);
+		CHECK(civ_can_build(CIV_SPARTANS, BLD_SYSSITON) && !civ_can_build(CIV_ATHENIANS, BLD_SYSSITON));
+		CHECK(civ_can_build(CIV_ATHENIANS, BLD_HOUSE) && civ_can_build(CIV_HAN, BLD_MINISTRY));
+		CHECK(civ_can_build(CIV_PTOLEMIES, BLD_LIBRARY) && civ_can_build(CIV_SELEUCIDS, BLD_LIBRARY) &&
+			civ_can_build(CIV_MACEDONIANS, BLD_LIBRARY) && !civ_can_build(CIV_ROMANS, BLD_LIBRARY));
+		CHECK(c.cmd_build(0, 0, 0, BLD_GYMNASIUM) == 0); // Athenian only
+		CHECK(c.cmd_build(0, 0, 0, BLD_GEROUSIA) == 0);  // Spartan, but Town phase
+		CHECK(c.cmd_build(0, 0, 0, BLD_SYSSITON) != 0);  // Village phase in 0 A.D.
+		const BuildingTypeInfo &sy = building_type_info(BLD_SYSSITON);
+		CHECK(std::strcmp(sy.name, "Military Mess Hall") == 0 && sy.max_hp == 2000.0f && sy.stone_cost == 200);
+		// Spartan champions and heroes train at the Syssiton, as in 0 A.D.
+		int at_syssiton = 0;
+		for (uint16_t i = civ_roster_begin(CIV_SPARTANS); i < civ_roster_end(CIV_SPARTANS); ++i)
+			if (civ_unit_template(i).trainers & bld_bit(BLD_SYSSITON)) ++at_syssiton;
+		CHECK(at_syssiton >= 3);
+		CHECK(bld_bit(BLD_MINISTRY) == (1ull << 45));
+		// A Military Colony is a territory root and a dropsite; the Lighthouse sees far.
+		CHECK(civ_building_territory_radius(BLD_MILITARY_COLONY) > 10.0f && civ_building_is_dropsite(BLD_MILITARY_COLONY));
+		CHECK(civ_building_territory_radius(BLD_LIBRARY) == 0.0f && !civ_building_is_dropsite(BLD_LIBRARY));
+		CHECK(civ_building_vision(BLD_LIGHTHOUSE) > 40.0f);
+		auto claimed = [&]() {
+			int n = 0;
+			for (uint8_t v : c.territory_grid().data) n += v != 0;
+			return n;
+		};
+		for (int i = 0; i < 60; ++i) c.tick(Simulation::FIXED_STEP); // territory refreshes at 1 Hz
+		const int before = claimed();
+		c.set_team_civ(1, CIV_PTOLEMIES);
+		c.spawn_building_world(40.0f, 40.0f, BLD_MILITARY_COLONY, 1, 1.0f);
+		for (int i = 0; i < 60; ++i) c.tick(Simulation::FIXED_STEP);
+		CHECK(claimed() > before);
+	}
+
 	// Templates survive save/load.
 	const char *path = "/tmp/rtso_test_civ_units.sav";
 	CHECK(s.save_state(path));
