@@ -180,7 +180,42 @@ enum PetraChatKind : uint8_t {
 	PETRA_CHAT_ATTACK    = 0,
 	PETRA_CHAT_TRIBUTE   = 1,
 	PETRA_CHAT_BETRAYAL  = 2,
-	PETRA_CHAT_EMERGENCY = 3
+	PETRA_CHAT_EMERGENCY = 3,
+	// diplomacyManager.js answers to a player who changed its stance toward us
+	PETRA_CHAT_DIPLO_ACCEPT   = 4,
+	PETRA_CHAT_DIPLO_DECLINE  = 5,
+	PETRA_CHAT_DIPLO_TRIBUTE  = 6, // accept once the player pays a tribute
+	PETRA_CHAT_DIPLO_WARNING  = 7, // the tribute has not arrived yet
+	PETRA_CHAT_DIPLO_LAPSED   = 8,
+	PETRA_CHAT_WAR_DECLARED   = 9  // answering a declaration of war
+};
+
+// diplomacyManager.js receivedDiplomacyRequests: what one AI decided about a
+// player that changed its stance toward it (one entry per player).
+struct PetraReceivedRequest {
+	enum Status : uint8_t {
+		NONE = 0,
+		DECLINED_FOREVER = 1,
+		WAITING_FOR_TRIBUTE = 2,
+		ACCEPTED = 3
+	} status = NONE;
+	uint8_t type = 0;        // 0 = ally, 1 = neutral
+	uint8_t resource = 0;
+	bool sent_warning = false;
+	int wanted = 0;
+	float paid = 0.0f;       // tribute of `resource` received since the request
+	float warn_time = 0.0f;  // AI elapsed time of the next warning or lapse
+};
+
+// Per-AI diplomacy state (swapped with the other Petra slot state).
+struct PetraDiplomacy {
+	PetraReceivedRequest received[8];
+	uint8_t seen_stance[8] = {};   // each player's stance toward us at the last check
+	bool seen_init = false;
+	bool waiting_to_betray = false;
+	float betray_lapse = -1.0f;
+	float elapsed = 0.0f;
+	float next_tribute = 90.0f;  // nextTributeUpdate
 };
 
 // chatHelper.js — short English taunts (no i18n)
@@ -199,6 +234,8 @@ struct PetraDiplomacyRequest {
 
 struct PetraChatLine {
 	uint8_t kind = PETRA_CHAT_ATTACK;
+	uint8_t from = 1;    // the AI player speaking
+	uint8_t to = 0xFF;   // addressee, 0xFF = everyone
 	float x = 0.0f;
 	float z = 0.0f;
 	char text[96] = {};
