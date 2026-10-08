@@ -75,13 +75,16 @@ const RMS_MAPS := [
 # 0 A.D. population limits per player (0 = unlimited) and ceasefire lengths in minutes.
 const POP_CAPS := [[50, "50"], [100, "100"], [150, "150"], [200, "200"], [250, "250"], [300, "300"], [0, "Unlimited"]]
 const CEASEFIRES := [0, 1, 2, 3, 4, 5, 10, 15, 20, 30, 45, 60]
+# 0 A.D. Wonder / Capture the Relic hold times in minutes (default 20) and relic counts (default 2).
+const VICTORY_TIMES := [0, 1, 2, 5, 10, 15, 20, 30, 45, 60]
+const RELIC_COUNTS := [1, 2, 3, 4, 5, 6, 8, 10, 12, 16]
 
 # 0 A.D. map sizes (width in meters) for random maps.
 const MAP_SIZES := [[128, "Tiny (128 m)"], [192, "Small (192 m)"], [256, "Medium (256 m)"],
 	[320, "Normal (320 m)"], [384, "Large (384 m)"], [448, "Very Large (448 m)"], [512, "Giant (512 m)"]]
 
 # Index == rtso::VictoryCondition id (sim_types.h).
-const VICTORIES := ["Conquest — destroy all enemies", "Wonder — hold a Wonder 10 min", "Relic — claim and hold all relics", "Endless — no victory, sandbox",
+const VICTORIES := ["Conquest — destroy all enemies", "Wonder — hold a Wonder", "Relic — claim and hold all relics", "Endless — no victory, sandbox",
 	"Conquest Units — kill every enemy unit", "Conquest Structures — raze every enemy structure", "Regicide — kill the enemy hero, keep yours"]
 const START_RES := ["Sparse (150/200/150/100)", "Normal (300/400/300/200)", "Generous (500/700/500/350)", "Abundant (900/1200/900/600)"]
 const DIFFS := ["Sandbox", "Very Easy", "Easy", "Medium", "Hard", "Very Hard"]
@@ -357,6 +360,17 @@ func _build_options() -> void:
 	for c in CEASEFIRES:
 		cf.add_item("No ceasefire" if c == 0 else "%d min" % c)
 	cf.select(0)
+	var wt := _make_option($VBox/HBox/Left/VictoryTimesRow/WonderTimeSlot)
+	var rt := _make_option($VBox/HBox/Left/VictoryTimesRow/RelicTimeSlot)
+	for t in VICTORY_TIMES:
+		wt.add_item("%d min" % t)
+		rt.add_item("hold %d min" % t)
+	wt.select(VICTORY_TIMES.find(20))
+	rt.select(VICTORY_TIMES.find(20))
+	var rc := _make_option($VBox/HBox/Left/VictoryTimesRow/RelicCountSlot)
+	for c in RELIC_COUNTS:
+		rc.add_item(str(c))
+	rc.select(RELIC_COUNTS.find(2))
 	var res := _make_option($VBox/HBox/Left/ResSlot)
 	for r in START_RES:
 		res.add_item(r)
@@ -398,6 +412,17 @@ func _restore_settings() -> void:
 			pop.select(i)
 	var cf: RtsoSafeSelect = $VBox/HBox/Left/CeasefireSlot.get_child(0)
 	cf.select(maxi(CEASEFIRES.find(int(ms.get("ceasefire_min"))), 0))
+	$VBox/HBox/Left/MapVisRow/RevealMap.button_pressed = bool(ms.get("reveal_map"))
+	$VBox/HBox/Left/MapVisRow/ExploreMap.button_pressed = bool(ms.get("explore_map"))
+	var wt: RtsoSafeSelect = $VBox/HBox/Left/VictoryTimesRow/WonderTimeSlot.get_child(0)
+	var rt: RtsoSafeSelect = $VBox/HBox/Left/VictoryTimesRow/RelicTimeSlot.get_child(0)
+	var rc: RtsoSafeSelect = $VBox/HBox/Left/VictoryTimesRow/RelicCountSlot.get_child(0)
+	var wi := VICTORY_TIMES.find(int(ms.get("wonder_min")))
+	var ri := VICTORY_TIMES.find(int(ms.get("relic_min")))
+	var ci := RELIC_COUNTS.find(int(ms.get("relic_count")))
+	wt.select(wi if wi >= 0 else VICTORY_TIMES.find(20))
+	rt.select(ri if ri >= 0 else VICTORY_TIMES.find(20))
+	rc.select(ci if ci >= 0 else RELIC_COUNTS.find(2))
 	var msz: RtsoSafeSelect = $VBox/HBox/Left/MapSizeSlot.get_child(0)
 	for i in range(MAP_SIZES.size()):
 		if int(MAP_SIZES[i][0]) == int(ms.get("map_size")):
@@ -442,6 +467,9 @@ func _collect_setup() -> Dictionary:
 	var msz: RtsoSafeSelect = $VBox/HBox/Left/MapSizeSlot.get_child(0)
 	var pop: RtsoSafeSelect = $VBox/HBox/Left/PopCapSlot.get_child(0)
 	var cf: RtsoSafeSelect = $VBox/HBox/Left/CeasefireSlot.get_child(0)
+	var wt: RtsoSafeSelect = $VBox/HBox/Left/VictoryTimesRow/WonderTimeSlot.get_child(0)
+	var rt: RtsoSafeSelect = $VBox/HBox/Left/VictoryTimesRow/RelicTimeSlot.get_child(0)
+	var rc: RtsoSafeSelect = $VBox/HBox/Left/VictoryTimesRow/RelicCountSlot.get_child(0)
 	var n := int($VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value)
 	_ensure_slot_rows(n)
 	var types: Array = []
@@ -471,6 +499,11 @@ func _collect_setup() -> Dictionary:
 		"lms": $VBox/HBox/Left/LastManStanding.button_pressed,
 		"pop_cap": int(POP_CAPS[maxi(pop.get_selected(), 0)][0]),
 		"ceasefire": int(CEASEFIRES[maxi(cf.get_selected(), 0)]),
+		"reveal": $VBox/HBox/Left/MapVisRow/RevealMap.button_pressed,
+		"explore": $VBox/HBox/Left/MapVisRow/ExploreMap.button_pressed,
+		"wonder_min": int(VICTORY_TIMES[maxi(wt.get_selected(), 0)]),
+		"relic_min": int(VICTORY_TIMES[maxi(rt.get_selected(), 0)]),
+		"relic_count": int(RELIC_COUNTS[maxi(rc.get_selected(), 0)]),
 		"map_size": int(MAP_SIZES[maxi(msz.get_selected(), 0)][0]),
 		"res": res.get_selected(), "beh": beh.get_selected(), "diff": diff,
 		"types": types, "civs": civs, "teams": teams,
@@ -502,6 +535,11 @@ func _on_start_pressed() -> void:
 	ms.last_man_standing = bool(st["lms"])
 	ms.pop_cap = int(st["pop_cap"])
 	ms.ceasefire_min = int(st["ceasefire"])
+	ms.reveal_map = bool(st["reveal"])
+	ms.explore_map = bool(st["explore"])
+	ms.wonder_min = int(st["wonder_min"])
+	ms.relic_min = int(st["relic_min"])
+	ms.relic_count = int(st["relic_count"])
 	ms.map_size = int(st["map_size"])
 	ms.ai_difficulty = int(st["diff"])
 	ms.ai_behavior = int(st["beh"])

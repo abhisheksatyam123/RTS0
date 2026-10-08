@@ -12,7 +12,10 @@
 //   g++ -std=c++20 -O2 -Isrc tools/test_save_hash.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_save_hash && /tmp/test_save_hash
+// Private access only to stage a defeat and read wonder holds, as test_victory does.
+#define private public
 #include "simulation/simulation.h"
+#undef private
 #include "network/turn_manager.h"
 #include <cstdio>
 #include <cstring>
@@ -86,6 +89,8 @@ static void compare(const Simulation &a, const Simulation &b) {
 		CMP("unit death_timer", i, ua.death_timer[i], ub.death_timer[i]);
 		CMP("unit xp", i, ua.xp[i], ub.xp[i]);
 		CMP("unit tmpl", i, ua.tmpl[i], ub.tmpl[i]);
+		CMP("unit pack_state", i, ua.pack_state[i], ub.pack_state[i]);
+		CMP("unit pack_elapsed", i, ua.pack_elapsed[i], ub.pack_elapsed[i]);
 	}
 	const auto &ba = a.buildings(), &bb = b.buildings();
 	CMP("building count", 0, ba.size(), bb.size());
@@ -134,6 +139,7 @@ static void compare(const Simulation &a, const Simulation &b) {
 	CMP("defeated_mask", 0, a.defeated_mask(), b.defeated_mask());
 	CMP("winner_mask", 0, a.winner_mask(), b.winner_mask());
 	CMP("game_over", 0, a.is_game_over(), b.is_game_over());
+	for (int p = 0; p < MAX_PLAYERS; ++p) CMP("wonder_hold", p, a.wonder_hold_[p], b.wonder_hold_[p]);
 	const auto &pa = a.projectiles(), &pb = b.projectiles();
 	CMP("projectile count", 0, pa.size(), pb.size());
 	for (size_t i = 0; i < pa.size() && i < pb.size(); ++i) {
@@ -161,6 +167,16 @@ static void compare(const Simulation &a, const Simulation &b) {
 	CMP("territory size", 0, ta.data.size(), tb.data.size());
 	for (size_t i = 0; i < ta.data.size() && i < tb.data.size(); ++i) CMP("territory cell", i, ta.data[i], tb.data[i]);
 	for (uint8_t r = 0; r < RES_COUNT; ++r) CMP("barter price", r, a.market_buy_price(r), b.market_buy_price(r));
+	CMP("victory_condition", 0, a.victory_condition(), b.victory_condition());
+	CMP("waves_enabled", 0, a.waves_enabled(), b.waves_enabled());
+	CMP("last_man_standing", 0, a.last_man_standing(), b.last_man_standing());
+	CMP("pop_cap", 0, a.pop_cap(), b.pop_cap());
+	CMP("ceasefire_seconds", 0, a.ceasefire_seconds(), b.ceasefire_seconds());
+	CMP("reveal_map", 0, a.reveal_map(), b.reveal_map());
+	CMP("explore_map", 0, a.explore_map(), b.explore_map());
+	CMP("wonder_duration", 0, a.wonder_duration(), b.wonder_duration());
+	CMP("relic_duration", 0, a.relic_duration(), b.relic_duration());
+	CMP("relic_count", 0, a.relic_count(), b.relic_count());
 	CMP("ticks", 0, a.stats().ticks, b.stats().ticks);
 	CMP("wave_number", 0, a.wave_number(), b.wave_number());
 	CMP("next_id", 0, a.next_id(), b.next_id());
@@ -169,27 +185,59 @@ static void compare(const Simulation &a, const Simulation &b) {
 }
 
 // Buildings thread repro: a Town Center and a wall on a fresh sim, saved and
-// loaded into a reset() sim (no map built first), must hash the same.
+// loaded into a reset() sim (no map built first), must hash the same. Two
+// catapults ride along: one stays packed, the other is unpacking at the
+// second save and unpacked at the third.
 static void check_reset_load(TurnManager &tm, const char *path) {
 	static Simulation a, b;
 	a.reset();
 	a.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 0);
 	a.spawn_building_world(20.0f, 0.0f, BLD_WALL_SEGMENT, 0);
+	// Game Setup options away from their defaults, so a save that drops them shows up.
+	a.set_victory_condition(VICTORY_WONDER);
+	a.set_last_man_standing(true);
+	a.set_pop_cap(150);
+	a.set_ceasefire_seconds(300.0f);
+	a.set_explore_map(true);
+	a.set_wonder_duration(1200.0f);
+	a.set_relic_duration(1200.0f);
+	a.set_relic_count(2);
+	a.spawn_unit(-10.0f, 10.0f, 0, UNIT_CATAPULT);
+	const uint32_t unpacking = a.spawn_unit(-14.0f, 10.0f, 0, UNIT_CATAPULT);
+	a.order_pack(&unpacking, 1, false);
+	// Player 1 holds a wonder; player 2 loses its only unit and is defeated.
+	a.spawn_building_world(-30.0f, -30.0f, BLD_WONDER, 1);
+	a.spawn_unit(30.0f, 30.0f, 2, UNIT_SWORDSMAN);
+	run(a, 1);
+	for (size_t i = 0; i < a.units_.count; ++i)
+		if (a.units_.team[i] == 2) { a.units_.hp[i] = 0.0f; a.units_.alive[i] = 0; a.units_.action_state[i] = ACTION_IDLE; }
+	run(a, 40);
 	const int before = failures;
-	for (int ticks : {0, 100}) {
+	for (int ticks : {0, 100, 200}) {
 		run(a, ticks);
 		if (!a.save_state(path)) { std::printf("FAIL save (reset sim)\n"); ++failures; return; }
 		b.reset();
 		if (!b.load_state(path)) { std::printf("FAIL load (reset sim)\n"); ++failures; return; }
 		const uint32_t ha = tm.compute_sim_hash(a), hb = tm.compute_sim_hash(b);
-		if (ha != hb) {
-			std::printf("  FAIL Town Center + wall, %d ticks: hash %08x saved, %08x loaded into a reset sim\n", ticks, ha, hb);
+		const int prior = failures;
+		compare(a, b);
+		if (ha != hb || failures != prior) {
 			++failures;
-			compare(a, b);
+			std::printf("  FAIL Town Center + wall, %d ticks: hash %08x saved, %08x loaded into a reset sim\n", ticks, ha, hb);
 			print_diffs();
 		}
 	}
-	if (failures == before) std::printf("Town Center + wall into a reset sim: ok\n");
+	uint8_t states = 0;
+	for (size_t i = 0; i < a.units().count; ++i) states |= (uint8_t)(1u << a.units().pack_state[i]);
+	if (!(states & (1u << PACK_PACKED)) || !(states & (1u << PACK_UNPACKED))) {
+		std::printf("  FAIL expected one packed and one unpacked catapult by the last save\n");
+		++failures;
+	}
+	if (!a.is_defeated(2) || a.is_defeated(1) || a.wonder_hold_[1] <= 0.0f || a.is_game_over()) {
+		std::printf("  FAIL expected player 2 defeated and player 1's wonder hold running (hold %.1f s)\n", a.wonder_hold_[1]);
+		++failures;
+	}
+	if (failures == before) std::printf("Town Center + wall, packed/unpacked catapults, a defeated player and a wonder hold into a reset sim: ok\n");
 }
 
 int main() {

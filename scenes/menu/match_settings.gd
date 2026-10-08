@@ -20,6 +20,13 @@ var last_man_standing: bool = false
 # 0 A.D. population limit per player (0 = unlimited) and ceasefire length in minutes.
 var pop_cap: int = 200
 var ceasefire_min: int = 0
+# 0 A.D. map visibility: everything visible, or terrain known from the start.
+var reveal_map: bool = false
+var explore_map: bool = false
+# Wonder / Capture the Relic: hold times in minutes and the number of relics.
+var wonder_min: int = 20
+var relic_min: int = 20
+var relic_count: int = 2
 # Random-map width in meters, 0 A.D.'s sizes 128 (Tiny) to 512 (Giant).
 var map_size: int = 128
 # Petra difficulty 0..5 (sandbox..very hard), behavior 0..3.

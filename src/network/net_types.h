@@ -260,6 +260,11 @@ struct GameSetupParams {
 	uint8_t lms = 0;        // 1 = Last Man Standing (no allied victory)
 	uint16_t pop_cap = 200;  // per-player population limit, 0 = unlimited
 	uint8_t ceasefire = 0;  // minutes of ceasefire at match start
+	uint8_t reveal = 0;     // 1 = revealed map (everything visible)
+	uint8_t explore = 0;    // 1 = explored map (terrain known from the start)
+	uint8_t wonder_min = 20; // Wonder victory: minutes a wonder must stand, 0..60
+	uint8_t relic_min = 20;  // Capture the Relic: minutes all relics must be held, 0..60
+	uint8_t relics = 2;      // Capture the Relic: relic count, 1..16
 	uint16_t map_size = 128; // random-map width in meters, 128..512
 	uint8_t difficulty = 3; // Petra 0..5 sandbox..very hard
 	uint8_t behavior = 2;   // Petra 0..3 random/def/bal/agg
@@ -276,6 +281,11 @@ inline std::string format_game_start_full(const GameSetupParams &p) {
 	s += ";lms=" + std::to_string((unsigned)p.lms);
 	s += ";popcap=" + std::to_string((unsigned)p.pop_cap);
 	s += ";ceasefire=" + std::to_string((unsigned)p.ceasefire);
+	s += ";reveal=" + std::to_string((unsigned)p.reveal);
+	s += ";explore=" + std::to_string((unsigned)p.explore);
+	s += ";wonderdur=" + std::to_string((unsigned)p.wonder_min);
+	s += ";relicdur=" + std::to_string((unsigned)p.relic_min);
+	s += ";relics=" + std::to_string((unsigned)p.relics);
 	s += ";mapsize=" + std::to_string((unsigned)p.map_size);
 	s += ";diff=" + std::to_string((unsigned)p.difficulty);
 	s += ";behavior=" + std::to_string((unsigned)p.behavior);
@@ -341,6 +351,11 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 			else if (k == "waves") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.waves = x; }
 			else if (k == "lms") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.lms = x; }
 			else if (k == "ceasefire") { uint8_t x; if (detail::parse_u8(v, 0, 60, x)) out.ceasefire = x; }
+			else if (k == "reveal") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.reveal = x; }
+			else if (k == "explore") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.explore = x; }
+			else if (k == "wonderdur") { uint8_t x; if (detail::parse_u8(v, 0, 60, x)) out.wonder_min = x; }
+			else if (k == "relicdur") { uint8_t x; if (detail::parse_u8(v, 0, 60, x)) out.relic_min = x; }
+			else if (k == "relics") { uint8_t x; if (detail::parse_u8(v, 1, 16, x)) out.relics = x; }
 			else if (k == "popcap" && !v.empty() && v.size() <= 4 && v.find_first_not_of("0123456789") == std::string::npos) {
 				unsigned x = (unsigned)std::stoul(v);
 				if (x <= 1000) out.pop_cap = (uint16_t)x;
