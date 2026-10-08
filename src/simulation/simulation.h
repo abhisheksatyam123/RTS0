@@ -80,6 +80,8 @@ struct ProductionOrder {
 // Stockpiles are float so AI trickle income accrues fractionally; whole-number
 // callers read them through int accessors.
 static constexpr uint8_t MAX_PLAYERS = 8;
+// Owner of a defeated player's leftovers (0 A.D.'s Gaia): hostile to everyone, owned by no slot.
+static constexpr uint8_t GAIA_PLAYER = 0xFE;
 
 struct PlayerState {
 	float res[RES_COUNT] = {};             // indexed by ResourceType
@@ -125,6 +127,7 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
+	static constexpr uint32_t SAVE_VERSION = 17; // save_state's format; see the history beside it
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -510,8 +513,14 @@ public:
 	const std::vector<Projectile> &projectiles() const { return projectiles_; }
 
 	// Per-player table. Out-of-range ids clamp to player 0 so stray team bytes can't index past the array.
-	const PlayerState &player(uint8_t pid) const { return players_[pid < MAX_PLAYERS ? pid : 0]; }
-	PlayerState &player(uint8_t pid) { return players_[pid < MAX_PLAYERS ? pid : 0]; }
+	// Gaia (and any other non-slot owner) gets an empty stock: nothing it earns or spends
+	// reaches a real player.
+	const PlayerState &player(uint8_t pid) const { return pid < MAX_PLAYERS ? players_[pid] : gaia_stock_; }
+	PlayerState &player(uint8_t pid) {
+		if (pid < MAX_PLAYERS) return players_[pid];
+		gaia_stock_ = PlayerState();
+		return gaia_stock_;
+	}
 	int player_resource(uint8_t pid, uint8_t res_type) const { return (res_type < RES_COUNT) ? (int)player(pid).res[res_type] : 0; }
 	void set_player_resources(uint8_t pid, int food, int wood, int gold, int stone) {
 		PlayerState &ps = player(pid);
@@ -884,7 +893,7 @@ private:
 	void tick_barter(float dt);
 	// v15: per-tick state the main save records leave out (velocities, paths, projectiles, timers...).
 	void save_tick_state(std::ofstream &out) const;
-	bool load_tick_state(std::ifstream &in);
+	bool load_tick_state(std::ifstream &in, uint32_t version);
 	// Player.js GetNextTradingGoods with the default equal split (25% each).
 	uint8_t next_trading_goods();
 	// Pays a trade gain into `player`'s stock and its gather statistics.
@@ -986,6 +995,9 @@ private:
 	std::unordered_map<uint32_t, uint32_t> field_bld_by_res_; // grain resource id -> field building id
 	struct FieldGatherers { int total = 0; int slots_taken = 0; };
 	std::unordered_map<uint32_t, FieldGatherers> field_gatherers_; // per tick, keyed by grain resource id
+	std::unordered_map<uint32_t, FieldGatherers> fish_gatherers_; // per tick, keyed by fish resource id
+	// Nearest fish on `sea` (ship region) within max_d of (x, z) with a free gatherer slot; 0 if none.
+	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0) const;
 	std::unordered_map<uint32_t, size_t> building_id_to_idx_;
 
 	struct CellHash {
@@ -1038,6 +1050,10 @@ private:
 	float relic_duration_ = 180.0f;
 	int relic_count_ = 0;
 	void apply_relic_count();
+	PlayerState gaia_stock_; // scratch for player(GAIA_PLAYER); never saved or hashed
+	// Player.js SetState("defeated"): hand every unit and structure of these players to Gaia.
+	void convert_to_gaia(uint8_t players);
+	void tick_capture_gaia(Building &b, float dt);
 	uint8_t participant_mask_ = 0; // save v10
 	uint8_t defeated_mask_ = 0;
 	uint8_t winner_mask_ = 0;

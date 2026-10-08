@@ -254,8 +254,17 @@ enum ResourceType : uint8_t {
 enum ResourceSubtype : uint8_t {
 	RES_SUB_NONE = 0,
 	RES_SUB_MEAT = 1,
-	RES_SUB_GRAIN = 2
+	RES_SUB_GRAIN = 2,
+	RES_SUB_FISH = 3 // food.fish: only fishing boats gather it
 };
+
+// 0 A.D. template_gaia_fish.xml ResourceSupply: 1000 food, at most 4 gatherers,
+// and +1 food every 2 s while nobody gathers it (Change/Spawn, notGathered) up to Max.
+constexpr int32_t FISH_FOOD_SUPPLY = 1000;
+constexpr int FISH_MAX_GATHERERS = 4;
+constexpr float FISH_REGROW_INTERVAL_S = 2.0f;
+// Fish footprint radius (10 m) plus a fishing boat's ResourceGatherer MaxDistance (6 m), in tiles.
+constexpr float FISH_GATHER_REACH = 4.0f;
 
 enum UnitStance : uint8_t {
 	STANCE_AGGRESSIVE = 0,

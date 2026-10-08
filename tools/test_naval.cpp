@@ -159,8 +159,84 @@ static void test_petra_sea_trade() {
 	CHECK(ships <= s.petra_config().target_num_traders + 1);
 }
 
+static const uint8_t *subtype_of(const Simulation &s, uint32_t rid, int32_t *amount = nullptr) {
+	const auto r = s.resources();
+	for (size_t i = 0; i < r.count; ++i)
+		if (r.id[i] == rid) { if (amount) *amount = r.amount[i]; return &r.subtype[i]; }
+	return nullptr;
+}
+static uint32_t gather_target(const Simulation &s, uint32_t uid) {
+	const auto &u = s.units();
+	for (size_t i = 0; i < u.count; ++i)
+		if (u.id[i] == uid) return u.action_state[i] == ACTION_GATHER || u.action_state[i] == ACTION_RETURN_DROPSITE ? u.target_resource_id[i] : 0;
+	return 0;
+}
+
+// Fishing (template_gaia_fish.xml, template_unit_ship_fishing.xml): only boats fish,
+// at most 4 per fish, catches go to a dock, and fish regrow while left alone.
+static void test_fishing() {
+	static Simulation s;
+	fresh(s);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 0);
+	// A Town Center nearer the fish than the dock: a boat can't reach it, so it must not unload there.
+	s.spawn_building_world(-30.0f, 24.0f, BLD_TOWN_CENTER, 0);
+	const uint32_t fish_a = s.spawn_resource_world(-36.0f, 6.0f, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+	const uint32_t fish_b = s.spawn_resource_world(-24.0f, 6.0f, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+	const uint32_t lone = s.spawn_resource_world(30.0f, -6.0f, RES_FOOD, 500, RES_SUB_FISH);
+	const uint32_t berries = s.spawn_resource_world(-40.0f, 30.0f, RES_FOOD, 300);
+	std::vector<uint32_t> boats;
+	for (int k = 0; k < 6; ++k) boats.push_back(s.spawn_unit(-46.0f + 2.0f * k, 10.0f, 0, UNIT_FISHING_BOAT));
+	const uint32_t villager = s.spawn_unit(-36.0f, 30.0f, 0, UNIT_VILLAGER);
+
+	// Gather rates: boats only fish, villagers never do.
+	s.order_gather(&villager, 1, fish_a);
+	CHECK(gather_target(s, villager) == 0);
+	s.order_gather(&boats[0], 1, berries);
+	CHECK(gather_target(s, boats[0]) == 0);
+
+	s.order_gather(boats.data(), boats.size(), fish_a);
+	run(s, 30.0f);
+	int on_a = 0, on_b = 0;
+	for (uint32_t b : boats) { const uint32_t t = gather_target(s, b); on_a += t == fish_a; on_b += t == fish_b; }
+	std::printf("fishing: %d boats on fish A, %d moved on to fish B\n", on_a, on_b);
+	CHECK(on_a <= FISH_MAX_GATHERERS && on_a + on_b == 6 && on_b >= 2);
+
+	run(s, 90.0f);
+	const int food = s.player_resource(0, RES_FOOD);
+	int32_t left_a = 0;
+	subtype_of(s, fish_a, &left_a);
+	std::printf("fishing: %d food landed at the dock in 120 s, fish A down to %d\n", food, left_a);
+	CHECK(food > 0 && left_a < FISH_FOOD_SUPPLY);
+	// Nothing caught was dropped at the Town Center: every unit of food came off fish A or B.
+	int32_t left_b = 0;
+	subtype_of(s, fish_b, &left_b);
+	int carried = 0;
+	for (size_t i = 0; i < s.units().count; ++i) if (s.units().unit_type[i] == UNIT_FISHING_BOAT) carried += s.units().carry[i];
+	// Fish regrow while their boats are away unloading, so gathered food can exceed the supply drop.
+	CHECK(food + carried >= (FISH_FOOD_SUPPLY - left_a) + (FISH_FOOD_SUPPLY - left_b));
+
+	// The untouched fish regrows 1 food every 2 s: +60 in 120 s.
+	int32_t lone_amount = 0;
+	const uint8_t *sub = subtype_of(s, lone, &lone_amount);
+	CHECK(sub && *sub == RES_SUB_FISH && lone_amount == 560);
+
+	// A boat whose fish runs out moves on to the nearest fish on its sea.
+	static Simulation t;
+	fresh(t);
+	t.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 0);
+	const uint32_t small = t.spawn_resource_world(-36.0f, 6.0f, RES_FOOD, 16, RES_SUB_FISH);
+	const uint32_t next = t.spawn_resource_world(-20.0f, 4.0f, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+	const uint32_t boat = t.spawn_unit(-40.0f, 8.0f, 0, UNIT_FISHING_BOAT);
+	t.order_gather(&boat, 1, small);
+	run(t, 40.0f);
+	CHECK(subtype_of(t, small) == nullptr); // fished out
+	CHECK(gather_target(t, boat) == next);
+	(void)lone;
+}
+
 int main() {
 	test_dock_trade();
+	test_fishing();
 	test_petra_sea_trade();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
