@@ -437,7 +437,9 @@ public:
 		int market1 = 0; // international bonus to the owner of the market the leg starts at
 		int market2 = 0; // international bonus to the owner of the market the leg ends at
 	};
-	TradeGain calculate_trade_gain(const Building &from, const Building &to, uint8_t trader_owner) const;
+	// `trader_type` UNIT_MERCHANT_SHIP takes the civ's merchant ship bonus instead of the land trader's.
+	TradeGain calculate_trade_gain(const Building &from, const Building &to, uint8_t trader_owner,
+			uint8_t trader_type = UNIT_TRADER) const;
 	int calculate_trader_gain(const Building& mA, const Building& mB, uint8_t team) const { return calculate_trade_gain(mA, mB, team).trader; }
 	// Trader.js CanTrade: a finished Market whose owner `trader_owner` is not hostile to.
 	bool can_trade_at(uint8_t trader_owner, const Building &b) const;
@@ -1116,6 +1118,7 @@ private:
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
 	void petra_say(uint8_t kind, float x = 0.0f, float z = 0.0f, uint8_t to = 0xFF, int amount = 0, uint8_t res = 0);
 	void petra_handle_diplomacy_request(uint8_t player, uint8_t type);
+	bool petra_train_template(uint8_t queue, uint32_t building_id, uint16_t tmpl);
 	void petra_change_diplomacy(uint8_t player, uint8_t stance);
 	void petra_last_man_standing_check();
 	int petra_player_entities(uint8_t player) const;
@@ -1180,6 +1183,8 @@ private:
 		bool wrecked;
 	};
 	std::vector<SteerObstacle> steer_obstacles_;
+	std::vector<SteerObstacle> sep_obstacles_; // separation()'s list, built the same way
+
 	// Closed gates this tick: the only movement blockers the nav grid leaves out (0 A.D.
 	// gate Obstruction BlockMovement without BlockPathfinding), so move_units stops units
 	// at their edge instead of relying on the soft separation push.

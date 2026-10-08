@@ -50,8 +50,8 @@ This list covers porting the vendored C++ only. Overall project priorities and g
 
 1. **Obstruction shapes.** Rasterization is done. 0 A.D.'s `CCmpObstructionManager` isn't vendored, and RTS0 doesn't need a full one yet: `buildings_` and the `UnitGrid` in `separation()` already give the shapes VertexPathfinder needs. Revisit if buildings get rotations or per-class clearances.
 2. **Units as short-path obstructions.** Steering passes only buildings to VertexPathfinder. 0 A.D. also passes nearby units (minus the moving group) when a unit is stuck. Add that if crowds jam at chokepoints, within a per-tick query budget (`test_vertex_pathfinder` times a query at ~8 µs near 10 squares, ~380 µs near 150).
-3. **Cleanup.** Remove the legacy A* (`NavGrid::search_cells_astar`, `use_jps`) once JPS has run in real matches for a while.
-4. **JumpPointCache.** Only if maps grow past 64x64 and pathfinding shows up in profiles.
+3. **Cleanup.** Remove the legacy A* (`NavGrid::search_cells_astar`, `use_jps`) once JPS has run in real matches for a while. `tools/test_long_pathfinder.cpp` and `check_parity.py` still use it as the reference search, so they need another oracle first.
+4. **JumpPointCache.** Not needed yet. Maps now reach 512, but on 2026-10-08 JPS long paths were only about 3% of a 20-minute Mainland match on a 512 map (callgrind). Revisit if that share grows.
 5. **Fixed-point simulation (optional).** Whether the sim moves from `float` to `rtso::Fixed` is a multiplayer-model decision. See `docs/PLAN.md` P5 and `docs/MULTIPLAYER.md`. `src/core/math/fixed.h` is ready if that decision is made. It would also need `CFixedVector2D`, which isn't vendored.
 
 ## History
