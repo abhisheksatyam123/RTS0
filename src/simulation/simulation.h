@@ -1139,6 +1139,8 @@ private:
 		bool wrecked;
 	};
 	std::vector<SteerObstacle> steer_obstacles_;
+	std::vector<SteerObstacle> sep_obstacles_; // separation()'s list, built the same way
+
 	// Closed gates this tick: the only movement blockers the nav grid leaves out (0 A.D.
 	// gate Obstruction BlockMovement without BlockPathfinding), so move_units stops units
 	// at their edge instead of relying on the soft separation push.
