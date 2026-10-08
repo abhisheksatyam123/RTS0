@@ -141,6 +141,12 @@ jobs:
             -lpthread -o /tmp/test_fog_mirage
           /tmp/test_fog_mirage
 
+      - name: Territory border lines
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_territory_boundary.cpp src/presentation/territory_boundary.cpp \
+            -o /tmp/test_territory_boundary
+          /tmp/test_territory_boundary
+
       - name: Fields, farming and building tests
         run: |
           g++ -std=c++20 -O2 -Isrc tools/test_farming.cpp src/simulation/simulation.cpp \
