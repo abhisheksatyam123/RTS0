@@ -72,8 +72,49 @@ struct ProductionOrder {
 	float duration;
 };
 
+// Per-player state (0 A.D. Player.js + ResourceCounter + TechnologyManager).
+// One slot per player id; unit/building `team` fields hold the player id.
+// Stockpiles are float so AI trickle income accrues fractionally; whole-number
+// callers read them through int accessors.
+static constexpr uint8_t MAX_PLAYERS = 8;
+
+struct PlayerState {
+	float res[RES_COUNT] = {};             // indexed by ResourceType
+	float gathered_window[RES_COUNT] = {}; // decaying gather-rate window for the HUD
+	uint32_t tech_mask = 0;                // researched TechnologyId bits
+	uint8_t phase = 1;                     // 1=Village, 2=Town, 3=City
+	Civilization civ = CIV_ATHENIANS;
+	uint8_t team = 0;                      // alliance group: same team = allies
+	uint8_t active = 0;                    // slot is in the match
+	uint8_t is_ai = 0;                     // driven by Petra
+
+	float &food() { return res[RES_FOOD]; }
+	float &wood() { return res[RES_WOOD]; }
+	float &gold() { return res[RES_GOLD]; }
+	float &stone() { return res[RES_STONE]; }
+	float food() const { return res[RES_FOOD]; }
+	float wood() const { return res[RES_WOOD]; }
+	float gold() const { return res[RES_GOLD]; }
+	float stone() const { return res[RES_STONE]; }
+	bool has_tech(uint8_t tech_id) const { return (tech_mask & (1u << tech_id)) != 0; }
+	bool can_afford(float f, float w, float g, float s) const {
+		return res[RES_FOOD] >= f && res[RES_WOOD] >= w && res[RES_GOLD] >= g && res[RES_STONE] >= s;
+	}
+	// Deducts the cost if affordable; returns false and leaves stock untouched otherwise.
+	bool pay(float f, float w, float g, float s) {
+		if (!can_afford(f, w, g, s)) return false;
+		res[RES_FOOD] -= f; res[RES_WOOD] -= w; res[RES_GOLD] -= g; res[RES_STONE] -= s;
+		return true;
+	}
+	void add(float f, float w, float g, float s) {
+		res[RES_FOOD] += f; res[RES_WOOD] += w; res[RES_GOLD] += g; res[RES_STONE] += s;
+	}
+};
+
 class Simulation {
 public:
+	// Player Petra drives. Area C ("Fix and scale the AI") makes Petra per-player.
+	static constexpr uint8_t PETRA_PLAYER = 1;
 	static constexpr float GRID = 2.0f;
 	static constexpr float MAP_HALF = 64.0f; // 128x128m large battlefield arena
 	static constexpr float FIXED_STEP = 1.0f / 20.0f;
@@ -290,20 +331,38 @@ public:
 	const std::vector<Building> &buildings() const { return buildings_; }
 	const std::vector<Projectile> &projectiles() const { return projectiles_; }
 
-	int food() const { return food_; }
-	int wood() const { return wood_; }
-	int gold() const { return gold_; }
-	int stone() const { return stone_; }
-	// GameSetup starting-resources option (0 A.D. page_gamesetup "Starting Resources").
-	// Must be called AFTER map load: reset()/generate() overwrite stocks.
-	void set_starting_resources(int food, int wood, int gold, int stone) {
-		food_ = food; wood_ = wood; gold_ = gold; stone_ = stone;
+	// Per-player table. Out-of-range ids clamp to player 0 so stray team bytes can't index past the array.
+	const PlayerState &player(uint8_t pid) const { return players_[pid < MAX_PLAYERS ? pid : 0]; }
+	PlayerState &player(uint8_t pid) { return players_[pid < MAX_PLAYERS ? pid : 0]; }
+	int player_resource(uint8_t pid, uint8_t res_type) const { return (res_type < RES_COUNT) ? (int)player(pid).res[res_type] : 0; }
+	void set_player_resources(uint8_t pid, int food, int wood, int gold, int stone) {
+		PlayerState &ps = player(pid);
+		ps.food() = (float)food; ps.wood() = (float)wood; ps.gold() = (float)gold; ps.stone() = (float)stone;
 	}
+	void set_player_team(uint8_t pid, uint8_t team) { if (pid < MAX_PLAYERS) players_[pid].team = team; }
+	uint8_t player_team(uint8_t pid) const { return player(pid).team; }
+	void set_player_active(uint8_t pid, bool active, bool is_ai) {
+		if (pid >= MAX_PLAYERS) return;
+		players_[pid].active = active ? 1 : 0;
+		players_[pid].is_ai = is_ai ? 1 : 0;
+	}
+	// Same alliance team (0 A.D. "team" in game setup); a player is always its own ally.
+	bool same_team(uint8_t a, uint8_t b) const { return a == b || (a < MAX_PLAYERS && b < MAX_PLAYERS && players_[a].team == players_[b].team); }
 
-	float food_rate() const { return food_gathered_window_ * 6.0f; } // per min approx
-	float wood_rate() const { return wood_gathered_window_ * 6.0f; }
-	float gold_rate() const { return gold_gathered_window_ * 6.0f; }
-	float stone_rate() const { return stone_gathered_window_ * 6.0f; }
+	// Player 0 (local human) shorthands kept for the HUD and tests.
+	int food() const { return (int)players_[0].food(); }
+	int wood() const { return (int)players_[0].wood(); }
+	int gold() const { return (int)players_[0].gold(); }
+	int stone() const { return (int)players_[0].stone(); }
+	// GameSetup starting-resources option (0 A.D. page_gamesetup "Starting Resources").
+	// Sets player 0 only (AI slots keep their reset() stock); use set_player_resources per slot.
+	// Must be called AFTER map load: reset()/generate() overwrite stocks.
+	void set_starting_resources(int food, int wood, int gold, int stone) { set_player_resources(0, food, wood, gold, stone); }
+
+	float food_rate() const { return players_[0].gathered_window[RES_FOOD] * 6.0f; } // per min approx
+	float wood_rate() const { return players_[0].gathered_window[RES_WOOD] * 6.0f; }
+	float gold_rate() const { return players_[0].gathered_window[RES_GOLD] * 6.0f; }
+	float stone_rate() const { return players_[0].gathered_window[RES_STONE] * 6.0f; }
 
 	int pop_current() const;
 	int pop_max() const;
@@ -315,18 +374,18 @@ public:
 	float wave_time_remaining() const { return std::max(0.0f, 30.0f - wave_timer_); }
 	bool is_game_over() const { return game_over_; }
 	bool is_victory() const { return victory_; }
-	uint8_t player_phase() const { return player_phase_; }
-	void set_player_civ(uint8_t civ) { player_civ_[0] = (Civilization)civ; }
-	uint8_t player_civ() const { return player_civ_[0]; }
-	void set_team_civ(uint8_t team, uint8_t civ) { if (team < 4) player_civ_[team] = (Civilization)civ; }
-	uint8_t team_civ(uint8_t team) const { return (team < 4) ? player_civ_[team] : CIV_ATHENIANS; }
+	uint8_t player_phase() const { return players_[0].phase; }
+	void set_player_civ(uint8_t civ) { players_[0].civ = (Civilization)civ; }
+	uint8_t player_civ() const { return players_[0].civ; }
+	void set_team_civ(uint8_t team, uint8_t civ) { if (team < MAX_PLAYERS) players_[team].civ = (Civilization)civ; }
+	uint8_t team_civ(uint8_t team) const { return (team < MAX_PLAYERS) ? players_[team].civ : CIV_ATHENIANS; }
 	void set_biome(uint8_t b) { biome_ = b; }
 	uint8_t biome() const { return biome_; }
 	void set_map_preset(uint8_t m) { map_preset_ = m; }
 	uint8_t map_preset() const { return map_preset_; }
-	bool is_tech_researched(uint8_t tech_id) const { return (researched_techs_mask_ & (1u << tech_id)) != 0; }
-	uint32_t researched_techs_mask() const { return researched_techs_mask_; }
-	uint32_t ai_researched_techs_mask() const { return ai_researched_techs_mask_; }
+	bool is_tech_researched(uint8_t tech_id) const { return players_[0].has_tech(tech_id); }
+	uint32_t researched_techs_mask() const { return players_[0].tech_mask; }
+	uint32_t ai_researched_techs_mask() const { return players_[PETRA_PLAYER].tech_mask; }
 	bool unit_has_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.has_order[idx]; }
 	const Grid<uint8_t>& territory_grid() const { return territory_grid_; }
 	const Grid<uint8_t>& influence_grid() const { return influence_grid_; }
@@ -365,11 +424,11 @@ public:
 	void receive_petra_diplomacy_request(uint8_t player_id, bool ally, int wanted, uint8_t resource);
 
 	// Petra AI Heuristics & Threat View
-	int petra_phase() const { return petra_phase_; }
-	float ai_food() const { return ai_food_; }
-	float ai_wood() const { return ai_wood_; }
-	float ai_gold() const { return ai_gold_; }
-	float ai_stone() const { return ai_stone_; }
+	int petra_phase() const { return players_[PETRA_PLAYER].phase; }
+	float ai_food() const { return players_[PETRA_PLAYER].food(); }
+	float ai_wood() const { return players_[PETRA_PLAYER].wood(); }
+	float ai_gold() const { return players_[PETRA_PLAYER].gold(); }
+	float ai_stone() const { return players_[PETRA_PLAYER].stone(); }
 	const float* petra_threat_grid() const { return petra_threat_map_.danger; }
 	float get_threat_at(float x, float z) const;
 	bool is_position_safe(float x, float z, float threshold = 6.0f) const;
@@ -600,10 +659,10 @@ private:
 	uint32_t sim_seed_ = 1337;
 	SimRng sim_rng_;
 	bool waves_enabled_ = true;
-	int food_ = 300;
-	int wood_ = 400;
-	int gold_ = 300;
-	int stone_ = 200;
+	std::array<PlayerState, MAX_PLAYERS> players_{};
+	PlayerState &petra_ps() { return players_[PETRA_PLAYER]; }
+	Civilization civ_of(uint8_t pid) const { return (pid < MAX_PLAYERS) ? players_[pid].civ : CIV_ATHENIANS; }
+	const PlayerState &petra_ps() const { return players_[PETRA_PLAYER]; }
 	float passive_timer_ = 0.0f;
 	float rate_window_timer_ = 0.0f;
 	float barter_timer_ = 0.0f;
@@ -614,11 +673,6 @@ private:
 	std::array<RecentDeath, MAX_RECENT_DEATHS> recent_deaths_{};
 	size_t recent_death_head_ = 0;
 
-	float food_gathered_window_ = 0.0f;
-	float wood_gathered_window_ = 0.0f;
-	float gold_gathered_window_ = 0.0f;
-	float stone_gathered_window_ = 0.0f;
-
 	// G3 Market / Barter dynamic prices (indexed by ResourceType: 0=WOOD,1=GOLD,2=STONE,3=FOOD)
 	float market_buy_price_[4] = {1.0f, 1.0f, 1.0f, 1.0f};
 	float market_sell_price_[4] = {1.0f, 1.0f, 1.0f, 1.0f};
@@ -626,13 +680,10 @@ private:
 	std::unordered_map<uint32_t, std::pair<uint32_t,uint32_t>> trader_routes_; // unit_id -> (marketA_id, marketB_id)
 	std::unordered_map<uint32_t,int> trader_leg_; // unit_id -> 0=A->B, 1=B->A (which target next)
 
-	uint8_t player_phase_ = 1; // 1=Village, 2=Town, 3=City
-	Civilization player_civ_[4] = {CIV_ATHENIANS, CIV_SPARTANS, CIV_ROMANS, CIV_PERSIANS};
 	uint8_t diplomacy_[8] = {0, 2, 2, 2, 2, 2, 2, 2}; // player 0 stance toward each player
 	uint8_t diplomacy_reverse_[8] = {0, 2, 2, 2, 2, 2, 2, 2}; // reciprocal stance for shared LOS
 	uint8_t biome_ = BIOME_AEGEAN;
 	uint8_t map_preset_ = MAP_AEGEAN_ARCHIPELAGO;
-	uint32_t researched_techs_mask_ = 0;
 
 	float wave_timer_ = 0.0f;
 	int wave_number_ = 0;
@@ -703,12 +754,6 @@ private:
 	uint32_t petra_scout_unit_id_ = 0;
 	float petra_scout_angle_ = 0.0f;
 	float petra_scout_radius_ = 12.0f;
-	int   petra_phase_  = 1; // 1=Village, 2=Town, 3=City
-	float ai_food_  = 400.0f;
-	float ai_wood_  = 600.0f;
-	float ai_gold_  = 300.0f;
-	float ai_stone_ = 200.0f;
-	uint32_t ai_researched_techs_mask_ = 0;
 
 	void update_petra_bases(float dt);
 	void update_petra_threat_map(float dt);

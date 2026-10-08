@@ -235,7 +235,7 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 	// Phase4 HashSerializer parity — comprehensive FNV-1a state hashing for lockstep desync verification.
 	// Hashes all unit SoA columns (pos_x, pos_z, hp, action_state, unit_type, team, carry, kills, rank, status_effects),
 	// buildings (hp, build_progress, type, team, capture_points), resource nodes (amount, alive, type),
-	// player and AI stockpiles (Food, Wood, Gold, Stone), researched tech masks (researched_techs_mask_, ai_researched_techs_mask_),
+	// the per-player table (stockpiles, researched tech masks, phase, civ, team),
 	// active projectiles, relics, territory grid, and market prices.
 	uint32_t hash = 2166136261u;
 	auto mix_u32 = [&](uint32_t v) { hash = (hash ^ v) * 16777619u; };
@@ -309,21 +309,17 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 	for (size_t i = 0; i < 8; ++i) mix_u8(sim.diplomacy_state()[i]);
 	for (size_t i = 0; i < 8; ++i) mix_u8(sim.diplomacy_reverse_state()[i]);
 
-	// 4. Player and AI Stockpiles (Food, Wood, Gold, Stone)
-	mix_i32(sim.food());
-	mix_i32(sim.wood());
-	mix_i32(sim.gold());
-	mix_i32(sim.stone());
-	mix_float(sim.ai_food());
-	mix_float(sim.ai_wood());
-	mix_float(sim.ai_gold());
-	mix_float(sim.ai_stone());
-
-	// 5. Researched Tech Masks & Game Phases
-	mix_u32(sim.researched_techs_mask());
-	mix_u32(sim.ai_researched_techs_mask());
-	mix_u8(sim.player_phase());
-	mix_u8((uint8_t)sim.petra_phase());
+	// 4-5. Per-player table: stockpiles, researched techs, phase, civ, team, slot flags
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+		const PlayerState &ps = sim.player(p);
+		for (float r : ps.res) mix_float(r);
+		mix_u32(ps.tech_mask);
+		mix_u8(ps.phase);
+		mix_u8(ps.civ);
+		mix_u8(ps.team);
+		mix_u8(ps.active);
+		mix_u8(ps.is_ai);
+	}
 
 	// 6. Active Projectiles & Relics
 	const auto &projs = sim.projectiles();
