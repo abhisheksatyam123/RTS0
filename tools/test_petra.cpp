@@ -50,6 +50,15 @@ static void test_no_early_rush() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(1);
 	s->spawn_initial();
+	// The idle player is truly idle: passive, so its archer doesn't pick a fight with
+	// Petra's gatherers passing by (which is not a rush, and they fight back).
+	{
+		const auto u = s->units();
+		std::vector<uint32_t> mine;
+		for (size_t i = 0; i < u.count; ++i)
+			if (u.alive[i] && u.team[i] == 0) mine.push_back(u.id[i]);
+		s->order_set_stance(mine.data(), mine.size(), STANCE_PASSIVE);
+	}
 	const int start_units = count_units(*s, 0, false);
 	bool attacked = false;
 	float t = 0.0f;

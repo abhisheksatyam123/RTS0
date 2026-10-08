@@ -228,7 +228,7 @@ struct PetraDiplomacy {
 };
 
 // diplomacyManager.js sentDiplomacyRequests, sentDiplomacyRequestLapseTime and
-// nextTributeRequest (save v24). Padding-free: saved raw.
+// nextTributeRequest (save v25). Padding-free: saved raw.
 struct PetraSentDiplomacy {
 	float sent_time[8] = {};          // when we asked each player
 	float sent_lapse = -1.0f;         // next chance to ask anyone (set on the first update)

@@ -1858,26 +1858,63 @@ void Simulation::credit_trade(uint8_t player_id, uint8_t res, int amount) {
 	ps.gathered_window[res] += (float)amount;
 }
 
-void Simulation::order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id) {
+bool Simulation::trade_route_ok(size_t i, uint32_t market_a_id, uint32_t market_b_id) const {
+	if (market_a_id == 0 || market_b_id == 0 || market_a_id == market_b_id) return false;
+	if (!units_.alive[i] || !unit_is_trader(units_.unit_type[i])) return false;
+	auto itA = building_id_to_idx_.find(market_a_id);
+	auto itB = building_id_to_idx_.find(market_b_id);
+	if (itA == building_id_to_idx_.end() || itB == building_id_to_idx_.end()) return false;
+	const Building &bA = buildings_[itA->second];
+	const Building &bB = buildings_[itB->second];
+	const uint8_t owner = units_.team[i];
+	const uint8_t ttype = units_.unit_type[i];
+	if (!can_trade_at(owner, bA, ttype) || !can_trade_at(owner, bB, ttype)) return false;
+	return ttype != UNIT_MERCHANT_SHIP || (dock_sea(bA) != 0 && dock_sea(bA) == dock_sea(bB));
+}
+
+// UnitAI Trade order: target is the first market, x2 carries the second market's id bits.
+static float trade_market_bits(uint32_t id) { float f; std::memcpy(&f, &id, sizeof f); return f; }
+static uint32_t trade_market_id(float bits) { uint32_t id; std::memcpy(&id, &bits, sizeof id); return id; }
+
+void Simulation::order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id,
+		bool queued) {
 	if (count == 0 || market_a_id == 0 || market_b_id == 0 || market_a_id == market_b_id) return;
 	auto itA = building_id_to_idx_.find(market_a_id);
 	auto itB = building_id_to_idx_.find(market_b_id);
 	if (itA == building_id_to_idx_.end() || itB == building_id_to_idx_.end()) return;
 	const Building &bA = buildings_[itA->second];
-	const Building &bB = buildings_[itB->second];
+	std::vector<uint32_t> traders;
 	for (size_t k = 0; k < count; ++k) {
-		int32_t uidx = lookup_unit(unit_ids[k]);
-		if (uidx < 0 || !units_.alive[uidx] || !unit_is_trader(units_.unit_type[uidx])) continue;
-		const uint8_t owner = units_.team[uidx];
-		const uint8_t ttype = units_.unit_type[uidx];
-		if (!can_trade_at(owner, bA, ttype) || !can_trade_at(owner, bB, ttype)) continue;
-		if (ttype == UNIT_MERCHANT_SHIP && (dock_sea(bA) == 0 || dock_sea(bA) != dock_sea(bB))) continue;
-		uint32_t uid = units_.id[uidx];
+		const int32_t uidx = lookup_unit(unit_ids[k]);
+		if (uidx >= 0 && trade_route_ok((size_t)uidx, market_a_id, market_b_id)) traders.push_back(unit_ids[k]);
+	}
+	UnitOrder o; o.kind = ORDER_TRADE; o.target = market_a_id; o.x = bA.x; o.z = bA.z;
+	o.x2 = trade_market_bits(market_b_id);
+	const std::vector<uint32_t> now = split_queued(traders.data(), traders.size(), o, queued);
+	for (uint32_t uid : now) {
+		const int32_t uidx = lookup_unit(uid);
+		if (uidx < 0) continue;
+		// A trader already on this route (back from a flight) keeps its leg and goods.
+		auto rit = trader_routes_.find(uid);
+		if (rit != trader_routes_.end() && rit->second.first == market_a_id && rit->second.second == market_b_id &&
+				applying_queued_) {
+			const int leg = trader_leg_.count(uid) ? trader_leg_[uid] : 0;
+			auto dit = building_id_to_idx_.find(leg == 0 ? market_a_id : market_b_id);
+			units_.action_state[uidx] = ACTION_TRADE;
+			units_.has_order[uidx] = 1;
+			units_.target_unit_id[uidx] = 0;
+			units_.target_building_id[uidx] = 0;
+			units_.waypoint_cur[uidx] = units_.waypoint_count[uidx] = 0;
+			units_.target_x[uidx] = buildings_[dit->second].x;
+			units_.target_z[uidx] = buildings_[dit->second].z;
+			continue;
+		}
 		trader_routes_[uid] = {market_a_id, market_b_id};
 		trader_leg_[uid] = 0;
 		units_.action_state[uidx] = ACTION_TRADE;
 		units_.has_order[uidx] = 1;
-		drop_orders(uidx);
+		set_order(uidx, ORDER_TRADE, 0, market_a_id, bA.x, bA.z);
+		units_.order_x2[uidx] = o.x2;
 		// Empty until it loads goods at the first market (Trader.js: no gain on the first arrival).
 		units_.carry[uidx] = 0;
 		units_.target_x[uidx] = bA.x;
@@ -2051,7 +2088,8 @@ void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint
 	size_t ridx = rit->second;
 	float rx = resources_.x[ridx];
 	float rz = resources_.z[ridx];
-	UnitOrder o; o.kind = ORDER_GATHER; o.target = resource_id; o.x = rx; o.z = rz;
+	const uint8_t sub_bits = (uint8_t)((resources_.subtype[ridx] << ORDER_FLAG_SUB_SHIFT) & ORDER_FLAG_SUB_MASK);
+	UnitOrder o; o.kind = ORDER_GATHER; o.flags = sub_bits; o.target = resource_id; o.x = rx; o.z = rz;
 	const std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
 	const uint32_t *unit_ids = now.data();
 	const size_t count = now.size();
@@ -2072,7 +2110,7 @@ void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint
 		units_.res_type_carried[uidx] = resources_.type[ridx];
 		units_.target_unit_id[uidx] = 0;
 		units_.target_building_id[uidx] = 0;
-		set_order(uidx, ORDER_GATHER, 0, resource_id, rx, rz);
+		set_order(uidx, ORDER_GATHER, sub_bits, resource_id, rx, rz);
 	}
 }
 
@@ -3684,7 +3722,19 @@ void Simulation::move_units(float dt, Arena &arena) {
 		float dz = aim_z - pz[i];
 		float d2 = dx * dx + dz * dz;
 		float stop_dist = ARRIVE_DIST;
-		if (units_.action_state[i] == ACTION_ATTACK) {
+		// Attack.js MinRange: a siege engine too close to its target walks away from it
+		// (UnitMotion MoveToTargetRange with a minimum); tick_pack unpacks it once past MinRange.
+		bool backing_off = false;
+		if (units_.action_state[i] == ACTION_ATTACK && units_.target_unit_id[i] != 0 && !using_path) {
+			const float minr = units_.attack_range[i] * unit_min_range_ratio(units_.unit_type[i]);
+			if (minr > 0.0f && d2 < minr * minr) {
+				backing_off = true;
+				if (d2 < 1e-6f) { dx = 1.0f; dz = 0.0f; }
+				dx = -dx; dz = -dz;
+				d2 = dx * dx + dz * dz;
+			}
+		}
+		if (units_.action_state[i] == ACTION_ATTACK && !backing_off) {
 			float r_att = units_.attack_range[i];
 			if (r_att > 3.0f) {
 				// Ranged units (Archers, Catapults, Triremes) stop comfortably within volley distance
@@ -3695,7 +3745,7 @@ void Simulation::move_units(float dt, Arena &arena) {
 			}
 		}
 
-		if (d2 <= stop_dist * stop_dist) {
+		if (!backing_off && d2 <= stop_dist * stop_dist) {
 			vx[i] = 0;
 			vz[i] = 0;
 			if (units_.action_state[i] == ACTION_MOVE || units_.action_state[i] == ACTION_ATTACK_MOVE) {
@@ -3717,7 +3767,7 @@ void Simulation::move_units(float dt, Arena &arena) {
 
 		// 0 A.D. UnitMotion short path: head for the first waypoint around a blocking building
 		// (nav/building_steering.h). The arrival check above still uses the real aim point.
-		if (!unit_is_ship(units_.unit_type[i])) {
+		if (!unit_is_ship(units_.unit_type[i]) && !backing_off) {
 			rtso::nav::Vec2 steer;
 			if (rtso::nav::steer_around_buildings(rtso::nav::Vec2(px[i], pz[i]), rtso::nav::Vec2(aim_x, aim_z),
 					unit_collision_radius(units_.unit_type[i]), steer_obstacles_, units_.target_building_id[i],
@@ -4505,7 +4555,9 @@ void Simulation::tick_pack(float dt) {
 			if (t >= 0 && units_.alive[t] && is_hostile(units_.team[i], units_.team[t])) {
 				float dx = units_.pos_x[i] - units_.pos_x[t];
 				float dz = units_.pos_z[i] - units_.pos_z[t];
-				target_in_range = in_parabolic_range(dx * dx + dz * dz, att_y,
+				const float d2 = dx * dx + dz * dz;
+				const float minr = units_.attack_range[i] * unit_min_range_ratio(units_.unit_type[i]);
+				target_in_range = d2 >= minr * minr && in_parabolic_range(d2, att_y,
 						get_terrain_height(units_.pos_x[t], units_.pos_z[t]), units_.attack_range[i]);
 			}
 		} else if (units_.target_building_id[i] != 0 && st != ACTION_BUILD) {
@@ -4605,6 +4657,8 @@ void Simulation::tick_combat(float dt) {
 		const float anc_x = on_the_move ? pxi : units_.anchor_x[i];
 		const float anc_z = on_the_move ? pzi : units_.anchor_z[i];
 		const float range = units_.attack_range[i];
+		// Attack.js MinRange (catapults, bolt shooters): the range query skips anything closer.
+		const float minr = range * unit_min_range_ratio(units_.unit_type[i]);
 		const float vision = unit_vision_range(units_.unit_type[i]);
 		const float held_lim = vision * 0.5f + range; // CheckTargetDistanceFromHeldPosition
 		const float att_y = get_terrain_height(pxi, pzi);
@@ -4627,7 +4681,10 @@ void Simulation::tick_combat(float dt) {
 			int32_t tidx = lookup_unit(units_.target_unit_id[i]);
 			if (tidx >= 0 && units_.alive[tidx] && can_attack(units_.team[i], units_.team[tidx]) &&
 					(explicit_target || within_stance(tidx))) {
-				found = tidx;
+				const float tx = units_.pos_x[tidx] - pxi, tz = units_.pos_z[tidx] - pzi;
+				// A target it picked itself that came too close is dropped; a player's
+				// target stays and move_units backs away from it.
+				if (explicit_target || tx * tx + tz * tz >= minr * minr) found = tidx;
 			}
 		}
 
@@ -4646,7 +4703,7 @@ void Simulation::tick_combat(float dt) {
 				float dx = pxi - units_.pos_x[j];
 				float dz = pzi - units_.pos_z[j];
 				float d2 = dx * dx + dz * dz;
-				if (d2 > scan_range * scan_range) return;
+				if (d2 > scan_range * scan_range || d2 < minr * minr) return;
 				if (!within_stance(j)) return;
 
 				// 0 A.D. Target Selection Heuristic: Counter-bonus preference + focus fire + proximity
@@ -4736,6 +4793,8 @@ void Simulation::tick_combat(float dt) {
 
 		// 0 A.D. Exact Parabolic Range Equation (CCmpRangeManager.cpp)
 		if (!in_parabolic_range(d2, att_y, def_y, units_.attack_range[i])) continue;
+		const float minr = units_.attack_range[i] * unit_min_range_ratio(units_.unit_type[i]);
+		if (d2 < minr * minr) continue; // Attack.js MinRange
 
 		units_.attack_timer[i] = units_.attack_cooldown[i];
 		units_.action_state[i] = ACTION_ATTACK;
@@ -6290,7 +6349,7 @@ std::vector<uint32_t> Simulation::split_queued(const uint32_t *ids, size_t count
 			q.x = std::clamp(o.x + lx - cx, -map_half_ + 1.0f, map_half_ - 1.0f);
 			q.z = std::clamp(o.z + lz - cz, -map_half_ + 1.0f, map_half_ - 1.0f);
 		}
-		q.x2 = lx; q.z2 = lz; // a queued patrol starts where the previous order ends
+		if (o.kind == ORDER_PATROL) { q.x2 = lx; q.z2 = lz; } // a queued patrol starts where the previous order ends
 		std::vector<UnitOrder> &queue = order_queues_[ids[k]];
 		if (queue.size() < 64) queue.push_back(q);
 	}
@@ -6314,6 +6373,7 @@ void Simulation::apply_order(uint32_t uid, const UnitOrder &o) {
 		case ORDER_GARRISON: order_garrison(&uid, 1, o.target); break;
 		case ORDER_GUARD: order_guard(&uid, 1, o.target); break;
 		case ORDER_HEAL: order_heal(&uid, 1, o.target); break;
+		case ORDER_TRADE: order_trade(&uid, 1, o.target, trade_market_id(o.x2)); break;
 		default: break;
 	}
 	applying_queued_ = was;
@@ -6321,6 +6381,7 @@ void Simulation::apply_order(uint32_t uid, const UnitOrder &o) {
 	if (i < 0 || units_.order_kind[i] != o.kind) return;
 	units_.order_flags[i] = o.flags & (uint8_t)~ORDER_FLAG_INTERRUPTED;
 	if (o.kind == ORDER_PATROL) { units_.order_x2[i] = o.x2; units_.order_z2[i] = o.z2; }
+	if (o.kind == ORDER_TRADE) units_.order_x2[i] = o.x2;
 }
 
 bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
@@ -6360,6 +6421,7 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 			return t >= 0 && units_.alive[t];
 		}
 		case ORDER_HEAL: return can_heal(i, lookup_unit(o.target));
+		case ORDER_TRADE: return trade_route_ok(i, o.target, trade_market_id(o.x2));
 		default: return false;
 	}
 }
@@ -6369,7 +6431,11 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 void Simulation::finish_order(size_t i) {
 	const uint32_t uid = units_.id[i];
 	if (units_.order_kind[i] == ORDER_GATHER && !order_still_valid(i, current_order(i))) {
-		const uint32_t r = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], units_.res_type_carried[i], units_.team[i]);
+		// FINDINGNEWTARGET: the same kind of resource, near the unit, else near where it was.
+		const int sub = (units_.order_flags[i] & ORDER_FLAG_SUB_MASK) >> ORDER_FLAG_SUB_SHIFT;
+		uint32_t r = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], units_.res_type_carried[i], units_.team[i], sub);
+		if (r == 0)
+			r = find_nearby_resource(units_.order_x[i], units_.order_z[i], units_.res_type_carried[i], units_.team[i], sub);
 		if (r != 0) {
 			UnitOrder o = current_order(i);
 			o.target = r;
@@ -6470,11 +6536,12 @@ void Simulation::respond_to_attack(size_t i) {
 	units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED;
 }
 
-uint32_t Simulation::find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team) const {
+uint32_t Simulation::find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team, int subtype) const {
 	uint32_t best = 0;
 	float best_d2 = NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE;
 	for (size_t r = 0; r < resources_.count; ++r) {
 		if (!resources_.alive[r] || resources_.amount[r] <= 0 || resources_.type[r] != res_type) continue;
+		if (subtype >= 0 && resources_.subtype[r] != subtype) continue; // the same kind (type.specific)
 		auto f = field_bld_by_res_.find(resources_.id[r]);
 		if (f != field_bld_by_res_.end()) { // only our own fields
 			auto b = building_id_to_idx_.find(f->second);
@@ -6582,8 +6649,9 @@ void Simulation::tick_unit_ai(float dt) {
 	for (size_t i = 0; i < n && i < units_.count; ++i) {
 		if (!units_.alive[i]) continue;
 		const uint8_t st = units_.action_state[i];
-		if (st == ACTION_DYING || st == ACTION_GARRISONED || st == ACTION_TRADE) continue;
-		if (units_.attacked_by[i] != 0) respond_to_attack(i);
+		if (st == ACTION_DYING || st == ACTION_GARRISONED) continue;
+		if (units_.attacked_by[i] != 0) respond_to_attack(i); // traders flee, then resume_order
+		if (units_.action_state[i] == ACTION_TRADE) continue;
 		// Guard.js: guards answer whoever attacks the unit they guard (GuardedAttacked).
 		if (units_.order_kind[i] == ORDER_GUARD && units_.action_state[i] == ACTION_GUARD) {
 			const int32_t g = lookup_unit(units_.order_target[i]);
@@ -11341,9 +11409,12 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 Petra's sent diplomacy requests and AI-to-AI request inboxes
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 Petra's sent diplomacy requests and AI-to-AI request inboxes
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
+	// v24: the map extent first, so a load into a sim at another size (a fresh
+	// reset(), a replay, a rejoin) sizes the FoW, nav and territory grids before reading them.
+	out.write((const char *)&map_half_, sizeof(map_half_));
 
 	// 1. Sim scalars
 	out.write((const char *)&ticks_, sizeof(ticks_));
@@ -11520,6 +11591,12 @@ bool Simulation::load_state(const char *filepath) {
 	in.read((char *)&magic, sizeof(magic));
 	in.read((char *)&version, sizeof(version));
 	if (magic != 0x52545330 || version < 1 || version > SAVE_VERSION) return false;
+	if (version >= 24) {
+		float half = 0.0f;
+		in.read((char *)&half, sizeof(half));
+		if (!in.good() || !(half > 0.0f) || half > 4096.0f) return false;
+		if (half != map_half_) set_map_half(half);
+	}
 
 	// 1. Sim scalars
 	in.read((char *)&ticks_, sizeof(ticks_));
@@ -11601,7 +11678,9 @@ bool Simulation::load_state(const char *filepath) {
 	// 2. Resources
 	uint32_t num_res = 0;
 	in.read((char *)&num_res, sizeof(num_res));
+	if (!in.good() || num_res > (1u << 22)) return false;
 	resources_.count = 0;
+	resources_.reserve(num_res); // a reset() sim holds 512; bigger maps have more
 	res_id_to_idx_.clear();
 	field_res_by_bld_.clear();
 	field_bld_by_res_.clear();
@@ -11628,6 +11707,7 @@ bool Simulation::load_state(const char *filepath) {
 	// 3. Units
 	uint32_t num_units = 0;
 	in.read((char *)&num_units, sizeof(num_units));
+	if (!in.good() || num_units > UNIT_CAP) return false;
 	units_.count = 0;
 	unit_id_to_idx_.clear();
 	unit_idx_by_id_.assign(UNIT_CAP + 1, -1);
@@ -12120,7 +12200,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			if (ar.version >= 18) ar.pod(v);
 			else v = PetraAttackManager{};
 		} else if constexpr (std::is_same_v<T, PetraSentDiplomacy>) {
-			if (ar.version >= 24) ar.pod(v);
+			if (ar.version >= 25) ar.pod(v);
 			else v = PetraSentDiplomacy{};
 		} else if constexpr (std::is_same_v<T, std::vector<uint8_t>>) {
 			io_vec_pod(ar, v, (uint32_t)S::MAX_GRID_RES * S::MAX_GRID_RES);
@@ -12147,7 +12227,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	}
 	ar.pod(s.petra_pid_);
 	ar.pod(s.petra_tribute_inbox_);
-	if (ar.version >= 24) { // AI-to-AI diplomacy and tribute requests in flight
+	if (ar.version >= 25) { // AI-to-AI diplomacy and tribute requests in flight
 		ar.pod(s.petra_diplo_request_inbox_);
 		ar.pod(s.petra_tribute_request_wanted_);
 		ar.pod(s.petra_tribute_request_res_);
