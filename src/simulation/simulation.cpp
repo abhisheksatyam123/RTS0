@@ -833,7 +833,7 @@ void Simulation::rebuild_territory() {
 		if (b.type == BLD_TOWN_CENTER) radius = 32.0f;
 		else if (b.type == BLD_FORTRESS) radius = 28.0f;
 		else if (b.type == BLD_TOWER) radius = 18.0f;
-		else continue;
+		else if ((radius = civ_building_territory_radius(b.type)) <= 0.0f) continue;
 		if (b.team >= MAX_PLAYERS) continue; // Gaia holds no territory
 		roots.push_back({b.x, b.z, radius, b.team});
 	}
@@ -951,12 +951,16 @@ BuildRestriction build_restriction(uint8_t type) {
 	case BLD_OUTPOST: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_OUTPOST, 50.0f / 4.0f};
 	case BLD_TOWER: case BLD_SENTRY_TOWER: return {PLACE_LAND, TERR_OWN, DIST_TOWER, 60.0f / 4.0f};
 	case BLD_FORTRESS: return {PLACE_LAND, TERR_OWN, DIST_FORTRESS, 80.0f / 4.0f};
+	// Civ-specific: civil_centre_military_colony (own neutral, 120 m from a
+	// CivilCentre) and ptol/lighthouse (shore, own ally neutral).
+	case BLD_MILITARY_COLONY: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_CIVIL_CENTRE, 120.0f / 4.0f};
+	case BLD_LIGHTHOUSE: return {PLACE_SHORE_TYPE, TERR_OWN | TERR_ALLY | TERR_NEUTRAL, DIST_NONE, 0.0f};
 	default: return {PLACE_LAND, TERR_OWN, DIST_NONE, 0.0f};
 	}
 }
 uint8_t distance_class_of(uint8_t type) {
 	switch (type) {
-	case BLD_TOWN_CENTER: return DIST_CIVIL_CENTRE;
+	case BLD_TOWN_CENTER: case BLD_MILITARY_COLONY: return DIST_CIVIL_CENTRE; // a colony is a CivilCentre
 	case BLD_TOWER: case BLD_SENTRY_TOWER: return DIST_TOWER; // both carry the Tower class
 	case BLD_FORTRESS: return DIST_FORTRESS;
 	case BLD_OUTPOST: return DIST_OUTPOST;
@@ -1070,8 +1074,8 @@ Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell
 }
 
 uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b_type) {
-	if (player >= MAX_PLAYERS) return 0;
-	if (b_type >= BLD_TYPE_COUNT) return 0;
+	if (player >= MAX_PLAYERS || b_type >= BLD_TYPE_COUNT) return 0;
+	if (!civ_can_build(players_[player].civ, b_type)) return 0; // civ-specific structures
 	const BuildingTypeInfo &binfo = building_type_info(b_type);
 	rebuild_territory(); // territory from every finished root so far (a no-op when nothing changed)
 	if (check_placement(player, cell_x, cell_y, b_type) != PLACE_OK) return 0;
@@ -3634,7 +3638,7 @@ void Simulation::tick_gather(float dt) {
 				if (b.team != uteam || b.build_progress < 1.0f) continue;
 				bool valid_drop = false;
 				if (units_.unit_type[i] == UNIT_FISHING_BOAT) valid_drop = b.type == BLD_DOCK; // boats can only reach docks
-				else if (b.type == BLD_TOWN_CENTER) valid_drop = true;
+				else if (b.type == BLD_TOWN_CENTER || civ_building_is_dropsite(b.type)) valid_drop = true;
 				else if (b.type == BLD_STOREHOUSE && (units_.res_type_carried[i] != RES_FOOD)) valid_drop = true;
 				else if (b.type == BLD_FARMSTEAD && (units_.res_type_carried[i] == RES_FOOD)) valid_drop = true;
 				else if (b.type == BLD_DOCK && units_.res_type_carried[i] == RES_FOOD) valid_drop = true;
@@ -6785,6 +6789,7 @@ void Simulation::petra_manage_scouting(float dt) {
 				[&](size_t u) { return units_.alive[u] && units_.team[u] == petra_pid_ ? vision_radius(units_.unit_type[u]) : 0.0f; },
 				[&](const Building &b) {
 					if (b.team != petra_pid_ || b.build_progress < 0.5f) return 0.0f;
+					if (const float cv = civ_building_vision(b.type); cv > 0.0f) return cv; // e.g. the Ptolemaic Lighthouse
 					return (b.type == BLD_TOWER || b.type == BLD_FORTRESS) ? 24.0f : ((b.type == BLD_DOCK) ? 28.0f : 18.0f);
 				});
 	}
@@ -11698,6 +11703,7 @@ void Simulation::update_player_fow(std::vector<uint8_t> &grid, SharesVision shar
 				float bvr = 18.0f; // default building vision
 				if (b.type == BLD_TOWER || b.type == BLD_FORTRESS) bvr = 24.0f;
 				if (b.type == BLD_DOCK) bvr = 28.0f;
+				if (const float cv = civ_building_vision(b.type); cv > 0.0f) bvr = cv; // e.g. the Ptolemaic Lighthouse
 				return bvr;
 			});
 }
