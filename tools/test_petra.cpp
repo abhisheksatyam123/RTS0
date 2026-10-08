@@ -98,6 +98,10 @@ static void test_roster_army() {
 		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
 		s->players_[1].civ = (Civilization)civ;
 		s->set_victory_condition(VICTORY_ENDLESS); // keep playing once the idle player is beaten
+		// A fortress beside the idle player's centre outlasts the first attacks, so siege
+		// still has a structure to unpack against when it reaches the front.
+		for (const auto &b : std::vector<Simulation::Building>(s->buildings_))
+			if (b.team == 0 && b.type == BLD_TOWN_CENTER) { s->spawn_building_world(b.x + 14.0f, b.z, BLD_FORTRESS, 0, 1.0f); break; }
 		bool hero = false, champion = false, siege = false, tower = false, packed_moved = false, unpacked_fired = false;
 		for (float t = 0.0f; t < 20.0f * 60.0f && !s->is_game_over(); t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
