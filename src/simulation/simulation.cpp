@@ -99,7 +99,7 @@ struct UnitGrid {
 		head = arena.alloc_array<int32_t>((size_t)(res * res));
 		nxt = arena.alloc_array<int32_t>(n);
 		if (!head || !nxt) return false;
-		for (int c = 0; c < res * res; ++c) head[c] = -1;
+		std::memset(head, 0xFF, sizeof(int32_t) * (size_t)(res * res)); // every head -1
 		for (size_t i = 0; i < n; ++i) {
 			if (!alive[i]) {
 				nxt[i] = -1;
@@ -114,6 +114,14 @@ struct UnitGrid {
 
 	template <typename Fn>
 	void visit_radius(float x, float z, float radius, Fn &&fn) const {
+		visit_radius_within(x, z, radius, std::numeric_limits<float>::infinity(), fn);
+	}
+
+	// visit_radius(), skipping the cells that hold only units more than `reach` from (x, z) on
+	// either axis: for callers that ignore those units anyway. The cell mapping is monotonic, so
+	// the other units are visited as before, in the same order.
+	template <typename Fn>
+	void visit_radius_within(float x, float z, float radius, float reach, Fn &&fn) const {
 		int cr = std::max(1, (int)std::ceil(radius * inv) + 1);
 		int cx = std::clamp((int)((x + half) * inv), 0, res - 1);
 		int cz = std::clamp((int)((z + half) * inv), 0, res - 1);
@@ -121,6 +129,13 @@ struct UnitGrid {
 		int x1 = std::min(res - 1, cx + cr);
 		int z0 = std::max(0, cz - cr);
 		int z1 = std::min(res - 1, cz + cr);
+		if (reach < radius + (float)cr / inv) {
+			auto axis = [this](float f) { return std::clamp((int)((f + half) * inv), 0, res - 1); };
+			x0 = std::max(x0, axis(x - reach));
+			x1 = std::min(x1, axis(x + reach));
+			z0 = std::max(z0, axis(z - reach));
+			z1 = std::min(z1, axis(z + reach));
+		}
 		for (int zz = z0; zz <= z1; ++zz) {
 			int row = zz * res;
 			for (int xx = x0; xx <= x1; ++xx) {
@@ -3054,6 +3069,12 @@ void Simulation::separation(float dt, Arena &arena) {
 	for (const Building &b : buildings_)
 		if (!b.wrecked && blocks_movement_now(b))
 			sep_obstacles_.push_back(SteerObstacle{b.id, b.x, b.z, b.half_size, b.type, false});
+	sep_grid_.build(sep_obstacles_, map_half_);
+
+	// The widest unit this tick: no pair is pushed apart beyond ri + r_max + 0.4 on either axis.
+	float r_max = 0.0f;
+	for (size_t i = 0; i < n; ++i)
+		if (units_.alive[i]) r_max = std::max(r_max, unit_collision_radius(units_.unit_type[i]));
 
 	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		if (!units_.alive[i]) return;
@@ -3067,7 +3088,9 @@ void Simulation::separation(float dt, Arena &arena) {
 		float az = 0.0f;
 
 		// 1. Unit-to-Unit Collision & Physical Separation
-		grid.visit_radius(pxi, pzi, scan_radius, [&](int32_t j) {
+		// A unit beyond comfort_dist on either axis pushes nothing, so the grid skips cells that
+		// hold only such units (0.5 more for float rounding).
+		grid.visit_radius_within(pxi, pzi, scan_radius, ri + r_max + 0.40f + 0.5f, [&](int32_t j) {
 			if ((size_t)j == i || !units_.alive[j]) return;
 			const float rj = unit_collision_radius(units_.unit_type[j]);
 			const float min_dist = ri + rj;           // Exact physical body contact boundary
@@ -3113,8 +3136,8 @@ void Simulation::separation(float dt, Arena &arena) {
 		// A building more than b_req from the unit on either axis pushes nothing; the 0.5
 		// margin keeps that test clear of float rounding, so skipping it changes no result.
 		const float b_skip = ri + 0.35f + 0.5f;
-		for (const SteerObstacle &b : sep_obstacles_) {
-			if (std::fabs(pxi - b.x) > b.half_size + b_skip || std::fabs(pzi - b.z) > b.half_size + b_skip) continue;
+		auto push_out = [&](const SteerObstacle &b) {
+			if (std::fabs(pxi - b.x) > b.half_size + b_skip || std::fabs(pzi - b.z) > b.half_size + b_skip) return false;
 			float b_half = b.half_size;
 			float cx = std::clamp(pxi, b.x - b_half, b.x + b_half);
 			float cz = std::clamp(pzi, b.z - b_half, b.z + b_half);
@@ -3135,7 +3158,7 @@ void Simulation::separation(float dt, Arena &arena) {
 				else if (min_edge == dist_west) ax -= push;
 				else if (min_edge == dist_south) az += push;
 				else az -= push;
-				continue;
+				return false;
 			}
 			if (bd2 < b_req * b_req) {
 				float bdist = sqrtf(bd2);
@@ -3155,7 +3178,12 @@ void Simulation::separation(float dt, Arena &arena) {
 					else az -= b_req * 1.5f;
 				}
 			}
-		}
+			return false;
+		};
+		// sep_grid_ hands over the buildings near enough to pass push_out()'s first test, in list
+		// order, so the pushes add up exactly as over the whole list.
+		if (!sep_grid_.for_each_near(pxi, pzi, b_skip, [&](uint32_t k) { return push_out(sep_obstacles_[k]); }))
+			for (const SteerObstacle &b : sep_obstacles_) push_out(b);
 
 		fx[i] = ax;
 		fz[i] = az;
