@@ -528,6 +528,20 @@ unsigned pack_state_of(const Simulation &sim, uint32_t id) {
     return 255;
 }
 
+// The unit's current order kind (255 once it is dead or gone) and how many
+// Shift-queued orders follow it.
+unsigned order_kind_of(const Simulation &sim, uint32_t id) {
+    auto uv = sim.units();
+    for (size_t i = 0; i < uv.count; ++i)
+        if (uv.id[i] == id) return uv.alive[i] ? sim.unit_order(id).kind : 255;
+    return 255;
+}
+
+size_t order_queue_len_of(const Simulation &sim, uint32_t id) {
+    const auto *q = sim.unit_order_queue(id);
+    return q ? q->size() : 0;
+}
+
 int gate_locked_of(const Simulation &sim, uint32_t id) {
     for (const auto &b : sim.buildings())
         if (b.id == id) return b.gate_locked ? 1 : 0;
@@ -582,6 +596,13 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     const uint32_t host_wall = sim.spawn_building_world(-30.0f, 14.0f, BLD_WALL_SEGMENT, 0, 1.0f);
     // A stone thrower the host unpacks and packs again (cmd 29, 0 A.D. Pack.js).
     const uint32_t host_catapult = sim.spawn_unit(-40.0f, -12.0f, 0, UNIT_CATAPULT);
+    // Passive, so it unpacks and packs only when ordered: on the default
+    // aggressive stance Petra's raiders walking in and out of range make it
+    // unpack and pack on its own (0 A.D. EnsureCorrectPackStateForAttack).
+    sim.order_set_stance(&host_catapult, 1, STANCE_PASSIVE);
+    // A villager the host orders about with the Unit orders commands: gather,
+    // walk with a Shift-queued walk after it, back to work (cmd 31), delete (cmd 30).
+    const uint32_t host_worker = sim.spawn_unit(-34.0f, 10.0f, 0, UNIT_VILLAGER, 100.0f);
     auto apply_setup = [&](const GameSetupParams &s) {
         sim.set_victory_condition(s.victory >= VICTORY_COUNT ? 0 : s.victory);
         for (uint8_t t = 0; t < MAX_PLAYERS; ++t) {
@@ -756,6 +777,20 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
                 pk.param = st == 440 ? 1 : 0;
                 batch.push_back(pk);
             }
+            // Unit orders (0 A.D. Commands.js): the host's worker gathers food,
+            // walks off with a Shift-queued walk (param bit 0x80) after it, goes
+            // back to work (cmd 31) and is finally deleted (cmd 30).
+            if (st == 390 || st == 400 || st == 402 || st == 470 || st == 580) {
+                NetCommand w;
+                w.client_id = 0;
+                w.entity_ids.push_back(host_worker);
+                if (st == 390) { w.cmd_type = 4; w.target_id = refs.resources[0]; }
+                else if (st == 400) { w.cmd_type = 1; w.target_x = -34.0f; w.target_z = -6.0f; }
+                else if (st == 402) { w.cmd_type = 1; w.target_x = -34.0f; w.target_z = 6.0f; w.param = NET_PARAM_QUEUED; }
+                else if (st == 470) w.cmd_type = 31;
+                else w.cmd_type = 30;
+                batch.push_back(w);
+            }
             // Chat: the joiner whispers to the host, then writes to a player who
             // is not there (nobody may see it); the host answers everyone.
             if (!host && st == 120) net.sendChat("gg", peer_guid(0));
@@ -816,13 +851,14 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
                 if (cu.alive[i]) wounds += cu.max_hp[i] - cu.hp[i];
                 else ++dead;
             }
-            std::fprintf(log, "%u %08X %zu d01=%u d10=%u cf=%d wounds=%.0f dead=%u defeated=%u over=%d stone=%d,%d wall=%u locked=%d pack=%u\n",
+            std::fprintf(log, "%u %08X %zu d01=%u d10=%u cf=%d wounds=%.0f dead=%u defeated=%u over=%d stone=%d,%d wall=%u locked=%d pack=%u work=%u queue=%zu\n",
                          f.turn_index, f.sim_state_hash, f.commands.size(), sim.get_diplomacy(0, 1),
                          sim.get_diplomacy(1, 0), sim.ceasefire_active() ? 1 : 0, wounds, dead,
                          (unsigned)sim.defeated_mask(), sim.is_game_over() ? 1 : 0,
                          (int)sim.player(0).res[RES_STONE], (int)sim.player(1).res[RES_STONE],
                          (unsigned)building_type_of(sim, host_wall), gate_locked_of(sim, host_wall),
-                         pack_state_of(sim, host_catapult));
+                         pack_state_of(sim, host_catapult), order_kind_of(sim, host_worker),
+                         order_queue_len_of(sim, host_worker));
         }
         if (tm.has_out_of_sync() && !opt.force_oos) {
             std::fprintf(stderr, "[net-peer] %s: OOS at turn %u local=%08X peer=%08X\n",
