@@ -35,6 +35,9 @@ public:
 	static Ref<Mesh> try_load_mesh(const String &path, const Ref<Mesh> &fallback);
 	static Ref<ShaderMaterial> load_unit_material();
 	static Ref<ShaderMaterial> load_terrain_material();
+	// Binds the 0 A.D. grass, dirt and rock textures for a map biome
+	// ("alpine", "polar", ...) to a terrain material from load_terrain_material.
+	static void apply_terrain_biome(const Ref<ShaderMaterial> &mat, const String &biome);
 	static Ref<ShaderMaterial> load_foliage_material();
 	static Ref<ShaderMaterial> load_water_material();
 	static Ref<ShaderMaterial> try_load_mat(const String &tres, const String &shader_fallback);

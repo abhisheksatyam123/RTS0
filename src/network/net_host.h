@@ -69,7 +69,10 @@ public:
 	// client -> host alike. A client MAY originate a stance change; the host
 	// relays it on dispatch. `turn` rides the packet header so receivers can
 	// order it against the command batch.
-	void sendDiplomacy(uint8_t player_id, uint8_t stance, uint32_t turn = 0);
+	// actor: the player whose stance row changes (the local player), player_id:
+	// the player the stance is toward. The actor rides on the wire so a relayed
+	// stance keeps its originator (see DiplomacyMsg in net_types.h).
+	void sendDiplomacy(uint8_t actor, uint8_t player_id, uint8_t stance, uint32_t turn = 0);
 	// Late-join turn-0 state resync (P3). Asks the host to resend the full
 	// NMT_GAME_START setup plus its current turn state. Client-only; the host
 	// answers through dispatchMessage() and a client replies with
