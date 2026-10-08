@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <string>
 #include <array>
+#include <bit>
 #include <iosfwd>
 
 namespace rtso {
@@ -357,6 +358,9 @@ public:
 	float structure_garrison_heal(const Building &b) const;
 	void order_ungarrison_single(uint32_t building_id, uint32_t unit_id);
 	void order_guard(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
+	// UnitAI Heal: healers walk to an injured allied unit and heal it (Heal.js).
+	void order_heal(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
+	void set_unit_hp(uint32_t unit_id, float hp); // scenarios and tests: clamped to 0..max
 
 	// Livestock & Corrals (Corral.js)
 	void order_herd(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
@@ -503,6 +507,17 @@ public:
 	bool load_state(const char *filepath);
 
 	bool can_place(int cell_x, int cell_y, int footprint) const;
+	// 0 A.D. BuildRestrictions.js CheckPlacement for `player` placing `b_type` at cell_x/cell_y:
+	// obstruction, terrain (land, shore, land-shore), territory, dock shoreline and distance rules.
+	enum PlacementResult : uint8_t {
+		PLACE_OK = 0,
+		PLACE_OBSTRUCTED, // off the map, on another building or on a resource
+		PLACE_TERRAIN,    // water under a land building, deep water under a wall
+		PLACE_TERRITORY,  // territory the template does not allow
+		PLACE_SHORE,      // a dock not on a shoreline facing a sea
+		PLACE_DISTANCE,   // too close to the player's own building of the same class
+	};
+	PlacementResult check_placement(uint8_t player, int cell_x, int cell_y, uint8_t b_type) const;
 
 	void tick(float dt);
 
@@ -947,10 +962,30 @@ private:
 	void tick_petra_ai_player(float dt);
 	void tick_fauna(float dt);
 	void tick_fow();  // updates FoW each sim tick
-	template <typename SharesVision>
-	void update_player_fow(std::vector<uint8_t> &grid, SharesVision shares_vision);
 	void ensure_fow_cell_heights();
-	void reveal_fow(std::vector<uint8_t> &grid, float sx, float sz, float vr) const;
+	// The cells one viewer lit, kept while it stands still (CCmpRangeManager likewise redoes a
+	// viewer's LOS only when it moves). Derived from the terrain alone: never saved or hashed, and
+	// a viewer at another position, or terrain rebuilt since, recomputes. Row k of `rows` holds the
+	// lit cells of FoW row cz - r + k, bit i for column cx - r + i.
+	struct FowView {
+		uint32_t sx = 0, sz = 0, vr = 0; // the bits of the last call's sx, sz and vr
+		uint32_t gen = 0; // fow_view_gen_ of that call; 0: no call yet
+		bool stored = false; // rows filled for that call
+		uint64_t rows[64];
+		// Whether a call with these arguments would find this view's last call.
+		bool same_spot(float x, float z, float r, uint32_t now) const {
+			return gen == now && sx == std::bit_cast<uint32_t>(x) && sz == std::bit_cast<uint32_t>(z) && vr == std::bit_cast<uint32_t>(r);
+		}
+	};
+	static constexpr int FOW_VIEW_MAX_R = 31; // widest view the rows hold: 2r + 1 <= 63
+	struct FowViews {
+		std::vector<FowView> units, buildings;
+	};
+	void reveal_fow(std::vector<uint8_t> &grid, float sx, float sz, float vr, FowView *view = nullptr) const;
+	template <typename SharesVision>
+	void update_player_fow(std::vector<uint8_t> &grid, SharesVision shares_vision, FowViews &views);
+	template <typename UnitVision, typename BuildingVision>
+	void reveal_viewers(std::vector<uint8_t> &grid, FowViews &views, UnitVision unit_vr, BuildingVision building_vr);
 	bool terrain_blocks_los(float sx, float sz, float sy, float tx, float tz, float ty) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
 	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
@@ -1030,6 +1065,13 @@ private:
 		}
 	};
 	std::unordered_set<std::pair<int, int>, CellHash> occupied_cells_;
+	// check_placement's cells (GRID-sized, from -map_half_) that a Gaia resource's
+	// obstruction touches. A cache of resources_, rebuilt when the tick or the
+	// resource count changes; never saved or hashed.
+	mutable std::vector<uint8_t> resource_block_cells_;
+	mutable uint64_t resource_block_tick_ = UINT64_MAX;
+	mutable size_t resource_block_count_ = SIZE_MAX;
+	mutable int resource_block_w_ = 0;
 
 	uint32_t next_id_ = 1;
 	uint32_t sim_seed_ = 1337;
@@ -1077,7 +1119,7 @@ private:
 	PlayerState gaia_stock_; // scratch for player(GAIA_PLAYER); never saved or hashed
 	// Player.js SetState("defeated"): hand every unit and structure of these players to Gaia.
 	void convert_to_gaia(uint8_t players);
-	void tick_capture_gaia(Building &b, float dt);
+	void capture_points_tick(Building &b, size_t bi, float dt); // Capturable.js Reduce, regen and owner change
 	uint8_t participant_mask_ = 0; // save v10
 	uint8_t defeated_mask_ = 0;
 	uint8_t winner_mask_ = 0;
@@ -1190,7 +1232,7 @@ private:
 	void petra_staff_foundations();
 	void petra_manage_fields(int target_food);
 	int petra_villager_target() const;
-	bool petra_can_place(int cell_x, int cell_y, int footprint) const;
+	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
 	void petra_say(uint8_t kind, float x = 0.0f, float z = 0.0f, uint8_t to = 0xFF, int amount = 0, uint8_t res = 0);
 	void petra_handle_diplomacy_request(uint8_t player, uint8_t type);
@@ -1239,6 +1281,11 @@ private:
 	std::vector<float> fow_cell_hmax_; // highest heightmap sample an LOS ray can read in each FoW cell, filled with fow_cell_height_
 	static constexpr int FOW_LOS_BLOCK = 4; // FoW cells per side of a fow_block_hmax_ block
 	std::vector<float> fow_block_hmax_; // fow_cell_hmax_ max per block, filled with fow_cell_height_
+	uint32_t fow_view_gen_ = 0; // bumped each time fow_cell_height_ is filled, so FowViews from older terrain miss
+	// reveal_fow() views of units (by index) and buildings (by buildings_ index), for Petra's
+	// scouting and for update_player_fow(); their vision radii differ, so each keeps its own.
+	FowViews petra_fow_views_, player_fow_views_;
+	std::vector<uint32_t> fow_moved_units_; // reveal_viewers() scratch: units revealed last
 	NavGrid nav_grid_; // Phase1: SoA nav mesh (buildings + water), mirrors 0AD Grid<NavcellData>
 	Grid<uint8_t> territory_grid_; // grid_res_^2 player id per cell, G2 (CCmpTerritoryManager)
 	Grid<uint8_t> influence_grid_; // grid_res_^2 influence count per cell, G2
@@ -1296,6 +1343,14 @@ private:
 	void on_construction_finished(const Building &b, size_t builder);
 	void destroy_building(Building &b);
 	bool can_capture_building(uint8_t player, const Building &b) const;
+	bool can_heal(size_t healer, int32_t target) const;         // Heal.js CanHeal
+	uint32_t find_heal_target(size_t healer) const;             // UnitAI FindNewHealTargets
+	void start_heal(size_t healer, uint32_t target, uint8_t flags);
+	void tick_heal(size_t healer);                              // UnitAI HEAL.APPROACHING / HEALING
+	bool garrison_in_range(size_t i, const Building &b) const;
+	void garrison_now(size_t i, Building &b);
+	void start_cheer(size_t i);                                 // UnitAI Cheer + notifyToCheerInRange
+	void note_kill(uint32_t killer_id, uint32_t victim_id);       // UnitAI shouldCheer
 
 	// Closed gates this tick: the only movement blockers the nav grid leaves out (0 A.D.
 	// gate Obstruction BlockMovement without BlockPathfinding), so move_units stops units
