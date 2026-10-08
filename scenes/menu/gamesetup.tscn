@@ -118,6 +118,19 @@ layout_mode = 2
 tooltip_text = "Allies don't share a win: the match goes on until only one player is left."
 text = "Last man standing"
 
+[node name="StartRow" type="HBoxContainer" parent="VBox/HBox/Left"]
+layout_mode = 2
+
+[node name="Nomad" type="CheckBox" parent="VBox/HBox/Left/StartRow"]
+layout_mode = 2
+tooltip_text = "Random maps: players start with units only and must build their first Civic Centre."
+text = "Nomad"
+
+[node name="RegicideGarrison" type="CheckBox" parent="VBox/HBox/Left/StartRow"]
+layout_mode = 2
+tooltip_text = "Regicide: the hero may garrison in structures, siege engines and ships."
+text = "Hero garrison"
+
 [node name="MapVisRow" type="HBoxContainer" parent="VBox/HBox/Left"]
 layout_mode = 2
 
@@ -281,12 +294,12 @@ value = 2.0
 
 [node name="SlotsHeader" type="Label" parent="VBox/HBox/Right/SlotsBox"]
 layout_mode = 2
-text = "Slot      Type        Civ                Team   AI level      AI style"
+text = "Slot      Type        Civ                Team   AI level      AI style    Colour"
 
 [node name="SlotsGrid" type="GridContainer" parent="VBox/HBox/Right/SlotsBox"]
 layout_mode = 2
 size_flags_vertical = 3
-columns = 6
+columns = 7
 
 [node name="ErrorLabel" type="Label" parent="VBox/HBox/Right"]
 layout_mode = 2

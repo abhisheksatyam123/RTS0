@@ -3531,6 +3531,7 @@ void RtsoMain::apply_match_settings() {
 		}
 	}
 	sim->set_biome_override((int)ms->get("biome") - 1); // 0 = the map's own biome
+	sim->set_nomad((bool)ms->get("nomad")); // random maps only (generate_random_map)
 	if (!load_map_seeded(map_id, seed)) {
 		UtilityFunctions::printerr("[RtsoMain] GameSetup map failed: ", map_id, " - default arena.");
 		if (civ >= 0 && civ < rtso::CIV_COUNT) sim->set_player_civ((uint8_t)civ);
@@ -3548,6 +3549,12 @@ void RtsoMain::apply_match_settings() {
 	sim->set_wonder_duration(60.0f * (float)std::clamp((int)ms->get("wonder_min"), 0, 60));
 	sim->set_relic_duration(60.0f * (float)std::clamp((int)ms->get("relic_min"), 0, 60));
 	sim->set_relic_count((int)ms->get("relic_count"));
+	sim->set_regicide_garrison((bool)ms->get("regicide_garrison"));
+	{
+		Array scolors = ms->get("slot_colors");
+		for (int p = 0; p < rtso::MAX_PLAYERS; ++p)
+			sim->set_player_color((uint8_t)p, (uint8_t)(p < scolors.size() ? std::clamp((int)scolors[p], 0, rtso::PLAYER_COLOR_COUNT - 1) : p));
+	}
 	// Game-setup teams (1-based T1..T4) decide allied victory, shared vision and territory.
 	Array slot_teams = ms->get("slot_teams");
 	for (int p = 0; p < 8 && p < slot_teams.size(); ++p) {
@@ -3680,7 +3687,10 @@ PackedStringArray RtsoMain::get_available_maps() const {
 
 bool RtsoMain::load_map(String map_id) {
 	uint32_t seed = (uint32_t)Time::get_singleton()->get_ticks_msec();
-	if (sim) sim->set_biome_override(-1); // a map picked in game keeps its own biome
+	if (sim) {
+		sim->set_biome_override(-1); // a map picked in game keeps its own biome
+		sim->set_nomad(false);
+	}
 	return load_map_seeded(map_id, seed);
 }
 
@@ -4053,6 +4063,11 @@ void RtsoMain::_on_lobby_start_pressed() {
 			if (i < sdiffs.size()) setup.diffs[i] = (uint8_t)std::clamp((int)sdiffs[i], 0, 5);
 			if (i < sbehs.size()) setup.behs[i] = (uint8_t)std::clamp((int)sbehs[i], 0, 3);
 		}
+		Array scolors = ms->get("slot_colors");
+		for (int i = 0; i < 8 && i < scolors.size(); ++i)
+			setup.colors[i] = (uint8_t)std::clamp((int)scolors[i], 0, rtso::PLAYER_COLOR_COUNT - 1);
+		setup.nomad = (bool)ms->get("nomad") ? 1 : 0;
+		setup.regicide_garrison = (bool)ms->get("regicide_garrison") ? 1 : 0;
 		int msz = (int)ms->get("map_size");
 		setup.map_size = (uint16_t)((msz >= 128 && msz <= 512) ? msz : 128);
 		setup.difficulty = (uint8_t)((int)ms->get("ai_difficulty"));
@@ -4133,6 +4148,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	for (uint8_t i = 0; i < rtso::MAX_PLAYERS; ++i)
 		random_map_teams[i] = (i < setup.slot_count && setup.teams[i] >= 1 && setup.teams[i] <= 8) ? setup.teams[i] : 0;
 	sim->set_biome_override((int)setup.biome - 1);
+	sim->set_nomad(setup.nomad != 0);
 	if (!load_map_seeded(String(setup.map_id.c_str()), setup.seed)) {
 		if (lobby_status) lobby_status->set_text("GameStart failed: map regen failed");
 		return;
@@ -4147,6 +4163,8 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	sim->set_wonder_duration(60.0f * (float)setup.wonder_min);
 	sim->set_relic_duration(60.0f * (float)setup.relic_min);
 	sim->set_relic_count(setup.relics);
+	sim->set_regicide_garrison(setup.regicide_garrison != 0);
+	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) sim->set_player_color(p, setup.colors[p]);
 	for (uint8_t p = 0; p < 8 && p < setup.slot_count; ++p) {
 		if (setup.teams[p] >= 1 && setup.teams[p] <= 8) sim->set_player_team(p, (uint8_t)(setup.teams[p] - 1));
 	}
@@ -4200,6 +4218,11 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		}
 		ms->set("slot_diffs", sdiffs);
 		ms->set("slot_behs", sbehs);
+		Array scolors;
+		for (uint8_t i = 0; i < setup.slot_count && i < 8; ++i) scolors.push_back((int)setup.colors[i]);
+		ms->set("slot_colors", scolors);
+		ms->set("nomad", setup.nomad != 0);
+		ms->set("regicide_garrison", setup.regicide_garrison != 0);
 		ms->set("map_size", random_map_size);
 		ms->set("ai_difficulty", (int)sim->petra_difficulty());
 		ms->set("ai_behavior", (int)sim->petra_behavior());

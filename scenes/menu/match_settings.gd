@@ -30,6 +30,11 @@ var relic_count: int = 2
 # Per-slot Petra difficulty (0..5) and behaviour (0..3), in slot order.
 var slot_diffs: Array = []
 var slot_behs: Array = []
+# Per-slot rtso::PLAYER_COLORS index (0 A.D. PlayerColor), in slot order.
+var slot_colors: Array = []
+# 0 A.D. Nomad (random maps: no starting structures) and RegicideGarrison (the Regicide hero may garrison).
+var nomad: bool = false
+var regicide_garrison: bool = false
 # Random-map biome: 0 = the map's own, else rtso::BiomeType + 1. Game speed at the start.
 var biome: int = 0
 var game_speed: float = 1.0

@@ -304,6 +304,9 @@ struct GameSetupParams {
 	uint8_t biome = 0;       // random-map biome: 0 = the map's own, else BIOME_* + 1
 	uint8_t diffs[8] = {3, 3, 3, 3, 3, 3, 3, 3}; // per-slot Petra difficulty 0..5
 	uint8_t behs[8] = {2, 2, 2, 2, 2, 2, 2, 2};  // per-slot Petra behaviour 0..3
+	uint8_t colors[8] = {0, 1, 2, 3, 4, 5, 6, 7}; // per-slot PLAYER_COLORS index 0..15
+	uint8_t nomad = 0;             // 1 = Nomad start (random maps)
+	uint8_t regicide_garrison = 0; // 1 = the Regicide hero may garrison
 	uint16_t map_size = 128; // random-map width in meters, 128..512
 	uint8_t difficulty = 3; // Petra 0..5 sandbox..very hard
 	uint8_t behavior = 2;   // Petra 0..3 random/def/bal/agg
@@ -334,7 +337,15 @@ inline std::string format_game_start_full(const GameSetupParams &p) {
 			b += (char)('0' + (p.behs[i] <= 3 ? p.behs[i] : 2));
 		}
 		s += ";diffs=" + d + ";behs=" + b;
+		std::string c;
+		for (unsigned i = 0; i < p.slot_count && i < 8; ++i) {
+			if (i) c += ',';
+			c += "0123456789abcdef"[p.colors[i] & 15];
+		}
+		s += ";colors=" + c;
 	}
+	s += ";nomad=" + std::to_string((unsigned)p.nomad);
+	s += ";rgarrison=" + std::to_string((unsigned)p.regicide_garrison);
 	s += ";mapsize=" + std::to_string((unsigned)p.map_size);
 	s += ";diff=" + std::to_string((unsigned)p.difficulty);
 	s += ";behavior=" + std::to_string((unsigned)p.behavior);
@@ -406,6 +417,15 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 			else if (k == "relicdur") { uint8_t x; if (detail::parse_u8(v, 0, 60, x)) out.relic_min = x; }
 			else if (k == "relics") { uint8_t x; if (detail::parse_u8(v, 1, 16, x)) out.relics = x; }
 			else if (k == "biome") { uint8_t x; if (detail::parse_u8(v, 0, 9, x)) out.biome = x; }
+			else if (k == "nomad") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.nomad = x; }
+			else if (k == "rgarrison") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.regicide_garrison = x; }
+			else if (k == "colors") {
+				for (size_t i = 0, slot = 0; i < v.size() && slot < 8; i += 2, ++slot) {
+					const char c = v[i];
+					if (c >= '0' && c <= '9') out.colors[slot] = (uint8_t)(c - '0');
+					else if (c >= 'a' && c <= 'f') out.colors[slot] = (uint8_t)(c - 'a' + 10);
+				}
+			}
 			else if (k == "diffs" || k == "behs") {
 				const bool diffs = k == "diffs";
 				for (size_t i = 0, slot = 0; i < v.size() && slot < 8; i += 2, ++slot) {

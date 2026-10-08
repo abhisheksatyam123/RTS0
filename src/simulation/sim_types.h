@@ -35,6 +35,13 @@ enum BiomeType : uint8_t {
 	BIOME_COUNT = 9
 };
 
+// 0 A.D. gamesettings/attributes/PlayerColor.js DefaultColors, 0xRRGGBB. Game Setup picks one per player.
+constexpr int PLAYER_COLOR_COUNT = 16;
+inline constexpr uint32_t PLAYER_COLORS[PLAYER_COLOR_COUNT] = {
+	0x0A0ABE, 0xE60A0A, 0x7DEB0F, 0xFFFF37, 0x8200E6, 0xFF8200, 0x0AE6E6, 0x14503C,
+	0xDCA0DC, 0x50FFBE, 0x3296FF, 0x64961E, 0x643C1E, 0x800040, 0xFFC88C, 0x505050,
+};
+
 enum Civilization : uint8_t {
 	CIV_ATHENIANS = 0,
 	CIV_SPARTANS = 1,

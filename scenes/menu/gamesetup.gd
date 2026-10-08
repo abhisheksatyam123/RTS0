@@ -111,6 +111,13 @@ const BEHAVIORS := ["Random", "Defensive", "Balanced", "Aggressive"]
 const BIOMES := ["Map default", "Aegean", "Latium", "Alpine", "Oasis", "Temperate", "Steppe", "Savanna", "Polar", "India"]
 const SPEEDS := [[0.5, "0.5x"], [0.75, "0.75x"], [1.0, "1x"], [1.25, "1.25x"], [1.5, "1.5x"], [2.0, "2x"]]
 const SLOT_KINDS := ["Human", "AI", "Closed"]
+# 0 A.D. gamesettings/attributes/PlayerColor.js DefaultColors (rtso::PLAYER_COLORS).
+const PLAYER_COLORS := [Color8(10, 10, 190), Color8(230, 10, 10), Color8(125, 235, 15), Color8(255, 255, 55),
+	Color8(130, 0, 230), Color8(255, 130, 0), Color8(10, 230, 230), Color8(20, 80, 60),
+	Color8(220, 160, 220), Color8(80, 255, 190), Color8(50, 150, 255), Color8(100, 150, 30),
+	Color8(100, 60, 30), Color8(128, 0, 64), Color8(255, 200, 140), Color8(80, 80, 80)]
+const VICTORY_REGICIDE := 6
+var _color_icons: Array = []
 
 var _maps: Array = []          # all map dicts
 var _filtered: Array = []      # after filter
@@ -262,9 +269,29 @@ func _ensure_slot_rows(n: int) -> void:
 			"team": i + 1,
 			"diff": 3,
 			"beh": 2,
+			"color": _unused_color(),
 		})
 	if _slot_rows.size() > n:
 		_slot_rows.resize(n)
+
+func _unused_color() -> int:
+	for c in range(PLAYER_COLORS.size()):
+		var used := false
+		for r in _slot_rows:
+			if int(r.get("color", -1)) == c:
+				used = true
+				break
+		if not used:
+			return c
+	return 0
+
+func _color_icon(c: int) -> Texture2D:
+	if _color_icons.is_empty():
+		for col in PLAYER_COLORS:
+			var img := Image.create(16, 16, false, Image.FORMAT_RGB8)
+			img.fill(col)
+			_color_icons.append(ImageTexture.create_from_image(img))
+	return _color_icons[c]
 
 func refresh_slots() -> void:
 	_rebuilding_slots = true
@@ -332,6 +359,15 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 		beh.add_item(bname)
 	beh.select(clampi(int(row["beh"]), 0, 3))
 	beh.item_selected.connect(_on_slot_beh.bind(i))
+	# player colour (0 A.D. PlayerColor: picking a colour in use swaps the two players' colours)
+	var col_slot := Control.new()
+	col_slot.custom_minimum_size = Vector2(56, 28)
+	grid.add_child(col_slot)
+	var col := _make_option(col_slot)
+	for c in range(PLAYER_COLORS.size()):
+		col.add_icon_item(_color_icon(c), "")
+	col.select(clampi(int(row["color"]), 0, PLAYER_COLORS.size() - 1))
+	col.item_selected.connect(_on_slot_color.bind(i))
 
 func _on_slot_kind(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
@@ -354,6 +390,16 @@ func _on_slot_diff(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
 		return
 	_slot_rows[slot]["diff"] = idx
+
+func _on_slot_color(idx: int, slot: int) -> void:
+	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
+		return
+	var old := int(_slot_rows[slot]["color"])
+	for r in _slot_rows:
+		if int(r["color"]) == idx:
+			r["color"] = old
+	_slot_rows[slot]["color"] = idx
+	refresh_slots.call_deferred()
 
 func _on_slot_beh(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
@@ -447,6 +493,8 @@ func _restore_settings() -> void:
 	vic.select(clampi(int(ms.get("victory")), 0, VICTORIES.size() - 1))
 	$VBox/HBox/Left/Waves.button_pressed = bool(ms.get("waves_enabled"))
 	$VBox/HBox/Left/LastManStanding.button_pressed = bool(ms.get("last_man_standing"))
+	$VBox/HBox/Left/StartRow/Nomad.button_pressed = bool(ms.get("nomad"))
+	$VBox/HBox/Left/StartRow/RegicideGarrison.button_pressed = bool(ms.get("regicide_garrison"))
 	var pop: RtsoSafeSelect = $VBox/HBox/Left/PopCapSlot.get_child(0)
 	for i in range(POP_CAPS.size()):
 		if int(POP_CAPS[i][0]) == int(ms.get("pop_cap")):
@@ -486,6 +534,7 @@ func _restore_settings() -> void:
 	var teams: Array = ms.get("slot_teams")
 	var sdiffs: Array = ms.get("slot_diffs")
 	var sbehs: Array = ms.get("slot_behs")
+	var scolors: Array = ms.get("slot_colors")
 	if not types.is_empty():
 		$VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value = clampi(types.size(), 2, 8)
 		_ensure_slot_rows(int($VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value))
@@ -499,6 +548,8 @@ func _restore_settings() -> void:
 				_slot_rows[i]["diff"] = clampi(int(sdiffs[i]), 0, 5)
 			if i < sbehs.size():
 				_slot_rows[i]["beh"] = clampi(int(sbehs[i]), 0, 3)
+			if i < scolors.size():
+				_slot_rows[i]["color"] = clampi(int(scolors[i]), 0, PLAYER_COLORS.size() - 1)
 			if i == 0:
 				_slot_rows[i]["kind"] = 0
 		refresh_slots()
@@ -528,6 +579,7 @@ func _collect_setup() -> Dictionary:
 	var teams: Array = []
 	var diffs: Array = []
 	var behs: Array = []
+	var colors: Array = []
 	var humans := 0
 	var ai_total := 0
 	for i in range(n):
@@ -544,6 +596,7 @@ func _collect_setup() -> Dictionary:
 		teams.append(int(_slot_rows[i]["team"]))
 		diffs.append(int(_slot_rows[i]["diff"]))
 		behs.append(int(_slot_rows[i]["beh"]))
+		colors.append(int(_slot_rows[i]["color"]))
 		if k == 0:
 			humans += 1
 		elif k == 1:
@@ -570,7 +623,10 @@ func _collect_setup() -> Dictionary:
 		"res": res.get_selected(), "beh": beh, "diff": diff,
 		"biome": maxi(bio.get_selected(), 0),
 		"speed": float(SPEEDS[maxi(spd.get_selected(), 0)][0]),
-		"types": types, "civs": civs, "teams": teams, "diffs": diffs, "behs": behs,
+		"types": types, "civs": civs, "teams": teams, "diffs": diffs, "behs": behs, "colors": colors,
+		# Nomad only on random maps, RegicideGarrison only with Regicide (as 0 A.D. settings).
+		"nomad": $VBox/HBox/Left/StartRow/Nomad.button_pressed and not m.is_empty() and str(m.get("kind", "")) == "Random",
+		"regicide_garrison": $VBox/HBox/Left/StartRow/RegicideGarrison.button_pressed and vic.get_selected() == VICTORY_REGICIDE,
 		"humans": humans, "ai": ai_total, "slots": types.size()}
 
 func _on_start_pressed() -> void:
@@ -613,6 +669,9 @@ func _on_start_pressed() -> void:
 	ms.slot_teams = st["teams"]
 	ms.slot_diffs = st["diffs"]
 	ms.slot_behs = st["behs"]
+	ms.slot_colors = st["colors"]
+	ms.nomad = bool(st["nomad"])
+	ms.regicide_garrison = bool(st["regicide_garrison"])
 	ms.biome = int(st["biome"])
 	ms.game_speed = float(st["speed"])
 	ms.player_count = int(st["slots"])
