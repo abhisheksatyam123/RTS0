@@ -64,6 +64,7 @@ public:
 	// Typed message framing helpers
 	void sendSimulationCommand(uint32_t peer, uint32_t turn, const std::vector<uint8_t> &payload);
 	void sendSyncCheck(uint32_t turn, uint32_t hash);
+	// receiver_guid "" = everyone, else peer_guid(id) of the one receiver.
 	void sendChat(const std::string &msg, const std::string &receiver_guid = "");
 	// Late-join turn-0 state resync (P3). Asks the host to resend the full
 	// NMT_GAME_START setup plus its current turn state. Client-only; the host
@@ -74,6 +75,8 @@ public:
 	// See the peer_id==0 quirk note on resolve_sender_id() in net_host.cpp; wire
 	// formats are unchanged, this only interprets the wire header peer_id.
 	uint32_t resolve_sender_id(uint32_t wire_peer_id) const;
+	// Host side of NMT_CHAT: stamp the sender, deliver to the receivers.
+	void route_chat(ChatMsg chat, uint32_t author);
 	// True once this host has been told its own NMT_GAME_START attributes, i.e.
 	// it has an authoritative setup to hand a late joiner. NetHost never parses
 	// the attributes itself (TurnManager owns the payload) but records the id.
