@@ -106,6 +106,7 @@ def stat_of(path: str):
         "BuildingAI/MaxArrowCount": "TSTAT_ARROWS",
         "Researcher/TechCostMultiplier/time": "TSTAT_RESEARCH_TIME",
         "Pack/Time": "TSTAT_PACK_TIME",
+        "GarrisonHolder/BuffHeal": "TSTAT_GARRISON_HEAL",
     }.get(path)
 
 
@@ -223,6 +224,14 @@ def main() -> int:
         if civ_mask(j.get("requirements")) == 0:
             continue  # only civs RTS0 doesn't have
         order.append(name)
+    # Keep the ids an existing tech_data.h already gave (saves and lockstep store them);
+    # technologies new to it get the next ids.
+    previous = []
+    if os.path.exists(args.out):
+        with open(args.out, encoding="utf-8") as f:
+            previous = re.findall(r"^\tTECH_\w+ = \d+, // (\S+)$", f.read(), re.M)
+    kept = set(order)
+    order = [n for n in previous if n in kept] + [n for n in order if n not in previous]
     if len(order) + 1 > 255:
         print("too many technologies for uint8_t ids", file=sys.stderr)
         return 1
