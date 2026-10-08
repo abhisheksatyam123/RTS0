@@ -279,8 +279,7 @@ class TemplateLoader:
         if "|" in name:
             mixin, rest = name.split("|", 1)
             node = self.load(rest).copy()
-            elem = ET.parse(os.path.join(self.root, "mixins", mixin + ".xml")).getroot()
-            merge_into(node, elem)
+            self.apply_mixin(node, mixin)
         else:
             elem = ET.parse(os.path.join(self.root, name + ".xml")).getroot()
             parent = elem.attrib.get("parent")
@@ -288,6 +287,15 @@ class TemplateLoader:
             merge_into(node, elem)
         self.cache[name] = node
         return node
+
+    def apply_mixin(self, node, mixin):
+        """Overlay mixins/<mixin>.xml, after its own parent mixins (e.g. merc_inf -> mercenary)."""
+        elem = ET.parse(os.path.join(self.root, "mixins", mixin + ".xml")).getroot()
+        parent = elem.attrib.get("parent")
+        if parent:
+            for m in reversed(parent.split("|")):
+                self.apply_mixin(node, m)
+        merge_into(node, elem)
 
 # ---------------------------------------------------------------------------
 # Unit stat extraction
@@ -561,6 +569,8 @@ BUILDING_CLASS = {
     "House": ["BLD_HOUSE"],
     "Economic": ["BLD_STOREHOUSE", "BLD_FARMSTEAD", "BLD_MARKET", "BLD_CORRAL", "BLD_HOUSE"],
     "CivCentre": ["BLD_TOWN_CENTER"], "Naval": ["BLD_DOCK"], "Wonder": ["BLD_WONDER"],
+    "CivilCentre": ["BLD_TOWN_CENTER"], "Temple": ["BLD_TEMPLE"], "Forge": ["BLD_FORGE"],
+    "Barracks": ["BLD_BARRACKS"], "Stable": ["BLD_STABLE"], "Arsenal": ["BLD_ARSENAL"],
 }
 BUILDING_STAT = {
     "Health/Max": "CIV_BONUS_BUILDING_HP", "Cost/BuildTime": "CIV_BONUS_BUILDING_BUILD_TIME",
@@ -603,6 +613,64 @@ def player_bonus_rows(bonuses):
                 if mask:
                     rows.append((b, BUILDING_STAT[v], mask, mult))
     return rows
+
+
+# 0 A.D. resource names as RTS0 ResourceType values (RES_WOOD 0, RES_GOLD 1, RES_STONE 2, RES_FOOD 3).
+RES_INDEX = {"wood": 0, "metal": 1, "stone": 2, "food": 3}
+
+
+def load_team_bonuses(sim_root, rows):
+    """0 A.D. team bonuses (data/auras/teambonuses/<civ>_player_teambonus.json) as
+    (civ, stat, res, allies_only, buildings, unit rows, value, id, name, description).
+    Each one is a global aura on the player that reaches the owner and its allies."""
+    tdir = os.path.join(sim_root, "data", "auras", "teambonuses")
+    out = []
+    for civ in CIVS:
+        path = os.path.join(tdir, civ + "_player_teambonus.json")
+        if not os.path.isfile(path):
+            continue
+        with open(path, encoding="utf-8") as fh:
+            d = json.load(fh)
+        affects = d.get("affects") or []
+        allies_only = "ExclusiveMutualAlly" in (d.get("affectedPlayers") or [])
+        units = [i for i, r in enumerate(rows) if affects_match(affects, set(r["classes"]))]
+        blds = building_mask(affects)
+        base = (d.get("auraName", ""), d.get("auraDescription", ""))
+        for m in d.get("modifications", []):
+            v = m.get("value", "")
+            if "multiply" in m:
+                value = m["multiply"]
+            elif "replace" in m:
+                value = float(m["replace"])  # Spartan heroes: cost replaced by 0
+            else:
+                value = m.get("add", 0.0)
+            parts = v.split("/")
+            entries = []
+            if v.startswith("Cost/Resources/"):
+                res = RES_INDEX[parts[2]]
+                if units:
+                    entries.append(("TEAM_BONUS_UNIT_COST", res, [], units))
+                if blds:
+                    entries.append(("TEAM_BONUS_BUILDING_COST", res, blds, []))
+            elif v == "Cost/BuildTime":
+                if units:
+                    entries.append(("TEAM_BONUS_UNIT_TRAIN_TIME", -1, [], units))
+                if blds:
+                    entries.append(("TEAM_BONUS_BUILDING_BUILD_TIME", -1, blds, []))
+            elif v.startswith("Researcher/TechCostMultiplier/") and blds:
+                if parts[2] == "time":
+                    entries.append(("TEAM_BONUS_TECH_TIME", -1, blds, []))
+                else:
+                    entries.append(("TEAM_BONUS_TECH_COST", RES_INDEX[parts[2]], blds, []))
+            elif v == "ResourceTrickle/Rates/food":
+                entries.append(("TEAM_BONUS_FOOD_TRICKLE", RES_INDEX["food"], [], []))
+            elif v == "Market/InternationalBonus":
+                entries.append(("TEAM_BONUS_TRADE_INTERNATIONAL", -1, [], []))
+            for stat, res, bmask, urows in entries:
+                out.append({"civ": civ, "stat": stat, "res": res, "allies_only": allies_only,
+                            "buildings": bmask, "units": urows, "value": value,
+                            "id": civ + "_player_teambonus", "name": base[0], "description": base[1]})
+    return out
 
 
 # RTS0 AuraManager kinds (aura_manager.h AuraType).
@@ -772,7 +840,8 @@ def collect(sim_root):
     # Which roster units each aura affects (0 A.D. "affects" class lists).
     for a in auras:
         a["affects_rows"] = [i for i, r in enumerate(rows) if affects_match(a["affects"], set(r["classes"]))]
-    return rows, auras, skipped, civ_json, bonuses
+    team = load_team_bonuses(sim_root, rows)
+    return rows, auras, skipped, civ_json, bonuses, team
 
 # ---------------------------------------------------------------------------
 # Emitters
@@ -789,7 +858,7 @@ def f(x):
     return s + "f"
 
 
-def emit_header(rows, auras, civ_json, bonuses):
+def emit_header(rows, auras, civ_json, bonuses, team):
     out = []
     w = out.append
     w("// GENERATED by tools/extract_0ad_rosters.py from 0 A.D. simulation templates.")
@@ -869,6 +938,30 @@ def emit_header(rows, auras, civ_json, bonuses):
     w("\treturn kBonuses;")
     w("}")
     w("")
+    w("inline constexpr uint16_t CIV_TEAM_BONUS_COUNT = %d;" % len(team))
+    w("")
+    w("// 0 A.D. team bonuses (data/auras/teambonuses): each reaches the civ's player and")
+    w("// its allies (allies only when allies_only is set).")
+    w("inline const CivTeamBonus *civ_team_bonus_table() {")
+    w("\tstatic const CivTeamBonus kTeam[CIV_TEAM_BONUS_COUNT + 1] = {")
+    w("\t\t// civ, stat, resource (-1 = n/a), allies only, buildings, value, 0 A.D. aura id, name, description,")
+    w("\t\t// bitset of civ_unit_template_table() rows it affects")
+    for t in team:
+        bits = [0] * words
+        for i in t["units"]:
+            bits[i // 64] |= 1 << (i % 64)
+        bitset = "{" + ", ".join("0x%016xull" % b for b in bits) + "}"
+        blds = " | ".join("bld_bit(%s)" % x for x in t["buildings"]) or "0"
+        if len(t["buildings"]) > 1:
+            blds = "(uint32_t)(%s)" % blds
+        w("\t\t{%s, %s, %d, %s, %s, %s, %s, %s, %s, %s}," % (
+            CIV_ENUM[CIVS.index(t["civ"])], t["stat"], t["res"], "true" if t["allies_only"] else "false",
+            blds, f(t["value"]), cstr(t["id"]), cstr(t["name"]), cstr(t["description"]), bitset))
+    w("\t\t{0, 0, -1, false, 0, 1.0f, \"\", \"\", \"\", {}}, // sentinel")
+    w("\t};")
+    w("\treturn kTeam;")
+    w("}")
+    w("")
     w("// Each civ's 0 A.D. bonuses as one line of text for the civ picker.")
     w("inline const char *civ_bonus_text(uint8_t civ) {")
     w("\tstatic const char *kText[CIV_COUNT] = {")
@@ -932,8 +1025,8 @@ def main():
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
     sim_root = os.path.join(args.zad, "binaries", "data", "mods", "public", "simulation")
-    rows, auras, skipped, civ_json, bonuses = collect(sim_root)
-    header = emit_header(rows, auras, civ_json, bonuses)
+    rows, auras, skipped, civ_json, bonuses, team = collect(sim_root)
+    header = emit_header(rows, auras, civ_json, bonuses, team)
     js = emit_json(rows, auras, civ_json, bonuses)
     if args.verbose:
         for s in skipped:

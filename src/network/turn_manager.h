@@ -125,10 +125,17 @@ public:
 	// command batch it is sorted into. Keep this in lockstep with the ordering in
 	// tick(); the wire format does not depend on it, but the APPLY ORDER does.
 	static constexpr uint32_t DIPLOMACY_APPLY_DELAY = 1;
-	bool post_diplomacy(uint8_t player_id, uint8_t stance, uint32_t origin_turn);
+	// actor: whose stance row changes. The three-argument form is the local
+	// player's own stance, which is all a UI can originate.
+	bool post_diplomacy(uint8_t actor, uint8_t player_id, uint8_t stance, uint32_t origin_turn);
+	bool post_diplomacy(uint8_t player_id, uint8_t stance, uint32_t origin_turn) {
+		return post_diplomacy(local_player(), player_id, stance, origin_turn);
+	}
 	uint32_t pending_diplomacy_count() const { return (uint32_t)pending_diplomacy_.size(); }
-	// Turn the stance recorded by the last apply_diplomacy(), for verification.
-	uint8_t last_applied_diplomacy(uint8_t player_id) const;
+	// The stance recorded by the last apply_diplomacy(), for verification.
+	// One argument reads player 0's row, as the single-player HUD does.
+	uint8_t last_applied_diplomacy(uint8_t from, uint8_t target) const;
+	uint8_t last_applied_diplomacy(uint8_t target) const { return last_applied_diplomacy(0, target); }
 
 	// --- P3: maintainFleet upkeep (navalManager.js:507) ----------------------
 	// Commission one warship / fishing boat per docking structure, once per turn.
@@ -331,12 +338,15 @@ private:
 	// authoritative command order.
 	struct PendingDiplomacy {
 		uint32_t turn = 0;
-		uint8_t player_id = 0;
+		uint8_t actor = 0;      // whose stance row changes
+		uint8_t player_id = 0;  // the player the stance is toward
 		uint8_t stance = 1;
 		uint32_t sender_peer_id = 0;
 	};
 	std::vector<PendingDiplomacy> pending_diplomacy_;
-	uint8_t last_applied_diplomacy_[8] = {};
+	// [actor][target]: the actor is the sending client's player, so every peer
+	// records the same row without the stance's actor riding on the wire.
+	uint8_t last_applied_diplomacy_[8][8] = {};
 	bool has_applied_diplomacy_ = false;
 
 	// --- P3 maintainFleet ------------------------------------------------------

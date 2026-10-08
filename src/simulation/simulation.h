@@ -220,6 +220,15 @@ public:
 	// Stats of the unit at SoA index i (its civ roster template, else its class).
 	const UnitTypeInfo &unit_info_at(size_t i) const { return civ_template_unit_info(units_.tmpl[i], units_.unit_type[i]); }
 	uint16_t unit_template(uint32_t unit_id) const;
+	// 0 A.D. team bonuses (data/auras/teambonuses): the product a player gets on `stat`
+	// from its own civ's bonus and its allies' (same team, still in the match).
+	// See civ_team_bonus_mult() for the arguments.
+	float team_bonus_mult(uint8_t pid, uint8_t stat, int8_t res = -1, uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE,
+		uint8_t building = BLD_TYPE_COUNT) const;
+	// civ_bit() mask of the civs of `pid`'s allies still in the match (owning a building or unit).
+	uint16_t ally_civ_mask(uint8_t pid) const;
+	// Resource cost of training template `tmpl` for `pid` after team bonuses, indexed by ResourceType.
+	void unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo &info, float out[RES_COUNT]) const;
 	uint32_t spawn_resource(int cell_x, int cell_y, uint8_t type, int32_t amount = 600);
 	uint32_t spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount = 600, uint8_t subtype = 0);
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f);
@@ -320,7 +329,7 @@ public:
 
 	bool cmd_research(uint8_t player, uint32_t building_id, uint8_t tech_id);
 	bool cmd_barter(uint8_t player, ResourceType sell, ResourceType buy, int amount = 100);
-	bool cmd_set_diplomacy(uint8_t player_id, uint8_t stance);
+	bool cmd_set_diplomacy(uint8_t player_id, uint8_t target, uint8_t stance);
 	// G3 Market/Trader
 	int calculate_trader_gain(const Building& mA, const Building& mB, uint8_t team) const;
 	void order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id);
@@ -394,9 +403,12 @@ public:
 	int gold(uint8_t pid = 0) const { return (int)player(pid).gold(); }
 	int stone(uint8_t pid = 0) const { return (int)player(pid).stone(); }
 	// GameSetup starting-resources option (0 A.D. page_gamesetup "Starting Resources").
-	// Sets player 0 only (AI slots keep their reset() stock); use set_player_resources per slot.
+	// The lobby setting is one global amount in 0 A.D., so every player slot gets
+	// it, not just player 0; use set_player_resources for one slot on its own.
 	// Must be called AFTER map load: reset()/generate() overwrite stocks.
-	void set_starting_resources(int food, int wood, int gold, int stone) { set_player_resources(0, food, wood, gold, stone); }
+	void set_starting_resources(int food, int wood, int gold, int stone) {
+		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) set_player_resources(p, food, wood, gold, stone);
+	}
 
 	float food_rate(uint8_t pid = 0) const { return player(pid).gathered_window[RES_FOOD] * 6.0f; } // per min approx
 	float wood_rate(uint8_t pid = 0) const { return player(pid).gathered_window[RES_WOOD] * 6.0f; }
@@ -453,23 +465,53 @@ public:
 		DIPLO_NEUTRAL = 1,
 		DIPLO_ENEMY = 2
 	};
-	uint8_t get_diplomacy(uint8_t player_id) const { return (player_id < 8) ? diplomacy_[player_id] : (uint8_t)DIPLO_ENEMY; }
-	uint8_t get_diplomacy_from(uint8_t player_id, uint8_t other) const {
-		return (other < 8) ? diplomacy_[other] : (uint8_t)DIPLO_ENEMY;
+	// diplomacy_[a][b] is player a's own stance toward player b, the 0 A.D.
+	// Diplomacy.js model (every player keeps its own row; the diagonal is self).
+	// The one-argument calls below are player 0's row, which is what the
+	// single-player HUD, the capture rules and Petra still ask for.
+	uint8_t get_diplomacy(uint8_t from, uint8_t to) const {
+		return (from < MAX_PLAYERS && to < MAX_PLAYERS) ? diplomacy_[from][to] : (uint8_t)DIPLO_ENEMY;
 	}
-	void set_diplomacy(uint8_t player_id, uint8_t stance) { if (player_id < 8) diplomacy_[player_id] = stance; }
-	void set_mutual_ally(uint8_t player_id) {
-		if (player_id == 0 || player_id >= 8) return;
-		diplomacy_[player_id] = DIPLO_ALLY;
-		diplomacy_reverse_[player_id] = DIPLO_ALLY;
+	uint8_t get_diplomacy(uint8_t player_id) const { return get_diplomacy(0, player_id); }
+	uint8_t get_diplomacy_from(uint8_t player_id, uint8_t other) const { return get_diplomacy(player_id, other); }
+	void set_diplomacy(uint8_t from, uint8_t to, uint8_t stance) {
+		if (from < MAX_PLAYERS && to < MAX_PLAYERS && from != to && stance <= DIPLO_ENEMY)
+			diplomacy_[from][to] = stance;
 	}
-	bool is_mutual_ally(uint8_t player_id) const {
-		return player_id != 0 && player_id < 8 &&
-		       get_diplomacy(player_id) == DIPLO_ALLY &&
-		       diplomacy_reverse_[player_id] == DIPLO_ALLY;
+	void set_diplomacy(uint8_t player_id, uint8_t stance) { set_diplomacy(0, player_id, stance); }
+	void set_mutual_ally(uint8_t a, uint8_t b) {
+		set_diplomacy(a, b, DIPLO_ALLY);
+		set_diplomacy(b, a, DIPLO_ALLY);
 	}
-	const uint8_t *diplomacy_state() const { return diplomacy_; }
-	const uint8_t *diplomacy_reverse_state() const { return diplomacy_reverse_; }
+	void set_mutual_ally(uint8_t player_id) { set_mutual_ally(0, player_id); }
+	// Allied: the same alliance team from game setup, or a stance both players
+	// chose. Teams win over stances, as 0 A.D.'s locked teams do.
+	bool is_ally(uint8_t a, uint8_t b) const {
+		if (a == b) return true;
+		if (a >= MAX_PLAYERS || b >= MAX_PLAYERS) return false;
+		if (players_[a].team == players_[b].team) return true;
+		return diplomacy_[a][b] == DIPLO_ALLY && diplomacy_[b][a] == DIPLO_ALLY;
+	}
+	bool is_mutual_ally(uint8_t player_id) const { return player_id != 0 && is_ally(0, player_id); }
+	// Hostile: whom a may shoot at. a's own stance decides, so a one-sided
+	// alliance leaves a holding fire while b keeps attacking (0 A.D. parity).
+	// Teammates are never hostile whatever the stances say.
+	bool is_hostile(uint8_t a, uint8_t b) const {
+		if (a == b) return false;
+		if (a >= MAX_PLAYERS || b >= MAX_PLAYERS) return true;
+		if (players_[a].team == players_[b].team) return false;
+		return diplomacy_[a][b] == DIPLO_ENEMY;
+	}
+	// Rewrite every stance from the alliance teams: teammates ally, everyone
+	// else enemy. For game setup, once the lobby's teams are assigned.
+	void apply_team_diplomacy() {
+		for (uint8_t a = 0; a < MAX_PLAYERS; ++a)
+			for (uint8_t b = 0; b < MAX_PLAYERS; ++b)
+				diplomacy_[a][b] = (a == b || players_[a].team == players_[b].team) ? DIPLO_ALLY : DIPLO_ENEMY;
+	}
+	// Player 0's row, 8 contiguous bytes, for the HUD and the minimap.
+	const uint8_t *diplomacy_state() const { return diplomacy_[0]; }
+	const uint8_t *diplomacy_row(uint8_t player_id) const { return diplomacy_[player_id < MAX_PLAYERS ? player_id : 0]; }
 	bool send_tribute(uint8_t player_id, uint8_t res_type, int amount);
 	bool ai_send_tribute(uint8_t res_type, int amount);
 	// Accept a validated 0 A.D.-style Petra diplomacy request. The request
@@ -788,8 +830,8 @@ private:
 	std::unordered_map<uint32_t, std::pair<uint32_t,uint32_t>> trader_routes_; // unit_id -> (marketA_id, marketB_id)
 	std::unordered_map<uint32_t,int> trader_leg_; // unit_id -> 0=A->B, 1=B->A (which target next)
 
-	uint8_t diplomacy_[8] = {0, 2, 2, 2, 2, 2, 2, 2}; // player 0 stance toward each player
-	uint8_t diplomacy_reverse_[8] = {0, 2, 2, 2, 2, 2, 2, 2}; // reciprocal stance for shared LOS
+	// Row a = player a's stances; set in reset() (self ally, everyone else enemy).
+	uint8_t diplomacy_[MAX_PLAYERS][MAX_PLAYERS] = {};
 	uint8_t biome_ = BIOME_AEGEAN;
 	uint8_t map_preset_ = MAP_AEGEAN_ARCHIPELAGO;
 
