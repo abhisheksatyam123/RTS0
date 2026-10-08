@@ -1301,48 +1301,21 @@ inline const char *civ_building_scaffold(uint8_t type) {
 	}
 }
 
-enum FaunaType : uint8_t {
-	FAUNA_DEER   = 0, // 150 Food, Passive Flee
-	FAUNA_BOAR   = 1, // 300 Food, Aggressive Defense
-	FAUNA_SHEEP  = 2, // 100 Food, Domesticable Herd
-	FAUNA_WOLF   = 3, // 200 Food, Hostile Predator
-	FAUNA_COUNT  = 4
-};
+// Fauna species, treasures and ruins: generated from 0 A.D.'s Gaia templates
+// (tools/extract_0ad_fauna.py -> gaia_data.h, included below the namespace).
 
 enum FaunaBehavior : uint8_t {
-	FAUNA_IDLE_GRAZE = 0,
-	FAUNA_FLEE       = 1,
-	FAUNA_ATTACK     = 2,
+	FAUNA_IDLE_GRAZE = 0, // UnitAI ANIMAL IDLE.LINGERING (feeding)
+	FAUNA_FLEE       = 1, // INDIVIDUAL.FLEEING
+	FAUNA_ATTACK     = 2, // INDIVIDUAL.COMBAT
 	FAUNA_HERDED     = 3,
 	FAUNA_CARCASS    = 4,
-	FAUNA_CORRALLED  = 5
+	FAUNA_CORRALLED  = 5,
+	FAUNA_ROAMING    = 6  // IDLE.ROAMING
 };
-
-struct FaunaTypeInfo {
-	const char *name;
-	const char *model_id;
-	float max_hp;
-	float speed;
-	int food_amount;
-	float agro_range;
-	float attack_damage;
-	float attack_cooldown;
-	bool is_predator;
-	bool is_domestic;
-};
-
-inline const FaunaTypeInfo &fauna_type_info(uint8_t ftype) {
-	static const FaunaTypeInfo kTable[FAUNA_COUNT] = {
-		// name, model, hp, speed, food, agro, dmg, cd, predator, domestic
-		{"Red Deer", "deer", 45.0f, 4.5f, 150, 12.0f, 0.0f, 1.0f, false, false},
-		{"Wild Boar", "boar", 120.0f, 3.8f, 300, 8.0f, 12.0f, 1.2f, true, false},
-		{"Mountain Sheep", "sheep", 35.0f, 2.5f, 100, 10.0f, 0.0f, 1.0f, false, true},
-		{"Gray Wolf", "wolf", 80.0f, 4.8f, 200, 10.0f, 10.0f, 1.0f, true, false}
-	};
-	if (ftype >= FAUNA_COUNT) return kTable[FAUNA_DEER];
-	return kTable[ftype];
-}
 
 } // namespace rtso
+
+#include "gaia_data.h"
 
 #endif

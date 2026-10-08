@@ -423,6 +423,19 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_u8(r.claimed ? 1 : 0);
 	}
 
+	// Wildlife: animals move, fight and die in the sim, so they are lockstep state.
+	const auto fv = sim.fauna();
+	mix_u32((uint32_t)fv.count);
+	for (size_t f = 0; f < fv.count; ++f) {
+		mix_u32(fv.id[f]);
+		mix_float(fv.pos_x[f]);
+		mix_float(fv.pos_z[f]);
+		mix_float(fv.hp[f]);
+		mix_i32(fv.food_amount[f]);
+		mix_u8(fv.fauna_type[f]);
+		mix_u8(fv.behavior[f]);
+	}
+
 	// 7. FoW Grid
 	const uint8_t *fow = sim.fow_grid();
 	const int fow_cells = sim.fow_res() * sim.fow_res();
