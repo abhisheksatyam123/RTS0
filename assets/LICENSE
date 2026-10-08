@@ -1,0 +1,27 @@
+RTS0 game data license
+======================
+
+Unless a file or folder says otherwise, the art, audio, maps and other game
+data in assets/, audio/ and data/maps/ come from 0 A.D. by Wildfire Games and
+are licensed under the Creative Commons Attribution-ShareAlike 3.0 Unported
+license (CC BY-SA 3.0):
+
+    https://creativecommons.org/licenses/by-sa/3.0/
+
+Attribution: 0 A.D. (https://play0ad.com), Copyright (C) Wildfire Games and
+the 0 A.D. contributors. The full contributor list is in 0 A.D.'s own
+credits (binaries/data/mods/public/gui/credits/texts/ in the 0 A.D. source).
+
+RTS0 converted these files (meshes baked to GLB, DDS textures to PNG, maps to
+JSON, animation clips re-exported). The converted files are adaptations and
+are shared under the same CC BY-SA 3.0 license.
+
+Exceptions:
+
+- assets/fonts/DejaVuSansMono.ttf: DejaVu Fonts license (Bitstream Vera
+  derivative), https://dejavu-fonts.github.io/License.html
+- assets/fonts/LinBiolinum_*.ttf: Linux Libertine/Biolinum, SIL Open Font
+  License 1.1 or GPL with font exception, https://libertine-fonts.org
+- Files under assets/materials/ and shaders/ written for RTS0, and textures
+  RTS0 generates itself (for example assets/textures/noise/), are part of the
+  RTS0 code and covered by the GPL-2.0-or-later terms in the top-level LICENSE.
