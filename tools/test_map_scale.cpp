@@ -7,7 +7,8 @@
 //
 //  1. grid_res_for_map keeps 2m cells: 64 cells on the default 128m map, 256 on 512m.
 //  2. Every random map type generates at every 0 A.D. size with matching nav and
-//     FoW grids, and each player's town centre can path to every other's.
+//     FoW grids, and paths between town centres stay on the map. On the land
+//     maps modelled on 0 A.D. (Mainland onwards) every base reaches every other.
 //  3. Map JSON loading (reset, then set_map_half) re-initialises the nav grid for
 //     the new extent, so a path across a 256m map reaches its far corner.
 //  4. A unit near the far corner of a Giant map lights up the FoW there.
@@ -82,8 +83,11 @@ int main() {
 					float sx = tcs[i].first + 6.0f, sz = tcs[i].second + 6.0f;
 					float tx = tcs[j].first + 6.0f, tz = tcs[j].second + 6.0f;
 					WaypointPath wp;
-					sim.nav_grid().find_path(sx, sz, tx, tz, wp, PASS_INFANTRY);
+					bool reached = sim.nav_grid().find_path(sx, sz, tx, tz, wp, PASS_INFANTRY);
 					++paths;
+					// The 0 A.D.-modelled land maps must connect every base on foot.
+					if (mt >= MAP_MAINLAND)
+						CHECK(reached, "%s %d: no land path from base %zu to base %zu", map_type_info(mt).id, size, i, j);
 					if (wp.count >= WaypointPath::MAX_WP - 1) ++truncated;
 					// Island maps are allowed to be unreachable on foot; the path
 					// must still lie inside the map.

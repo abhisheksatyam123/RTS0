@@ -3012,6 +3012,8 @@ PackedStringArray RtsoMain::get_available_maps() const {
 	maps.push_back("random_saharan_oases");
 	maps.push_back("random_anatolian_plateau");
 	maps.push_back("random_jebel_barkal");
+	for (int t = rtso::MAP_MAINLAND; t < rtso::MAP_TYPE_COUNT; ++t)
+		maps.push_back(String("random_") + rtso::map_type_info((uint8_t)t).id);
 	return maps;
 }
 
@@ -3047,6 +3049,11 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		else if (map_id.contains("anatolian")) mtype = rtso::MAP_ANATOLIAN_PLATEAU;
 		else if (map_id.contains("jebel") || map_id.contains("barkal")) mtype = rtso::MAP_JEBEL_BARKAL;
 		else if (map_id.contains("mediterranean")) { mtype = rtso::MAP_RANDOM_MEDITERRANEAN; num_p = 4; }
+		// Newer maps resolve by id ("random_<id>" or "<id>"), see map_type_info.
+		for (int t = rtso::MAP_MAINLAND; t < rtso::MAP_TYPE_COUNT; ++t) {
+			String id = rtso::map_type_info((uint8_t)t).id;
+			if (map_id == id || map_id == "random_" + id) { mtype = (rtso::MapType)t; break; }
+		}
 
 		sim->generate_random_map(mtype, seed, num_p, (float)random_map_size * 0.5f);
 		view->rebuild_terrain(sim);
