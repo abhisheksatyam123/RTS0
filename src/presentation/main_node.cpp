@@ -230,6 +230,9 @@ void RtsoMain::_ready() {
 		add_child(sun);
 	}
 
+	// 0 A.D. reads hotkeys from default.cfg, then the player's user.cfg.
+	if (rtso::hotkeys::load_user_cfg()) print_line("[RTS0] Loaded hotkeys from user://config/user.cfg");
+
 	cam_rig = memnew(RtsoCameraRig);
 	add_child(cam_rig);
 
@@ -1153,24 +1156,64 @@ void RtsoMain::_on_idle_worker_clicked() {
 }
 
 void RtsoMain::cycle_idle_worker() {
-	auto idle_ids = sim->get_idle_workers(local_player());
-	if (idle_ids.empty()) return;
+	find_idle_unit(IDLE_WORKER);
+}
 
-	last_idle_index = (last_idle_index + 1) % idle_ids.size();
-	uint32_t target_uid = idle_ids[last_idle_index];
-
-	selected_ids.clear();
-	selected_building_id = 0;
-	selected_ids.push_back((int32_t)target_uid);
+// 0 A.D. findIdleUnit (gui/session/input.js:1659) with the class lists from
+// session.js g_WorkerTypes / g_MilitaryTypes and hotkeys/misc.xml: selects the
+// next idle unit of the kind after the last one found and centres the camera
+// on it. selection.add (Shift) appends; selection.offscreen (Alt) selects every
+// idle unit of the kind at once.
+void RtsoMain::find_idle_unit(IdleKind kind) {
+	if (!sim) return;
+	uint64_t want = 0;
+	switch (kind) {
+		case IDLE_WORKER: want = rtso::TC_FEMALECITIZEN | rtso::TC_TRADER | rtso::TC_FISHINGBOAT | rtso::TC_CITIZEN; break;
+		case IDLE_WARRIOR: want = rtso::TC_MELEE | rtso::TC_RANGED; break;
+		case IDLE_BUILDER: want = rtso::TC_WORKER | rtso::TC_CITIZEN; break;
+		case IDLE_ANY: want = ~0ull; break;
+	}
+	const bool append = rtso::hotkeys::held("selection.add");
+	const bool select_all = rtso::hotkeys::held("selection.offscreen");
+	if (select_all || kind != last_idle_kind_) last_idle_unit_ = 0;
+	last_idle_kind_ = kind;
 
 	auto uview = sim->units();
+	std::vector<size_t> idle;
 	for (size_t i = 0; i < uview.count; ++i) {
-		if (uview.id[i] == target_uid && cam_rig) {
-			cam_rig->set_target_pos(Vector3(uview.pos_x[i], 0, uview.pos_z[i]));
-			play_civ_voice("select");
-			break;
+		if (!uview.alive[i] || uview.team[i] != local_player() || uview.action_state[i] != rtso::ACTION_IDLE) continue;
+		if (!(rtso::unit_tech_classes(uview.unit_type[i]) & want)) continue;
+		if (append && selected_ids.has((int32_t)uview.id[i])) continue;
+		idle.push_back(i);
+	}
+	if (idle.empty()) {
+		last_idle_unit_ = 0;
+		return;
+	}
+	if (!append) {
+		selected_ids.clear();
+		selected_building_id = 0;
+	}
+	if (select_all) {
+		for (size_t i : idle) selected_ids.push_back((int32_t)uview.id[i]);
+		play_civ_voice("select");
+		return;
+	}
+	// The idle unit with the next id after the previous pick, wrapping around.
+	size_t pick = idle.front(), first = idle.front();
+	bool found = false;
+	for (size_t i : idle) {
+		if (uview.id[i] < uview.id[first]) first = i;
+		if (uview.id[i] > last_idle_unit_ && (!found || uview.id[i] < uview.id[pick])) {
+			pick = i;
+			found = true;
 		}
 	}
+	if (!found) pick = first;
+	last_idle_unit_ = uview.id[pick];
+	selected_ids.push_back((int32_t)uview.id[pick]);
+	if (cam_rig) cam_rig->set_target_pos(Vector3(uview.pos_x[pick], 0, uview.pos_z[pick]));
+	play_civ_voice("select");
 }
 
 void RtsoMain::_on_speed_button_pressed() {
@@ -1193,7 +1236,7 @@ void RtsoMain::_on_menu_button_pressed() {
 // NMT_CLIENT_PAUSED); offline it just stops the local sim.
 void RtsoMain::set_menu_paused(bool paused) {
 	paused_via_menu = paused;
-	if (net_lockstep()) turn_mgr_.set_local_paused(paused);
+	if (net_lockstep()) turn_mgr_.set_local_paused(paused || hotkey_paused_);
 }
 
 void RtsoMain::_on_ungarrison_pressed() {
@@ -1397,9 +1440,28 @@ void RtsoMain::_process(double delta) {
 						" as Player " + String::num_int64(turn_mgr_.local_player() + 1));
 		}
 	}
+	if (cam_rig) {
+		// Letters pick buildings while placing one, and typing never moves the camera.
+		Control *focus = get_viewport() ? get_viewport()->gui_get_focus_owner() : nullptr;
+		const bool typing = focus && (Object::cast_to<LineEdit>(focus) || focus->is_class("TextEdit"));
+		cam_rig->set_key_scroll_mode(typing ? RtsoCameraRig::KEYS_NONE
+				: build_mode ? RtsoCameraRig::KEYS_ARROWS_ONLY : RtsoCameraRig::KEYS_ALL);
+		if (const uint32_t fid = sim ? cam_rig->follow_id() : 0) {
+			bool alive = false;
+			auto fview = sim->units();
+			for (size_t i = 0; i < fview.count; ++i) {
+				if (fview.id[i] == fid && fview.alive[i]) {
+					cam_rig->follow_to(Vector3(fview.pos_x[i], 0, fview.pos_z[i]));
+					alive = true;
+					break;
+				}
+			}
+			if (!alive) cam_rig->set_follow_id(0);
+		}
+	}
 	// Networked: keep running TurnManager::tick, which holds turns for everyone
 	// while any client is paused, so this peer still sees remote pauses end.
-	if (paused_via_menu && !net_lockstep()) return;
+	if ((paused_via_menu || hotkey_paused_) && !net_lockstep()) return;
 	double scaled_delta = delta * game_speed;
 	match_elapsed_time += scaled_delta;
 
@@ -2426,226 +2488,259 @@ void RtsoMain::clear_selection() {
 }
 
 void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
+	// Keys go through named 0 A.D. hotkeys (hotkeys.h, config/default.cfg
+	// [hotkey.*]; user overrides in user://config/user.cfg). Same-specificity
+	// hotkeys can share a key (B = build menu or fifth trainee), so the context
+	// below picks between them, like 0 A.D.'s gui/session/hotkeys/*.xml.
 	Ref<InputEventKey> key = event;
-	if (key.is_valid() && key->is_pressed() && !key->is_echo()) {
-		if (key->get_keycode() == KEY_ESCAPE) {
-				if (chat_window_.is_open()) {
-					chat_window_.close();
-					return;
-				}
-				if (diplo_dialog_.is_open()) {
-					diplo_dialog_.close();
-					return;
-				}
-			Node *pause = get_node_or_null(NodePath("PauseMenu"));
-			if (pause) {
-				pause->call("toggle");
-				set_menu_paused(!paused_via_menu);
+	const std::vector<std::string> hk = rtso::hotkeys::fired(key);
+	if (!hk.empty()) {
+		auto fired = [&](const char *name) { return rtso::hotkeys::has(hk, name); };
+		auto ids_ptr = [&]() { return (const uint32_t *)selected_ids.ptr(); };
+
+		if (fired("cancel") || fired("selection.cancel")) {
+			// 0 A.D. closeOpenDialogs(), then clearSelection() (input.js:1709).
+			if (chat_window_.is_open()) {
+				chat_window_.close();
+				return;
+			}
+			if (diplo_dialog_.is_open()) {
+				diplo_dialog_.close();
 				return;
 			}
 			if (build_mode) enter_build_mode(false);
+			else if (attack_move_mode || patrol_mode || guard_mode)
+				attack_move_mode = patrol_mode = guard_mode = false;
 			else clear_selection();
 			return;
 		}
 
-		if (key->get_keycode() == KEY_ENTER || key->get_keycode() == KEY_KP_ENTER) {
+		// While placing a building, letters pick the building to place
+		// (RTS0 [hotkey.rts0.build]); the camera scrolls with the arrows only.
+		if (build_mode) {
+			static const struct { const char *name; uint8_t type; } kBuildKeys[] = {
+				{"rts0.build.civilcentre", rtso::BLD_TOWN_CENTER}, {"rts0.build.house", rtso::BLD_HOUSE},
+				{"rts0.build.barracks", rtso::BLD_BARRACKS}, {"rts0.build.storehouse", rtso::BLD_STOREHOUSE},
+				{"rts0.build.defensetower", rtso::BLD_TOWER}, {"rts0.build.farmstead", rtso::BLD_FARMSTEAD},
+				{"rts0.build.market", rtso::BLD_MARKET}, {"rts0.build.fortress", rtso::BLD_FORTRESS},
+				{"rts0.build.gate", rtso::BLD_GATE}, {"rts0.build.temple", rtso::BLD_TEMPLE},
+				{"rts0.build.wonder", rtso::BLD_WONDER}, {"rts0.build.dock", rtso::BLD_DOCK},
+				{"rts0.build.wall", rtso::BLD_WALL_SEGMENT}, {"rts0.build.corral", rtso::BLD_CORRAL},
+			};
+			for (const auto &bk : kBuildKeys) {
+				if (fired(bk.name)) {
+					enter_build_mode(true, bk.type);
+					return;
+				}
+			}
+			if (fired("rts0.build.menu")) {
+				enter_build_mode(false);
+				return;
+			}
+		}
+
+		if (fired("chat")) {
 			toggle_chat();
 			return;
 		}
+		if (fired("teamchat") || fired("privatechat")) {
+			if (!chat_window_.is_open()) chat_window_.toggle();
+			chat_window_.select_channel(fired("teamchat") ? 1 : 0);
+			return;
+		}
 
-		// Control groups: Ctrl+0-9 stores the current selection, bare 0-9 recalls
-		// it, Shift+0-9 appends to selection (alive player units only) - 0 A.D.
-		// gui/session/input.js:1684 performGroup("save"/"select"); dispatch at input.js:906.
-		if (key->get_keycode() >= KEY_0 && key->get_keycode() <= KEY_9) {
-			const int grp = (int)(key->get_keycode() - KEY_0);
-			if (key->is_ctrl_pressed()) {
-				selected_groups[grp] = selected_ids;
+		// Control groups (0 A.D. input.js:852-873 and performGroup, input.js:1606):
+		// N selects group N, Ctrl+N saves the selection as group N, Shift+N adds
+		// the selection to group N, and pressing N twice within 500 ms centres the
+		// camera on the group. Groups are disjoint (gui.session.disjointcontrolgroups).
+		for (int g = 1; g <= 10; ++g) {
+			const int grp = g % 10;
+			const std::string n = std::to_string(g);
+			const bool sel = fired(("selection.group.select." + n).c_str());
+			const bool save = fired(("selection.group.save." + n).c_str());
+			const bool add = fired(("selection.group.add." + n).c_str());
+			if (!sel && !save && !add) continue;
+			if (save || add) {
+				if (save) selected_groups[grp].clear();
+				for (int s = 0; s < selected_ids.size(); ++s) {
+					for (int o = 0; o < 10; ++o) {
+						if (o == grp) continue;
+						const int64_t at = selected_groups[o].find(selected_ids[s]);
+						if (at >= 0) selected_groups[o].remove_at(at);
+					}
+					if (!selected_groups[grp].has(selected_ids[s])) selected_groups[grp].push_back(selected_ids[s]);
+				}
 				return;
 			}
 			PackedInt32Array recall;
+			Vector3 first_pos;
 			if (sim) {
 				auto gview = sim->units();
-				for (int g = 0; g < selected_groups[grp].size(); ++g) {
-					const int32_t gid = selected_groups[grp][g];
+				for (int m = 0; m < selected_groups[grp].size(); ++m) {
+					const int32_t gid = selected_groups[grp][m];
 					for (size_t i = 0; i < gview.count; ++i) {
 						if (gview.alive[i] && gview.id[i] == (uint32_t)gid && gview.team[i] == local_player()) {
+							if (recall.is_empty()) first_pos = Vector3(gview.pos_x[i], 0, gview.pos_z[i]);
 							recall.push_back(gid);
 							break;
 						}
 					}
 				}
 			}
-			if (!recall.is_empty()) {
-				if (key->is_shift_pressed()) {
-					// Shift+0-9 appends group to selection (0 A.D. input.js:1684)
-					for (int r = 0; r < recall.size(); ++r) {
-						if (!selected_ids.has(recall[r]))
-							selected_ids.push_back(recall[r]);
-					}
-				} else {
-					selected_ids = recall;
-				}
-				selected_building_id = 0;
-				play_civ_voice("select");
+			selected_groups[grp] = recall;
+			if (recall.is_empty()) return;
+			const uint64_t now_ms = Time::get_singleton()->get_ticks_msec();
+			if (grp == last_group_pressed_ && now_ms - last_group_press_ms_ < 500 && cam_rig)
+				cam_rig->set_target_pos(first_pos);
+			last_group_pressed_ = grp;
+			last_group_press_ms_ = now_ms;
+			selected_ids = recall;
+			selected_building_id = 0;
+			play_civ_voice("select");
+			return;
+		}
+
+		// Idle unit finders (0 A.D. findIdleUnit, input.js:1659, classes from
+		// gui/session/hotkeys/misc.xml and MiniMapIdleWorkerButton.js).
+		if (fired("selection.idleworker")) { find_idle_unit(IDLE_WORKER); return; }
+		if (fired("selection.idlewarrior")) { find_idle_unit(IDLE_WARRIOR); return; }
+		if (fired("selection.idleunit")) { find_idle_unit(IDLE_ANY); return; }
+		if (fired("selection.idlebuilder")) { find_idle_unit(IDLE_BUILDER); return; }
+
+		if (fired("session.gui.diplomacy.toggle")) { toggle_diplomacy(); return; }
+		if (fired("session.gui.barter.toggle")) {
+			if (Node *barter = get_node_or_null(NodePath("BarterDialog"))) barter->call("toggle");
+			return;
+		}
+		if (fired("structree")) {
+			if (Node *tree = get_node_or_null(NodePath("TechTreeDialog"))) tree->call("toggle");
+			return;
+		}
+		if (fired("session.gui.toggle")) {
+			if (ui_layer) ui_layer->set_visible(!ui_layer->is_visible());
+			return;
+		}
+		if (fired("session.gui.menu.toggle")) {
+			_on_menu_button_pressed();
+			return;
+		}
+		if (fired("pause")) {
+			// Networked, the pause holds every peer's turns (0 A.D. NMT_CLIENT_PAUSED).
+			hotkey_paused_ = !hotkey_paused_;
+			if (net_lockstep()) turn_mgr_.set_local_paused(hotkey_paused_ || paused_via_menu);
+			if (banner_label) banner_label->set_text(hotkey_paused_ ? "Game paused" : "");
+			if (banner_panel) banner_panel->set_visible(hotkey_paused_);
+			return;
+		}
+		// 0 A.D. misc.xml: quicksave/quickload are disabled in networked games.
+		if (fired("quicksave")) {
+			if (!net_lockstep()) save_game("user://saves/quicksave.rts0sav");
+			return;
+		}
+		if (fired("quickload")) {
+			if (!net_lockstep()) load_game("user://saves/quicksave.rts0sav");
+			return;
+		}
+
+		// Camera (0 A.D. [hotkey.camera], gui/session/hotkeys/camera.xml).
+		for (int j = 1; j <= 4; ++j) {
+			const std::string n = std::to_string(j);
+			if (fired(("camera.jump.set." + n).c_str())) {
+				if (cam_rig) camera_bookmarks_[j - 1] = {true, cam_rig->get_target_pos()};
+				return;
+			}
+			if (fired(("camera.jump." + n).c_str())) {
+				if (cam_rig && camera_bookmarks_[j - 1].set) cam_rig->set_target_pos(camera_bookmarks_[j - 1].pos);
+				return;
+			}
+		}
+		if (fired("camera.reset")) {
+			if (cam_rig) cam_rig->reset_camera();
+			return;
+		}
+		if (fired("camera.follow")) {
+			if (cam_rig) cam_rig->set_follow_id(selected_ids.is_empty() ? 0 : (uint32_t)selected_ids[0]);
+			return;
+		}
+		if (fired("camera.lastattackfocus")) {
+			if (cam_rig && has_last_attack_) cam_rig->set_target_pos(last_attack_pos_);
+			return;
+		}
+
+		// Unit commands (0 A.D. [hotkey.session], misc.xml).
+		if (fired("session.stop")) {
+			if (!selected_ids.is_empty()) {
+				if (net_lockstep())
+					post_lockstep(2, ids_ptr(), selected_ids.size());
+				else
+					sim->cmd_stop(ids_ptr(), selected_ids.size());
+			}
+			return;
+		}
+		if (fired("session.unload")) {
+			_on_ungarrison_pressed();
+			return;
+		}
+		auto apply_stance = [&](uint8_t st) {
+			if (selected_ids.is_empty()) return;
+			if (net_lockstep())
+				post_lockstep(7, ids_ptr(), selected_ids.size(), 0, 0, 0, st);
+			else
+				sim->order_set_stance(ids_ptr(), selected_ids.size(), st);
+		};
+		if (fired("rts0.stance.aggressive")) { apply_stance(rtso::STANCE_AGGRESSIVE); return; }
+		if (fired("rts0.stance.defensive")) { apply_stance(rtso::STANCE_DEFENSIVE); return; }
+		if (fired("rts0.stance.standground")) { apply_stance(rtso::STANCE_STAND_GROUND); return; }
+		if (fired("rts0.stance.violent")) { apply_stance(rtso::STANCE_VIOLENT); return; }
+		if (fired("rts0.stance.passive")) { apply_stance(rtso::STANCE_PASSIVE); return; }
+		if (fired("session.attackmoveunit")) {
+			if (!selected_ids.is_empty()) {
+				attack_move_mode = true;
+				patrol_mode = guard_mode = false;
 			}
 			return;
 		}
 
-		if (key->get_keycode() == KEY_PERIOD || key->get_keycode() == KEY_TAB) {
-			cycle_idle_worker();
-			return;
-		}
-
-		if (key->get_keycode() == KEY_D && (key->is_ctrl_pressed() || key->is_alt_pressed())) {
-			toggle_diplomacy();
-			return;
-		}
-
-		if (key->get_keycode() == KEY_M) {
-			Node *barter = get_node_or_null(NodePath("BarterDialog"));
-			if (barter) barter->call("toggle");
-			return;
-		}
-
-		if (key->get_keycode() == KEY_Z) {
-			_on_ungarrison_pressed();
-			return;
-		}
-
-		if ((key->get_keycode() == KEY_H || (key->get_keycode() == KEY_S && key->is_ctrl_pressed())) && !build_mode) {
-			if (selected_ids.size() > 0) {
-				if (net_lockstep())
-					post_lockstep(2, (const uint32_t *)selected_ids.ptr(), selected_ids.size());
-				else
-					sim->cmd_stop((const uint32_t *)selected_ids.ptr(), selected_ids.size());
+		// Training: Z X C V B N M , queue the selected building's 1st-8th
+		// trainee; Shift trains a batch of 5 (gui.session.batchtrainingsize).
+		if (selected_building_id != 0 && roster_list) {
+			for (int q = 1; q <= 8; ++q) {
+				if (!fired(("session.queueunit." + std::to_string(q)).c_str())) continue;
+				if (q - 1 < roster_list->get_item_count() && !roster_list->is_item_disabled(q - 1)) {
+					const uint16_t tmpl = (uint16_t)(int)roster_list->get_item_metadata(q - 1);
+					const int batch = rtso::hotkeys::held("session.batchtrain") ? 5 : 1;
+					for (int b = 0; b < batch; ++b) try_train_template(selected_building_id, tmpl);
+				}
 				return;
 			}
 		}
 
-		// Hotkeys: Stances
-		auto apply_stance = [&](uint8_t st) {
-			if (selected_ids.is_empty()) return;
-			if (net_lockstep())
-				post_lockstep(7, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0, 0, 0, st);
-			else
-				sim->order_set_stance((const uint32_t *)selected_ids.ptr(), selected_ids.size(), st);
-		};
-		if (key->get_keycode() == KEY_F1) { apply_stance(rtso::STANCE_AGGRESSIVE); return; }
-		if (key->get_keycode() == KEY_F2) { apply_stance(rtso::STANCE_DEFENSIVE); return; }
-		if (key->get_keycode() == KEY_F3) { apply_stance(rtso::STANCE_STAND_GROUND); return; }
-		if (key->get_keycode() == KEY_F4) { apply_stance(rtso::STANCE_VIOLENT); return; }
-		// F5 stance passive (when no mod key) \u2014 if Ctrl held, it is QuickSave instead
-		if (key->get_keycode() == KEY_F5 && !key->is_ctrl_pressed()) {
-			apply_stance(rtso::STANCE_PASSIVE);
-			return;
-		}
-		// F5 = QuickSave (Ctrl+F5 / standalone F5 overrides stance when Ctrl held)
-		if (key->get_keycode() == KEY_F5 && key->is_ctrl_pressed()) {
-			save_game("user://saves/quicksave.rts0sav");
-			return;
-		}
-		if (key->get_keycode() == KEY_F6 && key->is_ctrl_pressed()) {
-			load_game("user://saves/quicksave.rts0sav");
-			return;
-		}
-		// Standalone F5/F6 quicksave-quickload (0 A.D. style)
-		if (key->get_keycode() == KEY_F5 && selected_ids.is_empty()) {
-			save_game("user://saves/quicksave.rts0sav");
-			return;
-		}
-		if (key->get_keycode() == KEY_F6) {
-			load_game("user://saves/quicksave.rts0sav");
+		if (fired("rts0.build.menu")) {
+			enter_build_mode(!build_mode, rtso::BLD_HOUSE);
 			return;
 		}
 
-		// Hotkeys: Tactical Commands
-		if (key->get_keycode() == KEY_Q && key->is_ctrl_pressed() && !selected_ids.is_empty()) {
-			attack_move_mode = true;
-			patrol_mode = false;
-			guard_mode = false;
-			play_civ_voice("select");
-			return;
-		}
-		if (key->get_keycode() == KEY_P && !selected_ids.is_empty()) {
-			patrol_mode = true;
-			attack_move_mode = false;
-			guard_mode = false;
-			play_civ_voice("select");
-			return;
-		}
-		// G key - guard mode: next RMB click picks target to guard
-		if (key->get_keycode() == KEY_G && !selected_ids.is_empty()) {
-			guard_mode = !guard_mode;
-			attack_move_mode = false;
-			patrol_mode = false;
-			play_civ_voice("select");
+		if (fired("rts0.debug.battle500")) { spawn_large_battle(500); return; }
+		if (fired("rts0.debug.battle1000")) { spawn_large_battle(1000); return; }
+		if (fired("rts0.debug.battle2000")) { spawn_large_battle(2000); return; }
+
+		if (fired("fps.toggle")) {
+			if (debug_overlay) debug_overlay->set_visible(!debug_overlay->is_visible());
 			return;
 		}
 
-		// Hotkeys: Build Mode (covers all 14 RTS0 building types; 0 A.D. input.js lacks
-		// direct letter mappings so we use first-letter mnemonics with non-conflicting fallbacks)
-		if (key->get_keycode() == KEY_B) { enter_build_mode(!build_mode, rtso::BLD_HOUSE); return; }
-		if (build_mode) {
-			if (key->get_keycode() == KEY_C) { enter_build_mode(true, rtso::BLD_TOWN_CENTER); return; } // Civic Centre
-			if (key->get_keycode() == KEY_H) { enter_build_mode(true, rtso::BLD_HOUSE); return; }       // House
-			if (key->get_keycode() == KEY_R) { enter_build_mode(true, rtso::BLD_BARRACKS); return; }    // baRracks
-			if (key->get_keycode() == KEY_S) { enter_build_mode(true, rtso::BLD_STOREHOUSE); return; }  // Storehouse
-			if (key->get_keycode() == KEY_T) { enter_build_mode(true, rtso::BLD_TOWER); return; }       // Tower
-			if (key->get_keycode() == KEY_F) { enter_build_mode(true, rtso::BLD_FARMSTEAD); return; }   // Farmstead
-			if (key->get_keycode() == KEY_M) { enter_build_mode(true, rtso::BLD_MARKET); return; }      // Market
-			if (key->get_keycode() == KEY_K) { enter_build_mode(true, rtso::BLD_FORTRESS); return; }    // Keep / Fortress
-			if (key->get_keycode() == KEY_G) { enter_build_mode(true, rtso::BLD_GATE); return; }        // Gate
-			if (key->get_keycode() == KEY_E || key->get_keycode() == KEY_P) { enter_build_mode(true, rtso::BLD_TEMPLE); return; } // tEmple / temPle
-			if (key->get_keycode() == KEY_W) { enter_build_mode(true, rtso::BLD_WONDER); return; }      // Wonder
-			if (key->get_keycode() == KEY_D) { enter_build_mode(true, rtso::BLD_DOCK); return; }        // Dock
-			if (key->get_keycode() == KEY_L) { enter_build_mode(true, rtso::BLD_WALL_SEGMENT); return; } // waLl
-			if (key->get_keycode() == KEY_O || key->get_keycode() == KEY_A) { enter_build_mode(true, rtso::BLD_CORRAL); return; } // cOrral / Animal
-		}
-
-		// Hotkeys: Training (active when a production building is selected, avoiding camera pan key conflicts)
-		if (selected_building_id != 0) {
-			if (key->get_keycode() == KEY_V) { try_train_unit(rtso::UNIT_VILLAGER); return; }
-			if (key->get_keycode() == KEY_A) { try_train_unit(rtso::UNIT_ARCHER); return; }
-			if (key->get_keycode() == KEY_C) { try_train_unit(rtso::UNIT_CAVALRY); return; }
-		}
-
-		if (key->get_keycode() == KEY_F7) {
-			spawn_large_battle(500);
-			return;
-		}
-
-		if (key->get_keycode() == KEY_F8) {
-			spawn_large_battle(1000);
-			return;
-		}
-
-		if (key->get_keycode() == KEY_F9) {
-			spawn_large_battle(2000);
-			return;
-		}
-
-		if (key->get_keycode() == KEY_F10) {
-			if (SceneTree *t = get_tree()) {
-				rtso::hide_node_popups(t->get_root());
-				t->change_scene_to_file("res://scenes/menu/options.tscn");
-			}
-			return;
-		}
-
-		if (key->get_keycode() == KEY_F11) {
-			if (ui_layer) ui_layer->set_visible(!ui_layer->is_visible());
-			return;
-		}
-
-		if (key->get_keycode() == KEY_F12) {
+		if (fired("screenshot")) {
 			Viewport *vp = get_viewport();
 			if (vp) {
 				Ref<ViewportTexture> tex = vp->get_texture();
 				if (tex.is_valid()) {
 					Ref<Image> img = tex->get_image();
 					if (img.is_valid()) {
-						img->save_png("screen_battle.png");
-						print_line("[RTS0] Saved screenshot to screen_battle.png");
+						DirAccess::make_dir_recursive_absolute("user://screenshots");
+						const String path = "user://screenshots/screenshot" +
+								String::num_int64((int64_t)Time::get_singleton()->get_unix_time_from_system()) + ".png";
+						img->save_png(path);
+						print_line("[RTS0] Saved screenshot to " + path);
 					}
 				}
 			}
@@ -2659,7 +2754,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 
 		if (mb->get_button_index() == MOUSE_BUTTON_LEFT) {
 			if (mb->is_pressed()) {
-				if (mb->is_alt_pressed()) {
+				// Hold K and click to send a flare (0 A.D. session.flare).
+				if (rtso::hotkeys::held("session.flare")) {
 					Vector3 click_pos = get_ground_click_pos(mouse_pos);
 					if (minimap_view) {
 						minimap_view->add_ping(Vector2(click_pos.x, click_pos.z), Color(1.0f, 0.4f, 0.2f));
@@ -2746,8 +2842,16 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					dragging = false;
 					sel_rect->set_rect(Vector2(), Vector2(), false);
 					Vector2 drag_end = mouse_pos;
-					const bool is_shift = mb->is_shift_pressed();
-					const bool is_ctrl = mb->is_ctrl_pressed();
+					// 0 A.D. [hotkey.selection] modifiers (input.js handleInputBeforeGui):
+					// Shift adds, Ctrl removes, Alt keeps military only (Alt+Y non-military),
+					// I idle only, O wounded only, Alt on a double-click reaches offscreen.
+					const bool is_shift = rtso::hotkeys::held("selection.add");
+					const bool is_ctrl = rtso::hotkeys::held("selection.remove");
+					const bool nonmilitary_only = rtso::hotkeys::held("selection.nonmilitaryonly");
+					const bool military_only = !nonmilitary_only && rtso::hotkeys::held("selection.militaryonly");
+					const bool idle_only = rtso::hotkeys::held("selection.idleonly");
+					const bool wounded_only = rtso::hotkeys::held("selection.woundedonly");
+					const bool offscreen = rtso::hotkeys::held("selection.offscreen");
 
 					if (drag_start.distance_to(drag_end) < 8.0f) {
 						// Single click selection
@@ -2768,9 +2872,14 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							}
 						}
 
-						if (best_uidx != (size_t)-1) {
-							if (dbl_click || is_ctrl) {
-								// Double-click or Ctrl+click selects every same-type player unit on screen (0 A.D. gui/session/input.js:1022-1042)
+						if (best_uidx != (size_t)-1 && is_ctrl && !dbl_click) {
+							// Ctrl+click drops the unit from the selection (selection.remove).
+							const int64_t at = selected_ids.find((int32_t)uview.id[best_uidx]);
+							if (at >= 0) selected_ids.remove_at(at);
+						} else if (best_uidx != (size_t)-1) {
+							if (dbl_click) {
+								// Double-click selects every same-type player unit on screen, or on
+								// the whole map with selection.offscreen (0 A.D. gui/session/input.js:1022-1042)
 								const uint8_t same_type = uview.unit_type[best_uidx];
 								Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
 								if (!is_shift) {
@@ -2784,10 +2893,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 											uview.unit_type[i] != same_type)
 											continue;
 										Vector3 world_pos(uview.pos_x[i], 0, uview.pos_z[i]);
-										if (cam->is_position_behind(world_pos)) continue;
+										if (!offscreen && cam->is_position_behind(world_pos)) continue;
 										Vector2 screen_pos = cam->unproject_position(world_pos);
-										if (screen_pos.x >= 0.0f && screen_pos.x <= vp_size.x &&
-											screen_pos.y >= 0.0f && screen_pos.y <= vp_size.y) {
+										if (offscreen || (screen_pos.x >= 0.0f && screen_pos.x <= vp_size.x &&
+											screen_pos.y >= 0.0f && screen_pos.y <= vp_size.y)) {
 											int32_t uid = (int32_t)uview.id[i];
 											if (!selected_ids.has(uid))
 												selected_ids.push_back(uid);
@@ -2845,7 +2954,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						Vector2 max_p(std::max(drag_start.x, drag_end.x), std::max(drag_start.y, drag_end.y));
 
 						auto uview = sim->units();
-						if (!is_shift) {
+						if (!is_shift && !is_ctrl) {
 							selected_ids.clear();
 						}
 						selected_building_id = 0;
@@ -2853,12 +2962,22 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						if (cam) {
 							for (size_t i = 0; i < uview.count; ++i) {
 								if (!uview.alive[i] || uview.team[i] != local_player()) continue;
+								const uint64_t cls = rtso::unit_tech_classes(uview.unit_type[i]);
+								const bool military = (cls & (rtso::TC_MELEE | rtso::TC_RANGED)) != 0;
+								if ((military_only && !military) || (nonmilitary_only && military)) continue;
+								if (idle_only && uview.action_state[i] != rtso::ACTION_IDLE) continue;
+								// gui.session.woundedunithotkeythreshold = 33 %.
+								if (wounded_only && uview.hp[i] >= uview.max_hp[i] * 0.33f) continue;
 								Vector3 world_pos(uview.pos_x[i], 0, uview.pos_z[i]);
+								if (cam->is_position_behind(world_pos)) continue;
 								Vector2 screen_pos = cam->unproject_position(world_pos);
 								if (screen_pos.x >= min_p.x && screen_pos.x <= max_p.x &&
 									screen_pos.y >= min_p.y && screen_pos.y <= max_p.y) {
 									int32_t uid = (int32_t)uview.id[i];
-									if (!selected_ids.has(uid)) {
+									if (is_ctrl) {
+										const int64_t at = selected_ids.find(uid);
+										if (at >= 0) selected_ids.remove_at(at);
+									} else if (!selected_ids.has(uid)) {
 										selected_ids.push_back(uid);
 									}
 								}
@@ -2907,14 +3026,14 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 
 			// Shift queues the order behind the units' current ones (0 A.D.
 			// gui/session/input.js:1345 session.queue); without it the order replaces them.
-			const bool queue_shift = mb->is_shift_pressed();
+			const bool queue_shift = rtso::hotkeys::held("session.queue");
 			const uint8_t qbit = queue_shift ? rtso::NET_PARAM_QUEUED : 0;
 			const uint32_t *sel_ptr = (const uint32_t *)selected_ids.ptr();
 			const size_t sel_n = selected_ids.size();
 
 			// Ctrl over an enemy structure attacks it instead of capturing it (0 A.D.
 			// session.attack); Ctrl over anything else is attack-move (session.attackmove).
-			if (mb->is_ctrl_pressed() && !attack_move_mode) {
+			if ((rtso::hotkeys::held("session.attack") || rtso::hotkeys::held("session.attackmove")) && !attack_move_mode) {
 				for (const auto &b : sim->buildings()) {
 					if (b.wrecked || b.team == local_player()) continue;
 					const float dx = b.x - click_pos.x, dz = b.z - click_pos.z;
@@ -2929,8 +3048,20 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 			}
 
-			// Attack-move: Ctrl+RightClick (canonical 0 A.D. attackmove = Ctrl) or attack_move_mode toggled
-			if (attack_move_mode || mb->is_ctrl_pressed()) {
+			// Attack-move: session.attackmove (Ctrl) + right-click, or attack_move_mode
+			// toggled. Ctrl on one of our own buildings garrisons instead (session.garrison).
+			bool garrison_click = false;
+			if (rtso::hotkeys::held("session.garrison")) {
+				for (const auto &b : sim->buildings()) {
+					if (b.team != local_player()) continue;
+					const float dx = b.x - click_pos.x, dz = b.z - click_pos.z, hit_r = b.half_size + 1.2f;
+					if (dx * dx + dz * dz <= hit_r * hit_r) {
+						garrison_click = true;
+						break;
+					}
+				}
+			}
+			if (attack_move_mode || (!garrison_click && rtso::hotkeys::held("session.attackmove"))) {
 				if (net_lockstep())
 					post_lockstep(10, sel_ptr, sel_n, click_pos.x, click_pos.z, 0, qbit);
 				else
@@ -2939,7 +3070,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				attack_move_mode = false;
 				return;
 			}
-			if (patrol_mode) {
+			// Patrol and guard: the command button arms them, or hold P / G while
+			// right-clicking (0 A.D. session.patrol / session.guard modifiers).
+			if (patrol_mode || rtso::hotkeys::held("session.patrol")) {
 				if (net_lockstep())
 					post_lockstep(11, sel_ptr, sel_n, click_pos.x, click_pos.z, 0, qbit);
 				else
@@ -2948,7 +3081,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				patrol_mode = false;
 				return;
 			}
-			if (guard_mode) {
+			if (guard_mode || rtso::hotkeys::held("session.guard")) {
 				auto uview = sim->units();
 				uint32_t target_ally_id = 0;
 				float best_ad2 = 3.0f * 3.0f;
@@ -3012,6 +3145,32 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					sim->order_board_transport((const uint32_t *)selected_ids.ptr(), selected_ids.size(), clicked_transport_id);
 				play_civ_voice("move");
 				return;
+			}
+
+			// 1b. Healers right-clicking an injured own or allied unit heal it (0 A.D. "heal" cursor).
+			{
+				bool any_healer = false;
+				for (size_t k = 0; k < sel_n && !any_healer; ++k) {
+					for (size_t i = 0; i < uview.count; ++i)
+						if (uview.id[i] == sel_ptr[k]) { any_healer = uview.unit_type[i] == rtso::UNIT_HEALER; break; }
+				}
+				uint32_t heal_id = 0;
+				float best_hd2 = 2.2f * 2.2f;
+				for (size_t i = 0; any_healer && i < uview.count; ++i) {
+					if (!uview.alive[i] || uview.hp[i] >= uview.max_hp[i]) continue;
+					if (uview.team[i] != local_player() && !sim->is_ally(local_player(), uview.team[i])) continue;
+					const float dx = uview.pos_x[i] - click_pos.x, dz = uview.pos_z[i] - click_pos.z;
+					const float d2 = dx * dx + dz * dz;
+					if (d2 < best_hd2) { best_hd2 = d2; heal_id = uview.id[i]; }
+				}
+				if (heal_id != 0) {
+					if (net_lockstep())
+						post_lockstep(32, sel_ptr, sel_n, 0, 0, heal_id, qbit);
+					else
+						sim->order_heal(sel_ptr, sel_n, heal_id, queue_shift);
+					play_civ_voice("select");
+					return;
+				}
 			}
 
 			// 2. Right click on Enemy Unit (Attack)
