@@ -119,6 +119,13 @@ jobs:
       - name: Headless match benchmark
         run: python3 tools/bench_match.py
 
+      - name: Sim tick benchmark (smoke run)
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/bench_sim.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+            src/network/net_host.cpp -lpthread -o /tmp/bench_sim
+          /tmp/bench_sim --scenario all --ticks 100 --serial
+
   export-desktop:
     name: Export ${{ matrix.name }}
     runs-on: ubuntu-latest
