@@ -231,7 +231,6 @@ void Simulation::reset() {
 		ps.phase = 1;
 	}
 	rebuild_all_tech_mods();
-	passive_timer_ = 0.0f;
 	rate_window_timer_ = 0.0f;
 
 	wave_timer_ = 0.0f;
@@ -2277,14 +2276,6 @@ void Simulation::tick(float dt) {
 		rate_window_timer_ = 0.0f;
 		for (auto &ps : players_)
 			for (float &w : ps.gathered_window) w *= 0.5f;
-	}
-
-	// Passive income
-	passive_timer_ += dt;
-	if (passive_timer_ >= 1.0f) {
-		passive_timer_ = 0.0f;
-		players_[0].food() += 2.0f;
-		players_[0].wood() += 2.0f;
 	}
 
 	// Fog of War (Paced at 4 Hz to avoid unnecessary main thread recalculations)
@@ -4647,8 +4638,8 @@ void Simulation::tick_trickle(float dt) {
 	}
 
 	// ResourceTrickle.js — passive income from key buildings
-	// Town Centers: +1 food/s, Farmstead: +0.5 food/s per field
-	// Market: +0.3 gold/s (simulates trade trickle), Wonder: +2 of all/s
+	// Farmstead: +0.5 food/s per field, Market: +0.3 gold/s (simulates trade
+	// trickle), Wonder: +2 of all/s. 0 A.D.'s Town Center has no trickle.
 	for (const auto &b : buildings_) {
 		if (b.team != 0 || b.build_progress < 1.0f) continue;
 		PlayerState &ps = players_[0];
@@ -4657,9 +4648,6 @@ void Simulation::tick_trickle(float dt) {
 			ps.res[rt] = std::min(9999.0f, ps.res[rt] + (float)(int)(rate * dt));
 		};
 		switch (b.type) {
-			case BLD_TOWN_CENTER:
-				trickle(RES_FOOD, 1.0f);
-				break;
 			case BLD_FARMSTEAD:
 				trickle(RES_FOOD, 0.5f);
 				break;

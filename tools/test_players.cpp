@@ -192,6 +192,14 @@ int main() {
 	l.set_diplomacy(5, 1, Simulation::DIPLO_ALLY); // a row other than player 0's
 	CHECK(tm.compute_sim_hash(s) != tm.compute_sim_hash(l));
 
+	// 0 A.D. has no passive Town Center income: an idle player 0 earns nothing.
+	fresh(s);
+	s.spawn_building(20, 20, BLD_TOWN_CENTER, 0);
+	const float food0 = s.player(0).food(), wood0 = s.player(0).wood();
+	for (int i = 0; i < 600; ++i) s.tick(0.1f);
+	CHECK(!s.is_game_over());
+	CHECK(s.player(0).food() == food0 && s.player(0).wood() == wood0);
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
