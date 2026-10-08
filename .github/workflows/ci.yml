@@ -103,6 +103,11 @@ jobs:
             src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
             src/network/net_host.cpp -lpthread -o /tmp/test_naval
           /tmp/test_naval
+      - name: Placement tests
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_placement.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o /tmp/test_placement
+          /tmp/test_placement
 
       - name: Save/load keeps the lockstep hash
         run: |
@@ -196,6 +201,13 @@ jobs:
             src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
             src/network/net_host.cpp -lpthread -o /tmp/test_pack
           /tmp/test_pack
+
+      - name: Unit orders, stances and capture scenarios
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_unit_orders.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+            src/network/net_host.cpp -lpthread -o /tmp/test_unit_orders
+          /tmp/test_unit_orders
 
       - name: Loot and experience scenarios
         run: |

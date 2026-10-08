@@ -11,11 +11,13 @@
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
+#include <array>
 #include <cmath>
 #include <utility>
 #include <algorithm>
 #include <string>
 #include <array>
+#include <bit>
 #include <iosfwd>
 
 namespace rtso {
@@ -127,7 +129,7 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
-	static constexpr uint32_t SAVE_VERSION = 19; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 21; // save_state's format; see the history beside it
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -315,12 +317,32 @@ public:
 	bool cmd_cancel_train(uint8_t player, uint32_t building_id, size_t queue_idx);
 	void cmd_set_rally_point(uint8_t player, uint32_t building_id, float rx, float rz, uint32_t res_id = 0, uint32_t bld_id = 0);
 
-	void order_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id);
-	void order_attack(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id);
-	void order_attack_building(const uint32_t *unit_ids, size_t count, uint32_t target_building_id);
-	void order_attack_move(const uint32_t *unit_ids, size_t count, float tx, float tz);
-	void order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz);
-	void order_build_or_repair(const uint32_t *unit_ids, size_t count, uint32_t building_id);
+	// Player orders (0 A.D. Commands.js / UnitAI.js). `queued` is the Shift key: the order
+	// goes to the end of each busy unit's order queue instead of replacing its orders.
+	// Player orders are forced (order.data.force); Petra's cmd_move walks are not, so its
+	// units still turn to fight on the way.
+	void order_walk(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false);
+	void order_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id, bool queued = false);
+	void order_attack(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
+	// allow_capture: capture the structure (0 A.D.'s default right-click) instead of
+	// damaging it (Ctrl). Units that can't capture, or structures that can't be
+	// captured, fall back to damage.
+	void order_attack_building(const uint32_t *unit_ids, size_t count, uint32_t target_building_id,
+			bool queued = false, bool allow_capture = false);
+	// Attack-move (UnitAI WalkAndFight): fight units, then structures unless units_only,
+	// on the way, and carry on to (tx, tz) afterwards.
+	void order_attack_move(const uint32_t *unit_ids, size_t count, float tx, float tz,
+			bool queued = false, bool units_only = false, bool allow_capture = false);
+	void order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false);
+	void order_build_or_repair(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false);
+	// 0 A.D. "delete-entities": kills the player's own units and destroys its own
+	// structures (not ones it holds under half the capture points of).
+	void cmd_delete(uint8_t player, const uint32_t *ids, size_t count);
+	// 0 A.D. "back-to-work" (UnitAI BackToWork): resume the last gather or build order.
+	void order_back_to_work(const uint32_t *unit_ids, size_t count);
+	// The unit's current order and its Shift-queued ones (empty if none).
+	UnitOrder unit_order(uint32_t unit_id) const;
+	const std::vector<UnitOrder> *unit_order_queue(uint32_t unit_id) const;
 	void order_set_stance(const uint32_t *unit_ids, size_t count, uint8_t stance);
 	// 0 A.D. Pack/Unpack command (UnitAI Order.Pack / Order.Unpack): drops the units' current
 	// orders and packs (pack=true) or unpacks them. Units without Pack are ignored.
@@ -328,14 +350,17 @@ public:
 	// Seconds a pack or unpack takes for this unit (0 A.D. Pack/Time).
 	float pack_time_s(size_t unit_idx) const;
 	void order_set_formation(const uint32_t *unit_ids, size_t count, uint8_t formation);
-	void order_garrison(const uint32_t *unit_ids, size_t count, uint32_t building_id);
+	void order_garrison(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false);
 	void order_ungarrison(uint32_t building_id);
 	// GarrisonHolder.HasEnoughHealth: above EjectHealth of max health, so it may hold a garrison.
 	bool structure_has_enough_health(const Building &b) const;
 	// Hitpoints per second each unit garrisoned in `b` regains (BuffHeal plus Living Conditions).
 	float structure_garrison_heal(const Building &b) const;
 	void order_ungarrison_single(uint32_t building_id, uint32_t unit_id);
-	void order_guard(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id);
+	void order_guard(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
+	// UnitAI Heal: healers walk to an injured allied unit and heal it (Heal.js).
+	void order_heal(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
+	void set_unit_hp(uint32_t unit_id, float hp); // scenarios and tests: clamped to 0..max
 
 	// Livestock & Corrals (Corral.js)
 	void order_herd(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
@@ -482,6 +507,17 @@ public:
 	bool load_state(const char *filepath);
 
 	bool can_place(int cell_x, int cell_y, int footprint) const;
+	// 0 A.D. BuildRestrictions.js CheckPlacement for `player` placing `b_type` at cell_x/cell_y:
+	// obstruction, terrain (land, shore, land-shore), territory, dock shoreline and distance rules.
+	enum PlacementResult : uint8_t {
+		PLACE_OK = 0,
+		PLACE_OBSTRUCTED, // off the map, on another building or on a resource
+		PLACE_TERRAIN,    // water under a land building, deep water under a wall
+		PLACE_TERRITORY,  // territory the template does not allow
+		PLACE_SHORE,      // a dock not on a shoreline facing a sea
+		PLACE_DISTANCE,   // too close to the player's own building of the same class
+	};
+	PlacementResult check_placement(uint8_t player, int cell_x, int cell_y, uint8_t b_type) const;
 
 	void tick(float dt);
 
@@ -750,20 +786,24 @@ public:
 	const PetraAttackManager &petra_attack_manager() const { return petra_attack_mgr_; }
 	int petra_opening_step() const { return petra_opening_step_; }
 
-	void set_petra_difficulty(uint8_t d) {
-		petra_config_.difficulty = (d > PETRA_VERY_HARD) ? PETRA_MEDIUM : d;
-		apply_petra_config();
-	}
-	void set_petra_behavior(uint8_t b) {
-		petra_config_.behavior = (b > PETRA_BEHAVIOR_AGGRESSIVE) ? PETRA_BEHAVIOR_BALANCED : b;
-		apply_petra_config();
-	}
+	// Out-of-range settings fall back to Medium and Balanced.
+	static uint8_t petra_clamp_difficulty(uint8_t d) { return d > PETRA_VERY_HARD ? PETRA_MEDIUM : d; }
+	static uint8_t petra_clamp_behavior(uint8_t b) { return b > PETRA_BEHAVIOR_AGGRESSIVE ? PETRA_BEHAVIOR_BALANCED : b; }
+	// Every AI's difficulty or behaviour (0 A.D. game setup's AI settings).
+	void set_petra_difficulty(uint8_t d);
+	void set_petra_behavior(uint8_t b);
+	// One AI slot's difficulty or behaviour; set them after reset(), which
+	// gives every slot the shared setting.
+	void set_petra_difficulty(uint8_t pid, uint8_t d);
+	void set_petra_behavior(uint8_t pid, uint8_t b);
+	// The config of the AI on player `pid`, wherever its slot state is parked.
+	const PetraConfig &petra_config_for(uint8_t pid) const;
 	// True when Petra drives this player: seated active AI slots, or player 1 when no slot is seated.
 	bool petra_runs_for(uint8_t pid) const;
 	// InitGame.js "AI Bonus": Petra players gather and trade at the difficulty's
 	// rate and build, train and research at its time multiplier; 1 for humans.
-	float ai_gather_mult(uint8_t pid) const { return petra_runs_for(pid) ? petra_config_.gather_rate : 1.0f; }
-	float ai_time_mult(uint8_t pid) const { return petra_runs_for(pid) ? petra_config_.build_time : 1.0f; }
+	float ai_gather_mult(uint8_t pid) const { return petra_runs_for(pid) ? petra_config_for(pid).gather_rate : 1.0f; }
+	float ai_time_mult(uint8_t pid) const { return petra_runs_for(pid) ? petra_config_for(pid).build_time : 1.0f; }
 	uint8_t petra_difficulty() const { return petra_config_.difficulty; }
 	uint8_t petra_behavior() const { return petra_config_.behavior; }
 	const PetraConfig &petra_config() const { return petra_config_; }
@@ -887,6 +927,9 @@ private:
 	void tick_pack(float dt);
 	void tick_promotion(float dt);
 	void tick_capture(float dt);
+	// 0 A.D. UnitAI per-unit order logic, before movement: answers attacks (fight back or
+	// flee), returns fighters to their order, turns patrols, follows the order queue.
+	void tick_unit_ai(float dt);
 	void tick_status_effects(float dt);
 	void tick_projectiles(float dt);
 	void tick_construction(float dt);
@@ -919,10 +962,30 @@ private:
 	void tick_petra_ai_player(float dt);
 	void tick_fauna(float dt);
 	void tick_fow();  // updates FoW each sim tick
-	template <typename SharesVision>
-	void update_player_fow(std::vector<uint8_t> &grid, SharesVision shares_vision);
 	void ensure_fow_cell_heights();
-	void reveal_fow(std::vector<uint8_t> &grid, float sx, float sz, float vr) const;
+	// The cells one viewer lit, kept while it stands still (CCmpRangeManager likewise redoes a
+	// viewer's LOS only when it moves). Derived from the terrain alone: never saved or hashed, and
+	// a viewer at another position, or terrain rebuilt since, recomputes. Row k of `rows` holds the
+	// lit cells of FoW row cz - r + k, bit i for column cx - r + i.
+	struct FowView {
+		uint32_t sx = 0, sz = 0, vr = 0; // the bits of the last call's sx, sz and vr
+		uint32_t gen = 0; // fow_view_gen_ of that call; 0: no call yet
+		bool stored = false; // rows filled for that call
+		uint64_t rows[64];
+		// Whether a call with these arguments would find this view's last call.
+		bool same_spot(float x, float z, float r, uint32_t now) const {
+			return gen == now && sx == std::bit_cast<uint32_t>(x) && sz == std::bit_cast<uint32_t>(z) && vr == std::bit_cast<uint32_t>(r);
+		}
+	};
+	static constexpr int FOW_VIEW_MAX_R = 31; // widest view the rows hold: 2r + 1 <= 63
+	struct FowViews {
+		std::vector<FowView> units, buildings;
+	};
+	void reveal_fow(std::vector<uint8_t> &grid, float sx, float sz, float vr, FowView *view = nullptr) const;
+	template <typename SharesVision>
+	void update_player_fow(std::vector<uint8_t> &grid, SharesVision shares_vision, FowViews &views);
+	template <typename UnitVision, typename BuildingVision>
+	void reveal_viewers(std::vector<uint8_t> &grid, FowViews &views, UnitVision unit_vr, BuildingVision building_vr);
 	bool terrain_blocks_los(float sx, float sz, float sy, float tx, float tz, float ty) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
 	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
@@ -1002,6 +1065,13 @@ private:
 		}
 	};
 	std::unordered_set<std::pair<int, int>, CellHash> occupied_cells_;
+	// check_placement's cells (GRID-sized, from -map_half_) that a Gaia resource's
+	// obstruction touches. A cache of resources_, rebuilt when the tick or the
+	// resource count changes; never saved or hashed.
+	mutable std::vector<uint8_t> resource_block_cells_;
+	mutable uint64_t resource_block_tick_ = UINT64_MAX;
+	mutable size_t resource_block_count_ = SIZE_MAX;
+	mutable int resource_block_w_ = 0;
 
 	uint32_t next_id_ = 1;
 	uint32_t sim_seed_ = 1337;
@@ -1049,7 +1119,7 @@ private:
 	PlayerState gaia_stock_; // scratch for player(GAIA_PLAYER); never saved or hashed
 	// Player.js SetState("defeated"): hand every unit and structure of these players to Gaia.
 	void convert_to_gaia(uint8_t players);
-	void tick_capture_gaia(Building &b, float dt);
+	void capture_points_tick(Building &b, size_t bi, float dt); // Capturable.js Reduce, regen and owner change
 	uint8_t participant_mask_ = 0; // save v10
 	uint8_t defeated_mask_ = 0;
 	uint8_t winner_mask_ = 0;
@@ -1162,7 +1232,7 @@ private:
 	void petra_staff_foundations();
 	void petra_manage_fields(int target_food);
 	int petra_villager_target() const;
-	bool petra_can_place(int cell_x, int cell_y, int footprint) const;
+	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
 	void petra_say(uint8_t kind, float x = 0.0f, float z = 0.0f, uint8_t to = 0xFF, int amount = 0, uint8_t res = 0);
 	void petra_handle_diplomacy_request(uint8_t player, uint8_t type);
@@ -1194,7 +1264,7 @@ private:
 	X(petra_diplo_timer_) X(ai_wonder_victory_timer_) X(petra_bases_) X(petra_fnd_watch_) \
 	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
-	X(petra_fow_) X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_)
+	X(petra_fow_) X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
@@ -1206,10 +1276,16 @@ private:
 	// Saves or loads save_tick_state's fields, every AI's Petra state included (save v15); simulation.cpp.
 	template <class Ar> friend void tick_state_io(Ar &ar, Simulation &s);
 	void petra_reset_ai_state();
+	PetraConfig &petra_config_slot(uint8_t pid);
 	std::vector<float> fow_cell_height_; // terrain height at each FoW cell centre, lazily filled by tick_fow
 	std::vector<float> fow_cell_hmax_; // highest heightmap sample an LOS ray can read in each FoW cell, filled with fow_cell_height_
 	static constexpr int FOW_LOS_BLOCK = 4; // FoW cells per side of a fow_block_hmax_ block
 	std::vector<float> fow_block_hmax_; // fow_cell_hmax_ max per block, filled with fow_cell_height_
+	uint32_t fow_view_gen_ = 0; // bumped each time fow_cell_height_ is filled, so FowViews from older terrain miss
+	// reveal_fow() views of units (by index) and buildings (by buildings_ index), for Petra's
+	// scouting and for update_player_fow(); their vision radii differ, so each keeps its own.
+	FowViews petra_fow_views_, player_fow_views_;
+	std::vector<uint32_t> fow_moved_units_; // reveal_viewers() scratch: units revealed last
 	NavGrid nav_grid_; // Phase1: SoA nav mesh (buildings + water), mirrors 0AD Grid<NavcellData>
 	Grid<uint8_t> territory_grid_; // grid_res_^2 player id per cell, G2 (CCmpTerritoryManager)
 	Grid<uint8_t> influence_grid_; // grid_res_^2 influence count per cell, G2
@@ -1241,6 +1317,40 @@ private:
 	std::vector<CaptureTally> capture_tally_;
 	std::vector<uint32_t> capture_cell_start_;
 	std::vector<CaptureReach> capture_cell_buildings_;
+	// Capture points each player's capture attacks took from each building this tick
+	// (tick_combat fills it, tick_capture spends it). Indexed like buildings_.
+	std::vector<std::array<float, MAX_PLAYERS>> capture_attack_;
+
+	// UnitAI orders (0 A.D. UnitAI.js orderQueue). The current order lives in the unit
+	// SoA; these are the Shift-queued ones after it, by unit id.
+	std::unordered_map<uint32_t, std::vector<UnitOrder>> order_queues_;
+	bool applying_queued_ = false; // set while an order from a queue is applied: keep the rest
+	UnitOrder current_order(size_t i) const;
+	void set_order(size_t i, uint8_t kind, uint8_t flags, uint32_t target, float x, float z);
+	void begin_walk_order(size_t i); // cmd_move's walk: not forced, replaces the queue
+	void drop_orders(size_t i);      // orders UnitAI doesn't model (trade, hunt, board): no order, no queue
+	// Splits a Shift order: busy units get it queued, the rest are returned to run now.
+	// Without Shift every unit's queue is dropped and all of them run it now.
+	std::vector<uint32_t> split_queued(const uint32_t *ids, size_t count, const UnitOrder &o, bool queued);
+	void apply_order(uint32_t uid, const UnitOrder &o);
+	bool order_still_valid(size_t i, const UnitOrder &o) const;
+	void finish_order(size_t i);
+	void resume_order(size_t i);
+	void respond_to_attack(size_t i);
+	uint32_t find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team) const;
+	uint32_t find_nearby_foundation(float x, float z, uint8_t team) const;
+	void apply_rally_point(uint32_t uid, const Building &b);
+	void on_construction_finished(const Building &b, size_t builder);
+	void destroy_building(Building &b);
+	bool can_capture_building(uint8_t player, const Building &b) const;
+	bool can_heal(size_t healer, int32_t target) const;         // Heal.js CanHeal
+	uint32_t find_heal_target(size_t healer) const;             // UnitAI FindNewHealTargets
+	void start_heal(size_t healer, uint32_t target, uint8_t flags);
+	void tick_heal(size_t healer);                              // UnitAI HEAL.APPROACHING / HEALING
+	bool garrison_in_range(size_t i, const Building &b) const;
+	void garrison_now(size_t i, Building &b);
+	void start_cheer(size_t i);                                 // UnitAI Cheer + notifyToCheerInRange
+	void note_kill(uint32_t killer_id, uint32_t victim_id);       // UnitAI shouldCheer
 
 	// Closed gates this tick: the only movement blockers the nav grid leaves out (0 A.D.
 	// gate Obstruction BlockMovement without BlockPathfinding), so move_units stops units

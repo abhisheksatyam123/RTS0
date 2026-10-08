@@ -150,7 +150,21 @@ enum class NetCommandType : uint8_t {
 	// 0 A.D. Pack / Unpack command (UnitAI Order.Pack / Order.Unpack) on the
 	// selected siege engines. param = 1 pack / 0 unpack; see Simulation::order_pack.
 	NET_CMD_PACK           = 29,
+	// 0 A.D. "delete-entities": the issuing player's own units die and own structures
+	// are destroyed (no loot). entity_ids = units and/or structures.
+	NET_CMD_DELETE         = 30,
+	// 0 A.D. "back-to-work" (UnitAI BackToWork) on the selected units.
+	NET_CMD_BACK_TO_WORK   = 31,
+	// 0 A.D. Heal order (UnitAI Heal): healers in entity_ids heal target_id (an injured
+	// allied unit). param bit NET_PARAM_QUEUED queues it.
+	NET_CMD_HEAL           = 32,
 };
+
+// param bits on unit orders (move 1, attack 3, gather 4, attack-move 10, patrol 11,
+// garrison 12, attack-building 15, build/repair 16, guard 21):
+inline constexpr uint8_t NET_PARAM_QUEUED = 0x80;     // Shift: add to the order queue (0 A.D. "queued")
+inline constexpr uint8_t NET_PARAM_UNITS_ONLY = 0x01; // attack-move: units only (targetClasses Unit)
+inline constexpr uint8_t NET_PARAM_NO_CAPTURE = 0x02; // attack-move / attack-building: damage, don't capture (Ctrl)
 
 struct NetCommand {
 	uint32_t client_id = 0;
