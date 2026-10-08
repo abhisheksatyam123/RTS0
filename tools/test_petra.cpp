@@ -477,6 +477,11 @@ static void test_attack_plans() {
 // Game setup gives each AI player its own difficulty and behaviour.
 static void test_slot_config() {
 	auto s = three_player_match(4);
+	// AI 1's edit comes first and must not leak into AI 2's slot.
+	s->set_petra_behavior(1, PETRA_BEHAVIOR_DEFENSIVE);
+	s->set_petra_difficulty(2, PETRA_EASY);
+	CHECK(s->petra_config_for(2).behavior == PETRA_BEHAVIOR_BALANCED, "one AI's setting doesn't leak into another slot");
+	s->set_petra_behavior(1, PETRA_BEHAVIOR_BALANCED);
 	s->set_petra_difficulty(1, PETRA_VERY_EASY);
 	s->set_petra_difficulty(2, PETRA_VERY_HARD);
 	s->set_petra_behavior(2, PETRA_BEHAVIOR_AGGRESSIVE);
