@@ -3190,6 +3190,11 @@ void RtsoMain::apply_match_settings() {
 	sim->set_last_man_standing((bool)ms->get("last_man_standing"));
 	sim->set_pop_cap((int)ms->get("pop_cap"));
 	sim->set_ceasefire_seconds(60.0f * (float)std::clamp((int)ms->get("ceasefire_min"), 0, 60));
+	sim->set_reveal_map((bool)ms->get("reveal_map"));
+	sim->set_explore_map((bool)ms->get("explore_map"));
+	sim->set_wonder_duration(60.0f * (float)std::clamp((int)ms->get("wonder_min"), 0, 60));
+	sim->set_relic_duration(60.0f * (float)std::clamp((int)ms->get("relic_min"), 0, 60));
+	sim->set_relic_count((int)ms->get("relic_count"));
 	// Game-setup teams (1-based T1..T4) decide allied victory, shared vision and territory.
 	Array slot_teams = ms->get("slot_teams");
 	for (int p = 0; p < 8 && p < slot_teams.size(); ++p) {
@@ -3644,6 +3649,11 @@ void RtsoMain::_on_lobby_start_pressed() {
 		setup.lms = (bool)ms->get("last_man_standing") ? 1 : 0;
 		setup.pop_cap = (uint16_t)std::clamp((int)ms->get("pop_cap"), 0, 1000);
 		setup.ceasefire = (uint8_t)std::clamp((int)ms->get("ceasefire_min"), 0, 60);
+		setup.reveal = (bool)ms->get("reveal_map") ? 1 : 0;
+		setup.explore = (bool)ms->get("explore_map") ? 1 : 0;
+		setup.wonder_min = (uint8_t)std::clamp((int)ms->get("wonder_min"), 0, 60);
+		setup.relic_min = (uint8_t)std::clamp((int)ms->get("relic_min"), 0, 60);
+		setup.relics = (uint8_t)std::clamp((int)ms->get("relic_count"), 1, 16);
 		int msz = (int)ms->get("map_size");
 		setup.map_size = (uint16_t)((msz >= 128 && msz <= 512) ? msz : 128);
 		setup.difficulty = (uint8_t)((int)ms->get("ai_difficulty"));
@@ -3727,6 +3737,11 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	sim->set_last_man_standing(setup.lms != 0);
 	sim->set_pop_cap(setup.pop_cap);
 	sim->set_ceasefire_seconds(60.0f * (float)setup.ceasefire);
+	sim->set_reveal_map(setup.reveal != 0);
+	sim->set_explore_map(setup.explore != 0);
+	sim->set_wonder_duration(60.0f * (float)setup.wonder_min);
+	sim->set_relic_duration(60.0f * (float)setup.relic_min);
+	sim->set_relic_count(setup.relics);
 	for (uint8_t p = 0; p < 8 && p < setup.slot_count; ++p) {
 		if (setup.teams[p] >= 1 && setup.teams[p] <= 8) sim->set_player_team(p, (uint8_t)(setup.teams[p] - 1));
 	}
@@ -3763,6 +3778,11 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		ms->set("last_man_standing", sim->last_man_standing());
 		ms->set("pop_cap", sim->pop_cap());
 		ms->set("ceasefire_min", (int)(sim->ceasefire_seconds() / 60.0f));
+		ms->set("reveal_map", sim->reveal_map());
+		ms->set("explore_map", sim->explore_map());
+		ms->set("wonder_min", (int)(sim->wonder_duration() / 60.0f));
+		ms->set("relic_min", (int)(sim->relic_duration() / 60.0f));
+		ms->set("relic_count", sim->relic_count());
 		ms->set("map_size", random_map_size);
 		ms->set("ai_difficulty", (int)sim->petra_difficulty());
 		ms->set("ai_behavior", (int)sim->petra_behavior());
