@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <limits>
 #include <cstring>
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -144,10 +145,18 @@ struct UnitGrid {
 // rounding, and the widest block window it handles (vision up to ~56 FoW cells).
 constexpr float FOW_LOS_CLEARANCE = 0.35f - 0.01f;
 constexpr int FOW_BOX_MAX_W = 32;
+// kFowByteMask[b]: 0xFF in byte i for each bit i set in b, for reveal_fow()'s FowView copy.
+constexpr std::array<uint64_t, 256> kFowByteMask = [] {
+	std::array<uint64_t, 256> t{};
+	for (int b = 0; b < 256; ++b)
+		for (int i = 0; i < 8; ++i)
+			if (b >> i & 1) t[b] |= 0xFFull << (8 * i);
+	return t;
+}();
 // For each block of the (2rb+1)^2 window centred on block (bcx, bcz), the highest block_hmax in
 // the box of blocks from the centre to that block. Fills the blocks inside the GB x GB grid; the
 // window is row-major in `out`.
-void fow_box_max(const float *block_hmax, int GB, int bcx, int bcz, int rb, float *out) {
+[[gnu::noinline]] void fow_box_max(const float *block_hmax, int GB, int bcx, int bcz, int rb, float *out) {
 	const int WB = 2 * rb + 1;
 	for (int zs = -1; zs <= 1; zs += 2)
 		for (int xs = -1; xs <= 1; xs += 2)
@@ -1096,14 +1105,14 @@ bool Simulation::cmd_maintain_fleet(uint32_t building_id, UnitType u_type, uint8
 	return true;
 }
 
-// Healer.js template values (Range 12, Health 8 per 1 s interval) after the
+// template_unit_support_healer.xml Heal values (Range 12, Health 5 every 2 s) after the
 // player's Healing Range / Healing Rate technologies.
 float Simulation::healer_range(uint8_t player_id) const {
 	return 12.0f + tech_mods(player_id).heal_range[UNIT_HEALER];
 }
 
 float Simulation::healer_rate(uint8_t player_id) const {
-	return 8.0f / std::max(0.1f, tech_mods(player_id).heal_interval[UNIT_HEALER]);
+	return HEAL_HP / (HEAL_INTERVAL_S * std::max(0.1f, tech_mods(player_id).heal_interval[UNIT_HEALER]));
 }
 
 // 0 A.D. unlock_champion_cavalry / _chariots / _infantry and
@@ -2427,19 +2436,40 @@ void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, ui
 	const uint32_t *unit_ids = now.data();
 	const size_t count = now.size();
 
+	// UnitAI GARRISON.APPROACHING: walk up to the structure (a forced order, so enemies on
+	// the way are ignored) and get in once within its LoadingRange (tick_unit_ai).
 	for (size_t i = 0; i < count; ++i) {
-		if ((int)b.garrisoned_units.size() >= b.garrison_cap) break;
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx] || units_.team[uidx] != b.team) continue;
-
-		units_.action_state[uidx] = ACTION_GARRISONED;
-		units_.alive[uidx] = 0;
-		units_.has_order[uidx] = 0;
-		units_.vel_x[uidx] = 0.0f;
-		units_.vel_z[uidx] = 0.0f;
-		set_order(uidx, ORDER_NONE, 0, 0, b.x, b.z); // inside: the order is done
-		b.garrisoned_units.push_back(unit_ids[i]);
+		if (garrison_in_range((size_t)uidx, b)) {
+			if ((int)b.garrisoned_units.size() >= b.garrison_cap) continue;
+			garrison_now((size_t)uidx, b);
+			continue;
+		}
+		const bool was = applying_queued_;
+		applying_queued_ = true; // keep the unit's queue: this is the garrison order, not a walk
+		cmd_move(&unit_ids[i], 1, b.x, b.z);
+		applying_queued_ = was;
+		set_order((size_t)uidx, ORDER_GARRISON, ORDER_FLAG_FORCE, building_id, b.x, b.z);
 	}
+}
+
+bool Simulation::garrison_in_range(size_t i, const Building &b) const {
+	const float ex = std::max(0.0f, std::fabs(units_.pos_x[i] - b.x) - b.half_size);
+	const float ez = std::max(0.0f, std::fabs(units_.pos_z[i] - b.z) - b.half_size);
+	const float reach = GARRISON_LOADING_RANGE + unit_collision_radius(units_.unit_type[i]);
+	return ex * ex + ez * ez <= reach * reach;
+}
+
+void Simulation::garrison_now(size_t i, Building &b) {
+	units_.action_state[i] = ACTION_GARRISONED;
+	units_.alive[i] = 0;
+	units_.has_order[i] = 0;
+	units_.vel_x[i] = 0.0f;
+	units_.vel_z[i] = 0.0f;
+	units_.waypoint_count[i] = 0;
+	set_order(i, ORDER_NONE, 0, 0, b.x, b.z); // inside: the order is done
+	b.garrisoned_units.push_back(units_.id[i]);
 }
 
 bool Simulation::structure_has_enough_health(const Building &b) const {
@@ -3890,10 +3920,8 @@ void Simulation::tick_repair(float dt) {
 
 			// Repair finished building (0 A.D. Repairable.js:114-118 Repair rate)
 			b.hp = std::min(b.max_hp, b.hp + dt * 30.0f * speed_mult);
-			if (b.hp >= b.max_hp) {
-				units_.action_state[i] = ACTION_IDLE;
-				units_.target_building_id[i] = 0;
-			}
+			// Repairable sends ConstructionFinished too: the repairers move on to nearby work.
+			if (b.hp >= b.max_hp) on_construction_finished(b, i);
 		}
 	}
 }
@@ -4070,7 +4098,9 @@ void Simulation::tick_combat(float dt) {
 		if (st == ACTION_GATHER || st == ACTION_BUILD || st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE ||
 				st == ACTION_FLEE || st == ACTION_GARRISONED)
 			return;
-		if (st == ACTION_MOVE && units_.order_kind[i] == ORDER_WALK && (units_.order_flags[i] & ORDER_FLAG_FORCE)) return;
+		if (st == ACTION_MOVE && (units_.order_kind[i] == ORDER_WALK || units_.order_kind[i] == ORDER_GARRISON) &&
+				(units_.order_flags[i] & ORDER_FLAG_FORCE))
+			return;
 		const bool guarding = st == ACTION_GUARD; // target_unit_id is the guarded unit
 		const bool walk_and_fight = st == ACTION_ATTACK_MOVE || st == ACTION_PATROL;
 
@@ -4173,6 +4203,7 @@ void Simulation::tick_combat(float dt) {
 				units_.target_x[i] = units_.pos_x[found];
 				units_.target_z[i] = units_.pos_z[found];
 			}
+			if (st == ACTION_CHEER) units_.attack_timer[i] = 0.0f; // RespondToSightedEntities ends the cheer
 			if (st != ACTION_ATTACK) {
 				units_.waypoint_count[i] = 0; // chase directly, not along the walk path
 				if (on_the_move) { units_.anchor_x[i] = pxi; units_.anchor_z[i] = pzi; }
@@ -4418,6 +4449,7 @@ void Simulation::tick_combat(float dt) {
 			if (units_.hp[t] <= 0) {
 				units_.alive[t] = 0;
 				units_.action_state[t] = ACTION_DYING;
+				note_kill(units_.id[i], units_.id[t]);
 				record_death(units_.pos_x[t], units_.pos_z[t], units_.team[t], units_.team[i], units_.unit_type[t], false);
 				if (units_.team[t] == 0) {
 					record_.units_lost++;
@@ -4471,7 +4503,7 @@ void Simulation::tick_combat(float dt) {
 		// Builders and repairers also carry target_building_id; leave them to tick_construction.
 		if (units_.action_state[i] == ACTION_BUILD) continue;
 		const float capture_strength = (units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE) ?
-				unit_capture_strength(units_.unit_type[i]) : 0.0f;
+				unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) : 0.0f;
 		if (units_.attack_damage[i] <= 0.0f && capture_strength <= 0.0f) continue;
 		auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
 		if (bit == building_id_to_idx_.end()) {
@@ -4675,51 +4707,7 @@ void Simulation::tick_combat(float dt) {
 		}
 	}
 
-	// 3b. Priest / Healer Unit Active Healing & Cleansing (UNIT_HEALER)
-	for (size_t h = 0; h < n; ++h) {
-		if (!units_.alive[h] || units_.unit_type[h] != UNIT_HEALER) continue;
-		const uint8_t h_team = units_.team[h];
-		const float hx = units_.pos_x[h];
-		const float hz = units_.pos_z[h];
-		int32_t heal_target = -1;
-		float lowest_hp_ratio = 1.0f;
-
-		// Healing Range / Healing Rate technologies (Heal/Range, Heal/Interval).
-		const float heal_radius = healer_range(h_team);
-		const float heal_r2 = heal_radius * heal_radius;
-		grid.visit_radius(hx, hz, heal_radius, [&](int32_t u) {
-			if (!units_.alive[u] || units_.team[u] != h_team || u == (int32_t)h) return;
-			// visit_radius hands over whole cells, so check the real distance:
-			// without this a healer healed every ally on the map.
-			const float dx = units_.pos_x[u] - hx, dz = units_.pos_z[u] - hz;
-			if (dx * dx + dz * dz > heal_r2) return;
-			float ratio = units_.hp[u] / units_.max_hp[u];
-			bool has_debuff = (units_.status_effects[u] & (EFFECT_POISON | EFFECT_SNARE | EFFECT_SLOW | EFFECT_BLEED | EFFECT_BURNING)) != 0;
-			if (ratio < lowest_hp_ratio || (has_debuff && ratio < 0.99f)) {
-				lowest_hp_ratio = ratio;
-				heal_target = u;
-			}
-		});
-
-		if (heal_target >= 0 && (lowest_hp_ratio < 0.999f || (units_.status_effects[heal_target] & (EFFECT_POISON | EFFECT_SNARE | EFFECT_SLOW | EFFECT_BLEED | EFFECT_BURNING)))) {
-			const float hp_before = units_.hp[heal_target];
-			units_.hp[heal_target] = std::min(units_.max_hp[heal_target],
-					units_.hp[heal_target] + dt * healer_rate(h_team));
-			// 0 A.D. Heal.js PerformHeal: health healed / max health * the target's Loot/xp.
-			if (units_.max_hp[heal_target] > 0.0f)
-				gain_xp(h, (units_.hp[heal_target] - hp_before) / units_.max_hp[heal_target] *
-						unit_loot(units_.tmpl[heal_target], units_.unit_type[heal_target]).xp *
-						loot_rank_multiplier(units_.rank[heal_target]));
-			if (units_.status_effects[heal_target] & (EFFECT_POISON | EFFECT_SNARE | EFFECT_SLOW | EFFECT_BLEED | EFFECT_BURNING)) {
-				units_.status_effects[heal_target] &= ~(EFFECT_POISON | EFFECT_SNARE | EFFECT_SLOW | EFFECT_BLEED | EFFECT_BURNING);
-				units_.poison_timer[heal_target] = 0.0f;
-				units_.snare_timer[heal_target] = 0.0f;
-				units_.slow_timer[heal_target] = 0.0f;
-				units_.bleed_timer[heal_target] = 0.0f;
-				units_.burning_timer[heal_target] = 0.0f;
-			}
-		}
-	}
+	// 3b. Healers heal through UnitAI's HEAL order (tick_unit_ai -> tick_heal).
 
 	// 4. Wonder victory countdown lives in check_victory_conditions (wonder mode only).
 
@@ -4870,7 +4858,9 @@ void Simulation::tick_capture(float dt) {
 		Building &b = buildings_[bi];
 		if (b.build_progress < 1.0f || b.max_capture_points <= 0.0f) continue;
 		if (b.team >= MAX_PLAYERS) {
-			tick_capture_gaia(b, dt);
+			capture_points_tick(b, bi, dt);
+			b.capture_points = std::max(0.0f, b.max_capture_points -
+					std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f));
 			continue;
 		}
 		if (std::abs(std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f) - b.max_capture_points) > 0.01f) {
@@ -4879,10 +4869,6 @@ void Simulation::tick_capture(float dt) {
 		}
 		const int *count = capture_tally_[bi].count;
 		const int owner = b.team < 4 ? b.team : 0;
-		const int pl = b.team; // the owner, any of the 8 players
-		auto enemy = [&](int source, int target) {
-			return can_attack((uint8_t)source, (uint8_t)target);
-		};
 		// TerritoryDecay.js: only structures outside their owner's territory
 		// decay, and the points go to whoever owns the ground they stand on.
 		// RTS0 has no Gaia player, so no-man's land doesn't decay. (Decaying
@@ -4896,108 +4882,83 @@ void Simulation::tick_capture(float dt) {
 			b.capture_points_by_team[owner] -= decay;
 			b.capture_points_by_team[neighbour] += decay;
 		}
-		// Capturable.Reduce, once per capture attack that landed this tick (tick_combat),
-		// in player order: the points come off the capturer's enemies and go to it.
-		const std::array<float, MAX_PLAYERS> &cap = capture_attack_[bi];
-		auto reduce = [&](int to, float amount, auto &&from) {
-			float remaining = std::min(amount, b.max_capture_points);
-			while (remaining > 0.0001f) {
-				int pools = 0;
-				for (int t = 0; t < MAX_PLAYERS; ++t)
-					if (t != to && from(t) && b.capture_points_by_team[t] > 0.0f) pools++;
-				if (pools == 0) break;
-				const float share = remaining / pools;
-				float removed = 0.0f;
-				for (int t = 0; t < MAX_PLAYERS; ++t) {
-					if (t == to || !from(t) || b.capture_points_by_team[t] <= 0.0f) continue;
-					const float take = std::min(b.capture_points_by_team[t], share);
-					b.capture_points_by_team[t] -= take;
-					removed += take;
-				}
-				remaining -= removed;
-				if (removed <= 0.0001f) break;
-			}
-			const float taken = b.max_capture_points - std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f);
-			b.capture_points_by_team[to] += taken;
-		};
-		for (int p = 0; p < MAX_PLAYERS; ++p)
-			if (cap[p] > 0.0f) reduce(p, cap[p], [&](int t) { return enemy(p, t); });
-		// 0 A.D. Capturable.js:183-201 GetRegenRate & TimerTick: the owner (and its
-		// garrison) win points back from its enemies all the time.
-		if (b.capture_points_by_team[pl] < b.max_capture_points && (b.capture_regen_rate > 0.0f || b.capture_garrison_regen_rate > 0.0f)) {
-			const float garrison = (float)b.garrisoned_units.size() * b.capture_garrison_regen_rate;
-			const float total_regen = b.capture_regen_rate + garrison;
-			if (total_regen > 0.0f)
-				reduce(pl, std::min(total_regen * dt, b.max_capture_points - b.capture_points_by_team[pl]),
-						[&](int t) { return enemy(pl, t); });
-		}
-
-		// Owner flip when a team crosses majority (> 50% max) or owner points reach 0 (Capturable.js:168-181)
-		int best = pl;
-		for (int t = 0; t < MAX_PLAYERS; ++t) {
-			if (b.capture_points_by_team[t] > b.capture_points_by_team[best]) {
-				best = t;
-			}
-		}
-		if (best != pl && (b.capture_points_by_team[best] > b.max_capture_points * 0.5f || b.capture_points_by_team[pl] <= 0.0001f)) {
-			order_ungarrison(b.id);
-			tally_capturers(); // the units it let out count for the buildings after this one
-			cancel_upgrade(b, b.team);
-			b.team = (uint8_t)best;
-			raise_alert(BattleAlert::ALERT_STRUCTURE_CAPTURED, b.x, b.z, b.id, b.team);
-			if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER) rebuild_territory();
-		}
-		b.capture_points = b.capture_points_by_team[b.team < 8 ? b.team : 0];
+		capture_points_tick(b, bi, dt);
+		b.capture_points = b.team < MAX_PLAYERS ? b.capture_points_by_team[b.team] : std::max(0.0f, b.max_capture_points -
+				std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f));
 	}
 	capture_attack_.clear(); // spent
 }
 
-void Simulation::tick_capture_gaia(Building &b, float dt) {
-	// A Gaia structure: the points no player holds are Gaia's. The player whose capture
-	// attacks took most this tick takes Gaia's points first, then its enemies'; with
-	// nobody capturing, Gaia regenerates. A player holding over half the points takes it.
-	int count[MAX_PLAYERS] = {};
-	float strength[MAX_PLAYERS] = {};
-	const size_t bi = (size_t)(&b - buildings_.data());
-	if (bi < capture_attack_.size())
-		for (int t = 0; t < MAX_PLAYERS; ++t)
-			if (capture_attack_[bi][t] > 0.0f) { count[t] = 1; strength[t] = capture_attack_[bi][t]; }
-	int captor = -1;
-	for (int t = 0; t < MAX_PLAYERS && !ceasefire_active(); ++t) {
-		if (count[t] && strength[t] > 0.0f && (captor < 0 || strength[t] > strength[captor])) captor = t;
-	}
-	auto &pts = b.capture_points_by_team;
-	float held = std::accumulate(pts.begin(), pts.end(), 0.0f);
-	if (captor >= 0) {
-		float amount = strength[captor];
-		const float from_gaia = std::min(amount, std::max(0.0f, b.max_capture_points - held));
-		pts[captor] += from_gaia;
-		amount -= from_gaia;
-		for (int t = 0; t < MAX_PLAYERS && amount > 0.0f; ++t) {
-			if (t == captor || !is_hostile((uint8_t)captor, (uint8_t)t)) continue;
-			const float take = std::min(pts[t], amount);
-			pts[t] -= take;
-			pts[captor] += take;
-			amount -= take;
+// 0 A.D. Capturable.js for one structure, owned by a player or by Gaia. Pools 0-7 are
+// the players' points, pool 8 is Gaia's (whatever no player holds). Reduce takes the
+// points of the source's enemies, evenly, and hands them to the source; the owner
+// regenerates RegenRate plus GarrisonRegenRate per garrisoned unit's Capture attack
+// (GetRegenRate) from its enemies; the structure changes hands once its owner holds
+// no points left, to whoever holds most (RegisterCapturePointsChanged).
+void Simulation::capture_points_tick(Building &b, size_t bi, float dt) {
+	constexpr int GAIA = MAX_PLAYERS; // pool index
+	const bool gaia_owned = b.team >= MAX_PLAYERS;
+	int owner = gaia_owned ? GAIA : b.team;
+	std::array<float, MAX_PLAYERS + 1> pts{};
+	float held = 0.0f;
+	for (int t = 0; t < MAX_PLAYERS; ++t) { pts[t] = b.capture_points_by_team[t]; held += pts[t]; }
+	pts[GAIA] = std::max(0.0f, b.max_capture_points - held);
+	auto enemy = [&](int source, int t) {
+		if (source == t) return false;
+		if (source == GAIA || t == GAIA) return true; // everyone is Gaia's enemy
+		return can_attack((uint8_t)source, (uint8_t)t);
+	};
+	auto reduce = [&](int to, float amount) {
+		if (amount <= 0.0f) return;
+		float before = 0.0f;
+		for (int t = 0; t <= GAIA; ++t) if (t != to) before += pts[t];
+		int pools = 0;
+		for (int t = 0; t <= GAIA; ++t) if (pts[t] > 0.0f && enemy(to, t)) pools++;
+		if (pools == 0) return;
+		float removed = 0.0f;
+		float share = amount / (float)pools;
+		while (share > 0.0001f) {
+			pools = 0;
+			for (int t = 0; t <= GAIA; ++t) {
+				if (pts[t] <= 0.0f || !enemy(to, t)) continue;
+				if (pts[t] > share) { removed += share; pts[t] -= share; ++pools; }
+				else { removed += pts[t]; pts[t] = 0.0f; }
+			}
+			share = pools ? (amount - removed) / (float)pools : 0.0f;
 		}
-	} else if (held > 0.0f) {
-		float regen = std::min(held, b.capture_regen_rate * dt);
-		for (int t = 0; t < MAX_PLAYERS && regen > 0.0f; ++t) {
-			const float take = std::min(pts[t], regen);
-			pts[t] -= take;
-			regen -= take;
-		}
-	}
-	b.capture_points = std::max(0.0f, b.max_capture_points - std::accumulate(pts.begin(), pts.end(), 0.0f));
-	if (captor >= 0 && pts[captor] > b.max_capture_points * 0.5f) {
+		float after = 0.0f;
+		for (int t = 0; t <= GAIA; ++t) if (t != to) after += pts[t];
+		pts[to] += before - after;
+	};
+	// RegisterCapturePointsChanged: the owner left with no points loses the structure to
+	// whoever holds most, at once (before it can regenerate).
+	auto check_owner = [&]() {
+		if (pts[owner] > 0.0001f) return false;
+		int best = 0;
+		for (int t = 1; t <= GAIA; ++t) if (pts[t] > pts[best]) best = t;
+		if (best == owner) return false;
 		order_ungarrison(b.id);
-		b.team = (uint8_t)captor;
-		pts.fill(0.0f);
-		pts[captor] = b.max_capture_points;
-		b.capture_points = b.max_capture_points;
+		cancel_upgrade(b, b.team);
+		b.team = best == GAIA ? GAIA_PLAYER : (uint8_t)best;
+		owner = best;
 		raise_alert(BattleAlert::ALERT_STRUCTURE_CAPTURED, b.x, b.z, b.id, b.team);
 		if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER) rebuild_territory();
+		return true;
+	};
+	check_owner(); // territory decay (tick_capture) may have emptied the owner
+	// Capture attacks that landed this tick (tick_combat), in player order.
+	if (bi < capture_attack_.size())
+		for (int p = 0; p < MAX_PLAYERS; ++p)
+			if (capture_attack_[bi][p] > 0.0f) { reduce(p, capture_attack_[bi][p]); check_owner(); }
+	// GetRegenRate: RegenRate plus GarrisonRegenRate x each garrisoned unit's Capture attack.
+	float regen = b.capture_regen_rate;
+	for (uint32_t uid : b.garrisoned_units) {
+		const int32_t u = lookup_unit(uid);
+		if (u >= 0) regen += b.capture_garrison_regen_rate * unit_capture_attack(units_.tmpl[u], units_.unit_type[u]);
 	}
+	if (regen > 0.0f && pts[owner] < b.max_capture_points) reduce(owner, regen * dt);
+	check_owner();
+	for (int t = 0; t < MAX_PLAYERS; ++t) b.capture_points_by_team[t] = pts[t];
 }
 
 void Simulation::tick_projectiles(float dt) {
@@ -5032,6 +4993,7 @@ void Simulation::tick_projectiles(float dt) {
 					if (units_.hp[tidx] <= 0) {
 						units_.alive[tidx] = 0;
 						units_.action_state[tidx] = ACTION_DYING;
+						note_kill(p.source_id, units_.id[tidx]);
 						record_death(units_.pos_x[tidx], units_.pos_z[tidx], units_.team[tidx], p.team, units_.unit_type[tidx], false);
 						if (units_.team[tidx] == 0) {
 							record_.units_lost++;
@@ -5870,6 +5832,7 @@ void Simulation::apply_order(uint32_t uid, const UnitOrder &o) {
 		case ORDER_BUILD: order_build_or_repair(&uid, 1, o.target); break;
 		case ORDER_GARRISON: order_garrison(&uid, 1, o.target); break;
 		case ORDER_GUARD: order_guard(&uid, 1, o.target); break;
+		case ORDER_HEAL: order_heal(&uid, 1, o.target); break;
 		default: break;
 	}
 	applying_queued_ = was;
@@ -5915,6 +5878,7 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 			const int32_t t = lookup_unit(o.target);
 			return t >= 0 && units_.alive[t];
 		}
+		case ORDER_HEAL: return can_heal(i, lookup_unit(o.target));
 		default: return false;
 	}
 }
@@ -5929,6 +5893,13 @@ void Simulation::finish_order(size_t i) {
 			UnitOrder o = current_order(i);
 			o.target = r;
 			apply_order(uid, o);
+			return;
+		}
+		// GATHER FINDINGNEWTARGET: nothing left to gather nearby; drop off what it carries.
+		if (units_.carry[i] > 0 && !order_queues_.count(uid)) {
+			set_order(i, ORDER_NONE, 0, 0, units_.pos_x[i], units_.pos_z[i]);
+			units_.target_resource_id[i] = 0;
+			units_.action_state[i] = ACTION_RETURN_DROPSITE;
 			return;
 		}
 	}
@@ -6150,6 +6121,31 @@ void Simulation::tick_unit_ai(float dt) {
 		}
 		const uint8_t now = units_.action_state[i];
 		const bool interrupted = (units_.order_flags[i] & ORDER_FLAG_INTERRUPTED) != 0;
+		if (now == ACTION_HEAL) { tick_heal(i); continue; }
+		if (now == ACTION_CHEER) {
+			if (units_.attack_timer[i] <= 0.0f) units_.action_state[i] = ACTION_IDLE;
+			continue;
+		}
+		// Garrison: get in once within LoadingRange; give up if the walk ends short of it.
+		if (units_.order_kind[i] == ORDER_GARRISON && !interrupted && (now == ACTION_MOVE || now == ACTION_IDLE)) {
+			auto bit = building_id_to_idx_.find(units_.order_target[i]);
+			Building *b = bit == building_id_to_idx_.end() ? nullptr : &buildings_[bit->second];
+			if (!b || !order_still_valid(i, current_order(i))) { finish_order(i); continue; }
+			if (garrison_in_range(i, *b)) { garrison_now(i, *b); continue; }
+			if (now == ACTION_IDLE) finish_order(i);
+			continue;
+		}
+		// A worker back from the dropsite with nothing left to gather.
+		if (now == ACTION_GATHER && units_.target_resource_id[i] == 0) {
+			units_.action_state[i] = ACTION_IDLE;
+			units_.has_order[i] = 0;
+			if (!interrupted && units_.order_kind[i] != ORDER_NONE) {
+				const UnitOrder o = current_order(i);
+				if (order_still_valid(i, o)) apply_order(units_.id[i], o); // back to the work it left
+				else finish_order(i);
+			}
+			continue;
+		}
 		if (now == ACTION_FLEE) {
 			const float dx = units_.target_x[i] - units_.pos_x[i], dz = units_.target_z[i] - units_.pos_z[i];
 			if (dx * dx + dz * dz <= 1.0f || units_.attack_timer[i] <= 0.0f) {
@@ -6172,13 +6168,25 @@ void Simulation::tick_unit_ai(float dt) {
 			continue;
 		}
 		if (now == ACTION_ATTACK && units_.target_unit_id[i] == 0 && units_.target_building_id[i] == 0) {
+			// COMBAT.FINDINGNEWTARGET: queued orders first, then cheer if the unit killed its target.
+			const bool cheer = (units_.order_flags[i] & ORDER_FLAG_CHEER) != 0;
+			units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_CHEER;
 			if (interrupted) resume_order(i);
 			else if (units_.order_kind[i] != ORDER_NONE) finish_order(i);
+			else { units_.action_state[i] = ACTION_IDLE; units_.has_order[i] = 0; }
+			if (cheer && units_.action_state[i] == ACTION_IDLE && units_.order_kind[i] == ORDER_NONE &&
+					!order_queues_.count(units_.id[i]))
+				start_cheer(i);
 			continue;
 		}
 		if (now == ACTION_IDLE) {
 			if (interrupted) resume_order(i);
 			else if (units_.order_kind[i] != ORDER_NONE) finish_order(i);
+			else if (units_.unit_type[i] == UNIT_HEALER && (i + ticks_) % 4 == 0) {
+				// IDLE LosHealRangeUpdate -> RespondToHealableEntities.
+				const uint32_t t = find_heal_target(i);
+				if (t != 0) start_heal(i, t, 0);
+			}
 		}
 	}
 	for (size_t i = 0; i < units_.count; ++i) units_.attacked_by[i] = 0;
@@ -6187,6 +6195,10 @@ void Simulation::tick_unit_ai(float dt) {
 bool Simulation::can_capture_building(uint8_t player, const Building &b) const {
 	if (b.wrecked || b.hp <= 0.0f || b.build_progress < 1.0f || b.max_capture_points <= 0.0f) return false;
 	if (player >= MAX_PLAYERS || ceasefire_active()) return false;
+	// Attack.js Capture RestrictedClasses "Field Palisade Wall" (gates and wall towers are Wall too).
+	if (b.type == BLD_FIELD || b.type == BLD_PALISADE || b.type == BLD_WALL_SEGMENT || b.type == BLD_GATE ||
+			b.type == BLD_WALL_TOWER)
+		return false;
 	if (b.team < MAX_PLAYERS && (b.team == player || is_ally(player, b.team))) return false; // UnitAI CanAttack: not our own
 	// Capturable.CanCapture: some of the points belong to an enemy of the capturer (or to Gaia).
 	float held = 0.0f;
@@ -6249,6 +6261,144 @@ void Simulation::order_back_to_work(const uint32_t *unit_ids, size_t count) {
 		if (!order_still_valid((size_t)i, o)) continue;
 		apply_order(unit_ids[k], o);
 	}
+}
+
+// ---------------------------------------------------------------------------
+// 0 A.D. UnitAI HEAL (Heal.js): a healer heals HEAL_HP every HEAL_INTERVAL_S (after a
+// HEAL_PREPARE_S wind-up) to one injured allied Human within its heal range, walking
+// up to it first. An idle healer looks for injured allies within its query range;
+// once its target is healed it looks again (FINDINGNEWTARGET), queued orders first.
+// ---------------------------------------------------------------------------
+
+bool Simulation::can_heal(size_t h, int32_t t) const {
+	if (t < 0 || (size_t)t == h || !units_.alive[t]) return false;
+	if (!unit_is_human(units_.unit_type[t]) || units_.hp[t] >= units_.max_hp[t]) return false; // IsInjured
+	const uint8_t a = units_.team[h], b = units_.team[t];
+	return a == b || is_ally(a, b); // IsOwnedByAllyOfPlayer
+}
+
+uint32_t Simulation::find_heal_target(size_t h) const {
+	// GetQueryRange(IID_Heal): passive healers search their vision too.
+	const float vision = unit_vision_range(units_.unit_type[h]);
+	const float range = healer_range(units_.team[h]);
+	float lim = vision;
+	if (units_.stance[h] == STANCE_STAND_GROUND) lim = std::min(range, vision);
+	else if (units_.stance[h] == STANCE_DEFENSIVE) lim = std::min(range + vision * 0.5f, vision);
+	uint32_t best = 0;
+	float best_d2 = lim * lim;
+	for (size_t t = 0; t < units_.count; ++t) {
+		if (!can_heal(h, (int32_t)t)) continue;
+		const float dx = units_.pos_x[t] - units_.pos_x[h], dz = units_.pos_z[t] - units_.pos_z[h];
+		const float d2 = dx * dx + dz * dz;
+		if (d2 <= best_d2) { best_d2 = d2; best = units_.id[t]; }
+	}
+	return best;
+}
+
+void Simulation::start_heal(size_t h, uint32_t target, uint8_t flags) {
+	const int32_t t = lookup_unit(target);
+	if (t < 0) return;
+	set_order(h, ORDER_HEAL, flags, target, units_.pos_x[t], units_.pos_z[t]);
+	units_.action_state[h] = ACTION_HEAL;
+	units_.target_unit_id[h] = target;
+	units_.target_building_id[h] = 0;
+	units_.target_resource_id[h] = 0;
+	units_.target_x[h] = units_.pos_x[t];
+	units_.target_z[h] = units_.pos_z[t];
+	units_.waypoint_count[h] = 0;
+	units_.has_order[h] = 1;
+	units_.attack_timer[h] = std::max(units_.attack_timer[h], HEAL_PREPARE_S);
+}
+
+void Simulation::set_unit_hp(uint32_t unit_id, float hp) {
+	const int32_t i = lookup_unit(unit_id);
+	if (i >= 0 && units_.alive[i]) units_.hp[i] = std::clamp(hp, 1.0f, units_.max_hp[i]);
+}
+
+void Simulation::order_heal(const uint32_t *unit_ids_in, size_t count_in, uint32_t target_unit_id, bool queued) {
+	const int32_t t = lookup_unit(target_unit_id);
+	if (t < 0 || !units_.alive[t]) return;
+	UnitOrder o; o.kind = ORDER_HEAL; o.flags = ORDER_FLAG_FORCE; o.target = target_unit_id;
+	o.x = units_.pos_x[t]; o.z = units_.pos_z[t];
+	const std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
+	for (uint32_t uid : now) {
+		const int32_t h = lookup_unit(uid);
+		if (h < 0 || !units_.alive[h] || units_.unit_type[h] != UNIT_HEALER) continue;
+		if (!can_heal((size_t)h, t)) continue;
+		start_heal((size_t)h, target_unit_id, ORDER_FLAG_FORCE);
+	}
+}
+
+void Simulation::tick_heal(size_t h) {
+	const int32_t t = lookup_unit(units_.target_unit_id[h]);
+	const bool forced = (units_.order_flags[h] & ORDER_FLAG_FORCE) != 0;
+	const float vision = unit_vision_range(units_.unit_type[h]);
+	bool keep = can_heal(h, t);
+	float d2 = 0.0f;
+	if (keep) {
+		const float dx = units_.pos_x[t] - units_.pos_x[h], dz = units_.pos_z[t] - units_.pos_z[h];
+		d2 = dx * dx + dz * dz;
+		// ShouldAbandonChase: an automatic target that wanders out of sight is dropped.
+		if (!forced && d2 > vision * vision) keep = false;
+	}
+	if (!keep) { // FINDINGNEWTARGET
+		units_.target_unit_id[h] = 0;
+		units_.action_state[h] = ACTION_IDLE;
+		units_.has_order[h] = 0;
+		auto q = order_queues_.find(units_.id[h]);
+		if (q != order_queues_.end() && !q->second.empty()) { finish_order(h); return; }
+		const uint32_t next = find_heal_target(h);
+		if (next != 0) start_heal(h, next, 0);
+		else set_order(h, ORDER_NONE, 0, 0, units_.pos_x[h], units_.pos_z[h]);
+		return;
+	}
+	units_.order_x[h] = units_.pos_x[t];
+	units_.order_z[h] = units_.pos_z[t];
+	const float range = healer_range(units_.team[h]);
+	if (d2 > range * range) { // APPROACHING
+		units_.has_order[h] = 1;
+		units_.target_x[h] = units_.pos_x[t];
+		units_.target_z[h] = units_.pos_z[t];
+		units_.attack_timer[h] = std::max(units_.attack_timer[h], HEAL_PREPARE_S);
+		return;
+	}
+	units_.has_order[h] = 0; // HEALING
+	units_.vel_x[h] = units_.vel_z[h] = 0.0f;
+	if (units_.attack_timer[h] > 0.0f) return;
+	units_.attack_timer[h] = HEAL_INTERVAL_S * std::max(0.1f, tech_mods(units_.team[h]).heal_interval[UNIT_HEALER]);
+	const float before = units_.hp[t];
+	units_.hp[t] = std::min(units_.max_hp[t], units_.hp[t] + HEAL_HP);
+	// Heal.js PerformHeal: health healed / max health * the target's Loot/xp.
+	if (units_.max_hp[t] > 0.0f)
+		gain_xp(h, (units_.hp[t] - before) / units_.max_hp[t] *
+				unit_loot(units_.tmpl[t], units_.unit_type[t]).xp * loot_rank_multiplier(units_.rank[t]));
+}
+
+// UnitAI CHEERING: CheeringTime standing still after a kill; idle units of the same
+// player within notifyToCheerInRange cheer too (CallPlayerOwnedEntitiesFunctionInRange).
+void Simulation::start_cheer(size_t i) {
+	auto cheer = [&](size_t k) {
+		units_.action_state[k] = ACTION_CHEER;
+		units_.has_order[k] = 0;
+		units_.vel_x[k] = units_.vel_z[k] = 0.0f;
+		units_.attack_timer[k] = CHEER_TIME_S;
+	};
+	cheer(i);
+	const uint8_t team = units_.team[i];
+	for (size_t k = 0; k < units_.count; ++k) {
+		if (k == i || !units_.alive[k] || units_.team[k] != team || units_.action_state[k] != ACTION_IDLE ||
+				units_.order_kind[k] != ORDER_NONE || unit_is_siege_engine(units_.unit_type[k]) || unit_is_ship(units_.unit_type[k]))
+			continue;
+		const float dx = units_.pos_x[k] - units_.pos_x[i], dz = units_.pos_z[k] - units_.pos_z[i];
+		if (dx * dx + dz * dz <= CHEER_NOTIFY_RANGE * CHEER_NOTIFY_RANGE) cheer(k);
+	}
+}
+
+void Simulation::note_kill(uint32_t killer_id, uint32_t victim_id) {
+	const int32_t k = lookup_unit(killer_id);
+	if (k < 0 || !units_.alive[k] || units_.target_unit_id[k] != victim_id) return;
+	if (unit_is_siege_engine(units_.unit_type[k]) || unit_is_ship(units_.unit_type[k])) return; // no CheeringTime
+	units_.order_flags[k] |= ORDER_FLAG_CHEER;
 }
 
 // Petra keeps a free ring of cells around everything it builds so units can
@@ -6570,17 +6720,14 @@ void Simulation::petra_manage_scouting(float dt) {
 		}
 	};
 
-	if (!revealed) ensure_fow_cell_heights();
-	for (size_t u = 0; u < units_.count && !revealed; ++u) {
-		if (!units_.alive[u] || units_.team[u] != petra_pid_) continue;
-		reveal_fow(petra_fow_, units_.pos_x[u], units_.pos_z[u], vision_radius(units_.unit_type[u]));
-	}
-
-	for (const auto &b : buildings_) {
-		if (revealed) break;
-		if (b.team != petra_pid_ || b.build_progress < 0.5f) continue;
-		float bvr = (b.type == BLD_TOWER || b.type == BLD_FORTRESS) ? 24.0f : ((b.type == BLD_DOCK) ? 28.0f : 18.0f);
-		reveal_fow(petra_fow_, b.x, b.z, bvr);
+	if (!revealed) {
+		ensure_fow_cell_heights();
+		reveal_viewers(petra_fow_, petra_fow_views_,
+				[&](size_t u) { return units_.alive[u] && units_.team[u] == petra_pid_ ? vision_radius(units_.unit_type[u]) : 0.0f; },
+				[&](const Building &b) {
+					if (b.team != petra_pid_ || b.build_progress < 0.5f) return 0.0f;
+					return (b.type == BLD_TOWER || b.type == BLD_FORTRESS) ? 24.0f : ((b.type == BLD_DOCK) ? 28.0f : 18.0f);
+				});
 	}
 
 	// 2. Validate current scout unit or recruit candidate
@@ -9266,11 +9413,12 @@ void Simulation::apply_petra_config() {
 // AI runs (or between ticks for PETRA_PLAYER), else in its parked slot. While
 // another AI runs, PETRA_PLAYER's state sits in that AI's slot.
 PetraConfig &Simulation::petra_config_slot(uint8_t pid) {
-	if (pid == petra_pid_) return petra_config_;
+	// Seed the slots with the shared setting before any one AI's edit.
 	if (petra_slots_.size() < MAX_PLAYERS) {
 		petra_slots_.resize(MAX_PLAYERS);
 		for (PetraSlot &slot : petra_slots_) slot.petra_config_ = petra_config_;
 	}
+	if (pid == petra_pid_) return petra_config_;
 	if (pid == PETRA_PLAYER) return petra_slots_[petra_pid_].petra_config_;
 	return petra_slots_[pid].petra_config_;
 }
@@ -11205,6 +11353,7 @@ void Simulation::ensure_fow_cell_heights() {
 	// it once instead of once per viewer per cell.
 	const int G = grid_res_;
 	if (fow_cell_height_.size() == (size_t)G * (size_t)G) return;
+	if (++fow_view_gen_ == 0) ++fow_view_gen_; // 0 marks a FowView never filled
 	const float half = map_half_;
 	const float cell = (half * 2.0f) / (float)G;
 	fow_cell_height_.resize((size_t)G * (size_t)G);
@@ -11252,7 +11401,7 @@ void Simulation::ensure_fow_cell_heights() {
 		}
 }
 
-void Simulation::reveal_fow(std::vector<uint8_t> &grid, float sx, float sz, float vr) const {
+void Simulation::reveal_fow(std::vector<uint8_t> &grid, float sx, float sz, float vr, FowView *view) const {
 	// Marks every cell within vr of (sx, sz) that the terrain does not hide.
 	// A cell already VISIBLE this pass is skipped: another viewer lit it, and
 	// the LOS ray can only ever set it VISIBLE again. Needs ensure_fow_cell_heights().
@@ -11273,59 +11422,112 @@ void Simulation::reveal_fow(std::vector<uint8_t> &grid, float sx, float sz, floa
 	// it. The ray stays at or above min(eye, target) and is blocked only by terrain more than 0.35
 	// above it, so a box no higher than min(eye, target) + 0.35 (less a margin for float rounding)
 	// cannot block, and the ray test is skipped. Same result, fewer height samples.
-	struct LosShortcut {
-		const float *block_hmax;
-		int GB, bcx, bcz, rb, WB;
-		float eye_y;
-		bool ready = false;
-		float box_max[FOW_BOX_MAX_W * FOW_BOX_MAX_W]; // filled on first use, not zeroed per call
-		LosShortcut(const float *bh, int gb, int bx, int bz, int r_blocks, float eye) :
-				block_hmax(bh), GB(gb), bcx(bx), bcz(bz), rb(r_blocks), WB(2 * r_blocks + 1), eye_y(eye) {}
-		// True when no terrain between the viewer and cell (gx, gz) can block the ray to height ty.
-		[[gnu::noinline]] bool clear(int gx, int gz, float ty) {
-			if (!ready) { // in a crowd, many calls find every cell lit already
-				fow_box_max(block_hmax, GB, bcx, bcz, rb, box_max);
-				ready = true;
-			}
-			const int i = ((int)((unsigned)gz / FOW_LOS_BLOCK) - bcz + rb) * WB + ((int)((unsigned)gx / FOW_LOS_BLOCK) - bcx + rb);
-			return box_max[i] <= std::min(eye_y, ty) + FOW_LOS_CLEARANCE;
-		}
-	};
 	const int GB = (G + FOW_LOS_BLOCK - 1) / FOW_LOS_BLOCK;
 	const int bcx = cx / FOW_LOS_BLOCK, bcz = cz / FOW_LOS_BLOCK;
 	const int rb = r / FOW_LOS_BLOCK + 1;
-	LosShortcut los(fow_block_hmax_.data(), GB, bcx, bcz, rb, eye_y);
+	const int WB = 2 * rb + 1;
+	// box_max[(block row - bcz + rb) * WB + (block column - bcx + rb)]: the highest fow_block_hmax_
+	// between the viewer's block and that block. Filled the first time a cell needs it (in a crowd,
+	// many calls find every cell lit already), not zeroed per call.
+	float box_max[FOW_BOX_MAX_W * FOW_BOX_MAX_W];
+	bool box_ready = false;
 	// Every box holds the viewer's own block, so when that block is already higher than the eye
 	// allows, no cell can pass and the shortcut is off.
 	const bool shortcut = !fow_block_hmax_.empty() && cx >= 0 && cx < G && cz >= 0 && cz < G &&
-			los.WB <= FOW_BOX_MAX_W && fow_block_hmax_[(size_t)bcz * GB + bcx] <= eye_y + FOW_LOS_CLEARANCE;
+			WB <= FOW_BOX_MAX_W && fow_block_hmax_[(size_t)bcz * GB + bcx] <= eye_y + FOW_LOS_CLEARANCE;
 
+	// Calls visit(gx, lit) for each cell of row gz within vr, lit: the viewer sees it. With
+	// skip_lit, cells already VISIBLE in `row` are skipped.
 	constexpr uint64_t VISIBLE_X8 = 0x0101010101010101ull * FOW_VISIBLE;
-	for (int gz = gz0; gz <= gz1; ++gz) {
+	auto scan_row = [&](int gz, auto skip_lit, const uint8_t *row, auto &&visit) {
 		const float wz = (gz + 0.5f) * cell - half;
 		const float ddz = wz - sz;
 		const float rem = vr2 - ddz * ddz;
-		if (rem < 0.0f) continue; // no cell of this row is within vr
+		if (rem < 0.0f) return; // no cell of this row is within vr
 		// The viewer is inside cell cx, so a cell k > half-width / cell + 1 columns away is more
 		// than half a cell outside the circle and fails the distance test below anyway.
 		const int span = (int)(std::sqrt(rem) / cell) + 1;
 		const int lo = std::max(gx0, cx - span), hi = std::min(gx1, cx + span);
-		uint8_t *row = &grid[(size_t)gz * G];
 		const float *hrow = &fow_cell_height_[(size_t)gz * G];
+		const int box_row = shortcut ? ((int)((unsigned)gz / FOW_LOS_BLOCK) - bcz + rb) * WB - bcx + rb : 0; // + column / FOW_LOS_BLOCK
 		for (int gx = lo; gx <= hi; ++gx) {
-			if (row[gx] == FOW_VISIBLE) {
-				// Skip runs of cells other viewers already lit, eight at a time.
-				uint64_t next8;
-				while (gx + 8 <= hi && (std::memcpy(&next8, row + gx + 1, 8), next8 == VISIBLE_X8)) gx += 8;
-				continue;
+			if constexpr (decltype(skip_lit)::value) {
+				if (row[gx] == FOW_VISIBLE) {
+					// Skip runs of cells other viewers already lit, eight at a time.
+					uint64_t next8;
+					while (gx + 8 <= hi && (std::memcpy(&next8, row + gx + 1, 8), next8 == VISIBLE_X8)) gx += 8;
+					continue;
+				}
 			}
 			const float wx = (gx + 0.5f) * cell - half;
 			const float ddx = wx - sx;
 			if (ddx * ddx + ddz * ddz > vr2) continue;
 			const float ty = hrow[gx] + 0.4f;
-			if ((shortcut && los.clear(gx, gz, ty)) || !terrain_blocks_los(sx, sz, eye_y, wx, wz, ty))
-				row[gx] = FOW_VISIBLE;
+			bool clear = false; // no terrain between the viewer and this cell can block the ray
+			if (shortcut) {
+				if (!box_ready) [[unlikely]] {
+					fow_box_max(fow_block_hmax_.data(), GB, bcx, bcz, rb, box_max);
+					box_ready = true;
+				}
+				clear = box_max[box_row + (int)((unsigned)gx / FOW_LOS_BLOCK)] <= std::min(eye_y, ty) + FOW_LOS_CLEARANCE;
+			}
+			visit(gx, clear || !terrain_blocks_los(sx, sz, eye_y, wx, wz, ty));
 		}
+	};
+
+	// A viewer that has not moved since its last call lights the same cells, so the second call
+	// from the same spot keeps them as bit rows and later ones copy them back.
+	if (view) {
+		const uint32_t kx = std::bit_cast<uint32_t>(sx), kz = std::bit_cast<uint32_t>(sz);
+		const uint32_t kv = std::bit_cast<uint32_t>(vr);
+		if (view->gen != fow_view_gen_ || view->sx != kx || view->sz != kz || view->vr != kv) {
+			view->sx = kx;
+			view->sz = kz;
+			view->vr = kv;
+			view->gen = fow_view_gen_;
+			view->stored = false;
+		} else if (r <= FOW_VIEW_MAX_R) { // same spot: the same r
+			if (!view->stored) {
+				std::fill(view->rows, view->rows + 2 * r + 1, 0ull);
+				for (int gz = gz0; gz <= gz1; ++gz) {
+					uint64_t &bits = view->rows[gz - cz + r];
+					scan_row(gz, std::false_type{}, nullptr, [&](int gx, bool lit) {
+						if (lit) bits |= 1ull << (gx - cx + r);
+					});
+				}
+				view->stored = true;
+			}
+			const int x0 = cx - r, chunks = (2 * r + 1 + 7) / 8;
+			if (x0 >= 0 && x0 + chunks * 8 <= G) {
+				// Eight cells at a time: FOW_VISIBLE in the bytes whose bits are set, the rest kept.
+				for (int gz = gz0; gz <= gz1; ++gz) {
+					uint8_t *row = &grid[(size_t)gz * G + x0];
+					const uint64_t bits = view->rows[gz - cz + r];
+					for (int k = 0; k < chunks && bits >> (8 * k); ++k) {
+						const uint64_t mask = kFowByteMask[(bits >> (8 * k)) & 0xFF];
+						if (!mask) continue;
+						uint64_t cells;
+						std::memcpy(&cells, row + 8 * k, 8);
+						cells = (cells & ~mask) | (VISIBLE_X8 & mask);
+						std::memcpy(row + 8 * k, &cells, 8);
+					}
+				}
+			} else {
+				for (int gz = gz0; gz <= gz1; ++gz) {
+					uint8_t *row = &grid[(size_t)gz * G];
+					for (uint64_t bits = view->rows[gz - cz + r]; bits; bits &= bits - 1)
+						row[x0 + std::countr_zero(bits)] = FOW_VISIBLE;
+				}
+			}
+			return;
+		}
+	}
+
+	for (int gz = gz0; gz <= gz1; ++gz) {
+		uint8_t *row = &grid[(size_t)gz * G];
+		scan_row(gz, std::true_type{}, row, [&](int gx, bool lit) {
+			if (lit) row[gx] = FOW_VISIBLE;
+		});
 	}
 }
 
@@ -11345,7 +11547,7 @@ void Simulation::tick_fow() {
 	// VisionSharing.js: allied players share the visibility generated by
 	// their units/buildings -- teammates, or a mutual alliance both sides chose.
 	// fow_grid_ is player 0's view and the one hashed for lockstep.
-	update_player_fow(fow_grid_, [this](uint8_t owner) { return is_ally(0, owner); });
+	update_player_fow(fow_grid_, [this](uint8_t owner) { return is_ally(0, owner); }, player_fow_views_);
 
 	// The local viewer's own view when it is not player 0 (a multiplayer
 	// joiner). It is presentation-only state: never hashed or read by the
@@ -11354,19 +11556,19 @@ void Simulation::tick_fow() {
 	if (p != 0 && p < MAX_PLAYERS) {
 		auto &grid = player_fow_[p];
 		if (grid.size() != fow_grid_.size()) grid.assign(fow_grid_.size(), FOW_UNEXPLORED);
-		update_player_fow(grid, [this, p](uint8_t owner) { return is_ally(p, owner); });
+		update_player_fow(grid, [this, p](uint8_t owner) { return is_ally(p, owner); }, player_fow_views_);
 	}
 }
 
 template <typename SharesVision>
-void Simulation::update_player_fow(std::vector<uint8_t> &grid, SharesVision shares_vision) {
+void Simulation::update_player_fow(std::vector<uint8_t> &grid, SharesVision shares_vision, FowViews &views) {
 	// Step 1: Reset all VISIBLE tiles back to EXPLORED (preserve explored history).
 	// 0 A.D. "Explored map": nothing is ever unexplored (terrain known, units hidden).
 	const uint8_t floor = explore_map_ ? FOW_EXPLORED : FOW_UNEXPLORED;
 	for (auto &c : grid) c = c == FOW_VISIBLE ? (uint8_t)FOW_EXPLORED : std::max(c, floor);
 
-	// Step 2: For every unit whose vision the player shares, illuminate tiles within its vision radius
-	// Vision radius per unit type (in world units):
+	// Steps 2 and 3: every unit and finished building whose vision the player shares lights the
+	// tiles within its vision radius. Vision radius per unit type (in world units):
 	//   Villager/Infantry: 16m, Cavalry: 20m, Archer: 22m, Catapult: 24m, Hero: 18m, Elephant: 20m, Trireme: 28m
 	auto vision_radius = [](uint8_t utype) -> float {
 		switch (utype) {
@@ -11380,19 +11582,41 @@ void Simulation::update_player_fow(std::vector<uint8_t> &grid, SharesVision shar
 		}
 	};
 
-	for (size_t u = 0; u < units_.count; ++u) {
-		if (!units_.alive[u] || !shares_vision(units_.team[u])) continue;
-		reveal_fow(grid, units_.pos_x[u], units_.pos_z[u], vision_radius(units_.unit_type[u]));
-	}
+	reveal_viewers(grid, views,
+			[&](size_t u) { return units_.alive[u] && shares_vision(units_.team[u]) ? vision_radius(units_.unit_type[u]) : 0.0f; },
+			[&](const Building &b) {
+				if (!shares_vision(b.team) || b.build_progress < 1.0f) return 0.0f;
+				float bvr = 18.0f; // default building vision
+				if (b.type == BLD_TOWER || b.type == BLD_FORTRESS) bvr = 24.0f;
+				if (b.type == BLD_DOCK) bvr = 28.0f;
+				return bvr;
+			});
+}
 
-	// Step 3: Buildings also reveal their surroundings
-	for (const auto& b : buildings_) {
-		if (!shares_vision(b.team) || b.build_progress < 1.0f) continue;
-		float bvr = 18.0f; // default building vision
-		if (b.type == BLD_TOWER || b.type == BLD_FORTRESS) bvr = 24.0f;
-		if (b.type == BLD_DOCK) bvr = 28.0f;
-		reveal_fow(grid, b.x, b.z, bvr);
+template <typename UnitVision, typename BuildingVision>
+void Simulation::reveal_viewers(std::vector<uint8_t> &grid, FowViews &views, UnitVision unit_vr, BuildingVision building_vr) {
+	// Calls reveal_fow() for each building and unit with a vision radius above 0. The result is the
+	// union of their views whatever the order, so buildings and units that have not moved go first
+	// (copies of their stored views), and the units that moved last: their LOS rays then skip
+	// every cell the others lit.
+	if (views.buildings.size() < buildings_.size()) views.buildings.resize(buildings_.size());
+	for (size_t bi = 0; bi < buildings_.size(); ++bi) {
+		const auto &b = buildings_[bi];
+		const float vr = building_vr(b);
+		if (vr > 0.0f) reveal_fow(grid, b.x, b.z, vr, &views.buildings[bi]);
 	}
+	if (views.units.size() < units_.count) views.units.resize(units_.count);
+	fow_moved_units_.clear();
+	for (size_t u = 0; u < units_.count; ++u) {
+		const float vr = unit_vr(u);
+		if (vr <= 0.0f) continue;
+		if (views.units[u].same_spot(units_.pos_x[u], units_.pos_z[u], vr, fow_view_gen_))
+			reveal_fow(grid, units_.pos_x[u], units_.pos_z[u], vr, &views.units[u]);
+		else
+			fow_moved_units_.push_back((uint32_t)u);
+	}
+	for (const uint32_t u : fow_moved_units_)
+		reveal_fow(grid, units_.pos_x[u], units_.pos_z[u], unit_vr(u), &views.units[u]);
 }
 
 Simulation::FaunaView Simulation::fauna() const {

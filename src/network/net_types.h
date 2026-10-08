@@ -155,8 +155,11 @@ enum class NetCommandType : uint8_t {
 	NET_CMD_DELETE         = 30,
 	// 0 A.D. "back-to-work" (UnitAI BackToWork) on the selected units.
 	NET_CMD_BACK_TO_WORK   = 31,
+	// 0 A.D. Heal order (UnitAI Heal): healers in entity_ids heal target_id (an injured
+	// allied unit). param bit NET_PARAM_QUEUED queues it.
+	NET_CMD_HEAL           = 32,
 	// Session control, not game commands (200+ is reserved for these; game command
-	// ids keep growing from 32). Only the host sends them, inside its own turn batch,
+	// ids keep growing from 33). Only the host sends them, inside its own turn batch,
 	// so every client learns of a seat change before the turn it affects (0 A.D.
 	// NetServerTurnManager::InitialiseClient / UninitialiseClient). The sim ignores them.
 	// A client takes a seat: target_id = client id, param = player, target_x = the
