@@ -1329,7 +1329,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		for (float &g : m.gather[t]) g = 1.0f;
 		for (int16_t &c : m.carry[t]) c = 0;
 		m.attack[t] = m.health[t] = m.speed[t] = 1.0f;
-		m.train_time[t] = m.heal_interval[t] = m.trade_gain[t] = 1.0f;
+		m.train_time[t] = m.heal_interval[t] = m.trade_gain[t] = m.pack_time[t] = 1.0f;
 		m.range[t] = m.heal_range[t] = 0.0f;
 		m.armor[t][0] = m.armor[t][1] = m.armor[t][2] = 0.0f;
 	}
@@ -1379,6 +1379,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_HEAL_RANGE: apply(m.heal_range[t]); break;
 					case TSTAT_HEAL_INTERVAL: apply(m.heal_interval[t]); break;
 					case TSTAT_TRADE_GAIN: apply(m.trade_gain[t]); break;
+					case TSTAT_PACK_TIME: apply(m.pack_time[t]); break;
 					default: break;
 				}
 			}
@@ -2087,11 +2088,23 @@ void Simulation::order_pack(const uint32_t *unit_ids, size_t count, bool pack) {
 	}
 }
 
+// Saves before v16 numbered techs without siege_pack_unpack (id 55); later ids moved up one.
+static uint8_t shift_tech_before_v16(uint8_t id) {
+	return id >= TECH_SIEGE_PACK_UNPACK && id + 1 < TECH_COUNT ? (uint8_t)(id + 1) : id;
+}
+
+static TechSet shift_techs_before_v16(const TechSet &old) {
+	TechSet out;
+	for (int id = 0; id < TECH_COUNT; ++id)
+		if (old.has((uint8_t)id)) out.set(shift_tech_before_v16((uint8_t)id));
+	return out;
+}
+
 float Simulation::pack_time_s(size_t unit_idx) const {
-	(void)unit_idx;
-	// 0 A.D.'s Military Engineers tech (siege_pack_unpack.json, Pack/Time x0.6) applies here
-	// once it is in tech_data.h.
-	return PACK_TIME_S;
+	// 0 A.D. Military Engineers (siege_pack_unpack.json): Pack/Time x0.6 for Siege.
+	const uint8_t team = units_.team[unit_idx], t = units_.unit_type[unit_idx];
+	if (team >= MAX_PLAYERS || t >= UNIT_TYPE_COUNT) return PACK_TIME_S;
+	return PACK_TIME_S * tech_mods_[team].pack_time[t];
 }
 
 void Simulation::order_set_formation(const uint32_t *unit_ids, size_t count, uint8_t formation) {
@@ -2132,14 +2145,74 @@ int Simulation::get_transport_capacity(uint32_t transport_id) const {
 	uint8_t utype = units_.unit_type[idx];
 	if (utype == UNIT_TRIREME) return TRANSPORT_CAPACITY;
 	if (utype == UNIT_MERCHANT_SHIP) return 10;
-	return 0;
+	return siege_garrison_capacity((size_t)idx);
 }
 
 bool Simulation::is_transport(uint32_t unit_id) const {
 	int32_t idx = lookup_unit(unit_id);
 	if (idx < 0 || !units_.alive[idx]) return false;
 	uint8_t utype = units_.unit_type[idx];
-	return utype == UNIT_TRIREME || utype == UNIT_MERCHANT_SHIP;
+	return utype == UNIT_TRIREME || utype == UNIT_MERCHANT_SHIP || siege_garrison_capacity((size_t)idx) > 0;
+}
+
+bool Simulation::is_siege_tower_at(size_t i) const {
+	const uint16_t tmpl = units_.tmpl[i];
+	return tmpl != CIV_UNIT_TEMPLATE_NONE && tmpl < CIV_UNIT_TEMPLATE_COUNT
+		&& (civ_unit_template(tmpl).flags & ROSTER_SIEGE_TOWER) != 0;
+}
+
+int Simulation::siege_garrison_capacity(size_t i) const {
+	if (is_siege_tower_at(i)) return SIEGE_TOWER_GARRISON;
+	if (units_.unit_type[i] == UNIT_SIEGE_RAM) return SIEGE_RAM_GARRISON;
+	return 0;
+}
+
+int Simulation::siege_tower_arrows(size_t i) const {
+	auto pit = transport_passengers_.find(units_.id[i]);
+	if (pit == transport_passengers_.end()) return 0;
+	int infantry = 0;
+	for (uint32_t puid : pit->second) {
+		int32_t p = lookup_unit(puid);
+		if (p >= 0 && (unit_tech_classes(units_.unit_type[p]) & TC_INFANTRY)) ++infantry;
+	}
+	return std::min(infantry, SIEGE_TOWER_MAX_ARROWS);
+}
+
+// Who may board: same owner, not a transport itself; land siege only takes
+// 0 A.D.'s Support and Infantry classes.
+bool Simulation::can_board(size_t transport_idx, size_t unit_idx) const {
+	if (units_.team[unit_idx] != units_.team[transport_idx]) return false;
+	if (is_transport(units_.id[unit_idx])) return false;
+	if (siege_garrison_capacity(transport_idx) > 0 && !siege_garrison_allowed(units_.unit_type[unit_idx])) return false;
+	return true;
+}
+
+void Simulation::tick_siege_garrisons() {
+	if (transport_passengers_.empty()) return;
+	// Index order, not map order, so every peer unloads identically.
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (siege_garrison_capacity(i) == 0) continue;
+		if (units_.action_state[i] == ACTION_GARRISONED) continue;
+		const bool dead = !units_.alive[i];
+		if (!dead && units_.hp[i] >= units_.max_hp[i] * SIEGE_EJECT_HEALTH) continue;
+		auto pit = transport_passengers_.find(units_.id[i]);
+		if (pit == transport_passengers_.end() || pit->second.empty()) continue;
+		const float cx = units_.pos_x[i], cz = units_.pos_z[i];
+		const float step = 6.2831853f / (float)pit->second.size();
+		int k = 0;
+		for (uint32_t puid : pit->second) {
+			int32_t p = lookup_unit(puid);
+			if (p < 0) continue;
+			const float a = step * (float)k++;
+			units_.pos_x[p] = std::clamp(cx + cosf(a) * 2.0f, -map_half_ + 1.0f, map_half_ - 1.0f);
+			units_.pos_z[p] = std::clamp(cz + sinf(a) * 2.0f, -map_half_ + 1.0f, map_half_ - 1.0f);
+			units_.alive[p] = 1;
+			units_.action_state[p] = ACTION_IDLE;
+			units_.has_order[p] = 0;
+			units_.vel_x[p] = units_.vel_z[p] = 0.0f;
+		}
+		transport_passengers_.erase(pit);
+	}
 }
 
 void Simulation::order_garrison(const uint32_t *unit_ids, size_t count, uint32_t building_id) {
@@ -2271,7 +2344,7 @@ void Simulation::order_board_transport(const uint32_t *unit_ids, size_t count, u
 		if ((int)passengers.size() >= max_cap) break;
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx] || units_.team[uidx] != team) continue;
-		if (is_transport(unit_ids[i])) continue;
+		if (!can_board((size_t)tidx, (size_t)uidx)) continue;
 
 		float dx = units_.pos_x[uidx] - tx;
 		float dz = units_.pos_z[uidx] - tz;
@@ -2524,6 +2597,7 @@ void Simulation::tick(float dt) {
 	tick_production(dt);     // 0 A.D. ProductionQueue.js: unit training queues
 	tick_research(dt);       // 0 A.D. ProductionQueue.js / Researcher.js: technology research progress
 	tick_upgrades(dt);       // 0 A.D. Upgrade.js: structure upgrades (sentry tower -> tower, wall -> gate)
+	tick_siege_garrisons();  // 0 A.D. GarrisonHolder EjectHealth / OnDestroy for siege towers and rams
 	tick_entity_limits(dt);  // 0 A.D. EntityLimits.js:7-12: enforce category limits per player (Wonder: 1, Fortress: 10)
 	tick_gates(dt);          // 0 A.D. Gate.js:145-180: auto open / close when allied units in pass range
 
@@ -2892,7 +2966,7 @@ void Simulation::move_units(float dt, Arena &arena) {
 		if (!units_.alive[i] || is_transport(units_.id[i])) continue;
 		if (units_.action_state[i] == ACTION_MOVE && units_.target_unit_id[i] != 0) {
 			int32_t tidx = lookup_unit(units_.target_unit_id[i]);
-			if (tidx >= 0 && units_.alive[tidx] && is_transport(units_.id[tidx]) && units_.team[tidx] == units_.team[i]) {
+			if (tidx >= 0 && units_.alive[tidx] && is_transport(units_.id[tidx]) && can_board((size_t)tidx, i)) {
 				float dx = px[i] - px[tidx];
 				float dz = pz[i] - pz[tidx];
 				if (dx * dx + dz * dz <= 4.5f * 4.5f) {
@@ -3691,6 +3765,12 @@ void Simulation::tick_combat(float dt) {
 
 		// Passive stance / civilian gatherers do not auto-acquire combat targets
 		if (units_.stance[i] == STANCE_PASSIVE) return;
+		// Walking to board a friendly ship or siege engine (0 A.D. Garrison order):
+		// keep the order instead of dropping target_unit_id for want of an enemy.
+		if (units_.action_state[i] == ACTION_MOVE && units_.target_unit_id[i] != 0) {
+			const int32_t c = lookup_unit(units_.target_unit_id[i]);
+			if (c >= 0 && units_.alive[c] && units_.team[c] == units_.team[i]) return;
+		}
 		if (units_.unit_type[i] == UNIT_VILLAGER &&
 				(units_.action_state[i] == ACTION_GATHER || units_.action_state[i] == ACTION_BUILD ||
 						units_.action_state[i] == ACTION_RETURN_DROPSITE)) {
@@ -3813,6 +3893,9 @@ void Simulation::tick_combat(float dt) {
 		if (t < 0 || !units_.alive[i] || units_.attack_timer[i] > 0) continue;
 		if (units_.attack_damage[i] <= 0.0f) continue;
 		if (!pack_state_can_attack(units_.pack_state[i])) continue; // Pack.js: unpack before firing
+		// Siege tower BuildingAI: DefaultArrowCount 0, one arrow per garrisoned Infantry.
+		const int volley = is_siege_tower_at(i) ? siege_tower_arrows(i) : 1;
+		if (volley <= 0) continue;
 		float dx = units_.pos_x[i] - units_.pos_x[t];
 		float dz = units_.pos_z[i] - units_.pos_z[t];
 		float d2 = dx * dx + dz * dz;
@@ -3928,14 +4011,15 @@ void Simulation::tick_combat(float dt) {
 			// 0 A.D. Spread dispersion
 			float dist = sqrtf(d2);
 			float spread_factor = (dist / units_.attack_range[i]) * 0.25f;
-			float disp_x = (sim_rng_.range_float(0.0f, 1.0f) - 0.5f) * spread_factor;
-			float disp_z = (sim_rng_.range_float(0.0f, 1.0f) - 0.5f) * spread_factor;
 			float launch_y = get_terrain_height(units_.pos_x[i], units_.pos_z[i]) + arrow_sy;
 			float land_y = get_terrain_height(units_.pos_x[t], units_.pos_z[t]) + 0.8f;
-
-			fire_arrow(units_.pos_x[i], launch_y, units_.pos_z[i],
-			           units_.pos_x[t] + disp_x, land_y, units_.pos_z[t] + disp_z,
-			           final_dmg, units_.team[i], units_.id[t], effect, 1, false, proj_vis);
+			for (int v = 0; v < volley; ++v) {
+				float disp_x = (sim_rng_.range_float(0.0f, 1.0f) - 0.5f) * spread_factor;
+				float disp_z = (sim_rng_.range_float(0.0f, 1.0f) - 0.5f) * spread_factor;
+				fire_arrow(units_.pos_x[i], launch_y, units_.pos_z[i],
+				           units_.pos_x[t] + disp_x, land_y, units_.pos_z[t] + disp_z,
+				           final_dmg, units_.team[i], units_.id[t], effect, 1, false, proj_vis);
+			}
 
 			// If War Trireme has garrisoned passengers, fire deck archer barrage
 			if (u_att == UNIT_TRIREME) {
@@ -4055,7 +4139,8 @@ void Simulation::tick_combat(float dt) {
 				apply_loot_bounty(units_.team[i], f_loot, w_loot, g_loot, s_loot);
 
 				// Trireme destruction: disembark survivors near shore or drown
-				if (is_transport(units_.id[t])) {
+				// (land siege unloads in tick_siege_garrisons instead).
+				if (is_transport(units_.id[t]) && unit_is_ship(units_.unit_type[t])) {
 					auto pit = transport_passengers_.find(units_.id[t]);
 					if (pit != transport_passengers_.end()) {
 						float ship_x = units_.pos_x[t];
@@ -9154,7 +9239,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 each unit's pack state; v15 the rest of the per-tick state (save_tick_state); v16 each resource's food kind (fish)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 
@@ -9346,6 +9431,7 @@ bool Simulation::load_state(const char *filepath) {
 			ps.techs.clear();
 			if (version >= 8) {
 				in.read((char *)ps.techs.words, sizeof(ps.techs.words));
+				if (version < 16) ps.techs = shift_techs_before_v16(ps.techs);
 			} else {
 				uint32_t mask = 0;
 				in.read((char *)&mask, sizeof(mask));
@@ -9556,6 +9642,7 @@ bool Simulation::load_state(const char *filepath) {
 		in.read((char *)&bld.rally_target_bld_id, sizeof(bld.rally_target_bld_id));
 		in.read((char *)&bld.garrison_cap, sizeof(bld.garrison_cap));
 		in.read((char *)&bld.research_tech, sizeof(bld.research_tech));
+		if (version < 16) bld.research_tech = shift_tech_before_v16(bld.research_tech);
 		in.read((char *)&bld.research_timer, sizeof(bld.research_timer));
 		in.read((char *)&bld.research_duration, sizeof(bld.research_duration));
 		in.read((char *)&bld.capture_points, sizeof(bld.capture_points));
@@ -9948,8 +10035,8 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		for (const auto &r : reqs) s.petra_diplomacy_requests_[r.first] = r.second;
 	}
 
-	// 4. v16: each resource's food kind (meat, grain, fish), which gather rates and fishing read.
-	if (ar.version >= 16)
+	// 4. v17: each resource's food kind (meat, grain, fish), which gather rates and fishing read.
+	if (ar.version >= 17)
 		for (size_t r = 0; r < s.resources_.count; ++r) ar.pod(s.resources_.subtype[r]);
 }
 
