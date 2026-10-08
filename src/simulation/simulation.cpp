@@ -7,6 +7,7 @@
 #include <chrono>
 #include <cmath>
 #include <numeric>
+#include <bit>
 #include <algorithm>
 #include <limits>
 #include <cstring>
@@ -89,8 +90,10 @@ static bool outside_and_in_build_range(float bx, float bz, float half, float x, 
 }
 
 struct UnitGrid {
+	static_assert(kUnitGridRes <= 64, "occupied[] holds a grid row in one word");
 	int32_t *head = nullptr;
 	int32_t *nxt = nullptr;
+	uint64_t *occupied = nullptr; // by row: bit xx set when cell (xx, row) holds a unit
 	int res = kUnitGridRes;
 	float inv = 0.0f;
 	float half = 64.0f;
@@ -106,8 +109,10 @@ struct UnitGrid {
 		inv = (float)res / (half * 2.0f);
 		head = arena.alloc_array<int32_t>((size_t)(res * res));
 		nxt = arena.alloc_array<int32_t>(n);
-		if (!head || !nxt) return false;
-		for (int c = 0; c < res * res; ++c) head[c] = -1;
+		occupied = arena.alloc_array<uint64_t>((size_t)res);
+		if (!head || !nxt || !occupied) return false;
+		std::memset(head, 0xFF, sizeof(int32_t) * (size_t)(res * res)); // every head -1
+		std::memset(occupied, 0, sizeof(uint64_t) * (size_t)res);
 		for (size_t i = 0; i < n; ++i) {
 			if (!alive[i]) {
 				nxt[i] = -1;
@@ -116,12 +121,21 @@ struct UnitGrid {
 			int c = cell_of(px[i], pz[i]);
 			nxt[i] = head[c];
 			head[c] = (int32_t)i;
+			occupied[c / res] |= uint64_t{1} << (c % res);
 		}
 		return true;
 	}
 
 	template <typename Fn>
 	void visit_radius(float x, float z, float radius, Fn &&fn) const {
+		visit_radius_within(x, z, radius, std::numeric_limits<float>::infinity(), fn);
+	}
+
+	// visit_radius(), skipping the cells that hold only units more than `reach` from (x, z) on
+	// either axis: for callers that ignore those units anyway. The cell mapping is monotonic, so
+	// the other units are visited as before, in the same order.
+	template <typename Fn>
+	void visit_radius_within(float x, float z, float radius, float reach, Fn &&fn) const {
 		int cr = std::max(1, (int)std::ceil(radius * inv) + 1);
 		int cx = std::clamp((int)((x + half) * inv), 0, res - 1);
 		int cz = std::clamp((int)((z + half) * inv), 0, res - 1);
@@ -129,10 +143,20 @@ struct UnitGrid {
 		int x1 = std::min(res - 1, cx + cr);
 		int z0 = std::max(0, cz - cr);
 		int z1 = std::min(res - 1, cz + cr);
+		if (reach < radius + (float)cr / inv) {
+			auto axis = [this](float f) { return std::clamp((int)((f + half) * inv), 0, res - 1); };
+			x0 = std::max(x0, axis(x - reach));
+			x1 = std::min(x1, axis(x + reach));
+			z0 = std::max(z0, axis(z - reach));
+			z1 = std::min(z1, axis(z + reach));
+		}
+		if (x0 > x1) return;
+		// Cells x0..x1 of a row, taken in ascending order and skipping the empty ones.
+		const uint64_t span = (~uint64_t{0} >> (63 - x1)) & (~uint64_t{0} << x0);
 		for (int zz = z0; zz <= z1; ++zz) {
 			int row = zz * res;
-			for (int xx = x0; xx <= x1; ++xx) {
-				for (int32_t j = head[row + xx]; j >= 0; j = nxt[j]) {
+			for (uint64_t m = occupied[zz] & span; m; m &= m - 1) {
+				for (int32_t j = head[row + std::countr_zero(m)]; j >= 0; j = nxt[j]) {
 					fn(j);
 				}
 			}
@@ -3225,12 +3249,8 @@ void Simulation::move_units(float dt, Arena &arena) {
 				units_.waypoint_cur[i] = 0;
 				units_.waypoint_count[i] = 0;
 				if ((size_t)i < unit_paths_.size()) unit_paths_[i].clear();
-			} else if (units_.action_state[i] == ACTION_PATROL) {
-				float orig_x = tx[i];
-				float orig_z = tz[i];
-				tx[i] = -orig_x * 0.8f;
-				tz[i] = -orig_z * 0.8f;
 			}
+			// A patrol turns round in tick_unit_ai(), which runs first.
 			return;
 		}
 
@@ -3367,6 +3387,12 @@ void Simulation::separation(float dt, Arena &arena) {
 	for (const Building &b : buildings_)
 		if (!b.wrecked && blocks_movement_now(b))
 			sep_obstacles_.push_back(SteerObstacle{b.id, b.x, b.z, b.half_size, b.type, false});
+	sep_grid_.build(sep_obstacles_, map_half_);
+
+	// The widest unit this tick: no pair is pushed apart beyond ri + r_max + 0.4 on either axis.
+	float r_max = 0.0f;
+	for (size_t i = 0; i < n; ++i)
+		if (units_.alive[i]) r_max = std::max(r_max, unit_collision_radius(units_.unit_type[i]));
 
 	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		if (!units_.alive[i]) return;
@@ -3380,7 +3406,9 @@ void Simulation::separation(float dt, Arena &arena) {
 		float az = 0.0f;
 
 		// 1. Unit-to-Unit Collision & Physical Separation
-		grid.visit_radius(pxi, pzi, scan_radius, [&](int32_t j) {
+		// A unit beyond comfort_dist on either axis pushes nothing, so the grid skips cells that
+		// hold only such units (0.5 more for float rounding).
+		grid.visit_radius_within(pxi, pzi, scan_radius, ri + r_max + 0.40f + 0.5f, [&](int32_t j) {
 			if ((size_t)j == i || !units_.alive[j]) return;
 			const float rj = unit_collision_radius(units_.unit_type[j]);
 			const float min_dist = ri + rj;           // Exact physical body contact boundary
@@ -3426,8 +3454,8 @@ void Simulation::separation(float dt, Arena &arena) {
 		// A building more than b_req from the unit on either axis pushes nothing; the 0.5
 		// margin keeps that test clear of float rounding, so skipping it changes no result.
 		const float b_skip = ri + 0.35f + 0.5f;
-		for (const SteerObstacle &b : sep_obstacles_) {
-			if (std::fabs(pxi - b.x) > b.half_size + b_skip || std::fabs(pzi - b.z) > b.half_size + b_skip) continue;
+		auto push_out = [&](const SteerObstacle &b) {
+			if (std::fabs(pxi - b.x) > b.half_size + b_skip || std::fabs(pzi - b.z) > b.half_size + b_skip) return false;
 			float b_half = b.half_size;
 			float cx = std::clamp(pxi, b.x - b_half, b.x + b_half);
 			float cz = std::clamp(pzi, b.z - b_half, b.z + b_half);
@@ -3448,7 +3476,7 @@ void Simulation::separation(float dt, Arena &arena) {
 				else if (min_edge == dist_west) ax -= push;
 				else if (min_edge == dist_south) az += push;
 				else az -= push;
-				continue;
+				return false;
 			}
 			if (bd2 < b_req * b_req) {
 				float bdist = sqrtf(bd2);
@@ -3468,7 +3496,12 @@ void Simulation::separation(float dt, Arena &arena) {
 					else az -= b_req * 1.5f;
 				}
 			}
-		}
+			return false;
+		};
+		// sep_grid_ hands over the buildings near enough to pass push_out()'s first test, in list
+		// order, so the pushes add up exactly as over the whole list.
+		if (!sep_grid_.for_each_near(pxi, pzi, b_skip, [&](uint32_t k) { return push_out(sep_obstacles_[k]); }))
+			for (const SteerObstacle &b : sep_obstacles_) push_out(b);
 
 		fx[i] = ax;
 		fz[i] = az;
@@ -6435,23 +6468,49 @@ void Simulation::update_petra_threat_map(float dt) {
 	memset(petra_threat_map_.enemy_threat, 0, sizeof(petra_threat_map_.enemy_threat));
 	memset(petra_threat_map_.friendly_defense, 0, sizeof(petra_threat_map_.friendly_defense));
 
+	// falloff[r][dz + r][dx + r]: the share of a radius-r source's power at cell offset (dx, dz),
+	// max(0.12, 1 - d^2 / (r^2 + 1)) inside the circle d^2 <= r^2 + 1. Computed once, with the same
+	// float operations add_power() used per cell.
+	static constexpr int FALLOFF_MAX_R = 15; // above every radius below
+	struct FalloffTable {
+		std::vector<float> cells[FALLOFF_MAX_R + 1];
+		std::vector<int> half_width[FALLOFF_MAX_R + 1]; // by dz + r: the circle's |dx| limit, -1 if none
+	};
+	static const FalloffTable falloff = [] {
+		FalloffTable t;
+		for (int r = 0; r <= FALLOFF_MAX_R; ++r) {
+			const int w = 2 * r + 1;
+			const float max_dist_sq = (float)(r * r + 1);
+			t.cells[r].assign((size_t)(w * w), 0.0f);
+			t.half_width[r].assign((size_t)w, -1);
+			for (int dz = -r; dz <= r; ++dz)
+				for (int dx = -r; dx <= r; ++dx) {
+					float dist_sq = (float)(dx * dx + dz * dz);
+					if (dist_sq <= max_dist_sq) {
+						t.cells[r][(size_t)((dz + r) * w + dx + r)] = std::max(0.12f, 1.0f - (dist_sq / max_dist_sq));
+						t.half_width[r][(size_t)(dz + r)] = std::max(t.half_width[r][(size_t)(dz + r)], dx);
+					}
+				}
+		}
+		return t;
+	}();
+
 	auto add_power = [&](float *grid, float wx, float wz, float power, int radius_cells) {
 		int cx = std::clamp((int)((wx + map_half_) * inv_cell), 0, THREAT_GRID_RES - 1);
 		int cz = std::clamp((int)((wz + map_half_) * inv_cell), 0, THREAT_GRID_RES - 1);
-		int x0 = std::max(0, cx - radius_cells);
-		int x1 = std::min(THREAT_GRID_RES - 1, cx + radius_cells);
-		int z0 = std::max(0, cz - radius_cells);
-		int z1 = std::min(THREAT_GRID_RES - 1, cz + radius_cells);
-
-		float max_dist_sq = (float)(radius_cells * radius_cells + 1);
+		const int r = std::min(radius_cells, FALLOFF_MAX_R), w = 2 * r + 1;
+		int x0 = std::max(0, cx - r);
+		int x1 = std::min(THREAT_GRID_RES - 1, cx + r);
+		int z0 = std::max(0, cz - r);
+		int z1 = std::min(THREAT_GRID_RES - 1, cz + r);
 		for (int z = z0; z <= z1; ++z) {
-			for (int x = x0; x <= x1; ++x) {
-				float dist_sq = (float)((x - cx) * (x - cx) + (z - cz) * (z - cz));
-				if (dist_sq <= max_dist_sq) {
-					float falloff = std::max(0.12f, 1.0f - (dist_sq / max_dist_sq));
-					grid[z * THREAT_GRID_RES + x] += power * falloff;
-				}
-			}
+			// Each cell inside the circle gets its own share, so the cells' order is free.
+			const int hw = falloff.half_width[r][(size_t)(z - cz + r)];
+			const int xa = std::max(x0, cx - hw), xb = std::min(x1, cx + hw);
+			const float *share = falloff.cells[r].data() + (size_t)((z - cz + r) * w + r); // dx = 0
+			float *row = grid + z * THREAT_GRID_RES;
+			for (int x = xa; x <= xb; ++x)
+				row[x] += power * share[x - cx];
 		}
 	};
 
@@ -8722,6 +8781,54 @@ bool Simulation::petra_raid_target_ok(uint32_t bld_id) const {
 	return petra_foe(b.team) && b.hp > 0 && territory_owner_at(b.x, b.z) == (int)petra_pid_;
 }
 
+// entityExtend.js allowCapture: capture a structure only when the squad's
+// capture strength beats its regeneration plus a share of its points (1/50 of
+// them for a garrisoned structure that shoots, 1/80 otherwise); a damaged
+// structure is easier. (0 A.D.'s always-recapture-from-an-ally case can't arise:
+// can_capture_building refuses allied structures.) The strength is the summed
+// Capture attack of the squad's units on the target or capturing within 20 m of
+// it (HQ.capturableTargets), with no capture bonuses in RTS0.
+bool Simulation::petra_allow_capture(const std::vector<uint32_t> &squad, uint32_t uid, const Building &b) const {
+	const int32_t idx = lookup_unit(uid);
+	if (idx < 0 || !units_.alive[idx] || unit_capture_strength(units_.unit_type[idx]) <= 0.0f) return false;
+	if (!can_capture_building(petra_pid_, b)) return false;
+	const int ground = territory_owner_at(b.x, b.z);
+	const bool decaying = b.territory_decay_rate > 0.0f && b.team < MAX_PLAYERS && ground >= 0 && ground < MAX_PLAYERS &&
+			ground != b.team && !is_ally((uint8_t)ground, b.team);
+
+	float anti = b.capture_regen_rate + b.capture_garrison_regen_rate * (float)b.garrisoned_units.size();
+	if (decaying) anti -= b.territory_decay_rate;
+	float capture = unit_capture_strength(units_.unit_type[idx]);
+	for (uint32_t other : squad) {
+		const int32_t j = lookup_unit(other);
+		if (other == uid || j < 0 || !units_.alive[j]) continue;
+		// Squad mates on the structure, or capturing ones closing in on it.
+		const float dx = units_.pos_x[j] - b.x, dz = units_.pos_z[j] - b.z;
+		const bool near = (units_.order_flags[j] & ORDER_FLAG_ALLOW_CAPTURE) && dx * dx + dz * dz <= 400.0f;
+		if (units_.target_building_id[j] == b.id || near) capture += unit_capture_strength(units_.unit_type[j]);
+	}
+	const float health = b.max_hp > 0.0f ? std::clamp(b.hp / b.max_hp, 0.0f, 1.0f) : 1.0f;
+	capture /= 0.1f + 0.9f * health;
+	const float points = std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f);
+	const bool fires = building_type_info(b.type).attack_damage > 0.0f && !b.garrisoned_units.empty();
+	return capture > anti + points / (fires ? 50.0f : 80.0f);
+}
+
+// attackPlan.js update: a unit capturing a structure it can't take switches to
+// damaging it (ent.attack(target, false)), then carries on to the attack target.
+void Simulation::petra_check_captures(const std::vector<uint32_t> &squad, float tx, float tz) {
+	for (uint32_t uid : squad) {
+		const int32_t idx = lookup_unit(uid);
+		if (idx < 0 || !units_.alive[idx] || !(units_.order_flags[idx] & ORDER_FLAG_ALLOW_CAPTURE)) continue;
+		const uint32_t target = units_.target_building_id[idx];
+		if (target == 0 || units_.action_state[idx] == ACTION_BUILD) continue;
+		auto it = building_id_to_idx_.find(target);
+		if (it == building_id_to_idx_.end() || petra_allow_capture(squad, uid, buildings_[it->second])) continue;
+		order_attack_building(&uid, 1, target, false, false);
+		order_attack_move(&uid, 1, tx, tz, true, false, true);
+	}
+}
+
 void Simulation::petra_manage_tactical_attacks(float dt) {
 	petra_attack_plan_.state_timer += dt;
 	petra_strike_force_.state_timer += dt;
@@ -8980,10 +9087,10 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 					// Specialized siege assault: siege weapons focus on fortifications, escort defends siege weapons
 					order_attack_building(siege_uids.data(), siege_uids.size(), target_id);
 					if (!escort_uids.empty()) {
-						order_attack_move(escort_uids.data(), escort_uids.size(), tx, tz);
+						order_attack_move(escort_uids.data(), escort_uids.size(), tx, tz, false, false, true);
 					}
 				} else {
-					order_attack_move(squad.data(), squad.size(), tx, tz);
+					order_attack_move(squad.data(), squad.size(), tx, tz, false, false, true);
 				}
 
 				petra_attack_plan_.state = AttackPlan::ATTACKED;
@@ -9036,6 +9143,7 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 				}
 			}
 
+			petra_check_captures(squad, petra_attack_plan_.target_x, petra_attack_plan_.target_z);
 			if (!target_alive || petra_attack_plan_.state_timer >= 25.0f) {
 				float tx = 0.0f, tz = 0.0f;
 				uint32_t next_id = petra_next_target(tx, tz);
@@ -9060,9 +9168,9 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 
 					if (petra_attack_plan_.type == AttackPlan::PLAN_SIEGE && !siege_uids.empty()) {
 						order_attack_building(siege_uids.data(), siege_uids.size(), next_id);
-						if (!escort_uids.empty()) order_attack_move(escort_uids.data(), escort_uids.size(), tx, tz);
+						if (!escort_uids.empty()) order_attack_move(escort_uids.data(), escort_uids.size(), tx, tz, false, false, true);
 					} else {
-						order_attack_move(squad.data(), squad.size(), tx, tz);
+						order_attack_move(squad.data(), squad.size(), tx, tz, false, false, true);
 					}
 					petra_attack_plan_.state_timer = 0.0f;
 				} else {
@@ -9297,9 +9405,9 @@ void Simulation::petra_manage_raid(float dt) {
 		// crosses water boards a transport instead of issuing a ground move.
 		if (petra_path_crosses_water(base_x, base_z, tx, tz)) {
 			if (!petra_start_transport(plan.squad, base_x, base_z, tx, tz))
-				order_attack_move(plan.squad.data(), plan.squad.size(), tx, tz);
+				order_attack_move(plan.squad.data(), plan.squad.size(), tx, tz, false, false, true);
 		} else {
-			order_attack_move(plan.squad.data(), plan.squad.size(), tx, tz);
+			order_attack_move(plan.squad.data(), plan.squad.size(), tx, tz, false, false, true);
 		}
 		return;
 	}
@@ -9329,7 +9437,7 @@ void Simulation::petra_manage_raid(float dt) {
 				plan.target_building_id = tid;
 				plan.target_x = tx;
 				plan.target_z = tz;
-				order_attack_move(plan.squad.data(), plan.squad.size(), tx, tz);
+				order_attack_move(plan.squad.data(), plan.squad.size(), tx, tz, false, false, true);
 			} else {
 				plan.state = AttackPlan::REGROUP;
 				plan.retreat_x = base_x;
@@ -9347,6 +9455,7 @@ void Simulation::petra_manage_raid(float dt) {
 				cmd_move(plan.squad.data(), plan.squad.size(), base_x, base_z);
 		} else {
 			plan.state = AttackPlan::ATTACKED;
+			petra_check_captures(plan.squad, plan.target_x, plan.target_z);
 		}
 		return;
 	}
