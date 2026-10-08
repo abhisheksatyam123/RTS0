@@ -37,6 +37,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_roster_item_clicked", "index", "at", "mouse_button"), &RtsoMain::_on_roster_item_clicked);
 	ClassDB::bind_method(D_METHOD("_on_build_btn_pressed", "btype"), &RtsoMain::_on_build_btn_pressed);
 	ClassDB::bind_method(D_METHOD("_on_tech_pressed", "tech_id"), &RtsoMain::_on_tech_pressed);
+	ClassDB::bind_method(D_METHOD("_on_upgrade_pressed", "cancel"), &RtsoMain::_on_upgrade_pressed);
 	ClassDB::bind_method(D_METHOD("save_game", "path"), &RtsoMain::save_game, DEFVAL("user://saves/quicksave.rts0sav"));
 	ClassDB::bind_method(D_METHOD("load_game", "path"), &RtsoMain::load_game, DEFVAL("user://saves/quicksave.rts0sav"));
 	ClassDB::bind_method(D_METHOD("get_fow_grid"), &RtsoMain::get_fow_grid);
@@ -1248,6 +1249,17 @@ void RtsoMain::_on_tech_pressed(int tech_id) {
 	}
 }
 
+// 0 A.D. Upgrade.js through lockstep command 26 (param 1 = cancel and refund).
+void RtsoMain::_on_upgrade_pressed(int cancel) {
+	if (selected_building_id == 0) return;
+	if (net_lockstep())
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_UPGRADE_BUILDING, nullptr, 0, 0, 0, selected_building_id, cancel ? 1 : 0);
+	else if (cancel)
+		sim->cmd_cancel_upgrade(local_player(), selected_building_id);
+	else
+		sim->cmd_upgrade_building(local_player(), selected_building_id);
+}
+
 void RtsoMain::_on_barter_requested(int sell_type, int buy_type, int amount) {
 	if (!sim) return;
 	if (sell_type < 0 || sell_type >= 4 || buy_type < 0 || buy_type >= 4) return;
@@ -1703,7 +1715,11 @@ void RtsoMain::update_inspector() {
 			inspector_capture_label->set_text("Capture: " + String::num((double)cur_cp, 0) + " / " + String::num((double)max_cp, 0));
 
 			// 3. Veterancy / Tech Research XP Bar
-			if (found_b->research_tech != rtso::TECH_NONE && found_b->research_duration > 0.0f) {
+			if (found_b->upgrade_to != rtso::BLD_TYPE_COUNT && found_b->upgrade_duration > 0.0f) {
+				inspector_xp_bar->set_max(found_b->upgrade_duration);
+				inspector_xp_bar->set_value(found_b->upgrade_timer);
+				inspector_xp_label->set_text("Upgrading to " + String(rtso::building_type_name(found_b->upgrade_to)) + " (" + String::num(found_b->upgrade_timer, 1) + "s / " + String::num(found_b->upgrade_duration, 1) + "s)");
+			} else if (found_b->research_tech != rtso::TECH_NONE && found_b->research_duration > 0.0f) {
 				inspector_xp_bar->set_max(found_b->research_duration);
 				inspector_xp_bar->set_value(found_b->research_timer);
 				inspector_xp_label->set_text("Research: " + String(rtso::tech_info(found_b->research_tech).name) + " (" + String::num(found_b->research_timer, 1) + "s / " + String::num(found_b->research_duration, 1) + "s)");
@@ -1738,6 +1754,9 @@ void RtsoMain::update_inspector() {
 			String status = "State: Operational";
 			if (found_b->build_progress < 1.0f) {
 				status = "Under Construction (" + String::num((double)(found_b->build_progress * 100.0f), 0) + "%)";
+			} else if (found_b->upgrade_to != rtso::BLD_TYPE_COUNT) {
+				status = "Upgrading to " + String(rtso::building_type_name(found_b->upgrade_to)) +
+					" (" + String::num((double)(found_b->upgrade_duration - found_b->upgrade_timer), 1) + "s)";
 			} else if (found_b->research_tech != rtso::TECH_NONE) {
 				status = "Researching " + String(rtso::tech_info(found_b->research_tech).name) +
 					" (" + String::num((double)(found_b->research_duration - found_b->research_timer), 1) + "s)";
@@ -2070,6 +2089,48 @@ void RtsoMain::update_command_panel() {
 				btn->set_tooltip_text(tip);
 				btn->connect("pressed", Callable(this, "_on_tech_pressed").bind(t));
 				production_bar->add_child(btn);
+			}
+
+			// Structure upgrade (0 A.D. Upgrade.js), or cancel one in progress.
+			if (found_b->team == local_player()) {
+				if (found_b->upgrade_to != rtso::BLD_TYPE_COUNT) {
+					Button *btn = memnew(Button);
+					btn->set_text(String("Cancel upgrade to ") + rtso::building_type_name(found_b->upgrade_to));
+					btn->set_tooltip_text("Stop upgrading and get the resources back");
+					btn->connect("pressed", Callable(this, "_on_upgrade_pressed").bind(1));
+					production_bar->add_child(btn);
+				} else {
+					const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(found_b->type, pciv);
+					if (up.to != rtso::BLD_TYPE_COUNT) {
+						Button *btn = memnew(Button);
+						String cost;
+						auto add_cost = [&](int v, const char *suffix) {
+							if (v <= 0) return;
+							if (!cost.is_empty()) cost += ",";
+							cost += String::num_int64(v) + suffix;
+						};
+						add_cost(up.food_cost, "f");
+						add_cost(up.wood_cost, "w");
+						add_cost(up.gold_cost, "g");
+						add_cost(up.stone_cost, "s");
+						btn->set_text(String("Upgrade to ") + rtso::building_type_name(up.to) + (cost.is_empty() ? String() : " (" + cost + ")"));
+						String tip = String(up.tooltip ? up.tooltip : "") + "\n" + String::num((double)up.time, 0) + "s";
+						const char *why = nullptr;
+						switch (sim->upgrade_check(local_player(), found_b->id)) {
+							case rtso::Simulation::UPGRADE_ERR_BUSY: why = "Busy: finish or cancel production first"; break;
+							case rtso::Simulation::UPGRADE_ERR_PHASE: why = up.required_phase >= 3 ? "Requires City Phase" : "Requires Town Phase"; break;
+							case rtso::Simulation::UPGRADE_ERR_COST: why = "Not enough resources"; break;
+							default: break;
+						}
+						if (why) {
+							tip += String("\n") + why;
+							btn->set_disabled(true);
+						}
+						btn->set_tooltip_text(tip);
+						btn->connect("pressed", Callable(this, "_on_upgrade_pressed").bind(0));
+						production_bar->add_child(btn);
+					}
+				}
 			}
 		}
 	} else {

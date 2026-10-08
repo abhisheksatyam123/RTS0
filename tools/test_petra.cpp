@@ -8,7 +8,9 @@
 //  2. No village-phase stall: on a continental random map Petra keeps
 //     training workers and researches the town phase (headquarters.js /
 //     researchManager.js checkPhase at Config.Economy.popPhase2).
-//  3. AI slots: Petra leaves a human slot alone, runs one AI per AI slot, and
+//  3. No free income: with no workers Petra earns nothing; difficulty works
+//     through InitGame.js gather-rate and build-time multipliers instead.
+//  4. AI slots: Petra leaves a human slot alone, runs one AI per AI slot, and
 //     AIs on the same team never fight each other.
 //  Exit: 0 = PASS, 1 = FAIL.
 // The ally check reads the sim's death log, which has no public accessor.
@@ -88,6 +90,27 @@ static int count_buildings(const Simulation &s, uint8_t team) {
 	return n;
 }
 
+// 0 A.D. gives the AI no flat income (InitGame.js "AI Bonus" scales gathering).
+static void test_no_free_income() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(1);
+	s->spawn_initial();
+	s->set_petra_difficulty(PETRA_VERY_HARD);
+	auto &u = s->units_;
+	for (size_t i = 0; i < u.count; ++i)
+		if (u.team[i] == 1) u.alive[i] = false;
+	int before = 0, after = 0;
+	for (uint8_t r = 0; r < RES_COUNT; ++r) before += s->player_resource(1, r);
+	for (float t = 0.0f; t < 30.0f; t += Simulation::FIXED_STEP) s->tick(Simulation::FIXED_STEP);
+	for (uint8_t r = 0; r < RES_COUNT; ++r) after += s->player_resource(1, r);
+	std::printf("  very hard AI with no workers: resources %d -> %d, gather x%.2f, time x%.2f (human x%.2f)\n",
+	            before, after, s->ai_gather_mult(1), s->ai_time_mult(1), s->ai_gather_mult(0));
+	CHECK(after <= before, "no resources without gatherers");
+	CHECK(s->ai_gather_mult(1) > 1.5f && s->ai_gather_mult(0) == 1.0f, "very hard gathers at 1.56x, humans at 1x");
+	s->set_petra_difficulty(PETRA_EASY);
+	CHECK(s->ai_gather_mult(1) == 0.75f && s->ai_time_mult(1) == 1.10f, "easy gathers slower and builds slower");
+}
+
 // Petra runs once per seated AI slot and never for a human slot.
 static void test_ai_slots() {
 	// Two humans: player 1 is seated as a human, so Petra must leave it alone.
@@ -158,6 +181,7 @@ int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
 	test_phase_up();
+	test_no_free_income();
 	test_ai_slots();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;

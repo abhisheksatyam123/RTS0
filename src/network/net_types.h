@@ -135,6 +135,9 @@ enum class NetCommandType : uint8_t {
 	// the class-based NET_CMD_TRAIN can't name). target_id = building,
 	// target_x = civ_unit_template_table() row (exact in a float), param = 0.
 	NET_CMD_TRAIN_TEMPLATE = 25,
+	// 0 A.D. Upgrade.js on a structure (sentry tower -> defense tower, wall ->
+	// gate). target_id = building, param = 0 start / 1 cancel and refund.
+	NET_CMD_UPGRADE_BUILDING = 26,
 };
 
 struct NetCommand {
