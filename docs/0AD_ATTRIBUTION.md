@@ -69,6 +69,9 @@ Each `synth_<id>` function generates RTS0's version of the 0 A.D. map script of 
 | Atlas Mountains | `maps/random/atlas_mountains.js` | Layout read from the script: players at f = 0.35, scaleByMapSize(20, 120) mountains kept 20 tiles from bases, scarce wood |
 | Frontier | `maps/random/frontier.js` | Layout read from the script: random base elevation, a random placement pattern at f = 0.2-0.35, a random mix of hills, mountains, plateaus and lakes; no teams, so one player per spoke |
 | Wild Lake | `maps/random/wild_lake.js` | Layout read from the script: diamond-square terrain seeded low in the middle, water level set so about a fifth is under water; RTS0 places players on a circle |
+| Stronghold | `maps/random/stronghold.js` | Layout read from the script: teams on a circle at f = 0.2-0.35 with members packed round their team's spot (f = 0.05-0.1, at least 18 apart in RTS0), random bluffs, hills, mountains, plateaus and valleys on high land |
+| Caledonian Meadows | `maps/random/caledonian_meadows.js` | Layout read from the script: diamond-square terrain (roughness 0.8), a fifth under water, players at start spots between 4/8 and 6/8 of the height range above the water, ordered in a cycle |
+| Rhine Marshlands | `maps/random/rhine_marshlands.js` | Layout read from the script: low land with bumps, 7 rounds of scaleByMapSize(4, 20) marshes 2 m deep (wadeable shallows), players at f = 0.35 |
 
 ## Data from 0 A.D. (CC BY-SA 3.0)
 
