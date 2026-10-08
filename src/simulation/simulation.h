@@ -845,8 +845,8 @@ private:
 	// Player Petra is currently thinking for. tick_petra_ai sets it for each AI
 	// slot in turn and leaves it at PETRA_PLAYER between ticks.
 	uint8_t petra_pid_ = PETRA_PLAYER;
-	// Hostile to the AI being run: another player not on its team.
-	bool petra_foe(int t) const { return t >= 0 && t < MAX_PLAYERS && !same_team(petra_pid_, (uint8_t)t); }
+	// Hostile to the AI being run (is_hostile: teams, then its own stance).
+	bool petra_foe(int t) const { return t >= 0 && t < MAX_PLAYERS && is_hostile(petra_pid_, (uint8_t)t); }
 	float passive_timer_ = 0.0f;
 	float rate_window_timer_ = 0.0f;
 	float barter_timer_ = 0.0f;
