@@ -107,6 +107,9 @@ const VICTORIES := ["Conquest — destroy all enemies", "Wonder — hold a Wonde
 const START_RES := ["Sparse (150/200/150/100)", "Normal (300/400/300/200)", "Generous (500/700/500/350)", "Abundant (900/1200/900/600)"]
 const DIFFS := ["Sandbox", "Very Easy", "Easy", "Medium", "Hard", "Very Hard"]
 const BEHAVIORS := ["Random", "Defensive", "Balanced", "Aggressive"]
+# Random-map biome override (index - 1 == rtso::BiomeType) and 0 A.D. game speeds.
+const BIOMES := ["Map default", "Aegean", "Latium", "Alpine", "Oasis", "Temperate", "Steppe", "Savanna", "Polar", "India"]
+const SPEEDS := [[0.5, "0.5x"], [0.75, "0.75x"], [1.0, "1x"], [1.25, "1.25x"], [1.5, "1.5x"], [2.0, "2x"]]
 const SLOT_KINDS := ["Human", "AI", "Closed"]
 
 var _maps: Array = []          # all map dicts
@@ -299,7 +302,8 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 		var emblem: Texture2D = load(c["emblem"])
 		if emblem: civ.add_icon_item(emblem, c["name"])
 		else: civ.add_item(c["name"])
-	civ.select(int(row["civ"]))
+	civ.add_item("Random")
+	civ.select(clampi(int(row["civ"]), 0, CIVS.size()))
 	civ.item_selected.connect(_on_slot_civ.bind(i))
 	# team
 	var team_slot := Control.new()
@@ -319,6 +323,15 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 		diff.add_item(dname)
 	diff.select(clampi(int(row["diff"]), 0, 5))
 	diff.item_selected.connect(_on_slot_diff.bind(i))
+	# AI behaviour (per slot)
+	var beh_slot := Control.new()
+	beh_slot.custom_minimum_size = Vector2(92, 28)
+	grid.add_child(beh_slot)
+	var beh := _make_option(beh_slot)
+	for bname in BEHAVIORS:
+		beh.add_item(bname)
+	beh.select(clampi(int(row["beh"]), 0, 3))
+	beh.item_selected.connect(_on_slot_beh.bind(i))
 
 func _on_slot_kind(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
@@ -341,6 +354,11 @@ func _on_slot_diff(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
 		return
 	_slot_rows[slot]["diff"] = idx
+
+func _on_slot_beh(idx: int, slot: int) -> void:
+	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
+		return
+	_slot_rows[slot]["beh"] = idx
 
 func _slot_civ(slot: int) -> int:
 	if slot < 0 or slot >= _slot_rows.size():
@@ -393,10 +411,14 @@ func _build_options() -> void:
 	for r in START_RES:
 		res.add_item(r)
 	res.select(1)
-	var beh := _make_option($VBox/HBox/Left/BehaviorSlot)
-	for b in BEHAVIORS:
-		beh.add_item(b)
-	beh.select(2)
+	var bio := _make_option($VBox/HBox/Left/BiomeSpeedRow/BiomeSlot)
+	for b in BIOMES:
+		bio.add_item(b)
+	bio.select(0)
+	var spd := _make_option($VBox/HBox/Left/BiomeSpeedRow/SpeedSlot)
+	for sp in SPEEDS:
+		spd.add_item(sp[1])
+	spd.select(2)
 	_mute_spin($VBox/HBox/Left/SeedRow/SpinSeed)
 	_mute_spin($VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots)
 	$VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value_changed.connect(
@@ -420,7 +442,8 @@ func _restore_settings() -> void:
 	var ms := get_node("/root/MatchSettings")
 	var vic: RtsoSafeSelect = $VBox/HBox/Left/VictorySlot.get_child(0)
 	var res: RtsoSafeSelect = $VBox/HBox/Left/ResSlot.get_child(0)
-	var beh: RtsoSafeSelect = $VBox/HBox/Left/BehaviorSlot.get_child(0)
+	var bio: RtsoSafeSelect = $VBox/HBox/Left/BiomeSpeedRow/BiomeSlot.get_child(0)
+	var spd: RtsoSafeSelect = $VBox/HBox/Left/BiomeSpeedRow/SpeedSlot.get_child(0)
 	vic.select(clampi(int(ms.get("victory")), 0, VICTORIES.size() - 1))
 	$VBox/HBox/Left/Waves.button_pressed = bool(ms.get("waves_enabled"))
 	$VBox/HBox/Left/LastManStanding.button_pressed = bool(ms.get("last_man_standing"))
@@ -446,7 +469,10 @@ func _restore_settings() -> void:
 		if int(MAP_SIZES[i][0]) == int(ms.get("map_size")):
 			msz.select(i)
 	res.select(clampi(int(ms.get("start_res")), 0, 3))
-	beh.select(clampi(int(ms.get("ai_behavior")), 0, 3))
+	bio.select(clampi(int(ms.get("biome")), 0, BIOMES.size() - 1))
+	for i in range(SPEEDS.size()):
+		if is_equal_approx(float(SPEEDS[i][0]), float(ms.get("game_speed"))):
+			spd.select(i)
 	$VBox/HBox/Left/SeedRow/SpinSeed.value = int(ms.get("seed"))
 	# Restore map selection by id.
 	var want: String = str(ms.get("map_id"))
@@ -458,6 +484,8 @@ func _restore_settings() -> void:
 	var types: Array = ms.get("slot_types")
 	var civs: Array = ms.get("slot_civs")
 	var teams: Array = ms.get("slot_teams")
+	var sdiffs: Array = ms.get("slot_diffs")
+	var sbehs: Array = ms.get("slot_behs")
 	if not types.is_empty():
 		$VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value = clampi(types.size(), 2, 8)
 		_ensure_slot_rows(int($VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value))
@@ -467,6 +495,10 @@ func _restore_settings() -> void:
 				_slot_rows[i]["civ"] = clampi(int(civs[i]), 0, CIVS.size() - 1)
 			if i < teams.size():
 				_slot_rows[i]["team"] = clampi(int(teams[i]), 1, 4)
+			if i < sdiffs.size():
+				_slot_rows[i]["diff"] = clampi(int(sdiffs[i]), 0, 5)
+			if i < sbehs.size():
+				_slot_rows[i]["beh"] = clampi(int(sbehs[i]), 0, 3)
 			if i == 0:
 				_slot_rows[i]["kind"] = 0
 		refresh_slots()
@@ -481,7 +513,8 @@ func _collect_setup() -> Dictionary:
 	var seed := int($VBox/HBox/Left/SeedRow/SpinSeed.value)
 	var vic: RtsoSafeSelect = $VBox/HBox/Left/VictorySlot.get_child(0)
 	var res: RtsoSafeSelect = $VBox/HBox/Left/ResSlot.get_child(0)
-	var beh: RtsoSafeSelect = $VBox/HBox/Left/BehaviorSlot.get_child(0)
+	var bio: RtsoSafeSelect = $VBox/HBox/Left/BiomeSpeedRow/BiomeSlot.get_child(0)
+	var spd: RtsoSafeSelect = $VBox/HBox/Left/BiomeSpeedRow/SpeedSlot.get_child(0)
 	var msz: RtsoSafeSelect = $VBox/HBox/Left/MapSizeSlot.get_child(0)
 	var pop: RtsoSafeSelect = $VBox/HBox/Left/PopCapSlot.get_child(0)
 	var cf: RtsoSafeSelect = $VBox/HBox/Left/CeasefireSlot.get_child(0)
@@ -493,6 +526,8 @@ func _collect_setup() -> Dictionary:
 	var types: Array = []
 	var civs: Array = []
 	var teams: Array = []
+	var diffs: Array = []
+	var behs: Array = []
 	var humans := 0
 	var ai_total := 0
 	for i in range(n):
@@ -502,17 +537,24 @@ func _collect_setup() -> Dictionary:
 		if k == 2:
 			continue # closed: 0 A.D. drops the slot, so later players move up
 		types.append(k)
-		civs.append(int(_slot_rows[i]["civ"]))
+		var c := int(_slot_rows[i]["civ"])
+		if c >= CIVS.size(): # "Random": 0 A.D. picks one when the match starts
+			c = randi() % CIVS.size()
+		civs.append(c)
 		teams.append(int(_slot_rows[i]["team"]))
+		diffs.append(int(_slot_rows[i]["diff"]))
+		behs.append(int(_slot_rows[i]["beh"]))
 		if k == 0:
 			humans += 1
 		elif k == 1:
 			ai_total += 1
-	# AI difficulty: first AI slot's pick, else global medium.
+	# Single-player Petra settings: the first AI slot's picks (per-slot AI is next).
 	var diff := 3
+	var beh := 2
 	for i in range(n):
 		if int(_slot_rows[i]["kind"]) == 1:
 			diff = int(_slot_rows[i]["diff"])
+			beh = int(_slot_rows[i]["beh"])
 			break
 	return {"map": m, "seed": seed, "victory": vic.get_selected(),
 		"waves": $VBox/HBox/Left/Waves.button_pressed,
@@ -525,8 +567,10 @@ func _collect_setup() -> Dictionary:
 		"relic_min": int(VICTORY_TIMES[maxi(rt.get_selected(), 0)]),
 		"relic_count": int(RELIC_COUNTS[maxi(rc.get_selected(), 0)]),
 		"map_size": int(MAP_SIZES[maxi(msz.get_selected(), 0)][0]),
-		"res": res.get_selected(), "beh": beh.get_selected(), "diff": diff,
-		"types": types, "civs": civs, "teams": teams,
+		"res": res.get_selected(), "beh": beh, "diff": diff,
+		"biome": maxi(bio.get_selected(), 0),
+		"speed": float(SPEEDS[maxi(spd.get_selected(), 0)][0]),
+		"types": types, "civs": civs, "teams": teams, "diffs": diffs, "behs": behs,
 		"humans": humans, "ai": ai_total, "slots": types.size()}
 
 func _on_start_pressed() -> void:
@@ -567,6 +611,10 @@ func _on_start_pressed() -> void:
 	ms.slot_types = st["types"]
 	ms.slot_civs = st["civs"]
 	ms.slot_teams = st["teams"]
+	ms.slot_diffs = st["diffs"]
+	ms.slot_behs = st["behs"]
+	ms.biome = int(st["biome"])
+	ms.game_speed = float(st["speed"])
 	ms.player_count = int(st["slots"])
 	ms.player_civ = int(st["civs"][0])
 	# Legacy back-compat: first AI slot's civ.
