@@ -43,6 +43,8 @@ constexpr float kBuildReach = 2.20f;
 
 // The save version that added UnitAI orders (tick_state_io section 4).
 static constexpr uint32_t SAVE_VERSION_UNIT_ORDERS = 20;
+// The save version that added the aura sources in force (tick_state_io section 7).
+static constexpr uint32_t SAVE_VERSION_AURAS = 24;
 
 // Stand on the nearest AABB edge so pathing never aims through the footprint.
 static void stand_outside_rect(float bx, float bz, float half, uint32_t uid,
@@ -11139,7 +11141,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the aura sources in force (save_tick_state)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 
@@ -12015,6 +12017,27 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	} else if constexpr (Ar::loading) {
 		s.formations_.clear();
 		s.next_formation_id_ = 1;
+	}
+
+	// 7. Aura sources (v24): rebuilt every 0.4 s, and move_units() reads speed auras
+	// before the next rebuild, so a loaded game needs the ones in force.
+	if (ar.version >= SAVE_VERSION_AURAS) {
+		std::vector<AuraSource> src = s.aura_mgr_.sources;
+		io_vec(ar, src, 1u << 16, [&](AuraSource &a) {
+			ar.pod(a.source_id); ar.pod(a.type); ar.pod(a.range); ar.pod(a.value);
+			ar.pod(a.team); ar.pod(a.x); ar.pod(a.z); ar.pod(a.alive); ar.pod(a.aura);
+			if constexpr (Ar::loading)
+				if (a.type >= AURA_COUNT) ar.ok = false;
+		});
+		if constexpr (Ar::loading) {
+			s.aura_mgr_.clear();
+			for (const AuraSource &a : src) {
+				s.aura_mgr_.register_source(a.source_id, a.type, a.range, a.value, a.team, a.x, a.z, a.aura);
+				s.aura_mgr_.sources.back().alive = a.alive;
+			}
+		}
+	} else if constexpr (Ar::loading) {
+		s.aura_mgr_.clear();
 	}
 }
 

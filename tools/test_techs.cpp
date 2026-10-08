@@ -341,6 +341,18 @@ int main() {
 		uint32_t hero = s.spawn_unit(-14.0f, 4.0f, 0, UNIT_HERO, 0.0f, viriato);
 		run(s, 0.5f); // auras are gathered every 0.4 s
 		const float inspired = ride(-4.0f);
+		// A save taken mid-ride carries the auras: the loaded copy rides on in step.
+		{
+			static Simulation copy;
+			const char *aura_path = "/tmp/rts0_test_techs_aura.sav";
+			CHECK(s.save_state(aura_path));
+			fresh(copy);
+			CHECK(copy.load_state(aura_path));
+			run(s, 1.0f);
+			run(copy, 1.0f);
+			TurnManager tm;
+			CHECK(tm.compute_sim_hash(s) == tm.compute_sim_hash(copy));
+		}
 		s.cmd_delete(0, &hero, 1);
 		run(s, 0.5f);
 		const float after = second(); // the same horseman, the aura gone
