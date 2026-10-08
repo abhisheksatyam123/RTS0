@@ -316,6 +316,11 @@ public:
 	void order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz);
 	void order_build_or_repair(const uint32_t *unit_ids, size_t count, uint32_t building_id);
 	void order_set_stance(const uint32_t *unit_ids, size_t count, uint8_t stance);
+	// 0 A.D. Pack/Unpack command (UnitAI Order.Pack / Order.Unpack): drops the units' current
+	// orders and packs (pack=true) or unpacks them. Units without Pack are ignored.
+	void order_pack(const uint32_t *unit_ids, size_t count, bool pack);
+	// Seconds a pack or unpack takes for this unit (0 A.D. Pack/Time).
+	float pack_time_s(size_t unit_idx) const;
 	void order_set_formation(const uint32_t *unit_ids, size_t count, uint8_t formation);
 	void order_garrison(const uint32_t *unit_ids, size_t count, uint32_t building_id);
 	void order_ungarrison(uint32_t building_id);
@@ -423,7 +428,7 @@ public:
 	bool cmd_set_diplomacy(uint8_t player_id, uint8_t target, uint8_t stance);
 	// 0 A.D. Player.js TributeResource: `from` sends `amounts` (indexed by
 	// ResourceType) to `to`. All or nothing; both players must be in the
-	// match. The one tribute path for the UI, lockstep cmd 25 and Petra.
+	// match. The one tribute path for the UI, lockstep cmd 27 and Petra.
 	bool cmd_tribute(uint8_t from, uint8_t to, const int amounts[RES_COUNT]);
 	bool cmd_tribute(uint8_t from, uint8_t to, uint8_t res_type, int amount);
 	// G3 Market/Trader (0 A.D. Market.js CalculateTraderGain, Trader.js, globalscripts/Trade.js)
@@ -470,6 +475,8 @@ public:
 		const uint8_t *status_effects;
 		const uint16_t *xp;
 		const uint16_t *tmpl; // civ roster template (civ_unit_template), CIV_UNIT_TEMPLATE_NONE = generic
+		const uint8_t *pack_state; // PackState: siege engines pack to move and unpack to fire
+		const float *pack_elapsed; // seconds into the current pack/unpack
 		size_t count;
 	};
 	UnitView units() const;
@@ -848,6 +855,7 @@ private:
 	int32_t carry_cap(size_t unit_idx, uint8_t res) const;
 	uint32_t find_free_field(uint8_t team, float x, float z);
 	void tick_combat(float dt);
+	void tick_pack(float dt);
 	void tick_promotion(float dt);
 	void tick_capture(float dt);
 	void tick_status_effects(float dt);
