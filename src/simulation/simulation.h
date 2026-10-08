@@ -448,6 +448,9 @@ public:
 	bool has_trade_route(uint8_t player, uint8_t trader_type = UNIT_TRADER) const;
 	// Ship region of the water next to a dock (0 = no water beside it).
 	uint16_t dock_sea(const Building &b) const;
+	// Centre of the nearest ship-passable cell around a building's footprint, and its
+	// ship region; false when none is near (ProductionQueue.js spawns ships there).
+	bool nearest_ship_cell(const Building &b, float &out_x, float &out_z, uint16_t *out_sea = nullptr) const;
 	void order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id);
 	void order_trade_auto(const uint32_t *unit_ids, size_t count); // farthest pair of tradable markets
 	float get_market_buy_price(ResourceType t) const { return market_buy_price(t); }
@@ -1151,8 +1154,8 @@ private:
 	};
 	std::vector<PetraSlot> petra_slots_; // indexed by player id, sized on first use
 	void petra_swap_slot(uint8_t pid);
-	// Saves or loads every AI's Petra state (save v15); defined in simulation.cpp.
-	template <class Ar> friend void petra_state_io(Ar &ar, Simulation &s);
+	// Saves or loads save_tick_state's fields, every AI's Petra state included (save v15); simulation.cpp.
+	template <class Ar> friend void tick_state_io(Ar &ar, Simulation &s);
 	void petra_reset_ai_state();
 	std::vector<float> fow_cell_height_; // terrain height at each FoW cell centre, lazily filled by tick_fow
 	std::vector<float> fow_cell_hmax_; // highest heightmap sample an LOS ray can read in each FoW cell, filled with fow_cell_height_

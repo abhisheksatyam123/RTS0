@@ -154,7 +154,9 @@ static void test_petra_sea_trade() {
 		if (u.action_state[i] == ACTION_TRADE) ++trading;
 	}
 	std::printf("Petra: %d merchant ships, %d trading\n", ships, trading);
-	CHECK(ships >= 1 && trading >= 1);
+	// Every ship launches on the water and trades; Petra trains no more than its trader target.
+	CHECK(ships >= 1 && trading == ships);
+	CHECK(ships <= s.petra_config().target_num_traders + 1);
 }
 
 int main() {
