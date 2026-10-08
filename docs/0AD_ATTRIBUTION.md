@@ -30,6 +30,7 @@ RTS0 builds on **0 A.D.** (https://play0ad.com) by Wildfire Games.
 | `assets/music/`, `assets/sounds/`, `assets/audio/`, `audio/` | Music, sound effects, voice lines | `tools/extract_ui_assets.py`, `tools/extract_combat_sfx.py` |
 | `data/maps/` | Scenario maps converted to JSON | `tools/port_0ad_maps.py` |
 | `src/simulation/civ_roster_data.h`, `data/civs/rosters.json` | Per-civ unit rosters, unit stats, hero auras and civ bonus text from `simulation/templates/` and `simulation/data/{civs,auras}/` | `tools/extract_0ad_rosters.py` |
+| `src/simulation/sim_types.h` (building table rows 14-25, field supply constants) | Structure stats from 0 A.D. 0.28 `simulation/templates/template_structure_*.xml` (Health, Cost, GarrisonHolder, Capturable, Identity/Requirements) and the field `ResourceSupply` (MaxGatherers, DiminishingReturns); the diminishing-returns formula follows `simulation/components/ResourceSupply.js` | Read by hand from the 0.28 `public.zip` |
 
 Fonts in `assets/fonts/` carry their own licenses; see `assets/LICENSE`.
 

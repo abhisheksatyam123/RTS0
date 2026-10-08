@@ -116,6 +116,18 @@ void RtsoMain::_bind_methods() {
 	bind_enum("BuildingType", "DOCK", rtso::BLD_DOCK);
 	bind_enum("BuildingType", "WALL_SEGMENT", rtso::BLD_WALL_SEGMENT);
 	bind_enum("BuildingType", "CORRAL", rtso::BLD_CORRAL);
+	bind_enum("BuildingType", "FIELD", rtso::BLD_FIELD);
+	bind_enum("BuildingType", "STABLE", rtso::BLD_STABLE);
+	bind_enum("BuildingType", "RANGE", rtso::BLD_RANGE);
+	bind_enum("BuildingType", "FORGE", rtso::BLD_FORGE);
+	bind_enum("BuildingType", "ARSENAL", rtso::BLD_ARSENAL);
+	bind_enum("BuildingType", "SENTRY_TOWER", rtso::BLD_SENTRY_TOWER);
+	bind_enum("BuildingType", "OUTPOST", rtso::BLD_OUTPOST);
+	bind_enum("BuildingType", "PALISADE", rtso::BLD_PALISADE);
+	bind_enum("BuildingType", "WALL_TOWER", rtso::BLD_WALL_TOWER);
+	bind_enum("BuildingType", "ELEPHANT_STABLE", rtso::BLD_ELEPHANT_STABLE);
+	bind_enum("BuildingType", "THEATER", rtso::BLD_THEATER);
+	bind_enum("BuildingType", "EMBASSY", rtso::BLD_EMBASSY);
 
 	bind_enum("Civilization", "ATHENIANS", rtso::CIV_ATHENIANS);
 	bind_enum("Civilization", "SPARTANS", rtso::CIV_SPARTANS);
@@ -2052,23 +2064,38 @@ void RtsoMain::update_command_panel() {
 			}
 
 			if (has_worker) {
-				const char *b_names[13] = {
-					"House (80w)", "Barracks (150w,50g)", "Tower (100w,100s)", "Storehouse (100w)",
-					"Farmstead (100w)", "Corral (100w)", "Market (200w,100g)", "Temple (150w,100g,100s)",
-					"Fortress (300w,200g,300s)", "Gate (100w,100s)", "Dock (200w,100s)", "Wall (40s)",
-					"Wonder (500f,500w,500g,500s)"
-				};
-				int b_types[13] = {
-					rtso::BLD_HOUSE, rtso::BLD_BARRACKS, rtso::BLD_TOWER, rtso::BLD_STOREHOUSE,
-					rtso::BLD_FARMSTEAD, rtso::BLD_CORRAL, rtso::BLD_MARKET, rtso::BLD_TEMPLE,
-					rtso::BLD_FORTRESS, rtso::BLD_GATE, rtso::BLD_DOCK, rtso::BLD_WALL_SEGMENT,
+				// Build menu in 0 A.D. order; cost and phase come from the building table.
+				static const int b_types[] = {
+					rtso::BLD_HOUSE, rtso::BLD_STOREHOUSE, rtso::BLD_FARMSTEAD, rtso::BLD_FIELD,
+					rtso::BLD_CORRAL, rtso::BLD_DOCK, rtso::BLD_BARRACKS, rtso::BLD_STABLE,
+					rtso::BLD_RANGE, rtso::BLD_SENTRY_TOWER, rtso::BLD_OUTPOST, rtso::BLD_PALISADE,
+					rtso::BLD_FORGE, rtso::BLD_MARKET, rtso::BLD_TEMPLE, rtso::BLD_TOWER,
+					rtso::BLD_EMBASSY, rtso::BLD_WALL_SEGMENT, rtso::BLD_WALL_TOWER, rtso::BLD_GATE,
+					rtso::BLD_FORTRESS, rtso::BLD_ARSENAL, rtso::BLD_ELEPHANT_STABLE, rtso::BLD_THEATER,
 					rtso::BLD_WONDER
 				};
-				for (int b = 0; b < 13; ++b) {
+				static const char *kPhaseNames[4] = {"", "Village", "Town", "City"};
+				for (int bt : b_types) {
+					const rtso::BuildingTypeInfo &bi = rtso::building_type_info((uint8_t)bt);
+					String cost;
+					auto add_cost = [&](int amount, const char *suffix) {
+						if (amount <= 0) return;
+						if (!cost.is_empty()) cost += ",";
+						cost += String::num_int64(amount) + suffix;
+					};
+					add_cost(bi.food_cost, "f");
+					add_cost(bi.wood_cost, "w");
+					add_cost(bi.gold_cost, "g");
+					add_cost(bi.stone_cost, "s");
+					uint8_t need = rtso::building_required_phase((uint8_t)bt);
 					Button *bb = memnew(Button);
-					bb->set_text(b_names[b]);
+					bb->set_text(String(bi.name) + (cost.is_empty() ? String() : " (" + cost + ")"));
 					bb->add_theme_font_size_override("font_size", 9);
-					bb->connect("pressed", Callable(this, "_on_build_btn_pressed").bind(b_types[b]));
+					if (need > sim->player_phase()) {
+						bb->set_disabled(true);
+						bb->set_tooltip_text(String("Requires ") + kPhaseNames[need] + " Phase");
+					}
+					bb->connect("pressed", Callable(this, "_on_build_btn_pressed").bind(bt));
 					production_bar->add_child(bb);
 				}
 			}
@@ -2807,7 +2834,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							sim->order_attack_building((const uint32_t *)selected_ids.ptr(), selected_ids.size(), b.id);
 						play_civ_voice("attack");
 					} else {
-						if (b.build_progress < 1.0f || b.hp < b.max_hp) {
+						if (b.build_progress < 1.0f || b.hp < b.max_hp || b.type == rtso::BLD_FIELD) { // finished fields: farm
 							if (net_lockstep())
 								post_lockstep(16, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0, 0, b.id);
 							else

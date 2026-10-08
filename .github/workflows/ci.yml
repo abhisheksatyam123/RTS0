@@ -85,6 +85,13 @@ jobs:
             src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o /tmp/test_victory
           /tmp/test_victory
 
+      - name: Fields, farming and building tests
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_farming.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+            src/network/net_host.cpp -lpthread -o /tmp/test_farming
+          /tmp/test_farming
+
       - name: Nav parity probe
         run: python3 tools/check_parity.py --unit nav-live
 
