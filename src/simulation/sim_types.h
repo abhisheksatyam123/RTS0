@@ -313,7 +313,8 @@ enum UnitOrderKind : uint8_t {
 	ORDER_GARRISON = 8,       // target building
 	ORDER_GUARD = 9,          // target unit (Guard.js)
 	ORDER_HEAL = 10,          // target unit (UnitAI Heal)
-	ORDER_KIND_COUNT = 11
+	ORDER_TRADE = 11,         // target = first market, x2 holds the second market's id bits (UnitAI Trade)
+	ORDER_KIND_COUNT = 12
 };
 
 enum UnitOrderFlag : uint8_t {
@@ -322,6 +323,12 @@ enum UnitOrderFlag : uint8_t {
 	ORDER_FLAG_UNITS_ONLY = 4,   // attack-move targetClasses "Unit" (session.attackmoveUnit)
 	ORDER_FLAG_INTERRUPTED = 8,  // fighting or fleeing; go back to the order afterwards
 	ORDER_FLAG_CHEER = 16        // killed its target (UnitAI shouldCheer)
+};
+// A gather order keeps its resource's subtype (ResourceSubtype) in flag bits 5-7, so the
+// unit can look for the same kind once the resource is gone (UnitAI GATHER FINDINGNEWTARGET).
+enum : uint8_t {
+	ORDER_FLAG_SUB_SHIFT = 5,
+	ORDER_FLAG_SUB_MASK = 0xE0
 };
 
 // One order: the unit's current one (in the SoA) or a Shift-queued one. No padding.
@@ -351,6 +358,15 @@ inline constexpr float HEAL_PREPARE_S = 1.0f;
 inline constexpr float CHEER_TIME_S = 2.8f;
 inline constexpr float CHEER_NOTIFY_RANGE = 30.0f;
 inline constexpr float GARRISON_LOADING_RANGE = 2.0f;
+// Attack.js Ranged MinRange as a share of MaxRange: template_unit_siege_stonethrower.xml
+// 26 of 85, template_unit_siege_boltshooter.xml 15 of 90. Scaled to each unit's own range.
+inline float unit_min_range_ratio(uint8_t type) {
+	switch (type) {
+		case UNIT_CATAPULT: return 26.0f / 85.0f;
+		case UNIT_BOLT_SHOOTER: return 15.0f / 90.0f;
+		default: return 0.0f;
+	}
+}
 
 // 0 A.D. Formations (source: template_player.xml:84-96, exactly 13 entries indexed 0..12)
 // Appended AFTER existing 6 so network/replay order stays wire-compatible (values 0..6 unchanged).

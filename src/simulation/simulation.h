@@ -494,7 +494,8 @@ public:
 	// Centre of the nearest ship-passable cell around a building's footprint, and its
 	// ship region; false when none is near (ProductionQueue.js spawns ships there).
 	bool nearest_ship_cell(const Building &b, float &out_x, float &out_z, uint16_t *out_sea = nullptr) const;
-	void order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id);
+	void order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id,
+			bool queued = false);
 	void order_trade_auto(const uint32_t *unit_ids, size_t count); // farthest pair of tradable markets
 	float get_market_buy_price(ResourceType t) const { return market_buy_price(t); }
 	float get_market_sell_price(ResourceType t) const { return market_sell_price(t); }
@@ -1331,13 +1332,14 @@ private:
 	void drop_orders(size_t i);      // orders UnitAI doesn't model (trade, hunt, board): no order, no queue
 	// Splits a Shift order: busy units get it queued, the rest are returned to run now.
 	// Without Shift every unit's queue is dropped and all of them run it now.
+	bool trade_route_ok(size_t i, uint32_t market_a_id, uint32_t market_b_id) const;
 	std::vector<uint32_t> split_queued(const uint32_t *ids, size_t count, const UnitOrder &o, bool queued);
 	void apply_order(uint32_t uid, const UnitOrder &o);
 	bool order_still_valid(size_t i, const UnitOrder &o) const;
 	void finish_order(size_t i);
 	void resume_order(size_t i);
 	void respond_to_attack(size_t i);
-	uint32_t find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team) const;
+	uint32_t find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team, int subtype = -1) const;
 	uint32_t find_nearby_foundation(float x, float z, uint8_t team) const;
 	void apply_rally_point(uint32_t uid, const Building &b);
 	void on_construction_finished(const Building &b, size_t builder);
