@@ -1337,7 +1337,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 	for (int b = 0; b < BLD_TYPE_COUNT; ++b) {
 		m.bld_health[b] = m.bld_attack[b] = m.bld_build_time[b] = m.bld_pop_bonus[b] = 1.0f;
 		m.bld_research_time[b] = m.bld_arrow_mul[b] = 1.0f;
-		m.bld_range[b] = m.bld_arrow_add[b] = 0.0f;
+		m.bld_range[b] = m.bld_arrow_add[b] = m.bld_garrison_heal[b] = 0.0f;
 	}
 	if (player_id >= MAX_PLAYERS) return;
 	const PlayerState &ps = players_[player_id];
@@ -1398,6 +1398,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 						if (e.op == TOP_MUL) m.bld_arrow_mul[b] *= e.value;
 						else m.bld_arrow_add[b] += e.value;
 						break;
+					case TSTAT_GARRISON_HEAL: apply(m.bld_garrison_heal[b]); break;
 					default: break;
 				}
 			}
@@ -2220,7 +2221,7 @@ void Simulation::order_garrison(const uint32_t *unit_ids, size_t count, uint32_t
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return;
 	Building &b = buildings_[bit->second];
-	if (b.build_progress < 1.0f) return;
+	if (b.build_progress < 1.0f || !structure_has_enough_health(b)) return;
 
 	for (size_t i = 0; i < count; ++i) {
 		if ((int)b.garrisoned_units.size() >= b.garrison_cap) break;
@@ -2233,6 +2234,36 @@ void Simulation::order_garrison(const uint32_t *unit_ids, size_t count, uint32_t
 		units_.vel_x[uidx] = 0.0f;
 		units_.vel_z[uidx] = 0.0f;
 		b.garrisoned_units.push_back(unit_ids[i]);
+	}
+}
+
+bool Simulation::structure_has_enough_health(const Building &b) const {
+	return b.hp > std::floor(building_eject_health(b.type) * b.max_hp);
+}
+
+float Simulation::structure_garrison_heal(const Building &b) const {
+	const float add = b.team < MAX_PLAYERS ? tech_mods_[b.team].bld_garrison_heal[b.type] : 0.0f;
+	return building_garrison_heal(b.type) + add;
+}
+
+void Simulation::tick_garrison_holders() {
+	// HealTimeout runs every HEAL_TIMEOUT = 1000 ms while something is garrisoned.
+	const bool heal_now = ticks_ % (uint64_t)std::lround(1.0f / FIXED_STEP) == 0;
+	for (size_t bi = 0; bi < buildings_.size(); ++bi) {
+		Building &b = buildings_[bi];
+		if (b.garrisoned_units.empty()) continue;
+		if (!structure_has_enough_health(b)) { // OnHealthChanged -> EjectOrKill
+			order_ungarrison(b.id);
+			continue;
+		}
+		if (!heal_now) continue;
+		const float rate = structure_garrison_heal(b);
+		if (rate <= 0.0f) continue;
+		for (uint32_t uid : b.garrisoned_units) {
+			const int32_t i = lookup_unit(uid);
+			if (i < 0 || !(unit_tech_classes(units_.unit_type[i]) & TC_ORGANIC)) continue; // Health.IsUnhealable
+			units_.hp[i] = std::min(units_.max_hp[i], units_.hp[i] + rate);
+		}
 	}
 }
 
@@ -2599,6 +2630,7 @@ void Simulation::tick(float dt) {
 	tick_research(dt);       // 0 A.D. ProductionQueue.js / Researcher.js: technology research progress
 	tick_upgrades(dt);       // 0 A.D. Upgrade.js: structure upgrades (sentry tower -> tower, wall -> gate)
 	tick_siege_garrisons();  // 0 A.D. GarrisonHolder EjectHealth / OnDestroy for siege towers and rams
+	tick_garrison_holders(); // 0 A.D. GarrisonHolder BuffHeal / EjectHealth for structures
 	tick_entity_limits(dt);  // 0 A.D. EntityLimits.js:7-12: enforce category limits per player (Wonder: 1, Fortress: 10)
 	tick_gates(dt);          // 0 A.D. Gate.js:145-180: auto open / close when allied units in pass range
 
@@ -8900,7 +8932,7 @@ void Simulation::petra_manage_defense(float dt) {
 			for (const auto &b : buildings_) {
 				if (b.team != petra_pid_ || b.build_progress < 1.0f) continue;
 				if (b.type != BLD_FORTRESS && b.type != BLD_TOWER && b.type != BLD_TOWN_CENTER) continue;
-				if ((int)b.garrisoned_units.size() >= b.garrison_cap) continue;
+				if ((int)b.garrisoned_units.size() >= b.garrison_cap || !structure_has_enough_health(b)) continue;
 				float dx = units_.pos_x[idx] - b.x;
 				float dz = units_.pos_z[idx] - b.z;
 				float d2 = dx * dx + dz * dz;
@@ -9023,7 +9055,7 @@ void Simulation::petra_manage_victory(float dt) {
 			for (const auto &b : buildings_) {
 				if (b.team != petra_pid_ || b.build_progress < 1.0f) continue;
 				if (b.type != BLD_FORTRESS && b.type != BLD_TEMPLE && b.type != BLD_TOWN_CENTER) continue;
-				if ((int)b.garrisoned_units.size() >= b.garrison_cap) continue;
+				if ((int)b.garrisoned_units.size() >= b.garrison_cap || !structure_has_enough_health(b)) continue;
 				float dx = units_.pos_x[i] - b.x;
 				float dz = units_.pos_z[i] - b.z;
 				float d2 = dx * dx + dz * dz;
