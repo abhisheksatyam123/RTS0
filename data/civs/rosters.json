@@ -19719,6 +19719,9 @@
    "affects": [
     "Human"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Health/RegenRate",
@@ -19740,6 +19743,9 @@
    "affects": [
     "Healer"
    ],
+   "players": [
+    "MutualAlly"
+   ],
    "modifications": [
     {
      "value": "Heal/Health",
@@ -19756,6 +19762,9 @@
    "radius": 40.0,
    "affects": [
     "Soldier"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -19786,6 +19795,9 @@
    "affects": [
     "Infantry Javelineer"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "UnitMotion/WalkSpeed",
@@ -19809,6 +19821,9 @@
     "Ship",
     "Siege",
     "Structure"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -19847,6 +19862,9 @@
    "affects": [
     "Structure"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Researcher/TechCostMultiplier/food",
@@ -19880,6 +19898,9 @@
    "affects": [
     "Ship"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Cost/BuildTime",
@@ -19910,6 +19931,9 @@
     "Wall",
     "Palisade"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Cost/BuildTime",
@@ -19935,6 +19959,9 @@
    "affects": [
     "Soldier"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Cost/BuildTime",
@@ -19954,6 +19981,9 @@
    "type": "range",
    "radius": 0.0,
    "affects": [],
+   "players": [
+    "Player"
+   ],
    "modifications": [],
    "rts0": null
   },
@@ -19965,6 +19995,9 @@
    "radius": 60.0,
    "affects": [
     "Citizen Infantry Javelineer"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -19999,6 +20032,9 @@
    "affects": [
     "Spearman"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Attack/Capture/Capture",
@@ -20031,6 +20067,9 @@
    "radius": 45.0,
    "affects": [
     "Cavalry"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -20079,6 +20118,9 @@
     "Siege",
     "Trader"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "UnitMotion/WalkSpeed",
@@ -20099,6 +20141,9 @@
    "radius": 60.0,
    "affects": [
     "Worker"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -20125,6 +20170,9 @@
    "radius": 60.0,
    "affects": [
     "Cavalry"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -20167,6 +20215,9 @@
    "affects": [
     "Infantry"
    ],
+   "players": [
+    "Enemy"
+   ],
    "modifications": [
     {
      "value": "Attack/Melee/Damage/Hack",
@@ -20193,7 +20244,11 @@
      "multiply": 0.9
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_ATTACK",
+    0.9,
+    8.4
+   ]
   },
   {
    "id": "rome_hero_maximus",
@@ -20204,6 +20259,9 @@
    "affects": [
     "Human",
     "Structure"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -20234,6 +20292,9 @@
    "affects": [
     "Soldier",
     "Siege"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -20281,6 +20342,9 @@
     "Soldier",
     "Siege"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "UnitMotion/WalkSpeed",
@@ -20301,6 +20365,9 @@
    "radius": 60.0,
    "affects": [
     "Mercenary"
+   ],
+   "players": [
+    "Enemy"
    ],
    "modifications": [
     {
@@ -20328,7 +20395,11 @@
      "multiply": 0.8
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_ATTACK",
+    0.8,
+    16.8
+   ]
   },
   {
    "id": "cart_hero_hannibal",
@@ -20339,6 +20410,9 @@
    "affects": [
     "Soldier",
     "Siege"
+   ],
+   "players": [
+    "Ally"
    ],
    "modifications": [
     {
@@ -20385,6 +20459,9 @@
    "affects": [
     "Melee Cavalry"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Attack/Melee/Damage/Hack",
@@ -20413,6 +20490,9 @@
    "radius": 60.0,
    "affects": [
     "Soldier"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -20460,6 +20540,9 @@
     "Soldier",
     "Structure"
    ],
+   "players": [
+    "Enemy"
+   ],
    "modifications": [
     {
      "value": "Attack/Melee/Damage/Hack",
@@ -20486,7 +20569,11 @@
      "multiply": 0.9
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_ATTACK",
+    0.9,
+    8.4
+   ]
   },
   {
    "id": "mace_hero_alexander_iii_3",
@@ -20496,6 +20583,9 @@
    "radius": 60.0,
    "affects": [
     "CivilCentre"
+   ],
+   "players": [
+    "Enemy"
    ],
    "modifications": [
     {
@@ -20513,6 +20603,9 @@
    "radius": 60.0,
    "affects": [
     "Siege"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -20575,6 +20668,9 @@
    "affects": [
     "Champion"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Attack/Capture/Capture",
@@ -20619,6 +20715,9 @@
    "radius": 40.0,
    "affects": [
     "Champion"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -20670,6 +20769,9 @@
     "Soldier",
     "Siege"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Resistance/Entity/Damage/Hack",
@@ -20703,6 +20805,9 @@
    "affects": [
     "Human"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Health/RegenRate",
@@ -20726,6 +20831,9 @@
     "Siege",
     "Ship"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Looter/Resource/metal",
@@ -20743,6 +20851,9 @@
    "affects": [
     "Soldier",
     "Siege"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -20789,6 +20900,9 @@
    "affects": [
     "Worker"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "ResourceGatherer/BaseSpeed",
@@ -20811,6 +20925,9 @@
     "Structure",
     "SiegeTower"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "BuildingAI/GarrisonArrowMultiplier",
@@ -20831,6 +20948,9 @@
    "radius": 50.0,
    "affects": [
     "Soldier"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -20860,6 +20980,9 @@
    "radius": 0.0,
    "affects": [
     "Soldier"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -20894,6 +21017,9 @@
    "affects": [
     "Soldier"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "UnitMotion/WalkSpeed",
@@ -20915,6 +21041,9 @@
    "affects": [
     "Soldier",
     "Siege"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -20944,6 +21073,9 @@
    "radius": 0.0,
    "affects": [
     "Temple"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -20990,6 +21122,9 @@
    "affects": [
     "Structure"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Researcher/TechCostMultiplier/food",
@@ -21023,6 +21158,9 @@
    "affects": [
     "Human"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Health/RegenRate",
@@ -21043,6 +21181,9 @@
    "radius": 60.0,
    "affects": [
     "Soldier"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -21073,6 +21214,9 @@
    "affects": [
     "Elephant"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Attack/Melee/RepeatTime",
@@ -21101,6 +21245,9 @@
    "radius": 60.0,
    "affects": [
     "Champion"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -21148,6 +21295,9 @@
     "TempleOfAmun",
     "AmunGuard"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Cost/BuildTime",
@@ -21182,6 +21332,9 @@
     "TempleOfApedemak",
     "ApedemakGuard"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Cost/BuildTime",
@@ -21215,6 +21368,9 @@
    "affects": [
     "Healer"
    ],
+   "players": [
+    "Enemy"
+   ],
    "modifications": [
     {
      "value": "Heal/HP",
@@ -21231,6 +21387,9 @@
    "radius": 60.0,
    "affects": [
     "Soldier"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -21289,6 +21448,9 @@
    "affects": [
     "KushTrireme"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Cost/Resources/wood",
@@ -21310,6 +21472,9 @@
    "affects": [
     "Soldier",
     "Siege"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -21336,6 +21501,9 @@
    "affects": [
     "Hero"
    ],
+   "players": [
+    "ExclusiveMutualAlly"
+   ],
    "modifications": [
     {
      "value": "Health/Max",
@@ -21352,6 +21520,9 @@
    "radius": 30.0,
    "affects": [
     "Hero"
+   ],
+   "players": [
+    "Enemy"
    ],
    "modifications": [
     {
@@ -21370,6 +21541,9 @@
    "affects": [
     "Builder"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Builder/Rate",
@@ -21386,6 +21560,9 @@
    "radius": 0.0,
    "affects": [
     "Mercenary"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -21416,6 +21593,9 @@
    "affects": [
     "Pikeman"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Health/Max",
@@ -21432,6 +21612,9 @@
    "radius": 45.0,
    "affects": [
     "Cavalry"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -21464,6 +21647,9 @@
     "Ship",
     "Siege"
    ],
+   "players": [
+    "Enemy"
+   ],
    "modifications": [
     {
      "value": "Health/Max",
@@ -21480,6 +21666,9 @@
    "radius": 60.0,
    "affects": [
     "Elephant Champion"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -21514,6 +21703,9 @@
    "affects": [
     "CitizenSoldier"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Promotion/RequiredXp",
@@ -21531,6 +21723,9 @@
    "affects": [
     "Soldier"
    ],
+   "players": [
+    "Ally"
+   ],
    "modifications": [
     {
      "value": "Vision/Range",
@@ -21547,6 +21742,9 @@
    "radius": 0.0,
    "affects": [
     "Wall"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -21568,6 +21766,9 @@
    "radius": 40.0,
    "affects": [
     "Cavalry"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -21609,6 +21810,9 @@
    "radius": 60.0,
    "affects": [
     "Champion"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -21655,6 +21859,9 @@
    "affects": [
     "Cavalry"
    ],
+   "players": [
+    "Enemy"
+   ],
    "modifications": [
     {
      "value": "Attack/Melee/Damage/Hack",
@@ -21681,7 +21888,11 @@
      "multiply": 0.9
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_ATTACK",
+    0.9,
+    8.4
+   ]
   }
  ]
 }

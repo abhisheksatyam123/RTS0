@@ -1492,7 +1492,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		for (int16_t &c : m.carry[t]) c = 0;
 		m.attack[t] = m.health[t] = m.speed[t] = 1.0f;
 		m.train_time[t] = m.heal_interval[t] = m.trade_gain[t] = m.pack_time[t] = 1.0f;
-		m.range[t] = m.heal_range[t] = 0.0f;
+		m.range[t] = m.heal_range[t] = m.regen[t] = m.idle_regen[t] = 0.0f;
 		m.armor[t][0] = m.armor[t][1] = m.armor[t][2] = 0.0f;
 	}
 	for (int b = 0; b < BLD_TYPE_COUNT; ++b) {
@@ -1542,6 +1542,8 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_HEAL_INTERVAL: apply(m.heal_interval[t]); break;
 					case TSTAT_TRADE_GAIN: apply(m.trade_gain[t]); break;
 					case TSTAT_PACK_TIME: apply(m.pack_time[t]); break;
+					case TSTAT_REGEN: apply(m.regen[t]); break;
+					case TSTAT_IDLE_REGEN: apply(m.idle_regen[t]); break;
 					default: break;
 				}
 			}
@@ -4278,8 +4280,9 @@ void Simulation::tick_combat(float dt) {
 		}
 
 		// AuraManager defensive armor buff
-		float armorAura = aura_mgr_.query_modifier(units_.pos_x[t], units_.pos_z[t], units_.team[t], AURA_ARMOR, units_.tmpl[t]);
-		if (armorAura > 0.001f) {
+		float armorAura = aura_mgr_.query_modifier(units_.pos_x[t], units_.pos_z[t], units_.team[t], AURA_ARMOR,
+			units_.tmpl[t], &unit_combat_at(t).classes);
+		if (armorAura != 0.0f) {
 			target_hack += armorAura;
 			target_pierce += armorAura;
 		}
@@ -4307,9 +4310,10 @@ void Simulation::tick_combat(float dt) {
 		pierce_dmg *= bonus_mul;
 		crush_dmg *= bonus_mul;
 
-		// Carnyx Horn Morale Aura via AuraManager (14m +20% dmg)
-		float dmgMult = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], att_team, AURA_ATTACK, units_.tmpl[i]);
-		if (dmgMult > 1.001f) {
+		// Attack auras (hero bonuses, enemy carnyx and hero penalties); 0 = none in range
+		float dmgMult = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], att_team, AURA_ATTACK,
+			units_.tmpl[i], &unit_combat_at(i).classes);
+		if (dmgMult > 0.0f) {
 			hack_dmg *= dmgMult;
 			pierce_dmg *= dmgMult;
 			crush_dmg *= dmgMult;
@@ -4705,10 +4709,23 @@ void Simulation::tick_combat(float dt) {
 		}
 	}
 
+	// 2b. Health.js regeneration: RegenRate always, IdleRegenRate while the unit is idle
+	// (technologies such as Battlefield Medicine). 0 A.D. adds it once a second; RTS0
+	// adds the same rate every tick.
+	for (size_t u = 0; u < n; ++u) {
+		if (!units_.alive[u] || units_.hp[u] <= 0.0f || units_.hp[u] >= units_.max_hp[u]) continue;
+		uint8_t owner = units_.team[u], t = units_.unit_type[u];
+		if (owner >= MAX_PLAYERS || t >= UNIT_TYPE_COUNT) continue;
+		const TechMods &m = tech_mods_[owner];
+		float rate = m.regen[t] + (units_.action_state[u] == ACTION_IDLE ? m.idle_regen[t] : 0.0f);
+		if (rate > 0.0f) units_.hp[u] = std::min(units_.max_hp[u], units_.hp[u] + dt * rate);
+	}
+
 	// 3. Temple + Hero Healing Aura via AuraManager (Heal.js + Auras.js) - 18m 3.5 / 16m 2.0
 	for (size_t u = 0; u < n; ++u) {
 		if (!units_.alive[u] || units_.hp[u] >= units_.max_hp[u]) continue;
-		float healMod = aura_mgr_.query_modifier(units_.pos_x[u], units_.pos_z[u], units_.team[u], AURA_HEAL, units_.tmpl[u]);
+		float healMod = aura_mgr_.query_modifier(units_.pos_x[u], units_.pos_z[u], units_.team[u], AURA_HEAL,
+			units_.tmpl[u], &unit_combat_at(u).classes);
 		if (healMod > 0.001f) {
 			units_.hp[u] = std::min(units_.max_hp[u], units_.hp[u] + dt * healMod);
 		}
@@ -11888,16 +11905,31 @@ void Simulation::tick_fauna(float dt) {
 	}
 }
 
+// 0 A.D. Auras.js GetAffectedPlayers: the aura_player_bit() mask of the players an
+// aura of `owner` reaches, from its AuraPlayers bits and the current diplomacy.
+uint16_t Simulation::aura_affected_players(uint8_t owner, uint8_t players) const {
+	uint16_t mask = 0;
+	for (uint8_t p = 0; p <= MAX_PLAYERS; ++p) {
+		uint8_t pid = p < MAX_PLAYERS ? p : GAIA_PLAYER;
+		uint8_t rel = pid == owner ? AURA_PLAYERS_OWNER
+			: is_ally(owner, pid) ? AURA_PLAYERS_ALLIES
+			: is_hostile(owner, pid) ? AURA_PLAYERS_ENEMIES : 0;
+		if (players & rel) mask |= aura_player_bit(pid);
+	}
+	return mask;
+}
+
 void Simulation::rebuild_auras() {
 	aura_mgr_.clear();
-	// Buildings: temple heal aura
+	// Buildings: 0 A.D. structures/temple_heal (own Humans +1 hp/s within 40 m)
 	for (const auto &b : buildings_) {
 		if (b.build_progress < 1.0f) continue;
 		if (b.type == BLD_TEMPLE) {
-			aura_mgr_.register_source(b.id, AURA_HEAL, 18.f, 3.5f, b.team, b.x, b.z);
+			aura_mgr_.register_source(b.id, AURA_HEAL, 40.f * COMBAT_DISTANCE_SCALE, 1.0f, aura_player_bit(b.team),
+				b.x, b.z, -1, CC_HUMAN);
 		}
 	}
-	// Units: female gather, carnyx attack, hero auras from the civ roster
+	// Units: female gather, carnyx, hero auras from the civ roster
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i]) continue;
 		uint8_t ut = units_.unit_type[i];
@@ -11906,10 +11938,12 @@ void Simulation::rebuild_auras() {
 		float z = units_.pos_z[i];
 		uint32_t id = units_.id[i];
 		if (ut == UNIT_FEMALE_CITIZEN) {
-			aura_mgr_.register_source(id, AURA_GATHER, 10.f, 0.15f, team, x, z);
+			aura_mgr_.register_source(id, AURA_GATHER, 10.f, 0.15f, aura_player_bit(team), x, z);
 		}
 		if (ut == UNIT_CARNYX) {
-			aura_mgr_.register_source(id, AURA_ATTACK, 14.f, 1.20f, team, x, z);
+			// 0 A.D. units/carnyx: enemy Soldiers within 20 m -10% attack damage
+			aura_mgr_.register_source(id, AURA_ATTACK, 20.f * COMBAT_DISTANCE_SCALE, 0.9f,
+				aura_affected_players(team, AURA_PLAYERS_ENEMIES), x, z, -1, CC_SOLDIER);
 		}
 		// Heroes (and other roster units with auras) project their own 0 A.D. auras.
 		uint16_t tmpl = units_.tmpl[i];
@@ -11918,7 +11952,8 @@ void Simulation::rebuild_auras() {
 				if (a < 0) continue;
 				const CivHeroAura &aura = civ_hero_aura(a);
 				if (aura.kind >= AURA_COUNT) continue; // effect RTS0 does not model yet
-				aura_mgr_.register_source(id, (AuraType)aura.kind, aura.range, aura.value, team, x, z, a);
+				aura_mgr_.register_source(id, (AuraType)aura.kind, aura.range, aura.value,
+					aura_affected_players(team, aura.players), x, z, a);
 			}
 		}
 	}

@@ -707,9 +707,24 @@ AURA_KIND = {"AURA_GATHER": 0, "AURA_HEAL": 1, "AURA_ATTACK": 2, "AURA_SPEED": 3
 GLOBAL_AURA_RANGE = 1000.0
 
 
+# 0 A.D. Auras.js affectedPlayers -> AuraPlayers bits in sim_types.h: 1 = the
+# owner, 2 = the owner's other allies, 4 = enemies (GetAllies() includes the
+# owner itself; ExclusiveMutualAlly does not).
+AURA_PLAYER_BITS = {"Player": 1, "Ally": 3, "MutualAlly": 3, "ExclusiveMutualAlly": 2, "Enemy": 4}
+
+
+def aura_players_mask(a):
+    mask = 0
+    for p in a.get("players", ["Player"]):
+        mask |= AURA_PLAYER_BITS.get(p, 0)
+    return mask
+
+
 def rts0_aura_effect(a):
     """Strongest effect of a 0 A.D. aura that RTS0's AuraManager can model:
-    (kind, value, range) or None."""
+    (kind, value, range) or None. Auras on enemies keep their strongest
+    penalty (an attack or speed multiplier below 1, negative armour)."""
+    enemy = aura_players_mask(a) == 4
     best = None
     for m in a.get("modifications", []):
         v = m.get("value", "")
@@ -729,6 +744,8 @@ def rts0_aura_effect(a):
         if kind is None:
             continue
         gain = value - 1.0 if kind in ("AURA_ATTACK", "AURA_SPEED") else value
+        if enemy and kind in ("AURA_ATTACK", "AURA_SPEED", "AURA_ARMOR"):
+            gain = -gain
         if gain <= 0:
             continue
         if best is None or gain > best[3]:
@@ -832,6 +849,7 @@ def collect(sim_root):
                     "type": a.get("type", "range"),
                     "radius": float(a.get("radius", 0)),
                     "affects": a.get("affects", []),
+                    "players": a.get("affectedPlayers", ["Player"]),
                     "modifications": a.get("modifications", []),
                 })
                 auras[-1]["rts0"] = rts0_aura_effect(auras[-1])
@@ -911,6 +929,7 @@ def emit_header(rows, auras, civ_json, bonuses, team):
     w("\tstatic const CivHeroAura kAuras[CIV_HERO_AURA_COUNT] = {")
     w("\t\t// id, name, description, radius (0 A.D. metres; 0 = global),")
     w("\t\t// RTS0 AuraManager effect: kind (AuraType, 255 = none modelled), value, range,")
+    w("\t\t// affected players (AuraPlayers bits: 1 owner, 2 other allies, 4 enemies),")
     w("\t\t// bitset of civ_unit_template_table() rows the aura affects")
     for a in auras:
         bits = [0] * words
@@ -920,8 +939,8 @@ def emit_header(rows, auras, civ_json, bonuses, team):
         radius = a["radius"] if a["type"] == "range" else 0.0
         eff = a.get("rts0")
         kind, value, rng = (AURA_KIND[eff[0]], eff[1], eff[2]) if eff else (255, 0.0, 0.0)
-        w("\t\t{%s, %s, %s, %s, %d, %s, %s, %s}," % (cstr(a["id"]), cstr(a["name"]), cstr(a["description"]),
-                                                 f(radius), kind, f(value), f(rng), bitset))
+        w("\t\t{%s, %s, %s, %s, %d, %s, %s, %d, %s}," % (cstr(a["id"]), cstr(a["name"]), cstr(a["description"]),
+                                                     f(radius), kind, f(value), f(rng), aura_players_mask(a), bitset))
     w("\t};")
     w("\treturn kAuras;")
     w("}")

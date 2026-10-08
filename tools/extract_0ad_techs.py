@@ -107,6 +107,8 @@ def stat_of(path: str):
         "Researcher/TechCostMultiplier/time": "TSTAT_RESEARCH_TIME",
         "Pack/Time": "TSTAT_PACK_TIME",
         "GarrisonHolder/BuffHeal": "TSTAT_GARRISON_HEAL",
+        "Health/RegenRate": "TSTAT_REGEN",
+        "Health/IdleRegenRate": "TSTAT_IDLE_REGEN",
     }.get(path)
 
 

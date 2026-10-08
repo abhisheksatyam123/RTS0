@@ -9,6 +9,11 @@
 //     often miss, and a stray arrow hits the enemy it lands on.
 //  6. No invented mechanics: structures below a third of their health don't burn
 //     down, soldiers cost no food upkeep.
+//  7. Auras reach the players 0 A.D.'s affectedPlayers names: Hannibal buffs his
+//     allies' soldiers, Marcellus and the carnyx weaken enemy soldiers, a temple
+//     heals only its owner's humans by 1 hp/s within 40 m.
+//  8. Health regeneration: Battlefield Medicine gives idle organic units +0.5 hp/s,
+//     not siege engines and not before it is researched.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_combat.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -20,6 +25,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 
 using namespace rtso;
 
@@ -219,6 +225,96 @@ static void test_no_invented() {
 	check(s.player(0).res[RES_FOOD] >= f0, "40 soldiers cost player 0 no food upkeep");
 }
 
+static uint16_t template_named(const char *suffix) {
+	for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t) {
+		const char *id = civ_unit_template(t).id;
+		size_t n = std::strlen(id), m = std::strlen(suffix);
+		if (n >= m && std::strcmp(id + n - m, suffix) == 0) return t;
+	}
+	return CIV_UNIT_TEMPLATE_NONE;
+}
+
+static void test_auras() {
+	std::printf("7. auras\n");
+	Simulation s;
+	setup(s);
+	s.set_mutual_ally(0, 2);
+	const uint16_t hannibal = template_named("hero_hannibal");
+	const uint16_t marcellus = template_named("hero_marcellus");
+	const uint16_t cart_spear = template_named("cart/infantry_spearman_b");
+	check(hannibal != CIV_UNIT_TEMPLATE_NONE && marcellus != CIV_UNIT_TEMPLATE_NONE
+			&& cart_spear != CIV_UNIT_TEMPLATE_NONE, "roster has Hannibal, Marcellus and a Carthaginian spearman");
+	auto attack_mod = [&](uint32_t id) {
+		int i = idx(s, id);
+		return s.aura_mgr_.query_modifier(s.units_.pos_x[i], s.units_.pos_z[i], s.units_.team[i], AURA_ATTACK,
+			s.units_.tmpl[i], &s.unit_combat_at(i).classes);
+	};
+	s.spawn_unit(0.0f, 0.0f, 0, UNIT_HERO, 0.0f, hannibal);
+	uint32_t own = s.spawn_unit(2.0f, 0.0f, 0, UNIT_SPEARMAN, 0.0f, cart_spear);
+	uint32_t ally = s.spawn_unit(0.0f, 2.0f, 2, UNIT_SPEARMAN, 0.0f, cart_spear);
+	uint32_t enemy = s.spawn_unit(-2.0f, 0.0f, 1, UNIT_SPEARMAN, 0.0f, cart_spear);
+	s.rebuild_auras();
+	check(std::fabs(attack_mod(own) - 1.2f) < 1e-4f, "Hannibal: own soldier +20% attack");
+	check(std::fabs(attack_mod(ally) - 1.2f) < 1e-4f, "Hannibal: allied soldier +20% attack");
+	check(attack_mod(enemy) == 0.0f, "Hannibal: enemy soldier unaffected");
+
+	Simulation r;
+	setup(r);
+	r.spawn_unit(0.0f, 0.0f, 1, UNIT_HERO, 0.0f, marcellus);
+	r.spawn_unit(30.0f, 30.0f, 1, UNIT_CARNYX);
+	uint32_t near_hero = r.spawn_unit(3.0f, 0.0f, 0, UNIT_SWORDSMAN);
+	uint32_t own_side = r.spawn_unit(0.0f, 3.0f, 1, UNIT_SWORDSMAN);
+	uint32_t near_horn = r.spawn_unit(32.0f, 30.0f, 0, UNIT_SWORDSMAN);
+	uint32_t far_horn = r.spawn_unit(38.0f, 30.0f, 0, UNIT_SWORDSMAN);
+	uint32_t woman = r.spawn_unit(31.0f, 30.0f, 0, UNIT_FEMALE_CITIZEN);
+	r.rebuild_auras();
+	auto mod = [&](uint32_t id) {
+		int i = idx(r, id);
+		return r.aura_mgr_.query_modifier(r.units_.pos_x[i], r.units_.pos_z[i], r.units_.team[i], AURA_ATTACK,
+			r.units_.tmpl[i], &r.unit_combat_at(i).classes);
+	};
+	check(std::fabs(mod(near_hero) - 0.9f) < 1e-4f, "Marcellus: enemy infantry -10% attack");
+	check(mod(own_side) == 0.0f, "Marcellus: his own soldiers unaffected");
+	check(std::fabs(mod(near_horn) - 0.9f) < 1e-4f, "carnyx: enemy soldier within 20 m -10% attack");
+	check(mod(far_horn) == 0.0f, "carnyx: enemy soldier beyond 20 m unaffected");
+	check(mod(woman) == 0.0f, "carnyx: enemy women (not soldiers) unaffected");
+
+	Simulation t;
+	setup(t);
+	t.spawn_building_world(0.0f, 0.0f, BLD_TEMPLE, 0, 1.0f);
+	uint32_t near_u = t.spawn_unit(8.0f, 0.0f, 0, UNIT_SWORDSMAN, 50.0f);
+	uint32_t far_u = t.spawn_unit(13.0f, 0.0f, 0, UNIT_SWORDSMAN, 50.0f);
+	uint32_t foe = t.spawn_unit(0.0f, 8.0f, 1, UNIT_SWORDSMAN, 50.0f);
+	uint32_t ram = t.spawn_unit(-8.0f, 0.0f, 0, UNIT_SIEGE_RAM, 50.0f);
+	t.rebuild_auras();
+	auto heal = [&](uint32_t id) {
+		int i = idx(t, id);
+		return t.aura_mgr_.query_modifier(t.units_.pos_x[i], t.units_.pos_z[i], t.units_.team[i], AURA_HEAL,
+			t.units_.tmpl[i], &t.unit_combat_at(i).classes);
+	};
+	check(std::fabs(heal(near_u) - 1.0f) < 1e-4f, "temple: own soldier within 40 m +1 hp/s");
+	check(heal(far_u) == 0.0f, "temple: own soldier beyond 40 m not healed");
+	check(heal(foe) == 0.0f, "temple: enemy soldier not healed");
+	check(heal(ram) == 0.0f, "temple: siege (not Human) not healed");
+}
+
+static void test_regen() {
+	std::printf("8. regeneration\n");
+	Simulation s;
+	setup(s);
+	uint32_t man = s.spawn_unit(-20.0f, 20.0f, 0, UNIT_SWORDSMAN);
+	uint32_t ram = s.spawn_unit(-24.0f, 20.0f, 0, UNIT_SIEGE_RAM);
+	s.units_.hp[idx(s, man)] = 50.0f;
+	s.units_.hp[idx(s, ram)] = 50.0f;
+	for (int k = 0; k < 200; ++k) s.tick(DT);
+	check(s.units_.hp[idx(s, man)] == 50.0f, "no regeneration before Battlefield Medicine");
+	s.complete_research(0, TECH_HEALTH_REGEN_UNITS);
+	for (int k = 0; k < 200; ++k) s.tick(DT);
+	const float healed = s.units_.hp[idx(s, man)] - 50.0f;
+	check(std::fabs(healed - 5.0f) < 0.05f, "idle swordsman regains 0.5 hp/s with Battlefield Medicine");
+	check(s.units_.hp[idx(s, ram)] == 50.0f, "a ram (not organic) does not regenerate");
+}
+
 int main() {
 	test_data();
 	test_bonus();
@@ -226,6 +322,8 @@ int main() {
 	test_structure_armour();
 	test_spread();
 	test_no_invented();
+	test_auras();
+	test_regen();
 	if (g_failures) {
 		std::printf("test_combat: FAIL (%d)\n", g_failures);
 		return 1;

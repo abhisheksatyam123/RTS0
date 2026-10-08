@@ -913,6 +913,8 @@ private:
 		float heal_interval[UNIT_TYPE_COUNT]; // < 1 heals faster
 		float trade_gain[UNIT_TYPE_COUNT];
 		float pack_time[UNIT_TYPE_COUNT];   // siege pack/unpack time multiplier
+		float regen[UNIT_TYPE_COUNT];       // Health.js RegenRate, hp per second
+		float idle_regen[UNIT_TYPE_COUNT];  // Health.js IdleRegenRate, added while idle
 		float bld_health[BLD_TYPE_COUNT];
 		float bld_attack[BLD_TYPE_COUNT];
 		float bld_range[BLD_TYPE_COUNT];
@@ -998,6 +1000,7 @@ private:
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
 	void rebuild_auras(); // G4: rebuild AuraManager from temples/heroes/carnyx/female citizens
+	uint16_t aura_affected_players(uint8_t owner, uint8_t players) const;
 	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false, uint8_t visual = 0, uint32_t source_id = 0);
 	static float projectile_speed(uint8_t visual);
 	int32_t projectile_hit_unit(const Projectile &p) const;

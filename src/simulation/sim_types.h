@@ -757,6 +757,7 @@ enum TechStat : uint8_t {
 	TSTAT_HEALTH, TSTAT_SPEED, TSTAT_POP_BONUS, TSTAT_TRADE_GAIN, TSTAT_RANGE,
 	TSTAT_BUILD_TIME, TSTAT_RESEARCH_TIME, TSTAT_HEAL_RANGE, TSTAT_HEAL_INTERVAL, TSTAT_ARROWS,
 	TSTAT_PACK_TIME, TSTAT_GARRISON_HEAL,
+	TSTAT_REGEN, TSTAT_IDLE_REGEN, // Health/RegenRate, Health/IdleRegenRate (hp per second)
 	TSTAT_COUNT
 };
 
@@ -954,6 +955,7 @@ struct CivHeroAura {
 	uint8_t kind;
 	float value;
 	float range; // RTS0 units
+	uint8_t players; // AuraPlayers bits (0 A.D. affectedPlayers)
 	uint64_t affects[CIV_TEMPLATE_WORDS_MAX]; // bitset of roster rows the aura buffs
 };
 
