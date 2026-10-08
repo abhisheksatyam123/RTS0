@@ -15,6 +15,10 @@
 //     of war in kind, and under Last Man Standing turns on its last ally.
 //  5. AI slots: Petra leaves a human slot alone, runs one AI per AI slot, and
 //     AIs on the same team never fight each other.
+//  6. Attack plan types (attackManager.js / attackPlan.js): wood-rich bases
+//     let aggressive AIs rush an undefended structure in the village phase,
+//     the first two town-phase plans are "Attack" and later ones "HugeAttack",
+//     and cavalry raid an enemy structure inside Petra's territory.
 //  Exit: 0 = PASS, 1 = FAIL.
 // The ally check reads the sim's death log, which has no public accessor.
 #define private public
@@ -50,9 +54,10 @@ static void test_no_early_rush() {
 		const auto st = s->petra_attack_plan().state;
 		if (st == Simulation::AttackPlan::WALKING || st == Simulation::AttackPlan::ATTACKED) attacked = true;
 	}
-	std::printf("  arena: %.0fs in village phase, player units %d -> %d, attack launched: %s\n",
-	            t, start_units, count_units(*s, 0, false), attacked ? "yes" : "no");
+	std::printf("  arena: %.0fs in village phase, player units %d -> %d, attack launched: %s, rushes allowed %d\n",
+	            t, start_units, count_units(*s, 0, false), attacked ? "yes" : "no", s->petra_attack_manager().max_rushes);
 	CHECK(!attacked, "no village-phase attack");
+	CHECK(s->petra_attack_manager().max_rushes == 0, "no rushes on a wood-poor base (setRushes)");
 	CHECK(count_units(*s, 0, false) == start_units, "idle player loses no units");
 	CHECK(!s->is_game_over(), "match still running");
 }
@@ -355,6 +360,98 @@ static void test_diplomacy() {
 	}
 }
 
+// attackManager.js update(): rushes while any are left, then "Attack" twice
+// and "HugeAttack" after; raids answer enemy structures in Petra's territory.
+static void test_attack_plans() {
+	auto match = [](uint8_t behavior) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->set_petra_difficulty(PETRA_MEDIUM);
+		s->set_petra_behavior(behavior);
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		return s;
+	};
+	{
+		// A storehouse more than 80 m from the idle player's Town Center is the
+		// only structure a rush may target (rushTargetFinder).
+		auto s = match(PETRA_BEHAVIOR_AGGRESSIVE);
+		const uint32_t store = s->spawn_building_world(-55.0f, 40.0f, BLD_STOREHOUSE, 0, 1.0f);
+		bool rushed = false, rush_at_store = false;
+		int attack_size = 0, huge_size = 0;
+		for (float t = 0.0f; t < 12.0f * 60.0f; t += Simulation::FIXED_STEP) {
+			s->tick(Simulation::FIXED_STEP);
+			const auto &m = s->petra_attack_manager();
+			const auto &plan = s->petra_attack_plan();
+			if (plan.state != Simulation::AttackPlan::WALKING) continue;
+			if (m.kind == PETRA_ATTACK_RUSH && s->petra_phase() == 1) {
+				rushed = true;
+				rush_at_store |= plan.target_building_id == store;
+			}
+			if (m.kind == PETRA_ATTACK_ATTACK) attack_size = m.target_size;
+			if (m.kind == PETRA_ATTACK_HUGE) huge_size = m.target_size;
+		}
+		const auto &m = s->petra_attack_manager();
+		std::printf("  aggressive: rushes allowed %d, village rush %s (at the storehouse %s), launched rush %d attack %d huge %d, sizes %d / %d\n",
+		            m.max_rushes, rushed ? "yes" : "no", rush_at_store ? "yes" : "no", m.launched[PETRA_ATTACK_RUSH],
+		            m.launched[PETRA_ATTACK_ATTACK], m.launched[PETRA_ATTACK_HUGE], attack_size, huge_size);
+		CHECK(m.max_rushes == 3, "an aggressive AI on a wood-rich base plans three rushes");
+		CHECK(rushed && rush_at_store, "rushes the undefended storehouse in the village phase");
+		CHECK(m.launched[PETRA_ATTACK_ATTACK] >= 2, "launches two Attack plans");
+	}
+	{
+		auto s = match(PETRA_BEHAVIOR_AGGRESSIVE);
+		int attack_size = 0, huge_size = 0;
+		for (float t = 0.0f; t < 12.0f * 60.0f; t += Simulation::FIXED_STEP) {
+			s->tick(Simulation::FIXED_STEP);
+			const auto &m = s->petra_attack_manager();
+			if (s->petra_attack_plan().state != Simulation::AttackPlan::WALKING) continue;
+			if (m.kind == PETRA_ATTACK_ATTACK) attack_size = m.target_size;
+			if (m.kind == PETRA_ATTACK_HUGE) huge_size = m.target_size;
+		}
+		const auto &m = s->petra_attack_manager();
+		std::printf("  no rush target: rushes planned %d, launched attack %d then huge %d, target sizes %d / %d\n",
+		            m.rush_number, m.launched[PETRA_ATTACK_ATTACK], m.launched[PETRA_ATTACK_HUGE], attack_size, huge_size);
+		CHECK(m.launched[PETRA_ATTACK_RUSH] == 0, "no rush without an undefended target");
+		CHECK(m.launched[PETRA_ATTACK_ATTACK] == 2, "the first two plans are Attack");
+		CHECK(m.launched[PETRA_ATTACK_HUGE] >= 1, "then HugeAttack");
+		CHECK(huge_size > 2 * attack_size, "a HugeAttack musters a much larger army");
+	}
+	{
+		auto s = match(PETRA_BEHAVIOR_DEFENSIVE);
+		for (float t = 0.0f; t < 5.0f; t += Simulation::FIXED_STEP) s->tick(Simulation::FIXED_STEP);
+		CHECK(s->petra_attack_manager().rushes_set && s->petra_attack_manager().max_rushes == 0,
+		      "a defensive AI plans no rush");
+	}
+	{
+		// Raid: an enemy house in Petra's territory, cavalry and spearmen at hand.
+		auto s = match(PETRA_BEHAVIOR_BALANCED);
+		const uint32_t house = s->spawn_building_world(-10.0f, -40.0f, BLD_HOUSE, 0, 1.0f);
+		for (int i = 0; i < 4; ++i) {
+			s->spawn_unit(-30.0f + 2.0f * (float)i, -12.0f, 1, UNIT_CAVALRY);
+			s->spawn_unit(-30.0f + 2.0f * (float)i, -10.0f, 1, UNIT_SPEARMAN);
+		}
+		bool raided = false, cavalry_only = true;
+		size_t raiders = 0;
+		for (float t = 0.0f; t < 20.0f && !raided; t += Simulation::FIXED_STEP) {
+			s->tick(Simulation::FIXED_STEP);
+			const auto &raid = s->petra_raid_plan();
+			if (raid.state != Simulation::AttackPlan::WALKING || raid.target_building_id != house) continue;
+			raided = true;
+			raiders = raid.squad.size();
+			const auto u = s->units();
+			for (uint32_t id : raid.squad)
+				for (size_t i = 0; i < u.count; ++i)
+					if (u.id[i] == id && u.unit_type[i] != UNIT_CAVALRY) cavalry_only = false;
+		}
+		std::printf("  raid on a house in Petra's territory: %s with %zu riders, cavalry only %s\n",
+		            raided ? "yes" : "no", raiders, cavalry_only ? "yes" : "no");
+		CHECK(raided && raiders >= 3, "raids an enemy structure in its territory");
+		CHECK(cavalry_only, "raids with cavalry only");
+	}
+}
+
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
@@ -363,6 +460,7 @@ int main() {
 	test_roster_army();
 	test_diplomacy();
 	test_ai_slots();
+	test_attack_plans();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }

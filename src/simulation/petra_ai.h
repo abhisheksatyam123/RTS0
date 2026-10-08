@@ -258,6 +258,31 @@ struct PetraEmergency {
 	bool active = false;
 };
 
+// attackPlan.js plan types, chosen by attackManager.js update().
+enum PetraAttackKind : uint8_t {
+	PETRA_ATTACK_RUSH   = 0, // village-phase infantry strike on an undefended structure
+	PETRA_ATTACK_ATTACK = 1, // "Attack": the default town-phase army
+	PETRA_ATTACK_HUGE   = 2, // "HugeAttack": from the third default attack on
+	PETRA_ATTACK_RAID   = 3, // cavalry against an enemy structure in our territory
+	PETRA_ATTACK_KINDS  = 4
+};
+
+// attackManager.js state for one AI. Saved raw (save v17), so it has no
+// implicit padding: the uint8 fields fill a whole 4-byte word.
+struct PetraAttackManager {
+	uint8_t rushes_set = 0;   // setRushes ran (headquarters.js gameStart)
+	uint8_t max_rushes = 0;
+	uint8_t rush_number = 0;  // rushes planned so far
+	uint8_t attack_number = 0; // Attack/HugeAttack plans so far
+	uint8_t kind = PETRA_ATTACK_ATTACK; // kind of the main plan
+	uint8_t pad[3] = {};
+	int32_t rush_size[3] = {};
+	int32_t target_size = 0;  // main plan's unitStat targetSize total
+	int32_t min_size = 0;     // and minSize total
+	int32_t launched[PETRA_ATTACK_KINDS] = {}; // plans of each kind that marched
+};
+static_assert(sizeof(PetraAttackManager) == 44, "PetraAttackManager is saved raw; keep it padding-free");
+
 // navalManager.js:58 seaWarShips — per-sea fleet accounting registry
 struct Petra {
 	static constexpr int kMaxSeas = 8;
