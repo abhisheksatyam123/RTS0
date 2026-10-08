@@ -186,7 +186,7 @@ public:
 	uint32_t current_turn() const { return current_turn_; }
 	// Phase4 HashSerializer parity — detailed OOS hash over ALL SoA fields used for sync.
 	// Hashes: pos_x/z, hp, unit_type, team, action_state, carry/capacity, building hp/progress/team/type,
-	//         resources food/wood/gold/stone, researched_techs_mask_, fow_grid_, projectiles count+pos, relics claimed,
+	//         per-player table (stockpiles, tech masks, phase, civ, team), fow_grid_, projectiles count+pos, relics claimed,
 	//         territory_grid_ if present, market prices if present. Mirrors 0 A.D. HashSerializer/StdSerializer.
 	uint32_t compute_sim_hash(const Simulation &sim) const;
 

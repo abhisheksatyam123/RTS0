@@ -1,6 +1,7 @@
 #ifndef RTSO_PETRA_AI_H
 #define RTSO_PETRA_AI_H
 
+// Derived from 0 A.D., GPL-2.0-or-later (Copyright (C) Wildfire Games).
 // Native collapse of 0 A.D. Petra JS. Vendor (not compiled):
 //   0ad/source/mods/public/simulation/ai/petra/{config,difficultyLevel,
 //   startingStrategy,researchManager,navalManager,attackPlan,queueManager,

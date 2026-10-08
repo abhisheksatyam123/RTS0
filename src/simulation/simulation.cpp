@@ -125,6 +125,15 @@ Simulation::Simulation() {
 	resources_.init(512);
 	unit_paths_.assign(UNIT_CAP, WaypointPath{});
 	nav_grid_.init(map_half_, NavGrid::DEFAULT_RES);
+	// Default civ per slot (game setup overrides via set_team_civ). Slots 0-3 keep the legacy
+	// player_civ_[4] defaults; teams start free-for-all (each player its own team).
+	static constexpr Civilization kDefaultCivs[MAX_PLAYERS] = {
+		CIV_ATHENIANS, CIV_SPARTANS, CIV_ROMANS, CIV_PERSIANS,
+		CIV_CARTHAGINIANS, CIV_MACEDONIANS, CIV_GAULS, CIV_IBERIANS};
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+		players_[p].civ = kDefaultCivs[p];
+		players_[p].team = p;
+	}
 	apply_petra_config();
 }
 
@@ -143,20 +152,18 @@ void Simulation::reset() {
 
 	next_id_ = 1;
 	sim_rng_.set_seed(sim_seed_);
-	food_ = 350;
-	wood_ = 450;
-	gold_ = 300;
-	stone_ = 250;
+	// Per-player economy reset. Civ, team and active/AI flags come from game setup and survive reset().
+	// Player 0 starts with the human stock, every other slot with Petra's.
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+		PlayerState &ps = players_[p];
+		if (p == 0) { ps.food() = 350.0f; ps.wood() = 450.0f; ps.gold() = 300.0f; ps.stone() = 250.0f; }
+		else        { ps.food() = 400.0f; ps.wood() = 600.0f; ps.gold() = 300.0f; ps.stone() = 200.0f; }
+		for (float &w : ps.gathered_window) w = 0.0f;
+		ps.tech_mask = 0;
+		ps.phase = 1;
+	}
 	passive_timer_ = 0.0f;
 	rate_window_timer_ = 0.0f;
-
-	food_gathered_window_ = 0.0f;
-	wood_gathered_window_ = 0.0f;
-	gold_gathered_window_ = 0.0f;
-	stone_gathered_window_ = 0.0f;
-
-	player_phase_ = 1;
-	researched_techs_mask_ = 0;
 
 	wave_timer_ = 0.0f;
 	wave_number_ = 0;
@@ -197,12 +204,6 @@ void Simulation::reset() {
 	petra_scout_unit_id_ = 0;
 	petra_scout_angle_ = 0.0f;
 	petra_scout_radius_ = 12.0f;
-	petra_phase_ = 1;
-	ai_food_ = 400.0f;
-	ai_wood_ = 600.0f;
-	ai_gold_ = 300.0f;
-	ai_stone_ = 200.0f;
-	ai_researched_techs_mask_ = 0;
 	petra_bases_.clear();
 	petra_bases_.push_back({1, 0, 36.0f, 36.0f, true, 0, 32.0f, 0.0f, false});
 	memset(petra_fow_, 0, sizeof(petra_fow_));
@@ -525,8 +526,8 @@ uint32_t Simulation::spawn_unit(float x, float z, uint8_t team, UnitType u_type,
 	}
 
 	// Apply researched military tech bonuses & Civilization traits
-	uint32_t tech_mask = (team == 0) ? researched_techs_mask_ : ai_researched_techs_mask_;
-	Civilization civ = (team < 4) ? player_civ_[team] : CIV_ATHENIANS;
+	uint32_t tech_mask = player(team).tech_mask;
+	Civilization civ = (team < MAX_PLAYERS) ? players_[team].civ : CIV_ATHENIANS;
 	const CivInfo &cinfo = civ_info(civ);
 
 	units_.max_hp[idx] *= cinfo.hp_mult;
@@ -597,7 +598,7 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	b.type = type;
 	b.team = team;
 	b.max_hp = binfo.max_hp;
-	if (team == 0 && player_civ_[0] == CIV_ROMANS) b.max_hp *= 1.20f; // Roman architecture bonus
+	if (team == 0 && players_[0].civ == CIV_ROMANS) b.max_hp *= 1.20f; // Roman architecture bonus
 	// 0 A.D. foundation.xml: Health/Initial is 1. Progress 0 = plot only (not a wreck).
 	if (progress <= 0.0f) {
 		b.build_progress = 0.0f;
@@ -812,15 +813,8 @@ uint32_t Simulation::cmd_build(int cell_x, int cell_y, uint8_t b_type) {
 	const BuildingTypeInfo &binfo = building_type_info(b_type);
 	if (!can_place(cell_x, cell_y, binfo.footprint)) return 0;
 
-	if (wood_ < binfo.wood_cost || stone_ < binfo.stone_cost ||
-		gold_ < binfo.gold_cost || food_ < binfo.food_cost) {
+	if (!players_[0].pay((float)binfo.food_cost, (float)binfo.wood_cost, (float)binfo.gold_cost, (float)binfo.stone_cost))
 		return 0;
-	}
-
-	wood_ -= binfo.wood_cost;
-	stone_ -= binfo.stone_cost;
-	gold_ -= binfo.gold_cost;
-	food_ -= binfo.food_cost;
 
 	uint32_t bid = spawn_building(cell_x, cell_y, b_type, 0, 0.0f);
 	record_.buildings_constructed++;
@@ -843,10 +837,8 @@ bool Simulation::cmd_maintain_fleet(uint32_t building_id, UnitType u_type, uint8
 	const UnitTypeInfo &uinfo = unit_type_info(u_type);
 	if (team == 0) {
 		if (pop_current() >= pop_max()) return false;
-		if (food_ < uinfo.food_cost || wood_ < uinfo.wood_cost ||
-		    gold_ < uinfo.gold_cost || stone_ < uinfo.stone_cost) return false;
-		food_ -= uinfo.food_cost; wood_ -= uinfo.wood_cost;
-		gold_ -= uinfo.gold_cost; stone_ -= uinfo.stone_cost;
+		if (!players_[0].pay((float)uinfo.food_cost, (float)uinfo.wood_cost,
+		                     (float)uinfo.gold_cost, (float)uinfo.stone_cost)) return false;
 	} else {
 		if (ai_pop_current() >= ai_pop_max()) return false;
 		if (!petra_try_pay(PETRA_QUEUE_NAVAL, (float)uinfo.food_cost,
@@ -873,26 +865,20 @@ bool Simulation::cmd_train(uint32_t building_id, UnitType u_type) {
 		return cmd_breed_livestock(building_id);
 	}
 
-	if (!civ_can_train(player_civ_[0], (uint8_t)u_type)) return false;
+	PlayerState &ps = player(b.team);
+	if (!civ_can_train(ps.civ, (uint8_t)u_type)) return false;
 
 	const UnitTypeInfo &uinfo = unit_type_info(u_type);
 	if (pop_current() >= pop_max()) return false;
 
-	if (food_ < uinfo.food_cost || wood_ < uinfo.wood_cost ||
-		gold_ < uinfo.gold_cost || stone_ < uinfo.stone_cost) {
+	if (!ps.pay((float)uinfo.food_cost, (float)uinfo.wood_cost, (float)uinfo.gold_cost, (float)uinfo.stone_cost))
 		return false;
-	}
-
-	food_ -= uinfo.food_cost;
-	wood_ -= uinfo.wood_cost;
-	gold_ -= uinfo.gold_cost;
-	stone_ -= uinfo.stone_cost;
 
 	ProductionOrder order;
 	order.unit_type = u_type;
 	order.timer = 0.0f;
 	order.duration = uinfo.train_time;
-	if (player_civ_[0] == CIV_PERSIANS && u_type == UNIT_CAVALRY) order.duration *= 0.80f;
+	if (ps.civ == CIV_PERSIANS && u_type == UNIT_CAVALRY) order.duration *= 0.80f;
 	b.queue.push_back(order);
 	return true;
 }
@@ -903,50 +889,29 @@ bool Simulation::cmd_cancel_train(uint32_t building_id, size_t queue_idx) {
 	Building &b = buildings_[bit->second];
 	if (queue_idx >= b.queue.size()) return false;
 
+	// Refunds go to player 0, as before; the owner-aware refund lands with per-player commands.
 	uint8_t utype = b.queue[queue_idx].unit_type;
 	if (utype == UNIT_TYPE_NONE) {
-		food_ += 60;
-		wood_ += 30;
+		players_[0].add(60.0f, 30.0f, 0.0f, 0.0f);
 		b.queue.erase(b.queue.begin() + queue_idx);
 		return true;
 	}
 
 	const UnitTypeInfo &uinfo = unit_type_info(utype);
-	food_ += uinfo.food_cost;
-	wood_ += uinfo.wood_cost;
-	gold_ += uinfo.gold_cost;
-	stone_ += uinfo.stone_cost;
+	players_[0].add((float)uinfo.food_cost, (float)uinfo.wood_cost, (float)uinfo.gold_cost, (float)uinfo.stone_cost);
 
 	b.queue.erase(b.queue.begin() + queue_idx);
 	return true;
 }
 
 bool Simulation::send_tribute(uint8_t player_id, uint8_t res_type, int amount) {
-	// diplomacyManager.js currently has a concrete Petra recipient in RTS0:
-	// team 1. Do not debit resources for unsupported player IDs, because the
-	// current simulation has no per-player stock ledger for teams 2..7 yet.
-	if (amount <= 0 || player_id != 1) return false;
-	if (res_type == RES_FOOD && food_ >= amount) {
-		food_ -= amount;
-		if (player_id == 1) ai_food_ += (float)amount;
-		return true;
-	}
-	if (res_type == RES_WOOD && wood_ >= amount) {
-		wood_ -= amount;
-		if (player_id == 1) ai_wood_ += (float)amount;
-		return true;
-	}
-	if (res_type == RES_GOLD && gold_ >= amount) {
-		gold_ -= amount;
-		if (player_id == 1) ai_gold_ += (float)amount;
-		return true;
-	}
-	if (res_type == RES_STONE && stone_ >= amount) {
-		stone_ -= amount;
-		if (player_id == 1) ai_stone_ += (float)amount;
-		return true;
-	}
-	return false;
+	// 0 A.D. Player.js TributeResource: player 0 pays any other player from its own stock.
+	if (amount <= 0 || player_id == 0 || player_id >= MAX_PLAYERS || res_type >= RES_COUNT) return false;
+	float &src = players_[0].res[res_type];
+	if (src < (float)amount) return false;
+	src -= (float)amount;
+	players_[player_id].res[res_type] += (float)amount;
+	return true;
 }
 
 void Simulation::receive_petra_diplomacy_request(uint8_t player_id, bool ally, int wanted, uint8_t resource) {
@@ -960,20 +925,12 @@ void Simulation::receive_petra_diplomacy_request(uint8_t player_id, bool ally, i
 }
 
 bool Simulation::ai_send_tribute(uint8_t res_type, int amount) {
-	if (amount <= 0) return false;
-	if (res_type == RES_FOOD && ai_food_ >= (float)amount) {
-		ai_food_ -= (float)amount; food_ += amount; return true;
-	}
-	if (res_type == RES_WOOD && ai_wood_ >= (float)amount) {
-		ai_wood_ -= (float)amount; wood_ += amount; return true;
-	}
-	if (res_type == RES_GOLD && ai_gold_ >= (float)amount) {
-		ai_gold_ -= (float)amount; gold_ += amount; return true;
-	}
-	if (res_type == RES_STONE && ai_stone_ >= (float)amount) {
-		ai_stone_ -= (float)amount; stone_ += amount; return true;
-	}
-	return false;
+	if (amount <= 0 || res_type >= RES_COUNT) return false;
+	float &src = petra_ps().res[res_type];
+	if (src < (float)amount) return false;
+	src -= (float)amount;
+	players_[0].res[res_type] += (float)amount;
+	return true;
 }
 
 void Simulation::cmd_set_rally_point(uint32_t building_id, float rx, float rz, uint32_t res_id, uint32_t bld_id) {
@@ -995,17 +952,11 @@ bool Simulation::cmd_research(uint32_t building_id, uint8_t tech_id) {
 	if (is_tech_researched(tech_id)) return false;
 
 	const TechInfo &tinfo = tech_info(tech_id);
-	if (tinfo.required_phase > player_phase_) return false;
+	PlayerState &ps = players_[0];
+	if (tinfo.required_phase > ps.phase) return false;
 
-	if (food_ < tinfo.food_cost || wood_ < tinfo.wood_cost ||
-		gold_ < tinfo.gold_cost || stone_ < tinfo.stone_cost) {
+	if (!ps.pay((float)tinfo.food_cost, (float)tinfo.wood_cost, (float)tinfo.gold_cost, (float)tinfo.stone_cost))
 		return false;
-	}
-
-	food_ -= tinfo.food_cost;
-	wood_ -= tinfo.wood_cost;
-	gold_ -= tinfo.gold_cost;
-	stone_ -= tinfo.stone_cost;
 
 	b.research_tech = tech_id;
 	b.research_timer = 0.0f;
@@ -1016,9 +967,10 @@ bool Simulation::cmd_research(uint32_t building_id, uint8_t tech_id) {
 bool Simulation::cmd_barter(ResourceType sell, ResourceType buy, int amount) {
 	if (sell == buy || amount <= 0) return false;
 	if (sell >= RES_COUNT || buy >= RES_COUNT) return false;
-	int *src = (sell == RES_FOOD) ? &food_ : ((sell == RES_WOOD) ? &wood_ : ((sell == RES_GOLD) ? &gold_ : &stone_));
-	int *dst = (buy == RES_FOOD) ? &food_ : ((buy == RES_WOOD) ? &wood_ : ((buy == RES_GOLD) ? &gold_ : &stone_));
-	if (*src < amount) return false;
+	PlayerState &ps = players_[0];
+	float *src = &ps.res[sell];
+	float *dst = &ps.res[buy];
+	if (*src < (float)amount) return false;
 
 	// 0 A.D. Market.js:42 & Barter.js:26 (CONSTANT_DIFFERENCE = 10, DEAL_AMOUNT = 100):
 	// Exchange rate sell/buy = (100 - 10) / (100 + 10) = 90 / 110 ~= 0.8182 (18.18% barter fee).
@@ -1026,7 +978,7 @@ bool Simulation::cmd_barter(ResourceType sell, ResourceType buy, int amount) {
 	// - Specialized trading civilizations (Carthaginians 1.10x, Persians 1.25x) receive 15% barter fee (baseSpread = 0.85f).
 	// - Default civilizations pay ~18.2% barter fee (baseSpread = 0.8182f, within 15-25% range; not flat 0.75).
 	float baseSpread = 0.8182f;
-	if (player_civ_[0] == CIV_CARTHAGINIANS || player_civ_[0] == CIV_PERSIANS) baseSpread = 0.85f;
+	if (ps.civ == CIV_CARTHAGINIANS || ps.civ == CIV_PERSIANS) baseSpread = 0.85f;
 	float priceRatio = market_sell_price_[sell] / std::max(0.01f, market_buy_price_[buy]);
 	int received = int(amount * baseSpread * priceRatio);
 	received = std::clamp(received, 1, amount * 3);
@@ -1071,7 +1023,7 @@ int Simulation::calculate_trader_gain(const Building& mA, const Building& mB, ui
 	const float distance = std::hypot(mA.x - mB.x, mA.z - mB.z);
 	const float CELL = 2.0f;
 	const float base = 0.0f;
-	Civilization civ = (team < 4) ? player_civ_[team] : CIV_ATHENIANS;
+	Civilization civ = civ_of(team);
 	const float civ_mult = civ_info(civ).trade_gain_mult;
 	int gains = static_cast<int>(std::floor((distance / CELL * 0.5f + base)) * civ_mult);
 	return std::max(0, gains);
@@ -1656,10 +1608,7 @@ bool Simulation::cmd_breed_livestock(uint32_t building_id) {
 	Building &b = buildings_[bit->second];
 	if (b.team != 0 || b.build_progress < 1.0f || b.type != BLD_CORRAL) return false;
 	if (b.queue.size() >= 8) return false;
-	if (food_ < 60 || wood_ < 30) return false;
-
-	food_ -= 60;
-	wood_ -= 30;
+	if (!player(b.team).pay(60.0f, 30.0f, 0.0f, 0.0f)) return false;
 	b.queue.push_back({(uint8_t)UNIT_TYPE_NONE, 0.0f, 15.0f});
 	return true;
 }
@@ -1834,20 +1783,13 @@ void Simulation::order_disembark_single(uint32_t transport_id, uint32_t unit_id)
 }
 
 void Simulation::apply_loot_bounty(uint8_t killer_team, int food, int wood, int gold, int stone) {
+	if (killer_team >= MAX_PLAYERS) return;
+	players_[killer_team].add((float)food, (float)wood, (float)gold, (float)stone);
 	if (killer_team == 0) {
-		food_ += food;
-		wood_ += wood;
-		gold_ += gold;
-		stone_ += stone;
 		record_.total_food_gathered += food;
 		record_.total_wood_gathered += wood;
 		record_.total_gold_gathered += gold;
 		record_.total_stone_gathered += stone;
-	} else if (killer_team == 1) {
-		ai_food_ += (float)food;
-		ai_wood_ += (float)wood;
-		ai_gold_ += (float)gold;
-		ai_stone_ += (float)stone;
 	}
 }
 
@@ -1966,18 +1908,16 @@ void Simulation::tick(float dt) {
 	rate_window_timer_ += dt;
 	if (rate_window_timer_ >= 5.0f) {
 		rate_window_timer_ = 0.0f;
-		food_gathered_window_ *= 0.5f;
-		wood_gathered_window_ *= 0.5f;
-		gold_gathered_window_ *= 0.5f;
-		stone_gathered_window_ *= 0.5f;
+		for (auto &ps : players_)
+			for (float &w : ps.gathered_window) w *= 0.5f;
 	}
 
 	// Passive income
 	passive_timer_ += dt;
 	if (passive_timer_ >= 1.0f) {
 		passive_timer_ = 0.0f;
-		food_ += 2;
-		wood_ += 2;
+		players_[0].food() += 2.0f;
+		players_[0].wood() += 2.0f;
 	}
 
 	// Fog of War (Paced at 4 Hz to avoid unnecessary main thread recalculations)
@@ -2068,19 +2008,20 @@ void Simulation::move_units(float dt, Arena &arena) {
 				}
 				const float CELL = 2.0f;
 				const float base = 0.0f;
-				Civilization civ = (units_.team[ti] < 4) ? player_civ_[units_.team[ti]] : CIV_ATHENIANS;
+				Civilization civ = civ_of(units_.team[ti]);
 				float mult = civ_info(civ).trade_gain_mult;
 				gain = static_cast<int>(std::floor((fallbackDist / CELL * 0.5f + base)) * mult);
 				gain = std::clamp(gain, 10, 120);
 				// If single market route, use fallback ping-pong across map
 			}
 			// Award gold only when arriving at a market/TC (not every ping); but for fallback we still reward
+			PlayerState &tps = player(units_.team[ti]);
 			if (units_.team[ti] == 0) {
-				gold_ += gain;
-				gold_gathered_window_ += gain;
+				tps.gold() += (float)gain;
+				tps.gathered_window[RES_GOLD] += (float)gain;
 				record_.total_gold_gathered += gain;
 			} else {
-				ai_gold_ = std::min(9999.0f, ai_gold_ + (float)gain);
+				tps.gold() = std::min(9999.0f, tps.gold() + (float)gain);
 			}
 
 			// Toggle carry to indicate loaded vs empty (visual)
@@ -2498,16 +2439,20 @@ void Simulation::tick_gather(float dt) {
 				float dz = units_.pos_z[i] - drop_z;
 				if (dx * dx + dz * dz < 2.5f * 2.5f) {
 					int amt = units_.carry[i];
-					if (uteam == 0) {
-						if (units_.res_type_carried[i] == RES_WOOD) { wood_ += amt; wood_gathered_window_ += amt; record_.total_wood_gathered += amt; }
-						else if (units_.res_type_carried[i] == RES_GOLD) { gold_ += amt; gold_gathered_window_ += amt; record_.total_gold_gathered += amt; }
-						else if (units_.res_type_carried[i] == RES_STONE) { stone_ += amt; stone_gathered_window_ += amt; record_.total_stone_gathered += amt; }
-						else if (units_.res_type_carried[i] == RES_FOOD) { food_ += amt; food_gathered_window_ += amt; record_.total_food_gathered += amt; }
-					} else {
-						if (units_.res_type_carried[i] == RES_WOOD) ai_wood_ = std::min(9999.0f, ai_wood_ + amt);
-						else if (units_.res_type_carried[i] == RES_GOLD) ai_gold_ = std::min(9999.0f, ai_gold_ + amt);
-						else if (units_.res_type_carried[i] == RES_STONE) ai_stone_ = std::min(9999.0f, ai_stone_ + amt);
-						else if (units_.res_type_carried[i] == RES_FOOD) ai_food_ = std::min(9999.0f, ai_food_ + amt);
+					uint8_t rt = units_.res_type_carried[i];
+					if (rt < RES_COUNT) {
+						PlayerState &ps = player(uteam);
+						if (uteam == 0) {
+							// Player 0 is uncapped and feeds the HUD rate window and match record.
+							ps.res[rt] += (float)amt;
+							ps.gathered_window[rt] += (float)amt;
+							if (rt == RES_WOOD) record_.total_wood_gathered += amt;
+							else if (rt == RES_GOLD) record_.total_gold_gathered += amt;
+							else if (rt == RES_STONE) record_.total_stone_gathered += amt;
+							else record_.total_food_gathered += amt;
+						} else {
+							ps.res[rt] = std::min(9999.0f, ps.res[rt] + (float)amt);
+						}
 					}
 
 					units_.carry[i] = 0;
@@ -2550,14 +2495,14 @@ void Simulation::tick_gather(float dt) {
 					if (is_tech_researched(TECH_WOODCUTTING_1) && resources_.type[ridx] == RES_WOOD) harvest_rate = 0.55f;
 					if (is_tech_researched(TECH_MINING_1) && (resources_.type[ridx] == RES_GOLD || resources_.type[ridx] == RES_STONE)) harvest_rate = 0.55f;
 
-					Civilization civ = (uteam < 4) ? player_civ_[uteam] : CIV_ATHENIANS;
+					Civilization civ = civ_of(uteam);
 					if ((resources_.type[ridx] == RES_GOLD || resources_.type[ridx] == RES_STONE) && civ_info(civ).metal_gather_mult > 1.0f) {
 						harvest_rate /= civ_info(civ).metal_gather_mult;
 					}
 				} else {
-					if ((ai_researched_techs_mask_ & (1u << TECH_FARMING_1)) && resources_.type[ridx] == RES_FOOD) harvest_rate = 0.55f;
-					if ((ai_researched_techs_mask_ & (1u << TECH_WOODCUTTING_1)) && resources_.type[ridx] == RES_WOOD) harvest_rate = 0.55f;
-					if ((ai_researched_techs_mask_ & (1u << TECH_MINING_1)) && (resources_.type[ridx] == RES_GOLD || resources_.type[ridx] == RES_STONE)) harvest_rate = 0.55f;
+					if ((petra_ps().tech_mask & (1u << TECH_FARMING_1)) && resources_.type[ridx] == RES_FOOD) harvest_rate = 0.55f;
+					if ((petra_ps().tech_mask & (1u << TECH_WOODCUTTING_1)) && resources_.type[ridx] == RES_WOOD) harvest_rate = 0.55f;
+					if ((petra_ps().tech_mask & (1u << TECH_MINING_1)) && (resources_.type[ridx] == RES_GOLD || resources_.type[ridx] == RES_STONE)) harvest_rate = 0.55f;
 				}
 
 				// Female Citizen gathering bonus (+25% Food gather speed)
@@ -2640,7 +2585,7 @@ void Simulation::tick_construction(float dt) {
 			int worker_count = std::max(1, builders_per_bld[b.id]);
 			float speed_mult = sqrtf((float)worker_count) / (float)worker_count;
 			if (units_.unit_type[i] == UNIT_WORKER_ELEPHANT) speed_mult *= 2.0f; // Worker elephant heavy construction
-			Civilization civ = (units_.team[i] < 4) ? player_civ_[units_.team[i]] : CIV_ATHENIANS;
+			Civilization civ = civ_of(units_.team[i]);
 			speed_mult *= civ_info(civ).build_speed_mult;
 
 			// 0 A.D. Foundation.Commit: first builder on site → scaffold + construction preview.
@@ -2700,7 +2645,7 @@ void Simulation::tick_repair(float dt) {
 			int worker_count = std::max(1, repairers_per_bld[b.id]);
 			float speed_mult = sqrtf((float)worker_count) / (float)worker_count;
 			if (units_.unit_type[i] == UNIT_WORKER_ELEPHANT) speed_mult *= 2.0f;
-			Civilization civ = (units_.team[i] < 4) ? player_civ_[units_.team[i]] : CIV_ATHENIANS;
+			Civilization civ = civ_of(units_.team[i]);
 			speed_mult *= civ_info(civ).build_speed_mult;
 
 			// Repair finished building (0 A.D. Repairable.js:114-118 Repair rate)
@@ -2772,15 +2717,10 @@ void Simulation::tick_research(float dt) {
 		uint8_t bteam = b.team;
 		b.research_timer += dt;
 		if (b.research_timer >= b.research_duration) {
-			if (bteam == 0) {
-				researched_techs_mask_ |= (1u << b.research_tech);
-				if (b.research_tech == TECH_PHASE_TOWN) player_phase_ = 2;
-				else if (b.research_tech == TECH_PHASE_CITY) player_phase_ = 3;
-			} else {
-				ai_researched_techs_mask_ |= (1u << b.research_tech);
-				if (b.research_tech == TECH_PHASE_TOWN) petra_phase_ = 2;
-				else if (b.research_tech == TECH_PHASE_CITY) petra_phase_ = 3;
-			}
+			PlayerState &ps = player(bteam);
+			ps.tech_mask |= (1u << b.research_tech);
+			if (b.research_tech == TECH_PHASE_TOWN) ps.phase = 2;
+			else if (b.research_tech == TECH_PHASE_CITY) ps.phase = 3;
 			b.research_tech = TECH_NONE;
 		}
 	}
@@ -2971,7 +2911,7 @@ void Simulation::tick_combat(float dt) {
 		}
 
 		// Iberian Devotio Bodyguard Vow: +2 armor
-		if (player_civ_[units_.team[t] < 4 ? units_.team[t] : 0] == CIV_IBERIANS) {
+		if (civ_of(units_.team[t]) == CIV_IBERIANS) {
 			target_hack += 2.0f;
 			target_pierce += 2.0f;
 		}
@@ -2995,7 +2935,7 @@ void Simulation::tick_combat(float dt) {
 		}
 
 		uint8_t att_team = units_.team[i];
-		Civilization att_civ = (att_team < 4) ? player_civ_[att_team] : CIV_ATHENIANS;
+		Civilization att_civ = civ_of(att_team);
 		float civ_melee_mult = civ_info(att_civ).melee_damage_mult;
 		hack_dmg *= civ_melee_mult;
 
@@ -3279,7 +3219,7 @@ void Simulation::tick_combat(float dt) {
 		);
 
 		bool is_ranged_attack = unit_has_ranged_attack(units_.unit_type[i],
-				player_civ_[units_.team[i] < 4 ? units_.team[i] : 0]);
+				civ_of(units_.team[i]));
 
 		if (is_ranged_attack) {
 			uint8_t ut = units_.unit_type[i];
@@ -3476,17 +3416,7 @@ void Simulation::tick_combat(float dt) {
 			if (dx * dx + dz * dz <= 2.5f * 2.5f) {
 				rel.claimed = true;
 				rel.owner_team = units_.team[u];
-				if (units_.team[u] == 0) {
-					if (rel.res_type == RES_GOLD) gold_ += rel.amount;
-					else if (rel.res_type == RES_WOOD) wood_ += rel.amount;
-					else if (rel.res_type == RES_FOOD) food_ += rel.amount;
-					else if (rel.res_type == RES_STONE) stone_ += rel.amount;
-				} else {
-					if (rel.res_type == RES_GOLD) ai_gold_ += (float)rel.amount;
-					else if (rel.res_type == RES_WOOD) ai_wood_ += (float)rel.amount;
-					else if (rel.res_type == RES_FOOD) ai_food_ += (float)rel.amount;
-					else if (rel.res_type == RES_STONE) ai_stone_ += (float)rel.amount;
-				}
+				if (rel.res_type < RES_COUNT) player(units_.team[u]).res[rel.res_type] += (float)rel.amount;
 				raise_alert(BattleAlert::ALERT_RELIC_CLAIMED, rel.x, rel.z, rel.id, units_.team[u]);
 				break;
 			}
@@ -4133,21 +4063,26 @@ void Simulation::tick_trickle(float dt) {
 	// Market: +0.3 gold/s (simulates trade trickle), Wonder: +2 of all/s
 	for (const auto &b : buildings_) {
 		if (b.team != 0 || b.build_progress < 1.0f) continue;
+		PlayerState &ps = players_[0];
+		// Whole-unit increments, as in the int-stock version this replaced.
+		auto trickle = [&](uint8_t rt, float rate) {
+			ps.res[rt] = std::min(9999.0f, ps.res[rt] + (float)(int)(rate * dt));
+		};
 		switch (b.type) {
 			case BLD_TOWN_CENTER:
-				food_ = std::min(9999, food_ + (int)(1.0f * dt));
+				trickle(RES_FOOD, 1.0f);
 				break;
 			case BLD_FARMSTEAD:
-				food_ = std::min(9999, food_ + (int)(0.5f * dt));
+				trickle(RES_FOOD, 0.5f);
 				break;
 			case BLD_MARKET:
-				gold_ = std::min(9999, gold_ + (int)(0.3f * dt));
+				trickle(RES_GOLD, 0.3f);
 				break;
 			case BLD_WONDER:
-				food_  = std::min(9999, food_  + (int)(2.0f * dt));
-				wood_  = std::min(9999, wood_  + (int)(2.0f * dt));
-				gold_  = std::min(9999, gold_  + (int)(2.0f * dt));
-				stone_ = std::min(9999, stone_ + (int)(2.0f * dt));
+				trickle(RES_FOOD, 2.0f);
+				trickle(RES_WOOD, 2.0f);
+				trickle(RES_GOLD, 2.0f);
+				trickle(RES_STONE, 2.0f);
 				break;
 			default: break;
 		}
@@ -4178,12 +4113,12 @@ void Simulation::tick_upkeep(float dt) {
 
 	// 0 A.D. Upkeep.js:51-60 TrySubtractResources: skip teams that can't pay (no negative resources)
 	int drain0 = soldiers_team0 / 20;
-	if (drain0 > 0 && food_ >= drain0) {
-		food_ -= drain0;
+	if (drain0 > 0 && players_[0].food() >= (float)drain0) {
+		players_[0].food() -= (float)drain0;
 	}
 	int drain1 = soldiers_team1 / 20;
-	if (drain1 > 0 && ai_food_ >= (float)drain1) {
-		ai_food_ -= (float)drain1;
+	if (drain1 > 0 && petra_ps().food() >= (float)drain1) {
+		petra_ps().food() -= (float)drain1;
 	}
 }
 
@@ -4276,13 +4211,9 @@ void Simulation::tick_loot(float dt) {
 		int food_bounty = death.is_building ? 20 : 5;
 		int wood_bounty = death.is_building ? 20 : 5;
 
-		if (killer == 0) {
-			food_ = std::min(9999, food_ + food_bounty);
-			wood_ = std::min(9999, wood_ + wood_bounty);
-		} else if (killer == 1) {
-			ai_food_ = std::min(9999.0f, ai_food_ + (float)food_bounty);
-			ai_wood_ = std::min(9999.0f, ai_wood_ + (float)wood_bounty);
-		}
+		PlayerState &kps = players_[killer];
+		kps.food() = std::min(9999.0f, kps.food() + (float)food_bounty);
+		kps.wood() = std::min(9999.0f, kps.wood() + (float)wood_bounty);
 	}
 }
 
@@ -4989,11 +4920,11 @@ void Simulation::petra_manage_military_production(float dt) {
 	float archer_score   = 1.0f + (enemy_infantry * 3.0f + enemy_spearmen * 3.5f) * norm;
 	float swordsman_score = 1.0f + (enemy_spearmen * 1.8f) * norm;
 	float cavalry_score  = 0.8f + (enemy_archers * 4.0f + enemy_siege * 3.0f) * norm;
-	float siege_score    = (petra_phase_ >= 2) ? (1.5f + (float)enemy_forts * 2.5f) : 0.2f;
-	if (petra_attack_plan_.type == AttackPlan::PLAN_SIEGE && petra_phase_ >= 2) {
+	float siege_score    = (petra_ps().phase >= 2) ? (1.5f + (float)enemy_forts * 2.5f) : 0.2f;
+	if (petra_attack_plan_.type == AttackPlan::PLAN_SIEGE && petra_ps().phase >= 2) {
 		siege_score += 5.0f; // Prioritize siege engines before assault
 	}
-	float champion_score = (petra_phase_ >= 3) ? 2.5f : 0.0f;
+	float champion_score = (petra_ps().phase >= 3) ? 2.5f : 0.0f;
 
 	struct Option {
 		UnitType type;
@@ -5002,7 +4933,7 @@ void Simulation::petra_manage_military_production(float dt) {
 	};
 	std::vector<Option> options;
 
-	uint8_t ai_civ = player_civ_[1];
+	uint8_t ai_civ = petra_ps().civ;
 	auto push_if_civ = [&](UnitType t, float score, uint32_t bid) {
 		if (civ_can_train(ai_civ, (uint8_t)t))
 			options.push_back({t, score, bid});
@@ -5012,7 +4943,7 @@ void Simulation::petra_manage_military_production(float dt) {
 		push_if_civ(UNIT_SPEARMAN, spearman_score, bid);
 		push_if_civ(UNIT_ARCHER, archer_score, bid);
 		push_if_civ(UNIT_SWORDSMAN, swordsman_score, bid);
-		if (petra_phase_ >= 2) {
+		if (petra_ps().phase >= 2) {
 			push_if_civ(UNIT_CAVALRY, cavalry_score, bid);
 			push_if_civ(UNIT_CAMEL, cavalry_score, bid);
 			push_if_civ(UNIT_CHARIOT, cavalry_score * 0.95f, bid);
@@ -5020,12 +4951,12 @@ void Simulation::petra_manage_military_production(float dt) {
 	}
 
 	for (uint32_t fid : fortress_list) {
-		if (petra_phase_ >= 2) {
+		if (petra_ps().phase >= 2) {
 			push_if_civ(UNIT_CATAPULT, siege_score, fid);
 			push_if_civ(UNIT_SIEGE_RAM, siege_score * 0.95f, fid);
 			push_if_civ(UNIT_BOLT_SHOOTER, siege_score * 0.85f, fid);
 		}
-		if (petra_phase_ >= 3) {
+		if (petra_ps().phase >= 3) {
 			push_if_civ(UNIT_ELEPHANT, champion_score, fid);
 			push_if_civ(UNIT_HERO, champion_score * 0.9f, fid);
 			push_if_civ(UNIT_SCYTHED_CHARIOT, champion_score * 0.85f, fid);
@@ -5069,7 +5000,7 @@ void Simulation::petra_manage_economy(float dt) {
 
 	int pop_max = ai_pop_max();
 	int target_villagers = (int)std::round(pop_max * 0.35f * petra_config_.pop_scaling);
-	int min_villagers = (petra_phase_ == 1) ? 12 : ((petra_phase_ == 2) ? 22 : 35);
+	int min_villagers = (petra_ps().phase == 1) ? 12 : ((petra_ps().phase == 2) ? 22 : 35);
 	min_villagers = (int)std::round((float)min_villagers * petra_config_.pop_scaling);
 	min_villagers = std::max(8, std::min(min_villagers, petra_config_.target_num_workers));
 	target_villagers = std::max(min_villagers, target_villagers);
@@ -5115,15 +5046,15 @@ void Simulation::petra_manage_economy(float dt) {
 	float demand_food = 300.0f;
 	float demand_wood = 400.0f;
 	float demand_gold = 250.0f;
-	float demand_stone = (petra_phase_ >= 2) ? 200.0f : 50.0f;
+	float demand_stone = (petra_ps().phase >= 2) ? 200.0f : 50.0f;
 
 	// Tech & Phase Priorities:
-	if (petra_phase_ == 1 && (ai_researched_techs_mask_ & (1u << TECH_PHASE_TOWN)) == 0) {
+	if (petra_ps().phase == 1 && (petra_ps().tech_mask & (1u << TECH_PHASE_TOWN)) == 0) {
 		const TechInfo &tinfo = tech_info(TECH_PHASE_TOWN);
 		demand_food += (float)tinfo.food_cost;
 		demand_wood += (float)tinfo.wood_cost;
 		demand_gold += (float)tinfo.gold_cost;
-	} else if (petra_phase_ == 2 && (ai_researched_techs_mask_ & (1u << TECH_PHASE_CITY)) == 0) {
+	} else if (petra_ps().phase == 2 && (petra_ps().tech_mask & (1u << TECH_PHASE_CITY)) == 0) {
 		const TechInfo &tinfo = tech_info(TECH_PHASE_CITY);
 		demand_food += (float)tinfo.food_cost;
 		demand_wood += (float)tinfo.wood_cost;
@@ -5132,10 +5063,10 @@ void Simulation::petra_manage_economy(float dt) {
 	}
 
 	// Economic & Military Techs:
-	if (petra_phase_ >= 2) {
-		if ((ai_researched_techs_mask_ & (1u << TECH_FARMING_1)) == 0) { demand_food += 150.0f; demand_wood += 100.0f; }
-		if ((ai_researched_techs_mask_ & (1u << TECH_WOODCUTTING_1)) == 0) { demand_wood += 150.0f; demand_gold += 50.0f; }
-		if ((ai_researched_techs_mask_ & (1u << TECH_MINING_1)) == 0) { demand_gold += 100.0f; demand_stone += 100.0f; }
+	if (petra_ps().phase >= 2) {
+		if ((petra_ps().tech_mask & (1u << TECH_FARMING_1)) == 0) { demand_food += 150.0f; demand_wood += 100.0f; }
+		if ((petra_ps().tech_mask & (1u << TECH_WOODCUTTING_1)) == 0) { demand_wood += 150.0f; demand_gold += 50.0f; }
+		if ((petra_ps().tech_mask & (1u << TECH_MINING_1)) == 0) { demand_gold += 100.0f; demand_stone += 100.0f; }
 	}
 
 	// Military & Siege Priorities:
@@ -5159,10 +5090,10 @@ void Simulation::petra_manage_economy(float dt) {
 	}
 
 	// Compute Resource Deficits & Proportions:
-	float need_food  = std::max(40.0f, demand_food - ai_food_);
-	float need_wood  = std::max(40.0f, demand_wood - ai_wood_);
-	float need_gold  = std::max(30.0f, demand_gold - ai_gold_);
-	float need_stone = (petra_phase_ >= 2) ? std::max(40.0f, demand_stone - ai_stone_) : 20.0f;
+	float need_food  = std::max(40.0f, demand_food - petra_ps().food());
+	float need_wood  = std::max(40.0f, demand_wood - petra_ps().wood());
+	float need_gold  = std::max(30.0f, demand_gold - petra_ps().gold());
+	float need_stone = (petra_ps().phase >= 2) ? std::max(40.0f, demand_stone - petra_ps().stone()) : 20.0f;
 
 	float total_need = need_food + need_wood + need_gold + need_stone;
 	float pct_food  = need_food / total_need;
@@ -5245,7 +5176,7 @@ void Simulation::petra_manage_trading(float dt) {
 	if (petra_trade_timer_ < 2.0f) return;
 	petra_trade_timer_ = 0.0f;
 
-	if (petra_phase_ < 2) return;
+	if (petra_ps().phase < 2) return;
 
 	// 1. Build Market if AI has none, or build secondary Market at forward base
 	int market_count = 0;
@@ -5318,7 +5249,7 @@ void Simulation::petra_manage_trading(float dt) {
 	}
 
 	int target_traders = petra_config_.target_num_traders;
-	if (petra_phase_ >= 3) target_traders += 1;
+	if (petra_ps().phase >= 3) target_traders += 1;
 	if (ai_traders < target_traders && !market_ids.empty() && ai_pop_current() < ai_pop_max()) {
 		const UnitTypeInfo &tinfo = unit_type_info(UNIT_TRADER);
 		if (petra_try_pay(PETRA_QUEUE_TRADE, (float)tinfo.food_cost, (float)tinfo.wood_cost, 0.0f, 0.0f)) {
@@ -5414,7 +5345,7 @@ void Simulation::petra_manage_naval(float dt) {
 		}
 	}
 
-	int target_triremes = (petra_phase_ == 1) ? 1 : ((petra_phase_ == 2) ? 2 : 4);
+	int target_triremes = (petra_ps().phase == 1) ? 1 : ((petra_ps().phase == 2) ? 2 : 4);
 	if (ai_triremes < target_triremes && !dock_ids.empty() && ai_pop_current() < ai_pop_max()) {
 		const UnitTypeInfo &tinfo = unit_type_info(UNIT_TRIREME);
 		if (petra_try_pay(PETRA_QUEUE_NAVAL, 0.0f, (float)tinfo.wood_cost, (float)tinfo.gold_cost, 0.0f)) {
@@ -5435,7 +5366,7 @@ void Simulation::petra_manage_naval(float dt) {
 		if (units_.alive[i] && units_.team[i] == 1 && units_.unit_type[i] == UNIT_FISHING_BOAT)
 			ai_fishers++;
 	}
-	int target_fishers = (petra_phase_ >= 2) ? 3 : 2;
+	int target_fishers = (petra_ps().phase >= 2) ? 3 : 2;
 	if (ai_fishers < target_fishers && !dock_ids.empty() && ai_pop_current() < ai_pop_max()) {
 		const UnitTypeInfo &finfo = unit_type_info(UNIT_FISHING_BOAT);
 		if (petra_try_pay(PETRA_QUEUE_NAVAL, 0.0f, (float)finfo.wood_cost, (float)finfo.gold_cost, 0.0f)) {
@@ -5625,7 +5556,7 @@ void Simulation::petra_manage_buildings(float dt) {
 		primary_depleted = pbase->resources_depleted;
 	}
 
-	if (primary_depleted || (petra_phase_ >= 2 && petra_bases_.size() <= 1)) {
+	if (primary_depleted || (petra_ps().phase >= 2 && petra_bases_.size() <= 1)) {
 		// Check if Town Center is already in progress
 		bool tc_in_progress = false;
 		for (const auto &b : buildings_) {
@@ -5859,7 +5790,7 @@ void Simulation::petra_manage_buildings(float dt) {
 	}
 
 	// 5. Build Defense Towers in Phase >= 2
-	if (petra_phase_ >= 2) {
+	if (petra_ps().phase >= 2) {
 		int tower_count = 0;
 		for (const auto &b : buildings_) {
 			if (b.team == 1 && b.type == BLD_TOWER) tower_count++;
@@ -5893,7 +5824,7 @@ void Simulation::petra_manage_buildings(float dt) {
 	}
 
 	// 6. Build Fortress in Phase >= 3
-	if (petra_phase_ >= 3) {
+	if (petra_ps().phase >= 3) {
 		bool has_fortress = false;
 		for (const auto &b : buildings_) {
 			if (b.team == 1 && b.type == BLD_FORTRESS) { has_fortress = true; break; }
@@ -5940,7 +5871,7 @@ void Simulation::petra_manage_research(float dt) {
 	if (!ai_tc || ai_tc->research_tech != TECH_NONE) return;
 
 	auto start_tech = [&](uint8_t tech_id) -> bool {
-		if ((ai_researched_techs_mask_ & (1u << tech_id)) != 0) return false;
+		if ((petra_ps().tech_mask & (1u << tech_id)) != 0) return false;
 		const TechInfo &tinfo = tech_info(tech_id);
 		if (!petra_try_pay(PETRA_QUEUE_TECH, (float)tinfo.food_cost, (float)tinfo.wood_cost,
 		                   (float)tinfo.gold_cost, (float)tinfo.stone_cost)) {
@@ -5963,7 +5894,7 @@ void Simulation::petra_manage_research(float dt) {
 			++workers;
 	}
 
-	if (petra_phase_ == 1) {
+	if (petra_ps().phase == 1) {
 		if (pop < petra_config_.pop_phase2) {
 			if (start_tech(TECH_FARMING_1)) return;   // researchWantedTechs village
 			if (start_tech(TECH_WOODCUTTING_1)) return;
@@ -5971,13 +5902,13 @@ void Simulation::petra_manage_research(float dt) {
 		}
 		if (start_tech(TECH_PHASE_TOWN)) return;
 	}
-	if (petra_phase_ >= 2) {
+	if (petra_ps().phase >= 2) {
 		if (start_tech(TECH_FARMING_1)) return;
 		if (start_tech(TECH_WOODCUTTING_1)) return;
 		if (start_tech(TECH_MINING_1)) return;
 	}
-	if (petra_phase_ == 2 && workers > petra_config_.work_phase3 && start_tech(TECH_PHASE_CITY)) return;
-	if (petra_phase_ >= 3) {
+	if (petra_ps().phase == 2 && workers > petra_config_.work_phase3 && start_tech(TECH_PHASE_CITY)) return;
+	if (petra_ps().phase >= 3) {
 		if (start_tech(TECH_WEAPONS_1)) return;
 		if (start_tech(TECH_ARMOR_1)) return;
 	}
@@ -6161,7 +6092,7 @@ uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz) cons
 	}
 
 	if (chosen_bld_id != 0) {
-		if (has_fortified && petra_phase_ >= 2) {
+		if (has_fortified && petra_ps().phase >= 2) {
 			const_cast<Simulation*>(this)->petra_attack_plan_.type = AttackPlan::PLAN_SIEGE;
 		} else if (best_priority <= 2) {
 			const_cast<Simulation*>(this)->petra_attack_plan_.type = AttackPlan::PLAN_RAID;
@@ -6252,7 +6183,7 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 				}
 			}
 
-			int raw_thresh = (petra_phase_ == 1) ? 6 : ((petra_phase_ == 2) ? 10 : 16);
+			int raw_thresh = (petra_ps().phase == 1) ? 6 : ((petra_ps().phase == 2) ? 10 : 16);
 			raw_thresh += petra_config_.muster_delta;
 			if (petra_emergency_.active) raw_thresh += 4;
 			size_t army_threshold = (size_t)std::max(3, raw_thresh);
@@ -6260,7 +6191,7 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 
 			if (petra_attack_plan_.type == AttackPlan::PLAN_SIEGE) {
 				// Siege Plan: must muster siege units or wait for siege production if Phase >= 2
-				if (petra_phase_ >= 2) {
+				if (petra_ps().phase >= 2) {
 					ready = (squad.size() >= 8 && siege_units >= 1) || (squad.size() >= 12) || (squad.size() >= 6 && petra_attack_plan_.state_timer >= 50.0f);
 				} else {
 					ready = (squad.size() >= 6 || (squad.size() >= 4 && petra_attack_plan_.state_timer >= 45.0f));
@@ -6656,7 +6587,7 @@ uint32_t Simulation::find_petra_raid_target(float &out_tx, float &out_tz) const 
 void Simulation::petra_manage_raid(float dt) {
 	if (petra_config_.difficulty == PETRA_SANDBOX) return;
 	if (petra_emergency_.active) return;
-	if (petra_phase_ < 2 && petra_config_.aggressive < 0.70f) return;
+	if (petra_ps().phase < 2 && petra_config_.aggressive < 0.70f) return;
 
 	auto &plan = petra_raid_plan_;
 	plan.type = AttackPlan::PLAN_RAID;
@@ -6776,7 +6707,7 @@ void Simulation::petra_manage_opening(float dt) {
 		petra_opening_step_ = 4;
 		return;
 	}
-	if (petra_phase_ > 1 || petra_opening_step_ >= 4) return;
+	if (petra_ps().phase > 1 || petra_opening_step_ >= 4) return;
 
 	petra_opening_timer_ += dt;
 	if (petra_opening_timer_ < 0.8f) return;
@@ -6854,17 +6785,17 @@ void Simulation::petra_refresh_queue_accounts() {
 				petra_queues_.accounts[i].*field *= k;
 		}
 	};
-	scale_down(&PetraQueueAccount::food, ai_food_);
-	scale_down(&PetraQueueAccount::wood, ai_wood_);
-	scale_down(&PetraQueueAccount::gold, ai_gold_);
-	scale_down(&PetraQueueAccount::stone, ai_stone_);
+	scale_down(&PetraQueueAccount::food, petra_ps().food());
+	scale_down(&PetraQueueAccount::wood, petra_ps().wood());
+	scale_down(&PetraQueueAccount::gold, petra_ps().gold());
+	scale_down(&PetraQueueAccount::stone, petra_ps().stone());
 
 	int total_p = 0;
 	for (int i = 0; i < PetraQueueManager::QUEUE_COUNT; ++i) total_p += std::max(1, prio[i]);
-	float free_f = std::max(0.0f, ai_food_  - reserved(&PetraQueueAccount::food));
-	float free_w = std::max(0.0f, ai_wood_  - reserved(&PetraQueueAccount::wood));
-	float free_g = std::max(0.0f, ai_gold_  - reserved(&PetraQueueAccount::gold));
-	float free_s = std::max(0.0f, ai_stone_ - reserved(&PetraQueueAccount::stone));
+	float free_f = std::max(0.0f, petra_ps().food()  - reserved(&PetraQueueAccount::food));
+	float free_w = std::max(0.0f, petra_ps().wood()  - reserved(&PetraQueueAccount::wood));
+	float free_g = std::max(0.0f, petra_ps().gold()  - reserved(&PetraQueueAccount::gold));
+	float free_s = std::max(0.0f, petra_ps().stone() - reserved(&PetraQueueAccount::stone));
 	for (int i = 0; i < PetraQueueManager::QUEUE_COUNT; ++i) {
 		float share = (float)std::max(1, prio[i]) / (float)total_p;
 		petra_queues_.accounts[i].food  += free_f * share;
@@ -6879,9 +6810,9 @@ bool Simulation::petra_try_pay(uint8_t queue, float food, float wood, float gold
 	if (food < 0.0f || wood < 0.0f || gold < 0.0f || stone < 0.0f) return false;
 	PetraQueueAccount &a = petra_queues_.accounts[queue];
 	if (a.food < food || a.wood < wood || a.gold < gold || a.stone < stone) return false;
-	if (ai_food_ < food || ai_wood_ < wood || ai_gold_ < gold || ai_stone_ < stone) return false;
+	if (petra_ps().food() < food || petra_ps().wood() < wood || petra_ps().gold() < gold || petra_ps().stone() < stone) return false;
 	a.food -= food; a.wood -= wood; a.gold -= gold; a.stone -= stone;
-	ai_food_ -= food; ai_wood_ -= wood; ai_gold_ -= gold; ai_stone_ -= stone;
+	petra_ps().food() -= food; petra_ps().wood() -= wood; petra_ps().gold() -= gold; petra_ps().stone() -= stone;
 	return true;
 }
 
@@ -7213,7 +7144,7 @@ void Simulation::petra_manage_victory(float dt) {
 		}
 	};
 
-	if (victory_condition_ == VICTORY_WONDER && petra_phase_ >= 3) {
+	if (victory_condition_ == VICTORY_WONDER && petra_ps().phase >= 3) {
 		uint32_t wonder_id = 0;
 		bool complete = false;
 		for (const auto &b : buildings_) {
@@ -7323,10 +7254,10 @@ void Simulation::petra_manage_diplomacy(float dt) {
 	if (stance == DIPLO_ALLY && petra_config_.cooperative >= 0.35f) {
 		struct Gift { uint8_t res; float *stock; int player_have; };
 		Gift gifts[] = {
-			{ RES_FOOD,  &ai_food_,  food_ },
-			{ RES_WOOD,  &ai_wood_,  wood_ },
-			{ RES_GOLD,  &ai_gold_,  gold_ },
-			{ RES_STONE, &ai_stone_, stone_ }
+			{ RES_FOOD,  &petra_ps().food(),  food() },
+			{ RES_WOOD,  &petra_ps().wood(),  wood() },
+			{ RES_GOLD,  &petra_ps().gold(),  gold() },
+			{ RES_STONE, &petra_ps().stone(), stone() }
 		};
 		for (auto &g : gifts) {
 			if (*g.stock > 700.0f && g.player_have < (int)(*g.stock * 0.25f)) {
@@ -7342,7 +7273,7 @@ void Simulation::petra_manage_diplomacy(float dt) {
 	}
 
 	// Last-man-standing betrayal (diplomacyManager lastManStandingCheck)
-	if (stance == DIPLO_ALLY && petra_config_.aggressive > 0.72f && petra_phase_ >= 3) {
+	if (stance == DIPLO_ALLY && petra_config_.aggressive > 0.72f && petra_ps().phase >= 3) {
 		int ai_mil = 0, player_mil = 0;
 		for (size_t i = 0; i < units_.count; ++i) {
 			if (!units_.alive[i] || !petra_is_combat_unit(units_.unit_type[i])) continue;
@@ -7418,14 +7349,14 @@ void Simulation::tick_petra_ai(float dt) {
 
 	// AI economic passive baseline trickle (scaled by config.js difficulty)
 	const float tmul = petra_config_.trickle_mult;
-	ai_food_  += 3.0f * dt * tmul;
-	ai_wood_  += 3.0f * dt * tmul;
-	ai_gold_  += 2.0f * dt * tmul;
-	ai_stone_ += 1.5f * dt * tmul;
-	ai_food_  = std::min(ai_food_,  9999.0f);
-	ai_wood_  = std::min(ai_wood_,  9999.0f);
-	ai_gold_  = std::min(ai_gold_,  9999.0f);
-	ai_stone_ = std::min(ai_stone_, 9999.0f);
+	petra_ps().food()  += 3.0f * dt * tmul;
+	petra_ps().wood()  += 3.0f * dt * tmul;
+	petra_ps().gold()  += 2.0f * dt * tmul;
+	petra_ps().stone() += 1.5f * dt * tmul;
+	petra_ps().food()  = std::min(petra_ps().food(),  9999.0f);
+	petra_ps().wood()  = std::min(petra_ps().wood(),  9999.0f);
+	petra_ps().gold()  = std::min(petra_ps().gold(),  9999.0f);
+	petra_ps().stone() = std::min(petra_ps().stone(), 9999.0f);
 
 	petra_refresh_queue_accounts();
 
@@ -7485,21 +7416,25 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = 5; // v5 adds distributed structure capture state
+	uint32_t version = 6; // v6 replaces the player-0 scalars with the per-player table
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 
 	// 1. Sim scalars
 	out.write((const char *)&ticks_, sizeof(ticks_));
-	out.write((const char *)&player_phase_, sizeof(player_phase_));
-	out.write((const char *)&player_civ_, sizeof(player_civ_));
+	uint8_t num_players = MAX_PLAYERS;
+	out.write((const char *)&num_players, sizeof(num_players));
+	for (const PlayerState &ps : players_) {
+		out.write((const char *)ps.res, sizeof(ps.res));
+		out.write((const char *)&ps.tech_mask, sizeof(ps.tech_mask));
+		out.write((const char *)&ps.phase, sizeof(ps.phase));
+		out.write((const char *)&ps.civ, sizeof(ps.civ));
+		out.write((const char *)&ps.team, sizeof(ps.team));
+		out.write((const char *)&ps.active, sizeof(ps.active));
+		out.write((const char *)&ps.is_ai, sizeof(ps.is_ai));
+	}
 	out.write((const char *)&biome_, sizeof(biome_));
 	out.write((const char *)&map_preset_, sizeof(map_preset_));
-	out.write((const char *)&food_, sizeof(food_));
-	out.write((const char *)&wood_, sizeof(wood_));
-	out.write((const char *)&gold_, sizeof(gold_));
-	out.write((const char *)&stone_, sizeof(stone_));
-	out.write((const char *)&researched_techs_mask_, sizeof(researched_techs_mask_));
 	out.write((const char *)&wave_number_, sizeof(wave_number_));
 	out.write((const char *)&wave_timer_, sizeof(wave_timer_));
 	out.write((const char *)&wonder_victory_timer_, sizeof(wonder_victory_timer_));
@@ -7639,19 +7574,43 @@ bool Simulation::load_state(const char *filepath) {
 	uint32_t magic = 0, version = 0;
 	in.read((char *)&magic, sizeof(magic));
 	in.read((char *)&version, sizeof(version));
-	if (magic != 0x52545330 || (version != 1 && version != 2 && version != 3 && version != 4 && version != 5)) return false;
+	if (magic != 0x52545330 || version < 1 || version > 6) return false;
 
 	// 1. Sim scalars
 	in.read((char *)&ticks_, sizeof(ticks_));
-	in.read((char *)&player_phase_, sizeof(player_phase_));
-	in.read((char *)&player_civ_, sizeof(player_civ_));
-	in.read((char *)&biome_, sizeof(biome_));
-	in.read((char *)&map_preset_, sizeof(map_preset_));
-	in.read((char *)&food_, sizeof(food_));
-	in.read((char *)&wood_, sizeof(wood_));
-	in.read((char *)&gold_, sizeof(gold_));
-	in.read((char *)&stone_, sizeof(stone_));
-	in.read((char *)&researched_techs_mask_, sizeof(researched_techs_mask_));
+	if (version >= 6) {
+		uint8_t num_players = 0;
+		in.read((char *)&num_players, sizeof(num_players));
+		if (!in.good() || num_players > MAX_PLAYERS) return false;
+		for (uint8_t p = 0; p < num_players; ++p) {
+			PlayerState &ps = players_[p];
+			in.read((char *)ps.res, sizeof(ps.res));
+			in.read((char *)&ps.tech_mask, sizeof(ps.tech_mask));
+			in.read((char *)&ps.phase, sizeof(ps.phase));
+			in.read((char *)&ps.civ, sizeof(ps.civ));
+			in.read((char *)&ps.team, sizeof(ps.team));
+			in.read((char *)&ps.active, sizeof(ps.active));
+			in.read((char *)&ps.is_ai, sizeof(ps.is_ai));
+		}
+		in.read((char *)&biome_, sizeof(biome_));
+		in.read((char *)&map_preset_, sizeof(map_preset_));
+	} else {
+		// v1-v5 stored player 0's stock as ints and civs for slots 0-3 only; other slots keep their state.
+		uint8_t legacy_phase = 1;
+		Civilization legacy_civ[4] = {};
+		int32_t legacy_res[4] = {}; // food, wood, gold, stone
+		uint32_t legacy_mask = 0;
+		in.read((char *)&legacy_phase, sizeof(legacy_phase));
+		in.read((char *)legacy_civ, sizeof(legacy_civ));
+		in.read((char *)&biome_, sizeof(biome_));
+		in.read((char *)&map_preset_, sizeof(map_preset_));
+		in.read((char *)legacy_res, sizeof(legacy_res));
+		in.read((char *)&legacy_mask, sizeof(legacy_mask));
+		players_[0].phase = legacy_phase;
+		for (int p = 0; p < 4; ++p) players_[p].civ = legacy_civ[p];
+		set_player_resources(0, legacy_res[0], legacy_res[1], legacy_res[2], legacy_res[3]);
+		players_[0].tech_mask = legacy_mask;
+	}
 	in.read((char *)&wave_number_, sizeof(wave_number_));
 	in.read((char *)&wave_timer_, sizeof(wave_timer_));
 	in.read((char *)&wonder_victory_timer_, sizeof(wonder_victory_timer_));
@@ -8319,7 +8278,7 @@ void Simulation::rebuild_auras() {
 			aura_mgr_.register_source(id, AURA_ATTACK, 14.f, 1.20f, team, x, z);
 		}
 		if (ut == UNIT_HERO) {
-			Civilization civ = (team < 4) ? player_civ_[team] : CIV_ATHENIANS;
+			Civilization civ = civ_of(team);
 			if (civ == CIV_SPARTANS) {
 				aura_mgr_.register_source(id, AURA_HEAL, 16.f, 2.0f, team, x, z);
 			} else if (civ == CIV_ATHENIANS) {
