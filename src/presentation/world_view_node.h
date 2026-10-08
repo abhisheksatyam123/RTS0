@@ -17,6 +17,9 @@
 #include <godot_cpp/classes/audio_stream_player3d.hpp>
 #include <godot_cpp/classes/audio_stream.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
+#include <godot_cpp/classes/gpu_particles3d.hpp>
+#include <godot_cpp/classes/particle_process_material.hpp>
+#include <godot_cpp/classes/quad_mesh.hpp>
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -68,6 +71,10 @@ class RtsoWorldView : public Node3D {
 		float build_progress = 1.0f;
 		float fog_dim = -1.0f; // overlay level last pushed (-1: none yet)
 		String model_id;
+		// 0 A.D. damage variants: smoke from mediumdamage, fire from heavydamage.
+		GPUParticles3D *fx_smoke = nullptr;
+		GPUParticles3D *fx_flame = nullptr;
+		uint8_t fx_level = 0;
 	};
 
 	std::vector<UnitVis> unit_pool;
@@ -78,13 +85,21 @@ class RtsoWorldView : public Node3D {
 	std::unordered_map<uint32_t, size_t> building_slot;
 
 	// static resources batched
-	MultiMeshInstance3D *tree_a_mmi = nullptr; // tree.glb
-	MultiMeshInstance3D *tree_b_mmi = nullptr; // pine.glb
-	MultiMeshInstance3D *tree_c_mmi = nullptr; // palm.glb
+	// Up to TREE_KINDS tree models per biome (pick_tree_kinds), chosen per
+	// tree by its id like 0 A.D. random maps mix a biome's forest templates.
+	static constexpr int TREE_KINDS = 3;
+	MultiMeshInstance3D *tree_mmi[TREE_KINDS] = {};
+	Ref<MultiMesh> tree_mm[TREE_KINDS];
+	float tree_scale[TREE_KINDS] = { 1.0f, 1.0f, 1.0f };
+	float tree_y[TREE_KINDS] = {};
+	int tree_kind_count = 1;
+	std::string tree_biome_;
+	void pick_tree_kinds(const std::string &biome);
 	MultiMeshInstance3D *gold_mmi = nullptr;   // gold_vein.glb
 	MultiMeshInstance3D *stone_mmi = nullptr;  // stone_mine.glb
 	MultiMeshInstance3D *food_mmi = nullptr;   // fruit_bush.glb
-	Ref<MultiMesh> tree_a_mm, tree_b_mm, tree_c_mm, gold_mm, stone_mm, food_mm;
+	MultiMeshInstance3D *fish_mmi = nullptr;   // fish.glb (0 A.D. fauna/fish_generic.xml)
+	Ref<MultiMesh> gold_mm, stone_mm, food_mm, fish_mm;
 
 	// flying projectiles (arrows + warship bolts + catapult stones)
 	MultiMeshInstance3D *arrow_mmi = nullptr;
@@ -106,6 +121,11 @@ class RtsoWorldView : public Node3D {
 	MeshInstance3D *water_mesh_node = nullptr;
 	Ref<PlaneMesh> water_mesh;
 	Ref<StandardMaterial3D> water_mat;
+	Ref<ImageTexture> water_height_tex_;
+	// Ground painted under forests and mines (terrain.gdshader paint_tex).
+	Ref<ImageTexture> paint_tex_;
+	bool paint_dirty_ = true;
+	void build_ground_paint(const rtso::Simulation *sim);
 
 	Ref<TorusMesh> ring_mesh;
 	Ref<StandardMaterial3D> ring_sel_mat;
@@ -228,6 +248,12 @@ private:
 	void bind_los(const Ref<Material> &mat);
 	float los_brightness(float x, float z) const;
 	void set_fog_overlay(Node *n, float brightness);
+
+	// Damaged-structure particles (art/particles/smoke.xml, flame.xml).
+	Ref<QuadMesh> fx_smoke_quad_, fx_flame_quad_;
+	Ref<ParticleProcessMaterial> fx_smoke_ppm_, fx_flame_ppm_;
+	void init_damage_fx();
+	void update_damage_fx(BuildingVis &v, uint8_t level, float half_size);
 
 	// Territory borders draped on the terrain (0 A.D. CCmpTerritoryManager
 	// boundary lines), rebuilt when the territory grid changes.

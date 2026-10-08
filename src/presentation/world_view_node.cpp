@@ -15,6 +15,11 @@
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/classes/sphere_mesh.hpp>
 #include <godot_cpp/classes/shader.hpp>
+#include <godot_cpp/classes/gradient.hpp>
+#include <godot_cpp/classes/gradient_texture1_d.hpp>
+#include <godot_cpp/classes/curve.hpp>
+#include <godot_cpp/classes/curve_texture.hpp>
+#include <godot_cpp/classes/texture2d.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 #include <algorithm>
 #include <cstdint>
@@ -266,19 +271,23 @@ void RtsoWorldView::_ready() {
 		enable_instance_tint(m);
 		return m;
 	};
-	tree_a_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "tree").mesh), true);
-	tree_b_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "pine").mesh), true);
-	tree_c_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "palm").mesh), true);
+	for (int k = 0; k < TREE_KINDS; ++k) {
+		tree_mm[k] = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "tree").mesh), true);
+		tree_mmi[k] = memnew(MultiMeshInstance3D);
+		tree_mmi[k]->set_multimesh(tree_mm[k]);
+		add_child(tree_mmi[k]);
+	}
+	pick_tree_kinds("mediterranean");
 	gold_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "gold_vein").mesh), true);
 	stone_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "stone_mine").mesh), true);
 	food_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "fruit_bush").mesh), true);
 
-	tree_a_mmi = memnew(MultiMeshInstance3D); tree_a_mmi->set_multimesh(tree_a_mm); add_child(tree_a_mmi);
-	tree_b_mmi = memnew(MultiMeshInstance3D); tree_b_mmi->set_multimesh(tree_b_mm); add_child(tree_b_mmi);
-	tree_c_mmi = memnew(MultiMeshInstance3D); tree_c_mmi->set_multimesh(tree_c_mm); add_child(tree_c_mmi);
 	gold_mmi = memnew(MultiMeshInstance3D); gold_mmi->set_multimesh(gold_mm); add_child(gold_mmi);
 	stone_mmi = memnew(MultiMeshInstance3D); stone_mmi->set_multimesh(stone_mm); add_child(stone_mmi);
 	food_mmi = memnew(MultiMeshInstance3D); food_mmi->set_multimesh(food_mm); add_child(food_mmi);
+	fish_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "fish").mesh), true);
+	fish_mmi = memnew(MultiMeshInstance3D); fish_mmi->set_multimesh(fish_mm); add_child(fish_mmi);
+	fish_mmi->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
 
 	// Fauna — never fall back to trees/stones (those looked like walking mines)
 	{
@@ -351,6 +360,7 @@ void RtsoWorldView::_ready() {
 		}
 	}
 
+	init_damage_fx();
 	init_animation_controllers();
 }
 
@@ -372,6 +382,7 @@ float RtsoWorldView::los_brightness(float x, float z) const {
 
 static void set_overlay_recursive(Node *n, const Ref<Material> &mat) {
 	if (!n) return;
+	if (Object::cast_to<GPUParticles3D>(n)) return; // fire and smoke keep their own light
 	if (GeometryInstance3D *gi = Object::cast_to<GeometryInstance3D>(n)) gi->set_material_overlay(mat);
 	for (int i = 0; i < n->get_child_count(); ++i) set_overlay_recursive(n->get_child(i), mat);
 }
@@ -380,6 +391,112 @@ void RtsoWorldView::set_fog_overlay(Node *n, float brightness) {
 	// Fully lit structures skip the extra pass.
 	const int k = Math::clamp((int)Math::round(brightness * (FOG_OVERLAY_LEVELS - 1)), 0, FOG_OVERLAY_LEVELS - 1);
 	set_overlay_recursive(n, k >= FOG_OVERLAY_LEVELS - 1 ? Ref<Material>() : Ref<Material>(fog_overlay_mats_[k]));
+}
+
+// Damaged-structure fire and smoke, from 0 A.D. art/particles/flame.xml and
+// smoke.xml (rates, lifetimes, speeds and sizes), shown by the Health
+// DamageVariants of template_structure.xml: mediumdamage (65% hit points)
+// smokes, heavydamage (35%) burns. Smoke lives 6 s instead of 14-16 s so a
+// burning town does not fill the smaller RTS0 maps.
+void RtsoWorldView::init_damage_fx() {
+	auto particle_mat = [](const char *tex_path, bool additive) {
+		Ref<StandardMaterial3D> m;
+		m.instantiate();
+		m->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+		m->set_billboard_mode(BaseMaterial3D::BILLBOARD_PARTICLES);
+		m->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
+		if (additive) m->set_blend_mode(BaseMaterial3D::BLEND_MODE_ADD);
+		m->set_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, true);
+		m->set_cull_mode(BaseMaterial3D::CULL_DISABLED);
+		if (rtso::Assets::res_exists(tex_path)) {
+			Ref<Texture2D> t = ResourceLoader::get_singleton()->load(tex_path);
+			if (t.is_valid()) m->set_texture(BaseMaterial3D::TEXTURE_ALBEDO, t);
+		}
+		return m;
+	};
+	auto fade = [](float peak) {
+		Ref<Gradient> g;
+		g.instantiate();
+		g->set_offsets(PackedFloat32Array({ 0.0f, 0.15f, 1.0f }));
+		g->set_colors(PackedColorArray({ Color(1, 1, 1, 0), Color(1, 1, 1, peak), Color(1, 1, 1, 0) }));
+		Ref<GradientTexture1D> gt;
+		gt.instantiate();
+		gt->set_gradient(g);
+		return gt;
+	};
+
+	fx_flame_quad_.instantiate();
+	fx_flame_quad_->set_size(Vector2(1.0f, 1.0f));
+	fx_flame_quad_->set_material(particle_mat("res://assets/textures/particles/flame.png", true));
+	fx_flame_ppm_.instantiate();
+	fx_flame_ppm_->set_direction(Vector3(0, 1, 0));
+	fx_flame_ppm_->set_spread(8.0f);
+	fx_flame_ppm_->set_param_min(ParticleProcessMaterial::PARAM_INITIAL_LINEAR_VELOCITY, 2.0f);
+	fx_flame_ppm_->set_param_max(ParticleProcessMaterial::PARAM_INITIAL_LINEAR_VELOCITY, 2.5f);
+	fx_flame_ppm_->set_gravity(Vector3(0, 0, 0));
+	fx_flame_ppm_->set_param_min(ParticleProcessMaterial::PARAM_SCALE, 1.0f);
+	fx_flame_ppm_->set_param_max(ParticleProcessMaterial::PARAM_SCALE, 2.0f);
+	fx_flame_ppm_->set_param_min(ParticleProcessMaterial::PARAM_ANGLE, -28.0f);
+	fx_flame_ppm_->set_param_max(ParticleProcessMaterial::PARAM_ANGLE, 28.0f);
+	fx_flame_ppm_->set_emission_shape(ParticleProcessMaterial::EMISSION_SHAPE_BOX);
+	fx_flame_ppm_->set_color_ramp(fade(1.0f));
+
+	fx_smoke_quad_.instantiate();
+	fx_smoke_quad_->set_size(Vector2(1.0f, 1.0f));
+	fx_smoke_quad_->set_material(particle_mat("res://assets/textures/particles/smoke_64a.png", false));
+	fx_smoke_ppm_.instantiate();
+	fx_smoke_ppm_->set_direction(Vector3(0.1f, 1, 0));
+	fx_smoke_ppm_->set_spread(12.0f);
+	fx_smoke_ppm_->set_param_min(ParticleProcessMaterial::PARAM_INITIAL_LINEAR_VELOCITY, 2.0f);
+	fx_smoke_ppm_->set_param_max(ParticleProcessMaterial::PARAM_INITIAL_LINEAR_VELOCITY, 2.5f);
+	fx_smoke_ppm_->set_gravity(Vector3(0.15f, 0, 0));
+	fx_smoke_ppm_->set_param_min(ParticleProcessMaterial::PARAM_SCALE, 1.5f);
+	fx_smoke_ppm_->set_param_max(ParticleProcessMaterial::PARAM_SCALE, 2.5f);
+	fx_smoke_ppm_->set_param_min(ParticleProcessMaterial::PARAM_ANGLE, -180.0f);
+	fx_smoke_ppm_->set_param_max(ParticleProcessMaterial::PARAM_ANGLE, 180.0f);
+	fx_smoke_ppm_->set_param_min(ParticleProcessMaterial::PARAM_ANGULAR_VELOCITY, -60.0f);
+	fx_smoke_ppm_->set_param_max(ParticleProcessMaterial::PARAM_ANGULAR_VELOCITY, 60.0f);
+	{
+		// size.growthRate 1.0 m/s: 2 m at birth, about 8 m after 6 s.
+		Ref<Curve> grow;
+		grow.instantiate();
+		grow->set_max_value(4.0f);
+		grow->add_point(Vector2(0.0f, 1.0f));
+		grow->add_point(Vector2(1.0f, 4.0f));
+		Ref<CurveTexture> ct;
+		ct.instantiate();
+		ct->set_curve(grow);
+		fx_smoke_ppm_->set_param_texture(ParticleProcessMaterial::PARAM_SCALE, ct);
+	}
+	fx_smoke_ppm_->set_emission_shape(ParticleProcessMaterial::EMISSION_SHAPE_BOX);
+	fx_smoke_ppm_->set_color_ramp(fade(0.75f));
+}
+
+void RtsoWorldView::update_damage_fx(BuildingVis &v, uint8_t level, float half_size) {
+	if (level == v.fx_level || !v.root) return;
+	v.fx_level = level;
+	auto make = [&](const Ref<QuadMesh> &quad, const Ref<ParticleProcessMaterial> &ppm, int amount, float life, float y) {
+		GPUParticles3D *p = memnew(GPUParticles3D);
+		Ref<ParticleProcessMaterial> pm = ppm->duplicate();
+		const float spread = std::max(0.5f, half_size * 0.5f);
+		pm->set_emission_box_extents(Vector3(spread, 0.3f, spread));
+		p->set_process_material(pm);
+		p->set_draw_pass_mesh(0, quad);
+		p->set_amount(amount);
+		p->set_lifetime(life);
+		p->set_randomness_ratio(0.2f);
+		p->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+		p->set_visibility_aabb(AABB(Vector3(-8, -1, -8), Vector3(16, 40, 16)));
+		p->set_position(Vector3(0, y, 0));
+		v.root->add_child(p);
+		return p;
+	};
+	if (level >= 1 && !v.fx_smoke && fx_smoke_ppm_.is_valid())
+		v.fx_smoke = make(fx_smoke_quad_, fx_smoke_ppm_, 54, 6.0f, 2.0f); // 9/s
+	if (level >= 2 && !v.fx_flame && fx_flame_ppm_.is_valid())
+		v.fx_flame = make(fx_flame_quad_, fx_flame_ppm_, 26, 1.25f, 0.8f); // 20/s
+	if (v.fx_smoke) v.fx_smoke->set_emitting(level >= 1);
+	if (v.fx_flame) v.fx_flame->set_emitting(level >= 2);
 }
 
 // 0 A.D. player_defaults.json colours for players 1-8 (RTS0 player ids 0-7).
@@ -1148,6 +1265,103 @@ void RtsoWorldView::play_unit_clip(UnitVis &v, const StringName &clip, bool loop
 	apply_unit_tools(v.model, clip);
 }
 
+// Tree models per biome, from the 0 A.D. flora each biome's random maps
+// plant (maps/random/rmbiome/*.json forest templates). Scales bring the wide
+// savanna trees down and the shorter oak up to the height of the other trees.
+void RtsoWorldView::pick_tree_kinds(const std::string &biome) {
+	struct Kind { const char *id; float scale; };
+	struct Set { const char *biome; Kind kinds[TREE_KINDS]; };
+	static const Set kSets[] = {
+		{ "mediterranean", { { "tree", 1.0f }, { "pine", 1.0f }, { "oak", 1.15f } } },
+		{ "aegean", { { "tree", 1.0f }, { "pine", 1.0f }, { "palm", 1.0f } } },
+		{ "latium", { { "pine", 1.0f }, { "tree", 1.0f }, { "oak", 1.15f } } },
+		{ "alpine", { { "pine", 1.0f }, { "pine", 0.85f }, { "tree", 1.0f } } },
+		{ "polar", { { "pine", 1.0f }, { "pine", 0.8f }, { nullptr, 1.0f } } },
+		{ "temperate", { { "oak", 1.15f }, { "tree", 1.0f }, { "pine", 1.0f } } },
+		{ "steppe", { { "pine", 1.0f }, { "tree", 0.9f }, { nullptr, 1.0f } } },
+		{ "savanna", { { "baobab", 0.8f }, { "acacia", 0.9f }, { "acacia", 0.8f } } },
+		{ "oasis", { { "palm", 1.0f }, { "palm", 1.2f }, { "acacia", 0.8f } } },
+		{ "desert", { { "palm", 1.0f }, { "acacia", 0.8f }, { nullptr, 1.0f } } },
+		{ "persia", { { "palm", 1.0f }, { "acacia", 0.8f }, { "tree", 0.9f } } },
+		{ "india", { { "palm", 1.0f }, { "bamboo", 1.0f }, { "tree", 1.0f } } },
+		{ "tropical", { { "palm", 1.0f }, { "bamboo", 1.0f }, { "palm", 1.2f } } },
+		{ "volcanic", { { "pine", 1.0f }, { "tree", 0.9f }, { nullptr, 1.0f } } },
+	};
+	const Set *set = &kSets[0];
+	for (const auto &s : kSets)
+		if (biome == s.biome) { set = &s; break; }
+	tree_biome_ = biome;
+	tree_kind_count = 0;
+	for (int k = 0; k < TREE_KINDS; ++k) {
+		const Kind &kd = set->kinds[k];
+		if (!kd.id) break;
+		auto e = rtso::ModelLibrary::get("vegetation", kd.id);
+		if (e.mesh.is_null()) continue;
+		enable_instance_tint(e.mesh);
+		const int slot = tree_kind_count++;
+		tree_mm[slot]->set_instance_count(0);
+		tree_mm[slot]->set_mesh(e.mesh);
+		tree_scale[slot] = kd.scale;
+		tree_y[slot] = e.y_offset * kd.scale;
+	}
+	if (tree_kind_count == 0) {
+		tree_kind_count = 1;
+		tree_scale[0] = 1.0f;
+		tree_y[0] = rtso::ModelLibrary::get("vegetation", "tree").y_offset;
+	}
+	for (int k = tree_kind_count; k < TREE_KINDS; ++k) tree_mm[k]->set_instance_count(0);
+}
+
+// 0 A.D. random maps paint forest floor under every forest and dirt round
+// every mine (rmgen createForests / createMines tile painting). RTS0 maps carry
+// no tile textures, so the view paints the same from where the map put them.
+void RtsoWorldView::build_ground_paint(const rtso::Simulation *sim) {
+	Ref<ShaderMaterial> tm = terrain ? Ref<ShaderMaterial>(terrain->get_material_override()) : Ref<ShaderMaterial>();
+	if (tm.is_null()) return;
+	const float half = sim->map_half();
+	const int res = std::clamp(sim->terrain_res() > 1 ? sim->terrain_res() : 128, 32, 1024);
+	if (half <= 0.0f) return;
+	const float cell = (half * 2.0f) / (float)res;
+	std::vector<float> forest((size_t)res * res, 0.0f), mine((size_t)res * res, 0.0f);
+	auto splat = [&](std::vector<float> &dst, float x, float z, float radius) {
+		const int cx = (int)((x + half) / cell), cz = (int)((z + half) / cell);
+		const int r = (int)std::ceil(radius / cell);
+		for (int dz = -r; dz <= r; ++dz) {
+			const int zz = cz + dz;
+			if (zz < 0 || zz >= res) continue;
+			for (int dx = -r; dx <= r; ++dx) {
+				const int xx = cx + dx;
+				if (xx < 0 || xx >= res) continue;
+				const float d = std::sqrt((float)(dx * dx + dz * dz)) * cell;
+				const float w = 1.0f - d / radius;
+				float &v = dst[(size_t)zz * res + xx];
+				if (w > v) v = w;
+			}
+		}
+	};
+	const auto rv = sim->resources();
+	for (size_t i = 0; i < rv.count; ++i) {
+		if (!rv.alive[i]) continue;
+		const uint8_t sub = rv.subtype ? rv.subtype[i] : 0;
+		if (rv.type[i] == rtso::RES_WOOD) splat(forest, rv.x[i], rv.z[i], 3.0f);
+		else if ((rv.type[i] == rtso::RES_GOLD || rv.type[i] == rtso::RES_STONE) && sub != rtso::RES_SUB_FISH)
+			splat(mine, rv.x[i], rv.z[i], 2.6f);
+	}
+	PackedByteArray bytes;
+	bytes.resize((int64_t)res * res * 3);
+	uint8_t *p = bytes.ptrw();
+	for (size_t k = 0; k < (size_t)res * res; ++k) {
+		p[k * 3 + 0] = 0;
+		p[k * 3 + 1] = (uint8_t)std::lround(std::min(1.0f, forest[k] * 1.6f) * 255.0f);
+		p[k * 3 + 2] = (uint8_t)std::lround(std::min(1.0f, mine[k] * 1.6f) * 255.0f);
+	}
+	Ref<Image> img = Image::create_from_data(res, res, false, Image::FORMAT_RGB8, bytes);
+	paint_tex_ = ImageTexture::create_from_image(img);
+	tm->set_shader_parameter("paint_tex", paint_tex_);
+	tm->set_shader_parameter("paint_half", half);
+	paint_dirty_ = false;
+}
+
 void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 	if (!sim || !terrain) return;
 	float half = sim->map_half();
@@ -1216,6 +1430,9 @@ void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 	// Ground textures follow the map's biome.
 	rtso::Assets::apply_terrain_biome(terrain->get_material_override(),
 	                                  String(sim->current_map_biome().c_str()));
+	if (Ref<ShaderMaterial> tm = terrain->get_material_override(); tm.is_valid())
+		tm->set_shader_parameter("water_level", sim->water_height() > -0.5f ? sim->water_height() : -1000.0f);
+	paint_dirty_ = true;
 
 	// Water Body (water_height < -0.5 means a dry map, as in NavGrid::set_water_from_heights)
 	if (sim->water_height() > -0.5f) {
@@ -1241,6 +1458,19 @@ void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 		}
 		water_mesh->set_size(Vector2(half * 2.2f, half * 2.2f));
 		water_mesh_node->set_position(Vector3(0.0f, sim->water_height(), 0.0f));
+		// Seabed heights for depth-tinted water and shore foam.
+		Ref<ShaderMaterial> wsm = water_mesh_node->get_material_override();
+		if (wsm.is_valid() && !heights.empty() && res > 1) {
+			PackedByteArray bytes;
+			bytes.resize((int64_t)res * res * sizeof(float));
+			std::memcpy(bytes.ptrw(), heights.data(), (size_t)res * res * sizeof(float));
+			Ref<Image> him = Image::create_from_data(res, res, false, Image::FORMAT_RF, bytes);
+			water_height_tex_ = ImageTexture::create_from_image(him);
+			wsm->set_shader_parameter("height_tex", water_height_tex_);
+			// Height samples sit on the cell corners; map them across the full extent.
+			wsm->set_shader_parameter("terrain_half", half * (float)res / (float)(res - 1));
+			wsm->set_shader_parameter("water_level", sim->water_height());
+		}
 		water_mesh_node->set_visible(true);
 	} else if (water_mesh_node) {
 		water_mesh_node->set_visible(false);
@@ -1256,6 +1486,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	if (unit_vis_stamp == 0) unit_vis_stamp = 1;
 
 	update_fog(sim, delta);
+	if (paint_dirty_ && sim->resources().count > 0) build_ground_paint(sim);
 	update_territory_borders(sim);
 
 	// Update skeletal animation controllers
@@ -1687,6 +1918,16 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			}
 		}
 
+		{
+			const float frac = b.max_hp > 0.0f ? b.hp / b.max_hp : 1.0f;
+			uint8_t lvl = 0;
+			if (v.phase == 0) {
+				if (frac <= 0.35f || b.is_burning) lvl = 2;
+				else if (frac <= 0.65f) lvl = 1;
+			}
+			update_damage_fx(v, lvl, b.half_size);
+		}
+
 		// Building Health & Construction Progress Bar
 		bool show_bhp = !destroyed && (b_progress < 1.0f || b.hp < b.max_hp * 0.98f);
 		v.hp_bg->set_visible(show_bhp);
@@ -1759,6 +2000,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			building_pool[s].model = nullptr;
 			building_pool[s].foundation = nullptr;
 			building_pool[s].scaffold = nullptr;
+			building_pool[s].fx_smoke = nullptr;
+			building_pool[s].fx_flame = nullptr;
+			building_pool[s].fx_level = 0;
 			building_slot.erase(building_pool[s].sim_id);
 		}
 	}
@@ -1864,27 +2108,29 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	// =========================================================================
 	// Explored supplies show as last seen (Fogging.js); unexplored ones not at all.
 	const auto &fres = mirages_.resources();
-	size_t n_tree = 0, g = 0, st = 0, fd = 0;
+	size_t n_tree = 0, g = 0, st = 0, fd = 0, fish_n = 0;
 	for (const auto &r : fres) {
 		if (r.subtype == rtso::RES_SUB_GRAIN) continue; // a field's grain; the field model shows it
 		if (r.type == rtso::RES_WOOD) n_tree++;
 		else if (r.type == rtso::RES_GOLD) g++;
 		else if (r.type == rtso::RES_STONE) st++;
+		else if (r.subtype == rtso::RES_SUB_FISH) fish_n++;
 		else if (r.type == rtso::RES_FOOD) fd++;
 	}
 
-	// All wood on tree.glb — pine/palm were easy to mistake for walking fauna
-	tree_a_mm->set_instance_count((int)n_tree);
-	tree_b_mm->set_instance_count(0);
-	tree_c_mm->set_instance_count(0);
+	if (sim->current_map_biome() != tree_biome_) pick_tree_kinds(sim->current_map_biome());
+	size_t n_kind[TREE_KINDS] = {};
+	for (const auto &r : fres)
+		if (r.type == rtso::RES_WOOD && r.subtype != rtso::RES_SUB_GRAIN) n_kind[r.id % (uint32_t)tree_kind_count]++;
+	for (int k = 0; k < TREE_KINDS; ++k) tree_mm[k]->set_instance_count((int)n_kind[k]);
 	gold_mm->set_instance_count((int)g);
 	stone_mm->set_instance_count((int)st);
 	if (food_mm.is_valid())
 		food_mm->set_instance_count((int)fd);
+	fish_mm->set_instance_count((int)fish_n);
 
-	size_t ia = 0, ig = 0, ist = 0, ifd = 0;
+	size_t ia[TREE_KINDS] = {}, ig = 0, ist = 0, ifd = 0, ifish = 0;
 	String cat_veg = "vegetation";
-	String id_tree = "tree"; auto e_tree = rtso::ModelLibrary::get(cat_veg, id_tree);
 	String id_gold = "gold_vein"; auto e_gold = rtso::ModelLibrary::get(cat_veg, id_gold);
 	String id_stone = "stone_mine"; auto e_stone = rtso::ModelLibrary::get(cat_veg, id_stone);
 	String id_food = "fruit_bush"; auto e_food = rtso::ModelLibrary::get(cat_veg, id_food);
@@ -1899,9 +2145,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		const Color tint(lit, lit, lit, 1.0f);
 
 		if (r.type == rtso::RES_WOOD) {
-			Transform3D xf(rot, Vector3(rx, ry + e_tree.y_offset, rz));
-			tree_a_mm->set_instance_transform((int)ia, xf);
-			tree_a_mm->set_instance_color((int)ia++, tint);
+			const int k = (int)(h % (uint32_t)tree_kind_count);
+			const float sc = tree_scale[k];
+			Transform3D xf(rot.scaled(Vector3(sc, sc, sc)), Vector3(rx, ry + tree_y[k], rz));
+			tree_mm[k]->set_instance_transform((int)ia[k], xf);
+			tree_mm[k]->set_instance_color((int)ia[k]++, tint);
 		} else if (r.type == rtso::RES_GOLD) {
 			Transform3D xf(rot, Vector3(rx, ry + e_gold.y_offset, rz));
 			gold_mm->set_instance_transform((int)ig, xf);
@@ -1910,10 +2158,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			Transform3D xf(rot, Vector3(rx, ry + e_stone.y_offset, rz));
 			stone_mm->set_instance_transform((int)ist, xf);
 			stone_mm->set_instance_color((int)ist++, tint);
+		} else if (r.subtype == rtso::RES_SUB_FISH) {
+			// 0 A.D.'s fish shoal swims just under the surface (Position/Floating);
+			// RTS0's smaller maps take it at 60%.
+			ry = std::max(ry, sim->water_height());
+			Transform3D xf(rot.scaled(Vector3(0.6f, 0.6f, 0.6f)), Vector3(rx, ry + 0.1f, rz));
+			fish_mm->set_instance_transform((int)ifish, xf);
+			fish_mm->set_instance_color((int)ifish++, tint);
 		} else if (r.type == rtso::RES_FOOD && food_mm.is_valid()) {
-			// Fish float at the water surface (0 A.D. Position/Floating); the fruit-bush mesh
-			// stands in until the asset pipeline brings 0 A.D.'s fish shoal actor.
-			if (r.subtype == rtso::RES_SUB_FISH) ry = std::max(ry, sim->water_height());
 			Transform3D xf(rot, Vector3(rx, ry + e_food.y_offset, rz));
 			food_mm->set_instance_transform((int)ifd, xf);
 			food_mm->set_instance_color((int)ifd++, tint);
