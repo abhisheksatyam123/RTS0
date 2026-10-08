@@ -79,6 +79,8 @@ struct ProductionOrder {
 // Stockpiles are float so AI trickle income accrues fractionally; whole-number
 // callers read them through int accessors.
 static constexpr uint8_t MAX_PLAYERS = 8;
+// Owner of a defeated player's leftovers (0 A.D.'s Gaia): hostile to everyone, owned by no slot.
+static constexpr uint8_t GAIA_PLAYER = 0xFE;
 
 struct PlayerState {
 	float res[RES_COUNT] = {};             // indexed by ResourceType
@@ -124,6 +126,7 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
+	static constexpr uint32_t SAVE_VERSION = 17; // save_state's format; see the history beside it
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -337,8 +340,15 @@ public:
 	void order_disembark_all(uint32_t transport_id);
 	void order_disembark_single(uint32_t transport_id, uint32_t unit_id);
 	const std::vector<uint32_t> *get_transport_passengers(uint32_t transport_id) const;
+	const std::unordered_map<uint32_t, std::vector<uint32_t>> &transport_passengers() const { return transport_passengers_; }
 	size_t get_transport_passenger_count(uint32_t transport_id) const;
 	bool is_transport(uint32_t unit_id) const;
+	// Land siege that carries troops (0 A.D. GarrisonHolder): siege towers and rams.
+	// Returns its capacity, 0 for anything else. `i` is a SoA index.
+	int siege_garrison_capacity(size_t i) const;
+	bool is_siege_tower_at(size_t i) const;
+	// Garrisoned Infantry in a siege tower = arrows per volley (capped).
+	int siege_tower_arrows(size_t i) const;
 	int get_transport_capacity(uint32_t transport_id) const;
 
 	// Garrison & Turret System (GarrisonHolder.js, TurretHolder.js)
@@ -440,10 +450,17 @@ public:
 	TradeGain calculate_trade_gain(const Building &from, const Building &to, uint8_t trader_owner,
 			uint8_t trader_type = UNIT_TRADER) const;
 	int calculate_trader_gain(const Building& mA, const Building& mB, uint8_t team) const { return calculate_trade_gain(mA, mB, team).trader; }
-	// Trader.js CanTrade: a finished Market whose owner `trader_owner` is not hostile to.
-	bool can_trade_at(uint8_t trader_owner, const Building &b) const;
-	// True when `player` has two markets it can trade between (own, allied or neutral).
-	bool has_trade_route(uint8_t player) const;
+	// Trader.js CanTrade: a finished market of the trader's kind (a Market for land
+	// traders, a Dock for merchant ships) whose owner `trader_owner` is not hostile to.
+	bool can_trade_at(uint8_t trader_owner, const Building &b, uint8_t trader_type = UNIT_TRADER) const;
+	// True when `player` has two markets of that kind it can trade between (own, allied or
+	// neutral); for merchant ships, two docks on the same sea.
+	bool has_trade_route(uint8_t player, uint8_t trader_type = UNIT_TRADER) const;
+	// Ship region of the water next to a dock (0 = no water beside it).
+	uint16_t dock_sea(const Building &b) const;
+	// Centre of the nearest ship-passable cell around a building's footprint, and its
+	// ship region; false when none is near (ProductionQueue.js spawns ships there).
+	bool nearest_ship_cell(const Building &b, float &out_x, float &out_z, uint16_t *out_sea = nullptr) const;
 	void order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id);
 	void order_trade_auto(const uint32_t *unit_ids, size_t count); // farthest pair of tradable markets
 	float get_market_buy_price(ResourceType t) const { return market_buy_price(t); }
@@ -495,8 +512,14 @@ public:
 	const std::vector<Projectile> &projectiles() const { return projectiles_; }
 
 	// Per-player table. Out-of-range ids clamp to player 0 so stray team bytes can't index past the array.
-	const PlayerState &player(uint8_t pid) const { return players_[pid < MAX_PLAYERS ? pid : 0]; }
-	PlayerState &player(uint8_t pid) { return players_[pid < MAX_PLAYERS ? pid : 0]; }
+	// Gaia (and any other non-slot owner) gets an empty stock: nothing it earns or spends
+	// reaches a real player.
+	const PlayerState &player(uint8_t pid) const { return pid < MAX_PLAYERS ? players_[pid] : gaia_stock_; }
+	PlayerState &player(uint8_t pid) {
+		if (pid < MAX_PLAYERS) return players_[pid];
+		gaia_stock_ = PlayerState();
+		return gaia_stock_;
+	}
 	int player_resource(uint8_t pid, uint8_t res_type) const { return (res_type < RES_COUNT) ? (int)player(pid).res[res_type] : 0; }
 	void set_player_resources(uint8_t pid, int food, int wood, int gold, int stone) {
 		PlayerState &ps = player(pid);
@@ -833,6 +856,7 @@ private:
 		float heal_range[UNIT_TYPE_COUNT];    // added metres
 		float heal_interval[UNIT_TYPE_COUNT]; // < 1 heals faster
 		float trade_gain[UNIT_TYPE_COUNT];
+		float pack_time[UNIT_TYPE_COUNT];   // siege pack/unpack time multiplier
 		float bld_health[BLD_TYPE_COUNT];
 		float bld_attack[BLD_TYPE_COUNT];
 		float bld_range[BLD_TYPE_COUNT];
@@ -860,12 +884,15 @@ private:
 	void tick_production(float dt);
 	void tick_research(float dt);
 	void tick_upgrades(float dt);
+	// Unloads land siege below SIEGE_EJECT_HEALTH or dead (GarrisonHolder EjectHealth / OnDestroy).
+	void tick_siege_garrisons();
+	bool can_board(size_t transport_idx, size_t unit_idx) const;
 	void cancel_upgrade(Building &b, uint8_t refund_to);
 	void finish_upgrade(Building &b);
 	void tick_barter(float dt);
 	// v15: per-tick state the main save records leave out (velocities, paths, projectiles, timers...).
 	void save_tick_state(std::ofstream &out) const;
-	bool load_tick_state(std::ifstream &in);
+	bool load_tick_state(std::ifstream &in, uint32_t version);
 	// Player.js GetNextTradingGoods with the default equal split (25% each).
 	uint8_t next_trading_goods();
 	// Pays a trade gain into `player`'s stock and its gather statistics.
@@ -947,6 +974,9 @@ private:
 	std::unordered_map<uint32_t, uint32_t> field_bld_by_res_; // grain resource id -> field building id
 	struct FieldGatherers { int total = 0; int slots_taken = 0; };
 	std::unordered_map<uint32_t, FieldGatherers> field_gatherers_; // per tick, keyed by grain resource id
+	std::unordered_map<uint32_t, FieldGatherers> fish_gatherers_; // per tick, keyed by fish resource id
+	// Nearest fish on `sea` (ship region) within max_d of (x, z) with a free gatherer slot; 0 if none.
+	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0) const;
 	std::unordered_map<uint32_t, size_t> building_id_to_idx_;
 
 	struct CellHash {
@@ -999,6 +1029,10 @@ private:
 	float relic_duration_ = 180.0f;
 	int relic_count_ = 0;
 	void apply_relic_count();
+	PlayerState gaia_stock_; // scratch for player(GAIA_PLAYER); never saved or hashed
+	// Player.js SetState("defeated"): hand every unit and structure of these players to Gaia.
+	void convert_to_gaia(uint8_t players);
+	void tick_capture_gaia(Building &b, float dt);
 	uint8_t participant_mask_ = 0; // save v10
 	uint8_t defeated_mask_ = 0;
 	uint8_t winner_mask_ = 0;
@@ -1147,8 +1181,8 @@ private:
 	};
 	std::vector<PetraSlot> petra_slots_; // indexed by player id, sized on first use
 	void petra_swap_slot(uint8_t pid);
-	// Saves or loads every AI's Petra state (save v15); defined in simulation.cpp.
-	template <class Ar> friend void petra_state_io(Ar &ar, Simulation &s);
+	// Saves or loads save_tick_state's fields, every AI's Petra state included (save v15); simulation.cpp.
+	template <class Ar> friend void tick_state_io(Ar &ar, Simulation &s);
 	void petra_reset_ai_state();
 	std::vector<float> fow_cell_height_; // terrain height at each FoW cell centre, lazily filled by tick_fow
 	std::vector<float> fow_cell_hmax_; // highest heightmap sample an LOS ray can read in each FoW cell, filled with fow_cell_height_
@@ -1178,6 +1212,13 @@ private:
 	};
 	std::vector<SteerObstacle> steer_obstacles_;
 	std::vector<SteerObstacle> sep_obstacles_; // separation()'s list, built the same way
+	// tick_capture()'s count and strength of nearby capturers per building and team, and the grid of
+	// building reach it finds them with. Rebuilt every tick.
+	struct CaptureTally { int count[4]; float strength[4]; };
+	struct CaptureReach { uint32_t building; float x, z; };
+	std::vector<CaptureTally> capture_tally_;
+	std::vector<uint32_t> capture_cell_start_;
+	std::vector<CaptureReach> capture_cell_buildings_;
 
 	// Closed gates this tick: the only movement blockers the nav grid leaves out (0 A.D.
 	// gate Obstruction BlockMovement without BlockPathfinding), so move_units stops units

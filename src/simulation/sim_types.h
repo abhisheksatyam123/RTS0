@@ -262,8 +262,17 @@ enum ResourceType : uint8_t {
 enum ResourceSubtype : uint8_t {
 	RES_SUB_NONE = 0,
 	RES_SUB_MEAT = 1,
-	RES_SUB_GRAIN = 2
+	RES_SUB_GRAIN = 2,
+	RES_SUB_FISH = 3 // food.fish: only fishing boats gather it
 };
+
+// 0 A.D. template_gaia_fish.xml ResourceSupply: 1000 food, at most 4 gatherers,
+// and +1 food every 2 s while nobody gathers it (Change/Spawn, notGathered) up to Max.
+constexpr int32_t FISH_FOOD_SUPPLY = 1000;
+constexpr int FISH_MAX_GATHERERS = 4;
+constexpr float FISH_REGROW_INTERVAL_S = 2.0f;
+// Fish footprint radius (10 m) plus a fishing boat's ResourceGatherer MaxDistance (6 m), in tiles.
+constexpr float FISH_GATHER_REACH = 4.0f;
 
 enum UnitStance : uint8_t {
 	STANCE_AGGRESSIVE = 0,
@@ -658,6 +667,7 @@ enum TechStat : uint8_t {
 	TSTAT_ARMOR_HACK, TSTAT_ARMOR_PIERCE, TSTAT_ARMOR_CRUSH,
 	TSTAT_HEALTH, TSTAT_SPEED, TSTAT_POP_BONUS, TSTAT_TRADE_GAIN, TSTAT_RANGE,
 	TSTAT_BUILD_TIME, TSTAT_RESEARCH_TIME, TSTAT_HEAL_RANGE, TSTAT_HEAL_INTERVAL, TSTAT_ARROWS,
+	TSTAT_PACK_TIME,
 	TSTAT_COUNT
 };
 
@@ -745,6 +755,19 @@ inline uint64_t unit_tech_classes(uint8_t type) {
 		case UNIT_MERCHANT_SHIP: return TC_UNIT | TC_SHIP | TC_TRADER;
 		default: return TC_UNIT;
 	}
+}
+
+// 0 A.D. GarrisonHolder on land siege: template_unit_siege_tower.xml (Max 20) and
+// template_unit_siege_ram.xml (Max 10) take <List>Support Infantry</List> and
+// unload everyone below EjectHealth 0.1 or when destroyed. The siege tower's
+// BuildingAI fires no arrows of its own (DefaultArrowCount 0) and one per
+// garrisoned Infantry (GarrisonArrowMultiplier 1), up to MaxArrowCount 10.
+inline constexpr int SIEGE_TOWER_GARRISON = 20;
+inline constexpr int SIEGE_RAM_GARRISON = 10;
+inline constexpr int SIEGE_TOWER_MAX_ARROWS = 10;
+inline constexpr float SIEGE_EJECT_HEALTH = 0.1f;
+inline bool siege_garrison_allowed(uint8_t unit_type) {
+	return (unit_tech_classes(unit_type) & (TC_INFANTRY | TC_CIVILIAN)) != 0;
 }
 
 inline uint64_t building_tech_classes(uint8_t type) {
@@ -1086,6 +1109,8 @@ inline bool unit_has_pack(uint16_t tmpl, uint8_t type) {
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) return (civ_unit_template(tmpl).flags & ROSTER_PACKABLE) != 0;
 	return (unit_tech_classes(type) & (TC_STONETHROWER | TC_BOLTSHOOTER)) != 0;
 }
+// 0 A.D. Trader units: land traders trade between Markets, merchant ships between Docks.
+inline bool unit_is_trader(uint8_t type) { return type == UNIT_TRADER || type == UNIT_MERCHANT_SHIP; }
 inline bool pack_state_can_move(uint8_t s) { return s == PACK_NONE || s == PACK_PACKED; }
 inline bool pack_state_can_attack(uint8_t s) { return s == PACK_NONE || s == PACK_UNPACKED; }
 

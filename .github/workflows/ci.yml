@@ -92,6 +92,13 @@ jobs:
             src/network/net_host.cpp -lpthread -o /tmp/test_trade
           /tmp/test_trade
 
+      - name: Naval tests
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_naval.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+            src/network/net_host.cpp -lpthread -o /tmp/test_naval
+          /tmp/test_naval
+
       - name: Save/load keeps the lockstep hash
         run: |
           g++ -std=c++20 -O2 -Isrc tools/test_save_hash.cpp src/simulation/simulation.cpp \
@@ -156,6 +163,13 @@ jobs:
             src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
             src/network/net_host.cpp -lpthread -o /tmp/test_gates
           /tmp/test_gates
+
+      - name: Siege garrison tests
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_siege_garrison.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+            src/network/net_host.cpp -lpthread -o /tmp/test_siege_garrison
+          /tmp/test_siege_garrison
 
       - name: Building steering scenarios
         run: |

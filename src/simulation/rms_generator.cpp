@@ -2805,7 +2805,43 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	// Distribute sacred relics
 	distribute_relics(sim, hm, water_h, spawns, rng, config);
 
+	// Fish in open water, for fishing boats
+	distribute_fish(sim, hm, water_h, config);
+
 	return true;
+}
+
+void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, float water_h, const Config &config) {
+	// 0 A.D. rmgen (e.g. archipelago.js, mediterranean.js): groups of 2-3 fish,
+	// scaleByMapSize(15, 50) of them, in water at least 2 tiles from land and 20
+	// tiles from other food. One RTS0 world unit is one tile. A separate stream
+	// keeps every other placement on the map unchanged.
+	const float half = hm.map_half;
+	const float size = 2.0f * half;
+	const int groups = (int)std::lround(15.0f + 35.0f * std::clamp((size - 128.0f) / (512.0f - 128.0f), 0.0f, 1.0f));
+	RmsRng rng(config.seed ^ 0x46495348u); // 'FISH'
+	auto open_water = [&](float x, float z) {
+		if (x < -half + 2.0f || x > half - 2.0f || z < -half + 2.0f || z > half - 2.0f) return false;
+		for (int dz = -2; dz <= 2; ++dz)
+			for (int dx = -2; dx <= 2; ++dx)
+				if (hm.sample_world(x + (float)dx, z + (float)dz) >= water_h - 0.3f) return false;
+		return true;
+	};
+	std::vector<std::pair<float, float>> placed;
+	for (int attempt = 0; attempt < groups * 40 && (int)placed.size() < groups; ++attempt) {
+		const float x = rng.range_float(-half, half), z = rng.range_float(-half, half);
+		if (!open_water(x, z)) continue;
+		bool crowded = false;
+		for (const auto &p : placed)
+			if ((p.first - x) * (p.first - x) + (p.second - z) * (p.second - z) < 20.0f * 20.0f) { crowded = true; break; }
+		if (crowded) continue;
+		placed.push_back({x, z});
+		const int n = rng.range_int(2, 3);
+		for (int k = 0; k < n; ++k) {
+			const float fx = x + rng.range_float(-2.0f, 2.0f), fz = z + rng.range_float(-2.0f, 2.0f);
+			if (open_water(fx, fz)) sim.spawn_resource_world(fx, fz, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+		}
+	}
 }
 
 } // namespace rtso
