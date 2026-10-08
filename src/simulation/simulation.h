@@ -841,6 +841,15 @@ private:
 	bool petra_unit_reserved(uint32_t uid) const;
 
 	std::vector<PetraBase> petra_bases_;
+	// Foundations whose build progress has stalled; builders that could not
+	// reach one are banned from it so the next attempt uses someone else.
+	struct PetraFoundationWatch {
+		uint32_t id = 0;
+		float progress = 0.0f;
+		float stall = 0.0f;
+		std::vector<uint32_t> banned;
+	};
+	std::vector<PetraFoundationWatch> petra_fnd_watch_;
 	float petra_timer_  = 0.0f;
 	float petra_econ_timer_ = 0.0f;
 	float petra_trade_timer_ = 0.0f;
@@ -869,7 +878,10 @@ private:
 	void petra_manage_emergency(float dt);
 	void petra_manage_transport(float dt);
 	void apply_petra_config();
-	void petra_refresh_queue_accounts();
+	void petra_refresh_queue_accounts(float dt);
+	void petra_staff_foundations();
+	int petra_villager_target() const;
+	bool petra_can_place(int cell_x, int cell_y, int footprint) const;
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
 	void petra_say(uint8_t kind, float x = 0.0f, float z = 0.0f);
 	bool petra_path_crosses_water(float x0, float z0, float x1, float z1) const;
