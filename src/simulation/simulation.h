@@ -327,6 +327,10 @@ public:
 	void order_set_formation(const uint32_t *unit_ids, size_t count, uint8_t formation);
 	void order_garrison(const uint32_t *unit_ids, size_t count, uint32_t building_id);
 	void order_ungarrison(uint32_t building_id);
+	// GarrisonHolder.HasEnoughHealth: above EjectHealth of max health, so it may hold a garrison.
+	bool structure_has_enough_health(const Building &b) const;
+	// Hitpoints per second each unit garrisoned in `b` regains (BuffHeal plus Living Conditions).
+	float structure_garrison_heal(const Building &b) const;
 	void order_ungarrison_single(uint32_t building_id, uint32_t unit_id);
 	void order_guard(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id);
 
@@ -866,6 +870,7 @@ private:
 		float bld_pop_bonus[BLD_TYPE_COUNT];
 		float bld_arrow_mul[BLD_TYPE_COUNT];
 		float bld_arrow_add[BLD_TYPE_COUNT];
+		float bld_garrison_heal[BLD_TYPE_COUNT]; // added hp per second for garrisoned units
 	};
 	void compute_tech_mods(uint8_t player_id, TechMods &out) const;
 	void rebuild_all_tech_mods();
@@ -887,6 +892,8 @@ private:
 	void tick_upgrades(float dt);
 	// Unloads land siege below SIEGE_EJECT_HEALTH or dead (GarrisonHolder EjectHealth / OnDestroy).
 	void tick_siege_garrisons();
+	// Structures heal their garrison each second and unload it below EjectHealth (GarrisonHolder.js).
+	void tick_garrison_holders();
 	bool can_board(size_t transport_idx, size_t unit_idx) const;
 	void cancel_upgrade(Building &b, uint8_t refund_to);
 	void finish_upgrade(Building &b);
