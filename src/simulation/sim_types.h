@@ -107,10 +107,13 @@ enum MapType : uint8_t {
 	MAP_RHINE_MARSHLANDS = 51,
 	MAP_RED_SEA = 52,
 	MAP_HELLAS = 53,
+	MAP_ENGLISH_CHANNEL = 54,
+	MAP_DODECANESE = 55,
+	MAP_FORTRESS = 56,
 	// 0 A.D. trigger maps (maps/random/*_triggers.js run as map triggers, triggers.h)
-	MAP_FLOOD = 54,
-	MAP_EXTINCT_VOLCANO = 55,
-	MAP_TYPE_COUNT = 56
+	MAP_FLOOD = 57,
+	MAP_EXTINCT_VOLCANO = 58,
+	MAP_TYPE_COUNT = 59
 };
 
 struct MapTypeInfo {
@@ -178,6 +181,9 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_RHINE_MARSHLANDS, "rhine_marshlands", "Rhine Marshlands (RMS)", "temperate", true, "Shallow, passable wetlands with little room for building in the lowlands of the Rhine."},
 		{MAP_RED_SEA, "red_sea", "Red Sea (RMS)", "desert", true, "The Red Sea between Africa and Arabia, painted from a real elevation map."},
 		{MAP_HELLAS, "hellas", "Hellas (RMS)", "mediterranean", true, "A random corner of Greece and the Aegean, painted from a real elevation map."},
+		{MAP_ENGLISH_CHANNEL, "english_channel", "English Channel (RMS)", "temperate", true, "Players start on both sides of the English Channel; crossing it takes ships."},
+		{MAP_DODECANESE, "dodecanese", "Dodecanese (RMS)", "mediterranean", true, "A group of islands in the Aegean, a few joined by bridges; the rest need ships."},
+		{MAP_FORTRESS, "fortress", "Fortress (RMS)", "temperate", true, "Players start inside walled fortresses with a market, barracks, stable and temple."},
 		{MAP_FLOOD, "flood", "Flood (RMS)", "temperate", true, "A great flood moves across the valley. The home islands go under, so evacuate your units by ship to the mainland."},
 		{MAP_EXTINCT_VOLCANO, "extinct_volcano", "Extinct Volcano (RMS)", "volcanic", true, "Rains raise the water from the 25th minute until only the hills and the great cone stay dry. Gaia towers guard the lowlands."}
 	};
@@ -187,6 +193,11 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 
 inline bool is_procedural_map(uint8_t type) {
 	return type < MAP_TYPE_COUNT;
+}
+
+// Naval maps: bases may sit on separate land, so armies need ships to meet.
+inline bool map_is_naval(int type) {
+	return type == MAP_ENGLISH_CHANNEL || type == MAP_DODECANESE;
 }
 
 enum UnitType : uint8_t {
@@ -230,7 +241,9 @@ enum UnitAction : uint8_t {
 	ACTION_ATTACK_MOVE = 9,
 	ACTION_PATROL = 10,
 	ACTION_GUARD  = 11,
-	ACTION_FLEE   = 12  // 0 A.D. UnitAI INDIVIDUAL.FLEEING: running from attacked_by
+	ACTION_FLEE   = 12, // 0 A.D. UnitAI INDIVIDUAL.FLEEING: running from attacked_by
+	ACTION_HEAL   = 13, // UnitAI INDIVIDUAL.HEAL: walking to or healing target_unit_id
+	ACTION_CHEER  = 14  // UnitAI INDIVIDUAL.CHEERING after a kill (attack_timer counts it down)
 };
 
 enum BuildingType : uint8_t {
@@ -315,14 +328,16 @@ enum UnitOrderKind : uint8_t {
 	ORDER_BUILD = 7,          // target building (build or repair)
 	ORDER_GARRISON = 8,       // target building
 	ORDER_GUARD = 9,          // target unit (Guard.js)
-	ORDER_KIND_COUNT = 10
+	ORDER_HEAL = 10,          // target unit (UnitAI Heal)
+	ORDER_KIND_COUNT = 11
 };
 
 enum UnitOrderFlag : uint8_t {
 	ORDER_FLAG_FORCE = 1,        // given by a player (order.data.force): walks ignore enemies, chases ignore the stance leash
 	ORDER_FLAG_ALLOW_CAPTURE = 2,// Attack.js allowCapture: capture structures instead of damaging them
 	ORDER_FLAG_UNITS_ONLY = 4,   // attack-move targetClasses "Unit" (session.attackmoveUnit)
-	ORDER_FLAG_INTERRUPTED = 8   // fighting or fleeing; go back to the order afterwards
+	ORDER_FLAG_INTERRUPTED = 8,  // fighting or fleeing; go back to the order afterwards
+	ORDER_FLAG_CHEER = 16        // killed its target (UnitAI shouldCheer)
 };
 
 // One order: the unit's current one (in the SoA) or a Shift-queued one. No padding.
@@ -343,6 +358,15 @@ inline constexpr float NEARBY_SEARCH_RANGE = 64.0f;
 // Attack.js Capture: template_unit_*.xml Capture MaxRange 4, RepeatTime 1000.
 inline constexpr float CAPTURE_RANGE = 4.0f;
 inline constexpr float CAPTURE_REPEAT_S = 1.0f;
+// template_unit_support_healer.xml Heal (Health 5 every Interval 2000 ms) and Heal.js
+// GetTimers (prepare 1000 ms); template_unit.xml UnitAI CheeringTime 2800 ms and
+// UnitAI notifyToCheerInRange 30; GarrisonHolder LoadingRange (1-2 m past the footprint).
+inline constexpr float HEAL_HP = 5.0f;
+inline constexpr float HEAL_INTERVAL_S = 2.0f;
+inline constexpr float HEAL_PREPARE_S = 1.0f;
+inline constexpr float CHEER_TIME_S = 2.8f;
+inline constexpr float CHEER_NOTIFY_RANGE = 30.0f;
+inline constexpr float GARRISON_LOADING_RANGE = 2.0f;
 
 // 0 A.D. Formations (source: template_player.xml:84-96, exactly 13 entries indexed 0..12)
 // Appended AFTER existing 6 so network/replay order stays wire-compatible (values 0..6 unchanged).
@@ -502,16 +526,15 @@ inline float unit_collision_radius(uint8_t type) {
 	}
 }
 
-// 0 A.D. capture attack strengths (Attack.js / template_unit_*).
-// Values are per capture effect; the simulation applies them per second for
-// the bounded nearby-capturer model.
+// 0 A.D. capture attack strengths by class (Attack.js Capture in template_unit_infantry,
+// _cavalry and _hero.xml: 2.5, 2.5, 10; champions 5 via unit_capture_attack).
+// Support units (women, healers, traders, worker elephants), siege and ships have no
+// Capture attack. RTS0's generic villager keeps 1.
 inline float unit_capture_strength(uint8_t type) {
 	switch (type) {
-		case UNIT_VILLAGER: case UNIT_HEALER: case UNIT_TRADER:
-		case UNIT_FEMALE_CITIZEN: case UNIT_WORKER_ELEPHANT:
-			return 1.0f;
+		case UNIT_VILLAGER: return 1.0f;
 		case UNIT_CAVALRY: case UNIT_CHARIOT: case UNIT_CAMEL:
-		case UNIT_SCYTHED_CHARIOT: return 1.75f;
+		case UNIT_SCYTHED_CHARIOT:
 		case UNIT_SPEARMAN: case UNIT_SWORDSMAN: case UNIT_ARCHER:
 		case UNIT_ARCHER_MAIDEN: case UNIT_ELEPHANT: case UNIT_CARNYX:
 		case UNIT_WAR_DOG: return 2.5f;
@@ -621,37 +644,39 @@ struct BuildingTypeInfo {
 inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 	static const BuildingTypeInfo kTable[BLD_TYPE_COUNT] = {
 		// name, model, portrait, hp, foot, f, w, g, s, pop, garrison, build_time, range, dmg, cd,
-		// capture max, regen, garrison regen, territory decay
-		{"Town Center", "town_center", "town_center", 2500.0f, 2, 0, 300, 100, 200, 10, 20, 60.0f, 16.0f, 18.0f, 1.0f, 2500.0f, 30.0f, 1.0f, 20.0f},
-		{"House", "house", "house", 500.0f, 1, 0, 80, 0, 0, 5, 5, 20.0f, 0.0f, 0.0f, 0.0f, 500.0f, 5.0f, 1.0f, 20.0f},
-		{"Barracks", "barracks", "barracks", 1500.0f, 2, 0, 150, 50, 50, 0, 10, 35.0f, 0.0f, 0.0f, 0.0f, 500.0f, 5.0f, 1.0f, 20.0f},
-		{"Storehouse", "storehouse", "storehouse", 800.0f, 1, 0, 100, 0, 0, 0, 5, 25.0f, 0.0f, 0.0f, 0.0f, 500.0f, 5.0f, 1.0f, 20.0f},
-		{"Defense Tower", "wall_tower", "tower", 1200.0f, 1, 0, 100, 0, 100, 0, 5, 30.0f, 18.0f, 20.0f, 1.0f, 500.0f, 10.0f, 1.0f, 20.0f},
-		{"Farmstead", "farmstead", "farmstead", 800.0f, 1, 0, 100, 0, 0, 0, 5, 25.0f, 0.0f, 0.0f, 0.0f, 300.0f, 5.0f, 1.0f, 20.0f},
-		{"Market", "market", "market", 1200.0f, 2, 0, 200, 100, 0, 0, 5, 40.0f, 0.0f, 0.0f, 0.0f, 500.0f, 5.0f, 1.0f, 20.0f},
-		{"Fortress", "fortress", "fortress", 3500.0f, 2, 0, 300, 200, 300, 0, 30, 80.0f, 22.0f, 30.0f, 0.8f, 4000.0f, 45.0f, 1.0f, 40.0f},
-		{"Gate", "gate", "gate", 1500.0f, 1, 0, 100, 0, 100, 0, 0, 25.0f, 0.0f, 0.0f, 0.0f, 500.0f, 5.0f, 1.0f, 20.0f},
-		{"Temple", "temple", "temple", 1200.0f, 2, 0, 150, 100, 100, 0, 5, 40.0f, 0.0f, 0.0f, 0.0f, 500.0f, 15.0f, 1.0f, 20.0f},
-		{"Wonder Monument", "wonder", "wonder", 5000.0f, 2, 500, 500, 500, 500, 0, 10, 120.0f, 0.0f, 0.0f, 0.0f, 2000.0f, 5.0f, 1.0f, 20.0f},
-		{"Naval Shipyard Dock", "dock", "dock", 1400.0f, 2, 0, 200, 0, 100, 0, 5, 40.0f, 16.0f, 15.0f, 1.2f, 500.0f, 5.0f, 1.0f, 20.0f},
-		{"Stone Wall Segment", "wall_segment", "wall", 1800.0f, 1, 0, 0, 0, 40, 0, 5, 15.0f, 0.0f, 0.0f, 0.0f, 500.0f, 5.0f, 1.0f, 20.0f},
-		{"Livestock Corral", "corral", "corral", 800.0f, 2, 0, 100, 0, 0, 5, 10, 25.0f, 0.0f, 0.0f, 0.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		// capture max, regen, garrison regen, territory decay (Capturable from
+		// template_structure.xml 500/0.5/1.0; civil centre 2500/5, fortress x8 and 10, wonder x4,
+		// farmstead 300)
+		{"Town Center", "town_center", "town_center", 2500.0f, 2, 0, 300, 100, 200, 10, 20, 60.0f, 16.0f, 18.0f, 1.0f, 2500.0f, 5.0f, 1.0f, 20.0f},
+		{"House", "house", "house", 500.0f, 1, 0, 80, 0, 0, 5, 5, 20.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Barracks", "barracks", "barracks", 1500.0f, 2, 0, 150, 50, 50, 0, 10, 35.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Storehouse", "storehouse", "storehouse", 800.0f, 1, 0, 100, 0, 0, 0, 5, 25.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Defense Tower", "wall_tower", "tower", 1200.0f, 1, 0, 100, 0, 100, 0, 5, 30.0f, 18.0f, 20.0f, 1.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Farmstead", "farmstead", "farmstead", 800.0f, 1, 0, 100, 0, 0, 0, 5, 25.0f, 0.0f, 0.0f, 0.0f, 300.0f, 0.5f, 1.0f, 20.0f},
+		{"Market", "market", "market", 1200.0f, 2, 0, 200, 100, 0, 0, 5, 40.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Fortress", "fortress", "fortress", 3500.0f, 2, 0, 300, 200, 300, 0, 30, 80.0f, 22.0f, 30.0f, 0.8f, 4000.0f, 10.0f, 1.0f, 40.0f},
+		{"Gate", "gate", "gate", 1500.0f, 1, 0, 100, 0, 100, 0, 0, 25.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Temple", "temple", "temple", 1200.0f, 2, 0, 150, 100, 100, 0, 5, 40.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Wonder Monument", "wonder", "wonder", 5000.0f, 2, 500, 500, 500, 500, 0, 10, 120.0f, 0.0f, 0.0f, 0.0f, 2000.0f, 0.5f, 1.0f, 20.0f},
+		{"Naval Shipyard Dock", "dock", "dock", 1400.0f, 2, 0, 200, 0, 100, 0, 5, 40.0f, 16.0f, 15.0f, 1.2f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Stone Wall Segment", "wall_segment", "wall", 1800.0f, 1, 0, 0, 0, 40, 0, 5, 15.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Livestock Corral", "corral", "corral", 800.0f, 2, 0, 100, 0, 0, 5, 10, 25.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		// 0 A.D. 0.28 template_structure_* values: Health/Max, Cost/Resources,
 		// GarrisonHolder/Max, Capturable. BuildTime is scaled by 0.25 to match
 		// RTS0's compressed build times (barracks 150s -> 35s above); footprint
 		// is 2 cells when the 0 A.D. footprint is wider than 15 m.
-		{"Field", "field_plot", "field", 250.0f, 2, 0, 100, 0, 0, 0, 0, 13.0f, 0.0f, 0.0f, 0.0f, 500.0f, 5.0f, 1.0f, 20.0f},
-		{"Stable", "stable", "stable", 2000.0f, 2, 0, 200, 0, 50, 0, 10, 30.0f, 0.0f, 0.0f, 0.0f, 500.0f, 10.0f, 1.0f, 20.0f},
-		{"Archery Range", "range", "range", 2000.0f, 2, 0, 200, 0, 0, 0, 10, 30.0f, 0.0f, 0.0f, 0.0f, 500.0f, 10.0f, 1.0f, 20.0f},
-		{"Forge", "blacksmith", "forge", 2000.0f, 2, 0, 200, 0, 0, 0, 1, 30.0f, 0.0f, 0.0f, 0.0f, 500.0f, 10.0f, 1.0f, 20.0f},
-		{"Arsenal", "arsenal", "arsenal", 2000.0f, 2, 0, 300, 0, 0, 0, 5, 45.0f, 0.0f, 0.0f, 0.0f, 500.0f, 10.0f, 1.0f, 20.0f},
-		{"Sentry Tower", "sentry_tower", "sentry_tower", 400.0f, 1, 0, 100, 0, 0, 0, 3, 10.0f, 16.0f, 12.0f, 1.2f, 500.0f, 10.0f, 1.0f, 20.0f},
-		{"Outpost", "outpost", "outpost", 400.0f, 1, 0, 60, 0, 0, 0, 0, 8.0f, 0.0f, 0.0f, 0.0f, 500.0f, 5.0f, 1.0f, 20.0f},
-		{"Palisade", "palisade", "palisade", 1000.0f, 1, 0, 14, 0, 0, 0, 0, 5.0f, 0.0f, 0.0f, 0.0f, 500.0f, 5.0f, 1.0f, 20.0f},
-		{"Wall Tower", "wall_tower", "wall_tower", 4000.0f, 1, 0, 0, 0, 48, 0, 4, 12.0f, 16.0f, 12.0f, 1.2f, 500.0f, 5.0f, 1.0f, 20.0f},
-		{"Elephant Stable", "stable_elephant", "elephant_stable", 3000.0f, 2, 0, 200, 0, 200, 0, 5, 45.0f, 0.0f, 0.0f, 0.0f, 500.0f, 10.0f, 1.0f, 20.0f},
-		{"Theater", "theater", "theater", 3000.0f, 2, 0, 200, 200, 600, 0, 5, 125.0f, 0.0f, 0.0f, 0.0f, 500.0f, 5.0f, 1.0f, 20.0f},
-		{"Embassy", "embassy", "embassy", 2000.0f, 2, 0, 200, 0, 0, 0, 6, 38.0f, 0.0f, 0.0f, 0.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Field", "field_plot", "field", 250.0f, 2, 0, 100, 0, 0, 0, 0, 13.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Stable", "stable", "stable", 2000.0f, 2, 0, 200, 0, 50, 0, 10, 30.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Archery Range", "range", "range", 2000.0f, 2, 0, 200, 0, 0, 0, 10, 30.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Forge", "blacksmith", "forge", 2000.0f, 2, 0, 200, 0, 0, 0, 1, 30.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Arsenal", "arsenal", "arsenal", 2000.0f, 2, 0, 300, 0, 0, 0, 5, 45.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Sentry Tower", "sentry_tower", "sentry_tower", 400.0f, 1, 0, 100, 0, 0, 0, 3, 10.0f, 16.0f, 12.0f, 1.2f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Outpost", "outpost", "outpost", 400.0f, 1, 0, 60, 0, 0, 0, 0, 8.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Palisade", "palisade", "palisade", 1000.0f, 1, 0, 14, 0, 0, 0, 0, 5.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Wall Tower", "wall_tower", "wall_tower", 4000.0f, 1, 0, 0, 0, 48, 0, 4, 12.0f, 16.0f, 12.0f, 1.2f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Elephant Stable", "stable_elephant", "elephant_stable", 3000.0f, 2, 0, 200, 0, 200, 0, 5, 45.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Theater", "theater", "theater", 3000.0f, 2, 0, 200, 200, 600, 0, 5, 125.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Embassy", "embassy", "embassy", 2000.0f, 2, 0, 200, 0, 0, 0, 6, 38.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 	};
 	if (type >= BLD_TYPE_COUNT) return kTable[BLD_HOUSE];
 	return kTable[type];
@@ -835,6 +860,13 @@ inline uint64_t unit_tech_classes(uint8_t type) {
 		case UNIT_MERCHANT_SHIP: return TC_UNIT | TC_SHIP | TC_TRADER;
 		default: return TC_UNIT;
 	}
+}
+
+// 0 A.D. Identity class Human (infantry, cavalry, support units): what Heal.js
+// HealableClasses on template_unit_support_healer.xml accepts.
+inline bool unit_is_human(uint8_t type) {
+	const uint64_t c = unit_tech_classes(type);
+	return (c & TC_ORGANIC) && !(c & (TC_ELEPHANT | TC_DOG));
 }
 
 // 0 A.D. GarrisonHolder on land siege: template_unit_siege_tower.xml (Max 20) and
@@ -1271,6 +1303,16 @@ inline LootInfo unit_loot(uint16_t tmpl, uint8_t type) {
 		}
 	}
 	return unit_class_loot(type);
+}
+
+// A unit's Capture attack: template_unit_hero 10, template_unit_champion 5, else by class.
+inline float unit_capture_attack(uint16_t tmpl, uint8_t type) {
+	const float base = unit_capture_strength(type);
+	if (base <= 0.0f || tmpl >= CIV_UNIT_TEMPLATE_COUNT) return base;
+	const uint8_t flags = civ_unit_template(tmpl).flags;
+	if (flags & ROSTER_HERO) return 10.0f;
+	if (flags & ROSTER_CHAMPION) return 5.0f;
+	return base;
 }
 
 // Structures yield resources only (no Loot/xp). Keyed by building type; a type
