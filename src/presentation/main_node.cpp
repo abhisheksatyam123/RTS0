@@ -2736,6 +2736,40 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			_on_ungarrison_pressed();
 			return;
 		}
+		// Delete (0 A.D. session.kill, unit_actions "delete"): asks first, like
+		// 0 A.D.'s confirmation box; a second press within 3 s or holding
+		// session.noconfirmation (Shift) destroys the selection.
+		if (fired("session.kill")) {
+			std::vector<uint32_t> ids;
+			for (int s = 0; s < selected_ids.size(); ++s) ids.push_back((uint32_t)(int64_t)selected_ids[s]);
+			if (selected_building_id != 0) ids.push_back(selected_building_id);
+			if (ids.empty()) return;
+			const double now = Time::get_singleton()->get_ticks_msec() / 1000.0;
+			if (!rtso::hotkeys::held("session.noconfirmation") && now - delete_armed_at_ > 3.0) {
+				delete_armed_at_ = now;
+				chat_window_.post_overlay("[color=#ffaa44]Press " +
+						String(rtso::hotkeys::table().label("session.kill").c_str()) +
+						" again to destroy the selection.[/color]");
+				return;
+			}
+			delete_armed_at_ = -10.0;
+			if (net_lockstep())
+				post_lockstep(30, ids.data(), ids.size());
+			else
+				sim->cmd_delete(local_player(), ids.data(), ids.size());
+			clear_selection();
+			return;
+		}
+		// Back to work (session.backtowork): resume the last gather or build.
+		if (fired("session.backtowork")) {
+			if (selected_ids.is_empty()) return;
+			if (net_lockstep())
+				post_lockstep(31, ids_ptr(), selected_ids.size());
+			else
+				sim->order_back_to_work(ids_ptr(), selected_ids.size());
+			play_civ_voice("gather");
+			return;
+		}
 		auto apply_stance = [&](uint8_t st) {
 			if (selected_ids.is_empty()) return;
 			if (net_lockstep())

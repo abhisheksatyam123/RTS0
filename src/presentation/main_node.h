@@ -356,6 +356,7 @@ private:
 	rtso::RtsoMusic music_;
 	rtso::RtsoSessionAudio session_audio_;
 	uint8_t music_civ_ = 0xFF;
+	double delete_armed_at_ = -10.0; // session.kill confirmation window
 	void play_alarm(const char *path);
 	void play_sfx(const char *path);
 	void play_spatial_sfx(const char *path, Vector3 pos);
