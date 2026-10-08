@@ -528,6 +528,13 @@ unsigned pack_state_of(const Simulation &sim, uint32_t id) {
     return 255;
 }
 
+float hp_of(const Simulation &sim, uint32_t id) {
+    auto uv = sim.units();
+    for (size_t i = 0; i < uv.count; ++i)
+        if (uv.id[i] == id) return uv.alive[i] ? uv.hp[i] : 0.0f;
+    return 0.0f;
+}
+
 // The unit's current order kind (255 once it is dead or gone) and how many
 // Shift-queued orders follow it.
 unsigned order_kind_of(const Simulation &sim, uint32_t id) {
@@ -606,6 +613,11 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     // A villager the host orders about with the Unit orders commands: gather,
     // walk with a Shift-queued walk after it, back to work (cmd 31), delete (cmd 30).
     const uint32_t host_worker = sim.spawn_unit(-34.0f, 10.0f, 0, UNIT_VILLAGER, 100.0f);
+    // A healer the host orders to heal (cmd 32) a swordsman wounded at turn 405.
+    // Passive, so it heals only when ordered.
+    const uint32_t host_healer = sim.spawn_unit(-44.0f, 6.0f, 0, UNIT_HEALER);
+    sim.order_set_stance(&host_healer, 1, STANCE_PASSIVE);
+    const uint32_t host_patient = sim.spawn_unit(-24.0f, -16.0f, 0, UNIT_SWORDSMAN);
     auto apply_setup = [&](const GameSetupParams &s) {
         sim.set_victory_condition(s.victory >= VICTORY_COUNT ? 0 : s.victory);
         for (uint8_t t = 0; t < MAX_PLAYERS; ++t) {
@@ -810,6 +822,14 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
             // Unit orders (0 A.D. Commands.js): the host's worker gathers food,
             // walks off with a Shift-queued walk (param bit 0x80) after it, goes
             // back to work (cmd 31) and is finally deleted (cmd 30).
+            if (st == 410) {
+                NetCommand hl;
+                hl.client_id = 0;
+                hl.cmd_type = 32;
+                hl.entity_ids.push_back(host_healer);
+                hl.target_id = host_patient;
+                batch.push_back(hl);
+            }
             if (st == 390 || st == 400 || st == 402 || st == 470 || st == 580) {
                 NetCommand w;
                 w.client_id = 0;
@@ -855,6 +875,10 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
             // posting orders, which must now be dropped on both peers, while
             // the host plays on against Petra.
             if (defeat_turn && f.turn_index == defeat_turn) wipe_player(sim, 1);
+            if (f.turn_index == 405) { // both peers, at the same turn boundary
+                const int32_t pi = sim.lookup_unit(host_patient);
+                if (pi >= 0 && sim.units_.alive[pi]) sim.units_.hp[pi] = 40.0f;
+            }
             // Mid-session save and load (the world reloaded from its own save
             // must hash the same, and both peers carry on in sync from it).
             if (opt.saveload_turn && f.turn_index == opt.saveload_turn) {
@@ -881,14 +905,15 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
                 if (cu.alive[i]) wounds += cu.max_hp[i] - cu.hp[i];
                 else ++dead;
             }
-            std::fprintf(log, "%u %08X %zu d01=%u d10=%u cf=%d wounds=%.0f dead=%u defeated=%u over=%d stone=%d,%d wall=%u locked=%d pack=%u work=%u queue=%zu\n",
+            std::fprintf(log, "%u %08X %zu d01=%u d10=%u cf=%d wounds=%.0f dead=%u defeated=%u over=%d stone=%d,%d wall=%u locked=%d pack=%u work=%u queue=%zu heal=%u patient=%.0f\n",
                          f.turn_index, f.sim_state_hash, f.commands.size(), sim.get_diplomacy(0, 1),
                          sim.get_diplomacy(1, 0), sim.ceasefire_active() ? 1 : 0, wounds, dead,
                          (unsigned)sim.defeated_mask(), sim.is_game_over() ? 1 : 0,
                          (int)sim.player(0).res[RES_STONE], (int)sim.player(1).res[RES_STONE],
                          (unsigned)building_type_of(sim, host_wall), gate_locked_of(sim, host_wall),
                          pack_state_of(sim, host_catapult), order_kind_of(sim, host_worker),
-                         order_queue_len_of(sim, host_worker));
+                         order_queue_len_of(sim, host_worker), order_kind_of(sim, host_healer),
+                         hp_of(sim, host_patient));
         }
         if (tm.has_out_of_sync() && !opt.force_oos) {
             std::fprintf(stderr, "[net-peer] %s: OOS at turn %u local=%08X peer=%08X\n",
