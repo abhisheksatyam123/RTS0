@@ -401,6 +401,25 @@ int main() {
 		CHECK(sim.biome() != BIOME_POLAR && sim.current_map_biome() != "polar");
 	}
 
+	// 14. Game Setup per-slot AI settings, applied after the shared ones as main_node does.
+	{
+		Simulation sim;
+		sim.generate_random_map(MAP_MAINLAND, 5, 3, 64.0f);
+		sim.set_player_active(1, true, true);
+		sim.set_player_active(2, true, true);
+		sim.set_petra_difficulty(PETRA_MEDIUM);
+		sim.set_petra_behavior(PETRA_BEHAVIOR_BALANCED);
+		sim.set_petra_difficulty(1, PETRA_VERY_HARD);
+		sim.set_petra_behavior(1, PETRA_BEHAVIOR_AGGRESSIVE);
+		sim.set_petra_difficulty(2, PETRA_EASY);
+		sim.set_petra_behavior(2, PETRA_BEHAVIOR_BALANCED); // main_node sets both for every slot
+		CHECK(sim.petra_config_for(1).difficulty == PETRA_VERY_HARD);
+		CHECK(sim.petra_config_for(1).behavior == PETRA_BEHAVIOR_AGGRESSIVE);
+		CHECK(sim.petra_config_for(2).difficulty == PETRA_EASY);
+		CHECK(sim.petra_config_for(2).behavior == PETRA_BEHAVIOR_BALANCED);
+		CHECK(sim.ai_gather_mult(1) > sim.ai_gather_mult(2));
+	}
+
 	if (failures) {
 		std::printf("%d check(s) failed\n", failures);
 		return 1;

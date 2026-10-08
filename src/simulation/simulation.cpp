@@ -902,10 +902,153 @@ bool Simulation::can_place(int cell_x, int cell_y, int footprint) const {
 	return true;
 }
 
+namespace {
+// 0 A.D. BuildRestrictions per structure template. template_structure.xml
+// defaults to land placement in own territory; the overrides are
+// civil_centre (own neutral, 200 m from a CivilCentre), dock (shore, own ally
+// neutral), defensive_wall and its gate and tower (land-shore), palisade
+// (land-shore, own neutral), outpost (own neutral, 50 m from an Outpost),
+// defensive_tower (60 m from a Tower) and fortress (80 m from a Fortress).
+enum : uint8_t { PLACE_LAND, PLACE_SHORE_TYPE, PLACE_LAND_SHORE };
+enum : uint8_t { TERR_OWN = 1, TERR_ALLY = 2, TERR_NEUTRAL = 4, TERR_ENEMY = 8 };
+enum : uint8_t { DIST_NONE, DIST_CIVIL_CENTRE, DIST_TOWER, DIST_FORTRESS, DIST_OUTPOST };
+struct BuildRestriction {
+	uint8_t placement, territory, distance_class;
+	float min_distance; // world units (one tile, 4 m)
+};
+BuildRestriction build_restriction(uint8_t type) {
+	switch (type) {
+	case BLD_TOWN_CENTER: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_CIVIL_CENTRE, 200.0f / 4.0f};
+	case BLD_DOCK: return {PLACE_SHORE_TYPE, TERR_OWN | TERR_ALLY | TERR_NEUTRAL, DIST_NONE, 0.0f};
+	case BLD_WALL_SEGMENT: case BLD_GATE: case BLD_WALL_TOWER: return {PLACE_LAND_SHORE, TERR_OWN, DIST_NONE, 0.0f};
+	case BLD_PALISADE: return {PLACE_LAND_SHORE, TERR_OWN | TERR_NEUTRAL, DIST_NONE, 0.0f};
+	case BLD_OUTPOST: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_OUTPOST, 50.0f / 4.0f};
+	case BLD_TOWER: case BLD_SENTRY_TOWER: return {PLACE_LAND, TERR_OWN, DIST_TOWER, 60.0f / 4.0f};
+	case BLD_FORTRESS: return {PLACE_LAND, TERR_OWN, DIST_FORTRESS, 80.0f / 4.0f};
+	default: return {PLACE_LAND, TERR_OWN, DIST_NONE, 0.0f};
+	}
+}
+uint8_t distance_class_of(uint8_t type) {
+	switch (type) {
+	case BLD_TOWN_CENTER: return DIST_CIVIL_CENTRE;
+	case BLD_TOWER: case BLD_SENTRY_TOWER: return DIST_TOWER; // both carry the Tower class
+	case BLD_FORTRESS: return DIST_FORTRESS;
+	case BLD_OUTPOST: return DIST_OUTPOST;
+	default: return DIST_NONE;
+	}
+}
+} // namespace
+
+Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell_x, int cell_y, uint8_t b_type) const {
+	if (player >= MAX_PLAYERS || b_type >= BLD_TYPE_COUNT) return PLACE_OBSTRUCTED;
+	const BuildingTypeInfo &binfo = building_type_info(b_type);
+	const BuildRestriction rule = build_restriction(b_type);
+	const int foot = binfo.footprint;
+	// 1. Obstruction (CheckFoundation): the map edge, other buildings, and resources
+	// (trees, mines, bushes; a field's grain and carcasses don't block).
+	if (!can_place(cell_x, cell_y, foot)) return PLACE_OBSTRUCTED;
+	const float x0 = cell_x * GRID, z0 = cell_y * GRID;
+	const float x1 = x0 + foot * GRID, z1 = z0 + foot * GRID;
+	const float cxw = 0.5f * (x0 + x1), czw = 0.5f * (z0 + z1);
+	{
+		const int w = std::max(1, (int)std::ceil(2.0f * map_half_ / GRID));
+		if (resource_block_tick_ != ticks_ || resource_block_count_ != resources_.count || resource_block_w_ != w) {
+			resource_block_tick_ = ticks_;
+			resource_block_count_ = resources_.count;
+			resource_block_w_ = w;
+			resource_block_cells_.assign((size_t)w * w, 0);
+			for (size_t r = 0; r < resources_.count; ++r) {
+				if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
+				const uint8_t sub = resources_.subtype[r];
+				if (sub == RES_SUB_GRAIN || sub == RES_SUB_MEAT) continue;
+				// Gaia resource obstructions are about 1.5 m (3/8 tile) across their centre.
+				const int gx0 = std::max(0, (int)std::floor((resources_.x[r] - 0.375f + map_half_) / GRID));
+				const int gx1 = std::min(w - 1, (int)std::floor((resources_.x[r] + 0.375f + map_half_) / GRID));
+				const int gz0 = std::max(0, (int)std::floor((resources_.z[r] - 0.375f + map_half_) / GRID));
+				const int gz1 = std::min(w - 1, (int)std::floor((resources_.z[r] + 0.375f + map_half_) / GRID));
+				for (int z = gz0; z <= gz1; ++z)
+					for (int x = gx0; x <= gx1; ++x) resource_block_cells_[(size_t)z * w + x] = 1;
+			}
+		}
+		const int off = (int)std::lround(map_half_ / GRID);
+		for (int dz = 0; dz < foot; ++dz)
+			for (int dx = 0; dx < foot; ++dx) {
+				const int x = cell_x + dx + off, z = cell_y + dz + off;
+				if (x >= 0 && z >= 0 && x < w && z < w && resource_block_cells_[(size_t)z * w + x]) return PLACE_OBSTRUCTED;
+			}
+	}
+
+	// 2. Terrain passability class: building-land has no water under the
+	// footprint, a wall (default-terrain-only, centre point only) stands where
+	// land units can wade (NAV_SHALLOW, 2 m), and a dock needs land under it and
+	// a sea beside it.
+	const bool have_nav = !nav_grid_.cells.blank();
+	const float nav_cell = have_nav ? 2.0f * nav_grid_.map_half / (float)nav_grid_.res : GRID;
+	auto is_water = [&](int nx, int ny) { // any water, shallow included (building-land MaxWaterDepth 0)
+		if (nx < 0 || ny < 0 || nx >= nav_grid_.cells.w || ny >= nav_grid_.cells.h) return false;
+		const uint8_t c = nav_grid_.cells.at(nx, ny);
+		return c == NAV_WATER || c == NAV_SHALLOW;
+	};
+	if (have_nav) {
+		auto [nx0, ny0] = nav_grid_.world_to_cell(x0 + 0.01f, z0 + 0.01f);
+		auto [nx1, ny1] = nav_grid_.world_to_cell(x1 - 0.01f, z1 - 0.01f);
+		if (rule.placement == PLACE_LAND) {
+			for (int y = ny0; y <= ny1; ++y)
+				for (int x = nx0; x <= nx1; ++x)
+					if (is_water(x, y)) return PLACE_TERRAIN;
+		} else if (rule.placement == PLACE_LAND_SHORE) {
+			auto [ncx, ncy] = nav_grid_.world_to_cell(cxw, czw);
+			if (nav_grid_.cells.inside(ncx, ncy) && nav_grid_.cells.at(ncx, ncy) == NAV_WATER) return PLACE_TERRAIN;
+		} else {
+			// CheckShorePlacement: part of the footprint on land, a sea cell at its edge.
+			bool land = false, sea = false;
+			for (int y = ny0; y <= ny1 && !land; ++y)
+				for (int x = nx0; x <= nx1 && !land; ++x)
+					land = !is_water(x, y);
+			const int ring = std::max(1, (int)std::ceil(GRID / nav_cell));
+			for (int y = ny0 - ring; y <= ny1 + ring && !sea; ++y)
+				for (int x = nx0 - ring; x <= nx1 + ring && !sea; ++x)
+					sea = nav_grid_.is_passable_for(x, y, PASS_SHIP) &&
+							nav_grid_.global_region_at(x, y, PASS_SHIP) != 0;
+			if (!land) return PLACE_TERRAIN;
+			if (!sea) return PLACE_SHORE;
+		}
+	} else if (rule.placement == PLACE_SHORE_TYPE) {
+		return PLACE_SHORE;
+	}
+
+	// 3. Territory at the centre. Every RTS0 territory cell comes from a root
+	// building, so none is unconnected. Before the first territory pass sizes the
+	// grid (a scenario still being set up) there is nothing to check against.
+	if (!territory_grid_.blank()) {
+		const int owner = territory_owner_at(cxw, czw);
+		uint8_t kind;
+		if (owner == (int)player) kind = TERR_OWN;
+		else if (owner < 0 || owner >= MAX_PLAYERS) kind = TERR_NEUTRAL;
+		else if (is_ally(player, (uint8_t)owner) && is_ally((uint8_t)owner, player)) kind = TERR_ALLY;
+		else kind = TERR_ENEMY;
+		if (!(rule.territory & kind)) return PLACE_TERRITORY;
+	}
+
+	// 4. Distance from the player's own structures (foundations included) of the
+	// same class, measured between footprint edges.
+	if (rule.distance_class != DIST_NONE) {
+		const float half = 0.5f * foot * GRID;
+		for (const Building &b : buildings_) {
+			if (b.team != player || b.hp <= 0.0f || distance_class_of(b.type) != rule.distance_class) continue;
+			const float d = std::hypot(b.x - cxw, b.z - czw) - half - b.half_size;
+			if (d < rule.min_distance) return PLACE_DISTANCE;
+		}
+	}
+	return PLACE_OK;
+}
+
 uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b_type) {
 	if (player >= MAX_PLAYERS) return 0;
+	if (b_type >= BLD_TYPE_COUNT) return 0;
 	const BuildingTypeInfo &binfo = building_type_info(b_type);
-	if (!can_place(cell_x, cell_y, binfo.footprint)) return 0;
+	rebuild_territory(); // territory from every finished root so far (a no-op when nothing changed)
+	if (check_placement(player, cell_x, cell_y, b_type) != PLACE_OK) return 0;
 	if (building_required_phase(b_type) > players_[player].phase) return 0;
 
 	// 0 A.D. civ structure cost bonuses (e.g. Iberian walls, Han stone discount).
@@ -6118,8 +6261,9 @@ void Simulation::order_back_to_work(const uint32_t *unit_ids, size_t count) {
 // Petra keeps a free ring of cells around everything it builds so units can
 // always walk around and reach foundations (0 A.D. placement uses obstruction
 // clearance for the same reason); tight packing left builders stranded.
-bool Simulation::petra_can_place(int cell_x, int cell_y, int footprint) const {
-	return can_place(cell_x - 1, cell_y - 1, footprint + 2);
+bool Simulation::petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype) const {
+	if (!can_place(cell_x - 1, cell_y - 1, footprint + 2)) return false;
+	return btype >= BLD_TYPE_COUNT || check_placement(petra_pid_, cell_x, cell_y, btype) == PLACE_OK;
 }
 
 void Simulation::update_petra_threat_map(float dt) {
@@ -7308,7 +7452,7 @@ void Simulation::petra_manage_trading(float dt) {
 				if (std::abs(dx) < 4 && std::abs(dz) < 4) continue;
 				const int cx = start_cx + dx, cz = start_cz + dz;
 				const float wx = cx * GRID, wz = cz * GRID;
-				if (territory_owner_at(wx, wz) != petra_pid_ || !petra_can_place(cx, cz, 2) ||
+				if (territory_owner_at(wx, wz) != petra_pid_ || !petra_can_place(cx, cz, 2, BLD_MARKET) ||
 				    !is_position_safe(wx, wz, 6.0f)) continue;
 				float far2 = 0.0f;
 				for (const Building *m : ally_markets)
@@ -7336,7 +7480,7 @@ void Simulation::petra_manage_trading(float dt) {
 					if (std::abs(dx) != r && std::abs(dz) != r) continue;
 					int cx = start_cx + dx;
 					int cz = start_cz + dz;
-					if (petra_can_place(cx, cz, 2) && is_position_safe(cx * GRID, cz * GRID, 6.0f) &&
+					if (petra_can_place(cx, cz, 2, BLD_MARKET) && is_position_safe(cx * GRID, cz * GRID, 6.0f) &&
 					    petra_try_pay(PETRA_QUEUE_TRADE, 0.0f, 200.0f, 100.0f, 0.0f)) {
 						uint32_t bid = spawn_building(cx, cz, BLD_MARKET, petra_pid_, 0.0f);
 						auto idle_workers = get_idle_workers(petra_pid_);
@@ -7360,7 +7504,7 @@ void Simulation::petra_manage_trading(float dt) {
 					if (std::abs(dx) != r && std::abs(dz) != r) continue;
 					int cx = start_cx + dx;
 					int cz = start_cz + dz;
-					if (petra_can_place(cx, cz, 2) && is_position_safe(cx * GRID, cz * GRID, 6.0f) &&
+					if (petra_can_place(cx, cz, 2, BLD_MARKET) && is_position_safe(cx * GRID, cz * GRID, 6.0f) &&
 					    petra_try_pay(PETRA_QUEUE_TRADE, 0.0f, 200.0f, 100.0f, 0.0f)) {
 						uint32_t bid = spawn_building(cx, cz, BLD_MARKET, petra_pid_, 0.0f);
 						auto idle_workers = get_idle_workers(petra_pid_);
@@ -7508,7 +7652,7 @@ void Simulation::petra_manage_naval(float dt) {
 					float wz = cz * GRID;
 					float h = get_terrain_height(wx, wz);
 					if (h >= terrain_water_height_ - 0.5f && h <= terrain_water_height_ + 1.8f) {
-						if (petra_can_place(cx, cz, 2) && is_position_safe(wx, wz, 6.0f) &&
+						if (petra_can_place(cx, cz, 2, BLD_DOCK) && is_position_safe(wx, wz, 6.0f) &&
 						    petra_try_pay(PETRA_QUEUE_NAVAL, 0.0f, 200.0f, 0.0f, 100.0f)) {
 							uint32_t bid = spawn_building(cx, cz, BLD_DOCK, petra_pid_, 0.0f);
 							auto idle_workers = get_idle_workers(petra_pid_);
@@ -7722,7 +7866,7 @@ void Simulation::petra_manage_buildings(float dt) {
 					if (std::abs(dx) != r && std::abs(dz) != r) continue;
 					int cx = start_cx + dx;
 					int cz = start_cz + dz;
-					if (petra_can_place(cx, cz, 1) &&
+					if (petra_can_place(cx, cz, 1, BLD_TOWER) &&
 					    petra_try_pay(PETRA_QUEUE_EMERGENCY, 0.0f, 100.0f, 0.0f, 100.0f)) {
 						uint32_t bid = spawn_building(cx, cz, BLD_TOWER, petra_pid_, 0.0f);
 						auto idle_workers = get_idle_workers(petra_pid_);
@@ -7783,7 +7927,7 @@ void Simulation::petra_manage_buildings(float dt) {
 
 				int cx = (int)(rx / GRID);
 				int cz = (int)(rz / GRID);
-				if (petra_can_place(cx, cz, 2)) {
+				if (petra_can_place(cx, cz, 2, BLD_TOWN_CENTER)) {
 					// Score based on surrounding resources
 					float score = 0.0f;
 					for (size_t j = 0; j < resources_.count; ++j) {
@@ -7894,7 +8038,7 @@ void Simulation::petra_manage_buildings(float dt) {
 							if (std::abs(dx) != r && std::abs(dz) != r) continue;
 							int cx = start_cx + dx;
 							int cz = start_cz + dz;
-							if (petra_can_place(cx, cz, 1) && is_position_safe(cx * GRID, cz * GRID, 5.0f) &&
+							if (petra_can_place(cx, cz, 1, dropsite_type) && is_position_safe(cx * GRID, cz * GRID, 5.0f) &&
 							    petra_try_pay(PETRA_QUEUE_VILLAGER, 0.0f, 100.0f, 0.0f, 0.0f)) {
 								uint32_t bid = spawn_building(cx, cz, dropsite_type, petra_pid_, 0.0f);
 								auto idle_workers = get_idle_workers(petra_pid_);
@@ -7948,7 +8092,7 @@ void Simulation::petra_manage_buildings(float dt) {
 				for (int dz = -r; dz <= r && !placed; ++dz) {
 					int cx = start_cx + dx;
 					int cz = start_cz + dz;
-					if (petra_can_place(cx, cz, 2) &&
+					if (petra_can_place(cx, cz, 2, BLD_BARRACKS) &&
 					    petra_try_pay(PETRA_QUEUE_MILITARY, 0.0f, 150.0f, 50.0f, 50.0f)) {
 						uint32_t bid = spawn_building(cx, cz, BLD_BARRACKS, petra_pid_, 0.0f);
 						auto idle_workers = get_idle_workers(petra_pid_);
@@ -7981,7 +8125,7 @@ void Simulation::petra_manage_buildings(float dt) {
 					for (int dz = -r; dz <= 0 && !placed; ++dz) {
 						int cx = start_cx + dx;
 						int cz = start_cz + dz;
-						if (petra_can_place(cx, cz, 1) &&
+						if (petra_can_place(cx, cz, 1, BLD_TOWER) &&
 						    petra_try_pay(PETRA_QUEUE_MILITARY, 0.0f, 100.0f, 0.0f, 100.0f)) {
 							uint32_t bid = spawn_building(cx, cz, BLD_TOWER, petra_pid_, 0.0f);
 							auto idle_workers = get_idle_workers(petra_pid_);
@@ -8015,7 +8159,7 @@ void Simulation::petra_manage_buildings(float dt) {
 					for (int dz = -r; dz <= 0 && !placed; ++dz) {
 						int cx = start_cx + dx;
 						int cz = start_cz + dz;
-						if (petra_can_place(cx, cz, 2)) {
+						if (petra_can_place(cx, cz, 2, BLD_FORTRESS)) {
 							if (!petra_try_pay(PETRA_QUEUE_MILITARY, 0.0f, 300.0f, 200.0f, 300.0f)) break;
 							uint32_t bid = spawn_building(cx, cz, BLD_FORTRESS, petra_pid_, 0.0f);
 							auto idle_workers = get_idle_workers(petra_pid_);
@@ -9121,6 +9265,51 @@ void Simulation::petra_manage_opening(float dt) {
 
 void Simulation::apply_petra_config() {
 	petra_config_.recompute();
+	// Until a slot gets its own setting, every AI plays at the shared one.
+	for (PetraSlot &slot : petra_slots_) slot.petra_config_ = petra_config_;
+}
+
+// Where player pid's PetraConfig lives right now: in the members while that
+// AI runs (or between ticks for PETRA_PLAYER), else in its parked slot. While
+// another AI runs, PETRA_PLAYER's state sits in that AI's slot.
+PetraConfig &Simulation::petra_config_slot(uint8_t pid) {
+	if (pid == petra_pid_) return petra_config_;
+	if (petra_slots_.size() < MAX_PLAYERS) {
+		petra_slots_.resize(MAX_PLAYERS);
+		for (PetraSlot &slot : petra_slots_) slot.petra_config_ = petra_config_;
+	}
+	if (pid == PETRA_PLAYER) return petra_slots_[petra_pid_].petra_config_;
+	return petra_slots_[pid].petra_config_;
+}
+
+const PetraConfig &Simulation::petra_config_for(uint8_t pid) const {
+	if (pid >= MAX_PLAYERS || pid == petra_pid_ || petra_slots_.size() < MAX_PLAYERS) return petra_config_;
+	if (pid == PETRA_PLAYER) return petra_slots_[petra_pid_].petra_config_;
+	return petra_slots_[pid].petra_config_;
+}
+
+void Simulation::set_petra_difficulty(uint8_t d) {
+	petra_config_.difficulty = petra_clamp_difficulty(d);
+	apply_petra_config();
+}
+
+void Simulation::set_petra_behavior(uint8_t b) {
+	petra_config_.behavior = petra_clamp_behavior(b);
+	apply_petra_config();
+}
+
+void Simulation::set_petra_difficulty(uint8_t pid, uint8_t d) {
+	if (pid >= MAX_PLAYERS) return;
+	PetraConfig &c = petra_config_slot(pid);
+	c.difficulty = petra_clamp_difficulty(d);
+	c.recompute();
+}
+
+void Simulation::set_petra_behavior(uint8_t pid, uint8_t b) {
+	if (pid >= MAX_PLAYERS) return;
+	PetraConfig &c = petra_config_slot(pid);
+	c.behavior = petra_clamp_behavior(b);
+	c.recompute();
 }
 
 void Simulation::petra_refresh_queue_accounts(float dt) {
@@ -9376,7 +9565,7 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 				if (std::abs(dx) != r && std::abs(dz) != r) continue;
 				int cx = start_cx + dx;
 				int cz = start_cz + dz;
-				if (!petra_can_place(cx, cz, foot)) continue;
+				if (!petra_can_place(cx, cz, foot, btype)) continue;
 				if (!petra_try_pay(queue, (float)info.food_cost, (float)info.wood_cost,
 				                   (float)info.gold_cost, (float)info.stone_cost)) {
 					return 0;
@@ -9985,7 +10174,10 @@ void Simulation::petra_reset_ai_state() {
 }
 
 void Simulation::petra_swap_slot(uint8_t pid) {
-	if (petra_slots_.size() < MAX_PLAYERS) petra_slots_.resize(MAX_PLAYERS);
+	if (petra_slots_.size() < MAX_PLAYERS) {
+		petra_slots_.resize(MAX_PLAYERS);
+		for (PetraSlot &s : petra_slots_) s.petra_config_ = petra_config_; // the shared setting
+	}
 	PetraSlot &slot = petra_slots_[pid];
 #define RTSO_PETRA_SLOT_SWAP(m) std::swap(m, slot.m);
 	RTSO_PETRA_SLOT_FIELDS(RTSO_PETRA_SLOT_SWAP)
@@ -10093,7 +10285,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 
@@ -10809,6 +11001,21 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	ar.pod(s.wonder_duration_); ar.pod(s.relic_duration_); ar.pod(s.relic_count_);
 
 	// 3. Every AI's Petra state.
+	static_assert(sizeof(PetraConfig) == 100, "list the new PetraConfig field below");
+	auto io_config = [&](PetraConfig &c) {
+		ar.padded(c, [](PetraConfig &d, const PetraConfig &v) {
+			d.difficulty = v.difficulty; d.behavior = v.behavior; d.aggressive = v.aggressive; d.defensive = v.defensive;
+			d.cooperative = v.cooperative; d.pop_scaling = v.pop_scaling; d.gather_rate = v.gather_rate; d.build_time = v.build_time;
+			d.defense_ratio_own = v.defense_ratio_own; d.army_compact_sq = v.army_compact_sq;
+			d.target_num_workers = v.target_num_workers; d.target_num_traders = v.target_num_traders;
+			d.pop_phase2 = v.pop_phase2; d.work_phase3 = v.work_phase3; d.muster_delta = v.muster_delta;
+			d.garrison_hp_low = v.garrison_hp_low; d.garrison_hp_high = v.garrison_hp_high;
+			d.emergency_pop_factor = v.emergency_pop_factor; d.emergency_struct_factor = v.emergency_struct_factor;
+			d.emergency_root_factor = v.emergency_root_factor;
+			d.prio_emergency = v.prio_emergency; d.prio_villager = v.prio_villager; d.prio_military = v.prio_military;
+			d.prio_tech = v.prio_tech; d.prio_trade = v.prio_trade; d.prio_naval = v.prio_naval;
+		});
+	};
 	auto field = [&](auto &v) {
 		using T = std::decay_t<decltype(v)>;
 		if constexpr (std::is_same_v<T, S::AttackPlan>) {
@@ -10848,6 +11055,8 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			io_vec(ar, v, 1u << 16, [&](S::PetraFoundationWatch &w) { ar.pod(w.id); ar.pod(w.progress); ar.pod(w.stall); ids(w.banned); });
 		} else if constexpr (std::is_same_v<T, std::vector<S::PetraBase>>) {
 			io_vec(ar, v, 1u << 16, base);
+		} else if constexpr (std::is_same_v<T, PetraConfig>) {
+			if (ar.version >= 21) io_config(v); // v21: one per AI slot
 		} else if constexpr (std::is_same_v<T, PetraAttackManager>) {
 			if (ar.version >= 18) ar.pod(v);
 			else v = PetraAttackManager{};
@@ -10869,19 +11078,11 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		RTSO_PETRA_SLOT_FIELDS(RTSO_PETRA_IO_SLOT)
 #undef RTSO_PETRA_IO_SLOT
 	});
-	static_assert(sizeof(PetraConfig) == 100, "list the new PetraConfig field below");
-	ar.padded(s.petra_config_, [](PetraConfig &d, const PetraConfig &v) {
-		d.difficulty = v.difficulty; d.behavior = v.behavior; d.aggressive = v.aggressive; d.defensive = v.defensive;
-		d.cooperative = v.cooperative; d.pop_scaling = v.pop_scaling; d.gather_rate = v.gather_rate; d.build_time = v.build_time;
-		d.defense_ratio_own = v.defense_ratio_own; d.army_compact_sq = v.army_compact_sq;
-		d.target_num_workers = v.target_num_workers; d.target_num_traders = v.target_num_traders;
-		d.pop_phase2 = v.pop_phase2; d.work_phase3 = v.work_phase3; d.muster_delta = v.muster_delta;
-		d.garrison_hp_low = v.garrison_hp_low; d.garrison_hp_high = v.garrison_hp_high;
-		d.emergency_pop_factor = v.emergency_pop_factor; d.emergency_struct_factor = v.emergency_struct_factor;
-		d.emergency_root_factor = v.emergency_root_factor;
-		d.prio_emergency = v.prio_emergency; d.prio_villager = v.prio_villager; d.prio_military = v.prio_military;
-		d.prio_tech = v.prio_tech; d.prio_trade = v.prio_trade; d.prio_naval = v.prio_naval;
-	});
+	if (ar.version < 21) {
+		// Saves before v21 hold one config that every AI shared.
+		io_config(s.petra_config_);
+		for (S::PetraSlot &slot : s.petra_slots_) slot.petra_config_ = s.petra_config_;
+	}
 	ar.pod(s.petra_pid_);
 	ar.pod(s.petra_tribute_inbox_);
 	static_assert(sizeof(PetraChatLine) == 108, "list the new PetraChatLine field below");
