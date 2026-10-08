@@ -521,6 +521,13 @@ unsigned building_type_of(const Simulation &sim, uint32_t id) {
     return 255;
 }
 
+unsigned pack_state_of(const Simulation &sim, uint32_t id) {
+    auto uv = sim.units();
+    for (size_t i = 0; i < uv.count; ++i)
+        if (uv.id[i] == id) return uv.alive[i] ? uv.pack_state[i] : 255;
+    return 255;
+}
+
 int gate_locked_of(const Simulation &sim, uint32_t id) {
     for (const auto &b : sim.buildings())
         if (b.id == id) return b.gate_locked ? 1 : 0;
@@ -571,6 +578,8 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
         sim.spawn_unit(-4.0f + 2.0f * (float)i, 34.0f, 2, UNIT_VILLAGER, 100.0f);
     // A wall segment the host turns into a gate (cmd 26, 0 A.D. Upgrade.js).
     const uint32_t host_wall = sim.spawn_building_world(-30.0f, 14.0f, BLD_WALL_SEGMENT, 0, 1.0f);
+    // A stone thrower the host unpacks and packs again (cmd 29, 0 A.D. Pack.js).
+    const uint32_t host_catapult = sim.spawn_unit(-40.0f, -12.0f, 0, UNIT_CATAPULT);
     auto apply_setup = [&](const GameSetupParams &s) {
         sim.set_victory_condition(s.victory >= VICTORY_COUNT ? 0 : s.victory);
         for (uint8_t t = 0; t < MAX_PLAYERS; ++t) {
@@ -720,6 +729,15 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
                 g.param = st == 500 ? 1 : 0;
                 batch.push_back(g);
             }
+            // Pack (cmd 29): the host unpacks its stone thrower, then packs it.
+            if (st == 380 || st == 440) {
+                NetCommand pk;
+                pk.client_id = 0;
+                pk.cmd_type = 29;
+                pk.entity_ids.push_back(host_catapult);
+                pk.param = st == 440 ? 1 : 0;
+                batch.push_back(pk);
+            }
             // Chat: the joiner whispers to the host, then writes to a player who
             // is not there (nobody may see it); the host answers everyone.
             if (!host && st == 120) net.sendChat("gg", peer_guid(0));
@@ -773,12 +791,13 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
                 if (cu.alive[i]) wounds += cu.max_hp[i] - cu.hp[i];
                 else ++dead;
             }
-            std::fprintf(log, "%u %08X %zu d01=%u d10=%u cf=%d wounds=%.0f dead=%u defeated=%u over=%d stone=%d,%d wall=%u locked=%d\n",
+            std::fprintf(log, "%u %08X %zu d01=%u d10=%u cf=%d wounds=%.0f dead=%u defeated=%u over=%d stone=%d,%d wall=%u locked=%d pack=%u\n",
                          f.turn_index, f.sim_state_hash, f.commands.size(), sim.get_diplomacy(0, 1),
                          sim.get_diplomacy(1, 0), sim.ceasefire_active() ? 1 : 0, wounds, dead,
                          (unsigned)sim.defeated_mask(), sim.is_game_over() ? 1 : 0,
                          (int)sim.player(0).res[RES_STONE], (int)sim.player(1).res[RES_STONE],
-                         (unsigned)building_type_of(sim, host_wall), gate_locked_of(sim, host_wall));
+                         (unsigned)building_type_of(sim, host_wall), gate_locked_of(sim, host_wall),
+                         pack_state_of(sim, host_catapult));
         }
         if (tm.has_out_of_sync() && !opt.force_oos) {
             std::fprintf(stderr, "[net-peer] %s: OOS at turn %u local=%08X peer=%08X\n",

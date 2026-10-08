@@ -275,6 +275,15 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
         return [t for (_, a), (t, b) in zip(rows, rows[1:]) if a != b]
     locks = [lock_spans(e) for e in extras]
     lock_ok = locks[0] == locks[1] and len(locks[0]) == 2
+    # Pack (cmd 29): the stone thrower's pack state changes on the same turns on
+    # both peers and goes packed -> unpacking -> unpacked -> packing -> packed.
+    def pack_steps(e):
+        rows = [(t, e[t].get("pack")) for t in sorted(e)]
+        return [(t, b) for (_, a), (t, b) in zip(rows, rows[1:]) if a != b]
+    packs = [pack_steps(e) for e in extras]
+    # (Before the order it may unpack on its own against nearby enemies; only the
+    # ordered unpack at 380 and pack at 440 are checked for their sequence.)
+    pack_ok = packs[0] == packs[1] and [b for t, b in packs[0] if t > 380] == ["4", "2", "3", "1"]
     defeat_ok = (not defeat_turn) or (out_turn[0] is not None and out_turn[0] == out_turn[1]
                                       and out_turn[0] > defeat_turn and not any(over))
     common_turns = sorted(set(hashes[0]) & set(hashes[1]))
@@ -297,10 +306,10 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
         "setup_ok": setup_ok, "setups": setups,
         "ceasefire_ok": ceasefire_ok, "ceasefire_end": cf_end, "ceasefire_hits": cf_hits[:5],
         "tribute_ok": tribute_ok, "tributes": tributes, "upgrade_ok": upgrade_ok, "gate_turn": gate_turn,
-        "lock_ok": lock_ok, "locks": locks, "chat_ok": chat_ok, "chats": chats,
+        "lock_ok": lock_ok, "locks": locks, "pack_ok": pack_ok, "packs": packs, "chat_ok": chat_ok, "chats": chats,
         "pause_ok": pause_ok, "pauses": pauses, "save_ok": save_ok, "saves": saves,
         "defeat_ok": defeat_ok, "defeat_turn": out_turn, "game_over": over,
-        "ok": divergent is None and complete and setup_ok and ceasefire_ok and defeat_ok and tribute_ok and upgrade_ok and lock_ok and chat_ok and pause_ok and save_ok and all(rc == 0 for rc in rcs),
+        "ok": divergent is None and complete and setup_ok and ceasefire_ok and defeat_ok and tribute_ok and upgrade_ok and lock_ok and pack_ok and chat_ok and pause_ok and save_ok and all(rc == 0 for rc in rcs),
     }
 
 
@@ -477,6 +486,8 @@ def main() -> int:
             print(f"[net] tribute of 77 stone landed at turn {nr['tributes'][0][0][0]} on both peers, the "
                   f"post-defeat one was dropped; wall became a gate at turn {nr['gate_turn'][0]}, "
                   f"locked at turn {nr['locks'][0][0]} and unlocked at turn {nr['locks'][0][1]}")
+            print(f"[net] stone thrower unpacked and packed again on both peers at turns "
+                  f"{[t for t, _ in nr['packs'][0] if t > 380]}")
             print(f"[net] chat: host got {nr['chats']['host']}, joiner got {nr['chats']['join']}; "
                   f"host paused at turn {PAUSE_TURN}, joiner held {nr['pauses']['join']['held_ms']} ms; "
                   f"save/load at turn {SAVELOAD_TURN} kept hash {nr['saves']['host']['before']} on both")
@@ -485,6 +496,8 @@ def main() -> int:
                       f"{nr['defeat_turn'][0]} on both peers; host and Petra played on to turn {nr['turns']}")
         elif not nr["tribute_ok"]:
             print(f"[net] FAIL tribute: stone changes (host, join) {nr['tributes']}")
+        elif not nr["pack_ok"]:
+            print(f"[net] FAIL pack: state changes (turn, state) {nr['packs']}")
         elif not nr["chat_ok"]:
             print(f"[net] FAIL chat: received {nr['chats']}")
         elif not nr["pause_ok"]:
