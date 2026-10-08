@@ -64,6 +64,12 @@ const RMS_MAPS := [
 	["random_sahel", "Sahel (RMS)", "Random", 8, 128, "savanna", "Open savanna with a few water holes; little wood. Supports 2-8 players."],
 	["random_african_plains", "African Plains (RMS)", "Random", 8, 128, "savanna", "Lush plains with watering holes, hills and wildlife. Supports 2-8 players."],
 	["random_alpine_valley", "Alpine Valley (RMS)", "Random", 8, 128, "alpine", "Deep valleys walled off by mountain ranges with passes. Supports 2-8 players."],
+	["random_syria", "Syria (RMS)", "Random", 8, 128, "desert", "Dry plains with slightly rolling highlands. Supports 2-8 players."],
+	["random_cantabrian_highlands", "Cantabrian Highlands (RMS)", "Random", 8, 128, "temperate", "Each player starts on a cliff-ringed hill with one ramp. Supports 2-8 players."],
+	["random_pyrenean_sierra", "Pyrenean Sierra (RMS)", "Random", 8, 128, "alpine", "High mountains with two passes separate the teams. Supports 2-8 players."],
+	["random_sahel_watering_holes", "Sahel Watering Holes (RMS)", "Random", 8, 128, "savanna", "Lines of water with shallows between the players. Supports 2-8 players."],
+	["random_persian_highlands", "Persian Highlands (RMS)", "Random", 8, 128, "persia", "A dry sunken plateau rich in minerals, ringed by rocky hills. Supports 2-8 players."],
+	["random_volcanic_lands", "Volcanic Lands (RMS)", "Random", 8, 128, "volcanic", "A charred land around a smoking volcano. Supports 2-8 players."],
 ]
 
 # 0 A.D. population limits per player (0 = unlimited) and ceasefire lengths in minutes.
