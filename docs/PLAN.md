@@ -126,7 +126,7 @@ To preserve determinism and avoid regression in live multiplayer playtests:
 
 - **Component parity tests:** replace the broad 11-tick coverage estimate with per-component behavioral tests for weapons, research, vision, construction and victory conditions (see the G1–G10 table for what is already probed).
 - **Platform validation:** Windows/Linux plus Android/iOS export and runtime checks (`docs/BUILD.md`).
-- **Formation remainder:** twin-formation merge, `CanAttackAsFormation` (`FormationAttack.js`), formation patrol/guard orders, formation animation variants, Scatter (gaia only). Petra still writes the formation byte; the AI thread removes it (0 A.D. Petra uses no formations).
+- **Formation remainder:** formation animation variants ("combat" variant), formation auras (`Auras.js` ApplyFormationAura), Scatter (gaia only), formations of Shift-queued orders (they go unit by unit), and gather/repair/garrison orders given to a whole formation (UnitAI FORMATIONCONTROLLER Order.Gather etc.; the members leave the formation instead).
 - **Asset long tail:** high-use 0 A.D. actors beyond the canonical roster ([ASSET_MANIFEST_TODO.md](ASSET_MANIFEST_TODO.md)).
 
 ### P5 — Ranked lockstep (optional, last)
