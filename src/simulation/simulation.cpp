@@ -7,6 +7,7 @@
 #include <chrono>
 #include <cmath>
 #include <numeric>
+#include <bit>
 #include <algorithm>
 #include <limits>
 #include <cstring>
@@ -81,8 +82,10 @@ static bool outside_and_in_build_range(float bx, float bz, float half, float x, 
 }
 
 struct UnitGrid {
+	static_assert(kUnitGridRes <= 64, "occupied[] holds a grid row in one word");
 	int32_t *head = nullptr;
 	int32_t *nxt = nullptr;
+	uint64_t *occupied = nullptr; // by row: bit xx set when cell (xx, row) holds a unit
 	int res = kUnitGridRes;
 	float inv = 0.0f;
 	float half = 64.0f;
@@ -98,8 +101,10 @@ struct UnitGrid {
 		inv = (float)res / (half * 2.0f);
 		head = arena.alloc_array<int32_t>((size_t)(res * res));
 		nxt = arena.alloc_array<int32_t>(n);
-		if (!head || !nxt) return false;
+		occupied = arena.alloc_array<uint64_t>((size_t)res);
+		if (!head || !nxt || !occupied) return false;
 		std::memset(head, 0xFF, sizeof(int32_t) * (size_t)(res * res)); // every head -1
+		std::memset(occupied, 0, sizeof(uint64_t) * (size_t)res);
 		for (size_t i = 0; i < n; ++i) {
 			if (!alive[i]) {
 				nxt[i] = -1;
@@ -108,6 +113,7 @@ struct UnitGrid {
 			int c = cell_of(px[i], pz[i]);
 			nxt[i] = head[c];
 			head[c] = (int32_t)i;
+			occupied[c / res] |= uint64_t{1} << (c % res);
 		}
 		return true;
 	}
@@ -136,10 +142,13 @@ struct UnitGrid {
 			z0 = std::max(z0, axis(z - reach));
 			z1 = std::min(z1, axis(z + reach));
 		}
+		if (x0 > x1) return;
+		// Cells x0..x1 of a row, taken in ascending order and skipping the empty ones.
+		const uint64_t span = (~uint64_t{0} >> (63 - x1)) & (~uint64_t{0} << x0);
 		for (int zz = z0; zz <= z1; ++zz) {
 			int row = zz * res;
-			for (int xx = x0; xx <= x1; ++xx) {
-				for (int32_t j = head[row + xx]; j >= 0; j = nxt[j]) {
+			for (uint64_t m = occupied[zz] & span; m; m &= m - 1) {
+				for (int32_t j = head[row + std::countr_zero(m)]; j >= 0; j = nxt[j]) {
 					fn(j);
 				}
 			}
@@ -5592,23 +5601,49 @@ void Simulation::update_petra_threat_map(float dt) {
 	memset(petra_threat_map_.enemy_threat, 0, sizeof(petra_threat_map_.enemy_threat));
 	memset(petra_threat_map_.friendly_defense, 0, sizeof(petra_threat_map_.friendly_defense));
 
+	// falloff[r][dz + r][dx + r]: the share of a radius-r source's power at cell offset (dx, dz),
+	// max(0.12, 1 - d^2 / (r^2 + 1)) inside the circle d^2 <= r^2 + 1. Computed once, with the same
+	// float operations add_power() used per cell.
+	static constexpr int FALLOFF_MAX_R = 15; // above every radius below
+	struct FalloffTable {
+		std::vector<float> cells[FALLOFF_MAX_R + 1];
+		std::vector<int> half_width[FALLOFF_MAX_R + 1]; // by dz + r: the circle's |dx| limit, -1 if none
+	};
+	static const FalloffTable falloff = [] {
+		FalloffTable t;
+		for (int r = 0; r <= FALLOFF_MAX_R; ++r) {
+			const int w = 2 * r + 1;
+			const float max_dist_sq = (float)(r * r + 1);
+			t.cells[r].assign((size_t)(w * w), 0.0f);
+			t.half_width[r].assign((size_t)w, -1);
+			for (int dz = -r; dz <= r; ++dz)
+				for (int dx = -r; dx <= r; ++dx) {
+					float dist_sq = (float)(dx * dx + dz * dz);
+					if (dist_sq <= max_dist_sq) {
+						t.cells[r][(size_t)((dz + r) * w + dx + r)] = std::max(0.12f, 1.0f - (dist_sq / max_dist_sq));
+						t.half_width[r][(size_t)(dz + r)] = std::max(t.half_width[r][(size_t)(dz + r)], dx);
+					}
+				}
+		}
+		return t;
+	}();
+
 	auto add_power = [&](float *grid, float wx, float wz, float power, int radius_cells) {
 		int cx = std::clamp((int)((wx + map_half_) * inv_cell), 0, THREAT_GRID_RES - 1);
 		int cz = std::clamp((int)((wz + map_half_) * inv_cell), 0, THREAT_GRID_RES - 1);
-		int x0 = std::max(0, cx - radius_cells);
-		int x1 = std::min(THREAT_GRID_RES - 1, cx + radius_cells);
-		int z0 = std::max(0, cz - radius_cells);
-		int z1 = std::min(THREAT_GRID_RES - 1, cz + radius_cells);
-
-		float max_dist_sq = (float)(radius_cells * radius_cells + 1);
+		const int r = std::min(radius_cells, FALLOFF_MAX_R), w = 2 * r + 1;
+		int x0 = std::max(0, cx - r);
+		int x1 = std::min(THREAT_GRID_RES - 1, cx + r);
+		int z0 = std::max(0, cz - r);
+		int z1 = std::min(THREAT_GRID_RES - 1, cz + r);
 		for (int z = z0; z <= z1; ++z) {
-			for (int x = x0; x <= x1; ++x) {
-				float dist_sq = (float)((x - cx) * (x - cx) + (z - cz) * (z - cz));
-				if (dist_sq <= max_dist_sq) {
-					float falloff = std::max(0.12f, 1.0f - (dist_sq / max_dist_sq));
-					grid[z * THREAT_GRID_RES + x] += power * falloff;
-				}
-			}
+			// Each cell inside the circle gets its own share, so the cells' order is free.
+			const int hw = falloff.half_width[r][(size_t)(z - cz + r)];
+			const int xa = std::max(x0, cx - hw), xb = std::min(x1, cx + hw);
+			const float *share = falloff.cells[r].data() + (size_t)((z - cz + r) * w + r); // dx = 0
+			float *row = grid + z * THREAT_GRID_RES;
+			for (int x = xa; x <= xb; ++x)
+				row[x] += power * share[x - cx];
 		}
 	};
 
