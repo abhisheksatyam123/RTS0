@@ -2,6 +2,7 @@
 #define RTSO_TURN_MANAGER_H
 
 #include <cstdint>
+#include <set>
 #include <vector>
 #include <string>
 #include <fstream>
@@ -198,7 +199,27 @@ public:
 	uint32_t oos_expected_hash() const { return oos_expected_hash_; }
 	uint32_t oos_received_hash() const { return oos_received_hash_; }
 	const std::vector<uint32_t>& oos_peers() const { return oos_peers_; }
-	void clear_out_of_sync() { oos_detected_ = false; oos_turn_ = 0; oos_peers_.clear(); }
+	void clear_out_of_sync() {
+		oos_detected_ = false; oos_turn_ = 0; oos_peers_.clear();
+		oos_reported_ = false; oos_dump_pending_ = false; oos_players_.clear();
+	}
+	// 0 A.D. NetServerTurnManager / NetClientTurnManager::OnSyncError: the FIRST
+	// turn whose hashes differ is the one reported (later turns inherit it). The
+	// host broadcasts NMT_SYNC_ERROR with its hash and the out-of-sync players;
+	// every peer then writes an OOS dump (oos_dump.txt + oos_dump.dat, a full
+	// save_state of its world) into oos_dump_dir if one is set.
+	const std::vector<std::string>& oos_players() const { return oos_players_; }
+	bool oos_reported_by_host() const { return oos_from_host_; }
+	void set_oos_dump_dir(const std::string &dir) { oos_dump_dir_ = dir; }
+	const std::string& oos_dump_path() const { return oos_dump_written_; }
+
+	// 0 A.D. NMT_CLIENT_PAUSED: any client can pause the match; turns stop on
+	// every peer while at least one client is paused, and resume when the last
+	// one unpauses. Sends the change to the host, which relays it.
+	void set_local_paused(bool paused);
+	bool is_paused() const { return !paused_clients_.empty(); }
+	bool client_paused(uint32_t client_id) const { return paused_clients_.count(client_id) != 0; }
+	const std::set<uint32_t>& paused_clients() const { return paused_clients_; }
 
 	// Replay records the sorted command batch and the post-turn simulation hash.
 	// This is a turn recorder/verifier, not a portable simulation-state snapshot.
@@ -300,6 +321,19 @@ private:
 	uint32_t oos_expected_hash_ = 0;
 	uint32_t oos_received_hash_ = 0;
 	std::vector<uint32_t> oos_peers_;
+	std::vector<std::string> oos_players_;
+	bool oos_reported_ = false;    // host: NMT_SYNC_ERROR sent
+	bool oos_from_host_ = false;   // client: turn/hash came from the host's NMT_SYNC_ERROR
+	bool oos_dump_pending_ = false;
+	std::string oos_dump_dir_;
+	std::string oos_dump_written_;
+	void note_out_of_sync(uint32_t turn, uint32_t local_hash, uint32_t peer_hash, uint32_t peer_id);
+	void receive_sync_error(const SyncErrorMsg &msg);
+	void write_oos_dump(const Simulation &sim);
+	uint32_t local_hash_at(uint32_t turn) const;
+	std::string client_label(uint32_t client_id) const;
+	std::set<uint32_t> paused_clients_;
+	void receive_client_paused(uint32_t author, const ClientPausedMsg &msg);
 
 	// --- G8 lockstep gate (see the public section for the rationale) ---------
 	bool net_game_started_ = false;

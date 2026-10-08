@@ -527,8 +527,21 @@ int gate_locked_of(const Simulation &sim, uint32_t id) {
     return 0;
 }
 
-int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
-        float loss, uint32_t defeat_turn, const char *log_path) {
+struct PeerOpts {
+    float speed = 1.0f;
+    float loss = 0.0f;
+    uint32_t defeat_turn = 0;   // wipe out the joiner's player at this turn
+    uint32_t pause_turn = 0;    // host pauses here for pause_ms of wall clock
+    uint32_t pause_ms = 1500;
+    uint32_t saveload_turn = 0; // both peers save and reload their world here
+    uint32_t force_oos = 0;     // the joiner corrupts its world after this turn
+    std::string oos_dir;        // where each peer writes its OOS dump
+};
+
+int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts &opt,
+        const char *log_path) {
+    const float speed = opt.speed, loss = opt.loss;
+    const uint32_t defeat_turn = opt.defeat_turn;
     Simulation sim;
     playtest::ScriptRefs refs;
     playtest::build_world(sim, seed, refs);
@@ -585,6 +598,11 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
     tm.set_net_host(&net, me);
     Arena arena(1 << 16);
 
+    // Chat (0 A.D. NMT_CHAT): what reached this peer, as "sender: text".
+    std::vector<std::string> chats;
+    net.onChat([&](const ChatMsg &cm) { chats.push_back(cm.sender_guid + ": " + cm.message); });
+    if (!opt.oos_dir.empty()) tm.set_oos_dump_dir(opt.oos_dir);
+
     // Wait until both sides see the session (host: a peer joined, client: ACK).
     bool connected = false;
     net.onPeerConnected([&](uint32_t) { connected = true; });
@@ -631,6 +649,14 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
     uint64_t last = now_us();
     uint64_t last_progress = last;
     uint32_t last_turn_seen = 0;
+    // Pause: the host's own pause window, and what each peer saw of it.
+    bool pause_done = false, pause_seen = false;
+    uint64_t pause_since = 0, held_us = 0;
+    uint32_t paused_by = 0xFFFFFFFFu, paused_at_turn = 0;
+    // Save/load round trip at a turn boundary.
+    uint32_t save_hash_before = 0, save_hash_after = 0;
+    bool save_ok = false;
+    uint64_t oos_since = 0;
 
     while (tm.current_turn() < turns) {
         net.poll(arena);
@@ -694,11 +720,31 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
                 g.param = st == 500 ? 1 : 0;
                 batch.push_back(g);
             }
+            // Chat: the joiner whispers to the host, then writes to a player who
+            // is not there (nobody may see it); the host answers everyone.
+            if (!host && st == 120) net.sendChat("gg", peer_guid(0));
+            if (!host && st == 130) net.sendChat("secret", peer_guid(5));
+            if (host && st == 140) net.sendChat("hi all");
             for (const auto &c : batch)
                 if (c.client_id == me) tm.post_local_command(c);
         }
 
         uint64_t now = now_us();
+        // Pause (0 A.D. NMT_CLIENT_PAUSED): the host pauses for pause_ms of
+        // wall clock; both peers must hold their turns until it resumes.
+        if (host && opt.pause_turn && !pause_done && tm.current_turn() >= opt.pause_turn) {
+            if (!tm.client_paused(me)) { tm.set_local_paused(true); pause_since = now; }
+            else if (now - pause_since >= opt.pause_ms * 1000ull) { tm.set_local_paused(false); pause_done = true; }
+        }
+        if (tm.is_paused()) {
+            if (!pause_seen) {
+                pause_seen = true;
+                paused_by = *tm.paused_clients().begin();
+                paused_at_turn = tm.current_turn();
+            }
+            held_us += now - last;
+            last_progress = now; // a pause is not a stall
+        }
         float dt = (float)(now - last) * 1e-6f * speed;
         last = now;
         if (tm.tick(dt, sim)) {
@@ -708,6 +754,16 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
             // posting orders, which must now be dropped on both peers, while
             // the host plays on against Petra.
             if (defeat_turn && f.turn_index == defeat_turn) wipe_player(sim, 1);
+            // Mid-session save and load (the world reloaded from its own save
+            // must hash the same, and both peers carry on in sync from it).
+            if (opt.saveload_turn && f.turn_index == opt.saveload_turn) {
+                const std::string path = std::string(log_path) + ".sav";
+                save_hash_before = tm.compute_sim_hash(sim);
+                save_ok = sim.save_state(path.c_str()) && sim.load_state(path.c_str());
+                save_hash_after = tm.compute_sim_hash(sim);
+            }
+            // Forced OOS: the joiner alone gains one food after this turn.
+            if (!host && opt.force_oos && f.turn_index == opt.force_oos) sim.players_[0].res[RES_FOOD] += 1.0f;
             // Combat footprint: wounds on living units plus dead ones. It must
             // stay 0 on both peers while the ceasefire holds.
             float wounds = 0.0f;
@@ -724,11 +780,17 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
                          (int)sim.player(0).res[RES_STONE], (int)sim.player(1).res[RES_STONE],
                          (unsigned)building_type_of(sim, host_wall), gate_locked_of(sim, host_wall));
         }
-        if (tm.has_out_of_sync()) {
+        if (tm.has_out_of_sync() && !opt.force_oos) {
             std::fprintf(stderr, "[net-peer] %s: OOS at turn %u local=%08X peer=%08X\n",
                          host ? "host" : "join", tm.oos_turn(), tm.oos_expected_hash(), tm.oos_received_hash());
             std::fclose(log);
             return 1;
+        }
+        // Forced OOS: run on until this peer has the host's report and its dump.
+        if (opt.force_oos && tm.has_out_of_sync() && !tm.oos_dump_path().empty() &&
+                (host || tm.oos_reported_by_host())) {
+            if (!oos_since) oos_since = now;
+            else if (now - oos_since > 500'000ull) break;
         }
         if (tm.current_turn() != last_turn_seen) {
             last_turn_seen = tm.current_turn();
@@ -769,6 +831,20 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
                 host ? "host" : "join", sim.last_man_standing() ? 1 : 0, (unsigned)sim.pop_cap(),
                 sim.ceasefire_seconds(), (unsigned)sim.player_team(0), (unsigned)sim.player_team(1),
                 (unsigned)sim.player_team(2));
+    for (const auto &c : chats) std::printf("[net-peer] %s: chat %s\n", host ? "host" : "join", c.c_str());
+    if (opt.pause_turn)
+        std::printf("[net-peer] %s: pause seen=%d by=%u at_turn=%u held_ms=%u\n", host ? "host" : "join",
+                    pause_seen ? 1 : 0, paused_by, paused_at_turn, (unsigned)(held_us / 1000));
+    if (opt.saveload_turn)
+        std::printf("[net-peer] %s: saveload ok=%d before=%08X after=%08X\n", host ? "host" : "join",
+                    save_ok ? 1 : 0, save_hash_before, save_hash_after);
+    if (opt.force_oos) {
+        std::string who;
+        for (const auto &n : tm.oos_players()) who += (who.empty() ? "" : ",") + n;
+        std::printf("[net-peer] %s: oos turn=%u from_host=%d players=%s dump=%s\n", host ? "host" : "join",
+                    tm.oos_turn(), tm.oos_reported_by_host() ? 1 : 0, who.c_str(), tm.oos_dump_path().c_str());
+        return tm.has_out_of_sync() && !tm.oos_dump_path().empty() ? 0 : 1;
+    }
     return tm.has_out_of_sync() ? 1 : 0;
 }
 
@@ -808,18 +884,27 @@ int main(int argc, char **argv) {
         return playtest::run(seed, turns, verbose_every, shadow, through);
     }
     // Real UDP peer: --net-peer <host|join> <port> <seed> <turns> <log> [--speed X] [--loss P]
-    //   [--defeat-turn N]  (wipe out the joiner's player at turn N; 0 = never)
+    //   [--defeat-turn N]   wipe out the joiner's player at turn N (0 = never)
+    //   [--pause-turn N]    the host pauses at turn N for --pause-ms (default 1500)
+    //   [--saveload-turn N] both peers save and reload their world after turn N
+    //   [--force-oos N]     the joiner corrupts its world after turn N
+    //   [--oos-dir DIR]     where this peer writes oos_dump.txt/.dat
     if (argc >= 7 && std::strcmp(argv[1], "--net-peer") == 0) {
-        float speed = 1.0f, loss = 0.0f;
-        uint32_t defeat_turn = 0;
+        netpeer::PeerOpts opt;
         for (int i = 7; i + 1 < argc; i += 2) {
-            if (std::strcmp(argv[i], "--defeat-turn") == 0) defeat_turn = (uint32_t)std::atoi(argv[i + 1]);
-            else if (std::strcmp(argv[i], "--speed") == 0) speed = (float)std::atof(argv[i + 1]);
-            else if (std::strcmp(argv[i], "--loss") == 0) loss = (float)std::atof(argv[i + 1]);
+            const char *k = argv[i], *v = argv[i + 1];
+            if (std::strcmp(k, "--defeat-turn") == 0) opt.defeat_turn = (uint32_t)std::atoi(v);
+            else if (std::strcmp(k, "--speed") == 0) opt.speed = (float)std::atof(v);
+            else if (std::strcmp(k, "--loss") == 0) opt.loss = (float)std::atof(v);
+            else if (std::strcmp(k, "--pause-turn") == 0) opt.pause_turn = (uint32_t)std::atoi(v);
+            else if (std::strcmp(k, "--pause-ms") == 0) opt.pause_ms = (uint32_t)std::atoi(v);
+            else if (std::strcmp(k, "--saveload-turn") == 0) opt.saveload_turn = (uint32_t)std::atoi(v);
+            else if (std::strcmp(k, "--force-oos") == 0) opt.force_oos = (uint32_t)std::atoi(v);
+            else if (std::strcmp(k, "--oos-dir") == 0) opt.oos_dir = v;
         }
         return netpeer::run(std::strcmp(argv[2], "host") == 0, (uint16_t)std::atoi(argv[3]),
                             (uint32_t)std::strtoul(argv[4], nullptr, 10),
-                            (uint32_t)std::atoi(argv[5]), speed, loss, defeat_turn, argv[6]);
+                            (uint32_t)std::atoi(argv[5]), opt, argv[6]);
     }
     if (argc >= 2 && std::strcmp(argv[1], "--help") == 0) {
         playtest::usage(argv[0]);

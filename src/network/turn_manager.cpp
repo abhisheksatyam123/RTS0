@@ -1,5 +1,6 @@
 #include "turn_manager.h"
 #include "net_host.h"
+#include <cstdio>
 #include <iostream>
 #include <cstring>
 #include <algorithm>
@@ -46,7 +47,9 @@ void TurnManager::reset_keep_inbound() {
 	auto cmds = std::move(turn_remote_cmds_);
 	auto batches = std::move(received_batches_);
 	auto hashes = std::move(peer_hashes_);
+	auto paused = std::move(paused_clients_);
 	reset();
+	paused_clients_ = std::move(paused);
 	turn_remote_cmds_ = std::move(cmds);
 	received_batches_ = std::move(batches);
 	peer_hashes_ = std::move(hashes);
@@ -110,6 +113,12 @@ void TurnManager::reset() {
 	last_replay_error_.clear();
 	oos_detected_ = false;
 	oos_turn_ = 0;
+	oos_players_.clear();
+	oos_reported_ = false;
+	oos_from_host_ = false;
+	oos_dump_pending_ = false;
+	oos_dump_written_.clear();
+	paused_clients_.clear();
 	oos_expected_hash_ = 0;
 	oos_received_hash_ = 0;
 	oos_peers_.clear();
@@ -158,6 +167,16 @@ void TurnManager::set_net_host(NetHost *net_host, uint32_t client_id) {
 				if (NetPacketSerializer::parse_sync_check(msg.payload.data(), msg.payload.size(), scm)) {
 					this->receive_sync_check(scm.turn != 0 ? scm.turn : msg.turn, peer_id, scm.hash);
 				}
+			} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_SYNC_ERROR)) {
+				SyncErrorMsg sem;
+				// Only the host reports an OOS (0 A.D. NetServerTurnManager).
+				if (peer_id == 0 && net_host_ && !net_host_->isHost() &&
+						NetPacketSerializer::parse_sync_error(msg.payload.data(), msg.payload.size(), sem))
+					this->receive_sync_error(sem);
+			} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_CLIENT_PAUSED)) {
+				ClientPausedMsg cpm;
+				if (NetPacketSerializer::parse_client_paused(msg.payload.data(), msg.payload.size(), cpm))
+					this->receive_client_paused(peer_id, cpm);
 			} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_GAME_START)) {
 				GameStartMsg gsm;
 				if (NetPacketSerializer::parse_game_start(msg.payload.data(), msg.payload.size(), gsm)) {
@@ -258,18 +277,8 @@ void TurnManager::receive_sync_check(uint32_t turn, uint32_t client_id, uint32_t
 	if (turn <= current_turn_ && turn > 0) {
 		for (const auto &f : turn_history_) {
 			if (f.turn_index == turn) {
-				if (f.sim_state_hash != 0 && f.sim_state_hash != hash) {
-					oos_detected_ = true;
-					oos_turn_ = turn;
-					oos_expected_hash_ = f.sim_state_hash;
-					oos_received_hash_ = hash;
-					if (std::find(oos_peers_.begin(), oos_peers_.end(), client_id) == oos_peers_.end()) {
-						oos_peers_.push_back(client_id);
-					}
-					std::cerr << "[TurnManager] Out-of-sync detected at turn " << turn
-					          << " local_hash=" << f.sim_state_hash
-					          << " peer=" << client_id << " peer_hash=" << hash << "\n";
-				}
+				if (f.sim_state_hash != 0 && f.sim_state_hash != hash)
+					note_out_of_sync(turn, f.sim_state_hash, hash, client_id);
 				break;
 			}
 		}
@@ -685,6 +694,13 @@ bool TurnManager::receive_join_sync_check(uint32_t sender_peer_id, const JoinSyn
 }
 
 bool TurnManager::tick(float dt, Simulation &sim) {
+	if (oos_dump_pending_) write_oos_dump(sim);
+	// 0 A.D. pause: no turn runs anywhere while any client is paused, and the
+	// paused time is not banked (no catch-up burst on resume).
+	if (is_paused()) {
+		turn_timer_ = std::min(turn_timer_, TURN_DURATION);
+		return false;
+	}
 	turn_timer_ += dt;
 	if (turn_timer_ < TURN_DURATION) return false;
 
@@ -919,28 +935,8 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			for (const auto &pair : hit->second) {
 				uint32_t peer_id = pair.first;
 				uint32_t peer_hash = pair.second;
-				if (peer_hash != 0 && peer_hash != frame.sim_state_hash) {
-					oos_detected_ = true;
-					oos_turn_ = current_turn_;
-					oos_expected_hash_ = frame.sim_state_hash;
-					oos_received_hash_ = peer_hash;
-					if (std::find(oos_peers_.begin(), oos_peers_.end(), peer_id) == oos_peers_.end()) {
-						oos_peers_.push_back(peer_id);
-					}
-					std::cerr << "[TurnManager] Out-of-sync detected at turn " << current_turn_
-					          << " local_hash=" << frame.sim_state_hash
-					          << " peer=" << peer_id << " peer_hash=" << peer_hash << "\n";
-
-					if (net_host_->isHost()) {
-						SyncErrorMsg sem;
-						sem.turn = current_turn_;
-						sem.hash_expected = frame.sim_state_hash;
-						sem.player_names.push_back("Peer" + std::to_string(peer_id));
-						std::vector<uint8_t> se_payload = NetPacketSerializer::frame_sync_error(sem);
-						std::vector<uint8_t> se_pkt = NetPacketSerializer::pack_message(NetMessageType::NMT_SYNC_ERROR, current_turn_, se_payload);
-						net_host_->broadcastCommand(se_pkt);
-					}
-				}
+				if (peer_hash != 0 && peer_hash != frame.sim_state_hash)
+					note_out_of_sync(current_turn_, frame.sim_state_hash, peer_hash, peer_id);
 			}
 		}
 	}
@@ -949,6 +945,115 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		turn_history_.push_back(frame);
 	}
 	return true;
+}
+
+std::string TurnManager::client_label(uint32_t client_id) const {
+	const uint8_t pl = player_for_client(client_id);
+	if (pl < MAX_PLAYERS) return "Player " + std::to_string((unsigned)pl + 1);
+	return "Observer " + std::to_string(client_id);
+}
+
+uint32_t TurnManager::local_hash_at(uint32_t turn) const {
+	for (auto it = turn_history_.rbegin(); it != turn_history_.rend(); ++it)
+		if (it->turn_index == turn) return it->sim_state_hash;
+	return 0;
+}
+
+void TurnManager::note_out_of_sync(uint32_t turn, uint32_t local_hash, uint32_t peer_hash, uint32_t peer_id) {
+	const bool earlier = !oos_detected_ || turn < oos_turn_;
+	if (earlier) {
+		oos_turn_ = turn;
+		oos_expected_hash_ = local_hash;
+		oos_received_hash_ = peer_hash;
+	}
+	oos_detected_ = true;
+	if (std::find(oos_peers_.begin(), oos_peers_.end(), peer_id) == oos_peers_.end())
+		oos_peers_.push_back(peer_id);
+	std::cerr << "[TurnManager] Out-of-sync detected at turn " << turn << " local_hash=" << local_hash
+	          << " peer=" << peer_id << " peer_hash=" << peer_hash << "\n";
+	if (!net_host_ || !net_host_->isHost() || (oos_reported_ && !earlier)) return;
+	// The host's hash is the expected one (NetServerTurnManager "assume the host
+	// is correct"); resent if an earlier diverging turn turns up later, since
+	// reliable UDP can deliver sync checks out of order.
+	oos_players_.clear();
+	for (uint32_t p : oos_peers_) oos_players_.push_back(client_label(p));
+	SyncErrorMsg sem;
+	sem.turn = oos_turn_;
+	sem.hash_expected = oos_expected_hash_;
+	sem.player_names = oos_players_;
+	std::vector<uint8_t> payload = NetPacketSerializer::frame_sync_error(sem);
+	std::vector<uint8_t> pkt = NetPacketSerializer::pack_message(NetMessageType::NMT_SYNC_ERROR, oos_turn_, payload);
+	net_host_->broadcastCommand(pkt);
+	oos_reported_ = true;
+	oos_dump_pending_ = true;
+}
+
+void TurnManager::receive_sync_error(const SyncErrorMsg &msg) {
+	if (oos_from_host_ && msg.turn >= oos_turn_) return; // already have this or an earlier turn
+	oos_detected_ = true;
+	oos_from_host_ = true;
+	oos_turn_ = msg.turn;
+	oos_expected_hash_ = local_hash_at(msg.turn);
+	oos_received_hash_ = msg.hash_expected;
+	oos_players_ = msg.player_names;
+	oos_dump_pending_ = true;
+	std::cerr << "[TurnManager] Host reports Out-Of-Sync on turn " << msg.turn << "\n";
+}
+
+// NetClientTurnManager::OnSyncError: a text header and a full binary state dump.
+void TurnManager::write_oos_dump(const Simulation &sim) {
+	oos_dump_pending_ = false;
+	if (oos_dump_dir_.empty()) return;
+	const std::string base = oos_dump_dir_ + "/oos_dump";
+	std::ofstream file(base + ".txt", std::ios::out | std::ios::trunc);
+	if (!file) return;
+	char buf[16];
+	auto hex = [&](uint32_t h) { std::snprintf(buf, sizeof(buf), "%08X", h); return std::string(buf); };
+	file << "oos turn: " << oos_turn_ << "\n";
+	file << "net client turn: " << current_turn_ << "\n";
+	file << "local hash at oos turn: " << hex(oos_expected_hash_) << "\n";
+	file << "local hash now: " << hex(compute_sim_hash(sim)) << "\n";
+	file << "expected hash: " << hex(net_host_ && net_host_->isHost() ? oos_expected_hash_ : oos_received_hash_) << "\n";
+	file << "players:";
+	for (size_t i = 0; i < oos_players_.size(); ++i) file << (i ? ", " : " ") << oos_players_[i];
+	file << "\n";
+	if (current_turn_ != oos_turn_)
+		file << "WARNING: dump is from turn " << current_turn_ << "; OOS was detected on turn " << oos_turn_
+		     << " -- state may have advanced past the diverge point.\n";
+	file.close();
+	if (sim.save_state((base + ".dat").c_str())) oos_dump_written_ = base + ".txt";
+}
+
+void TurnManager::set_local_paused(bool paused) {
+	if (paused) paused_clients_.insert(local_client_id_);
+	else paused_clients_.erase(local_client_id_);
+	if (!net_host_ || net_host_->getRole() == NetRole::None) return;
+	ClientPausedMsg cpm;
+	cpm.guid = std::to_string(local_client_id_);
+	cpm.pause = paused ? 1 : 0;
+	std::vector<uint8_t> payload = NetPacketSerializer::frame_client_paused(cpm);
+	std::vector<uint8_t> pkt = NetPacketSerializer::pack_message(NetMessageType::NMT_CLIENT_PAUSED, current_turn_, payload);
+	net_host_->broadcastCommand(pkt); // client -> host; host -> every client
+}
+
+// 0 A.D. NetServer.cpp OnClientPaused: the host trusts the session, not the
+// payload, for who paused, and relays the change to everyone else. A client
+// takes the host's word for which client it was.
+void TurnManager::receive_client_paused(uint32_t author, const ClientPausedMsg &msg) {
+	uint32_t who = author;
+	if (net_host_ && net_host_->isHost()) {
+		ClientPausedMsg relay = msg;
+		relay.guid = std::to_string(author);
+		std::vector<uint8_t> payload = NetPacketSerializer::frame_client_paused(relay);
+		std::vector<uint8_t> pkt = NetPacketSerializer::pack_message(NetMessageType::NMT_CLIENT_PAUSED, current_turn_, payload);
+		net_host_->broadcastCommand(pkt, author);
+	} else {
+		if (author != 0 || msg.guid.empty() || msg.guid.size() > 9 ||
+				msg.guid.find_first_not_of("0123456789") != std::string::npos) return;
+		who = (uint32_t)std::stoul(msg.guid);
+	}
+	if (msg.pause) paused_clients_.insert(who);
+	else paused_clients_.erase(who);
 }
 
 bool TurnManager::write_replay_file(const std::string &path) const {

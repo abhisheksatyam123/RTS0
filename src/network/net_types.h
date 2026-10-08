@@ -426,9 +426,18 @@ struct SyncErrorMsg {
 };
 
 struct ChatMsg {
-	std::string sender_guid;
+	std::string sender_guid;            // stamped by the host from the session (0 A.D. NetServer OnChat)
 	std::string message;
-	std::vector<std::string> receivers; // empty = broadcast to all
+	std::vector<std::string> receivers; // empty = broadcast to all; "peer-<id>" GUIDs otherwise
+};
+inline std::string peer_guid(uint32_t peer_id) { return "peer-" + std::to_string(peer_id); }
+
+// NMT_CLIENT_PAUSED (0 A.D. NetMessages.h ClientPaused): a client pauses or
+// resumes the match. The host stamps guid with the sender's id ("<client id>"),
+// keeps the list of pausing clients and relays the message to everyone else.
+struct ClientPausedMsg {
+	std::string guid;
+	uint8_t pause = 0;
 };
 
 // NMT_JOIN_SYNC_STATE payload -- late-join turn-0 state resync request.
@@ -830,6 +839,20 @@ public:
 			msg.receivers.push_back(std::move(r));
 		}
 		return true;
+	}
+
+	static std::vector<uint8_t> frame_client_paused(const ClientPausedMsg &msg) {
+		std::vector<uint8_t> buf;
+		NetSerde::write_string(buf, msg.guid);
+		NetSerde::write_u8(buf, msg.pause ? 1 : 0);
+		return buf;
+	}
+
+	static bool parse_client_paused(const uint8_t *data, size_t size, ClientPausedMsg &msg) {
+		size_t offset = 0;
+		if (!NetSerde::read_string(data, size, offset, msg.guid)) return false;
+		if (!NetSerde::read_u8(data, size, offset, msg.pause)) return false;
+		return offset == size;
 	}
 
 	static std::vector<uint8_t> frame_join_sync(const JoinSyncMsg &msg) {
