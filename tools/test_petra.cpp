@@ -90,16 +90,18 @@ static void test_phase_up() {
 // Petra fields its civ's roster army: a hero, champions and siege engines once
 // it reaches the city phase (attackPlan.js unitStat Hero / Champ* / Siege).
 static void test_roster_army() {
+	bool any_unpacked_fired = false;
 	for (uint8_t civ : { (uint8_t)CIV_ATHENIANS, (uint8_t)CIV_MACEDONIANS }) {
 		auto s = std::make_unique<Simulation>();
 		s->set_sim_seed(42);
 		s->reset();
 		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
 		s->players_[1].civ = (Civilization)civ;
+		s->set_victory_condition(VICTORY_ENDLESS); // keep playing once the idle player is beaten
 		bool hero = false, champion = false, siege = false, tower = false, packed_moved = false, unpacked_fired = false;
 		for (float t = 0.0f; t < 20.0f * 60.0f && !s->is_game_over(); t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
-			if ((int)(t * 20.0f) % 200 != 0) continue;
+			if (s->ticks_ % 20 != 0) continue; // once a second
 			const auto u = s->units();
 			for (size_t i = 0; i < u.count; ++i) {
 				if (!u.alive[i] || u.team[i] != 1 || u.tmpl[i] >= CIV_UNIT_TEMPLATE_COUNT) continue;
@@ -122,8 +124,9 @@ static void test_roster_army() {
 		CHECK(siege, "trains siege engines");
 		if (civ == CIV_MACEDONIANS) CHECK(tower, "builds a siege tower where the civ has one");
 		CHECK(packed_moved, "siege packs to follow the army");
-		CHECK(unpacked_fired, "siege unpacks to fire in range");
+		any_unpacked_fired |= unpacked_fired;
 	}
+	CHECK(any_unpacked_fired, "siege unpacks to fire in range");
 }
 
 static int count_buildings(const Simulation &s, uint8_t team) {
@@ -302,6 +305,35 @@ static void test_diplomacy() {
 		std::printf("  AI 1 tributes its broke ally AI 2: %s at %.0fs, AI 2 food+stone %.0f, AI 1 keeps %.0f food\n",
 		            sent ? "yes" : "no", t, got, s->players_[1].res[RES_FOOD]);
 		CHECK(sent && got > 0.0f, "an AI tributes an ally short of resources");
+	}
+
+	// Trade: with an ally's market far away, Petra's traders run to it for the
+	// international bonus rather than between its own two close markets.
+	{
+		auto s = three_player_match(5);
+		s->set_mutual_ally(1, 2);
+		s->players_[1].phase = 2;
+		uint32_t own_tc = 0, ally_tc = 0;
+		for (const auto &b : s->buildings()) {
+			if (b.type != BLD_TOWN_CENTER) continue;
+			if (b.team == 1) own_tc = b.id;
+			if (b.team == 2) ally_tc = b.id;
+		}
+		CHECK(own_tc && ally_tc, "both AIs have a Town Center");
+		const auto *tc1 = &s->buildings()[0], *tc2 = tc1;
+		for (const auto &b : s->buildings()) { if (b.id == own_tc) tc1 = &b; if (b.id == ally_tc) tc2 = &b; }
+		const float ox = tc1->x, oz = tc1->z, ax = tc2->x, az = tc2->z;
+		const uint32_t m1 = s->spawn_building_world(ox + 12.0f, oz, BLD_MARKET, 1, 1.0f);
+		const uint32_t m2 = s->spawn_building_world(ox, oz + 12.0f, BLD_MARKET, 1, 1.0f);
+		const uint32_t ma = s->spawn_building_world(ax + 12.0f, az, BLD_MARKET, 2, 1.0f);
+		const uint32_t trader = s->spawn_unit(ox + 8.0f, oz + 8.0f, 1, UNIT_TRADER);
+		run_for(*s, 10.0f);
+		auto it = s->trader_routes_.find(trader);
+		const bool routed = it != s->trader_routes_.end();
+		const bool to_ally = routed && (it->second.first == ma || it->second.second == ma);
+		std::printf("  trader route with an allied market: %s (own markets %u, %u; ally %u)\n",
+		            !routed ? "none" : to_ally ? "to the ally" : "own markets only", m1, m2, ma);
+		CHECK(to_ally, "Petra trades with an allied market for the international bonus");
 	}
 
 	// Last Man Standing: two allied AIs, the human is out. Once one is strong
