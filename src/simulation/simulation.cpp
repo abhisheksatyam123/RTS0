@@ -4330,7 +4330,9 @@ void Simulation::check_victory_conditions(float dt) {
 	int tc_count[MAX_TEAMS] = {};
 	int hero_count[MAX_TEAMS] = {};
 	for (const auto &b : buildings_) {
-		if (b.team >= MAX_TEAMS || b.hp <= 0.0f) continue;
+		// Unstarted foundations don't keep a player alive (an AI with no units left can still
+		// queue them).
+		if (b.team >= MAX_TEAMS || b.hp <= 0.0f || b.build_progress <= 0.0f) continue;
 		structure_count[b.team]++;
 		if (b.type == BLD_TOWN_CENTER) tc_count[b.team]++;
 	}
