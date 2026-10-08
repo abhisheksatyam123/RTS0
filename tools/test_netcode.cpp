@@ -832,8 +832,15 @@ int run_legacy_tests() {
         Simulation s;
         const uint32_t tc = s.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
         s.set_starting_resources(1000, 1000, 1000, 1000);
+        // Town Phase needs 5 finished Village Phase structures besides the CC.
+        assert(!s.cmd_research(0, tc, TECH_PHASE_TOWN));
+        for (int h = 0; h < 5; ++h) s.spawn_building_world(-20.0f + 6.0f * h, 20.0f, BLD_HOUSE, 0, 1.0f);
         assert(s.cmd_research(0, tc, TECH_PHASE_TOWN));
-        assert(s.buildings().back().research_tech == TECH_PHASE_TOWN);
+        {
+            bool queued = false;
+            for (const auto &b : s.buildings()) if (b.id == tc) queued = b.research_tech == TECH_PHASE_TOWN;
+            assert(queued);
+        }
         for (int i = 0; i < 32 && !s.is_tech_researched(TECH_PHASE_TOWN); ++i) s.tick(1.0f);
         assert(s.is_tech_researched(TECH_PHASE_TOWN));
         assert(s.player_phase() == 2);

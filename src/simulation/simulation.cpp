@@ -192,9 +192,10 @@ void Simulation::reset() {
 		if (p == 0) { ps.food() = 350.0f; ps.wood() = 450.0f; ps.gold() = 300.0f; ps.stone() = 250.0f; }
 		else        { ps.food() = 400.0f; ps.wood() = 600.0f; ps.gold() = 300.0f; ps.stone() = 200.0f; }
 		for (float &w : ps.gathered_window) w = 0.0f;
-		ps.tech_mask = 0;
+		ps.techs.clear();
 		ps.phase = 1;
 	}
+	rebuild_all_tech_mods();
 	passive_timer_ = 0.0f;
 	rate_window_timer_ = 0.0f;
 
@@ -285,7 +286,7 @@ int Simulation::pop_max(uint8_t player) const {
 	int cap = 10;
 	for (const auto &b : buildings_) {
 		if (b.team == player && b.build_progress >= 1.0f) {
-			cap += building_type_info(b.type).pop_bonus;
+			cap += (int)std::lround(building_type_info(b.type).pop_bonus * tech_mods(player).bld_pop_bonus[b.type]);
 		}
 	}
 	return cap;
@@ -565,13 +566,7 @@ uint32_t Simulation::spawn_unit(float x, float z, uint8_t team, UnitType u_type,
 	size_t idx = units_.push(x, z, uid, team, u_type, tmpl);
 	if (hp > 0.0f) units_.hp[idx] = units_.max_hp[idx] = hp;
 
-	// Apply researched military tech bonuses
-	uint32_t tech_mask = player(team).tech_mask;
-	if ((tech_mask & (1u << TECH_WEAPONS_1)) != 0) units_.attack_damage[idx] *= 1.20f;
-	if ((tech_mask & (1u << TECH_ARMOR_1)) != 0) {
-		units_.max_hp[idx] += 30.0f;
-		units_.hp[idx] = units_.max_hp[idx];
-	}
+	apply_tech_mods_to_unit(idx); // researched technologies (0 A.D. ModificationsManager)
 
 	if (team == 0) {
 		record_.units_trained++;
@@ -651,6 +646,7 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	b.capture_points = 0.0f;
 	// 0 A.D. Capturable/TerritoryDecay template values.
 	b.max_capture_points = binfo.capture_max_points;
+	if (team < MAX_PLAYERS) b.max_capture_points *= civ_bonus_mult(civ_of(team), CIV_BONUS_BUILDING_CAPTURE_POINTS, type);
 	b.capture_regen_rate = binfo.capture_regen_rate;
 	b.capture_garrison_regen_rate = binfo.capture_garrison_regen_rate;
 	b.territory_decay_rate = binfo.territory_decay_rate;
@@ -856,7 +852,11 @@ uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b
 	if (!can_place(cell_x, cell_y, binfo.footprint)) return 0;
 	if (building_required_phase(b_type) > players_[player].phase) return 0;
 
-	if (!players_[player].pay((float)binfo.food_cost, (float)binfo.wood_cost, (float)binfo.gold_cost, (float)binfo.stone_cost))
+	// 0 A.D. civ structure cost bonuses (e.g. Iberian walls, Han stone discount).
+	const Civilization civ = civ_of(player);
+	const float wood = binfo.wood_cost * civ_bonus_mult(civ, CIV_BONUS_BUILDING_WOOD_COST, b_type);
+	const float stone = binfo.stone_cost * civ_bonus_mult(civ, CIV_BONUS_BUILDING_STONE_COST, b_type);
+	if (!players_[player].pay((float)binfo.food_cost, std::round(wood), (float)binfo.gold_cost, std::round(stone)))
 		return 0;
 
 	uint32_t bid = spawn_building(cell_x, cell_y, b_type, player, 0.0f);
@@ -1008,24 +1008,175 @@ void Simulation::cmd_set_rally_point(uint8_t player_id, uint32_t building_id, fl
 	b.rally_target_bld_id = bld_id;
 }
 
+int Simulation::phase_structures(uint8_t player_id, uint8_t phase) const {
+	int n = 0;
+	for (const auto &b : buildings_)
+		if (b.team == player_id && b.build_progress >= 1.0f && b.hp > 0.0f && !b.wrecked &&
+				building_phase_class(b.type) == phase)
+			++n;
+	return n;
+}
+
+Simulation::ResearchCheck Simulation::research_check(uint8_t player_id, uint8_t tech_id, uint32_t building_id) const {
+	if (tech_id == TECH_NONE || tech_id >= TECH_COUNT || player_id >= MAX_PLAYERS) return TECH_ERR_INVALID;
+	const PlayerState &ps = players_[player_id];
+	const TechInfo &tinfo = tech_info(tech_id);
+	if (ps.has_tech(tech_id)) return TECH_ERR_RESEARCHED;
+	for (const auto &b : buildings_)
+		if (b.team == player_id && b.research_tech == tech_id) return TECH_ERR_IN_PROGRESS;
+	if (!tech_available_to_civ(tech_id, ps.civ)) return TECH_ERR_CIV;
+	if (tinfo.required_phase > ps.phase) return TECH_ERR_PHASE;
+	if (tinfo.prerequisite != TECH_NONE && !ps.has_tech(tinfo.prerequisite)) return TECH_ERR_PREREQUISITE;
+	// 0 A.D. phase_town_generic / phase_city_generic "entity" requirements.
+	if (tech_id == TECH_PHASE_TOWN && phase_structures(player_id, 1) < 5) return TECH_ERR_STRUCTURES;
+	if (tech_id == TECH_PHASE_CITY && phase_structures(player_id, 2) < 3) return TECH_ERR_STRUCTURES;
+	if (building_id != 0) {
+		auto bit = building_id_to_idx_.find(building_id);
+		if (bit == building_id_to_idx_.end()) return TECH_ERR_BUILDING;
+		const Building &b = buildings_[bit->second];
+		if (b.team != player_id || b.build_progress < 1.0f || b.hp <= 0.0f || b.research_tech != TECH_NONE)
+			return TECH_ERR_BUILDING;
+		if (b.type != tinfo.researcher) return TECH_ERR_BUILDING;
+	}
+	if (!ps.can_afford((float)tinfo.food_cost, (float)tinfo.wood_cost, (float)tinfo.gold_cost, (float)tinfo.stone_cost))
+		return TECH_ERR_COST;
+	return TECH_OK;
+}
+
 bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t tech_id) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return false;
 	Building &b = buildings_[bit->second];
-	if (b.team != player_id || player_id >= MAX_PLAYERS || b.build_progress < 1.0f || b.research_tech != TECH_NONE) return false;
-	PlayerState &ps = players_[player_id];
-	if (ps.has_tech(tech_id)) return false;
+	if (research_check(player_id, tech_id, building_id) != TECH_OK) return false;
 
 	const TechInfo &tinfo = tech_info(tech_id);
-	if (tinfo.required_phase > ps.phase) return false;
-
-	if (!ps.pay((float)tinfo.food_cost, (float)tinfo.wood_cost, (float)tinfo.gold_cost, (float)tinfo.stone_cost))
-		return false;
-
+	players_[player_id].pay((float)tinfo.food_cost, (float)tinfo.wood_cost, (float)tinfo.gold_cost, (float)tinfo.stone_cost);
 	b.research_tech = tech_id;
 	b.research_timer = 0.0f;
 	b.research_duration = tinfo.research_time;
 	return true;
+}
+
+void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
+	for (int t = 0; t < UNIT_TYPE_COUNT; ++t) {
+		for (float &g : m.gather[t]) g = 1.0f;
+		for (int16_t &c : m.carry[t]) c = 0;
+		m.attack[t] = m.health[t] = m.speed[t] = 1.0f;
+		m.range[t] = 0.0f;
+		m.armor[t][0] = m.armor[t][1] = m.armor[t][2] = 0.0f;
+	}
+	for (int b = 0; b < BLD_TYPE_COUNT; ++b) {
+		m.bld_health[b] = m.bld_attack[b] = m.bld_build_time[b] = m.bld_pop_bonus[b] = 1.0f;
+		m.bld_range[b] = 0.0f;
+	}
+	if (player_id >= MAX_PLAYERS) return;
+	const PlayerState &ps = players_[player_id];
+	Civilization civ = ps.civ;
+	for (uint8_t id = 1; id < TECH_COUNT; ++id) {
+		if (!ps.has_tech(id)) continue;
+		const TechInfo &ti = tech_info(id);
+		const TechEffect *fx = tech_effects_table() + ti.effect_begin;
+		for (uint16_t k = 0; k < ti.effect_count; ++k) {
+			const TechEffect &e = fx[k];
+			auto apply = [&](float &v) { v = (e.op == TOP_MUL) ? v * e.value : v + e.value; };
+			for (uint8_t t = 0; t < UNIT_TYPE_COUNT; ++t) {
+				if (!tech_effect_applies(e, unit_tech_classes(t))) continue;
+				const UnitTypeInfo &ui = unit_type_info(t);
+				bool ranged = unit_has_ranged_attack(t, civ);
+				// The damage type a unit mostly deals decides which Attack/*/Damage/* row scales it.
+				uint8_t main_dmg = (ui.crush_damage > ui.hack_damage && ui.crush_damage > ui.pierce_damage) ? 2
+					: (ui.pierce_damage > ui.hack_damage) ? 1 : 0;
+				switch (e.stat) {
+					case TSTAT_GATHER_GRAIN: case TSTAT_GATHER_FRUIT: case TSTAT_GATHER_MEAT: case TSTAT_GATHER_FISH:
+					case TSTAT_GATHER_WOOD: case TSTAT_GATHER_STONE: case TSTAT_GATHER_METAL:
+						apply(m.gather[t][e.stat - TSTAT_GATHER_GRAIN]); break;
+					case TSTAT_CARRY_FOOD: m.carry[t][RES_FOOD] += (int16_t)e.value; break;
+					case TSTAT_CARRY_WOOD: m.carry[t][RES_WOOD] += (int16_t)e.value; break;
+					case TSTAT_CARRY_STONE: m.carry[t][RES_STONE] += (int16_t)e.value; break;
+					case TSTAT_CARRY_METAL: m.carry[t][RES_GOLD] += (int16_t)e.value; break;
+					case TSTAT_MELEE_HACK: case TSTAT_MELEE_PIERCE: case TSTAT_MELEE_CRUSH:
+						if (!ranged && e.stat - TSTAT_MELEE_HACK == main_dmg) apply(m.attack[t]);
+						break;
+					case TSTAT_RANGED_HACK: case TSTAT_RANGED_PIERCE: case TSTAT_RANGED_CRUSH:
+						if (ranged && e.stat - TSTAT_RANGED_HACK == main_dmg) apply(m.attack[t]);
+						break;
+					case TSTAT_ARMOR_HACK: case TSTAT_ARMOR_PIERCE: case TSTAT_ARMOR_CRUSH:
+						apply(m.armor[t][e.stat - TSTAT_ARMOR_HACK]); break;
+					case TSTAT_HEALTH: apply(m.health[t]); break;
+					case TSTAT_SPEED: apply(m.speed[t]); break;
+					case TSTAT_RANGE: if (ranged) apply(m.range[t]); break;
+					default: break;
+				}
+			}
+			for (uint8_t b = 0; b < BLD_TYPE_COUNT; ++b) {
+				if (!tech_effect_applies(e, building_tech_classes(b))) continue;
+				switch (e.stat) {
+					case TSTAT_HEALTH: apply(m.bld_health[b]); break;
+					case TSTAT_RANGED_PIERCE: apply(m.bld_attack[b]); break;
+					case TSTAT_RANGE: apply(m.bld_range[b]); break;
+					case TSTAT_BUILD_TIME: apply(m.bld_build_time[b]); break;
+					case TSTAT_POP_BONUS: apply(m.bld_pop_bonus[b]); break;
+					default: break;
+				}
+			}
+		}
+	}
+}
+
+void Simulation::rebuild_all_tech_mods() {
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) compute_tech_mods(p, tech_mods_[p]);
+}
+
+void Simulation::apply_tech_mods_to_unit(size_t idx) {
+	uint8_t team = units_.team[idx];
+	uint8_t t = units_.unit_type[idx];
+	if (team >= MAX_PLAYERS || t >= UNIT_TYPE_COUNT) return;
+	const TechMods &m = tech_mods_[team];
+	units_.attack_damage[idx] *= m.attack[t];
+	units_.max_hp[idx] *= m.health[t];
+	units_.hp[idx] = units_.max_hp[idx];
+	units_.speed[idx] *= m.speed[t];
+	units_.attack_range[idx] += m.range[t];
+}
+
+// 0 A.D. ModificationsManager: a finished technology changes every existing
+// entity it affects, not only new ones. Rescale by the new/old modifier ratio.
+void Simulation::complete_research(uint8_t player_id, uint8_t tech_id) {
+	if (player_id >= MAX_PLAYERS) return;
+	PlayerState &ps = players_[player_id];
+	ps.techs.set(tech_id);
+	if (tech_id == TECH_PHASE_TOWN) ps.phase = std::max<uint8_t>(ps.phase, 2);
+	else if (tech_id == TECH_PHASE_CITY) ps.phase = 3;
+	TechMods old = tech_mods_[player_id];
+	compute_tech_mods(player_id, tech_mods_[player_id]);
+	const TechMods &m = tech_mods_[player_id];
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (units_.team[i] != player_id) continue;
+		uint8_t t = units_.unit_type[i];
+		if (t >= UNIT_TYPE_COUNT) continue;
+		if (m.attack[t] != old.attack[t]) units_.attack_damage[i] *= m.attack[t] / old.attack[t];
+		if (m.health[t] != old.health[t]) {
+			float r = m.health[t] / old.health[t];
+			units_.max_hp[i] *= r;
+			units_.hp[i] *= r;
+		}
+		if (m.speed[t] != old.speed[t]) units_.speed[i] *= m.speed[t] / old.speed[t];
+		units_.attack_range[i] += m.range[t] - old.range[t];
+	}
+	for (auto &b : buildings_) {
+		if (b.team != player_id || b.type >= BLD_TYPE_COUNT) continue;
+		float r = m.bld_health[b.type] / old.bld_health[b.type];
+		if (r != 1.0f) {
+			b.max_hp *= r;
+			b.hp *= r;
+		}
+	}
+}
+
+int32_t Simulation::carry_cap(size_t i, uint8_t res) const {
+	uint8_t team = units_.team[i], t = units_.unit_type[i];
+	if (team >= MAX_PLAYERS || t >= UNIT_TYPE_COUNT || res >= RES_COUNT) return units_.carry_capacity[i];
+	return units_.carry_capacity[i] + tech_mods_[team].carry[t][res];
 }
 
 bool Simulation::cmd_barter(uint8_t player_id, ResourceType sell, ResourceType buy, int amount) {
@@ -2548,7 +2699,7 @@ void Simulation::tick_gather(float dt) {
 		uint8_t uteam = units_.team[i];
 
 		// 1. Returning to dropsite
-		if (units_.carry[i] >= units_.carry_capacity[i] || units_.action_state[i] == ACTION_RETURN_DROPSITE) {
+		if (units_.carry[i] >= carry_cap(i, units_.res_type_carried[i]) || units_.action_state[i] == ACTION_RETURN_DROPSITE) {
 			float best_d2 = 1e9f;
 			float drop_x = 0, drop_z = 0, drop_half = 0;
 			bool found_dropsite = false;
@@ -2656,19 +2807,19 @@ void Simulation::tick_gather(float dt) {
 			if (dx * dx + dz * dz < 2.5f * 2.5f) {
 				units_.attack_timer[i] += dt;
 				float harvest_rate = 0.75f;
-				if (uteam == 0) {
-					if (is_tech_researched(TECH_FARMING_1) && resources_.type[ridx] == RES_FOOD) harvest_rate = 0.55f;
-					if (is_tech_researched(TECH_WOODCUTTING_1) && resources_.type[ridx] == RES_WOOD) harvest_rate = 0.55f;
-					if (is_tech_researched(TECH_MINING_1) && (resources_.type[ridx] == RES_GOLD || resources_.type[ridx] == RES_STONE)) harvest_rate = 0.55f;
+				{
+					// Technology gather-rate multipliers (ResourceGatherer/Rates/*).
+					uint8_t rt = resources_.type[ridx];
+					GatherKind kind = rt == RES_WOOD ? GK_WOOD : rt == RES_STONE ? GK_STONE : rt == RES_GOLD ? GK_METAL
+						: units_.unit_type[i] == UNIT_FISHING_BOAT ? GK_FISH
+						: resources_.subtype[ridx] == RES_SUB_GRAIN ? GK_GRAIN
+						: resources_.subtype[ridx] == RES_SUB_MEAT ? GK_MEAT : GK_FRUIT;
+					harvest_rate /= tech_mods(uteam).gather[units_.unit_type[i]][kind];
 
 					Civilization civ = civ_of(uteam);
-					if ((resources_.type[ridx] == RES_GOLD || resources_.type[ridx] == RES_STONE) && civ_info(civ).metal_gather_mult > 1.0f) {
+					if ((rt == RES_GOLD || rt == RES_STONE) && civ_info(civ).metal_gather_mult > 1.0f) {
 						harvest_rate /= civ_info(civ).metal_gather_mult;
 					}
-				} else {
-					if ((petra_ps().tech_mask & (1u << TECH_FARMING_1)) && resources_.type[ridx] == RES_FOOD) harvest_rate = 0.55f;
-					if ((petra_ps().tech_mask & (1u << TECH_WOODCUTTING_1)) && resources_.type[ridx] == RES_WOOD) harvest_rate = 0.55f;
-					if ((petra_ps().tech_mask & (1u << TECH_MINING_1)) && (resources_.type[ridx] == RES_GOLD || resources_.type[ridx] == RES_STONE)) harvest_rate = 0.55f;
 				}
 
 				// Female Citizen gathering bonus (+25% Food gather speed)
@@ -2678,7 +2829,7 @@ void Simulation::tick_gather(float dt) {
 
 				// Female Citizen Economic Inspiration Aura via AuraManager (10m +15%)
 				if (units_.unit_type[i] == UNIT_VILLAGER) {
-					float gatherMod = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], uteam, AURA_GATHER);
+					float gatherMod = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], uteam, AURA_GATHER, units_.tmpl[i]);
 					if (gatherMod > 0.001f) {
 						harvest_rate *= (1.0f - gatherMod); // 0.15 => 0.85
 					}
@@ -2697,13 +2848,13 @@ void Simulation::tick_gather(float dt) {
 
 				if (units_.attack_timer[i] >= harvest_rate) {
 					units_.attack_timer[i] = 0.0f;
-					int32_t space = units_.carry_capacity[i] - units_.carry[i];
+					int32_t space = carry_cap(i, resources_.type[ridx]) - units_.carry[i];
 					int32_t take = std::min(8, std::min(resources_.amount[ridx], space));
 					if (field_efficiency <= 0.0f) resources_.amount[ridx] -= take; // fields are infinite
 					units_.carry[i] += take;
 					units_.res_type_carried[i] = resources_.type[ridx];
 
-					if (units_.carry[i] >= units_.carry_capacity[i]) {
+					if (units_.carry[i] >= carry_cap(i, resources_.type[ridx])) {
 						units_.action_state[i] = ACTION_RETURN_DROPSITE;
 					}
 				}
@@ -2763,7 +2914,8 @@ void Simulation::tick_construction(float dt) {
 			// 0 A.D. Foundation.Commit: first builder on site → scaffold + construction preview.
 			b.committed = true;
 			const BuildingTypeInfo &binfo = building_type_info(b.type);
-			float rate = (1.0f / std::max(5.0f, binfo.build_time)) * speed_mult * dt;
+			float build_time = binfo.build_time * tech_mods(b.team).bld_build_time[b.type < BLD_TYPE_COUNT ? b.type : 0];
+			float rate = (1.0f / std::max(5.0f, build_time)) * speed_mult * dt;
 			b.build_progress = std::min(1.0f, b.build_progress + rate);
 			b.hp = b.max_hp * b.build_progress;
 			if (b.build_progress >= 1.0f) {
@@ -2899,11 +3051,9 @@ void Simulation::tick_research(float dt) {
 		uint8_t bteam = b.team;
 		b.research_timer += dt;
 		if (b.research_timer >= b.research_duration) {
-			PlayerState &ps = player(bteam);
-			ps.tech_mask |= (1u << b.research_tech);
-			if (b.research_tech == TECH_PHASE_TOWN) ps.phase = 2;
-			else if (b.research_tech == TECH_PHASE_CITY) ps.phase = 3;
+			uint8_t tech = b.research_tech;
 			b.research_tech = TECH_NONE;
+			complete_research(bteam, tech);
 		}
 	}
 }
@@ -3089,9 +3239,11 @@ void Simulation::tick_combat(float dt) {
 		if (units_.formation[t] == FORMATION_SCATTER) target_pierce += 3.0f; // Loose skirmish evasion
 
 		// Researched armor tech bonuses
-		if (units_.team[t] == 0 && is_tech_researched(TECH_ARMOR_1)) {
-			target_hack += 3.0f;
-			target_pierce += 3.0f;
+		if (units_.team[t] < MAX_PLAYERS && units_.unit_type[t] < UNIT_TYPE_COUNT) {
+			const float *armor = tech_mods(units_.team[t]).armor[units_.unit_type[t]];
+			target_hack += armor[0];
+			target_pierce += armor[1];
+			target_crush += armor[2];
 		}
 
 		// AuraManager defensive armor buff
@@ -3461,8 +3613,9 @@ void Simulation::tick_combat(float dt) {
 		if (binfo.attack_damage > 0 || (is_wall && !b.garrisoned_units.empty())) {
 			b.attack_timer -= dt;
 			if (b.attack_timer <= 0.0f && n) {
-				float base_range = is_wall ? 16.0f : binfo.attack_range;
-				float base_dmg = is_wall ? 15.0f : binfo.attack_damage;
+				const TechMods &bm = tech_mods(b.team);
+				float base_range = (is_wall ? 16.0f : binfo.attack_range) + bm.bld_range[b.type];
+				float base_dmg = (is_wall ? 15.0f : binfo.attack_damage) * bm.bld_attack[b.type];
 				float cd = is_wall ? 1.0f : binfo.attack_cooldown;
 
 				// Parapet Wall & High-Ground Elevation Advantage (+50% range on walls)
@@ -3684,8 +3837,15 @@ void Simulation::tick_capture(float dt) {
 			if (!enemy(t, owner) || count[t] == 0) continue;
 			if (strength[t] > captor_strength) { captor = t; captor_strength = strength[t]; }
 		}
-		if (b.territory_decay_rate > 0.0f && count[owner] == 0) {
-			const int neighbour = owner == 0 ? 1 : 0;
+		// TerritoryDecay.js: only structures outside their owner's territory
+		// decay, and the points go to whoever owns the ground they stand on.
+		// RTS0 has no Gaia player, so no-man's land doesn't decay. (Decaying
+		// every unguarded building toward player 1 made them flip back and
+		// forth between players every few seconds.)
+		const int ground = territory_owner_at(b.x, b.z);
+		if (b.territory_decay_rate > 0.0f && count[owner] == 0 && ground >= 0 && ground < 4 &&
+				ground != owner && !same_team((uint8_t)ground, (uint8_t)owner)) {
+			const int neighbour = ground;
 			const float decay = std::min(b.territory_decay_rate * dt, b.capture_points_by_team[owner]);
 			b.capture_points_by_team[owner] -= decay;
 			b.capture_points_by_team[neighbour] += decay;
@@ -5181,12 +5341,12 @@ void Simulation::petra_manage_economy(float dt) {
 	float demand_stone = (petra_ps().phase >= 2) ? 200.0f : 50.0f;
 
 	// Tech & Phase Priorities:
-	if (petra_ps().phase == 1 && (petra_ps().tech_mask & (1u << TECH_PHASE_TOWN)) == 0) {
+	if (petra_ps().phase == 1 && !petra_ps().has_tech(TECH_PHASE_TOWN)) {
 		const TechInfo &tinfo = tech_info(TECH_PHASE_TOWN);
 		demand_food += (float)tinfo.food_cost;
 		demand_wood += (float)tinfo.wood_cost;
 		demand_gold += (float)tinfo.gold_cost;
-	} else if (petra_ps().phase == 2 && (petra_ps().tech_mask & (1u << TECH_PHASE_CITY)) == 0) {
+	} else if (petra_ps().phase == 2 && !petra_ps().has_tech(TECH_PHASE_CITY)) {
 		const TechInfo &tinfo = tech_info(TECH_PHASE_CITY);
 		demand_food += (float)tinfo.food_cost;
 		demand_wood += (float)tinfo.wood_cost;
@@ -5196,9 +5356,9 @@ void Simulation::petra_manage_economy(float dt) {
 
 	// Economic & Military Techs:
 	if (petra_ps().phase >= 2) {
-		if ((petra_ps().tech_mask & (1u << TECH_FARMING_1)) == 0) { demand_food += 150.0f; demand_wood += 100.0f; }
-		if ((petra_ps().tech_mask & (1u << TECH_WOODCUTTING_1)) == 0) { demand_wood += 150.0f; demand_gold += 50.0f; }
-		if ((petra_ps().tech_mask & (1u << TECH_MINING_1)) == 0) { demand_gold += 100.0f; demand_stone += 100.0f; }
+		if (!petra_ps().has_tech(TECH_FARMING_1)) { demand_food += 150.0f; demand_wood += 100.0f; }
+		if (!petra_ps().has_tech(TECH_WOODCUTTING_1)) { demand_wood += 150.0f; demand_gold += 50.0f; }
+		if (!petra_ps().has_tech(TECH_MINING_1)) { demand_gold += 100.0f; demand_stone += 100.0f; }
 	}
 
 	// Military & Siege Priorities:
@@ -6004,7 +6164,11 @@ void Simulation::petra_manage_research(float dt) {
 	if (!ai_tc || ai_tc->research_tech != TECH_NONE) return;
 
 	auto start_tech = [&](uint8_t tech_id) -> bool {
-		if ((petra_ps().tech_mask & (1u << tech_id)) != 0) return false;
+		if (petra_ps().has_tech(tech_id)) return false;
+		// Same civ / phase / prerequisite / structure rules as the player
+		// (cost is checked against the TECH account below).
+		ResearchCheck rc = research_check(PETRA_PLAYER, tech_id);
+		if (rc != TECH_OK && rc != TECH_ERR_COST) return false;
 		const TechInfo &tinfo = tech_info(tech_id);
 		if (!petra_try_pay(PETRA_QUEUE_TECH, (float)tinfo.food_cost, (float)tinfo.wood_cost,
 		                   (float)tinfo.gold_cost, (float)tinfo.stone_cost)) {
@@ -7549,7 +7713,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = 7; // v6 per-player table; v7 adds each unit's and queued order's civ roster template
+	uint32_t version = 8; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 
@@ -7559,7 +7723,7 @@ bool Simulation::save_state(const char *filepath) const {
 	out.write((const char *)&num_players, sizeof(num_players));
 	for (const PlayerState &ps : players_) {
 		out.write((const char *)ps.res, sizeof(ps.res));
-		out.write((const char *)&ps.tech_mask, sizeof(ps.tech_mask));
+		out.write((const char *)ps.techs.words, sizeof(ps.techs.words));
 		out.write((const char *)&ps.phase, sizeof(ps.phase));
 		out.write((const char *)&ps.civ, sizeof(ps.civ));
 		out.write((const char *)&ps.team, sizeof(ps.team));
@@ -7710,7 +7874,7 @@ bool Simulation::load_state(const char *filepath) {
 	uint32_t magic = 0, version = 0;
 	in.read((char *)&magic, sizeof(magic));
 	in.read((char *)&version, sizeof(version));
-	if (magic != 0x52545330 || version < 1 || version > 7) return false;
+	if (magic != 0x52545330 || version < 1 || version > 8) return false;
 
 	// 1. Sim scalars
 	in.read((char *)&ticks_, sizeof(ticks_));
@@ -7721,7 +7885,14 @@ bool Simulation::load_state(const char *filepath) {
 		for (uint8_t p = 0; p < num_players; ++p) {
 			PlayerState &ps = players_[p];
 			in.read((char *)ps.res, sizeof(ps.res));
-			in.read((char *)&ps.tech_mask, sizeof(ps.tech_mask));
+			ps.techs.clear();
+			if (version >= 8) {
+				in.read((char *)ps.techs.words, sizeof(ps.techs.words));
+			} else {
+				uint32_t mask = 0;
+				in.read((char *)&mask, sizeof(mask));
+				ps.techs.words[0] = mask;
+			}
 			in.read((char *)&ps.phase, sizeof(ps.phase));
 			in.read((char *)&ps.civ, sizeof(ps.civ));
 			in.read((char *)&ps.team, sizeof(ps.team));
@@ -7745,7 +7916,8 @@ bool Simulation::load_state(const char *filepath) {
 		players_[0].phase = legacy_phase;
 		for (int p = 0; p < 4; ++p) players_[p].civ = legacy_civ[p];
 		set_player_resources(0, legacy_res[0], legacy_res[1], legacy_res[2], legacy_res[3]);
-		players_[0].tech_mask = legacy_mask;
+		players_[0].techs.clear();
+		players_[0].techs.words[0] = legacy_mask;
 	}
 	in.read((char *)&wave_number_, sizeof(wave_number_));
 	in.read((char *)&wave_timer_, sizeof(wave_timer_));
@@ -7990,6 +8162,7 @@ bool Simulation::load_state(const char *filepath) {
 		next_id_ = max_id + 1;
 	}
 
+	rebuild_all_tech_mods();
 	return true;
 }
 

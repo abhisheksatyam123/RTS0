@@ -82,7 +82,7 @@ static constexpr uint8_t MAX_PLAYERS = 8;
 struct PlayerState {
 	float res[RES_COUNT] = {};             // indexed by ResourceType
 	float gathered_window[RES_COUNT] = {}; // decaying gather-rate window for the HUD
-	uint32_t tech_mask = 0;                // researched TechnologyId bits
+	TechSet techs;                         // researched TechnologyIds
 	uint8_t phase = 1;                     // 1=Village, 2=Town, 3=City
 	Civilization civ = CIV_ATHENIANS;
 	uint8_t team = 0;                      // alliance group: same team = allies
@@ -97,7 +97,7 @@ struct PlayerState {
 	float wood() const { return res[RES_WOOD]; }
 	float gold() const { return res[RES_GOLD]; }
 	float stone() const { return res[RES_STONE]; }
-	bool has_tech(uint8_t tech_id) const { return (tech_mask & (1u << tech_id)) != 0; }
+	bool has_tech(uint8_t tech_id) const { return techs.has(tech_id); }
 	bool can_afford(float f, float w, float g, float s) const {
 		return res[RES_FOOD] >= f && res[RES_WOOD] >= w && res[RES_GOLD] >= g && res[RES_STONE] >= s;
 	}
@@ -413,8 +413,15 @@ public:
 	void set_map_preset(uint8_t m) { map_preset_ = m; }
 	uint8_t map_preset() const { return map_preset_; }
 	bool is_tech_researched(uint8_t tech_id) const { return players_[0].has_tech(tech_id); }
-	uint32_t researched_techs_mask() const { return players_[0].tech_mask; }
-	uint32_t ai_researched_techs_mask() const { return players_[PETRA_PLAYER].tech_mask; }
+	// Why cmd_research would refuse: TECH_OK when `player` may start `tech_id`
+	// now (building_id 0 skips the building checks).
+	enum ResearchCheck : uint8_t {
+		TECH_OK = 0, TECH_ERR_INVALID, TECH_ERR_RESEARCHED, TECH_ERR_IN_PROGRESS, TECH_ERR_CIV,
+		TECH_ERR_PHASE, TECH_ERR_PREREQUISITE, TECH_ERR_STRUCTURES, TECH_ERR_BUILDING, TECH_ERR_COST
+	};
+	ResearchCheck research_check(uint8_t player_id, uint8_t tech_id, uint32_t building_id = 0) const;
+	// 0 A.D. phase_town / phase_city requirement: finished Village (1) or Town (2) class structures.
+	int phase_structures(uint8_t player_id, uint8_t phase) const;
 	bool unit_has_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.has_order[idx]; }
 	const Grid<uint8_t>& territory_grid() const { return territory_grid_; }
 	const Grid<uint8_t>& influence_grid() const { return influence_grid_; }
@@ -617,6 +624,28 @@ private:
 	// is rebuilt after load rather than saved.
 	void sync_field_resources();
 	uint32_t ensure_field_resource(const Building &b);
+	// Technology modifiers per player, derived from PlayerState::techs.
+	enum GatherKind : uint8_t { GK_GRAIN, GK_FRUIT, GK_MEAT, GK_FISH, GK_WOOD, GK_STONE, GK_METAL, GK_COUNT };
+	struct TechMods {
+		float gather[UNIT_TYPE_COUNT][GK_COUNT];
+		int16_t carry[UNIT_TYPE_COUNT][RES_COUNT];
+		float attack[UNIT_TYPE_COUNT];
+		float health[UNIT_TYPE_COUNT];
+		float speed[UNIT_TYPE_COUNT];
+		float range[UNIT_TYPE_COUNT];
+		float armor[UNIT_TYPE_COUNT][3]; // hack, pierce, crush
+		float bld_health[BLD_TYPE_COUNT];
+		float bld_attack[BLD_TYPE_COUNT];
+		float bld_range[BLD_TYPE_COUNT];
+		float bld_build_time[BLD_TYPE_COUNT];
+		float bld_pop_bonus[BLD_TYPE_COUNT];
+	};
+	void compute_tech_mods(uint8_t player_id, TechMods &out) const;
+	void rebuild_all_tech_mods();
+	void complete_research(uint8_t player_id, uint8_t tech_id);
+	void apply_tech_mods_to_unit(size_t idx);
+	const TechMods &tech_mods(uint8_t player_id) const { return tech_mods_[player_id < MAX_PLAYERS ? player_id : 0]; }
+	int32_t carry_cap(size_t unit_idx, uint8_t res) const;
 	uint32_t find_free_field(uint8_t team, float x, float z);
 	void tick_combat(float dt);
 	void tick_promotion(float dt);
@@ -694,6 +723,7 @@ private:
 	std::unordered_map<uint32_t, size_t> unit_id_to_idx_;
 	std::vector<int32_t> unit_idx_by_id_;
 	std::unordered_map<uint32_t, size_t> res_id_to_idx_;
+	std::array<TechMods, MAX_PLAYERS> tech_mods_;
 	std::unordered_map<uint32_t, uint32_t> field_res_by_bld_; // field building id -> grain resource id
 	std::unordered_map<uint32_t, uint32_t> field_bld_by_res_; // grain resource id -> field building id
 	struct FieldGatherers { int total = 0; int slots_taken = 0; };
