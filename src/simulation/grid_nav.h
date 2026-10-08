@@ -697,8 +697,13 @@ struct WaypointPath {
     float zs[MAX_WP] = {};
     int count = 0;
     int cur = 0;
+    // Target the path was requested for, when the caller tracks it (move_units does for
+    // GATHER/BUILD/RETURN_DROPSITE paths, to know when the target moved away).
+    bool has_goal = false;
+    float goal_x = 0.f;
+    float goal_z = 0.f;
 
-    void clear() { count = 0; cur = 0; }
+    void clear() { count = 0; cur = 0; has_goal = false; }
 
     bool done() const { return cur >= count; }
 
