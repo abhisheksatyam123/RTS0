@@ -14,7 +14,7 @@ The game-level gaps below are each being built by its own parallel thread (areas
 | B. Game modes | Wave-defense mode is on in every match (a wave every 35 s, win by surviving wave 5). No skirmish/conquest victory options. | `tick_waves`, `check_victory_conditions`, `scenes/menu/gamesetup.gd` |
 | C. AI (Petra) | AI stays in the village phase all match (14 workers, unspent food); one AI player only. | `petra_*` in `simulation.cpp`, `petra_ai.h` |
 | D. Civ rosters and heroes | All 13 civs share 23 generic unit types with ~10 stat tweaks, some applying only to player 1. Han missing. | unit tables in `sim_types.h`, `spawn_unit`, `cmd_train` |
-| E. Buildings, techs, farming | 14 building types (a 0 A.D. civ has ~25: no fields, stables, ranges, forge, palisades); 7 techs (0 A.D.: 100+); no farming, food is a flat Town Center income. | building/tech tables in `sim_types.h`, `cmd_build`, `cmd_research`, `tick_gather`, `tick_trickle` |
+| E. Buildings, techs, farming | 26 building types with 0 A.D. stats and phase locks, and fields (endless grain, 5 farmers, diminishing returns) as of PR #11. Still 7 techs (0 A.D.: 100+); player 0 still gets a flat +2 food/s; stables and ranges don't train anything yet (area D picks rosters). | building/tech tables in `sim_types.h`, `cmd_build`, `cmd_research`, `tick_gather`, `tick_trickle` |
 | F. Maps and scale | Maps are small (128 units across); few of 0 A.D.'s random maps. | `rms_generator.cpp`, `generate_random_map`, `rebuild_nav_grid`, `tick_fow` |
 
 Two-real-client multiplayer is tracked in PLAN.md P1. In good shape today: pathfinding, territory, capture, garrisons, formations, trade, auras, promotion, naval transport and much of 0 A.D.'s art.

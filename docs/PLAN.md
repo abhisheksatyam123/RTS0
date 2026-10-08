@@ -36,7 +36,7 @@ The biggest gaps to 0 A.D. are game-level rather than per-system (see [REMAINING
 | B. Game modes | Wave mode off for skirmish; victory options | In progress |
 | C. AI (Petra) | Fix the phase-up stall, scale the economy, several AI players | In progress |
 | D. Civ rosters and heroes | Civ-specific units and heroes, add Han, civ bonuses as data | In progress |
-| E. Buildings, techs, farming | Missing buildings, 0 A.D. tech tree, fields and farming | In progress |
+| E. Buildings, techs, farming | Missing buildings, 0 A.D. tech tree, fields and farming | Buildings and fields landed (PR #11); 0 A.D. tech tree in progress; Town Center food trickle goes once Petra farms |
 | F. Maps and scale | Larger maps, more 0 A.D. random maps (coordinate with MIGRATION.md pathfinding work) | In progress |
 
 Each thread times a fixed headless AI match before and after its change with the shared benchmark tool once it's on main.
