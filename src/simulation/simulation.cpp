@@ -952,7 +952,7 @@ float Simulation::healer_rate(uint8_t player_id) const {
 // 0 A.D. unlock_champion_cavalry / _chariots / _infantry and
 // unlock_civilians_house_*: which technology (if any) a civ must research
 // before `unit_type` can be trained at `bld_type`. TECH_NONE = no gate.
-uint8_t Simulation::train_unlock_tech(uint8_t player_id, uint8_t unit_type, uint8_t bld_type) const {
+uint8_t Simulation::train_unlock_tech(uint8_t player_id, uint8_t unit_type, uint8_t bld_type, uint16_t tmpl) const {
 	if (player_id >= MAX_PLAYERS) return TECH_NONE;
 	const uint8_t civ = players_[player_id].civ;
 	auto gate = [&](uint8_t tech) -> uint8_t {
@@ -964,6 +964,9 @@ uint8_t Simulation::train_unlock_tech(uint8_t player_id, uint8_t unit_type, uint
 				? (uint8_t)TECH_UNLOCK_CIVILIANS_HOUSE_KUSH : (uint8_t)TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC;
 		return gate(tech);
 	}
+	// A roster row carries its own 0 A.D. Identity/Requirements tech (champion
+	// spearmen and swordsmen share their RTS0 class with citizen soldiers).
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) return gate(civ_unit_template(tmpl).unlock_tech);
 	const uint64_t c = unit_tech_classes(unit_type);
 	if (!(c & TC_CHAMPION)) return TECH_NONE;
 	if (c & TC_CHARIOT) return gate(TECH_UNLOCK_CHAMPION_CHARIOTS);
@@ -972,11 +975,11 @@ uint8_t Simulation::train_unlock_tech(uint8_t player_id, uint8_t unit_type, uint
 	return TECH_NONE; // champion elephants come with the elephant stable
 }
 
-bool Simulation::can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_type) const {
+bool Simulation::can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_type, uint16_t tmpl) const {
 	if (player_id >= MAX_PLAYERS) return false;
 	// Houses only ever train citizens, and only once their civ's festival is in.
 	if (bld_type == BLD_HOUSE && !(unit_tech_classes(unit_type) & TC_CIVILIAN)) return false;
-	uint8_t tech = train_unlock_tech(player_id, unit_type, bld_type);
+	uint8_t tech = train_unlock_tech(player_id, unit_type, bld_type, tmpl);
 	return tech == TECH_NONE || players_[player_id].has_tech(tech);
 }
 
@@ -1009,7 +1012,7 @@ bool Simulation::cmd_train_template(uint8_t player_id, uint32_t building_id, uin
 
 	const UnitTypeInfo &uinfo = civ_template_unit_info(tmpl, t.unit_type);
 	if (pop_current(player_id) >= pop_max(player_id)) return false;
-	if (!can_train_at(player_id, t.unit_type, b.type)) return false;
+	if (!can_train_at(player_id, t.unit_type, b.type, tmpl)) return false;
 
 	float cost[RES_COUNT];
 	unit_train_cost(player_id, tmpl, uinfo, cost);

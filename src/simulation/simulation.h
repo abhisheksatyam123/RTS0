@@ -483,8 +483,11 @@ public:
 	float healer_rate(uint8_t player_id) const; // hit points per second
 	// 0 A.D. unlock_champion_* / unlock_civilians_house_*: a unit the owner's
 	// civ gates behind an unlock technology can only be trained once it is in.
-	uint8_t train_unlock_tech(uint8_t player_id, uint8_t unit_type, uint8_t bld_type) const;
-	bool can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_type) const;
+	// With `tmpl` (a roster row) the row's own 0 A.D. unlock tech decides.
+	uint8_t train_unlock_tech(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
+			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE) const;
+	bool can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
+			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE) const;
 	// 0 A.D. phase_town / phase_city requirement: finished Village (1) or Town (2) class structures.
 	int phase_structures(uint8_t player_id, uint8_t phase) const;
 	bool unit_has_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.has_order[idx]; }

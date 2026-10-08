@@ -112,6 +112,51 @@ int main()
 	check(civ_bonus_mult(CIV_SELEUCIDS, CIV_BONUS_BUILDING_BUILD_TIME, BLD_HOUSE) == 1.0f,
 		"Seleucid farm bonus stays on fields");
 
+	// Siege towers: trained by name only, never the bolt-shooter default.
+	const uint8_t tower_civs[] = {CIV_MACEDONIANS, CIV_KUSHITES, CIV_PTOLEMIES, CIV_SELEUCIDS, CIV_HAN};
+	for (uint8_t c : tower_civs) {
+		bool tower = false;
+		for (uint16_t i = civ_roster_begin(c); i < civ_roster_end(c); ++i) {
+			const CivUnitTemplate &u = civ_unit_template(i);
+			if (u.flags & ROSTER_SIEGE_TOWER)
+				tower = u.unit_type == UNIT_BOLT_SHOOTER && (u.flags & ROSTER_RANGED) && u.hp >= 400.0f &&
+					!(u.flags & ROSTER_PACKABLE) && (u.trainers & bld_bit(BLD_FORTRESS));
+		}
+		std::snprintf(msg, sizeof(msg), "%s trains a siege tower", civ_info(c).code);
+		check(tower, msg);
+		uint16_t d = civ_default_template(c, UNIT_BOLT_SHOOTER);
+		std::snprintf(msg, sizeof(msg), "%s default bolt shooter is not a siege tower", civ_info(c).code);
+		check(d == CIV_UNIT_TEMPLATE_NONE || !(civ_unit_template(d).flags & ROSTER_SIEGE_TOWER), msg);
+	}
+	check(!civ_can_train(CIV_KUSHITES, UNIT_BOLT_SHOOTER) ||
+		civ_default_template(CIV_KUSHITES, UNIT_BOLT_SHOOTER) != CIV_UNIT_TEMPLATE_NONE,
+		"Kush bolt-shooter class only when a real bolt shooter exists");
+	// 0 A.D. Pack: stone throwers and bolt shooters pack, rams do not.
+	for (uint8_t c = 0; c < CIV_COUNT; ++c) {
+		for (uint16_t i = civ_roster_begin(c); i < civ_roster_end(c); ++i) {
+			const CivUnitTemplate &u = civ_unit_template(i);
+			if (u.unit_type == UNIT_SIEGE_RAM && (u.flags & ROSTER_PACKABLE)) check(false, u.id);
+			if (std::strstr(u.id, "_packed") && !(u.flags & ROSTER_PACKABLE)) check(false, u.id);
+		}
+	}
+	check(civ_default_template(CIV_ROMANS, UNIT_CATAPULT) != CIV_UNIT_TEMPLATE_NONE &&
+		(civ_unit_template(civ_default_template(CIV_ROMANS, UNIT_CATAPULT)).flags & ROSTER_PACKABLE),
+		"Roman catapult packs");
+
+	// Champion unlocks come from each template's 0 A.D. Identity/Requirements.
+	int gated = 0;
+	for (uint16_t i = 0; i < CIV_UNIT_TEMPLATE_COUNT; ++i) {
+		const CivUnitTemplate &u = civ_unit_template(i);
+		if (u.unlock_tech == TECH_NONE) continue;
+		++gated;
+		if (!(u.flags & ROSTER_CHAMPION)) check(false, u.id);
+	}
+	check(gated >= 20, "champion rows carry their unlock technology");
+	for (uint16_t i = civ_roster_begin(CIV_ROMANS); i < civ_roster_end(CIV_ROMANS); ++i)
+		if (std::strcmp(civ_unit_template(i).id, "rome/champion_infantry_swordsman") == 0)
+			check(civ_unit_template(i).unlock_tech == TECH_UNLOCK_CHAMPION_INFANTRY,
+				"Roman champion infantry waits for Unlock Champion Infantry");
+
 	std::printf("%d/%d checks passed (%u unit templates, %u hero auras)\n",
 		g_checks - g_failed, g_checks, CIV_UNIT_TEMPLATE_COUNT, CIV_HERO_AURA_COUNT);
 	return g_failed == 0 ? 0 : 1;
