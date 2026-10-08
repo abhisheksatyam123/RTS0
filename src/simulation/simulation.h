@@ -443,7 +443,9 @@ public:
 		int market1 = 0; // international bonus to the owner of the market the leg starts at
 		int market2 = 0; // international bonus to the owner of the market the leg ends at
 	};
-	TradeGain calculate_trade_gain(const Building &from, const Building &to, uint8_t trader_owner) const;
+	// `trader_type` UNIT_MERCHANT_SHIP takes the civ's merchant ship bonus instead of the land trader's.
+	TradeGain calculate_trade_gain(const Building &from, const Building &to, uint8_t trader_owner,
+			uint8_t trader_type = UNIT_TRADER) const;
 	int calculate_trader_gain(const Building& mA, const Building& mB, uint8_t team) const { return calculate_trade_gain(mA, mB, team).trader; }
 	// Trader.js CanTrade: a finished Market whose owner `trader_owner` is not hostile to.
 	bool can_trade_at(uint8_t trader_owner, const Building &b) const;

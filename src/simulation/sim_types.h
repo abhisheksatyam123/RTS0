@@ -1115,54 +1115,55 @@ struct CivInfo {
 	// folded into each civ's roster; building and population bonuses are in
 	// civ_player_bonus_table(). Both come from tools/extract_0ad_rosters.py.
 	float metal_gather_mult; // Athenian "Silver Owls"
-	float trade_gain_mult; // Persian "Darics", Carthaginian "Commercial Acumen"
+	float trade_gain_mult; // land traders: Persian "Darics" (units/pers/support_trader GainMultiplier)
+	float ship_trade_gain_mult; // merchant ships: Carthaginian (units/cart/ship_merchant GainMultiplier)
 };
 
 inline const CivInfo &civ_info(uint8_t civ) {
 	static const CivInfo kTable[CIV_COUNT] = {
-		// civ, code, name, emblem, desc, metal_mult, trade_mult
+		// civ, code, name, emblem, desc, metal_mult, trader gain mult, merchant ship gain mult
 		{CIV_ATHENIANS, "athen", "Athenians", "res://assets/textures/ui/emblems/athenians.png",
 		 civ_bonus_text(CIV_ATHENIANS),
-		 1.10f, 1.0f},
+		 1.10f, 1.0f, 1.0f},
 		{CIV_SPARTANS, "spart", "Spartans", "res://assets/textures/ui/emblems/spartans.png",
 		 civ_bonus_text(CIV_SPARTANS),
-		 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f},
 		{CIV_PERSIANS, "pers", "Persians", "res://assets/textures/ui/emblems/persians.png",
 		 civ_bonus_text(CIV_PERSIANS),
-		 1.0f, 1.25f},
+		 1.0f, 1.25f, 1.0f},
 		{CIV_ROMANS, "rome", "Romans", "res://assets/textures/ui/emblems/romans.png",
 		 civ_bonus_text(CIV_ROMANS),
-		 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f},
 		{CIV_CARTHAGINIANS, "cart", "Carthaginians", "res://assets/textures/ui/emblems/carthaginians.png",
 		 civ_bonus_text(CIV_CARTHAGINIANS),
-		 1.0f, 1.25f},
+		 1.0f, 1.0f, 1.25f},
 		{CIV_MACEDONIANS, "mace", "Macedonians", "res://assets/textures/ui/emblems/macedonians.png",
 		 civ_bonus_text(CIV_MACEDONIANS),
-		 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f},
 		{CIV_BRITONS, "brit", "Britons", "res://assets/textures/ui/emblems/britons.png",
 		 civ_bonus_text(CIV_BRITONS),
-		 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f},
 		{CIV_GAULS, "gaul", "Gauls", "res://assets/textures/ui/emblems/gauls.png",
 		 civ_bonus_text(CIV_GAULS),
-		 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f},
 		{CIV_IBERIANS, "iber", "Iberians", "res://assets/textures/ui/emblems/iberians.png",
 		 civ_bonus_text(CIV_IBERIANS),
-		 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f},
 		{CIV_MAURYANS, "maur", "Mauryans", "res://assets/textures/ui/emblems/mauryans.png",
 		 civ_bonus_text(CIV_MAURYANS),
-		 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f},
 		{CIV_KUSHITES, "kush", "Kushites", "res://assets/textures/ui/emblems/kushites.png",
 		 civ_bonus_text(CIV_KUSHITES),
-		 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f},
 		{CIV_PTOLEMIES, "ptol", "Ptolemies", "res://assets/textures/ui/emblems/ptolemies.png",
 		 civ_bonus_text(CIV_PTOLEMIES),
-		 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f},
 		{CIV_SELEUCIDS, "sele", "Seleucids", "res://assets/textures/ui/emblems/seleucids.png",
 		 civ_bonus_text(CIV_SELEUCIDS),
-		 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f},
 		{CIV_HAN, "han", "Han Chinese", "res://assets/textures/ui/emblems/han.png",
 		 civ_bonus_text(CIV_HAN),
-		 1.0f, 1.0f}
+		 1.0f, 1.0f, 1.0f}
 	};
 	if (civ >= CIV_COUNT) return kTable[CIV_ATHENIANS];
 	return kTable[civ];
