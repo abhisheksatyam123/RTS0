@@ -1,6 +1,6 @@
 # 0 A.D. code migration: status and todo
 
-This file tracks the migration of the vendored 0 A.D. C++ in `src/0ad/` (reference only; `SConstruct` skips it) into live RTS0 code. Update it in every PR that ports, changes or drops a piece. Gameplay parity with 0 A.D.'s JS systems is tracked separately in `docs/REMAINING_GAPS.md` and `docs/PLAN.md`.
+This file tracks the migration of the vendored 0 A.D. C++ in `src/0ad/` (reference only; `SConstruct` skips it) into live RTS0 code. Update it in every PR that ports, changes or drops a piece. Gameplay parity with 0 A.D.'s JS systems is tracked separately in `docs/REMAINING_GAPS.md` and `docs/PLAN.md`. 0 A.D. data imported by tools rather than ported code (assets, maps, unit rosters and heroes from `tools/extract_0ad_rosters.py`) is listed in `docs/0AD_ATTRIBUTION.md`.
 
 Last updated: 2026-10-08 (Rasterize port).
 
