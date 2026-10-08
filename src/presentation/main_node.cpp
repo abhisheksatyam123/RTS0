@@ -34,6 +34,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_stance_selected", "stance"), &RtsoMain::_on_stance_selected);
 	ClassDB::bind_method(D_METHOD("_on_formation_selected", "formation"), &RtsoMain::_on_formation_selected);
 	ClassDB::bind_method(D_METHOD("_on_train_pressed", "utype"), &RtsoMain::_on_train_pressed);
+	ClassDB::bind_method(D_METHOD("_on_roster_item_clicked", "index", "at", "mouse_button"), &RtsoMain::_on_roster_item_clicked);
 	ClassDB::bind_method(D_METHOD("_on_build_btn_pressed", "btype"), &RtsoMain::_on_build_btn_pressed);
 	ClassDB::bind_method(D_METHOD("_on_tech_pressed", "tech_id"), &RtsoMain::_on_tech_pressed);
 	ClassDB::bind_method(D_METHOD("save_game", "path"), &RtsoMain::save_game, DEFVAL("user://saves/quicksave.rts0sav"));
@@ -641,6 +642,25 @@ void RtsoMain::_ready() {
 	if (zeroad_theme.is_valid()) command_panel->set_theme(zeroad_theme);
 	ui_layer->add_child(command_panel);
 
+	roster_list = memnew(ItemList);
+	roster_list->set_anchor(SIDE_LEFT, 1.0f);
+	roster_list->set_anchor(SIDE_RIGHT, 1.0f);
+	roster_list->set_anchor(SIDE_TOP, 1.0f);
+	roster_list->set_anchor(SIDE_BOTTOM, 1.0f);
+	roster_list->set_offset(SIDE_LEFT, -584.0f);
+	roster_list->set_offset(SIDE_RIGHT, -12.0f);
+	roster_list->set_offset(SIDE_TOP, -326.0f);
+	roster_list->set_offset(SIDE_BOTTOM, -202.0f);
+	roster_list->set_max_columns(3);
+	roster_list->set_same_column_width(true);
+	roster_list->set_fixed_column_width(180);
+	roster_list->add_theme_font_size_override("font_size", 11);
+	roster_list->add_theme_stylebox_override("panel", cmd_style);
+	if (zeroad_theme.is_valid()) roster_list->set_theme(zeroad_theme);
+	roster_list->set_visible(false);
+	roster_list->connect("item_clicked", Callable(this, "_on_roster_item_clicked"));
+	ui_layer->add_child(roster_list);
+
 	command_title = memnew(Label);
 	command_title->set_position(Vector2(10, 6));
 	command_title->set_size(Vector2(552, 16));
@@ -1205,6 +1225,14 @@ void RtsoMain::_on_formation_selected(int formation) {
 
 void RtsoMain::_on_train_pressed(int utype) {
 	try_train_unit((rtso::UnitType)utype);
+}
+
+void RtsoMain::_on_roster_item_clicked(int index, Vector2 at, int mouse_button) {
+	(void)at;
+	if (!roster_list || index < 0 || index >= roster_list->get_item_count()) return;
+	roster_list->deselect_all();
+	if (mouse_button != MOUSE_BUTTON_LEFT || roster_list->is_item_disabled(index)) return;
+	try_train_template(selected_building_id, (uint16_t)(int)roster_list->get_item_metadata(index));
 }
 
 void RtsoMain::_on_build_btn_pressed(int btype) {
@@ -1916,6 +1944,7 @@ void RtsoMain::update_command_panel() {
 
 		// Update 8-slot Visual Production Queue (ProductionQueue.js parity)
 		production_queue_.update(found_b);
+		update_roster_list(found_b);
 
 		if (found_b && found_b->build_progress >= 1.0f) {
 			uint8_t pciv = sim->player_civ(local_player());
@@ -2026,6 +2055,7 @@ void RtsoMain::update_command_panel() {
 	} else {
 		// Non-building selected: clear visual queue slots
 		production_queue_.update(nullptr);
+		update_roster_list(nullptr);
 
 		if (!selected_ids.is_empty()) {
 			auto uview = sim->units();
@@ -2184,6 +2214,70 @@ void RtsoMain::try_train_unit(rtso::UnitType utype) {
 	}
 	if (sim->cmd_train(local_player(), bid, utype))
 		play_civ_voice("select");
+}
+
+void RtsoMain::try_train_template(uint32_t building_id, uint16_t tmpl) {
+	if (building_id == 0 || tmpl >= rtso::CIV_UNIT_TEMPLATE_COUNT) return;
+	if (net_lockstep()) {
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_TRAIN_TEMPLATE, nullptr, 0, (float)tmpl, 0.0f, building_id, 0);
+		play_civ_voice("select");
+		return;
+	}
+	if (sim->cmd_train_template(local_player(), building_id, tmpl))
+		play_civ_voice("select");
+}
+
+// The selected building's trainable roster for the local player's civ: every
+// civ_unit_template_table() row whose trainers include this building type, with
+// 0 A.D. names and costs after team bonuses; rows above the player's phase are
+// listed but disabled with the phase they need.
+void RtsoMain::update_roster_list(const rtso::Simulation::Building *b) {
+	if (!roster_list) return;
+	const uint8_t pid = local_player();
+	if (!b || b->team != pid || b->build_progress < 1.0f) {
+		roster_list->set_visible(false);
+		roster_list_key_ = ~0ull;
+		return;
+	}
+	const uint8_t civ = sim->player_civ(pid);
+	const uint8_t phase = sim->player_phase(pid);
+	// Rebuild when the building, civ, phase or allies (team bonus prices) change.
+	const uint64_t key = ((uint64_t)b->id << 32) | ((uint64_t)sim->ally_civ_mask(pid) << 12) |
+		((uint64_t)(civ & 0x3F) << 2) | (uint64_t)(phase & 0x3);
+	if (key == roster_list_key_) return;
+	roster_list_key_ = key;
+	roster_list->clear();
+	for (uint16_t i = rtso::civ_roster_begin(civ); i < rtso::civ_roster_end(civ); ++i) {
+		const rtso::CivUnitTemplate &u = rtso::civ_unit_template(i);
+		if (!(u.trainers & rtso::bld_bit(b->type))) continue;
+		float cost[rtso::RES_COUNT];
+		sim->unit_train_cost(pid, i, rtso::civ_template_unit_info(i, u.unit_type), cost);
+		String costs;
+		auto add_cost = [&](float v, const char *suffix) {
+			if (v <= 0.0f) return;
+			if (!costs.is_empty()) costs += " ";
+			costs += String::num_int64((int64_t)v) + suffix;
+		};
+		add_cost(cost[rtso::RES_FOOD], "f");
+		add_cost(cost[rtso::RES_WOOD], "w");
+		add_cost(cost[rtso::RES_STONE], "s");
+		add_cost(cost[rtso::RES_GOLD], "m");
+		String label = String::utf8(u.name);
+		if (u.flags & rtso::ROSTER_HERO) label = String::utf8("\u2605 ") + label;
+		label += costs.is_empty() ? String(" (free)") : " (" + costs + ")";
+		int idx = roster_list->add_item(label);
+		roster_list->set_item_metadata(idx, (int)i);
+		String tip = String::utf8(u.name);
+		if (u.specific_name && u.specific_name[0]) tip += String::utf8(" \u2014 ") + String::utf8(u.specific_name);
+		tip += "\nHP " + String::num_int64((int64_t)u.hp) + ", attack " + String::num(u.attack_damage, 1) +
+			", train " + String::num(u.train_time, 0) + " s, pop " + String::num_int64(u.pop_cost);
+		if (u.phase > phase) {
+			roster_list->set_item_disabled(idx, true);
+			tip += u.phase >= 3 ? "\nRequires City Phase" : "\nRequires Town Phase";
+		}
+		roster_list->set_item_tooltip(idx, tip);
+	}
+	roster_list->set_visible(roster_list->get_item_count() > 0);
 }
 
 void RtsoMain::clear_selection() {

@@ -963,6 +963,7 @@ bool Simulation::cmd_train_template(uint8_t player_id, uint32_t building_id, uin
 	PlayerState &ps = players_[player_id];
 	const CivUnitTemplate &t = civ_unit_template(tmpl);
 	if (t.civ != ps.civ) return false;
+	if (t.phase > ps.phase) return false; // 0 A.D. Identity/Requirements: phase_town / phase_city
 
 	const UnitTypeInfo &uinfo = civ_template_unit_info(tmpl, t.unit_type);
 	if (pop_current(player_id) >= pop_max(player_id)) return false;

@@ -57,8 +57,10 @@ enum class NetMessageType : uint8_t {
 	NMT_SIMULATION_COMMAND        = 29,
 	NMT_FLARE                     = 30,
 	// --- RTS0-local extensions (ids 1..30 mirror 0 A.D. NetMessages.h) ---
-	// NMT_DIPLOMACY is symmetric (either role may originate it) and host-relayed.
-	// Do not reuse an id >= NMT_DIPLOMACY for a different payload shape.
+	// NMT_DIPLOMACY is retired: stances travel only as lockstep cmd 22, which
+	// runs on the same turn on every peer and as the sender's seated player.
+	// The id stays reserved and an inbound one is dropped. Do not reuse an
+	// id >= NMT_DIPLOMACY for a different payload shape.
 	NMT_DIPLOMACY                 = 31,
 	// --- RTS0-local extensions, append-only (ids >= NMT_DIPLOMACY) -------------
 	// NMT_JOIN_SYNC_STATE carries the late-join turn-0 state resync request and the
@@ -91,16 +93,12 @@ enum AuthenticateResultCode : uint32_t {
 //  16 BuildRepair  17 Hunt        18 Board      19 Disembark  20 CancelTrain
 //  21 Guard        22 Diplomacy   23 Barter
 //
-// NOTE cmd_type 22 (Diplomacy) and 24 (MaintainFleet) are BOTH reachable through
-// two independent paths and the two must agree:
-//   * NMT_SIMULATION_COMMAND -> TurnManager::onMessage -> receive_remote_turn_batch
-//     -> TurnManager::tick applier (the in-band lockstep path, see turn_manager.cpp)
-//   * the dedicated symmetric NMT_DIPLOMACY / NMT_JOIN_SYNC_START carriers, which
-//     TurnManager::onMessage also owns and which must deliver the SAME result --
-//     applied at the turn boundary current_turn_ + DIPLOMACY_APPLY_DELAY -- so
-//     peers cannot drift by one turn.
-// An out-of-band stance landing one turn earlier than the command-path stance is
-// a guaranteed desync: diplomacy_state() is mixed into compute_sim_hash().
+// NOTE cmd_type 22 (Diplomacy) is the ONLY route a stance takes into the sim:
+// NMT_SIMULATION_COMMAND -> TurnManager::onMessage -> receive_remote_turn_batch
+// -> TurnManager::tick applier, as the player the sending client is seated as.
+// The stance matrix is mixed into compute_sim_hash(), so an out-of-band stance
+// landing on a different turn on one peer is a guaranteed desync; that is why
+// the old NMT_DIPLOMACY carrier was retired.
 enum class NetCommandType : uint8_t {
 	// 0 stays reserved as "unset", exactly as before this enum existed.
 	NET_CMD_NONE          = 0,
@@ -133,6 +131,10 @@ enum class NetCommandType : uint8_t {
 	// param = reserved (0). Queued, never applied directly: see
 	// TurnManager::request_fleet_upkeep / TurnManager::maintain_fleet_upkeep.
 	NET_CMD_MAINTAIN_FLEET = 24,
+	// Train one civ roster unit by template (a hero, champion or mercenary that
+	// the class-based NET_CMD_TRAIN can't name). target_id = building,
+	// target_x = civ_unit_template_table() row (exact in a float), param = 0.
+	NET_CMD_TRAIN_TEMPLATE = 25,
 };
 
 struct NetCommand {
@@ -391,20 +393,6 @@ struct ChatMsg {
 	std::string sender_guid;
 	std::string message;
 	std::vector<std::string> receivers; // empty = broadcast to all
-};
-
-// NMT_DIPLOMACY payload. `stance` is Simulation::DiplomacyStance
-// (0=ally, 1=neutral, 2=enemy). The diplomacy matrix is part of the lockstep
-// hash (TurnManager::compute_sim_hash), so a stance applied on ONE peer only
-// desyncs the session; every peer must apply it. Wire layout is fixed at three
-// bytes: [actor, player_id, stance].
-// `actor` is the player whose own stance row changes, and it rides on the wire
-// because a host RELAYS a client's stance onward: the receiving peer sees the
-// host as the sender and could not otherwise tell which player originated it.
-struct DiplomacyMsg {
-	uint8_t actor = 0;      // whose row changes
-	uint8_t player_id = 0;  // the player the stance is toward
-	uint8_t stance = 1;     // DIPLO_NEUTRAL
 };
 
 // NMT_JOIN_SYNC_STATE payload -- late-join turn-0 state resync request.
@@ -805,25 +793,6 @@ public:
 			if (!NetSerde::read_string(data, size, offset, r)) return false;
 			msg.receivers.push_back(std::move(r));
 		}
-		return true;
-	}
-
-	static std::vector<uint8_t> frame_diplomacy(const DiplomacyMsg &msg) {
-		std::vector<uint8_t> buf;
-		NetSerde::write_u8(buf, msg.actor);
-		NetSerde::write_u8(buf, msg.player_id);
-		NetSerde::write_u8(buf, msg.stance);
-		return buf;
-	}
-
-	// Exact-size parse: a truncated or over-long payload is rejected instead of
-	// being accepted with zero-extended fields.
-	static bool parse_diplomacy(const uint8_t *data, size_t size, DiplomacyMsg &msg) {
-		if (size != 3) return false;
-		size_t offset = 0;
-		if (!NetSerde::read_u8(data, size, offset, msg.actor)) return false;
-		if (!NetSerde::read_u8(data, size, offset, msg.player_id)) return false;
-		if (!NetSerde::read_u8(data, size, offset, msg.stance)) return false;
 		return true;
 	}
 

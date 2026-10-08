@@ -73,6 +73,10 @@ int main() {
 	m.set_player_resources(0, 5000, 5000, 5000, 5000);
 	uint32_t tc = m.spawn_building(-20, -20, BLD_TOWN_CENTER, 0, 1.0f);
 	for (int i = 0; i < 4; ++i) m.spawn_building(-30 + i * 3, -30, BLD_HOUSE, 0, 1.0f);
+	// Heroes need the City phase, as 0 A.D.'s phase_city requirement.
+	CHECK(civ_unit_template(peri).phase == 3);
+	CHECK(!m.cmd_train_template(0, tc, peri));
+	m.player(0).phase = 3;
 	CHECK(m.cmd_train_template(0, tc, peri));
 	CHECK(!m.cmd_train_template(0, tc, find_template(CIV_HAN, "Infantry Crossbowman"))); // other civ's unit
 	const float food_before = m.player(0).food();
@@ -123,6 +127,7 @@ int main() {
 		t.unit_train_cost(0, pericles, pinfo, cost);
 		CHECK(cost[RES_FOOD] == 0.0f && cost[RES_WOOD] == 0.0f && cost[RES_GOLD] == 0.0f && cost[RES_STONE] == 0.0f);
 		t.set_player_resources(0, 5000, 5000, 5000, 5000);
+		t.player(0).phase = 3;
 		uint32_t tc = t.spawn_building(-20, -20, BLD_TOWN_CENTER, 0, 1.0f);
 		for (int i = 0; i < 4; ++i) t.spawn_building(-30 + i * 3, -30, BLD_HOUSE, 0, 1.0f);
 		const float gold_before = t.player(0).gold();
