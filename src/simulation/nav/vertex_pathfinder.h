@@ -76,6 +76,7 @@
 #include "simulation/nav/geometry.h"
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -282,6 +283,88 @@ struct TerrainEdgeScratch {
 	std::vector<uint8_t> passT; // the same by columns
 };
 
+// add_terrain_edges()'s loops on bit rows, for a box (with its ring) at most 64 navcells wide and
+// high: bit bi of a row is navcell i0 - 1 + bi of `passBox`'s row. Pushes the same vertices and
+// edges in the same order, testing a whole row or column of navcells at once.
+inline void add_terrain_edges_bits(std::vector<Edge>& edges, std::vector<Vertex>& vertexes,
+		int i0, int j0, int i1, int j1, const uint8_t* passBox, int bw, int bh, float cell, Vec2 origin) {
+	uint64_t rows[64], cols[64] = {}; // rows[bj] bit bi, cols[bi] bit bj: pass(i0 - 1 + bi, j0 - 1 + bj)
+	for (int bj = 0; bj < bh; ++bj) {
+		const uint8_t* r = passBox + static_cast<size_t>(bj) * bw;
+		uint64_t m = 0;
+		for (int bi = 0; bi < bw; ++bi)
+			m |= static_cast<uint64_t>(r[bi] != 0) << bi;
+		rows[bj] = m;
+		for (; m; m &= m - 1)
+			cols[std::countr_zero(m)] |= uint64_t{1} << bj;
+	}
+	const uint64_t innerI = ((uint64_t{1} << (i1 - i0 + 1)) - 1) << 1; // navcells i0..i1
+	const uint64_t innerJ = ((uint64_t{1} << (j1 - j0 + 1)) - 1) << 1; // navcells j0..j1
+	auto world = [&](float x, float y) { return origin + Vec2(x * cell, y * cell); };
+	const float d = EDGE_EXPAND_DELTA_CELLS;
+
+	// Vertices at the convex corners of impassable navcells (vendor 293-340). In a row mask,
+	// m >> 1 holds navcell i + 1 at bit i, and m << 1 navcell i - 1.
+	for (int j = j0; j <= j1; ++j) {
+		const uint64_t cur = rows[j - j0 + 1], up = rows[j - j0 + 2], down = rows[j - j0];
+		const uint64_t blocked = ~cur & innerI;
+		if (!blocked) continue;
+		const uint64_t bl = blocked & (cur >> 1) & up & (up >> 1);
+		const uint64_t br = blocked & (cur << 1) & up & (up << 1);
+		const uint64_t tl = blocked & (cur >> 1) & down & (down >> 1);
+		const uint64_t tr = blocked & (cur << 1) & down & (down << 1);
+		for (uint64_t any = bl | br | tl | tr; any; any &= any - 1) {
+			const int b = std::countr_zero(any);
+			const uint64_t bit = uint64_t{1} << b;
+			const int i = i0 - 1 + b;
+			Vertex vert;
+			vert.quadOutward = QUADRANT_ALL;
+			if (bl & bit) {
+				vert.quadInward = QUADRANT_BL;
+				vert.p = world(i + 1 + d, j + 1 + d);
+				vertexes.push_back(vert);
+			}
+			if (br & bit) {
+				vert.quadInward = QUADRANT_BR;
+				vert.p = world(i - d, j + 1 + d);
+				vertexes.push_back(vert);
+			}
+			if (tl & bit) {
+				vert.quadInward = QUADRANT_TL;
+				vert.p = world(i + 1 + d, j - d);
+				vertexes.push_back(vert);
+			}
+			if (tr & bit) {
+				vert.quadInward = QUADRANT_TR;
+				vert.p = world(i - d, j - d);
+				vertexes.push_back(vert);
+			}
+		}
+	}
+
+	// Calls emit(first, end) for each run of set bits in m, lowest first, with bit b as navcell
+	// base + b. m has no bit 63 set, so the carry that clears a run stays in range.
+	auto runs = [](uint64_t m, int base, auto&& emit) {
+		while (m) {
+			const uint64_t next = m + (m & (~m + 1)); // the lowest run cleared, the bit above it set
+			emit(base + std::countr_zero(m), base + std::countr_zero(next));
+			m &= next;
+		}
+	};
+
+	// Edges along passability boundaries, one run per row or column (vendor 342-458).
+	for (int j = j0; j < j1; ++j) {
+		const uint64_t cur = rows[j - j0 + 1], up = rows[j - j0 + 2];
+		runs(cur & ~up & innerI, i0 - 1, [&](int ia, int ib) { edges.push_back(Edge{world(ia, j + 1), world(ib, j + 1)}); });
+		runs(up & ~cur & innerI, i0 - 1, [&](int ia, int ib) { edges.push_back(Edge{world(ib, j + 1), world(ia, j + 1)}); });
+	}
+	for (int i = i0; i < i1; ++i) {
+		const uint64_t cur = cols[i - i0 + 1], right = cols[i - i0 + 2];
+		runs(right & ~cur & innerJ, j0 - 1, [&](int ja, int jb) { edges.push_back(Edge{world(i + 1, ja), world(i + 1, jb)}); });
+		runs(cur & ~right & innerJ, j0 - 1, [&](int ja, int jb) { edges.push_back(Edge{world(i + 1, jb), world(i + 1, ja)}); });
+	}
+}
+
 // Vendor AddTerrainEdges (278-459). Navcells i0..i1, j0..j1 are considered. World position of
 // navcell corner (x, y) is origin + (x, y) * cell.
 // ADDITION: passability comes in by rows. pass_row(i, j, n, out) sets out[k] to 1 when navcell
@@ -317,6 +400,10 @@ void add_terrain_edges(std::vector<Edge>& edges, std::vector<Vertex>& vertexes,
 	for (int j = j0; j <= j1 && allPassable; ++j)
 		allPassable = !std::memchr(row(j), 0, rowLen);
 	if (allPassable) return;
+	if (bw <= 64 && bh <= 64) {
+		add_terrain_edges_bits(edges, vertexes, i0, j0, i1, j1, passBox, bw, bh, cell, origin);
+		return;
+	}
 
 	ts.passT.resize(ts.pass.size());
 	for (int bj = 0; bj < bh; ++bj)
@@ -536,6 +623,7 @@ struct ShortPathScratch {
 	std::vector<vp::EdgeAA> edgesLeft, edgesRight, edgesBottom, edgesTop;
 	vp::TerrainEdgeScratch terrain;
 	std::vector<Vec2> reversed;
+	std::vector<vp::Square> closers;
 };
 
 // Compute a short path from request.start towards request.goal over the visibility graph of
@@ -701,14 +789,25 @@ bool compute_short_path(const ShortPathRequest& req,
 
 	// Close vertices inside an edge square: they are trivially unreachable (vendor 710-728).
 	// DEVIATION 6: vendor starts this loop at 2, skipping the first two squares.
-	for (size_t i = 0; i < edgeSquares.size(); ++i) {
-		const Square& sq = edgeSquares[i];
-		if (start.p.x >= sq.p0.x && start.p.y >= sq.p0.y && start.p.x <= sq.p1.x && start.p.y <= sq.p1.y)
-			continue;
+	// The same vertices close whatever order the squares are tried in, so each vertex tries the
+	// squares (those not holding the start) by their left side and stops at the first one that
+	// starts to its right.
+	std::vector<Square>& closers = scratch.closers;
+	closers.clear();
+	for (const Square& sq : edgeSquares)
+		if (!(start.p.x >= sq.p0.x && start.p.y >= sq.p0.y && start.p.x <= sq.p1.x && start.p.y <= sq.p1.y))
+			closers.push_back(sq);
+	if (!closers.empty()) {
+		std::sort(closers.begin(), closers.end(), [](const Square& a, const Square& b) { return a.p0.x < b.p0.x; });
 		for (size_t j = 2; j < vertexes.size(); ++j) {
 			const Vec2 p = vertexes[j].p;
-			if (p.x >= sq.p0.x && p.y >= sq.p0.y && p.x <= sq.p1.x && p.y <= sq.p1.y)
-				vertexes[j].status = VERTEX_CLOSED;
+			for (const Square& sq : closers) {
+				if (!(p.x >= sq.p0.x)) break;
+				if (p.y >= sq.p0.y && p.x <= sq.p1.x && p.y <= sq.p1.y) {
+					vertexes[j].status = VERTEX_CLOSED;
+					break;
+				}
+			}
 		}
 	}
 
