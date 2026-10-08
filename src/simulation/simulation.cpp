@@ -970,7 +970,7 @@ uint16_t Simulation::ally_civ_mask(uint8_t pid) const {
 	uint16_t mask = 0;
 	if (pid >= MAX_PLAYERS) return 0;
 	for (uint8_t q = 0; q < MAX_PLAYERS; ++q) {
-		if (q == pid || !same_team(pid, q)) continue;
+		if (q == pid || !is_ally(pid, q)) continue; // teammates and mutual alliances
 		bool in_match = false;
 		for (const auto &b : buildings_)
 			if (b.team == q && b.hp > 0.0f) { in_match = true; break; }
@@ -3968,7 +3968,7 @@ void Simulation::tick_capture(float dt) {
 		// forth between players every few seconds.)
 		const int ground = territory_owner_at(b.x, b.z);
 		if (b.territory_decay_rate > 0.0f && count[owner] == 0 && ground >= 0 && ground < 4 &&
-				ground != owner && !same_team((uint8_t)ground, (uint8_t)owner)) {
+				ground != owner && !is_ally((uint8_t)ground, (uint8_t)owner)) {
 			const int neighbour = ground;
 			const float decay = std::min(b.territory_decay_rate * dt, b.capture_points_by_team[owner]);
 			b.capture_points_by_team[owner] -= decay;
