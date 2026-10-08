@@ -225,6 +225,7 @@ public:
 	void _on_lobby_start_pressed();
 	void apply_net_game_start();
 	void apply_match_settings();
+	void sync_victory_selector();
 	void apply_game_setup(const rtso::GameSetupParams &setup);
 	void _on_lobby_refresh_pressed();
 	void refresh_lobby_rooms();

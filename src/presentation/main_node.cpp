@@ -130,6 +130,7 @@ void RtsoMain::_bind_methods() {
 	bind_enum("Civilization", "KUSHITES", rtso::CIV_KUSHITES);
 	bind_enum("Civilization", "PTOLEMIES", rtso::CIV_PTOLEMIES);
 	bind_enum("Civilization", "SELEUCIDS", rtso::CIV_SELEUCIDS);
+	bind_enum("Civilization", "HAN", rtso::CIV_HAN);
 }
 
 RtsoMain::RtsoMain() {
@@ -349,6 +350,7 @@ void RtsoMain::_ready() {
 	civ_selector->add_item("Kushites", rtso::CIV_KUSHITES);
 	civ_selector->add_item("Ptolemies", rtso::CIV_PTOLEMIES);
 	civ_selector->add_item("Seleucids", rtso::CIV_SELEUCIDS);
+	civ_selector->add_item("Han Chinese", rtso::CIV_HAN);
 	civ_selector->connect("item_selected", Callable(this, "_on_civ_selected"));
 	civ_selector->select((int)sim->player_civ());
 	top_hbox->add_child(civ_selector);
@@ -380,6 +382,12 @@ void RtsoMain::_ready() {
 	victory_selector->add_item("Wonder", rtso::VICTORY_WONDER);
 	victory_selector->add_item("Relics", rtso::VICTORY_RELIC);
 	victory_selector->add_item("Endless", rtso::VICTORY_ENDLESS);
+	victory_selector->add_item("Conquest Units", rtso::VICTORY_CONQUEST_UNITS);
+	victory_selector->add_item("Conquest Structures", rtso::VICTORY_CONQUEST_STRUCTURES);
+	victory_selector->add_item("Regicide", rtso::VICTORY_REGICIDE);
+	// The victory condition is fixed in Game Setup; changing it mid-match would desync lockstep peers.
+	victory_selector->set_disabled(true);
+	victory_selector->set_tooltip_text("Victory condition (set in Game Setup)");
 	victory_selector->connect("item_selected", Callable(this, "_on_victory_selected"));
 	top_hbox->add_child(victory_selector);
 
@@ -2903,7 +2911,9 @@ void RtsoMain::apply_match_settings() {
 		sim->spawn_initial();
 		return;
 	}
-	if (victory >= 0 && victory <= 3) sim->set_victory_condition((uint8_t)victory);
+	if (victory >= 0 && victory < rtso::VICTORY_COUNT) sim->set_victory_condition((uint8_t)victory);
+	sim->set_waves_enabled((bool)ms->get("waves_enabled"));
+	sync_victory_selector();
 	if (diff >= 0 && diff <= 5) sim->set_petra_difficulty((uint8_t)diff);
 	if (behavior >= 0 && behavior <= 3) sim->set_petra_behavior((uint8_t)behavior);
 	// Starting-resources presets (0 sparse / 1 normal / 2 generous / 3 abundant).
@@ -3234,6 +3244,13 @@ void RtsoMain::_on_ai_behavior_selected(int index) {
 	sim->set_petra_behavior((uint8_t)ai_behavior_selector->get_item_id(index));
 }
 
+void RtsoMain::sync_victory_selector() {
+	if (!sim || !victory_selector) return;
+	for (int i = 0; i < victory_selector->get_item_count(); ++i) {
+		if (victory_selector->get_item_id(i) == (int)sim->victory_condition()) victory_selector->select(i);
+	}
+}
+
 void RtsoMain::_on_victory_selected(int index) {
 	if (!sim || !victory_selector) return;
 	sim->set_victory_condition((uint8_t)victory_selector->get_item_id(index));
@@ -3329,6 +3346,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 		setup.map_id = mid.is_empty() ? sim->current_map_id() : mid.utf8().get_data();
 		setup.seed = (uint32_t)(int64_t)(int)ms->get("seed");
 		setup.victory = (uint8_t)((int)ms->get("victory"));
+		setup.waves = (bool)ms->get("waves_enabled") ? 1 : 0;
 		setup.difficulty = (uint8_t)((int)ms->get("ai_difficulty"));
 		setup.behavior = (uint8_t)((int)ms->get("ai_behavior"));
 		setup.start_res = (uint8_t)((int)ms->get("start_res"));
@@ -3357,7 +3375,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 	}
 	if (setup.map_id.empty()) setup.map_id = "random_continental";
 	if (setup.seed == 0) setup.seed = (uint32_t)Time::get_singleton()->get_ticks_msec();
-	if (setup.victory > 3) setup.victory = sim->victory_condition();
+	if (setup.victory >= rtso::VICTORY_COUNT) setup.victory = sim->victory_condition();
 	if (setup.difficulty > 5) setup.difficulty = sim->petra_difficulty();
 	if (setup.behavior > 3) setup.behavior = sim->petra_behavior();
 	if (setup.start_res > 3) setup.start_res = 1;
@@ -3390,7 +3408,9 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		if (lobby_status) lobby_status->set_text("GameStart failed: map regen failed");
 		return;
 	}
-	sim->set_victory_condition(setup.victory > 3 ? 0 : setup.victory);
+	sim->set_victory_condition(setup.victory >= rtso::VICTORY_COUNT ? 0 : setup.victory);
+	sim->set_waves_enabled(setup.waves != 0);
+	sync_victory_selector();
 	sim->set_petra_difficulty(setup.difficulty > 5 ? 3 : setup.difficulty);
 	sim->set_petra_behavior(setup.behavior > 3 ? 2 : setup.behavior);
 	static const int kStartRes[4][4] = {
@@ -3412,6 +3432,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		ms->set("map_id", String(setup.map_id.c_str()));
 		ms->set("seed", (int64_t)setup.seed);
 		ms->set("victory", (int)sim->victory_condition());
+		ms->set("waves_enabled", sim->waves_enabled());
 		ms->set("ai_difficulty", (int)sim->petra_difficulty());
 		ms->set("ai_behavior", (int)sim->petra_behavior());
 		ms->set("start_res", (int)sr);
@@ -3428,7 +3449,7 @@ void RtsoMain::apply_net_game_start() {
 	rtso::GameSetupParams setup;
 	if (!turn_mgr_.take_pending_game_start_full(setup)) return;
 	apply_game_setup(setup);
-	turn_mgr_.reset();
+	turn_mgr_.reset_keep_inbound(); // host batches can arrive in the same poll as GAME_START
 	turn_mgr_.set_net_host(&net_host_, net_host_.isHost() ? 0 : 1);
 	turn_mgr_.set_game_start_applied_sim(sim);
 	turn_mgr_.note_game_start_applied(sim);

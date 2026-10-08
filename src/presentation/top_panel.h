@@ -183,9 +183,11 @@ public:
 			String wmin_str = (wmins < 10 ? "0" : "") + String::num_int64(wmins);
 			String wsec_str = (wsecs < 10 ? "0" : "") + String::num_int64(wsecs);
 			wave_label_->set_text("Wonder Victory in " + wmin_str + ":" + wsec_str + " | " + phase_name);
-		} else {
+		} else if (sim->waves_enabled()) {
 			wave_label_->set_text("Wave " + String::num_int64(sim->wave_number()) +
 				" (" + String::num((double)sim->wave_time_remaining(), 0) + "s) | " + phase_name);
+		} else {
+			wave_label_->set_text(phase_name);
 		}
 	}
 

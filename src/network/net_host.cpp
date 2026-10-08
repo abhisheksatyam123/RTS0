@@ -268,6 +268,12 @@ static std::vector<uint8_t> join_sync_reply_packet(uint32_t role, uint32_t turn,
 
 void NetHost::send_raw_packet(const std::string &ip, uint16_t port, const uint8_t *data, size_t size) {
 	if (socket_fd_ < 0) return;
+	if (sim_loss_ > 0.0f) {
+		sim_loss_rng_ ^= sim_loss_rng_ << 13;
+		sim_loss_rng_ ^= sim_loss_rng_ >> 17;
+		sim_loss_rng_ ^= sim_loss_rng_ << 5;
+		if ((float)(sim_loss_rng_ & 0xFFFFFF) / 16777216.0f < sim_loss_) return;
+	}
 	sockaddr_in dest{};
 	dest.sin_family = AF_INET;
 	dest.sin_port = htons(port);
@@ -293,7 +299,12 @@ void NetHost::send_wire_packet(const std::string &ip, uint16_t port, uint32_t pe
 	hdr.magic = PS_PROTOCOL_MAGIC;
 	hdr.protocol_ver = PS_PROTOCOL_VERSION;
 	hdr.peer_id = local_peer_id_;
-	hdr.seq = (reliable ? next_seq_++ : 0);
+	// Reliable seqs are numbered per destination so the receiver sees a gapless
+	// stream and can tell a retransmit from a packet it never got.
+	if (reliable) {
+		NetPeer *dest_peer = getPeer(peer_id);
+		hdr.seq = dest_peer ? ++dest_peer->last_sent_seq : next_seq_++;
+	}
 	hdr.ack = 0;
 	hdr.flags = flags;
 	if (reliable) {
@@ -577,7 +588,9 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 	// Handle ACK
 	if (hdr.flags & NET_FLAG_ACK) {
 		for (auto it = pending_acks_.begin(); it != pending_acks_.end(); ) {
-			if (it->dest_ip == from_ip && it->dest_port == from_port && it->seq <= hdr.ack) {
+			// ACKs are per packet, not cumulative: acking seq 6 says nothing
+			// about a lost seq 5, which must stay queued for retransmission.
+			if (it->dest_ip == from_ip && it->dest_port == from_port && it->seq == hdr.ack) {
 				uint32_t rtt = static_cast<uint32_t>(now_ms - it->sent_time_ms);
 				stats_.rtt_ms = (stats_.rtt_ms == 0 ? rtt : (stats_.rtt_ms * 7 + rtt) / 8);
 				NetPeer *p = getPeer(it->peer_id);
@@ -596,11 +609,17 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 		send_ack(from_ip, from_port, hdr.peer_id, hdr.seq);
 		NetPeer *p = getPeer(sender_peer_id);
 		if (p) {
-			if (hdr.seq <= p->last_recv_seq && p->last_recv_seq != 0) {
-				// Duplicate reliable packet, already acknowledged
+			// Duplicate only if this exact seq was delivered before. A max-seq
+			// test would discard the retransmit of a packet lost before a later
+			// one arrived, after acking it, so it would never be delivered.
+			if (hdr.seq <= p->last_recv_seq || p->recv_ahead.count(hdr.seq)) {
 				return;
 			}
-			p->last_recv_seq = std::max(p->last_recv_seq, hdr.seq);
+			p->recv_ahead.insert(hdr.seq);
+			while (!p->recv_ahead.empty() && *p->recv_ahead.begin() == p->last_recv_seq + 1) {
+				p->recv_ahead.erase(p->recv_ahead.begin());
+				++p->last_recv_seq;
+			}
 		}
 	}
 

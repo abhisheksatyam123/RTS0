@@ -185,6 +185,7 @@ TEXTURE_MAPPING = {
     "art/textures/ui/session/portraits/emblems/emblem_kushites.png.cached.dds": "textures/ui/emblems/kushites.png",
     "art/textures/ui/session/portraits/emblems/emblem_ptolemies.png.cached.dds": "textures/ui/emblems/ptolemies.png",
     "art/textures/ui/session/portraits/emblems/emblem_seleucids.png.cached.dds": "textures/ui/emblems/seleucids.png",
+    "art/textures/ui/session/portraits/emblems/emblem_han.png.cached.dds": "textures/ui/emblems/han.png",
 
     # Unit portraits — 0 A.D. session art (generic Hellenic + unique civ units)
     "art/textures/ui/session/portraits/units/athen/support_civilian.png.cached.dds": "textures/ui/portraits/villager.png",

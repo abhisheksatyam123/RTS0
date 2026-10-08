@@ -205,7 +205,7 @@ void Simulation::reset() {
 	petra_scout_angle_ = 0.0f;
 	petra_scout_radius_ = 12.0f;
 	petra_bases_.clear();
-	petra_bases_.push_back({1, 0, 36.0f, 36.0f, true, 0, 32.0f, 0.0f, false});
+	petra_bases_.push_back({1, 0, 48.0f, 48.0f, true, 0, 32.0f, 0.0f, false});
 	memset(petra_fow_, 0, sizeof(petra_fow_));
 	memset(petra_threat_map_.danger, 0, sizeof(petra_threat_map_.danger));
 	memset(petra_threat_map_.enemy_threat, 0, sizeof(petra_threat_map_.enemy_threat));
@@ -359,30 +359,32 @@ void Simulation::spawn_initial() {
 	spawn_fauna(30.0f, 25.0f, FAUNA_WOLF);
 	spawn_fauna(32.0f, 28.0f, FAUNA_WOLF);
 
-	// 7. Enemy Base (Team 1) — Spartan Base for Petra Autonomous AI
-	spawn_building(18, 18, BLD_TOWN_CENTER, 1, 1.0f);
-	spawn_building(15, 17, BLD_BARRACKS, 1, 1.0f);
-	spawn_building(21, 19, BLD_HOUSE, 1, 1.0f);
-	spawn_building(19, 21, BLD_HOUSE, 1, 1.0f);
-	spawn_building(17, 21, BLD_STOREHOUSE, 1, 1.0f);
+	// 7. Enemy Base (Team 1) — Spartan Base for Petra Autonomous AI.
+	// Sits ~68 m from the player's Town Center so neither side's starting units are inside
+	// the other's aggro range (~33 m) at the first tick.
+	spawn_building(24, 24, BLD_TOWN_CENTER, 1, 1.0f);
+	spawn_building(21, 23, BLD_BARRACKS, 1, 1.0f);
+	spawn_building(27, 25, BLD_HOUSE, 1, 1.0f);
+	spawn_building(25, 27, BLD_HOUSE, 1, 1.0f);
+	spawn_building(23, 27, BLD_STOREHOUSE, 1, 1.0f);
 
 	for (int i = 0; i < 6; ++i) {
 		float a = 6.28318530718f * i / 6.0f;
-		float x = 37.0f + cosf(a) * 4.0f;
-		float z = 37.0f + sinf(a) * 4.0f;
+		float x = 49.0f + cosf(a) * 4.0f;
+		float z = 49.0f + sinf(a) * 4.0f;
 		spawn_unit(x, z, 1, UNIT_VILLAGER, 100.0f);
 	}
-	spawn_unit(32.0f, 32.0f, 1, UNIT_SWORDSMAN, 160.0f);
-	spawn_unit(34.0f, 30.0f, 1, UNIT_SPEARMAN, 160.0f);
-	spawn_unit(30.0f, 34.0f, 1, UNIT_ARCHER, 90.0f);
-	spawn_unit(28.0f, 36.0f, 1, UNIT_ARCHER, 90.0f);
+	spawn_unit(44.0f, 44.0f, 1, UNIT_SWORDSMAN, 160.0f);
+	spawn_unit(46.0f, 42.0f, 1, UNIT_SPEARMAN, 160.0f);
+	spawn_unit(42.0f, 46.0f, 1, UNIT_ARCHER, 90.0f);
+	spawn_unit(40.0f, 48.0f, 1, UNIT_ARCHER, 90.0f);
 
 	// Dedicated economic resources near AI base
-	spawn_resource(21, 21, RES_WOOD, 1200);
-	spawn_resource(22, 21, RES_WOOD, 1200);
-	spawn_resource(21, 16, RES_GOLD, 1200);
-	spawn_resource(16, 22, RES_STONE, 1200);
-	spawn_resource(15, 15, RES_FOOD, 1000);
+	spawn_resource(27, 27, RES_WOOD, 1200);
+	spawn_resource(28, 27, RES_WOOD, 1200);
+	spawn_resource(27, 22, RES_GOLD, 1200);
+	spawn_resource(22, 28, RES_STONE, 1200);
+	spawn_resource(21, 21, RES_FOOD, 1000);
 }
 
 void Simulation::spawn_war(int total_units) {
@@ -3387,24 +3389,7 @@ void Simulation::tick_combat(float dt) {
 		}
 	}
 
-	// 4. Wonder.js - Wonder Victory Countdown
-	bool found_wonder = false;
-	for (const auto &b : buildings_) {
-		if (b.team == 0 && b.type == BLD_WONDER && b.build_progress >= 1.0f) {
-			found_wonder = true;
-			break;
-		}
-	}
-	has_active_wonder_ = found_wonder;
-	if (has_active_wonder_) {
-		wonder_victory_timer_ += dt;
-		if (wonder_victory_timer_ >= 600.0f) {
-			victory_ = true;
-			game_over_ = true;
-		}
-	} else {
-		wonder_victory_timer_ = 0.0f;
-	}
+	// 4. Wonder victory countdown lives in check_victory_conditions (wonder mode only).
 
 	// 5. Treasure.js - Wilderness Relic Collection (any team)
 	for (auto &rel : relics_) {
@@ -3462,15 +3447,7 @@ void Simulation::tick_combat(float dt) {
 		}
 	}
 
-	// 4. Check base destruction
-	bool player_tc_alive = false;
-	for (const auto &b : buildings_) {
-		if (b.type == BLD_TOWN_CENTER && b.team == 0 && b.hp > 0) {
-			player_tc_alive = true;
-			break;
-		}
-	}
-	if (!player_tc_alive) game_over_ = true;
+	// Defeat is decided in check_victory_conditions, per the match's victory condition.
 }
 
 void Simulation::tick_promotion(float dt) {
@@ -3888,6 +3865,9 @@ void Simulation::tick_barter(float dt) {
 
 void Simulation::check_victory_conditions(float dt) {
 	if (game_over_ || victory_) return;
+	// 0 A.D. "Endless": no victory conditions, nobody is ever defeated.
+	if (victory_condition_ == VICTORY_ENDLESS) return;
+	if (victory_condition_ == VICTORY_REGICIDE && ticks_ == 0) spawn_regicide_heroes();
 
 	if (victory_condition_ == VICTORY_WONDER) {
 		// Wonder Victory (VictoryManager.js / Wonder.js): first completed wonder holds 10 min
@@ -3939,45 +3919,69 @@ void Simulation::check_victory_conditions(float dt) {
 				relic_victory_timer_ = 0.0f;
 			}
 		}
-	} else if (victory_condition_ == VICTORY_CONQUEST) {
-		// Conquest: Eliminate all enemy military and Town Centers
-		int enemy_tc_count = 0;
-		int enemy_bld_count = 0;
-		int enemy_unit_count = 0;
-		for (const auto &b : buildings_) {
-			if (b.team == 1 && b.hp > 0.0f && b.build_progress > 0.0f) {
-				if (b.type == BLD_TOWN_CENTER) enemy_tc_count++;
-				enemy_bld_count++;
-			}
-		}
-		for (size_t u = 0; u < units_.count; ++u) {
-			if (units_.team[u] == 1 && units_.alive[u]) {
-				enemy_unit_count++;
-			}
-		}
-		if (enemy_tc_count == 0 && enemy_bld_count == 0 && enemy_unit_count == 0 && (record_.enemies_killed > 0 || wave_number_ > 0)) {
-			victory_ = true;
-			game_over_ = true;
-		}
 	}
+	if (game_over_) return;
 
-	// Player defeat condition across all modes: check base destruction
-	bool player_tc_alive = false;
-	int player_unit_count = 0;
+	// Tally what each player still holds (ConquestCommon.js). Team 0 is the local player,
+	// every other team is an enemy. Garrisoned units count as alive.
+	constexpr int MAX_TEAMS = 8;
+	int unit_count[MAX_TEAMS] = {};
+	int structure_count[MAX_TEAMS] = {};
+	int tc_count[MAX_TEAMS] = {};
+	int hero_count[MAX_TEAMS] = {};
 	for (const auto &b : buildings_) {
-		if (b.type == BLD_TOWN_CENTER && b.team == 0 && b.hp > 0.0f) {
-			player_tc_alive = true;
-			break;
-		}
+		if (b.team >= MAX_TEAMS || b.hp <= 0.0f) continue;
+		structure_count[b.team]++;
+		if (b.type == BLD_TOWN_CENTER) tc_count[b.team]++;
 	}
 	for (size_t u = 0; u < units_.count; ++u) {
-		if (units_.team[u] == 0 && (units_.alive[u] || units_.action_state[u] == ACTION_GARRISONED)) {
-			player_unit_count++;
-		}
+		uint8_t t = units_.team[u];
+		if (t >= MAX_TEAMS || !(units_.alive[u] || units_.action_state[u] == ACTION_GARRISONED)) continue;
+		unit_count[t]++;
+		if (units_.unit_type[u] == UNIT_HERO) hero_count[t]++;
 	}
-	if (!player_tc_alive && player_unit_count == 0) {
+
+	auto defeated = [&](int t) {
+		bool no_units = unit_count[t] == 0;
+		bool no_structures = structure_count[t] == 0;
+		switch (victory_condition_) {
+			case VICTORY_CONQUEST_UNITS: return no_units;
+			case VICTORY_CONQUEST_STRUCTURES: return no_structures;
+			case VICTORY_REGICIDE: return hero_count[t] == 0 || (no_units && no_structures);
+			default: return no_units && no_structures; // Conquest; Wonder and Relic include it too
+		}
+	};
+
+	// Wave defense keeps its old rule: lose the Town Center and the match is lost.
+	if (defeated(0) || (waves_enabled_ && tc_count[0] == 0)) {
 		game_over_ = true;
 		victory_ = false;
+		return;
+	}
+
+	bool enemies_defeated = true;
+	for (int t = 1; t < MAX_TEAMS && enemies_defeated; ++t) {
+		if (!defeated(t)) enemies_defeated = false;
+	}
+	// Don't hand out a win on a map that never had an enemy on it.
+	bool fought = record_.enemies_killed > 0 || record_.buildings_destroyed > 0 || wave_number_ > 0;
+	if (enemies_defeated && fought) {
+		victory_ = true;
+		game_over_ = true;
+	}
+}
+
+void Simulation::spawn_regicide_heroes() {
+	// Regicide.js: every player gets a hero next to their first Town Center at match start.
+	bool done[8] = {};
+	std::vector<std::pair<uint8_t, std::pair<float, float>>> spots;
+	for (const auto &b : buildings_) {
+		if (b.type != BLD_TOWN_CENTER || b.team >= 8 || done[b.team]) continue;
+		done[b.team] = true;
+		spots.push_back({b.team, {b.x, b.z}});
+	}
+	for (const auto &s : spots) {
+		spawn_unit(s.second.first + 4.0f, s.second.second + 4.0f, s.first, UNIT_HERO, 0.0f);
 	}
 }
 

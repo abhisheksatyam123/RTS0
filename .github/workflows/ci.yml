@@ -65,9 +65,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Pathfinder, fixed-point and geometry tests
+      - name: Pathfinder, fixed-point, geometry and civ roster tests
         run: |
-          for t in test_long_pathfinder test_fixed test_geometry; do
+          for t in test_long_pathfinder test_fixed test_geometry test_civ_roster; do
             g++ -std=c++20 -O2 -Isrc tools/$t.cpp -o /tmp/$t
             /tmp/$t
           done
@@ -78,6 +78,12 @@ jobs:
             src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
             src/network/net_host.cpp -lpthread -o /tmp/test_players
           /tmp/test_players
+
+      - name: Victory-condition tests
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_victory.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o /tmp/test_victory
+          /tmp/test_victory
 
       - name: Nav parity probe
         run: python3 tools/check_parity.py --unit nav-live

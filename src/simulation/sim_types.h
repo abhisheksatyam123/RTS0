@@ -44,7 +44,8 @@ enum Civilization : uint8_t {
 	CIV_KUSHITES = 10,
 	CIV_PTOLEMIES = 11,
 	CIV_SELEUCIDS = 12,
-	CIV_COUNT = 13
+	CIV_HAN = 13, // appended so saved games and network messages keep civ ids
+	CIV_COUNT = 14
 };
 
 enum MapType : uint8_t {
@@ -247,7 +248,11 @@ enum VictoryCondition : uint8_t {
 	VICTORY_CONQUEST = 0,
 	VICTORY_WONDER = 1,
 	VICTORY_RELIC = 2,
-	VICTORY_ENDLESS = 3
+	VICTORY_ENDLESS = 3,
+	VICTORY_CONQUEST_UNITS = 4, // 0 A.D. "Conquest Units": kill every enemy unit
+	VICTORY_CONQUEST_STRUCTURES = 5, // 0 A.D. "Conquest Structures": raze every enemy structure
+	VICTORY_REGICIDE = 6, // 0 A.D. "Regicide": each player starts with a hero; lose it and you lose
+	VICTORY_COUNT
 };
 
 struct BattleAlert {
@@ -557,62 +562,151 @@ inline const CivInfo &civ_info(uint8_t civ) {
 		 1.10f, 1.10f, 1.10f, 1.15f, 1.30f},
 		{CIV_SELEUCIDS, "sele", "Seleucids", "res://assets/textures/ui/emblems/seleucids.png",
 		 "Argyraspides Silver Shields & Scythed Chariots: Heavy cataphract shock cavalry, silver shield pikemen, and scythed chariots.",
-		 1.10f, 1.25f, 1.20f, 1.0f, 1.15f}
+		 1.10f, 1.25f, 1.20f, 1.0f, 1.15f},
+		{CIV_HAN, "han", "Han Chinese", "res://assets/textures/ui/emblems/han.png",
+		 "Imperial Ministers & Crossbow Armies: Ministers boost the economy, crossbowmen and war chariots anchor the army.",
+		 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}
 	};
 	if (civ >= CIV_COUNT) return kTable[CIV_ATHENIANS];
 	return kTable[civ];
 }
 
-inline uint32_t unit_bit(uint8_t type) { return (type < 32) ? (1u << type) : 0u; }
+inline constexpr uint32_t unit_bit(uint8_t type) { return (type < 32) ? (1u << type) : 0u; }
 
-// Units this civilization can train (0 A.D. roster, simplified to RTS0 types).
+inline constexpr uint16_t bld_bit(uint8_t type) { return (type < 16) ? (uint16_t)(1u << type) : 0u; }
+
+// ---------------------------------------------------------------------------
+// Per-civ unit rosters, generated from 0 A.D.'s templates by
+// tools/extract_0ad_rosters.py into civ_roster_data.h.
+// Each civ unit (Athenian Hoplite, Han Crossbowman, Pericles, ...) carries
+// 0 A.D.'s own stats and names the RTS0 UnitType that drives its behaviour,
+// model fallback and AI role.
+// ---------------------------------------------------------------------------
+
+enum CivRosterFlag : uint8_t {
+	ROSTER_HERO = 1,
+	ROSTER_CHAMPION = 2,
+	ROSTER_RANGED = 4,
+	ROSTER_CITIZEN = 8,
+	ROSTER_MERCENARY = 16
+};
+
+struct CivHeroAura {
+	const char *id;
+	const char *name;
+	const char *description;
+	float radius; // 0 A.D. metres; 0 = applies everywhere
+};
+
+struct CivUnitTemplate {
+	const char *id; // 0 A.D. template path under units/, e.g. "athen/infantry_spearman_b"
+	const char *name;
+	const char *specific_name;
+	uint8_t civ;
+	uint8_t unit_type; // RTS0 behaviour class (UnitType)
+	uint8_t phase; // 1 village, 2 town, 3 city
+	uint8_t flags; // CivRosterFlag bits
+	uint16_t trainers; // bld_bit() of each BuildingType that trains it
+	float hp;
+	float speed;
+	float attack_range;
+	float attack_damage;
+	float attack_cooldown;
+	float hack_damage;
+	float pierce_damage;
+	float crush_damage;
+	float hack_armor;
+	float pierce_armor;
+	float crush_armor;
+	int16_t food_cost;
+	int16_t wood_cost;
+	int16_t gold_cost;
+	int16_t stone_cost;
+	uint8_t pop_cost;
+	float train_time;
+	int16_t carry_capacity;
+	int16_t auras[3]; // index into civ_hero_aura_table(), -1 = none
+};
+
+#include "civ_roster_data.h"
+
+inline constexpr uint16_t CIV_UNIT_TEMPLATE_NONE = 0xFFFF;
+
+inline const CivUnitTemplate &civ_unit_template(uint16_t id) {
+	const CivUnitTemplate *t = civ_unit_template_table();
+	return t[id < CIV_UNIT_TEMPLATE_COUNT ? id : 0];
+}
+
+inline const CivHeroAura &civ_hero_aura(int16_t idx) {
+	const CivHeroAura *a = civ_hero_aura_table();
+	return a[(idx >= 0 && idx < CIV_HERO_AURA_COUNT) ? idx : 0];
+}
+
+// Roster of a civ is the template id range [civ_roster_begin, civ_roster_end).
+inline uint16_t civ_roster_begin(uint8_t civ) {
+	if (civ >= CIV_COUNT) civ = CIV_ATHENIANS;
+	return civ_roster_offsets()[civ];
+}
+
+inline uint16_t civ_roster_end(uint8_t civ) {
+	if (civ >= CIV_COUNT) civ = CIV_ATHENIANS;
+	return civ_roster_offsets()[civ + 1];
+}
+
+// The civ's standard unit for an RTS0 class: the citizen-soldier or support
+// unit a generic "train a spearman" request should produce. Prefers non-hero,
+// non-champion units with the earliest phase. CIV_UNIT_TEMPLATE_NONE if the
+// civ has no unit of that class.
+struct CivDefaultTemplates {
+	uint16_t id[CIV_COUNT][UNIT_TYPE_COUNT];
+};
+
+inline uint16_t civ_default_template(uint8_t civ, uint8_t type) {
+	static const CivDefaultTemplates cache = [] {
+		CivDefaultTemplates out{};
+		for (uint8_t c = 0; c < CIV_COUNT; ++c) {
+			for (uint8_t t = 0; t < UNIT_TYPE_COUNT; ++t) {
+				uint16_t best = CIV_UNIT_TEMPLATE_NONE;
+				int best_score = 1 << 30;
+				for (uint16_t i = civ_roster_begin(c); i < civ_roster_end(c); ++i) {
+					const CivUnitTemplate &u = civ_unit_template(i);
+					if (u.unit_type != t) continue;
+					int score = u.phase * 4;
+					if (u.flags & ROSTER_HERO) score += 100;
+					if (u.flags & ROSTER_CHAMPION) score += 20;
+					if (u.flags & ROSTER_MERCENARY) score += 2;
+					if (!(u.trainers & (bld_bit(BLD_TOWN_CENTER) | bld_bit(BLD_BARRACKS) | bld_bit(BLD_DOCK) |
+							bld_bit(BLD_TEMPLE) | bld_bit(BLD_MARKET) | bld_bit(BLD_FORTRESS)))) score += 1;
+					if (score < best_score) {
+						best_score = score;
+						best = i;
+					}
+				}
+				out.id[c][t] = best;
+			}
+		}
+		return out;
+	}();
+	if (civ >= CIV_COUNT) civ = CIV_ATHENIANS;
+	if (type >= UNIT_TYPE_COUNT) return CIV_UNIT_TEMPLATE_NONE;
+	return cache.id[civ][type];
+}
+
+// Units this civilization can train: every RTS0 class its 0 A.D. roster has.
+struct CivTrainMasks {
+	uint32_t mask[CIV_COUNT];
+};
+
 inline uint32_t civ_train_mask(uint8_t civ) {
-	uint32_t m = unit_bit(UNIT_VILLAGER) | unit_bit(UNIT_FEMALE_CITIZEN) | unit_bit(UNIT_TRADER) |
-		unit_bit(UNIT_FISHING_BOAT) | unit_bit(UNIT_MERCHANT_SHIP) | unit_bit(UNIT_TRIREME) |
-		unit_bit(UNIT_HEALER) | unit_bit(UNIT_BOLT_SHOOTER) | unit_bit(UNIT_CATAPULT) |
-		unit_bit(UNIT_SIEGE_RAM) | unit_bit(UNIT_HERO) | unit_bit(UNIT_CAVALRY) | unit_bit(UNIT_SPEARMAN);
-	switch (civ) {
-		case CIV_ATHENIANS:
-		case CIV_MACEDONIANS:
-		case CIV_IBERIANS:
-		case CIV_ROMANS:
-			m |= unit_bit(UNIT_SWORDSMAN) | unit_bit(UNIT_ARCHER);
-			break;
-		case CIV_SPARTANS:
-			m |= unit_bit(UNIT_SWORDSMAN) | unit_bit(UNIT_ARCHER);
-			break;
-		case CIV_PERSIANS:
-			m |= unit_bit(UNIT_ARCHER) | unit_bit(UNIT_CAMEL);
-			break;
-		case CIV_CARTHAGINIANS:
-			m |= unit_bit(UNIT_SWORDSMAN) | unit_bit(UNIT_ARCHER) | unit_bit(UNIT_ELEPHANT);
-			break;
-		case CIV_BRITONS:
-			m |= unit_bit(UNIT_SWORDSMAN) | unit_bit(UNIT_ARCHER) | unit_bit(UNIT_CHARIOT) | unit_bit(UNIT_WAR_DOG);
-			break;
-		case CIV_GAULS:
-			m |= unit_bit(UNIT_SWORDSMAN) | unit_bit(UNIT_ARCHER) | unit_bit(UNIT_CHARIOT) |
-				unit_bit(UNIT_WAR_DOG) | unit_bit(UNIT_CARNYX);
-			break;
-		case CIV_MAURYANS:
-			m |= unit_bit(UNIT_SWORDSMAN) | unit_bit(UNIT_ARCHER) | unit_bit(UNIT_ELEPHANT) |
-				unit_bit(UNIT_WORKER_ELEPHANT) | unit_bit(UNIT_ARCHER_MAIDEN);
-			break;
-		case CIV_KUSHITES:
-			m |= unit_bit(UNIT_SWORDSMAN) | unit_bit(UNIT_ARCHER) | unit_bit(UNIT_CAMEL);
-			break;
-		case CIV_PTOLEMIES:
-			m |= unit_bit(UNIT_SWORDSMAN) | unit_bit(UNIT_ARCHER) | unit_bit(UNIT_CAMEL);
-			break;
-		case CIV_SELEUCIDS:
-			m |= unit_bit(UNIT_SWORDSMAN) | unit_bit(UNIT_ARCHER) | unit_bit(UNIT_ELEPHANT) |
-				unit_bit(UNIT_SCYTHED_CHARIOT);
-			break;
-		default:
-			m |= unit_bit(UNIT_SWORDSMAN) | unit_bit(UNIT_ARCHER);
-			break;
-	}
-	return m;
+	static const CivTrainMasks masks = [] {
+		CivTrainMasks out{};
+		for (uint8_t c = 0; c < CIV_COUNT; ++c)
+			for (uint16_t i = civ_roster_begin(c); i < civ_roster_end(c); ++i)
+				out.mask[c] |= unit_bit(civ_unit_template(i).unit_type);
+		return out;
+	}();
+	if (civ >= CIV_COUNT) civ = CIV_ATHENIANS;
+	return masks.mask[civ];
 }
 
 inline bool civ_can_train(uint8_t civ, uint8_t type) {

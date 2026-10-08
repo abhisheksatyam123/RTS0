@@ -1,109 +1,67 @@
-# Assets — RTS0 (0 A.D. baked + Thronefall fallback)
+# Assets — RTS0
 
-Runtime visuals are **0 A.D. art baked into GLB** (see `tools/extract_0ad_assets.py`) with
-procedural primitives as fallback when a GLB is missing. Shaders stay Thronefall-style
-where useful; baked models use imported `StandardMaterial3D`.
+Runtime visuals are 0 A.D. art baked into GLB files by `tools/extract_0ad_assets.py`. When a GLB is
+missing, `ModelLibrary::load` falls back to procedural meshes, so the game still runs.
+
+- Coverage and status: [docs/ASSET_MANIFEST_TODO.md](../docs/ASSET_MANIFEST_TODO.md)
+- How the art maps (textures, UVs, skeletons, clips): [docs/ASSET_MAPPING.md](../docs/ASSET_MAPPING.md)
+- Licensing and attribution: [docs/0AD_ATTRIBUTION.md](../docs/0AD_ATTRIBUTION.md)
 
 ## Folder layout
 
 ```
 assets/
-  models/units/          villager, swordsman, archer, spearman, cavalry, healer, ram, deer
-  models/buildings/      town_center, house, barracks, farmstead, storehouse, market,
-                         temple, wall, wall_tower, fortress, ruins
-  models/vegetation/     tree, pine, palm, gold_vein, stone_mine
-  models/manifest.json   actor sources, size_meters, clips
-  animations/            curated PSA clips baked into unit GLBs + sidecar copies
-  skeletons/             biped.xml, horse.xml, …
-  textures/terrain/      grass, dirt, rock (+ biome tiles with --all)
-  music/                 theme.ogg, victory.ogg, defeat.ogg
+  models/
+    units/           one GLB per unit or fauna id
+    buildings/       one GLB per building id
+    vegetation/      one GLB per flora id
+    manifest.json    per-id entries (file, origin, size_meters, sources, upstream_material),
+                     plus animations, skeletons, terrain and mapping (clip and skeleton map)
+  animations/        <clip>.psa with a <clip>.json sidecar
+  skeletons/         <name>.xml bone hierarchies from 0 A.D.
+  textures/
+    terrain/         terrain tiles as flat PNG files
+    noise/           terrain_noise.png
+    ui/              icons, emblems, formations, phases, portraits, stances, ...
+  materials/thronefall/  foliage.tres, terrain.tres, unit.tres
+  themes/            zeroad_theme.tres
+  audio/, sounds/, music/, fonts/
 ```
 
-Unknown ids are never written to `vegetation/` (that used to dump unit/building files there).
-
-Quick help:
+## Running the extractor
 
 ```bash
-python3 tools/extract_0ad_assets.py --help     # shows --all / --full / --zip / --out
-```
-
-Regenerate after pulling 0ad:
-
-```bash
+python3 tools/extract_0ad_assets.py --help
 python3 tools/extract_0ad_assets.py --all \
-  --zip /home/abhi/project/0ad/binaries/data/mods/public/public.zip \
+  --zip /path/to/0ad/binaries/data/mods/public/public.zip \
   --out assets
 ```
 
-## Pipeline (`tools/extract_0ad_assets.py`)
+- `--all` rebuilds everything. `--full` is a hidden alias for it.
+- `--only <ids>` extracts specific ids. `--class <name>` expands a named batch (see `G7_CLASSSETS` in the extractor). `--pattern` selects ids by pattern.
+- `--audit` prints clip coverage against the wanted runtime states and exits. `tools/audit_assets.py` does the same check with a fuller report.
+- `--zip` defaults to `../../0ad/binaries/data/mods/public/public.zip` relative to `tools/`.
+
+What the extractor does:
 
 ```
-0ad repo ../0ad/binaries/data/mods/public/public.zip
-  art/meshes/*.dae.cached.pmd  binary meshes (source/graphics/ModelDef.cpp, PSMD, CW front)
-  art/actors/*.xml              variant groups + shared variants + prop attach points
-  art/textures/skins/*.cached.dds  DXT1/5 -> PNG (fixed G6 channel bug)
-
--> parse PMD (versions 1-5, bind-pose already), compose actor trees,
-   bake player-color (alpha-mask: shaders/glsl/model_common.fs `mix(playerColor,white,tex.a)`)
-   + AO multiply, downscale >1024 to 512, flip winding (CW -> CCW), center+ground normalize
--> emit single-file GLB (embedded PNG) per id + manifest.json
+public.zip
+  art/meshes/*.dae.cached.pmd    binary meshes (PMD)
+  art/actors/*.xml               actor variants, props, attach points
+  art/skeletons, art/animation   skeleton XML and PSA clips
+  art/textures/skins/*.cached.dds skins, converted to PNG
+-> compose actor trees, bake player color and AO, emit one GLB per id
+-> write assets/models/manifest.json (including the mapping block)
 ```
 
-Regenerate after pulling 0ad:
+## Runtime notes
 
-```bash
-python3 tools/extract_0ad_assets.py --all \
-  --zip ../0ad/binaries/data/mods/public/public.zip --out assets
-```
-
-Import settings (auto on export): `filter=false, fix_handedness`, `msaa_3d=2`, textures `s3tc_bptc` desktop / `etc2_astc` Android.
-
-## Fallback
-
-`WorldView.cs:Make*MultiMesh` checks `Assets.IsRealModel(path)` — if a GLB is missing or
-`ResourceLoader` fails (headless CI), it falls back to `Procedural` Capsule/Box/Cylinder
-so the game always builds. Real models keep imported `StandardMaterial3D`; fallback uses
-`unit_thronefall.gdshader` + `INSTANCE_CUSTOM` team/hp/wind.
-
-## Scale
-
-Targets baked into GLB (manifest `size_meters`): villager 1.7m, swordsman 1.8m,
-town_center 5.2m (footprint 4), house 2.1m (footprint 1.8), tree 4.5m, gold_vein 1.8m.
-`WorldView.Sync` uses `_real*` flags to pick Y offset: real units 0.02 vs 0.6 (capsule),
-real buildings 0 vs size/2 (Box center).
-
-## Phase 5 Export Expansion (G6+G7 parity)
-
-P5 closes the asset gaps audited in `docs/ASSET_MAPPING.md` (`## 2026-08-29 Parity Audit`). The
-current `assets/models/manifest.json` ships 24 GLBs / 18 PSAs / 3 skeletons; P5 targets the
-18 missing GLBs (`camel`, `elephant`, `war_dog`, `chariot`, `scythed_chariot`, `carnyx`,
-`worker_elephant`, `archer_maiden`, `bolt_shooter`, `fishing_boat`, `trireme`, `merchant_ship`,
-`dock`, `corral`, `gate`, `wonder`, `boar`, `wolf`) + 4 skeletons + 10 PSAs + terrain tiles
-and UI (`auras/*`, `minimap-*`, `panel_phase_emblems`, formations 14, emblems 13).
-
-Run the full extractor against a local 0 A.D. checkout:
-
-```bash
-# from repo root
-python3 tools/extract_0ad_assets.py --full \
-  --zip /home/abhi/project/0ad/binaries/data/mods/public/public.zip \
-  --out assets
-# or shorthand (tool defaults to --full terrain/UI skeletons)
-python3 tools/extract_0ad_assets.py --full
-```
-
-This rebuilds `assets/models/{units,buildings,vegetation}/*.glb`, `assets/skeletons/*.xml`,
-`assets/animations/*.psa`, `assets/textures/terrain/*`, and `assets/textures/ui/session/**` then
-rewrites `assets/models/manifest.json`. Missing ids will fall back via
-`src/graphics/assets/model_library.cpp:616` until the GLB exists – the game never crashes.
-
-> **GridNav note:** `src/simulation/grid_nav.cpp` (flow-field / `GridNav`) is simulation-only
-> (pathfinding, `can_place`, footprint collision). It does **not** affect asset import or GLB
-> layout – navigation meshes are generated from `Simulation::terrain_heights` at runtime, not
-> baked into models. Re-exporting assets never requires rebuilding nav data.
+- Model loader: `src/graphics/assets/model_library.cpp` (`ModelLibrary::load`, candidate chain at `:622-654`). Procedural fallbacks live in `src/graphics/assets/procedural.h`.
+- Imported models use `StandardMaterial3D`. `apply_imported_material_fixups` turns off ambient occlusion on them (`model_library.cpp:106-134`).
+- Each id's real-world size and origin are in `models/manifest.json` (`size_meters`, `origin`).
 
 ## License
 
-Art + music from 0 A.D. are **CC-BY-SA 3.0** (see `docs/0AD_ATTRIBUTION.md`). Keep
-the GPL header on ported code files (`src/Core/**`). Thronefall shaders + glue are
-yours, but shipped binary is GPL-2.0+ combined work.
+Art, audio and maps from 0 A.D. are **CC BY-SA 3.0** (see `assets/LICENSE`). RTS0's
+code, including the Thronefall-style shaders, is **GPL-2.0-or-later** (top-level
+`LICENSE`). See `docs/0AD_ATTRIBUTION.md` for what came from 0 A.D.

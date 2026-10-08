@@ -274,6 +274,9 @@ public:
 	uint8_t victory_condition() const { return (uint8_t)victory_condition_; }
 	void set_victory_condition(uint8_t vc) { victory_condition_ = (VictoryCondition)vc; }
 	float relic_victory_timer() const { return relic_victory_timer_; }
+	// Legacy wave-defense mode: enemy waves every 35s, survive wave 5 to win. Off by default.
+	bool waves_enabled() const { return waves_enabled_; }
+	void set_waves_enabled(bool on) { waves_enabled_ = on; }
 
 	// Battle Alerts (AlertRaiser.js)
 	void raise_alert(BattleAlert::Type type, float x, float z, uint32_t entity_id, uint8_t team = 0);
@@ -367,11 +370,7 @@ public:
 	int pop_current() const;
 	int pop_max() const;
 	int wave_number() const { return wave_number_; }
-	// Legacy wave-defense mode (on by default). tools/bench_match.py turns it off
-	// so the benchmark measures a full-length skirmish against Petra.
-	void set_waves_enabled(bool on) { waves_enabled_ = on; }
-	bool waves_enabled() const { return waves_enabled_; }
-	float wave_time_remaining() const { return std::max(0.0f, 30.0f - wave_timer_); }
+	float wave_time_remaining() const { return std::max(0.0f, 35.0f - wave_timer_); }
 	bool is_game_over() const { return game_over_; }
 	bool is_victory() const { return victory_; }
 	uint8_t player_phase() const { return players_[0].phase; }
@@ -607,6 +606,7 @@ private:
 	int32_t lookup_unit(uint32_t id) const;
 	void apply_loot_bounty(uint8_t killer_team, int food, int wood, int gold, int stone);
 	void check_victory_conditions(float dt);
+	void spawn_regicide_heroes();
 
 	struct FaunaStorage {
 		static constexpr size_t MAX_FAUNA = 256;
@@ -640,6 +640,7 @@ private:
 	float wonder_victory_timer_ = 0.0f;
 	bool has_active_wonder_ = false;
 	VictoryCondition victory_condition_ = VICTORY_CONQUEST;
+	bool waves_enabled_ = false;
 	float relic_victory_timer_ = 0.0f;
 	std::vector<BattleAlert> pending_alerts_;
 	float last_alert_time_[6] = {};
@@ -658,7 +659,6 @@ private:
 	uint32_t next_id_ = 1;
 	uint32_t sim_seed_ = 1337;
 	SimRng sim_rng_;
-	bool waves_enabled_ = true;
 	std::array<PlayerState, MAX_PLAYERS> players_{};
 	PlayerState &petra_ps() { return players_[PETRA_PLAYER]; }
 	Civilization civ_of(uint8_t pid) const { return (pid < MAX_PLAYERS) ? players_[pid].civ : CIV_ATHENIANS; }

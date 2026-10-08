@@ -48,10 +48,10 @@ GODOT=/path/to/Godot ./tools/build.sh android # -> build/android/RTS0.apk
 
 ## CI (GitHub Actions)
 `.github/workflows/ci.yml`:
-- Every push/PR: builds the C# solution, then exports **Windows + Linux**, uploads artifacts to the run page.
-- Manual dispatch ("Run workflow" button): optional checkbox builds the **Android APK** (debug-signed).
-- Tag pushes (`v*`) also trigger; hook a release-upload step here when ready.
-- iOS intentionally not automated until signing assets exist and the .NET-on-iOS gate passes.
+- Every PR and every push to `main`: builds the C++ GDExtension (`template_release`) and runs the headless C++ tests (pathfinder, fixed-point, geometry), the nav parity probe and the lockstep playtest.
+- Pushes to `main` and `v*` tags (not PRs): also export **Windows + Linux** and upload the builds and the GDExtension library as artifacts.
+- Manual dispatch ("Run workflow" button): the `android` checkbox also builds the **Android APK** (debug-signed).
+- iOS is not automated until signing assets exist.
 
 ## First-run checklist
 1. Open the project in the editor once and visit Project → Export: the editor normalizes any preset fields that drifted from your exact Godot patch version (harmless, expected).
@@ -59,6 +59,6 @@ GODOT=/path/to/Godot ./tools/build.sh android # -> build/android/RTS0.apk
 3. Test an Android build on a real device early — emulator GPU behavior differs wildly.
 
 ## Known pitfalls
-- `dotnet build` succeeds but export fails → almost always template/editor version mismatch.
+- `scons` succeeds but export fails → almost always a template/editor version mismatch.
 - Android export hangs in CI → Gradle downloading dependencies; first run takes several minutes.
 - Missing console window on Windows debug builds → `debug/export_console_wrapper` writes a second `_console.exe`; ship the main exe only.

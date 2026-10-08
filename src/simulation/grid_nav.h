@@ -3,6 +3,7 @@
 
 // Phase 1-2 foundation: SoA-friendly navigation grid and waypoint path.
 // Phase 8A: Port of 0 A.D. HierarchicalPathfinder 96x96 chunk region system.
+// Derived from 0 A.D., GPL-2.0-or-later (Copyright (C) Wildfire Games).
 //   Reference: HierarchicalPathfinder.h (CHUNK_SIZE=96), HierarchicalPathfinder.cpp:865 (flood-fill).
 //   Adapted for 64x64 grid: CHUNK_SIZE=8 => 8 chunks per axis (64/8=8).
 //   Adds: NavChunk, rebuild_regions(), find_path_hierarchical(), string_pull(),
