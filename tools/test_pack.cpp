@@ -8,8 +8,8 @@
 //     src/network/net_host.cpp -lpthread -o /tmp/test_pack && /tmp/test_pack
 //
 //  1. Who packs: catapults and bolt shooters spawn packed (0 A.D. trains the "_packed"
-//     template); infantry and rams have no Pack. Every roster template that packs is a
-//     "_packed" 0 A.D. template.
+//     template); infantry and rams have no Pack. Roster templates pack by ROSTER_PACKABLE,
+//     and siege towers (ROSTER_SIEGE_TOWER) never do.
 //  2. Attack in range: a packed catapult ordered to attack a target in range stays put and
 //     holds fire while it unpacks, then fires.
 //  3. Move while unpacked: a walk order makes it pack first (no movement for 10 s), then move.
@@ -81,15 +81,20 @@ static void test_who_packs() {
 	check(pack_of(s, ram) == PACK_NONE, "ram has no Pack");
 	check(pack_of(s, spear) == PACK_NONE, "spearman has no Pack");
 
-	int packers = 0, bad = 0;
+	int packers = 0, bad = 0, towers = 0;
 	for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t) {
 		const CivUnitTemplate &ct = civ_unit_template(t);
+		if (ct.flags & ROSTER_SIEGE_TOWER) {
+			++towers;
+			if (unit_has_pack(t, ct.unit_type)) ++bad;
+			continue;
+		}
 		if (!unit_has_pack(t, ct.unit_type)) continue;
 		++packers;
-		if (!std::strstr(ct.id, "_packed")) ++bad;
+		if (ct.unit_type != UNIT_CATAPULT && ct.unit_type != UNIT_BOLT_SHOOTER) ++bad;
 	}
-	std::printf("  roster templates with Pack: %d\n", packers);
-	check(packers > 0 && bad == 0, "roster templates that pack are 0 A.D. \"_packed\" templates");
+	std::printf("  roster templates with Pack: %d, siege towers: %d\n", packers, towers);
+	check(packers > 0 && bad == 0, "only stone throwers and bolt shooters pack; siege towers don't");
 }
 
 static void test_attack_in_range() {
