@@ -113,6 +113,14 @@ layout_mode = 2
 tooltip_text = "Legacy wave defense: enemy waves attack every 35 seconds; survive the fifth to win."
 text = "Wave defense"
 
+[node name="MapSizeLabel" type="Label" parent="VBox/HBox/Left"]
+layout_mode = 2
+text = "Map size (random maps)"
+
+[node name="MapSizeSlot" type="Control" parent="VBox/HBox/Left"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+
 [node name="ResLabel" type="Label" parent="VBox/HBox/Left"]
 layout_mode = 2
 text = "Starting resources"

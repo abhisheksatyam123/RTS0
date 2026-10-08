@@ -178,16 +178,17 @@ int main() {
 		CHECK(vc != VICTORY_REGICIDE || heroes == 2);
 	}
 
-	// 10. Victory condition and wave mode reach the joining peer in NMT_GAME_START.
+	// 10. Victory condition, wave mode and map size reach the joining peer in NMT_GAME_START.
 	{
 		GameSetupParams p;
 		p.map_id = "random_continental";
 		p.seed = 7;
 		p.victory = VICTORY_REGICIDE;
 		p.waves = 1;
+		p.map_size = 384;
 		GameSetupParams q;
 		CHECK(parse_game_start_full(format_game_start_full(p), q));
-		CHECK(q.victory == VICTORY_REGICIDE && q.waves == 1);
+		CHECK(q.victory == VICTORY_REGICIDE && q.waves == 1 && q.map_size == 384);
 	}
 
 	if (failures) {
