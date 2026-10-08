@@ -7804,6 +7804,126 @@
   ],
   "fauna": [
     {
+      "type": "chicken",
+      "x": -7.51,
+      "z": 56.79
+    },
+    {
+      "type": "chicken",
+      "x": -8.02,
+      "z": 55.25
+    },
+    {
+      "type": "chicken",
+      "x": -7.85,
+      "z": 55.95
+    },
+    {
+      "type": "chicken",
+      "x": -6.27,
+      "z": 56.22
+    },
+    {
+      "type": "chicken",
+      "x": -7.18,
+      "z": 55.77
+    },
+    {
+      "type": "chicken",
+      "x": 11.49,
+      "z": 62.5
+    },
+    {
+      "type": "chicken",
+      "x": 10.7,
+      "z": 60.44
+    },
+    {
+      "type": "chicken",
+      "x": 8.84,
+      "z": 58.63
+    },
+    {
+      "type": "chicken",
+      "x": 8.24,
+      "z": 57.05
+    },
+    {
+      "type": "chicken",
+      "x": 9.01,
+      "z": 60.05
+    },
+    {
+      "type": "chicken",
+      "x": -20.46,
+      "z": -102.63
+    },
+    {
+      "type": "chicken",
+      "x": -19.43,
+      "z": -104.29
+    },
+    {
+      "type": "chicken",
+      "x": -18.22,
+      "z": -104.38
+    },
+    {
+      "type": "chicken",
+      "x": -19.21,
+      "z": -102.07
+    },
+    {
+      "type": "chicken",
+      "x": -20.52,
+      "z": -99.1
+    },
+    {
+      "type": "chicken",
+      "x": -7.68,
+      "z": -95.24
+    },
+    {
+      "type": "chicken",
+      "x": -4.8,
+      "z": -96.2
+    },
+    {
+      "type": "chicken",
+      "x": -6.35,
+      "z": -95.73
+    },
+    {
+      "type": "chicken",
+      "x": -5.46,
+      "z": -95.47
+    },
+    {
+      "type": "chicken",
+      "x": -1.51,
+      "z": -95.51
+    },
+    {
+      "type": "whale_fin",
+      "x": -43.44,
+      "z": 5.24
+    },
+    {
+      "type": "whale_fin",
+      "x": 61.53,
+      "z": -38.94
+    },
+    {
+      "type": "whale_fin",
+      "x": -92.38,
+      "z": -70.37
+    },
+    {
+      "type": "whale_fin",
+      "x": 65.31,
+      "z": 87.86
+    },
+    {
       "type": "sheep",
       "x": -90.67,
       "z": -28.84
@@ -8190,6 +8310,205 @@
       "player": 1,
       "x": 49.21,
       "z": 36.6
+    }
+  ],
+  "treasures": [
+    {
+      "type": "shipwreck",
+      "x": -12.42,
+      "z": 25.62
+    },
+    {
+      "type": "shipwreck_debris",
+      "x": -8.95,
+      "z": 18.71
+    },
+    {
+      "type": "shipwreck_debris",
+      "x": -15.54,
+      "z": 20.15
+    },
+    {
+      "type": "shipwreck_debris",
+      "x": 69.39,
+      "z": -72.25
+    },
+    {
+      "type": "shipwreck_debris",
+      "x": -60.93,
+      "z": -83.28
+    },
+    {
+      "type": "shipwreck_debris",
+      "x": -100.15,
+      "z": -19.49
+    },
+    {
+      "type": "shipwreck",
+      "x": -55.15,
+      "z": -87.61
+    },
+    {
+      "type": "shipwreck",
+      "x": 51.49,
+      "z": -18.5
+    },
+    {
+      "type": "stone",
+      "x": 73.36,
+      "z": 52.7
+    },
+    {
+      "type": "stone",
+      "x": 72.77,
+      "z": -57.08
+    },
+    {
+      "type": "wood",
+      "x": 23.18,
+      "z": -15.84
+    },
+    {
+      "type": "wood",
+      "x": -80.88,
+      "z": -3.11
+    },
+    {
+      "type": "food_jars",
+      "x": -77.2,
+      "z": -4.87
+    },
+    {
+      "type": "food_crate",
+      "x": -18.58,
+      "z": -106.14
+    },
+    {
+      "type": "food_jars",
+      "x": -20.01,
+      "z": -105.9
+    },
+    {
+      "type": "food_jars",
+      "x": -15.34,
+      "z": 51.42
+    },
+    {
+      "type": "food_crate",
+      "x": -15.38,
+      "z": 49.59
+    },
+    {
+      "type": "metal_persian_big",
+      "x": 32.52,
+      "z": -15.68
+    },
+    {
+      "type": "metal_persian_small",
+      "x": -91.03,
+      "z": -18.45
+    },
+    {
+      "type": "stone",
+      "x": -92.42,
+      "z": -17.37
+    },
+    {
+      "type": "food_barrels_buried",
+      "x": 68.2,
+      "z": -70.67
+    },
+    {
+      "type": "food_barrels_buried",
+      "x": 69.49,
+      "z": 60.48
+    },
+    {
+      "type": "food_barrels_buried",
+      "x": -93.3,
+      "z": -5.25
+    },
+    {
+      "type": "shipwreck_sail_boat",
+      "x": -71.74,
+      "z": 71.34
+    },
+    {
+      "type": "shipwreck_debris",
+      "x": -73.19,
+      "z": 70.83
+    },
+    {
+      "type": "shipwreck_sail_boat",
+      "x": -36.04,
+      "z": -33.21
+    },
+    {
+      "type": "shipwreck_sail_boat_cut",
+      "x": -74.38,
+      "z": -16.55
+    },
+    {
+      "type": "shipwreck_ram_bow",
+      "x": 73.6,
+      "z": -68.56
+    },
+    {
+      "type": "shipwreck_ram_bow",
+      "x": 88.14,
+      "z": 70.16
+    }
+  ],
+  "ruins": [
+    {
+      "type": "stone_statues_egyptian",
+      "x": 76.41,
+      "z": 52.54
+    },
+    {
+      "type": "stone_statues_egyptian",
+      "x": -3.61,
+      "z": -96.15
+    },
+    {
+      "type": "stone_statues_egyptian",
+      "x": -3.09,
+      "z": -95.1
+    },
+    {
+      "type": "stone_statues_egyptian",
+      "x": -89.87,
+      "z": -9.87
+    },
+    {
+      "type": "stone_statues_egyptian",
+      "x": -88.72,
+      "z": -7.75
+    },
+    {
+      "type": "stone_statues_egyptian",
+      "x": -34.76,
+      "z": -90.66
+    },
+    {
+      "type": "stone_statues_egyptian",
+      "x": -33.6,
+      "z": -90.24
+    },
+    {
+      "type": "stone_statues_egyptian",
+      "x": -33.0,
+      "z": -89.07
+    },
+    {
+      "type": "stone_statues_egyptian",
+      "x": -15.44,
+      "z": -104.67
+    },
+    {
+      "type": "stone_statues_egyptian",
+      "x": 20.9,
+      "z": -11.61
     }
   ]
 }

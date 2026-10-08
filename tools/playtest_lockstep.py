@@ -265,6 +265,23 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
     pauses = peer_lines(outs, "pause")
     pause_ok = (len(pauses) == 2 and all(p.get("seen") == "1" and p.get("by") == "0" for p in pauses.values())
                 and int(pauses["join"].get("held_ms", "0")) >= 1000)
+    # Trading goods (cmd 33): the host's mix changes once its command runs, then
+    # the joiner's, on the same turns on both peers.
+    def goods_steps(e):
+        rows = [(t, e[t].get("goods")) for t in sorted(e) if "goods" in e[t]]
+        return [(t, b) for (_, a), (t, b) in zip(rows, rows[1:]) if a != b]
+    goods = [goods_steps(e) for e in extras]
+    goods_ok = (goods[0] == goods[1] and len(goods[0]) == 2
+                and 340 < goods[0][0][0] <= 344 and goods[0][0][1].startswith("10,20,30,40/")
+                and 350 < goods[0][1][0] <= 354 and goods[0][1][1].endswith("/0,0,50,50"))
+    # Network status (NMT_CLIENT_PERFORMANCE): the host reports each client's round
+    # trip once a second, and the joiner hears it.
+    statuses = peer_lines(outs, "status")
+    def rtts(role):
+        v = statuses.get(role, {}).get("rtt", "-")
+        return {} if v == "-" else {int(k): int(r) for k, r in (x.split(":") for x in v.split(","))}
+    status_ok = (len(statuses) == 2 and int(statuses["join"].get("reports", "0")) >= 3
+                 and 0 < rtts("join").get(1, 0) < 2000 and 0 < rtts("host").get(1, 0) < 2000)
     # Save/load: each world reloads from its own save with the same hash.
     saves = peer_lines(outs, "saveload")
     save_ok = (len(saves) == 2 and all(v.get("ok") == "1" and v.get("before") == v.get("after") for v in saves.values())
@@ -335,12 +352,14 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
         "setup_ok": setup_ok, "setups": setups,
         "ceasefire_ok": ceasefire_ok, "ceasefire_end": cf_end, "ceasefire_hits": cf_hits[:5],
         "tribute_ok": tribute_ok, "tributes": tributes, "upgrade_ok": upgrade_ok, "gate_turn": gate_turn,
+        "goods_ok": goods_ok, "goods": goods,
+        "status_ok": status_ok, "statuses": statuses,
         "heal_ok": heal_ok, "heal_turn": heal_turn, "healed": healed,
         "work_ok": work_ok, "works": works, "work_turns": work_turns,
         "lock_ok": lock_ok, "locks": locks, "pack_ok": pack_ok, "packs": packs, "chat_ok": chat_ok, "chats": chats,
         "pause_ok": pause_ok, "pauses": pauses, "save_ok": save_ok, "saves": saves,
         "defeat_ok": defeat_ok, "defeat_turn": out_turn, "game_over": over,
-        "ok": divergent is None and complete and setup_ok and ceasefire_ok and defeat_ok and tribute_ok and upgrade_ok and lock_ok and pack_ok and work_ok and heal_ok and chat_ok and pause_ok and save_ok and all(rc == 0 for rc in rcs),
+        "ok": divergent is None and complete and setup_ok and ceasefire_ok and defeat_ok and tribute_ok and upgrade_ok and lock_ok and pack_ok and work_ok and heal_ok and status_ok and goods_ok and chat_ok and pause_ok and save_ok and all(rc == 0 for rc in rcs),
     }
 
 
@@ -419,23 +438,34 @@ def run_three_human_case(binary: str, seed: int, speed: float, loss: float, port
         if os.path.exists(path):
             os.remove(path)
     common = ["--speed", str(speed), "--loss", str(loss), "--humans", "3"]
+    # Output goes to files, so the script can wait on what a peer printed.
     def peer(role, log, *more):
-        return subprocess.Popen([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
-                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        with open(log + ".out", "w") as out:
+            return subprocess.Popen([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
+                                    stdout=out, stderr=subprocess.STDOUT, text=True)
+    def printed(log, text, secs=20.0):
+        end = time.time() + secs
+        while time.time() < end:
+            if os.path.exists(log + ".out") and text in open(log + ".out").read():
+                return True
+            time.sleep(0.05)
+        return False
     procs = {"host": peer("host", logs["host"])}
     time.sleep(0.3)
     procs["j1"] = peer("join", logs["j1"])
-    time.sleep(0.3)  # connect order numbers the joiners: j1 is client 1, j2 client 2
+    # Connect order numbers the joiners: j2 starts only once j1 is client 1,
+    # however loaded the machine is.
+    printed(logs["j1"], "assigned local peer_id 1")
     procs["j2"] = peer("join", logs["j2"], "--quit-turn", str(leave))
     outs, rcs = {}, {}
     def finish(role):
         p = procs[role]
         try:
-            out, _ = p.communicate(timeout=timeout)
+            p.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
             p.kill()
-            out, _ = p.communicate()
-        outs[role] = out or ""
+            p.wait()
+        outs[role] = open(logs[role] + ".out").read()
         rcs[role] = p.returncode
     finish("j2")
     time.sleep(0.5)
@@ -462,6 +492,70 @@ def run_three_human_case(binary: str, seed: int, speed: float, loss: float, port
                     print(f"   {role}: {line}")
         print(f"[net] FAIL three humans: rc={rcs} rejoin={rep} turns={ {r: len(v) for r, v in h.items()} } "
               f"first_bad={bad} relayed={relayed}")
+    return ok
+
+
+def run_kick_case(binary: str, seed: int, speed: float, loss: float, port: int, out_dir: str,
+                  timeout: int) -> bool:
+    """0 A.D. password-protected hosting and kick/ban: three humans join a game
+    with a password, a client with the wrong one is refused, the host bans the
+    third player after turn KICK, and that name cannot come back. The host and
+    player 2 play on in sync."""
+    turns, kick = 400, 150
+    print(f"\n---- password and ban: wrong password refused, player 3 banned after turn {kick} ----")
+    roles = ("host", "j1", "j2", "wrong", "banned")
+    logs = {r: os.path.join(out_dir, f"kick_{r}.log") for r in roles}
+    for path in logs.values():
+        if os.path.exists(path):
+            os.remove(path)
+    common = ["--speed", str(speed), "--loss", str(loss), "--humans", "3"]
+    def peer(role, log, *more):
+        return subprocess.Popen([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    procs = {"host": peer("host", logs["host"], "--name", "host", "--password", "pw",
+                          "--kick-turn", str(kick), "--kick-name", "carol", "--ban", "1")}
+    time.sleep(0.3)
+    procs["j1"] = peer("join", logs["j1"], "--name", "alice", "--password", "pw")
+    time.sleep(0.3)
+    procs["j2"] = peer("join", logs["j2"], "--name", "carol", "--password", "pw")
+    time.sleep(1.5)  # the match is running
+    procs["wrong"] = peer("join", logs["wrong"], "--name", "mallory", "--password", "nope")
+    outs, rcs = {}, {}
+    def finish(role):
+        p = procs[role]
+        try:
+            out, _ = p.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            out, _ = p.communicate()
+        outs[role] = out or ""
+        rcs[role] = p.returncode
+    finish("wrong")
+    finish("j2")
+    time.sleep(0.5)
+    procs["banned"] = peer("join", logs["banned"], "--name", "carol", "--password", "pw", "--rejoin", "1")
+    for role in ("banned", "j1", "host"):
+        finish(role)
+    h, j1 = read_hashes(logs["host"]), read_hashes(logs["j1"])
+    refused = {r: next((l.split("code=")[1] for l in outs[r].splitlines() if "refused code=" in l), None)
+               for r in ("wrong", "banned")}
+    kicked = any("join: kicked at turn" in l for l in outs["j2"].splitlines())
+    j1_heard = "join: kicks name=carol ban=1" in outs["j1"]
+    bad = next((t for t in sorted(h) if j1.get(t) != h[t]), None)
+    ok = (rcs["host"] == 0 and rcs["j1"] == 0 and rcs["j2"] == 0 and rcs["wrong"] == 4 and rcs["banned"] == 4
+          and refused == {"wrong": "3", "banned": "4"} and kicked and j1_heard
+          and len(h) == turns and len(j1) == turns and bad is None)
+    if ok:
+        print(f"[net] PASS password and ban: wrong password refused (code 3), player 3 banned after turn {kick} "
+              f"and refused on its way back (code 4); host and player 2 matched on all {turns} turns "
+              f"(final hash {h[turns]})")
+    else:
+        for role in roles:
+            for line in outs.get(role, "").splitlines():
+                if line.startswith("[net-peer]") or line.startswith("[TurnManager]") or "Refused" in line:
+                    print(f"   {role}: {line}")
+        print(f"[net] FAIL password and ban: rc={rcs} refused={refused} kicked={kicked} heard={j1_heard} "
+              f"turns={len(h)},{len(j1)} first_bad={bad}")
     return ok
 
 
@@ -644,6 +738,10 @@ def main() -> int:
             print(f"[net] worker gathered at turn {wt['gather']}, walked at {wt['walk']} with a queued walk "
                   f"at {wt['queued']} (done at {wt['queue_done']}), back to work at {wt['back']}, "
                   f"deleted at {wt['deleted']}, on both peers")
+            print(f"[net] trading goods set at turns {[t for t, _ in nr['goods'][0]]} on both peers "
+                  f"({nr['goods'][0][-1][1]})")
+            print(f"[net] network status: the joiner got {nr['statuses']['join']['reports']} reports from the "
+                  f"host, last round trips (client:ms) {nr['statuses']['join']['rtt']}")
             print(f"[net] healer took the heal order at turn {nr['heal_turn']}; the swordsman wounded to 40 hp "
                   f"healed to {nr['healed']:.0f} on both peers")
             print(f"[net] chat: host got {nr['chats']['host']}, joiner got {nr['chats']['join']}; "
@@ -656,6 +754,10 @@ def main() -> int:
             print(f"[net] FAIL tribute: stone changes (host, join) {nr['tributes']}")
         elif not nr["pack_ok"]:
             print(f"[net] FAIL pack: state changes (turn, state) {nr['packs']}")
+        elif not nr["goods_ok"]:
+            print(f"[net] FAIL trading goods: changes (turn, goods) {nr['goods']}")
+        elif not nr["status_ok"]:
+            print(f"[net] FAIL network status: {nr['statuses']}")
         elif not nr["heal_ok"]:
             print(f"[net] FAIL heal: order at {nr['heal_turn']}, best hp {nr['healed']}")
         elif not nr["work_ok"]:
@@ -689,6 +791,8 @@ def main() -> int:
                                  args.net_port + 2, out_dir, args.timeout) and net_ok
         net_ok = run_three_human_case(binary_path, args.seeds[0], args.net_speed, args.net_loss,
                                       args.net_port + 3, out_dir, args.timeout) and net_ok
+        net_ok = run_kick_case(binary_path, args.seeds[0], args.net_speed, args.net_loss,
+                               args.net_port + 4, out_dir, args.timeout) and net_ok
 
     oos = [r for r in results if r["divergent_turn"] is not None]
     if not net_ok and not oos:
