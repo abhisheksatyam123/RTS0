@@ -98,7 +98,10 @@ enum MapType : uint8_t {
 	MAP_INDIA = 42,
 	MAP_GUADALQUIVIR_RIVER = 43,
 	MAP_FIELDS_OF_MEROE = 44,
-	MAP_TYPE_COUNT = 45
+	// 0 A.D. trigger maps (maps/random/*_triggers.js run as map triggers, triggers.h)
+	MAP_FLOOD = 45,
+	MAP_EXTINCT_VOLCANO = 46,
+	MAP_TYPE_COUNT = 47
 };
 
 struct MapTypeInfo {
@@ -156,7 +159,9 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_DEEP_FOREST, "deep_forest", "Deep Forest (RMS)", "temperate", true, "A deep dark forest in Germania, crossed by paths between the bases and a central hill."},
 		{MAP_INDIA, "india", "India (RMS)", "india", true, "Parched central India before the monsoon; only one large, half dried-up lake remains."},
 		{MAP_GUADALQUIVIR_RIVER, "guadalquivir_river", "Guadalquivir River (RMS)", "mediterranean", true, "Players on the Mediterranean shore, split by a river with three shallow crossings."},
-		{MAP_FIELDS_OF_MEROE, "fields_of_meroe", "Fields of Meroe (RMS)", "savanna", true, "Kush's heartland by the Nile, crossed at two cataracts, with dunes and acacia groves."}
+		{MAP_FIELDS_OF_MEROE, "fields_of_meroe", "Fields of Meroe (RMS)", "savanna", true, "Kush's heartland by the Nile, crossed at two cataracts, with dunes and acacia groves."},
+		{MAP_FLOOD, "flood", "Flood (RMS)", "temperate", true, "A great flood moves across the valley. The home islands go under, so evacuate your units by ship to the mainland."},
+		{MAP_EXTINCT_VOLCANO, "extinct_volcano", "Extinct Volcano (RMS)", "volcanic", true, "Rains raise the water from the 25th minute until only the hills and the great cone stay dry. Gaia towers guard the lowlands."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];

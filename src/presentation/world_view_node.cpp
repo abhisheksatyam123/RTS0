@@ -1020,6 +1020,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	if (delta > 0.05f) delta = 0.05f;
 	anim_time += delta;
 	unit_vis_stamp++;
+	// Map triggers (Flood, Extinct Volcano) raise the water during the match.
+	if (water_mesh_node && water_mesh_node->is_visible() &&
+	    water_mesh_node->get_position().y != sim->water_height()) {
+		water_mesh_node->set_position(Vector3(0.0f, sim->water_height(), 0.0f));
+	}
 	if (unit_vis_stamp == 0) unit_vis_stamp = 1;
 
 	// Update skeletal animation controllers
