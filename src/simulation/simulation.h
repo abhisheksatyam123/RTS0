@@ -987,6 +987,10 @@ private:
 	void tick_projectiles(float dt);
 	void tick_construction(float dt);
 	void tick_repair(float dt);
+	static constexpr float REPAIR_TIME_RATIO = 2.0f; // template_structure.xml Repairable/RepairTimeRatio
+	static float foundation_build_multiplier(int builders);
+	float builder_rate(size_t unit_idx) const;
+	float structure_build_time(const Building &b, uint8_t builder_team) const;
 	void tick_production(float dt);
 	void tick_research(float dt);
 	void tick_upgrades(float dt);

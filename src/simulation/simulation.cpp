@@ -4302,16 +4302,39 @@ void Simulation::tick_gather(float dt) {
 	}
 }
 
+// Foundation.js / Repairable.js CalculateBuildMultiplier: n builders at work
+// each do n^0.7 / n of their rate (BuildTimeModifier / buildTimePenalty 0.7).
+float Simulation::foundation_build_multiplier(int builders) {
+	return builders < 2 ? 1.0f : std::pow((float)builders, 0.7f) / (float)builders;
+}
+
+// Builder.js GetRate: 1 for citizens; worker elephants build twice as fast.
+float Simulation::builder_rate(size_t unit_idx) const {
+	return units_.unit_type[unit_idx] == UNIT_WORKER_ELEPHANT ? 2.0f : 1.0f;
+}
+
+// Cost.js GetBuildTime for the builder's player: the template time after
+// technologies, civ and team bonuses (Celtic Wooden Construction, ...) and the
+// AI difficulty multiplier.
+float Simulation::structure_build_time(const Building &b, uint8_t builder_team) const {
+	const uint8_t type = b.type < BLD_TYPE_COUNT ? b.type : 0;
+	float t = building_type_info(type).build_time * tech_mods(b.team).bld_build_time[type] * ai_time_mult(b.team);
+	t *= civ_bonus_mult(civ_of(builder_team), CIV_BONUS_BUILDING_BUILD_TIME, b.type);
+	t *= team_bonus_mult(builder_team, TEAM_BONUS_BUILDING_BUILD_TIME, -1, CIV_UNIT_TEMPLATE_NONE, b.type);
+	return std::max(1.0f, t);
+}
+
 void Simulation::tick_construction(float dt) {
-	// Count builders per building for multi-worker scaling (foundations only)
+	// Builders at work on each foundation (Foundation.js AddBuilder: those in range).
 	std::unordered_map<uint32_t, int> builders_per_bld;
 	const size_t n = units_.count;
 	for (size_t i = 0; i < n; ++i) {
 		if (units_.alive[i] && units_.action_state[i] == ACTION_BUILD && units_.target_building_id[i] != 0) {
 			auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
-			if (bit != building_id_to_idx_.end() && buildings_[bit->second].build_progress < 1.0f) {
-				builders_per_bld[units_.target_building_id[i]]++;
-			}
+			if (bit == building_id_to_idx_.end()) continue;
+			const Building &b = buildings_[bit->second];
+			if (b.build_progress < 1.0f && outside_and_in_build_range(b.x, b.z, b.half_size, units_.pos_x[i], units_.pos_z[i]))
+				builders_per_bld[b.id]++;
 		}
 	}
 
@@ -4340,22 +4363,18 @@ void Simulation::tick_construction(float dt) {
 		}
 
 		if (outside_and_in_build_range(b.x, b.z, b.half_size, units_.pos_x[i], units_.pos_z[i])) {
-			int worker_count = std::max(1, builders_per_bld[b.id]);
-			float speed_mult = sqrtf((float)worker_count) / (float)worker_count;
-			if (units_.unit_type[i] == UNIT_WORKER_ELEPHANT) speed_mult *= 2.0f; // Worker elephant heavy construction
-			Civilization civ = civ_of(units_.team[i]);
-			speed_mult /= civ_bonus_mult(civ, CIV_BONUS_BUILDING_BUILD_TIME, b.type); // e.g. Celtic Wooden Construction
-			speed_mult /= team_bonus_mult(units_.team[i], TEAM_BONUS_BUILDING_BUILD_TIME, -1, CIV_UNIT_TEMPLATE_NONE, b.type);
-
 			// 0 A.D. Foundation.Commit: first builder on site → scaffold + construction preview.
 			b.committed = true;
-			const BuildingTypeInfo &binfo = building_type_info(b.type);
-			float build_time = binfo.build_time * tech_mods(b.team).bld_build_time[b.type < BLD_TYPE_COUNT ? b.type : 0]
-				* ai_time_mult(b.team);
-			float rate = (1.0f / std::max(5.0f, build_time)) * speed_mult * dt;
-			b.build_progress = std::min(1.0f, b.build_progress + rate);
-			b.hp = b.max_hp * b.build_progress;
+			// Foundation.js Build: each builder adds work x MaxHitpoints / BuildTime x
+			// buildMultiplier HP, with buildMultiplier = n^0.7 / n for n builders at work
+			// (BuildTimeModifier 0.7). Progress is the best health fraction reached, so
+			// damage to a foundation has to be built back.
+			const float hp_rate = b.max_hp / structure_build_time(b, units_.team[i]);
+			const float work = foundation_build_multiplier(builders_per_bld[b.id]) * builder_rate(i);
+			b.hp = std::min(b.max_hp, b.hp + work * hp_rate * dt);
+			b.build_progress = std::min(1.0f, std::max(b.build_progress, b.hp / b.max_hp));
 			if (b.build_progress >= 1.0f) {
+				b.hp = std::max(b.hp, b.max_hp);
 				on_construction_finished(b, i); // 0 A.D. UnitAI ConstructionFinished
 				rebuild_nav_grid();
 				if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER) {
@@ -4387,7 +4406,8 @@ void Simulation::tick_repair(float dt) {
 			auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
 			if (bit != building_id_to_idx_.end()) {
 				const Building &b = buildings_[bit->second];
-				if (b.build_progress >= 1.0f && b.hp > 0.0f && b.hp < b.max_hp) {
+				if (b.build_progress >= 1.0f && b.hp > 0.0f && b.hp < b.max_hp &&
+						outside_and_in_build_range(b.x, b.z, b.half_size, units_.pos_x[i], units_.pos_z[i])) {
 					repairers_per_bld[b.id]++;
 				}
 			}
@@ -4402,15 +4422,11 @@ void Simulation::tick_repair(float dt) {
 		if (b.build_progress < 1.0f || b.hp <= 0.0f || b.hp >= b.max_hp) continue;
 
 		if (outside_and_in_build_range(b.x, b.z, b.half_size, units_.pos_x[i], units_.pos_z[i])) {
-			int worker_count = std::max(1, repairers_per_bld[b.id]);
-			float speed_mult = sqrtf((float)worker_count) / (float)worker_count;
-			if (units_.unit_type[i] == UNIT_WORKER_ELEPHANT) speed_mult *= 2.0f;
-			Civilization civ = civ_of(units_.team[i]);
-			speed_mult /= civ_bonus_mult(civ, CIV_BONUS_BUILDING_BUILD_TIME, b.type); // e.g. Celtic Wooden Construction
-			speed_mult /= team_bonus_mult(units_.team[i], TEAM_BONUS_BUILDING_BUILD_TIME, -1, CIV_UNIT_TEMPLATE_NONE, b.type);
-
-			// Repair finished building (0 A.D. Repairable.js:114-118 Repair rate)
-			b.hp = std::min(b.max_hp, b.hp + dt * 30.0f * speed_mult);
+			// Repairable.js Repair: work x buildMultiplier (n^0.7 / n) x GetRepairRate,
+			// GetRepairRate = MaxHitpoints / (RepairTimeRatio 2.0 x BuildTime).
+			const float repair_rate = b.max_hp / (REPAIR_TIME_RATIO * structure_build_time(b, units_.team[i]));
+			const float work = foundation_build_multiplier(repairers_per_bld[b.id]) * builder_rate(i);
+			b.hp = std::min(b.max_hp, b.hp + work * repair_rate * dt);
 			// Repairable sends ConstructionFinished too: the repairers move on to nearby work.
 			if (b.hp >= b.max_hp) on_construction_finished(b, i);
 		}
