@@ -80,6 +80,8 @@ struct ProductionOrder {
 // Stockpiles are float so AI trickle income accrues fractionally; whole-number
 // callers read them through int accessors.
 static constexpr uint8_t MAX_PLAYERS = 8;
+// Owner of a defeated player's leftovers (0 A.D.'s Gaia): hostile to everyone, owned by no slot.
+static constexpr uint8_t GAIA_PLAYER = 0xFE;
 
 struct PlayerState {
 	float res[RES_COUNT] = {};             // indexed by ResourceType
@@ -125,6 +127,7 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
+	static constexpr uint32_t SAVE_VERSION = 18; // save_state's format; see the history beside it
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -338,8 +341,15 @@ public:
 	void order_disembark_all(uint32_t transport_id);
 	void order_disembark_single(uint32_t transport_id, uint32_t unit_id);
 	const std::vector<uint32_t> *get_transport_passengers(uint32_t transport_id) const;
+	const std::unordered_map<uint32_t, std::vector<uint32_t>> &transport_passengers() const { return transport_passengers_; }
 	size_t get_transport_passenger_count(uint32_t transport_id) const;
 	bool is_transport(uint32_t unit_id) const;
+	// Land siege that carries troops (0 A.D. GarrisonHolder): siege towers and rams.
+	// Returns its capacity, 0 for anything else. `i` is a SoA index.
+	int siege_garrison_capacity(size_t i) const;
+	bool is_siege_tower_at(size_t i) const;
+	// Garrisoned Infantry in a siege tower = arrows per volley (capped).
+	int siege_tower_arrows(size_t i) const;
 	int get_transport_capacity(uint32_t transport_id) const;
 
 	// Garrison & Turret System (GarrisonHolder.js, TurretHolder.js)
@@ -503,8 +513,14 @@ public:
 	const std::vector<Projectile> &projectiles() const { return projectiles_; }
 
 	// Per-player table. Out-of-range ids clamp to player 0 so stray team bytes can't index past the array.
-	const PlayerState &player(uint8_t pid) const { return players_[pid < MAX_PLAYERS ? pid : 0]; }
-	PlayerState &player(uint8_t pid) { return players_[pid < MAX_PLAYERS ? pid : 0]; }
+	// Gaia (and any other non-slot owner) gets an empty stock: nothing it earns or spends
+	// reaches a real player.
+	const PlayerState &player(uint8_t pid) const { return pid < MAX_PLAYERS ? players_[pid] : gaia_stock_; }
+	PlayerState &player(uint8_t pid) {
+		if (pid < MAX_PLAYERS) return players_[pid];
+		gaia_stock_ = PlayerState();
+		return gaia_stock_;
+	}
 	int player_resource(uint8_t pid, uint8_t res_type) const { return (res_type < RES_COUNT) ? (int)player(pid).res[res_type] : 0; }
 	void set_player_resources(uint8_t pid, int food, int wood, int gold, int stone) {
 		PlayerState &ps = player(pid);
@@ -841,6 +857,7 @@ private:
 		float heal_range[UNIT_TYPE_COUNT];    // added metres
 		float heal_interval[UNIT_TYPE_COUNT]; // < 1 heals faster
 		float trade_gain[UNIT_TYPE_COUNT];
+		float pack_time[UNIT_TYPE_COUNT];   // siege pack/unpack time multiplier
 		float bld_health[BLD_TYPE_COUNT];
 		float bld_attack[BLD_TYPE_COUNT];
 		float bld_range[BLD_TYPE_COUNT];
@@ -868,6 +885,9 @@ private:
 	void tick_production(float dt);
 	void tick_research(float dt);
 	void tick_upgrades(float dt);
+	// Unloads land siege below SIEGE_EJECT_HEALTH or dead (GarrisonHolder EjectHealth / OnDestroy).
+	void tick_siege_garrisons();
+	bool can_board(size_t transport_idx, size_t unit_idx) const;
 	void cancel_upgrade(Building &b, uint8_t refund_to);
 	void finish_upgrade(Building &b);
 	void tick_barter(float dt);
@@ -960,6 +980,9 @@ private:
 	std::unordered_map<uint32_t, uint32_t> field_bld_by_res_; // grain resource id -> field building id
 	struct FieldGatherers { int total = 0; int slots_taken = 0; };
 	std::unordered_map<uint32_t, FieldGatherers> field_gatherers_; // per tick, keyed by grain resource id
+	std::unordered_map<uint32_t, FieldGatherers> fish_gatherers_; // per tick, keyed by fish resource id
+	// Nearest fish on `sea` (ship region) within max_d of (x, z) with a free gatherer slot; 0 if none.
+	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0) const;
 	std::unordered_map<uint32_t, size_t> building_id_to_idx_;
 
 	struct CellHash {
@@ -1012,6 +1035,10 @@ private:
 	float relic_duration_ = 180.0f;
 	int relic_count_ = 0;
 	void apply_relic_count();
+	PlayerState gaia_stock_; // scratch for player(GAIA_PLAYER); never saved or hashed
+	// Player.js SetState("defeated"): hand every unit and structure of these players to Gaia.
+	void convert_to_gaia(uint8_t players);
+	void tick_capture_gaia(Building &b, float dt);
 	uint8_t participant_mask_ = 0; // save v10
 	uint8_t defeated_mask_ = 0;
 	uint8_t winner_mask_ = 0;

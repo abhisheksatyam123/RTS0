@@ -142,7 +142,10 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
 
             if ply == 0:
                 # Gaia resources & wildlife fauna
-                if any(k in ltpl for k in ["deer", "gazelle"]):
+                if "gaia/fish/" in ltpl:
+                    # template_gaia_fish.xml: 1000 food.fish, gathered only by fishing boats
+                    resources.append({"type": "fish", "x": wx, "z": wz, "amount": 1000})
+                elif any(k in ltpl for k in ["deer", "gazelle"]):
                     fauna.append({"type": "deer", "x": wx, "z": wz})
                 elif "boar" in ltpl:
                     fauna.append({"type": "boar", "x": wx, "z": wz})
