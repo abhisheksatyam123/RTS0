@@ -197,6 +197,56 @@ int main() {
 		}
 		delete sim;
 	}
+	// 9f. Player 0 falling doesn't end the match: it observes (map revealed, no orders reach
+	// the sim) while its ally fights on. The ally's win is the ally's alone.
+	{
+		Simulation *sim = fresh(VICTORY_CONQUEST);
+		sim->set_player_team(2, sim->player(0).team);
+		sim->spawn_unit(-40.0f, 40.0f, 2, UNIT_SWORDSMAN);
+		run(*sim, 0.5f);
+		wipe(*sim, 0, true, true);
+		run(*sim, 1.0f);
+		CHECK(!sim->is_game_over() && sim->is_defeated(0) && !sim->is_defeated(2));
+		CHECK(sim->fow_grid(0)[0] == Simulation::FOW_VISIBLE);
+		wipe(*sim, 1, true, true);
+		run(*sim, 1.0f);
+		CHECK(sim->is_game_over() && !sim->is_victory());
+		CHECK(sim->is_victory_for(2) && !sim->is_victory_for(0) && !sim->is_victory_for(1));
+		delete sim;
+	}
+	// 9g. Last Man Standing free-for-all: the match runs until one player is left.
+	{
+		Simulation *sim = fresh(VICTORY_CONQUEST);
+		sim->set_last_man_standing(true);
+		sim->spawn_unit(-40.0f, 40.0f, 2, UNIT_SWORDSMAN);
+		run(*sim, 0.5f);
+		wipe(*sim, 0, true, true);
+		run(*sim, 1.0f);
+		CHECK(!sim->is_game_over() && sim->is_defeated(0));
+		wipe(*sim, 1, true, true);
+		run(*sim, 1.0f);
+		CHECK(sim->is_game_over() && sim->winner_mask() == (1u << 2) && sim->is_victory_for(2));
+		delete sim;
+	}
+	// 9h. A defeated player stays out even if it gets units back, and defeat survives a save.
+	{
+		Simulation *sim = fresh(VICTORY_CONQUEST);
+		sim->set_player_team(2, sim->player(0).team);
+		sim->spawn_unit(-40.0f, 40.0f, 2, UNIT_SWORDSMAN);
+		run(*sim, 0.5f);
+		wipe(*sim, 0, true, true);
+		run(*sim, 1.0f);
+		sim->spawn_unit(0.0f, 0.0f, 0, UNIT_SWORDSMAN);
+		run(*sim, 1.0f);
+		CHECK(sim->is_defeated(0) && !sim->is_game_over());
+		const char *path = "test_victory_save.bin";
+		CHECK(sim->save_state(path));
+		Simulation loaded;
+		CHECK(loaded.load_state(path));
+		std::remove(path);
+		CHECK(loaded.is_defeated(0) && !loaded.is_defeated(2) && loaded.participant_mask() == sim->participant_mask());
+		delete sim;
+	}
 	// 9d. An ally's wonder wins for player 0 in Wonder mode.
 	{
 		Simulation *sim = fresh(VICTORY_WONDER);
@@ -204,7 +254,7 @@ int main() {
 		sim->spawn_building(-20, 20, BLD_WONDER, 2, 1.0f);
 		run(*sim, 2.0f);
 		CHECK(sim->is_wonder_active());
-		sim->wonder_victory_timer_ = 599.9f;
+		sim->wonder_hold_[2] = 599.9f;
 		run(*sim, 1.0f);
 		CHECK(sim->is_victory());
 		delete sim;
