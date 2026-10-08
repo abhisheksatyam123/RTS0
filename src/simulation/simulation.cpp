@@ -3062,12 +3062,8 @@ void Simulation::move_units(float dt, Arena &arena) {
 				units_.waypoint_cur[i] = 0;
 				units_.waypoint_count[i] = 0;
 				if ((size_t)i < unit_paths_.size()) unit_paths_[i].clear();
-			} else if (units_.action_state[i] == ACTION_PATROL) {
-				float orig_x = tx[i];
-				float orig_z = tz[i];
-				tx[i] = -orig_x * 0.8f;
-				tz[i] = -orig_z * 0.8f;
 			}
+			// A patrol turns round in tick_unit_ai(), which runs first.
 			return;
 		}
 
