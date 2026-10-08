@@ -16,8 +16,10 @@
 //  4. Walk cancels unpacking at once (UnitAI g_OrdersCancelUnpacking).
 //  5. Target out of range: an unpacked bolt shooter packs, closes in, unpacks and fires.
 //  6. order_pack (the Pack/Unpack command) and save/load keep the pack state.
+//  7. Lockstep command 29 (NET_CMD_PACK) unpacks and packs the sender's own engines only.
 //  Exit: 0 = PASS, 1 = FAIL.
 #include "simulation/simulation.h"
+#include "network/turn_manager.h"
 
 #include <cmath>
 #include <cstdio>
@@ -194,6 +196,36 @@ static void test_save_load(const char *path) {
 	std::remove(path);
 }
 
+static void test_lockstep() {
+	std::printf("7. lockstep Pack/Unpack command\n");
+	Simulation s;
+	setup(s);
+	uint32_t mine = s.spawn_unit(0, 0, 0, UNIT_CATAPULT);
+	uint32_t theirs = s.spawn_unit(-20, -20, 1, UNIT_CATAPULT);
+	// Passive so the two engines don't unpack to shoot each other.
+	s.order_set_stance(&mine, 1, STANCE_PASSIVE);
+	s.order_set_stance(&theirs, 1, STANCE_PASSIVE);
+	TurnManager tm;
+	auto turns = [&](float seconds) {
+		int n = (int)std::lround(seconds / TurnManager::TURN_DURATION);
+		for (int i = 0; i < n; ++i) tm.tick(TurnManager::TURN_DURATION, s);
+	};
+	check(static_cast<uint8_t>(NetCommandType::NET_CMD_PACK) == 29, "NET_CMD_PACK is command 29");
+	NetCommand c;
+	c.client_id = 0;
+	c.cmd_type = (uint8_t)NetCommandType::NET_CMD_PACK;
+	c.entity_ids = {mine, theirs};
+	c.param = 0;
+	tm.post_local_command(c);
+	turns(12.0f);
+	check(pack_of(s, mine) == PACK_UNPACKED, "command 29 unpacks the sender's catapult");
+	check(pack_of(s, theirs) == PACK_PACKED, "and leaves another player's alone");
+	c.param = 1;
+	tm.post_local_command(c);
+	turns(12.0f);
+	check(pack_of(s, mine) == PACK_PACKED, "command 29 with param 1 packs it again");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_pack.sav";
 	test_who_packs();
@@ -202,6 +234,7 @@ int main(int argc, char **argv) {
 	test_walk_cancels_unpack();
 	test_out_of_range();
 	test_save_load(save.c_str());
+	test_lockstep();
 	if (g_failures) {
 		std::printf("test_pack: FAIL (%d)\n", g_failures);
 		return 1;
