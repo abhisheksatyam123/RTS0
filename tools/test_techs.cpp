@@ -295,7 +295,7 @@ int main() {
 		s.set_player_civ(CIV_CARTHAGINIANS);
 		s.player(0).phase = 2;
 		float stone0 = (float)s.stone();
-		CHECK(s.cmd_build(0, 10, 10, BLD_WALL_TOWER) != 0);
+		CHECK(s.cmd_build(0, -16, -16, BLD_WALL_TOWER) != 0); // in its Civic Centre's territory
 		float paid = stone0 - (float)s.stone();
 		CHECK(std::fabs(paid - 2.0f * building_type_info(BLD_WALL_TOWER).stone_cost) < 1.01f);
 	}
