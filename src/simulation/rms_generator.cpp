@@ -1719,6 +1719,159 @@ void RmsGenerator::synth_alpine_valley(HeightmapGrid &hm, RmsRng &rng, float &wa
 	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
 }
 
+// =========================================================================
+// Maps modelled on 0 A.D. maps/random/{syria,cantabrian_highlands,
+// pyrenean_sierra,sahel_watering_holes,persian_highlands,volcanic_lands}.js
+// (same coordinate convention as above).
+// =========================================================================
+
+namespace {
+// `count` round hills of radius [r0, r1] and height [h0, h1], at least `clear`
+// from every spawn. Spawns must already be set.
+void scatter_hills(HeightmapGrid &hm, RmsRng &rng, const std::vector<RmsGenerator::PlayerSpawn> &spawns, int count,
+		float r0, float r1, float h0, float h1, float clear) {
+	const float half = hm.map_half;
+	for (int i = 0, tries = 0; i < count && tries < count * 40; ++tries) {
+		const float a = rng.range_float(0.0f, 6.2831853f);
+		const float d = std::sqrt(rng.next_float()) * half * 0.95f;
+		const float hx = std::cos(a) * d, hz = std::sin(a) * d;
+		const float r = rng.range_float(r0, r1);
+		bool ok = true;
+		for (const auto &sp : spawns)
+			if (std::hypot(hx - sp.x, hz - sp.z) < clear + r) { ok = false; break; }
+		if (!ok) continue;
+		hm.raise_plateau(hx, hz, r, 0.0f, 0.0f, rng.range_float(h0, h1), r * 0.6f);
+		++i;
+	}
+}
+} // namespace
+
+void RmsGenerator::synth_syria(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// syria.js: dry plains with slightly rolling highlands, players on a
+	// circle at f = 0.35, scaleByMapSize(1, 3) * 3 hills per player.
+	water_h = -10.0f;
+	hm.init(hm.res, hm.map_half, 2.0f);
+	const float half = hm.map_half;
+	hm.apply_fbm(rng, 4, 0.03f, 0.5f, 2.0f, 1.5f);
+	place_ring_spawns(hm, spawns, num_players, half * 0.70f, rng.range_float(0.0f, 6.2831853f), 6.2831853f, 0.0f);
+	scatter_hills(hm, rng, spawns, scale_by_map_size(1, 3, half) * 3 * std::max(1, num_players),
+	              half * 0.03f + 2.0f, half * 0.06f + 3.0f, 3.0f, 8.0f, 20.0f);
+	hm.blur(1, 0.35f);
+	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
+}
+
+void RmsGenerator::synth_cantabrian_highlands(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// cantabrian_highlands.js: each player starts on a hill (heightHill 20)
+	// ringed by cliffs, with one ramp facing the map centre; players on a
+	// circle at f = 0.35, scaleByMapSize(1, 4) lakes per player.
+	water_h = 1.0f;
+	hm.init(hm.res, hm.map_half, 3.0f);
+	const float half = hm.map_half;
+	hm.apply_fbm(rng, 4, 0.025f, 0.5f, 2.0f, 2.0f);
+	const float start = rng.range_float(0.0f, 6.2831853f);
+	const float ring_r = half * 0.70f;
+	for (int i = 0; i < num_players; ++i) {
+		const float a = start + 6.2831853f * (float)i / (float)std::max(1, num_players);
+		// The ramp points back towards the centre, give or take pi / 8.
+		const float ramp = a + 3.14159265f * (1.0f + rng.range_float(-1.0f, 1.0f) / 8.0f);
+		hm.raise_plateau(std::cos(a) * ring_r, std::sin(a) * ring_r, 19.0f, ramp, 0.3f, 7.0f, 6.0f);
+	}
+	place_ring_spawns(hm, spawns, num_players, ring_r, start, 6.2831853f, water_h + 1.5f);
+	scatter_ponds(hm, rng, spawns, scale_by_map_size(1, 4, half) * std::max(1, num_players) / 2,
+	              half * 0.05f + 3.0f, 30.0f, 12.0f, half * 0.95f, 3.0f, water_h);
+	hm.blur(1, 0.3f);
+	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 15.0f, 3.0f, sp.base_height);
+}
+
+void RmsGenerator::synth_pyrenean_sierra(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// pyrenean_sierra.js: a mountain range f = 0.68 long through the centre
+	// splits the two teams, with passes at 0.35 and 0.65 of its length.
+	water_h = -10.0f;
+	hm.init(hm.res, hm.map_half, 3.0f);
+	const float half = hm.map_half;
+	hm.apply_fbm(rng, 4, 0.025f, 0.5f, 2.0f, 2.5f);
+	const float len = half * 0.68f;
+	const float w = (float)scale_by_map_size(15, 55, half) * 0.25f;
+	const float wob = rng.range_float(-0.06f, 0.06f) * half;
+	const float pass = (float)scale_by_map_size(8, 50, half) * 0.5f + 6.0f;
+	raise_ridge(hm, {{-len, wob}, {-len * 0.5f, -wob}, {0.0f, wob * 0.5f}}, w, 18.0f, len * 0.70f, pass);
+	raise_ridge(hm, {{0.0f, wob * 0.5f}, {len * 0.5f, -wob}, {len, wob}}, w, 18.0f, len * 0.30f, pass);
+	hm.thermal_erosion(3, 0.9f, 0.2f);
+	hm.blur(1, 0.35f);
+	place_side_spawns(hm, spawns, num_players, true, half * 0.60f, half * 0.62f, 0.0f);
+	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
+}
+
+void RmsGenerator::synth_sahel_watering_holes(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// sahel_watering_holes.js: between each pair of neighbours a line of
+	// water runs from f = 0.15 to f = 0.49, with a pool at each end and
+	// shallows across the middle; players on a circle at f = 0.35.
+	water_h = 1.0f;
+	hm.init(hm.res, hm.map_half, 3.0f);
+	const float half = hm.map_half;
+	hm.apply_fbm(rng, 3, 0.022f, 0.5f, 2.0f, 1.5f);
+	const float start = rng.range_float(0.0f, 6.2831853f);
+	const int n = std::max(2, num_players);
+	std::vector<std::pair<float, float>> fords;
+	for (int i = 0; i < n; ++i) {
+		const float a = start + 6.2831853f * ((float)i + 0.5f) / (float)n;
+		const float c = std::cos(a), s = std::sin(a);
+		hm.carve_spline_path({{c * half * 0.30f, s * half * 0.30f}, {c * half * 0.98f, s * half * 0.98f}},
+		                     2.5f + half * 0.02f, 2.5f, water_h);
+		hm.carve_crater_lake(c * half * 0.30f, s * half * 0.30f, (float)scale_by_map_size(5, 30, half) * 0.5f + 2.0f, 3.0f, 3.0f, water_h);
+		hm.carve_crater_lake(c * half * 0.98f, s * half * 0.98f, (float)scale_by_map_size(5, 22, half) * 0.5f + 2.0f, 3.0f, 3.0f, water_h);
+		fords.push_back({c * half * 0.64f, s * half * 0.64f});
+	}
+	for (const auto &f : fords) place_ford(hm, f.first, f.second, 5.0f + half * 0.02f, water_h);
+	hm.blur(1, 0.4f);
+	place_ring_spawns(hm, spawns, num_players, half * 0.70f, start, 6.2831853f, water_h + 1.5f);
+	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
+}
+
+void RmsGenerator::synth_persian_highlands(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// persian_highlands.js: high dry land (heightLand 10) with a sunken
+	// central plateau (-10) rich in minerals, ringed by rocky hills;
+	// players on a circle at f = 0.35. No water.
+	water_h = -10.0f;
+	hm.init(hm.res, hm.map_half, 8.0f);
+	const float half = hm.map_half;
+	hm.apply_fbm(rng, 4, 0.03f, 0.5f, 2.0f, 1.5f);
+	hm.level_area(0.0f, 0.0f, half * 0.26f, half * 0.12f, 3.0f);
+	place_ring_spawns(hm, spawns, num_players, half * 0.70f, rng.range_float(0.0f, 6.2831853f), 6.2831853f, 0.0f);
+	scatter_hills(hm, rng, spawns, scale_by_map_size(20, 80, half) / 2, 2.5f, 4.5f, 3.0f, 6.0f, 18.0f);
+	hm.blur(1, 0.35f);
+	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
+}
+
+void RmsGenerator::synth_volcanic_lands(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// volcanic_lands.js: charred land round a smoking volcano in the centre
+	// (rmgen createVolcano: a cone with a crater), scaleByMapSize(2, 8)
+	// hills per player, players on a circle at f = 0.35, dead trees.
+	water_h = -10.0f;
+	hm.init(hm.res, hm.map_half, 2.0f);
+	const float half = hm.map_half;
+	hm.apply_fbm(rng, 4, 0.03f, 0.5f, 2.0f, 1.5f);
+	const float cone_r = half * 0.30f, crater_r = half * 0.07f, peak = 14.0f;
+	const float step = (half * 2.0f) / (float)(hm.res - 1);
+	for (int z = 0; z < hm.res; ++z) {
+		const float wz = -half + z * step;
+		for (int x = 0; x < hm.res; ++x) {
+			const float wx = -half + x * step;
+			const float d = std::sqrt(wx * wx + wz * wz);
+			if (d >= cone_r) continue;
+			// A concave cone up to the crater rim, then a bowl inside it.
+			const float t = 1.0f - d / cone_r;
+			const float h = d > crater_r ? peak * t * t : peak * 0.55f + (peak - peak * 0.55f) * (d / crater_r) * 0.6f;
+			hm.add(x, z, h);
+		}
+	}
+	place_ring_spawns(hm, spawns, num_players, half * 0.70f, rng.range_float(0.0f, 6.2831853f), 6.2831853f, 0.0f);
+	scatter_hills(hm, rng, spawns, scale_by_map_size(2, 8, half) * std::max(1, num_players) / 2,
+	              half * 0.03f + 2.0f, half * 0.05f + 3.0f, 3.0f, 7.0f, 22.0f);
+	hm.blur(1, 0.35f);
+	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
+}
+
 void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid &hm, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config) {
 	(void)config;
 	for (const auto &sp : spawns) {
@@ -1837,6 +1990,8 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 	else if (config.map_type == MAP_POLAR_SEA) num_groves = num_groves / 5;
 	else if (config.map_type == MAP_SAHEL) num_groves = num_groves / 2;
 	else if (config.map_type == MAP_KERALA || config.map_type == MAP_AFRICAN_PLAINS) num_groves = num_groves * 4 / 3;
+	else if (config.map_type == MAP_SYRIA || config.map_type == MAP_PERSIAN_HIGHLANDS) num_groves = num_groves * 2 / 3;
+	else if (config.map_type == MAP_VOLCANIC_LANDS) num_groves = num_groves / 2;
 
 	// Map-specific landmark resource clusters
 	if (config.map_type == MAP_DANUBIUS) {
@@ -2161,6 +2316,24 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 			break;
 		case MAP_ALPINE_VALLEY:
 			synth_alpine_valley(hm, rng, water_h, spawns, config.num_players);
+			break;
+		case MAP_SYRIA:
+			synth_syria(hm, rng, water_h, spawns, config.num_players);
+			break;
+		case MAP_CANTABRIAN_HIGHLANDS:
+			synth_cantabrian_highlands(hm, rng, water_h, spawns, config.num_players);
+			break;
+		case MAP_PYRENEAN_SIERRA:
+			synth_pyrenean_sierra(hm, rng, water_h, spawns, config.num_players);
+			break;
+		case MAP_SAHEL_WATERING_HOLES:
+			synth_sahel_watering_holes(hm, rng, water_h, spawns, config.num_players);
+			break;
+		case MAP_PERSIAN_HIGHLANDS:
+			synth_persian_highlands(hm, rng, water_h, spawns, config.num_players);
+			break;
+		case MAP_VOLCANIC_LANDS:
+			synth_volcanic_lands(hm, rng, water_h, spawns, config.num_players);
 			break;
 		case MAP_PELOPONNESE:
 		case MAP_AEGEAN_ARCHIPELAGO:
