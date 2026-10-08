@@ -178,6 +178,8 @@ void Simulation::reset() {
 	unit_id_to_idx_.clear();
 	unit_idx_by_id_.clear();
 	res_id_to_idx_.clear();
+	field_res_by_bld_.clear();
+	field_bld_by_res_.clear();
 	building_id_to_idx_.clear();
 	occupied_cells_.clear();
 
@@ -429,6 +431,8 @@ void Simulation::spawn_war(int total_units) {
 	unit_id_to_idx_.clear();
 	unit_idx_by_id_.clear();
 	res_id_to_idx_.clear();
+	field_res_by_bld_.clear();
+	field_bld_by_res_.clear();
 	building_id_to_idx_.clear();
 	occupied_cells_.clear();
 	relics_.clear();
@@ -730,7 +734,7 @@ void Simulation::rebuild_nav_grid() {
 		nav_grid_.dirty.fill(0);
 	nav_grid_.set_water_from_heights(terrain_heights_, terrain_res_, terrain_water_height_);
 	for (const auto &b : buildings_) {
-		if (b.build_progress < 0.99f) continue;
+		if (b.build_progress < 0.99f || !building_blocks_movement(b.type)) continue;
 		auto [cx, cy] = nav_grid_.world_to_cell(b.x, b.z);
 		int footprint = b.footprint;
 		int sx = cx - footprint / 2;
@@ -851,6 +855,7 @@ uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b
 	if (player >= MAX_PLAYERS) return 0;
 	const BuildingTypeInfo &binfo = building_type_info(b_type);
 	if (!can_place(cell_x, cell_y, binfo.footprint)) return 0;
+	if (building_required_phase(b_type) > players_[player].phase) return 0;
 
 	if (!players_[player].pay((float)binfo.food_cost, (float)binfo.wood_cost, (float)binfo.gold_cost, (float)binfo.stone_cost))
 		return 0;
@@ -1499,6 +1504,12 @@ void Simulation::order_build_or_repair(const uint32_t *unit_ids, size_t count, u
 		uint8_t ut = units_.unit_type[uidx];
 		if (ut != UNIT_VILLAGER && ut != UNIT_FEMALE_CITIZEN && ut != UNIT_WORKER_ELEPHANT)
 			continue;
+
+		// 0 A.D. UnitAI: workers sent to their own finished, undamaged field farm it.
+		if (b.type == BLD_FIELD && b.team == units_.team[uidx] && b.build_progress >= 1.0f && b.hp >= b.max_hp) {
+			order_gather(&unit_ids[i], 1, ensure_field_resource(b));
+			continue;
+		}
 
 		stand_outside_rect(b.x, b.z, b.half_size, units_.id[uidx],
 				units_.pos_x[uidx], units_.pos_z[uidx],
@@ -2391,7 +2402,7 @@ void Simulation::separation(float dt, Arena &arena) {
 
 		// 2. Building Obstacle Non-Penetration (keep units outside the footprint rectangle)
 		for (const auto &b : buildings_) {
-			if (b.wrecked) continue;
+			if (b.wrecked || !building_blocks_movement(b.type)) continue;
 			float b_half = b.half_size;
 			float cx = std::clamp(pxi, b.x - b_half, b.x + b_half);
 			float cz = std::clamp(pzi, b.z - b_half, b.z + b_half);
@@ -2450,6 +2461,65 @@ void Simulation::separation(float dt, Arena &arena) {
 	});
 }
 
+uint32_t Simulation::ensure_field_resource(const Building &b) {
+	auto fit = field_res_by_bld_.find(b.id);
+	if (fit != field_res_by_bld_.end() && res_id_to_idx_.count(fit->second)) return fit->second;
+	// After a load the supply is already in resources_ (saved without its
+	// subtype); adopt it by position instead of allocating a new id.
+	uint32_t rid = 0;
+	for (size_t r = 0; r < resources_.count; ++r) {
+		if (resources_.type[r] == RES_FOOD && resources_.amount[r] >= FIELD_FOOD_SUPPLY / 2 &&
+				resources_.x[r] == b.x && resources_.z[r] == b.z) {
+			rid = resources_.id[r];
+			resources_.subtype[r] = RES_SUB_GRAIN;
+			break;
+		}
+	}
+	if (rid == 0) rid = spawn_resource_world(b.x, b.z, RES_FOOD, FIELD_FOOD_SUPPLY, RES_SUB_GRAIN);
+	field_res_by_bld_[b.id] = rid;
+	field_bld_by_res_[rid] = b.id;
+	return rid;
+}
+
+uint32_t Simulation::find_free_field(uint8_t team, float x, float z) {
+	uint32_t best = 0;
+	float best_d2 = 1e30f;
+	for (const auto &b : buildings_) {
+		if (b.team != team || b.type != BLD_FIELD) continue;
+		auto fit = field_res_by_bld_.find(b.id);
+		if (fit == field_res_by_bld_.end()) continue;
+		auto git = field_gatherers_.find(fit->second);
+		if (git != field_gatherers_.end() && git->second.total >= FIELD_MAX_GATHERERS) continue;
+		float dx = b.x - x, dz = b.z - z;
+		float d2 = dx * dx + dz * dz;
+		if (d2 < best_d2) { best_d2 = d2; best = fit->second; }
+	}
+	return best;
+}
+
+void Simulation::sync_field_resources() {
+	// Retire supplies whose field was destroyed or demolished. Zeroing the
+	// amount lets the cleanup at the end of tick_gather remove the resource;
+	// each entry is handled independently, so map order doesn't matter.
+	for (auto it = field_bld_by_res_.begin(); it != field_bld_by_res_.end();) {
+		auto bit = building_id_to_idx_.find(it->second);
+		bool alive = bit != building_id_to_idx_.end();
+		if (alive) {
+			const Building &b = buildings_[bit->second];
+			alive = b.type == BLD_FIELD && b.hp > 0.0f && !b.wrecked && b.build_progress >= 1.0f;
+		}
+		if (alive) { ++it; continue; }
+		auto rit = res_id_to_idx_.find(it->first);
+		if (rit != res_id_to_idx_.end()) resources_.amount[rit->second] = 0;
+		field_res_by_bld_.erase(it->second);
+		it = field_bld_by_res_.erase(it);
+	}
+	for (const auto &b : buildings_) {
+		if (b.type != BLD_FIELD || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) continue;
+		ensure_field_resource(b);
+	}
+}
+
 void Simulation::tick_gather(float dt) {
 	// G4: rebuild auras every 0.4s (or immediately if empty) for gather modifiers
 	aura_timer_ += dt;
@@ -2457,7 +2527,19 @@ void Simulation::tick_gather(float dt) {
 		aura_timer_ = 0.0f;
 		rebuild_auras();
 	}
+	sync_field_resources();
 	const size_t n = units_.count;
+
+	// Gatherers working each field this tick (ResourceSupply.GetNumGatherers),
+	// for 0 A.D.'s MaxGatherers cap and diminishing returns.
+	field_gatherers_.clear();
+	if (!field_bld_by_res_.empty()) {
+		for (size_t i = 0; i < n; ++i) {
+			if (!units_.alive[i] || units_.action_state[i] != ACTION_GATHER || units_.target_resource_id[i] == 0) continue;
+			if (!field_bld_by_res_.count(units_.target_resource_id[i])) continue;
+			field_gatherers_[units_.target_resource_id[i]].total++;
+		}
+	}
 	for (size_t i = 0; i < n; ++i) {
 		bool is_gatherer = (units_.unit_type[i] == UNIT_VILLAGER ||
 		                    units_.unit_type[i] == UNIT_FEMALE_CITIZEN ||
@@ -2469,7 +2551,7 @@ void Simulation::tick_gather(float dt) {
 		// 1. Returning to dropsite
 		if (units_.carry[i] >= units_.carry_capacity[i] || units_.action_state[i] == ACTION_RETURN_DROPSITE) {
 			float best_d2 = 1e9f;
-			float drop_x = 0, drop_z = 0;
+			float drop_x = 0, drop_z = 0, drop_half = 0;
 			bool found_dropsite = false;
 
 			for (const auto &b : buildings_) {
@@ -2486,7 +2568,7 @@ void Simulation::tick_gather(float dt) {
 					float d2 = dx * dx + dz * dz;
 					if (d2 < best_d2) {
 						best_d2 = d2;
-						drop_x = b.x; drop_z = b.z;
+						drop_x = b.x; drop_z = b.z; drop_half = b.half_size;
 						found_dropsite = true;
 					}
 				}
@@ -2495,7 +2577,11 @@ void Simulation::tick_gather(float dt) {
 			if (found_dropsite) {
 				float dx = units_.pos_x[i] - drop_x;
 				float dz = units_.pos_z[i] - drop_z;
-				if (dx * dx + dz * dz < 2.5f * 2.5f) {
+				// Drop off at the centre or anywhere along the footprint: units
+				// queued around a large dropsite never get within 2.5 m of its centre.
+				float edge_dx = std::max(0.0f, std::fabs(dx) - drop_half);
+				float edge_dz = std::max(0.0f, std::fabs(dz) - drop_half);
+				if (dx * dx + dz * dz < 2.5f * 2.5f || edge_dx * edge_dx + edge_dz * edge_dz < 1.5f * 1.5f) {
 					int amt = units_.carry[i];
 					uint8_t rt = units_.res_type_carried[i];
 					if (rt < RES_COUNT) {
@@ -2544,6 +2630,28 @@ void Simulation::tick_gather(float dt) {
 				continue;
 			}
 			size_t ridx = rit->second;
+			float field_efficiency = 0.0f; // > 0 only while farming a field
+			auto field_it = field_bld_by_res_.find(units_.target_resource_id[i]);
+			if (field_it != field_bld_by_res_.end()) {
+				auto bit = building_id_to_idx_.find(field_it->second);
+				FieldGatherers &fg = field_gatherers_[units_.target_resource_id[i]];
+				bool own = bit != building_id_to_idx_.end() && buildings_[bit->second].team == uteam;
+				if (!own || fg.slots_taken >= FIELD_MAX_GATHERERS) {
+					// Field full or not ours: try our nearest field with a free slot.
+					uint32_t alt = own ? find_free_field(uteam, units_.pos_x[i], units_.pos_z[i]) : 0;
+					if (alt != 0) {
+						fg.total--;
+						field_gatherers_[alt].total++;
+						order_gather(&units_.id[i], 1, alt);
+					} else {
+						units_.target_resource_id[i] = 0;
+						units_.action_state[i] = ACTION_IDLE;
+					}
+					continue;
+				}
+				fg.slots_taken++;
+				field_efficiency = field_gather_efficiency(std::min(fg.total, FIELD_MAX_GATHERERS));
+			}
 			float dx = units_.pos_x[i] - resources_.x[ridx];
 			float dz = units_.pos_z[i] - resources_.z[ridx];
 			if (dx * dx + dz * dz < 2.5f * 2.5f) {
@@ -2582,11 +2690,17 @@ void Simulation::tick_gather(float dt) {
 					harvest_rate *= 0.65f;
 				}
 
+				// 0 A.D. ResourceGatherer Rates: food.grain is half of food.fruit
+				// for every gatherer class, then the field's diminishing returns.
+				if (field_efficiency > 0.0f) {
+					harvest_rate *= 2.0f / field_efficiency;
+				}
+
 				if (units_.attack_timer[i] >= harvest_rate) {
 					units_.attack_timer[i] = 0.0f;
 					int32_t space = units_.carry_capacity[i] - units_.carry[i];
 					int32_t take = std::min(8, std::min(resources_.amount[ridx], space));
-					resources_.amount[ridx] -= take;
+					if (field_efficiency <= 0.0f) resources_.amount[ridx] -= take; // fields are infinite
 					units_.carry[i] += take;
 					units_.res_type_carried[i] = resources_.type[ridx];
 
@@ -2663,6 +2777,15 @@ void Simulation::tick_construction(float dt) {
 			if (b.build_progress >= 1.0f) {
 				units_.action_state[i] = ACTION_IDLE;
 				units_.target_building_id[i] = 0;
+				if (b.type == BLD_FIELD) {
+					// 0 A.D. UnitAI ConstructionFinished: the builders start farming.
+					uint32_t rid = ensure_field_resource(b);
+					for (size_t k = 0; k < n; ++k) {
+						if (units_.alive[k] && units_.team[k] == b.team &&
+								(k == i || (units_.action_state[k] == ACTION_BUILD && units_.target_building_id[k] == b.id)))
+							order_gather(&units_.id[k], 1, rid);
+					}
+				}
 				rebuild_nav_grid();
 				if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER) {
 					rebuild_territory();
@@ -2814,7 +2937,9 @@ void Simulation::tick_combat(float dt) {
 
 	// 1. Target Acquisition & Stance Evaluation (0 A.D. UnitAI.js)
 	JobSystem::instance().for_each_index(n, [&](size_t i) {
-		if (units_.attack_timer[i] > 0) units_.attack_timer[i] -= dt;
+		// tick_gather uses attack_timer as the harvest clock; counting it down
+		// here as well cancelled every harvest tick, so nobody ever gathered.
+		if (units_.attack_timer[i] > 0 && units_.action_state[i] != ACTION_GATHER) units_.attack_timer[i] -= dt;
 		target_idx[i] = -1;
 		if (!units_.alive[i]) return;
 		if (units_.attack_damage[i] <= 0.0f) return;
@@ -3218,7 +3343,7 @@ void Simulation::tick_combat(float dt) {
 	// 3. Units Attacking Buildings & Siege Demolition (0 A.D. Attack.js + BuildingDamage)
 	for (size_t i = 0; i < n; ++i) {
 		if (!units_.alive[i] || units_.target_building_id[i] == 0 || units_.attack_timer[i] > 0) continue;
-		// Builders and repairers also hold target_building_id; they are not attacking.
+		// Builders and repairers also carry target_building_id; leave them to tick_construction.
 		if (units_.action_state[i] == ACTION_BUILD) continue;
 		if (units_.attack_damage[i] <= 0.0f) continue;
 		auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
@@ -6245,14 +6370,6 @@ uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz) cons
 	return 0;
 }
 
-bool Simulation::petra_researching_phase() const {
-	for (const auto &b : buildings_)
-		if (b.team == 1 && b.type == BLD_TOWN_CENTER &&
-		    (b.research_tech == TECH_PHASE_TOWN || b.research_tech == TECH_PHASE_CITY))
-			return true;
-	return false;
-}
-
 void Simulation::petra_manage_tactical_attacks(float dt) {
 	petra_attack_plan_.state_timer += dt;
 	petra_strike_force_.state_timer += dt;
@@ -6283,9 +6400,9 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 
 	switch (petra_attack_plan_.state) {
 		case AttackPlan::UNEXECUTED: {
-			// attackManager.js: default attacks wait for the town phase (or its
-			// research); only strongly aggressive personalities plan a village rush.
-			if (petra_ps().phase < 2 && !petra_researching_phase() && petra_config_.aggressive <= 0.70f) return;
+			// attackManager.js: default attacks wait for the town phase; only
+			// strongly aggressive personalities plan a village rush.
+			if (petra_ps().phase < 2 && petra_config_.aggressive <= 0.70f) return;
 			float tx = 0.0f, tz = 0.0f;
 			uint32_t target_id = find_petra_attack_target(tx, tz);
 			if (target_id == 0) return;
@@ -7170,12 +7287,15 @@ void Simulation::petra_manage_defense(float dt) {
 		return petra_unit_reserved(uid);
 	};
 
-	// Detect enemies inside own territory or within a base radius (defenseManager.isDangerous)
+	// Detect enemies inside own territory (defenseManager.isDangerous). The base
+	// radius only stands in for territory while a base has no anchor building:
+	// a 32 m radius reaches into a close neighbour's land and starts border fights.
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] == 1) continue;
 		bool dangerous = (territory_owner_at(units_.pos_x[i], units_.pos_z[i]) == 1);
 		if (!dangerous) {
 			for (const auto &base : petra_bases_) {
+				if (base.anchor_building_id != 0) continue;
 				float dx = units_.pos_x[i] - base.x;
 				float dz = units_.pos_z[i] - base.z;
 				if (dx * dx + dz * dz <= base.radius * base.radius) {
@@ -7819,6 +7939,8 @@ bool Simulation::load_state(const char *filepath) {
 	in.read((char *)&num_res, sizeof(num_res));
 	resources_.count = 0;
 	res_id_to_idx_.clear();
+	field_res_by_bld_.clear();
+	field_bld_by_res_.clear();
 	for (uint32_t r = 0; r < num_res; ++r) {
 		uint32_t rid; float rx, rz; int32_t ramount; uint8_t rtype, ralive;
 		in.read((char *)&rid, sizeof(rid));

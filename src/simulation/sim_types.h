@@ -173,7 +173,21 @@ enum BuildingType : uint8_t {
 	BLD_DOCK = 11,
 	BLD_WALL_SEGMENT = 12,
 	BLD_CORRAL = 13,
-	BLD_TYPE_COUNT = 14
+	// 0 A.D. generic structures RTS0 lacked (template_structure_*). Appended so
+	// existing ids, saves and lockstep commands keep their values.
+	BLD_FIELD = 14,           // resource_field
+	BLD_STABLE = 15,          // military_stable
+	BLD_RANGE = 16,           // military_range
+	BLD_FORGE = 17,           // military_forge
+	BLD_ARSENAL = 18,         // military_arsenal
+	BLD_SENTRY_TOWER = 19,    // defensive_tower_sentry
+	BLD_OUTPOST = 20,         // defensive_outpost
+	BLD_PALISADE = 21,        // defensive_palisade
+	BLD_WALL_TOWER = 22,      // defensive_wall_tower
+	BLD_ELEPHANT_STABLE = 23, // military_elephant_stable
+	BLD_THEATER = 24,         // special_theater
+	BLD_EMBASSY = 25,         // military_embassy
+	BLD_TYPE_COUNT = 26
 };
 
 enum ResourceType : uint8_t {
@@ -486,9 +500,59 @@ inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 		{"Naval Shipyard Dock", "dock", "dock", 1400.0f, 2, 0, 200, 0, 100, 0, 5, 40.0f, 16.0f, 15.0f, 1.2f, 500.0f, 5.0f, 1.0f, 20.0f},
 		{"Stone Wall Segment", "wall_segment", "wall", 1800.0f, 1, 0, 0, 0, 40, 0, 5, 15.0f, 0.0f, 0.0f, 0.0f, 500.0f, 5.0f, 1.0f, 20.0f},
 		{"Livestock Corral", "corral", "corral", 800.0f, 2, 0, 100, 0, 0, 5, 10, 25.0f, 0.0f, 0.0f, 0.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		// 0 A.D. 0.28 template_structure_* values: Health/Max, Cost/Resources,
+		// GarrisonHolder/Max, Capturable. BuildTime is scaled by 0.25 to match
+		// RTS0's compressed build times (barracks 150s -> 35s above); footprint
+		// is 2 cells when the 0 A.D. footprint is wider than 15 m.
+		{"Field", "field_plot", "field", 250.0f, 2, 0, 100, 0, 0, 0, 0, 13.0f, 0.0f, 0.0f, 0.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Stable", "stable", "stable", 2000.0f, 2, 0, 200, 0, 50, 0, 10, 30.0f, 0.0f, 0.0f, 0.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Archery Range", "range", "range", 2000.0f, 2, 0, 200, 0, 0, 0, 10, 30.0f, 0.0f, 0.0f, 0.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Forge", "blacksmith", "forge", 2000.0f, 2, 0, 200, 0, 0, 0, 1, 30.0f, 0.0f, 0.0f, 0.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Arsenal", "arsenal", "arsenal", 2000.0f, 2, 0, 300, 0, 0, 0, 5, 45.0f, 0.0f, 0.0f, 0.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Sentry Tower", "sentry_tower", "sentry_tower", 400.0f, 1, 0, 100, 0, 0, 0, 3, 10.0f, 16.0f, 12.0f, 1.2f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Outpost", "outpost", "outpost", 400.0f, 1, 0, 60, 0, 0, 0, 0, 8.0f, 0.0f, 0.0f, 0.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Palisade", "palisade", "palisade", 1000.0f, 1, 0, 14, 0, 0, 0, 0, 5.0f, 0.0f, 0.0f, 0.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Wall Tower", "wall_tower", "wall_tower", 4000.0f, 1, 0, 0, 0, 48, 0, 4, 12.0f, 16.0f, 12.0f, 1.2f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Elephant Stable", "stable_elephant", "elephant_stable", 3000.0f, 2, 0, 200, 0, 200, 0, 5, 45.0f, 0.0f, 0.0f, 0.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Theater", "theater", "theater", 3000.0f, 2, 0, 200, 200, 600, 0, 5, 125.0f, 0.0f, 0.0f, 0.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Embassy", "embassy", "embassy", 2000.0f, 2, 0, 200, 0, 0, 0, 6, 38.0f, 0.0f, 0.0f, 0.0f, 500.0f, 10.0f, 1.0f, 20.0f},
 	};
 	if (type >= BLD_TYPE_COUNT) return kTable[BLD_HOUSE];
 	return kTable[type];
+}
+
+// 0 A.D. Identity/Requirements/Techs per structure: 1 = phase_village,
+// 2 = phase_town, 3 = phase_city.
+inline uint8_t building_required_phase(uint8_t type) {
+	switch (type) {
+		case BLD_TOWER: case BLD_MARKET: case BLD_GATE: case BLD_TEMPLE:
+		case BLD_WALL_SEGMENT: case BLD_FORGE: case BLD_WALL_TOWER: case BLD_EMBASSY:
+			return 2;
+		case BLD_FORTRESS: case BLD_WONDER: case BLD_ARSENAL:
+		case BLD_ELEPHANT_STABLE: case BLD_THEATER:
+			return 3;
+		default:
+			return 1;
+	}
+}
+
+// 0 A.D. template_structure_resource_field ResourceSupply.
+constexpr int32_t FIELD_FOOD_SUPPLY = 1000000000; // <Max>Infinity</Max>
+constexpr int FIELD_MAX_GATHERERS = 5;            // <MaxGatherers>
+constexpr float FIELD_DIMINISHING_RETURNS = 0.90f; // <DiminishingReturns>
+
+// ResourceSupply.js GetDiminishingReturns: each extra gatherer on a field works
+// at 0.9x the previous one; the returned factor scales every gatherer's rate.
+inline float field_gather_efficiency(int gatherers) {
+	if (gatherers <= 1) return 1.0f;
+	float p = 1.0f;
+	for (int i = 0; i < gatherers; ++i) p *= FIELD_DIMINISHING_RETURNS;
+	return (1.0f - p) / (1.0f - FIELD_DIMINISHING_RETURNS) / (float)gatherers;
+}
+
+// 0 A.D. Obstruction BlockMovement=false: fields don't block units.
+inline bool building_blocks_movement(uint8_t type) {
+	return type != BLD_FIELD;
 }
 
 inline const char *building_type_name(uint8_t type) { return building_type_info(type).name; }
@@ -882,6 +946,11 @@ inline const char *civ_building_rubble(uint8_t civ, uint8_t type) {
 		case BLD_CORRAL:
 		case BLD_TOWER:
 		case BLD_FARMSTEAD:
+		case BLD_FIELD:
+		case BLD_SENTRY_TOWER:
+		case BLD_OUTPOST:
+		case BLD_PALISADE:
+		case BLD_WALL_TOWER:
 			return "rubble_small";
 		default:
 			return "rubble_large";
@@ -896,6 +965,8 @@ inline const char *civ_building_foundation(uint8_t type) {
 		case BLD_CORRAL:
 			return "foundation_3x3";
 		case BLD_TOWER:
+		case BLD_SENTRY_TOWER:
+		case BLD_OUTPOST:
 			return "foundation_3x3_tower";
 		case BLD_FARMSTEAD:
 			return "foundation_5x5";
@@ -905,7 +976,11 @@ inline const char *civ_building_foundation(uint8_t type) {
 			return "foundation_4x6";
 		case BLD_WALL_SEGMENT:
 		case BLD_GATE:
+		case BLD_PALISADE:
+		case BLD_WALL_TOWER:
 			return "foundation_wall";
+		case BLD_FIELD:
+			return "field_plot";
 		case BLD_DOCK:
 			return "foundation_dock";
 		case BLD_TOWN_CENTER:
@@ -926,6 +1001,11 @@ inline const char *civ_building_scaffold(uint8_t type) {
 		case BLD_TOWER:
 		case BLD_WALL_SEGMENT:
 		case BLD_GATE:
+		case BLD_SENTRY_TOWER:
+		case BLD_OUTPOST:
+		case BLD_PALISADE:
+		case BLD_WALL_TOWER:
+		case BLD_FIELD:
 			return "scaffold_small";
 		default:
 			return "scaffold_large";
