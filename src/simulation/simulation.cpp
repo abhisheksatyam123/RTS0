@@ -2983,7 +2983,10 @@ void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, ui
 bool Simulation::garrison_in_range(size_t i, const Building &b) const {
 	const float ex = std::max(0.0f, std::fabs(units_.pos_x[i] - b.x) - b.half_size);
 	const float ez = std::max(0.0f, std::fabs(units_.pos_z[i] - b.z) - b.half_size);
-	const float reach = GARRISON_LOADING_RANGE + unit_collision_radius(units_.unit_type[i]);
+	// LoadingRange counts from where a unit can stand: its radius plus the navcell
+	// clearance extension around the structure (0 A.D. measures from the obstruction).
+	const float reach = GARRISON_LOADING_RANGE + unit_collision_radius(units_.unit_type[i]) +
+			nav::kClearanceExtensionRadius;
 	return ex * ex + ez * ez <= reach * reach;
 }
 
@@ -3731,7 +3734,25 @@ void Simulation::move_units(float dt, Arena &arena) {
 				d2 = dx * dx + dz * dz;
 			}
 		}
-		if (units_.action_state[i] == ACTION_ATTACK && !backing_off) {
+		bool at_building = false;
+		if (units_.action_state[i] == ACTION_ATTACK && !backing_off && units_.target_unit_id[i] == 0 &&
+				units_.target_building_id[i] != 0) {
+			// The aim is a stand point beside the structure (stand_outside_rect): walk to it,
+			// stopping once the structure's edge is within reach (the same eff_d as tick_combat).
+			auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
+			if (bit != building_id_to_idx_.end()) {
+				const Building &b = buildings_[bit->second];
+				const bool capture = (units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE) &&
+						unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) > 0.0f;
+				const float reach = capture ? CAPTURE_RANGE : units_.attack_range[i];
+				const float eff_d = std::hypot(px[i] - b.x, pz[i] - b.z) - b.half_size;
+				at_building = eff_d <= reach * 0.9f;
+				if (!at_building) stop_dist = ARRIVE_DIST * 0.5f;
+			}
+		}
+		if (at_building) {
+			d2 = 0.0f; // in reach: stop here
+		} else if (units_.action_state[i] == ACTION_ATTACK && !backing_off && units_.target_building_id[i] == 0) {
 			float r_att = units_.attack_range[i];
 			if (r_att > 3.0f) {
 				// Ranged units (Archers, Catapults, Triremes) stop comfortably within volley distance

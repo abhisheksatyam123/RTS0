@@ -383,8 +383,10 @@ static_assert(sizeof(UnitOrder) == 24, "UnitOrder is saved raw");
 // UnitAI FindNearbyResource / FindNearbyFoundation.
 inline constexpr float FLEE_DISTANCE = 12.0f;
 inline constexpr float NEARBY_SEARCH_RANGE = 64.0f;
-// Attack.js Capture: template_unit_*.xml Capture MaxRange 4, RepeatTime 1000.
-inline constexpr float CAPTURE_RANGE = 4.0f;
+// Attack.js Capture: template_unit_*.xml Capture MaxRange 4, RepeatTime 1000. 0 A.D.
+// measures edge to edge; RTS0 melee reach is ~0.28 x R plus the radii, so Capture
+// MaxRange 4 is the spearman's reach, as in 0 A.D. (Melee MaxRange 4): 2.4.
+inline constexpr float CAPTURE_RANGE = 2.4f;
 inline constexpr float CAPTURE_REPEAT_S = 1.0f;
 // template_unit_support_healer.xml Heal (Health 5 every Interval 2000 ms) and Heal.js
 // GetTimers (prepare 1000 ms); template_unit.xml UnitAI CheeringTime 2800 ms and
@@ -394,7 +396,7 @@ inline constexpr float HEAL_INTERVAL_S = 2.0f;
 inline constexpr float HEAL_PREPARE_S = 1.0f;
 inline constexpr float CHEER_TIME_S = 2.8f;
 inline constexpr float CHEER_NOTIFY_RANGE = 30.0f;
-inline constexpr float GARRISON_LOADING_RANGE = 2.0f;
+inline constexpr float GARRISON_LOADING_RANGE = 2.0f * 0.28f; // 0 A.D. metres to RTS0, plus the unit's radius
 // Attack.js Ranged MinRange as a share of MaxRange: template_unit_siege_stonethrower.xml
 // 26 of 85, template_unit_siege_boltshooter.xml 15 of 90. Scaled to each unit's own range.
 inline float unit_min_range_ratio(uint8_t type) {
