@@ -599,7 +599,7 @@ enum TechStat : uint8_t {
 	TSTAT_RANGED_HACK, TSTAT_RANGED_PIERCE, TSTAT_RANGED_CRUSH,
 	TSTAT_ARMOR_HACK, TSTAT_ARMOR_PIERCE, TSTAT_ARMOR_CRUSH,
 	TSTAT_HEALTH, TSTAT_SPEED, TSTAT_POP_BONUS, TSTAT_TRADE_GAIN, TSTAT_RANGE,
-	TSTAT_BUILD_TIME, TSTAT_HEAL_RANGE, TSTAT_HEAL_INTERVAL, TSTAT_ARROWS,
+	TSTAT_BUILD_TIME, TSTAT_RESEARCH_TIME, TSTAT_HEAL_RANGE, TSTAT_HEAL_INTERVAL, TSTAT_ARROWS,
 	TSTAT_COUNT
 };
 
@@ -830,6 +830,7 @@ struct CivUnitTemplate {
 	float train_time;
 	int16_t carry_capacity;
 	int16_t auras[3]; // index into civ_hero_aura_table(), -1 = none
+	uint8_t unlock_tech; // TechnologyId from 0 A.D. Identity/Requirements (unlock_champion_*), or TECH_NONE
 };
 
 #include "civ_roster_data.h"

@@ -143,6 +143,20 @@ int main()
 		(civ_unit_template(civ_default_template(CIV_ROMANS, UNIT_CATAPULT)).flags & ROSTER_PACKABLE),
 		"Roman catapult packs");
 
+	// Champion unlocks come from each template's 0 A.D. Identity/Requirements.
+	int gated = 0;
+	for (uint16_t i = 0; i < CIV_UNIT_TEMPLATE_COUNT; ++i) {
+		const CivUnitTemplate &u = civ_unit_template(i);
+		if (u.unlock_tech == TECH_NONE) continue;
+		++gated;
+		if (!(u.flags & ROSTER_CHAMPION)) check(false, u.id);
+	}
+	check(gated >= 20, "champion rows carry their unlock technology");
+	for (uint16_t i = civ_roster_begin(CIV_ROMANS); i < civ_roster_end(CIV_ROMANS); ++i)
+		if (std::strcmp(civ_unit_template(i).id, "rome/champion_infantry_swordsman") == 0)
+			check(civ_unit_template(i).unlock_tech == TECH_UNLOCK_CHAMPION_INFANTRY,
+				"Roman champion infantry waits for Unlock Champion Infantry");
+
 	std::printf("%d/%d checks passed (%u unit templates, %u hero auras)\n",
 		g_checks - g_failed, g_checks, CIV_UNIT_TEMPLATE_COUNT, CIV_HERO_AURA_COUNT);
 	return g_failed == 0 ? 0 : 1;
