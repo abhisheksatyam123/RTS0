@@ -49,15 +49,43 @@ jobs:
           scons target=template_release -j4
           ls -lh bin/
 
+      # Artifacts are for downloads from main/tags/manual runs only. PR runs skip
+      # them, and a full artifact quota must not fail an otherwise green build.
       - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
         with:
           name: gdextension-linux
           path: bin/
+          retention-days: 3
+
+  headless-tests:
+    name: Headless C++ tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pathfinder, fixed-point and geometry tests
+        run: |
+          for t in test_long_pathfinder test_fixed test_geometry; do
+            g++ -std=c++20 -O2 -Isrc tools/$t.cpp -o /tmp/$t
+            /tmp/$t
+          done
+
+      - name: Nav parity probe
+        run: python3 tools/check_parity.py --unit nav-live
+
+      - name: Lockstep playtest
+        run: python3 tools/playtest_lockstep.py
 
   export-desktop:
     name: Export ${{ matrix.name }}
     runs-on: ubuntu-latest
     needs: build-native
+    # Importing ~750MB of 0 A.D. assets takes longer than a PR check should;
+    # exports run on main, tags and manual runs only.
+    if: github.event_name != 'pull_request'
+    timeout-minutes: 150
     strategy:
       fail-fast: false
       matrix:
@@ -80,13 +108,6 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq build-essential python3 scons mesa-vulkan-drivers libgl1-mesa-dri xvfb
 
-      - name: Restore GDExtension artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: gdextension-linux
-          path: bin/
-        # For Windows we rebuild; for Linux we reuse. Window build needs cross compile - for now reuse linux lib and build windows natively if on linux with mingw
-        # Simpler: rebuild for target platform
       - name: Cache Godot binaries + templates
         id: cache-godot
         uses: actions/cache@v4
@@ -117,14 +138,19 @@ jobs:
 
       - name: Build GDExtension for ${{ matrix.platform }}
         run: |
+          # skip_export=1: SConstruct's post-build hook would otherwise run its
+          # own Godot export here; this job exports in the steps below.
+          # The editor loads the template_debug lib during import/export.
+          scons platform=linux target=template_debug skip_export=1 -j4
           if [ "${{ matrix.platform }}" = "linux" ]; then
-            scons platform=linux target=template_release -j4
+            scons platform=linux target=template_release skip_export=1 -j4
           else
             # Windows cross-build from linux using mingw - fallback to linux lib for now if mingw missing
             if which x86_64-w64-mingw32-g++ >/dev/null 2>&1; then
-              scons platform=windows target=template_release -j4
+              scons platform=windows target=template_release skip_export=1 -j4
             else
               echo "mingw not available, using linux lib as placeholder for windows export test"
+              scons platform=linux target=template_release skip_export=1 -j4
               cp bin/librtso.linux.template_release.x86_64.so bin/librtso.windows.template_release.x86_64.dll || true
             fi
           fi
@@ -146,9 +172,12 @@ jobs:
           esac
 
       - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
         with:
           name: RTS0-${{ matrix.name }}
           path: ${{ matrix.out }}
+          retention-days: 7
 
   export-android:
     name: Export Android APK
@@ -229,6 +258,8 @@ jobs:
           xvfb-run godot --path . --export-debug "Android" build/android/RTS0.apk
 
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: RTS0-Android
           path: build/android/
+          retention-days: 7

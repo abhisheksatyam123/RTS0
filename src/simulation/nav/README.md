@@ -6,7 +6,9 @@
 |------|------|--------|
 | `src/0ad/simulation2/helpers/*` | **Vendor reference** — exact 0 A.D. GPL sources (`Grid.h:412`, `HierarchicalPathfinder.h/.cpp:865`, `LongPathfinder.h/.cpp`, `Pathfinding.h`, `PathGoal.h`). Keep verbatim for `diff -u` porting. **Never `#include` from active sim** and never added to `SConstruct` walk (it skips `src/0ad/**`). | No |
 | `src/simulation/grid_nav.h` | **Active SoA port** — header-only, `std::vector`-backed `Grid<T>`, `NavCell` (`PASSABLE/OBSTRUCTED/WATER`), `NavGrid` (`cells`+`dirty`, `world_to_cell`, `mark_building`, `set_water_from_heights`, `blur_territory` stub), `WaypointPath` (`MAX_WP=64` fixed arrays). Owned by `Simulation::nav_grid_` + `territory_grid_` (`simulation.h`). | Yes |
-| `src/simulation/nav/` (this folder) | Future home of `HierarchicalPathfinder` port, JPS `LongPathfinder`, and `VertexPathfinder` SoA rewrites. Will consume `NavGrid` and `Grid<uint8_t>` dirty tracking. | Planned Phase 7 |
+| `src/simulation/nav/long_pathfinder.h` | **Active JPS port** of `LongPathfinder::ComputeJPSPath` (forced-neighbour rules, diagonal jumps, closest-tile fallback). `NavGrid::find_path` runs it by default (`NavGrid::use_jps`); legacy A* kept as `search_cells_astar`. Tested by `tools/test_long_pathfinder.cpp`. | Yes |
+| `src/simulation/nav/geometry.h` | **Active header-only port** of 0 A.D. `helpers/Geometry.h/.cpp` (GPL-2.0-or-later; `Fixed`→`float`, `Vec2`). Square/segment/ray tests for VertexPathfinder. Deviations (sign fix in `TestSquareSquare` v-edge calls; `MaxDistanceSquareToSquare` nested-square quirk kept) documented in-file; tested by `tools/test_geometry.cpp`. | Header-only (no `.cpp`) |
+| `src/simulation/nav/` (this folder) | Home of the remaining `VertexPathfinder` short-range port. | Planned |
 
 ## Why keep vendor separate?
 
@@ -29,9 +31,9 @@
 ## Next ports (tracked in `docs/PORTING_TODO.md` Phases 7,9,13)
 
 - `HierarchicalPathfinder::InitRegions` / `ComputeNeighbors` / `RecomputeAllEdges` → `src/simulation/nav/hierarchical_pathfinder.h`
-- `LongPathfinder::ComputeJPSPath` + `ProcessNeighbour` → `src/simulation/nav/long_pathfinder.h`
+- ~~`LongPathfinder::ComputeJPSPath` + `ProcessNeighbour` → `src/simulation/nav/long_pathfinder.h`~~ landed (no JumpPointCache; 0 A.D. ships with it off)
 - `VertexPathfinder` short-range steering → `src/simulation/nav/vertex_pathfinder.h`
-- Wire `Simulation::rebuild_nav_grid()` to call hierarchical recompute on dirty cells; `find_path()` to return JPS waypoints into `WaypointPath`.
+- Wire `Simulation::rebuild_nav_grid()` to call hierarchical recompute on dirty cells. (`find_path()` already returns JPS waypoints into `WaypointPath`.)
 
 ## How to diff against vendor
 
