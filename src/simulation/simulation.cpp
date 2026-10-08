@@ -7984,24 +7984,14 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 				petra_strike_force_.target_x = tx;
 				petra_strike_force_.target_z = tz;
 
-				// Tactical Formations & Role Specialization
+				// Siege engines and their escort (0 A.D. Petra uses no formations).
 				std::vector<uint32_t> siege_uids;
 				std::vector<uint32_t> escort_uids;
 
 				for (uint32_t uid : squad) {
 					int32_t idx = lookup_unit(uid);
 					if (idx < 0) continue;
-					if (units_.unit_type[idx] == UNIT_SWORDSMAN || units_.unit_type[idx] == UNIT_SPEARMAN || units_.unit_type[idx] == UNIT_ELEPHANT) {
-						units_.formation[idx] = FORMATION_PHALANX;
-						escort_uids.push_back(uid);
-					} else if (units_.unit_type[idx] == UNIT_CAVALRY || units_.unit_type[idx] == UNIT_CHARIOT || units_.unit_type[idx] == UNIT_SCYTHED_CHARIOT) {
-						units_.formation[idx] = FORMATION_WEDGE;
-						escort_uids.push_back(uid);
-					} else if (units_.unit_type[idx] == UNIT_ARCHER || units_.unit_type[idx] == UNIT_ARCHER_MAIDEN) {
-						units_.formation[idx] = FORMATION_SCATTER;
-						escort_uids.push_back(uid);
-					} else if (units_.unit_type[idx] == UNIT_CATAPULT || units_.unit_type[idx] == UNIT_SIEGE_RAM || units_.unit_type[idx] == UNIT_BOLT_SHOOTER) {
-						units_.formation[idx] = FORMATION_COLUMN;
+					if (units_.unit_type[idx] == UNIT_CATAPULT || units_.unit_type[idx] == UNIT_SIEGE_RAM || units_.unit_type[idx] == UNIT_BOLT_SHOOTER) {
 						// attackPlan.js: packable siege attacks on stand ground so it doesn't pack up to chase.
 						if (units_.pack_state[idx] != PACK_NONE) units_.stance[idx] = STANCE_STAND_GROUND;
 						siege_uids.push_back(uid);
