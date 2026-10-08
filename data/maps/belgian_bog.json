@@ -18199,5 +18199,78 @@
       "x": -83.51,
       "z": 1.25
     }
-  ]
+  ],
+  "treasures": [
+    {
+      "type": "food_barrel",
+      "x": 80.62,
+      "z": 29.53
+    },
+    {
+      "type": "food_barrel",
+      "x": 80.43,
+      "z": 28.6
+    },
+    {
+      "type": "food_barrel",
+      "x": 80.08,
+      "z": 29.4
+    },
+    {
+      "type": "food_bin",
+      "x": 81.09,
+      "z": 28.85
+    },
+    {
+      "type": "food_bin",
+      "x": 81.4,
+      "z": 29.74
+    },
+    {
+      "type": "food_crate",
+      "x": 80.79,
+      "z": 30.06
+    },
+    {
+      "type": "food_crate",
+      "x": 79.92,
+      "z": 28.77
+    },
+    {
+      "type": "food_crate",
+      "x": -74.7,
+      "z": -32.88
+    },
+    {
+      "type": "food_crate",
+      "x": -75.04,
+      "z": -33.77
+    },
+    {
+      "type": "food_barrel",
+      "x": -75.4,
+      "z": -32.41
+    },
+    {
+      "type": "food_barrel",
+      "x": -75.19,
+      "z": -33.02
+    },
+    {
+      "type": "food_barrel",
+      "x": -74.64,
+      "z": -32.43
+    },
+    {
+      "type": "food_bin",
+      "x": -74.22,
+      "z": -33.44
+    },
+    {
+      "type": "food_bin",
+      "x": -74.19,
+      "z": -34.04
+    }
+  ],
+  "ruins": []
 }

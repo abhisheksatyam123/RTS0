@@ -82,7 +82,8 @@ enum AuthenticateResultCode : uint32_t {
 	ARC_OK = 0,
 	ARC_OK_SAVED_GAME = 1,
 	ARC_OK_REJOINING = 2,
-	ARC_PASSWORD_INVALID = 3
+	ARC_PASSWORD_INVALID = 3,
+	ARC_BANNED = 4 // 0 A.D. NDR_BANNED: the host banned this name or address
 };
 
 // NetCommand::cmd_type values. APPEND-ONLY: 1..23 are frozen wire values and
@@ -207,7 +208,8 @@ struct NetPeer {
 	std::string guid;
 	std::string player_name;
 	bool is_ready = false;
-	bool is_authenticated = false;
+	bool is_authenticated = false; // host: admitted to the session (right password, not banned)
+	uint64_t kick_disconnect_ms = 0; // host: kicked; the link closes at this time, after NMT_KICKED got there
 	uint64_t last_seen_ms = 0;
 	uint32_t last_sent_seq = 0;
 	uint32_t last_recv_seq = 0;   // every reliable seq <= this has been delivered
@@ -489,6 +491,31 @@ struct ClientPausedMsg {
 	std::string guid;
 	uint8_t pause = 0;
 };
+
+// NMT_CLIENT_PERFORMANCE payload (0 A.D. CClientPerformanceMessage, with the
+// lastReceivedTime of CClientTimeoutMessage folded in): once a second the host
+// tells every client how each connected client is doing. rtt_ms is the host's
+// smoothed round trip to it; silent_ms how long since the host last heard it.
+// NMT_KICKED payload (0 A.D. CKickedMessage): the host removed a client, by
+// guid ("peer-<id>") and name; ban = it may not come back.
+struct KickedMsg {
+	std::string guid;
+	std::string name;
+	uint8_t ban = 0;
+};
+
+struct ClientPerformanceMsg {
+	struct Entry {
+		uint32_t client = 0;
+		uint32_t rtt_ms = 0;
+		uint32_t silent_ms = 0;
+	};
+	std::vector<Entry> clients;
+};
+// 0 A.D. session.js: a round trip above this reads as a bad connection, and a
+// client unheard for longer than this is "not responding".
+inline constexpr uint32_t NET_LAG_WARN_RTT_MS = 500;
+inline constexpr uint32_t NET_TIMEOUT_WARN_MS = 1000;
 
 // NMT_JOIN_SYNC_STATE payload -- late-join turn-0 state resync request.
 // 0 A.D. parity: NetServer.cpp:1366 OnGameStart re-sends the game setup to a
@@ -922,6 +949,45 @@ public:
 		size_t offset = 0;
 		if (!NetSerde::read_string(data, size, offset, msg.guid)) return false;
 		if (!NetSerde::read_u8(data, size, offset, msg.pause)) return false;
+		return offset == size;
+	}
+
+	static std::vector<uint8_t> frame_kicked(const KickedMsg &msg) {
+		std::vector<uint8_t> buf;
+		NetSerde::write_string(buf, msg.guid);
+		NetSerde::write_string(buf, msg.name);
+		NetSerde::write_u8(buf, msg.ban ? 1 : 0);
+		return buf;
+	}
+
+	static bool parse_kicked(const uint8_t *data, size_t size, KickedMsg &msg) {
+		size_t offset = 0;
+		if (!NetSerde::read_string(data, size, offset, msg.guid)) return false;
+		if (!NetSerde::read_string(data, size, offset, msg.name)) return false;
+		if (!NetSerde::read_u8(data, size, offset, msg.ban)) return false;
+		return offset == size;
+	}
+
+	static std::vector<uint8_t> frame_client_performance(const ClientPerformanceMsg &msg) {
+		std::vector<uint8_t> buf;
+		const size_t n = std::min<size_t>(msg.clients.size(), 255);
+		NetSerde::write_u8(buf, (uint8_t)n);
+		for (size_t i = 0; i < n; ++i) {
+			NetSerde::write_u32(buf, msg.clients[i].client);
+			NetSerde::write_u32(buf, msg.clients[i].rtt_ms);
+			NetSerde::write_u32(buf, msg.clients[i].silent_ms);
+		}
+		return buf;
+	}
+
+	static bool parse_client_performance(const uint8_t *data, size_t size, ClientPerformanceMsg &msg) {
+		size_t offset = 0;
+		uint8_t n = 0;
+		if (!NetSerde::read_u8(data, size, offset, n)) return false;
+		msg.clients.assign(n, {});
+		for (auto &e : msg.clients)
+			if (!NetSerde::read_u32(data, size, offset, e.client) || !NetSerde::read_u32(data, size, offset, e.rtt_ms) ||
+					!NetSerde::read_u32(data, size, offset, e.silent_ms)) return false;
 		return offset == size;
 	}
 

@@ -279,11 +279,41 @@ static void check_identical_saves() {
 	}
 }
 
+// A save from a map at a non-default size loads into a freshly reset() sim:
+// the fog grids are read at the saved map's size, not the reset sim's.
+static void check_other_size_load(TurnManager &tm, const char *path) {
+	static Simulation a, b;
+	a.reset();
+	a.set_sim_seed(SEED);
+	a.set_waves_enabled(false);
+	a.generate_random_map((MapType)MAP, SEED, 2, 192.0f);
+	a.set_victory_condition(VICTORY_ENDLESS);
+	run(a, 200);
+	const int before = failures;
+	if (!a.save_state(path)) { std::printf("FAIL save (map half 192)\n"); ++failures; return; }
+	b.reset();
+	if (!b.load_state(path)) { std::printf("FAIL load (map half 192) into a reset sim\n"); ++failures; return; }
+	if (b.map_half() != a.map_half() || b.fow_grid_.size() != a.fow_grid_.size()) {
+		std::printf("  FAIL map half %.0f -> %.0f, fog %zu -> %zu cells\n", a.map_half(), b.map_half(),
+		            a.fow_grid_.size(), b.fow_grid_.size());
+		++failures;
+	}
+	compare(a, b);
+	if (tm.compute_sim_hash(a) != tm.compute_sim_hash(b)) {
+		std::printf("  FAIL map half 192: hash %08x saved, %08x loaded into a reset sim\n",
+		            tm.compute_sim_hash(a), tm.compute_sim_hash(b));
+		++failures;
+		print_diffs();
+	}
+	if (failures == before) std::printf("map half 192 into a reset sim: ok\n");
+}
+
 int main() {
 	static Simulation live, loaded;
 	TurnManager tm;
 	check_identical_saves();
 	check_reset_load(tm, "/tmp/rts0_test_save_hash.sav");
+	check_other_size_load(tm, "/tmp/rts0_test_save_hash.sav");
 	build(live);
 	const char *path = "/tmp/rts0_test_save_hash.sav";
 	// Save points: early game, mid game (armies, fields, traders), later.
