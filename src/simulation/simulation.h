@@ -145,6 +145,8 @@ public:
 	// falls back to the Petra AI's grid when Petra plays it, and others to
 	// all-unexplored.
 	const uint8_t* fow_grid(uint8_t player = 0) const {
+		// A defeated player observes: the whole map is revealed (0 A.D. parity).
+		if (player < MAX_PLAYERS && ((defeated_mask_ >> player) & 1)) return revealed_fow_.data();
 		if (player == 0 || player >= MAX_PLAYERS) return fow_grid_.data();
 		if (player_fow_[player].size() == fow_grid_.size()) return player_fow_[player].data();
 		if (player == PETRA_PLAYER && petra_runs_for(PETRA_PLAYER)) return petra_fow_.data();
@@ -339,11 +341,21 @@ public:
 	bool can_attack(uint8_t a, uint8_t b) const { return !ceasefire_active() && is_hostile(a, b); }
 	// Player 0's side for victory: itself, game-setup teammates, and mutual diplomatic allies.
 	bool is_ally_of_player0(uint8_t pid) const { return pid == 0 || same_team(0, pid) || is_mutual_ally(pid); }
-	// Match result from pid's seat: player 0's side won (victory_) or lost (game over without it).
+	// Match result from pid's seat: pid is one of the winners once the match has ended.
 	bool is_victory_for(uint8_t pid) const {
 		if (!victory_ && !game_over_) return false;
-		return victory_ == is_ally_of_player0(pid);
+		if (winner_mask_ || game_over_) return pid < MAX_PLAYERS && ((winner_mask_ >> pid) & 1);
+		return victory_ == is_ally_of_player0(pid); // wave win set without a mask
 	}
+	// 0 A.D. Player.js "defeated": a player out of the match. The match goes on until
+	// one side (or, under Last Man Standing, one player) is left; the defeated watch.
+	bool is_defeated(uint8_t pid) const { return pid < MAX_PLAYERS && ((defeated_mask_ >> pid) & 1); }
+	uint8_t defeated_mask() const { return defeated_mask_; }
+	uint8_t winner_mask() const { return winner_mask_; }
+	// Players that have held units or structures this match (only they can be defeated).
+	uint8_t participant_mask() const { return participant_mask_; }
+	// pid and every participant allied with it, or pid alone under Last Man Standing.
+	uint8_t side_of(uint8_t pid) const;
 
 	// Battle Alerts (AlertRaiser.js)
 	void raise_alert(BattleAlert::Type type, float x, float z, uint32_t entity_id, uint8_t team = 0);
@@ -876,6 +888,10 @@ private:
 	int wave_number_ = 0;
 	bool game_over_ = false;
 	bool victory_ = false;
+	uint8_t participant_mask_ = 0; // save v10
+	uint8_t defeated_mask_ = 0;
+	uint8_t winner_mask_ = 0;
+	float wonder_hold_[MAX_PLAYERS] = {}; // seconds each player has held a finished wonder
 
 	MatchRecord record_;
 
@@ -991,6 +1007,7 @@ private:
 	uint8_t fow_viewer_ = 0;
 	std::array<std::vector<uint8_t>, MAX_PLAYERS> player_fow_; // per-player FoW for players 1..7 (index 0 unused: fow_grid_)
 	std::vector<uint8_t> unexplored_fow_ = std::vector<uint8_t>((size_t)MAX_GRID_RES * MAX_GRID_RES, 0);
+	std::vector<uint8_t> revealed_fow_ = std::vector<uint8_t>((size_t)MAX_GRID_RES * MAX_GRID_RES, FOW_VISIBLE);
 
 	// Per-AI Petra state. The petra_* members above hold the state of the AI being
 	// run (PETRA_PLAYER between ticks); every other AI slot's state is parked here

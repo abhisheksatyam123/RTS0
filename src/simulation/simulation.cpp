@@ -237,6 +237,8 @@ void Simulation::reset() {
 	wave_number_ = 0;
 	game_over_ = false;
 	victory_ = false;
+	participant_mask_ = defeated_mask_ = winner_mask_ = 0;
+	for (float &w : wonder_hold_) w = 0.0f;
 	relics_.clear();
 	wonder_victory_timer_ = 0.0f;
 	has_active_wonder_ = false;
@@ -4402,43 +4404,77 @@ void Simulation::tick_barter(float dt) {
 	}
 }
 
+uint8_t Simulation::side_of(uint8_t pid) const {
+	if (pid >= MAX_PLAYERS) return 0;
+	if (last_man_standing_) return (uint8_t)(1u << pid);
+	uint8_t side = 0;
+	for (uint8_t t = 0; t < MAX_PLAYERS; ++t) {
+		if (t == pid || (((participant_mask_ >> t) & 1) && is_ally(pid, t) && is_ally(t, pid))) side |= (uint8_t)(1u << t);
+	}
+	return side;
+}
+
 void Simulation::check_victory_conditions(float dt) {
 	if (game_over_ || victory_) return;
 	// 0 A.D. "Endless": no victory conditions, nobody is ever defeated.
 	if (victory_condition_ == VICTORY_ENDLESS) return;
 	if (victory_condition_ == VICTORY_REGICIDE && ticks_ == 0) spawn_regicide_heroes();
 
+	// The match ends with these players as the winners; everyone else has lost.
+	auto end_match = [&](uint8_t winners) {
+		winners &= (uint8_t)~defeated_mask_; // a defeated ally stays defeated (0 A.D.)
+		winner_mask_ = winners;
+		defeated_mask_ |= (uint8_t)(participant_mask_ & ~winners);
+		victory_ = (winners & 1) != 0;
+		game_over_ = true;
+	};
+
+	// Tally what each player still holds (ConquestCommon.js); units_.team and Building::team
+	// are player ids. Garrisoned units count as alive.
+	constexpr int MAX_TEAMS = MAX_PLAYERS;
+	int unit_count[MAX_TEAMS] = {};
+	int structure_count[MAX_TEAMS] = {};
+	int tc_count[MAX_TEAMS] = {};
+	int hero_count[MAX_TEAMS] = {};
+	bool wonder[MAX_TEAMS] = {};
+	for (const auto &b : buildings_) {
+		// Unstarted foundations don't keep a player alive (an AI with no units left can still
+		// queue them).
+		if (b.team >= MAX_TEAMS || b.hp <= 0.0f || b.build_progress <= 0.0f) continue;
+		structure_count[b.team]++;
+		if (b.type == BLD_TOWN_CENTER) tc_count[b.team]++;
+		if (b.type == BLD_WONDER && b.build_progress >= 1.0f) wonder[b.team] = true;
+	}
+	for (size_t u = 0; u < units_.count; ++u) {
+		uint8_t t = units_.team[u];
+		if (t >= MAX_TEAMS || !(units_.alive[u] || units_.action_state[u] == ACTION_GARRISONED)) continue;
+		unit_count[t]++;
+		if (units_.unit_type[u] == UNIT_HERO) hero_count[t]++;
+	}
+	for (int t = 0; t < MAX_TEAMS; ++t) {
+		if (unit_count[t] || structure_count[t]) participant_mask_ |= (uint8_t)(1u << t);
+	}
+
 	if (victory_condition_ == VICTORY_WONDER) {
-		// Wonder Victory (VictoryManager.js / Wonder.js): first completed wonder holds 10 min.
-		// A wonder wins for its owner's whole side (allied victory) unless Last Man Standing is on.
-		int player_wonders = 0, ai_wonders = 0;
-		for (const auto &b : buildings_) {
-			if (b.type != BLD_WONDER || b.build_progress < 1.0f || b.hp <= 0.0f) continue;
-			bool ours = last_man_standing_ ? b.team == 0 : is_ally_of_player0(b.team);
-			if (ours) player_wonders++;
-			else ai_wonders++;
+		// Wonder Victory (VictoryManager.js / Wonder.js): a finished wonder held 10 min wins
+		// for its owner's side (allied victory) or, under Last Man Standing, its owner alone.
+		float ours = 0.0f;
+		bool any_ours = false;
+		int holder = -1;
+		for (int t = 0; t < MAX_TEAMS; ++t) {
+			if (wonder[t] && !is_defeated((uint8_t)t)) wonder_hold_[t] += dt;
+			else wonder_hold_[t] = 0.0f;
+			if (wonder[t] && (side_of(0) >> t & 1)) { any_ours = true; ours = std::max(ours, wonder_hold_[t]); }
+			if (wonder_hold_[t] >= 600.0f && (holder < 0 || wonder_hold_[t] > wonder_hold_[holder])) holder = t;
 		}
-		has_active_wonder_ = player_wonders > 0;
-		if (player_wonders > 0) {
-			wonder_victory_timer_ += dt;
-			if (wonder_victory_timer_ >= 600.0f) {
-				victory_ = true;
-				game_over_ = true;
-			}
-		} else {
-			wonder_victory_timer_ = 0.0f;
-		}
-		if (ai_wonders > 0) {
-			ai_wonder_victory_timer_ += dt;
-			if (ai_wonder_victory_timer_ >= 600.0f) {
-				victory_ = false;
-				game_over_ = true;
-			}
-		} else {
-			ai_wonder_victory_timer_ = 0.0f;
+		has_active_wonder_ = any_ours;
+		wonder_victory_timer_ = ours;
+		if (holder >= 0) {
+			end_match(side_of((uint8_t)holder));
+			return;
 		}
 	} else if (victory_condition_ == VICTORY_RELIC) {
-		// Relic Capture Victory: one team claims and holds all relics
+		// Relic Capture Victory: one player claims and holds all relics
 		if (!relics_.empty()) {
 			bool all_claimed = true;
 			int owner = -1;
@@ -4450,38 +4486,16 @@ void Simulation::check_victory_conditions(float dt) {
 				if (owner < 0) owner = (int)r.owner_team;
 				else if (owner != (int)r.owner_team) all_claimed = false;
 			}
-			if (all_claimed && owner >= 0 && owner != 255) {
+			if (all_claimed && owner >= 0 && owner < MAX_TEAMS) {
 				relic_victory_timer_ += dt;
 				if (relic_victory_timer_ >= 180.0f) {
-					victory_ = last_man_standing_ ? owner == 0 : is_ally_of_player0((uint8_t)owner);
-					game_over_ = true;
+					end_match(side_of((uint8_t)owner));
+					return;
 				}
 			} else {
 				relic_victory_timer_ = 0.0f;
 			}
 		}
-	}
-	if (game_over_) return;
-
-	// Tally what each player still holds (ConquestCommon.js); units_.team and Building::team
-	// are player ids. Garrisoned units count as alive.
-	constexpr int MAX_TEAMS = 8;
-	int unit_count[MAX_TEAMS] = {};
-	int structure_count[MAX_TEAMS] = {};
-	int tc_count[MAX_TEAMS] = {};
-	int hero_count[MAX_TEAMS] = {};
-	for (const auto &b : buildings_) {
-		// Unstarted foundations don't keep a player alive (an AI with no units left can still
-		// queue them).
-		if (b.team >= MAX_TEAMS || b.hp <= 0.0f || b.build_progress <= 0.0f) continue;
-		structure_count[b.team]++;
-		if (b.type == BLD_TOWN_CENTER) tc_count[b.team]++;
-	}
-	for (size_t u = 0; u < units_.count; ++u) {
-		uint8_t t = units_.team[u];
-		if (t >= MAX_TEAMS || !(units_.alive[u] || units_.action_state[u] == ACTION_GARRISONED)) continue;
-		unit_count[t]++;
-		if (units_.unit_type[u] == UNIT_HERO) hero_count[t]++;
 	}
 
 	auto defeated = [&](int t) {
@@ -4495,26 +4509,35 @@ void Simulation::check_victory_conditions(float dt) {
 		}
 	};
 
-	// Wave defense keeps its old rule: lose the Town Center and the match is lost.
-	if (defeated(0) || (waves_enabled_ && tc_count[0] == 0)) {
-		game_over_ = true;
-		victory_ = false;
+	// Defeat is permanent (Player.js SetState("defeated")). Wave defense keeps its old rule:
+	// lose the Town Center and the match is lost.
+	for (int t = 0; t < MAX_TEAMS; ++t) {
+		if (!((participant_mask_ >> t) & 1) || is_defeated((uint8_t)t)) continue;
+		if (defeated(t) || (waves_enabled_ && t == 0 && tc_count[0] == 0)) defeated_mask_ |= (uint8_t)(1u << t);
+	}
+	const uint8_t standing = participant_mask_ & ~defeated_mask_;
+	if (participant_mask_ && !standing) { // everyone fell on the same tick
+		end_match(0);
+		return;
+	}
+	if (waves_enabled_ && is_defeated(0)) { // wave defense is player 0's match
+		end_match(standing);
 		return;
 	}
 
-	// Player 0 wins once every player still standing is on its side (0 A.D.'s allied
-	// victory), or, under Last Man Standing, once every other player is defeated.
-	bool enemies_defeated = true;
-	for (int t = 1; t < MAX_TEAMS && enemies_defeated; ++t) {
-		if (defeated(t)) continue;
-		if (last_man_standing_ || !is_ally_of_player0((uint8_t)t)) enemies_defeated = false;
+	// The match ends once everyone still standing is mutually allied (0 A.D.'s allied
+	// victory), or, under Last Man Standing, once one player is left.
+	bool one_side = true;
+	for (int a = 0; a < MAX_TEAMS && one_side; ++a) {
+		if (!((standing >> a) & 1)) continue;
+		for (int b = a + 1; b < MAX_TEAMS; ++b) {
+			if (!((standing >> b) & 1)) continue;
+			if (last_man_standing_ || !is_ally((uint8_t)a, (uint8_t)b) || !is_ally((uint8_t)b, (uint8_t)a)) { one_side = false; break; }
+		}
 	}
 	// Don't hand out a win on a map that never had an enemy on it.
-	bool fought = record_.enemies_killed > 0 || record_.buildings_destroyed > 0 || wave_number_ > 0;
-	if (enemies_defeated && fought) {
-		victory_ = true;
-		game_over_ = true;
-	}
+	bool fought = defeated_mask_ != 0 || record_.enemies_killed > 0 || record_.buildings_destroyed > 0 || wave_number_ > 0;
+	if (one_side && fought) end_match(standing);
 }
 
 void Simulation::spawn_regicide_heroes() {
@@ -4546,6 +4569,7 @@ void Simulation::tick_waves(float dt) {
 
 	if (wave_number_ > 5) {
 		victory_ = true;
+		winner_mask_ = side_of(0);
 		return;
 	}
 
@@ -8205,7 +8229,7 @@ bool Simulation::petra_runs_for(uint8_t pid) const {
 	bool any_active = false;
 	for (const PlayerState &ps : players_) any_active |= ps.active != 0;
 	if (!any_active) return pid == PETRA_PLAYER;
-	return players_[pid].active && players_[pid].is_ai;
+	return players_[pid].active && players_[pid].is_ai && !is_defeated(pid);
 }
 
 void Simulation::tick_petra_ai(float dt) {
@@ -8292,7 +8316,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = 9; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix
+	uint32_t version = 10; // v10 per-player defeat and winners; v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 
@@ -8318,6 +8342,11 @@ bool Simulation::save_state(const char *filepath) const {
 	out.write((const char *)&has_active_wonder_, sizeof(has_active_wonder_));
 	out.write((const char *)&game_over_, sizeof(game_over_));
 	out.write((const char *)&victory_, sizeof(victory_));
+	// v10: who has held anything, who is out, who won, and each player's wonder hold
+	out.write((const char *)&participant_mask_, sizeof(participant_mask_));
+	out.write((const char *)&defeated_mask_, sizeof(defeated_mask_));
+	out.write((const char *)&winner_mask_, sizeof(winner_mask_));
+	out.write((const char *)wonder_hold_, sizeof(wonder_hold_));
 	// v3 determinism scalars: id allocator + sim RNG stream
 	uint32_t rng_state = sim_rng_.state();
 	out.write((const char *)&next_id_, sizeof(next_id_));
@@ -8454,7 +8483,7 @@ bool Simulation::load_state(const char *filepath) {
 	uint32_t magic = 0, version = 0;
 	in.read((char *)&magic, sizeof(magic));
 	in.read((char *)&version, sizeof(version));
-	if (magic != 0x52545330 || version < 1 || version > 9) return false;
+	if (magic != 0x52545330 || version < 1 || version > 10) return false;
 
 	// 1. Sim scalars
 	in.read((char *)&ticks_, sizeof(ticks_));
@@ -8509,6 +8538,15 @@ bool Simulation::load_state(const char *filepath) {
 	in.read((char *)&has_active_wonder_, sizeof(has_active_wonder_));
 	in.read((char *)&game_over_, sizeof(game_over_));
 	in.read((char *)&victory_, sizeof(victory_));
+	participant_mask_ = defeated_mask_ = winner_mask_ = 0;
+	for (float &w : wonder_hold_) w = 0.0f;
+	if (version >= 10) {
+		in.read((char *)&participant_mask_, sizeof(participant_mask_));
+		in.read((char *)&defeated_mask_, sizeof(defeated_mask_));
+		in.read((char *)&winner_mask_, sizeof(winner_mask_));
+		in.read((char *)wonder_hold_, sizeof(wonder_hold_));
+	}
+	else if (victory_ || game_over_) winner_mask_ = victory_ ? 1 : 0xFE; // older saves: player 0 vs the rest
 	if (version >= 3) {
 		uint32_t rng_state = 1337;
 		in.read((char *)&next_id_, sizeof(next_id_));
