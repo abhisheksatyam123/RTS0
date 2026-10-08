@@ -415,19 +415,6 @@ void NetHost::sendChat(const std::string &message, const std::string &receiver_g
 	broadcastCommand(msg.data(), msg.size());
 }
 
-void NetHost::sendDiplomacy(uint8_t actor, uint8_t player_id, uint8_t stance, uint32_t turn) {
-	// Mirrors sendChat(): one broadcast so host and client originate identically.
-	// The diplomacy matrix feeds compute_sim_hash(), so every peer must run the
-	// same set_diplomacy() call -- dropping this packet is a guaranteed desync.
-	DiplomacyMsg dm;
-	dm.actor = actor;
-	dm.player_id = player_id;
-	dm.stance = stance;
-	std::vector<uint8_t> payload = NetPacketSerializer::frame_diplomacy(dm);
-	std::vector<uint8_t> msg = NetPacketSerializer::pack_message(NetMessageType::NMT_DIPLOMACY, turn, payload);
-	broadcastCommand(msg.data(), msg.size());
-}
-
 void NetHost::sendHandshake() {
 	if (isClient()) {
 		ClientHandshakeMsg chm;
@@ -501,10 +488,6 @@ void NetHost::onPeerDisconnected(std::function<void(uint32_t)> cb) {
 
 void NetHost::onChat(std::function<void(const ChatMsg&)> cb) {
 	chat_cb_ = std::move(cb);
-}
-
-void NetHost::onDiplomacy(std::function<void(uint32_t, const DiplomacyMsg&)> cb) {
-	diplomacy_cb_ = std::move(cb);
 }
 
 void NetHost::onJoinSyncRequest(std::function<bool(uint32_t, uint32_t, uint32_t &, uint32_t &)> cb) {
@@ -679,40 +662,11 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 			}
 		}
 	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_DIPLOMACY)) {
-		DiplomacyMsg dm;
-		if (!NetPacketSerializer::parse_diplomacy(msg.payload.data(), msg.payload.size(), dm)) {
-			std::cerr << "[NetHost] NMT_DIPLOMACY payload must be exactly 3 bytes (actor, player_id, stance)\n";
-		} else if (dm.player_id >= 8 || dm.actor >= 8) {
-			// Mirrors Simulation::set_diplomacy's own bound; reject out of range so a
-			// hostile/buggy peer cannot silently mutate nothing and still look applied.
-			std::cerr << "[NetHost] NMT_DIPLOMACY actor " << (unsigned)dm.actor << " / player_id "
-			          << (unsigned)dm.player_id << " out of range (0..7)\n";
-		} else if (dm.actor == dm.player_id) {
-			// A player's stance toward itself is not a stance.
-			std::cerr << "[NetHost] NMT_DIPLOMACY actor and player_id are the same player\n";
-		} else if (dm.stance > 2) {
-			std::cerr << "[NetHost] NMT_DIPLOMACY stance " << (unsigned)dm.stance
-			          << " is not ally/neutral/enemy\n";
-		} else {
-			// The sender id is resolved, never taken verbatim: a client that has
-			// not been acked yet stamps 0 on the wire, which is also the host's own
-			// id. See resolve_sender_id() for the full rule.
-			if (diplomacy_cb_) diplomacy_cb_(author, dm);
-			if (isHost()) {
-				// Relay onward so client-originated stances reach every other peer
-				// (same shape as the NMT_CHAT / NMT_READY relays above).
-				std::vector<uint8_t> payload = NetPacketSerializer::frame_diplomacy(dm);
-				std::vector<uint8_t> pkt = NetPacketSerializer::pack_message(NetMessageType::NMT_DIPLOMACY, msg.turn, payload);
-				broadcastCommand(pkt.data(), pkt.size(), author != 0 ? peerId : 0xFFFFFFFFu);
-			}
-			// G9: forward to TurnManager's onMessage on BOTH roles so the stance is
-			// applied through the lockstep turn boundary on every peer. Without
-			// this the only applier is presentation-gated
-			// (src/presentation/main_node.cpp onDiplomacy) and a peer whose UI never
-			// ran the applier silently keeps the old stance -> desync, because
-			// diplomacy_state() is mixed into compute_sim_hash(). The forward to
-			// TurnManager::onMessage happens once, at the end of this function.
-		}
+		// Retired: a stance is lockstep cmd 22 now (see net_types.h). Dropped
+		// here and never relayed, so an old or hostile peer cannot change
+		// anyone's stances out of band.
+		std::cerr << "[NetHost] dropped a retired NMT_DIPLOMACY packet; stances travel as cmd 22\n";
+		return;
 	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_JOIN_SYNC_STATE)) {
 		// Late-join turn-0 state resync. Only a HOST answers, and only for an
 		// admitted peer: the attributes it replays are the ones it already
@@ -815,7 +769,7 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 	}
 	// Single delivery point for every message type, exactly once, with the
 	// resolved sender id: SYNC_CHECK / GAME_START / END_COMMAND_BATCH /
-	// NMT_DIPLOMACY / NMT_JOIN_SYNC_* and any future type land in
+	// NMT_JOIN_SYNC_* and any future type land in
 	// TurnManager::onMessage, which owns them. dispatchMessage() is also the
 	// public entry point tests use, so this keeps direct calls and the socket path
 	// behaving identically.
