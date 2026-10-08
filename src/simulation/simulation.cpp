@@ -205,7 +205,7 @@ void Simulation::reset() {
 	petra_scout_angle_ = 0.0f;
 	petra_scout_radius_ = 12.0f;
 	petra_bases_.clear();
-	petra_bases_.push_back({1, 0, 36.0f, 36.0f, true, 0, 32.0f, 0.0f, false});
+	petra_bases_.push_back({1, 0, 48.0f, 48.0f, true, 0, 32.0f, 0.0f, false});
 	memset(petra_fow_, 0, sizeof(petra_fow_));
 	memset(petra_threat_map_.danger, 0, sizeof(petra_threat_map_.danger));
 	memset(petra_threat_map_.enemy_threat, 0, sizeof(petra_threat_map_.enemy_threat));
@@ -359,30 +359,32 @@ void Simulation::spawn_initial() {
 	spawn_fauna(30.0f, 25.0f, FAUNA_WOLF);
 	spawn_fauna(32.0f, 28.0f, FAUNA_WOLF);
 
-	// 7. Enemy Base (Team 1) — Spartan Base for Petra Autonomous AI
-	spawn_building(18, 18, BLD_TOWN_CENTER, 1, 1.0f);
-	spawn_building(15, 17, BLD_BARRACKS, 1, 1.0f);
-	spawn_building(21, 19, BLD_HOUSE, 1, 1.0f);
-	spawn_building(19, 21, BLD_HOUSE, 1, 1.0f);
-	spawn_building(17, 21, BLD_STOREHOUSE, 1, 1.0f);
+	// 7. Enemy Base (Team 1) — Spartan Base for Petra Autonomous AI.
+	// Sits ~68 m from the player's Town Center so neither side's starting units are inside
+	// the other's aggro range (~33 m) at the first tick.
+	spawn_building(24, 24, BLD_TOWN_CENTER, 1, 1.0f);
+	spawn_building(21, 23, BLD_BARRACKS, 1, 1.0f);
+	spawn_building(27, 25, BLD_HOUSE, 1, 1.0f);
+	spawn_building(25, 27, BLD_HOUSE, 1, 1.0f);
+	spawn_building(23, 27, BLD_STOREHOUSE, 1, 1.0f);
 
 	for (int i = 0; i < 6; ++i) {
 		float a = 6.28318530718f * i / 6.0f;
-		float x = 37.0f + cosf(a) * 4.0f;
-		float z = 37.0f + sinf(a) * 4.0f;
+		float x = 49.0f + cosf(a) * 4.0f;
+		float z = 49.0f + sinf(a) * 4.0f;
 		spawn_unit(x, z, 1, UNIT_VILLAGER, 100.0f);
 	}
-	spawn_unit(32.0f, 32.0f, 1, UNIT_SWORDSMAN, 160.0f);
-	spawn_unit(34.0f, 30.0f, 1, UNIT_SPEARMAN, 160.0f);
-	spawn_unit(30.0f, 34.0f, 1, UNIT_ARCHER, 90.0f);
-	spawn_unit(28.0f, 36.0f, 1, UNIT_ARCHER, 90.0f);
+	spawn_unit(44.0f, 44.0f, 1, UNIT_SWORDSMAN, 160.0f);
+	spawn_unit(46.0f, 42.0f, 1, UNIT_SPEARMAN, 160.0f);
+	spawn_unit(42.0f, 46.0f, 1, UNIT_ARCHER, 90.0f);
+	spawn_unit(40.0f, 48.0f, 1, UNIT_ARCHER, 90.0f);
 
 	// Dedicated economic resources near AI base
-	spawn_resource(21, 21, RES_WOOD, 1200);
-	spawn_resource(22, 21, RES_WOOD, 1200);
-	spawn_resource(21, 16, RES_GOLD, 1200);
-	spawn_resource(16, 22, RES_STONE, 1200);
-	spawn_resource(15, 15, RES_FOOD, 1000);
+	spawn_resource(27, 27, RES_WOOD, 1200);
+	spawn_resource(28, 27, RES_WOOD, 1200);
+	spawn_resource(27, 22, RES_GOLD, 1200);
+	spawn_resource(22, 28, RES_STONE, 1200);
+	spawn_resource(21, 21, RES_FOOD, 1000);
 }
 
 void Simulation::spawn_war(int total_units) {
