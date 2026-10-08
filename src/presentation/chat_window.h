@@ -23,6 +23,9 @@
 #include <godot_cpp/variant/string.hpp>
 #include <godot_cpp/variant/vector2.hpp>
 
+#include <godot_cpp/classes/time.hpp>
+
+#include <deque>
 #include <string>
 
 #include "popup_safe.h"
@@ -159,6 +162,23 @@ public:
 
 		panel_->set_visible(false);
 		parent->add_child(panel_);
+
+		// 0 A.D. gui/session/chat/ChatOverlay.js: while the chat window is closed,
+		// the last 20 chat and notification lines show over the map for 30 s.
+		overlay_ = memnew(RichTextLabel);
+		overlay_->set_anchor(SIDE_LEFT, 0.0f);
+		overlay_->set_anchor(SIDE_TOP, 0.0f);
+		overlay_->set_offset(SIDE_LEFT, 16.0f);
+		overlay_->set_offset(SIDE_RIGHT, 520.0f);
+		overlay_->set_offset(SIDE_TOP, 64.0f);
+		overlay_->set_offset(SIDE_BOTTOM, 64.0f + 20 * 18.0f);
+		overlay_->set_use_bbcode(true);
+		overlay_->set_scroll_active(false);
+		overlay_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		overlay_->add_theme_font_size_override("normal_font_size", 13);
+		overlay_->add_theme_color_override("font_outline_color", Color(0, 0, 0, 1));
+		overlay_->add_theme_constant_override("outline_size", 4);
+		parent->add_child(overlay_);
 	}
 
 	bool is_ready() const { return log_ != nullptr; }
@@ -204,6 +224,7 @@ public:
 			}
 			String civ_name = host_->chat_civ_name();
 			log_->append_text(ch_prefix + " [color=#ffffff]" + civ_name + "[/color]: " + text + "\n");
+			post_overlay(ch_prefix + " [color=#ffffff]" + civ_name + "[/color]: " + text);
 			input_->clear();
 			host_->play_sfx("res://assets/sounds/ui/chat.ogg");
 			// Network: 0 A.D. NMT_CHAT broadcast (NetHost::sendChat net_host.cpp:327).
@@ -246,14 +267,47 @@ public:
 		}
 		log_->append_text("[color=" + tag_col + "]" + chan_prefix + " " +
 				sender_guid + "[/color]: " + msg + "\n");
+		post_overlay("[color=" + tag_col + "]" + chan_prefix + " " + sender_guid + "[/color]: " + msg);
 	}
 
 	// Raw bbcode line (Petra log, diplomacy/tribute feedback).
 	void append_line(const String &bbcode) {
 		if (log_) log_->append_text(bbcode);
+		post_overlay(bbcode.strip_edges(false, true));
+	}
+
+	// Drops overlay lines older than 30 s; hides the overlay while the chat
+	// window (which shows the full history) is open. Call once per frame.
+	void tick_overlay() {
+		if (!overlay_) return;
+		const uint64_t now = Time::get_singleton()->get_ticks_msec();
+		bool changed = false;
+		while (!overlay_lines_.empty() && now - overlay_lines_.front().second >= kOverlayTimeoutMs) {
+			overlay_lines_.pop_front();
+			changed = true;
+		}
+		if (changed) rebuild_overlay();
+		overlay_->set_visible(!is_open() && !overlay_lines_.empty());
 	}
 
 private:
+	static constexpr size_t kOverlayLines = 20; // ChatOverlay.js chatLinesNumber
+	static constexpr uint64_t kOverlayTimeoutMs = 30000; // ChatOverlay.js chatTimeout
+
+	void post_overlay(const String &bbcode) {
+		if (!overlay_ || bbcode.is_empty()) return;
+		overlay_lines_.emplace_back(bbcode, Time::get_singleton()->get_ticks_msec());
+		while (overlay_lines_.size() > kOverlayLines) overlay_lines_.pop_front();
+		rebuild_overlay();
+	}
+	void rebuild_overlay() {
+		String text;
+		for (const auto &l : overlay_lines_) text += l.first + String("\n");
+		overlay_->set_text(text);
+	}
+
+	RichTextLabel *overlay_ = nullptr;
+	std::deque<std::pair<String, uint64_t>> overlay_lines_;
 	Panel *panel_ = nullptr;
 	RichTextLabel *log_ = nullptr;
 	RtsoSafeSelect *channel_ = nullptr;
