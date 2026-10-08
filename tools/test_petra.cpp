@@ -103,6 +103,8 @@ static void test_roster_army() {
 		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
 		s->players_[1].civ = (Civilization)civ;
 		s->set_victory_condition(VICTORY_ENDLESS); // keep playing once the idle player is beaten
+		// A fortress outlasts the infantry's first wave, so the siege has something to fire at.
+		s->spawn_building_world(42.0f, 42.0f, BLD_FORTRESS, 0, 1.0f);
 		bool hero = false, champion = false, siege = false, tower = false, packed_moved = false, unpacked_fired = false;
 		for (float t = 0.0f; t < 20.0f * 60.0f && !s->is_game_over(); t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
