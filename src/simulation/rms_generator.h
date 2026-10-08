@@ -182,6 +182,7 @@ private:
 	static void distribute_neutral_resources(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config);
 	static void distribute_wildlife(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config);
 	static void distribute_relics(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config);
+	static void distribute_fish(Simulation &sim, const HeightmapGrid &hm, float water_h, const Config &config);
 };
 
 } // namespace rtso

@@ -267,7 +267,7 @@ enum PetraAttackKind : uint8_t {
 	PETRA_ATTACK_KINDS  = 4
 };
 
-// attackManager.js state for one AI. Saved raw (save v17), so it has no
+// attackManager.js state for one AI. Saved raw (save v18), so it has no
 // implicit padding: the uint8 fields fill a whole 4-byte word.
 struct PetraAttackManager {
 	uint8_t rushes_set = 0;   // setRushes ran (headquarters.js gameStart)
