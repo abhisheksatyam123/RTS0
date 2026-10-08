@@ -1099,11 +1099,12 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		}
 		pending_remote_cmds_.clear();
 
-		// Deterministic sort of commands so all peers execute identical order
+		// Deterministic order: by client, and each client's commands in the order it sent
+		// them (every peer gets the same batch per client), so Shift-queued orders of
+		// different kinds queue in the order they were given (0 A.D. runs a turn's
+		// commands in arrival order too).
 		std::stable_sort(frame.commands.begin(), frame.commands.end(), [](const NetCommand &a, const NetCommand &b) {
-			if (a.client_id != b.client_id) return a.client_id < b.client_id;
-			if (a.cmd_type != b.cmd_type) return a.cmd_type < b.cmd_type;
-			return a.target_id < b.target_id;
+			return a.client_id < b.client_id;
 		});
 	}
 
@@ -1117,14 +1118,16 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		sim.filter_owned_units(pl, c.entity_ids.data(), c.entity_ids.size(), owned);
 		const uint32_t *ids = owned.data();
 		const size_t n = owned.size();
-		if (c.cmd_type == 1) { // Move
-			sim.cmd_move(ids, n, c.target_x, c.target_z);
+		const bool queued = (c.param & NET_PARAM_QUEUED) != 0;
+		const bool capture = (c.param & NET_PARAM_NO_CAPTURE) == 0;
+		if (c.cmd_type == 1) { // Move (a player's walk: forced, ignores enemies)
+			sim.order_walk(ids, n, c.target_x, c.target_z, queued);
 		} else if (c.cmd_type == 2) { // Stop
 			sim.cmd_stop(ids, n);
 		} else if (c.cmd_type == 3) { // Attack
-			sim.order_attack(ids, n, c.target_id);
+			sim.order_attack(ids, n, c.target_id, queued);
 		} else if (c.cmd_type == 4) { // Gather
-			sim.order_gather(ids, n, c.target_id);
+			sim.order_gather(ids, n, c.target_id, queued);
 		} else if (c.cmd_type == 5) { // Build
 			uint32_t bid = sim.cmd_build(pl, (int)c.target_x, (int)c.target_z, c.param);
 			if (bid && n)
@@ -1138,11 +1141,11 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		} else if (c.cmd_type == 9) { // Research
 			sim.cmd_research(pl, c.target_id, c.param);
 		} else if (c.cmd_type == 10) { // Attack-move
-			sim.order_attack_move(ids, n, c.target_x, c.target_z);
+			sim.order_attack_move(ids, n, c.target_x, c.target_z, queued, (c.param & NET_PARAM_UNITS_ONLY) != 0, capture);
 		} else if (c.cmd_type == 11) { // Patrol
-			sim.order_patrol(ids, n, c.target_x, c.target_z);
+			sim.order_patrol(ids, n, c.target_x, c.target_z, queued);
 		} else if (c.cmd_type == 12) { // Garrison
-			sim.order_garrison(ids, n, c.target_id);
+			sim.order_garrison(ids, n, c.target_id, queued);
 		} else if (c.cmd_type == 13) { // Ungarrison / disembark-all
 			if (c.param == 1) {
 				if (n) sim.order_disembark_all(ids[0]);
@@ -1154,9 +1157,9 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			uint32_t bld = c.entity_ids.size() > 1 ? c.entity_ids[1] : 0;
 			sim.cmd_set_rally_point(pl, c.target_id, c.target_x, c.target_z, res, bld);
 		} else if (c.cmd_type == 15) { // Attack building
-			sim.order_attack_building(ids, n, c.target_id);
+			sim.order_attack_building(ids, n, c.target_id, queued, capture); // right-click captures, Ctrl attacks
 		} else if (c.cmd_type == 16) { // Build / repair
-			sim.order_build_or_repair(ids, n, c.target_id);
+			sim.order_build_or_repair(ids, n, c.target_id, queued);
 		} else if (c.cmd_type == 17) { // Hunt / herd
 			if (c.param == 1)
 				sim.order_herd(ids, n, c.target_id);
@@ -1169,7 +1172,12 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		} else if (c.cmd_type == 20) { // Cancel train
 			sim.cmd_cancel_train(pl, c.target_id, (size_t)c.param);
 		} else if (c.cmd_type == 21) { // Guard
-			sim.order_guard(ids, n, c.target_id);
+			sim.order_guard(ids, n, c.target_id, queued);
+		} else if (c.cmd_type == 30) { // Delete — entity_ids = the player's units and structures.
+			// cmd_delete checks ownership itself: structures aren't in `owned` (units only).
+			sim.cmd_delete(pl, c.entity_ids.data(), c.entity_ids.size());
+		} else if (c.cmd_type == 31) { // Back to work
+			sim.order_back_to_work(ids, n);
 		} else if (c.cmd_type == 26) { // Structure upgrade — target_id=building, param 0 start / 1 cancel.
 			if (c.param == 1) sim.cmd_cancel_upgrade(pl, c.target_id);
 			else sim.cmd_upgrade_building(pl, c.target_id);
