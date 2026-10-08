@@ -82,9 +82,48 @@ static void test_phase_up() {
 	std::printf("  continental: town phase at %.0fs, city phase at %.0fs, peak workers %d, fields %d\n",
 	            town_at, city_at, peak_workers, peak_fields);
 	CHECK(town_at > 0.0f && town_at < 12.0f * 60.0f, "town phase within 12 minutes");
-	CHECK(city_at > 0.0f, "city phase within 15 minutes (Town structures built first)");
+	CHECK(city_at > 0.0f && city_at < 15.0f * 60.0f, "city phase within 15 minutes (Town structures built first)");
 	CHECK(peak_workers >= 25, "economy grows past 25 workers");
 	CHECK(peak_fields >= 2, "farms fields once hunt and berries run low");
+}
+
+// Petra fields its civ's roster army: a hero, champions and siege engines once
+// it reaches the city phase (attackPlan.js unitStat Hero / Champ* / Siege).
+static void test_roster_army() {
+	for (uint8_t civ : { (uint8_t)CIV_ATHENIANS, (uint8_t)CIV_MACEDONIANS }) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->players_[1].civ = (Civilization)civ;
+		bool hero = false, champion = false, siege = false, tower = false, packed_moved = false, unpacked_fired = false;
+		for (float t = 0.0f; t < 20.0f * 60.0f && !s->is_game_over(); t += Simulation::FIXED_STEP) {
+			s->tick(Simulation::FIXED_STEP);
+			if ((int)(t * 20.0f) % 200 != 0) continue;
+			const auto u = s->units();
+			for (size_t i = 0; i < u.count; ++i) {
+				if (!u.alive[i] || u.team[i] != 1 || u.tmpl[i] >= CIV_UNIT_TEMPLATE_COUNT) continue;
+				const CivUnitTemplate &ct = civ_unit_template(u.tmpl[i]);
+				if (ct.flags & ROSTER_HERO) hero = true;
+				if (ct.flags & ROSTER_CHAMPION) champion = true;
+				if (ct.flags & ROSTER_SIEGE_TOWER) tower = true;
+				const uint8_t ps = s->units_.pack_state[i];
+				if (ps == PACK_PACKED && (u.action_state[i] == ACTION_MOVE || u.action_state[i] == ACTION_ATTACK_MOVE)) packed_moved = true;
+				if (ps == PACK_UNPACKED && u.action_state[i] == ACTION_ATTACK) unpacked_fired = true;
+				else if (u.unit_type[i] == UNIT_CATAPULT || u.unit_type[i] == UNIT_SIEGE_RAM || u.unit_type[i] == UNIT_BOLT_SHOOTER) siege = true;
+			}
+		}
+		std::printf("  %s by 20 min: phase %d, hero %s, champions %s, siege %s, siege tower %s, siege moves packed %s, fires unpacked %s\n",
+		            civ_info((Civilization)civ).name, s->petra_phase(), hero ? "yes" : "no", champion ? "yes" : "no",
+		            siege ? "yes" : "no", tower ? "yes" : "no",
+		            packed_moved ? "yes" : "no", unpacked_fired ? "yes" : "no");
+		CHECK(hero, "trains a hero in the city phase");
+		CHECK(champion, "trains roster champions in the city phase");
+		CHECK(siege, "trains siege engines");
+		if (civ == CIV_MACEDONIANS) CHECK(tower, "builds a siege tower where the civ has one");
+		CHECK(packed_moved, "siege packs to follow the army");
+		CHECK(unpacked_fired, "siege unpacks to fire in range");
+	}
 }
 
 static int count_buildings(const Simulation &s, uint8_t team) {
@@ -289,6 +328,7 @@ int main() {
 	test_no_early_rush();
 	test_phase_up();
 	test_no_free_income();
+	test_roster_army();
 	test_diplomacy();
 	test_ai_slots();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);

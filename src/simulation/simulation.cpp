@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
+#include <type_traits>
 #include <queue>
 #include <iostream>
 
@@ -1527,7 +1528,8 @@ static constexpr double TRADER_GAIN_MULTIPLIER = 0.75;
 // template_structure_economic_market.xml Market/InternationalBonus.
 static constexpr double MARKET_INTERNATIONAL_BONUS = 0.2;
 
-Simulation::TradeGain Simulation::calculate_trade_gain(const Building &from, const Building &to, uint8_t trader_owner) const {
+Simulation::TradeGain Simulation::calculate_trade_gain(const Building &from, const Building &to, uint8_t trader_owner,
+		uint8_t trader_type) const {
 	// 0 A.D. Market.js CalculateTraderGain: the trader's owner gets
 	// round(norm * GainMultiplier * TradeGain(d^2, mapSize)), which grows with
 	// the square of the distance. When the two markets have different owners,
@@ -1536,9 +1538,12 @@ Simulation::TradeGain Simulation::calculate_trade_gain(const Building &from, con
 	const double map_size = std::max(1.0, 2.0 * (double)map_half_ * TRADE_TILE_METRES);
 	const double dx = ((double)from.x - (double)to.x) * TRADE_TILE_METRES;
 	const double dz = ((double)from.z - (double)to.z) * TRADE_TILE_METRES;
-	// Trader/GainMultiplier with the civ bonus (Persian Darics +25%), the
-	// Handicraft / Advanced Handicraft techs and an AI player's difficulty applied.
-	const double mult = TRADER_GAIN_MULTIPLIER * (double)civ_info(civ_of(trader_owner)).trade_gain_mult *
+	// Trader/GainMultiplier with the civ bonus (Persian Darics +25% on land
+	// traders, Carthaginian +25% on merchant ships only), the Handicraft /
+	// Advanced Handicraft techs and an AI player's difficulty applied.
+	const CivInfo &ci = civ_info(civ_of(trader_owner));
+	const float civ_mult = trader_type == UNIT_MERCHANT_SHIP ? ci.ship_trade_gain_mult : ci.trade_gain_mult;
+	const double mult = TRADER_GAIN_MULTIPLIER * (double)civ_mult *
 	                    (double)tech_mods(trader_owner).trade_gain[UNIT_TRADER] * (double)ai_gather_mult(trader_owner);
 	g.trader = (int)std::lround(trade_gain_normalization(map_size) * mult * trade_gain_curve(dx * dx + dz * dz, map_size));
 	if (from.team != to.team) {
@@ -5705,46 +5710,45 @@ void Simulation::petra_manage_military_production(float dt) {
 	}
 	bool is_emergency = (max_threat >= 7.0f);
 
-	// Find available AI military production buildings
-	std::vector<uint32_t> barracks_list;
-	std::vector<uint32_t> fortress_list;
+	// Our finished buildings that train soldiers (roster `trainers`: barracks,
+	// fortress, and the Town Center and temple for heroes).
+	std::vector<uint32_t> trainers;
 	for (const auto &b : buildings_) {
-		if (b.team != petra_pid_ || b.build_progress < 1.0f) continue;
-		if (b.type == BLD_BARRACKS && b.queue.size() < 4) barracks_list.push_back(b.id);
-		if (b.type == BLD_FORTRESS && b.queue.size() < 4) fortress_list.push_back(b.id);
+		if (b.team != petra_pid_ || b.build_progress < 1.0f || b.queue.size() >= 4) continue;
+		if (b.type == BLD_BARRACKS || b.type == BLD_FORTRESS || b.type == BLD_TOWN_CENTER || b.type == BLD_TEMPLE)
+			trainers.push_back(b.id);
 	}
-
-	if (barracks_list.empty() && fortress_list.empty()) return;
+	if (trainers.empty()) return;
 	if (pop_current(petra_pid_) >= pop_max(petra_pid_)) return;
+	const uint8_t ai_civ = petra_ps().civ;
+	const uint8_t phase = petra_ps().phase;
 
-	// 1. Emergency Defense (Priority Queue 0: Threat >= 7.0f)
-	if (is_emergency && !barracks_list.empty()) {
-		// Prioritize spearmen (anti-cavalry/melee) and archers (ranged defense)
-		for (uint32_t bid : barracks_list) {
+	// A building of ours that trains roster unit `tmpl` (heroes and soldiers
+	// only at the Town Center or temple when no barracks or fortress can).
+	auto trainer_for = [&](uint16_t tmpl) -> uint32_t {
+		const CivUnitTemplate &t = civ_unit_template(tmpl);
+		const bool hero = (t.flags & ROSTER_HERO) != 0;
+		for (uint32_t bid : trainers) {
 			auto bit = building_id_to_idx_.find(bid);
 			if (bit == building_id_to_idx_.end()) continue;
-			Building &b = buildings_[bit->second];
-			if (b.queue.size() >= 4 || pop_current(petra_pid_) >= pop_max(petra_pid_)) continue;
+			const Building &b = buildings_[bit->second];
+			if (!(t.trainers & bld_bit(b.type))) continue;
+			if (!hero && (b.type == BLD_TOWN_CENTER || b.type == BLD_TEMPLE)) continue;
+			if (b.queue.size() >= 4 || !can_train_at(petra_pid_, t.unit_type, b.type, tmpl)) continue;
+			return bid;
+		}
+		return 0;
+	};
 
-			// Check if we can train Spearman
-			const UnitTypeInfo &sinfo = civ_unit_info(civ_of(petra_pid_), UNIT_SPEARMAN);
-			if (petra_try_pay(PETRA_QUEUE_EMERGENCY, (float)sinfo.food_cost, (float)sinfo.wood_cost, (float)sinfo.gold_cost, 0.0f)) {
-				ProductionOrder order;
-				order.unit_type = UNIT_SPEARMAN;
-				order.timer = 0.0f;
-				order.duration = sinfo.train_time * 0.70f * tech_mods(petra_pid_).train_time[UNIT_SPEARMAN] * ai_time_mult(petra_pid_); // fast-track emergency training
-				b.queue.push_back(order);
-				continue;
-			}
-
-			// Check if we can train Archer
-			const UnitTypeInfo &ainfo = civ_unit_info(civ_of(petra_pid_), UNIT_ARCHER);
-			if (petra_try_pay(PETRA_QUEUE_EMERGENCY, (float)ainfo.food_cost, (float)ainfo.wood_cost, (float)ainfo.gold_cost, 0.0f)) {
-				ProductionOrder order;
-				order.unit_type = UNIT_ARCHER;
-				order.timer = 0.0f;
-				order.duration = ainfo.train_time * 0.70f * tech_mods(petra_pid_).train_time[UNIT_ARCHER] * ai_time_mult(petra_pid_);
-				b.queue.push_back(order);
+	// 1. Emergency Defense (Priority Queue 0: Threat >= 7.0f): the civ's
+	// spearmen, then its archers, from any barracks.
+	if (is_emergency) {
+		for (UnitType type : { UNIT_SPEARMAN, UNIT_ARCHER }) {
+			const uint16_t tmpl = civ_default_template(ai_civ, type);
+			if (tmpl == CIV_UNIT_TEMPLATE_NONE || civ_unit_template(tmpl).phase > phase) continue;
+			for (int n = 0; n < 4; ++n) {
+				const uint32_t bid = trainer_for(tmpl);
+				if (!bid || !petra_train_template(PETRA_QUEUE_EMERGENCY, bid, tmpl)) break;
 			}
 		}
 		return;
@@ -5759,7 +5763,7 @@ void Simulation::petra_manage_military_production(float dt) {
 			if (units_.alive[i] && units_.team[i] == petra_pid_ &&
 			    (units_.unit_type[i] == UNIT_VILLAGER || units_.unit_type[i] == UNIT_FEMALE_CITIZEN))
 				++workers;
-		const float staffed = (petra_ps().phase == 1) ? 0.8f : 0.5f;
+		const float staffed = (phase == 1) ? 0.8f : 0.5f;
 		if ((float)workers < staffed * (float)petra_villager_target()) return;
 	}
 
@@ -5791,6 +5795,29 @@ void Simulation::petra_manage_military_production(float dt) {
 		}
 	}
 
+	// What we field already, queued orders included (attackPlan.js unitStat
+	// targetSize: one hero, a few siege engines).
+	int own_heroes = 0, own_siege = 0, own_towers = 0;
+	auto is_tower = [](uint16_t tmpl) {
+		return tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(tmpl).flags & ROSTER_SIEGE_TOWER);
+	};
+	auto is_siege = [](uint8_t t) { return t == UNIT_CATAPULT || t == UNIT_SIEGE_RAM || t == UNIT_BOLT_SHOOTER; };
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
+		if (units_.unit_type[i] == UNIT_HERO) ++own_heroes;
+		if (is_siege(units_.unit_type[i])) ++own_siege;
+		if (is_tower(units_.tmpl[i])) ++own_towers;
+	}
+	for (const auto &b : buildings_) {
+		if (b.team != petra_pid_) continue;
+		for (const auto &o : b.queue) {
+			if (o.unit_type == UNIT_HERO) ++own_heroes;
+			if (is_siege(o.unit_type)) ++own_siege;
+			if (is_tower(o.tmpl)) ++own_towers;
+		}
+	}
+	const int siege_cap = (phase >= 3) ? 4 : 2;
+
 	int total_enemy_mil = enemy_infantry + enemy_spearmen + enemy_archers + enemy_cavalry + enemy_siege + enemy_champions;
 	float norm = 1.0f / (float)std::max(1, total_enemy_mil);
 
@@ -5799,69 +5826,96 @@ void Simulation::petra_manage_military_production(float dt) {
 	float archer_score   = 1.0f + (enemy_infantry * 3.0f + enemy_spearmen * 3.5f) * norm;
 	float swordsman_score = 1.0f + (enemy_spearmen * 1.8f) * norm;
 	float cavalry_score  = 0.8f + (enemy_archers * 4.0f + enemy_siege * 3.0f) * norm;
-	float siege_score    = (petra_ps().phase >= 2) ? (1.5f + (float)enemy_forts * 2.5f) : 0.2f;
-	if (petra_attack_plan_.type == AttackPlan::PLAN_SIEGE && petra_ps().phase >= 2) {
+	float siege_score    = (phase >= 2) ? (1.5f + (float)enemy_forts * 2.5f) : 0.2f;
+	if (petra_attack_plan_.type == AttackPlan::PLAN_SIEGE && phase >= 2) {
 		siege_score += 5.0f; // Prioritize siege engines before assault
 	}
-	float champion_score = (petra_ps().phase >= 3) ? 2.5f : 0.0f;
+	float champion_score = (phase >= 3) ? 2.5f : 0.0f;
+	auto class_score = [&](uint8_t t) -> float {
+		switch (t) {
+			case UNIT_SPEARMAN: return spearman_score;
+			case UNIT_ARCHER: case UNIT_ARCHER_MAIDEN: return archer_score;
+			case UNIT_SWORDSMAN: case UNIT_WAR_DOG: return swordsman_score;
+			case UNIT_CAVALRY: case UNIT_CAMEL: return cavalry_score;
+			case UNIT_CHARIOT: return cavalry_score * 0.95f;
+			case UNIT_ELEPHANT: case UNIT_SCYTHED_CHARIOT: return champion_score;
+			case UNIT_CATAPULT: return siege_score;
+			case UNIT_SIEGE_RAM: return siege_score * 0.95f;
+			case UNIT_BOLT_SHOOTER: return siege_score * 0.85f;
+			default: return -1.0f; // support units, ships, healers: trained elsewhere
+		}
+	};
 
+	// Score every roster unit our buildings can train now: citizen soldiers by
+	// counters, champions and the hero in the city phase, siege up to a cap.
 	struct Option {
-		UnitType type;
+		uint16_t tmpl;
 		float score;
 		uint32_t bld_id;
 	};
 	std::vector<Option> options;
-
-	uint8_t ai_civ = petra_ps().civ;
-	auto push_if_civ = [&](UnitType t, float score, uint32_t bid) {
-		if (civ_can_train(ai_civ, (uint8_t)t))
-			options.push_back({t, score, bid});
-	};
-
-	for (uint32_t bid : barracks_list) {
-		push_if_civ(UNIT_SPEARMAN, spearman_score, bid);
-		push_if_civ(UNIT_ARCHER, archer_score, bid);
-		push_if_civ(UNIT_SWORDSMAN, swordsman_score, bid);
-		if (petra_ps().phase >= 2) {
-			push_if_civ(UNIT_CAVALRY, cavalry_score, bid);
-			push_if_civ(UNIT_CAMEL, cavalry_score, bid);
-			push_if_civ(UNIT_CHARIOT, cavalry_score * 0.95f, bid);
+	for (uint16_t tmpl = civ_roster_begin(ai_civ); tmpl < civ_roster_end(ai_civ); ++tmpl) {
+		const CivUnitTemplate &t = civ_unit_template(tmpl);
+		if (t.phase > phase) continue;
+		float score;
+		if (t.flags & ROSTER_HERO) {
+			if (own_heroes > 0 || phase < 3) continue;
+			score = champion_score * 1.2f;
+		} else if (t.flags & ROSTER_SIEGE_TOWER) {
+			// One tower to carry soldiers over walls, once the siege train has started.
+			if (own_siege >= siege_cap || own_towers > 0) continue;
+			score = siege_score * (own_siege > 0 ? 1.1f : 0.8f);
+		} else {
+			score = class_score(t.unit_type);
+			if (score < 0.0f) continue;
+			// Village-phase armies stay infantry; mounted units come with the town phase.
+			if (phase < 2 && (t.unit_type == UNIT_CAVALRY || t.unit_type == UNIT_CAMEL || t.unit_type == UNIT_CHARIOT)) continue;
+			if (is_siege(t.unit_type) && own_siege >= siege_cap) continue;
+			if (t.flags & ROSTER_CHAMPION) {
+				if (phase < 3) continue;
+				score = champion_score + 0.3f * score;
+			}
+			if (t.flags & ROSTER_MERCENARY) score *= 0.9f;
+			// Among units of one class, the civ's standard one first.
+			if (tmpl == civ_default_template(ai_civ, t.unit_type)) score += 0.05f;
 		}
+		const uint32_t bid = trainer_for(tmpl);
+		if (bid) options.push_back({tmpl, score, bid});
 	}
 
-	for (uint32_t fid : fortress_list) {
-		if (petra_ps().phase >= 2) {
-			push_if_civ(UNIT_CATAPULT, siege_score, fid);
-			push_if_civ(UNIT_SIEGE_RAM, siege_score * 0.95f, fid);
-			push_if_civ(UNIT_BOLT_SHOOTER, siege_score * 0.85f, fid);
-		}
-		if (petra_ps().phase >= 3) {
-			push_if_civ(UNIT_ELEPHANT, champion_score, fid);
-			push_if_civ(UNIT_HERO, champion_score * 0.9f, fid);
-			push_if_civ(UNIT_SCYTHED_CHARIOT, champion_score * 0.85f, fid);
-		}
-	}
-
-	std::sort(options.begin(), options.end(), [](const Option &a, const Option &b) {
+	std::stable_sort(options.begin(), options.end(), [](const Option &a, const Option &b) {
 		return a.score > b.score;
 	});
 
 	for (const auto &opt : options) {
 		if (pop_current(petra_pid_) >= pop_max(petra_pid_)) break;
-		const UnitTypeInfo &uinfo = civ_unit_info(civ_of(petra_pid_), opt.type);
-		if (petra_try_pay(PETRA_QUEUE_MILITARY, (float)uinfo.food_cost, (float)uinfo.wood_cost,
-		                  (float)uinfo.gold_cost, (float)uinfo.stone_cost)) {
-			auto bit = building_id_to_idx_.find(opt.bld_id);
-			if (bit != building_id_to_idx_.end()) {
-				ProductionOrder order;
-				order.unit_type = opt.type;
-				order.timer = 0.0f;
-				order.duration = uinfo.train_time * 0.75f * tech_mods(petra_pid_).train_time[opt.type];
-				buildings_[bit->second].queue.push_back(order);
-			}
-			break;
-		}
+		if (petra_train_template(PETRA_QUEUE_MILITARY, opt.bld_id, opt.tmpl)) break;
 	}
+}
+
+// Queue roster unit `tmpl` at one of our buildings, paid from Petra's queue
+// account: cmd_train_template's checks, prices and training time.
+bool Simulation::petra_train_template(uint8_t queue, uint32_t building_id, uint16_t tmpl) {
+	auto bit = building_id_to_idx_.find(building_id);
+	if (bit == building_id_to_idx_.end() || tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
+	Building &b = buildings_[bit->second];
+	const uint8_t pid = petra_pid_;
+	if (b.team != pid || b.build_progress < 1.0f || b.queue.size() >= 8 || b.upgrade_to != BLD_TYPE_COUNT) return false;
+	const CivUnitTemplate &t = civ_unit_template(tmpl);
+	if (t.civ != players_[pid].civ || t.phase > players_[pid].phase) return false;
+	if (pop_current(pid) >= pop_max(pid) || !can_train_at(pid, t.unit_type, b.type, tmpl)) return false;
+	const UnitTypeInfo &uinfo = civ_template_unit_info(tmpl, t.unit_type);
+	float cost[RES_COUNT];
+	unit_train_cost(pid, tmpl, uinfo, cost);
+	if (!petra_try_pay(queue, cost[RES_FOOD], cost[RES_WOOD], cost[RES_GOLD], cost[RES_STONE])) return false;
+	ProductionOrder order;
+	order.unit_type = t.unit_type;
+	order.tmpl = tmpl;
+	order.timer = 0.0f;
+	order.duration = uinfo.train_time * team_bonus_mult(pid, TEAM_BONUS_UNIT_TRAIN_TIME, -1, tmpl)
+		* tech_mods(pid).train_time[t.unit_type] * ai_time_mult(pid);
+	b.queue.push_back(order);
+	return true;
 }
 
 // Workers Petra aims for: most of the population while booming in the
@@ -7265,9 +7319,7 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 			for (size_t i = 0; i < units_.count; ++i) {
 				if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
 				if (units_.id[i] == petra_scout_unit_id_) continue; // Scout remains on exploration
-				if (units_.unit_type[i] == UNIT_VILLAGER || units_.unit_type[i] == UNIT_TRADER ||
-				    units_.unit_type[i] == UNIT_TRIREME || units_.unit_type[i] == UNIT_FISHING_BOAT ||
-				    units_.unit_type[i] == UNIT_MERCHANT_SHIP) continue;
+				if (petra_is_support_unit(units_.unit_type[i]) || units_.unit_type[i] == UNIT_TRIREME) continue;
 				uint32_t uid = units_.id[i];
 				if (std::find(petra_raid_plan_.squad.begin(), petra_raid_plan_.squad.end(), uid) != petra_raid_plan_.squad.end())
 					continue;
@@ -8833,7 +8885,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = 14; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 each unit's pack state
+	uint32_t version = 15; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 each unit's pack state; v15 the rest of the per-tick state (save_tick_state)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 
@@ -8999,6 +9051,8 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&leg, sizeof(leg));
 	}
 
+	// 6. v15: everything else a tick reads (tools/test_save_hash.cpp checks it)
+	save_tick_state(out);
 	return true;
 }
 
@@ -9009,7 +9063,7 @@ bool Simulation::load_state(const char *filepath) {
 	uint32_t magic = 0, version = 0;
 	in.read((char *)&magic, sizeof(magic));
 	in.read((char *)&version, sizeof(version));
-	if (magic != 0x52545330 || version < 1 || version > 14) return false;
+	if (magic != 0x52545330 || version < 1 || version > 15) return false;
 
 	// 1. Sim scalars
 	in.read((char *)&ticks_, sizeof(ticks_));
@@ -9339,9 +9393,280 @@ bool Simulation::load_state(const char *filepath) {
 		next_id_ = max_id + 1;
 	}
 
+	if (version >= 15) {
+		if (!load_tick_state(in)) return false;
+	} else {
+		// Older saves carry none of it: start the per-tick state fresh.
+		for (size_t u = 0; u < units_.count; ++u) {
+			units_.anchor_x[u] = units_.target_x[u];
+			units_.anchor_z[u] = units_.target_z[u];
+			units_.status_effects[u] = 0;
+			units_.xp[u] = 0;
+			units_.waypoint_cur[u] = units_.waypoint_count[u] = 0;
+			units_.poison_timer[u] = units_.snare_timer[u] = units_.knockback_timer[u] = 0.0f;
+			units_.knockback_dir_x[u] = units_.knockback_dir_z[u] = 0.0f;
+			units_.slow_timer[u] = units_.bleed_timer[u] = units_.burning_timer[u] = 0.0f;
+		}
+		for (WaypointPath &wp : unit_paths_) wp.clear();
+		projectiles_.clear();
+	}
+
 	rebuild_all_tech_mods();
 	rebuild_nav_grid(); // the loaded structures (and locked gates) block paths, not the old ones
 	return true;
+}
+
+// Raw copies of plain structs; a padding byte in the file is never read back as a value.
+template <class T> static void save_pod(std::ofstream &out, const T &v) {
+	static_assert(std::is_trivially_copyable<T>::value, "raw save needs a plain struct");
+	out.write((const char *)&v, sizeof(T));
+}
+template <class T> static bool load_pod(std::ifstream &in, T &v) {
+	static_assert(std::is_trivially_copyable<T>::value, "raw load needs a plain struct");
+	in.read((char *)&v, sizeof(T));
+	return in.good();
+}
+template <class T> static void save_vec(std::ofstream &out, const std::vector<T> &v) {
+	save_pod(out, (uint32_t)v.size());
+	for (const T &x : v) save_pod(out, x);
+}
+template <class T> static bool load_vec(std::ifstream &in, std::vector<T> &v, uint32_t max_n) {
+	uint32_t n = 0;
+	if (!load_pod(in, n) || n > max_n) return false;
+	v.resize(n);
+	for (T &x : v) if (!load_pod(in, x)) return false;
+	return true;
+}
+
+// One field list for both directions of the Petra state, so save and load can't drift apart.
+struct PetraSaveAr {
+	std::ofstream &out;
+	bool ok = true;
+	static constexpr bool loading = false;
+	template <class T> void pod(T &v) { save_pod(out, v); }
+};
+struct PetraLoadAr {
+	std::ifstream &in;
+	bool ok = true;
+	static constexpr bool loading = true;
+	template <class T> void pod(T &v) { ok = load_pod(in, v) && ok; }
+};
+template <class Ar, class T, class F> static void io_vec(Ar &ar, std::vector<T> &v, uint32_t max_n, F &&each) {
+	uint32_t n = (uint32_t)v.size();
+	ar.pod(n);
+	if constexpr (Ar::loading) {
+		if (!ar.ok || n > max_n) { ar.ok = false; return; }
+		v.assign(n, T{});
+	}
+	for (T &x : v) each(x);
+}
+
+template <class Ar> void petra_state_io(Ar &ar, Simulation &s) {
+	using S = Simulation;
+	auto ids = [&](std::vector<uint32_t> &v) { io_vec(ar, v, S::UNIT_CAP, [&](uint32_t &x) { ar.pod(x); }); };
+	auto field = [&](auto &v) {
+		using T = std::decay_t<decltype(v)>;
+		if constexpr (std::is_same_v<T, S::AttackPlan>) {
+			ar.pod(v.type); ar.pod(v.state); ar.pod(v.target_building_id);
+			ar.pod(v.staging_x); ar.pod(v.staging_z); ar.pod(v.target_x); ar.pod(v.target_z);
+			ar.pod(v.abort_threat); ids(v.squad); ar.pod(v.initial_squad_size); ar.pod(v.state_timer);
+			ar.pod(v.retreat_base_id); ar.pod(v.retreat_x); ar.pod(v.retreat_z);
+		} else if constexpr (std::is_same_v<T, S::PetraStrikeForce>) {
+			ar.pod(v.state); ids(v.unit_ids); ar.pod(v.staging_x); ar.pod(v.staging_z);
+			ar.pod(v.target_x); ar.pod(v.target_z); ar.pod(v.target_building_id);
+			ar.pod(v.target_unit_id); ar.pod(v.state_timer);
+		} else if constexpr (std::is_same_v<T, PetraDefenseArmy>) {
+			ids(v.defender_ids); ids(v.foe_ids); ar.pod(v.cx); ar.pod(v.cz); ar.pod(v.active);
+		} else if constexpr (std::is_same_v<T, PetraTransportPlan>) {
+			ar.pod(v.state); ar.pod(v.ship_id); ids(v.passenger_ids);
+			ar.pod(v.pickup_x); ar.pod(v.pickup_z); ar.pod(v.drop_x); ar.pod(v.drop_z);
+			ar.pod(v.state_timer); ar.pod(v.failed);
+		} else if constexpr (std::is_same_v<T, std::vector<S::PetraFoundationWatch>>) {
+			io_vec(ar, v, 1u << 16, [&](S::PetraFoundationWatch &w) { ar.pod(w.id); ar.pod(w.progress); ar.pod(w.stall); ids(w.banned); });
+		} else if constexpr (std::is_same_v<T, std::vector<S::PetraBase>>) {
+			io_vec(ar, v, 1u << 16, [&](S::PetraBase &b) { ar.pod(b); });
+		} else if constexpr (std::is_same_v<T, std::vector<uint8_t>>) {
+			io_vec(ar, v, (uint32_t)S::MAX_GRID_RES * S::MAX_GRID_RES, [&](uint8_t &c) { ar.pod(c); });
+		} else {
+			static_assert(std::is_trivially_copyable_v<T>, "give this Petra field its own case in petra_state_io");
+			ar.pod(v);
+		}
+	};
+	// The AI being run between ticks (PETRA_PLAYER) lives in the members, every other AI in its slot.
+#define RTSO_PETRA_IO_LIVE(m) field(s.m);
+	RTSO_PETRA_SLOT_FIELDS(RTSO_PETRA_IO_LIVE)
+#undef RTSO_PETRA_IO_LIVE
+	io_vec(ar, s.petra_slots_, MAX_PLAYERS, [&](S::PetraSlot &slot) {
+		ar.pod(slot.initialized);
+#define RTSO_PETRA_IO_SLOT(m) field(slot.m);
+		RTSO_PETRA_SLOT_FIELDS(RTSO_PETRA_IO_SLOT)
+#undef RTSO_PETRA_IO_SLOT
+	});
+	ar.pod(s.petra_config_);
+	ar.pod(s.petra_pid_);
+	ar.pod(s.petra_tribute_inbox_);
+	io_vec(ar, s.petra_chat_, 1u << 16, [&](PetraChatLine &c) { ar.pod(c); });
+	// Diplomacy requests by player, in player order.
+	std::vector<std::pair<uint8_t, PetraDiplomacyRequest>> reqs(s.petra_diplomacy_requests_.begin(), s.petra_diplomacy_requests_.end());
+	std::sort(reqs.begin(), reqs.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
+	io_vec(ar, reqs, MAX_PLAYERS, [&](std::pair<uint8_t, PetraDiplomacyRequest> &r) { ar.pod(r.first); ar.pod(r.second); });
+	if constexpr (Ar::loading) {
+		s.petra_diplomacy_requests_.clear();
+		for (const auto &r : reqs) s.petra_diplomacy_requests_[r.first] = r.second;
+	}
+}
+
+void Simulation::save_tick_state(std::ofstream &out) const {
+	// Unit columns the main unit record leaves out, in unit order.
+	for (size_t u = 0; u < units_.count; ++u) {
+		save_pod(out, units_.vel_x[u]);
+		save_pod(out, units_.vel_z[u]);
+		save_pod(out, units_.anchor_x[u]);
+		save_pod(out, units_.anchor_z[u]);
+		save_pod(out, units_.status_effects[u]);
+		save_pod(out, units_.xp[u]);
+		save_pod(out, units_.waypoint_cur[u]);
+		save_pod(out, units_.waypoint_count[u]);
+		save_pod(out, units_.poison_timer[u]);
+		save_pod(out, units_.snare_timer[u]);
+		save_pod(out, units_.knockback_timer[u]);
+		save_pod(out, units_.knockback_dir_x[u]);
+		save_pod(out, units_.knockback_dir_z[u]);
+		save_pod(out, units_.slow_timer[u]);
+		save_pod(out, units_.bleed_timer[u]);
+		save_pod(out, units_.burning_timer[u]);
+		const bool has_path = u < unit_paths_.size() && unit_paths_[u].count > 0;
+		save_pod(out, (uint8_t)has_path);
+		if (has_path) save_pod(out, unit_paths_[u]);
+	}
+	// Load guesses these from build_progress and hp; entity limits wreck structures with hp left.
+	for (const Building &b : buildings_) { save_pod(out, b.committed); save_pod(out, b.wrecked); }
+	save_vec(out, projectiles_);
+	save_vec(out, relics_);
+	save_pod(out, fauna_);
+	// Transport ships' passengers, sorted so the file doesn't depend on hash-map order.
+	std::vector<std::pair<uint32_t, std::vector<uint32_t>>> ships(transport_passengers_.begin(), transport_passengers_.end());
+	std::sort(ships.begin(), ships.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
+	save_pod(out, (uint32_t)ships.size());
+	for (const auto &kv : ships) { save_pod(out, kv.first); save_vec(out, kv.second); }
+	// Timers and counters that ticks read.
+	save_pod(out, rate_window_timer_);
+	save_pod(out, upkeep_timer_);
+	save_pod(out, entity_limits_timer_);
+	save_pod(out, gate_timer_);
+	save_pod(out, fow_timer_);
+	save_pod(out, territory_timer_);
+	// Territory is recomputed once a second, so the saved grid can't be rebuilt from the buildings on load.
+	for (const Grid<uint8_t> *g : {&territory_grid_, &influence_grid_}) {
+		save_pod(out, (int32_t)g->w);
+		save_pod(out, (int32_t)g->h);
+		save_vec(out, g->data);
+	}
+	save_vec(out, territory_roots_);
+	save_pod(out, territory_roots_res_);
+	save_pod(out, territory_roots_half_);
+	save_pod(out, aura_timer_);
+	save_pod(out, relic_victory_timer_);
+	save_pod(out, last_alert_time_);
+	save_pod(out, recent_deaths_);
+	save_pod(out, recent_death_head_);
+	save_pod(out, record_);
+	for (const PlayerState &ps : players_) save_pod(out, ps.gathered_window);
+	// Match settings from Game Setup; ticks read them, so a save carries its own rules.
+	save_pod(out, victory_condition_);
+	save_pod(out, waves_enabled_);
+	save_pod(out, last_man_standing_);
+	save_pod(out, pop_cap_);
+	save_pod(out, ceasefire_seconds_);
+	save_pod(out, reveal_map_);
+	save_pod(out, explore_map_);
+	save_pod(out, wonder_duration_);
+	save_pod(out, relic_duration_);
+	save_pod(out, relic_count_);
+	PetraSaveAr ar{out};
+	petra_state_io(ar, const_cast<Simulation &>(*this));
+}
+
+bool Simulation::load_tick_state(std::ifstream &in) {
+	for (size_t u = 0; u < units_.count; ++u) {
+		load_pod(in, units_.vel_x[u]);
+		load_pod(in, units_.vel_z[u]);
+		load_pod(in, units_.anchor_x[u]);
+		load_pod(in, units_.anchor_z[u]);
+		load_pod(in, units_.status_effects[u]);
+		load_pod(in, units_.xp[u]);
+		load_pod(in, units_.waypoint_cur[u]);
+		load_pod(in, units_.waypoint_count[u]);
+		load_pod(in, units_.poison_timer[u]);
+		load_pod(in, units_.snare_timer[u]);
+		load_pod(in, units_.knockback_timer[u]);
+		load_pod(in, units_.knockback_dir_x[u]);
+		load_pod(in, units_.knockback_dir_z[u]);
+		load_pod(in, units_.slow_timer[u]);
+		load_pod(in, units_.bleed_timer[u]);
+		load_pod(in, units_.burning_timer[u]);
+		uint8_t has_path = 0;
+		if (!load_pod(in, has_path)) return false;
+		if (unit_paths_.size() < UNIT_CAP) unit_paths_.resize(UNIT_CAP);
+		if (u < unit_paths_.size()) unit_paths_[u].clear();
+		if (has_path) {
+			WaypointPath wp;
+			if (!load_pod(in, wp)) return false;
+			if (u < unit_paths_.size()) unit_paths_[u] = wp;
+		}
+	}
+	for (size_t u = units_.count; u < unit_paths_.size(); ++u) unit_paths_[u].clear();
+	for (Building &b : buildings_) { load_pod(in, b.committed); load_pod(in, b.wrecked); }
+	if (!load_vec(in, projectiles_, 1u << 20)) return false;
+	if (!load_vec(in, relics_, 1u << 16)) return false;
+	if (!load_pod(in, fauna_)) return false;
+	if (fauna_.count > FaunaStorage::MAX_FAUNA) return false;
+	fauna_id_to_idx_.clear();
+	for (size_t f = 0; f < fauna_.count; ++f) fauna_id_to_idx_[fauna_.id[f]] = f;
+	uint32_t num_ships = 0;
+	if (!load_pod(in, num_ships) || num_ships > UNIT_CAP) return false;
+	transport_passengers_.clear();
+	for (uint32_t k = 0; k < num_ships; ++k) {
+		uint32_t ship = 0;
+		std::vector<uint32_t> passengers;
+		if (!load_pod(in, ship) || !load_vec(in, passengers, UNIT_CAP)) return false;
+		transport_passengers_[ship] = std::move(passengers);
+	}
+	load_pod(in, rate_window_timer_);
+	load_pod(in, upkeep_timer_);
+	load_pod(in, entity_limits_timer_);
+	load_pod(in, gate_timer_);
+	load_pod(in, fow_timer_);
+	load_pod(in, territory_timer_);
+	for (Grid<uint8_t> *g : {&territory_grid_, &influence_grid_}) {
+		int32_t w = 0, h = 0;
+		if (!load_pod(in, w) || !load_pod(in, h) || w < 0 || h < 0 || w > MAX_GRID_RES || h > MAX_GRID_RES) return false;
+		g->resize(w, h, 0);
+		if (!load_vec(in, g->data, (uint32_t)(w * h)) || g->data.size() != (size_t)w * (size_t)h) return false;
+	}
+	if (!load_vec(in, territory_roots_, 1u << 16)) return false;
+	load_pod(in, territory_roots_res_);
+	load_pod(in, territory_roots_half_);
+	load_pod(in, aura_timer_);
+	load_pod(in, relic_victory_timer_);
+	load_pod(in, last_alert_time_);
+	load_pod(in, recent_deaths_);
+	load_pod(in, recent_death_head_);
+	load_pod(in, record_);
+	for (PlayerState &ps : players_) load_pod(in, ps.gathered_window);
+	load_pod(in, victory_condition_);
+	load_pod(in, waves_enabled_);
+	load_pod(in, last_man_standing_);
+	load_pod(in, pop_cap_);
+	load_pod(in, ceasefire_seconds_);
+	load_pod(in, reveal_map_);
+	load_pod(in, explore_map_);
+	load_pod(in, wonder_duration_);
+	load_pod(in, relic_duration_);
+	load_pod(in, relic_count_);
+	PetraLoadAr ar{in};
+	petra_state_io(ar, *this);
+	return ar.ok && in.good();
 }
 
 bool Simulation::terrain_blocks_los(float sx, float sz, float sy, float tx, float tz, float ty) const {
