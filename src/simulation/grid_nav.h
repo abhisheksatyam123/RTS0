@@ -20,6 +20,8 @@
 #include <queue>
 #include <unordered_map>
 
+#include "nav/long_pathfinder.h"
+
 namespace rtso {
 
 // ---------------------------------------------------------------------------
@@ -157,6 +159,10 @@ struct NavGrid {
     float cavalry_max_slope = DEFAULT_CAVALRY_MAX_SLOPE;
 
     bool regions_ready_ = false;
+
+    // Long-range search used by find_path: true = JPS port of 0 A.D.
+    // LongPathfinder (nav/long_pathfinder.h), false = legacy A*.
+    bool use_jps = true;
 
     // Number of chunks per axis: res / CHUNK_SIZE
     int chunks_per_axis_ = DEFAULT_RES / CHUNK_SIZE; // 64/8 = 8
@@ -653,8 +659,13 @@ struct NavGrid {
         }
     }
 
-    // A* search on the 64x64 NavGrid using the octile heuristic (orthogonal cost 10, diagonal cost 14)
+    // Long-range path on the NavGrid: snap, MakeGoalReachable, then JPS (or A*) with octile 10/14 costs
     bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
+
+    // Cell-level searches behind find_path. Both fill start..goal cells in
+    // walking order and return whether the goal was reached.
+    bool search_cells_jps(int scx, int scy, int tcx, int tcy, uint8_t pass, std::vector<std::pair<int,int>> &path_cells) const;
+    bool search_cells_astar(int scx, int scy, int tcx, int tcy, uint8_t pass, std::vector<std::pair<int,int>> &path_cells) const;
 };
 
 // ---------------------------------------------------------------------------
@@ -773,6 +784,59 @@ inline bool NavGrid::find_path(float sx, float sz, float tx, float tz, WaypointP
 
     const int W = res;
     const int H = res;
+    std::vector<std::pair<int,int>> path_cells;
+    path_cells.reserve(64);
+    const bool reached = use_jps
+        ? search_cells_jps(scx, scy, tcx, tcy, pass, path_cells)
+        : search_cells_astar(scx, scy, tcx, tcy, pass, path_cells);
+    if (!reached && (!use_jps || path_cells.size() < 2)) {
+        out.clear();
+        out.push_back(tx, tz);
+        return false;
+    }
+    string_pull(path_cells, pass);
+
+    for (const auto &p : path_cells) {
+        if (out.count >= WaypointPath::MAX_WP - 1) break;
+        float wx = ((static_cast<float>(p.first) + 0.5f) / static_cast<float>(W)) * (map_half * 2.0f) - map_half;
+        float wz = ((static_cast<float>(p.second) + 0.5f) / static_cast<float>(H)) * (map_half * 2.0f) - map_half;
+        out.push_back(wx, wz);
+    }
+    if (reached && out.count > 0 && out.count < WaypointPath::MAX_WP) {
+        float lx = out.xs[out.count - 1];
+        float lz = out.zs[out.count - 1];
+        float dx = lx - tx;
+        float dz = lz - tz;
+        if (dx * dx + dz * dz > 0.01f) {
+            if (out.count < WaypointPath::MAX_WP) out.push_back(tx, tz);
+            else { out.xs[out.count - 1] = tx; out.zs[out.count - 1] = tz; }
+        }
+    }
+    out.cur = 0;
+    return reached;
+}
+
+// ---------------------------------------------------------------------------
+// NavGrid::search_cells_jps — Jump Point Search (nav/long_pathfinder.h), the
+// port of 0 A.D. LongPathfinder::ComputeJPSPath. Emits start, jump points and
+// goal; on failure, the path to the closest explored cell (iBest/jBest).
+// ---------------------------------------------------------------------------
+inline bool NavGrid::search_cells_jps(int scx, int scy, int tcx, int tcy, uint8_t pass,
+        std::vector<std::pair<int,int>> &path_cells) const {
+    auto passable = [this, pass](int x, int y) { return is_passable_for(x, y, pass); };
+    return nav::compute_jps_path(res, res, passable, scx, scy, tcx, tcy, path_cells);
+}
+
+// ---------------------------------------------------------------------------
+// NavGrid::search_cells_astar — previous plain A* search (octile 10/14 with
+// the cardinal run skip). Kept as the reference search for differential tests
+// and benchmarks; NavGrid::use_jps=false routes find_path through it.
+// ---------------------------------------------------------------------------
+inline bool NavGrid::search_cells_astar(int scx, int scy, int tcx, int tcy, uint8_t pass,
+        std::vector<std::pair<int,int>> &path_cells) const {
+    path_cells.clear();
+    const int W = res;
+    const int H = res;
     const int N = W * H;
     const int INF = 1e9;
     std::vector<int> g(N, INF);
@@ -860,13 +924,8 @@ inline bool NavGrid::find_path(float sx, float sz, float tx, float tz, WaypointP
         }
     }
 
-    if (found == -1) {
-        out.push_back(tx, tz);
-        return false;
-    }
+    if (found == -1) return false;
 
-    std::vector<std::pair<int,int>> path_cells;
-    path_cells.reserve(64);
     for (int cur = found; cur != -1; cur = parent[cur]) {
         int y = cur / W;
         int x = cur % W;
@@ -874,25 +933,6 @@ inline bool NavGrid::find_path(float sx, float sz, float tx, float tz, WaypointP
         if (x == scx && y == scy) break;
     }
     std::reverse(path_cells.begin(), path_cells.end());
-    string_pull(path_cells, pass);
-
-    for (const auto &p : path_cells) {
-        if (out.count >= WaypointPath::MAX_WP - 1) break;
-        float wx = ((static_cast<float>(p.first) + 0.5f) / static_cast<float>(W)) * (map_half * 2.0f) - map_half;
-        float wz = ((static_cast<float>(p.second) + 0.5f) / static_cast<float>(H)) * (map_half * 2.0f) - map_half;
-        out.push_back(wx, wz);
-    }
-    if (out.count > 0 && out.count < WaypointPath::MAX_WP) {
-        float lx = out.xs[out.count - 1];
-        float lz = out.zs[out.count - 1];
-        float dx = lx - tx;
-        float dz = lz - tz;
-        if (dx * dx + dz * dz > 0.01f) {
-            if (out.count < WaypointPath::MAX_WP) out.push_back(tx, tz);
-            else { out.xs[out.count - 1] = tx; out.zs[out.count - 1] = tz; }
-        }
-    }
-    out.cur = 0;
     return true;
 }
 
