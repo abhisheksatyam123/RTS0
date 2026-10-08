@@ -130,6 +130,7 @@ void RtsoMain::_bind_methods() {
 	bind_enum("Civilization", "KUSHITES", rtso::CIV_KUSHITES);
 	bind_enum("Civilization", "PTOLEMIES", rtso::CIV_PTOLEMIES);
 	bind_enum("Civilization", "SELEUCIDS", rtso::CIV_SELEUCIDS);
+	bind_enum("Civilization", "HAN", rtso::CIV_HAN);
 }
 
 RtsoMain::RtsoMain() {
@@ -349,6 +350,7 @@ void RtsoMain::_ready() {
 	civ_selector->add_item("Kushites", rtso::CIV_KUSHITES);
 	civ_selector->add_item("Ptolemies", rtso::CIV_PTOLEMIES);
 	civ_selector->add_item("Seleucids", rtso::CIV_SELEUCIDS);
+	civ_selector->add_item("Han Chinese", rtso::CIV_HAN);
 	civ_selector->connect("item_selected", Callable(this, "_on_civ_selected"));
 	civ_selector->select((int)sim->player_civ());
 	top_hbox->add_child(civ_selector);

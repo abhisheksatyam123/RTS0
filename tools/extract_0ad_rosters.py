@@ -1,0 +1,721 @@
+#!/usr/bin/env python3
+"""Generate RTS0's per-civ unit rosters and heroes from 0 A.D.'s simulation templates.
+
+0 A.D. gives every civ its own units: Athenian Hoplites, Spartan Skiritai,
+Han crossbowmen, and so on. RTS0's simulation has 23 behaviour classes
+(UnitType). This tool reads 0 A.D.'s entity templates, works out what each
+civ's buildings train, and emits one roster row per civ unit, tagged with the
+RTS0 class that drives its behaviour.
+
+Template semantics follow 0 A.D.'s CTemplateLoader / CParamNode:
+  * parent="a|b|c": load c, overlay mixins/b.xml, then mixins/a.xml
+  * child nodes merge into parent nodes; op="add|mul|mul_round" adjusts the
+    parent's number; disable="" removes a node; replace="" drops the parent's
+    subtree; merge="" only applies if the parent has the node
+  * datatype="tokens" lists merge; "-x" removes token x
+  * {civ} and {native} in Trainer lists are replaced by the owner's civ code
+
+Stats are 0 A.D.'s own: health, damage, armour levels, attack repeat time,
+costs, population and train time are copied as they are (both games apply
+armour as 0.9^level). Only distances and speeds are converted, because RTS0's
+world is smaller than 0 A.D.'s:
+  * walk speed x SPEED_SCALE (RTS0 units/s per 0 A.D. m/s)
+  * ranged attack range x RANGED_RANGE_SCALE (an archer's 60 m becomes ~17)
+  * melee reach x MELEE_RANGE_SCALE (larger, since RTS0 units are wider
+    relative to the map, and melee must reach past collision radii)
+The scales are the medians of RTS0's current class table against 0 A.D.'s
+generic template for each class. Carry capacity is the one stat left in RTS0
+terms (class value scaled by 0 A.D.'s difference) because RTS0's gather rates
+are tuned to it.
+
+Usage:
+  python3 -I tools/extract_0ad_rosters.py --0ad PATH/TO/0ad [--check]
+
+PATH/TO/0ad is a checkout of https://github.com/0ad/0ad (only
+binaries/data/mods/public/simulation is read). Writes
+src/simulation/civ_roster_data.h and data/civs/rosters.json.
+--check regenerates into memory and fails if the checked-in files differ.
+"""
+
+import argparse
+import json
+import math
+import os
+import re
+import sys
+import xml.etree.ElementTree as ET
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+OUT_HEADER = os.path.join(REPO, "src", "simulation", "civ_roster_data.h")
+OUT_JSON = os.path.join(REPO, "data", "civs", "rosters.json")
+
+# RTS0 Civilization enum order (sim_types.h). Han is appended last so saved
+# games and network messages keep their civ ids.
+CIVS = ["athen", "spart", "pers", "rome", "cart", "mace", "brit", "gaul",
+        "iber", "maur", "kush", "ptol", "sele", "han"]
+CIV_ENUM = ["CIV_ATHENIANS", "CIV_SPARTANS", "CIV_PERSIANS", "CIV_ROMANS",
+            "CIV_CARTHAGINIANS", "CIV_MACEDONIANS", "CIV_BRITONS", "CIV_GAULS",
+            "CIV_IBERIANS", "CIV_MAURYANS", "CIV_KUSHITES", "CIV_PTOLEMIES",
+            "CIV_SELEUCIDS", "CIV_HAN"]
+
+# RTS0 UnitType classes with today's sim_types.h stats (unit_type_info):
+# hp, speed, range, damage, cooldown, carry, hack/pierce/crush armour,
+# food/wood/gold/stone, pop, train_time, hack/pierce/crush damage.
+RTS0_CLASSES = {
+    "UNIT_VILLAGER":        (80, 3.0, 1.6, 5.0, 1.0, 20, 2, 4, 15, 50, 0, 0, 0, 1, 10, 5, 0, 0),
+    "UNIT_SWORDSMAN":       (100, 3.4, 2.0, 8.0, 0.75, 0, 3, 3, 15, 0, 30, 60, 0, 1, 14, 8, 0, 0),
+    "UNIT_ARCHER":          (80, 3.3, 16.0, 7.2, 1.25, 0, 1, 1, 15, 0, 50, 40, 0, 1, 12, 0, 7.2, 0),
+    "UNIT_SPEARMAN":        (100, 3.2, 2.4, 8.5, 1.0, 0, 3, 3, 15, 30, 40, 20, 0, 1, 12, 4.25, 4.25, 0),
+    "UNIT_CAVALRY":         (180, 5.5, 2.2, 11.5, 1.25, 0, 3, 3, 15, 50, 0, 80, 0, 2, 18, 11.5, 0, 0),
+    "UNIT_TRADER":          (120, 4.2, 1.0, 0.0, 1.0, 50, 2, 2, 10, 60, 60, 0, 0, 1, 12, 0, 0, 0),
+    "UNIT_CATAPULT":        (220, 2.0, 24.0, 45.0, 3.5, 0, 2, 5, 20, 0, 150, 100, 50, 3, 28, 0, 0, 45),
+    "UNIT_HERO":            (350, 4.2, 2.8, 18.0, 0.8, 0, 6, 6, 25, 200, 0, 200, 0, 3, 30, 12, 6, 0),
+    "UNIT_TRIREME":         (600, 4.5, 20.0, 32.0, 1.0, 0, 5, 8, 20, 0, 200, 150, 0, 3, 35, 0, 32, 0),
+    "UNIT_ELEPHANT":        (900, 3.4, 2.5, 35.0, 1.4, 0, 5, 8, 20, 250, 0, 200, 0, 4, 40, 20, 0, 15),
+    "UNIT_SIEGE_RAM":       (850, 2.2, 2.4, 75.0, 2.5, 0, 2, 12, 15, 0, 200, 100, 0, 3, 25, 0, 0, 75),
+    "UNIT_HEALER":          (90, 3.2, 12.0, 0.0, 1.0, 0, 1, 1, 10, 80, 0, 60, 0, 1, 14, 0, 0, 0),
+    "UNIT_CHARIOT":         (280, 5.8, 14.0, 14.0, 1.1, 0, 4, 4, 20, 80, 100, 60, 0, 2, 22, 4, 10, 0),
+    "UNIT_WAR_DOG":         (75, 5.2, 1.2, 9.0, 0.7, 0, 1, 2, 8, 60, 0, 0, 0, 1, 8, 9, 0, 0),
+    "UNIT_BOLT_SHOOTER":    (200, 2.2, 28.0, 40.0, 3.0, 0, 2, 4, 15, 0, 120, 80, 0, 2, 22, 0, 40, 0),
+    "UNIT_FISHING_BOAT":    (150, 3.8, 1.5, 0.0, 1.0, 30, 1, 2, 10, 0, 75, 0, 0, 1, 12, 0, 0, 0),
+    "UNIT_MERCHANT_SHIP":   (300, 4.0, 1.0, 0.0, 1.0, 100, 3, 4, 15, 0, 120, 40, 0, 1, 18, 0, 0, 0),
+    "UNIT_CARNYX":          (140, 3.5, 2.0, 7.0, 1.0, 0, 3, 3, 15, 70, 40, 30, 0, 1, 15, 7, 0, 0),
+    "UNIT_FEMALE_CITIZEN":  (65, 3.2, 1.4, 4.0, 1.0, 25, 1, 3, 10, 40, 0, 0, 0, 1, 8, 4, 0, 0),
+    "UNIT_WORKER_ELEPHANT": (600, 3.2, 2.0, 12.0, 1.2, 100, 4, 6, 20, 180, 80, 0, 0, 2, 25, 8, 0, 4),
+    "UNIT_ARCHER_MAIDEN":   (95, 3.6, 17.0, 8.5, 1.1, 0, 2, 2, 15, 40, 60, 40, 0, 1, 14, 0, 8.5, 0),
+    "UNIT_CAMEL":           (190, 5.2, 2.4, 12.0, 1.2, 0, 3, 3, 15, 60, 0, 70, 0, 2, 16, 12, 0, 0),
+    "UNIT_SCYTHED_CHARIOT": (320, 5.6, 2.2, 24.0, 1.0, 0, 5, 5, 25, 100, 80, 120, 0, 3, 26, 18, 0, 6),
+}
+RTS0_FIELDS = ("hp", "speed", "range", "damage", "cooldown", "carry",
+               "hack_armor", "pierce_armor", "crush_armor",
+               "food", "wood", "gold", "stone", "pop", "train_time",
+               "hack_dmg", "pierce_dmg", "crush_dmg")
+
+# 0 A.D. generic template per RTS0 class; used to scale carry capacity.
+GENERIC = {
+    "UNIT_VILLAGER": "template_unit_support_slave",
+    "UNIT_SWORDSMAN": "template_unit_infantry_melee_swordsman",
+    "UNIT_ARCHER": "template_unit_infantry_ranged_archer",
+    "UNIT_SPEARMAN": "template_unit_infantry_melee_spearman",
+    "UNIT_CAVALRY": "template_unit_cavalry_melee_swordsman",
+    "UNIT_TRADER": "template_unit_support_trader",
+    "UNIT_CATAPULT": "template_unit_siege_stonethrower",
+    "UNIT_HERO": "template_unit_hero_infantry_swordsman",
+    "UNIT_TRIREME": "template_unit_ship_warship_arrow",
+    "UNIT_ELEPHANT": "template_unit_champion_elephant_melee",
+    "UNIT_SIEGE_RAM": "template_unit_siege_ram",
+    "UNIT_HEALER": "template_unit_support_healer",
+    "UNIT_CHARIOT": "units/brit/cavalry_javelineer_b",
+    "UNIT_WAR_DOG": "template_unit_dog",
+    "UNIT_BOLT_SHOOTER": "template_unit_siege_boltshooter",
+    "UNIT_FISHING_BOAT": "template_unit_ship_fishing",
+    "UNIT_MERCHANT_SHIP": "template_unit_ship_merchant",
+    "UNIT_CARNYX": "template_unit_champion_infantry_trumpeter",
+    "UNIT_FEMALE_CITIZEN": "template_unit_support_female_citizen",
+    "UNIT_WORKER_ELEPHANT": "template_unit_support_elephant",
+    "UNIT_ARCHER_MAIDEN": "template_unit_infantry_ranged_archer",
+    "UNIT_CAMEL": "template_unit_cavalry_ranged_archer",
+    "UNIT_SCYTHED_CHARIOT": "template_unit_champion_cavalry_swordsman",
+}
+
+# RTS0's male gatherer has no 0 A.D. counterpart in most civs; every civ keeps it.
+RTS0_ONLY = ("UNIT_VILLAGER",)
+
+# 0 A.D. structure (file stem, without trailing _N upgrade suffix) to the RTS0
+# BuildingType that trains its units. Buildings RTS0 lacks fall back to the
+# closest one RTS0 has; the 0 A.D. name stays in the data for later remaps.
+TRAINER_BUILDING = {
+    "civil_centre": "BLD_TOWN_CENTER", "military_colony": "BLD_TOWN_CENTER",
+    "civil_centre_court": "BLD_TOWN_CENTER", "palace": "BLD_TOWN_CENTER",
+    "prytaneion": "BLD_TOWN_CENTER", "tachara": "BLD_TOWN_CENTER",
+    "house": "BLD_HOUSE", "barracks": "BLD_BARRACKS", "stable": "BLD_BARRACKS",
+    "range": "BLD_BARRACKS", "elephant_stable": "BLD_BARRACKS",
+    "gymnasium": "BLD_BARRACKS", "mercenary_camp": "BLD_BARRACKS",
+    "embassy": "BLD_BARRACKS", "embassy_celtic": "BLD_BARRACKS",
+    "embassy_iberian": "BLD_BARRACKS", "embassy_italic": "BLD_BARRACKS",
+    "army_camp": "BLD_BARRACKS", "academy": "BLD_BARRACKS",
+    "imperial_court": "BLD_TOWN_CENTER", "imperial_ministry": "BLD_TOWN_CENTER",
+    "arsenal": "BLD_FORTRESS", "workshop": "BLD_FORTRESS",
+    "fortress": "BLD_FORTRESS", "temple": "BLD_TEMPLE",
+    "temple_amun": "BLD_TEMPLE", "temple_apedemak": "BLD_TEMPLE",
+    "pyramid_large": "BLD_TEMPLE", "pyramid_small": "BLD_TEMPLE",
+    "market": "BLD_MARKET", "dock": "BLD_DOCK", "shipyard": "BLD_DOCK",
+    "corral": "BLD_CORRAL", "wonder": "BLD_WONDER",
+    "syssiton": "BLD_TOWN_CENTER", "assembly": "BLD_TOWN_CENTER",
+    "tachara_food": "BLD_TOWN_CENTER", "tachara_wood": "BLD_TOWN_CENTER",
+    "tachara_stone": "BLD_TOWN_CENTER", "tachara_metal": "BLD_TOWN_CENTER",
+    "crannog": "BLD_TOWN_CENTER", "ministry": "BLD_TOWN_CENTER",
+    "apartment": "BLD_HOUSE", "apartment_block": "BLD_HOUSE",
+    "house_a": "BLD_HOUSE", "house_b": "BLD_HOUSE",
+    "warehouse": "BLD_STOREHOUSE", "inn": "BLD_BARRACKS", "tavern": "BLD_BARRACKS",
+    "kennel": "BLD_BARRACKS", "amphitheater_pompeii": "BLD_BARRACKS",
+    "camp_blemmye": "BLD_BARRACKS", "camp_noba": "BLD_BARRACKS",
+    "practice_range": "BLD_BARRACKS",
+    "temple_mars": "BLD_TEMPLE", "temple_vesta": "BLD_TEMPLE", "tophet": "BLD_TEMPLE",
+    "super_dock": "BLD_DOCK",
+}
+BUILDING_BITS = ["BLD_TOWN_CENTER", "BLD_HOUSE", "BLD_BARRACKS", "BLD_STOREHOUSE",
+                 "BLD_TOWER", "BLD_FARMSTEAD", "BLD_MARKET", "BLD_FORTRESS",
+                 "BLD_GATE", "BLD_TEMPLE", "BLD_WONDER", "BLD_DOCK",
+                 "BLD_WALL_SEGMENT", "BLD_CORRAL"]
+
+PHASE_OF_TECH = {
+    "phase_village": 1, "unlock_females_house": 1,
+    "phase_town": 2, "equine_transports": 2, "iphicratean_reforms": 2,
+    "phase_city": 3, "roman_reforms": 3,
+    "unlock_champion_infantry": 3, "unlock_champion_cavalry": 3,
+    "unlock_champion_chariots": 3, "unlock_champion_elephants": 3,
+}
+
+# ---------------------------------------------------------------------------
+# Template loading (CParamNode semantics)
+# ---------------------------------------------------------------------------
+
+class Node:
+    __slots__ = ("text", "children", "attrs")
+
+    def __init__(self):
+        self.text = None
+        self.children = {}
+        self.attrs = {}
+
+    def copy(self):
+        n = Node()
+        n.text = self.text
+        n.attrs = dict(self.attrs)
+        n.children = {k: v.copy() for k, v in self.children.items()}
+        return n
+
+    def get(self, path):
+        node = self
+        for part in path.split("/"):
+            node = node.children.get(part)
+            if node is None:
+                return None
+        return node
+
+    def value(self, path, default=None):
+        n = self.get(path)
+        if n is None or n.text is None:
+            return default
+        return n.text.strip()
+
+    def num(self, path, default=0.0):
+        v = self.value(path)
+        try:
+            return float(v) if v not in (None, "") else default
+        except ValueError:
+            return default
+
+    def tokens(self, path):
+        v = self.value(path)
+        return v.split() if v else []
+
+
+def _fmt(x):
+    if abs(x - round(x)) < 1e-9:
+        return str(int(round(x)))
+    return repr(x)
+
+
+def merge_into(base, elem):
+    """Overlay ElementTree element `elem` onto Node `base` (CParamNode::ApplyLayer)."""
+    for child in elem:
+        if not isinstance(child.tag, str):
+            continue
+        tag = child.tag
+        if "disable" in child.attrib:
+            base.children.pop(tag, None)
+            continue
+        if "merge" in child.attrib and tag not in base.children:
+            continue
+        if "replace" in child.attrib or tag not in base.children:
+            base.children[tag] = Node()
+        node = base.children[tag]
+        text = (child.text or "").strip()
+        op = child.attrib.get("op")
+        if child.attrib.get("datatype") == "tokens":
+            old = [] if "replace" in child.attrib else (node.text or "").split()
+            for tok in text.split():
+                if tok.startswith("-"):
+                    old = [t for t in old if t != tok[1:]]
+                elif tok not in old:
+                    old.append(tok)
+            node.text = " ".join(old)
+        elif op in ("add", "mul", "mul_round") and node.text not in (None, ""):
+            try:
+                a = float(node.text)
+                b = float(text)
+                r = a + b if op == "add" else a * b
+                if op == "mul_round":
+                    r = float(round(r))
+                node.text = _fmt(r)
+            except ValueError:
+                node.text = text
+        elif text:
+            node.text = text
+        elif node.text is None:
+            node.text = ""
+        for k, v in child.attrib.items():
+            if k not in ("op", "merge", "replace", "disable", "datatype"):
+                node.attrs[k] = v
+        merge_into(node, child)
+
+
+class TemplateLoader:
+    def __init__(self, sim_root):
+        self.root = os.path.join(sim_root, "templates")
+        self.cache = {}
+
+    def exists(self, name):
+        return os.path.isfile(os.path.join(self.root, name + ".xml"))
+
+    def load(self, name):
+        if name in self.cache:
+            return self.cache[name]
+        if "|" in name:
+            mixin, rest = name.split("|", 1)
+            node = self.load(rest).copy()
+            elem = ET.parse(os.path.join(self.root, "mixins", mixin + ".xml")).getroot()
+            merge_into(node, elem)
+        else:
+            elem = ET.parse(os.path.join(self.root, name + ".xml")).getroot()
+            parent = elem.attrib.get("parent")
+            node = self.load(parent).copy() if parent else Node()
+            merge_into(node, elem)
+        self.cache[name] = node
+        return node
+
+# ---------------------------------------------------------------------------
+# Unit stat extraction
+# ---------------------------------------------------------------------------
+
+def primary_attack(t):
+    """Ranged attack if the unit has one, else melee. Returns (node, ranged)."""
+    for kind, ranged in (("Ranged", True), ("Melee", False)):
+        a = t.get("Attack/" + kind)
+        if a is not None and a.get("Damage") is not None:
+            return a, ranged
+    return None, False
+
+
+def raw_stats(t):
+    """0 A.D. numbers in RTS0_FIELDS order (where they exist)."""
+    atk, ranged = primary_attack(t)
+    hack = pierce = crush = 0.0
+    rng = rep = 0.0
+    if atk is not None:
+        hack = atk.num("Damage/Hack")
+        pierce = atk.num("Damage/Pierce")
+        crush = atk.num("Damage/Crush")
+        rng = atk.num("MaxRange")
+        rep = atk.num("RepeatTime") / 1000.0
+    carry = 0.0
+    caps = t.get("ResourceGatherer/Capacities")
+    if caps is not None:
+        carry = max([_safe(c.text) for c in caps.children.values()] or [0.0])
+    return {
+        "hp": t.num("Health/Max"),
+        "speed": t.num("UnitMotion/WalkSpeed"),
+        "range": rng,
+        "damage": hack + pierce + crush,
+        "cooldown": rep,
+        "carry": carry,
+        "hack_armor": t.num("Resistance/Entity/Damage/Hack"),
+        "pierce_armor": t.num("Resistance/Entity/Damage/Pierce"),
+        "crush_armor": t.num("Resistance/Entity/Damage/Crush"),
+        "food": t.num("Cost/Resources/food"),
+        "wood": t.num("Cost/Resources/wood"),
+        "gold": t.num("Cost/Resources/metal"),
+        "stone": t.num("Cost/Resources/stone"),
+        "pop": t.num("Cost/Population"),
+        "train_time": t.num("Cost/BuildTime"),
+        "hack_dmg": hack,
+        "pierce_dmg": pierce,
+        "crush_dmg": crush,
+        "ranged": ranged,
+    }
+
+
+def _safe(text):
+    try:
+        return float((text or "").strip())
+    except ValueError:
+        return 0.0
+
+
+SPEED_SCALE = 0.356
+RANGED_RANGE_SCALE = 0.28
+MELEE_RANGE_SCALE = 0.6
+
+
+def convert(cls, raw, gen):
+    base = dict(zip(RTS0_FIELDS, RTS0_CLASSES[cls]))
+    out = {f: raw[f] for f in ("hp", "cooldown", "hack_dmg", "pierce_dmg", "crush_dmg",
+                               "hack_armor", "pierce_armor", "crush_armor",
+                               "food", "wood", "gold", "stone", "train_time")}
+    for r in ("food", "wood", "gold", "stone"):
+        out[r] = int(round(out[r]))
+    out["pop"] = int(round(raw["pop"]))
+    out["speed"] = raw["speed"] * SPEED_SCALE
+    out["damage"] = raw["damage"]
+    if raw["damage"] > 0:
+        out["range"] = raw["range"] * (RANGED_RANGE_SCALE if raw["ranged"] else MELEE_RANGE_SCALE)
+    else:
+        # No attack (healers, traders, boats): keep the class's interaction range.
+        out["range"] = base["range"]
+        out["cooldown"] = base["cooldown"]
+    if base["carry"] > 0 and gen["carry"] > 0 and raw["carry"] > 0:
+        out["carry"] = int(round(base["carry"] * raw["carry"] / gen["carry"]))
+    else:
+        out["carry"] = int(base["carry"])
+    if out["hp"] <= 0:
+        out["hp"] = base["hp"]
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Class mapping
+# ---------------------------------------------------------------------------
+
+def classes_of(t):
+    return set(t.tokens("Identity/Classes")) | set(t.tokens("Identity/VisibleClasses"))
+
+
+def rts0_class(name, t, civ):
+    """RTS0 UnitType for a 0 A.D. unit template, or None to leave it out."""
+    c = classes_of(t)
+    stem = name.rsplit("/", 1)[-1]
+    if "Hero" in c:
+        return "UNIT_HERO"
+    if "FemaleCitizen" in c:
+        return "UNIT_FEMALE_CITIZEN"
+    if "Ship" in c:
+        if "FishingBoat" in c or "fishing" in stem:
+            return "UNIT_FISHING_BOAT"
+        if "Trader" in c or "merchant" in stem:
+            return "UNIT_MERCHANT_SHIP"
+        if "Warship" in c or "Arrow" in c or "ship_" in stem:
+            return "UNIT_TRIREME"
+        return None
+    if "Trader" in c:
+        return "UNIT_TRADER"
+    if "Healer" in c:
+        return "UNIT_HEALER"
+    if "Siege" in c:
+        if "Ram" in c:
+            return "UNIT_SIEGE_RAM"
+        if "StoneThrower" in c:
+            return "UNIT_CATAPULT"
+        if "BoltShooter" in c:
+            return "UNIT_BOLT_SHOOTER"
+        return None  # siege towers and flamethrowers have no RTS0 class yet
+    if "trumpeter" in stem:
+        return "UNIT_CARNYX"
+    if "Dog" in c:
+        return "UNIT_WAR_DOG"
+    if "Elephant" in c:
+        if "Worker" in c or "support" in stem:
+            return "UNIT_WORKER_ELEPHANT"
+        return "UNIT_ELEPHANT"
+    if "Chariot" in c or "chariot" in stem:
+        if "Scythed" in (t.value("Identity/GenericName") or ""):
+            return "UNIT_SCYTHED_CHARIOT"
+        return "UNIT_CHARIOT"
+    if "Camel" in c or "camel" in stem:
+        return "UNIT_CAMEL"
+    if "Cavalry" in c:
+        return "UNIT_CAVALRY"
+    if "Infantry" in c:
+        if "maiden" in stem:
+            return "UNIT_ARCHER_MAIDEN"
+        if "Ranged" in c:
+            return "UNIT_ARCHER"
+        if c & {"Spearman", "Pikeman"}:
+            return "UNIT_SPEARMAN"
+        if "Melee" in c:
+            return "UNIT_SWORDSMAN"
+        return None
+    if "Worker" in c and "support_slave" in stem:
+        return "UNIT_VILLAGER"
+    return None
+
+
+def phase_of(t):
+    phase = 1
+    for tech in t.tokens("Identity/Requirements/Techs"):
+        phase = max(phase, PHASE_OF_TECH.get(tech, 1))
+    return phase
+
+# ---------------------------------------------------------------------------
+# Roster walk
+# ---------------------------------------------------------------------------
+
+def structure_kind(stem):
+    stem = re.sub(r"_\d+$", "", stem)
+    return stem
+
+
+def collect(sim_root):
+    loader = TemplateLoader(sim_root)
+    civ_json = {}
+    for civ in CIVS:
+        with open(os.path.join(sim_root, "data", "civs", civ + ".json"), encoding="utf-8") as f:
+            civ_json[civ] = json.load(f)
+
+    generic = {}
+    for cls, tmpl in GENERIC.items():
+        generic[cls] = raw_stats(loader.load(tmpl))
+
+    rows = []
+    auras = []
+    skipped = []
+    for civ in CIVS:
+        native = civ
+        sdir = os.path.join(loader.root, "structures", civ)
+        trainers = {}  # unit template -> {buildings}, structure phase
+        for fn in sorted(os.listdir(sdir)):
+            if not fn.endswith(".xml"):
+                continue
+            stem = fn[:-4]
+            s = loader.load("structures/%s/%s" % (civ, stem))
+            ents = s.tokens("Trainer/Entities")
+            if not ents:
+                continue
+            kind = structure_kind(stem)
+            bld = TRAINER_BUILDING.get(kind)
+            if bld is None:
+                skipped.append("%s structure %s (no RTS0 building)" % (civ, stem))
+                continue
+            sphase = phase_of(s)
+            for e in ents:
+                e = e.replace("{civ}", civ).replace("{native}", native)
+                if not loader.exists(e):
+                    continue
+                slot = trainers.setdefault(e, {"buildings": set(), "kinds": set(), "phase": 9})
+                slot["buildings"].add(bld)
+                slot["kinds"].add(kind)
+                slot["phase"] = min(slot["phase"], sphase)
+        for name in sorted(trainers):
+            t = loader.load(name)
+            cls = rts0_class(name, t, civ)
+            if cls is None:
+                skipped.append("%s unit %s (no RTS0 class: %s)" % (
+                    civ, name, " ".join(sorted(classes_of(t)))))
+                continue
+            raw = raw_stats(t)
+            if name.endswith("_packed") and loader.exists(name[:-len("_packed")] + "_unpacked"):
+                unpacked = raw_stats(loader.load(name[:-len("_packed")] + "_unpacked"))
+                for k in ("range", "damage", "cooldown", "hack_dmg", "pierce_dmg", "crush_dmg", "ranged"):
+                    raw[k] = unpacked[k]
+            stats = convert(cls, raw, generic[cls])
+            c = classes_of(t)
+            flags = []
+            if "Hero" in c:
+                flags.append("ROSTER_HERO")
+            if "Champion" in c:
+                flags.append("ROSTER_CHAMPION")
+            if raw["ranged"]:
+                flags.append("ROSTER_RANGED")
+            if "Citizen" in c:
+                flags.append("ROSTER_CITIZEN")
+            if "Mercenary" in c:
+                flags.append("ROSTER_MERCENARY")
+            hero_auras = []
+            for aname in t.tokens("Auras"):
+                apath = os.path.join(sim_root, "data", "auras", aname + ".json")
+                if not os.path.isfile(apath):
+                    continue
+                with open(apath, encoding="utf-8") as f:
+                    a = json.load(f)
+                aid = aname.rsplit("/", 1)[-1]
+                if not aid.startswith(civ + "_"):
+                    continue  # generic auras (garrison, formation) apply to every unit of a kind
+                known = next((i for i, x in enumerate(auras) if x["id"] == aid), None)
+                if known is not None:
+                    hero_auras.append(known)
+                    continue
+                hero_auras.append(len(auras))
+                auras.append({
+                    "id": aid,
+                    "name": a.get("auraName", aname),
+                    "description": a.get("auraDescription", ""),
+                    "type": a.get("type", "range"),
+                    "radius": float(a.get("radius", 0)),
+                    "affects": a.get("affects", []),
+                    "modifications": a.get("modifications", []),
+                })
+            rows.append({
+                "id": name.split("units/", 1)[-1],
+                "civ": civ,
+                "class": cls,
+                "name": t.value("Identity/GenericName", ""),
+                "specific_name": t.value("Identity/SpecificName", ""),
+                "phase": max(phase_of(t), trainers[name]["phase"] if trainers[name]["phase"] < 9 else 1),
+                "trainers": sorted(trainers[name]["buildings"], key=BUILDING_BITS.index),
+                "trained_at_0ad": sorted(trainers[name]["kinds"]),
+                "flags": flags,
+                "auras": hero_auras,
+                "stats": stats,
+            })
+        # RTS0-only classes every civ (or a named civ) keeps.
+        for cls in RTS0_ONLY:
+            if any(r["civ"] == civ and r["class"] == cls for r in rows):
+                continue
+            base = dict(zip(RTS0_FIELDS, RTS0_CLASSES[cls]))
+            label = "Villager"
+            stats = {k: base[k] for k in RTS0_FIELDS}
+            stats["pop"] = int(stats["pop"])
+            stats["carry"] = int(stats["carry"])
+            for r in ("food", "wood", "gold", "stone"):
+                stats[r] = int(stats[r])
+            rows.append({
+                "id": "%s/rts0_%s" % (civ, cls[5:].lower()),
+                "civ": civ, "class": cls, "name": label, "specific_name": "",
+                "phase": 1,
+                "trainers": ["BLD_TOWN_CENTER"],
+                "trained_at_0ad": [], "flags": ["ROSTER_CITIZEN"],
+                "auras": [], "stats": stats,
+            })
+    return rows, auras, skipped, civ_json
+
+# ---------------------------------------------------------------------------
+# Emitters
+# ---------------------------------------------------------------------------
+
+def cstr(s):
+    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def f(x):
+    s = "%.4g" % x
+    if "." not in s and "e" not in s:
+        s += ".0"
+    return s + "f"
+
+
+def emit_header(rows, auras, civ_json):
+    out = []
+    w = out.append
+    w("// GENERATED by tools/extract_0ad_rosters.py from 0 A.D. simulation templates.")
+    w("// Do not edit by hand; rerun the tool. 0 A.D. data is CC BY-SA 3.0 (Wildfire Games).")
+    w("#ifndef RTSO_CIV_ROSTER_DATA_H")
+    w("#define RTSO_CIV_ROSTER_DATA_H")
+    w("")
+    w("// Included from sim_types.h inside namespace rtso.")
+    w("")
+    w("inline constexpr uint16_t CIV_UNIT_TEMPLATE_COUNT = %d;" % len(rows))
+    w("inline constexpr uint16_t CIV_HERO_AURA_COUNT = %d;" % len(auras))
+    w("")
+    w("inline const CivHeroAura *civ_hero_aura_table() {")
+    w("\tstatic const CivHeroAura kAuras[CIV_HERO_AURA_COUNT] = {")
+    w("\t\t// id, name, description, radius (0 A.D. metres; 0 = global)")
+    for a in auras:
+        radius = a["radius"] if a["type"] == "range" else 0.0
+        w("\t\t{%s, %s, %s, %s}," % (cstr(a["id"]), cstr(a["name"]), cstr(a["description"]), f(radius)))
+    w("\t};")
+    w("\treturn kAuras;")
+    w("}")
+    w("")
+    w("inline const CivUnitTemplate *civ_unit_template_table() {")
+    w("\tstatic const CivUnitTemplate kTable[CIV_UNIT_TEMPLATE_COUNT] = {")
+    w("\t\t// id, name, specific name, civ, class, phase, flags, trainers,")
+    w("\t\t// hp, speed, range, damage, cooldown, hack/pierce/crush dmg, hack/pierce/crush armour,")
+    w("\t\t// food, wood, gold, stone, pop, train_time, carry, aura slots (-1 = none)")
+    for r in rows:
+        s = r["stats"]
+        flags = " | ".join(r["flags"]) or "0"
+        trainers = " | ".join("bld_bit(%s)" % b for b in r["trainers"]) or "0"
+        if len(r["trainers"]) > 1:
+            trainers = "(uint16_t)(%s)" % trainers
+        a = r["auras"] + [-1, -1, -1]
+        w("\t\t{%s, %s, %s, %s, %s, %d, %s, %s," % (
+            cstr(r["id"]), cstr(r["name"]), cstr(r["specific_name"]),
+            CIV_ENUM[CIVS.index(r["civ"])], r["class"], r["phase"], flags, trainers))
+        w("\t\t %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %d, %d, %d, %d, %d, %s, %d, %d, %d, %d}," % (
+            f(s["hp"]), f(s["speed"]), f(s["range"]), f(s["damage"]), f(s["cooldown"]),
+            f(s["hack_dmg"]), f(s["pierce_dmg"]), f(s["crush_dmg"]),
+            f(s["hack_armor"]), f(s["pierce_armor"]), f(s["crush_armor"]),
+            s["food"], s["wood"], s["gold"], s["stone"], s["pop"], f(s["train_time"]),
+            s["carry"], a[0], a[1], a[2]))
+    w("\t};")
+    w("\treturn kTable;")
+    w("}")
+    w("")
+    # Per-civ ranges into the table (rows are grouped by civ).
+    w("// [first, last) rows of civ_unit_template_table() for each civ.")
+    w("inline const uint16_t *civ_roster_offsets() {")
+    offs = []
+    for i, civ in enumerate(CIVS):
+        first = next(j for j, r in enumerate(rows) if r["civ"] == civ)
+        offs.append(first)
+    offs.append(len(rows))
+    w("\tstatic const uint16_t kOffsets[CIV_COUNT + 1] = {%s};" % ", ".join(str(o) for o in offs))
+    w("\treturn kOffsets;")
+    w("}")
+    w("")
+    w("#endif")
+    w("")
+    return "\n".join(out)
+
+
+def emit_json(rows, auras, civ_json):
+    civs = []
+    for civ in CIVS:
+        j = civ_json[civ]
+        civs.append({
+            "code": civ,
+            "enum": CIV_ENUM[CIVS.index(civ)],
+            "bonuses": [{"name": b.get("Name", ""), "description": b.get("Description", "")}
+                        for b in j.get("CivBonuses", [])],
+            "team_bonuses": [{"name": b.get("Name", ""), "description": b.get("Description", "")}
+                             for b in j.get("TeamBonuses", [])],
+            "units": [r["id"] for r in rows if r["civ"] == civ],
+        })
+    doc = {
+        "generator": "tools/extract_0ad_rosters.py",
+        "license": "0 A.D. data, CC BY-SA 3.0, Wildfire Games",
+        "civs": civs,
+        "units": rows,
+        "auras": auras,
+    }
+    return json.dumps(doc, indent=1, ensure_ascii=False, sort_keys=False) + "\n"
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
+    ap.add_argument("--0ad", dest="zad", required=True, help="0 A.D. source checkout")
+    ap.add_argument("--check", action="store_true", help="fail if outputs are stale")
+    ap.add_argument("--verbose", action="store_true")
+    args = ap.parse_args()
+    sim_root = os.path.join(args.zad, "binaries", "data", "mods", "public", "simulation")
+    rows, auras, skipped, civ_json = collect(sim_root)
+    header = emit_header(rows, auras, civ_json)
+    js = emit_json(rows, auras, civ_json)
+    if args.verbose:
+        for s in skipped:
+            print("skipped:", s, file=sys.stderr)
+    if args.check:
+        stale = []
+        for path, text in ((OUT_HEADER, header), (OUT_JSON, js)):
+            if not os.path.isfile(path) or open(path, encoding="utf-8").read() != text:
+                stale.append(os.path.relpath(path, REPO))
+        if stale:
+            print("stale: " + ", ".join(stale), file=sys.stderr)
+            return 1
+        return 0
+    os.makedirs(os.path.dirname(OUT_JSON), exist_ok=True)
+    with open(OUT_HEADER, "w", encoding="utf-8") as fh:
+        fh.write(header)
+    with open(OUT_JSON, "w", encoding="utf-8") as fh:
+        fh.write(js)
+    per_civ = {c: sum(1 for r in rows if r["civ"] == c) for c in CIVS}
+    heroes = {c: sum(1 for r in rows if r["civ"] == c and "ROSTER_HERO" in r["flags"]) for c in CIVS}
+    print("%d unit templates, %d hero auras, %d skipped" % (len(rows), len(auras), len(skipped)))
+    for c in CIVS:
+        print("  %-6s %3d units, %d heroes" % (c, per_civ[c], heroes[c]))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

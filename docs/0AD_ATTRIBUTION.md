@@ -29,6 +29,7 @@ RTS0 builds on **0 A.D.** (https://play0ad.com) by Wildfire Games.
 | `assets/textures/terrain/`, `assets/textures/ui/` | Terrain textures, portraits, icons, emblems | `tools/extract_0ad_assets.py`, `tools/extract_ui_assets.py` |
 | `assets/music/`, `assets/sounds/`, `assets/audio/`, `audio/` | Music, sound effects, voice lines | `tools/extract_ui_assets.py`, `tools/extract_combat_sfx.py` |
 | `data/maps/` | Scenario maps converted to JSON | `tools/port_0ad_maps.py` |
+| `src/simulation/civ_roster_data.h`, `data/civs/rosters.json` | Per-civ unit rosters, unit stats, hero auras and civ bonus text from `simulation/templates/` and `simulation/data/{civs,auras}/` | `tools/extract_0ad_rosters.py` |
 
 Fonts in `assets/fonts/` carry their own licenses; see `assets/LICENSE`.
 
