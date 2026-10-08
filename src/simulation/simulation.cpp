@@ -298,7 +298,7 @@ int Simulation::pop_max(uint8_t player) const {
 			cap += (int)std::lround(building_type_info(b.type).pop_bonus * tech_mods(player).bld_pop_bonus[b.type]);
 		}
 	}
-	return cap;
+	return pop_cap_ > 0 ? std::min(cap, pop_cap_) : cap;
 }
 
 int Simulation::ai_pop_current() const { return pop_current(PETRA_PLAYER); }
@@ -3304,7 +3304,7 @@ void Simulation::tick_combat(float dt) {
 		// A. Existing unit target check
 		if (units_.target_unit_id[i] != 0) {
 			int32_t tidx = lookup_unit(units_.target_unit_id[i]);
-			if (tidx >= 0 && units_.alive[tidx] && is_hostile(units_.team[i], units_.team[tidx])) {
+			if (tidx >= 0 && units_.alive[tidx] && can_attack(units_.team[i], units_.team[tidx])) {
 				found = tidx;
 			}
 		}
@@ -3339,7 +3339,7 @@ void Simulation::tick_combat(float dt) {
 				const float att_y = get_terrain_height(pxi, pzi);
 
 				grid.visit_radius(pxi, pzi, scan_range, [&](int32_t j) {
-					if (!units_.alive[j] || !is_hostile(my_team, units_.team[j])) return;
+					if (!units_.alive[j] || !can_attack(my_team, units_.team[j])) return;
 
 					// Check leash distance from anchor for Hold/Defensive stances
 					if (units_.stance[i] == STANCE_HOLD_GROUND || units_.stance[i] == STANCE_DEFENSIVE) {
@@ -3703,7 +3703,7 @@ void Simulation::tick_combat(float dt) {
 			continue;
 		}
 		Building &b = buildings_[bit->second];
-		if (!is_hostile(units_.team[i], b.team)) {
+		if (!can_attack(units_.team[i], b.team)) {
 			units_.target_building_id[i] = 0;
 			continue;
 		}
@@ -3861,7 +3861,7 @@ void Simulation::tick_combat(float dt) {
 
 				int32_t hit = -1;
 				grid.visit_radius(b.x, b.z, range, [&](int32_t i) {
-					if (hit >= 0 || !units_.alive[i] || !is_hostile(b.team, units_.team[i])) return;
+					if (hit >= 0 || !units_.alive[i] || !can_attack(b.team, units_.team[i])) return;
 					float dx = b.x - units_.pos_x[i];
 					float dz = b.z - units_.pos_z[i];
 					float d2 = dx * dx + dz * dz;
@@ -4048,7 +4048,7 @@ void Simulation::tick_capture(float dt) {
 		}
 		const int owner = b.team < 4 ? b.team : 0;
 		auto enemy = [&](int source, int target) {
-			return is_hostile((uint8_t)source, (uint8_t)target);
+			return can_attack((uint8_t)source, (uint8_t)target);
 		};
 		int captor = -1;
 		float captor_strength = 0.0f;
@@ -4417,12 +4417,14 @@ void Simulation::check_victory_conditions(float dt) {
 	if (victory_condition_ == VICTORY_REGICIDE && ticks_ == 0) spawn_regicide_heroes();
 
 	if (victory_condition_ == VICTORY_WONDER) {
-		// Wonder Victory (VictoryManager.js / Wonder.js): first completed wonder holds 10 min
+		// Wonder Victory (VictoryManager.js / Wonder.js): first completed wonder holds 10 min.
+		// A wonder wins for its owner's whole side (allied victory) unless Last Man Standing is on.
 		int player_wonders = 0, ai_wonders = 0;
 		for (const auto &b : buildings_) {
 			if (b.type != BLD_WONDER || b.build_progress < 1.0f || b.hp <= 0.0f) continue;
-			if (b.team == 0) player_wonders++;
-			else if (b.team == 1) ai_wonders++;
+			bool ours = last_man_standing_ ? b.team == 0 : is_ally_of_player0(b.team);
+			if (ours) player_wonders++;
+			else ai_wonders++;
 		}
 		has_active_wonder_ = player_wonders > 0;
 		if (player_wonders > 0) {
@@ -4459,7 +4461,7 @@ void Simulation::check_victory_conditions(float dt) {
 			if (all_claimed && owner >= 0 && owner != 255) {
 				relic_victory_timer_ += dt;
 				if (relic_victory_timer_ >= 180.0f) {
-					victory_ = (owner == 0);
+					victory_ = last_man_standing_ ? owner == 0 : is_ally_of_player0((uint8_t)owner);
 					game_over_ = true;
 				}
 			} else {
@@ -4469,15 +4471,17 @@ void Simulation::check_victory_conditions(float dt) {
 	}
 	if (game_over_) return;
 
-	// Tally what each player still holds (ConquestCommon.js). Team 0 is the local player,
-	// every other team is an enemy. Garrisoned units count as alive.
+	// Tally what each player still holds (ConquestCommon.js); units_.team and Building::team
+	// are player ids. Garrisoned units count as alive.
 	constexpr int MAX_TEAMS = 8;
 	int unit_count[MAX_TEAMS] = {};
 	int structure_count[MAX_TEAMS] = {};
 	int tc_count[MAX_TEAMS] = {};
 	int hero_count[MAX_TEAMS] = {};
 	for (const auto &b : buildings_) {
-		if (b.team >= MAX_TEAMS || b.hp <= 0.0f) continue;
+		// Unstarted foundations don't keep a player alive (an AI with no units left can still
+		// queue them).
+		if (b.team >= MAX_TEAMS || b.hp <= 0.0f || b.build_progress <= 0.0f) continue;
 		structure_count[b.team]++;
 		if (b.type == BLD_TOWN_CENTER) tc_count[b.team]++;
 	}
@@ -4506,9 +4510,12 @@ void Simulation::check_victory_conditions(float dt) {
 		return;
 	}
 
+	// Player 0 wins once every player still standing is on its side (0 A.D.'s allied
+	// victory), or, under Last Man Standing, once every other player is defeated.
 	bool enemies_defeated = true;
 	for (int t = 1; t < MAX_TEAMS && enemies_defeated; ++t) {
-		if (!defeated(t)) enemies_defeated = false;
+		if (defeated(t)) continue;
+		if (last_man_standing_ || !is_ally_of_player0((uint8_t)t)) enemies_defeated = false;
 	}
 	// Don't hand out a win on a map that never had an enemy on it.
 	bool fought = record_.enemies_killed > 0 || record_.buildings_destroyed > 0 || wave_number_ > 0;
