@@ -4260,12 +4260,14 @@ void Simulation::check_victory_conditions(float dt) {
 	if (victory_condition_ == VICTORY_REGICIDE && ticks_ == 0) spawn_regicide_heroes();
 
 	if (victory_condition_ == VICTORY_WONDER) {
-		// Wonder Victory (VictoryManager.js / Wonder.js): first completed wonder holds 10 min
+		// Wonder Victory (VictoryManager.js / Wonder.js): first completed wonder holds 10 min.
+		// A wonder wins for its owner's whole side (allied victory) unless Last Man Standing is on.
 		int player_wonders = 0, ai_wonders = 0;
 		for (const auto &b : buildings_) {
 			if (b.type != BLD_WONDER || b.build_progress < 1.0f || b.hp <= 0.0f) continue;
-			if (b.team == 0) player_wonders++;
-			else if (b.team == 1) ai_wonders++;
+			bool ours = last_man_standing_ ? b.team == 0 : is_ally_of_player0(b.team);
+			if (ours) player_wonders++;
+			else ai_wonders++;
 		}
 		has_active_wonder_ = player_wonders > 0;
 		if (player_wonders > 0) {
@@ -4302,7 +4304,7 @@ void Simulation::check_victory_conditions(float dt) {
 			if (all_claimed && owner >= 0 && owner != 255) {
 				relic_victory_timer_ += dt;
 				if (relic_victory_timer_ >= 180.0f) {
-					victory_ = (owner == 0);
+					victory_ = last_man_standing_ ? owner == 0 : is_ally_of_player0((uint8_t)owner);
 					game_over_ = true;
 				}
 			} else {
@@ -4312,8 +4314,8 @@ void Simulation::check_victory_conditions(float dt) {
 	}
 	if (game_over_) return;
 
-	// Tally what each player still holds (ConquestCommon.js). Team 0 is the local player,
-	// every other team is an enemy. Garrisoned units count as alive.
+	// Tally what each player still holds (ConquestCommon.js); units_.team and Building::team
+	// are player ids. Garrisoned units count as alive.
 	constexpr int MAX_TEAMS = 8;
 	int unit_count[MAX_TEAMS] = {};
 	int structure_count[MAX_TEAMS] = {};
@@ -4349,9 +4351,12 @@ void Simulation::check_victory_conditions(float dt) {
 		return;
 	}
 
+	// Player 0 wins once every player still standing is on its side (0 A.D.'s allied
+	// victory), or, under Last Man Standing, once every other player is defeated.
 	bool enemies_defeated = true;
 	for (int t = 1; t < MAX_TEAMS && enemies_defeated; ++t) {
-		if (!defeated(t)) enemies_defeated = false;
+		if (defeated(t)) continue;
+		if (last_man_standing_ || !is_ally_of_player0((uint8_t)t)) enemies_defeated = false;
 	}
 	// Don't hand out a win on a map that never had an enemy on it.
 	bool fought = record_.enemies_killed > 0 || record_.buildings_destroyed > 0 || wave_number_ > 0;

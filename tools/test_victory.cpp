@@ -178,6 +178,38 @@ int main() {
 		CHECK(vc != VICTORY_REGICIDE || heroes == 2);
 	}
 
+	// 9c. Allied victory: player 2 is on player 0's team, so beating player 1 wins the match.
+	// Under Last Man Standing the ally must fall too.
+	for (bool lms : {false, true}) {
+		Simulation *sim = fresh(VICTORY_CONQUEST);
+		sim->set_last_man_standing(lms);
+		sim->set_player_team(2, sim->player(0).team);
+		sim->spawn_unit(-40.0f, 40.0f, 2, UNIT_SWORDSMAN);
+		CHECK(sim->is_ally_of_player0(2) && !sim->is_ally_of_player0(1));
+		wipe(*sim, 1, true, true);
+		run(*sim, 1.0f);
+		CHECK(sim->is_victory() == !lms);
+		if (!lms) CHECK(sim->is_victory_for(2) && !sim->is_victory_for(1));
+		if (lms) {
+			wipe(*sim, 2, true, true);
+			run(*sim, 1.0f);
+			CHECK(sim->is_victory());
+		}
+		delete sim;
+	}
+	// 9d. An ally's wonder wins for player 0 in Wonder mode.
+	{
+		Simulation *sim = fresh(VICTORY_WONDER);
+		sim->set_player_team(2, sim->player(0).team);
+		sim->spawn_building(-20, 20, BLD_WONDER, 2, 1.0f);
+		run(*sim, 2.0f);
+		CHECK(sim->is_wonder_active());
+		sim->wonder_victory_timer_ = 599.9f;
+		run(*sim, 1.0f);
+		CHECK(sim->is_victory());
+		delete sim;
+	}
+
 	// 10. Victory condition, wave mode and map size reach the joining peer in NMT_GAME_START.
 	{
 		GameSetupParams p;
@@ -186,9 +218,10 @@ int main() {
 		p.victory = VICTORY_REGICIDE;
 		p.waves = 1;
 		p.map_size = 384;
+		p.lms = 1;
 		GameSetupParams q;
 		CHECK(parse_game_start_full(format_game_start_full(p), q));
-		CHECK(q.victory == VICTORY_REGICIDE && q.waves == 1 && q.map_size == 384);
+		CHECK(q.victory == VICTORY_REGICIDE && q.waves == 1 && q.map_size == 384 && q.lms == 1);
 	}
 
 	if (failures) {

@@ -312,6 +312,16 @@ public:
 	// Legacy wave-defense mode: enemy waves every 35s, survive wave 5 to win. Off by default.
 	bool waves_enabled() const { return waves_enabled_; }
 	void set_waves_enabled(bool on) { waves_enabled_ = on; }
+	// 0 A.D. "Last Man Standing": allies don't share a win; the match goes on until one player is left.
+	bool last_man_standing() const { return last_man_standing_; }
+	void set_last_man_standing(bool on) { last_man_standing_ = on; }
+	// Player 0's side for victory: itself, game-setup teammates, and mutual diplomatic allies.
+	bool is_ally_of_player0(uint8_t pid) const { return pid == 0 || same_team(0, pid) || is_mutual_ally(pid); }
+	// Match result from pid's seat: player 0's side won (victory_) or lost (game over without it).
+	bool is_victory_for(uint8_t pid) const {
+		if (!victory_ && !game_over_) return false;
+		return victory_ == is_ally_of_player0(pid);
+	}
 
 	// Battle Alerts (AlertRaiser.js)
 	void raise_alert(BattleAlert::Type type, float x, float z, uint32_t entity_id, uint8_t team = 0);
@@ -730,6 +740,7 @@ private:
 	bool has_active_wonder_ = false;
 	VictoryCondition victory_condition_ = VICTORY_CONQUEST;
 	bool waves_enabled_ = false;
+	bool last_man_standing_ = false;
 	float relic_victory_timer_ = 0.0f;
 	std::vector<BattleAlert> pending_alerts_;
 	float last_alert_time_[6] = {};

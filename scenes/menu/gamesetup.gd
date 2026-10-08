@@ -367,6 +367,7 @@ func _restore_settings() -> void:
 	var beh: RtsoSafeSelect = $VBox/HBox/Left/BehaviorSlot.get_child(0)
 	vic.select(clampi(int(ms.get("victory")), 0, VICTORIES.size() - 1))
 	$VBox/HBox/Left/Waves.button_pressed = bool(ms.get("waves_enabled"))
+	$VBox/HBox/Left/LastManStanding.button_pressed = bool(ms.get("last_man_standing"))
 	var msz: RtsoSafeSelect = $VBox/HBox/Left/MapSizeSlot.get_child(0)
 	for i in range(MAP_SIZES.size()):
 		if int(MAP_SIZES[i][0]) == int(ms.get("map_size")):
@@ -435,6 +436,7 @@ func _collect_setup() -> Dictionary:
 			break
 	return {"map": m, "seed": seed, "victory": vic.get_selected(),
 		"waves": $VBox/HBox/Left/Waves.button_pressed,
+		"lms": $VBox/HBox/Left/LastManStanding.button_pressed,
 		"map_size": int(MAP_SIZES[maxi(msz.get_selected(), 0)][0]),
 		"res": res.get_selected(), "beh": beh.get_selected(), "diff": diff,
 		"types": types, "civs": civs, "teams": teams,
@@ -463,6 +465,7 @@ func _on_start_pressed() -> void:
 	ms.seed = int(st["seed"])
 	ms.victory = int(st["victory"])
 	ms.waves_enabled = bool(st["waves"])
+	ms.last_man_standing = bool(st["lms"])
 	ms.map_size = int(st["map_size"])
 	ms.ai_difficulty = int(st["diff"])
 	ms.ai_behavior = int(st["beh"])

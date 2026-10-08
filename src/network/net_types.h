@@ -236,7 +236,7 @@ struct GameStartMsg {
 //   "map=<map_id>;seed=<u32>"  (extra keys ignored on parse)
 // Full game setup rides as extra keys (0 A.D. NetServer game-start
 // attributes broadcast before the first turn, NetMessages.h NMT_GAME_START):
-//   victory=<0..6>;waves=<0|1>;mapsize=<128..512>;diff=<0..5>;behavior=<0..3>;res=<0..3>;
+//   victory=<0..6>;waves=<0|1>;lms=<0|1>;mapsize=<128..512>;diff=<0..5>;behavior=<0..3>;res=<0..3>;
 //   civ0=<civ>;civ1=<civ>;teams=<t0,t1,...> (+ up to 8 slots: civ2..civ7,
 //   types=<ht,ht,...> with h=human a=ai x=closed, slots count = teams len)
 // Old peers parse map+seed and ignore the rest.
@@ -246,6 +246,7 @@ struct GameSetupParams {
 	uint8_t victory = 0;    // rtso::VictoryCondition: 0 conquest, 1 wonder, 2 relic, 3 endless,
 	                        // 4 conquest units, 5 conquest structures, 6 regicide
 	uint8_t waves = 0;      // 1 = legacy wave-defense mode on
+	uint8_t lms = 0;        // 1 = Last Man Standing (no allied victory)
 	uint16_t map_size = 128; // random-map width in meters, 128..512
 	uint8_t difficulty = 3; // Petra 0..5 sandbox..very hard
 	uint8_t behavior = 2;   // Petra 0..3 random/def/bal/agg
@@ -259,6 +260,7 @@ inline std::string format_game_start_full(const GameSetupParams &p) {
 	std::string s = "map=" + p.map_id + ";seed=" + std::to_string(p.seed);
 	s += ";victory=" + std::to_string((unsigned)p.victory);
 	s += ";waves=" + std::to_string((unsigned)p.waves);
+	s += ";lms=" + std::to_string((unsigned)p.lms);
 	s += ";mapsize=" + std::to_string((unsigned)p.map_size);
 	s += ";diff=" + std::to_string((unsigned)p.difficulty);
 	s += ";behavior=" + std::to_string((unsigned)p.behavior);
@@ -322,6 +324,7 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 			}
 			else if (k == "victory") { uint8_t x; if (detail::parse_u8(v, 0, 6, x)) out.victory = x; }
 			else if (k == "waves") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.waves = x; }
+			else if (k == "lms") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.lms = x; }
 			else if (k == "mapsize" && !v.empty() && v.size() <= 3 && v.find_first_not_of("0123456789") == std::string::npos) {
 				unsigned x = (unsigned)std::stoul(v);
 				if (x >= 128 && x <= 512) out.map_size = (uint16_t)x;
