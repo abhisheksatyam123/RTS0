@@ -155,6 +155,10 @@ enum class NetCommandType : uint8_t {
 	NET_CMD_DELETE         = 30,
 	// 0 A.D. "back-to-work" (UnitAI BackToWork) on the selected units.
 	NET_CMD_BACK_TO_WORK   = 31,
+	// 0 A.D. "set-trading-goods" (Player.js SetTradingGoods): the issuing player's
+	// trader goods shares in percent, one byte per ResourceType in target_id
+	// (byte r = share of resource r); see Simulation::cmd_set_trading_goods.
+	NET_CMD_SET_TRADING_GOODS = 32,
 };
 
 // param bits on unit orders (move 1, attack 3, gather 4, attack-move 10, patrol 11,

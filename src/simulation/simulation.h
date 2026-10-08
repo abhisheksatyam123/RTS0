@@ -128,7 +128,7 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
-	static constexpr uint32_t SAVE_VERSION = 21; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 22; // save_state's format; see the history beside it
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -467,6 +467,13 @@ public:
 	// 0 A.D. Player.js TributeResource: `from` sends `amounts` (indexed by
 	// ResourceType) to `to`. All or nothing; both players must be in the
 	// match. The one tribute path for the UI, lockstep cmd 27 and Petra.
+	// 0 A.D. Player.js SetTradingGoods / GetTradingGoods: the share (percent) of
+	// each resource, by ResourceType, that `player`'s traders bring back. A set
+	// that doesn't sum to 100 is refused.
+	bool cmd_set_trading_goods(uint8_t player, const uint8_t pct[RES_COUNT]);
+	const uint8_t *trading_goods(uint8_t player) const {
+		return trading_goods_[player < MAX_PLAYERS ? player : 0];
+	}
 	bool cmd_tribute(uint8_t from, uint8_t to, const int amounts[RES_COUNT]);
 	bool cmd_tribute(uint8_t from, uint8_t to, uint8_t res_type, int amount);
 	// G3 Market/Trader (0 A.D. Market.js CalculateTraderGain, Trader.js, globalscripts/Trade.js)
@@ -945,7 +952,7 @@ private:
 	void save_tick_state(std::ofstream &out) const;
 	bool load_tick_state(std::ifstream &in, uint32_t version);
 	// Player.js GetNextTradingGoods with the default equal split (25% each).
-	uint8_t next_trading_goods();
+	uint8_t next_trading_goods(uint8_t player);
 	// Pays a trade gain into `player`'s stock and its gather statistics.
 	void credit_trade(uint8_t player, uint8_t res, int amount);
 	void tick_trickle(float dt);
@@ -1073,6 +1080,9 @@ private:
 	// G3 Market / Barter dynamic prices (indexed by ResourceType: 0=WOOD,1=GOLD,2=STONE,3=FOOD)
 	// Barter.js priceDifferences: per resource, in percent of the true price, within +-89.
 	float barter_price_diff_[RES_COUNT] = {};
+	// Player.js tradingGoods: the percent chance of each resource a player's
+	// traders load per trip (sums to 100; 25 each by default). Indexed by ResourceType.
+	uint8_t trading_goods_[MAX_PLAYERS][RES_COUNT] = {};
 	int market_trade_history_[4] = {};
 	std::unordered_map<uint32_t, std::pair<uint32_t,uint32_t>> trader_routes_; // unit_id -> (marketA_id, marketB_id)
 	std::unordered_map<uint32_t,int> trader_leg_; // unit_id -> 0=A->B, 1=B->A (which target next)
