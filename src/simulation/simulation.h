@@ -173,7 +173,7 @@ public:
 		int cell_x, cell_y;
 		int footprint; // 1 or 2
 		float attack_timer; // for defensive arrows
-		bool is_burning; // Structure fire under 33% HP
+		bool is_burning = false; // Structure fire under 33% HP
 
 		// Multi-slot production queue
 		std::vector<ProductionOrder> queue;
@@ -202,6 +202,13 @@ public:
 		float capture_regen_rate;
 		float capture_garrison_regen_rate;
 		float territory_decay_rate;
+
+		// 0 A.D. Upgrade.js: the structure this one is turning into
+		// (BLD_TYPE_COUNT = not upgrading) and the resources paid for it.
+		uint8_t upgrade_to = BLD_TYPE_COUNT;
+		float upgrade_timer = 0.0f;
+		float upgrade_duration = 0.0f;
+		std::array<float, RES_COUNT> upgrade_paid{};
 	};
 
 	Simulation();
@@ -363,6 +370,17 @@ public:
 	void clear_alerts() { pending_alerts_.clear(); }
 
 	bool cmd_research(uint8_t player, uint32_t building_id, uint8_t tech_id);
+	// 0 A.D. Upgrade.js: turn a finished structure into building_upgrade()'s
+	// target in place, keeping its health fraction, capture share and garrison.
+	enum UpgradeCheck : uint8_t {
+		UPGRADE_OK = 0, UPGRADE_ERR_NONE, UPGRADE_ERR_OWNER, UPGRADE_ERR_BUSY, UPGRADE_ERR_PHASE, UPGRADE_ERR_COST
+	};
+	UpgradeCheck upgrade_check(uint8_t player_id, uint32_t building_id) const;
+	bool cmd_upgrade_building(uint8_t player_id, uint32_t building_id);
+	// Stops an upgrade in progress and refunds what was paid (Upgrade.js CancelUpgrade).
+	bool cmd_cancel_upgrade(uint8_t player_id, uint32_t building_id);
+	// Maximum hit points of a `type` structure owned by `team`: template x civ bonus x techs.
+	float structure_max_hp(uint8_t type, uint8_t team) const;
 	// 0 A.D. Barter.js: sell 100 or 500 (DEAL_AMOUNT x 1 or BATCH_SIZE) of one
 	// resource for another. Needs a finished Market owned by `player`.
 	bool cmd_barter(uint8_t player, ResourceType sell, ResourceType buy, int amount = 100);
@@ -794,6 +812,9 @@ private:
 	void tick_repair(float dt);
 	void tick_production(float dt);
 	void tick_research(float dt);
+	void tick_upgrades(float dt);
+	void cancel_upgrade(Building &b, uint8_t refund_to);
+	void finish_upgrade(Building &b);
 	void tick_barter(float dt);
 	// Player.js GetNextTradingGoods with the default equal split (25% each).
 	uint8_t next_trading_goods();

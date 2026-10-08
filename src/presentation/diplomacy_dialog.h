@@ -4,7 +4,7 @@
 // P4 stage-1 leaf widget: diplomacy & tribute dialog (0 A.D.
 // gui/session/diplomacy/DiplomacyDialog.js parity). Owns the 8-player
 // stance matrix; stance changes ride lockstep cmd 22 and tribute lockstep
-// cmd 26 (Simulation::cmd_tribute) via RtsoDiplomacyHost.
+// cmd 27 (Simulation::cmd_tribute) via RtsoDiplomacyHost.
 
 #include <godot_cpp/classes/button.hpp>
 #include <godot_cpp/classes/control.hpp>
@@ -207,7 +207,7 @@ public:
 	}
 
 	// Tribute (0 A.D. Player.js TributeResource). Lockstep: a turn command
-	// (cmd 26), since resources are hashed; offline the sim applies it now.
+	// (cmd 27), since resources are hashed; offline the sim applies it now.
 	void tribute_pressed(int player_idx, int res_type) {
 		if (!host_ || !host_->ui_sim() || player_idx < 0 || player_idx >= 8 || res_type < 0 || res_type >= 4) return;
 		const uint8_t me = host_->local_player();
@@ -217,7 +217,7 @@ public:
 		if (host_->net_lockstep()) {
 			// Checked here only to give feedback; the sim validates again when the turn runs.
 			ok = sim->player_resource(me, (uint8_t)res_type) >= 100;
-			if (ok) host_->post_lockstep(26, nullptr, 0, 100.0f, 0, (uint32_t)player_idx, (uint8_t)res_type);
+			if (ok) host_->post_lockstep(27, nullptr, 0, 100.0f, 0, (uint32_t)player_idx, (uint8_t)res_type);
 		} else {
 			ok = sim->cmd_tribute(me, (uint8_t)player_idx, (uint8_t)res_type, 100);
 		}

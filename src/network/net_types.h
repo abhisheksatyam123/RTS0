@@ -135,10 +135,13 @@ enum class NetCommandType : uint8_t {
 	// the class-based NET_CMD_TRAIN can't name). target_id = building,
 	// target_x = civ_unit_template_table() row (exact in a float), param = 0.
 	NET_CMD_TRAIN_TEMPLATE = 25,
+	// 0 A.D. Upgrade.js on a structure (sentry tower -> defense tower, wall ->
+	// gate). target_id = building, param = 0 start / 1 cancel and refund.
+	NET_CMD_UPGRADE_BUILDING = 26,
 	// 0 A.D. "tribute" command (Player.js TributeResource): the issuing player
 	// sends target_x (whole units, exact in a float) of resource `param`
 	// (ResourceType) to player target_id. All or nothing; see Simulation::cmd_tribute.
-	NET_CMD_TRIBUTE        = 26,
+	NET_CMD_TRIBUTE        = 27,
 };
 
 struct NetCommand {

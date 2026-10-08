@@ -129,6 +129,13 @@ jobs:
             src/network/net_host.cpp -lpthread -o /tmp/test_techs
           /tmp/test_techs
 
+      - name: Structure upgrade tests
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_upgrades.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+            src/network/net_host.cpp -lpthread -o /tmp/test_upgrades
+          /tmp/test_upgrades
+
       - name: Building steering scenarios
         run: |
           g++ -std=c++20 -O2 -Isrc tools/test_building_steering.cpp src/simulation/simulation.cpp \

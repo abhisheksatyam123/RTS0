@@ -25,7 +25,7 @@
 //     deterministic commission per turn, blocked while the dock is training or
 //     unfinished, and it rides the ordinary turn command stream (so it is in the
 //     replay history).
-//  8. tribute (cmd 26) and barter (cmd 23) on two lockstep peers: both apply on
+//  8. tribute (cmd 27) and barter (cmd 23) on two lockstep peers: both apply on
 //     the same turn as the sending client's player, and the hashes stay equal.
 //
 // Exit: 0 = PASS, 1 = FAIL, 2 = bad usage.
@@ -162,7 +162,7 @@ static bool run_wire_contract(const char *ph) {
 	CHECK(static_cast<uint8_t>(NetCommandType::NET_CMD_BARTER) == 23, ph);
 	CHECK(static_cast<uint8_t>(NetCommandType::NET_CMD_MAINTAIN_FLEET) == 24, ph);
 	CHECK(static_cast<uint8_t>(NetCommandType::NET_CMD_TRAIN_TEMPLATE) == 25, ph);
-	CHECK(static_cast<uint8_t>(NetCommandType::NET_CMD_TRIBUTE) == 26, ph);
+	CHECK(static_cast<uint8_t>(NetCommandType::NET_CMD_TRIBUTE) == 27, ph);
 
 	// An old or hostile peer still sending NMT_DIPLOMACY: NetHost drops it before
 	// TurnManager's onMessage, so it can never queue a stance out of band.
@@ -804,7 +804,7 @@ int main(int argc, char **argv) {
 		{"G8 lockstep gate: no turn before NMT_GAME_START is applied", run_lockstep_gate},
 		{"P3 late-join GAME_START resend + turn-0 hash handshake", run_late_join_game_start_resend},
 		{"P3 maintainFleet upkeep: deterministic per-turn commission", run_maintain_fleet_upkeep},
-		{"tribute (cmd 26) and barter (cmd 23) on two lockstep peers", run_tribute_and_barter},
+		{"tribute (cmd 27) and barter (cmd 23) on two lockstep peers", run_tribute_and_barter},
 	};
 	const size_t n = sizeof(phases) / sizeof(phases[0]);
 	for (size_t i = 0; i < n; ++i) {

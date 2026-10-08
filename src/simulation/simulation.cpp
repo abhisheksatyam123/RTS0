@@ -625,9 +625,8 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	b.half_size = half;
 	b.type = type;
 	b.team = team;
-	b.max_hp = binfo.max_hp;
-	// 0 A.D. civ structure bonuses (Hellenic Architecture, Wooden Construction, walls, ...)
-	if (team < MAX_PLAYERS) b.max_hp *= civ_bonus_mult(civ_of(team), CIV_BONUS_BUILDING_HP, type);
+	// Template health x civ bonus x the owner's structure health techs.
+	b.max_hp = structure_max_hp(type, team);
 	// 0 A.D. foundation.xml: Health/Initial is 1. Progress 0 = plot only (not a wreck).
 	if (progress <= 0.0f) {
 		b.build_progress = 0.0f;
@@ -1002,7 +1001,7 @@ bool Simulation::cmd_train_template(uint8_t player_id, uint32_t building_id, uin
 	if (bit == building_id_to_idx_.end()) return false;
 	Building &b = buildings_[bit->second];
 	if (b.team != player_id || player_id >= MAX_PLAYERS || b.build_progress < 1.0f) return false;
-	if (b.queue.size() >= 8) return false;
+	if (b.queue.size() >= 8 || b.upgrade_to != BLD_TYPE_COUNT) return false;
 	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
 
 	PlayerState &ps = players_[player_id];
@@ -1175,7 +1174,8 @@ Simulation::ResearchCheck Simulation::research_check(uint8_t player_id, uint8_t 
 		auto bit = building_id_to_idx_.find(building_id);
 		if (bit == building_id_to_idx_.end()) return TECH_ERR_BUILDING;
 		const Building &b = buildings_[bit->second];
-		if (b.team != player_id || b.build_progress < 1.0f || b.hp <= 0.0f || b.research_tech != TECH_NONE)
+		if (b.team != player_id || b.build_progress < 1.0f || b.hp <= 0.0f || b.research_tech != TECH_NONE
+		    || b.upgrade_to != BLD_TYPE_COUNT)
 			return TECH_ERR_BUILDING;
 		if (b.type != tinfo.researcher) return TECH_ERR_BUILDING;
 	}
@@ -1206,6 +1206,111 @@ bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t t
 	b.research_duration = tinfo.research_time * team(TEAM_BONUS_TECH_TIME, -1)
 		* tech_mods(player_id).bld_research_time[b.type] * ai_time_mult(player_id);
 	return true;
+}
+
+float Simulation::structure_max_hp(uint8_t type, uint8_t team) const {
+	float hp = building_type_info(type).max_hp;
+	if (team < MAX_PLAYERS) {
+		// 0 A.D. civ structure bonuses (Hellenic Architecture, Wooden Construction, walls, ...)
+		hp *= civ_bonus_mult(civ_of(team), CIV_BONUS_BUILDING_HP, type);
+		hp *= tech_mods(team).bld_health[type];
+	}
+	return hp;
+}
+
+Simulation::UpgradeCheck Simulation::upgrade_check(uint8_t player_id, uint32_t building_id) const {
+	auto bit = building_id_to_idx_.find(building_id);
+	if (bit == building_id_to_idx_.end() || player_id >= MAX_PLAYERS) return UPGRADE_ERR_NONE;
+	const Building &b = buildings_[bit->second];
+	if (b.team != player_id) return UPGRADE_ERR_OWNER;
+	const BuildingUpgradeInfo up = building_upgrade(b.type, civ_of(player_id));
+	if (up.to >= BLD_TYPE_COUNT || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) return UPGRADE_ERR_NONE;
+	// Upgrade.js Upgrade(): not while upgrading or producing.
+	if (b.upgrade_to != BLD_TYPE_COUNT || !b.queue.empty() || b.research_tech != TECH_NONE) return UPGRADE_ERR_BUSY;
+	const PlayerState &ps = players_[player_id];
+	if (ps.phase < up.required_phase) return UPGRADE_ERR_PHASE;
+	if (!ps.can_afford((float)up.food_cost, (float)up.wood_cost, (float)up.gold_cost, (float)up.stone_cost))
+		return UPGRADE_ERR_COST;
+	return UPGRADE_OK;
+}
+
+bool Simulation::cmd_upgrade_building(uint8_t player_id, uint32_t building_id) {
+	if (upgrade_check(player_id, building_id) != UPGRADE_OK) return false;
+	Building &b = buildings_[building_id_to_idx_[building_id]];
+	const BuildingUpgradeInfo up = building_upgrade(b.type, civ_of(player_id));
+	players_[player_id].pay((float)up.food_cost, (float)up.wood_cost, (float)up.gold_cost, (float)up.stone_cost);
+	b.upgrade_paid.fill(0.0f);
+	b.upgrade_paid[RES_FOOD] = (float)up.food_cost;
+	b.upgrade_paid[RES_WOOD] = (float)up.wood_cost;
+	b.upgrade_paid[RES_GOLD] = (float)up.gold_cost;
+	b.upgrade_paid[RES_STONE] = (float)up.stone_cost;
+	b.upgrade_to = up.to;
+	b.upgrade_timer = 0.0f;
+	b.upgrade_duration = up.time;
+	if (up.time <= 0.0f) finish_upgrade(b);
+	return true;
+}
+
+bool Simulation::cmd_cancel_upgrade(uint8_t player_id, uint32_t building_id) {
+	auto bit = building_id_to_idx_.find(building_id);
+	if (bit == building_id_to_idx_.end()) return false;
+	Building &b = buildings_[bit->second];
+	if (b.team != player_id || b.upgrade_to == BLD_TYPE_COUNT) return false;
+	cancel_upgrade(b, player_id);
+	return true;
+}
+
+void Simulation::cancel_upgrade(Building &b, uint8_t refund_to) {
+	if (b.upgrade_to == BLD_TYPE_COUNT) return;
+	if (refund_to < MAX_PLAYERS)
+		players_[refund_to].add(b.upgrade_paid[RES_FOOD], b.upgrade_paid[RES_WOOD], b.upgrade_paid[RES_GOLD], b.upgrade_paid[RES_STONE]);
+	b.upgrade_paid.fill(0.0f);
+	b.upgrade_to = BLD_TYPE_COUNT;
+	b.upgrade_timer = 0.0f;
+	b.upgrade_duration = 0.0f;
+}
+
+// 0 A.D. helpers/Transform.js ChangeEntityTemplate: the new structure keeps the
+// owner, position, health fraction, capture share and garrison of the old one.
+void Simulation::finish_upgrade(Building &b) {
+	const uint8_t to = b.upgrade_to;
+	if (to >= BLD_TYPE_COUNT) return;
+	const BuildingTypeInfo &ninfo = building_type_info(to);
+	const float health_level = b.max_hp > 0.0f ? std::clamp(b.hp / b.max_hp, 0.0f, 1.0f) : 1.0f;
+	b.type = to;
+	b.max_hp = structure_max_hp(to, b.team);
+	b.hp = b.max_hp * health_level;
+	float new_capture = ninfo.capture_max_points;
+	if (b.team < MAX_PLAYERS) new_capture *= civ_bonus_mult(civ_of(b.team), CIV_BONUS_BUILDING_CAPTURE_POINTS, to);
+	if (b.max_capture_points > 0.0f) {
+		const float scale = new_capture / b.max_capture_points;
+		for (float &c : b.capture_points_by_team) c *= scale;
+	}
+	b.max_capture_points = new_capture;
+	b.capture_points = b.capture_points_by_team[b.team < 8 ? b.team : 0];
+	b.capture_regen_rate = ninfo.capture_regen_rate;
+	b.capture_garrison_regen_rate = ninfo.capture_garrison_regen_rate;
+	b.territory_decay_rate = ninfo.territory_decay_rate;
+	// TransferGarrisonedUnits: whoever doesn't fit in the new structure is unloaded.
+	b.garrison_cap = ninfo.garrison_cap;
+	while ((int)b.garrisoned_units.size() > b.garrison_cap)
+		order_ungarrison_single(b.id, b.garrisoned_units.back());
+	b.attack_timer = 0.0f;
+	b.upgrade_paid.fill(0.0f);
+	b.upgrade_to = BLD_TYPE_COUNT;
+	b.upgrade_timer = 0.0f;
+	b.upgrade_duration = 0.0f;
+	if (to == BLD_TOWN_CENTER || to == BLD_FORTRESS || to == BLD_TOWER) rebuild_territory();
+}
+
+// Upgrade.js UpgradeProgress: the timer runs whether or not anyone is near.
+void Simulation::tick_upgrades(float dt) {
+	for (auto &b : buildings_) {
+		if (b.upgrade_to == BLD_TYPE_COUNT) continue;
+		if (b.hp <= 0.0f || b.wrecked) { cancel_upgrade(b, b.team); continue; }
+		b.upgrade_timer += dt;
+		if (b.upgrade_timer >= b.upgrade_duration) finish_upgrade(b);
+	}
 }
 
 void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
@@ -2321,6 +2426,7 @@ void Simulation::tick(float dt) {
 	tick_repair(dt);         // 0 A.D. Repairable.js / Builder.js: repairing damaged completed buildings
 	tick_production(dt);     // 0 A.D. ProductionQueue.js: unit training queues
 	tick_research(dt);       // 0 A.D. ProductionQueue.js / Researcher.js: technology research progress
+	tick_upgrades(dt);       // 0 A.D. Upgrade.js: structure upgrades (sentry tower -> tower, wall -> gate)
 	tick_entity_limits(dt);  // 0 A.D. EntityLimits.js:7-12: enforce category limits per player (Wonder: 1, Fortress: 10)
 	tick_gates(dt);          // 0 A.D. Gate.js:145-180: auto open / close when allied units in pass range
 
@@ -4144,6 +4250,7 @@ void Simulation::tick_capture(float dt) {
 		}
 		if (best != owner && (b.capture_points_by_team[best] > b.max_capture_points * 0.5f || b.capture_points_by_team[owner] <= 0.0001f)) {
 			order_ungarrison(b.id);
+			cancel_upgrade(b, b.team);
 			b.team = (uint8_t)best;
 			raise_alert(BattleAlert::ALERT_STRUCTURE_CAPTURED, b.x, b.z, b.id, b.team);
 			if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER) rebuild_territory();
@@ -8332,7 +8439,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = 11; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 0 A.D. barter price differences and each building's structure fire
+	uint32_t version = 12; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 
@@ -8449,6 +8556,10 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&b.capture_points, sizeof(b.capture_points));
 		out.write((const char *)&b.max_capture_points, sizeof(b.max_capture_points));
 		out.write((const char *)b.capture_points_by_team.data(), sizeof(b.capture_points_by_team));
+		out.write((const char *)&b.upgrade_to, sizeof(b.upgrade_to));
+		out.write((const char *)&b.upgrade_timer, sizeof(b.upgrade_timer));
+		out.write((const char *)&b.upgrade_duration, sizeof(b.upgrade_duration));
+		out.write((const char *)b.upgrade_paid.data(), sizeof(b.upgrade_paid));
 		out.write((const char *)&b.is_burning, sizeof(b.is_burning));
 
 		uint32_t q_sz = (uint32_t)b.queue.size();
@@ -8500,7 +8611,7 @@ bool Simulation::load_state(const char *filepath) {
 	uint32_t magic = 0, version = 0;
 	in.read((char *)&magic, sizeof(magic));
 	in.read((char *)&version, sizeof(version));
-	if (magic != 0x52545330 || version < 1 || version > 11) return false;
+	if (magic != 0x52545330 || version < 1 || version > 12) return false;
 
 	// 1. Sim scalars
 	in.read((char *)&ticks_, sizeof(ticks_));
@@ -8724,9 +8835,14 @@ bool Simulation::load_state(const char *filepath) {
 			in.read((char *)bld.capture_points_by_team.data(), sizeof(bld.capture_points_by_team));
 		else
 			bld.capture_points_by_team.fill(0.0f);
-		// The structure fire is in the lockstep hash; before v11 it was not saved.
-		bld.is_burning = false;
-		if (version >= 11) in.read((char *)&bld.is_burning, sizeof(bld.is_burning));
+		bld.is_burning = false; // not saved before v11
+		if (version >= 11) {
+			in.read((char *)&bld.upgrade_to, sizeof(bld.upgrade_to));
+			in.read((char *)&bld.upgrade_timer, sizeof(bld.upgrade_timer));
+			in.read((char *)&bld.upgrade_duration, sizeof(bld.upgrade_duration));
+			in.read((char *)bld.upgrade_paid.data(), sizeof(bld.upgrade_paid));
+			in.read((char *)&bld.is_burning, sizeof(bld.is_burning));
+		}
 		const auto &bi = building_type_info(bld.type);
 		bld.capture_regen_rate = bi.capture_regen_rate;
 		bld.capture_garrison_regen_rate = bi.capture_garrison_regen_rate;
@@ -8763,11 +8879,11 @@ bool Simulation::load_state(const char *filepath) {
 
 	// 5. G3 Market prices & trader routes (version 2+, fallback for v1)
 	if (version >= 2) {
-		if (version >= 11) {
+		if (version >= 12) {
 			in.read((char *)barter_price_diff_, sizeof(barter_price_diff_));
 			in.read((char *)&barter_timer_, sizeof(barter_timer_));
 		} else {
-			// v2-v10 kept invented multiplicative buy and sell prices; start 0 A.D. prices fresh.
+			// v2-v11 kept invented multiplicative buy and sell prices; start 0 A.D. prices fresh.
 			float old_prices[2][4];
 			in.read((char *)old_prices, sizeof(old_prices));
 			for (float &d : barter_price_diff_) d = 0.0f;
