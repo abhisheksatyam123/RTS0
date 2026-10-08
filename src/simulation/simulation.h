@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <string>
 #include <array>
+#include <iosfwd>
 
 namespace rtso {
 
@@ -870,6 +871,9 @@ private:
 	void cancel_upgrade(Building &b, uint8_t refund_to);
 	void finish_upgrade(Building &b);
 	void tick_barter(float dt);
+	// v15: per-tick state the main save records leave out (velocities, paths, projectiles, timers...).
+	void save_tick_state(std::ofstream &out) const;
+	bool load_tick_state(std::ifstream &in);
 	// Player.js GetNextTradingGoods with the default equal split (25% each).
 	uint8_t next_trading_goods();
 	// Pays a trade gain into `player`'s stock and its gather statistics.
@@ -1155,6 +1159,8 @@ private:
 	};
 	std::vector<PetraSlot> petra_slots_; // indexed by player id, sized on first use
 	void petra_swap_slot(uint8_t pid);
+	// Saves or loads every AI's Petra state (save v15); defined in simulation.cpp.
+	template <class Ar> friend void petra_state_io(Ar &ar, Simulation &s);
 	void petra_reset_ai_state();
 	std::vector<float> fow_cell_height_; // terrain height at each FoW cell centre, lazily filled by tick_fow
 	std::vector<float> fow_cell_hmax_; // highest heightmap sample an LOS ray can read in each FoW cell, filled with fow_cell_height_
