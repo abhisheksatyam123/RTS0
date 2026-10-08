@@ -505,6 +505,49 @@ static void test_slot_config() {
 	std::remove(path);
 }
 
+// entityExtend.js allowCapture: Petra captures what its squad can take and
+// damages what it can't (a garrisoned fortress), and siege never captures.
+static void test_allow_capture() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	const uint32_t house = s->spawn_building_world(-50.0f, 45.0f, BLD_HOUSE, 0, 1.0f);
+	const uint32_t fort = s->spawn_building_world(-45.0f, -45.0f, BLD_FORTRESS, 0, 1.0f);
+	std::vector<uint32_t> guards;
+	for (int i = 0; i < 10; ++i) guards.push_back(s->spawn_unit(-38.0f + (float)i, -38.0f, 0, UNIT_SPEARMAN));
+	s->order_garrison(guards.data(), guards.size(), fort);
+	run_for(*s, 20.0f);
+	std::vector<uint32_t> squad;
+	for (int i = 0; i < 4; ++i) squad.push_back(s->spawn_unit(-40.0f + 2.0f * (float)i, 30.0f, 1, UNIT_SPEARMAN));
+	const uint32_t ram = s->spawn_unit(-40.0f, 28.0f, 1, UNIT_SIEGE_RAM);
+	auto bld = [&](uint32_t id) -> const Simulation::Building & { return s->buildings()[s->building_id_to_idx_.at(id)]; };
+	const auto &f = bld(fort);
+	s->order_attack_building(squad.data(), squad.size(), house, false, true); // the squad closes on the house
+	const bool take_house = s->petra_allow_capture(squad, squad[0], bld(house));
+	const bool take_fort = s->petra_allow_capture(squad, squad[0], f);
+	const bool ram_captures = s->petra_allow_capture(squad, ram, bld(house));
+	std::printf("  allowCapture: house (%.0f points, regen %.1f) %s, fortress with %zu garrisoned %s, ram %s\n",
+	            bld(house).max_capture_points, bld(house).capture_regen_rate, take_house ? "capture" : "damage", f.garrisoned_units.size(), take_fort ? "capture" : "damage",
+	            ram_captures ? "capture" : "damage");
+	CHECK(take_house, "captures a house");
+	CHECK(f.garrisoned_units.size() == guards.size() && !take_fort, "damages a garrisoned fortress");
+	CHECK(!ram_captures, "siege never captures");
+
+	// A spearman sent to capture the fortress switches to damaging it.
+	s->order_attack_building(&squad[1], 1, fort, false, true);
+	s->petra_check_captures(squad, f.x, f.z);
+	const auto &u = s->units_;
+	const int32_t i = s->lookup_unit(squad[1]);
+	CHECK(u.order_kind[i] == ORDER_ATTACK_BUILDING && !(u.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE),
+	      "a capture the squad can't win becomes an attack");
+	s->order_attack_building(&squad[2], 1, house, false, true);
+	s->petra_check_captures(squad, f.x, f.z);
+	const int32_t j = s->lookup_unit(squad[2]);
+	CHECK(u.order_flags[j] & ORDER_FLAG_ALLOW_CAPTURE, "a winnable capture goes on");
+}
+
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
@@ -515,6 +558,7 @@ int main() {
 	test_ai_slots();
 	test_attack_plans();
 	test_slot_config();
+	test_allow_capture();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }

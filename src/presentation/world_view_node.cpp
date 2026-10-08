@@ -13,9 +13,11 @@
 #include <godot_cpp/classes/geometry_instance3d.hpp>
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/classes/sphere_mesh.hpp>
+#include <godot_cpp/classes/shader.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 #include <algorithm>
 #include <cstdint>
+#include <cstring>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -38,6 +40,16 @@ Ref<MultiMesh> RtsoWorldView::create_multimesh(const Ref<Mesh> &mesh, bool use_c
 		mm->set_mesh(mesh);
 	}
 	return mm;
+}
+
+// A MultiMesh instance colour reaches a StandardMaterial3D only through
+// COLOR (vertex colour as albedo); a mesh without colours reads white.
+static void enable_instance_tint(const Ref<Mesh> &mesh) {
+	if (mesh.is_null()) return;
+	for (int s = 0; s < mesh->get_surface_count(); ++s) {
+		Ref<BaseMaterial3D> bm = mesh->surface_get_material(s);
+		if (bm.is_valid()) bm->set_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, true);
+	}
 }
 
 RtsoWorldView::UnitVis &RtsoWorldView::acquire_unit_slot(uint32_t sim_id) {
@@ -248,12 +260,17 @@ void RtsoWorldView::_ready() {
 	}
 
 	// Resource batches — real 0ad flora & mines with variety
-	tree_a_mm = create_multimesh(rtso::ModelLibrary::get("vegetation", "tree").mesh, false);
-	tree_b_mm = create_multimesh(rtso::ModelLibrary::get("vegetation", "pine").mesh, false);
-	tree_c_mm = create_multimesh(rtso::ModelLibrary::get("vegetation", "palm").mesh, false);
-	gold_mm = create_multimesh(rtso::ModelLibrary::get("vegetation", "gold_vein").mesh, false);
-	stone_mm = create_multimesh(rtso::ModelLibrary::get("vegetation", "stone_mine").mesh, false);
-	food_mm = create_multimesh(rtso::ModelLibrary::get("vegetation", "fruit_bush").mesh, false);
+	// Instance colours carry the LOS brightness (fogged supplies read darker).
+	auto tinted = [](const Ref<Mesh> &m) {
+		enable_instance_tint(m);
+		return m;
+	};
+	tree_a_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "tree").mesh), true);
+	tree_b_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "pine").mesh), true);
+	tree_c_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "palm").mesh), true);
+	gold_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "gold_vein").mesh), true);
+	stone_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "stone_mine").mesh), true);
+	food_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "fruit_bush").mesh), true);
 
 	tree_a_mmi = memnew(MultiMeshInstance3D); tree_a_mmi->set_multimesh(tree_a_mm); add_child(tree_a_mmi);
 	tree_b_mmi = memnew(MultiMeshInstance3D); tree_b_mmi->set_multimesh(tree_b_mm); add_child(tree_b_mmi);
@@ -312,7 +329,81 @@ void RtsoWorldView::_ready() {
 	sfx_building_collapse = load_s("res://assets/sounds/building/building_collapse.ogg");
 	sfx_building_fire = load_s("res://assets/sounds/building/building_fire.ogg");
 
+	// Fog overlay: 0 A.D. model_common.fs multiplies every model by the LOS
+	// texture. Imported models keep their StandardMaterial3D, so a structure
+	// outside full sight gets a multiply pass with its LOS brightness instead,
+	// from a small set of materials (instance uniforms aren't in every renderer).
+	{
+		Ref<Shader> sh;
+		sh.instantiate();
+		sh->set_code(
+				"shader_type spatial;\n"
+				"render_mode blend_mul, unshaded, cull_back, depth_draw_never, shadows_disabled, fog_disabled;\n"
+				"uniform float los_dim = 1.0;\n"
+				"void fragment() { ALBEDO = vec3(los_dim); }\n");
+		for (int k = 0; k < FOG_OVERLAY_LEVELS; ++k) {
+			fog_overlay_mats_[k].instantiate();
+			fog_overlay_mats_[k]->set_shader(sh);
+			fog_overlay_mats_[k]->set_shader_parameter("los_dim", (float)k / (float)(FOG_OVERLAY_LEVELS - 1));
+		}
+	}
+
 	init_animation_controllers();
+}
+
+void RtsoWorldView::bind_los(const Ref<Material> &mat) {
+	Ref<ShaderMaterial> sm = mat;
+	if (sm.is_null() || los_tex_.is_null()) return;
+	sm->set_shader_parameter("los_tex", los_tex_);
+	sm->set_shader_parameter("los_map_half", los_half_);
+}
+
+float RtsoWorldView::los_brightness(float x, float z) const {
+	const int res = los_.res();
+	const auto &shown = los_.shown();
+	if (res <= 0 || los_half_ <= 0.0f || shown.size() != (size_t)res * (size_t)res) return 1.0f;
+	const int cx = Math::clamp((int)((x + los_half_) / (los_half_ * 2.0f) * res), 0, res - 1);
+	const int cz = Math::clamp((int)((z + los_half_) / (los_half_ * 2.0f) * res), 0, res - 1);
+	return (float)shown[(size_t)cz * res + cx] / 255.0f;
+}
+
+static void set_overlay_recursive(Node *n, const Ref<Material> &mat) {
+	if (!n) return;
+	if (GeometryInstance3D *gi = Object::cast_to<GeometryInstance3D>(n)) gi->set_material_overlay(mat);
+	for (int i = 0; i < n->get_child_count(); ++i) set_overlay_recursive(n->get_child(i), mat);
+}
+
+void RtsoWorldView::set_fog_overlay(Node *n, float brightness) {
+	// Fully lit structures skip the extra pass.
+	const int k = Math::clamp((int)Math::round(brightness * (FOG_OVERLAY_LEVELS - 1)), 0, FOG_OVERLAY_LEVELS - 1);
+	set_overlay_recursive(n, k >= FOG_OVERLAY_LEVELS - 1 ? Ref<Material>() : Ref<Material>(fog_overlay_mats_[k]));
+}
+
+void RtsoWorldView::update_fog(const rtso::Simulation *sim, float delta) {
+	mirages_.update(*sim, local_player_);
+	const int res = sim->fow_res();
+	const bool new_map = res != los_.res() || los_half_ != sim->map_half();
+	los_.set_target(sim->fow_grid(local_player_), res);
+	if (new_map) {
+		los_.snap();
+		los_half_ = sim->map_half();
+		los_image_ = Image::create(res, res, false, Image::FORMAT_L8);
+		los_tex_ = ImageTexture::create_from_image(los_image_);
+		if (terrain) bind_los(terrain->get_material_override());
+		if (water_mesh_node) bind_los(water_mesh_node->get_material_override());
+		los_upload_timer_ = 1.0f;
+	}
+	// Ease at most 30 times a second; the texture upload is the costly part.
+	los_upload_timer_ += delta;
+	if (los_upload_timer_ < 1.0f / 30.0f) return;
+	const float step = los_upload_timer_;
+	los_upload_timer_ = 0.0f;
+	if (!los_.interpolate(step) && !new_map) return;
+	const auto &shown = los_.shown();
+	if (los_bytes_.size() != (int64_t)shown.size()) los_bytes_.resize((int64_t)shown.size());
+	memcpy(los_bytes_.ptrw(), shown.data(), shown.size());
+	los_image_->set_data(res, res, false, Image::FORMAT_L8, los_bytes_);
+	los_tex_->update(los_image_);
 }
 
 void RtsoWorldView::play_spatial_sound(const Ref<AudioStream> &stream, Vector3 pos, float volume_db, float max_dist, float pitch_scale) {
@@ -673,6 +764,7 @@ void RtsoWorldView::set_building_site_visible(BuildingVis &v, bool foundation_on
 			slot = instantiate_building_id(id);
 			if (!slot) return;
 			v.root->add_child(slot);
+			v.fog_dim = -1.0f;
 			String cat = "buildings";
 			const auto &se = rtso::ModelLibrary::get(cat, String(id));
 			if (Node3D *n3 = Object::cast_to<Node3D>(slot)) {
@@ -702,6 +794,7 @@ void RtsoWorldView::attach_building_model(BuildingVis &v, const String &model_na
 		v.model = nullptr;
 	}
 	v.model_id = model_name;
+	v.fog_dim = -1.0f; // new nodes: re-apply the fog overlay
 	v.model = instantiate_building_id(model_name);
 	if (!v.model) {
 		MeshInstance3D *mi = memnew(MeshInstance3D);
@@ -1003,6 +1096,7 @@ void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 				water_mesh_node->set_material_override(water_mat);
 			}
 			add_child(water_mesh_node);
+			bind_los(water_mesh_node->get_material_override());
 		}
 		water_mesh->set_size(Vector2(half * 2.2f, half * 2.2f));
 		water_mesh_node->set_position(Vector3(0.0f, sim->water_height(), 0.0f));
@@ -1019,6 +1113,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	anim_time += delta;
 	unit_vis_stamp++;
 	if (unit_vis_stamp == 0) unit_vis_stamp = 1;
+
+	update_fog(sim, delta);
 
 	// Update skeletal animation controllers
 	for (int t = 0; t < rtso::UNIT_TYPE_COUNT; ++t) {
@@ -1224,7 +1320,13 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			} else {
 				unit_mm[bank][utype][clip]->set_instance_transform(slot, xf);
 			}
-			unit_mm[bank][utype][clip]->set_instance_color(slot, is_player ? col_player : col_enemy);
+			// model_common.fs: color *= LOS. Own units in the fog read darker.
+			const float lit = los_brightness(x, z);
+			Color tint = is_player ? col_player : col_enemy;
+			tint.r *= lit;
+			tint.g *= lit;
+			tint.b *= lit;
+			unit_mm[bank][utype][clip]->set_instance_color(slot, tint);
 		}
 
 		if (detailed.count(id) == 0) continue;
@@ -1365,24 +1467,17 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	// =========================================================================
 	// 2. Buildings: Town Center, Barracks, Houses, Towers, Storehouses, Farms
 	// =========================================================================
-	const auto &buildings = sim->buildings();
+	// Fogging.js: enemy structures out of sight are drawn as the viewer last saw
+	// them (mirages); ones it never saw stay hidden.
+	const auto &buildings = mirages_.buildings();
 	std::unordered_set<uint32_t> alive_buildings;
 
 	for (const auto &b : buildings) {
-		bool building_visible = entity_visible(b.x, b.z, b.team);
-		auto existing = building_slot.find(b.id);
-		if (existing != building_slot.end()) {
-			BuildingVis &hidden = building_pool[existing->second];
-			if (hidden.root) hidden.root->set_visible(building_visible);
-			if (hidden.hp_bg) hidden.hp_bg->set_visible(false);
-			if (hidden.hp_fg) hidden.hp_fg->set_visible(false);
-		}
-		if (!building_visible) continue;
 		alive_buildings.insert(b.id);
 		BuildingVis &v = acquire_building_slot(b.id);
 		if (v.root) v.root->set_visible(true);
 
-		uint8_t bciv = sim->team_civ(b.team);
+		uint8_t bciv = b.civ;
 		const char *mid = rtso::civ_building_model(bciv, b.type);
 		const char *rubble_id = rtso::civ_building_rubble(bciv, b.type);
 		float b_progress = b.build_progress;
@@ -1450,6 +1545,17 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			}
 		}
 
+		// Out of full sight (a mirage, or an own structure in the fog): darken it
+		// by the LOS brightness, as model_common.fs does.
+		{
+			const float dim = los_brightness(b.x, b.z);
+			const float q = Math::round(dim * (FOG_OVERLAY_LEVELS - 1));
+			if (q != v.fog_dim) {
+				set_fog_overlay(v.root, dim);
+				v.fog_dim = q;
+			}
+		}
+
 		// Building Health & Construction Progress Bar
 		bool show_bhp = !destroyed && (b_progress < 1.0f || b.hp < b.max_hp * 0.98f);
 		v.hp_bg->set_visible(show_bhp);
@@ -1480,8 +1586,13 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			st.max_hp = b.max_hp;
 			st.type = b.type;
 			st.fire_timer = ((float)(rand() % 100) / 100.0f) * 2.0f;
+			st.live = !b.miraged;
 			tracked_buildings[b.id] = st;
+		} else if (b.miraged) {
+			// A memory: no live hit points to crackle over.
+			bit->second.live = false;
 		} else {
+			bit->second.live = true;
 			bit->second.hp = b.hp;
 			bit->second.max_hp = b.max_hp;
 			bit->second.fire_timer += delta;
@@ -1498,8 +1609,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	// 3D Positional Building Collapse / Destruction Acoustics
 	for (auto it = tracked_buildings.begin(); it != tracked_buildings.end(); ) {
 		if (alive_buildings.find(it->first) == alive_buildings.end()) {
-			float by = sim->get_terrain_height(it->second.x, it->second.z);
-			play_spatial_sound(sfx_building_collapse, Vector3(it->second.x, by + 1.0f, it->second.z), 3.0f, 95.0f, 0.95f);
+			// A mirage clearing when the viewer looks again is silent.
+			if (it->second.live) {
+				float by = sim->get_terrain_height(it->second.x, it->second.z);
+				play_spatial_sound(sfx_building_collapse, Vector3(it->second.x, by + 1.0f, it->second.z), 3.0f, 95.0f, 0.95f);
+			}
 			it = tracked_buildings.erase(it);
 		} else {
 			++it;
@@ -1617,28 +1731,19 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	// =========================================================================
 	// 4. Resources: Tree Varieties, Gold Veins, Stone Mines, Fruit Bushes
 	// =========================================================================
-	auto rview = sim->resources();
-	size_t ta = 0, tb = 0, tc = 0, g = 0, st = 0, fd = 0;
-
-	for (size_t i = 0; i < rview.count; ++i) {
-		if (!rview.alive[i] || rview.amount[i] <= 0 || !entity_visible(rview.x[i], rview.z[i], 255)) continue;
-		if (rview.subtype[i] == rtso::RES_SUB_GRAIN) continue; // a field's grain; the field model shows it
-		uint32_t h = rview.id[i];
-		if (rview.type[i] == rtso::RES_WOOD) {
-			if (h % 3 == 0) ta++;
-			else if (h % 3 == 1) tb++;
-			else tc++;
-		} else if (rview.type[i] == rtso::RES_GOLD) {
-			g++;
-		} else if (rview.type[i] == rtso::RES_STONE) {
-			st++;
-		} else if (rview.type[i] == rtso::RES_FOOD) {
-			fd++;
-		}
+	// Explored supplies show as last seen (Fogging.js); unexplored ones not at all.
+	const auto &fres = mirages_.resources();
+	size_t n_tree = 0, g = 0, st = 0, fd = 0;
+	for (const auto &r : fres) {
+		if (r.subtype == rtso::RES_SUB_GRAIN) continue; // a field's grain; the field model shows it
+		if (r.type == rtso::RES_WOOD) n_tree++;
+		else if (r.type == rtso::RES_GOLD) g++;
+		else if (r.type == rtso::RES_STONE) st++;
+		else if (r.type == rtso::RES_FOOD) fd++;
 	}
 
 	// All wood on tree.glb — pine/palm were easy to mistake for walking fauna
-	tree_a_mm->set_instance_count((int)(ta + tb + tc));
+	tree_a_mm->set_instance_count((int)n_tree);
 	tree_b_mm->set_instance_count(0);
 	tree_c_mm->set_instance_count(0);
 	gold_mm->set_instance_count((int)g);
@@ -1653,29 +1758,34 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	String id_stone = "stone_mine"; auto e_stone = rtso::ModelLibrary::get(cat_veg, id_stone);
 	String id_food = "fruit_bush"; auto e_food = rtso::ModelLibrary::get(cat_veg, id_food);
 
-	for (size_t i = 0; i < rview.count; ++i) {
-		if (!rview.alive[i] || rview.amount[i] <= 0 || !entity_visible(rview.x[i], rview.z[i], 255)) continue;
-		if (rview.subtype[i] == rtso::RES_SUB_GRAIN) continue; // a field's grain; the field model shows it
-		float rx = rview.x[i], rz = rview.z[i];
+	for (const auto &r : fres) {
+		if (r.subtype == rtso::RES_SUB_GRAIN) continue;
+		float rx = r.x, rz = r.z;
 		float ry = sim->get_terrain_height(rx, rz);
-		uint32_t h = rview.id[i];
+		uint32_t h = r.id;
 		Basis rot(Vector3(0, 1, 0), (float)(h % 12) * 0.52f);
+		const float lit = los_brightness(rx, rz);
+		const Color tint(lit, lit, lit, 1.0f);
 
-		if (rview.type[i] == rtso::RES_WOOD) {
+		if (r.type == rtso::RES_WOOD) {
 			Transform3D xf(rot, Vector3(rx, ry + e_tree.y_offset, rz));
-			tree_a_mm->set_instance_transform((int)ia++, xf);
-		} else if (rview.type[i] == rtso::RES_GOLD) {
+			tree_a_mm->set_instance_transform((int)ia, xf);
+			tree_a_mm->set_instance_color((int)ia++, tint);
+		} else if (r.type == rtso::RES_GOLD) {
 			Transform3D xf(rot, Vector3(rx, ry + e_gold.y_offset, rz));
-			gold_mm->set_instance_transform((int)ig++, xf);
-		} else if (rview.type[i] == rtso::RES_STONE) {
+			gold_mm->set_instance_transform((int)ig, xf);
+			gold_mm->set_instance_color((int)ig++, tint);
+		} else if (r.type == rtso::RES_STONE) {
 			Transform3D xf(rot, Vector3(rx, ry + e_stone.y_offset, rz));
-			stone_mm->set_instance_transform((int)ist++, xf);
-		} else if (rview.type[i] == rtso::RES_FOOD && food_mm.is_valid()) {
+			stone_mm->set_instance_transform((int)ist, xf);
+			stone_mm->set_instance_color((int)ist++, tint);
+		} else if (r.type == rtso::RES_FOOD && food_mm.is_valid()) {
 			// Fish float at the water surface (0 A.D. Position/Floating); the fruit-bush mesh
 			// stands in until the asset pipeline brings 0 A.D.'s fish shoal actor.
-			if (rview.subtype[i] == rtso::RES_SUB_FISH) ry = std::max(ry, sim->water_height());
+			if (r.subtype == rtso::RES_SUB_FISH) ry = std::max(ry, sim->water_height());
 			Transform3D xf(rot, Vector3(rx, ry + e_food.y_offset, rz));
-			food_mm->set_instance_transform((int)ifd++, xf);
+			food_mm->set_instance_transform((int)ifd, xf);
+			food_mm->set_instance_color((int)ifd++, tint);
 		}
 	}
 
