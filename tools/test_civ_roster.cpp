@@ -103,6 +103,15 @@ int main()
 	}
 	check(found_pericles, "Pericles is an Athenian hero with his own aura");
 
+	// Civ bonus building masks cover every BuildingType, including ids above 15.
+	check(bld_bit(BLD_EMBASSY) != 0 && bld_bit(BLD_TYPE_COUNT - 1) != 0, "bld_bit covers every building id");
+	check(civ_bonus_mult(CIV_ATHENIANS, CIV_BONUS_BUILDING_HP, BLD_EMBASSY) > 1.05f,
+		"Hellenic Architecture reaches buildings above id 15");
+	check(civ_bonus_mult(CIV_SELEUCIDS, CIV_BONUS_BUILDING_BUILD_TIME, BLD_FIELD) < 0.5f,
+		"Seleucid farms build faster");
+	check(civ_bonus_mult(CIV_SELEUCIDS, CIV_BONUS_BUILDING_BUILD_TIME, BLD_HOUSE) == 1.0f,
+		"Seleucid farm bonus stays on fields");
+
 	std::printf("%d/%d checks passed (%u unit templates, %u hero auras)\n",
 		g_checks - g_failed, g_checks, CIV_UNIT_TEMPLATE_COUNT, CIV_HERO_AURA_COUNT);
 	return g_failed == 0 ? 0 : 1;
