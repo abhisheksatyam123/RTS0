@@ -505,18 +505,37 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
     playtest::build_world(sim, seed, refs);
     // Seat the match the way RtsoMain::apply_game_setup does for a lobby of
     // two humans on opposing teams plus one AI: slot 0 = host, slot 1 =
-    // joiner, slot 2 = Petra. Petra must not run for the human slots.
+    // joiner, slot 2 = Petra. Petra must not run for the human slots. The
+    // host's setup also turns on Last Man Standing, a 150 pop cap and a
+    // one-minute ceasefire; the joiner takes all of it from NMT_GAME_START.
     GameSetupParams seats;
+    seats.map_id = "playtest";
+    seats.seed = seed;
     seats.slot_count = 3;
     seats.slot_types[0] = 'h';
     seats.slot_types[1] = 'h';
     seats.slot_types[2] = 'a';
+    seats.teams[0] = 1;
+    seats.teams[1] = 2;
+    seats.teams[2] = 3;
+    seats.lms = 1;
+    seats.pop_cap = 150;
+    seats.ceasefire = 1;
     sim.set_waves_enabled(false);
-    for (uint8_t t = 0; t < MAX_PLAYERS; ++t) {
-        const bool seated = t < seats.slot_count;
-        sim.set_player_active(t, seated, seated && seats.slot_types[t] == 'a');
-        sim.set_player_team(t, t);
-    }
+    auto apply_setup = [&](const GameSetupParams &s) {
+        for (uint8_t t = 0; t < MAX_PLAYERS; ++t) {
+            const bool seated = t < s.slot_count;
+            sim.set_player_active(t, seated, seated && s.slot_types[t] == 'a');
+            if (seated && s.teams[t] >= 1 && s.teams[t] <= 8) sim.set_player_team(t, (uint8_t)(s.teams[t] - 1));
+        }
+        sim.apply_team_diplomacy();
+        sim.set_last_man_standing(s.lms != 0);
+        sim.set_pop_cap(s.pop_cap);
+        sim.set_ceasefire_seconds(60.0f * (float)s.ceasefire);
+    };
+    if (host) apply_setup(seats);
+
+    const uint8_t sim_civ[2] = {sim.team_civ(0), sim.team_civ(1)};
 
     NetHost net;
     if (loss > 0.0f) net.set_simulated_loss(loss, seed ^ (host ? 0x1111u : 0x2222u));
@@ -542,9 +561,26 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
-    // Both worlds were built from the same seed above, so this stands in for
-    // NMT_GAME_START (exercised separately by the legacy GameStart test).
-    tm.mark_game_started(&sim);
+    // Both worlds were built from the same seed above; the game options and
+    // seats travel in NMT_GAME_START like a lobby start.
+    if (host) {
+        tm.mark_game_started(&sim);
+        net.sendGameStart(format_game_start_full(seats));
+    } else {
+        t_start = now_us();
+        while (!tm.has_pending_game_start()) {
+            net.poll(arena);
+            arena.reset();
+            if (now_us() - t_start > 10'000'000ull) {
+                std::fprintf(stderr, "[net-peer] join: no NMT_GAME_START after 10s\n");
+                return 3;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+        tm.set_game_start_applied_sim(&sim);
+        tm.take_pending_game_start_full(seats);
+        apply_setup(seats);
+    }
     tm.set_lockstep_peers({0u, 1u});
     tm.assign_slot_players(seats); // host -> player 0, joiner -> player 1
 
@@ -579,6 +615,18 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
                 d.param = (uint8_t)((st / 300) % 3);  // ally / neutral / enemy
                 batch.push_back(d);
             }
+            // Train a roster unit by template (cmd 25, as the roster list sends
+            // it): each human queues its civ's default spearman at its own TC.
+            if (st % 150 == 75) {
+                for (uint32_t who = 0; who < 2; ++who) {
+                    NetCommand t;
+                    t.client_id = who;
+                    t.cmd_type = 25;
+                    t.target_id = who == 0 ? refs.town_center : refs.enemy_buildings[2];
+                    t.target_x = (float)civ_default_template(sim_civ[who], UNIT_SPEARMAN);
+                    batch.push_back(t);
+                }
+            }
             for (const auto &c : batch)
                 if (c.client_id == me) tm.post_local_command(c);
         }
@@ -588,8 +636,18 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
         last = now;
         if (tm.tick(dt, sim)) {
             const auto &f = tm.turn_history().back();
-            std::fprintf(log, "%u %08X %zu d01=%u d10=%u\n", f.turn_index, f.sim_state_hash,
-                         f.commands.size(), sim.get_diplomacy(0, 1), sim.get_diplomacy(1, 0));
+            // Combat footprint: wounds on living units plus dead ones. It must
+            // stay 0 on both peers while the ceasefire holds.
+            float wounds = 0.0f;
+            unsigned dead = 0;
+            auto cu = sim.units();
+            for (size_t i = 0; i < cu.count; ++i) {
+                if (cu.alive[i]) wounds += cu.max_hp[i] - cu.hp[i];
+                else ++dead;
+            }
+            std::fprintf(log, "%u %08X %zu d01=%u d10=%u cf=%d wounds=%.0f dead=%u\n", f.turn_index,
+                         f.sim_state_hash, f.commands.size(), sim.get_diplomacy(0, 1),
+                         sim.get_diplomacy(1, 0), sim.ceasefire_active() ? 1 : 0, wounds, dead);
         }
         if (tm.has_out_of_sync()) {
             std::fprintf(stderr, "[net-peer] %s: OOS at turn %u local=%08X peer=%08X\n",
@@ -631,6 +689,11 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, float speed,
                 sim.is_game_over() ? 1 : 0, units[0], units[1], units[2],
                 sim.petra_runs_for(0) ? 1 : 0, sim.petra_runs_for(1) ? 1 : 0,
                 sim.petra_runs_for(2) ? 1 : 0, sim.get_diplomacy(0, 1), sim.get_diplomacy(1, 0));
+    // Compared across peers by playtest_lockstep.py: what each sim runs with.
+    std::printf("[net-peer] %s: setup lms=%d popcap=%u ceasefire=%.0f teams=%u,%u,%u\n",
+                host ? "host" : "join", sim.last_man_standing() ? 1 : 0, (unsigned)sim.pop_cap(),
+                sim.ceasefire_seconds(), (unsigned)sim.player_team(0), (unsigned)sim.player_team(1),
+                (unsigned)sim.player_team(2));
     return tm.has_out_of_sync() ? 1 : 0;
 }
 
