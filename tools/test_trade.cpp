@@ -148,6 +148,10 @@ static void test_trade_gain() {
 	// Persian Darics: +25% trader gain.
 	s.set_team_civ(0, CIV_PERSIANS);
 	CHECK(s.calculate_trade_gain(a, b, 0).trader == (int)std::lround(expected_gain(800.0, 1024.0, 0.75 * 1.25)));
+	// Carthaginian Commercial Acumen is on merchant ships only (units/cart/ship_merchant).
+	s.set_team_civ(0, CIV_CARTHAGINIANS);
+	CHECK(s.calculate_trade_gain(a, b, 0).trader == long_route);
+	CHECK(s.calculate_trade_gain(a, b, 0, UNIT_MERCHANT_SHIP).trader == (int)std::lround(expected_gain(800.0, 1024.0, 0.75 * 1.25)));
 	s.set_team_civ(0, CIV_ATHENIANS);
 	// A smaller map pays more for the same distance.
 	s.set_map_half(64.0f);
