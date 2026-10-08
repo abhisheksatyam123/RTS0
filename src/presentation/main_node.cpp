@@ -3496,9 +3496,6 @@ Dictionary RtsoMain::get_civ_info(int civ_idx) const {
 	d["emblem"] = String(info.emblem_path);
 	d["desc"] = String(info.description);
 	d["metal_mult"] = info.metal_gather_mult;
-	d["melee_dmg_mult"] = info.melee_damage_mult;
-	d["hp_mult"] = info.hp_mult;
-	d["build_speed_mult"] = info.build_speed_mult;
 	d["trade_gain_mult"] = info.trade_gain_mult;
 	return d;
 }
