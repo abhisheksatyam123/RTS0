@@ -26,6 +26,7 @@
 #define private public
 #include "simulation/simulation.h"
 #undef private
+#include <algorithm>
 #include <cstdio>
 #include <memory>
 #include <vector>
@@ -547,6 +548,70 @@ static void test_allow_capture() {
 	CHECK(u.order_flags[j] & ORDER_FLAG_ALLOW_CAPTURE, "a winnable capture goes on");
 }
 
+// garrisonManager.js / defenseManager.js: Petra's infantry man a Town Center
+// an enemy is in range of and leave once the enemy is gone; an attacked
+// woman below 55% health shelters in a healing structure.
+static void test_garrisons() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	const Simulation::Building *tc = nullptr;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) tc = &b;
+	CHECK(tc != nullptr, "Petra has a Town Center");
+	if (!tc) return;
+	const float tx = tc->x, tz = tc->z;
+	const uint32_t tc_id = tc->id;
+	auto &u = s->units_;
+	auto inside = [&](uint32_t id) {
+		const auto &b = s->buildings()[s->building_id_to_idx_.at(tc_id)];
+		return std::find(b.garrisoned_units.begin(), b.garrisoned_units.end(), id) != b.garrisoned_units.end();
+	};
+	std::vector<uint32_t> archers;
+	for (int i = 0; i < 3; ++i) archers.push_back(s->spawn_unit(tx + 14.0f + 2.0f * (float)i, tz + 12.0f, 1, UNIT_ARCHER));
+	std::vector<uint32_t> foes;
+	for (int i = 0; i < 3; ++i) foes.push_back(s->spawn_unit(tx - 10.0f, tz - 8.0f + 2.0f * (float)i, 0, UNIT_SPEARMAN));
+	int manned = 0;
+	for (float t = 0.0f; t < 15.0f && manned < 3; t += Simulation::FIXED_STEP) {
+		for (uint32_t id : foes) { // the attackers hold out under the Town Center's arrows
+			const int32_t f = s->lookup_unit(id);
+			if (f >= 0 && u.alive[f]) u.hp[f] = u.max_hp[f];
+		}
+		s->tick(Simulation::FIXED_STEP);
+		manned = 0;
+		for (uint32_t id : archers) manned += inside(id) ? 1 : 0;
+	}
+	// The enemy leaves (dies); garrisonManager lets the archers out.
+	for (uint32_t id : foes) {
+		const int32_t i = s->lookup_unit(id);
+		if (i >= 0 && u.alive[i]) { u.pos_x[i] = -tx; u.pos_z[i] = -tz; u.has_order[i] = 0; u.hp[i] = 0.0f; }
+	}
+	run_for(*s, 3.0f);
+	int left = 0;
+	for (uint32_t id : archers) left += inside(id) ? 0 : 1;
+	std::printf("  garrisons: %d of 3 archers manned the Town Center under attack, %d left after\n", manned, left);
+	CHECK(manned == 3, "infantry man a Town Center an enemy is in range of");
+	CHECK(left == 3, "and leave once no enemy is near");
+
+	// A hurt woman under attack shelters in the (healing) Town Center.
+	const uint32_t woman = s->spawn_unit(tx + 11.0f, tz - 11.0f, 1, UNIT_FEMALE_CITIZEN);
+	const uint32_t foe = s->spawn_unit(tx + 14.0f, tz - 11.0f, 0, UNIT_SWORDSMAN);
+	const int32_t w = s->lookup_unit(woman);
+	u.hp[w] = u.max_hp[w] * 0.5f;
+	s->order_attack(&foe, 1, woman);
+	bool sheltered = false;
+	for (float t = 0.0f; t < 10.0f && !sheltered; t += Simulation::FIXED_STEP) {
+		if (u.alive[w]) u.hp[w] = u.max_hp[w] * 0.5f; // she lives long enough to reach it
+		s->tick(Simulation::FIXED_STEP);
+		sheltered = inside(woman);
+	}
+	std::printf("  a hurt woman under attack shelters in the Town Center: %s\n", sheltered ? "yes" : "no");
+	CHECK(sheltered, "an attacked support unit below 55%% health shelters");
+}
+
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
@@ -558,6 +623,7 @@ int main() {
 	test_attack_plans();
 	test_slot_config();
 	test_allow_capture();
+	test_garrisons();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }
