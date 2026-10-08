@@ -54,6 +54,9 @@
 #include "chat_window.h"
 #include "diplomacy_dialog.h"
 #include "hotkeys_godot.h"
+#include "attack_detection.h"
+#include "selection_grid.h"
+#include "objectives_dialog.h"
 
 using namespace godot;
 
@@ -121,6 +124,8 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	Label *inspector_stats = nullptr;
 	Label *inspector_extra = nullptr;
 	Button *ungarrison_btn = nullptr;
+	RtsoSelectionGrid selection_grid_;
+	RtsoSelectionGrid garrison_grid_;
 
 	// 3. Command & Action Panel (Right of Inspector)
 	Panel *command_panel = nullptr;
@@ -146,6 +151,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// the bound handler methods below delegate into them.
 	RtsoChatWindow chat_window_;
 	RtsoDiplomacyDialog diplo_dialog_;
+	rtso::RtsoObjectivesDialog objectives_dialog_;
 
 	// 3D Placement Ghost & Rally Marker
 	MeshInstance3D *ghost_mesh = nullptr;
@@ -208,6 +214,11 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// Where the local player was last attacked (camera.lastattackfocus = Space).
 	bool has_last_attack_ = false;
 	Vector3 last_attack_pos_;
+	// Under-attack alerts (0 A.D. AttackDetection.js + messages.js "attack"):
+	// last seen health of each local entity, to spot damage between frames.
+	rtso::AttackDetection attack_detection_;
+	std::unordered_map<uint32_t, float> prev_unit_hp_, prev_building_hp_;
+	uint8_t attack_watch_player_ = 0xFF;
 	// findIdleUnit cycling (0 A.D. lastIdleUnit / lastIdleClasses, input.js:1645).
 	uint32_t last_idle_unit_ = 0;
 	int last_idle_kind_ = -1;
@@ -233,6 +244,8 @@ public:
 	void _on_speed_button_pressed();
 	void _on_menu_button_pressed();
 	void _on_ungarrison_pressed();
+	void _on_selection_group_clicked(int key);
+	void _on_garrison_group_clicked(int key);
 	void _on_stance_selected(int stance);
 	void _on_formation_selected(int formation);
 	void _on_train_pressed(int utype);
@@ -299,6 +312,7 @@ public:
 	void _on_chat_channel_btn_pressed(int channel_idx);
 
 	void toggle_diplomacy();
+	void toggle_objectives();
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
 
@@ -334,6 +348,10 @@ private:
 	void cycle_idle_worker();
 	enum IdleKind { IDLE_WORKER, IDLE_WARRIOR, IDLE_ANY, IDLE_BUILDER };
 	void find_idle_unit(IdleKind kind);
+	void detect_attacks();
+	void update_cursor();
+	std::string cursor_name_;
+	void notify_attack(Vector3 pos, uint8_t attacker, bool structure);
 	void play_voice(const char *path);
 	void play_civ_voice(const char *action);
 	void play_alarm(const char *path);
