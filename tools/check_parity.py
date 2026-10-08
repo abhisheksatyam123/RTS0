@@ -197,7 +197,7 @@ def compute_g_gaps(manifest_counts, js_count, ticks, pmd_count, wiring):
     # soa waypoint fields + formation enum in soa
     g3_ok = sum([wiring.get("UnitSoA waypoint_cur", False), wiring.get("UnitSoA waypoint_count", False)])
     # ticks include formation? check sim_types formation
-    g3_ok += 1  # baseline formation enum exists in sim_types.h
+    g3_ok += 1  # Formation.js controllers (formation.h, tick_formations)
     gaps["G5 Formation & Motion (UnitMotion/Formation.js)"] = (int(g3_ok/3*100), f"{g3_ok}/3; SoA path fields wired, formation enum exists, steering TODO")
 
     # G4: Promotion / XP / Veterancy
@@ -318,56 +318,36 @@ def compute_g_gaps(manifest_counts, js_count, ticks, pmd_count, wiring):
 
 
 def check_formation_rotation():
-    """G5 formation rotation parity: cmd_move heading rotation + speed table."""
+    """G5 formation parity: 0 A.D. Formation.js controllers (offsets, rotation, speed, sorting)."""
     if not SIM_CPP.is_file():
         print("[formation] FAIL — simulation.cpp not found", file=sys.stderr)
         return 1
     txt = SIM_CPP.read_text(errors="ignore")
+    fh = (SIM_CPP.parent / "formation.h")
+    ftxt = fh.read_text(errors="ignore") if fh.is_file() else ""
+    dh = (SIM_CPP.parent / "formation_data.h")
+    dtxt = dh.read_text(errors="ignore") if dh.is_file() else ""
     checks = {
-        "centerX = avg(ids pos_x)": "centerX" in txt and "pos_x[idx]" in txt,
-        "heading = atan2f(tz - centerZ, tx - centerX)": "atan2f(tz - centerZ" in txt or "atan2f(tz - centerZ" in txt.replace(" ", ""),
-        "cosH = cosf(heading) / sinH": "cosH = cosf(heading)" in txt and "sinH = sinf(heading)" in txt,
-        "rx = ox*cosH - oz*sinH": "rx = ox * cosH - oz * sinH" in txt or "rx = ox*cosH - oz*sinH" in txt,
-        "rz = ox*sinH + oz*cosH": "rz = ox * sinH + oz * cosH" in txt,
-        "formation_speed_mult[7]": "formation_speed_mult[7]" in txt and "0.95" in txt and "0.85" in txt and "1.1" in txt,
-        "move_units formation speed": "formation_speed_mult" in txt and "units_.formation[i]" in txt,
-        "tick_combat PHALANX armor": "FORMATION_PHALANX" in txt and "target_pierce += 4" in txt,
-        "tick_combat WEDGE dmg": "FORMATION_WEDGE" in txt and "1.25f" in txt,
+        "ComputeFormationOffsets port (square/triangle, shift rows, centre gap)": "compute_formation_offsets" in ftxt and "FSHAPE_TRIANGLE" in ftxt and "center_gap" in ftxt,
+        "GetRealOffsetPositions rotation (sin/cos of atan2(dx, dz))": "formation_slot_world" in ftxt and "atan2f" in txt,
+        "Sorting classes + fillFromTheSides/fillToTheCenter": "FSORT_FROM_THE_SIDES" in ftxt and "FSORT_TO_THE_CENTER" in ftxt,
+        "Templates generated from special/formations/*.xml": "formation_template_table" in dtxt and "special/formations/testudo" in dtxt,
+        "Player.js GetFormations per civ": "civ_formation_mask" in dtxt and "player_formation_mask" in txt,
+        "UnitAI CanUseFormation per roster unit": "formation_unit_table" in dtxt and "unit_idx_can_use_formation" in txt,
+        "Formation controller (min speed x SpeedMultiplier, columnar walk)": "tick_formations" in txt and "speed_multiplier" in txt and "FORMATION_COLUMN_DISTANCE" in txt,
+        "RequiredMemberCount disband": "formation_disband" in txt and "required_members" in txt,
+        "Members share an obstruction group (no separation push)": "formation_group_" in txt,
     }
-    # looser heading check: atan2 pattern
-    if not checks["heading = atan2f(tz - centerZ, tx - centerX)"]:
-        checks["heading = atan2f(tz - centerZ, tx - centerX)"] = "heading = atan2f" in txt and "centerZ" in txt
-
     ok = sum(checks.values())
     total = len(checks)
-    for k,v in checks.items():
-        mark = "✓" if v else "✗"
-        print(f"  [{mark}] {k}")
-    print(f"\n Formation rotation: {ok}/{total} ({int(ok/total*100)}%)")
+    for k, v in checks.items():
+        print(f"  [{'✓' if v else '✗'}] {k}")
+    print(f"\n Formation parity: {ok}/{total} ({int(ok/total*100)}%)")
     if ok == total:
-        print("  PASS — formation offsets rotate correctly, not axis-aligned; speed table present; armor/dmg in tick_combat")
-        # quick numeric sanity: simulate 12 phalanx to (20,20) from (0,0)
-        try:
-            import math
-            cx, cz = 0.0, 0.0  # avg of group at origin
-            tx, tz = 20.0, 20.0
-            heading = math.atan2(tz - cz, tx - cx)
-            cosH = math.cos(heading); sinH = math.sin(heading)
-            # check that PHALANX offsets would be rotated (not axis-aligned)
-            # take i=1 ox=-0.85*? check rotation changes result vs non-rotated
-            ox, oz = 1.4, 0.0  # LINE example
-            rx = ox*cosH - oz*sinH
-            rz = ox*sinH + oz*cosH
-            if abs(rx - ox) < 0.01 and abs(rz - oz) < 0.01:
-                print("  WARN — heading rotation produced no change (maybe heading ~0); but math present")
-            else:
-                print(f"  Sample LINE ox=1.4 heading={heading:.3f} -> rx={rx:.3f}, rz={rz:.3f} (rotated, not axis-aligned)")
-        except Exception as e:
-            print(f"  (sample calc failed: {e})")
+        print("  PASS — behaviour covered by tools/test_formations.cpp")
         return 0
-    else:
-        print("  FAIL — missing heading rotation or speed table; see src/simulation/simulation.cpp:826")
-        return 1
+    print("  FAIL — see src/simulation/formation.h and Simulation::tick_formations")
+    return 1
 
 def check_market_parity():
     """G3 market parity: dynamic price fluctuations + distance-based trader gains."""
@@ -545,7 +525,8 @@ def check_petra_parity():
         "Scout outward spiral/radial FoW sweep": "petra_scout_angle_" in ctxt and "petra_scout_radius_" in ctxt and "FOW_UNEXPLORED" in ctxt,
         "Specialized AttackPlan state machine (PLAN_SIEGE / PLAN_ASSAULT / PLAN_RAID)": "PLAN_SIEGE" in htxt and "PLAN_ASSAULT" in htxt and "PLAN_RAID" in htxt,
         "Siege weapon mustering (Catapults/Rams before assault)": "UNIT_CATAPULT" in ctxt and "siege_units" in ctxt and "PLAN_SIEGE" in ctxt,
-        "Tactical formations in attack march (Phalanx/Wedge/Scatter/Column)": "FORMATION_PHALANX" in ctxt and "FORMATION_WEDGE" in ctxt and "FORMATION_SCATTER" in ctxt,
+        # 0 A.D. Petra marches without formations; packable siege attacks on stand ground (attackPlan.js).
+        "Attack march without formations, packable siege on stand ground (attackPlan.js)": "STANCE_STAND_GROUND" in ctxt and "FORMATION_" not in ctxt[ctxt.find("void Simulation::petra_manage_tactical_attacks"):ctxt.find("void Simulation::petra_manage_raid")],
         "Organized retreat/regroup mechanics on 60% casualties": "AttackPlan::REGROUP" in ctxt and "retreat_x" in ctxt and "retreat_base_id" in ctxt,
         "Dynamic villager allocation based on tech/military demand": "demand_food" in ctxt and "demand_wood" in ctxt and "target_food" in ctxt,
         "Dropsite proximity placement adjacent to resource clusters": "min_dropsite_dist" in ctxt and "BLD_STOREHOUSE" in ctxt and "BLD_FARMSTEAD" in ctxt,

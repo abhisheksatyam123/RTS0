@@ -3,6 +3,7 @@
   "name": "Farmland (2)",
   "desc": "Farmland in Eastern Europe.",
   "biome": "temperate",
+  "nomad": false,
   "world_size": 256.0,
   "water_height": 0.7,
   "heightmap_res": 65,
@@ -12149,30 +12150,6 @@
       "z": -30.44
     },
     {
-      "type": "barracks",
-      "player": 1,
-      "x": -85.52,
-      "z": -26.83
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -84.24,
-      "z": -25.82
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 79.38,
-      "z": 36.57
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 80.76,
-      "z": 37.44
-    },
-    {
       "type": "town_center",
       "player": 2,
       "x": 78.18,
@@ -12197,6 +12174,18 @@
       "player": 1,
       "x": -78.33,
       "z": -27.86
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -85.52,
+      "z": -26.83
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -84.24,
+      "z": -25.82
     },
     {
       "type": "villager",
@@ -12281,6 +12270,18 @@
       "player": 2,
       "x": 77.39,
       "z": 46.69
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 79.38,
+      "z": 36.57
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 80.76,
+      "z": 37.44
     },
     {
       "type": "swordsman",

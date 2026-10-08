@@ -3,6 +3,7 @@
   "name": "Mediterranean Coves (2)",
   "desc": "A sheltered natural harbour on the Mediterranean coast provides the resources for battle.",
   "biome": "mediterranean",
+  "nomad": false,
   "world_size": 256.0,
   "water_height": 3.35,
   "heightmap_res": 64,
@@ -12888,34 +12889,10 @@
       "z": -68.0
     },
     {
-      "type": "barracks",
-      "player": 1,
-      "x": -72.14,
-      "z": -62.8
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -71.1,
-      "z": -63.57
-    },
-    {
       "type": "town_center",
       "player": 2,
       "x": 80.07,
       "z": -56.16
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 83.79,
-      "z": -51.86
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 84.76,
-      "z": -52.96
     }
   ],
   "units": [
@@ -12942,6 +12919,18 @@
       "player": 1,
       "x": -77.75,
       "z": -74.26
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -72.14,
+      "z": -62.8
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -71.1,
+      "z": -63.57
     },
     {
       "type": "swordsman",
@@ -13002,6 +12991,18 @@
       "player": 2,
       "x": 84.19,
       "z": -60.24
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 83.79,
+      "z": -51.86
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 84.76,
+      "z": -52.96
     },
     {
       "type": "cavalry",

@@ -3,6 +3,7 @@
   "name": "Lorraine Plain (2)",
   "desc": "The map is cut through the center by a river traversing east-west with some shallows.\n\nFairly open-wooded and basically flat. Plenty of building room. Well balanced resources.\n\nCiv Territories are divided by main river and tributaries (with necessary shallows for crossings).",
   "biome": "temperate",
+  "nomad": false,
   "world_size": 256.0,
   "water_height": 2.97,
   "heightmap_res": 65,
@@ -14729,34 +14730,10 @@
       "z": 77.57
     },
     {
-      "type": "barracks",
-      "player": 1,
-      "x": -32.18,
-      "z": 82.22
-    },
-    {
-      "type": "barracks",
-      "player": 1,
-      "x": -31.44,
-      "z": 81.03
-    },
-    {
       "type": "town_center",
       "player": 2,
       "x": 26.09,
       "z": -75.23
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 30.02,
-      "z": -70.12
-    },
-    {
-      "type": "barracks",
-      "player": 2,
-      "x": 31.1,
-      "z": -71.26
     },
     {
       "type": "wall_segment",
@@ -15109,6 +15086,18 @@
       "z": 73.82
     },
     {
+      "type": "archer",
+      "player": 1,
+      "x": -32.18,
+      "z": 82.22
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -31.44,
+      "z": 81.03
+    },
+    {
       "type": "cavalry",
       "player": 1,
       "x": -41.39,
@@ -15131,6 +15120,18 @@
       "player": 2,
       "x": 30.93,
       "z": -79.03
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 30.02,
+      "z": -70.12
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 31.1,
+      "z": -71.26
     },
     {
       "type": "hero",
