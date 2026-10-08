@@ -127,7 +127,7 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
-	static constexpr uint32_t SAVE_VERSION = 17; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 18; // save_state's format; see the history beside it
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -744,6 +744,7 @@ public:
 	};
 	const AttackPlan &petra_attack_plan() const { return petra_attack_plan_; }
 	const AttackPlan &petra_raid_plan() const { return petra_raid_plan_; }
+	const PetraAttackManager &petra_attack_manager() const { return petra_attack_mgr_; }
 	int petra_opening_step() const { return petra_opening_step_; }
 
 	void set_petra_difficulty(uint8_t d) {
@@ -1104,6 +1105,7 @@ private:
 
 	AttackPlan petra_attack_plan_;
 	AttackPlan petra_raid_plan_;
+	PetraAttackManager petra_attack_mgr_; // attackManager.js plan counters and sizes
 	int petra_opening_step_ = 0;
 	float petra_opening_timer_ = 0.0f;
 	PetraConfig petra_config_;
@@ -1123,6 +1125,10 @@ private:
 	bool pick_petra_safe_staging(float base_x, float base_z, float target_x, float target_z, float &out_sx, float &out_sz) const;
 	uint32_t find_petra_attack_target(float &out_tx, float &out_tz) const;
 	uint32_t find_petra_raid_target(float &out_tx, float &out_tz) const;
+	uint32_t find_petra_rush_target(float &out_tx, float &out_tz) const;
+	void petra_set_rushes();
+	void petra_plan_sizes(uint8_t kind);
+	bool petra_raid_target_ok(uint32_t bld_id) const;
 	bool petra_unit_reserved(uint32_t uid) const;
 
 	std::vector<PetraBase> petra_bases_;
@@ -1200,7 +1206,7 @@ private:
 	X(petra_diplo_timer_) X(ai_wonder_victory_timer_) X(petra_bases_) X(petra_fnd_watch_) \
 	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
-	X(petra_fow_) X(petra_fleets_) X(petra_diplo_)
+	X(petra_fow_) X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
