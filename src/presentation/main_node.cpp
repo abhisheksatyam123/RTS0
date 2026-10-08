@@ -38,6 +38,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_build_btn_pressed", "btype"), &RtsoMain::_on_build_btn_pressed);
 	ClassDB::bind_method(D_METHOD("_on_tech_pressed", "tech_id"), &RtsoMain::_on_tech_pressed);
 	ClassDB::bind_method(D_METHOD("_on_upgrade_pressed", "cancel"), &RtsoMain::_on_upgrade_pressed);
+	ClassDB::bind_method(D_METHOD("_on_gate_lock_pressed", "lock"), &RtsoMain::_on_gate_lock_pressed);
 	ClassDB::bind_method(D_METHOD("save_game", "path"), &RtsoMain::save_game, DEFVAL("user://saves/quicksave.rts0sav"));
 	ClassDB::bind_method(D_METHOD("load_game", "path"), &RtsoMain::load_game, DEFVAL("user://saves/quicksave.rts0sav"));
 	ClassDB::bind_method(D_METHOD("get_fow_grid"), &RtsoMain::get_fow_grid);
@@ -1260,6 +1261,15 @@ void RtsoMain::_on_upgrade_pressed(int cancel) {
 		sim->cmd_upgrade_building(local_player(), selected_building_id);
 }
 
+// 0 A.D. Gate.js LockGate / UnlockGate through lockstep command 27.
+void RtsoMain::_on_gate_lock_pressed(int lock) {
+	if (selected_building_id == 0) return;
+	if (net_lockstep())
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_LOCK_GATE, nullptr, 0, 0, 0, selected_building_id, lock ? 1 : 0);
+	else
+		sim->cmd_lock_gate(local_player(), selected_building_id, lock != 0);
+}
+
 void RtsoMain::_on_barter_requested(int sell_type, int buy_type, int amount) {
 	if (!sim) return;
 	if (sell_type < 0 || sell_type >= 4 || buy_type < 0 || buy_type >= 4) return;
@@ -1756,6 +1766,8 @@ void RtsoMain::update_inspector() {
 			String status = "State: Operational";
 			if (found_b->build_progress < 1.0f) {
 				status = "Under Construction (" + String::num((double)(found_b->build_progress * 100.0f), 0) + "%)";
+			} else if (found_b->type == rtso::BLD_GATE) {
+				status = found_b->gate_locked ? "Gate: locked" : (found_b->gate_open ? "Gate: open" : "Gate: closed");
 			} else if (found_b->upgrade_to != rtso::BLD_TYPE_COUNT) {
 				status = "Upgrading to " + String(rtso::building_type_name(found_b->upgrade_to)) +
 					" (" + String::num((double)(found_b->upgrade_duration - found_b->upgrade_timer), 1) + "s)";
@@ -2090,6 +2102,16 @@ void RtsoMain::update_command_panel() {
 				}
 				btn->set_tooltip_text(tip);
 				btn->connect("pressed", Callable(this, "_on_tech_pressed").bind(t));
+				production_bar->add_child(btn);
+			}
+
+			// Gate lock (0 A.D. Gate.js): a locked gate stays shut for everyone.
+			if (found_b->team == local_player() && found_b->type == rtso::BLD_GATE) {
+				Button *btn = memnew(Button);
+				btn->set_text(found_b->gate_locked ? "Unlock gate" : "Lock gate");
+				btn->set_tooltip_text(found_b->gate_locked ? "Let your and your allies' units through again"
+						: "Keep the gate shut, even for your own units");
+				btn->connect("pressed", Callable(this, "_on_gate_lock_pressed").bind(found_b->gate_locked ? 0 : 1));
 				production_bar->add_child(btn);
 			}
 
