@@ -405,14 +405,38 @@ void NetHost::sendSyncCheck(uint32_t turn, uint32_t hash) {
 
 void NetHost::sendChat(const std::string &message, const std::string &receiver_guid) {
 	ChatMsg cm;
-	cm.sender_guid = "peer-" + std::to_string(local_peer_id_);
+	cm.sender_guid = peer_guid(local_peer_id_);
 	cm.message = message;
 	if (!receiver_guid.empty()) {
 		cm.receivers.push_back(receiver_guid);
 	}
+	if (isHost()) {
+		route_chat(cm, local_peer_id_);
+		return;
+	}
+	// A client sends to the host, which stamps the sender and routes it.
 	std::vector<uint8_t> payload = NetPacketSerializer::frame_chat(cm);
 	std::vector<uint8_t> msg = NetPacketSerializer::pack_message(NetMessageType::NMT_CHAT, 0, payload);
 	broadcastCommand(msg.data(), msg.size());
+}
+
+// 0 A.D. NetServer.cpp OnChat: the server overwrites the sender GUID with the
+// session's own (so nobody can speak as someone else), then multicasts to the
+// listed receivers, or to everyone when the list is empty. The sender keeps its
+// local echo, so it is never sent its own line back.
+void NetHost::route_chat(ChatMsg chat, uint32_t author) {
+	chat.sender_guid = peer_guid(author);
+	const std::vector<std::string> receivers = std::move(chat.receivers);
+	chat.receivers.clear();
+	auto wants = [&](uint32_t id) {
+		return receivers.empty() || std::find(receivers.begin(), receivers.end(), peer_guid(id)) != receivers.end();
+	};
+	if (author != local_peer_id_ && wants(local_peer_id_) && chat_cb_) chat_cb_(chat);
+	std::vector<uint8_t> payload = NetPacketSerializer::frame_chat(chat);
+	std::vector<uint8_t> pkt = NetPacketSerializer::pack_message(NetMessageType::NMT_CHAT, 0, payload);
+	for (const auto &p : peers_) {
+		if (p.connected && p.id != author && wants(p.id)) sendCommand(p.id, pkt.data(), pkt.size());
+	}
 }
 
 void NetHost::sendHandshake() {
@@ -652,14 +676,8 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_CHAT)) {
 		ChatMsg chat;
 		if (NetPacketSerializer::parse_chat(msg.payload.data(), msg.payload.size(), chat)) {
-			if (chat_cb_) {
-				chat_cb_(chat);
-			}
-			if (isHost()) {
-				std::vector<uint8_t> payload = NetPacketSerializer::frame_chat(chat);
-				std::vector<uint8_t> pkt = NetPacketSerializer::pack_message(NetMessageType::NMT_CHAT, 0, payload);
-				broadcastCommand(pkt.data(), pkt.size(), peerId);
-			}
+			if (isHost()) route_chat(std::move(chat), author);
+			else if (chat_cb_) chat_cb_(chat); // the host already stamped and routed it
 		}
 	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_DIPLOMACY)) {
 		// Retired: a stance is lockstep cmd 22 now (see net_types.h). Dropped
