@@ -1067,6 +1067,7 @@ struct CivUnitTemplate {
 	int16_t carry_capacity;
 	int16_t auras[3]; // index into civ_hero_aura_table(), -1 = none
 	uint8_t unlock_tech; // TechnologyId from 0 A.D. Identity/Requirements (unlock_champion_*), or TECH_NONE
+	uint64_t tech_classes; // TechClass bits of 0 A.D. Identity/Classes + VisibleClasses
 };
 
 #include "civ_roster_data.h"

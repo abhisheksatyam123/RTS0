@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
+#include <memory>
 #include <type_traits>
 #include <queue>
 #include <iostream>
@@ -1219,7 +1220,7 @@ bool Simulation::cmd_train_template(uint8_t player_id, uint32_t building_id, uin
 	order.tmpl = tmpl;
 	order.timer = 0.0f;
 	order.duration = uinfo.train_time * team_bonus_mult(player_id, TEAM_BONUS_UNIT_TRAIN_TIME, -1, tmpl)
-		* tech_mods(player_id).train_time[t.unit_type] * ai_time_mult(player_id);
+		* unit_tech_mods(player_id, t.unit_type, tmpl).train_time * ai_time_mult(player_id);
 	b.queue.push_back(order);
 	return true;
 }
@@ -1523,7 +1524,12 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		m.train_time[t] = m.heal_interval[t] = m.trade_gain[t] = m.pack_time[t] = 1.0f;
 		m.range[t] = m.heal_range[t] = 0.0f;
 		m.armor[t][0] = m.armor[t][1] = m.armor[t][2] = 0.0f;
+	}	for (auto &tm : m.tmpl) {
+		for (float &g : tm.gather) g = 1.0f;
+		tm.attack = tm.health = tm.speed = tm.train_time = 1.0f;
+		tm.range = tm.armor[0] = tm.armor[1] = tm.armor[2] = 0.0f;
 	}
+
 	for (int b = 0; b < BLD_TYPE_COUNT; ++b) {
 		m.bld_health[b] = m.bld_attack[b] = m.bld_build_time[b] = m.bld_pop_bonus[b] = 1.0f;
 		m.bld_research_time[b] = m.bld_arrow_mul[b] = 1.0f;
@@ -1574,6 +1580,32 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					default: break;
 				}
 			}
+			for (uint16_t ti = 0; ti < CIV_UNIT_TEMPLATE_COUNT; ++ti) {
+				const CivUnitTemplate &ct = civ_unit_template(ti);
+				if (!tech_effect_applies(e, ct.tech_classes)) continue;
+				TechMods::Template &tm = m.tmpl[ti];
+				bool ranged = template_has_ranged_attack(ti, ct.unit_type, ct.civ);
+				uint8_t main_dmg = (ct.crush_damage > ct.hack_damage && ct.crush_damage > ct.pierce_damage) ? 2
+					: (ct.pierce_damage > ct.hack_damage) ? 1 : 0;
+				switch (e.stat) {
+					case TSTAT_GATHER_GRAIN: case TSTAT_GATHER_FRUIT: case TSTAT_GATHER_MEAT: case TSTAT_GATHER_FISH:
+					case TSTAT_GATHER_WOOD: case TSTAT_GATHER_STONE: case TSTAT_GATHER_METAL:
+						apply(tm.gather[e.stat - TSTAT_GATHER_GRAIN]); break;
+					case TSTAT_MELEE_HACK: case TSTAT_MELEE_PIERCE: case TSTAT_MELEE_CRUSH:
+						if (!ranged && e.stat - TSTAT_MELEE_HACK == main_dmg) apply(tm.attack);
+						break;
+					case TSTAT_RANGED_HACK: case TSTAT_RANGED_PIERCE: case TSTAT_RANGED_CRUSH:
+						if (ranged && e.stat - TSTAT_RANGED_HACK == main_dmg) apply(tm.attack);
+						break;
+					case TSTAT_ARMOR_HACK: case TSTAT_ARMOR_PIERCE: case TSTAT_ARMOR_CRUSH:
+						apply(tm.armor[e.stat - TSTAT_ARMOR_HACK]); break;
+					case TSTAT_HEALTH: apply(tm.health); break;
+					case TSTAT_SPEED: apply(tm.speed); break;
+					case TSTAT_RANGE: if (ranged) apply(tm.range); break;
+					case TSTAT_BUILD_TIME: apply(tm.train_time); break;
+					default: break;
+				}
+			}
 			for (uint8_t b = 0; b < BLD_TYPE_COUNT; ++b) {
 				if (!tech_effect_applies(e, building_tech_classes(b))) continue;
 				switch (e.stat) {
@@ -1600,16 +1632,25 @@ void Simulation::rebuild_all_tech_mods() {
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) compute_tech_mods(p, tech_mods_[p]);
 }
 
+Simulation::UnitTechMods Simulation::unit_tech_mods(const TechMods &m, uint8_t unit_type, uint16_t tmpl) {
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
+		const TechMods::Template &tm = m.tmpl[tmpl];
+		return {tm.attack, tm.health, tm.speed, tm.range, tm.train_time, tm.armor, tm.gather};
+	}
+	const uint8_t t = unit_type < UNIT_TYPE_COUNT ? unit_type : 0;
+	return {m.attack[t], m.health[t], m.speed[t], m.range[t], m.train_time[t], m.armor[t], m.gather[t]};
+}
+
 void Simulation::apply_tech_mods_to_unit(size_t idx) {
 	uint8_t team = units_.team[idx];
 	uint8_t t = units_.unit_type[idx];
 	if (team >= MAX_PLAYERS || t >= UNIT_TYPE_COUNT) return;
-	const TechMods &m = tech_mods_[team];
-	units_.attack_damage[idx] *= m.attack[t];
-	units_.max_hp[idx] *= m.health[t];
+	const UnitTechMods m = unit_tech_mods(team, t, units_.tmpl[idx]);
+	units_.attack_damage[idx] *= m.attack;
+	units_.max_hp[idx] *= m.health;
 	units_.hp[idx] = units_.max_hp[idx];
-	units_.speed[idx] *= m.speed[t];
-	units_.attack_range[idx] += m.range[t];
+	units_.speed[idx] *= m.speed;
+	units_.attack_range[idx] += m.range;
 }
 
 // 0 A.D. ModificationsManager: a finished technology changes every existing
@@ -1620,21 +1661,24 @@ void Simulation::complete_research(uint8_t player_id, uint8_t tech_id) {
 	ps.techs.set(tech_id);
 	if (tech_id == TECH_PHASE_TOWN) ps.phase = std::max<uint8_t>(ps.phase, 2);
 	else if (tech_id == TECH_PHASE_CITY) ps.phase = 3;
-	TechMods old = tech_mods_[player_id];
+	auto old_ptr = std::make_unique<TechMods>(tech_mods_[player_id]); // tens of KB, keep it off the stack
+	const TechMods &old = *old_ptr;
 	compute_tech_mods(player_id, tech_mods_[player_id]);
 	const TechMods &m = tech_mods_[player_id];
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (units_.team[i] != player_id) continue;
 		uint8_t t = units_.unit_type[i];
 		if (t >= UNIT_TYPE_COUNT) continue;
-		if (m.attack[t] != old.attack[t]) units_.attack_damage[i] *= m.attack[t] / old.attack[t];
-		if (m.health[t] != old.health[t]) {
-			float r = m.health[t] / old.health[t];
+		const UnitTechMods now = unit_tech_mods(m, t, units_.tmpl[i]);
+		const UnitTechMods was = unit_tech_mods(old, t, units_.tmpl[i]);
+		if (now.attack != was.attack) units_.attack_damage[i] *= now.attack / was.attack;
+		if (now.health != was.health) {
+			float r = now.health / was.health;
 			units_.max_hp[i] *= r;
 			units_.hp[i] *= r;
 		}
-		if (m.speed[t] != old.speed[t]) units_.speed[i] *= m.speed[t] / old.speed[t];
-		units_.attack_range[i] += m.range[t] - old.range[t];
+		if (now.speed != was.speed) units_.speed[i] *= now.speed / was.speed;
+		units_.attack_range[i] += now.range - was.range;
 	}
 	for (auto &b : buildings_) {
 		if (b.team != player_id || b.type >= BLD_TYPE_COUNT) continue;
@@ -3792,7 +3836,7 @@ void Simulation::tick_gather(float dt) {
 						: units_.unit_type[i] == UNIT_FISHING_BOAT ? GK_FISH
 						: resources_.subtype[ridx] == RES_SUB_GRAIN ? GK_GRAIN
 						: resources_.subtype[ridx] == RES_SUB_MEAT ? GK_MEAT : GK_FRUIT;
-					harvest_rate /= tech_mods(uteam).gather[units_.unit_type[i]][kind] * ai_gather_mult(uteam);
+					harvest_rate /= unit_tech_mods(uteam, units_.unit_type[i], units_.tmpl[i]).gather[kind] * ai_gather_mult(uteam);
 
 					Civilization civ = civ_of(uteam);
 					if ((rt == RES_GOLD || rt == RES_STONE) && civ_info(civ).metal_gather_mult > 1.0f) {
@@ -4315,7 +4359,7 @@ void Simulation::tick_combat(float dt) {
 
 		// Researched armor tech bonuses
 		if (units_.team[t] < MAX_PLAYERS && units_.unit_type[t] < UNIT_TYPE_COUNT) {
-			const float *armor = tech_mods(units_.team[t]).armor[units_.unit_type[t]];
+			const float *armor = unit_tech_mods(units_.team[t], units_.unit_type[t], units_.tmpl[t]).armor;
 			target_hack += armor[0];
 			target_pierce += armor[1];
 			target_crush += armor[2];
@@ -7243,7 +7287,7 @@ bool Simulation::petra_train_template(uint8_t queue, uint32_t building_id, uint1
 	order.tmpl = tmpl;
 	order.timer = 0.0f;
 	order.duration = uinfo.train_time * team_bonus_mult(pid, TEAM_BONUS_UNIT_TRAIN_TIME, -1, tmpl)
-		* tech_mods(pid).train_time[t.unit_type] * ai_time_mult(pid);
+		* unit_tech_mods(pid, t.unit_type, tmpl).train_time * ai_time_mult(pid);
 	b.queue.push_back(order);
 	return true;
 }
