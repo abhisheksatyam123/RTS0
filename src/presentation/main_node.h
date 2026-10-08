@@ -224,6 +224,7 @@ public:
 	void _on_tech_pressed(int tech_id);
 	void _on_upgrade_pressed(int cancel);
 	void _on_gate_lock_pressed(int lock);
+	void _on_pack_pressed(int pack);
 	void _on_map_selected(int index);
 	void _on_civ_selected(int index);
 	void _on_ai_diff_selected(int index);

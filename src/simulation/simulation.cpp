@@ -9851,12 +9851,36 @@ bool Simulation::terrain_blocks_los(float sx, float sz, float sy, float tx, floa
 	const float dz = tz - sz;
 	const float dist = std::sqrt(dx * dx + dz * dz);
 	const int steps = std::clamp((int)std::ceil(dist / 3.0f), 1, 32);
-	for (int i = 1; i < steps; ++i) {
+	auto blocked_at = [&](int i) {
 		const float t = (float)i / (float)steps;
 		const float wx = sx + dx * t;
 		const float wz = sz + dz * t;
 		const float ray_y = sy + (ty - sy) * t;
-		if (get_terrain_height(wx, wz) > ray_y + 0.35f) return true;
+		return get_terrain_height(wx, wz) > ray_y + 0.35f;
+	};
+	const int G = grid_res_;
+	if (fow_cell_hmax_.size() != (size_t)G * (size_t)G) {
+		for (int i = 1; i < steps; ++i)
+			if (blocked_at(i)) return true;
+		return false;
+	}
+	// Exact shortcut: a sample can only block when the highest height get_terrain_height() can read
+	// in its FoW cell (fow_cell_hmax_) clears the ray by less than FOW_LOS_CLEARANCE, so only those
+	// samples are taken. The cell and ray height come from stepping along the ray, which drifts from
+	// blocked_at()'s values by far less than the heightmap sample of slack fow_cell_hmax_ allows on
+	// each side and the 0.01 margin in FOW_LOS_CLEARANCE.
+	const float *hmax = fow_cell_hmax_.data();
+	const float to_cell = (float)G / (2.0f * map_half_);
+	const float inv_steps = 1.0f / (float)steps;
+	const float step_x = dx * inv_steps * to_cell, step_z = dz * inv_steps * to_cell, step_y = (ty - sy) * inv_steps;
+	float cell_x = (sx + map_half_) * to_cell, cell_z = (sz + map_half_) * to_cell, ray_y = sy + FOW_LOS_CLEARANCE;
+	for (int i = 1; i < steps; ++i) {
+		cell_x += step_x;
+		cell_z += step_z;
+		ray_y += step_y;
+		const int gx = std::clamp((int)cell_x, 0, G - 1);
+		const int gz = std::clamp((int)cell_z, 0, G - 1);
+		if (hmax[(size_t)gz * G + gx] > ray_y && blocked_at(i)) return true;
 	}
 	return false;
 }
@@ -9963,7 +9987,7 @@ void Simulation::reveal_fow(std::vector<uint8_t> &grid, float sx, float sz, floa
 				fow_box_max(block_hmax, GB, bcx, bcz, rb, box_max);
 				ready = true;
 			}
-			const int i = (gz / FOW_LOS_BLOCK - bcz + rb) * WB + (gx / FOW_LOS_BLOCK - bcx + rb);
+			const int i = ((int)((unsigned)gz / FOW_LOS_BLOCK) - bcz + rb) * WB + ((int)((unsigned)gx / FOW_LOS_BLOCK) - bcx + rb);
 			return box_max[i] <= std::min(eye_y, ty) + FOW_LOS_CLEARANCE;
 		}
 	};
