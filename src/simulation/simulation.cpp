@@ -5740,19 +5740,21 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 
 		// GATHER, BUILD, RETURN_DROPSITE and TRADE walk at (tx, tz) with no cmd_move path. When
 		// buildings, deep water or a slope too steep block that line, path them too, as 0 A.D.
-		// UnitMotion paths every move. The path is kept
+		// UnitMotion paths every move. An attacker closing in on its target is pathed only
+		// around water and slopes (it would stop at the shore otherwise). The path is kept
 		// while (tx, tz) stays within 2 world units of the target it was computed for.
 		const uint8_t st = units_.action_state[i];
+		const bool closing_in = st == ACTION_ATTACK;
 		bool task_path = false;
-		if ((st == ACTION_GATHER || st == ACTION_BUILD || st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE) &&
+		if ((st == ACTION_GATHER || st == ACTION_BUILD || st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE || closing_in) &&
 		    (size_t)i < unit_paths_.size() && !unit_is_ship(units_.unit_type[i])) {
 			WaypointPath &wp = unit_paths_[i];
 			const float gdx = wp.goal_x - tx[i];
 			const float gdz = wp.goal_z - tz[i];
 			task_path = wp.has_goal && gdx * gdx + gdz * gdz <= 4.0f;
-			if (!task_path && (rtso::nav::line_blocked_by_buildings(rtso::nav::Vec2(px[i], pz[i]),
+			if (!task_path && ((!closing_in && rtso::nav::line_blocked_by_buildings(rtso::nav::Vec2(px[i], pz[i]),
 					rtso::nav::Vec2(tx[i], tz[i]), 2.0f * map_half_, unit_building_clearance(units_.unit_type[i]),
-					steer_obstacles_, units_.target_building_id[i]) ||
+					steer_obstacles_, units_.target_building_id[i])) ||
 					line_crosses_impassable(px[i], pz[i], tx[i], tz[i]))) {
 				const uint8_t ut = units_.unit_type[i];
 				const bool mounted = ut == UNIT_CAVALRY || ut == UNIT_CHARIOT || ut == UNIT_CAMEL || ut == UNIT_SCYTHED_CHARIOT;
@@ -5957,12 +5959,11 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		npx[i] = std::clamp(px[i] + move_dx, -map_half_, map_half_);
 		npz[i] = std::clamp(pz[i] + move_dz, -map_half_, map_half_);
 		// Deep water is impassable for land units (template_unit.xml passability classes).
-		// Walks get a goal on the beach from find_path; a land unit following a ship
-		// (boarding it, or chasing it) has no path, so it stops at the shore and slides
-		// along it instead of stepping off. One already in deep water may still move.
-		const int32_t followed = units_.target_unit_id[i] != 0 ? lookup_unit(units_.target_unit_id[i]) : -1;
-		if (followed >= 0 && !unit_is_ship(units_.unit_type[i]) && unit_is_ship(units_.unit_type[followed]) &&
-				!nav_grid_.cells.blank()) {
+		// Walks get a goal on the beach from find_path; a unit walking straight at a target
+		// (a shoreline resource, a ship it boards or chases, an enemy across the water)
+		// stops at the shore and slides along it instead of stepping off. One already in
+		// deep water may still move.
+		if (!unit_is_ship(units_.unit_type[i]) && !nav_grid_.cells.blank()) {
 			auto deep = [&](float x, float z) {
 				auto [cx, cy] = nav_grid_.world_to_cell(x, z);
 				return nav_grid_.cells.inside(cx, cy) && nav_grid_.cells.at(cx, cy) == NAV_WATER;
@@ -6456,7 +6457,9 @@ void Simulation::tick_gather(float dt) {
 					float dx = units_.pos_x[i] - b.x;
 					float dz = units_.pos_z[i] - b.z;
 					float d2 = dx * dx + dz * dz;
-					if (d2 < best_d2) {
+					// Only a dropsite the worker can walk to (0 A.D. picks reachable ones): one on
+					// another island is out, so the worker waits for a local one.
+					if (d2 < best_d2 && (units_.unit_type[i] == UNIT_FISHING_BOAT || petra_same_land(i, b))) {
 						best_d2 = d2;
 						drop_x = b.x; drop_z = b.z; drop = &b;
 						found_dropsite = true;
@@ -10756,8 +10759,9 @@ void Simulation::petra_manage_military_production(float dt) {
 			if (own_heroes > 0 || phase < 3) continue;
 			score = champion_score * 1.2f;
 		} else if (t.flags & ROSTER_SIEGE_TOWER) {
-			// One tower to carry soldiers over walls, once the siege train has started.
-			if (own_siege >= siege_cap || own_towers > 0) continue;
+			// One tower to carry soldiers over walls, whether or not the siege engines
+			// already reached their cap (training order alone decided that before).
+			if (own_towers > 0) continue;
 			score = siege_score * (own_siege > 0 ? 1.1f : 0.8f);
 		} else {
 			score = class_score(t.unit_type);
@@ -13710,6 +13714,12 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 					target_alive = true;
 					break;
 				}
+			}
+			// With no foe structure left find_petra_attack_target falls back to a foe unit: it
+			// stays the target while it lives, or the plan re-targets (and re-paths) every tick.
+			if (!target_alive) {
+				const int32_t tu = lookup_unit(petra_attack_plan_.target_building_id);
+				target_alive = tu >= 0 && units_.alive[tu] && petra_foe(units_.team[tu]);
 			}
 
 			petra_check_captures(squad, petra_attack_plan_.target_x, petra_attack_plan_.target_z);
