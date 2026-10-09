@@ -5743,7 +5743,7 @@ void Simulation::tick_gather(float dt) {
 					const float dx = units_.pos_x[i] - units_.pos_x[e];
 					const float dz = units_.pos_z[i] - units_.pos_z[e];
 					const float d2 = dx * dx + dz * dz;
-					if (d2 < best_d2 && (units_.unit_type[i] == UNIT_FISHING_BOAT || petra_same_land(i, b))) {
+					if (d2 < best_d2) {
 						best_d2 = d2;
 						drop_x = units_.pos_x[e]; drop_z = units_.pos_z[e];
 						drop_half = unit_collision_radius(UNIT_WORKER_ELEPHANT);
