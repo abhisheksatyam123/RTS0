@@ -18,7 +18,6 @@
 #include <cstring>
 #include <cmath>
 #include <utility>
-#include <queue>
 #include <unordered_map>
 
 #include "nav/long_pathfinder.h"
@@ -83,25 +82,32 @@ static constexpr float NAV_WATER_MARGIN = 0.3f;
 static constexpr float LAND_MAX_WATER_DEPTH = 0.4f;
 
 // ---------------------------------------------------------------------------
-// Phase 8A / P2: Passability mask constants — mirrors 0 A.D. CCmpPathfinder pass classes.
-// PASS_INFANTRY : foot soldiers, villagers (on-land passable cells).
-// PASS_CAVALRY  : mounted units; impassable on steep slopes exceeding cavalry_max_slope.
+// Passability classes, after 0 A.D.'s pathfinder.xml PassabilityClasses.
+// PASS_INFANTRY : land units (0 A.D. "default"): land and shallow water no steeper than
+//                 LAND_MAX_TERRAIN_SLOPE.
+// PASS_CAVALRY  : mounted units. 0 A.D. gives them "default" too (and siege and elephants
+//                 "large", which differs only in Clearance), so it crosses the same cells and
+//                 shares PASS_INFANTRY's regions.
 // PASS_SHIP     : naval units only — NAV_WATER cells passable, NAV_PASSABLE blocked.
 //
-// 0 A.D. slope handling & passability references:
-// - source/simulation2/helpers/Pathfinding.h:205-241 (PathfinderPassability::IsPassable: steepness < m_MaxSlope)
-// - source/simulation2/components/CCmpPathfinder.cpp:694-703 (terrain.GetSlopeFixed(itile, jtile) passability check)
-// - source/graphics/Terrain.cpp:306-322 (CTerrain::GetSlopeFixed: fractional slope = delta / TERRAIN_TILE_SIZE)
-// - binaries/data/mods/_test.sim/simulation/data/pathfinder.xml:13 (MaxTerrainSlope: 1.0 = 100% grade / 45 deg for default)
-// For cavalry: historical equestrian limits & RTS tactical balance restrict horses to
-// ~25-45% grade (~14-24 degrees; default 0.35 = 35% grade / ~19.3 degrees) where steep
-// terrain is impassable for cavalry while remaining passable for infantry (PASS_INFANTRY).
+// 0 A.D. slope references:
+// - source/simulation2/helpers/Pathfinding.h (PathfinderPassability::IsPassable: steepness < m_MaxSlope)
+// - source/simulation2/components/CCmpPathfinder.cpp (terrain.GetSlopeFixed(itile, jtile) per tile)
+// - source/graphics/Terrain.cpp (CTerrain::GetSlopeFixed: corner height delta / TERRAIN_TILE_SIZE)
+// - simulation/data/pathfinder.xml: MaxTerrainSlope 1.0 for default, large, building-land and
+//   default-terrain-only, 1.25 for building-shore, none for the ship classes
 // ---------------------------------------------------------------------------
 static constexpr uint8_t PASS_INFANTRY = 1;
 static constexpr uint8_t PASS_CAVALRY  = 2;
 static constexpr uint8_t PASS_SHIP     = 4;
 
-static constexpr float DEFAULT_CAVALRY_MAX_SLOPE = 0.35f; // 35% grade limit (height delta / cell width)
+// 0 A.D. slopes are metres of rise per metre. An RTS0 unit is a 4 m tile and random maps raise
+// 0 A.D. metres x 0.35, so a hill there is 1.4 times as steep in RTS0 units. Ported maps raise
+// them x 0.2 (there these limits are 0 A.D.'s x 1.75), but their heightmaps hold one sample per
+// 4 tiles, which already flattens cliffs.
+static constexpr float SLOPE_0AD_TO_RTS0 = 0.35f * 4.0f;
+static constexpr float LAND_MAX_TERRAIN_SLOPE = 1.0f * SLOPE_0AD_TO_RTS0;   // default, large, building-land
+static constexpr float SHORE_MAX_TERRAIN_SLOPE = 1.25f * SLOPE_0AD_TO_RTS0; // building-shore (docks)
 
 // ---------------------------------------------------------------------------
 // Phase 8A: NavChunk — mirrors 0 A.D. HierarchicalPathfinder::Chunk at our scale.
@@ -172,20 +178,12 @@ struct NavGrid {
     Grid<uint8_t> ship_chunk_regions_;
     GlobalRegionIds ship_region_map_;
 
-    // Phase 8A / P2: Cavalry passability & hierarchical chunk region data.
-    // steep_cells_: res x res, 1 = cell slope exceeds cavalry_max_slope (impassable for PASS_CAVALRY).
-    // cavalry_chunk_regions_: local region id per navcell for PASS_CAVALRY.
-    // cavalry_region_map_: global connected-region map for PASS_CAVALRY.
+    // steep_cells_: res x res, 1 = steeper than max_slope, which no land unit crosses.
     Grid<uint8_t> steep_cells_;
-    Grid<uint8_t> cavalry_chunk_regions_;
-    GlobalRegionIds cavalry_region_map_;
-    float cavalry_max_slope = DEFAULT_CAVALRY_MAX_SLOPE;
+    bool any_steep_ = false;
+    float max_slope = LAND_MAX_TERRAIN_SLOPE;
 
     bool regions_ready_ = false;
-
-    // Long-range search used by find_path: true = JPS port of 0 A.D.
-    // LongPathfinder (nav/long_pathfinder.h), false = legacy A*.
-    bool use_jps = true;
 
     // Number of chunks per axis: res / CHUNK_SIZE
     int chunks_per_axis_ = DEFAULT_RES / CHUNK_SIZE; // 64/8 = 8
@@ -198,11 +196,10 @@ struct NavGrid {
         chunks_per_axis_ = res / CHUNK_SIZE;
         chunk_regions_ = Grid<uint8_t>(res, res, 0);
         ship_chunk_regions_ = Grid<uint8_t>(res, res, 0);
-        cavalry_chunk_regions_ = Grid<uint8_t>(res, res, 0);
         steep_cells_ = Grid<uint8_t>(res, res, 0);
+        any_steep_ = false;
         global_region_map_.clear();
         ship_region_map_.clear();
-        cavalry_region_map_.clear();
         regions_ready_ = false;
     }
 
@@ -241,10 +238,6 @@ struct NavGrid {
         return is_passable_for(cx, cy, PASS_INFANTRY);
     }
 
-    bool is_passable_cavalry(int cx, int cy) const {
-        return is_passable_for(cx, cy, PASS_CAVALRY);
-    }
-
     bool is_passable_ship(int cx, int cy) const {
         return is_passable_for(cx, cy, PASS_SHIP);
     }
@@ -254,7 +247,7 @@ struct NavGrid {
         uint8_t c = cells.at(cx, cy);
         if (pass == PASS_SHIP || (pass & PASS_SHIP)) return c == NAV_WATER || c == NAV_SHALLOW;
         if (c != NAV_PASSABLE && c != NAV_SHALLOW) return false;
-        if ((pass == PASS_CAVALRY || (pass & PASS_CAVALRY)) && is_steep(cx, cy)) return false;
+        if (is_steep(cx, cy)) return false;
         return true;
     }
 
@@ -311,7 +304,6 @@ struct NavGrid {
     void rebuild_regions() {
         flood_chunk_regions(PASS_INFANTRY, chunk_regions_, global_region_map_);
         flood_chunk_regions(PASS_SHIP, ship_chunk_regions_, ship_region_map_);
-        flood_chunk_regions(PASS_CAVALRY, cavalry_chunk_regions_, cavalry_region_map_);
         regions_ready_ = true;
         if (!dirty.blank()) dirty.fill(0);
     }
@@ -483,7 +475,6 @@ struct NavGrid {
         if (!any_dirty()) return;
         rebuild_dirty_chunks(PASS_INFANTRY, chunk_regions_, global_region_map_);
         rebuild_dirty_chunks(PASS_SHIP, ship_chunk_regions_, ship_region_map_);
-        rebuild_dirty_chunks(PASS_CAVALRY, cavalry_chunk_regions_, cavalry_region_map_);
         regions_ready_ = true;
         if (!dirty.blank()) dirty.fill(0);
     }
@@ -495,9 +486,6 @@ struct NavGrid {
         if (pass == PASS_SHIP || (pass & PASS_SHIP)) {
             local = &ship_chunk_regions_;
             gmap = &ship_region_map_;
-        } else if (pass == PASS_CAVALRY || (pass & PASS_CAVALRY)) {
-            local = &cavalry_chunk_regions_;
-            gmap = &cavalry_region_map_;
         }
         if (local->blank() || !local->inside(cx, cy)) return 0;
         uint8_t lr = local->at(cx, cy);
@@ -505,10 +493,6 @@ struct NavGrid {
         const int ci = cx / CHUNK_SIZE, cj = cy / CHUNK_SIZE;
         if (ci >= chunks_per_axis_ || cj >= chunks_per_axis_) return 0;
         return gmap->get(static_cast<size_t>(cj) * chunks_per_axis_ + ci, lr);
-    }
-
-    uint16_t global_region_cavalry_at(int cx, int cy) const {
-        return global_region_at(cx, cy, PASS_CAVALRY);
     }
 
     uint16_t global_region_ship_at(int cx, int cy) const {
@@ -659,7 +643,7 @@ struct NavGrid {
         c.water_valid = false;
     }
 
-    // Computes slopes for all navcells from heightmap, flagging cells exceeding cavalry_max_slope.
+    // Computes slopes for all navcells from heightmap, flagging cells steeper than max_slope.
     void compute_slopes_from_heights(const std::vector<float>& heights, int h_res) {
         if (heights.empty() || h_res <= 0 || res <= 0) return;
         if (steep_cells_.w != res || steep_cells_.h != res) {
@@ -667,24 +651,27 @@ struct NavGrid {
         }
         sync_height_cache(heights, h_res);
         HeightSampleCache& c = height_cache_;
-        if (!c.steep_valid || !same_bits(c.steep_max_slope, cavalry_max_slope)) {
+        if (!c.steep_valid || !same_bits(c.steep_max_slope, max_slope)) {
             c.steep.resize(static_cast<size_t>(res) * static_cast<size_t>(res));
             for (int y = 0; y < res; ++y)
                 for (int x = 0; x < res; ++x)
                     c.steep[static_cast<size_t>(y) * res + x] =
-                        (compute_cell_slope(x, y, heights, h_res) > cavalry_max_slope) ? 1 : 0;
-            c.steep_max_slope = cavalry_max_slope;
+                        (compute_cell_slope(x, y, heights, h_res) > max_slope) ? 1 : 0;
+            c.steep_max_slope = max_slope;
             c.steep_valid = true;
         }
+        bool any = false;
         for (int y = 0; y < res; ++y) {
             for (int x = 0; x < res; ++x) {
                 uint8_t steep = c.steep[static_cast<size_t>(y) * res + x];
+                any |= steep != 0;
                 if (steep_cells_.at(x, y) != steep) {
                     steep_cells_.at(x, y) = steep;
                     if (!dirty.blank()) dirty.at(x, y) = 1;
                 }
             }
         }
+        any_steep_ = any;
     }
 
     void set_slopes_from_heights(const std::vector<float>& heights, int h_res) {
@@ -694,30 +681,32 @@ struct NavGrid {
     void set_steep(int cx, int cy, bool steep) {
         if (steep_cells_.blank() || !steep_cells_.inside(cx, cy)) return;
         uint8_t v = steep ? 1 : 0;
+        if (steep) any_steep_ = true;
         if (steep_cells_.at(cx, cy) != v) {
             steep_cells_.at(cx, cy) = v;
             if (!dirty.blank()) dirty.at(cx, cy) = 1;
         }
     }
 
+    // Whether any navcell is steep: no slope to check on a flat map.
+    bool any_steep() const { return any_steep_; }
+
     bool is_steep(int cx, int cy) const {
         if (steep_cells_.blank() || !steep_cells_.inside(cx, cy)) return false;
         return steep_cells_.at(cx, cy) != 0;
     }
 
-    void set_cavalry_max_slope(float s) { cavalry_max_slope = s; }
-    float get_cavalry_max_slope() const { return cavalry_max_slope; }
 
-    // Tag water navcells and compute cavalry slopes from heightmap.
+    // Tag water navcells and compute slopes from heightmap.
     // heights is res x res row-major with [-map_half, +map_half] extent.
-    // Slopes exceeding cavalry_max_slope are marked in steep_cells_ (PASS_CAVALRY exclusion).
+    // Slopes exceeding max_slope are marked in steep_cells_ (impassable on land).
     // Any navcell whose bilinear-sampled height < water_h+0.3 becomes water (and dirty=1):
     // NAV_SHALLOW within LAND_MAX_WATER_DEPTH of that line, NAV_WATER below it.
     void set_water_from_heights(const std::vector<float>& heights, int res, float water_h) {
         if (heights.empty() || res <= 0) return;
         if (cells.blank()) return;
 
-        // Compute slope steepness for PASS_CAVALRY (independent of water table)
+        // Compute slope steepness for land units (independent of water table)
         compute_slopes_from_heights(heights, res);
 
         // If water_h is sentinel (< -0.5 e.g. -1.0 in Simulation::terrain_water_height_),
@@ -762,13 +751,12 @@ struct NavGrid {
         }
     }
 
-    // Long-range path on the NavGrid: snap, MakeGoalReachable, then JPS (or A*) with octile 10/14 costs
+    // Long-range path on the NavGrid: snap, MakeGoalReachable, then JPS with octile 10/14 costs
     bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
 
-    // Cell-level searches behind find_path. Both fill start..goal cells in
-    // walking order and return whether the goal was reached.
+    // Cell-level search behind find_path. Fills start..goal cells in walking
+    // order and returns whether the goal was reached.
     bool search_cells_jps(int scx, int scy, int tcx, int tcy, uint8_t pass, std::vector<std::pair<int,int>> &path_cells) const;
-    bool search_cells_astar(int scx, int scy, int tcx, int tcy, uint8_t pass, std::vector<std::pair<int,int>> &path_cells) const;
 };
 
 // ---------------------------------------------------------------------------
@@ -783,7 +771,7 @@ struct NavGrid {
 // unit enters ARRIVE_DIST of current waypoint (mirrors CCmpUnitMotion path following).
 //
 // Cost model note: 0AD PathCost octile = hv*10 + diag*14approx (actually hv*65536 + diag*92682
-// fixed). A* uses: g = parent.g + (is_diag ? 14 : 10), h = 10*(dx+dy) - 6*min(dx,dy).
+// fixed). JPS (nav/long_pathfinder.h) uses orth 10, diag 14 and the exact octile heuristic.
 // See LongPathfinder.cpp:400-406 and Pathfinding.h:85.
 // ---------------------------------------------------------------------------
 struct WaypointPath {
@@ -820,7 +808,7 @@ struct WaypointPath {
 };
 
 // ---------------------------------------------------------------------------
-// NavGrid::find_path — A* pathfinder implementation with octile heuristic
+// NavGrid::find_path — snap, MakeGoalReachable, JPS, string pull
 // ---------------------------------------------------------------------------
 inline bool NavGrid::find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass) const {
     out.clear();
@@ -867,7 +855,9 @@ inline bool NavGrid::find_path(float sx, float sz, float tx, float tz, WaypointP
         }
     }
     snap_to_passable(tcx, tcy, 3);
-    if (!is_passable_for(scx, scy, pass) || !is_passable_for(tcx, tcy, pass)) {
+    // A goal still on impassable cells (land for a ship) is no reason to fail either:
+    // MakeGoalReachable below moves it to the nearest navcell the unit can reach.
+    if (!is_passable_for(scx, scy, pass) || (!regions_ready_ && !is_passable_for(tcx, tcy, pass))) {
         out.push_back(tx, tz);
         return false;
     }
@@ -915,30 +905,31 @@ inline bool NavGrid::find_path(float sx, float sz, float tx, float tz, WaypointP
     const int H = res;
     std::vector<std::pair<int,int>> path_cells;
     path_cells.reserve(64);
-    const bool reached = use_jps
-        ? search_cells_jps(scx, scy, tcx, tcy, pass, path_cells)
-        : search_cells_astar(scx, scy, tcx, tcy, pass, path_cells);
-    if (!reached && (!use_jps || path_cells.size() < 2)) {
+    const bool reached = search_cells_jps(scx, scy, tcx, tcy, pass, path_cells);
+    if (!reached && path_cells.size() < 2) {
         out.clear();
         out.push_back(tx, tz);
         return false;
     }
     string_pull(path_cells, pass);
 
-    for (const auto &p : path_cells) {
+    // LongPathfinder::ComputeJPSPath leaves the start navcell out (the unit already stands in it:
+    // heading for its centre first would walk a unit given a new path every tick back and forth
+    // there for good) and ends the path at the goal itself, not the goal navcell's centre.
+    size_t k = 1;
+    for (; k < path_cells.size(); ++k) {
         if (out.count >= WaypointPath::MAX_WP - 1) break;
+        const auto &p = path_cells[k];
         float wx = ((static_cast<float>(p.first) + 0.5f) / static_cast<float>(W)) * (map_half * 2.0f) - map_half;
         float wz = ((static_cast<float>(p.second) + 0.5f) / static_cast<float>(H)) * (map_half * 2.0f) - map_half;
         out.push_back(wx, wz);
     }
-    if (reached && out.count > 0 && out.count < WaypointPath::MAX_WP) {
-        float lx = out.xs[out.count - 1];
-        float lz = out.zs[out.count - 1];
-        float dx = lx - tx;
-        float dz = lz - tz;
-        if (dx * dx + dz * dz > 0.01f) {
-            if (out.count < WaypointPath::MAX_WP) out.push_back(tx, tz);
-            else { out.xs[out.count - 1] = tx; out.zs[out.count - 1] = tz; }
+    if (reached && out.count > 0) {
+        if (k == path_cells.size()) {
+            out.xs[out.count - 1] = tx;
+            out.zs[out.count - 1] = tz;
+        } else {
+            out.push_back(tx, tz); // cut short at MAX_WP: still end at the goal
         }
     }
     out.cur = 0;
@@ -954,115 +945,6 @@ inline bool NavGrid::search_cells_jps(int scx, int scy, int tcx, int tcy, uint8_
         std::vector<std::pair<int,int>> &path_cells) const {
     auto passable = [this, pass](int x, int y) { return is_passable_for(x, y, pass); };
     return nav::compute_jps_path(res, res, passable, scx, scy, tcx, tcy, path_cells);
-}
-
-// ---------------------------------------------------------------------------
-// NavGrid::search_cells_astar — previous plain A* search (octile 10/14 with
-// the cardinal run skip). Kept as the reference search for differential tests
-// and benchmarks; NavGrid::use_jps=false routes find_path through it.
-// ---------------------------------------------------------------------------
-inline bool NavGrid::search_cells_astar(int scx, int scy, int tcx, int tcy, uint8_t pass,
-        std::vector<std::pair<int,int>> &path_cells) const {
-    path_cells.clear();
-    const int W = res;
-    const int H = res;
-    const int N = W * H;
-    const int INF = 1e9;
-    std::vector<int> g(N, INF);
-    std::vector<int> parent(N, -1);
-    std::vector<uint8_t> closed(N, 0);
-
-    auto cell_idx = [&](int x, int y) { return y * W + x; };
-    // 0 A.D. LongPathfinder.cpp:400: di=|dx|, dj=|dz|, diag=min(di,dj), PathCost(di-diag+dj-diag, diag)
-    // Orthogonal cost 10, diagonal cost 14 => h = 10 * (dx + dy) - 6 * min(dx, dy)
-    auto heuristic = [&](int x, int y) {
-        int dx = std::abs(x - tcx);
-        int dy = std::abs(y - tcy);
-        int mn = std::min(dx, dy);
-        return 10 * (dx + dy) - 6 * mn;
-    };
-
-    struct Node {
-        int f;
-        int g;
-        int x;
-        int y;
-        bool operator>(const Node &o) const {
-            if (f != o.f) return f > o.f;
-            return g < o.g;
-        }
-    };
-
-    std::priority_queue<Node, std::vector<Node>, std::greater<Node>> open;
-    g[cell_idx(scx, scy)] = 0;
-    open.push({heuristic(scx, scy), 0, scx, scy});
-
-    const int dirs[8][2] = {{1,0},{-1,0},{0,1},{0,-1},{1,1},{-1,-1},{1,-1},{-1,1}};
-    const int costs[8] = {10,10,10,10,14,14,14,14};
-    int found = -1;
-
-    while (!open.empty()) {
-        Node cur = open.top();
-        open.pop();
-        int ci = cell_idx(cur.x, cur.y);
-        if (closed[ci]) continue;
-        closed[ci] = 1;
-        if (cur.x == tcx && cur.y == tcy) {
-            found = ci;
-            break;
-        }
-        for (int k = 0; k < 8; ++k) {
-            int nx = cur.x + dirs[k][0];
-            int ny = cur.y + dirs[k][1];
-            if (!cells.inside(nx, ny)) continue;
-            if (!is_passable_for(nx, ny, pass)) continue;
-            // Prevent cutting across blocked diagonal corners
-            if (k >= 4) {
-                int ox = cur.x + dirs[k][0];
-                int oy = cur.y;
-                int ox2 = cur.x;
-                int oy2 = cur.y + dirs[k][1];
-                if (!is_passable_for(ox, oy, pass) || !is_passable_for(ox2, oy2, pass)) continue;
-            }
-            int step_cost = costs[k];
-            // LongPathfinder.cpp AddJumpedHoriz — skip empty cardinal runs
-            if (k < 4) {
-                int jx = nx, jy = ny, extra = 0;
-                while (extra < 24) {
-                    int mx = jx + dirs[k][0], my = jy + dirs[k][1];
-                    if (!cells.inside(mx, my) || !is_passable_for(mx, my, pass)) break;
-                    jx = mx; jy = my;
-                    extra += 10;
-                    if (jx == tcx && jy == tcy) break;
-                }
-                if (extra > 0 && !line_clear(cur.x, cur.y, jx, jy, pass)) {
-                    jx = nx; jy = ny; extra = 0;
-                }
-                nx = jx; ny = jy;
-                step_cost += extra;
-            }
-            int ni = cell_idx(nx, ny);
-            if (closed[ni]) continue;
-            int ng = cur.g + step_cost;
-            if (ng < g[ni]) {
-                g[ni] = ng;
-                parent[ni] = ci;
-                int f = ng + heuristic(nx, ny);
-                open.push({f, ng, nx, ny});
-            }
-        }
-    }
-
-    if (found == -1) return false;
-
-    for (int cur = found; cur != -1; cur = parent[cur]) {
-        int y = cur / W;
-        int x = cur % W;
-        path_cells.emplace_back(x, y);
-        if (x == scx && y == scy) break;
-    }
-    std::reverse(path_cells.begin(), path_cells.end());
-    return true;
 }
 
 } // namespace rtso
