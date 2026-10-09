@@ -78,6 +78,8 @@ struct UnitSoA {
 	uint32_t *work_target = nullptr;
 	float *xp_partial = nullptr; // Promotion.js xp below one point (healing grants a little each tick)
 	float *aura_hp_mult = nullptr; // Health/Max multiplier from auras now applied to max_hp (1 = none)
+	uint32_t *flee_from = nullptr; // UnitAI FLEEING order.data.target: the unit, structure or animal fled from
+	float *flee_dist = nullptr; // FLEEING distanceToFlee: done once this far from flee_from
 	ShortPathMemo *short_path = nullptr; // the short path around buildings the unit is walking
 	MotionTurn *motion = nullptr; // UnitMotion's failed movements and this turn's move
 
@@ -100,7 +102,7 @@ struct UnitSoA {
 		FREE(pack_state); FREE(pack_elapsed);
 		FREE(order_kind); FREE(order_flags); FREE(order_target); FREE(order_x); FREE(order_z); FREE(order_x2); FREE(order_z2); FREE(attacked_by); FREE(work_kind); FREE(work_target);
 		FREE(xp_partial); FREE(short_path); FREE(motion);
-		FREE(aura_hp_mult);
+		FREE(aura_hp_mult); FREE(flee_from); FREE(flee_dist);
 		#undef FREE
 		cap = count = 0;
 	}
@@ -172,6 +174,8 @@ struct UnitSoA {
 		realloc_aligned(work_target, c * sizeof(uint32_t));
 		realloc_aligned(xp_partial, c * sizeof(float));
 		realloc_aligned(aura_hp_mult, c * sizeof(float));
+		realloc_aligned(flee_from, c * sizeof(uint32_t));
+		realloc_aligned(flee_dist, c * sizeof(float));
 		realloc_aligned(short_path, c * sizeof(ShortPathMemo));
 		realloc_aligned(motion, c * sizeof(MotionTurn));
 		cap = c;
@@ -221,6 +225,8 @@ struct UnitSoA {
 		work_target[i] = 0;
 		xp_partial[i] = 0.0f;
 		aura_hp_mult[i] = 1.0f;
+		flee_from[i] = 0;
+		flee_dist[i] = 0.0f;
 		short_path[i] = ShortPathMemo{};
 		motion[i] = MotionTurn{};
 		hp[i] = max_hp[i] = info.hp;
@@ -277,6 +283,8 @@ struct UnitSoA {
 			work_target[idx] = work_target[last];
 			xp_partial[idx] = xp_partial[last];
 			aura_hp_mult[idx] = aura_hp_mult[last];
+			flee_from[idx] = flee_from[last];
+			flee_dist[idx] = flee_dist[last];
 			short_path[idx] = short_path[last];
 			motion[idx] = motion[last];
 		}

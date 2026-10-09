@@ -214,7 +214,7 @@ static void check_reset_load(TurnManager &tm, const char *path) {
 	a.set_water_level_mode(Simulation::WATER_LEVEL_DEEP);
 	a.set_sea_level_rise_minutes(40);
 	{
-		// Per-tile terrain textures (v44).
+		// Per-tile terrain textures (v49).
 		Simulation::TerrainTiles tt;
 		tt.res = 4;
 		tt.names = {"medit_grass_field", "medit_rocks"};

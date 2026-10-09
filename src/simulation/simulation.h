@@ -78,12 +78,21 @@ struct Projectile {
 	uint32_t source_id = 0; // firing unit or building: Promotion xp and Looter.js loot go to it
 };
 
+// One item of a structure's production queue (0 A.D. ProductionQueue.js Item): a batch of
+// `count` units (Trainer.js) or one technology (Researcher.js), worked on front first.
 struct ProductionOrder {
-	uint8_t unit_type;
+	uint8_t unit_type; // UNIT_TYPE_NONE = corral livestock; UNIT_TYPE_COUNT for a technology
 	float timer;
 	float duration;
 	uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE; // civ roster unit to spawn (NONE = civ default for unit_type)
+	uint8_t count = 1;          // batch size
+	uint8_t tech = TECH_NONE;   // the technology this item researches
+	bool started = false;       // Trainer.js Item.Start: the batch's population is reserved
+	std::array<float, RES_COUNT> paid{}; // refunded when the item is removed (RemoveItem)
+	bool is_tech() const { return tech != TECH_NONE; }
 };
+// ProductionQueue.js MaxQueueSize.
+static constexpr size_t PRODUCTION_QUEUE_MAX = 16;
 
 // Per-player state (0 A.D. Player.js + ResourceCounter + TechnologyManager).
 // One slot per player id; unit/building `team` fields hold the player id.
@@ -151,7 +160,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 44; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 49; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -182,7 +191,6 @@ public:
 		if (player == 0xFF) return revealed_fow_.data();
 		if (player == 0 || player >= MAX_PLAYERS) return fow_grid_.data();
 		if (player_fow_[player].size() == fow_grid_.size()) return player_fow_[player].data();
-		if (player == PETRA_PLAYER && petra_runs_for(PETRA_PLAYER)) return petra_fow_.data();
 		return unexplored_fow_.data();
 	}
 	int fow_res() const { return grid_res_; }
@@ -248,15 +256,24 @@ public:
 		float rally_x, rally_z;
 		uint32_t rally_target_res_id;
 		uint32_t rally_target_bld_id;
+		// 0 A.D. RallyPoint keeps the resource type (generic + specific) of a gather
+		// target, so a trained unit gathers near the spot once the target is gone
+		// (gather-near-position). 0xFF: no resource target.
+		uint8_t rally_res_type = 0xFF, rally_res_sub = 0xFF;
+		// Shift-added positions after the first (RallyPoint.AddPosition), in order.
+		struct RallyStep {
+			float x, z;
+			uint32_t res_id, bld_id;
+			uint8_t res_type, res_sub;
+		};
+		std::vector<RallyStep> rally_more;
 
 		// Garrison
 		std::vector<uint32_t> garrisoned_units;
 		int garrison_cap;
 
-		// Tech research
-		uint8_t research_tech;
-		float research_timer;
-		float research_duration;
+		// ProductionQueue.js autoqueuing: a finished batch is queued again.
+		bool autoqueue = false;
 
 		// Structure Capture (Capturable.js): per-player capture points.
 		// The scalar capture_points field remains the amount currently held
@@ -470,17 +487,31 @@ public:
 	// DEFAULT_BUILDING_ROT, so older commands (target_id 0) keep the default facing.
 	static uint32_t pack_angle(float angle);
 	static float unpack_angle(uint32_t packed);
-	bool cmd_train(uint8_t player, uint32_t building_id, UnitType u_type);
+	// `count` units in one batch (0 A.D. Trainer.js QueueBatch): count x the cost, trained in
+	// BuildTime * count^BatchTimeModifier.
+	bool cmd_train(uint8_t player, uint32_t building_id, UnitType u_type, int count = 1);
 	// Train a specific roster unit (a hero, a champion, a second unit of the same class).
-	bool cmd_train_template(uint8_t player, uint32_t building_id, uint16_t tmpl);
-	bool cmd_train_template_at(uint8_t player, uint32_t building_id, uint16_t tmpl, bool exclusive);
+	bool cmd_train_template(uint8_t player, uint32_t building_id, uint16_t tmpl, int count = 1);
+	bool cmd_train_template_at(uint8_t player, uint32_t building_id, uint16_t tmpl, bool exclusive, int count = 1);
+	// Trainer.js GetBatchTime: count^BatchTimeModifier of the building (civ version and techs).
+	float batch_time_multiplier(uint8_t player, uint8_t bld_type, int count) const;
+	// ProductionQueue.js EnableAutoQueue / DisableAutoQueue.
+	bool cmd_set_autoqueue(uint8_t player, uint32_t building_id, bool on);
+	// The technology a structure is researching now (the front of its queue), else TECH_NONE.
+	static uint8_t researching(const Building &b) { return b.queue.empty() ? TECH_NONE : b.queue.front().tech; }
+	// Whether `tech` is anywhere in one of the player's production queues.
+	bool tech_queued(uint8_t player, uint8_t tech) const;
 	// P3 maintainFleet upkeep seam (0 A.D. navalManager.js:507-543): team-aware
 	// naval queue entry used by TurnManager NET_CMD_MAINTAIN_FLEET. Unlike
 	// cmd_train (team-0/human only) this honours the building's own team
 	// resources (Petra team 1 via petra_try_pay) so Petra docks can train.
 	bool cmd_maintain_fleet(uint32_t building_id, UnitType u_type, uint8_t team);
 	bool cmd_cancel_train(uint8_t player, uint32_t building_id, size_t queue_idx);
-	void cmd_set_rally_point(uint8_t player, uint32_t building_id, float rx, float rz, uint32_t res_id = 0, uint32_t bld_id = 0);
+	// queued (Shift) adds a position after the ones already set (RallyPoint.AddPosition).
+	void cmd_set_rally_point(uint8_t player, uint32_t building_id, float rx, float rz, uint32_t res_id = 0, uint32_t bld_id = 0,
+			bool queued = false);
+	// 0 A.D. "unset-rallypoint": the structure forgets every rally position.
+	void cmd_unset_rally_point(uint8_t player, uint32_t building_id);
 
 	// Player orders (0 A.D. Commands.js / UnitAI.js). `queued` is the Shift key: the order
 	// goes to the end of each busy unit's order queue instead of replacing its orders.
@@ -514,10 +545,28 @@ public:
 	// DEFEAT_PLAYER take an RTS0 player id (GAIA_PLAYER for Gaia, 0xFF for yourself).
 	enum CheatAction : uint8_t {
 		CHEAT_ADD_RESOURCE, CHEAT_REVEAL_MAP, CHEAT_CONVERT_UNITS, CHEAT_KILL_UNITS, CHEAT_DEFEAT_PLAYER,
-		CHEAT_CREATE_UNITS, CHEAT_CHANGE_PHASE, CHEAT_RESEARCH, CHEAT_META, CHEAT_COUNT
+		CHEAT_CREATE_UNITS, CHEAT_CHANGE_PHASE, CHEAT_RESEARCH, CHEAT_META,
+		CHEAT_MAX_POPULATION, CHEAT_CHANGE_MAX_POPULATION, CHEAT_FAST_ACTIONS, CHEAT_COUNT
 	};
+	// Per-player state of the population and fast-actions cheats (padding-free for saves).
+	struct CheatMods {
+		int32_t pop_bonus;   // "the hive master": added to the player's house population bonuses
+		int32_t max_pop_add; // "TARDIS": cheat/maxpopulation, Player/MaxPopulation +500
+		uint8_t fast_actions; // "i am too busy": cheat/fastactions is on
+		uint8_t pad[3];
+	};
+	const CheatMods &cheat_mods(uint8_t player) const { return cheat_mods_[player < MAX_PLAYERS ? player : 0]; }
 	bool cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, uint32_t extra,
 			const uint32_t *selected, size_t count);
+	// 0 A.D. "spy-request" (Commands.js, VisionSharing.AddSpy): with Espionage researched,
+	// bribe a random trader or merchant ship of `target` for its vision (500 metal, x1.5
+	// against Counterintelligence; a quarter of that is lost when nothing can be bribed).
+	enum BribeResult : uint8_t { BRIBE_OK, BRIBE_NOT_ALLOWED, BRIBE_NO_UNITS, BRIBE_TOO_EXPENSIVE };
+	BribeResult cmd_bribe(uint8_t player, uint8_t target);
+	int bribe_cost(uint8_t player, uint8_t target, bool failed = false) const; // metal
+	bool can_bribe(uint8_t player, uint8_t target) const;
+	struct Spy { uint32_t unit_id; uint8_t player; uint8_t pad[3]; float remaining; }; // padding-free for saves
+	const std::vector<Spy> &spies() const { return spies_; }
 	// 0 A.D. "back-to-work" (UnitAI BackToWork): resume the last gather or build order.
 	void order_back_to_work(const uint32_t *unit_ids, size_t count);
 	// 0 A.D. Commands.js "remove-guard" (UnitAI RemoveGuard): end a Guard order, or drop
@@ -708,6 +757,9 @@ public:
 	// 0 A.D. CheatsEnabled: chat cheat codes work for every player (cmd_cheat).
 	void set_cheats_enabled(bool on) { set_setup_flag(SETUP_CHEATS, on); }
 	bool cheats_enabled() const { return setup_flags_ & SETUP_CHEATS; }
+	// 0 A.D. DisableSpies: Espionage can't be researched, so nobody can bribe.
+	void set_disable_spies(bool on) { set_setup_flag(SETUP_DISABLE_SPIES, on); }
+	bool spies_disabled() const { return setup_flags_ & SETUP_DISABLE_SPIES; }
 	uint32_t regicide_hero(uint8_t pid) const { return pid < MAX_PLAYERS ? regicide_hero_[pid] : 0; }
 	// False for a Regicide hero while RegicideGarrison is off: it can't enter structures,
 	// siege engines or ships.
@@ -791,12 +843,37 @@ public:
 	// 0 A.D. Upgrade.js: turn a finished structure into building_upgrade()'s
 	// target in place, keeping its health fraction, capture share and garrison.
 	enum UpgradeCheck : uint8_t {
-		UPGRADE_OK = 0, UPGRADE_ERR_NONE, UPGRADE_ERR_OWNER, UPGRADE_ERR_BUSY, UPGRADE_ERR_PHASE, UPGRADE_ERR_COST
+		UPGRADE_OK = 0, UPGRADE_ERR_NONE, UPGRADE_ERR_OWNER, UPGRADE_ERR_BUSY, UPGRADE_ERR_PHASE, UPGRADE_ERR_COST,
+		UPGRADE_ERR_LIMIT // units: the target's EntityLimits category is full
 	};
 	UpgradeCheck upgrade_check(uint8_t player_id, uint32_t building_id) const;
 	bool cmd_upgrade_building(uint8_t player_id, uint32_t building_id);
 	// Stops an upgrade in progress and refunds what was paid (Upgrade.js CancelUpgrade).
 	bool cmd_cancel_upgrade(uint8_t player_id, uint32_t building_id);
+	// 0 A.D. Upgrade.js on units (civ_unit_upgrade_table): the Roman elite infantry's
+	// Centurion rank, the Immortals' spear-and-bow switch. The owner pays up front; the
+	// unit keeps fighting while the timer runs, then becomes the `to` roster row in
+	// place (health fraction, xp and orders kept). Death refunds the cost.
+	struct UnitUpgrade {
+		uint32_t unit_id;
+		uint16_t to; // civ_unit_template_table() row
+		uint8_t player; // who paid (refunded on cancel or death)
+		uint8_t pad = 0;
+		float elapsed;
+		float time;
+		float paid[4]; // food, wood, gold, stone
+	};
+	static_assert(sizeof(UnitUpgrade) == 32, "UnitUpgrade is saved raw: keep it padding-free");
+	// The table row that upgrades unit index i to `to`, or nullptr.
+	const CivUnitUpgrade *unit_upgrade_choice(size_t i, uint16_t to) const;
+	UpgradeCheck unit_upgrade_check(uint8_t player_id, uint32_t unit_id, uint16_t to) const;
+	// Starts every listed unit's upgrade to `to` that unit_upgrade_check allows, one
+	// payment each (Commands.js "upgrade"); true if any started.
+	bool cmd_upgrade_units(uint8_t player_id, const uint32_t *unit_ids, size_t n, uint16_t to);
+	// Commands.js "cancel-upgrade": stops the listed units' upgrades and refunds them.
+	bool cmd_cancel_unit_upgrades(uint8_t player_id, const uint32_t *unit_ids, size_t n);
+	// The upgrade a unit is going through, or nullptr.
+	const UnitUpgrade *unit_upgrade_of(uint32_t unit_id) const;
 	// 0 A.D. Gate.js LockGate / UnlockGate: the owner keeps its own units out too.
 	bool cmd_lock_gate(uint8_t player_id, uint32_t building_id, bool lock);
 	// Maximum hit points of a `type` structure owned by `team`: template x civ bonus x techs.
@@ -1018,6 +1095,10 @@ public:
 
 	int pop_current(uint8_t player = 0) const;
 	int pop_max(uint8_t player = 0) const;
+	// Houses and other population bonuses (plus the hive master cheat), before the population limit.
+	int pop_max_uncapped(uint8_t player) const;
+	// The population limit after Player/MaxPopulation modifiers; 0 when unlimited.
+	int pop_limit(uint8_t player) const;
 	// Ownership checks for player commands (0 A.D. Commands.js FilterEntityList).
 	bool owns_unit(uint8_t player, uint32_t unit_id) const;
 	bool owns_building(uint8_t player, uint32_t building_id) const;
@@ -1156,7 +1237,6 @@ public:
 	int ai_pop_current() const;
 	int ai_pop_max() const;
 
-	const uint8_t* petra_fow_grid() const { return petra_fow_.data(); }
 
 	// Petra Multi-Base HQ & BasesManager (0 A.D. ai/petra/headquarters.js / baseManager.js)
 	struct PetraBase {
@@ -1397,6 +1477,13 @@ private:
 	void separation(float dt, Arena &arena);
 	void motion_feedback(float dt, const MoveSteps &steps);
 	void patrol_next_leg(size_t i);
+	// A chase (UnitAI COMBAT.APPROACHING / CHASING): the target (the unit, or the centre of the
+	// structure) and the point the unit walks to (the unit, or tick_combat's stand point beside the
+	// structure). False when unit i chases no unit or structure.
+	bool chase_goal(size_t i, float &key_x, float &key_z, float &to_x, float &to_z) const;
+	bool chase_path_kept(size_t i) const;
+	bool chase_falls_short(size_t i) const;
+	void give_up_attack(size_t i);
 	void tick_gather(float dt);
 	// Fields (0 A.D. template_structure_resource_field): a finished field owns
 	// one infinite grain resource at its centre. Derived from buildings_, so it
@@ -1429,6 +1516,7 @@ private:
 		float bld_range[BLD_TYPE_COUNT];
 		float bld_build_time[BLD_TYPE_COUNT];
 		float bld_research_time[BLD_TYPE_COUNT];
+		float bld_batch_time_add[BLD_TYPE_COUNT]; // added to Trainer/BatchTimeModifier (Conscription)
 		float bld_pop_bonus[BLD_TYPE_COUNT];
 		float bld_arrow_mul[BLD_TYPE_COUNT];
 		float bld_arrow_add[BLD_TYPE_COUNT];
@@ -1540,8 +1628,9 @@ private:
 	float builder_rate(size_t unit_idx) const;
 	float structure_build_time(const Building &b, uint8_t builder_team) const;
 	void tick_production(float dt);
-	void tick_research(float dt);
 	void tick_upgrades(float dt);
+	void tick_unit_upgrades(float dt);
+	std::vector<UnitUpgrade> unit_upgrades_; // in start order (saved v45)
 	// Unloads land siege below SIEGE_EJECT_HEALTH or dead (GarrisonHolder EjectHealth / OnDestroy).
 	void tick_siege_garrisons();
 	// Structures heal their garrison each second and unload it below EjectHealth (GarrisonHolder.js).
@@ -1572,6 +1661,8 @@ private:
 	void tick_fauna(float dt);
 	void tick_hunters();                                  // units attacking animals (UnitAI Gather on KillBeforeGather)
 	void fauna_attacked(size_t f, uint32_t attacker_id);  // UnitAI "Attacked" for an animal
+	bool slaughters_target(size_t i) const; // unit i's target is a Domestic animal it slaughters
+	static constexpr float SLAUGHTER_RANGE = 2.0f * 0.6f; // Attack/Slaughter MaxRange 2 m, melee scale
 	void fauna_hit_unit(size_t f, size_t u);              // an animal's melee attack lands on unit u
 	bool fauna_can_step(size_t f, float x, float z) const;
 	void tick_fow();  // updates FoW each sim tick
@@ -1808,7 +1899,12 @@ private:
 	bool disable_treasures_ = false;
 	void spawn_nomad_treasures();
 	// Game Setup switches kept in the byte v32 saves as RegicideGarrison (old saves read as bit 0).
-	static constexpr uint8_t SETUP_REGICIDE_GARRISON = 1, SETUP_LOCK_TEAMS = 2, SETUP_CHEATS = 4, SETUP_FLAGS_ALL = 7;
+	static constexpr uint8_t SETUP_REGICIDE_GARRISON = 1, SETUP_LOCK_TEAMS = 2, SETUP_CHEATS = 4, SETUP_DISABLE_SPIES = 8,
+		SETUP_FLAGS_ALL = 15;
+	std::vector<Spy> spies_; // VisionSharing spies, oldest first
+	CheatMods cheat_mods_[MAX_PLAYERS] = {};
+	std::vector<uint8_t> spy_mask_; // tick_fow scratch: per unit index, the players its spies see for
+	void tick_spies(float dt);
 	void cheat_convert(uint8_t to, const uint32_t *ids, size_t count);
 	uint8_t setup_flags_ = 0;
 	void set_setup_flag(uint8_t flag, bool on) { setup_flags_ = on ? (setup_flags_ | flag) : (setup_flags_ & ~flag); }
@@ -2091,7 +2187,6 @@ private:
 	bool bulk_spawn_ = false;
 	int grid_res_ = MIN_GRID_RES; // nav/FoW/territory resolution, grid_res_for_map(map_half_)
 	std::vector<uint8_t> fow_grid_ = std::vector<uint8_t>(MIN_GRID_RES * MIN_GRID_RES, 0); // FoW state per tile
-	std::vector<uint8_t> petra_fow_ = std::vector<uint8_t>(MIN_GRID_RES * MIN_GRID_RES, 0); // FoW state per tile for Petra AI
 	uint8_t fow_viewer_ = 0;
 	std::array<std::vector<uint8_t>, MAX_PLAYERS> player_fow_; // per-player FoW for players 1..7 (index 0 unused: fow_grid_)
 	std::vector<uint8_t> unexplored_fow_ = std::vector<uint8_t>((size_t)MAX_GRID_RES * MAX_GRID_RES, 0);
@@ -2110,7 +2205,7 @@ private:
 	X(petra_diplo_timer_) X(ai_wonder_victory_timer_) X(petra_bases_) X(petra_fnd_watch_) \
 	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
-	X(petra_fow_) X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
+	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_)
 	struct PetraSlot {
 		bool initialized = false;
@@ -2129,9 +2224,8 @@ private:
 	static constexpr int FOW_LOS_BLOCK = 4; // FoW cells per side of a fow_block_hmax_ block
 	std::vector<float> fow_block_hmax_; // fow_cell_hmax_ max per block, filled with fow_cell_height_
 	uint32_t fow_view_gen_ = 0; // bumped each time fow_cell_height_ is filled, so FowViews from older terrain miss
-	// reveal_fow() views of units (by index) and buildings (by buildings_ index), for Petra's
-	// scouting and for update_player_fow(); their vision radii differ, so each keeps its own.
-	FowViews petra_fow_views_, player_fow_views_;
+	// reveal_fow() views of units (by index) and buildings (by buildings_ index) for update_player_fow().
+	FowViews player_fow_views_;
 	std::vector<uint32_t> fow_moved_units_; // reveal_viewers() scratch: units revealed last
 	NavGrid nav_grid_; // Phase1: SoA nav mesh (buildings + water), mirrors 0AD Grid<NavcellData>
 	Grid<uint8_t> territory_grid_; // grid_res_^2 player id per cell, G2 (CCmpTerritoryManager)
@@ -2212,6 +2306,8 @@ private:
 	void finish_order(size_t i);
 	void resume_order(size_t i);
 	void respond_to_attack(size_t i);
+	bool entity_xz(uint32_t id, float &x, float &z) const;
+	bool flee_done(size_t i);
 	void respond_to_attacker(size_t i, uint32_t attacker_id, float ax, float az, bool melee, bool structure = false);
 	std::vector<uint16_t> combat_wild_scratch_; // tick_combat: dangerous animals this tick
 	// ResourceGatherer.CanGather: unit index i has a Rates entry for resource index r.
@@ -2221,6 +2317,7 @@ private:
 			const std::unordered_map<uint32_t, FieldGatherers> *busy = nullptr, uint32_t skip = 0) const;
 	uint32_t find_nearby_foundation(float x, float z, uint8_t team) const;
 	void apply_rally_point(uint32_t uid, const Building &b, bool ignore_self_garrison = false);
+	void apply_rally_step(uint32_t uid, const Building &b, const Building::RallyStep &st, bool queued, bool ignore_self_garrison);
 	void rally_after_ungarrison(uint32_t uid, uint32_t building_id);
 	void on_construction_finished(const Building &b, size_t builder);
 	void next_after_construction(size_t k, const Building &b, bool food, bool other);
@@ -2247,7 +2344,7 @@ private:
 	float map_half_ = 64.0f;
 	int terrain_res_ = 64;
 	std::vector<float> terrain_heights_;
-	TerrainTiles terrain_tiles_; // saved v44, after the heightmap
+	TerrainTiles terrain_tiles_; // saved v49, after the heightmap
 	float terrain_water_height_ = -1.0f;
 	std::string current_map_id_ = "default";
 	std::string current_map_name_ = "Standard Arena";

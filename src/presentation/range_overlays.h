@@ -70,8 +70,15 @@ public:
 				const float arrows = sim->building_arrow_range(b);
 				if (show_attack && arrows > 0.0f && b.build_progress >= 1.0f)
 					ring(sim, b.x, b.z, arrows + b.half_size, Color(1.0f, 0.3f, 0.25f, 0.7f));
-				if (b.team == me && b.has_rally_point)
+				if (b.team == me && b.has_rally_point) {
 					line(sim, b.x, b.z, b.rally_x, b.rally_z, Color(1.0f, 1.0f, 1.0f, 0.75f));
+					float px = b.rally_x, pz = b.rally_z; // then each Shift-added position in turn
+					for (const auto &st : b.rally_more) {
+						line(sim, px, pz, st.x, st.z, Color(1.0f, 1.0f, 1.0f, 0.75f));
+						px = st.x;
+						pz = st.z;
+					}
+				}
 				break;
 			}
 		}
