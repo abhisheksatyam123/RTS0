@@ -4,7 +4,8 @@
 // P4 stage-1 leaf widget: diplomacy & tribute dialog (0 A.D.
 // gui/session/diplomacy/DiplomacyDialog.js parity). Owns the 8-player
 // stance matrix; stance changes ride lockstep cmd 22 and tribute lockstep
-// cmd 27 (Simulation::cmd_tribute) via RtsoDiplomacyHost.
+// cmd 27 (Simulation::cmd_tribute) via RtsoDiplomacyHost; bribes ride lockstep
+// cmd 40 (Simulation::cmd_bribe).
 
 #include <godot_cpp/classes/button.hpp>
 #include <godot_cpp/classes/control.hpp>
@@ -156,6 +157,13 @@ public:
 					tb->connect("pressed", Callable(owner, "_on_diplo_tribute_pressed").bind(p, t_res[r]));
 					prow->add_child(tb);
 				}
+				// 0 A.D. DiplomacyDialog spy-request button (needs Espionage).
+				spy_btns_[p] = memnew(Button);
+				spy_btns_[p]->set_custom_minimum_size(Vector2(52, 22));
+				spy_btns_[p]->set_text("Spy");
+				spy_btns_[p]->add_theme_font_size_override("font_size", 9);
+				spy_btns_[p]->connect("pressed", Callable(owner, "_on_diplo_spy_pressed").bind(p));
+				prow->add_child(spy_btns_[p]);
 			}
 
 			diplo_vbox->add_child(prow);
@@ -195,7 +203,50 @@ public:
 			const bool fixed = sim && (sim->teams_locked() || sim->ceasefire_active());
 			for (int p = 1; p < 8; ++p)
 				if (stances_[p]) stances_[p]->set_disabled(fixed);
+			refresh_spies();
 		}
+	}
+
+	// Spy buttons: shown while spies aren't disabled, usable once Espionage is researched.
+	void refresh_spies() {
+		const rtso::Simulation *sim = host_ ? host_->ui_sim() : nullptr;
+		const uint8_t me = host_ ? host_->local_player() : 0xFF;
+		for (int p = 1; p < 8; ++p) {
+			if (!spy_btns_[p]) continue;
+			spy_btns_[p]->set_visible(sim && !sim->spies_disabled());
+			const bool can = sim && sim->can_bribe(me, (uint8_t)p);
+			spy_btns_[p]->set_disabled(!can);
+			spy_btns_[p]->set_tooltip_text(can
+					? "Bribe a unit of this player to share its vision: " + String::num_int64(sim->bribe_cost(me, (uint8_t)p)) + " metal."
+					: String("Research Espionage at the market to bribe this player's units."));
+		}
+	}
+
+	// 0 A.D. "spy-request" (VisionSharing.AddSpy). Lockstep: cmd 40, since resources and
+	// the fog are hashed; offline the sim applies it now and reports the outcome.
+	void spy_pressed(int player_idx) {
+		if (!host_ || !host_->ui_sim() || player_idx < 0 || player_idx >= 8) return;
+		const uint8_t me = host_->local_player();
+		rtso::Simulation *sim = host_->ui_sim();
+		if (!sim->can_bribe(me, (uint8_t)player_idx)) return;
+		String msg;
+		bool ok;
+		if (host_->turn_cmds()) {
+			ok = sim->player_resource(me, rtso::RES_GOLD) >= sim->bribe_cost(me, (uint8_t)player_idx);
+			if (ok) host_->post_lockstep(40, nullptr, 0, 0, 0, (uint32_t)player_idx, 0);
+			msg = ok ? "Bribing a unit of Player " : "Not enough metal to bribe Player ";
+		} else {
+			const auto r = sim->cmd_bribe(me, (uint8_t)player_idx);
+			ok = r == rtso::Simulation::BRIBE_OK;
+			msg = ok ? "Bribed a unit of Player "
+					: r == rtso::Simulation::BRIBE_NO_UNITS ? "There are no bribable units for Player "
+															: "Not enough metal to bribe Player ";
+		}
+		if (chat_) chat_->append_line("[color=#eebb22]" + msg + String::num_int64(player_idx + 1) + "[/color]\n");
+		if (ok) host_->play_sfx("res://assets/sounds/ui/bonus.ogg");
+		else host_->play_alarm("res://assets/sounds/ui/alarm.ogg");
+		host_->update_hud();
+		refresh_spies();
 	}
 
 	// Lockstep stance change: cmd 22 (TurnManager dispatch) when online,
@@ -255,6 +306,7 @@ private:
 	Panel *panel_ = nullptr;
 	RtsoSafeSelect *stances_[8] = { nullptr };
 	Label *player_names_[8] = { nullptr };
+	Button *spy_btns_[8] = { nullptr };
 	Button *close_btn_ = nullptr;
 	RtsoDiplomacyHost *host_ = nullptr;
 	RtsoChatWindow *chat_ = nullptr;

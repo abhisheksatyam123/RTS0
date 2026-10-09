@@ -1345,6 +1345,8 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		} else if (c.cmd_type == 39) { // Cheat (0 A.D. Cheat.js) — param=action, target_id=number,
 			// target_x=resource or tech; acts on the raw selection, whoever owns it.
 			sim.cmd_cheat(pl, c.param, (int32_t)c.target_id, (uint32_t)c.target_x, c.entity_ids.data(), c.entity_ids.size());
+		} else if (c.cmd_type == 40) { // Bribe (0 A.D. "spy-request") — target_id=player.
+			if (c.target_id < MAX_PLAYERS) sim.cmd_bribe(pl, (uint8_t)c.target_id);
 		} else if (c.cmd_type == 22) { // Diplomacy stance — target_id=player, param=stance.
 			// 0 A.D. Diplomacy.js / DiplomacyDialog.js parity. Applied at the turn
 			// boundary on EVERY peer (deterministic: diplomacy_state() is mixed into

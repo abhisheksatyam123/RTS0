@@ -116,6 +116,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_train_buttons", "btype"), &RtsoMain::debug_train_buttons);
 	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);
 	ClassDB::bind_method(D_METHOD("_on_diplo_tribute_pressed", "player_idx", "res_type"), &RtsoMain::_on_diplo_tribute_pressed);
+	ClassDB::bind_method(D_METHOD("_on_diplo_spy_pressed", "player_idx"), &RtsoMain::_on_diplo_spy_pressed);
 	ClassDB::bind_method(D_METHOD("set_use_english_voice_orders", "enable"), &RtsoMain::set_use_english_voice_orders);
 	ClassDB::bind_method(D_METHOD("is_use_english_voice_orders"), &RtsoMain::is_use_english_voice_orders);
 	ClassDB::bind_method(D_METHOD("_on_lobby_button_pressed"), &RtsoMain::_on_lobby_button_pressed);
@@ -4582,6 +4583,7 @@ void RtsoMain::apply_match_settings() {
 	sim->set_regicide_garrison((bool)ms->get("regicide_garrison"));
 	sim->set_lock_teams((bool)ms->get("lock_teams"));
 	sim->set_cheats_enabled((bool)ms->get("cheats"));
+	sim->set_disable_spies((bool)ms->get("disable_spies"));
 	sim->set_disable_treasures((bool)ms->get("disable_treasures"));
 	{
 		Array scolors = ms->get("slot_colors");
@@ -5153,6 +5155,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 		setup.regicide_garrison = (bool)ms->get("regicide_garrison") ? 1 : 0;
 		setup.lock_teams = (bool)ms->get("lock_teams") ? 1 : 0;
 		setup.cheats = (bool)ms->get("cheats") ? 1 : 0;
+		setup.no_spies = (bool)ms->get("disable_spies") ? 1 : 0;
 		setup.no_treasures = (bool)ms->get("disable_treasures") ? 1 : 0;
 		Array snames = ms->get("slot_names");
 		for (int i = 0; i < 8 && i < snames.size(); ++i) setup.names[i] = String(snames[i]).utf8().get_data();
@@ -5263,6 +5266,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	sim->set_regicide_garrison(setup.regicide_garrison != 0);
 	sim->set_lock_teams(setup.lock_teams != 0);
 	sim->set_cheats_enabled(setup.cheats != 0);
+	sim->set_disable_spies(setup.no_spies != 0);
 	sim->set_disable_treasures(setup.no_treasures != 0);
 	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) sim->set_player_color(p, setup.colors[p]);
 	sim->set_water_level_mode(setup.water_level);
@@ -5324,6 +5328,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		ms->set("regicide_garrison", setup.regicide_garrison != 0);
 		ms->set("lock_teams", setup.lock_teams != 0);
 		ms->set("cheats", setup.cheats != 0);
+		ms->set("disable_spies", setup.no_spies != 0);
 		ms->set("disable_treasures", setup.no_treasures != 0);
 		Array snames;
 		for (uint8_t i = 0; i < setup.slot_count && i < 8; ++i) snames.push_back(String::utf8(setup.names[i].c_str()));
@@ -5519,4 +5524,8 @@ void RtsoMain::_on_diplo_stance_changed(int stance, int player_idx) {
 
 void RtsoMain::_on_diplo_tribute_pressed(int player_idx, int res_type) {
 	diplo_dialog_.tribute_pressed(player_idx, res_type);
+}
+
+void RtsoMain::_on_diplo_spy_pressed(int player_idx) {
+	diplo_dialog_.spy_pressed(player_idx);
 }

@@ -324,6 +324,7 @@ struct GameSetupParams {
 	uint8_t regicide_garrison = 0; // 1 = the Regicide hero may garrison
 	uint8_t lock_teams = 0;        // 1 = 0 A.D. LockTeams: no diplomacy changes
 	uint8_t cheats = 0;            // 1 = 0 A.D. CheatsEnabled
+	uint8_t no_spies = 0;          // 1 = 0 A.D. DisableSpies
 	uint8_t no_treasures = 0;      // 1 = 0 A.D. DisableTreasures
 	std::string names[8];          // per-slot player names (0 A.D. PlayerName), empty = "Player N"
 	uint8_t water_level = 0; // Flood: 0 rising, 1 shallow, 2 deep (0 A.D. WaterLevel)
@@ -403,6 +404,7 @@ inline std::string format_game_start_full(const GameSetupParams &p) {
 	s += ";rgarrison=" + std::to_string((unsigned)p.regicide_garrison);
 	if (p.lock_teams) s += ";lockteams=1";
 	if (p.cheats) s += ";cheats=1";
+	if (p.no_spies) s += ";nospies=1";
 	s += ";notreasures=" + std::to_string((unsigned)p.no_treasures);
 	{
 		std::string n;
@@ -499,6 +501,7 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 			else if (k == "rgarrison") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.regicide_garrison = x; }
 			else if (k == "lockteams") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.lock_teams = x; }
 			else if (k == "cheats") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.cheats = x; }
+			else if (k == "nospies") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.no_spies = x; }
 			else if (k == "colors") {
 				for (size_t i = 0, slot = 0; i < v.size() && slot < 8; i += 2, ++slot) {
 					const char c = v[i];
