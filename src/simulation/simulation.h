@@ -412,7 +412,8 @@ public:
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f);
 	uint32_t spawn_building_world(float wx, float wz, uint8_t type, uint8_t team = 0, float progress = 1.0f);
 	// CaptureTheRelic.js: a Gaia catafalque of a civ picked from its id; returns the unit id.
-	uint32_t spawn_relic(float x, float z);
+	uint32_t spawn_relic(float x, float z, int civ_pick = -1); // civ_pick: which catafalque (-1: from the id)
+	std::vector<std::pair<float, float>> relic_spawn_points() const; // TriggerHelper.GetLandSpawnPoints
 	// Right-click on a relic that is not ours or an ally's: walk up and Capture it.
 	void order_capture_relic(const uint32_t *unit_ids, size_t count, uint32_t relic_id, bool queued = false);
 	bool is_relic_unit(int32_t i) const { return i >= 0 && units_.unit_type[i] == UNIT_CATAFALQUE; }
