@@ -121,11 +121,11 @@ static constexpr uint32_t SAVE_VERSION_UNIT_ORDERS = 20;
 // sources in force (section 9).
 static constexpr uint32_t SAVE_VERSION_MOTION = 32;
 
-// Stand on the nearest AABB edge so pathing never aims through the footprint.
-static void stand_outside_rect(float bx, float bz, float half, uint32_t uid,
+// Stand on the nearest AABB edge so pathing never aims through the footprint (half sizes hx, hz).
+static void stand_outside_rect(float bx, float bz, float hx, float hz, uint32_t uid,
 		float from_x, float from_z, float *ox, float *oz) {
-	float minx = bx - half, maxx = bx + half;
-	float minz = bz - half, maxz = bz + half;
+	float minx = bx - hx, maxx = bx + hx;
+	float minz = bz - hz, maxz = bz + hz;
 	float spread = ((int)(uid % 5) - 2) * 0.55f;
 	bool inside = (from_x > minx && from_x < maxx && from_z > minz && from_z < maxz);
 	if (!inside) {
@@ -156,9 +156,9 @@ static void stand_outside_rect(float bx, float bz, float half, uint32_t uid,
 	}
 }
 
-static bool outside_and_in_build_range(float bx, float bz, float half, float x, float z) {
-	float minx = bx - half, maxx = bx + half;
-	float minz = bz - half, maxz = bz + half;
+static bool outside_and_in_build_range(float bx, float bz, float hx, float hz, float x, float z) {
+	float minx = bx - hx, maxx = bx + hx;
+	float minz = bz - hz, maxz = bz + hz;
 	if (x > minx && x < maxx && z > minz && z < maxz)
 		return false;
 	float cx = std::clamp(x, minx, maxx);
@@ -169,19 +169,19 @@ static bool outside_and_in_build_range(float bx, float bz, float half, float x, 
 // The two above in a building's own frame, so a turned footprint (nav/footprint.h) gets the same
 // stand points and reach as an unturned one.
 static void stand_outside(const Simulation::Building &b, uint32_t uid, float from_x, float from_z, float *ox, float *oz) {
-	if (nav::footprint_aligned(b)) return stand_outside_rect(b.x, b.z, b.half_size, uid, from_x, from_z, ox, oz);
+	if (nav::footprint_aligned(b)) return stand_outside_rect(b.x, b.z, b.hu, b.hv, uid, from_x, from_z, ox, oz);
 	const nav::Vec2 l = nav::footprint_local(b, from_x, from_z);
 	float lu, lv;
-	stand_outside_rect(0.0f, 0.0f, b.half_size, uid, l.x, l.y, &lu, &lv);
+	stand_outside_rect(0.0f, 0.0f, b.hu, b.hv, uid, l.x, l.y, &lu, &lv);
 	const nav::Vec2 w = nav::footprint_world(b, lu, lv);
 	*ox = w.x;
 	*oz = w.y;
 }
 
 static bool outside_and_in_build_range(const Simulation::Building &b, float x, float z) {
-	if (nav::footprint_aligned(b)) return outside_and_in_build_range(b.x, b.z, b.half_size, x, z);
+	if (nav::footprint_aligned(b)) return outside_and_in_build_range(b.x, b.z, b.hu, b.hv, x, z);
 	const nav::Vec2 l = nav::footprint_local(b, x, z);
-	return outside_and_in_build_range(0.0f, 0.0f, b.half_size, l.x, l.y);
+	return outside_and_in_build_range(0.0f, 0.0f, b.hu, b.hv, l.x, l.y);
 }
 
 struct UnitGrid {
@@ -797,8 +797,8 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	b.id = bid;
 	b.x = wx;
 	b.z = wz;
-	b.half_size = half;
 	b.type = type;
+	b.set_extents(half, building_half_depth(type, half));
 	b.team = team;
 	// Template health x civ bonus x the owner's structure health techs.
 	b.max_hp = structure_max_hp(type, team);
@@ -936,8 +936,8 @@ void Simulation::rebuild_nav_grid() {
 	if (!nav_grid_.dirty.blank())
 		nav_grid_.dirty.fill(0);
 	nav_grid_.set_water_from_heights(terrain_heights_, terrain_res_, terrain_water_height_);
-	// Buildings are squares (spawn_building_world: half_size = footprint*GRID/2) turned by their footprint
-	// axes (nav/footprint.h), rasterized with the 0 A.D. rule (nav/rasterize.h, clearance 0). A navcell is blocked only if it lies entirely
+	// Buildings are rectangles (spawn_building_world: half width footprint*GRID/2, building_half_depth)
+	// turned by their footprint axes (nav/footprint.h), rasterized with the 0 A.D. rule (nav/rasterize.h, clearance 0). A navcell is blocked only if it lies entirely
 	// inside the footprint plus the vendor extension. A footprint-1 building off the grid can match no
 	// navcell, so it falls back to the navcell under its centre (the cell the old footprint block marked).
 	const float nav_cell = 2.0f * nav_grid_.map_half / static_cast<float>(nav_grid_.res);
@@ -948,7 +948,7 @@ void Simulation::rebuild_nav_grid() {
 		int covered = 0;
 		rtso::nav::rasterize_rect_with_clearance(
 			rtso::nav::Vec2(b.x, b.z), rtso::nav::footprint_u(b), rtso::nav::footprint_v(b),
-			rtso::nav::Vec2(b.half_size, b.half_size), 0.0f, nav_cell, nav_origin,
+			rtso::nav::Vec2(b.hu, b.hv), 0.0f, nav_cell, nav_origin,
 			nav_grid_.cells.w, nav_grid_.cells.h,
 			[&](int x, int y) {
 				nav_grid_.cells.at(x, y) = NAV_OBSTRUCTED;
@@ -4824,9 +4824,9 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 	closed_gates_.clear();
 	for (const Building &b : buildings_)
 		if (!b.wrecked && blocks_movement_now(b)) {
-			steer_obstacles_.push_back(SteerObstacle{b.id, b.x, b.z, b.half_size, b.ux, b.uz, b.type, false});
+			steer_obstacles_.push_back(SteerObstacle{b.id, b.x, b.z, b.ux, b.uz, b.hu, b.hv, b.type, false});
 			if (b.type == BLD_GATE && b.build_progress >= 1.0f)
-				closed_gates_.push_back(SteerObstacle{b.id, b.x, b.z, b.half_size, b.ux, b.uz, b.type, false});
+				closed_gates_.push_back(SteerObstacle{b.id, b.x, b.z, b.ux, b.uz, b.hu, b.hv, b.type, false});
 		}
 	// Names this tick's obstacles for the short paths units keep (ShortPathMemo): a kept short path
 	// is only reused among the same buildings and water level.
@@ -4835,7 +4835,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		auto mix = [&key](uint32_t w) { key = (key ^ w) * 16777619u; };
 		auto mixf = [&mix](float f) { uint32_t w; std::memcpy(&w, &f, sizeof(w)); mix(w); };
 		for (const SteerObstacle &o : steer_obstacles_) {
-			mix(o.id); mixf(o.x); mixf(o.z); mixf(o.half_size); mix(o.type);
+			mix(o.id); mixf(o.x); mixf(o.z); mixf(o.ux); mixf(o.uz); mixf(o.hu); mixf(o.hv); mix(o.type);
 		}
 		mixf(terrain_water_height_);
 		short_path_key_ = key ? key : 1u;
@@ -5197,7 +5197,7 @@ void Simulation::separation(float dt, Arena &arena) {
 	sep_obstacles_.clear();
 	for (const Building &b : buildings_)
 		if (!b.wrecked && blocks_movement_now(b))
-			sep_obstacles_.push_back(SteerObstacle{b.id, b.x, b.z, b.half_size, b.ux, b.uz, b.type, false});
+			sep_obstacles_.push_back(SteerObstacle{b.id, b.x, b.z, b.ux, b.uz, b.hu, b.hv, b.type, false});
 	sep_grid_.build(sep_obstacles_, map_half_);
 
 	// The widest unit this tick: no pair is pushed apart beyond ri + r_max + 0.4 on either axis.
@@ -5270,20 +5270,20 @@ void Simulation::separation(float dt, Arena &arena) {
 		// changes no result.
 		const float b_req = unit_building_clearance(units_.unit_type[i]);
 		const float b_skip = b_req + 0.5f;
-		// Pushes (qx, qz) out of the square of half size b_half centred on (bx, bz), into (oax, oaz).
-		auto push_square = [&](float qx, float qz, float bx, float bz, float b_half, float &oax, float &oaz) {
-			float cx = std::clamp(qx, bx - b_half, bx + b_half);
-			float cz = std::clamp(qz, bz - b_half, bz + b_half);
+		// Pushes (qx, qz) out of the rectangle of half sizes (hx, hz) centred on (bx, bz), into (oax, oaz).
+		auto push_square = [&](float qx, float qz, float bx, float bz, float hx, float hz, float &oax, float &oaz) {
+			float cx = std::clamp(qx, bx - hx, bx + hx);
+			float cz = std::clamp(qz, bz - hz, bz + hz);
 			float bdx = qx - cx;
 			float bdz = qz - cz;
 			float bd2 = bdx * bdx + bdz * bdz;
-			bool inside = (qx > bx - b_half && qx < bx + b_half &&
-					qz > bz - b_half && qz < bz + b_half);
+			bool inside = (qx > bx - hx && qx < bx + hx &&
+					qz > bz - hz && qz < bz + hz);
 			if (inside) {
-				float dist_east = (bx + b_half) - qx;
-				float dist_west = qx - (bx - b_half);
-				float dist_south = (bz + b_half) - qz;
-				float dist_north = qz - (bz - b_half);
+				float dist_east = (bx + hx) - qx;
+				float dist_west = qx - (bx - hx);
+				float dist_south = (bz + hz) - qz;
+				float dist_north = qz - (bz - hz);
 				float min_edge = std::min({dist_east, dist_west, dist_south, dist_north});
 				float push = b_req + 0.55f;
 				if (min_edge == dist_east) oax += push;
@@ -5299,10 +5299,10 @@ void Simulation::separation(float dt, Arena &arena) {
 					oax += (bdx / bdist) * (b_overlap * 2.5f);
 					oaz += (bdz / bdist) * (b_overlap * 2.5f);
 				} else {
-					float dist_east = (bx + b_half) - qx;
-					float dist_west = qx - (bx - b_half);
-					float dist_south = (bz + b_half) - qz;
-					float dist_north = qz - (bz - b_half);
+					float dist_east = (bx + hx) - qx;
+					float dist_west = qx - (bx - hx);
+					float dist_south = (bz + hz) - qz;
+					float dist_north = qz - (bz - hz);
 					float min_edge = std::min({dist_east, dist_west, dist_south, dist_north});
 					if (min_edge == dist_east) oax += b_req * 1.5f;
 					else if (min_edge == dist_west) oax -= b_req * 1.5f;
@@ -5314,15 +5314,15 @@ void Simulation::separation(float dt, Arena &arena) {
 		// A turned building (nav/footprint.h) pushes in its own frame.
 		auto push_out = [&](const SteerObstacle &b) {
 			if (nav::footprint_aligned(b)) {
-				if (std::fabs(pxi - b.x) > b.half_size + b_skip || std::fabs(pzi - b.z) > b.half_size + b_skip) return false;
-				push_square(pxi, pzi, b.x, b.z, b.half_size, ax, az);
+				if (std::fabs(pxi - b.x) > b.hu + b_skip || std::fabs(pzi - b.z) > b.hv + b_skip) return false;
+				push_square(pxi, pzi, b.x, b.z, b.hu, b.hv, ax, az);
 				return false;
 			}
 			const float e = nav::footprint_extent(b);
 			if (std::fabs(pxi - b.x) > e + b_skip || std::fabs(pzi - b.z) > e + b_skip) return false;
 			const nav::Vec2 l = nav::footprint_local(b, pxi, pzi);
 			float lax = 0.0f, laz = 0.0f;
-			push_square(l.x, l.y, 0.0f, 0.0f, b.half_size, lax, laz);
+			push_square(l.x, l.y, 0.0f, 0.0f, b.hu, b.hv, lax, laz);
 			const nav::Vec2 d = nav::footprint_dir(b, lax, laz);
 			ax += d.x;
 			az += d.y;
@@ -5950,21 +5950,21 @@ void Simulation::tick_construction(float dt) {
 // footprint (PushOrderFront), then carries on with what it was doing.
 void Simulation::leave_foundation(size_t i, const Building &b) {
 	const float r = unit_collision_radius(units_.unit_type[i]);
-	const float reach = b.half_size + r;
+	const float reach_u = b.hu + r, reach_v = b.hv + r;
 	auto outside = [&](float x, float z) { return !nav::footprint_contains(b, x, z, r); };
 	if (units_.order_kind[i] == ORDER_WALK && units_.has_order[i] && outside(units_.order_x[i], units_.order_z[i]))
 		return;
 	// In the footprint's own axes (nav/footprint.h), so a turned foundation is left the short way.
 	const nav::Vec2 l = nav::footprint_local(b, units_.pos_x[i], units_.pos_z[i]);
 	const float dx = l.x, dz = l.y;
-	const float out = reach + 0.5f;
+	const float out_u = reach_u + 0.5f, out_v = reach_v + 0.5f;
 	float tx = units_.pos_x[i], tz = units_.pos_z[i];
 	if (nav::footprint_aligned(b)) {
-		if (reach - std::fabs(dx) <= reach - std::fabs(dz)) tx = b.x + (dx < 0.0f ? -out : out);
-		else tz = b.z + (dz < 0.0f ? -out : out);
+		if (reach_u - std::fabs(dx) <= reach_v - std::fabs(dz)) tx = b.x + (dx < 0.0f ? -out_u : out_u);
+		else tz = b.z + (dz < 0.0f ? -out_v : out_v);
 	} else {
-		const bool along_u = reach - std::fabs(dx) <= reach - std::fabs(dz);
-		const float side = along_u ? (dx < 0.0f ? -out : out) : (dz < 0.0f ? -out : out);
+		const bool along_u = reach_u - std::fabs(dx) <= reach_v - std::fabs(dz);
+		const float side = along_u ? (dx < 0.0f ? -out_u : out_u) : (dz < 0.0f ? -out_v : out_v);
 		const nav::Vec2 w = along_u ? nav::footprint_world(b, side, dz) : nav::footprint_world(b, dx, side);
 		tx = w.x;
 		tz = w.y;
@@ -7942,14 +7942,14 @@ void Simulation::tick_gates(float dt) {
 		if (b.type != BLD_GATE || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) continue;
 		const bool blocked_paths = blocks_pathfinding(b);
 		bool ally_near = false, unit_inside = false;
-		const float reach = b.half_size + PASS_RANGE;
+		const float reach_u = b.hu + PASS_RANGE, reach_v = b.hv + PASS_RANGE;
 		for (size_t i = 0; i < units_.count; ++i) {
 			if (!units_.alive[i]) continue;
 			const nav::Vec2 l = nav::footprint_local(b, units_.pos_x[i], units_.pos_z[i]);
 			const float dx = std::fabs(l.x), dz = std::fabs(l.y);
-			if (dx > reach || dz > reach) continue;
-			const float inside = b.half_size + unit_building_clearance(units_.unit_type[i]);
-			if (dx < inside && dz < inside) unit_inside = true;
+			if (dx > reach_u || dz > reach_v) continue;
+			const float clearance = unit_building_clearance(units_.unit_type[i]);
+			if (dx < b.hu + clearance && dz < b.hv + clearance) unit_inside = true;
 			if (!ally_near && b.team < MAX_PLAYERS && units_.team[i] < MAX_PLAYERS && is_ally(b.team, units_.team[i])
 			    && units_.action_state[i] != ACTION_DYING)
 				ally_near = true;
@@ -14297,6 +14297,7 @@ bool Simulation::load_state(const char *filepath) {
 			in.read((char *)&bld.gate_locked, sizeof(bld.gate_locked));
 		}
 		if (version >= 31) in.read((char *)&bld.rot, sizeof(bld.rot));
+		bld.half_d = building_half_depth(bld.type, bld.half_size);
 		bld.set_rot(bld.rot);
 		const auto &bi = building_type_info(bld.type);
 		bld.capture_regen_rate = bi.capture_regen_rate;

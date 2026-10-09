@@ -764,6 +764,13 @@ inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 	return kTable[type];
 }
 
+// Half the depth (along the footprint's v axis, nav/footprint.h) of a building of `type` whose half
+// width is `half_w`. Every RTS0 building so far is square; 0 A.D.'s walls are long and thin.
+inline float building_half_depth(uint8_t type, float half_w) {
+	(void)type;
+	return half_w;
+}
+
 // 0 A.D. Identity/Requirements/Techs per structure: 1 = phase_village,
 // 2 = phase_town, 3 = phase_city.
 inline uint8_t building_required_phase(uint8_t type) {

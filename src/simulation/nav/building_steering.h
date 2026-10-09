@@ -11,8 +11,8 @@
 // or the buildings change, instead of searching every tick. Units are not passed as obstructions;
 // separation() still keeps units apart.
 //
-// Buildings are squares turned by their footprint axes (nav/footprint.h). A building whose clearance-expanded
-// square contains the aim point is the unit's destination (dropsite, construction site, attack
+// Buildings are rectangles turned by their footprint axes (nav/footprint.h). A building whose
+// clearance-expanded footprint contains the aim point is the unit's destination (dropsite, construction site, attack
 // target), so it is never treated as an obstacle, and neither is `ignore_building_id`. Buildings
 // that don't block movement (fields, building_blocks_movement) are walked across.
 
@@ -48,13 +48,13 @@ bool within_reach(const B& b, Vec2 pos, float radius, float reach)
 }
 
 // A building to steer around: standing, blocks movement, not ignored, within `reach` of `pos` on both
-// axes, and not the destination (its square expanded by `radius` does not contain `aim`).
+// axes, and not the destination (its footprint expanded by `radius` does not contain `aim`).
 template <class B>
 bool is_steering_obstacle(const B& b, Vec2 pos, Vec2 aim, float radius, uint32_t ignore_building_id, float reach)
 {
 	if (!within_reach(b, pos, radius, reach)) return false;
 	if (b.wrecked || b.id == ignore_building_id || !building_blocks_movement(b.type)) return false;
-	const Vec2 half(b.half_size + radius, b.half_size + radius);
+	const Vec2 half(b.hu + radius, b.hv + radius);
 	return !PointIsInSquare(aim - Vec2(b.x, b.z), footprint_u(b), footprint_v(b), half);
 }
 
@@ -63,7 +63,7 @@ bool is_steering_obstacle(const B& b, Vec2 pos, Vec2 aim, float radius, uint32_t
 // True when the straight line from `pos` towards `aim`, cut at `max_len`, crosses a building expanded
 // by `radius`. False when the unit stands inside one (separation() pushes it out first).
 // `Buildings` is a range of Simulation::Building, or of anything with its fields id, type, wrecked, x, z,
-// half_size, ux and uz. No allocation.
+// ux, uz, hu and hv. No allocation.
 template <class Buildings>
 bool line_blocked_by_buildings(Vec2 pos, Vec2 aim, float max_len, float radius,
 		const Buildings& buildings, uint32_t ignore_building_id)
@@ -78,7 +78,7 @@ bool line_blocked_by_buildings(Vec2 pos, Vec2 aim, float max_len, float radius,
 		if (!detail::within_reach(b, pos, radius, reach) ||
 		    !detail::is_steering_obstacle(b, pos, aim, radius, ignore_building_id, reach)) continue;
 		const Vec2 c(b.x, b.z), u = footprint_u(b), v = footprint_v(b);
-		const Vec2 half(b.half_size + radius, b.half_size + radius);
+		const Vec2 half(b.hu + radius, b.hv + radius);
 		if (PointIsInSquare(pos - c, u, v, half)) return false;
 		if (TestRaySquare(pos - c, end - c, u, v, half)) blocked = true;
 	}
@@ -86,20 +86,19 @@ bool line_blocked_by_buildings(Vec2 pos, Vec2 aim, float max_len, float radius,
 }
 
 // True when the segment from `pos` to `end` crosses a building expanded by `radius`. As in
-// line_blocked_by_buildings, buildings whose expanded square contains `aim` (the destination) and
+// line_blocked_by_buildings, buildings whose expanded footprint contains `aim` (the destination) and
 // `ignore_building_id` don't count, and standing inside one is not blocked.
 template <class Buildings>
 bool segment_blocked_by_buildings(Vec2 pos, Vec2 end, Vec2 aim, float radius,
 		const Buildings& buildings, uint32_t ignore_building_id)
 {
 	const float reach = (end - pos).length();
-	const Vec2 u(1.0f, 0.0f), v(0.0f, 1.0f);
 	bool blocked = false;
 	for (const auto& b : buildings) {
 		if (!detail::within_reach(b, pos, radius, reach) ||
 		    !detail::is_steering_obstacle(b, pos, aim, radius, ignore_building_id, reach)) continue;
-		const Vec2 c(b.x, b.z);
-		const Vec2 half(b.half_size + radius, b.half_size + radius);
+		const Vec2 c(b.x, b.z), u = footprint_u(b), v = footprint_v(b);
+		const Vec2 half(b.hu + radius, b.hv + radius);
 		if (PointIsInSquare(pos - c, u, v, half)) return false;
 		if (TestRaySquare(pos - c, end - c, u, v, half)) blocked = true;
 	}
@@ -123,7 +122,7 @@ bool search_short_path(Vec2 pos, Vec2 aim, float radius,
 		if (detail::within_reach(b, pos, radius, BUILDING_STEER_CULL) &&
 		    detail::is_steering_obstacle(b, pos, aim, radius, ignore_building_id, BUILDING_STEER_CULL))
 			statics.push_back(ShortPathSquare{Vec2(b.x, b.z), footprint_u(b), footprint_v(b),
-					Vec2(b.half_size, b.half_size)});
+					Vec2(b.hu, b.hv)});
 
 	ShortPathRequest req;
 	req.start = pos;

@@ -20,7 +20,9 @@
 //     2-unit gaps it can't stand in, moves on past those waypoints instead of pushing at them for good.
 //  7. Walk past a turned barracks: turned 45 degrees, its corners reach 41% further along the axes
 //     than an unturned one's sides (nav/footprint.h). A unit walking along that axis must go around
-//     the corners, not the unturned square, and a woman finishes a turned house.
+//     the corners, not the unturned square, and a woman finishes a turned house. A long, thin
+//     footprint (0 A.D.'s long wall, 36 x 5 m) lies along its width, and a quarter turn swaps its
+//     width and depth in every footprint test and in the nav grid.
 //  8. Siege through a gap: a catapult keeps 0 A.D.'s "large" clearance (3 m, unit_building_clearance)
 //     from buildings, so it takes a 2-unit (8 m) gap in a long row of houses instead of going around.
 //  9. Walk into a building: a move to a point inside a town centre ends beside it, as close as the
@@ -74,7 +76,7 @@ static void setup(Simulation &s) {
 }
 
 // Deepest overlap of any live team-0 unit's building clearance with any building footprint, turned
-// by its rot.
+// by its rot: its half width along u and half depth along v.
 static float max_penetration(const Simulation &s) {
 	const Simulation::UnitView u = s.units();
 	float worst = 0.0f;
@@ -88,7 +90,7 @@ static float max_penetration(const Simulation &s) {
 			const float c = std::cos(b.rot), sn = std::sin(b.rot);
 			const float dx = u.pos_x[i] - b.x, dz = u.pos_z[i] - b.z;
 			const float ex = b.half_size + r - std::fabs(dx * c - dz * sn);
-			const float ez = b.half_size + r - std::fabs(dx * sn + dz * c);
+			const float ez = b.half_d + r - std::fabs(dx * sn + dz * c);
 			if (ex > 0.0f && ez > 0.0f) worst = std::max(worst, std::min(ex, ez));
 		}
 	}
@@ -293,6 +295,40 @@ static void walk_past_turned_building() {
 	check(ux == 1.0f && uz == 0.0f, "a quarter turn is not axis-aligned");
 	nav::footprint_axis(Simulation::DEFAULT_BUILDING_ROT + QUARTER_PI, ux, uz);
 	check(std::fabs(ux - 0.70710678f) < 1e-5f && std::fabs(uz + 0.70710678f) < 1e-5f, "45 degrees gives the wrong axis");
+
+	// 0 A.D.'s long wall: 36 x 5 m, half extents 4.5 and 0.625 RTS0 units.
+	Simulation::Building wall{};
+	wall.set_extents(4.5f, 0.625f);
+	check(nav::footprint_contains(wall, 4.2f, 0.0f, 0.0f) && !nav::footprint_contains(wall, 0.0f, 0.8f, 0.0f),
+			"the unturned wall does not lie along x");
+	wall.set_rot(Simulation::DEFAULT_BUILDING_ROT + 2.0f * QUARTER_PI);
+	check(nav::footprint_aligned(wall) && nav::footprint_extent(wall) == 4.5f, "a quarter-turned wall is not axis-aligned");
+	check(nav::footprint_contains(wall, 0.0f, 4.2f, 0.0f) && !nav::footprint_contains(wall, 0.8f, 0.0f, 0.0f),
+			"a quarter turn does not swap the wall's width and depth");
+	check(nav::footprint_overlaps_box(wall, -0.2f, 4.0f, 0.2f, 4.4f) && !nav::footprint_overlaps_box(wall, 0.7f, -0.2f, 1.0f, 0.2f),
+			"the quarter-turned wall's placement box is wrong");
+	wall.set_rot(Simulation::DEFAULT_BUILDING_ROT + QUARTER_PI);
+	check(std::fabs(nav::footprint_extent(wall) - 5.125f * 0.70710678f) < 1e-4f, "the 45-degree wall's bounds are wrong");
+	check(nav::footprint_contains(wall, 2.8f, -2.8f, 0.0f) && !nav::footprint_contains(wall, 2.8f, 2.8f, 0.0f),
+			"the 45-degree wall does not lie along its u axis");
+	{
+		Simulation w;
+		setup(w);
+		// On a navcell centre: grown by the rasterizer's 1 unit, the wall spans one 2-unit navcell across.
+		const uint32_t seg = w.spawn_building_world(-29.0f, -29.0f, BLD_WALL_SEGMENT, 0, 1.0f);
+		for (auto &b : w.buildings_)
+			if (b.id == seg) {
+				b.set_extents(4.5f, 0.625f);
+				b.set_rot(Simulation::DEFAULT_BUILDING_ROT + 2.0f * QUARTER_PI);
+			}
+		w.rebuild_nav_grid();
+		auto open = [&](float x, float z) {
+			const auto [cx, cy] = w.nav_grid_.world_to_cell(x, z);
+			return w.nav_grid_.is_passable_for(cx, cy, PASS_INFANTRY);
+		};
+		check(!open(-29.0f, -25.5f) && !open(-29.0f, -32.5f) && open(-26.0f, -29.0f) && open(-29.0f, -22.5f),
+				"the nav grid does not block the quarter-turned wall along z");
+	}
 
 	Simulation s;
 	setup(s);

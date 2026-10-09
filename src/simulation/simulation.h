@@ -192,7 +192,8 @@ public:
 	struct Building {
 		uint32_t id;
 		float x, z;
-		float half_size;
+		float half_size; // half the footprint's width, along its u axis
+		float half_d = 0.0f; // half its depth, along v (building_half_depth); set both with set_extents
 		uint8_t type; // BLD_*
 		uint8_t team; // 0=player, 1=enemy
 		float hp;
@@ -203,8 +204,21 @@ public:
 		int cell_x, cell_y;
 		int footprint; // 1 or 2
 		float rot = DEFAULT_BUILDING_ROT; // 0 A.D. Position rotation: 0 faces +z, pi/2 faces +x; set with set_rot
-		float ux = 1.0f, uz = 0.0f; // the footprint's u axis (nav/footprint.h), turned with rot
-		void set_rot(float a) { rot = a; nav::footprint_axis(a, ux, uz); }
+		// The footprint's u axis and half extents along u and v (nav/footprint.h), turned with rot. A
+		// quarter turn swaps width and depth.
+		float ux = 1.0f, uz = 0.0f, hu = 0.0f, hv = 0.0f;
+		void set_rot(float a) {
+			rot = a;
+			bool swapped;
+			nav::footprint_axis(a, ux, uz, swapped);
+			hu = swapped ? half_d : half_size;
+			hv = swapped ? half_size : half_d;
+		}
+		void set_extents(float half_w, float half_depth) {
+			half_size = half_w;
+			half_d = half_depth;
+			set_rot(rot);
+		}
 		float attack_timer; // for defensive arrows
 		bool is_burning = false; // Structure fire under 33% HP
 
@@ -1725,8 +1739,8 @@ private:
 	// fields nav/building_steering.h reads, so its per-unit scans read a short packed list.
 	struct SteerObstacle {
 		uint32_t id;
-		float x, z, half_size;
-		float ux, uz; // Building::ux, uz
+		float x, z;
+		float ux, uz, hu, hv; // Building::ux, uz, hu, hv
 		uint8_t type;
 		bool wrecked;
 	};
