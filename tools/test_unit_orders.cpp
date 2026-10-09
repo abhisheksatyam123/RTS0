@@ -141,12 +141,12 @@ static void test_forced_walk() {
 	uint32_t a = s.spawn_unit(-20, 0, 0, UNIT_SWORDSMAN);
 	uint32_t e = post(s, 0, 3, UNIT_SPEARMAN, 5000.0f);
 	const float hp0 = hp_of(s, e);
-	s.order_walk(&a, 1, 20, 0);
-	const bool arrived = run_until(s, 20.0f, [&] { return dist(s, a, 20, 0) < 1.5f; });
+	s.order_walk(&a, 1, 26, 0);
+	const bool arrived = run_until(s, 20.0f, [&] { return dist(s, a, 26, 0) < 1.5f; });
 	check(arrived, "walks past the enemy to its point");
 	check(hp_of(s, e) == hp0, "without stopping to fight");
 	run(s, 3.0f);
-	check(dist(s, a, 20, 0) < 1.5f, "and stays when it gets there (enemy out of vision)");
+	check(dist(s, a, 26, 0) < 1.5f, "and stays when it gets there (enemy out of vision)");
 
 	Simulation p;
 	setup(p);
@@ -1107,7 +1107,7 @@ static void test_unitai_combat() {
 		s.order_set_stance(&e, 1, STANCE_PASSIVE);
 		run_until(s, 5.0f, [&] { return target_of(s, a) == e; });
 		s.order_walk(&e, 1, 50, 0);
-		const float vision = unit_vision_range(UNIT_SWORDSMAN);
+		const float vision = s.unit_base_vision(idx_of(s, a));
 		run_until(s, 20.0f, [&] { return x_of(s, e) - x_of(s, a) > vision + 4.0f; });
 		const bool kept = target_of(s, a) == e;
 		if (violent) check(kept, "a violent unit chases beyond its vision (respondChaseBeyondVision)");

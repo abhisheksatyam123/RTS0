@@ -1640,8 +1640,9 @@ bool Simulation::cmd_maintain_fleet(uint32_t building_id, UnitType u_type, uint8
 
 // template_unit_support_healer.xml Heal values (Range 12, Health 5 every 2 s) after the
 // player's Healing Range / Healing Rate technologies.
+// 0 A.D. Heal/Range 12 m plus Healing Range techs, in RTS0 units (x0.28) like every range.
 float Simulation::healer_range(uint8_t player_id) const {
-	return 12.0f + tech_mods(player_id).heal_range[UNIT_HEALER];
+	return (12.0f + tech_mods(player_id).heal_range[UNIT_HEALER]) * COMBAT_DISTANCE_SCALE;
 }
 
 float Simulation::healer_rate(uint8_t player_id) const {
@@ -7111,7 +7112,7 @@ float Simulation::unit_capture_attack_at(size_t i) const {
 
 float Simulation::healer_range_of(size_t h) const {
 	float range = healer_range(units_.team[h]);
-	for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[h], 3); ++r) range += rank_bonus(r).heal_range_add;
+	for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[h], 3); ++r) range += rank_bonus(r).heal_range_add * COMBAT_DISTANCE_SCALE;
 	return range;
 }
 
