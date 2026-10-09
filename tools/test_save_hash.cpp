@@ -160,6 +160,8 @@ static void compare(const Simulation &a, const Simulation &b) {
 	for (size_t i = 0; i < la.size() && i < lb.size(); ++i) {
 		CMP("relic x", i, la[i].x, lb[i].x);
 		CMP("relic claimed", i, la[i].claimed, lb[i].claimed);
+		CMP("relic civ", i, la[i].civ, lb[i].civ);
+		CMP("relic capture points", i, la[i].capture_cp, lb[i].capture_cp);
 	}
 	CMP("fow_res", 0, a.fow_res(), b.fow_res());
 	if (a.fow_res() == b.fow_res()) {

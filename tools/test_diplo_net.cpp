@@ -87,7 +87,7 @@ static void build_world(Simulation &s, uint32_t seed, Refs &r) {
 	r.resources.push_back(s.spawn_resource_world(-38.0f, 14.0f, RES_FOOD, 1200));
 	r.resources.push_back(s.spawn_resource_world(-44.0f, -12.0f, RES_WOOD, 1200));
 	r.resources.push_back(s.spawn_resource_world(36.0f, -14.0f, RES_STONE, 900));
-	s.spawn_relic(10.0f, 10.0f, RES_GOLD, 400);
+	s.spawn_relic(10.0f, 10.0f);
 }
 
 // Script RNG kept out of Simulation::SimRng so generating the order stream can
