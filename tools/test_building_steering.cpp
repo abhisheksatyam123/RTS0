@@ -23,6 +23,8 @@
 //     the corners, not the unturned square, and a woman finishes a turned house.
 //  8. Siege through a gap: a catapult keeps 0 A.D.'s "large" clearance (3 m, unit_building_clearance)
 //     from buildings, so it takes a 2-unit (8 m) gap in a long row of houses instead of going around.
+//  9. Walk into a building: a move to a point inside a town centre ends beside it, as close as the
+//     unit can stand (0 A.D. MakeGoalReachable), instead of pushing at its wall for good.
 //  For every scenario the unit bodies must never overlap a footprint that blocks movement by more
 //  than MAX_PENETRATION (separation() alone allows deep overlap when a unit walks head-on into a wall).
 //  Exit: 0 = PASS, 1 = FAIL. Prints the measurements either way.
@@ -339,6 +341,37 @@ static void siege_through_gap() {
 	check(pen <= MAX_PENETRATION, "catapult overlapped a house");
 }
 
+// 9. Walk into a building.
+static void walk_into_building() {
+	Simulation s;
+	setup(s);
+	s.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	const float half = s.buildings().back().half_size;
+	const uint32_t cat = s.spawn_unit(-12.0f, 0.3f, 0, UNIT_CATAPULT, 0.0f);
+	const uint32_t sword = s.spawn_unit(0.3f, 12.0f, 0, UNIT_SWORDSMAN, 160.0f);
+	s.cmd_move(&cat, 1, -half + 0.3f, 0.0f);
+	s.cmd_move(&sword, 1, 0.0f, half - 0.5f);
+	int idle = -1;
+	float pen = 0.0f;
+	for (int t = 0; t < 1200 && idle < 0; ++t) {
+		s.tick(DT);
+		pen = std::max(pen, max_penetration(s));
+		const int ci = index_of(s, cat), si = index_of(s, sword);
+		if (ci < 0 || si < 0) break;
+		const Simulation::UnitView u = s.units();
+		if (u.action_state[ci] == ACTION_IDLE && u.action_state[si] == ACTION_IDLE) idle = t;
+	}
+	const Simulation::UnitView u = s.units();
+	const int ci = index_of(s, cat), si = index_of(s, sword);
+	std::printf("  walk into a building: both stopped beside the town centre after %d ticks (-1 = never in 1200), "
+			"catapult at x %.2f, swordsman at z %.2f, max penetration %.3f\n", idle, ci >= 0 ? u.pos_x[ci] : 0.0f,
+			si >= 0 ? u.pos_z[si] : 0.0f, pen);
+	check(idle >= 0, "a walk to a point inside a building never ended");
+	check(ci >= 0 && u.pos_x[ci] < -half && u.pos_x[ci] > -half - 1.5f, "the catapult stopped away from the town centre's near side");
+	check(si >= 0 && u.pos_z[si] > half && u.pos_z[si] < half + 1.0f, "the swordsman stopped away from the town centre's near side");
+	check(pen <= MAX_PENETRATION, "a unit overlapped the town centre");
+}
+
 int main() {
 	std::printf("RTS0 building steering test (src/simulation/nav/building_steering.h)\n");
 	guard_behind_wall();
@@ -349,6 +382,7 @@ int main() {
 	out_of_house_cluster();
 	walk_past_turned_building();
 	siege_through_gap();
+	walk_into_building();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;

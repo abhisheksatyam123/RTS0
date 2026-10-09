@@ -101,6 +101,22 @@ bool footprint_contains(const B& b, float px, float pz, float r)
 	return std::fabs(l.x) < h && std::fabs(l.y) < h;
 }
 
+// If the footprint grown by `r` holds (px, pz), moves it to the nearest edge of that grown square
+// and returns true.
+template <class B>
+bool footprint_push_out(const B& b, float r, float& px, float& pz)
+{
+	Vec2 l = footprint_local(b, px, pz);
+	const float h = b.half_size + r;
+	if (!(std::fabs(l.x) < h && std::fabs(l.y) < h)) return false;
+	if (h - std::fabs(l.x) <= h - std::fabs(l.y)) l.x = l.x < 0.0f ? -h : h;
+	else l.y = l.y < 0.0f ? -h : h;
+	const Vec2 w = footprint_world(b, l.x, l.y);
+	px = w.x;
+	pz = w.y;
+	return true;
+}
+
 // Whether the footprint overlaps the axis-aligned box [x0, x1] x [z0, z1] (touching does not
 // count): the separating axis test over both shapes' axes.
 template <class B>

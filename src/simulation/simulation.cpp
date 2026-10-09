@@ -4768,6 +4768,7 @@ void Simulation::move_units(float dt, Arena &arena) {
 		float aim_x;
 		float aim_z;
 		bool using_path = false;
+		bool final_aim = true; // the aim is the walk's end: no waypoint follows it
 		if ((size_t)i < unit_paths_.size() && units_.waypoint_count[i] > 0 &&
 		    (st == ACTION_MOVE || st == ACTION_ATTACK_MOVE || st == ACTION_PATROL || task_path)) {
 			int cur = units_.waypoint_cur[i];
@@ -4816,6 +4817,7 @@ void Simulation::move_units(float dt, Arena &arena) {
 					aim_x = wp.xs[cur];
 					aim_z = wp.zs[cur];
 					using_path = true;
+					final_aim = cur + 1 >= cnt;
 				}
 			}
 		}
@@ -4830,6 +4832,24 @@ void Simulation::move_units(float dt, Arena &arena) {
 					tx[i] = aim_x;
 					tz[i] = aim_z;
 				}
+			}
+		}
+
+		// UnitMotion and MakeGoalReachable: a point closer to a building than the unit's clearance
+		// can't be reached, so a walk there (and its last waypoint, the same point) ends as close as
+		// the unit can stand, just outside the building, as 0 A.D. moves the goal to the nearest
+		// passable navcell. Checked only near the aim, where it matters.
+		if (final_aim && units_.target_unit_id[i] == 0 && units_.target_building_id[i] == 0 &&
+		    (st == ACTION_MOVE || st == ACTION_ATTACK_MOVE || st == ACTION_PATROL) &&
+		    !unit_is_ship(units_.unit_type[i])) {
+			const float adx = aim_x - px[i], adz = aim_z - pz[i];
+			if (adx * adx + adz * adz <= nav::BUILDING_STEER_RANGE * nav::BUILDING_STEER_RANGE) {
+				const float c = unit_building_clearance(units_.unit_type[i]) + 0.05f;
+				for (const SteerObstacle &b : steer_obstacles_)
+					if (std::fabs(aim_x - b.x) < nav::footprint_extent(b) + c &&
+					    std::fabs(aim_z - b.z) < nav::footprint_extent(b) + c &&
+					    nav::footprint_push_out(b, c, aim_x, aim_z))
+						break;
 			}
 		}
 
