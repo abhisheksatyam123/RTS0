@@ -4175,7 +4175,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (turn_cmds())
 				post_lockstep(1, sel_ptr, sel_n, click_pos.x, click_pos.z, 0, qbit);
 			else
-				sim->order_walk(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift);
+				sim->order_walk(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift, true);
 			play_civ_voice("move");
 		}
 	}
