@@ -27,6 +27,9 @@
 //  9. First base (startingStrategy.js buildFirstBase): with its civic centre
 //     gone and the wood for a new one only in a treasure, Petra collects the
 //     treasure and founds a new Town Center where its workers stand.
+// 10. Barter and trading goods (tradeManager.js): Petra sells spare food for
+//     a resource its queues wait on, and with plenty of everything it sells food
+//     for the scarcest finite resource; its trading goods favour what it lacks.
 //  Exit: 0 = PASS, 1 = FAIL.
 // The ally check reads the sim's death log, which has no public accessor.
 #define private public
@@ -756,6 +759,45 @@ static void test_first_base() {
 	CHECK(founded && built, "and founds and builds a new Town Center");
 }
 
+// tradeManager.js performBarter and setTradingGoods, called as AI 1 between ticks.
+static void test_barter() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	CHECK(!s->petra_perform_barter(), "no barter without a market");
+	const uint32_t market = s->spawn_building((int)((tx + 12.0f) / Simulation::GRID), (int)(tz / Simulation::GRID), BLD_MARKET, 1, 1.0f);
+	CHECK(market != 0, "a market for AI 1");
+	PlayerState &ps = s->players_[1];
+	for (auto &a : s->petra_queues_.accounts) a = PetraQueueAccount{};
+	for (auto &w : s->petra_queues_.wants) w = PetraQueueAccount{};
+	for (float &g : ps.gathered_window) g = 0.0f;
+	ps.food() = 3000.0f; ps.wood() = 0.0f; ps.gold() = 0.0f; ps.stone() = 0.0f;
+	s->petra_queues_.wants[Simulation::PETRA_QUEUE_MILITARY].wood = 300.0f; // a plan waits on wood
+	const bool necessity = s->petra_perform_barter();
+	std::printf("  barter: necessity deal %s, food %.0f wood %.0f\n", necessity ? "yes" : "no", ps.food(), ps.wood());
+	CHECK(necessity && ps.wood() > 0.0f && ps.food() < 3000.0f, "sells spare food for the wood a plan waits on");
+
+	s->petra_queues_.wants[Simulation::PETRA_QUEUE_MILITARY] = PetraQueueAccount{};
+	ps.food() = 6000.0f; ps.wood() = 2000.0f; ps.gold() = 300.0f; ps.stone() = 2000.0f;
+	const float gold_before = ps.gold();
+	const bool contingency = s->petra_perform_barter();
+	std::printf("  barter: contingency deal %s, gold %.0f -> %.0f\n", contingency ? "yes" : "no", gold_before, ps.gold());
+	CHECK(contingency && ps.gold() > gold_before, "sells spare food for the scarcest finite resource");
+
+	ps.food() = 100.0f; ps.wood() = 3000.0f; ps.gold() = 100.0f; ps.stone() = 3000.0f;
+	s->petra_set_trading_goods();
+	const uint8_t *g = s->trading_goods(1);
+	std::printf("  trading goods: food %d wood %d stone %d gold %d\n", g[RES_FOOD], g[RES_WOOD], g[RES_STONE], g[RES_GOLD]);
+	CHECK(g[RES_FOOD] + g[RES_WOOD] + g[RES_STONE] + g[RES_GOLD] == 100, "trading goods add up to 100");
+	CHECK(g[RES_GOLD] >= 20 && g[RES_WOOD] == 0 && g[RES_STONE] == 0, "short on gold, none for what it has plenty of");
+}
+
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
@@ -771,6 +813,7 @@ int main() {
 	test_diplomacy_requests();
 	test_hunting();
 	test_first_base();
+	test_barter();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }
