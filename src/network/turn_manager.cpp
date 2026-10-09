@@ -890,6 +890,7 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 	mix_u8(sim.is_game_over() ? 1 : 0);
 	// Map triggers (Trigger.js timers) and the water level the rising-water maps move.
 	mix_u32(sim.trigger_hash());
+	mix_u32(sim.los_hash()); // per-player LOS (visible and explored bits)
 	mix_float(sim.water_height());
 
 	// 6. Active Projectiles & Relics
