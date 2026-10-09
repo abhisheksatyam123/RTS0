@@ -335,6 +335,54 @@ inline uint8_t ruins_type_by_name(const char *s) {
 	return RUINS_TYPE_COUNT;
 }
 
+// Gaia scenery structures (structures/fence_*, column_*, obelisk, bench, table_*): obstructions
+// with health that maps place. Sizes are 0 A.D. metres.
+struct SceneryTypeInfo {
+	const char *template_name; // structures/<template_name>.xml
+	const char *name;
+	float max_hp;
+	float width, depth;       // Obstruction/Static, along the entity's x and z axes
+	float height;             // Footprint/Height
+	int loot[4];              // food, wood, stone, metal
+	int capture_points;       // Capturable/CapturePoints, 0 if not capturable
+	bool wooden;              // a wooden fence, bench or table: drawn as wood, not stone
+};
+
+static constexpr uint8_t SCENERY_TYPE_COUNT = 19;
+
+inline const SceneryTypeInfo &scenery_type_info(uint8_t t) {
+	static const SceneryTypeInfo kTable[SCENERY_TYPE_COUNT] = {
+		{"bench", "Wooden Bench", 75.0f, 1.5f, 4.0f, 4.0f, {0, 0, 0, 0}, 500, true},
+		{"column_doric", "Doric Column", 220.0f, 2.0f, 2.0f, 4.0f, {0, 0, 20, 0}, 0, false},
+		{"column_doric_fallen", "Fallen Doric Column", 220.0f, 2.0f, 12.0f, 4.0f, {0, 0, 20, 0}, 0, false},
+		{"column_doric_fallen_b", "Fallen Doric Column", 110.0f, 2.0f, 2.0f, 4.0f, {0, 0, 10, 0}, 0, false},
+		{"fence_long", "Long Wooden Fence", 100.0f, 1.5f, 13.0f, 4.0f, {0, 20, 0, 0}, 100, true},
+		{"fence_rock_long", "Rock Fence", 220.0f, 20.0f, 1.5f, 4.0f, {0, 0, 20, 0}, 0, false},
+		{"fence_rock_medium", "Rock Fence", 220.0f, 10.0f, 1.5f, 4.0f, {0, 0, 10, 0}, 0, false},
+		{"fence_rock_short", "Rock Fence", 220.0f, 5.0f, 1.5f, 4.0f, {0, 0, 5, 0}, 0, false},
+		{"fence_rock_stub", "Rock Fence", 220.0f, 2.0f, 2.0f, 4.0f, {0, 0, 5, 0}, 0, false},
+		{"fence_short", "Short Wooden Fence", 50.0f, 1.5f, 6.5f, 4.0f, {0, 0, 0, 0}, 100, true},
+		{"fence_stone", "Stone Fence", 220.0f, 1.5f, 10.5f, 4.0f, {0, 0, 20, 0}, 100, false},
+		{"fence_stone_long", "Stone Fence", 220.0f, 20.0f, 1.5f, 4.0f, {0, 0, 20, 0}, 0, false},
+		{"fence_stone_medium", "Stone Fence", 220.0f, 10.0f, 1.5f, 4.0f, {0, 0, 10, 0}, 0, false},
+		{"fence_stone_short", "Stone Fence", 220.0f, 5.0f, 1.5f, 4.0f, {0, 0, 5, 0}, 0, false},
+		{"fence_stone_stub", "Stone Fence", 220.0f, 2.0f, 2.0f, 4.0f, {0, 0, 5, 0}, 0, false},
+		{"obelisk", "Egyptian Obelisk", 1200.0f, 4.0f, 4.0f, 10.0f, {0, 0, 200, 200}, 500, false},
+		{"sele_colonnade", "Corinthian Colonnade", 200.0f, 1.5f, 1.5f, 4.0f, {0, 0, 20, 0}, 500, false},
+		{"table_rectangle", "Rectangle Table", 100.0f, 3.5f, 4.75f, 4.0f, {0, 20, 0, 0}, 500, true},
+		{"table_square", "Square Table", 100.0f, 4.0f, 4.0f, 4.0f, {0, 20, 0, 0}, 500, true},
+	};
+	return kTable[t < SCENERY_TYPE_COUNT ? t : 0];
+}
+
+inline uint8_t scenery_type_by_name(const char *s) {
+	if (!s) return SCENERY_TYPE_COUNT;
+	auto eq = [](const char *a, const char *b) { while (*a && *a == *b) { ++a; ++b; } return *a == *b; };
+	for (uint8_t i = 0; i < SCENERY_TYPE_COUNT; ++i)
+		if (eq(scenery_type_info(i).template_name, s)) return i;
+	return SCENERY_TYPE_COUNT;
+}
+
 } // namespace rtso
 
 #endif
