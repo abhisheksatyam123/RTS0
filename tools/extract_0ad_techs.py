@@ -153,6 +153,7 @@ def stat_of(path: str):
         "Cost/Resources/wood": "TSTAT_COST_WOOD",
         "Cost/Resources/stone": "TSTAT_COST_STONE",
         "Cost/Resources/metal": "TSTAT_COST_METAL",
+        "Market/InternationalBonus": "TSTAT_TRADE_INTERNATIONAL",
     }.get(path)
 
 
@@ -310,6 +311,8 @@ def main() -> int:
     ap.add_argument("--out", default=os.path.join(os.path.dirname(__file__), "..", "src", "simulation", "tech_data.h"))
     ap.add_argument("--append", action="store_true",
                     help="keep --out's existing technologies (ids, rows) and append only the civ-only ones it lacks")
+    ap.add_argument("--add-techs", default="",
+                    help="with --append: comma-separated generic technologies to append as well")
     ap.add_argument("--add-stats", default="",
                     help="with --append: comma-separated TechStats newly mapped in stat_of(); every kept "
                          "technology also gets its modifications of those stats from --public")
@@ -392,6 +395,13 @@ def main() -> int:
         kept_techs = block("static const TechInfo kTable[TECH_COUNT] = {")
         kept = {name for _, name in kept_ids}
         emit = [name for name in civ_only if name not in kept]
+        # --add-techs: generic technologies newly portable (a stat stat_of() now maps).
+        extra = [n for n in args.add_techs.split(",") if n]
+        missing = [n for n in extra if n not in order]
+        if missing:
+            print("--add-techs: not researchable or nothing RTS0 applies: " + ",".join(missing), file=sys.stderr)
+            return 1
+        emit += [n for n in extra if n not in kept and n not in emit]
         if args.add_stats:
             new_stats = set(args.add_stats.split(","))
             pending_kept = (kept_effects, kept_techs, new_stats)
@@ -465,6 +475,8 @@ def main() -> int:
             aff = m.get("affects", tech_aff)
             if stat.startswith("TSTAT_TRICKLE_") and aff in (["Player"], "Player"):
                 aff = None  # template_player.xml's ResourceTrickle: an unfiltered trickle row
+            if stat == "TSTAT_TRADE_INTERNATIONAL" and aff in (["Trade"], "Trade"):
+                aff = ["Market", "Dock"]  # the Trade class: markets and docks (Market component)
             a_start, a_count = affects_index(aff)
             if a_count < 0:
                 continue
@@ -506,6 +518,10 @@ def main() -> int:
                 phase = max(phase, 3)
             elif r in ids:
                 prereq = ids[r]
+        # "supersedes": the technology replaces an earlier one in its slot, so
+        # that one has to be researched first (Silk Road after Advanced Handicraft).
+        if prereq == "TECH_NONE" and j.get("supersedes") in ids:
+            prereq = ids[j["supersedes"]]
         if name == "phase_town_generic":
             phase = 1
         elif name == "phase_city_generic":
