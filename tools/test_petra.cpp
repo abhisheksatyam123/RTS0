@@ -1473,6 +1473,60 @@ static void test_idle_return() {
 	CHECK(ordered && dropped, "an idle worker carrying a load is sent to a dropsite");
 }
 
+// worker.js startGathering skips a supply whose MaxGatherers are all taken (IsSupplyFull),
+// so Petra's workers spread over the trees and mines instead of crowding the nearest.
+static void test_gather_limits() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	// Leave one tree and one mine by the civic centre: nothing else to gather or hunt.
+	auto &r = s->resources_;
+	size_t tree = SIZE_MAX, mine = SIZE_MAX;
+	auto d2 = [&](size_t k) { return (r.x[k] - cc->x) * (r.x[k] - cc->x) + (r.z[k] - cc->z) * (r.z[k] - cc->z); };
+	for (size_t k = 0; k < r.count; ++k) {
+		if (!r.alive[k] || r.amount[k] <= 0) continue;
+		if (r.type[k] == RES_WOOD && (tree == SIZE_MAX || d2(k) < d2(tree))) tree = k;
+		if (r.type[k] == RES_GOLD && (mine == SIZE_MAX || d2(k) < d2(mine))) mine = k;
+	}
+	CHECK(tree != SIZE_MAX && mine != SIZE_MAX, "a tree and a mine on the map");
+	if (tree == SIZE_MAX || mine == SIZE_MAX) return;
+	for (size_t k = 0; k < r.count; ++k)
+		if (k != tree && k != mine) r.amount[k] = 0;
+	r.amount[tree] = r.amount[mine] = 5000;
+	for (size_t f = 0; f < s->fauna_.count; ++f) s->fauna_.food_amount[f] = 0;
+	const uint32_t tree_id = r.id[tree], mine_id = r.id[mine];
+	for (int k = 0; k < 16; ++k) s->spawn_unit(cc->x - 8.0f + (float)(k % 4), cc->z - 8.0f - (float)(k / 4), 1, UNIT_FEMALE_CITIZEN);
+	auto &u = s->units_;
+	std::vector<uint32_t> workers;
+	for (size_t i = 0; i < u.count; ++i)
+		if (u.alive[i] && u.team[i] == 1 && (u.unit_type[i] == UNIT_VILLAGER || u.unit_type[i] == UNIT_FEMALE_CITIZEN)) {
+			workers.push_back(u.id[i]);
+			u.carry[i] = 0;
+		}
+	s->cmd_stop(workers.data(), workers.size());
+	run_for(*s, 2.0f);
+	int on_tree = 0, on_mine = 0;
+	for (uint32_t id : workers) {
+		const int32_t i = s->lookup_unit(id);
+		if (i < 0) continue;
+		on_tree += u.target_resource_id[i] == tree_id;
+		on_mine += u.target_resource_id[i] == mine_id;
+	}
+	std::printf("  gather limits: %zu idle workers, %d sent to the tree (MaxGatherers %d), %d to the mine (%d)\n",
+	            workers.size(), on_tree, s->resource_max_gatherers(tree_id), on_mine, s->resource_max_gatherers(mine_id));
+	CHECK(on_tree <= s->resource_max_gatherers(tree_id) && on_mine <= s->resource_max_gatherers(mine_id),
+	      "Petra sends no more gatherers to a supply than its MaxGatherers (IsSupplyFull)");
+	CHECK(on_tree + on_mine > 8, "the rest go to another supply");
+}
+
 // defenseManager.js isDangerous / defenseArmy.js needsDefenders: Support units in our
 // territory are no threat, and the defence is sized by strength (getMaxStrength), so
 // war elephants draw more defenders than the same number of spearmen would.
@@ -1566,6 +1620,7 @@ int main() {
 	test_expansion_small_nodes();
 	test_repairs();
 	test_idle_return();
+	test_gather_limits();
 	test_defense_by_strength();
 	test_builders_per_foundation();
 	test_wonder_guards();

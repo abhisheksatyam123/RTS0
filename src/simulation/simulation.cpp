@@ -11503,7 +11503,8 @@ void Simulation::petra_manage_economy(float dt) {
 
 	// Safe, non-empty resources with their squared distance to our nearest
 	// dropsite, computed once per pass rather than once per idle worker.
-	// Fields cap their gatherers (FIELD_MAX_GATHERERS); slots counts the free ones.
+	// Every supply caps its gatherers (worker.js IsSupplyFull: everyone's gatherers on it
+	// against its MaxGatherers, fields FIELD_MAX_GATHERERS); slots counts the free ones.
 	struct Candidate { uint32_t id; float x, z, d2_drop; uint8_t type; int slots; uint16_t land; };
 	std::vector<Candidate> candidates;
 	// On a naval map a worker gathers on its own land (worker.js startGathering
@@ -11514,11 +11515,14 @@ void Simulation::petra_manage_economy(float dt) {
 		naval_map = petra_classified_topo(home_land).naval_map;
 	}
 	if (!reassignable_workers.empty()) {
-		std::unordered_map<uint32_t, int> field_users;
-		if (!field_bld_by_res_.empty()) {
-			for (size_t i = 0; i < units_.count; ++i) {
-				if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.target_resource_id[i] == 0) continue;
-				if (field_bld_by_res_.count(units_.target_resource_id[i])) field_users[units_.target_resource_id[i]]++;
+		std::unordered_map<uint32_t, int> field_users, supply_users;
+		for (size_t i = 0; i < units_.count; ++i) {
+			const uint32_t rid = units_.target_resource_id[i];
+			if (!units_.alive[i] || rid == 0) continue;
+			if (field_bld_by_res_.count(rid)) {
+				if (units_.team[i] == petra_pid_) field_users[rid]++;
+			} else if (units_.action_state[i] == ACTION_GATHER || units_.action_state[i] == ACTION_RETURN_DROPSITE) {
+				supply_users[rid]++;
 			}
 		}
 		struct Drop { float x, z; uint16_t land; };
@@ -11534,15 +11538,18 @@ void Simulation::petra_manage_economy(float dt) {
 			if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
 			if (resources_.subtype[r] == RES_SUB_FISH) continue; // fishing boats' food, not villagers'
 			if (!is_position_safe(resources_.x[r], resources_.z[r], 6.0f)) continue;
-			int slots = 1 << 20;
+			int slots;
 			auto fit = field_bld_by_res_.find(resources_.id[r]);
 			if (fit != field_bld_by_res_.end()) {
 				auto bit = building_id_to_idx_.find(fit->second);
 				if (bit == building_id_to_idx_.end() || buildings_[bit->second].team != petra_pid_) continue;
 				auto uit = field_users.find(resources_.id[r]);
 				slots = FIELD_MAX_GATHERERS - (uit == field_users.end() ? 0 : uit->second);
-				if (slots <= 0) continue;
+			} else {
+				auto uit = supply_users.find(resources_.id[r]);
+				slots = (int)resources_.max_gatherers[r] - (uit == supply_users.end() ? 0 : uit->second);
 			}
+			if (slots <= 0) continue;
 			const uint16_t land = naval_map ? petra_land_at(resources_.x[r], resources_.z[r]) : 0;
 			float d2_drop = 1e9f;
 			for (const auto &d : drops) {
@@ -12757,7 +12764,13 @@ void Simulation::petra_manage_naval(float dt) {
 	}
 
 	// 3. worker.js fishing: an idle boat takes the nearest fish of its sea that
-	// it can fish safely.
+	// it can fish safely and that has a free gatherer slot (IsSupplyFull).
+	std::unordered_map<uint32_t, int> fish_users;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.unit_type[i] != UNIT_FISHING_BOAT || units_.target_resource_id[i] == 0) continue;
+		if (units_.action_state[i] == ACTION_GATHER || units_.action_state[i] == ACTION_RETURN_DROPSITE)
+			fish_users[units_.target_resource_id[i]]++;
+	}
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.unit_type[i] != UNIT_FISHING_BOAT) continue;
 		if (units_.action_state[i] != ACTION_IDLE) continue;
@@ -12771,6 +12784,8 @@ void Simulation::petra_manage_naval(float dt) {
 			if (d2 >= best_d2) continue;
 			auto [fx, fz] = nav_grid_.world_to_cell(resources_.x[r], resources_.z[r]);
 			if (nav_grid_.global_region_at(fx, fz, PASS_SHIP) != sea) continue;
+			auto fit = fish_users.find(resources_.id[r]);
+			if (fit != fish_users.end() && fit->second >= resources_.max_gatherers[r]) continue;
 			if (!petra_can_fish_safely(resources_.x[r], resources_.z[r], sea)) continue;
 			best_d2 = d2;
 			best_rid = resources_.id[r];
@@ -12778,6 +12793,7 @@ void Simulation::petra_manage_naval(float dt) {
 		if (best_rid) {
 			const uint32_t uid = units_.id[i];
 			order_gather(&uid, 1, best_rid);
+			fish_users[best_rid]++;
 		}
 	}
 
