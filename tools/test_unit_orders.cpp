@@ -61,7 +61,7 @@
 //     of it); arrows from a structure are attacks; a capturing unit answers a ranged attacker;
 //     garrisoning at a dropsite drops the load; the killer of a wolf cheers; CanGuard; guards
 //     repair the structure they guard; idle healers in a formation heal; a siege engine
-//     (un)packing ignores attacks.
+//     (un)packing ignores attacks; an idle full worker stays put.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_unit_orders.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -1471,6 +1471,17 @@ static void test_unitai_audit() {
 		s.set_unit_hp(ids[0], 20.0f);
 		const bool heals = run_until(s, 6.0f, [&] { return act_of(s, ids[4]) == ACTION_HEAL; });
 		check(heals, "an idle healer in a formation heals a hurt member (FORMATIONMEMBER.IDLE)");
+	}
+	{
+		Simulation s;
+		setup(s);
+		s.spawn_building_world(-20, 0, BLD_STOREHOUSE, 0, 1.0f);
+		uint32_t w = s.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN);
+		s.units_.res_type_carried[idx_of(s, w)] = RES_WOOD;
+		s.units_.carry[idx_of(s, w)] = s.carry_cap(idx_of(s, w), RES_WOOD);
+		run(s, 5.0f);
+		check(act_of(s, w) == ACTION_IDLE && dist(s, w, 0, 0) < 1.0f && s.units_.carry[idx_of(s, w)] > 0,
+				"an idle worker with a full load stays put (UnitAI IDLE; Petra sends its own ReturnResource)");
 	}
 	{
 		Simulation s;
