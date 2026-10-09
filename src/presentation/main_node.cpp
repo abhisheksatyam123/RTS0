@@ -3212,9 +3212,12 @@ void RtsoMain::update_command_panel() {
 					rtso::BLD_WONDER
 				};
 				static const char *kPhaseNames[4] = {"", "Village", "Town", "City"};
-				// Generic structures, then the local civ's own (0 A.D. structures/<civ>/).
+				// Generic structures the civ's 0 A.D. Builder lists name, then the civ's
+				// own (0 A.D. structures/<civ>/).
 				const uint8_t my_civ = sim->player_civ(local_player());
-				std::vector<int> menu(std::begin(b_types), std::end(b_types));
+				std::vector<int> menu;
+				for (int bt : b_types)
+					if (rtso::civ_can_build(my_civ, (uint8_t)bt)) menu.push_back(bt);
 				for (int bt = rtso::CIV_BUILDING_FIRST; bt < rtso::BLD_TYPE_COUNT; ++bt)
 					if (rtso::civ_can_build(my_civ, (uint8_t)bt)) menu.push_back(bt);
 				for (int bt : menu) {
