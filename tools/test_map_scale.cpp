@@ -222,6 +222,7 @@ int main() {
 		sim.spawn_unit(-x, -z, 3, UNIT_SPEARMAN);
 		sim.set_player_team(2, 5);
 		sim.set_player_team(3, 5);
+		sim.player(2).techs.set(TECH_UNLOCK_SHARED_LOS); // Cartography: allies' vision
 		sim.set_fow_viewer(2);
 		for (int i = 0; i < 10; ++i) sim.tick(Simulation::FIXED_STEP);
 		CHECK(sim.fow_state_at(x, z, 2) == Simulation::FOW_VISIBLE, "player 2 can't see its own unit");
