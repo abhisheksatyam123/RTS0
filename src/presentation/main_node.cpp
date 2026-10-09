@@ -2515,9 +2515,11 @@ void RtsoMain::_process(double delta) {
 			const Vector3 drag_curr_pos = get_ground_click_pos(mouse_pos);
 			std::vector<rtso::Simulation::WallPiece> pieces;
 			uint32_t start_tower = 0, end_tower = 0;
+			const uint8_t wall_kind = current_build_type == rtso::BLD_PALISADE ? rtso::WALLSET_PALISADE : rtso::WALLSET_STONE;
+			const rtso::WallSetInfo &wall_set = rtso::wallset_info(wall_kind);
 			if (sim)
 				pieces = sim->wall_placement(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
-						drag_curr_pos.x, drag_curr_pos.z, &start_tower, &end_tower);
+						drag_curr_pos.x, drag_curr_pos.z, &start_tower, &end_tower, wall_kind);
 			while (wall_ghosts.size() < pieces.size()) {
 				MeshInstance3D *g = memnew(MeshInstance3D);
 				g->set_visible(false);
@@ -2535,17 +2537,17 @@ void RtsoMain::_process(double delta) {
 			const float yaw = std::atan2(drag_curr_pos.x - wall_drag_start_pos.x, drag_curr_pos.z - wall_drag_start_pos.z);
 			for (size_t i = 0; i < pieces.size(); ++i) {
 				const auto &p = pieces[i];
-				const bool is_tower = p.type == rtso::BLD_WALL_TOWER;
+				const bool is_tower = p.type == wall_set.tower && p.half_w == wall_set.tower_half;
 				MeshInstance3D *g = wall_ghosts[i];
-				// Along the wall (the box's z): the segment's length; across it: 0 A.D.'s 5 m.
-				if (is_tower && tower_entry.valid) {
+				// Along the wall (the box's z): the segment's length; across it: its 0 A.D. depth.
+				if (is_tower && tower_entry.valid && wall_kind == rtso::WALLSET_STONE) {
 					g->set_mesh(tower_entry.mesh);
 					g->set_scale(Vector3(tower_entry.scale, tower_entry.scale, tower_entry.scale));
 				} else {
 					Ref<BoxMesh> box;
 					box.instantiate();
-					box->set_size(is_tower ? Vector3(2.2f, 4.5f, 2.2f)
-							: Vector3(2.0f * rtso::WALL_HALF_DEPTH, 2.5f, 2.0f * p.half_w));
+					box->set_size(is_tower ? Vector3(2.2f * p.half_w, 4.5f, 2.2f * p.half_w)
+							: Vector3(2.0f * wall_set.half_depth, 2.5f, 2.0f * p.half_w));
 					g->set_mesh(box);
 					g->set_scale(Vector3(1.0f, 1.0f, 1.0f));
 				}
@@ -3811,7 +3813,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 
 				if (build_mode) {
-					if (current_build_type == rtso::BLD_WALL_SEGMENT) {
+					if (current_build_type == rtso::BLD_WALL_SEGMENT || current_build_type == rtso::BLD_PALISADE) {
 						wall_drag_mode = true;
 						wall_drag_start_pos = get_ground_click_pos(mouse_pos);
 						return;
@@ -3878,17 +3880,18 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					const uint32_t *builders = order_one ? &one_builder : (const uint32_t *)selected_ids.ptr();
 					const size_t builder_n = order_one ? 1 : (size_t)selected_ids.size();
 					const bool queued = rtso::hotkeys::held("session.queue");
+					const uint8_t wall_kind = current_build_type == rtso::BLD_PALISADE ? rtso::WALLSET_PALISADE : rtso::WALLSET_STONE;
 					const bool any = sim && !sim->wall_placement(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
-							drag_end_pos.x, drag_end_pos.z).empty();
+							drag_end_pos.x, drag_end_pos.z, nullptr, nullptr, wall_kind).empty();
 					if (any) {
 						if (turn_cmds()) {
 							post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_BUILD_WALL, builders, builder_n,
 									drag_end_pos.x, drag_end_pos.z,
 									rtso::Simulation::pack_wall_point(wall_drag_start_pos.x, wall_drag_start_pos.z),
-									queued ? rtso::NET_PARAM_QUEUED : 0);
+									(uint8_t)(wall_kind | (queued ? rtso::NET_PARAM_QUEUED : 0)));
 						} else {
 							sim->cmd_build_wall(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
-									drag_end_pos.x, drag_end_pos.z, builders, builder_n, queued);
+									drag_end_pos.x, drag_end_pos.z, builders, builder_n, queued, wall_kind);
 						}
 						play_civ_voice("build");
 						if (order_one) pop_from_selection(selected_ids, one_builder);
