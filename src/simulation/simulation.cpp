@@ -11542,6 +11542,13 @@ void Simulation::petra_manage_naval(float dt) {
 		const uint16_t s = land == home ? 0 : topo.sea_between(home, land);
 		if (s && s < nseas) want_transport[s] = std::max(want_transport[s], 1);
 	}
+	// checkLevels: a plan under way holds its ship, so a sea with plans running keeps
+	// one more for the next one (and a plan whose ship sank waits for a new one).
+	std::vector<int> plans_on(nseas, 0);
+	for (const auto &tp : petra_transports_)
+		if (tp.sea && tp.sea < nseas) ++plans_on[tp.sea];
+	for (size_t s = 1; s < nseas; ++s)
+		if (plans_on[s]) want_transport[s] = std::max(want_transport[s], plans_on[s] + (want_transport[s] > 0 ? 1 : 0));
 	std::vector<int> fish_food(nseas, 0);
 	for (size_t r = 0; r < resources_.count; ++r) {
 		if (!resources_.alive[r] || resources_.amount[r] <= 0 || resources_.subtype[r] != RES_SUB_FISH) continue;
@@ -13487,6 +13494,28 @@ bool Simulation::petra_find_beach(float land_x, float land_z, float toward_x, fl
 	return found;
 }
 
+// transportPlan.js assignShip: a free transport ship of that sea (any sea for 0),
+// the roomiest (+50 for siege, as getBestShip), then the nearest to (x, z).
+uint32_t Simulation::petra_free_transport_ship(uint16_t sea, float x, float z) const {
+	uint32_t ship = 0;
+	int best_room = -1;
+	float best_d2 = 0.0f;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != petra_pid_ || !petra_is_transport_ship(i)) continue;
+		if (sea && petra_ship_sea(i) != sea) continue;
+		if (petra_ship_in_plan(units_.id[i])) continue; // busy with another plan
+		const int cap = ship_garrison_capacity(i);
+		const int room = cap + (cap != 10 ? 50 : 0);
+		const float dx = units_.pos_x[i] - x, dz = units_.pos_z[i] - z;
+		const float d2 = dx * dx + dz * dz;
+		if (room < best_room || (room == best_room && d2 >= best_d2)) continue;
+		best_room = room;
+		best_d2 = d2;
+		ship = units_.id[i];
+	}
+	return ship;
+}
+
 bool Simulation::petra_start_transport(const std::vector<uint32_t> &unit_ids, float from_x, float from_z, float to_x, float to_z,
                                        uint16_t sea, uint8_t owner) {
 	// navalManager.transportPlans: one plan per owner (attack, raid, builders);
@@ -13497,30 +13526,14 @@ bool Simulation::petra_start_transport(const std::vector<uint32_t> &unit_ids, fl
 	petra_find_beach(from_x, from_z, to_x, to_z, pickup_x, pickup_z);
 	petra_find_beach(to_x, to_z, from_x, from_z, drop_x, drop_z);
 
-	// transportPlan.js assignShip: a free transport ship of that sea, the
-	// roomiest (+50 for siege, as getBestShip), then the nearest to the pickup.
-	uint32_t ship = 0;
-	int best_room = -1;
-	float best_d2 = 0.0f;
-	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || units_.team[i] != petra_pid_ || !petra_is_transport_ship(i)) continue;
-		if (sea && petra_ship_sea(i) != sea) continue;
-		if (petra_ship_in_plan(units_.id[i])) continue; // busy with another plan
-		const int cap = ship_garrison_capacity(i);
-		const int room = cap + (cap != 10 ? 50 : 0);
-		const float dx = units_.pos_x[i] - pickup_x, dz = units_.pos_z[i] - pickup_z;
-		const float d2 = dx * dx + dz * dz;
-		if (room < best_room || (room == best_room && d2 >= best_d2)) continue;
-		best_room = room;
-		best_d2 = d2;
-		ship = units_.id[i];
-	}
+	const uint32_t ship = petra_free_transport_ship(sea, pickup_x, pickup_z);
 	if (ship == 0) return false;
 
 	PetraTransportPlan tp;
 	tp.state = PetraTransportPlan::BOARDING;
 	tp.owner = owner;
 	tp.ship_id = ship;
+	tp.sea = sea ? sea : petra_ship_sea((size_t)lookup_unit(ship));
 	tp.pickup_x = pickup_x;
 	tp.pickup_z = pickup_z;
 	tp.drop_x = drop_x;
@@ -13555,11 +13568,25 @@ void Simulation::petra_manage_transport(float dt) {
 void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 	tp.state_timer += dt;
 
-	int32_t sidx = lookup_unit(tp.ship_id);
+	int32_t sidx = tp.ship_id ? lookup_unit(tp.ship_id) : -1;
 	if (sidx < 0 || !units_.alive[sidx] || units_.unit_type[sidx] != UNIT_TRIREME) {
-		tp.state = PetraTransportPlan::FAILED;
-		tp.failed = true;
-		return;
+		// navalManager.checkEvents: a ship lost while boarding leaves the plan
+		// waiting for another (assignShipsToPlans); at sea the plan ends.
+		if (tp.state != PetraTransportPlan::BOARDING) {
+			tp.state = PetraTransportPlan::FAILED;
+			tp.failed = true;
+			return;
+		}
+		if (tp.ship_id) { tp.ship_id = 0; tp.state_timer = 0.0f; }
+		const uint32_t ship = petra_free_transport_ship(tp.sea, tp.pickup_x, tp.pickup_z);
+		if (!ship) {
+			if (tp.state_timer > 60.0f) { tp.state = PetraTransportPlan::FAILED; tp.failed = true; }
+			return;
+		}
+		tp.ship_id = ship;
+		tp.state_timer = 0.0f;
+		order_walk(&tp.ship_id, 1, tp.pickup_x, tp.pickup_z, false);
+		sidx = lookup_unit(ship);
 	}
 	// transportPlan.js sails to the water beside the landing point: a ship
 	// ordered onto the beach itself finds no path and stays where it is.
@@ -15772,7 +15799,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				ar.pod(p.state_timer); ar.pod(p.failed);
 			};
 			if (ar.version >= SAVE_VERSION_PETRA_TRANSPORTS) {
-				io_vec(ar, v, 64, [&](PetraTransportPlan &p) { ar.pod(p.owner); plan(p); });
+				io_vec(ar, v, 64, [&](PetraTransportPlan &p) { ar.pod(p.owner); ar.pod(p.sea); plan(p); });
 			} else if constexpr (Ar::loading) {
 				// Older saves hold one plan, always the attack's; an ended one is dropped.
 				PetraTransportPlan p;

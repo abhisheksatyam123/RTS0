@@ -652,6 +652,40 @@ static void test_petra_concurrent_transports() {
 }
 
 
+// navalManager.checkEvents: a transport ship sunk while its passengers board leaves
+// the plan waiting for another ship, which takes them across instead.
+static void test_petra_transport_ship_lost() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t first = s.spawn_unit(-30.0f, 8.0f, 1, UNIT_TRIREME);
+	const uint32_t second = s.spawn_unit(30.0f, 8.0f, 1, UNIT_TRIREME);
+	std::vector<uint32_t> crew;
+	for (int k = 0; k < 4; ++k) crew.push_back(s.spawn_unit(-34.0f + 2.0f * k, 26.0f, 1, UNIT_SPEARMAN));
+	run(s, 0.5f);
+	CHECK(s.petra_start_transport(crew, -30.0f, 30.0f, -30.0f, -40.0f, 0, PETRA_TRANSPORT_ATTACK));
+	CHECK(s.petra_transport_plans().size() == 1 && s.petra_transport_plans()[0].ship_id == first);
+	s.cmd_delete(1, &first, 1);
+	uint32_t took = 0;
+	int landed = 0;
+	for (int k = 0; k < 150; ++k) {
+		run(s, 1.0f);
+		if (!s.petra_transport_plans().empty() && s.petra_transport_plans()[0].ship_id) took = s.petra_transport_plans()[0].ship_id;
+		landed = 0;
+		for (uint32_t uid : crew) {
+			const int32_t i = idx(s, uid);
+			if (i >= 0 && s.units().alive[i] && s.units().pos_z[i] < -16.0f) ++landed;
+		}
+		if (landed == (int)crew.size()) break;
+	}
+	std::printf("Petra transport ship lost: plan moved to ship %s, %d of 4 landed\n", took == second ? "two" : "none", landed);
+	CHECK(took == second && landed >= 3); // it sails with whoever made it aboard
+}
+
 // DeathDamage.js: a fire ship (mixins/fireship.xml) burns down at RegenRate -5 and, dying,
 // deals 500 Fire over 20 m to everyone, its own side too, with quadratic falloff.
 // Other ships and structures deal nothing when they die.
@@ -706,6 +740,7 @@ int main() {
 	test_petra_overseas_attack();
 	test_petra_overseas_base();
 	test_petra_concurrent_transports();
+	test_petra_transport_ship_lost();
 	test_fire_ship();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
