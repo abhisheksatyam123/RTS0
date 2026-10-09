@@ -12012,6 +12012,50 @@ void Simulation::petra_manage_naval(float dt) {
 		}
 	}
 
+	// buildNavalStructures, second half: from the town phase, once population passes
+	// popPhase2 + 15 and a dock stands, one super dock (the Carthaginian Cothon) on the
+	// first dock's sea, after a market if there is none yet. No other civ has one.
+	if (topo.naval_map && petra_ps().phase >= 2 && civ_can_build(civ_of(petra_pid_), BLD_SUPER_DOCK) &&
+	    pop_current(petra_pid_) >= petra_config_.pop_phase2 + 15) {
+		uint16_t first_sea = 0;
+		bool shipyard = false, market = false;
+		for (const Building &b : buildings_) {
+			if (b.team != petra_pid_ || b.wrecked || b.hp <= 0.0f) continue;
+			if (b.type == BLD_SUPER_DOCK) shipyard = true;
+			else if (b.type == BLD_MARKET) market = true;
+			else if (b.type == BLD_DOCK && b.build_progress >= 1.0f && !first_sea) first_sea = dock_sea(b);
+		}
+		if (first_sea && !shipyard && (market || !civ_can_build(civ_of(petra_pid_), BLD_MARKET))) {
+			const BuildingTypeInfo &info = building_type_info(BLD_SUPER_DOCK);
+			bool placed = false;
+			for (const PetraBase &base : petra_bases_) {
+				if (placed) break;
+				auto ait = building_id_to_idx_.find(base.anchor_building_id);
+				if (ait == building_id_to_idx_.end() || buildings_[ait->second].build_progress < 1.0f) continue;
+				const uint16_t land = petra_building_land(buildings_[ait->second], &topo);
+				const int sx = (int)std::floor(base.x / GRID), sz = (int)std::floor(base.z / GRID);
+				for (int r = 2; r <= 30 && !placed; ++r)
+					for (int dx = -r; dx <= r && !placed; ++dx)
+						for (int dz = -r; dz <= r && !placed; ++dz) {
+							if (std::abs(dx) != r && std::abs(dz) != r) continue;
+							const int cx = sx + dx, cz = sz + dz;
+							if (!petra_can_place(cx, cz, info.footprint, BLD_SUPER_DOCK)) continue;
+							Building probe;
+							probe.half_size = info.footprint * GRID * 0.5f;
+							probe.x = (cx + info.footprint * 0.5f) * GRID;
+							probe.z = (cz + info.footprint * 0.5f) * GRID;
+							if (dock_sea(probe) != first_sea || petra_building_land(probe, &topo, land) != land) continue;
+							placed = true;
+							if (!petra_try_pay(PETRA_QUEUE_NAVAL, (float)info.food_cost, (float)info.wood_cost,
+							                   (float)info.gold_cost, (float)info.stone_cost)) break;
+							const uint32_t bid = spawn_building(cx, cz, BLD_SUPER_DOCK, petra_pid_, 0.0f);
+							auto idle = get_idle_workers(petra_pid_);
+							if (bid && !idle.empty()) petra_order_builders(idle, 4, bid);
+						}
+			}
+		}
+	}
+
 	// 2. checkLevels / maintainFleet: transport ships for attacks across water
 	// (attackPlan.js setMinimalTransportShips: neededShips 1 for rushes and raids,
 	// 3 for attacks, 5 for huge attacks, times popScaling), then fishing boats

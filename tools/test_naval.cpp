@@ -751,6 +751,32 @@ static void test_gather_around_lake() {
 	CHECK(!waded && reached);
 }
 
+// navalManager.js buildNavalStructures: from the town phase, with a dock and a market
+// and population past popPhase2 + 15, a Carthaginian Petra lays out its Cothon (super
+// dock) on the dock's sea; a civ without one in its Builder lists builds none.
+static void test_petra_cothon() {
+	for (Civilization civ : {CIV_CARTHAGINIANS, CIV_ATHENIANS}) {
+		static Simulation s;
+		fresh(s);
+		s.set_team_civ(1, civ);
+		s.set_victory_condition(VICTORY_ENDLESS);
+		s.set_player_active(1, true, true);
+		s.set_player_resources(1, 5000, 5000, 5000, 5000);
+		s.players_[1].phase = 2;
+		s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+		const uint32_t dock = s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+		s.spawn_building_world(-10.0f, 50.0f, BLD_MARKET, 1);
+		for (int k = 0; k < 60; ++k) s.spawn_unit(-40.0f + (float)(k % 15) * 2.0f, 50.0f + (float)(k / 15) * 2.0f, 1, UNIT_VILLAGER);
+		run(s, 8.0f);
+		const Simulation::Building *cothon = nullptr;
+		for (const auto &b : s.buildings()) if (b.team == 1 && b.type == BLD_SUPER_DOCK) cothon = &b;
+		const Simulation::Building *db = bld(s, dock);
+		std::printf("Petra Cothon (%s): %s\n", civ_info(civ).name, cothon ? "laid out" : "none");
+		if (civ == CIV_CARTHAGINIANS) CHECK(cothon && db && s.dock_sea(*cothon) == s.dock_sea(*db));
+		else CHECK(cothon == nullptr);
+	}
+}
+
 int main() {
 	test_transport();
 	test_no_wading();
@@ -765,6 +791,7 @@ int main() {
 	test_petra_overseas_base();
 	test_petra_concurrent_transports();
 	test_petra_transport_ship_lost();
+	test_petra_cothon();
 	test_fire_ship();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
