@@ -154,6 +154,11 @@ layout_mode = 2
 tooltip_text = "The terrain is known from the start; enemy units stay hidden outside your vision."
 text = "Explored map"
 
+[node name="Cheats" type="CheckBox" parent="VBox/HBox/Left/MapVisRow"]
+layout_mode = 2
+tooltip_text = "Toggle the usability of cheats (chat codes)."
+text = "Cheats"
+
 [node name="VictoryTimesRow" type="HBoxContainer" parent="VBox/HBox/Left"]
 layout_mode = 2
 

@@ -561,6 +561,36 @@ int main() {
 		CHECK(parse_game_start_full(format_game_start_full(gp), back) && back.lock_teams == 1);
 	}
 
+	// 23. Cheats (0 A.D. Cheat.js): nothing works until Game Setup enables them.
+	{
+		Simulation sim;
+		sim.generate_random_map(MAP_MAINLAND, 9, 2, 64.0f);
+		sim.set_player_active(0, true, false);
+		sim.set_player_active(1, true, false);
+		const int food = sim.food(0);
+		CHECK(!sim.cmd_cheat(0, Simulation::CHEAT_ADD_RESOURCE, 1000, RES_FOOD, nullptr, 0) && sim.food(0) == food);
+		sim.set_cheats_enabled(true);
+		CHECK(sim.cheats_enabled() && !sim.teams_locked());
+		CHECK(sim.cmd_cheat(0, Simulation::CHEAT_ADD_RESOURCE, 1000, RES_FOOD, nullptr, 0) && sim.food(0) == food + 1000);
+		CHECK(sim.cmd_cheat(0, Simulation::CHEAT_CHANGE_PHASE, 0, 0, nullptr, 0) && sim.player_phase(0) == 2);
+		// wololo: an enemy unit becomes ours; black death kills it; exodia defeats player 2.
+		uint32_t enemy = 0, tc = 0;
+		for (size_t i = 0; i < sim.units_.count && !enemy; ++i)
+			if (sim.units_.alive[i] && sim.units_.team[i] == 1) enemy = sim.units_.id[i];
+		for (const auto &b : sim.buildings())
+			if (b.team == 0 && b.type == BLD_TOWN_CENTER) tc = b.id;
+		CHECK(enemy && sim.cmd_cheat(0, Simulation::CHEAT_CONVERT_UNITS, -1, 0, &enemy, 1));
+		CHECK(sim.units_.team[sim.lookup_unit(enemy)] == 0);
+		CHECK(sim.cmd_cheat(0, Simulation::CHEAT_KILL_UNITS, 0, 0, &enemy, 1) && !sim.units_.alive[sim.lookup_unit(enemy)]);
+		const int pop = sim.pop_current(0);
+		CHECK(tc && sim.cmd_cheat(0, Simulation::CHEAT_CREATE_UNITS, 3, 0, &tc, 1) && sim.pop_current(0) == pop + 3);
+		CHECK(sim.cmd_cheat(0, Simulation::CHEAT_DEFEAT_PLAYER, 1, 0, nullptr, 0) && sim.is_defeated(1));
+		CHECK(sim.cmd_cheat(0, Simulation::CHEAT_REVEAL_MAP, 0, 0, nullptr, 0) && sim.reveal_map());
+		GameSetupParams gp, back;
+		gp.cheats = 1;
+		CHECK(parse_game_start_full(format_game_start_full(gp), back) && back.cheats == 1);
+	}
+
 	if (failures) {
 		std::printf("%d check(s) failed\n", failures);
 		return 1;

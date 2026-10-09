@@ -135,8 +135,9 @@ static void test_roster_army() {
 		s->set_victory_condition(VICTORY_ENDLESS); // keep playing once the idle player is beaten
 		// Garrisoned fortresses (ten more arrows each, BuildingAI) outlast the infantry's first
 		// waves, so the siege (trained some ten minutes into the city phase at 0 A.D.'s gather
-		// rates) still has something to fire at.
-		for (const float *at : {(const float[2]){42.0f, 42.0f}, (const float[2]){26.0f, 50.0f}, (const float[2]){50.0f, 26.0f}}) {
+		// rates) still has something to fire at. They stand on dry land: no land unit wades out
+		// to one at sea.
+		for (const float *at : {(const float[2]){24.0f, 37.0f}, (const float[2]){40.0f, 6.0f}, (const float[2]){6.0f, 22.0f}}) {
 			const uint32_t fort = s->spawn_building_world(at[0], at[1], BLD_FORTRESS, 0, 1.0f);
 			std::vector<uint32_t> men;
 			for (int k = 0; k < 10; ++k)
@@ -155,7 +156,7 @@ static void test_roster_army() {
 			bool idle_alive = false;
 			for (const auto &b : s->buildings())
 				if (b.team == 0 && b.hp > 0.0f && !b.wrecked) idle_alive = true;
-			if (!idle_alive) s->spawn_building_world(42.0f, 42.0f, BLD_FORTRESS, 0, 1.0f);
+			if (!idle_alive) s->spawn_building_world(24.0f, 37.0f, BLD_FORTRESS, 0, 1.0f);
 			for (const auto &b : s->buildings())
 				if (b.team == 1 && b.build_progress >= 1.0f && !b.wrecked) {
 					if (b.type == BLD_GYMNASIUM || b.type == BLD_THEATER) advanced = true;
@@ -452,7 +453,7 @@ static void test_attack_plans() {
 		// A storehouse more than 80 m from the idle player's Town Center is the
 		// only structure a rush may target (rushTargetFinder).
 		auto s = match(PETRA_BEHAVIOR_AGGRESSIVE);
-		const uint32_t store = s->spawn_building_world(-55.0f, 40.0f, BLD_STOREHOUSE, 0, 1.0f);
+		const uint32_t store = s->spawn_building_world(-36.0f, 25.0f, BLD_STOREHOUSE, 0, 1.0f);
 		bool rushed = false, rush_at_store = false;
 		int attack_size = 0, huge_size = 0;
 		for (float t = 0.0f; t < 20.0f * 60.0f; t += Simulation::FIXED_STEP) {
@@ -483,12 +484,12 @@ static void test_attack_plans() {
 		// The kind of each plan as it starts mustering (whether a HugeAttack
 		// marches before the idle player runs out of buildings depends on timing).
 		auto s = match(PETRA_BEHAVIOR_AGGRESSIVE);
-		// Fortresses on the far side keep the idle player standing after the Attacks raze its
+		// Fortresses on dry land around its base keep the idle player standing after the Attacks raze its
 		// base (an unmanned fortress shoots only its 10 default arrows, BuildingAI), so there is
 		// still a target to plan the HugeAttack against.
-		s->spawn_building_world(50.0f, 50.0f, BLD_FORTRESS, 0, 1.0f);
-		s->spawn_building_world(55.0f, 10.0f, BLD_FORTRESS, 0, 1.0f);
-		s->spawn_building_world(10.0f, 55.0f, BLD_FORTRESS, 0, 1.0f);
+		s->spawn_building_world(24.0f, 37.0f, BLD_FORTRESS, 0, 1.0f);
+		s->spawn_building_world(40.0f, 6.0f, BLD_FORTRESS, 0, 1.0f);
+		s->spawn_building_world(6.0f, 22.0f, BLD_FORTRESS, 0, 1.0f);
 		int attack_size = 0, huge_size = 0;
 		std::vector<int> kinds;
 		auto last = Simulation::AttackPlan::UNEXECUTED;
@@ -1090,6 +1091,12 @@ static void test_nomad_first_base() {
 		return n;
 	};
 	const int at_start = town_centers(false);
+	// The idle player's Nomad starting army stands close by on this small map; it holds
+	// its fire, so the check measures Petra founding its base, not an early skirmish.
+	std::vector<uint32_t> idle_army;
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 0) idle_army.push_back(s->units_.id[i]);
+	s->order_set_stance(idle_army.data(), idle_army.size(), STANCE_PASSIVE);
 	run_for(*s, 150.0f);
 	int buildings = 0;
 	for (const auto &b : s->buildings())
@@ -1281,6 +1288,121 @@ static void test_placement_miss_memory_exact() {
 	CHECK(temple != 0, "felling the trees on a spot lets the next search use it");
 }
 
+// headquarters.js findEconomicCCLocation reads resource density, not single
+// nodes: with 0 A.D.'s 200-wood trees and nothing bigger, Petra still finds a
+// site for a second civic centre and lays out storehouses by its forests.
+static void test_expansion_small_nodes() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	auto &r = s->resources_;
+	for (size_t i = 0; i < r.count; ++i)
+		if (r.alive[i] && r.amount[i] > 200) r.amount[i] = 200;
+	s->players_[1].phase = 2;
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	const size_t stores_before = std::count_if(s->buildings().begin(), s->buildings().end(),
+		[](const Simulation::Building &b) { return b.team == 1 && b.type == BLD_STOREHOUSE; });
+	int ccs = 0;
+	size_t stores = 0;
+	float t = 0.0f;
+	for (; t < 90.0f && (ccs < 2 || stores <= stores_before); t += 1.0f) {
+		run_for(*s, 1.0f);
+		ccs = 0;
+		stores = 0;
+		for (const auto &b : s->buildings()) {
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.hp > 0.0f) ++ccs;
+			if (b.team == 1 && b.type == BLD_STOREHOUSE && b.hp > 0.0f) ++stores;
+		}
+	}
+	std::printf("  expansion on 200-wood trees: %d Town Centers after %.0fs, %zu storehouses (had %zu)\n", ccs, t, stores, stores_before);
+	CHECK(ccs >= 2, "Petra lays out a second civic centre among 200-wood trees");
+	CHECK(stores > stores_before, "and a storehouse by a forest of them");
+}
+
+// baseManager.js assignToFoundations repairs damaged structures: a civic centre
+// below 30% health gets up to seven repairers within the builder share of the
+// workforce, so a damaged house waits its turn; both heal.
+static void test_repairs() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	s->set_player_resources(1, 2000, 2000, 2000, 2000);
+	Simulation::Building *cc = nullptr, *house = nullptr;
+	for (auto &b : s->buildings_) {
+		if (b.team != 1 || b.build_progress < 1.0f) continue;
+		if (b.type == BLD_TOWN_CENTER) cc = &b;
+		else if (b.type == BLD_HOUSE && !house) house = &b;
+	}
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const uint32_t cc_id = cc->id, house_id = house ? house->id : 0;
+	cc->hp = cc->max_hp * 0.25f;
+	if (house) house->hp = house->max_hp * 0.5f;
+	run_for(*s, 3.0f);
+	int on_cc = 0, on_house = 0;
+	const auto &u = s->units_;
+	for (size_t i = 0; i < u.count; ++i) {
+		if (!u.alive[i] || u.team[i] != 1 || u.action_state[i] != ACTION_BUILD) continue;
+		on_cc += u.target_building_id[i] == cc_id;
+		on_house += house_id && u.target_building_id[i] == house_id;
+	}
+	run_for(*s, 40.0f);
+	auto find = [&](uint32_t id) -> const Simulation::Building * {
+		auto it = s->building_id_to_idx_.find(id);
+		return id && it != s->building_id_to_idx_.end() ? &s->buildings_[it->second] : nullptr;
+	};
+	const auto *c2 = find(cc_id);
+	const auto *h2 = find(house_id);
+	std::printf("  repairs: %d on the civic centre (25%% -> %.0f%%), %d on the house (50%% -> %.0f%%)\n",
+	            on_cc, c2 ? 100.0f * c2->hp / c2->max_hp : 0.0f, on_house, h2 ? 100.0f * h2->hp / h2->max_hp : 0.0f);
+	CHECK(on_cc >= 5 && on_cc <= 7, "a civic centre under 30% health gets five to seven repairers");
+	CHECK(c2 && c2->hp > c2->max_hp * 0.3f, "and heals");
+	CHECK(on_house <= 1, "a house takes one repairer at most");
+	CHECK(!house_id || (h2 && h2->hp > h2->max_hp * 0.5f), "the damaged house is repaired too");
+}
+
+// victoryManager.js: in wonder victory a finished wonder is a critical entity,
+// guarded by up to 10 + 5 * defensive soldiers, champions first, who turn on
+// whoever attacks it.
+static void test_wonder_guards() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_WONDER);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	const float wx = tx * 0.8f, wz = tz * 0.8f;
+	const uint32_t wonder = s->spawn_building_world(wx, wz, BLD_WONDER, 1, 1.0f);
+	std::vector<uint32_t> champs;
+	for (int i = 0; i < 4; ++i) champs.push_back(s->spawn_unit(tx + 10.0f + 3.0f * (float)i, tz + 10.0f, 1, UNIT_ELEPHANT));
+	run_for(*s, 4.0f);
+	auto &u = s->units_;
+	int guarding = 0;
+	for (uint32_t id : champs) {
+		const int32_t c = s->lookup_unit(id);
+		if (c >= 0 && u.order_kind[c] == ORDER_GUARD && u.order_target[c] == wonder) ++guarding;
+	}
+	const uint32_t foe = s->spawn_unit(wx + 8.0f, wz, 0, UNIT_SWORDSMAN);
+	s->order_attack_building(&foe, 1, wonder);
+	const int32_t f = s->lookup_unit(foe);
+	const float foe_hp = u.hp[f];
+	run_for(*s, 20.0f);
+	const bool hurt = !u.alive[f] || u.hp[f] < foe_hp;
+	std::printf("  wonder guards: %d of 4 champions guard the wonder, its attacker %s\n", guarding,
+	            !u.alive[f] ? "killed" : (hurt ? "hurt" : "untouched"));
+	CHECK(wonder != 0 && guarding == 4, "champions guard Petra's finished wonder");
+	CHECK(hurt, "and fight whoever attacks it");
+}
+
 static void test_retreat_walk_forced() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -1320,6 +1442,70 @@ static void test_retreat_walk_forced() {
 	CHECK(moved > 5.0f, "a retreat walk packs the catapult and leaves (forced walk)");
 }
 
+// worker.js returnResources: an idle Petra worker still carrying a load is ordered to
+// a dropsite (ReturnResource) rather than left to UnitAI, which drops off nothing by itself.
+static void test_idle_return() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	auto &u = s->units_;
+	uint32_t uid = 0;
+	for (size_t i = 0; i < u.count && !uid; ++i)
+		if (u.alive[i] && u.team[i] == 1 && u.unit_type[i] == UNIT_VILLAGER) uid = u.id[i];
+	CHECK(uid != 0, "Petra has a villager");
+	if (!uid) return;
+	s->cmd_stop(&uid, 1);
+	const int32_t i = s->lookup_unit(uid);
+	u.carry[i] = 5; // a partial load: under the carry cap
+	u.res_type_carried[i] = RES_WOOD;
+	bool ordered = false, dropped = false;
+	for (int k = 0; k < 30 * 20 && !dropped; ++k) {
+		s->tick(Simulation::FIXED_STEP);
+		const int32_t j = s->lookup_unit(uid);
+		if (j < 0) break;
+		ordered |= u.order_kind[j] == ORDER_RETURN_RESOURCE;
+		dropped = ordered && u.carry[j] == 0;
+	}
+	std::printf("  idle worker with a load: return order %s, dropped off %s\n", ordered ? "yes" : "no", dropped ? "yes" : "no");
+	CHECK(ordered && dropped, "an idle worker carrying a load is sent to a dropsite");
+}
+
+// defenseManager.js isDangerous / defenseArmy.js needsDefenders: Support units in our
+// territory are no threat, and the defence is sized by strength (getMaxStrength), so
+// war elephants draw more defenders than the same number of spearmen would.
+static void test_defense_by_strength() {
+	for (int phase = 0; phase < 2; ++phase) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		run_for(*s, 20.0f);
+		const Simulation::Building *cc = nullptr;
+		for (const auto &b : s->buildings_)
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+		CHECK(cc != nullptr, "Petra has a civic centre");
+		if (!cc) return;
+		const float cx = cc->x, cz = cc->z;
+		for (int k = 0; k < 30; ++k) s->spawn_unit(cx - 10.0f + (float)(k % 6), cz - 10.0f - (float)(k / 6), 1, UNIT_SPEARMAN);
+		const UnitType foe = phase == 0 ? UNIT_FEMALE_CITIZEN : UNIT_ELEPHANT;
+		for (int k = 0; k < 2; ++k) s->spawn_unit(cx + 6.0f + (float)k, cz + 6.0f, 0, foe);
+		run_for(*s, 1.0f);
+		const size_t n = s->petra_defense_army_.defender_ids.size();
+		const size_t by_count = (size_t)std::ceil(2.0f * s->petra_config_.defense_ratio_own);
+		if (phase == 0) {
+			std::printf("  defense: 2 enemy women by the civic centre draw %zu defenders\n", n);
+			CHECK(n == 0, "Support units are not dangerous (isDangerous)");
+		} else {
+			std::printf("  defense: 2 war elephants draw %zu defenders (%zu by head count)\n", n, by_count);
+			CHECK(n > by_count && n < 30, "defenders sized by strength (needsDefenders)");
+		}
+	}
+}
+
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
@@ -1346,6 +1532,11 @@ int main() {
 	test_army_answers_attackers();
 	test_relic_capture();
 	test_retreat_walk_forced();
+	test_expansion_small_nodes();
+	test_repairs();
+	test_idle_return();
+	test_defense_by_strength();
+	test_wonder_guards();
 	test_placement_miss_memory_exact();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
