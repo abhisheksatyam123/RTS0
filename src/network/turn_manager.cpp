@@ -858,6 +858,15 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_u8(r.claimed ? 1 : 0);
 	}
 
+	const auto &treasures = sim.treasures();
+	mix_u32((uint32_t)treasures.size());
+	for (const auto &t : treasures) {
+		mix_u32(t.id);
+		mix_u8(t.type);
+		mix_float(t.collect_progress);
+		mix_u32(t.collector_id);
+	}
+
 	// Wildlife: animals move, fight and die in the sim, so they are lockstep state.
 	const auto fv = sim.fauna();
 	mix_u32((uint32_t)fv.count);
@@ -1338,6 +1347,8 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		} else if (c.cmd_type == 17) { // Hunt / herd
 			if (c.param == 1)
 				sim.order_herd(ids, n, c.target_id);
+			else if ((c.param & (uint8_t)~NET_PARAM_QUEUED) == 2) // TreasureCollector: collect a Gaia treasure
+				sim.order_collect_treasure(ids, n, c.target_id, queued);
 			else
 				sim.order_hunt(ids, n, c.target_id);
 		} else if (c.cmd_type == 18) { // Board

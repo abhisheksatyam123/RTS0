@@ -4253,3850 +4253,3850 @@
       "type": "food",
       "x": -4.1,
       "z": 76.96,
-      "amount": 300
+      "amount": 200
     },
     {
       "type": "food",
       "x": -2.48,
       "z": 79.74,
-      "amount": 300
+      "amount": 200
     },
     {
       "type": "food",
       "x": -4.44,
       "z": 79.82,
-      "amount": 300
+      "amount": 200
     },
     {
       "type": "food",
       "x": -1.51,
       "z": 76.83,
-      "amount": 300
+      "amount": 200
     },
     {
       "type": "food",
       "x": -3.24,
       "z": 78.64,
-      "amount": 300
+      "amount": 200
     },
     {
       "type": "gold",
       "x": 12.5,
       "z": 96.5,
-      "amount": 1000
+      "amount": 5000
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 15.44,
       "z": 96.97,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 11.14,
       "z": 94.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 10.58,
       "z": 97.06,
-      "amount": 300
+      "amount": 200
     },
     {
       "type": "gold",
       "x": -33.5,
       "z": 116.5,
-      "amount": 1000
+      "amount": 5000
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -35.22,
       "z": 118.58,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -34.37,
       "z": 118.64,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -32.09,
       "z": 117.92,
-      "amount": 300
+      "amount": 200
     },
     {
       "type": "stone",
       "x": 5.6,
       "z": 107.57,
-      "amount": 1000
+      "amount": 5000
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 3.12,
       "z": 106.17,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 8.08,
       "z": 106.04,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 5.73,
       "z": 109.49,
-      "amount": 300
+      "amount": 200
     },
     {
       "type": "stone",
       "x": 20.2,
       "z": 75.91,
-      "amount": 1000
+      "amount": 5000
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 21.82,
       "z": 79.19,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 17.8,
       "z": 75.19,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 23.49,
       "z": 76.29,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -33.5,
       "z": 97.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -32.5,
       "z": 97.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -31.5,
       "z": 97.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -31.5,
       "z": 98.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -30.5,
       "z": 97.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -29.5,
       "z": 96.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -28.5,
       "z": 96.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -28.5,
       "z": 95.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -28.5,
       "z": 93.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -28.5,
       "z": 91.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -29.5,
       "z": 90.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -29.5,
       "z": 91.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -31.5,
       "z": 90.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -32.5,
       "z": 90.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -33.5,
       "z": 90.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -34.5,
       "z": 90.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -35.5,
       "z": 91.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -35.5,
       "z": 93.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -35.5,
       "z": 95.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -34.5,
       "z": 96.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -33.5,
       "z": 96.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -32.5,
       "z": 96.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -31.5,
       "z": 96.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -30.5,
       "z": 95.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -29.5,
       "z": 95.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -29.5,
       "z": 94.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -29.5,
       "z": 92.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -30.5,
       "z": 91.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -32.5,
       "z": 91.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -33.5,
       "z": 91.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -34.5,
       "z": 92.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -33.5,
       "z": 92.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -34.5,
       "z": 93.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -34.5,
       "z": 94.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -34.5,
       "z": 95.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -33.5,
       "z": 95.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -31.5,
       "z": 94.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -30.5,
       "z": 94.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -31.5,
       "z": 92.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -32.5,
       "z": 92.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -33.5,
       "z": 93.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -32.5,
       "z": 94.5,
-      "amount": 300
+      "amount": 200
     },
     {
       "type": "food",
       "x": 1.25,
       "z": -95.08,
-      "amount": 300
+      "amount": 200
     },
     {
       "type": "food",
       "x": 1.71,
       "z": -98.16,
-      "amount": 300
+      "amount": 200
     },
     {
       "type": "food",
       "x": 1.42,
       "z": -96.84,
-      "amount": 300
+      "amount": 200
     },
     {
       "type": "food",
       "x": -0.36,
       "z": -96.26,
-      "amount": 300
+      "amount": 200
     },
     {
       "type": "food",
       "x": 3.15,
       "z": -98.68,
-      "amount": 300
+      "amount": 200
     },
     {
       "type": "gold",
       "x": -26.57,
       "z": -62.41,
-      "amount": 1000
+      "amount": 5000
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -26.71,
       "z": -64.83,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -29.38,
       "z": -64.17,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 3.71,
       "z": -63.26,
-      "amount": 300
+      "amount": 200
     },
     {
       "type": "gold",
       "x": -17.41,
       "z": -112.24,
-      "amount": 1000
+      "amount": 5000
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -15.52,
       "z": -109.52,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -14.7,
       "z": -110.47,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -14.54,
       "z": -111.09,
-      "amount": 300
+      "amount": 200
     },
     {
       "type": "stone",
       "x": -37.18,
       "z": -67.13,
-      "amount": 1000
+      "amount": 5000
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -35.77,
       "z": -64.84,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -37.84,
       "z": -70.85,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -21.43,
       "z": -63.61,
-      "amount": 300
+      "amount": 200
     },
     {
       "type": "stone",
       "x": 26.33,
       "z": -60.23,
-      "amount": 1000
+      "amount": 5000
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 24.67,
       "z": -61.43,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 26.62,
       "z": -57.32,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 27.77,
       "z": -62.49,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -4.5,
       "z": -103.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -3.5,
       "z": -103.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -2.5,
       "z": -103.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -2.5,
       "z": -102.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -0.5,
       "z": -103.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 0.5,
       "z": -104.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 0.5,
       "z": -106.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 0.5,
       "z": -105.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 0.5,
       "z": -107.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 0.5,
       "z": -108.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 0.5,
       "z": -109.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -0.5,
       "z": -110.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -0.5,
       "z": -109.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -2.5,
       "z": -110.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -1.5,
       "z": -110.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -5.5,
       "z": -110.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -6.5,
       "z": -109.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -6.5,
       "z": -108.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -6.5,
       "z": -107.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -6.5,
       "z": -106.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -6.5,
       "z": -104.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -5.5,
       "z": -104.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -4.5,
       "z": -104.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -3.5,
       "z": -104.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -2.5,
       "z": -104.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -0.5,
       "z": -108.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -3.5,
       "z": -109.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -2.5,
       "z": -109.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -5.5,
       "z": -108.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -4.5,
       "z": -108.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -5.5,
       "z": -107.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -5.5,
       "z": -105.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -2.5,
       "z": -105.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -2.5,
       "z": -106.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -1.5,
       "z": -107.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -2.5,
       "z": -108.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -3.5,
       "z": -108.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -4.5,
       "z": -107.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -3.5,
       "z": -107.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -4.5,
       "z": -106.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -3.5,
       "z": -106.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 75.15,
       "z": -58.48,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 4.2,
       "z": 47.37,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 7.2,
       "z": 48.37,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 9.2,
       "z": 48.37,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 11.2,
       "z": 47.37,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 15.5,
       "z": 32.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 16.5,
       "z": 32.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 19.5,
       "z": 31.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 25.5,
       "z": 26.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 26.5,
       "z": 26.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 26.5,
       "z": 25.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 29.5,
       "z": 22.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 32.5,
       "z": 18.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 33.5,
       "z": 17.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 36.5,
       "z": 12.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 37.5,
       "z": 12.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 39.5,
       "z": 6.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 39.5,
       "z": 5.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 40.5,
       "z": 2.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 40.5,
       "z": -9.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 39.5,
       "z": -14.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 39.5,
       "z": -15.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 37.5,
       "z": -19.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 34.5,
       "z": -22.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 32.5,
       "z": -25.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 31.5,
       "z": -25.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 27.5,
       "z": -29.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 27.5,
       "z": -28.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 23.5,
       "z": -31.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 14.5,
       "z": -34.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 8.5,
       "z": -34.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 7.5,
       "z": -35.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 4.5,
       "z": -35.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 3.5,
       "z": -35.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 3.5,
       "z": -34.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 0.5,
       "z": -34.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -1.5,
       "z": -34.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -4.5,
       "z": -34.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -9.5,
       "z": -34.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -10.5,
       "z": -34.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -13.5,
       "z": -33.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -11.5,
       "z": -33.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -14.5,
       "z": -33.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -18.5,
       "z": -32.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -19.5,
       "z": -32.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -20.5,
       "z": -31.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -22.5,
       "z": -30.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -23.5,
       "z": -29.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -25.5,
       "z": -28.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -28.5,
       "z": -27.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -27.5,
       "z": -27.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -34.97,
       "z": -53.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -34.97,
       "z": -52.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -33.97,
       "z": -51.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -32.97,
       "z": -49.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -29.97,
       "z": -44.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -29.97,
       "z": -43.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -25.97,
       "z": -40.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -24.97,
       "z": -39.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -22.97,
       "z": -36.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -20.97,
       "z": -33.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -19.97,
       "z": -33.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 63.15,
       "z": -63.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 64.15,
       "z": -63.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 64.15,
       "z": -61.48,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 66.15,
       "z": -61.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 70.15,
       "z": -59.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 75.15,
       "z": -59.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 10.2,
       "z": 46.37,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 18.5,
       "z": 29.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 19.5,
       "z": 29.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 23.5,
       "z": 27.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 24.5,
       "z": 25.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 26.5,
       "z": 22.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 26.5,
       "z": 23.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 28.5,
       "z": 21.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 29.5,
       "z": 20.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 31.5,
       "z": 19.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 34.5,
       "z": 15.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 38.5,
       "z": 7.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 39.5,
       "z": 3.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 39.5,
       "z": 2.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 40.5,
       "z": -7.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 39.5,
       "z": -8.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 39.5,
       "z": -7.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 38.5,
       "z": -14.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 37.82,
       "z": -11.42,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 37.5,
       "z": -14.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 36.5,
       "z": -18.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 35.5,
       "z": -20.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 31.5,
       "z": -23.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 25.5,
       "z": -28.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 15.5,
       "z": -32.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 7.5,
       "z": -34.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 9.5,
       "z": -33.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 4.5,
       "z": -34.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 4.5,
       "z": -33.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -4.5,
       "z": -33.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -8.5,
       "z": -33.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -11.5,
       "z": -32.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -19.5,
       "z": -31.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -16.5,
       "z": -31.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -34.97,
       "z": -56.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -32.97,
       "z": -52.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -31.97,
       "z": -50.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -31.97,
       "z": -49.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -29.97,
       "z": -49.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -29.97,
       "z": -48.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -29.97,
       "z": -46.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -23.97,
       "z": -39.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -19.97,
       "z": -35.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -19.97,
       "z": -34.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -17.97,
       "z": -33.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -16.97,
       "z": -33.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 67.15,
       "z": -62.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 68.15,
       "z": -62.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 70.15,
       "z": -61.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 70.15,
       "z": -60.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 71.15,
       "z": -60.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 74.15,
       "z": -60.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 3.2,
       "z": 45.37,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 7.2,
       "z": 45.37,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 20.5,
       "z": 27.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 24.5,
       "z": 24.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 25.5,
       "z": 23.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 29.5,
       "z": 18.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 30.5,
       "z": 18.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 30.5,
       "z": 17.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 33.5,
       "z": 14.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 33.5,
       "z": 12.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 36.5,
       "z": 7.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 37.5,
       "z": 6.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 37.5,
       "z": 4.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 37.5,
       "z": 3.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 38.5,
       "z": -4.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 38.5,
       "z": -5.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 38.5,
       "z": -7.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 35.5,
       "z": -16.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 31.5,
       "z": -21.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 30.5,
       "z": -23.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 30.5,
       "z": -22.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 28.5,
       "z": -24.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 24.5,
       "z": -28.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 20.5,
       "z": -30.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 16.5,
       "z": -30.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 14.5,
       "z": -32.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 14.5,
       "z": -31.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 13.5,
       "z": -32.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 5.5,
       "z": -33.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -0.5,
       "z": -32.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 4.5,
       "z": -32.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -12.5,
       "z": -31.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -18.5,
       "z": -30.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -16.5,
       "z": -30.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -22.5,
       "z": -27.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -24.5,
       "z": -26.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -23.5,
       "z": -26.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -26.5,
       "z": -25.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -28.5,
       "z": -22.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -27.5,
       "z": -22.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -33.97,
       "z": -58.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -33.97,
       "z": -56.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -32.97,
       "z": -53.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -26.97,
       "z": -45.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -24.97,
       "z": -43.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -23.97,
       "z": -43.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -21.97,
       "z": -40.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -21.97,
       "z": -39.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -20.97,
       "z": -38.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -19.97,
       "z": -38.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -19.97,
       "z": -37.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -18.97,
       "z": -36.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 62.15,
       "z": -67.48,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 68.15,
       "z": -63.48,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 3.2,
       "z": 44.37,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 6.2,
       "z": 44.37,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 12.2,
       "z": 43.37,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 24.5,
       "z": 22.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 24.5,
       "z": 20.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 26.5,
       "z": 19.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 27.5,
       "z": 18.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 28.5,
       "z": 18.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 29.5,
       "z": 16.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 30.5,
       "z": 13.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 32.5,
       "z": 13.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 34.5,
       "z": 9.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 34.5,
       "z": 8.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 35.5,
       "z": 6.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 36.5,
       "z": 5.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 36.5,
       "z": 3.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 37.5,
       "z": -0.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 37.5,
       "z": 0.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 37.5,
       "z": -7.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 35.5,
       "z": -12.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 34.5,
       "z": -15.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 33.5,
       "z": -18.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 33.5,
       "z": -16.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 30.5,
       "z": -21.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 30.5,
       "z": -20.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 29.5,
       "z": -22.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 19.5,
       "z": -29.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 13.5,
       "z": -30.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 12.5,
       "z": -31.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 10.5,
       "z": -31.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -7.5,
       "z": -31.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -12.5,
       "z": -30.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -16.5,
       "z": -29.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -18.5,
       "z": -27.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -29.9,
       "z": -26.16,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -22.5,
       "z": -25.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -24.5,
       "z": -24.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -27.5,
       "z": -21.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -28.5,
       "z": -19.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -29.97,
       "z": -53.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -22.97,
       "z": -43.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -19.97,
       "z": -40.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -18.97,
       "z": -37.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -17.97,
       "z": -37.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 65.15,
       "z": -66.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 69.15,
       "z": -64.48,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 8.2,
       "z": 43.37,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 9.2,
       "z": 43.37,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 14.2,
       "z": 41.37,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 15.2,
       "z": 41.37,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 15.2,
       "z": 40.37,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 16.2,
       "z": 40.37,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 24.5,
       "z": 19.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 27.5,
       "z": 16.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 31.5,
       "z": 12.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 31.5,
       "z": 11.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 32.5,
       "z": 10.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 35.5,
       "z": 2.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 35.5,
       "z": 1.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 36.5,
       "z": -1.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 35.5,
       "z": -8.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 31.5,
       "z": -18.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 30.5,
       "z": -18.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 27.5,
       "z": -22.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 23.5,
       "z": -25.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 19.5,
       "z": -27.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 20.5,
       "z": -27.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 18.5,
       "z": -28.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 18.5,
       "z": -27.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 17.5,
       "z": -28.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 14.5,
       "z": -29.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 7.5,
       "z": -30.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 6.81,
       "z": -34.68,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 18.28,
       "z": -32.55,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 2.5,
       "z": -30.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -12.5,
       "z": -28.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -24.5,
       "z": -23.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -28.5,
       "z": -18.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -30.97,
       "z": -57.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -29.97,
       "z": -55.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -26.97,
       "z": -51.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -25.97,
       "z": -47.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -23.97,
       "z": -47.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -22.97,
       "z": -46.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -19.97,
       "z": -42.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -19.97,
       "z": -41.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -18.97,
       "z": -41.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -17.97,
       "z": -40.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -16.97,
       "z": -38.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 61.15,
       "z": -71.48,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 64.15,
       "z": -69.48,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 65.15,
       "z": -67.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 72.15,
       "z": -64.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 73.15,
       "z": -63.48,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 74.15,
       "z": -63.48,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 9.2,
       "z": 41.37,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 11.2,
       "z": 41.37,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 14.2,
       "z": 40.37,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 22.5,
       "z": 19.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 29.5,
       "z": 11.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 34.5,
       "z": 2.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 35.5,
       "z": -6.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 41.14,
       "z": -13.63,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 32.5,
       "z": -13.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 31.5,
       "z": -16.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 40.95,
       "z": -27.51,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 40.95,
       "z": -26.51,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 36.95,
       "z": -29.51,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 35.95,
       "z": -30.51,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 17.5,
       "z": -27.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 25.36,
       "z": -39.73,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 26.36,
       "z": -39.73,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 9.5,
       "z": -29.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 3.5,
       "z": -29.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 2.5,
       "z": -29.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -11.5,
       "z": -28.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -11.5,
       "z": -27.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -29.97,
       "z": -57.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -29.97,
       "z": -56.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -25.97,
       "z": -53.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -25.97,
       "z": -52.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -25.97,
       "z": -50.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -19.97,
       "z": -44.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -17.97,
       "z": -42.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -16.97,
       "z": -40.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 63.15,
       "z": -72.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 63.15,
       "z": -71.48,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 69.15,
       "z": -68.48,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 70.15,
       "z": -66.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 71.15,
       "z": -66.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 74.15,
       "z": -65.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 74.15,
       "z": -64.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 7.2,
       "z": 41.37,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 9.2,
       "z": 40.37,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 13.2,
       "z": 39.37,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 13.2,
       "z": 38.37,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 31.67,
       "z": 28.62,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 29.5,
       "z": 8.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 29.5,
       "z": 9.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 30.5,
       "z": 7.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 31.5,
       "z": 6.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 32.5,
       "z": 5.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 32.5,
       "z": 3.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 32.5,
       "z": 4.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 40.14,
       "z": -12.63,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 40.95,
       "z": -25.51,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 39.95,
       "z": -26.51,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 37.95,
       "z": -27.51,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 34.95,
       "z": -29.51,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 33.95,
       "z": -30.51,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 17.5,
       "z": -25.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 26.36,
       "z": -37.73,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -3.31,
       "z": -34.92,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -39.52,
       "z": 32.2,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -40.52,
       "z": 33.2,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -28.97,
       "z": -57.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -24.97,
       "z": -53.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -22.97,
       "z": -49.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -16.97,
       "z": -42.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 61.15,
       "z": -76.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 62.15,
       "z": -74.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 63.15,
       "z": -73.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 66.15,
       "z": -71.48,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 67.15,
       "z": -70.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 67.15,
       "z": -69.48,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 73.15,
       "z": -66.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 29.67,
       "z": 28.62,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 30.5,
       "z": 5.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 42.82,
       "z": -4.11,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 42.82,
       "z": -5.11,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 36.02,
       "z": -3.54,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 39.14,
       "z": -13.63,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 39.14,
       "z": -12.63,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 39.14,
       "z": -10.63,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 33.0,
       "z": -11.84,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 38.14,
       "z": -14.63,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 38.14,
       "z": -13.63,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 47.93,
       "z": 3.22,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 47.93,
       "z": 5.22,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 38.95,
       "z": -24.51,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 36.95,
       "z": -27.51,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 36.95,
       "z": -26.51,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 34.95,
       "z": -27.51,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 33.95,
       "z": -29.51,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 33.95,
       "z": -28.51,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 32.95,
       "z": -29.51,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 29.95,
       "z": -31.51,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -36.52,
       "z": 30.2,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -25.97,
       "z": -55.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -24.97,
       "z": -55.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -20.97,
       "z": -49.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -19.97,
       "z": -49.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 62.15,
       "z": -77.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 62.15,
       "z": -76.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 65.15,
       "z": -74.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 71.15,
       "z": -70.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 9.2,
       "z": 37.37,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 32.67,
       "z": 25.62,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 32.67,
       "z": 23.62,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 32.67,
       "z": 24.62,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 33.67,
       "z": 22.62,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 28.5,
       "z": 6.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 30.5,
       "z": 3.5,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 40.82,
       "z": -0.11,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 41.82,
       "z": -2.11,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 49.93,
       "z": 14.22,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 47.93,
       "z": 8.22,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 45.93,
       "z": 3.22,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 43.93,
       "z": 2.22,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 44.93,
       "z": 3.22,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 36.95,
       "z": -24.51,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 35.95,
       "z": -26.51,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 33.95,
       "z": -26.51,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 31.95,
       "z": -29.51,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 29.95,
       "z": -29.51,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 28.95,
       "z": -29.51,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 1.32,
       "z": -35.38,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 12.32,
       "z": -33.93,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -36.52,
       "z": 31.2,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -37.52,
       "z": 34.2,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -22.97,
       "z": -56.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -22.97,
       "z": -53.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 61.15,
       "z": -79.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 63.15,
       "z": -77.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 64.15,
       "z": -75.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 68.15,
       "z": -73.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 72.15,
       "z": -69.48,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 3.2,
       "z": 37.37,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 5.2,
       "z": 37.37,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 9.2,
       "z": 36.37,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 26.67,
       "z": 27.62,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 31.67,
       "z": 24.62,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 31.67,
       "z": 23.62,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 32.67,
       "z": 22.62,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 39.82,
       "z": -2.11,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 39.82,
       "z": -1.11,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 40.82,
       "z": -5.11,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 40.82,
       "z": -4.11,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 48.93,
       "z": 13.22,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 48.93,
       "z": 11.22,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 47.93,
       "z": 10.22,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 46.93,
       "z": 8.22,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 44.93,
       "z": 4.22,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 44.93,
       "z": 5.22,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 42.93,
       "z": 4.22,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 43.93,
       "z": 4.22,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 41.93,
       "z": 2.22,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 34.95,
       "z": -25.51,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 32.95,
       "z": -25.51,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 30.95,
       "z": -28.51,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 27.95,
       "z": -28.51,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 16.32,
       "z": -36.75,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -34.52,
       "z": 32.2,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -36.52,
       "z": 34.2,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -23.97,
       "z": -57.67,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -18.97,
       "z": -52.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -17.97,
       "z": -51.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 62.15,
       "z": -80.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 65.15,
       "z": -77.48,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 67.15,
       "z": -75.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 69.15,
       "z": -74.48,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 70.15,
       "z": -72.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 73.15,
       "z": -72.48,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 73.15,
       "z": -70.48,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 5.2,
       "z": 36.37,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 6.2,
       "z": 36.37,
-      "amount": 300
+      "amount": 200
     },
     {
       "type": "stone",
       "x": 10.2,
       "z": 59.37,
-      "amount": 1000
+      "amount": 5000
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 8.76,
       "z": 49.22,
-      "amount": 300
+      "amount": 100
     },
     {
       "type": "stone",
       "x": 26.5,
       "z": -49.5,
-      "amount": 1000
+      "amount": 5000
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 23.6,
       "z": -48.74,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 28.69,
       "z": -51.55,
-      "amount": 300
+      "amount": 100
     },
     {
       "type": "stone",
       "x": -109.5,
       "z": -50.5,
-      "amount": 1000
+      "amount": 5000
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -106.58,
       "z": -49.8,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -107.39,
       "z": -48.37,
-      "amount": 300
+      "amount": 100
     },
     {
       "type": "stone",
       "x": -41.5,
       "z": -57.5,
-      "amount": 1000
+      "amount": 5000
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -41.53,
       "z": -60.5,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -42.56,
       "z": -54.69,
-      "amount": 300
+      "amount": 100
     },
     {
       "type": "stone",
       "x": 34.5,
       "z": -114.5,
-      "amount": 1000
+      "amount": 5000
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 37.13,
       "z": -113.06,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 36.02,
       "z": -111.92,
-      "amount": 300
+      "amount": 200
     },
     {
       "type": "stone",
       "x": -67.5,
       "z": -73.5,
-      "amount": 1000
+      "amount": 5000
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -67.09,
       "z": -70.53,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -67.07,
       "z": -70.53,
-      "amount": 300
+      "amount": 200
     },
     {
       "type": "stone",
       "x": -69.5,
       "z": 40.5,
-      "amount": 1000
+      "amount": 5000
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -72.3,
       "z": 40.52,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -67.97,
       "z": 43.86,
-      "amount": 300
+      "amount": 200
     },
     {
       "type": "stone",
       "x": -63.97,
       "z": -59.12,
-      "amount": 1000
+      "amount": 5000
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -66.83,
       "z": -58.23,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -63.56,
       "z": -62.1,
-      "amount": 300
+      "amount": 200
     },
     {
       "type": "gold",
       "x": 41.5,
       "z": -42.5,
-      "amount": 1000
+      "amount": 5000
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 43.62,
       "z": -44.11,
-      "amount": 300
+      "amount": 100
     },
     {
       "type": "gold",
       "x": -31.5,
       "z": -96.5,
-      "amount": 1000
+      "amount": 5000
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -28.78,
       "z": -97.29,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -32.56,
       "z": -98.19,
-      "amount": 300
+      "amount": 200
     },
     {
       "type": "gold",
       "x": 98.5,
       "z": -33.5,
-      "amount": 1000
+      "amount": 5000
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 100.07,
       "z": -35.9,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 97.93,
       "z": -31.06,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 98.04,
       "z": -35.45,
-      "amount": 300
+      "amount": 200
     },
     {
       "type": "gold",
       "x": 73.18,
       "z": 76.04,
-      "amount": 1000
+      "amount": 5000
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 73.64,
       "z": 78.21,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 74.46,
       "z": 77.58,
-      "amount": 300
+      "amount": 200
     },
     {
       "type": "gold",
       "x": -62.71,
       "z": -81.66,
-      "amount": 1000
+      "amount": 5000
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -48.29,
       "z": -92.46,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -62.48,
       "z": -83.65,
-      "amount": 300
+      "amount": 100
     },
     {
       "type": "gold",
       "x": -48.97,
       "z": -68.12,
-      "amount": 1000
+      "amount": 5000
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -47.08,
       "z": -68.83,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -49.97,
       "z": -66.39,
-      "amount": 300
+      "amount": 200
     },
     {
       "type": "gold",
       "x": -77.5,
       "z": 76.5,
-      "amount": 1000
+      "amount": 5000
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -79.67,
       "z": 75.29,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -76.3,
       "z": 78.37,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -78.88,
       "z": 75.05,
-      "amount": 300
+      "amount": 200
     },
     {
       "type": "gold",
       "x": 19.47,
       "z": -99.81,
-      "amount": 1000
+      "amount": 5000
     },
     {
       "type": "gold",
       "x": 3.8,
       "z": 84.48,
-      "amount": 1000
+      "amount": 5000
     },
     {
       "type": "gold",
       "x": 82.2,
       "z": -0.02,
-      "amount": 1000
+      "amount": 5000
     },
     {
       "type": "gold",
       "x": 72.59,
       "z": -11.83,
-      "amount": 1000
+      "amount": 5000
     },
     {
       "type": "gold",
       "x": 72.68,
       "z": 7.08,
-      "amount": 1000
+      "amount": 5000
     },
     {
       "type": "gold",
       "x": 81.01,
       "z": -8.05,
-      "amount": 1000
+      "amount": 5000
     },
     {
       "type": "gold",
       "x": 67.3,
       "z": -5.23,
-      "amount": 1000
+      "amount": 5000
     },
     {
       "type": "gold",
       "x": -47.61,
       "z": -87.8,
-      "amount": 1000
+      "amount": 5000
     },
     {
       "type": "gold",
       "x": -46.12,
       "z": -79.5,
-      "amount": 1000
+      "amount": 5000
     },
     {
       "type": "gold",
       "x": -57.67,
       "z": -91.18,
-      "amount": 1000
+      "amount": 5000
     },
     {
       "type": "gold",
       "x": -53.35,
       "z": -71.05,
-      "amount": 1000
+      "amount": 5000
     },
     {
       "type": "gold",
       "x": -28.06,
       "z": 63.05,
-      "amount": 1000
+      "amount": 5000
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -61.88,
       "z": -88.65,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -54.99,
       "z": -95.55,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -50.1,
       "z": -95.18,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -44.27,
       "z": -96.02,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -40.08,
       "z": -88.29,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -40.66,
       "z": -83.58,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -42.9,
       "z": -79.66,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -49.35,
       "z": -74.21,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -56.87,
       "z": -71.87,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": -61.71,
       "z": -77.75,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 72.59,
       "z": 10.42,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 64.33,
       "z": 4.46,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 64.46,
       "z": -4.77,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 66.69,
       "z": -12.99,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 69.63,
       "z": -17.96,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 76.61,
       "z": -14.93,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 84.54,
       "z": -11.29,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 89.53,
       "z": -0.12,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 84.88,
       "z": 2.18,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 80.85,
       "z": 9.28,
       "amount": 300
@@ -8402,460 +8402,460 @@
       "amount": 1000
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 61.25,
       "z": 54.87,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 61.85,
       "z": 51.03,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 63.78,
       "z": 50.28,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 65.38,
       "z": 45.52,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 64.91,
       "z": 46.99,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 63.71,
       "z": 47.78,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 62.37,
       "z": 50.27,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 62.55,
       "z": 48.63,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 64.92,
       "z": 48.28,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 84.07,
       "z": 50.75,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 83.09,
       "z": 49.61,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 82.28,
       "z": 50.25,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 80.71,
       "z": 47.01,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 79.76,
       "z": 46.02,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 82.35,
       "z": 47.04,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 82.71,
       "z": 48.04,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 83.36,
       "z": 48.08,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 84.82,
       "z": 48.73,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 85.39,
       "z": 50.03,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 84.29,
       "z": 47.94,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 60.45,
       "z": 52.64,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 59.07,
       "z": 51.44,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 61.07,
       "z": 48.73,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 62.05,
       "z": 47.95,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 63.0,
       "z": 45.76,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 64.29,
       "z": 46.07,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 65.49,
       "z": 45.19,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 66.41,
       "z": 45.79,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 66.11,
       "z": 48.21,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 65.19,
       "z": 49.19,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 64.48,
       "z": 51.58,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 63.96,
       "z": 51.68,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 63.19,
       "z": 53.04,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 63.17,
       "z": 51.12,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 80.52,
       "z": 49.04,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 78.82,
       "z": 47.64,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 78.27,
       "z": 45.68,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 81.06,
       "z": 45.21,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 83.26,
       "z": 45.69,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 83.84,
       "z": 46.06,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 85.46,
       "z": 48.27,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 86.28,
       "z": 51.01,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 85.45,
       "z": 52.93,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 83.57,
       "z": 52.47,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 81.2,
       "z": 48.49,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 82.19,
       "z": 47.3,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 80.49,
       "z": 45.49,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 64.49,
       "z": 63.55,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 83.42,
       "z": 68.2,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 82.75,
       "z": 55.75,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 64.08,
       "z": 58.04,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 70.38,
       "z": 67.86,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 77.65,
       "z": 70.97,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 86.49,
       "z": 72.73,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 80.39,
       "z": 81.19,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 62.1,
       "z": 73.35,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 78.26,
       "z": 39.86,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 68.96,
       "z": 38.97,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 52.17,
       "z": 57.86,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 43.18,
       "z": 88.53,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 86.88,
       "z": 50.6,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 95.15,
       "z": 66.62,
       "amount": 300
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 65.39,
       "z": 70.79,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 87.16,
       "z": 64.67,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 89.49,
       "z": 61.69,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 68.02,
       "z": 65.55,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 81.74,
       "z": 74.54,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 72.74,
       "z": 44.02,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 74.42,
       "z": 40.36,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 68.85,
       "z": 43.37,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 71.19,
       "z": 41.13,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 85.62,
       "z": 67.82,
-      "amount": 300
+      "amount": 100
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 67.99,
       "z": 67.44,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 73.93,
       "z": 70.05,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 66.79,
       "z": 39.53,
-      "amount": 300
+      "amount": 200
     },
     {
-      "type": "food",
+      "type": "palm",
       "x": 85.97,
       "z": 69.84,
-      "amount": 300
+      "amount": 200
     }
   ],
   "fauna": [
@@ -10118,5 +10118,7 @@
     }
   ],
   "treasures": [],
-  "ruins": []
+  "ruins": [],
+  "gaia_structures": [],
+  "gaia_units": []
 }
