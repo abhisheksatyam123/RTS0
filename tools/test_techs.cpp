@@ -337,6 +337,36 @@ int main() {
 		s.unit_train_cost(0, healer, civ_template_unit_info(healer, UNIT_HEALER), cost);
 		CHECK(cost[RES_GOLD] == 0.0f);
 
+		// Dock warship techs: Flanking Maneuvers and Bronze Ram reach ramming ships
+		// (0 A.D. NavalRam) only, Bronze Ram needs Flanking Maneuvers, and the
+		// Athenian Arsenal of Philon (after Shipwrights) repairs warships.
+		fresh(s);
+		s.set_player_civ(CIV_ATHENIANS);
+		s.player(0).phase = 3;
+		uint16_t ram = CIV_UNIT_TEMPLATE_NONE, arrow = CIV_UNIT_TEMPLATE_NONE;
+		for (uint16_t i = civ_roster_begin(CIV_ATHENIANS); i < civ_roster_end(CIV_ATHENIANS); ++i) {
+			if (std::strcmp(civ_unit_template(i).id, "athen/ship_ram") == 0) ram = i;
+			if (std::strcmp(civ_unit_template(i).id, "athen/ship_arrow") == 0) arrow = i;
+		}
+		CHECK(ram != CIV_UNIT_TEMPLATE_NONE && arrow != CIV_UNIT_TEMPLATE_NONE);
+		CHECK(!tech_available_to_civ(TECH_WARSHIP_RAMMING_SPEED, CIV_BRITONS)); // brit fire ships are melee warships too
+		CHECK(tech_info(TECH_WARSHIP_RAMMING_ATTACK).prerequisite == TECH_WARSHIP_RAMMING_SPEED);
+		CHECK(tech_info(TECH_ARSENAL_PHILON).prerequisite == TECH_DOCK_EFFICIENCY);
+		CHECK(!tech_available_to_civ(TECH_ARSENAL_PHILON, CIV_SPARTANS));
+		research(TECH_WARSHIP_RAMMING_SPEED, -10.0f);
+		CHECK(std::fabs(s.tech_mods(0).tmpl[ram].speed - 1.25f) < 1e-4f);
+		CHECK(s.tech_mods(0).tmpl[arrow].speed == 1.0f);
+		research(TECH_WARSHIP_RAMMING_ATTACK, -30.0f);
+		CHECK(std::fabs(s.tech_mods(0).tmpl[ram].attack - 1.3f) < 1e-4f);
+		CHECK(s.tech_mods(0).tmpl[arrow].attack == 1.0f);
+		research(TECH_WARSHIP_HEALTH, -50.0f); // Undergirding Cables: arrow and ramming ships
+		CHECK(std::fabs(s.tech_mods(0).tmpl[ram].health - 1.2f) < 1e-4f);
+		CHECK(s.tech_mods(0).regen[UNIT_TRIREME] == 0.0f);
+		research(TECH_DOCK_EFFICIENCY, -70.0f);
+		research(TECH_ARSENAL_PHILON, -90.0f);
+		CHECK(s.tech_mods(0).regen[UNIT_TRIREME] == 1.0f);
+		CHECK(s.tech_mods(0).regen[UNIT_FISHING_BOAT] == 0.0f);
+
 		s.set_player_civ(civ_before);
 	}
 

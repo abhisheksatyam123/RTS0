@@ -2957,7 +2957,7 @@ void RtsoMain::update_command_panel() {
 				if (ti.researcher != found_b->type || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
 				rtso::Simulation::ResearchCheck rc = sim->research_check(local_player(), (uint8_t)t, found_b->id);
 				if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_CIV
-				    || rc == rtso::Simulation::TECH_ERR_PAIRED) continue;
+				    || rc == rtso::Simulation::TECH_ERR_PAIRED || rc == rtso::Simulation::TECH_ERR_DISABLED) continue;
 				Button *btn = memnew(Button);
 				String cost;
 				auto add_cost = [&](int v, const char *suffix) {
@@ -4491,11 +4491,13 @@ void RtsoMain::apply_match_settings() {
 	}
 	sim->set_water_level_mode(std::clamp((int)ms->get("water_level"), 0, 2));
 	sim->set_sea_level_rise_minutes(std::clamp((int)ms->get("sea_level_rise_min"), 0, 60));
-	// Game-setup teams (1-based T1..T4) decide allied victory, shared vision and territory.
-	Array slot_teams = ms->get("slot_teams");
-	for (int p = 0; p < 8 && p < slot_teams.size(); ++p) {
-		int tm = (int)slot_teams[p];
-		if (tm >= 1 && tm <= 8) sim->set_player_team((uint8_t)p, (uint8_t)(tm - 1));
+	// Game-setup teams (0 = None, 1-4 = T1..T4) decide allied victory, shared vision and territory.
+	{
+		Array slot_teams = ms->get("slot_teams");
+		uint8_t teams[rtso::MAX_PLAYERS] = {};
+		for (int p = 0; p < rtso::MAX_PLAYERS && p < slot_teams.size(); ++p)
+			teams[p] = (uint8_t)std::clamp((int)slot_teams[p], 0, 8);
+		sim->set_setup_teams(teams);
 	}
 	sim->apply_team_diplomacy(); // stances follow the lobby's teams
 	sync_victory_selector();
@@ -4515,14 +4517,7 @@ void RtsoMain::apply_match_settings() {
 		const float sp = (float)(double)ms->get("game_speed");
 		game_speed = (sp >= 0.25f && sp <= 3.0f) ? sp : 1.0f;
 	}
-	// Starting-resources presets (0 sparse / 1 normal / 2 generous / 3 abundant).
-	static const int kStartRes[4][4] = {
-		{150, 200, 150, 100}, {300, 400, 300, 200},
-		{500, 700, 500, 350}, {900, 1200, 900, 600},
-	};
-	if (start_res < 0 || start_res > 3) start_res = 1;
-	sim->set_starting_resources(kStartRes[start_res][0], kStartRes[start_res][1],
-			kStartRes[start_res][2], kStartRes[start_res][3]);
+	sim->set_starting_resources_preset(start_res); // 0 A.D. Very Low .. Deathmatch
 	// Per-slot civs (slot 0 = human; extra slots honor team civs the
 	// RMS/JSON spawns actually created - Petra only drives team 1).
 	for (int t = 0; t < rtso::MAX_PLAYERS && t < slot_civs.size(); ++t) {
@@ -4866,6 +4861,14 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			sim->garrison_unit_now(gaia_unit_ids[i], gaia_structure_ids[str]);
 	}
 
+	// The map's TriggerScripts (0 A.D. ScriptSettings), ported to C++ (triggers.h).
+	Array trig_arr = d.get("trigger_scripts", Array());
+	for (int i = 0; i < trig_arr.size(); ++i) {
+		const String script = trig_arr[i];
+		if (!sim->register_trigger_script(script.utf8().get_data()))
+			UtilityFunctions::printerr("[RtsoMain] Map trigger script not ported: ", script);
+	}
+
 	// Rebuild World View 3D terrain and bounds
 	load_progress(70, "Building terrain");
 	view->rebuild_terrain(sim);
@@ -5085,7 +5088,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 	if (setup.victory >= rtso::VICTORY_COUNT) setup.victory = sim->victory_condition();
 	if (setup.difficulty > 5) setup.difficulty = sim->petra_difficulty();
 	if (setup.behavior > 3) setup.behavior = sim->petra_behavior();
-	if (setup.start_res > 3) setup.start_res = 1;
+	if (setup.start_res >= rtso::Simulation::STARTING_RESOURCE_PRESET_COUNT) setup.start_res = 1;
 	// Every connected joiner needs a human slot to play: if the lobby left too
 	// few, turn the first AI slots into human ones (before broadcast, so both
 	// peers seat players identically in assign_slot_players).
@@ -5158,8 +5161,10 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) sim->set_player_color(p, setup.colors[p]);
 	sim->set_water_level_mode(setup.water_level);
 	sim->set_sea_level_rise_minutes(setup.sea_rise_min);
-	for (uint8_t p = 0; p < 8 && p < setup.slot_count; ++p) {
-		if (setup.teams[p] >= 1 && setup.teams[p] <= 8) sim->set_player_team(p, (uint8_t)(setup.teams[p] - 1));
+	{
+		uint8_t teams[rtso::MAX_PLAYERS] = {};
+		for (uint8_t p = 0; p < rtso::MAX_PLAYERS && p < setup.slot_count; ++p) teams[p] = setup.teams[p];
+		sim->set_setup_teams(teams);
 	}
 	sim->apply_team_diplomacy();
 	sync_victory_selector();
@@ -5169,13 +5174,8 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		sim->set_petra_difficulty(p, setup.diffs[p]);
 		sim->set_petra_behavior(p, setup.behs[p]);
 	}
-	static const int kStartRes[4][4] = {
-		{150, 200, 150, 100}, {300, 400, 300, 200},
-		{500, 700, 500, 350}, {900, 1200, 900, 600},
-	};
-	uint8_t sr = setup.start_res > 3 ? 1 : setup.start_res;
-	sim->set_starting_resources(kStartRes[sr][0], kStartRes[sr][1],
-			kStartRes[sr][2], kStartRes[sr][3]);
+	const uint8_t sr = setup.start_res < rtso::Simulation::STARTING_RESOURCE_PRESET_COUNT ? setup.start_res : 1;
+	sim->set_starting_resources_preset(sr);
 	for (uint8_t t = 0; t < rtso::MAX_PLAYERS && t < setup.slot_count; ++t) {
 		if (setup.civs[t] < rtso::CIV_COUNT) sim->set_team_civ(t, setup.civs[t]);
 	}

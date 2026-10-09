@@ -55,6 +55,15 @@ enum TriggerAction : uint16_t {
 	TRIGGER_ACTION_VOLCANO_INIT = 4,
 	TRIGGER_ACTION_VOLCANO_NOTIFY = 5,    // RaisingWaterNotification
 	TRIGGER_ACTION_VOLCANO_RISE_STEP = 6, // RaiseWaterLevelStep
+	// maps/random/polar_sea_triggers.js
+	TRIGGER_ACTION_POLAR_SEA_INIT = 7,    // DisableTechnologies, first wave
+	TRIGGER_ACTION_POLAR_SEA_WAVE = 8,    // SpawnWolvesAndAttack
+	// maps/scenarios/treasure_islands.js
+	TRIGGER_ACTION_TREASURE_ISLANDS_INIT = 9,
+	TRIGGER_ACTION_TREASURE_ISLANDS_INTRO = 10,     // IntroductionMessage
+	TRIGGER_ACTION_TREASURE_ISLANDS_COLLECTED = 11, // TreasureCollected
+	TRIGGER_ACTION_TREASURE_ISLANDS_BATTLE = 12,    // BattleMessage
+	TRIGGER_ACTION_TREASURE_ISLANDS_VICTORY = 13,   // Victory(playerID = arg)
 	TRIGGER_ACTION_COUNT
 };
 
@@ -115,6 +124,16 @@ struct TimeNotification {
 };
 static_assert(sizeof(TimeNotification) == 192, "TimeNotification is saved raw: keep it free of padding");
 
+// ProcessCommand(0, {"type": "attack", "queued": true}) for each target in turn: a
+// script-spawned Gaia animal works through its targets, nearest first. targets[0]
+// is the one it is attacking now.
+struct TriggerAttackOrder {
+	uint32_t fauna_id = 0;
+	uint32_t targets[3] = {};
+	uint32_t count = 0;
+};
+static_assert(sizeof(TriggerAttackOrder) == 20, "TriggerAttackOrder is saved raw: keep it free of padding");
+
 struct TriggerState {
 	uint32_t time_ms = 0;       // Timer.js GetTime(): simulation time since the match started
 	uint32_t next_timer_id = 1; // Timer.js id counter
@@ -126,6 +145,12 @@ struct TriggerState {
 	std::vector<TriggerTimer> timers;
 	std::vector<TriggerPoint> points;
 	std::vector<TimeNotification> notifications;
+	// Script variables (cmpTrigger.<name> in the map scripts), e.g. treasure_islands.js
+	// treasureCount.players. Their meaning is the map's.
+	int32_t vars[8] = {};
+	// cmpPlayer.SetDisabledTechnologies, per player: a 256-bit set of tech ids.
+	uint64_t disabled_techs[8][4] = {};
+	std::vector<TriggerAttackOrder> attack_orders;
 
 	void clear() { *this = TriggerState(); }
 	bool active() const { return !triggers.empty() || !timers.empty(); }
@@ -186,6 +211,13 @@ struct TriggerState {
 		notifications.push_back(n);
 	}
 
+	void disable_tech(uint8_t player, uint8_t tech) {
+		if (player < 8) disabled_techs[player][tech >> 6] |= 1ull << (tech & 63);
+	}
+	bool tech_disabled(uint8_t player, uint8_t tech) const {
+		return player < 8 && ((disabled_techs[player][tech >> 6] >> (tech & 63)) & 1u);
+	}
+
 	// Index of the timer with this id, or -1 (it ran out or was cancelled).
 	int find_timer(uint32_t id) const {
 		for (size_t i = 0; i < timers.size(); ++i)
@@ -210,6 +242,15 @@ struct TriggerState {
 			uint32_t arg_bits;
 			std::memcpy(&arg_bits, &t.arg, sizeof(arg_bits));
 			mix(t.id); mix(t.time_ms); mix(t.repeat_ms); mix(t.action); mix(arg_bits);
+		}
+		mix((uint32_t)points.size());
+		for (int32_t v : vars) mix((uint32_t)v);
+		for (const auto &p : disabled_techs)
+			for (uint64_t w : p) { mix((uint32_t)w); mix((uint32_t)(w >> 32)); }
+		mix((uint32_t)attack_orders.size());
+		for (const auto &o : attack_orders) {
+			mix(o.fauna_id); mix(o.count);
+			for (uint32_t t : o.targets) mix(t);
 		}
 		return h;
 	}
