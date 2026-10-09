@@ -3669,7 +3669,7 @@
     "hp": 1100.0,
     "cooldown": 1.5,
     "hack_dmg": 33.0,
-    "pierce_dmg": 1.1,
+    "pierce_dmg": 0.0,
     "crush_dmg": 49.50000000000001,
     "hack_armor": 5.0,
     "pierce_armor": 5.0,
@@ -3681,7 +3681,7 @@
     "train_time": 39.6,
     "pop": 3,
     "speed": 3.2039999999999997,
-    "damage": 83.60000000000001,
+    "damage": 82.5,
     "range": 3.0,
     "carry": 0
    }
@@ -6516,7 +6516,7 @@
     "hp": 900.0,
     "cooldown": 1.5,
     "hack_dmg": 27.0,
-    "pierce_dmg": 0.9,
+    "pierce_dmg": 0.0,
     "crush_dmg": 40.5,
     "hack_armor": 5.0,
     "pierce_armor": 5.0,
@@ -6528,7 +6528,7 @@
     "train_time": 32.4,
     "pop": 3,
     "speed": 3.2039999999999997,
-    "damage": 68.4,
+    "damage": 67.5,
     "range": 3.0,
     "carry": 0
    }
@@ -12764,7 +12764,7 @@
     "hp": 1100.0,
     "cooldown": 1.5,
     "hack_dmg": 33.0,
-    "pierce_dmg": 1.1,
+    "pierce_dmg": 0.0,
     "crush_dmg": 49.50000000000001,
     "hack_armor": 5.0,
     "pierce_armor": 5.0,
@@ -12776,7 +12776,7 @@
     "train_time": 27.72,
     "pop": 3,
     "speed": 3.2039999999999997,
-    "damage": 83.60000000000001,
+    "damage": 82.5,
     "range": 3.0,
     "carry": 0
    }
@@ -14099,7 +14099,7 @@
     "hp": 900.0,
     "cooldown": 1.5,
     "hack_dmg": 27.0,
-    "pierce_dmg": 0.9,
+    "pierce_dmg": 0.0,
     "crush_dmg": 40.5,
     "hack_armor": 5.0,
     "pierce_armor": 5.0,
@@ -14111,7 +14111,7 @@
     "train_time": 32.4,
     "pop": 3,
     "speed": 3.2039999999999997,
-    "damage": 68.4,
+    "damage": 67.5,
     "range": 3.0,
     "carry": 0
    }
@@ -15601,7 +15601,7 @@
     "hp": 900.0,
     "cooldown": 1.5,
     "hack_dmg": 27.0,
-    "pierce_dmg": 0.9,
+    "pierce_dmg": 0.0,
     "crush_dmg": 40.5,
     "hack_armor": 5.0,
     "pierce_armor": 5.0,
@@ -15613,7 +15613,7 @@
     "train_time": 32.4,
     "pop": 3,
     "speed": 3.2039999999999997,
-    "damage": 68.4,
+    "damage": 67.5,
     "range": 3.0,
     "carry": 0
    }
@@ -17205,7 +17205,7 @@
     "hp": 1100.0,
     "cooldown": 1.5,
     "hack_dmg": 33.0,
-    "pierce_dmg": 1.1,
+    "pierce_dmg": 0.0,
     "crush_dmg": 49.50000000000001,
     "hack_armor": 5.0,
     "pierce_armor": 5.0,
@@ -17217,7 +17217,7 @@
     "train_time": 39.6,
     "pop": 3,
     "speed": 3.2039999999999997,
-    "damage": 83.60000000000001,
+    "damage": 82.5,
     "range": 3.0,
     "carry": 0
    }
