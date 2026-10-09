@@ -33,10 +33,10 @@ int main() {
 	//    to Gaia or to its own side.
 	{
 		fresh(s);
-		s.note_attacked(0, 1, 10.0f);
-		s.note_attacked(0, GAIA_PLAYER, 50.0f);
-		s.note_attacked(0, 0, 50.0f);
-		s.note_attacked(GAIA_PLAYER, 0, 50.0f);
+		s.note_attacked(1, 0, 2, 1, false, 10.0f);
+		s.note_attacked(1, 0, 3, GAIA_PLAYER, false, 50.0f);
+		s.note_attacked(1, 0, 4, 0, true, 50.0f);
+		s.note_attacked(5, GAIA_PLAYER, 1, 0, false, 50.0f);
 		CHECK(s.battle_damage_dealt(0) == 10.0);
 		CHECK(s.battle_damage_dealt(1) == 0.0);
 	}

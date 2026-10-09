@@ -1318,7 +1318,9 @@ private:
 	// 0 A.D. Loot.js / Looter.js / Promotion.js (see simulation.cpp).
 	void gain_xp(size_t idx, float amount);
 	void award_damage_xp(uint32_t attacker_id, size_t victim, float damage);
-	void note_attacked(uint8_t attacker_owner, uint8_t target_owner, float damage);
+	// attacker_id is 0 when no entity is left to name (a fire ship's death damage).
+	void note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uint32_t target_id, uint8_t target_owner,
+			bool target_is_building, float damage);
 	double battle_damage_[MAX_PLAYERS] = {};
 	bool looter_present(uint32_t looter_id, bool *infantry) const;
 	void collect_loot(uint32_t looter_id, uint8_t looter_player, LootInfo loot, float mult, uint8_t carried_type, int32_t carried);
