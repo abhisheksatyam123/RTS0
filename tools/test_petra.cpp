@@ -1838,50 +1838,60 @@ static void test_concurrent_attacks() {
 // defenseManager.js garrisonUnitsInside, TYPE_DECAY: a structure just captured in enemy
 // land takes its garrison even from an attack under way, and those units leave the plan.
 static void test_decay_garrison_from_attack() {
-	auto s = std::make_unique<Simulation>();
-	s->set_sim_seed(42);
-	s->reset();
-	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
-	s->set_victory_condition(VICTORY_ENDLESS);
-	run_for(*s, 20.0f);
-	const Simulation::Building *foe_cc = nullptr;
-	for (const auto &b : s->buildings_)
-		if (b.team == 0 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) foe_cc = &b;
-	CHECK(foe_cc != nullptr, "player 0 has a civic centre");
-	if (!foe_cc) return;
-	const uint32_t cc_id = foe_cc->id;
-	const float cx = foe_cc->x, cz = foe_cc->z, tx = cx + 14.0f, tz = cz;
-	// Petra's other soldiers are gone: only the army attacking the civic centre is left
-	// when a tower beside it turns Petra's.
-	for (size_t q = 0; q < s->units_.count; ++q)
-		if (s->units_.alive[q] && s->units_.team[q] == 1 && !petra_is_support_unit(s->units_.unit_type[q])) { s->units_.alive[q] = 0; s->units_.action_state[q] = ACTION_DYING; }
-	Simulation::AttackPlan plan;
-	plan.kind = PETRA_ATTACK_ATTACK;
-	for (int k = 0; k < 6; ++k) plan.squad.push_back(s->spawn_unit(tx + 4.0f + (float)k, tz + 4.0f, 1, UNIT_SPEARMAN, 1.0e4f));
-	plan.initial_squad_size = plan.squad.size();
-	plan.target_building_id = cc_id;
-	plan.target_x = cx; plan.target_z = cz;
-	plan.state = Simulation::AttackPlan::ATTACKED;
-	const std::vector<uint32_t> army = plan.squad;
-	s->petra_started_attacks_.push_back(plan);
-	const uint32_t tower = s->spawn_building_world(tx, tz, BLD_TOWER, 1);
-	int need = 0;
-	if (auto it = s->building_id_to_idx_.find(tower); it != s->building_id_to_idx_.end()) need = s->petra_decay_garrison_min(s->buildings_[it->second]);
-	run_for(*s, 15.0f);
-	auto it = s->building_id_to_idx_.find(tower);
-	const bool ours = it != s->building_id_to_idx_.end() && s->buildings_[it->second].team == 1;
-	int inside = 0, still_in_plan = 0;
-	const int cap = ours ? s->buildings_[it->second].garrison_cap : 0;
-	for (uint32_t uid : army) {
-		if (ours) {
-			const auto &g = s->buildings_[it->second].garrisoned_units;
-			if (std::find(g.begin(), g.end(), uid) != g.end()) ++inside;
+	for (int holdable = 0; holdable < 2; ++holdable) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		run_for(*s, 20.0f);
+		const Simulation::Building *foe_cc = nullptr;
+		for (const auto &b : s->buildings_)
+			if (b.team == 0 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) foe_cc = &b;
+		CHECK(foe_cc != nullptr, "player 0 has a civic centre");
+		if (!foe_cc) return;
+		const uint32_t cc_id = foe_cc->id;
+		const float cx = foe_cc->x, cz = foe_cc->z, tx = cx + 14.0f, tz = cz;
+		// Petra's other soldiers are gone: only the army attacking the civic centre is left
+		// when a structure beside it turns Petra's.
+		for (size_t q = 0; q < s->units_.count; ++q)
+			if (s->units_.alive[q] && s->units_.team[q] == 1 && !petra_is_support_unit(s->units_.unit_type[q])) { s->units_.alive[q] = 0; s->units_.action_state[q] = ACTION_DYING; }
+		Simulation::AttackPlan plan;
+		plan.kind = PETRA_ATTACK_ATTACK;
+		for (int k = 0; k < 6; ++k) plan.squad.push_back(s->spawn_unit(tx + 4.0f + (float)k, tz + 8.0f, 1, UNIT_SPEARMAN, 1.0e4f));
+		plan.initial_squad_size = plan.squad.size();
+		plan.target_building_id = cc_id;
+		plan.target_x = cx; plan.target_z = cz;
+		plan.state = Simulation::AttackPlan::ATTACKED;
+		const std::vector<uint32_t> army = plan.squad;
+		s->petra_started_attacks_.push_back(plan);
+		// A fortress's garrison stops its decay; a tower's (5 of the 20 it needs) can't.
+		const uint32_t held = s->spawn_building_world(tx + (holdable ? 4.0f : 0.0f), tz, holdable ? BLD_FORTRESS : BLD_TOWER, 1);
+		int need = 0, cap = 0;
+		if (auto it = s->building_id_to_idx_.find(held); it != s->building_id_to_idx_.end()) {
+			need = s->petra_decay_garrison_min(s->buildings_[it->second]);
+			cap = s->buildings_[it->second].garrison_cap;
 		}
-		if (s->petra_in_attack_squad(uid)) ++still_in_plan;
+		run_for(*s, 15.0f);
+		auto it = s->building_id_to_idx_.find(held);
+		const bool ours = it != s->building_id_to_idx_.end() && s->buildings_[it->second].team == 1;
+		int inside = 0, still_in_plan = 0;
+		for (uint32_t uid : army) {
+			if (ours) {
+				const auto &g = s->buildings_[it->second].garrisoned_units;
+				if (std::find(g.begin(), g.end(), uid) != g.end()) ++inside;
+			}
+			if (s->petra_in_attack_squad(uid)) ++still_in_plan;
+		}
+		std::printf("  decaying %s beside an attack: needs %d of %d, %d of the army inside, %d left in the attack\n",
+		            holdable ? "fortress" : "tower", need, cap, inside, still_in_plan);
+		if (holdable) {
+			CHECK(need > 0 && need <= cap && ours && inside == 6, "Petra pulls soldiers out of an attack to hold a decaying fortress");
+			CHECK(still_in_plan == 0, "and they leave the attack plan");
+		} else {
+			CHECK(need > cap && inside == 0, "a tower no garrison can hold takes no soldiers from the attack");
+		}
 	}
-	std::printf("  decaying tower beside an attack: needs %d, %d of the army inside, %d left in the attack\n", need, inside, still_in_plan);
-	CHECK(need > 0 && ours && inside >= std::min(need, cap), "Petra pulls soldiers out of an attack to hold a decaying tower");
-	CHECK(still_in_plan <= 6 - inside, "and they leave the attack plan"); // one left alone goes home
 }
 
 int main() {

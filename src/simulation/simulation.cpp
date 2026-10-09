@@ -14987,7 +14987,8 @@ bool Simulation::petra_in_attack_squad(uint32_t uid) const {
 
 // defenseManager.js garrisonUnitsInside: a unit of an attack or raid plan garrisons only
 // while its plan still musters, or into a decaying structure (one just captured in enemy
-// land), which may take it even from an army on the march or fighting.
+// land) whose garrison stops the decay, which may take it even from an army on the march
+// or fighting. (A structure no garrison can hold doesn't strip an attack of its army.)
 bool Simulation::petra_attack_can_spare(uint32_t uid, bool decay) const {
 	if (decay) return true;
 	const auto busy = [uid](const AttackPlan &p) {
@@ -15807,6 +15808,8 @@ void Simulation::petra_garrison_units_inside(size_t holder_idx, bool allow_melee
 	if (!structure_has_enough_health(holder)) return;
 	const bool decay = min_garrison >= 0;
 	const int want = decay ? std::min(min_garrison, holder.garrison_cap) : holder.garrison_cap;
+	// Units are pulled out of an attack only for a garrison that will stop the decay.
+	const bool holds_decay = decay && min_garrison <= holder.garrison_cap;
 	int slots = (int)holder.garrisoned_units.size() + incoming[holder_idx];
 	if (slots >= want) return;
 	std::vector<std::pair<float, uint32_t>> near;
@@ -15818,7 +15821,7 @@ void Simulation::petra_garrison_units_inside(size_t holder_idx, bool allow_melee
 		if (units_.order_kind[i] == ORDER_GARRISON || units_.id[i] == petra_scout_unit_id_) continue;
 		if (units_.action_state[i] == ACTION_GARRISONED || petra_passenger(units_.id[i])) continue;
 		const uint32_t uid = units_.id[i];
-		if (!petra_attack_can_spare(uid, decay)) continue;
+		if (!petra_attack_can_spare(uid, holds_decay)) continue;
 		if (decay && !petra_same_land(i, holder)) continue;
 		const float dx = units_.pos_x[i] - holder.x, dz = units_.pos_z[i] - holder.z;
 		near.push_back({dx * dx + dz * dz, uid});
