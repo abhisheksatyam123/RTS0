@@ -9891,8 +9891,9 @@ void Simulation::petra_manage_economy(float dt) {
 		const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
 		if (gcls != GATHER_INFANTRY && gcls != GATHER_SUPPORT) continue;
 		if (units_.action_state[i] == ACTION_IDLE) {
-			// Standing at a treasure is collecting it (UnitAI COLLECTTREASURE), not idling.
-			if (units_.order_kind[i] == ORDER_COLLECT_TREASURE) continue;
+			// Standing at a treasure is collecting it (UnitAI COLLECTTREASURE), not idling;
+			// standing at a relic is capturing it.
+			if (units_.order_kind[i] == ORDER_COLLECT_TREASURE || units_.order_kind[i] == ORDER_CAPTURE_RELIC) continue;
 			const bool soldier = gcls == GATHER_INFANTRY;
 			if (soldier && (in_plan.count(units_.id[i]) || units_.id[i] == petra_scout_unit_id_ ||
 					get_threat_at(units_.pos_x[i], units_.pos_z[i]) >= 7.0f)) continue;
