@@ -68,6 +68,10 @@
 //     chasing a fleeing target; a plain walk doesn't.
 // 41. A hunter whose carcass is eaten goes for the next animal nearby (GATHER FINDINGNEWTARGET
 //     takes live animals), not a dangerous one.
+// 42. Rally points: Shift adds positions, unset-rallypoint (cmd 14 param 1), gather near a
+//     gone target, and a save round trip.
+// 43. UnitAI FLEEING: the flight re-aims from where the attacker is now, ignores attackers
+//     farther than the one fled from, and the source survives a save.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_unit_orders.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -253,10 +257,11 @@ static void test_guard() {
 	run(s, 10.0f);
 	check(dist(s, g, x_of(s, vip), z_of(s, vip)) < 5.0f, "guard follows the guarded unit");
 	check(s.unit_order(g).kind == ORDER_GUARD, "and keeps its guard order");
-	// An archer out of the guard's sight shoots the guarded unit.
+	// An archer out of the guard's sight shoots the guarded unit. It flees and the archer runs
+	// after her (FLEEING re-aims from him), so the walking guard catches him once it stops.
 	uint32_t e = s.spawn_unit(x_of(s, vip) + 14.0f, z_of(s, vip), 1, UNIT_ARCHER);
 	s.order_attack(&e, 1, vip);
-	const bool answered = run_until(s, 20.0f, [&] { return !alive(s, e); });
+	const bool answered = run_until(s, 40.0f, [&] { return !alive(s, e); });
 	check(answered, "guard kills whoever attacks the guarded unit");
 	run(s, 6.0f);
 	check(s.unit_order(g).kind == ORDER_GUARD && act_of(s, g) == ACTION_GUARD &&
@@ -1639,6 +1644,46 @@ static void test_rally_positions() {
 	check(!bref().has_rally_point, "lockstep unset-rallypoint");
 }
 
+
+static void test_flee_source() {
+	std::printf("43. a flight re-aims from a chasing attacker and ignores farther ones (UnitAI FLEEING)\n");
+	Simulation s;
+	setup(s);
+	uint32_t w = s.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN);
+	s.order_set_stance(&w, 1, STANCE_PASSIVE);
+	uint32_t sp = s.spawn_unit(-2, 0, 1, UNIT_SPEARMAN);
+	uint32_t far = s.spawn_unit(15, 0, 1, UNIT_ARCHER);
+	const int wi = idx_of(s, w), si = idx_of(s, sp);
+	s.units_.attacked_by[wi] = sp;
+	s.respond_to_attack((size_t)wi);
+	check(act_of(s, w) == ACTION_FLEE && s.units_.flee_from[wi] == sp && s.units_.target_x[wi] > 0.0f,
+			"she flees east, away from the spearman");
+	// The spearman comes round to her east side: she now runs west.
+	s.units_.pos_x[si] = 2.0f;
+	s.units_.pos_z[si] = 0.0f;
+	check(!s.flee_done((size_t)wi) && s.units_.target_x[wi] < 0.0f, "the flight turns away from where he is now");
+	// A farther attacker is ignored; a nearer one takes over.
+	s.units_.attacked_by[wi] = far;
+	s.respond_to_attack((size_t)wi);
+	check(s.units_.flee_from[wi] == sp, "an archer farther off than the spearman is ignored");
+	uint32_t near = s.spawn_unit(0, 1, 1, UNIT_SPEARMAN);
+	s.units_.attacked_by[idx_of(s, w)] = near;
+	s.respond_to_attack((size_t)idx_of(s, w));
+	check(s.units_.flee_from[idx_of(s, w)] == near, "a nearer attacker is fled from instead");
+	// Far enough away: the flight ends.
+	const int wj = idx_of(s, w);
+	s.units_.pos_z[wj] = 30.0f;
+	check(s.flee_done((size_t)wj), "the flight ends once FleeDistance further off");
+	s.units_.pos_z[wj] = 0.0f;
+	const char *path = "/tmp/rts0_test_flee_source.sav";
+	check(s.save_state(path), "saved");
+	Simulation t;
+	check(t.load_state(path), "loaded");
+	const int ti = idx_of(t, w);
+	check(ti >= 0 && t.units_.flee_from[ti] == near && t.units_.flee_dist[ti] == s.units_.flee_dist[wj],
+			"the one fled from survives a save");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -1684,6 +1729,7 @@ int main(int argc, char **argv) {
 	test_run_speed();
 	test_next_prey();
 	test_rally_positions();
+	test_flee_source();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
