@@ -8924,6 +8924,51 @@ void Simulation::cmd_delete(uint8_t player, const uint32_t *ids, size_t count) {
 	}
 }
 
+void Simulation::order_remove_guard(const uint32_t *unit_ids, size_t count) {
+	for (size_t k = 0; k < count; ++k) {
+		const int32_t i = lookup_unit(unit_ids[k]);
+		if (i < 0 || !units_.alive[i]) continue;
+		if (units_.order_kind[i] == ORDER_GUARD) {
+			units_.target_unit_id[i] = 0;
+			units_.action_state[i] = ACTION_IDLE;
+			units_.has_order[i] = 0;
+			finish_order((size_t)i);
+			continue;
+		}
+		auto q = order_queues_.find(unit_ids[k]);
+		if (q == order_queues_.end()) continue;
+		auto &v = q->second;
+		v.erase(std::remove_if(v.begin(), v.end(), [](const UnitOrder &o) { return o.kind == ORDER_GUARD; }), v.end());
+		if (v.empty()) order_queues_.erase(q);
+	}
+}
+
+void Simulation::order_call_to_arms(const uint32_t *unit_ids, size_t count, float x, float z, bool queued) {
+	for (size_t k = 0; k < count; ++k) {
+		const int32_t i = lookup_unit(unit_ids[k]);
+		if (i < 0 || !units_.alive[i]) continue;
+		if (!(unit_tech_classes(units_.unit_type[i]) & (TC_SOLDIER | TC_WARSHIP | TC_SIEGE | TC_HEALER))) continue;
+		uint32_t uid = unit_ids[k];
+		bool q = queued;
+		// DropAtNearestDropSite: FindNearestDropsite for the carried type, else nothing.
+		if (units_.carry[i] > 0) {
+			uint32_t best = 0;
+			float best_d2 = 0.0f;
+			for (const Building &b : buildings_) {
+				if (!dropsite_accepts((size_t)i, b)) continue;
+				const float dx = b.x - units_.pos_x[i], dz = b.z - units_.pos_z[i];
+				const float d2 = dx * dx + dz * dz;
+				if (best == 0 || d2 < best_d2) { best = b.id; best_d2 = d2; }
+			}
+			if (best != 0) {
+				order_return_resource(&uid, 1, best, queued);
+				q = true;
+			}
+		}
+		order_attack_move(&uid, 1, x, z, q);
+	}
+}
+
 void Simulation::order_back_to_work(const uint32_t *unit_ids, size_t count) {
 	for (size_t k = 0; k < count; ++k) {
 		const int32_t i = lookup_unit(unit_ids[k]);

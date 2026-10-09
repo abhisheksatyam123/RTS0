@@ -452,6 +452,12 @@ public:
 	void cmd_delete(uint8_t player, const uint32_t *ids, size_t count);
 	// 0 A.D. "back-to-work" (UnitAI BackToWork): resume the last gather or build order.
 	void order_back_to_work(const uint32_t *unit_ids, size_t count);
+	// 0 A.D. Commands.js "remove-guard" (UnitAI RemoveGuard): end a Guard order, or drop
+	// the queued ones.
+	void order_remove_guard(const uint32_t *unit_ids, size_t count);
+	// 0 A.D. Commands.js "call-to-arms": Soldiers, Warships, Siege and Healers drop their load
+	// at the nearest dropsite (DropAtNearestDropSite), then attack-walk to (x, z).
+	void order_call_to_arms(const uint32_t *unit_ids, size_t count, float x, float z, bool queued = false);
 	// The unit's current order and its Shift-queued ones (empty if none).
 	UnitOrder unit_order(uint32_t unit_id) const;
 	const std::vector<UnitOrder> *unit_order_queue(uint32_t unit_id) const;
