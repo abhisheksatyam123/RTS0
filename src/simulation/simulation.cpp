@@ -379,6 +379,7 @@ Simulation::~Simulation() = default;
 
 void Simulation::reset() {
 	territory_regions_dirty_ = true;
+	petra_decay_events_.clear();
 	// A new game brings its own terrain (set_terrain_data or load_state); the
 	// previous map's heights would otherwise move projectiles and water.
 	terrain_heights_.clear();
@@ -1123,6 +1124,25 @@ void Simulation::rebuild_nav_grid() {
 
 void Simulation::rebuild_territory() {
 	ScopedUs prof(map_scale_stats_.territory_us, map_scale_stats_.territory_calls);
+	// TerritoryDecayChanged for Petra: which AI-owned structures decayed before the change.
+	std::vector<uint32_t> &decaying_before = petra_decay_scratch_;
+	decaying_before.clear();
+	auto petra_decays = [&](const Building &b) {
+		if (b.team >= MAX_PLAYERS || b.wrecked || b.build_progress < 1.0f || b.territory_decay_rate <= 0.0f || !petra_runs_for(b.team))
+			return false;
+		std::array<float, MAX_PLAYERS> to;
+		float to_gaia;
+		return territory_decay_targets(b, to, to_gaia);
+	};
+	for (const Building &b : buildings_)
+		if (petra_decays(b)) decaying_before.push_back(b.id);
+	rebuild_territory_grids();
+	for (const Building &b : buildings_)
+		if (petra_decays(b) && std::find(decaying_before.begin(), decaying_before.end(), b.id) == decaying_before.end())
+			petra_decay_events_.push_back(b.id);
+}
+
+void Simulation::rebuild_territory_grids() {
 	const int R = grid_res_;
 	auto &roots = territory_roots_scratch_;
 	roots.clear();
@@ -5597,6 +5617,7 @@ void Simulation::stat_building_lost(const Building &b, uint8_t killer) {
 }
 
 void Simulation::stat_building_captured(const Building &b, uint8_t from) {
+	petra_decay_events_.push_back(b.id); // OwnershipChanged for Petra's decaying structures
 	// The new owner captured it (CapturedBuilding); the old one lost it (LostEntity).
 	const uint8_t c = stat_building_class(b.type);
 	const BuildingTypeInfo &info = building_type_info(b.type);
@@ -15539,6 +15560,39 @@ int Simulation::petra_decay_garrison_min(const Building &b) {
 	return std::max(0, (int)std::ceil((b.territory_decay_rate - b.capture_regen_rate) / b.capture_garrison_regen_rate));
 }
 
+// headquarters.js checkEvents: a structure of ours that was just captured or started to
+// decay, and that no garrison will hold (addDecayingStructure), is destroyed when an enemy
+// already holds part of it and we keep only 50-80% of its capture points (85-95% while it
+// is attacked), rather than left to fall to that enemy. Not on the easiest difficulties.
+void Simulation::petra_check_decaying_structures() {
+	if (petra_decay_events_.empty() || petra_config_.difficulty < PETRA_EASY) return;
+	for (size_t k = 0; k < petra_decay_events_.size(); ++k) {
+		const uint32_t id = petra_decay_events_[k];
+		if (std::find(petra_decay_events_.begin(), petra_decay_events_.begin() + k, id) != petra_decay_events_.begin() + k) continue;
+		auto it = building_id_to_idx_.find(id);
+		if (it == building_id_to_idx_.end()) continue;
+		const Building &b = buildings_[it->second];
+		if (b.team != petra_pid_ || b.wrecked || b.build_progress < 1.0f || b.max_capture_points <= 0.0f) continue;
+		if (b.garrison_cap > 0 && petra_decay_garrison_min(b) > 0) continue; // the garrisonManager holds it
+		std::array<float, MAX_PLAYERS> to;
+		float to_gaia;
+		if (!territory_decay_targets(b, to, to_gaia)) continue;
+		float total = 0.0f;
+		bool enemy = false;
+		for (int p = 0; p < MAX_PLAYERS; ++p) {
+			total += b.capture_points_by_team[p];
+			if (b.capture_points_by_team[p] > 0.0f && !is_ally(petra_pid_, (uint8_t)p)) enemy = true;
+		}
+		if (total <= 0.0f || !enemy) continue; // decaying to Gaia only
+		const float ratio = b.capture_points_by_team[petra_pid_] / total;
+		if (ratio < 0.5f) continue;
+		const bool attacked = structure_attacker(b.id, petra_pid_) >= 0;
+		const float ratio_max = (attacked ? 0.85f : 0.7f) + sim_rng_.range_float(0.0f, 0.1f);
+		if (ratio > ratio_max) continue;
+		cmd_delete(petra_pid_, &id, 1);
+	}
+}
+
 void Simulation::petra_manage_garrisons() {
 	std::vector<int> incoming = petra_garrison_incoming();
 	// garrisonManager.js update: unload whoever no longer needs the shelter, then
@@ -16744,6 +16798,7 @@ void Simulation::tick_petra_ai(float dt) {
 			petra_pid_ = PETRA_PLAYER;
 		}
 	}
+	petra_decay_events_.clear();
 }
 
 void Simulation::tick_petra_ai_player(float dt) {
@@ -16774,6 +16829,9 @@ void Simulation::tick_petra_ai_player(float dt) {
 
 	// 6. Priority Queue: Economic Boom & Dynamic Priority Allocation
 	petra_manage_economy(dt);
+
+	// 6b. Structures captured or decaying this tick (headquarters.js checkEvents)
+	petra_check_decaying_structures();
 
 	// 7. AI Trading & Caravan Management (tradeManager.js)
 	petra_manage_trading(dt);
@@ -17401,6 +17459,7 @@ bool Simulation::load_state(const char *filepath) {
 	rebuild_all_tech_mods();
 	rebuild_nav_grid(); // the loaded structures (and locked gates) block paths, not the old ones
 	if (version >= 26) trigger_event(TRIGGER_ON_DESERIALIZED); // Trigger.js OnGlobalDeserialized
+	petra_decay_events_.clear(); // rebuilding the loaded territory is no change of it
 	return true;
 }
 
