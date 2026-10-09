@@ -444,7 +444,7 @@ enum UnitOrderKind : uint8_t {
 	ORDER_GATHER = 6,         // target resource
 	ORDER_BUILD = 7,          // target building (build or repair)
 	ORDER_GARRISON = 8,       // target building
-	ORDER_GUARD = 9,          // target unit (Guard.js)
+	ORDER_GUARD = 9,          // target unit or structure (Guard.js)
 	ORDER_HEAL = 10,          // target unit (UnitAI Heal)
 	ORDER_TRADE = 11,         // target = first market, x2 holds the second market's id bits (UnitAI Trade)
 	ORDER_RETURN_RESOURCE = 12, // target = the dropsite (UnitAI ReturnResource)

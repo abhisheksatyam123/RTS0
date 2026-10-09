@@ -4154,6 +4154,16 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						target_ally_id = uview.id[i];
 					}
 				}
+				// Guard.js guards structures too: one's own or an ally's under the cursor.
+				if (target_ally_id == 0) {
+					for (const auto &b : sim->buildings()) {
+						if (b.wrecked || (b.team != local_player() && !sim->is_ally(local_player(), b.team))) continue;
+						if (std::fabs(b.x - click_pos.x) <= b.half_size && std::fabs(b.z - click_pos.z) <= b.half_size) {
+							target_ally_id = b.id;
+							break;
+						}
+					}
+				}
 				if (target_ally_id != 0) {
 					if (turn_cmds())
 						post_lockstep(21, sel_ptr, sel_n, 0, 0, target_ally_id, qbit);
