@@ -28,6 +28,7 @@ MANIFEST = ROOT / "assets/models/manifest.json"
 SIM_H = ROOT / "src/simulation/simulation.h"
 SIM_CPP = ROOT / "src/simulation/simulation.cpp"
 GRID_NAV = ROOT / "src/simulation/grid_nav.h"
+LONG_PF = ROOT / "src/simulation/nav/long_pathfinder.h"
 SOA = ROOT / "src/core/memory/soa_storage.h"
 AURA_H = ROOT / "src/simulation/aura_manager.h"
 
@@ -623,20 +624,18 @@ static void snap_cell(const rtso::NavGrid &g, int &cx, int &cy, uint8_t pass) {
             }
 }
 
-// Usage: nav_probe SEED NOBS CASES [jps|astar]
+// Usage: nav_probe SEED NOBS CASES
 // Emits, per case:
 //   RAW <c> <reached> <sx> <sz> <tx> <tz> x,y x,y ...   raw cell path from the
 //        search itself (NavGrid::search_cells_jps, no string pulling); the
 //        endpoints are the snapped start/goal cells.
 //   CASE <c> <ok> <sx> <sz> <tx> <tz> wx,wz ...         NavGrid::find_path output
 //        (string-pulled world waypoints).
-// "astar" routes both through the legacy search (negative control).
 int main(int argc, char **argv) {
-    if (argc < 4) { std::fprintf(stderr, "usage: nav_probe SEED NOBS CASES [jps|astar]\n"); return 2; }
+    if (argc < 4) { std::fprintf(stderr, "usage: nav_probe SEED NOBS CASES\n"); return 2; }
     uint32_t seed = static_cast<uint32_t>(std::atoi(argv[1]));
     int n_obs = std::atoi(argv[2]);
     int cases = std::atoi(argv[3]);
-    const bool use_astar = argc > 4 && std::strcmp(argv[4], "astar") == 0;
     const uint8_t pass = rtso::PASS_INFANTRY;
 
     rtso::NavGrid g;
@@ -649,10 +648,8 @@ int main(int argc, char **argv) {
         g.dirty.at(cx, cy) = 1;
     }
     g.rebuild_regions();
-    g.use_jps = !use_astar;
 
-    std::printf("HARNESS src/simulation/grid_nav.h NavGrid::%s res=%d\n",
-                use_astar ? "search_cells_astar" : "search_cells_jps", g.res);
+    std::printf("HARNESS src/simulation/grid_nav.h NavGrid::search_cells_jps res=%d\n", g.res);
     for (int c = 0; c < cases; ++c) {
         uint32_t k = seed * 2654435761u + static_cast<uint32_t>(c) * 40503u + 1u;
         k = xs(k); int sx = static_cast<int>(k % 64u);
@@ -672,9 +669,7 @@ int main(int argc, char **argv) {
         std::vector<std::pair<int,int>> cells;
         bool reached = false;
         if (g.is_passable_for(scx, scy, pass) && g.is_passable_for(tcx, tcy, pass)) {
-            reached = use_astar
-                ? g.search_cells_astar(scx, scy, tcx, tcy, pass, cells)
-                : g.search_cells_jps(scx, scy, tcx, tcy, pass, cells);
+            reached = g.search_cells_jps(scx, scy, tcx, tcy, pass, cells);
         }
         std::printf("RAW %d %d %d %d %d %d", c, reached ? 1 : 0, scx, scy, tcx, tcy);
         for (const auto &p : cells) std::printf(" %d,%d", p.first, p.second);
@@ -828,32 +823,37 @@ def _dijkstra_optimum(sx, sz, tx, tz, obstacles, res=NAV_RES):
     return dist.get((tx, tz))
 
 
-# Octile constants parsed straight out of grid_nav.h so the Python mirror and
-# the assertions can never drift from the header independently.
+# Octile constants parsed straight out of nav/long_pathfinder.h (the JPS search
+# behind NavGrid::find_path) so the Python mirror and the assertions can never
+# drift from the header independently.
 _NAV_ORTH_COST = 10
 _NAV_DIAG_COST = 14
 _NAV_H_COEFF = 6
 
 
+def _jps_constants():
+    """(orth, diag, heuristic_is_octile) read out of nav/long_pathfinder.h."""
+    txt = LONG_PF.read_text(errors="ignore") if LONG_PF.is_file() else ""
+    mo = re.search(r"JPS_COST_ORTH\s*=\s*(\d+)", txt)
+    md = re.search(r"JPS_COST_DIAG\s*=\s*(\d+)", txt)
+    # jps_heuristic must be (di - diag + dj - diag) * ORTH + diag * DIAG, the exact octile distance.
+    mh = re.search(r"\(di\s*-\s*diag\s*\+\s*dj\s*-\s*diag\)\s*\*\s*JPS_COST_ORTH\s*\+\s*"
+                   r"static_cast<uint32_t>\(diag\)\s*\*\s*JPS_COST_DIAG", txt)
+    return (int(mo.group(1)) if mo else None, int(md.group(1)) if md else None, mh is not None)
+
+
 def _pin_octile_constants():
-    """Read costs[] and the heuristic coefficient out of grid_nav.h."""
+    """Read the step costs and the heuristic coefficient out of nav/long_pathfinder.h."""
     global _NAV_ORTH_COST, _NAV_DIAG_COST, _NAV_H_COEFF
-    if not GRID_NAV.is_file():
-        return
-    gtxt = GRID_NAV.read_text(errors="ignore")
-    m = re.search(r"const int costs\[8\]\s*=\s*\{([^}]*)\}", gtxt)
-    if m:
-        vals = [int(v) for v in m.group(1).split(",")]
-        if len(vals) == 8:
-            _NAV_ORTH_COST = vals[0]
-            _NAV_DIAG_COST = vals[4]
-    mh = re.search(r"return\s+10\s*\*\s*\(dx\s*\+\s*dy\)\s*-\s*(\d+)\s*\*\s*mn", gtxt)
-    if mh:
-        _NAV_H_COEFF = int(mh.group(1))
+    orth, diag, octile = _jps_constants()
+    if orth and diag:
+        _NAV_ORTH_COST, _NAV_DIAG_COST = orth, diag
+        if octile:
+            _NAV_H_COEFF = 2 * orth - diag
 
 
 def _octile_path_cost(cells):
-    """Total octile cost of a cell list: hv*10 + diag*14 (grid_nav.h:125-127)."""
+    """Total octile cost of a cell list: hv*10 + diag*14 (nav/long_pathfinder.h)."""
     total = 0
     for (x0, y0), (x1, y1) in zip(cells, cells[1:]):
         dx, dy = abs(x1 - x0), abs(y1 - y0)
@@ -918,18 +918,12 @@ def check_nav_live(seed=42, n_cases=12, n_obs=60):
            Bresenham rule as NavGrid::line_clear.
       5. Determinism: the harness is run twice; every RAW and CASE line must be
          identical across the two runs.
-
-    Negative control: RTSO_NAV_PROBE_RAW=astar routes both the raw search and
-    find_path through the legacy A* (grid_nav.h search_cells_astar). It must FAIL.
     """
-    raw_mode = os.environ.get("RTSO_NAV_PROBE_RAW", "jps").strip().lower()
-    if raw_mode not in ("jps", "astar"):
-        raw_mode = "jps"
-    print(f"[nav-live] seed={seed} cases={n_cases} obstacles={n_obs} grid={NAV_RES}x{NAV_RES} search={raw_mode}")
+    print(f"[nav-live] seed={seed} cases={n_cases} obstacles={n_obs} grid={NAV_RES}x{NAV_RES} search=jps")
     _pin_octile_constants()
     fails = []
 
-    # --- octile weight unit test (grid_nav.h:125-127) ---
+    # --- octile weight unit test (nav/long_pathfinder.h JPS_COST_ORTH/DIAG) ---
     oct_ok = True
     for dx, dy, expect in [(1, 0, 10), (0, 1, 10), (1, 1, 14), (3, 3, 42), (0, 5, 50)]:
         diag = min(dx, dy)
@@ -940,23 +934,19 @@ def check_nav_live(seed=42, n_cases=12, n_obs=60):
     if not oct_ok:
         fails.append("octile weight unit test")
 
-    # Pin the octile constants to the REAL header (grid_nav.h). These run even
-    # with no C++ compiler, so the probe can never pass on a weakened model.
-    gtxt = GRID_NAV.read_text(errors="ignore") if GRID_NAV.is_file() else ""
-    m_cost = re.search(r"const int costs\[8\]\s*=\s*\{([^}]*)\}", gtxt)
-    m_h = re.search(r"return\s+10\s*\*\s*\(dx\s*\+\s*dy\)\s*-\s*(\d+)\s*\*\s*mn", gtxt)
-    cost_src = [int(v) for v in m_cost.group(1).split(",")] if m_cost else []
-    h_coef = int(m_h.group(1)) if m_h else None
-    cost_pinned = cost_src == [10, 10, 10, 10, 14, 14, 14, 14]
+    # Pin the octile constants to the REAL header (nav/long_pathfinder.h, the JPS
+    # search behind find_path). These run even with no C++ compiler, so the probe
+    # can never pass on a weakened model.
+    orth, diag, octile = _jps_constants()
+    cost_pinned = (orth, diag) == (10, 14)
+    h_coef = 2 * orth - diag if (orth and diag and octile) else None
     h_pinned = (h_coef == 6)
-    if cost_src and cost_src[4]:
-        _NAV_ORTH_COST, _NAV_DIAG_COST = cost_src[0], cost_src[4]
-    print(f"  [{'✓' if cost_pinned else '✗'}] grid_nav.h costs[] == {{10,10,10,10,14,14,14,14}} (got {cost_src})")
-    print(f"  [{'✓' if h_pinned else '✗'}] grid_nav.h heuristic coefficient == 6 (got {h_coef})")
+    print(f"  [{'✓' if cost_pinned else '✗'}] long_pathfinder.h JPS_COST_ORTH/DIAG == 10/14 (got {orth}/{diag})")
+    print(f"  [{'✓' if h_pinned else '✗'}] long_pathfinder.h jps_heuristic is exact octile, coefficient 6 (got {h_coef})")
     if not cost_pinned:
-        fails.append(f"grid_nav.h step costs drifted: {cost_src}")
+        fails.append(f"long_pathfinder.h step costs drifted: {orth}/{diag}")
     if not h_pinned:
-        fails.append(f"grid_nav.h heuristic coefficient drifted: {h_coef}")
+        fails.append(f"long_pathfinder.h heuristic drifted: {h_coef}")
 
     # Heuristic must equal the EXACT octile distance for every (dx,dy) in range.
     h_exact = True
@@ -999,7 +989,7 @@ def check_nav_live(seed=42, n_cases=12, n_obs=60):
             return 1
 
         def _run():
-            r = subprocess.run([str(exe), str(seed), str(n_obs), str(n_cases), raw_mode],
+            r = subprocess.run([str(exe), str(seed), str(n_obs), str(n_cases)],
                                capture_output=True, text=True, timeout=180)
             return r.stdout.splitlines()
 
@@ -1073,9 +1063,12 @@ def check_nav_live(seed=42, n_cases=12, n_obs=60):
             exact_tail = (len(wp_pts) > 1 and wp_cells[-1] != goal_cell and
                           abs(wp_pts[-1][0] - req_world[0]) < 1e-3 and abs(wp_pts[-1][1] - req_world[1]) < 1e-3)
             core = wp_cells[:-1] if exact_tail else wp_cells
-            starts_ok = bool(core) and core[0] == start_cell
+            # LongPathfinder::ComputeJPSPath leaves the start navcell out: the unit already stands
+            # in it, so the first waypoint is the first turn (or the goal) in sight of it.
+            legs = [start_cell] + core
+            starts_ok = bool(core) and (core[0] != start_cell or start_cell == goal_cell)
             ends_ok = bool(core) and core[-1] == goal_cell
-            los_ok = all(_line_clear(a[0], a[1], b[0], b[1], passable) for a, b in zip(core, core[1:]))
+            los_ok = all(_line_clear(a[0], a[1], b[0], b[1], passable) for a, b in zip(legs, legs[1:]))
             this_wp_ok = c_ok_flag and starts_ok and ends_ok and los_ok
             wp_ok += 1 if this_wp_ok else 0
             if not c_ok_flag:

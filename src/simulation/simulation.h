@@ -4,8 +4,10 @@
 #include "../core/memory/arena.h"
 #include "../core/memory/soa_storage.h"
 #include "grid_nav.h"
+#include "nav/footprint.h"
 #include "nav/obstacle_grid.h"
 #include "aura_manager.h"
+#include "cell_set.h"
 #include "petra_ai.h"
 #include "sim_types.h"
 #include "statistics_tracker.h"
@@ -148,7 +150,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 37; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 38; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -192,7 +194,8 @@ public:
 	struct Building {
 		uint32_t id;
 		float x, z;
-		float half_size;
+		float half_size; // half the footprint's width, along its u axis
+		float half_d = 0.0f; // half its depth, along v (building_half_depth); set both with set_extents
 		uint8_t type; // BLD_*
 		uint8_t team; // 0=player, 1=enemy
 		float hp;
@@ -202,7 +205,22 @@ public:
 		bool wrecked = false;   // hp already applied; keep entity for collapse + rubble
 		int cell_x, cell_y;
 		int footprint; // 1 or 2
-		float rot = DEFAULT_BUILDING_ROT; // 0 A.D. Position rotation: 0 faces +z, pi/2 faces +x (the obstruction stays an axis-aligned square)
+		float rot = DEFAULT_BUILDING_ROT; // 0 A.D. Position rotation: 0 faces +z, pi/2 faces +x; set with set_rot
+		// The footprint's u axis and half extents along u and v (nav/footprint.h), turned with rot. A
+		// quarter turn swaps width and depth.
+		float ux = 1.0f, uz = 0.0f, hu = 0.0f, hv = 0.0f;
+		void set_rot(float a) {
+			rot = a;
+			bool swapped;
+			nav::footprint_axis(a, ux, uz, swapped);
+			hu = swapped ? half_d : half_size;
+			hv = swapped ? half_size : half_d;
+		}
+		void set_extents(float half_w, float half_depth) {
+			half_size = half_w;
+			half_d = half_depth;
+			set_rot(rot);
+		}
 		// 0 A.D. BuildingAI.js FireArrows: attack_timer counts down to the next of the ten
 		// rounds per RepeatTime; the timer runs only while enemies are in range.
 		float attack_timer;
@@ -284,6 +302,8 @@ public:
 			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE);
 	// Stats of the unit at SoA index i (its civ roster template, else its class).
 	const UnitTypeInfo &unit_info_at(size_t i) const { return civ_template_unit_info(units_.tmpl[i], units_.unit_type[i]); }
+	// Walk speed of the unit at SoA index i: its speed with technologies times any speed aura it stands in.
+	float unit_walk_speed(size_t i) const;
 	// 0 A.D. Identity classes, RestrictedClasses, Bonuses and Spread of the unit at SoA index i.
 	const CombatProfile &unit_combat_at(size_t i) const { return unit_combat(units_.tmpl[i], units_.unit_type[i]); }
 	// Attack.js CanAttack: may unit i attack unit j / building b at all (RestrictedClasses)?
@@ -787,7 +807,7 @@ public:
 	enum PlacementResult : uint8_t {
 		PLACE_OK = 0,
 		PLACE_OBSTRUCTED, // off the map, on another building or on a resource
-		PLACE_TERRAIN,    // water under a land building, deep water under a wall
+		PLACE_TERRAIN,    // water under a land building, deep water under a wall, a slope too steep
 		PLACE_TERRITORY,  // territory the template does not allow
 		PLACE_SHORE,      // a dock not on a shoreline facing a sea
 		PLACE_DISTANCE,   // too close to the player's own building of the same class
@@ -1260,8 +1280,17 @@ public:
 	StatisticsSample statistics_snapshot() const;
 
 private:
-	void move_units(float dt, Arena &arena);
+	// Each unit's own step this tick (arena memory), for motion_feedback().
+	struct MoveSteps {
+		const float *from_x = nullptr, *from_z = nullptr; // where it stood before move_units()
+		const float *want_x = nullptr, *want_z = nullptr; // the step it tried to take
+		const uint8_t *blocked = nullptr; // a closed gate stopped the step (CheckMovement failed)
+		size_t count = 0;
+	};
+	void move_units(float dt, Arena &arena, MoveSteps &steps);
 	void separation(float dt, Arena &arena);
+	void motion_feedback(float dt, const MoveSteps &steps);
+	void patrol_next_leg(size_t i);
 	void tick_gather(float dt);
 	// Fields (0 A.D. template_structure_resource_field): a finished field owns
 	// one infinite grain resource at its centre. Derived from buildings_, so it
@@ -1435,7 +1464,7 @@ private:
 	void reveal_viewers(std::vector<uint8_t> &grid, FowViews &views, UnitVision unit_vr, BuildingVision building_vr);
 	bool terrain_blocks_los(float sx, float sz, float sy, float tx, float tz, float ty) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
-	bool line_crosses_deep_water(float x0, float z0, float x1, float z1) const;
+	bool line_crosses_impassable(float x0, float z0, float x1, float z1) const;
 	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
@@ -1561,12 +1590,7 @@ private:
 	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0) const;
 	std::unordered_map<uint32_t, size_t> building_id_to_idx_;
 
-	struct CellHash {
-		size_t operator()(const std::pair<int, int> &p) const {
-			return (size_t)p.first * 73856093 ^ (size_t)p.second * 19349663;
-		}
-	};
-	std::unordered_set<std::pair<int, int>, CellHash> occupied_cells_;
+	CellSet occupied_cells_; // every building's footprint cells (can_place)
 	// check_placement's cells (GRID-sized, from -map_half_) that a Gaia resource's
 	// obstruction touches. A cache of resources_, rebuilt when the tick or the
 	// resource count changes; never saved or hashed.
@@ -1964,11 +1988,13 @@ private:
 	// fields nav/building_steering.h reads, so its per-unit scans read a short packed list.
 	struct SteerObstacle {
 		uint32_t id;
-		float x, z, half_size;
+		float x, z;
+		float ux, uz, hu, hv; // Building::ux, uz, hu, hv
 		uint8_t type;
 		bool wrecked;
 	};
 	std::vector<SteerObstacle> steer_obstacles_;
+	uint32_t short_path_key_ = 1; // this tick's steering obstacles and water level (ShortPathMemo::key)
 	std::vector<SteerObstacle> sep_obstacles_; // separation()'s list, built the same way
 	nav::ObstacleGrid sep_grid_; // sep_obstacles_ by cell, rebuilt with it
 	// tick_capture()'s count and strength of nearby capturers per building and team, and the grid of
