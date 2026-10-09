@@ -333,6 +333,8 @@ public:
 	void _toggle_session_dialog(String name);
 	double last_flare_time_ = -10.0; // input.js g_LastFlareTime
 	int get_target_marker_count() const { return (int)range_overlays_.marker_count(); } // tests
+	int get_work_sound_count() const { return session_audio_.work_sounds_played(); } // tests
+	void debug_gather_nearest();
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
 
