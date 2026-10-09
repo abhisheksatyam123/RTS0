@@ -1007,10 +1007,12 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	return bid;
 }
 
-uint32_t Simulation::spawn_relic(float x, float z) {
-	// CaptureTheRelic.js picks a random catafalque template; RTS0 picks it from the
-	// id the unit will get, so every peer and replay places the same one.
-	const uint8_t civ = (uint8_t)(((next_id_ * 2654435761u) >> 16) % CIV_COUNT);
+uint32_t Simulation::spawn_relic(float x, float z, int civ_pick) {
+	// CaptureTheRelic.js gives each relic its own catafalque from a shuffled list
+	// (apply_relic_count passes it); otherwise the id the unit will get picks one, so
+	// every peer and replay places the same one.
+	const uint8_t civ = civ_pick >= 0 ? (uint8_t)(civ_pick % CIV_COUNT)
+	                                  : (uint8_t)(((next_id_ * 2654435761u) >> 16) % CIV_COUNT);
 	const uint32_t id = spawn_unit(x, z, GAIA_PLAYER, UNIT_CATAFALQUE, 0.0f, civ_catafalque_template(civ));
 	const int32_t i = lookup_unit(id);
 	if (i < 0) return 0;
@@ -7674,7 +7676,7 @@ void Simulation::tick_construction(float dt) {
 			// buildMultiplier HP, with buildMultiplier = n^0.7 / n for n builders at work
 			// (BuildTimeModifier 0.7). Progress is the best health fraction reached, so
 			// damage to a foundation has to be built back.
-			units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_FORCE; // REPAIRING enter: no longer forced
+			enter_repairing(i); // REPAIRING enter: no longer forced, autoharvest instead
 			const float hp_rate = b.max_hp / structure_build_time(b, units_.team[i]);
 			const float work = foundation_build_multiplier(builders_per_bld[b.id]) * builder_rate(i);
 			b.hp = std::min(b.max_hp, b.hp + work * hp_rate * dt);
@@ -7797,7 +7799,7 @@ void Simulation::tick_repair(float dt) {
 			// GetRepairRate = MaxHitpoints / (RepairTimeRatio 2.0 x BuildTime).
 			const float repair_rate = b.max_hp / (REPAIR_TIME_RATIO * structure_build_time(b, units_.team[i]));
 			const float work = foundation_build_multiplier(repairers_per_bld[b.id]) * builder_rate(i);
-			units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_FORCE; // REPAIRING enter: no longer forced
+			enter_repairing(i); // REPAIRING enter: no longer forced, autoharvest instead
 			b.hp = std::min(b.max_hp, b.hp + work * repair_rate * dt);
 			// Repairable sends ConstructionFinished too: the repairers move on to nearby work.
 			if (b.hp >= b.max_hp) on_construction_finished(b, i);
@@ -9372,9 +9374,32 @@ void Simulation::convert_to_gaia(uint8_t players) {
 	if (roots) rebuild_territory();
 }
 
+// TriggerHelper.GetLandSpawnPoints: Gaia entities on land (not flying), those in no
+// player's territory if there are any. RTS0's Gaia entities are resources (trees, rocks,
+// mines, fruit), land animals, and Gaia units and structures.
+std::vector<std::pair<float, float>> Simulation::relic_spawn_points() const {
+	std::vector<std::pair<float, float>> neutral, owned;
+	auto add = [&](float x, float z) {
+		if (!terrain_heights_.empty() && get_terrain_height(x, z) <= water_height()) return;
+		(territory_owner_at(x, z) < 0 ? neutral : owned).emplace_back(x, z);
+	};
+	for (size_t r = 0; r < resources_.count; ++r)
+		if (resources_.alive[r] && resources_.amount[r] > 0) add(resources_.x[r], resources_.z[r]);
+	for (size_t f = 0; f < fauna_.count; ++f)
+		if (fauna_.alive[f] && !fauna_type_info(fauna_.fauna_type[f]).is_naval()) add(fauna_.pos_x[f], fauna_.pos_z[f]);
+	for (size_t i = 0; i < units_.count; ++i)
+		if (units_.alive[i] && units_.team[i] == GAIA_PLAYER && units_.unit_type[i] != UNIT_CATAFALQUE &&
+				!unit_is_ship(units_.unit_type[i]))
+			add(units_.pos_x[i], units_.pos_z[i]);
+	for (const Building &b : buildings_)
+		if (b.team == GAIA_PLAYER && b.hp > 0.0f) add(b.x, b.z);
+	return neutral.empty() ? owned : neutral;
+}
+
 void Simulation::apply_relic_count() {
-	// CaptureTheRelic.js "relicCount": the map's relics are cut down to the setting, or
-	// topped up with copies turned about the map centre (or on a ring if it has none).
+	// CaptureTheRelic.js "relicCount": each relic is a different catafalque (a shuffled
+	// template list) spawned beside a random Gaia entity on land (GetLandSpawnPoints,
+	// SpawnUnits). A map's own relics are cut down to the setting first.
 	// Setup.js: relicCount defaults to 1.
 	const size_t want = (size_t)std::max(relic_count_, 1);
 	while (relics_.size() > want) {
@@ -9386,23 +9411,40 @@ void Simulation::apply_relic_count() {
 		}
 		relics_.pop_back();
 	}
-	const size_t have = relics_.size();
-	const size_t rounds = have ? (want - std::min(want, have) + have - 1) / have : 0;
+	if (relics_.size() >= want) return;
+	uint8_t civs[CIV_COUNT];
+	for (uint8_t c = 0; c < CIV_COUNT; ++c) civs[c] = c;
+	for (int c = CIV_COUNT - 1; c > 0; --c) std::swap(civs[c], civs[sim_rng_.range_int(0, c)]);
+	const std::vector<std::pair<float, float>> points = relic_spawn_points();
 	for (size_t k = 0; relics_.size() < want; ++k) {
 		float x, z;
-		if (have > 0) {
-			// Round r turns every original relic by 2*pi*(r+1)/(rounds+1): one extra round is
-			// the mirror through the centre, and no copy lands back on an original.
-			const Relic src = relics_[k % have];
-			const float turn = 6.28318530718f * (float)(k / have + 1) / (float)(rounds + 1);
-			x = src.x * cosf(turn) - src.z * sinf(turn);
-			z = src.x * sinf(turn) + src.z * cosf(turn);
+		if (!points.empty()) {
+			const auto &p = points[(size_t)sim_rng_.range_int(0, (int)points.size() - 1)];
+			x = p.first;
+			z = p.second;
+			// SpawnUnits / Footprint.PickSpawnPoint: the nearest free spot round the entity.
+			if (nav_grid_.res > 0) {
+				const float a0 = sim_rng_.range_float(0.0f, 6.28318530718f);
+				bool found = false;
+				for (float r = 1.0f; r <= 8.0f && !found; r += 0.5f)
+					for (int t = 0; t < 12 && !found; ++t) {
+						const float a = a0 + 6.28318530718f * (float)t / 12.0f;
+						const float sx = p.first + cosf(a) * r, sz = p.second + sinf(a) * r;
+						if (std::fabs(sx) > map_half_ - 2.0f || std::fabs(sz) > map_half_ - 2.0f) continue;
+						auto [cx, cy] = nav_grid_.world_to_cell(sx, sz);
+						if (!nav_grid_.is_passable_for(cx, cy, PASS_INFANTRY)) continue;
+						x = sx;
+						z = sz;
+						found = true;
+					}
+			}
 		} else {
+			// A map with no Gaia entity at all: a ring about the centre.
 			const float a = 6.28318530718f * (float)k / (float)want;
 			x = cosf(a) * map_half_ * 0.45f;
 			z = sinf(a) * map_half_ * 0.45f;
 		}
-		spawn_relic(x, z);
+		spawn_relic(x, z, civs[k % CIV_COUNT]);
 	}
 }
 
@@ -10104,7 +10146,12 @@ void Simulation::apply_order(uint32_t uid, const UnitOrder &o) {
 			order_gather(&uid, 1, r, false, !gone && (o.flags & ORDER_FLAG_FORCE));
 			break;
 		}
-		case ORDER_BUILD: order_build_or_repair(&uid, 1, o.target, false, (o.flags & ORDER_FLAG_FORCE) != 0); break;
+		case ORDER_BUILD: {
+			order_build_or_repair(&uid, 1, o.target, false, (o.flags & ORDER_FLAG_FORCE) != 0);
+			const int32_t k = lookup_unit(uid);
+			if (k >= 0 && units_.order_kind[k] == ORDER_BUILD) units_.order_flags[k] |= o.flags & ORDER_FLAG_AUTOHARVEST;
+			break;
+		}
 		case ORDER_GARRISON: order_garrison(&uid, 1, o.target); break;
 		case ORDER_GUARD: order_guard(&uid, 1, o.target); break;
 		case ORDER_HEAL: order_heal(&uid, 1, o.target); break;
@@ -10561,20 +10608,33 @@ void Simulation::on_construction_finished(const Building &b, size_t builder) {
 	}
 }
 
+// UnitAI REPAIRING enter: a forced build order becomes an unforced one with autoharvest.
+void Simulation::enter_repairing(size_t i) {
+	uint8_t &f = units_.order_flags[i];
+	if ((f & ORDER_FLAG_FORCE) && units_.order_kind[i] == ORDER_BUILD) f |= ORDER_FLAG_AUTOHARVEST;
+	f &= (uint8_t)~ORDER_FLAG_FORCE;
+}
+
 // The rest of ConstructionFinished for builder k: its next order, else farm a field,
 // gather what a new dropsite takes, or help with a foundation nearby.
 void Simulation::next_after_construction(size_t k, const Building &b, bool food, bool other) {
 	const uint32_t uid = units_.id[k];
 	{
 		// A queued order goes first (FinishOrder); fields and dropsites only apply without one.
+		// Fields and dropsites only for the player's own builders (oldData.force || autoharvest),
+		// not for those UnitAI sent over from a finished structure or a guard. Petra's builders
+		// keep gathering by what they built: RTS0's Petra counts on it (0 A.D.'s Petra sends
+		// autocontinue false and reassigns them itself).
+		const bool harvest = petra_runs_for(units_.team[k]) || (units_.order_kind[k] == ORDER_BUILD &&
+				(units_.order_flags[k] & (ORDER_FLAG_FORCE | ORDER_FLAG_AUTOHARVEST)) != 0);
 		auto q = order_queues_.find(uid);
 		if (q != order_queues_.end() && !q->second.empty()) { finish_order(k); return; }
-		if (b.type == BLD_FIELD) {
+		if (harvest && b.type == BLD_FIELD) {
 			order_gather(&uid, 1, ensure_field_resource(b), false, false);
 			return;
 		}
 		const bool takes_all = b.type == BLD_TOWN_CENTER || b.type == BLD_DOCK; // food wood stone metal
-		if (food || other || takes_all) {
+		if (harvest && (food || other || takes_all)) {
 			// Prefer what the unit gathered last (lastGathered), if the dropsite takes it.
 			uint8_t pref = units_.res_type_carried[k];
 			const bool takes_pref = takes_all || (food ? pref == RES_FOOD : pref != RES_FOOD);
