@@ -3210,6 +3210,14 @@ bool Simulation::is_transport(uint32_t unit_id) const {
 	return utype == UNIT_TRIREME || utype == UNIT_MERCHANT_SHIP || siege_garrison_capacity((size_t)idx) > 0;
 }
 
+// Ships float: 0 A.D. entities sit on the water surface (Position FloatOnWater), so range
+// and launch heights for a ship are the water level, not the seabed under it.
+float Simulation::unit_height(size_t i) const {
+	const float ground = get_terrain_height(units_.pos_x[i], units_.pos_z[i]);
+	if (!unit_is_ship(units_.unit_type[i]) || terrain_water_height_ < -0.5f) return ground + unit_height_offset(i);
+	return std::max(ground, terrain_water_height_);
+}
+
 bool Simulation::is_siege_tower_at(size_t i) const {
 	const uint16_t tmpl = units_.tmpl[i];
 	return tmpl != CIV_UNIT_TEMPLATE_NONE && tmpl < CIV_UNIT_TEMPLATE_COUNT
@@ -5140,7 +5148,7 @@ void Simulation::tick_pack(float dt) {
 
 		// Is the current target in weapon range?
 		bool target_in_range = false;
-		const float att_y = get_terrain_height(units_.pos_x[i], units_.pos_z[i]);
+		const float att_y = unit_height(i);
 		if (units_.target_unit_id[i] != 0) {
 			int32_t t = lookup_unit(units_.target_unit_id[i]);
 			if (t >= 0 && units_.alive[t] && is_hostile(units_.team[i], units_.team[t])) {
@@ -5149,7 +5157,7 @@ void Simulation::tick_pack(float dt) {
 				const float d2 = dx * dx + dz * dz;
 				const float minr = units_.attack_range[i] * unit_min_range_ratio(units_.unit_type[i]);
 				target_in_range = d2 >= minr * minr && in_parabolic_range(d2, att_y,
-						get_terrain_height(units_.pos_x[t], units_.pos_z[t]), units_.attack_range[i]);
+						unit_height(t), units_.attack_range[i]);
 			}
 		} else if (units_.target_building_id[i] != 0 && st != ACTION_BUILD) {
 			auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
@@ -5252,13 +5260,13 @@ void Simulation::tick_combat(float dt) {
 		const float minr = range * unit_min_range_ratio(units_.unit_type[i]);
 		const float vision = unit_vision_range(units_.unit_type[i]);
 		const float held_lim = vision * 0.5f + range; // CheckTargetDistanceFromHeldPosition
-		const float att_y = unit_ground_y(i);
+		const float att_y = unit_height(i);
 		// Would the stance let this unit (keep) fight j? (GetQueryRange / ShouldAbandonChase)
 		auto within_stance = [&](int32_t j) {
 			const float dx = units_.pos_x[j] - pxi, dz = units_.pos_z[j] - pzi;
 			const float d2 = dx * dx + dz * dz;
 			if (stance == STANCE_STAND_GROUND)
-				return in_parabolic_range(d2, att_y, unit_ground_y((size_t)j), range);
+				return in_parabolic_range(d2, att_y, unit_height(j), range);
 			if (stance == STANCE_DEFENSIVE) {
 				const float hx = units_.pos_x[j] - anc_x, hz = units_.pos_z[j] - anc_z;
 				return hx * hx + hz * hz < held_lim * held_lim;
@@ -5382,8 +5390,8 @@ void Simulation::tick_combat(float dt) {
 		float dz = units_.pos_z[i] - units_.pos_z[t];
 		float d2 = dx * dx + dz * dz;
 
-		float att_y = unit_ground_y(i);
-		float def_y = unit_ground_y((size_t)t);
+		float att_y = unit_height(i);
+		float def_y = unit_height(t);
 
 		// 0 A.D. Exact Parabolic Range Equation (CCmpRangeManager.cpp)
 		if (!in_parabolic_range(d2, att_y, def_y, units_.attack_range[i])) continue;
@@ -5482,8 +5490,9 @@ void Simulation::tick_combat(float dt) {
 			const float aim_x = units_.pos_x[t] + units_.vel_x[t] * flight;
 			const float aim_z = units_.pos_z[t] + units_.vel_z[t] * flight;
 			const float sigma = unit_combat_at(i).spread * spread_rank_multiplier(units_.rank[i]) * dist / 100.0f;
-			float launch_y = unit_ground_y(i) + arrow_sy;
-			float land_y = get_terrain_height(aim_x, aim_z) + unit_height_offset((size_t)t) + 0.8f;
+			float launch_y = unit_height(i) + arrow_sy;
+			float land_y = (unit_is_ship(units_.unit_type[t]) ? unit_height(t)
+					: get_terrain_height(aim_x, aim_z) + unit_height_offset((size_t)t)) + 0.8f;
 			for (int v = 0; v < volley; ++v) {
 				float disp_x = 0.0f, disp_z = 0.0f;
 				random_normal_2d(disp_x, disp_z);
@@ -5512,8 +5521,8 @@ void Simulation::tick_combat(float dt) {
 					int extra = std::clamp(1 + p_archers + (int)pit->second.size() / 3, 1, 6);
 					for (int a = 0; a < extra; ++a) {
 						float sp = (a - extra * 0.5f) * 0.3f;
-						float deck_y = get_terrain_height(units_.pos_x[i], units_.pos_z[i]) + 2.5f;
-						float hit_y = get_terrain_height(units_.pos_x[t], units_.pos_z[t]) + 0.8f;
+						float deck_y = unit_height(i) + 2.5f;
+						float hit_y = unit_height(t) + 0.8f;
 						fire_arrow(units_.pos_x[i] + sp, deck_y, units_.pos_z[i] + sp,
 								   units_.pos_x[t], hit_y, units_.pos_z[t],
 								   12.0f + p_bonus_dmg, units_.team[i], units_.id[t], 0, 1, false, 0, units_.id[i]);
@@ -5660,7 +5669,7 @@ void Simulation::tick_combat(float dt) {
 		// so the attacker's own radius counts (melee units could not reach a wall otherwise).
 		float eff_d = std::max(0.0f, d - b.half_size - unit_collision_radius(units_.unit_type[i]));
 
-		float att_y = unit_ground_y(i);
+		float att_y = unit_height(i);
 		float bld_y = get_terrain_height(b.x, b.z);
 
 		const bool in_range = capture ? eff_d <= CAPTURE_RANGE
@@ -5718,7 +5727,7 @@ void Simulation::tick_combat(float dt) {
 			uint8_t ut = units_.unit_type[i];
 			float sy = (ut == UNIT_TRIREME) ? 3.0f : (ut == UNIT_CATAPULT ? 2.0f : 1.4f);
 			uint8_t vis = (ut == UNIT_CATAPULT) ? 2 : ((ut == UNIT_TRIREME || ut == UNIT_BOLT_SHOOTER) ? 1 : 0);
-			float launch_y = unit_ground_y(i) + sy;
+			float launch_y = unit_height(i) + sy;
 			float land_y = get_terrain_height(b.x, b.z) + 1.5f;
 			fire_arrow(units_.pos_x[i], launch_y, units_.pos_z[i],
 			           b.x, land_y, b.z,
@@ -5822,7 +5831,7 @@ void Simulation::tick_combat(float dt) {
 					float dx = b.x - units_.pos_x[i];
 					float dz = b.z - units_.pos_z[i];
 					float d2 = dx * dx + dz * dz;
-					float unit_y = get_terrain_height(units_.pos_x[i], units_.pos_z[i]);
+					float unit_y = unit_height(i);
 					if (in_parabolic_range(d2, wall_y, unit_y, range)) {
 						hit = i;
 					}
@@ -5831,7 +5840,7 @@ void Simulation::tick_combat(float dt) {
 					b.attack_timer = cd;
 					for (int a = 0; a < total_arrows; ++a) {
 						float spread = (a - total_arrows * 0.5f) * 0.22f;
-						float hit_y = get_terrain_height(units_.pos_x[hit], units_.pos_z[hit]) + 0.8f;
+						float hit_y = unit_height(hit) + 0.8f;
 						fire_arrow(b.x + spread, wall_y, b.z + spread,
 								   units_.pos_x[hit], hit_y, units_.pos_z[hit],
 								   final_turret_dmg, b.team, units_.id[hit], 0, 1, false, 0, b.id);

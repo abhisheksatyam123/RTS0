@@ -276,9 +276,6 @@ public:
 		auto it = turret_height_.find(units_.id[i]);
 		return it == turret_height_.end() ? 0.0f : it->second;
 	}
-	float unit_ground_y(size_t i) const {
-		return get_terrain_height(units_.pos_x[i], units_.pos_z[i]) + unit_height_offset(i);
-	}
 	// Training time multiplier of a template trained above Basic (Cost/BuildTime per rank).
 	static float promotion_train_time_mult(uint16_t tmpl);
 	// Rank effects (unit_advanced.json, unit_elite.json) for unit index i.
@@ -1626,6 +1623,7 @@ private:
 	void drop_orders(size_t i);      // orders UnitAI doesn't model (trade, hunt, board): no order, no queue
 	// Splits a Shift order: busy units get it queued, the rest are returned to run now.
 	// Without Shift every unit's queue is dropped and all of them run it now.
+	float unit_height(size_t i) const; // terrain, or the water surface under a ship
 	bool trade_route_ok(size_t i, uint32_t market_a_id, uint32_t market_b_id) const;
 	std::vector<uint32_t> split_queued(const uint32_t *ids, size_t count, const UnitOrder &o, bool queued);
 	void apply_order(uint32_t uid, const UnitOrder &o);
