@@ -15,6 +15,10 @@ uniform bool srgb_vertex_color = false;
 uniform float roughness = 1.0;
 uniform float metallic = 0.0;
 uniform float specular = 0.5;
+// 0 A.D.'s normTex for this skin (tools/extract_normal_maps.py), when its
+// actor's material is normal mapped.
+uniform bool use_normal_map = false;
+uniform sampler2D normal_tex : hint_normal, filter_linear;
 // Close-up units and buildings set this per node; crowd MultiMeshes pass the
 // owner's colour in INSTANCE_CUSTOM (alpha 1).
 instance uniform vec4 player_color : source_color = vec4(1.0);
@@ -38,4 +42,7 @@ void fragment() {
 	ROUGHNESS = roughness;
 	METALLIC = metallic;
 	SPECULAR = specular;
+	if (use_normal_map) {
+		NORMAL_MAP = texture(normal_tex, UV).rgb;
+	}
 }
