@@ -586,6 +586,28 @@ int main() {
 		CHECK(tc && sim.cmd_cheat(0, Simulation::CHEAT_CREATE_UNITS, 3, 0, &tc, 1) && sim.pop_current(0) == pop + 3);
 		CHECK(sim.cmd_cheat(0, Simulation::CHEAT_DEFEAT_PLAYER, 1, 0, nullptr, 0) && sim.is_defeated(1));
 		CHECK(sim.cmd_cheat(0, Simulation::CHEAT_REVEAL_MAP, 0, 0, nullptr, 0) && sim.reveal_map());
+		// the hive master: house bonuses jump to the population limit + 500; TARDIS: limit + 500.
+		sim.set_pop_cap(300);
+		CHECK(sim.pop_max(0) < 300);
+		CHECK(sim.cmd_cheat(0, Simulation::CHEAT_MAX_POPULATION, 0, 0, nullptr, 0) && sim.pop_max(0) == 300);
+		CHECK(sim.pop_max_uncapped(0) == 800);
+		CHECK(sim.cmd_cheat(0, Simulation::CHEAT_CHANGE_MAX_POPULATION, 0, 0, nullptr, 0) && sim.pop_max(0) == 800);
+		CHECK(sim.cmd_cheat(0, Simulation::CHEAT_CHANGE_MAX_POPULATION, 0, 0, nullptr, 0) && sim.pop_max(0) == 800);
+		CHECK(sim.pop_max(1) < 300);
+		// i am too busy toggles x0.01 build, train, research and pack times and x1000 gather rates.
+		const float build = sim.tech_mods(0).bld_build_time[BLD_HOUSE];
+		CHECK(sim.cmd_cheat(0, Simulation::CHEAT_FAST_ACTIONS, 0, 0, nullptr, 0));
+		CHECK(std::fabs(sim.tech_mods(0).bld_build_time[BLD_HOUSE] - build * 0.01f) < 1e-6f);
+		CHECK(sim.tech_mods(0).gather[UNIT_VILLAGER][Simulation::GK_WOOD] >= 999.0f && sim.tech_mods(1).gather[UNIT_VILLAGER][Simulation::GK_WOOD] < 10.0f);
+		const char *cpath = "test_victory_cheats.sav";
+		CHECK(sim.save_state(cpath));
+		{
+			Simulation loaded;
+			CHECK(loaded.load_state(cpath) && loaded.pop_max(0) == 800 && loaded.cheat_mods(0).fast_actions == 1);
+			CHECK(std::fabs(loaded.tech_mods(0).bld_build_time[BLD_HOUSE] - build * 0.01f) < 1e-6f);
+		}
+		std::remove(cpath);
+		CHECK(sim.cmd_cheat(0, Simulation::CHEAT_FAST_ACTIONS, 0, 0, nullptr, 0) && sim.tech_mods(0).bld_build_time[BLD_HOUSE] == build);
 		GameSetupParams gp, back;
 		gp.cheats = 1;
 		CHECK(parse_game_start_full(format_game_start_full(gp), back) && back.cheats == 1);

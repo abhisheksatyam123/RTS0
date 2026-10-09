@@ -134,7 +134,7 @@ static constexpr uint32_t SAVE_VERSION_MOTION = 38;
 static constexpr uint32_t SAVE_VERSION_FRUIT_MAX = 39;
 // Petra's transport plans side by side, each with its owner.
 static constexpr uint32_t SAVE_VERSION_PETRA_TRANSPORTS = 40;
-// VisionSharing spies (bribed units and their timers).
+// VisionSharing spies (bribed units and their timers) and the population and fast-actions cheats.
 static constexpr uint32_t SAVE_VERSION_SPIES = 41;
 
 // Stand on the nearest AABB edge so pathing never aims through the footprint (half sizes hx, hz).
@@ -376,6 +376,7 @@ Simulation::~Simulation() = default;
 void Simulation::reset() {
 	territory_regions_dirty_ = true;
 	spies_.clear();
+	for (CheatMods &cm : cheat_mods_) cm = CheatMods{};
 	// A new game brings its own terrain (set_terrain_data or load_state); the
 	// previous map's heights would otherwise move projectiles and water.
 	terrain_heights_.clear();
@@ -491,14 +492,22 @@ int Simulation::pop_current(uint8_t player) const {
 	return count;
 }
 
-int Simulation::pop_max(uint8_t player) const {
+int Simulation::pop_max_uncapped(uint8_t player) const {
 	int cap = 10;
 	for (const auto &b : buildings_) {
 		if (b.team == player && b.build_progress >= 1.0f) {
 			cap += (int)std::lround(building_type_info(b.type).pop_bonus * tech_mods(player).bld_pop_bonus[b.type]);
 		}
 	}
-	const int limit = pop_cap();
+	if (player < MAX_PLAYERS) cap += cheat_mods_[player].pop_bonus;
+	return cap;
+}
+
+int Simulation::pop_max(uint8_t player) const {
+	const int cap = pop_max_uncapped(player);
+	int limit = pop_cap();
+	// Player/MaxPopulation modifiers (the TARDIS cheat).
+	if (limit > 0 && player < MAX_PLAYERS) limit = std::max(1, limit + cheat_mods_[player].max_pop_add);
 	return limit > 0 ? std::min(cap, limit) : cap;
 }
 
@@ -2132,7 +2141,7 @@ bool Simulation::cmd_upgrade_building(uint8_t player_id, uint32_t building_id) {
 	b.upgrade_paid[RES_STONE] = (float)up.stone_cost;
 	b.upgrade_to = up.to;
 	b.upgrade_timer = 0.0f;
-	b.upgrade_duration = up.time;
+	b.upgrade_duration = up.time * (cheat_mods(b.team).fast_actions ? 0.01f : 1.0f); // cheat/fastactions Upgrade/Time
 	if (up.time <= 0.0f) finish_upgrade(b);
 	return true;
 }
@@ -2338,6 +2347,23 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					default: break;
 				}
 			}
+		}
+	}
+	// Cheat.js "fastactions" (cheat/fastactions on every Structure and Unit): Cost/BuildTime,
+	// Pack/Time and Researcher/TechCostMultiplier/time x0.01, ResourceGatherer/BaseSpeed x1000.
+	if (cheat_mods_[player_id].fast_actions) {
+		for (int t = 0; t < UNIT_TYPE_COUNT; ++t) {
+			for (float &g : m.gather[t]) g *= 1000.0f;
+			m.train_time[t] *= 0.01f;
+			m.pack_time[t] *= 0.01f;
+		}
+		for (auto &tm : m.tmpl) {
+			for (float &g : tm.gather) g *= 1000.0f;
+			tm.train_time *= 0.01f;
+		}
+		for (int b = 0; b < BLD_TYPE_COUNT; ++b) {
+			m.bld_build_time[b] *= 0.01f;
+			m.bld_research_time[b] *= 0.01f;
 		}
 	}
 }
@@ -9853,10 +9879,27 @@ bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, ui
 		if (extra == TECH_NONE || extra >= TECH_COUNT) return false;
 		complete_research(player, (uint8_t)extra);
 		return true;
-	case CHEAT_META: // "gift from the gods": every resource and both phases (RTS0 has no pop or speed cheats yet)
+	case CHEAT_META: // "gift from the gods": every resource, both population cheats, fast actions, both phases
 		for (uint8_t r = 0; r < RES_COUNT; ++r) ps.res[r] = std::max(0.0f, ps.res[r] + (float)parameter);
+		cmd_cheat(player, CHEAT_MAX_POPULATION, 0, 0, nullptr, 0);
+		cmd_cheat(player, CHEAT_CHANGE_MAX_POPULATION, 0, 0, nullptr, 0);
+		cmd_cheat(player, CHEAT_FAST_ACTIONS, 0, 0, nullptr, 0);
 		change_phase();
 		change_phase();
+		return true;
+	case CHEAT_MAX_POPULATION: { // "the hive master": SetPopulationBonuses((world max || MaxPopulation) + 500)
+		CheatMods &cm = cheat_mods_[player];
+		const int houses = pop_max_uncapped(player) - cm.pop_bonus;
+		const int limit = pop_cap_ < 0 ? world_pop_cap() : pop_cap() > 0 ? pop_cap() + cm.max_pop_add : houses;
+		cm.pop_bonus = std::clamp(limit + 500 - houses, -1000000, 1000000);
+		return true;
+	}
+	case CHEAT_CHANGE_MAX_POPULATION: // "TARDIS": the cheat/maxpopulation modifier, Player/MaxPopulation +500
+		cheat_mods_[player].max_pop_add = 500;
+		return true;
+	case CHEAT_FAST_ACTIONS: // "i am too busy": toggles cheat/fastactions
+		cheat_mods_[player].fast_actions ^= 1;
+		compute_tech_mods(player, tech_mods_[player]);
 		return true;
 	}
 	return false;
@@ -16257,7 +16300,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 VisionSharing spies (save_tick_state)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 VisionSharing spies and the population and fast-actions cheats (save_tick_state)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -17362,6 +17405,16 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				if (sp.player >= MAX_PLAYERS || !(sp.remaining > 0.0f)) ar.ok = false;
 	} else if constexpr (Ar::loading) {
 		s.spies_.clear();
+	}
+	// ... and the population and fast-actions cheats (v41).
+	if (ar.version >= SAVE_VERSION_SPIES) {
+		static_assert(sizeof(S::CheatMods) == 12, "CheatMods is saved raw");
+		ar.pod(s.cheat_mods_);
+		if constexpr (Ar::loading)
+			for (const S::CheatMods &cm : s.cheat_mods_)
+				if (cm.fast_actions > 1 || std::abs(cm.pop_bonus) > 1000000 || std::abs(cm.max_pop_add) > 1000000) ar.ok = false;
+	} else if constexpr (Ar::loading) {
+		for (S::CheatMods &cm : s.cheat_mods_) cm = S::CheatMods{};
 	}
 
 	// 10. StatisticsTracker (save v30). Older saves start the counters at zero.

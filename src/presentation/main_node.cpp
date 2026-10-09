@@ -1465,6 +1465,9 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 		{"back to the future", S::CHEAT_CHANGE_PHASE, 0, "", false},
 		{"brainiac", S::CHEAT_RESEARCH, 0, "", false},
 		{"gift from the gods", S::CHEAT_META, 0, "100000", true},
+		{"the hive master", S::CHEAT_MAX_POPULATION, 0, "", false},
+		{"TARDIS", S::CHEAT_CHANGE_MAX_POPULATION, 0, "", false},
+		{"i am too busy", S::CHEAT_FAST_ACTIONS, 0, "", false},
 	};
 	const uint8_t me = local_player();
 	if (!sim || !sim->cheats_enabled() || me >= rtso::MAX_PLAYERS || sim->is_defeated(me)) return false;
