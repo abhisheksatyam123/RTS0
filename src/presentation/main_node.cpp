@@ -2362,7 +2362,7 @@ void RtsoMain::update_inspector() {
 			extra = "Carrying " + String::num_int64(uview.carry[u]) + " " + kRes[uview.res_type_carried[u]];
 		if (sim->is_transport((uint32_t)selected_ids[0])) {
 			const size_t p_count = sim->get_transport_passenger_count((uint32_t)selected_ids[0]);
-			extra = "Passengers: " + String::num_int64(p_count) + " / " + String::num_int64(rtso::Simulation::TRANSPORT_CAPACITY);
+			extra = "Passengers: " + String::num_int64(p_count) + " / " + String::num_int64(sim->get_transport_capacity((uint32_t)selected_ids[0]));
 			ungarrison_btn->set_text("Unload all (" + String(rtso::hotkeys::table().label("session.unload").c_str()) + ")");
 			ungarrison_btn->set_visible(p_count > 0);
 		} else {

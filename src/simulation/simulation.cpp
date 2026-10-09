@@ -3315,16 +3315,103 @@ int Simulation::get_transport_capacity(uint32_t transport_id) const {
 	int32_t idx = lookup_unit(transport_id);
 	if (idx < 0 || !units_.alive[idx]) return 0;
 	uint8_t utype = units_.unit_type[idx];
-	if (utype == UNIT_TRIREME) return TRANSPORT_CAPACITY;
-	if (utype == UNIT_MERCHANT_SHIP) return 10;
+	if (unit_is_ship(utype)) return ship_garrison_capacity((size_t)idx);
 	return siege_garrison_capacity((size_t)idx);
+}
+
+// 0 A.D. GarrisonHolder Max on ships: template_unit_ship.xml 10, merchant 15,
+// fishing boat 1, warship_arrow / warship_ram 30, warship_siege 50,
+// warship_scout 10; fire ships have none (GarrisonHolder disable).
+int Simulation::ship_garrison_capacity(size_t i) const {
+	switch (units_.unit_type[i]) {
+		case UNIT_FISHING_BOAT: return 1;
+		case UNIT_MERCHANT_SHIP: return 15;
+		case UNIT_TRIREME: break;
+		default: return 0;
+	}
+	const uint16_t tmpl = units_.tmpl[i];
+	if (tmpl == CIV_UNIT_TEMPLATE_NONE || tmpl >= CIV_UNIT_TEMPLATE_COUNT) return TRANSPORT_CAPACITY;
+	const char *id = civ_unit_template(tmpl).id;
+	const char *slash = std::strrchr(id, '/');
+	const char *name = slash ? slash + 1 : id;
+	if (std::strcmp(name, "ship_fire") == 0) return 0;
+	if (std::strcmp(name, "ship_scout") == 0) return 10;
+	if (std::strcmp(name, "ship_siege") == 0) return 50;
+	return TRANSPORT_CAPACITY; // ship_arrow, ship_ram, ship_bireme...
+}
+
+// GarrisonHolder List: every ship takes FemaleCitizen Infantry Healer Dog
+// (template_unit_ship.xml); merchant ships add Support and Cavalry, warships
+// add Support and Soldier, and arrow, ram and siege ships add Siege.
+bool Simulation::ship_garrison_allowed(size_t ship, uint8_t unit_type) const {
+	const uint64_t c = unit_tech_classes(unit_type);
+	uint64_t allowed = TC_FEMALECITIZEN | TC_INFANTRY | TC_HEALER | TC_DOG;
+	if (units_.unit_type[ship] == UNIT_MERCHANT_SHIP) allowed |= TC_CIVILIAN | TC_CAVALRY;
+	if (units_.unit_type[ship] == UNIT_TRIREME) {
+		allowed |= TC_CIVILIAN | TC_SOLDIER | TC_HERO;
+		if (ship_garrison_capacity(ship) != 10) allowed |= TC_SIEGE; // not the scout ship
+	}
+	return (c & allowed) != 0;
+}
+
+// GarrisonHolder LoadingRange (10 m on ships), measured between the ship's and
+// the unit's edges as 0 A.D. does.
+float Simulation::ship_loading_reach(size_t ship, size_t unit) const {
+	return SHIP_LOADING_RANGE + unit_collision_radius(units_.unit_type[ship]) + unit_collision_radius(units_.unit_type[unit]);
+}
+
+// The water cell of the ship's own sea nearest to (x, z), searched out to 16
+// cells: where a ship stops to meet units on the shore.
+bool Simulation::nearest_water_for_ship(size_t ship, float x, float z, float &out_x, float &out_z) const {
+	if (nav_grid_.cells.blank()) return false;
+	auto [sx, sy] = nav_grid_.world_to_cell(units_.pos_x[ship], units_.pos_z[ship]);
+	if (!nav_grid_.cells.inside(sx, sy)) return false;
+	const uint16_t sea = nav_grid_.global_region_at(sx, sy, PASS_SHIP);
+	auto [cx, cy] = nav_grid_.world_to_cell(x, z);
+	const float cell = 2.0f * nav_grid_.map_half / (float)nav_grid_.res;
+	constexpr int R = 16;
+	int best_d2 = INT32_MAX, bx = 0, by = 0;
+	for (int dy = -R; dy <= R; ++dy)
+		for (int dx = -R; dx <= R; ++dx) {
+			const int gx = cx + dx, gy = cy + dy, d2 = dx * dx + dy * dy;
+			if (d2 >= best_d2 || !nav_grid_.cells.inside(gx, gy) || !nav_grid_.is_passable_for(gx, gy, PASS_SHIP)) continue;
+			if (sea && nav_grid_.global_region_at(gx, gy, PASS_SHIP) != sea) continue;
+			best_d2 = d2; bx = gx; by = gy;
+		}
+	if (best_d2 == INT32_MAX) return false;
+	out_x = ((float)bx + 0.5f) * cell - nav_grid_.map_half;
+	out_z = ((float)by + 0.5f) * cell - nav_grid_.map_half;
+	return true;
+}
+
+// PickSpawnPoint for a ship: the nearest dry ground within loading reach of its
+// hull, scanned in a fixed order so every peer picks the same spot.
+bool Simulation::ship_unload_point(size_t ship, float &out_x, float &out_z) const {
+	const float sx = units_.pos_x[ship], sz = units_.pos_z[ship];
+	const float reach = SHIP_LOADING_RANGE + unit_collision_radius(units_.unit_type[ship]) + 0.5f;
+	for (float r = 0.5f; r <= reach; r += 0.5f) {
+		for (int a = 0; a < 16; ++a) {
+			const float ang = (float)a * 0.39269908f;
+			const float cx = sx + std::cos(ang) * r, cz = sz + std::sin(ang) * r;
+			if (std::fabs(cx) >= map_half_ - 1.0f || std::fabs(cz) >= map_half_ - 1.0f) continue;
+			if (get_terrain_height(cx, cz) < terrain_water_height_ + 0.15f) continue;
+			auto [nx, ny] = nav_grid_.world_to_cell(cx, cz);
+			if (!nav_grid_.cells.blank() && nav_grid_.cells.inside(nx, ny) && nav_grid_.cells.at(nx, ny) != NAV_PASSABLE &&
+					nav_grid_.cells.at(nx, ny) != NAV_SHALLOW) continue;
+			out_x = cx;
+			out_z = cz;
+			return true;
+		}
+	}
+	return false;
 }
 
 bool Simulation::is_transport(uint32_t unit_id) const {
 	int32_t idx = lookup_unit(unit_id);
 	if (idx < 0 || !units_.alive[idx]) return false;
 	uint8_t utype = units_.unit_type[idx];
-	return utype == UNIT_TRIREME || utype == UNIT_MERCHANT_SHIP || siege_garrison_capacity((size_t)idx) > 0;
+	if (unit_is_ship(utype)) return ship_garrison_capacity((size_t)idx) > 0;
+	return siege_garrison_capacity((size_t)idx) > 0;
 }
 
 // Ships float: 0 A.D. entities sit on the water surface (Position FloatOnWater), so range
@@ -3362,7 +3449,11 @@ int Simulation::siege_tower_arrows(size_t i) const {
 // 0 A.D.'s Support and Infantry classes.
 bool Simulation::can_board(size_t transport_idx, size_t unit_idx) const {
 	if (units_.team[unit_idx] != units_.team[transport_idx]) return false;
+	// Ships carry rams and siege towers too (Siege on warship Lists), never other ships.
+	if (unit_is_ship(units_.unit_type[transport_idx]))
+		return !unit_is_ship(units_.unit_type[unit_idx]) && ship_garrison_allowed(transport_idx, units_.unit_type[unit_idx]);
 	if (is_transport(units_.id[unit_idx])) return false;
+
 	if (siege_garrison_capacity(transport_idx) > 0 && !siege_garrison_allowed(units_.unit_type[unit_idx])) return false;
 	return true;
 }
@@ -3371,6 +3462,10 @@ void Simulation::tick_siege_garrisons() {
 	if (transport_passengers_.empty()) return;
 	// Index order, not map order, so every peer unloads identically.
 	for (size_t i = 0; i < units_.count; ++i) {
+		if (unit_is_ship(units_.unit_type[i])) {
+			if (!units_.alive[i]) unload_sunk_ship(i);
+			continue;
+		}
 		if (siege_garrison_capacity(i) == 0) continue;
 		if (units_.action_state[i] == ACTION_GARRISONED) continue;
 		const bool dead = !units_.alive[i];
@@ -3393,6 +3488,39 @@ void Simulation::tick_siege_garrisons() {
 		}
 		transport_passengers_.erase(pit);
 	}
+}
+
+// A ship's GarrisonHolder OnDestroy (EjectHealth 0): EjectClassesOnDestroy
+// (FemaleCitizen Infantry Healer Dog) swim to the nearest dry ground within its
+// loading reach; everyone else, and everyone out at sea, goes down with it.
+void Simulation::unload_sunk_ship(size_t ship) {
+	auto pit = transport_passengers_.find(units_.id[ship]);
+	if (pit == transport_passengers_.end()) return;
+	float lx = 0.0f, lz = 0.0f;
+	const bool shore = ship_unload_point(ship, lx, lz);
+	const uint64_t ejected = TC_FEMALECITIZEN | TC_INFANTRY | TC_HEALER | TC_DOG;
+	const float step = 6.2831853f / (float)std::max<size_t>(1, pit->second.size());
+	int k = 0;
+	for (uint32_t puid : pit->second) {
+		const int32_t p = lookup_unit(puid);
+		if (p < 0) continue;
+		if (shore && (unit_tech_classes(units_.unit_type[p]) & ejected)) {
+			const float a = step * (float)k++;
+			units_.pos_x[p] = lx + std::cos(a) * 0.6f;
+			units_.pos_z[p] = lz + std::sin(a) * 0.6f;
+			units_.alive[p] = 1;
+			units_.action_state[p] = ACTION_IDLE;
+			units_.has_order[p] = 0;
+			units_.vel_x[p] = units_.vel_z[p] = 0.0f;
+		} else {
+			units_.hp[p] = 0.0f;
+			units_.alive[p] = 0;
+			units_.action_state[p] = ACTION_DYING;
+			stat_unit_lost((size_t)p, GAIA_PLAYER); // drowned: lost, but nobody's kill
+			if (units_.team[p] == 0) record_.units_lost++;
+		}
+	}
+	transport_passengers_.erase(pit);
 }
 
 void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, uint32_t building_id, bool queued) {
@@ -3802,6 +3930,8 @@ void Simulation::order_board_transport(const uint32_t *unit_ids, size_t count, u
 	int max_cap = get_transport_capacity(transport_id);
 
 	auto &passengers = transport_passengers_[transport_id];
+	float pick_x = 0.0f, pick_z = 0.0f;
+	int walking = 0;
 
 	for (size_t i = 0; i < count; ++i) {
 		if ((int)passengers.size() >= max_cap) break;
@@ -3812,8 +3942,9 @@ void Simulation::order_board_transport(const uint32_t *unit_ids, size_t count, u
 		float dx = units_.pos_x[uidx] - tx;
 		float dz = units_.pos_z[uidx] - tz;
 		float d2 = dx * dx + dz * dz;
+		const float reach = unit_is_ship(units_.unit_type[tidx]) ? ship_loading_reach((size_t)tidx, (size_t)uidx) : 4.5f;
 
-		if (d2 <= 4.5f * 4.5f) {
+		if (d2 <= reach * reach) {
 			units_.action_state[uidx] = ACTION_GARRISONED;
 			units_.alive[uidx] = 0;
 			units_.has_order[uidx] = 0;
@@ -3827,6 +3958,21 @@ void Simulation::order_board_transport(const uint32_t *unit_ids, size_t count, u
 			units_.target_unit_id[uidx] = transport_id;
 			units_.target_x[uidx] = tx;
 			units_.target_z[uidx] = tz;
+			pick_x += units_.pos_x[uidx];
+			pick_z += units_.pos_z[uidx];
+			++walking;
+		}
+	}
+	// GarrisonHolder Pickup: an idle ship sails toward the units coming aboard,
+	// as close to them as the water allows.
+	// Petra's transport plan steers its own ship to the pickup point.
+	const bool petra_ship = petra_transport_.ship_id == transport_id && petra_transport_.state != PetraTransportPlan::IDLE &&
+			petra_transport_.state != PetraTransportPlan::FAILED;
+	if (walking && !petra_ship && unit_is_ship(units_.unit_type[tidx]) && !units_.has_order[tidx]) {
+		float wx = pick_x / (float)walking, wz = pick_z / (float)walking;
+		if (nearest_water_for_ship((size_t)tidx, wx, wz, wx, wz)) {
+			const uint32_t ship = transport_id;
+			cmd_move(&ship, 1, wx, wz);
 		}
 	}
 }
@@ -3854,6 +4000,12 @@ void Simulation::order_disembark(uint32_t transport_id, float target_x, float ta
 	float land_x = target_x;
 	float land_z = target_z;
 	bool found_land = false;
+	// A ship unloads onto dry ground beside its hull (PickSpawnPoint); with no
+	// shore in reach the passengers stay aboard, as in 0 A.D.
+	if (unit_is_ship(units_.unit_type[tidx])) {
+		if (!ship_unload_point((size_t)tidx, land_x, land_z)) return;
+		found_land = true;
+	}
 
 	for (float r = 0.0f; r <= 8.0f && !found_land; r += 1.5f) {
 		for (int a = 0; a < 8; ++a) {
@@ -3929,6 +4081,9 @@ void Simulation::order_disembark_single(uint32_t transport_id, uint32_t unit_id)
 			float tz = units_.pos_z[tidx];
 			float land_x = tx + 2.0f;
 			float land_z = tz;
+			if (unit_is_ship(units_.unit_type[tidx])) {
+				if (!ship_unload_point((size_t)tidx, land_x, land_z)) return; // no shore in reach: stays aboard
+			} else
 			for (float r = 1.0f; r <= 6.0f; r += 1.5f) {
 				for (int a = 0; a < 8; ++a) {
 					float ang = a * 0.785398f;
@@ -4740,7 +4895,8 @@ void Simulation::move_units(float dt, Arena &arena) {
 			if (tidx >= 0 && units_.alive[tidx] && is_transport(units_.id[tidx]) && can_board((size_t)tidx, i)) {
 				float dx = px[i] - px[tidx];
 				float dz = pz[i] - pz[tidx];
-				if (dx * dx + dz * dz <= 4.5f * 4.5f) {
+				const float reach = unit_is_ship(units_.unit_type[tidx]) ? ship_loading_reach((size_t)tidx, i) : 4.5f;
+				if (dx * dx + dz * dz <= reach * reach) {
 					auto &passengers = transport_passengers_[units_.id[tidx]];
 					int max_pcap = get_transport_capacity(units_.id[tidx]);
 					if ((int)passengers.size() < max_pcap) {
@@ -5995,34 +6151,7 @@ void Simulation::tick_combat(float dt) {
 				// 0 A.D. Looter.js: template loot plus carried resources to the killer's owner
 				collect_unit_loot(units_.id[i], units_.team[i], (size_t)t);
 
-				// Trireme destruction: disembark survivors near shore or drown
-				// (land siege unloads in tick_siege_garrisons instead).
-				if (is_transport(units_.id[t]) && unit_is_ship(units_.unit_type[t])) {
-					auto pit = transport_passengers_.find(units_.id[t]);
-					if (pit != transport_passengers_.end()) {
-						float ship_x = units_.pos_x[t];
-						float ship_z = units_.pos_z[t];
-						bool near_shore = (get_terrain_height(ship_x, ship_z) >= terrain_water_height_ - 0.5f);
-						for (uint32_t puid : pit->second) {
-							int32_t pidx = lookup_unit(puid);
-							if (pidx >= 0) {
-								if (near_shore) {
-									units_.pos_x[pidx] = ship_x + 1.2f;
-									units_.pos_z[pidx] = ship_z + 1.2f;
-									units_.alive[pidx] = 1;
-									units_.action_state[pidx] = ACTION_IDLE;
-									units_.hp[pidx] = std::max(10.0f, units_.hp[pidx] * 0.5f);
-								} else {
-									units_.alive[pidx] = 0;
-									units_.action_state[pidx] = ACTION_DYING;
-									stat_unit_lost((size_t)pidx, units_.team[i]);
-									if (units_.team[pidx] == 0) record_.units_lost++;
-								}
-							}
-						}
-						transport_passengers_.erase(pit);
-					}
-				}
+				// A sunk ship's passengers swim ashore or drown in tick_siege_garrisons.
 
 				// Promotion.js xp came with each hit (award_damage_xp); count the kill.
 				units_.kills[i]++;
@@ -10025,6 +10154,7 @@ void Simulation::petra_manage_naval(float dt) {
 	// 3. Coastal Patrol & Maritime Defense
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.unit_type[i] != UNIT_TRIREME) continue;
+		if (ship_garrison_capacity(i) == 0) continue; // fire ships carry no one
 		if (units_.action_state[i] == ACTION_IDLE) {
 			float tx = units_.pos_x[i];
 			float tz = units_.pos_z[i];
@@ -11902,9 +12032,11 @@ bool Simulation::petra_start_transport(const std::vector<uint32_t> &unit_ids, fl
 	petra_transport_.state_timer = 0.0f;
 	petra_transport_.passenger_ids.clear();
 	for (uint32_t uid : unit_ids) {
-		if (petra_transport_.passenger_ids.size() >= (size_t)TRANSPORT_CAPACITY) break;
+		if (petra_transport_.passenger_ids.size() >= (size_t)get_transport_capacity(ship)) break;
 		int32_t idx = lookup_unit(uid);
 		if (idx < 0 || !units_.alive[idx] || is_transport(uid)) continue;
+		const int32_t sidx = lookup_unit(ship);
+		if (sidx < 0 || !can_board((size_t)sidx, (size_t)idx)) continue;
 		petra_transport_.passenger_ids.push_back(uid);
 	}
 	if (petra_transport_.passenger_ids.empty()) {
