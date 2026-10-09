@@ -188,6 +188,7 @@ void RtsoMain::_bind_methods() {
 	bind_enum("BuildingType", "TEMPLE_AMUN", rtso::BLD_TEMPLE_AMUN);
 	bind_enum("BuildingType", "TEMPLE_VESTA", rtso::BLD_TEMPLE_VESTA);
 	bind_enum("BuildingType", "TEMPLE_MARS", rtso::BLD_TEMPLE_MARS);
+	bind_enum("BuildingType", "ICE_HOUSE", rtso::BLD_ICE_HOUSE);
 
 	bind_enum("Civilization", "ATHENIANS", rtso::CIV_ATHENIANS);
 	bind_enum("Civilization", "SPARTANS", rtso::CIV_SPARTANS);
@@ -4218,6 +4219,7 @@ void RtsoMain::apply_match_settings() {
 		}
 	}
 	sim->set_biome_override((int)ms->get("biome") - 1); // 0 = the map's own biome
+	sim->set_nomad((bool)ms->get("nomad")); // random maps only (generate_random_map)
 	if (!load_map_seeded(map_id, seed)) {
 		UtilityFunctions::printerr("[RtsoMain] GameSetup map failed: ", map_id, " - default arena.");
 		if (civ >= 0 && civ < rtso::CIV_COUNT) sim->set_player_civ((uint8_t)civ);
@@ -4235,6 +4237,13 @@ void RtsoMain::apply_match_settings() {
 	sim->set_wonder_duration(60.0f * (float)std::clamp((int)ms->get("wonder_min"), 0, 60));
 	sim->set_relic_duration(60.0f * (float)std::clamp((int)ms->get("relic_min"), 0, 60));
 	sim->set_relic_count((int)ms->get("relic_count"));
+	sim->set_regicide_garrison((bool)ms->get("regicide_garrison"));
+	sim->set_disable_treasures((bool)ms->get("disable_treasures"));
+	{
+		Array scolors = ms->get("slot_colors");
+		for (int p = 0; p < rtso::MAX_PLAYERS; ++p)
+			sim->set_player_color((uint8_t)p, (uint8_t)(p < scolors.size() ? std::clamp((int)scolors[p], 0, rtso::PLAYER_COLOR_COUNT - 1) : p));
+	}
 	sim->set_water_level_mode(std::clamp((int)ms->get("water_level"), 0, 2));
 	sim->set_sea_level_rise_minutes(std::clamp((int)ms->get("sea_level_rise_min"), 0, 60));
 	// Game-setup teams (1-based T1..T4) decide allied victory, shared vision and territory.
@@ -4369,7 +4378,10 @@ PackedStringArray RtsoMain::get_available_maps() const {
 
 bool RtsoMain::load_map(String map_id) {
 	uint32_t seed = (uint32_t)Time::get_singleton()->get_ticks_msec();
-	if (sim) sim->set_biome_override(-1); // a map picked in game keeps its own biome
+	if (sim) {
+		sim->set_biome_override(-1); // a map picked in game keeps its own biome
+		sim->set_nomad(false);
+	}
 	return load_map_seeded(map_id, seed);
 }
 
@@ -4755,6 +4767,12 @@ void RtsoMain::_on_lobby_start_pressed() {
 			if (i < sdiffs.size()) setup.diffs[i] = (uint8_t)std::clamp((int)sdiffs[i], 0, 5);
 			if (i < sbehs.size()) setup.behs[i] = (uint8_t)std::clamp((int)sbehs[i], 0, 3);
 		}
+		Array scolors = ms->get("slot_colors");
+		for (int i = 0; i < 8 && i < scolors.size(); ++i)
+			setup.colors[i] = (uint8_t)std::clamp((int)scolors[i], 0, rtso::PLAYER_COLOR_COUNT - 1);
+		setup.nomad = (bool)ms->get("nomad") ? 1 : 0;
+		setup.regicide_garrison = (bool)ms->get("regicide_garrison") ? 1 : 0;
+		setup.no_treasures = (bool)ms->get("disable_treasures") ? 1 : 0;
 		setup.water_level = (uint8_t)std::clamp((int)ms->get("water_level"), 0, 2);
 		setup.sea_rise_min = (uint8_t)std::clamp((int)ms->get("sea_level_rise_min"), 0, 60);
 		int msz = (int)ms->get("map_size");
@@ -4839,6 +4857,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	for (uint8_t i = 0; i < rtso::MAX_PLAYERS; ++i)
 		random_map_teams[i] = (i < setup.slot_count && setup.teams[i] >= 1 && setup.teams[i] <= 8) ? setup.teams[i] : 0;
 	sim->set_biome_override((int)setup.biome - 1);
+	sim->set_nomad(setup.nomad != 0);
 	if (!load_map_seeded(String(setup.map_id.c_str()), setup.seed)) {
 		if (lobby_status) lobby_status->set_text("GameStart failed: map regen failed");
 		return;
@@ -4853,6 +4872,9 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	sim->set_wonder_duration(60.0f * (float)setup.wonder_min);
 	sim->set_relic_duration(60.0f * (float)setup.relic_min);
 	sim->set_relic_count(setup.relics);
+	sim->set_regicide_garrison(setup.regicide_garrison != 0);
+	sim->set_disable_treasures(setup.no_treasures != 0);
+	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) sim->set_player_color(p, setup.colors[p]);
 	sim->set_water_level_mode(setup.water_level);
 	sim->set_sea_level_rise_minutes(setup.sea_rise_min);
 	for (uint8_t p = 0; p < 8 && p < setup.slot_count; ++p) {
@@ -4908,6 +4930,12 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		}
 		ms->set("slot_diffs", sdiffs);
 		ms->set("slot_behs", sbehs);
+		Array scolors;
+		for (uint8_t i = 0; i < setup.slot_count && i < 8; ++i) scolors.push_back((int)setup.colors[i]);
+		ms->set("slot_colors", scolors);
+		ms->set("nomad", setup.nomad != 0);
+		ms->set("regicide_garrison", setup.regicide_garrison != 0);
+		ms->set("disable_treasures", setup.no_treasures != 0);
 		ms->set("water_level", sim->water_level_mode());
 		ms->set("sea_level_rise_min", sim->sea_level_rise_minutes());
 		ms->set("map_size", random_map_size);

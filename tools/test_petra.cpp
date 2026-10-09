@@ -896,6 +896,7 @@ static void test_regicide_hero() {
 	s->reset();
 	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
 	s->set_victory_condition(VICTORY_REGICIDE);
+	s->set_regicide_garrison(true); // victoryManager.js garrisons the hero only when it is garrisonable
 	run_for(*s, 1.0f);
 	auto &u = s->units_;
 	uint32_t hero = 0;
