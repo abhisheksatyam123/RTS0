@@ -852,14 +852,15 @@ public:
 		float rot;      // Position angle: a segment's length lies along its u axis
 		float half_w;   // half its length (a segment) or its half size (a tower)
 	};
-	// The pieces of a wall from (sx, sz) to (ex, ez), in order along it: a tower at each end, none
-	// where that end snaps onto one of `player`'s wall towers (its id goes in *start_tower or
-	// *end_tower, else 0), and segments joined by towers. Empty when the ends are too close.
+	// The pieces of a `kind` (WallSetKind) wall from (sx, sz) to (ex, ez), in order along it: a
+	// tower at each end, none where that end snaps onto one of `player`'s towers of that WallSet
+	// (its id goes in *start_tower or *end_tower, else 0), and segments joined by towers. Empty
+	// when the ends are too close.
 	std::vector<WallPiece> wall_placement(uint8_t player, float sx, float sz, float ex, float ez,
-			uint32_t *start_tower = nullptr, uint32_t *end_tower = nullptr) const;
-	// The wall tower of `player`'s that a wall end at (x, z) snaps onto (input.js snaps to towers
-	// under the cursor), or 0.
-	uint32_t wall_snap_tower(uint8_t player, float x, float z) const;
+			uint32_t *start_tower = nullptr, uint32_t *end_tower = nullptr, uint8_t kind = WALLSET_STONE) const;
+	// The tower of `player`'s `kind` WallSet that a wall end at (x, z) snaps onto (input.js snaps
+	// to towers under the cursor), or 0.
+	uint32_t wall_snap_tower(uint8_t player, float x, float z, uint8_t kind = WALLSET_STONE) const;
 	// check_placement for one wall piece, with the buildings in `ignore` (the towers it joins and
 	// the pieces between them) left out of the obstruction test, as 0 A.D. obstruction control
 	// groups do.
@@ -869,7 +870,7 @@ public:
 	// foundations in order, paying for each, and stops at the first that is blocked or unaffordable;
 	// `builders` build them one after another. Returns the number of pieces laid.
 	size_t cmd_build_wall(uint8_t player, float sx, float sz, float ex, float ez, const uint32_t *builders = nullptr,
-			size_t builder_n = 0, bool queued = false);
+			size_t builder_n = 0, bool queued = false, uint8_t kind = WALLSET_STONE);
 	// Lockstep cmd NET_CMD_BUILD_WALL carries a wall's start point in target_id: x and z in
 	// 1/32 world units from -1024, 16 bits each.
 	static uint32_t pack_wall_point(float x, float z);
@@ -1692,7 +1693,7 @@ private:
 	uint32_t spawn_wall_piece(const WallPiece &p, uint8_t team, float progress);
 	// Cost.js: pays `b_type`'s cost after civ, team and technology bonuses (stone_override, when
 	// not negative, in place of its template stone). False, paying nothing, if unaffordable.
-	bool pay_for_structure(uint8_t player, uint8_t b_type, float stone_override = -1.0f);
+	bool pay_for_structure(uint8_t player, uint8_t b_type, float cost_override = -1.0f);
 	// petra_place_building searches that found no spot, with the signature of what
 	// they read (petra_placement_signature). Exact, so derived state: never saved.
 	struct PetraPlaceMiss {
