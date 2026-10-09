@@ -6,7 +6,10 @@
 // selected defensive structures (session.toggleattackrange, Alt+C), aura rings
 // (session.toggleaurasrange, Alt+V), healer range rings
 // (session.togglehealrange, Alt+B), and a line from a selected structure to its
-// rally point. Drawn as one ImmediateMesh that follows the terrain.
+// rally point; and target markers (special/target_marker, a flag where a walk
+// order was given that decays after 0.5 s, and special/flare_target_marker,
+// a flare in the sender's colour for 6 s). Drawn as one ImmediateMesh that
+// follows the terrain.
 
 #include <godot_cpp/classes/immediate_mesh.hpp>
 #include <godot_cpp/classes/mesh_instance3d.hpp>
@@ -16,6 +19,7 @@
 #include <godot_cpp/core/memory.hpp>
 
 #include <cstdint>
+#include <vector>
 
 #include "../simulation/simulation.h"
 #include "attack_detection.h" // kMetresPerUnit
@@ -44,10 +48,22 @@ public:
 		parent->add_child(inst_);
 	}
 
+	// GuiInterface.AddTargetMarker. Decay DelayTime: target_marker 0.5 s, flare_target_marker 6 s.
+	static constexpr float kMoveMarkerTime = 0.5f;
+	static constexpr float kFlareMarkerTime = 6.0f;
+	void add_marker(float x, float z, const Color &c, float ttl) { markers_.push_back({x, z, c, ttl}); }
+	// Ages the markers by real (unscaled) time.
+	void tick(float dt) {
+		for (auto &m : markers_) m.ttl -= dt;
+		std::erase_if(markers_, [](const Marker &m) { return m.ttl <= 0.0f; });
+	}
+	size_t marker_count() const { return markers_.size(); }
+
 	void update(const rtso::Simulation *sim, uint8_t me, uint32_t building_id, const int32_t *unit_ids, int n_units) {
 		if (!inst_ || !sim) return;
 		mesh_->clear_surfaces();
 		begun_ = false;
+		for (const auto &m : markers_) flag(sim, m.x, m.z, m.color);
 		if (building_id != 0) {
 			for (const auto &b : sim->buildings()) {
 				if (b.id != building_id) continue;
@@ -118,6 +134,25 @@ private:
 		}
 	}
 
+	// A pole with a pennant, about 4 m tall.
+	void flag(const rtso::Simulation *sim, float x, float z, const Color &c) {
+		begin();
+		const Vector3 base = ground(sim, x, z);
+		const Vector3 top = base + Vector3(0.0f, 1.0f, 0.0f);
+		const Vector3 mid = base + Vector3(0.0f, 0.7f, 0.0f);
+		const Vector3 tip = base + Vector3(0.45f, 0.85f, 0.0f);
+		seg(base, top, c);
+		seg(top, tip, c);
+		seg(tip, mid, c);
+		seg(base + Vector3(-0.15f, 0.0f, 0.0f), base + Vector3(0.15f, 0.0f, 0.0f), c);
+	}
+
+	struct Marker {
+		float x, z;
+		Color color;
+		float ttl;
+	};
+	std::vector<Marker> markers_;
 	Ref<ImmediateMesh> mesh_;
 	MeshInstance3D *inst_ = nullptr;
 	bool begun_ = false;
