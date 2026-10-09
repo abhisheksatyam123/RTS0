@@ -14,6 +14,8 @@
 //     heals only its owner's humans by 1 hp/s within 40 m.
 //  8. Health regeneration: Battlefield Medicine gives idle organic units +0.5 hp/s,
 //     not siege engines and not before it is researched.
+//  9. ObstructionManager IsInTargetRange: a swordsman just off a fortress's corner is in
+//     reach (edge to edge) and hits it where it stands instead of walking to a side.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_combat.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -152,6 +154,32 @@ static void test_structure_armour() {
 	std::printf("      swordsman on barracks: %.3f (want %.3f, armour %.0f/%.0f/%.0f)\n", got, want,
 			bc.hack_armor, bc.pierce_armor, bc.crush_armor);
 	check(std::fabs(got - want) < 0.01f, "barracks take damage through their template armour");
+}
+
+static void test_corner_reach() {
+	std::printf("9. edge-to-edge reach at a structure's corner\n");
+	Simulation s;
+	setup(s);
+	uint32_t fort = s.spawn_building_world(20.0f, 20.0f, BLD_FORTRESS, 1, 1.0f);
+	const Simulation::Building *b = building(s, fort);
+	const float h = b->half_size;
+	const float r = unit_collision_radius(UNIT_SWORDSMAN);
+	// Diagonally off the corner, the gap between the unit and the footprint is 1.3,
+	// inside reach; the old centre-distance test added about 0.41 * half_size to it.
+	const float off = (r + 1.3f) / std::sqrt(2.0f);
+	uint32_t sw = s.spawn_unit(20.0f - h - off, 20.0f - h - off, 0, UNIT_SWORDSMAN);
+	const int i = idx(s, sw);
+	const float x0 = s.units_.pos_x[i], z0 = s.units_.pos_z[i];
+	const float reach = s.units_.attack_range[i];
+	std::printf("      fortress half %.2f, swordsman reach %.2f, radius %.2f\n", h, reach, r);
+	check(std::sqrt(2.0f) * (h + off) - h - r > reach, "the centre test would call the corner out of reach");
+	const float bhp = b->hp;
+	s.order_attack_building(&sw, 1, fort);
+	for (int k = 0; k < 200 && building(s, fort)->hp == bhp; ++k) s.tick(DT);
+	const float moved = std::hypot(s.units_.pos_x[i] - x0, s.units_.pos_z[i] - z0);
+	std::printf("      moved %.2f before the first hit\n", moved);
+	check(building(s, fort)->hp < bhp, "the swordsman hits the fortress from its corner");
+	check(moved < 0.5f, "without walking round to a side");
 }
 
 // Archer at `dist` shoots a passive enemy until `shots` arrows have landed.
@@ -324,6 +352,7 @@ int main() {
 	test_no_invented();
 	test_auras();
 	test_regen();
+	test_corner_reach();
 	if (g_failures) {
 		std::printf("test_combat: FAIL (%d)\n", g_failures);
 		return 1;
