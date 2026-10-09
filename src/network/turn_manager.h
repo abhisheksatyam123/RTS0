@@ -149,25 +149,6 @@ public:
 	// seated as, so no client can set another player's stances. NMT_DIPLOMACY
 	// used to be a second route and could do neither.
 
-	// --- P3: maintainFleet upkeep (navalManager.js:507) ----------------------
-	// Commission one warship / fishing boat per docking structure, once per turn.
-	// Commissions are produced DETERMINISTICALLY from the sim state at the turn
-	// boundary (see maintain_fleet_upkeep) and converted into ordinary
-	// NET_CMD_MAINTAIN_FLEET NetCommands by request_fleet_upkeep(), so they ride
-	// the existing NMT_SIMULATION_COMMAND path and land in the replay stream.
-	// No src/simulation edit is required; see the TODO in turn_manager.cpp for the
-	// optional sim-side cmd_maintain_fleet hook.
-	uint32_t fleet_upkeep_requests() const { return fleet_upkeep_requests_; }
-	// Feed a live / post-command-later (0 A.D. maintenance pause) policy into
-	// tick(). main_node.cpp is owned by another stream, so this is the seam it
-	// can call from the Petra naval pass.
-	void set_fleet_upkeep_paused(bool paused) { fleet_upkeep_paused_ = paused; }
-	bool fleet_upkeep_paused() const { return fleet_upkeep_paused_; }
-	// Public for verification: returns the NET_CMD_MAINTAIN_FLEET NetCommands the
-	// upkeep would commission for `sim` right now (empty when any gate blocks).
-	// tick() feeds exactly these to maintain_fleet_upkeep().
-	std::vector<NetCommand> generate_fleet_upkeep_commands(const Simulation &sim) const;
-
 	// --- P3: late-join turn-0 state resync ------------------------------------
 	// Answer a joiner's NMT_JOIN_SYNC_STATE by resending the authoritative setup
 	// and reporting the state the joiner can verify. Returns false when there is no
@@ -416,9 +397,6 @@ private:
 	const Simulation *game_start_applied_sim_ = nullptr; // non-owning
 	std::string last_game_start_attributes_; // authoritative setup kept for resend
 
-	// --- P3 maintainFleet ------------------------------------------------------
-	uint32_t fleet_upkeep_requests_ = 0;
-	bool fleet_upkeep_paused_ = false;
 
 	// --- P3 late-join state ---------------------------------------------------
 	uint32_t join_sync_round_trips_ = 0;
@@ -436,21 +414,7 @@ private:
 
 	// Hash the boot world for the late-join turn-0 proof (see arm_boot_capture).
 	void arm_boot_capture(const Simulation &sim);
-
-	// Turn-boundary helper: maintain_fleet_upkeep() is the single command
-	// generation point for the fleet upkeep.
-	void maintain_fleet_upkeep(Simulation &sim);
 };
-
-// Two commands are interchangeable for the upkeep (and for the turn batch) when
-// they address the same action on the same target. Peer equality of the generated
-// upkeep is asserted with this rather than with vector::operator==, so a future
-// field on NetCommand does not silently change what "identical" means.
-inline bool fleet_upkeep_command_equal(const NetCommand &a, const NetCommand &b) {
-	return a.cmd_type == b.cmd_type && a.client_id == b.client_id &&
-	       a.target_id == b.target_id && a.param == b.param &&
-	       a.entity_ids == b.entity_ids;
-}
 
 } // namespace rtso
 

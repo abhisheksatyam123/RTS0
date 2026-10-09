@@ -3,7 +3,9 @@
 //   g++ -std=c++20 -O2 -Isrc tools/test_trade.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_trade && /tmp/test_trade
+#define private public // complete_research
 #include "simulation/simulation.h"
+#undef private
 #include "network/turn_manager.h"
 #include <cmath>
 #include <cstdio>
@@ -171,6 +173,21 @@ static void test_trade_gain() {
 	g = s.calculate_trade_gain(a, b, 0);
 	CHECK(g.market1 == (int)std::lround(long_route * 0.2));        // player 0 has no Han ally
 	CHECK(g.market2 == (int)std::lround(long_route * 0.2 * 1.2)); // player 1 does
+	// Commercial Treaty: +0.1 international bonus on the researcher's markets.
+	s.complete_research(0, TECH_TRADE_COMMERCIAL_TREATY);
+	g = s.calculate_trade_gain(a, b, 0);
+	CHECK(g.market1 == (int)std::lround(long_route * 0.3));
+	// Carthage's markets and docks carry 0.3 (Desirable Products); Han's Silk Road
+	// technology multiplies its own markets' bonus by 1.2 (after Advanced Handicraft).
+	s.set_team_civ(0, CIV_CARTHAGINIANS);
+	g = s.calculate_trade_gain(a, b, 0);
+	CHECK(g.market1 == (int)std::lround(long_route * 0.4));
+	CHECK(tech_info(TECH_SILK_ROAD).prerequisite == TECH_TRADE_GAIN_02 && tech_info(TECH_SILK_ROAD).civ_mask == (1u << CIV_HAN));
+	s.set_team_civ(0, CIV_HAN);
+	s.complete_research(0, TECH_SILK_ROAD);
+	g = s.calculate_trade_gain(a, b, 0);
+	CHECK(g.market1 == (int)std::lround(long_route * 0.3 * 1.2));
+	CHECK(g.market2 == (int)std::lround(long_route * 0.2 * 1.2)); // the ally's bonus is unchanged
 }
 
 static const Simulation::Building *find_bld(const Simulation &s, uint32_t id) {

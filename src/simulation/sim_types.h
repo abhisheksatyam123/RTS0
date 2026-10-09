@@ -344,7 +344,7 @@ enum ResourceSubtype : uint8_t {
 	RES_SUB_MEAT = 1,
 	RES_SUB_GRAIN = 2,
 	RES_SUB_FISH = 3, // food.fish: only fishing boats gather it
-	RES_SUB_RUINS = 4 // stone.ruins / metal.ruins (template_gaia_ruins): 4x a rock's gather rate
+	RES_SUB_RUINS = 4 // stone.ruins / metal.ruins (template_gaia_ruins): gather_class_ruins_rate
 };
 
 // 0 A.D. template_gaia_fish.xml ResourceSupply: 1000 food, at most 4 gatherers,
@@ -413,10 +413,10 @@ struct UnitOrder {
 };
 static_assert(sizeof(UnitOrder) == 24, "UnitOrder is saved raw");
 
-// 0 A.D. template_unit.xml UnitAI/FleeDistance and the 64 m search of
-// UnitAI FindNearbyResource / FindNearbyFoundation.
-inline constexpr float FLEE_DISTANCE = 12.0f;
-inline constexpr float NEARBY_SEARCH_RANGE = 64.0f;
+// 0 A.D. template_unit.xml UnitAI/FleeDistance (12 m) and the 64 m search of
+// UnitAI FindNearbyResource / FindNearbyFoundation, in RTS0 units (metres x 0.28).
+inline constexpr float FLEE_DISTANCE = 12.0f * 0.28f;
+inline constexpr float NEARBY_SEARCH_RANGE = 64.0f * 0.28f;
 // Attack.js Capture: template_unit_*.xml Capture MaxRange 4, RepeatTime 1000. 0 A.D.
 // measures edge to edge; RTS0 melee reach is ~0.28 x R plus the radii, so Capture
 // MaxRange 4 is the spearman's reach, as in 0 A.D. (Melee MaxRange 4): 2.4.
@@ -429,7 +429,7 @@ inline constexpr float HEAL_HP = 5.0f;
 inline constexpr float HEAL_INTERVAL_S = 2.0f;
 inline constexpr float HEAL_PREPARE_S = 1.0f;
 inline constexpr float CHEER_TIME_S = 2.8f;
-inline constexpr float CHEER_NOTIFY_RANGE = 30.0f;
+inline constexpr float CHEER_NOTIFY_RANGE = 30.0f * 0.28f; // metres x 0.28
 // AlertRaiser.js per structure template: the classes it alerts (FemaleCitizen, or
 // Trader+!Ship for the market) and its ranges in RTS0 units (0 A.D. metres x 0.28;
 // a negative range reaches the whole map).
@@ -666,7 +666,7 @@ inline bool unit_has_ranged_attack(uint8_t type, uint8_t civ = CIV_ATHENIANS) {
 }
 
 // 0 A.D. UnitAI/DefaultStance: support units (women, healers, traders) and
-// civilian ships are passive, so they flee when attacked.
+// civilian ships are passive, so they flee when attacked; stone and bolt throwers stand ground.
 inline uint8_t unit_default_stance(uint8_t type) {
 	switch (type) {
 		case UNIT_FISHING_BOAT:
@@ -676,6 +676,9 @@ inline uint8_t unit_default_stance(uint8_t type) {
 		case UNIT_HEALER:
 		case UNIT_MINISTER:
 			return STANCE_PASSIVE;
+		case UNIT_CATAPULT: // template_unit_siege_stonethrower / _boltshooter
+		case UNIT_BOLT_SHOOTER:
+			return STANCE_STAND_GROUND;
 		default:
 			return STANCE_AGGRESSIVE;
 	}
@@ -862,6 +865,7 @@ enum TechStat : uint8_t {
 	TSTAT_REGEN, TSTAT_IDLE_REGEN, // Health/RegenRate, Health/IdleRegenRate (hp per second)
 	TSTAT_CAPTURE_POINTS, TSTAT_COST_FOOD, TSTAT_COST_WOOD, TSTAT_COST_STONE, TSTAT_COST_METAL,
 	TSTAT_TRICKLE_FOOD, TSTAT_TRICKLE_WOOD, TSTAT_TRICKLE_STONE, TSTAT_TRICKLE_METAL, // ResourceTrickle/Rates/<res>
+	TSTAT_TRADE_INTERNATIONAL, // Market/InternationalBonus of markets and docks
 	TSTAT_COUNT
 };
 
@@ -1207,6 +1211,67 @@ inline bool civ_aura_affects(int16_t aura, uint16_t tmpl) {
 inline const CivUnitTemplate &civ_unit_template(uint16_t id) {
 	const CivUnitTemplate *t = civ_unit_template_table();
 	return t[id < CIV_UNIT_TEMPLATE_COUNT ? id : 0];
+}
+
+// 0 A.D. ResourceGatherer by template: citizen infantry (template_unit_infantry), support
+// workers (template_unit_support_female_citizen, and template_unit_support_civilian for RTS0's
+// villager, 0 A.D.'s male Civilian), citizen cavalry (template_unit_cavalry) and fishing ships
+// (template_unit_ship_fishing). Champions, heroes, siege and the Mauryan worker elephant
+// (a mobile dropsite) gather nothing.
+enum GatherClass : uint8_t { GATHER_NONE, GATHER_INFANTRY, GATHER_SUPPORT, GATHER_CAVALRY, GATHER_FISHING };
+
+inline uint8_t unit_gather_class(uint8_t unit_type, uint16_t tmpl) {
+	if (unit_type == UNIT_FEMALE_CITIZEN || unit_type == UNIT_VILLAGER) return GATHER_SUPPORT;
+	if (unit_type == UNIT_FISHING_BOAT) return GATHER_FISHING;
+	const bool infantry = unit_type == UNIT_SWORDSMAN || unit_type == UNIT_SPEARMAN || unit_type == UNIT_ARCHER;
+	const bool cavalry = unit_type == UNIT_CAVALRY || unit_type == UNIT_CAMEL;
+	if (tmpl != CIV_UNIT_TEMPLATE_NONE) {
+		// Roster rows: only citizen soldiers (ROSTER_CITIZEN; three citizen champions inherit
+		// template_unit_infantry too) gather.
+		if (!(civ_unit_template(tmpl).flags & ROSTER_CITIZEN)) return GATHER_NONE;
+		return infantry ? GATHER_INFANTRY : cavalry ? GATHER_CAVALRY : GATHER_NONE;
+	}
+	return infantry ? GATHER_INFANTRY : cavalry ? GATHER_CAVALRY : GATHER_NONE;
+}
+
+// ResourceGatherer/Rates in units a second, by Simulation::GatherKind
+// (grain, fruit, meat, fish, wood, stone, metal); 0 = can't gather it.
+inline float gather_class_rate(uint8_t cls, uint8_t kind) {
+	static const float kRates[5][7] = {
+		{0, 0, 0, 0, 0, 0, 0},
+		{0.25f, 0.5f, 1.0f, 0, 0.75f, 0.5f, 0.5f}, // infantry
+		{0.5f, 1.0f, 1.0f, 0, 0.7f, 0.35f, 0.35f},  // support: female citizen, civilian
+		{0, 0, 5.0f, 0, 0, 0, 0},                   // cavalry: food.meat only
+		{0, 0, 0, 1.8f, 0, 0, 0},                   // fishing ship: food.fish only
+	};
+	return cls < 5 && kind < 7 ? kRates[cls][kind] : 0.0f;
+}
+
+// Rates for template_gaia_ruins supplies: wood.ruins 5, stone.ruins and metal.ruins 2, the
+// same for citizen infantry and women; cavalry and ships have none.
+inline float gather_class_ruins_rate(uint8_t cls, uint8_t res_type) {
+	if (cls != GATHER_INFANTRY && cls != GATHER_SUPPORT) return 0.0f;
+	return res_type == RES_WOOD ? 5.0f : (res_type == RES_STONE || res_type == RES_GOLD) ? 2.0f : 0.0f;
+}
+
+// ResourceGatherer/Capacities (the same for every type the class gathers).
+inline int32_t gather_class_capacity(uint8_t cls) {
+	switch (cls) {
+		case GATHER_INFANTRY: case GATHER_SUPPORT: return 10;
+		case GATHER_CAVALRY: return 20;
+		case GATHER_FISHING: return 40;
+		default: return 0;
+	}
+}
+
+// ResourceSupply/MaxGatherers from the gaia templates: trees and fruit 8 (template_gaia_tree,
+// _fruit), mines 12 and large mines 24 (template_gaia_ore/_rock and their _large), fish 4,
+// fields 5, carcasses 8 unless their animal says otherwise.
+inline uint8_t resource_default_max_gatherers(uint8_t type, uint8_t subtype, int32_t amount) {
+	if (subtype == RES_SUB_FISH) return FISH_MAX_GATHERERS;
+	if (subtype == RES_SUB_GRAIN) return 5; // FIELD_MAX_GATHERERS
+	if (type == RES_GOLD || type == RES_STONE) return amount >= 5000 ? 24 : 12;
+	return 8;
 }
 
 inline const CivHeroAura &civ_hero_aura(int16_t idx) {
@@ -1582,53 +1647,56 @@ struct CivInfo {
 	float metal_gather_mult; // Athenian "Silver Owls"
 	float trade_gain_mult; // land traders: Persian "Darics" (units/pers/support_trader GainMultiplier)
 	float ship_trade_gain_mult; // merchant ships: Carthaginian (units/cart/ship_merchant GainMultiplier)
+	// Added to the Market/InternationalBonus of the civ's markets and docks:
+	// Carthaginian "Desirable Products" (structures/cart/{market,dock}.xml op="add" 0.1).
+	float international_bonus_add;
 };
 
 inline const CivInfo &civ_info(uint8_t civ) {
 	static const CivInfo kTable[CIV_COUNT] = {
-		// civ, code, name, emblem, desc, metal_mult, trader gain mult, merchant ship gain mult
+		// civ, code, name, emblem, desc, metal_mult, trader gain mult, merchant ship gain mult, international bonus add
 		{CIV_ATHENIANS, "athen", "Athenians", "res://assets/textures/ui/emblems/athenians.png",
 		 civ_bonus_text(CIV_ATHENIANS),
-		 1.10f, 1.0f, 1.0f},
+		 1.10f, 1.0f, 1.0f, 0.0f},
 		{CIV_SPARTANS, "spart", "Spartans", "res://assets/textures/ui/emblems/spartans.png",
 		 civ_bonus_text(CIV_SPARTANS),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_PERSIANS, "pers", "Persians", "res://assets/textures/ui/emblems/persians.png",
 		 civ_bonus_text(CIV_PERSIANS),
-		 1.0f, 1.25f, 1.0f},
+		 1.0f, 1.25f, 1.0f, 0.0f},
 		{CIV_ROMANS, "rome", "Romans", "res://assets/textures/ui/emblems/romans.png",
 		 civ_bonus_text(CIV_ROMANS),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_CARTHAGINIANS, "cart", "Carthaginians", "res://assets/textures/ui/emblems/carthaginians.png",
 		 civ_bonus_text(CIV_CARTHAGINIANS),
-		 1.0f, 1.0f, 1.25f},
+		 1.0f, 1.0f, 1.25f, 0.1f},
 		{CIV_MACEDONIANS, "mace", "Macedonians", "res://assets/textures/ui/emblems/macedonians.png",
 		 civ_bonus_text(CIV_MACEDONIANS),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_BRITONS, "brit", "Britons", "res://assets/textures/ui/emblems/britons.png",
 		 civ_bonus_text(CIV_BRITONS),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_GAULS, "gaul", "Gauls", "res://assets/textures/ui/emblems/gauls.png",
 		 civ_bonus_text(CIV_GAULS),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_IBERIANS, "iber", "Iberians", "res://assets/textures/ui/emblems/iberians.png",
 		 civ_bonus_text(CIV_IBERIANS),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_MAURYANS, "maur", "Mauryans", "res://assets/textures/ui/emblems/mauryans.png",
 		 civ_bonus_text(CIV_MAURYANS),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_KUSHITES, "kush", "Kushites", "res://assets/textures/ui/emblems/kushites.png",
 		 civ_bonus_text(CIV_KUSHITES),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_PTOLEMIES, "ptol", "Ptolemies", "res://assets/textures/ui/emblems/ptolemies.png",
 		 civ_bonus_text(CIV_PTOLEMIES),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_SELEUCIDS, "sele", "Seleucids", "res://assets/textures/ui/emblems/seleucids.png",
 		 civ_bonus_text(CIV_SELEUCIDS),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_HAN, "han", "Han Chinese", "res://assets/textures/ui/emblems/han.png",
 		 civ_bonus_text(CIV_HAN),
-		 1.0f, 1.0f, 1.0f}
+		 1.0f, 1.0f, 1.0f, 0.0f}
 	};
 	if (civ >= CIV_COUNT) return kTable[CIV_ATHENIANS];
 	return kTable[civ];

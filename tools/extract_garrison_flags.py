@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Garrison flag points for the building GLBs.
+"""Garrison flag points and ground levels for the building GLBs.
 
 0 A.D. structures carry a "garrisoned" actor variant that props
 props/special/common/garrison_flag_<style>.xml onto the "garrisoned" prop
@@ -11,8 +11,12 @@ extract_0ad_assets.py lays the mesh out (PMD axes x, z_up, y, grounded,
 centred and fitted to the model's size).
 
 Writes data/garrison_flags.json:
-  {"models": {"<model id>": {"pos": [x, y, z], "scale": s, "flag": "<style>"}}}
-where scale is the fit factor, which the flag prop takes too.
+  {"models": {"<model id>": {"scale": s, "ground": g, "pos": [x, y, z], "flag": "<style>"}}}
+where scale is the fit factor (GLB units per 0 A.D. metre), which the flag prop
+takes too, and ground is the GLB height of 0 A.D.'s ground plane: the mesh is
+grounded at its lowest vertex, and wall meshes reach metres below the ground.
+Turret points (0 A.D. TurretHolder heights in metres) sit at ground + h * scale.
+pos and flag are present only for models whose actor has a garrisoned variant.
 
 Usage: python3 tools/extract_garrison_flags.py [--ref master] [--jobs 8]
 """
@@ -173,16 +177,12 @@ def process(ref, mid, entry):
     if len(actors) != 1:
         return mid, None
     mesh, style = actor_garrison(ref, actors[0])
-    if not mesh or not style:
+    if not mesh:
         return mid, None
     dae = fetch(ref, "art/meshes/" + mesh)
     if not dae:
         return mid, None
     w, root, geom_world = joint_world(dae, ("prop-garrisoned", "prop_garrisoned", "garrisoned"))
-    if w is None:
-        return mid, None
-    # Collada Z-up -> PMD (x, z, y); 0 A.D. ignores <unit>.
-    p = (w[0][3], w[2][3], w[1][3])
     bounds = dae_bounds(root, geom_world)
     gb = glb_bounds(os.path.join(ROOT, "assets", entry["file"]))
     if not bounds or not gb:
@@ -197,8 +197,14 @@ def process(ref, mid, entry):
         return mid, None
     scale = gw / dw
     cx, cz = (lo[0] + hi[0]) / 2, (lo[2] + hi[2]) / 2
-    x, y, z = (p[0] - cx) * scale, (p[1] - lo[1]) * scale, (p[2] - cz) * scale
-    return mid, {"pos": [round(x, 4), round(y, 4), round(z, 4)], "scale": round(scale, 5), "flag": style}
+    out = {"scale": round(scale, 5), "ground": round(-lo[1] * scale, 4)}
+    if w is not None and style:
+        # Collada Z-up -> PMD (x, z, y); 0 A.D. ignores <unit>.
+        p = (w[0][3], w[2][3], w[1][3])
+        x, y, z = (p[0] - cx) * scale, (p[1] - lo[1]) * scale, (p[2] - cz) * scale
+        out["pos"] = [round(x, 4), round(y, 4), round(z, 4)]
+        out["flag"] = style
+    return mid, out
 
 
 def main():
@@ -215,10 +221,11 @@ def main():
                 out[mid] = res
     path = os.path.join(ROOT, "data", "garrison_flags.json")
     with open(path, "w") as f:
-        json.dump({"source": f"0ad/0ad@{args.ref} art/actors/structures (garrisoned variant)",
+        json.dump({"source": f"0ad/0ad@{args.ref} art/actors/structures (garrisoned variant, mesh ground plane)",
                    "models": dict(sorted(out.items()))}, f, indent=1)
         f.write("\n")
-    print(f"{len(out)} of {len(todo)} building models have a garrison flag -> {path}", file=sys.stderr)
+    flags = sum(1 for v in out.values() if "flag" in v)
+    print(f"{len(out)} of {len(todo)} building models measured, {flags} with a garrison flag -> {path}", file=sys.stderr)
 
 
 if __name__ == "__main__":

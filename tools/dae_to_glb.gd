@@ -8,21 +8,47 @@
 # the Collada file itself):
 #   godot --headless --path <dir> --import
 #   godot --headless --path <dir> -s dae_to_glb.gd -- <mesh.dae> <skin.png> <out.glb> [prop]
+#   godot --headless --path <dir> -s dae_to_glb.gd -- <mesh.dae> <skin.png> [<mesh.dae> <skin.png>...] <out.glb> prop
 #
 # "prop" bakes the mesh into prop-point space the way the unit GLBs from
 # extract_0ad_assets.py are laid out (0 A.D.'s PMD axes: x, z_up, y), so it
-# can be parented straight to a unit bone such as weapon_R.
+# can be parented straight to a unit bone such as weapon_R. Several mesh/skin
+# pairs bake into one mesh, for actors that prop more meshes on their root.
 extends SceneTree
 
 func _init():
 	var args := OS.get_cmdline_user_args()
-	if args.size() < 3:
-		push_error("usage: -- <mesh.dae> <skin.png> <out.glb> [prop]")
+	var prop := args.size() > 0 and args[args.size() - 1] == "prop"
+	if prop:
+		args = args.slice(0, args.size() - 1)
+	if args.size() < 3 or args.size() % 2 == 0 or (args.size() > 3 and not prop):
+		push_error("usage: -- <mesh.dae> <skin.png> [<mesh.dae> <skin.png>...] <out.glb> [prop]")
 		quit(2)
 		return
-	var root: Node = load("res://" + args[0]).instantiate()
+	var out_path: String = args[args.size() - 1]
+	var parts := []
+	for i in range(0, args.size() - 1, 2):
+		parts.push_back(_load_part(args[i], args[i + 1]))
+	var root: Node
+	if prop:
+		root = _bake_prop(parts)
+		for p in parts:
+			p[0].free()
+	else:
+		root = parts[0][0]
+	var doc := GLTFDocument.new()
+	var state := GLTFState.new()
+	var err := doc.append_from_scene(root, state)
+	if err == OK:
+		err = doc.write_to_filesystem(state, out_path)
+	root.free()
+	quit(0 if err == OK else 1)
+
+# [scene root, material] for one .dae and its skin.
+func _load_part(dae: String, skin: String) -> Array:
+	var root: Node = load("res://" + dae).instantiate()
 	var mat := StandardMaterial3D.new()
-	mat.albedo_texture = load("res://" + args[1])
+	mat.albedo_texture = load("res://" + skin)
 	mat.roughness = 0.6
 	# Animations come from separate 0 A.D. .dae clips; ship the bind pose only.
 	for c in root.get_children():
@@ -33,23 +59,13 @@ func _init():
 	# 0 A.D.'s Collada converter ignores <unit> (StandardizeUpAxisAndLength is
 	# called without a length), but Godot scales by it; undo that so meshes
 	# keep their 0 A.D. size.
-	var meter := _unit_meter(args[0])
+	var meter := _unit_meter(dae)
 	if meter > 0.0 and absf(meter - 1.0) > 1e-6:
 		# Scale the root's children: glTF import drops a lone root's transform.
 		for c in root.get_children():
 			if c is Node3D:
 				c.transform = Transform3D(Basis.from_scale(Vector3.ONE / meter), Vector3.ZERO) * c.transform
-	if args.size() > 3 and args[3] == "prop":
-		var baked := _bake_prop(root, mat)
-		root.free()
-		root = baked
-	var doc := GLTFDocument.new()
-	var state := GLTFState.new()
-	var err := doc.append_from_scene(root, state)
-	if err == OK:
-		err = doc.write_to_filesystem(state, args[2])
-	root.free()
-	quit(0 if err == OK else 1)
+	return [root, mat]
 
 func _apply(n: Node, mat: Material):
 	if n is MeshInstance3D and n.mesh:
@@ -71,8 +87,21 @@ func _unit_meter(path: String) -> float:
 
 # Godot turns Collada Z_UP into (x, z, -y); 0 A.D. (and the unit GLBs) use
 # (x, z, y). Bake every node transform, mirror z and reverse the winding.
-func _bake_prop(root: Node, mat: Material) -> Node3D:
+func _bake_prop(parts: Array) -> Node3D:
 	var out := ArrayMesh.new()
+	for part in parts:
+		_bake_part(out, part[0], part[1])
+	var root: Node = parts[0][0]
+	var top := Node3D.new()
+	top.name = root.name
+	var mi := MeshInstance3D.new()
+	mi.name = String(root.name) + "_mesh"
+	mi.mesh = out
+	top.add_child(mi)
+	mi.owner = top
+	return top
+
+func _bake_part(out: ArrayMesh, root: Node, mat: Material) -> void:
 	var stack := [[root, Transform3D()]]
 	while not stack.is_empty():
 		var item = stack.pop_back()
@@ -111,11 +140,3 @@ func _bake_prop(root: Node, mat: Material) -> Node3D:
 			clean[Mesh.ARRAY_INDEX] = idx
 			out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, clean)
 			out.surface_set_material(out.get_surface_count() - 1, mat)
-	var top := Node3D.new()
-	top.name = root.name
-	var mi := MeshInstance3D.new()
-	mi.name = String(root.name) + "_mesh"
-	mi.mesh = out
-	top.add_child(mi)
-	mi.owner = top
-	return top
