@@ -1343,6 +1343,9 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			// sim->cmd_barter locally even in lockstep -> resource/price divergence.
 			sim.cmd_barter(pl, (rtso::ResourceType)(int)c.target_x,
 			               (rtso::ResourceType)(int)c.target_z, (int)c.target_id);
+		} else if (c.cmd_type == 39) { // Cheat (0 A.D. Cheat.js) — param=action, target_id=number,
+			// target_x=resource or tech; acts on the raw selection, whoever owns it.
+			sim.cmd_cheat(pl, c.param, (int32_t)c.target_id, (uint32_t)c.target_x, c.entity_ids.data(), c.entity_ids.size());
 		} else if (c.cmd_type == 22) { // Diplomacy stance — target_id=player, param=stance.
 			// 0 A.D. Diplomacy.js / DiplomacyDialog.js parity. Applied at the turn
 			// boundary on EVERY peer (deterministic: diplomacy_state() is mixed into

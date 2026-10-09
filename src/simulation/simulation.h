@@ -151,7 +151,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 40; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 41; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -480,6 +480,16 @@ public:
 	// 0 A.D. "delete-entities": kills the player's own units and destroys its own
 	// structures (not ones it holds under half the capture points of).
 	void cmd_delete(uint8_t player, const uint32_t *ids, size_t count);
+	// 0 A.D. Cheat.js, for a player when Game Setup's Cheats is on. `parameter` is the
+	// number typed after the code; `extra` is the resource (ADD_RESOURCE) or the tech id
+	// (RESEARCH); `selected` is the player's selection, whoever owns it. CONVERT_UNITS and
+	// DEFEAT_PLAYER take an RTS0 player id (GAIA_PLAYER for Gaia, 0xFF for yourself).
+	enum CheatAction : uint8_t {
+		CHEAT_ADD_RESOURCE, CHEAT_REVEAL_MAP, CHEAT_CONVERT_UNITS, CHEAT_KILL_UNITS, CHEAT_DEFEAT_PLAYER,
+		CHEAT_CREATE_UNITS, CHEAT_CHANGE_PHASE, CHEAT_RESEARCH, CHEAT_META, CHEAT_COUNT
+	};
+	bool cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, uint32_t extra,
+			const uint32_t *selected, size_t count);
 	// 0 A.D. "back-to-work" (UnitAI BackToWork): resume the last gather or build order.
 	void order_back_to_work(const uint32_t *unit_ids, size_t count);
 	// 0 A.D. Commands.js "remove-guard" (UnitAI RemoveGuard): end a Guard order, or drop
@@ -661,6 +671,9 @@ public:
 	// 0 A.D. LockTeams (Diplomacy.LockTeam): no player can change diplomacy all match.
 	void set_lock_teams(bool on) { set_setup_flag(SETUP_LOCK_TEAMS, on); }
 	bool teams_locked() const { return setup_flags_ & SETUP_LOCK_TEAMS; }
+	// 0 A.D. CheatsEnabled: chat cheat codes work for every player (cmd_cheat).
+	void set_cheats_enabled(bool on) { set_setup_flag(SETUP_CHEATS, on); }
+	bool cheats_enabled() const { return setup_flags_ & SETUP_CHEATS; }
 	uint32_t regicide_hero(uint8_t pid) const { return pid < MAX_PLAYERS ? regicide_hero_[pid] : 0; }
 	// False for a Regicide hero while RegicideGarrison is off: it can't enter structures,
 	// siege engines or ships.
@@ -1163,7 +1176,7 @@ public:
 	bool petra_in_emergency() const { return petra_emergency_.active; }
 	const PetraDefenseArmy &petra_defense_army() const { return petra_defense_army_; }
 	const PetraQueueManager &petra_queues() const { return petra_queues_; }
-	const PetraTransportPlan &petra_transport_plan() const { return petra_transport_; }
+	const std::vector<PetraTransportPlan> &petra_transport_plans() const { return petra_transports_; }
 	const std::vector<PetraChatLine> &pending_petra_chat() const { return petra_chat_; }
 	const std::unordered_map<uint8_t, PetraDiplomacyRequest> &petra_diplomacy_requests() const { return petra_diplomacy_requests_; }
 	void clear_petra_chat() { petra_chat_.clear(); }
@@ -1689,7 +1702,8 @@ private:
 	bool disable_treasures_ = false;
 	void spawn_nomad_treasures();
 	// Game Setup switches kept in the byte v32 saves as RegicideGarrison (old saves read as bit 0).
-	static constexpr uint8_t SETUP_REGICIDE_GARRISON = 1, SETUP_LOCK_TEAMS = 2, SETUP_FLAGS_ALL = 3;
+	static constexpr uint8_t SETUP_REGICIDE_GARRISON = 1, SETUP_LOCK_TEAMS = 2, SETUP_CHEATS = 4, SETUP_FLAGS_ALL = 7;
+	void cheat_convert(uint8_t to, const uint32_t *ids, size_t count);
 	uint8_t setup_flags_ = 0;
 	void set_setup_flag(uint8_t flag, bool on) { setup_flags_ = on ? (setup_flags_ | flag) : (setup_flags_ & ~flag); }
 	uint32_t regicide_hero_[MAX_PLAYERS] = {};
@@ -1774,7 +1788,10 @@ private:
 	PetraDefenseArmy petra_defense_army_;
 	PetraEmergency petra_emergency_;
 	PetraQueueManager petra_queues_;
-	PetraTransportPlan petra_transport_;
+	std::vector<PetraTransportPlan> petra_transports_; // under way (BOARDING to UNLOADING), one per owner
+	const PetraTransportPlan *petra_transport_for(uint8_t owner) const;
+	bool petra_ship_in_plan(uint32_t ship_id) const;
+	size_t petra_go_home(const std::vector<uint32_t> &squad, float x, float z, uint8_t owner, bool order_here, bool attack = false);
 	std::vector<PetraChatLine> petra_chat_;
 	std::unordered_map<uint8_t, PetraDiplomacyRequest> petra_diplomacy_requests_;
 	PetraDiplomacy petra_diplo_;
@@ -1860,6 +1877,7 @@ private:
 	mutable uint64_t petra_class_key_ = 0; // petra_topo_cache_key_ it was classified from
 	mutable uint8_t petra_class_for_ = 0;
 	mutable bool petra_class_valid_ = false;
+	void petra_assign_repairs();
 	void petra_order_builders(const std::vector<uint32_t> &workers, size_t max, uint32_t bid);
 	uint16_t petra_building_land(const Building &b, const PetraNavalTopo *topo = nullptr, uint16_t prefer = 0) const;
 	uint16_t petra_home_land(float x, float z, const PetraNavalTopo *topo = nullptr) const;
@@ -1894,6 +1912,9 @@ private:
 	// victoryManager.js: regicide heroes and the units guarding them.
 	bool petra_is_critical_ent(size_t unit_idx) const;
 	bool petra_guards_critical_ent(size_t unit_idx) const;
+	bool petra_is_critical_wonder(uint32_t building_id) const;
+	float petra_unit_strength(size_t i) const; // getMaxStrength
+	bool petra_passenger(uint32_t uid) const;   // booked on one of our transport plans
 	void petra_retreat_critical_ent(size_t unit_idx, bool emergency, std::vector<int> &incoming);
 	void petra_manage_critical_ent_guards();
 	void petra_manage_critical_ent_healers();
@@ -1938,7 +1959,10 @@ private:
 	int petra_player_entities(uint8_t player) const;
 	bool petra_path_crosses_water(float x0, float z0, float x1, float z1) const;
 	bool petra_find_beach(float land_x, float land_z, float toward_x, float toward_z, float &out_x, float &out_z) const;
-	bool petra_start_transport(const std::vector<uint32_t> &unit_ids, float from_x, float from_z, float to_x, float to_z, uint16_t sea = 0);
+	bool petra_start_transport(const std::vector<uint32_t> &unit_ids, float from_x, float from_z, float to_x, float to_z, uint16_t sea,
+	                           uint8_t owner);
+	void petra_step_transport(PetraTransportPlan &tp, float dt);
+	uint32_t petra_free_transport_ship(uint16_t sea, float x, float z) const;
 	uint32_t petra_place_building(uint8_t btype, float near_x, float near_z, int min_r, int max_r, uint8_t queue);
 
 	bool bulk_spawn_ = false;
@@ -1949,7 +1973,7 @@ private:
 	std::array<std::vector<uint8_t>, MAX_PLAYERS> player_fow_; // per-player FoW for players 1..7 (index 0 unused: fow_grid_)
 	std::vector<uint8_t> unexplored_fow_ = std::vector<uint8_t>((size_t)MAX_GRID_RES * MAX_GRID_RES, 0);
 	std::vector<uint8_t> revealed_fow_ = std::vector<uint8_t>((size_t)MAX_GRID_RES * MAX_GRID_RES, FOW_VISIBLE);
-	LosGrid los_;                         // per-player LOS counts and visible/explored bits (saved v40)
+	LosGrid los_;                         // per-player LOS counts and visible/explored bits (saved v41)
 	std::vector<LosSource> los_unit_src_; // the circle each unit index last added
 	std::vector<LosSource> los_bld_src_;  // the circle each buildings_ index last added
 
@@ -1959,7 +1983,7 @@ private:
 #define RTSO_PETRA_SLOT_FIELDS(X) \
 	X(petra_threat_map_) X(petra_strike_force_) X(petra_attack_plan_) X(petra_raid_plan_) \
 	X(petra_opening_step_) X(petra_opening_timer_) X(petra_defense_army_) X(petra_emergency_) \
-	X(petra_queues_) X(petra_transport_) X(petra_defense_timer_) X(petra_victory_timer_) \
+	X(petra_queues_) X(petra_transports_) X(petra_defense_timer_) X(petra_victory_timer_) \
 	X(petra_diplo_timer_) X(ai_wonder_victory_timer_) X(petra_bases_) X(petra_fnd_watch_) \
 	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
