@@ -1,1669 +1,2426 @@
 {
- "source": "0ad/0ad@master art/actors/structures (garrisoned variant)",
+ "source": "0ad/0ad@master art/actors/structures (garrisoned variant, mesh ground plane)",
  "models": {
   "academy": {
+   "scale": 0.22617,
+   "ground": 2.7146,
    "pos": [
     0.0,
     6.1225,
     0.6312
    ],
-   "scale": 0.22617,
    "flag": "han"
   },
+  "amphitheater": {
+   "scale": 0.09668,
+   "ground": 0.7121
+  },
   "archery_range": {
+   "scale": 0.14662,
+   "ground": 0.8699,
    "pos": [
     -1.2055,
     2.7596,
     1.0177
    ],
-   "scale": 0.14662,
    "flag": "hele"
   },
   "arsenal": {
+   "scale": 0.08477,
+   "ground": 0.8038,
    "pos": [
     0.765,
     1.9143,
     1.915
    ],
-   "scale": 0.08477,
    "flag": "han"
   },
   "athen_barracks": {
+   "scale": 0.19604,
+   "ground": -0.1068,
    "pos": [
     -1.7712,
     1.5645,
     1.1985
    ],
-   "scale": 0.19604,
    "flag": "hele"
   },
   "athen_corral": {
+   "scale": 0.22415,
+   "ground": 1.0789,
    "pos": [
     -0.5779,
     2.922,
     0.7649
    ],
-   "scale": 0.22415,
    "flag": "hele"
   },
+  "athen_dock": {
+   "scale": 0.15537,
+   "ground": 1.1254
+  },
+  "athen_farmstead": {
+   "scale": 0.19338,
+   "ground": 0.9419
+  },
   "athen_fortress": {
+   "scale": 0.23917,
+   "ground": 0.9235,
    "pos": [
     1.0497,
     4.7129,
     0.4133
    ],
-   "scale": 0.23917,
    "flag": "hele"
   },
+  "athen_gate": {
+   "scale": 0.10473,
+   "ground": 0.9871
+  },
   "athen_house": {
+   "scale": 0.15976,
+   "ground": 0.8071,
    "pos": [
     0.7039,
     2.2915,
     -0.9257
    ],
-   "scale": 0.15976,
    "flag": "hele"
   },
+  "athen_market": {
+   "scale": 0.84094,
+   "ground": -0.6646
+  },
+  "athen_storehouse": {
+   "scale": 0.25928,
+   "ground": 1.121
+  },
   "athen_temple": {
+   "scale": 0.22273,
+   "ground": -0.351,
    "pos": [
     0.0005,
     3.0116,
     -2.2902
    ],
-   "scale": 0.22273,
    "flag": "hele"
   },
   "athen_tower": {
+   "scale": 0.21658,
+   "ground": 2.0976,
    "pos": [
     -0.004,
     6.3429,
     -0.0007
    ],
-   "scale": 0.21658,
    "flag": "hele"
   },
   "athen_town_center": {
+   "scale": 0.215,
+   "ground": 1.196,
    "pos": [
     -2.3793,
     3.1658,
     2.0895
    ],
-   "scale": 0.215,
    "flag": "hele"
   },
+  "athen_wall": {
+   "scale": 0.05512,
+   "ground": 0.5195
+  },
+  "athen_wall_segment": {
+   "scale": 0.05512,
+   "ground": 0.5195
+  },
   "athen_wall_tower": {
+   "scale": 0.21658,
+   "ground": 2.0976,
    "pos": [
     -0.004,
     6.3429,
     -0.0007
    ],
-   "scale": 0.21658,
    "flag": "hele"
   },
   "athen_wonder": {
+   "scale": 0.11971,
+   "ground": -1.5133,
    "pos": [
     1.3286,
     0.4812,
     -3.1914
    ],
-   "scale": 0.11971,
    "flag": "hele"
   },
   "ballista_tower": {
+   "scale": 0.23533,
+   "ground": 1.5549,
    "pos": [
     -0.0003,
     5.4545,
     -0.0038
    ],
-   "scale": 0.23533,
    "flag": "persians"
   },
   "barracks": {
+   "scale": 0.19604,
+   "ground": -0.1068,
    "pos": [
     -1.7712,
     1.5645,
     1.1985
    ],
-   "scale": 0.19604,
    "flag": "hele"
   },
+  "bireme": {
+   "scale": 1.0,
+   "ground": 1.5889
+  },
+  "bireme_han": {
+   "scale": 0.36456,
+   "ground": 0.2946
+  },
+  "bireme_rome": {
+   "scale": 1.03194,
+   "ground": 1.6246
+  },
   "blacksmith": {
+   "scale": 0.24808,
+   "ground": 0.9794,
    "pos": [
     0.9612,
     3.1111,
     0.4098
    ],
-   "scale": 0.24808,
    "flag": "hele"
   },
   "blacksmith_brit": {
+   "scale": 0.20453,
+   "ground": 1.4118,
    "pos": [
     1.0779,
     3.4313,
     0.9388
    ],
-   "scale": 0.20453,
    "flag": "celt"
   },
   "blacksmith_kart": {
+   "scale": 0.20389,
+   "ground": 0.9468,
    "pos": [
     0.1028,
     3.0297,
     0.1052
    ],
-   "scale": 0.20389,
    "flag": "kart"
   },
   "brit_barracks": {
+   "scale": 0.1659,
+   "ground": 0.9655,
    "pos": [
     -0.0842,
     2.2102,
     0.1187
    ],
-   "scale": 0.1659,
    "flag": "celt"
   },
   "brit_corral": {
+   "scale": 0.20352,
+   "ground": 1.8013,
    "pos": [
     0.0036,
     3.2404,
     1.0953
    ],
-   "scale": 0.20352,
    "flag": "celt"
   },
+  "brit_dock": {
+   "scale": 0.20526,
+   "ground": 1.2857
+  },
+  "brit_farmstead": {
+   "scale": 0.29275,
+   "ground": 1.5247
+  },
   "brit_fortress": {
+   "scale": 0.24161,
+   "ground": 1.5865,
    "pos": [
     -0.1442,
     6.7871,
     1.0781
    ],
-   "scale": 0.24161,
    "flag": "celt"
   },
+  "brit_gate": {
+   "scale": 0.10197,
+   "ground": 0.8135
+  },
   "brit_house": {
+   "scale": 0.17788,
+   "ground": 0.8965,
    "pos": [
     0.0109,
     2.0228,
     0.1572
    ],
-   "scale": 0.17788,
    "flag": "celt"
   },
+  "brit_market": {
+   "scale": 0.20315,
+   "ground": 1.032
+  },
+  "brit_storehouse": {
+   "scale": 0.18967,
+   "ground": 1.7448
+  },
   "brit_temple": {
+   "scale": 0.23189,
+   "ground": 2.5857,
    "pos": [
     -1.4571,
     6.1383,
     0.72
    ],
-   "scale": 0.23189,
    "flag": "celt"
   },
   "brit_tower": {
+   "scale": 0.18923,
+   "ground": 1.1285,
    "pos": [
     0.0055,
     5.1155,
     -0.0
    ],
-   "scale": 0.18923,
    "flag": "celt"
   },
   "brit_town_center": {
+   "scale": 0.21893,
+   "ground": 1.5719,
    "pos": [
     -0.0008,
     3.0507,
     -1.8104
    ],
-   "scale": 0.21893,
    "flag": "celt"
   },
+  "brit_wall": {
+   "scale": 0.05323,
+   "ground": 0.3604
+  },
+  "brit_wall_segment": {
+   "scale": 0.05323,
+   "ground": 0.3604
+  },
   "brit_wall_tower": {
+   "scale": 0.18923,
+   "ground": 1.1285,
    "pos": [
     0.0055,
     5.1155,
     -0.0
    ],
-   "scale": 0.18923,
    "flag": "celt"
   },
+  "brit_wonder": {
+   "scale": 0.11438,
+   "ground": 0.5582
+  },
   "cart_barracks": {
+   "scale": 0.17917,
+   "ground": 0.0,
    "pos": [
     -0.4281,
     2.2069,
     1.5332
    ],
-   "scale": 0.17917,
    "flag": "kart"
   },
   "cart_corral": {
+   "scale": 0.26738,
+   "ground": 0.326,
    "pos": [
     -0.8136,
     1.8352,
     0.8186
    ],
-   "scale": 0.26738,
    "flag": "kart"
   },
+  "cart_dock": {
+   "scale": 0.17736,
+   "ground": 1.7555
+  },
+  "cart_farmstead": {
+   "scale": 0.17193,
+   "ground": 0.8815
+  },
   "cart_fortress": {
+   "scale": 0.15608,
+   "ground": 1.5602,
    "pos": [
     -1.8959,
     4.2383,
     -1.4176
    ],
-   "scale": 0.15608,
    "flag": "kart"
   },
   "cart_house": {
+   "scale": 0.18343,
+   "ground": 2.2962,
    "pos": [
     1.0555,
     3.2327,
     -0.4135
    ],
-   "scale": 0.18343,
    "flag": "kart"
   },
+  "cart_market": {
+   "scale": 0.15142,
+   "ground": 1.3535
+  },
+  "cart_storehouse": {
+   "scale": 0.24993,
+   "ground": 0.0014
+  },
+  "cart_temple": {
+   "scale": 0.39717,
+   "ground": -0.0
+  },
   "cart_tower": {
+   "scale": 0.15569,
+   "ground": 1.6473,
    "pos": [
     -0.8418,
     4.5371,
     -0.8538
    ],
-   "scale": 0.15569,
    "flag": "kart"
   },
   "cart_town_center": {
+   "scale": 0.18794,
+   "ground": 2.1186,
    "pos": [
     -1.9122,
     4.7924,
     2.4868
    ],
-   "scale": 0.18794,
    "flag": "kart"
   },
+  "cart_wall": {
+   "scale": 0.04601,
+   "ground": 0.7197
+  },
+  "cart_wall_segment": {
+   "scale": 0.04601,
+   "ground": 0.7197
+  },
   "cart_wall_tower": {
+   "scale": 0.15569,
+   "ground": 1.6473,
    "pos": [
     -0.8418,
     4.5371,
     -0.8538
    ],
-   "scale": 0.15569,
    "flag": "kart"
   },
   "cart_wonder": {
+   "scale": 0.11073,
+   "ground": 0.5199,
    "pos": [
     0.3374,
     2.9486,
     -1.5785
    ],
-   "scale": 0.11073,
    "flag": "kart"
   },
   "corral": {
+   "scale": 0.26738,
+   "ground": 0.326,
    "pos": [
     -0.8136,
     1.8352,
     0.8186
    ],
-   "scale": 0.26738,
    "flag": "kart"
   },
   "crannog": {
+   "scale": 0.11429,
+   "ground": 0.6143,
    "pos": [
     -0.1985,
     1.9869,
     -1.1436
    ],
-   "scale": 0.11429,
    "flag": "celt"
   },
+  "dock": {
+   "scale": 0.15537,
+   "ground": 1.1254
+  },
+  "embassy": {
+   "scale": 0.13688,
+   "ground": 1.5885
+  },
+  "farmstead": {
+   "scale": 0.19338,
+   "ground": 0.9419
+  },
+  "field_plot": {
+   "scale": 0.13333,
+   "ground": -0.0093
+  },
+  "fishing_han": {
+   "scale": 1.0,
+   "ground": 0.2042
+  },
   "forge_han": {
+   "scale": 1.0,
+   "ground": 11.7802,
    "pos": [
     6.0196,
     28.7485,
     -1.1573
    ],
-   "scale": 1.0,
    "flag": "han"
   },
   "fortress": {
+   "scale": 0.23917,
+   "ground": 0.9235,
    "pos": [
     1.0497,
     4.7129,
     0.4133
    ],
-   "scale": 0.23917,
    "flag": "hele"
   },
+  "foundation_3x3": {
+   "scale": 555.77426,
+   "ground": 1084.8302
+  },
+  "foundation_3x3_tower": {
+   "scale": 555.77426,
+   "ground": 1084.8302
+  },
+  "foundation_4x6": {
+   "scale": 1157.86305,
+   "ground": 2260.063
+  },
+  "foundation_5x5": {
+   "scale": 833.66121,
+   "ground": 1627.245
+  },
+  "foundation_6x6": {
+   "scale": 1018.86286,
+   "ground": 1988.7449
+  },
+  "foundation_8x8": {
+   "scale": 1435.67039,
+   "ground": 2802.3224
+  },
+  "foundation_dock": {
+   "scale": 0.24412,
+   "ground": 0.8843
+  },
+  "foundation_large": {
+   "scale": 1435.67039,
+   "ground": 2802.3224
+  },
+  "foundation_small": {
+   "scale": 555.77519,
+   "ground": 1084.832
+  },
+  "foundation_wall": {
+   "scale": 926.22609,
+   "ground": 1807.9248
+  },
+  "gate": {
+   "scale": 0.10473,
+   "ground": 0.9871
+  },
   "gaul_barracks": {
+   "scale": 0.18307,
+   "ground": 0.9322,
    "pos": [
     0.9021,
     3.0673,
     -0.0856
    ],
-   "scale": 0.18307,
    "flag": "celt"
   },
   "gaul_corral": {
+   "scale": 0.20352,
+   "ground": 1.8013,
    "pos": [
     0.0036,
     3.2404,
     1.0953
    ],
-   "scale": 0.20352,
    "flag": "celt"
   },
+  "gaul_dock": {
+   "scale": 0.20526,
+   "ground": 1.2857
+  },
+  "gaul_farmstead": {
+   "scale": 0.17315,
+   "ground": 0.8555
+  },
   "gaul_fortress": {
+   "scale": 0.32135,
+   "ground": 1.6174,
    "pos": [
     -2.5756,
     4.3095,
     2.2072
    ],
-   "scale": 0.32135,
    "flag": "celt"
   },
+  "gaul_house": {
+   "scale": 0.16773,
+   "ground": 0.9473
+  },
+  "gaul_market": {
+   "scale": 0.1932,
+   "ground": 1.6254
+  },
+  "gaul_storehouse": {
+   "scale": 0.20923,
+   "ground": 1.0531
+  },
   "gaul_temple": {
+   "scale": 0.23189,
+   "ground": 2.5857,
    "pos": [
     -1.4571,
     6.1383,
     0.72
    ],
-   "scale": 0.23189,
    "flag": "celt"
   },
   "gaul_tower": {
+   "scale": 0.20928,
+   "ground": 1.0252,
    "pos": [
     0.006,
     5.6093,
     -0.0026
    ],
-   "scale": 0.20928,
    "flag": "celt"
   },
   "gaul_town_center": {
+   "scale": 0.2534,
+   "ground": 1.3015,
    "pos": [
     0.4137,
     5.2746,
     -1.4633
    ],
-   "scale": 0.2534,
    "flag": "celt"
   },
+  "gaul_wall": {
+   "scale": 0.05287,
+   "ground": 0.4187
+  },
+  "gaul_wall_segment": {
+   "scale": 0.05287,
+   "ground": 0.4187
+  },
   "gaul_wall_tower": {
+   "scale": 0.20928,
+   "ground": 1.0252,
    "pos": [
     0.006,
     5.6093,
     -0.0026
    ],
-   "scale": 0.20928,
    "flag": "celt"
   },
   "gymnasium": {
+   "scale": 0.21639,
+   "ground": 1.2037,
    "pos": [
     0.0389,
     3.6285,
     1.0811
    ],
-   "scale": 0.21639,
    "flag": "hele"
   },
   "han_academy": {
+   "scale": 0.22617,
+   "ground": 2.7146,
    "pos": [
     0.0,
     6.1225,
     0.6312
    ],
-   "scale": 0.22617,
    "flag": "han"
   },
   "han_arsenal": {
+   "scale": 0.08477,
+   "ground": 0.8038,
    "pos": [
     0.765,
     1.9143,
     1.915
    ],
-   "scale": 0.08477,
    "flag": "han"
   },
   "han_barracks": {
+   "scale": 0.18223,
+   "ground": 1.4954,
    "pos": [
     1.4446,
     3.9005,
     1.2627
    ],
-   "scale": 0.18223,
    "flag": "han"
   },
+  "han_bireme": {
+   "scale": 0.36456,
+   "ground": 0.2946
+  },
   "han_corral": {
+   "scale": 0.18917,
+   "ground": 0.9835,
    "pos": [
     1.1839,
     2.5177,
     0.9544
    ],
-   "scale": 0.18917,
    "flag": "han"
   },
   "han_dock": {
+   "scale": 0.15089,
+   "ground": 1.8408,
    "pos": [
     -0.0174,
     3.9886,
     0.7781
    ],
-   "scale": 0.15089,
    "flag": "han"
   },
   "han_farmstead": {
+   "scale": 0.1776,
+   "ground": 0.2545,
    "pos": [
     -0.9364,
     2.0622,
     1.0763
    ],
-   "scale": 0.1776,
    "flag": "han"
   },
+  "han_fireship": {
+   "scale": 0.42022,
+   "ground": 0.0736
+  },
+  "han_fishing_ship": {
+   "scale": 1.0,
+   "ground": 0.2042
+  },
   "han_forge": {
+   "scale": 1.0,
+   "ground": 11.7802,
    "pos": [
     6.0196,
     28.7485,
     -1.1573
    ],
-   "scale": 1.0,
    "flag": "han"
   },
+  "han_fortress": {
+   "scale": 0.20055,
+   "ground": 1.7889
+  },
+  "han_fortress_old": {
+   "scale": 0.16832,
+   "ground": 0.7721
+  },
   "han_house": {
+   "scale": 0.13331,
+   "ground": 0.5072,
    "pos": [
     0.7381,
     1.5415,
     0.6632
    ],
-   "scale": 0.13331,
    "flag": "han"
   },
   "han_imperial_court": {
+   "scale": 0.13577,
+   "ground": 1.772,
    "pos": [
     0.3673,
     4.7442,
     0.0686
    ],
-   "scale": 0.13577,
    "flag": "han"
   },
+  "han_imperial_ministry": {
+   "scale": 0.15515,
+   "ground": 0.8429
+  },
+  "han_market": {
+   "scale": 0.17193,
+   "ground": 0.2996
+  },
   "han_outpost": {
+   "scale": 0.29458,
+   "ground": 2.2973,
    "pos": [
     -0.5095,
     5.9528,
     -0.0432
    ],
-   "scale": 0.29458,
    "flag": "hele"
   },
   "han_pagoda": {
+   "scale": 0.50493,
+   "ground": 0.0,
    "pos": [
     0.0061,
     11.9105,
     -0.0049
    ],
-   "scale": 0.50493,
    "flag": "han"
   },
   "han_range": {
+   "scale": 0.14874,
+   "ground": 1.416,
    "pos": [
     -1.3716,
     3.7051,
     1.1487
    ],
-   "scale": 0.14874,
    "flag": "han"
   },
   "han_stable": {
+   "scale": 0.41024,
+   "ground": 5.3813,
    "pos": [
     6.4288,
     10.236,
     9.3997
    ],
-   "scale": 0.41024,
    "flag": "han"
   },
   "han_storehouse": {
+   "scale": 0.17768,
+   "ground": 0.6554,
    "pos": [
     0.6276,
     2.8029,
     -0.1536
    ],
-   "scale": 0.17768,
    "flag": "han"
   },
   "han_temple": {
+   "scale": 0.18384,
+   "ground": 1.2382,
    "pos": [
     -0.0071,
     3.3717,
     0.9438
    ],
-   "scale": 0.18384,
    "flag": "han"
   },
+  "han_temple_shrine": {
+   "scale": 0.13377,
+   "ground": 0.2242
+  },
   "han_tower_great": {
+   "scale": 0.2483,
+   "ground": 1.9354,
    "pos": [
     0.0,
     8.8668,
     0.198
    ],
-   "scale": 0.2483,
    "flag": "han"
   },
   "han_tower_large": {
+   "scale": 0.29069,
+   "ground": 2.2658,
    "pos": [
     0.0,
     8.345,
     0.1706
    ],
-   "scale": 0.29069,
    "flag": "han"
   },
   "han_tower_small": {
+   "scale": 0.30645,
+   "ground": 0.6165,
    "pos": [
     0.0033,
     4.2569,
     0.0708
    ],
-   "scale": 0.30645,
    "flag": "han"
   },
+  "han_towership": {
+   "scale": 0.15912,
+   "ground": 0.3023
+  },
   "han_town_center": {
+   "scale": 0.15248,
+   "ground": 1.9902,
    "pos": [
     0.4118,
     5.3283,
     0.077
    ],
-   "scale": 0.15248,
    "flag": "han"
   },
+  "han_wall_long": {
+   "scale": 0.05437,
+   "ground": 0.2074
+  },
+  "han_wall_medium": {
+   "scale": 0.06118,
+   "ground": 0.2333
+  },
+  "han_wall_short": {
+   "scale": 0.08125,
+   "ground": 0.3099
+  },
+  "han_wall_tower": {
+   "scale": 0.20674,
+   "ground": 0.7904
+  },
   "han_wonder": {
+   "scale": 0.14279,
+   "ground": 0.8001,
    "pos": [
     -0.0055,
     4.242,
     -0.0037
    ],
-   "scale": 0.14279,
    "flag": "han"
   },
+  "house": {
+   "scale": 0.14623,
+   "ground": 0.951
+  },
   "iber_barracks": {
+   "scale": 0.18654,
+   "ground": 0.8407,
    "pos": [
     -1.3249,
     2.7658,
     0.3957
    ],
-   "scale": 0.18654,
    "flag": "iber"
   },
   "iber_corral": {
+   "scale": 0.21184,
+   "ground": 0.6694,
    "pos": [
     0.5243,
     2.0865,
     1.7176
    ],
-   "scale": 0.21184,
    "flag": "iber"
   },
+  "iber_dock": {
+   "scale": 0.19996,
+   "ground": 0.9522
+  },
+  "iber_farmstead": {
+   "scale": 0.24521,
+   "ground": 0.0135
+  },
   "iber_fortress": {
+   "scale": 0.19792,
+   "ground": 0.9901,
    "pos": [
     -1.3831,
     3.1697,
     1.9094
    ],
-   "scale": 0.19792,
    "flag": "iber"
   },
+  "iber_house": {
+   "scale": 0.17817,
+   "ground": 1.2559
+  },
+  "iber_market": {
+   "scale": 0.24561,
+   "ground": 0.0
+  },
+  "iber_storehouse": {
+   "scale": 0.25864,
+   "ground": -0.0
+  },
   "iber_temple": {
+   "scale": 0.24275,
+   "ground": 0.0,
    "pos": [
     -1.4029,
     1.8859,
     1.4416
    ],
-   "scale": 0.24275,
    "flag": "iber"
   },
   "iber_tower": {
+   "scale": 0.17279,
+   "ground": 2.2012,
    "pos": [
     -0.6922,
     4.4148,
     -0.0
    ],
-   "scale": 0.17279,
    "flag": "iber"
   },
   "iber_town_center": {
+   "scale": 0.18934,
+   "ground": 0.0335,
    "pos": [
     1.5196,
     2.884,
     -1.7472
    ],
-   "scale": 0.18934,
    "flag": "iber"
   },
+  "iber_wall": {
+   "scale": 0.05516,
+   "ground": 0.6996
+  },
+  "iber_wall_segment": {
+   "scale": 0.05516,
+   "ground": 0.6996
+  },
   "iber_wall_tower": {
+   "scale": 0.17279,
+   "ground": 2.2012,
    "pos": [
     -0.6922,
     4.4148,
     -0.0
    ],
-   "scale": 0.17279,
    "flag": "iber"
   },
   "iber_wonder": {
+   "scale": 0.11888,
+   "ground": 2.551,
    "pos": [
     0.5074,
     4.4483,
     0.868
    ],
-   "scale": 0.11888,
    "flag": "iber"
   },
+  "kennel": {
+   "scale": 0.41337,
+   "ground": 2.0809
+  },
   "kush_barracks": {
+   "scale": 0.19182,
+   "ground": 1.4896,
    "pos": [
     0.0035,
     3.7796,
     1.0341
    ],
-   "scale": 0.19182,
    "flag": "kush"
   },
+  "kush_bireme": {
+   "scale": 1.02909,
+   "ground": 2.3296
+  },
   "kush_blacksmith": {
+   "scale": 0.19289,
+   "ground": 1.9392,
    "pos": [
     0.9863,
     3.9906,
     -1.7959
    ],
-   "scale": 0.19289,
    "flag": "kush"
   },
   "kush_corral": {
+   "scale": 0.21409,
+   "ground": 2.2804,
    "pos": [
     -0.9174,
     3.6034,
     1.1728
    ],
-   "scale": 0.21409,
    "flag": "kush"
   },
   "kush_defense_tower_stone": {
+   "scale": 0.29524,
+   "ground": 2.2508,
    "pos": [
     0.0179,
     8.5386,
     -0.4299
    ],
-   "scale": 0.29524,
    "flag": "kush"
   },
   "kush_dock": {
+   "scale": 0.17104,
+   "ground": 2.0411,
    "pos": [
     -0.6686,
     3.9947,
     -0.3376
    ],
-   "scale": 0.17104,
    "flag": "kush"
   },
+  "kush_farmstead": {
+   "scale": 0.18097,
+   "ground": 2.1417
+  },
   "kush_fortress": {
+   "scale": 0.19147,
+   "ground": 1.6135,
    "pos": [
     0.0001,
     5.1168,
     -1.8439
    ],
-   "scale": 0.19147,
    "flag": "kush"
   },
+  "kush_gate": {
+   "scale": 0.1024,
+   "ground": 1.1124
+  },
   "kush_house": {
+   "scale": 0.16671,
+   "ground": 1.414,
    "pos": [
     0.3788,
     3.2565,
     -0.0718
    ],
-   "scale": 0.16671,
    "flag": "kush"
   },
   "kush_market": {
+   "scale": 0.13204,
+   "ground": 2.205,
    "pos": [
     -0.0286,
     3.2329,
     0.6568
    ],
-   "scale": 0.13204,
    "flag": "kush"
   },
   "kush_pyramid_large": {
+   "scale": 0.17749,
+   "ground": 2.9154,
    "pos": [
     0.0026,
     7.8924,
     1.4872
    ],
-   "scale": 0.17749,
    "flag": "kush"
   },
   "kush_pyramid_small": {
+   "scale": 0.22899,
+   "ground": 2.7479,
    "pos": [
     0.0034,
     6.9508,
     0.5764
    ],
-   "scale": 0.22899,
    "flag": "kush"
   },
   "kush_range": {
+   "scale": 0.14878,
+   "ground": 1.2065,
    "pos": [
     -0.6253,
     2.8755,
     0.5183
    ],
-   "scale": 0.14878,
    "flag": "kush"
   },
   "kush_shrine": {
+   "scale": 0.17476,
+   "ground": 1.0991,
    "pos": [
     -1.4885,
     3.6775,
     -1.5998
    ],
-   "scale": 0.17476,
    "flag": "kush"
   },
   "kush_stable": {
+   "scale": 1.0,
+   "ground": 9.0867,
    "pos": [
     10.5706,
     20.2299,
     -0.2245
    ],
-   "scale": 1.0,
    "flag": "kush"
   },
   "kush_stable_elephant": {
+   "scale": 1.0,
+   "ground": 8.8521,
    "pos": [
     0.0,
     21.3085,
     0.5897
    ],
-   "scale": 1.0,
    "flag": "kush"
   },
+  "kush_storehouse": {
+   "scale": 0.22703,
+   "ground": 1.7528
+  },
   "kush_temple": {
+   "scale": 0.17007,
+   "ground": 2.6324,
    "pos": [
     0.3564,
     5.2048,
     -2.034
    ],
-   "scale": 0.17007,
    "flag": "kush"
   },
   "kush_tower": {
+   "scale": 0.27309,
+   "ground": 2.9666,
    "pos": [
     -0.8842,
     7.4405,
     -0.8762
    ],
-   "scale": 0.27309,
    "flag": "kush"
   },
   "kush_town_center": {
+   "scale": 0.215,
+   "ground": 2.9553,
    "pos": [
     2.8906,
     0.9767,
     1.158
    ],
-   "scale": 0.215,
    "flag": "hele"
   },
+  "kush_town_center_rubble": {
+   "scale": 0.1969,
+   "ground": 1.3387
+  },
+  "kush_wall": {
+   "scale": 0.05426,
+   "ground": 0.5894
+  },
+  "kush_wall_segment": {
+   "scale": 0.05426,
+   "ground": 0.5894
+  },
   "kush_wall_tower": {
+   "scale": 0.27309,
+   "ground": 2.9666,
    "pos": [
     -0.8842,
     7.4405,
     -0.8762
    ],
-   "scale": 0.27309,
    "flag": "kush"
   },
   "kush_wonder": {
+   "scale": 0.1094,
+   "ground": 1.4904,
    "pos": [
     1.383,
     3.7183,
     -1.2828
    ],
-   "scale": 0.1094,
    "flag": "kush"
   },
   "kush_workshop": {
+   "scale": 0.15323,
+   "ground": 1.0552,
    "pos": [
     -1.2481,
     2.6684,
     -0.0324
    ],
-   "scale": 0.15323,
    "flag": "kush"
   },
   "library": {
+   "scale": 0.14567,
+   "ground": 0.8747,
    "pos": [
     0.0,
     3.0764,
     -1.4286
    ],
-   "scale": 0.14567,
    "flag": "hele"
   },
   "lighthouse": {
+   "scale": 0.12595,
+   "ground": 1.6863,
    "pos": [
     0.0222,
     6.2832,
     -0.8751
    ],
-   "scale": 0.12595,
    "flag": "ptol"
   },
   "mace_barracks": {
+   "scale": 0.19708,
+   "ground": -0.1073,
    "pos": [
     -1.7481,
     1.5576,
     1.2096
    ],
-   "scale": 0.19708,
    "flag": "hele"
   },
   "mace_corral": {
+   "scale": 0.22415,
+   "ground": 1.0789,
    "pos": [
     -0.5779,
     2.922,
     0.7649
    ],
-   "scale": 0.22415,
    "flag": "hele"
   },
+  "mace_dock": {
+   "scale": 0.15531,
+   "ground": 1.1249
+  },
+  "mace_farmstead": {
+   "scale": 0.19338,
+   "ground": 0.9419
+  },
   "mace_fortress": {
+   "scale": 0.23917,
+   "ground": 0.9235,
    "pos": [
     1.0497,
     4.7129,
     0.4133
    ],
-   "scale": 0.23917,
    "flag": "hele"
   },
   "mace_house": {
+   "scale": 0.15976,
+   "ground": 0.8071,
    "pos": [
     0.7039,
     2.2915,
     -0.9257
    ],
-   "scale": 0.15976,
    "flag": "hele"
   },
+  "mace_market": {
+   "scale": 0.84094,
+   "ground": -0.6646
+  },
+  "mace_storehouse": {
+   "scale": 0.25928,
+   "ground": 1.121
+  },
   "mace_temple": {
+   "scale": 0.18275,
+   "ground": -0.2922,
    "pos": [
     1.1053,
     1.932,
     -2.3942
    ],
-   "scale": 0.18275,
    "flag": "hele"
   },
   "mace_tower": {
+   "scale": 0.21658,
+   "ground": 3.0232,
    "pos": [
     0.5021,
     7.0018,
     -0.3829
    ],
-   "scale": 0.21658,
    "flag": "hele"
   },
   "mace_town_center": {
+   "scale": 0.215,
+   "ground": 1.196,
    "pos": [
     2.2044,
     3.5298,
     2.0561
    ],
-   "scale": 0.215,
    "flag": "hele"
   },
+  "mace_wall": {
+   "scale": 0.05512,
+   "ground": 0.5195
+  },
+  "mace_wall_segment": {
+   "scale": 0.05512,
+   "ground": 0.5195
+  },
   "mace_wall_tower": {
+   "scale": 0.21658,
+   "ground": 3.0232,
    "pos": [
     0.5021,
     7.0018,
     -0.3829
    ],
-   "scale": 0.21658,
    "flag": "hele"
   },
   "mace_wonder": {
+   "scale": 0.12068,
+   "ground": -0.1037,
    "pos": [
     0.0,
     1.8384,
     -2.4662
    ],
-   "scale": 0.12068,
    "flag": "hele"
   },
+  "market": {
+   "scale": 0.84094,
+   "ground": -0.6646
+  },
   "maur_barracks": {
+   "scale": 0.17582,
+   "ground": 1.0817,
    "pos": [
     -0.5808,
     3.9561,
     1.1009
    ],
-   "scale": 0.17582,
    "flag": "maur"
   },
+  "maur_bireme": {
+   "scale": 0.17638,
+   "ground": 0.8166
+  },
   "maur_blacksmith": {
+   "scale": 0.19148,
+   "ground": 1.4435,
    "pos": [
     1.0288,
     3.2092,
     0.9176
    ],
-   "scale": 0.19148,
    "flag": "maur"
   },
   "maur_corral": {
+   "scale": 0.23648,
+   "ground": 1.0657,
    "pos": [
     1.6172,
     2.503,
     0.8006
    ],
-   "scale": 0.23648,
    "flag": "maur"
   },
+  "maur_dock": {
+   "scale": 0.19847,
+   "ground": 1.9679
+  },
+  "maur_farmstead": {
+   "scale": 0.19867,
+   "ground": 0.9982
+  },
   "maur_fortress": {
+   "scale": 0.21107,
+   "ground": 1.3109,
    "pos": [
     0.0171,
     5.0885,
     -1.5194
    ],
-   "scale": 0.21107,
    "flag": "maur"
   },
   "maur_house": {
+   "scale": 0.26195,
+   "ground": 0.8594,
    "pos": [
     0.006,
     3.1944,
     0.0641
    ],
-   "scale": 0.26195,
    "flag": "maur"
   },
+  "maur_market": {
+   "scale": 0.13629,
+   "ground": 3.3539
+  },
   "maur_outpost": {
+   "scale": 0.29458,
+   "ground": 2.2973,
    "pos": [
     -0.5095,
     5.9528,
     -0.0432
    ],
-   "scale": 0.29458,
    "flag": "maur"
   },
   "maur_palace": {
+   "scale": 0.1875,
+   "ground": 0.0001,
    "pos": [
     2.4763,
     3.5367,
     1.8682
    ],
-   "scale": 0.1875,
    "flag": "maur"
   },
   "maur_range": {
+   "scale": 0.15277,
+   "ground": 0.8672,
    "pos": [
     -0.5894,
     3.1065,
     1.0323
    ],
-   "scale": 0.15277,
    "flag": "maur"
   },
   "maur_scout_tower": {
+   "scale": 0.27305,
+   "ground": 0.9683,
    "pos": [
     0.0005,
     7.1185,
     -0.3685
    ],
-   "scale": 0.27305,
    "flag": "maur"
   },
   "maur_stable": {
+   "scale": 1.07778,
+   "ground": 6.1177,
    "pos": [
     1.6443,
     23.3928,
     -0.0035
    ],
-   "scale": 1.07778,
    "flag": "maur"
   },
   "maur_stable_elephant": {
+   "scale": 1.0,
+   "ground": 9.1298,
    "pos": [
     -9.1412,
     23.3669,
     7.3472
    ],
-   "scale": 1.0,
    "flag": "maur"
   },
+  "maur_storehouse": {
+   "scale": 0.24813,
+   "ground": 1.8628
+  },
+  "maur_super_dock": {
+   "scale": 0.20674,
+   "ground": 2.0499
+  },
   "maur_temple": {
+   "scale": 0.17533,
+   "ground": 1.1978,
    "pos": [
     0.0,
     4.2886,
     -1.6968
    ],
-   "scale": 0.17533,
    "flag": "maur"
   },
   "maur_tower": {
+   "scale": 0.2955,
+   "ground": 4.1065,
    "pos": [
     0.0,
     9.0097,
     0.0
    ],
-   "scale": 0.2955,
    "flag": "maur"
   },
   "maur_tower_double": {
+   "scale": 0.36057,
+   "ground": 2.159,
    "pos": [
     0.0,
     11.1613,
     0.005
    ],
-   "scale": 0.36057,
    "flag": "maur"
   },
   "maur_town_center": {
+   "scale": 0.16881,
+   "ground": 1.0966,
    "pos": [
     -2.2474,
     4.4772,
     1.4549
    ],
-   "scale": 0.16881,
    "flag": "maur"
   },
+  "maur_wall": {
+   "scale": 0.05534,
+   "ground": 0.769
+  },
+  "maur_wall_segment": {
+   "scale": 0.05534,
+   "ground": 0.769
+  },
   "maur_wall_tower": {
+   "scale": 0.2955,
+   "ground": 4.1065,
    "pos": [
     0.0,
     9.0097,
     0.0
    ],
-   "scale": 0.2955,
    "flag": "maur"
   },
   "maur_wonder": {
+   "scale": 0.11246,
+   "ground": 0.9465,
    "pos": [
     -0.0,
     3.9168,
     -0.0
    ],
-   "scale": 0.11246,
    "flag": "maur"
   },
   "maur_wooden_tower": {
+   "scale": 0.24319,
+   "ground": 1.3814,
    "pos": [
     0.0194,
     4.8905,
     0.0756
    ],
-   "scale": 0.24319,
    "flag": "maur"
   },
   "maur_workshop": {
+   "scale": 0.18968,
+   "ground": 1.2357,
    "pos": [
     -0.5353,
     4.5192,
     -0.6017
    ],
-   "scale": 0.18968,
    "flag": "maur"
   },
+  "mausoleum": {
+   "scale": 0.11243,
+   "ground": 0.9149
+  },
+  "merchant_han": {
+   "scale": 1.0,
+   "ground": 0.99
+  },
+  "orchard_plot": {
+   "scale": 0.16667,
+   "ground": -0.0167
+  },
   "outpost": {
+   "scale": 0.29458,
+   "ground": 2.2973,
    "pos": [
     -0.5095,
     5.9528,
     -0.0432
    ],
-   "scale": 0.29458,
    "flag": "hele"
   },
   "palace": {
+   "scale": 0.18223,
+   "ground": 1.6973,
    "pos": [
     -0.3599,
     6.2975,
     0.7841
    ],
-   "scale": 0.18223,
    "flag": "kart"
   },
   "pers_barracks": {
+   "scale": 0.21138,
+   "ground": 1.5773,
    "pos": [
     -1.5842,
     3.5844,
     0.0687
    ],
-   "scale": 0.21138,
    "flag": "persians"
   },
   "pers_corral": {
+   "scale": 0.20069,
+   "ground": 0.295,
    "pos": [
     0.4781,
     1.4308,
     0.9947
    ],
-   "scale": 0.20069,
    "flag": "persians"
   },
+  "pers_dock": {
+   "scale": 0.22219,
+   "ground": 2.3776
+  },
+  "pers_farmstead": {
+   "scale": 0.17507,
+   "ground": 1.2899
+  },
   "pers_fortress": {
+   "scale": 0.24439,
+   "ground": 2.2262,
    "pos": [
     -1.8365,
     5.5455,
     2.5166
    ],
-   "scale": 0.24439,
    "flag": "persians"
   },
+  "pers_house": {
+   "scale": 0.14463,
+   "ground": 1.1301
+  },
+  "pers_market": {
+   "scale": 0.16498,
+   "ground": 1.1022
+  },
+  "pers_storehouse": {
+   "scale": 0.27314,
+   "ground": 1.709
+  },
   "pers_temple": {
+   "scale": 0.28489,
+   "ground": 2.376,
    "pos": [
     2.0678,
     6.9413,
     -1.2886
    ],
-   "scale": 0.28489,
    "flag": "persians"
   },
   "pers_tower": {
+   "scale": 0.27381,
+   "ground": 2.6961,
    "pos": [
     0.8377,
     6.3127,
     0.8368
    ],
-   "scale": 0.27381,
    "flag": "persians"
   },
+  "pers_wall": {
+   "scale": 0.05475,
+   "ground": 0.9587
+  },
+  "pers_wall_segment": {
+   "scale": 0.05475,
+   "ground": 0.9587
+  },
   "pers_wall_tower": {
+   "scale": 0.27381,
+   "ground": 2.6961,
    "pos": [
     0.8377,
     6.3127,
     0.8368
    ],
-   "scale": 0.27381,
    "flag": "persians"
   },
   "pers_wonder": {
+   "scale": 0.20528,
+   "ground": 1.1995,
    "pos": [
     -2.4605,
     3.2375,
     -1.5731
    ],
-   "scale": 0.20528,
    "flag": "persians"
   },
+  "propylaea": {
+   "scale": 0.16703,
+   "ground": -1.8407
+  },
   "ptol_barracks": {
+   "scale": 0.18027,
+   "ground": 1.5298,
    "pos": [
     0.8504,
     3.8406,
     0.607
    ],
-   "scale": 0.18027,
    "flag": "ptol"
   },
   "ptol_corral": {
+   "scale": 0.17405,
+   "ground": 1.3421,
    "pos": [
     -0.157,
     2.3075,
     1.5356
    ],
-   "scale": 0.17405,
    "flag": "ptol"
   },
   "ptol_dock": {
+   "scale": 0.13996,
+   "ground": 2.5954,
    "pos": [
     0.9119,
     4.6967,
     0.454
    ],
-   "scale": 0.13996,
    "flag": "ptol"
   },
+  "ptol_farmstead": {
+   "scale": 0.16303,
+   "ground": 0.7983
+  },
   "ptol_fortress": {
+   "scale": 0.24334,
+   "ground": 1.7034,
    "pos": [
     -1.7422,
     5.7311,
     -1.6705
    ],
-   "scale": 0.24334,
    "flag": "ptol"
   },
   "ptol_house": {
+   "scale": 0.1689,
+   "ground": 0.7984,
    "pos": [
     0.8842,
     2.0765,
     0.6161
    ],
-   "scale": 0.1689,
    "flag": "ptol"
   },
+  "ptol_market": {
+   "scale": 0.14287,
+   "ground": 1.2884
+  },
+  "ptol_storehouse": {
+   "scale": 0.20282,
+   "ground": 1.1336
+  },
   "ptol_temple": {
+   "scale": 0.18996,
+   "ground": 1.1947,
    "pos": [
     -1.618,
     3.9972,
     -1.7389
    ],
-   "scale": 0.18996,
    "flag": "ptol"
   },
   "ptol_tower": {
+   "scale": 0.19694,
+   "ground": 0.7575,
    "pos": [
     0.57,
     3.815,
     0.5722
    ],
-   "scale": 0.19694,
    "flag": "ptol"
   },
   "ptol_town_center": {
+   "scale": 0.15704,
+   "ground": 2.0235,
    "pos": [
     -1.9606,
     4.8798,
     -0.6716
    ],
-   "scale": 0.15704,
    "flag": "ptol"
   },
+  "ptol_wall": {
+   "scale": 0.05159,
+   "ground": 0.3775
+  },
+  "ptol_wall_segment": {
+   "scale": 0.05159,
+   "ground": 0.3775
+  },
   "ptol_wall_tower": {
+   "scale": 0.19694,
+   "ground": 0.7575,
    "pos": [
     0.57,
     3.815,
     0.5722
    ],
-   "scale": 0.19694,
    "flag": "ptol"
   },
   "ptol_wonder": {
+   "scale": 0.10239,
+   "ground": 1.0906,
    "pos": [
     -1.007,
     3.154,
     -2.87
    ],
-   "scale": 0.10239,
    "flag": "ptol"
   },
+  "quinquereme": {
+   "scale": 1.0,
+   "ground": 2.9043
+  },
+  "quinquereme_rome": {
+   "scale": 1.0,
+   "ground": 2.8023
+  },
   "range": {
+   "scale": 0.14662,
+   "ground": 0.8699,
    "pos": [
     -1.2055,
     2.7596,
     1.0177
    ],
-   "scale": 0.14662,
    "flag": "hele"
   },
   "rome_barracks": {
+   "scale": 0.19585,
+   "ground": 1.1544,
    "pos": [
     -1.1921,
     3.625,
     1.1351
    ],
-   "scale": 0.19585,
    "flag": "rome"
   },
   "rome_corral": {
+   "scale": 0.20624,
+   "ground": 0.049,
    "pos": [
     0.6171,
     1.6358,
     0.3831
    ],
-   "scale": 0.20624,
    "flag": "rome"
   },
+  "rome_dock": {
+   "scale": 0.13834,
+   "ground": 0.8489
+  },
+  "rome_farmstead": {
+   "scale": 0.14139,
+   "ground": 0.3946
+  },
   "rome_fortress": {
+   "scale": 0.2153,
+   "ground": 0.5435,
    "pos": [
     -2.7816,
     4.0017,
     2.6275
    ],
-   "scale": 0.2153,
    "flag": "rome"
   },
+  "rome_house": {
+   "scale": 0.14623,
+   "ground": 0.951
+  },
+  "rome_market": {
+   "scale": 0.13407,
+   "ground": 0.0276
+  },
+  "rome_storehouse": {
+   "scale": 0.23827,
+   "ground": 0.065
+  },
   "rome_temple": {
+   "scale": 0.17715,
+   "ground": -0.0,
    "pos": [
     0.993,
     2.7854,
     -1.7042
    ],
-   "scale": 0.17715,
    "flag": "rome"
   },
   "rome_tower": {
+   "scale": 0.20663,
+   "ground": 2.6573,
    "pos": [
     -0.447,
     6.6717,
     -0.3003
    ],
-   "scale": 0.20663,
    "flag": "rome"
   },
   "rome_town_center": {
+   "scale": 0.16939,
+   "ground": 0.0024,
    "pos": [
     2.8185,
     2.7041,
     -0.381
    ],
-   "scale": 0.16939,
    "flag": "rome"
   },
+  "rome_wall": {
+   "scale": 0.0536,
+   "ground": 0.4888
+  },
+  "rome_wall_segment": {
+   "scale": 0.0536,
+   "ground": 0.4888
+  },
   "rome_wall_tower": {
+   "scale": 0.20663,
+   "ground": 2.6573,
    "pos": [
     -0.447,
     6.6717,
     -0.3003
    ],
-   "scale": 0.20663,
    "flag": "rome"
   },
   "rome_wonder": {
+   "scale": 0.14796,
+   "ground": 1.2189,
    "pos": [
     0.0001,
     4.8155,
     2.8874
    ],
-   "scale": 0.14796,
    "flag": "rome"
   },
+  "rowboat": {
+   "scale": 0.36168,
+   "ground": 1.9583
+  },
+  "rubble_large": {
+   "scale": 0.1969,
+   "ground": 1.3387
+  },
+  "rubble_small": {
+   "scale": 0.12193,
+   "ground": 0.6778
+  },
   "ruins": {
+   "scale": 0.04604,
+   "ground": -0.582,
    "pos": [
     0.511,
     0.1851,
     -1.2274
    ],
-   "scale": 0.04604,
    "flag": "hele"
   },
   "scout_tower": {
+   "scale": 0.21029,
+   "ground": 1.4112,
    "pos": [
     -0.0016,
     5.2102,
     0.0969
    ],
-   "scale": 0.21029,
    "flag": "celt"
   },
   "sele_barracks": {
+   "scale": 0.18732,
+   "ground": 1.5136,
    "pos": [
     0.0016,
     3.3005,
     -1.7694
    ],
-   "scale": 0.18732,
    "flag": "seleucids"
   },
   "sele_corral": {
+   "scale": 0.2115,
+   "ground": 1.9789,
    "pos": [
     0.8796,
     3.4357,
     0.0962
    ],
-   "scale": 0.2115,
    "flag": "seleucids"
   },
   "sele_dock": {
+   "scale": 0.1821,
+   "ground": 2.5879,
    "pos": [
     0.0036,
     4.823,
     0.4918
    ],
-   "scale": 0.1821,
    "flag": "seleucids"
   },
+  "sele_farmstead": {
+   "scale": 0.16214,
+   "ground": 2.0241
+  },
   "sele_fortress": {
+   "scale": 0.17268,
+   "ground": 2.524,
    "pos": [
     0.0113,
     6.5713,
     -1.1022
    ],
-   "scale": 0.17268,
    "flag": "seleucids"
   },
+  "sele_gate": {
+   "scale": 0.10662,
+   "ground": 1.6797
+  },
+  "sele_house": {
+   "scale": 0.14944,
+   "ground": 1.0451
+  },
+  "sele_market": {
+   "scale": 0.16812,
+   "ground": 1.3763
+  },
+  "sele_storehouse": {
+   "scale": 0.20589,
+   "ground": 2.5641
+  },
   "sele_temple": {
+   "scale": 0.16434,
+   "ground": 2.052,
    "pos": [
     -0.0241,
     4.9229,
     -1.4891
    ],
-   "scale": 0.16434,
    "flag": "seleucids"
   },
   "sele_tower": {
+   "scale": 0.23996,
+   "ground": 2.9842,
    "pos": [
     -0.0048,
     7.8481,
     0.0025
    ],
-   "scale": 0.23996,
    "flag": "hele"
   },
   "sele_town_center": {
+   "scale": 0.18322,
+   "ground": 2.7483,
    "pos": [
     0.0183,
     5.4168,
     1.207
    ],
-   "scale": 0.18322,
    "flag": "seleucids"
   },
+  "sele_wall": {
+   "scale": 0.05557,
+   "ground": 0.7312
+  },
+  "sele_wall_segment": {
+   "scale": 0.05557,
+   "ground": 0.7312
+  },
   "sele_wall_tower": {
+   "scale": 0.23996,
+   "ground": 2.9842,
    "pos": [
     -0.0048,
     7.8481,
     0.0025
    ],
-   "scale": 0.23996,
    "flag": "hele"
   },
   "sele_wonder": {
+   "scale": 0.10494,
+   "ground": 1.1405,
    "pos": [
     0.0003,
     3.5296,
     -2.0678
    ],
-   "scale": 0.10494,
    "flag": "seleucids"
   },
+  "shrine": {
+   "scale": 0.13377,
+   "ground": 0.2242
+  },
+  "siege_wall": {
+   "scale": 0.11962,
+   "ground": 0.0115
+  },
+  "skiff": {
+   "scale": 0.21645,
+   "ground": 2.5427
+  },
   "spart_barracks": {
+   "scale": 0.19519,
+   "ground": -0.9584,
    "pos": [
     -1.6946,
     0.6675,
     1.2015
    ],
-   "scale": 0.19519,
    "flag": "hele"
   },
   "spart_corral": {
+   "scale": 0.21697,
+   "ground": 1.2774,
    "pos": [
     -0.074,
     2.8171,
     0.8669
    ],
-   "scale": 0.21697,
    "flag": "hele"
   },
+  "spart_dock": {
+   "scale": 0.14703,
+   "ground": 1.8806
+  },
+  "spart_farmstead": {
+   "scale": 0.1771,
+   "ground": 1.8498
+  },
   "spart_fortress": {
+   "scale": 0.21272,
+   "ground": 1.0996,
    "pos": [
     1.4458,
     6.0425,
     1.9232
    ],
-   "scale": 0.21272,
    "flag": "hele"
   },
   "spart_house": {
+   "scale": 0.17326,
+   "ground": 1.0076,
    "pos": [
     0.4242,
     2.3579,
     0.4441
    ],
-   "scale": 0.17326,
    "flag": "hele"
   },
+  "spart_market": {
+   "scale": 0.12888,
+   "ground": 2.3438
+  },
+  "spart_storehouse": {
+   "scale": 0.18997,
+   "ground": 1.0829
+  },
   "spart_temple": {
+   "scale": 0.22273,
+   "ground": -0.351,
    "pos": [
     1.3785,
     2.3732,
     -2.2869
    ],
-   "scale": 0.22273,
    "flag": "hele"
   },
   "spart_tower": {
+   "scale": 0.26323,
+   "ground": 1.3486,
    "pos": [
     -0.7047,
     6.8376,
     -0.5328
    ],
-   "scale": 0.26323,
    "flag": "hele"
   },
   "spart_town_center": {
+   "scale": 0.20482,
+   "ground": 1.1394,
    "pos": [
     2.706,
     3.3377,
     1.7947
    ],
-   "scale": 0.20482,
    "flag": "hele"
   },
+  "spart_wall": {
+   "scale": 0.05512,
+   "ground": 0.5195
+  },
+  "spart_wall_segment": {
+   "scale": 0.05512,
+   "ground": 0.5195
+  },
   "spart_wall_tower": {
+   "scale": 0.26323,
+   "ground": 1.3486,
    "pos": [
     -0.7047,
     6.8376,
     -0.5328
    ],
-   "scale": 0.26323,
    "flag": "hele"
   },
   "spart_wonder": {
+   "scale": 0.10427,
+   "ground": 1.0061,
    "pos": [
     0.0902,
     2.918,
     -1.5151
    ],
-   "scale": 0.10427,
    "flag": "hele"
   },
   "stable": {
+   "scale": 1.04147,
+   "ground": 7.2257,
    "pos": [
     4.9242,
     19.0006,
     5.4021
    ],
-   "scale": 1.04147,
    "flag": "hele"
   },
   "stable_elephant": {
+   "scale": 1.0,
+   "ground": 8.7681,
    "pos": [
     0.0755,
     19.7373,
     11.7876
    ],
-   "scale": 1.0,
    "flag": "kart"
   },
   "stables": {
+   "scale": 1.04147,
+   "ground": 7.2257,
    "pos": [
     4.9242,
     19.0006,
     5.4021
    ],
-   "scale": 1.04147,
    "flag": "hele"
   },
   "stoa": {
+   "scale": 0.19481,
+   "ground": -0.2127,
    "pos": [
     -2.3526,
     1.5722,
     0.0175
    ],
-   "scale": 0.19481,
    "flag": "hele"
   },
+  "storehouse": {
+   "scale": 0.25928,
+   "ground": 1.121
+  },
   "super_dock": {
+   "scale": 0.07152,
+   "ground": 0.7545,
    "pos": [
     0.0,
     1.4948,
     -1.1201
    ],
-   "scale": 0.07152,
    "flag": "kart"
   },
   "temple": {
+   "scale": 0.09209,
+   "ground": -1.1641,
    "pos": [
     1.022,
     0.3701,
     -2.4549
    ],
-   "scale": 0.09209,
    "flag": "hele"
   },
+  "theater": {
+   "scale": 0.12901,
+   "ground": 1.4184
+  },
   "tower": {
+   "scale": 0.21658,
+   "ground": 3.0232,
    "pos": [
     0.5021,
     7.0018,
     -0.3829
    ],
-   "scale": 0.21658,
    "flag": "hele"
   },
   "tower_artillery": {
+   "scale": 0.27285,
+   "ground": 2.3116,
    "pos": [
     0.0134,
     7.7533,
     -0.3396
    ],
-   "scale": 0.27285,
    "flag": "kart"
   },
   "tower_bolt": {
+   "scale": 0.25145,
+   "ground": 2.5163,
    "pos": [
     -0.0113,
     7.8694,
     -0.4543
    ],
-   "scale": 0.25145,
    "flag": "kart"
   },
   "town_center": {
+   "scale": 0.215,
+   "ground": 2.9553,
    "pos": [
     2.8906,
     0.9767,
     1.158
    ],
-   "scale": 0.215,
    "flag": "hele"
   },
+  "trireme_han": {
+   "scale": 0.20687,
+   "ground": 0.2308
+  },
+  "triumphal_arch": {
+   "scale": 0.22267,
+   "ground": 0.0012
+  },
+  "wall": {
+   "scale": 0.05512,
+   "ground": 0.5195
+  },
+  "wall_segment": {
+   "scale": 0.05512,
+   "ground": 0.5195
+  },
   "wall_tower": {
+   "scale": 0.21658,
+   "ground": 3.0232,
    "pos": [
     0.5021,
     7.0018,
     -0.3829
    ],
-   "scale": 0.21658,
    "flag": "hele"
   },
   "wonder": {
+   "scale": 0.11073,
+   "ground": 0.5199,
    "pos": [
     0.3374,
     2.9486,
     -1.5785
    ],
-   "scale": 0.11073,
    "flag": "kart"
   },
   "wooden_tower": {
+   "scale": 0.27794,
+   "ground": 2.0006,
    "pos": [
     -0.005,
     6.1631,
     0.0301
    ],
-   "scale": 0.27794,
    "flag": "celt"
   },
   "workshop": {
+   "scale": 0.15008,
+   "ground": 1.4693,
    "pos": [
     0.9302,
     2.9929,
     1.0497
    ],
-   "scale": 0.15008,
    "flag": "hele"
   }
  }

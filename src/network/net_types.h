@@ -130,10 +130,8 @@ enum class NetCommandType : uint8_t {
 	NET_CMD_DIPLOMACY     = 22,
 	NET_CMD_BARTER        = 23,
 	// --- RTS0-local, appended after the frozen 1..23 block -------------------
-	// P3 maintainFleet upkeep (navalManager.js:507). target_id = unit type to
-	// commission (UNIT_TRIREME=8 warship / UNIT_FISHING_BOAT=15 fishing boat),
-	// param = reserved (0). Queued, never applied directly: see
-	// TurnManager::request_fleet_upkeep / TurnManager::maintain_fleet_upkeep.
+	// Retired: Petra's fleet upkeep (navalManager.js maintainFleet) runs inside
+	// the sim's naval manager now. The id stays reserved; nothing sends it.
 	NET_CMD_MAINTAIN_FLEET = 24,
 	// Train one civ roster unit by template (a hero, champion or mercenary that
 	// the class-based NET_CMD_TRAIN can't name). target_id = building,
