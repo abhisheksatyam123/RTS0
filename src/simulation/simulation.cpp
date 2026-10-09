@@ -16900,6 +16900,13 @@ void Simulation::tick_hunters() {
 			if (rid != 0 && carry_cap(h, RES_FOOD) > 0 && !unit_is_ship(units_.unit_type[h]) &&
 					!(units_.order_flags[h] & ORDER_FLAG_INTERRUPTED)) {
 				order_gather(&units_.id[h], 1, rid, false, false);
+			} else if (h == i && finfo.is_dangerous() && !unit_is_siege_engine(units_.unit_type[h]) &&
+					!unit_is_ship(units_.unit_type[h])) {
+				// shouldCheer: killing a dangerous animal is cheered like a kill in battle;
+				// COMBAT.FINDINGNEWTARGET in tick_unit_ai goes on from here.
+				units_.order_flags[h] |= ORDER_FLAG_CHEER;
+				units_.action_state[h] = ACTION_ATTACK;
+				units_.has_order[h] = 0;
 			} else {
 				units_.action_state[h] = ACTION_IDLE;
 				units_.has_order[h] = 0;
