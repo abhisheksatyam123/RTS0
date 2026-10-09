@@ -20,7 +20,13 @@ struct RecentDeath {
 	uint8_t type = 0;
 	bool is_building = false;
 	bool death_damage_applied = false;
-	bool loot_applied = false; // unused: Looter.js loot is collected at the kill; kept for the save layout
+	bool death_damage = false; // the dead unit has DeathDamage (fire ships); was the unused loot_applied byte
+};
+// DeathDamage.js: Circular splash when the entity dies (Range in RTS0 units, Damage summed).
+struct DeathDamageInfo {
+	float range;
+	float damage;
+	bool friendly_fire;
 };
 enum BiomeType : uint8_t {
 	BIOME_AEGEAN = 0,

@@ -1323,7 +1323,11 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			if (bid && n)
 				sim.order_build_or_repair(ids, n, bid);
 		} else if (c.cmd_type == 6) { // Train
-			sim.cmd_train(pl, c.target_id, (UnitType)c.param);
+			// At a corral target_x names the animal (corral Trainer list); 0 is the civ's default.
+			if (c.param == UNIT_TYPE_NONE && c.target_x > 0.0f)
+				sim.cmd_breed_livestock(pl, c.target_id, (uint8_t)c.target_x);
+			else
+				sim.cmd_train(pl, c.target_id, (UnitType)c.param);
 		} else if (c.cmd_type == 7) { // Stance
 			sim.order_set_stance(ids, n, c.param);
 		} else if (c.cmd_type == 8) { // Formation
