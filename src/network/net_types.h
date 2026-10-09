@@ -189,6 +189,8 @@ enum class NetCommandType : uint8_t {
 	// param 1 on, 0 off. (NET_CMD_TRAIN and NET_CMD_TRAIN_TEMPLATE carry their batch size
 	// in target_z; 0, as older senders write, trains one.)
 	NET_CMD_AUTOQUEUE = 44,
+	// 0 A.D. "set-dropsite-sharing" on structure target_id: param 1 shares, 0 stops.
+	NET_CMD_SET_DROPSITE_SHARING = 45,
 	// Session control, not game commands (200+ is reserved for these; game command
 	// ids keep growing from 44). Only the host sends them, inside its own turn batch,
 	// so every client learns of a seat change before the turn it affects (0 A.D.
