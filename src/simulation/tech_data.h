@@ -107,8 +107,10 @@ enum TechnologyId : uint8_t {
 	TECH_TYRTEAN_PAEANS = 98, // tyrtean_paeans
 	TECH_UNLOCK_NEODAMODES = 99, // unlock_neodamodes
 	TECH_HEALTH_REGEN_UNITS = 100, // health_regen_units
-	TECH_SUBTERRANEAN_AQUEDUCTS = 101, // subterranean_aqueducts
-	TECH_COUNT = 102
+	TECH_ART_OF_WAR = 101, // art_of_war
+	TECH_SILVERSHIELDS = 102, // silvershields
+	TECH_SUBTERRANEAN_AQUEDUCTS = 103, // subterranean_aqueducts
+	TECH_COUNT = 104
 };
 
 enum TechClass : uint64_t {
@@ -500,6 +502,8 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Tyrtean Paeans", "Champion Hoplites +10% movement speed.", 200, 0, 200, 0, 50.0f, 2, BLD_GEROUSIA, TECH_NONE, 0x0002, 147, 1, "tyrtean_paeans"},
 		{"Unlock Neodamodes", "Unlock the ability to train Spearman Neodamodes at the Barracks.", 500, 0, 0, 0, 60.0f, 3, BLD_GEROUSIA, TECH_NONE, 0x0002, 148, 0, "unlock_neodamodes"},
 		{"Battlefield Medicine", "Idle Organic units +0.5 health regeneration rate.", 1000, 0, 250, 0, 40.0f, 3, BLD_TEMPLE, TECH_NONE, 0x3fff, 148, 1, "health_regen_units"},
+		{"Sun Tzu's \"The Art of War\"", "All Citizen-Soldiers −20% required promotion experience.", 1200, 0, 1200, 0, 50.0f, 3, BLD_FORTRESS, TECH_NONE, 0x2000, 149, 0, "art_of_war"},
+		{"Silver Shields Regiment", "Upgrade Shield Bearer Champion Infantry to Silver Shields, with more health and attack damage.", 0, 0, 600, 0, 60.0f, 3, BLD_FORTRESS, TECH_NONE, 0x0020, 149, 0, "silvershields"},
 		{"Subterranean Aqueducts", "Ice House +1 trickle food rate per second.", 0, 300, 0, 300, 40.0f, 3, BLD_ICE_HOUSE, TECH_NONE, 0x0004, 149, 1, "subterranean_aqueducts"},
 	};
 	if (tech_id >= TECH_COUNT) return kTable[TECH_NONE];

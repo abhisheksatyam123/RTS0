@@ -111,6 +111,11 @@ GATHER_KINDS = {"food.grain": "GATHER_GRAIN", "food.fruit": "GATHER_FRUIT",
                 "metal.ore": "GATHER_METAL"}
 
 
+# Modifications RTS0 applies outside tech_data.h's effect table: promotion_data.h
+# (tools/extract_0ad_promotion.py) reads Promotion/RequiredXp from the techs here.
+APPLIED_ELSEWHERE = {"Promotion/RequiredXp"}
+
+
 def stat_of(path: str):
     """Map a 0 A.D. modification path to (TechStat, op hint) or None."""
     m = re.fullmatch(r"ResourceGatherer/Rates/(.+)", path)
@@ -338,7 +343,7 @@ def main() -> int:
         mask = civ_mask(j.get("requirements"))
         if mask in (0, full):
             continue  # all-civ techs belong to the generic buildings above
-        mods = [m for m in j.get("modifications", []) if stat_of(m["value"])]
+        mods = [m for m in j.get("modifications", []) if stat_of(m["value"]) or m["value"] in APPLIED_ELSEWHERE]
         if not mods and name not in unlockers:
             continue
         order.append(name)

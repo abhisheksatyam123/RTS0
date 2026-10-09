@@ -148,6 +148,13 @@ public:
 	// host measures it, a client has the host's latest report.
 	const std::vector<ClientPerformanceMsg::Entry> &clientPerformance() const { return client_perf_; }
 	uint64_t clientPerformanceReports() const { return client_perf_reports_; }
+	// NMT_PLAYER_ASSIGNMENT: the host sends the match's client list to every
+	// client (reliable) and keeps it; a client keeps the host's latest one.
+	void sendPlayerAssignment(const PlayerAssignmentMsg &m);
+	const std::vector<PlayerAssignmentMsg::Entry> &playerAssignment() const { return player_assignment_; }
+	uint64_t playerAssignments() const { return player_assignments_; }
+	void setPeerObserver(uint32_t peer_id, bool observer);
+	const std::string &localPlayerName() const { return local_player_name_; }
 
 private:
 	void send_raw_packet(const std::string &ip, uint16_t port, const uint8_t *data, size_t size);
@@ -167,6 +174,8 @@ private:
 	std::vector<ClientPerformanceMsg::Entry> client_perf_;
 	uint64_t client_perf_reports_ = 0;
 	uint64_t last_perf_ms_ = 0;
+	std::vector<PlayerAssignmentMsg::Entry> player_assignment_;
+	uint64_t player_assignments_ = 0;
 
 	NetConfig cfg;
 	NetRole role = NetRole::None;
