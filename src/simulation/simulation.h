@@ -147,7 +147,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 31; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 32; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -524,6 +524,25 @@ public:
 	// Game Setup biome for random maps: BIOME_* or -1 for the map's own.
 	void set_biome_override(int b) { biome_override_ = (b >= 0 && b < BIOME_COUNT) ? b : -1; }
 	int biome_override() const { return biome_override_; }
+	// 0 A.D. Nomad (gamesettings Nomad.js, rmgen-common placePlayerBase): random maps start
+	// without any player structures, only the starting units.
+	void set_nomad(bool on) { nomad_ = on; }
+	bool nomad() const { return nomad_; }
+	// 0 A.D. DisableTreasures: every treasure is removed when the match starts.
+	void set_disable_treasures(bool on) { disable_treasures_ = on; }
+	bool disable_treasures() const { return disable_treasures_; }
+	// 0 A.D. RegicideGarrison: the Regicide hero may garrison (else it spawns "ungarrisonable|").
+	void set_regicide_garrison(bool on) { regicide_garrison_ = on; }
+	bool regicide_garrison() const { return regicide_garrison_; }
+	uint32_t regicide_hero(uint8_t pid) const { return pid < MAX_PLAYERS ? regicide_hero_[pid] : 0; }
+	// False for a Regicide hero while RegicideGarrison is off: it can't enter structures,
+	// siege engines or ships.
+	bool unit_garrisonable(size_t unit_idx) const;
+	// 0 A.D. PlayerColor: an index into PLAYER_COLORS; player p defaults to p (player_defaults.json).
+	void set_player_color(uint8_t pid, uint8_t idx) { if (pid < MAX_PLAYERS && idx < PLAYER_COLOR_COUNT) player_color_[pid] = idx; }
+	uint8_t player_color_index(uint8_t pid) const { return pid < MAX_PLAYERS ? player_color_[pid] : 0; }
+	// 0xRRGGBB; Gaia (and anything outside the 8 slots) is 0 A.D.'s white.
+	uint32_t player_color(uint8_t pid) const;
 	bool explore_map() const { return explore_map_; }
 	void set_explore_map(bool on) { explore_map_ = on; }
 	// Wonder and Capture the Relic: how long the wonder or all relics must be held, and how
@@ -1434,6 +1453,14 @@ private:
 	bool victory_ = false;
 	bool reveal_map_ = false;
 	int biome_override_ = -1; // setup-time only: applied when a random map is generated
+	bool nomad_ = false;              // setup-time only: applied when a random map is generated
+	bool nomad_start_ = false;        // the map was generated Nomad: tick 0 places the top-up treasures
+	bool disable_treasures_ = false;
+	void spawn_nomad_treasures();
+	bool regicide_garrison_ = false;
+	uint32_t regicide_hero_[MAX_PLAYERS] = {};
+	uint8_t player_color_[MAX_PLAYERS] = {0, 1, 2, 3, 4, 5, 6, 7};
+	void remove_player_structures(); // Nomad
 	bool explore_map_ = false;
 	float wonder_duration_ = 600.0f;
 	float relic_duration_ = 180.0f;
