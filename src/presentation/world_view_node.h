@@ -100,6 +100,10 @@ class RtsoWorldView : public Node3D {
 	MultiMeshInstance3D *food_mmi = nullptr;   // fruit_bush.glb
 	MultiMeshInstance3D *fish_mmi = nullptr;   // fish.glb (0 A.D. fauna/fish_generic.xml)
 	Ref<MultiMesh> gold_mm, stone_mm, food_mm, fish_mm;
+	// Gaia ruins (a stone/metal supply, buildings/ruins.glb) and treasures (a placeholder chest).
+	MultiMeshInstance3D *ruins_mmi = nullptr;
+	MultiMeshInstance3D *treasure_mmi = nullptr;
+	Ref<MultiMesh> ruins_mm, treasure_mm;
 
 	// flying projectiles (arrows + warship bolts + catapult stones)
 	MultiMeshInstance3D *arrow_mmi = nullptr;

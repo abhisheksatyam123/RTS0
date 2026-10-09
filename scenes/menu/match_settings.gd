@@ -35,6 +35,8 @@ var slot_colors: Array = []
 # 0 A.D. Nomad (random maps: no starting structures) and RegicideGarrison (the Regicide hero may garrison).
 var nomad: bool = false
 var regicide_garrison: bool = false
+# 0 A.D. DisableTreasures: no treasures on the map.
+var disable_treasures: bool = false
 # Random-map biome: 0 = the map's own, else rtso::BiomeType + 1. Game speed at the start.
 var biome: int = 0
 var game_speed: float = 1.0

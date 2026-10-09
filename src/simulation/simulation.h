@@ -131,7 +131,7 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
-	static constexpr uint32_t SAVE_VERSION = 28; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 29; // save_state's format; see the history beside it
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -451,6 +451,9 @@ public:
 	// without any player structures, only the starting units.
 	void set_nomad(bool on) { nomad_ = on; }
 	bool nomad() const { return nomad_; }
+	// 0 A.D. DisableTreasures: every treasure is removed when the match starts.
+	void set_disable_treasures(bool on) { disable_treasures_ = on; }
+	bool disable_treasures() const { return disable_treasures_; }
 	// 0 A.D. RegicideGarrison: the Regicide hero may garrison (else it spawns "ungarrisonable|").
 	void set_regicide_garrison(bool on) { regicide_garrison_ = on; }
 	bool regicide_garrison() const { return regicide_garrison_; }
@@ -934,6 +937,32 @@ public:
 		uint8_t owner_team = 255;
 	};
 
+	// Treasure.js / TreasureCollector.js: a Gaia treasure any land unit can be ordered to
+	// collect; after CollectTime in range its owner gets the treasure's resources.
+	struct Treasure {
+		uint32_t id;
+		float x, z;
+		float collect_progress;   // seconds spent collecting by collector_id
+		uint32_t collector_id;
+		uint8_t type;             // TreasureType (gaia_data.h)
+		uint8_t pad[3];
+	};
+	uint32_t spawn_treasure(float x, float z, uint8_t type);
+	void order_collect_treasure(const uint32_t *unit_ids, size_t count, uint32_t treasure_id, bool queued = false);
+	const std::vector<Treasure> &treasures() const { return treasures_; }
+	bool is_treasure_id(uint32_t id) const {
+		for (const auto &t : treasures_) if (t.id == id) return true;
+		return false;
+	}
+	// One plain treasure of a resource (rmgen placePlayersNomad's food_bin / wood / stone / metal);
+	// its amount is the kind's, treasure_type_info(treasure_type_for_resource(res)).amount.
+	uint32_t spawn_resource_treasure(float x, float z, uint8_t res_type) {
+		return spawn_treasure(x, z, treasure_type_for_resource(res_type));
+	}
+	void clear_treasures() { treasures_.clear(); } // Game Setup "Treasures" off
+	// template_gaia_ruins: a stone (or metal) supply gathered 4x as fast as a rock.
+	uint32_t spawn_ruins(float x, float z, uint8_t ruins_type);
+
 	float wonder_time_remaining() const { return std::max(0.0f, wonder_duration_ - wonder_victory_timer_); }
 	bool is_wonder_active() const { return has_active_wonder_; }
 	const std::vector<TreasureRelic> &relics() const { return relics_; }
@@ -1002,12 +1031,26 @@ private:
 		float bld_arrow_mul[BLD_TYPE_COUNT];
 		float bld_arrow_add[BLD_TYPE_COUNT];
 		float bld_garrison_heal[BLD_TYPE_COUNT]; // added hp per second for garrisoned units
+		// The same unit multipliers per civ roster template, matched against the
+		// template's own 0 A.D. classes (Champion Infantry Spearman, Javelineer, ...),
+		// which its RTS0 unit_type only approximates.
+		struct Template {
+			float gather[GK_COUNT];
+			float attack, health, speed, range, train_time;
+			float armor[3];
+		} tmpl[CIV_UNIT_TEMPLATE_COUNT];
 	};
 	void compute_tech_mods(uint8_t player_id, TechMods &out) const;
 	void rebuild_all_tech_mods();
 	void complete_research(uint8_t player_id, uint8_t tech_id);
 	void apply_tech_mods_to_unit(size_t idx);
 	const TechMods &tech_mods(uint8_t player_id) const { return tech_mods_[player_id < MAX_PLAYERS ? player_id : 0]; }
+	// A unit's technology multipliers: its roster template's when it has one, else its unit_type's.
+	struct UnitTechMods { float attack, health, speed, range, train_time; const float *armor, *gather; };
+	static UnitTechMods unit_tech_mods(const TechMods &m, uint8_t unit_type, uint16_t tmpl);
+	UnitTechMods unit_tech_mods(uint8_t player_id, uint8_t unit_type, uint16_t tmpl) const {
+		return unit_tech_mods(tech_mods(player_id), unit_type, tmpl);
+	}
 	int32_t carry_cap(size_t unit_idx, uint8_t res) const;
 	uint32_t find_free_field(uint8_t team, float x, float z);
 	void tick_combat(float dt);
@@ -1154,6 +1197,8 @@ private:
 	std::vector<Building> buildings_;
 	std::vector<Projectile> projectiles_;
 	std::vector<TreasureRelic> relics_;
+	std::vector<Treasure> treasures_;
+	void tick_treasures(float dt);
 	float wonder_victory_timer_ = 0.0f;
 	bool has_active_wonder_ = false;
 	VictoryCondition victory_condition_ = VICTORY_CONQUEST;
@@ -1173,6 +1218,14 @@ private:
 	struct FieldGatherers { int total = 0; int slots_taken = 0; };
 	std::unordered_map<uint32_t, FieldGatherers> field_gatherers_; // per tick, keyed by grain resource id
 	std::unordered_map<uint32_t, FieldGatherers> fish_gatherers_; // per tick, keyed by fish resource id
+	std::unordered_map<uint32_t, FieldGatherers> ruins_gatherers_; // per tick, keyed by ruins resource id
+	// Each ruins resource's ResourceSupply MaxGatherers (gaia/ruins/*.xml); saved.
+	struct RuinsCap { uint32_t res_id; uint16_t max_gatherers; uint16_t pad; };
+	std::vector<RuinsCap> ruins_caps_;
+	int ruins_cap(uint32_t res_id) const {
+		for (const RuinsCap &c : ruins_caps_) if (c.res_id == res_id) return c.max_gatherers;
+		return 1;
+	}
 	// Nearest fish on `sea` (ship region) within max_d of (x, z) with a free gatherer slot; 0 if none.
 	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0) const;
 	std::unordered_map<uint32_t, size_t> building_id_to_idx_;
@@ -1234,6 +1287,9 @@ private:
 	bool reveal_map_ = false;
 	int biome_override_ = -1; // setup-time only: applied when a random map is generated
 	bool nomad_ = false;              // setup-time only: applied when a random map is generated
+	bool nomad_start_ = false;        // the map was generated Nomad: tick 0 places the top-up treasures
+	bool disable_treasures_ = false;
+	void spawn_nomad_treasures();
 	bool regicide_garrison_ = false;
 	uint32_t regicide_hero_[MAX_PLAYERS] = {};
 	uint8_t player_color_[MAX_PLAYERS] = {0, 1, 2, 3, 4, 5, 6, 7};
@@ -1386,6 +1442,18 @@ private:
 	void petra_refresh_queue_accounts(float dt);
 	void petra_staff_foundations();
 	void petra_manage_fields(int target_food);
+	// worker.js startHunting: food dropsites and each supply's gatherers, gathered once per pass.
+	struct PetraHuntScan {
+		std::vector<std::pair<float, float>> food_drops;
+		std::unordered_map<uint32_t, int> on_animal;  // live animal id -> units hunting it
+		std::unordered_map<uint32_t, int> on_carcass; // meat resource id -> units gathering it
+		std::vector<uint32_t> treasures_taken;        // treasures one of ours is already on its way to
+	};
+	PetraHuntScan petra_hunt_scan() const;
+	uint32_t petra_find_hunt(size_t u, float px, float pz, const PetraHuntScan &scan, bool &live) const;
+	bool petra_start_hunting(size_t u, PetraHuntScan &scan);
+	bool petra_gather_treasure(size_t u, PetraHuntScan &scan); // entityExtend.js gatherTreasure
+	void petra_manage_hunters(PetraHuntScan &scan);
 	int petra_villager_target() const;
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);

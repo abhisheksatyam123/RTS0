@@ -1310,6 +1310,10 @@ void RtsoMain::update_cursor() {
 				}
 			}
 			if (!*want) {
+				for (const auto &t : sim->treasures())
+					if (near2(t.x, t.z, 2.0f)) { want = "action-collect-treasure"; break; }
+			}
+			if (!*want) {
 				auto fv = sim->fauna();
 				for (size_t f = 0; f < fv.count && !*want; ++f) {
 					if (!fv.alive[f] || !near2(fv.pos_x[f], fv.pos_z[f], 2.5f)) continue;
@@ -3385,6 +3389,24 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 			}
 
+			// 1c. A Gaia treasure: collect it (0 A.D. unit_actions "collect-treasure").
+			{
+				uint32_t treasure_id = 0;
+				float best_td2 = 2.0f * 2.0f;
+				for (const auto &t : sim->treasures()) {
+					const float dx = t.x - click_pos.x, dz = t.z - click_pos.z;
+					if (dx * dx + dz * dz < best_td2) { best_td2 = dx * dx + dz * dz; treasure_id = t.id; }
+				}
+				if (treasure_id != 0) {
+					if (net_lockstep())
+						post_lockstep(17, sel_ptr, sel_n, 0, 0, treasure_id, (uint8_t)(2 | qbit));
+					else
+						sim->order_collect_treasure(sel_ptr, sel_n, treasure_id, queue_shift);
+					play_civ_voice("gather");
+					return;
+				}
+			}
+
 			// 2. Right click on Enemy Unit (Attack)
 			uint32_t clicked_enemy_id = 0;
 			float best_ed2 = 2.2f * 2.2f;
@@ -3583,6 +3605,7 @@ void RtsoMain::apply_match_settings() {
 	sim->set_relic_duration(60.0f * (float)std::clamp((int)ms->get("relic_min"), 0, 60));
 	sim->set_relic_count((int)ms->get("relic_count"));
 	sim->set_regicide_garrison((bool)ms->get("regicide_garrison"));
+	sim->set_disable_treasures((bool)ms->get("disable_treasures"));
 	{
 		Array scolors = ms->get("slot_colors");
 		for (int p = 0; p < rtso::MAX_PLAYERS; ++p)
@@ -3864,6 +3887,19 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		if (ftype >= rtso::FAUNA_COUNT) ftype = rtso::FAUNA_DEER;
 		sim->spawn_fauna(fx, fz, ftype);
 	}
+	// 0 A.D. gaia/treasure/* and gaia/ruins/* by template stem (tools/port_0ad_maps.py).
+	Array treasure_arr = d.get("treasures", Array());
+	for (int i = 0; i < treasure_arr.size(); ++i) {
+		Dictionary t = treasure_arr[i];
+		const uint8_t tt = rtso::treasure_type_by_name(String(t.get("type", "")).utf8().get_data());
+		if (tt < rtso::TREASURE_TYPE_COUNT) sim->spawn_treasure((float)t.get("x", 0.0), (float)t.get("z", 0.0), tt);
+	}
+	Array ruins_arr = d.get("ruins", Array());
+	for (int i = 0; i < ruins_arr.size(); ++i) {
+		Dictionary r = ruins_arr[i];
+		const uint8_t rt = rtso::ruins_type_by_name(String(r.get("type", "")).utf8().get_data());
+		if (rt < rtso::RUINS_TYPE_COUNT) sim->spawn_ruins((float)r.get("x", 0.0), (float)r.get("z", 0.0), rt);
+	}
 
 	// Spawn Structures. Each finished building would otherwise rebuild the
 	// whole nav grid and territory map; do that once after the last one.
@@ -3895,6 +3931,13 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		else if (stype_str == "corral") btype = rtso::BLD_CORRAL;
 
 		sim->spawn_building_world(bx, bz, btype, team, 1.0f);
+	}
+	// Gaia-owned structures (structures/merc_camp_egyptian): capture them to use them.
+	Array gaia_str_arr = d.get("gaia_structures", Array());
+	for (int i = 0; i < gaia_str_arr.size(); ++i) {
+		Dictionary b = gaia_str_arr[i];
+		if (String(b.get("type", "")) != "mercenary_camp") continue;
+		sim->spawn_building_world((float)b.get("x", 0.0), (float)b.get("z", 0.0), rtso::BLD_MERCENARY_CAMP, rtso::GAIA_PLAYER, 1.0f);
 	}
 	sim->end_bulk_spawn();
 
@@ -4103,6 +4146,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 			setup.colors[i] = (uint8_t)std::clamp((int)scolors[i], 0, rtso::PLAYER_COLOR_COUNT - 1);
 		setup.nomad = (bool)ms->get("nomad") ? 1 : 0;
 		setup.regicide_garrison = (bool)ms->get("regicide_garrison") ? 1 : 0;
+		setup.no_treasures = (bool)ms->get("disable_treasures") ? 1 : 0;
 		setup.water_level = (uint8_t)std::clamp((int)ms->get("water_level"), 0, 2);
 		setup.sea_rise_min = (uint8_t)std::clamp((int)ms->get("sea_level_rise_min"), 0, 60);
 		int msz = (int)ms->get("map_size");
@@ -4201,6 +4245,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	sim->set_relic_duration(60.0f * (float)setup.relic_min);
 	sim->set_relic_count(setup.relics);
 	sim->set_regicide_garrison(setup.regicide_garrison != 0);
+	sim->set_disable_treasures(setup.no_treasures != 0);
 	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) sim->set_player_color(p, setup.colors[p]);
 	sim->set_water_level_mode(setup.water_level);
 	sim->set_sea_level_rise_minutes(setup.sea_rise_min);
@@ -4262,6 +4307,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		ms->set("slot_colors", scolors);
 		ms->set("nomad", setup.nomad != 0);
 		ms->set("regicide_garrison", setup.regicide_garrison != 0);
+		ms->set("disable_treasures", setup.no_treasures != 0);
 		ms->set("water_level", sim->water_level_mode());
 		ms->set("sea_level_rise_min", sim->sea_level_rise_minutes());
 		ms->set("map_size", random_map_size);

@@ -335,7 +335,7 @@ int main() {
 		p.diffs[1] = 5; p.diffs[2] = 0;
 		p.behs[1] = 3; p.behs[2] = 1;
 		p.colors[0] = 23; p.colors[1] = 0; p.colors[2] = 10;
-		p.nomad = 1; p.regicide_garrison = 1;
+		p.nomad = 1; p.regicide_garrison = 1; p.no_treasures = 1;
 		GameSetupParams q;
 		CHECK(parse_game_start_full(format_game_start_full(p), q));
 		CHECK(q.victory == VICTORY_REGICIDE && q.waves == 1 && q.map_size == 384 && q.lms == 1 && q.pop_cap == 300 && q.ceasefire == 10);
@@ -343,7 +343,7 @@ int main() {
 		CHECK(q.biome == BIOME_POLAR + 1 && q.diffs[0] == 3 && q.diffs[1] == 5 && q.diffs[2] == 0);
 		CHECK(q.behs[0] == 2 && q.behs[1] == 3 && q.behs[2] == 1);
 		CHECK(q.colors[0] == 23 && q.colors[1] == 0 && q.colors[2] == 10 && q.colors[3] == 3);
-		CHECK(q.nomad == 1 && q.regicide_garrison == 1);
+		CHECK(q.nomad == 1 && q.regicide_garrison == 1 && q.no_treasures == 1);
 		GameSetupParams d;
 		CHECK(d.wonder_min == 20 && d.relic_min == 20 && d.relics == 2); // 0 A.D.'s defaults
 	}
@@ -437,9 +437,23 @@ int main() {
 		int left = 0;
 		for (const auto &b : sim.buildings()) left += b.team < MAX_PLAYERS;
 		CHECK(left == 0 && sim.unit_count() == units);
+		sim.set_player_active(0, true, false);
+		sim.set_player_active(1, true, true);
+		sim.set_starting_resources(0, 0, 0, 0); // every Civic Centre resource comes from treasure
+		const size_t before = sim.treasures().size();
 		sim.set_victory_condition(VICTORY_REGICIDE);
 		sim.tick(0.05f); // Regicide heroes spawn next to the first unit when there is no Civic Centre
 		CHECK(sim.regicide_hero(0) != 0 && sim.regicide_hero(1) != 0);
+		// placePlayersNomad: enough treasure for a Civic Centre on top of the starting resources.
+		// The Town Center costs wood, metal and stone: at least one treasure of each per player.
+		CHECK(sim.treasures().size() >= before + 6);
+		int tre_res[RES_COUNT] = {};
+		for (const auto &t : sim.treasures()) {
+			const TreasureTypeInfo &ti = treasure_type_info(t.type);
+			tre_res[RES_WOOD] += ti.amount[1]; tre_res[RES_STONE] += ti.amount[2]; tre_res[RES_GOLD] += ti.amount[3];
+		}
+		const BuildingTypeInfo &cc = building_type_info(BLD_TOWN_CENTER);
+		CHECK(tre_res[RES_WOOD] >= 2 * cc.wood_cost && tre_res[RES_STONE] >= 2 * cc.stone_cost && tre_res[RES_GOLD] >= 2 * cc.gold_cost);
 	}
 
 	// 16. RegicideGarrison: the Regicide hero stays out of structures unless the option is on.
@@ -457,6 +471,17 @@ int main() {
 		sim.order_garrison(&hero, 1, tc);
 		for (int t = 0; t < 200 && sim.get_garrison_count(tc) == 0; ++t) sim.tick(0.05f);
 		CHECK((sim.get_garrison_count(tc) > 0) == (on != 0));
+	}
+
+	// 18. DisableTreasures: no treasure is left once the match starts.
+	{
+		Simulation sim;
+		sim.generate_random_map(MAP_MAINLAND, 5, 2, 64.0f);
+		sim.spawn_resource_treasure(4.0f, 4.0f, RES_FOOD);
+		CHECK(!sim.treasures().empty());
+		sim.set_disable_treasures(true);
+		sim.tick(0.05f);
+		CHECK(sim.treasures().empty());
 	}
 
 	// 17. Player colours: 0 A.D. player_defaults.json by default, Game Setup palette after, Gaia white.

@@ -131,6 +131,11 @@ layout_mode = 2
 tooltip_text = "Regicide: the hero may garrison in structures, siege engines and ships."
 text = "Hero garrison"
 
+[node name="DisableTreasures" type="CheckBox" parent="VBox/HBox/Left/StartRow"]
+layout_mode = 2
+tooltip_text = "Remove every treasure from the map when the match starts."
+text = "No treasures"
+
 [node name="MapVisRow" type="HBoxContainer" parent="VBox/HBox/Left"]
 layout_mode = 2
 
