@@ -753,7 +753,7 @@ float RtsoWorldView::turret_draw_y(const rtso::Simulation *sim, uint32_t unit_id
 			if (b.id == holder) { hb = &b; break; }
 	if (!hb) return sim->get_terrain_height(x, z) + offset;
 	if (!flags_loaded_) load_garrison_flags();
-	const String mid = rtso::civ_building_model(sim->team_civ(hb->team), hb->type);
+	const String mid = building_visual_id(sim->team_civ(hb->team), hb->type, hb->half_size);
 	auto entry = rtso::ModelLibrary::get("buildings", mid);
 	const float b_scale = entry.scale > 0.05f ? entry.scale : 1.0f;
 	const float base = sim->get_terrain_height(hb->x, hb->z) + entry.y_offset;
@@ -1400,6 +1400,20 @@ void RtsoWorldView::set_building_site_visible(BuildingVis &v, bool foundation_on
 	}
 	place(v.foundation, rtso::civ_building_foundation(btype), foundation_on);
 	place(v.scaffold, rtso::civ_building_scaffold(btype), scaffold_on);
+}
+
+// 0 A.D. WallSet segments (Simulation::cmd_build_wall) are 12, 24 or 36 m long and
+// draw the civ's wall_short, wall_medium or wall_long actor (a gate made from a long
+// one its wall_gate); one-cell pieces from maps and older saves keep their model.
+String RtsoWorldView::building_visual_id(uint8_t civ, uint8_t type, float half_size) {
+	if (type == rtso::BLD_WALL_SEGMENT && half_size >= 1.25f) {
+		const char *len = half_size >= 3.75f ? "wall_long" : half_size >= 2.25f ? "wall_medium" : "wall_short";
+		return String(rtso::civ_info(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS).code) + "_" + len;
+	}
+	// Only a long segment becomes a gate; it keeps the segment's length.
+	if (type == rtso::BLD_GATE && half_size >= 3.75f)
+		return String(rtso::civ_info(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS).code) + "_wall_gate";
+	return String(rtso::civ_building_model(civ, type));
 }
 
 void RtsoWorldView::attach_building_model(BuildingVis &v, const String &model_name) {
@@ -2501,7 +2515,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (v.root) v.root->set_visible(true);
 
 		uint8_t bciv = b.civ;
-		const char *mid = rtso::civ_building_model(bciv, b.type);
+		const String mid = building_visual_id(bciv, b.type, b.half_size);
 		const char *rubble_id = rtso::civ_building_rubble(bciv, b.type);
 		float b_progress = b.build_progress;
 		bool destroyed = (b.hp <= 0.0f || b.wrecked);

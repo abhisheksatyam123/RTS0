@@ -339,6 +339,7 @@ private:
 	UnitVis &acquire_unit_slot(uint32_t sim_id);
 	BuildingVis &acquire_building_slot(uint32_t sim_id);
 	void attach_unit_model(UnitVis &v, const String &model_name);
+	static String building_visual_id(uint8_t civ, uint8_t type, float half_size);
 	void attach_building_model(BuildingVis &v, const String &model_name);
 	void set_building_site_visible(BuildingVis &v, bool foundation_on, bool scaffold_on, uint8_t btype);
 	static Node *instantiate_building_id(const String &id);
