@@ -1060,9 +1060,12 @@ def check_nav_live(seed=42, n_cases=12, n_obs=60):
             exact_tail = (len(wp_pts) > 1 and wp_cells[-1] != goal_cell and
                           abs(wp_pts[-1][0] - req_world[0]) < 1e-3 and abs(wp_pts[-1][1] - req_world[1]) < 1e-3)
             core = wp_cells[:-1] if exact_tail else wp_cells
-            starts_ok = bool(core) and core[0] == start_cell
+            # LongPathfinder::ComputeJPSPath leaves the start navcell out: the unit already stands
+            # in it, so the first waypoint is the first turn (or the goal) in sight of it.
+            legs = [start_cell] + core
+            starts_ok = bool(core) and (core[0] != start_cell or start_cell == goal_cell)
             ends_ok = bool(core) and core[-1] == goal_cell
-            los_ok = all(_line_clear(a[0], a[1], b[0], b[1], passable) for a, b in zip(core, core[1:]))
+            los_ok = all(_line_clear(a[0], a[1], b[0], b[1], passable) for a, b in zip(legs, legs[1:]))
             this_wp_ok = c_ok_flag and starts_ok and ends_ok and los_ok
             wp_ok += 1 if this_wp_ok else 0
             if not c_ok_flag:

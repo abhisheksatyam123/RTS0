@@ -1055,6 +1055,18 @@ struct ShortPathMemo {
 };
 static_assert(sizeof(ShortPathMemo) == 20, "ShortPathMemo is saved raw");
 
+// CCmpUnitMotion's m_FailedMovements and the move of the 0 A.D. turn under way (200 ms, four RTS0
+// ticks), which motion_feedback() judges when the turn ends, as UnitMotion judges each turn's Move.
+struct MotionTurn {
+	float from_x = 0.0f, from_z = 0.0f; // where the unit stood before its first step this turn
+	float want_x = 0.0f, want_z = 0.0f; // the steps it tried this turn, summed
+	uint8_t failed = 0;  // m_FailedMovements: obstructed turns in a row
+	uint8_t stepped = 0; // it tried a step this turn
+	uint8_t blocked = 0; // a closed gate stopped one of this turn's steps
+	uint8_t pad = 0;
+};
+static_assert(sizeof(MotionTurn) == 20, "MotionTurn is saved raw");
+
 struct CivHeroAura {
 	const char *id;
 	const char *name;

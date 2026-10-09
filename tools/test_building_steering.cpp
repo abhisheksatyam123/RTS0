@@ -25,6 +25,17 @@
 //     from buildings, so it takes a 2-unit (8 m) gap in a long row of houses instead of going around.
 //  9. Walk into a building: a move to a point inside a town centre ends beside it, as close as the
 //     unit can stand (0 A.D. MakeGoalReachable), instead of pushing at its wall for good.
+// 10. Walk given again every tick: a long path leaves out the navcell the unit stands in (0 A.D.
+//     LongPathfinder), so a unit given a new path every tick, as Petra sends its scout home, still
+//     gets there instead of heading back to its navcell's centre each time.
+// 11. Walk to one point: twelve units each sent alone to the same point stop within 12 m (3 units)
+//     of it once the others obstruct them (0 A.D. UnitAI DefaultRelaxedMaxRange), instead of
+//     pushing for the point for good.
+// 12. Ship sent ashore: a point a ship can't reach gives way to the nearest one it can
+//     (MakeGoalReachable), so the ship stops at the shore instead of sailing onto the land.
+// 13. Walk into a closed gate: an enemy's long path goes through an unlocked gate, which then
+//     stops it dead; the walk ends after 35 turns (7 s) of failed movement (0 A.D. UnitMotion
+//     MAX_FAILED_MOVEMENTS), instead of pushing at the gate for good.
 //  For every scenario the unit bodies must never overlap a footprint that blocks movement by more
 //  than MAX_PENETRATION (separation() alone allows deep overlap when a unit walks head-on into a wall).
 //  Exit: 0 = PASS, 1 = FAIL. Prints the measurements either way.
@@ -377,6 +388,121 @@ static void walk_into_building() {
 	check(pen <= MAX_PENETRATION, "a unit overlapped the town centre");
 }
 
+static void walk_reissued_every_tick() {
+	Simulation s;
+	setup(s);
+	// Off its navcell's centre, as a unit usually stands.
+	const uint32_t scout = s.spawn_unit(0.2f, 0.2f, 0, UNIT_SWORDSMAN, 0.0f);
+	int arrived = -1;
+	for (int t = 0; t < 600 && arrived < 0; ++t) {
+		s.cmd_move(&scout, 1, -30.0f, 0.2f); // as Petra's scout is sent home every tick
+		s.tick(DT);
+		const int i = index_of(s, scout);
+		if (i < 0) break;
+		if (std::hypot(s.units().pos_x[i] + 30.0f, s.units().pos_z[i] - 0.2f) < 1.0f) arrived = t;
+	}
+	std::printf("  walk reissued every tick: arrived after %d ticks (-1 = never in 600)\n", arrived);
+	check(arrived >= 0, "a walk given again every tick never arrived");
+}
+
+static void walk_to_one_point() {
+	Simulation s;
+	setup(s);
+	std::vector<uint32_t> ids;
+	for (int k = 0; k < 12; ++k) ids.push_back(s.spawn_unit(-6.0f + 1.1f * k, -14.0f, 0, UNIT_SWORDSMAN, 0.0f));
+	for (uint32_t id : ids) s.cmd_move(&id, 1, 0.0f, 0.0f); // one at a time: all to the same point
+	int all_idle = -1;
+	float far = 0.0f;
+	for (int t = 0; t < 1200 && all_idle < 0; ++t) {
+		s.tick(DT);
+		bool idle = true;
+		for (uint32_t id : ids) {
+			const int i = index_of(s, id);
+			if (i >= 0 && s.units().action_state[i] != ACTION_IDLE) idle = false;
+		}
+		if (idle) all_idle = t;
+	}
+	for (uint32_t id : ids) {
+		const int i = index_of(s, id);
+		if (i >= 0) far = std::max(far, std::hypot(s.units().pos_x[i], s.units().pos_z[i]));
+	}
+	std::printf("  walk to one point: all 12 stopped after %d ticks (-1 = never in 1200), farthest %.2f from it\n", all_idle, far);
+	check(all_idle >= 0, "units sent to one point kept pushing for it");
+	check(far <= 3.0f + 1.0f, "a unit sent to one point stopped beyond 12 m of it");
+}
+
+// A sea across the middle of the map (|z| < 16), as tools/test_naval.cpp makes.
+static void sea_setup(Simulation &s) {
+	setup(s);
+	constexpr int RES = 65;
+	constexpr float HALF = 64.0f;
+	s.set_map_half(HALF);
+	std::vector<float> h((size_t)RES * RES);
+	for (int j = 0; j < RES; ++j)
+		for (int i = 0; i < RES; ++i) {
+			const float z = -HALF + 2.0f * HALF * j / (RES - 1);
+			h[(size_t)j * RES + i] = std::fabs(z) < 16.0f ? -3.0f : 3.0f;
+		}
+	s.set_terrain_data(h, RES, 0.0f);
+	s.begin_bulk_spawn();
+	s.end_bulk_spawn(); // marks the water on the nav grid
+}
+
+static void ships_that_cannot_get_there() {
+	// A trireme sent ashore stops at the shore (MakeGoalReachable).
+	Simulation s;
+	sea_setup(s);
+	const uint32_t ship = s.spawn_unit(0.0f, -5.0f, 0, UNIT_TRIREME, 0.0f);
+	s.cmd_move(&ship, 1, 0.0f, 30.0f);
+	int idle = -1;
+	for (int t = 0; t < 1200 && idle < 0; ++t) {
+		s.tick(DT);
+		const int i = index_of(s, ship);
+		if (i >= 0 && s.units().action_state[i] == ACTION_IDLE) idle = t;
+	}
+	const int si = index_of(s, ship);
+	const float z = si >= 0 ? s.units().pos_z[si] : 99.0f;
+	std::printf("  ship sent ashore: stopped after %d ticks (-1 = never in 1200) at z %.2f\n", idle, z);
+	check(idle >= 0, "a ship sent ashore never stopped");
+	check(z < 16.0f, "a ship sent ashore sailed onto the land");
+
+}
+
+// An enemy walking through a closed gate in a long wall: the long path goes through the gate
+// (unlocked gates don't block pathfinding), the gate stops the unit dead, and the walk ends after
+// 35 turns of not moving (MoveFailed) instead of pushing at the gate for good.
+static void walk_into_closed_gate() {
+	Simulation s;
+	setup(s);
+	s.spawn_building_world(0.0f, 0.0f, BLD_GATE, 1, 1.0f);
+	const float gh = s.buildings().back().half_size;
+	s.spawn_building_world(0.0f, 0.0f, BLD_WALL_SEGMENT, 1, 1.0f);
+	const float wh = s.buildings().back().half_size;
+	s.buildings_.pop_back(); // only measuring the segment
+	for (float z = gh + wh; z < 60.0f; z += 2.0f * wh) {
+		s.spawn_building_world(0.0f, z, BLD_WALL_SEGMENT, 1, 1.0f);
+		s.spawn_building_world(0.0f, -z, BLD_WALL_SEGMENT, 1, 1.0f);
+	}
+	const uint32_t sword = s.spawn_unit(-10.0f, 0.0f, 0, UNIT_SWORDSMAN, 0.0f);
+	s.cmd_move(&sword, 1, 10.0f, 0.0f);
+	int at_gate = -1, stopped = -1;
+	float x = -10.0f;
+	for (int t = 0; t < 1200 && stopped < 0; ++t) {
+		s.tick(DT);
+		const int i = index_of(s, sword);
+		if (i < 0) break;
+		const Simulation::UnitView u = s.units();
+		x = u.pos_x[i];
+		if (at_gate < 0 && x > -gh - 0.5f) at_gate = t;
+		if (u.action_state[i] == ACTION_IDLE) stopped = t;
+	}
+	std::printf("  walk into a closed gate: at the gate after %d ticks, walk ended after %d (-1 = never in 1200), x %.2f\n",
+			at_gate, stopped, x);
+	check(stopped >= 0, "a walk into a closed gate never ended");
+	check(at_gate < 0 || stopped < 0 || stopped - at_gate <= 35 * 4 + 20, "a walk stopped by a closed gate ended later than 35 turns");
+	check(x < 0.0f, "the unit got through the closed gate");
+}
+
 int main() {
 	std::printf("RTS0 building steering test (src/simulation/nav/building_steering.h)\n");
 	guard_behind_wall();
@@ -388,6 +514,10 @@ int main() {
 	walk_past_turned_building();
 	siege_through_gap();
 	walk_into_building();
+	walk_reissued_every_tick();
+	walk_to_one_point();
+	ships_that_cannot_get_there();
+	walk_into_closed_gate();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;

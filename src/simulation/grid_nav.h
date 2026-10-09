@@ -840,7 +840,9 @@ inline bool NavGrid::find_path(float sx, float sz, float tx, float tz, WaypointP
     };
     snap_to_passable(scx, scy);
     snap_to_passable(tcx, tcy);
-    if (!is_passable_for(scx, scy, pass) || !is_passable_for(tcx, tcy, pass)) {
+    // A goal on impassable cells (land for a ship, deep water for a land unit) is no reason to
+    // fail: MakeGoalReachable below moves it to the nearest navcell the unit can reach.
+    if (!is_passable_for(scx, scy, pass) || (!regions_ready_ && !is_passable_for(tcx, tcy, pass))) {
         out.push_back(tx, tz);
         return false;
     }
@@ -896,20 +898,23 @@ inline bool NavGrid::find_path(float sx, float sz, float tx, float tz, WaypointP
     }
     string_pull(path_cells, pass);
 
-    for (const auto &p : path_cells) {
+    // LongPathfinder::ComputeJPSPath leaves the start navcell out (the unit already stands in it:
+    // heading for its centre first would walk a unit given a new path every tick back and forth
+    // there for good) and ends the path at the goal itself, not the goal navcell's centre.
+    size_t k = 1;
+    for (; k < path_cells.size(); ++k) {
         if (out.count >= WaypointPath::MAX_WP - 1) break;
+        const auto &p = path_cells[k];
         float wx = ((static_cast<float>(p.first) + 0.5f) / static_cast<float>(W)) * (map_half * 2.0f) - map_half;
         float wz = ((static_cast<float>(p.second) + 0.5f) / static_cast<float>(H)) * (map_half * 2.0f) - map_half;
         out.push_back(wx, wz);
     }
-    if (reached && out.count > 0 && out.count < WaypointPath::MAX_WP) {
-        float lx = out.xs[out.count - 1];
-        float lz = out.zs[out.count - 1];
-        float dx = lx - tx;
-        float dz = lz - tz;
-        if (dx * dx + dz * dz > 0.01f) {
-            if (out.count < WaypointPath::MAX_WP) out.push_back(tx, tz);
-            else { out.xs[out.count - 1] = tx; out.zs[out.count - 1] = tz; }
+    if (reached && out.count > 0) {
+        if (k == path_cells.size()) {
+            out.xs[out.count - 1] = tx;
+            out.zs[out.count - 1] = tz;
+        } else {
+            out.push_back(tx, tz); // cut short at MAX_WP: still end at the goal
         }
     }
     out.cur = 0;

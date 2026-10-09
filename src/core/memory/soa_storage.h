@@ -84,6 +84,7 @@ struct UnitSoA {
 	uint32_t *work_target = nullptr;
 	float *xp_partial = nullptr; // Promotion.js xp below one point (healing grants a little each tick)
 	ShortPathMemo *short_path = nullptr; // the short path around buildings the unit is walking
+	MotionTurn *motion = nullptr; // UnitMotion's failed movements and this turn's move
 
 	size_t cap = 0;
 	size_t count = 0;
@@ -105,7 +106,7 @@ struct UnitSoA {
 		FREE(slow_timer); FREE(bleed_timer); FREE(burning_timer);
 		FREE(pack_state); FREE(pack_elapsed);
 		FREE(order_kind); FREE(order_flags); FREE(order_target); FREE(order_x); FREE(order_z); FREE(order_x2); FREE(order_z2); FREE(attacked_by); FREE(work_kind); FREE(work_target);
-		FREE(xp_partial); FREE(short_path);
+		FREE(xp_partial); FREE(short_path); FREE(motion);
 		#undef FREE
 		cap = count = 0;
 	}
@@ -183,6 +184,7 @@ struct UnitSoA {
 		realloc_aligned(work_target, c * sizeof(uint32_t));
 		realloc_aligned(xp_partial, c * sizeof(float));
 		realloc_aligned(short_path, c * sizeof(ShortPathMemo));
+		realloc_aligned(motion, c * sizeof(MotionTurn));
 		cap = c;
 	}
 
@@ -236,6 +238,7 @@ struct UnitSoA {
 		work_target[i] = 0;
 		xp_partial[i] = 0.0f;
 		short_path[i] = ShortPathMemo{};
+		motion[i] = MotionTurn{};
 		hp[i] = max_hp[i] = info.hp;
 		attack_range[i] = info.attack_range;
 		attack_damage[i] = info.attack_damage;
@@ -296,6 +299,7 @@ struct UnitSoA {
 			work_target[idx] = work_target[last];
 			xp_partial[idx] = xp_partial[last];
 			short_path[idx] = short_path[last];
+			motion[idx] = motion[last];
 		}
 		count--;
 	}

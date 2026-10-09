@@ -2500,6 +2500,13 @@ void Simulation::cmd_move_individual(const uint32_t *unit_ids, size_t count, flo
 			// rebuild_nav_grid via set_water_from_heights -> compute_slopes_from_heights.
 			pass = PASS_CAVALRY;
 		find_path(units_.pos_x[idx], units_.pos_z[idx], dest_x, dest_z, wp, pass);
+		// HierarchicalPathfinder::MakeGoalReachable: a point the unit can't reach (land for a ship,
+		// water or another island for a land unit) gives way to the nearest one it can, where
+		// find_path ends the path, so the walk ends there instead of heading on for the point.
+		if (wp.count > 0) {
+			units_.target_x[idx] = units_.anchor_x[idx] = wp.xs[wp.count - 1];
+			units_.target_z[idx] = units_.anchor_z[idx] = wp.zs[wp.count - 1];
+		}
 		unit_paths_[idx] = wp;
 		units_.waypoint_cur[idx] = static_cast<int16_t>(wp.cur);
 		units_.waypoint_count[idx] = static_cast<int16_t>(wp.count);
@@ -4640,8 +4647,10 @@ void Simulation::tick(float dt) {
 	tick_pack(dt);           // 0 A.D. Pack.js: siege engines pack to move, unpack to fire
 	if (!formations_.empty()) formation_refresh_groups(); // unit indices move when the dead are removed
 	tick_unit_ai(dt);        // 0 A.D. UnitAI.js: answer attacks, flee, patrol, resume and queue orders
-	move_units(dt, arena);
+	MoveSteps steps;
+	move_units(dt, arena, steps);
 	separation(dt, arena);
+	motion_feedback(dt, steps); // 0 A.D. UnitMotion: obstructed walks end near their point or fail
 	tick_formations(dt);     // 0 A.D. Formation.js: controllers walk, members follow their slots
 	tick_turrets();          // 0 A.D. TurretHolder.js / Turretable.js: units on walls and outposts
 
@@ -4714,7 +4723,8 @@ float Simulation::unit_walk_speed(size_t i) const {
 	return spd;
 }
 
-void Simulation::move_units(float dt, Arena &arena) {
+void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
+	steps = MoveSteps{};
 	const size_t n = units_.count;
 	if (n == 0) return;
 	float *px = units_.pos_x;
@@ -4728,9 +4738,19 @@ void Simulation::move_units(float dt, Arena &arena) {
 
 	float *npx = arena.alloc_array<float>(n);
 	float *npz = arena.alloc_array<float>(n);
-	if (!npx || !npz) return;
+	float *from_x = arena.alloc_array<float>(n);
+	float *from_z = arena.alloc_array<float>(n);
+	float *want_x = arena.alloc_array<float>(n);
+	float *want_z = arena.alloc_array<float>(n);
+	uint8_t *blocked = arena.alloc_array<uint8_t>(n);
+	if (!npx || !npz || !from_x || !from_z || !want_x || !want_z || !blocked) return;
 	memcpy(npx, px, n * sizeof(float));
 	memcpy(npz, pz, n * sizeof(float));
+	memcpy(from_x, px, n * sizeof(float));
+	memcpy(from_z, pz, n * sizeof(float));
+	memset(want_x, 0, n * sizeof(float));
+	memset(want_z, 0, n * sizeof(float));
+	memset(blocked, 0, n * sizeof(uint8_t));
 
 	// G3 Trader routes (0 A.D. Trader.js PerformTrade, UnitAI TRADE), run
 	// sequentially before the parallel movement pass.
@@ -5090,6 +5110,8 @@ void Simulation::move_units(float dt, Arena &arena) {
 			move_dx += units_.knockback_dir_x[i] * 14.0f * dt;
 			move_dz += units_.knockback_dir_z[i] * 14.0f * dt;
 		}
+		want_x[i] = move_dx;
+		want_z[i] = move_dz;
 		npx[i] = std::clamp(px[i] + move_dx, -map_half_, map_half_);
 		npz[i] = std::clamp(pz[i] + move_dz, -map_half_, map_half_);
 		// A closed gate is solid: slide along it, never step into it.
@@ -5101,6 +5123,7 @@ void Simulation::move_units(float dt, Arena &arena) {
 				return false;
 			};
 			if (inside(npx[i], npz[i]) && !inside(px[i], pz[i])) {
+				blocked[i] = 1;
 				if (!inside(npx[i], pz[i])) npz[i] = pz[i];
 				else if (!inside(px[i], npz[i])) npx[i] = px[i];
 				else { npx[i] = px[i]; npz[i] = pz[i]; }
@@ -5112,6 +5135,7 @@ void Simulation::move_units(float dt, Arena &arena) {
 
 	memcpy(px, npx, n * sizeof(float));
 	memcpy(pz, npz, n * sizeof(float));
+	steps = MoveSteps{from_x, from_z, want_x, want_z, blocked, n};
 
 	// Naval Transport Boarding & Moving Passenger Position Synchronization
 	for (size_t i = 0; i < n; ++i) {
@@ -5323,6 +5347,91 @@ void Simulation::separation(float dt, Arena &arena) {
 		px[i] = std::clamp(px[i] + push_x, -map_half_ + ri, map_half_ - ri);
 		pz[i] = std::clamp(pz[i] + push_z, -map_half_ + ri, map_half_ - ri);
 	});
+}
+
+// 0 A.D. CCmpUnitMotion::HandleObstructedMove and the UnitAI MovementUpdate handlers of walks.
+// UnitMotion judges a unit's move once per 200 ms turn, so the four ticks of a turn add up here
+// (MotionTurn) and are judged when it ends. A unit is obstructed when it makes almost no headway
+// on the steps it tried: CCmpUnitMotionManager marks a unit obstructed when pushing leaves it
+// under 1/2 m² of progress in a turn, against an infantryman's 1.8 m step (9 m/s), so 15% of its
+// own steps. RTS0 has no pushing pressure, so units and buildings pushing it back both count, as
+// a building failing CheckMovement does in 0 A.D. m_FailedMovements counts obstructed turns (only
+// the first two while the unit still moves at all) and resets once it walks freely, at half its
+// steps or more: pushing pressure decays over several turns in 0 A.D., so one lucky turn in a
+// jostling crowd doesn't clear it there either. 0 A.D. stops a unit at a building, where RTS0's
+// separation nudges it back out every tick, so a turn counts as a move only when the unit ends it
+// at least 15% of its steps away from where it began.
+// From two turns, a walk, attack-move or patrol leg within 12 m (UnitAI DefaultRelaxedMaxRange)
+// of its point ends there; after 35 turns without moving (MAX_FAILED_MOVEMENTS) it ends wherever
+// the unit is (MoveFailed), as UnitAI WALKING finishes the order on likelyFailure.
+void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
+	constexpr float OBSTRUCTED_PROGRESS = 0.15f, FREE_PROGRESS = 0.5f;
+	constexpr float RELAXED_RANGE = 12.0f / 4.0f;
+	constexpr uint8_t OBSTRUCTED_AT = 2, FAILED_AT = 35;
+	const uint64_t per_turn = (uint64_t)std::max(1L, std::lround(0.2f / dt)); // 0 A.D. turns last 200 ms
+	const bool turn_ends = (ticks_ + 1) % per_turn == 0;
+	const size_t n = std::min(steps.count, units_.count);
+	for (size_t i = 0; i < n; ++i) {
+		MotionTurn &m = units_.motion[i];
+		if (!units_.alive[i] || !units_.has_order[i]) {
+			m = MotionTurn{};
+			continue;
+		}
+		if (steps.want_x[i] != 0.0f || steps.want_z[i] != 0.0f) {
+			if (!m.stepped) {
+				m.from_x = steps.from_x[i];
+				m.from_z = steps.from_z[i];
+				m.stepped = 1;
+			}
+			m.want_x += steps.want_x[i];
+			m.want_z += steps.want_z[i];
+			m.blocked |= steps.blocked[i];
+		}
+		if (!turn_ends || !m.stepped) continue;
+		const float wx = m.want_x, wz = m.want_z;
+		const float ax = units_.pos_x[i] - m.from_x, az = units_.pos_z[i] - m.from_z;
+		// A step a closed gate stopped failed CheckMovement: 0 A.D. doesn't move the unit at all
+		// then, where RTS0 lets it slide along the gate.
+		const bool blocked = m.blocked;
+		m.want_x = m.want_z = 0.0f;
+		m.stepped = m.blocked = 0;
+		const float ww = wx * wx + wz * wz, progress = wx * ax + wz * az;
+		if (!blocked && progress >= FREE_PROGRESS * ww) {
+			m.failed = 0;
+			continue;
+		}
+		if (!blocked && progress >= OBSTRUCTED_PROGRESS * ww) continue; // slowed, not stopped
+		const bool moved = !blocked && ax * ax + az * az >= OBSTRUCTED_PROGRESS * OBSTRUCTED_PROGRESS * ww;
+		if (moved && m.failed >= OBSTRUCTED_AT) continue;
+		bool move_failed = false;
+		if (++m.failed >= FAILED_AT) {
+			move_failed = true;
+			m.failed = 0;
+		} else if (m.failed < OBSTRUCTED_AT) {
+			continue;
+		}
+		// MoveObstructed / MoveFailed reach UnitAI. Members of a formation follow its controller.
+		if (!formations_.empty() && formation_group_[i] != 0) continue;
+		const uint8_t kind = units_.order_kind[i], st = units_.action_state[i];
+		const bool walking = (kind == ORDER_WALK && st == ACTION_MOVE) ||
+				(kind == ORDER_WALK_AND_FIGHT && st == ACTION_ATTACK_MOVE) ||
+				(kind == ORDER_PATROL && st == ACTION_PATROL);
+		if (!walking || units_.target_unit_id[i] != 0 || units_.target_building_id[i] != 0) continue;
+		const float gx = units_.order_x[i] - units_.pos_x[i], gz = units_.order_z[i] - units_.pos_z[i];
+		if (!move_failed && gx * gx + gz * gz > RELAXED_RANGE * RELAXED_RANGE) continue;
+		m.failed = 0;
+		if (st == ACTION_PATROL) {
+			patrol_next_leg(i);
+			continue;
+		}
+		// FinishOrder: stop here; tick_unit_ai() moves on to the next order.
+		units_.has_order[i] = 0;
+		units_.action_state[i] = ACTION_IDLE;
+		units_.vel_x[i] = units_.vel_z[i] = 0.0f;
+		units_.waypoint_cur[i] = 0;
+		units_.waypoint_count[i] = 0;
+		if (i < unit_paths_.size()) unit_paths_[i].clear();
+	}
 }
 
 uint32_t Simulation::ensure_field_resource(const Building &b) {
@@ -7885,6 +7994,7 @@ void Simulation::order_guard(const uint32_t *unit_ids_in, size_t count_in, uint3
 // ---------------------------------------------------------------------------
 
 void Simulation::set_order(size_t i, uint8_t kind, uint8_t flags, uint32_t target, float x, float z) {
+	units_.motion[i] = MotionTurn{}; // UnitMotion MoveTo: a new move starts unobstructed
 	units_.order_kind[i] = kind;
 	units_.order_flags[i] = flags;
 	units_.order_target[i] = target;
@@ -8071,6 +8181,19 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 
 // UnitAI FinishOrder: a gatherer whose resource ran out first looks for more of the
 // same type nearby (GATHER "ResourceExhausted"); then the next queued order runs.
+// UnitAI PATROL: on to the other end (the queue's next order goes first).
+void Simulation::patrol_next_leg(size_t i) {
+	auto q = order_queues_.find(units_.id[i]);
+	if (q != order_queues_.end() && !q->second.empty()) {
+		finish_order(i);
+		return;
+	}
+	UnitOrder back = current_order(i);
+	std::swap(back.x, back.x2);
+	std::swap(back.z, back.z2);
+	apply_order(units_.id[i], back);
+}
+
 void Simulation::finish_order(size_t i) {
 	const uint32_t uid = units_.id[i];
 	if (units_.order_kind[i] == ORDER_GATHER && !order_still_valid(i, current_order(i))) {
@@ -8379,14 +8502,7 @@ void Simulation::tick_unit_ai(float dt) {
 		// Patrol: turn round at each end (the queue's next order goes first).
 		if (now == ACTION_PATROL && units_.order_kind[i] == ORDER_PATROL) {
 			const float dx = units_.order_x[i] - units_.pos_x[i], dz = units_.order_z[i] - units_.pos_z[i];
-			if (dx * dx + dz * dz <= 1.0f) {
-				auto q = order_queues_.find(units_.id[i]);
-				if (q != order_queues_.end() && !q->second.empty()) { finish_order(i); continue; }
-				UnitOrder back = current_order(i);
-				std::swap(back.x, back.x2);
-				std::swap(back.z, back.z2);
-				apply_order(units_.id[i], back);
-			}
+			if (dx * dx + dz * dz <= 1.0f) patrol_next_leg(i);
 			continue;
 		}
 		if (now == ACTION_ATTACK && units_.target_unit_id[i] == 0 && units_.target_building_id[i] == 0) {
@@ -13710,7 +13826,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 the aura sources in force and each unit's kept short path (save_tick_state)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 the aura sources in force and each unit's kept short path and failed movements (save_tick_state)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -14407,8 +14523,13 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		ar.pod(U.slow_timer[i]); ar.pod(U.bleed_timer[i]); ar.pod(U.burning_timer[i]);
 		if (ar.version >= SAVE_VERSION_LOOT) ar.pod(U.xp_partial[i]);
 		else U.xp_partial[i] = 0.0f;
-		if (ar.version >= SAVE_VERSION_MOTION) ar.pod(U.short_path[i]);
-		else U.short_path[i] = ShortPathMemo{};
+		if (ar.version >= SAVE_VERSION_MOTION) {
+			ar.pod(U.short_path[i]);
+			ar.pod(U.motion[i]);
+		} else {
+			U.short_path[i] = ShortPathMemo{};
+			U.motion[i] = MotionTurn{};
+		}
 		uint8_t has_path = i < s.unit_paths_.size() && s.unit_paths_[i].count > 0;
 		ar.pod(has_path);
 		if (!ar.ok) return;

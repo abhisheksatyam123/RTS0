@@ -444,6 +444,8 @@ static void test_attack_plans() {
 		// The kind of each plan as it starts mustering (whether a HugeAttack
 		// marches before the idle player runs out of buildings depends on timing).
 		auto s = match(PETRA_BEHAVIOR_AGGRESSIVE);
+		// A fortress keeps the idle player standing through the two Attacks, so a third plan starts.
+		s->spawn_building_world(34.0f, 38.0f, BLD_FORTRESS, 0, 1.0f);
 		int attack_size = 0, huge_size = 0;
 		std::vector<int> kinds;
 		auto last = Simulation::AttackPlan::UNEXECUTED;
@@ -546,8 +548,11 @@ static void test_allow_capture() {
 	const uint32_t house = s->spawn_building_world(-50.0f, 45.0f, BLD_HOUSE, 0, 1.0f);
 	const uint32_t fort = s->spawn_building_world(-45.0f, -45.0f, BLD_FORTRESS, 0, 1.0f);
 	std::vector<uint32_t> guards;
-	for (int i = 0; i < 10; ++i) guards.push_back(s->spawn_unit(-38.0f + (float)i, -38.0f, 0, UNIT_SPEARMAN));
-	s->order_garrison(guards.data(), guards.size(), fort);
+	// The fortress stands offshore, where no one can walk, so its guards go straight in.
+	for (int i = 0; i < 10; ++i) {
+		guards.push_back(s->spawn_unit(-38.0f + (float)i, -38.0f, 0, UNIT_SPEARMAN));
+		s->garrison_unit_now(guards.back(), fort);
+	}
 	run_for(*s, 20.0f);
 	std::vector<uint32_t> squad;
 	for (int i = 0; i < 4; ++i) squad.push_back(s->spawn_unit(-40.0f + 2.0f * (float)i, 30.0f, 1, UNIT_SPEARMAN));

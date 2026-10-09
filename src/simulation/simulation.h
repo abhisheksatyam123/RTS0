@@ -1112,8 +1112,17 @@ public:
 	StatisticsSample statistics_snapshot() const;
 
 private:
-	void move_units(float dt, Arena &arena);
+	// Each unit's own step this tick (arena memory), for motion_feedback().
+	struct MoveSteps {
+		const float *from_x = nullptr, *from_z = nullptr; // where it stood before move_units()
+		const float *want_x = nullptr, *want_z = nullptr; // the step it tried to take
+		const uint8_t *blocked = nullptr; // a closed gate stopped the step (CheckMovement failed)
+		size_t count = 0;
+	};
+	void move_units(float dt, Arena &arena, MoveSteps &steps);
 	void separation(float dt, Arena &arena);
+	void motion_feedback(float dt, const MoveSteps &steps);
+	void patrol_next_leg(size_t i);
 	void tick_gather(float dt);
 	// Fields (0 A.D. template_structure_resource_field): a finished field owns
 	// one infinite grain resource at its centre. Derived from buildings_, so it

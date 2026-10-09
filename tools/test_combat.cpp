@@ -80,6 +80,7 @@ static void test_data() {
 static float one_hit(UnitType att, UnitType type, float *expected) {
 	Simulation s;
 	setup(s);
+	s.set_player_active(1, true, false); // no Petra: it would send a cavalry dummy off scouting
 	uint32_t a = s.spawn_unit(0, 0, 0, att);
 	uint32_t d = dummy(s, 1.0f, 0, type);
 	int ai = idx(s, a), di = idx(s, d);
