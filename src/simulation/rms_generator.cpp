@@ -3585,15 +3585,15 @@ void RmsGenerator::place_trigger_map_entities(Simulation &sim, const HeightmapGr
 
 void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid &hm, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config) {
 	const bool fortress = config.map_type == MAP_FORTRESS;
-	// The island maps (aegean_sea.js to harbor.js) start players on land
-	// smaller than RTS0's base layout: resource clusters that would fall in
-	// the water are pulled back towards the civic centre onto dry land.
+	// 0 A.D.'s base placers (rmgen's placePlayerBase*) keep every starting
+	// resource on land and away from water (avoidClasses(clWater, ...)).
+	// A cluster that would fall in water, or across a strait on other land,
+	// is turned around the civic centre at the same distance, then pulled
+	// back towards it, until it is dry (Continental seed 42 had its
+	// forward gold under water).
 	const MapType mt = config.map_type;
-	const bool keep_dry = mt == MAP_AEGEAN_SEA || mt == MAP_ARCHIPELAGO_0AD || mt == MAP_ISLANDS ||
-	                      mt == MAP_CYCLADIC_ARCHIPELAGO || mt == MAP_SNOWFLAKE_SEAROCKS || mt == MAP_HARBOR;
 	const float dry_h = sim.water_height() + 0.6f;
 	auto dry = [&](float px, float pz, float &cx, float &cz, float spread) {
-		if (!keep_dry) return;
 		auto wet = [&](float x, float z) {
 			if (hm.sample_world(x, z) < dry_h) return true;
 			for (int k = 0; k < 8; ++k) {
@@ -3606,14 +3606,24 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 				if (hm.sample_world(px + (x - px) * t / l, pz + (z - pz) * t / l) < dry_h) return true;
 			return false;
 		};
+		if (!wet(cx, cz)) return;
 		const float d = std::hypot(cx - px, cz - pz);
 		if (d < 1e-3f) return;
-		const float ux = (cx - px) / d, uz = (cz - pz) / d;
-		for (float r = d; r >= 7.0f; r -= 0.5f) {
-			cx = px + ux * r;
-			cz = pz + uz * r;
-			if (!wet(cx, cz)) return;
-		}
+		const float a0 = std::atan2(cz - pz, cx - px);
+		const float ox = cx, oz = cz;
+		for (float r = d; r >= 7.0f; r -= 0.5f)
+			for (int k = 0; k <= 12; ++k) {
+				// 0, +15, -15, +30, ... degrees, up to 90 either side.
+				const float a = a0 + 0.2617994f * (float)((k + 1) / 2) * ((k & 1) ? 1.0f : -1.0f);
+				const float tx = px + std::cos(a) * r, tz = pz + std::sin(a) * r;
+				if (!wet(tx, tz)) {
+					cx = tx;
+					cz = tz;
+					return;
+				}
+			}
+		cx = ox;
+		cz = oz;
 	};
 	for (const auto &sp : spawns) {
 		uint8_t team = sp.team;
