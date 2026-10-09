@@ -12736,11 +12736,13 @@ void Simulation::petra_resource_demand(float out[RES_COUNT]) const {
 		demand_gold += (float)tinfo.gold_cost;
 	}
 
-	// queueManager.js wantedGatherRates counts the minorTech plan: the technology the
-	// research manager picked and waits to pay for (a phase is counted above).
-	if (!petra_phasing()) {
-		const PetraQueueAccount &tech = petra_queues_.wants[PETRA_QUEUE_TECH];
-		demand_food += tech.food; demand_wood += tech.wood; demand_gold += tech.gold; demand_stone += tech.stone;
+	// queueManager.js wantedGatherRates counts every queue's next plan: what the military,
+	// emergency, trade and naval queues and the minorTech plan wait to pay for (a phase is
+	// counted above, the worker queue by petra_manage_economy).
+	for (int q = 0; q < PetraQueueManager::QUEUE_COUNT; ++q) {
+		if (q == PETRA_QUEUE_VILLAGER || (q == PETRA_QUEUE_TECH && petra_phasing())) continue;
+		const PetraQueueAccount &w = petra_queues_.wants[q];
+		demand_food += w.food; demand_wood += w.wood; demand_gold += w.gold; demand_stone += w.stone;
 	}
 
 	// Military & Siege Priorities:

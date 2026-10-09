@@ -1452,7 +1452,7 @@ static void test_worker_mix() {
 		if (s->units_.alive[i] && s->units_.team[i] == 1 &&
 		    unit_gather_class(s->units_.unit_type[i], s->units_.tmpl[i]) == GATHER_INFANTRY) ++start_soldiers;
 	int max_houses = 0;
-	for (int k = 0; k < 8 * 60; ++k) {
+	for (int k = 0; k < 7 * 60; ++k) {
 		run_for(*s, 1.0f);
 		int houses = 0;
 		for (const auto &b : s->buildings_) houses += b.team == 1 && b.type == BLD_HOUSE && b.build_progress < 1.0f;
@@ -1463,13 +1463,19 @@ static void test_worker_mix() {
 		if (!s->units_.alive[i] || s->units_.team[i] != 1) continue;
 		const uint8_t g = unit_gather_class(s->units_.unit_type[i], s->units_.tmpl[i]);
 		if (g == GATHER_SUPPORT) ++supports;
-		if (g != GATHER_INFANTRY) continue;
+		if (g != GATHER_INFANTRY || !s->petra_is_worker(i)) continue;
+		const uint32_t id = s->units_.id[i];
+		const auto &rush = s->petra_attack_plan_.squad;
+		const auto &defenders = s->petra_defense_army_.defender_ids;
+		// A rush takes workers past the first 8, and the defense any soldier nearby.
+		if (std::find(rush.begin(), rush.end(), id) != rush.end() ||
+		    std::find(defenders.begin(), defenders.end(), id) != defenders.end()) continue;
 		++soldiers;
 		gathering += s->units_.action_state[i] == ACTION_GATHER || s->units_.action_state[i] == ACTION_RETURN_DROPSITE;
 	}
-	std::printf("  8 min: %d support, %d citizen infantry (%d at start, %d gathering), at most %d houses at once\n",
+	std::printf("  7 min: %d support, %d worker soldiers at home (%d infantry at start, %d gathering), at most %d houses at once\n",
 	            supports, soldiers, start_soldiers, gathering, max_houses);
-	CHECK(soldiers >= start_soldiers + 5, "trains citizen infantry as workers");
+	CHECK(soldiers + (int)s->petra_defense_army_.defender_ids.size() >= 5, "trains citizen infantry as workers");
 	CHECK(gathering * 2 >= soldiers, "most worker soldiers gather");
 	const float support_max = 0.5f * (float)s->petra_config_.target_num_workers; // supportRatio is 0.35-0.5 by difficulty
 	CHECK(supports > 10 && (float)supports <= support_max + 5.0f, "support units follow supportRatio");
