@@ -8,8 +8,9 @@ func _on_resume_pressed():
 	$CenterContainer.visible = false
 	get_tree().paused = false
 
+# 0 A.D. opens the options page over the game (Engine.PushGuiPage) instead of leaving the match.
 func _on_options_pressed():
-	MatchSettings.go("res://scenes/menu/options.tscn")
+	load("res://scenes/menu/options.gd").open_overlay(get_parent())
 
 func _on_lobby_pressed():
 	MatchSettings.go("res://scenes/menu/lobby.tscn")

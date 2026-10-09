@@ -296,6 +296,26 @@ public:
 	uint32_t turret_holder_of(uint32_t unit_id) const;
 	// Total damage `player`'s entities have dealt to other (non-Gaia) players this session
 	// (0 A.D. BattleDetection input); not saved, starts again at 0 after a load.
+	// One hit that cost an entity health: 0 A.D.'s MT_Attacked message, read by the
+	// session's AttackDetection (under-attack alerts). Presentation only: never saved,
+	// hashed or read by the simulation; at most kMaxAttackedEvents wait between reads
+	// so a headless sim without a reader stays bounded.
+	struct AttackedEvent {
+		uint32_t attacker_id; // unit or structure, 0 for none (DeathDamage, fauna)
+		uint32_t target_id;
+		uint8_t attacker_owner;
+		uint8_t target_owner;
+		uint8_t target_is_building;
+		float x, z; // the target's position
+		float damage;
+	};
+	static constexpr size_t kMaxAttackedEvents = 4096;
+	// Hands over the hits since the last call.
+	std::vector<AttackedEvent> take_attacked_events() {
+		std::vector<AttackedEvent> out;
+		out.swap(attacked_events_);
+		return out;
+	}
 	double battle_damage_dealt(uint8_t player) const { return player < MAX_PLAYERS ? battle_damage_[player] : 0.0; } // 0 when not on a turret
 	float unit_height_offset(size_t i) const { // above the terrain (a turret point's height)
 		if (turret_height_.empty()) return 0.0f;
@@ -395,7 +415,9 @@ public:
 	// (MakeGoalReachable). Internal walks (Petra, rally points) keep their goal.
 	void order_walk(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false,
 			bool beach_goal = false);
-	void order_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id, bool queued = false);
+	// A player's Gather and Repair are forced (UnitAI Gather / Repair) until work starts;
+	// UnitAI's own follow-up gathers and repairs (PerformGather force false) are not.
+	void order_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id, bool queued = false, bool force = true);
 	void order_attack(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
 	// allow_capture: capture the structure (0 A.D.'s default right-click) instead of
 	// damaging it (Ctrl). Units that can't capture, or structures that can't be
@@ -407,7 +429,7 @@ public:
 	void order_attack_move(const uint32_t *unit_ids, size_t count, float tx, float tz,
 			bool queued = false, bool units_only = false, bool allow_capture = false);
 	void order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false);
-	void order_build_or_repair(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false);
+	void order_build_or_repair(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false, bool force = true);
 	// 0 A.D. "delete-entities": kills the player's own units and destroys its own
 	// structures (not ones it holds under half the capture points of).
 	void cmd_delete(uint8_t player, const uint32_t *ids, size_t count);
@@ -1185,6 +1207,8 @@ private:
 		float bld_garrison_heal[BLD_TYPE_COUNT]; // added hp per second for garrisoned units
 		float bld_capture[BLD_TYPE_COUNT];        // Capturable/CapturePoints multiplier
 		float bld_cost[BLD_TYPE_COUNT][RES_COUNT]; // Cost/Resources multipliers
+		float bld_international_mul[BLD_TYPE_COUNT]; // Market/InternationalBonus (Silk Road)
+		float bld_international_add[BLD_TYPE_COUNT]; // ... added before it (Commercial Treaty)
 		// The same unit multipliers per civ roster template, matched against the
 		// template's own 0 A.D. classes (Champion Infantry Spearman, Javelineer, ...),
 		// which its RTS0 unit_type only approximates.
@@ -1342,6 +1366,7 @@ private:
 	void note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uint32_t target_id, uint8_t target_owner,
 			bool target_is_building, float damage);
 	double battle_damage_[MAX_PLAYERS] = {};
+	std::vector<AttackedEvent> attacked_events_;
 	bool looter_present(uint32_t looter_id, bool *infantry) const;
 	void collect_loot(uint32_t looter_id, uint8_t looter_player, LootInfo loot, float mult, uint8_t carried_type, int32_t carried);
 	void collect_unit_loot(uint32_t looter_id, uint8_t looter_player, size_t victim);
@@ -1838,6 +1863,8 @@ private:
 	void finish_order(size_t i);
 	void resume_order(size_t i);
 	void respond_to_attack(size_t i);
+	void respond_to_attacker(size_t i, uint32_t attacker_id, float ax, float az, bool melee);
+	std::vector<uint16_t> combat_wild_scratch_; // tick_combat: dangerous animals this tick
 	// ResourceGatherer.CanGather: unit index i has a Rates entry for resource index r.
 	bool can_gather(size_t i, size_t r) const;
 	// With `busy`, skips `skip` and resources whose MaxGatherers are all taken (ResourceSupply.IsAvailable).

@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "hotkeys.h"
+#include "user_config.h"
 
 namespace rtso {
 namespace hotkeys {
@@ -201,7 +202,8 @@ inline bool load_user_cfg() {
 	return true;
 }
 
-// Writes every binding that differs from the defaults to user.cfg.
+// Writes every binding that differs from the defaults to user.cfg, after the
+// options page's settings (user_config.h), which share the file.
 inline bool save_user_cfg() {
 	using namespace godot;
 	HotkeyTable base;
@@ -209,7 +211,7 @@ inline bool save_user_cfg() {
 	DirAccess::make_dir_recursive_absolute("user://config");
 	Ref<FileAccess> f = FileAccess::open(kUserCfgPath, FileAccess::WRITE);
 	if (f.is_null()) return false;
-	f->store_string(String::utf8(table().diff_cfg(base).c_str()));
+	f->store_string(String::utf8((user_config::settings_cfg() + table().diff_cfg(base)).c_str()));
 	return true;
 }
 
