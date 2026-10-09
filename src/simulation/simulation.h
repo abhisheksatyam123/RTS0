@@ -151,7 +151,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 41; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 42; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -210,6 +210,7 @@ public:
 		uint8_t team; // 0=player, 1=enemy
 		float hp;
 		float max_hp;
+		float aura_hp_mult = 1.0f; // Health/Max auras applied to max_hp and hp (Antiochus IV, the Persian catafalque)
 		float build_progress; // 0.0f to 1.0f (1.0f = finished)
 		bool committed = false; // 0 A.D. Foundation.committed: first builder reached the plot
 		bool wrecked = false;   // hp already applied; keep entity for collapse + rubble
@@ -1025,6 +1026,10 @@ public:
 	int entity_limit(uint8_t player_id, uint8_t category) const;
 	// AllowedToTrain / AllowedToBuild: room for `count` more of the unit (roster
 	// row `tmpl`, else the class) or of the structure.
+	// TrainingRestrictions MatchLimit: heroes train once a match (match_trained_ plus queues).
+	bool match_limit_allows(uint8_t player_id, uint16_t tmpl, int count = 1) const;
+	static constexpr int HERO_MATCH_LIMIT = 1;
+	std::array<std::vector<uint16_t>, MAX_PLAYERS> match_trained_; // hero templates each player trained (saved v42)
 	bool entity_limit_allows_unit(uint8_t player_id, uint8_t unit_type, uint16_t tmpl, int count = 1) const;
 	bool entity_limit_allows_building(uint8_t player_id, uint8_t bld_type) const;
 	bool can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
@@ -2029,7 +2034,7 @@ private:
 	std::array<std::vector<uint8_t>, MAX_PLAYERS> player_fow_; // per-player FoW for players 1..7 (index 0 unused: fow_grid_)
 	std::vector<uint8_t> unexplored_fow_ = std::vector<uint8_t>((size_t)MAX_GRID_RES * MAX_GRID_RES, 0);
 	std::vector<uint8_t> revealed_fow_ = std::vector<uint8_t>((size_t)MAX_GRID_RES * MAX_GRID_RES, FOW_VISIBLE);
-	LosGrid los_;                         // per-player LOS counts and visible/explored bits (saved v41)
+	LosGrid los_;                         // per-player LOS counts and visible/explored bits (saved v42)
 	std::vector<LosSource> los_unit_src_; // the circle each unit index last added
 	std::vector<LosSource> los_bld_src_;  // the circle each buildings_ index last added
 
