@@ -3463,7 +3463,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					if (dx * dx + dz * dz < best_td2) { best_td2 = dx * dx + dz * dz; treasure_id = t.id; }
 				}
 				if (treasure_id != 0) {
-					if (net_lockstep())
+					if (turn_cmds())
 						post_lockstep(17, sel_ptr, sel_n, 0, 0, treasure_id, (uint8_t)(2 | qbit));
 					else
 						sim->order_collect_treasure(sel_ptr, sel_n, treasure_id, queue_shift);
