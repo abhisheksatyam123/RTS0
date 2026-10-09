@@ -148,7 +148,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 32; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 33; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -319,7 +319,13 @@ public:
 	// Resource cost of training template `tmpl` for `pid` after team bonuses, indexed by ResourceType.
 	void unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo &info, float out[RES_COUNT]) const;
 	uint32_t spawn_resource(int cell_x, int cell_y, uint8_t type, int32_t amount = 600);
-	uint32_t spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount = 600, uint8_t subtype = 0);
+	// max_gatherers 0: the gaia template default (resource_default_max_gatherers).
+	uint32_t spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount = 600, uint8_t subtype = 0, uint8_t max_gatherers = 0);
+	// ResourceSupply/MaxGatherers of a resource (0 if there is none with that id).
+	int resource_max_gatherers(uint32_t res_id) const {
+		auto it = res_id_to_idx_.find(res_id);
+		return it == res_id_to_idx_.end() ? 0 : resources_.max_gatherers[it->second];
+	}
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f);
 	uint32_t spawn_building_world(float wx, float wz, uint8_t type, uint8_t team = 0, float progress = 1.0f);
 	uint32_t spawn_relic(float x, float z, uint8_t res_type, int amount = 300);
@@ -1414,15 +1420,11 @@ private:
 	struct FieldGatherers { int total = 0; int slots_taken = 0; };
 	std::unordered_map<uint32_t, FieldGatherers> field_gatherers_; // per tick, keyed by grain resource id
 	std::unordered_map<uint32_t, FieldGatherers> fish_gatherers_; // per tick, keyed by fish resource id
-	std::unordered_map<uint32_t, FieldGatherers> ruins_gatherers_; // per tick, keyed by ruins resource id
-	// Each ruins resource's ResourceSupply MaxGatherers (gaia/ruins/*.xml); saved.
+	// Per tick, every other resource: units ordered to gather it (total) and the ones working it (slots_taken, up to MaxGatherers).
+	std::unordered_map<uint32_t, FieldGatherers> supply_gatherers_;
+	// v28 saves kept each ruin's MaxGatherers in a list; resources_.max_gatherers holds it since.
 	struct RuinsCap { uint32_t res_id; uint16_t max_gatherers; uint16_t pad; };
-	std::vector<RuinsCap> ruins_caps_;
 	std::vector<Scenery> scenery_; // saved
-	int ruins_cap(uint32_t res_id) const {
-		for (const RuinsCap &c : ruins_caps_) if (c.res_id == res_id) return c.max_gatherers;
-		return 1;
-	}
 	// Nearest fish on `sea` (ship region) within max_d of (x, z) with a free gatherer slot; 0 if none.
 	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0) const;
 	std::unordered_map<uint32_t, size_t> building_id_to_idx_;
@@ -1837,7 +1839,11 @@ private:
 	void finish_order(size_t i);
 	void resume_order(size_t i);
 	void respond_to_attack(size_t i);
-	uint32_t find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team, int subtype = -1) const;
+	// ResourceGatherer.CanGather: unit index i has a Rates entry for resource index r.
+	bool can_gather(size_t i, size_t r) const;
+	// With `busy`, skips `skip` and resources whose MaxGatherers are all taken (ResourceSupply.IsAvailable).
+	uint32_t find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team, int subtype = -1,
+			const std::unordered_map<uint32_t, FieldGatherers> *busy = nullptr, uint32_t skip = 0) const;
 	uint32_t find_nearby_foundation(float x, float z, uint8_t team) const;
 	void apply_rally_point(uint32_t uid, const Building &b, bool ignore_self_garrison = false);
 	void rally_after_ungarrison(uint32_t uid, uint32_t building_id);
