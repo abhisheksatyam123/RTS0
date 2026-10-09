@@ -151,7 +151,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 39; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 40; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -1949,7 +1949,7 @@ private:
 	std::array<std::vector<uint8_t>, MAX_PLAYERS> player_fow_; // per-player FoW for players 1..7 (index 0 unused: fow_grid_)
 	std::vector<uint8_t> unexplored_fow_ = std::vector<uint8_t>((size_t)MAX_GRID_RES * MAX_GRID_RES, 0);
 	std::vector<uint8_t> revealed_fow_ = std::vector<uint8_t>((size_t)MAX_GRID_RES * MAX_GRID_RES, FOW_VISIBLE);
-	LosGrid los_;                         // per-player LOS counts and visible/explored bits (saved v39)
+	LosGrid los_;                         // per-player LOS counts and visible/explored bits (saved v40)
 	std::vector<LosSource> los_unit_src_; // the circle each unit index last added
 	std::vector<LosSource> los_bld_src_;  // the circle each buildings_ index last added
 

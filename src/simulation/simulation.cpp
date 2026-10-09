@@ -130,6 +130,8 @@ static constexpr uint32_t SAVE_VERSION_FORMATION_ORDERS = 37;
 // The save version that added each unit's kept short path (tick_state_io section 1) and the aura
 // sources in force (section 9).
 static constexpr uint32_t SAVE_VERSION_MOTION = 38;
+// Each fruit bush's ResourceSupply/Max, which it regrows towards.
+static constexpr uint32_t SAVE_VERSION_FRUIT_MAX = 39;
 
 // Stand on the nearest AABB edge so pathing never aims through the footprint (half sizes hx, hz).
 static void stand_outside_rect(float bx, float bz, float hx, float hz, uint32_t uid,
@@ -818,6 +820,8 @@ uint32_t Simulation::spawn_resource_world(float wx, float wz, uint8_t type, int3
 	uint32_t rid = alloc_id();
 	if (max_gatherers == 0) max_gatherers = resource_default_max_gatherers(type, subtype, amount);
 	size_t idx = resources_.push(wx, wz, amount, type, rid, subtype, max_gatherers);
+	// template_gaia_fruit: a berry/fruit bush regrows towards its ResourceSupply/Max.
+	if (type == RES_FOOD && subtype == RES_SUB_NONE) resources_.max_amount[idx] = amount;
 	res_id_to_idx_[rid] = idx;
 	return rid;
 }
@@ -1115,6 +1119,13 @@ void Simulation::rebuild_territory() {
 	const int R = grid_res_;
 	auto &roots = territory_roots_scratch_;
 	roots.clear();
+	// structures/theater.json (stackable): each finished theater widens its owner's
+	// territory roots by 20%.
+	float theater[MAX_PLAYERS];
+	std::fill(theater, theater + MAX_PLAYERS, 1.0f);
+	for (const auto &b : buildings_)
+		if (b.type == BLD_THEATER && b.build_progress >= 0.99f && b.team < MAX_PLAYERS && !b.wrecked)
+			theater[b.team] *= 1.2f;
 	for (const auto &b : buildings_) {
 		if (b.build_progress < 0.99f) continue;
 		float radius = 0.0f;
@@ -1123,7 +1134,7 @@ void Simulation::rebuild_territory() {
 		else if (b.type == BLD_TOWER) radius = 18.0f;
 		else if ((radius = civ_building_territory_radius(b.type)) <= 0.0f) continue;
 		if (b.team >= MAX_PLAYERS) continue; // Gaia holds no territory
-		roots.push_back({b.x, b.z, radius, b.team});
+		roots.push_back({b.x, b.z, radius * theater[b.team], b.team});
 	}
 	// The grids depend on nothing else, so unchanged inputs (most 1 Hz refreshes) keep them.
 	if (roots == territory_roots_ && territory_roots_res_ == R && territory_roots_half_ == map_half_ &&
@@ -2057,7 +2068,14 @@ bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t t
 	const uint16_t allies = ally_civ_mask(player_id);
 	// han_minister_garrison.json (Excellency of Works): each minister garrisoned in a
 	// structure other than the Imperial Ministry cuts its technologies' cost and time by 2%.
-	const float ministers = b.type == BLD_MINISTRY ? 1.0f : std::pow(0.98f, (float)garrisoned_ministers(b));
+	float ministers = b.type == BLD_MINISTRY ? 1.0f : std::pow(0.98f, (float)garrisoned_ministers(b));
+	// structures/library.json (Library of Alexandria): while the player has a finished
+	// library, its technologies cost 15% less and take 15% less time (not stackable).
+	for (const Building &o : buildings_)
+		if (o.team == player_id && o.type == BLD_LIBRARY && o.build_progress >= 1.0f && !o.wrecked) {
+			ministers *= 0.85f;
+			break;
+		}
 	auto team = [&](uint8_t stat, int8_t r) {
 		return civ_team_bonus_mult(civ, allies, stat, r, CIV_UNIT_TEMPLATE_NONE, b.type) * ministers;
 	};
@@ -4564,6 +4582,18 @@ float Simulation::structure_garrison_heal(const Building &b) const {
 	return building_garrison_heal(b.type) + add;
 }
 
+// 0 A.D. garrisonedUnits auras adding Health/RegenRate to what a structure holds:
+// athen_prytaneion_hero_heal (Heroes +6), arsenal_repair (Siege +3),
+// cart_super_dock_repair (Ships +10). need_class is a CombatClass.
+struct GarrisonRegenAura { float rate; uint8_t need_class; };
+static GarrisonRegenAura structure_garrison_regen(uint8_t type) {
+	switch (type) {
+		case BLD_PRYTANEION: return {6.0f, CC_HERO};
+		case BLD_ARSENAL: return {3.0f, CC_SIEGE};
+		case BLD_SUPER_DOCK: return {10.0f, CC_SHIP};
+		default: return {0.0f, 0};
+	}
+}
 void Simulation::tick_garrison_holders() {
 	// HealTimeout runs every HEAL_TIMEOUT = 1000 ms while something is garrisoned.
 	const bool heal_now = ticks_ % (uint64_t)std::lround(1.0f / FIXED_STEP) == 0;
@@ -4576,11 +4606,14 @@ void Simulation::tick_garrison_holders() {
 		}
 		if (!heal_now) continue;
 		const float rate = structure_garrison_heal(b);
-		if (rate <= 0.0f) continue;
+		const GarrisonRegenAura regen = structure_garrison_regen(b.type);
+		if (rate <= 0.0f && regen.rate <= 0.0f) continue;
 		for (uint32_t uid : b.garrisoned_units) {
 			const int32_t i = lookup_unit(uid);
-			if (i < 0 || !(unit_tech_classes(units_.unit_type[i]) & TC_ORGANIC)) continue; // Health.IsUnhealable
-			units_.hp[i] = std::min(units_.max_hp[i], units_.hp[i] + rate);
+			if (i < 0) continue;
+			float add = (unit_tech_classes(units_.unit_type[i]) & TC_ORGANIC) ? rate : 0.0f; // Health.IsUnhealable
+			if (regen.rate > 0.0f && unit_combat_at(i).classes.has(regen.need_class)) add += regen.rate;
+			if (add > 0.0f) units_.hp[i] = std::min(units_.max_hp[i], units_.hp[i] + add);
 		}
 	}
 }
@@ -6594,6 +6627,11 @@ void Simulation::tick_gather(float dt) {
 					if ((rt == RES_GOLD || rt == RES_STONE) && civ_info(civ).metal_gather_mult > 1.0f)
 						rate *= civ_info(civ).metal_gather_mult;
 				}
+				// Auras on ResourceGatherer/BaseSpeed (Xerxes, Viridomarus, the Kushite small
+				// pyramid, catafalques, Han ministers): the strongest one in reach.
+				if (const float g = !aura_mgr_.has(AURA_GATHER) ? 0.0f : aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], uteam, AURA_GATHER,
+						units_.tmpl[i], &unit_combat_at(i).classes); g > 0.0f && g < 1.0f)
+					rate /= 1.0f - g;
 				// unit_advanced.json / unit_elite.json: ResourceGatherer/BaseSpeed x0.7 per rank.
 				for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[i], 3); ++r) rate *= rank_bonus(r).gather_mul;
 				if (field_efficiency > 0.0f) rate *= field_efficiency;
@@ -6626,6 +6664,15 @@ void Simulation::tick_gather(float dt) {
 		for (size_t r = 0; r < resources_.count; ++r) {
 			if (resources_.subtype[r] != RES_SUB_FISH || !resources_.alive[r] || resources_.amount[r] <= 0) continue;
 			if (resources_.amount[r] >= FISH_FOOD_SUPPLY || fish_gatherers_.count(resources_.id[r])) continue;
+			resources_.amount[r] += 1;
+		}
+	}
+	// Fruit bushes regrow 1 food every 6 s up to their Max, gathered or not
+	// (template_gaia_fruit.xml ResourceSupply/Change/Regrowth); an emptied bush is gone.
+	const uint64_t fruit_ticks = (uint64_t)std::lround(FRUIT_REGROW_INTERVAL_S / FIXED_STEP);
+	if (ticks_ % fruit_ticks == 0) {
+		for (size_t r = 0; r < resources_.count; ++r) {
+			if (resources_.amount[r] <= 0 || resources_.amount[r] >= resources_.max_amount[r] || !resources_.alive[r]) continue;
 			resources_.amount[r] += 1;
 		}
 	}
@@ -8743,8 +8790,11 @@ void Simulation::unit_resistance(size_t i, float out[3]) const {
 		for (int k = 0; k < 3; ++k) out[k] += ra;
 	const float aura = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_ARMOR,
 			units_.tmpl[i], &unit_combat_at(i).classes);
-	out[0] += aura;
-	out[1] += aura;
+	for (int k = 0; k < 3; ++k) out[k] += aura;
+	// 0 A.D. structures/wall_garrisoned: Soldiers turreted on a wall, gate or outpost
+	// +3 hack, pierce and crush resistance.
+	if (!turret_height_.empty() && turret_height_.count(units_.id[i]) && unit_combat_at(i).classes.has(CC_SOLDIER))
+		for (int k = 0; k < 3; ++k) out[k] += WALL_TURRET_ARMOR;
 }
 
 // 0 A.D. helpers/Attack.js CauseDamageOverArea: every entity of a player the
@@ -10767,7 +10817,12 @@ void Simulation::petra_manage_military_production(float dt) {
 			bool leaves = true;
 			for (int r = 0; r < RES_COUNT; ++r)
 				if (cost[r] > 0.0f && petra_ps().res[r] - cost[r] < reserve[r]) leaves = false;
-			if (!leaves) continue;
+			if (!leaves) {
+				// A tower waiting behind the reserve still holds the siege slot, or cheaper
+				// engines fill the cap first and it is never trained.
+				if (is_tower(opt.tmpl)) siege_waiting = true;
+				continue;
+			}
 		}
 		if (petra_train_template(PETRA_QUEUE_MILITARY, opt.bld_id, opt.tmpl)) break;
 		if (civ_unit_template(opt.tmpl).flags & ROSTER_HERO) {
@@ -15668,7 +15723,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 per-player line of sight (each LOS source and the explored cells, save_tick_state)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 per-player line of sight (each LOS source and the explored cells, save_tick_state)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -15984,6 +16039,7 @@ bool Simulation::load_state(const char *filepath) {
 		resources_.type[idx] = rtype;
 		resources_.subtype[idx] = RES_SUB_NONE; // v17+: the tick state has it
 		resources_.max_gatherers[idx] = resource_default_max_gatherers(rtype, RES_SUB_NONE, ramount); // v29+: saved
+		resources_.max_amount[idx] = 0; // tick state: saved, or the fruit default
 		resources_.alive[idx] = ralive;
 		resources_.count++;
 		res_id_to_idx_[rid] = idx;
@@ -16640,6 +16696,13 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		for (size_t r = 0; r < s.resources_.count; ++r)
 			s.resources_.max_gatherers[r] = resource_default_max_gatherers(s.resources_.type[r], s.resources_.subtype[r], s.resources_.amount[r]);
 	}
+	// v39: each fruit bush's Max (older saves: a bush's current food, so it never regrows past it).
+	if (ar.version >= SAVE_VERSION_FRUIT_MAX) {
+		for (size_t r = 0; r < s.resources_.count; ++r) ar.pod(s.resources_.max_amount[r]);
+	} else if constexpr (Ar::loading) {
+		for (size_t r = 0; r < s.resources_.count; ++r)
+			s.resources_.max_amount[r] = (s.resources_.type[r] == RES_FOOD && s.resources_.subtype[r] == RES_SUB_NONE) ? s.resources_.amount[r] : 0;
+	}
 
 	// 4. UnitAI orders (save v20): each unit's order, last attacker and work order,
 	// then the order queues by unit id.
@@ -16756,11 +16819,11 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		if (!g.empty() && g.size() != (size_t)s.stats_explore_res_ * (size_t)s.stats_explore_res_) { ar.ok = false; return; }
 	}
 
-	// 11. Per-player LOS (v39): the circle each unit and building slot added
+	// 11. Per-player LOS (v40): the circle each unit and building slot added
 	// and every cell's explored bits. The counts and visible bits are those
 	// circles added again, so they are not stored. Older saves start with the
 	// sources of the loaded entities and nothing explored.
-	if (ar.version < 39) {
+	if (ar.version < 40) {
 		if constexpr (Ar::loading) s.reset_los(), s.tick_los();
 		return;
 	}
@@ -18029,17 +18092,28 @@ float Simulation::unit_vision_at(size_t i) const {
 	const float v = unit_base_vision(i);
 	const float m = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_VISION,
 		units_.tmpl[i], &unit_combat_at(i).classes);
-	return m > 0.0f ? v * m : v;
+	// structures/wall_garrisoned: a turreted Soldier sees 20 m further.
+	const float turret = !turret_height_.empty() && turret_height_.count(units_.id[i]) && unit_combat_at(i).classes.has(CC_SOLDIER)
+		? WALL_TURRET_VISION : 0.0f;
+	return (m > 0.0f ? v * m : v) + turret;
 }
 
 void Simulation::rebuild_auras() {
 	aura_mgr_.clear();
-	// Buildings: 0 A.D. structures/temple_heal (own Humans +1 hp/s within 40 m)
+	// Buildings: 0 A.D. structures/temple_heal (own Humans +1 hp/s within 40 m), and the
+	// civ structures' own range and global auras (civ_building_auras: the Iberian monument,
+	// Kushite pyramids and Temple of Amun, the Mauryan pillar, the civ temples' healing).
 	for (const auto &b : buildings_) {
-		if (b.build_progress < 1.0f) continue;
+		if (b.build_progress < 1.0f || b.team >= MAX_PLAYERS) continue;
 		if (b.type == BLD_TEMPLE) {
 			aura_mgr_.register_source(b.id, AURA_HEAL, 40.f * COMBAT_DISTANCE_SCALE, 1.0f, aura_player_bit(b.team),
 				b.x, b.z, -1, CC_HUMAN);
+		}
+		for (const int16_t *a = civ_building_auras(b.type); *a >= 0; ++a) {
+			const CivHeroAura &aura = civ_hero_aura(*a);
+			if (aura.kind >= AURA_COUNT) continue;
+			aura_mgr_.register_source(b.id, (AuraType)aura.kind, aura.range, aura.value,
+				aura_affected_players(b.team, aura.players), b.x, b.z, *a);
 		}
 	}
 	// Units: carnyx attack, hero auras from the civ roster
