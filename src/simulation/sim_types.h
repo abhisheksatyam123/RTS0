@@ -1300,6 +1300,13 @@ inline uint8_t unit_gather_class(uint8_t unit_type, uint16_t tmpl) {
 	return infantry ? GATHER_INFANTRY : cavalry ? GATHER_CAVALRY : GATHER_NONE;
 }
 
+// 0 A.D. Builder (mixins/builder): citizen infantry (template_unit_infantry) and the support
+// workers build and repair; cavalry, champions, heroes, siege and ships do not.
+inline bool unit_can_build(uint8_t unit_type, uint16_t tmpl) {
+	if (unit_type == UNIT_FEMALE_CITIZEN || unit_type == UNIT_VILLAGER || unit_type == UNIT_WORKER_ELEPHANT) return true;
+	return unit_gather_class(unit_type, tmpl) == GATHER_INFANTRY;
+}
+
 // ResourceGatherer/Rates in units a second, by Simulation::GatherKind
 // (grain, fruit, meat, fish, wood, stone, metal); 0 = can't gather it.
 inline float gather_class_rate(uint8_t cls, uint8_t kind) {
