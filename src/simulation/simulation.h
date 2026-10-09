@@ -844,6 +844,39 @@ public:
 	};
 	PlacementResult check_placement(uint8_t player, int cell_x, int cell_y, uint8_t b_type) const;
 
+	// 0 A.D. WallSet walls (helpers/Walls.js GetWallPlacement, Commands.js "construct-wall").
+	struct WallPiece {
+		uint8_t type;   // BLD_WALL_TOWER or BLD_WALL_SEGMENT
+		float x, z;     // centre
+		float rot;      // Position angle: a segment's length lies along its u axis
+		float half_w;   // half its length (a segment) or its half size (a tower)
+	};
+	// The pieces of a wall from (sx, sz) to (ex, ez), in order along it: a tower at each end, none
+	// where that end snaps onto one of `player`'s wall towers (its id goes in *start_tower or
+	// *end_tower, else 0), and segments joined by towers. Empty when the ends are too close.
+	std::vector<WallPiece> wall_placement(uint8_t player, float sx, float sz, float ex, float ez,
+			uint32_t *start_tower = nullptr, uint32_t *end_tower = nullptr) const;
+	// The wall tower of `player`'s that a wall end at (x, z) snaps onto (input.js snaps to towers
+	// under the cursor), or 0.
+	uint32_t wall_snap_tower(uint8_t player, float x, float z) const;
+	// check_placement for one wall piece, with the buildings in `ignore` (the towers it joins and
+	// the pieces between them) left out of the obstruction test, as 0 A.D. obstruction control
+	// groups do.
+	PlacementResult check_wall_piece(uint8_t player, const WallPiece &p, const uint32_t *ignore = nullptr,
+			size_t ignore_n = 0) const;
+	// Commands.js TryConstructWall: lays the pieces of the wall from (sx, sz) to (ex, ez) as
+	// foundations in order, paying for each, and stops at the first that is blocked or unaffordable;
+	// `builders` build them one after another. Returns the number of pieces laid.
+	size_t cmd_build_wall(uint8_t player, float sx, float sz, float ex, float ez, const uint32_t *builders = nullptr,
+			size_t builder_n = 0, bool queued = false);
+	// Lockstep cmd NET_CMD_BUILD_WALL carries a wall's start point in target_id: x and z in
+	// 1/32 world units from -1024, 16 bits each.
+	static uint32_t pack_wall_point(float x, float z);
+	static void unpack_wall_point(uint32_t packed, float &x, float &z);
+	// The GRID cells a building takes in occupied_cells_: its footprint's square of cells, or for
+	// a WallSet piece every cell its turned rectangle overlaps.
+	std::vector<std::pair<int, int>> building_cells(const Building &b) const;
+
 	void tick(float dt);
 
 	// Views
@@ -1661,6 +1694,17 @@ private:
 	mutable size_t resource_block_count_ = SIZE_MAX;
 	mutable int resource_block_w_ = 0;
 	void ensure_resource_block_cells() const;
+	// check_placement over the cells `cells` of a footprint whose bounds are [x0, x1] x [z0, z1]
+	// and centre (cx, cz); `rect` is a turned footprint (a WallSet piece) or null for a square, and
+	// occupied cells in `ignore_cells` don't obstruct it.
+	PlacementResult check_placement_cells(uint8_t player, uint8_t b_type, const std::vector<std::pair<int, int>> &cells,
+			float x0, float z0, float x1, float z1, float cx, float cz, const Building *rect,
+			const std::vector<std::pair<int, int>> *ignore_cells) const;
+	// A wall piece laid as a foundation (progress 0) or a finished one, with its WallSet extents.
+	uint32_t spawn_wall_piece(const WallPiece &p, uint8_t team, float progress);
+	// Cost.js: pays `b_type`'s cost after civ, team and technology bonuses (stone_override, when
+	// not negative, in place of its template stone). False, paying nothing, if unaffordable.
+	bool pay_for_structure(uint8_t player, uint8_t b_type, float stone_override = -1.0f);
 	// petra_place_building searches that found no spot, with the signature of what
 	// they read (petra_placement_signature). Exact, so derived state: never saved.
 	struct PetraPlaceMiss {
