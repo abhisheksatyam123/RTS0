@@ -4085,6 +4085,23 @@ void Simulation::move_units(float dt, Arena &arena) {
 			}
 			if (cur >= 0 && cur < cnt) {
 				WaypointPath &wp = unit_paths_[i];
+				// A wide unit (siege, elephants) can't get within ARRIVE_DIST of a waypoint closer to a
+				// building than separation() lets it stand (its radius + 0.35), such as a navcell in a
+				// 2-unit gap between houses: it would push against the buildings there for good. Like
+				// 0 A.D. UnitMotion, which moves on to the next long-path waypoint once its short path
+				// gets as close as it can, it moves on once within WAYPOINT_NEAR of such a waypoint.
+				const float crowd = unit_collision_radius(units_.unit_type[i]) + 0.35f - ARRIVE_DIST;
+				auto crowded = [&](float wx, float wz) {
+					if (crowd <= 0.0f || unit_is_ship(units_.unit_type[i])) return false;
+					for (const SteerObstacle &b : steer_obstacles_) {
+						if (b.id == units_.target_building_id[i]) continue;
+						const float ex = std::max(0.0f, std::fabs(wx - b.x) - b.half_size);
+						const float ez = std::max(0.0f, std::fabs(wz - b.z) - b.half_size);
+						if (ex < crowd && ez < crowd && ex * ex + ez * ez < crowd * crowd) return true;
+					}
+					return false;
+				};
+				constexpr float WAYPOINT_NEAR = 4.0f;
 				// Skip every waypoint already within ARRIVE_DIST (inclusive). Advancing one per tick
 				// with a strict < let the arrival check below stop the unit on a waypoint exactly
 				// ARRIVE_DIST away, or on a second one just as close, short of its target.
@@ -4092,7 +4109,10 @@ void Simulation::move_units(float dt, Arena &arena) {
 				while (cur < cnt && cur < wp.count) {
 					const float pdx = wp.xs[cur] - px[i];
 					const float pdz = wp.zs[cur] - pz[i];
-					if (pdx * pdx + pdz * pdz > ARRIVE_DIST * ARRIVE_DIST) break;
+					const float pd2 = pdx * pdx + pdz * pdz;
+					if (pd2 > ARRIVE_DIST * ARRIVE_DIST &&
+					    (cur + 1 >= cnt || pd2 > WAYPOINT_NEAR * WAYPOINT_NEAR || !crowded(wp.xs[cur], wp.zs[cur])))
+						break;
 					cur++;
 					advanced = true;
 				}
