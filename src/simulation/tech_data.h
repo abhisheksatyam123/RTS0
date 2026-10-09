@@ -110,7 +110,15 @@ enum TechnologyId : uint8_t {
 	TECH_ART_OF_WAR = 101, // art_of_war
 	TECH_SILVERSHIELDS = 102, // silvershields
 	TECH_SUBTERRANEAN_AQUEDUCTS = 103, // subterranean_aqueducts
-	TECH_COUNT = 104
+	TECH_CIVIL_ENGINEERING_01 = 104, // civil_engineering_01
+	TECH_CIVIL_ENGINEERING_02 = 105, // civil_engineering_02
+	TECH_CIVIL_SERVICE_01 = 106, // civil_service_01
+	TECH_CIVIL_SERVICE_02 = 107, // civil_service_02
+	TECH_GATHER_AHIMSA = 108, // gather_ahimsa
+	TECH_GATHER_WICKER_BASKETS_MAUR = 109, // gather_wicker_baskets_maur
+	TECH_PHARAONIC_CULT = 110, // pharaonic_cult
+	TECH_SERAPIS_CULT = 111, // serapis_cult
+	TECH_COUNT = 112
 };
 
 enum TechClass : uint64_t {
@@ -237,6 +245,11 @@ inline const TechClassExpr *tech_affects_table() {
 		{TC_CIVIC, 0},
 		{TC_STRUCTURE, TC_WONDER},
 		{TC_ICEHOUSE, 0},
+		{TC_STRUCTURE, 0},
+		{TC_MINISTER, 0},
+		{TC_UNIT, 0},
+		{TC_WORKER, 0},
+		{TC_HERO, 0},
 	};
 	return kAffects;
 }
@@ -394,10 +407,24 @@ inline const TechEffect *tech_effects_table() {
 		{TSTAT_SPEED, TOP_MUL, 45, 1, 1.1f}, // tyrtean_paeans
 		{TSTAT_IDLE_REGEN, TOP_ADD, 46, 1, 0.5f}, // health_regen_units
 		{TSTAT_TRICKLE_FOOD, TOP_ADD, 51, 1, 1.0f}, // subterranean_aqueducts
+		{TSTAT_BUILD_TIME, TOP_MUL, 52, 1, 0.9f}, // civil_engineering_01
+		{TSTAT_COST_FOOD, TOP_MUL, 52, 1, 0.9f}, // civil_engineering_01
+		{TSTAT_COST_WOOD, TOP_MUL, 52, 1, 0.9f}, // civil_engineering_01
+		{TSTAT_COST_STONE, TOP_MUL, 52, 1, 0.9f}, // civil_engineering_01
+		{TSTAT_COST_METAL, TOP_MUL, 52, 1, 0.9f}, // civil_engineering_01
+		{TSTAT_HEALTH, TOP_MUL, 52, 1, 1.2f}, // civil_engineering_02
+		{TSTAT_BUILD_TIME, TOP_MUL, 53, 1, 0.5f}, // civil_service_01
+		{TSTAT_HEALTH, TOP_MUL, 53, 1, 1.5f}, // civil_service_02
+		{TSTAT_GATHER_FRUIT, TOP_MUL, 54, 1, 2.0f}, // gather_ahimsa
+		{TSTAT_GATHER_FISH, TOP_MUL, 54, 1, 0.2f}, // gather_ahimsa
+		{TSTAT_GATHER_MEAT, TOP_MUL, 54, 1, 0.2f}, // gather_ahimsa
+		{TSTAT_GATHER_FRUIT, TOP_MUL, 55, 1, 1.5f}, // gather_wicker_baskets_maur
+		{TSTAT_REGEN, TOP_ADD, 56, 1, 2.0f}, // pharaonic_cult
+		{TSTAT_TRICKLE_METAL, TOP_ADD, 0, 0, 2.0f}, // serapis_cult
 	};
 	return kEffects + 1;
 }
-constexpr int TECH_EFFECT_COUNT = 150;
+constexpr int TECH_EFFECT_COUNT = 164;
 
 inline const TechInfo &tech_info(uint8_t tech_id) {
 	static const TechInfo kTable[TECH_COUNT] = {
@@ -505,9 +532,32 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Sun Tzu's \"The Art of War\"", "All Citizen-Soldiers −20% required promotion experience.", 1200, 0, 1200, 0, 50.0f, 3, BLD_FORTRESS, TECH_NONE, 0x2000, 149, 0, "art_of_war"},
 		{"Silver Shields Regiment", "Upgrade Shield Bearer Champion Infantry to Silver Shields, with more health and attack damage.", 0, 0, 600, 0, 60.0f, 3, BLD_FORTRESS, TECH_NONE, 0x0020, 149, 0, "silvershields"},
 		{"Subterranean Aqueducts", "Ice House +1 trickle food rate per second.", 0, 300, 0, 300, 40.0f, 3, BLD_ICE_HOUSE, TECH_NONE, 0x0004, 149, 1, "subterranean_aqueducts"},
+		{"Improved Construction", "All structures −10% build time and −10% cost.", 0, 300, 0, 300, 40.0f, 2, BLD_MINISTRY, TECH_NONE, 0x2000, 150, 5, "civil_engineering_01"},
+		{"Robust Architecture", "All structures +20% health.", 0, 300, 0, 300, 40.0f, 2, BLD_MINISTRY, TECH_NONE, 0x2000, 155, 1, "civil_engineering_02"},
+		{"Efficient Bureaucracy", "Ministers −50% train time.", 200, 200, 0, 0, 40.0f, 2, BLD_MINISTRY, TECH_NONE, 0x2000, 156, 1, "civil_service_01"},
+		{"Intensive Training", "Ministers +50% health.", 200, 200, 0, 0, 40.0f, 2, BLD_MINISTRY, TECH_NONE, 0x2000, 157, 1, "civil_service_02"},
+		{"Ahimsa", "Units +100% fruit gather rate, but −80% meat and fish gather.", 0, 100, 0, 0, 40.0f, 1, BLD_FARMSTEAD, TECH_NONE, 0x0200, 158, 3, "gather_ahimsa"},
+		{"Wicker Baskets", "Workers +50% fruit gather rate.", 0, 100, 0, 0, 40.0f, 1, BLD_FARMSTEAD, TECH_NONE, 0x0200, 161, 1, "gather_wicker_baskets_maur"},
+		{"Pharaonic Cult", "Heroes +2 health/second self-regen rate.", 300, 0, 200, 0, 50.0f, 3, BLD_TEMPLE, TECH_NONE, 0x0800, 162, 1, "pharaonic_cult"},
+		{"Serapis Cult", "+2.0 metal trickle per second.", 300, 0, 300, 0, 60.0f, 3, BLD_TEMPLE, TECH_NONE, 0x0800, 163, 1, "serapis_cult"},
 	};
 	if (tech_id >= TECH_COUNT) return kTable[TECH_NONE];
 	return kTable[tech_id];
+}
+
+// The technology paired with `tech_id` (0 A.D. pair_*.json), or TECH_NONE.
+inline uint8_t tech_pair_partner(uint8_t tech_id) {
+	switch (tech_id) {
+		case TECH_CIVIL_ENGINEERING_01: return TECH_CIVIL_ENGINEERING_02;
+		case TECH_CIVIL_ENGINEERING_02: return TECH_CIVIL_ENGINEERING_01;
+		case TECH_CIVIL_SERVICE_01: return TECH_CIVIL_SERVICE_02;
+		case TECH_CIVIL_SERVICE_02: return TECH_CIVIL_SERVICE_01;
+		case TECH_GATHER_AHIMSA: return TECH_GATHER_WICKER_BASKETS_MAUR;
+		case TECH_GATHER_WICKER_BASKETS_MAUR: return TECH_GATHER_AHIMSA;
+		case TECH_PHARAONIC_CULT: return TECH_SERAPIS_CULT;
+		case TECH_SERAPIS_CULT: return TECH_PHARAONIC_CULT;
+		default: return TECH_NONE;
+	}
 }
 
 #endif // RTSO_TECH_DATA_H
