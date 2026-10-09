@@ -9674,6 +9674,17 @@ void Simulation::finish_order(size_t i) {
 			apply_order(uid, o);
 			return;
 		}
+		// A hunter whose carcass is eaten goes for the next animal of the kind nearby
+		// (FindNearbyResource takes live animals too; PerformGather then kills it first).
+		if (sub == RES_SUB_MEAT) {
+			const bool forced = (units_.order_flags[i] & ORDER_FLAG_FORCE) != 0;
+			const uint32_t prey = find_nearby_prey(i, forced ? units_.order_x[i] : units_.pos_x[i],
+					forced ? units_.order_z[i] : units_.pos_z[i]);
+			if (prey != 0) {
+				order_hunt(&uid, 1, prey);
+				return;
+			}
+		}
 		// GATHER FINDINGNEWTARGET: nothing left to gather nearby; drop off what it carries.
 		if (units_.carry[i] > 0) {
 			set_order(i, ORDER_NONE, 0, 0, units_.pos_x[i], units_.pos_z[i]);
@@ -18483,6 +18494,26 @@ uint32_t Simulation::spawn_fauna(float x, float z, uint8_t ftype) {
 
 // 0 A.D. UnitAI Gather order on a KillBeforeGather supply (an animal): the unit attacks it,
 // then gathers the carcass (tick_hunters). Any unit with an attack can hunt.
+// The nearest live animal hunter i may go for next within the FindNearbyResource range of
+// (x, z): one it can hunt, not penned or herded, and no dangerous or sea animal (RTS0 drops
+// the carcass's template, so "the same template" is approximated by the herd nearby).
+uint32_t Simulation::find_nearby_prey(size_t i, float x, float z) const {
+	if (units_.attack_damage[i] <= 0.0f || unit_is_ship(units_.unit_type[i])) return 0;
+	uint32_t best = 0;
+	float best_d2 = NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE;
+	for (size_t f = 0; f < fauna_.count; ++f) {
+		if (!fauna_.alive[f] || fauna_.food_amount[f] <= 0) continue;
+		const uint8_t b = fauna_.behavior[f];
+		if (b == FAUNA_CARCASS || b == FAUNA_CORRALLED || b == FAUNA_HERDED) continue;
+		const auto &info = fauna_type_info(fauna_.fauna_type[f]);
+		if (info.is_dangerous() || info.is_naval()) continue;
+		const float dx = fauna_.pos_x[f] - x, dz = fauna_.pos_z[f] - z;
+		const float d2 = dx * dx + dz * dz;
+		if (d2 < best_d2) { best_d2 = d2; best = fauna_.id[f]; }
+	}
+	return best;
+}
+
 void Simulation::order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id) {
 	auto it = fauna_id_to_idx_.find(fauna_id);
 	if (it == fauna_id_to_idx_.end()) return;
