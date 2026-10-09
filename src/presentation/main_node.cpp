@@ -2440,6 +2440,15 @@ void RtsoMain::_process(double delta) {
 			if (!txt.is_empty()) txt += "\n";
 			txt += String::utf8(n->text);
 		}
+		// CeasefireManager: "You can attack in %(time)s" for the last 10 s, then
+		// "You can attack now!" for 5 s.
+		if (sim->ceasefire_seconds() > 0.0f) {
+			const float left = sim->ceasefire_seconds() - sim->game_time();
+			String line;
+			if (left > 0.0f && left <= 10.0f) line = "You can attack in 0:" + String(left > 9.0f ? "" : "0") + String::num_int64((int64_t)std::ceil(left));
+			else if (left <= 0.0f && left > -5.0f) line = "You can attack now!";
+			if (!line.is_empty()) txt += (txt.is_empty() ? "" : "\n") + line;
+		}
 		if (time_notification_label_->get_text() != txt) time_notification_label_->set_text(txt);
 	}
 	if (sim && chat_window_.is_ready()) {
@@ -2457,6 +2466,7 @@ void RtsoMain::_process(double delta) {
 	update_cursor();
 	chat_window_.tick_overlay();
 	if (objectives_dialog_.is_open()) objectives_dialog_.refresh(sim, local_player());
+	if (diplo_dialog_.is_open()) diplo_dialog_.refresh();
 
 	// Sound events and the music state (0 A.D. music.js: battle while
 	// BattleDetection says so, victory and defeat playlists at the end).
@@ -4966,14 +4976,6 @@ String RtsoMain::player_display_name(uint8_t pid) const {
 void RtsoMain::apply_player_names(const Array &names) {
 	for (int p = 0; p < rtso::MAX_PLAYERS; ++p)
 		player_names_[p] = p < names.size() ? String(names[p]).strip_edges().left(48) : String();
-	if (!sim) return;
-	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
-		const auto &ps = sim->player(p);
-		String label = ps.active ? player_display_name(p) + " (" + String(rtso::civ_info(ps.civ).name) + ")" : String("-");
-		if (ps.active && p == local_player()) label += " (You)";
-		else if (ps.active && ps.is_ai) label += " (AI)";
-		diplo_dialog_.set_player_label(p, label);
-	}
 }
 
 void RtsoMain::sync_victory_selector() {
