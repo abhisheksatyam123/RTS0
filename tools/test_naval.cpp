@@ -365,7 +365,7 @@ static void test_no_wading() {
 		return s.nav_grid().cells.at(cx, cy) == NAV_WATER;
 	};
 	const uint32_t walker = s.spawn_unit(-20.0f, 30.0f, 0, UNIT_SPEARMAN);
-	s.order_walk(&walker, 1, -20.0f, 0.0f, false);
+	s.order_walk(&walker, 1, -20.0f, 0.0f, false, true); // a player's walk
 	const uint32_t ai_walker = s.spawn_unit(0.0f, 30.0f, 0, UNIT_SPEARMAN);
 	s.cmd_move(&ai_walker, 1, 0.0f, 0.0f); // Petra's walks go through cmd_move
 	const uint32_t ship = s.spawn_unit(-40.0f, 0.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));

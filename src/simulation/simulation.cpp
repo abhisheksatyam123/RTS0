@@ -2793,11 +2793,10 @@ void Simulation::cmd_move_individual(const uint32_t *unit_ids, size_t count, flo
 		         ut == UNIT_SCYTHED_CHARIOT)
 			pass = PASS_CAVALRY;
 		find_path(units_.pos_x[idx], units_.pos_z[idx], dest_x, dest_z, wp, pass);
-		// HierarchicalPathfinder::MakeGoalReachable: a walk to a point the unit can't reach
-		// (out at sea, ashore for a ship, another island) ends where find_path ends the path,
-		// the nearest point it can reach, the AI's walks included. A path cut short at
-		// MAX_WP keeps its goal.
-		if (wp.count > 0 && wp.count < WaypointPath::MAX_WP - 1) {
+		// HierarchicalPathfinder::MakeGoalReachable: a player's walk to a point the unit can't reach
+		// (out at sea, ashore for a ship, another island) ends where find_path ends the path, the
+		// nearest point it can reach. Petra's walks keep their goal.
+		if (beach_goal_ && wp.count > 0) {
 			units_.target_x[idx] = units_.anchor_x[idx] = wp.xs[wp.count - 1];
 			units_.target_z[idx] = units_.anchor_z[idx] = wp.zs[wp.count - 1];
 		}
@@ -2942,10 +2941,12 @@ void Simulation::attack_building_one_by_one(const uint32_t *unit_ids, size_t cou
 	}
 }
 
-void Simulation::order_walk(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued) {
+void Simulation::order_walk(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued, bool beach_goal) {
 	UnitOrder o; o.kind = ORDER_WALK; o.flags = ORDER_FLAG_FORCE; o.x = tx; o.z = tz;
 	const std::vector<uint32_t> now = split_queued(unit_ids, count, o, queued);
+	beach_goal_ = beach_goal;
 	cmd_move(now.data(), now.size(), tx, tz);
+	beach_goal_ = false;
 	for (uint32_t uid : now) {
 		const int32_t idx = lookup_unit(uid);
 		if (idx >= 0 && units_.alive[idx] && units_.order_kind[idx] == ORDER_WALK) units_.order_flags[idx] = ORDER_FLAG_FORCE;
@@ -5674,19 +5675,21 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 
 		// GATHER, BUILD, RETURN_DROPSITE and TRADE walk at (tx, tz) with no cmd_move path. When
 		// buildings, deep water or a slope too steep block that line, path them too, as 0 A.D.
-		// UnitMotion paths every move. The path is kept
+		// UnitMotion paths every move. An attacker closing in on its target is pathed only
+		// around water and slopes (it would stop at the shore otherwise). The path is kept
 		// while (tx, tz) stays within 2 world units of the target it was computed for.
 		const uint8_t st = units_.action_state[i];
+		const bool closing_in = st == ACTION_ATTACK;
 		bool task_path = false;
-		if ((st == ACTION_GATHER || st == ACTION_BUILD || st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE) &&
+		if ((st == ACTION_GATHER || st == ACTION_BUILD || st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE || closing_in) &&
 		    (size_t)i < unit_paths_.size() && !unit_is_ship(units_.unit_type[i])) {
 			WaypointPath &wp = unit_paths_[i];
 			const float gdx = wp.goal_x - tx[i];
 			const float gdz = wp.goal_z - tz[i];
 			task_path = wp.has_goal && gdx * gdx + gdz * gdz <= 4.0f;
-			if (!task_path && (rtso::nav::line_blocked_by_buildings(rtso::nav::Vec2(px[i], pz[i]),
+			if (!task_path && ((!closing_in && rtso::nav::line_blocked_by_buildings(rtso::nav::Vec2(px[i], pz[i]),
 					rtso::nav::Vec2(tx[i], tz[i]), 2.0f * map_half_, unit_building_clearance(units_.unit_type[i]),
-					steer_obstacles_, units_.target_building_id[i]) ||
+					steer_obstacles_, units_.target_building_id[i])) ||
 					line_crosses_impassable(px[i], pz[i], tx[i], tz[i]))) {
 				const uint8_t ut = units_.unit_type[i];
 				const bool mounted = ut == UNIT_CAVALRY || ut == UNIT_CHARIOT || ut == UNIT_CAMEL || ut == UNIT_SCYTHED_CHARIOT;

@@ -448,7 +448,10 @@ public:
 	// goes to the end of each busy unit's order queue instead of replacing its orders.
 	// Player orders are forced (order.data.force); Petra's cmd_move walks are not, so its
 	// units still turn to fight on the way.
-	void order_walk(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false);
+	// beach_goal: a player's walk, which ends on the beach when (tx, tz) is out at sea
+	// (MakeGoalReachable). Internal walks (Petra, rally points) keep their goal.
+	void order_walk(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false,
+			bool beach_goal = false);
 	// A player's Gather and Repair are forced (UnitAI Gather / Repair) until work starts;
 	// UnitAI's own follow-up gathers and repairs (PerformGather force false) are not.
 	void order_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id, bool queued = false, bool force = true);
@@ -1554,6 +1557,7 @@ private:
 	// Turret units (unit id -> point height), rebuilt from the holders' garrison lists each
 	// tick, and the stance each had before it went up (UnitAI previousStance).
 	std::unordered_map<uint32_t, float> turret_height_;
+	bool beach_goal_ = false; // set by order_walk(..., beach_goal) around its cmd_move
 	std::unordered_map<uint32_t, uint8_t> turret_prev_stance_;
 	const TurretPointSet *turret_points_of(const Building &b) const;
 	int structure_garrison_cap(const Building &b) const;
