@@ -86,6 +86,7 @@ RTS0_CLASSES = {
     "UNIT_ARCHER_MAIDEN":   (95, 3.6, 17.0, 8.5, 1.1, 0, 2, 2, 15, 40, 60, 40, 0, 1, 14, 0, 8.5, 0),
     "UNIT_CAMEL":           (190, 5.2, 2.4, 12.0, 1.2, 0, 3, 3, 15, 60, 0, 70, 0, 2, 16, 12, 0, 0),
     "UNIT_SCYTHED_CHARIOT": (320, 5.6, 2.2, 24.0, 1.0, 0, 5, 5, 25, 100, 80, 120, 0, 3, 26, 18, 0, 6),
+    "UNIT_MINISTER":        (200, 3.204, 1.8, 10.0, 1.0, 0, 2, 4, 6, 100, 0, 100, 0, 1, 15, 10, 0, 0),
 }
 RTS0_FIELDS = ("hp", "speed", "range", "damage", "cooldown", "carry",
                "hack_armor", "pierce_armor", "crush_armor",
@@ -117,6 +118,7 @@ GENERIC = {
     "UNIT_ARCHER_MAIDEN": "template_unit_infantry_ranged_archer",
     "UNIT_CAMEL": "template_unit_cavalry_ranged_archer",
     "UNIT_SCYTHED_CHARIOT": "template_unit_champion_cavalry_swordsman",
+    "UNIT_MINISTER": "units/han/support_minister",
 }
 
 # RTS0's male gatherer has no 0 A.D. counterpart in most civs; every civ keeps it.
@@ -196,7 +198,7 @@ for _enum, _stems, _model, _portrait in UNIQUE_BUILDINGS:
         TRAINER_BUILDING[_st] = _enum
 TRAINER_BUILDING.update({"tachara_food": "BLD_TACHARA", "tachara_wood": "BLD_TACHARA",
                          "tachara_stone": "BLD_TACHARA", "tachara_metal": "BLD_TACHARA",
-                         "imperial_ministry": "BLD_MINISTRY"})
+                         "imperial_ministry": "BLD_MINISTRY", "ministry": "BLD_MINISTRY"})
 BUILDING_BITS = ["BLD_TOWN_CENTER", "BLD_HOUSE", "BLD_BARRACKS", "BLD_STOREHOUSE",
                  "BLD_TOWER", "BLD_FARMSTEAD", "BLD_MARKET", "BLD_FORTRESS",
                  "BLD_GATE", "BLD_TEMPLE", "BLD_WONDER", "BLD_DOCK",
@@ -441,6 +443,8 @@ def rts0_class(name, t, civ):
     """RTS0 UnitType for a 0 A.D. unit template, or None to leave it out."""
     c = classes_of(t)
     stem = name.rsplit("/", 1)[-1]
+    if "Minister" in c:
+        return "UNIT_MINISTER"  # units/han/support_minister
     if "Hero" in c:
         return "UNIT_HERO"
     if "FemaleCitizen" in c:
@@ -939,6 +943,8 @@ def collect(sim_root):
                     "modifications": a.get("modifications", []),
                 })
                 auras[-1]["rts0"] = rts0_aura_effect(auras[-1])
+            if len(hero_auras) > 3:  # three slots: range auras before garrison ones (the minister has four)
+                hero_auras.sort(key=lambda i: auras[i]["type"] == "garrison")
             rows.append({
                 "id": name.split("units/", 1)[-1],
                 "civ": civ,

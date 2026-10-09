@@ -1248,6 +1248,8 @@ private:
 	void credit_trade(uint8_t player, uint8_t res, int amount);
 	void tick_trickle(float dt);
 	int corral_count(uint32_t corral_id) const;
+	// Han ministers garrisoned in `b` (their garrison auras: han_minister_garrison*.json).
+	int garrisoned_ministers(const Building &b) const;
 	void tick_entity_limits(float dt);
 	void tick_death_damage(float dt);
 	// 0 A.D. helpers/Attack.js CauseDamageOverArea for an Attack Splash landing at (ox, oz).

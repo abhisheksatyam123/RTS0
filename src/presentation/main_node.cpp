@@ -135,6 +135,7 @@ void RtsoMain::_bind_methods() {
 	bind_enum("UnitType", "ARCHER_MAIDEN", rtso::UNIT_ARCHER_MAIDEN);
 	bind_enum("UnitType", "CAMEL", rtso::UNIT_CAMEL);
 	bind_enum("UnitType", "SCYTHED_CHARIOT", rtso::UNIT_SCYTHED_CHARIOT);
+	bind_enum("UnitType", "MINISTER", rtso::UNIT_MINISTER);
 	bind_enum("UnitType", "NONE", rtso::UNIT_TYPE_NONE);
 
 	bind_enum("BuildingType", "TOWN_CENTER", rtso::BLD_TOWN_CENTER);
@@ -274,7 +275,7 @@ static rtso::UnitType map_unit_type(const String &n) {
 		{"war_dog", rtso::UNIT_WAR_DOG}, {"bolt_shooter", rtso::UNIT_BOLT_SHOOTER}, {"fishing_boat", rtso::UNIT_FISHING_BOAT},
 		{"merchant_ship", rtso::UNIT_MERCHANT_SHIP}, {"female_citizen", rtso::UNIT_FEMALE_CITIZEN}, {"carnyx", rtso::UNIT_CARNYX},
 		{"worker_elephant", rtso::UNIT_WORKER_ELEPHANT}, {"archer_maiden", rtso::UNIT_ARCHER_MAIDEN}, {"camel", rtso::UNIT_CAMEL},
-		{"scythed_chariot", rtso::UNIT_SCYTHED_CHARIOT},
+		{"scythed_chariot", rtso::UNIT_SCYTHED_CHARIOT}, {"minister", rtso::UNIT_MINISTER},
 	};
 	for (const auto &t : kTypes)
 		if (n == t.name) return t.type;
