@@ -4,8 +4,10 @@ extends CanvasLayer
 # description. Save writes a new slot or overwrites the selected one (after
 # asking); Load loads the selected one; Delete removes it (after asking).
 #
-# Saves are user://saves/<name>.rts0sav with <name>.json beside it, both
-# written by RtsoMain.save_game. Save calls the RtsoMain it is given. Load
+# Saves are user://saves/<name>.rts0sav with <name>.json (metadata) and
+# <name>.png (a screenshot, when one could be taken) beside it, all written by
+# RtsoMain.save_game. A save written by a newer RTS0 (a higher save format) is
+# shown in red and can't be loaded, as 0 A.D. marks incompatible saves. Save calls the RtsoMain it is given. Load
 # (from a match or the main menu) starts the match scene with
 # MatchSettings.load_save_path set, and the scene loads it after building the map.
 
@@ -19,6 +21,7 @@ var game: Node = null # RtsoMain, or null in the main menu
 var _saves: Array = [] # {path, meta}
 var _list: ItemList
 var _details: RichTextLabel
+var _thumb: TextureRect
 var _desc: LineEdit
 var _status: Label
 var _btn_ok: Button
@@ -68,10 +71,18 @@ func _ready() -> void:
 	_list.item_selected.connect(_on_selected)
 	_list.item_activated.connect(func(_i): _on_ok())
 	row.add_child(_list)
+	var side := VBoxContainer.new()
+	side.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(side)
+	_thumb = TextureRect.new()
+	_thumb.custom_minimum_size = Vector2(320, 180)
+	_thumb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_thumb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	side.add_child(_thumb)
 	_details = RichTextLabel.new()
 	_details.bbcode_enabled = true
-	_details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(_details)
+	_details.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	side.add_child(_details)
 	if mode == "save":
 		_desc = LineEdit.new()
 		_desc.placeholder_text = "Description (optional)"
@@ -119,7 +130,8 @@ func refresh() -> void:
 				# Saves from before metadata existed still list, by file date.
 				meta = {"timestamp": FileAccess.get_modified_time(path), "map_name": "?",
 					"date": Time.get_datetime_string_from_unix_time(FileAccess.get_modified_time(path), true)}
-			_saves.append({"path": path, "meta": meta})
+			var v := int(meta.get("save_version", 0))
+			_saves.append({"path": path, "meta": meta, "compatible": v <= RtsoMain.get_save_version()})
 	_saves.sort_custom(func(a, b): return int(a.meta.get("timestamp", 0)) > int(b.meta.get("timestamp", 0)))
 	if mode == "save":
 		_list.add_item("[New saved game]")
@@ -129,6 +141,8 @@ func refresh() -> void:
 		if desc == "":
 			desc = s.path.get_file().get_basename()
 		_list.add_item("%s   %s   %s" % [str(m.get("date", "")).replace("T", " "), m.get("map_name", "?"), desc])
+		if not s.compatible:
+			_list.set_item_custom_fg_color(_list.item_count - 1, Color(0.85, 0.4, 0.35))
 	if _list.item_count > 0:
 		_list.select(0)
 		_on_selected(0)
@@ -148,14 +162,20 @@ func _selected_save() -> Dictionary:
 func _update_buttons() -> void:
 	var s := _selected_save()
 	_btn_delete.disabled = s.is_empty()
-	_btn_ok.disabled = mode == "load" and s.is_empty()
+	_btn_ok.disabled = mode == "load" and (s.is_empty() or not s.compatible)
 
 func _on_selected(_i: int) -> void:
 	_update_buttons()
 	var s := _selected_save()
+	_thumb.texture = null
 	if s.is_empty():
 		_details.text = "Saves the match in a new slot." if mode == "save" else ""
 		return
+	var png: String = s.path.get_basename() + ".png"
+	if FileAccess.file_exists(png):
+		var img := Image.load_from_file(ProjectSettings.globalize_path(png))
+		if img:
+			_thumb.texture = ImageTexture.create_from_image(img)
 	var m: Dictionary = s.meta
 	var t := "[b]%s[/b]\n" % m.get("map_name", "?")
 	t += "Saved: %s\n" % str(m.get("date", "")).replace("T", " ")
@@ -166,6 +186,8 @@ func _on_selected(_i: int) -> void:
 	for p in m.get("players", []):
 		t += "%s - %s, team %d%s\n" % [p.get("name", "?"), p.get("civ_name", "?"), int(p.get("team", 0)),
 			" (AI)" if p.get("ai", false) else ""]
+	if not s.compatible:
+		t += "\n[color=#e07060]Saved by a newer RTS0 (save format v%d; this build reads up to v%d).[/color]\n" % [int(m.get("save_version", 0)), RtsoMain.get_save_version()]
 	_details.text = t
 	if _desc and m.get("description", "") != "":
 		_desc.text = m.description
@@ -178,7 +200,7 @@ func _on_ok() -> void:
 			return
 		_save_to(_new_name())
 	else:
-		if s.is_empty():
+		if s.is_empty() or not s.compatible:
 			return
 		_load(s.path)
 
@@ -198,6 +220,7 @@ func _on_confirmed() -> void:
 	if _pending == "delete":
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(s.path))
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(s.path.get_basename() + ".json"))
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(s.path.get_basename() + ".png"))
 		refresh()
 	elif _pending == "overwrite":
 		_save_to(s.path.get_file().get_basename())
@@ -208,6 +231,9 @@ func _new_name() -> String:
 func _save_to(name: String) -> void:
 	if game == null or not game.has_method("save_game_as"):
 		_status.text = "No match to save."
+		return
+	if game.has_method("is_replay_playback") and game.is_replay_playback():
+		_status.text = "A replay can't be saved."
 		return
 	var desc: String = _desc.text.strip_edges() if _desc else ""
 	if game.save_game_as(name, desc):

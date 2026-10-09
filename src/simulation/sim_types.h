@@ -311,7 +311,8 @@ enum BuildingType : uint8_t {
 	BLD_TEMPLE_AMUN = 48,     // kush/temple_amun
 	BLD_TEMPLE_VESTA = 49,    // rome/temple_vesta
 	BLD_TEMPLE_MARS = 50,     // rome/temple_mars
-	BLD_TYPE_COUNT = 51
+	BLD_ICE_HOUSE = 51,       // pers/ice_house
+	BLD_TYPE_COUNT = 52
 };
 
 #include "civ_building_data.h"
@@ -844,6 +845,7 @@ enum TechStat : uint8_t {
 	TSTAT_PACK_TIME, TSTAT_GARRISON_HEAL,
 	TSTAT_REGEN, TSTAT_IDLE_REGEN, // Health/RegenRate, Health/IdleRegenRate (hp per second)
 	TSTAT_CAPTURE_POINTS, TSTAT_COST_FOOD, TSTAT_COST_WOOD, TSTAT_COST_STONE, TSTAT_COST_METAL,
+	TSTAT_TRICKLE_FOOD, TSTAT_TRICKLE_WOOD, TSTAT_TRICKLE_STONE, TSTAT_TRICKLE_METAL, // ResourceTrickle/Rates/<res>
 	TSTAT_COUNT
 };
 
@@ -1000,6 +1002,7 @@ inline uint64_t building_tech_classes(uint8_t type) {
 		case BLD_FORGE: return c | TC_FORGE;
 		case BLD_ARSENAL: return c | TC_ARSENAL;
 		case BLD_OUTPOST: return c | TC_OUTPOST | TC_DEFENSIVE;
+		case BLD_ICE_HOUSE: return c | TC_ICEHOUSE;
 		default: return c;
 	}
 }
