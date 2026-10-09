@@ -7716,6 +7716,14 @@ void Simulation::tick_waves(float dt) {
 	}
 }
 
+bool Simulation::unit_capturing(size_t i) const {
+	if (i >= units_.count || !units_.alive[i] || units_.action_state[i] != ACTION_ATTACK) return false;
+	if (units_.target_building_id[i] == 0 || !(units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE)) return false;
+	if (units_.team[i] >= MAX_PLAYERS || unit_capture_attack_at(i) <= 0.0f) return false;
+	auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
+	return bit != building_id_to_idx_.end() && can_capture_building(units_.team[i], buildings_[bit->second]);
+}
+
 Simulation::UnitView Simulation::units() const {
 	Simulation::UnitView v;
 	v.pos_x = units_.pos_x;

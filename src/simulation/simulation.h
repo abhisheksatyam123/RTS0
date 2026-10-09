@@ -327,6 +327,9 @@ public:
 	// Rank effects (unit_advanced.json, unit_elite.json) for unit index i.
 	float rank_melee_armor(size_t i) const;
 	float unit_capture_attack_at(size_t i) const;
+	// Read-only, for the renderer: unit i is attacking a structure it captures
+	// rather than damages (the tick_combat check), so it plays 0 A.D.'s capture clip.
+	bool unit_capturing(size_t i) const;
 	float healer_range_of(size_t h) const;
 	float heal_amount_of(size_t h) const;
 	// 0 A.D. team bonuses (data/auras/teambonuses): the product a player gets on `stat`
