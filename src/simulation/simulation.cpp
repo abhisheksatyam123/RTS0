@@ -10030,6 +10030,27 @@ int Simulation::petra_villager_target() const {
 	return std::min(target, petra_config_.target_num_workers);
 }
 
+// Sends up to `max` of `workers` to build foundation `bid`. On a naval map only
+// those on its land go (0 A.D.'s workers keep to their accessIndex);
+// petra_staff_foundations ships builders to a foundation on another land.
+void Simulation::petra_order_builders(const std::vector<uint32_t> &workers, size_t max, uint32_t bid) {
+	auto it = building_id_to_idx_.find(bid);
+	if (it == building_id_to_idx_.end()) return;
+	uint16_t home = 0;
+	const PetraNavalTopo &topo = petra_classified_topo(home);
+	const uint16_t land = topo.naval_map ? petra_building_land(buildings_[it->second], &topo) : 0;
+	std::vector<uint32_t> crew;
+	for (uint32_t uid : workers) {
+		if (crew.size() >= max) break;
+		if (land) {
+			const int32_t i = lookup_unit(uid);
+			if (i < 0 || petra_land_at(units_.pos_x[i], units_.pos_z[i]) != land) continue;
+		}
+		crew.push_back(uid);
+	}
+	if (!crew.empty()) order_build_or_repair(crew.data(), crew.size(), bid);
+}
+
 // baseManager.js assignToFoundations: every AI foundation gets builders,
 // pulled off gathering when nobody is idle, so houses and dropsites finish.
 void Simulation::petra_staff_foundations() {
@@ -10037,7 +10058,7 @@ void Simulation::petra_staff_foundations() {
 	// Builders path around buildings now (VertexPathfinder steering), so this
 	// only catches foundations nobody can reach; 0 A.D. has no such timer.
 	constexpr float kStallRelease = 40.0f;
-	struct Need { uint32_t id; float x, z; int missing; PetraFoundationWatch *watch; };
+	struct Need { uint32_t id; float x, z; int missing; PetraFoundationWatch *watch; uint16_t land; };
 	std::vector<Need> needs;
 	std::vector<PetraFoundationWatch> watch;
 	watch.reserve(petra_fnd_watch_.size() + 4);
@@ -10056,11 +10077,16 @@ void Simulation::petra_staff_foundations() {
 	}
 	petra_fnd_watch_ = std::move(watch);
 	if (petra_fnd_watch_.empty()) return;
+	// On a naval map a builder must stand on the foundation's land (worker.js
+	// assignToFoundations; one elsewhere asks navalManager for a ship).
+	uint16_t home_land = 0;
+	const PetraNavalTopo &topo = petra_classified_topo(home_land);
+	const bool naval_map = topo.naval_map;
 	for (auto &w : petra_fnd_watch_) {
 		const Building &b = buildings_[building_id_to_idx_.at(w.id)];
 		int want = (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_WONDER) ? 4
 		         : (b.type == BLD_HOUSE ? 1 : (b.type == BLD_FIELD ? 3 : 2));
-		needs.push_back({w.id, b.x, b.z, want, &w});
+		needs.push_back({w.id, b.x, b.z, want, &w, naval_map ? petra_building_land(b, &topo) : (uint16_t)0});
 	}
 
 	int workers = 0, building = 0;
@@ -10091,29 +10117,51 @@ void Simulation::petra_staff_foundations() {
 	// Keep at least two thirds of the workforce on the economy.
 	int budget = std::max(1, workers / 3) - building;
 
+	// Idle workers first, then the nearest gatherer, on `land` when given.
+	auto pick_worker = [&](const Need &n, uint16_t land, const std::vector<uint32_t> &taken) {
+		int best = -1;
+		float best_d2 = 1e18f;
+		for (size_t i = 0; i < units_.count; ++i) {
+			if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
+			uint8_t ut = units_.unit_type[i];
+			if (ut != UNIT_VILLAGER && ut != UNIT_FEMALE_CITIZEN) continue;
+			uint8_t st = units_.action_state[i];
+			if (st != ACTION_IDLE && st != ACTION_GATHER && st != ACTION_RETURN_DROPSITE) continue;
+			const auto &ban = n.watch->banned;
+			if (std::find(ban.begin(), ban.end(), units_.id[i]) != ban.end()) continue;
+			if (std::find(taken.begin(), taken.end(), units_.id[i]) != taken.end()) continue;
+			if (land && petra_land_at(units_.pos_x[i], units_.pos_z[i]) != land) continue;
+			float dx = units_.pos_x[i] - n.x, dz = units_.pos_z[i] - n.z;
+			float d2 = dx * dx + dz * dz + (st == ACTION_IDLE ? 0.0f : 1e6f);
+			if (d2 < best_d2) { best_d2 = d2; best = (int)i; }
+		}
+		return best;
+	};
+	const std::vector<uint32_t> none;
 	for (auto &n : needs) {
+		const int wanted = n.missing;
 		while (n.missing > 0 && budget > 0) {
-			int best = -1;
-			float best_d2 = 1e18f;
-			for (size_t i = 0; i < units_.count; ++i) {
-				if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
-				uint8_t ut = units_.unit_type[i];
-				if (ut != UNIT_VILLAGER && ut != UNIT_FEMALE_CITIZEN) continue;
-				uint8_t st = units_.action_state[i];
-				if (st != ACTION_IDLE && st != ACTION_GATHER && st != ACTION_RETURN_DROPSITE) continue;
-				const auto &ban = n.watch->banned;
-				if (std::find(ban.begin(), ban.end(), units_.id[i]) != ban.end()) continue;
-				float dx = units_.pos_x[i] - n.x, dz = units_.pos_z[i] - n.z;
-				// Idle workers first, then the nearest gatherer.
-				float d2 = dx * dx + dz * dz + (st == ACTION_IDLE ? 0.0f : 1e6f);
-				if (d2 < best_d2) { best_d2 = d2; best = (int)i; }
-			}
+			const int best = pick_worker(n, n.land, none);
 			if (best < 0) break;
 			uint32_t uid = units_.id[best];
 			order_build_or_repair(&uid, 1, n.id);
 			--n.missing;
 			--budget;
 		}
+		// navalManager.requireTransport: nobody of ours on that land yet, so a ship
+		// takes builders from home (one transport plan at a time).
+		if (!naval_map || n.missing < wanted || budget <= 0 || !n.land || n.land == home_land) continue;
+		const uint16_t sea = topo.sea_between(home_land, n.land);
+		if (!sea || petra_transport_ships_on(sea) == 0) continue;
+		std::vector<uint32_t> crew;
+		while ((int)crew.size() < std::min(n.missing, budget)) {
+			const int w = pick_worker(n, home_land, crew);
+			if (w < 0) break;
+			crew.push_back(units_.id[w]);
+		}
+		float hx = n.x, hz = n.z;
+		if (const PetraBase *pb = get_primary_petra_base()) { hx = pb->x; hz = pb->z; }
+		if (!crew.empty() && petra_start_transport(crew, hx, hz, n.x, n.z, sea)) budget -= (int)crew.size();
 	}
 }
 
@@ -10312,8 +10360,15 @@ void Simulation::petra_manage_economy(float dt) {
 	// Safe, non-empty resources with their squared distance to our nearest
 	// dropsite, computed once per pass rather than once per idle worker.
 	// Fields cap their gatherers (FIELD_MAX_GATHERERS); slots counts the free ones.
-	struct Candidate { uint32_t id; float x, z, d2_drop; uint8_t type; int slots; };
+	struct Candidate { uint32_t id; float x, z, d2_drop; uint8_t type; int slots; uint16_t land; };
 	std::vector<Candidate> candidates;
+	// On a naval map a worker gathers on its own land (worker.js startGathering
+	// keeps to the base's accessIndex) and drops at a dropsite there.
+	bool naval_map = false;
+	if (!reassignable_workers.empty()) {
+		uint16_t home_land = 0;
+		naval_map = petra_classified_topo(home_land).naval_map;
+	}
 	if (!reassignable_workers.empty()) {
 		std::unordered_map<uint32_t, int> field_users;
 		if (!field_bld_by_res_.empty()) {
@@ -10322,13 +10377,15 @@ void Simulation::petra_manage_economy(float dt) {
 				if (field_bld_by_res_.count(units_.target_resource_id[i])) field_users[units_.target_resource_id[i]]++;
 			}
 		}
-		std::vector<std::pair<float, float>> drops;
+		struct Drop { float x, z; uint16_t land; };
+		std::vector<Drop> drops;
 		for (const auto &b : buildings_) {
 			if (b.team == petra_pid_ && b.hp > 0 &&
 			    (b.type == BLD_TOWN_CENTER || b.type == BLD_STOREHOUSE || b.type == BLD_FARMSTEAD || b.type == BLD_DOCK))
-				drops.push_back({b.x, b.z});
+				drops.push_back({b.x, b.z, naval_map ? petra_building_land(b) : (uint16_t)0});
 		}
-		for (const auto &base : petra_bases_) drops.push_back({base.x, base.z});
+		for (const auto &base : petra_bases_)
+			drops.push_back({base.x, base.z, naval_map ? petra_land_at(base.x, base.z) : (uint16_t)0});
 		for (size_t r = 0; r < resources_.count; ++r) {
 			if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
 			if (resources_.subtype[r] == RES_SUB_FISH) continue; // fishing boats' food, not villagers'
@@ -10342,13 +10399,15 @@ void Simulation::petra_manage_economy(float dt) {
 				slots = FIELD_MAX_GATHERERS - (uit == field_users.end() ? 0 : uit->second);
 				if (slots <= 0) continue;
 			}
+			const uint16_t land = naval_map ? petra_land_at(resources_.x[r], resources_.z[r]) : 0;
 			float d2_drop = 1e9f;
 			for (const auto &d : drops) {
-				float bdx = resources_.x[r] - d.first;
-				float bdz = resources_.z[r] - d.second;
+				if (d.land != land) continue;
+				float bdx = resources_.x[r] - d.x;
+				float bdz = resources_.z[r] - d.z;
 				d2_drop = std::min(d2_drop, bdx * bdx + bdz * bdz);
 			}
-			candidates.push_back({resources_.id[r], resources_.x[r], resources_.z[r], d2_drop, resources_.type[r], slots});
+			candidates.push_back({resources_.id[r], resources_.x[r], resources_.z[r], d2_drop, resources_.type[r], slots, land});
 		}
 	}
 
@@ -10380,6 +10439,7 @@ void Simulation::petra_manage_economy(float dt) {
 
 		float wx = units_.pos_x[widx];
 		float wz = units_.pos_z[widx];
+		const uint16_t wland = naval_map ? petra_land_at(wx, wz) : 0;
 
 		// Fall back to the other resource types, neediest first, when the
 		// chosen one has nothing safe left (a depleted map left workers idle).
@@ -10404,7 +10464,7 @@ void Simulation::petra_manage_economy(float dt) {
 		for (uint8_t rt : order) {
 			float best_score = 1e9f;
 			for (auto &c : candidates) {
-				if (c.type != rt || c.slots <= 0) continue;
+				if (c.type != rt || c.slots <= 0 || c.land != wland) continue;
 				float dx = wx - c.x;
 				float dz = wz - c.z;
 				float score = dx * dx + dz * dz + c.d2_drop * 0.5f;
@@ -10640,7 +10700,7 @@ void Simulation::petra_build_first_base() {
 				petra_ps().food() -= (float)info.food_cost; petra_ps().wood() -= (float)info.wood_cost;
 				petra_ps().gold() -= (float)info.gold_cost; petra_ps().stone() -= (float)info.stone_cost;
 				const uint32_t bid = spawn_building(sx + dx, sz + dz, goal, petra_pid_, 0.0f);
-				if (bid != 0 && !workers.empty()) order_build_or_repair(workers.data(), workers.size(), bid);
+				if (bid != 0 && !workers.empty()) petra_order_builders(workers, workers.size(), bid);
 				return;
 			}
 		}
@@ -10871,7 +10931,7 @@ void Simulation::petra_manage_trading(float dt) {
 			uint32_t bid = spawn_building(best_cx, best_cz, BLD_MARKET, petra_pid_, 0.0f);
 			auto idle_workers = get_idle_workers(petra_pid_);
 			if (!idle_workers.empty())
-				order_build_or_repair(idle_workers.data(), std::min((size_t)3, idle_workers.size()), bid);
+				petra_order_builders(idle_workers, 3, bid);
 		}
 	} else if (market_count == 0) {
 		float base_x = 36.0f, base_z = 36.0f;
@@ -10892,7 +10952,7 @@ void Simulation::petra_manage_trading(float dt) {
 						uint32_t bid = spawn_building(cx, cz, BLD_MARKET, petra_pid_, 0.0f);
 						auto idle_workers = get_idle_workers(petra_pid_);
 						if (!idle_workers.empty()) {
-							order_build_or_repair(idle_workers.data(), std::min((size_t)3, idle_workers.size()), bid);
+							petra_order_builders(idle_workers, 3, bid);
 						}
 						placed = true;
 					}
@@ -10916,7 +10976,7 @@ void Simulation::petra_manage_trading(float dt) {
 						uint32_t bid = spawn_building(cx, cz, BLD_MARKET, petra_pid_, 0.0f);
 						auto idle_workers = get_idle_workers(petra_pid_);
 						if (!idle_workers.empty()) {
-							order_build_or_repair(idle_workers.data(), std::min((size_t)3, idle_workers.size()), bid);
+							petra_order_builders(idle_workers, 3, bid);
 						}
 						placed = true;
 					}
@@ -11086,20 +11146,53 @@ uint16_t Simulation::PetraNavalTopo::sea_between(uint16_t a, uint16_t b) const {
 void Simulation::PetraNavalTopo::classify(uint16_t home) {
 	naval_map = false;
 	naval.assign(sea_size.size(), false);
+	land_ok.assign(land_size.size(), false);
 	const float min_land = 0.1f * (float)total, min_water = 0.2f * (float)total;
 	for (size_t s = 1; s < sea_size.size(); ++s) {
 		if ((float)sea_size[s] > min_water) { naval_map = true; naval[s] = true; }
 		else if (cell_m2 * (float)sea_size[s] > 3600.0f) naval[s] = true;
 	}
 	if (!home) return;
+	if (home < land_ok.size()) land_ok[home] = true;
 	for (size_t l = 1; l < land_size.size(); ++l) {
 		if (l == home || cell_m2 * (float)land_size[l] <= 320.0f) continue;
 		const uint16_t s = sea_between(home, (uint16_t)l);
 		if (s && ((float)land_size[l] > min_land || (float)sea_size[s] > min_water)) {
 			naval_map = true;
 			naval[s] = true;
+			land_ok[l] = true;
 		}
 	}
+}
+
+// Computed once per AI turn (tick_petra_ai_player clears it); empty, so not
+// naval, on a map without water.
+const Simulation::PetraNavalTopo &Simulation::petra_classified_topo(uint16_t &home) const {
+	if (petra_class_topo_pid_ != (int)petra_pid_) {
+		// Classified again only when the nav grid, the AI or its home land changed.
+		const PetraNavalTopo *t = nav_grid_.cells.blank() ? nullptr : &petra_topo();
+		uint16_t h = 0;
+		if (t && t->sea_size.size() > 1) {
+			float hx = 0.0f, hz = 0.0f;
+			if (const PetraBase *pb = get_primary_petra_base()) { hx = pb->x; hz = pb->z; }
+			h = petra_home_land(hx, hz, t);
+		}
+		const uint64_t key = t && t->sea_size.size() > 1 ? petra_topo_cache_key_ : 0;
+		if (!petra_class_valid_ || key != petra_class_key_ || h != petra_class_home_ || petra_pid_ != petra_class_for_) {
+			petra_class_topo_ = PetraNavalTopo();
+			if (key) {
+				petra_class_topo_ = *t;
+				petra_class_topo_.classify(h);
+			}
+			petra_class_key_ = key;
+			petra_class_home_ = h;
+			petra_class_for_ = petra_pid_;
+			petra_class_valid_ = true;
+		}
+		petra_class_topo_pid_ = petra_pid_;
+	}
+	home = petra_class_home_;
+	return petra_class_topo_;
 }
 
 // PETRA.getLandAccess: the land region at (x, z), or of the nearest land cell
@@ -11364,7 +11457,7 @@ void Simulation::petra_manage_naval(float dt) {
 							                   (float)info.gold_cost, (float)info.stone_cost)) break;
 							const uint32_t bid = spawn_building(cx, cz, BLD_DOCK, petra_pid_, 0.0f);
 							auto idle = get_idle_workers(petra_pid_);
-							if (bid && !idle.empty()) order_build_or_repair(idle.data(), std::min((size_t)3, idle.size()), bid);
+							if (bid && !idle.empty()) petra_order_builders(idle, 3, bid);
 						}
 			}
 		}
@@ -11386,6 +11479,13 @@ void Simulation::petra_manage_naval(float dt) {
 	};
 	plan_wants(petra_attack_plan_, petra_attack_mgr_.kind);
 	plan_wants(petra_raid_plan_, PETRA_ATTACK_RAID);
+	// findEconomicCCLocation: a base on another land keeps a transport ship on the sea between.
+	for (const Building &b : buildings_) {
+		if (b.team != petra_pid_ || b.type != BLD_TOWN_CENTER || b.wrecked || b.hp <= 0.0f) continue;
+		const uint16_t land = petra_building_land(b, &topo, home);
+		const uint16_t s = land == home ? 0 : topo.sea_between(home, land);
+		if (s && s < nseas) want_transport[s] = std::max(want_transport[s], 1);
+	}
 	std::vector<int> fish_food(nseas, 0);
 	for (size_t r = 0; r < resources_.count; ++r) {
 		if (!resources_.alive[r] || resources_.amount[r] <= 0 || resources_.subtype[r] != RES_SUB_FISH) continue;
@@ -11504,7 +11604,7 @@ void Simulation::petra_manage_buildings(float dt) {
 						uint32_t bid = spawn_building(cx, cz, BLD_TOWER, petra_pid_, 0.0f);
 						auto idle_workers = get_idle_workers(petra_pid_);
 						if (!idle_workers.empty()) {
-							order_build_or_repair(idle_workers.data(), std::min((size_t)3, idle_workers.size()), bid);
+							petra_order_builders(idle_workers, 3, bid);
 						}
 						placed = true;
 					}
@@ -11519,7 +11619,8 @@ void Simulation::petra_manage_buildings(float dt) {
 		primary_depleted = pbase->resources_depleted;
 	}
 
-	if (primary_depleted || (petra_ps().phase >= 2 && petra_bases_.size() <= 1)) {
+	// headquarters.js update: checkBaseExpansion every 10th played turn (2 s).
+	if ((primary_depleted || (petra_ps().phase >= 2 && petra_bases_.size() <= 1)) && ticks_ % 10 == 7) {
 		// Check if Town Center is already in progress
 		bool tc_in_progress = false;
 		for (const auto &b : buildings_) {
@@ -11538,52 +11639,78 @@ void Simulation::petra_manage_buildings(float dt) {
 			// Scan candidate resource clusters at distance 30m - 55m
 			float best_cluster_score = -1.0f;
 			int best_cx = 0, best_cz = 0;
-
-			for (size_t r = 0; r < resources_.count; ++r) {
-				if (!resources_.alive[r] || resources_.amount[r] < 400) continue;
-				float rx = resources_.x[r];
-				float rz = resources_.z[r];
-				float dist_from_primary = std::hypot(rx - p_x, rz - p_z);
-				if (dist_from_primary < 28.0f || dist_from_primary > 58.0f) continue;
-				if (std::abs(rx) >= map_half_ - 8.0f || std::abs(rz) >= map_half_ - 8.0f) continue;
-				if (!is_position_safe(rx, rz, 5.0f)) continue;
-
-				// Ensure clear distance from enemy structures
-				bool near_enemy = false;
-				for (const auto &eb : buildings_) {
-					if (petra_foe(eb.team) && eb.hp > 0 && std::hypot(eb.x - rx, eb.z - rz) < 26.0f) {
-						near_enemy = true;
-						break;
+			// headquarters.js findEconomicCCLocation: on a naval map a new base may stand on
+			// another land of ours (landRegions), with no cut for an inaccessible one: the
+			// builders sail there (petra_staff_foundations). Home land first, as before.
+			uint16_t home_land = 0;
+			const PetraNavalTopo &topo = petra_classified_topo(home_land);
+			const bool naval_map = topo.naval_map;
+			// Resources by 24-unit bucket, so a candidate's score reads its 3x3 buckets.
+			constexpr float kScoreR = 24.0f;
+			const int nb = std::max(1, (int)std::ceil(2.0f * map_half_ / kScoreR));
+			std::vector<std::vector<uint32_t>> buckets;
+			auto bucket_of = [&](float v) { return std::clamp((int)std::floor((v + map_half_) / kScoreR), 0, nb - 1); };
+			auto scan = [&](float max_dist, bool overseas) {
+				for (size_t r = 0; r < resources_.count; ++r) {
+					if (!resources_.alive[r] || resources_.amount[r] < 400) continue;
+					float rx = resources_.x[r];
+					float rz = resources_.z[r];
+					float dist_from_primary = std::hypot(rx - p_x, rz - p_z);
+					if (dist_from_primary < 28.0f || dist_from_primary > max_dist) continue;
+					if (naval_map) {
+						const uint16_t l = petra_land_at(rx, rz);
+						if (!topo.land_region(l) || overseas != (l != home_land)) continue;
 					}
-				}
-				if (near_enemy) continue;
+					if (std::abs(rx) >= map_half_ - 8.0f || std::abs(rz) >= map_half_ - 8.0f) continue;
+					if (!is_position_safe(rx, rz, 5.0f)) continue;
 
-				int cx = (int)(rx / GRID);
-				int cz = (int)(rz / GRID);
-				if (petra_can_place(cx, cz, 2, BLD_TOWN_CENTER)) {
-					// Score based on surrounding resources
-					float score = 0.0f;
-					for (size_t j = 0; j < resources_.count; ++j) {
-						if (!resources_.alive[j]) continue;
-						float d = std::hypot(resources_.x[j] - rx, resources_.z[j] - rz);
-						if (d <= 24.0f) {
-							score += (float)resources_.amount[j];
+					// Ensure clear distance from enemy structures
+					bool near_enemy = false;
+					for (const auto &eb : buildings_) {
+						if (petra_foe(eb.team) && eb.hp > 0 && std::hypot(eb.x - rx, eb.z - rz) < 26.0f) {
+							near_enemy = true;
+							break;
 						}
 					}
-					if (score > best_cluster_score) {
-						best_cluster_score = score;
-						best_cx = cx;
-						best_cz = cz;
+					if (near_enemy) continue;
+
+					int cx = (int)(rx / GRID);
+					int cz = (int)(rz / GRID);
+					if (petra_can_place(cx, cz, 2, BLD_TOWN_CENTER)) {
+						// Score based on surrounding resources
+						if (buckets.empty()) {
+							buckets.resize((size_t)nb * nb);
+							for (size_t j = 0; j < resources_.count; ++j)
+								if (resources_.alive[j])
+									buckets[(size_t)bucket_of(resources_.z[j]) * nb + bucket_of(resources_.x[j])].push_back((uint32_t)j);
+						}
+						int64_t sum = 0; // whole amounts: the same total in any order
+						const int bx = bucket_of(rx), bz = bucket_of(rz);
+						for (int z = std::max(0, bz - 1); z <= std::min(nb - 1, bz + 1); ++z)
+							for (int x = std::max(0, bx - 1); x <= std::min(nb - 1, bx + 1); ++x)
+								for (uint32_t j : buckets[(size_t)z * nb + x])
+									if (std::hypot(resources_.x[j] - rx, resources_.z[j] - rz) <= kScoreR) sum += resources_.amount[j];
+						const float score = (float)sum;
+						if (score > best_cluster_score) {
+							best_cluster_score = score;
+							best_cx = cx;
+							best_cz = cz;
+						}
 					}
 				}
-			}
+			};
+			scan(58.0f, false);
+			// 500 m (125 units) is where config.js disfavours an inaccessible ally CC.
+			if (best_cluster_score <= 0.0f && naval_map) scan(125.0f, true);
 
 			if (best_cluster_score > 0.0f &&
 			    petra_try_pay(PETRA_QUEUE_VILLAGER, 0.0f, 300.0f, 100.0f, 200.0f)) {
 				uint32_t bid = spawn_building(best_cx, best_cz, BLD_TOWN_CENTER, petra_pid_, 0.0f);
 				auto idle_workers = get_idle_workers(petra_pid_);
-				if (!idle_workers.empty()) {
-					order_build_or_repair(idle_workers.data(), std::min((size_t)4, idle_workers.size()), bid);
+				// Overseas, petra_staff_foundations ships the builders across.
+				const bool overseas = naval_map && petra_land_at((best_cx + 1) * GRID, (best_cz + 1) * GRID) != home_land;
+				if (!idle_workers.empty() && !overseas) {
+					petra_order_builders(idle_workers, 4, bid);
 				}
 			}
 		}
@@ -11676,7 +11803,7 @@ void Simulation::petra_manage_buildings(float dt) {
 								uint32_t bid = spawn_building(cx, cz, dropsite_type, petra_pid_, 0.0f);
 								auto idle_workers = get_idle_workers(petra_pid_);
 								if (!idle_workers.empty()) {
-									order_build_or_repair(idle_workers.data(), std::min((size_t)3, idle_workers.size()), bid);
+									petra_order_builders(idle_workers, 3, bid);
 								}
 								placed = true;
 							}
@@ -11730,7 +11857,7 @@ void Simulation::petra_manage_buildings(float dt) {
 						uint32_t bid = spawn_building(cx, cz, BLD_BARRACKS, petra_pid_, 0.0f);
 						auto idle_workers = get_idle_workers(petra_pid_);
 						if (!idle_workers.empty()) {
-							order_build_or_repair(idle_workers.data(), std::min((size_t)3, idle_workers.size()), bid);
+							petra_order_builders(idle_workers, 3, bid);
 						}
 						placed = true;
 					}
@@ -11763,7 +11890,7 @@ void Simulation::petra_manage_buildings(float dt) {
 							uint32_t bid = spawn_building(cx, cz, BLD_TOWER, petra_pid_, 0.0f);
 							auto idle_workers = get_idle_workers(petra_pid_);
 							if (!idle_workers.empty()) {
-								order_build_or_repair(idle_workers.data(), std::min((size_t)2, idle_workers.size()), bid);
+								petra_order_builders(idle_workers, 2, bid);
 							}
 							placed = true;
 						}
@@ -11797,7 +11924,7 @@ void Simulation::petra_manage_buildings(float dt) {
 							uint32_t bid = spawn_building(cx, cz, BLD_FORTRESS, petra_pid_, 0.0f);
 							auto idle_workers = get_idle_workers(petra_pid_);
 							if (!idle_workers.empty()) {
-								order_build_or_repair(idle_workers.data(), std::min((size_t)4, idle_workers.size()), bid);
+								petra_order_builders(idle_workers, 4, bid);
 							}
 							placed = true;
 						}
@@ -11848,7 +11975,7 @@ void Simulation::petra_build_advanced() {
 		const uint32_t bid = petra_place_building(t, home->x, home->z, 4, 16, PETRA_QUEUE_MILITARY);
 		if (!bid) return;
 		auto idle = get_idle_workers(petra_pid_);
-		if (!idle.empty()) order_build_or_repair(idle.data(), std::min((size_t)3, idle.size()), bid);
+		if (!idle.empty()) petra_order_builders(idle, 3, bid);
 	};
 	// canBuild: RTS0 lets every civ lay any generic structure, so the stable and
 	// arsenal count only when the civ's roster trains something there.
@@ -13097,7 +13224,7 @@ void Simulation::petra_manage_opening(float dt) {
 	if (!bid) return;
 	auto idle = get_idle_workers(petra_pid_);
 	if (!idle.empty())
-		order_build_or_repair(idle.data(), std::min((size_t)3, idle.size()), bid);
+		petra_order_builders(idle, 3, bid);
 	petra_opening_step_++;
 }
 
@@ -13310,6 +13437,10 @@ bool Simulation::petra_find_beach(float land_x, float land_z, float toward_x, fl
 }
 
 bool Simulation::petra_start_transport(const std::vector<uint32_t> &unit_ids, float from_x, float from_z, float to_x, float to_z, uint16_t sea) {
+	// One plan at a time: a new one would strand the passengers of the one under way.
+	if (petra_transport_.state == PetraTransportPlan::BOARDING || petra_transport_.state == PetraTransportPlan::SAILING ||
+	    petra_transport_.state == PetraTransportPlan::UNLOADING)
+		return false;
 	float pickup_x = from_x, pickup_z = from_z;
 	float drop_x = to_x, drop_z = to_z;
 	petra_find_beach(from_x, from_z, to_x, to_z, pickup_x, pickup_z);
@@ -13322,8 +13453,6 @@ bool Simulation::petra_start_transport(const std::vector<uint32_t> &unit_ids, fl
 	float best_d2 = 0.0f;
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_ || !petra_is_transport_ship(i)) continue;
-		if (units_.id[i] == petra_transport_.ship_id && petra_transport_.state != PetraTransportPlan::IDLE &&
-		    petra_transport_.state != PetraTransportPlan::FAILED) continue;
 		if (sea && petra_ship_sea(i) != sea) continue;
 		const int cap = ship_garrison_capacity(i);
 		const int room = cap + (cap != 10 ? 50 : 0);
@@ -13899,13 +14028,13 @@ void Simulation::petra_manage_victory(float dt) {
 					}
 				}
 				if (!builders.empty()) {
-					order_build_or_repair(builders.data(), std::min((size_t)10, builders.size()), bid);
+					petra_order_builders(builders, 10, bid);
 				}
 			}
 		} else if (!complete) {
 			auto builders = get_idle_workers(petra_pid_);
 			if (!builders.empty()) {
-				order_build_or_repair(builders.data(), std::min((size_t)8, builders.size()), wonder_id);
+				petra_order_builders(builders, 8, wonder_id);
 			}
 		} else {
 			auto bit = building_id_to_idx_.find(wonder_id);
@@ -14653,6 +14782,7 @@ void Simulation::tick_petra_ai_player(float dt) {
 	// 0 A.D. Petra Autonomous AI System
 	petra_timer_ += dt;
 	petra_limit_cache_key_ = 0; // EntityLimits answers last one AI turn
+	petra_class_topo_pid_ = -1; // so does the classified topology
 
 	petra_refresh_queue_accounts(dt);
 
