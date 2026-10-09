@@ -148,7 +148,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 35; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 37; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -491,8 +491,22 @@ public:
 		std::vector<uint32_t> members;
 		std::vector<FormationSlot> slots;
 		WaypointPath path;
+		// v37: the attack order (UnitAI FORMATIONCONTROLLER.COMBAT / MEMBER) and patrol.
+		uint32_t target_unit = 0;       // Order.Attack target unit
+		uint32_t target_building = 0;   // Order.Attack target structure
+		uint8_t allow_capture = 0;      // Attack.js allowCapture for the members
+		uint8_t returning = 0;          // order.data.returningState: where MEMBER goes back to
+		float member_timer = 0.0f;      // MEMBER / CHECKINGWAYPOINT one-second timer
+		float patrol_x = 0.0f, patrol_z = 0.0f; // patrolStartPosOrder: the other end of the patrol
+		uint8_t patrol_wait = 0;        // CHECKINGWAYPOINT stopSurveying
+		std::vector<uint32_t> twins;    // Formation.js twinFormations (controller ids)
 	};
-	enum FormationOrder : uint8_t { FORDER_IDLE = 0, FORDER_WALK = 1, FORDER_ATTACK_WALK = 2 };
+	// UnitAI FORMATIONCONTROLLER states: WALKING, WALKINGANDFIGHTING, COMBAT.APPROACHING,
+	// MEMBER (members fight on their own), PATROL.PATROLLING and PATROL.CHECKINGWAYPOINT.
+	enum FormationOrder : uint8_t {
+		FORDER_IDLE = 0, FORDER_WALK = 1, FORDER_ATTACK_WALK = 2, FORDER_APPROACH = 3,
+		FORDER_MEMBER = 4, FORDER_PATROL = 5, FORDER_PATROL_WAIT = 6
+	};
 	const std::vector<FormationController> &formations() const { return formations_; }
 	// Controller id of the formation unit_id belongs to, 0 when none.
 	uint32_t formation_of_unit(uint32_t unit_id) const;
@@ -511,6 +525,7 @@ public:
 	// EndOfAlert unloads them and sends them back to work. False when it has no alert.
 	bool cmd_raise_alert(uint8_t player, uint32_t building_id);
 	bool cmd_end_alert(uint8_t player, uint32_t building_id);
+	// target_unit_id: a unit or a structure, one's own or an ally's (Guard.js).
 	void order_guard(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
 	// UnitAI Heal: healers walk to an injured allied unit and heal it (Heal.js).
 	void order_heal(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
@@ -1315,6 +1330,19 @@ private:
 	void formation_move_members_into(size_t ci, bool move_center, bool force); // Formation.js MoveMembersIntoFormation
 	float formation_walking_distance(const FormationController &fc) const; // UnitAI.js ComputeWalkingDistance
 	void formation_stop(const uint32_t *unit_ids, size_t count);
+	// Commands.js "attack" through GetFormationUnitAIs: units in formations go to their
+	// controller (Order.Attack); the ids returned are the ones to order one by one.
+	std::vector<uint32_t> formation_take_attack(const std::vector<uint32_t> &ids, uint32_t target_unit,
+			uint32_t target_building, bool allow_capture);
+	std::vector<uint32_t> formation_take_patrol(const std::vector<uint32_t> &ids, float tx, float tz); // Order.Patrol
+	bool formation_target_in_range(const FormationController &fc) const; // CheckFormationTargetAttackRange
+	bool formation_target_pos(const FormationController &fc, float &x, float &z) const;
+	void formation_members_attack(size_t ci);   // CallMemberFunction("Attack")
+	void formation_merge_twins();               // Formation.js ShapeUpdate twin merge
+	void formation_delete_twins(FormationController &fc); // Formation.js DeleteTwinFormations
+	void formation_size(const FormationController &fc, float &width, float &depth) const; // GetSize
+	void attack_unit_one_by_one(const uint32_t *ids, size_t count, uint32_t target_unit_id);
+	void attack_building_one_by_one(const uint32_t *ids, size_t count, uint32_t target_building_id, bool allow_capture);
 	void cmd_move_individual(const uint32_t *unit_ids, size_t count, float tx, float tz);
 	void tick_promotion(float dt);
 	void promote_if_due(size_t i); // Promotion.js IncreaseXp: promote while xp covers RequiredXp
@@ -1325,6 +1353,8 @@ private:
 	// flee), returns fighters to their order, turns patrols, follows the order queue.
 	void tick_unit_ai(float dt);
 	void tick_status_effects(float dt);
+	void apply_status(size_t t, const CombatProfile &att); // Attack ApplyStatus (Poisoned, Burning)
+	static float status_dps(uint8_t kind);
 	void tick_projectiles(float dt);
 	void tick_construction(float dt);
 	// Foundation.js Commit: own and allied units standing on the foundation are told to
@@ -1404,6 +1434,8 @@ private:
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
 	void rebuild_auras(); // G4: rebuild AuraManager from temples/heroes/carnyx/female citizens
+	void apply_health_auras(); // Health/Max auras: rescale max_hp and hp as units enter or leave them
+	float unit_vision_at(size_t i) const; // Vision/Range with Vision auras (0 A.D. Vision.js)
 	uint16_t aura_affected_players(uint8_t owner, uint8_t players) const;
 	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false, uint8_t visual = 0, uint32_t source_id = 0, uint8_t splash = 0);
 	static float projectile_speed(uint8_t visual);
@@ -1954,6 +1986,7 @@ private:
 	std::vector<uint32_t> split_queued(const uint32_t *ids, size_t count, const UnitOrder &o, bool queued);
 	void apply_order(uint32_t uid, const UnitOrder &o);
 	bool order_still_valid(size_t i, const UnitOrder &o) const;
+	int32_t structure_attacker(uint32_t building_id, uint8_t team) const;
 	void finish_order(size_t i);
 	void resume_order(size_t i);
 	void respond_to_attack(size_t i);

@@ -79,6 +79,8 @@ inline constexpr float FORMATION_COLUMN_DISTANCE = 128.0f * FORMATION_METRE;
 inline constexpr float FORMATION_ROTATE_DISTANCE = 1.0f * FORMATION_METRE;
 // Commands.js GetFormationUnitAIs: formationSeparation = 60 (cluster link distance).
 inline constexpr float FORMATION_CLUSTER_DISTANCE = 60.0f * FORMATION_METRE;
+// template_formation.xml UnitAI/PatrolWaitTime: seconds a formation surveys each patrol end.
+inline constexpr uint8_t FORMATION_PATROL_WAIT_S = 2;
 // Formation.js Init: ShapeUpdate runs every 1000 ms.
 inline constexpr float FORMATION_SHAPE_UPDATE_S = 1.0f;
 

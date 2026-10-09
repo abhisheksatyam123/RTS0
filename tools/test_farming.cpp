@@ -73,7 +73,7 @@ int main() {
 	CHECK(s.cmd_build(0, 0, 0, BLD_FORGE) == 0);
 	CHECK(s.cmd_build(0, 0, 0, BLD_ARSENAL) == 0);
 	CHECK(s.cmd_build(0, 0, 0, BLD_STABLE) != 0);
-	CHECK(s.cmd_build(0, 4, 0, BLD_RANGE) != 0);
+	CHECK(s.cmd_build(0, 4, 0, BLD_RANGE) == 0); // in no civ's 0 A.D. Builder list
 	s.player(0).phase = 2;
 	CHECK(s.cmd_build(0, 8, 0, BLD_FORGE) != 0);
 	CHECK(s.cmd_build(0, 12, 0, BLD_ARSENAL) == 0);

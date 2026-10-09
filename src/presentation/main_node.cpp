@@ -65,6 +65,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("save_game", "path", "description"), &RtsoMain::save_game, DEFVAL("user://saves/quicksave.rts0sav"), DEFVAL(""));
 	ClassDB::bind_method(D_METHOD("save_game_as", "name", "description"), &RtsoMain::save_game_as);
 	ClassDB::bind_method(D_METHOD("get_match_statistics"), &RtsoMain::statistics_summary);
+	ClassDB::bind_method(D_METHOD("toggle_summary"), &RtsoMain::toggle_summary);
 	ClassDB::bind_method(D_METHOD("get_replay_status"), &RtsoMain::get_replay_status);
 	ClassDB::bind_method(D_METHOD("set_replay_view", "player"), &RtsoMain::set_replay_view);
 	ClassDB::bind_method(D_METHOD("_on_replay_view_selected", "index"), &RtsoMain::_on_replay_view_selected);
@@ -2528,6 +2529,7 @@ void RtsoMain::_process(double delta) {
 		write_replay(); // the finished match, with its final statistics
 		Node *summary = get_node_or_null(NodePath("SummaryScreen"));
 		if (summary) {
+			summary->call("configure", summary_gui(false));
 			summary->call("show_summary", sim->is_victory_for(local_player()), statistics_summary(), (float)match_elapsed_time);
 		}
 	}
@@ -3212,9 +3214,12 @@ void RtsoMain::update_command_panel() {
 					rtso::BLD_WONDER
 				};
 				static const char *kPhaseNames[4] = {"", "Village", "Town", "City"};
-				// Generic structures, then the local civ's own (0 A.D. structures/<civ>/).
+				// Generic structures the civ's 0 A.D. Builder lists name, then the civ's
+				// own (0 A.D. structures/<civ>/).
 				const uint8_t my_civ = sim->player_civ(local_player());
-				std::vector<int> menu(std::begin(b_types), std::end(b_types));
+				std::vector<int> menu;
+				for (int bt : b_types)
+					if (rtso::civ_can_build(my_civ, (uint8_t)bt)) menu.push_back(bt);
 				for (int bt = rtso::CIV_BUILDING_FIRST; bt < rtso::BLD_TYPE_COUNT; ++bt)
 					if (rtso::civ_can_build(my_civ, (uint8_t)bt)) menu.push_back(bt);
 				for (int bt : menu) {
@@ -3568,6 +3573,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		}
 		if (fired("session.gui.toggle")) {
 			if (ui_layer) ui_layer->set_visible(!ui_layer->is_visible());
+			return;
+		}
+		if (fired("summary")) {
+			toggle_summary();
 			return;
 		}
 		if (fired("session.gui.menu.toggle")) {
@@ -4152,6 +4161,16 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					if (d2 < best_ad2) {
 						best_ad2 = d2;
 						target_ally_id = uview.id[i];
+					}
+				}
+				// Guard.js guards structures too: one's own or an ally's under the cursor.
+				if (target_ally_id == 0) {
+					for (const auto &b : sim->buildings()) {
+						if (b.wrecked || (b.team != local_player() && !sim->is_ally(local_player(), b.team))) continue;
+						if (std::fabs(b.x - click_pos.x) <= b.half_size && std::fabs(b.z - click_pos.z) <= b.half_size) {
+							target_ally_id = b.id;
+							break;
+						}
 					}
 				}
 				if (target_ally_id != 0) {
