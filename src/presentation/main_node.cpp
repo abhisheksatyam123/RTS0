@@ -2943,6 +2943,13 @@ void RtsoMain::update_command_panel() {
 	}
 }
 
+// Drops one unit from the selection after an orderone command
+// (0 A.D. gui/session/input.js popOneFromSelection -> g_Selection.removeList).
+static void pop_from_selection(PackedInt32Array &sel, uint32_t id) {
+	const int64_t at = sel.find((int32_t)id);
+	if (at >= 0) sel.remove_at(at);
+}
+
 void RtsoMain::enter_build_mode(bool enable, uint8_t btype) {
 	build_mode = enable;
 	current_build_type = btype;
@@ -3454,16 +3461,25 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					const float fp = (float)rtso::building_type_info(current_build_type).footprint;
 					const float angle = placement_angle_at(current_build_type, (cell_x + fp * 0.5f) * rtso::Simulation::GRID,
 							(cell_y + fp * 0.5f) * rtso::Simulation::GRID);
+					// Shift or Alt keeps placing; Alt sends one builder, which leaves the
+					// selection (input.js:895 and popOneFromSelection).
+					const bool order_one = rtso::hotkeys::held("session.orderone") && !selected_ids.is_empty();
+					const bool keep_placing = order_one || rtso::hotkeys::held("session.queue");
+					const uint32_t one_builder = order_one ? (uint32_t)selected_ids[0] : 0;
+					const uint32_t *builders = order_one ? &one_builder : (const uint32_t *)selected_ids.ptr();
+					const size_t builder_n = order_one ? 1 : (size_t)selected_ids.size();
 					if (turn_cmds()) {
-						post_lockstep(5, (const uint32_t *)selected_ids.ptr(), selected_ids.size(),
+						post_lockstep(5, builders, builder_n,
 								(float)cell_x, (float)cell_y, rtso::Simulation::pack_angle(angle), current_build_type);
 						play_civ_voice("build");
-						enter_build_mode(false);
+						if (order_one) pop_from_selection(selected_ids, one_builder);
+						if (!keep_placing) enter_build_mode(false);
 					} else if (uint32_t bid = sim->cmd_build(local_player(), cell_x, cell_y, current_build_type, angle)) {
-						if (!selected_ids.is_empty())
-							sim->order_build_or_repair((const uint32_t *)selected_ids.ptr(), selected_ids.size(), bid);
+						if (builder_n > 0)
+							sim->order_build_or_repair(builders, builder_n, bid);
 						play_civ_voice("build");
-						enter_build_mode(false);
+						if (order_one) pop_from_selection(selected_ids, one_builder);
+						if (!keep_placing) enter_build_mode(false);
 					} else {
 						session_audio_.play_invalid_placement();
 					}
@@ -3485,16 +3501,21 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 
 						// Commit wall nodes through existing lockstep/build command paths
 						// (0 A.D. gui/session/building_placement.js:45-92 / placement.js)
+						// Alt hands the whole wall to one builder (popOneFromSelection).
+						const bool order_one = rtso::hotkeys::held("session.orderone") && !selected_ids.is_empty();
+						const uint32_t one_builder = order_one ? (uint32_t)selected_ids[0] : 0;
+						const uint32_t *builders = order_one ? &one_builder : (const uint32_t *)selected_ids.ptr();
+						const size_t builder_n = order_one ? 1 : (size_t)selected_ids.size();
 						auto place_wall_node = [&](const Vector3 &p, uint8_t btype) {
 							int cx = (int)std::floor(p.x / rtso::Simulation::GRID);
 							int cz = (int)std::floor(p.z / rtso::Simulation::GRID);
 							if (turn_cmds()) {
-								post_lockstep(5, (const uint32_t *)selected_ids.ptr(), selected_ids.size(),
+								post_lockstep(5, builders, builder_n,
 								              (float)cx, (float)cz, rtso::Simulation::pack_angle(wall_angle), btype);
 							} else if (sim) {
 								uint32_t bid = sim->cmd_build(local_player(), cx, cz, btype, wall_angle);
-								if (bid && !selected_ids.is_empty()) {
-									sim->order_build_or_repair((const uint32_t *)selected_ids.ptr(), selected_ids.size(), bid);
+								if (bid && builder_n > 0) {
+									sim->order_build_or_repair(builders, builder_n, bid);
 								}
 							}
 						};
@@ -3512,6 +3533,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							}
 						}
 						play_civ_voice("build");
+						if (order_one) pop_from_selection(selected_ids, one_builder);
 					}
 					enter_build_mode(false);
 					return;
@@ -3707,7 +3729,22 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			const bool queue_shift = rtso::hotkeys::held("session.queue");
 			const uint8_t qbit = queue_shift ? rtso::NET_PARAM_QUEUED : 0;
 			const uint32_t *sel_ptr = (const uint32_t *)selected_ids.ptr();
-			const size_t sel_n = selected_ids.size();
+			size_t sel_n = selected_ids.size();
+			// Alt orders only one unit, which then leaves the selection (0 A.D.
+			// gui/session/input.js popOneFromSelection, session.orderone).
+			uint32_t one_id = 0;
+			struct PopOne {
+				PackedInt32Array &sel;
+				const uint32_t &id;
+				~PopOne() {
+					if (id != 0) pop_from_selection(sel, id);
+				}
+			} pop_one{ selected_ids, one_id };
+			if (rtso::hotkeys::held("session.orderone")) {
+				one_id = sel_ptr[0];
+				sel_ptr = &one_id;
+				sel_n = 1;
+			}
 
 			// Ctrl over an enemy structure attacks it instead of capturing it (0 A.D.
 			// session.attack); Ctrl over anything else is attack-move (session.attackmove).
@@ -3798,6 +3835,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 			}
 			if (has_loaded_transport && sim->get_terrain_height(click_pos.x, click_pos.z) >= sim->water_height() + 0.1f) {
+				if (one_id != 0) one_id = transport_sel_id;
 				if (turn_cmds())
 					post_lockstep(19, &transport_sel_id, 1, click_pos.x, click_pos.z);
 				else
@@ -3819,20 +3857,26 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 			if (clicked_transport_id != 0) {
 				if (turn_cmds())
-					post_lockstep(18, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0, 0, clicked_transport_id);
+					post_lockstep(18, sel_ptr, sel_n, 0, 0, clicked_transport_id);
 				else
-					sim->order_board_transport((const uint32_t *)selected_ids.ptr(), selected_ids.size(), clicked_transport_id);
+					sim->order_board_transport(sel_ptr, sel_n, clicked_transport_id);
 				play_civ_voice("move");
 				return;
 			}
 
 			// 1b. Healers right-clicking an injured own or allied unit heal it (0 A.D. "heal" cursor).
 			{
-				bool any_healer = false;
-				for (size_t k = 0; k < sel_n && !any_healer; ++k) {
+				// With orderone the first healer of the selection is the one ordered
+				// (input.js firstAbleEntity).
+				uint32_t first_healer = 0;
+				for (int k = 0; k < selected_ids.size() && !first_healer; ++k) {
 					for (size_t i = 0; i < uview.count; ++i)
-						if (uview.id[i] == sel_ptr[k]) { any_healer = uview.unit_type[i] == rtso::UNIT_HEALER; break; }
+						if (uview.id[i] == (uint32_t)selected_ids[k]) {
+							if (uview.unit_type[i] == rtso::UNIT_HEALER) first_healer = uview.id[i];
+							break;
+						}
 				}
+				const bool any_healer = first_healer != 0;
 				uint32_t heal_id = 0;
 				float best_hd2 = 2.2f * 2.2f;
 				for (size_t i = 0; any_healer && i < uview.count; ++i) {
@@ -3843,6 +3887,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					if (d2 < best_hd2) { best_hd2 = d2; heal_id = uview.id[i]; }
 				}
 				if (heal_id != 0) {
+					if (one_id != 0) one_id = first_healer;
 					if (turn_cmds())
 						post_lockstep(32, sel_ptr, sel_n, 0, 0, heal_id, qbit);
 					else
@@ -3914,11 +3959,11 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				const auto &finfo = rtso::fauna_type_info(clicked_fauna_type);
 				uint8_t herd = finfo.is_domestic() && fview.behavior[best_f] != rtso::FAUNA_CORRALLED ? 1 : 0;
 				if (turn_cmds())
-					post_lockstep(17, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0, 0, clicked_fauna_id, herd);
+					post_lockstep(17, sel_ptr, sel_n, 0, 0, clicked_fauna_id, herd);
 				else if (herd)
-					sim->order_herd((const uint32_t *)selected_ids.ptr(), selected_ids.size(), clicked_fauna_id);
+					sim->order_herd(sel_ptr, sel_n, clicked_fauna_id);
 				else
-					sim->order_hunt((const uint32_t *)selected_ids.ptr(), selected_ids.size(), clicked_fauna_id);
+					sim->order_hunt(sel_ptr, sel_n, clicked_fauna_id);
 				play_civ_voice(herd ? "gather" : "attack");
 				return;
 			}
