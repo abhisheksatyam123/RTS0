@@ -250,6 +250,48 @@ int main() {
 		CHECK(!f_alive(s, sheep));
 	}
 
+	// 8b. Herded livestock is a passive Domestic animal: an attacker that does not kill it
+	// makes it flee (UnitAI respondFlee), which ends the herding. Penned livestock stays put.
+	// Slaughter reaches 2 m, so an archer walks up to a sheep instead of killing it from afar.
+	{
+		fresh(s);
+		s.spawn_building_world(-14.0f, 10.0f, BLD_CORRAL, 1, 1.0f);
+		uint32_t herder = s.spawn_unit(0.0f, 0.0f, 1, UNIT_FEMALE_CITIZEN);
+		uint32_t sheep = s.spawn_fauna(2.0f, 0.0f, FAUNA_SHEEP);
+		s.order_herd(&herder, 1, sheep);
+		CHECK(s.fauna_.behavior[fidx(s, sheep)] == FAUNA_HERDED);
+		uint32_t foe = s.spawn_unit(8.0f, 0.0f, 0, UNIT_ARCHER);
+		s.fauna_attacked((size_t)fidx(s, sheep), foe);
+		CHECK(s.fauna_.behavior[fidx(s, sheep)] == FAUNA_FLEE);
+		run(s, 3.0f);
+		const float d = std::hypot(s.fauna_.pos_x[fidx(s, sheep)] - 8.0f, s.fauna_.pos_z[fidx(s, sheep)]);
+		CHECK(d > 8.0f);
+
+		fresh(s);
+		uint32_t pen = s.spawn_building_world(-14.0f, 10.0f, BLD_CORRAL, 1, 1.0f);
+		uint32_t penned = s.spawn_fauna(-12.0f, 10.0f, FAUNA_SHEEP);
+		s.fauna_.behavior[fidx(s, penned)] = FAUNA_CORRALLED;
+		s.fauna_.corral_id[fidx(s, penned)] = pen;
+		s.fauna_attacked((size_t)fidx(s, penned), foe);
+		CHECK(s.fauna_.behavior[fidx(s, penned)] == FAUNA_CORRALLED);
+
+		fresh(s);
+		uint32_t archer = s.spawn_unit(0.0f, 0.0f, 0, UNIT_ARCHER);
+		uint32_t lamb = s.spawn_fauna(12.0f, 0.0f, FAUNA_SHEEP);
+		s.order_hunt(&archer, 1, lamb);
+		run(s, 0.5f);
+		CHECK(f_alive(s, lamb)); // out of Slaughter range: still walking up
+		float closest = 1e9f;
+		for (int t = 0; t < 400 && f_alive(s, lamb); ++t) {
+			const int32_t a = uidx(s, archer);
+			closest = std::hypot(s.units_.pos_x[a] - 12.0f, s.units_.pos_z[a]);
+			run(s, Simulation::FIXED_STEP);
+		}
+		CHECK(!f_alive(s, lamb));
+		CHECK(closest < 4.0f);
+		std::printf("livestock: herded sheep fled to %.1f from its attacker; archer slaughtered from %.1f\n", d, closest);
+	}
+
 	// 9. Animals roam and linger on their own, stay on land and inside the map.
 	{
 		fresh(s);

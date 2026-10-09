@@ -6570,6 +6570,8 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			d2 = 0.0f; // in reach: stop here
 		} else if (units_.action_state[i] == ACTION_ATTACK && !backing_off && units_.target_building_id[i] == 0) {
 			float r_att = units_.attack_range[i];
+			if (units_.target_unit_id[i] != 0 && fauna_.count != 0 && slaughters_target(i))
+				r_att = SLAUGHTER_RANGE + 1.0f; // Attack/Slaughter MaxRange: walk up to the animal
 			if (r_att > 3.0f) {
 				// Ranged units (Archers, Catapults, Triremes) stop comfortably within volley distance
 				stop_dist = std::max(2.5f, r_att * 0.85f);
@@ -19136,6 +19138,16 @@ uint32_t Simulation::find_nearby_prey(size_t i, float x, float z) const {
 	return best;
 }
 
+// Attack.js GetBestAttackAgainst: a Domestic animal gets Slaughter from infantry, cavalry and
+// women (not ships or siege), whatever their other attacks.
+bool Simulation::slaughters_target(size_t i) const {
+	const uint8_t ut = units_.unit_type[i];
+	if (unit_is_ship(ut) || unit_is_siege_engine(ut)) return false;
+	auto it = fauna_id_to_idx_.find(units_.target_unit_id[i]);
+	if (it == fauna_id_to_idx_.end() || !fauna_.alive[it->second]) return false;
+	return fauna_type_info(fauna_.fauna_type[it->second]).is_domestic();
+}
+
 void Simulation::order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id) {
 	auto it = fauna_id_to_idx_.find(fauna_id);
 	if (it == fauna_id_to_idx_.end()) return;
@@ -19171,7 +19183,9 @@ bool Simulation::fauna_can_step(size_t f, float x, float z) const {
 void Simulation::fauna_attacked(size_t f, uint32_t attacker_id) {
 	if (!fauna_.alive[f]) return;
 	const uint8_t b = fauna_.behavior[f];
-	if (b == FAUNA_CORRALLED || b == FAUNA_HERDED) return; // livestock stays put while slaughtered
+	// Penned livestock is garrisoned in its corral (GarrisonHolder), so it stays put; herded
+	// livestock is a passive Domestic animal and flees like any other (the herding ends).
+	if (b == FAUNA_CORRALLED) return;
 	const auto &info = fauna_type_info(fauna_.fauna_type[f]);
 	if (info.attack_damage() > 0.0f && info.stance != FAUNA_STANCE_PASSIVE && info.stance != FAUNA_STANCE_SKITTISH) {
 		if (b != FAUNA_ATTACK) {
@@ -19258,7 +19272,8 @@ void Simulation::tick_hunters() {
 		const bool slaughter = finfo.is_domestic() && !unit_is_ship(ut) && !unit_is_siege_engine(ut);
 		const float dx = units_.pos_x[i] - fx, dz = units_.pos_z[i] - fz;
 		// The animal's footprint; a penned animal is reached over the corral fence.
-		float reach = (slaughter ? std::max(units_.attack_range[i], 2.0f * 0.6f) : units_.attack_range[i]) + 1.0f;
+		// Slaughter's MaxRange is 2 m even for archers, who walk up to the animal.
+		float reach = (slaughter ? SLAUGHTER_RANGE : units_.attack_range[i]) + 1.0f;
 		if (fauna_.behavior[f] == FAUNA_CORRALLED) reach += 3.0f;
 		if (dx * dx + dz * dz > reach * reach) continue;
 
