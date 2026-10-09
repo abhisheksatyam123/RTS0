@@ -6436,11 +6436,12 @@ void Simulation::tick_gather(float dt) {
 		uint8_t uteam = units_.team[i];
 
 		// 1. Returning to dropsite
-		// Gathering, idle or building workers with a full load return it (Petra's builders
-		// rely on this, as 0 A.D. builders drop carried resources at a dropsite); a full
-		// worker the player walks elsewhere or sends to fight keeps its order.
+		// Gathering or building workers with a full load return it (Petra's builders rely on
+		// this, as 0 A.D. builders drop carried resources at a dropsite). An idle full worker
+		// stays put, as in UnitAI IDLE (Petra sends it with ReturnResource); a full worker
+		// the player walks elsewhere or sends to fight keeps its order.
 		const uint8_t gst = units_.action_state[i];
-		if (((gst == ACTION_GATHER || gst == ACTION_IDLE || gst == ACTION_BUILD) &&
+		if (((gst == ACTION_GATHER || gst == ACTION_BUILD) &&
 					units_.carry[i] >= carry_cap(i, units_.res_type_carried[i])) ||
 				units_.action_state[i] == ACTION_RETURN_DROPSITE) {
 			float best_d2 = 1e9f;
