@@ -14868,7 +14868,8 @@ void Simulation::petra_manage_research(float dt) {
 		if (petra_tech_affects_only(t, TC_HEALER) || petra_tech_affects_only(t, TC_OUTPOST) || petra_tech_affects_only(t, TC_WALL))
 			return true;
 		const TechInfo &ti = tech_info(t);
-		return !has_ally && ti.effect_count == 1 && tech_effects_table()[ti.effect_begin].stat == TSTAT_TRADE_INTERNATIONAL;
+		return !has_ally && (t == TECH_UNLOCK_SHARED_LOS ||
+		                     (ti.effect_count == 1 && tech_effects_table()[ti.effect_begin].stat == TSTAT_TRADE_INTERNATIONAL));
 	}), techs.end());
 	if (techs.empty()) return;
 	// pickRandom, kept while the pick waits for resources: the draw is a hash of
