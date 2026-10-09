@@ -5238,5 +5238,46 @@
       "sahara_paving_stones_01"
     ],
     "rle": "/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wB/AAkB8QARAeoAFwHlABsB4gAdAd8AIQHcACMB1wAoAdIALQHOADEBywA0AckANQHHADgBxQA6AcMAOwHCAD0BwAA+Ab8APwG/AEABvQBBAbwAQgG8AEIBuwBEAboARAG5AEUBuQBFAbkARQG4AEYBuABGAbgARgG4AEYBtwBIAbYASQG1AEkBtQBKAbQASgG0AEsBswBLAbMASwGzAEwBsQBNAbEATgGwAE4BsABPAa4AUAGuAFABrgBRAa0AUQGtAFEBrQBRAa0AUgGsAFIBqwBTAasAUwGrAFMBqwBTAasAUwGrAFQBqgBUAaoAVAGqAFQBqgBUAaoAVAGqAFQBqgBUAaoAVAGqAFQBqgBUAaoAVAGrAFMBqwBTAasAUgGsAFIBrQBRAa0AUQGtAFABrwBPAa8ATwGwAE0BsgBMAbIASwG0AEkBtgBIAbcARgG5AEQBuwBCAb4APwHAAD0BwgA6AcUAOAHIADQBywAwAc8AKwHUACEB3wAdAeIAGwHlABcB6gARAfEACQH/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wCAAA=="
+  },
+  "environment": {
+    "sky_set": "default",
+    "sun_color": [
+      0.8588,
+      0.8196,
+      0.7294
+    ],
+    "sun_elevation": 0.785398,
+    "sun_rotation": -0.613592,
+    "ambient_color": [
+      0.4314,
+      0.4392,
+      0.4824
+    ],
+    "fog_color": [
+      0.8,
+      0.8,
+      0.8941
+    ],
+    "fog_factor": 0.000781,
+    "fog_thickness": 0.5,
+    "water_type": "ocean",
+    "water_color": [
+      0.2941,
+      0.349,
+      0.6941
+    ],
+    "water_tint": [
+      0.2745,
+      0.2941,
+      0.5843
+    ],
+    "water_waviness": 4.0,
+    "water_murkiness": 0.45,
+    "water_wind_angle": 0.0,
+    "brightness": 0.0,
+    "contrast": 1.0,
+    "saturation": 0.99,
+    "bloom": 0.1999,
+    "post_effect": "default"
   }
 }
