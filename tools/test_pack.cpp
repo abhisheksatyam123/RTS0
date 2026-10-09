@@ -168,6 +168,7 @@ static void test_out_of_range() {
 	const float r = s.unit_info_at(idx_of(s, bolt)).attack_range;
 	uint32_t tgt = dummy(s, -40.0f + r + 20.0f, 0.0f);
 	const float hp0 = hp_of(s, tgt);
+	s.set_reveal_map(true); // the target stands beyond its vision: let the player see it (CheckTargetVisible)
 	s.order_attack(&bolt, 1, tgt);
 	run(s, 1.0f);
 	check(pack_of(s, bolt) == PACK_PACKING, "packs to chase a target out of range");
