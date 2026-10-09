@@ -37,6 +37,7 @@
 // The ally check reads the sim's death log, which has no public accessor.
 #define private public
 #include "simulation/simulation.h"
+#include "simulation/entity_limits_data.h"
 #undef private
 #include <algorithm>
 #include <cmath>
@@ -98,7 +99,9 @@ static void test_phase_up() {
 	s->set_victory_condition(VICTORY_ENDLESS); // keep playing once the idle player is beaten
 	float town_at = -1.0f, city_at = -1.0f;
 	int peak_workers = 0, peak_fields = 0;
-	for (float t = 0.0f; t < 15.0f * 60.0f && !s->is_game_over(); t += Simulation::FIXED_STEP) {
+	// 18 minutes: at 0 A.D.'s gather rates (template_unit_*/ResourceGatherer) the city phase's
+	// 750 stone and 750 metal come in around minute 16, as for 0 A.D.'s Petra.
+	for (float t = 0.0f; t < 18.0f * 60.0f && !s->is_game_over(); t += Simulation::FIXED_STEP) {
 		s->tick(Simulation::FIXED_STEP);
 		if (town_at < 0.0f && s->petra_phase() >= 2) town_at = t;
 		if (city_at < 0.0f && s->petra_phase() >= 3) city_at = t;
@@ -114,7 +117,7 @@ static void test_phase_up() {
 	std::printf("  continental: town phase at %.0fs, city phase at %.0fs, peak workers %d, fields %d\n",
 	            town_at, city_at, peak_workers, peak_fields);
 	CHECK(town_at > 0.0f && town_at < 12.0f * 60.0f, "town phase within 12 minutes");
-	CHECK(city_at > 0.0f && city_at < 15.0f * 60.0f, "city phase within 15 minutes (Town structures built first)");
+	CHECK(city_at > 0.0f && city_at < 18.0f * 60.0f, "city phase within 18 minutes (Town structures built first)");
 	CHECK(peak_workers >= 25, "economy grows past 25 workers");
 	CHECK(peak_fields >= 2, "farms fields once hunt and berries run low");
 }
@@ -130,11 +133,16 @@ static void test_roster_army() {
 		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
 		s->players_[1].civ = (Civilization)civ;
 		s->set_victory_condition(VICTORY_ENDLESS); // keep playing once the idle player is beaten
-		// A fortress outlasts the infantry's first wave, so the siege has something to fire at.
+		// Fortresses outlast the infantry's first waves, so the siege (trained some ten minutes into
+		// the city phase at 0 A.D.'s gather rates) still has something to fire at.
 		s->spawn_building_world(42.0f, 42.0f, BLD_FORTRESS, 0, 1.0f);
+		s->spawn_building_world(26.0f, 50.0f, BLD_FORTRESS, 0, 1.0f);
+		s->spawn_building_world(50.0f, 26.0f, BLD_FORTRESS, 0, 1.0f);
 		bool hero = false, champion = false, siege = false, tower = false, packed_moved = false, unpacked_fired = false;
 		bool advanced = false, arsenal = false;
-		for (float t = 0.0f; t < 20.0f * 60.0f && !s->is_game_over(); t += Simulation::FIXED_STEP) {
+		// 45 minutes: at 0 A.D.'s gather rates (template_unit_*/ResourceGatherer) Petra reaches
+		// the city phase around minute 15, as in 0 A.D., and its city army takes a while longer.
+		for (float t = 0.0f; t < 45.0f * 60.0f && !s->is_game_over(); t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			if (s->ticks_ % 20 != 0) continue; // once a second
 			// A strong economy can raze the idle player before its siege is out: give
@@ -161,7 +169,7 @@ static void test_roster_army() {
 				else if (u.unit_type[i] == UNIT_CATAPULT || u.unit_type[i] == UNIT_SIEGE_RAM || u.unit_type[i] == UNIT_BOLT_SHOOTER) siege = true;
 			}
 		}
-		std::printf("  %s by 20 min: phase %d, hero %s, champions %s, siege %s, siege tower %s, siege moves packed %s, fires unpacked %s, arsenal %s, %s %s\n",
+		std::printf("  %s by 45 min: phase %d, hero %s, champions %s, siege %s, siege tower %s, siege moves packed %s, fires unpacked %s, arsenal %s, %s %s\n",
 		            civ_info((Civilization)civ).name, s->petra_phase(), hero ? "yes" : "no", champion ? "yes" : "no",
 		            siege ? "yes" : "no", tower ? "yes" : "no",
 		            packed_moved ? "yes" : "no", unpacked_fired ? "yes" : "no", arsenal ? "yes" : "no",
@@ -243,6 +251,22 @@ static void test_ai_slots() {
 		CHECK(count_units(*s, 1, true) > w1 + 4, "AI player 1 trains workers");
 		CHECK(count_units(*s, 2, true) > w2 + 4, "AI player 2 trains workers");
 		CHECK(count_buildings(*s, 2) > b2 + 2, "AI player 2 builds");
+	}
+	// No human (0 A.D. observer game): player 0 runs its own Petra like any AI slot.
+	{
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(11);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 11, 2, 64.0f);
+		s->set_player_active(0, true, true);
+		s->set_player_active(1, true, true);
+		const int w0 = count_units(*s, 0, true), b0 = count_buildings(*s, 0);
+		for (float t = 0.0f; t < 240.0f && !s->is_game_over(); t += Simulation::FIXED_STEP) s->tick(Simulation::FIXED_STEP);
+		std::printf("  AI-only game: player 0 workers %d -> %d, buildings %d -> %d\n",
+		            w0, count_units(*s, 0, true), b0, count_buildings(*s, 0));
+		CHECK(s->petra_runs_for(0) && s->petra_runs_for(1), "Petra runs for both slots");
+		CHECK(count_units(*s, 0, true) > w0 + 4, "AI player 0 trains workers");
+		CHECK(count_buildings(*s, 0) > b0 + 2, "AI player 0 builds");
 	}
 	// Human vs two allied AIs: teammates never kill each other's units.
 	{
@@ -423,7 +447,7 @@ static void test_attack_plans() {
 		const uint32_t store = s->spawn_building_world(-55.0f, 40.0f, BLD_STOREHOUSE, 0, 1.0f);
 		bool rushed = false, rush_at_store = false;
 		int attack_size = 0, huge_size = 0;
-		for (float t = 0.0f; t < 12.0f * 60.0f; t += Simulation::FIXED_STEP) {
+		for (float t = 0.0f; t < 20.0f * 60.0f; t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			const auto &m = s->petra_attack_manager();
 			const auto &plan = s->petra_attack_plan();
@@ -454,12 +478,13 @@ static void test_attack_plans() {
 		int attack_size = 0, huge_size = 0;
 		std::vector<int> kinds;
 		auto last = Simulation::AttackPlan::UNEXECUTED;
-		// HugeAttack launches around 11-12 min on this map; 14 min leaves room for map changes.
+		// At 0 A.D.'s gather rates the HugeAttack starts mustering around minute 14-16 on this
+		// map; 20 min leaves room for map changes.
 		// An army that razes the idle player finds it rebuilt, so every plan has a target.
 		float home_x = 0.0f, home_z = 0.0f;
 		for (const auto &b : s->buildings()) if (b.team == 0 && b.type == BLD_TOWN_CENTER) { home_x = b.x; home_z = b.z; }
 		int step = 0;
-		for (float t = 0.0f; t < 14.0f * 60.0f; t += Simulation::FIXED_STEP) {
+		for (float t = 0.0f; t < 20.0f * 60.0f; t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			if (++step % 200 == 0) {
 				bool any = false;
@@ -677,6 +702,9 @@ static void test_diplomacy_requests() {
 	CHECK(target == 3, "asks the last of the players sharing the most enemies");
 	if (target != 3) return;
 	const bool asked_neutral = s->petra_sent_diplo_.sent_type[3] == 2;
+	// At 0 A.D.'s gather rates AI 1 has nowhere near a 1000-resource tribute this early:
+	// a stock lets it pay one if AI 3 asks for it.
+	for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] += 2000.0f;
 	float t = 0.0f;
 	for (; t < 120.0f && !(s->get_diplomacy(1, 3) == Simulation::DIPLO_NEUTRAL && s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL); t += Simulation::FIXED_STEP)
 		s->tick(Simulation::FIXED_STEP);
@@ -826,7 +854,9 @@ static void test_civ_structures() {
 		s->players_[1].civ = (Civilization)civ;
 		s->set_victory_condition(VICTORY_ENDLESS);
 		bool camp = false, temple = false, champion = false;
-		for (float t = 0.0f; t < 20.0f * 60.0f; t += Simulation::FIXED_STEP) {
+		// 40 minutes: at 0 A.D.'s gather rates the city phase comes around minute 15-16, and Petra adds
+		// each further advanced structure only past 110 population (Kush's fifth, the temple, near minute 36).
+		for (float t = 0.0f; t < 40.0f * 60.0f; t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			if (s->ticks_ % 20 != 0) continue;
 			for (const auto &b : s->buildings()) {
@@ -839,7 +869,7 @@ static void test_civ_structures() {
 				if (u.alive[i] && u.team[i] == 1 && u.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT &&
 				    (civ_unit_template(u.tmpl[i]).flags & ROSTER_CHAMPION)) champion = true;
 		}
-		std::printf("  %s by 20 min: camp %s, temple %s, champions %s\n", civ_info((Civilization)civ).name,
+		std::printf("  %s by 40 min: camp %s, temple %s, champions %s\n", civ_info((Civilization)civ).name,
 		            camp ? "yes" : "no", temple ? "yes" : "no", champion ? "yes" : "no");
 		if (civ == CIV_KUSHITES) CHECK(camp && temple, "Kush builds its camps and the Temple of Amun");
 		else CHECK(temple && champion, "Rome builds the Temple of Vesta and unlocks its champions");
@@ -997,15 +1027,85 @@ static void test_nomad_first_base() {
 		return n;
 	};
 	const int at_start = town_centers(false);
-	run_for(*s, 90.0f);
+	run_for(*s, 150.0f);
 	int buildings = 0;
 	for (const auto &b : s->buildings())
 		if (b.team == 1 && !b.wrecked && b.build_progress >= 1.0f) ++buildings;
-	std::printf("  nomad: Town Centers at start %d, built after 90 s %d, finished buildings %d, workers %d\n",
+	std::printf("  nomad: Town Centers at start %d, built after 150 s %d, finished buildings %d, workers %d\n",
 	            at_start, town_centers(true), buildings, count_units(*s, 1, true));
 	CHECK(at_start == 0, "a Nomad start has no civic centre");
 	CHECK(town_centers(true) == 1, "Petra founds and builds its first Town Center");
 	CHECK(buildings >= 3, "and builds on from it");
+}
+
+// EntityLimits (D's #159): a Mauryan Pillar only stands while Ashoka lives.
+// Petra asks before it searches for a spot, so it neither lays one out nor
+// scans the map for one every turn (it did ~200k refused cells a game).
+static void test_entity_limit_placement() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->players_[1].civ = CIV_MAURYANS;
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	const int pillar_foot = building_type_info(BLD_PILLAR).footprint;
+	int free_cells = 0, pillar_ok = 0;
+	for (int dx = -8; dx <= 8; ++dx)
+		for (int dz = -8; dz <= 8; ++dz) {
+			const int cx = (int)(tx / Simulation::GRID) + dx, cz = (int)(tz / Simulation::GRID) + dz;
+			if (s->petra_can_place(cx, cz, pillar_foot, BLD_HOUSE)) ++free_cells;
+			if (s->petra_can_place(cx, cz, pillar_foot, BLD_PILLAR)) ++pillar_ok;
+		}
+	const size_t before = s->buildings().size();
+	const uint32_t placed = s->petra_place_building(BLD_PILLAR, tx, tz, 2, 16, Simulation::PETRA_QUEUE_MILITARY);
+	std::printf("  entity limits: Pillar limit %d without Ashoka, %d free cells, Pillar placeable on %d, placed %s\n",
+	            s->entity_limit(1, LIMIT_PILLAR), free_cells, pillar_ok, placed ? "yes" : "no");
+	CHECK(s->entity_limit(1, LIMIT_PILLAR) == 0, "no Pillar without Ashoka");
+	CHECK(free_cells > 0 && pillar_ok == 0, "Petra's placement refuses a limited structure everywhere");
+	CHECK(!placed && s->buildings().size() == before, "and lays none out");
+}
+
+// attackPlan.js answers Attacked events at once: a soldier hacking at a
+// structure turns on the unit that hits it, instead of standing under fire
+// until the plan's next retarget (25 s here).
+static void test_army_answers_attackers() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	const float hx = -tx * 0.3f, hz = -tz * 0.3f; // the enemy's side of the map
+	const uint32_t house = s->spawn_building_world(hx, hz, BLD_HOUSE, 0, 1.0f);
+	float half = -1.0f;
+	for (const auto &b : s->buildings()) if (b.id == house) half = b.half_size;
+	CHECK(half > 0.0f, "an enemy house to attack");
+	if (half <= 0.0f) return;
+	std::vector<uint32_t> squad;
+	for (int k = 0; k < 3; ++k) squad.push_back(s->spawn_unit(hx + half + 1.0f, hz + 1.5f * (float)k, 1, UNIT_SPEARMAN));
+	s->order_attack_building(squad.data(), squad.size(), house);
+	auto &plan = s->petra_attack_plan_;
+	plan.squad = squad;
+	plan.initial_squad_size = squad.size();
+	plan.target_building_id = house;
+	plan.target_x = hx; plan.target_z = hz;
+	plan.state = Simulation::AttackPlan::ATTACKED;
+	plan.state_timer = 0.0f;
+	run_for(*s, 2.0f);
+	const uint32_t foe = s->spawn_unit(hx + half + 3.0f, hz, 0, UNIT_SWORDSMAN, 1.0e6f);
+	s->order_attack(&foe, 1, squad[0]);
+	run_for(*s, 4.0f);
+	const int32_t i = s->lookup_unit(squad[0]);
+	const bool turned = i >= 0 && s->units().alive[i] && s->units_.target_unit_id[i] == foe;
+	std::printf("  army under attack at a structure: the soldier hit turns on its attacker: %s (plan state %d)\n",
+	            turned ? "yes" : "no", (int)plan.state);
+	CHECK(turned, "a Petra soldier attacked while at a structure fights back at once");
 }
 
 // victoryManager.js capture_the_relic: Petra goes for a Gaia relic in its
@@ -1089,6 +1189,8 @@ int main() {
 	test_regicide_hero();
 	test_regicide_hero_no_garrison();
 	test_nomad_first_base();
+	test_entity_limit_placement();
+	test_army_answers_attackers();
 	test_relic_capture();
 	test_retreat_walk_forced();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);

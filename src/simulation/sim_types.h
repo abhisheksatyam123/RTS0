@@ -2,6 +2,7 @@
 #define RTSO_SIM_TYPES_H
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -243,7 +244,8 @@ enum UnitType : uint8_t {
 	UNIT_ARCHER_MAIDEN = 20,
 	UNIT_CAMEL = 21,
 	UNIT_SCYTHED_CHARIOT = 22,
-	UNIT_TYPE_COUNT = 23,
+	UNIT_MINISTER = 23, // Han Imperial Minister (units/han/support_minister)
+	UNIT_TYPE_COUNT = 24,
 	UNIT_TYPE_NONE = 255
 };
 
@@ -342,7 +344,7 @@ enum ResourceSubtype : uint8_t {
 	RES_SUB_MEAT = 1,
 	RES_SUB_GRAIN = 2,
 	RES_SUB_FISH = 3, // food.fish: only fishing boats gather it
-	RES_SUB_RUINS = 4 // stone.ruins / metal.ruins (template_gaia_ruins): 4x a rock's gather rate
+	RES_SUB_RUINS = 4 // stone.ruins / metal.ruins (template_gaia_ruins): gather_class_ruins_rate
 };
 
 // 0 A.D. template_gaia_fish.xml ResourceSupply: 1000 food, at most 4 gatherers,
@@ -569,7 +571,8 @@ inline const UnitTypeInfo &unit_type_info(uint8_t type) {
 		{"Mauryan Worker Elephant", "worker_elephant", "worker_elephant", 600.0f, 3.2f, 2.0f, 12.0f, 1.2f, 100, 6.0f, 4.0f, 6.0f, 20.0f, 180, 80, 0, 0, 2, 25.0f, 8.0f, 0.0f, 4.0f},
 		{"Mauryan Archer Maiden", "archer_maiden", "archer_maiden", 95.0f, 3.6f, 17.0f, 8.5f, 1.1f, 0, 17.0f, 2.0f, 2.0f, 15.0f, 40, 60, 40, 0, 1, 14.0f, 0.0f, 8.5f, 0.0f},
 		{"Persian/Arabian Camel", "camel", "camel", 190.0f, 5.2f, 2.4f, 12.0f, 1.2f, 0, 12.0f, 3.0f, 3.0f, 15.0f, 60, 0, 70, 0, 2, 16.0f, 12.0f, 0.0f, 0.0f},
-		{"Seleucid Scythed Chariot", "scythed_chariot", "scythed_chariot", 320.0f, 5.6f, 2.2f, 24.0f, 1.0f, 0, 14.0f, 5.0f, 5.0f, 25.0f, 100, 80, 120, 0, 3, 26.0f, 18.0f, 0.0f, 6.0f}
+		{"Seleucid Scythed Chariot", "scythed_chariot", "scythed_chariot", 320.0f, 5.6f, 2.2f, 24.0f, 1.0f, 0, 14.0f, 5.0f, 5.0f, 25.0f, 100, 80, 120, 0, 3, 26.0f, 18.0f, 0.0f, 6.0f},
+		{"Imperial Minister", "healer", "healer", 200.0f, 3.204f, 1.8f, 10.0f, 1.0f, 0, 8.0f, 2.0f, 4.0f, 6.0f, 100, 0, 100, 0, 1, 15.0f, 10.0f, 0.0f, 0.0f}
 	};
 	if (type >= UNIT_TYPE_COUNT) return kTable[UNIT_VILLAGER];
 	return kTable[type];
@@ -600,6 +603,7 @@ inline float unit_collision_radius(uint8_t type) {
 		case UNIT_ARCHER_MAIDEN: return 0.50f;
 		case UNIT_CAMEL: return 0.90f;
 		case UNIT_SCYTHED_CHARIOT: return 1.35f;
+		case UNIT_MINISTER: return 0.50f;
 		default: return 0.55f;
 	}
 }
@@ -617,6 +621,7 @@ inline float unit_capture_strength(uint8_t type) {
 		case UNIT_ARCHER_MAIDEN: case UNIT_ELEPHANT: case UNIT_CARNYX:
 		case UNIT_WAR_DOG: return 2.5f;
 		case UNIT_HERO: return 10.0f;
+		case UNIT_MINISTER: return 8.0f; // units/han/support_minister Attack/Capture
 		default: return 0.0f;
 	}
 }
@@ -669,6 +674,7 @@ inline uint8_t unit_default_stance(uint8_t type) {
 		case UNIT_TRADER:
 		case UNIT_FEMALE_CITIZEN:
 		case UNIT_HEALER:
+		case UNIT_MINISTER:
 			return STANCE_PASSIVE;
 		default:
 			return STANCE_AGGRESSIVE;
@@ -927,6 +933,7 @@ inline uint64_t unit_tech_classes(uint8_t type) {
 		case UNIT_CAMEL: return cs | TC_CAVALRY | TC_MELEE;
 		case UNIT_TRADER: return org | TC_TRADER | TC_CIVILIAN;
 		case UNIT_HEALER: return org | TC_HEALER | TC_CIVILIAN;
+		case UNIT_MINISTER: return org | TC_CIVILIAN | TC_MINISTER; // Support (Civilian) Minister
 		case UNIT_HERO: return org | TC_HERO | TC_SOLDIER | TC_INFANTRY | TC_MELEE; // template_unit_hero VisibleClasses: Soldier
 		case UNIT_ELEPHANT: return org | TC_SOLDIER | TC_ELEPHANT | TC_CHAMPION | TC_MELEE;
 		case UNIT_CHARIOT: return org | TC_SOLDIER | TC_CAVALRY | TC_CHARIOT | TC_RANGED | TC_CHAMPION;
@@ -1202,6 +1209,67 @@ inline const CivUnitTemplate &civ_unit_template(uint16_t id) {
 	return t[id < CIV_UNIT_TEMPLATE_COUNT ? id : 0];
 }
 
+// 0 A.D. ResourceGatherer by template: citizen infantry (template_unit_infantry), support
+// workers (template_unit_support_female_citizen, and template_unit_support_civilian for RTS0's
+// villager, 0 A.D.'s male Civilian), citizen cavalry (template_unit_cavalry) and fishing ships
+// (template_unit_ship_fishing). Champions, heroes, siege and the Mauryan worker elephant
+// (a mobile dropsite) gather nothing.
+enum GatherClass : uint8_t { GATHER_NONE, GATHER_INFANTRY, GATHER_SUPPORT, GATHER_CAVALRY, GATHER_FISHING };
+
+inline uint8_t unit_gather_class(uint8_t unit_type, uint16_t tmpl) {
+	if (unit_type == UNIT_FEMALE_CITIZEN || unit_type == UNIT_VILLAGER) return GATHER_SUPPORT;
+	if (unit_type == UNIT_FISHING_BOAT) return GATHER_FISHING;
+	const bool infantry = unit_type == UNIT_SWORDSMAN || unit_type == UNIT_SPEARMAN || unit_type == UNIT_ARCHER;
+	const bool cavalry = unit_type == UNIT_CAVALRY || unit_type == UNIT_CAMEL;
+	if (tmpl != CIV_UNIT_TEMPLATE_NONE) {
+		// Roster rows: only citizen soldiers (ROSTER_CITIZEN; three citizen champions inherit
+		// template_unit_infantry too) gather.
+		if (!(civ_unit_template(tmpl).flags & ROSTER_CITIZEN)) return GATHER_NONE;
+		return infantry ? GATHER_INFANTRY : cavalry ? GATHER_CAVALRY : GATHER_NONE;
+	}
+	return infantry ? GATHER_INFANTRY : cavalry ? GATHER_CAVALRY : GATHER_NONE;
+}
+
+// ResourceGatherer/Rates in units a second, by Simulation::GatherKind
+// (grain, fruit, meat, fish, wood, stone, metal); 0 = can't gather it.
+inline float gather_class_rate(uint8_t cls, uint8_t kind) {
+	static const float kRates[5][7] = {
+		{0, 0, 0, 0, 0, 0, 0},
+		{0.25f, 0.5f, 1.0f, 0, 0.75f, 0.5f, 0.5f}, // infantry
+		{0.5f, 1.0f, 1.0f, 0, 0.7f, 0.35f, 0.35f},  // support: female citizen, civilian
+		{0, 0, 5.0f, 0, 0, 0, 0},                   // cavalry: food.meat only
+		{0, 0, 0, 1.8f, 0, 0, 0},                   // fishing ship: food.fish only
+	};
+	return cls < 5 && kind < 7 ? kRates[cls][kind] : 0.0f;
+}
+
+// Rates for template_gaia_ruins supplies: wood.ruins 5, stone.ruins and metal.ruins 2, the
+// same for citizen infantry and women; cavalry and ships have none.
+inline float gather_class_ruins_rate(uint8_t cls, uint8_t res_type) {
+	if (cls != GATHER_INFANTRY && cls != GATHER_SUPPORT) return 0.0f;
+	return res_type == RES_WOOD ? 5.0f : (res_type == RES_STONE || res_type == RES_GOLD) ? 2.0f : 0.0f;
+}
+
+// ResourceGatherer/Capacities (the same for every type the class gathers).
+inline int32_t gather_class_capacity(uint8_t cls) {
+	switch (cls) {
+		case GATHER_INFANTRY: case GATHER_SUPPORT: return 10;
+		case GATHER_CAVALRY: return 20;
+		case GATHER_FISHING: return 40;
+		default: return 0;
+	}
+}
+
+// ResourceSupply/MaxGatherers from the gaia templates: trees and fruit 8 (template_gaia_tree,
+// _fruit), mines 12 and large mines 24 (template_gaia_ore/_rock and their _large), fish 4,
+// fields 5, carcasses 8 unless their animal says otherwise.
+inline uint8_t resource_default_max_gatherers(uint8_t type, uint8_t subtype, int32_t amount) {
+	if (subtype == RES_SUB_FISH) return FISH_MAX_GATHERERS;
+	if (subtype == RES_SUB_GRAIN) return 5; // FIELD_MAX_GATHERERS
+	if (type == RES_GOLD || type == RES_STONE) return amount >= 5000 ? 24 : 12;
+	return 8;
+}
+
 inline const CivHeroAura &civ_hero_aura(int16_t idx) {
 	const CivHeroAura *a = civ_hero_aura_table();
 	return a[(idx >= 0 && idx < CIV_HERO_AURA_COUNT) ? idx : 0];
@@ -1216,6 +1284,22 @@ inline uint16_t civ_roster_begin(uint8_t civ) {
 inline uint16_t civ_roster_end(uint8_t civ) {
 	if (civ >= CIV_COUNT) civ = CIV_ATHENIANS;
 	return civ_roster_offsets()[civ + 1];
+}
+
+// Every trainable row of a civ: its block [civ_roster_begin, civ_roster_end) and the
+// rows added after the promotion-only ones (template ids, which saves and replays
+// store, never move; tools/extract_0ad_rosters.py keep_previous_ids).
+inline const std::vector<uint16_t> &civ_roster_ids(uint8_t civ) {
+	static const auto kIds = [] {
+		std::array<std::vector<uint16_t>, CIV_COUNT> ids;
+		for (uint8_t c = 0; c < CIV_COUNT; ++c) {
+			for (uint16_t i = civ_roster_begin(c); i < civ_roster_end(c); ++i) ids[c].push_back(i);
+			for (uint16_t i = CIV_ROSTER_PROMOTION_ONLY_FIRST; i < CIV_UNIT_TEMPLATE_COUNT; ++i)
+				if (civ_unit_template(i).civ == c && civ_unit_template(i).trainers) ids[c].push_back(i);
+		}
+		return ids;
+	}();
+	return kIds[civ < CIV_COUNT ? civ : CIV_ATHENIANS];
 }
 
 // The civ's standard unit for an RTS0 class: the citizen-soldier or support
@@ -1233,7 +1317,7 @@ inline uint16_t civ_default_template(uint8_t civ, uint8_t type) {
 			for (uint8_t t = 0; t < UNIT_TYPE_COUNT; ++t) {
 				uint16_t best = CIV_UNIT_TEMPLATE_NONE;
 				int best_score = 1 << 30;
-				for (uint16_t i = civ_roster_begin(c); i < civ_roster_end(c); ++i) {
+				for (uint16_t i : civ_roster_ids(c)) {
 					const CivUnitTemplate &u = civ_unit_template(i);
 					// Siege towers share the bolt shooter's class but are only trained by name;
 					// units only reached by promotion (no trainer) are never trained.
@@ -1374,6 +1458,7 @@ inline LootInfo unit_class_loot(uint8_t type) {
 		{150, 8, 6, 0, 8},    // ARCHER_MAIDEN: champion_infantry_archer
 		{130, 10, 5, 0, 0},   // CAMEL: template_unit_cavalry
 		{200, 15, 8, 0, 10},  // SCYTHED_CHARIOT: champion_cavalry
+		{150, 10, 0, 0, 10},  // MINISTER: units/han/support_minister
 	};
 	return type < UNIT_TYPE_COUNT ? table[type] : LootInfo{};
 }
@@ -1527,7 +1612,7 @@ inline uint32_t civ_train_mask(uint8_t civ) {
 	static const CivTrainMasks masks = [] {
 		CivTrainMasks out{};
 		for (uint8_t c = 0; c < CIV_COUNT; ++c)
-			for (uint16_t i = civ_roster_begin(c); i < civ_roster_end(c); ++i)
+			for (uint16_t i : civ_roster_ids(c))
 				if (!(civ_unit_template(i).flags & ROSTER_SIEGE_TOWER))
 					out.mask[c] |= unit_bit(civ_unit_template(i).unit_type);
 		return out;
