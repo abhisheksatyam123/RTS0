@@ -1411,6 +1411,7 @@ private:
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
 	void rebuild_auras(); // G4: rebuild AuraManager from temples/heroes/carnyx/female citizens
 	void apply_health_auras(); // Health/Max auras: rescale max_hp and hp as units enter or leave them
+	float unit_base_vision(size_t i) const; // the template's Vision/Range x0.28 (class default if none)
 	float unit_vision_at(size_t i) const; // Vision/Range with Vision auras (0 A.D. Vision.js)
 	uint16_t aura_affected_players(uint8_t owner, uint8_t players) const;
 	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false, uint8_t visual = 0, uint32_t source_id = 0, uint8_t splash = 0);
