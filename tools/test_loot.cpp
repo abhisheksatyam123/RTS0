@@ -167,6 +167,7 @@ static void test_damage_xp() {
 	uint32_t att = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
 	uint32_t vic = s.spawn_unit(30.0f, 30.0f, 1, UNIT_SWORDSMAN);
 	int a = idx_of(s, att), v = idx_of(s, vic);
+	s.units_.rank[v] = 1; // Sparta's default swordsman is an Elite champion (Identity/Rank)
 	float max_hp = s.units_.max_hp[v];
 	s.award_damage_xp(att, (size_t)v, max_hp * 0.25f);
 	check(s.units_.xp[a] == 25, "a quarter of a swordsman's health gives 25 xp");
