@@ -17359,6 +17359,9 @@ bool Simulation::load_state(const char *filepath) {
 			in.read((char *)&bld.upgrade_duration, sizeof(bld.upgrade_duration));
 			in.read((char *)bld.upgrade_paid.data(), sizeof(bld.upgrade_paid));
 			in.read((char *)&bld.is_burning, sizeof(bld.is_burning));
+			// "No upgrade" is stored as the BLD_TYPE_COUNT of the build that saved it, which
+			// grows when structure types are appended; an upgrade in progress always has a time.
+			if (!(bld.upgrade_duration > 0.0f) || bld.upgrade_to >= BLD_TYPE_COUNT) bld.upgrade_to = BLD_TYPE_COUNT;
 		}
 		if (version >= 13) {
 			in.read((char *)&bld.gate_open, sizeof(bld.gate_open));
