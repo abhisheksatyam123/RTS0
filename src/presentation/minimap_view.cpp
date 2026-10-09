@@ -181,7 +181,10 @@ void RtsoMiniMapView::_draw() {
 		return c8(150, 20, 20);
 	};
 
-	const uint8_t *fow = sim->fow_grid(local_player);
+	// Entities follow the local player's LOS in every shroud mode (the mode only
+	// changes how the shroud is drawn): the sim's per-player LOS via FogMirages.
+	mirages_.update(*sim, local_player);
+	const uint8_t *fow = mirages_.view().empty() ? nullptr : mirages_.view().data();
 	const int fow_res = sim->fow_res();
 
 	// 3-Tier Fog of War shroud (Unexplored black, Explored fog 40%, Visible 100%)
@@ -221,9 +224,6 @@ void RtsoMiniMapView::_draw() {
 	// Terrain-only shroud pass (entities are drawn on top, unaffected).
 	if (shroud_mode == SHROUD_TERRAIN) draw_shroud();
 
-	// Entities follow the local player's LOS in every shroud mode: the mode only
-	// changes how the shroud itself is drawn, so it can't reveal enemy state.
-	mirages_.update(*sim, local_player);
 
 	// 1. Territory tint raster (territory_grid_ -> ImageTexture upload):
 	// drawn over terrain / under the smoothed circle outlines so the cells
@@ -303,7 +303,7 @@ void RtsoMiniMapView::_draw() {
 	auto units = sim->units();
 	for (size_t i = 0; i < units.count; ++i) {
 		if (!units.alive[i]) continue;
-		if (!sim->is_entity_visible_to_viewer(units.pos_x[i], units.pos_z[i], units.team[i], local_player)) {
+		if (!rtso::los_sees_unit(*sim, local_player, units.pos_x[i], units.pos_z[i], units.team[i])) {
 			continue; // Enemy units invisible outside direct LOS
 		}
 
