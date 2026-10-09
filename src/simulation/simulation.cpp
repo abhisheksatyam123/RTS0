@@ -121,6 +121,8 @@ constexpr float kBuildReach = 2.20f;
 // The save version that added UnitAI orders (tick_state_io section 4).
 static constexpr uint32_t SAVE_VERSION_UNIT_ORDERS = 20;
 static constexpr uint32_t SAVE_VERSION_MAX_GATHERERS = 32;
+// Each structure's BuildingAI round, arrows left and timer state.
+static constexpr uint32_t SAVE_VERSION_BUILDING_AI = 33;
 
 // Stand on the nearest AABB edge so pathing never aims through the footprint.
 static void stand_outside_rect(float bx, float bz, float half, uint32_t uid,
@@ -1857,7 +1859,10 @@ void Simulation::finish_upgrade(Building &b) {
 	b.garrison_cap = ninfo.garrison_cap;
 	while ((int)b.garrisoned_units.size() > b.garrison_cap)
 		order_ungarrison_single(b.id, b.garrisoned_units.back());
-	b.attack_timer = 0.0f;
+	b.attack_timer = 0.0f; // the new entity's BuildingAI starts fresh
+	b.arrow_round = 0;
+	b.arrows_left = 0;
+	b.arrow_timer_on = false;
 	b.upgrade_paid.fill(0.0f);
 	b.upgrade_to = BLD_TYPE_COUNT;
 	b.upgrade_timer = 0.0f;
@@ -13004,7 +13009,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 each resource's MaxGatherers (the v28/v29 ruins list folds into it)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v33 each structure's BuildingAI round, arrows left and timer
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -13142,6 +13147,9 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&b.is_burning, sizeof(b.is_burning));
 		out.write((const char *)&b.gate_open, sizeof(b.gate_open));
 		out.write((const char *)&b.gate_locked, sizeof(b.gate_locked));
+		out.write((const char *)&b.arrow_round, sizeof(b.arrow_round));
+		out.write((const char *)&b.arrows_left, sizeof(b.arrows_left));
+		out.write((const char *)&b.arrow_timer_on, sizeof(b.arrow_timer_on));
 		out.write((const char *)&b.rot, sizeof(b.rot));
 
 		uint32_t q_sz = (uint32_t)b.queue.size();
@@ -13462,6 +13470,17 @@ bool Simulation::load_state(const char *filepath) {
 		if (version >= 13) {
 			in.read((char *)&bld.gate_open, sizeof(bld.gate_open));
 			in.read((char *)&bld.gate_locked, sizeof(bld.gate_locked));
+		}
+		if (version >= SAVE_VERSION_BUILDING_AI) {
+			in.read((char *)&bld.arrow_round, sizeof(bld.arrow_round));
+			in.read((char *)&bld.arrows_left, sizeof(bld.arrows_left));
+			in.read((char *)&bld.arrow_timer_on, sizeof(bld.arrow_timer_on));
+		} else {
+			// Older saves kept only the volley cooldown: start a fresh RepeatTime.
+			bld.arrow_round = 0;
+			bld.arrows_left = 0;
+			bld.arrow_timer_on = false;
+			bld.attack_timer = 0.0f;
 		}
 		if (version >= 31) in.read((char *)&bld.rot, sizeof(bld.rot));
 		const auto &bi = building_type_info(bld.type);
