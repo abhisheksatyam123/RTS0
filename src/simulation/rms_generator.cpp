@@ -3598,6 +3598,30 @@ void RmsGenerator::place_trigger_map_entities(Simulation &sim, const HeightmapGr
 			sim.spawn_building_world(x, z, BLD_TOWER, GAIA_PLAYER, 1.0f);
 			towers.push_back({x, z});
 		}
+	} else if (config.map_type == MAP_POLAR_SEA) {
+		// polar_sea.js "Create trigger points where wolves spawn": trigger_point_A wherever it
+		// fits, 2 tiles from water, 4 from mines, 15 from the player bases, 2 from hills and 20
+		// from each other (createObjectGroupsDeprecated, 1000 x 100 tries). polar_sea_triggers.js
+		// spawns its wolf waves there.
+		std::vector<std::pair<float, float>> mines, points;
+		const auto res = sim.resources();
+		for (size_t i = 0; i < res.count; ++i)
+			if (res.alive[i] && (res.type[i] == RES_GOLD || res.type[i] == RES_STONE)) mines.push_back({res.x[i], res.z[i]});
+		const float base = (float)scale_by_map_size(15, 25, half) + 15.0f;
+		for (int tries = 0; tries < 20000; ++tries) {
+			const float x = rng.range_float(-half * 0.95f, half * 0.95f), z = rng.range_float(-half * 0.95f, half * 0.95f);
+			bool ok = hm.compute_slope_world(x, z) <= 0.6f;
+			for (int k = 0; ok && k < 9; ++k) {
+				const float a = 0.7853982f * (float)k, r = k == 8 ? 0.0f : 2.0f;
+				ok = hm.sample_world(x + std::cos(a) * r, z + std::sin(a) * r) > water_h;
+			}
+			for (size_t k = 0; ok && k < spawns.size(); ++k) ok = std::hypot(x - spawns[k].x, z - spawns[k].z) >= base;
+			for (size_t k = 0; ok && k < mines.size(); ++k) ok = std::hypot(x - mines[k].first, z - mines[k].second) >= 4.0f;
+			for (size_t k = 0; ok && k < points.size(); ++k) ok = std::hypot(x - points[k].first, z - points[k].second) >= 20.0f;
+			if (!ok) continue;
+			sim.add_trigger_point('A', x, z);
+			points.push_back({x, z});
+		}
 	}
 }
 

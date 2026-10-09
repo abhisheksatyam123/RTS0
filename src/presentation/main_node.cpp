@@ -46,6 +46,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_trade_dialog_state"), &RtsoMain::get_trade_dialog_state);
 	ClassDB::bind_method(D_METHOD("_on_trading_goods_requested", "shares"), &RtsoMain::_on_trading_goods_requested);
 	ClassDB::bind_method(D_METHOD("_on_ungarrison_pressed"), &RtsoMain::_on_ungarrison_pressed);
+	ClassDB::bind_method(D_METHOD("_on_remove_guard_pressed"), &RtsoMain::_on_remove_guard_pressed);
+	ClassDB::bind_method(D_METHOD("_on_call_to_arms_pressed"), &RtsoMain::_on_call_to_arms_pressed);
 	ClassDB::bind_method(D_METHOD("_on_template_info_pressed"), &RtsoMain::_on_template_info_pressed);
 	ClassDB::bind_method(D_METHOD("select_first_own", "building"), &RtsoMain::select_first_own);
 	ClassDB::bind_method(D_METHOD("_on_selection_group_clicked", "key"), &RtsoMain::_on_selection_group_clicked);
@@ -99,6 +101,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_work_sound_count"), &RtsoMain::get_work_sound_count);
 	ClassDB::bind_method(D_METHOD("debug_gather_nearest"), &RtsoMain::debug_gather_nearest);
 	ClassDB::bind_method(D_METHOD("debug_trade_route_clicks"), &RtsoMain::debug_trade_route_clicks);
+	ClassDB::bind_method(D_METHOD("debug_guard_step", "step"), &RtsoMain::debug_guard_step);
 	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);
 	ClassDB::bind_method(D_METHOD("_on_diplo_tribute_pressed", "player_idx", "res_type"), &RtsoMain::_on_diplo_tribute_pressed);
 	ClassDB::bind_method(D_METHOD("set_use_english_voice_orders", "enable"), &RtsoMain::set_use_english_voice_orders);
@@ -1301,6 +1304,33 @@ Dictionary RtsoMain::debug_trade_route_clicks() {
 	return d;
 }
 
+// Test hook: step 0 spawns a spearman guarding another and selects it, step 1
+// presses Remove guard, any step reports the guard state and the entity commands.
+Dictionary RtsoMain::debug_guard_step(int step) {
+	Dictionary d;
+	if (!sim || net_lockstep()) return d;
+	const uint8_t me = local_player();
+	if (step == 0) {
+		float cx = 0.0f, cz = 0.0f;
+		for (const auto &b : sim->buildings())
+			if (b.team == me && b.type == rtso::BLD_TOWN_CENTER) { cx = b.x; cz = b.z; break; }
+		const uint32_t a = sim->spawn_unit(cx - 20.0f, cz, me, rtso::UNIT_SPEARMAN);
+		const uint32_t b = sim->spawn_unit(cx - 22.0f, cz, me, rtso::UNIT_SPEARMAN);
+		sim->order_guard(&a, 1, b);
+		clear_selection();
+		selected_ids.push_back((int32_t)a);
+	} else if (step == 1) {
+		_on_remove_guard_pressed();
+	}
+	d["guarding"] = !selected_ids.is_empty() && sim->unit_is_guarding((uint32_t)selected_ids[0]);
+	update_command_panel();
+	PackedStringArray buttons;
+	for (int i = 0; i < production_bar->get_child_count(); ++i)
+		if (Button *btn = Object::cast_to<Button>(production_bar->get_child(i))) buttons.push_back(btn->get_text());
+	d["buttons"] = buttons;
+	return d;
+}
+
 Dictionary RtsoMain::get_audio_state() const {
 	static const char *kStates[] = {"off", "menu", "peace", "battle", "victory", "defeat"};
 	Dictionary d;
@@ -1532,7 +1562,8 @@ void RtsoMain::update_cursor() {
 			const Vector3 at = get_ground_click_pos(mouse);
 			const uint8_t me = local_player();
 			auto near2 = [&](float x, float z, float r) { return (x - at.x) * (x - at.x) + (z - at.z) * (z - at.z) <= r * r; };
-			if (attack_move_mode || rtso::hotkeys::held("session.attackmove")) want = "action-attack-move";
+			if (attack_move_mode || call_to_arms_mode || rtso::hotkeys::held("session.attackmove") ||
+					rtso::hotkeys::held("session.calltoarms")) want = "action-attack-move";
 			else if (patrol_mode || rtso::hotkeys::held("session.patrol")) want = "action-patrol";
 			else if (guard_mode || rtso::hotkeys::held("session.guard")) want = "action-guard";
 			if (!*want) {
@@ -1790,6 +1821,28 @@ void RtsoMain::_on_ungarrison_pressed() {
 			}
 		}
 	}
+}
+
+// unit_actions.js g_EntityCommands "remove-guard": the selected guards stop guarding
+// (lockstep command 37).
+void RtsoMain::_on_remove_guard_pressed() {
+	if (!sim || selected_ids.is_empty()) return;
+	std::vector<uint32_t> ids;
+	for (int s = 0; s < selected_ids.size(); ++s)
+		if (sim->unit_is_guarding((uint32_t)selected_ids[s])) ids.push_back((uint32_t)selected_ids[s]);
+	if (ids.empty()) return;
+	if (turn_cmds())
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_REMOVE_GUARD, ids.data(), ids.size());
+	else
+		sim->order_remove_guard(ids.data(), ids.size());
+}
+
+// g_EntityCommands "call-to-arms": arms ACTION_CALLTOARMS, so the next right-click
+// sends the selection there (drop loads, then attack-move; lockstep command 38).
+void RtsoMain::_on_call_to_arms_pressed() {
+	if (selected_ids.is_empty()) return;
+	call_to_arms_mode = true;
+	attack_move_mode = patrol_mode = guard_mode = false;
 }
 
 void RtsoMain::_on_stance_selected(int stance) {
@@ -2904,7 +2957,7 @@ void RtsoMain::update_command_panel() {
 				if (ti.researcher != found_b->type || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
 				rtso::Simulation::ResearchCheck rc = sim->research_check(local_player(), (uint8_t)t, found_b->id);
 				if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_CIV
-				    || rc == rtso::Simulation::TECH_ERR_PAIRED) continue;
+				    || rc == rtso::Simulation::TECH_ERR_PAIRED || rc == rtso::Simulation::TECH_ERR_DISABLED) continue;
 				Button *btn = memnew(Button);
 				String cost;
 				auto add_cost = [&](int v, const char *suffix) {
@@ -3078,7 +3131,7 @@ void RtsoMain::update_command_panel() {
 				for (size_t u = 0; u < uview.count; ++u) {
 					if (uview.id[u] == (uint32_t)selected_ids[i]) {
 						uint8_t ut = uview.unit_type[u];
-						if (ut == rtso::UNIT_VILLAGER || ut == rtso::UNIT_FEMALE_CITIZEN || ut == rtso::UNIT_WORKER_ELEPHANT) {
+						if (rtso::unit_can_build(ut, uview.tmpl[u])) {
 							has_worker = true;
 							break;
 						}
@@ -3114,6 +3167,35 @@ void RtsoMain::update_command_panel() {
 					}
 					btn->set_disabled(pb.pack ? !can_pack : !can_unpack);
 					btn->connect("pressed", Callable(this, "_on_pack_pressed").bind(pb.pack));
+					production_bar->add_child(btn);
+				}
+			}
+
+			// g_EntityCommands "remove-guard" (shown while any selected unit guards) and
+			// "call-to-arms" (any unit with UnitAI), unit_actions.js.
+			bool any_guarding = false;
+			for (int i = 0; i < selected_ids.size() && !any_guarding; ++i)
+				any_guarding = sim->unit_is_guarding((uint32_t)selected_ids[i]);
+			{
+				struct EntityCommand { bool shown; const char *label; const char *hotkey; const char *tip; const char *icon; const char *method; };
+				const EntityCommand cmds[2] = {
+					{any_guarding, "Unguard", "", "Remove guard", "res://assets/textures/ui/archive/icons/remove-guard.png", "_on_remove_guard_pressed"},
+					{true, "Call to arms", "session.calltoarms",
+							"Send the selected units on attack move to the specified location after dropping resources.",
+							"res://assets/textures/ui/archive/icons/call-to-arms.png", "_on_call_to_arms_pressed"},
+				};
+				for (const auto &c : cmds) {
+					if (!c.shown) continue;
+					Button *btn = memnew(Button);
+					btn->set_text(c.label);
+					const std::string key = *c.hotkey ? rtso::hotkeys::table().label(c.hotkey) : std::string();
+					btn->set_tooltip_text(key.empty() ? String(c.tip) : "[" + String(key.c_str()) + "] " + String(c.tip));
+					Ref<Texture2D> ico = load_tex(c.icon);
+					if (ico.is_valid()) {
+						btn->set_button_icon(ico);
+						btn->add_theme_constant_override("icon_max_width", 20);
+					}
+					btn->connect("pressed", Callable(this, c.method));
 					production_bar->add_child(btn);
 				}
 			}
@@ -3366,8 +3448,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				return;
 			}
 			if (build_mode) enter_build_mode(false);
-			else if (attack_move_mode || patrol_mode || guard_mode)
-				attack_move_mode = patrol_mode = guard_mode = false;
+			else if (attack_move_mode || patrol_mode || guard_mode || call_to_arms_mode)
+				attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = false;
 			else clear_selection();
 			return;
 		}
@@ -3594,7 +3676,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (fired("session.attackmoveunit")) {
 			if (!selected_ids.is_empty()) {
 				attack_move_mode = true;
-				patrol_mode = guard_mode = false;
+				patrol_mode = guard_mode = call_to_arms_mode = false;
 			}
 			return;
 		}
@@ -4027,7 +4109,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 			}
 			// session.calltoarms + right-click: Commands.js call-to-arms (drop loads, then attack-walk).
-			if (!garrison_click && rtso::hotkeys::held("session.calltoarms")) {
+			if (call_to_arms_mode || (!garrison_click && rtso::hotkeys::held("session.calltoarms"))) {
+				call_to_arms_mode = false;
 				range_overlays_.add_marker(click_pos.x, click_pos.z, Color(1, 1, 1, 0.9f), RtsoRangeOverlays::kMoveMarkerTime);
 				if (turn_cmds())
 					post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_CALL_TO_ARMS, sel_ptr, sel_n, click_pos.x, click_pos.z, 0, qbit);
@@ -4781,6 +4864,14 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			sim->order_board_transport(&gaia_unit_ids[i], 1, gaia_unit_ids[ship]);
 		else if (str >= 0 && str < (int)gaia_structure_ids.size() && gaia_structure_ids[str])
 			sim->garrison_unit_now(gaia_unit_ids[i], gaia_structure_ids[str]);
+	}
+
+	// The map's TriggerScripts (0 A.D. ScriptSettings), ported to C++ (triggers.h).
+	Array trig_arr = d.get("trigger_scripts", Array());
+	for (int i = 0; i < trig_arr.size(); ++i) {
+		const String script = trig_arr[i];
+		if (!sim->register_trigger_script(script.utf8().get_data()))
+			UtilityFunctions::printerr("[RtsoMain] Map trigger script not ported: ", script);
 	}
 
 	// Rebuild World View 3D terrain and bounds
