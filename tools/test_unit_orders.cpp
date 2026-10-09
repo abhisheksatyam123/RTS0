@@ -55,6 +55,8 @@
 //     throwers stand ground by default.
 // 34. A player's gather order is forced until work starts (UnitAI Gather): attacks on the
 //     way are ignored, attacks at work are answered.
+// 35. A load of another type is dropped when gathering starts; builders take their load to
+//     the dropsite they finished; guards stop guarding a unit that changed owner.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_unit_orders.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -422,6 +424,8 @@ static void test_capture() {
 	uint32_t cap[6];
 	for (int k = 0; k < 6; ++k) cap[k] = s.spawn_unit(-12.0f, -5.0f + 2.0f * k, 0, UNIT_SPEARMAN);
 	s.order_attack_building(cap, 6, house, false, true);
+	run_until(s, 30.0f, [&] { return act_of(s, cap[0]) == ACTION_ATTACK; });
+	check(s.unit_capturing(idx_of(s, cap[0])), "the renderer sees it capturing (Capture clip)");
 	const bool flipped = run_until(s, 240.0f, [&] { return bld(s, house)->team == 0; });
 	check(flipped, "six spearmen ordered to capture take it");
 	check(bld(s, house)->hp >= hp0 * 0.999f, "without damaging it");
@@ -437,6 +441,7 @@ static void test_capture() {
 	t.order_attack_building(att, 4, h2, false, false); // Ctrl: attack
 	run(t, 20.0f);
 	check(bld(t, h2)->hp < h2hp, "Ctrl-attack damages it");
+	check(!t.unit_capturing(idx_of(t, att[0])), "and plays the Attack clip, not Capture");
 	check(bld(t, h2)->capture_points_by_team[1] >= h2cp - 0.01f && bld(t, h2)->team == 1, "and takes no capture points");
 }
 
@@ -1182,6 +1187,114 @@ static void test_forced_work_orders() {
 	check(now_flees, "once at work, an attack makes her flee");
 }
 
+static void test_loads_and_guards() {
+	std::printf("35. loads of another type, loads at a new dropsite, guards after a change of owner\n");
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t tree = s.spawn_resource_world(-20, -20, RES_WOOD, 500);
+		const uint32_t bush = s.spawn_resource_world(-30, -20, RES_FOOD, 500);
+		uint32_t w = s.spawn_unit(-21.5f, -20, 0, UNIT_FEMALE_CITIZEN);
+		s.order_gather(&w, 1, tree);
+		run_until(s, 20.0f, [&] { return s.units_.carry[idx_of(s, w)] >= 4; });
+		const float wood0 = s.player(0).res[RES_WOOD];
+		s.order_gather(&w, 1, bush);
+		check(s.units_.res_type_carried[idx_of(s, w)] == RES_WOOD, "a woman sent to berries still carries wood on the way");
+		const bool food = run_until(s, 20.0f, [&] {
+			return s.units_.res_type_carried[idx_of(s, w)] == RES_FOOD && s.units_.carry[idx_of(s, w)] > 0;
+		});
+		check(food && s.units_.carry[idx_of(s, w)] < 4 && s.player(0).res[RES_WOOD] == wood0,
+				"and drops it when she starts on the berries (DropResources): no wood turns into food");
+	}
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t store = s.spawn_building_world(0, 0, BLD_STOREHOUSE, 0, 0.9f);
+		uint32_t w = s.spawn_unit(-4, 0, 0, UNIT_FEMALE_CITIZEN);
+		s.units_.carry[idx_of(s, w)] = 8;
+		s.units_.res_type_carried[idx_of(s, w)] = RES_WOOD;
+		const float wood0 = s.player(0).res[RES_WOOD];
+		s.order_build_or_repair(&w, 1, store);
+		run_until(s, 40.0f, [&] { return bld(s, store)->build_progress >= 1.0f; });
+		const bool dropped = run_until(s, 10.0f, [&] { return s.player(0).res[RES_WOOD] >= wood0 + 8; });
+		check(dropped && s.units_.carry[idx_of(s, w)] == 0, "a builder carrying wood drops it at the storehouse it finished");
+	}
+	{
+		Simulation s;
+		setup(s);
+		uint32_t vip = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN);
+		uint32_t g = s.spawn_unit(2, 0, 0, UNIT_SPEARMAN);
+		s.order_guard(&g, 1, vip);
+		run(s, 1.0f);
+		check(s.unit_order(g).kind == ORDER_GUARD, "guarding");
+		s.units_.team[idx_of(s, vip)] = 1; // converted
+		run(s, 1.0f);
+		check(s.unit_order(g).kind != ORDER_GUARD, "a guard stops guarding a unit that is now an enemy (Guard.js CheckGuards)");
+	}
+}
+
+static void test_remove_guard_call_to_arms() {
+	std::printf("36. remove-guard and call-to-arms\n");
+	{
+		Simulation s;
+		setup(s);
+		uint32_t vip = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN);
+		uint32_t g = s.spawn_unit(2, 0, 0, UNIT_SPEARMAN);
+		uint32_t g2 = s.spawn_unit(2, 2, 0, UNIT_SPEARMAN);
+		s.order_guard(&g, 1, vip);
+		s.order_walk(&g2, 1, 6, 6);
+		s.order_guard(&g2, 1, vip, true);
+		run(s, 0.5f);
+		s.order_remove_guard(&g, 1);
+		check(s.unit_order(g).kind == ORDER_NONE, "remove-guard ends a Guard order");
+		s.order_remove_guard(&g2, 1);
+		check(s.unit_order(g2).kind == ORDER_WALK && !s.unit_order_queue(g2), "and drops a queued Guard, keeping the walk");
+	}
+	{
+		Simulation s;
+		setup(s);
+		s.spawn_building_world(0, 0, BLD_STOREHOUSE, 0, 1.0f);
+		uint32_t sp = s.spawn_unit(6, 0, 0, UNIT_SPEARMAN);
+		s.units_.carry[idx_of(s, sp)] = 5;
+		s.units_.res_type_carried[idx_of(s, sp)] = RES_WOOD;
+		uint32_t w = s.spawn_unit(6, 2, 0, UNIT_FEMALE_CITIZEN);
+		const uint32_t ids[2] = {sp, w};
+		const float wood0 = s.player(0).res[RES_WOOD];
+		s.order_call_to_arms(ids, 2, 40, 0);
+		const auto *q = s.unit_order_queue(sp);
+		check(s.unit_order(sp).kind == ORDER_RETURN_RESOURCE && q && q->size() == 1 &&
+				(*q)[0].kind == ORDER_WALK_AND_FIGHT, "a soldier carrying wood drops it, then attack-walks");
+		check(s.unit_order(w).kind == ORDER_NONE, "a woman doesn't answer the call");
+		const bool off = run_until(s, 20.0f, [&] { return s.unit_order(sp).kind == ORDER_WALK_AND_FIGHT; });
+		check(off && s.player(0).res[RES_WOOD] >= wood0 + 5, "the wood is in the stockpile and he is on his way");
+	}
+	{
+		// Lockstep cmds 37 and 38.
+		Simulation l;
+		setup(l);
+		uint32_t vip = l.spawn_unit(0, 0, 0, UNIT_SPEARMAN);
+		uint32_t g = l.spawn_unit(2, 0, 0, UNIT_SPEARMAN);
+		uint32_t a = l.spawn_unit(4, 0, 0, UNIT_ARCHER);
+		l.order_guard(&g, 1, vip);
+		TurnManager tm;
+		NetCommand c;
+		c.client_id = 0;
+		c.cmd_type = (uint8_t)NetCommandType::NET_CMD_REMOVE_GUARD;
+		c.entity_ids = {g};
+		tm.post_local_command(c);
+		NetCommand d;
+		d.client_id = 0;
+		d.cmd_type = (uint8_t)NetCommandType::NET_CMD_CALL_TO_ARMS;
+		d.entity_ids = {a};
+		d.target_x = 30;
+		d.target_z = 0;
+		tm.post_local_command(d);
+		for (int i = 0; i < 4; ++i) tm.tick(TurnManager::TURN_DURATION, l);
+		check(c.cmd_type == 37 && l.unit_order(g).kind == ORDER_NONE, "lockstep remove-guard (37)");
+		check(d.cmd_type == 38 && l.unit_order(a).kind == ORDER_WALK_AND_FIGHT, "lockstep call-to-arms (38)");
+	}
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -1218,6 +1331,8 @@ int main(int argc, char **argv) {
 	test_unitai_combat();
 	test_unitai_targets();
 	test_forced_work_orders();
+	test_loads_and_guards();
+	test_remove_guard_call_to_arms();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
