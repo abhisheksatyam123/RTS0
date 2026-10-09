@@ -151,7 +151,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 43; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 45; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -489,10 +489,28 @@ public:
 	// DEFEAT_PLAYER take an RTS0 player id (GAIA_PLAYER for Gaia, 0xFF for yourself).
 	enum CheatAction : uint8_t {
 		CHEAT_ADD_RESOURCE, CHEAT_REVEAL_MAP, CHEAT_CONVERT_UNITS, CHEAT_KILL_UNITS, CHEAT_DEFEAT_PLAYER,
-		CHEAT_CREATE_UNITS, CHEAT_CHANGE_PHASE, CHEAT_RESEARCH, CHEAT_META, CHEAT_COUNT
+		CHEAT_CREATE_UNITS, CHEAT_CHANGE_PHASE, CHEAT_RESEARCH, CHEAT_META,
+		CHEAT_MAX_POPULATION, CHEAT_CHANGE_MAX_POPULATION, CHEAT_FAST_ACTIONS, CHEAT_COUNT
 	};
+	// Per-player state of the population and fast-actions cheats (padding-free for saves).
+	struct CheatMods {
+		int32_t pop_bonus;   // "the hive master": added to the player's house population bonuses
+		int32_t max_pop_add; // "TARDIS": cheat/maxpopulation, Player/MaxPopulation +500
+		uint8_t fast_actions; // "i am too busy": cheat/fastactions is on
+		uint8_t pad[3];
+	};
+	const CheatMods &cheat_mods(uint8_t player) const { return cheat_mods_[player < MAX_PLAYERS ? player : 0]; }
 	bool cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, uint32_t extra,
 			const uint32_t *selected, size_t count);
+	// 0 A.D. "spy-request" (Commands.js, VisionSharing.AddSpy): with Espionage researched,
+	// bribe a random trader or merchant ship of `target` for its vision (500 metal, x1.5
+	// against Counterintelligence; a quarter of that is lost when nothing can be bribed).
+	enum BribeResult : uint8_t { BRIBE_OK, BRIBE_NOT_ALLOWED, BRIBE_NO_UNITS, BRIBE_TOO_EXPENSIVE };
+	BribeResult cmd_bribe(uint8_t player, uint8_t target);
+	int bribe_cost(uint8_t player, uint8_t target, bool failed = false) const; // metal
+	bool can_bribe(uint8_t player, uint8_t target) const;
+	struct Spy { uint32_t unit_id; uint8_t player; uint8_t pad[3]; float remaining; }; // padding-free for saves
+	const std::vector<Spy> &spies() const { return spies_; }
 	// 0 A.D. "back-to-work" (UnitAI BackToWork): resume the last gather or build order.
 	void order_back_to_work(const uint32_t *unit_ids, size_t count);
 	// 0 A.D. Commands.js "remove-guard" (UnitAI RemoveGuard): end a Guard order, or drop
@@ -683,6 +701,9 @@ public:
 	// 0 A.D. CheatsEnabled: chat cheat codes work for every player (cmd_cheat).
 	void set_cheats_enabled(bool on) { set_setup_flag(SETUP_CHEATS, on); }
 	bool cheats_enabled() const { return setup_flags_ & SETUP_CHEATS; }
+	// 0 A.D. DisableSpies: Espionage can't be researched, so nobody can bribe.
+	void set_disable_spies(bool on) { set_setup_flag(SETUP_DISABLE_SPIES, on); }
+	bool spies_disabled() const { return setup_flags_ & SETUP_DISABLE_SPIES; }
 	uint32_t regicide_hero(uint8_t pid) const { return pid < MAX_PLAYERS ? regicide_hero_[pid] : 0; }
 	// False for a Regicide hero while RegicideGarrison is off: it can't enter structures,
 	// siege engines or ships.
@@ -766,12 +787,37 @@ public:
 	// 0 A.D. Upgrade.js: turn a finished structure into building_upgrade()'s
 	// target in place, keeping its health fraction, capture share and garrison.
 	enum UpgradeCheck : uint8_t {
-		UPGRADE_OK = 0, UPGRADE_ERR_NONE, UPGRADE_ERR_OWNER, UPGRADE_ERR_BUSY, UPGRADE_ERR_PHASE, UPGRADE_ERR_COST
+		UPGRADE_OK = 0, UPGRADE_ERR_NONE, UPGRADE_ERR_OWNER, UPGRADE_ERR_BUSY, UPGRADE_ERR_PHASE, UPGRADE_ERR_COST,
+		UPGRADE_ERR_LIMIT // units: the target's EntityLimits category is full
 	};
 	UpgradeCheck upgrade_check(uint8_t player_id, uint32_t building_id) const;
 	bool cmd_upgrade_building(uint8_t player_id, uint32_t building_id);
 	// Stops an upgrade in progress and refunds what was paid (Upgrade.js CancelUpgrade).
 	bool cmd_cancel_upgrade(uint8_t player_id, uint32_t building_id);
+	// 0 A.D. Upgrade.js on units (civ_unit_upgrade_table): the Roman elite infantry's
+	// Centurion rank, the Immortals' spear-and-bow switch. The owner pays up front; the
+	// unit keeps fighting while the timer runs, then becomes the `to` roster row in
+	// place (health fraction, xp and orders kept). Death refunds the cost.
+	struct UnitUpgrade {
+		uint32_t unit_id;
+		uint16_t to; // civ_unit_template_table() row
+		uint8_t player; // who paid (refunded on cancel or death)
+		uint8_t pad = 0;
+		float elapsed;
+		float time;
+		float paid[4]; // food, wood, gold, stone
+	};
+	static_assert(sizeof(UnitUpgrade) == 32, "UnitUpgrade is saved raw: keep it padding-free");
+	// The table row that upgrades unit index i to `to`, or nullptr.
+	const CivUnitUpgrade *unit_upgrade_choice(size_t i, uint16_t to) const;
+	UpgradeCheck unit_upgrade_check(uint8_t player_id, uint32_t unit_id, uint16_t to) const;
+	// Starts every listed unit's upgrade to `to` that unit_upgrade_check allows, one
+	// payment each (Commands.js "upgrade"); true if any started.
+	bool cmd_upgrade_units(uint8_t player_id, const uint32_t *unit_ids, size_t n, uint16_t to);
+	// Commands.js "cancel-upgrade": stops the listed units' upgrades and refunds them.
+	bool cmd_cancel_unit_upgrades(uint8_t player_id, const uint32_t *unit_ids, size_t n);
+	// The upgrade a unit is going through, or nullptr.
+	const UnitUpgrade *unit_upgrade_of(uint32_t unit_id) const;
 	// 0 A.D. Gate.js LockGate / UnlockGate: the owner keeps its own units out too.
 	bool cmd_lock_gate(uint8_t player_id, uint32_t building_id, bool lock);
 	// Maximum hit points of a `type` structure owned by `team`: template x civ bonus x techs.
@@ -992,6 +1038,10 @@ public:
 
 	int pop_current(uint8_t player = 0) const;
 	int pop_max(uint8_t player = 0) const;
+	// Houses and other population bonuses (plus the hive master cheat), before the population limit.
+	int pop_max_uncapped(uint8_t player) const;
+	// The population limit after Player/MaxPopulation modifiers; 0 when unlimited.
+	int pop_limit(uint8_t player) const;
 	// Ownership checks for player commands (0 A.D. Commands.js FilterEntityList).
 	bool owns_unit(uint8_t player, uint32_t unit_id) const;
 	bool owns_building(uint8_t player, uint32_t building_id) const;
@@ -1516,6 +1566,8 @@ private:
 	void tick_production(float dt);
 	void tick_research(float dt);
 	void tick_upgrades(float dt);
+	void tick_unit_upgrades(float dt);
+	std::vector<UnitUpgrade> unit_upgrades_; // in start order (saved v45)
 	// Unloads land siege below SIEGE_EJECT_HEALTH or dead (GarrisonHolder EjectHealth / OnDestroy).
 	void tick_siege_garrisons();
 	// Structures heal their garrison each second and unload it below EjectHealth (GarrisonHolder.js).
@@ -1784,7 +1836,12 @@ private:
 	bool disable_treasures_ = false;
 	void spawn_nomad_treasures();
 	// Game Setup switches kept in the byte v32 saves as RegicideGarrison (old saves read as bit 0).
-	static constexpr uint8_t SETUP_REGICIDE_GARRISON = 1, SETUP_LOCK_TEAMS = 2, SETUP_CHEATS = 4, SETUP_FLAGS_ALL = 7;
+	static constexpr uint8_t SETUP_REGICIDE_GARRISON = 1, SETUP_LOCK_TEAMS = 2, SETUP_CHEATS = 4, SETUP_DISABLE_SPIES = 8,
+		SETUP_FLAGS_ALL = 15;
+	std::vector<Spy> spies_; // VisionSharing spies, oldest first
+	CheatMods cheat_mods_[MAX_PLAYERS] = {};
+	std::vector<uint8_t> spy_mask_; // tick_fow scratch: per unit index, the players its spies see for
+	void tick_spies(float dt);
 	void cheat_convert(uint8_t to, const uint32_t *ids, size_t count);
 	uint8_t setup_flags_ = 0;
 	void set_setup_flag(uint8_t flag, bool on) { setup_flags_ = on ? (setup_flags_ | flag) : (setup_flags_ & ~flag); }

@@ -534,6 +534,7 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // ptol/catafalque
 	{LIMIT_NONE, 0}, // sele/catafalque
 	{LIMIT_NONE, 0}, // han/catafalque
+	{LIMIT_NONE, 0}, // pers/champion_infantry_archer_upgrade
 };
 static_assert(sizeof(UNIT_LIMITS) / sizeof(UNIT_LIMITS[0]) == CIV_UNIT_TEMPLATE_COUNT,
 		"one UnitLimit per roster row: rerun tools/extract_0ad_entity_limits.py");

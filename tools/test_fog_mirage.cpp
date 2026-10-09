@@ -8,6 +8,7 @@
 #include "simulation/simulation.h"
 #include "simulation/rms_generator.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -212,7 +213,7 @@ static void test_real_sim() {
 		if (sim.is_ally(0, b.team)) {
 			own += shown ? 1 : 0;
 			CHECK(shown, "own/allied structure is always drawn");
-		} else if (sim.fow_state_at(b.x, b.z, 0) == Simulation::FOW_UNEXPLORED) {
+		} else if (!sim.los_explored(0, b.x, b.z)) {
 			other_hidden += shown ? 0 : 1;
 			if (shown) CHECK(false, "unexplored enemy structure must not be drawn");
 		} else if (shown) {
@@ -225,6 +226,28 @@ static void test_real_sim() {
 	CHECK(other_hidden > 0, "real sim: the far enemy base is hidden at the start");
 	CHECK(m.resources().size() < sim.resource_count(), "real sim: unexplored resources are not drawn");
 
+	// The drawn fog is the sim's per-player LOS (#218), the one the sim and Petra use.
+	const int G = sim.fow_res();
+	const float half = sim.map_half(), cell = 2.0f * half / (float)G;
+	bool agrees = m.view().size() == (size_t)G * G;
+	size_t seen = 0;
+	for (int cz = 0; agrees && cz < G; cz += 3)
+		for (int cx = 0; cx < G; cx += 3) {
+			const float x = -half + (cx + 0.5f) * cell, z = -half + (cz + 0.5f) * cell;
+			const uint8_t want = sim.los_visible(0, x, z) ? Simulation::FOW_VISIBLE
+					: sim.los_explored(0, x, z) ? Simulation::FOW_EXPLORED : Simulation::FOW_UNEXPLORED;
+			agrees = agrees && m.view()[(size_t)cz * G + cx] == want;
+			seen += want == Simulation::FOW_VISIBLE;
+		}
+	CHECK(agrees && seen > 0, "drawn fog matches Simulation::los_visible / los_explored");
+	std::vector<uint8_t> obs;
+	rtso::los_view_grid(sim, rtso::OBSERVER_VIEW, obs);
+	CHECK(std::all_of(obs.begin(), obs.end(), [](uint8_t v) { return v == Simulation::FOW_VISIBLE; }),
+			"an observer sees the whole map");
+	FogMirages enemy;
+	enemy.update(sim, 1);
+	CHECK(enemy.view() != m.view(), "each player draws its own LOS");
+
 	// Cost on the CPU: update() is skipped between sim ticks, so time a forced
 	// rebuild (one per sim tick) and the per-frame LOS interpolation.
 	const int N = 200;
@@ -235,11 +258,11 @@ static void test_real_sim() {
 	}
 	auto t1 = std::chrono::steady_clock::now();
 	LosShading los;
-	los.set_target(sim.fow_grid(0), sim.fow_res());
+	los.set_target(m.view().data(), sim.fow_res());
 	auto t2 = std::chrono::steady_clock::now();
 	for (int i = 0; i < N; ++i) {
 		std::vector<uint8_t> tmp;
-		LosShading::generate_bitmap(sim.fow_grid(0), sim.fow_res(), tmp);
+		LosShading::generate_bitmap(m.view().data(), sim.fow_res(), tmp);
 	}
 	auto t3 = std::chrono::steady_clock::now();
 	auto us = [](auto a, auto b) { return std::chrono::duration<double, std::micro>(b - a).count(); };
@@ -256,17 +279,19 @@ static void test_giant_cost() {
 	const int N = 50;
 	auto t0 = std::chrono::steady_clock::now();
 	size_t drawn = 0;
+	std::vector<uint8_t> view;
 	for (int i = 0; i < N; ++i) {
 		FogMirages fresh;
 		fresh.update(sim, 0);
 		drawn = fresh.resources().size();
+		if (i == 0) view = fresh.view();
 	}
 	auto t1 = std::chrono::steady_clock::now();
 	std::vector<uint8_t> tmp;
-	for (int i = 0; i < N; ++i) LosShading::generate_bitmap(sim.fow_grid(0), sim.fow_res(), tmp);
+	for (int i = 0; i < N; ++i) LosShading::generate_bitmap(view.data(), sim.fow_res(), tmp);
 	auto t2 = std::chrono::steady_clock::now();
 	LosShading los;
-	los.set_target(sim.fow_grid(0), sim.fow_res());
+	los.set_target(view.data(), sim.fow_res());
 	std::vector<uint8_t> all((size_t)sim.fow_res() * sim.fow_res(), Simulation::FOW_VISIBLE);
 	los.set_target(all.data(), sim.fow_res());
 	auto t3 = std::chrono::steady_clock::now();
