@@ -131,7 +131,7 @@ int main() {
 		CHECK(near(before[RES_FOOD] - s.players_[0].res[RES_FOOD], std::round(ti.food_cost * k)));
 		CHECK(near(before[RES_WOOD] - s.players_[0].res[RES_WOOD], std::round(ti.wood_cost * k)));
 		const auto &fb = s.buildings_[s.building_id_to_idx_.at(farm)];
-		CHECK(std::fabs(fb.research_duration - ti.research_time * k * s.tech_mods(0).bld_research_time[BLD_FARMSTEAD]) < 1e-2f);
+		CHECK(!fb.queue.empty() && std::fabs(fb.queue.front().duration - ti.research_time * k * s.tech_mods(0).bld_research_time[BLD_FARMSTEAD]) < 1e-2f);
 		std::printf("farmstead with 2 ministers: research x%.4f\n", k);
 	}
 

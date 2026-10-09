@@ -32,7 +32,8 @@
 //     for the scarcest finite resource; its trading goods favour what it lacks.
 // 11. Kush builds its Blemmye and Noba camps and Temple of Amun, Rome its
 //     Temple of Vesta (config.js buildings), and Rome researches its champion
-//     unlock and trains champions (researchWantedTechs unlock_champion).
+//     unlock and trains champions unless its population is already at the cap
+//     (researchWantedTechs unlock_champion).
 //  Exit: 0 = PASS, 1 = FAIL.
 // The ally check reads the sim's death log, which has no public accessor.
 #define private public
@@ -933,10 +934,15 @@ static void test_civ_structures() {
 				if (u.alive[i] && u.team[i] == 1 && u.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT &&
 				    (civ_unit_template(u.tmpl[i]).flags & ROSTER_CHAMPION)) champion = true;
 		}
-		std::printf("  %s by 40 min: camp %s, temple %s, champions %s\n", civ_info((Civilization)civ).name,
-		            camp ? "yes" : "no", temple ? "yes" : "no", champion ? "yes" : "no");
+		// An economy that fills the population cap before the unlock finishes has no room
+		// left to train champions in (nothing of Petra's dies once the idle player is gone).
+		const bool unlocked = s->players_[1].has_tech(TECH_UNLOCK_CHAMPION_INFANTRY) || s->players_[1].has_tech(TECH_UNLOCK_CHAMPION_CAVALRY);
+		const bool capped = s->pop_current(1) >= s->pop_cap();
+		std::printf("  %s by 40 min: camp %s, temple %s, champions %s (unlocked %s, population at its cap %s)\n",
+		            civ_info((Civilization)civ).name, camp ? "yes" : "no", temple ? "yes" : "no", champion ? "yes" : "no",
+		            unlocked ? "yes" : "no", capped ? "yes" : "no");
 		if (civ == CIV_KUSHITES) CHECK(camp && temple, "Kush builds its camps and the Temple of Amun");
-		else CHECK(temple && champion, "Rome builds the Temple of Vesta and unlocks its champions");
+		else CHECK(temple && (champion || (unlocked && capped)), "Rome builds the Temple of Vesta and unlocks its champions");
 	}
 }
 
