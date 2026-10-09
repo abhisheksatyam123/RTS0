@@ -86,6 +86,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_target_marker_count"), &RtsoMain::get_target_marker_count);
 	ClassDB::bind_method(D_METHOD("get_work_sound_count"), &RtsoMain::get_work_sound_count);
 	ClassDB::bind_method(D_METHOD("debug_gather_nearest"), &RtsoMain::debug_gather_nearest);
+	ClassDB::bind_method(D_METHOD("debug_trade_route_clicks"), &RtsoMain::debug_trade_route_clicks);
 	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);
 	ClassDB::bind_method(D_METHOD("_on_diplo_tribute_pressed", "player_idx", "res_type"), &RtsoMain::_on_diplo_tribute_pressed);
 	ClassDB::bind_method(D_METHOD("set_use_english_voice_orders", "enable"), &RtsoMain::set_use_english_voice_orders);
@@ -447,6 +448,15 @@ void RtsoMain::_ready() {
 	time_notification_label_->add_theme_constant_override("outline_size", 4);
 	time_notification_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 	ui_layer->add_child(time_notification_label_);
+
+	cursor_tip_ = memnew(Label);
+	cursor_tip_->add_theme_font_size_override("font_size", 13);
+	cursor_tip_->add_theme_color_override("font_color", Color(1.0f, 1.0f, 1.0f));
+	cursor_tip_->add_theme_color_override("font_outline_color", Color(0.0f, 0.0f, 0.0f));
+	cursor_tip_->add_theme_constant_override("outline_size", 4);
+	cursor_tip_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+	cursor_tip_->set_visible(false);
+	ui_layer->add_child(cursor_tip_);
 
 	// Speed & Menu
 	speed_btn = memnew(Button);
@@ -1142,6 +1152,103 @@ void RtsoMain::debug_gather_nearest() {
 	if (cam_rig) cam_rig->set_target_pos(Vector3(x, 0.0f, z));
 }
 
+bool RtsoMain::trade_route_click(const rtso::Simulation::Building &b, bool execute, bool queued, String *tooltip) {
+	if (!sim || selected_ids.is_empty() || b.wrecked || b.build_progress < 1.0f) return false;
+	const uint8_t me = local_player();
+	auto uv = sim->units();
+	std::vector<uint32_t> traders;
+	uint8_t kind = rtso::UNIT_TRADER;
+	for (int s = 0; s < selected_ids.size(); ++s) {
+		const uint32_t id = (uint32_t)(int64_t)selected_ids[s];
+		for (size_t i = 0; i < uv.count; ++i) {
+			if (uv.id[i] != id) continue;
+			// getActionInfo: a land market for Organic traders, a dock for ships, not an enemy's.
+			if (uv.alive[i] && uv.team[i] == me && rtso::unit_is_trader(uv.unit_type[i]) &&
+					sim->can_trade_at(me, b, uv.unit_type[i])) {
+				traders.push_back(id);
+				kind = uv.unit_type[i];
+			}
+			break;
+		}
+	}
+	if (traders.empty()) return false;
+	std::sort(traders.begin(), traders.end());
+
+	const rtso::Simulation::Building *origin = nullptr;
+	if (trade_origin_market_ && trade_origin_traders_ == traders)
+		for (const auto &o : sim->buildings())
+			if (o.id == trade_origin_market_ && !o.wrecked && sim->can_trade_at(me, o, kind)) origin = &o;
+
+	auto gain_text = [&](const rtso::Simulation::Building &from, const rtso::Simulation::Building &to) {
+		const auto g = sim->calculate_trade_gain(from, to, me, kind);
+		String t = String::num_int64(g.trader);
+		if (g.market1 || g.market2) t += " (+" + String::num_int64(g.market1 + g.market2) + " to the markets' owners)";
+		return t;
+	};
+
+	if (!origin || origin->id == b.id) {
+		// "set first" / "is first" (Trader.js SetTargetMarket with no first market yet).
+		if (tooltip) *tooltip = origin ? String("Origin trade market.") : String("Right-click to set as origin trade market");
+		if (execute) {
+			trade_origin_market_ = b.id;
+			trade_origin_traders_ = traders;
+			chat_window_.append_line("Origin trade market set. Right-click another market to start trading.");
+			play_civ_voice("trade");
+		}
+		return true;
+	}
+	const auto g = sim->calculate_trade_gain(*origin, b, me, kind);
+	if (g.trader == 0) {
+		if (tooltip) *tooltip = "This market is too close to the origin market.";
+		if (execute) chat_window_.append_line("This market is too close to the origin market.");
+		return true;
+	}
+	if (tooltip) *tooltip = "Right-click to set as destination trade market.\nGain: " + gain_text(*origin, b);
+	if (execute) {
+		if (turn_cmds())
+			post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_SETUP_TRADE_ROUTE, traders.data(), traders.size(),
+					(float)b.id, 0, origin->id, queued ? rtso::NET_PARAM_QUEUED : 0);
+		else
+			sim->order_trade(traders.data(), traders.size(), origin->id, b.id, queued);
+		chat_window_.append_line("Trade route set. Gain: " + gain_text(*origin, b));
+		play_civ_voice("trade");
+		trade_origin_market_ = 0;
+		trade_origin_traders_.clear();
+	}
+	return true;
+}
+
+// Test hook (single player): two markets and two traders by the local Town
+// Center, the traders selected, then the two right-clicks of setup-trade-route.
+Dictionary RtsoMain::debug_trade_route_clicks() {
+	Dictionary d;
+	if (!sim || net_lockstep()) return d;
+	const uint8_t me = local_player();
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : sim->buildings())
+		if (b.team == me && b.type == rtso::BLD_TOWN_CENTER) { cx = b.x; cz = b.z; break; }
+	const uint32_t m1 = sim->spawn_building_world(cx - 30.0f, cz, rtso::BLD_MARKET, me, 1.0f);
+	const uint32_t m2 = sim->spawn_building_world(cx + 30.0f, cz + 10.0f, rtso::BLD_MARKET, me, 1.0f);
+	clear_selection();
+	for (int k = 0; k < 2; ++k)
+		selected_ids.push_back((int32_t)sim->spawn_unit(cx - 25.0f, cz + 4.0f * k, me, rtso::UNIT_TRADER));
+	const rtso::Simulation::Building *b1 = nullptr, *b2 = nullptr;
+	for (const auto &b : sim->buildings()) {
+		if (b.id == m1) b1 = &b;
+		if (b.id == m2) b2 = &b;
+	}
+	if (!b1 || !b2) return d;
+	String tip;
+	trade_route_click(*b1, false, false, &tip);
+	d["hover_first"] = tip;
+	d["first"] = trade_route_click(*b1, true, false, nullptr);
+	trade_route_click(*b2, false, false, &tip);
+	d["hover_second"] = tip;
+	d["second"] = trade_route_click(*b2, true, false, nullptr);
+	d["origin_after"] = (int)trade_origin_market_;
+	return d;
+}
+
 Dictionary RtsoMain::get_audio_state() const {
 	static const char *kStates[] = {"off", "menu", "peace", "battle", "victory", "defeat"};
 	Dictionary d;
@@ -1398,6 +1505,7 @@ void RtsoMain::update_cursor() {
 	Viewport *vp = get_viewport();
 	if (!sim || !vp) return;
 	const char *want = "";
+	String tip; // the action's tooltip, shown beside the cursor (0 A.D. cursor tooltips)
 	Vector2 hot(1, 1);
 	const Vector2 mouse = vp->get_mouse_position();
 	const bool over_ui = vp->gui_get_hovered_control() != nullptr;
@@ -1460,6 +1568,10 @@ void RtsoMain::update_cursor() {
 			if (!*want) {
 				for (const auto &b : sim->buildings()) {
 					if (b.wrecked || !near2(b.x, b.z, b.half_size + 1.2f)) continue;
+					if (trade_route_click(b, false, false, &tip)) {
+						want = "action-setup-trade-route";
+						break;
+					}
 					// 0 A.D. "capture" is the default on enemy structures; session.attack
 					// (or attack-move's Ctrl) attacks instead.
 					if (b.team == rtso::GAIA_PLAYER && b.type == rtso::BLD_FIELD && sim->field_resource_id(b.id))
@@ -1475,6 +1587,13 @@ void RtsoMain::update_cursor() {
 					break;
 				}
 			}
+		}
+	}
+	if (cursor_tip_) {
+		cursor_tip_->set_visible(!tip.is_empty());
+		if (!tip.is_empty()) {
+			if (cursor_tip_->get_text() != tip) cursor_tip_->set_text(tip);
+			cursor_tip_->set_position(mouse + Vector2(24, 20));
 		}
 	}
 	if (cursor_name_ == want) return;
@@ -2377,7 +2496,26 @@ void RtsoMain::update_inspector() {
 
 		static const char *kRes[] = {"wood", "metal", "stone", "food"};
 		String extra;
-		if (uview.carry[u] > 0 && uview.res_type_carried[u] < rtso::RES_COUNT)
+		uint32_t route_a = 0, route_b = 0;
+		int route_leg = 0;
+		if (rtso::unit_is_trader(uview.unit_type[u]) &&
+				sim->trader_route(uview.id[u], route_a, route_b, route_leg)) {
+			// selection_details.js: a trader shows its goods and their total gain.
+			const rtso::Simulation::Building *ma = nullptr, *mb = nullptr;
+			for (const auto &bb : sim->buildings()) {
+				if (bb.id == route_a) ma = &bb;
+				if (bb.id == route_b) mb = &bb;
+			}
+			if (ma && mb) {
+				const auto g = sim->calculate_trade_gain(*ma, *mb, uview.team[u], uview.unit_type[u]);
+				const uint8_t goods = uview.res_type_carried[u];
+				extra = "Trading " + String(goods < rtso::RES_COUNT ? kRes[goods] : "goods") + ", gain " +
+						String::num_int64(g.trader + g.market1 + g.market2) + " (" + String::num_int64(g.trader) +
+						" to you)";
+			} else {
+				extra = "Trade route lost";
+			}
+		} else if (uview.carry[u] > 0 && uview.res_type_carried[u] < rtso::RES_COUNT)
 			extra = "Carrying " + String::num_int64(uview.carry[u]) + " " + kRes[uview.res_type_carried[u]];
 		if (sim->is_transport((uint32_t)selected_ids[0])) {
 			const size_t p_count = sim->get_transport_passenger_count((uint32_t)selected_ids[0]);
@@ -3815,7 +3953,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				float hit_r = b.half_size + 1.2f;
 				if (dx * dx + dz * dz <= hit_r * hit_r) {
 					const uint32_t gaia_grain = b.team == rtso::GAIA_PLAYER && b.type == rtso::BLD_FIELD ? sim->field_resource_id(b.id) : 0;
-					if (gaia_grain) { // a Gaia field: anyone may farm it (0 A.D. "gather" comes before "capture")
+					if (trade_route_click(b, true, queue_shift, nullptr)) {
+						// setup-trade-route has specificness 0: it wins over garrison and capture.
+					} else if (gaia_grain) { // a Gaia field: anyone may farm it (0 A.D. "gather" comes before "capture")
 						if (turn_cmds())
 							post_lockstep(4, sel_ptr, sel_n, 0, 0, gaia_grain, qbit);
 						else
