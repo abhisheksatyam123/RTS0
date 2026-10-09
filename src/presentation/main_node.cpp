@@ -623,6 +623,11 @@ void RtsoMain::_ready() {
 	join_b->set_text("Join");
 	join_b->connect("pressed", Callable(this, "_on_lobby_join_pressed"));
 	lobby_actions->add_child(join_b);
+	lobby_observe = memnew(Button);
+	lobby_observe->set_text("Observe");
+	lobby_observe->set_toggle_mode(true);
+	lobby_observe->set_tooltip_text("Join a match in progress as an observer");
+	lobby_actions->add_child(lobby_observe);
 	Button *ref_b = memnew(Button);
 	ref_b->set_text("Refresh");
 	ref_b->connect("pressed", Callable(this, "_on_lobby_refresh_pressed"));
@@ -637,6 +642,9 @@ void RtsoMain::_ready() {
 	lobby_status = memnew(Label);
 	lobby_status->set_text("Lobby HTTP 127.0.0.1:8088 - run tools/lobby_server.py");
 	lobby_box->add_child(lobby_status);
+	lobby_players = memnew(Label);
+	lobby_players->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
+	lobby_box->add_child(lobby_players);
 
 	// =========================================================================
 	// 2. BOTTOM INSPECTOR PANEL (5-Bar Stack: Health, Capture, XP, Stamina, Aura)
@@ -2021,8 +2029,10 @@ void RtsoMain::_process(double delta) {
 				// 0 A.D. session.js network warnings: who the turn waits on, who
 				// is not responding and whose connection is bad.
 				auto name = [&](uint32_t c) {
+					for (const auto &e : net_host_.playerAssignment())
+						if (e.client == c && !e.name.empty()) return String::utf8(e.name.c_str());
 					const uint8_t pl = turn_mgr_.player_for_client(c);
-					return pl < 8 ? "Player " + String::num_int64(pl + 1) : "an observer";
+					return pl < 8 ? "Player " + String::num_int64(pl + 1) : String("an observer");
 				};
 				String status;
 				if (turn_mgr_.waiting_ms() > rtso::NET_TIMEOUT_WARN_MS) {
@@ -2041,6 +2051,25 @@ void RtsoMain::_process(double delta) {
 				if (!status.is_empty() || net_status_shown_) lobby_status->set_text(status);
 				net_status_shown_ = !status.is_empty();
 			}
+		}
+		// 0 A.D. player list: who plays which player, who has left, who watches.
+		if (lobby_players && net_host_.playerAssignments() != players_shown_) {
+			players_shown_ = net_host_.playerAssignments();
+			String playing, watching;
+			for (const auto &e : net_host_.playerAssignment()) {
+				const String who = String::utf8(e.name.empty() ? rtso::peer_guid(e.client).c_str() : e.name.c_str());
+				if (e.status == rtso::PlayerAssignmentMsg::OBSERVER) {
+					watching += String(watching.is_empty() ? "" : ", ") + who;
+					continue;
+				}
+				String line = who + String(" (Player ") + String::num_int64(e.player + 1);
+				if (e.status == rtso::PlayerAssignmentMsg::LEFT) line += String(", left");
+				playing += String(playing.is_empty() ? "" : ", ") + line + String(")");
+			}
+			String text = playing.is_empty() ? String() : "Players: " + playing;
+			if (!watching.is_empty()) text += (text.is_empty() ? "" : ". ") + String("Observers: ") + watching;
+			if (turn_mgr_.is_observer()) text += (text.is_empty() ? "" : ". ") + String("You are observing.");
+			lobby_players->set_text(text);
 		}
 		// else pre-Start lobby phase: poll + GAME_START consume only (above) -
 		// no lockstep turns and no hash exchange across divergent boot worlds.
@@ -4858,7 +4887,8 @@ void RtsoMain::_on_lobby_join_pressed() {
 	// Once connected, ask to rejoin: a host still in its lobby declines and its
 	// NMT_GAME_START starts us as usual; a host mid-match sends its world.
 	net_host_.onPeerConnected([this](uint32_t) {
-		if (!net_host_.isHost() && !net_game_started_) turn_mgr_.request_rejoin();
+		if (!net_host_.isHost() && !net_game_started_)
+			turn_mgr_.request_rejoin(lobby_observe && lobby_observe->is_pressed());
 	});
 	if (lobby_status)
 		lobby_status->set_text("Connecting " + String(ip.c_str()) + ":" + String::num_int64(port));

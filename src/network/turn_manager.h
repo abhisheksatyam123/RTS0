@@ -96,7 +96,14 @@ public:
 	// boundary T with the saved world and the batches for turns after T (see
 	// RejoinMsg); apply_pending_rejoin() then loads it and the client plays on
 	// from turn T+1 in its old seat. tick() also applies it.
-	void request_rejoin();
+	// observe: join as an observer instead (0 A.D. observer late join): the
+	// client takes no seat, sends no batches and nobody waits on it.
+	void request_rejoin(bool observe = false);
+	// Host: whether clients may join a running match as observers (0 A.D.
+	// network.lateobservers, "everyone" by default).
+	void set_allow_late_observers(bool allow) { allow_late_observers_ = allow; }
+	// This client watches the match without a seat.
+	bool is_observer() const;
 	bool apply_pending_rejoin(Simulation &sim);
 	bool rejoin_requested() const { return rejoin_wanted_; }
 	bool rejoined() const { return rejoined_; }
@@ -369,6 +376,14 @@ private:
 	void apply_peer_left(uint32_t client_id, uint32_t last_turn);
 	void apply_peer_control(const NetCommand &c);
 	std::vector<uint32_t> rejoin_requests_;
+	std::set<uint32_t> observer_requests_; // host: rejoin requests that asked to observe
+	bool rejoin_observe_ = false;
+	bool allow_late_observers_ = true;
+	// Host: the client list last sent as NMT_PLAYER_ASSIGNMENT, and every
+	// client's name as last seen (a client that left keeps it in the list).
+	std::vector<PlayerAssignmentMsg::Entry> sent_assignment_;
+	std::unordered_map<uint32_t, std::string> client_names_;
+	void send_player_assignment();
 	bool rejoin_wanted_ = false, rejoin_have_header_ = false, rejoined_ = false;
 	uint32_t rejoin_turn_ = 0;
 	uint8_t rejoin_reject_ = 0;
