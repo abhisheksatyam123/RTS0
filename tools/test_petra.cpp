@@ -445,8 +445,9 @@ static void test_attack_plans() {
 		int attack_size = 0, huge_size = 0;
 		std::vector<int> kinds;
 		auto last = Simulation::AttackPlan::UNEXECUTED;
-		// HugeAttack launches around 11-12 min on this map; 14 min leaves room for map changes.
-		for (float t = 0.0f; t < 14.0f * 60.0f; t += Simulation::FIXED_STEP) {
+		// At 0 A.D.'s gather rates the third plan (HugeAttack) starts mustering around minute 15-16
+		// on this map; 20 min leaves room for map changes.
+		for (float t = 0.0f; t < 20.0f * 60.0f; t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			const auto &m = s->petra_attack_manager();
 			const auto st = s->petra_attack_plan().state;

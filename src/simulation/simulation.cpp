@@ -8108,7 +8108,7 @@ void Simulation::petra_manage_military_production(float dt) {
 			if (b.team == petra_pid_ && b.type == BLD_FORTRESS) { fortress = true; break; }
 		if (!fortress) for (int r = 0; r < RES_COUNT; ++r) reserve[r] = PETRA_FORTRESS_COST[r];
 	}
-	const bool reserving = reserve[RES_FOOD] + reserve[RES_WOOD] + reserve[RES_GOLD] + reserve[RES_STONE] > 0.0f;
+	bool reserving = reserve[RES_FOOD] + reserve[RES_WOOD] + reserve[RES_GOLD] + reserve[RES_STONE] > 0.0f;
 	for (const auto &opt : options) {
 		if (pop_current(petra_pid_) >= pop_max(petra_pid_)) break;
 		const bool siege_opt = is_siege(civ_unit_template(opt.tmpl).unit_type);
@@ -8123,7 +8123,15 @@ void Simulation::petra_manage_military_production(float dt) {
 			if (!leaves) continue;
 		}
 		if (petra_train_template(PETRA_QUEUE_MILITARY, opt.bld_id, opt.tmpl)) break;
-		if (is_tower(opt.tmpl)) siege_waiting = true;
+		if (is_tower(opt.tmpl)) {
+			// The plan's queue trains in order: what comes after the tower leaves it its price.
+			siege_waiting = true;
+			const UnitTypeInfo &ui = civ_template_unit_info(opt.tmpl, civ_unit_template(opt.tmpl).unit_type);
+			float cost[RES_COUNT];
+			unit_train_cost(petra_pid_, opt.tmpl, ui, cost);
+			for (int r = 0; r < RES_COUNT; ++r) reserve[r] += cost[r];
+			reserving = true;
+		}
 	}
 }
 
@@ -8303,6 +8311,8 @@ void Simulation::petra_manage_economy(float dt) {
 		const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
 		if (gcls != GATHER_INFANTRY && gcls != GATHER_SUPPORT) continue;
 		if (units_.action_state[i] == ACTION_IDLE) {
+			// Standing at a treasure is collecting it (UnitAI COLLECTTREASURE), not idling.
+			if (units_.order_kind[i] == ORDER_COLLECT_TREASURE) continue;
 			const bool soldier = gcls == GATHER_INFANTRY;
 			if (soldier && (in_plan.count(units_.id[i]) || units_.id[i] == petra_scout_unit_id_ ||
 					get_threat_at(units_.pos_x[i], units_.pos_z[i]) >= 7.0f)) continue;
