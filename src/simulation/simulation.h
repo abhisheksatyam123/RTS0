@@ -966,6 +966,11 @@ public:
 		uint8_t pad[3];
 	};
 	uint32_t spawn_scenery(float x, float z, uint8_t scenery_type, float angle, float scale);
+	// The grain supply of a finished field (0 if none): a Gaia field is farmed through it.
+	uint32_t field_resource_id(uint32_t building_id) const {
+		auto it = field_res_by_bld_.find(building_id);
+		return it != field_res_by_bld_.end() && res_id_to_idx_.count(it->second) ? it->second : 0;
+	}
 	const std::vector<Scenery> &scenery() const { return scenery_; }
 	// A Gaia-owned unit from a 0 A.D. map (Player 0): roster template `template_id`
 	// ("gaul/infantry_javelineer_a"; a rank suffix falls back to the _b template), else the

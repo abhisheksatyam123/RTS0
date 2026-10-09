@@ -222,6 +222,24 @@ int main() {
 		std::printf("scenery: 2 fences block the nav grid and a house foundation\n");
 	}
 
+	// 6d. A Gaia field (a map's structures/*/field owned by Player 0): anyone may farm it.
+	{
+		fresh(s);
+		const uint32_t field = s.spawn_building_world(0.0f, 0.0f, BLD_FIELD, GAIA_PLAYER, 1.0f);
+		s.spawn_building_world(0.0f, 8.0f, BLD_FARMSTEAD, 0, 1.0f);
+		run(s, 0.5f);
+		const uint32_t grain = s.field_resource_id(field);
+		CHECK(grain != 0);
+		uint32_t w = s.spawn_unit(3.0f, 3.0f, 0, UNIT_FEMALE_CITIZEN);
+		const float food0 = s.player(0).res[RES_FOOD];
+		s.order_gather(&w, 1, grain);
+		run(s, 40.0f);
+		const int32_t wi = s.lookup_unit(w);
+		const float got = s.player(0).res[RES_FOOD] - food0 + (wi >= 0 ? (float)s.units_.carry[wi] : 0.0f);
+		std::printf("gaia field: %.0f food farmed in 40 s\n", got);
+		CHECK(got > 0.0f);
+	}
+
 	// 7. Random maps place treasures and ruins where 0 A.D.'s scripts do.
 	{
 		s.generate_random_map(MAP_FORTRESS, 3, 2, 96.0f);

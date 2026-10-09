@@ -12301,6 +12301,198 @@
   ],
   "gaia_structures": [
     {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": -60.44,
+      "z": 14.0
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": -54.19,
+      "z": 20.23
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": -47.83,
+      "z": 26.61
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": 7.48,
+      "z": -30.3
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": 13.6,
+      "z": -24.56
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": 20.52,
+      "z": -18.59
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": 40.99,
+      "z": 7.27
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": 47.59,
+      "z": 14.28
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": 53.31,
+      "z": 7.97
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": 47.17,
+      "z": 1.51
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": -23.69,
+      "z": 48.29
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": -16.45,
+      "z": 53.61
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": -9.93,
+      "z": 47.92
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": -16.68,
+      "z": 42.01
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": -60.94,
+      "z": 26.64
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": -67.17,
+      "z": 20.66
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": -54.65,
+      "z": 33.04
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": -3.73,
+      "z": -34.26
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": 3.23,
+      "z": -40.95
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": 9.22,
+      "z": -47.3
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": 82.06,
+      "z": 102.18
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": 90.99,
+      "z": 105.37
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": 88.3,
+      "z": 95.77
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": 98.0,
+      "z": 99.84
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": 20.86,
+      "z": 149.37
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": 39.02,
+      "z": 157.47
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": 20.57,
+      "z": 162.74
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": 32.2,
+      "z": 162.67
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": -69.03,
+      "z": -120.43
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": -76.8,
+      "z": -113.75
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": -83.42,
+      "z": -119.29
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/ptol/field",
+      "x": -76.76,
+      "z": -125.87
+    },
+    {
       "type": "mercenary_camp",
       "x": -135.52,
       "z": 106.13

@@ -4621,7 +4621,10 @@ void Simulation::tick_gather(float dt) {
 			if (field_it != field_bld_by_res_.end()) {
 				auto bit = building_id_to_idx_.find(field_it->second);
 				FieldGatherers &fg = field_gatherers_[units_.target_resource_id[i]];
-				bool own = bit != building_id_to_idx_.end() && buildings_[bit->second].team == uteam;
+				// Our own fields, and Gaia's: 0 A.D.'s ResourceGatherer has no owner check, so a map's
+				// Gaia field (structures/*/field owned by Player 0) is anyone's to farm.
+				bool own = bit != building_id_to_idx_.end() &&
+						(buildings_[bit->second].team == uteam || buildings_[bit->second].team == GAIA_PLAYER);
 				if (!own || fg.slots_taken >= FIELD_MAX_GATHERERS) {
 					// Field full or not ours: try our nearest field with a free slot.
 					uint32_t alt = own ? find_free_field(uteam, units_.pos_x[i], units_.pos_z[i]) : 0;
@@ -6953,9 +6956,9 @@ uint32_t Simulation::find_nearby_resource(float x, float z, uint8_t res_type, ui
 		if (!resources_.alive[r] || resources_.amount[r] <= 0 || resources_.type[r] != res_type) continue;
 		if (subtype >= 0 && resources_.subtype[r] != subtype) continue; // the same kind (type.specific)
 		auto f = field_bld_by_res_.find(resources_.id[r]);
-		if (f != field_bld_by_res_.end()) { // only our own fields
+		if (f != field_bld_by_res_.end()) { // only our own fields, or Gaia's
 			auto b = building_id_to_idx_.find(f->second);
-			if (b == building_id_to_idx_.end() || buildings_[b->second].team != team) continue;
+			if (b == building_id_to_idx_.end() || (buildings_[b->second].team != team && buildings_[b->second].team != GAIA_PLAYER)) continue;
 		}
 		const float dx = resources_.x[r] - x, dz = resources_.z[r] - z;
 		const float d2 = dx * dx + dz * dz;
@@ -13419,22 +13422,10 @@ void Simulation::update_player_fow(std::vector<uint8_t> &grid, SharesVision shar
 	for (auto &c : grid) c = c == FOW_VISIBLE ? (uint8_t)FOW_EXPLORED : std::max(c, floor);
 
 	// Steps 2 and 3: every unit and finished building whose vision the player shares lights the
-	// tiles within its vision radius. Vision radius per unit type (in world units):
-	//   Villager/Infantry: 16m, Cavalry: 20m, Archer: 22m, Catapult: 24m, Hero: 18m, Elephant: 20m, Trireme: 28m
-	auto vision_radius = [](uint8_t utype) -> float {
-		switch (utype) {
-			case UNIT_ARCHER:   return 22.0f;
-			case UNIT_CAVALRY:  return 20.0f;
-			case UNIT_CATAPULT: return 24.0f;
-			case UNIT_TRIREME:  return 28.0f;
-			case UNIT_ELEPHANT: return 20.0f;
-			case UNIT_HERO:     return 18.0f;
-			default:            return 16.0f;
-		}
-	};
+	// tiles within its vision radius (unit_vision_range, 0 A.D. Vision/Range).
 
 	reveal_viewers(grid, views,
-			[&](size_t u) { return units_.alive[u] && shares_vision(units_.team[u]) ? vision_radius(units_.unit_type[u]) : 0.0f; },
+			[&](size_t u) { return units_.alive[u] && shares_vision(units_.team[u]) ? unit_vision_range(units_.unit_type[u]) : 0.0f; },
 			[&](const Building &b) {
 				if (!shares_vision(b.team) || b.build_progress < 1.0f) return 0.0f;
 				float bvr = 18.0f; // default building vision
