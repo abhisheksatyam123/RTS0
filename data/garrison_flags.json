@@ -2259,6 +2259,10 @@
    ],
    "flag": "iber"
   },
+  "s_iberians_sb_1": {
+   "scale": 0.22857,
+   "ground": 0.0
+  },
   "s_iberians_stable": {
    "scale": 0.17444,
    "ground": 1.4917,
@@ -2319,6 +2323,16 @@
    ],
    "flag": "kush"
   },
+  "s_kushites_temple_amun": {
+   "scale": 0.08575,
+   "ground": 1.5454,
+   "pos": [
+    0.5238,
+    3.525,
+    -2.2479
+   ],
+   "flag": "kush"
+  },
   "s_kushites_workshop": {
    "scale": 0.16655,
    "ground": 1.147,
@@ -2353,6 +2367,16 @@
    ],
    "flag": "maur"
   },
+  "s_mercenaries_camp_nuba": {
+   "scale": 0.13173,
+   "ground": 0.686,
+   "pos": [
+    1.3585,
+    1.4775,
+    -1.3783
+   ],
+   "flag": "kush"
+  },
   "s_persians_blacksmith": {
    "scale": 0.21634,
    "ground": 0.9497,
@@ -2370,6 +2394,16 @@
   "s_persians_hall_palace": {
    "scale": 0.216,
    "ground": 2.7343
+  },
+  "s_persians_ice_house": {
+   "scale": 0.20946,
+   "ground": 0.2325,
+   "pos": [
+    0.0,
+    3.846,
+    -0.0126
+   ],
+   "flag": "persians"
   },
   "s_persians_outpost": {
    "scale": 0.29458,
@@ -2408,6 +2442,16 @@
     -0.0002,
     4.7225,
     0.0962
+   ],
+   "flag": "persians"
+  },
+  "s_persians_tachara": {
+   "scale": 0.20568,
+   "ground": 2.337,
+   "pos": [
+    -2.8767,
+    4.6083,
+    -0.9295
    ],
    "flag": "persians"
   },
@@ -2451,6 +2495,16 @@
    ],
    "flag": "ptol"
   },
+  "s_ptolemies_military_colony": {
+   "scale": 0.18131,
+   "ground": 1.5385,
+   "pos": [
+    2.357,
+    3.4708,
+    -2.3708
+   ],
+   "flag": "ptol"
+  },
   "s_ptolemies_range": {
    "scale": 0.14583,
    "ground": 2.4127,
@@ -2458,6 +2512,16 @@
     -0.6266,
     4.0194,
     0.4652
+   ],
+   "flag": "ptol"
+  },
+  "s_ptolemies_settlement": {
+   "scale": 0.14613,
+   "ground": 0.5474,
+   "pos": [
+    -1.3824,
+    2.2644,
+    1.4871
    ],
    "flag": "ptol"
   },
@@ -2515,6 +2579,16 @@
    ],
    "flag": "rome"
   },
+  "s_romans_camp": {
+   "scale": 0.1027,
+   "ground": 0.8652,
+   "pos": [
+    -1.3396,
+    1.4122,
+    1.341
+   ],
+   "flag": "rome"
+  },
   "s_romans_outpost": {
    "scale": 0.29458,
    "ground": 2.2973,
@@ -2542,6 +2616,26 @@
     1.1103,
     3.2995,
     0.9491
+   ],
+   "flag": "rome"
+  },
+  "s_romans_temple_mars": {
+   "scale": 0.12583,
+   "ground": 1.3189,
+   "pos": [
+    0.0011,
+    4.2995,
+    2.3491
+   ],
+   "flag": "rome"
+  },
+  "s_romans_temple_vesta": {
+   "scale": 0.27533,
+   "ground": 0.5518,
+   "pos": [
+    -1.1898,
+    4.572,
+    -0.1397
    ],
    "flag": "rome"
   },
@@ -2582,6 +2676,16 @@
     -0.0014,
     5.0949,
     0.324
+   ],
+   "flag": "seleucids"
+  },
+  "s_seleucids_military_colony": {
+   "scale": 0.19688,
+   "ground": 2.4799,
+   "pos": [
+    0.0143,
+    4.5969,
+    -0.492
    ],
    "flag": "seleucids"
   },
@@ -2652,6 +2756,16 @@
     1.2211,
     3.8632,
     -0.2517
+   ],
+   "flag": "hele"
+  },
+  "s_spartans_gerousia": {
+   "scale": 0.18841,
+   "ground": 1.7435,
+   "pos": [
+    0.0,
+    5.1714,
+    0.4357
    ],
    "flag": "hele"
   },
