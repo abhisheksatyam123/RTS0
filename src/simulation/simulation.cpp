@@ -129,6 +129,7 @@ static constexpr uint32_t SAVE_VERSION_BUILDING_AI = 34;
 static constexpr uint32_t SAVE_VERSION_FORMATION_ORDERS = 37;
 // First save version with each formation controller's queued orders.
 static constexpr uint32_t SAVE_VERSION_FORMATION_QUEUE = 43;
+static constexpr uint32_t SAVE_VERSION_RALLY = 47; // each structure's rally resource kind and Shift-added positions, each fleeing unit's flee source
 // The save version that added each unit's kept short path (tick_state_io section 1) and the aura
 // sources in force (section 9).
 static constexpr uint32_t SAVE_VERSION_MOTION = 38;
@@ -2322,16 +2323,41 @@ bool Simulation::ai_send_tribute(uint8_t res_type, int amount) {
 	return cmd_tribute(petra_pid_, 0, res_type, amount);
 }
 
-void Simulation::cmd_set_rally_point(uint8_t player_id, uint32_t building_id, float rx, float rz, uint32_t res_id, uint32_t bld_id) {
+void Simulation::cmd_set_rally_point(uint8_t player_id, uint32_t building_id, float rx, float rz, uint32_t res_id, uint32_t bld_id,
+		bool queued) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return;
 	Building &b = buildings_[bit->second];
 	if (b.team != player_id) return;
+	uint8_t rt = 0xFF, sub = 0xFF;
+	if (auto r = res_id_to_idx_.find(res_id); res_id != 0 && r != res_id_to_idx_.end()) {
+		rt = resources_.type[r->second];
+		sub = resources_.subtype[r->second];
+	}
+	if (queued && b.has_rally_point) {
+		b.rally_more.push_back({rx, rz, res_id, bld_id, rt, sub});
+		return;
+	}
 	b.has_rally_point = true;
 	b.rally_x = rx;
 	b.rally_z = rz;
 	b.rally_target_res_id = res_id;
 	b.rally_target_bld_id = bld_id;
+	b.rally_res_type = rt;
+	b.rally_res_sub = sub;
+	b.rally_more.clear();
+}
+
+void Simulation::cmd_unset_rally_point(uint8_t player_id, uint32_t building_id) {
+	auto bit = building_id_to_idx_.find(building_id);
+	if (bit == building_id_to_idx_.end()) return;
+	Building &b = buildings_[bit->second];
+	if (b.team != player_id) return;
+	b.has_rally_point = false;
+	b.rally_target_res_id = 0;
+	b.rally_target_bld_id = 0;
+	b.rally_res_type = b.rally_res_sub = 0xFF;
+	b.rally_more.clear();
 }
 
 int Simulation::phase_structures(uint8_t player_id, uint8_t phase) const {
@@ -8795,6 +8821,7 @@ void Simulation::capture_points_tick(Building &b, size_t bi, float dt) {
 		for (int t = 1; t <= GAIA; ++t) if (pts[t] > pts[best]) best = t;
 		if (best == owner) return false;
 		b.has_rally_point = false; // RallyPoint.OnOwnershipChanged -> Reset
+		b.rally_more.clear();
 		order_ungarrison(b.id);
 		cancel_upgrade(b, b.team);
 		const uint8_t from = b.team;
@@ -9200,6 +9227,7 @@ void Simulation::convert_to_gaia(uint8_t players) {
 		b.research_tech = TECH_NONE;
 		b.research_timer = 0.0f;
 		b.has_rally_point = false;
+		b.rally_more.clear();
 		b.team = GAIA_PLAYER;
 		b.capture_points_by_team.fill(0.0f); // every point is Gaia's
 		b.capture_points = 0.0f;
@@ -10142,11 +10170,67 @@ void Simulation::respond_to_attack(size_t i) {
 			!template_has_ranged_attack(units_.tmpl[a], units_.unit_type[a], civ_of(units_.team[a])));
 }
 
+// Where a unit, structure or animal stands; false once it is gone.
+bool Simulation::entity_xz(uint32_t id, float &x, float &z) const {
+	const int32_t u = lookup_unit(id);
+	if (u >= 0) {
+		if (!units_.alive[u]) return false;
+		x = units_.pos_x[u];
+		z = units_.pos_z[u];
+		return true;
+	}
+	auto bit = building_id_to_idx_.find(id);
+	if (bit != building_id_to_idx_.end()) {
+		const Building &b = buildings_[bit->second];
+		if (b.wrecked) return false;
+		x = b.x;
+		z = b.z;
+		return true;
+	}
+	auto fit = fauna_id_to_idx_.find(id);
+	if (fit != fauna_id_to_idx_.end() && fauna_.alive[fit->second]) {
+		x = fauna_.pos_x[fit->second];
+		z = fauna_.pos_z[fit->second];
+		return true;
+	}
+	return false;
+}
+
+// UnitAI FLEEING: MoveToTargetRange(target, distanceToFlee, -1) keeps running from where the
+// one fled from is now; done once that far from it, when the run ends short (likelyFailure),
+// or when the flight is stuck. Re-aims target_x/z while it goes on.
+bool Simulation::flee_done(size_t i) {
+	if (units_.attack_timer[i] <= 0.0f) return true;
+	const float px = units_.pos_x[i], pz = units_.pos_z[i];
+	const float tx = units_.target_x[i] - px, tz = units_.target_z[i] - pz;
+	if (tx * tx + tz * tz <= 1.0f) return true;
+	float sx, sz;
+	if (units_.flee_from[i] == 0 || !entity_xz(units_.flee_from[i], sx, sz)) return false;
+	const float dx = px - sx, dz = pz - sz, d2 = dx * dx + dz * dz;
+	const float want = units_.flee_dist[i];
+	if (d2 >= want * want) return true;
+	const float d = sqrtf(d2);
+	const float nx = d > 1e-3f ? dx / d : 1.0f, nz = d > 1e-3f ? dz / d : 0.0f;
+	units_.target_x[i] = std::clamp(sx + nx * want, -map_half_ + 1.0f, map_half_ - 1.0f);
+	units_.target_z[i] = std::clamp(sz + nz * want, -map_half_ + 1.0f, map_half_ - 1.0f);
+	return false;
+}
+
 // The response itself, to a unit or an animal (fauna_hit_unit) at (ax, az).
 void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, float az, bool melee, bool structure) {
 	const uint8_t st = units_.action_state[i];
 	// TRADE "Attacked": a trader keeps trading.
 	if (st == ACTION_TRADE) return;
+	// FLEEING "Attacked": ignore the one fled from and anyone farther away; a nearer attacker
+	// is answered (a fresh flight from it, or a fight).
+	if (st == ACTION_FLEE && units_.flee_from[i] != 0) {
+		if (attacker_id == units_.flee_from[i]) return;
+		float sx, sz;
+		if (entity_xz(units_.flee_from[i], sx, sz)) {
+			const float px = units_.pos_x[i], pz = units_.pos_z[i];
+			if ((px - ax) * (px - ax) + (pz - az) * (pz - az) > (px - sx) * (px - sx) + (pz - sz) * (pz - sz)) return;
+		}
+	}
 	const uint8_t stance = units_.stance[i];
 	// Forced orders ignore attackers, unless the stance is violent (targetAttackersAlways);
 	// an automatic fight (ORDER_FLAG_INTERRUPTED) is not forced.
@@ -10174,6 +10258,8 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 		units_.target_z[i] = std::clamp(az + nz * goal, -map_half_ + 1.0f, map_half_ - 1.0f);
 		units_.has_order[i] = 1;
 		units_.action_state[i] = ACTION_FLEE;
+		units_.flee_from[i] = attacker_id;
+		units_.flee_dist[i] = goal;
 		units_.target_unit_id[i] = 0;
 		units_.target_building_id[i] = 0;
 		units_.waypoint_cur[i] = units_.waypoint_count[i] = 0;
@@ -10255,37 +10341,56 @@ bool Simulation::can_gather(size_t i, size_t r) const {
 
 // 0 A.D. RallyPoint + Commands.js: a trained unit does what the rally target asks
 // for, if it can (gather, build, garrison, attack), and walks there otherwise.
+// Every position is an order; the ones Shift added queue behind the first
+// (RallyPoint.OrderToRallyPoint, queued for i > 0).
 void Simulation::apply_rally_point(uint32_t uid, const Building &b, bool ignore_self_garrison) {
+	const Building::RallyStep first{b.rally_x, b.rally_z, b.rally_target_res_id, b.rally_target_bld_id, b.rally_res_type, b.rally_res_sub};
+	apply_rally_step(uid, b, first, false, ignore_self_garrison);
+	for (const Building::RallyStep &st : b.rally_more) apply_rally_step(uid, b, st, true, false);
+}
+
+void Simulation::apply_rally_step(uint32_t uid, const Building &b, const Building::RallyStep &st, bool queued,
+		bool ignore_self_garrison) {
 	const int32_t i = lookup_unit(uid);
 	if (i < 0) return;
 	const uint8_t ut = units_.unit_type[i];
 	const bool builder = unit_can_build(ut, units_.tmpl[i]);
-	auto rit = res_id_to_idx_.find(b.rally_target_res_id);
-	if (b.rally_target_res_id != 0 && rit != res_id_to_idx_.end() && can_gather((size_t)i, rit->second)) {
-		order_gather(&uid, 1, b.rally_target_res_id);
-		return;
+	auto rit = res_id_to_idx_.find(st.res_id);
+	if (st.res_id != 0 && rit != res_id_to_idx_.end() && resources_.alive[rit->second] && resources_.amount[rit->second] > 0) {
+		if (can_gather((size_t)i, rit->second)) {
+			order_gather(&uid, 1, st.res_id, queued);
+			return;
+		}
+	} else if (st.res_type != 0xFF) {
+		// gather-near-position: the target is gone, so gather the same kind near the spot.
+		const uint32_t r = find_nearby_resource(st.x, st.z, st.res_type, b.team, st.res_sub);
+		auto nit = res_id_to_idx_.find(r);
+		if (r != 0 && nit != res_id_to_idx_.end() && can_gather((size_t)i, nit->second)) {
+			order_gather(&uid, 1, r, queued);
+			return;
+		}
 	}
-	if (b.rally_target_bld_id != 0) {
-		auto it = building_id_to_idx_.find(b.rally_target_bld_id);
+	if (st.bld_id != 0) {
+		auto it = building_id_to_idx_.find(st.bld_id);
 		if (it != building_id_to_idx_.end() && !buildings_[it->second].wrecked) {
 			const Building &t = buildings_[it->second];
 			if (t.team == b.team) {
 				if (builder && (t.build_progress < 1.0f || t.hp < t.max_hp || t.type == BLD_FIELD)) {
-					order_build_or_repair(&uid, 1, t.id);
+					order_build_or_repair(&uid, 1, t.id, queued);
 					return;
 				}
 				if (ignore_self_garrison && t.id == b.id) return;
 				if ((int)t.garrisoned_units.size() < t.garrison_cap) {
-					order_garrison(&uid, 1, t.id);
+					order_garrison(&uid, 1, t.id, queued);
 					return;
 				}
 			} else if (can_attack(b.team, t.team)) {
-				order_attack_building(&uid, 1, t.id, false, true);
+				order_attack_building(&uid, 1, t.id, queued, true);
 				return;
 			}
 		}
 	}
-	order_walk(&uid, 1, b.rally_x, b.rally_z);
+	order_walk(&uid, 1, st.x, st.z, queued);
 }
 
 // UnitAI ConstructionFinished for the builders of `b`: farm a field, gather the
@@ -10444,8 +10549,7 @@ void Simulation::tick_unit_ai(float dt) {
 		// tick_formations brings them back after a fight or a flight, so they don't resume their own.
 		if (!formations_.empty() && formation_group_[i] != 0 && !member_working(i)) {
 			if (now == ACTION_FLEE) {
-				const float dx = units_.target_x[i] - units_.pos_x[i], dz = units_.target_z[i] - units_.pos_z[i];
-				if (dx * dx + dz * dz <= 1.0f || units_.attack_timer[i] <= 0.0f) {
+				if (flee_done(i)) {
 					units_.attack_timer[i] = 0.0f;
 					units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_INTERRUPTED;
 					units_.action_state[i] = ACTION_IDLE;
@@ -10496,8 +10600,7 @@ void Simulation::tick_unit_ai(float dt) {
 			continue;
 		}
 		if (now == ACTION_FLEE) {
-			const float dx = units_.target_x[i] - units_.pos_x[i], dz = units_.target_z[i] - units_.pos_z[i];
-			if (dx * dx + dz * dz <= 1.0f || units_.attack_timer[i] <= 0.0f) {
+			if (flee_done(i)) {
 				units_.attack_timer[i] = 0.0f;
 				resume_order(i);
 			}
@@ -17330,7 +17433,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -17472,6 +17575,20 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&b.arrow_timer_on, sizeof(b.arrow_timer_on));
 		out.write((const char *)&b.rot, sizeof(b.rot));
 		out.write((const char *)&b.aura_hp_mult, sizeof(b.aura_hp_mult));
+		out.write((const char *)&b.rally_res_type, sizeof(b.rally_res_type));
+		out.write((const char *)&b.rally_res_sub, sizeof(b.rally_res_sub));
+		{
+			const uint32_t nr = (uint32_t)b.rally_more.size();
+			out.write((const char *)&nr, sizeof(nr));
+			for (const auto &st : b.rally_more) {
+				out.write((const char *)&st.x, sizeof(st.x));
+				out.write((const char *)&st.z, sizeof(st.z));
+				out.write((const char *)&st.res_id, sizeof(st.res_id));
+				out.write((const char *)&st.bld_id, sizeof(st.bld_id));
+				out.write((const char *)&st.res_type, sizeof(st.res_type));
+				out.write((const char *)&st.res_sub, sizeof(st.res_sub));
+			}
+		}
 
 		uint32_t q_sz = (uint32_t)b.queue.size();
 		out.write((const char *)&q_sz, sizeof(q_sz));
@@ -17809,6 +17926,25 @@ bool Simulation::load_state(const char *filepath) {
 		if (version >= SAVE_VERSION_MATCH_LIMIT) in.read((char *)&bld.aura_hp_mult, sizeof(bld.aura_hp_mult));
 		bld.half_d = building_half_depth(bld.type, bld.half_size);
 		bld.set_rot(bld.rot);
+		bld.rally_more.clear();
+		if (version >= SAVE_VERSION_RALLY) { // the rally target's resource kind and the Shift-added rally positions
+			in.read((char *)&bld.rally_res_type, sizeof(bld.rally_res_type));
+			in.read((char *)&bld.rally_res_sub, sizeof(bld.rally_res_sub));
+			uint32_t nr = 0;
+			in.read((char *)&nr, sizeof(nr));
+			if (nr > 4096) return false;
+			bld.rally_more.resize(nr);
+			for (auto &st : bld.rally_more) {
+				in.read((char *)&st.x, sizeof(st.x));
+				in.read((char *)&st.z, sizeof(st.z));
+				in.read((char *)&st.res_id, sizeof(st.res_id));
+				in.read((char *)&st.bld_id, sizeof(st.bld_id));
+				in.read((char *)&st.res_type, sizeof(st.res_type));
+				in.read((char *)&st.res_sub, sizeof(st.res_sub));
+			}
+		} else {
+			bld.rally_res_type = bld.rally_res_sub = 0xFF;
+		}
 		const auto &bi = building_type_info(bld.type);
 		bld.capture_regen_rate = bi.capture_regen_rate;
 		bld.capture_garrison_regen_rate = bi.capture_garrison_regen_rate;
@@ -18045,6 +18181,13 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		else U.xp_partial[i] = 0.0f;
 		if (ar.version >= SAVE_VERSION_HEALTH_AURAS) ar.pod(U.aura_hp_mult[i]);
 		else U.aura_hp_mult[i] = 1.0f;
+		if (ar.version >= SAVE_VERSION_RALLY) {
+			ar.pod(U.flee_from[i]);
+			ar.pod(U.flee_dist[i]);
+		} else {
+			U.flee_from[i] = 0;
+			U.flee_dist[i] = 0.0f;
+		}
 		if (ar.version >= SAVE_VERSION_MOTION) {
 			ar.pod(U.short_path[i]);
 			ar.pod(U.motion[i]);
