@@ -124,6 +124,7 @@ const PLAYER_COLORS := [Color8(21, 55, 149), Color8(150, 20, 20), Color8(86, 180
 	Color8(220, 160, 220), Color8(80, 255, 190), Color8(50, 150, 255), Color8(100, 150, 30),
 	Color8(100, 60, 30), Color8(128, 0, 64), Color8(255, 200, 140), Color8(80, 80, 80)]
 const VICTORY_REGICIDE := 6
+const CivAINames = preload("res://scenes/menu/civ_ai_names.gd")
 var _color_icons: Array = []
 
 var _maps: Array = []          # all map dicts
@@ -637,6 +638,7 @@ func _collect_setup() -> Dictionary:
 			humans += 1
 		elif k == 1:
 			ai_total += 1
+	var names := _player_names(types, civs)
 	# Single-player Petra settings: the first AI slot's picks (per-slot AI is next).
 	var diff := 3
 	var beh := 2
@@ -661,12 +663,37 @@ func _collect_setup() -> Dictionary:
 		"res": res.get_selected(), "beh": beh, "diff": diff,
 		"biome": maxi(bio.get_selected(), 0),
 		"speed": float(SPEEDS[maxi(spd.get_selected(), 0)][0]),
-		"types": types, "civs": civs, "teams": teams, "diffs": diffs, "behs": behs, "colors": colors,
+		"types": types, "civs": civs, "teams": teams, "diffs": diffs, "behs": behs, "colors": colors, "names": names,
 		# Nomad only on random maps, RegicideGarrison only with Regicide (as 0 A.D. settings).
 		"nomad": $VBox/HBox/Left/StartRow/Nomad.button_pressed and not m.is_empty() and str(m.get("kind", "")) == "Random",
 		"regicide_garrison": $VBox/HBox/Left/StartRow/RegicideGarrison.button_pressed and vic.get_selected() == VICTORY_REGICIDE,
 		"disable_treasures": $VBox/HBox/Left/StartRow/DisableTreasures.button_pressed,
 		"humans": humans, "ai": ai_total, "slots": types.size()}
+
+# 0 A.D. PlayerName: slot 1 is you (Options > player name), AI slots take an unused name from
+# their civ's AINames ("Name 2" when the list runs out), other humans are "Player N".
+func _player_names(types: Array, civs: Array) -> Array:
+	var you := "Player 1"
+	var cfg := ConfigFile.new()
+	if cfg.load("user://config.ini") == OK:
+		you = str(cfg.get_value("general", "player_name_sp", you)).strip_edges()
+	var picked: Array = []
+	var names: Array = []
+	for i in range(types.size()):
+		if i == 0 and int(types[i]) == 0:
+			names.append(you if not you.is_empty() else "Player 1")
+		elif int(types[i]) == 1:
+			var pool: Array = CivAINames.AI_NAMES[clampi(int(civs[i]), 0, CivAINames.AI_NAMES.size() - 1)]
+			var free: Array = pool.filter(func(n): return not picked.has(n))
+			if free.is_empty():
+				free = pool
+			var chosen: String = free[randi() % free.size()]
+			var dup := picked.count(chosen)
+			picked.append(chosen)
+			names.append(chosen if dup == 0 else "%s %d" % [chosen, dup + 1])
+		else:
+			names.append("Player %d" % (i + 1))
+	return names
 
 func _on_start_pressed() -> void:
 	var st := _collect_setup()
@@ -711,6 +738,7 @@ func _on_start_pressed() -> void:
 	ms.slot_diffs = st["diffs"]
 	ms.slot_behs = st["behs"]
 	ms.slot_colors = st["colors"]
+	ms.slot_names = st["names"]
 	ms.nomad = bool(st["nomad"])
 	ms.regicide_garrison = bool(st["regicide_garrison"])
 	ms.disable_treasures = bool(st["disable_treasures"])
