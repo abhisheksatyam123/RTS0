@@ -19,6 +19,16 @@ namespace rtso {
 
 class Simulation;
 
+// The viewer's Simulation::FOW_* state per LOS cell (sim.fow_res() squared) from
+// the simulation's per-player line of sight (Simulation::los(), 0 A.D.'s
+// CCmpRangeManager LOS with VisionSharing), the same LOS the sim and Petra use.
+void los_view_grid(const Simulation &sim, uint8_t viewer, std::vector<uint8_t> &out);
+// The whole map shows: "Revealed map", an observer (OBSERVER_VIEW, 0xFF) or a
+// defeated player (0 A.D. reveals the map to both).
+bool los_sees_all(const Simulation &sim, uint8_t viewer);
+// A unit the viewer sees: an ally's always, others in the viewer's LOS.
+bool los_sees_unit(const Simulation &sim, uint8_t viewer, float x, float z, uint8_t team);
+
 // A structure as the viewer knows it: live when in sight, a mirage when fogged.
 struct FoggedBuilding {
 	uint32_t id = 0;
@@ -67,6 +77,8 @@ public:
 	// The structures and resources the viewer should see, live or miraged.
 	const std::vector<FoggedBuilding> &buildings() const { return out_buildings_; }
 	const std::vector<FoggedResource> &resources() const { return out_resources_; }
+	// The viewer's FOW grid update() last built (los_view_grid), fow_res() squared.
+	const std::vector<uint8_t> &view() const { return view_; }
 	size_t building_mirage_count() const { return building_memory_.size(); }
 	size_t resource_mirage_count() const { return resource_memory_.size(); }
 
@@ -90,6 +102,7 @@ private:
 	};
 
 	const uint8_t *los_ = nullptr;
+	std::vector<uint8_t> view_;
 	int res_ = 0;
 	float map_half_ = 0.0f;
 	uint32_t stamp_ = 0;
