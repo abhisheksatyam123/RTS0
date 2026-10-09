@@ -1404,7 +1404,7 @@ private:
 		float attack_timer[MAX_FAUNA] = {};
 		uint32_t target_unit_id[MAX_FAUNA] = {};
 		uint32_t corral_id[MAX_FAUNA] = {};
-		float fatten_timer[MAX_FAUNA] = {};
+		float flee_distance[MAX_FAUNA] = {}; // UnitAI FLEEING distanceToFlee (was the unused fatten timer)
 		float home_x[MAX_FAUNA] = {}; // UnitAI heldPosition: where a hold-ground animal returns
 		float home_z[MAX_FAUNA] = {};
 	} fauna_;
