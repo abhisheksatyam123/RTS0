@@ -323,6 +323,14 @@ Simulation::~Simulation() = default;
 
 void Simulation::reset() {
 	territory_regions_dirty_ = true;
+	// A new game brings its own terrain (set_terrain_data or load_state); the
+	// previous map's heights would otherwise move projectiles and water.
+	terrain_heights_.clear();
+	terrain_res_ = 64;
+	terrain_water_height_ = -1.0f;
+	fow_cell_height_.clear();
+	fow_cell_hmax_.clear();
+	fow_block_hmax_.clear();
 	triggers_.clear();
 	units_.free_all(); units_.init(UNIT_CAP);
 	resources_.free_all(); resources_.init(512);
@@ -382,6 +390,8 @@ void Simulation::reset() {
 	fauna_.count = 0;
 	fauna_id_to_idx_.clear();
 	transport_passengers_.clear();
+	turret_height_.clear();
+	turret_prev_stance_.clear();
 	formations_.clear();
 	next_formation_id_ = 1;
 	formation_group_.assign(UNIT_CAP, 0u);
@@ -786,6 +796,10 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	b.cell_x = cell_x;
 	b.cell_y = cell_y;
 	b.footprint = footprint;
+	if (type == BLD_DOCK) { // GuiInterface GetFoundationSnapData: a dock faces the open water
+		const float a = dock_angle(wx, wz, half);
+		if (!std::isnan(a)) b.rot = a;
+	}
 	b.attack_timer = 0.0f;
 	b.is_burning = false;
 	b.has_rally_point = false;
@@ -794,6 +808,7 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	b.rally_target_res_id = 0;
 	b.rally_target_bld_id = 0;
 	b.garrison_cap = binfo.garrison_cap;
+	b.garrison_cap = structure_garrison_cap(b);
 	b.research_tech = TECH_NONE;
 	b.research_timer = 0.0f;
 	b.research_duration = 0.0f;
@@ -1329,7 +1344,49 @@ Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell
 	return PLACE_OK;
 }
 
-uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b_type) {
+float Simulation::dock_angle(float x, float z, float half_size) const {
+	// Commands.js GetDockAngle: sample 16 points on a circle, find the longest run of
+	// consecutive water points and face its middle; widen the circle while every
+	// point (or none) is water.
+	constexpr int NUM_POINTS = 16;
+	constexpr float TWO_PI = 6.28318530718f;
+	if (terrain_heights_.empty()) return NAN;
+	for (int dist = 0; dist < 4; ++dist) {
+		int water[NUM_POINTS];
+		int n = 0;
+		const float d = half_size * (float)(dist + 1);
+		for (int i = 0; i < NUM_POINTS; ++i) {
+			const float a = (float)i / NUM_POINTS * TWO_PI;
+			if (get_terrain_height(x - d * std::sin(a), z + d * std::cos(a)) < terrain_water_height_) water[n++] = i;
+		}
+		if (!n) continue;
+		int start = 0, count = 0;
+		for (int i = 0; i < n; ++i) {
+			int c = 0;
+			for (int j = 0; j < n - 1; ++j) {
+				if ((water[(i + j) % n] + 1) % NUM_POINTS == water[(i + j + 1) % n]) ++c;
+				else break;
+			}
+			if (c > count) { start = i; count = c; }
+		}
+		if (count != NUM_POINTS - 1)
+			return -std::fmod((float)water[start] + count * 0.5f, (float)NUM_POINTS) / NUM_POINTS * TWO_PI;
+	}
+	return NAN;
+}
+
+uint32_t Simulation::pack_angle(float angle) {
+	constexpr float TWO_PI = 6.28318530718f;
+	float t = std::fmod(angle - DEFAULT_BUILDING_ROT, TWO_PI);
+	if (t < 0.0f) t += TWO_PI;
+	return (uint32_t)std::lround(t / TWO_PI * 65536.0f) & 0xFFFFu;
+}
+
+float Simulation::unpack_angle(uint32_t packed) {
+	return DEFAULT_BUILDING_ROT + (float)(packed & 0xFFFFu) / 65536.0f * 6.28318530718f;
+}
+
+uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b_type, float angle) {
 	if (player >= MAX_PLAYERS || b_type >= BLD_TYPE_COUNT) return 0;
 	if (!civ_can_build(players_[player].civ, b_type)) return 0; // civ-specific structures
 	const BuildingTypeInfo &binfo = building_type_info(b_type);
@@ -1355,6 +1412,7 @@ uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b
 		return 0;
 
 	uint32_t bid = spawn_building(cell_x, cell_y, b_type, player, 0.0f);
+	if (b_type != BLD_DOCK) buildings_[building_id_to_idx_[bid]].rot = unpack_angle(pack_angle(angle));
 	if (player == 0) record_.buildings_constructed++;
 	return bid;
 }
@@ -1794,7 +1852,7 @@ void Simulation::finish_upgrade(Building &b) {
 	b.capture_garrison_regen_rate = ninfo.capture_garrison_regen_rate;
 	b.territory_decay_rate = ninfo.territory_decay_rate;
 	// TransferGarrisonedUnits: whoever doesn't fit in the new structure is unloaded.
-	b.garrison_cap = ninfo.garrison_cap;
+	b.garrison_cap = structure_garrison_cap(b);
 	while ((int)b.garrisoned_units.size() > b.garrison_cap)
 		order_ungarrison_single(b.id, b.garrisoned_units.back());
 	b.attack_timer = 0.0f;
@@ -3273,7 +3331,7 @@ bool Simulation::is_transport(uint32_t unit_id) const {
 // and launch heights for a ship are the water level, not the seabed under it.
 float Simulation::unit_height(size_t i) const {
 	const float ground = get_terrain_height(units_.pos_x[i], units_.pos_z[i]);
-	if (!unit_is_ship(units_.unit_type[i]) || terrain_water_height_ < -0.5f) return ground;
+	if (!unit_is_ship(units_.unit_type[i]) || terrain_water_height_ < -0.5f) return ground + unit_height_offset(i);
 	return std::max(ground, terrain_water_height_);
 }
 
@@ -3352,6 +3410,7 @@ void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, ui
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx] || units_.team[uidx] != b.team) continue;
+		if (turret_points_of(b) && !unit_turretable((size_t)uidx)) continue; // TurretHolder.CanOccupy
 		if (garrison_in_range((size_t)uidx, b)) {
 			if ((int)b.garrisoned_units.size() >= b.garrison_cap) continue;
 			garrison_now((size_t)uidx, b);
@@ -3376,6 +3435,10 @@ bool Simulation::garrison_in_range(size_t i, const Building &b) const {
 }
 
 void Simulation::garrison_now(size_t i, Building &b) {
+	if (turret_points_of(b)) { // walls, gates and outposts hold turrets, not a garrison
+		if (unit_turretable(i)) occupy_turret(i, b);
+		return;
+	}
 	units_.action_state[i] = ACTION_GARRISONED;
 	units_.alive[i] = 0;
 	units_.has_order[i] = 0;
@@ -3384,6 +3447,137 @@ void Simulation::garrison_now(size_t i, Building &b) {
 	units_.waypoint_count[i] = 0;
 	set_order(i, ORDER_NONE, 0, 0, b.x, b.z); // inside: the order is done
 	b.garrisoned_units.push_back(units_.id[i]);
+}
+
+// ---------------------------------------------------------------------------
+// 0 A.D. TurretHolder.js / Turretable.js. A wall segment, gate or outpost holds its civ's
+// turret points (turret_data.h) instead of a garrison. Ranged infantry (Turretable on
+// template_unit_infantry_ranged and the ranged infantry champions and heroes) ordered to
+// garrison there stand on a free point: they stay alive and visible, shoot with their own
+// attack from the point's height, hold their ground (SetTurretStance), and step down beside
+// the structure when given any order other than an attack (UnitAI LeaveTurret). Turret
+// units are kept in Building::garrisoned_units, alive, so nothing new is saved.
+// ---------------------------------------------------------------------------
+
+bool Simulation::unit_turretable(size_t i) const {
+	const uint64_t c = unit_classes(units_.tmpl[i], units_.unit_type[i]);
+	return (c & TC_INFANTRY) && (c & TC_RANGED);
+}
+
+const TurretPointSet *Simulation::turret_points_of(const Building &b) const {
+	const int kind = b.type == BLD_WALL_SEGMENT ? 0 : b.type == BLD_GATE ? 1 : b.type == BLD_OUTPOST ? 2 : -1;
+	if (kind < 0) return nullptr;
+	const uint8_t civ = b.team < MAX_PLAYERS ? (uint8_t)civ_of(b.team) : (uint8_t)CIV_ATHENIANS;
+	const TurretPointSet &set = TURRET_POINTS[civ < CIV_COUNT ? civ : 0][kind];
+	return set.count ? &set : nullptr;
+}
+
+int Simulation::structure_garrison_cap(const Building &b) const {
+	const TurretPointSet *pts = turret_points_of(b);
+	return pts ? pts->count : building_type_info(b.type).garrison_cap;
+}
+
+uint32_t Simulation::turret_holder_of(uint32_t unit_id) const {
+	if (!turret_height_.count(unit_id)) return 0;
+	for (const Building &b : buildings_)
+		if (turret_points_of(b) &&
+				std::find(b.garrisoned_units.begin(), b.garrisoned_units.end(), unit_id) != b.garrisoned_units.end())
+			return b.id;
+	return 0;
+}
+
+// The point a turret unit stands on: the free one nearest its position.
+static int nearest_turret_point(const TurretPointSet &pts, float bx, float bz, float x, float z,
+		const bool *taken = nullptr) {
+	int best = 0;
+	float best_d2 = 1e30f;
+	for (int k = 0; k < pts.count; ++k) {
+		if (taken && taken[k]) continue;
+		const float dx = bx + pts.pt[k].x - x, dz = bz + pts.pt[k].z - z;
+		if (dx * dx + dz * dz < best_d2) { best_d2 = dx * dx + dz * dz; best = k; }
+	}
+	return best;
+}
+
+void Simulation::occupy_turret(size_t i, Building &b) {
+	const TurretPointSet *pts = turret_points_of(b);
+	if (!pts || (int)b.garrisoned_units.size() >= pts->count) return;
+	bool taken[TURRET_POINTS_MAX] = {};
+	for (uint32_t uid : b.garrisoned_units) {
+		const int32_t u = lookup_unit(uid);
+		if (u >= 0) taken[nearest_turret_point(*pts, b.x, b.z, units_.pos_x[u], units_.pos_z[u])] = true;
+	}
+	int k = 0;
+	while (k < pts->count && taken[k]) ++k;
+	if (k == pts->count) return;
+	const float x = b.x + pts->pt[k].x, z = b.z + pts->pt[k].z;
+	set_order(i, ORDER_NONE, 0, 0, x, z); // up there: the garrison order is done
+	units_.pos_x[i] = units_.target_x[i] = units_.anchor_x[i] = x;
+	units_.pos_z[i] = units_.target_z[i] = units_.anchor_z[i] = z;
+	units_.vel_x[i] = units_.vel_z[i] = 0.0f;
+	units_.has_order[i] = 0;
+	units_.waypoint_count[i] = 0;
+	units_.action_state[i] = ACTION_IDLE;
+	// SetTurretStance: a turret holds its ground, keeping the stance it had for later.
+	turret_prev_stance_[units_.id[i]] = units_.stance[i];
+	if (units_.stance[i] != STANCE_STAND_GROUND && units_.stance[i] != STANCE_PASSIVE)
+		units_.stance[i] = STANCE_STAND_GROUND;
+	b.garrisoned_units.push_back(units_.id[i]);
+	turret_height_[units_.id[i]] = pts->pt[k].y;
+}
+
+// Turretable.LeaveTurret: down beside the structure, on the side of the unit's point,
+// with its stance back (ResetTurretStance). Its new order, if any, stands.
+void Simulation::leave_turret(size_t i, const Building &b) {
+	float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
+	const float len = std::sqrt(dx * dx + dz * dz);
+	if (len < 1e-3f) { dx = 0.0f; dz = 1.0f; } else { dx /= len; dz /= len; }
+	const float r = b.half_size + 1.2f;
+	units_.pos_x[i] = std::clamp(b.x + dx * r, -map_half_ + 1.0f, map_half_ - 1.0f);
+	units_.pos_z[i] = std::clamp(b.z + dz * r, -map_half_ + 1.0f, map_half_ - 1.0f);
+	auto it = turret_prev_stance_.find(units_.id[i]);
+	units_.stance[i] = it != turret_prev_stance_.end() ? it->second : unit_default_stance(units_.unit_type[i]);
+	if (it != turret_prev_stance_.end()) turret_prev_stance_.erase(it);
+	turret_height_.erase(units_.id[i]);
+}
+
+void Simulation::tick_turrets() {
+	turret_height_.clear();
+	for (Building &b : buildings_) {
+		if (b.garrisoned_units.empty()) continue;
+		const TurretPointSet *pts = turret_points_of(b);
+		if (!pts) continue;
+		auto &list = b.garrisoned_units;
+		bool taken[TURRET_POINTS_MAX] = {};
+		for (size_t k = 0; k < list.size();) {
+			const int32_t u = lookup_unit(list[k]);
+			if (u < 0 || (!units_.alive[u] && units_.action_state[u] != ACTION_GARRISONED)) { // died up there
+				turret_prev_stance_.erase(list[k]);
+				list.erase(list.begin() + (std::ptrdiff_t)k);
+				continue;
+			}
+			if (!units_.alive[u]) { ++k; continue; } // garrisoned before turrets: left as it was
+			// Any order but an attack takes the unit down (UnitAI orders call LeaveTurret);
+			// so does an owner that is no longer a mutual ally, or a point that is gone.
+			const uint8_t ok = units_.order_kind[u];
+			const bool stays = (ok == ORDER_NONE || ok == ORDER_ATTACK || ok == ORDER_ATTACK_BUILDING) &&
+					(units_.team[u] == b.team || is_ally(units_.team[u], b.team)) && (int)k < pts->count;
+			if (!stays) {
+				leave_turret((size_t)u, b);
+				list.erase(list.begin() + (std::ptrdiff_t)k);
+				continue;
+			}
+			const int pi = nearest_turret_point(*pts, b.x, b.z, units_.pos_x[u], units_.pos_z[u], taken);
+			taken[pi] = true;
+			const TurretPoint &p = pts->pt[pi];
+			units_.pos_x[u] = units_.target_x[u] = b.x + p.x;
+			units_.pos_z[u] = units_.target_z[u] = b.z + p.z;
+			units_.vel_x[u] = units_.vel_z[u] = 0.0f;
+			units_.has_order[u] = 0; // SetImmobile: shoots what is in range, never walks
+			turret_height_[list[k]] = p.y;
+			++k;
+		}
+	}
 }
 
 bool Simulation::garrison_unit_now(uint32_t unit_id, uint32_t building_id) {
@@ -3461,13 +3655,17 @@ void Simulation::order_ungarrison(uint32_t building_id) {
 			float a = angle_step * k++;
 			float ex = b.x + cosf(a) * (b.half_size + 1.2f);
 			float ez = b.z + sinf(a) * (b.half_size + 1.2f);
-			units_.pos_x[idx] = ex;
-			units_.pos_z[idx] = ez;
+			const bool turret = turret_height_.count(uid) != 0;
+			if (!turret) {
+				units_.pos_x[idx] = ex;
+				units_.pos_z[idx] = ez;
+			}
 			units_.alive[idx] = 1;
 			units_.action_state[idx] = ACTION_IDLE;
 			units_.has_order[idx] = 0;
 			units_.vel_x[idx] = 0.0f;
 			units_.vel_z[idx] = 0.0f;
+			if (turret) leave_turret((size_t)idx, b);
 		}
 	}
 	const std::vector<uint32_t> out = std::move(b.garrisoned_units);
@@ -3497,13 +3695,17 @@ void Simulation::order_ungarrison_single(uint32_t building_id, uint32_t unit_id)
 	if (it != b.garrisoned_units.end()) {
 		int32_t idx = lookup_unit(unit_id);
 		if (idx >= 0) {
-			units_.pos_x[idx] = b.x;
-			units_.pos_z[idx] = b.z + b.half_size + 1.2f;
+			const bool turret = turret_height_.count(unit_id) != 0;
+			if (!turret) {
+				units_.pos_x[idx] = b.x;
+				units_.pos_z[idx] = b.z + b.half_size + 1.2f;
+			}
 			units_.alive[idx] = 1;
 			units_.action_state[idx] = ACTION_IDLE;
 			units_.has_order[idx] = 0;
 			units_.vel_x[idx] = 0.0f;
 			units_.vel_z[idx] = 0.0f;
+			if (turret) leave_turret((size_t)idx, b);
 		}
 		b.garrisoned_units.erase(it);
 		rally_after_ungarrison(unit_id, building_id);
@@ -4130,6 +4332,7 @@ void Simulation::tick(float dt) {
 	move_units(dt, arena);
 	separation(dt, arena);
 	tick_formations(dt);     // 0 A.D. Formation.js: controllers walk, members follow their slots
+	tick_turrets();          // 0 A.D. TurretHolder.js / Turretable.js: units on walls and outposts
 
 	// 2. Economy & Gathering
 	tick_gather(dt);
@@ -5678,7 +5881,8 @@ void Simulation::tick_combat(float dt) {
 			const float aim_z = units_.pos_z[t] + units_.vel_z[t] * flight;
 			const float sigma = unit_combat_at(i).spread * spread_rank_multiplier(units_.rank[i]) * dist / 100.0f;
 			float launch_y = unit_height(i) + arrow_sy;
-			float land_y = (unit_is_ship(units_.unit_type[t]) ? unit_height(t) : get_terrain_height(aim_x, aim_z)) + 0.8f;
+			float land_y = (unit_is_ship(units_.unit_type[t]) ? unit_height(t)
+					: get_terrain_height(aim_x, aim_z) + unit_height_offset((size_t)t)) + 0.8f;
 			for (int v = 0; v < volley; ++v) {
 				float disp_x = 0.0f, disp_z = 0.0f;
 				random_normal_2d(disp_x, disp_z);
@@ -5969,7 +6173,7 @@ void Simulation::tick_combat(float dt) {
 	for (auto &b : buildings_) {
 		if (b.build_progress < 1.0f || b.hp <= 0.0f) continue;
 		const BuildingTypeInfo &binfo = building_type_info(b.type);
-		bool is_wall = (b.type == BLD_WALL_SEGMENT);
+		bool is_wall = (b.type == BLD_WALL_SEGMENT) && !turret_points_of(b); // turret walls: the units shoot
 
 		if (binfo.attack_damage > 0 || (is_wall && !b.garrisoned_units.empty())) {
 			b.attack_timer -= dt;
@@ -6422,7 +6626,8 @@ void Simulation::capture_points_tick(Building &b, size_t bi, float dt) {
 	float regen = b.capture_regen_rate;
 	for (uint32_t uid : b.garrisoned_units) {
 		const int32_t u = lookup_unit(uid);
-		if (u >= 0) regen += b.capture_garrison_regen_rate * unit_capture_attack_at((size_t)u);
+		if (u >= 0 && units_.action_state[u] == ACTION_GARRISONED)
+			regen += b.capture_garrison_regen_rate * unit_capture_attack_at((size_t)u);
 	}
 	if (regen > 0.0f && pts[owner] < b.max_capture_points) reduce(owner, regen * dt);
 	check_owner();
@@ -12773,12 +12978,21 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
 	// reset(), a replay, a rejoin) sizes the FoW, nav and territory grids before reading them.
 	out.write((const char *)&map_half_, sizeof(map_half_));
+	// v31: the heightmap, so a load restores the saved map's terrain (projectile
+	// heights, water, line of sight) instead of keeping whatever the sim held.
+	{
+		const int32_t res = terrain_res_;
+		const uint32_t n = (uint32_t)terrain_heights_.size();
+		out.write((const char *)&res, sizeof(res));
+		out.write((const char *)&n, sizeof(n));
+		if (n) out.write((const char *)terrain_heights_.data(), (std::streamsize)(n * sizeof(float)));
+	}
 
 	// 1. Sim scalars
 	out.write((const char *)&ticks_, sizeof(ticks_));
@@ -12902,6 +13116,7 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&b.is_burning, sizeof(b.is_burning));
 		out.write((const char *)&b.gate_open, sizeof(b.gate_open));
 		out.write((const char *)&b.gate_locked, sizeof(b.gate_locked));
+		out.write((const char *)&b.rot, sizeof(b.rot));
 
 		uint32_t q_sz = (uint32_t)b.queue.size();
 		out.write((const char *)&q_sz, sizeof(q_sz));
@@ -12960,6 +13175,17 @@ bool Simulation::load_state(const char *filepath) {
 		in.read((char *)&half, sizeof(half));
 		if (!in.good() || !(half > 0.0f) || half > 4096.0f) return false;
 		if (half != map_half_) set_map_half(half);
+	}
+	if (version >= 31) {
+		int32_t res = 0;
+		uint32_t n = 0;
+		in.read((char *)&res, sizeof(res));
+		in.read((char *)&n, sizeof(n));
+		if (!in.good() || res < 0 || res > 8193 || (n && (uint64_t)n != (uint64_t)res * (uint64_t)res)) return false;
+		std::vector<float> heights(n);
+		if (n) in.read((char *)heights.data(), (std::streamsize)(n * sizeof(float)));
+		if (!in.good()) return false;
+		set_terrain_data(heights, res, terrain_water_height_); // the water level comes with the tick state
 	}
 
 	// 1. Sim scalars
@@ -13209,6 +13435,7 @@ bool Simulation::load_state(const char *filepath) {
 			in.read((char *)&bld.gate_open, sizeof(bld.gate_open));
 			in.read((char *)&bld.gate_locked, sizeof(bld.gate_locked));
 		}
+		if (version >= 31) in.read((char *)&bld.rot, sizeof(bld.rot));
 		const auto &bi = building_type_info(bld.type);
 		bld.capture_regen_rate = bi.capture_regen_rate;
 		bld.capture_garrison_regen_rate = bi.capture_garrison_regen_rate;

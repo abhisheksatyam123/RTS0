@@ -97,12 +97,13 @@ int main() {
 		CHECK(!s.cmd_upgrade_building(0, st));
 	}
 
-	// 4. Wall -> gate unloads the garrison that no longer fits (gate holds none).
+	// 4. Wall -> gate unloads the turret archers that no longer fit (an Athenian wall
+	//    segment has 4 turret points, its gate 2).
 	{
 		fresh(s);
 		uint32_t w = s.spawn_building_world(0.0f, 0.0f, BLD_WALL_SEGMENT, 0, 1.0f);
 		uint32_t ids[3];
-		for (int i = 0; i < 3; ++i) ids[i] = s.spawn_unit(0.5f + i, 3.0f, 0, UNIT_SPEARMAN);
+		for (int i = 0; i < 3; ++i) ids[i] = s.spawn_unit(0.5f + i, 3.0f, 0, UNIT_ARCHER);
 		s.order_garrison(ids, 3, w);
 		run(s, 10.0f);
 		const int before = s.get_garrison_count(w);
@@ -111,14 +112,14 @@ int main() {
 		CHECK(s.player(0).wood() == 980.0f);
 		run(s, 12.5f);
 		CHECK(find_bld(s, w)->type == BLD_GATE);
-		CHECK(s.get_garrison_count(w) == 0);
+		CHECK(s.get_garrison_count(w) == 2);
 		int alive = 0;
 		auto uv = s.units();
 		for (size_t i = 0; i < uv.count; ++i)
 			for (uint32_t id : ids)
 				if (uv.id[i] == id && uv.alive[i]) ++alive;
 		CHECK(alive == 3);
-		std::printf("wall -> gate after 12 s, %d garrisoned units unloaded\n", before);
+		std::printf("wall -> gate after 12 s, %d turret archers, 1 unloaded\n", before);
 	}
 
 	// 5. A structure destroyed mid-upgrade refunds its owner (Upgrade.js
