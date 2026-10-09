@@ -12,6 +12,7 @@
 #include <cstdio>
 #include <cstring>
 #include <vector>
+#include <algorithm>
 
 using namespace rtso;
 
@@ -63,8 +64,15 @@ static float tower_damage(int archers, float secs) {
 	if (!ids.empty()) s.order_board_transport(ids.data(), ids.size(), tower);
 	uint32_t target = s.spawn_unit(10.0f, 0.0f, 1, UNIT_SPEARMAN, 20000.0f);
 	s.order_set_stance(&target, 1, STANCE_PASSIVE);
-	run(s, secs);
-	return 20000.0f - hp_of(s, target);
+	// Count the arrows the tower looses: whether each one hits depends on 0 A.D.'s
+	// projectile spread (DelayedDamage.js), so damage is too noisy a measure.
+	std::vector<uint32_t> seen;
+	for (int t = 0; t < (int)std::lround(secs / Simulation::FIXED_STEP); ++t) {
+		s.tick(Simulation::FIXED_STEP);
+		for (const auto &p : s.projectiles())
+			if (p.source_id == tower && std::find(seen.begin(), seen.end(), p.id) == seen.end()) seen.push_back(p.id);
+	}
+	return (float)seen.size();
 }
 
 int main() {
@@ -118,7 +126,7 @@ int main() {
 		const float d0 = tower_damage(0, 12.0f);
 		const float d1 = tower_damage(1, 12.0f);
 		const float d5 = tower_damage(5, 12.0f);
-		std::printf("siege tower damage in 12 s: empty %.0f, 1 archer %.0f, 5 archers %.0f\n", d0, d1, d5);
+		std::printf("siege tower arrows in 12 s: empty %.0f, 1 archer %.0f, 5 archers %.0f\n", d0, d1, d5);
 		CHECK(d0 == 0.0f);
 		CHECK(d1 > 0.0f);
 		CHECK(d5 > d1 * 4.0f && d5 < d1 * 6.0f);

@@ -253,6 +253,12 @@ jobs:
             src/network/net_host.cpp -lpthread -o /tmp/test_loot
           /tmp/test_loot
 
+      - name: Combat scenarios (0 A.D. bonuses, restrictions, spread)
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_combat.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+            src/network/net_host.cpp -lpthread -o /tmp/test_combat
+          /tmp/test_combat
       - name: Formation scenarios
         run: |
           g++ -std=c++20 -O2 -Isrc tools/test_formations.cpp src/simulation/simulation.cpp \
@@ -267,6 +273,13 @@ jobs:
             src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
             src/network/net_host.cpp -lpthread -o /tmp/test_treasures
           /tmp/test_treasures
+
+      - name: Unit promotion
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_promotion.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+            src/network/net_host.cpp -lpthread -o /tmp/test_promotion
+          /tmp/test_promotion
 
       - name: Nav parity probe
         run: python3 tools/check_parity.py --unit nav-live
