@@ -353,8 +353,43 @@ static void test_transport() {
 	std::printf("transport: capacities, lists, pickup, unloading and sinking match 0 A.D.: %s\n", failures ? "see failures" : "ok");
 }
 
+// Land units never step into deep water (passability classes): a walk out to sea stops
+// on the beach (MakeGoalReachable), and a unit boarding a busy ship waits on the shore
+// until the ship comes within LoadingRange.
+static void test_no_wading() {
+	static Simulation s;
+	fresh(s);
+	auto deep = [&](uint32_t uid) {
+		const int32_t i = idx(s, uid);
+		auto [cx, cy] = s.nav_grid().world_to_cell(s.units().pos_x[i], s.units().pos_z[i]);
+		return s.nav_grid().cells.at(cx, cy) == NAV_WATER;
+	};
+	const uint32_t walker = s.spawn_unit(-20.0f, 30.0f, 0, UNIT_SPEARMAN);
+	s.cmd_move(&walker, 1, -20.0f, 0.0f);
+	const uint32_t ship = s.spawn_unit(-40.0f, 0.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));
+	s.cmd_move(&ship, 1, -40.0f, -8.0f); // busy: no Pickup
+	const uint32_t boarder = s.spawn_unit(-40.0f, 30.0f, 0, UNIT_SPEARMAN);
+	s.order_board_transport(&boarder, 1, ship);
+	bool waded = false;
+	for (int t = 0; t < (int)(15.0f / Simulation::FIXED_STEP); ++t) {
+		s.tick(Simulation::FIXED_STEP);
+		waded = waded || deep(walker) || (!aboard(s, ship, boarder) && deep(boarder));
+	}
+	const int32_t w = idx(s, walker);
+	std::printf("  walk to sea stopped at (%.1f, %.1f); boarder waits at z %.1f\n",
+			s.units().pos_x[w], s.units().pos_z[w], s.units().pos_z[idx(s, boarder)]);
+	CHECK(!waded);
+	CHECK(std::fabs(s.units().pos_x[w] + 20.0f) < 2.0f && s.units().pos_z[w] > 10.0f && !s.unit_has_order(walker));
+	CHECK(!aboard(s, ship, boarder));
+	// The ship comes in to the beach: the waiting unit boards.
+	s.cmd_move(&ship, 1, -40.0f, 12.0f);
+	run(s, 10.0f);
+	CHECK(aboard(s, ship, boarder));
+}
+
 int main() {
 	test_transport();
+	test_no_wading();
 	test_dock_trade();
 	test_fishing();
 	test_petra_sea_trade();
