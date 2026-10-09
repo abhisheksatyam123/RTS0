@@ -34,6 +34,9 @@
 #include <godot_cpp/classes/curve.hpp>
 #include <godot_cpp/classes/curve_texture.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
+#include <godot_cpp/classes/texture2d_array.hpp>
+#include <godot_cpp/classes/image.hpp>
+#include <godot_cpp/classes/project_settings.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 #include <algorithm>
 #include <cstdint>
@@ -2010,6 +2013,86 @@ void RtsoWorldView::apply_biome_environment(const std::string &biome) {
 	}
 }
 
+namespace {
+
+// 0 A.D. terrain name -> texture key (data/terrain/terrain_textures.json, written
+// by tools/map_0ad_terrains.py); the textures are assets/textures/terrain/<key>.png.
+const Dictionary &terrain_texture_table() {
+	static Dictionary table;
+	static bool loaded = false;
+	if (!loaded) {
+		loaded = true;
+		Ref<FileAccess> f = FileAccess::open("res://data/terrain/terrain_textures.json", FileAccess::READ);
+		if (f.is_valid()) {
+			const Variant v = JSON::parse_string(f->get_as_text());
+			if (v.get_type() == Variant::DICTIONARY) table = v;
+		}
+	}
+	return table;
+}
+
+// One layer of the map's terrain texture array: the named 0 A.D. terrain at
+// kTerrainLayerSize with mipmaps (every layer of a Texture2DArray shares a size
+// and format), a plain earth tone when the texture is missing.
+constexpr int kTerrainLayerSize = 256;
+Ref<Image> terrain_layer_image(const String &name) {
+	static std::unordered_map<std::string, Ref<Image>> cache;
+	const std::string key_s = name.utf8().get_data();
+	if (auto it = cache.find(key_s); it != cache.end()) return it->second;
+	const String key = terrain_texture_table().get(name, name);
+	const String path = "res://assets/textures/terrain/" + key + ".png";
+	Ref<Image> img;
+	if (ResourceLoader::get_singleton()->exists(path)) {
+		Ref<Texture2D> tex = ResourceLoader::get_singleton()->load(path);
+		if (tex.is_valid()) img = tex->get_image();
+	}
+	if (img.is_null() || img->is_empty()) img = Image::load_from_file(ProjectSettings::get_singleton()->globalize_path(path));
+	if (img.is_null() || img->is_empty()) {
+		img = Image::create_empty(kTerrainLayerSize, kTerrainLayerSize, false, Image::FORMAT_RGBA8);
+		img->fill(Color(0.46f, 0.42f, 0.33f));
+	} else {
+		img = img->duplicate();
+		if (img->is_compressed()) img->decompress();
+		img->clear_mipmaps();
+		img->convert(Image::FORMAT_RGBA8);
+		if (img->get_width() != kTerrainLayerSize || img->get_height() != kTerrainLayerSize)
+			img->resize(kTerrainLayerSize, kTerrainLayerSize, Image::INTERPOLATE_BILINEAR);
+	}
+	img->generate_mipmaps();
+	cache[key_s] = img;
+	return img;
+}
+
+// Hands the shader the sim's per-tile terrain (0 A.D. CTerrain tiles): a texture
+// array of the map's terrains and an R8 texture of each tile's layer.
+// tile_res 0 keeps the biome painting.
+void apply_terrain_tiles(const Ref<ShaderMaterial> &mat, const rtso::Simulation *sim) {
+	if (mat.is_null()) return;
+	const auto &tt = sim->terrain_tiles();
+	if (tt.empty()) {
+		mat->set_shader_parameter("tile_res", 0.0f);
+		return;
+	}
+	TypedArray<Image> layers;
+	for (const std::string &n : tt.names) layers.push_back(terrain_layer_image(String::utf8(n.c_str())));
+	Ref<Texture2DArray> arr;
+	arr.instantiate();
+	if (arr->create_from_images(layers) != OK) {
+		mat->set_shader_parameter("tile_res", 0.0f);
+		return;
+	}
+	PackedByteArray bytes;
+	bytes.resize((int64_t)tt.tiles.size());
+	std::memcpy(bytes.ptrw(), tt.tiles.data(), tt.tiles.size());
+	Ref<Image> idx = Image::create_from_data(tt.res, tt.res, false, Image::FORMAT_R8, bytes);
+	mat->set_shader_parameter("tile_layers", arr);
+	mat->set_shader_parameter("tile_index", ImageTexture::create_from_image(idx));
+	mat->set_shader_parameter("tile_res", (float)tt.res);
+	mat->set_shader_parameter("tile_half", sim->map_half());
+}
+
+} // namespace
+
 void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 	if (!sim || !terrain) return;
 	float half = sim->map_half();
@@ -2080,6 +2163,7 @@ void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 	                                  String(sim->current_map_biome().c_str()));
 	if (Ref<ShaderMaterial> tm = terrain->get_material_override(); tm.is_valid())
 		tm->set_shader_parameter("water_level", sim->water_height() > -0.5f ? sim->water_height() : -1000.0f);
+	apply_terrain_tiles(terrain->get_material_override(), sim);
 	paint_dirty_ = true;
 
 	// Water Body (water_height < -0.5 means a dry map, as in NavGrid::set_water_from_heights)
