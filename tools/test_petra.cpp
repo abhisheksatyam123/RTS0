@@ -1473,6 +1473,127 @@ static void test_idle_return() {
 	CHECK(ordered && dropped, "an idle worker carrying a load is sent to a dropsite");
 }
 
+// worker.js startGathering skips a supply whose MaxGatherers are all taken (IsSupplyFull),
+// so Petra's workers spread over the trees and mines instead of crowding the nearest.
+static void test_gather_limits() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	// Leave one tree and one mine by the civic centre: nothing else to gather or hunt.
+	auto &r = s->resources_;
+	size_t tree = SIZE_MAX, mine = SIZE_MAX;
+	auto d2 = [&](size_t k) { return (r.x[k] - cc->x) * (r.x[k] - cc->x) + (r.z[k] - cc->z) * (r.z[k] - cc->z); };
+	for (size_t k = 0; k < r.count; ++k) {
+		if (!r.alive[k] || r.amount[k] <= 0) continue;
+		if (r.type[k] == RES_WOOD && (tree == SIZE_MAX || d2(k) < d2(tree))) tree = k;
+		if (r.type[k] == RES_GOLD && (mine == SIZE_MAX || d2(k) < d2(mine))) mine = k;
+	}
+	CHECK(tree != SIZE_MAX && mine != SIZE_MAX, "a tree and a mine on the map");
+	if (tree == SIZE_MAX || mine == SIZE_MAX) return;
+	for (size_t k = 0; k < r.count; ++k)
+		if (k != tree && k != mine) r.amount[k] = 0;
+	r.amount[tree] = r.amount[mine] = 5000;
+	for (size_t f = 0; f < s->fauna_.count; ++f) s->fauna_.food_amount[f] = 0;
+	const uint32_t tree_id = r.id[tree], mine_id = r.id[mine];
+	for (int k = 0; k < 16; ++k) s->spawn_unit(cc->x - 8.0f + (float)(k % 4), cc->z - 8.0f - (float)(k / 4), 1, UNIT_FEMALE_CITIZEN);
+	auto &u = s->units_;
+	std::vector<uint32_t> workers;
+	for (size_t i = 0; i < u.count; ++i)
+		if (u.alive[i] && u.team[i] == 1 && (u.unit_type[i] == UNIT_VILLAGER || u.unit_type[i] == UNIT_FEMALE_CITIZEN)) {
+			workers.push_back(u.id[i]);
+			u.carry[i] = 0;
+		}
+	s->cmd_stop(workers.data(), workers.size());
+	run_for(*s, 2.0f);
+	int on_tree = 0, on_mine = 0;
+	for (uint32_t id : workers) {
+		const int32_t i = s->lookup_unit(id);
+		if (i < 0) continue;
+		on_tree += u.target_resource_id[i] == tree_id;
+		on_mine += u.target_resource_id[i] == mine_id;
+	}
+	std::printf("  gather limits: %zu idle workers, %d sent to the tree (MaxGatherers %d), %d to the mine (%d)\n",
+	            workers.size(), on_tree, s->resource_max_gatherers(tree_id), on_mine, s->resource_max_gatherers(mine_id));
+	CHECK(on_tree <= s->resource_max_gatherers(tree_id) && on_mine <= s->resource_max_gatherers(mine_id),
+	      "Petra sends no more gatherers to a supply than its MaxGatherers (IsSupplyFull)");
+	CHECK(on_tree + on_mine > 8, "the rest go to another supply");
+}
+
+// garrisonManager.js addDecayingStructure: a defence tower of Petra's standing in enemy
+// territory decays, so Petra garrisons the soldiers that stop the decay and keeps them in.
+static void test_decay_garrison() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *foe_cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) foe_cc = &b;
+	CHECK(foe_cc != nullptr, "player 0 has a civic centre");
+	if (!foe_cc) return;
+	const float tx = foe_cc->x + 14.0f, tz = foe_cc->z;
+	const uint32_t tower = s->spawn_building_world(tx, tz, BLD_TOWER, 1);
+	for (int k = 0; k < 6; ++k) s->spawn_unit(tx + 4.0f + (float)k, tz + 4.0f, 1, UNIT_SPEARMAN);
+	int need = 0;
+	{
+		const int32_t ti = s->building_id_to_idx_.count(tower) ? (int32_t)s->building_id_to_idx_[tower] : -1;
+		CHECK(ti >= 0, "the tower stands");
+		if (ti < 0) return;
+		need = s->petra_decay_garrison_min(s->buildings_[ti]);
+	}
+	run_for(*s, 15.0f);
+	auto it = s->building_id_to_idx_.find(tower);
+	const size_t inside = it == s->building_id_to_idx_.end() ? 0 : s->buildings_[it->second].garrisoned_units.size();
+	const bool ours = it != s->building_id_to_idx_.end() && s->buildings_[it->second].team == 1;
+	const int cap = ours ? s->buildings_[it->second].garrison_cap : 0;
+	std::printf("  decaying tower in enemy land: needs %d, garrisoned %zu, still ours %s\n", need, inside, ours ? "yes" : "no");
+	CHECK(need > 0, "a tower in enemy territory decays");
+	CHECK(ours && (int)inside >= std::min(need, cap), "Petra garrisons a decaying tower (TYPE_DECAY)");
+}
+
+// headquarters.js checkEvents: a structure Petra just captured in enemy land, which no
+// garrison will hold, is destroyed while an enemy holds part of it and Petra keeps under
+// 70-80% of its capture points; with 95% it is kept.
+static void test_decay_destroy() {
+	for (int phase = 0; phase < 2; ++phase) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		run_for(*s, 20.0f);
+		const Simulation::Building *foe_cc = nullptr;
+		for (const auto &b : s->buildings_)
+			if (b.team == 0 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) foe_cc = &b;
+		CHECK(foe_cc != nullptr, "player 0 has a civic centre");
+		if (!foe_cc) return;
+		const uint32_t id = s->spawn_building_world(foe_cc->x + 14.0f, foe_cc->z, BLD_STOREHOUSE, 1);
+		Simulation::Building &b = s->buildings_[s->building_id_to_idx_[id]];
+		const float own = phase == 0 ? 0.6f : 0.95f;
+		b.capture_points_by_team.fill(0.0f);
+		b.capture_points_by_team[1] = b.max_capture_points * own;
+		b.capture_points_by_team[0] = b.max_capture_points * (1.0f - own);
+		s->petra_decay_events_.push_back(id); // as if just captured
+		s->tick(Simulation::FIXED_STEP);
+		auto it = s->building_id_to_idx_.find(id);
+		const bool gone = it == s->building_id_to_idx_.end() || s->buildings_[it->second].wrecked ||
+			s->buildings_[it->second].hp <= 0.0f;
+		std::printf("  decaying storehouse with %.0f%% of its points: %s\n", own * 100.0f, gone ? "destroyed" : "kept");
+		if (phase == 0) CHECK(gone, "Petra destroys a decaying structure it is about to lose");
+		else CHECK(!gone, "Petra keeps a decaying structure it holds firmly");
+	}
+}
+
 // defenseManager.js isDangerous / defenseArmy.js needsDefenders: Support units in our
 // territory are no threat, and the defence is sized by strength (getMaxStrength), so
 // war elephants draw more defenders than the same number of spearmen would.
@@ -1506,6 +1627,161 @@ static void test_defense_by_strength() {
 	}
 }
 
+// baseManager.js assignToFoundations targetNB: a new civic centre takes up to 15
+// builders, a barracks 4, a house 3, with resources to spare (builderRatio 1).
+static void test_builders_per_foundation() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const float cx = cc->x, cz = cc->z;
+	for (int k = 0; k < 30; ++k) s->spawn_unit(cx - 8.0f + (float)(k % 6), cz + 8.0f + (float)(k / 6), 1, UNIT_FEMALE_CITIZEN);
+	const uint32_t barracks = s->spawn_building_world(cx + 12.0f, cz, BLD_BARRACKS, 1, 0.0f);
+	const uint32_t house = s->spawn_building_world(cx - 12.0f, cz, BLD_HOUSE, 1, 0.0f);
+	run_for(*s, 3.0f);
+	auto on = [&](uint32_t id) {
+		int n = 0;
+		for (size_t i = 0; i < s->units_.count; ++i)
+			if (s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.action_state[i] == ACTION_BUILD && s->units_.target_building_id[i] == id) ++n;
+		return n;
+	};
+	std::printf("  builders: barracks %d, house %d\n", on(barracks), on(house));
+	CHECK(on(barracks) == 4, "a barracks foundation takes 4 builders");
+	CHECK(on(house) == 3, "a house foundation takes 3 builders");
+}
+
+// defenseManager.js isDangerous / checkEvents outside our own land: Petra sends
+// defenders to an ally's civic centre under attack, keeps a backup of up to 12
+// far-off units at home, and answers a unit attacked in neutral land.
+static void test_defend_allies() {
+	auto s = three_player_match(7);
+	s->set_mutual_ally(1, 2);
+	run_for(*s, 1.0f);
+	s->petra_config_slot(1).cooperative = 0.5f;
+	auto &u = s->units_;
+	const Simulation::Building *tc1 = nullptr, *tc2 = nullptr;
+	for (const auto &b : s->buildings()) {
+		if (b.type != BLD_TOWN_CENTER) continue;
+		if (b.team == 1) tc1 = &b;
+		if (b.team == 2) tc2 = &b;
+	}
+	CHECK(tc1 && tc2, "both AIs have a Town Center");
+	if (!tc1 || !tc2) return;
+	const float ax = tc2->x, az = tc2->z, hx = tc1->x, hz = tc1->z;
+	// AI 1's soldiers at home, far from its ally.
+	std::vector<uint32_t> mine;
+	for (int i = 0; i < 16; ++i) mine.push_back(s->spawn_unit(hx + 10.0f + (float)(i % 4) * 2.0f, hz + 10.0f + (float)(i / 4) * 2.0f, 1, UNIT_SPEARMAN));
+	std::vector<uint32_t> foes;
+	for (int i = 0; i < 6; ++i) foes.push_back(s->spawn_unit(ax + 12.0f + 2.0f * (float)i, az + 12.0f, 0, UNIT_SPEARMAN));
+	s->order_set_stance(foes.data(), foes.size(), STANCE_STAND_GROUND);
+	auto is_foe = [&](uint32_t id) { return std::find(foes.begin(), foes.end(), id) != foes.end(); };
+	int sent = 0, home = 0;
+	for (float t = 0.0f; t < 3.0f; t += Simulation::FIXED_STEP) {
+		for (uint32_t id : foes) {
+			const int32_t f = s->lookup_unit(id);
+			if (f >= 0 && u.alive[f]) u.hp[f] = u.max_hp[f];
+		}
+		s->tick(Simulation::FIXED_STEP);
+	}
+	for (size_t i = 0; i < u.count; ++i) { // the backup counts AI 1's starting soldiers too
+		if (!u.alive[i] || u.team[i] != 1 || petra_is_support_unit(u.unit_type[i])) continue;
+		if (is_foe(u.target_unit_id[i])) ++sent; else ++home;
+	}
+	const float dx = ax - hx, dz = az - hz;
+	std::printf("  ally's Town Center attacked %.0f away: %d soldiers sent, %d stay home\n", std::sqrt(dx * dx + dz * dz), sent, home);
+	CHECK(sent > 0, "Petra defends a cooperative ally's Town Center");
+	CHECK(home >= 12, "and keeps 12 far-off units home as a backup");
+
+	// Neutral land: an enemy hits one of AI 1's units there, and AI 1 answers.
+	auto s2 = three_player_match(7);
+	run_for(*s2, 1.0f);
+	auto &u2 = s2->units_;
+	float h2x = 0.0f, h2z = 0.0f, nx = 0.0f, nz = 0.0f, best = -1.0f;
+	for (const auto &b : s2->buildings()) if (b.team == 1 && b.type == BLD_TOWN_CENTER) { h2x = b.x; h2z = b.z; }
+	for (float r = 36.0f; r < 70.0f && best < 0.0f; r += 2.0f)
+		for (int k = 0; k < 16 && best < 0.0f; ++k) {
+			const float x = h2x + r * std::cos(0.3927f * (float)k), z = h2z + r * std::sin(0.3927f * (float)k);
+			if (s2->territory_owner_at(x, z) < 0 && s2->territory_owner_at(x + 3.0f, z) < 0 && !s2->line_crosses_impassable(h2x, h2z, x, z)) { nx = x; nz = z; best = r; }
+		}
+	CHECK(best > 0.0f, "neutral land near AI 1");
+	if (best < 0.0f) return;
+	// A soldier holding its ground there, so neither walks into AI 1's land.
+	const uint32_t victim = s2->spawn_unit(nx, nz, 1, UNIT_SPEARMAN);
+	const uint32_t raider = s2->spawn_unit(nx + 2.0f, nz, 0, UNIT_SWORDSMAN);
+	s2->order_set_stance(&victim, 1, STANCE_STAND_GROUND);
+	for (int i = 0; i < 4; ++i) s2->spawn_unit(h2x + 8.0f + 2.0f * (float)i, h2z - 8.0f, 1, UNIT_SPEARMAN);
+	s2->order_attack(&raider, 1, victim);
+	bool answered = false;
+	for (float t = 0.0f; t < 4.0f && !answered; t += Simulation::FIXED_STEP) {
+		const int32_t v = s2->lookup_unit(victim);
+		if (v >= 0 && u2.alive[v]) u2.hp[v] = u2.max_hp[v];
+		const int32_t r = s2->lookup_unit(raider);
+		if (r >= 0 && u2.alive[r]) u2.hp[r] = u2.max_hp[r];
+		s2->tick(Simulation::FIXED_STEP);
+		for (size_t g = 0; g < u2.count; ++g) // any of AI 1's soldiers but the one hit
+			if (u2.alive[g] && u2.team[g] == 1 && u2.id[g] != victim && u2.target_unit_id[g] == raider) answered = true;
+	}
+	std::printf("  raider hits a soldier in neutral land %.0f from AI 1's Town Center: answered %s\n", best, answered ? "yes" : "no");
+	CHECK(answered, "Petra answers an attacker in neutral land");
+}
+
+// defenseManager.js OwnershipChanged -> attackManager.js switchDefenseToAttack: the
+// defense army fighting by a civic centre an enemy captures attacks it to take it back.
+static void test_retake_civic_centre() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	auto &u = s->units_;
+	uint32_t tc_id = 0;
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tc_id = b.id; tx = b.x; tz = b.z; }
+	CHECK(tc_id != 0, "Petra has a Town Center");
+	if (!tc_id) return;
+	std::vector<uint32_t> mine, foes;
+	// Cavalry, which garrisonManager leaves out of the Town Center.
+	for (int i = 0; i < 10; ++i) mine.push_back(s->spawn_unit(tx + 10.0f + (float)(i % 5) * 2.0f, tz + 10.0f + (float)(i / 5) * 2.0f, 1, UNIT_CAVALRY));
+	for (int i = 0; i < 6; ++i) foes.push_back(s->spawn_unit(tx - 22.0f, tz - 6.0f + 2.0f * (float)i, 0, UNIT_SWORDSMAN));
+	auto hold = [&]() {
+		for (uint32_t id : foes) {
+			const int32_t f = s->lookup_unit(id);
+			if (f >= 0 && u.alive[f]) u.hp[f] = u.max_hp[f];
+		}
+	};
+	for (float t = 0.0f; t < 2.0f; t += Simulation::FIXED_STEP) { hold(); s->tick(Simulation::FIXED_STEP); }
+	const size_t defenders = s->petra_defense_army_.defender_ids.size();
+	// The enemy takes the Town Center.
+	{
+		auto &b = s->buildings_[s->building_id_to_idx_.at(tc_id)];
+		b.capture_points_by_team.fill(0.0f);
+		b.capture_points_by_team[0] = b.max_capture_points;
+	}
+	bool lost = false, switched = false;
+	for (float t = 0.0f; t < 1.0f && !switched; t += Simulation::FIXED_STEP) {
+		hold();
+		s->tick(Simulation::FIXED_STEP);
+		lost |= s->buildings()[s->building_id_to_idx_.at(tc_id)].team == 0;
+		const auto &plan = s->petra_attack_plan();
+		switched = plan.target_building_id == tc_id && plan.state == Simulation::AttackPlan::ATTACKED && !plan.squad.empty();
+	}
+	const size_t squad = s->petra_attack_plan().squad.size();
+	std::printf("  civic centre captured (%zu defending): lost %s, defense turned into an attack on it %s (%zu units)\n",
+	            defenders, lost ? "yes" : "no", switched ? "yes" : "no", squad);
+	CHECK(defenders > 0 && lost, "the enemy takes a defended Town Center");
+	CHECK(switched, "the defense army attacks the captured civic centre");
+}
+
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
@@ -1535,9 +1811,15 @@ int main() {
 	test_expansion_small_nodes();
 	test_repairs();
 	test_idle_return();
+	test_gather_limits();
+	test_decay_garrison();
+	test_decay_destroy();
 	test_defense_by_strength();
+	test_builders_per_foundation();
 	test_wonder_guards();
 	test_placement_miss_memory_exact();
+	test_defend_allies();
+	test_retake_civic_centre();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }

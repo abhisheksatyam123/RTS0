@@ -2514,15 +2514,15 @@ void RtsoMain::_process(double delta) {
 		Vector2 mouse_pos = get_viewport()->get_mouse_position();
 		if (wall_drag_mode) {
 			if (ghost_mesh && ghost_mesh->is_visible()) ghost_mesh->set_visible(false);
-			bool end_snapped = false;
-			Vector3 drag_curr_pos = snap_wall_point(get_ground_click_pos(mouse_pos), end_snapped);
-			float dist = wall_drag_start_pos.distance_to(drag_curr_pos);
-			int seg_count = std::max(1, (int)(dist / 6.0f));
-			Vector3 step_vec = (drag_curr_pos - wall_drag_start_pos) / (float)seg_count;
-			float wall_rot_y = std::atan2(step_vec.x, step_vec.z);
-
-			size_t total_ghosts = (size_t)seg_count + 2;
-			while (wall_ghosts.size() < total_ghosts) {
+			// The pieces the sim will lay (helpers/Walls.js GetWallPlacement), each tinted by whether
+			// it can be placed where it stands.
+			const Vector3 drag_curr_pos = get_ground_click_pos(mouse_pos);
+			std::vector<rtso::Simulation::WallPiece> pieces;
+			uint32_t start_tower = 0, end_tower = 0;
+			if (sim)
+				pieces = sim->wall_placement(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
+						drag_curr_pos.x, drag_curr_pos.z, &start_tower, &end_tower);
+			while (wall_ghosts.size() < pieces.size()) {
 				MeshInstance3D *g = memnew(MeshInstance3D);
 				g->set_visible(false);
 				add_child(g);
@@ -2534,50 +2534,32 @@ void RtsoMain::_process(double delta) {
 			if (!tower_entry.valid) {
 				tower_entry = rtso::ModelLibrary::get("buildings", String(rtso::civ_building_model(pciv, rtso::BLD_TOWER)));
 			}
-			auto wall_entry = rtso::ModelLibrary::get("buildings", String(rtso::civ_building_foundation(rtso::BLD_WALL_SEGMENT)));
-			if (!wall_entry.valid) {
-				wall_entry = rtso::ModelLibrary::get("buildings", String(rtso::civ_building_model(pciv, rtso::BLD_WALL_SEGMENT)));
-			}
-
-			auto configure_ghost = [&](size_t idx, Vector3 pos, bool is_tower, float yaw) {
-				MeshInstance3D *g = wall_ghosts[idx];
-				auto &entry = is_tower ? tower_entry : wall_entry;
-				if (entry.valid) {
-					g->set_mesh(entry.mesh);
-					g->set_scale(Vector3(entry.scale, entry.scale, entry.scale));
+			// Pieces of this wall don't block each other; the towers it snaps onto don't block it.
+			const uint32_t snapped[2] = {start_tower, end_tower};
+			const float yaw = std::atan2(drag_curr_pos.x - wall_drag_start_pos.x, drag_curr_pos.z - wall_drag_start_pos.z);
+			for (size_t i = 0; i < pieces.size(); ++i) {
+				const auto &p = pieces[i];
+				const bool is_tower = p.type == rtso::BLD_WALL_TOWER;
+				MeshInstance3D *g = wall_ghosts[i];
+				// Along the wall (the box's z): the segment's length; across it: 0 A.D.'s 5 m.
+				if (is_tower && tower_entry.valid) {
+					g->set_mesh(tower_entry.mesh);
+					g->set_scale(Vector3(tower_entry.scale, tower_entry.scale, tower_entry.scale));
 				} else {
 					Ref<BoxMesh> box;
 					box.instantiate();
-					box->set_size(is_tower ? Vector3(2.2f, 4.5f, 2.2f) : Vector3(1.2f, 2.5f, 5.5f));
+					box->set_size(is_tower ? Vector3(2.2f, 4.5f, 2.2f)
+							: Vector3(2.0f * rtso::WALL_HALF_DEPTH, 2.5f, 2.0f * p.half_w));
 					g->set_mesh(box);
+					g->set_scale(Vector3(1.0f, 1.0f, 1.0f));
 				}
-				g->set_global_position(Vector3(pos.x, 0.05f, pos.z));
+				g->set_global_position(Vector3(p.x, 0.05f, p.z));
 				g->set_rotation(Vector3(0.0f, yaw, 0.0f));
-
-				int cx = (int)std::floor(pos.x / rtso::Simulation::GRID);
-				int cy = (int)std::floor(pos.z / rtso::Simulation::GRID);
-				const uint8_t btype = is_tower ? rtso::BLD_WALL_TOWER : rtso::BLD_WALL_SEGMENT;
-				bool can_place = sim ? sim->check_placement(local_player(), cx, cy, btype) == rtso::Simulation::PLACE_OK : true;
-				g->set_material_override(can_place ? ghost_mat_ok : ghost_mat_bad);
+				const bool ok = sim && sim->check_wall_piece(local_player(), p, snapped, 2) == rtso::Simulation::PLACE_OK;
+				g->set_material_override(ok ? ghost_mat_ok : ghost_mat_bad);
 				g->set_visible(true);
-			};
-
-			// Start node tower (none over a tower the wall snapped to)
-			configure_ghost(0, wall_drag_start_pos, true, wall_rot_y);
-			if (wall_start_snapped) wall_ghosts[0]->set_visible(false);
-
-			// Intermediate wall segments
-			for (int s = 0; s < seg_count; ++s) {
-				Vector3 mid_p = wall_drag_start_pos + step_vec * ((float)s + 0.5f);
-				configure_ghost(1 + s, mid_p, false, wall_rot_y);
 			}
-
-			// End node tower
-			Vector3 end_p = wall_drag_start_pos + step_vec * (float)seg_count;
-			configure_ghost(seg_count + 1, end_p, true, wall_rot_y);
-			if (end_snapped) wall_ghosts[seg_count + 1]->set_visible(false);
-
-			for (size_t i = total_ghosts; i < wall_ghosts.size(); ++i) {
+			for (size_t i = pieces.size(); i < wall_ghosts.size(); ++i) {
 				if (wall_ghosts[i] && wall_ghosts[i]->is_visible()) {
 					wall_ghosts[i]->set_visible(false);
 				}
@@ -3369,24 +3351,6 @@ float RtsoMain::placement_angle_at(uint8_t btype, float x, float z) const {
 	return placement_angle;
 }
 
-Vector3 RtsoMain::snap_wall_point(const Vector3 &p, bool &snapped) const {
-	snapped = false;
-	if (!sim) return p;
-	const float radius = std::max(1.5f, rtso::building_type_info(rtso::BLD_WALL_TOWER).footprint * rtso::Simulation::GRID * 0.5f);
-	float best = radius * radius;
-	Vector3 out = p;
-	for (const auto &b : sim->buildings()) {
-		if (b.type != rtso::BLD_WALL_TOWER || b.team != local_player() || b.wrecked) continue;
-		const float d2 = (b.x - p.x) * (b.x - p.x) + (b.z - p.z) * (b.z - p.z);
-		if (d2 <= best) {
-			best = d2;
-			out = Vector3(b.x, p.y, b.z);
-			snapped = true;
-		}
-	}
-	return out;
-}
-
 void RtsoMain::try_train_unit(rtso::UnitType utype) {
 	if (!sim || !rtso::civ_can_train(sim->player_civ(local_player()), (uint8_t)utype)) return;
 	// The selected structure if it trains the class, else the first finished one
@@ -3853,7 +3817,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				if (build_mode) {
 					if (current_build_type == rtso::BLD_WALL_SEGMENT) {
 						wall_drag_mode = true;
-						wall_drag_start_pos = snap_wall_point(get_ground_click_pos(mouse_pos), wall_start_snapped);
+						wall_drag_start_pos = get_ground_click_pos(mouse_pos);
 						return;
 					}
 					// The site is fixed at the press; the release places it (input.js INPUT_BUILDING_CLICK).
@@ -3909,47 +3873,26 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					for (auto *wg : wall_ghosts) {
 						if (wg) wg->set_visible(false);
 					}
-					bool end_snapped = false;
-					Vector3 drag_end_pos = snap_wall_point(get_ground_click_pos(mouse_pos), end_snapped);
-					float dist = wall_drag_start_pos.distance_to(drag_end_pos);
-					if (dist > 1.5f) {
-						int seg_count = std::max(1, (int)(dist / 6.0f));
-						Vector3 step_vec = (drag_end_pos - wall_drag_start_pos) / (float)seg_count;
-						// Every piece faces along the wall.
-						const float wall_angle = std::atan2(step_vec.x, step_vec.z) + rtso::Simulation::DEFAULT_BUILDING_ROT;
-
-						// Commit wall nodes through existing lockstep/build command paths
-						// (0 A.D. gui/session/building_placement.js:45-92 / placement.js)
-						// Alt hands the whole wall to one builder (popOneFromSelection).
-						const bool order_one = rtso::hotkeys::held("session.orderone") && !selected_ids.is_empty();
-						const uint32_t one_builder = order_one ? (uint32_t)selected_ids[0] : 0;
-						const uint32_t *builders = order_one ? &one_builder : (const uint32_t *)selected_ids.ptr();
-						const size_t builder_n = order_one ? 1 : (size_t)selected_ids.size();
-						auto place_wall_node = [&](const Vector3 &p, uint8_t btype) {
-							int cx = (int)std::floor(p.x / rtso::Simulation::GRID);
-							int cz = (int)std::floor(p.z / rtso::Simulation::GRID);
-							if (turn_cmds()) {
-								post_lockstep(5, builders, builder_n,
-								              (float)cx, (float)cz, rtso::Simulation::pack_angle(wall_angle), btype);
-							} else if (sim) {
-								uint32_t bid = sim->cmd_build(local_player(), cx, cz, btype, wall_angle);
-								if (bid && builder_n > 0) {
-									sim->order_build_or_repair(builders, builder_n, bid);
-								}
-							}
-						};
-
-						// Start node tower, unless the wall continues from an existing one
-						if (!wall_start_snapped) place_wall_node(wall_drag_start_pos, rtso::BLD_WALL_TOWER);
-
-						for (int s = 0; s < seg_count; ++s) {
-							Vector3 mid_p = wall_drag_start_pos + step_vec * ((float)s + 0.5f);
-							place_wall_node(mid_p, rtso::BLD_WALL_SEGMENT);
-
-							if (s == seg_count - 1 && !end_snapped) {
-								Vector3 end_p = wall_drag_start_pos + step_vec * ((float)s + 1.0f);
-								place_wall_node(end_p, rtso::BLD_WALL_TOWER);
-							}
+					const Vector3 drag_end_pos = get_ground_click_pos(mouse_pos);
+					// Commands.js "construct-wall": the sim lays the pieces (helpers/Walls.js) and
+					// snaps the ends onto the player's wall towers, the same on every peer.
+					// Alt hands the whole wall to one builder (popOneFromSelection).
+					const bool order_one = rtso::hotkeys::held("session.orderone") && !selected_ids.is_empty();
+					const uint32_t one_builder = order_one ? (uint32_t)selected_ids[0] : 0;
+					const uint32_t *builders = order_one ? &one_builder : (const uint32_t *)selected_ids.ptr();
+					const size_t builder_n = order_one ? 1 : (size_t)selected_ids.size();
+					const bool queued = rtso::hotkeys::held("session.queue");
+					const bool any = sim && !sim->wall_placement(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
+							drag_end_pos.x, drag_end_pos.z).empty();
+					if (any) {
+						if (turn_cmds()) {
+							post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_BUILD_WALL, builders, builder_n,
+									drag_end_pos.x, drag_end_pos.z,
+									rtso::Simulation::pack_wall_point(wall_drag_start_pos.x, wall_drag_start_pos.z),
+									queued ? rtso::NET_PARAM_QUEUED : 0);
+						} else {
+							sim->cmd_build_wall(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
+									drag_end_pos.x, drag_end_pos.z, builders, builder_n, queued);
 						}
 						play_civ_voice("build");
 						if (order_one) pop_from_selection(selected_ids, one_builder);

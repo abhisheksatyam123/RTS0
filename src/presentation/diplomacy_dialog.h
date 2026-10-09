@@ -5,7 +5,7 @@
 // gui/session/diplomacy/DiplomacyDialog.js parity). Owns the 8-player
 // stance matrix; stance changes ride lockstep cmd 22 and tribute lockstep
 // cmd 27 (Simulation::cmd_tribute) via RtsoDiplomacyHost; bribes ride lockstep
-// cmd 40 (Simulation::cmd_bribe).
+// cmd 42 (Simulation::cmd_bribe).
 
 #include <godot_cpp/classes/button.hpp>
 #include <godot_cpp/classes/control.hpp>
@@ -222,7 +222,7 @@ public:
 		}
 	}
 
-	// 0 A.D. "spy-request" (VisionSharing.AddSpy). Lockstep: cmd 40, since resources and
+	// 0 A.D. "spy-request" (VisionSharing.AddSpy). Lockstep: cmd 42, since resources and
 	// the fog are hashed; offline the sim applies it now and reports the outcome.
 	void spy_pressed(int player_idx) {
 		if (!host_ || !host_->ui_sim() || player_idx < 0 || player_idx >= 8) return;
@@ -233,7 +233,7 @@ public:
 		bool ok;
 		if (host_->turn_cmds()) {
 			ok = sim->player_resource(me, rtso::RES_GOLD) >= sim->bribe_cost(me, (uint8_t)player_idx);
-			if (ok) host_->post_lockstep(40, nullptr, 0, 0, 0, (uint32_t)player_idx, 0);
+			if (ok) host_->post_lockstep(42, nullptr, 0, 0, 0, (uint32_t)player_idx, 0);
 			msg = ok ? "Bribing a unit of Player " : "Not enough metal to bribe Player ";
 		} else {
 			const auto r = sim->cmd_bribe(me, (uint8_t)player_idx);
