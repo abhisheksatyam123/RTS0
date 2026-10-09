@@ -1089,6 +1089,7 @@ enum TechStat : uint8_t {
 	TSTAT_REQUIRED_XP,      // Promotion/RequiredXp
 	TSTAT_TECH_COST_FOOD, TSTAT_TECH_COST_WOOD, TSTAT_TECH_COST_STONE, TSTAT_TECH_COST_METAL, // Researcher/TechCostMultiplier
 	TSTAT_LOOT_FOOD, TSTAT_LOOT_WOOD, TSTAT_LOOT_STONE, TSTAT_LOOT_METAL, // Looter/Resource/<res>
+	TSTAT_BATCH_TIME, // Trainer/BatchTimeModifier of training structures (added)
 	TSTAT_COUNT
 };
 
@@ -1121,6 +1122,9 @@ struct TechInfo {
 
 #include "tech_data.h"
 #include "building_ai_data.h"
+#include "trainer_data.h"
+static_assert(TRAINER_BUILDING_ROWS == BLD_TYPE_COUNT && TRAINER_CIV_ROWS == CIV_COUNT,
+	"re-run tools/extract_0ad_trainer.py after adding buildings or civs");
 
 // Researched technologies for one player. 256 bits covers every uint8_t id.
 struct TechSet {

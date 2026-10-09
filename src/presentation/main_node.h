@@ -288,6 +288,7 @@ public:
 	void _on_call_to_arms_pressed();
 	void _on_template_info_pressed();
 	void _on_alert_pressed(int end);
+	void _on_autoqueue_pressed(int on);
 	void _on_selection_group_clicked(int key);
 	void _on_garrison_group_clicked(int key);
 	void _on_stance_selected(int stance);
@@ -438,7 +439,9 @@ private:
 	// GetFoundationSnapData snapEntities: a wall end within half a tower of one of
 	// the player's wall towers snaps onto it.
 	void try_train_unit(rtso::UnitType utype);
-	void try_train_template(uint32_t building_id, uint16_t tmpl);
+	void try_train_template(uint32_t building_id, uint16_t tmpl, int count = 1);
+	// The batch the next train click queues: gui.session.batchtrainingsize while Shift is held.
+	int train_batch() const;
 	void try_breed(uint32_t building_id, uint8_t ftype);
 	static constexpr int ROSTER_ANIMAL = 0x10000; // roster_list metadata flag: a corral animal
 	void update_roster_list(const rtso::Simulation::Building *b);

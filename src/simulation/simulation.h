@@ -78,12 +78,21 @@ struct Projectile {
 	uint32_t source_id = 0; // firing unit or building: Promotion xp and Looter.js loot go to it
 };
 
+// One item of a structure's production queue (0 A.D. ProductionQueue.js Item): a batch of
+// `count` units (Trainer.js) or one technology (Researcher.js), worked on front first.
 struct ProductionOrder {
-	uint8_t unit_type;
+	uint8_t unit_type; // UNIT_TYPE_NONE = corral livestock; UNIT_TYPE_COUNT for a technology
 	float timer;
 	float duration;
 	uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE; // civ roster unit to spawn (NONE = civ default for unit_type)
+	uint8_t count = 1;          // batch size
+	uint8_t tech = TECH_NONE;   // the technology this item researches
+	bool started = false;       // Trainer.js Item.Start: the batch's population is reserved
+	std::array<float, RES_COUNT> paid{}; // refunded when the item is removed (RemoveItem)
+	bool is_tech() const { return tech != TECH_NONE; }
 };
+// ProductionQueue.js MaxQueueSize.
+static constexpr size_t PRODUCTION_QUEUE_MAX = 16;
 
 // Per-player state (0 A.D. Player.js + ResourceCounter + TechnologyManager).
 // One slot per player id; unit/building `team` fields hold the player id.
@@ -151,7 +160,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 46; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 48; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -247,15 +256,24 @@ public:
 		float rally_x, rally_z;
 		uint32_t rally_target_res_id;
 		uint32_t rally_target_bld_id;
+		// 0 A.D. RallyPoint keeps the resource type (generic + specific) of a gather
+		// target, so a trained unit gathers near the spot once the target is gone
+		// (gather-near-position). 0xFF: no resource target.
+		uint8_t rally_res_type = 0xFF, rally_res_sub = 0xFF;
+		// Shift-added positions after the first (RallyPoint.AddPosition), in order.
+		struct RallyStep {
+			float x, z;
+			uint32_t res_id, bld_id;
+			uint8_t res_type, res_sub;
+		};
+		std::vector<RallyStep> rally_more;
 
 		// Garrison
 		std::vector<uint32_t> garrisoned_units;
 		int garrison_cap;
 
-		// Tech research
-		uint8_t research_tech;
-		float research_timer;
-		float research_duration;
+		// ProductionQueue.js autoqueuing: a finished batch is queued again.
+		bool autoqueue = false;
 
 		// Structure Capture (Capturable.js): per-player capture points.
 		// The scalar capture_points field remains the amount currently held
@@ -444,17 +462,31 @@ public:
 	// DEFAULT_BUILDING_ROT, so older commands (target_id 0) keep the default facing.
 	static uint32_t pack_angle(float angle);
 	static float unpack_angle(uint32_t packed);
-	bool cmd_train(uint8_t player, uint32_t building_id, UnitType u_type);
+	// `count` units in one batch (0 A.D. Trainer.js QueueBatch): count x the cost, trained in
+	// BuildTime * count^BatchTimeModifier.
+	bool cmd_train(uint8_t player, uint32_t building_id, UnitType u_type, int count = 1);
 	// Train a specific roster unit (a hero, a champion, a second unit of the same class).
-	bool cmd_train_template(uint8_t player, uint32_t building_id, uint16_t tmpl);
-	bool cmd_train_template_at(uint8_t player, uint32_t building_id, uint16_t tmpl, bool exclusive);
+	bool cmd_train_template(uint8_t player, uint32_t building_id, uint16_t tmpl, int count = 1);
+	bool cmd_train_template_at(uint8_t player, uint32_t building_id, uint16_t tmpl, bool exclusive, int count = 1);
+	// Trainer.js GetBatchTime: count^BatchTimeModifier of the building (civ version and techs).
+	float batch_time_multiplier(uint8_t player, uint8_t bld_type, int count) const;
+	// ProductionQueue.js EnableAutoQueue / DisableAutoQueue.
+	bool cmd_set_autoqueue(uint8_t player, uint32_t building_id, bool on);
+	// The technology a structure is researching now (the front of its queue), else TECH_NONE.
+	static uint8_t researching(const Building &b) { return b.queue.empty() ? TECH_NONE : b.queue.front().tech; }
+	// Whether `tech` is anywhere in one of the player's production queues.
+	bool tech_queued(uint8_t player, uint8_t tech) const;
 	// P3 maintainFleet upkeep seam (0 A.D. navalManager.js:507-543): team-aware
 	// naval queue entry used by TurnManager NET_CMD_MAINTAIN_FLEET. Unlike
 	// cmd_train (team-0/human only) this honours the building's own team
 	// resources (Petra team 1 via petra_try_pay) so Petra docks can train.
 	bool cmd_maintain_fleet(uint32_t building_id, UnitType u_type, uint8_t team);
 	bool cmd_cancel_train(uint8_t player, uint32_t building_id, size_t queue_idx);
-	void cmd_set_rally_point(uint8_t player, uint32_t building_id, float rx, float rz, uint32_t res_id = 0, uint32_t bld_id = 0);
+	// queued (Shift) adds a position after the ones already set (RallyPoint.AddPosition).
+	void cmd_set_rally_point(uint8_t player, uint32_t building_id, float rx, float rz, uint32_t res_id = 0, uint32_t bld_id = 0,
+			bool queued = false);
+	// 0 A.D. "unset-rallypoint": the structure forgets every rally position.
+	void cmd_unset_rally_point(uint8_t player, uint32_t building_id);
 
 	// Player orders (0 A.D. Commands.js / UnitAI.js). `queued` is the Shift key: the order
 	// goes to the end of each busy unit's order queue instead of replacing its orders.
@@ -1459,6 +1491,7 @@ private:
 		float bld_range[BLD_TYPE_COUNT];
 		float bld_build_time[BLD_TYPE_COUNT];
 		float bld_research_time[BLD_TYPE_COUNT];
+		float bld_batch_time_add[BLD_TYPE_COUNT]; // added to Trainer/BatchTimeModifier (Conscription)
 		float bld_pop_bonus[BLD_TYPE_COUNT];
 		float bld_arrow_mul[BLD_TYPE_COUNT];
 		float bld_arrow_add[BLD_TYPE_COUNT];
@@ -1570,7 +1603,6 @@ private:
 	float builder_rate(size_t unit_idx) const;
 	float structure_build_time(const Building &b, uint8_t builder_team) const;
 	void tick_production(float dt);
-	void tick_research(float dt);
 	void tick_upgrades(float dt);
 	void tick_unit_upgrades(float dt);
 	std::vector<UnitUpgrade> unit_upgrades_; // in start order (saved v45)
@@ -1604,6 +1636,8 @@ private:
 	void tick_fauna(float dt);
 	void tick_hunters();                                  // units attacking animals (UnitAI Gather on KillBeforeGather)
 	void fauna_attacked(size_t f, uint32_t attacker_id);  // UnitAI "Attacked" for an animal
+	bool slaughters_target(size_t i) const; // unit i's target is a Domestic animal it slaughters
+	static constexpr float SLAUGHTER_RANGE = 2.0f * 0.6f; // Attack/Slaughter MaxRange 2 m, melee scale
 	void fauna_hit_unit(size_t f, size_t u);              // an animal's melee attack lands on unit u
 	bool fauna_can_step(size_t f, float x, float z) const;
 	void tick_fow();  // updates FoW each sim tick
@@ -2247,6 +2281,8 @@ private:
 	void finish_order(size_t i);
 	void resume_order(size_t i);
 	void respond_to_attack(size_t i);
+	bool entity_xz(uint32_t id, float &x, float &z) const;
+	bool flee_done(size_t i);
 	void respond_to_attacker(size_t i, uint32_t attacker_id, float ax, float az, bool melee, bool structure = false);
 	std::vector<uint16_t> combat_wild_scratch_; // tick_combat: dangerous animals this tick
 	// ResourceGatherer.CanGather: unit index i has a Rates entry for resource index r.
@@ -2256,6 +2292,7 @@ private:
 			const std::unordered_map<uint32_t, FieldGatherers> *busy = nullptr, uint32_t skip = 0) const;
 	uint32_t find_nearby_foundation(float x, float z, uint8_t team) const;
 	void apply_rally_point(uint32_t uid, const Building &b, bool ignore_self_garrison = false);
+	void apply_rally_step(uint32_t uid, const Building &b, const Building::RallyStep &st, bool queued, bool ignore_self_garrison);
 	void rally_after_ungarrison(uint32_t uid, uint32_t building_id);
 	void on_construction_finished(const Building &b, size_t builder);
 	void next_after_construction(size_t k, const Building &b, bool food, bool other);
