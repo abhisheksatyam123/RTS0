@@ -287,12 +287,16 @@ public:
 	void rebuild_terrain(const rtso::Simulation *sim);
 	// Player whose units draw as "own" (crowd bank 0, player colours).
 	void set_local_player(uint8_t p) { local_player_ = p; }
+	// session.showstatusbars (Tab): bars over every visible unit and structure.
+	void set_show_all_status_bars(bool on) { show_all_status_bars_ = on; }
+	bool show_all_status_bars() const { return show_all_status_bars_; }
 
 	void play_spatial_sound(const Ref<AudioStream> &stream, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
 	void play_spatial_sound_path(const String &path, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
 
 private:
 	uint8_t local_player_ = 0;
+	bool show_all_status_bars_ = false;
 
 	// Fog of war (0 A.D. Fogging.js/Mirage.js + CLOSTexture): what the local
 	// player remembers, and the smoothed LOS bitmap that shades the world.
