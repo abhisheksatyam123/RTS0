@@ -104,6 +104,12 @@ void RtsoMiniMapView::_gui_input(const Ref<InputEvent> &event) {
 // 0 = unclaimed, same mapping as territory_owner_at simulation.cpp:762-769)
 // into a single RGBA8 ImageTexture. The grid bytes are memcmp'd once per
 // _draw() and the texture only re-uploaded when ownership actually changes.
+// The player's Game Setup colour (0 A.D. PlayerColor, rtso::PLAYER_COLORS); Gaia is white.
+Color RtsoMiniMapView::player_color(uint8_t pid) const {
+	const uint32_t rgb = sim ? sim->player_color(pid) : 0xFFFFFFu;
+	return Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, 1.0f);
+}
+
 bool RtsoMiniMapView::ensure_territory_texture() {
 	if (!sim) return false;
 	const auto &grid = sim->territory_grid();
@@ -115,14 +121,13 @@ bool RtsoMiniMapView::ensure_territory_texture() {
 	const size_t n = grid.data.size();
 	if (territory_tex_cache_.size() != n ||
 			std::memcmp(territory_tex_cache_.data(), grid.data.data(), n) != 0) {
-		// Per-team tints mirror the circle overlay below (team0 blue / team1 red
-		// at minimap_view.cpp:182-183 pre-edit); alpha carries the blurred edge.
-		static const Color k_team_tint[4] = {
-			Color(0.20f, 0.55f, 1.00f, 0.32f), // team 0
-			Color(0.95f, 0.25f, 0.20f, 0.32f), // team 1
-			Color(0.25f, 0.85f, 0.35f, 0.32f), // team 2
-			Color(0.95f, 0.80f, 0.20f, 0.32f), // team 3
-		};
+		// 0 A.D. TerritoryTexture: each player's land in its Game Setup colour;
+		// alpha carries the blurred edge.
+		Color tint[rtso::MAX_PLAYERS];
+		for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
+			tint[p] = player_color(p);
+			tint[p].a = 0.32f;
+		}
 		PackedByteArray px;
 		px.resize((int64_t)n * 4);
 		uint8_t *out = px.ptrw();
@@ -132,8 +137,7 @@ bool RtsoMiniMapView::ensure_territory_texture() {
 				out[i * 4 + 0] = 0; out[i * 4 + 1] = 0; out[i * 4 + 2] = 0; out[i * 4 + 3] = 0;
 				continue;
 			}
-			const int team = (owner - 1) & 3;
-			const Color &c = k_team_tint[team];
+			const Color &c = tint[(owner - 1) % rtso::MAX_PLAYERS];
 			out[i * 4 + 0] = (uint8_t)(c.r * 255.0f + 0.5f);
 			out[i * 4 + 1] = (uint8_t)(c.g * 255.0f + 0.5f);
 			out[i * 4 + 2] = (uint8_t)(c.b * 255.0f + 0.5f);
@@ -163,16 +167,18 @@ void RtsoMiniMapView::_draw() {
 		return Vector2(nx * sz.x, nz * sz.y);
 	};
 
-	// Diplomacy palette (0 A.D. DiplomacyDialog stance -> minimap color):
-	// stance toward entity team from sim->get_diplomacy (simulation.h:332,
-	// DIPLO_ALLY=0/DIPLO_NEUTRAL=1/DIPLO_ENEMY=2, simulation.h:328).
+	// Diplomacy colours (0 A.D. session "diplomacy colors" toggle, default.cfg
+	// gui.session.diplomacycolors: self 21 55 149, ally 86 180 31, neutral
+	// 231 200 5, enemy 150 20 20) replace player colours while enabled.
+	auto c8 = [](int r, int g, int b) { return Color(r / 255.0f, g / 255.0f, b / 255.0f); };
 	auto diplo_color = [&](uint8_t team, const Color &fallback) -> Color {
-		if (!show_diplo_palette || team == local_player || !sim) return fallback;
+		if (!show_diplo_palette || !sim || team >= rtso::MAX_PLAYERS) return fallback;
+		if (team == local_player) return c8(21, 55, 149);
 		// Every player keeps its own stance row, so read the local player's.
 		uint8_t st = sim->get_diplomacy(local_player, team);
-		if (st == rtso::Simulation::DIPLO_ALLY) return Color(0.30f, 0.90f, 0.45f);
-		if (st == rtso::Simulation::DIPLO_NEUTRAL) return Color(0.95f, 0.80f, 0.25f);
-		return fallback; // enemy keeps the hostile red
+		if (st == rtso::Simulation::DIPLO_ALLY) return c8(86, 180, 31);
+		if (st == rtso::Simulation::DIPLO_NEUTRAL) return c8(231, 200, 5);
+		return c8(150, 20, 20);
 	};
 
 	const uint8_t *fow = sim->fow_grid(local_player);
@@ -245,8 +251,9 @@ void RtsoMiniMapView::_draw() {
 
 			if (radius_m > 0.0f) {
 				float r_px = (radius_m / (half_map * 2.0f)) * sz.x;
-				Color territory_fill = (b.team == local_player) ? Color(0.2f, 0.55f, 1.0f, 0.14f) : Color(0.95f, 0.25f, 0.2f, 0.14f);
-				Color territory_edge = (b.team == local_player) ? Color(0.35f, 0.75f, 1.0f, 0.60f) : Color(1.0f, 0.40f, 0.35f, 0.60f);
+				const Color pc = player_color(b.team);
+				const Color territory_fill(pc.r, pc.g, pc.b, 0.14f);
+				const Color territory_edge(pc.r, pc.g, pc.b, 0.60f);
 				draw_circle(pos, r_px, territory_fill);
 				draw_arc(pos, r_px, 0.0f, 6.2831853f, 48, territory_edge, 1.5f);
 			}
@@ -272,26 +279,23 @@ void RtsoMiniMapView::_draw() {
 	// 3. Draw Buildings: own and allied live, others as last seen
 	for (const auto &b : mirages_.buildings()) {
 		Vector2 pos = map_to_mini(b.x, b.z);
-		Color col = Color(0.7f, 0.7f, 0.7f);
+		// 0 A.D. MiniMap: structures in their owner's colour; bigger marks for the
+		// civic centre and barracks so bases read at a glance.
+		Color col = player_color(b.team);
 		float box_sz = 6.0f;
 
 		if (b.type == rtso::BLD_TOWN_CENTER) {
-			col = (b.team == local_player) ? Color(1.0f, 0.85f, 0.2f) : Color(0.95f, 0.2f, 0.2f);
 			box_sz = 9.0f;
 		} else if (b.type == rtso::BLD_BARRACKS) {
-			col = (b.team == local_player) ? Color(0.95f, 0.55f, 0.2f) : Color(0.85f, 0.3f, 0.3f);
 			box_sz = 7.0f;
 		} else if (b.type == rtso::BLD_TOWER) {
-			col = Color(0.4f, 0.85f, 1.0f);
 			box_sz = 5.0f;
-		} else if (b.type == rtso::BLD_STOREHOUSE || b.type == rtso::BLD_FARMSTEAD) {
-			col = Color(0.75f, 0.55f, 0.35f);
 		}
 
+		col = diplo_color(b.team, col);
 		if (b.miraged) {
 			col.a *= 0.55f;
 		}
-		col = diplo_color(b.team, col);
 		draw_rect(Rect2(pos - Vector2(box_sz * 0.5f, box_sz * 0.5f), Vector2(box_sz, box_sz)), col, true);
 	}
 
@@ -304,8 +308,7 @@ void RtsoMiniMapView::_draw() {
 		}
 
 		Vector2 pos = map_to_mini(units.pos_x[i], units.pos_z[i]);
-		Color col = diplo_color(units.team[i],
-				(units.team[i] == local_player) ? Color(0.25f, 0.65f, 1.0f) : Color(0.95f, 0.25f, 0.2f));
+		Color col = diplo_color(units.team[i], player_color(units.team[i]));
 		float rad = (units.unit_type[i] == rtso::UNIT_CAVALRY || units.unit_type[i] == rtso::UNIT_TRADER) ? 3.0f : 2.0f;
 		draw_rect(Rect2(pos.x - rad * 0.5f, pos.y - rad * 0.5f, rad, rad), col, true);
 	}

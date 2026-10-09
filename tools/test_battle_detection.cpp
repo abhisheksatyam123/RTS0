@@ -1,7 +1,8 @@
 // 0 A.D. BattleDetection.js: the sim counts the damage each player's entities deal to
 // other players (OnGlobalAttacked: not to Gaia, not to themselves), and the detector
 // (template_player.xml: 200 ms periods, 12-period record, 0.04 hp/ms) turns it into the
-// BATTLE / PEACE state that picks the music.
+// BATTLE / PEACE state that picks the music. Each hit is also an Attacked event for
+// AttackDetection (the under-attack alerts).
 //   g++ -std=c++20 -O2 -Isrc tools/test_battle_detection.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread \
 //       -o /tmp/test_battle_detection && /tmp/test_battle_detection
@@ -79,6 +80,59 @@ int main() {
 		for (int k = 0; k < 400; ++k, t += 0.1) e.update(t);
 		CHECK(!e.in_battle());
 		std::printf("100 hp/s: battle after %.1f s; peace again once calm\n", ticks_to_battle * 0.1);
+	}
+
+	// 4. Every hit is also an Attacked event for the session's AttackDetection, with the
+	//    attacker, both owners and the target's position; the events add up to the health
+	//    lost, arrows name the archer, structures are flagged, and reset() drops them.
+	{
+		fresh(s);
+		const uint32_t sw = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SWORDSMAN);
+		const uint32_t d = s.spawn_unit(1.0f, 0.0f, 1, UNIT_SPEARMAN, 2000.0f);
+		const uint32_t ar = s.spawn_unit(-10.0f, 8.0f, 0, UNIT_ARCHER);
+		const uint32_t d2 = s.spawn_unit(-2.0f, 8.0f, 1, UNIT_SPEARMAN, 2000.0f);
+		const uint32_t bar = s.spawn_building_world(-6.0f, -14.0f, BLD_BARRACKS, 1, 1.0f);
+		const uint32_t sw2 = s.spawn_unit(-6.0f, -8.0f, 0, UNIT_SWORDSMAN);
+		// Standing ground, so the targets stay where they are (passive ones would flee).
+		for (uint32_t id : {d, d2}) s.units_.stance[s.lookup_unit(id)] = STANCE_STAND_GROUND;
+		auto bhp = [&]() {
+			for (const auto &b : s.buildings_)
+				if (b.id == bar) return b.hp;
+			return 0.0f;
+		};
+		const float hp0 = s.units_.hp[s.lookup_unit(d)], hp1 = s.units_.hp[s.lookup_unit(d2)], b0 = bhp();
+		s.order_attack(&sw, 1, d, false);
+		s.order_attack(&ar, 1, d2, false);
+		s.order_attack_building(&sw2, 1, bar);
+		(void)s.take_attacked_events();
+		float melee = 0, arrows = 0, bld = 0;
+		bool pos_ok = true;
+		AttackDetection det;
+		int alerts = 0;
+		for (int t = 0; t < 200; ++t) {
+			s.tick(Simulation::FIXED_STEP);
+			for (const auto &e : s.take_attacked_events()) {
+				if (e.target_id == d && e.attacker_id == sw) melee += e.damage;
+				if (e.target_id == d2 && e.attacker_id == ar) arrows += e.damage;
+				if (e.target_id == bar && e.target_is_building && e.attacker_id == sw2) bld += e.damage;
+				if (e.target_id == d) pos_ok = pos_ok && std::fabs(e.x - 1.0f) < 1.5f && std::fabs(e.z) < 1.5f;
+				// main_node's filter: hits on player 1 from someone else.
+				if (e.target_owner == 1 && e.attacker_owner != 1 && det.report(e.x, e.z, t * Simulation::FIXED_STEP)) ++alerts;
+			}
+		}
+		const float lost0 = hp0 - s.units_.hp[s.lookup_unit(d)], lost1 = hp1 - s.units_.hp[s.lookup_unit(d2)];
+		std::printf("events: melee %.2f/%.2f, arrows %.2f/%.2f, structure %.2f/%.2f, %d alert(s)\n", melee, lost0,
+				arrows, lost1, bld, b0 - bhp(), alerts);
+		CHECK(lost0 > 0.0f && std::fabs(melee - lost0) < 0.01f);
+		CHECK(lost1 > 0.0f && std::fabs(arrows - lost1) < 0.01f);
+		CHECK(b0 - bhp() > 0.0f && std::fabs(bld - (b0 - bhp())) < 0.01f);
+		CHECK(pos_ok);
+		// All three fights are within SuppressionRange (40 units) of each other: one alert.
+		CHECK(alerts == 1);
+		s.order_attack(&sw, 1, d, false);
+		s.tick(Simulation::FIXED_STEP);
+		s.reset();
+		CHECK(s.take_attacked_events().empty());
 	}
 
 	if (failures) {
