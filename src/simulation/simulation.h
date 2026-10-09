@@ -4,6 +4,7 @@
 #include "../core/memory/arena.h"
 #include "../core/memory/soa_storage.h"
 #include "grid_nav.h"
+#include "nav/footprint.h"
 #include "nav/obstacle_grid.h"
 #include "aura_manager.h"
 #include "petra_ai.h"
@@ -195,7 +196,9 @@ public:
 		bool wrecked = false;   // hp already applied; keep entity for collapse + rubble
 		int cell_x, cell_y;
 		int footprint; // 1 or 2
-		float rot = DEFAULT_BUILDING_ROT; // 0 A.D. Position rotation: 0 faces +z, pi/2 faces +x (the obstruction stays an axis-aligned square)
+		float rot = DEFAULT_BUILDING_ROT; // 0 A.D. Position rotation: 0 faces +z, pi/2 faces +x; set with set_rot
+		float ux = 1.0f, uz = 0.0f; // the footprint's u axis (nav/footprint.h), turned with rot
+		void set_rot(float a) { rot = a; nav::footprint_axis(a, ux, uz); }
 		float attack_timer; // for defensive arrows
 		bool is_burning = false; // Structure fire under 33% HP
 
@@ -1679,6 +1682,7 @@ private:
 	struct SteerObstacle {
 		uint32_t id;
 		float x, z, half_size;
+		float ux, uz; // Building::ux, uz
 		uint8_t type;
 		bool wrecked;
 	};

@@ -2,7 +2,7 @@
 
 This file tracks the migration of the vendored 0 A.D. C++ in `src/0ad/` (reference only; `SConstruct` skips it) into live RTS0 code. Update it in every PR that ports, changes or drops a piece. Gameplay parity with 0 A.D.'s JS systems is tracked separately in `docs/REMAINING_GAPS.md` and `docs/PLAN.md`. 0 A.D. data imported by tools rather than ported code (assets, maps, unit rosters and heroes from `tools/extract_0ad_rosters.py`) is listed in `docs/0AD_ATTRIBUTION.md`.
 
-Last updated: 2026-10-08 (HierarchicalPathfinder global region numbering).
+Last updated: 2026-10-09 (turned building footprints).
 
 Status key: **Done**, ported and in use · **Ported**, ported and tested but not used by the sim yet · **Partial** · **Todo** · **Not planned**
 
@@ -48,7 +48,7 @@ Status key: **Done**, ported and in use · **Ported**, ported and tested but not
 
 This list covers porting the vendored C++ only. Overall project priorities and gameplay-parity work are in `docs/PLAN.md` and `docs/NEXT_STEPS.md`; this list doesn't repeat them.
 
-1. **Obstruction shapes.** Rasterization is done. 0 A.D.'s `CCmpObstructionManager` isn't vendored, and RTS0 doesn't need a full one yet: `buildings_` and the `UnitGrid` in `separation()` already give the shapes VertexPathfinder needs. Revisit if buildings get rotations or per-class clearances.
+1. **Obstruction shapes.** Rasterization is done, and building footprints turn with the building (`nav/footprint.h`, the axes of `CCmpObstruction::GetObstructionSquare`) in the nav grid, short paths, `separation()`, gates and reach checks. 0 A.D.'s `CCmpObstructionManager` isn't vendored, and RTS0 doesn't need a full one: `buildings_` and the `UnitGrid` in `separation()` give VertexPathfinder its shapes. Left: placement (`check_placement`, `can_place`) still tests the unturned grid cells until it uses `footprint_overlaps_box`, and units collide with buildings by their own radius rather than 0 A.D.'s per-class clearances (a "large" class unit such as a catapult keeps about 3 m), so siege can't take some gaps 0 A.D. lets it through.
 2. **Units as short-path obstructions.** Steering passes only buildings to VertexPathfinder. 0 A.D. also passes nearby units (minus the moving group) when a unit is stuck. Add that if crowds jam at chokepoints, within a per-tick query budget (`test_vertex_pathfinder` times a query at ~8 µs near 10 squares, ~380 µs near 150).
 3. **JumpPointCache.** Not needed yet. Maps now reach 512, but on 2026-10-08 JPS long paths were only about 3% of a 20-minute Mainland match on a 512 map (callgrind). Revisit if that share grows.
 4. **Fixed-point simulation (optional).** Whether the sim moves from `float` to `rtso::Fixed` is a multiplayer-model decision. See `docs/PLAN.md` P5 and `docs/MULTIPLAYER.md`. `src/core/math/fixed.h` is ready if that decision is made. It would also need `CFixedVector2D`, which isn't vendored.
@@ -57,7 +57,7 @@ This list covers porting the vendored C++ only. Overall project priorities and g
 
 | Date | PR | Change |
 |---|---|---|
-| 2026-10-09 | #103 | Removed the legacy grid A* (`search_cells_astar`, `use_jps`): `find_path` always runs the ported JPS, and `test_long_pathfinder` checks it against an 8-way Dijkstra. Units keep their short path around buildings between ticks like `CCmpUnitMotion::m_ShortPath` (65% fewer searches). |
+| 2026-10-09 | #103 | Removed the legacy grid A* (`search_cells_astar`, `use_jps`): `find_path` always runs the ported JPS, and `test_long_pathfinder` checks it against an 8-way Dijkstra. Units keep their short path around buildings between ticks like `CCmpUnitMotion::m_ShortPath` (65% fewer searches). Building footprints turn with the building's rotation (`nav/footprint.h`). |
 | 2026-10-08 | #94 | VertexPathfinder searches for building steering close vertices inside squares by trying the squares sorted by their left edge, and build terrain edges from 64-bit navcell rows. Bit-identical results, part of an 11% cheaper match. |
 | 2026-10-08 | #53 | HierarchicalPathfinder global regions in flat arrays, numbered in the vendor's order instead of hash-map order. Same regions; a 512-map match runs 4% fewer instructions. |
 | 2026-10-08 | #42 | Made VertexPathfinder searches cheaper for building steering (reused storage, terrain read by rows, no edge-square sort) with bit-identical results. |

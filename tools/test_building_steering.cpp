@@ -18,10 +18,16 @@
 //     walks straight over a row of them instead of around.
 //  6. Out of a house cluster: a catapult among houses, whose long path starts on navcells in
 //     2-unit gaps it can't stand in, moves on past those waypoints instead of pushing at them for good.
+//  7. Walk past a turned barracks: turned 45 degrees, its corners reach 41% further along the axes
+//     than an unturned one's sides (nav/footprint.h). A unit walking along that axis must go around
+//     the corners, not the unturned square, and a woman finishes a turned house.
 //  For every scenario the unit bodies must never overlap a footprint that blocks movement by more
 //  than MAX_PENETRATION (separation() alone allows deep overlap when a unit walks head-on into a wall).
 //  Exit: 0 = PASS, 1 = FAIL. Prints the measurements either way.
+// Private access only to turn a standing building (Building::set_rot) and rasterize it.
+#define private public
 #include "simulation/simulation.h"
+#undef private
 
 #include <algorithm>
 #include <cmath>
@@ -49,7 +55,7 @@ static void setup(Simulation &s) {
 	s.spawn_building_world(52.0f, 52.0f, BLD_TOWN_CENTER, 1, 1.0f);
 }
 
-// Deepest overlap of any live team-0 unit body with any building footprint.
+// Deepest overlap of any live team-0 unit body with any building footprint, turned by its rot.
 static float max_penetration(const Simulation &s) {
 	const Simulation::UnitView u = s.units();
 	float worst = 0.0f;
@@ -58,8 +64,12 @@ static float max_penetration(const Simulation &s) {
 		const float r = unit_collision_radius(u.unit_type[i]);
 		for (const auto &b : s.buildings()) {
 			if (b.wrecked || !building_blocks_movement(b.type)) continue;
-			const float ex = b.half_size + r - std::fabs(u.pos_x[i] - b.x);
-			const float ez = b.half_size + r - std::fabs(u.pos_z[i] - b.z);
+			// In the footprint's own axes, u = (cos a, -sin a) and v = (sin a, cos a) (0 A.D.
+			// GetObstructionSquare), worked out here rather than taken from nav/footprint.h.
+			const float c = std::cos(b.rot), sn = std::sin(b.rot);
+			const float dx = u.pos_x[i] - b.x, dz = u.pos_z[i] - b.z;
+			const float ex = b.half_size + r - std::fabs(dx * c - dz * sn);
+			const float ez = b.half_size + r - std::fabs(dx * sn + dz * c);
 			if (ex > 0.0f && ez > 0.0f) worst = std::max(worst, std::min(ex, ez));
 		}
 	}
@@ -249,6 +259,53 @@ static void out_of_house_cluster() {
 	check(pen <= MAX_PENETRATION, "catapult overlapped a house");
 }
 
+// 7. Walk past a turned barracks.
+static void walk_past_turned_building() {
+	constexpr float QUARTER_PI = 0.785398163f;
+	float ux, uz;
+	nav::footprint_axis(Simulation::DEFAULT_BUILDING_ROT, ux, uz);
+	check(ux == 1.0f && uz == 0.0f, "the default facing is not axis-aligned");
+	nav::footprint_axis(Simulation::unpack_angle(Simulation::pack_angle(2.0f * QUARTER_PI)), ux, uz);
+	check(ux == 1.0f && uz == 0.0f, "a quarter turn is not axis-aligned");
+	nav::footprint_axis(Simulation::DEFAULT_BUILDING_ROT + QUARTER_PI, ux, uz);
+	check(std::fabs(ux - 0.70710678f) < 1e-5f && std::fabs(uz + 0.70710678f) < 1e-5f, "45 degrees gives the wrong axis");
+
+	Simulation s;
+	setup(s);
+	const uint32_t barracks = s.spawn_building_world(0.0f, 0.0f, BLD_BARRACKS, 0, 1.0f);
+	const uint32_t house = s.spawn_building_world(0.0f, 16.0f, BLD_HOUSE, 0, 0.0f);
+	for (auto &b : s.buildings_)
+		if (b.id == barracks || b.id == house) b.set_rot(Simulation::DEFAULT_BUILDING_ROT + QUARTER_PI);
+	s.rebuild_nav_grid();
+	const auto &turned = s.buildings()[s.building_id_to_idx_.at(barracks)];
+	check(nav::footprint_extent(turned) > turned.half_size * 1.41f, "the turned barracks' bounds are too small");
+	// For placement: the turned barracks reaches a box past its unturned side, not one in its unturned corner.
+	check(nav::footprint_overlaps_box(turned, 2.2f, -0.2f, 2.6f, 0.2f), "the turned barracks misses a box under its corner");
+	check(!nav::footprint_overlaps_box(turned, 1.6f, 1.6f, 1.9f, 1.9f), "the turned barracks covers its unturned corner");
+
+	const uint32_t walker = s.spawn_unit(-12.0f, 0.0f, 0, UNIT_SWORDSMAN, 160.0f);
+	s.cmd_move(&walker, 1, 12.0f, 0.0f);
+	const uint32_t woman = s.spawn_unit(-6.0f, 16.5f, 0, UNIT_FEMALE_CITIZEN, 100.0f);
+	s.order_build_or_repair(&woman, 1, house);
+	int arrived = -1, built = -1;
+	float pen = 0.0f;
+	for (int t = 0; t < 1200 && (arrived < 0 || built < 0); ++t) {
+		s.tick(DT);
+		pen = std::max(pen, max_penetration(s));
+		const int i = index_of(s, walker);
+		if (i < 0) break;
+		const Simulation::UnitView u = s.units();
+		const float dx = u.pos_x[i] - 12.0f, dz = u.pos_z[i];
+		if (arrived < 0 && dx * dx + dz * dz <= 1.0f) arrived = t;
+		if (built < 0 && s.buildings()[s.building_id_to_idx_.at(house)].build_progress >= 1.0f) built = t;
+	}
+	std::printf("  walk past turned barracks: arrived after %d ticks, house built after %d (-1 = never in 1200), "
+			"max penetration %.3f\n", arrived, built, pen);
+	check(arrived >= 0, "unit never got past the turned barracks");
+	check(built >= 0, "woman never finished the turned house");
+	check(pen <= MAX_PENETRATION, "unit overlapped a turned building");
+}
+
 int main() {
 	std::printf("RTS0 building steering test (src/simulation/nav/building_steering.h)\n");
 	guard_behind_wall();
@@ -257,6 +314,7 @@ int main() {
 	gather_behind_long_wall();
 	walk_across_fields();
 	out_of_house_cluster();
+	walk_past_turned_building();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;

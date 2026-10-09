@@ -166,6 +166,24 @@ static bool outside_and_in_build_range(float bx, float bz, float half, float x, 
 	return std::hypot(x - cx, z - cz) <= kBuildReach;
 }
 
+// The two above in a building's own frame, so a turned footprint (nav/footprint.h) gets the same
+// stand points and reach as an unturned one.
+static void stand_outside(const Simulation::Building &b, uint32_t uid, float from_x, float from_z, float *ox, float *oz) {
+	if (nav::footprint_aligned(b)) return stand_outside_rect(b.x, b.z, b.half_size, uid, from_x, from_z, ox, oz);
+	const nav::Vec2 l = nav::footprint_local(b, from_x, from_z);
+	float lu, lv;
+	stand_outside_rect(0.0f, 0.0f, b.half_size, uid, l.x, l.y, &lu, &lv);
+	const nav::Vec2 w = nav::footprint_world(b, lu, lv);
+	*ox = w.x;
+	*oz = w.y;
+}
+
+static bool outside_and_in_build_range(const Simulation::Building &b, float x, float z) {
+	if (nav::footprint_aligned(b)) return outside_and_in_build_range(b.x, b.z, b.half_size, x, z);
+	const nav::Vec2 l = nav::footprint_local(b, x, z);
+	return outside_and_in_build_range(0.0f, 0.0f, b.half_size, l.x, l.y);
+}
+
 struct UnitGrid {
 	static_assert(kUnitGridRes <= 64, "occupied[] holds a grid row in one word");
 	int32_t *head = nullptr;
@@ -801,7 +819,7 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	b.footprint = footprint;
 	if (type == BLD_DOCK) { // GuiInterface GetFoundationSnapData: a dock faces the open water
 		const float a = dock_angle(wx, wz, half);
-		if (!std::isnan(a)) b.rot = a;
+		if (!std::isnan(a)) b.set_rot(a);
 	}
 	b.attack_timer = 0.0f;
 	b.is_burning = false;
@@ -918,8 +936,8 @@ void Simulation::rebuild_nav_grid() {
 	if (!nav_grid_.dirty.blank())
 		nav_grid_.dirty.fill(0);
 	nav_grid_.set_water_from_heights(terrain_heights_, terrain_res_, terrain_water_height_);
-	// Buildings are axis-aligned squares (spawn_building_world: half_size = footprint*GRID/2), rasterized
-	// with the 0 A.D. rule (nav/rasterize.h, clearance 0). A navcell is blocked only if it lies entirely
+	// Buildings are squares (spawn_building_world: half_size = footprint*GRID/2) turned by their footprint
+	// axes (nav/footprint.h), rasterized with the 0 A.D. rule (nav/rasterize.h, clearance 0). A navcell is blocked only if it lies entirely
 	// inside the footprint plus the vendor extension. A footprint-1 building off the grid can match no
 	// navcell, so it falls back to the navcell under its centre (the cell the old footprint block marked).
 	const float nav_cell = 2.0f * nav_grid_.map_half / static_cast<float>(nav_grid_.res);
@@ -928,7 +946,7 @@ void Simulation::rebuild_nav_grid() {
 		if (b.build_progress < 0.99f || !blocks_pathfinding(b)) continue;
 		int covered = 0;
 		rtso::nav::rasterize_rect_with_clearance(
-			rtso::nav::Vec2(b.x, b.z), rtso::nav::Vec2(1.0f, 0.0f), rtso::nav::Vec2(0.0f, 1.0f),
+			rtso::nav::Vec2(b.x, b.z), rtso::nav::footprint_u(b), rtso::nav::footprint_v(b),
 			rtso::nav::Vec2(b.half_size, b.half_size), 0.0f, nav_cell, nav_origin,
 			nav_grid_.cells.w, nav_grid_.cells.h,
 			[&](int x, int y) {
@@ -1415,7 +1433,7 @@ uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b
 		return 0;
 
 	uint32_t bid = spawn_building(cell_x, cell_y, b_type, player, 0.0f);
-	if (b_type != BLD_DOCK) buildings_[building_id_to_idx_[bid]].rot = unpack_angle(pack_angle(angle));
+	if (b_type != BLD_DOCK) buildings_[building_id_to_idx_[bid]].set_rot(unpack_angle(pack_angle(angle)));
 	if (player == 0) record_.buildings_constructed++;
 	return bid;
 }
@@ -2592,7 +2610,7 @@ void Simulation::order_attack_building(const uint32_t *unit_ids_in, size_t count
 		const bool captures = allow_capture && unit_capture_strength(units_.unit_type[uidx]) > 0.0f;
 		if (units_.attack_damage[uidx] <= 0.0f && !captures) continue;
 
-		stand_outside_rect(b.x, b.z, b.half_size, units_.id[uidx],
+		stand_outside(b, units_.id[uidx],
 				units_.pos_x[uidx], units_.pos_z[uidx],
 				&units_.target_x[uidx], &units_.target_z[uidx]);
 		units_.has_order[uidx] = 1;
@@ -2677,7 +2695,7 @@ void Simulation::order_build_or_repair(const uint32_t *unit_ids_in, size_t count
 			continue;
 		}
 
-		stand_outside_rect(b.x, b.z, b.half_size, units_.id[uidx],
+		stand_outside(b, units_.id[uidx],
 				units_.pos_x[uidx], units_.pos_z[uidx],
 				&units_.target_x[uidx], &units_.target_z[uidx]);
 		units_.has_order[uidx] = 1;
@@ -3556,8 +3574,8 @@ void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, ui
 }
 
 bool Simulation::garrison_in_range(size_t i, const Building &b) const {
-	const float ex = std::max(0.0f, std::fabs(units_.pos_x[i] - b.x) - b.half_size);
-	const float ez = std::max(0.0f, std::fabs(units_.pos_z[i] - b.z) - b.half_size);
+	const nav::Vec2 gap = nav::footprint_gap(b, units_.pos_x[i], units_.pos_z[i]);
+	const float ex = gap.x, ez = gap.y;
 	// LoadingRange counts from where a unit can stand: its radius plus the navcell
 	// clearance extension around the structure (0 A.D. measures from the obstruction).
 	const float reach = GARRISON_LOADING_RANGE + unit_collision_radius(units_.unit_type[i]) +
@@ -4618,8 +4636,8 @@ void Simulation::move_units(float dt, Arena &arena) {
 		}
 		const float dx = dest.x - px[ti];
 		const float dz = dest.z - pz[ti];
-		const float edge_dx = std::max(0.0f, std::fabs(dx) - dest.half_size);
-		const float edge_dz = std::max(0.0f, std::fabs(dz) - dest.half_size);
+		const nav::Vec2 edge = nav::footprint_gap(dest, px[ti], pz[ti]);
+		const float edge_dx = edge.x, edge_dz = edge.y;
 		// A ship stops in the water beside the dock, a little further out.
 		const float reach = ttype == UNIT_MERCHANT_SHIP ? 4.0f : 2.0f;
 		if (dx * dx + dz * dz >= 2.5f * 2.5f && edge_dx * edge_dx + edge_dz * edge_dz >= reach * reach) continue;
@@ -4651,9 +4669,9 @@ void Simulation::move_units(float dt, Arena &arena) {
 	closed_gates_.clear();
 	for (const Building &b : buildings_)
 		if (!b.wrecked && blocks_movement_now(b)) {
-			steer_obstacles_.push_back(SteerObstacle{b.id, b.x, b.z, b.half_size, b.type, false});
+			steer_obstacles_.push_back(SteerObstacle{b.id, b.x, b.z, b.half_size, b.ux, b.uz, b.type, false});
 			if (b.type == BLD_GATE && b.build_progress >= 1.0f)
-				closed_gates_.push_back(SteerObstacle{b.id, b.x, b.z, b.half_size, b.type, false});
+				closed_gates_.push_back(SteerObstacle{b.id, b.x, b.z, b.half_size, b.ux, b.uz, b.type, false});
 		}
 	// Names this tick's obstacles for the short paths units keep (ShortPathMemo): a kept short path
 	// is only reused among the same buildings and water level.
@@ -4704,7 +4722,7 @@ void Simulation::move_units(float dt, Arena &arena) {
 			if (bit != building_id_to_idx_.end()) {
 				const Building &bb = buildings_[bit->second];
 				if (!bb.wrecked && bb.hp > 0.0f) {
-					stand_outside_rect(bb.x, bb.z, bb.half_size, units_.id[i],
+					stand_outside(bb, units_.id[i],
 							px[i], pz[i], &tx[i], &tz[i]);
 					has[i] = 1;
 				}
@@ -4769,8 +4787,8 @@ void Simulation::move_units(float dt, Arena &arena) {
 					if (crowd <= 0.0f || unit_is_ship(units_.unit_type[i])) return false;
 					for (const SteerObstacle &b : steer_obstacles_) {
 						if (b.id == units_.target_building_id[i]) continue;
-						const float ex = std::max(0.0f, std::fabs(wx - b.x) - b.half_size);
-						const float ez = std::max(0.0f, std::fabs(wz - b.z) - b.half_size);
+						const nav::Vec2 gap = nav::footprint_gap(b, wx, wz);
+						const float ex = gap.x, ez = gap.y;
 						if (ex < crowd && ez < crowd && ex * ex + ez * ez < crowd * crowd) return true;
 					}
 					return false;
@@ -4923,10 +4941,8 @@ void Simulation::move_units(float dt, Arena &arena) {
 		if (!closed_gates_.empty()) {
 			const float r = unit_collision_radius(units_.unit_type[i]);
 			auto inside = [&](float x, float z) {
-				for (const auto &g : closed_gates_) {
-					const float h = g.half_size + r;
-					if (std::fabs(x - g.x) < h && std::fabs(z - g.z) < h) return true;
-				}
+				for (const auto &g : closed_gates_)
+					if (nav::footprint_contains(g, x, z, r)) return true;
 				return false;
 			};
 			if (inside(npx[i], npz[i]) && !inside(px[i], pz[i])) {
@@ -5002,7 +5018,7 @@ void Simulation::separation(float dt, Arena &arena) {
 	sep_obstacles_.clear();
 	for (const Building &b : buildings_)
 		if (!b.wrecked && blocks_movement_now(b))
-			sep_obstacles_.push_back(SteerObstacle{b.id, b.x, b.z, b.half_size, b.type, false});
+			sep_obstacles_.push_back(SteerObstacle{b.id, b.x, b.z, b.half_size, b.ux, b.uz, b.type, false});
 	sep_grid_.build(sep_obstacles_, map_half_);
 
 	// The widest unit this tick: no pair is pushed apart beyond ri + r_max + 0.4 on either axis.
@@ -5073,48 +5089,63 @@ void Simulation::separation(float dt, Arena &arena) {
 		// A building more than b_req from the unit on either axis pushes nothing; the 0.5
 		// margin keeps that test clear of float rounding, so skipping it changes no result.
 		const float b_skip = ri + 0.35f + 0.5f;
-		auto push_out = [&](const SteerObstacle &b) {
-			if (std::fabs(pxi - b.x) > b.half_size + b_skip || std::fabs(pzi - b.z) > b.half_size + b_skip) return false;
-			float b_half = b.half_size;
-			float cx = std::clamp(pxi, b.x - b_half, b.x + b_half);
-			float cz = std::clamp(pzi, b.z - b_half, b.z + b_half);
-			float bdx = pxi - cx;
-			float bdz = pzi - cz;
+		// Pushes (qx, qz) out of the square of half size b_half centred on (bx, bz), into (oax, oaz).
+		auto push_square = [&](float qx, float qz, float bx, float bz, float b_half, float &oax, float &oaz) {
+			float cx = std::clamp(qx, bx - b_half, bx + b_half);
+			float cz = std::clamp(qz, bz - b_half, bz + b_half);
+			float bdx = qx - cx;
+			float bdz = qz - cz;
 			float bd2 = bdx * bdx + bdz * bdz;
 			float b_req = ri + 0.35f;
-			bool inside = (pxi > b.x - b_half && pxi < b.x + b_half &&
-					pzi > b.z - b_half && pzi < b.z + b_half);
+			bool inside = (qx > bx - b_half && qx < bx + b_half &&
+					qz > bz - b_half && qz < bz + b_half);
 			if (inside) {
-				float dist_east = (b.x + b_half) - pxi;
-				float dist_west = pxi - (b.x - b_half);
-				float dist_south = (b.z + b_half) - pzi;
-				float dist_north = pzi - (b.z - b_half);
+				float dist_east = (bx + b_half) - qx;
+				float dist_west = qx - (bx - b_half);
+				float dist_south = (bz + b_half) - qz;
+				float dist_north = qz - (bz - b_half);
 				float min_edge = std::min({dist_east, dist_west, dist_south, dist_north});
 				float push = b_req + 0.55f;
-				if (min_edge == dist_east) ax += push;
-				else if (min_edge == dist_west) ax -= push;
-				else if (min_edge == dist_south) az += push;
-				else az -= push;
-				return false;
+				if (min_edge == dist_east) oax += push;
+				else if (min_edge == dist_west) oax -= push;
+				else if (min_edge == dist_south) oaz += push;
+				else oaz -= push;
+				return;
 			}
 			if (bd2 < b_req * b_req) {
 				float bdist = sqrtf(bd2);
 				if (bdist > 0.001f) {
 					float b_overlap = b_req - bdist;
-					ax += (bdx / bdist) * (b_overlap * 2.5f);
-					az += (bdz / bdist) * (b_overlap * 2.5f);
+					oax += (bdx / bdist) * (b_overlap * 2.5f);
+					oaz += (bdz / bdist) * (b_overlap * 2.5f);
 				} else {
-					float dist_east = (b.x + b_half) - pxi;
-					float dist_west = pxi - (b.x - b_half);
-					float dist_south = (b.z + b_half) - pzi;
-					float dist_north = pzi - (b.z - b_half);
+					float dist_east = (bx + b_half) - qx;
+					float dist_west = qx - (bx - b_half);
+					float dist_south = (bz + b_half) - qz;
+					float dist_north = qz - (bz - b_half);
 					float min_edge = std::min({dist_east, dist_west, dist_south, dist_north});
-					if (min_edge == dist_east) ax += b_req * 1.5f;
-					else if (min_edge == dist_west) ax -= b_req * 1.5f;
-					else if (min_edge == dist_south) az += b_req * 1.5f;
-					else az -= b_req * 1.5f;
+					if (min_edge == dist_east) oax += b_req * 1.5f;
+					else if (min_edge == dist_west) oax -= b_req * 1.5f;
+					else if (min_edge == dist_south) oaz += b_req * 1.5f;
+					else oaz -= b_req * 1.5f;
 				}
 			}
+		};
+		// A turned building (nav/footprint.h) pushes in its own frame.
+		auto push_out = [&](const SteerObstacle &b) {
+			if (nav::footprint_aligned(b)) {
+				if (std::fabs(pxi - b.x) > b.half_size + b_skip || std::fabs(pzi - b.z) > b.half_size + b_skip) return false;
+				push_square(pxi, pzi, b.x, b.z, b.half_size, ax, az);
+				return false;
+			}
+			const float e = nav::footprint_extent(b);
+			if (std::fabs(pxi - b.x) > e + b_skip || std::fabs(pzi - b.z) > e + b_skip) return false;
+			const nav::Vec2 l = nav::footprint_local(b, pxi, pzi);
+			float lax = 0.0f, laz = 0.0f;
+			push_square(l.x, l.y, 0.0f, 0.0f, b.half_size, lax, laz);
+			const nav::Vec2 d = nav::footprint_dir(b, lax, laz);
+			ax += d.x;
+			az += d.y;
 			return false;
 		};
 		// sep_grid_ hands over the buildings near enough to pass push_out()'s first test, in list
@@ -5262,7 +5293,8 @@ void Simulation::tick_gather(float dt) {
 					units_.carry[i] >= carry_cap(i, units_.res_type_carried[i])) ||
 				units_.action_state[i] == ACTION_RETURN_DROPSITE) {
 			float best_d2 = 1e9f;
-			float drop_x = 0, drop_z = 0, drop_half = 0;
+			float drop_x = 0, drop_z = 0;
+			const Building *drop = nullptr;
 			bool found_dropsite = false;
 
 			for (const auto &b : buildings_) {
@@ -5280,7 +5312,7 @@ void Simulation::tick_gather(float dt) {
 					float d2 = dx * dx + dz * dz;
 					if (d2 < best_d2) {
 						best_d2 = d2;
-						drop_x = b.x; drop_z = b.z; drop_half = b.half_size;
+						drop_x = b.x; drop_z = b.z; drop = &b;
 						found_dropsite = true;
 					}
 				}
@@ -5291,8 +5323,8 @@ void Simulation::tick_gather(float dt) {
 				float dz = units_.pos_z[i] - drop_z;
 				// Drop off at the centre or anywhere along the footprint: units
 				// queued around a large dropsite never get within 2.5 m of its centre.
-				float edge_dx = std::max(0.0f, std::fabs(dx) - drop_half);
-				float edge_dz = std::max(0.0f, std::fabs(dz) - drop_half);
+				const nav::Vec2 edge = nav::footprint_gap(*drop, units_.pos_x[i], units_.pos_z[i]);
+				float edge_dx = edge.x, edge_dz = edge.y;
 				// A boat unloads from the water beside the dock, a little further out.
 				const float drop_reach = units_.unit_type[i] == UNIT_FISHING_BOAT ? 4.0f : 1.5f;
 				if (dx * dx + dz * dz < 2.5f * 2.5f || edge_dx * edge_dx + edge_dz * edge_dz < drop_reach * drop_reach) {
@@ -5568,7 +5600,7 @@ void Simulation::tick_construction(float dt) {
 			auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
 			if (bit == building_id_to_idx_.end()) continue;
 			const Building &b = buildings_[bit->second];
-			if (b.build_progress < 1.0f && outside_and_in_build_range(b.x, b.z, b.half_size, units_.pos_x[i], units_.pos_z[i]))
+			if (b.build_progress < 1.0f && outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i]))
 				builders_per_bld[b.id]++;
 		}
 	}
@@ -5597,7 +5629,7 @@ void Simulation::tick_construction(float dt) {
 			continue;
 		}
 
-		if (outside_and_in_build_range(b.x, b.z, b.half_size, units_.pos_x[i], units_.pos_z[i])) {
+		if (outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i])) {
 			// 0 A.D. Foundation.Commit: first builder on site → scaffold + construction preview.
 			b.committed = true;
 			// Foundation.js Build: each builder adds work x MaxHitpoints / BuildTime x
@@ -5643,7 +5675,7 @@ void Simulation::tick_repair(float dt) {
 			if (bit != building_id_to_idx_.end()) {
 				const Building &b = buildings_[bit->second];
 				if (b.build_progress >= 1.0f && b.hp > 0.0f && b.hp < b.max_hp &&
-						outside_and_in_build_range(b.x, b.z, b.half_size, units_.pos_x[i], units_.pos_z[i])) {
+						outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i])) {
 					repairers_per_bld[b.id]++;
 				}
 			}
@@ -5657,7 +5689,7 @@ void Simulation::tick_repair(float dt) {
 		Building &b = buildings_[bit->second];
 		if (b.build_progress < 1.0f || b.hp <= 0.0f || b.hp >= b.max_hp) continue;
 
-		if (outside_and_in_build_range(b.x, b.z, b.half_size, units_.pos_x[i], units_.pos_z[i])) {
+		if (outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i])) {
 			// Repairable.js Repair: work x buildMultiplier (n^0.7 / n) x GetRepairRate,
 			// GetRepairRate = MaxHitpoints / (RepairTimeRatio 2.0 x BuildTime).
 			const float repair_rate = b.max_hp / (REPAIR_TIME_RATIO * structure_build_time(b, units_.team[i]));
@@ -5941,9 +5973,8 @@ void Simulation::tick_combat(float dt) {
 					if (b.wrecked || b.hp <= 0.0f || b.team >= MAX_PLAYERS) continue;
 					if (!can_attack(my_team, b.team) && !(capture && can_capture_building(my_team, b))) continue;
 					if (!capture && !unit_can_target_building(i, b.type)) continue;
-					const float ex = std::max(0.0f, std::fabs(b.x - pxi) - b.half_size);
-					const float ez = std::max(0.0f, std::fabs(b.z - pzi) - b.half_size);
-					const float d2 = ex * ex + ez * ez;
+					const nav::Vec2 gap = nav::footprint_gap(b, pxi, pzi);
+					const float d2 = gap.x * gap.x + gap.y * gap.y;
 					if (d2 < best_d2) { best_d2 = d2; found_bld = (int32_t)bi; }
 				}
 			}
@@ -6253,7 +6284,7 @@ void Simulation::tick_combat(float dt) {
 				: in_parabolic_range(eff_d * eff_d, att_y, bld_y, units_.attack_range[i]);
 		if (!in_range) {
 			// Move toward building if out of range
-			stand_outside_rect(b.x, b.z, b.half_size, units_.id[i],
+			stand_outside(b, units_.id[i],
 					units_.pos_x[i], units_.pos_z[i],
 					&units_.target_x[i], &units_.target_z[i]);
 			units_.has_order[i] = 1;
@@ -7501,7 +7532,8 @@ void Simulation::tick_gates(float dt) {
 		const float reach = b.half_size + PASS_RANGE;
 		for (size_t i = 0; i < units_.count; ++i) {
 			if (!units_.alive[i]) continue;
-			const float dx = std::fabs(units_.pos_x[i] - b.x), dz = std::fabs(units_.pos_z[i] - b.z);
+			const nav::Vec2 l = nav::footprint_local(b, units_.pos_x[i], units_.pos_z[i]);
+			const float dx = std::fabs(l.x), dz = std::fabs(l.y);
 			if (dx > reach || dz > reach) continue;
 			const float inside = b.half_size + unit_collision_radius(units_.unit_type[i]);
 			if (dx < inside && dz < inside) unit_inside = true;
@@ -8004,8 +8036,8 @@ void Simulation::tick_unit_ai(float dt) {
 			auto bit = building_id_to_idx_.find(units_.order_target[i]);
 			if (bit == building_id_to_idx_.end() || !order_still_valid(i, current_order(i))) { finish_order(i); continue; }
 			const Building &b = buildings_[bit->second];
-			const float ex = std::max(0.0f, std::fabs(units_.pos_x[i] - b.x) - b.half_size);
-			const float ez = std::max(0.0f, std::fabs(units_.pos_z[i] - b.z) - b.half_size);
+			const nav::Vec2 gap = nav::footprint_gap(b, units_.pos_x[i], units_.pos_z[i]);
+			const float ex = gap.x, ez = gap.y;
 			const float reach = units_.unit_type[i] == UNIT_FISHING_BOAT ? 4.0f : 1.5f;
 			if (now == ACTION_IDLE || ex * ex + ez * ez < reach * reach) {
 				units_.action_state[i] = ACTION_RETURN_DROPSITE;
@@ -13833,6 +13865,7 @@ bool Simulation::load_state(const char *filepath) {
 			in.read((char *)&bld.gate_locked, sizeof(bld.gate_locked));
 		}
 		if (version >= 31) in.read((char *)&bld.rot, sizeof(bld.rot));
+		bld.set_rot(bld.rot);
 		const auto &bi = building_type_info(bld.type);
 		bld.capture_regen_rate = bi.capture_regen_rate;
 		bld.capture_garrison_regen_rate = bi.capture_garrison_regen_rate;
