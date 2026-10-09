@@ -131,7 +131,13 @@ enum MapType : uint8_t {
 	// 0 A.D. trigger maps (maps/random/*_triggers.js run as map triggers, triggers.h)
 	MAP_FLOOD = 57,
 	MAP_EXTINCT_VOLCANO = 58,
-	MAP_TYPE_COUNT = 59
+	MAP_AEGEAN_SEA = 59,
+	MAP_ARCHIPELAGO_0AD = 60,
+	MAP_ISLANDS = 61,
+	MAP_CYCLADIC_ARCHIPELAGO = 62,
+	MAP_SNOWFLAKE_SEAROCKS = 63,
+	MAP_HARBOR = 64,
+	MAP_TYPE_COUNT = 65
 };
 
 struct MapTypeInfo {
@@ -203,7 +209,13 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_DODECANESE, "dodecanese", "Dodecanese (RMS)", "mediterranean", true, "A group of islands in the Aegean, a few joined by bridges; the rest need ships."},
 		{MAP_FORTRESS, "fortress", "Fortress (RMS)", "temperate", true, "Players start inside walled fortresses with a market, barracks, stable and temple."},
 		{MAP_FLOOD, "flood", "Flood (RMS)", "temperate", true, "A great flood moves across the valley. The home islands go under, so evacuate your units by ship to the mainland."},
-		{MAP_EXTINCT_VOLCANO, "extinct_volcano", "Extinct Volcano (RMS)", "volcanic", true, "Rains raise the water from the 25th minute until only the hills and the great cone stay dry. Gaia towers guard the lowlands."}
+		{MAP_EXTINCT_VOLCANO, "extinct_volcano", "Extinct Volcano (RMS)", "volcanic", true, "Rains raise the water from the 25th minute until only the hills and the great cone stay dry. Gaia towers guard the lowlands."},
+		{MAP_AEGEAN_SEA, "aegean_sea", "Aegean Sea (RMS)", "aegean", true, "Players start on two sides of a sea with scattered islands."},
+		{MAP_ARCHIPELAGO_0AD, "archipelago_0ad", "Archipelago, 0 A.D. (RMS)", "temperate", true, "A maze of islands of different sizes and shapes."},
+		{MAP_ISLANDS, "islands", "Islands (RMS)", "temperate", true, "Players start in small islands while there are many others around."},
+		{MAP_CYCLADIC_ARCHIPELAGO, "cycladic_archipelago", "Cycladic Archipelago (RMS)", "aegean", true, "Each player starts on an island surrounded by water."},
+		{MAP_SNOWFLAKE_SEAROCKS, "snowflake_searocks", "Snowflake Searocks (RMS)", "temperate", true, "Many small islands connected to each other by narrow passages."},
+		{MAP_HARBOR, "harbor", "Harbor (RMS)", "temperate", true, "A sheltered harbor for each player, a deep sea beyond, and narrow passages round the cliffs."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
@@ -216,8 +228,14 @@ inline bool is_procedural_map(uint8_t type) {
 // Naval maps: bases may sit on separate land, so armies need ships to meet.
 inline bool map_is_naval(int type) {
 	// Flood (flood.js): each player starts on a home island in a sea.
-	return type == MAP_ENGLISH_CHANNEL || type == MAP_DODECANESE || type == MAP_FLOOD ||
-	       type == MAP_RANDOM_ARCHIPELAGO; // RTS0's own island map: a home island each
+	// MAP_RANDOM_ARCHIPELAGO is RTS0's own island map: a home island each.
+	switch (type) {
+		case MAP_ENGLISH_CHANNEL: case MAP_DODECANESE: case MAP_FLOOD: case MAP_RANDOM_ARCHIPELAGO:
+		case MAP_AEGEAN_SEA: case MAP_ARCHIPELAGO_0AD: case MAP_ISLANDS: case MAP_CYCLADIC_ARCHIPELAGO:
+			return true;
+		default:
+			return false;
+	}
 }
 
 enum UnitType : uint8_t {

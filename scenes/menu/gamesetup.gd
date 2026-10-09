@@ -90,6 +90,12 @@ const RMS_MAPS := [
 	["random_english_channel", "English Channel (RMS)", "Random", 8, 128, "temperate", "Two coasts split by the Channel; ships needed to cross. Supports 2-8 players."],
 	["random_dodecanese", "Dodecanese (RMS)", "Random", 8, 128, "mediterranean", "Aegean islands, a few joined by bridges. Supports 2-8 players."],
 	["random_fortress", "Fortress (RMS)", "Random", 8, 128, "temperate", "Every player starts inside a walled fortress. Supports 2-8 players."],
+	["random_aegean_sea", "Aegean Sea (RMS)", "Random", 8, 128, "aegean", "Two coasts across a sea with scattered islands; ships needed to cross. Supports 2-8 players."],
+	["random_archipelago_0ad", "Archipelago, 0 A.D. (RMS)", "Random", 8, 128, "temperate", "A maze of islands of different sizes and shapes. Supports 2-8 players."],
+	["random_islands", "Islands (RMS)", "Random", 8, 128, "temperate", "Each player starts on a small island with a dock, among many others. Supports 2-8 players."],
+	["random_cycladic_archipelago", "Cycladic Archipelago (RMS)", "Random", 8, 128, "aegean", "Each player starts on an island of the Cyclades. Supports 2-8 players."],
+	["random_snowflake_searocks", "Snowflake Searocks (RMS)", "Random", 8, 128, "temperate", "Small rocky islands joined by narrow causeways. Supports 2-8 players."],
+	["random_harbor", "Harbor (RMS)", "Random", 8, 128, "temperate", "A sheltered harbor for each player, cliffs and a deep central sea. Supports 2-8 players."],
 ]
 
 # 0 A.D. population limits per player (0 = unlimited) and ceasefire lengths in minutes.
