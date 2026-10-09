@@ -838,7 +838,7 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	b.cell_x = cell_x;
 	b.cell_y = cell_y;
 	b.footprint = footprint;
-	if (type == BLD_DOCK) { // GuiInterface GetFoundationSnapData: a dock faces the open water
+	if (type == BLD_DOCK || type == BLD_SUPER_DOCK) { // GuiInterface GetFoundationSnapData: a dock faces the open water
 		const float a = dock_angle(wx, wz, half);
 		if (!std::isnan(a)) b.rot = a;
 	}
@@ -989,7 +989,7 @@ uint32_t Simulation::player_color(uint8_t pid) const {
 }
 
 bool Simulation::unit_garrisonable(size_t unit_idx) const {
-	if (regicide_garrison_ || victory_condition_ != VICTORY_REGICIDE) return true;
+	if (regicide_garrison() || victory_condition_ != VICTORY_REGICIDE) return true;
 	const uint8_t t = units_.team[unit_idx];
 	return t >= MAX_PLAYERS || regicide_hero_[t] == 0 || units_.id[unit_idx] != regicide_hero_[t];
 }
@@ -1342,8 +1342,9 @@ BuildRestriction build_restriction(uint8_t type) {
 	case BLD_TOWER: case BLD_SENTRY_TOWER: return {PLACE_LAND, TERR_OWN, DIST_TOWER, 60.0f / 4.0f};
 	case BLD_FORTRESS: return {PLACE_LAND, TERR_OWN, DIST_FORTRESS, 80.0f / 4.0f};
 	// Civ-specific: civil_centre_military_colony (own neutral, 120 m from a
-	// CivilCentre) and ptol/lighthouse (shore, own ally neutral).
+	// CivilCentre), ptol/lighthouse and cart/super_dock (shore, own ally neutral).
 	case BLD_MILITARY_COLONY: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_CIVIL_CENTRE, 120.0f / 4.0f};
+	case BLD_SUPER_DOCK:
 	case BLD_LIGHTHOUSE: return {PLACE_SHORE_TYPE, TERR_OWN | TERR_ALLY | TERR_NEUTRAL, DIST_NONE, 0.0f};
 	default: return {PLACE_LAND, TERR_OWN, DIST_NONE, 0.0f};
 	}
@@ -1602,7 +1603,7 @@ uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b
 		return 0;
 
 	uint32_t bid = spawn_building(cell_x, cell_y, b_type, player, 0.0f);
-	if (b_type != BLD_DOCK) buildings_[building_id_to_idx_[bid]].rot = unpack_angle(pack_angle(angle));
+	if (b_type != BLD_DOCK && b_type != BLD_SUPER_DOCK) buildings_[building_id_to_idx_[bid]].rot = unpack_angle(pack_angle(angle));
 	if (player == 0) record_.buildings_constructed++;
 	return bid;
 }
@@ -2410,6 +2411,8 @@ bool Simulation::cmd_set_diplomacy(uint8_t player_id, uint8_t target, uint8_t st
 	// A player only ever writes its own row, so no player can set another's stance.
 	if (player_id >= MAX_PLAYERS || target >= MAX_PLAYERS || player_id == target || stance > DIPLO_ENEMY)
 		return false;
+	// Commands.js "diplomacy": refused during a ceasefire and when teams are locked.
+	if (ceasefire_active() || teams_locked()) return false;
 	set_diplomacy(player_id, target, stance);
 	return true;
 }
@@ -14916,8 +14919,8 @@ void Simulation::petra_manage_diplomacy(float dt) {
 	petra_last_man_standing_check();
 
 	// update(): now and then ask a player for an alliance or a neutrality pact
-	// (never during a ceasefire), and let an unanswered request lapse.
-	if (!ceasefire_active()) {
+	// (never during a ceasefire or with teams locked), and let an unanswered request lapse.
+	if (!ceasefire_active() && !teams_locked()) {
 		PetraSentDiplomacy &sd = petra_sent_diplo_;
 		int enemies = 0, mutual_allies = 0;
 		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
@@ -15043,6 +15046,7 @@ void Simulation::petra_send_diplomacy_request() {
 
 void Simulation::petra_handle_diplomacy_request(uint8_t player, uint8_t type) {
 	// diplomacyManager.js handleDiplomacyRequest. type 0 = ally, 1 = neutral.
+	if (teams_locked()) return; // no answer: diplomacy can't change
 	const uint8_t me = petra_pid_;
 	PetraReceivedRequest &req = petra_diplo_.received[player];
 	int enemies = 1, allies = 0; // 0 A.D. counts Gaia as an enemy and us as an ally
@@ -15107,7 +15111,7 @@ void Simulation::petra_last_man_standing_check() {
 	// locked (RTS0 teams always are), and nothing happens during a ceasefire.
 	PetraDiplomacy &dip = petra_diplo_;
 	const uint8_t me = petra_pid_;
-	if (ceasefire_active()) return;
+	if (ceasefire_active() || teams_locked()) return;
 	bool has_enemies = false, has_others = false;
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
 		if (p == me || !((participant_mask_ >> p) & 1) || is_defeated(p)) continue;
@@ -16180,7 +16184,9 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	ar.pod(s.wonder_duration_); ar.pod(s.relic_duration_); ar.pod(s.relic_count_);
 	// v32: Nomad, RegicideGarrison and the Regicide heroes, player colours, Disable Treasures.
 	if (ar.version >= 32) {
-		ar.pod(s.nomad_); ar.pod(s.regicide_garrison_); ar.pod(s.disable_treasures_);
+		ar.pod(s.nomad_); ar.pod(s.setup_flags_); ar.pod(s.disable_treasures_);
+		if constexpr (Ar::loading)
+			if (s.setup_flags_ & ~Simulation::SETUP_FLAGS_ALL) ar.ok = false;
 		for (uint32_t &h : s.regicide_hero_) ar.pod(h);
 		for (uint8_t &c : s.player_color_) {
 			ar.pod(c);
@@ -16188,7 +16194,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				if (c >= PLAYER_COLOR_COUNT) ar.ok = false;
 		}
 	} else if constexpr (Ar::loading) {
-		s.nomad_ = false; s.regicide_garrison_ = false; s.disable_treasures_ = false;
+		s.nomad_ = false; s.setup_flags_ = 0; s.disable_treasures_ = false;
 		std::fill(std::begin(s.regicide_hero_), std::end(s.regicide_hero_), 0u);
 		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) s.player_color_[p] = p;
 	}
@@ -18027,7 +18033,7 @@ void Simulation::set_water_level(float h, float drown_depth) {
 	// here they are gone. Docks float with the water.
 	bool lost_building = false, lost_root = false;
 	for (Building &b : buildings_) {
-		if (b.wrecked || b.hp <= 0.0f || b.type == BLD_DOCK || !submerged(b.x, b.z)) continue;
+		if (b.wrecked || b.hp <= 0.0f || b.type == BLD_DOCK || b.type == BLD_SUPER_DOCK || !submerged(b.x, b.z)) continue;
 		for (uint32_t uid : b.garrisoned_units) {
 			const int32_t u = lookup_unit(uid);
 			if (u < 0) continue;

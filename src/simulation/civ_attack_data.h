@@ -476,7 +476,7 @@ inline const CombatProfile *combat_class_table() {
 inline constexpr uint8_t COMBAT_CLASS_ROWS = 25; // = UNIT_TYPE_COUNT
 
 // Structures by BuildingType; types past the table use the generic structure row.
-inline constexpr uint8_t COMBAT_BUILDING_ROWS = 52;
+inline constexpr uint8_t COMBAT_BUILDING_ROWS = 53;
 inline const CombatProfile *combat_building_table() {
 	static const CombatProfile kTable[COMBAT_BUILDING_ROWS + 1] = {
 		{{0x0000000000000100ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 1.5f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 25.0f, 35.0f, 3.0f, 18.054f, 0, 0.0f, 0.0f, 1}, // BLD_TOWN_CENTER: template_structure_civic_civil_centre
@@ -531,6 +531,7 @@ inline const CombatProfile *combat_building_table() {
 		{{0x0000000000000100ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 20.0f, 30.0f, 3.0f, 11.0f, 0, 0.0f, 0.0f, 1}, // BLD_TEMPLE_VESTA: structures/rome/temple_vesta
 		{{0x0000000000000100ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 20.0f, 30.0f, 3.0f, 18.334f, 0, 0.0f, 0.0f, 1}, // BLD_TEMPLE_MARS: structures/rome/temple_mars
 		{{0x0000000000000100ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 20.0f, 30.0f, 3.0f, 10.0f, 0, 0.0f, 0.0f, 1}, // BLD_ICE_HOUSE: structures/pers/ice_house
+		{{0x0000000000000100ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 20.0f, 35.0f, 3.0f, 27.846f, 0, 0.0f, 0.0f, 1}, // BLD_SUPER_DOCK: structures/cart/super_dock
 		{{0x0000000000000100ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 1.0f, 10.0f, 1.0f, 0.0f, 0, 0.0f, 0.0f, 1}, // default: template_structure
 	};
 	return kTable;
