@@ -73,6 +73,12 @@ custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 text = "Load Game"
 
+[node name="BtnSummary" type="Button" parent="CenterContainer/Panel/VBox"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+tooltip_text = "Press Ctrl+Tab to open the summary screen."
+text = "Summary"
+
 [node name="BtnOptions" type="Button" parent="CenterContainer/Panel/VBox"]
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
@@ -91,6 +97,7 @@ text = "Exit to Main Menu"
 [connection signal="pressed" from="CenterContainer/Panel/VBox/BtnResume" to="." method="_on_resume_pressed"]
 [connection signal="pressed" from="CenterContainer/Panel/VBox/BtnSave" to="." method="_on_save_pressed"]
 [connection signal="pressed" from="CenterContainer/Panel/VBox/BtnLoad" to="." method="_on_load_pressed"]
+[connection signal="pressed" from="CenterContainer/Panel/VBox/BtnSummary" to="." method="_on_summary_pressed"]
 [connection signal="pressed" from="CenterContainer/Panel/VBox/BtnOptions" to="." method="_on_options_pressed"]
 [connection signal="pressed" from="CenterContainer/Panel/VBox/BtnLobby" to="." method="_on_lobby_pressed"]
 [connection signal="pressed" from="CenterContainer/Panel/VBox/BtnExit" to="." method="_on_exit_pressed"]
