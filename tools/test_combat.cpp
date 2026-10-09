@@ -22,6 +22,11 @@
 //     over 9 s; rams are immune to poison; spearmen no longer snare.
 // 11. ObstructionManager IsInTargetRange: a swordsman just off a fortress's corner is in
 //     reach (edge to edge) and hits it where it stands instead of walking to a side.
+// 12. Civ structure auras (0 A.D. data/auras/structures): the Kushite pyramids and
+//     Iberian monument buff their owner's soldiers and workers nearby, the Mauryan pillar
+//     speeds traders, the Temple of Amun costs heroes 5% health, the prytaneion heals
+//     garrisoned heroes, soldiers on walls get +3 armour and +20 m vision, a library
+//     makes technologies 15% cheaper and a theater widens territory by 20%.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_combat.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -420,6 +425,121 @@ static void test_status() {
 	check(!snared, "spearmen hitting cavalry apply no invented snare");
 }
 
+static void test_structure_auras() {
+	std::printf("12. civ structure auras\n");
+	Simulation s;
+	setup(s);
+	s.set_team_civ(0, CIV_KUSHITES);
+	s.set_team_civ(1, CIV_KUSHITES);
+	const uint16_t spear = template_named("kush/infantry_spearman_b");
+	const uint16_t woman = template_named("kush/support_female_citizen");
+	check(spear != CIV_UNIT_TEMPLATE_NONE && woman != CIV_UNIT_TEMPLATE_NONE, "roster has a Kushite spearman and woman");
+	s.spawn_building_world(-20.0f, 20.0f, BLD_PYRAMID_LARGE, 0, 1.0f);
+	s.spawn_building_world(20.0f, -20.0f, BLD_PYRAMID_SMALL, 0, 1.0f);
+	const uint32_t own = s.spawn_unit(-14.0f, 20.0f, 0, UNIT_SPEARMAN, 0.0f, spear);
+	const uint32_t far = s.spawn_unit(-20.0f, -10.0f, 0, UNIT_SPEARMAN, 0.0f, spear);
+	const uint32_t foe = s.spawn_unit(-20.0f, 26.0f, 1, UNIT_SPEARMAN, 0.0f, spear);
+	const uint32_t worker = s.spawn_unit(20.0f, -14.0f, 0, UNIT_FEMALE_CITIZEN, 0.0f, woman);
+	s.rebuild_auras();
+	auto mod = [&](uint32_t id, AuraType t) {
+		int i = idx(s, id);
+		return s.aura_mgr_.query_modifier(s.units_.pos_x[i], s.units_.pos_z[i], s.units_.team[i], t,
+			s.units_.tmpl[i], &s.unit_combat_at(i).classes);
+	};
+	check(std::fabs(mod(own, AURA_ATTACK) - 1.1f) < 1e-4f, "large pyramid: own soldier within 70 m +10% attack");
+	check(std::fabs(mod(own, AURA_ARMOR) - 1.0f) < 1e-4f, "large pyramid: own soldier +1 resistance");
+	float res_in[3] = {}, res_far[3] = {};
+	s.unit_resistance((size_t)idx(s, own), res_in);
+	s.unit_resistance((size_t)idx(s, far), res_far);
+	check(std::fabs(res_in[2] - res_far[2] - 1.0f) < 1e-4f, "armour auras reach crush too");
+	check(mod(far, AURA_ATTACK) == 0.0f, "large pyramid: soldier beyond 70 m unaffected");
+	check(mod(foe, AURA_ATTACK) == 0.0f, "large pyramid: enemy soldier unaffected");
+	check(std::fabs(mod(worker, AURA_GATHER) - (1.0f - 1.0f / 1.15f)) < 1e-3f, "small pyramid: own worker gathers 15% faster");
+
+	// Temple of Amun: own heroes -5% health everywhere.
+	const uint16_t amanirenas = template_named("kush/hero_amanirenas");
+	const uint32_t hero = s.spawn_unit(40.0f, 40.0f, 0, UNIT_HERO, 0.0f, amanirenas);
+	s.order_set_stance(&hero, 1, STANCE_STAND_GROUND);
+	const float hero_max = s.units_.max_hp[idx(s, hero)];
+	s.spawn_building_world(-40.0f, -40.0f, BLD_TEMPLE_AMUN, 0, 1.0f);
+	for (int k = 0; k < 40; ++k) s.tick(DT);
+	check(std::fabs(s.units_.max_hp[idx(s, hero)] - hero_max * 0.95f) < 0.01f, "Temple of Amun: hero max health x0.95");
+
+	// Iberian monument (+20% attack) and Mauryan pillar (traders +20% speed).
+	Simulation m;
+	setup(m);
+	m.set_team_civ(0, CIV_IBERIANS);
+	m.set_team_civ(1, CIV_MAURYANS);
+	const uint16_t iber = template_named("iber/infantry_spearman_b");
+	const uint16_t trader = template_named("maur/support_trader");
+	m.spawn_building_world(-20.0f, 20.0f, BLD_MONUMENT, 0, 1.0f);
+	m.spawn_building_world(20.0f, -20.0f, BLD_PILLAR, 1, 1.0f);
+	const uint32_t is = m.spawn_unit(-14.0f, 20.0f, 0, UNIT_SPEARMAN, 0.0f, iber);
+	const uint32_t tr = m.spawn_unit(20.0f, -14.0f, 1, UNIT_TRADER, 0.0f, trader);
+	m.rebuild_auras();
+	auto mm = [&](uint32_t id, AuraType t) {
+		int i = idx(m, id);
+		return m.aura_mgr_.query_modifier(m.units_.pos_x[i], m.units_.pos_z[i], m.units_.team[i], t,
+			m.units_.tmpl[i], &m.unit_combat_at(i).classes);
+	};
+	check(std::fabs(mm(is, AURA_ATTACK) - 1.2f) < 1e-4f, "monument: own soldier +20% attack");
+	check(std::fabs(mm(tr, AURA_SPEED) - 1.2f) < 1e-4f, "pillar: own trader +20% speed");
+	const float base_speed = m.units_.speed[idx(m, tr)];
+	for (int k = 0; k < 20; ++k) m.tick(DT);
+	check(m.units_.speed[idx(m, tr)] == base_speed, "speed auras apply while moving, not to the stored speed");
+
+	// Prytaneion: garrisoned heroes regain 6 hp/s.
+	Simulation g;
+	setup(g);
+	g.set_team_civ(0, CIV_ATHENIANS);
+	const uint32_t pryt = g.spawn_building_world(-20.0f, 20.0f, BLD_PRYTANEION, 0, 1.0f);
+	const uint32_t pericles = g.spawn_unit(-14.0f, 20.0f, 0, UNIT_HERO, 0.0f, template_named("athen/hero_pericles"));
+	g.units_.hp[idx(g, pericles)] = 100.0f;
+	check(g.garrison_unit_now(pericles, pryt), "Pericles garrisons in the prytaneion");
+	for (int k = 0; k < 40; ++k) g.tick(DT);
+	check(std::fabs(g.units_.hp[idx(g, pericles)] - 112.0f) < 0.5f, "prytaneion: garrisoned hero +6 hp/s");
+
+	// Soldiers on a wall: +3 resistance, +20 m (x0.28) vision.
+	const uint32_t guard = g.spawn_unit(20.0f, 20.0f, 0, UNIT_SWORDSMAN);
+	float before[3] = {}, after[3] = {};
+	g.unit_resistance((size_t)idx(g, guard), before);
+	const float vis = g.unit_vision_at((size_t)idx(g, guard));
+	g.turret_height_[guard] = 2.0f;
+	g.unit_resistance((size_t)idx(g, guard), after);
+	check(std::fabs(after[0] - before[0] - 3.0f) < 1e-4f && std::fabs(after[2] - before[2] - 3.0f) < 1e-4f,
+		"turreted soldier: +3 hack and crush resistance");
+	check(std::fabs(g.unit_vision_at((size_t)idx(g, guard)) - vis - 5.6f) < 1e-3f, "turreted soldier: +20 m vision");
+	g.turret_height_.erase(guard);
+
+	// Library: technologies 15% cheaper (cost and time). Theater: territory +20%.
+	Simulation l;
+	setup(l);
+	l.set_team_civ(0, CIV_PTOLEMIES);
+	const uint32_t store = l.spawn_building_world(-30.0f, -40.0f, BLD_STOREHOUSE, 0, 1.0f);
+	for (float &r : l.players_[0].res) r = 5000.0f;
+	check(l.cmd_research(0, store, TECH_WOODCUTTING_1), "research Iron Axe Heads");
+	const float wood_plain = 5000.0f - l.players_[0].res[RES_WOOD];
+	const float time_plain = l.buildings_[l.building_id_to_idx_[store]].research_duration;
+	Simulation l2;
+	setup(l2);
+	l2.set_team_civ(0, CIV_PTOLEMIES);
+	const uint32_t store2 = l2.spawn_building_world(-30.0f, -40.0f, BLD_STOREHOUSE, 0, 1.0f);
+	l2.spawn_building_world(-30.0f, -20.0f, BLD_LIBRARY, 0, 1.0f);
+	for (float &r : l2.players_[0].res) r = 5000.0f;
+	check(l2.cmd_research(0, store2, TECH_WOODCUTTING_1), "research Iron Axe Heads with a library");
+	check(std::fabs(5000.0f - l2.players_[0].res[RES_WOOD] - std::round(wood_plain * 0.85f)) < 1.0f, "library: tech cost x0.85");
+	check(std::fabs(l2.buildings_[l2.building_id_to_idx_[store2]].research_duration - time_plain * 0.85f) < 1e-3f,
+		"library: tech time x0.85");
+	l2.rebuild_territory();
+	float cc_plain = 0.0f;
+	for (const auto &r : l2.territory_roots_) if (r.team == 0 && r.radius >= 32.0f) cc_plain = r.radius;
+	l2.spawn_building_world(-10.0f, -40.0f, BLD_THEATER, 0, 1.0f);
+	l2.rebuild_territory();
+	float cc_theater = 0.0f;
+	for (const auto &r : l2.territory_roots_) if (r.team == 0 && r.radius >= 32.0f) cc_theater = r.radius;
+	check(cc_plain == 32.0f && std::fabs(cc_theater - 32.0f * 1.2f) < 1e-3f, "theater: civic centre territory x1.2");
+}
+
 int main() {
 	test_data();
 	test_bonus();
@@ -432,6 +552,7 @@ int main() {
 	test_health_vision_auras();
 	test_status();
 	test_corner_reach();
+	test_structure_auras();
 	if (g_failures) {
 		std::printf("test_combat: FAIL (%d)\n", g_failures);
 		return 1;
