@@ -1153,17 +1153,17 @@ inline const CivUnitTemplate &civ_unit_template(uint16_t id) {
 	return t[id < CIV_UNIT_TEMPLATE_COUNT ? id : 0];
 }
 
-// 0 A.D. ResourceGatherer by template: citizen infantry (template_unit_infantry), female
-// citizens (template_unit_support_female_citizen), citizen cavalry (template_unit_cavalry)
-// and fishing ships (template_unit_ship_fishing). Champions, heroes, siege and the
-// Mauryan worker elephant (a mobile dropsite) gather nothing.
-enum GatherClass : uint8_t { GATHER_NONE, GATHER_INFANTRY, GATHER_FEMALE, GATHER_CAVALRY, GATHER_FISHING };
+// 0 A.D. ResourceGatherer by template: citizen infantry (template_unit_infantry), support
+// workers (template_unit_support_female_citizen, and template_unit_support_civilian for RTS0's
+// villager, 0 A.D.'s male Civilian), citizen cavalry (template_unit_cavalry) and fishing ships
+// (template_unit_ship_fishing). Champions, heroes, siege and the Mauryan worker elephant
+// (a mobile dropsite) gather nothing.
+enum GatherClass : uint8_t { GATHER_NONE, GATHER_INFANTRY, GATHER_SUPPORT, GATHER_CAVALRY, GATHER_FISHING };
 
 inline uint8_t unit_gather_class(uint8_t unit_type, uint16_t tmpl) {
-	if (unit_type == UNIT_FEMALE_CITIZEN) return GATHER_FEMALE;
+	if (unit_type == UNIT_FEMALE_CITIZEN || unit_type == UNIT_VILLAGER) return GATHER_SUPPORT;
 	if (unit_type == UNIT_FISHING_BOAT) return GATHER_FISHING;
-	const bool infantry = unit_type == UNIT_VILLAGER || unit_type == UNIT_SWORDSMAN ||
-			unit_type == UNIT_SPEARMAN || unit_type == UNIT_ARCHER;
+	const bool infantry = unit_type == UNIT_SWORDSMAN || unit_type == UNIT_SPEARMAN || unit_type == UNIT_ARCHER;
 	const bool cavalry = unit_type == UNIT_CAVALRY || unit_type == UNIT_CAMEL;
 	if (tmpl != CIV_UNIT_TEMPLATE_NONE) {
 		// Roster rows: only citizen soldiers (ROSTER_CITIZEN; three citizen champions inherit
@@ -1180,7 +1180,7 @@ inline float gather_class_rate(uint8_t cls, uint8_t kind) {
 	static const float kRates[5][7] = {
 		{0, 0, 0, 0, 0, 0, 0},
 		{0.25f, 0.5f, 1.0f, 0, 0.75f, 0.5f, 0.5f}, // infantry
-		{0.5f, 1.0f, 1.0f, 0, 0.7f, 0.35f, 0.35f},  // female citizen
+		{0.5f, 1.0f, 1.0f, 0, 0.7f, 0.35f, 0.35f},  // support: female citizen, civilian
 		{0, 0, 5.0f, 0, 0, 0, 0},                   // cavalry: food.meat only
 		{0, 0, 0, 1.8f, 0, 0, 0},                   // fishing ship: food.fish only
 	};
@@ -1190,14 +1190,14 @@ inline float gather_class_rate(uint8_t cls, uint8_t kind) {
 // Rates for template_gaia_ruins supplies: wood.ruins 5, stone.ruins and metal.ruins 2, the
 // same for citizen infantry and women; cavalry and ships have none.
 inline float gather_class_ruins_rate(uint8_t cls, uint8_t res_type) {
-	if (cls != GATHER_INFANTRY && cls != GATHER_FEMALE) return 0.0f;
+	if (cls != GATHER_INFANTRY && cls != GATHER_SUPPORT) return 0.0f;
 	return res_type == RES_WOOD ? 5.0f : (res_type == RES_STONE || res_type == RES_GOLD) ? 2.0f : 0.0f;
 }
 
 // ResourceGatherer/Capacities (the same for every type the class gathers).
 inline int32_t gather_class_capacity(uint8_t cls) {
 	switch (cls) {
-		case GATHER_INFANTRY: case GATHER_FEMALE: return 10;
+		case GATHER_INFANTRY: case GATHER_SUPPORT: return 10;
 		case GATHER_CAVALRY: return 20;
 		case GATHER_FISHING: return 40;
 		default: return 0;

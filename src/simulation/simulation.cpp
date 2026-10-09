@@ -8182,10 +8182,19 @@ void Simulation::petra_manage_economy(float dt) {
 	int workers_food = 0, workers_wood = 0, workers_gold = 0, workers_stone = 0;
 	std::vector<size_t> reassignable_workers;
 
+	// worker.js: citizen soldiers gather too (most of 0 A.D. Petra's workforce, Economy.supportRatio
+	// 0.3); the ones serving in an attack or raid plan, citizen cavalry (hunters) and the scout don't
+	// take gathering orders here.
+	std::unordered_set<uint32_t> in_plan(petra_attack_plan_.squad.begin(), petra_attack_plan_.squad.end());
+	in_plan.insert(petra_raid_plan_.squad.begin(), petra_raid_plan_.squad.end());
 	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || units_.team[i] != petra_pid_ ||
-		    (units_.unit_type[i] != UNIT_VILLAGER && units_.unit_type[i] != UNIT_FEMALE_CITIZEN)) continue;
+		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
+		const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
+		if (gcls != GATHER_INFANTRY && gcls != GATHER_SUPPORT) continue;
 		if (units_.action_state[i] == ACTION_IDLE) {
+			const bool soldier = gcls == GATHER_INFANTRY;
+			if (soldier && (in_plan.count(units_.id[i]) || units_.id[i] == petra_scout_unit_id_ ||
+					get_threat_at(units_.pos_x[i], units_.pos_z[i]) >= 7.0f)) continue;
 			reassignable_workers.push_back(i);
 		} else if (units_.action_state[i] == ACTION_GATHER || units_.action_state[i] == ACTION_RETURN_DROPSITE) {
 			if (units_.target_resource_id[i] != 0) {
@@ -8243,6 +8252,11 @@ void Simulation::petra_manage_economy(float dt) {
 		demand_gold += 150.0f;
 	}
 
+	// queueManager.js wantedGatherRates counts the queued plans: the worker queue keeps a batch
+	// of up to 5 (trainMoreWorkers) waiting for food while workers are short.
+	if (ai_villagers < target_villagers)
+		demand_food += 50.0f * (float)std::min(5, target_villagers - ai_villagers);
+
 	// Housing and Building Needs:
 	if (pop_current(petra_pid_) >= pop_max(petra_pid_) - 4) {
 		demand_wood += 150.0f;
@@ -8260,11 +8274,46 @@ void Simulation::petra_manage_economy(float dt) {
 	float pct_gold  = need_gold / total_need;
 	float pct_stone = need_stone / total_need;
 
-	int total_workers = std::max(1, ai_villagers);
+	int total_workers = std::max(1, workers_food + workers_wood + workers_gold + workers_stone + (int)reassignable_workers.size());
 	int target_food  = std::max(1, (int)std::round(pct_food * total_workers));
 	int target_wood  = std::max(1, (int)std::round(pct_wood * total_workers));
 	int target_gold  = std::max(1, (int)std::round(pct_gold * total_workers));
 	int target_stone = std::max(0, (int)std::round(pct_stone * total_workers));
+
+	// baseManager.js setWorkersIdleByPriority (every 8 s, one switch at a time): a gatherer moves
+	// from the resource least in need to the one most in need when the gap is wide enough;
+	// citizen soldiers leave food first and support workers (Civilian) go to food first.
+	if ((ticks_ / (uint64_t)std::lround(1.0f / FIXED_STEP)) % 8 == 0) {
+		const int cur[RES_COUNT] = {workers_wood, workers_gold, workers_stone, workers_food};
+		const int want[RES_COUNT] = {target_wood, target_gold, target_stone, target_food};
+		int more = -1, less = -1;
+		for (int r = 0; r < RES_COUNT; ++r) {
+			if (more < 0 || want[r] - cur[r] > want[more] - cur[more]) more = r;
+			if (cur[r] > 0 && (less < 0 || cur[r] - want[r] > cur[less] - want[less])) less = r;
+		}
+		if (more >= 0 && less >= 0 && more != less && (want[more] - cur[more]) - (want[less] - cur[less]) > 3) {
+			size_t pick = SIZE_MAX;
+			for (size_t i = 0; i < units_.count; ++i) {
+				if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.action_state[i] != ACTION_GATHER) continue;
+				const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
+				if (gcls != GATHER_INFANTRY && gcls != GATHER_SUPPORT) continue;
+				auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
+				if (rit == res_id_to_idx_.end() || resources_.type[rit->second] != less) continue;
+				const bool preferred = (less == RES_FOOD && gcls == GATHER_INFANTRY) || (more == RES_FOOD && gcls == GATHER_SUPPORT);
+				if (pick == SIZE_MAX || preferred) pick = i;
+				if (preferred) break;
+			}
+			if (pick != SIZE_MAX) {
+				uint32_t uid = units_.id[pick];
+				cmd_stop(&uid, 1);
+				reassignable_workers.push_back(pick);
+				if (less == RES_FOOD) workers_food--;
+				else if (less == RES_WOOD) workers_wood--;
+				else if (less == RES_GOLD) workers_gold--;
+				else workers_stone--;
+			}
+		}
+	}
 
 	// Safe, non-empty resources with their squared distance to our nearest
 	// dropsite, computed once per pass rather than once per idle worker.
@@ -9320,11 +9369,15 @@ void Simulation::petra_manage_research(float dt) {
 	// researchManager.js:15 checkPhase — Town at pop >= Economy.popPhase2,
 	// City when workers > Economy.workPhase3 (not a 0.55 fudge).
 	int pop = pop_current(petra_pid_);
+	// headquarters.js getAccountedWorkers: every unit with the Worker role, citizen soldiers
+	// included, but not the ones serving in a plan.
+	std::unordered_set<uint32_t> in_plan(petra_attack_plan_.squad.begin(), petra_attack_plan_.squad.end());
+	in_plan.insert(petra_raid_plan_.squad.begin(), petra_raid_plan_.squad.end());
 	int workers = 0;
 	for (size_t i = 0; i < units_.count; ++i) {
-		if (units_.alive[i] && units_.team[i] == petra_pid_ &&
-		    (units_.unit_type[i] == UNIT_VILLAGER || units_.unit_type[i] == UNIT_FEMALE_CITIZEN ||
-		     units_.unit_type[i] == UNIT_FISHING_BOAT))
+		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
+		const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
+		if (gcls == GATHER_FISHING || ((gcls == GATHER_INFANTRY || gcls == GATHER_SUPPORT) && !in_plan.count(units_.id[i])))
 			++workers;
 	}
 
