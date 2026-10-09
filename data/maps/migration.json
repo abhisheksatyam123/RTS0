@@ -18863,5 +18863,49 @@
     }
   ],
   "gaia_structures": [],
-  "gaia_units": []
+  "gaia_units": [],
+  "scenery": [
+    {
+      "type": "column_doric_fallen_b",
+      "x": 30.35,
+      "z": 30.05,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": 30.78,
+      "z": 23.25,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen",
+      "x": 27.44,
+      "z": 23.26,
+      "angle": -2.7258,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_short",
+      "x": -35.83,
+      "z": 81.06,
+      "angle": -1.3763,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_short",
+      "x": -38.92,
+      "z": 80.14,
+      "angle": -2.7581,
+      "scale": 0.25
+    },
+    {
+      "type": "bench",
+      "x": -37.07,
+      "z": 78.86,
+      "angle": -1.5926,
+      "scale": 0.25
+    }
+  ]
 }

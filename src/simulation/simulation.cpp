@@ -289,6 +289,7 @@ void Simulation::reset() {
 	relics_.clear();
 	treasures_.clear();
 	ruins_caps_.clear();
+	scenery_.clear();
 	wonder_victory_timer_ = 0.0f;
 	has_active_wonder_ = false;
 	record_ = MatchRecord();
@@ -510,6 +511,7 @@ void Simulation::spawn_war(int total_units) {
 	relics_.clear();
 	treasures_.clear();
 	ruins_caps_.clear();
+	scenery_.clear();
 	std::fill(fow_grid_.begin(), fow_grid_.end(), (uint8_t)FOW_UNEXPLORED);
 	for (auto &g : player_fow_) g.clear();
 	std::fill(petra_fow_.begin(), petra_fow_.end(), (uint8_t)FOW_UNEXPLORED);
@@ -840,6 +842,34 @@ void Simulation::rebuild_nav_grid() {
 			nav_grid_.cells.at(cx, cy) = NAV_OBSTRUCTED;
 		}
 	}
+	// Gaia scenery: oriented rectangles (CCmpObstruction::GetObstructionSquare: u = (cos a, -sin a),
+	// v = (sin a, cos a)), rasterized the same way.
+	for (const Scenery &sc : scenery_) {
+		const float c = std::cos(sc.angle), sn = std::sin(sc.angle);
+		int covered = 0;
+		rtso::nav::rasterize_rect_with_clearance(
+			rtso::nav::Vec2(sc.x, sc.z), rtso::nav::Vec2(c, -sn), rtso::nav::Vec2(sn, c),
+			rtso::nav::Vec2(sc.half_w, sc.half_d), 0.0f, nav_cell, nav_origin,
+			nav_grid_.cells.w, nav_grid_.cells.h,
+			[&](int x, int y) {
+				nav_grid_.cells.at(x, y) = NAV_OBSTRUCTED;
+				++covered;
+			});
+		if (covered == 0) {
+			// Thinner than a navcell (a 1.5 m fence): block the cells along its centre line.
+			const float step = 0.5f * nav_cell;
+			const int nu = std::max(1, (int)std::ceil(2.0f * sc.half_w / step));
+			const int nv = std::max(1, (int)std::ceil(2.0f * sc.half_d / step));
+			for (int a = 0; a <= nu; ++a)
+				for (int b = 0; b <= nv; ++b) {
+					const float lu = -sc.half_w + 2.0f * sc.half_w * (float)a / (float)nu;
+					const float lv = -sc.half_d + 2.0f * sc.half_d * (float)b / (float)nv;
+					auto [cx, cy] = nav_grid_.world_to_cell(sc.x + lu * c + lv * sn, sc.z - lu * sn + lv * c);
+					if (nav_grid_.cells.inside(cx, cy) && nav_grid_.cells.at(cx, cy) != NAV_WATER)
+						nav_grid_.cells.at(cx, cy) = NAV_OBSTRUCTED;
+				}
+		}
+	}
 	// Precise dirty bits: diff new cells vs snapshot (covers placements,
 	// completions AND demolitions). Falls back to full remesh only when the
 	// grid was freshly initialised (no snapshot to diff against).
@@ -1145,6 +1175,13 @@ Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell
 				const int x = cell_x + dx + off, z = cell_y + dz + off;
 				if (x >= 0 && z >= 0 && x < w && z < w && resource_block_cells_[(size_t)z * w + x]) return PLACE_OBSTRUCTED;
 			}
+	}
+
+	// Gaia scenery (fences, columns) blocks foundations too: its rotated rectangle's bounds.
+	for (const Scenery &sc : scenery_) {
+		const float c = std::fabs(std::cos(sc.angle)), sn = std::fabs(std::sin(sc.angle));
+		const float ex = c * sc.half_w + sn * sc.half_d, ez = sn * sc.half_w + c * sc.half_d;
+		if (sc.x + ex > x0 && sc.x - ex < x1 && sc.z + ez > z0 && sc.z - ez < z1) return PLACE_OBSTRUCTED;
 	}
 
 	// 2. Terrain passability class: building-land has no water under the
@@ -8486,6 +8523,7 @@ void Simulation::petra_manage_economy(float dt) {
 	// 1. Priority Queue 1: Economic Boom — keep the TCs training workers
 	// until the worker target (config.js Economy.targetNumWorkers) is met.
 	petra_staff_foundations();
+	PetraHuntScan hunt_scan = petra_hunt_scan();
 
 	int ai_villagers = 0;
 	for (size_t i = 0; i < units_.count; ++i) {
@@ -8646,8 +8684,6 @@ void Simulation::petra_manage_economy(float dt) {
 		}
 	}
 
-	PetraHuntScan hunt_scan = petra_hunt_scan();
-
 	// Assign reassignable workers to nearest safe dropsite and resource
 	for (size_t widx : reassignable_workers) {
 		uint8_t chosen_res_type = RES_FOOD;
@@ -8775,7 +8811,7 @@ bool Simulation::petra_gather_treasure(size_t u, PetraHuntScan &scan) {
 		if (d2 > 120000.0f / 16.0f || (terr != (int)petra_pid_ && d2 > 14000.0f / 16.0f)) continue;
 		if (d2 > best_d2) continue;
 		auto [cx, cz] = nav_grid_.world_to_cell(t.x, t.z);
-		if (!nav_grid_.reachable(ucx, ucz, cx, cz, pass)) continue;
+		if (nav_grid_.is_passable_for(cx, cz, pass) && !nav_grid_.reachable(ucx, ucz, cx, cz, pass)) continue;
 		best_d2 = d2;
 		best = t.id;
 	}
@@ -8817,7 +8853,8 @@ uint32_t Simulation::petra_find_hunt(size_t u, float px, float pz, const PetraHu
 			if ((x - d.first) * (x - d.first) + (z - d.second) * (z - d.second) < drop_d2) { near_drop = true; break; }
 		if (!near_drop) return;
 		auto [cx, cz] = nav_grid_.world_to_cell(x, z);
-		if (!nav_grid_.reachable(ucx, ucz, cx, cz, pass)) return;
+		// getLandAccess; a supply on a blocked cell (by a tree, a wreck) is reached from beside it.
+		if (nav_grid_.is_passable_for(cx, cz, pass) && !nav_grid_.reachable(ucx, ucz, cx, cz, pass)) return;
 		best_d2 = d2;
 		best = id;
 		live = is_live;
@@ -8861,6 +8898,85 @@ bool Simulation::petra_start_hunting(size_t u, PetraHuntScan &scan) {
 		scan.on_carcass[target]++;
 	}
 	return true;
+}
+
+// startingStrategy.js buildFirstBase / headquarters.js checkBaseExpansion: with
+// no civic centre (a nomad start, or the last one lost) Petra founds one where
+// most of its workers stand. Short of resources, it first waits on treasures
+// its units can collect, else lays out a dock to gather from if it has none.
+void Simulation::petra_build_first_base() {
+	for (const auto &b : buildings_)
+		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && b.type == BLD_TOWN_CENTER) return; // hasPotentialBase
+	PetraHuntScan scan = petra_hunt_scan();
+	uint8_t goal = BLD_TOWN_CENTER;
+	const BuildingTypeInfo &cc = building_type_info(BLD_TOWN_CENTER);
+	auto affords = [&](const BuildingTypeInfo &t, float f, float w, float g, float st) {
+		return f >= (float)t.food_cost && w >= (float)t.wood_cost && g >= (float)t.gold_cost && st >= (float)t.stone_cost;
+	};
+	if (!affords(cc, petra_ps().food(), petra_ps().wood(), petra_ps().gold(), petra_ps().stone())) {
+		float ef = petra_ps().food(), ew = petra_ps().wood(), eg = petra_ps().gold(), es = petra_ps().stone();
+		for (size_t i = 0; i < units_.count; ++i) {
+			if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
+			if (units_.action_state[i] == ACTION_IDLE) petra_gather_treasure(i, scan);
+			if (units_.order_kind[i] != ORDER_COLLECT_TREASURE) continue;
+			for (const auto &t : treasures_) {
+				if (t.id != units_.order_target[i]) continue;
+				const auto &a = treasure_type_info(t.type).amount; // food, wood, stone, metal
+				ef += (float)a[0]; ew += (float)a[1]; es += (float)a[2]; eg += (float)a[3];
+			}
+			if (affords(cc, ef, ew, eg, es)) return; // wait for the treasures
+		}
+		for (const auto &b : buildings_)
+			if (b.team == petra_pid_ && b.hp > 0.0f && b.type == BLD_DOCK) return;
+		if (!affords(building_type_info(BLD_DOCK), petra_ps().food(), petra_ps().wood(), petra_ps().gold(), petra_ps().stone()))
+			return;
+		goal = BLD_DOCK;
+	}
+
+	// The starting point: where most workers stand (on one land, within 2500 m²).
+	struct Point { float x, z; uint16_t land; int weight; };
+	std::vector<Point> points;
+	std::vector<uint32_t> workers;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != petra_pid_ || carry_cap(i, RES_WOOD) <= 0) continue; // Worker
+		const uint8_t ut = units_.unit_type[i];
+		if (formation_unit_mounted(ut) || unit_is_ship(ut)) continue; // FastMoving
+		workers.push_back(units_.id[i]);
+		const float x = units_.pos_x[i], z = units_.pos_z[i];
+		auto [cx, cz] = nav_grid_.world_to_cell(x, z);
+		const uint16_t land = nav_grid_.global_region_at(cx, cz, PASS_INFANTRY);
+		bool found = false;
+		for (auto &p : points) {
+			if (p.land != land || (p.x - x) * (p.x - x) + (p.z - z) * (p.z - z) > 2500.0f / 16.0f) continue;
+			++p.weight;
+			found = true;
+			break;
+		}
+		if (!found) points.push_back({x, z, land, 1});
+	}
+	if (points.empty()) return;
+	size_t best = 0;
+	for (size_t k = 1; k < points.size(); ++k)
+		if (points[k].weight > points[best].weight) best = k;
+
+	// The civilCentre queue outranks every other (queueManager.js priority 950): pay
+	// from the stockpile at once, ahead of this tick's other spending.
+	const BuildingTypeInfo &info = building_type_info(goal);
+	const int sx = (int)(points[best].x / GRID), sz = (int)(points[best].z / GRID);
+	const int max_r = goal == BLD_DOCK ? 24 : 12;
+	for (int r = 0; r <= max_r; ++r) {
+		for (int dx = -r; dx <= r; ++dx) {
+			for (int dz = -r; dz <= r; ++dz) {
+				if (std::abs(dx) != r && std::abs(dz) != r) continue;
+				if (!petra_can_place(sx + dx, sz + dz, info.footprint, goal)) continue;
+				petra_ps().food() -= (float)info.food_cost; petra_ps().wood() -= (float)info.wood_cost;
+				petra_ps().gold() -= (float)info.gold_cost; petra_ps().stone() -= (float)info.stone_cost;
+				const uint32_t bid = spawn_building(sx + dx, sz + dz, goal, petra_pid_, 0.0f);
+				if (bid != 0 && !workers.empty()) order_build_or_repair(workers.data(), workers.size(), bid);
+				return;
+			}
+		}
+	}
 }
 
 // worker.js "hunter" subrole: Petra's citizen cavalry hunt (baseManager.js
@@ -12174,6 +12290,9 @@ void Simulation::tick_petra_ai_player(float dt) {
 	// 2. Multi-Base Expansion & Base Anchors (BasesManager / headquarters.js)
 	update_petra_bases(dt);
 
+	// 2b. No civic centre (nomad, or the last one lost): found one first (startingStrategy.js)
+	petra_build_first_base();
+
 	// 3. Autonomous Scouting & FoW Exploration (scoutManager.js)
 	petra_manage_scouting(dt);
 
@@ -12224,7 +12343,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 every player's StatisticsTracker
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -12744,6 +12863,7 @@ bool Simulation::load_state(const char *filepath) {
 		for (const auto &rl : relics_) max_id = std::max(max_id, rl.id);
 		for (size_t f = 0; f < fauna_.count; ++f) max_id = std::max(max_id, fauna_.id[f]);
 		for (const auto &t : treasures_) max_id = std::max(max_id, t.id);
+		for (const auto &sc : scenery_) max_id = std::max(max_id, sc.id);
 		next_id_ = max_id + 1;
 	}
 
@@ -12918,6 +13038,9 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		s.treasures_.clear();
 		s.ruins_caps_.clear();
 	}
+	static_assert(sizeof(S::Scenery) == 32, "Scenery is saved raw (pad[] explicit and zeroed); list a new field here");
+	if (ar.version >= 29) io_vec_pod(ar, s.scenery_, 1u << 16);
+	else if constexpr (Ar::loading) s.scenery_.clear();
 	static_assert(sizeof(S::FaunaStorage) == 68616, "list the new FaunaStorage field below");
 	if constexpr (Ar::loading) {
 		if (ar.version < 25) {
@@ -13180,7 +13303,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		io_vec_pod(ar, t.notifications, 1u << 8);
 	}
 
-	// 10. StatisticsTracker (save v29). Older saves start the counters at zero.
+	// 10. StatisticsTracker (save v30). Older saves start the counters at zero.
 	if (ar.version < S::SAVE_VERSION_STATISTICS) return;
 	static_assert(sizeof(PlayerStatistics) == 4 * 91 && sizeof(StatisticsSample) == 4 + 8 * sizeof(PlayerStatistics) + 4 * 32,
 	              "PlayerStatistics holds 4-byte fields only (saved raw); update the sizes when adding one");
@@ -14054,6 +14177,23 @@ uint32_t Simulation::spawn_treasure(float x, float z, uint8_t type) {
 	t.type = type;
 	treasures_.push_back(t);
 	return t.id;
+}
+
+uint32_t Simulation::spawn_scenery(float x, float z, uint8_t scenery_type, float angle, float scale) {
+	if (scenery_type >= SCENERY_TYPE_COUNT) return 0;
+	const SceneryTypeInfo &info = scenery_type_info(scenery_type);
+	Scenery sc{};
+	sc.id = next_id_++;
+	sc.x = x;
+	sc.z = z;
+	sc.angle = angle;
+	sc.half_w = 0.5f * info.width * scale;
+	sc.half_d = 0.5f * info.depth * scale;
+	sc.hp = info.max_hp;
+	sc.type = scenery_type;
+	scenery_.push_back(sc);
+	if (!bulk_spawn_) rebuild_nav_grid();
+	return sc.id;
 }
 
 uint32_t Simulation::spawn_ruins(float x, float z, uint8_t ruins_type) {

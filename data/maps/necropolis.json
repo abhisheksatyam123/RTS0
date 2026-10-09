@@ -38623,5 +38623,273 @@
     }
   ],
   "gaia_structures": [],
-  "gaia_units": []
+  "gaia_units": [],
+  "scenery": [
+    {
+      "type": "column_doric_fallen",
+      "x": -33.0,
+      "z": 97.48,
+      "angle": -2.1343,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen",
+      "x": -39.6,
+      "z": 102.45,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -39.44,
+      "z": 107.38,
+      "angle": -2.3995,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -36.37,
+      "z": 108.27,
+      "angle": 0.8371,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -33.16,
+      "z": 107.92,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -30.57,
+      "z": 98.53,
+      "angle": -1.9228,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -35.11,
+      "z": 98.9,
+      "angle": -0.7481,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric",
+      "x": -33.87,
+      "z": 98.57,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric",
+      "x": -32.23,
+      "z": 99.65,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric",
+      "x": -31.23,
+      "z": 96.58,
+      "angle": -2.0859,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric",
+      "x": -34.34,
+      "z": 94.93,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric",
+      "x": -40.89,
+      "z": 105.22,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric",
+      "x": -38.4,
+      "z": 107.41,
+      "angle": -0.8486,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen",
+      "x": -112.11,
+      "z": -43.48,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen",
+      "x": -109.57,
+      "z": -42.5,
+      "angle": 0.2231,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen",
+      "x": -103.01,
+      "z": -50.52,
+      "angle": -1.6266,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen",
+      "x": -110.74,
+      "z": -51.27,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -112.76,
+      "z": -46.34,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -111.73,
+      "z": -45.45,
+      "angle": 1.3809,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -110.06,
+      "z": -44.66,
+      "angle": 0.5919,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -103.63,
+      "z": -47.22,
+      "angle": -2.0427,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -105.43,
+      "z": -49.52,
+      "angle": 1.2992,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -103.49,
+      "z": -48.87,
+      "angle": -2.2638,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -106.41,
+      "z": -51.54,
+      "angle": 1.2676,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -107.92,
+      "z": -42.22,
+      "angle": -2.3367,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -109.66,
+      "z": -50.78,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -108.02,
+      "z": -49.75,
+      "angle": -2.2336,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -103.94,
+      "z": -51.08,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -101.93,
+      "z": -51.59,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": 65.23,
+      "z": -37.87,
+      "angle": -2.0577,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": 57.98,
+      "z": -39.76,
+      "angle": 0.2814,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": 57.14,
+      "z": -35.11,
+      "angle": -1.9382,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": 65.04,
+      "z": -38.64,
+      "angle": 1.0369,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": 65.66,
+      "z": -35.21,
+      "angle": -2.3346,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": 65.59,
+      "z": -44.15,
+      "angle": 0.0768,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen",
+      "x": 61.1,
+      "z": -42.47,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen",
+      "x": 66.97,
+      "z": -37.1,
+      "angle": 2.2047,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen",
+      "x": 62.66,
+      "z": -40.75,
+      "angle": -2.3301,
+      "scale": 0.25
+    }
+  ]
 }

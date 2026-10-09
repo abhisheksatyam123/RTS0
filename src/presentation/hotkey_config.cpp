@@ -28,6 +28,7 @@ void RtsoHotkeyConfig::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("reload"), &RtsoHotkeyConfig::reload);
 	ClassDB::bind_method(D_METHOD("event_key_name", "event"), &RtsoHotkeyConfig::event_key_name);
 	ClassDB::bind_method(D_METHOD("format_keys", "keys"), &RtsoHotkeyConfig::format_keys);
+	ClassDB::bind_method(D_METHOD("is_held", "name"), &RtsoHotkeyConfig::is_held);
 }
 
 Dictionary RtsoHotkeyConfig::get_hotkey_map() const {
@@ -92,3 +93,5 @@ String RtsoHotkeyConfig::format_keys(const PackedStringArray &keys) const {
 	}
 	return to_godot(hk::combo_to_string(hk::parse_combo(text)));
 }
+
+bool RtsoHotkeyConfig::is_held(const String &name) const { return hk::held(to_std(name).c_str()); }

@@ -18479,5 +18479,210 @@
       "x": 83.02,
       "z": -30.58
     }
+  ],
+  "scenery": [
+    {
+      "type": "fence_long",
+      "x": -96.51,
+      "z": -56.27,
+      "angle": -3.0194,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -95.84,
+      "z": -60.74,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_short",
+      "x": -94.17,
+      "z": -61.54,
+      "angle": -1.6902,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -100.45,
+      "z": -56.69,
+      "angle": 2.1145,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -102.08,
+      "z": -57.42,
+      "angle": 0.2518,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -100.96,
+      "z": -59.69,
+      "angle": -1.0502,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_short",
+      "x": -99.32,
+      "z": -59.6,
+      "angle": -2.5829,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 64.69,
+      "z": -73.42,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 61.51,
+      "z": -75.47,
+      "angle": -2.4483,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_short",
+      "x": 63.18,
+      "z": -72.92,
+      "angle": 0.8056,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_short",
+      "x": 64.51,
+      "z": -67.8,
+      "angle": -2.7375,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 63.15,
+      "z": -67.43,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 43.69,
+      "z": -46.47,
+      "angle": 1.7077,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 42.42,
+      "z": -47.75,
+      "angle": -0.1311,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 44.12,
+      "z": -48.98,
+      "angle": 1.4363,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 48.06,
+      "z": -59.2,
+      "angle": -2.5104,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 46.0,
+      "z": -60.61,
+      "angle": -1.7756,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 50.1,
+      "z": -61.16,
+      "angle": 0.6166,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 47.74,
+      "z": -63.51,
+      "angle": 0.9116,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 45.21,
+      "z": -63.39,
+      "angle": 2.1853,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_short",
+      "x": 44.16,
+      "z": -61.63,
+      "angle": 0.48,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -6.4,
+      "z": -35.89,
+      "angle": -0.1916,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -7.47,
+      "z": -37.68,
+      "angle": 1.347,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -10.03,
+      "z": -37.04,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -10.4,
+      "z": -34.78,
+      "angle": 0.5213,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 26.88,
+      "z": -2.03,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 27.36,
+      "z": -0.0,
+      "angle": 1.0137,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 29.84,
+      "z": -0.19,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_short",
+      "x": 30.31,
+      "z": -1.74,
+      "angle": 0.6752,
+      "scale": 0.25
+    }
   ]
 }
