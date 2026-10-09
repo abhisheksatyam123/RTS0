@@ -1061,6 +1061,7 @@ enum TechStat : uint8_t {
 	TSTAT_REQUIRED_XP,      // Promotion/RequiredXp
 	TSTAT_TECH_COST_FOOD, TSTAT_TECH_COST_WOOD, TSTAT_TECH_COST_STONE, TSTAT_TECH_COST_METAL, // Researcher/TechCostMultiplier
 	TSTAT_LOOT_FOOD, TSTAT_LOOT_WOOD, TSTAT_LOOT_STONE, TSTAT_LOOT_METAL, // Looter/Resource/<res>
+	TSTAT_BATCH_TIME, // Trainer/BatchTimeModifier of training structures (added)
 	TSTAT_COUNT
 };
 
@@ -1093,6 +1094,9 @@ struct TechInfo {
 
 #include "tech_data.h"
 #include "building_ai_data.h"
+#include "trainer_data.h"
+static_assert(TRAINER_BUILDING_ROWS == BLD_TYPE_COUNT && TRAINER_CIV_ROWS == CIV_COUNT,
+	"re-run tools/extract_0ad_trainer.py after adding buildings or civs");
 
 // Researched technologies for one player. 256 bits covers every uint8_t id.
 struct TechSet {
@@ -1369,6 +1373,20 @@ struct CivUnitTemplate {
 	uint8_t unlock_tech; // TechnologyId from 0 A.D. Identity/Requirements (unlock_champion_*), or TECH_NONE
 	uint64_t tech_classes; // TechClass bits of 0 A.D. Identity/Classes + VisibleClasses
 	float vision; // 0 A.D. Vision/Range x0.28 (RTS0 units)
+};
+
+// 0 A.D. Upgrade on a unit (Upgrade.js): a paid, timed change to another roster row
+// (Roman elite infantry to Centurion, the Immortals' spear-and-bow switch).
+struct CivUnitUpgrade {
+	uint16_t from; // civ_unit_template_table() row, 0xFFFF ends the table
+	uint8_t from_rank; // rank the unit needs (1 basic, 2 advanced, 3 elite), 0 = any
+	uint16_t to;
+	int16_t food_cost;
+	int16_t wood_cost;
+	int16_t gold_cost; // 0 A.D. metal
+	int16_t stone_cost;
+	float time; // seconds
+	uint8_t phase; // phase the choice's Requirements name, 1 = none
 };
 
 #include "civ_roster_data.h"

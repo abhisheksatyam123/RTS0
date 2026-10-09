@@ -521,7 +521,7 @@ def check_petra_parity():
         "High-Res DangerMap (THREAT_GRID_RES = 64)": "THREAT_GRID_RES = 64" in htxt,
         "Threat Map cell size matches NavGrid (2.0m)": "THREAT_CELL_SIZE = (MAP_HALF * 2.0f) / (float)THREAT_GRID_RES" in htxt,
         "dangerMap.js power & decay curves (0.35/0.65 blend)": "0.35f + raw_danger * 0.65f" in ctxt,
-        "petra_fow_ exploration grid": "petra_fow_" in htxt and "petra_fow_grid()" in htxt,
+        "Petra explores with its player's line of sight (los_explored)": "los_explored(petra_pid_" in ctxt and "petra_fow_" not in htxt,
         "petra_manage_scouting autonomous exploration": "petra_manage_scouting" in htxt and "void Simulation::petra_manage_scouting" in ctxt,
         "Scout outward spiral/radial FoW sweep": "petra_scout_angle_" in ctxt and "petra_scout_radius_" in ctxt and "FOW_UNEXPLORED" in ctxt,
         "Specialized AttackPlan state machine (PLAN_SIEGE / PLAN_ASSAULT / PLAN_RAID)": "PLAN_SIEGE" in htxt and "PLAN_ASSAULT" in htxt and "PLAN_RAID" in htxt,
