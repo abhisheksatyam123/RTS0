@@ -181,6 +181,8 @@ enum class NetCommandType : uint8_t {
 	// player lays a WallSet wall from the point packed in target_id (Simulation::pack_wall_point)
 	// to (target_x, target_z); entity_ids build it. param bit NET_PARAM_QUEUED queues it.
 	NET_CMD_BUILD_WALL = 41,
+	// 0 A.D. "set-dropsite-sharing" on structure target_id: param 1 shares, 0 stops.
+	NET_CMD_SET_DROPSITE_SHARING = 42,
 	// Session control, not game commands (200+ is reserved for these; game command
 	// ids keep growing from 38). Only the host sends them, inside its own turn batch,
 	// so every client learns of a seat change before the turn it affects (0 A.D.
