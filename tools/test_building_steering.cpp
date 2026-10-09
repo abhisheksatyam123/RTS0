@@ -44,6 +44,11 @@
 // 15. Cliffs: a cliff steeper than 0 A.D.'s MaxTerrainSlope (pathfinder.xml, 1.0 for every land
 //     class) splits the map but for one ramp. A swordsman, a horseman and a gatherer all go round
 //     by the ramp instead of climbing the cliff, and no house can be placed on it.
+// 16. Chases: an attacker paths round water and cliffs as 0 A.D. UnitMotion paths every move, and
+//     gives up a target it can't reach (UnitAI MovementUpdate with likelyFailure) instead of wading
+//     across the sea after it or climbing a cliff. A player's attack on a unit or a house across the
+//     sea ends at the shore; a soldier's own fight with an enemy across a channel is dropped at the
+//     water's edge; a player's attack on a unit up a cliff goes round by the ramp and gets there.
 //  For every scenario the unit bodies must never overlap a footprint that blocks movement by more
 //  than MAX_PENETRATION (separation() alone allows deep overlap when a unit walks head-on into a wall).
 //  Exit: 0 = PASS, 1 = FAIL. Prints the measurements either way.
@@ -635,6 +640,109 @@ static void cliffs() {
 	check(s.check_placement(0, -12, -8, BLD_HOUSE) != Simulation::PLACE_TERRAIN, "a house can't be placed on flat ground");
 }
 
+// 16. Chases.
+static void channel_setup(Simulation &s, float half_width) {
+	setup(s);
+	constexpr int RES = 65;
+	constexpr float HALF = 64.0f;
+	s.set_map_half(HALF);
+	std::vector<float> h((size_t)RES * RES);
+	for (int j = 0; j < RES; ++j)
+		for (int i = 0; i < RES; ++i) {
+			const float z = -HALF + 2.0f * HALF * j / (RES - 1);
+			h[(size_t)j * RES + i] = std::fabs(z) < half_width ? -3.0f : 3.0f;
+		}
+	s.set_terrain_data(h, RES, 0.0f);
+	s.begin_bulk_spawn();
+	s.end_bulk_spawn();
+}
+
+static void chases() {
+	auto deep_at = [](const Simulation &s, uint32_t id) {
+		const int i = index_of(s, id);
+		const auto [cx, cy] = s.nav_grid_.world_to_cell(s.units_.pos_x[i], s.units_.pos_z[i]);
+		return s.nav_grid_.cells.inside(cx, cy) && s.nav_grid_.cells.at(cx, cy) == NAV_WATER;
+	};
+	auto attacking = [](const Simulation &s, uint32_t id, uint32_t target) {
+		const int i = index_of(s, id);
+		return s.units_.action_state[i] == ACTION_ATTACK &&
+				(s.units_.target_unit_id[i] == target || s.units_.target_building_id[i] == target);
+	};
+	// A player's attack on a unit, then on a house, across the sea (z -16 to 16).
+	for (int house = 0; house < 2; ++house) {
+		Simulation s;
+		channel_setup(s, 16.0f);
+		uint32_t target;
+		if (house) {
+			target = s.spawn_building_world(0.0f, 30.0f, BLD_HOUSE, 1, 1.0f);
+		} else {
+			target = s.spawn_unit(0.0f, 30.0f, 1, UNIT_SPEARMAN, 0.0f);
+			s.order_set_stance(&target, 1, STANCE_PASSIVE);
+		}
+		const uint32_t a = s.spawn_unit(0.0f, -30.0f, 0, UNIT_SWORDSMAN, 0.0f);
+		if (house) s.order_attack_building(&a, 1, target);
+		else s.order_attack(&a, 1, target);
+		int gave_up = -1, wet = 0;
+		for (int t = 0; t < 800; ++t) {
+			s.tick(DT);
+			wet += deep_at(s, a);
+			if (gave_up < 0 && !attacking(s, a, target)) gave_up = t;
+		}
+		const float z = s.units_.pos_z[index_of(s, a)];
+		std::printf("  chases: attack on a %s across the sea given up after %d ticks (-1 = never in 800), %d ticks in deep water, stands at z %.1f\n",
+				house ? "house" : "unit", gave_up, wet, z);
+		check(gave_up >= 0, "an attack across the sea was never given up");
+		check(wet == 0, "an attacker waded into the sea after its target");
+		check(z > -20.0f && z < -12.0f, "an attacker that gave up is not at the shore");
+	}
+	// A soldier's own fight with an enemy across a channel (z -6 to 6), well within its sight.
+	{
+		Simulation s;
+		channel_setup(s, 6.0f);
+		const uint32_t foe = s.spawn_unit(0.0f, 9.0f, 1, UNIT_SPEARMAN, 0.0f);
+		s.order_set_stance(&foe, 1, STANCE_PASSIVE);
+		const uint32_t a = s.spawn_unit(0.0f, -9.0f, 0, UNIT_SWORDSMAN, 0.0f);
+		const uint64_t paths0 = s.map_scale_stats().path_calls;
+		int wet = 0, chased = 0;
+		float min_z = 0.0f, max_z = -99.0f;
+		for (int t = 0; t < 400; ++t) {
+			s.tick(DT);
+			wet += deep_at(s, a);
+			chased += attacking(s, a, foe);
+			const float z = s.units_.pos_z[index_of(s, a)];
+			min_z = std::min(min_z, z);
+			max_z = std::max(max_z, z);
+		}
+		const int fi = index_of(s, foe);
+		std::printf("  chases: own fight across a channel: %d ticks chasing, %d in deep water, z %.1f to %.1f, foe hp %.0f/%.0f, %llu paths\n",
+				chased, wet, min_z, max_z, s.units_.hp[fi], s.units_.max_hp[fi],
+				(unsigned long long)(s.map_scale_stats().path_calls - paths0));
+		check(chased > 0, "a soldier did not go for an enemy across a channel");
+		check(wet == 0, "a soldier waded into a channel after an enemy");
+		check(s.units_.hp[fi] == s.units_.max_hp[fi], "a swordsman hit an enemy across a channel");
+	}
+	// A player's attack on a unit up a cliff with one ramp (cliff_setup).
+	{
+		Simulation s;
+		cliff_setup(s);
+		const uint32_t foe = s.spawn_unit(20.0f, 0.0f, 1, UNIT_SPEARMAN, 0.0f);
+		s.order_set_stance(&foe, 1, STANCE_PASSIVE);
+		const uint32_t a = s.spawn_unit(-20.0f, 0.0f, 0, UNIT_SWORDSMAN, 0.0f);
+		s.order_attack(&a, 1, foe);
+		int hit = -1, on_cliff = 0;
+		for (int t = 0; t < 2400 && hit < 0; ++t) {
+			s.tick(DT);
+			const int i = index_of(s, a), fi = index_of(s, foe);
+			const auto [cx, cy] = s.nav_grid_.world_to_cell(s.units_.pos_x[i], s.units_.pos_z[i]);
+			on_cliff += s.nav_grid_.is_steep(cx, cy);
+			if (fi < 0 || !s.units_.alive[fi] || s.units_.hp[fi] < s.units_.max_hp[fi]) hit = t;
+		}
+		std::printf("  chases: attack up the cliff landed after %d ticks (-1 = never in 2400), %d ticks on the cliff\n", hit, on_cliff);
+		check(hit >= 0, "an attacker never reached its target up the ramp");
+		check(on_cliff == 0, "an attacker climbed the cliff to its target");
+	}
+}
+
 int main() {
 	std::printf("RTS0 building steering test (src/simulation/nav/building_steering.h)\n");
 	guard_behind_wall();
@@ -652,6 +760,7 @@ int main() {
 	walk_into_closed_gate();
 	crowds_at_the_shore();
 	cliffs();
+	chases();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;
