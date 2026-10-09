@@ -2541,8 +2541,8 @@ void Simulation::cmd_move_individual(const uint32_t *unit_ids, size_t count, flo
 			// rebuild_nav_grid via set_water_from_heights -> compute_slopes_from_heights.
 			pass = PASS_CAVALRY;
 		find_path(units_.pos_x[idx], units_.pos_z[idx], dest_x, dest_z, wp, pass);
-		if (pass != PASS_SHIP && wp.count > 0) {
-			// A walk out to sea ends on the beach the path leads to (MakeGoalReachable).
+		if (beach_goal_ && pass != PASS_SHIP && wp.count > 0) {
+			// A player's walk out to sea ends on the beach the path leads to (MakeGoalReachable).
 			auto [gcx, gcy] = nav_grid_.world_to_cell(dest_x, dest_z);
 			if (nav_grid_.cells.inside(gcx, gcy) && nav_grid_.cells.at(gcx, gcy) == NAV_WATER) {
 				units_.target_x[idx] = units_.anchor_x[idx] = wp.xs[wp.count - 1];
@@ -2674,10 +2674,12 @@ void Simulation::order_attack_building(const uint32_t *unit_ids_in, size_t count
 	}
 }
 
-void Simulation::order_walk(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued) {
+void Simulation::order_walk(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued, bool beach_goal) {
 	UnitOrder o; o.kind = ORDER_WALK; o.flags = ORDER_FLAG_FORCE; o.x = tx; o.z = tz;
 	const std::vector<uint32_t> now = split_queued(unit_ids, count, o, queued);
+	beach_goal_ = beach_goal;
 	cmd_move(now.data(), now.size(), tx, tz);
+	beach_goal_ = false;
 	for (uint32_t uid : now) {
 		const int32_t idx = lookup_unit(uid);
 		if (idx >= 0 && units_.alive[idx] && units_.order_kind[idx] == ORDER_WALK) units_.order_flags[idx] = ORDER_FLAG_FORCE;

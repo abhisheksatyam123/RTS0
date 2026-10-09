@@ -365,7 +365,7 @@ static void test_no_wading() {
 		return s.nav_grid().cells.at(cx, cy) == NAV_WATER;
 	};
 	const uint32_t walker = s.spawn_unit(-20.0f, 30.0f, 0, UNIT_SPEARMAN);
-	s.cmd_move(&walker, 1, -20.0f, 0.0f);
+	s.order_walk(&walker, 1, -20.0f, 0.0f, false, true); // a player's walk
 	const uint32_t ship = s.spawn_unit(-40.0f, 0.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));
 	s.cmd_move(&ship, 1, -40.0f, -8.0f); // busy: no Pickup
 	const uint32_t boarder = s.spawn_unit(-40.0f, 30.0f, 0, UNIT_SPEARMAN);
