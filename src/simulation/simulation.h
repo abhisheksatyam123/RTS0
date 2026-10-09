@@ -88,6 +88,9 @@ struct ProductionOrder {
 static constexpr uint8_t MAX_PLAYERS = 8;
 // Owner of a defeated player's leftovers (0 A.D.'s Gaia): hostile to everyone, owned by no slot.
 static constexpr uint8_t GAIA_PLAYER = 0xFE;
+// A replay watched as an observer (0 A.D. replay "Observer" perspective): the
+// presentation's viewer id that sees the whole map. Never a sim owner.
+static constexpr uint8_t OBSERVER_VIEW = 0xFD;
 
 struct PlayerState {
 	float res[RES_COUNT] = {};             // indexed by ResourceType
@@ -168,6 +171,7 @@ public:
 	// falls back to the Petra AI's grid when Petra plays it, and others to
 	// all-unexplored.
 	const uint8_t* fow_grid(uint8_t player = 0) const {
+		if (player == OBSERVER_VIEW) return revealed_fow_.data();
 		// A defeated player observes: the whole map is revealed (0 A.D. parity).
 		if (player < MAX_PLAYERS && ((defeated_mask_ >> player) & 1)) return revealed_fow_.data();
 		if (player == 0 || player >= MAX_PLAYERS) return fow_grid_.data();
@@ -1203,6 +1207,7 @@ private:
 	// Pays a trade gain into `player`'s stock and its gather statistics.
 	void credit_trade(uint8_t player, uint8_t res, int amount);
 	void tick_trickle(float dt);
+	int corral_count(uint32_t corral_id) const;
 	void tick_entity_limits(float dt);
 	void tick_death_damage(float dt);
 	void tick_gates(float dt);

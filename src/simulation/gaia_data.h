@@ -202,6 +202,17 @@ inline uint8_t fauna_type_by_name(const char *s) {
 	return FAUNA_COUNT;
 }
 
+// The corral (template_structure_resource_corral.xml): ResourceTrickle/Interval and
+// GarrisonHolder/Max, and the food each garrisoned animal adds to the corral's trickle
+// every interval (its structures/corral_garrison_{small,medium,large} aura, stackable).
+inline constexpr float CORRAL_TRICKLE_INTERVAL = 5.0f;
+inline constexpr int CORRAL_GARRISON_MAX = 8;
+
+inline float fauna_corral_food(uint8_t ftype) {
+	static constexpr float kFood[FAUNA_COUNT] = {0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 2.0f, 2.0f, 0.0f, 3.0f, 3.0f, 3.0f, 3.0f, 3.0f, 3.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 0.0f, 0.0f, 0.0f, 0.0f, 2.0f, 2.0f, 2.0f, 2.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+	return ftype < FAUNA_COUNT ? kFood[ftype] : 0.0f;
+}
+
 // Treasure.js: what a treasure gives (food, wood, stone, metal) and how long it takes to collect.
 enum TreasureType : uint8_t {
 	TREASURE_FOOD_BARREL = 0,

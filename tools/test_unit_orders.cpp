@@ -43,6 +43,8 @@
 //     sends them back to work; lockstep cmd 36.
 // 29. A queued gather whose resource is gone gathers the same kind nearby (FINDINGNEWTARGET,
 //     GatherNearPosition); queued attacks on the dead and garrisons into a full house are skipped.
+// 30. A unit that collected a treasure goes for the nearest one within 64 m of it (COLLECTTREASURE
+//     FINDINGNEWTARGET), not one farther away, and not when it has a queued order.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_unit_orders.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -957,6 +959,30 @@ static void test_queue_edges() {
 	check(walked && alive(s, a), "an attack on the dead and a garrison into a full house are skipped");
 }
 
+static void test_next_treasure() {
+	std::printf("30. collectors move on to the next treasure\n");
+	Simulation s;
+	setup(s);
+	const uint32_t t1 = s.spawn_treasure(10, 0, TREASURE_FOOD_BIN);
+	const uint32_t t2 = s.spawn_treasure(16, 4, TREASURE_FOOD_BIN);
+	const uint32_t far_t = s.spawn_treasure(10, 40, TREASURE_FOOD_BIN);
+	uint32_t u = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN);
+	s.order_collect_treasure(&u, 1, t1);
+	const bool got1 = run_until(s, 30.0f, [&] { return !s.is_treasure_id(t1); });
+	check(got1 && s.unit_order(u).kind == ORDER_COLLECT_TREASURE && s.unit_order(u).target == t2,
+			"after the first it heads for the one nearby");
+	const bool got2 = run_until(s, 30.0f, [&] { return !s.is_treasure_id(t2); });
+	run(s, 1.0f);
+	check(got2 && s.is_treasure_id(far_t) && s.unit_order(u).kind == ORDER_NONE, "but not for one 160 m away");
+
+	const uint32_t t3 = s.spawn_treasure(30, 0, TREASURE_FOOD_BIN);
+	s.spawn_treasure(34, 2, TREASURE_FOOD_BIN);
+	s.order_collect_treasure(&u, 1, t3);
+	s.order_walk(&u, 1, 20, -10, true);
+	const bool got3 = run_until(s, 30.0f, [&] { return !s.is_treasure_id(t3); });
+	check(got3 && s.unit_order(u).kind == ORDER_WALK, "a queued order comes first");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -988,6 +1014,7 @@ int main(int argc, char **argv) {
 	test_ungarrison_rally();
 	test_alert();
 	test_queue_edges();
+	test_next_treasure();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
