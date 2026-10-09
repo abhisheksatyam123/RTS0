@@ -127,6 +127,8 @@ static constexpr uint32_t SAVE_VERSION_MAX_GATHERERS = 33;
 static constexpr uint32_t SAVE_VERSION_BUILDING_AI = 34;
 // First save version with formation attack, patrol and twin state (UnitAI FORMATIONCONTROLLER).
 static constexpr uint32_t SAVE_VERSION_FORMATION_ORDERS = 37;
+// First save version with each formation controller's queued orders.
+static constexpr uint32_t SAVE_VERSION_FORMATION_QUEUE = 39;
 // The save version that added each unit's kept short path (tick_state_io section 1) and the aura
 // sources in force (section 9).
 static constexpr uint32_t SAVE_VERSION_MOTION = 38;
@@ -3198,6 +3200,7 @@ void Simulation::formation_stop(const uint32_t *unit_ids, size_t count) {
 				fc.order = FORDER_IDLE;
 				fc.returning = FORDER_IDLE;
 				fc.target_unit = fc.target_building = 0;
+				fc.queue.clear();
 				fc.path.clear();
 				for (FormationSlot &s : fc.slots) s.following = 0;
 				break;
@@ -3706,18 +3709,47 @@ std::vector<uint32_t> Simulation::formation_take_attack(const std::vector<uint32
 	return individual;
 }
 
+std::vector<uint32_t> Simulation::formation_whole_ids(const uint32_t *ids, size_t count) const {
+	std::vector<uint32_t> fids;
+	for (const FormationController &fc : formations_) {
+		bool whole = !fc.members.empty();
+		for (uint32_t id : fc.members)
+			if (std::find(ids, ids + count, id) == ids + count) { whole = false; break; }
+		if (whole) fids.push_back(fc.id);
+	}
+	return fids;
+}
+
+void Simulation::formation_apply_order(const std::vector<uint32_t> &members, const UnitOrder &o) {
+	// UnitAI FinishOrder on the controller: its next order goes to the whole formation,
+	// the way the player gave it (apply_order for a formation).
+	const bool was = applying_queued_;
+	applying_queued_ = true;
+	const uint32_t *ids = members.data();
+	const size_t n = members.size();
+	const bool capture = (o.flags & ORDER_FLAG_ALLOW_CAPTURE) != 0;
+	switch (o.kind) {
+		case ORDER_WALK: order_walk(ids, n, o.x, o.z); break;
+		case ORDER_WALK_AND_FIGHT: order_attack_move(ids, n, o.x, o.z, false, (o.flags & ORDER_FLAG_UNITS_ONLY) != 0, capture); break;
+		case ORDER_PATROL: order_patrol(ids, n, o.x, o.z); break;
+		case ORDER_ATTACK: order_attack(ids, n, o.target); break;
+		case ORDER_ATTACK_BUILDING: order_attack_building(ids, n, o.target, false, capture); break;
+		case ORDER_GATHER: order_gather(ids, n, o.target); break;
+		case ORDER_BUILD: order_build_or_repair(ids, n, o.target); break;
+		case ORDER_GARRISON: order_garrison(ids, n, o.target); break;
+		case ORDER_GUARD: order_guard(ids, n, o.target); break;
+		case ORDER_HEAL: order_heal(ids, n, o.target); break;
+		default: for (uint32_t uid : members) apply_order(uid, o); break; // members do it one by one
+	}
+	applying_queued_ = was;
+}
+
 std::vector<uint32_t> Simulation::formation_take_task(const std::vector<uint32_t> &ids, uint8_t task, uint32_t target) {
 	// Only formations ordered as a whole (a player's selection of them) take the order; a
 	// member ordered on its own (UnitAI follow-ups, rally points) does the work as it is.
 	std::vector<uint32_t> individual;
 	if (formation_acting_) return ids;
-	std::vector<uint32_t> fids;
-	for (const FormationController &fc : formations_) {
-		bool whole = !fc.members.empty();
-		for (uint32_t id : fc.members)
-			if (std::find(ids.begin(), ids.end(), id) == ids.end()) { whole = false; break; }
-		if (whole) fids.push_back(fc.id);
-	}
+	const std::vector<uint32_t> fids = formation_whole_ids(ids.data(), ids.size());
 	if (fids.empty()) return ids;
 	for (uint32_t id : ids) {
 		const uint32_t f = formation_of_unit(id);
@@ -3785,6 +3817,20 @@ std::vector<uint32_t> Simulation::formation_take_patrol(const std::vector<uint32
 
 void Simulation::tick_formations(float dt) {
 	formation_merge_twins();
+	// FinishOrder: an idle controller with queued orders starts the next one.
+	std::vector<uint32_t> ready;
+	for (const FormationController &fc : formations_)
+		if (fc.order == FORDER_IDLE && !fc.queue.empty()) ready.push_back(fc.id);
+	for (uint32_t fid : ready) {
+		for (FormationController &fc : formations_) {
+			if (fc.id != fid) continue;
+			const UnitOrder o = fc.queue.front();
+			fc.queue.erase(fc.queue.begin());
+			const std::vector<uint32_t> members = fc.members;
+			formation_apply_order(members, o);
+			break;
+		}
+	}
 	for (size_t ci = formations_.size(); ci-- > 0;) {
 		FormationController &fc = formations_[ci];
 		const FormationTemplate &t = formation_template(fc.tmpl);
@@ -8970,6 +9016,29 @@ const std::vector<UnitOrder> *Simulation::unit_order_queue(uint32_t unit_id) con
 }
 
 std::vector<uint32_t> Simulation::split_queued(const uint32_t *ids, size_t count, const UnitOrder &o, bool queued) {
+	std::vector<uint32_t> loose; // with whole formations taken out
+	if (!formations_.empty() && !applying_queued_ && !formation_acting_) {
+		// A whole formation's orders go to its controller's own queue (UnitAI AddOrder on
+		// the controller): a new order clears it, a Shift-queued one waits in it.
+		const std::vector<uint32_t> fids = formation_whole_ids(ids, count);
+		for (FormationController &fc : formations_) {
+			if (std::find(fids.begin(), fids.end(), fc.id) == fids.end()) continue;
+			if (!queued) { fc.queue.clear(); continue; }
+			UnitOrder q = o;
+			if (o.kind == ORDER_PATROL) {
+				const UnitOrder *prev = fc.queue.empty() ? nullptr : &fc.queue.back();
+				q.x2 = prev ? prev->x : fc.goal_x;
+				q.z2 = prev ? prev->z : fc.goal_z;
+			}
+			if (fc.queue.size() < 64) fc.queue.push_back(q);
+		}
+		if (queued && !fids.empty()) {
+			for (size_t k = 0; k < count; ++k)
+				if (std::find(fids.begin(), fids.end(), formation_of_unit(ids[k])) == fids.end()) loose.push_back(ids[k]);
+			ids = loose.data();
+			count = loose.size();
+		}
+	}
 	std::vector<uint32_t> now;
 	now.reserve(count);
 	if (!queued) {
@@ -15568,7 +15637,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each formation controller's queued orders
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -16589,9 +16658,11 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				ar.pod(f.member_timer); ar.pod(f.patrol_x); ar.pod(f.patrol_z); ar.pod(f.patrol_wait);
 				ids(f.twins);
 			}
+			if (ar.version >= SAVE_VERSION_FORMATION_QUEUE) io_vec_pod(ar, f.queue, 64);
 			if constexpr (Ar::loading)
 				if (f.tmpl >= FORMATION_COUNT || f.order > S::FORDER_PATROL_WAIT || f.returning > S::FORDER_PATROL_WAIT ||
-						S::formation_task(f) > S::FTASK_HEAL)
+						S::formation_task(f) > S::FTASK_HEAL ||
+						std::any_of(f.queue.begin(), f.queue.end(), [](const UnitOrder &q) { return q.kind >= ORDER_KIND_COUNT; }))
 					ar.ok = false;
 		});
 	} else if constexpr (Ar::loading) {

@@ -150,7 +150,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 38; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 39; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -523,6 +523,8 @@ public:
 		float patrol_x = 0.0f, patrol_z = 0.0f; // patrolStartPosOrder: the other end of the patrol
 		uint8_t patrol_wait = 0;        // CHECKINGWAYPOINT stopSurveying
 		std::vector<uint32_t> twins;    // Formation.js twinFormations (controller ids)
+		// v39: the controller's orderQueue after its current order (Shift-queued orders).
+		std::vector<UnitOrder> queue;
 	};
 	// UnitAI FORMATIONCONTROLLER states: WALKING, WALKINGANDFIGHTING, COMBAT.APPROACHING,
 	// MEMBER (members fight on their own), PATROL.PATROLLING and PATROL.CHECKINGWAYPOINT.
@@ -1383,6 +1385,9 @@ private:
 	// Commands.js "gather"/"repair"/"garrison"/"heal" through GetFormationUnitAIs: whole
 	// formations in ids walk up as one (APPROACH), then their members do the work (MEMBER).
 	std::vector<uint32_t> formation_take_task(const std::vector<uint32_t> &ids, uint8_t task, uint32_t target);
+	// Controllers whose every member is in ids (a player ordering the whole formation).
+	std::vector<uint32_t> formation_whole_ids(const uint32_t *ids, size_t count) const;
+	void formation_apply_order(const std::vector<uint32_t> &members, const UnitOrder &o); // FinishOrder's next order
 	bool formation_acting_ = false; // the members are being handed the controller's order
 	// A member at work on an order of its own (gathering, building, garrisoning, healing):
 	// UnitAI runs it, and the formation waits for it in MEMBER.
