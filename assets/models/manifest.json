@@ -42983,6 +42983,81 @@
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
+  "s_athenians_wall_gate_door": {
+   "file": "models/buildings/s_athenians_wall_gate_door.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    9.071,
+    6.463,
+    1.81
+   ],
+   "sources": [
+    "actor:art/actors/structures/athenians/wall_gate_door.xml",
+    "actor:art/actors/structures/athenians/wall_gate_struct.xml",
+    "mesh:structural/athen_wall_gate_struct.dae",
+    "mesh:structural/hele_wall_gate.dae",
+    "skin:props/hele_gate.png",
+    "skin:structural/ao/hele_wall_gate.png",
+    "skin:structural/hele_struct_b.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
+  "s_athenians_wall_long": {
+   "file": "models/buildings/s_athenians_wall_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.071,
+    5.77,
+    1.403
+   ],
+   "sources": [
+    "actor:art/actors/structures/athenians/wall_long.xml",
+    "mesh:structural/athen_wall_long.dae",
+    "skin:structural/ao/hele_wall_long.png",
+    "skin:structural/hele_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_athenians_wall_medium": {
+   "file": "models/buildings/s_athenians_wall_medium.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.059,
+    5.77,
+    1.403
+   ],
+   "sources": [
+    "actor:art/actors/structures/athenians/wall_medium.xml",
+    "mesh:structural/athen_wall_medium.dae",
+    "skin:structural/ao/hele_wall_medium.png",
+    "skin:structural/hele_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_athenians_wall_short": {
+   "file": "models/buildings/s_athenians_wall_short.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.104,
+    5.77,
+    1.403
+   ],
+   "sources": [
+    "actor:art/actors/structures/athenians/wall_short.xml",
+    "mesh:structural/athen_wall_short.dae",
+    "skin:structural/ao/hele_wall_short.png",
+    "skin:structural/hele_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
   "s_britons_blacksmith": {
    "file": "models/buildings/s_britons_blacksmith.glb",
    "generator": "tools/extract_0ad_structures.py",
@@ -43175,6 +43250,81 @@
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
+  "s_britons_wall_gate": {
+   "file": "models/buildings/s_britons_wall_gate.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    9.317,
+    6.881,
+    2.379
+   ],
+   "sources": [
+    "actor:art/actors/props/special/palisade_rocks_gate.xml",
+    "actor:art/actors/structures/britons/wall_gate.xml",
+    "mesh:props/palisade_rocks_gate.dae",
+    "mesh:structural/brit_wall_gate.dae",
+    "skin:props/palisade_main.png",
+    "skin:structural/ao/brit_wall_gate_AO.png",
+    "skin:structural/brit_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_britons_wall_long": {
+   "file": "models/buildings/s_britons_wall_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.393,
+    4.867,
+    2.387
+   ],
+   "sources": [
+    "actor:art/actors/structures/britons/wall_long.xml",
+    "mesh:structural/brit_wall_long.dae",
+    "skin:structural/ao/brit_wall_long_AO.png",
+    "skin:structural/brit_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_britons_wall_medium": {
+   "file": "models/buildings/s_britons_wall_medium.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.324,
+    4.905,
+    2.37
+   ],
+   "sources": [
+    "actor:art/actors/structures/britons/wall_medium.xml",
+    "mesh:structural/brit_wall_medium.dae",
+    "skin:structural/ao/brit_wall_medium.png",
+    "skin:structural/brit_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_britons_wall_short": {
+   "file": "models/buildings/s_britons_wall_short.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.391,
+    4.905,
+    2.37
+   ],
+   "sources": [
+    "actor:art/actors/structures/britons/wall_short.xml",
+    "mesh:structural/brit_wall_short.dae",
+    "skin:structural/ao/brit_wall_short_AO.png",
+    "skin:structural/brit_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
   "s_britons_wooden_tower": {
    "file": "models/buildings/s_britons_wooden_tower.glb",
    "generator": "tools/extract_0ad_structures.py",
@@ -43357,6 +43507,80 @@
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
+  "s_carthaginians_wall_gate": {
+   "file": "models/buildings/s_carthaginians_wall_gate.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    9.248,
+    7.236,
+    3.464
+   ],
+   "sources": [
+    "actor:art/actors/structures/carthaginians/gate.xml",
+    "actor:art/actors/structures/carthaginians/wall_gate.xml",
+    "mesh:structural/kart_gate_b.dae",
+    "mesh:structural/kart_wall_gate_b.dae",
+    "skin:structural/ao/kart_wall_gate_b_AO.png",
+    "skin:structural/kart_struct.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_carthaginians_wall_long": {
+   "file": "models/buildings/s_carthaginians_wall_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.309,
+    6.244,
+    3.017
+   ],
+   "sources": [
+    "actor:art/actors/structures/carthaginians/wall_long.xml",
+    "mesh:structural/kart_wall_long_b.dae",
+    "skin:structural/ao/kart_wall_long_b_AO.png",
+    "skin:structural/kart_struct.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_carthaginians_wall_medium": {
+   "file": "models/buildings/s_carthaginians_wall_medium.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.2,
+    6.233,
+    3.017
+   ],
+   "sources": [
+    "actor:art/actors/structures/carthaginians/wall_medium.xml",
+    "mesh:structural/kart_wall_medium_b.dae",
+    "skin:structural/ao/kart_wall_medium_b_AO.png",
+    "skin:structural/kart_struct.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_carthaginians_wall_short": {
+   "file": "models/buildings/s_carthaginians_wall_short.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.15,
+    5.884,
+    3.017
+   ],
+   "sources": [
+    "actor:art/actors/structures/carthaginians/wall_short.xml",
+    "mesh:structural/kart_wall_short_b.dae",
+    "skin:structural/ao/kart_wall_short_b_AO.png",
+    "skin:structural/kart_struct.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
   "s_carthaginians_wooden_tower": {
    "file": "models/buildings/s_carthaginians_wooden_tower.glb",
    "generator": "tools/extract_0ad_structures.py",
@@ -43420,6 +43644,23 @@
     "skin:structural/pers_struct.png"
    ],
    "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "s_celts_wall_gate": {
+   "file": "models/buildings/s_celts_wall_gate.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.738,
+    7.306,
+    2.539
+   ],
+   "sources": [
+    "actor:art/actors/structures/celts/wall_gate.xml",
+    "mesh:structural/celt_wall_gate.dae",
+    "skin:structural/celt_murus.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
   },
   "s_gauls_blacksmith": {
    "file": "models/buildings/s_gauls_blacksmith.glb",
@@ -43694,6 +43935,60 @@
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
+  "s_gauls_wall_long": {
+   "file": "models/buildings/s_gauls_wall_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.457,
+    5.078,
+    2.289
+   ],
+   "sources": [
+    "actor:art/actors/structures/gauls/wall_long.xml",
+    "mesh:structural/gaul_wall_long.dae",
+    "skin:structural/ao/gaul_wall_long.png",
+    "skin:structural/celt_murus.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_gauls_wall_medium": {
+   "file": "models/buildings/s_gauls_wall_medium.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.476,
+    5.078,
+    2.326
+   ],
+   "sources": [
+    "actor:art/actors/structures/gauls/wall_medium.xml",
+    "mesh:structural/gaul_wall_medium.dae",
+    "skin:structural/ao/gaul_wall_medium.png",
+    "skin:structural/celt_murus.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_gauls_wall_short": {
+   "file": "models/buildings/s_gauls_wall_short.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.482,
+    5.078,
+    2.289
+   ],
+   "sources": [
+    "actor:art/actors/structures/gauls/wall_short.xml",
+    "mesh:structural/gaul_wall_short.dae",
+    "skin:structural/ao/gaul_wall_short.png",
+    "skin:structural/celt_murus.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
   "s_gauls_wooden_tower": {
    "file": "models/buildings/s_gauls_wooden_tower.glb",
    "generator": "tools/extract_0ad_structures.py",
@@ -43812,6 +44107,29 @@
    ],
    "upstream_material": "player_trans_parallax_spec.xml"
   },
+  "s_han_wall_gate_wall_gate": {
+   "file": "models/buildings/s_han_wall_gate_wall_gate.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    9.176,
+    7.449,
+    2.995
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/han/wall_gate_gutters.xml",
+    "actor:art/actors/props/structures/han/wall_gate_struct.xml",
+    "actor:art/actors/structures/han/wall_gate.xml",
+    "mesh:structural/han_wall_gate.dae",
+    "mesh:structural/han_wall_gate_gutters.dae",
+    "mesh:structural/han_wall_gate_struct.dae",
+    "skin:structural/ao/han_wall_gate.png",
+    "skin:structural/han_struct_02.png",
+    "skin:structural/han_wall_gutter.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
   "s_han_wall_long": {
    "file": "models/buildings/s_han_wall_long.glb",
    "generator": "tools/extract_0ad_structures.py",
@@ -43831,6 +44149,147 @@
     "skin:structural/ao/han_wall_long.png",
     "skin:structural/han_struct_02.png",
     "skin:structural/han_wall_gutter.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_han_wall_long_wall_long": {
+   "file": "models/buildings/s_han_wall_long_wall_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    9.196,
+    3.925,
+    2.426
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/han/wall_gutter.xml",
+    "actor:art/actors/structures/han/wall_long.xml",
+    "mesh:structural/han_wall_gutter.dae",
+    "mesh:structural/han_wall_long.dae",
+    "skin:structural/ao/han_wall_gutter.png",
+    "skin:structural/ao/han_wall_long.png",
+    "skin:structural/han_struct_02.png",
+    "skin:structural/han_wall_gutter.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_han_wall_medium": {
+   "file": "models/buildings/s_han_wall_medium.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    6.13,
+    3.925,
+    2.426
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/han/wall_gutter.xml",
+    "actor:art/actors/structures/han/wall_medium.xml",
+    "mesh:structural/han_wall_gutter.dae",
+    "mesh:structural/han_wall_medium.dae",
+    "skin:structural/ao/han_wall_gutter.png",
+    "skin:structural/ao/han_wall_medium.png",
+    "skin:structural/han_struct_02.png",
+    "skin:structural/han_wall_gutter.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_han_wall_short": {
+   "file": "models/buildings/s_han_wall_short.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    3.077,
+    3.925,
+    2.426
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/han/wall_gutter.xml",
+    "actor:art/actors/structures/han/wall_short.xml",
+    "mesh:structural/han_wall_gutter.dae",
+    "mesh:structural/han_wall_short.dae",
+    "skin:structural/ao/han_wall_gutter.png",
+    "skin:structural/ao/han_wall_short.png",
+    "skin:structural/han_struct_02.png",
+    "skin:structural/han_wall_gutter.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_hellenes_wall_gate": {
+   "file": "models/buildings/s_hellenes_wall_gate.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    9.071,
+    6.463,
+    1.81
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/hellenes/gate_door.xml",
+    "actor:art/actors/structures/hellenes/wall_gate.xml",
+    "mesh:structural/hele_gate_door.dae",
+    "mesh:structural/hele_wall_gate.dae",
+    "skin:props/hele_gate.png",
+    "skin:structural/ao/hele_wall_gate.png",
+    "skin:structural/hele_struct_b.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
+  "s_hellenes_wall_long": {
+   "file": "models/buildings/s_hellenes_wall_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.071,
+    5.77,
+    1.403
+   ],
+   "sources": [
+    "actor:art/actors/structures/hellenes/wall_long.xml",
+    "mesh:structural/hele_wall_long.dae",
+    "skin:structural/ao/hele_wall_long.png",
+    "skin:structural/hele_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_hellenes_wall_medium": {
+   "file": "models/buildings/s_hellenes_wall_medium.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.059,
+    5.77,
+    1.403
+   ],
+   "sources": [
+    "actor:art/actors/structures/hellenes/wall_medium.xml",
+    "mesh:structural/hele_wall_medium.dae",
+    "skin:structural/ao/hele_wall_medium.png",
+    "skin:structural/hele_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_hellenes_wall_short": {
+   "file": "models/buildings/s_hellenes_wall_short.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.104,
+    5.77,
+    1.403
+   ],
+   "sources": [
+    "actor:art/actors/structures/hellenes/wall_short.xml",
+    "mesh:structural/hele_wall_short.dae",
+    "skin:structural/ao/hele_wall_short.png",
+    "skin:structural/hele_struct_b.png"
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
@@ -44030,6 +44489,77 @@
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
+  "s_iberians_wall_gate": {
+   "file": "models/buildings/s_iberians_wall_gate.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    9.078,
+    5.924,
+    2.35
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/iberians/wall_gate_shields.xml",
+    "actor:art/actors/structures/iberians/wall_gate.xml",
+    "mesh:props/iber_wall_gate_shields_a.dae",
+    "mesh:structural/iber_wall_gate.dae",
+    "skin:props/iber_prop_shields.dds",
+    "skin:structural/iber_struct.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
+  "s_iberians_wall_long": {
+   "file": "models/buildings/s_iberians_wall_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.065,
+    6.183,
+    2.115
+   ],
+   "sources": [
+    "actor:art/actors/structures/iberians/wall_long.xml",
+    "mesh:structural/iber_wall_long.dae",
+    "skin:structural/iber_struct.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "s_iberians_wall_medium": {
+   "file": "models/buildings/s_iberians_wall_medium.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.036,
+    6.183,
+    2.115
+   ],
+   "sources": [
+    "actor:art/actors/structures/iberians/wall_medium.xml",
+    "mesh:structural/iber_wall_medium.dae",
+    "skin:structural/iber_struct.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "s_iberians_wall_short": {
+   "file": "models/buildings/s_iberians_wall_short.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.013,
+    6.183,
+    2.115
+   ],
+   "sources": [
+    "actor:art/actors/structures/iberians/wall_short.xml",
+    "mesh:structural/iber_wall_short.dae",
+    "skin:structural/iber_struct.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
   "s_iberians_wooden_tower": {
    "file": "models/buildings/s_iberians_wooden_tower.glb",
    "generator": "tools/extract_0ad_structures.py",
@@ -44175,6 +44705,81 @@
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
+  "s_kushites_wall_gate": {
+   "file": "models/buildings/s_kushites_wall_gate.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    9.277,
+    6.204,
+    2.809
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/kushites/wall_gate_door.xml",
+    "actor:art/actors/structures/kushites/wall_gate.xml",
+    "mesh:structural/hele_wall_gate.dae",
+    "mesh:structural/kush_wall_gate.dae",
+    "skin:props/hele_gate.png",
+    "skin:structural/ao/kush_wall_gate.png",
+    "skin:structural/kush_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_kushites_wall_long": {
+   "file": "models/buildings/s_kushites_wall_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.216,
+    6.2,
+    1.408
+   ],
+   "sources": [
+    "actor:art/actors/structures/kushites/wall_long.xml",
+    "mesh:structural/kush_wall_long.dae",
+    "skin:structural/ao/kush_wall_long.png",
+    "skin:structural/kush_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_kushites_wall_medium": {
+   "file": "models/buildings/s_kushites_wall_medium.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.228,
+    6.2,
+    1.408
+   ],
+   "sources": [
+    "actor:art/actors/structures/kushites/wall_medium.xml",
+    "mesh:structural/kush_wall_medium.dae",
+    "skin:structural/ao/kush_wall_long.png",
+    "skin:structural/kush_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_kushites_wall_short": {
+   "file": "models/buildings/s_kushites_wall_short.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.221,
+    6.2,
+    1.408
+   ],
+   "sources": [
+    "actor:art/actors/structures/kushites/wall_short.xml",
+    "mesh:structural/kush_wall_short.dae",
+    "skin:structural/ao/kush_wall_short.png",
+    "skin:structural/kush_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
   "s_kushites_workshop": {
    "file": "models/buildings/s_kushites_workshop.glb",
    "generator": "tools/extract_0ad_structures.py",
@@ -44225,6 +44830,102 @@
     "skin:props/structs_nature.png",
     "skin:structural/ao/mace_theater.png",
     "skin:structural/hele_struct.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_mauryas_wall_gate": {
+   "file": "models/buildings/s_mauryas_wall_gate.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    9.089,
+    9.502,
+    2.337
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/mauryas/wall_gate_palisade.xml",
+    "actor:art/actors/props/structures/mauryas/wall_gate_struct_b.xml",
+    "actor:art/actors/structures/mauryas/wall_gate.xml",
+    "mesh:structural/maur_wall_gate_palisade.dae",
+    "mesh:structural/maur_wall_gate_struct.dae",
+    "mesh:structural/maur_wall_gate_struct_b.dae",
+    "skin:props/palisade_main.png",
+    "skin:structural/ao/maur_wall_gate_ao.png",
+    "skin:structural/maur_struct.png",
+    "skin:structural/maur_struct_b.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "s_mauryas_wall_long": {
+   "file": "models/buildings/s_mauryas_wall_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    9.049,
+    8.107,
+    1.474
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/mauryas/wall_long_palisade.xml",
+    "actor:art/actors/props/structures/mauryas/wall_long_struct_b.xml",
+    "actor:art/actors/structures/mauryas/wall_long.xml",
+    "mesh:structural/maur_wall_long_palisade.dae",
+    "mesh:structural/maur_wall_long_struct.dae",
+    "mesh:structural/maur_wall_long_struct_b.dae",
+    "skin:props/palisade_main.png",
+    "skin:structural/ao/maur_wall_long_ao.png",
+    "skin:structural/maur_struct.png",
+    "skin:structural/maur_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_mauryas_wall_medium": {
+   "file": "models/buildings/s_mauryas_wall_medium.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    6.024,
+    8.107,
+    1.474
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/mauryas/wall_medium_palisade.xml",
+    "actor:art/actors/props/structures/mauryas/wall_medium_struct_b.xml",
+    "actor:art/actors/structures/mauryas/wall_medium.xml",
+    "mesh:structural/maur_wall_medium_palisade.dae",
+    "mesh:structural/maur_wall_medium_struct.dae",
+    "mesh:structural/maur_wall_medium_struct_b.dae",
+    "skin:props/palisade_main.png",
+    "skin:structural/ao/maur_wall_medium_ao.png",
+    "skin:structural/maur_struct.png",
+    "skin:structural/maur_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_mauryas_wall_short": {
+   "file": "models/buildings/s_mauryas_wall_short.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    3.012,
+    8.107,
+    1.474
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/mauryas/wall_short_palisade.xml",
+    "actor:art/actors/props/structures/mauryas/wall_short_struct_b.xml",
+    "actor:art/actors/structures/mauryas/wall_short.xml",
+    "mesh:structural/maur_wall_short_palisade.dae",
+    "mesh:structural/maur_wall_short_struct.dae",
+    "mesh:structural/maur_wall_short_struct_b.dae",
+    "skin:props/palisade_main.png",
+    "skin:structural/ao/maur_wall_short_ao.png",
+    "skin:structural/maur_struct.png",
+    "skin:structural/maur_struct_b.png"
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
@@ -44635,6 +45336,74 @@
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
+  "s_persians_wall_gate": {
+   "file": "models/buildings/s_persians_wall_gate.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.1,
+    7.496,
+    1.668
+   ],
+   "sources": [
+    "actor:art/actors/structures/persians/wall_gate.xml",
+    "mesh:structural/pers_wall_gate.dae",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "s_persians_wall_long": {
+   "file": "models/buildings/s_persians_wall_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.133,
+    7.688,
+    1.593
+   ],
+   "sources": [
+    "actor:art/actors/structures/persians/wall_long.xml",
+    "mesh:structural/pers_wall_long.dae",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "s_persians_wall_medium": {
+   "file": "models/buildings/s_persians_wall_medium.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.065,
+    7.688,
+    1.593
+   ],
+   "sources": [
+    "actor:art/actors/structures/persians/wall_medium.xml",
+    "mesh:structural/pers_wall_medium.dae",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "s_persians_wall_short": {
+   "file": "models/buildings/s_persians_wall_short.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.083,
+    7.688,
+    1.593
+   ],
+   "sources": [
+    "actor:art/actors/structures/persians/wall_short.xml",
+    "mesh:structural/pers_wall_short.dae",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
   "s_persians_wooden_tower": {
    "file": "models/buildings/s_persians_wooden_tower.glb",
    "generator": "tools/extract_0ad_structures.py",
@@ -44907,6 +45676,81 @@
     "actor:art/actors/structures/ptolemies/stable_elephant.xml",
     "mesh:structural/ptol_stable_elephant.dae",
     "skin:structural/ao/ptol_elephant_stable.png",
+    "skin:structural/ptol_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_ptolemies_wall_gate": {
+   "file": "models/buildings/s_ptolemies_wall_gate.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    9.816,
+    7.136,
+    3.051
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/ptolemies/gate_door.xml",
+    "actor:art/actors/structures/ptolemies/wall_gate.xml",
+    "mesh:structural/ptol_wall_gate.dae",
+    "mesh:structural/ptol_wall_gate_door.dae",
+    "skin:props/ptol_gate.png",
+    "skin:structural/ao/ptol_wall_gate_AO.png",
+    "skin:structural/ptol_struct.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
+  "s_ptolemies_wall_long": {
+   "file": "models/buildings/s_ptolemies_wall_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.592,
+    5.299,
+    1.461
+   ],
+   "sources": [
+    "actor:art/actors/structures/ptolemies/wall_long.xml",
+    "mesh:structural/ptol_wall_long_2.dae",
+    "skin:structural/ao/ptol_wall_long_2_AO.png",
+    "skin:structural/ptol_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_ptolemies_wall_medium": {
+   "file": "models/buildings/s_ptolemies_wall_medium.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.433,
+    5.299,
+    1.461
+   ],
+   "sources": [
+    "actor:art/actors/structures/ptolemies/wall_medium.xml",
+    "mesh:structural/ptol_wall_medium_2.dae",
+    "skin:structural/ao/ptol_wall_medium_2_AO.png",
+    "skin:structural/ptol_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_ptolemies_wall_short": {
+   "file": "models/buildings/s_ptolemies_wall_short.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.901,
+    5.299,
+    1.461
+   ],
+   "sources": [
+    "actor:art/actors/structures/ptolemies/wall_short.xml",
+    "mesh:structural/ptol_wall_short_2.dae",
+    "skin:structural/ao/ptol_wall_short_2_AO.png",
     "skin:structural/ptol_struct.png"
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
@@ -45189,6 +46033,77 @@
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
+  "s_romans_wall_gate": {
+   "file": "models/buildings/s_romans_wall_gate.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.309,
+    5.641,
+    2.378
+   ],
+   "sources": [
+    "actor:art/actors/structures/romans/wall_gate.xml",
+    "mesh:structural/rome_wall_gate.dae",
+    "skin:structural/rome_struct_2.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "s_romans_wall_long": {
+   "file": "models/buildings/s_romans_wall_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.328,
+    5.229,
+    2.182
+   ],
+   "sources": [
+    "actor:art/actors/structures/romans/wall_long.xml",
+    "mesh:structural/rome_wall_long.dae",
+    "skin:structural/ao/rome_wall_long.png",
+    "skin:structural/rome_struct_2.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_romans_wall_medium": {
+   "file": "models/buildings/s_romans_wall_medium.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.315,
+    5.229,
+    2.182
+   ],
+   "sources": [
+    "actor:art/actors/structures/romans/wall_medium.xml",
+    "mesh:structural/rome_wall_medium.dae",
+    "skin:structural/ao/rome_wall_medium.png",
+    "skin:structural/rome_struct_2.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_romans_wall_short": {
+   "file": "models/buildings/s_romans_wall_short.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.34,
+    5.229,
+    2.182
+   ],
+   "sources": [
+    "actor:art/actors/structures/romans/wall_short.xml",
+    "mesh:structural/rome_wall_short.dae",
+    "skin:structural/ao/rome_wall_short.png",
+    "skin:structural/rome_struct_2.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
   "s_romans_wooden_tower": {
    "file": "models/buildings/s_romans_wooden_tower.glb",
    "generator": "tools/extract_0ad_structures.py",
@@ -45390,6 +46305,80 @@
     "mesh:structural/sele_stable_elephant.dae",
     "skin:structural/Sele_struct_2.png",
     "skin:structural/ao/sele_stable_elephant_AO.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_seleucids_wall_gate": {
+   "file": "models/buildings/s_seleucids_wall_gate.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    8.91,
+    8.117,
+    2.292
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/seleucids/gate.xml",
+    "actor:art/actors/structures/seleucids/wall_gate.xml",
+    "mesh:structural/sele_gate.dae",
+    "mesh:structural/sele_wall_gate.dae",
+    "skin:structural/Sele_struct_2.png",
+    "skin:structural/ao/sele_wall_gate.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_seleucids_wall_long": {
+   "file": "models/buildings/s_seleucids_wall_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    8.998,
+    6.566,
+    1.615
+   ],
+   "sources": [
+    "actor:art/actors/structures/seleucids/wall_long.xml",
+    "mesh:structural/sele_wall_long.dae",
+    "skin:structural/Sele_struct_2.png",
+    "skin:structural/ao/sele_wall_long.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_seleucids_wall_medium": {
+   "file": "models/buildings/s_seleucids_wall_medium.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    5.944,
+    6.566,
+    1.615
+   ],
+   "sources": [
+    "actor:art/actors/structures/seleucids/wall_medium.xml",
+    "mesh:structural/sele_wall_medium.dae",
+    "skin:structural/Sele_struct_2.png",
+    "skin:structural/ao/sele_wall_medium.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_seleucids_wall_short": {
+   "file": "models/buildings/s_seleucids_wall_short.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.4,
+    6.566,
+    1.615
+   ],
+   "sources": [
+    "actor:art/actors/structures/seleucids/wall_short.xml",
+    "mesh:structural/sele_wall_short.dae",
+    "skin:structural/Sele_struct_2.png",
+    "skin:structural/ao/sele_wall_short.png"
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },

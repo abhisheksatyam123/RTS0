@@ -5943,12 +5943,35 @@ void Simulation::tick(float dt) {
 	ticks_++;
 }
 
+// UnitMotion/RunMultiplier: template_unit 1.67, cavalry 1.4, dogs 2, siege engines 1.
+float Simulation::unit_run_multiplier(size_t i) const {
+	if (units_.unit_type[i] == UNIT_WAR_DOG) return 2.0f;
+	const CombatClasses &c = unit_combat_at(i).classes;
+	if (c.has(CC_SIEGE)) return 1.0f;
+	if (c.has(CC_CAVALRY)) return 1.4f;
+	return 1.67f;
+}
+
+// UnitAI Run: a unit runs while it flees (FLEEING enter) and while it chases a target
+// that is fleeing (CHASING enter, target IsFleeing).
+bool Simulation::unit_running(size_t i) const {
+	const uint8_t st = units_.action_state[i];
+	if (st == ACTION_FLEE) return true;
+	if (st != ACTION_ATTACK || units_.target_unit_id[i] == 0) return false;
+	const uint32_t tid = units_.target_unit_id[i];
+	const int32_t t = lookup_unit(tid);
+	if (t >= 0) return units_.alive[t] && units_.action_state[t] == ACTION_FLEE;
+	auto f = fauna_id_to_idx_.find(tid);
+	return f != fauna_id_to_idx_.end() && fauna_.alive[f->second] && fauna_.behavior[f->second] == FAUNA_FLEE;
+}
+
 // UnitMotion's walk speed: the template speed with this player's technologies
 // (units_.speed) times the speed auras the unit stands in (strongest bonus times
 // strongest penalty). Auras.js modifies UnitMotion/WalkSpeed, so an aura applies
 // only while the unit is in it.
 float Simulation::unit_walk_speed(size_t i) const {
 	float spd = units_.speed[i];
+	if (unit_running(i)) spd *= unit_run_multiplier(i);
 	if (aura_mgr_.has(AURA_SPEED)) {
 		const float aura = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_SPEED,
 			units_.tmpl[i], &unit_combat_at(i).classes);
@@ -9708,6 +9731,17 @@ void Simulation::finish_order(size_t i) {
 			o.target = r;
 			apply_order(uid, o);
 			return;
+		}
+		// A hunter whose carcass is eaten goes for the next animal of the kind nearby
+		// (FindNearbyResource takes live animals too; PerformGather then kills it first).
+		if (sub == RES_SUB_MEAT) {
+			const bool forced = (units_.order_flags[i] & ORDER_FLAG_FORCE) != 0;
+			const uint32_t prey = find_nearby_prey(i, forced ? units_.order_x[i] : units_.pos_x[i],
+					forced ? units_.order_z[i] : units_.pos_z[i]);
+			if (prey != 0) {
+				order_hunt(&uid, 1, prey);
+				return;
+			}
 		}
 		// GATHER FINDINGNEWTARGET: nothing left to gather nearby; drop off what it carries.
 		if (units_.carry[i] > 0) {
@@ -18576,6 +18610,26 @@ uint32_t Simulation::spawn_fauna(float x, float z, uint8_t ftype) {
 
 // 0 A.D. UnitAI Gather order on a KillBeforeGather supply (an animal): the unit attacks it,
 // then gathers the carcass (tick_hunters). Any unit with an attack can hunt.
+// The nearest live animal hunter i may go for next within the FindNearbyResource range of
+// (x, z): one it can hunt, not penned or herded, and no dangerous or sea animal (RTS0 drops
+// the carcass's template, so "the same template" is approximated by the herd nearby).
+uint32_t Simulation::find_nearby_prey(size_t i, float x, float z) const {
+	if (units_.attack_damage[i] <= 0.0f || unit_is_ship(units_.unit_type[i])) return 0;
+	uint32_t best = 0;
+	float best_d2 = NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE;
+	for (size_t f = 0; f < fauna_.count; ++f) {
+		if (!fauna_.alive[f] || fauna_.food_amount[f] <= 0) continue;
+		const uint8_t b = fauna_.behavior[f];
+		if (b == FAUNA_CARCASS || b == FAUNA_CORRALLED || b == FAUNA_HERDED) continue;
+		const auto &info = fauna_type_info(fauna_.fauna_type[f]);
+		if (info.is_dangerous() || info.is_naval()) continue;
+		const float dx = fauna_.pos_x[f] - x, dz = fauna_.pos_z[f] - z;
+		const float d2 = dx * dx + dz * dz;
+		if (d2 < best_d2) { best_d2 = d2; best = fauna_.id[f]; }
+	}
+	return best;
+}
+
 void Simulation::order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id) {
 	auto it = fauna_id_to_idx_.find(fauna_id);
 	if (it == fauna_id_to_idx_.end()) return;
