@@ -1265,6 +1265,8 @@ private:
 	void credit_trade(uint8_t player, uint8_t res, int amount);
 	void tick_trickle(float dt);
 	int corral_count(uint32_t corral_id) const;
+	// Han ministers garrisoned in `b` (their garrison auras: han_minister_garrison*.json).
+	int garrisoned_ministers(const Building &b) const;
 	void tick_death_damage(float dt);
 	// 0 A.D. helpers/Attack.js CauseDamageOverArea for an Attack Splash landing at (ox, oz).
 	void cause_damage_over_area(uint8_t splash, uint32_t attacker_id, uint8_t attacker_team,
@@ -1705,6 +1707,9 @@ private:
 	void petra_set_trading_goods();   // tradeManager.js setTradingGoods
 	int petra_villager_target() const;
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
+	bool petra_limit_allows_building(uint8_t btype) const;
+	mutable uint64_t petra_limit_cache_key_ = 0; // derived per tick, never saved
+	mutable std::array<uint8_t, BLD_TYPE_COUNT> petra_limit_cache_{};
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
 	void petra_say(uint8_t kind, float x = 0.0f, float z = 0.0f, uint8_t to = 0xFF, int amount = 0, uint8_t res = 0);
 	void petra_handle_diplomacy_request(uint8_t player, uint8_t type);

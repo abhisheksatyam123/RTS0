@@ -519,6 +519,7 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // rome/cavalry_auxiliary_b
 	{LIMIT_NONE, 0}, // rome/infantry_antesignanus
 	{LIMIT_NONE, 0}, // mace/champion_infantry_spearman_02
+	{LIMIT_MINISTER, 0}, // han/support_minister
 };
 static_assert(sizeof(UNIT_LIMITS) / sizeof(UNIT_LIMITS[0]) == CIV_UNIT_TEMPLATE_COUNT,
 		"one UnitLimit per roster row: rerun tools/extract_0ad_entity_limits.py");
@@ -548,6 +549,7 @@ inline constexpr uint8_t UNIT_TYPE_LIMIT_CATEGORY[UNIT_TYPE_COUNT] = {
 	LIMIT_NONE, // UNIT_ARCHER_MAIDEN
 	LIMIT_NONE, // UNIT_CAMEL
 	LIMIT_NONE, // UNIT_SCYTHED_CHARIOT
+	LIMIT_MINISTER, // UNIT_MINISTER
 };
 
 // BuildRestrictions/Category per BuildingType.

@@ -176,6 +176,7 @@ void RtsoWorldView::init_animation_controllers() {
 	anim_controllers[rtso::UNIT_ARCHER].load_rig(rtso::RigType::Archer);
 	anim_controllers[rtso::UNIT_CAVALRY].load_rig(rtso::RigType::Mounted);
 	anim_controllers[rtso::UNIT_HEALER].load_rig(rtso::RigType::Healer);
+	anim_controllers[rtso::UNIT_MINISTER].load_rig(rtso::RigType::Healer); // robed, like the healer model it borrows
 	anim_controllers[rtso::UNIT_SIEGE_RAM].load_rig(rtso::RigType::SiegeRam);
 	anim_controllers[rtso::UNIT_HERO].load_rig(rtso::RigType::Biped);
 	anim_controllers[rtso::UNIT_TRADER].load("trader");
