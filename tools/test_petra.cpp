@@ -1506,6 +1506,37 @@ static void test_defense_by_strength() {
 	}
 }
 
+// baseManager.js assignToFoundations targetNB: a new civic centre takes up to 15
+// builders, a barracks 4, a house 3, with resources to spare (builderRatio 1).
+static void test_builders_per_foundation() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const float cx = cc->x, cz = cc->z;
+	for (int k = 0; k < 30; ++k) s->spawn_unit(cx - 8.0f + (float)(k % 6), cz + 8.0f + (float)(k / 6), 1, UNIT_FEMALE_CITIZEN);
+	const uint32_t barracks = s->spawn_building_world(cx + 12.0f, cz, BLD_BARRACKS, 1, 0.0f);
+	const uint32_t house = s->spawn_building_world(cx - 12.0f, cz, BLD_HOUSE, 1, 0.0f);
+	run_for(*s, 3.0f);
+	auto on = [&](uint32_t id) {
+		int n = 0;
+		for (size_t i = 0; i < s->units_.count; ++i)
+			if (s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.action_state[i] == ACTION_BUILD && s->units_.target_building_id[i] == id) ++n;
+		return n;
+	};
+	std::printf("  builders: barracks %d, house %d\n", on(barracks), on(house));
+	CHECK(on(barracks) == 4, "a barracks foundation takes 4 builders");
+	CHECK(on(house) == 3, "a house foundation takes 3 builders");
+}
+
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
@@ -1536,6 +1567,7 @@ int main() {
 	test_repairs();
 	test_idle_return();
 	test_defense_by_strength();
+	test_builders_per_foundation();
 	test_wonder_guards();
 	test_placement_miss_memory_exact();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);

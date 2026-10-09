@@ -10915,6 +10915,18 @@ void Simulation::petra_order_builders(const std::vector<uint32_t> &workers, size
 // repair one (three for a fortress or a wonder, five for a civic centre and
 // seven below 30% health) within builderRatio of the workforce. Near an
 // invading army only a civic centre or wall below half health is repaired.
+// assignToFoundations builderRatio (queueManager.getAvailableResources): under 200 of
+// anything caps builders at a fifth of the workers, under 1000 at that share of a thousand.
+float Simulation::petra_builder_ratio() const {
+	float ratio = 1.0f;
+	for (uint8_t r = 0; r < RES_COUNT; ++r) {
+		const float have = (float)player_resource(petra_pid_, r);
+		if (have < 200.0f) return 0.2f;
+		if (have < 1000.0f) ratio = std::min(ratio, have / 1000.0f);
+	}
+	return ratio;
+}
+
 void Simulation::petra_assign_repairs() {
 	std::vector<size_t> damaged;
 	for (size_t k = 0; k < buildings_.size(); ++k) {
@@ -10925,14 +10937,7 @@ void Simulation::petra_assign_repairs() {
 	}
 	if (damaged.empty()) return;
 
-	// queueManager.getAvailableResources: under 200 of anything caps builders at a
-	// fifth of the workers, under 1000 at that share of a thousand.
-	float ratio = 1.0f;
-	for (uint8_t r = 0; r < RES_COUNT; ++r) {
-		const float have = (float)player_resource(petra_pid_, r);
-		if (have < 200.0f) { ratio = 0.2f; break; }
-		if (have < 1000.0f) ratio = std::min(ratio, have / 1000.0f);
-	}
+	const float ratio = petra_builder_ratio();
 	int workers = 0, builders = 0;
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
@@ -11024,8 +11029,16 @@ void Simulation::petra_staff_foundations() {
 	const bool naval_map = topo.naval_map;
 	for (auto &w : petra_fnd_watch_) {
 		const Building &b = buildings_[building_id_to_idx_.at(w.id)];
-		int want = (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_WONDER) ? 4
-		         : (b.type == BLD_HOUSE ? 1 : (b.type == BLD_FIELD ? 3 : 2));
+		// assignToFoundations targetNB: 15 on a base anchor (or the wonder in wonder victory),
+		// 7 on a fortress or wonder, 4 on military buildings, towers and the market, 3 on
+		// houses and wood dropsites, else 2. (Petra's fields get their 3 farmers.)
+		int want = 2;
+		if (b.type == BLD_TOWN_CENTER || b.type == BLD_MILITARY_COLONY ||
+		    (b.type == BLD_WONDER && victory_condition_ == VICTORY_WONDER)) want = 15;
+		else if (b.type == BLD_FORTRESS || b.type == BLD_WONDER) want = 7;
+		else if (b.type == BLD_BARRACKS || b.type == BLD_RANGE || b.type == BLD_STABLE || b.type == BLD_TOWER ||
+		         b.type == BLD_SENTRY_TOWER || b.type == BLD_MARKET) want = 4;
+		else if (b.type == BLD_HOUSE || b.type == BLD_STOREHOUSE || b.type == BLD_FIELD) want = 3;
 		needs.push_back({w.id, b.x, b.z, want, &w, naval_map ? petra_building_land(b, &topo) : (uint16_t)0});
 	}
 
@@ -11054,8 +11067,32 @@ void Simulation::petra_staff_foundations() {
 	}
 	for (auto &n : needs)
 		if (n.watch->stall >= kStallRelease) n.watch->stall = 0.0f;
-	// Keep at least two thirds of the workforce on the economy.
-	int budget = std::max(1, workers / 3) - building;
+	// maxTotalBuilders: the workers times the builder ratio (getAvailableResources), at least
+	// two; two more for a house while the population is near its cap; 15 for a base
+	// anchor or the wonder in wonder victory; every worker while there is no base yet.
+	bool has_base = false;
+	for (const auto &b : buildings_)
+		if (b.team == petra_pid_ && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f && !b.wrecked) { has_base = true; break; }
+	int max_total = (int)std::ceil((float)workers * petra_builder_ratio());
+	if (max_total < 2 && workers > 1) max_total = 2;
+	const bool house_short = pop_max(petra_pid_) < pop_current(petra_pid_) + 5 && pop_max(petra_pid_) < pop_cap();
+	auto budget_for = [&](const Building &b) {
+		int cap = max_total;
+		if (b.type == BLD_HOUSE && house_short) cap += 2;
+		if (b.type == BLD_TOWN_CENTER || b.type == BLD_MILITARY_COLONY || (b.type == BLD_WONDER && victory_condition_ == VICTORY_WONDER))
+			cap = std::max(cap, 15);
+		if (!has_base) cap = workers;
+		return cap - building;
+	};
+	// headquarters.js isNearInvadingArmy: only a civic centre, wall or the victory wonder
+	// is built with invaders near.
+	auto near_invaders = [&](const Building &b) {
+		if (!petra_defense_army_.active) return false;
+		const bool critical = b.type == BLD_TOWN_CENTER || b.type == BLD_WALL_SEGMENT || b.type == BLD_WALL_TOWER ||
+		                      b.type == BLD_GATE || b.type == BLD_PALISADE || (b.type == BLD_WONDER && victory_condition_ == VICTORY_WONDER);
+		const float dx = b.x - petra_defense_army_.cx, dz = b.z - petra_defense_army_.cz;
+		return !critical && dx * dx + dz * dz < 12000.0f / 16.0f;
+	};
 
 	// Idle workers first, then the nearest gatherer, on `land` when given.
 	auto pick_worker = [&](const Need &n, uint16_t land, const std::vector<uint32_t> &taken) {
@@ -11072,7 +11109,10 @@ void Simulation::petra_staff_foundations() {
 			if (std::find(taken.begin(), taken.end(), units_.id[i]) != taken.end()) continue;
 			if (land && petra_land_at(units_.pos_x[i], units_.pos_z[i]) != land) continue;
 			float dx = units_.pos_x[i] - n.x, dz = units_.pos_z[i] - n.z;
-			float d2 = dx * dx + dz * dz + (st == ACTION_IDLE ? 0.0f : 1e6f);
+			float d2 = dx * dx + dz * dz;
+			// Food gatherers count three times as far (assignToFoundations sort).
+			if (st != ACTION_IDLE && units_.res_type_carried[i] == RES_FOOD && units_.target_resource_id[i]) d2 *= 3.0f;
+			d2 += (st == ACTION_IDLE ? 0.0f : 1e6f);
 			if (d2 < best_d2) { best_d2 = d2; best = (int)i; }
 		}
 		return best;
@@ -11080,6 +11120,9 @@ void Simulation::petra_staff_foundations() {
 	const std::vector<uint32_t> none;
 	for (auto &n : needs) {
 		const int wanted = n.missing;
+		const Building &nb = buildings_[building_id_to_idx_.at(n.id)];
+		if (n.missing <= 0 || near_invaders(nb)) continue;
+		int budget = budget_for(nb);
 		while (n.missing > 0 && budget > 0) {
 			const int best = pick_worker(n, n.land, none);
 			if (best < 0) break;
@@ -11087,6 +11130,7 @@ void Simulation::petra_staff_foundations() {
 			order_build_or_repair(&uid, 1, n.id);
 			--n.missing;
 			--budget;
+			++building;
 		}
 		// navalManager.requireTransport: nobody of ours on that land yet, so a ship
 		// takes builders from home (one builders' crossing at a time).
@@ -11101,7 +11145,7 @@ void Simulation::petra_staff_foundations() {
 		}
 		float hx = n.x, hz = n.z;
 		if (const PetraBase *pb = get_primary_petra_base()) { hx = pb->x; hz = pb->z; }
-		if (!crew.empty() && petra_start_transport(crew, hx, hz, n.x, n.z, sea, PETRA_TRANSPORT_BUILDERS)) budget -= (int)crew.size();
+		if (!crew.empty() && petra_start_transport(crew, hx, hz, n.x, n.z, sea, PETRA_TRANSPORT_BUILDERS)) building += (int)crew.size();
 	}
 }
 
