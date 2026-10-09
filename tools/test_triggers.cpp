@@ -1,6 +1,6 @@
 // Map triggers: the Trigger.js / Timer.js engine (src/simulation/triggers.h) and
-// the two rising-water scripts ported from 0 A.D. (flood_triggers.js,
-// extinct_volcano_triggers.js).
+// the scripts ported from 0 A.D. (flood_triggers.js, extinct_volcano_triggers.js,
+// polar_sea_triggers.js, scenarios/treasure_islands.js).
 //
 // Checks
 //   1. OnInterval triggers fire on time and stop when disabled (Timer.js).
@@ -14,6 +14,12 @@
 //   5. Saving mid-rise and loading keeps the lockstep hash and the trigger
 //      state; both copies stay in sync while the water keeps rising; two
 //      identical runs write byte-identical saves.
+//   6. Polar Sea: the axe and basket techs are disabled; from 5 minutes, waves of
+//      1-3 violent arctic wolves spawn at every trigger point and attack the three
+//      nearest player units in turn; the next wave comes 2-4 minutes later.
+//   7. Treasure Islands: the intro message, a real treasure pickup counted through
+//      OnTreasureCollected, the messages near the goal, the 18-18 battle message on
+//      its interval, and 19 treasures winning the match 5 s later.
 //
 //   g++ -std=c++20 -O2 -Isrc tools/test_triggers.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -25,6 +31,7 @@
 #include "network/turn_manager.h"
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <vector>
 
 using namespace rtso;
@@ -49,7 +56,9 @@ static void build(Simulation &s, MapType map, int water_mode = Simulation::WATER
 }
 
 static void run_to(Simulation &s, float seconds) {
-	while (s.trigger_state().time_ms < (uint32_t)std::lround(seconds * 1000.0f)) s.tick(Simulation::FIXED_STEP);
+	// A finished match stops ticking (and its trigger clock).
+	while (!s.game_over_ && !s.victory_ && s.trigger_state().time_ms < (uint32_t)std::lround(seconds * 1000.0f))
+		s.tick(Simulation::FIXED_STEP);
 }
 
 static bool near(float a, float b) { return std::fabs(a - b) < 1e-3f; }
@@ -215,8 +224,135 @@ static void check_identical_saves() {
 	if (!fa.empty() && fa == fb) std::printf("two identical rising-water runs: byte-identical saves (%zu bytes)\n", fa.size());
 }
 
+static void check_polar_sea() {
+	const int before = failures;
+	static Simulation s;
+	build(s, MAP_POLAR_SEA);
+	const auto &pts = s.trigger_state().points;
+	CHECK(!pts.empty(), "Polar Sea has no wolf trigger points");
+	s.tick(Simulation::FIXED_STEP); // OnInitGame
+	for (uint8_t t : {TECH_WOODCUTTING_1, TECH_GATHER_LUMBERING_SHARPAXES, TECH_GATHER_LUMBERING_STRONGERAXES, TECH_GATHER_WICKER_BASKETS})
+		CHECK(s.research_check(1, t) == Simulation::TECH_ERR_DISABLED, "Polar Sea tech %d not disabled", t);
+	CHECK(s.research_check(1, TECH_GATHER_WICKER_BASKETS_MAUR) != Simulation::TECH_ERR_DISABLED, "Polar Sea disabled the Mauryan baskets");
+	auto wolves = [&]() {
+		int n = 0;
+		const auto f = s.fauna();
+		for (size_t i = 0; i < f.count; ++i) n += f.alive[i] && f.fauna_type[i] == FAUNA_WOLF_ARCTIC_VIOLENT;
+		return n;
+	};
+	run_to(s, 299.0f);
+	CHECK(wolves() == 0, "%d violent wolves before 5 minutes", wolves());
+	run_to(s, 301.0f);
+	const int w1 = wolves();
+	CHECK(w1 >= (int)pts.size() && w1 <= 3 * (int)pts.size(), "first wave: %d wolves at %zu points", w1, pts.size());
+	CHECK(s.trigger_state().attack_orders.size() == (size_t)w1, "%zu attack orders for %d wolves", s.trigger_state().attack_orders.size(), w1);
+	// Each pack goes for organic player units, the nearest first.
+	float d_start = 0.0f, d_later = 0.0f;
+	int ordered = 0;
+	for (const TriggerAttackOrder &o : s.trigger_state().attack_orders) {
+		CHECK(o.count >= 1 && o.count <= 3, "attack order with %u targets", o.count);
+		const int32_t u = s.lookup_unit(o.targets[0]);
+		CHECK(u >= 0 && s.units_.team[u] < MAX_PLAYERS && (unit_tech_classes(s.units_.unit_type[u]) & TC_ORGANIC),
+		      "wolf target %u is not an organic player unit", o.targets[0]);
+		const size_t f = s.fauna_id_to_idx_[o.fauna_id];
+		CHECK(s.fauna_.behavior[f] == FAUNA_ATTACK && s.fauna_.target_unit_id[f] == o.targets[0], "wolf %u not attacking its first target", o.fauna_id);
+		if (u >= 0) d_start += std::hypot(s.units_.pos_x[u] - s.fauna_.pos_x[f], s.units_.pos_z[u] - s.fauna_.pos_z[f]);
+		++ordered;
+	}
+	const std::vector<TriggerAttackOrder> first = s.trigger_state().attack_orders;
+	run_to(s, 311.0f);
+	int still = 0;
+	for (const TriggerAttackOrder &o : first) {
+		auto it = s.fauna_id_to_idx_.find(o.fauna_id);
+		const int32_t u = s.lookup_unit(o.targets[0]);
+		if (it == s.fauna_id_to_idx_.end() || u < 0 || !s.fauna_.alive[it->second]) continue;
+		d_later += std::hypot(s.units_.pos_x[u] - s.fauna_.pos_x[it->second], s.units_.pos_z[u] - s.fauna_.pos_z[it->second]);
+		++still;
+	}
+	CHECK(ordered > 0 && (still < ordered || d_later < d_start), "wolves did not close in (%.1f -> %.1f)", d_start, d_later);
+	// SpawnWolvesAndAttack reschedules itself 2-4 minutes on.
+	bool next = false;
+	for (const TriggerTimer &t : s.trigger_state().timers)
+		next |= t.action == TRIGGER_ACTION_POLAR_SEA_WAVE && t.time_ms >= 300000 + 120000 && t.time_ms <= 301000 + 240000;
+	CHECK(next, "no next wolf wave 2-4 minutes after the first");
+	if (failures == before)
+		std::printf("Polar Sea: axes and baskets disabled; %d wolves at %zu points at 5:00 attack the nearest units; next wave queued: ok\n", w1, pts.size());
+}
+
+static bool shown(const Simulation &s, uint8_t player, const char *text) {
+	for (const TimeNotification *n : s.time_notifications_for(player))
+		if (std::strstr(n->text, text)) return true;
+	return false;
+}
+
+static void collected(Simulation &s, uint8_t player, int times) {
+	TriggerEventData ev;
+	ev.player = player;
+	for (int i = 0; i < times; ++i) s.trigger_event(TRIGGER_ON_TREASURE_COLLECTED, ev);
+}
+
+static void check_treasure_islands() {
+	const int before = failures;
+	static Simulation s;
+	s.set_sim_seed(SEED);
+	s.spawn_initial();
+	s.set_waves_enabled(false);
+	s.set_victory_condition(VICTORY_ENDLESS); // the default arena has no second player to fight
+	s.treasures_.clear(); // the arena's own treasures would count too
+	CHECK(s.register_trigger_script("treasure_islands"), "treasure_islands script not registered");
+	CHECK(!s.register_trigger_script("no_such_script"), "an unknown script registered");
+	run_to(s, 1.9f);
+	CHECK(!shown(s, 0, "Collect the treasures"), "intro before 2 s");
+	run_to(s, 2.1f);
+	CHECK(shown(s, 0, "Collect the treasures") && shown(s, 1, "Collect the treasures") && !shown(s, 2, "Collect the treasures"),
+	      "intro not shown to players 1 and 2 only");
+	// A real pickup goes through OnTreasureCollected.
+	int32_t u = -1;
+	for (size_t i = 0; i < s.units_.count; ++i)
+		if (s.units_.alive[i] && s.units_.team[i] == 0 && (unit_tech_classes(s.units_.unit_type[i]) & TC_ORGANIC)) { u = (int32_t)i; break; }
+	CHECK(u >= 0, "no player 1 unit");
+	if (u < 0) return;
+	const uint32_t tid = s.spawn_treasure(s.units_.pos_x[u] + 2.0f, s.units_.pos_z[u], TREASURE_FOOD_JARS);
+	const uint32_t uid = s.units_.id[u];
+	s.order_collect_treasure(&uid, 1, tid);
+	for (int t = 0; t < 2000 && !s.treasures().empty(); ++t) s.tick(Simulation::FIXED_STEP);
+	CHECK(s.treasures().empty(), "treasure not collected");
+	CHECK(s.triggers_.vars[0] == 1, "collected treasure counted %d times", s.triggers_.vars[0]);
+	CHECK(shown(s, 0, "You have collected a treasure!") && !shown(s, 1, "You have collected"), "pickup message not player 1's alone");
+	collected(s, 0, 15); // 16: three short of 19
+	CHECK(shown(s, 1, "Hurry up!") && shown(s, 0, "Treasures remaining to collect for victory:  3!"), "no near-victory messages at 16");
+	collected(s, 0, 2);  // 18
+	collected(s, 1, 18); // 18 - 18
+	CHECK(shown(s, 0, "No winner yet, prepare for battle!") && shown(s, 1, "No winner yet"), "no battle message at 18-18");
+	const uint32_t t0 = s.trigger_state().time_ms;
+	run_to(s, (float)(t0 + 9500) / 1000.0f);
+	CHECK(!shown(s, 0, "Defeat your enemy"), "battle reminder before 10 s");
+	run_to(s, (float)(t0 + 10500) / 1000.0f);
+	CHECK(shown(s, 0, "Defeat your enemy") && shown(s, 1, "Defeat your enemy"), "no battle reminder 10 s after 18-18");
+	CHECK(!s.game_over_, "18-18 ended the match");
+
+	static Simulation w;
+	w.set_sim_seed(SEED);
+	w.spawn_initial();
+	w.set_waves_enabled(false);
+	w.set_victory_condition(VICTORY_ENDLESS); // only the script ends this match
+	w.register_trigger_script("treasure_islands");
+	run_to(w, 3.0f);
+	collected(w, 1, 19);
+	CHECK(shown(w, 1, "you are victorious!") && shown(w, 0, "you lose!"), "no victory messages at 19");
+	run_to(w, 7.9f);
+	CHECK(!w.game_over_, "match ended before the 5 s delay");
+	run_to(w, 8.1f);
+	CHECK(w.game_over_ && (w.winner_mask() & 2) && !(w.winner_mask() & 1), "19 treasures did not win (winners %02x)", w.winner_mask());
+	if (failures == before) std::printf("Treasure Islands: intro, pickup counted, near-goal and 18-18 messages, 19 wins after 5 s: ok\n");
+}
+
 int main() {
+	std::setvbuf(stdout, nullptr, _IONBF, 0);
 	TurnManager tm;
+	check_polar_sea();
+	check_treasure_islands();
+	check_save_load(tm, MAP_POLAR_SEA, 305.0f, 330.0f, Simulation::WATER_LEVEL_RISING, 25, "Polar Sea during a wolf wave");
 	check_interval();
 	check_flood();
 	check_volcano();

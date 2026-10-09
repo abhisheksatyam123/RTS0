@@ -2904,7 +2904,7 @@ void RtsoMain::update_command_panel() {
 				if (ti.researcher != found_b->type || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
 				rtso::Simulation::ResearchCheck rc = sim->research_check(local_player(), (uint8_t)t, found_b->id);
 				if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_CIV
-				    || rc == rtso::Simulation::TECH_ERR_PAIRED) continue;
+				    || rc == rtso::Simulation::TECH_ERR_PAIRED || rc == rtso::Simulation::TECH_ERR_DISABLED) continue;
 				Button *btn = memnew(Button);
 				String cost;
 				auto add_cost = [&](int v, const char *suffix) {
@@ -4781,6 +4781,14 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			sim->order_board_transport(&gaia_unit_ids[i], 1, gaia_unit_ids[ship]);
 		else if (str >= 0 && str < (int)gaia_structure_ids.size() && gaia_structure_ids[str])
 			sim->garrison_unit_now(gaia_unit_ids[i], gaia_structure_ids[str]);
+	}
+
+	// The map's TriggerScripts (0 A.D. ScriptSettings), ported to C++ (triggers.h).
+	Array trig_arr = d.get("trigger_scripts", Array());
+	for (int i = 0; i < trig_arr.size(); ++i) {
+		const String script = trig_arr[i];
+		if (!sim->register_trigger_script(script.utf8().get_data()))
+			UtilityFunctions::printerr("[RtsoMain] Map trigger script not ported: ", script);
 	}
 
 	// Rebuild World View 3D terrain and bounds
