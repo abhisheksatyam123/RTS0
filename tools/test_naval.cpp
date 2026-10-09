@@ -234,10 +234,29 @@ static void test_fishing() {
 	(void)lone;
 }
 
+// Ships float (0 A.D. Position FloatOnWater): range and launch height come from the water
+// surface, not the seabed. A trireme just off the shore wins against a lone archer on the beach.
+static void test_ship_height() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	const uint32_t tri = s.spawn_unit(0.0f, 12.0f, 0, UNIT_TRIREME);
+	const uint32_t archer = s.spawn_unit(0.0f, 18.0f, 1, UNIT_ARCHER);
+	auto idx = [&](uint32_t id) { for (size_t i = 0; i < s.units().count; ++i) if (s.units().id[i] == id) return (int)i; return -1; };
+	CHECK(s.unit_height((size_t)idx(tri)) == s.water_height());
+	run(s, 30.0f);
+	const int t = idx(tri), a = idx(archer);
+	const bool tri_alive = t >= 0 && s.units().alive[t];
+	const bool archer_alive = a >= 0 && s.units().alive[a];
+	std::printf("ship height: trireme %s, archer %s\n", tri_alive ? "alive" : "sunk", archer_alive ? "alive" : "dead");
+	CHECK(tri_alive && !archer_alive);
+}
+
 int main() {
 	test_dock_trade();
 	test_fishing();
 	test_petra_sea_trade();
+	test_ship_height();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
