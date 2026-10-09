@@ -7498,25 +7498,41 @@ void Simulation::tick_trickle(float dt) {
 		}
 	}
 
-	// Structures. template_structure_wonder.xml: 1 food, wood, stone and metal every 2 s.
-	// structures/han/ministry.xml: 0.1 wood, stone and metal every 2 s. A corral's own
-	// rate is 0; each garrisoned animal adds 1, 2 or 3 food every 5 s by its size
+	// Structures, every 2 s (their templates' Interval 2000): template_structure_wonder.xml
+	// 1 food, wood, stone and metal; structures/han/ministry.xml 0.1 wood, stone and metal;
+	// structures/pers/ice_house.xml 1 food. Technologies add to a structure's Rates
+	// (Subterranean Aqueducts: ice houses +1 food). A corral's own rate is 0; each
+	// garrisoned animal adds 1, 2 or 3 food every 5 s by its size
 	// (corral_garrison_{small,medium,large}.json).
 	const bool two_s = due(2.0f), corral_due = due(CORRAL_TRICKLE_INTERVAL);
 	if (two_s) {
 		for (const auto &b : buildings_) {
 			if (b.team >= MAX_PLAYERS || b.build_progress < 1.0f || b.hp <= 0.0f) continue;
-			PlayerState &ps = players_[b.team];
+			float rate[RES_COUNT] = {};
 			if (b.type == BLD_WONDER) {
-				ps.res[RES_FOOD] += 1.0f;
-				ps.res[RES_WOOD] += 1.0f;
-				ps.res[RES_STONE] += 1.0f;
-				ps.res[RES_GOLD] += 1.0f;
+				rate[RES_FOOD] = rate[RES_WOOD] = rate[RES_STONE] = rate[RES_GOLD] = 1.0f;
 			} else if (b.type == BLD_MINISTRY) {
-				ps.res[RES_WOOD] += 0.1f;
-				ps.res[RES_STONE] += 0.1f;
-				ps.res[RES_GOLD] += 0.1f;
+				rate[RES_WOOD] = rate[RES_STONE] = rate[RES_GOLD] = 0.1f;
+			} else if (b.type == BLD_ICE_HOUSE) {
+				rate[RES_FOOD] = 1.0f;
+			} else {
+				continue;
 			}
+			PlayerState &ps = players_[b.team];
+			const uint64_t classes = building_tech_classes(b.type);
+			for (uint8_t id = 1; id < TECH_COUNT; ++id) {
+				if (!ps.has_tech(id)) continue;
+				const TechInfo &ti = tech_info(id);
+				const TechEffect *fx = tech_effects_table() + ti.effect_begin;
+				for (uint16_t k = 0; k < ti.effect_count; ++k) {
+					const TechEffect &e = fx[k];
+					if (e.stat < TSTAT_TRICKLE_FOOD || e.stat > TSTAT_TRICKLE_METAL || !tech_effect_applies(e, classes)) continue;
+					static constexpr uint8_t kRes[4] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD};
+					float &v = rate[kRes[e.stat - TSTAT_TRICKLE_FOOD]];
+					v = (e.op == TOP_MUL) ? v * e.value : (e.op == TOP_SET) ? e.value : v + e.value;
+				}
+			}
+			for (int r = 0; r < RES_COUNT; ++r) ps.res[r] += rate[r];
 		}
 	}
 	if (corral_due) {

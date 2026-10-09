@@ -187,6 +187,7 @@ UNIQUE_BUILDINGS = [
     ("BLD_TEMPLE_AMUN", ["temple_amun"], "temple", "temple_amun"),
     ("BLD_TEMPLE_VESTA", ["temple_vesta"], "temple", "temple_vesta"),
     ("BLD_TEMPLE_MARS", ["temple_mars"], "temple", "temple_mars"),
+    ("BLD_ICE_HOUSE", ["ice_house"], "farmstead", "ice_house"),
 ]
 # Units of a civ-specific structure train only there, as in 0 A.D. (Petra builds
 # these structures since #105).
