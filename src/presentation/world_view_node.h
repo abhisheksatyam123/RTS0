@@ -28,6 +28,7 @@
 #include <vector>
 
 #include "../simulation/simulation.h"
+#include "../graphics/assets/unit_template_models.h"
 #include "fog_mirage.h"
 #include <godot_cpp/classes/image.hpp>
 #include <godot_cpp/classes/image_texture.hpp>
@@ -60,6 +61,7 @@ class RtsoWorldView : public Node3D {
 		StringName clip;
 		Node3D *carry_prop = nullptr; // BoneAttachment3D holding the carried shuttle
 		uint8_t carry_clip = 0;       // ClipId the prop was attached for
+		int64_t player_rgba = -1;     // owner colour last pushed to the model (-1: none yet)
 	};
 
 	struct BuildingVis {
@@ -76,6 +78,7 @@ class RtsoWorldView : public Node3D {
 		float phase_t = 0.0f;
 		float build_progress = 1.0f;
 		float fog_dim = -1.0f; // overlay level last pushed (-1: none yet)
+		int64_t player_rgba = -1; // owner colour last pushed (-1: none yet)
 		String model_id;
 		// 0 A.D. damage variants: smoke from mediumdamage, fire from heavydamage.
 		GPUParticles3D *fx_smoke = nullptr;
@@ -199,7 +202,7 @@ class RtsoWorldView : public Node3D {
 	// Crowd units: one MultiMesh per (civ, UnitType, crowd clip), made the first
 	// time a unit of that civ and type shows, so every civ in the match renders
 	// with its own 0 A.D. models. Each clip is a few baked poses cycled in place.
-	static constexpr int CROWD_CLIP_COUNT = 23; // see kCrowdClips in world_view_node.cpp
+	static constexpr int CROWD_CLIP_COUNT = 25; // see kCrowdClips in world_view_node.cpp
 	static constexpr int FAUNA_CLIP_COUNT = 4;  // idle, move, attack, death
 	static constexpr int CROWD_FRAMES_PER_CLIP = 6;
 	struct CrowdPuppet {
@@ -215,11 +218,15 @@ class RtsoWorldView : public Node3D {
 		bool clip_baked[CROWD_CLIP_COUNT] = {};
 		Ref<Mesh> rest;
 		bool no_scene = false; // model has no skinned scene: rest pose only
+		bool player_color = false; // has 0 A.D. player_trans surfaces (owner colour in custom data)
 	};
-	// Crowd keys: a unit type, or UNIT_TYPE_COUNT + type for a siege engine
-	// shown packed (its 0 A.D. wagon, packed_siege_models.h).
-	static constexpr int CROWD_KEY_COUNT = 2 * rtso::UNIT_TYPE_COUNT;
+	// Crowd keys: a unit type, UNIT_TYPE_COUNT + type for a siege engine
+	// shown packed (its 0 A.D. wagon, packed_siege_models.h), or
+	// 2 * UNIT_TYPE_COUNT + k for a roster template drawn with its own 0 A.D.
+	// actor (unit_template_draw_model(k), unit_template_models.h).
+	static constexpr int CROWD_KEY_COUNT = 2 * rtso::UNIT_TYPE_COUNT + rtso::UNIT_TEMPLATE_DRAW_MODEL_COUNT;
 	std::unique_ptr<CrowdBatch> crowd_[rtso::CIV_COUNT][CROWD_KEY_COUNT];
+	uint8_t crowd_key_utype_[CROWD_KEY_COUNT] = {}; // a unit type drawn by each key
 	Node3D *crowd_bake_root = nullptr;
 	std::vector<uint8_t> crowd_slot_scratch_; // crowd clip slot per unit index this frame
 
@@ -337,18 +344,18 @@ private:
 	static Node *instantiate_building_id(const String &id);
 	void play_unit_clip(UnitVis &v, const StringName &clip, bool loop);
 	void hide_unit_vis(UnitVis &v);
-	CrowdBatch &crowd_batch(uint8_t civ, uint8_t key);
+	CrowdBatch &crowd_batch(uint8_t civ, uint16_t key);
 	MultiMesh *crowd_mm(CrowdBatch &b, int clip);
 	// Bakes the skinned poses of every clip in `want` (array of ClipId) that `done` lacks.
 	void bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, const uint8_t *want,
-			const bool *needed, int count, int death_slot, bool female = false);
+			const bool *needed, int count, uint32_t death_slots, bool female = false);
 	// Adds the 0 A.D. clips the unit GLBs lack (per-resource carry, promotion)
 	// to a biped's animation library from assets/animations/*.psa.
 	void ensure_runtime_clips(AnimationPlayer *ap, bool female);
 	// Parents the carry shuttle for `clip` (a carry variant) to its 0 A.D. prop point.
 	Node3D *attach_carry_prop(Node *model, uint8_t clip, bool female);
-	void cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts, int count, int death_slot);
-	void ensure_crowd_frames(uint8_t civ, uint8_t key, const int *counts);
+	void cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts, int count, uint32_t death_slots);
+	void ensure_crowd_frames(uint8_t civ, uint16_t key, const int *counts);
 	void ensure_fauna_frames(uint8_t ftype);
 	void init_animation_controllers();
 };

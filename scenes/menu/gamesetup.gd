@@ -117,7 +117,12 @@ const RMS_MAPS := [
 ]
 
 # 0 A.D. population limits per player (0 = unlimited) and ceasefire lengths in minutes.
-const POP_CAPS := [[50, "50"], [100, "100"], [150, "150"], [200, "200"], [250, "250"], [300, "300"], [0, "Unlimited"]]
+# 0 A.D. population_capacities.json (default 300), then world_population_capacities.json:
+# a negative value is a World Population shared by the players still in the game.
+const POP_CAPS := [[50, "50"], [100, "100"], [150, "150"], [200, "200"], [250, "250"], [300, "300"], [0, "Unlimited"],
+	[-100, "World 100"], [-200, "World 200"], [-300, "World 300"], [-400, "World 400"], [-500, "World 500"],
+	[-600, "World 600"], [-700, "World 700"], [-800, "World 800"], [-900, "World 900"], [-1000, "World 1000"],
+	[-1100, "World 1100"], [-1200, "World 1200"], [-1600, "World 1600"], [-2000, "World 2000"], [-2400, "World 2400"]]
 const CEASEFIRES := [0, 1, 2, 3, 4, 5, 10, 15, 20, 30, 45, 60]
 # 0 A.D. Wonder / Capture the Relic hold times in minutes (default 20) and relic counts (default 2).
 const VICTORY_TIMES := [0, 1, 2, 5, 10, 15, 20, 30, 45, 60]
@@ -133,7 +138,8 @@ const MAP_SIZES := [[128, "Tiny (128 m)"], [192, "Small (192 m)"], [256, "Medium
 # Index == rtso::VictoryCondition id (sim_types.h).
 const VICTORIES := ["Conquest — destroy all enemies", "Wonder — hold a Wonder", "Relic — claim and hold all relics", "Endless — no victory, sandbox",
 	"Conquest Units — kill every enemy unit", "Conquest Structures — raze every enemy structure", "Regicide — kill the enemy hero, keep yours"]
-const START_RES := ["Sparse (150/200/150/100)", "Normal (300/400/300/200)", "Generous (500/700/500/350)", "Abundant (900/1200/900/600)"]
+# 0 A.D. settings/starting_resources.json: the same amount of every resource.
+const START_RES := ["Very Low (100)", "Low (300)", "Medium (500)", "High (1000)", "Very High (3000)", "Deathmatch (50000)"]
 const DIFFS := ["Sandbox", "Very Easy", "Easy", "Medium", "Hard", "Very Hard"]
 # Options-page aibehavior values -> RTS0 PetraBehavior (petra_ai.h).
 const AI_BEHAVIOR_IDS := {"random": 0, "defensive": 1, "balanced": 2, "aggressive": 3}
@@ -315,7 +321,7 @@ func _ensure_slot_rows(n: int) -> void:
 		_slot_rows.append({
 			"kind": 1 if i > 0 else 0,
 			"civ": i % CIVS.size(),
-			"team": i + 1,
+			"team": 0, # 0 A.D.: no team until you pick one
 			# 0 A.D. gui.gamesetup.aidifficulty / aibehavior from the options page.
 			"diff": clampi(int(UserSettings.cfg.get_number("gui.gamesetup.aidifficulty")), 0, 5),
 			"beh": AI_BEHAVIOR_IDS.get(UserSettings.cfg.get_value("gui.gamesetup.aibehavior"), 0),
@@ -386,9 +392,10 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	team_slot.custom_minimum_size = Vector2(64, 28)
 	grid.add_child(team_slot)
 	var team := _make_option(team_slot)
+	team.add_item("None")
 	for t in range(1, 5):
 		team.add_item("T%d" % t)
-	team.select(clampi(int(row["team"]) - 1, 0, 3))
+	team.select(clampi(int(row["team"]), 0, 4))
 	team.item_selected.connect(_on_slot_team.bind(i))
 	# AI difficulty (per-slot; slot 0 uses the global default row)
 	var diff_slot := Control.new()
@@ -435,7 +442,7 @@ func _on_slot_civ(idx: int, slot: int) -> void:
 func _on_slot_team(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
 		return
-	_slot_rows[slot]["team"] = idx + 1
+	_slot_rows[slot]["team"] = idx
 
 func _on_slot_diff(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
@@ -488,7 +495,7 @@ func _build_options() -> void:
 	var pop := _make_option($VBox/HBox/Left/PopCapSlot)
 	for p in POP_CAPS:
 		pop.add_item(p[1])
-	pop.select(3)
+	pop.select(5) # 0 A.D. default: 300
 	var cf := _make_option($VBox/HBox/Left/CeasefireSlot)
 	for c in CEASEFIRES:
 		cf.add_item("No ceasefire" if c == 0 else "%d min" % c)
@@ -554,6 +561,7 @@ func _restore_settings() -> void:
 	$VBox/HBox/Left/LastManStanding.button_pressed = bool(ms.get("last_man_standing"))
 	$VBox/HBox/Left/StartRow/Nomad.button_pressed = bool(ms.get("nomad"))
 	$VBox/HBox/Left/StartRow/RegicideGarrison.button_pressed = bool(ms.get("regicide_garrison"))
+	$VBox/HBox/Left/StartRow/LockTeams.button_pressed = bool(ms.get("lock_teams"))
 	$VBox/HBox/Left/StartRow/DisableTreasures.button_pressed = bool(ms.get("disable_treasures"))
 	var pop: RtsoSafeSelect = $VBox/HBox/Left/PopCapSlot.get_child(0)
 	for i in range(POP_CAPS.size()):
@@ -581,7 +589,7 @@ func _restore_settings() -> void:
 	for i in range(MAP_SIZES.size()):
 		if int(MAP_SIZES[i][0]) == int(ms.get("map_size")):
 			msz.select(i)
-	res.select(clampi(int(ms.get("start_res")), 0, 3))
+	res.select(clampi(int(ms.get("start_res")), 0, START_RES.size() - 1))
 	bio.select(clampi(int(ms.get("biome")), 0, BIOMES.size() - 1))
 	for i in range(SPEEDS.size()):
 		if is_equal_approx(float(SPEEDS[i][0]), float(ms.get("game_speed"))):
@@ -608,7 +616,7 @@ func _restore_settings() -> void:
 			if i < civs.size():
 				_slot_rows[i]["civ"] = clampi(int(civs[i]), 0, CIVS.size() - 1)
 			if i < teams.size():
-				_slot_rows[i]["team"] = clampi(int(teams[i]), 1, 4)
+				_slot_rows[i]["team"] = clampi(int(teams[i]), 0, 4)
 			if i < sdiffs.size():
 				_slot_rows[i]["diff"] = clampi(int(sdiffs[i]), 0, 5)
 			if i < sbehs.size():
@@ -697,6 +705,7 @@ func _collect_setup() -> Dictionary:
 		# Nomad only on random maps, RegicideGarrison only with Regicide (as 0 A.D. settings).
 		"nomad": $VBox/HBox/Left/StartRow/Nomad.button_pressed and not m.is_empty() and str(m.get("kind", "")) == "Random",
 		"regicide_garrison": $VBox/HBox/Left/StartRow/RegicideGarrison.button_pressed and vic.get_selected() == VICTORY_REGICIDE,
+		"lock_teams": $VBox/HBox/Left/StartRow/LockTeams.button_pressed,
 		"disable_treasures": $VBox/HBox/Left/StartRow/DisableTreasures.button_pressed,
 		"humans": humans, "ai": ai_total, "slots": types.size()}
 
@@ -774,6 +783,7 @@ func _on_start_pressed() -> void:
 	ms.slot_names = st["names"]
 	ms.nomad = bool(st["nomad"])
 	ms.regicide_garrison = bool(st["regicide_garrison"])
+	ms.lock_teams = bool(st["lock_teams"])
 	ms.disable_treasures = bool(st["disable_treasures"])
 	ms.biome = int(st["biome"])
 	ms.game_speed = float(st["speed"])

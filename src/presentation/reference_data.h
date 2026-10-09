@@ -37,6 +37,7 @@ public:
 	// with for a roster unit template, a structure (for a civ) or a technology.
 	// Each has kind ("unit", "structure", "tech"), name, portrait, phase,
 	// cost {food, wood, stone, metal}, cost_text, time; the rest by kind.
+	Array get_catafalques() const;
 	Dictionary get_unit(int tmpl) const;
 	Dictionary get_structure(int type, int civ) const;
 	Dictionary get_tech(int id, int civ) const;

@@ -120,9 +120,11 @@ enum TechnologyId : uint8_t {
 	TECH_SERAPIS_CULT = 111, // serapis_cult
 	TECH_SILK_ROAD = 112, // silk_road
 	TECH_TRADE_COMMERCIAL_TREATY = 113, // trade_commercial_treaty
-	TECH_BARRACKS_BATCH_TRAINING = 114, // barracks_batch_training
-	TECH_STABLE_BATCH_TRAINING = 115, // stable_batch_training
-	TECH_COUNT = 116
+	TECH_WARSHIP_RAMMING_SPEED = 114, // warship_ramming_speed
+	TECH_ARSENAL_PHILON = 115, // arsenal_philon
+	TECH_BARRACKS_BATCH_TRAINING = 116, // barracks_batch_training
+	TECH_STABLE_BATCH_TRAINING = 117, // stable_batch_training
+	TECH_COUNT = 118
 };
 
 enum TechClass : uint64_t {
@@ -256,6 +258,8 @@ inline const TechClassExpr *tech_affects_table() {
 		{TC_HERO, 0},
 		{TC_MARKET, 0},
 		{TC_DOCK, 0},
+		{TC_WARSHIP | TC_MELEE, 0},
+		{TC_WARSHIP, 0},
 		{TC_BARRACKS, 0},
 		{TC_STABLE, 0},
 	};
@@ -386,6 +390,8 @@ inline const TechEffect *tech_effects_table() {
 		{TSTAT_RANGED_CRUSH, TOP_ADD, 32, 1, 10.0f}, // warship_arrow_attack
 		{TSTAT_RANGE, TOP_MUL, 32, 1, 1.1f}, // warship_arrow_attack
 		{TSTAT_HEALTH, TOP_MUL, 32, 1, 1.2f}, // warship_health
+		{TSTAT_HEALTH, TOP_MUL, 59, 1, 1.2f}, // warship_health
+		{TSTAT_MELEE_HACK, TOP_MUL, 59, 1, 1.3f}, // warship_ramming_attack
 		{TSTAT_RANGED_CRUSH, TOP_MUL, 33, 1, 1.1f}, // warship_ranged_attack
 		{TSTAT_RANGED_PIERCE, TOP_MUL, 33, 1, 1.1f}, // warship_ranged_attack
 		{TSTAT_GARRISON_HEAL, TOP_ADD, 34, 1, 1.0f}, // garrison_heal
@@ -431,12 +437,14 @@ inline const TechEffect *tech_effects_table() {
 		{TSTAT_TRICKLE_METAL, TOP_ADD, 0, 0, 2.0f}, // serapis_cult
 		{TSTAT_TRADE_INTERNATIONAL, TOP_MUL, 57, 2, 1.2f}, // silk_road
 		{TSTAT_TRADE_INTERNATIONAL, TOP_ADD, 57, 2, 0.1f}, // trade_commercial_treaty
-		{TSTAT_BATCH_TIME, TOP_ADD, 59, 1, -0.1f}, // barracks_batch_training
-		{TSTAT_BATCH_TIME, TOP_ADD, 60, 1, -0.1f}, // stable_batch_training
+		{TSTAT_SPEED, TOP_MUL, 59, 1, 1.25f}, // warship_ramming_speed
+		{TSTAT_REGEN, TOP_ADD, 60, 1, 1.0f}, // arsenal_philon
+		{TSTAT_BATCH_TIME, TOP_ADD, 61, 1, -0.1f}, // barracks_batch_training
+		{TSTAT_BATCH_TIME, TOP_ADD, 62, 1, -0.1f}, // stable_batch_training
 	};
 	return kEffects + 1;
 }
-constexpr int TECH_EFFECT_COUNT = 168;
+constexpr int TECH_EFFECT_COUNT = 172;
 
 inline const TechInfo &tech_info(uint8_t tech_id) {
 	static const TechInfo kTable[TECH_COUNT] = {
@@ -521,41 +529,43 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Fertility Festival", "Unlock the ability to train Civilians from houses.", 250, 100, 100, 0, 60.0f, 1, BLD_HOUSE, TECH_NONE, 0x0400, 118, 0, "unlock_civilians_house_kush"},
 		{"Naval Oxybeles", "Arrow Ships +10 crush attack damage and +10% attack range.", 0, 200, 200, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x3fff, 118, 2, "warship_arrow_attack"},
 		{"Burning Pitch", "Fire Ships +25% health and +25% attack damage.", 0, 300, 100, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x01c0, 120, 0, "warship_fireship_attack"},
-		{"Undergirding Cables", "Arrow Ships and Ramming Ships +20% health.", 0, 0, 400, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x003b, 120, 1, "warship_health"},
-		{"Bronze Ram", "Ramming Ships +30% attack damage.", 0, 0, 400, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x183f, 121, 0, "warship_ramming_attack"},
-		{"Flaming Projectiles", "Ranged Warships +10% attack damage.", 0, 400, 300, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x0400, 121, 2, "warship_ranged_attack"},
-		{"Naval Ballistae", "Siege Ships +20% attack range and vision range.", 0, 300, 300, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x3818, 123, 0, "warship_siege_attack"},
-		{"Living Conditions", "Structures +1 garrison heal rate.", 500, 0, 250, 0, 40.0f, 2, BLD_TEMPLE, TECH_NONE, 0x3fff, 123, 1, "garrison_heal"},
-		{"The Agoge", "Champion Hoplites +25% health, but +5% training time.", 500, 0, 200, 0, 60.0f, 3, BLD_GEROUSIA, TECH_NONE, 0x0002, 124, 2, "agoge"},
-		{"Monumental Architecture", "Civic Structures +20% build time, +20% health, and +20% capture points.", 0, 0, 0, 600, 60.0f, 2, BLD_TOWN_CENTER, TECH_NONE, 0x0400, 126, 3, "architecture_kush"},
-		{"Achaemenid Architecture", "Structures +25% health and capture points, but also +20% build time.", 0, 200, 0, 200, 60.0f, 1, BLD_TOWN_CENTER, TECH_NONE, 0x0004, 129, 3, "architecture_pers"},
-		{"Colonization", "Civic Structures (Civic Center, Temples, and Houses) −25% build time and resource costs.", 0, 200, 200, 0, 20.0f, 1, BLD_TOWN_CENTER, TECH_NONE, 0x0010, 132, 5, "colonization"},
-		{"Crossbow Training", "Crossbow Infantry −20% train time.", 400, 400, 0, 0, 40.0f, 2, BLD_BARRACKS, TECH_NONE, 0x2000, 137, 1, "crossbow_training"},
-		{"Helot Economy", "Infantry Javelineers +100% grain gather rate, but −10% ranged attack pierce damage.", 200, 200, 0, 0, 40.0f, 1, BLD_TOWN_CENTER, TECH_NONE, 0x0002, 138, 2, "helot_economy"},
-		{"Immortals", "Immortals −50% training time.", 200, 0, 200, 0, 60.0f, 3, BLD_TACHARA, TECH_NONE, 0x0004, 140, 1, "immortals"},
-		{"Iphicratean Reforms", "Athenian Docks and Triremes can train Marines and Cretan Mercenary Archers.", 200, 0, 200, 0, 30.0f, 2, BLD_DOCK, TECH_NONE, 0x0001, 141, 0, "iphicratean_reforms"},
-		{"Krypteia", "Champion Hoplites +10% melee attack damage, but Citizen Infantry Javelineers +30% training time.", 200, 0, 200, 0, 50.0f, 2, BLD_GEROUSIA, TECH_NONE, 0x0002, 141, 3, "krypteia"},
-		{"Ostracism", "Citizen soldiers +5% health, but Heroes −40% health.", 300, 0, 300, 0, 60.0f, 3, BLD_PRYTANEION, TECH_NONE, 0x0001, 144, 2, "ostracism"},
-		{"Parade of Daphne", "Champions −20% training time.", 500, 0, 300, 0, 60.0f, 3, BLD_FORTRESS, TECH_NONE, 0x1000, 146, 1, "parade_of_daphne"},
-		{"Marian Reforms", "Convert Infantry to Marian Legionaries, Cavalry to Auxiliary Cavalry, unlock Onagers and Centurions, but lose access to Spear Cavalry and Italic Heavy Infantry.", 1200, 0, 1000, 0, 60.0f, 3, BLD_FORTRESS, TECH_NONE, 0x0008, 147, 0, "roman_reforms"},
-		{"Tyrtean Paeans", "Champion Hoplites +10% movement speed.", 200, 0, 200, 0, 50.0f, 2, BLD_GEROUSIA, TECH_NONE, 0x0002, 147, 1, "tyrtean_paeans"},
-		{"Unlock Neodamodes", "Unlock the ability to train Spearman Neodamodes at the Barracks.", 500, 0, 0, 0, 60.0f, 3, BLD_GEROUSIA, TECH_NONE, 0x0002, 148, 0, "unlock_neodamodes"},
-		{"Battlefield Medicine", "Idle Organic units +0.5 health regeneration rate.", 1000, 0, 250, 0, 40.0f, 3, BLD_TEMPLE, TECH_NONE, 0x3fff, 148, 1, "health_regen_units"},
-		{"Sun Tzu's \"The Art of War\"", "All Citizen-Soldiers −20% required promotion experience.", 1200, 0, 1200, 0, 50.0f, 3, BLD_FORTRESS, TECH_NONE, 0x2000, 149, 0, "art_of_war"},
-		{"Silver Shields Regiment", "Upgrade Shield Bearer Champion Infantry to Silver Shields, with more health and attack damage.", 0, 0, 600, 0, 60.0f, 3, BLD_FORTRESS, TECH_NONE, 0x0020, 149, 0, "silvershields"},
-		{"Subterranean Aqueducts", "Ice House +1 trickle food rate per second.", 0, 300, 0, 300, 40.0f, 3, BLD_ICE_HOUSE, TECH_NONE, 0x0004, 149, 1, "subterranean_aqueducts"},
-		{"Improved Construction", "All structures −10% build time and −10% cost.", 0, 300, 0, 300, 40.0f, 2, BLD_MINISTRY, TECH_NONE, 0x2000, 150, 5, "civil_engineering_01"},
-		{"Robust Architecture", "All structures +20% health.", 0, 300, 0, 300, 40.0f, 2, BLD_MINISTRY, TECH_NONE, 0x2000, 155, 1, "civil_engineering_02"},
-		{"Efficient Bureaucracy", "Ministers −50% train time.", 200, 200, 0, 0, 40.0f, 2, BLD_MINISTRY, TECH_NONE, 0x2000, 156, 1, "civil_service_01"},
-		{"Intensive Training", "Ministers +50% health.", 200, 200, 0, 0, 40.0f, 2, BLD_MINISTRY, TECH_NONE, 0x2000, 157, 1, "civil_service_02"},
-		{"Ahimsa", "Units +100% fruit gather rate, but −80% meat and fish gather.", 0, 100, 0, 0, 40.0f, 1, BLD_FARMSTEAD, TECH_NONE, 0x0200, 158, 3, "gather_ahimsa"},
-		{"Wicker Baskets", "Workers +50% fruit gather rate.", 0, 100, 0, 0, 40.0f, 1, BLD_FARMSTEAD, TECH_NONE, 0x0200, 161, 1, "gather_wicker_baskets_maur"},
-		{"Pharaonic Cult", "Heroes +2 health/second self-regen rate.", 300, 0, 200, 0, 50.0f, 3, BLD_TEMPLE, TECH_NONE, 0x0800, 162, 1, "pharaonic_cult"},
-		{"Serapis Cult", "+2.0 metal trickle per second.", 300, 0, 300, 0, 60.0f, 3, BLD_TEMPLE, TECH_NONE, 0x0800, 163, 1, "serapis_cult"},
-		{"Silk Road", "Traders +20% international trade bonus.", 500, 500, 0, 0, 50.0f, 3, BLD_MARKET, TECH_TRADE_GAIN_02, 0x2000, 164, 1, "silk_road"},
-		{"Commercial Treaty", "Traders +10% trade profit between allies.", 0, 0, 100, 0, 40.0f, 2, BLD_MARKET, TECH_NONE, 0x3fff, 165, 1, "trade_commercial_treaty"},
-		{"Conscription", "Decreases batch training time of units trained in Barracks.", 500, 0, 0, 0, 40.0f, 3, BLD_BARRACKS, TECH_NONE, 0x3ffb, 166, 1, "barracks_batch_training"},
-		{"Conscription", "Decrease batch training time of units trained in Stables.", 500, 0, 0, 0, 40.0f, 3, BLD_STABLE, TECH_NONE, 0x3ffb, 167, 1, "stable_batch_training"},
+		{"Undergirding Cables", "Arrow Ships and Ramming Ships +20% health.", 0, 0, 400, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x003b, 120, 2, "warship_health"},
+		{"Bronze Ram", "Ramming Ships +30% attack damage.", 0, 0, 400, 0, 40.0f, 3, BLD_DOCK, TECH_WARSHIP_RAMMING_SPEED, 0x183f, 122, 1, "warship_ramming_attack"},
+		{"Flaming Projectiles", "Ranged Warships +10% attack damage.", 0, 400, 300, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x0400, 123, 2, "warship_ranged_attack"},
+		{"Naval Ballistae", "Siege Ships +20% attack range and vision range.", 0, 300, 300, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x3818, 125, 0, "warship_siege_attack"},
+		{"Living Conditions", "Structures +1 garrison heal rate.", 500, 0, 250, 0, 40.0f, 2, BLD_TEMPLE, TECH_NONE, 0x3fff, 125, 1, "garrison_heal"},
+		{"The Agoge", "Champion Hoplites +25% health, but +5% training time.", 500, 0, 200, 0, 60.0f, 3, BLD_GEROUSIA, TECH_NONE, 0x0002, 126, 2, "agoge"},
+		{"Monumental Architecture", "Civic Structures +20% build time, +20% health, and +20% capture points.", 0, 0, 0, 600, 60.0f, 2, BLD_TOWN_CENTER, TECH_NONE, 0x0400, 128, 3, "architecture_kush"},
+		{"Achaemenid Architecture", "Structures +25% health and capture points, but also +20% build time.", 0, 200, 0, 200, 60.0f, 1, BLD_TOWN_CENTER, TECH_NONE, 0x0004, 131, 3, "architecture_pers"},
+		{"Colonization", "Civic Structures (Civic Center, Temples, and Houses) −25% build time and resource costs.", 0, 200, 200, 0, 20.0f, 1, BLD_TOWN_CENTER, TECH_NONE, 0x0010, 134, 5, "colonization"},
+		{"Crossbow Training", "Crossbow Infantry −20% train time.", 400, 400, 0, 0, 40.0f, 2, BLD_BARRACKS, TECH_NONE, 0x2000, 139, 1, "crossbow_training"},
+		{"Helot Economy", "Infantry Javelineers +100% grain gather rate, but −10% ranged attack pierce damage.", 200, 200, 0, 0, 40.0f, 1, BLD_TOWN_CENTER, TECH_NONE, 0x0002, 140, 2, "helot_economy"},
+		{"Immortals", "Immortals −50% training time.", 200, 0, 200, 0, 60.0f, 3, BLD_TACHARA, TECH_NONE, 0x0004, 142, 1, "immortals"},
+		{"Iphicratean Reforms", "Athenian Docks and Triremes can train Marines and Cretan Mercenary Archers.", 200, 0, 200, 0, 30.0f, 2, BLD_DOCK, TECH_NONE, 0x0001, 143, 0, "iphicratean_reforms"},
+		{"Krypteia", "Champion Hoplites +10% melee attack damage, but Citizen Infantry Javelineers +30% training time.", 200, 0, 200, 0, 50.0f, 2, BLD_GEROUSIA, TECH_NONE, 0x0002, 143, 3, "krypteia"},
+		{"Ostracism", "Citizen soldiers +5% health, but Heroes −40% health.", 300, 0, 300, 0, 60.0f, 3, BLD_PRYTANEION, TECH_NONE, 0x0001, 146, 2, "ostracism"},
+		{"Parade of Daphne", "Champions −20% training time.", 500, 0, 300, 0, 60.0f, 3, BLD_FORTRESS, TECH_NONE, 0x1000, 148, 1, "parade_of_daphne"},
+		{"Marian Reforms", "Convert Infantry to Marian Legionaries, Cavalry to Auxiliary Cavalry, unlock Onagers and Centurions, but lose access to Spear Cavalry and Italic Heavy Infantry.", 1200, 0, 1000, 0, 60.0f, 3, BLD_FORTRESS, TECH_NONE, 0x0008, 149, 0, "roman_reforms"},
+		{"Tyrtean Paeans", "Champion Hoplites +10% movement speed.", 200, 0, 200, 0, 50.0f, 2, BLD_GEROUSIA, TECH_NONE, 0x0002, 149, 1, "tyrtean_paeans"},
+		{"Unlock Neodamodes", "Unlock the ability to train Spearman Neodamodes at the Barracks.", 500, 0, 0, 0, 60.0f, 3, BLD_GEROUSIA, TECH_NONE, 0x0002, 150, 0, "unlock_neodamodes"},
+		{"Battlefield Medicine", "Idle Organic units +0.5 health regeneration rate.", 1000, 0, 250, 0, 40.0f, 3, BLD_TEMPLE, TECH_NONE, 0x3fff, 150, 1, "health_regen_units"},
+		{"Sun Tzu's \"The Art of War\"", "All Citizen-Soldiers −20% required promotion experience.", 1200, 0, 1200, 0, 50.0f, 3, BLD_FORTRESS, TECH_NONE, 0x2000, 151, 0, "art_of_war"},
+		{"Silver Shields Regiment", "Upgrade Shield Bearer Champion Infantry to Silver Shields, with more health and attack damage.", 0, 0, 600, 0, 60.0f, 3, BLD_FORTRESS, TECH_NONE, 0x0020, 151, 0, "silvershields"},
+		{"Subterranean Aqueducts", "Ice House +1 trickle food rate per second.", 0, 300, 0, 300, 40.0f, 3, BLD_ICE_HOUSE, TECH_NONE, 0x0004, 151, 1, "subterranean_aqueducts"},
+		{"Improved Construction", "All structures −10% build time and −10% cost.", 0, 300, 0, 300, 40.0f, 2, BLD_MINISTRY, TECH_NONE, 0x2000, 152, 5, "civil_engineering_01"},
+		{"Robust Architecture", "All structures +20% health.", 0, 300, 0, 300, 40.0f, 2, BLD_MINISTRY, TECH_NONE, 0x2000, 157, 1, "civil_engineering_02"},
+		{"Efficient Bureaucracy", "Ministers −50% train time.", 200, 200, 0, 0, 40.0f, 2, BLD_MINISTRY, TECH_NONE, 0x2000, 158, 1, "civil_service_01"},
+		{"Intensive Training", "Ministers +50% health.", 200, 200, 0, 0, 40.0f, 2, BLD_MINISTRY, TECH_NONE, 0x2000, 159, 1, "civil_service_02"},
+		{"Ahimsa", "Units +100% fruit gather rate, but −80% meat and fish gather.", 0, 100, 0, 0, 40.0f, 1, BLD_FARMSTEAD, TECH_NONE, 0x0200, 160, 3, "gather_ahimsa"},
+		{"Wicker Baskets", "Workers +50% fruit gather rate.", 0, 100, 0, 0, 40.0f, 1, BLD_FARMSTEAD, TECH_NONE, 0x0200, 163, 1, "gather_wicker_baskets_maur"},
+		{"Pharaonic Cult", "Heroes +2 health/second self-regen rate.", 300, 0, 200, 0, 50.0f, 3, BLD_TEMPLE, TECH_NONE, 0x0800, 164, 1, "pharaonic_cult"},
+		{"Serapis Cult", "+2.0 metal trickle per second.", 300, 0, 300, 0, 60.0f, 3, BLD_TEMPLE, TECH_NONE, 0x0800, 165, 1, "serapis_cult"},
+		{"Silk Road", "Traders +20% international trade bonus.", 500, 500, 0, 0, 50.0f, 3, BLD_MARKET, TECH_TRADE_GAIN_02, 0x2000, 166, 1, "silk_road"},
+		{"Commercial Treaty", "Traders +10% trade profit between allies.", 0, 0, 100, 0, 40.0f, 2, BLD_MARKET, TECH_NONE, 0x3fff, 167, 1, "trade_commercial_treaty"},
+		{"Flanking Maneuvers", "Ramming Ships +25% speed and acceleration. Unlocks “Bronze Rams.”", 300, 0, 200, 0, 40.0f, 2, BLD_DOCK, TECH_NONE, 0x183f, 168, 1, "warship_ramming_speed"},
+		{"Arsenal of Philon", "Warships +1 health/second self-repair rate.", 0, 300, 0, 300, 40.0f, 3, BLD_DOCK, TECH_DOCK_EFFICIENCY, 0x0001, 169, 1, "arsenal_philon"},
+		{"Conscription", "Decreases batch training time of units trained in Barracks.", 500, 0, 0, 0, 40.0f, 3, BLD_BARRACKS, TECH_NONE, 0x3ffb, 170, 1, "barracks_batch_training"},
+		{"Conscription", "Decrease batch training time of units trained in Stables.", 500, 0, 0, 0, 40.0f, 3, BLD_STABLE, TECH_NONE, 0x3ffb, 171, 1, "stable_batch_training"},
 	};
 	if (tech_id >= TECH_COUNT) return kTable[TECH_NONE];
 	return kTable[tech_id];

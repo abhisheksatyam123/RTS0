@@ -652,6 +652,8 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     const uint32_t host_healer = sim.spawn_unit(-44.0f, 6.0f, 0, UNIT_HEALER);
     sim.order_set_stance(&host_healer, 1, STANCE_PASSIVE);
     const uint32_t host_patient = sim.spawn_unit(-24.0f, -16.0f, 0, UNIT_SWORDSMAN);
+    // Stands ground, so it waits for the healer rather than going after raiders it sees.
+    sim.order_set_stance(&host_patient, 1, STANCE_STAND_GROUND);
     // A squad the host forms up (cmd 8, 0 A.D. Formation.js), walks and attack-moves.
     std::vector<uint32_t> host_squad;
     for (int i = 0; i < 4; ++i) host_squad.push_back(sim.spawn_unit(-36.0f + 2.0f * (float)i, 22.0f, 0, UNIT_SPEARMAN));

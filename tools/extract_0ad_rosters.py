@@ -137,14 +137,14 @@ TRAINER_BUILDING = {
     "civil_centre": "BLD_TOWN_CENTER", "military_colony": "BLD_TOWN_CENTER",
     "civil_centre_court": "BLD_TOWN_CENTER", "palace": "BLD_TOWN_CENTER",
     "prytaneion": "BLD_TOWN_CENTER", "tachara": "BLD_TOWN_CENTER",
-    "house": "BLD_HOUSE", "barracks": "BLD_BARRACKS", "stable": "BLD_BARRACKS",
-    "range": "BLD_BARRACKS", "elephant_stable": "BLD_BARRACKS",
+    "house": "BLD_HOUSE", "barracks": "BLD_BARRACKS", "stable": "BLD_STABLE",
+    "range": "BLD_RANGE", "elephant_stable": "BLD_ELEPHANT_STABLE",
     "gymnasium": "BLD_BARRACKS", "mercenary_camp": "BLD_BARRACKS",
-    "embassy": "BLD_BARRACKS", "embassy_celtic": "BLD_BARRACKS",
-    "embassy_iberian": "BLD_BARRACKS", "embassy_italic": "BLD_BARRACKS",
+    "embassy": "BLD_EMBASSY", "embassy_celtic": "BLD_EMBASSY",
+    "embassy_iberian": "BLD_EMBASSY", "embassy_italic": "BLD_EMBASSY",
     "army_camp": "BLD_BARRACKS", "academy": "BLD_BARRACKS",
     "imperial_court": "BLD_TOWN_CENTER", "imperial_ministry": "BLD_TOWN_CENTER",
-    "arsenal": "BLD_FORTRESS", "workshop": "BLD_FORTRESS",
+    "arsenal": "BLD_ARSENAL", "workshop": "BLD_ARSENAL",
     "fortress": "BLD_FORTRESS", "temple": "BLD_TEMPLE",
     "temple_amun": "BLD_TEMPLE", "temple_apedemak": "BLD_TEMPLE",
     "pyramid_large": "BLD_TEMPLE", "pyramid_small": "BLD_TEMPLE",
@@ -156,12 +156,11 @@ TRAINER_BUILDING = {
     "crannog": "BLD_TOWN_CENTER", "ministry": "BLD_TOWN_CENTER",
     "apartment": "BLD_HOUSE", "apartment_block": "BLD_HOUSE",
     "house_a": "BLD_HOUSE", "house_b": "BLD_HOUSE",
-    "warehouse": "BLD_STOREHOUSE", "inn": "BLD_BARRACKS", "tavern": "BLD_BARRACKS",
+    "warehouse": "BLD_HOUSE", "inn": "BLD_HOUSE", "tavern": "BLD_HOUSE",
     "kennel": "BLD_BARRACKS", "amphitheater_pompeii": "BLD_BARRACKS",
     "camp_blemmye": "BLD_BARRACKS", "camp_noba": "BLD_BARRACKS",
-    "practice_range": "BLD_BARRACKS",
+    "practice_range": "BLD_RANGE",
     "temple_mars": "BLD_TEMPLE", "temple_vesta": "BLD_TEMPLE", "tophet": "BLD_TEMPLE",
-    "super_dock": "BLD_DOCK",
 }
 # Civ-specific 0 A.D. structures RTS0 models as their own BuildingType
 # (appended after BLD_EMBASSY): enum, 0 A.D. file stems, model id, portrait id.
@@ -192,6 +191,7 @@ UNIQUE_BUILDINGS = [
     ("BLD_TEMPLE_VESTA", ["temple_vesta"], "temple", "temple_vesta"),
     ("BLD_TEMPLE_MARS", ["temple_mars"], "temple", "temple_mars"),
     ("BLD_ICE_HOUSE", ["ice_house"], "farmstead", "ice_house"),
+    ("BLD_SUPER_DOCK", ["super_dock"], "dock", "super_dock"),
 ]
 # Units of a civ-specific structure train only there, as in 0 A.D. (Petra builds
 # these structures since #105).
@@ -201,6 +201,41 @@ for _enum, _stems, _model, _portrait in UNIQUE_BUILDINGS:
 TRAINER_BUILDING.update({"tachara_food": "BLD_TACHARA", "tachara_wood": "BLD_TACHARA",
                          "tachara_stone": "BLD_TACHARA", "tachara_metal": "BLD_TACHARA",
                          "imperial_ministry": "BLD_MINISTRY", "ministry": "BLD_MINISTRY"})
+# 0 A.D. Builder/Entities structure kinds -> the generic RTS0 BuildingTypes they
+# let a civ lay (a stone wallset brings its towers and gates).
+BUILDER_BUILDING = {
+    "civil_centre": ["BLD_TOWN_CENTER"], "house": ["BLD_HOUSE"], "apartment": ["BLD_HOUSE"],
+    "barracks": ["BLD_BARRACKS"], "storehouse": ["BLD_STOREHOUSE"], "defense_tower": ["BLD_TOWER"],
+    "farmstead": ["BLD_FARMSTEAD"], "market": ["BLD_MARKET"], "fortress": ["BLD_FORTRESS"],
+    "temple": ["BLD_TEMPLE"], "wonder": ["BLD_WONDER"], "dock": ["BLD_DOCK"],
+    "wallset_stone": ["BLD_WALL_SEGMENT", "BLD_WALL_TOWER", "BLD_GATE"], "corral": ["BLD_CORRAL"],
+    "field": ["BLD_FIELD"], "stable": ["BLD_STABLE"], "range": ["BLD_RANGE"], "forge": ["BLD_FORGE"],
+    "arsenal": ["BLD_ARSENAL"], "sentry_tower": ["BLD_SENTRY_TOWER"], "outpost": ["BLD_OUTPOST"],
+    "wallset_palisade": ["BLD_PALISADE"], "elephant_stable": ["BLD_ELEPHANT_STABLE"],
+    "theater": ["BLD_THEATER"], "embassy_celtic": ["BLD_EMBASSY"], "embassy_iberian": ["BLD_EMBASSY"],
+    "embassy_italic": ["BLD_EMBASSY"],
+}
+
+
+def generic_build_masks(sim_root):
+    """Civ bit mask per generic BuildingType: the civs whose units' 0 A.D.
+    Builder/Entities lists name such a structure (template files that exist)."""
+    loader = TemplateLoader(sim_root)
+    masks = {}
+    for civ in CIVS:
+        udir = os.path.join(loader.root, "units", civ)
+        for fn in sorted(os.listdir(udir)):
+            if not fn.endswith(".xml"):
+                continue
+            for tok in loader.load("units/%s/%s" % (civ, fn[:-4])).tokens("Builder/Entities"):
+                tok = tok.replace("{civ}", civ).replace("{native}", civ)
+                if not loader.exists(tok):
+                    continue
+                for bld in BUILDER_BUILDING.get(structure_kind(tok.rsplit("/", 1)[1]), []):
+                    masks[bld] = masks.get(bld, 0) | (1 << CIVS.index(civ))
+    return masks
+
+
 BUILDING_BITS = ["BLD_TOWN_CENTER", "BLD_HOUSE", "BLD_BARRACKS", "BLD_STOREHOUSE",
                  "BLD_TOWER", "BLD_FARMSTEAD", "BLD_MARKET", "BLD_FORTRESS",
                  "BLD_GATE", "BLD_TEMPLE", "BLD_WONDER", "BLD_DOCK",
@@ -376,6 +411,7 @@ def raw_stats(t):
     return {
         "hp": t.num("Health/Max"),
         "speed": t.num("UnitMotion/WalkSpeed"),
+        "vision": t.num("Vision/Range"),
         "range": rng,
         "damage": hack + pierce + crush,
         "cooldown": rep,
@@ -417,6 +453,8 @@ def convert(cls, raw, gen):
         out[r] = int(round(out[r]))
     out["pop"] = int(round(raw["pop"]))
     out["speed"] = raw["speed"] * SPEED_SCALE
+    # Vision/Range on the ranged-range scale (0 = no own vision, e.g. some fauna-like units).
+    out["vision"] = raw.get("vision", 0.0) * RANGED_RANGE_SCALE
     out["damage"] = raw["damage"]
     if raw["damage"] > 0:
         out["range"] = raw["range"] * (RANGED_RANGE_SCALE if raw["ranged"] else MELEE_RANGE_SCALE)
@@ -636,7 +674,7 @@ def apply_unit_bonuses(raw, classes, civ, bonuses):
     Returns the ids of the bonuses that applied."""
     kind = "Ranged" if raw["ranged"] else "Melee"
     paths = {
-        "UnitMotion/WalkSpeed": "speed", "Health/Max": "hp", "Cost/BuildTime": "train_time",
+        "UnitMotion/WalkSpeed": "speed", "Vision/Range": "vision", "Health/Max": "hp", "Cost/BuildTime": "train_time",
         "Cost/Resources/food": "food", "Cost/Resources/wood": "wood",
         "Cost/Resources/metal": "gold", "Cost/Resources/stone": "stone",
         "Attack/%s/Damage/Hack" % kind: "hack_dmg", "Attack/%s/Damage/Pierce" % kind: "pierce_dmg",
@@ -775,7 +813,9 @@ def load_team_bonuses(sim_root, rows):
 
 
 # RTS0 AuraManager kinds (aura_manager.h AuraType).
-AURA_KIND = {"AURA_GATHER": 0, "AURA_HEAL": 1, "AURA_ATTACK": 2, "AURA_SPEED": 3, "AURA_ARMOR": 4}
+AURA_KIND = {"AURA_GATHER": 0, "AURA_HEAL": 1, "AURA_ATTACK": 2, "AURA_SPEED": 3, "AURA_ARMOR": 4,
+             "AURA_HEALTH": 5, "AURA_VISION": 6}
+MULTIPLY_AURAS = ("AURA_ATTACK", "AURA_SPEED", "AURA_HEALTH", "AURA_VISION")
 GLOBAL_AURA_RANGE = 1000.0
 
 
@@ -807,6 +847,10 @@ def rts0_aura_effect(a):
             kind, value = "AURA_ATTACK", 1.0 / m["multiply"]
         elif v == "UnitMotion/WalkSpeed" and "multiply" in m:
             kind, value = "AURA_SPEED", m["multiply"]
+        elif v == "Health/Max" and "multiply" in m:
+            kind, value = "AURA_HEALTH", m["multiply"]
+        elif v == "Vision/Range" and "multiply" in m:
+            kind, value = "AURA_VISION", m["multiply"]
         elif v.startswith("Resistance/Entity/Damage/") and "add" in m:
             kind, value = "AURA_ARMOR", m["add"]
         elif v in ("Health/IdleRegenRate", "Health/RegenRate") and "add" in m:
@@ -815,8 +859,8 @@ def rts0_aura_effect(a):
             kind, value = "AURA_GATHER", 1.0 - 1.0 / m["multiply"]
         if kind is None:
             continue
-        gain = value - 1.0 if kind in ("AURA_ATTACK", "AURA_SPEED") else value
-        if enemy and kind in ("AURA_ATTACK", "AURA_SPEED", "AURA_ARMOR"):
+        gain = value - 1.0 if kind in MULTIPLY_AURAS else value
+        if enemy and kind in MULTIPLY_AURAS + ("AURA_ARMOR",):
             gain = -gain
         if gain <= 0:
             continue
@@ -942,6 +986,8 @@ def collect(sim_root):
                 flags.append("ROSTER_CITIZEN")
             if "Mercenary" in c:
                 flags.append("ROSTER_MERCENARY")
+            if "Citizen" in c and not t.value("ResourceGatherer/MaxDistance", ""):
+                flags.append("ROSTER_NO_GATHER")  # mixins/mercenary.xml, Neodamodes: ResourceGatherer disabled
             if t.value("Pack/Time", ""):
                 flags.append("ROSTER_PACKABLE")  # 0 A.D. Pack: unpack before firing, pack to move
             if "SiegeTower" in c:
@@ -1001,6 +1047,7 @@ def collect(sim_root):
             stats = {k: base[k] for k in RTS0_FIELDS}
             stats["pop"] = int(stats["pop"])
             stats["carry"] = int(stats["carry"])
+            stats["vision"] = 0.0  # unit_vision_range() of its class
             for r in ("food", "wood", "gold", "stone"):
                 stats[r] = int(stats[r])
             rows.append({
@@ -1077,7 +1124,7 @@ def emit_header(rows, auras, civ_json, bonuses, team):
     w("\t\t// id, name, specific name, civ, class, phase, flags, trainers,")
     w("\t\t// hp, speed, range, damage, cooldown, hack/pierce/crush dmg, hack/pierce/crush armour,")
     w("\t\t// food, wood, gold, stone, pop, train_time, carry, aura slots (-1 = none), unlock tech,")
-    w("\t\t// TechClass mask of the template's 0 A.D. classes")
+    w("\t\t// TechClass mask of the template's 0 A.D. classes, Vision/Range x0.28")
     for r in rows:
         s = r["stats"]
         flags = " | ".join(r["flags"]) or "0"
@@ -1088,12 +1135,13 @@ def emit_header(rows, auras, civ_json, bonuses, team):
         w("\t\t{%s, %s, %s, %s, %s, %d, %s, %s," % (
             cstr(r["id"]), cstr(r["name"]), cstr(r["specific_name"]),
             CIV_ENUM[CIVS.index(r["civ"])], r["class"], r["phase"], flags, trainers))
-        w("\t\t %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %d, %d, %d, %d, %d, %s, %d, %d, %d, %d, %s, 0x%xull}," % (
+        w("\t\t %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %d, %d, %d, %d, %d, %s, %d, %d, %d, %d, %s, 0x%xull, %s}," % (
             f(s["hp"]), f(s["speed"]), f(s["range"]), f(s["damage"]), f(s["cooldown"]),
             f(s["hack_dmg"]), f(s["pierce_dmg"]), f(s["crush_dmg"]),
             f(s["hack_armor"]), f(s["pierce_armor"]), f(s["crush_armor"]),
             s["food"], s["wood"], s["gold"], s["stone"], s["pop"], f(s["train_time"]),
-            s["carry"], a[0], a[1], a[2], r.get("unlock_tech", "TECH_NONE"), tech_class_bits(r["classes"])))
+            s["carry"], a[0], a[1], a[2], r.get("unlock_tech", "TECH_NONE"), tech_class_bits(r["classes"]),
+            f(s["vision"])))
     w("\t};")
     w("\treturn kTable;")
     w("}")
@@ -1248,7 +1296,7 @@ def unique_building_rows(sim_root):
             "capture": t.num("Capturable/CapturePoints", 500.0),
             "regen": t.num("Capturable/RegenRate", 5.0),
             "garrison_regen": t.num("Capturable/GarrisonRegenRate", 1.0),
-            "decay": t.num("TerritoryDecay/DecayRate", 20.0),
+            "decay": t.num("TerritoryDecay/DecayRate", 0.0),  # disable="" (Cothon): no decay,
             "phase": phase_of(t),
             # TerritoryInfluence roots on RTS0's scale (0 A.D. civil centre 140 m -> 32).
             "territory": (t.num("TerritoryInfluence/Radius") * 32.0 / 140.0
@@ -1262,7 +1310,7 @@ def unique_building_rows(sim_root):
     return out
 
 
-def emit_buildings(rows):
+def emit_buildings(rows, generic_masks):
     out = []
     w = out.append
     w("// GENERATED by tools/extract_0ad_rosters.py from 0 A.D. simulation/templates/structures/")
@@ -1289,9 +1337,15 @@ def emit_buildings(rows):
         w("\t\t{%d, %d, %d, %d, %d}, /* %s */ \\" % tuple(r["loot"] + [r["src"]]))
     w("")
     w("")
-    w("// Civilizations (bit per Civilization) that may build a civ-specific structure.")
+    w("// Civilizations (bit per Civilization) that may build a structure: the civ-specific")
+    w("// ones, and generic ones only for the civs whose 0 A.D. Builder lists name them.")
     w("inline uint16_t civ_building_civ_mask(uint8_t type) {")
     w("\tswitch (type) {")
+    full = (1 << len(CIVS)) - 1
+    for enum in BUILDING_BITS[:BUILDING_BITS.index(rows[0]["enum"])]:
+        mask = generic_masks.get(enum, 0)
+        if mask != full:
+            w("\t\tcase %s: return 0x%04x; // %s" % (enum, mask, " ".join(c for i, c in enumerate(CIVS) if mask >> i & 1) or "none"))
     for r in rows:
         mask = 0
         for c in r["civs"]:
@@ -1354,7 +1408,7 @@ def main():
     rows, auras, skipped, civ_json, bonuses, team = collect(sim_root)
     header = emit_header(rows, auras, civ_json, bonuses, team)
     js = emit_json(rows, auras, civ_json, bonuses)
-    bld = emit_buildings(unique_building_rows(sim_root))
+    bld = emit_buildings(unique_building_rows(sim_root), generic_build_masks(sim_root))
     if args.verbose:
         for s in skipped:
             print("skipped:", s, file=sys.stderr)

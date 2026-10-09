@@ -573,6 +573,14 @@ static Color player_display_color(const rtso::Simulation *sim, uint8_t pid) {
 	return Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, 1.0f);
 }
 
+// 0 A.D. player_trans surfaces take the owner's colour (model_common.fs).
+static void push_player_color(Node *model, int64_t &last, const Color &c) {
+	const int64_t key = (int64_t)c.to_rgba32();
+	if (!model || last == key) return;
+	rtso::ModelLibrary::set_player_color(model, c);
+	last = key;
+}
+
 void RtsoWorldView::load_garrison_flags() {
 	flags_loaded_ = true;
 	Ref<FileAccess> f = FileAccess::open("res://data/garrison_flags.json", FileAccess::READ);
@@ -998,6 +1006,8 @@ enum ClipId : uint8_t {
 	CLIP_CARRY_STONE,
 	CLIP_CARRY_METAL,
 	CLIP_CAPTURE,
+	CLIP_IDLE2,
+	CLIP_DEATH2,
 	CLIP_COUNT
 };
 
@@ -1011,7 +1021,8 @@ static const StringName &clip_name(ClipId id) {
 		StringName("Build"), StringName("Carry"), StringName("Heal"),
 		StringName("Slaughter"), StringName("Promotion"),
 		StringName("CarryFood"), StringName("CarryMeat"), StringName("CarryWood"),
-		StringName("CarryStone"), StringName("CarryMetal"), StringName("Capture")
+		StringName("CarryStone"), StringName("CarryMetal"), StringName("Capture"),
+		StringName("Idle2"), StringName("Death2")
 	};
 	return names[id < CLIP_COUNT ? id : CLIP_NONE];
 }
@@ -1150,6 +1161,16 @@ static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int
 	return w;
 }
 
+// 0 A.D. picks one of an actor's same-named animations at random; here each
+// unit keeps one by its id: half fall with the second death, and a quarter
+// stand with the second idle (the first is the most frequent in 0 A.D.).
+static WantAnim with_variant(WantAnim w, uint32_t id) {
+	const uint32_t h = id * 2654435761u;
+	if (w.clip == CLIP_DEATH && (h & 0x80000000u)) w.clip = CLIP_DEATH2;
+	else if (w.clip == CLIP_IDLE && (h >> 29) == 3u) w.clip = CLIP_IDLE2;
+	return w;
+}
+
 // Nearest clip a model actually ships, mirroring the extractor's own borrowing
 // (Run from Walk, Carry from Walk, Death from Idle for hulls that only float).
 static ClipId resolve_clip_fallback(AnimationPlayer *anim, ClipId want) {
@@ -1184,6 +1205,8 @@ static ClipId resolve_clip_fallback(AnimationPlayer *anim, ClipId want) {
 		case CLIP_HEAL:      alt = CLIP_GATHER; break;
 		case CLIP_SLAUGHTER: alt = CLIP_ATTACK; break;
 		case CLIP_CAPTURE:   alt = CLIP_ATTACK; break;
+		case CLIP_IDLE2:     alt = CLIP_IDLE; break;
+		case CLIP_DEATH2:    alt = CLIP_DEATH; break;
 		default:             break;
 	}
 	if (alt != CLIP_NONE && anim->has_animation(clip_name(alt))) return alt;
@@ -1290,6 +1313,7 @@ void RtsoWorldView::attach_unit_model(UnitVis &v, const String &model_name) {
 		v.model = nullptr;
 	}
 	v.model_id = model_name;
+	v.player_rgba = -1;
 	v.clip = StringName();
 	v.carry_prop = nullptr; // freed with the old model
 	v.carry_clip = 0;
@@ -1356,6 +1380,7 @@ void RtsoWorldView::set_building_site_visible(BuildingVis &v, bool foundation_on
 			if (!slot) return;
 			v.root->add_child(slot);
 			v.fog_dim = -1.0f;
+			v.player_rgba = -1;
 			String cat = "buildings";
 			const auto &se = rtso::ModelLibrary::get(cat, String(id));
 			if (Node3D *n3 = Object::cast_to<Node3D>(slot)) {
@@ -1386,6 +1411,7 @@ void RtsoWorldView::attach_building_model(BuildingVis &v, const String &model_na
 	}
 	v.model_id = model_name;
 	v.fog_dim = -1.0f; // new nodes: re-apply the fog overlay
+	v.player_rgba = -1;
 	v.model = instantiate_building_id(model_name);
 	if (!v.model) {
 		MeshInstance3D *mi = memnew(MeshInstance3D);
@@ -1410,10 +1436,11 @@ static const uint8_t kCrowdClips[] = {
 	CLIP_GATHER_TREE, CLIP_GATHER_ORE, CLIP_GATHER_ROCK, CLIP_GATHER_FRUIT, CLIP_GATHER_GRAIN,
 	CLIP_GATHER_MEAT, CLIP_GATHER_FISH, CLIP_HEAL, CLIP_SLAUGHTER,
 	CLIP_CARRY_FOOD, CLIP_CARRY_MEAT, CLIP_CARRY_WOOD, CLIP_CARRY_STONE, CLIP_CARRY_METAL,
-	CLIP_PROMOTION, CLIP_CAPTURE,
+	CLIP_PROMOTION, CLIP_CAPTURE, CLIP_IDLE2, CLIP_DEATH2,
 };
-static_assert(sizeof(kCrowdClips) == 23, "kCrowdClips must match CROWD_CLIP_COUNT");
-static constexpr int CROWD_DEATH_SLOT = 3;
+static_assert(sizeof(kCrowdClips) == 25, "kCrowdClips must match CROWD_CLIP_COUNT");
+// Death clips play once and hold their last frame (slots 3 and 24).
+static constexpr uint32_t CROWD_DEATH_SLOTS = (1u << 3) | (1u << 24);
 
 static int crowd_slot_of(ClipId clip) {
 	switch (clip) {
@@ -1440,6 +1467,8 @@ static int crowd_slot_of(ClipId clip) {
 		case CLIP_CARRY_METAL: return 20;
 		case CLIP_PROMOTION: return 21;
 		case CLIP_CAPTURE: return 22;
+		case CLIP_IDLE2: return 23;
+		case CLIP_DEATH2: return 24;
 		default: return 0;
 	}
 }
@@ -1450,9 +1479,14 @@ static bool shows_packed(uint8_t pack_state) {
 	return pack_state == rtso::PACK_PACKED || pack_state == rtso::PACK_UNPACKING;
 }
 
-// The model a crowd key draws: the unit's own, or its packed wagon.
-static const char *crowd_key_model(uint8_t civ, uint8_t key) {
-	const uint8_t utype = key % rtso::UNIT_TYPE_COUNT;
+// The model a crowd key draws: the unit's own, its packed wagon, or its
+// roster template's own model.
+static const char *crowd_key_model(uint8_t civ, uint16_t key) {
+	if (key >= 2 * rtso::UNIT_TYPE_COUNT) {
+		if (const char *own = rtso::unit_template_draw_model(key - 2 * rtso::UNIT_TYPE_COUNT)) return own;
+		key = rtso::UNIT_VILLAGER;
+	}
+	const uint8_t utype = (uint8_t)(key % rtso::UNIT_TYPE_COUNT);
 	const char *model = rtso::civ_unit_model(civ, utype);
 	if (key >= rtso::UNIT_TYPE_COUNT) {
 		if (const char *packed = rtso::packed_siege_model(model)) return packed;
@@ -1460,13 +1494,15 @@ static const char *crowd_key_model(uint8_t civ, uint8_t key) {
 	return model;
 }
 
-static uint8_t crowd_key_of(uint8_t civ, uint8_t utype, uint8_t pack_state) {
+static uint16_t crowd_key_of(uint8_t civ, uint8_t utype, uint8_t pack_state, uint16_t tmpl) {
 	if (shows_packed(pack_state) && rtso::packed_siege_model(rtso::civ_unit_model(civ, utype)))
-		return (uint8_t)(rtso::UNIT_TYPE_COUNT + utype);
+		return (uint16_t)(rtso::UNIT_TYPE_COUNT + utype);
+	const int own = rtso::unit_template_draw_index(tmpl);
+	if (own >= 0) return (uint16_t)(2 * rtso::UNIT_TYPE_COUNT + own);
 	return utype;
 }
 
-RtsoWorldView::CrowdBatch &RtsoWorldView::crowd_batch(uint8_t civ, uint8_t key) {
+RtsoWorldView::CrowdBatch &RtsoWorldView::crowd_batch(uint8_t civ, uint16_t key) {
 	if (civ >= rtso::CIV_COUNT) civ = rtso::CIV_ATHENIANS;
 	if (key >= CROWD_KEY_COUNT) key = rtso::UNIT_VILLAGER;
 	std::unique_ptr<CrowdBatch> &slot = crowd_[civ][key];
@@ -1475,6 +1511,8 @@ RtsoWorldView::CrowdBatch &RtsoWorldView::crowd_batch(uint8_t civ, uint8_t key) 
 		auto entry = rtso::ModelLibrary::get("units", crowd_key_model(civ, key));
 		slot->rest = entry.crowd_mesh.is_valid() ? entry.crowd_mesh : entry.mesh;
 		slot->no_scene = !entry.scene.is_valid();
+		for (int s = 0; slot->rest.is_valid() && s < slot->rest->get_surface_count(); ++s)
+			if (rtso::ModelLibrary::is_player_color_material(slot->rest->surface_get_material(s))) slot->player_color = true;
 	}
 	return *slot;
 }
@@ -1483,6 +1521,7 @@ MultiMesh *RtsoWorldView::crowd_mm(CrowdBatch &b, int clip) {
 	if (!b.mmi[clip]) {
 		Ref<Mesh> m = b.puppet[clip].posed_frames[0].is_valid() ? Ref<Mesh>(b.puppet[clip].posed_frames[0]) : b.rest;
 		b.mm[clip] = create_multimesh(m, true);
+		b.mm[clip]->set_use_custom_data(true); // owner colour for player_color.gdshader
 		b.mmi[clip] = memnew(MultiMeshInstance3D);
 		b.mmi[clip]->set_multimesh(b.mm[clip]);
 		// 0 A.D. unit actors carry <castshadow/>.
@@ -1493,7 +1532,7 @@ MultiMesh *RtsoWorldView::crowd_mm(CrowdBatch &b, int clip) {
 }
 
 void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, const uint8_t *want,
-		const bool *needed, int count, int death_slot, bool female) {
+		const bool *needed, int count, uint32_t death_slots, bool female) {
 	AnimationPlayer *ap = find_anim_player(inst);
 	if (ap) {
 		ap->set_active(true);
@@ -1527,7 +1566,7 @@ void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, 
 			for (int f = 0; f < n; ++f) {
 				double t = 0.0;
 				if (len > 0.0) {
-					if (c == death_slot) {
+					if (death_slots & (1u << c)) {
 						t = (n > 1) ? len * (double)f / (double)(n - 1) : 0.0;
 					} else {
 						t = len * (double)f / (double)n;
@@ -1549,11 +1588,11 @@ void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, 
 	if (ap) ap->stop();
 }
 
-void RtsoWorldView::cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts, int count, int death_slot) {
+void RtsoWorldView::cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts, int count, uint32_t death_slots) {
 	for (int c = 0; c < count; ++c) {
 		if (!meshes[c].is_valid() || row[c].baked_count <= 0 || counts[c] <= 0) continue;
 		int frame;
-		if (c == death_slot) {
+		if (death_slots & (1u << c)) {
 			frame = (int)(anim_time * 5.0f);
 			if (frame > row[c].baked_count - 1) frame = row[c].baked_count - 1;
 		} else {
@@ -1578,9 +1617,9 @@ static Node *instantiate_for_bake(Node3D *bake_root, const Ref<PackedScene> &sce
 	return inst;
 }
 
-void RtsoWorldView::ensure_crowd_frames(uint8_t civ, uint8_t key, const int *counts) {
+void RtsoWorldView::ensure_crowd_frames(uint8_t civ, uint16_t key, const int *counts) {
 	CrowdBatch &b = crowd_batch(civ, key);
-	const uint8_t utype = key % rtso::UNIT_TYPE_COUNT;
+	const uint8_t utype = crowd_key_utype_[key < CROWD_KEY_COUNT ? key : 0];
 	if (b.no_scene) return;
 	bool needed[CROWD_CLIP_COUNT] = {};
 	bool any = false;
@@ -1604,7 +1643,7 @@ void RtsoWorldView::ensure_crowd_frames(uint8_t civ, uint8_t key, const int *cou
 	if (!inst) return;
 	const bool female = unit_is_female(utype);
 	ensure_runtime_clips(find_anim_player(inst), female);
-	bake_puppet_clips(inst, b.puppet, b.clip_baked, kCrowdClips, needed, CROWD_CLIP_COUNT, CROWD_DEATH_SLOT, female);
+	bake_puppet_clips(inst, b.puppet, b.clip_baked, kCrowdClips, needed, CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS, female);
 	for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
 		if (needed[c] && b.mm[c].is_valid() && b.puppet[c].posed_frames[0].is_valid())
 			b.mm[c]->set_mesh(b.puppet[c].posed_frames[0]);
@@ -1636,7 +1675,7 @@ void RtsoWorldView::ensure_fauna_frames(uint8_t ftype) {
 	if (ap && ap->has_animation(clip_name(CLIP_RUN))) want[1] = CLIP_RUN;
 	const bool needed[FAUNA_CLIP_COUNT] = { true, true, true, true };
 	bool done[FAUNA_CLIP_COUNT] = {};
-	bake_puppet_clips(inst, fauna_puppet[ftype], done, want, needed, FAUNA_CLIP_COUNT, 3);
+	bake_puppet_clips(inst, fauna_puppet[ftype], done, want, needed, FAUNA_CLIP_COUNT, 1u << 3);
 	for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) {
 		if (fauna_mm[ftype][c].is_valid() && fauna_puppet[ftype][c].posed_frames[0].is_valid()) {
 			fauna_mm[ftype][c]->set_mesh(fauna_puppet[ftype][c].posed_frames[0]);
@@ -2150,8 +2189,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			auto it = res_sub.find(uview.target_resource_id[i]);
 			if (it != res_sub.end()) sub = it->second;
 		}
-		return resolve_unit_anim(uview.action_state[i], vx * vx + vz * vz, uview.alive[i] != 0,
+		WantAnim w = resolve_unit_anim(uview.action_state[i], vx * vx + vz * vz, uview.alive[i] != 0,
 				uview.carry[i], ut, uview.res_type_carried[i], sub, sim->unit_capturing(i));
+		return with_variant(w, uview.id[i]);
 	};
 	crowd_slot_scratch_.assign(uview.count, 0xFF);
 	static int counts[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT];
@@ -2164,7 +2204,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (civ >= rtso::CIV_COUNT) civ = rtso::CIV_ATHENIANS;
 		const int slot = crowd_slot_of(anim_of(i).clip);
 		crowd_slot_scratch_[i] = (uint8_t)slot;
-		counts[civ][crowd_key_of(civ, t, uview.pack_state[i])][slot]++;
+		const uint16_t key = crowd_key_of(civ, t, uview.pack_state[i], uview.tmpl[i]);
+		crowd_key_utype_[key] = t;
+		counts[civ][key][slot]++;
 	}
 	for (int civ = 0; civ < rtso::CIV_COUNT; ++civ) {
 		for (int t = 0; t < CROWD_KEY_COUNT; ++t) {
@@ -2172,13 +2214,13 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			for (int c = 0; c < CROWD_CLIP_COUNT; ++c) any += counts[civ][t][c];
 			if (any == 0 && !crowd_[civ][t]) continue;
 			if (any > 0) {
-				CrowdBatch &cb = crowd_batch((uint8_t)civ, (uint8_t)t);
-				ensure_crowd_frames((uint8_t)civ, (uint8_t)t, counts[civ][t]);
+				CrowdBatch &cb = crowd_batch((uint8_t)civ, (uint16_t)t);
+				ensure_crowd_frames((uint8_t)civ, (uint16_t)t, counts[civ][t]);
 				for (int c = 0; c < CROWD_CLIP_COUNT; ++c)
 					if (counts[civ][t][c] > 0) crowd_mm(cb, c);
 			}
 			CrowdBatch &cb = *crowd_[civ][t];
-			cycle_puppet_meshes(cb.puppet, cb.mm, counts[civ][t], CROWD_CLIP_COUNT, CROWD_DEATH_SLOT);
+			cycle_puppet_meshes(cb.puppet, cb.mm, counts[civ][t], CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS);
 			for (int c = 0; c < CROWD_CLIP_COUNT; ++c)
 				if (cb.mm[c].is_valid()) cb.mm[c]->set_instance_count(counts[civ][t][c]);
 		}
@@ -2256,7 +2298,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 		uint8_t uciv = sim->team_civ(uview.team[i]);
 		if (uciv >= rtso::CIV_COUNT) uciv = rtso::CIV_ATHENIANS;
-		const uint8_t ckey = crowd_key_of(uciv, utype, uview.pack_state[i]);
+		const uint16_t ckey = crowd_key_of(uciv, utype, uview.pack_state[i], uview.tmpl[i]);
 		String utype_str = crowd_key_model(uciv, ckey);
 		String cat_units3 = "units";
 		auto entry = rtso::ModelLibrary::get(cat_units3, utype_str);
@@ -2286,12 +2328,18 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 				cmm->set_instance_transform(slot, xf);
 			}
 			// model_common.fs: color *= LOS. Own units in the fog read darker.
+			// Models without player_trans skins keep a friend/foe tint.
 			const float lit = los_brightness(x, z);
-			Color tint = is_player ? col_player : col_enemy;
+			const bool owner_coloured = crowd_[uciv][ckey]->player_color;
+			Color tint = owner_coloured ? Color(1, 1, 1) : (is_player ? col_player : col_enemy);
 			tint.r *= lit;
 			tint.g *= lit;
 			tint.b *= lit;
 			cmm->set_instance_color(slot, tint);
+			// Custom data reaches the shader raw; the close-up path's source_color
+			// instance uniform is converted to linear, so match it here.
+			const Color pc = player_display_color(sim, uview.team[i]).srgb_to_linear();
+			cmm->set_instance_custom_data(slot, Color(pc.r, pc.g, pc.b, 1.0f));
 		}
 
 		if (detailed.count(id) == 0) continue;
@@ -2300,6 +2348,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		v.vis_stamp = unit_vis_stamp;
 		v.yaw = yaw;
 		attach_unit_model(v, utype_str);
+		push_player_color(v.model, v.player_rgba, player_display_color(sim, uview.team[i]));
 		if (v.anim && UtilityFunctions::is_instance_valid(v.anim))
 			ensure_runtime_clips(v.anim, unit_is_female(utype));
 
@@ -2531,6 +2580,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 				v.fog_dim = q;
 			}
 		}
+		push_player_color(v.root, v.player_rgba, player_display_color(sim, b.team));
 
 		{
 			const float frac = b.max_hp > 0.0f ? b.hp / b.max_hp : 1.0f;
@@ -2885,7 +2935,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		int any = 0;
 		for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) any += f_counts[ft][c];
 		if (any > 0) ensure_fauna_frames((uint8_t)ft);
-		cycle_puppet_meshes(fauna_puppet[ft], fauna_mm[ft], f_counts[ft], FAUNA_CLIP_COUNT, 3);
+		cycle_puppet_meshes(fauna_puppet[ft], fauna_mm[ft], f_counts[ft], FAUNA_CLIP_COUNT, 1u << 3);
 		for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) {
 			if (fauna_mm[ft][c].is_valid()) {
 				fauna_mm[ft][c]->set_instance_count(f_counts[ft][c]);

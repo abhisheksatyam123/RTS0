@@ -313,6 +313,7 @@ struct GameSetupParams {
 	uint8_t waves = 0;      // 1 = legacy wave-defense mode on
 	uint8_t lms = 0;        // 1 = Last Man Standing (no allied victory)
 	uint16_t pop_cap = 200;  // per-player population limit, 0 = unlimited
+	uint16_t world_pop = 0;  // 0 A.D. World Population (shared by live players), 0 = off; wins over pop_cap
 	uint8_t ceasefire = 0;  // minutes of ceasefire at match start
 	uint8_t reveal = 0;     // 1 = revealed map (everything visible)
 	uint8_t explore = 0;    // 1 = explored map (terrain known from the start)
@@ -325,6 +326,7 @@ struct GameSetupParams {
 	uint8_t colors[8] = {0, 1, 2, 3, 4, 5, 6, 7}; // per-slot PLAYER_COLORS index 0..23 (one base-36 digit)
 	uint8_t nomad = 0;             // 1 = Nomad start (random maps)
 	uint8_t regicide_garrison = 0; // 1 = the Regicide hero may garrison
+	uint8_t lock_teams = 0;        // 1 = 0 A.D. LockTeams: no diplomacy changes
 	uint8_t no_treasures = 0;      // 1 = 0 A.D. DisableTreasures
 	std::string names[8];          // per-slot player names (0 A.D. PlayerName), empty = "Player N"
 	uint8_t water_level = 0; // Flood: 0 rising, 1 shallow, 2 deep (0 A.D. WaterLevel)
@@ -332,7 +334,7 @@ struct GameSetupParams {
 	uint16_t map_size = 128; // random-map width in meters, 128..512
 	uint8_t difficulty = 3; // Petra 0..5 sandbox..very hard
 	uint8_t behavior = 2;   // Petra 0..3 random/def/bal/agg
-	uint8_t start_res = 1;  // 0 sparse, 1 normal, 2 generous, 3 abundant
+	uint8_t start_res = 1;  // 0 A.D. starting resources: 0 Very Low (100) .. 5 Deathmatch (50000), 1 Low (300)
 	uint8_t civs[8] = {0, 1, 0, 0, 0, 0, 0, 0};
 	char slot_types[8] = {'h', 'a', 'x', 'x', 'x', 'x', 'x', 'x'};
 	uint8_t teams[8] = {1, 2, 0, 0, 0, 0, 0, 0};
@@ -377,6 +379,7 @@ inline std::string format_game_start_full(const GameSetupParams &p) {
 	s += ";waves=" + std::to_string((unsigned)p.waves);
 	s += ";lms=" + std::to_string((unsigned)p.lms);
 	s += ";popcap=" + std::to_string((unsigned)p.pop_cap);
+	if (p.world_pop) s += ";worldpop=" + std::to_string((unsigned)p.world_pop);
 	s += ";ceasefire=" + std::to_string((unsigned)p.ceasefire);
 	s += ";reveal=" + std::to_string((unsigned)p.reveal);
 	s += ";explore=" + std::to_string((unsigned)p.explore);
@@ -401,6 +404,7 @@ inline std::string format_game_start_full(const GameSetupParams &p) {
 	}
 	s += ";nomad=" + std::to_string((unsigned)p.nomad);
 	s += ";rgarrison=" + std::to_string((unsigned)p.regicide_garrison);
+	if (p.lock_teams) s += ";lockteams=1";
 	s += ";notreasures=" + std::to_string((unsigned)p.no_treasures);
 	{
 		std::string n;
@@ -495,6 +499,7 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 			}
 			else if (k == "notreasures") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.no_treasures = x; }
 			else if (k == "rgarrison") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.regicide_garrison = x; }
+			else if (k == "lockteams") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.lock_teams = x; }
 			else if (k == "colors") {
 				for (size_t i = 0, slot = 0; i < v.size() && slot < 8; i += 2, ++slot) {
 					const char c = v[i];
@@ -515,13 +520,17 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 				unsigned x = (unsigned)std::stoul(v);
 				if (x <= 1000) out.pop_cap = (uint16_t)x;
 			}
+			else if (k == "worldpop" && !v.empty() && v.size() <= 5 && v.find_first_not_of("0123456789") == std::string::npos) {
+				unsigned x = (unsigned)std::stoul(v);
+				if (x <= 63000) out.world_pop = (uint16_t)x;
+			}
 			else if (k == "mapsize" && !v.empty() && v.size() <= 3 && v.find_first_not_of("0123456789") == std::string::npos) {
 				unsigned x = (unsigned)std::stoul(v);
 				if (x >= 128 && x <= 512) out.map_size = (uint16_t)x;
 			}
 			else if (k == "diff") { uint8_t x; if (detail::parse_u8(v, 0, 5, x)) out.difficulty = x; }
 			else if (k == "behavior") { uint8_t x; if (detail::parse_u8(v, 0, 3, x)) out.behavior = x; }
-			else if (k == "res") { uint8_t x; if (detail::parse_u8(v, 0, 3, x)) out.start_res = x; }
+			else if (k == "res") { uint8_t x; if (detail::parse_u8(v, 0, 5, x)) out.start_res = x; }
 			else if (k.size() == 4 && k[0] == 'c' && k[1] == 'i' && k[2] == 'v' && k[3] >= '0' && k[3] <= '7') {
 				uint8_t x; if (detail::parse_u8(v, 0, 13, x)) out.civs[k[3] - '0'] = x;
 			}
