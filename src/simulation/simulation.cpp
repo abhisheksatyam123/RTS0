@@ -13781,6 +13781,7 @@ void Simulation::petra_manage_diplomacy(float dt) {
 		if (req.status == PetraReceivedRequest::WAITING_FOR_TRIBUTE) {
 			req.paid += petra_tribute_inbox_[me][p][req.resource];
 			if (req.paid >= (float)req.wanted) {
+				petra_tribute_request_wanted_[p][me] = 0; // our tribute request is answered
 				req.status = PetraReceivedRequest::ACCEPTED;
 				petra_change_diplomacy(p, req.type == 0 ? DIPLO_ALLY : DIPLO_NEUTRAL);
 				petra_say(PETRA_CHAT_DIPLO_ACCEPT, 0.0f, 0.0f, p);
@@ -13824,8 +13825,10 @@ void Simulation::petra_manage_diplomacy(float dt) {
 		PetraReceivedRequest &req = dip.received[p];
 		// A player that had asked for a stance changed its mind.
 		if ((req.status == PetraReceivedRequest::WAITING_FOR_TRIBUTE) &&
-		    ((theirs != DIPLO_ALLY && req.type == 0) || (theirs == DIPLO_ENEMY && req.type == 1)))
+		    ((theirs != DIPLO_ALLY && req.type == 0) || (theirs == DIPLO_ENEMY && req.type == 1))) {
 			req = PetraReceivedRequest{};
+			petra_tribute_request_wanted_[p][me] = 0;
+		}
 		if (theirs == DIPLO_ALLY && get_diplomacy(me, p) != DIPLO_ALLY)
 			petra_handle_diplomacy_request(p, 0);
 		else if (theirs == DIPLO_NEUTRAL && get_diplomacy(me, p) == DIPLO_ENEMY)
@@ -13851,13 +13854,14 @@ void Simulation::petra_manage_diplomacy(float dt) {
 			petra_tribute_request_res_[from][me] = req.resource;
 		}
 	}
-	// checkEvents TributeRequest: an AI we asked wants a tribute; pay it if we can.
+	// checkEvents TributeRequest: an AI we asked wants a tribute; pay it once we
+	// can spare it (resources no queue holds). The request stands until paid or
+	// until the AI that made it drops it, so a short moment doesn't lose the pact.
 	for (uint8_t from = 0; from < MAX_PLAYERS; ++from) {
 		const int wanted = petra_tribute_request_wanted_[me][from];
 		if (wanted <= 0) continue;
 		const uint8_t res = petra_tribute_request_res_[me][from];
-		petra_tribute_request_wanted_[me][from] = 0;
-		if (res >= RES_COUNT) continue;
+		if (res >= RES_COUNT || is_defeated(from)) { petra_tribute_request_wanted_[me][from] = 0; continue; }
 		float available = petra_ps().res[res];
 		for (const auto &acc : petra_queues_.accounts) {
 			const float held[RES_COUNT] = {acc.wood, acc.gold, acc.stone, acc.food};
@@ -13866,7 +13870,10 @@ void Simulation::petra_manage_diplomacy(float dt) {
 		if ((float)wanted < available) {
 			int amounts[RES_COUNT] = {};
 			amounts[res] = wanted;
-			if (cmd_tribute(me, from, amounts)) dip.next_tribute = dip.elapsed + 15.0f;
+			if (cmd_tribute(me, from, amounts)) {
+				dip.next_tribute = dip.elapsed + 15.0f;
+				petra_tribute_request_wanted_[me][from] = 0;
+			}
 		}
 	}
 
@@ -13876,6 +13883,7 @@ void Simulation::petra_manage_diplomacy(float dt) {
 		if (req.status != PetraReceivedRequest::WAITING_FOR_TRIBUTE || dip.elapsed < req.warn_time) continue;
 		if (req.sent_warning) {
 			req = PetraReceivedRequest{};
+			petra_tribute_request_wanted_[p][me] = 0; // withdrawn
 			petra_say(PETRA_CHAT_DIPLO_LAPSED, 0.0f, 0.0f, p);
 		} else {
 			req.sent_warning = true;

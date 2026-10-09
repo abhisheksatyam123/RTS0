@@ -584,15 +584,16 @@ static void test_allow_capture() {
 	s->reset();
 	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
 	s->set_victory_condition(VICTORY_ENDLESS);
-	const uint32_t house = s->spawn_building_world(-50.0f, 45.0f, BLD_HOUSE, 0, 1.0f);
-	const uint32_t fort = s->spawn_building_world(-45.0f, -45.0f, BLD_FORTRESS, 0, 1.0f);
+	// All on dry land: land units can't wade into deep water (0 A.D. passability).
+	const uint32_t house = s->spawn_building_world(-30.0f, 10.0f, BLD_HOUSE, 0, 1.0f);
+	const uint32_t fort = s->spawn_building_world(-30.0f, 25.0f, BLD_FORTRESS, 0, 1.0f);
 	std::vector<uint32_t> guards;
-	for (int i = 0; i < 10; ++i) guards.push_back(s->spawn_unit(-38.0f + (float)i, -38.0f, 0, UNIT_SPEARMAN));
+	for (int i = 0; i < 10; ++i) guards.push_back(s->spawn_unit(-36.0f + (float)i, 16.0f, 0, UNIT_SPEARMAN));
 	s->order_garrison(guards.data(), guards.size(), fort);
 	run_for(*s, 20.0f);
 	std::vector<uint32_t> squad;
-	for (int i = 0; i < 4; ++i) squad.push_back(s->spawn_unit(-40.0f + 2.0f * (float)i, 30.0f, 1, UNIT_SPEARMAN));
-	const uint32_t ram = s->spawn_unit(-40.0f, 28.0f, 1, UNIT_SIEGE_RAM);
+	for (int i = 0; i < 4; ++i) squad.push_back(s->spawn_unit(-40.0f + 2.0f * (float)i, -2.0f, 1, UNIT_SPEARMAN));
+	const uint32_t ram = s->spawn_unit(-40.0f, -4.0f, 1, UNIT_SIEGE_RAM);
 	auto bld = [&](uint32_t id) -> const Simulation::Building & { return s->buildings()[s->building_id_to_idx_.at(id)]; };
 	const auto &f = bld(fort);
 	s->order_attack_building(squad.data(), squad.size(), house, false, true); // the squad closes on the house
@@ -717,6 +718,39 @@ static void test_diplomacy_requests() {
 	CHECK(asked_neutral, "asks an enemy for a neutrality pact first");
 	CHECK(s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL && s->get_diplomacy(1, 3) == Simulation::DIPLO_NEUTRAL,
 	      "both AIs end up neutral to each other");
+}
+
+// diplomacyManager.js handleTributeRequest: an AI asked for a tribute in return
+// for a pact pays it once it can spare it; a request it can't pay at once
+// stands until the asker withdraws it (120 s), rather than being forgotten.
+static void test_tribute_request_paid_later() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(7);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 7, 4, 128.0f);
+	s->set_player_active(0, true, false);
+	for (uint8_t p = 1; p < 4; ++p) s->set_player_active(p, true, true);
+	s->players_[3].civ = s->players_[1].civ;
+	run_for(*s, 20.0f);
+	s->petra_send_diplomacy_request();
+	if (!s->petra_sent_diplo_.sent_type[3]) { CHECK(false, "AI 1 asks AI 3"); return; }
+	for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 0.0f; // broke when AI 3 answers
+	bool asked = false;
+	for (float t = 0.0f; t < 30.0f; t += Simulation::FIXED_STEP) {
+		s->players_[1].res[RES_GOLD] = s->players_[1].res[RES_FOOD] = s->players_[1].res[RES_WOOD] = s->players_[1].res[RES_STONE] = 0.0f;
+		s->tick(Simulation::FIXED_STEP);
+		asked |= s->petra_slots_[3].petra_diplo_.received[1].status == PetraReceivedRequest::WAITING_FOR_TRIBUTE;
+	}
+	for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] += 2000.0f;
+	float t = 0.0f;
+	for (; t < 60.0f && !(s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL && s->get_diplomacy(1, 3) == Simulation::DIPLO_NEUTRAL);
+	     t += Simulation::FIXED_STEP)
+		s->tick(Simulation::FIXED_STEP);
+	std::printf("  tribute asked of a broke AI: asked %s, paid and neutral %s after %.0fs more\n",
+	            asked ? "yes" : "no", s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL ? "yes" : "no", t);
+	CHECK(asked, "AI 3 asks AI 1 for a tribute");
+	CHECK(s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL && s->get_diplomacy(1, 3) == Simulation::DIPLO_NEUTRAL,
+	      "AI 1 pays once it can, and the pact is sealed");
 }
 
 // worker.js startHunting: Petra's food gatherers slaughter the chickens by
@@ -1181,6 +1215,7 @@ int main() {
 	test_allow_capture();
 	test_garrisons();
 	test_diplomacy_requests();
+	test_tribute_request_paid_later();
 	test_hunting();
 	test_first_base();
 	test_barter();
