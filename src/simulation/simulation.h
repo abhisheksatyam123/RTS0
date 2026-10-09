@@ -71,6 +71,7 @@ struct Projectile {
 	uint32_t target_unit_id = 0;
 	uint32_t target_building_id = 0;
 	bool alive = true;
+	uint8_t splash = 0; // splash_profiles() row of the attack that fired it (0 A.D. DelayedDamage data.splash)
 	uint32_t source_id = 0; // firing unit or building: Promotion xp and Looter.js loot go to it
 };
 
@@ -292,7 +293,10 @@ public:
 	// 0 A.D. TurretHolder / Turretable: ranged infantry stand on the turret points of
 	// walls, gates and outposts, visible and fighting from the structure's height.
 	bool unit_turretable(size_t i) const;
-	uint32_t turret_holder_of(uint32_t unit_id) const; // 0 when not on a turret
+	uint32_t turret_holder_of(uint32_t unit_id) const;
+	// Total damage `player`'s entities have dealt to other (non-Gaia) players this session
+	// (0 A.D. BattleDetection input); not saved, starts again at 0 after a load.
+	double battle_damage_dealt(uint8_t player) const { return player < MAX_PLAYERS ? battle_damage_[player] : 0.0; } // 0 when not on a turret
 	float unit_height_offset(size_t i) const { // above the terrain (a turret point's height)
 		if (turret_height_.empty()) return 0.0f;
 		auto it = turret_height_.find(units_.id[i]);
@@ -493,6 +497,7 @@ public:
 	// Ships as GarrisonHolders (template_unit_ship*.xml): capacity and List per
 	// template, LoadingRange 10 m, Pickup, EjectClassesOnDestroy. `i` is a SoA index.
 	int ship_garrison_capacity(size_t i) const;
+	static int ship_template_capacity(uint8_t unit_type, uint16_t tmpl);
 	bool ship_garrison_allowed(size_t ship, uint8_t unit_type) const;
 	float ship_loading_reach(size_t ship, size_t unit) const;
 	bool ship_unload_point(size_t ship, float &out_x, float &out_z) const;
@@ -1244,6 +1249,11 @@ private:
 	int corral_count(uint32_t corral_id) const;
 	void tick_entity_limits(float dt);
 	void tick_death_damage(float dt);
+	// 0 A.D. helpers/Attack.js CauseDamageOverArea for an Attack Splash landing at (ox, oz).
+	void cause_damage_over_area(uint8_t splash, uint32_t attacker_id, uint8_t attacker_team,
+			float ox, float oz, float dir_x, float dir_z);
+	// A unit's hack, pierce and crush resistance levels (template, techs, rank, armour auras).
+	void unit_resistance(size_t i, float out[3]) const;
 	void tick_gates(float dt);
 	void tick_waves(float dt);
 	void tick_petra_ai(float dt);
@@ -1285,7 +1295,7 @@ private:
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
 	void rebuild_auras(); // G4: rebuild AuraManager from temples/heroes/carnyx/female citizens
 	uint16_t aura_affected_players(uint8_t owner, uint8_t players) const;
-	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false, uint8_t visual = 0, uint32_t source_id = 0);
+	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false, uint8_t visual = 0, uint32_t source_id = 0, uint8_t splash = 0);
 	static float projectile_speed(uint8_t visual);
 	int32_t projectile_hit_unit(const Projectile &p) const;
 	void random_normal_2d(float &x, float &z);
@@ -1309,6 +1319,10 @@ private:
 	// 0 A.D. Loot.js / Looter.js / Promotion.js (see simulation.cpp).
 	void gain_xp(size_t idx, float amount);
 	void award_damage_xp(uint32_t attacker_id, size_t victim, float damage);
+	// attacker_id is 0 when no entity is left to name (a fire ship's death damage).
+	void note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uint32_t target_id, uint8_t target_owner,
+			bool target_is_building, float damage);
+	double battle_damage_[MAX_PLAYERS] = {};
 	bool looter_present(uint32_t looter_id, bool *infantry) const;
 	void collect_loot(uint32_t looter_id, uint8_t looter_player, LootInfo loot, float mult, uint8_t carried_type, int32_t carried);
 	void collect_unit_loot(uint32_t looter_id, uint8_t looter_player, size_t victim);
@@ -1592,6 +1606,36 @@ private:
 	void petra_manage_economy(float dt);
 	void petra_manage_trading(float dt);
 	void petra_manage_naval(float dt);
+	// navalManager.js: lands, seas and the seas between them (accessibility.js).
+	struct PetraNavalTopo {
+		float cell_m2 = 0.0f;
+		uint32_t total = 0;                         // nav cells on the map
+		std::vector<uint32_t> land_size, sea_size;  // cells per region id
+		std::vector<uint32_t> links;                // land << 16 | sea, sorted (regionLinks)
+		bool naval_map = false;                     // headquarters.js navalMap
+		std::vector<bool> naval;                    // navalRegions, by sea id
+		bool linked(uint16_t land, uint16_t sea) const {
+			return std::binary_search(links.begin(), links.end(), ((uint32_t)land << 16) | sea);
+		}
+		uint16_t sea_between(uint16_t a, uint16_t b) const;
+		void classify(uint16_t home_land);
+	};
+	void petra_naval_topology(PetraNavalTopo &t) const;
+	const PetraNavalTopo &petra_topo() const;
+	mutable PetraNavalTopo petra_topo_cache_; // derived from nav_grid_.cells, not saved
+	mutable uint64_t petra_topo_cache_key_ = 0;
+	mutable bool petra_topo_cache_valid_ = false;
+	uint16_t petra_land_at(float x, float z) const;
+	uint16_t petra_building_land(const Building &b, const PetraNavalTopo *topo = nullptr, uint16_t prefer = 0) const;
+	uint16_t petra_home_land(float x, float z, const PetraNavalTopo *topo = nullptr) const;
+	uint16_t petra_overseas(const PetraNavalTopo &t, float from_x, float from_z, uint32_t target_id) const;
+	uint16_t petra_plan_overseas(float base_x, float base_z, uint32_t target_id) const;
+	bool petra_aboard(uint32_t uid) const;
+	bool petra_is_transport_ship(size_t unit_idx) const;
+	uint16_t petra_ship_sea(size_t unit_idx) const;
+	int petra_transport_ships_on(uint16_t sea) const;
+	uint16_t petra_best_ship(bool fishing) const;
+	bool petra_can_fish_safely(float x, float z, uint16_t sea) const;
 	void petra_manage_buildings(float dt);
 	void petra_manage_research(float dt);
 	void petra_manage_military_production(float dt);
@@ -1656,7 +1700,7 @@ private:
 	int petra_player_entities(uint8_t player) const;
 	bool petra_path_crosses_water(float x0, float z0, float x1, float z1) const;
 	bool petra_find_beach(float land_x, float land_z, float toward_x, float toward_z, float &out_x, float &out_z) const;
-	bool petra_start_transport(const std::vector<uint32_t> &unit_ids, float from_x, float from_z, float to_x, float to_z);
+	bool petra_start_transport(const std::vector<uint32_t> &unit_ids, float from_x, float from_z, float to_x, float to_z, uint16_t sea = 0);
 	uint32_t petra_place_building(uint8_t btype, float near_x, float near_z, int min_r, int max_r, uint8_t queue);
 
 	bool bulk_spawn_ = false;
