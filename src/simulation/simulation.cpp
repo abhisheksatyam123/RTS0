@@ -121,12 +121,13 @@ constexpr float kBuildReach = 2.20f;
 
 // The save version that added UnitAI orders (tick_state_io section 4).
 static constexpr uint32_t SAVE_VERSION_UNIT_ORDERS = 20;
+static constexpr uint32_t SAVE_VERSION_HEALTH_AURAS = 36;
 static constexpr uint32_t SAVE_VERSION_MAX_GATHERERS = 33;
 // Each structure's BuildingAI round, arrows left and timer state.
 static constexpr uint32_t SAVE_VERSION_BUILDING_AI = 34;
 // The save version that added each unit's kept short path (tick_state_io section 1) and the aura
 // sources in force (section 9).
-static constexpr uint32_t SAVE_VERSION_MOTION = 36;
+static constexpr uint32_t SAVE_VERSION_MOTION = 37;
 
 // Stand on the nearest AABB edge so pathing never aims through the footprint (half sizes hx, hz).
 static void stand_outside_rect(float bx, float bz, float hx, float hz, uint32_t uid,
@@ -488,7 +489,20 @@ int Simulation::pop_max(uint8_t player) const {
 			cap += (int)std::lround(building_type_info(b.type).pop_bonus * tech_mods(player).bld_pop_bonus[b.type]);
 		}
 	}
-	return pop_cap_ > 0 ? std::min(cap, pop_cap_) : cap;
+	const int limit = pop_cap();
+	return limit > 0 ? std::min(cap, limit) : cap;
+}
+
+int Simulation::pop_cap() const {
+	if (pop_cap_ >= 0) return pop_cap_;
+	// World Population: split among the seated players not yet defeated (players 0
+	// and 1 when no slot is seated, as petra_runs_for assumes).
+	bool any_active = false;
+	for (const PlayerState &ps : players_) any_active |= ps.active != 0;
+	int live = 0;
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
+		if ((any_active ? players_[p].active != 0 : p < 2) && !is_defeated(p)) ++live;
+	return std::max(1, -pop_cap_ / std::max(1, live));
 }
 
 int Simulation::ai_pop_current() const { return pop_current(PETRA_PLAYER); }
@@ -5877,6 +5891,7 @@ void Simulation::tick_gather(float dt) {
 	if (aura_timer_ >= 0.4f || aura_mgr_.sources.empty()) {
 		aura_timer_ = 0.0f;
 		rebuild_auras();
+		apply_health_auras();
 	}
 	sync_field_resources();
 	const size_t n = units_.count;
@@ -6598,7 +6613,7 @@ void Simulation::tick_combat(float dt) {
 		const float range = units_.attack_range[i];
 		// Attack.js MinRange (catapults, bolt shooters): the range query skips anything closer.
 		const float minr = range * unit_min_range_ratio(units_.unit_type[i]);
-		const float vision = unit_vision_range(units_.unit_type[i]);
+		const float vision = unit_vision_at(i);
 		const float held_lim = vision * 0.5f + range; // CheckTargetDistanceFromHeldPosition
 		const float att_y = unit_height(i);
 		// Would the stance let this unit (keep) fight j? (GetQueryRange / ShouldAbandonChase)
@@ -6805,7 +6820,6 @@ void Simulation::tick_combat(float dt) {
 		// 0 A.D. helpers/Attack.js GetAttackBonus: the attacker's template Bonuses
 		// (spearmen x3 against cavalry and the like).
 		uint8_t u_att = units_.unit_type[i];
-		uint8_t u_def = units_.unit_type[t];
 		const float bonus_mul = combat_bonus(unit_combat_at(i), unit_combat_at(t), civ_of(units_.team[t]));
 		hack_dmg *= bonus_mul;
 		pierce_dmg *= bonus_mul;
@@ -6834,10 +6848,8 @@ void Simulation::tick_combat(float dt) {
 		bool maur_elephant_archer = (u_att == UNIT_ELEPHANT && is_ranged_attack);
 
 		if (is_ranged_attack) {
-			uint8_t effect = EFFECT_NONE;
-			if (u_att == UNIT_ARCHER_MAIDEN) {
-				effect |= EFFECT_POISON;
-			}
+			// Attack/Ranged/ApplyStatus (Mauryan maiden archers poison, Iberian champion cavalry burn).
+			const uint8_t effect = status_effect_bit(unit_combat_at(i).status);
 			// Warship LaunchPoint y=3; elephant archer LaunchPoint y=9 (scaled).
 			float arrow_sy = (u_att == UNIT_TRIREME) ? 3.0f : (u_att == UNIT_BOLT_SHOOTER ? 1.0f : (maur_elephant_archer ? 3.4f : 1.4f));
 			uint8_t proj_vis = (u_att == UNIT_CATAPULT) ? 2 : ((u_att == UNIT_TRIREME || u_att == UNIT_BOLT_SHOOTER) ? 1 : 0);
@@ -6871,25 +6883,8 @@ void Simulation::tick_combat(float dt) {
 				raise_alert(BattleAlert::ALERT_UNDER_ATTACK, units_.pos_x[t], units_.pos_z[t], units_.id[t], units_.team[t]);
 			}
 
-			// Spearman Snare on Cavalry / Chariot / Camel
-			if (u_att == UNIT_SPEARMAN && (u_def == UNIT_CAVALRY || u_def == UNIT_CAMEL || u_def == UNIT_CHARIOT)) {
-				units_.status_effects[t] |= EFFECT_SNARE;
-				units_.snare_timer[t] = 3.0f;
-			}
-
-			// Trample Knockback from Heavy Chariots / War Elephants
-			if (u_att == UNIT_ELEPHANT || u_att == UNIT_WORKER_ELEPHANT || u_att == UNIT_SCYTHED_CHARIOT) {
-				float kdx = units_.pos_x[t] - units_.pos_x[i];
-				float kdz = units_.pos_z[t] - units_.pos_z[i];
-				float kd2 = kdx * kdx + kdz * kdz;
-				if (kd2 > 0.0001f) {
-					float kinv = 1.0f / sqrtf(kd2);
-					units_.status_effects[t] |= EFFECT_KNOCKBACK;
-					units_.knockback_timer[t] = 0.25f;
-					units_.knockback_dir_x[t] = kdx * kinv;
-					units_.knockback_dir_z[t] = kdz * kinv;
-				}
-			}
+			// Attack/Melee/ApplyStatus. 0 A.D. has no spear snare or trample knockback.
+			apply_status(t, unit_combat_at(i));
 
 			if (units_.hp[t] <= 0) {
 				units_.alive[t] = 0;
@@ -7013,7 +7008,7 @@ void Simulation::tick_combat(float dt) {
 			float land_y = get_terrain_height(b.x, b.z) + 1.5f;
 			fire_arrow(units_.pos_x[i], launch_y, units_.pos_z[i],
 			           b.x, land_y, b.z,
-			           bld_dmg, units_.team[i], b.id, EFFECT_BURNING, 2, true, vis, units_.id[i],
+			           bld_dmg, units_.team[i], b.id, EFFECT_NONE, 2, true, vis, units_.id[i],
 			           unit_splash(units_.tmpl[i], ut));
 		} else {
 			note_attacked(units_.id[i], units_.team[i], b.id, b.team, true, bld_dmg);
@@ -7614,12 +7609,9 @@ void Simulation::tick_projectiles(float dt) {
 						raise_alert(BattleAlert::ALERT_UNDER_ATTACK, units_.pos_x[tidx], units_.pos_z[tidx], units_.id[tidx], units_.team[tidx]);
 					}
 					if (p.status_effect != 0) {
-						units_.status_effects[tidx] |= p.status_effect;
-						if (p.status_effect & EFFECT_POISON) units_.poison_timer[tidx] = 5.0f;
-						if (p.status_effect & EFFECT_SNARE) units_.snare_timer[tidx] = 3.0f;
-						if (p.status_effect & EFFECT_SLOW) units_.slow_timer[tidx] = 3.0f;
-						if (p.status_effect & EFFECT_BLEED) units_.bleed_timer[tidx] = 4.0f;
-						if (p.status_effect & EFFECT_BURNING) units_.burning_timer[tidx] = 4.0f;
+						// The shooter's ApplyStatus (its profile; nothing if it died in flight).
+						const int32_t src = lookup_unit(p.source_id);
+						if (src >= 0) apply_status((size_t)tidx, unit_combat_at((size_t)src));
 					}
 					if (units_.hp[tidx] <= 0) {
 						units_.alive[tidx] = 0;
@@ -7680,88 +7672,63 @@ void Simulation::tick_projectiles(float dt) {
 		[](const Projectile &p) { return !p.alive; }), projectiles_.end());
 }
 
+// 0 A.D. Attack/*/ApplyStatus on unit t from an attacker with profile `att`, unless t's
+// Resistance blocks it (ships, siege, structures block poison). Stackability "Extend"
+// (poison) adds the duration; "Stack" (burning) is kept as one timer that also adds
+// its duration, which deals the same total damage.
+void Simulation::apply_status(size_t t, const CombatProfile &att) {
+	if (att.status == 0 || (unit_combat_at(t).status_immune & att.status)) return;
+	const uint8_t bit = status_effect_bit(att.status);
+	units_.status_effects[t] |= bit;
+	float &timer = att.status == 1 ? units_.poison_timer[t] : units_.burning_timer[t];
+	timer = std::max(timer, 0.0f) + att.status_time;
+}
+
+// Damage per second of status `kind` (1 Poisoned, 2 Burning): each comes from a
+// single 0 A.D. attack (maiden archers, Iberian champion cavalry).
+float Simulation::status_dps(uint8_t kind) {
+	static float dps[3] = {-1.0f, -1.0f, -1.0f};
+	if (kind > 2) return 0.0f;
+	if (dps[kind] < 0.0f) {
+		dps[kind] = 0.0f;
+		for (uint16_t r = 0; r < COMBAT_TEMPLATE_COUNT; ++r)
+			if (combat_template_table()[r].status == kind) { dps[kind] = combat_template_table()[r].status_dps; break; }
+	}
+	return dps[kind];
+}
+
 void Simulation::tick_status_effects(float dt) {
 	const size_t n = units_.count;
 	for (size_t i = 0; i < n; ++i) {
 		if (!units_.alive[i]) continue;
 
-		// 1. Poison effect (Kushite poison arrows / venom) dealing ticking damage
-		if (units_.status_effects[i] & EFFECT_POISON) {
-			units_.poison_timer[i] -= dt;
-			units_.hp[i] -= 4.0f * dt; // 4 HP / sec poison tick
-			if (units_.hp[i] <= 0.0f) {
-				units_.alive[i] = 0;
-				units_.action_state[i] = ACTION_DYING;
-				record_unit_death(i, (uint8_t)(1 - units_.team[i]));
-				stat_unit_lost(i, 0xFF); // the effect's source is not kept
-				if (units_.team[i] == 0) record_.units_lost++;
-				else record_.enemies_killed++;
+		// 0 A.D. StatusEffectsReceiver: Poisoned and Burning deal their damage per second
+		// until their time runs out. RTS0 never applies snare, slow, bleed or knockback
+		// (0 A.D. has none); clear any an old save carries.
+		units_.status_effects[i] &= (uint8_t)(EFFECT_POISON | EFFECT_BURNING);
+		bool hurt = false;
+		auto tick_status = [&](uint8_t bit, float &timer, uint8_t kind) {
+			if (!(units_.status_effects[i] & bit)) return;
+			hurt = true;
+			const float step = std::min(dt, std::max(timer, 0.0f));
+			timer -= dt;
+			const float dmg = status_dps(kind) * step;
+			units_.hp[i] -= dmg;
+			note_attacked(0, 0xFF, units_.id[i], units_.team[i], false, dmg); // the status's source is not kept
+			if (timer <= 0.0f) {
+				units_.status_effects[i] &= (uint8_t)~bit;
+				timer = 0.0f;
 			}
-			if (units_.poison_timer[i] <= 0.0f) {
-				units_.status_effects[i] &= ~EFFECT_POISON;
-				units_.poison_timer[i] = 0.0f;
-			}
-		}
-
-		// 2. Slow & Snare effect (Spear brace / Cavalry snare / Slow)
-		if (units_.status_effects[i] & EFFECT_SNARE) {
-			units_.snare_timer[i] -= dt;
-			if (units_.snare_timer[i] <= 0.0f) {
-				units_.status_effects[i] &= ~EFFECT_SNARE;
-				units_.snare_timer[i] = 0.0f;
-			}
-		}
-		if (units_.status_effects[i] & EFFECT_SLOW) {
-			units_.slow_timer[i] -= dt;
-			if (units_.slow_timer[i] <= 0.0f) {
-				units_.status_effects[i] &= ~EFFECT_SLOW;
-				units_.slow_timer[i] = 0.0f;
-			}
-		}
-
-		// 3. Bleed effect (Physical bleed DoT)
-		if (units_.status_effects[i] & EFFECT_BLEED) {
-			units_.bleed_timer[i] -= dt;
-			units_.hp[i] -= 6.0f * dt; // 6 HP / sec bleed tick
-			if (units_.hp[i] <= 0.0f) {
-				units_.alive[i] = 0;
-				units_.action_state[i] = ACTION_DYING;
-				record_unit_death(i, (uint8_t)(1 - units_.team[i]));
-				stat_unit_lost(i, 0xFF); // the effect's source is not kept
-				if (units_.team[i] == 0) record_.units_lost++;
-				else record_.enemies_killed++;
-			}
-			if (units_.bleed_timer[i] <= 0.0f) {
-				units_.status_effects[i] &= ~EFFECT_BLEED;
-				units_.bleed_timer[i] = 0.0f;
-			}
-		}
-
-		// 4. Fire burning effect on units
-		if (units_.status_effects[i] & EFFECT_BURNING) {
-			units_.burning_timer[i] -= dt;
-			units_.hp[i] -= 8.0f * dt; // 8 HP / sec fire burning tick
-			if (units_.hp[i] <= 0.0f) {
-				units_.alive[i] = 0;
-				units_.action_state[i] = ACTION_DYING;
-				record_unit_death(i, (uint8_t)(1 - units_.team[i]));
-				stat_unit_lost(i, 0xFF); // the effect's source is not kept
-				if (units_.team[i] == 0) record_.units_lost++;
-				else record_.enemies_killed++;
-			}
-			if (units_.burning_timer[i] <= 0.0f) {
-				units_.status_effects[i] &= ~EFFECT_BURNING;
-				units_.burning_timer[i] = 0.0f;
-			}
-		}
-
-		// 5. Knockback effect (Trample impulse)
-		if (units_.status_effects[i] & EFFECT_KNOCKBACK) {
-			units_.knockback_timer[i] -= dt;
-			if (units_.knockback_timer[i] <= 0.0f) {
-				units_.status_effects[i] &= ~EFFECT_KNOCKBACK;
-				units_.knockback_timer[i] = 0.0f;
-			}
+		};
+		tick_status(EFFECT_POISON, units_.poison_timer[i], 1);
+		tick_status(EFFECT_BURNING, units_.burning_timer[i], 2);
+		if (hurt && units_.hp[i] <= 0.0f) {
+			units_.alive[i] = 0;
+			units_.action_state[i] = ACTION_DYING;
+			record_unit_death(i, (uint8_t)(1 - units_.team[i]));
+			stat_unit_lost(i, 0xFF); // the effect's source is not kept
+			if (units_.team[i] == 0) record_.units_lost++;
+			else record_.enemies_killed++;
 		}
 	}
 
@@ -12112,6 +12079,27 @@ void Simulation::petra_manage_buildings(float dt) {
 		}
 	}
 
+	// 4b. headquarters.js constructTrainingBuildings: a stable once the barracks
+	// stands, as cavalry train only there (and at the civic centre).
+	if (has_barracks) {
+		const uint8_t civ = petra_ps().civ;
+		bool trains = false, have = false, done_barracks = false;
+		for (uint16_t k : civ_roster_ids(civ))
+			if (civ_unit_template(k).trainers & bld_bit(BLD_STABLE)) { trains = true; break; }
+		for (const auto &b : buildings_) {
+			if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
+			if (b.type == BLD_STABLE) have = true;
+			if (b.type == BLD_BARRACKS && b.build_progress >= 1.0f) done_barracks = true;
+		}
+		const PetraBase *home = get_primary_petra_base();
+		if (trains && !have && done_barracks && home && civ_can_build(civ, BLD_STABLE)) {
+			if (const uint32_t bid = petra_place_building(BLD_STABLE, home->x, home->z, 4, 16, PETRA_QUEUE_MILITARY)) {
+				auto idle = get_idle_workers(petra_pid_);
+				if (!idle.empty()) petra_order_builders(idle, 3, bid);
+			}
+		}
+	}
+
 	// 5. Build Defense Towers in Phase >= 2
 	if (petra_ps().phase >= 2) {
 		int tower_count = 0;
@@ -12223,8 +12211,8 @@ void Simulation::petra_build_advanced() {
 		auto idle = get_idle_workers(petra_pid_);
 		if (!idle.empty()) petra_order_builders(idle, 3, bid);
 	};
-	// canBuild: RTS0 lets every civ lay any generic structure, so the stable and
-	// arsenal count only when the civ's roster trains something there.
+	// canBuild (the civ's 0 A.D. Builder lists); the elephant stable and arsenal
+	// count only when the civ's roster trains something there.
 	auto trains_at = [civ](uint8_t t) {
 		for (uint16_t k = 0; k < CIV_UNIT_TEMPLATE_COUNT; ++k)
 			if (civ_unit_template(k).civ == civ && (civ_unit_template(k).trainers & bld_bit(t))) return true;
@@ -15091,7 +15079,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 the aura sources in force and each unit's kept short path and failed movements (save_tick_state)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 the aura sources in force and each unit's kept short path and failed movements (save_tick_state)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -15805,6 +15793,8 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		ar.pod(U.slow_timer[i]); ar.pod(U.bleed_timer[i]); ar.pod(U.burning_timer[i]);
 		if (ar.version >= SAVE_VERSION_LOOT) ar.pod(U.xp_partial[i]);
 		else U.xp_partial[i] = 0.0f;
+		if (ar.version >= SAVE_VERSION_HEALTH_AURAS) ar.pod(U.aura_hp_mult[i]);
+		else U.aura_hp_mult[i] = 1.0f;
 		if (ar.version >= SAVE_VERSION_MOTION) {
 			ar.pod(U.short_path[i]);
 			ar.pod(U.motion[i]);
@@ -16133,7 +16123,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		io_vec_pod(ar, t.attack_orders, 1u << 16);
 	}
 
-	// 9. Aura sources (v36): rebuilt every 0.4 s, and move_units() reads speed auras
+	// 9. Aura sources (v37): rebuilt every 0.4 s, and move_units() reads speed auras
 	// before the next rebuild, so a loaded game needs the ones in force.
 	if (ar.version >= SAVE_VERSION_MOTION) {
 		std::vector<AuraSource> src = s.aura_mgr_.sources;
@@ -16463,7 +16453,7 @@ void Simulation::update_player_fow(std::vector<uint8_t> &grid, SharesVision shar
 	// tiles within its vision radius (unit_vision_range, 0 A.D. Vision/Range).
 
 	reveal_viewers(grid, views,
-			[&](size_t u) { return units_.alive[u] && shares_vision(units_.team[u]) ? unit_vision_range(units_.unit_type[u]) : 0.0f; },
+			[&](size_t u) { return units_.alive[u] && shares_vision(units_.team[u]) ? unit_vision_at(u) : 0.0f; },
 			[&](const Building &b) {
 				if (!shares_vision(b.team) || b.build_progress < 1.0f) return 0.0f;
 				float bvr = 18.0f; // default building vision
@@ -17316,6 +17306,30 @@ uint16_t Simulation::aura_affected_players(uint8_t owner, uint8_t players) const
 		if (players & rel) mask |= aura_player_bit(pid);
 	}
 	return mask;
+}
+
+// 0 A.D. Health.js on a Health/Max change keeps the health fraction: a unit entering a
+// Health aura gains max and current hp by the multiplier, and loses them on leaving.
+void Simulation::apply_health_auras() {
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i]) continue;
+		float m = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_HEALTH,
+			units_.tmpl[i], &unit_combat_at(i).classes);
+		if (m <= 0.0f) m = 1.0f;
+		const float old = units_.aura_hp_mult[i];
+		if (m == old) continue;
+		const float r = m / old;
+		units_.max_hp[i] *= r;
+		units_.hp[i] *= r;
+		units_.aura_hp_mult[i] = m;
+	}
+}
+
+float Simulation::unit_vision_at(size_t i) const {
+	const float v = unit_vision_range(units_.unit_type[i]);
+	const float m = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_VISION,
+		units_.tmpl[i], &unit_combat_at(i).classes);
+	return m > 0.0f ? v * m : v;
 }
 
 void Simulation::rebuild_auras() {

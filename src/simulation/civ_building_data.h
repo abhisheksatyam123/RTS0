@@ -67,9 +67,17 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{0, 0, 20, 20, 0}, /* structures/pers/ice_house */ \
 
 
-// Civilizations (bit per Civilization) that may build a civ-specific structure.
+// Civilizations (bit per Civilization) that may build a structure: the civ-specific
+// ones, and generic ones only for the civs whose 0 A.D. Builder lists name them.
 inline uint16_t civ_building_civ_mask(uint8_t type) {
 	switch (type) {
+		case BLD_GATE: return 0x3ffd; // athen pers rome cart mace brit gaul iber maur kush ptol sele han
+		case BLD_WALL_SEGMENT: return 0x3ffd; // athen pers rome cart mace brit gaul iber maur kush ptol sele han
+		case BLD_RANGE: return 0x0000; // none
+		case BLD_WALL_TOWER: return 0x3ffd; // athen pers rome cart mace brit gaul iber maur kush ptol sele han
+		case BLD_ELEPHANT_STABLE: return 0x1e14; // pers cart maur kush ptol sele
+		case BLD_THEATER: return 0x1823; // athen spart mace ptol sele
+		case BLD_EMBASSY: return 0x0010; // cart
 		case BLD_GYMNASIUM: return 0x0001; // athen
 		case BLD_PRYTANEION: return 0x0001; // athen
 		case BLD_GEROUSIA: return 0x0002; // spart

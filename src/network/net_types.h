@@ -309,6 +309,7 @@ struct GameSetupParams {
 	uint8_t waves = 0;      // 1 = legacy wave-defense mode on
 	uint8_t lms = 0;        // 1 = Last Man Standing (no allied victory)
 	uint16_t pop_cap = 200;  // per-player population limit, 0 = unlimited
+	uint16_t world_pop = 0;  // 0 A.D. World Population (shared by live players), 0 = off; wins over pop_cap
 	uint8_t ceasefire = 0;  // minutes of ceasefire at match start
 	uint8_t reveal = 0;     // 1 = revealed map (everything visible)
 	uint8_t explore = 0;    // 1 = explored map (terrain known from the start)
@@ -373,6 +374,7 @@ inline std::string format_game_start_full(const GameSetupParams &p) {
 	s += ";waves=" + std::to_string((unsigned)p.waves);
 	s += ";lms=" + std::to_string((unsigned)p.lms);
 	s += ";popcap=" + std::to_string((unsigned)p.pop_cap);
+	if (p.world_pop) s += ";worldpop=" + std::to_string((unsigned)p.world_pop);
 	s += ";ceasefire=" + std::to_string((unsigned)p.ceasefire);
 	s += ";reveal=" + std::to_string((unsigned)p.reveal);
 	s += ";explore=" + std::to_string((unsigned)p.explore);
@@ -510,6 +512,10 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 			else if (k == "popcap" && !v.empty() && v.size() <= 4 && v.find_first_not_of("0123456789") == std::string::npos) {
 				unsigned x = (unsigned)std::stoul(v);
 				if (x <= 1000) out.pop_cap = (uint16_t)x;
+			}
+			else if (k == "worldpop" && !v.empty() && v.size() <= 5 && v.find_first_not_of("0123456789") == std::string::npos) {
+				unsigned x = (unsigned)std::stoul(v);
+				if (x <= 63000) out.world_pop = (uint16_t)x;
 			}
 			else if (k == "mapsize" && !v.empty() && v.size() <= 3 && v.find_first_not_of("0123456789") == std::string::npos) {
 				unsigned x = (unsigned)std::stoul(v);
