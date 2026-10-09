@@ -15363,6 +15363,8 @@ void Simulation::tick_treasures(float dt) {
 	const float reach = 2.0f * 0.6f + 1.0f;
 	const size_t n = units_.count;
 	std::vector<uint8_t> in_range(treasures_.size(), 0);
+	struct NextTreasure { uint32_t uid; float x, z; };
+	std::vector<NextTreasure> next_hunt; // collectors whose treasure is gone
 	for (size_t i = 0; i < n; ++i) {
 		const uint32_t tid = units_.target_unit_id[i];
 		if (tid == 0 || !units_.alive[i] || lookup_unit(tid) >= 0) continue;
@@ -15396,6 +15398,7 @@ void Simulation::tick_treasures(float dt) {
 		const int32_t c = t.collector_id ? lookup_unit(t.collector_id) : -1;
 		if (c < 0 || t.collect_progress + 1e-4f < info.collect_time) { ++k; continue; }
 		const uint8_t owner = units_.team[c];
+		next_hunt.push_back({units_.id[c], t.x, t.z});
 		if (owner < MAX_PLAYERS) {
 			static const uint8_t kRes[4] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD};
 			PlayerState &ps = player(owner);
@@ -15420,7 +15423,24 @@ void Simulation::tick_treasures(float dt) {
 		if (units_.target_unit_id[i] == units_.order_target[i]) units_.target_unit_id[i] = 0;
 		if (units_.action_state[i] == ACTION_MOVE) units_.action_state[i] = ACTION_IDLE;
 		units_.has_order[i] = 0;
+		const float ox = units_.order_x[i], oz = units_.order_z[i];
 		finish_order(i);
+		if (units_.order_kind[i] == ORDER_NONE) next_hunt.push_back({units_.id[i], ox, oz});
+	}
+	// COLLECTTREASURE.FINDINGNEWTARGET: with no next order, the nearest treasure within
+	// 64 m of the one that is gone (FindNearbyTreasure).
+	for (const NextTreasure &nt : next_hunt) {
+		const int32_t i = lookup_unit(nt.uid);
+		if (i < 0 || !units_.alive[i] || units_.order_kind[i] != ORDER_NONE) continue;
+		auto q = order_queues_.find(nt.uid);
+		if (q != order_queues_.end() && !q->second.empty()) continue;
+		uint32_t best = 0;
+		float best_d2 = (64.0f * COMBAT_DISTANCE_SCALE) * (64.0f * COMBAT_DISTANCE_SCALE);
+		for (const Treasure &t : treasures_) {
+			const float d2 = (t.x - nt.x) * (t.x - nt.x) + (t.z - nt.z) * (t.z - nt.z);
+			if (d2 < best_d2) { best_d2 = d2; best = t.id; }
+		}
+		if (best != 0) order_collect_treasure(&nt.uid, 1, best);
 	}
 }
 
