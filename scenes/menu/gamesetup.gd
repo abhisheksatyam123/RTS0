@@ -582,6 +582,7 @@ func _restore_settings() -> void:
 	$VBox/HBox/Left/StartRow/RegicideGarrison.button_pressed = bool(ms.get("regicide_garrison"))
 	$VBox/HBox/Left/StartRow/LockTeams.button_pressed = bool(ms.get("lock_teams"))
 	$VBox/HBox/Left/MapVisRow/Cheats.button_pressed = bool(ms.get("cheats"))
+	$VBox/HBox/Left/MapVisRow/DisableSpies.button_pressed = bool(ms.get("disable_spies"))
 	$VBox/HBox/Left/StartRow/DisableTreasures.button_pressed = bool(ms.get("disable_treasures"))
 	var pop: RtsoSafeSelect = $VBox/HBox/Left/PopCapSlot.get_child(0)
 	for i in range(POP_CAPS.size()):
@@ -731,6 +732,7 @@ func _collect_setup() -> Dictionary:
 		"regicide_garrison": $VBox/HBox/Left/StartRow/RegicideGarrison.button_pressed and vic.get_selected() == VICTORY_REGICIDE,
 		"lock_teams": $VBox/HBox/Left/StartRow/LockTeams.button_pressed,
 		"cheats": $VBox/HBox/Left/MapVisRow/Cheats.button_pressed,
+		"disable_spies": $VBox/HBox/Left/MapVisRow/DisableSpies.button_pressed,
 		"disable_treasures": $VBox/HBox/Left/StartRow/DisableTreasures.button_pressed,
 		"humans": humans, "ai": ai_total, "slots": types.size()}
 
@@ -811,6 +813,7 @@ func _on_start_pressed() -> void:
 	ms.regicide_garrison = bool(st["regicide_garrison"])
 	ms.lock_teams = bool(st["lock_teams"])
 	ms.cheats = bool(st["cheats"])
+	ms.disable_spies = bool(st["disable_spies"])
 	ms.disable_treasures = bool(st["disable_treasures"])
 	ms.biome = int(st["biome"])
 	ms.game_speed = float(st["speed"])
