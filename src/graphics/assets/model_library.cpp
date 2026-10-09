@@ -151,6 +151,31 @@ HashMap<String, PlayerMask> &player_masks() {
 	}
 	return m;
 }
+// tools/extract_normal_maps.py: data/normal_maps.json maps the same image
+// keys to 0 A.D.'s normTex for that skin (green flipped to OpenGL).
+HashMap<String, String> &normal_maps() {
+	static HashMap<String, String> m;
+	static bool loaded = false;
+	if (!loaded) {
+		loaded = true;
+		Ref<FileAccess> f = FileAccess::open("res://data/normal_maps.json", FileAccess::READ);
+		if (f.is_valid()) {
+			Dictionary root = JSON::parse_string(f->get_as_text());
+			Array keys = root.keys();
+			for (int i = 0; i < keys.size(); ++i) m.insert(keys[i], root[keys[i]]);
+		}
+	}
+	return m;
+}
+String image_key(const Ref<Texture2D> &tex) {
+	// res://assets/models/units/spearman_tex0.png -> units/spearman_tex0
+	return tex.is_valid() ? tex->get_path().trim_prefix("res://assets/models/").get_basename() : String();
+}
+Ref<Texture2D> normal_map_for(const Ref<Texture2D> &albedo) {
+	const String *path = normal_maps().getptr(image_key(albedo));
+	if (!path || !ResourceLoader::get_singleton()->exists(*path)) return Ref<Texture2D>();
+	return ResourceLoader::get_singleton()->load(*path);
+}
 Ref<Shader> &player_color_shader() {
 	static Ref<Shader> sh;
 	return sh;
@@ -166,9 +191,7 @@ Ref<ShaderMaterial> player_color_material(const Ref<BaseMaterial3D> &bm) {
 	Ref<ShaderMaterial> out;
 	Ref<Texture2D> tex = bm->get_texture(BaseMaterial3D::TEXTURE_ALBEDO);
 	if (tex.is_valid()) {
-		// res://assets/models/units/spearman_tex0.png -> units/spearman_tex0
-		String key = tex->get_path().trim_prefix("res://assets/models/").get_basename();
-		if (const PlayerMask *pm = player_masks().getptr(key)) {
+		if (const PlayerMask *pm = player_masks().getptr(image_key(tex))) {
 			Ref<Texture2D> mask = ResourceLoader::get_singleton()->exists(pm->mask)
 					? Ref<Texture2D>(ResourceLoader::get_singleton()->load(pm->mask))
 					: Ref<Texture2D>();
@@ -185,6 +208,9 @@ Ref<ShaderMaterial> player_color_material(const Ref<BaseMaterial3D> &bm) {
 				out->set_shader_parameter("roughness", bm->get_roughness());
 				out->set_shader_parameter("metallic", bm->get_metallic());
 				out->set_shader_parameter("specular", bm->get_specular());
+				Ref<Texture2D> nm = normal_map_for(tex);
+				out->set_shader_parameter("use_normal_map", nm.is_valid());
+				if (nm.is_valid()) out->set_shader_parameter("normal_tex", nm);
 			}
 		}
 	}
@@ -256,7 +282,15 @@ void ModelLibrary::apply_imported_material_fixups(Node *n) {
 			bm->set_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, has_vcol);
 			bm->set_flag(BaseMaterial3D::FLAG_SRGB_VERTEX_COLOR, has_vcol);
 			Ref<ShaderMaterial> pc = player_color_material(bm);
-			if (pc.is_valid()) mi->set_surface_override_material(s, pc);
+			if (pc.is_valid()) {
+				mi->set_surface_override_material(s, pc);
+			} else if (!bm->get_feature(BaseMaterial3D::FEATURE_NORMAL_MAPPING)) {
+				Ref<Texture2D> nm = normal_map_for(bm->get_texture(BaseMaterial3D::TEXTURE_ALBEDO));
+				if (nm.is_valid()) {
+					bm->set_feature(BaseMaterial3D::FEATURE_NORMAL_MAPPING, true);
+					bm->set_texture(BaseMaterial3D::TEXTURE_NORMAL, nm);
+				}
+			}
 		}
 	}
 	for (int i = 0; i < n->get_child_count(); ++i) {
@@ -374,7 +408,31 @@ struct SurfBucket {
 	PackedVector2Array uvs;
 	PackedColorArray colors;
 	PackedInt32Array indices;
+	// 4 floats per vertex, only for normal-mapped materials (tangents_wanted).
+	PackedFloat32Array tangents;
 };
+
+// A normal map bends lighting along the mesh tangents, so merged and
+// CPU-skinned copies keep them; other materials skip the extra array.
+static bool tangents_wanted(const Ref<Material> &mat) {
+	Ref<BaseMaterial3D> bm = mat;
+	if (bm.is_valid()) return bm->get_feature(BaseMaterial3D::FEATURE_NORMAL_MAPPING);
+	Ref<ShaderMaterial> sm = mat;
+	return sm.is_valid() && (bool)sm->get_shader_parameter("use_normal_map");
+}
+
+static void push_tangent(PackedFloat32Array &out, const Basis &b, const PackedFloat32Array &src, int v) {
+	Vector3 t(1, 0, 0);
+	float w = 1.0f;
+	if (v * 4 + 3 < src.size()) {
+		t = b.xform(Vector3(src[v * 4], src[v * 4 + 1], src[v * 4 + 2])).normalized();
+		w = src[v * 4 + 3];
+	}
+	out.push_back(t.x);
+	out.push_back(t.y);
+	out.push_back(t.z);
+	out.push_back(w);
+}
 
 static void append_surface(SurfBucket &b, const Transform3D &xf, const Array &arrays) {
 	PackedVector3Array verts = arrays[Mesh::ARRAY_VERTEX];
@@ -386,6 +444,11 @@ static void append_surface(SurfBucket &b, const Transform3D &xf, const Array &ar
 		cols = arrays[Mesh::ARRAY_COLOR];
 	}
 	PackedInt32Array idx = arrays[Mesh::ARRAY_INDEX];
+	const bool tan = tangents_wanted(b.mat);
+	PackedFloat32Array tans;
+	if (tan && arrays.size() > Mesh::ARRAY_TANGENT && arrays[Mesh::ARRAY_TANGENT].get_type() != Variant::NIL) {
+		tans = arrays[Mesh::ARRAY_TANGENT];
+	}
 
 	const int base = b.verts.size();
 	for (int v = 0; v < verts.size(); ++v) {
@@ -399,6 +462,7 @@ static void append_surface(SurfBucket &b, const Transform3D &xf, const Array &ar
 		else b.uvs.push_back(Vector2());
 		if (v < cols.size()) b.colors.push_back(cols[v]);
 		else b.colors.push_back(Color(1, 1, 1, 1));
+		if (tan) push_tangent(b.tangents, xf.basis, tans, v);
 	}
 	if (idx.size() > 0) {
 		for (int k = 0; k < idx.size(); ++k) {
@@ -420,6 +484,7 @@ static void append_bucket_surface(const Ref<ArrayMesh> &mesh, const SurfBucket &
 	out_arr[Mesh::ARRAY_TEX_UV] = b.uvs;
 	out_arr[Mesh::ARRAY_COLOR] = b.colors;
 	out_arr[Mesh::ARRAY_INDEX] = b.indices;
+	if (b.tangents.size() == b.verts.size() * 4) out_arr[Mesh::ARRAY_TANGENT] = b.tangents;
 	mesh->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, out_arr);
 	if (b.mat.is_valid()) {
 		mesh->surface_set_material(mesh->get_surface_count() - 1, b.mat);
@@ -475,6 +540,7 @@ static Ref<ArrayMesh> flatten_to_one_surface(std::vector<SurfBucket> &buckets) {
 	if (buckets.empty()) return Ref<ArrayMesh>();
 	SurfBucket all;
 	all.mat = buckets[0].mat;
+	const bool tan = tangents_wanted(all.mat);
 	for (SurfBucket &b : buckets) {
 		const int base = all.verts.size();
 		for (int i = 0; i < b.verts.size(); ++i) {
@@ -482,6 +548,7 @@ static Ref<ArrayMesh> flatten_to_one_surface(std::vector<SurfBucket> &buckets) {
 			all.norms.push_back(i < b.norms.size() ? b.norms[i] : Vector3(0, 1, 0));
 			all.uvs.push_back(i < b.uvs.size() ? b.uvs[i] : Vector2());
 			all.colors.push_back(i < b.colors.size() ? b.colors[i] : Color(1, 1, 1, 1));
+			if (tan) push_tangent(all.tangents, Basis(), b.tangents, i);
 		}
 		for (int k = 0; k < b.indices.size(); ++k)
 			all.indices.push_back(b.indices[k] + base);
@@ -633,6 +700,13 @@ bool ModelLibrary::capture_crowd_skin(Node *root, CrowdSkin &out) {
 			for (int v = 0; v < verts.size(); ++v) {
 				surf.rest_n[v] = (v < norms.size()) ? norms[v] : Vector3(0, 1, 0);
 			}
+			if (tangents_wanted(mat) && arrays.size() > Mesh::ARRAY_TANGENT && arrays[Mesh::ARRAY_TANGENT].get_type() != Variant::NIL) {
+				PackedFloat32Array tans = arrays[Mesh::ARRAY_TANGENT];
+				if (tans.size() >= verts.size() * 4) {
+					surf.rest_t.resize((size_t)verts.size() * 4);
+					for (int k = 0; k < verts.size() * 4; ++k) surf.rest_t[k] = tans[k];
+				}
+			}
 			PackedVector2Array uvs = arrays[Mesh::ARRAY_TEX_UV];
 			surf.uv.resize((size_t)verts.size());
 			for (int v = 0; v < verts.size(); ++v) {
@@ -716,6 +790,7 @@ Ref<ArrayMesh> ModelLibrary::bake_crowd_skin(CrowdSkin &skin, const Ref<ArrayMes
 
 	for (const CrowdSkin::Surf &surf : skin.surfs) {
 		SurfBucket &b = bucket_for(surf.mat, surf.attached);
+		const bool want_t = tangents_wanted(surf.mat);
 		const int n = (int)surf.rest_v.size();
 		const int base = b.verts.size();
 		const bool skinned = surf.rig_i >= 0 && surf.rig_i < (int)palettes.size() && !palettes[surf.rig_i].empty();
@@ -724,9 +799,12 @@ Ref<ArrayMesh> ModelLibrary::bake_crowd_skin(CrowdSkin &skin, const Ref<ArrayMes
 		for (int v = 0; v < n; ++v) {
 			Vector3 p = surf.rest_v[v];
 			Vector3 nrm = surf.rest_n[v];
+			const bool has_t = !surf.rest_t.empty();
+			Vector3 tg = has_t ? Vector3(surf.rest_t[v * 4], surf.rest_t[v * 4 + 1], surf.rest_t[v * 4 + 2]) : Vector3(1, 0, 0);
 			if (pal) {
 				Vector3 skinned_p(0, 0, 0);
 				Vector3 sn(0, 0, 0);
+				Vector3 st(0, 0, 0);
 				float wsum = 0.0f;
 				int stride = surf.stride;
 				if ((int)surf.bones.size() >= (v + 1) * stride) {
@@ -738,23 +816,33 @@ Ref<ArrayMesh> ModelLibrary::bake_crowd_skin(CrowdSkin &skin, const Ref<ArrayMes
 						if (w == 0.0f || bi < 0 || bi >= (int)pal->size()) continue;
 						skinned_p += (*pal)[bi].xform(p) * w;
 						sn += (*pal)[bi].basis.xform(nrm) * w;
+						if (has_t) st += (*pal)[bi].basis.xform(tg) * w;
 						wsum += w;
 					}
 				}
 				if (wsum < 0.0001f) {
 					skinned_p = p;
 					sn = nrm;
+					st = tg;
 				} else if (Math::abs(wsum - 1.0f) > 0.01f) {
 					skinned_p /= wsum;
 					sn /= wsum;
 				}
 				p = skinned_p;
 				nrm = sn;
+				tg = st;
 			}
 			b.verts.push_back(xf.xform(p));
 			b.norms.push_back(xf.basis.xform(nrm).normalized());
 			b.uvs.push_back(v < (int)surf.uv.size() ? surf.uv[v] : Vector2());
 			b.colors.push_back(v < (int)surf.col.size() ? surf.col[v] : Color(1, 1, 1, 1));
+			if (want_t) {
+				const Vector3 t = xf.basis.xform(tg).normalized();
+				b.tangents.push_back(t.x);
+				b.tangents.push_back(t.y);
+				b.tangents.push_back(t.z);
+				b.tangents.push_back(has_t ? surf.rest_t[v * 4 + 3] : 1.0f);
+			}
 		}
 		if (!surf.idx.empty()) {
 			for (int32_t ix : surf.idx) b.indices.push_back(ix + base);
