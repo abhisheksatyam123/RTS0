@@ -1270,6 +1270,9 @@ private:
 	void random_normal_2d(float &x, float &z);
 	void mark_building_wreck(Building &b, uint8_t killer = 0xFF); // killer: StatisticsTracker credit
 	void record_death(float x, float z, uint8_t team, uint8_t killer_team, uint8_t type, bool is_building);
+	void record_unit_death(size_t i, uint8_t killer_team); // record_death for unit i, noting its DeathDamage
+	const DeathDamageInfo *unit_death_damage(size_t i) const;
+	float unit_template_regen(size_t i) const;
 	// StatisticsTracker hooks. `killer` is the player credited with the kill
 	// (out of range or the victim's own owner credits nobody).
 	void stat_unit_trained(size_t idx);

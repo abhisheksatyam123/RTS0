@@ -4346,6 +4346,11 @@ void Simulation::record_death(float x, float z, uint8_t team, uint8_t killer_tea
 	recent_death_head_++;
 }
 
+void Simulation::record_unit_death(size_t i, uint8_t killer_team) {
+	record_death(units_.pos_x[i], units_.pos_z[i], units_.team[i], killer_team, units_.unit_type[i], false);
+	recent_deaths_[(recent_death_head_ - 1) % MAX_RECENT_DEATHS].death_damage = unit_death_damage(i) != nullptr;
+}
+
 // --- 0 A.D. StatisticsTracker.js ---------------------------------------------
 // Counters per player by class (statistics_tracker.h), each entity's resource
 // value (the sum of its costs, as GetEntityValue... in StatisticsTracker.js),
@@ -4629,7 +4634,7 @@ void Simulation::tick(float dt) {
 	tick_capture(dt);        // 0 A.D. Capturable.js: multi-team structure capture & regeneration
 	tick_status_effects(dt);
 	tick_projectiles(dt);
-	tick_death_damage(dt);   // 0 A.D. DeathDamage.js:38-58: on-death splash damage to nearby units
+	tick_death_damage(dt);   // 0 A.D. DeathDamage.js: fire ships explode on death
 
 	// 4. Infrastructure & Production
 	tick_construction(dt);   // 0 A.D. Foundation.js / Builder.js: building construction
@@ -6330,7 +6335,7 @@ void Simulation::tick_combat(float dt) {
 					if (units_.hp[s_idx] <= 0) {
 						units_.alive[s_idx] = 0;
 						units_.action_state[s_idx] = ACTION_DYING;
-						record_death(units_.pos_x[s_idx], units_.pos_z[s_idx], units_.team[s_idx], att_team, units_.unit_type[s_idx], false);
+						record_unit_death(s_idx, att_team);
 						stat_unit_lost(s_idx, att_team);
 						if (units_.team[s_idx] == 0) {
 							record_.units_lost++;
@@ -6346,7 +6351,7 @@ void Simulation::tick_combat(float dt) {
 				units_.alive[t] = 0;
 				units_.action_state[t] = ACTION_DYING;
 				note_kill(units_.id[i], units_.id[t]);
-				record_death(units_.pos_x[t], units_.pos_z[t], units_.team[t], units_.team[i], units_.unit_type[t], false);
+				record_unit_death(t, units_.team[i]);
 				stat_unit_lost(t, units_.team[i]);
 				if (units_.team[t] == 0) {
 					record_.units_lost++;
@@ -6588,6 +6593,19 @@ void Simulation::tick_combat(float dt) {
 		const TechMods &m = tech_mods_[owner];
 		float rate = m.regen[t] + (units_.action_state[u] == ACTION_IDLE ? m.idle_regen[t] : 0.0f);
 		if (rate > 0.0f) units_.hp[u] = std::min(units_.max_hp[u], units_.hp[u] + dt * rate);
+	}
+	// A negative template RegenRate (fire ships) wears the unit down, even at full health.
+	for (size_t u = 0; u < n; ++u) {
+		if (!units_.alive[u] || units_.hp[u] <= 0.0f) continue;
+		const float burn = unit_template_regen(u);
+		if (burn >= 0.0f) continue;
+		units_.hp[u] += dt * burn;
+		if (units_.hp[u] > 0.0f) continue;
+		units_.hp[u] = 0.0f;
+		units_.alive[u] = 0;
+		units_.action_state[u] = ACTION_DYING;
+		stat_unit_lost(u, units_.team[u]);
+		record_unit_death(u, units_.team[u]);
 	}
 
 	// 3. Temple + Hero Healing Aura via AuraManager (Heal.js + Auras.js) - 18m 3.5 / 16m 2.0
@@ -7035,7 +7053,7 @@ void Simulation::tick_projectiles(float dt) {
 						units_.alive[tidx] = 0;
 						units_.action_state[tidx] = ACTION_DYING;
 						note_kill(p.source_id, units_.id[tidx]);
-						record_death(units_.pos_x[tidx], units_.pos_z[tidx], units_.team[tidx], p.team, units_.unit_type[tidx], false);
+						record_unit_death(tidx, p.team);
 						stat_unit_lost(tidx, p.team);
 						if (units_.team[tidx] == 0) {
 							record_.units_lost++;
@@ -7096,7 +7114,7 @@ void Simulation::tick_projectiles(float dt) {
 					if (units_.hp[s_idx] <= 0) {
 						units_.alive[s_idx] = 0;
 						units_.action_state[s_idx] = ACTION_DYING;
-						record_death(units_.pos_x[s_idx], units_.pos_z[s_idx], units_.team[s_idx], p.team, units_.unit_type[s_idx], false);
+						record_unit_death(s_idx, p.team);
 						stat_unit_lost(s_idx, p.team);
 						if (units_.team[s_idx] == 0) {
 							record_.units_lost++;
@@ -7133,7 +7151,7 @@ void Simulation::tick_status_effects(float dt) {
 			if (units_.hp[i] <= 0.0f) {
 				units_.alive[i] = 0;
 				units_.action_state[i] = ACTION_DYING;
-				record_death(units_.pos_x[i], units_.pos_z[i], units_.team[i], (uint8_t)(1 - units_.team[i]), units_.unit_type[i], false);
+				record_unit_death(i, (uint8_t)(1 - units_.team[i]));
 				stat_unit_lost(i, 0xFF); // the effect's source is not kept
 				if (units_.team[i] == 0) record_.units_lost++;
 				else record_.enemies_killed++;
@@ -7167,7 +7185,7 @@ void Simulation::tick_status_effects(float dt) {
 			if (units_.hp[i] <= 0.0f) {
 				units_.alive[i] = 0;
 				units_.action_state[i] = ACTION_DYING;
-				record_death(units_.pos_x[i], units_.pos_z[i], units_.team[i], (uint8_t)(1 - units_.team[i]), units_.unit_type[i], false);
+				record_unit_death(i, (uint8_t)(1 - units_.team[i]));
 				stat_unit_lost(i, 0xFF); // the effect's source is not kept
 				if (units_.team[i] == 0) record_.units_lost++;
 				else record_.enemies_killed++;
@@ -7185,7 +7203,7 @@ void Simulation::tick_status_effects(float dt) {
 			if (units_.hp[i] <= 0.0f) {
 				units_.alive[i] = 0;
 				units_.action_state[i] = ACTION_DYING;
-				record_death(units_.pos_x[i], units_.pos_z[i], units_.team[i], (uint8_t)(1 - units_.team[i]), units_.unit_type[i], false);
+				record_unit_death(i, (uint8_t)(1 - units_.team[i]));
 				stat_unit_lost(i, 0xFF); // the effect's source is not kept
 				if (units_.team[i] == 0) record_.units_lost++;
 				else record_.enemies_killed++;
@@ -7622,47 +7640,81 @@ void Simulation::tick_entity_limits(float dt) {
 	}
 }
 
-// 0 A.D. DeathDamage.js:38-58: CauseDamageOverArea on-death splash damage
-void Simulation::tick_death_damage(float dt) {
-	const size_t start = (recent_death_head_ > MAX_RECENT_DEATHS) ? (recent_death_head_ - MAX_RECENT_DEATHS) : 0;
-	const size_t end = recent_death_head_;
+// 0 A.D. DeathDamage.js: only templates with a DeathDamage element hurt anything when
+// they die. Of the trained ones that is mixins/fireship.xml (brit, gaul and iber
+// ship_fire): 500 Fire over 20 m, friendly fire on. template_unit_siege_flamethrower
+// has one too but no civ trains it.
+static const DeathDamageInfo FIRESHIP_DEATH_DAMAGE = {20.0f * COMBAT_DISTANCE_SCALE, 500.0f, true};
 
-	for (size_t k = start; k < end; ++k) {
-		auto &death = recent_deaths_[k % MAX_RECENT_DEATHS];
+static bool template_is(uint16_t tmpl, const char *name) {
+	if (tmpl == CIV_UNIT_TEMPLATE_NONE || tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
+	const char *id = civ_unit_template(tmpl).id;
+	const char *slash = std::strrchr(id, '/');
+	return std::strcmp(slash ? slash + 1 : id, name) == 0;
+}
+
+// The fire ship templates (template_unit_ship_fire.xml), looked up once: the
+// Health regen loop asks this for every unit every tick.
+static bool is_fire_ship(uint16_t tmpl) {
+	static const auto table = [] {
+		std::array<bool, CIV_UNIT_TEMPLATE_COUNT> t{};
+		for (uint16_t k = 0; k < CIV_UNIT_TEMPLATE_COUNT; ++k) t[k] = template_is(k, "ship_fire");
+		return t;
+	}();
+	return tmpl < CIV_UNIT_TEMPLATE_COUNT && table[tmpl];
+}
+
+const DeathDamageInfo *Simulation::unit_death_damage(size_t i) const {
+	return is_fire_ship(units_.tmpl[i]) ? &FIRESHIP_DEATH_DAMAGE : nullptr;
+}
+
+// Health RegenRate from the template; tech modifiers (TSTAT_REGEN) add to it.
+float Simulation::unit_template_regen(size_t i) const {
+	return is_fire_ship(units_.tmpl[i]) ? -5.0f : 0.0f; // mixins/fireship.xml: it burns down
+}
+
+// DeathDamage.CauseDeathDamage -> AttackHelper.CauseDamageOverArea: every entity of the
+// players it may hurt within Range takes the damage times 1 - d^2 / Range^2, d measured
+// from its obstruction. Nothing resists Fire (no template has a Fire resistance).
+void Simulation::tick_death_damage(float dt) {
+	(void)dt;
+	const size_t start = (recent_death_head_ > MAX_RECENT_DEATHS) ? (recent_death_head_ - MAX_RECENT_DEATHS) : 0;
+	// A unit killed here records its own death, so a fire ship blowing up next to
+	// another sets that one off too, within this tick.
+	for (size_t k = start; k < recent_death_head_; ++k) {
+		RecentDeath &death = recent_deaths_[k % MAX_RECENT_DEATHS];
 		if (death.death_damage_applied) continue;
 		death.death_damage_applied = true;
-
-		// 0 A.D. DeathDamage.js:38-58: siege engines, ships, and heavy buildings collapse with splash
-		bool causes_damage = death.is_building || death.type == UNIT_CATAPULT ||
-		                     death.type == UNIT_BOLT_SHOOTER || death.type == UNIT_SIEGE_RAM ||
-		                     death.type == UNIT_TRIREME;
-		if (!causes_damage) continue;
-
-		float radius = death.is_building ? 8.0f : 4.0f;
-		float base_damage = death.is_building ? 25.0f : 15.0f;
-		float r2 = radius * radius;
-
-		// Deterministic iteration over units_ by index
+		if (!death.death_damage || death.is_building) continue;
+		const DeathDamageInfo &dd = FIRESHIP_DEATH_DAMAGE;
+		const float ox = death.x, oz = death.z, r = dd.range, r2 = r * r;
+		const uint8_t owner = death.team;
+		auto hurts = [&](uint8_t team) { return dd.friendly_fire || is_hostile(owner, team); };
 		for (size_t i = 0; i < units_.count; ++i) {
-			if (!units_.alive[i]) continue;
-			if (!is_hostile(death.team, units_.team[i])) continue; // FriendlyFire: false (DeathDamage.js:9)
-			float dx = units_.pos_x[i] - death.x;
-			float dz = units_.pos_z[i] - death.z;
-			float d2 = dx * dx + dz * dz;
-			if (d2 <= r2) {
-				float dist = std::sqrt(d2);
-				float falloff = 1.0f - (dist / radius) * 0.5f;
-				float dmg = base_damage * falloff;
-				units_.hp[i] -= dmg;
-				if (units_.hp[i] <= 0.0f) {
-					units_.hp[i] = 0.0f;
-					units_.alive[i] = 0;
-					units_.action_state[i] = ACTION_DYING;
-					stat_unit_lost(i, death.team); // DeathDamage.js: the dead entity's owner deals it
-					if (units_.team[i] == 0) record_.units_lost++;
-					else record_.enemies_killed++;
-				}
-			}
+			if (!units_.alive[i] || !hurts(units_.team[i])) continue;
+			const float dx = units_.pos_x[i] - ox, dz = units_.pos_z[i] - oz;
+			if (std::fabs(dx) > r + 2.0f || std::fabs(dz) > r + 2.0f) continue;
+			const float d = std::max(0.0f, std::sqrt(dx * dx + dz * dz) - unit_collision_radius(units_.unit_type[i]));
+			if (d >= r) continue;
+			units_.hp[i] -= dd.damage * (1.0f - d * d / r2);
+			if (units_.hp[i] > 0.0f) continue;
+			units_.hp[i] = 0.0f;
+			units_.alive[i] = 0;
+			units_.action_state[i] = ACTION_DYING;
+			stat_unit_lost(i, owner); // the dead entity's owner deals it
+			if (units_.team[i] == 0) record_.units_lost++;
+			else record_.enemies_killed++;
+			record_unit_death(i, owner);
+		}
+		for (Building &b : buildings_) {
+			if (b.wrecked || b.hp <= 0.0f || (b.team < MAX_PLAYERS && !hurts(b.team))) continue;
+			if (b.team >= MAX_PLAYERS && !dd.friendly_fire && !is_hostile(owner, b.team)) continue;
+			const float ex = std::max(0.0f, std::fabs(b.x - ox) - b.half_size);
+			const float ez = std::max(0.0f, std::fabs(b.z - oz) - b.half_size);
+			const float d2 = ex * ex + ez * ez;
+			if (d2 >= r2) continue;
+			b.hp -= dd.damage * (1.0f - d2 / r2);
+			if (b.hp <= 0.0f) mark_building_wreck(b, owner);
 		}
 	}
 }
@@ -8315,7 +8367,7 @@ void Simulation::cmd_delete(uint8_t player, const uint32_t *ids, size_t count) {
 			units_.alive[i] = 0;
 			units_.action_state[i] = ACTION_DYING;
 			order_queues_.erase(id);
-			record_death(units_.pos_x[i], units_.pos_z[i], player, player, units_.unit_type[i], false);
+			record_unit_death(i, player);
 			stat_unit_lost((size_t)i, 0xFF);
 			continue;
 		}
@@ -14239,7 +14291,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	auto death = [&](RecentDeath &r) {
 		ar.padded(r, [&](RecentDeath &d, const RecentDeath &v) {
 			d.x = v.x; d.z = v.z; d.team = v.team; d.killer_team = v.killer_team; d.type = v.type;
-			d.is_building = v.is_building; d.death_damage_applied = v.death_damage_applied; d.loot_applied = v.loot_applied;
+			d.is_building = v.is_building; d.death_damage_applied = v.death_damage_applied; d.death_damage = v.death_damage;
 		});
 	};
 	static_assert(sizeof(S::TerritoryRoot) == 16, "list the new TerritoryRoot field below");
@@ -15006,7 +15058,7 @@ void Simulation::fauna_hit_unit(size_t f, size_t u) {
 	if (units_.hp[u] <= 0.0f) {
 		units_.alive[u] = 0;
 		units_.action_state[u] = ACTION_DYING;
-		record_death(units_.pos_x[u], units_.pos_z[u], units_.team[u], GAIA_PLAYER, units_.unit_type[u], false);
+		record_unit_death(u, GAIA_PLAYER);
 		stat_unit_lost(u, 0xFF);
 		if (units_.team[u] == 0) record_.units_lost++;
 		return;
@@ -15812,7 +15864,7 @@ void Simulation::set_water_level(float h, float drown_depth) {
 		units_.alive[i] = 0;
 		units_.action_state[i] = ACTION_DYING;
 		units_.has_order[i] = 0;
-		record_death(units_.pos_x[i], units_.pos_z[i], units_.team[i], units_.team[i], units_.unit_type[i], false);
+		record_unit_death(i, units_.team[i]);
 		stat_unit_lost(i, 0xFF);
 	}
 	for (size_t f = 0; f < fauna_.count; ++f)
