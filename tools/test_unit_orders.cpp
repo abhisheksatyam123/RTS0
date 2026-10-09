@@ -351,6 +351,23 @@ static void test_builders_after_dropsite() {
 			s.unit_order(w[1]).kind == ORDER_GATHER, "both builders go to gather the wood nearby");
 }
 
+// 0 A.D. Builder: citizen infantry build and repair (template_unit_infantry has the builder
+// mixin); cavalry do not.
+static void test_soldiers_build() {
+	std::printf("9b. citizen infantry build, cavalry don't\n");
+	Simulation s;
+	setup(s);
+	const uint32_t house = s.spawn_building_world(0, 0, BLD_HOUSE, 0, 0.0f);
+	const uint32_t spear = s.spawn_unit(-4, 0, 0, UNIT_SPEARMAN);
+	const uint32_t rider = s.spawn_unit(-4, 3, 0, UNIT_CAVALRY);
+	uint32_t both[2] = {spear, rider};
+	s.order_build_or_repair(both, 2, house);
+	check(s.unit_order(spear).kind == ORDER_BUILD, "the spearman takes the build order");
+	check(s.unit_order(rider).kind != ORDER_BUILD, "the horseman doesn't");
+	const bool done = run_until(s, 120.0f, [&] { return bld(s, house)->build_progress >= 1.0f; });
+	check(done, "the spearman finishes the house");
+}
+
 static void test_queue() {
 	std::printf("10. Shift-queued orders\n");
 	Simulation s;
@@ -1306,6 +1323,7 @@ int main(int argc, char **argv) {
 	test_women_flee();
 	test_rally();
 	test_builders_after_dropsite();
+	test_soldiers_build();
 	test_queue();
 	test_delete();
 	test_back_to_work();
