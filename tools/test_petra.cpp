@@ -1039,6 +1039,46 @@ static void test_entity_limit_placement() {
 	CHECK(!placed && s->buildings().size() == before, "and lays none out");
 }
 
+// attackPlan.js answers Attacked events at once: a soldier hacking at a
+// structure turns on the unit that hits it, instead of standing under fire
+// until the plan's next retarget (25 s here).
+static void test_army_answers_attackers() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	const float hx = -tx * 0.3f, hz = -tz * 0.3f; // the enemy's side of the map
+	const uint32_t house = s->spawn_building_world(hx, hz, BLD_HOUSE, 0, 1.0f);
+	float half = -1.0f;
+	for (const auto &b : s->buildings()) if (b.id == house) half = b.half_size;
+	CHECK(half > 0.0f, "an enemy house to attack");
+	if (half <= 0.0f) return;
+	std::vector<uint32_t> squad;
+	for (int k = 0; k < 3; ++k) squad.push_back(s->spawn_unit(hx + half + 1.0f, hz + 1.5f * (float)k, 1, UNIT_SPEARMAN));
+	s->order_attack_building(squad.data(), squad.size(), house);
+	auto &plan = s->petra_attack_plan_;
+	plan.squad = squad;
+	plan.initial_squad_size = squad.size();
+	plan.target_building_id = house;
+	plan.target_x = hx; plan.target_z = hz;
+	plan.state = Simulation::AttackPlan::ATTACKED;
+	plan.state_timer = 0.0f;
+	run_for(*s, 2.0f);
+	const uint32_t foe = s->spawn_unit(hx + half + 3.0f, hz, 0, UNIT_SWORDSMAN, 1.0e6f);
+	s->order_attack(&foe, 1, squad[0]);
+	run_for(*s, 4.0f);
+	const int32_t i = s->lookup_unit(squad[0]);
+	const bool turned = i >= 0 && s->units().alive[i] && s->units_.target_unit_id[i] == foe;
+	std::printf("  army under attack at a structure: the soldier hit turns on its attacker: %s (plan state %d)\n",
+	            turned ? "yes" : "no", (int)plan.state);
+	CHECK(turned, "a Petra soldier attacked while at a structure fights back at once");
+}
+
 // victoryManager.js capture_the_relic: Petra goes for a Gaia relic in its
 // territory, not for one it has never seen.
 static void test_relic_capture() {
@@ -1121,6 +1161,7 @@ int main() {
 	test_regicide_hero_no_garrison();
 	test_nomad_first_base();
 	test_entity_limit_placement();
+	test_army_answers_attackers();
 	test_relic_capture();
 	test_retreat_walk_forced();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
