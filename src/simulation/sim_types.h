@@ -382,7 +382,8 @@ enum BuildingType : uint8_t {
 	BLD_TEMPLE_VESTA = 49,    // rome/temple_vesta
 	BLD_TEMPLE_MARS = 50,     // rome/temple_mars
 	BLD_ICE_HOUSE = 51,       // pers/ice_house
-	BLD_TYPE_COUNT = 52
+	BLD_SUPER_DOCK = 52,      // cart/super_dock (Cothon)
+	BLD_TYPE_COUNT = 53
 };
 
 #include "civ_building_data.h"
@@ -444,7 +445,7 @@ enum UnitOrderKind : uint8_t {
 	ORDER_GATHER = 6,         // target resource
 	ORDER_BUILD = 7,          // target building (build or repair)
 	ORDER_GARRISON = 8,       // target building
-	ORDER_GUARD = 9,          // target unit (Guard.js)
+	ORDER_GUARD = 9,          // target unit or structure (Guard.js)
 	ORDER_HEAL = 10,          // target unit (UnitAI Heal)
 	ORDER_TRADE = 11,         // target = first market, x2 holds the second market's id bits (UnitAI Trade)
 	ORDER_RETURN_RESOURCE = 12, // target = the dropsite (UnitAI ReturnResource)
@@ -1217,6 +1218,7 @@ struct CivUnitTemplate {
 	int16_t auras[3]; // index into civ_hero_aura_table(), -1 = none
 	uint8_t unlock_tech; // TechnologyId from 0 A.D. Identity/Requirements (unlock_champion_*), or TECH_NONE
 	uint64_t tech_classes; // TechClass bits of 0 A.D. Identity/Classes + VisibleClasses
+	float vision; // 0 A.D. Vision/Range x0.28 (RTS0 units)
 };
 
 #include "civ_roster_data.h"
@@ -1693,6 +1695,10 @@ inline float combat_bonus(const CombatProfile &attacker, const CombatProfile &ta
 // A projectile's footprint test radius in RTS0 units (PositionHelper.TestCollision).
 inline float combat_footprint(const CombatProfile &p) { return p.footprint * COMBAT_DISTANCE_SCALE; }
 // unit_advanced.json and unit_elite.json each multiply Attack/Ranged/Spread by 0.8.
+// StatusEffect bit for a CombatProfile::status (1 Poisoned, 2 Burning).
+inline uint8_t status_effect_bit(uint8_t status) {
+	return status == 1 ? EFFECT_POISON : status == 2 ? EFFECT_BURNING : EFFECT_NONE;
+}
 inline float spread_rank_multiplier(uint8_t rank) {
 	return rank >= 3 ? 0.64f : (rank == 2 ? 0.8f : 1.0f);
 }

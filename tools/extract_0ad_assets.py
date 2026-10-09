@@ -950,11 +950,11 @@ BLD_GLOBAL_FALLBACK = {
 }
 
 
-def _register_civ_unit(assets, names, code, uid, actor):
-    """Bind one `{code}_{uid}` asset to a 0 A.D. actor, inheriting rider setup."""
+def _register_civ_unit(assets, names, code, uid, actor, aid=None):
+    """Bind one `{code}_{uid}` asset (or `aid`) to a 0 A.D. actor, inheriting rider setup."""
     if uid not in ASSETS:
         return None
-    aid = f"{code}_{uid}"
+    aid = aid or f"{code}_{uid}"
     _path, fit, target, tint = ASSETS[uid]
     assets[aid] = (actor, fit, target, tint)
     if uid in RIDER_ATTACHMENTS:
@@ -1022,6 +1022,63 @@ def register_civ_unit_assets(assets, zf=None):
                 added.append(got)
     _apply_civ_unit_overrides()
     return added
+
+
+# Template model id -> the RTS0 model kind it is drawn as (spearman, cavalry...),
+# and the extracted model whose clips a mesh-only template model borrows.
+TEMPLATE_BASE = {}
+TEMPLATE_DONOR = {}
+
+
+def register_template_assets(assets, zf):
+    """One model per civ roster template whose 0 A.D. actor no extracted model
+    uses yet (tools/unit_template_models.py). Returns the per-template plan."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import unit_template_models as utm
+    names = set(zf.namelist())
+    per_row, new = utm.plan(names, zf.read, assets)
+    for mid, (code, kind, actor) in sorted(new.items()):
+        if _register_civ_unit(assets, names, code, kind, actor, aid=mid):
+            TEMPLATE_BASE[mid] = kind
+            donor = f"{code}_{kind}"
+            TEMPLATE_DONOR[mid] = donor if donor in assets else kind
+    return per_row, new
+
+
+def _same_rig(donor, out_dir, nodes, skins):
+    """Whether the extracted `donor` GLB has these skins' joints, by name and
+    rest pose, so its clips drive this model exactly."""
+    if not donor or not skins:
+        return False
+    path = None
+    for base in (out_dir, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets")):
+        cand = os.path.join(base, "models", "units", donor + ".glb")
+        if os.path.exists(cand):
+            path = cand
+            break
+    if path is None:
+        return False
+    with open(path, "rb") as f:
+        data = f.read()
+    jlen = struct.unpack_from("<I", data, 12)[0]
+    g = json.loads(data[20:20 + jlen])
+    theirs = g.get("skins") or []
+    if len(theirs) != len(skins):
+        return False
+    for mine, other in zip(skins, theirs):
+        if len(mine["joints"]) != len(other["joints"]):
+            return False
+        for a, b in zip(mine["joints"], other["joints"]):
+            na, nb = nodes[a], g["nodes"][b]
+            if na.get("name") != nb.get("name"):
+                return False
+            ta, tb = na.get("translation", [0, 0, 0]), nb.get("translation", [0, 0, 0])
+            qa, qb = na.get("rotation", [0, 0, 0, 1]), nb.get("rotation", [0, 0, 0, 1])
+            if max(abs(x - y) for x, y in zip(ta, tb)) > 1e-3:
+                return False
+            if min(max(abs(x - y) for x, y in zip(qa, qb)), max(abs(x + y) for x, y in zip(qa, qb))) > 1e-3:
+                return False
+    return True
 
 
 def _apply_civ_unit_overrides():
@@ -3833,7 +3890,14 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
 
     out_path = _glb_out_path(out_dir, asset_id, rel_dir)
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    blob = glb.build(asset_id, nodes=nodes, animations=animations, skins=skins)
+    clip_donor = None
+    if asset_id in TEMPLATE_BASE and _same_rig(TEMPLATE_DONOR.get(asset_id), out_dir, nodes, skins):
+        # A template model whose skeleton (rider included) rests exactly like
+        # the civ's model of its kind borrows that model's clips at load time,
+        # which keeps 1.5-2.5 MB of clips per template out of the repository.
+        clip_donor = TEMPLATE_DONOR[asset_id]
+        animations = []
+    blob = glb.build(asset_id, nodes=nodes, animations=animations or None, skins=skins)
     with open(out_path, "wb") as f:
         f.write(blob)
     for im in glb.image_defs:
@@ -3858,6 +3922,8 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
         "sources": sorted(f"{kind}:{ref}" for kind, ref in sources),
         "upstream_material": material_name,
     }
+    if clip_donor:
+        entry["clips_from"] = clip_donor
     return entry
 
 
@@ -3995,6 +4061,8 @@ def bone_rest_worlds(bones_local, parents):
 
 
 def _civ_base_unit_id(asset_id):
+    if asset_id in TEMPLATE_BASE:
+        return TEMPLATE_BASE[asset_id]
     if "_" not in asset_id:
         return None
     code, base = asset_id.split("_", 1)
@@ -4372,6 +4440,9 @@ def audit_extracted_clips(manifest):
             continue
         rec = models[aid]
         have = list(rec.get("animations") or [])
+        if rec.get("clips_from") in models:
+            # A template model plays its donor's clips.
+            have = list(models[rec["clips_from"]].get("animations") or [])
         wanted = _KIND_WANTED_CLIPS[kind]
         # Unskinned civ hulls list no clips — rest pose is correct. Do not
         # invent sail Idle or flag them as MISSING.
@@ -4406,6 +4477,9 @@ def main():
     ap.add_argument("--skip-archive-actors", action="store_true",
                     help="with --all, skip composing leftover actors into models/archive/")
     ap.add_argument("--only", nargs="+", help="extract only these asset ids")
+    ap.add_argument("--templates", action="store_true",
+                    help="one model per civ roster template whose actor has none yet (with --only: id prefixes),"
+                         " and src/graphics/assets/unit_template_models.h")
     ap.add_argument("--class", dest="klass", default=None,
                     help="extract a curated HIGH-VISIBILITY class: g7h2 (map fauna + "
                          "landmarks/civics + flora variety, 31 models), g7m (siege "
@@ -4428,12 +4502,23 @@ def main():
         with open(man_path) as f:
             audit_extracted_clips(json.load(f))
         return
-    clean_misplaced_assets(out_dir)
+    # Other tools write fauna and packed-siege GLBs here too; a partial run
+    # (--only, --templates) must not delete them.
+    if not args.only and not args.templates:
+        clean_misplaced_assets(out_dir)
     manifest = {"generator": "tools/extract_0ad_assets.py",
                 "origin": "0 A.D. by Wildfire Games (public mod archive)",
                 "license": "CC-BY-SA 3.0 / GPL-2.0 (see docs/0AD_ATTRIBUTION.md)",
                 "models": {}}
-    with zipfile.ZipFile(args.zip) as zf:
+    # A 0 A.D. git checkout stands in for public.zip: its Collada sources
+    # convert on read (tools/oad_collada_archive.py).
+    if os.path.isdir(args.zip):
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from oad_collada_archive import ColladaArchive
+        archive = ColladaArchive(args.zip)
+    else:
+        archive = zipfile.ZipFile(args.zip)
+    with archive as zf:
         vfs = Vfs(zf)
         if args.list_actors:
             for n in sorted(zf.namelist()):
@@ -4446,6 +4531,14 @@ def main():
         print(f"[civ] registered {len(civ_ids)} civilization unit meshes + {len(bld_ids)} buildings")
         terrain = dict(TERRAIN_TILES)
         archive_actors = []
+        template_plan = None
+        if args.templates:
+            template_plan = register_template_assets(assets, zf)
+            tids = sorted(TEMPLATE_BASE)
+            if args.only:
+                tids = [t for t in tids if any(t == o or t.startswith(o) for o in args.only)]
+            print(f"[templates] {len(TEMPLATE_BASE)} template models planned, extracting {len(tids)}")
+            args.only = tids or ["--templates matched nothing"]
         if args.all:
             assets.update(FULL_ASSETS)
             register_civ_unit_assets(assets, zf)
@@ -4477,6 +4570,7 @@ def main():
             known.update(FULL_ASSETS)
             register_civ_unit_assets(known, zf)
             register_civ_building_assets(known, zf)
+            known.update({k: assets[k] for k in TEMPLATE_BASE if k in assets})
             only = set(args.only)
             def wanted(aid):
                 if aid in only:
@@ -4504,6 +4598,9 @@ def main():
                         vfs, asset_id, actor_ref, fit, target, tint, out_dir)
             except Exception as e:
                 print(f"[{asset_id}] FAILED: {e}")
+                if os.environ.get("RTSO_EXTRACT_TRACE"):
+                    import traceback
+                    traceback.print_exc()
                 continue
         archive_ok = 0
         archive_skip = 0
@@ -4548,7 +4645,7 @@ def main():
         os.makedirs(mus_dir, exist_ok=True)
         for out_name, ref in MUSIC.items():
             dst = os.path.join(mus_dir, out_name)
-            if os.path.exists(dst):
+            if os.path.exists(dst) or not vfs.exists(ref):
                 continue
             with open(dst, "wb") as f:
                 f.write(zf.read(ref))
@@ -4557,7 +4654,8 @@ def main():
         # skeletons
         skel_dir = os.path.join(out_dir, "skeletons")
         os.makedirs(skel_dir, exist_ok=True)
-        skels_to_extract = dict(SKELETONS)
+        # --templates adds models only; the shared skeletons and clips stay as they are.
+        skels_to_extract = {} if args.templates else dict(SKELETONS)
         if args.all_skeletons:
             # discover all skeletons in zip
             for n in zf.namelist():
@@ -4580,7 +4678,7 @@ def main():
         # animations — copy PSSA binary + decode to JSON for runtime + manifest
         anim_dir = os.path.join(out_dir, "animations")
         os.makedirs(anim_dir, exist_ok=True)
-        anims_to_extract = dict(ANIMATIONS)
+        anims_to_extract = {} if args.templates else dict(ANIMATIONS)
         if args.all_animations:
             # discover all PSA files
             for n in zf.namelist():
@@ -4660,6 +4758,21 @@ def main():
     with open(man_path, "w") as f:
         json.dump(manifest, f, indent=1, sort_keys=True)
     print(f"manifest -> {man_path}")
+    if template_plan:
+        import unit_template_models as utm
+        units_dir = os.path.join(out_dir, "models", "units")
+        per_row = [m if m and (m in manifest.get("models", {}) or os.path.exists(os.path.join(units_dir, m + ".glb")))
+                   else None for m in template_plan[0]]
+        repo_assets = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets"))
+        hdr = utm.HEADER if os.path.normpath(out_dir) == repo_assets else os.path.join(out_dir, "unit_template_models.h")
+        models = {}
+        for m in per_row:
+            if m and m in TEMPLATE_BASE:
+                rec = manifest.get("models", {}).get(m, {})
+                code = m.split("_", 1)[0]
+                models[m] = (f"{code}_{TEMPLATE_BASE[m]}", rec.get("clips_from"))
+        utm.write_header(per_row, models, hdr)
+        print(f"[templates] {sum(1 for m in per_row if m)} of {len(per_row)} templates have a model -> {hdr}")
     # also write skeleton/animation verification summary
     print(f"extracted {len(manifest.get('animations',{}))} animations + {len(manifest.get('skeletons',{}))} skeletons")
     audit_extracted_clips(manifest)

@@ -190,6 +190,11 @@ public:
 		panel_->set_visible(!panel_->is_visible());
 		if (panel_->is_visible()) {
 			host_->play_sfx("res://assets/sounds/ui/diplomacy.ogg");
+			// 0 A.D. DiplomacyDialog: stances are fixed while teams are locked or a ceasefire runs.
+			const rtso::Simulation *sim = host_->ui_sim();
+			const bool fixed = sim && (sim->teams_locked() || sim->ceasefire_active());
+			for (int p = 1; p < 8; ++p)
+				if (stances_[p]) stances_[p]->set_disabled(fixed);
 		}
 	}
 
@@ -197,6 +202,11 @@ public:
 	// validated sim cmd offline. 0 A.D. DiplomacyDialog parity.
 	void stance_changed(int stance, int player_idx) {
 		if (!host_ || !host_->ui_sim() || player_idx < 0 || player_idx >= 8) return;
+		if (host_->ui_sim()->teams_locked() || host_->ui_sim()->ceasefire_active()) {
+			if (chat_) chat_->append_line(String("[color=#eebb22]Diplomacy can't change while ") +
+					(host_->ui_sim()->teams_locked() ? "teams are locked." : "the ceasefire lasts.") + "[/color]\n");
+			return;
+		}
 		// Lockstep: stance MUST be a turn command (cmd_type 22, turn_manager.cpp dispatch)
 		// — diplomacy_state() is hashed (turn_manager.cpp:213), so a local-only change
 		// desyncs peers. Offline applies immediately via the validated sim cmd.

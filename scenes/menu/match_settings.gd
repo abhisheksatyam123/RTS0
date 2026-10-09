@@ -17,8 +17,9 @@ var victory: int = 0
 var waves_enabled: bool = false
 # 0 A.D. "Last Man Standing": no allied victory, play until one player is left.
 var last_man_standing: bool = false
-# 0 A.D. population limit per player (0 = unlimited) and ceasefire length in minutes.
-var pop_cap: int = 200
+# 0 A.D. population limit per player (0 = unlimited, negative = World Population shared by
+# the players still in the game) and ceasefire length in minutes.
+var pop_cap: int = 300
 var ceasefire_min: int = 0
 # 0 A.D. map visibility: everything visible, or terrain known from the start.
 var reveal_map: bool = false
@@ -37,6 +38,8 @@ var slot_names: Array = []
 # 0 A.D. Nomad (random maps: no starting structures) and RegicideGarrison (the Regicide hero may garrison).
 var nomad: bool = false
 var regicide_garrison: bool = false
+# 0 A.D. LockTeams: nobody can change diplomacy during the match.
+var lock_teams: bool = false
 # 0 A.D. DisableTreasures: no treasures on the map.
 var disable_treasures: bool = false
 # Random-map biome: 0 = the map's own, else rtso::BiomeType + 1. Game speed at the start.

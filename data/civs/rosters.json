@@ -731,7 +731,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -773,6 +773,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 5.7672,
+    "vision": 22.400000000000002,
     "damage": 18.0,
     "range": 8.4,
     "carry": 0
@@ -786,7 +787,7 @@
    "specific_name": "Hippeús",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -826,6 +827,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 6.4079999999999995,
+    "vision": 22.400000000000002,
     "damage": 6.5,
     "range": 2.4,
     "carry": 0
@@ -877,6 +879,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 11.0,
     "range": 2.4,
     "carry": 0
@@ -928,6 +931,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 3.8447999999999993,
+    "vision": 22.400000000000002,
     "damage": 11.0,
     "range": 1.7999999999999998,
     "carry": 0
@@ -979,6 +983,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 3.8447999999999993,
+    "vision": 22.400000000000002,
     "damage": 11.0,
     "range": 1.7999999999999998,
     "carry": 0
@@ -1031,6 +1036,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 3.6311999999999998,
+    "vision": 22.400000000000002,
     "damage": 13.5,
     "range": 16.8,
     "carry": 0
@@ -1083,6 +1089,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
     "damage": 0.0,
     "range": 2.8,
     "carry": 0
@@ -1138,6 +1145,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
     "damage": 62.0,
     "range": 8.4,
     "carry": 0
@@ -1192,6 +1200,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
     "damage": 22.0,
     "range": 2.4,
     "carry": 0
@@ -1246,6 +1255,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
     "damage": 22.0,
     "range": 1.7999999999999998,
     "carry": 0
@@ -1260,6 +1270,7 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -1307,6 +1318,7 @@
     "train_time": 7.0,
     "pop": 1,
     "speed": 3.6311999999999998,
+    "vision": 22.400000000000002,
     "damage": 6.7,
     "range": 16.8,
     "carry": 0
@@ -1365,6 +1377,7 @@
     "train_time": 7.0,
     "pop": 1,
     "speed": 3.6311999999999998,
+    "vision": 22.400000000000002,
     "damage": 6.7,
     "range": 16.8,
     "carry": 0
@@ -1379,6 +1392,7 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -1426,6 +1440,7 @@
     "train_time": 7.0,
     "pop": 1,
     "speed": 4.0584,
+    "vision": 22.400000000000002,
     "damage": 16.0,
     "range": 8.4,
     "carry": 0
@@ -1441,6 +1456,7 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -1486,6 +1502,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.8447999999999993,
+    "vision": 22.400000000000002,
     "damage": 12.6,
     "range": 12.600000000000001,
     "carry": 0
@@ -1544,6 +1561,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 5.5,
     "range": 2.4,
     "carry": 0
@@ -1595,6 +1613,7 @@
     "train_time": 18.0,
     "pop": 3,
     "speed": 4.984,
+    "vision": 22.400000000000002,
     "damage": 15.0,
     "range": 14.000000000000002,
     "carry": 0
@@ -1640,6 +1659,7 @@
     "train_time": 11.25,
     "pop": 1,
     "speed": 3.5244,
+    "vision": 8.4,
     "damage": 10.0,
     "range": 3.0,
     "carry": 30
@@ -1686,6 +1706,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 4.3254,
+    "vision": 14.000000000000002,
     "damage": 0.0,
     "range": 1.0,
     "carry": 100
@@ -1735,6 +1756,7 @@
     "train_time": 18.0,
     "pop": 3,
     "speed": 5.696,
+    "vision": 22.400000000000002,
     "damage": 200.0,
     "range": 7.199999999999999,
     "carry": 0
@@ -1786,6 +1808,7 @@
     "train_time": 9.0,
     "pop": 2,
     "speed": 5.696,
+    "vision": 22.400000000000002,
     "damage": 12.0,
     "range": 11.200000000000001,
     "carry": 0
@@ -1799,7 +1822,7 @@
    "specific_name": "Lithobólos",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -1834,6 +1857,7 @@
     "train_time": 25.0,
     "pop": 3,
     "speed": 2.5632,
+    "vision": 33.6,
     "damage": 250.0,
     "range": 23.8,
     "carry": 0
@@ -1847,7 +1871,7 @@
    "specific_name": "Oxybelḗs",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -1882,6 +1906,7 @@
     "train_time": 20.0,
     "pop": 2,
     "speed": 2.8836,
+    "vision": 28.000000000000004,
     "damage": 240.0,
     "range": 25.200000000000003,
     "carry": 0
@@ -1895,7 +1920,7 @@
    "specific_name": "Krios",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -1927,6 +1952,7 @@
     "train_time": 30.0,
     "pop": 3,
     "speed": 2.5632,
+    "vision": 22.400000000000002,
     "damage": 150.0,
     "range": 3.9,
     "carry": 0
@@ -1978,6 +2004,7 @@
     "train_time": 8.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 2.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -2029,6 +2056,7 @@
     "train_time": 30.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 2.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -2074,6 +2102,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.4,
     "damage": 0.0,
     "range": 12.0,
     "carry": 0
@@ -2120,6 +2149,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 16.8,
     "damage": 0.0,
     "range": 1.0,
     "carry": 50
@@ -2165,7 +2195,8 @@
     "train_time": 10,
     "hack_dmg": 5,
     "pierce_dmg": 0,
-    "crush_dmg": 0
+    "crush_dmg": 0,
+    "vision": 0.0
    }
   },
   {
@@ -2177,7 +2208,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -2219,6 +2250,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 5.7672,
+    "vision": 22.400000000000002,
     "damage": 18.0,
     "range": 8.4,
     "carry": 0
@@ -2232,7 +2264,7 @@
    "specific_name": "Hippeús Symmakhikós",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -2272,6 +2304,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 6.4079999999999995,
+    "vision": 22.400000000000002,
     "damage": 7.0,
     "range": 2.4,
     "carry": 0
@@ -2323,6 +2356,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 11.0,
     "range": 2.4,
     "carry": 0
@@ -2379,6 +2413,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 5.5,
     "range": 1.7999999999999998,
     "carry": 0
@@ -2433,6 +2468,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
     "damage": 22.0,
     "range": 2.4,
     "carry": 0
@@ -2486,6 +2522,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
     "damage": 22.0,
     "range": 1.7999999999999998,
     "carry": 0
@@ -2539,6 +2576,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
     "damage": 22.0,
     "range": 2.4,
     "carry": 0
@@ -2554,6 +2592,7 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -2599,6 +2638,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 4.0584,
+    "vision": 22.400000000000002,
     "damage": 16.0,
     "range": 8.4,
     "carry": 0
@@ -2657,6 +2697,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 5.5,
     "range": 2.4,
     "carry": 0
@@ -2710,6 +2751,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 5.5,
     "range": 2.4,
     "carry": 0
@@ -2759,6 +2801,7 @@
     "train_time": 24.0,
     "pop": 3,
     "speed": 4.984,
+    "vision": 22.400000000000002,
     "damage": 15.0,
     "range": 14.000000000000002,
     "carry": 0
@@ -2802,6 +2845,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.5244,
+    "vision": 8.4,
     "damage": 10.0,
     "range": 3.0,
     "carry": 30
@@ -2846,6 +2890,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 4.3254,
+    "vision": 14.000000000000002,
     "damage": 0.0,
     "range": 1.0,
     "carry": 100
@@ -2893,6 +2938,7 @@
     "train_time": 24.0,
     "pop": 3,
     "speed": 5.696,
+    "vision": 22.400000000000002,
     "damage": 200.0,
     "range": 7.199999999999999,
     "carry": 0
@@ -2942,6 +2988,7 @@
     "train_time": 12.0,
     "pop": 2,
     "speed": 5.696,
+    "vision": 22.400000000000002,
     "damage": 12.0,
     "range": 11.200000000000001,
     "carry": 0
@@ -2955,7 +3002,7 @@
    "specific_name": "Oxybelḗs",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -2990,6 +3037,7 @@
     "train_time": 20.0,
     "pop": 2,
     "speed": 2.8836,
+    "vision": 28.000000000000004,
     "damage": 240.0,
     "range": 25.200000000000003,
     "carry": 0
@@ -3003,7 +3051,7 @@
    "specific_name": "Krios",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -3035,6 +3083,7 @@
     "train_time": 30.0,
     "pop": 3,
     "speed": 2.5632,
+    "vision": 22.400000000000002,
     "damage": 150.0,
     "range": 3.9,
     "carry": 0
@@ -3086,6 +3135,7 @@
     "train_time": 8.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 3.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -3137,6 +3187,7 @@
     "train_time": 30.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 3.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -3182,6 +3233,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.4,
     "damage": 0.0,
     "range": 12.0,
     "carry": 0
@@ -3228,6 +3280,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 16.8,
     "damage": 0.0,
     "range": 1.0,
     "carry": 50
@@ -3273,7 +3326,8 @@
     "train_time": 10,
     "hack_dmg": 5,
     "pierce_dmg": 0,
-    "crush_dmg": 0
+    "crush_dmg": 0,
+    "vision": 0.0
    }
   },
   {
@@ -3285,7 +3339,7 @@
    "phase": 2,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -3327,6 +3381,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 5.4468,
+    "vision": 22.400000000000002,
     "damage": 7.0,
     "range": 16.8,
     "carry": 0
@@ -3341,7 +3396,7 @@
    "phase": 2,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -3382,6 +3437,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 6.4079999999999995,
+    "vision": 22.400000000000002,
     "damage": 11.0,
     "range": 2.4,
     "carry": 0
@@ -3396,7 +3452,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -3438,6 +3494,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 5.7672,
+    "vision": 22.400000000000002,
     "damage": 18.0,
     "range": 8.4,
     "carry": 0
@@ -3452,7 +3509,7 @@
    "phase": 2,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -3493,6 +3550,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 6.4079999999999995,
+    "vision": 22.400000000000002,
     "damage": 7.0,
     "range": 2.4,
     "carry": 0
@@ -3506,7 +3564,7 @@
    "specific_name": "Asabāra Baxtriš",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -3546,6 +3604,7 @@
     "train_time": 25.0,
     "pop": 1,
     "speed": 6.087599999999999,
+    "vision": 22.400000000000002,
     "damage": 14.0,
     "range": 4.2,
     "carry": 0
@@ -3559,7 +3618,7 @@
    "specific_name": "Asabāra Baxtriš",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -3599,6 +3658,7 @@
     "train_time": 25.0,
     "pop": 1,
     "speed": 5.4468,
+    "vision": 22.400000000000002,
     "damage": 14.0,
     "range": 16.8,
     "carry": 0
@@ -3612,7 +3672,7 @@
    "specific_name": "Raθa Bābiruviya",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -3653,6 +3713,7 @@
     "train_time": 30.0,
     "pop": 1,
     "speed": 6.052,
+    "vision": 22.400000000000002,
     "damage": 14.0,
     "range": 16.8,
     "carry": 0
@@ -3666,7 +3727,7 @@
    "specific_name": "Pila Hinduya",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_ELEPHANT_STABLE"
    ],
    "trained_at_0ad": [
     "elephant_stable"
@@ -3704,6 +3765,7 @@
     "train_time": 39.6,
     "pop": 3,
     "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
     "damage": 82.5,
     "range": 3.0,
     "carry": 0
@@ -3756,6 +3818,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 9.35,
     "range": 2.4,
     "carry": 0
@@ -3814,6 +3877,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 6.4079999999999995,
+    "vision": 28.000000000000004,
     "damage": 28.0,
     "range": 2.4,
     "carry": 0
@@ -3874,6 +3938,7 @@
     "train_time": 60.0,
     "pop": 0,
     "speed": 6.052,
+    "vision": 28.000000000000004,
     "damage": 28.0,
     "range": 16.8,
     "carry": 0
@@ -3932,6 +3997,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
     "damage": 27.0,
     "range": 16.8,
     "carry": 0
@@ -3947,6 +4013,7 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -3992,6 +4059,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.6311999999999998,
+    "vision": 22.400000000000002,
     "damage": 6.7,
     "range": 16.8,
     "carry": 0
@@ -4006,6 +4074,7 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -4050,6 +4119,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 4.0584,
+    "vision": 22.400000000000002,
     "damage": 16.0,
     "range": 8.4,
     "carry": 0
@@ -4108,6 +4178,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 5.5,
     "range": 2.4,
     "carry": 0
@@ -4157,6 +4228,7 @@
     "train_time": 24.0,
     "pop": 3,
     "speed": 4.984,
+    "vision": 22.400000000000002,
     "damage": 15.0,
     "range": 14.000000000000002,
     "carry": 0
@@ -4200,6 +4272,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.5244,
+    "vision": 8.4,
     "damage": 10.0,
     "range": 3.0,
     "carry": 30
@@ -4244,6 +4317,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 4.3254,
+    "vision": 14.000000000000002,
     "damage": 0.0,
     "range": 1.0,
     "carry": 100
@@ -4291,6 +4365,7 @@
     "train_time": 24.0,
     "pop": 3,
     "speed": 5.696,
+    "vision": 22.400000000000002,
     "damage": 200.0,
     "range": 7.199999999999999,
     "carry": 0
@@ -4340,6 +4415,7 @@
     "train_time": 12.0,
     "pop": 2,
     "speed": 5.696,
+    "vision": 22.400000000000002,
     "damage": 12.0,
     "range": 11.200000000000001,
     "carry": 0
@@ -4353,7 +4429,7 @@
    "specific_name": "Hamaranakuba Aθuriya",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -4385,6 +4461,7 @@
     "train_time": 30.0,
     "pop": 3,
     "speed": 2.5632,
+    "vision": 22.400000000000002,
     "damage": 180.0,
     "range": 3.9,
     "carry": 0
@@ -4436,6 +4513,7 @@
     "train_time": 8.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 2.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -4449,9 +4527,7 @@
    "specific_name": "Banu Miyanrudani",
    "phase": 1,
    "trainers": [
-    "BLD_HOUSE",
-    "BLD_BARRACKS",
-    "BLD_STOREHOUSE"
+    "BLD_HOUSE"
    ],
    "trained_at_0ad": [
     "apartment_block",
@@ -4494,6 +4570,7 @@
     "train_time": 30.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 2.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -4539,6 +4616,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.4,
     "damage": 0.0,
     "range": 12.0,
     "carry": 0
@@ -4585,6 +4663,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 16.8,
     "damage": 0.0,
     "range": 1.0,
     "carry": 50
@@ -4630,7 +4709,8 @@
     "train_time": 10,
     "hack_dmg": 5,
     "pierce_dmg": 0,
-    "crush_dmg": 0
+    "crush_dmg": 0,
+    "vision": 0.0
    }
   },
   {
@@ -4641,7 +4721,7 @@
    "specific_name": "Eques Socius",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -4682,6 +4762,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 5.7672,
+    "vision": 22.400000000000002,
     "damage": 18.0,
     "range": 8.4,
     "carry": 0
@@ -4696,7 +4777,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -4737,6 +4818,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 6.4079999999999995,
+    "vision": 22.400000000000002,
     "damage": 7.0,
     "range": 2.4,
     "carry": 0
@@ -4750,7 +4832,7 @@
    "specific_name": "Eques Cōnsulāris",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -4789,6 +4871,7 @@
     "train_time": 25.0,
     "pop": 1,
     "speed": 6.4079999999999995,
+    "vision": 22.400000000000002,
     "damage": 13.0,
     "range": 2.4,
     "carry": 0
@@ -4844,6 +4927,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 4.806,
+    "vision": 11.200000000000001,
     "damage": 5.5,
     "range": 2.4,
     "carry": 0
@@ -4899,6 +4983,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 4.4856,
+    "vision": 11.200000000000001,
     "damage": 5.5,
     "range": 1.7999999999999998,
     "carry": 0
@@ -4952,6 +5037,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 11.0,
     "range": 1.7999999999999998,
     "carry": 0
@@ -5004,6 +5090,7 @@
     "train_time": 25.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 11.0,
     "range": 1.7999999999999998,
     "carry": 0
@@ -5059,6 +5146,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 6.4079999999999995,
+    "vision": 28.000000000000004,
     "damage": 26.0,
     "range": 2.4,
     "carry": 0
@@ -5113,6 +5201,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 6.4079999999999995,
+    "vision": 28.000000000000004,
     "damage": 26.0,
     "range": 2.4,
     "carry": 0
@@ -5167,6 +5256,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 6.4079999999999995,
+    "vision": 28.000000000000004,
     "damage": 26.0,
     "range": 2.4,
     "carry": 0
@@ -5182,6 +5272,7 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -5227,6 +5318,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 4.0584,
+    "vision": 22.400000000000002,
     "damage": 16.0,
     "range": 8.4,
     "carry": 0
@@ -5286,6 +5378,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 5.5,
     "range": 1.7999999999999998,
     "carry": 0
@@ -5340,6 +5433,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 5.5,
     "range": 2.4,
     "carry": 0
@@ -5396,6 +5490,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 5.5,
     "range": 2.4,
     "carry": 0
@@ -5450,6 +5545,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 5.5,
     "range": 1.7999999999999998,
     "carry": 0
@@ -5508,6 +5604,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 5.5,
     "range": 1.7999999999999998,
     "carry": 0
@@ -5557,6 +5654,7 @@
     "train_time": 24.0,
     "pop": 3,
     "speed": 4.984,
+    "vision": 22.400000000000002,
     "damage": 15.0,
     "range": 14.000000000000002,
     "carry": 0
@@ -5600,6 +5698,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.5244,
+    "vision": 8.4,
     "damage": 10.0,
     "range": 3.0,
     "carry": 30
@@ -5644,6 +5743,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 4.3254,
+    "vision": 14.000000000000002,
     "damage": 0.0,
     "range": 1.0,
     "carry": 100
@@ -5691,6 +5791,7 @@
     "train_time": 24.0,
     "pop": 3,
     "speed": 5.696,
+    "vision": 22.400000000000002,
     "damage": 200.0,
     "range": 7.199999999999999,
     "carry": 0
@@ -5740,6 +5841,7 @@
     "train_time": 12.0,
     "pop": 2,
     "speed": 5.696,
+    "vision": 22.400000000000002,
     "damage": 12.0,
     "range": 11.200000000000001,
     "carry": 0
@@ -5789,6 +5891,7 @@
     "train_time": 28.0,
     "pop": 4,
     "speed": 4.272,
+    "vision": 28.000000000000004,
     "damage": 125.0,
     "range": 22.400000000000002,
     "carry": 0
@@ -5802,7 +5905,7 @@
    "specific_name": "Ballista",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -5839,6 +5942,7 @@
     "train_time": 25.0,
     "pop": 3,
     "speed": 3.07584,
+    "vision": 33.6,
     "damage": 250.0,
     "range": 23.8,
     "carry": 0
@@ -5852,7 +5956,7 @@
    "specific_name": "Onager",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -5889,6 +5993,7 @@
     "train_time": 25.0,
     "pop": 3,
     "speed": 3.07584,
+    "vision": 24.64,
     "damage": 40.0,
     "range": 19.6,
     "carry": 0
@@ -5902,7 +6007,7 @@
    "specific_name": "Ariēs",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS",
+    "BLD_ARSENAL",
     "BLD_ARMY_CAMP"
    ],
    "trained_at_0ad": [
@@ -5936,6 +6041,7 @@
     "train_time": 30.0,
     "pop": 3,
     "speed": 2.5632,
+    "vision": 22.400000000000002,
     "damage": 150.0,
     "range": 3.9,
     "carry": 0
@@ -5949,7 +6055,7 @@
    "specific_name": "Scorpiō",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -5984,6 +6090,7 @@
     "train_time": 20.0,
     "pop": 2,
     "speed": 2.8836,
+    "vision": 28.000000000000004,
     "damage": 240.0,
     "range": 25.200000000000003,
     "carry": 0
@@ -6035,6 +6142,7 @@
     "train_time": 8.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 2.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -6086,6 +6194,7 @@
     "train_time": 30.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 2.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -6135,6 +6244,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.4,
     "damage": 0.0,
     "range": 12.0,
     "carry": 0
@@ -6181,6 +6291,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 16.8,
     "damage": 0.0,
     "range": 1.0,
     "carry": 50
@@ -6226,7 +6337,8 @@
     "train_time": 10,
     "hack_dmg": 5,
     "pierce_dmg": 0,
-    "crush_dmg": 0
+    "crush_dmg": 0,
+    "vision": 0.0
    }
   },
   {
@@ -6238,7 +6350,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -6280,6 +6392,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 5.7672,
+    "vision": 22.400000000000002,
     "damage": 18.0,
     "range": 8.4,
     "carry": 0
@@ -6293,7 +6406,7 @@
    "specific_name": "Ḥayyāl Romaḥ Raḫūv",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_EMBASSY"
    ],
    "trained_at_0ad": [
     "embassy",
@@ -6337,6 +6450,7 @@
     "train_time": 10.5,
     "pop": 1,
     "speed": 6.4079999999999995,
+    "vision": 22.400000000000002,
     "damage": 7.0,
     "range": 2.4,
     "carry": 0
@@ -6350,7 +6464,7 @@
    "specific_name": "Ḥayyāl Ḥerev Raḫūv",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_EMBASSY"
    ],
    "trained_at_0ad": [
     "embassy",
@@ -6394,6 +6508,7 @@
     "train_time": 10.5,
     "pop": 1,
     "speed": 6.4079999999999995,
+    "vision": 22.400000000000002,
     "damage": 6.5,
     "range": 2.4,
     "carry": 0
@@ -6407,7 +6522,7 @@
    "specific_name": "Ḥayyāl Ḥerev Raḫūv",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_EMBASSY"
    ],
    "trained_at_0ad": [
     "embassy",
@@ -6451,6 +6566,7 @@
     "train_time": 10.5,
     "pop": 1,
     "speed": 6.4079999999999995,
+    "vision": 22.400000000000002,
     "damage": 6.5,
     "range": 2.4,
     "carry": 0
@@ -6503,6 +6619,7 @@
     "train_time": 25.0,
     "pop": 1,
     "speed": 6.4079999999999995,
+    "vision": 22.400000000000002,
     "damage": 14.0,
     "range": 2.4,
     "carry": 0
@@ -6516,7 +6633,7 @@
    "specific_name": "Pil Malḥamit",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_ELEPHANT_STABLE"
    ],
    "trained_at_0ad": [
     "elephant_stable"
@@ -6554,6 +6671,7 @@
     "train_time": 32.4,
     "pop": 3,
     "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
     "damage": 67.5,
     "range": 3.0,
     "carry": 0
@@ -6605,6 +6723,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 11.0,
     "range": 2.4,
     "carry": 0
@@ -6660,6 +6779,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 6.4079999999999995,
+    "vision": 28.000000000000004,
     "damage": 26.0,
     "range": 2.4,
     "carry": 0
@@ -6712,6 +6832,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
     "damage": 150.0,
     "range": 3.0,
     "carry": 0
@@ -6766,6 +6887,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 6.4079999999999995,
+    "vision": 28.000000000000004,
     "damage": 28.0,
     "range": 2.4,
     "carry": 0
@@ -6781,6 +6903,7 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -6826,6 +6949,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.6311999999999998,
+    "vision": 22.400000000000002,
     "damage": 6.7,
     "range": 16.8,
     "carry": 0
@@ -6839,7 +6963,7 @@
    "specific_name": "Sǝḫīr Kidōn",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_EMBASSY"
    ],
    "trained_at_0ad": [
     "embassy",
@@ -6885,6 +7009,7 @@
     "train_time": 7.0,
     "pop": 1,
     "speed": 4.0584,
+    "vision": 22.400000000000002,
     "damage": 16.0,
     "range": 8.4,
     "carry": 0
@@ -6898,7 +7023,7 @@
    "specific_name": "Qallāʿ Ibušimi",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_EMBASSY"
    ],
    "trained_at_0ad": [
     "embassy",
@@ -6944,6 +7069,7 @@
     "train_time": 7.0,
     "pop": 1,
     "speed": 3.8447999999999993,
+    "vision": 22.400000000000002,
     "damage": 12.6,
     "range": 12.600000000000001,
     "carry": 0
@@ -7002,6 +7128,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 5.5,
     "range": 2.4,
     "carry": 0
@@ -7015,7 +7142,7 @@
    "specific_name": "Seḫīr Ḥerev",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_EMBASSY"
    ],
    "trained_at_0ad": [
     "embassy",
@@ -7060,6 +7187,7 @@
     "train_time": 7.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 5.5,
     "range": 1.7999999999999998,
     "carry": 0
@@ -7073,7 +7201,7 @@
    "specific_name": "Seḫīr Romaḥ",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_EMBASSY"
    ],
    "trained_at_0ad": [
     "embassy",
@@ -7118,6 +7246,7 @@
     "train_time": 7.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 5.5,
     "range": 1.7999999999999998,
     "carry": 0
@@ -7131,7 +7260,8 @@
    "specific_name": "Tlat-Mašōt",
    "phase": 2,
    "trainers": [
-    "BLD_DOCK"
+    "BLD_DOCK",
+    "BLD_SUPER_DOCK"
    ],
    "trained_at_0ad": [
     "dock",
@@ -7168,6 +7298,7 @@
     "train_time": 24.0,
     "pop": 3,
     "speed": 4.984,
+    "vision": 22.400000000000002,
     "damage": 15.0,
     "range": 14.000000000000002,
     "carry": 0
@@ -7211,6 +7342,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.5244,
+    "vision": 8.4,
     "damage": 10.0,
     "range": 3.0,
     "carry": 30
@@ -7255,6 +7387,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 4.3254,
+    "vision": 14.000000000000002,
     "damage": 0.0,
     "range": 1.0,
     "carry": 100
@@ -7268,7 +7401,8 @@
    "specific_name": "Tlat-Mašōt",
    "phase": 2,
    "trainers": [
-    "BLD_DOCK"
+    "BLD_DOCK",
+    "BLD_SUPER_DOCK"
    ],
    "trained_at_0ad": [
     "dock",
@@ -7303,6 +7437,7 @@
     "train_time": 24.0,
     "pop": 3,
     "speed": 5.696,
+    "vision": 22.400000000000002,
     "damage": 200.0,
     "range": 7.199999999999999,
     "carry": 0
@@ -7316,7 +7451,8 @@
    "specific_name": "Du-Mašōt",
    "phase": 1,
    "trainers": [
-    "BLD_DOCK"
+    "BLD_DOCK",
+    "BLD_SUPER_DOCK"
    ],
    "trained_at_0ad": [
     "dock",
@@ -7353,6 +7489,7 @@
     "train_time": 12.0,
     "pop": 2,
     "speed": 5.696,
+    "vision": 22.400000000000002,
     "damage": 12.0,
     "range": 11.200000000000001,
     "carry": 0
@@ -7366,7 +7503,8 @@
    "specific_name": "Ḥameš-Mašōt",
    "phase": 3,
    "trainers": [
-    "BLD_DOCK"
+    "BLD_DOCK",
+    "BLD_SUPER_DOCK"
    ],
    "trained_at_0ad": [
     "dock",
@@ -7403,6 +7541,7 @@
     "train_time": 28.0,
     "pop": 4,
     "speed": 4.272,
+    "vision": 28.000000000000004,
     "damage": 125.0,
     "range": 22.400000000000002,
     "carry": 0
@@ -7416,7 +7555,7 @@
    "specific_name": "Ballista",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -7451,6 +7590,7 @@
     "train_time": 25.0,
     "pop": 3,
     "speed": 2.5632,
+    "vision": 33.6,
     "damage": 250.0,
     "range": 23.8,
     "carry": 0
@@ -7464,7 +7604,7 @@
    "specific_name": "Oxybelḗs",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -7499,6 +7639,7 @@
     "train_time": 20.0,
     "pop": 2,
     "speed": 2.8836,
+    "vision": 28.000000000000004,
     "damage": 240.0,
     "range": 25.200000000000003,
     "carry": 0
@@ -7512,7 +7653,7 @@
    "specific_name": "",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -7544,6 +7685,7 @@
     "train_time": 30.0,
     "pop": 3,
     "speed": 2.5632,
+    "vision": 22.400000000000002,
     "damage": 150.0,
     "range": 3.9,
     "carry": 0
@@ -7595,6 +7737,7 @@
     "train_time": 8.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 2.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -7647,6 +7790,7 @@
     "train_time": 30.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 2.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -7693,6 +7837,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.4,
     "damage": 0.0,
     "range": 12.0,
     "carry": 0
@@ -7739,6 +7884,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 16.8,
     "damage": 0.0,
     "range": 1.0,
     "carry": 50
@@ -7784,7 +7930,8 @@
     "train_time": 10,
     "hack_dmg": 5,
     "pierce_dmg": 0,
-    "crush_dmg": 0
+    "crush_dmg": 0,
+    "vision": 0.0
    }
   },
   {
@@ -7795,7 +7942,7 @@
    "specific_name": "Hippakontistḕs Odrysós",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -7839,6 +7986,7 @@
     "train_time": 10.5,
     "pop": 1,
     "speed": 5.7672,
+    "vision": 22.400000000000002,
     "damage": 18.0,
     "range": 8.4,
     "carry": 0
@@ -7853,7 +8001,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -7894,6 +8042,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 6.4079999999999995,
+    "vision": 22.400000000000002,
     "damage": 7.0,
     "range": 2.4,
     "carry": 0
@@ -7907,7 +8056,7 @@
    "specific_name": "Hetaîros",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -7946,6 +8095,7 @@
     "train_time": 25.0,
     "pop": 1,
     "speed": 6.4079999999999995,
+    "vision": 22.400000000000002,
     "damage": 14.0,
     "range": 2.4,
     "carry": 0
@@ -7959,8 +8109,8 @@
    "specific_name": "Gastraphetophoros",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS",
-    "BLD_FORTRESS"
+    "BLD_RANGE",
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal",
@@ -8000,6 +8150,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 3.4175999999999997,
+    "vision": 22.400000000000002,
     "damage": 40.0,
     "range": 16.8,
     "carry": 0
@@ -8053,6 +8204,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 11.0,
     "range": 2.4,
     "carry": 0
@@ -8107,6 +8259,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 7.0,
     "range": 3.0,
     "carry": 0
@@ -8163,6 +8316,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 6.4079999999999995,
+    "vision": 28.000000000000004,
     "damage": 26.0,
     "range": 2.4,
     "carry": 0
@@ -8216,6 +8370,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
     "damage": 22.0,
     "range": 1.7999999999999998,
     "carry": 0
@@ -8270,6 +8425,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 6.4079999999999995,
+    "vision": 28.000000000000004,
     "damage": 28.0,
     "range": 2.4,
     "carry": 0
@@ -8284,6 +8440,7 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -8331,6 +8488,7 @@
     "train_time": 7.0,
     "pop": 1,
     "speed": 3.6311999999999998,
+    "vision": 22.400000000000002,
     "damage": 6.7,
     "range": 16.8,
     "carry": 0
@@ -8346,6 +8504,7 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -8391,6 +8550,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 4.0584,
+    "vision": 22.400000000000002,
     "damage": 16.0,
     "range": 8.4,
     "carry": 0
@@ -8449,6 +8609,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 2.8836,
+    "vision": 22.400000000000002,
     "damage": 5.0,
     "range": 4.8,
     "carry": 0
@@ -8463,6 +8624,7 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -8510,6 +8672,7 @@
     "train_time": 7.0,
     "pop": 1,
     "speed": 3.8447999999999993,
+    "vision": 22.400000000000002,
     "damage": 12.6,
     "range": 12.600000000000001,
     "carry": 0
@@ -8559,6 +8722,7 @@
     "train_time": 24.0,
     "pop": 3,
     "speed": 4.984,
+    "vision": 22.400000000000002,
     "damage": 15.0,
     "range": 14.000000000000002,
     "carry": 0
@@ -8602,6 +8766,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.5244,
+    "vision": 8.4,
     "damage": 10.0,
     "range": 3.0,
     "carry": 30
@@ -8646,6 +8811,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 4.3254,
+    "vision": 14.000000000000002,
     "damage": 0.0,
     "range": 1.0,
     "carry": 100
@@ -8693,6 +8859,7 @@
     "train_time": 24.0,
     "pop": 3,
     "speed": 5.696,
+    "vision": 22.400000000000002,
     "damage": 200.0,
     "range": 7.199999999999999,
     "carry": 0
@@ -8742,6 +8909,7 @@
     "train_time": 12.0,
     "pop": 2,
     "speed": 5.696,
+    "vision": 22.400000000000002,
     "damage": 12.0,
     "range": 11.200000000000001,
     "carry": 0
@@ -8755,7 +8923,7 @@
    "specific_name": "Lithobólos",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -8790,6 +8958,7 @@
     "train_time": 25.0,
     "pop": 3,
     "speed": 2.5632,
+    "vision": 33.6,
     "damage": 250.0,
     "range": 23.8,
     "carry": 0
@@ -8803,7 +8972,7 @@
    "specific_name": "Oxybelḗs",
    "phase": 2,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -8838,6 +9007,7 @@
     "train_time": 20.0,
     "pop": 2,
     "speed": 2.8836,
+    "vision": 28.000000000000004,
     "damage": 240.0,
     "range": 25.200000000000003,
     "carry": 0
@@ -8851,7 +9021,7 @@
    "specific_name": "Krios",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -8883,6 +9053,7 @@
     "train_time": 30.0,
     "pop": 3,
     "speed": 2.5632,
+    "vision": 22.400000000000002,
     "damage": 150.0,
     "range": 3.9,
     "carry": 0
@@ -8896,7 +9067,7 @@
    "specific_name": "Helépolis",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -8931,6 +9102,7 @@
     "train_time": 40.0,
     "pop": 3,
     "speed": 2.2428,
+    "vision": 22.400000000000002,
     "damage": 14.5,
     "range": 15.400000000000002,
     "carry": 0
@@ -8982,6 +9154,7 @@
     "train_time": 8.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 2.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -9033,6 +9206,7 @@
     "train_time": 30.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 2.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -9078,6 +9252,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.4,
     "damage": 0.0,
     "range": 12.0,
     "carry": 0
@@ -9124,6 +9299,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 16.8,
     "damage": 0.0,
     "range": 1.0,
     "carry": 50
@@ -9169,7 +9345,8 @@
     "train_time": 10,
     "hack_dmg": 5,
     "pierce_dmg": 0,
-    "crush_dmg": 0
+    "crush_dmg": 0,
+    "vision": 0.0
    }
   },
   {
@@ -9181,7 +9358,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -9224,6 +9401,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 5.7672,
+    "vision": 22.400000000000002,
     "damage": 18.0,
     "range": 8.4,
     "carry": 0
@@ -9237,7 +9415,7 @@
    "specific_name": "Eporedos",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -9277,6 +9455,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 6.4079999999999995,
+    "vision": 22.400000000000002,
     "damage": 6.5,
     "range": 2.4,
     "carry": 0
@@ -9290,7 +9469,7 @@
    "specific_name": "Essedon",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -9331,6 +9510,7 @@
     "train_time": 30.0,
     "pop": 1,
     "speed": 6.4079999999999995,
+    "vision": 22.400000000000002,
     "damage": 36.0,
     "range": 8.4,
     "carry": 0
@@ -9386,6 +9566,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 3.3642000000000003,
+    "vision": 22.400000000000002,
     "damage": 11.0,
     "range": 1.7999999999999998,
     "carry": 0
@@ -9442,6 +9623,7 @@
     "train_time": 60.0,
     "pop": 0,
     "speed": 6.4079999999999995,
+    "vision": 28.000000000000004,
     "damage": 60.0,
     "range": 8.4,
     "carry": 0
@@ -9497,6 +9679,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 3.3642000000000003,
+    "vision": 28.000000000000004,
     "damage": 22.0,
     "range": 1.7999999999999998,
     "carry": 0
@@ -9551,6 +9734,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 6.4079999999999995,
+    "vision": 28.000000000000004,
     "damage": 26.0,
     "range": 2.4,
     "carry": 0
@@ -9565,6 +9749,7 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -9611,6 +9796,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 4.26132,
+    "vision": 22.400000000000002,
     "damage": 16.0,
     "range": 8.4,
     "carry": 0
@@ -9626,6 +9812,7 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -9674,6 +9861,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 4.03704,
+    "vision": 22.400000000000002,
     "damage": 12.6,
     "range": 12.600000000000001,
     "carry": 0
@@ -9735,6 +9923,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.3642000000000003,
+    "vision": 22.400000000000002,
     "damage": 5.5,
     "range": 2.4,
     "carry": 0
@@ -9784,6 +9973,7 @@
     "train_time": 40.0,
     "pop": 3,
     "speed": 4.4856,
+    "vision": 22.400000000000002,
     "damage": 15.0,
     "range": 14.000000000000002,
     "carry": 0
@@ -9831,6 +10021,7 @@
     "train_time": 30.0,
     "pop": 1,
     "speed": 3.5599999999999996,
+    "vision": 14.000000000000002,
     "damage": 0.0,
     "range": 20.0,
     "carry": 0
@@ -9876,6 +10067,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.5244,
+    "vision": 8.4,
     "damage": 10.0,
     "range": 3.0,
     "carry": 30
@@ -9922,6 +10114,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 4.3254,
+    "vision": 14.000000000000002,
     "damage": 0.0,
     "range": 1.0,
     "carry": 100
@@ -9971,6 +10164,7 @@
     "train_time": 12.0,
     "pop": 2,
     "speed": 5.696,
+    "vision": 22.400000000000002,
     "damage": 12.0,
     "range": 11.200000000000001,
     "carry": 0
@@ -9984,7 +10178,7 @@
    "specific_name": "Molton",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -10016,6 +10210,7 @@
     "train_time": 30.0,
     "pop": 3,
     "speed": 2.5632,
+    "vision": 22.400000000000002,
     "damage": 150.0,
     "range": 3.9,
     "carry": 0
@@ -10068,6 +10263,7 @@
     "train_time": 8.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 2.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -10119,6 +10315,7 @@
     "train_time": 30.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 2.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -10164,6 +10361,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.4,
     "damage": 0.0,
     "range": 12.0,
     "carry": 0
@@ -10210,6 +10408,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 16.8,
     "damage": 0.0,
     "range": 1.0,
     "carry": 50
@@ -10257,6 +10456,7 @@
     "train_time": 15.0,
     "pop": 0,
     "speed": 4.806,
+    "vision": 8.4,
     "damage": 9.0,
     "range": 1.7999999999999998,
     "carry": 0
@@ -10302,7 +10502,8 @@
     "train_time": 10,
     "hack_dmg": 5,
     "pierce_dmg": 0,
-    "crush_dmg": 0
+    "crush_dmg": 0,
+    "vision": 0.0
    }
   },
   {
@@ -10314,7 +10515,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -10356,6 +10557,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 5.7672,
+    "vision": 22.400000000000002,
     "damage": 18.0,
     "range": 8.4,
     "carry": 0
@@ -10369,7 +10571,7 @@
    "specific_name": "Eporedos",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -10411,6 +10613,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 6.4079999999999995,
+    "vision": 22.400000000000002,
     "damage": 7.15,
     "range": 2.4,
     "carry": 0
@@ -10424,7 +10627,7 @@
    "specific_name": "Uerouicos",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -10465,6 +10668,7 @@
     "train_time": 25.0,
     "pop": 1,
     "speed": 6.4079999999999995,
+    "vision": 22.400000000000002,
     "damage": 15.400000000000002,
     "range": 2.4,
     "carry": 0
@@ -10516,6 +10720,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 4.4856,
+    "vision": 22.400000000000002,
     "damage": 11.0,
     "range": 2.4,
     "carry": 0
@@ -10569,6 +10774,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 11.0,
     "range": 1.7999999999999998,
     "carry": 0
@@ -10620,6 +10826,7 @@
     "train_time": 24.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 10.0,
     "range": 1.7999999999999998,
     "carry": 0
@@ -10673,6 +10880,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
     "damage": 22.0,
     "range": 1.7999999999999998,
     "carry": 0
@@ -10727,6 +10935,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 6.4079999999999995,
+    "vision": 28.000000000000004,
     "damage": 26.0,
     "range": 2.4,
     "carry": 0
@@ -10780,6 +10989,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
     "damage": 22.0,
     "range": 2.4,
     "carry": 0
@@ -10795,6 +11005,7 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -10840,6 +11051,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 4.0584,
+    "vision": 22.400000000000002,
     "damage": 16.0,
     "range": 8.4,
     "carry": 0
@@ -10854,6 +11066,7 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -10898,6 +11111,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.8447999999999993,
+    "vision": 22.400000000000002,
     "damage": 12.6,
     "range": 12.600000000000001,
     "carry": 0
@@ -10956,6 +11170,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 5.5,
     "range": 2.4,
     "carry": 0
@@ -11005,6 +11220,7 @@
     "train_time": 40.0,
     "pop": 3,
     "speed": 4.4856,
+    "vision": 22.400000000000002,
     "damage": 15.0,
     "range": 14.000000000000002,
     "carry": 0
@@ -11052,6 +11268,7 @@
     "train_time": 30.0,
     "pop": 1,
     "speed": 3.5599999999999996,
+    "vision": 14.000000000000002,
     "damage": 0.0,
     "range": 20.0,
     "carry": 0
@@ -11095,6 +11312,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.5244,
+    "vision": 8.4,
     "damage": 10.0,
     "range": 3.0,
     "carry": 30
@@ -11139,6 +11357,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 4.3254,
+    "vision": 14.000000000000002,
     "damage": 0.0,
     "range": 1.0,
     "carry": 100
@@ -11188,6 +11407,7 @@
     "train_time": 12.0,
     "pop": 2,
     "speed": 5.696,
+    "vision": 22.400000000000002,
     "damage": 12.0,
     "range": 11.200000000000001,
     "carry": 0
@@ -11201,7 +11421,7 @@
    "specific_name": "Molton",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -11233,6 +11453,7 @@
     "train_time": 30.0,
     "pop": 3,
     "speed": 2.5632,
+    "vision": 22.400000000000002,
     "damage": 150.0,
     "range": 3.9,
     "carry": 0
@@ -11284,6 +11505,7 @@
     "train_time": 8.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 2.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -11297,8 +11519,7 @@
    "specific_name": "Bena",
    "phase": 1,
    "trainers": [
-    "BLD_HOUSE",
-    "BLD_BARRACKS"
+    "BLD_HOUSE"
    ],
    "trained_at_0ad": [
     "house",
@@ -11337,6 +11558,7 @@
     "train_time": 30.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 2.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -11382,6 +11604,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.4,
     "damage": 0.0,
     "range": 12.0,
     "carry": 0
@@ -11428,6 +11651,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 16.8,
     "damage": 0.0,
     "range": 1.0,
     "carry": 50
@@ -11473,7 +11697,8 @@
     "train_time": 10,
     "hack_dmg": 5,
     "pierce_dmg": 0,
-    "crush_dmg": 0
+    "crush_dmg": 0,
+    "vision": 0.0
    }
   },
   {
@@ -11485,7 +11710,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -11527,6 +11752,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 5.7672,
+    "vision": 22.400000000000002,
     "damage": 18.0,
     "range": 8.4,
     "carry": 0
@@ -11540,7 +11766,7 @@
    "specific_name": "Lantzari",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -11580,6 +11806,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 6.4079999999999995,
+    "vision": 22.400000000000002,
     "damage": 7.0,
     "range": 2.4,
     "carry": 0
@@ -11593,7 +11820,7 @@
    "specific_name": "Leial Zalduneria",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -11633,6 +11860,7 @@
     "train_time": 25.0,
     "pop": 1,
     "speed": 5.7672,
+    "vision": 22.400000000000002,
     "damage": 25.0,
     "range": 8.4,
     "carry": 0
@@ -11686,6 +11914,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 11.0,
     "range": 1.7999999999999998,
     "carry": 0
@@ -11740,6 +11969,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
     "damage": 22.0,
     "range": 1.7999999999999998,
     "carry": 0
@@ -11794,6 +12024,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 6.4079999999999995,
+    "vision": 28.000000000000004,
     "damage": 28.0,
     "range": 2.4,
     "carry": 0
@@ -11848,6 +12079,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
     "damage": 22.0,
     "range": 1.7999999999999998,
     "carry": 0
@@ -11863,6 +12095,7 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -11908,6 +12141,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 4.0584,
+    "vision": 22.400000000000002,
     "damage": 16.0,
     "range": 8.4,
     "carry": 0
@@ -11922,6 +12156,7 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -11966,6 +12201,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.8447999999999993,
+    "vision": 22.400000000000002,
     "damage": 12.6,
     "range": 12.600000000000001,
     "carry": 0
@@ -12022,6 +12258,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 5.5,
     "range": 2.4,
     "carry": 0
@@ -12080,6 +12317,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 5.5,
     "range": 1.7999999999999998,
     "carry": 0
@@ -12129,6 +12367,7 @@
     "train_time": 40.0,
     "pop": 3,
     "speed": 4.4856,
+    "vision": 22.400000000000002,
     "damage": 15.0,
     "range": 14.000000000000002,
     "carry": 0
@@ -12176,6 +12415,7 @@
     "train_time": 30.0,
     "pop": 1,
     "speed": 3.5599999999999996,
+    "vision": 14.000000000000002,
     "damage": 0.0,
     "range": 20.0,
     "carry": 0
@@ -12219,6 +12459,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.5244,
+    "vision": 8.4,
     "damage": 10.0,
     "range": 3.0,
     "carry": 30
@@ -12263,6 +12504,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 4.3254,
+    "vision": 14.000000000000002,
     "damage": 0.0,
     "range": 1.0,
     "carry": 100
@@ -12312,6 +12554,7 @@
     "train_time": 12.0,
     "pop": 2,
     "speed": 5.696,
+    "vision": 22.400000000000002,
     "damage": 12.0,
     "range": 11.200000000000001,
     "carry": 0
@@ -12325,7 +12568,7 @@
    "specific_name": "Ahariburu",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -12357,6 +12600,7 @@
     "train_time": 30.0,
     "pop": 3,
     "speed": 2.5632,
+    "vision": 22.400000000000002,
     "damage": 150.0,
     "range": 3.9,
     "carry": 0
@@ -12408,6 +12652,7 @@
     "train_time": 8.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 2.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -12459,6 +12704,7 @@
     "train_time": 30.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 2.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -12504,6 +12750,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.4,
     "damage": 0.0,
     "range": 12.0,
     "carry": 0
@@ -12550,6 +12797,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 16.8,
     "damage": 0.0,
     "range": 1.0,
     "carry": 50
@@ -12595,7 +12843,8 @@
     "train_time": 10,
     "hack_dmg": 5,
     "pierce_dmg": 0,
-    "crush_dmg": 0
+    "crush_dmg": 0,
+    "vision": 0.0
    }
   },
   {
@@ -12607,7 +12856,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -12649,6 +12898,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 5.7672,
+    "vision": 22.400000000000002,
     "damage": 18.0,
     "range": 8.4,
     "carry": 0
@@ -12662,7 +12912,7 @@
    "specific_name": "Aśvārohagaṇaḥ",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -12702,6 +12952,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 6.4079999999999995,
+    "vision": 22.400000000000002,
     "damage": 6.5,
     "range": 2.4,
     "carry": 0
@@ -12715,7 +12966,7 @@
    "specific_name": "Rath",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -12756,6 +13007,7 @@
     "train_time": 30.0,
     "pop": 1,
     "speed": 6.052,
+    "vision": 22.400000000000002,
     "damage": 14.0,
     "range": 16.8,
     "carry": 0
@@ -12769,7 +13021,7 @@
    "specific_name": "Gajendra",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_ELEPHANT_STABLE"
    ],
    "trained_at_0ad": [
     "elephant_stable"
@@ -12809,6 +13061,7 @@
     "train_time": 27.72,
     "pop": 3,
     "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
     "damage": 82.5,
     "range": 3.0,
     "carry": 0
@@ -12862,6 +13115,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 14.0,
     "range": 1.7999999999999998,
     "carry": 0
@@ -12913,6 +13167,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 11.0,
     "range": 1.7999999999999998,
     "carry": 0
@@ -12965,6 +13220,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 3.6311999999999998,
+    "vision": 22.400000000000002,
     "damage": 13.5,
     "range": 16.8,
     "carry": 0
@@ -12978,7 +13234,7 @@
    "specific_name": "Vachii Gaja",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_ELEPHANT_STABLE"
    ],
    "trained_at_0ad": [
     "elephant_stable"
@@ -13021,6 +13277,7 @@
     "train_time": 14.0,
     "pop": 2,
     "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
     "damage": 14.0,
     "range": 16.8,
     "carry": 0
@@ -13078,6 +13335,7 @@
     "train_time": 60.0,
     "pop": 0,
     "speed": 6.052,
+    "vision": 28.000000000000004,
     "damage": 28.0,
     "range": 16.8,
     "carry": 0
@@ -13130,6 +13388,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
     "damage": 0.0,
     "range": 2.8,
     "carry": 0
@@ -13183,6 +13442,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
     "damage": 150.0,
     "range": 3.0,
     "carry": 0
@@ -13198,6 +13458,7 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -13243,6 +13504,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.6311999999999998,
+    "vision": 22.400000000000002,
     "damage": 6.7,
     "range": 16.8,
     "carry": 0
@@ -13301,6 +13563,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 5.5,
     "range": 2.4,
     "carry": 0
@@ -13357,6 +13620,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 5.5,
     "range": 1.7999999999999998,
     "carry": 0
@@ -13406,6 +13670,7 @@
     "train_time": 40.0,
     "pop": 3,
     "speed": 4.4856,
+    "vision": 22.400000000000002,
     "damage": 15.0,
     "range": 14.000000000000002,
     "carry": 0
@@ -13449,6 +13714,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.5244,
+    "vision": 8.4,
     "damage": 10.0,
     "range": 3.0,
     "carry": 30
@@ -13493,6 +13759,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 4.3254,
+    "vision": 14.000000000000002,
     "damage": 0.0,
     "range": 1.0,
     "carry": 100
@@ -13542,6 +13809,7 @@
     "train_time": 12.0,
     "pop": 2,
     "speed": 5.696,
+    "vision": 22.400000000000002,
     "damage": 12.0,
     "range": 11.200000000000001,
     "carry": 0
@@ -13555,7 +13823,7 @@
    "specific_name": "",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -13587,6 +13855,7 @@
     "train_time": 30.0,
     "pop": 3,
     "speed": 2.5632,
+    "vision": 22.400000000000002,
     "damage": 150.0,
     "range": 3.9,
     "carry": 0
@@ -13601,7 +13870,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_ELEPHANT_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -13638,6 +13907,7 @@
     "train_time": 10.5,
     "pop": 1,
     "speed": 1.9223999999999997,
+    "vision": 14.000000000000002,
     "damage": 0.0,
     "range": 2.0,
     "carry": 100
@@ -13689,6 +13959,7 @@
     "train_time": 8.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 2.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -13740,6 +14011,7 @@
     "train_time": 30.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 2.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -13785,6 +14057,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.4,
     "damage": 0.0,
     "range": 12.0,
     "carry": 0
@@ -13831,6 +14104,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 16.8,
     "damage": 0.0,
     "range": 1.0,
     "carry": 50
@@ -13876,7 +14150,8 @@
     "train_time": 10,
     "hack_dmg": 5,
     "pierce_dmg": 0,
-    "crush_dmg": 0
+    "crush_dmg": 0,
+    "vision": 0.0
    }
   },
   {
@@ -13888,7 +14163,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -13930,6 +14205,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 5.7672,
+    "vision": 22.400000000000002,
     "damage": 18.0,
     "range": 8.4,
     "carry": 0
@@ -13990,6 +14266,7 @@
     "train_time": 10.5,
     "pop": 1,
     "speed": 5.7672,
+    "vision": 22.400000000000002,
     "damage": 18.0,
     "range": 8.4,
     "carry": 0
@@ -14003,7 +14280,7 @@
    "specific_name": "Htr",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -14043,6 +14320,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 6.4079999999999995,
+    "vision": 22.400000000000002,
     "damage": 7.0,
     "range": 2.4,
     "carry": 0
@@ -14056,7 +14334,7 @@
    "specific_name": "Htr Msʿ n mh-ib",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -14095,6 +14373,7 @@
     "train_time": 25.0,
     "pop": 1,
     "speed": 6.4079999999999995,
+    "vision": 22.400000000000002,
     "damage": 14.0,
     "range": 2.4,
     "carry": 0
@@ -14108,7 +14387,7 @@
    "specific_name": "Abore ʿhȝ",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_ELEPHANT_STABLE"
    ],
    "trained_at_0ad": [
     "elephant_stable"
@@ -14146,6 +14425,7 @@
     "train_time": 32.4,
     "pop": 3,
     "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
     "damage": 67.5,
     "range": 3.0,
     "carry": 0
@@ -14198,6 +14478,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 11.0,
     "range": 1.7999999999999998,
     "carry": 0
@@ -14250,6 +14531,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 16.0,
     "range": 1.7999999999999998,
     "carry": 0
@@ -14264,6 +14546,7 @@
    "phase": 3,
    "trainers": [
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -14305,6 +14588,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 3.6311999999999998,
+    "vision": 22.400000000000002,
     "damage": 13.5,
     "range": 16.8,
     "carry": 0
@@ -14361,6 +14645,7 @@
     "train_time": 60.0,
     "pop": 0,
     "speed": 6.052,
+    "vision": 28.000000000000004,
     "damage": 28.0,
     "range": 16.8,
     "carry": 0
@@ -14415,6 +14700,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
     "damage": 150.0,
     "range": 3.0,
     "carry": 0
@@ -14470,6 +14756,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 6.4079999999999995,
+    "vision": 28.000000000000004,
     "damage": 28.0,
     "range": 2.4,
     "carry": 0
@@ -14485,6 +14772,7 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -14530,6 +14818,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.6311999999999998,
+    "vision": 22.400000000000002,
     "damage": 6.7,
     "range": 16.8,
     "carry": 0
@@ -14588,6 +14877,7 @@
     "train_time": 7.0,
     "pop": 1,
     "speed": 4.0584,
+    "vision": 22.400000000000002,
     "damage": 16.0,
     "range": 8.4,
     "carry": 0
@@ -14645,6 +14935,7 @@
     "train_time": 7.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 7.0,
     "range": 1.7999999999999998,
     "carry": 0
@@ -14701,6 +14992,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 2.8836,
+    "vision": 22.400000000000002,
     "damage": 5.0,
     "range": 4.8,
     "carry": 0
@@ -14759,6 +15051,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 5.5,
     "range": 2.4,
     "carry": 0
@@ -14815,6 +15108,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 5.5,
     "range": 1.7999999999999998,
     "carry": 0
@@ -14865,6 +15159,7 @@
     "train_time": 24.0,
     "pop": 3,
     "speed": 4.984,
+    "vision": 22.400000000000002,
     "damage": 15.0,
     "range": 14.000000000000002,
     "carry": 0
@@ -14908,6 +15203,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.5244,
+    "vision": 8.4,
     "damage": 10.0,
     "range": 3.0,
     "carry": 30
@@ -14952,6 +15248,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 4.3254,
+    "vision": 14.000000000000002,
     "damage": 0.0,
     "range": 1.0,
     "carry": 100
@@ -15001,6 +15298,7 @@
     "train_time": 12.0,
     "pop": 2,
     "speed": 5.696,
+    "vision": 22.400000000000002,
     "damage": 12.0,
     "range": 11.200000000000001,
     "carry": 0
@@ -15014,7 +15312,7 @@
    "specific_name": "",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -15046,6 +15344,7 @@
     "train_time": 30.0,
     "pop": 3,
     "speed": 2.5632,
+    "vision": 22.400000000000002,
     "damage": 180.0,
     "range": 3.9,
     "carry": 0
@@ -15059,7 +15358,7 @@
    "specific_name": "iwn n ms",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -15094,6 +15393,7 @@
     "train_time": 40.0,
     "pop": 3,
     "speed": 2.2428,
+    "vision": 22.400000000000002,
     "damage": 14.5,
     "range": 15.400000000000002,
     "carry": 0
@@ -15145,6 +15445,7 @@
     "train_time": 8.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 2.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -15196,6 +15497,7 @@
     "train_time": 30.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 2.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -15241,6 +15543,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.4,
     "damage": 0.0,
     "range": 12.0,
     "carry": 0
@@ -15286,6 +15589,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.4,
     "damage": 0.0,
     "range": 12.0,
     "carry": 0
@@ -15332,6 +15636,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 16.8,
     "damage": 0.0,
     "range": 1.0,
     "carry": 50
@@ -15377,7 +15682,8 @@
     "train_time": 10,
     "hack_dmg": 5,
     "pierce_dmg": 0,
-    "crush_dmg": 0
+    "crush_dmg": 0,
+    "vision": 0.0
    }
   },
   {
@@ -15389,7 +15695,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -15432,6 +15738,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 5.4468,
+    "vision": 22.400000000000002,
     "damage": 7.0,
     "range": 16.8,
     "carry": 0
@@ -15491,6 +15798,7 @@
     "train_time": 10.5,
     "pop": 1,
     "speed": 5.7672,
+    "vision": 22.400000000000002,
     "damage": 18.0,
     "range": 8.4,
     "carry": 0
@@ -15549,6 +15857,7 @@
     "train_time": 10.5,
     "pop": 1,
     "speed": 6.4079999999999995,
+    "vision": 22.400000000000002,
     "damage": 7.0,
     "range": 2.4,
     "carry": 0
@@ -15562,7 +15871,7 @@
    "specific_name": "Ágēma Basiléōs",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -15601,6 +15910,7 @@
     "train_time": 25.0,
     "pop": 1,
     "speed": 6.4079999999999995,
+    "vision": 22.400000000000002,
     "damage": 14.0,
     "range": 2.4,
     "carry": 0
@@ -15614,7 +15924,7 @@
    "specific_name": "Polémou Eléphantos",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_ELEPHANT_STABLE"
    ],
    "trained_at_0ad": [
     "elephant_stable"
@@ -15652,6 +15962,7 @@
     "train_time": 32.4,
     "pop": 3,
     "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
     "damage": 67.5,
     "range": 3.0,
     "carry": 0
@@ -15705,6 +16016,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 2.8836,
+    "vision": 22.400000000000002,
     "damage": 10.0,
     "range": 4.8,
     "carry": 0
@@ -15761,6 +16073,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
     "damage": 27.0,
     "range": 16.8,
     "carry": 0
@@ -15814,6 +16127,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
     "damage": 150.0,
     "range": 3.0,
     "carry": 0
@@ -15869,6 +16183,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 6.4079999999999995,
+    "vision": 28.000000000000004,
     "damage": 26.0,
     "range": 2.4,
     "carry": 0
@@ -15883,6 +16198,7 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -15930,6 +16246,7 @@
     "train_time": 7.0,
     "pop": 1,
     "speed": 3.6311999999999998,
+    "vision": 22.400000000000002,
     "damage": 6.7,
     "range": 16.8,
     "carry": 0
@@ -15944,6 +16261,7 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -15991,6 +16309,7 @@
     "train_time": 7.0,
     "pop": 1,
     "speed": 4.0584,
+    "vision": 22.400000000000002,
     "damage": 16.0,
     "range": 8.4,
     "carry": 0
@@ -16049,6 +16368,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 2.8836,
+    "vision": 22.400000000000002,
     "damage": 5.0,
     "range": 4.8,
     "carry": 0
@@ -16064,6 +16384,7 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -16109,6 +16430,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.8447999999999993,
+    "vision": 22.400000000000002,
     "damage": 12.6,
     "range": 12.600000000000001,
     "carry": 0
@@ -16168,6 +16490,7 @@
     "train_time": 7.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 5.5,
     "range": 2.4,
     "carry": 0
@@ -16227,6 +16550,7 @@
     "train_time": 7.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 5.5,
     "range": 1.7999999999999998,
     "carry": 0
@@ -16276,6 +16600,7 @@
     "train_time": 24.0,
     "pop": 3,
     "speed": 4.984,
+    "vision": 22.400000000000002,
     "damage": 15.0,
     "range": 14.000000000000002,
     "carry": 0
@@ -16319,6 +16644,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.5244,
+    "vision": 8.4,
     "damage": 10.0,
     "range": 3.0,
     "carry": 30
@@ -16363,6 +16689,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 4.3254,
+    "vision": 14.000000000000002,
     "damage": 0.0,
     "range": 1.0,
     "carry": 100
@@ -16410,6 +16737,7 @@
     "train_time": 24.0,
     "pop": 3,
     "speed": 5.696,
+    "vision": 22.400000000000002,
     "damage": 200.0,
     "range": 7.199999999999999,
     "carry": 0
@@ -16459,6 +16787,7 @@
     "train_time": 12.0,
     "pop": 2,
     "speed": 5.696,
+    "vision": 22.400000000000002,
     "damage": 12.0,
     "range": 11.200000000000001,
     "carry": 0
@@ -16508,6 +16837,7 @@
     "train_time": 28.0,
     "pop": 4,
     "speed": 4.272,
+    "vision": 28.000000000000004,
     "damage": 125.0,
     "range": 22.400000000000002,
     "carry": 0
@@ -16521,7 +16851,7 @@
    "specific_name": "Lithobólos",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -16556,6 +16886,7 @@
     "train_time": 25.0,
     "pop": 3,
     "speed": 2.5632,
+    "vision": 33.6,
     "damage": 250.0,
     "range": 23.8,
     "carry": 0
@@ -16569,7 +16900,7 @@
    "specific_name": "Polybolos",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -16604,6 +16935,7 @@
     "train_time": 20.0,
     "pop": 2,
     "speed": 2.8836,
+    "vision": 28.000000000000004,
     "damage": 160.0,
     "range": 25.200000000000003,
     "carry": 0
@@ -16617,7 +16949,7 @@
    "specific_name": "Krios",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -16649,6 +16981,7 @@
     "train_time": 30.0,
     "pop": 3,
     "speed": 2.5632,
+    "vision": 22.400000000000002,
     "damage": 150.0,
     "range": 3.9,
     "carry": 0
@@ -16662,7 +16995,7 @@
    "specific_name": "Helépolis",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -16697,6 +17030,7 @@
     "train_time": 40.0,
     "pop": 3,
     "speed": 2.2428,
+    "vision": 22.400000000000002,
     "damage": 14.5,
     "range": 15.400000000000002,
     "carry": 0
@@ -16750,6 +17084,7 @@
     "train_time": 8.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 2.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -16801,6 +17136,7 @@
     "train_time": 30.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 2.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -16846,6 +17182,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.4,
     "damage": 0.0,
     "range": 12.0,
     "carry": 0
@@ -16892,6 +17229,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 16.8,
     "damage": 0.0,
     "range": 1.0,
     "carry": 50
@@ -16937,7 +17275,8 @@
     "train_time": 10,
     "hack_dmg": 5,
     "pierce_dmg": 0,
-    "crush_dmg": 0
+    "crush_dmg": 0,
+    "vision": 0.0
    }
   },
   {
@@ -16948,7 +17287,7 @@
    "specific_name": "Hippotoxotès Dahae",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -16989,6 +17328,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 5.4468,
+    "vision": 22.400000000000002,
     "damage": 7.0,
     "range": 16.8,
     "carry": 0
@@ -17003,7 +17343,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -17045,6 +17385,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 5.7672,
+    "vision": 22.400000000000002,
     "damage": 18.0,
     "range": 8.4,
     "carry": 0
@@ -17103,6 +17444,7 @@
     "train_time": 10.5,
     "pop": 1,
     "speed": 6.4079999999999995,
+    "vision": 22.400000000000002,
     "damage": 7.0,
     "range": 2.4,
     "carry": 0
@@ -17116,7 +17458,7 @@
    "specific_name": "Seleukidón Kataphraktos",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -17156,6 +17498,7 @@
     "train_time": 25.0,
     "pop": 1,
     "speed": 6.087599999999999,
+    "vision": 22.400000000000002,
     "damage": 14.0,
     "range": 4.2,
     "carry": 0
@@ -17169,7 +17512,7 @@
    "specific_name": "Drepanèphoros",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -17210,6 +17553,7 @@
     "train_time": 30.0,
     "pop": 1,
     "speed": 6.052,
+    "vision": 22.400000000000002,
     "damage": 14.0,
     "range": 16.8,
     "carry": 0
@@ -17223,7 +17567,7 @@
    "specific_name": "Thorakisménos Eléphantos",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_ELEPHANT_STABLE"
    ],
    "trained_at_0ad": [
     "elephant_stable"
@@ -17261,6 +17605,7 @@
     "train_time": 39.6,
     "pop": 3,
     "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
     "damage": 82.5,
     "range": 3.0,
     "carry": 0
@@ -17314,6 +17659,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 2.8836,
+    "vision": 22.400000000000002,
     "damage": 10.0,
     "range": 4.8,
     "carry": 0
@@ -17367,6 +17713,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 11.0,
     "range": 1.7999999999999998,
     "carry": 0
@@ -17421,6 +17768,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 6.4079999999999995,
+    "vision": 28.000000000000004,
     "damage": 28.0,
     "range": 2.4,
     "carry": 0
@@ -17475,6 +17823,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 6.4079999999999995,
+    "vision": 28.000000000000004,
     "damage": 26.0,
     "range": 2.4,
     "carry": 0
@@ -17527,6 +17876,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
     "damage": 150.0,
     "range": 3.0,
     "carry": 0
@@ -17585,6 +17935,7 @@
     "train_time": 7.0,
     "pop": 1,
     "speed": 3.6311999999999998,
+    "vision": 22.400000000000002,
     "damage": 6.7,
     "range": 16.8,
     "carry": 0
@@ -17600,6 +17951,7 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -17645,6 +17997,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 4.0584,
+    "vision": 22.400000000000002,
     "damage": 16.0,
     "range": 8.4,
     "carry": 0
@@ -17701,6 +18054,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 2.8836,
+    "vision": 22.400000000000002,
     "damage": 5.0,
     "range": 4.8,
     "carry": 0
@@ -17759,6 +18113,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 5.5,
     "range": 2.4,
     "carry": 0
@@ -17818,6 +18173,7 @@
     "train_time": 7.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 5.5,
     "range": 1.7999999999999998,
     "carry": 0
@@ -17867,6 +18223,7 @@
     "train_time": 24.0,
     "pop": 3,
     "speed": 4.984,
+    "vision": 22.400000000000002,
     "damage": 15.0,
     "range": 14.000000000000002,
     "carry": 0
@@ -17910,6 +18267,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.5244,
+    "vision": 8.4,
     "damage": 10.0,
     "range": 3.0,
     "carry": 30
@@ -17954,6 +18312,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 4.3254,
+    "vision": 14.000000000000002,
     "damage": 0.0,
     "range": 1.0,
     "carry": 100
@@ -18001,6 +18360,7 @@
     "train_time": 24.0,
     "pop": 3,
     "speed": 5.696,
+    "vision": 22.400000000000002,
     "damage": 200.0,
     "range": 7.199999999999999,
     "carry": 0
@@ -18050,6 +18410,7 @@
     "train_time": 12.0,
     "pop": 2,
     "speed": 5.696,
+    "vision": 22.400000000000002,
     "damage": 12.0,
     "range": 11.200000000000001,
     "carry": 0
@@ -18099,6 +18460,7 @@
     "train_time": 28.0,
     "pop": 4,
     "speed": 4.272,
+    "vision": 28.000000000000004,
     "damage": 125.0,
     "range": 22.400000000000002,
     "carry": 0
@@ -18112,7 +18474,7 @@
    "specific_name": "Lithobólos",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -18147,6 +18509,7 @@
     "train_time": 25.0,
     "pop": 3,
     "speed": 2.5632,
+    "vision": 33.6,
     "damage": 250.0,
     "range": 23.8,
     "carry": 0
@@ -18160,7 +18523,7 @@
    "specific_name": "Krios",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -18192,6 +18555,7 @@
     "train_time": 30.0,
     "pop": 3,
     "speed": 2.5632,
+    "vision": 22.400000000000002,
     "damage": 150.0,
     "range": 3.9,
     "carry": 0
@@ -18205,7 +18569,7 @@
    "specific_name": "Helépolis",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -18240,6 +18604,7 @@
     "train_time": 40.0,
     "pop": 3,
     "speed": 2.2428,
+    "vision": 22.400000000000002,
     "damage": 14.5,
     "range": 15.400000000000002,
     "carry": 0
@@ -18293,6 +18658,7 @@
     "train_time": 8.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 2.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -18344,6 +18710,7 @@
     "train_time": 30.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 2.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -18389,6 +18756,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.4,
     "damage": 0.0,
     "range": 12.0,
     "carry": 0
@@ -18435,6 +18803,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 16.8,
     "damage": 0.0,
     "range": 1.0,
     "carry": 50
@@ -18480,7 +18849,8 @@
     "train_time": 10,
     "hack_dmg": 5,
     "pierce_dmg": 0,
-    "crush_dmg": 0
+    "crush_dmg": 0,
+    "vision": 0.0
    }
   },
   {
@@ -18491,7 +18861,7 @@
    "specific_name": "Gōng Qíbīng",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -18532,6 +18902,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 5.4468,
+    "vision": 22.400000000000002,
     "damage": 7.0,
     "range": 16.8,
     "carry": 0
@@ -18545,7 +18916,7 @@
    "specific_name": "Máo Qíbīng",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -18585,6 +18956,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 6.4079999999999995,
+    "vision": 22.400000000000002,
     "damage": 7.0,
     "range": 2.4,
     "carry": 0
@@ -18599,7 +18971,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -18641,6 +19013,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 6.4079999999999995,
+    "vision": 22.400000000000002,
     "damage": 6.5,
     "range": 2.4,
     "carry": 0
@@ -18693,6 +19066,7 @@
     "train_time": 25.0,
     "pop": 1,
     "speed": 6.4079999999999995,
+    "vision": 22.400000000000002,
     "damage": 14.0,
     "range": 2.4,
     "carry": 0
@@ -18747,6 +19121,7 @@
     "train_time": 30.0,
     "pop": 1,
     "speed": 6.052,
+    "vision": 22.400000000000002,
     "damage": 14.0,
     "range": 16.8,
     "carry": 0
@@ -18799,6 +19174,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 3.4175999999999997,
+    "vision": 22.400000000000002,
     "damage": 40.0,
     "range": 16.8,
     "carry": 0
@@ -18850,6 +19226,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 11.0,
     "range": 2.4,
     "carry": 0
@@ -18907,6 +19284,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 6.4079999999999995,
+    "vision": 28.000000000000004,
     "damage": 28.0,
     "range": 2.4,
     "carry": 0
@@ -18964,6 +19342,7 @@
     "train_time": 50.0,
     "pop": 0,
     "speed": 6.4079999999999995,
+    "vision": 28.000000000000004,
     "damage": 26.0,
     "range": 2.4,
     "carry": 0
@@ -19023,6 +19402,7 @@
     "train_time": 60.0,
     "pop": 0,
     "speed": 5.696,
+    "vision": 28.000000000000004,
     "damage": 63.0,
     "range": 15.400000000000002,
     "carry": 0
@@ -19037,6 +19417,7 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -19082,6 +19463,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.6311999999999998,
+    "vision": 22.400000000000002,
     "damage": 6.7,
     "range": 16.8,
     "carry": 0
@@ -19096,7 +19478,8 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_RANGE"
    ],
    "trained_at_0ad": [
     "barracks",
@@ -19142,6 +19525,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.4175999999999997,
+    "vision": 22.400000000000002,
     "damage": 28.0,
     "range": 12.600000000000001,
     "carry": 0
@@ -19198,6 +19582,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 2.8836,
+    "vision": 22.400000000000002,
     "damage": 7.0,
     "range": 4.8,
     "carry": 0
@@ -19257,6 +19642,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 5.5,
     "range": 2.4,
     "carry": 0
@@ -19306,6 +19692,7 @@
     "train_time": 24.0,
     "pop": 3,
     "speed": 4.984,
+    "vision": 22.400000000000002,
     "damage": 15.0,
     "range": 14.000000000000002,
     "carry": 0
@@ -19349,6 +19736,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.5244,
+    "vision": 8.4,
     "damage": 10.0,
     "range": 3.0,
     "carry": 30
@@ -19393,6 +19781,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 4.3254,
+    "vision": 14.000000000000002,
     "damage": 0.0,
     "range": 1.0,
     "carry": 100
@@ -19442,6 +19831,7 @@
     "train_time": 12.0,
     "pop": 2,
     "speed": 5.696,
+    "vision": 22.400000000000002,
     "damage": 12.0,
     "range": 11.200000000000001,
     "carry": 0
@@ -19491,6 +19881,7 @@
     "train_time": 28.0,
     "pop": 4,
     "speed": 4.272,
+    "vision": 28.000000000000004,
     "damage": 125.0,
     "range": 22.400000000000002,
     "carry": 0
@@ -19504,7 +19895,7 @@
    "specific_name": "Tóushí Chē",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -19539,6 +19930,7 @@
     "train_time": 25.0,
     "pop": 3,
     "speed": 2.5632,
+    "vision": 33.6,
     "damage": 250.0,
     "range": 23.8,
     "carry": 0
@@ -19552,7 +19944,7 @@
    "specific_name": "Gōngchéng Chuí",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -19584,6 +19976,7 @@
     "train_time": 30.0,
     "pop": 3,
     "speed": 2.5632,
+    "vision": 22.400000000000002,
     "damage": 150.0,
     "range": 3.9,
     "carry": 0
@@ -19597,7 +19990,7 @@
    "specific_name": "Gōngchéng Tǎ",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -19632,6 +20025,7 @@
     "train_time": 40.0,
     "pop": 3,
     "speed": 2.2428,
+    "vision": 22.400000000000002,
     "damage": 14.5,
     "range": 15.400000000000002,
     "carry": 0
@@ -19684,6 +20078,7 @@
     "train_time": 8.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 2.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -19735,6 +20130,7 @@
     "train_time": 30.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.96,
     "damage": 2.0,
     "range": 1.7999999999999998,
     "carry": 25
@@ -19780,6 +20176,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 8.4,
     "damage": 0.0,
     "range": 12.0,
     "carry": 0
@@ -19826,6 +20223,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 16.8,
     "damage": 0.0,
     "range": 1.0,
     "carry": 50
@@ -19871,7 +20269,8 @@
     "train_time": 10,
     "hack_dmg": 5,
     "pierce_dmg": 0,
-    "crush_dmg": 0
+    "crush_dmg": 0,
+    "vision": 0.0
    }
   },
   {
@@ -19916,6 +20315,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 13.2,
     "range": 2.4,
     "carry": 0
@@ -19967,6 +20367,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 5.7672,
+    "vision": 22.400000000000002,
     "damage": 18.0,
     "range": 8.4,
     "carry": 0
@@ -20019,6 +20420,7 @@
     "train_time": 10.0,
     "pop": 1,
     "speed": 4.0584,
+    "vision": 22.400000000000002,
     "damage": 16.0,
     "range": 8.4,
     "carry": 0
@@ -20066,6 +20468,7 @@
     "train_time": 20.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 22.400000000000002,
     "damage": 12.100000000000001,
     "range": 2.4,
     "carry": 0
@@ -20117,6 +20520,7 @@
     "train_time": 15.0,
     "pop": 1,
     "speed": 3.2039999999999997,
+    "vision": 11.200000000000001,
     "damage": 10.0,
     "range": 1.7999999999999998,
     "carry": 0
@@ -20160,6 +20564,7 @@
     "train_time": 0.0,
     "pop": 0,
     "speed": 1.7622,
+    "vision": 3.3600000000000003,
     "damage": 0.0,
     "range": 1.0,
     "carry": 0
@@ -20204,6 +20609,7 @@
     "train_time": 0.0,
     "pop": 0,
     "speed": 1.7622,
+    "vision": 3.3600000000000003,
     "damage": 0.0,
     "range": 1.0,
     "carry": 0
@@ -20246,6 +20652,7 @@
     "train_time": 0.0,
     "pop": 0,
     "speed": 1.7622,
+    "vision": 3.3600000000000003,
     "damage": 0.0,
     "range": 1.0,
     "carry": 0
@@ -20289,6 +20696,7 @@
     "train_time": 0.0,
     "pop": 0,
     "speed": 1.7622,
+    "vision": 3.3600000000000003,
     "damage": 0.0,
     "range": 1.0,
     "carry": 0
@@ -20331,6 +20739,7 @@
     "train_time": 0.0,
     "pop": 0,
     "speed": 1.7622,
+    "vision": 3.3600000000000003,
     "damage": 0.0,
     "range": 1.0,
     "carry": 0
@@ -20374,6 +20783,7 @@
     "train_time": 0.0,
     "pop": 0,
     "speed": 1.7622,
+    "vision": 3.3600000000000003,
     "damage": 0.0,
     "range": 1.0,
     "carry": 0
@@ -20417,6 +20827,7 @@
     "train_time": 0.0,
     "pop": 0,
     "speed": 1.7622,
+    "vision": 3.3600000000000003,
     "damage": 0.0,
     "range": 1.0,
     "carry": 0
@@ -20460,6 +20871,7 @@
     "train_time": 0.0,
     "pop": 0,
     "speed": 1.7622,
+    "vision": 3.3600000000000003,
     "damage": 0.0,
     "range": 1.0,
     "carry": 0
@@ -20503,6 +20915,7 @@
     "train_time": 0.0,
     "pop": 0,
     "speed": 1.7622,
+    "vision": 3.3600000000000003,
     "damage": 0.0,
     "range": 1.0,
     "carry": 0
@@ -20546,6 +20959,7 @@
     "train_time": 0.0,
     "pop": 0,
     "speed": 1.7622,
+    "vision": 3.3600000000000003,
     "damage": 0.0,
     "range": 1.0,
     "carry": 0
@@ -20589,6 +21003,7 @@
     "train_time": 0.0,
     "pop": 0,
     "speed": 1.7622,
+    "vision": 3.3600000000000003,
     "damage": 0.0,
     "range": 1.0,
     "carry": 0
@@ -20631,6 +21046,7 @@
     "train_time": 0.0,
     "pop": 0,
     "speed": 1.7622,
+    "vision": 3.3600000000000003,
     "damage": 0.0,
     "range": 1.0,
     "carry": 0
@@ -20675,6 +21091,7 @@
     "train_time": 0.0,
     "pop": 0,
     "speed": 1.7622,
+    "vision": 3.3600000000000003,
     "damage": 0.0,
     "range": 1.0,
     "carry": 0
@@ -20718,6 +21135,7 @@
     "train_time": 0.0,
     "pop": 0,
     "speed": 1.7622,
+    "vision": 3.3600000000000003,
     "damage": 0.0,
     "range": 1.0,
     "carry": 0
@@ -21252,7 +21670,11 @@
      "multiply": 1.05
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_HEALTH",
+    1.05,
+    1000.0
+   ]
   },
   {
    "id": "pers_hero_cyrus_ii",
@@ -22406,7 +22828,11 @@
      "multiply": 1.1
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_HEALTH",
+    1.1,
+    1000.0
+   ]
   },
   {
    "id": "iber_hero_caros_1",
@@ -23115,7 +23541,11 @@
      "multiply": 1.1
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_HEALTH",
+    1.1,
+    8.4
+   ]
   },
   {
    "id": "ptol_hero_cleopatra_vii_3",
@@ -23135,7 +23565,11 @@
      "multiply": 0.9
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_HEALTH",
+    0.9,
+    8.4
+   ]
   },
   {
    "id": "ptol_hero_ptolemy_i_1",
@@ -23207,7 +23641,11 @@
      "multiply": 1.4
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_HEALTH",
+    1.4,
+    16.8
+   ]
   },
   {
    "id": "sele_catafalque_1",
@@ -23361,7 +23799,11 @@
      "multiply": 0.8
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_HEALTH",
+    0.8,
+    22.400000000000002
+   ]
   },
   {
    "id": "sele_hero_seleucus_i",
@@ -23493,7 +23935,11 @@
      "multiply": 1.25
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_VISION",
+    1.25,
+    1000.0
+   ]
   },
   {
    "id": "han_hero_liu_bang_1",

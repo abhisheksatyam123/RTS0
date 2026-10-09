@@ -54,7 +54,7 @@ int main() {
 
 	// Table: 26 generic building types plus area D's civ-specific ones; every
 	// one has a name, cost and sane stats.
-	CHECK(BLD_EMBASSY == 25 && CIV_BUILDING_FIRST == 26 && BLD_TYPE_COUNT == 52);
+	CHECK(BLD_EMBASSY == 25 && CIV_BUILDING_FIRST == 26 && BLD_TYPE_COUNT == 53);
 	for (uint8_t t = 0; t < BLD_TYPE_COUNT; ++t) {
 		const BuildingTypeInfo &bi = building_type_info(t);
 		CHECK(bi.name && bi.name[0] && bi.max_hp > 0.0f && bi.build_time > 0.0f);
@@ -73,7 +73,7 @@ int main() {
 	CHECK(s.cmd_build(0, 0, 0, BLD_FORGE) == 0);
 	CHECK(s.cmd_build(0, 0, 0, BLD_ARSENAL) == 0);
 	CHECK(s.cmd_build(0, 0, 0, BLD_STABLE) != 0);
-	CHECK(s.cmd_build(0, 4, 0, BLD_RANGE) != 0);
+	CHECK(s.cmd_build(0, 4, 0, BLD_RANGE) == 0); // in no civ's 0 A.D. Builder list
 	s.player(0).phase = 2;
 	CHECK(s.cmd_build(0, 8, 0, BLD_FORGE) != 0);
 	CHECK(s.cmd_build(0, 12, 0, BLD_ARSENAL) == 0);

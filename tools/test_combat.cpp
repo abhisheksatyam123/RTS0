@@ -14,6 +14,14 @@
 //     heals only its owner's humans by 1 hp/s within 40 m.
 //  8. Health regeneration: Battlefield Medicine gives idle organic units +0.5 hp/s,
 //     not siege engines and not before it is researched.
+//  9. Health and vision auras: Ptolemy IV's pikemen get +40% max and current health
+//     while near him and lose it when they leave; Han Xin gives allied soldiers +25%
+//     vision everywhere.
+// 10. Status effects are 0 A.D.'s ApplyStatus: maiden archers poison for 0.5 hp/s over
+//     10 s (a second hit extends it), Iberian champion cavalry burn for 2 hp per 3 s
+//     over 9 s; rams are immune to poison; spearmen no longer snare.
+// 11. ObstructionManager IsInTargetRange: a swordsman just off a fortress's corner is in
+//     reach (edge to edge) and hits it where it stands instead of walking to a side.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_combat.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -152,6 +160,32 @@ static void test_structure_armour() {
 	std::printf("      swordsman on barracks: %.3f (want %.3f, armour %.0f/%.0f/%.0f)\n", got, want,
 			bc.hack_armor, bc.pierce_armor, bc.crush_armor);
 	check(std::fabs(got - want) < 0.01f, "barracks take damage through their template armour");
+}
+
+static void test_corner_reach() {
+	std::printf("11. edge-to-edge reach at a structure's corner\n");
+	Simulation s;
+	setup(s);
+	uint32_t fort = s.spawn_building_world(20.0f, 20.0f, BLD_FORTRESS, 1, 1.0f);
+	const Simulation::Building *b = building(s, fort);
+	const float h = b->half_size;
+	const float r = unit_collision_radius(UNIT_SWORDSMAN);
+	// Diagonally off the corner, the gap between the unit and the footprint is 1.3,
+	// inside reach; the old centre-distance test added about 0.41 * half_size to it.
+	const float off = (r + 1.3f) / std::sqrt(2.0f);
+	uint32_t sw = s.spawn_unit(20.0f - h - off, 20.0f - h - off, 0, UNIT_SWORDSMAN);
+	const int i = idx(s, sw);
+	const float x0 = s.units_.pos_x[i], z0 = s.units_.pos_z[i];
+	const float reach = s.units_.attack_range[i];
+	std::printf("      fortress half %.2f, swordsman reach %.2f, radius %.2f\n", h, reach, r);
+	check(std::sqrt(2.0f) * (h + off) - h - r > reach, "the centre test would call the corner out of reach");
+	const float bhp = b->hp;
+	s.order_attack_building(&sw, 1, fort);
+	for (int k = 0; k < 200 && building(s, fort)->hp == bhp; ++k) s.tick(DT);
+	const float moved = std::hypot(s.units_.pos_x[i] - x0, s.units_.pos_z[i] - z0);
+	std::printf("      moved %.2f before the first hit\n", moved);
+	check(building(s, fort)->hp < bhp, "the swordsman hits the fortress from its corner");
+	check(moved < 0.5f, "without walking round to a side");
 }
 
 // Archer at `dist` shoots a passive enemy until `shots` arrows have landed.
@@ -315,6 +349,76 @@ static void test_regen() {
 	check(s.units_.hp[idx(s, ram)] == 50.0f, "a ram (not organic) does not regenerate");
 }
 
+static void test_health_vision_auras() {
+	std::printf("9. health and vision auras\n");
+	Simulation s;
+	setup(s);
+	s.set_mutual_ally(0, 2);
+	const uint16_t ptolemy = template_named("hero_ptolemy_iv");
+	const uint16_t pike = template_named("ptol/infantry_pikeman_b");
+	const uint16_t han_xin = template_named("han/hero_han_xin_horse");
+	check(ptolemy != CIV_UNIT_TEMPLATE_NONE && pike != CIV_UNIT_TEMPLATE_NONE && han_xin != CIV_UNIT_TEMPLATE_NONE,
+		"roster has Ptolemy IV, a Ptolemaic pikeman and Han Xin");
+	uint32_t hero = s.spawn_unit(-20.0f, 20.0f, 0, UNIT_HERO, 0.0f, ptolemy);
+	s.order_set_stance(&hero, 1, STANCE_STAND_GROUND);
+	uint32_t p = s.spawn_unit(-18.0f, 20.0f, 0, UNIT_SPEARMAN, 0.0f, pike);
+	s.order_set_stance(&p, 1, STANCE_STAND_GROUND);
+	const float max0 = s.units_.max_hp[idx(s, p)];
+	s.units_.hp[idx(s, p)] = max0 * 0.5f;
+	for (int k = 0; k < 20; ++k) s.tick(DT);
+	int i = idx(s, p);
+	check(std::fabs(s.units_.max_hp[i] - max0 * 1.4f) < 0.01f, "pikeman near Ptolemy IV: max health x1.4");
+	check(std::fabs(s.units_.hp[i] / s.units_.max_hp[i] - 0.5f) < 0.01f, "health fraction kept");
+	s.units_.pos_x[i] = 20.0f; s.units_.pos_z[i] = -20.0f;
+	for (int k = 0; k < 20; ++k) s.tick(DT);
+	i = idx(s, p);
+	check(std::fabs(s.units_.max_hp[i] - max0) < 0.01f, "pikeman away from him: max health back");
+
+	s.spawn_unit(-30.0f, -30.0f, 0, UNIT_HERO, 0.0f, han_xin);
+	uint32_t ally = s.spawn_unit(30.0f, -30.0f, 2, UNIT_SWORDSMAN);
+	uint32_t foe = s.spawn_unit(30.0f, 30.0f, 1, UNIT_SWORDSMAN);
+	s.rebuild_auras();
+	check(std::fabs(s.unit_vision_at(idx(s, ally)) - s.unit_base_vision(idx(s, ally)) * 1.25f) < 1e-3f,
+			"Han Xin: allied soldier +25% vision, map-wide");
+	check(std::fabs(s.unit_vision_at(idx(s, foe)) - s.unit_base_vision(idx(s, foe))) < 1e-3f, "Han Xin: enemy soldier unchanged");
+}
+
+static void test_status() {
+	std::printf("10. status effects\n");
+	Simulation s;
+	setup(s);
+	const uint16_t maiden = template_named("maur/champion_maiden_archer");
+	const uint16_t iber_cav = template_named("iber/champion_cavalry");
+	check(maiden != CIV_UNIT_TEMPLATE_NONE && iber_cav != CIV_UNIT_TEMPLATE_NONE, "roster has maiden archers and Iberian champion cavalry");
+	const CombatProfile &mp = unit_combat(maiden, UNIT_ARCHER_MAIDEN);
+	const CombatProfile &cp = unit_combat(iber_cav, UNIT_CAVALRY);
+	check(mp.status == 1 && std::fabs(mp.status_dps - 0.5f) < 1e-4f && mp.status_time == 10.0f, "maiden archer: Poisoned 1 per 2 s for 10 s");
+	check(cp.status == 2 && std::fabs(cp.status_dps - 2.0f / 3.0f) < 1e-3f && cp.status_time == 9.0f, "Iberian champion cavalry: Burning 2 per 3 s for 9 s");
+	uint32_t v = s.spawn_unit(-20.0f, 20.0f, 0, UNIT_SWORDSMAN);
+	uint32_t ram = s.spawn_unit(-24.0f, 20.0f, 0, UNIT_SIEGE_RAM);
+	const float hv = s.units_.hp[idx(s, v)], hr = s.units_.hp[idx(s, ram)];
+	s.apply_status((size_t)idx(s, v), mp);
+	s.apply_status((size_t)idx(s, v), mp);
+	s.apply_status((size_t)idx(s, ram), mp);
+	for (int k = 0; k < 500; ++k) s.tick(DT);
+	check(std::fabs((hv - s.units_.hp[idx(s, v)]) - 10.0f) < 0.1f, "two poisoned hits: 0.5 hp/s for 20 s");
+	check(s.units_.hp[idx(s, ram)] == hr, "a ram is immune to poison");
+	check(s.units_.status_effects[idx(s, v)] == 0, "poison wears off");
+
+	Simulation m;
+	setup(m);
+	uint32_t sp = m.spawn_unit(0.0f, 0.0f, 1, UNIT_SPEARMAN);
+	uint32_t cav = m.spawn_unit(1.5f, 0.0f, 0, UNIT_CAVALRY, 1.0e6f);
+	m.order_set_stance(&cav, 1, STANCE_STAND_GROUND);
+	(void)sp;
+	bool snared = false;
+	for (int k = 0; k < 200; ++k) {
+		m.tick(DT);
+		if (m.units_.status_effects[idx(m, cav)] & (EFFECT_SNARE | EFFECT_KNOCKBACK | EFFECT_SLOW | EFFECT_BLEED)) snared = true;
+	}
+	check(!snared, "spearmen hitting cavalry apply no invented snare");
+}
+
 int main() {
 	test_data();
 	test_bonus();
@@ -324,6 +428,9 @@ int main() {
 	test_no_invented();
 	test_auras();
 	test_regen();
+	test_health_vision_auras();
+	test_status();
+	test_corner_reach();
 	if (g_failures) {
 		std::printf("test_combat: FAIL (%d)\n", g_failures);
 		return 1;

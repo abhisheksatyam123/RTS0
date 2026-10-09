@@ -521,6 +521,46 @@ int main() {
 		CHECK(sim.player_team(0) != sim.player_team(3));
 	}
 
+	// 21. World Population: the world cap is split among the seated players still in
+	// the game, each defeat raises the others' share, and peers get it as worldpop=.
+	{
+		Simulation sim;
+		for (uint8_t p = 0; p < 4; ++p) sim.set_player_active(p, true, false);
+		sim.set_world_pop_cap(600);
+		CHECK(sim.world_pop_cap() == 600 && sim.pop_cap() == 150 && sim.pop_cap_setting() == -600);
+		sim.defeated_mask_ |= 1u << 3;
+		CHECK(sim.pop_cap() == 200);
+		CHECK(sim.pop_max(0) <= 200);
+		sim.set_pop_cap(300);
+		CHECK(sim.world_pop_cap() == 0 && sim.pop_cap() == 300);
+		GameSetupParams gp, back;
+		gp.world_pop = 2400;
+		CHECK(parse_game_start_full(format_game_start_full(gp), back) && back.world_pop == 2400);
+		GameSetupParams none;
+		CHECK(parse_game_start_full(format_game_start_full(none), back) && back.world_pop == 0);
+	}
+
+	// 22. Lock Teams (0 A.D. Commands.js "diplomacy"): no stance change while teams are
+	// locked or a ceasefire runs; the flag shares the v32 byte with RegicideGarrison.
+	{
+		Simulation sim;
+		sim.set_player_active(0, true, false);
+		sim.set_player_active(1, true, false);
+		CHECK(sim.cmd_set_diplomacy(0, 1, Simulation::DIPLO_NEUTRAL));
+		sim.set_lock_teams(true);
+		sim.set_regicide_garrison(true);
+		CHECK(sim.teams_locked() && sim.regicide_garrison());
+		CHECK(!sim.cmd_set_diplomacy(0, 1, Simulation::DIPLO_ALLY) && sim.get_diplomacy(0, 1) == Simulation::DIPLO_NEUTRAL);
+		sim.set_regicide_garrison(false);
+		CHECK(sim.teams_locked() && !sim.regicide_garrison());
+		sim.set_lock_teams(false);
+		sim.set_ceasefire_seconds(60.0f);
+		CHECK(!sim.cmd_set_diplomacy(0, 1, Simulation::DIPLO_ALLY));
+		GameSetupParams gp, back;
+		gp.lock_teams = 1;
+		CHECK(parse_game_start_full(format_game_start_full(gp), back) && back.lock_teams == 1);
+	}
+
 	if (failures) {
 		std::printf("%d check(s) failed\n", failures);
 		return 1;

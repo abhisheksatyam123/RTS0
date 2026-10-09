@@ -117,7 +117,12 @@ const RMS_MAPS := [
 ]
 
 # 0 A.D. population limits per player (0 = unlimited) and ceasefire lengths in minutes.
-const POP_CAPS := [[50, "50"], [100, "100"], [150, "150"], [200, "200"], [250, "250"], [300, "300"], [0, "Unlimited"]]
+# 0 A.D. population_capacities.json (default 300), then world_population_capacities.json:
+# a negative value is a World Population shared by the players still in the game.
+const POP_CAPS := [[50, "50"], [100, "100"], [150, "150"], [200, "200"], [250, "250"], [300, "300"], [0, "Unlimited"],
+	[-100, "World 100"], [-200, "World 200"], [-300, "World 300"], [-400, "World 400"], [-500, "World 500"],
+	[-600, "World 600"], [-700, "World 700"], [-800, "World 800"], [-900, "World 900"], [-1000, "World 1000"],
+	[-1100, "World 1100"], [-1200, "World 1200"], [-1600, "World 1600"], [-2000, "World 2000"], [-2400, "World 2400"]]
 const CEASEFIRES := [0, 1, 2, 3, 4, 5, 10, 15, 20, 30, 45, 60]
 # 0 A.D. Wonder / Capture the Relic hold times in minutes (default 20) and relic counts (default 2).
 const VICTORY_TIMES := [0, 1, 2, 5, 10, 15, 20, 30, 45, 60]
@@ -490,7 +495,7 @@ func _build_options() -> void:
 	var pop := _make_option($VBox/HBox/Left/PopCapSlot)
 	for p in POP_CAPS:
 		pop.add_item(p[1])
-	pop.select(3)
+	pop.select(5) # 0 A.D. default: 300
 	var cf := _make_option($VBox/HBox/Left/CeasefireSlot)
 	for c in CEASEFIRES:
 		cf.add_item("No ceasefire" if c == 0 else "%d min" % c)
@@ -556,6 +561,7 @@ func _restore_settings() -> void:
 	$VBox/HBox/Left/LastManStanding.button_pressed = bool(ms.get("last_man_standing"))
 	$VBox/HBox/Left/StartRow/Nomad.button_pressed = bool(ms.get("nomad"))
 	$VBox/HBox/Left/StartRow/RegicideGarrison.button_pressed = bool(ms.get("regicide_garrison"))
+	$VBox/HBox/Left/StartRow/LockTeams.button_pressed = bool(ms.get("lock_teams"))
 	$VBox/HBox/Left/StartRow/DisableTreasures.button_pressed = bool(ms.get("disable_treasures"))
 	var pop: RtsoSafeSelect = $VBox/HBox/Left/PopCapSlot.get_child(0)
 	for i in range(POP_CAPS.size()):
@@ -699,6 +705,7 @@ func _collect_setup() -> Dictionary:
 		# Nomad only on random maps, RegicideGarrison only with Regicide (as 0 A.D. settings).
 		"nomad": $VBox/HBox/Left/StartRow/Nomad.button_pressed and not m.is_empty() and str(m.get("kind", "")) == "Random",
 		"regicide_garrison": $VBox/HBox/Left/StartRow/RegicideGarrison.button_pressed and vic.get_selected() == VICTORY_REGICIDE,
+		"lock_teams": $VBox/HBox/Left/StartRow/LockTeams.button_pressed,
 		"disable_treasures": $VBox/HBox/Left/StartRow/DisableTreasures.button_pressed,
 		"humans": humans, "ai": ai_total, "slots": types.size()}
 
@@ -776,6 +783,7 @@ func _on_start_pressed() -> void:
 	ms.slot_names = st["names"]
 	ms.nomad = bool(st["nomad"])
 	ms.regicide_garrison = bool(st["regicide_garrison"])
+	ms.lock_teams = bool(st["lock_teams"])
 	ms.disable_treasures = bool(st["disable_treasures"])
 	ms.biome = int(st["biome"])
 	ms.game_speed = float(st["speed"])
