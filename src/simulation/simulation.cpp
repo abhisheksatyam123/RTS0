@@ -137,6 +137,7 @@ static constexpr uint32_t SAVE_VERSION_PETRA_TRANSPORTS = 40;
 // Heroes each player has trained (EntityLimits MatchLimit, tick_state_io section 9b) and
 // each structure's Health/Max aura multiplier.
 static constexpr uint32_t SAVE_VERSION_MATCH_LIMIT = 42;
+static constexpr uint32_t SAVE_VERSION_UNIT_UPGRADES = 43;
 
 // Stand on the nearest AABB edge so pathing never aims through the footprint (half sizes hx, hz).
 static void stand_outside_rect(float bx, float bz, float hx, float hz, uint32_t uid,
@@ -400,6 +401,7 @@ void Simulation::reset() {
 	occupied_cells_.clear();
 	std::fill(std::begin(regicide_hero_), std::end(regicide_hero_), 0u);
 	for (auto &v : match_trained_) v.clear();
+	unit_upgrades_.clear();
 
 	next_id_ = 1;
 	sim_rng_.set_seed(sim_seed_);
@@ -2018,6 +2020,14 @@ int Simulation::entity_limit_count(uint8_t player_id, uint8_t category) const {
 		for (const auto &o : b.queue)
 			if (unit_limit_category(o.unit_type, o.tmpl) == category) ++n;
 	}
+	// Upgrade.js ChangeUpgradedEntityCount: a unit upgrading into the category counts now.
+	for (const UnitUpgrade &u : unit_upgrades_) {
+		if (u.player != player_id) continue;
+		const int32_t i = lookup_unit(u.unit_id);
+		if (i >= 0 && unit_limit_category(civ_unit_template(u.to).unit_type, u.to) == category &&
+		    unit_limit_category(units_.unit_type[i], units_.tmpl[i]) != category)
+			++n;
+	}
 	if (category == LIMIT_ANIMAL) // livestock penned in the player's corrals
 		for (size_t f = 0; f < fauna_.count; ++f) {
 			if (!fauna_.alive[f] || fauna_.behavior[f] != FAUNA_CORRALLED) continue;
@@ -2490,6 +2500,104 @@ void Simulation::tick_upgrades(float dt) {
 		b.upgrade_timer += dt;
 		if (b.upgrade_timer >= b.upgrade_duration) finish_upgrade(b);
 	}
+}
+
+const CivUnitUpgrade *Simulation::unit_upgrade_choice(size_t i, uint16_t to) const {
+	const uint16_t from = units_.tmpl[i];
+	if (from >= CIV_UNIT_TEMPLATE_COUNT) return nullptr;
+	const CivUnitUpgrade *u = civ_unit_upgrade_table();
+	for (; u->from != 0xFFFF; ++u)
+		if (u->from == from && u->to == to && (u->from_rank == 0 || units_.rank[i] >= u->from_rank)) return u;
+	return nullptr;
+}
+
+const Simulation::UnitUpgrade *Simulation::unit_upgrade_of(uint32_t unit_id) const {
+	for (const UnitUpgrade &u : unit_upgrades_)
+		if (u.unit_id == unit_id) return &u;
+	return nullptr;
+}
+
+Simulation::UpgradeCheck Simulation::unit_upgrade_check(uint8_t player_id, uint32_t unit_id, uint16_t to) const {
+	const int32_t i = lookup_unit(unit_id);
+	if (i < 0 || player_id >= MAX_PLAYERS || !(units_.hp[i] > 0.0f)) return UPGRADE_ERR_NONE;
+	if (!units_.alive[i] && units_.action_state[i] != ACTION_GARRISONED) return UPGRADE_ERR_NONE;
+	if (units_.team[i] != player_id) return UPGRADE_ERR_OWNER;
+	const CivUnitUpgrade *u = unit_upgrade_choice((size_t)i, to);
+	if (!u) return UPGRADE_ERR_NONE;
+	if (unit_upgrade_of(unit_id)) return UPGRADE_ERR_BUSY; // Upgrade.js Upgrade(): one at a time
+	const PlayerState &ps = players_[player_id];
+	if (ps.phase < u->phase) return UPGRADE_ERR_PHASE;
+	// ChangeUpgradedEntityCount: the target's category counts the unit from the start.
+	const CivUnitTemplate &t = civ_unit_template(to);
+	const uint8_t cat = unit_limit_category(t.unit_type, to);
+	if (cat != unit_limit_category(units_.unit_type[i], units_.tmpl[i]) && !entity_limit_allows_unit(player_id, t.unit_type, to))
+		return UPGRADE_ERR_LIMIT;
+	if (!ps.can_afford((float)u->food_cost, (float)u->wood_cost, (float)u->gold_cost, (float)u->stone_cost))
+		return UPGRADE_ERR_COST;
+	return UPGRADE_OK;
+}
+
+bool Simulation::cmd_upgrade_units(uint8_t player_id, const uint32_t *unit_ids, size_t n, uint16_t to) {
+	bool any = false;
+	for (size_t k = 0; k < n; ++k) {
+		if (unit_upgrade_check(player_id, unit_ids[k], to) != UPGRADE_OK) continue;
+		const size_t i = (size_t)lookup_unit(unit_ids[k]);
+		const CivUnitUpgrade *u = unit_upgrade_choice(i, to);
+		players_[player_id].pay((float)u->food_cost, (float)u->wood_cost, (float)u->gold_cost, (float)u->stone_cost);
+		UnitUpgrade up{};
+		up.unit_id = unit_ids[k];
+		up.to = to;
+		up.player = player_id;
+		up.time = u->time;
+		up.paid[RES_FOOD] = (float)u->food_cost;
+		up.paid[RES_WOOD] = (float)u->wood_cost;
+		up.paid[RES_GOLD] = (float)u->gold_cost;
+		up.paid[RES_STONE] = (float)u->stone_cost;
+		any = true;
+		if (u->time <= 0.0f) {
+			promote_unit(i, to, promotion_start_rank(to));
+			continue;
+		}
+		unit_upgrades_.push_back(up);
+	}
+	return any;
+}
+
+bool Simulation::cmd_cancel_unit_upgrades(uint8_t player_id, const uint32_t *unit_ids, size_t n) {
+	bool any = false;
+	for (size_t k = 0; k < n; ++k)
+		for (size_t j = 0; j < unit_upgrades_.size(); ++j) {
+			UnitUpgrade &u = unit_upgrades_[j];
+			if (u.unit_id != unit_ids[k] || u.player != player_id) continue;
+			players_[player_id].refund(u.paid[RES_FOOD], u.paid[RES_WOOD], u.paid[RES_GOLD], u.paid[RES_STONE]);
+			unit_upgrades_.erase(unit_upgrades_.begin() + (std::ptrdiff_t)j);
+			any = true;
+			break;
+		}
+	return any;
+}
+
+// Upgrade.js UpgradeProgress on units; OnOwnershipChanged (death included) refunds the payer.
+void Simulation::tick_unit_upgrades(float dt) {
+	size_t w = 0;
+	for (size_t r = 0; r < unit_upgrades_.size(); ++r) {
+		UnitUpgrade u = unit_upgrades_[r];
+		const int32_t i = lookup_unit(u.unit_id);
+		const bool there = i >= 0 && units_.hp[i] > 0.0f && units_.team[i] == u.player &&
+		                   (units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED);
+		if (!there) {
+			if (u.player < MAX_PLAYERS)
+				players_[u.player].refund(u.paid[RES_FOOD], u.paid[RES_WOOD], u.paid[RES_GOLD], u.paid[RES_STONE]);
+			continue;
+		}
+		u.elapsed += dt;
+		if (u.elapsed >= u.time) {
+			promote_unit((size_t)i, u.to, promotion_start_rank(u.to));
+			continue;
+		}
+		unit_upgrades_[w++] = u;
+	}
+	unit_upgrades_.resize(w);
 }
 
 void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
@@ -5796,6 +5904,7 @@ void Simulation::tick(float dt) {
 	tick_production(dt);     // 0 A.D. ProductionQueue.js: unit training queues
 	tick_research(dt);       // 0 A.D. ProductionQueue.js / Researcher.js: technology research progress
 	tick_upgrades(dt);       // 0 A.D. Upgrade.js: structure upgrades (sentry tower -> tower, wall -> gate)
+	if (!unit_upgrades_.empty()) tick_unit_upgrades(dt); // and unit ones (Centurion, Immortal bow)
 	tick_siege_garrisons();  // 0 A.D. GarrisonHolder EjectHealth / OnDestroy for siege towers and rams
 	tick_garrison_holders(); // 0 A.D. GarrisonHolder BuffHeal / EjectHealth for structures
 	tick_gates(dt);          // 0 A.D. Gate.js:145-180: auto open / close when allied units in pass range
@@ -16646,7 +16755,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 unit upgrades in progress (Centurion, Immortal bow; save_tick_state)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -17749,6 +17858,16 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		if constexpr (Ar::loading)
 			for (uint16_t t : v)
 				if (t >= CIV_UNIT_TEMPLATE_COUNT) ar.ok = false;
+	}
+
+	// 9c. Unit upgrades in progress (v43): raw UnitUpgrade rows.
+	if (ar.version >= SAVE_VERSION_UNIT_UPGRADES) {
+		io_vec_pod(ar, s.unit_upgrades_, (uint32_t)S::UNIT_CAP);
+		if constexpr (Ar::loading)
+			for (const S::UnitUpgrade &u : s.unit_upgrades_)
+				if (u.to >= CIV_UNIT_TEMPLATE_COUNT || u.player >= MAX_PLAYERS || !(u.time > 0.0f)) ar.ok = false;
+	} else if constexpr (Ar::loading) {
+		s.unit_upgrades_.clear();
 	}
 
 	// 10. StatisticsTracker (save v30). Older saves start the counters at zero.
