@@ -44,6 +44,16 @@ static std::vector<uint32_t> squad(Simulation &s, uint8_t team, int n, float x, 
 
 static const Simulation::Relic &relic(const Simulation &s) { return s.relics_[0]; }
 
+// A relic of `civ`'s catafalque owned by `owner`, its auras applied on the next 1 s pulse.
+static int32_t give_relic(Simulation &s, uint8_t civ, uint8_t owner, float x = 0.0f, float z = 0.0f) {
+	const uint32_t id = s.spawn_relic(x, z);
+	const int32_t r = s.lookup_unit(id);
+	s.units_.tmpl[r] = civ_catafalque_template(civ);
+	s.relics_.back().civ = civ;
+	s.units_.team[r] = owner;
+	return r;
+}
+
 int main() {
 	static Simulation s;
 
@@ -179,6 +189,112 @@ int main() {
 		const int32_t r = s.lookup_unit(s.relics_[0].id);
 		CHECK(r >= 0 && s.units_.unit_type[r] == UNIT_CATAFALQUE && s.units_.team[r] == GAIA_PLAYER);
 		CHECK(s.relics_[0].capture_cp == RELIC_CAPTURE_POINTS * 100);
+	}
+
+	// 10. Global relic auras (catafalques/*.json) are player modifiers while the relic is owned:
+	// they rescale existing entities, follow the relic to its new owner, and don't stack.
+	{
+		fresh(s);
+		const uint32_t house = s.spawn_building_world(-30.0f, -30.0f, BLD_HOUSE, 0, 1.0f);
+		const uint32_t spear = s.spawn_unit(-40.0f, -20.0f, 0, UNIT_SPEARMAN);
+		const uint32_t enemy_spear = s.spawn_unit(40.0f, 20.0f, 1, UNIT_SPEARMAN);
+		run(s, 1.0f);
+		auto bhp = [&](uint32_t id) { return s.buildings_[s.building_id_to_idx_[id]].max_hp; };
+		const float house_hp = bhp(house);
+		const int32_t su = s.lookup_unit(spear), eu = s.lookup_unit(enemy_spear);
+		const float speed = s.units_.speed[su], vision = s.unit_vision_at((size_t)su);
+		const float xp = s.promotion_required_xp((size_t)su);
+
+		// Persian Great Builder: structures -10% cost and +5% health.
+		const int32_t pr = give_relic(s, CIV_PERSIANS, 0);
+		run(s, 1.0f);
+		CHECK(std::fabs(bhp(house) - house_hp * 1.05f) < 0.01f);
+		CHECK(std::fabs(s.tech_mods(0).bld_cost[BLD_HOUSE][RES_WOOD] - 0.9f) < 1e-5f);
+		CHECK(s.tech_mods(1).bld_cost[BLD_HOUSE][RES_WOOD] == 1.0f);
+		// A second Persian relic adds nothing (the same aura doesn't stack).
+		give_relic(s, CIV_PERSIANS, 0, 3.0f, 0.0f);
+		run(s, 1.0f);
+		CHECK(std::fabs(bhp(house) - house_hp * 1.05f) < 0.01f);
+		// Lost to player 1: player 0's house is back to its own health.
+		for (const auto &rel : s.relics_) s.units_.team[s.lookup_unit(rel.id)] = 1;
+		run(s, 1.0f);
+		CHECK(std::fabs(bhp(house) - house_hp) < 0.01f);
+		CHECK(std::fabs(s.tech_mods(1).bld_cost[BLD_HOUSE][RES_WOOD] - 0.9f) < 1e-5f);
+		(void)pr;
+
+		// Briton Guerrilla Tactics: soldiers +15% speed and vision.
+		s.relics_.clear();
+		give_relic(s, CIV_BRITONS, 0);
+		run(s, 1.0f);
+		CHECK(std::fabs(s.units_.speed[su] - speed * 1.15f) < 1e-4f);
+		CHECK(std::fabs(s.unit_vision_at((size_t)su) - vision * 1.15f) < 1e-4f);
+		CHECK(s.unit_vision_at((size_t)eu) == vision);
+
+		// Gallic Ambush Slaughter: -25% promotion experience (RequiredXp aura).
+		give_relic(s, CIV_GAULS, 0);
+		run(s, 1.0f);
+		CHECK(std::fabs(s.promotion_required_xp((size_t)su) - xp * 0.75f) < 1e-3f);
+
+		// Kushite Earliest Nubian Queen: the owner's enemies' women gather 15% slower.
+		give_relic(s, CIV_KUSHITES, 0);
+		run(s, 1.0f);
+		CHECK(std::fabs(s.tech_mods(1).gather[UNIT_FEMALE_CITIZEN][Simulation::GK_WOOD] - 0.85f) < 1e-5f);
+		CHECK(s.tech_mods(0).gather[UNIT_FEMALE_CITIZEN][Simulation::GK_WOOD] == 1.0f);
+		CHECK(s.tech_mods(2).gather[UNIT_FEMALE_CITIZEN][Simulation::GK_WOOD] == 1.0f); // player 0's ally
+
+		// Macedonian Financial Reorganization (+1 metal a second), Seleucid Immigration
+		// (+5% population limit), Han Imperial Music Bureau (technologies half price).
+		give_relic(s, CIV_MACEDONIANS, 0);
+		give_relic(s, CIV_SELEUCIDS, 0);
+		give_relic(s, CIV_HAN, 0);
+		run(s, 1.0f);
+		CHECK(s.tech_mods(0).trickle_add[RES_GOLD] == 1.0f);
+		CHECK(std::fabs(s.tech_mods(0).max_pop - 1.05f) < 1e-5f);
+		CHECK(std::fabs(s.tech_mods(0).bld_tech_cost[BLD_TOWN_CENTER][RES_FOOD] - 0.5f) < 1e-5f);
+		const float gold = s.players_[0].res[RES_GOLD], gold1 = s.players_[1].res[RES_GOLD];
+		run(s, 10.0f);
+		CHECK(s.players_[0].res[RES_GOLD] - gold >= s.players_[1].res[RES_GOLD] - gold1 + 9.5f);
+
+		// Iberian Mercenary Commander reaches allies too (affectedPlayers Ally).
+		give_relic(s, CIV_IBERIANS, 0);
+		run(s, 1.0f);
+		const uint16_t merc = [] {
+			for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
+				if ((civ_unit_template(t).tech_classes & (TC_CITIZEN | TC_MERCENARY)) == (TC_CITIZEN | TC_MERCENARY)) return t;
+			return CIV_UNIT_TEMPLATE_NONE;
+		}();
+		CHECK(merc != CIV_UNIT_TEMPLATE_NONE);
+		if (merc != CIV_UNIT_TEMPLATE_NONE) {
+			CHECK(std::fabs(s.tech_mods(0).tmpl[merc].cost[RES_GOLD] - 0.75f) < 1e-5f);
+			CHECK(std::fabs(s.tech_mods(2).tmpl[merc].cost[RES_GOLD] - 0.75f) < 1e-5f);
+			CHECK(s.tech_mods(1).tmpl[merc].cost[RES_GOLD] == 1.0f);
+		}
+
+		// Save and load with relic auras applied keeps the hash.
+		const char *path = "/tmp/rts0_test_relic_auras.sav";
+		CHECK(s.save_state(path));
+		static Simulation t;
+		CHECK(t.load_state(path));
+		CHECK(TurnManager().boot_sim_hash(s) == TurnManager().boot_sim_hash(t));
+		run(s, 5.0f);
+		run(t, 5.0f);
+		CHECK(TurnManager().boot_sim_hash(s) == TurnManager().boot_sim_hash(t));
+		const int32_t tu = t.lookup_unit(spear);
+		CHECK(tu >= 0 && std::fabs(t.units_.speed[tu] - speed * 1.15f) < 1e-4f);
+		std::remove(path);
+	}
+
+	// 11. Kushite Temple at Naqa (a range aura): the owner's temples within 80 m heal their
+	// garrison 1 hp/s more.
+	{
+		fresh(s);
+		const uint32_t near = s.spawn_building_world(10.0f, 0.0f, BLD_TEMPLE, 0, 1.0f);
+		const uint32_t far = s.spawn_building_world(-40.0f, 30.0f, BLD_TEMPLE, 0, 1.0f);
+		const auto &bn = s.buildings_[s.building_id_to_idx_[near]];
+		const float base = s.structure_garrison_heal(bn);
+		give_relic(s, CIV_KUSHITES, 0);
+		CHECK(s.structure_garrison_heal(s.buildings_[s.building_id_to_idx_[near]]) == base + 1.0f);
+		CHECK(s.structure_garrison_heal(s.buildings_[s.building_id_to_idx_[far]]) == base);
 	}
 
 	if (failures) {

@@ -1420,6 +1420,10 @@ private:
 		float pack_time[UNIT_TYPE_COUNT];   // siege pack/unpack time multiplier
 		float regen[UNIT_TYPE_COUNT];       // Health.js RegenRate, hp per second
 		float idle_regen[UNIT_TYPE_COUNT];  // Health.js IdleRegenRate, added while idle
+		float range_mul[UNIT_TYPE_COUNT];   // Attack/Ranged/MaxRange multiplier (range adds after it)
+		float vision[UNIT_TYPE_COUNT];      // Vision/Range multiplier
+		float capture[UNIT_TYPE_COUNT];     // Attack/Capture/Capture multiplier
+		float required_xp[UNIT_TYPE_COUNT]; // Promotion/RequiredXp multiplier
 		float bld_health[BLD_TYPE_COUNT];
 		float bld_attack[BLD_TYPE_COUNT];
 		float bld_range[BLD_TYPE_COUNT];
@@ -1433,23 +1437,36 @@ private:
 		float bld_cost[BLD_TYPE_COUNT][RES_COUNT]; // Cost/Resources multipliers
 		float bld_international_mul[BLD_TYPE_COUNT]; // Market/InternationalBonus (Silk Road)
 		float bld_international_add[BLD_TYPE_COUNT]; // ... added before it (Commercial Treaty)
+		float bld_territory[BLD_TYPE_COUNT];       // TerritoryInfluence/Radius multiplier
+		float bld_tech_cost[BLD_TYPE_COUNT][RES_COUNT]; // Researcher/TechCostMultiplier of what it researches
+		// Player-wide modifiers from global relic auras.
+		float loot_add[RES_COUNT];    // Looter/Resource/<res> added to every kill's loot
+		float trickle_add[RES_COUNT]; // ResourceTrickle/Rates/<res> of the player, per second
+		float max_pop;                // Player/MaxPopulation multiplier
 		// The same unit multipliers per civ roster template, matched against the
 		// template's own 0 A.D. classes (Champion Infantry Spearman, Javelineer, ...),
 		// which its RTS0 unit_type only approximates.
 		struct Template {
 			float gather[GK_COUNT];
 			float attack, health, speed, range, train_time;
+			float range_mul, vision, capture, required_xp;
 			float armor[3];
 			float cost[RES_COUNT];
 		} tmpl[CIV_UNIT_TEMPLATE_COUNT];
 	};
 	void compute_tech_mods(uint8_t player_id, TechMods &out) const;
 	void rebuild_all_tech_mods();
+	// Recompute a player's modifiers and rescale its existing units and structures
+	// (0 A.D. ModificationsManager: a modifier changes every entity it affects).
+	void refresh_tech_mods(uint8_t player_id);
+	// Bit g set: relic_global_auras()[g] reaches `player` (a relic it or a partner owns).
+	uint32_t relic_aura_mask(uint8_t player) const;
+	std::array<uint32_t, MAX_PLAYERS> relic_aura_masks_{}; // derived, as last applied to tech_mods_
 	void complete_research(uint8_t player_id, uint8_t tech_id);
 	void apply_tech_mods_to_unit(size_t idx);
 	const TechMods &tech_mods(uint8_t player_id) const { return tech_mods_[player_id < MAX_PLAYERS ? player_id : 0]; }
 	// A unit's technology multipliers: its roster template's when it has one, else its unit_type's.
-	struct UnitTechMods { float attack, health, speed, range, train_time; const float *armor, *gather; };
+	struct UnitTechMods { float attack, health, speed, range, train_time, range_mul, vision, capture, required_xp; const float *armor, *gather; };
 	static UnitTechMods unit_tech_mods(const TechMods &m, uint8_t unit_type, uint16_t tmpl);
 	UnitTechMods unit_tech_mods(uint8_t player_id, uint8_t unit_type, uint16_t tmpl) const {
 		return unit_tech_mods(tech_mods(player_id), unit_type, tmpl);
