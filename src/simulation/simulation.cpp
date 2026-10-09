@@ -392,6 +392,7 @@ void Simulation::reset() {
 	fauna_id_to_idx_.clear();
 	transport_passengers_.clear();
 	turret_height_.clear();
+	for (double &d : battle_damage_) d = 0.0;
 	turret_prev_stance_.clear();
 	formations_.clear();
 	next_formation_id_ = 1;
@@ -1786,6 +1787,13 @@ Simulation::ResearchCheck Simulation::research_check(uint8_t player_id, uint8_t 
 	if (ps.has_tech(tech_id)) return TECH_ERR_RESEARCHED;
 	for (const auto &b : buildings_)
 		if (b.team == player_id && b.research_tech == tech_id) return TECH_ERR_IN_PROGRESS;
+	// 0 A.D. pair_*.json (Researcher.js, TechnologyManager.js): the player picks one of the
+	// two; once either is researched or started, the other is gone.
+	if (const uint8_t partner = tech_pair_partner(tech_id); partner != TECH_NONE) {
+		if (ps.has_tech(partner)) return TECH_ERR_PAIRED;
+		for (const auto &b : buildings_)
+			if (b.team == player_id && b.research_tech == partner) return TECH_ERR_PAIRED;
+	}
 	if (!tech_available_to_civ(tech_id, ps.civ)) return TECH_ERR_CIV;
 	if (tinfo.required_phase > ps.phase) return TECH_ERR_PHASE;
 	if (tinfo.prerequisite != TECH_NONE && !ps.has_tech(tinfo.prerequisite)) return TECH_ERR_PREREQUISITE;
@@ -4314,6 +4322,16 @@ void Simulation::gain_xp(size_t idx, float amount) {
 
 // 0 A.D. Health.js TakeDamage: the attacker gains Loot/xp * health taken / max health
 // (the health actually lost, so overkill gives nothing). Call before applying damage.
+// 0 A.D. BattleDetection.js OnGlobalAttacked: a player's detector counts the damage its
+// own entities deal to another player's (not Gaia's, not its own). The total feeds the
+// battle music; it is presentation state, so it is neither saved nor hashed.
+void Simulation::note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uint32_t target_id, uint8_t target_owner,
+		bool target_is_building, float damage) {
+	(void)attacker_id, (void)target_id, (void)target_is_building; // for the session's AttackDetection events
+	if (attacker_owner >= MAX_PLAYERS || target_owner >= MAX_PLAYERS || attacker_owner == target_owner) return;
+	if (damage > 0.0f) battle_damage_[attacker_owner] += damage;
+}
+
 void Simulation::award_damage_xp(uint32_t attacker_id, size_t victim, float damage) {
 	if (attacker_id == 0 || victim >= units_.count) return;
 	int32_t a = lookup_unit(attacker_id);
@@ -6118,9 +6136,10 @@ void Simulation::tick_combat(float dt) {
 				((i + ticks_) % 4 == 0 || st == ACTION_ATTACK || walk_and_fight)) {
 			const float scan_range = stance == STANCE_STAND_GROUND ? range
 					: stance == STANCE_DEFENSIVE ? std::min(range + vision * 0.5f, vision) : vision;
-			float best_score = -999999.0f;
 			const uint8_t my_team = units_.team[i];
-			const uint8_t my_type = units_.unit_type[i];
+			const PrefProfile &my_prefs = unit_preferences(units_.tmpl[i], units_.unit_type[i]).prefs;
+			uint16_t best_pref = 0x100; // above PREF_NONE: any target beats none
+			float best_unit_d2 = 0.0f;
 
 			grid.visit_radius(pxi, pzi, scan_range, [&](int32_t j) {
 				if (!units_.alive[j] || !can_attack(my_team, units_.team[j])) return;
@@ -6131,23 +6150,12 @@ void Simulation::tick_combat(float dt) {
 				if (d2 > scan_range * scan_range || d2 < minr * minr) return;
 				if (!within_stance(j)) return;
 
-				// 0 A.D. Target Selection Heuristic: Counter-bonus preference + focus fire + proximity
-				float score = -sqrtf(d2);
-				uint8_t target_type = units_.unit_type[j];
-
-				// Tactical counter preference
-				if (my_type == UNIT_SPEARMAN && (target_type == UNIT_CAVALRY || target_type == UNIT_CAMEL || target_type == UNIT_CHARIOT)) score += 35.0f;
-				else if ((my_type == UNIT_CAVALRY || my_type == UNIT_CHARIOT) && (target_type == UNIT_ARCHER || target_type == UNIT_ARCHER_MAIDEN || target_type == UNIT_HEALER)) score += 30.0f;
-				else if (my_type == UNIT_SWORDSMAN && target_type == UNIT_SPEARMAN) score += 20.0f;
-				else if (my_type == UNIT_BOLT_SHOOTER && (target_type == UNIT_ELEPHANT || target_type == UNIT_WORKER_ELEPHANT || target_type == UNIT_HERO)) score += 40.0f;
-
-				// Finishing blow focus fire on low-HP enemies
-				if (units_.max_hp[j] > 0.0f) {
-					score += (1.0f - units_.hp[j] / units_.max_hp[j]) * 15.0f;
-				}
-
-				if (score > best_score) {
-					best_score = score;
+				// UnitAI AttackEntitiesByPreference: the best PreferredClasses match
+				// (Attack.js GetPreference), then the closest; no match comes last.
+				const uint8_t pref = preference_of(my_prefs, unit_preferences(units_.tmpl[j], units_.unit_type[j]).classes);
+				if (pref < best_pref || (pref == best_pref && d2 < best_unit_d2)) {
+					best_pref = pref;
+					best_unit_d2 = d2;
 					found = j;
 				}
 			});
@@ -6355,6 +6363,7 @@ void Simulation::tick_combat(float dt) {
 			}
 		} else {
 			award_damage_xp(units_.id[i], (size_t)t, final_dmg);
+			note_attacked(units_.id[i], units_.team[i], units_.id[t], units_.team[t], false, final_dmg);
 			units_.hp[t] -= final_dmg;
 			if (units_.team[t] == 0) {
 				raise_alert(BattleAlert::ALERT_UNDER_ATTACK, units_.pos_x[t], units_.pos_z[t], units_.id[t], units_.team[t]);
@@ -6506,6 +6515,7 @@ void Simulation::tick_combat(float dt) {
 			           bld_dmg, units_.team[i], b.id, EFFECT_BURNING, 2, true, vis, units_.id[i],
 			           unit_splash(units_.tmpl[i], ut));
 		} else {
+			note_attacked(units_.id[i], units_.team[i], b.id, b.team, true, bld_dmg);
 			b.hp -= bld_dmg;
 			if (b.team == 0) {
 				raise_alert(BattleAlert::ALERT_BUILDING_UNDER_ATTACK, b.x, b.z, b.id, b.team);
@@ -7073,12 +7083,11 @@ void Simulation::tick_projectiles(float dt) {
 			p.progress = 1.0f;
 			p.alive = false;
 
-			int32_t hit_unit = -1;
 			if (p.target_unit_id != 0) {
 				int32_t tidx = projectile_hit_unit(p);
-				hit_unit = tidx;
 				if (tidx >= 0 && units_.alive[tidx]) {
 					award_damage_xp(p.source_id, (size_t)tidx, p.damage);
+					note_attacked(p.source_id, p.team, units_.id[tidx], units_.team[tidx], false, p.damage);
 					units_.hp[tidx] -= p.damage;
 					if (units_.team[tidx] == 0) {
 						raise_alert(BattleAlert::ALERT_UNDER_ATTACK, units_.pos_x[tidx], units_.pos_z[tidx], units_.id[tidx], units_.team[tidx]);
@@ -7110,6 +7119,7 @@ void Simulation::tick_projectiles(float dt) {
 				if (bit != building_id_to_idx_.end()) {
 					Building &b = buildings_[bit->second];
 					if (!b.wrecked && b.hp > 0.0f) {
+						note_attacked(p.source_id, p.team, b.id, b.team, true, p.damage);
 						b.hp -= p.damage;
 						if (b.team == 0)
 							raise_alert(BattleAlert::ALERT_BUILDING_UNDER_ATTACK, b.x, b.z, b.id, b.team);
@@ -7569,8 +7579,26 @@ void Simulation::tick_trickle(float dt) {
 
 	// template_player.xml: Interval 1000, Rates 0, raised by the Ptolemaic team bonus
 	// (ptol_player_teambonus.json, Breadbasket of the Mediterranean: +1 food for the
-	// Ptolemies and their mutual allies). Only players who own a building get it.
+	// Ptolemies and their mutual allies; only players who own a building get it) and by
+	// technologies that affect "Player" (Serapis Cult: +2 metal). Their trickle effects
+	// are the unfiltered ones (tools/extract_0ad_techs.py).
+	static constexpr uint8_t kTrickleRes[4] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD};
+	auto is_player_trickle = [](const TechEffect &e) {
+		return e.stat >= TSTAT_TRICKLE_FOOD && e.stat <= TSTAT_TRICKLE_METAL && e.affects_count == 0;
+	};
 	if (due(1.0f)) {
+		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+			PlayerState &ps = players_[p];
+			if (is_defeated(p)) continue;
+			for (uint8_t id = 1; id < TECH_COUNT; ++id) {
+				if (!ps.has_tech(id)) continue;
+				const TechInfo &ti = tech_info(id);
+				const TechEffect *fx = tech_effects_table() + ti.effect_begin;
+				for (uint16_t k = 0; k < ti.effect_count; ++k)
+					if (is_player_trickle(fx[k]) && fx[k].op == TOP_ADD)
+						ps.res[kTrickleRes[fx[k].stat - TSTAT_TRICKLE_FOOD]] += fx[k].value;
+			}
+		}
 		uint16_t civs_present = 0;
 		for (const auto &b : buildings_)
 			if (b.team < MAX_PLAYERS && b.hp > 0.0f) civs_present |= civ_bit(players_[b.team].civ);
@@ -7614,9 +7642,9 @@ void Simulation::tick_trickle(float dt) {
 				const TechEffect *fx = tech_effects_table() + ti.effect_begin;
 				for (uint16_t k = 0; k < ti.effect_count; ++k) {
 					const TechEffect &e = fx[k];
-					if (e.stat < TSTAT_TRICKLE_FOOD || e.stat > TSTAT_TRICKLE_METAL || !tech_effect_applies(e, classes)) continue;
-					static constexpr uint8_t kRes[4] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD};
-					float &v = rate[kRes[e.stat - TSTAT_TRICKLE_FOOD]];
+					if (e.stat < TSTAT_TRICKLE_FOOD || e.stat > TSTAT_TRICKLE_METAL || is_player_trickle(e)
+					    || !tech_effect_applies(e, classes)) continue;
+					float &v = rate[kTrickleRes[e.stat - TSTAT_TRICKLE_FOOD]];
 					v = (e.op == TOP_MUL) ? v * e.value : (e.op == TOP_SET) ? e.value : v + e.value;
 				}
 			}
@@ -7727,6 +7755,7 @@ void Simulation::tick_death_damage(float dt) {
 			if (std::fabs(dx) > r + 2.0f || std::fabs(dz) > r + 2.0f) continue;
 			const float d = std::max(0.0f, std::sqrt(dx * dx + dz * dz) - unit_collision_radius(units_.unit_type[i]));
 			if (d >= r) continue;
+			note_attacked(0, owner, units_.id[i], units_.team[i], false, dd.damage * (1.0f - d * d / r2));
 			units_.hp[i] -= dd.damage * (1.0f - d * d / r2);
 			if (units_.hp[i] > 0.0f) continue;
 			units_.hp[i] = 0.0f;
@@ -7744,6 +7773,7 @@ void Simulation::tick_death_damage(float dt) {
 			const float ez = std::max(0.0f, std::fabs(b.z - oz) - b.half_size);
 			const float d2 = ex * ex + ez * ez;
 			if (d2 >= r2) continue;
+			note_attacked(0, owner, b.id, b.team, true, dd.damage * (1.0f - d2 / r2));
 			b.hp -= dd.damage * (1.0f - d2 / r2);
 			if (b.hp <= 0.0f) mark_building_wreck(b, owner);
 		}
@@ -7810,6 +7840,7 @@ void Simulation::cause_damage_over_area(uint8_t splash, uint32_t attacker_id, ui
 				sp.crush * powf(0.9f, res[2]));
 		if (dmg <= 0.0f) continue;
 		award_damage_xp(attacker_id, u, dmg);
+		note_attacked(attacker_id, attacker_team, units_.id[u], units_.team[u], false, dmg);
 		units_.hp[u] -= dmg;
 		if (units_.attacked_by[u] == 0 && attacker_id != 0) units_.attacked_by[u] = attacker_id;
 		if (units_.team[u] == 0)
@@ -7837,6 +7868,7 @@ void Simulation::cause_damage_over_area(uint8_t splash, uint32_t attacker_id, ui
 		const float dmg = m * (sp.hack * powf(0.9f, bc.hack_armor) + sp.pierce * powf(0.9f, bc.pierce_armor) +
 				sp.crush * powf(0.9f, bc.crush_armor));
 		if (dmg <= 0.0f) continue;
+		note_attacked(attacker_id, attacker_team, b.id, b.team, true, dmg);
 		b.hp -= dmg;
 		if (b.team == 0) raise_alert(BattleAlert::ALERT_BUILDING_UNDER_ATTACK, b.x, b.z, b.id, b.team);
 		if (b.hp > 0.0f) continue;

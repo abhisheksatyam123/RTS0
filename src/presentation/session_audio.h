@@ -186,7 +186,7 @@ public:
 
 	// Diffs the world each frame for events 0 A.D. sends as messages: structures
 	// finished, techs researched, units trained and units killed. Feeds
-	// BattleDetection with the damage `me` deals to other players.
+	// BattleDetection with the damage `me` deals to other players (counted by the sim).
 	void tick(const Simulation *sim, uint8_t me, double t, bool voices_on) {
 		if (!sim) return;
 		if (me != seat_) {
@@ -194,6 +194,7 @@ public:
 			primed_ = false;
 			known_.clear();
 			battle_ = BattleDetection();
+			battle_dealt_ = sim->battle_damage_dealt(me);
 		}
 		const bool fire = primed_; // the first frame of a seat only takes a snapshot
 
@@ -247,14 +248,15 @@ public:
 				}
 				continue;
 			}
-			// Damage to another (non-Gaia) player's unit near one of mine.
-			if (uv.hp[i] < prev->second.hp && uv.team[i] != me && uv.team[i] != GAIA_PLAYER &&
-					sim->is_hostile(me, uv.team[i]) && mine_near(uv, me, uv.pos_x[i], uv.pos_z[i]))
-				battle_.add_damage(prev->second.hp - uv.hp[i], t);
 		}
 		seen_.swap(seen);
 		trained_this_frame_ = false;
 		if (fire) tick_work_sounds(sim, me, uv, t);
+		// BattleDetection.js OnGlobalAttacked: damage my entities dealt to other players,
+		// counted by the sim at each hit (Simulation::battle_damage_dealt).
+		const double dealt = sim->battle_damage_dealt(me);
+		if (dealt > battle_dealt_ && fire) battle_.add_damage((float)(dealt - battle_dealt_), t);
+		battle_dealt_ = dealt; // also re-bases after a load restarts the count
 		battle_.update(t);
 		primed_ = true;
 	}
@@ -404,16 +406,6 @@ private:
 		return s;
 	}
 
-	static bool mine_near(const Simulation::UnitView &uv, uint8_t me, float x, float z) {
-		constexpr float kReach2 = 30.0f * 30.0f; // longest RTS0 attack reach plus a margin
-		for (size_t j = 0; j < uv.count; ++j) {
-			if (!uv.alive[j] || uv.team[j] != me) continue;
-			const float dx = uv.pos_x[j] - x, dz = uv.pos_z[j] - z;
-			if (dx * dx + dz * dz < kReach2) return true;
-		}
-		return false;
-	}
-
 	// template_unit_*.xml <trained>: alarm_create_{infantry,cav,female,worker,priest,warship}.
 	void play_trained(uint8_t civ, uint8_t type, bool voices_on) {
 		switch (type) {
@@ -464,6 +456,7 @@ private:
 	bool primed_ = false;
 	bool trained_this_frame_ = false;
 	BattleDetection battle_;
+	double battle_dealt_ = 0.0; // Simulation::battle_damage_dealt(seat_) at the last frame
 	SpatialFn spatial_;
 	std::mt19937 rng_;
 	godot::String last_played_;
