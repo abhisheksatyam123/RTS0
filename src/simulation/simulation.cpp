@@ -5555,6 +5555,7 @@ void Simulation::tick(float dt) {
 	// 6. Waves, AI, and World simulation
 	if (waves_enabled_) tick_waves(dt);
 	tick_petra_ai(dt);
+	cc_captures_.clear();
 	tick_fauna(dt);
 	tick_treasures(dt);      // 0 A.D. Treasure.js / TreasureCollector.js
 	tick_relics();           // Capture the Relic catafalques (Capturable.js)
@@ -8062,6 +8063,7 @@ void Simulation::capture_points_tick(Building &b, size_t bi, float dt) {
 		stat_building_captured(b, from);
 		owner = best;
 		raise_alert(BattleAlert::ALERT_STRUCTURE_CAPTURED, b.x, b.z, b.id, b.team);
+		if (b.type == BLD_TOWN_CENTER || b.type == BLD_MILITARY_COLONY) cc_captures_.push_back({b.id, from, b.team});
 		if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER) rebuild_territory();
 		return true;
 	};
@@ -13430,7 +13432,10 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 
 	// Emergency Base Defense Mobilization: if base is under attack, prioritize defense
 	float base_threat = get_threat_at(base_x, base_z);
-	if (base_threat >= 10.0f && !squad.empty() && petra_attack_plan_.state != AttackPlan::REGROUP) {
+	// An army already fighting at the base (retaking its civic centre) stays on it.
+	const float tbx = petra_attack_plan_.target_x - base_x, tbz = petra_attack_plan_.target_z - base_z;
+	const bool fighting_at_base = petra_attack_plan_.state == AttackPlan::ATTACKED && tbx * tbx + tbz * tbz <= 42.0f * 42.0f;
+	if (base_threat >= 10.0f && !squad.empty() && petra_attack_plan_.state != AttackPlan::REGROUP && !fighting_at_base) {
 		order_attack_move(squad.data(), squad.size(), base_x, base_z);
 		petra_attack_plan_.state = AttackPlan::REGROUP;
 		petra_attack_plan_.state_timer = 0.0f;
@@ -13851,6 +13856,54 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 			petra_attack_plan_.state_timer = 0.0f;
 			break;
 		}
+	}
+}
+
+// defenseManager.js checkEvents: when one of our or a mutual ally's civic centres is
+// captured by a player, attackManager.js switchDefenseToAttack (range 150) turns the
+// defense army fighting within 150 m of it into an attack on it, starting where
+// the army stands (STATE_ARRIVED). RTS0 runs one attack plan at a time, so this
+// takes the plan while it is idle or still mustering (its mustered units join);
+// an army already marching elsewhere keeps its target.
+void Simulation::petra_retake_civic_centres() {
+	for (const auto &ev : cc_captures_) {
+		if (ev.to >= MAX_PLAYERS || !petra_foe(ev.to)) continue;
+		if (ev.from != petra_pid_ && !(ev.from < MAX_PLAYERS && is_ally(petra_pid_, ev.from) && is_ally(ev.from, petra_pid_))) continue;
+		auto bit = building_id_to_idx_.find(ev.building_id);
+		if (bit == building_id_to_idx_.end()) continue;
+		const Building &cc = buildings_[bit->second];
+		auto &plan = petra_attack_plan_;
+		if (plan.state != AttackPlan::UNEXECUTED && plan.state != AttackPlan::MUSTER) continue;
+		auto &army = petra_defense_army_;
+		constexpr float RANGE = 150.0f * 0.28f;
+		const float dx = army.cx - cc.x, dz = army.cz - cc.z;
+		if (!army.active || dx * dx + dz * dz > RANGE * RANGE) continue;
+		std::vector<uint32_t> &squad = plan.squad;
+		if (plan.state == AttackPlan::UNEXECUTED) squad.clear();
+		for (uint32_t uid : army.defender_ids) {
+			const int32_t i = lookup_unit(uid);
+			if (i < 0 || !units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED) continue;
+			if (std::find(squad.begin(), squad.end(), uid) == squad.end()) squad.push_back(uid);
+		}
+		if (squad.empty()) continue;
+		army.defender_ids.clear();
+		army.foe_ids.clear();
+		army.active = false;
+		plan.type = AttackPlan::PLAN_ASSAULT;
+		plan.target_building_id = cc.id;
+		plan.target_x = cc.x;
+		plan.target_z = cc.z;
+		plan.staging_x = cc.x;
+		plan.staging_z = cc.z;
+		plan.initial_squad_size = squad.size();
+		plan.state = AttackPlan::ATTACKED;
+		plan.state_timer = 0.0f;
+		petra_strike_force_.unit_ids = squad;
+		petra_strike_force_.target_building_id = cc.id;
+		petra_strike_force_.target_x = cc.x;
+		petra_strike_force_.target_z = cc.z;
+		petra_strike_force_.state = PetraStrikeForce::ENGAGE;
+		order_attack_move(squad.data(), squad.size(), cc.x, cc.z, false, false, true);
 	}
 }
 
@@ -14750,6 +14803,7 @@ void Simulation::petra_manage_defense(float dt) {
 	petra_manage_garrisons();
 
 	auto &army = petra_defense_army_;
+	const std::vector<uint32_t> last_foes = std::move(army.foe_ids);
 	army.foe_ids.clear();
 
 	auto in_attack_squad = [&](uint32_t uid) {
@@ -14844,6 +14898,26 @@ void Simulation::petra_manage_defense(float dt) {
 		}
 	}
 
+	// checkEnemyArmies: a foe stays in the army until it dies, goes back to enemy land,
+	// or, in neutral land, is farther than 200 m (x0.28) from our civic centres and
+	// those of allies cooperative enough to help.
+	for (uint32_t fid : last_foes) {
+		const int32_t a = lookup_unit(fid);
+		if (a < 0 || !units_.alive[a] || !petra_foe(units_.team[a])) continue;
+		if (std::find(army.foe_ids.begin(), army.foe_ids.end(), fid) != army.foe_ids.end()) continue;
+		const int owner = territory_owner_at(units_.pos_x[a], units_.pos_z[a]);
+		if (owner >= 0 && !is_ally(petra_pid_, (uint8_t)owner)) continue;
+		bool keep = owner >= 0;
+		for (size_t bi = 0; bi < buildings_.size() && !keep; ++bi) {
+			const Building &b = buildings_[bi];
+			if (b.hp <= 0.0f || (b.type != BLD_TOWN_CENTER && b.type != BLD_MILITARY_COLONY) || b.team >= MAX_PLAYERS) continue;
+			if (b.team != petra_pid_ && (!is_ally(petra_pid_, b.team) || cooperation(b.team) < 0.3f)) continue;
+			const float dx = units_.pos_x[a] - b.x, dz = units_.pos_z[a] - b.z;
+			keep = dx * dx + dz * dz <= 56.0f * 56.0f;
+		}
+		if (keep) army.foe_ids.push_back(fid);
+	}
+
 	// Enemy foundations in our territory (defenseManager targetList)
 	for (const auto &b : buildings_) {
 		if (!petra_foe(b.team) || b.hp <= 0.0f) continue;
@@ -14893,8 +14967,6 @@ void Simulation::petra_manage_defense(float dt) {
 	}
 
 	army.active = true;
-	size_t needed = (size_t)std::ceil((float)army.foe_ids.size() * petra_config_.defense_ratio_own);
-	needed = std::min(needed, (size_t)24);
 
 	// Centroid of foes for compact-army assignment
 	army.cx = 0.0f;
@@ -14909,9 +14981,24 @@ void Simulation::petra_manage_defense(float dt) {
 	}
 	if (foe_n > 0) { army.cx /= (float)foe_n; army.cz /= (float)foe_n; }
 
+	// defenseArmy.js needsDefenders: config.js defenseRatio is own 2, ally 1.4 (split
+	// between the ally's other allies) and neutral 1.8, scaled here from the own ratio.
+	const int foe_land = territory_owner_at(army.cx, army.cz);
+	float ratio = petra_config_.defense_ratio_own;
+	if (foe_land >= 0 && foe_land < MAX_PLAYERS && foe_land != petra_pid_ && is_ally(petra_pid_, (uint8_t)foe_land)) {
+		int exclusive_allies = 0;
+		for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
+			if (p != foe_land && players_[p].active && is_ally(p, (uint8_t)foe_land)) ++exclusive_allies;
+		ratio *= 0.7f / (1.0f + 0.5f * (float)std::max(0, exclusive_allies - 1));
+	} else if (foe_land != petra_pid_) {
+		ratio *= 0.9f;
+	}
+	size_t needed = (size_t)std::ceil((float)army.foe_ids.size() * ratio);
+	needed = std::min(needed, (size_t)24);
+
 	// assignDefenders: helping outside our land, units farther than 200 m from the
 	// foes (40000 m^2, x0.28) stay home as a backup of up to 12.
-	const bool foes_outside = territory_owner_at(army.cx, army.cz) != petra_pid_;
+	const bool foes_outside = foe_land != petra_pid_;
 	constexpr float BACKUP_DIST = 56.0f;
 	int backup = 0;
 	for (size_t i = 0; i < units_.count && army.defender_ids.size() < needed; ++i) {
@@ -15823,6 +15910,7 @@ void Simulation::tick_petra_ai_player(float dt) {
 	petra_manage_research(dt);
 
 	// 11. Coordinated Tactical Battlegroup Attacks (attackPlan.js) + concurrent raid
+	petra_retake_civic_centres();
 	petra_manage_tactical_attacks(dt);
 	petra_manage_raid(dt);
 

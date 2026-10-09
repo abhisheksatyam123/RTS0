@@ -1395,6 +1395,55 @@ static void test_defend_allies() {
 	CHECK(answered, "Petra answers an attacker in neutral land");
 }
 
+// defenseManager.js OwnershipChanged -> attackManager.js switchDefenseToAttack: the
+// defense army fighting by a civic centre an enemy captures attacks it to take it back.
+static void test_retake_civic_centre() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	auto &u = s->units_;
+	uint32_t tc_id = 0;
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tc_id = b.id; tx = b.x; tz = b.z; }
+	CHECK(tc_id != 0, "Petra has a Town Center");
+	if (!tc_id) return;
+	std::vector<uint32_t> mine, foes;
+	// Cavalry, which garrisonManager leaves out of the Town Center.
+	for (int i = 0; i < 10; ++i) mine.push_back(s->spawn_unit(tx + 10.0f + (float)(i % 5) * 2.0f, tz + 10.0f + (float)(i / 5) * 2.0f, 1, UNIT_CAVALRY));
+	for (int i = 0; i < 6; ++i) foes.push_back(s->spawn_unit(tx - 22.0f, tz - 6.0f + 2.0f * (float)i, 0, UNIT_SWORDSMAN));
+	auto hold = [&]() {
+		for (uint32_t id : foes) {
+			const int32_t f = s->lookup_unit(id);
+			if (f >= 0 && u.alive[f]) u.hp[f] = u.max_hp[f];
+		}
+	};
+	for (float t = 0.0f; t < 2.0f; t += Simulation::FIXED_STEP) { hold(); s->tick(Simulation::FIXED_STEP); }
+	const size_t defenders = s->petra_defense_army_.defender_ids.size();
+	// The enemy takes the Town Center.
+	{
+		auto &b = s->buildings_[s->building_id_to_idx_.at(tc_id)];
+		b.capture_points_by_team.fill(0.0f);
+		b.capture_points_by_team[0] = b.max_capture_points;
+	}
+	bool lost = false, switched = false;
+	for (float t = 0.0f; t < 1.0f && !switched; t += Simulation::FIXED_STEP) {
+		hold();
+		s->tick(Simulation::FIXED_STEP);
+		lost |= s->buildings()[s->building_id_to_idx_.at(tc_id)].team == 0;
+		const auto &plan = s->petra_attack_plan();
+		switched = plan.target_building_id == tc_id && plan.state == Simulation::AttackPlan::ATTACKED && !plan.squad.empty();
+	}
+	const size_t squad = s->petra_attack_plan().squad.size();
+	std::printf("  civic centre captured (%zu defending): lost %s, defense turned into an attack on it %s (%zu units)\n",
+	            defenders, lost ? "yes" : "no", switched ? "yes" : "no", squad);
+	CHECK(defenders > 0 && lost, "the enemy takes a defended Town Center");
+	CHECK(switched, "the defense army attacks the captured civic centre");
+}
+
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
@@ -1423,6 +1472,7 @@ int main() {
 	test_retreat_walk_forced();
 	test_placement_miss_memory_exact();
 	test_defend_allies();
+	test_retake_civic_centre();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }

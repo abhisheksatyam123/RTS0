@@ -1866,6 +1866,11 @@ private:
 	void petra_manage_research(float dt);
 	void petra_manage_military_production(float dt);
 	void petra_manage_tactical_attacks(float dt);
+	void petra_retake_civic_centres(); // defenseManager.js OwnershipChanged -> switchDefenseToAttack
+	// This tick's civic centre captures (OwnershipChanged), appended in tick_capture and
+	// read by Petra later in the same tick; cleared at the end of tick(), so never saved.
+	struct CivicCentreCapture { uint32_t building_id; uint8_t from, to; };
+	std::vector<CivicCentreCapture> cc_captures_;
 	void petra_manage_raid(float dt);
 	void petra_manage_opening(float dt);
 	void petra_manage_defense(float dt);
