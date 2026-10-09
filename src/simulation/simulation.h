@@ -1029,7 +1029,6 @@ private:
 		float heal_interval[UNIT_TYPE_COUNT]; // < 1 heals faster
 		float trade_gain[UNIT_TYPE_COUNT];
 		float pack_time[UNIT_TYPE_COUNT];   // siege pack/unpack time multiplier
-		float promotion_xp[UNIT_TYPE_COUNT];      // Promotion/RequiredXp multiplier (0: promote at once)
 		float bld_health[BLD_TYPE_COUNT];
 		float bld_attack[BLD_TYPE_COUNT];
 		float bld_range[BLD_TYPE_COUNT];
@@ -1049,7 +1048,6 @@ private:
 			float attack, health, speed, range, train_time;
 			float armor[3];
 			float cost[RES_COUNT];
-			float promotion_xp;
 		} tmpl[CIV_UNIT_TEMPLATE_COUNT];
 	};
 	void compute_tech_mods(uint8_t player_id, TechMods &out) const;

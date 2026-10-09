@@ -3,7 +3,7 @@
 //   g++ -std=c++20 -O2 -Isrc tools/test_techs.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_techs && /tmp/test_techs
-#define private public // units_ xp/rank and tech_mods() for the promotion and cost checks
+#define private public // tech_mods() for the cost checks
 #include "simulation/simulation.h"
 #undef private
 #include "network/turn_manager.h"
@@ -293,8 +293,7 @@ int main() {
 		CHECK(s.cmd_train_template(0, bar, neo));
 	}
 
-	// Capture-point, cost and promotion technologies (Capturable/CapturePoints,
-	// Cost/Resources, Promotion/RequiredXp).
+	// Capture-point and cost technologies (Capturable/CapturePoints, Cost/Resources).
 	{
 		const uint8_t civ_before = s.player(0).civ; // later blocks keep the civ they ran with
 		auto research = [&](uint8_t tech, float x) {
@@ -336,30 +335,6 @@ int main() {
 		s.unit_train_cost(0, healer, civ_template_unit_info(healer, UNIT_HEALER), cost);
 		CHECK(cost[RES_GOLD] == 0.0f);
 
-		// Hoplite Tradition halves the xp a hoplite needs; Marian Reforms promotes
-		// Roman soldiers at once.
-		fresh(s);
-		s.player(0).phase = 3;
-		const uint16_t hop = civ_default_template(CIV_ATHENIANS, UNIT_SPEARMAN);
-		const uint32_t h = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN, 0.0f, hop);
-		auto idx = [&](uint32_t id) {
-			for (size_t i = 0; i < s.units_.count; ++i) if (s.units_.id[i] == id) return i;
-			return (size_t)-1;
-		};
-		s.units_.xp[idx(h)] = 160.0f;
-		run(s, 0.2f);
-		CHECK(s.units_.rank[idx(h)] < 2);
-		research(TECH_HOPLITE_TRADITION, -10.0f);
-		CHECK(s.units_.rank[idx(h)] == 2);
-		fresh(s);
-		s.set_player_civ(CIV_ROMANS);
-		s.player(0).phase = 3;
-		const uint16_t hast = civ_default_template(CIV_ROMANS, UNIT_SWORDSMAN);
-		const uint32_t r = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SWORDSMAN, 0.0f, hast);
-		const uint32_t fem = s.spawn_unit(2.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
-		research(TECH_ROMAN_REFORMS, -10.0f);
-		CHECK(s.units_.rank[idx(r)] == 3);
-		CHECK(s.units_.rank[idx(fem)] < 2);
 		s.set_player_civ(civ_before);
 	}
 

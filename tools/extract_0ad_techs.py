@@ -142,7 +142,6 @@ def stat_of(path: str):
         "Cost/Resources/wood": "TSTAT_COST_WOOD",
         "Cost/Resources/stone": "TSTAT_COST_STONE",
         "Cost/Resources/metal": "TSTAT_COST_METAL",
-        "Promotion/RequiredXp": "TSTAT_PROMOTION_XP",
     }.get(path)
 
 

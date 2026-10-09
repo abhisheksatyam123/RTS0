@@ -1724,12 +1724,11 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		m.train_time[t] = m.heal_interval[t] = m.trade_gain[t] = m.pack_time[t] = 1.0f;
 		m.range[t] = m.heal_range[t] = 0.0f;
 		m.armor[t][0] = m.armor[t][1] = m.armor[t][2] = 0.0f;
-		m.promotion_xp[t] = 1.0f;
 	}
 	for (auto &tm : m.tmpl) {
 		for (float &g : tm.gather) g = 1.0f;
 		for (float &c : tm.cost) c = 1.0f;
-		tm.attack = tm.health = tm.speed = tm.train_time = tm.promotion_xp = 1.0f;
+		tm.attack = tm.health = tm.speed = tm.train_time = 1.0f;
 		tm.range = tm.armor[0] = tm.armor[1] = tm.armor[2] = 0.0f;
 	}
 
@@ -1787,7 +1786,6 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_HEAL_INTERVAL: apply(m.heal_interval[t]); break;
 					case TSTAT_TRADE_GAIN: apply(m.trade_gain[t]); break;
 					case TSTAT_PACK_TIME: apply(m.pack_time[t]); break;
-					case TSTAT_PROMOTION_XP: apply(m.promotion_xp[t]); break;
 					default: break;
 				}
 			}
@@ -1816,7 +1814,6 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_BUILD_TIME: apply(tm.train_time); break;
 					case TSTAT_COST_FOOD: case TSTAT_COST_WOOD: case TSTAT_COST_STONE: case TSTAT_COST_METAL:
 						apply(tm.cost[cost_res]); break;
-					case TSTAT_PROMOTION_XP: apply(tm.promotion_xp); break;
 					default: break;
 				}
 			}
@@ -5721,24 +5718,13 @@ void Simulation::tick_promotion(float dt) {
 
 void Simulation::promote_if_due(size_t i) {
 	{
-		// Promotion/RequiredXp technologies scale both thresholds (Hoplite Tradition
-		// halves them; Marian Reforms and Silver Shields set them to 0: at once).
-		float xp_mul = 1.0f;
-		if (const uint8_t team = units_.team[i]; team < MAX_PLAYERS) {
-			const TechMods &m = tech_mods_[team];
-			const uint16_t tmpl = units_.tmpl[i];
-			// Heroes have no Promotion component in 0 A.D.
-			if (tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(tmpl).flags & ROSTER_HERO)) return;
-			xp_mul = tmpl < CIV_UNIT_TEMPLATE_COUNT ? m.tmpl[tmpl].promotion_xp
-				: units_.unit_type[i] < UNIT_TYPE_COUNT ? m.promotion_xp[units_.unit_type[i]] : 1.0f;
-		}
-		if (units_.rank[i] < 2 && (units_.xp[i] >= 300 * xp_mul || units_.kills[i] >= 3)) {
+		if (units_.rank[i] < 2 && (units_.xp[i] >= 300 || units_.kills[i] >= 3)) {
 			units_.rank[i] = 2; // Advanced
 			units_.max_hp[i] *= 1.15f;
 			units_.hp[i] = std::min(units_.max_hp[i], units_.hp[i] + 20.0f);
 			units_.attack_damage[i] *= 1.10f;
 		}
-		if (units_.rank[i] < 3 && (units_.xp[i] >= 700 * xp_mul || units_.kills[i] >= 7)) {
+		if (units_.rank[i] < 3 && (units_.xp[i] >= 700 || units_.kills[i] >= 7)) {
 			units_.rank[i] = 3; // Elite
 			units_.max_hp[i] *= 1.15f;
 			units_.hp[i] = std::min(units_.max_hp[i], units_.hp[i] + 30.0f);
