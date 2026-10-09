@@ -53,6 +53,7 @@ struct FoggedResource {
 	int32_t amount = 0;
 	uint8_t type = 0;
 	uint8_t subtype = 0;
+	uint8_t flora = 0; // FloraKind
 	bool miraged = false;
 };
 

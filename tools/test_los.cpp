@@ -52,7 +52,9 @@ static void test_own_and_shared_vision() {
 	CHECK(!s->los_visible(0, vr + 3.0f, 0.0f), "but not past it");
 	CHECK(!s->los_visible(1, 0.0f, 0.0f), "player 1 does not see it");
 	s->set_mutual_ally(0, 1);
-	CHECK(s->los_visible(1, 0.0f, 0.0f), "an ally shares the vision (VisionSharing.js)");
+	CHECK(!s->los_visible(1, 0.0f, 0.0f), "an ally sees nothing of it before Cartography (Player.js UpdateSharedLos)");
+	s->players_[1].techs.set(TECH_UNLOCK_SHARED_LOS);
+	CHECK(s->los_visible(1, 0.0f, 0.0f), "an ally with Cartography shares the vision");
 	CHECK(s->los_explored(1, 0.0f, 0.0f), "and what it explored");
 	CHECK(!s->los_visible(2, 0.0f, 0.0f), "a third player still does not");
 

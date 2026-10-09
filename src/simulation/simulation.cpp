@@ -135,6 +135,8 @@ static constexpr uint32_t SAVE_VERSION_RALLY = 47; // each structure's rally res
 static constexpr uint32_t SAVE_VERSION_MOTION = 38;
 // Each fruit bush's ResourceSupply/Max, which it regrows towards.
 static constexpr uint32_t SAVE_VERSION_FRUIT_MAX = 39;
+// The per-tile terrain textures (after the heightmap) and each tree's and fruit bush's FloraKind.
+static constexpr uint32_t SAVE_VERSION_TERRAIN_FLORA = 49;
 // Petra's transport plans side by side, each with its owner.
 static constexpr uint32_t SAVE_VERSION_PETRA_TRANSPORTS = 40;
 // Heroes each player has trained (EntityLimits MatchLimit, tick_state_io section 9b) and
@@ -383,6 +385,59 @@ void Simulation::set_map_half(float h) {
 
 Simulation::~Simulation() = default;
 
+void Simulation::set_terrain_tiles(TerrainTiles t) {
+	bool ok = t.res > 0 && t.res <= MAX_TERRAIN_TILE_RES && !t.names.empty() && t.names.size() <= MAX_TERRAIN_NAMES &&
+	          t.tiles.size() == (size_t)t.res * (size_t)t.res;
+	for (size_t i = 0; ok && i < t.tiles.size(); ++i) ok = t.tiles[i] < t.names.size();
+	terrain_tiles_ = ok ? std::move(t) : TerrainTiles();
+}
+
+Simulation::TerrainTiles Simulation::terrain_tiles_from_rle(int res, std::vector<std::string> names, const std::string &rle_base64) {
+	TerrainTiles t;
+	if (res <= 0 || res > MAX_TERRAIN_TILE_RES || names.empty() || names.size() > MAX_TERRAIN_NAMES) return t;
+	auto sextet = [](char c) -> int {
+		if (c >= 'A' && c <= 'Z') return c - 'A';
+		if (c >= 'a' && c <= 'z') return c - 'a' + 26;
+		if (c >= '0' && c <= '9') return c - '0' + 52;
+		if (c == '+') return 62;
+		if (c == '/') return 63;
+		return -1;
+	};
+	std::vector<uint8_t> rle;
+	rle.reserve(rle_base64.size() * 3 / 4);
+	uint32_t acc = 0;
+	int bits = 0;
+	for (const char c : rle_base64) {
+		const int v = sextet(c);
+		if (v < 0) continue; // padding, line breaks
+		acc = (acc << 6) | (uint32_t)v;
+		bits += 6;
+		if (bits >= 8) {
+			bits -= 8;
+			rle.push_back((uint8_t)(acc >> bits));
+		}
+	}
+	const size_t n = (size_t)res * (size_t)res;
+	t.tiles.reserve(n);
+	for (size_t i = 0; i + 1 < rle.size() && t.tiles.size() < n; i += 2)
+		t.tiles.insert(t.tiles.end(), std::min<size_t>((size_t)rle[i] + 1, n - t.tiles.size()), rle[i + 1]);
+	if (t.tiles.size() != n) return TerrainTiles();
+	t.res = res;
+	t.names = std::move(names);
+	for (const uint8_t v : t.tiles)
+		if (v >= t.names.size()) return TerrainTiles();
+	return t;
+}
+
+int Simulation::terrain_tile_at(float x, float z) const {
+	const TerrainTiles &t = terrain_tiles_;
+	if (t.empty()) return -1;
+	const float cell = 2.0f * map_half_ / (float)t.res;
+	const int tx = std::clamp((int)std::floor((x + map_half_) / cell), 0, t.res - 1);
+	const int tz = std::clamp((int)std::floor((z + map_half_) / cell), 0, t.res - 1);
+	return t.at(tx, tz);
+}
+
 void Simulation::reset() {
 	territory_regions_dirty_ = true;
 	petra_decay_events_.clear();
@@ -392,6 +447,7 @@ void Simulation::reset() {
 	// previous map's heights would otherwise move projectiles and water.
 	terrain_heights_.clear();
 	terrain_res_ = 64;
+	terrain_tiles_ = TerrainTiles();
 	terrain_water_height_ = -1.0f;
 	fow_cell_height_.clear();
 	fow_cell_hmax_.clear();
@@ -850,14 +906,21 @@ uint32_t Simulation::spawn_resource(int cell_x, int cell_y, uint8_t type, int32_
 	return spawn_resource_world(x, z, type, amount);
 }
 
-uint32_t Simulation::spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount, uint8_t subtype, uint8_t max_gatherers) {
+uint32_t Simulation::spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount, uint8_t subtype, uint8_t max_gatherers,
+		uint8_t flora) {
 	uint32_t rid = alloc_id();
 	if (max_gatherers == 0) max_gatherers = resource_default_max_gatherers(type, subtype, amount);
 	size_t idx = resources_.push(wx, wz, amount, type, rid, subtype, max_gatherers);
 	// template_gaia_fruit: a berry/fruit bush regrows towards its ResourceSupply/Max.
 	if (type == RES_FOOD && subtype == RES_SUB_NONE) resources_.max_amount[idx] = amount;
+	resources_.flora[idx] = flora < FLORA_COUNT ? flora : FLORA_DEFAULT;
 	res_id_to_idx_[rid] = idx;
 	return rid;
+}
+
+void Simulation::set_resource_flora(uint32_t res_id, uint8_t flora) {
+	auto it = res_id_to_idx_.find(res_id);
+	if (it != res_id_to_idx_.end()) resources_.flora[it->second] = flora < FLORA_COUNT ? flora : FLORA_DEFAULT;
 }
 
 uint32_t Simulation::spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team, float progress) {
@@ -991,6 +1054,9 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 				"steppe", "savanna", "polar", "india"};
 		current_map_biome_ = kBiomeNames[biome_override_];
 	}
+	// 0 A.D. per-tile terrain textures from the final biome.
+	RmsGenerator::paint_terrain(*this, seed);
+	RmsGenerator::plant_flora(*this, seed);
 	if (nomad_) remove_player_structures();
 	register_map_triggers(type);
 	rebuild_nav_grid();
@@ -2724,7 +2790,8 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		m.attack[t] = m.health[t] = m.speed[t] = 1.0f;
 		m.train_time[t] = m.heal_interval[t] = m.trade_gain[t] = m.pack_time[t] = 1.0f;
 		m.range[t] = m.heal_range[t] = m.regen[t] = m.idle_regen[t] = 0.0f;
-		m.range_mul[t] = m.vision[t] = m.capture[t] = m.required_xp[t] = 1.0f;
+		m.range_mul[t] = m.vision[t] = m.capture[t] = m.required_xp[t] = m.spread[t] = 1.0f;
+		m.vision_add[t] = 0.0f;
 		m.armor[t][0] = m.armor[t][1] = m.armor[t][2] = 0.0f;
 	}
 	for (auto &tm : m.tmpl) {
@@ -2732,7 +2799,8 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		for (float &c : tm.cost) c = 1.0f;
 		tm.attack = tm.health = tm.speed = tm.train_time = 1.0f;
 		tm.range = tm.armor[0] = tm.armor[1] = tm.armor[2] = 0.0f;
-		tm.range_mul = tm.vision = tm.capture = tm.required_xp = 1.0f;
+		tm.range_mul = tm.vision = tm.capture = tm.required_xp = tm.spread = 1.0f;
+		tm.vision_add = 0.0f;
 	}
 
 	for (int b = 0; b < BLD_TYPE_COUNT; ++b) {
@@ -2746,6 +2814,9 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		m.bld_international_add[b] = 0.0f;
 		m.bld_territory[b] = 1.0f;
 		for (float &c : m.bld_tech_cost[b]) c = 1.0f;
+		m.bld_vision[b] = m.bld_garrison_arrows[b] = 1.0f;
+		m.bld_vision_add[b] = 0.0f;
+		m.bld_min_range[b] = -1.0f;
 	}
 	for (int r = 0; r < RES_COUNT; ++r) m.loot_add[r] = m.trickle_add[r] = 0.0f;
 	m.max_pop = 1.0f;
@@ -2774,7 +2845,8 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_GATHER_WOOD: case TSTAT_GATHER_STONE: case TSTAT_GATHER_METAL:
 						apply(m.gather[t][e.stat - TSTAT_GATHER_GRAIN]); break;
 					case TSTAT_GATHER_ALL: for (float &g : m.gather[t]) apply(g); break;
-					case TSTAT_VISION: apply(m.vision[t]); break;
+					case TSTAT_VISION: apply(e.op == TOP_ADD ? m.vision_add[t] : m.vision[t]); break;
+					case TSTAT_SPREAD: if (ranged) apply(m.spread[t]); break;
 					case TSTAT_CAPTURE_ATTACK: apply(m.capture[t]); break;
 					case TSTAT_REQUIRED_XP: apply(m.required_xp[t]); break;
 					case TSTAT_CARRY_FOOD: m.carry[t][RES_FOOD] += (int16_t)e.value; break;
@@ -2815,7 +2887,8 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_GATHER_WOOD: case TSTAT_GATHER_STONE: case TSTAT_GATHER_METAL:
 						apply(tm.gather[e.stat - TSTAT_GATHER_GRAIN]); break;
 					case TSTAT_GATHER_ALL: for (float &g : tm.gather) apply(g); break;
-					case TSTAT_VISION: apply(tm.vision); break;
+					case TSTAT_VISION: apply(e.op == TOP_ADD ? tm.vision_add : tm.vision); break;
+					case TSTAT_SPREAD: if (ranged) apply(tm.spread); break;
 					case TSTAT_CAPTURE_ATTACK: apply(tm.capture); break;
 					case TSTAT_REQUIRED_XP: apply(tm.required_xp); break;
 					case TSTAT_MELEE_HACK: case TSTAT_MELEE_PIERCE: case TSTAT_MELEE_CRUSH:
@@ -2861,6 +2934,9 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_COST_FOOD: case TSTAT_COST_WOOD: case TSTAT_COST_STONE: case TSTAT_COST_METAL:
 						apply(m.bld_cost[b][cost_res]); break;
 					case TSTAT_TERRITORY_RADIUS: apply(m.bld_territory[b]); break;
+					case TSTAT_VISION: apply(e.op == TOP_ADD ? m.bld_vision_add[b] : m.bld_vision[b]); break;
+					case TSTAT_GARRISON_ARROWS: apply(m.bld_garrison_arrows[b]); break;
+					case TSTAT_MIN_RANGE: if (e.op == TOP_SET) m.bld_min_range[b] = e.value * 0.28f; break;
 					case TSTAT_TECH_COST_FOOD: apply(m.bld_tech_cost[b][RES_FOOD]); break;
 					case TSTAT_TECH_COST_WOOD: apply(m.bld_tech_cost[b][RES_WOOD]); break;
 					case TSTAT_TECH_COST_STONE: apply(m.bld_tech_cost[b][RES_STONE]); break;
@@ -2951,12 +3027,12 @@ void Simulation::rebuild_all_tech_mods() {
 Simulation::UnitTechMods Simulation::unit_tech_mods(const TechMods &m, uint8_t unit_type, uint16_t tmpl) {
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
 		const TechMods::Template &tm = m.tmpl[tmpl];
-		return {tm.attack, tm.health, tm.speed, tm.range, tm.train_time, tm.range_mul, tm.vision, tm.capture,
-			tm.required_xp, tm.armor, tm.gather};
+		return {tm.attack, tm.health, tm.speed, tm.range, tm.train_time, tm.range_mul, tm.vision, tm.vision_add, tm.spread,
+			tm.capture, tm.required_xp, tm.armor, tm.gather};
 	}
 	const uint8_t t = unit_type < UNIT_TYPE_COUNT ? unit_type : 0;
 	return {m.attack[t], m.health[t], m.speed[t], m.range[t], m.train_time[t], m.range_mul[t], m.vision[t],
-		m.capture[t], m.required_xp[t], m.armor[t], m.gather[t]};
+		m.vision_add[t], m.spread[t], m.capture[t], m.required_xp[t], m.armor[t], m.gather[t]};
 }
 
 void Simulation::apply_tech_mods_to_unit(size_t idx) {
@@ -4990,7 +5066,8 @@ int Simulation::building_arrow_count(const Building &b) const {
 			if (g >= 0 && (unit_classes(units_.tmpl[g], units_.unit_type[g]) & ai.garrison_arrow_classes)) ++garrisoned;
 		}
 	}
-	int count = (int)std::lround(def) + (int)std::lround(garrisoned * ai.garrison_arrow_multiplier);
+	const float per_unit = ai.garrison_arrow_multiplier * (b.team < MAX_PLAYERS ? tech_mods(b.team).bld_garrison_arrows[b.type] : 1.0f);
+	int count = (int)std::lround(def) + (int)std::lround(garrisoned * per_unit);
 	if (ai.max_arrows > 0) count = std::min(count, (int)ai.max_arrows);
 	return std::max(count, 0);
 }
@@ -8323,7 +8400,8 @@ void Simulation::tick_combat(float dt) {
 			const float flight = dist / projectile_speed(proj_vis);
 			const float aim_x = units_.pos_x[t] + units_.vel_x[t] * flight;
 			const float aim_z = units_.pos_z[t] + units_.vel_z[t] * flight;
-			const float sigma = unit_combat_at(i).spread * spread_rank_multiplier(units_.rank[i]) * dist / 100.0f;
+			const float tech_spread = units_.team[i] < MAX_PLAYERS ? unit_tech_mods(units_.team[i], units_.unit_type[i], units_.tmpl[i]).spread : 1.0f;
+			const float sigma = unit_combat_at(i).spread * spread_rank_multiplier(units_.rank[i]) * tech_spread * dist / 100.0f;
 			float launch_y = unit_height(i) + arrow_sy;
 			float land_y = (unit_is_ship(units_.unit_type[t]) ? unit_height(t)
 					: get_terrain_height(aim_x, aim_z) + unit_height_offset((size_t)t)) + 0.8f;
@@ -8538,7 +8616,8 @@ void Simulation::tick_combat(float dt) {
 		// The enemy range query: parabolic between MinRange and MaxRange from the
 		// structure's edge, measured from Origin/Y above its ground.
 		const float max_r = building_arrow_range(b);
-		const float min_r = ai.min_range;
+		const float tech_min = b.team < MAX_PLAYERS ? tech_mods(b.team).bld_min_range[b.type] : -1.0f;
+		const float min_r = tech_min >= 0.0f ? tech_min : ai.min_range; // Murder Holes
 		const float b_y = get_terrain_height(b.x, b.z) + ai.origin_y;
 		auto in_range = [&](float dx, float dz, float other_half, float def_y) {
 			const float eff_d = std::max(0.0f, sqrtf(dx * dx + dz * dz) - b.half_size - other_half);
@@ -9597,6 +9676,7 @@ Simulation::ResourceView Simulation::resources() const {
 		resources_.x, resources_.z,
 		resources_.amount,
 		resources_.type, resources_.subtype, resources_.alive,
+		resources_.flora,
 		resources_.id,
 		resources_.count
 	};
@@ -18026,7 +18106,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind
 
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
@@ -18041,6 +18121,22 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&res, sizeof(res));
 		out.write((const char *)&n, sizeof(n));
 		if (n) out.write((const char *)terrain_heights_.data(), (std::streamsize)(n * sizeof(float)));
+	}
+	// v49: the per-tile terrain textures, so a loaded map draws its own ground.
+	{
+		const TerrainTiles &t = terrain_tiles_;
+		const int32_t res = t.empty() ? 0 : t.res;
+		out.write((const char *)&res, sizeof(res));
+		if (res) {
+			const uint8_t names = (uint8_t)t.names.size();
+			out.write((const char *)&names, sizeof(names));
+			for (const std::string &nm : t.names) {
+				const uint8_t len = (uint8_t)std::min<size_t>(nm.size(), 255);
+				out.write((const char *)&len, sizeof(len));
+				out.write(nm.data(), len);
+			}
+			out.write((const char *)t.tiles.data(), (std::streamsize)t.tiles.size());
+		}
 	}
 
 	// 1. Sim scalars
@@ -18255,6 +18351,30 @@ bool Simulation::load_state(const char *filepath) {
 		if (!in.good()) return false;
 		set_terrain_data(heights, res, terrain_water_height_); // the water level comes with the tick state
 	}
+	terrain_tiles_ = TerrainTiles();
+	if (version >= SAVE_VERSION_TERRAIN_FLORA) {
+		int32_t res = 0;
+		in.read((char *)&res, sizeof(res));
+		if (!in.good() || res < 0 || res > MAX_TERRAIN_TILE_RES) return false;
+		if (res) {
+			TerrainTiles t;
+			t.res = res;
+			uint8_t names = 0;
+			in.read((char *)&names, sizeof(names));
+			for (uint8_t i = 0; in.good() && i < names; ++i) {
+				uint8_t len = 0;
+				in.read((char *)&len, sizeof(len));
+				std::string nm(len, '\0');
+				if (len) in.read(nm.data(), len);
+				t.names.push_back(std::move(nm));
+			}
+			t.tiles.resize((size_t)res * (size_t)res);
+			in.read((char *)t.tiles.data(), (std::streamsize)t.tiles.size());
+			if (!in.good()) return false;
+			set_terrain_tiles(std::move(t));
+			if (terrain_tiles_.empty()) return false;
+		}
+	}
 
 	// 1. Sim scalars
 	in.read((char *)&ticks_, sizeof(ticks_));
@@ -18360,6 +18480,7 @@ bool Simulation::load_state(const char *filepath) {
 		resources_.subtype[idx] = RES_SUB_NONE; // v17+: the tick state has it
 		resources_.max_gatherers[idx] = resource_default_max_gatherers(rtype, RES_SUB_NONE, ramount); // v29+: saved
 		resources_.max_amount[idx] = 0; // tick state: saved, or the fruit default
+		resources_.flora[idx] = FLORA_DEFAULT; // v49+: the tick state has it
 		resources_.alive[idx] = ralive;
 		resources_.count++;
 		res_id_to_idx_[rid] = idx;
@@ -19094,6 +19215,9 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		for (size_t r = 0; r < s.resources_.count; ++r)
 			s.resources_.max_amount[r] = (s.resources_.type[r] == RES_FOOD && s.resources_.subtype[r] == RES_SUB_NONE) ? s.resources_.amount[r] : 0;
 	}
+	// v49: each tree's and fruit bush's FloraKind (older saves: the biome's pick).
+	if (ar.version >= SAVE_VERSION_TERRAIN_FLORA)
+		for (size_t r = 0; r < s.resources_.count; ++r) ar.pod(s.resources_.flora[r]);
 
 	// 4. UnitAI orders (save v20): each unit's order, last attacker and work order,
 	// then the order queues by unit id.
@@ -19555,10 +19679,10 @@ void Simulation::tick_fow() {
 			if (const int32_t u = lookup_unit(s.unit_id); u >= 0 && s.player < MAX_PLAYERS) spy_mask_[u] |= (uint8_t)(1u << s.player);
 	}
 
-	// VisionSharing.js: allied players share the visibility generated by
-	// their units/buildings -- teammates, or a mutual alliance both sides chose.
+	// Player.js UpdateSharedLos: a player sees what its mutual allies' units and buildings
+	// see once it has researched Cartography (shares_los).
 	// fow_grid_ is player 0's view and the one hashed for lockstep.
-	update_player_fow(fow_grid_, [this](uint8_t owner) { return is_ally(0, owner); }, player_fow_views_);
+	update_player_fow(fow_grid_, [this](uint8_t owner) { return shares_los(0, owner); }, player_fow_views_);
 
 	// The local viewer's own view when it is not player 0 (a multiplayer
 	// joiner). It is presentation-only state: never hashed or read by the
@@ -19567,7 +19691,7 @@ void Simulation::tick_fow() {
 	if (p != 0 && p < MAX_PLAYERS) {
 		auto &grid = player_fow_[p];
 		if (grid.size() != fow_grid_.size()) grid.assign(fow_grid_.size(), FOW_UNEXPLORED);
-		update_player_fow(grid, [this, p](uint8_t owner) { return is_ally(p, owner); }, player_fow_views_);
+		update_player_fow(grid, [this, p](uint8_t owner) { return shares_los(p, owner); }, player_fow_views_);
 	}
 }
 
@@ -19599,6 +19723,10 @@ float Simulation::building_vision_range(const Building &b) const {
 	if (b.type == BLD_TOWER || b.type == BLD_FORTRESS) bvr = 24.0f;
 	if (b.type == BLD_DOCK) bvr = 28.0f;
 	if (const float cv = civ_building_vision(b.type); cv > 0.0f) bvr = cv; // e.g. the Ptolemaic Lighthouse
+	if (b.team < MAX_PLAYERS) { // Carrier Pigeons, Arrow Shooters: multiplied, then added metres x0.28
+		const TechMods &m = tech_mods(b.team);
+		bvr = bvr * m.bld_vision[b.type] + m.bld_vision_add[b.type] * 0.28f;
+	}
 	return bvr;
 }
 
@@ -19638,12 +19766,18 @@ void Simulation::tick_los() {
 	los_bld_src_.resize(nb);
 }
 
+bool Simulation::shares_los(uint8_t viewer, uint8_t owner) const {
+	if (viewer == owner) return true;
+	if (viewer >= MAX_PLAYERS || owner >= MAX_PLAYERS) return false;
+	return players_[viewer].has_tech(TECH_UNLOCK_SHARED_LOS) && is_ally(viewer, owner) && is_ally(owner, viewer);
+}
+
 uint8_t Simulation::los_shared_mask(uint8_t player) const {
-	// VisionSharing.js, as update_player_fow applies it: allies share vision.
+	// As update_player_fow applies it (shares_los).
 	if (player >= MAX_PLAYERS) return 0;
 	uint8_t m = 0;
 	for (uint8_t q = 0; q < MAX_PLAYERS; ++q)
-		if (q == player || is_ally(player, q)) m |= (uint8_t)(1u << q);
+		if (shares_los(player, q)) m |= (uint8_t)(1u << q);
 	return m;
 }
 
@@ -20602,7 +20736,10 @@ float Simulation::unit_base_vision(size_t i) const {
 
 float Simulation::unit_vision_at(size_t i) const {
 	float v = unit_base_vision(i);
-	if (units_.team[i] < MAX_PLAYERS) v *= unit_tech_mods(units_.team[i], units_.unit_type[i], units_.tmpl[i]).vision;
+	if (units_.team[i] < MAX_PLAYERS) {
+		const UnitTechMods um = unit_tech_mods(units_.team[i], units_.unit_type[i], units_.tmpl[i]);
+		v = v * um.vision + um.vision_add * 0.28f; // multiplied, then added metres x0.28
+	}
 	const float m = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_VISION,
 		units_.tmpl[i], &unit_combat_at(i).classes);
 	// structures/wall_garrisoned: a turreted Soldier sees 20 m further.
