@@ -132,7 +132,31 @@ enum MapType : uint8_t {
 	// 0 A.D. trigger maps (maps/random/*_triggers.js run as map triggers, triggers.h)
 	MAP_FLOOD = 57,
 	MAP_EXTINCT_VOLCANO = 58,
-	MAP_TYPE_COUNT = 59
+	MAP_AEGEAN_SEA = 59,
+	MAP_ARCHIPELAGO_0AD = 60,
+	MAP_ISLANDS = 61,
+	MAP_CYCLADIC_ARCHIPELAGO = 62,
+	MAP_SNOWFLAKE_SEAROCKS = 63,
+	MAP_HARBOR = 64,
+	MAP_CORSICA = 65,
+	MAP_PHOENICIAN_LEVANT = 66,
+	MAP_MARMARA = 67,
+	MAP_BAHRAIN = 68,
+	MAP_BOTSWANAN_HAVEN = 69,
+	MAP_SCYTHIAN_RIVULET = 70,
+	MAP_AMBUSH = 71,
+	MAP_ARCTIC_SUMMER = 72,
+	MAP_EMPIRE = 73,
+	MAP_SCHWARZWALD = 74,
+	MAP_RATUMACOS = 75,
+	MAP_OASIS_0AD = 76,
+	MAP_MEDITERRANEAN = 77,
+	MAP_ELEPHANTINE = 78,
+	MAP_ISLAND_STRONGHOLD = 79,
+	MAP_POMPEII = 80,
+	MAP_LATIUM = 81,
+	MAP_UNKNOWN = 82,
+	MAP_TYPE_COUNT = 83
 };
 
 struct MapTypeInfo {
@@ -204,7 +228,31 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_DODECANESE, "dodecanese", "Dodecanese (RMS)", "mediterranean", true, "A group of islands in the Aegean, a few joined by bridges; the rest need ships."},
 		{MAP_FORTRESS, "fortress", "Fortress (RMS)", "temperate", true, "Players start inside walled fortresses with a market, barracks, stable and temple."},
 		{MAP_FLOOD, "flood", "Flood (RMS)", "temperate", true, "A great flood moves across the valley. The home islands go under, so evacuate your units by ship to the mainland."},
-		{MAP_EXTINCT_VOLCANO, "extinct_volcano", "Extinct Volcano (RMS)", "volcanic", true, "Rains raise the water from the 25th minute until only the hills and the great cone stay dry. Gaia towers guard the lowlands."}
+		{MAP_EXTINCT_VOLCANO, "extinct_volcano", "Extinct Volcano (RMS)", "volcanic", true, "Rains raise the water from the 25th minute until only the hills and the great cone stay dry. Gaia towers guard the lowlands."},
+		{MAP_AEGEAN_SEA, "aegean_sea", "Aegean Sea (RMS)", "aegean", true, "Players start on two sides of a sea with scattered islands."},
+		{MAP_ARCHIPELAGO_0AD, "archipelago_0ad", "Archipelago, 0 A.D. (RMS)", "temperate", true, "A maze of islands of different sizes and shapes."},
+		{MAP_ISLANDS, "islands", "Islands (RMS)", "temperate", true, "Players start in small islands while there are many others around."},
+		{MAP_CYCLADIC_ARCHIPELAGO, "cycladic_archipelago", "Cycladic Archipelago (RMS)", "aegean", true, "Each player starts on an island surrounded by water."},
+		{MAP_SNOWFLAKE_SEAROCKS, "snowflake_searocks", "Snowflake Searocks (RMS)", "temperate", true, "Many small islands connected to each other by narrow passages."},
+		{MAP_HARBOR, "harbor", "Harbor (RMS)", "temperate", true, "A sheltered harbor for each player, a deep sea beyond, and narrow passages round the cliffs."},
+		{MAP_CORSICA, "corsica", "Corsica vs Sardinia (RMS)", "mediterranean", true, "The players start on two opposing islands, both with a very jagged relief that will make landing difficult."},
+		{MAP_PHOENICIAN_LEVANT, "phoenician_levant", "Phoenician Levant (RMS)", "mediterranean", true, "Players start in the eastern part of the map while a great sea is located to the west."},
+		{MAP_MARMARA, "marmara", "Marmara (RMS)", "aegean", true, "The Propontis (Sea of Marmara) between Thrace and Asia Minor, joined by the Bosporus and the Hellespont; players start on fertile land."},
+		{MAP_BAHRAIN, "bahrain", "Bahrain (RMS)", "desert", true, "Bahrain, the pearl island of the Sinus Persicus, stands empty between the coasts of Arabia: will you be its next ruler?"},
+		{MAP_BOTSWANAN_HAVEN, "botswanan_haven", "Botswanan Haven (RMS)", "savanna", true, "Botswana in the wet season: herds graze amid tall, lush grasses where lions wait, and crocodiles lurk in the shallow pools."},
+		{MAP_SCYTHIAN_RIVULET, "scythian_rivulet", "Scythian Rivulet (RMS)", "polar", true, "Carpeted in snow, a land of wolf packs either side of a frozen rivulet; players must conquer - or be conquered."},
+		{MAP_AMBUSH, "ambush", "Ambush (RMS)", "temperate", true, "High bluffs overlook the terrain below; rich resources await on the cliffs, but beware of an ambush."},
+		{MAP_ARCTIC_SUMMER, "arctic_summer", "Arctic Summer (RMS)", "polar", true, "Summer in the far north: wolves, deer, hares and muskox roam the plains between hills and lakes."},
+		{MAP_EMPIRE, "empire", "Empire (RMS)", "mediterranean", true, "A neighbouring province has pledged allegiance to you: every player starts with two civic centres."},
+		{MAP_SCHWARZWALD, "schwarzwald", "Schwarzwald (RMS)", "temperate", true, "A forest heavy map with a lake in the middle and plenty of resources."},
+		{MAP_RATUMACOS, "ratumacos", "Ratumacos (RMS)", "alpine", true, "Players start on the banks of the Sequana (Seine) in northern Gaul, near the settlement of Ratumacos."},
+		{MAP_OASIS_0AD, "oasis_0ad", "Oasis (0 A.D.) (RMS)", "oasis", true, "Players start around a small oasis in the centre of the map, which holds much of the wood."},
+		{MAP_MEDITERRANEAN, "mediterranean_0ad", "Mediterranean (RMS)", "mediterranean", true, "The Mediterranean, almost completely enclosed by land, painted from a real elevation map."},
+		{MAP_ELEPHANTINE, "elephantine", "Elephantine (RMS)", "savanna", true, "The fortified island of Elephantine on the Nile at the first cataract, between Egypt and Kush."},
+		{MAP_ISLAND_STRONGHOLD, "island_stronghold", "Island Stronghold (RMS)", "temperate", true, "Teams start off with nearly adjacent civic centers on a small island, offering a fortified base from which to expand."},
+		{MAP_POMPEII, "pompeii", "Pompeii (RMS)", "volcanic", true, "Pompeii, an ancient Roman coastal city in Campania, buried under ash and pumice when Mount Vesuvius erupted in AD 79."},
+		{MAP_LATIUM, "latium", "Latium (RMS)", "latium", true, "The Italian peninsula: the fertile volcanic region of central western Italy where Rome was founded."},
+		{MAP_UNKNOWN, "unknown", "Unknown (RMS)", "temperate", true, "The unknown: one of 13 land and naval landscapes, picked at random."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
@@ -217,7 +265,16 @@ inline bool is_procedural_map(uint8_t type) {
 // Naval maps: bases may sit on separate land, so armies need ships to meet.
 inline bool map_is_naval(int type) {
 	// Flood (flood.js): each player starts on a home island in a sea.
-	return type == MAP_ENGLISH_CHANNEL || type == MAP_DODECANESE || type == MAP_FLOOD;
+	// MAP_RANDOM_ARCHIPELAGO is RTS0's own island map: a home island each.
+	switch (type) {
+		case MAP_ENGLISH_CHANNEL: case MAP_DODECANESE: case MAP_FLOOD: case MAP_RANDOM_ARCHIPELAGO:
+		case MAP_AEGEAN_SEA: case MAP_ARCHIPELAGO_0AD: case MAP_ISLANDS: case MAP_CYCLADIC_ARCHIPELAGO:
+		case MAP_CORSICA: case MAP_BAHRAIN:
+		case MAP_ELEPHANTINE: case MAP_ISLAND_STRONGHOLD: case MAP_UNKNOWN:
+			return true;
+		default:
+			return false;
+	}
 }
 
 enum UnitType : uint8_t {
@@ -1283,6 +1340,13 @@ inline uint8_t unit_gather_class(uint8_t unit_type, uint16_t tmpl) {
 		return infantry ? GATHER_INFANTRY : cavalry ? GATHER_CAVALRY : GATHER_NONE;
 	}
 	return infantry ? GATHER_INFANTRY : cavalry ? GATHER_CAVALRY : GATHER_NONE;
+}
+
+// 0 A.D. Builder (mixins/builder): citizen infantry (template_unit_infantry) and the support
+// workers build and repair; cavalry, champions, heroes, siege and ships do not.
+inline bool unit_can_build(uint8_t unit_type, uint16_t tmpl) {
+	if (unit_type == UNIT_FEMALE_CITIZEN || unit_type == UNIT_VILLAGER || unit_type == UNIT_WORKER_ELEPHANT) return true;
+	return unit_gather_class(unit_type, tmpl) == GATHER_INFANTRY;
 }
 
 // ResourceGatherer/Rates in units a second, by Simulation::GatherKind

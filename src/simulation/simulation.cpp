@@ -1331,6 +1331,86 @@ uint8_t distance_class_of(uint8_t type) {
 }
 } // namespace
 
+void Simulation::ensure_resource_block_cells() const {
+	const int w = std::max(1, (int)std::ceil(2.0f * map_half_ / GRID));
+	if (resource_block_tick_ == ticks_ && resource_block_count_ == resources_.count && resource_block_w_ == w) return;
+	resource_block_tick_ = ticks_;
+	resource_block_count_ = resources_.count;
+	resource_block_w_ = w;
+	resource_block_cells_.assign((size_t)w * w, 0);
+	for (size_t r = 0; r < resources_.count; ++r) {
+		if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
+		const uint8_t sub = resources_.subtype[r];
+		if (sub == RES_SUB_GRAIN || sub == RES_SUB_MEAT) continue;
+		// Gaia resource obstructions are about 1.5 m (3/8 tile) across their centre.
+		const int gx0 = std::max(0, (int)std::floor((resources_.x[r] - 0.375f + map_half_) / GRID));
+		const int gx1 = std::min(w - 1, (int)std::floor((resources_.x[r] + 0.375f + map_half_) / GRID));
+		const int gz0 = std::max(0, (int)std::floor((resources_.z[r] - 0.375f + map_half_) / GRID));
+		const int gz1 = std::min(w - 1, (int)std::floor((resources_.z[r] + 0.375f + map_half_) / GRID));
+		for (int z = gz0; z <= gz1; ++z)
+			for (int x = gx0; x <= gx1; ++x) resource_block_cells_[(size_t)z * w + x] = 1;
+	}
+}
+
+// Everything petra_can_place reads for a ring search around (start_cx, start_cz)
+// out to max_r rings: structures touching the area (a foundation's cells stay
+// occupied), the player's own structures under btype's distance rule, the
+// resource and scenery obstructions in the area, territory at each candidate
+// centre, and diplomacy. Same signature, same search result.
+uint64_t Simulation::petra_placement_signature(uint8_t btype, int start_cx, int start_cz, int max_r) const {
+	uint64_t h = 1469598103934665603ull; // FNV-1a over 64-bit words
+	auto mix = [&h](uint64_t v) { h = (h ^ v) * 1099511628211ull; };
+	auto fbits = [](float f) { uint32_t u; std::memcpy(&u, &f, sizeof u); return (uint64_t)u; };
+	const BuildRestriction rule = build_restriction(btype);
+	const int foot = building_type_info(btype).footprint;
+	// can_place reads cells [c - 1, c + foot] for each candidate c.
+	const int ax0 = start_cx - max_r - 1, ax1 = start_cx + max_r + foot;
+	const int az0 = start_cz - max_r - 1, az1 = start_cz + max_r + foot;
+	mix(fbits(map_half_));
+	mix(((uint64_t)petra_pid_ << 8) | btype);
+	for (const Building &b : buildings_) {
+		const bool in_area = b.cell_x <= ax1 && b.cell_x + b.footprint > ax0 && b.cell_y <= az1 && b.cell_y + b.footprint > az0;
+		const bool distance_rule = rule.distance_class != DIST_NONE && b.team == petra_pid_ && b.hp > 0.0f &&
+		                           distance_class_of(b.type) == rule.distance_class;
+		if (!in_area && !distance_rule) continue;
+		mix(b.id);
+		mix(((uint64_t)(uint32_t)b.cell_x << 32) | (uint32_t)b.cell_y);
+		mix(((uint64_t)b.footprint << 16) | ((uint64_t)distance_rule << 8) | (uint64_t)(b.hp > 0.0f));
+		if (distance_rule) { mix(fbits(b.x)); mix(fbits(b.z)); mix(fbits(b.half_size)); }
+	}
+	ensure_resource_block_cells();
+	const int w = resource_block_w_, off = (int)std::lround(map_half_ / GRID);
+	for (int z = std::max(0, az0 + off); z <= std::min(w - 1, az1 + off); ++z) {
+		uint64_t row = 0;
+		for (int x = std::max(0, ax0 + off); x <= std::min(w - 1, ax1 + off); ++x)
+			row = row * 31 + resource_block_cells_[(size_t)z * w + x];
+		mix(row);
+	}
+	const float wx0 = ax0 * GRID, wx1 = (ax1 + 1) * GRID, wz0 = az0 * GRID, wz1 = (az1 + 1) * GRID;
+	for (const Scenery &sc : scenery_) {
+		const float ext = sc.half_w + sc.half_d;
+		if (sc.x + ext < wx0 || sc.x - ext > wx1 || sc.z + ext < wz0 || sc.z - ext > wz1) continue;
+		mix(sc.id); mix(fbits(sc.x)); mix(fbits(sc.z)); mix(fbits(sc.angle));
+	}
+	if (!territory_grid_.blank()) {
+		for (int dz = -max_r; dz <= max_r; ++dz) {
+			uint64_t row = 0;
+			for (int dx = -max_r; dx <= max_r; ++dx) {
+				// check_placement's centre, computed the same way.
+				const float x0 = (start_cx + dx) * GRID, z0 = (start_cz + dz) * GRID;
+				const float cxw = 0.5f * (x0 + (x0 + foot * GRID)), czw = 0.5f * (z0 + (z0 + foot * GRID));
+				row = row * 131 + (uint64_t)(territory_owner_at(cxw, czw) + 1);
+			}
+			mix(row);
+		}
+	}
+	uint64_t allies = 0;
+	for (uint8_t o = 0; o < MAX_PLAYERS; ++o)
+		if (is_ally(petra_pid_, o) && is_ally(o, petra_pid_)) allies |= 1ull << o;
+	mix(allies);
+	return h;
+}
+
 Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell_x, int cell_y, uint8_t b_type) const {
 	if (player >= MAX_PLAYERS || b_type >= BLD_TYPE_COUNT) return PLACE_OBSTRUCTED;
 	const BuildingTypeInfo &binfo = building_type_info(b_type);
@@ -1343,25 +1423,8 @@ Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell
 	const float x1 = x0 + foot * GRID, z1 = z0 + foot * GRID;
 	const float cxw = 0.5f * (x0 + x1), czw = 0.5f * (z0 + z1);
 	{
-		const int w = std::max(1, (int)std::ceil(2.0f * map_half_ / GRID));
-		if (resource_block_tick_ != ticks_ || resource_block_count_ != resources_.count || resource_block_w_ != w) {
-			resource_block_tick_ = ticks_;
-			resource_block_count_ = resources_.count;
-			resource_block_w_ = w;
-			resource_block_cells_.assign((size_t)w * w, 0);
-			for (size_t r = 0; r < resources_.count; ++r) {
-				if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
-				const uint8_t sub = resources_.subtype[r];
-				if (sub == RES_SUB_GRAIN || sub == RES_SUB_MEAT) continue;
-				// Gaia resource obstructions are about 1.5 m (3/8 tile) across their centre.
-				const int gx0 = std::max(0, (int)std::floor((resources_.x[r] - 0.375f + map_half_) / GRID));
-				const int gx1 = std::min(w - 1, (int)std::floor((resources_.x[r] + 0.375f + map_half_) / GRID));
-				const int gz0 = std::max(0, (int)std::floor((resources_.z[r] - 0.375f + map_half_) / GRID));
-				const int gz1 = std::min(w - 1, (int)std::floor((resources_.z[r] + 0.375f + map_half_) / GRID));
-				for (int z = gz0; z <= gz1; ++z)
-					for (int x = gx0; x <= gx1; ++x) resource_block_cells_[(size_t)z * w + x] = 1;
-			}
-		}
+		ensure_resource_block_cells();
+		const int w = resource_block_w_;
 		const int off = (int)std::lround(map_half_ / GRID);
 		for (int dz = 0; dz < foot; ++dz)
 			for (int dx = 0; dx < foot; ++dx) {
@@ -2867,9 +2930,7 @@ void Simulation::order_build_or_repair(const uint32_t *unit_ids_in, size_t count
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx]) continue;
-		uint8_t ut = units_.unit_type[uidx];
-		if (ut != UNIT_VILLAGER && ut != UNIT_FEMALE_CITIZEN && ut != UNIT_WORKER_ELEPHANT)
-			continue;
+		if (!unit_can_build(units_.unit_type[uidx], units_.tmpl[uidx])) continue;
 
 		// 0 A.D. UnitAI: workers sent to their own finished, undamaged field farm it.
 		if (b.type == BLD_FIELD && b.team == units_.team[uidx] && b.build_progress >= 1.0f && b.hp >= b.max_hp) {
@@ -7952,6 +8013,14 @@ void Simulation::tick_waves(float dt) {
 	}
 }
 
+bool Simulation::unit_capturing(size_t i) const {
+	if (i >= units_.count || !units_.alive[i] || units_.action_state[i] != ACTION_ATTACK) return false;
+	if (units_.target_building_id[i] == 0 || !(units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE)) return false;
+	if (units_.team[i] >= MAX_PLAYERS || unit_capture_attack_at(i) <= 0.0f) return false;
+	auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
+	return bit != building_id_to_idx_.end() && can_capture_building(units_.team[i], buildings_[bit->second]);
+}
+
 Simulation::UnitView Simulation::units() const {
 	Simulation::UnitView v;
 	v.pos_x = units_.pos_x;
@@ -8753,7 +8822,7 @@ void Simulation::apply_rally_point(uint32_t uid, const Building &b, bool ignore_
 	const int32_t i = lookup_unit(uid);
 	if (i < 0) return;
 	const uint8_t ut = units_.unit_type[i];
-	const bool builder = ut == UNIT_VILLAGER || ut == UNIT_FEMALE_CITIZEN || ut == UNIT_WORKER_ELEPHANT;
+	const bool builder = unit_can_build(ut, units_.tmpl[i]);
 	auto rit = res_id_to_idx_.find(b.rally_target_res_id);
 	if (b.rally_target_res_id != 0 && rit != res_id_to_idx_.end() && can_gather((size_t)i, rit->second)) {
 		order_gather(&uid, 1, b.rally_target_res_id);
@@ -9038,6 +9107,51 @@ void Simulation::cmd_delete(uint8_t player, const uint32_t *ids, size_t count) {
 				b.capture_points_by_team[player] < b.max_capture_points * 0.5f)
 			continue;
 		destroy_building(b);
+	}
+}
+
+void Simulation::order_remove_guard(const uint32_t *unit_ids, size_t count) {
+	for (size_t k = 0; k < count; ++k) {
+		const int32_t i = lookup_unit(unit_ids[k]);
+		if (i < 0 || !units_.alive[i]) continue;
+		if (units_.order_kind[i] == ORDER_GUARD) {
+			units_.target_unit_id[i] = 0;
+			units_.action_state[i] = ACTION_IDLE;
+			units_.has_order[i] = 0;
+			finish_order((size_t)i);
+			continue;
+		}
+		auto q = order_queues_.find(unit_ids[k]);
+		if (q == order_queues_.end()) continue;
+		auto &v = q->second;
+		v.erase(std::remove_if(v.begin(), v.end(), [](const UnitOrder &o) { return o.kind == ORDER_GUARD; }), v.end());
+		if (v.empty()) order_queues_.erase(q);
+	}
+}
+
+void Simulation::order_call_to_arms(const uint32_t *unit_ids, size_t count, float x, float z, bool queued) {
+	for (size_t k = 0; k < count; ++k) {
+		const int32_t i = lookup_unit(unit_ids[k]);
+		if (i < 0 || !units_.alive[i]) continue;
+		if (!(unit_tech_classes(units_.unit_type[i]) & (TC_SOLDIER | TC_WARSHIP | TC_SIEGE | TC_HEALER))) continue;
+		uint32_t uid = unit_ids[k];
+		bool q = queued;
+		// DropAtNearestDropSite: FindNearestDropsite for the carried type, else nothing.
+		if (units_.carry[i] > 0) {
+			uint32_t best = 0;
+			float best_d2 = 0.0f;
+			for (const Building &b : buildings_) {
+				if (!dropsite_accepts((size_t)i, b)) continue;
+				const float dx = b.x - units_.pos_x[i], dz = b.z - units_.pos_z[i];
+				const float d2 = dx * dx + dz * dz;
+				if (best == 0 || d2 < best_d2) { best = b.id; best_d2 = d2; }
+			}
+			if (best != 0) {
+				order_return_resource(&uid, 1, best, queued);
+				q = true;
+			}
+		}
+		order_attack_move(&uid, 1, x, z, q);
 	}
 }
 
@@ -13526,6 +13640,19 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 	int start_cx = (int)(near_x / GRID);
 	int start_cz = (int)(near_z / GRID);
 	int foot = info.footprint;
+	// queueplanBuilding.js: a plan with no room is set unbuildable for a while
+	// (buildManager.setUnbuildable). Here a search that found no spot is not
+	// repeated until something it read changes, so the outcome is unchanged.
+	const bool remember = btype < BLD_TYPE_COUNT && build_restriction(btype).placement == PLACE_LAND;
+	const uint64_t sig = remember ? petra_placement_signature(btype, start_cx, start_cz, max_r) : 0;
+	PetraPlaceMiss key{sig, start_cx, start_cz, (int16_t)min_r, (int16_t)max_r, petra_pid_, btype};
+	auto same_search = [&key](const PetraPlaceMiss &m) {
+		return m.cx == key.cx && m.cz == key.cz && m.min_r == key.min_r && m.max_r == key.max_r &&
+		       m.pid == key.pid && m.btype == key.btype;
+	};
+	auto miss = remember ? std::find_if(petra_place_misses_.begin(), petra_place_misses_.end(), same_search)
+	                     : petra_place_misses_.end();
+	if (miss != petra_place_misses_.end() && miss->sig == sig) return 0;
 	for (int r = min_r; r <= max_r; ++r) {
 		for (int dx = -r; dx <= r; ++dx) {
 			for (int dz = -r; dz <= r; ++dz) {
@@ -13539,6 +13666,13 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 				}
 				return spawn_building(cx, cz, btype, petra_pid_, 0.0f);
 			}
+		}
+	}
+	if (remember) {
+		if (miss != petra_place_misses_.end()) miss->sig = sig;
+		else {
+			if (petra_place_misses_.size() >= 64) petra_place_misses_.erase(petra_place_misses_.begin());
+			petra_place_misses_.push_back(key);
 		}
 	}
 	return 0;
@@ -15552,7 +15686,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				F.fauna_type[f] = old->fauna_type[f]; F.behavior[f] = old->behavior[f]; F.alive[f] = old->alive[f];
 				F.state_timer[f] = old->state_timer[f]; F.attack_timer[f] = old->attack_timer[f];
 				F.target_unit_id[f] = old->target_unit_id[f]; F.corral_id[f] = old->corral_id[f];
-				F.fatten_timer[f] = old->fatten_timer[f]; F.home_x[f] = F.pos_x[f]; F.home_z[f] = F.pos_z[f];
+				F.flee_distance[f] = 0.0f; F.home_x[f] = F.pos_x[f]; F.home_z[f] = F.pos_z[f];
 			}
 		}
 	}
@@ -15562,7 +15696,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		arr(d.rot_y, v.rot_y); arr(d.hp, v.hp); arr(d.max_hp, v.max_hp); arr(d.food_amount, v.food_amount);
 		arr(d.fauna_type, v.fauna_type); arr(d.behavior, v.behavior); arr(d.alive, v.alive);
 		arr(d.state_timer, v.state_timer); arr(d.attack_timer, v.attack_timer); arr(d.target_unit_id, v.target_unit_id);
-		arr(d.corral_id, v.corral_id); arr(d.fatten_timer, v.fatten_timer);
+		arr(d.corral_id, v.corral_id); arr(d.flee_distance, v.flee_distance);
 		arr(d.home_x, v.home_x); arr(d.home_z, v.home_z);
 	});
 	if constexpr (Ar::loading) {
@@ -16207,7 +16341,7 @@ uint32_t Simulation::spawn_fauna(float x, float z, uint8_t ftype) {
 	fauna_.attack_timer[idx] = 0.0f;
 	fauna_.target_unit_id[idx] = 0;
 	fauna_.corral_id[idx] = 0;
-	fauna_.fatten_timer[idx] = 0.0f;
+	fauna_.flee_distance[idx] = 0.0f;
 	fauna_.home_x[idx] = fauna_.pos_x[idx];
 	fauna_.home_z[idx] = fauna_.pos_z[idx];
 	fauna_id_to_idx_[fid] = idx;
@@ -16262,9 +16396,20 @@ void Simulation::fauna_attacked(size_t f, uint32_t attacker_id) {
 		}
 		return;
 	}
+	// INDIVIDUAL.FLEEING: run until FleeDistance further away than the attacker was, so a
+	// ranged hunter is fled from too. A new attacker takes over only if it is nearer.
+	const int32_t a = lookup_unit(attacker_id);
+	auto dist_to = [&](int32_t u) {
+		return u < 0 ? 1e9f : std::hypot(units_.pos_x[u] - fauna_.pos_x[f], units_.pos_z[u] - fauna_.pos_z[f]);
+	};
+	if (b == FAUNA_FLEE) {
+		if (attacker_id == fauna_.target_unit_id[f]) return;
+		const int32_t cur = lookup_unit(fauna_.target_unit_id[f]);
+		if (cur >= 0 && units_.alive[cur] && dist_to(a) > dist_to(cur)) return;
+	}
 	fauna_.behavior[f] = FAUNA_FLEE;
 	fauna_.target_unit_id[f] = attacker_id;
-	fauna_.state_timer[f] = 8.0f; // give up a flee that can't open the distance
+	fauna_.flee_distance[f] = (a >= 0 ? dist_to(a) : 0.0f) + info.flee_distance;
 }
 
 // An animal's Attack/Melee lands on a unit: 0 A.D. Attack.js damage, sum(Dmg * 0.9^Armor).
@@ -16545,10 +16690,11 @@ void Simulation::tick_fauna(float dt) {
 				if (info.stance == FAUNA_STANCE_AGGRESSIVE) {
 					keep = td2 <= info.vision * info.vision; // respondChase, not beyond vision
 				} else if (info.stance != FAUNA_STANCE_VIOLENT) {
-					// respondHoldGround: fight near the held position, back home when drawn > 10 m away.
-					const float hdx = fx - fauna_.home_x[i], hdz = fz - fauna_.home_z[i];
-					const float leash = 10.0f * FAUNA_DISTANCE_SCALE + info.vision;
-					keep = hdx * hdx + hdz * hdz <= leash * leash;
+					// respondHoldGround (CheckTargetDistanceFromHeldPosition): the target must stay
+					// within half the vision plus the attack range of the held position.
+					const float hdx = units_.pos_x[t] - fauna_.home_x[i], hdz = units_.pos_z[t] - fauna_.home_z[i];
+					const float leash = info.vision * 0.5f + info.attack_range;
+					keep = hdx * hdx + hdz * hdz < leash * leash;
 				}
 			}
 			if (!keep) {
@@ -16579,7 +16725,7 @@ void Simulation::tick_fauna(float dt) {
 			continue;
 		}
 
-		// 4. Fleeing (INDIVIDUAL.FLEEING): run from the attacker until FleeDistance away.
+		// 4. Fleeing (INDIVIDUAL.FLEEING): run from the attacker until distanceToFlee away.
 		if (fauna_.behavior[i] == FAUNA_FLEE) {
 			const int32_t t = lookup_unit(fauna_.target_unit_id[i]);
 			float away_x = 0.0f, away_z = 0.0f, dist = 1e9f;
@@ -16588,7 +16734,7 @@ void Simulation::tick_fauna(float dt) {
 				away_z = fz - units_.pos_z[t];
 				dist = std::sqrt(away_x * away_x + away_z * away_z);
 			}
-			if (dist >= info.flee_distance || fauna_.state_timer[i] <= 0.0f) {
+			if (dist >= fauna_.flee_distance[i]) {
 				fauna_.behavior[i] = FAUNA_IDLE_GRAZE;
 				fauna_.target_unit_id[i] = 0;
 				fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
@@ -16606,6 +16752,13 @@ void Simulation::tick_fauna(float dt) {
 				// Cornered (water, cliff or map edge): slide sideways.
 				const float sx = -away_z / dist * sp, sz = away_x / dist * sp;
 				step(i, sx, sz);
+				if (fauna_.pos_x[i] == before_x && fauna_.pos_z[i] == before_z) {
+					// MovementUpdate likelyFailure: nowhere left to run.
+					fauna_.behavior[i] = FAUNA_IDLE_GRAZE;
+					fauna_.target_unit_id[i] = 0;
+					fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
+					fauna_.state_timer[i] = timer(info.feed_time_min, info.feed_time_max);
+				}
 			}
 			continue;
 		}
@@ -16665,7 +16818,7 @@ void Simulation::tick_fauna(float dt) {
 				fauna_.fauna_type[w] = fauna_.fauna_type[r]; fauna_.behavior[w] = fauna_.behavior[r]; fauna_.alive[w] = 1;
 				fauna_.state_timer[w] = fauna_.state_timer[r]; fauna_.attack_timer[w] = fauna_.attack_timer[r];
 				fauna_.target_unit_id[w] = fauna_.target_unit_id[r]; fauna_.corral_id[w] = fauna_.corral_id[r];
-				fauna_.fatten_timer[w] = fauna_.fatten_timer[r]; fauna_.home_x[w] = fauna_.home_x[r]; fauna_.home_z[w] = fauna_.home_z[r];
+				fauna_.flee_distance[w] = fauna_.flee_distance[r]; fauna_.home_x[w] = fauna_.home_x[r]; fauna_.home_z[w] = fauna_.home_z[r];
 			}
 			++w;
 		}
