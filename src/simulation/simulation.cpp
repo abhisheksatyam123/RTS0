@@ -3816,7 +3816,7 @@ void Simulation::tick_formations(float dt) {
 			if (s.following && st != ACTION_IDLE && st != ACTION_MOVE && st != ACTION_ATTACK_MOVE) s.following = 0;
 			if (!s.following) continue;
 			any_following = true;
-			speed = std::min(speed, units_.speed[idx]);
+			speed = std::min(speed, unit_walk_speed((size_t)idx));
 			float wx, wz;
 			formation_slot_world(fc.x, fc.z, fc.rot, s.x, s.y, wx, wz);
 			max_lag = std::max(max_lag, std::hypot(units_.pos_x[idx] - wx, units_.pos_z[idx] - wz));
@@ -5718,11 +5718,7 @@ void Simulation::move_units(float dt, Arena &arena) {
 		float inv = 1.0f / sqrtf(d2);
 		float ux = dx * inv;
 		float uz = dz * inv;
-		float spd = units_.speed[i];
-		// UnitMotion/WalkSpeed auras (heroes, the Mauryan pillar's traders) while in reach.
-		if (const float m = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_SPEED,
-				units_.tmpl[i], &unit_combat_at(i).classes); m > 0.0f)
-			spd *= m;
+		float spd = unit_walk_speed(i);
 		if (units_.status_effects[i] & (EFFECT_SNARE | EFFECT_SLOW)) {
 			spd *= 0.55f; // Slow/Snare speed penalty (0 A.D. status effect)
 		}
@@ -17510,6 +17506,13 @@ void Simulation::apply_health_auras() {
 		units_.hp[i] *= r;
 		units_.aura_hp_mult[i] = m;
 	}
+}
+
+float Simulation::unit_walk_speed(size_t i) const {
+	// Speed auras (heroes, the Mauryan pillar's traders) while the unit is in reach.
+	const float m = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_SPEED,
+		units_.tmpl[i], &unit_combat_at(i).classes);
+	return m > 0.0f ? units_.speed[i] * m : units_.speed[i];
 }
 
 float Simulation::unit_vision_at(size_t i) const {

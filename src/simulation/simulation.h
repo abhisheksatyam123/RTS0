@@ -1439,6 +1439,8 @@ private:
 	void rebuild_auras(); // G4: rebuild AuraManager from temples/heroes/carnyx/female citizens
 	void apply_health_auras(); // Health/Max auras: rescale max_hp and hp as units enter or leave them
 	float unit_vision_at(size_t i) const; // Vision/Range with Vision auras (0 A.D. Vision.js)
+	// UnitMotion/WalkSpeed: the stored speed (template and techs) times the speed auras in reach.
+	float unit_walk_speed(size_t i) const;
 	uint16_t aura_affected_players(uint8_t owner, uint8_t players) const;
 	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false, uint8_t visual = 0, uint32_t source_id = 0, uint8_t splash = 0);
 	static float projectile_speed(uint8_t visual);
