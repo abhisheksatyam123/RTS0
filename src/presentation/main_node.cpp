@@ -71,6 +71,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_upgrade_pressed", "cancel"), &RtsoMain::_on_upgrade_pressed);
 	ClassDB::bind_method(D_METHOD("_on_gate_lock_pressed", "lock"), &RtsoMain::_on_gate_lock_pressed);
 	ClassDB::bind_method(D_METHOD("_on_pack_pressed", "pack"), &RtsoMain::_on_pack_pressed);
+	ClassDB::bind_method(D_METHOD("_on_unit_upgrade_pressed", "to"), &RtsoMain::_on_unit_upgrade_pressed);
 	ClassDB::bind_method(D_METHOD("_on_alert_pressed", "end"), &RtsoMain::_on_alert_pressed);
 	ClassDB::bind_method(D_METHOD("save_game", "path", "description"), &RtsoMain::save_game, DEFVAL("user://saves/quicksave.rts0sav"), DEFVAL(""));
 	ClassDB::bind_method(D_METHOD("save_game_as", "name", "description"), &RtsoMain::save_game_as);
@@ -116,6 +117,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_train_buttons", "btype"), &RtsoMain::debug_train_buttons);
 	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);
 	ClassDB::bind_method(D_METHOD("_on_diplo_tribute_pressed", "player_idx", "res_type"), &RtsoMain::_on_diplo_tribute_pressed);
+	ClassDB::bind_method(D_METHOD("_on_diplo_spy_pressed", "player_idx"), &RtsoMain::_on_diplo_spy_pressed);
 	ClassDB::bind_method(D_METHOD("set_use_english_voice_orders", "enable"), &RtsoMain::set_use_english_voice_orders);
 	ClassDB::bind_method(D_METHOD("is_use_english_voice_orders"), &RtsoMain::is_use_english_voice_orders);
 	ClassDB::bind_method(D_METHOD("_on_lobby_button_pressed"), &RtsoMain::_on_lobby_button_pressed);
@@ -1464,6 +1466,9 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 		{"back to the future", S::CHEAT_CHANGE_PHASE, 0, "", false},
 		{"brainiac", S::CHEAT_RESEARCH, 0, "", false},
 		{"gift from the gods", S::CHEAT_META, 0, "100000", true},
+		{"the hive master", S::CHEAT_MAX_POPULATION, 0, "", false},
+		{"TARDIS", S::CHEAT_CHANGE_MAX_POPULATION, 0, "", false},
+		{"i am too busy", S::CHEAT_FAST_ACTIONS, 0, "", false},
 	};
 	const uint8_t me = local_player();
 	if (!sim || !sim->cheats_enabled() || me >= rtso::MAX_PLAYERS || sim->is_defeated(me)) return false;
@@ -2031,6 +2036,20 @@ void RtsoMain::_on_alert_pressed(int end) {
 		sim->cmd_end_alert(local_player(), selected_building_id);
 	else
 		sim->cmd_raise_alert(local_player(), selected_building_id);
+}
+
+// 0 A.D. unit Upgrade on the selection through lockstep command 43 (`to` = roster
+// template, -1 = cancel and refund).
+void RtsoMain::_on_unit_upgrade_pressed(int to) {
+	if (selected_ids.is_empty()) return;
+	const uint32_t *ids = (const uint32_t *)selected_ids.ptr();
+	const size_t n = selected_ids.size();
+	if (turn_cmds())
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_UPGRADE_UNIT, ids, n, 0, 0, to < 0 ? 0 : (uint32_t)to, to < 0 ? 1 : 0);
+	else if (to < 0)
+		sim->cmd_cancel_unit_upgrades(local_player(), ids, n);
+	else
+		sim->cmd_upgrade_units(local_player(), ids, n, (uint16_t)to);
 }
 
 // 0 A.D. Pack / Unpack on the selected siege engines through lockstep command 29.
@@ -3238,6 +3257,70 @@ void RtsoMain::update_command_panel() {
 					}
 					btn->set_disabled(pb.pack ? !can_pack : !can_unpack);
 					btn->connect("pressed", Callable(this, "_on_pack_pressed").bind(pb.pack));
+					production_bar->add_child(btn);
+				}
+			}
+
+			// 0 A.D. unit upgrades (selection_panels.js "Upgrade"): one button per target the
+			// selected units can upgrade to, enabled while any of them can start it, and
+			// a cancel button while any of them is upgrading.
+			{
+				uint16_t targets[8];
+				int target_n = 0;
+				bool any_upgrading = false;
+				for (int i = 0; i < selected_ids.size(); ++i) {
+					const uint32_t id = (uint32_t)selected_ids[i];
+					if (sim->unit_upgrade_of(id)) any_upgrading = true;
+					for (size_t u = 0; u < uview.count; ++u) {
+						if (uview.id[u] != id || uview.team[u] != local_player()) continue;
+						for (const rtso::CivUnitUpgrade *up = rtso::civ_unit_upgrade_table(); up->from != 0xFFFF; ++up) {
+							if (up->from != uview.tmpl[u] || (up->from_rank && uview.rank[u] < up->from_rank)) continue;
+							bool seen = false;
+							for (int t = 0; t < target_n; ++t) seen = seen || targets[t] == up->to;
+							if (!seen && target_n < 8) targets[target_n++] = up->to;
+						}
+						break;
+					}
+				}
+				for (int t = 0; t < target_n; ++t) {
+					const uint16_t to = targets[t];
+					const rtso::CivUnitUpgrade *row = nullptr;
+					const char *why = "Already upgrading";
+					for (int i = 0; i < selected_ids.size(); ++i) {
+						const rtso::Simulation::UpgradeCheck c = sim->unit_upgrade_check(local_player(), (uint32_t)selected_ids[i], to);
+						if (c == rtso::Simulation::UPGRADE_OK) { why = nullptr; break; }
+						if (c == rtso::Simulation::UPGRADE_ERR_COST) why = "Not enough resources";
+						else if (c == rtso::Simulation::UPGRADE_ERR_PHASE) why = "Requires City Phase";
+						else if (c == rtso::Simulation::UPGRADE_ERR_LIMIT) why = "Limit reached";
+					}
+					for (const rtso::CivUnitUpgrade *up = rtso::civ_unit_upgrade_table(); up->from != 0xFFFF && !row; ++up)
+						if (up->to == to) row = up;
+					String cost;
+					auto add_cost = [&](int v, const char *suffix) {
+						if (v <= 0) return;
+						if (!cost.is_empty()) cost += ",";
+						cost += String::num_int64(v) + suffix;
+					};
+					add_cost(row->food_cost, "f");
+					add_cost(row->wood_cost, "w");
+					add_cost(row->gold_cost, "g");
+					add_cost(row->stone_cost, "s");
+					Button *btn = memnew(Button);
+					btn->set_text(String("Upgrade to ") + rtso::civ_unit_template(to).name + (cost.is_empty() ? String() : " (" + cost + ")"));
+					String tip = String(rtso::civ_unit_template(to).specific_name) + "\n" + String::num((double)row->time, 0) + "s";
+					if (why) {
+						tip += String("\n") + why;
+						btn->set_disabled(true);
+					}
+					btn->set_tooltip_text(tip);
+					btn->connect("pressed", Callable(this, "_on_unit_upgrade_pressed").bind((int)to));
+					production_bar->add_child(btn);
+				}
+				if (any_upgrading) {
+					Button *btn = memnew(Button);
+					btn->set_text("Cancel upgrade");
+					btn->set_tooltip_text("Stop upgrading and get the resources back");
+					btn->connect("pressed", Callable(this, "_on_unit_upgrade_pressed").bind(-1));
 					production_bar->add_child(btn);
 				}
 			}
@@ -4494,6 +4577,7 @@ void RtsoMain::apply_match_settings() {
 		}
 	}
 	sim->set_biome_override((int)ms->get("biome") - 1); // 0 = the map's own biome
+	sim->set_team_placement((int)ms->get("team_placement"));
 	// Civs before the map: spawn_unit gives each starting unit its owner's
 	// roster template (Simulation::reset keeps civs), as 0 A.D. spawns
 	// StartEntities from the player's own civ.
@@ -4528,6 +4612,7 @@ void RtsoMain::apply_match_settings() {
 	sim->set_regicide_garrison((bool)ms->get("regicide_garrison"));
 	sim->set_lock_teams((bool)ms->get("lock_teams"));
 	sim->set_cheats_enabled((bool)ms->get("cheats"));
+	sim->set_disable_spies((bool)ms->get("disable_spies"));
 	sim->set_disable_treasures((bool)ms->get("disable_treasures"));
 	{
 		Array scolors = ms->get("slot_colors");
@@ -5099,10 +5184,12 @@ void RtsoMain::_on_lobby_start_pressed() {
 		setup.regicide_garrison = (bool)ms->get("regicide_garrison") ? 1 : 0;
 		setup.lock_teams = (bool)ms->get("lock_teams") ? 1 : 0;
 		setup.cheats = (bool)ms->get("cheats") ? 1 : 0;
+		setup.no_spies = (bool)ms->get("disable_spies") ? 1 : 0;
 		setup.no_treasures = (bool)ms->get("disable_treasures") ? 1 : 0;
 		Array snames = ms->get("slot_names");
 		for (int i = 0; i < 8 && i < snames.size(); ++i) setup.names[i] = String(snames[i]).utf8().get_data();
 		setup.water_level = (uint8_t)std::clamp((int)ms->get("water_level"), 0, 2);
+		setup.team_placement = (uint8_t)std::clamp((int)ms->get("team_placement"), 0, (int)rtso::TEAM_PLACEMENT_COUNT - 1);
 		setup.sea_rise_min = (uint8_t)std::clamp((int)ms->get("sea_level_rise_min"), 0, 60);
 		int msz = (int)ms->get("map_size");
 		setup.map_size = (uint16_t)((msz >= 128 && msz <= 512) ? msz : 128);
@@ -5186,6 +5273,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	for (uint8_t i = 0; i < rtso::MAX_PLAYERS; ++i)
 		random_map_teams[i] = (i < setup.slot_count && setup.teams[i] >= 1 && setup.teams[i] <= 8) ? setup.teams[i] : 0;
 	sim->set_biome_override((int)setup.biome - 1);
+	sim->set_team_placement(setup.team_placement);
 	// Civs before the map, so starting units take their owner's roster templates.
 	for (uint8_t t = 0; t < rtso::MAX_PLAYERS && t < setup.slot_count; ++t) {
 		if (setup.civs[t] < rtso::CIV_COUNT) sim->set_team_civ(t, setup.civs[t]);
@@ -5209,6 +5297,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	sim->set_regicide_garrison(setup.regicide_garrison != 0);
 	sim->set_lock_teams(setup.lock_teams != 0);
 	sim->set_cheats_enabled(setup.cheats != 0);
+	sim->set_disable_spies(setup.no_spies != 0);
 	sim->set_disable_treasures(setup.no_treasures != 0);
 	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) sim->set_player_color(p, setup.colors[p]);
 	sim->set_water_level_mode(setup.water_level);
@@ -5270,12 +5359,14 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		ms->set("regicide_garrison", setup.regicide_garrison != 0);
 		ms->set("lock_teams", setup.lock_teams != 0);
 		ms->set("cheats", setup.cheats != 0);
+		ms->set("disable_spies", setup.no_spies != 0);
 		ms->set("disable_treasures", setup.no_treasures != 0);
 		Array snames;
 		for (uint8_t i = 0; i < setup.slot_count && i < 8; ++i) snames.push_back(String::utf8(setup.names[i].c_str()));
 		ms->set("slot_names", snames);
 		apply_player_names(snames);
 		ms->set("water_level", sim->water_level_mode());
+		ms->set("team_placement", (int)setup.team_placement);
 		ms->set("sea_level_rise_min", sim->sea_level_rise_minutes());
 		ms->set("map_size", random_map_size);
 		ms->set("ai_difficulty", (int)sim->petra_difficulty());
@@ -5465,4 +5556,8 @@ void RtsoMain::_on_diplo_stance_changed(int stance, int player_idx) {
 
 void RtsoMain::_on_diplo_tribute_pressed(int player_idx, int res_type) {
 	diplo_dialog_.tribute_pressed(player_idx, res_type);
+}
+
+void RtsoMain::_on_diplo_spy_pressed(int player_idx) {
+	diplo_dialog_.spy_pressed(player_idx);
 }
