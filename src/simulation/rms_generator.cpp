@@ -3679,7 +3679,7 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 			}
 		}
 
-		// 4. Primary Food: Starter Berry Bushes (5 bushes, 450 food each)
+		// 4. Primary Food: Starter Berry Bushes (5 gaia/fruit/berry_01 bushes, Max 200 food each)
 		float berry_cx = px + fx * 5.5f + rx * 6.5f;
 		float berry_cz = pz + fz * 5.5f + rz * 6.5f;
 		dry(px, pz, berry_cx, berry_cz, 2.5f);
@@ -3687,7 +3687,7 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 			float ba = (6.2831853f * b) / 5.0f;
 			float bx = berry_cx + std::cos(ba) * 1.5f;
 			float bz = berry_cz + std::sin(ba) * 1.5f;
-			sim.spawn_resource_world(bx, bz, RES_FOOD, 450);
+			sim.spawn_resource_world(bx, bz, RES_FOOD, 200);
 		}
 
 		// 5. Primary Forest: Dense Woodline (10 trees, 800 wood each)
@@ -3819,13 +3819,13 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 					sim.spawn_resource_world(tx, tz, RES_WOOD, 800);
 				}
 			}
-			// Oasis date/grape berry bushes
+			// Oasis date bushes (gaia/fruit/date, Max 400)
 			for (int b = 0; b < 3; ++b) {
 				float ba = (6.2831853f * b) / 3.0f + 0.5f;
 				float bx = ox + std::cos(ba) * (o_rad + 2.0f);
 				float bz = oz + std::sin(ba) * (o_rad + 2.0f);
 				if (hm.sample_world(bx, bz) > water_h + 0.15f) {
-					sim.spawn_resource_world(bx, bz, RES_FOOD, 450);
+					sim.spawn_resource_world(bx, bz, RES_FOOD, 400);
 				}
 			}
 		}

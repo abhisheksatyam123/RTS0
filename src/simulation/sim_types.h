@@ -410,6 +410,7 @@ enum ResourceSubtype : uint8_t {
 constexpr int32_t FISH_FOOD_SUPPLY = 1000;
 constexpr int FISH_MAX_GATHERERS = 4;
 constexpr float FISH_REGROW_INTERVAL_S = 2.0f;
+constexpr float FRUIT_REGROW_INTERVAL_S = 6.0f; // template_gaia_fruit Regrowth Interval 6000
 // Fish footprint radius (10 m) plus a fishing boat's ResourceGatherer MaxDistance (6 m), in tiles.
 constexpr float FISH_GATHER_REACH = 4.0f;
 

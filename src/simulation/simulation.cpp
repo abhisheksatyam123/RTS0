@@ -124,6 +124,8 @@ static constexpr uint32_t SAVE_VERSION_UNIT_ORDERS = 20;
 static constexpr uint32_t SAVE_VERSION_MAX_GATHERERS = 33;
 // Each structure's BuildingAI round, arrows left and timer state.
 static constexpr uint32_t SAVE_VERSION_BUILDING_AI = 34;
+// Each fruit bush's ResourceSupply/Max, which it regrows towards.
+static constexpr uint32_t SAVE_VERSION_FRUIT_MAX = 35;
 
 // Stand on the nearest AABB edge so pathing never aims through the footprint.
 static void stand_outside_rect(float bx, float bz, float half, uint32_t uid,
@@ -763,6 +765,8 @@ uint32_t Simulation::spawn_resource_world(float wx, float wz, uint8_t type, int3
 	uint32_t rid = alloc_id();
 	if (max_gatherers == 0) max_gatherers = resource_default_max_gatherers(type, subtype, amount);
 	size_t idx = resources_.push(wx, wz, amount, type, rid, subtype, max_gatherers);
+	// template_gaia_fruit: a berry/fruit bush regrows towards its ResourceSupply/Max.
+	if (type == RES_FOOD && subtype == RES_SUB_NONE) resources_.max_amount[idx] = amount;
 	res_id_to_idx_[rid] = idx;
 	return rid;
 }
@@ -5924,6 +5928,15 @@ void Simulation::tick_gather(float dt) {
 		for (size_t r = 0; r < resources_.count; ++r) {
 			if (resources_.subtype[r] != RES_SUB_FISH || !resources_.alive[r] || resources_.amount[r] <= 0) continue;
 			if (resources_.amount[r] >= FISH_FOOD_SUPPLY || fish_gatherers_.count(resources_.id[r])) continue;
+			resources_.amount[r] += 1;
+		}
+	}
+	// Fruit bushes regrow 1 food every 6 s up to their Max, gathered or not
+	// (template_gaia_fruit.xml ResourceSupply/Change/Regrowth); an emptied bush is gone.
+	const uint64_t fruit_ticks = (uint64_t)std::lround(FRUIT_REGROW_INTERVAL_S / FIXED_STEP);
+	if (ticks_ % fruit_ticks == 0) {
+		for (size_t r = 0; r < resources_.count; ++r) {
+			if (resources_.amount[r] <= 0 || resources_.amount[r] >= resources_.max_amount[r] || !resources_.alive[r]) continue;
 			resources_.amount[r] += 1;
 		}
 	}
@@ -14709,7 +14722,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 each fruit bush's regrowth Max
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -15025,6 +15038,7 @@ bool Simulation::load_state(const char *filepath) {
 		resources_.type[idx] = rtype;
 		resources_.subtype[idx] = RES_SUB_NONE; // v17+: the tick state has it
 		resources_.max_gatherers[idx] = resource_default_max_gatherers(rtype, RES_SUB_NONE, ramount); // v29+: saved
+		resources_.max_amount[idx] = 0; // tick state: saved, or the fruit default
 		resources_.alive[idx] = ralive;
 		resources_.count++;
 		res_id_to_idx_[rid] = idx;
@@ -15668,6 +15682,13 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	} else if constexpr (Ar::loading) {
 		for (size_t r = 0; r < s.resources_.count; ++r)
 			s.resources_.max_gatherers[r] = resource_default_max_gatherers(s.resources_.type[r], s.resources_.subtype[r], s.resources_.amount[r]);
+	}
+	// v35: each fruit bush's Max (older saves: a bush's current food, so it never regrows past it).
+	if (ar.version >= SAVE_VERSION_FRUIT_MAX) {
+		for (size_t r = 0; r < s.resources_.count; ++r) ar.pod(s.resources_.max_amount[r]);
+	} else if constexpr (Ar::loading) {
+		for (size_t r = 0; r < s.resources_.count; ++r)
+			s.resources_.max_amount[r] = (s.resources_.type[r] == RES_FOOD && s.resources_.subtype[r] == RES_SUB_NONE) ? s.resources_.amount[r] : 0;
 	}
 
 	// 4. UnitAI orders (save v20): each unit's order, last attacker and work order,
