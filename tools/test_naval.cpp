@@ -484,6 +484,48 @@ static void test_petra_overseas_attack() {
 	CHECK(across >= 1);
 }
 
+// DeathDamage.js: a fire ship (mixins/fireship.xml) burns down at RegenRate -5 and, dying,
+// deals 500 Fire over 20 m to everyone, its own side too, with quadratic falloff.
+// Other ships and structures deal nothing when they die.
+static void test_fire_ship() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	const uint32_t fire = s.spawn_unit(0.0f, 12.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("brit/ship_fire"));
+	const uint32_t enemy = s.spawn_unit(3.0f, 12.0f, 1, UNIT_TRIREME);
+	const uint32_t own = s.spawn_unit(-3.5f, 12.0f, 0, UNIT_TRIREME);
+	const uint32_t far_enemy = s.spawn_unit(12.0f, 12.0f, 1, UNIT_TRIREME);
+	uint32_t all[4] = {fire, enemy, own, far_enemy};
+	s.order_set_stance(all, 4, STANCE_PASSIVE);
+	s.order_set_stance(&all[1], 1, STANCE_PASSIVE);
+	s.order_set_stance(&all[3], 1, STANCE_PASSIVE);
+	auto hp = [&](uint32_t id) { const int32_t i = idx(s, id); return i >= 0 ? s.units().hp[i] : -1.0f; };
+	const float f0 = hp(fire), e0 = hp(enemy), o0 = hp(own), x0 = hp(far_enemy);
+	run(s, 10.0f);
+	const float burnt = f0 - hp(fire);
+	std::printf("fire ship: %.1f hp burnt in 10 s\n", burnt);
+	CHECK(burnt > 45.0f && burnt < 55.0f);
+	s.set_unit_hp(fire, 1.0f);
+	run(s, 1.0f);
+	CHECK(!s.units().alive[idx(s, fire)]);
+	std::printf("fire ship blast: enemy %.0f -> %.0f, own %.0f -> %.0f, far %.0f -> %.0f\n",
+			e0, hp(enemy), o0, hp(own), x0, hp(far_enemy));
+	CHECK(hp(enemy) < e0 - 100.0f);       // close: most of 500
+	CHECK(hp(own) < o0 - 50.0f);          // friendly fire
+	CHECK(hp(far_enemy) == x0);           // 12 tiles away is outside 20 m
+
+	// A trireme that sinks hurts nobody (no DeathDamage in template_unit_ship).
+	const uint32_t a = s.spawn_unit(-3.0f, 20.0f, 0, UNIT_TRIREME);
+	const uint32_t b = s.spawn_unit(0.0f, 20.0f, 1, UNIT_TRIREME);
+	uint32_t ab[2] = {a, b};
+	s.order_set_stance(ab, 1, STANCE_PASSIVE);
+	s.order_set_stance(&ab[1], 1, STANCE_PASSIVE);
+	const float b0 = hp(b);
+	s.cmd_delete(0, &a, 1);
+	run(s, 1.0f);
+	CHECK(hp(b) == b0);
+}
+
 int main() {
 	test_transport();
 	test_dock_trade();
@@ -493,6 +535,7 @@ int main() {
 	test_ship_leaves_shore_house();
 	test_petra_navy();
 	test_petra_overseas_attack();
+	test_fire_ship();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

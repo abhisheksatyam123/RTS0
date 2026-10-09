@@ -102,6 +102,9 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	LineEdit *lobby_password = nullptr; // 0 A.D. password-protected game (host sets, joiner gives)
 	size_t kicks_shown_ = 0;           // NetHost::kicks() already announced
 	Label *lobby_status = nullptr;
+	Button *lobby_observe = nullptr; // join a running match as an observer (0 A.D. observer late join)
+	Label *lobby_players = nullptr;  // in-game player list (0 A.D. NMT_PLAYER_ASSIGNMENT)
+	uint64_t players_shown_ = 0;     // the player list version lobby_players shows
 	rtso::NetHost net_host_;
 	rtso::TurnManager turn_mgr_;
 	rtso::Arena net_arena_{64 * 1024};
@@ -397,6 +400,8 @@ private:
 	Vector3 snap_wall_point(const Vector3 &p, bool &snapped) const;
 	void try_train_unit(rtso::UnitType utype);
 	void try_train_template(uint32_t building_id, uint16_t tmpl);
+	void try_breed(uint32_t building_id, uint8_t ftype);
+	static constexpr int ROSTER_ANIMAL = 0x10000; // roster_list metadata flag: a corral animal
 	void update_roster_list(const rtso::Simulation::Building *b);
 	void cycle_idle_worker();
 	enum IdleKind { IDLE_WORKER, IDLE_WARRIOR, IDLE_ANY, IDLE_BUILDER };
