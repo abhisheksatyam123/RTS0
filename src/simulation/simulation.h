@@ -1635,6 +1635,8 @@ private:
 	void tick_fauna(float dt);
 	void tick_hunters();                                  // units attacking animals (UnitAI Gather on KillBeforeGather)
 	void fauna_attacked(size_t f, uint32_t attacker_id);  // UnitAI "Attacked" for an animal
+	bool slaughters_target(size_t i) const; // unit i's target is a Domestic animal it slaughters
+	static constexpr float SLAUGHTER_RANGE = 2.0f * 0.6f; // Attack/Slaughter MaxRange 2 m, melee scale
 	void fauna_hit_unit(size_t f, size_t u);              // an animal's melee attack lands on unit u
 	bool fauna_can_step(size_t f, float x, float z) const;
 	void tick_fow();  // updates FoW each sim tick
