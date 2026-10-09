@@ -135,8 +135,9 @@ static void test_roster_army() {
 		s->set_victory_condition(VICTORY_ENDLESS); // keep playing once the idle player is beaten
 		// Garrisoned fortresses (ten more arrows each, BuildingAI) outlast the infantry's first
 		// waves, so the siege (trained some ten minutes into the city phase at 0 A.D.'s gather
-		// rates) still has something to fire at.
-		for (const float *at : {(const float[2]){42.0f, 42.0f}, (const float[2]){26.0f, 50.0f}, (const float[2]){50.0f, 26.0f}}) {
+		// rates) still has something to fire at. They stand on dry land: no land unit wades out
+		// to one at sea.
+		for (const float *at : {(const float[2]){24.0f, 37.0f}, (const float[2]){40.0f, 6.0f}, (const float[2]){6.0f, 22.0f}}) {
 			const uint32_t fort = s->spawn_building_world(at[0], at[1], BLD_FORTRESS, 0, 1.0f);
 			std::vector<uint32_t> men;
 			for (int k = 0; k < 10; ++k)
@@ -155,7 +156,7 @@ static void test_roster_army() {
 			bool idle_alive = false;
 			for (const auto &b : s->buildings())
 				if (b.team == 0 && b.hp > 0.0f && !b.wrecked) idle_alive = true;
-			if (!idle_alive) s->spawn_building_world(42.0f, 42.0f, BLD_FORTRESS, 0, 1.0f);
+			if (!idle_alive) s->spawn_building_world(24.0f, 37.0f, BLD_FORTRESS, 0, 1.0f);
 			for (const auto &b : s->buildings())
 				if (b.team == 1 && b.build_progress >= 1.0f && !b.wrecked) {
 					if (b.type == BLD_GYMNASIUM || b.type == BLD_THEATER) advanced = true;
@@ -452,7 +453,7 @@ static void test_attack_plans() {
 		// A storehouse more than 80 m from the idle player's Town Center is the
 		// only structure a rush may target (rushTargetFinder).
 		auto s = match(PETRA_BEHAVIOR_AGGRESSIVE);
-		const uint32_t store = s->spawn_building_world(-55.0f, 40.0f, BLD_STOREHOUSE, 0, 1.0f);
+		const uint32_t store = s->spawn_building_world(-36.0f, 25.0f, BLD_STOREHOUSE, 0, 1.0f);
 		bool rushed = false, rush_at_store = false;
 		int attack_size = 0, huge_size = 0;
 		for (float t = 0.0f; t < 20.0f * 60.0f; t += Simulation::FIXED_STEP) {
@@ -483,12 +484,12 @@ static void test_attack_plans() {
 		// The kind of each plan as it starts mustering (whether a HugeAttack
 		// marches before the idle player runs out of buildings depends on timing).
 		auto s = match(PETRA_BEHAVIOR_AGGRESSIVE);
-		// Fortresses on the far side keep the idle player standing after the Attacks raze its
+		// Fortresses on dry land around its base keep the idle player standing after the Attacks raze its
 		// base (an unmanned fortress shoots only its 10 default arrows, BuildingAI), so there is
 		// still a target to plan the HugeAttack against.
-		s->spawn_building_world(50.0f, 50.0f, BLD_FORTRESS, 0, 1.0f);
-		s->spawn_building_world(55.0f, 10.0f, BLD_FORTRESS, 0, 1.0f);
-		s->spawn_building_world(10.0f, 55.0f, BLD_FORTRESS, 0, 1.0f);
+		s->spawn_building_world(24.0f, 37.0f, BLD_FORTRESS, 0, 1.0f);
+		s->spawn_building_world(40.0f, 6.0f, BLD_FORTRESS, 0, 1.0f);
+		s->spawn_building_world(6.0f, 22.0f, BLD_FORTRESS, 0, 1.0f);
 		int attack_size = 0, huge_size = 0;
 		std::vector<int> kinds;
 		auto last = Simulation::AttackPlan::UNEXECUTED;
