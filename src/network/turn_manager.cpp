@@ -1242,7 +1242,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		const bool queued = (c.param & NET_PARAM_QUEUED) != 0;
 		const bool capture = (c.param & NET_PARAM_NO_CAPTURE) == 0;
 		if (c.cmd_type == 1) { // Move (a player's walk: forced, ignores enemies)
-			sim.order_walk(ids, n, c.target_x, c.target_z, queued, true);
+			sim.order_walk(ids, n, c.target_x, c.target_z, queued);
 		} else if (c.cmd_type == 2) { // Stop
 			sim.cmd_stop(ids, n);
 		} else if (c.cmd_type == 3) { // Attack
