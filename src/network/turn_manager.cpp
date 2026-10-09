@@ -73,7 +73,8 @@ void TurnManager::ensure_lockstep_peers() {
 		lockstep_peers_.push_back(0);
 		if (net_host_->isHost()) {
 			for (const auto &p : net_host_->getPeers())
-				if (p.connected && p.is_authenticated && !p.kick_disconnect_ms && !p.is_observer && p.id != 0)
+				if (p.connected && p.is_authenticated && !p.kick_disconnect_ms && !p.is_observer && p.id != 0 &&
+						player_for_client(p.id) < MAX_PLAYERS)
 					lockstep_peers_.push_back(p.id);
 		} else {
 			// Every seated human client (assign_slot_players numbers them 1, 2, ...
@@ -81,7 +82,7 @@ void TurnManager::ensure_lockstep_peers() {
 			// batches reach us through the host's relay.
 			for (const auto &cp : client_player_)
 				if (cp.first != 0 && cp.second < MAX_PLAYERS) lockstep_peers_.push_back(cp.first);
-			if (local_client_id_ != 0 &&
+			if (local_client_id_ != 0 && local_player() < MAX_PLAYERS &&
 					std::find(lockstep_peers_.begin(), lockstep_peers_.end(), local_client_id_) == lockstep_peers_.end())
 				lockstep_peers_.push_back(local_client_id_);
 			std::sort(lockstep_peers_.begin() + 1, lockstep_peers_.end());
@@ -230,9 +231,14 @@ std::string TurnManager::rejoin_path(const char *tag) const {
 	return dir + "/rtso_rejoin_" + tag + "_" + std::to_string(local_client_id_) + ".sav";
 }
 
-void TurnManager::request_rejoin() {
+bool TurnManager::is_observer() const {
+	return net_host_ && !net_host_->isHost() && rejoined_ && local_player() >= MAX_PLAYERS;
+}
+
+void TurnManager::request_rejoin(bool observe) {
 	if (!net_host_ || net_host_->isHost()) return;
 	rejoin_wanted_ = true;
+	rejoin_observe_ = observe;
 	rejoin_have_header_ = false;
 	rejoin_reject_ = 0;
 	rejoin_world_.clear();
@@ -241,6 +247,7 @@ void TurnManager::request_rejoin() {
 	rejoin_progress_ms_ = rejoin_now_ms();
 	RejoinMsg req;
 	req.kind = RejoinMsg::REQUEST;
+	req.reason = observe ? 1 : 0;
 	std::vector<uint8_t> payload = NetPacketSerializer::frame_rejoin(req);
 	std::vector<uint8_t> pkt = NetPacketSerializer::pack_message(NetMessageType::NMT_REJOIN_STATE, 0, payload);
 	net_host_->broadcastCommand(pkt);
@@ -249,6 +256,8 @@ void TurnManager::request_rejoin() {
 void TurnManager::receive_rejoin(uint32_t author, const RejoinMsg &msg) {
 	if (net_host_ && net_host_->isHost()) {
 		if (msg.kind != RejoinMsg::REQUEST || author == 0) return;
+		if (msg.reason == 1) observer_requests_.insert(author);
+		else observer_requests_.erase(author);
 		if (std::find(rejoin_requests_.begin(), rejoin_requests_.end(), author) == rejoin_requests_.end())
 			rejoin_requests_.push_back(author);
 		return;
@@ -275,6 +284,54 @@ void TurnManager::receive_rejoin(uint32_t author, const RejoinMsg &msg) {
 		rejoin_received_ += msg.bytes.size();
 		rejoin_progress_ms_ = rejoin_now_ms();
 	}
+}
+
+// Host: the match's clients as 0 A.D.'s NMT_PLAYER_ASSIGNMENT lists them. Sent
+// again only when something changes (a join, a leave, a seat handed over).
+void TurnManager::send_player_assignment() {
+	ensure_lockstep_peers();
+	std::vector<PlayerAssignmentMsg::Entry> list;
+	PlayerAssignmentMsg::Entry me;
+	me.client = 0;
+	me.name = net_host_->localPlayerName();
+	me.player = player_for_client(0);
+	me.status = me.player < MAX_PLAYERS ? PlayerAssignmentMsg::PLAYING : PlayerAssignmentMsg::OBSERVER;
+	list.push_back(me);
+	std::set<uint32_t> listed{0};
+	for (const auto &p : net_host_->getPeers()) {
+		if (p.id == 0 || !p.connected || !p.is_authenticated || p.kick_disconnect_ms) continue;
+		client_names_[p.id] = p.player_name;
+		const uint8_t pl = player_for_client(p.id);
+		PlayerAssignmentMsg::Entry e;
+		e.client = p.id;
+		e.name = p.player_name;
+		if (pl < MAX_PLAYERS && peer_active(p.id)) { e.player = pl; e.status = PlayerAssignmentMsg::PLAYING; }
+		else if (pl >= MAX_PLAYERS && client_player_.count(p.id)) e.status = PlayerAssignmentMsg::OBSERVER;
+		else continue; // still joining
+		list.push_back(e);
+		listed.insert(p.id);
+	}
+	// Seats whose client has gone (and nobody took over yet).
+	for (const auto &cp : client_player_) {
+		if (cp.second >= MAX_PLAYERS || listed.count(cp.first)) continue;
+		bool held = false;
+		for (const auto &e : list) if (e.player == cp.second) held = true;
+		if (held) continue;
+		auto nm = client_names_.find(cp.first);
+		if (nm == client_names_.end()) continue; // a seat nobody ever took
+		PlayerAssignmentMsg::Entry e;
+		e.client = cp.first;
+		e.name = nm->second;
+		e.player = cp.second;
+		e.status = PlayerAssignmentMsg::LEFT;
+		list.push_back(e);
+	}
+	std::sort(list.begin(), list.end(), [](const auto &a, const auto &b) { return a.client < b.client; });
+	if (list == sent_assignment_) return;
+	sent_assignment_ = list;
+	PlayerAssignmentMsg m;
+	m.clients = std::move(list);
+	net_host_->sendPlayerAssignment(m);
 }
 
 // Host, at a turn boundary (the world is the state after turn T = current_turn_).
@@ -304,7 +361,11 @@ void TurnManager::serve_rejoin(uint32_t client_id, Simulation &sim) {
 			if (other.second == cp.second && peer_active(other.first)) held = true;
 		if (!held && (seat == 0xFF || cp.second < seat)) seat = cp.second;
 	}
-	if (seat == 0xFF) { reject(1); return; }
+	// An observer takes no seat, even a free one.
+	const bool observer = observer_requests_.count(client_id) != 0;
+	if (observer && !allow_late_observers_) { reject(6); return; }
+	if (observer) seat = 0xFF;
+	else if (seat == 0xFF) { reject(1); return; }
 	const std::string path = rejoin_path("host");
 	std::vector<uint8_t> world;
 	if (sim.save_state(path.c_str())) {
@@ -316,11 +377,12 @@ void TurnManager::serve_rejoin(uint32_t client_id, Simulation &sim) {
 
 	const uint32_t T = current_turn_;
 	client_player_[client_id] = seat;
-	lockstep_peers_.push_back(client_id);
-	lockstep_since_[client_id] = T + COMMAND_DELAY + 1; // its first own batch
 	lockstep_until_.erase(client_id);
 	left_clients_.erase(client_id);
-	{
+	net_host_->setPeerObserver(client_id, observer);
+	if (!observer) {
+		lockstep_peers_.push_back(client_id);
+		lockstep_since_[client_id] = T + COMMAND_DELAY + 1; // its first own batch
 		// The other clients learn of it in our next batch, the one for T+3 itself.
 		NetCommand c;
 		c.cmd_type = CMD_PEER_JOINED;
@@ -397,7 +459,7 @@ bool TurnManager::apply_pending_rejoin(Simulation &sim) {
 	if (!rejoin_have_header_ || rejoin_received_ != rejoin_world_.size()) {
 		if (rejoin_now_ms() - rejoin_progress_ms_ > REJOIN_RETRY_MS) {
 			std::cerr << "[TurnManager] rejoin transfer stalled; asking the host again\n";
-			request_rejoin();
+			request_rejoin(rejoin_observe_);
 		}
 		return false;
 	}
@@ -514,6 +576,10 @@ void TurnManager::reset() {
 	stall_since_ms_ = 0;
 	lockstep_since_.clear();
 	rejoin_requests_.clear();
+	observer_requests_.clear();
+	rejoin_observe_ = false;
+	sent_assignment_.clear();
+	client_names_.clear();
 	rejoin_outbox_.clear();
 	rejoin_outbox_next_ = 0;
 	oos_expected_hash_ = 0;
@@ -668,6 +734,9 @@ void TurnManager::post_remote_commands(uint32_t client_id, const std::vector<Net
 
 bool TurnManager::receive_remote_turn_batch(uint32_t turn, uint32_t client_id, const std::vector<NetCommand> &cmds) {
 	if (is_replaying_) return false;
+	// The host takes no batches from a client without a seat (an observer), so
+	// none reach the other clients either.
+	if (client_id != 0 && net_host_ && net_host_->isHost() && player_for_client(client_id) >= MAX_PLAYERS) return false;
 	auto until = lockstep_until_.find(client_id);
 	if (until != lockstep_until_.end() && turn > until->second) return false; // sent after it left
 	// One batch per (turn, client): a retransmitted or doubly-delivered batch
@@ -1168,6 +1237,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		reqs.swap(rejoin_requests_);
 		for (uint32_t c : reqs) serve_rejoin(c, sim);
 	}
+	if (net_host_ && net_host_->isHost() && net_game_started()) send_player_assignment();
 	if (rejoin_outbox_next_ < rejoin_outbox_.size() && net_host_) {
 		const size_t end = std::min(rejoin_outbox_.size(), rejoin_outbox_next_ + REJOIN_CHUNKS_PER_TICK);
 		for (; rejoin_outbox_next_ < end; ++rejoin_outbox_next_) {
@@ -1241,7 +1311,10 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		// current_turn_ + COMMAND_DELAY and keep our own copy for that turn: every
 		// peer, us included, runs it there.
 		const bool lockstep = lockstep_net_active();
-		if (lockstep) {
+		if (lockstep && is_observer()) {
+			// An observer only watches: whatever it posted goes nowhere.
+			pending_local_cmds_.clear();
+		} else if (lockstep) {
 			const uint32_t sched = current_turn_ + COMMAND_DELAY;
 			SimulationCommandMsg scm;
 			scm.turn = sched;

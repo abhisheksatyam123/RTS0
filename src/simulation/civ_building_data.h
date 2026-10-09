@@ -34,6 +34,7 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{"Grand Temple of Amun", "temple", "temple_amun", 4000.0f, 2, 0, 0, 0, 600, 0, 40, 100.0f, 0.0f, 0.0f, 0.0f, 1000.0f, 0.5f, 1.0f, 20.0f}, /* structures/kush/temple_amun */ \
 		{"Temple of Vesta", "temple", "temple_vesta", 2000.0f, 2, 0, 0, 0, 300, 0, 20, 50.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/rome/temple_vesta */ \
 		{"Temple of Mars", "temple", "temple_mars", 2000.0f, 2, 0, 0, 0, 300, 0, 30, 50.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/rome/temple_mars */ \
+		{"Ice House", "farmstead", "ice_house", 800.0f, 2, 0, 100, 0, 100, 0, 0, 15.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/pers/ice_house */ \
 
 
 // LootInfo rows (xp, food, wood, stone, metal) for building_loot(), in BuildingType order.
@@ -63,6 +64,7 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{0, 0, 0, 120, 0}, /* structures/kush/temple_amun */ \
 		{0, 0, 0, 60, 0}, /* structures/rome/temple_vesta */ \
 		{0, 0, 0, 60, 0}, /* structures/rome/temple_mars */ \
+		{0, 0, 20, 20, 0}, /* structures/pers/ice_house */ \
 
 
 // Civilizations (bit per Civilization) that may build a civ-specific structure.
@@ -93,6 +95,7 @@ inline uint16_t civ_building_civ_mask(uint8_t type) {
 		case BLD_TEMPLE_AMUN: return 0x0400; // kush
 		case BLD_TEMPLE_VESTA: return 0x0008; // rome
 		case BLD_TEMPLE_MARS: return 0x0008; // rome
+		case BLD_ICE_HOUSE: return 0x0004; // pers
 		default: return 0xFFFF;
 	}
 }
@@ -125,6 +128,7 @@ inline uint8_t civ_building_phase(uint8_t type) {
 		case BLD_TEMPLE_AMUN: return 3;
 		case BLD_TEMPLE_VESTA: return 2;
 		case BLD_TEMPLE_MARS: return 3;
+		case BLD_ICE_HOUSE: return 1;
 		default: return 0;
 	}
 }

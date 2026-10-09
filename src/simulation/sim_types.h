@@ -41,6 +41,16 @@ enum BiomeType : uint8_t {
 	BIOME_COUNT = 9
 };
 
+// Player colours, 0xRRGGBB. The first 8 are 0 A.D. simulation/data/settings/player_defaults.json
+// (Player 1..8, each player's default); the other 16 are gamesettings/attributes/PlayerColor.js
+// DefaultColors, the Game Setup palette. Game Setup picks one index per player.
+constexpr int PLAYER_COLOR_COUNT = 24;
+inline constexpr uint32_t PLAYER_COLORS[PLAYER_COLOR_COUNT] = {
+	0x153795, 0x961414, 0x56B41F, 0xE7C805, 0x32AAAA, 0xA050C8, 0xDC7310, 0x404040,
+	0x0A0ABE, 0xE60A0A, 0x7DEB0F, 0xFFFF37, 0x8200E6, 0xFF8200, 0x0AE6E6, 0x14503C,
+	0xDCA0DC, 0x50FFBE, 0x3296FF, 0x64961E, 0x643C1E, 0x800040, 0xFFC88C, 0x505050,
+};
+
 enum Civilization : uint8_t {
 	CIV_ATHENIANS = 0,
 	CIV_SPARTANS = 1,
@@ -311,7 +321,8 @@ enum BuildingType : uint8_t {
 	BLD_TEMPLE_AMUN = 48,     // kush/temple_amun
 	BLD_TEMPLE_VESTA = 49,    // rome/temple_vesta
 	BLD_TEMPLE_MARS = 50,     // rome/temple_mars
-	BLD_TYPE_COUNT = 51
+	BLD_ICE_HOUSE = 51,       // pers/ice_house
+	BLD_TYPE_COUNT = 52
 };
 
 #include "civ_building_data.h"
@@ -844,6 +855,7 @@ enum TechStat : uint8_t {
 	TSTAT_PACK_TIME, TSTAT_GARRISON_HEAL,
 	TSTAT_REGEN, TSTAT_IDLE_REGEN, // Health/RegenRate, Health/IdleRegenRate (hp per second)
 	TSTAT_CAPTURE_POINTS, TSTAT_COST_FOOD, TSTAT_COST_WOOD, TSTAT_COST_STONE, TSTAT_COST_METAL,
+	TSTAT_TRICKLE_FOOD, TSTAT_TRICKLE_WOOD, TSTAT_TRICKLE_STONE, TSTAT_TRICKLE_METAL, // ResourceTrickle/Rates/<res>
 	TSTAT_COUNT
 };
 
@@ -915,7 +927,7 @@ inline uint64_t unit_tech_classes(uint8_t type) {
 		case UNIT_CAMEL: return cs | TC_CAVALRY | TC_MELEE;
 		case UNIT_TRADER: return org | TC_TRADER | TC_CIVILIAN;
 		case UNIT_HEALER: return org | TC_HEALER | TC_CIVILIAN;
-		case UNIT_HERO: return org | TC_HERO | TC_INFANTRY | TC_MELEE;
+		case UNIT_HERO: return org | TC_HERO | TC_SOLDIER | TC_INFANTRY | TC_MELEE; // template_unit_hero VisibleClasses: Soldier
 		case UNIT_ELEPHANT: return org | TC_SOLDIER | TC_ELEPHANT | TC_CHAMPION | TC_MELEE;
 		case UNIT_CHARIOT: return org | TC_SOLDIER | TC_CAVALRY | TC_CHARIOT | TC_RANGED | TC_CHAMPION;
 		case UNIT_SCYTHED_CHARIOT: return org | TC_SOLDIER | TC_CAVALRY | TC_CHARIOT | TC_MELEE | TC_CHAMPION;
@@ -1000,6 +1012,7 @@ inline uint64_t building_tech_classes(uint8_t type) {
 		case BLD_FORGE: return c | TC_FORGE;
 		case BLD_ARSENAL: return c | TC_ARSENAL;
 		case BLD_OUTPOST: return c | TC_OUTPOST | TC_DEFENSIVE;
+		case BLD_ICE_HOUSE: return c | TC_ICEHOUSE;
 		default: return c;
 	}
 }
@@ -1123,6 +1136,7 @@ struct CivUnitTemplate {
 
 #include "civ_roster_data.h"
 #include "civ_attack_data.h"
+#include "splash_data.h"
 #include "formation.h"
 
 inline constexpr uint16_t CIV_UNIT_TEMPLATE_NONE = 0xFFFF;
@@ -1220,8 +1234,9 @@ inline uint16_t civ_default_template(uint8_t civ, uint8_t type) {
 				int best_score = 1 << 30;
 				for (uint16_t i = civ_roster_begin(c); i < civ_roster_end(c); ++i) {
 					const CivUnitTemplate &u = civ_unit_template(i);
-					// Siege towers share the bolt shooter's class but are only trained by name.
-					if (u.unit_type != t || (u.flags & ROSTER_SIEGE_TOWER)) continue;
+					// Siege towers share the bolt shooter's class but are only trained by name;
+					// units only reached by promotion (no trainer) are never trained.
+					if (u.unit_type != t || (u.flags & ROSTER_SIEGE_TOWER) || !u.trainers) continue;
 					int score = u.phase * 4;
 					if (u.flags & ROSTER_HERO) score += 100;
 					if (u.flags & ROSTER_CHAMPION) score += 20;
@@ -1437,6 +1452,20 @@ static_assert(COMBAT_TEMPLATE_COUNT == CIV_UNIT_TEMPLATE_COUNT,
 		"rosters changed: re-run tools/extract_0ad_attack.py");
 static_assert(COMBAT_CLASS_ROWS == UNIT_TYPE_COUNT, "unit types changed: re-run tools/extract_0ad_attack.py");
 static_assert(COMBAT_BUILDING_ROWS == BLD_TYPE_COUNT, "building types changed: re-run tools/extract_0ad_attack.py");
+// 0 A.D. Attack/<type>/Splash of a unit's primary attack (splash_data.h, from
+// tools/extract_0ad_splash.py): a splash_profiles() row, 0 for none.
+static_assert(SPLASH_TEMPLATE_COUNT == CIV_UNIT_TEMPLATE_COUNT, "rosters changed: re-run tools/extract_0ad_splash.py");
+static_assert(SPLASH_CLASS_ROWS == UNIT_TYPE_COUNT, "unit types changed: re-run tools/extract_0ad_splash.py");
+// Area damage (helpers/Attack.js CauseDamageOverArea) reaches entities by their
+// footprint's edge. RTS0's units stand further apart than 0 A.D.'s (an infantry
+// radius of 0.55 units against a 0.8 m clearance), so splash and death-damage
+// radii scale like melee reach (extract_0ad_rosters.py MELEE_RANGE_SCALE) rather
+// than like ranged ranges, or a 2 m splash would never reach the next soldier.
+inline constexpr float AREA_DAMAGE_SCALE = 0.6f;
+inline uint8_t unit_splash(uint16_t tmpl, uint8_t type) {
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) return splash_template_index()[tmpl];
+	return type < UNIT_TYPE_COUNT ? splash_class_index()[type] : 0;
+}
 inline const CombatProfile &unit_combat(uint16_t tmpl, uint8_t type) {
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) return combat_template_table()[tmpl];
 	return combat_class_table()[type < UNIT_TYPE_COUNT ? type : UNIT_VILLAGER];

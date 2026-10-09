@@ -81,6 +81,7 @@ CLASSES = [
     "Defensive", "Village", "Town", "City", "Domestic",
     # Appended for civ-only technologies (bits 57..62).
     "Javelineer", "Immortal", "Crossbowman", "Mercenary", "SiegeTower", "Minister",
+    "IceHouse",  # bit 63 (Subterranean Aqueducts)
 ]
 assert len(CLASSES) <= 64, "TechClass is a uint64_t mask"
 
@@ -101,7 +102,7 @@ CIV_STRUCTURES = {
     "pyramid_large": "BLD_PYRAMID_LARGE", "pyramid_small": "BLD_PYRAMID_SMALL",
     "mercenary_camp": "BLD_MERCENARY_CAMP", "lighthouse": "BLD_LIGHTHOUSE",
     "military_colony": "BLD_MILITARY_COLONY", "academy": "BLD_ACADEMY",
-    "ministry": "BLD_MINISTRY",
+    "ministry": "BLD_MINISTRY", "ice_house": "BLD_ICE_HOUSE",
 }
 
 GATHER_KINDS = {"food.grain": "GATHER_GRAIN", "food.fruit": "GATHER_FRUIT",
@@ -110,11 +111,19 @@ GATHER_KINDS = {"food.grain": "GATHER_GRAIN", "food.fruit": "GATHER_FRUIT",
                 "metal.ore": "GATHER_METAL"}
 
 
+# Modifications RTS0 applies outside tech_data.h's effect table: promotion_data.h
+# (tools/extract_0ad_promotion.py) reads Promotion/RequiredXp from the techs here.
+APPLIED_ELSEWHERE = {"Promotion/RequiredXp"}
+
+
 def stat_of(path: str):
     """Map a 0 A.D. modification path to (TechStat, op hint) or None."""
     m = re.fullmatch(r"ResourceGatherer/Rates/(.+)", path)
     if m and m.group(1) in GATHER_KINDS:
         return "TSTAT_" + GATHER_KINDS[m.group(1)]
+    m = re.fullmatch(r"ResourceTrickle/Rates/(food|wood|stone|metal)", path)
+    if m:
+        return "TSTAT_TRICKLE_" + m.group(1).upper()
     if re.fullmatch(r"ResourceGatherer/Capacities/(food|wood|stone|metal)", path):
         return "TSTAT_CARRY_" + path.rsplit("/", 1)[1].upper()
     m = re.fullmatch(r"Attack/(Melee|Ranged)/Damage/(Hack|Pierce|Crush)", path)
@@ -334,7 +343,7 @@ def main() -> int:
         mask = civ_mask(j.get("requirements"))
         if mask in (0, full):
             continue  # all-civ techs belong to the generic buildings above
-        mods = [m for m in j.get("modifications", []) if stat_of(m["value"])]
+        mods = [m for m in j.get("modifications", []) if stat_of(m["value"]) or m["value"] in APPLIED_ELSEWHERE]
         if not mods and name not in unlockers:
             continue
         order.append(name)

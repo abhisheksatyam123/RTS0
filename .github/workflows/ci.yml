@@ -272,6 +272,12 @@ jobs:
             src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
             src/network/net_host.cpp -lpthread -o /tmp/test_combat
           /tmp/test_combat
+      - name: Splash scenarios (0 A.D. Attack Splash, CauseDamageOverArea)
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_splash.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+            src/network/net_host.cpp -lpthread -o /tmp/test_splash
+          /tmp/test_splash
       - name: Formation scenarios
         run: |
           g++ -std=c++20 -O2 -Isrc tools/test_formations.cpp src/simulation/simulation.cpp \

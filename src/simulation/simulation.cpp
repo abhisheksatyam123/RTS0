@@ -343,6 +343,7 @@ void Simulation::reset() {
 	field_bld_by_res_.clear();
 	building_id_to_idx_.clear();
 	occupied_cells_.clear();
+	std::fill(std::begin(regicide_hero_), std::end(regicide_hero_), 0u);
 
 	next_id_ = 1;
 	sim_rng_.set_seed(sim_seed_);
@@ -882,9 +883,69 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 				"steppe", "savanna", "polar", "india"};
 		current_map_biome_ = kBiomeNames[biome_override_];
 	}
+	if (nomad_) remove_player_structures();
 	register_map_triggers(type);
 	rebuild_nav_grid();
 	rebuild_territory();
+}
+
+void Simulation::remove_player_structures() {
+	// rmgen-common placePlayerBase returns early for Nomad: no Civic Centre, walls or other
+	// starting structures; the starting units stay. Runs right after generation, before any tick.
+	std::vector<Building> kept;
+	kept.reserve(buildings_.size());
+	for (Building &b : buildings_)
+		if (b.team >= MAX_PLAYERS) kept.push_back(std::move(b));
+	buildings_ = std::move(kept);
+	nomad_start_ = true;
+	building_id_to_idx_.clear();
+	occupied_cells_.clear();
+	for (size_t i = 0; i < buildings_.size(); ++i) {
+		const Building &b = buildings_[i];
+		building_id_to_idx_[b.id] = i;
+		for (int dx = 0; dx < b.footprint; ++dx)
+			for (int dy = 0; dy < b.footprint; ++dy) occupied_cells_.insert({b.cell_x + dx, b.cell_y + dy});
+	}
+}
+
+void Simulation::spawn_nomad_treasures() {
+	// rmgen-common placePlayersNomad: next to each player's starting units, enough treasure of
+	// each resource to pay for a Civic Centre on top of the starting resources.
+	const BuildingTypeInfo &cc = building_type_info(BLD_TOWN_CENTER);
+	const int cost[RES_COUNT] = {cc.wood_cost, cc.gold_cost, cc.stone_cost, cc.food_cost}; // by ResourceType
+	static const int kAmountIdx[RES_COUNT] = {1, 3, 2, 0}; // TreasureTypeInfo::amount is food, wood, stone, metal
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+		if (!players_[p].active) continue;
+		float sx = 0.0f, sz = 0.0f;
+		int n = 0;
+		for (size_t u = 0; u < units_.count; ++u)
+			if (units_.alive[u] && units_.team[u] == p) { sx += units_.pos_x[u]; sz += units_.pos_z[u]; ++n; }
+		if (n == 0) continue;
+		sx /= (float)n; sz /= (float)n;
+		int placed = 0;
+		for (uint8_t r = 0; r < RES_COUNT; ++r) {
+			const int amount = treasure_type_info(treasure_type_for_resource(r)).amount[kAmountIdx[r]];
+			const int need = cost[r] - (int)players_[p].res[r];
+			const int count = (amount > 0 && need > 0) ? (need + amount - 1) / amount : 0;
+			for (int k = 0; k < count; ++k, ++placed) {
+				const float a = 2.39996323f * (float)placed; // golden-angle spiral, 3-5 m out (SimpleObject 3..5)
+				const float d = 3.0f + (float)(placed % 3);
+				const float x = std::clamp(sx + std::cos(a) * d, -map_half_ + 2.0f, map_half_ - 2.0f);
+				const float z = std::clamp(sz + std::sin(a) * d, -map_half_ + 2.0f, map_half_ - 2.0f);
+				spawn_resource_treasure(x, z, r);
+			}
+		}
+	}
+}
+
+uint32_t Simulation::player_color(uint8_t pid) const {
+	return pid < MAX_PLAYERS ? PLAYER_COLORS[player_color_[pid]] : 0xFFFFFFu;
+}
+
+bool Simulation::unit_garrisonable(size_t unit_idx) const {
+	if (regicide_garrison_ || victory_condition_ != VICTORY_REGICIDE) return true;
+	const uint8_t t = units_.team[unit_idx];
+	return t >= MAX_PLAYERS || regicide_hero_[t] == 0 || units_.id[unit_idx] != regicide_hero_[t];
 }
 
 void Simulation::end_bulk_spawn() {
@@ -3452,11 +3513,11 @@ int Simulation::siege_tower_arrows(size_t i) const {
 // 0 A.D.'s Support and Infantry classes.
 bool Simulation::can_board(size_t transport_idx, size_t unit_idx) const {
 	if (units_.team[unit_idx] != units_.team[transport_idx]) return false;
+	if (!unit_garrisonable(unit_idx)) return false; // an ungarrisonable Regicide hero boards nothing
 	// Ships carry rams and siege towers too (Siege on warship Lists), never other ships.
 	if (unit_is_ship(units_.unit_type[transport_idx]))
 		return !unit_is_ship(units_.unit_type[unit_idx]) && ship_garrison_allowed(transport_idx, units_.unit_type[unit_idx]);
 	if (is_transport(units_.id[unit_idx])) return false;
-
 	if (siege_garrison_capacity(transport_idx) > 0 && !siege_garrison_allowed(units_.unit_type[unit_idx])) return false;
 	return true;
 }
@@ -3541,6 +3602,7 @@ void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, ui
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx] || units_.team[uidx] != b.team) continue;
+		if (!unit_garrisonable((size_t)uidx)) continue;
 		if (turret_points_of(b) && !unit_turretable((size_t)uidx)) continue; // TurretHolder.CanOccupy
 		if (garrison_in_range((size_t)uidx, b)) {
 			if ((int)b.garrisoned_units.size() >= b.garrison_cap) continue;
@@ -4579,7 +4641,7 @@ void Simulation::random_normal_2d(float &x, float &z) {
 	z = r * std::sin(6.28318530718f * u2);
 }
 
-void Simulation::fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect, uint8_t dmg_type, bool hits_building, uint8_t visual, uint32_t source_id) {
+void Simulation::fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect, uint8_t dmg_type, bool hits_building, uint8_t visual, uint32_t source_id, uint8_t splash) {
 	if (projectiles_.size() >= MAX_PROJECTILES) return;
 	Projectile p;
 	p.id = alloc_id();
@@ -4595,6 +4657,7 @@ void Simulation::fire_arrow(float sx, float sy, float sz, float tx, float ty, fl
 	p.status_effect = effect;
 	p.team = team;
 	p.source_id = source_id;
+	p.splash = splash;
 	if (hits_building) {
 		p.target_building_id = target_id;
 		p.target_unit_id = 0;
@@ -6255,7 +6318,8 @@ void Simulation::tick_combat(float dt) {
 				random_normal_2d(disp_x, disp_z);
 				fire_arrow(units_.pos_x[i], launch_y, units_.pos_z[i],
 				           aim_x + disp_x * sigma, land_y, aim_z + disp_z * sigma,
-				           final_dmg, units_.team[i], units_.id[t], effect, 1, false, proj_vis, units_.id[i]);
+				           final_dmg, units_.team[i], units_.id[t], effect, 1, false, proj_vis, units_.id[i],
+				           unit_splash(units_.tmpl[i], u_att));
 			}
 
 			// If War Trireme has garrisoned passengers, fire deck archer barrage
@@ -6313,40 +6377,6 @@ void Simulation::tick_combat(float dt) {
 				}
 			}
 
-			// 0 A.D. AttackHelper.CauseDamageOverArea (helpers/Attack.js:150-185):
-			// Catapult Siege Splash Damage: 4.5m blast radius, 60% splash damage with quadratic falloff (1 - d^2 / r^2)
-			if (units_.unit_type[i] == UNIT_CATAPULT) {
-				const float blast_r = 4.5f;
-				const float blast_r2 = blast_r * blast_r;
-				const uint8_t att_team = units_.team[i];
-				float tx = units_.pos_x[t];
-				float tz = units_.pos_z[t];
-				grid.visit_radius(tx, tz, blast_r, [&](int32_t s_idx) {
-					if (!units_.alive[s_idx] || !is_hostile(att_team, units_.team[s_idx]) || s_idx == t) return;
-					float sx = units_.pos_x[s_idx] - tx;
-					float sz = units_.pos_z[s_idx] - tz;
-					float dist2 = sx * sx + sz * sz;
-					if (dist2 >= blast_r2) return;
-					float falloff = 1.0f - (dist2 / blast_r2);
-					float s_hack = unit_info_at(s_idx).hack_armor + rank_melee_armor((size_t)s_idx);
-					float s_dmg = std::max(1.0f, final_dmg * 0.60f * falloff * powf(0.9f, s_hack * 0.5f));
-					award_damage_xp(units_.id[i], (size_t)s_idx, s_dmg);
-					units_.hp[s_idx] -= s_dmg;
-					if (units_.hp[s_idx] <= 0) {
-						units_.alive[s_idx] = 0;
-						units_.action_state[s_idx] = ACTION_DYING;
-						record_unit_death(s_idx, att_team);
-						stat_unit_lost(s_idx, att_team);
-						if (units_.team[s_idx] == 0) {
-							record_.units_lost++;
-						} else {
-							record_.enemies_killed++;
-						}
-						collect_unit_loot(units_.id[i], att_team, (size_t)s_idx);
-					}
-				});
-			}
-
 			if (units_.hp[t] <= 0) {
 				units_.alive[t] = 0;
 				units_.action_state[t] = ACTION_DYING;
@@ -6366,6 +6396,12 @@ void Simulation::tick_combat(float dt) {
 
 				// Promotion.js xp came with each hit (award_damage_xp); count the kill.
 				units_.kills[i]++;
+			}
+			// Attack.js PerformAttack: a melee Splash lands on the target's position
+			// (DelayedDamage.js Hit), after the hit itself here.
+			if (const uint8_t sp = unit_splash(units_.tmpl[i], u_att)) {
+				cause_damage_over_area(sp, units_.id[i], units_.team[i], units_.pos_x[t], units_.pos_z[t],
+						units_.pos_x[t] - units_.pos_x[i], units_.pos_z[t] - units_.pos_z[i]);
 			}
 		}
 	}
@@ -6464,7 +6500,8 @@ void Simulation::tick_combat(float dt) {
 			float land_y = get_terrain_height(b.x, b.z) + 1.5f;
 			fire_arrow(units_.pos_x[i], launch_y, units_.pos_z[i],
 			           b.x, land_y, b.z,
-			           bld_dmg, units_.team[i], b.id, EFFECT_BURNING, 2, true, vis, units_.id[i]);
+			           bld_dmg, units_.team[i], b.id, EFFECT_BURNING, 2, true, vis, units_.id[i],
+			           unit_splash(units_.tmpl[i], ut));
 		} else {
 			b.hp -= bld_dmg;
 			if (b.team == 0) {
@@ -6506,6 +6543,8 @@ void Simulation::tick_combat(float dt) {
 					rebuild_territory();
 				}
 			}
+			if (const uint8_t sp = unit_splash(units_.tmpl[i], units_.unit_type[i]))
+				cause_damage_over_area(sp, units_.id[i], units_.team[i], b.x, b.z, -dx, -dz); // melee Splash
 		}
 	}
 
@@ -7090,41 +7129,9 @@ void Simulation::tick_projectiles(float dt) {
 				}
 			}
 
-			// 0 A.D. AttackHelper.CauseDamageOverArea (helpers/Attack.js:150-185):
-			// Projectile splash damage for siege stones (visual == 2):
-			// 4.5m blast radius, 60% splash damage with quadratic falloff (1 - d^2 / r^2)
-			if (p.visual == 2) {
-				const float blast_r = 4.5f;
-				const float blast_r2 = blast_r * blast_r;
-				const float impact_x = p.target_x;
-				const float impact_z = p.target_z;
-				const int32_t direct_target = hit_unit;
-				const size_t total_u = units_.size();
-				for (size_t s_idx = 0; s_idx < total_u; ++s_idx) {
-					if (!units_.alive[s_idx] || !is_hostile(p.team, units_.team[s_idx]) || (int32_t)s_idx == direct_target) continue;
-					float sx = units_.pos_x[s_idx] - impact_x;
-					float sz = units_.pos_z[s_idx] - impact_z;
-					float dist2 = sx * sx + sz * sz;
-					if (dist2 >= blast_r2) continue;
-					float falloff = 1.0f - (dist2 / blast_r2);
-					float s_hack = unit_info_at(s_idx).hack_armor + rank_melee_armor((size_t)s_idx);
-					float s_dmg = std::max(1.0f, p.damage * 0.60f * falloff * powf(0.9f, s_hack * 0.5f));
-					award_damage_xp(p.source_id, s_idx, s_dmg);
-					units_.hp[s_idx] -= s_dmg;
-					if (units_.hp[s_idx] <= 0) {
-						units_.alive[s_idx] = 0;
-						units_.action_state[s_idx] = ACTION_DYING;
-						record_unit_death(s_idx, p.team);
-						stat_unit_lost(s_idx, p.team);
-						if (units_.team[s_idx] == 0) {
-							record_.units_lost++;
-						} else {
-							record_.enemies_killed++;
-						}
-						collect_unit_loot(p.source_id, p.team, s_idx);
-					}
-				}
-			}
+			// DelayedDamage.js Hit: the attack's Splash where the projectile lands.
+			if (p.splash != 0)
+				cause_damage_over_area(p.splash, p.source_id, p.team, p.target_x, p.target_z, dx, dz);
 		}
 
 		// 0 A.D. CCmpProjectileManager.cpp flight arc equation: y = y0 + (y1 - y0)*t + 4*h*t*(1 - t)
@@ -7256,6 +7263,11 @@ void Simulation::check_victory_conditions(float dt) {
 	if (game_over_ || victory_) return;
 	// 0 A.D. "Endless": no victory conditions, nobody is ever defeated.
 	if (victory_condition_ == VICTORY_ENDLESS) return;
+	if (ticks_ == 0) {
+		if (disable_treasures_) clear_treasures();
+		if (nomad_start_) spawn_nomad_treasures();
+		nomad_start_ = false;
+	}
 	if (victory_condition_ == VICTORY_REGICIDE && ticks_ == 0) spawn_regicide_heroes();
 	if (victory_condition_ == VICTORY_RELIC && ticks_ == 0 && relic_count_ > 0) apply_relic_count();
 
@@ -7457,7 +7469,7 @@ void Simulation::spawn_regicide_heroes() {
 		spots.push_back({t, {units_.pos_x[u], units_.pos_z[u]}});
 	}
 	for (const auto &s : spots) {
-		spawn_unit(s.second.first + 4.0f, s.second.second + 4.0f, s.first, UNIT_HERO, 0.0f);
+		regicide_hero_[s.first] = spawn_unit(s.second.first + 4.0f, s.second.second + 4.0f, s.first, UNIT_HERO, 0.0f);
 	}
 }
 
@@ -7571,25 +7583,41 @@ void Simulation::tick_trickle(float dt) {
 		}
 	}
 
-	// Structures. template_structure_wonder.xml: 1 food, wood, stone and metal every 2 s.
-	// structures/han/ministry.xml: 0.1 wood, stone and metal every 2 s. A corral's own
-	// rate is 0; each garrisoned animal adds 1, 2 or 3 food every 5 s by its size
+	// Structures, every 2 s (their templates' Interval 2000): template_structure_wonder.xml
+	// 1 food, wood, stone and metal; structures/han/ministry.xml 0.1 wood, stone and metal;
+	// structures/pers/ice_house.xml 1 food. Technologies add to a structure's Rates
+	// (Subterranean Aqueducts: ice houses +1 food). A corral's own rate is 0; each
+	// garrisoned animal adds 1, 2 or 3 food every 5 s by its size
 	// (corral_garrison_{small,medium,large}.json).
 	const bool two_s = due(2.0f), corral_due = due(CORRAL_TRICKLE_INTERVAL);
 	if (two_s) {
 		for (const auto &b : buildings_) {
 			if (b.team >= MAX_PLAYERS || b.build_progress < 1.0f || b.hp <= 0.0f) continue;
-			PlayerState &ps = players_[b.team];
+			float rate[RES_COUNT] = {};
 			if (b.type == BLD_WONDER) {
-				ps.res[RES_FOOD] += 1.0f;
-				ps.res[RES_WOOD] += 1.0f;
-				ps.res[RES_STONE] += 1.0f;
-				ps.res[RES_GOLD] += 1.0f;
+				rate[RES_FOOD] = rate[RES_WOOD] = rate[RES_STONE] = rate[RES_GOLD] = 1.0f;
 			} else if (b.type == BLD_MINISTRY) {
-				ps.res[RES_WOOD] += 0.1f;
-				ps.res[RES_STONE] += 0.1f;
-				ps.res[RES_GOLD] += 0.1f;
+				rate[RES_WOOD] = rate[RES_STONE] = rate[RES_GOLD] = 0.1f;
+			} else if (b.type == BLD_ICE_HOUSE) {
+				rate[RES_FOOD] = 1.0f;
+			} else {
+				continue;
 			}
+			PlayerState &ps = players_[b.team];
+			const uint64_t classes = building_tech_classes(b.type);
+			for (uint8_t id = 1; id < TECH_COUNT; ++id) {
+				if (!ps.has_tech(id)) continue;
+				const TechInfo &ti = tech_info(id);
+				const TechEffect *fx = tech_effects_table() + ti.effect_begin;
+				for (uint16_t k = 0; k < ti.effect_count; ++k) {
+					const TechEffect &e = fx[k];
+					if (e.stat < TSTAT_TRICKLE_FOOD || e.stat > TSTAT_TRICKLE_METAL || !tech_effect_applies(e, classes)) continue;
+					static constexpr uint8_t kRes[4] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD};
+					float &v = rate[kRes[e.stat - TSTAT_TRICKLE_FOOD]];
+					v = (e.op == TOP_MUL) ? v * e.value : (e.op == TOP_SET) ? e.value : v + e.value;
+				}
+			}
+			for (int r = 0; r < RES_COUNT; ++r) ps.res[r] += rate[r];
 		}
 	}
 	if (corral_due) {
@@ -7644,7 +7672,7 @@ void Simulation::tick_entity_limits(float dt) {
 // they die. Of the trained ones that is mixins/fireship.xml (brit, gaul and iber
 // ship_fire): 500 Fire over 20 m, friendly fire on. template_unit_siege_flamethrower
 // has one too but no civ trains it.
-static const DeathDamageInfo FIRESHIP_DEATH_DAMAGE = {20.0f * COMBAT_DISTANCE_SCALE, 500.0f, true};
+static const DeathDamageInfo FIRESHIP_DEATH_DAMAGE = {20.0f * AREA_DAMAGE_SCALE, 500.0f, true};
 
 static bool template_is(uint16_t tmpl, const char *name) {
 	if (tmpl == CIV_UNIT_TEMPLATE_NONE || tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
@@ -7691,7 +7719,7 @@ void Simulation::tick_death_damage(float dt) {
 		const uint8_t owner = death.team;
 		auto hurts = [&](uint8_t team) { return dd.friendly_fire || is_hostile(owner, team); };
 		for (size_t i = 0; i < units_.count; ++i) {
-			if (!units_.alive[i] || !hurts(units_.team[i])) continue;
+			if (!units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED || !hurts(units_.team[i])) continue;
 			const float dx = units_.pos_x[i] - ox, dz = units_.pos_z[i] - oz;
 			if (std::fabs(dx) > r + 2.0f || std::fabs(dz) > r + 2.0f) continue;
 			const float d = std::max(0.0f, std::sqrt(dx * dx + dz * dz) - unit_collision_radius(units_.unit_type[i]));
@@ -7717,6 +7745,108 @@ void Simulation::tick_death_damage(float dt) {
 			if (b.hp <= 0.0f) mark_building_wreck(b, owner);
 		}
 	}
+}
+
+void Simulation::unit_resistance(size_t i, float out[3]) const {
+	const auto &info = unit_info_at(i);
+	out[0] = info.hack_armor;
+	out[1] = info.pierce_armor;
+	out[2] = info.crush_armor;
+	if (units_.team[i] < MAX_PLAYERS && units_.unit_type[i] < UNIT_TYPE_COUNT) {
+		const float *armor = unit_tech_mods(units_.team[i], units_.unit_type[i], units_.tmpl[i]).armor;
+		for (int k = 0; k < 3; ++k) out[k] += armor[k];
+	}
+	if (const float ra = rank_melee_armor(i); ra > 0.0f)
+		for (int k = 0; k < 3; ++k) out[k] += ra;
+	const float aura = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_ARMOR,
+			units_.tmpl[i], &unit_combat_at(i).classes);
+	out[0] += aura;
+	out[1] += aura;
+}
+
+// 0 A.D. helpers/Attack.js CauseDamageOverArea: every entity of a player the
+// attack hurts (its enemies, everyone with FriendlyFire) within the Splash Range
+// of where the attack landed, the attacked target included, takes the Splash
+// Damage less its resistance, times a falloff from the distance to its
+// obstruction's edge: 1 - d^2/r^2 for Circular, and for Linear a strip Range
+// long and Range/5 wide ahead along the missile's direction, falling off
+// quadratically along and across it. Garrisoned units are out of the world.
+void Simulation::cause_damage_over_area(uint8_t splash, uint32_t attacker_id, uint8_t attacker_team,
+		float ox, float oz, float dir_x, float dir_z) {
+	if (splash == 0 || splash >= SPLASH_PROFILE_COUNT) return;
+	const SplashProfile &sp = splash_profiles()[splash];
+	const float r = sp.range * AREA_DAMAGE_SCALE;
+	if (r <= 0.0f) return;
+	const float r2 = r * r;
+	const bool linear = sp.shape == SPLASH_LINEAR;
+	const float width = r / 5.0f;
+	const float dl = std::sqrt(dir_x * dir_x + dir_z * dir_z);
+	const float fx = dl > 1e-6f ? dir_x / dl : 1.0f, fz = dl > 1e-6f ? dir_z / dl : 0.0f;
+	auto hurts = [&](uint8_t team) { return sp.friendly_fire || is_hostile(attacker_team, team); };
+	// The falloff at an entity whose edge is d from the origin, in direction (px, pz).
+	auto falloff = [&](float d, float px, float pz) {
+		if (!linear) return 1.0f - d * d / r2;
+		const float pl = std::sqrt(px * px + pz * pz);
+		const float rx = pl > 1e-6f ? px / pl * d : 0.0f, rz = pl > 1e-6f ? pz / pl * d : 0.0f;
+		const float along = rx * fx + rz * fz;
+		const float across = rx * fz - rz * fx;
+		if (along < 0.0f || std::fabs(across) >= width) return 0.0f;
+		return (1.0f - along * along / r2) * (1.0f - across * across / (width * width));
+	};
+	for (size_t u = 0; u < units_.count; ++u) {
+		if (!units_.alive[u] || units_.action_state[u] == ACTION_GARRISONED || !hurts(units_.team[u])) continue;
+		const float px = units_.pos_x[u] - ox, pz = units_.pos_z[u] - oz;
+		if (std::fabs(px) > r + 2.0f || std::fabs(pz) > r + 2.0f) continue;
+		const float d = std::max(0.0f, std::sqrt(px * px + pz * pz) - unit_collision_radius(units_.unit_type[u]));
+		if (d >= r) continue;
+		const float m = falloff(d, px, pz);
+		if (m <= 0.0f) continue;
+		float res[3];
+		unit_resistance(u, res);
+		const float dmg = m * (sp.hack * powf(0.9f, res[0]) + sp.pierce * powf(0.9f, res[1]) +
+				sp.crush * powf(0.9f, res[2]));
+		if (dmg <= 0.0f) continue;
+		award_damage_xp(attacker_id, u, dmg);
+		units_.hp[u] -= dmg;
+		if (units_.attacked_by[u] == 0 && attacker_id != 0) units_.attacked_by[u] = attacker_id;
+		if (units_.team[u] == 0)
+			raise_alert(BattleAlert::ALERT_UNDER_ATTACK, units_.pos_x[u], units_.pos_z[u], units_.id[u], units_.team[u]);
+		if (units_.hp[u] > 0.0f) continue;
+		units_.alive[u] = 0;
+		units_.action_state[u] = ACTION_DYING;
+		note_kill(attacker_id, units_.id[u]);
+		record_unit_death(u, attacker_team);
+		stat_unit_lost(u, attacker_team);
+		if (units_.team[u] == 0) record_.units_lost++;
+		else record_.enemies_killed++;
+		collect_unit_loot(attacker_id, attacker_team, u);
+	}
+	bool nav_changed = false, territory_changed = false;
+	for (Building &b : buildings_) {
+		if (b.wrecked || b.hp <= 0.0f || !hurts(b.team)) continue;
+		const float ex = std::max(0.0f, std::fabs(b.x - ox) - b.half_size);
+		const float ez = std::max(0.0f, std::fabs(b.z - oz) - b.half_size);
+		const float d2 = ex * ex + ez * ez;
+		if (d2 >= r2) continue;
+		const float m = falloff(std::sqrt(d2), b.x - ox, b.z - oz);
+		if (m <= 0.0f) continue;
+		const CombatProfile &bc = building_combat(b.type);
+		const float dmg = m * (sp.hack * powf(0.9f, bc.hack_armor) + sp.pierce * powf(0.9f, bc.pierce_armor) +
+				sp.crush * powf(0.9f, bc.crush_armor));
+		if (dmg <= 0.0f) continue;
+		b.hp -= dmg;
+		if (b.team == 0) raise_alert(BattleAlert::ALERT_BUILDING_UNDER_ATTACK, b.x, b.z, b.id, b.team);
+		if (b.hp > 0.0f) continue;
+		if (attacker_team == 0) record_.enemies_killed++;
+		else if (b.team == 0) record_.buildings_destroyed++;
+		if (b.team == 0) raise_alert(BattleAlert::ALERT_BUILDING_DESTROYED, b.x, b.z, b.id, b.team);
+		collect_building_loot(attacker_id, attacker_team, b);
+		mark_building_wreck(b, attacker_team);
+		nav_changed = true;
+		if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER) territory_changed = true;
+	}
+	if (nav_changed) rebuild_nav_grid();
+	if (territory_changed) rebuild_territory();
 }
 
 // 0 A.D. Gate.js OperateGate: a gate opens while a unit of its owner or an ally
@@ -13623,7 +13753,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -14277,7 +14407,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			d.progress = v.progress; d.speed = v.speed; d.arc_height = v.arc_height; d.damage = v.damage;
 			d.damage_type = v.damage_type; d.visual = v.visual; d.status_effect = v.status_effect; d.team = v.team;
 			d.target_unit_id = v.target_unit_id; d.target_building_id = v.target_building_id; d.alive = v.alive;
-			d.source_id = v.source_id;
+			d.splash = v.splash; d.source_id = v.source_id;
 		});
 	};
 	static_assert(sizeof(S::TreasureRelic) == 24, "list the new TreasureRelic field below");
@@ -14418,6 +14548,20 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	ar.pod(s.victory_condition_); ar.pod(s.waves_enabled_); ar.pod(s.last_man_standing_); ar.pod(s.pop_cap_);
 	ar.pod(s.ceasefire_seconds_); ar.pod(s.reveal_map_); ar.pod(s.explore_map_);
 	ar.pod(s.wonder_duration_); ar.pod(s.relic_duration_); ar.pod(s.relic_count_);
+	// v32: Nomad, RegicideGarrison and the Regicide heroes, player colours, Disable Treasures.
+	if (ar.version >= 32) {
+		ar.pod(s.nomad_); ar.pod(s.regicide_garrison_); ar.pod(s.disable_treasures_);
+		for (uint32_t &h : s.regicide_hero_) ar.pod(h);
+		for (uint8_t &c : s.player_color_) {
+			ar.pod(c);
+			if constexpr (Ar::loading)
+				if (c >= PLAYER_COLOR_COUNT) ar.ok = false;
+		}
+	} else if constexpr (Ar::loading) {
+		s.nomad_ = false; s.regicide_garrison_ = false; s.disable_treasures_ = false;
+		std::fill(std::begin(s.regicide_hero_), std::end(s.regicide_hero_), 0u);
+		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) s.player_color_[p] = p;
+	}
 
 	// 3. Every AI's Petra state.
 	static_assert(sizeof(PetraConfig) == 100, "list the new PetraConfig field below");

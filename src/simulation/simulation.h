@@ -71,6 +71,7 @@ struct Projectile {
 	uint32_t target_unit_id = 0;
 	uint32_t target_building_id = 0;
 	bool alive = true;
+	uint8_t splash = 0; // splash_profiles() row of the attack that fired it (0 A.D. DelayedDamage data.splash)
 	uint32_t source_id = 0; // firing unit or building: Promotion xp and Looter.js loot go to it
 };
 
@@ -147,7 +148,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 31; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 32; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -174,6 +175,8 @@ public:
 		if (player == OBSERVER_VIEW) return revealed_fow_.data();
 		// A defeated player observes: the whole map is revealed (0 A.D. parity).
 		if (player < MAX_PLAYERS && ((defeated_mask_ >> player) & 1)) return revealed_fow_.data();
+		// So does a multiplayer observer, which has no player (0xFF).
+		if (player == 0xFF) return revealed_fow_.data();
 		if (player == 0 || player >= MAX_PLAYERS) return fow_grid_.data();
 		if (player_fow_[player].size() == fow_grid_.size()) return player_fow_[player].data();
 		if (player == PETRA_PLAYER && petra_runs_for(PETRA_PLAYER)) return petra_fow_.data();
@@ -522,6 +525,25 @@ public:
 	// Game Setup biome for random maps: BIOME_* or -1 for the map's own.
 	void set_biome_override(int b) { biome_override_ = (b >= 0 && b < BIOME_COUNT) ? b : -1; }
 	int biome_override() const { return biome_override_; }
+	// 0 A.D. Nomad (gamesettings Nomad.js, rmgen-common placePlayerBase): random maps start
+	// without any player structures, only the starting units.
+	void set_nomad(bool on) { nomad_ = on; }
+	bool nomad() const { return nomad_; }
+	// 0 A.D. DisableTreasures: every treasure is removed when the match starts.
+	void set_disable_treasures(bool on) { disable_treasures_ = on; }
+	bool disable_treasures() const { return disable_treasures_; }
+	// 0 A.D. RegicideGarrison: the Regicide hero may garrison (else it spawns "ungarrisonable|").
+	void set_regicide_garrison(bool on) { regicide_garrison_ = on; }
+	bool regicide_garrison() const { return regicide_garrison_; }
+	uint32_t regicide_hero(uint8_t pid) const { return pid < MAX_PLAYERS ? regicide_hero_[pid] : 0; }
+	// False for a Regicide hero while RegicideGarrison is off: it can't enter structures,
+	// siege engines or ships.
+	bool unit_garrisonable(size_t unit_idx) const;
+	// 0 A.D. PlayerColor: an index into PLAYER_COLORS; player p defaults to p (player_defaults.json).
+	void set_player_color(uint8_t pid, uint8_t idx) { if (pid < MAX_PLAYERS && idx < PLAYER_COLOR_COUNT) player_color_[pid] = idx; }
+	uint8_t player_color_index(uint8_t pid) const { return pid < MAX_PLAYERS ? player_color_[pid] : 0; }
+	// 0xRRGGBB; Gaia (and anything outside the 8 slots) is 0 A.D.'s white.
+	uint32_t player_color(uint8_t pid) const;
 	bool explore_map() const { return explore_map_; }
 	void set_explore_map(bool on) { explore_map_ = on; }
 	// Wonder and Capture the Relic: how long the wonder or all relics must be held, and how
@@ -1223,6 +1245,11 @@ private:
 	int corral_count(uint32_t corral_id) const;
 	void tick_entity_limits(float dt);
 	void tick_death_damage(float dt);
+	// 0 A.D. helpers/Attack.js CauseDamageOverArea for an Attack Splash landing at (ox, oz).
+	void cause_damage_over_area(uint8_t splash, uint32_t attacker_id, uint8_t attacker_team,
+			float ox, float oz, float dir_x, float dir_z);
+	// A unit's hack, pierce and crush resistance levels (template, techs, rank, armour auras).
+	void unit_resistance(size_t i, float out[3]) const;
 	void tick_gates(float dt);
 	void tick_waves(float dt);
 	void tick_petra_ai(float dt);
@@ -1264,7 +1291,7 @@ private:
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
 	void rebuild_auras(); // G4: rebuild AuraManager from temples/heroes/carnyx/female citizens
 	uint16_t aura_affected_players(uint8_t owner, uint8_t players) const;
-	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false, uint8_t visual = 0, uint32_t source_id = 0);
+	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false, uint8_t visual = 0, uint32_t source_id = 0, uint8_t splash = 0);
 	static float projectile_speed(uint8_t visual);
 	int32_t projectile_hit_unit(const Projectile &p) const;
 	void random_normal_2d(float &x, float &z);
@@ -1432,6 +1459,14 @@ private:
 	bool victory_ = false;
 	bool reveal_map_ = false;
 	int biome_override_ = -1; // setup-time only: applied when a random map is generated
+	bool nomad_ = false;              // setup-time only: applied when a random map is generated
+	bool nomad_start_ = false;        // the map was generated Nomad: tick 0 places the top-up treasures
+	bool disable_treasures_ = false;
+	void spawn_nomad_treasures();
+	bool regicide_garrison_ = false;
+	uint32_t regicide_hero_[MAX_PLAYERS] = {};
+	uint8_t player_color_[MAX_PLAYERS] = {0, 1, 2, 3, 4, 5, 6, 7};
+	void remove_player_structures(); // Nomad
 	bool explore_map_ = false;
 	float wonder_duration_ = 600.0f;
 	float relic_duration_ = 180.0f;
