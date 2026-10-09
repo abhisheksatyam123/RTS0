@@ -35,6 +35,9 @@
 // 25. Trade orders queue; a trader flees an attack and goes back to its route with its goods.
 // 26. Return resource (UnitAI ReturnResource): carriers take their load to the dropsite they
 //     are sent to, not the nearest, then idle; it queues; lockstep cmd 34.
+// 27. Ungarrison (Garrisonable.UnGarrison): units leaving a structure follow its rally point
+//     (except one that only garrisons back in), their old queue is dropped; unload picks
+//     units (UnloadTemplate), an enemy can't unload, lockstep cmd 13 carries the units.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_unit_orders.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -824,6 +827,54 @@ static void test_return_resource() {
 	check(c.cmd_type == 34 && l.unit_order(x).kind == ORDER_RETURN_RESOURCE, "lockstep return resource (34)");
 }
 
+static void test_ungarrison_rally() {
+	std::printf("27. ungarrison follows the rally point\n");
+	Simulation s;
+	setup(s);
+	const uint32_t house = s.spawn_building_world(0, 0, BLD_HOUSE, 0, 1.0f);
+	uint32_t a = s.spawn_unit(8, 0, 0, UNIT_SPEARMAN), b = s.spawn_unit(3, 1, 0, UNIT_SPEARMAN);
+	s.order_garrison(&a, 1, house);
+	s.order_walk(&a, 1, -20, 10, true); // waits behind the garrison order for good
+	const bool inside = run_until(s, 10.0f, [&] { return !alive(s, a); });
+	check(inside && s.garrison_unit_now(b, house), "two inside");
+	check(s.unit_order_queue(a) && s.unit_order_queue(a)->size() == 1, "a walk still queued while inside");
+	s.cmd_set_rally_point(0, house, 20, 0, 0, 0);
+	s.cmd_unload(1, house, nullptr, 0);
+	check(s.get_garrisoned_units(house)->size() == 2, "an enemy can't unload");
+	s.cmd_unload(0, house, &b, 1);
+	check(s.get_garrisoned_units(house)->size() == 1 && alive(s, b) && !alive(s, a), "unload picks one unit");
+	check(s.unit_order(b).kind == ORDER_WALK, "it walks to the rally point");
+	const bool there = run_until(s, 20.0f, [&] { return dist(s, b, 20, 0) < 2.0f; });
+	check(there, "and gets there");
+	s.order_ungarrison(house);
+	check(alive(s, a) && s.unit_order(a).kind == ORDER_WALK && s.unit_order(a).x == 20.0f, "ungarrison all rallies too");
+	check(!s.unit_order_queue(a) || s.unit_order_queue(a)->empty(), "the queued walk is dropped (Ungarrison replaces orders)");
+
+	// Rally on the structure itself: garrison is ignored, the unit stays out and idles.
+	s.cmd_set_rally_point(0, house, 0, 0, 0, house);
+	check(s.garrison_unit_now(a, house), "back inside");
+	s.order_ungarrison(house);
+	run(s, 1.0f);
+	check(alive(s, a) && s.unit_order(a).kind == ORDER_NONE, "a rally onto itself doesn't put it back in");
+
+	// Lockstep: cmd 13 with ids unloads just those.
+	Simulation l;
+	setup(l);
+	const uint32_t h2 = l.spawn_building_world(0, 0, BLD_HOUSE, 0, 1.0f);
+	uint32_t c1 = l.spawn_unit(3, 0, 0, UNIT_SPEARMAN), c2 = l.spawn_unit(3, 1, 0, UNIT_SPEARMAN);
+	l.garrison_unit_now(c1, h2);
+	l.garrison_unit_now(c2, h2);
+	TurnManager tm;
+	NetCommand c;
+	c.client_id = 0;
+	c.entity_ids = {c2};
+	c.cmd_type = (uint8_t)NetCommandType::NET_CMD_UNGARRISON;
+	c.target_id = h2;
+	tm.post_local_command(c);
+	for (int i = 0; i < 4; ++i) tm.tick(TurnManager::TURN_DURATION, l);
+	check(l.get_garrisoned_units(h2)->size() == 1 && alive(l, c2) && !alive(l, c1), "lockstep unload of one unit (13)");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -852,6 +903,7 @@ int main(int argc, char **argv) {
 	test_min_range();
 	test_trade_orders();
 	test_return_resource();
+	test_ungarrison_rally();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

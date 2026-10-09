@@ -817,10 +817,11 @@ enum TechStat : uint8_t {
 	TSTAT_BUILD_TIME, TSTAT_RESEARCH_TIME, TSTAT_HEAL_RANGE, TSTAT_HEAL_INTERVAL, TSTAT_ARROWS,
 	TSTAT_PACK_TIME, TSTAT_GARRISON_HEAL,
 	TSTAT_REGEN, TSTAT_IDLE_REGEN, // Health/RegenRate, Health/IdleRegenRate (hp per second)
+	TSTAT_CAPTURE_POINTS, TSTAT_COST_FOOD, TSTAT_COST_WOOD, TSTAT_COST_STONE, TSTAT_COST_METAL,
 	TSTAT_COUNT
 };
 
-enum TechOp : uint8_t { TOP_MUL = 0, TOP_ADD = 1 };
+enum TechOp : uint8_t { TOP_MUL = 0, TOP_ADD = 1, TOP_SET = 2 }; // TOP_SET: 0 A.D. "replace"
 
 struct TechEffect {
 	uint8_t stat;          // TechStat
