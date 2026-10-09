@@ -1761,6 +1761,7 @@ private:
 	mutable uint64_t petra_class_key_ = 0; // petra_topo_cache_key_ it was classified from
 	mutable uint8_t petra_class_for_ = 0;
 	mutable bool petra_class_valid_ = false;
+	void petra_assign_repairs();
 	void petra_order_builders(const std::vector<uint32_t> &workers, size_t max, uint32_t bid);
 	uint16_t petra_building_land(const Building &b, const PetraNavalTopo *topo = nullptr, uint16_t prefer = 0) const;
 	uint16_t petra_home_land(float x, float z, const PetraNavalTopo *topo = nullptr) const;

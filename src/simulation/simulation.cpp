@@ -10074,6 +10074,86 @@ void Simulation::petra_order_builders(const std::vector<uint32_t> &workers, size
 	if (!crew.empty()) order_build_or_repair(crew.data(), crew.size(), bid);
 }
 
+// baseManager.js assignToFoundations, damaged structures: the nearest workers
+// repair one (three for a fortress or a wonder, five for a civic centre and
+// seven below 30% health) within builderRatio of the workforce. Near an
+// invading army only a civic centre or wall below half health is repaired.
+void Simulation::petra_assign_repairs() {
+	std::vector<size_t> damaged;
+	for (size_t k = 0; k < buildings_.size(); ++k) {
+		const Building &b = buildings_[k];
+		if (b.team != petra_pid_ || b.build_progress < 1.0f || b.wrecked || b.hp <= 0.0f || b.hp >= b.max_hp) continue;
+		if (b.type == BLD_FIELD) continue;
+		damaged.push_back(k);
+	}
+	if (damaged.empty()) return;
+
+	// queueManager.getAvailableResources: under 200 of anything caps builders at a
+	// fifth of the workers, under 1000 at that share of a thousand.
+	float ratio = 1.0f;
+	for (uint8_t r = 0; r < RES_COUNT; ++r) {
+		const float have = (float)player_resource(petra_pid_, r);
+		if (have < 200.0f) { ratio = 0.2f; break; }
+		if (have < 1000.0f) ratio = std::min(ratio, have / 1000.0f);
+	}
+	int workers = 0, builders = 0;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
+		const uint8_t ut = units_.unit_type[i];
+		if (ut != UNIT_VILLAGER && ut != UNIT_FEMALE_CITIZEN) continue;
+		++workers;
+		if (units_.action_state[i] == ACTION_BUILD) ++builders;
+	}
+	// headquarters.js isNearInvadingArmy: within ~110 m of a defense army's foes.
+	auto near_invaders = [&](const Building &b) {
+		if (!petra_defense_army_.active) return false;
+		const float dx = b.x - petra_defense_army_.cx, dz = b.z - petra_defense_army_.cz;
+		return dx * dx + dz * dz < 12000.0f / 16.0f;
+	};
+	std::vector<uint32_t> taken; // sent this pass: their state changes next tick
+	for (size_t k : damaged) {
+		const Building &b = buildings_[k];
+		const bool anchor = b.type == BLD_TOWN_CENTER;
+		const bool wall = b.type == BLD_WALL_SEGMENT || b.type == BLD_WALL_TOWER || b.type == BLD_GATE || b.type == BLD_PALISADE;
+		const bool wonder = b.type == BLD_WONDER && victory_condition_ == VICTORY_WONDER;
+		const float health = b.hp / b.max_hp;
+		if (near_invaders(b) && (health > 0.5f || !(anchor || wall || wonder))) continue;
+		if (territory_owner_at(b.x, b.z) != petra_pid_) continue; // decaying
+		int want = (b.type == BLD_FORTRESS || b.type == BLD_WONDER) ? 3 : 1;
+		int max_total = (int)std::ceil((float)workers * ratio);
+		if (anchor || wonder) {
+			const bool low = health < 0.3f;
+			max_total = (int)std::ceil((float)workers * std::max(low ? 0.6f : 0.3f, ratio));
+			want = low ? 7 : 5;
+		}
+		int assigned = 0;
+		for (size_t i = 0; i < units_.count; ++i)
+			if (units_.alive[i] && units_.team[i] == petra_pid_ && units_.action_state[i] == ACTION_BUILD &&
+			    units_.target_building_id[i] == b.id) ++assigned;
+		if (assigned >= want || builders >= max_total) continue;
+		// filterNearest over the workers that are not building.
+		std::vector<std::pair<float, uint32_t>> near;
+		for (size_t i = 0; i < units_.count; ++i) {
+			if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
+			const uint8_t ut = units_.unit_type[i];
+			if (ut != UNIT_VILLAGER && ut != UNIT_FEMALE_CITIZEN) continue;
+			const uint8_t st = units_.action_state[i];
+			if (st != ACTION_IDLE && st != ACTION_GATHER && st != ACTION_RETURN_DROPSITE) continue;
+			if (std::find(taken.begin(), taken.end(), units_.id[i]) != taken.end()) continue;
+			const float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
+			near.push_back({dx * dx + dz * dz, units_.id[i]});
+		}
+		const size_t n = (size_t)std::min(want - assigned, std::max(0, max_total - builders));
+		if (n == 0 || near.empty()) continue;
+		std::sort(near.begin(), near.end());
+		std::vector<uint32_t> crew;
+		for (const auto &c : near) crew.push_back(c.second);
+		petra_order_builders(crew, n, b.id);
+		for (size_t i = 0; i < crew.size() && i < n; ++i) taken.push_back(crew[i]);
+		builders += (int)std::min(n, crew.size());
+	}
+}
+
 // baseManager.js assignToFoundations: every AI foundation gets builders,
 // pulled off gathering when nobody is idle, so houses and dropsites finish.
 void Simulation::petra_staff_foundations() {
@@ -10250,6 +10330,7 @@ void Simulation::petra_manage_economy(float dt) {
 	// 1. Priority Queue 1: Economic Boom — keep the TCs training workers
 	// until the worker target (config.js Economy.targetNumWorkers) is met.
 	petra_staff_foundations();
+	petra_assign_repairs();
 	PetraHuntScan hunt_scan = petra_hunt_scan();
 
 	int ai_villagers = 0;

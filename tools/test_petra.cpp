@@ -1315,6 +1315,51 @@ static void test_expansion_small_nodes() {
 	CHECK(stores > stores_before, "and a storehouse by a forest of them");
 }
 
+// baseManager.js assignToFoundations repairs damaged structures: a civic centre
+// below 30% health gets up to seven repairers within the builder share of the
+// workforce, so a damaged house waits its turn; both heal.
+static void test_repairs() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	s->set_player_resources(1, 2000, 2000, 2000, 2000);
+	Simulation::Building *cc = nullptr, *house = nullptr;
+	for (auto &b : s->buildings_) {
+		if (b.team != 1 || b.build_progress < 1.0f) continue;
+		if (b.type == BLD_TOWN_CENTER) cc = &b;
+		else if (b.type == BLD_HOUSE && !house) house = &b;
+	}
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const uint32_t cc_id = cc->id, house_id = house ? house->id : 0;
+	cc->hp = cc->max_hp * 0.25f;
+	if (house) house->hp = house->max_hp * 0.5f;
+	run_for(*s, 3.0f);
+	int on_cc = 0, on_house = 0;
+	const auto &u = s->units_;
+	for (size_t i = 0; i < u.count; ++i) {
+		if (!u.alive[i] || u.team[i] != 1 || u.action_state[i] != ACTION_BUILD) continue;
+		on_cc += u.target_building_id[i] == cc_id;
+		on_house += house_id && u.target_building_id[i] == house_id;
+	}
+	run_for(*s, 40.0f);
+	auto find = [&](uint32_t id) -> const Simulation::Building * {
+		auto it = s->building_id_to_idx_.find(id);
+		return id && it != s->building_id_to_idx_.end() ? &s->buildings_[it->second] : nullptr;
+	};
+	const auto *c2 = find(cc_id);
+	const auto *h2 = find(house_id);
+	std::printf("  repairs: %d on the civic centre (25%% -> %.0f%%), %d on the house (50%% -> %.0f%%)\n",
+	            on_cc, c2 ? 100.0f * c2->hp / c2->max_hp : 0.0f, on_house, h2 ? 100.0f * h2->hp / h2->max_hp : 0.0f);
+	CHECK(on_cc >= 5 && on_cc <= 7, "a civic centre under 30% health gets five to seven repairers");
+	CHECK(c2 && c2->hp > c2->max_hp * 0.3f, "and heals");
+	CHECK(on_house <= 1, "a house takes one repairer at most");
+	CHECK(!house_id || (h2 && h2->hp > h2->max_hp * 0.5f), "the damaged house is repaired too");
+}
+
 static void test_retreat_walk_forced() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -1381,6 +1426,7 @@ int main() {
 	test_relic_capture();
 	test_retreat_walk_forced();
 	test_expansion_small_nodes();
+	test_repairs();
 	test_placement_miss_memory_exact();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
