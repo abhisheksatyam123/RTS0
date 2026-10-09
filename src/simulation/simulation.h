@@ -1433,6 +1433,19 @@ private:
 	// incoming[building index]: our units walking to garrison there.
 	void petra_garrison_units_inside(size_t holder_idx, bool allow_melee, std::vector<int> &incoming);
 	uint32_t petra_garrison_holder_for(size_t unit_idx, bool heals_only, bool siege, std::vector<int> &incoming) const;
+	std::vector<int> petra_garrison_incoming() const;
+	bool petra_same_land(size_t unit_idx, const Building &b) const; // PETRA.getLandAccess match
+	// defenseManager.js garrisonAttackedUnit: the nearest healing structure, or with
+	// emergency the nearest holder at all (unloading one unit when it is full).
+	bool petra_garrison_attacked_unit(size_t unit_idx, bool emergency, std::vector<int> &incoming);
+	size_t petra_attacked_unit_holder(size_t unit_idx, bool emergency, const std::vector<int> &incoming) const; // building index or SIZE_MAX
+	// victoryManager.js: regicide heroes and the units guarding them.
+	bool petra_is_critical_ent(size_t unit_idx) const;
+	bool petra_guards_critical_ent(size_t unit_idx) const;
+	void petra_retreat_critical_ent(size_t unit_idx, bool emergency, std::vector<int> &incoming);
+	void petra_manage_critical_ent_guards();
+	void petra_manage_critical_ent_healers();
+	void petra_capture_gaia_relics();
 	void petra_manage_garrisons();
 	void petra_build_advanced();
 	void petra_manage_victory(float dt);
