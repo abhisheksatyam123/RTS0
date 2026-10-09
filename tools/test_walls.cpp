@@ -3,7 +3,7 @@
 // the overlap limits; segments take their length's share of wall_long's cost and health, block
 // the cells under their turned footprint, keep them through save/load, and only a long one
 // upgrades to a gate. A wall snaps onto the player's towers and stops at the first piece it can't
-// pay for.
+// pay for. Palisades are a WallSet of their own (wallset_palisade).
 //   g++ -std=c++20 -O2 -Isrc tools/test_walls.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_walls && /tmp/test_walls
@@ -158,7 +158,63 @@ int main() {
 		CHECK(done == 3 && blocked);
 	}
 
-	// 7. Lockstep carries the start point in 1/32 units.
+	// 7. Palisades (wallset_palisade): 14/9/4 m pieces between 3 m palisade towers, paid in wood
+	// by length, in the village phase; a palisade wall snaps onto palisade towers only.
+	setup(s, 0.0f);
+	s.player(0).phase = 1;
+	s.player(0).res[RES_WOOD] = 1000.0f;
+	{
+		const WallSetInfo &ws = wallset_info(WALLSET_PALISADE);
+		bool all_ok = true;
+		for (float d = ws.tower_length + 0.1f; d < 30.0f; d += 0.13f) {
+			const auto p = s.wall_placement(0, -d * 0.5f, 10.0f, d * 0.5f, 10.0f, nullptr, nullptr, WALLSET_PALISADE);
+			bool ok = p.size() >= 3 && p.size() % 2 == 1;
+			for (size_t i = 0; ok && i < p.size(); ++i)
+				ok = p[i].type == BLD_PALISADE && (i % 2 == 0) == is_palisade_tower(p[i].type, p[i].half_w);
+			for (size_t i = 1; ok && i + 1 < p.size(); i += 2) {
+				const float reach_l = (p[i].half_w - (p[i].x - p[i - 1].x) + 0.5f * ws.tower_length) / ws.tower_length;
+				const float reach_r = (p[i].half_w - (p[i + 1].x - p[i].x) + 0.5f * ws.tower_length) / ws.tower_length;
+				for (float r : {reach_l, reach_r}) ok = ok && r >= ws.min_overlap - 1e-3f && r <= ws.max_overlap + 1e-3f;
+			}
+			if (!ok) {
+				std::printf("  no valid palisade placement over %.2f\n", d);
+				all_ok = false;
+			}
+		}
+		CHECK(all_ok);
+		// 7 units: two long palisades (3.5 each) reaching into three towers.
+		const auto a = s.wall_placement(0, -3.5f, 10.0f, 3.5f, 10.0f, nullptr, nullptr, WALLSET_PALISADE);
+		CHECK(a.size() == 5 && a[1].half_w == 1.75f && a[3].half_w == 1.75f);
+
+		const float wood0 = s.player(0).res[RES_WOOD];
+		const size_t laid = s.cmd_build_wall(0, -3.5f, 10.0f, 3.5f, 10.0f, nullptr, 0, false, WALLSET_PALISADE);
+		const float paid = wood0 - s.player(0).res[RES_WOOD];
+		std::printf("  a 7-unit palisade: %zu pieces, %.0f wood\n", laid, paid);
+		CHECK(laid == 5 && paid == 2.0f * 12.0f + 3.0f * 14.0f);
+		int towers = 0, longs = 0;
+		for (const auto &bld : s.buildings()) {
+			if (bld.type != BLD_PALISADE) continue;
+			const float scale = s.structure_max_hp(BLD_PALISADE, 0) / building_type_info(BLD_PALISADE).max_hp;
+			if (is_palisade_tower(bld.type, bld.half_size)) {
+				++towers;
+				CHECK(bld.half_d == PALISADE_TOWER_HALF && std::fabs(bld.max_hp - 700.0f * scale) < 0.5f);
+			} else {
+				longs += bld.half_size == 1.75f;
+				CHECK(bld.half_d == PALISADE_HALF_DEPTH && std::fabs(bld.max_hp - 600.0f * scale) < 0.5f);
+			}
+		}
+		CHECK(towers == 3 && longs == 2);
+		// A stone wall doesn't snap onto a palisade tower; a palisade does.
+		CHECK(s.wall_snap_tower(0, 3.5f, 10.0f, WALLSET_STONE) == 0);
+		CHECK(s.wall_snap_tower(0, 3.5f, 10.0f, WALLSET_PALISADE) != 0);
+		const size_t more = s.cmd_build_wall(0, 3.6f, 10.1f, 3.5f, 14.0f, nullptr, 0, false, WALLSET_PALISADE);
+		std::printf("  continuing the palisade from its end tower: %zu pieces\n", more);
+		CHECK(more == 2); // a long palisade and the end tower
+		// Stone walls still need the town phase.
+		CHECK(s.cmd_build_wall(0, -3.0f, 20.0f, 3.0f, 20.0f) == 0);
+	}
+
+	// 8. Lockstep carries the start point in 1/32 units.
 	{
 		float x, z;
 		Simulation::unpack_wall_point(Simulation::pack_wall_point(-37.25f, 101.5f), x, z);

@@ -297,6 +297,7 @@ public:
 	void _on_build_btn_pressed(int btype);
 	void _on_tech_pressed(int tech_id);
 	void _on_upgrade_pressed(int choice);
+	void _on_unit_upgrade_pressed(int to);
 	void _on_gate_lock_pressed(int lock);
 	void _on_pack_pressed(int pack);
 	void _on_map_selected(int index);
@@ -395,6 +396,7 @@ public:
 	std::vector<uint32_t> trade_origin_traders_;
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
+	void _on_diplo_spy_pressed(int player_idx);
 
 	bool load_map(String map_id);
 	bool load_map_seeded(String map_id, uint32_t seed);
