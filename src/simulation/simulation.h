@@ -203,6 +203,9 @@ public:
 	// players it shares vision with (VisionSharing.js, los_shared_mask) see;
 	// "Revealed map" shows everything and "Explored map" explores everything.
 	uint8_t los_shared_mask(uint8_t player) const;
+	// Player.js UpdateSharedLos: a viewer sees through its mutual allies once it has researched
+	// Cartography (unlock_shared_los); its own entities always.
+	bool shares_los(uint8_t viewer, uint8_t owner) const;
 	bool los_visible(uint8_t player, float x, float z) const;
 	bool los_explored(uint8_t player, float x, float z) const;
 	const LosGrid &los() const { return los_; }
