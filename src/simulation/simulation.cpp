@@ -6115,9 +6115,10 @@ void Simulation::tick_combat(float dt) {
 				((i + ticks_) % 4 == 0 || st == ACTION_ATTACK || walk_and_fight)) {
 			const float scan_range = stance == STANCE_STAND_GROUND ? range
 					: stance == STANCE_DEFENSIVE ? std::min(range + vision * 0.5f, vision) : vision;
-			float best_score = -999999.0f;
 			const uint8_t my_team = units_.team[i];
-			const uint8_t my_type = units_.unit_type[i];
+			const PrefProfile &my_prefs = unit_preferences(units_.tmpl[i], units_.unit_type[i]).prefs;
+			uint16_t best_pref = 0x100; // above PREF_NONE: any target beats none
+			float best_unit_d2 = 0.0f;
 
 			grid.visit_radius(pxi, pzi, scan_range, [&](int32_t j) {
 				if (!units_.alive[j] || !can_attack(my_team, units_.team[j])) return;
@@ -6128,23 +6129,12 @@ void Simulation::tick_combat(float dt) {
 				if (d2 > scan_range * scan_range || d2 < minr * minr) return;
 				if (!within_stance(j)) return;
 
-				// 0 A.D. Target Selection Heuristic: Counter-bonus preference + focus fire + proximity
-				float score = -sqrtf(d2);
-				uint8_t target_type = units_.unit_type[j];
-
-				// Tactical counter preference
-				if (my_type == UNIT_SPEARMAN && (target_type == UNIT_CAVALRY || target_type == UNIT_CAMEL || target_type == UNIT_CHARIOT)) score += 35.0f;
-				else if ((my_type == UNIT_CAVALRY || my_type == UNIT_CHARIOT) && (target_type == UNIT_ARCHER || target_type == UNIT_ARCHER_MAIDEN || target_type == UNIT_HEALER)) score += 30.0f;
-				else if (my_type == UNIT_SWORDSMAN && target_type == UNIT_SPEARMAN) score += 20.0f;
-				else if (my_type == UNIT_BOLT_SHOOTER && (target_type == UNIT_ELEPHANT || target_type == UNIT_WORKER_ELEPHANT || target_type == UNIT_HERO)) score += 40.0f;
-
-				// Finishing blow focus fire on low-HP enemies
-				if (units_.max_hp[j] > 0.0f) {
-					score += (1.0f - units_.hp[j] / units_.max_hp[j]) * 15.0f;
-				}
-
-				if (score > best_score) {
-					best_score = score;
+				// UnitAI AttackEntitiesByPreference: the best PreferredClasses match
+				// (Attack.js GetPreference), then the closest; no match comes last.
+				const uint8_t pref = preference_of(my_prefs, unit_preferences(units_.tmpl[j], units_.unit_type[j]).classes);
+				if (pref < best_pref || (pref == best_pref && d2 < best_unit_d2)) {
+					best_pref = pref;
+					best_unit_d2 = d2;
 					found = j;
 				}
 			});
@@ -7070,10 +7060,8 @@ void Simulation::tick_projectiles(float dt) {
 			p.progress = 1.0f;
 			p.alive = false;
 
-			int32_t hit_unit = -1;
 			if (p.target_unit_id != 0) {
 				int32_t tidx = projectile_hit_unit(p);
-				hit_unit = tidx;
 				if (tidx >= 0 && units_.alive[tidx]) {
 					award_damage_xp(p.source_id, (size_t)tidx, p.damage);
 					units_.hp[tidx] -= p.damage;
