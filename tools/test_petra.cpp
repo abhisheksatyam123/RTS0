@@ -131,8 +131,11 @@ static void test_roster_army() {
 		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
 		s->players_[1].civ = (Civilization)civ;
 		s->set_victory_condition(VICTORY_ENDLESS); // keep playing once the idle player is beaten
-		// A fortress outlasts the infantry's first wave, so the siege has something to fire at.
+		// Fortresses outlast the infantry's first waves, so the siege (trained some ten minutes into
+		// the city phase at 0 A.D.'s gather rates) still has something to fire at.
 		s->spawn_building_world(42.0f, 42.0f, BLD_FORTRESS, 0, 1.0f);
+		s->spawn_building_world(26.0f, 50.0f, BLD_FORTRESS, 0, 1.0f);
+		s->spawn_building_world(50.0f, 26.0f, BLD_FORTRESS, 0, 1.0f);
 		bool hero = false, champion = false, siege = false, tower = false, packed_moved = false, unpacked_fired = false;
 		bool advanced = false, arsenal = false;
 		// 45 minutes: at 0 A.D.'s gather rates (template_unit_*/ResourceGatherer) Petra reaches
@@ -815,7 +818,9 @@ static void test_civ_structures() {
 		s->players_[1].civ = (Civilization)civ;
 		s->set_victory_condition(VICTORY_ENDLESS);
 		bool camp = false, temple = false, champion = false;
-		for (float t = 0.0f; t < 20.0f * 60.0f; t += Simulation::FIXED_STEP) {
+		// 40 minutes: at 0 A.D.'s gather rates the city phase comes around minute 15-16, and Petra adds
+		// each further advanced structure only past 110 population (Kush's fifth, the temple, near minute 36).
+		for (float t = 0.0f; t < 40.0f * 60.0f; t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			if (s->ticks_ % 20 != 0) continue;
 			for (const auto &b : s->buildings()) {
@@ -828,7 +833,7 @@ static void test_civ_structures() {
 				if (u.alive[i] && u.team[i] == 1 && u.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT &&
 				    (civ_unit_template(u.tmpl[i]).flags & ROSTER_CHAMPION)) champion = true;
 		}
-		std::printf("  %s by 20 min: camp %s, temple %s, champions %s\n", civ_info((Civilization)civ).name,
+		std::printf("  %s by 40 min: camp %s, temple %s, champions %s\n", civ_info((Civilization)civ).name,
 		            camp ? "yes" : "no", temple ? "yes" : "no", champion ? "yes" : "no");
 		if (civ == CIV_KUSHITES) CHECK(camp && temple, "Kush builds its camps and the Temple of Amun");
 		else CHECK(temple && champion, "Rome builds the Temple of Vesta and unlocks its champions");

@@ -8571,13 +8571,6 @@ void Simulation::petra_resource_demand(float out[RES_COUNT]) const {
 		demand_gold += 150.0f;
 	}
 
-	// queueManager.js wantedGatherRates counts the queued plans: a phase or technology
-	// waiting on resources steers gatherers toward what it still lacks.
-	if (petra_queues_.want_age[PETRA_QUEUE_TECH] <= PetraQueueManager::WANT_TTL) {
-		const PetraQueueAccount &w = petra_queues_.wants[PETRA_QUEUE_TECH];
-		demand_food += w.food; demand_wood += w.wood; demand_gold += w.gold; demand_stone += w.stone;
-	}
-
 	// Housing and Building Needs:
 	if (pop_current(petra_pid_) >= pop_max(petra_pid_) - 4) {
 		demand_wood += 150.0f;
