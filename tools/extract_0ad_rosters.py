@@ -1277,7 +1277,7 @@ def emit_buildings(rows):
     w("// BuildingTypeInfo rows for building_type_info(), in BuildingType order.")
     w("#define RTSO_CIV_BUILDING_INFO_ROWS \\")
     for r in rows:
-        w("\t\t{%s, %s, %s, %s, %d, %d, %d, %d, %d, %d, %d, %s, 0.0f, 0.0f, 0.0f, %s, %s, %s, %s}, /* %s */ \\" % (
+        w("\t\t{%s, %s, %s, %s, %d, %d, %d, %d, %d, %d, %d, %s, %s, %s, %s, %s}, /* %s */ \\" % (
             cstr(r["name"]), cstr(r["model"]), cstr(r["portrait"]), f(r["hp"]), r["foot"],
             r["food"], r["wood"], r["gold"], r["stone"], r["pop"], r["garrison"], f(r["build_time"]),
             f(r["capture"]), f(r["regen"]), f(r["garrison_regen"]), f(r["decay"]), r["src"]))
