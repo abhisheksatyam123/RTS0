@@ -1370,6 +1370,67 @@ static void test_repairs() {
 	CHECK(!house_id || (h2 && h2->hp > h2->max_hp * 0.5f), "the damaged house is repaired too");
 }
 
+// researchManager.js update: wanted techs (gather rates, capacities) in any phase,
+// preferred ones (stone and metal rates, arrows, regeneration) from the town phase,
+// then any technology at random from the city phase.
+static void test_research_choices() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const int cx = (int)(cc->x / Simulation::GRID), cz = (int)(cc->z / Simulation::GRID);
+	s->players_[1].phase = 2;
+	// Enough workers that checkPausedQueues lets minorTech run.
+	for (int k = 0; k < 12; ++k) s->spawn_unit(cc->x - 8.0f + (float)(k % 4), cc->z - 8.0f - (float)(k / 4), 1, UNIT_FEMALE_CITIZEN);
+	s->spawn_building(cx + 8, cz, BLD_STOREHOUSE, 1);
+	s->spawn_building(cx - 8, cz, BLD_FARMSTEAD, 1);
+	s->spawn_building(cx, cz + 9, BLD_FORGE, 1);
+	auto researched = [&](std::initializer_list<uint8_t> stats) {
+		int n = 0;
+		for (uint8_t t = 1; t < TECH_COUNT; ++t) {
+			if (!s->players_[1].has_tech(t)) continue;
+			const TechInfo &ti = tech_info(t);
+			for (uint16_t i = 0; i < ti.effect_count; ++i) {
+				bool hit = false;
+				for (uint8_t st : stats) hit |= tech_effects_table()[ti.effect_begin + i].stat == st;
+				if (hit) { ++n; break; }
+			}
+		}
+		return n;
+	};
+	auto forge_techs = [&] {
+		int n = 0;
+		for (uint8_t t = 1; t < TECH_COUNT; ++t) n += s->players_[1].has_tech(t) && tech_info(t).researcher == BLD_FORGE;
+		return n;
+	};
+	for (int k = 0; k < 12; ++k) {
+		s->set_player_resources(1, 5000, 5000, 5000, 5000);
+		run_for(*s, 10.0f);
+	}
+	const int eco = researched({TSTAT_GATHER_GRAIN, TSTAT_GATHER_WOOD, TSTAT_CARRY_FOOD, TSTAT_CARRY_WOOD});
+	const int mines = researched({TSTAT_GATHER_STONE, TSTAT_GATHER_METAL});
+	const int fights = forge_techs();
+	std::printf("  town phase: %d grain/wood/capacity techs, %d stone/metal techs, %d forge techs\n", eco, mines, fights);
+	CHECK(eco >= 3, "researches gather rates and capacities past the first tier");
+	CHECK(mines >= 2, "researches stone and metal rates in the town phase");
+	CHECK(fights == 0, "no random forge techs before the city phase");
+	s->players_[1].phase = 3;
+	for (int k = 0; k < 12; ++k) {
+		s->set_player_resources(1, 5000, 5000, 5000, 5000);
+		run_for(*s, 10.0f);
+	}
+	const int fights3 = forge_techs();
+	std::printf("  city phase: %d forge techs\n", fights3);
+	CHECK(fights3 >= 2, "researches other technologies at random in the city phase");
+}
+
 // victoryManager.js: in wonder victory a finished wonder is a critical entity,
 // guarded by up to 10 + 5 * defensive soldiers, champions first, who turn on
 // whoever attacks it.
@@ -1823,6 +1884,7 @@ int main() {
 	test_placement_miss_memory_exact();
 	test_defend_allies();
 	test_retake_civic_centre();
+	test_research_choices();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }

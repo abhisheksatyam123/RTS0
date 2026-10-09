@@ -1789,6 +1789,7 @@ private:
 		uint8_t pid, btype;
 	};
 	std::vector<PetraPlaceMiss> petra_place_misses_;
+	bool petra_place_no_room_ = false; // last petra_place_building found no spot (read at once, not saved)
 	uint64_t petra_placement_signature(uint8_t btype, int start_cx, int start_cz, int max_r) const;
 
 	uint32_t next_id_ = 1;
@@ -2033,6 +2034,14 @@ private:
 	bool petra_can_fish_safely(float x, float z, uint16_t sea) const;
 	void petra_manage_buildings(float dt);
 	void petra_manage_research(float dt);
+	// researchManager.js: the techs Petra could research now at a structure it owns
+	// (gamestate.js findAvailableTech, phases left out), and one research start.
+	void petra_available_techs(std::vector<uint8_t> &out) const;
+	int petra_accounted_workers() const;
+	bool petra_phasing() const;
+	bool petra_start_research(uint8_t tech_id);
+	void petra_research_population_bonus();
+	void petra_research_trade_bonus();
 	void petra_manage_military_production(float dt);
 	void petra_manage_tactical_attacks(float dt);
 	void petra_retake_civic_centres(); // defenseManager.js OwnershipChanged -> switchDefenseToAttack
