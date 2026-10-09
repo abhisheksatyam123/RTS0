@@ -159,6 +159,18 @@ enum MapType : uint8_t {
 	MAP_TYPE_COUNT = 83
 };
 
+// 0 A.D. Team Placement (gamesettings/attributes/TeamPlacement.js): the
+// starting-position pattern for random maps whose JSON lists TeamPlacements
+// (rmgen-common/player.js playerPlacementByPattern). Random lets the map pick.
+enum TeamPlacement : uint8_t {
+	TEAM_PLACEMENT_RANDOM = 0,
+	TEAM_PLACEMENT_RADIAL = 1,       // "Circle"
+	TEAM_PLACEMENT_LINE = 2,
+	TEAM_PLACEMENT_RANDOM_GROUP = 3,
+	TEAM_PLACEMENT_STRONGHOLD = 4,
+	TEAM_PLACEMENT_COUNT = 5
+};
+
 struct MapTypeInfo {
 	MapType type;
 	const char *id;
@@ -167,6 +179,10 @@ struct MapTypeInfo {
 	bool is_procedural;
 	const char *description;
 };
+
+// The maps that offer Team Placement: 0 A.D.'s Ambush and Frontier list
+// ["radial", "line", "randomGroup", "stronghold"].
+inline bool map_has_team_placement(uint8_t type) { return type == MAP_AMBUSH || type == MAP_FRONTIER; }
 
 inline const MapTypeInfo &map_type_info(uint8_t type) {
 	static const MapTypeInfo kTable[MAP_TYPE_COUNT] = {
@@ -869,20 +885,76 @@ inline constexpr float WALL_HALF_DEPTH = 5.0f / 4.0f * 0.5f;
 // time); wall_medium and wall_short have two thirds and a third of each, as of the length.
 inline constexpr float WALL_LONG_HEALTH = 3000.0f, WALL_LONG_STONE = 36.0f, WALL_LONG_BUILD_TIME = 36.0f * 0.25f;
 
-// Whether a wall segment or gate of half width `half_w` is a WallSet piece. The one-cell segment
-// (and the gate it upgrades to) that maps and older saves place keeps its square footprint and
-// its building_type_info row.
+// wallset_palisade.xml (template_wallset MaxTowerOverlap 0.85): palisades_long/medium/short
+// WallPiece/Length 14, 9 and 4 m with a Static depth of 2 m; palisades_tower WallPiece/Length 3 m
+// on a 5 m square footprint. RTS0 has the one palisade type: a palisade tower is a BLD_PALISADE
+// whose half width is PALISADE_TOWER_HALF, a segment one of the segment half lengths, and the
+// one-cell palisade maps and older saves place (half width 1) stays as it is.
+inline constexpr float PALISADE_SEGMENT_LENGTHS[3] = {14.0f / 4.0f, 9.0f / 4.0f, 4.0f / 4.0f};
+inline constexpr float PALISADE_TOWER_LENGTH = 3.0f / 4.0f;
+inline constexpr float PALISADE_TOWER_HALF = 5.0f / 4.0f * 0.5f;
+inline constexpr float PALISADE_HALF_DEPTH = 2.0f / 4.0f * 0.5f;
+
+enum WallSetKind : uint8_t { WALLSET_STONE = 0, WALLSET_PALISADE = 1, WALLSET_COUNT };
+
+// A WallSet's pieces and their 0 A.D. values: Health/Max, Cost (stone for walls, wood for
+// palisades) and BuildTime (x0.25) of the long, medium and short segment and of the tower. A
+// tower whose values are negative keeps its building_type_info row (the stone wall tower).
+struct WallSetInfo {
+	uint8_t segment, tower;
+	float lengths[3];
+	float tower_length, tower_half, min_overlap, max_overlap, half_depth;
+	float health[3], cost[3], build_time[3];
+	float tower_health, tower_cost, tower_build_time;
+};
+
+inline const WallSetInfo &wallset_info(uint8_t kind) {
+	static const WallSetInfo kSets[WALLSET_COUNT] = {
+		{BLD_WALL_SEGMENT, BLD_WALL_TOWER, {WALL_SEGMENT_LENGTHS[0], WALL_SEGMENT_LENGTHS[1], WALL_SEGMENT_LENGTHS[2]},
+			WALL_TOWER_LENGTH, 1.0f, WALL_MIN_TOWER_OVERLAP, WALL_MAX_TOWER_OVERLAP, WALL_HALF_DEPTH,
+			{WALL_LONG_HEALTH, WALL_LONG_HEALTH * 2.0f / 3.0f, WALL_LONG_HEALTH / 3.0f},
+			{WALL_LONG_STONE, WALL_LONG_STONE * 2.0f / 3.0f, WALL_LONG_STONE / 3.0f},
+			{WALL_LONG_BUILD_TIME, WALL_LONG_BUILD_TIME * 2.0f / 3.0f, WALL_LONG_BUILD_TIME / 3.0f},
+			-1.0f, -1.0f, -1.0f},
+		// palisades_*: Health/Max 1000 x 0.6, 0.4, 0.2 and the tower's 0.7; wood 12, 8, 4 and 14;
+		// BuildTime 12, 8, 4 and 14 s.
+		{BLD_PALISADE, BLD_PALISADE, {PALISADE_SEGMENT_LENGTHS[0], PALISADE_SEGMENT_LENGTHS[1], PALISADE_SEGMENT_LENGTHS[2]},
+			PALISADE_TOWER_LENGTH, PALISADE_TOWER_HALF, 0.05f, 0.85f, PALISADE_HALF_DEPTH,
+			{600.0f, 400.0f, 200.0f}, {12.0f, 8.0f, 4.0f}, {12.0f * 0.25f, 8.0f * 0.25f, 4.0f * 0.25f},
+			700.0f, 14.0f, 14.0f * 0.25f},
+	};
+	return kSets[kind < WALLSET_COUNT ? kind : 0];
+}
+
+inline bool is_palisade_tower(uint8_t type, float half_w) {
+	return type == BLD_PALISADE && std::fabs(half_w - PALISADE_TOWER_HALF) < 0.01f;
+}
+
+// Whether a structure of half width `half_w` is a WallSet piece. The one-cell segment (and the
+// gate it upgrades to) and palisade that maps and older saves place keep their square footprint
+// and their building_type_info row.
 inline bool is_wallset_piece(uint8_t type, float half_w) {
+	if (type == BLD_PALISADE) return std::fabs(half_w - 1.0f) > 0.01f;
 	return (type == BLD_WALL_SEGMENT || type == BLD_GATE) && half_w > 1.01f;
 }
 
-// A WallSet segment's share of a long one, by length: 1 long, 2/3 medium, 1/3 short.
-inline float wallset_share(float half_w) { return 2.0f * half_w / WALL_SEGMENT_LENGTHS[0]; }
+// A WallSet piece's 0 A.D. values (wallset_info) by its type and length; negative when it keeps
+// its building_type_info row. what: 0 Health, 1 Cost, 2 BuildTime.
+inline float wallset_piece_value(uint8_t type, float half_w, int what) {
+	if (!is_wallset_piece(type, half_w) || type == BLD_GATE) return -1.0f;
+	const WallSetInfo &ws = wallset_info(type == BLD_PALISADE ? WALLSET_PALISADE : WALLSET_STONE);
+	if (is_palisade_tower(type, half_w)) return what == 0 ? ws.tower_health : what == 1 ? ws.tower_cost : ws.tower_build_time;
+	const float *v = what == 0 ? ws.health : what == 1 ? ws.cost : ws.build_time;
+	for (int k = 0; k < 3; ++k)
+		if (std::fabs(0.5f * ws.lengths[k] - half_w) < 0.01f) return v[k];
+	return v[0] * 2.0f * half_w / ws.lengths[0]; // any other length: its share of a long one
+}
 
 // Half the depth (along the footprint's v axis, nav/footprint.h) of a building of `type` whose half
-// width is `half_w`. RTS0's buildings are square but for WallSet pieces, long and thin.
+// width is `half_w`. RTS0's buildings are square but for WallSet segments, long and thin.
 inline float building_half_depth(uint8_t type, float half_w) {
-	return is_wallset_piece(type, half_w) ? WALL_HALF_DEPTH : half_w;
+	if (!is_wallset_piece(type, half_w) || is_palisade_tower(type, half_w)) return half_w;
+	return type == BLD_PALISADE ? PALISADE_HALF_DEPTH : WALL_HALF_DEPTH;
 }
 
 // 0 A.D. Identity/Requirements/Techs per structure: 1 = phase_village,
@@ -980,6 +1052,15 @@ enum TechStat : uint8_t {
 	TSTAT_CAPTURE_POINTS, TSTAT_COST_FOOD, TSTAT_COST_WOOD, TSTAT_COST_STONE, TSTAT_COST_METAL,
 	TSTAT_TRICKLE_FOOD, TSTAT_TRICKLE_WOOD, TSTAT_TRICKLE_STONE, TSTAT_TRICKLE_METAL, // ResourceTrickle/Rates/<res>
 	TSTAT_TRADE_INTERNATIONAL, // Market/InternationalBonus of markets and docks
+	// Paths only global relic auras change so far (relic_aura_data.h).
+	TSTAT_GATHER_ALL,       // ResourceGatherer/BaseSpeed
+	TSTAT_VISION,           // Vision/Range
+	TSTAT_TERRITORY_RADIUS, // TerritoryInfluence/Radius
+	TSTAT_CAPTURE_ATTACK,   // Attack/Capture/Capture
+	TSTAT_MAX_POP,          // Player/MaxPopulation (the match's population limit)
+	TSTAT_REQUIRED_XP,      // Promotion/RequiredXp
+	TSTAT_TECH_COST_FOOD, TSTAT_TECH_COST_WOOD, TSTAT_TECH_COST_STONE, TSTAT_TECH_COST_METAL, // Researcher/TechCostMultiplier
+	TSTAT_LOOT_FOOD, TSTAT_LOOT_WOOD, TSTAT_LOOT_STONE, TSTAT_LOOT_METAL, // Looter/Resource/<res>
 	TSTAT_COUNT
 };
 
@@ -1290,7 +1371,45 @@ struct CivUnitTemplate {
 	float vision; // 0 A.D. Vision/Range x0.28 (RTS0 units)
 };
 
+// 0 A.D. Upgrade on a unit (Upgrade.js): a paid, timed change to another roster row
+// (Roman elite infantry to Centurion, the Immortals' spear-and-bow switch).
+struct CivUnitUpgrade {
+	uint16_t from; // civ_unit_template_table() row, 0xFFFF ends the table
+	uint8_t from_rank; // rank the unit needs (1 basic, 2 advanced, 3 elite), 0 = any
+	uint16_t to;
+	int16_t food_cost;
+	int16_t wood_cost;
+	int16_t gold_cost; // 0 A.D. metal
+	int16_t stone_cost;
+	float time; // seconds
+	uint8_t phase; // phase the choice's Requirements name, 1 = none
+};
+
 #include "civ_roster_data.h"
+#include "aura_modifier_data.h"
+
+// The relic_global_auras() row of civ_hero_aura `aura`, or -1 (a range aura, or not a catafalque's).
+inline int relic_global_aura_index(int16_t aura) {
+	static const auto kIndex = [] {
+		std::array<int8_t, CIV_HERO_AURA_COUNT> idx{};
+		for (uint16_t a = 0; a < CIV_HERO_AURA_COUNT; ++a) {
+			idx[a] = -1;
+			for (uint16_t g = 0; g < RELIC_GLOBAL_AURA_COUNT; ++g)
+				if (std::strcmp(civ_hero_aura_table()[a].id, relic_global_auras()[g].id) == 0) idx[a] = (int8_t)g;
+		}
+		return idx;
+	}();
+	return aura >= 0 && aura < CIV_HERO_AURA_COUNT ? kIndex[(size_t)aura] : -1;
+}
+static_assert(RELIC_GLOBAL_AURA_COUNT <= 32, "relic aura masks are uint32_t");
+
+// Does an entity with these TechClass bits match relic aura modifier `m`?
+inline bool relic_modifier_applies(const RelicAuraModifier &m, uint64_t classes) {
+	if (m.alt_count == 0) return true;
+	for (uint8_t i = 0; i < m.alt_count; ++i)
+		if ((classes & m.alts[i].need) == m.alts[i].need && (classes & m.alts[i].forbid) == 0) return true;
+	return false;
+}
 #include "civ_attack_data.h"
 #include "splash_data.h"
 #include "preference_data.h"

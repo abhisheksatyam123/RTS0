@@ -585,6 +585,7 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		1, // ptol/catafalque
 		1, // sele/catafalque
 		1, // han/catafalque
+		-1, // pers/champion_infantry_archer_upgrade
 	};
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? kIndex[tmpl] : -1;
 }
@@ -746,6 +747,6 @@ inline const UnitTemplateModel *find_unit_template_model(const char *id) {
 	return nullptr;
 }
 
-static_assert(CIV_UNIT_TEMPLATE_COUNT == 391, "rerun tools/extract_0ad_assets.py --templates");
+static_assert(CIV_UNIT_TEMPLATE_COUNT == 392, "rerun tools/extract_0ad_assets.py --templates");
 
 } // namespace rtso

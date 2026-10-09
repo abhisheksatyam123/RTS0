@@ -1342,6 +1342,9 @@ static void test_repairs() {
 	CHECK(cc != nullptr, "Petra has a civic centre");
 	if (!cc) return;
 	const uint32_t cc_id = cc->id, house_id = house ? house->id : 0;
+	// Enough workers that the builder cap (0.6 of them for a civic centre under 30%) leaves
+	// room for seven repairers whatever foundations are going up at this point.
+	for (int k = 0; k < 8; ++k) s->spawn_unit(cc->x - 8.0f + (float)(k % 4), cc->z - 8.0f - (float)(k / 4), 1, UNIT_FEMALE_CITIZEN);
 	cc->hp = cc->max_hp * 0.25f;
 	if (house) house->hp = house->max_hp * 0.5f;
 	run_for(*s, 3.0f);

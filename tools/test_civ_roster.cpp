@@ -48,12 +48,16 @@ int main()
 		const CivUnitTemplate &u = civ_unit_template(i);
 		if (u.trainers != 0) continue; // a trainable row added later (civ_roster_ids)
 		if (u.flags & ROSTER_RELIC) continue; // a catafalque: Capture the Relic places it
+		bool upgrade_target = false; // reached by a unit Upgrade (the Immortals' bow)
+		for (const CivUnitUpgrade *up = civ_unit_upgrade_table(); up->from != 0xFFFF; ++up)
+			upgrade_target = upgrade_target || up->to == i;
+		if (upgrade_target) continue;
 		if (!is_promotion_target(u.id) || u.civ >= CIV_COUNT || u.hp <= 0.0f) {
 			tail_ok = false;
 			std::printf("      bad promotion-only row %u %s\n", i, u.id);
 		}
 	}
-	check(tail_ok, "promotion-only rows (Antesignani, Olympic champion, ...) follow the civ blocks");
+	check(tail_ok, "promotion-only and upgrade-only rows (Antesignani, Olympic champion, Immortal archer, ...) follow the civ blocks");
 	for (uint8_t c = 0; c < CIV_COUNT; ++c) {
 		uint16_t b = civ_roster_begin(c), e = civ_roster_end(c);
 		int heroes = 0;
