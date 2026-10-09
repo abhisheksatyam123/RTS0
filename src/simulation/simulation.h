@@ -1311,11 +1311,11 @@ private:
 	void separation(float dt, Arena &arena);
 	void motion_feedback(float dt, const MoveSteps &steps);
 	void patrol_next_leg(size_t i);
-	// A chase (UnitAI COMBAT.APPROACHING / CHASING): the point its long path is kept for (the target
-	// unit, or the centre of the target structure) and the point it walks to (the unit, or tick_combat's
-	// stand point beside the structure). False when unit i chases no unit or structure.
+	// A chase (UnitAI COMBAT.APPROACHING / CHASING): the target (the unit, or the centre of the
+	// structure) and the point the unit walks to (the unit, or tick_combat's stand point beside the
+	// structure). False when unit i chases no unit or structure.
 	bool chase_goal(size_t i, float &key_x, float &key_z, float &to_x, float &to_z) const;
-	bool chase_path_kept(size_t i, float key_x, float key_z) const;
+	bool chase_path_kept(size_t i) const;
 	bool chase_falls_short(size_t i) const;
 	void give_up_attack(size_t i);
 	void tick_gather(float dt);

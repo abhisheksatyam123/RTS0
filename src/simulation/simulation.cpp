@@ -5771,29 +5771,13 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				task_path = true;
 			}
 		}
-		// UnitAI COMBAT.APPROACHING / CHASING: UnitMotion paths every move, so a chase whose straight
-		// line runs into deep water or a slope too steep takes a long path too, kept while the target
-		// stays within 2 world units of where it was. Buildings in the way are left to the short path.
-		// To a target the unit can't reach, find_path ends the path as close as it can get.
+		// UnitAI COMBAT.APPROACHING / CHASING: an attacker's path above is its chase path. The unit
+		// stops for its target along it, and stands at its end when it can't reach the target.
 		bool chase_path = false;
 		float chase_x = 0.0f, chase_z = 0.0f;
-		if (!task_path && (size_t)i < unit_paths_.size() && !unit_is_ship(units_.unit_type[i])) {
+		if (closing_in && task_path) {
 			float key_x, key_z;
-			if (chase_goal(i, key_x, key_z, chase_x, chase_z)) {
-				chase_path = chase_path_kept(i, key_x, key_z);
-				if (!chase_path && line_crosses_impassable(px[i], pz[i], chase_x, chase_z)) {
-					WaypointPath &wp = unit_paths_[i];
-					const uint8_t ut = units_.unit_type[i];
-					const bool mounted = ut == UNIT_CAVALRY || ut == UNIT_CHARIOT || ut == UNIT_CAMEL || ut == UNIT_SCYTHED_CHARIOT;
-					find_path(px[i], pz[i], chase_x, chase_z, wp, mounted ? PASS_CAVALRY : PASS_INFANTRY);
-					wp.has_goal = true;
-					wp.goal_x = key_x;
-					wp.goal_z = key_z;
-					units_.waypoint_cur[i] = static_cast<int16_t>(wp.cur);
-					units_.waypoint_count[i] = static_cast<int16_t>(wp.count);
-					chase_path = true;
-				}
-			}
+			chase_path = chase_goal(i, key_x, key_z, chase_x, chase_z);
 		}
 
 		// G1: follow waypoint path if available (mirrors CCmpUnitMotion path following)
@@ -5802,7 +5786,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		bool using_path = false;
 		bool final_aim = true; // the aim is the walk's end: no waypoint follows it
 		if ((size_t)i < unit_paths_.size() && units_.waypoint_count[i] > 0 &&
-		    (st == ACTION_MOVE || st == ACTION_ATTACK_MOVE || st == ACTION_PATROL || task_path || chase_path)) {
+		    (st == ACTION_MOVE || st == ACTION_ATTACK_MOVE || st == ACTION_PATROL || task_path)) {
 			int cur = units_.waypoint_cur[i];
 			int cnt = units_.waypoint_count[i];
 			if ((size_t)i < unit_paths_.size()) {
@@ -6389,11 +6373,11 @@ bool Simulation::chase_goal(size_t i, float &key_x, float &key_z, float &to_x, f
 	return true;
 }
 
-// The unit follows the long path move_units made for this chase.
-bool Simulation::chase_path_kept(size_t i, float key_x, float key_z) const {
+// The unit follows the path move_units made for this chase: one to the point it walks to.
+bool Simulation::chase_path_kept(size_t i) const {
 	if (i >= unit_paths_.size()) return false;
 	const WaypointPath &wp = unit_paths_[i];
-	const float dx = wp.goal_x - key_x, dz = wp.goal_z - key_z;
+	const float dx = wp.goal_x - units_.target_x[i], dz = wp.goal_z - units_.target_z[i];
 	return wp.has_goal && dx * dx + dz * dz <= 4.0f && units_.waypoint_count[i] == wp.count;
 }
 
@@ -6401,7 +6385,7 @@ bool Simulation::chase_path_kept(size_t i, float key_x, float key_z) const {
 // find_path stopped it at the nearest point the unit can get to (MakeGoalReachable).
 bool Simulation::chase_falls_short(size_t i) const {
 	float kx, kz, gx, gz;
-	if (unit_is_ship(units_.unit_type[i]) || !chase_goal(i, kx, kz, gx, gz) || !chase_path_kept(i, kx, kz)) return false;
+	if (unit_is_ship(units_.unit_type[i]) || !chase_goal(i, kx, kz, gx, gz) || !chase_path_kept(i)) return false;
 	const WaypointPath &wp = unit_paths_[i];
 	if (wp.cur < wp.count) return false;
 	const float ex = wp.count > 0 ? wp.xs[wp.count - 1] : units_.pos_x[i];
