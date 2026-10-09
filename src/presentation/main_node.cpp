@@ -1115,7 +1115,7 @@ void RtsoMain::play_civ_voice(const char *action) {
 // resource and centres the camera there, so smoke tests can hear gathering.
 void RtsoMain::debug_gather_nearest() {
 	if (!sim || net_lockstep()) return;
-	const std::vector<uint32_t> idle = sim->get_idle_workers(local_player());
+	std::vector<uint32_t> idle = sim->get_idle_workers(local_player());
 	if (idle.empty()) return;
 	auto uv = sim->units();
 	float x = 0.0f, z = 0.0f;
@@ -1130,7 +1130,10 @@ void RtsoMain::debug_gather_nearest() {
 		if (d < best_d) { best_d = d; best = rv.id[r]; }
 	}
 	if (!best) return;
-	sim->order_gather(idle.data(), idle.size(), best, false);
+	if (turn_cmds()) // offline local turns keep it in the replay
+		post_lockstep(4, idle.data(), idle.size(), 0, 0, best, 0);
+	else
+		sim->order_gather(idle.data(), idle.size(), best, false);
 	if (cam_rig) cam_rig->set_target_pos(Vector3(x, 0.0f, z));
 }
 
