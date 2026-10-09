@@ -941,6 +941,12 @@ public:
 		return spawn_treasure(x, z, treasure_type_for_resource(res_type));
 	}
 	void clear_treasures() { treasures_.clear(); } // Game Setup "Treasures" off
+	// A Gaia-owned unit from a 0 A.D. map (Player 0): roster template `template_id`
+	// ("gaul/infantry_javelineer_a"; a rank suffix falls back to the _b template), else the
+	// u_type class. rank 2/3 = Advanced/Elite, reached through Promotion xp on the next tick.
+	uint32_t spawn_gaia_unit(float x, float z, UnitType u_type, const char *template_id, int rank = 1);
+	// Puts a unit inside a structure of its owner at once, as a map's <Garrison> does.
+	bool garrison_unit_now(uint32_t unit_id, uint32_t building_id);
 	// template_gaia_ruins: a stone (or metal) supply gathered 4x as fast as a rock.
 	uint32_t spawn_ruins(float x, float z, uint8_t ruins_type);
 
@@ -1037,6 +1043,7 @@ private:
 	void formation_stop(const uint32_t *unit_ids, size_t count);
 	void cmd_move_individual(const uint32_t *unit_ids, size_t count, float tx, float tz);
 	void tick_promotion(float dt);
+	void promote_if_due(size_t i); // Promotion.js thresholds for unit index i
 	void tick_capture(float dt);
 	// 0 A.D. UnitAI per-unit order logic, before movement: answers attacks (fight back or
 	// flee), returns fighters to their order, turns patrols, follows the order queue.

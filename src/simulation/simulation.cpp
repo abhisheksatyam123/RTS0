@@ -3133,6 +3133,36 @@ void Simulation::garrison_now(size_t i, Building &b) {
 	b.garrisoned_units.push_back(units_.id[i]);
 }
 
+bool Simulation::garrison_unit_now(uint32_t unit_id, uint32_t building_id) {
+	const int32_t i = lookup_unit(unit_id);
+	auto it = building_id_to_idx_.find(building_id);
+	if (i < 0 || !units_.alive[i] || it == building_id_to_idx_.end()) return false;
+	Building &b = buildings_[it->second];
+	if (b.team != units_.team[i] || (int)b.garrisoned_units.size() >= b.garrison_cap) return false;
+	garrison_now((size_t)i, b);
+	return true;
+}
+
+uint32_t Simulation::spawn_gaia_unit(float x, float z, UnitType u_type, const char *template_id, int rank) {
+	uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE;
+	if (template_id && *template_id) {
+		std::string id(template_id), base = id;
+		if (base.size() > 2 && (base.ends_with("_a") || base.ends_with("_e"))) base.back() = 'b';
+		for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT && tmpl == CIV_UNIT_TEMPLATE_NONE; ++t)
+			if (id == civ_unit_template(t).id) tmpl = t;
+		for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT && tmpl == CIV_UNIT_TEMPLATE_NONE; ++t)
+			if (base == civ_unit_template(t).id) tmpl = t;
+	}
+	const uint32_t id = spawn_unit(x, z, GAIA_PLAYER, u_type, 0.0f, tmpl);
+	const int32_t i = lookup_unit(id);
+	// The rank's Promotion.js xp, applied now: a unit placed in a garrison misses tick_promotion.
+	if (i >= 0 && rank >= 2) {
+		gain_xp((size_t)i, rank >= 3 ? 700.0f : 300.0f);
+		promote_if_due((size_t)i);
+	}
+	return id;
+}
+
 bool Simulation::structure_has_enough_health(const Building &b) const {
 	return b.hp > std::floor(building_eject_health(b.type) * b.max_hp);
 }
@@ -5544,9 +5574,14 @@ void Simulation::tick_promotion(float dt) {
 	// Rank 1: Basic (initial)
 	// Rank 2: Advanced (★)  threshold: 300 XP (or 3 kills), +15% max HP, +20 HP heal, +10% attack dmg
 	// Rank 3: Elite (★★)   threshold: 700 XP (or 7 kills), +15% max HP, +30 HP heal, +15% attack dmg
+	(void)dt;
 	const size_t n = units_.count;
-	for (size_t i = 0; i < n; ++i) {
-		if (!units_.alive[i]) continue;
+	for (size_t i = 0; i < n; ++i)
+		if (units_.alive[i]) promote_if_due(i);
+}
+
+void Simulation::promote_if_due(size_t i) {
+	{
 		if (units_.rank[i] < 2 && (units_.xp[i] >= 300 || units_.kills[i] >= 3)) {
 			units_.rank[i] = 2; // Advanced
 			units_.max_hp[i] *= 1.15f;
