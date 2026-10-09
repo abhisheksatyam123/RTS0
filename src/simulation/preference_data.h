@@ -20,7 +20,7 @@ struct PrefProfile { uint8_t count; PrefTerm term[4]; }; // terms by index, over
 // A unit's PreferredClasses and its own preference classes as a target.
 struct PrefUnitRow { PrefProfile prefs; uint8_t classes; };
 
-inline constexpr uint16_t PREF_TEMPLATE_COUNT = 376; // = CIV_UNIT_TEMPLATE_COUNT
+inline constexpr uint16_t PREF_TEMPLATE_COUNT = 377; // = CIV_UNIT_TEMPLATE_COUNT
 inline const PrefUnitRow *pref_template_table() {
 	static const PrefUnitRow kTable[PREF_TEMPLATE_COUNT] = {
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // athen/cavalry_javelineer_b
@@ -399,11 +399,12 @@ inline const PrefUnitRow *pref_template_table() {
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/cavalry_auxiliary_b
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/infantry_antesignanus
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // mace/champion_infantry_spearman_02
+		{{1, {{0, 0x10, 0x04}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/support_minister
 	};
 	return kTable;
 }
 
-inline constexpr uint8_t PREF_CLASS_ROWS = 23; // = UNIT_TYPE_COUNT
+inline constexpr uint8_t PREF_CLASS_ROWS = 24; // = UNIT_TYPE_COUNT
 // Units without a roster template, by UnitType (extract_0ad_rosters.py GENERIC).
 inline const PrefUnitRow *pref_class_table() {
 	static const PrefUnitRow kTable[PREF_CLASS_ROWS] = {
@@ -430,6 +431,7 @@ inline const PrefUnitRow *pref_class_table() {
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // UNIT_ARCHER_MAIDEN: template_unit_infantry_ranged_archer
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // UNIT_CAMEL: template_unit_cavalry_ranged_archer
 		{{1, {{0, 0x10, 0x04}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // UNIT_SCYTHED_CHARIOT: template_unit_champion_cavalry_swordsman
+		{{1, {{0, 0x10, 0x04}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // UNIT_MINISTER: units/han/support_minister
 	};
 	return kTable;
 }
