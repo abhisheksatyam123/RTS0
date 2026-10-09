@@ -405,6 +405,13 @@ enum ResourceSubtype : uint8_t {
 	RES_SUB_RUINS = 4 // stone.ruins / metal.ruins (template_gaia_ruins): gather_class_ruins_rate
 };
 
+// 0 A.D. Gaia ResourceSupply Max amounts that random maps place: gaia/tree/* hold
+// 200 wood, template_gaia_ore and template_gaia_rock 1000 metal or stone, and their
+// _large variants 5000. (Ported JSON maps read each entity's own template instead.)
+constexpr int32_t TREE_WOOD_SUPPLY = 200;
+constexpr int32_t MINE_SUPPLY = 1000;
+constexpr int32_t LARGE_MINE_SUPPLY = 5000;
+
 // 0 A.D. template_gaia_fish.xml ResourceSupply: 1000 food, at most 4 gatherers,
 // and +1 food every 2 s while nobody gathers it (Change/Spawn, notGathered) up to Max.
 constexpr int32_t FISH_FOOD_SUPPLY = 1000;
@@ -1686,6 +1693,10 @@ inline float combat_bonus(const CombatProfile &attacker, const CombatProfile &ta
 // A projectile's footprint test radius in RTS0 units (PositionHelper.TestCollision).
 inline float combat_footprint(const CombatProfile &p) { return p.footprint * COMBAT_DISTANCE_SCALE; }
 // unit_advanced.json and unit_elite.json each multiply Attack/Ranged/Spread by 0.8.
+// StatusEffect bit for a CombatProfile::status (1 Poisoned, 2 Burning).
+inline uint8_t status_effect_bit(uint8_t status) {
+	return status == 1 ? EFFECT_POISON : status == 2 ? EFFECT_BURNING : EFFECT_NONE;
+}
 inline float spread_rank_multiplier(uint8_t rank) {
 	return rank >= 3 ? 0.64f : (rank == 2 ? 0.8f : 1.0f);
 }

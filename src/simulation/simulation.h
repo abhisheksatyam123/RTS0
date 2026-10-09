@@ -593,9 +593,16 @@ public:
 	// 0 A.D. "Last Man Standing": allies don't share a win; the match goes on until one player is left.
 	bool last_man_standing() const { return last_man_standing_; }
 	void set_last_man_standing(bool on) { last_man_standing_ = on; }
-	// 0 A.D. population limit per player (game setup); 0 means unlimited.
-	int pop_cap() const { return pop_cap_; }
+	// 0 A.D. population limit per player (game setup); 0 means unlimited. A negative
+	// setting is 0 A.D.'s World Population: -setting shared evenly by the players
+	// still in the game (PlayerManager.RedistributeWorldPopulation), so each
+	// defeat raises everyone else's share. Stored in pop_cap_, so no save change.
+	static constexpr int MAX_WORLD_POP = 63000; // 0 A.D. world_population_capacities.json
+	int pop_cap() const;
+	int pop_cap_setting() const { return pop_cap_; }
+	int world_pop_cap() const { return pop_cap_ < 0 ? -pop_cap_ : 0; }
 	void set_pop_cap(int cap) { pop_cap_ = std::max(0, cap); }
+	void set_world_pop_cap(int world) { pop_cap_ = world > 0 ? -std::min(world, MAX_WORLD_POP) : 0; }
 	// 0 A.D. ceasefire: no player can attack another for the first N seconds of the match.
 	// 0 A.D. map visibility options: everything visible, or terrain known from the start.
 	bool reveal_map() const { return reveal_map_; }
@@ -1348,6 +1355,8 @@ private:
 	// flee), returns fighters to their order, turns patrols, follows the order queue.
 	void tick_unit_ai(float dt);
 	void tick_status_effects(float dt);
+	void apply_status(size_t t, const CombatProfile &att); // Attack ApplyStatus (Poisoned, Burning)
+	static float status_dps(uint8_t kind);
 	void tick_projectiles(float dt);
 	void tick_construction(float dt);
 	// Foundation.js Commit: own and allied units standing on the foundation are told to
@@ -1422,10 +1431,13 @@ private:
 	void reveal_viewers(std::vector<uint8_t> &grid, FowViews &views, UnitVision unit_vr, BuildingVision building_vr);
 	bool terrain_blocks_los(float sx, float sz, float sy, float tx, float tz, float ty) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
+	bool line_crosses_deep_water(float x0, float z0, float x1, float z1) const;
 	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
 	void rebuild_auras(); // G4: rebuild AuraManager from temples/heroes/carnyx/female citizens
+	void apply_health_auras(); // Health/Max auras: rescale max_hp and hp as units enter or leave them
+	float unit_vision_at(size_t i) const; // Vision/Range with Vision auras (0 A.D. Vision.js)
 	uint16_t aura_affected_players(uint8_t owner, uint8_t players) const;
 	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false, uint8_t visual = 0, uint32_t source_id = 0, uint8_t splash = 0);
 	static float projectile_speed(uint8_t visual);

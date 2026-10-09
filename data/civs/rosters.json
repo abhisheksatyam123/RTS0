@@ -731,7 +731,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -786,7 +786,7 @@
    "specific_name": "Hippeús",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -1260,6 +1260,7 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -1379,6 +1380,7 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -1441,6 +1443,7 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -1799,7 +1802,7 @@
    "specific_name": "Lithobólos",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -1847,7 +1850,7 @@
    "specific_name": "Oxybelḗs",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -1895,7 +1898,7 @@
    "specific_name": "Krios",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -2177,7 +2180,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -2232,7 +2235,7 @@
    "specific_name": "Hippeús Symmakhikós",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -2554,6 +2557,7 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -2955,7 +2959,7 @@
    "specific_name": "Oxybelḗs",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -3003,7 +3007,7 @@
    "specific_name": "Krios",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -3285,7 +3289,7 @@
    "phase": 2,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -3341,7 +3345,7 @@
    "phase": 2,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -3396,7 +3400,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -3452,7 +3456,7 @@
    "phase": 2,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -3506,7 +3510,7 @@
    "specific_name": "Asabāra Baxtriš",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -3559,7 +3563,7 @@
    "specific_name": "Asabāra Baxtriš",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -3612,7 +3616,7 @@
    "specific_name": "Raθa Bābiruviya",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -3666,7 +3670,7 @@
    "specific_name": "Pila Hinduya",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_ELEPHANT_STABLE"
    ],
    "trained_at_0ad": [
     "elephant_stable"
@@ -3947,6 +3951,7 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -4006,6 +4011,7 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -4353,7 +4359,7 @@
    "specific_name": "Hamaranakuba Aθuriya",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -4449,9 +4455,7 @@
    "specific_name": "Banu Miyanrudani",
    "phase": 1,
    "trainers": [
-    "BLD_HOUSE",
-    "BLD_BARRACKS",
-    "BLD_STOREHOUSE"
+    "BLD_HOUSE"
    ],
    "trained_at_0ad": [
     "apartment_block",
@@ -4641,7 +4645,7 @@
    "specific_name": "Eques Socius",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -4696,7 +4700,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -4750,7 +4754,7 @@
    "specific_name": "Eques Cōnsulāris",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -5182,6 +5186,7 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -5802,7 +5807,7 @@
    "specific_name": "Ballista",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -5852,7 +5857,7 @@
    "specific_name": "Onager",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -5902,7 +5907,7 @@
    "specific_name": "Ariēs",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS",
+    "BLD_ARSENAL",
     "BLD_ARMY_CAMP"
    ],
    "trained_at_0ad": [
@@ -5949,7 +5954,7 @@
    "specific_name": "Scorpiō",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -6238,7 +6243,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -6293,7 +6298,7 @@
    "specific_name": "Ḥayyāl Romaḥ Raḫūv",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_EMBASSY"
    ],
    "trained_at_0ad": [
     "embassy",
@@ -6350,7 +6355,7 @@
    "specific_name": "Ḥayyāl Ḥerev Raḫūv",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_EMBASSY"
    ],
    "trained_at_0ad": [
     "embassy",
@@ -6407,7 +6412,7 @@
    "specific_name": "Ḥayyāl Ḥerev Raḫūv",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_EMBASSY"
    ],
    "trained_at_0ad": [
     "embassy",
@@ -6516,7 +6521,7 @@
    "specific_name": "Pil Malḥamit",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_ELEPHANT_STABLE"
    ],
    "trained_at_0ad": [
     "elephant_stable"
@@ -6781,6 +6786,7 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -6839,7 +6845,7 @@
    "specific_name": "Sǝḫīr Kidōn",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_EMBASSY"
    ],
    "trained_at_0ad": [
     "embassy",
@@ -6898,7 +6904,7 @@
    "specific_name": "Qallāʿ Ibušimi",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_EMBASSY"
    ],
    "trained_at_0ad": [
     "embassy",
@@ -7015,7 +7021,7 @@
    "specific_name": "Seḫīr Ḥerev",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_EMBASSY"
    ],
    "trained_at_0ad": [
     "embassy",
@@ -7073,7 +7079,7 @@
    "specific_name": "Seḫīr Romaḥ",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_EMBASSY"
    ],
    "trained_at_0ad": [
     "embassy",
@@ -7416,7 +7422,7 @@
    "specific_name": "Ballista",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -7464,7 +7470,7 @@
    "specific_name": "Oxybelḗs",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -7512,7 +7518,7 @@
    "specific_name": "",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -7795,7 +7801,7 @@
    "specific_name": "Hippakontistḕs Odrysós",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -7853,7 +7859,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -7907,7 +7913,7 @@
    "specific_name": "Hetaîros",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -7959,8 +7965,8 @@
    "specific_name": "Gastraphetophoros",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS",
-    "BLD_FORTRESS"
+    "BLD_RANGE",
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal",
@@ -8284,6 +8290,7 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -8346,6 +8353,7 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -8463,6 +8471,7 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -8755,7 +8764,7 @@
    "specific_name": "Lithobólos",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -8803,7 +8812,7 @@
    "specific_name": "Oxybelḗs",
    "phase": 2,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -8851,7 +8860,7 @@
    "specific_name": "Krios",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -8896,7 +8905,7 @@
    "specific_name": "Helépolis",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -9181,7 +9190,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -9237,7 +9246,7 @@
    "specific_name": "Eporedos",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -9290,7 +9299,7 @@
    "specific_name": "Essedon",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -9565,6 +9574,7 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -9626,6 +9636,7 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -9984,7 +9995,7 @@
    "specific_name": "Molton",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -10314,7 +10325,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -10369,7 +10380,7 @@
    "specific_name": "Eporedos",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -10424,7 +10435,7 @@
    "specific_name": "Uerouicos",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -10795,6 +10806,7 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -10854,6 +10866,7 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -11201,7 +11214,7 @@
    "specific_name": "Molton",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -11297,8 +11310,7 @@
    "specific_name": "Bena",
    "phase": 1,
    "trainers": [
-    "BLD_HOUSE",
-    "BLD_BARRACKS"
+    "BLD_HOUSE"
    ],
    "trained_at_0ad": [
     "house",
@@ -11485,7 +11497,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -11540,7 +11552,7 @@
    "specific_name": "Lantzari",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -11593,7 +11605,7 @@
    "specific_name": "Leial Zalduneria",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -11863,6 +11875,7 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -11922,6 +11935,7 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -12325,7 +12339,7 @@
    "specific_name": "Ahariburu",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -12607,7 +12621,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -12662,7 +12676,7 @@
    "specific_name": "Aśvārohagaṇaḥ",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -12715,7 +12729,7 @@
    "specific_name": "Rath",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -12769,7 +12783,7 @@
    "specific_name": "Gajendra",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_ELEPHANT_STABLE"
    ],
    "trained_at_0ad": [
     "elephant_stable"
@@ -12978,7 +12992,7 @@
    "specific_name": "Vachii Gaja",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_ELEPHANT_STABLE"
    ],
    "trained_at_0ad": [
     "elephant_stable"
@@ -13198,6 +13212,7 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -13555,7 +13570,7 @@
    "specific_name": "",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -13601,7 +13616,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_ELEPHANT_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -13888,7 +13903,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -14003,7 +14018,7 @@
    "specific_name": "Htr",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -14056,7 +14071,7 @@
    "specific_name": "Htr Msʿ n mh-ib",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -14108,7 +14123,7 @@
    "specific_name": "Abore ʿhȝ",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_ELEPHANT_STABLE"
    ],
    "trained_at_0ad": [
     "elephant_stable"
@@ -14264,6 +14279,7 @@
    "phase": 3,
    "trainers": [
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -14485,6 +14501,7 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -15014,7 +15031,7 @@
    "specific_name": "",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -15059,7 +15076,7 @@
    "specific_name": "iwn n ms",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -15389,7 +15406,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -15562,7 +15579,7 @@
    "specific_name": "Ágēma Basiléōs",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -15614,7 +15631,7 @@
    "specific_name": "Polémou Eléphantos",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_ELEPHANT_STABLE"
    ],
    "trained_at_0ad": [
     "elephant_stable"
@@ -15883,6 +15900,7 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -15944,6 +15962,7 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -16064,6 +16083,7 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -16521,7 +16541,7 @@
    "specific_name": "Lithobólos",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -16569,7 +16589,7 @@
    "specific_name": "Polybolos",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -16617,7 +16637,7 @@
    "specific_name": "Krios",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -16662,7 +16682,7 @@
    "specific_name": "Helépolis",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -16948,7 +16968,7 @@
    "specific_name": "Hippotoxotès Dahae",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -17003,7 +17023,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -17116,7 +17136,7 @@
    "specific_name": "Seleukidón Kataphraktos",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -17169,7 +17189,7 @@
    "specific_name": "Drepanèphoros",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -17223,7 +17243,7 @@
    "specific_name": "Thorakisménos Eléphantos",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_ELEPHANT_STABLE"
    ],
    "trained_at_0ad": [
     "elephant_stable"
@@ -17600,6 +17620,7 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -18112,7 +18133,7 @@
    "specific_name": "Lithobólos",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -18160,7 +18181,7 @@
    "specific_name": "Krios",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -18205,7 +18226,7 @@
    "specific_name": "Helépolis",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -18491,7 +18512,7 @@
    "specific_name": "Gōng Qíbīng",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -18545,7 +18566,7 @@
    "specific_name": "Máo Qíbīng",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "stable"
@@ -18599,7 +18620,7 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_STABLE"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -19037,6 +19058,7 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
+    "BLD_RANGE",
     "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
@@ -19096,7 +19118,8 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_RANGE"
    ],
    "trained_at_0ad": [
     "barracks",
@@ -19504,7 +19527,7 @@
    "specific_name": "Tóushí Chē",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -19552,7 +19575,7 @@
    "specific_name": "Gōngchéng Chuí",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -19597,7 +19620,7 @@
    "specific_name": "Gōngchéng Tǎ",
    "phase": 3,
    "trainers": [
-    "BLD_FORTRESS"
+    "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
     "arsenal"
@@ -21252,7 +21275,11 @@
      "multiply": 1.05
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_HEALTH",
+    1.05,
+    1000.0
+   ]
   },
   {
    "id": "pers_hero_cyrus_ii",
@@ -22406,7 +22433,11 @@
      "multiply": 1.1
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_HEALTH",
+    1.1,
+    1000.0
+   ]
   },
   {
    "id": "iber_hero_caros_1",
@@ -23115,7 +23146,11 @@
      "multiply": 1.1
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_HEALTH",
+    1.1,
+    8.4
+   ]
   },
   {
    "id": "ptol_hero_cleopatra_vii_3",
@@ -23135,7 +23170,11 @@
      "multiply": 0.9
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_HEALTH",
+    0.9,
+    8.4
+   ]
   },
   {
    "id": "ptol_hero_ptolemy_i_1",
@@ -23207,7 +23246,11 @@
      "multiply": 1.4
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_HEALTH",
+    1.4,
+    16.8
+   ]
   },
   {
    "id": "sele_catafalque_1",
@@ -23361,7 +23404,11 @@
      "multiply": 0.8
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_HEALTH",
+    0.8,
+    22.400000000000002
+   ]
   },
   {
    "id": "sele_hero_seleucus_i",
@@ -23493,7 +23540,11 @@
      "multiply": 1.25
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_VISION",
+    1.25,
+    1000.0
+   ]
   },
   {
    "id": "han_hero_liu_bang_1",

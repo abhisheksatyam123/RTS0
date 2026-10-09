@@ -16,7 +16,9 @@ enum AuraType : uint8_t {
     AURA_ATTACK = 2,
     AURA_SPEED  = 3,
     AURA_ARMOR  = 4,
-    AURA_COUNT  = 5
+    AURA_HEALTH = 5, // Health/Max multiplier
+    AURA_VISION = 6, // Vision/Range multiplier
+    AURA_COUNT  = 7
 };
 
 // 0 A.D. Auras.js affectedPlayers as bits over the source's owner (CivHeroAura::players).
@@ -46,8 +48,12 @@ struct AuraSource {
 class AuraManager {
 public:
     std::vector<AuraSource> sources;
+    uint16_t type_count[AURA_COUNT] = {}; // sources per AuraType, so rare kinds cost nothing
 
-    void clear() { sources.clear(); }
+    void clear() {
+        sources.clear();
+        for (auto &c : type_count) c = 0;
+    }
 
     // affected: aura_player_bit() mask of the players the aura reaches (the caller
     // resolves 0 A.D. affectedPlayers against diplomacy).
@@ -65,26 +71,31 @@ public:
         s.aura = aura;
         s.need_class = need_class;
         sources.push_back(s);
+        if (type < AURA_COUNT) ++type_count[type];
     }
 
     void unregister(uint32_t id) {
         sources.erase(std::remove_if(sources.begin(), sources.end(),
             [id](const AuraSource &s) { return s.source_id == id; }), sources.end());
+        for (auto &c : type_count) c = 0;
+        for (const auto &s : sources)
+            if (s.type < AURA_COUNT) ++type_count[s.type];
     }
 
     // Combined modifier on a unit of player qowner at (qx, qz). qtmpl is its roster
     // template (hero auras skip units their 0 A.D. "affects" classes exclude) and
     // qclasses its 0 A.D. classes.
     //   AURA_HEAL: sum of hp/s. AURA_GATHER: strongest bonus.
-    //   AURA_ATTACK / AURA_SPEED: strongest bonus times strongest penalty
+    //   AURA_ATTACK / AURA_SPEED / AURA_HEALTH / AURA_VISION: strongest bonus times strongest penalty
     //     (0 when none reaches the unit).
     //   AURA_ARMOR: strongest bonus plus strongest penalty.
     float query_modifier(float qx, float qz, uint8_t qowner, AuraType type,
             uint16_t qtmpl = CIV_UNIT_TEMPLATE_NONE, const CombatClasses *qclasses = nullptr) const {
+        if (type >= AURA_COUNT || type_count[type] == 0) return 0.0f;
         const uint16_t qbit = aura_player_bit(qowner);
         bool any = false;
         float sum = 0.0f, up = 0.0f, down = 0.0f;
-        const bool mul = type == AURA_ATTACK || type == AURA_SPEED;
+        const bool mul = type == AURA_ATTACK || type == AURA_SPEED || type == AURA_HEALTH || type == AURA_VISION;
         if (mul) up = down = 1.0f;
         for (const auto &s : sources) {
             if (!s.alive || s.type != type || !(s.affected & qbit)) continue;
