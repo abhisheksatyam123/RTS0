@@ -9506,6 +9506,16 @@ void Simulation::petra_manage_military_production(float dt) {
 			if (!leaves) continue;
 		}
 		if (petra_train_template(PETRA_QUEUE_MILITARY, opt.bld_id, opt.tmpl)) break;
+		if (civ_unit_template(opt.tmpl).flags & ROSTER_HERO) {
+			// The hero leads the HugeAttack's unitStat (priority over champions): soldiers train
+			// only from what its price leaves, or cheaper units would always spend it first.
+			const UnitTypeInfo &ui = civ_template_unit_info(opt.tmpl, civ_unit_template(opt.tmpl).unit_type);
+			float cost[RES_COUNT];
+			unit_train_cost(petra_pid_, opt.tmpl, ui, cost);
+			for (int r = 0; r < RES_COUNT; ++r) reserve[r] += cost[r];
+			reserving = true;
+			continue;
+		}
 		if (is_tower(opt.tmpl)) {
 			// The plan's queue trains in order: what comes after the tower leaves it its price.
 			siege_waiting = true;
