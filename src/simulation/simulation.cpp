@@ -9356,6 +9356,16 @@ std::vector<uint32_t> Simulation::split_queued(const uint32_t *ids, size_t count
 	return now;
 }
 
+// UnitAI CheckTargetVisible for an attack that has to walk up to its target: a unit is
+// hidden once neither the attacker's player nor its allies see where it stands.
+bool Simulation::attack_target_hidden(size_t i, size_t t) const {
+	const uint8_t team = units_.team[i];
+	if (team >= MAX_PLAYERS || reveal_map_ || los_.cells() == 0 || !units_.alive[t]) return false;
+	const float dx = units_.pos_x[t] - units_.pos_x[i], dz = units_.pos_z[t] - units_.pos_z[i];
+	if (dx * dx + dz * dz <= units_.attack_range[i] * units_.attack_range[i]) return false; // ATTACKING: no check
+	return !los_visible(team, units_.pos_x[t], units_.pos_z[t]);
+}
+
 void Simulation::apply_order(uint32_t uid, const UnitOrder &o) {
 	const bool was = applying_queued_;
 	applying_queued_ = true;
@@ -9366,7 +9376,22 @@ void Simulation::apply_order(uint32_t uid, const UnitOrder &o) {
 			order_attack_move(&uid, 1, o.x, o.z, false, (o.flags & ORDER_FLAG_UNITS_ONLY) != 0, capture);
 			break;
 		case ORDER_PATROL: order_patrol(&uid, 1, o.x, o.z); break;
-		case ORDER_ATTACK: order_attack(&uid, 1, o.target); break;
+		case ORDER_ATTACK: {
+			// Order.Attack -> APPROACHING: MoveToTargetAttackRange fails on a target hidden in
+			// the fog (CheckTargetVisible), and the order is skipped (FinishOrder).
+			const int32_t i = lookup_unit(uid), t = lookup_unit(o.target);
+			if (i >= 0 && t >= 0 && attack_target_hidden((size_t)i, (size_t)t)) {
+				set_order((size_t)i, ORDER_NONE, 0, 0, units_.pos_x[i], units_.pos_z[i]);
+				units_.target_unit_id[i] = 0;
+				units_.target_building_id[i] = 0;
+				units_.action_state[i] = ACTION_IDLE;
+				units_.has_order[i] = 0;
+				finish_order((size_t)i); // the next queued order, else idle
+				break;
+			}
+			order_attack(&uid, 1, o.target);
+			break;
+		}
 		case ORDER_ATTACK_BUILDING: order_attack_building(&uid, 1, o.target, false, capture); break;
 		case ORDER_GATHER: {
 			uint32_t r = o.target;

@@ -62,6 +62,8 @@
 //     garrisoning at a dropsite drops the load; the killer of a wolf cheers; CanGuard; guards
 //     repair the structure they guard; idle healers in a formation heal; a siege engine
 //     (un)packing ignores attacks; an idle full worker stays put.
+// 39. A queued attack on a unit hidden in the fog is skipped (Order.Attack -> APPROACHING,
+//     CheckTargetVisible); one on a unit in sight goes ahead.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_unit_orders.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -1498,6 +1500,27 @@ static void test_unitai_audit() {
 	}
 }
 
+static void test_fog_queued_attack() {
+	std::printf("39. queued attacks on units hidden in the fog\n");
+	Simulation s;
+	setup(s);
+	uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN);
+	uint32_t seen = post(s, 6, 0, UNIT_SPEARMAN, 5000.0f);
+	uint32_t hidden = post(s, 40, -30, UNIT_SPEARMAN);
+	run(s, 1.0f);
+	check(s.los_visible(0, 6, 0) && !s.los_visible(0, 40, -30), "one enemy in sight, one in the fog");
+	s.order_walk(&a, 1, 0.0f, 2.0f);
+	s.order_attack(&a, 1, hidden, true);
+	s.order_walk(&a, 1, -6.0f, 2.0f, true);
+	const bool walked = run_until(s, 20.0f, [&] { return dist(s, a, -6.0f, 2.0f) < 1.5f; });
+	check(walked && target_of(s, a) == 0 && dist(s, a, 40.0f, -30.0f) > 30.0f,
+			"the attack on the hidden one is skipped and the next walk goes ahead");
+	s.order_walk(&a, 1, 0.0f, 2.0f);
+	s.order_attack(&a, 1, seen, true);
+	const bool attacks = run_until(s, 20.0f, [&] { return target_of(s, a) == seen; });
+	check(attacks, "a queued attack on one in sight goes ahead");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -1539,6 +1562,7 @@ int main(int argc, char **argv) {
 	test_remove_guard_call_to_arms();
 	test_guard_structure();
 	test_unitai_audit();
+	test_fog_queued_attack();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
