@@ -2615,6 +2615,14 @@ void Simulation::cmd_move_individual(const uint32_t *unit_ids, size_t count, flo
 			// rebuild_nav_grid via set_water_from_heights -> compute_slopes_from_heights.
 			pass = PASS_CAVALRY;
 		find_path(units_.pos_x[idx], units_.pos_z[idx], dest_x, dest_z, wp, pass);
+		if (beach_goal_ && pass != PASS_SHIP && wp.count > 0) {
+			// A player's walk out to sea ends on the beach the path leads to (MakeGoalReachable).
+			auto [gcx, gcy] = nav_grid_.world_to_cell(dest_x, dest_z);
+			if (nav_grid_.cells.inside(gcx, gcy) && nav_grid_.cells.at(gcx, gcy) == NAV_WATER) {
+				units_.target_x[idx] = units_.anchor_x[idx] = wp.xs[wp.count - 1];
+				units_.target_z[idx] = units_.anchor_z[idx] = wp.zs[wp.count - 1];
+			}
+		}
 		unit_paths_[idx] = wp;
 		units_.waypoint_cur[idx] = static_cast<int16_t>(wp.cur);
 		units_.waypoint_count[idx] = static_cast<int16_t>(wp.count);
@@ -2740,10 +2748,12 @@ void Simulation::order_attack_building(const uint32_t *unit_ids_in, size_t count
 	}
 }
 
-void Simulation::order_walk(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued) {
+void Simulation::order_walk(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued, bool beach_goal) {
 	UnitOrder o; o.kind = ORDER_WALK; o.flags = ORDER_FLAG_FORCE; o.x = tx; o.z = tz;
 	const std::vector<uint32_t> now = split_queued(unit_ids, count, o, queued);
+	beach_goal_ = beach_goal;
 	cmd_move(now.data(), now.size(), tx, tz);
+	beach_goal_ = false;
 	for (uint32_t uid : now) {
 		const int32_t idx = lookup_unit(uid);
 		if (idx >= 0 && units_.alive[idx] && units_.order_kind[idx] == ORDER_WALK) units_.order_flags[idx] = ORDER_FLAG_FORCE;
@@ -5171,6 +5181,23 @@ void Simulation::move_units(float dt, Arena &arena) {
 		}
 		npx[i] = std::clamp(px[i] + move_dx, -map_half_, map_half_);
 		npz[i] = std::clamp(pz[i] + move_dz, -map_half_, map_half_);
+		// Deep water is impassable for land units (template_unit.xml passability classes).
+		// Walks get a goal on the beach from find_path; a land unit following a ship
+		// (boarding it, or chasing it) has no path, so it stops at the shore and slides
+		// along it instead of stepping off. One already in deep water may still move.
+		const int32_t followed = units_.target_unit_id[i] != 0 ? lookup_unit(units_.target_unit_id[i]) : -1;
+		if (followed >= 0 && !unit_is_ship(units_.unit_type[i]) && unit_is_ship(units_.unit_type[followed]) &&
+				!nav_grid_.cells.blank()) {
+			auto deep = [&](float x, float z) {
+				auto [cx, cy] = nav_grid_.world_to_cell(x, z);
+				return nav_grid_.cells.inside(cx, cy) && nav_grid_.cells.at(cx, cy) == NAV_WATER;
+			};
+			if (deep(npx[i], npz[i]) && !deep(px[i], pz[i])) {
+				if (!deep(npx[i], pz[i])) npz[i] = pz[i];
+				else if (!deep(px[i], npz[i])) npx[i] = px[i];
+				else { npx[i] = px[i]; npz[i] = pz[i]; }
+			}
+		}
 		// A closed gate is solid: slide along it, never step into it.
 		if (!closed_gates_.empty()) {
 			const float r = unit_collision_radius(units_.unit_type[i]);
