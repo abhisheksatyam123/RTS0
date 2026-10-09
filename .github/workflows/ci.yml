@@ -103,6 +103,12 @@ jobs:
             src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
             src/network/net_host.cpp -lpthread -o /tmp/test_naval
           /tmp/test_naval
+      - name: Dropsite sharing tests
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_dropsite_sharing.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+            src/network/net_host.cpp -lpthread -o /tmp/test_dropsite_sharing
+          /tmp/test_dropsite_sharing
       - name: Placement tests
         run: |
           g++ -std=c++20 -O2 -Isrc tools/test_placement.cpp src/simulation/simulation.cpp \
@@ -233,6 +239,13 @@ jobs:
             src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
             src/network/net_host.cpp -lpthread -o /tmp/test_building_ai
           /tmp/test_building_ai
+
+      - name: Production queue tests (0 A.D. ProductionQueue, batch training, autoqueue)
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_production_queue.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+            src/network/net_host.cpp -lpthread -o /tmp/test_production_queue
+          /tmp/test_production_queue
 
       - name: Territory decay tests
         run: |

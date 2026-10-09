@@ -34,6 +34,9 @@
 #include <godot_cpp/classes/curve.hpp>
 #include <godot_cpp/classes/curve_texture.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
+#include <godot_cpp/classes/texture2d_array.hpp>
+#include <godot_cpp/classes/image.hpp>
+#include <godot_cpp/classes/project_settings.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 #include <algorithm>
 #include <cstdint>
@@ -324,6 +327,28 @@ void RtsoWorldView::_ready() {
 		add_child(tree_mmi[k]);
 	}
 	pick_tree_kinds("mediterranean");
+	{
+		// FloraKind -> vegetation model. Bushes and saplings are small leafy trees; a date
+		// fruit supply is a short date palm. Scales as in pick_tree_kinds.
+		static_assert(FLORA_KINDS == rtso::FLORA_COUNT, "one batch per FloraKind");
+		struct Kind { const char *id; float scale; bool tree; };
+		static const Kind kKinds[FLORA_KINDS] = {
+			{ nullptr, 1.0f, true }, { "tree", 1.0f, true }, { "pine", 1.0f, true }, { "palm", 1.0f, true },
+			{ "oak", 1.15f, true }, { "baobab", 0.45f, true }, { "acacia", 0.6f, true }, { "bamboo", 1.0f, true },
+			{ "tree", 0.45f, true }, { "fruit_bush", 1.0f, false }, { "apple", 1.0f, false }, { "palm", 0.7f, false },
+		};
+		for (int k = 1; k < FLORA_KINDS; ++k) {
+			auto e = rtso::ModelLibrary::get("vegetation", kKinds[k].id);
+			if (e.mesh.is_null()) continue;
+			enable_instance_tint(e.mesh);
+			flora_mm[k] = create_multimesh(kKinds[k].tree ? wind_mesh(e.mesh) : e.mesh, true);
+			flora_scale[k] = kKinds[k].scale;
+			flora_y[k] = e.y_offset * kKinds[k].scale;
+			flora_mmi[k] = memnew(MultiMeshInstance3D);
+			flora_mmi[k]->set_multimesh(flora_mm[k]);
+			add_child(flora_mmi[k]);
+		}
+	}
 	gold_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "gold_vein").mesh), true);
 	stone_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "stone_mine").mesh), true);
 	food_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "fruit_bush").mesh), true);
@@ -905,7 +930,8 @@ void RtsoWorldView::update_fog(const rtso::Simulation *sim, float delta) {
 	mirages_.update(*sim, local_player_);
 	const int res = sim->fow_res();
 	const bool new_map = res != los_.res() || los_half_ != sim->map_half();
-	los_.set_target(sim->fow_grid(local_player_), res);
+	// The sim's per-player LOS (Simulation::los), as FogMirages built it this frame.
+	los_.set_target(mirages_.view().size() == (size_t)res * (size_t)res ? mirages_.view().data() : nullptr, res);
 	if (new_map) {
 		los_.snap();
 		los_half_ = sim->map_half();
@@ -2010,6 +2036,86 @@ void RtsoWorldView::apply_biome_environment(const std::string &biome) {
 	}
 }
 
+namespace {
+
+// 0 A.D. terrain name -> texture key (data/terrain/terrain_textures.json, written
+// by tools/map_0ad_terrains.py); the textures are assets/textures/terrain/<key>.png.
+const Dictionary &terrain_texture_table() {
+	static Dictionary table;
+	static bool loaded = false;
+	if (!loaded) {
+		loaded = true;
+		Ref<FileAccess> f = FileAccess::open("res://data/terrain/terrain_textures.json", FileAccess::READ);
+		if (f.is_valid()) {
+			const Variant v = JSON::parse_string(f->get_as_text());
+			if (v.get_type() == Variant::DICTIONARY) table = v;
+		}
+	}
+	return table;
+}
+
+// One layer of the map's terrain texture array: the named 0 A.D. terrain at
+// kTerrainLayerSize with mipmaps (every layer of a Texture2DArray shares a size
+// and format), a plain earth tone when the texture is missing.
+constexpr int kTerrainLayerSize = 256;
+Ref<Image> terrain_layer_image(const String &name) {
+	static std::unordered_map<std::string, Ref<Image>> cache;
+	const std::string key_s = name.utf8().get_data();
+	if (auto it = cache.find(key_s); it != cache.end()) return it->second;
+	const String key = terrain_texture_table().get(name, name);
+	const String path = "res://assets/textures/terrain/" + key + ".png";
+	Ref<Image> img;
+	if (ResourceLoader::get_singleton()->exists(path)) {
+		Ref<Texture2D> tex = ResourceLoader::get_singleton()->load(path);
+		if (tex.is_valid()) img = tex->get_image();
+	}
+	if (img.is_null() || img->is_empty()) img = Image::load_from_file(ProjectSettings::get_singleton()->globalize_path(path));
+	if (img.is_null() || img->is_empty()) {
+		img = Image::create_empty(kTerrainLayerSize, kTerrainLayerSize, false, Image::FORMAT_RGBA8);
+		img->fill(Color(0.46f, 0.42f, 0.33f));
+	} else {
+		img = img->duplicate();
+		if (img->is_compressed()) img->decompress();
+		img->clear_mipmaps();
+		img->convert(Image::FORMAT_RGBA8);
+		if (img->get_width() != kTerrainLayerSize || img->get_height() != kTerrainLayerSize)
+			img->resize(kTerrainLayerSize, kTerrainLayerSize, Image::INTERPOLATE_BILINEAR);
+	}
+	img->generate_mipmaps();
+	cache[key_s] = img;
+	return img;
+}
+
+// Hands the shader the sim's per-tile terrain (0 A.D. CTerrain tiles): a texture
+// array of the map's terrains and an R8 texture of each tile's layer.
+// tile_res 0 keeps the biome painting.
+void apply_terrain_tiles(const Ref<ShaderMaterial> &mat, const rtso::Simulation *sim) {
+	if (mat.is_null()) return;
+	const auto &tt = sim->terrain_tiles();
+	if (tt.empty()) {
+		mat->set_shader_parameter("tile_res", 0.0f);
+		return;
+	}
+	TypedArray<Image> layers;
+	for (const std::string &n : tt.names) layers.push_back(terrain_layer_image(String::utf8(n.c_str())));
+	Ref<Texture2DArray> arr;
+	arr.instantiate();
+	if (arr->create_from_images(layers) != OK) {
+		mat->set_shader_parameter("tile_res", 0.0f);
+		return;
+	}
+	PackedByteArray bytes;
+	bytes.resize((int64_t)tt.tiles.size());
+	std::memcpy(bytes.ptrw(), tt.tiles.data(), tt.tiles.size());
+	Ref<Image> idx = Image::create_from_data(tt.res, tt.res, false, Image::FORMAT_R8, bytes);
+	mat->set_shader_parameter("tile_layers", arr);
+	mat->set_shader_parameter("tile_index", ImageTexture::create_from_image(idx));
+	mat->set_shader_parameter("tile_res", (float)tt.res);
+	mat->set_shader_parameter("tile_half", sim->map_half());
+}
+
+} // namespace
+
 void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 	if (!sim || !terrain) return;
 	float half = sim->map_half();
@@ -2080,6 +2186,7 @@ void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 	                                  String(sim->current_map_biome().c_str()));
 	if (Ref<ShaderMaterial> tm = terrain->get_material_override(); tm.is_valid())
 		tm->set_shader_parameter("water_level", sim->water_height() > -0.5f ? sim->water_height() : -1000.0f);
+	apply_terrain_tiles(terrain->get_material_override(), sim);
 	paint_dirty_ = true;
 
 	// Water Body (water_height < -0.5 means a dry map, as in NavGrid::set_water_from_heights)
@@ -2167,7 +2274,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	auto uview = sim->units();
 	auto rview_g = sim->resources();
 	auto entity_visible = [sim, this](float x, float z, uint8_t team) {
-		return sim->is_entity_visible_to_viewer(x, z, team, local_player_);
+		return rtso::los_sees_unit(*sim, local_player_, x, z, team);
 	};
 	std::unordered_map<uint32_t, uint8_t> res_sub;
 	res_sub.reserve(rview_g.count);
@@ -2801,10 +2908,20 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	}
 
 	if (sim->current_map_biome() != tree_biome_) pick_tree_kinds(sim->current_map_biome());
-	size_t n_kind[TREE_KINDS] = {};
-	for (const auto &r : fres)
+	// A tree or fruit bush with a FloraKind whose model loaded draws in that kind's batch.
+	auto flora_of = [&](const rtso::FoggedResource &r) -> int {
+		if (r.flora == 0 || r.flora >= FLORA_KINDS || flora_mm[r.flora].is_null()) return 0;
+		if (r.subtype != rtso::RES_SUB_NONE || (r.type != rtso::RES_WOOD && r.type != rtso::RES_FOOD)) return 0;
+		return r.flora;
+	};
+	size_t n_kind[TREE_KINDS] = {}, n_flora[FLORA_KINDS] = {};
+	for (const auto &r : fres) {
+		if (const int f = flora_of(r)) { n_flora[f]++; if (r.type == rtso::RES_FOOD) fd--; continue; }
 		if (r.type == rtso::RES_WOOD && r.subtype != rtso::RES_SUB_GRAIN) n_kind[r.id % (uint32_t)tree_kind_count]++;
+	}
 	for (int k = 0; k < TREE_KINDS; ++k) tree_mm[k]->set_instance_count((int)n_kind[k]);
+	for (int k = 1; k < FLORA_KINDS; ++k)
+		if (flora_mm[k].is_valid()) flora_mm[k]->set_instance_count((int)n_flora[k]);
 	gold_mm->set_instance_count((int)g);
 	stone_mm->set_instance_count((int)st);
 	if (food_mm.is_valid())
@@ -2812,7 +2929,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	ruins_mm->set_instance_count((int)nru);
 	fish_mm->set_instance_count((int)fish_n);
 
-	size_t ia[TREE_KINDS] = {}, ig = 0, ist = 0, ifd = 0, iru = 0, ifish = 0;
+	size_t ia[TREE_KINDS] = {}, iflora[FLORA_KINDS] = {}, ig = 0, ist = 0, ifd = 0, iru = 0, ifish = 0;
 	auto e_ruins = rtso::ModelLibrary::get("buildings", "ruins");
 	String cat_veg = "vegetation";
 	String id_gold = "gold_vein"; auto e_gold = rtso::ModelLibrary::get(cat_veg, id_gold);
@@ -2828,7 +2945,12 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		const float lit = los_brightness(rx, rz);
 		const Color tint(lit, lit, lit, 1.0f);
 
-		if (r.subtype == rtso::RES_SUB_RUINS) {
+		if (const int f = flora_of(r)) {
+			const float sc = flora_scale[f];
+			Transform3D xf(rot.scaled(Vector3(sc, sc, sc)), Vector3(rx, ry + flora_y[f], rz));
+			flora_mm[f]->set_instance_transform((int)iflora[f], xf);
+			flora_mm[f]->set_instance_color((int)iflora[f]++, tint);
+		} else if (r.subtype == rtso::RES_SUB_RUINS) {
 			Transform3D xf(rot, Vector3(rx, ry + e_ruins.y_offset, rz));
 			ruins_mm->set_instance_transform((int)iru, xf);
 			ruins_mm->set_instance_color((int)iru++, tint);

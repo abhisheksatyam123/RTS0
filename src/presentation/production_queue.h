@@ -173,12 +173,16 @@ public:
 		if (found_b) {
 			for (int q = 0; q < 8; ++q) {
 				if (q < (int)found_b->queue.size()) {
-					uint8_t utype = found_b->queue[q].unit_type;
-					const auto &uinfo = rtso::unit_type_info(utype);
-					queue_slots_[q].icon->set_texture(rtso::load_ui_texture("res://assets/textures/ui/portraits/" + String(uinfo.portrait_id) + ".png"));
+					const rtso::ProductionOrder &po = found_b->queue[q];
+					// A technology shows its researcher's portrait; a batch shows its size.
+					const char *portrait = po.is_tech() ? rtso::building_type_info(found_b->type).portrait_id
+							: rtso::unit_type_info(po.unit_type < rtso::UNIT_TYPE_COUNT ? po.unit_type : 0).portrait_id;
+					queue_slots_[q].icon->set_texture(rtso::load_ui_texture("res://assets/textures/ui/portraits/" + String(portrait) + ".png"));
 					queue_slots_[q].icon->set_visible(true);
-					queue_slots_[q].chip->set_text(String::num_int64(q + 1));
-					queue_slots_[q].chip->set_visible(true);
+					queue_slots_[q].panel->set_tooltip_text(po.is_tech() ? String(rtso::tech_info(po.tech).name)
+							: String(rtso::unit_type_info(po.unit_type < rtso::UNIT_TYPE_COUNT ? po.unit_type : 0).name));
+					queue_slots_[q].chip->set_text(po.is_tech() ? String("T") : (po.count > 1 ? "x" + String::num_int64(po.count) : String()));
+					queue_slots_[q].chip->set_visible(po.is_tech() || po.count > 1);
 
 					if (q == 0) {
 						queue_slots_[q].progress->set_visible(true);

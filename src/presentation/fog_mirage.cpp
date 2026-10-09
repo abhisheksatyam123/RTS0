@@ -22,6 +22,38 @@ void FogMirages::reset() {
 	stamp_ = 0;
 }
 
+bool los_sees_all(const Simulation &sim, uint8_t viewer) {
+	return sim.reveal_map() || viewer == OBSERVER_VIEW || viewer == 0xFF || sim.is_defeated(viewer);
+}
+
+bool los_sees_unit(const Simulation &sim, uint8_t viewer, float x, float z, uint8_t team) {
+	if (los_sees_all(sim, viewer)) return true;
+	return sim.is_ally(viewer, team) || sim.los_visible(viewer, x, z);
+}
+
+void los_view_grid(const Simulation &sim, uint8_t viewer, std::vector<uint8_t> &out) {
+	const int res = sim.fow_res();
+	const size_t n = (size_t)res * (size_t)res;
+	out.resize(n);
+	if (los_sees_all(sim, viewer)) {
+		std::fill(out.begin(), out.end(), (uint8_t)Simulation::FOW_VISIBLE);
+		return;
+	}
+	const LosGrid &los = sim.los();
+	if (los.cells() != n) {
+		std::fill(out.begin(), out.end(), (uint8_t)Simulation::FOW_UNEXPLORED);
+		return;
+	}
+	const uint8_t mask = sim.los_shared_mask(viewer);
+	const uint8_t unseen = sim.explore_map() ? (uint8_t)Simulation::FOW_EXPLORED : (uint8_t)Simulation::FOW_UNEXPLORED;
+	const auto &state = los.state();
+	for (size_t i = 0; i < n; ++i) {
+		const uint16_t st = state[i];
+		out[i] = (st & mask) ? (uint8_t)Simulation::FOW_VISIBLE
+				: ((st >> 8) & mask) ? (uint8_t)Simulation::FOW_EXPLORED : unseen;
+	}
+}
+
 uint8_t FogMirages::los_at(float x, float z) const {
 	if (!los_ || res_ <= 0 || map_half_ <= 0.0f) return Simulation::FOW_VISIBLE;
 	if (x < -map_half_ || x > map_half_ || z < -map_half_ || z > map_half_)
@@ -161,7 +193,8 @@ void FogMirages::update(const Simulation &sim, uint8_t viewer) {
 	key_half_ = half;
 	key_res_ = res;
 
-	begin(sim.fow_grid(viewer), res, half);
+	los_view_grid(sim, viewer, view_);
+	begin(view_.data(), res, half);
 	for (const auto &b : sim.buildings()) {
 		FoggedBuilding f;
 		f.id = b.id;
@@ -190,6 +223,7 @@ void FogMirages::update(const Simulation &sim, uint8_t viewer) {
 		r.amount = rv.amount[i];
 		r.type = rv.type[i];
 		r.subtype = rv.subtype ? rv.subtype[i] : 0;
+		r.flora = rv.flora ? rv.flora[i] : 0;
 		add_resource(r);
 	}
 	end();

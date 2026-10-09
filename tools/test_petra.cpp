@@ -32,7 +32,8 @@
 //     for the scarcest finite resource; its trading goods favour what it lacks.
 // 11. Kush builds its Blemmye and Noba camps and Temple of Amun, Rome its
 //     Temple of Vesta (config.js buildings), and Rome researches its champion
-//     unlock and trains champions (researchWantedTechs unlock_champion).
+//     unlock and trains champions unless its population is already at the cap
+//     (researchWantedTechs unlock_champion).
 //  Exit: 0 = PASS, 1 = FAIL.
 // The ally check reads the sim's death log, which has no public accessor.
 #define private public
@@ -934,10 +935,15 @@ static void test_civ_structures() {
 				if (u.alive[i] && u.team[i] == 1 && u.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT &&
 				    (civ_unit_template(u.tmpl[i]).flags & ROSTER_CHAMPION)) champion = true;
 		}
-		std::printf("  %s by 40 min: camp %s, temple %s, champions %s\n", civ_info((Civilization)civ).name,
-		            camp ? "yes" : "no", temple ? "yes" : "no", champion ? "yes" : "no");
+		// An economy that fills the population cap before the unlock finishes has no room
+		// left to train champions in (nothing of Petra's dies once the idle player is gone).
+		const bool unlocked = s->players_[1].has_tech(TECH_UNLOCK_CHAMPION_INFANTRY) || s->players_[1].has_tech(TECH_UNLOCK_CHAMPION_CAVALRY);
+		const bool capped = s->pop_current(1) >= s->pop_cap();
+		std::printf("  %s by 40 min: camp %s, temple %s, champions %s (unlocked %s, population at its cap %s)\n",
+		            civ_info((Civilization)civ).name, camp ? "yes" : "no", temple ? "yes" : "no", champion ? "yes" : "no",
+		            unlocked ? "yes" : "no", capped ? "yes" : "no");
 		if (civ == CIV_KUSHITES) CHECK(camp && temple, "Kush builds its camps and the Temple of Amun");
-		else CHECK(temple && champion, "Rome builds the Temple of Vesta and unlocks its champions");
+		else CHECK(temple && (champion || (unlocked && capped)), "Rome builds the Temple of Vesta and unlocks its champions");
 	}
 }
 
@@ -1353,6 +1359,9 @@ static void test_repairs() {
 	CHECK(cc != nullptr, "Petra has a civic centre");
 	if (!cc) return;
 	const uint32_t cc_id = cc->id, house_id = house ? house->id : 0;
+	// Enough workers that the builder cap (0.6 of them for a civic centre under 30%) leaves
+	// room for seven repairers whatever foundations are going up at this point.
+	for (int k = 0; k < 8; ++k) s->spawn_unit(cc->x - 8.0f + (float)(k % 4), cc->z - 8.0f - (float)(k / 4), 1, UNIT_FEMALE_CITIZEN);
 	cc->hp = cc->max_hp * 0.25f;
 	if (house) house->hp = house->max_hp * 0.5f;
 	run_for(*s, 3.0f);
@@ -1376,6 +1385,67 @@ static void test_repairs() {
 	CHECK(c2 && c2->hp > c2->max_hp * 0.3f, "and heals");
 	CHECK(on_house <= 1, "a house takes one repairer at most");
 	CHECK(!house_id || (h2 && h2->hp > h2->max_hp * 0.5f), "the damaged house is repaired too");
+}
+
+// researchManager.js update: wanted techs (gather rates, capacities) in any phase,
+// preferred ones (stone and metal rates, arrows, regeneration) from the town phase,
+// then any technology at random from the city phase.
+static void test_research_choices() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const int cx = (int)(cc->x / Simulation::GRID), cz = (int)(cc->z / Simulation::GRID);
+	s->players_[1].phase = 2;
+	// Enough workers that checkPausedQueues lets minorTech run.
+	for (int k = 0; k < 12; ++k) s->spawn_unit(cc->x - 8.0f + (float)(k % 4), cc->z - 8.0f - (float)(k / 4), 1, UNIT_FEMALE_CITIZEN);
+	s->spawn_building(cx + 8, cz, BLD_STOREHOUSE, 1);
+	s->spawn_building(cx - 8, cz, BLD_FARMSTEAD, 1);
+	s->spawn_building(cx, cz + 9, BLD_FORGE, 1);
+	auto researched = [&](std::initializer_list<uint8_t> stats) {
+		int n = 0;
+		for (uint8_t t = 1; t < TECH_COUNT; ++t) {
+			if (!s->players_[1].has_tech(t)) continue;
+			const TechInfo &ti = tech_info(t);
+			for (uint16_t i = 0; i < ti.effect_count; ++i) {
+				bool hit = false;
+				for (uint8_t st : stats) hit |= tech_effects_table()[ti.effect_begin + i].stat == st;
+				if (hit) { ++n; break; }
+			}
+		}
+		return n;
+	};
+	auto forge_techs = [&] {
+		int n = 0;
+		for (uint8_t t = 1; t < TECH_COUNT; ++t) n += s->players_[1].has_tech(t) && tech_info(t).researcher == BLD_FORGE;
+		return n;
+	};
+	for (int k = 0; k < 12; ++k) {
+		s->set_player_resources(1, 5000, 5000, 5000, 5000);
+		run_for(*s, 10.0f);
+	}
+	const int eco = researched({TSTAT_GATHER_GRAIN, TSTAT_GATHER_WOOD, TSTAT_CARRY_FOOD, TSTAT_CARRY_WOOD});
+	const int mines = researched({TSTAT_GATHER_STONE, TSTAT_GATHER_METAL});
+	const int fights = forge_techs();
+	std::printf("  town phase: %d grain/wood/capacity techs, %d stone/metal techs, %d forge techs\n", eco, mines, fights);
+	CHECK(eco >= 3, "researches gather rates and capacities past the first tier");
+	CHECK(mines >= 2, "researches stone and metal rates in the town phase");
+	CHECK(fights == 0, "no random forge techs before the city phase");
+	s->players_[1].phase = 3;
+	for (int k = 0; k < 12; ++k) {
+		s->set_player_resources(1, 5000, 5000, 5000, 5000);
+		run_for(*s, 10.0f);
+	}
+	const int fights3 = forge_techs();
+	std::printf("  city phase: %d forge techs\n", fights3);
+	CHECK(fights3 >= 2, "researches other technologies at random in the city phase");
 }
 
 // victoryManager.js: in wonder victory a finished wonder is a critical entity,
@@ -1933,6 +2003,7 @@ int main() {
 	test_placement_miss_memory_exact();
 	test_defend_allies();
 	test_retake_civic_centre();
+	test_research_choices();
 	test_concurrent_attacks();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;

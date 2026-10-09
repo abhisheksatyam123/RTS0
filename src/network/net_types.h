@@ -119,7 +119,7 @@ enum class NetCommandType : uint8_t {
 	NET_CMD_PATROL        = 11,
 	NET_CMD_GARRISON      = 12,
 	NET_CMD_UNGARRISON    = 13,
-	NET_CMD_RALLY         = 14,
+	NET_CMD_RALLY         = 14, // param 1 = unset-rallypoint; NET_PARAM_QUEUED adds a position (Shift)
 	NET_CMD_ATTACK_BUILD  = 15,
 	NET_CMD_BUILD_REPAIR  = 16,
 	NET_CMD_HUNT          = 17,
@@ -177,12 +177,22 @@ enum class NetCommandType : uint8_t {
 	// their load at the nearest dropsite, then attack-walk to (target_x, target_z).
 	// param bit NET_PARAM_QUEUED queues it.
 	NET_CMD_CALL_TO_ARMS = 38,
+	// 39 is 0 A.D.'s "cheat" command (Cheat.js; turn_manager.cpp).
 	// 0 A.D. "construct-wall" (Commands.js TryConstructWall, helpers/Walls.js): the issuing
 	// player lays a WallSet wall from the point packed in target_id (Simulation::pack_wall_point)
 	// to (target_x, target_z); entity_ids build it. param bit NET_PARAM_QUEUED queues it.
 	NET_CMD_BUILD_WALL = 41,
+	// 0 A.D. "upgrade" / "cancel-upgrade" on units (Upgrade.js): entity_ids upgrade to the
+	// roster template in target_id (Simulation::cmd_upgrade_units); param 1 cancels.
+	NET_CMD_UPGRADE_UNIT = 43,
+	// 0 A.D. ProductionQueue.js EnableAutoQueue / DisableAutoQueue on structure target_id:
+	// param 1 on, 0 off. (NET_CMD_TRAIN and NET_CMD_TRAIN_TEMPLATE carry their batch size
+	// in target_z; 0, as older senders write, trains one.)
+	NET_CMD_AUTOQUEUE = 44,
+	// 0 A.D. "set-dropsite-sharing" on structure target_id: param 1 shares, 0 stops.
+	NET_CMD_SET_DROPSITE_SHARING = 45,
 	// Session control, not game commands (200+ is reserved for these; game command
-	// ids keep growing from 38). Only the host sends them, inside its own turn batch,
+	// ids keep growing from 44). Only the host sends them, inside its own turn batch,
 	// so every client learns of a seat change before the turn it affects (0 A.D.
 	// NetServerTurnManager::InitialiseClient / UninitialiseClient). The sim ignores them.
 	// A client takes a seat: target_id = client id, param = player, target_x = the
