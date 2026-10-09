@@ -798,7 +798,9 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	b.capture_points = 0.0f;
 	// 0 A.D. Capturable/TerritoryDecay template values.
 	b.max_capture_points = binfo.capture_max_points;
-	if (team < MAX_PLAYERS) b.max_capture_points *= civ_bonus_mult(civ_of(team), CIV_BONUS_BUILDING_CAPTURE_POINTS, type);
+	if (team < MAX_PLAYERS)
+		b.max_capture_points *= civ_bonus_mult(civ_of(team), CIV_BONUS_BUILDING_CAPTURE_POINTS, type) *
+		                        tech_mods(team).bld_capture[type];
 	b.capture_regen_rate = binfo.capture_regen_rate;
 	b.capture_garrison_regen_rate = binfo.capture_garrison_regen_rate;
 	b.territory_decay_rate = binfo.territory_decay_rate;
@@ -1337,8 +1339,11 @@ uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b
 	const Civilization civ = civ_of(player);
 	// Team bonuses (e.g. Persian Training Regimes, Mauryan temples) from the player and its allies.
 	const uint16_t allies = ally_civ_mask(player);
+	// ... and Cost/Resources technologies (Carthage's Colonization).
+	const float *tech_cost = tech_mods(player).bld_cost[b_type];
 	auto team = [&](ResourceType r) {
-		return civ_team_bonus_mult(civ, allies, TEAM_BONUS_BUILDING_COST, (int8_t)r, CIV_UNIT_TEMPLATE_NONE, b_type);
+		return civ_team_bonus_mult(civ, allies, TEAM_BONUS_BUILDING_COST, (int8_t)r, CIV_UNIT_TEMPLATE_NONE, b_type) *
+		       tech_cost[r];
 	};
 	const float wood = binfo.wood_cost * civ_bonus_mult(civ, CIV_BONUS_BUILDING_WOOD_COST, b_type) * team(RES_WOOD);
 	const float stone = binfo.stone_cost * civ_bonus_mult(civ, CIV_BONUS_BUILDING_STONE_COST, b_type) * team(RES_STONE);
@@ -1530,8 +1535,11 @@ void Simulation::unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo 
 	if (pid >= MAX_PLAYERS) return;
 	const uint8_t civ = players_[pid].civ;
 	const uint16_t allies = ally_civ_mask(pid);
+	// Cost/Resources technologies (e.g. Hippocratic Oath's free healers) by the template's own classes.
+	const float *tech_cost = tmpl < CIV_UNIT_TEMPLATE_COUNT ? tech_mods(pid).tmpl[tmpl].cost : nullptr;
 	for (int r = 0; r < RES_COUNT; ++r)
-		out[r] = std::round(out[r] * civ_team_bonus_mult(civ, allies, TEAM_BONUS_UNIT_COST, (int8_t)r, tmpl));
+		out[r] = std::round(out[r] * civ_team_bonus_mult(civ, allies, TEAM_BONUS_UNIT_COST, (int8_t)r, tmpl) *
+		                    (tech_cost ? tech_cost[r] : 1.0f));
 }
 
 bool Simulation::cmd_cancel_train(uint8_t player_id, uint32_t building_id, size_t queue_idx) {
@@ -1751,7 +1759,8 @@ void Simulation::finish_upgrade(Building &b) {
 	b.max_hp = structure_max_hp(to, b.team);
 	b.hp = b.max_hp * health_level;
 	float new_capture = ninfo.capture_max_points;
-	if (b.team < MAX_PLAYERS) new_capture *= civ_bonus_mult(civ_of(b.team), CIV_BONUS_BUILDING_CAPTURE_POINTS, to);
+	if (b.team < MAX_PLAYERS)
+		new_capture *= civ_bonus_mult(civ_of(b.team), CIV_BONUS_BUILDING_CAPTURE_POINTS, to) * tech_mods(b.team).bld_capture[to];
 	if (b.max_capture_points > 0.0f) {
 		const float scale = new_capture / b.max_capture_points;
 		for (float &c : b.capture_points_by_team) c *= scale;
@@ -1796,8 +1805,10 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		m.train_time[t] = m.heal_interval[t] = m.trade_gain[t] = m.pack_time[t] = 1.0f;
 		m.range[t] = m.heal_range[t] = m.regen[t] = m.idle_regen[t] = 0.0f;
 		m.armor[t][0] = m.armor[t][1] = m.armor[t][2] = 0.0f;
-	}	for (auto &tm : m.tmpl) {
+	}
+	for (auto &tm : m.tmpl) {
 		for (float &g : tm.gather) g = 1.0f;
+		for (float &c : tm.cost) c = 1.0f;
 		tm.attack = tm.health = tm.speed = tm.train_time = 1.0f;
 		tm.range = tm.armor[0] = tm.armor[1] = tm.armor[2] = 0.0f;
 	}
@@ -1806,6 +1817,8 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		m.bld_health[b] = m.bld_attack[b] = m.bld_build_time[b] = m.bld_pop_bonus[b] = 1.0f;
 		m.bld_research_time[b] = m.bld_arrow_mul[b] = 1.0f;
 		m.bld_range[b] = m.bld_arrow_add[b] = m.bld_garrison_heal[b] = 0.0f;
+		m.bld_capture[b] = 1.0f;
+		for (float &c : m.bld_cost[b]) c = 1.0f;
 	}
 	if (player_id >= MAX_PLAYERS) return;
 	const PlayerState &ps = players_[player_id];
@@ -1816,7 +1829,12 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		const TechEffect *fx = tech_effects_table() + ti.effect_begin;
 		for (uint16_t k = 0; k < ti.effect_count; ++k) {
 			const TechEffect &e = fx[k];
-			auto apply = [&](float &v) { v = (e.op == TOP_MUL) ? v * e.value : v + e.value; };
+			auto apply = [&](float &v) {
+				v = (e.op == TOP_MUL) ? v * e.value : (e.op == TOP_SET) ? e.value : v + e.value;
+			};
+			// Cost/Resources/<res>: TechStat order is food, wood, stone, metal.
+			const int cost_res = e.stat == TSTAT_COST_FOOD ? RES_FOOD : e.stat == TSTAT_COST_WOOD ? RES_WOOD
+				: e.stat == TSTAT_COST_STONE ? RES_STONE : e.stat == TSTAT_COST_METAL ? RES_GOLD : -1;
 			for (uint8_t t = 0; t < UNIT_TYPE_COUNT; ++t) {
 				if (!tech_effect_applies(e, unit_tech_classes(t))) continue;
 				const UnitTypeInfo &ui = unit_type_info(t);
@@ -1877,6 +1895,8 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_SPEED: apply(tm.speed); break;
 					case TSTAT_RANGE: if (ranged) apply(tm.range); break;
 					case TSTAT_BUILD_TIME: apply(tm.train_time); break;
+					case TSTAT_COST_FOOD: case TSTAT_COST_WOOD: case TSTAT_COST_STONE: case TSTAT_COST_METAL:
+						apply(tm.cost[cost_res]); break;
 					default: break;
 				}
 			}
@@ -1895,6 +1915,9 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 						else m.bld_arrow_add[b] += e.value;
 						break;
 					case TSTAT_GARRISON_HEAL: apply(m.bld_garrison_heal[b]); break;
+					case TSTAT_CAPTURE_POINTS: apply(m.bld_capture[b]); break;
+					case TSTAT_COST_FOOD: case TSTAT_COST_WOOD: case TSTAT_COST_STONE: case TSTAT_COST_METAL:
+						apply(m.bld_cost[b][cost_res]); break;
 					default: break;
 				}
 			}
@@ -1960,6 +1983,13 @@ void Simulation::complete_research(uint8_t player_id, uint8_t tech_id) {
 		if (r != 1.0f) {
 			b.max_hp *= r;
 			b.hp *= r;
+		}
+		// Capturable.js OnValueModification: every side's points scale with the new maximum.
+		const float cr = m.bld_capture[b.type] / old.bld_capture[b.type];
+		if (cr != 1.0f) {
+			b.max_capture_points *= cr;
+			b.capture_points *= cr;
+			for (float &p : b.capture_points_by_team) p *= cr;
 		}
 	}
 }
@@ -2214,6 +2244,9 @@ void Simulation::order_trade(const uint32_t *unit_ids, size_t count, uint32_t ma
 			auto dit = building_id_to_idx_.find(leg == 0 ? market_a_id : market_b_id);
 			units_.action_state[uidx] = ACTION_TRADE;
 			units_.has_order[uidx] = 1;
+			// The order it resumes may follow another (a queued walk): it is trading again.
+			set_order(uidx, ORDER_TRADE, 0, market_a_id, bA.x, bA.z);
+			units_.order_x2[uidx] = o.x2;
 			units_.target_unit_id[uidx] = 0;
 			units_.target_building_id[uidx] = 0;
 			units_.waypoint_cur[uidx] = units_.waypoint_count[uidx] = 0;
@@ -3551,7 +3584,22 @@ void Simulation::order_ungarrison(uint32_t building_id) {
 			if (turret) leave_turret((size_t)idx, b);
 		}
 	}
+	const std::vector<uint32_t> out = std::move(b.garrisoned_units);
 	b.garrisoned_units.clear();
+	for (uint32_t uid : out) rally_after_ungarrison(uid, b.id);
+}
+
+// Garrisonable.UnGarrison: UnitAI.Ungarrison replaces whatever was queued behind the
+// garrison order, then RallyPoint.OrderToRallyPoint(ent, ["garrison"]) has the unit
+// obey its owner's rally point, unless that only says to garrison back in here.
+void Simulation::rally_after_ungarrison(uint32_t uid, uint32_t building_id) {
+	order_queues_.erase(uid);
+	auto bit = building_id_to_idx_.find(building_id);
+	if (bit == building_id_to_idx_.end()) return;
+	const Building &b = buildings_[bit->second];
+	const int32_t i = lookup_unit(uid);
+	if (i < 0 || !b.has_rally_point || units_.team[i] != b.team) return;
+	apply_rally_point(uid, b, true);
 }
 
 void Simulation::order_ungarrison_single(uint32_t building_id, uint32_t unit_id) {
@@ -3576,6 +3624,30 @@ void Simulation::order_ungarrison_single(uint32_t building_id, uint32_t unit_id)
 			if (turret) leave_turret((size_t)idx, b);
 		}
 		b.garrisoned_units.erase(it);
+		rally_after_ungarrison(unit_id, building_id);
+	}
+}
+
+void Simulation::cmd_unload(uint8_t player, uint32_t building_id, const uint32_t *unit_ids, size_t count) {
+	auto bit = building_id_to_idx_.find(building_id);
+	if (bit == building_id_to_idx_.end()) return;
+	const Building &b = buildings_[bit->second];
+	const bool owner = b.team == player;
+	if (!owner && !is_ally(player, b.team)) return;
+	if (owner && count == 0) {
+		order_ungarrison(building_id);
+		return;
+	}
+	std::vector<uint32_t> out;
+	if (count == 0) {
+		out = b.garrisoned_units;
+	} else {
+		out.assign(unit_ids, unit_ids + count);
+	}
+	for (uint32_t uid : out) {
+		const int32_t i = lookup_unit(uid);
+		if (i < 0 || (!owner && units_.team[i] != player)) continue;
+		order_ungarrison_single(building_id, uid);
 	}
 }
 
@@ -6216,6 +6288,7 @@ void Simulation::capture_points_tick(Building &b, size_t bi, float dt) {
 		int best = 0;
 		for (int t = 1; t <= GAIA; ++t) if (pts[t] > pts[best]) best = t;
 		if (best == owner) return false;
+		b.has_rally_point = false; // RallyPoint.OnOwnershipChanged -> Reset
 		order_ungarrison(b.id);
 		cancel_upgrade(b, b.team);
 		b.team = best == GAIA ? GAIA_PLAYER : (uint8_t)best;
@@ -7304,7 +7377,7 @@ static bool can_gather_type(uint8_t t) {
 
 // 0 A.D. RallyPoint + Commands.js: a trained unit does what the rally target asks
 // for, if it can (gather, build, garrison, attack), and walks there otherwise.
-void Simulation::apply_rally_point(uint32_t uid, const Building &b) {
+void Simulation::apply_rally_point(uint32_t uid, const Building &b, bool ignore_self_garrison) {
 	const int32_t i = lookup_unit(uid);
 	if (i < 0) return;
 	const uint8_t ut = units_.unit_type[i];
@@ -7321,6 +7394,7 @@ void Simulation::apply_rally_point(uint32_t uid, const Building &b) {
 					order_build_or_repair(&uid, 1, t.id);
 					return;
 				}
+				if (ignore_self_garrison && t.id == b.id) return;
 				if ((int)t.garrisoned_units.size() < t.garrison_cap) {
 					order_garrison(&uid, 1, t.id);
 					return;
