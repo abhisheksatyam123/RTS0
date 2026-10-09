@@ -64,6 +64,11 @@ enum TriggerAction : uint16_t {
 	TRIGGER_ACTION_TREASURE_ISLANDS_COLLECTED = 11, // TreasureCollected
 	TRIGGER_ACTION_TREASURE_ISLANDS_BATTLE = 12,    // BattleMessage
 	TRIGGER_ACTION_TREASURE_ISLANDS_VICTORY = 13,   // Victory(playerID = arg)
+	// maps/random/survivalofthefittest_triggers.js
+	TRIGGER_ACTION_SURVIVAL_INIT = 14,             // InitSurvival
+	TRIGGER_ACTION_SURVIVAL_WAVE = 15,             // StartAnEnemyWave
+	TRIGGER_ACTION_SURVIVAL_TREASURES = 16,        // PlaceTreasures
+	TRIGGER_ACTION_SURVIVAL_OWNERSHIP = 17,        // OnOwnershipChanged
 	TRIGGER_ACTION_COUNT
 };
 
@@ -110,7 +115,8 @@ struct TriggerPoint {
 	float x = 0.0f;
 	float z = 0.0f;
 	uint8_t ref = 0;
-	uint8_t reserved[3] = {};
+	uint8_t owner = 0xFE;   // the point entity's owner: a player id, or 0xFE (GAIA_PLAYER); saves before v50 load 0
+	uint8_t reserved[2] = {};
 };
 static_assert(sizeof(TriggerPoint) == 12, "TriggerPoint is saved raw: keep it free of padding");
 
@@ -134,6 +140,18 @@ struct TriggerAttackOrder {
 };
 static_assert(sizeof(TriggerAttackOrder) == 20, "TriggerAttackOrder is saved raw: keep it free of padding");
 
+// An entity a script follows for OnOwnershipChanged: when its owner changes (captured,
+// turned Gaia, or destroyed: 0xFF, 0 A.D.'s INVALID_PLAYER) the event fires with
+// from = owner and to = the new owner. role and player are the script's own labels.
+struct TriggerWatch {
+	uint32_t id = 0;
+	uint8_t owner = 0xFF;
+	uint8_t building = 0; // 1: a structure id, 0: a unit id
+	uint8_t role = 0;
+	uint8_t player = 0;
+};
+static_assert(sizeof(TriggerWatch) == 8, "TriggerWatch is saved raw: keep it free of padding");
+
 struct TriggerState {
 	uint32_t time_ms = 0;       // Timer.js GetTime(): simulation time since the match started
 	uint32_t next_timer_id = 1; // Timer.js id counter
@@ -151,6 +169,12 @@ struct TriggerState {
 	// cmpPlayer.SetDisabledTechnologies, per player: a 256-bit set of tech ids.
 	uint64_t disabled_techs[8][4] = {};
 	std::vector<TriggerAttackOrder> attack_orders;
+	// cmpPlayer.SetDisabledTemplates: structures (bld_bit of BuildingType) and unit roster
+	// templates each player may not build or train.
+	uint64_t disabled_buildings[8] = {};
+	std::vector<uint16_t> disabled_templates; // for every player (the ported scripts disable the same ones for all)
+	std::vector<uint32_t> invulnerable;       // Resistance.SetInvulnerability(true): unit ids
+	std::vector<TriggerWatch> watched;
 
 	void clear() { *this = TriggerState(); }
 	bool active() const { return !triggers.empty() || !timers.empty(); }
@@ -194,9 +218,10 @@ struct TriggerState {
 		if (r.timer_id) { cancel_timer(r.timer_id); r.timer_id = 0; }
 	}
 
-	void add_point(uint8_t ref, float x, float z) {
+	void add_point(uint8_t ref, float x, float z, uint8_t owner = 0xFE) {
 		TriggerPoint p;
 		p.ref = ref;
+		p.owner = owner;
 		p.x = x;
 		p.z = z;
 		points.push_back(p);
@@ -216,6 +241,17 @@ struct TriggerState {
 	}
 	bool tech_disabled(uint8_t player, uint8_t tech) const {
 		return player < 8 && ((disabled_techs[player][tech >> 6] >> (tech & 63)) & 1u);
+	}
+	bool building_disabled(uint8_t player, uint8_t type) const {
+		return player < 8 && type < 64 && ((disabled_buildings[player] >> type) & 1u);
+	}
+	bool template_disabled(uint16_t tmpl) const {
+		for (uint16_t t : disabled_templates) if (t == tmpl) return true;
+		return false;
+	}
+	bool is_invulnerable(uint32_t id) const {
+		for (uint32_t u : invulnerable) if (u == id) return true;
+		return false;
 	}
 
 	// Index of the timer with this id, or -1 (it ran out or was cancelled).
@@ -247,6 +283,13 @@ struct TriggerState {
 		for (int32_t v : vars) mix((uint32_t)v);
 		for (const auto &p : disabled_techs)
 			for (uint64_t w : p) { mix((uint32_t)w); mix((uint32_t)(w >> 32)); }
+		for (uint64_t w : disabled_buildings) { mix((uint32_t)w); mix((uint32_t)(w >> 32)); }
+		mix((uint32_t)disabled_templates.size());
+		for (uint16_t t : disabled_templates) mix(t);
+		mix((uint32_t)invulnerable.size());
+		for (uint32_t u : invulnerable) mix(u);
+		mix((uint32_t)watched.size());
+		for (const auto &w : watched) { mix(w.id); mix(w.owner); mix(w.role); }
 		mix((uint32_t)attack_orders.size());
 		for (const auto &o : attack_orders) {
 			mix(o.fauna_id); mix(o.count);
