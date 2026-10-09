@@ -1,7 +1,7 @@
 // 0 A.D. ResourceTrickle.js: the Wonder (1 of each every 2 s), the Han Imperial Ministry
 // (0.1 wood, stone and metal every 2 s), animals garrisoned in a corral (1, 2 or 3 food
 // every 5 s by size, at most 8 animals) and the Ptolemaic team bonus (+1 food a second).
-// Farmsteads and markets trickle nothing.
+// Farmsteads and markets trickle nothing. Corrals train their civ's animals.
 //   g++ -std=c++20 -O2 -Isrc tools/test_trickle.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_trickle && /tmp/test_trickle
@@ -118,6 +118,37 @@ int main() {
 		CHECK(near(s.players_[0].res[RES_FOOD] - f0, 10.0f));
 		CHECK(near(s.players_[1].res[RES_FOOD] - f1, 0.0f));
 		std::printf("ptolemies +%.1f food in 10 s, their enemy +%.1f\n", s.players_[0].res[RES_FOOD] - f0, s.players_[1].res[RES_FOOD] - f1);
+	}
+
+	// 6. The corral trains its civ's animals at their 0 A.D. cost and time: an Athenian cow
+	//    is 150 food and 60 s (45 s after Stockbreeding) and is penned when it comes out;
+	//    a Han corral has no sheep and trains its first animal (a goat) instead; cancelling
+	//    refunds the animal's cost.
+	{
+		fresh(s);
+		const uint32_t c = s.spawn_building_world(10.0f, 10.0f, BLD_CORRAL, 0, 1.0f);
+		s.players_[0].res[RES_FOOD] = 1000.0f;
+		CHECK(s.cmd_breed_livestock(0, c, FAUNA_CATTLE_COW_TRAINABLE));
+		CHECK(near(s.players_[0].res[RES_FOOD], 850.0f));
+		const auto &q = s.buildings_[s.building_id_to_idx_.at(c)].queue;
+		CHECK(q.size() == 1 && q[0].tmpl == FAUNA_CATTLE_COW_TRAINABLE && near(q[0].duration, 60.0f));
+		CHECK(!s.cmd_breed_livestock(1, c, FAUNA_GOAT_TRAINABLE)); // not the owner
+		s.complete_research(0, TECH_GATHER_ANIMALS_STOCKBREEDING);
+		CHECK(near(s.livestock_train_time(0, FAUNA_CATTLE_COW_TRAINABLE), 45.0f));
+		CHECK(s.cmd_breed_livestock(0, c, FAUNA_DEER)); // not on the list: the civ's sheep
+		CHECK(q.size() == 2 && q[1].tmpl == FAUNA_SHEEP_TRAINABLE && near(q[1].duration, 30.0f));
+		CHECK(near(s.players_[0].res[RES_FOOD], 800.0f));
+		CHECK(s.cmd_cancel_train(0, c, 1));
+		CHECK(near(s.players_[0].res[RES_FOOD], 850.0f));
+		run(s, 61.0f);
+		CHECK(s.corral_count(c) == 1);
+		bool cow = false;
+		for (size_t f = 0; f < s.fauna_.count; ++f)
+			cow |= s.fauna_.alive[f] && s.fauna_.fauna_type[f] == FAUNA_CATTLE_COW_TRAINABLE && s.fauna_.corral_id[f] == c;
+		CHECK(cow);
+		CHECK(Simulation::corral_animal_for(CIV_HAN, FAUNA_SHEEP_TRAINABLE) == FAUNA_GOAT_TRAINABLE);
+		CHECK(Simulation::corral_animal_for(CIV_KUSHITES, FAUNA_CATTLE_SANGA_TRAINABLE) == FAUNA_CATTLE_SANGA_TRAINABLE);
+		std::printf("corral: cow 150 food, 60 s; penned on arrival\n");
 	}
 
 	if (failures) {

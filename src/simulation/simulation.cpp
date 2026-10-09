@@ -1631,7 +1631,8 @@ bool Simulation::cmd_cancel_train(uint8_t player_id, uint32_t building_id, size_
 	PlayerState &ps = players_[player_id];
 	uint8_t utype = b.queue[queue_idx].unit_type;
 	if (utype == UNIT_TYPE_NONE) {
-		ps.refund(60.0f, 30.0f, 0.0f, 0.0f);
+		const FaunaTrainCost &c = fauna_train_cost(corral_animal_for(civ_of(b.team), b.queue[queue_idx].tmpl));
+		ps.refund((float)c.res[0], (float)c.res[1], (float)c.res[3], (float)c.res[2]);
 		b.queue.erase(b.queue.begin() + queue_idx);
 		return true;
 	}
@@ -3993,14 +3994,48 @@ void Simulation::order_herd(const uint32_t *unit_ids, size_t count, uint32_t fau
 	}
 }
 
-bool Simulation::cmd_breed_livestock(uint8_t player_id, uint32_t building_id) {
+// The animal a corral of `civ` trains for `ftype`: ftype itself when the civ's corral
+// lists it (structures/<civ>/corral.xml Trainer/Entities), else the civ's sheep, else its
+// first animal. Corral queue entries keep their animal in ProductionOrder::tmpl.
+uint8_t Simulation::corral_animal_for(uint8_t civ, uint16_t ftype) {
+	const CorralTrainable &ct = CORRAL_TRAINABLE[civ < CIV_COUNT ? civ : 0];
+	for (uint8_t k = 0; k < ct.count; ++k)
+		if (ct.fauna[k] == ftype) return ct.fauna[k];
+	for (uint8_t k = 0; k < ct.count; ++k)
+		if (ct.fauna[k] == FAUNA_SHEEP_TRAINABLE) return ct.fauna[k];
+	return ct.count ? ct.fauna[0] : (uint8_t)FAUNA_SHEEP_TRAINABLE;
+}
+
+// Cost/BuildTime of a trained animal, after Stockbreeding (Domestic Cost/BuildTime x0.75).
+float Simulation::livestock_train_time(uint8_t player_id, uint8_t ftype) const {
+	float t = fauna_train_cost(ftype).time;
+	if (player_id >= MAX_PLAYERS) return t;
+	const PlayerState &ps = players_[player_id];
+	for (uint8_t id = 1; id < TECH_COUNT; ++id) {
+		if (!ps.has_tech(id)) continue;
+		const TechInfo &ti = tech_info(id);
+		const TechEffect *fx = tech_effects_table() + ti.effect_begin;
+		for (uint16_t k = 0; k < ti.effect_count; ++k) {
+			const TechEffect &e = fx[k];
+			if (e.stat != TSTAT_BUILD_TIME || !tech_effect_applies(e, TC_DOMESTIC)) continue;
+			t = (e.op == TOP_MUL) ? t * e.value : (e.op == TOP_SET) ? e.value : t + e.value;
+		}
+	}
+	return t;
+}
+
+bool Simulation::cmd_breed_livestock(uint8_t player_id, uint32_t building_id, uint8_t ftype) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return false;
 	Building &b = buildings_[bit->second];
 	if (b.team != player_id || b.build_progress < 1.0f || b.type != BLD_CORRAL) return false;
 	if (b.queue.size() >= 8) return false;
-	if (!player(b.team).pay(60.0f, 30.0f, 0.0f, 0.0f)) return false;
-	b.queue.push_back({(uint8_t)UNIT_TYPE_NONE, 0.0f, 15.0f});
+	const uint8_t animal = corral_animal_for(civ_of(b.team), ftype);
+	const FaunaTrainCost &c = fauna_train_cost(animal);
+	if (!player(b.team).pay((float)c.res[0], (float)c.res[1], (float)c.res[3], (float)c.res[2])) return false;
+	ProductionOrder o{(uint8_t)UNIT_TYPE_NONE, 0.0f, livestock_train_time(player_id, animal)};
+	o.tmpl = animal;
+	b.queue.push_back(o);
 	return true;
 }
 
@@ -5744,11 +5779,11 @@ void Simulation::tick_production(float dt) {
 				b.queue.erase(b.queue.begin());
 
 				if (b.type == BLD_CORRAL || utype == UNIT_TYPE_NONE) {
-					// Domestic livestock bred in Corral (Corral.js)
+					// An animal from the corral's Trainer list; it stays penned while there is room.
 					float sx = b.x + 1.6f;
 					float sz = b.z + 1.6f;
 					const bool room = corral_count(b.id) < CORRAL_GARRISON_MAX;
-					uint32_t fid = spawn_fauna(sx, sz, FAUNA_SHEEP);
+					uint32_t fid = spawn_fauna(sx, sz, corral_animal_for(civ_of(b.team), otmpl));
 					auto fit = fauna_id_to_idx_.find(fid);
 					if (room && fit != fauna_id_to_idx_.end()) {
 						size_t fidx = fit->second;

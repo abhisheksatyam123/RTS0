@@ -464,7 +464,9 @@ public:
 
 	// Livestock & Corrals (Corral.js)
 	void order_herd(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
-	bool cmd_breed_livestock(uint8_t player, uint32_t building_id);
+	bool cmd_breed_livestock(uint8_t player, uint32_t building_id, uint8_t ftype = FAUNA_SHEEP_TRAINABLE);
+	static uint8_t corral_animal_for(uint8_t civ, uint16_t ftype);
+	float livestock_train_time(uint8_t player, uint8_t ftype) const;
 
 	// Naval Transport Logistics (GarrisonHolder.js / UnitAI.js)
 	static constexpr int TRANSPORT_CAPACITY = 30; // 0 A.D. template_unit_ship_warship_arrow GarrisonHolder Max
