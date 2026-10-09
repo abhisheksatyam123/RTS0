@@ -2844,7 +2844,8 @@ void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint
 	const uint8_t flags = sub_bits | (force ? ORDER_FLAG_FORCE : 0);
 	UnitOrder o; o.kind = ORDER_GATHER; o.flags = flags; o.target = resource_id; o.x = rx; o.z = rz;
 	o.res_type = (uint8_t)(resources_.type[ridx] + 1);
-	const std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
+	std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
+	if (!queued && force && !formations_.empty()) now = formation_take_task(now, FTASK_GATHER, resource_id);
 	const uint32_t *unit_ids = now.data();
 	const size_t count = now.size();
 
@@ -3000,7 +3001,8 @@ void Simulation::order_build_or_repair(const uint32_t *unit_ids_in, size_t count
 	if (bit == building_id_to_idx_.end()) return;
 	const Building &b = buildings_[bit->second];
 	UnitOrder o; o.kind = ORDER_BUILD; o.flags = force ? ORDER_FLAG_FORCE : 0; o.target = building_id; o.x = b.x; o.z = b.z;
-	const std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
+	std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
+	if (!queued && force && !formations_.empty()) now = formation_take_task(now, FTASK_REPAIR, building_id);
 	const uint32_t *unit_ids = now.data();
 	const size_t count = now.size();
 
@@ -3562,6 +3564,21 @@ void Simulation::formation_merge_twins() {
 }
 
 bool Simulation::formation_target_pos(const FormationController &fc, float &x, float &z) const {
+	const uint8_t task = formation_task(fc);
+	if (task == FTASK_GATHER) { // the resource still has something to gather
+		auto rit = res_id_to_idx_.find(fc.target_unit);
+		if (rit == res_id_to_idx_.end() || !resources_.alive[rit->second] || resources_.amount[rit->second] <= 0) return false;
+		x = resources_.x[rit->second];
+		z = resources_.z[rit->second];
+		return true;
+	}
+	if (task == FTASK_HEAL) { // TargetIsAlive, an ally's
+		const int32_t t = lookup_unit(fc.target_unit);
+		if (t < 0 || !units_.alive[t] || (units_.team[t] != fc.owner && !is_ally(fc.owner, units_.team[t]))) return false;
+		x = units_.pos_x[t];
+		z = units_.pos_z[t];
+		return true;
+	}
 	if (fc.target_unit) {
 		const int32_t t = lookup_unit(fc.target_unit);
 		if (t < 0 || !units_.alive[t] || !can_attack(fc.owner, units_.team[t])) return false;
@@ -3583,12 +3600,29 @@ bool Simulation::formation_target_in_range(const FormationController &fc) const 
 	// largest member range, plus half the formation's depth for the front row.
 	float tx, tz;
 	if (!formation_target_pos(fc, tx, tz)) return false;
+	const uint8_t task = formation_task(fc);
+	if (task != FTASK_ATTACK) {
+		// Order.Gather/Repair/Heal: CheckTargetRangeExplicit(target, 0, 10) from the controller;
+		// Order.Garrison: the holder's LoadingRange (Garrisonable GetRange).
+		float dist;
+		if (fc.target_building) {
+			const Building &b = buildings_[building_id_to_idx_.at(fc.target_building)];
+			const float dx = std::max(0.0f, std::fabs(fc.x - b.x) - b.half_size);
+			const float dz = std::max(0.0f, std::fabs(fc.z - b.z) - b.half_size);
+			dist = std::hypot(dx, dz);
+		} else {
+			dist = std::hypot(tx - fc.x, tz - fc.z);
+		}
+		const float range = task == FTASK_GARRISON ? GARRISON_LOADING_RANGE + nav::kClearanceExtensionRadius
+				: 10.0f * FORMATION_METRE;
+		return dist <= range;
+	}
 	float range = 0.0f;
 	for (uint32_t id : fc.members) {
 		const int32_t idx = lookup_unit(id);
 		if (idx < 0 || !units_.alive[idx]) continue;
 		float r = units_.attack_damage[idx] > 0.0f ? units_.attack_range[idx] : 0.0f;
-		if (fc.target_building && fc.allow_capture && unit_capture_strength(units_.unit_type[idx]) > 0.0f)
+		if (fc.target_building && (fc.task_flags & FTASK_CAPTURE) && unit_capture_strength(units_.unit_type[idx]) > 0.0f)
 			r = std::max(r, CAPTURE_RANGE);
 		range = std::max(range, r);
 	}
@@ -3609,18 +3643,31 @@ bool Simulation::formation_target_in_range(const FormationController &fc) const 
 }
 
 void Simulation::formation_members_attack(size_t ci) {
-	// COMBAT.APPROACHING MovementUpdate: CallMemberFunction("Attack"), then MEMBER waits for them.
+	// COMBAT.APPROACHING MovementUpdate: CallMemberFunction("Attack"), then MEMBER waits for
+	// them; Order.Gather/Repair/Heal and GARRISON.GARRISONING hand the members their own order
+	// (not queued, not forced) the same way.
 	FormationController &fc = formations_[ci];
 	for (FormationSlot &sl : fc.slots) sl.following = 0;
 	const std::vector<uint32_t> members = fc.members;
 	const uint32_t tu = fc.target_unit, tb = fc.target_building;
-	const bool capture = fc.allow_capture != 0;
+	const bool capture = (fc.task_flags & FTASK_CAPTURE) != 0;
+	const uint8_t task = formation_task(fc);
 	fc.order = FORDER_MEMBER;
 	fc.returning = FORDER_IDLE;
 	fc.member_timer = 0.0f;
 	fc.path.clear();
-	if (tu) attack_unit_one_by_one(members.data(), members.size(), tu);
-	else attack_building_one_by_one(members.data(), members.size(), tb, capture);
+	const bool was = formation_acting_;
+	formation_acting_ = true;
+	switch (task) {
+		case FTASK_GATHER: order_gather(members.data(), members.size(), tu, false, false); break;
+		case FTASK_REPAIR: order_build_or_repair(members.data(), members.size(), tb, false, false); break;
+		case FTASK_GARRISON: order_garrison(members.data(), members.size(), tb, false); break;
+		case FTASK_HEAL: order_heal(members.data(), members.size(), tu, false); break;
+		default:
+			if (tu) attack_unit_one_by_one(members.data(), members.size(), tu);
+			else attack_building_one_by_one(members.data(), members.size(), tb, capture);
+	}
+	formation_acting_ = was;
 }
 
 std::vector<uint32_t> Simulation::formation_take_attack(const std::vector<uint32_t> &ids, uint32_t target_unit,
@@ -3639,7 +3686,7 @@ std::vector<uint32_t> Simulation::formation_take_attack(const std::vector<uint32
 		FormationController &fc = formations_[ci];
 		fc.target_unit = target_unit;
 		fc.target_building = target_building;
-		fc.allow_capture = allow_capture ? 1 : 0;
+		fc.task_flags = (uint8_t)((FTASK_ATTACK << FTASK_SHIFT) | (allow_capture ? FTASK_CAPTURE : 0));
 		fc.returning = FORDER_IDLE;
 		float tx, tz;
 		if (!formation_target_pos(fc, tx, tz)) continue;
@@ -3652,6 +3699,54 @@ std::vector<uint32_t> Simulation::formation_take_attack(const std::vector<uint32
 		fc.order = FORDER_APPROACH;
 		formation_move_members_into(ci, true, true);
 		for (uint32_t id : fc.members) { // members walk in formation, not drawn off by other foes
+			const int32_t idx = lookup_unit(id);
+			if (idx >= 0) set_order((size_t)idx, ORDER_WALK, ORDER_FLAG_FORCE, 0, fc.goal_x, fc.goal_z);
+		}
+	}
+	return individual;
+}
+
+std::vector<uint32_t> Simulation::formation_take_task(const std::vector<uint32_t> &ids, uint8_t task, uint32_t target) {
+	// Only formations ordered as a whole (a player's selection of them) take the order; a
+	// member ordered on its own (UnitAI follow-ups, rally points) does the work as it is.
+	std::vector<uint32_t> individual;
+	if (formation_acting_) return ids;
+	std::vector<uint32_t> fids;
+	for (const FormationController &fc : formations_) {
+		bool whole = !fc.members.empty();
+		for (uint32_t id : fc.members)
+			if (std::find(ids.begin(), ids.end(), id) == ids.end()) { whole = false; break; }
+		if (whole) fids.push_back(fc.id);
+	}
+	if (fids.empty()) return ids;
+	for (uint32_t id : ids) {
+		const uint32_t f = formation_of_unit(id);
+		if (std::find(fids.begin(), fids.end(), f) == fids.end()) individual.push_back(id);
+	}
+	for (uint32_t fid : fids) {
+		size_t ci = formations_.size();
+		for (size_t j = 0; j < formations_.size(); ++j)
+			if (formations_[j].id == fid) { ci = j; break; }
+		if (ci == formations_.size()) continue;
+		FormationController &fc = formations_[ci];
+		formation_delete_twins(fc);
+		const bool on_unit = task == FTASK_GATHER || task == FTASK_HEAL;
+		fc.target_unit = on_unit ? target : 0;
+		fc.target_building = on_unit ? 0 : target;
+		fc.task_flags = (uint8_t)(task << FTASK_SHIFT);
+		fc.returning = FORDER_IDLE;
+		float tx, tz;
+		if (!formation_target_pos(fc, tx, tz)) continue;
+		if (formation_target_in_range(fc)) {
+			formation_members_attack(ci);
+			continue;
+		}
+		// Out of range: WalkToTargetRange / GARRISON.APPROACHING, in formation.
+		fc.goal_x = std::clamp(tx, -map_half_ + 1.0f, map_half_ - 1.0f);
+		fc.goal_z = std::clamp(tz, -map_half_ + 1.0f, map_half_ - 1.0f);
+		fc.order = FORDER_APPROACH;
+		formation_move_members_into(ci, true, true);
+		for (uint32_t id : fc.members) {
 			const int32_t idx = lookup_unit(id);
 			if (idx >= 0) set_order((size_t)idx, ORDER_WALK, ORDER_FLAG_FORCE, 0, fc.goal_x, fc.goal_z);
 		}
@@ -3753,7 +3848,13 @@ void Simulation::tick_formations(float dt) {
 			fc.member_timer += dt;
 			if (fc.member_timer < 1.0f) continue;
 			fc.member_timer -= 1.0f;
-			if (any_fighting) continue;
+			// Formation.js AreAllMembersFinished: fighters and members still at their work.
+			bool busy = any_fighting;
+			for (uint32_t id : fc.members) {
+				const int32_t idx = lookup_unit(id);
+				busy = busy || (idx >= 0 && member_working((size_t)idx));
+			}
+			if (busy) continue;
 			const bool resume = formation_order_walks(fc.returning);
 			for (uint32_t id : fc.members) {
 				const int32_t idx = lookup_unit(id);
@@ -4206,7 +4307,8 @@ void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, ui
 	Building &b = buildings_[bit->second];
 	if (b.build_progress < 1.0f || !structure_has_enough_health(b)) return;
 	UnitOrder o; o.kind = ORDER_GARRISON; o.target = building_id; o.x = b.x; o.z = b.z;
-	const std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
+	std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
+	if (!queued && !formations_.empty()) now = formation_take_task(now, FTASK_GARRISON, building_id);
 	const uint32_t *unit_ids = now.data();
 	const size_t count = now.size();
 
@@ -4240,11 +4342,43 @@ bool Simulation::garrison_in_range(size_t i, const Building &b) const {
 	return ex * ex + ez * ez <= reach * reach;
 }
 
+// ResourceGatherer CommitResources: the load goes into its owner's stockpile.
+void Simulation::deposit_carry(size_t i) {
+	int amt = units_.carry[i];
+	uint8_t rt = units_.res_type_carried[i];
+	if (rt < RES_COUNT) {
+		// StatisticsTracker vegetarianFood: food from fruit or grain, not meat or fish.
+		bool vegetarian = false;
+		if (rt == RES_FOOD && units_.target_resource_id[i] != 0) {
+			auto vit = res_id_to_idx_.find(units_.target_resource_id[i]);
+			vegetarian = vit != res_id_to_idx_.end() &&
+				(resources_.subtype[vit->second] == RES_SUB_NONE || resources_.subtype[vit->second] == RES_SUB_GRAIN);
+		}
+		stat_gathered(units_.team[i], rt, amt, vegetarian);
+		PlayerState &ps = player(units_.team[i]);
+		if (units_.team[i] == 0) {
+			// Player 0 is uncapped and feeds the HUD rate window and match record.
+			ps.res[rt] += (float)amt;
+			ps.gathered_window[rt] += (float)amt;
+			if (rt == RES_WOOD) record_.total_wood_gathered += amt;
+			else if (rt == RES_GOLD) record_.total_gold_gathered += amt;
+			else if (rt == RES_STONE) record_.total_stone_gathered += amt;
+			else record_.total_food_gathered += amt;
+		} else {
+			ps.res[rt] = std::min(9999.0f, ps.res[rt] + (float)amt);
+			ps.gathered_window[rt] += (float)amt;
+		}
+	}
+	units_.carry[i] = 0;
+}
+
 void Simulation::garrison_now(size_t i, Building &b) {
 	if (turret_points_of(b)) { // walls, gates and outposts hold turrets, not a garrison
 		if (unit_turretable(i)) occupy_turret(i, b);
 		return;
 	}
+	// GARRISONING enter: a dropsite takes what the unit carries.
+	if (units_.carry[i] > 0 && dropsite_accepts(i, b)) deposit_carry(i);
 	units_.action_state[i] = ACTION_GARRISONED;
 	units_.alive[i] = 0;
 	units_.has_order[i] = 0;
@@ -6466,33 +6600,7 @@ void Simulation::tick_gather(float dt) {
 				const float drop_reach = units_.unit_type[i] == UNIT_FISHING_BOAT ? 4.0f : 1.5f;
 				if (dx * dx + dz * dz < 2.5f * 2.5f || std::sqrt(edge_dx * edge_dx + edge_dz * edge_dz) -
 						unit_collision_radius(units_.unit_type[i]) < drop_reach) {
-					int amt = units_.carry[i];
-					uint8_t rt = units_.res_type_carried[i];
-					if (rt < RES_COUNT) {
-						// StatisticsTracker vegetarianFood: food from fruit or grain, not meat or fish.
-						bool vegetarian = false;
-						if (rt == RES_FOOD && units_.target_resource_id[i] != 0) {
-							auto vit = res_id_to_idx_.find(units_.target_resource_id[i]);
-							vegetarian = vit != res_id_to_idx_.end() &&
-								(resources_.subtype[vit->second] == RES_SUB_NONE || resources_.subtype[vit->second] == RES_SUB_GRAIN);
-						}
-						stat_gathered(uteam, rt, amt, vegetarian);
-						PlayerState &ps = player(uteam);
-						if (uteam == 0) {
-							// Player 0 is uncapped and feeds the HUD rate window and match record.
-							ps.res[rt] += (float)amt;
-							ps.gathered_window[rt] += (float)amt;
-							if (rt == RES_WOOD) record_.total_wood_gathered += amt;
-							else if (rt == RES_GOLD) record_.total_gold_gathered += amt;
-							else if (rt == RES_STONE) record_.total_stone_gathered += amt;
-							else record_.total_food_gathered += amt;
-						} else {
-							ps.res[rt] = std::min(9999.0f, ps.res[rt] + (float)amt);
-							ps.gathered_window[rt] += (float)amt;
-						}
-					}
-
-					units_.carry[i] = 0;
+					deposit_carry(i);
 					units_.action_state[i] = ACTION_GATHER;
 
 					if (units_.target_resource_id[i] != 0) {
@@ -6822,8 +6930,13 @@ bool Simulation::try_commit_foundation(Building &b) {
 		if (!nav::footprint_contains(b, units_.pos_x[i], units_.pos_z[i], 0.0f)) continue;
 		if (!turret_height_.empty() && turret_height_.count(units_.id[i])) continue;
 		blocked = true;
-		// WillMoveFromFoundation: only units allied to the foundation's owner make way.
-		if (units_.team[i] < MAX_PLAYERS && is_ally(units_.team[i], b.team)) leave_foundation(i, b);
+		// WillMoveFromFoundation: anyone makes way (a structure has no UnitAI, so enemies too),
+		// except units that pack or can't move; a fighting unit ignores the order (COMBAT).
+		const uint8_t st = units_.action_state[i];
+		if (units_.pack_state[i] != PACK_NONE || units_.speed[i] <= 0.0f || st == ACTION_GARRISONED ||
+				(st == ACTION_ATTACK && (units_.target_unit_id[i] != 0 || units_.target_building_id[i] != 0)))
+			continue;
+		leave_foundation(i, b);
 	}
 	if (blocked) return false;
 	b.committed = true;
@@ -8081,6 +8194,8 @@ void Simulation::tick_projectiles(float dt) {
 					award_damage_xp(p.source_id, (size_t)tidx, p.damage);
 					note_attacked(p.source_id, p.team, units_.id[tidx], units_.team[tidx], false, p.damage);
 					units_.hp[tidx] -= p.damage;
+					// UnitAI "Attacked": a structure's arrow, or a stray one hitting someone else.
+					if (units_.attacked_by[tidx] == 0 && p.source_id != 0) units_.attacked_by[tidx] = p.source_id;
 					if (units_.team[tidx] == 0) {
 						raise_alert(BattleAlert::ALERT_UNDER_ATTACK, units_.pos_x[tidx], units_.pos_z[tidx], units_.id[tidx], units_.team[tidx]);
 					}
@@ -8922,9 +9037,15 @@ void Simulation::order_guard(const uint32_t *unit_ids_in, size_t count_in, uint3
 	for (uint32_t uid : now) {
 		int32_t idx = lookup_unit(uid);
 		if (idx < 0 || !units_.alive[idx] || uid == target_unit_id) continue;
-		// Guard.js CanGuard: one's own or an ally's.
+		// UnitAI CanGuard: siege engines, traders, merchant and fishing ships and
+		// catafalques never guard (template_unit_* CanGuard false).
+		const uint8_t ut = units_.unit_type[idx];
+		if (unit_is_siege_engine(ut) || ut == UNIT_TRADER || ut == UNIT_MERCHANT_SHIP || ut == UNIT_FISHING_BOAT ||
+				ut == UNIT_CATAFALQUE)
+			continue;
+		// Guard.js: one's own or an ally's.
 		const uint8_t gteam = tb ? tb->team : units_.team[tidx];
-		if (tb && gteam != units_.team[idx] && !is_ally(units_.team[idx], gteam)) continue;
+		if (gteam != units_.team[idx] && !is_ally(units_.team[idx], gteam)) continue;
 		set_order(idx, ORDER_GUARD, 0, target_unit_id, gx, gz);
 		units_.action_state[idx] = ACTION_GUARD;
 		units_.has_order[idx] = 1;
@@ -9172,10 +9293,34 @@ void Simulation::patrol_next_leg(size_t i) {
 
 void Simulation::finish_order(size_t i) {
 	const uint32_t uid = units_.id[i];
-	if (units_.order_kind[i] == ORDER_GATHER && !order_still_valid(i, current_order(i))) {
-		// FINDINGNEWTARGET: the same kind of resource, near the unit, else near where it was.
+	auto queued = order_queues_.find(uid);
+	if (units_.order_kind[i] == ORDER_GATHER && !order_still_valid(i, current_order(i)) && queued != order_queues_.end() &&
+			!queued->second.empty()) {
+		// GATHER FINDINGNEWTARGET: FinishOrder comes first. A unit carrying a load drops it
+		// off before a next order that isn't a ReturnResource or a gather of the same type.
+		const UnitOrder &n = queued->second.front();
+		bool same = n.kind == ORDER_RETURN_RESOURCE;
+		if (n.kind == ORDER_GATHER) {
+			auto r = res_id_to_idx_.find(n.target);
+			const int t = r != res_id_to_idx_.end() ? resources_.type[r->second] : (int)n.res_type - 1;
+			same = t == units_.res_type_carried[i];
+		}
+		if (units_.carry[i] > 0 && !same) {
+			if (const uint32_t d = nearest_dropsite(i); d != 0) {
+				UnitOrder ret;
+				ret.kind = ORDER_RETURN_RESOURCE;
+				ret.target = d;
+				queued->second.insert(queued->second.begin(), ret);
+			}
+		}
+	} else if (units_.order_kind[i] == ORDER_GATHER && !order_still_valid(i, current_order(i))) {
+		// FINDINGNEWTARGET with no orders queued: the same kind of resource, near the unit
+		// (not for a forced order: it may have sent the unit across the map on purpose),
+		// else near where it was.
 		const int sub = (units_.order_flags[i] & ORDER_FLAG_SUB_MASK) >> ORDER_FLAG_SUB_SHIFT;
-		uint32_t r = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], units_.res_type_carried[i], units_.team[i], sub);
+		uint32_t r = 0;
+		if (!(units_.order_flags[i] & ORDER_FLAG_FORCE))
+			r = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], units_.res_type_carried[i], units_.team[i], sub);
 		if (r == 0)
 			r = find_nearby_resource(units_.order_x[i], units_.order_z[i], units_.res_type_carried[i], units_.team[i], sub);
 		if (r != 0) {
@@ -9185,14 +9330,14 @@ void Simulation::finish_order(size_t i) {
 			return;
 		}
 		// GATHER FINDINGNEWTARGET: nothing left to gather nearby; drop off what it carries.
-		if (units_.carry[i] > 0 && !order_queues_.count(uid)) {
+		if (units_.carry[i] > 0) {
 			set_order(i, ORDER_NONE, 0, 0, units_.pos_x[i], units_.pos_z[i]);
 			units_.target_resource_id[i] = 0;
 			units_.action_state[i] = ACTION_RETURN_DROPSITE;
 			return;
 		}
 	}
-	auto it = order_queues_.find(uid);
+	auto it = queued;
 	if (it != order_queues_.end() && !it->second.empty()) {
 		const UnitOrder next = it->second.front();
 		it->second.erase(it->second.begin());
@@ -9235,14 +9380,28 @@ void Simulation::resume_order(size_t i) {
 // UnitAI "Attacked" -> RespondToTargetedEntities: fight back as the stance allows,
 // or flee (passive stance, or a unit that can't attack).
 void Simulation::respond_to_attack(size_t i) {
+	// PACKING / UNPACKING "Attacked": a siege engine told to (un)pack ignores attacks.
+	const uint8_t ps = units_.pack_state[i];
+	if ((ps == PACK_PACKING || ps == PACK_UNPACKING) && units_.action_state[i] != ACTION_ATTACK) return;
 	const int32_t a = lookup_unit(units_.attacked_by[i]);
-	if (a < 0 || !units_.alive[a] || !is_hostile(units_.team[i], units_.team[a])) return;
+	if (a < 0) {
+		// "Attacked" by a structure's arrows (BuildingAI): flee from it or go for it.
+		auto bit = building_id_to_idx_.find(units_.attacked_by[i]);
+		if (bit == building_id_to_idx_.end()) return;
+		const Building &b = buildings_[bit->second];
+		if (b.wrecked || b.hp <= 0.0f || !is_hostile(units_.team[i], b.team)) return;
+		// A soldier at work keeps working (Petra sends its own defence); an idle one answers.
+		if (units_.attack_damage[i] > 0.0f && units_.stance[i] != STANCE_PASSIVE && units_.action_state[i] != ACTION_IDLE) return;
+		respond_to_attacker(i, b.id, b.x, b.z, false, true);
+		return;
+	}
+	if (!units_.alive[a] || !is_hostile(units_.team[i], units_.team[a])) return;
 	respond_to_attacker(i, units_.attacked_by[i], units_.pos_x[a], units_.pos_z[a],
 			!template_has_ranged_attack(units_.tmpl[a], units_.unit_type[a], civ_of(units_.team[a])));
 }
 
 // The response itself, to a unit or an animal (fauna_hit_unit) at (ax, az).
-void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, float az, bool melee) {
+void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, float az, bool melee, bool structure) {
 	const uint8_t st = units_.action_state[i];
 	// TRADE "Attacked": a trader keeps trading.
 	if (st == ACTION_TRADE) return;
@@ -9252,8 +9411,9 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 	const bool forced = (units_.order_flags[i] & (ORDER_FLAG_FORCE | ORDER_FLAG_INTERRUPTED)) == ORDER_FLAG_FORCE;
 	if (st == ACTION_ATTACK && (units_.target_unit_id[i] != 0 || units_.target_building_id[i] != 0)) {
 		// COMBAT "Attacked": a fighting unit ignores other attackers, except a melee one
-		// (it may block the way to the target).
-		if (units_.target_unit_id[i] == attacker_id || !melee) return;
+		// (it may block the way to the target); a capturing one answers any attacker.
+		if (units_.target_unit_id[i] == attacker_id) return;
+		if (!melee && !unit_capturing(i)) return;
 		if (forced && stance != STANCE_VIOLENT) return;
 	} else if (forced && stance != STANCE_VIOLENT && st != ACTION_IDLE && st != ACTION_FLEE) {
 		return;
@@ -9282,14 +9442,23 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 	}
 	const float range = units_.attack_range[i];
 	const float vision = unit_base_vision(i);
-	if (stance == STANCE_STAND_GROUND && d2 > range * range) return;
+	const Building *sb = nullptr;
+	if (structure) {
+		sb = &buildings_[building_id_to_idx_.at(attacker_id)];
+		if (!unit_can_target_building(i, sb->type)) return;
+	}
+	if (stance == STANCE_STAND_GROUND) {
+		const float gap = sb ? structure_gap(*sb, units_.pos_x[i], units_.pos_z[i], unit_collision_radius(units_.unit_type[i]))
+				: sqrtf(d2);
+		if (gap > range) return;
+	}
 	if (stance == STANCE_DEFENSIVE) {
 		const float hx = ax - units_.anchor_x[i], hz = az - units_.anchor_z[i];
-		const float lim = vision * 0.5f + range;
+		const float lim = vision * 0.5f + range + (sb ? sb->half_size : 0.0f);
 		if (hx * hx + hz * hz >= lim * lim) return;
 	}
-	units_.target_unit_id[i] = attacker_id;
-	units_.target_building_id[i] = 0;
+	units_.target_unit_id[i] = sb ? 0 : attacker_id;
+	units_.target_building_id[i] = sb ? attacker_id : 0;
 	units_.action_state[i] = ACTION_ATTACK;
 	units_.has_order[i] = stance != STANCE_STAND_GROUND;
 	units_.target_x[i] = ax;
@@ -9467,6 +9636,25 @@ void Simulation::tick_unit_ai(float dt) {
 					units_.target_x[i] = units_.pos_x[a];
 					units_.target_z[i] = units_.pos_z[a];
 					units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED;
+					continue;
+				}
+			}
+			// GUARDING Timer: a builder repairs the structure it guards once it is damaged
+			// (PushOrderFront Repair), then guards again.
+			if ((i + ticks_) % 4 == 0 && unit_can_build(units_.unit_type[i], units_.tmpl[i])) {
+				auto bit = building_id_to_idx_.find(units_.order_target[i]);
+				if (bit != building_id_to_idx_.end()) {
+					const Building &gb = buildings_[bit->second];
+					if (gb.build_progress >= 1.0f && gb.hp > 0.0f && gb.hp < gb.max_hp) {
+						const uint32_t uid = units_.id[i];
+						auto &q = order_queues_[uid];
+						q.insert(q.begin(), current_order(i));
+						const bool was = applying_queued_;
+						applying_queued_ = true; // keep the queue: the guard resumes after the repair
+						order_build_or_repair(&uid, 1, gb.id, false, false);
+						applying_queued_ = was;
+						continue;
+					}
 				}
 			}
 		} else if (units_.order_kind[i] == ORDER_GUARD && units_.action_state[i] == ACTION_GUARD) {
@@ -9511,7 +9699,7 @@ void Simulation::tick_unit_ai(float dt) {
 		}
 		// Formation members take their orders from the controller (UnitAI FORMATIONMEMBER):
 		// tick_formations brings them back after a fight or a flight, so they don't resume their own.
-		if (!formations_.empty() && formation_group_[i] != 0) {
+		if (!formations_.empty() && formation_group_[i] != 0 && !member_working(i)) {
 			if (now == ACTION_FLEE) {
 				const float dx = units_.target_x[i] - units_.pos_x[i], dz = units_.target_z[i] - units_.pos_z[i];
 				if (dx * dx + dz * dz <= 1.0f || units_.attack_timer[i] <= 0.0f) {
@@ -9520,6 +9708,10 @@ void Simulation::tick_unit_ai(float dt) {
 					units_.action_state[i] = ACTION_IDLE;
 					units_.has_order[i] = 0;
 				}
+			} else if (now == ACTION_IDLE && units_.unit_type[i] == UNIT_HEALER && (i + ticks_) % 4 == 0) {
+				// FORMATIONMEMBER.IDLE is INDIVIDUAL.IDLE: a healer heals whoever is hurt nearby.
+				const uint32_t t = find_heal_target(i);
+				if (t != 0) start_heal(i, t, 0);
 			}
 			continue;
 		}
@@ -9675,6 +9867,19 @@ void Simulation::order_remove_guard(const uint32_t *unit_ids, size_t count) {
 	}
 }
 
+// UnitAI FindNearestDropsite: the nearest structure that takes what unit i carries.
+uint32_t Simulation::nearest_dropsite(size_t i) const {
+	uint32_t best = 0;
+	float best_d2 = 0.0f;
+	for (const Building &b : buildings_) {
+		if (!dropsite_accepts(i, b)) continue;
+		const float dx = b.x - units_.pos_x[i], dz = b.z - units_.pos_z[i];
+		const float d2 = dx * dx + dz * dz;
+		if (best == 0 || d2 < best_d2) { best = b.id; best_d2 = d2; }
+	}
+	return best;
+}
+
 void Simulation::order_call_to_arms(const uint32_t *unit_ids, size_t count, float x, float z, bool queued) {
 	for (size_t k = 0; k < count; ++k) {
 		const int32_t i = lookup_unit(unit_ids[k]);
@@ -9684,14 +9889,7 @@ void Simulation::order_call_to_arms(const uint32_t *unit_ids, size_t count, floa
 		bool q = queued;
 		// DropAtNearestDropSite: FindNearestDropsite for the carried type, else nothing.
 		if (units_.carry[i] > 0) {
-			uint32_t best = 0;
-			float best_d2 = 0.0f;
-			for (const Building &b : buildings_) {
-				if (!dropsite_accepts((size_t)i, b)) continue;
-				const float dx = b.x - units_.pos_x[i], dz = b.z - units_.pos_z[i];
-				const float d2 = dx * dx + dz * dz;
-				if (best == 0 || d2 < best_d2) { best = b.id; best_d2 = d2; }
-			}
+			const uint32_t best = nearest_dropsite((size_t)i);
 			if (best != 0) {
 				order_return_resource(&uid, 1, best, queued);
 				q = true;
@@ -9817,7 +10015,8 @@ void Simulation::order_heal(const uint32_t *unit_ids_in, size_t count_in, uint32
 	if (t < 0 || !units_.alive[t]) return;
 	UnitOrder o; o.kind = ORDER_HEAL; o.flags = ORDER_FLAG_FORCE; o.target = target_unit_id;
 	o.x = units_.pos_x[t]; o.z = units_.pos_z[t];
-	const std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
+	std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
+	if (!queued && !formations_.empty()) now = formation_take_task(now, FTASK_HEAL, target_unit_id);
 	for (uint32_t uid : now) {
 		const int32_t h = lookup_unit(uid);
 		if (h < 0 || !units_.alive[h] || units_.unit_type[h] != UNIT_HEALER) continue;
@@ -16626,12 +16825,13 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			io_vec_pod(ar, f.slots, S::UNIT_CAP);
 			path(f.path);
 			if (ar.version >= SAVE_VERSION_FORMATION_ORDERS) {
-				ar.pod(f.target_unit); ar.pod(f.target_building); ar.pod(f.allow_capture); ar.pod(f.returning);
+				ar.pod(f.target_unit); ar.pod(f.target_building); ar.pod(f.task_flags); ar.pod(f.returning);
 				ar.pod(f.member_timer); ar.pod(f.patrol_x); ar.pod(f.patrol_z); ar.pod(f.patrol_wait);
 				ids(f.twins);
 			}
 			if constexpr (Ar::loading)
-				if (f.tmpl >= FORMATION_COUNT || f.order > S::FORDER_PATROL_WAIT || f.returning > S::FORDER_PATROL_WAIT)
+				if (f.tmpl >= FORMATION_COUNT || f.order > S::FORDER_PATROL_WAIT || f.returning > S::FORDER_PATROL_WAIT ||
+						S::formation_task(f) > S::FTASK_HEAL)
 					ar.ok = false;
 		});
 	} else if constexpr (Ar::loading) {
@@ -17222,6 +17422,13 @@ void Simulation::tick_hunters() {
 			if (rid != 0 && carry_cap(h, RES_FOOD) > 0 && !unit_is_ship(units_.unit_type[h]) &&
 					!(units_.order_flags[h] & ORDER_FLAG_INTERRUPTED)) {
 				order_gather(&units_.id[h], 1, rid, false, false);
+			} else if (h == i && finfo.is_dangerous() && !unit_is_siege_engine(units_.unit_type[h]) &&
+					!unit_is_ship(units_.unit_type[h])) {
+				// shouldCheer: killing a dangerous animal is cheered like a kill in battle;
+				// COMBAT.FINDINGNEWTARGET in tick_unit_ai goes on from here.
+				units_.order_flags[h] |= ORDER_FLAG_CHEER;
+				units_.action_state[h] = ACTION_ATTACK;
+				units_.has_order[h] = 0;
 			} else {
 				units_.action_state[h] = ACTION_IDLE;
 				units_.has_order[h] = 0;
