@@ -1137,6 +1137,7 @@ struct CivUnitTemplate {
 #include "civ_roster_data.h"
 #include "civ_attack_data.h"
 #include "splash_data.h"
+#include "preference_data.h"
 #include "formation.h"
 
 inline constexpr uint16_t CIV_UNIT_TEMPLATE_NONE = 0xFFFF;
@@ -1473,6 +1474,27 @@ inline const CombatProfile &unit_combat(uint16_t tmpl, uint8_t type) {
 // A building type past the table (a civ-unique structure added later) is a generic structure.
 inline const CombatProfile &building_combat(uint8_t type) {
 	return combat_building_table()[type < COMBAT_BUILDING_ROWS ? type : COMBAT_BUILDING_ROWS];
+}
+// 0 A.D. Attack/<type>/PreferredClasses (preference_data.h, from tools/extract_0ad_preferences.py).
+static_assert(PREF_TEMPLATE_COUNT == CIV_UNIT_TEMPLATE_COUNT, "rosters changed: re-run tools/extract_0ad_preferences.py");
+static_assert(PREF_CLASS_ROWS == UNIT_TYPE_COUNT, "unit types changed: re-run tools/extract_0ad_preferences.py");
+static_assert(PREF_BUILDING_ROWS == BLD_TYPE_COUNT, "building types changed: re-run tools/extract_0ad_preferences.py");
+inline const PrefUnitRow &unit_preferences(uint16_t tmpl, uint8_t type) {
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) return pref_template_table()[tmpl];
+	return pref_class_table()[type < UNIT_TYPE_COUNT ? type : UNIT_VILLAGER];
+}
+inline uint8_t building_pref_classes(uint8_t type) {
+	return pref_building_classes()[type < PREF_BUILDING_ROWS ? type : PREF_BUILDING_ROWS];
+}
+inline constexpr uint8_t PREF_NONE = 255;
+// Attack.js GetPreference: the index of the first PreferredClasses token the
+// target's classes match (MatchesClassList), PREF_NONE if it matches none.
+inline uint8_t preference_of(const PrefProfile &p, uint8_t target_classes) {
+	for (uint8_t k = 0; k < p.count; ++k) {
+		const PrefTerm &t = p.term[k];
+		if ((target_classes & t.all) == t.all && !(target_classes & t.none)) return t.index;
+	}
+	return PREF_NONE;
 }
 // 0 A.D. Attack.js CanAttack: an attack never targets its RestrictedClasses.
 inline bool combat_can_target(const CombatProfile &attacker, const CombatProfile &target) {

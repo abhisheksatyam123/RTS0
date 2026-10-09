@@ -12,6 +12,7 @@
 #include <godot_cpp/classes/base_material3d.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
 #include <godot_cpp/classes/animation_player.hpp>
+#include <godot_cpp/classes/bone_attachment3d.hpp>
 #include <godot_cpp/classes/skeleton3d.hpp>
 #include <godot_cpp/classes/skin.hpp>
 #include <godot_cpp/variant/packed_float32_array.hpp>
@@ -183,8 +184,10 @@ void ModelLibrary::apply_clip_tools(Node *root, const StringName &clip) {
 	}
 	if (tools.empty()) return;
 	String tag = String(clip);
+	// 0 A.D. carry_* variants empty weapon_R/weapon_L: the shuttle replaces the tool.
+	if (tag.begins_with("Carry")) return;
 	if (tag == "Gather") tag = "GatherTree";
-	if (tag == "Idle" || tag == "Walk" || tag == "Run" || tag == "Carry" ||
+	if (tag == "Idle" || tag == "Walk" || tag == "Run" ||
 			tag == "Attack" || tag == "Death" || tag == "Slaughter" || tag == "Heal" ||
 			tag == "Promotion")
 		tag = "Weapon";
@@ -237,6 +240,7 @@ static uint64_t material_merge_key(const Ref<Material> &mat) {
 
 struct SurfBucket {
 	Ref<Material> mat;
+	bool own_surface = false; // a bone-attached prop keeps its own texture and surface
 	PackedVector3Array verts;
 	PackedVector3Array norms;
 	PackedVector2Array uvs;
@@ -279,6 +283,21 @@ static void append_surface(SurfBucket &b, const Transform3D &xf, const Array &ar
 	}
 }
 
+static void append_bucket_surface(const Ref<ArrayMesh> &mesh, const SurfBucket &b) {
+	if (b.verts.size() == 0) return;
+	Array out_arr;
+	out_arr.resize(Mesh::ARRAY_MAX);
+	out_arr[Mesh::ARRAY_VERTEX] = b.verts;
+	out_arr[Mesh::ARRAY_NORMAL] = b.norms;
+	out_arr[Mesh::ARRAY_TEX_UV] = b.uvs;
+	out_arr[Mesh::ARRAY_COLOR] = b.colors;
+	out_arr[Mesh::ARRAY_INDEX] = b.indices;
+	mesh->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, out_arr);
+	if (b.mat.is_valid()) {
+		mesh->surface_set_material(mesh->get_surface_count() - 1, b.mat);
+	}
+}
+
 static Ref<ArrayMesh> mesh_from_buckets(std::vector<SurfBucket> &buckets, int max_surfaces) {
 	std::sort(buckets.begin(), buckets.end(), [](const SurfBucket &a, const SurfBucket &b) {
 		return a.verts.size() > b.verts.size();
@@ -287,21 +306,7 @@ static Ref<ArrayMesh> mesh_from_buckets(std::vector<SurfBucket> &buckets, int ma
 	merged.instantiate();
 	int n = (int)buckets.size();
 	if (max_surfaces > 0 && n > max_surfaces) n = max_surfaces;
-	for (int i = 0; i < n; ++i) {
-		SurfBucket &b = buckets[i];
-		if (b.verts.size() == 0) continue;
-		Array out_arr;
-		out_arr.resize(Mesh::ARRAY_MAX);
-		out_arr[Mesh::ARRAY_VERTEX] = b.verts;
-		out_arr[Mesh::ARRAY_NORMAL] = b.norms;
-		out_arr[Mesh::ARRAY_TEX_UV] = b.uvs;
-		out_arr[Mesh::ARRAY_COLOR] = b.colors;
-		out_arr[Mesh::ARRAY_INDEX] = b.indices;
-		merged->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, out_arr);
-		if (b.mat.is_valid()) {
-			merged->surface_set_material(merged->get_surface_count() - 1, b.mat);
-		}
-	}
+	for (int i = 0; i < n; ++i) append_bucket_surface(merged, buckets[i]);
 	return merged;
 }
 
@@ -431,13 +436,31 @@ bool ModelLibrary::capture_crowd_skin(Node *root, CrowdSkin &out) {
 		if (!src.is_valid()) continue;
 
 		CrowdSkin::Rig rig;
-		NodePath sp = mi->get_skeleton_path();
-		if (!sp.is_empty() && mi->has_node(sp)) {
-			rig.skel = Object::cast_to<Skeleton3D>(mi->get_node_or_null(sp));
+		// A rigid prop under a BoneAttachment3D (0 A.D. carry shuttles on
+		// weapon_R) follows that one bone: skin it fully to the bone, with the
+		// prop's offset from the bone as its bind pose.
+		BoneAttachment3D *attach = nullptr;
+		for (Node *p = mi->get_parent(); p && p != root; p = p->get_parent()) {
+			attach = Object::cast_to<BoneAttachment3D>(p);
+			if (attach) break;
 		}
-		if (!rig.skel) rig.skel = find_skeleton(mi->get_parent() ? mi->get_parent() : root);
-		rig.xf = rig.skel ? xf_to_ancestor(rig.skel, root) : instances[i].xf;
-		if (rig.skel) {
+		Skeleton3D *attach_skel = attach ? Object::cast_to<Skeleton3D>(attach->get_parent()) : nullptr;
+		const int attach_bone = attach_skel ? attach->get_bone_idx() : -1;
+		if (attach_skel && attach_bone >= 0 && attach_bone < attach_skel->get_bone_count()) {
+			rig.skel = attach_skel;
+			rig.xf = xf_to_ancestor(attach_skel, root);
+			rig.bone_index.push_back(attach_bone);
+			rig.bind_pose.push_back(xf_to_ancestor(mi, attach));
+		} else {
+			attach = nullptr;
+			NodePath sp = mi->get_skeleton_path();
+			if (!sp.is_empty() && mi->has_node(sp)) {
+				rig.skel = Object::cast_to<Skeleton3D>(mi->get_node_or_null(sp));
+			}
+			if (!rig.skel) rig.skel = find_skeleton(mi->get_parent() ? mi->get_parent() : root);
+			rig.xf = rig.skel ? xf_to_ancestor(rig.skel, root) : instances[i].xf;
+		}
+		if (rig.skel && !attach) {
 			Ref<Skin> skin = mi->get_skin();
 			if (skin.is_valid() && skin->get_bind_count() > 0) {
 				const int nb = skin->get_bind_count();
@@ -498,10 +521,18 @@ bool ModelLibrary::capture_crowd_skin(Node *root, CrowdSkin &out) {
 			PackedInt32Array idx = arrays[Mesh::ARRAY_INDEX];
 			surf.idx.resize((size_t)idx.size());
 			for (int k = 0; k < idx.size(); ++k) surf.idx[k] = idx[k];
-			PackedInt32Array bones = bone_indices_from_arrays(arrays, verts.size());
+			PackedInt32Array bones;
 			PackedFloat32Array weights;
-			if (arrays.size() > Mesh::ARRAY_WEIGHTS && arrays[Mesh::ARRAY_WEIGHTS].get_type() != Variant::NIL) {
-				weights = arrays[Mesh::ARRAY_WEIGHTS];
+			if (attach) {
+				bones.resize(verts.size());
+				bones.fill(0);
+				weights.resize(verts.size());
+				weights.fill(1.0f);
+			} else {
+				bones = bone_indices_from_arrays(arrays, verts.size());
+				if (arrays.size() > Mesh::ARRAY_WEIGHTS && arrays[Mesh::ARRAY_WEIGHTS].get_type() != Variant::NIL) {
+					weights = arrays[Mesh::ARRAY_WEIGHTS];
+				}
 			}
 			surf.bones.resize((size_t)bones.size());
 			for (int k = 0; k < bones.size(); ++k) surf.bones[k] = bones[k];
@@ -509,6 +540,7 @@ bool ModelLibrary::capture_crowd_skin(Node *root, CrowdSkin &out) {
 			for (int k = 0; k < weights.size(); ++k) surf.weights[k] = weights[k];
 			int stride = (verts.size() > 0 && bones.size() > 0) ? bones.size() / verts.size() : 0;
 			surf.stride = stride < 1 ? 4 : stride;
+			surf.attached = attach != nullptr;
 			if (out.rigs[rig_i].skel && bones.size() >= verts.size()) surf.rig_i = rig_i;
 			else surf.rig_i = -1;
 			out.surfs.push_back(std::move(surf));
@@ -539,14 +571,15 @@ Ref<ArrayMesh> ModelLibrary::bake_crowd_skin(CrowdSkin &skin, const Ref<ArrayMes
 
 	std::vector<SurfBucket> buckets;
 	std::unordered_map<uint64_t, int> key_to_idx;
-	auto bucket_for = [&](const Ref<Material> &mat) -> SurfBucket & {
-		uint64_t key = material_merge_key(mat);
+	auto bucket_for = [&](const Ref<Material> &mat, bool attached) -> SurfBucket & {
+		uint64_t key = material_merge_key(mat) ^ (attached ? (1ull << 63) : 0ull);
 		auto it = key_to_idx.find(key);
 		if (it == key_to_idx.end()) {
 			int bi = (int)buckets.size();
 			key_to_idx[key] = bi;
 			SurfBucket b;
 			b.mat = mat;
+			b.own_surface = attached;
 			buckets.push_back(std::move(b));
 			return buckets.back();
 		}
@@ -554,7 +587,7 @@ Ref<ArrayMesh> ModelLibrary::bake_crowd_skin(CrowdSkin &skin, const Ref<ArrayMes
 	};
 
 	for (const CrowdSkin::Surf &surf : skin.surfs) {
-		SurfBucket &b = bucket_for(surf.mat);
+		SurfBucket &b = bucket_for(surf.mat, surf.attached);
 		const int n = (int)surf.rest_v.size();
 		const int base = b.verts.size();
 		const bool skinned = surf.rig_i >= 0 && surf.rig_i < (int)palettes.size() && !palettes[surf.rig_i].empty();
@@ -605,7 +638,15 @@ Ref<ArrayMesh> ModelLibrary::bake_crowd_skin(CrowdSkin &skin, const Ref<ArrayMes
 	Ref<ArrayMesh> mesh = reuse;
 	if (mesh.is_valid()) mesh->clear_surfaces();
 	(void)mesh;
-	return flatten_to_one_surface(buckets);
+	// The unit's own parts share one atlas and flatten to one surface; a
+	// carried prop has its own skin, so it stays a second surface.
+	std::vector<SurfBucket> body, props;
+	for (SurfBucket &b : buckets) (b.own_surface ? props : body).push_back(std::move(b));
+	Ref<ArrayMesh> out = flatten_to_one_surface(body);
+	if (out.is_valid()) {
+		for (const SurfBucket &b : props) append_bucket_surface(out, b);
+	}
+	return out;
 }
 
 Ref<ArrayMesh> ModelLibrary::bake_posed_crowd_mesh(Node *root) {
