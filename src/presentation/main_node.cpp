@@ -70,6 +70,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_tech_pressed", "tech_id"), &RtsoMain::_on_tech_pressed);
 	ClassDB::bind_method(D_METHOD("_on_upgrade_pressed", "cancel"), &RtsoMain::_on_upgrade_pressed);
 	ClassDB::bind_method(D_METHOD("_on_gate_lock_pressed", "lock"), &RtsoMain::_on_gate_lock_pressed);
+	ClassDB::bind_method(D_METHOD("_on_dropsite_sharing_pressed", "shared"), &RtsoMain::_on_dropsite_sharing_pressed);
 	ClassDB::bind_method(D_METHOD("_on_pack_pressed", "pack"), &RtsoMain::_on_pack_pressed);
 	ClassDB::bind_method(D_METHOD("_on_unit_upgrade_pressed", "to"), &RtsoMain::_on_unit_upgrade_pressed);
 	ClassDB::bind_method(D_METHOD("_on_alert_pressed", "end"), &RtsoMain::_on_alert_pressed);
@@ -2037,6 +2038,16 @@ void RtsoMain::_on_autoqueue_pressed(int on) {
 		sim->cmd_set_autoqueue(local_player(), selected_building_id, on != 0);
 }
 
+// 0 A.D. set-dropsite-sharing through lockstep command 45.
+void RtsoMain::_on_dropsite_sharing_pressed(int shared) {
+	if (selected_building_id == 0) return;
+	if (turn_cmds())
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_SET_DROPSITE_SHARING, nullptr, 0, 0, 0, selected_building_id,
+				shared ? 1 : 0);
+	else
+		sim->cmd_set_dropsite_sharing(local_player(), selected_building_id, shared != 0);
+}
+
 // 0 A.D. AlertRaiser alert-raise / alert-end through lockstep command 35.
 void RtsoMain::_on_alert_pressed(int end) {
 	if (selected_building_id == 0) return;
@@ -2463,7 +2474,14 @@ void RtsoMain::_process(double delta) {
 		String txt;
 		for (const rtso::TimeNotification *n : sim->time_notifications_for(local_player())) {
 			if (!txt.is_empty()) txt += "\n";
-			txt += String::utf8(n->text);
+			// GuiInterface time notifications: %(time)s is the time left (timeToString).
+			String line = String::utf8(n->text);
+			if (line.contains("%(time)s")) {
+				const uint32_t now = sim->trigger_state().time_ms;
+				const int left_s = n->end_ms > now ? (int)((n->end_ms - now + 999) / 1000) : 0;
+				line = line.replace("%(time)s", vformat("%d:%02d", left_s / 60, left_s % 60));
+			}
+			txt += line;
 		}
 		if (time_notification_label_->get_text() != txt) time_notification_label_->set_text(txt);
 	}
@@ -3114,6 +3132,17 @@ void RtsoMain::update_command_panel() {
 				production_bar->add_child(btn);
 			}
 
+			// Dropsite sharing (0 A.D. ResourceDropsite.js): shown once the owner has Diaspora.
+			if (found_b->team == local_player() && rtso::Simulation::is_dropsite_type(found_b->type) &&
+					sim->player(local_player()).has_tech(rtso::TECH_UNLOCK_SHARED_DROPSITES)) {
+				Button *btn = memnew(Button);
+				btn->set_text(found_b->dropsite_shared ? "Stop sharing dropsite" : "Share dropsite");
+				btn->set_tooltip_text(found_b->dropsite_shared ? "Allies can no longer drop resources here"
+						: "Let allies with Diaspora drop resources here");
+				btn->connect("pressed", Callable(this, "_on_dropsite_sharing_pressed").bind(found_b->dropsite_shared ? 0 : 1));
+				production_bar->add_child(btn);
+			}
+
 			// Alert (0 A.D. AlertRaiser.js): civilians take shelter, then go back to work.
 			rtso::AlertRaiserInfo alert;
 			if (found_b->team == local_player() && found_b->build_progress >= 1.0f &&
@@ -3397,6 +3426,10 @@ void RtsoMain::update_command_panel() {
 					if (rtso::civ_can_build(my_civ, (uint8_t)bt)) menu.push_back(bt);
 				for (int bt = rtso::CIV_BUILDING_FIRST; bt < rtso::BLD_TYPE_COUNT; ++bt)
 					if (rtso::civ_can_build(my_civ, (uint8_t)bt)) menu.push_back(bt);
+				// The map script's SetDisabledTemplates (Survival of the Fittest) hides those structures.
+				menu.erase(std::remove_if(menu.begin(), menu.end(), [&](int bt) {
+					return sim->building_disabled_by_trigger(local_player(), (uint8_t)bt);
+				}), menu.end());
 				for (int bt : menu) {
 					const rtso::BuildingTypeInfo &bi = rtso::building_type_info((uint8_t)bt);
 					String cost;
@@ -4892,6 +4925,15 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		heights[i] = (float)h_arr[i];
 	}
 	sim->set_terrain_data(heights, h_res, water_h);
+	// 0 A.D. per-tile terrain textures (port_0ad_maps.py extract_pmp_terrain).
+	if (d.has("terrain") && d["terrain"].get_type() == Variant::DICTIONARY) {
+		Dictionary t = d["terrain"];
+		Array tn = t.get("names", Array());
+		std::vector<std::string> names;
+		for (int i = 0; i < tn.size(); ++i) names.push_back(String(tn[i]).utf8().get_data());
+		sim->set_terrain_tiles(rtso::Simulation::terrain_tiles_from_rle((int)t.get("res", 0), std::move(names),
+				String(t.get("rle", "")).utf8().get_data()));
+	}
 
 	// Spawn Resources
 	Array res_arr = d.get("resources", Array());
@@ -4904,7 +4946,10 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 
 		uint8_t rtype = rtso::RES_WOOD;
 		uint8_t rsub = rtso::RES_SUB_NONE;
-		if (rtype_str == "gold" || rtype_str == "metal") rtype = rtso::RES_GOLD;
+		// A plant name ("pine", "berry", ...) is a tree or fruit supply of that FloraKind.
+		const uint8_t flora = rtso::flora_kind_by_name(rtype_str.utf8().get_data());
+		if (flora < rtso::FLORA_COUNT && rtso::flora_is_fruit(flora)) rtype = rtso::RES_FOOD;
+		else if (rtype_str == "gold" || rtype_str == "metal") rtype = rtso::RES_GOLD;
 		else if (rtype_str == "stone" || rtype_str == "rock") rtype = rtso::RES_STONE;
 		else if (rtype_str == "food" || rtype_str == "fruit") rtype = rtso::RES_FOOD;
 		else if (rtype_str == "fish") { // 0 A.D. gaia/fish/*: only fishing boats gather it
@@ -4913,7 +4958,9 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			if (!r.has("amount")) amt = rtso::FISH_FOOD_SUPPLY;
 		}
 
-		sim->spawn_resource_world(rx, rz, rtype, amt, rsub);
+		// 0 A.D. ResourceSupply/MaxGatherers when the template differs from its class (banyan 12, baobab 9).
+		const int maxg = std::clamp((int)r.get("max_gatherers", 0), 0, 255);
+		sim->spawn_resource_world(rx, rz, rtype, amt, rsub, (uint8_t)maxg, flora < rtso::FLORA_COUNT ? flora : rtso::FLORA_DEFAULT);
 	}
 
 	// Spawn Wildlife Fauna

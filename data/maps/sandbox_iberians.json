@@ -4181,151 +4181,151 @@
       "amount": 1000
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -19.18,
       "z": -36.44,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -7.94,
       "z": -27.27,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -11.45,
       "z": -25.2,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -9.28,
       "z": -21.27,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -4.38,
       "z": -25.43,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -17.5,
       "z": -25.36,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -23.24,
       "z": -32.24,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -24.67,
       "z": -29.38,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -27.36,
       "z": -30.49,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -25.64,
       "z": -33.49,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -5.66,
       "z": -54.9,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -2.58,
       "z": -57.13,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -1.16,
       "z": -59.29,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -1.66,
       "z": -60.75,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -4.32,
       "z": -60.88,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -7.11,
       "z": -59.81,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -9.08,
       "z": -60.23,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -8.74,
       "z": -60.92,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -6.4,
       "z": -63.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -3.23,
       "z": -63.81,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -1.97,
       "z": -63.26,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 0.54,
       "z": -61.62,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 0.49,
       "z": -59.02,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -0.16,
       "z": -52.81,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -3.16,
       "z": -52.96,
       "amount": 200
@@ -5114,5 +5114,69 @@
   "ruins": [],
   "gaia_structures": [],
   "gaia_units": [],
-  "scenery": []
+  "scenery": [],
+  "terrain": {
+    "res": 192,
+    "names": [
+      "medit_rocks_grass",
+      "medit_sea_coral_plants",
+      "medit_sand_messy",
+      "medit_sand_wet",
+      "medit_sea_coral_deep",
+      "medit_sea_depths",
+      "medit_sand",
+      "medit_grass_field_brown",
+      "medit_grass_wild",
+      "medit_rocks_grass_shrubs",
+      "medit_rocks_shrubs",
+      "medit_dirt_b",
+      "medit_dirt",
+      "medit_dirt_c",
+      "medit_rocks",
+      "medit_city_tile",
+      "medit_city_pavement",
+      "savanna_tile_a"
+    ],
+    "rle": "hwARAawAFAGiAAECBAAWAaAAAgIDABgBngADAgIAGgGcAAQCAgAbAZsABAIFAxkBmQAEAgcDGAGZAAMCCQMXAZkAAwIKAxYBmAADAgwDFQGYAAICDQMVAZgAAgINAxUBlwACAg4DFAGYAAICDgMTAZkAAQIPAxIBmQACAg8DEQGaAAICDwMKAaIAAQIOAwsBogABAg4DCwGiAAECDgMLAaIAAQIOAwsBAwSeAAECDgMKAQUEnQABAg4DCQEGBAMBmQABAg4DCQEGBAUBlgACAg4DCQEGBAQBAQUAAZQAAgIPAwgBBQQDAQUFkwADAg4DCAEFBAIBBwWSAAMCDwMHAQUEAgEHBQABkQADAhADBwEEBAEBCQUAAZAAAgIBBg8DBwEHBAgFAQFyAAAHAAgaAAICAQYQAwYBBwQKBXAAAAcECBgAAgICBhADBgEHBAoFbgAABwYIGAABAgIGEQMFAQkECAVtAAEHCAgTAAMJAQIBBhEDBgEIBAkFawABBwoIEgADCQECAgYRAwgBBQQJBWsAAQcKCBcAAQICBhEDCAEEBAkFAAFpAAEHDAgXAAECAgYQAwgBBAQJBQABagABBwoIGAABAgIGEAMIAQQECQUBAWkAAQcKCBQAAQkCAAECAQYRAwcBBAQJBQEBagABBwgIFQADCQEAAAIBBhIDBwEDBAkFAgFrAAAHBggWAAUJAAACAhIDBgEDBAsFAAEABWwABAgZAAQJAwIRAwYBBAQOBWwAAAgbAAQJAAACAhEDBgEEBA8FiAAFCQAAAgIQAwYBAwQQBYkABAkAAAICAQYOAwYBAwQRBYkABQkBAgIGDgMEAQMEEgWKAAUJAAICBg4DBAEDBBMFBQGFAAMJAQIAAA8DBAECBBQFBgFfAAUKIAACCQECDwMEAQIEFAUHAVsACAogAAMJAAIPAwQBAwQUBQcBWgADCgIAAQohAAIJAAIQAwIBAwQVBQgBWQADCiYAAgkBAg8DAgEDBBUFCAFaAAQKJAACCQECDwMCAQQEFQUHAVsABAomAAECDwMCAQQEFQUHAV0AAgomAAECDwMCAQQEFgUGAV4AAgoBAAIKIAABAg8DAgEEBBYFBgFVAAUKAgACCgAABAofAAICDgMDAQMEFwUFAVQABwoCAAcKIAABAg4DAwEDBBcFBQFUAAEKAgACCgEABQoAAAEKCAADCxMAAQIOAwMBAwQYBQQBUwACCgIAAgoBAAIKAwACCgQABgsTAAECDgMDAQMEGAUEAUgAAAgJAAEKAgACCgIAAgoEAAEKAAAKCxMAAQIOAwMBAwQZBQMBRgAECAcAAgoBAAMKAgABCgQAAAoMCxMAAQIOAwMBAwQZBQIBRgAGCAYAAgoCAAMKCAADCwIMBgsTAAECDgMDAQMEGQUBAUcABggHAAEKAgAECgYAAwsEDAULBQACDAoAAQIOAwMBAwQaBQABRgAICAYAAQoFAAEKAgkDAAILBgwFCwMABAwIAAICDgMDAQMEGgUBAUYABggHAAEKAgAACgIJAAoCCQEAAQoCCwYMBQsCAAYMBwACAg4DAwEDBBoFAgFFAAYIBwABCgIAAwkACgUJAAoCCwYMBgsAAAcMBwACAg4DAwEDBBsFAQFGAAQICgABCQAAAgkBCgUJBAsEDAcLAg0FDAgAAQIOAwMBBAQaBQIBRwAACAsABgkBCgUJBQsCDAULBg0DDAIAAgsDAAECDgMDAQQEGgUCAVQABQkCCgQJAQsCDQMLAgwCCwgNAQwCAAQLAQACAg4DAwEFBBoFAQFSAAcJAgoDCQELBA0BCwQMAAsJDQAMAgAGCwAAAgIOAwMBBQQbBQABUgAFCQMKAwkBCwYNBgwJDQAMAgAHCwAAAQIOAwQBBAQbBVMABgkCCgAJAQoACQELBg0FDAkNAAwCAAkLAQIOAwQBBAQcBVMABwkECgELBg0EDAkNAQwCAAkLAQIOAwQBBAQcBVMABwkDCgAJAgsEDQALAwwCDQIOAg0DDAEACgsBAg4DBQEEBBsFVAAFCQAAAwoBCQILAg0BCwMMAQ0EDgENAwwBAAoLAQIOAwUBBAQcBVMAAQkEAAMKAQkAAAYLAwwADQYOAA0CDAAPAAALCwECDgMFAQUEGwVTAAEJDQAFCwMMBg4CDAEPAAACCwINBAsAAAICDgMEAQUEGwVjAAYLAgwGDgELABAADwEAAQsADQIOAA0BCwIAAgIOAwUBBAQcBWIACgsEDgILABACAAALAA0EDgANAAsCAAALAQIOAwUBBQQbBWIACwsCDgMLABABAAALAAwGDgIMAQsCAg4DBAEFBBsFYQAVCwAAAAsADAYOAwwACwICDgMFAQUEGgVhABcLAAwGDgQMAAsCAg0DBQEFBBoFYQAYCwAMBA4FDAALAgINAwYBBQQZBWEAGQsADAIOBgwBCwECDgMHAQQEGAViABsLABEAAAQMAgsBAg8DBwEFBBYFYwAPCwIMBwsAEQEAAgwDCwICDgMHAQYEFQVjAA4LBAwGCwARAgAGCwECDgMHAQcEFAVjAA0LBgwECwUABAsAAAECDgMHAQcEFAVjAA0LBgwFCwUAAgsBAAICDQMIAQcEEwVjAA0LBgwFCwoAAgINAwsBBQQSBV4AAgwCAAQLAAAHCwQMBgsKAAICDQMMAQQEEgVdAAQMAgACCwEACAsDDAYLCwADAgsDDAEEBBIFXAAGDAcABwsEDAQLAgADDgUAAQYBAgsDDAEEBBIFXAAGDAgABQsGDAILAAAGDgYAAAYCAgoDCQEGBBMFXAAGDAkABAsGDAALAAAGDgkAAAMBAgoDCAEGBBQFXQAEDA8ABgwAAAUOCwAABgECCgMHAQUEFgVeAAIMEQAEDAAABA4LAAIOAQIKAwcBBAQXBXQAAgwBAAQOCQAEDgAGCwMGAQUEFwV5AAUOCAAEDgAGCwMGAQQEGAV5AAYOCAADDgAGCwMGAQQEGAV5AAYOCAAEDgoDCAEEBBcFegAFDggABA4JAwkBBAQXBXsABQ4HAAEOAAIBDggDCgEEBBcFewABDgAAAg4FAAYOCAMKAQQEFwV6AAIOAQABDgUABQ4ABggDCwEDBBcFeQACDgIAAQ4IAAIOCQMMAQIEFwV5AAIOAgABDggAAg4JAwwBAwQWBXgAAg4DAAEOBwADDgkDCAEGBBcFdwADDg0AAw4JAwcBBwQXBXYAAw4NAAACAw4IAwgBBwQWBQABdgACDg0AAQYCDgkDCAEGBBcFAAF1AAIODQACBgEOCgMIAQUEFwUBAXUAAg4HAAECAAMCAAEGDAMJAQQEFwUCAXUAAQ4HAAMCBAYLAwgBBgQZBQABcAAEAgEOAAADAgEAAgIFBgwDBwEGBBsFbgAGAgEOBAIAAwMCAwYAAg0DBwEGBBsFbAAIAgEOAwIAAwICAAMEAg0DCAEGBBsFawAIAgIOBwISAwkBBgQbBWoACQIBDgYCEwMKAQQEHQVnAAwCAQ4DAhYDCgEDBB0FAAFmABACGAMLAQIEHAUCAWQABgICBgECAQYEAhgDCwECBB0FAQFjAAQCBQYAAgMGAgIZAwoBAgQeBQEBYgAEAgQGAQIEBgACGgMKAQMEHgUBAV8ABQIEBgICBAYbAwoBBQQcBQIBXQAGAgQGAgIDBhwDCwEFBBwFAgFdAAQCBAYDAgMGHAMMAQUEGwUDAVsABQIDBgQCAwYZAwEBAAAKAQgEGQUFAVsABQILBhkDDQEJBBoFBAFaAAMCDQYZAwwBCQQcBQQBWQACAg8GFwMNAQkEHQUEAVgAAQIGBgUDAQYVAxIBCAQeBQQBVwABAgMGIAMTAQgEHQUFAVcABAYgAxEBCgQeBQUBVgAEBiADDgEOBB0FBgFUAAACAwYgAw8BDwQbBQgBUwAAAgMGHwMQAQ8EGwUIAVMAAAIDBh8DEAEOBBwFCQFSAAECAgYcAwsBAwQDAQcEAgUDBB0FCQFSAAACAgYcAwsBBQQBAQYEBgUAAR8FCQFPAAECAwYbAwwBDQQoBQkBTQADAgIGGwMNAQ0EKQUIAUsABQICBhoDDgELBAABKgUIAUsAAwIEBhkDDwEKBCwFCAFGAAUCBgYZAxABCQQsBQkBRgAFAgQGGgMRAQkELAUJAUUABQICBhwDCQEDBAQBBQQABQEELAUJAUUABQICBhcDDQEGBAMBAwQxBQgBRQAEAgQGFQMOAQ4EMwUGAUUAAQIHBhQDDwEPBDIFBgFCAAMCBwYUAw4BEQQzBQUBQAAEAgUGFgMPARMEMQUFAUAABAIEBhcDDwEUBDEFBAFBAAMCAwYYAxABCAQEBQMEAgUAAS8FAwFAAAQCBQYXAxEBBgQ8BQIBQwAEAgQGFwMQAQYEPQVGAAQCAwYYAwwBCQQ+BUcAAwIDBhgDDAEJBD4FRwADAgMGFQMQAQgEPwVFAAQCAwYUAwAAEQEHBD8FAAFEAAMCBAYUAwAAEgEGBD4FAgFDAAICBAYUAwIAEQEFBD8FAgFDAAACBgYUAwMADwEGBD8FAgFDAAYGFQMDAA8BBwQ9BQMBQwAAAgQGFgMTAQcEPQUDAUMABgYUAwAAEwEIBDsFBAFDAAUGFQMAABMBBwQBAToFBAFDAAUGFQMAABQBBgQAATsFAwFEAAQGFwMOAQUEAAEFBDsFAQFHAAACAwYXAwAADAENBDsFAQFIAAACAgYYAwsBDwQ5BQIBSAAAAgIGGAMJARAEOgUCAUkAAAICBhcDAAAGARIEOgUCAUoAAAIBBhcDAAAGAQwEAAEDBDoFBAFLAAEGFgMAAAcBCQQEBQEEOgUEAU4AFQMJAQcEQgUEAU8AFAMJAQcERAUCAVEAEgMJAQYEAAFFBQEBUwAQAwkBBwRFBQABVgAOAwkBBwRGBVgABgMBAA0BBwRGBWIADQEGBEIFAAEBBWQADQEFBEEFAgFmAAwBBQRABQEBaQALAQUEPgUDAWoACwEFBDsFAwFtAAsBBAQxBQABBgUFAW4ACgEFBCgFFAFxAAkBBQQAASUFFQFzAAgBBQQAASMFFgE5AA=="
+  },
+  "environment": {
+    "sky_set": "stormy",
+    "sun_color": [
+      0.9569,
+      0.9294,
+      0.7216
+    ],
+    "sun_elevation": 0.506214,
+    "sun_rotation": -0.693359,
+    "ambient_color": [
+      0.3373,
+      0.4118,
+      0.502
+    ],
+    "fog_color": [
+      0.8,
+      0.8,
+      0.8941
+    ],
+    "fog_factor": 0.0,
+    "fog_thickness": 0.5,
+    "water_type": "ocean",
+    "water_color": [
+      0.2941,
+      0.349,
+      0.6941
+    ],
+    "water_tint": [
+      0.3373,
+      0.4118,
+      0.502
+    ],
+    "water_waviness": 4.0,
+    "water_murkiness": 0.746094,
+    "brightness": 0.0,
+    "contrast": 1.0,
+    "saturation": 0.99,
+    "bloom": 0.1999,
+    "post_effect": "default"
+  }
 }

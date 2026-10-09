@@ -34,6 +34,8 @@ import zipfile
 
 # VisionSharing bribes (unlock_spies, spy_counter): no TechEffect rows, the simulation reads them.
 SPY_TECHS = ("unlock_spies", "spy_counter")
+# Cartography: Simulation::shares_los reads it (Player/sharedLos).
+NAMED_TECHS = SPY_TECHS + ("unlock_shared_los",)
 
 # RTS0 civ id order (sim_types.h Civilization) by 0 A.D. civ code.
 CIVS = ["athen", "spart", "pers", "rome", "cart", "mace", "brit", "gaul",
@@ -163,6 +165,10 @@ def stat_of(path: str):
         "Cost/Resources/metal": "TSTAT_COST_METAL",
         "Market/InternationalBonus": "TSTAT_TRADE_INTERNATIONAL",
         "Trainer/BatchTimeModifier": "TSTAT_BATCH_TIME",
+        "Vision/Range": "TSTAT_VISION",
+        "Attack/Ranged/Projectile/Spread": "TSTAT_SPREAD",
+        "BuildingAI/GarrisonArrowMultiplier": "TSTAT_GARRISON_ARROWS",
+        "Attack/Ranged/MinRange": "TSTAT_MIN_RANGE",
     }.get(path)
 
 
@@ -350,7 +356,7 @@ def main() -> int:
             continue
         mods = [m for m in j.get("modifications", []) if stat_of(m["value"])]
         # The spy techs work through Simulation::cmd_bribe (Player/SpyCostMultiplier there too).
-        if not mods and not name.startswith(("unlock_champion_", "unlock_civilians_")) and name not in SPY_TECHS:
+        if not mods and not name.startswith(("unlock_champion_", "unlock_civilians_")) and name not in NAMED_TECHS:
             continue  # nothing RTS0 can apply yet (shared LOS, spread, ...)
         if civ_mask(j.get("requirements")) == 0:
             continue  # only civs RTS0 doesn't have

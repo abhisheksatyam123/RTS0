@@ -6586,97 +6586,97 @@
   ],
   "resources": [
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -67.85,
       "z": 47.34,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -90.04,
       "z": -83.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 5.36,
       "z": -93.47,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 19.87,
       "z": -86.81,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 60.73,
       "z": -82.09,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -127.58,
       "z": -78.75,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 43.72,
       "z": 1.68,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -56.53,
       "z": -129.51,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 2.15,
       "z": -134.49,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -38.8,
       "z": -87.59,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -23.14,
       "z": 17.54,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -132.46,
       "z": -9.55,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 68.98,
       "z": 6.44,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -11.22,
       "z": -15.3,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -71.1,
       "z": -43.36,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -91.58,
       "z": -15.46,
       "amount": 200
@@ -6685,37 +6685,43 @@
       "type": "palm",
       "x": -66.72,
       "z": -43.35,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -75.38,
       "z": -46.55,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 38.89,
       "z": 32.81,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 43.58,
       "z": 28.67,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 37.15,
       "z": 27.21,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -127.62,
       "z": -90.96,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
@@ -6805,31 +6811,36 @@
       "type": "palm",
       "x": -136.66,
       "z": -89.94,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -131.44,
       "z": -94.36,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -124.34,
       "z": -92.84,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -119.76,
       "z": -86.87,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -124.6,
       "z": -86.07,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
@@ -6874,19 +6885,19 @@
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -63.49,
       "z": 110.28,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 105.1,
       "z": 96.96,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 73.21,
       "z": 104.0,
       "amount": 200
@@ -6895,31 +6906,36 @@
       "type": "palm",
       "x": 113.43,
       "z": -2.5,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 77.71,
       "z": -130.31,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 15.29,
       "z": -87.85,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 4.89,
       "z": -98.42,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 13.83,
       "z": 110.28,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
@@ -6955,13 +6971,15 @@
       "type": "palm",
       "x": -31.13,
       "z": 74.48,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -10.8,
       "z": 70.83,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
@@ -7147,13 +7165,15 @@
       "type": "palm",
       "x": 89.15,
       "z": -47.89,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 94.41,
       "z": -50.44,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
@@ -7168,127 +7188,127 @@
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 95.68,
       "z": -48.63,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 111.7,
       "z": -22.36,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 91.46,
       "z": -79.92,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -1.86,
       "z": -75.43,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -28.72,
       "z": -46.98,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -17.8,
       "z": 35.19,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 22.06,
       "z": 40.8,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 57.28,
       "z": 70.89,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 29.33,
       "z": 109.29,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -9.79,
       "z": 129.24,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -91.07,
       "z": 63.1,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -146.0,
       "z": 1.84,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -123.45,
       "z": -69.23,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -92.77,
       "z": -117.05,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -16.5,
       "z": -146.49,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 54.81,
       "z": -123.1,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 102.6,
       "z": -102.71,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 47.33,
       "z": -53.53,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -0.9,
       "z": -38.48,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 3.12,
       "z": 64.82,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -75.68,
       "z": 71.86,
       "amount": 200
@@ -7297,19 +7317,22 @@
       "type": "palm",
       "x": 131.09,
       "z": 61.95,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 136.23,
       "z": 68.77,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 140.98,
       "z": 63.89,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
@@ -7471,49 +7494,57 @@
       "type": "palm",
       "x": -121.16,
       "z": -82.0,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -121.09,
       "z": -90.61,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -117.19,
       "z": -83.79,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 136.93,
       "z": 75.48,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -20.38,
       "z": -72.02,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -17.89,
       "z": -78.89,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -23.34,
       "z": -76.04,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -21.43,
       "z": -79.22,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
@@ -7612,1171 +7643,1171 @@
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -107.95,
       "z": -18.27,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -109.05,
       "z": -21.23,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -107.28,
       "z": -20.19,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -105.45,
       "z": -17.81,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -105.77,
       "z": -22.5,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -104.05,
       "z": -19.4,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -101.53,
       "z": -21.01,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -103.69,
       "z": -17.21,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -100.65,
       "z": -18.92,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -104.8,
       "z": -24.58,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -102.53,
       "z": -24.34,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -100.85,
       "z": -22.2,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -108.68,
       "z": -23.89,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 119.37,
       "z": -17.74,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 117.33,
       "z": -21.01,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 118.6,
       "z": -23.35,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 120.34,
       "z": -22.42,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 121.23,
       "z": -19.55,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 119.33,
       "z": -19.83,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 121.89,
       "z": -21.55,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 124.13,
       "z": -22.48,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 121.7,
       "z": -24.47,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 124.19,
       "z": -19.37,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 115.84,
       "z": -18.94,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 117.48,
       "z": -17.14,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -59.4,
       "z": 35.25,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -43.97,
       "z": 3.96,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -41.16,
       "z": -9.49,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -53.04,
       "z": -76.9,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -51.11,
       "z": -75.45,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -67.83,
       "z": -92.69,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -57.33,
       "z": -104.59,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -47.16,
       "z": -106.05,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -74.45,
       "z": -116.96,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -92.53,
       "z": -114.54,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -104.07,
       "z": -102.85,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -92.08,
       "z": -95.03,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -101.29,
       "z": -82.05,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -117.3,
       "z": -66.87,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -129.91,
       "z": -60.44,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -134.3,
       "z": -34.79,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -140.97,
       "z": -37.29,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -142.2,
       "z": -42.93,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -137.8,
       "z": -44.87,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -133.62,
       "z": -38.58,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -131.16,
       "z": -43.22,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -138.63,
       "z": -39.96,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -147.62,
       "z": -15.69,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -144.03,
       "z": 2.09,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -134.72,
       "z": -0.87,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -141.06,
       "z": 18.77,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -141.73,
       "z": 32.06,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -129.39,
       "z": 29.33,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -136.56,
       "z": 58.88,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -131.02,
       "z": 57.62,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -113.69,
       "z": 55.07,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -110.56,
       "z": 59.93,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -113.36,
       "z": 61.51,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -116.54,
       "z": 63.17,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -119.5,
       "z": 59.72,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -107.93,
       "z": 62.43,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -105.24,
       "z": 87.75,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -79.04,
       "z": 72.13,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -61.97,
       "z": 68.07,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -59.68,
       "z": 50.55,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -50.91,
       "z": 32.8,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -38.25,
       "z": 39.5,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -26.58,
       "z": 28.44,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -1.8,
       "z": 34.79,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -17.43,
       "z": 49.0,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 0.09,
       "z": 54.66,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 23.79,
       "z": 53.3,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 26.82,
       "z": 59.06,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 38.57,
       "z": 64.97,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 41.49,
       "z": 59.06,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 51.26,
       "z": 64.79,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 54.86,
       "z": 57.93,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 57.96,
       "z": 50.95,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 63.89,
       "z": 47.87,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 60.31,
       "z": 60.07,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 64.83,
       "z": 68.59,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 71.64,
       "z": 69.11,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 85.49,
       "z": 73.46,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 100.35,
       "z": 78.46,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 101.04,
       "z": 63.26,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 105.54,
       "z": 69.18,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 112.06,
       "z": 70.9,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 115.34,
       "z": 63.81,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 124.27,
       "z": 77.7,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 123.76,
       "z": 82.42,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 125.38,
       "z": 87.8,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 114.5,
       "z": 52.9,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 105.35,
       "z": 26.89,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 101.31,
       "z": 15.63,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 126.33,
       "z": 34.38,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 145.57,
       "z": 33.45,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 135.62,
       "z": 18.96,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 139.58,
       "z": 1.2,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 134.49,
       "z": -19.78,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 138.4,
       "z": -44.36,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 131.75,
       "z": -45.65,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 135.17,
       "z": -50.15,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 90.49,
       "z": -76.56,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 74.55,
       "z": -85.58,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 65.08,
       "z": -102.46,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 75.0,
       "z": -123.37,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 52.96,
       "z": -139.06,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 47.07,
       "z": -109.79,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 33.28,
       "z": -104.39,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 34.4,
       "z": -85.45,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 18.27,
       "z": -61.97,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 32.39,
       "z": -52.89,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 7.37,
       "z": -29.37,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -7.33,
       "z": -23.24,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -33.75,
       "z": -26.49,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -26.14,
       "z": -102.32,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -31.17,
       "z": -111.31,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -23.3,
       "z": -143.12,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -39.39,
       "z": -144.59,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -53.32,
       "z": -139.98,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -42.84,
       "z": -125.72,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -17.25,
       "z": -122.8,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 9.88,
       "z": -117.37,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 2.56,
       "z": -107.24,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 11.57,
       "z": -105.45,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 10.76,
       "z": -100.05,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 15.74,
       "z": -83.33,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 7.66,
       "z": -91.27,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 6.96,
       "z": -97.46,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 17.65,
       "z": -91.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 36.16,
       "z": -25.87,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 51.95,
       "z": -27.49,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 24.97,
       "z": 7.89,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 12.04,
       "z": 23.83,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 29.57,
       "z": 35.72,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 31.74,
       "z": 51.25,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 4.04,
       "z": 65.61,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -35.08,
       "z": 62.86,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -25.98,
       "z": 53.98,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -28.14,
       "z": 61.38,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -69.59,
       "z": 80.9,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -90.53,
       "z": 98.23,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -90.44,
       "z": 101.13,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -80.35,
       "z": 95.71,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -70.21,
       "z": 96.53,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -69.38,
       "z": 91.09,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -66.47,
       "z": 85.47,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -41.0,
       "z": 120.38,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -41.7,
       "z": 114.39,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -37.03,
       "z": 117.56,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -35.11,
       "z": 113.96,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -30.82,
       "z": 116.12,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -35.19,
       "z": 120.55,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -26.22,
       "z": 116.3,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -76.58,
       "z": 114.43,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -70.84,
       "z": 111.09,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -65.4,
       "z": 108.59,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -59.69,
       "z": 107.44,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -67.64,
       "z": 111.99,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -67.7,
       "z": 109.06,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 75.55,
       "z": 110.14,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 78.13,
       "z": 109.31,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 79.54,
       "z": 113.14,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 80.23,
       "z": 115.32,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 81.29,
       "z": 116.63,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 82.64,
       "z": 114.66,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 92.73,
       "z": 118.43,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 83.77,
       "z": 123.69,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -65.72,
       "z": 82.68,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -63.17,
       "z": 85.79,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -97.28,
       "z": 101.44,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -105.68,
       "z": 94.81,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -82.43,
       "z": 77.01,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 58.85,
       "z": -129.85,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 67.31,
       "z": -106.95,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 58.72,
       "z": -103.79,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 61.73,
       "z": -107.87,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 59.82,
       "z": -111.7,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 59.31,
       "z": -115.39,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 60.65,
       "z": -116.58,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 65.43,
       "z": -105.62,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 57.17,
       "z": -107.1,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 64.89,
       "z": -97.59,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -60.24,
       "z": -107.03,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -60.07,
       "z": -111.52,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -60.41,
       "z": -113.71,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -60.6,
       "z": -115.78,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -55.78,
       "z": -113.48,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -54.58,
       "z": -112.93,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -53.19,
       "z": -116.39,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -52.04,
       "z": -114.5,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -57.33,
       "z": -109.66,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 30.47,
       "z": 70.97,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 28.63,
       "z": 99.93,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 31.06,
       "z": 97.9,
       "amount": 200
@@ -8917,43 +8948,50 @@
       "type": "palm",
       "x": 137.76,
       "z": 57.66,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 16.71,
       "z": -98.45,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 18.32,
       "z": -85.16,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 8.79,
       "z": -104.37,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 4.51,
       "z": -103.18,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 6.55,
       "z": 28.76,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -0.02,
       "z": 23.34,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
@@ -9472,127 +9510,127 @@
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -39.74,
       "z": -51.34,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -38.81,
       "z": -54.22,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -41.74,
       "z": -41.09,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -44.87,
       "z": -42.64,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -43.41,
       "z": -38.93,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -15.98,
       "z": -38.25,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -34.74,
       "z": -85.44,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -114.05,
       "z": 66.07,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -34.0,
       "z": 60.62,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -30.55,
       "z": 61.87,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -31.58,
       "z": 63.57,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -39.88,
       "z": 73.78,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -42.17,
       "z": 70.89,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -30.73,
       "z": 57.26,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -35.86,
       "z": 55.78,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -25.54,
       "z": 59.78,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -20.4,
       "z": 56.82,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -42.23,
       "z": 59.6,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -49.3,
       "z": 64.17,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -43.13,
       "z": 66.14,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -43.75,
       "z": 54.85,
       "amount": 200
@@ -9676,1843 +9714,1843 @@
       "amount": 2000
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -52.5,
       "z": 102.97,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -50.9,
       "z": 101.12,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -51.69,
       "z": 102.13,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -48.7,
       "z": 101.44,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -38.41,
       "z": 67.73,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -36.53,
       "z": 68.23,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -36.26,
       "z": 61.41,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -34.48,
       "z": 58.07,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -31.36,
       "z": 57.61,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -29.71,
       "z": 56.35,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -27.09,
       "z": 56.72,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -26.2,
       "z": 58.42,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -26.26,
       "z": 61.54,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -27.79,
       "z": 63.78,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -30.75,
       "z": 66.95,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -32.51,
       "z": 68.79,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -36.58,
       "z": 66.58,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -38.17,
       "z": 63.5,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -34.48,
       "z": 58.96,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -32.46,
       "z": 60.57,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -31.51,
       "z": 61.2,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -28.14,
       "z": 59.59,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -24.2,
       "z": 59.3,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -32.0,
       "z": 55.48,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -34.73,
       "z": 55.29,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -31.4,
       "z": 53.86,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -27.31,
       "z": 54.96,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -40.15,
       "z": 99.32,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -37.67,
       "z": 96.94,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -36.96,
       "z": 98.31,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -36.05,
       "z": 99.7,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -34.18,
       "z": 96.74,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -34.05,
       "z": 96.86,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -32.37,
       "z": 98.4,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -31.13,
       "z": 96.17,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -27.73,
       "z": 96.22,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -23.78,
       "z": 93.36,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 19.01,
       "z": 92.35,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 19.75,
       "z": 93.15,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 21.93,
       "z": 91.48,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 23.12,
       "z": 94.33,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 27.01,
       "z": 96.83,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 29.23,
       "z": 97.22,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 30.54,
       "z": 95.66,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 35.93,
       "z": 96.83,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 38.93,
       "z": 95.41,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 41.84,
       "z": 95.64,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 43.06,
       "z": 94.42,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 50.05,
       "z": 89.25,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 48.28,
       "z": 89.67,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 79.78,
       "z": 108.46,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 80.41,
       "z": 111.78,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 84.82,
       "z": 112.23,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 87.46,
       "z": 114.15,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 88.05,
       "z": 117.11,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 90.28,
       "z": 117.11,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 90.44,
       "z": 116.2,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 92.98,
       "z": 117.64,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 93.6,
       "z": 119.13,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 91.34,
       "z": 121.53,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 88.58,
       "z": 121.96,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 86.7,
       "z": 118.91,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 85.55,
       "z": 115.87,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 82.85,
       "z": 115.77,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 104.36,
       "z": 116.02,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 102.62,
       "z": 113.49,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 99.45,
       "z": 109.2,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 98.63,
       "z": 107.38,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 100.2,
       "z": 106.06,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 101.61,
       "z": 110.58,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 102.78,
       "z": 112.68,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 111.68,
       "z": 106.61,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 109.7,
       "z": 103.22,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 109.36,
       "z": 101.31,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 105.49,
       "z": 100.28,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 111.27,
       "z": 103.23,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 113.06,
       "z": 103.22,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 102.05,
       "z": 98.08,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 101.95,
       "z": 95.61,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 102.25,
       "z": 94.41,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 103.42,
       "z": 94.34,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 73.32,
       "z": 94.48,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 70.12,
       "z": 93.38,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 68.18,
       "z": 92.93,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 67.31,
       "z": 91.41,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 64.88,
       "z": 91.44,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 62.93,
       "z": 92.04,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 58.08,
       "z": 89.64,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 28.06,
       "z": 88.53,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 29.25,
       "z": 87.61,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 30.6,
       "z": 89.23,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 32.53,
       "z": 90.57,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 33.89,
       "z": 89.93,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 35.13,
       "z": 89.43,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 36.5,
       "z": 91.15,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 39.12,
       "z": 92.36,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 40.94,
       "z": 91.5,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 46.5,
       "z": 88.99,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -10.15,
       "z": 87.09,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -8.83,
       "z": 82.47,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -7.06,
       "z": 84.95,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -5.88,
       "z": 87.56,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -4.18,
       "z": 86.16,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -2.8,
       "z": 85.45,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 0.01,
       "z": 85.86,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -35.94,
       "z": 86.57,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -32.98,
       "z": 85.14,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -29.18,
       "z": 89.31,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -28.09,
       "z": 88.59,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -29.2,
       "z": 87.94,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -35.52,
       "z": 87.64,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -36.42,
       "z": 87.86,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -39.92,
       "z": 89.9,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -34.21,
       "z": 89.02,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -32.84,
       "z": 88.18,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -47.67,
       "z": 91.51,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -51.5,
       "z": 94.16,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -56.21,
       "z": 96.69,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -59.21,
       "z": 98.22,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -67.05,
       "z": 100.94,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -73.61,
       "z": 103.61,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -80.3,
       "z": 106.19,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -94.69,
       "z": 120.02,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -94.41,
       "z": 121.4,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -92.03,
       "z": 120.74,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -90.16,
       "z": 118.0,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -89.13,
       "z": 116.42,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -88.19,
       "z": 112.1,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -90.88,
       "z": 115.33,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -91.93,
       "z": 117.53,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -89.37,
       "z": 127.46,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -86.78,
       "z": 123.93,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -85.58,
       "z": 122.94,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -84.08,
       "z": 122.53,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -84.04,
       "z": 120.7,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -84.42,
       "z": 120.09,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -85.5,
       "z": 123.59,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -85.51,
       "z": 124.43,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -86.32,
       "z": 125.5,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -88.21,
       "z": 127.41,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -84.66,
       "z": 125.17,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -64.29,
       "z": 108.65,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -65.54,
       "z": 107.47,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -67.27,
       "z": 108.41,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -69.0,
       "z": 108.7,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -70.42,
       "z": 108.72,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -71.12,
       "z": 110.78,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -67.27,
       "z": 110.53,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -63.66,
       "z": 109.23,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -62.01,
       "z": 107.69,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -60.2,
       "z": 106.88,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -58.4,
       "z": 106.24,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -58.32,
       "z": 104.95,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -49.13,
       "z": 99.87,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -56.36,
       "z": 105.2,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -37.71,
       "z": 109.17,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -34.68,
       "z": 109.78,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -14.98,
       "z": 92.49,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -12.61,
       "z": 82.25,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -26.28,
       "z": 87.12,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -28.53,
       "z": 87.8,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -32.28,
       "z": 87.42,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -35.38,
       "z": 98.14,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -35.58,
       "z": 96.62,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -32.18,
       "z": 96.88,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -30.72,
       "z": 96.74,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -48.58,
       "z": 93.63,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -50.61,
       "z": 92.34,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -51.65,
       "z": 93.73,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -52.64,
       "z": 95.43,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -53.81,
       "z": 95.38,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -55.67,
       "z": 93.28,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -67.81,
       "z": 102.42,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -66.11,
       "z": 99.05,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -65.67,
       "z": 100.72,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -64.75,
       "z": 98.83,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -64.13,
       "z": 98.3,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -62.34,
       "z": 107.92,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -62.9,
       "z": 109.23,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -64.34,
       "z": 109.92,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -65.73,
       "z": 110.66,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -67.31,
       "z": 111.22,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -68.09,
       "z": 110.14,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -68.31,
       "z": 108.79,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -67.28,
       "z": 107.98,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -69.79,
       "z": 110.05,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -71.02,
       "z": 109.49,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -84.13,
       "z": 122.1,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -84.51,
       "z": 123.24,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -86.84,
       "z": 124.9,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -88.22,
       "z": 124.99,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -87.72,
       "z": 123.11,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -86.0,
       "z": 121.57,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -93.36,
       "z": 121.1,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -92.06,
       "z": 118.99,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -90.81,
       "z": 117.18,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -87.61,
       "z": 115.7,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -74.93,
       "z": 113.25,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -78.73,
       "z": 104.95,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 108.33,
       "z": 109.57,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 105.77,
       "z": 103.7,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 104.51,
       "z": 101.2,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 102.71,
       "z": 99.62,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 101.19,
       "z": 98.6,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 99.32,
       "z": 99.63,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 102.25,
       "z": 101.03,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 104.04,
       "z": 101.94,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 106.82,
       "z": 103.56,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 107.07,
       "z": 105.17,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 105.25,
       "z": 105.73,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 85.83,
       "z": 99.21,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 83.58,
       "z": 99.01,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 78.24,
       "z": 98.44,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 81.01,
       "z": 99.66,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 83.45,
       "z": 100.05,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 71.39,
       "z": 89.5,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 66.8,
       "z": 89.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 64.81,
       "z": 89.0,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 62.89,
       "z": 88.18,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 63.73,
       "z": 93.99,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 61.1,
       "z": 93.64,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 56.64,
       "z": 90.14,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 54.69,
       "z": 94.38,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 48.01,
       "z": 89.15,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 35.27,
       "z": 70.95,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 61.92,
       "z": 73.15,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -14.38,
       "z": 73.66,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 22.92,
       "z": 71.71,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 21.65,
       "z": 69.31,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 19.06,
       "z": 69.18,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 28.95,
       "z": 56.04,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 26.26,
       "z": 54.31,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 24.62,
       "z": 53.97,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 15.2,
       "z": 51.35,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 14.34,
       "z": 49.75,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 21.39,
       "z": 51.58,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 86.03,
       "z": 79.27,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 63.59,
       "z": 102.67,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 61.78,
       "z": 102.84,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 60.76,
       "z": 102.25,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 7.58,
       "z": -99.93,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 5.89,
       "z": -103.92,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 5.94,
       "z": -106.62,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 14.26,
       "z": -94.63,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 16.16,
       "z": -92.58,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 15.99,
       "z": -88.49,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 13.76,
       "z": -85.08,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 11.55,
       "z": -88.3,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 10.65,
       "z": -91.06,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 9.5,
       "z": -93.99,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 4.73,
       "z": -95.66,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 6.51,
       "z": -91.92,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 7.45,
       "z": -91.59,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 8.14,
       "z": -91.03,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 19.46,
       "z": -86.08,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 20.35,
       "z": -87.81,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 20.39,
       "z": -88.69,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 21.53,
       "z": -85.79,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 61.87,
       "z": -100.41,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 60.86,
       "z": -103.77,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 58.94,
       "z": -106.29,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 59.52,
       "z": -107.36,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 64.77,
       "z": -106.29,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 64.13,
       "z": -106.93,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 61.08,
       "z": -109.3,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 61.02,
       "z": -115.23,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 61.48,
       "z": -117.4,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 60.74,
       "z": -118.55,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 115.87,
       "z": -20.62,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 117.67,
       "z": -24.21,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 119.12,
       "z": -24.74,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 120.55,
       "z": -23.39,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 121.84,
       "z": -22.67,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 123.44,
       "z": -22.32,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 123.8,
       "z": -19.6,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 121.24,
       "z": -18.3,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 119.41,
       "z": -19.38,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 118.81,
       "z": -21.46,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": 122.67,
       "z": -24.39,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -103.47,
       "z": -21.24,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -104.87,
       "z": -23.57,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -102.99,
       "z": -25.29,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -102.54,
       "z": -25.1,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -101.65,
       "z": -22.49,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -101.01,
       "z": -20.01,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -104.64,
       "z": -21.16,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -107.59,
       "z": -23.85,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -107.74,
       "z": -25.83,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -105.59,
       "z": -25.0,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -104.41,
       "z": -26.9,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -100.03,
       "z": -22.98,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -102.63,
       "z": -15.38,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -107.11,
       "z": -11.57,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -116.41,
       "z": 58.86,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -117.58,
       "z": 57.09,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -113.25,
       "z": 51.59,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -111.18,
       "z": 50.93,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -109.78,
       "z": 51.2,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -107.52,
       "z": 61.86,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -109.3,
       "z": 65.21,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -110.76,
       "z": 64.47,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -108.11,
       "z": 61.1,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -114.78,
       "z": 60.61,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -113.33,
       "z": 59.09,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -85.88,
       "z": 114.36,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -83.47,
       "z": 110.32,
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "bush",
       "x": -82.76,
       "z": 108.96,
       "amount": 100
@@ -12064,325 +12102,325 @@
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -104.42,
       "z": -44.16,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -102.17,
       "z": -46.18,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -105.13,
       "z": -46.24,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -103.41,
       "z": -47.58,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 115.53,
       "z": -45.85,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 112.68,
       "z": -49.11,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 113.52,
       "z": -46.54,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 111.97,
       "z": -45.09,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -85.43,
       "z": 56.83,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -86.84,
       "z": 55.02,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -88.45,
       "z": 53.41,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -89.39,
       "z": 52.22,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -91.28,
       "z": 50.42,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -92.38,
       "z": 49.53,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -78.92,
       "z": 53.59,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -80.97,
       "z": 51.01,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -82.81,
       "z": 49.34,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -83.61,
       "z": 48.4,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -85.36,
       "z": 46.71,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -86.42,
       "z": 45.88,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -88.78,
       "z": 43.53,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -74.86,
       "z": 48.32,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -76.1,
       "z": 45.65,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -77.43,
       "z": 43.63,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -80.45,
       "z": 40.9,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -73.21,
       "z": 49.73,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -83.31,
       "z": 38.86,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -79.22,
       "z": 42.46,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 72.88,
       "z": -99.74,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 73.59,
       "z": -98.03,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 74.51,
       "z": -97.13,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 75.91,
       "z": -95.51,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 77.22,
       "z": -94.17,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 77.87,
       "z": -92.82,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 78.97,
       "z": -90.56,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 80.18,
       "z": -88.53,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 84.91,
       "z": -93.88,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 84.06,
       "z": -95.03,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 83.06,
       "z": -96.61,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 81.89,
       "z": -98.56,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 81.08,
       "z": -99.92,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 79.49,
       "z": -101.67,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 78.0,
       "z": -102.83,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 76.43,
       "z": -104.06,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 82.2,
       "z": -106.55,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 83.61,
       "z": -105.15,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 87.45,
       "z": -101.18,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 89.37,
       "z": -99.07,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 91.01,
       "z": -96.17,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 92.54,
       "z": -93.79,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 85.55,
       "z": -102.52,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -93.9,
       "z": 48.03,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -95.46,
       "z": 45.55,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -89.73,
       "z": 40.67,
       "amount": 400
@@ -12412,277 +12450,277 @@
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -3.6,
       "z": -39.05,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 148.47,
       "z": -21.2,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 79.99,
       "z": 59.19,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -109.06,
       "z": 36.54,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -51.83,
       "z": -101.86,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 34.56,
       "z": -145.18,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 24.7,
       "z": -67.45,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 9.5,
       "z": 24.99,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 9.6,
       "z": 70.74,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 65.79,
       "z": 127.87,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -64.72,
       "z": 129.08,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -66.47,
       "z": 127.78,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 9.73,
       "z": -88.3,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 72.02,
       "z": -76.67,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -54.85,
       "z": -56.56,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -55.59,
       "z": 2.8,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -72.78,
       "z": 0.24,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -69.35,
       "z": 1.3,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -115.15,
       "z": -86.9,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -117.94,
       "z": -89.63,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -57.43,
       "z": -112.44,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -58.63,
       "z": -114.7,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -58.88,
       "z": -116.23,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -57.96,
       "z": -117.09,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -56.05,
       "z": -115.79,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -53.89,
       "z": -114.93,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 6.58,
       "z": -103.56,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 6.04,
       "z": -105.17,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 6.94,
       "z": -107.12,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 7.65,
       "z": -106.99,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 3.44,
       "z": -107.42,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 17.75,
       "z": -87.06,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 16.78,
       "z": -88.51,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 14.08,
       "z": -90.22,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 10.04,
       "z": -90.46,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 9.06,
       "z": -92.66,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 15.33,
       "z": -93.98,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 20.1,
       "z": -84.84,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 56.63,
       "z": -120.23,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 121.94,
       "z": -72.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": 33.19,
       "z": 34.76,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -14.98,
       "z": 55.75,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -32.74,
       "z": 56.13,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -29.13,
       "z": 58.46,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -26.54,
       "z": 64.35,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "pine",
       "x": -39.73,
       "z": 117.21,
       "amount": 200
@@ -12742,7 +12780,7 @@
       "amount": 2000
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 82.33,
       "z": 62.77,
       "amount": 200
@@ -12808,49 +12846,49 @@
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "oak",
       "x": 15.76,
       "z": 128.58,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "oak",
       "x": -18.83,
       "z": 127.09,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "oak",
       "x": -6.54,
       "z": 116.08,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "oak",
       "x": -30.79,
       "z": 141.39,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "oak",
       "x": 44.74,
       "z": 123.44,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "oak",
       "x": 44.48,
       "z": 139.42,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "oak",
       "x": 22.69,
       "z": 150.75,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "oak",
       "x": 19.07,
       "z": 147.94,
       "amount": 200
@@ -14150,5 +14188,77 @@
       "angle": 2.3562,
       "scale": 0.25
     }
-  ]
+  ],
+  "terrain": {
+    "res": 320,
+    "names": [
+      "sahara_dirt_02",
+      "sahara_dirt_01",
+      "sahara_sand_04",
+      "sahara_rocks_dirt_02",
+      "sahara_sand_01",
+      "sahara_rocks_dirt_01",
+      "sahara_forestfloor_02",
+      "sahara_sand_05",
+      "sahara_paving_stones_01",
+      "sahara_grass_dirt_02",
+      "sahara_grass_dirt_01",
+      "sahara_farmland_01",
+      "sahara_dirt_cracks_01",
+      "sahara_forestfloor_01",
+      "desert_plants_b",
+      "aegean_sand_01",
+      "sahara_flora_01",
+      "sahara_flora_02",
+      "sahara_paving_stones_02",
+      "sahara_rock_01",
+      "sahara_grass_dirt_03",
+      "sandstone_cracks_01",
+      "sahara_sand_03",
+      "sahara_rock_02",
+      "aegean_grass_01"
+    ],
+    "rle": "KAALAQUCAQMEAgcBDQMDAQgDAwIHAwECDQMHAQcDAAIAAAEDDQAFARQAAgKoAAkBBAIFAwECBgEPAwMBCAMDAgEAAwMCAg4DCAEFAwACAQABAwECCwAFARQAAwKKAAEBHAAHAQQCBQMBAgYBCgMAAQQDAwEFAwYCAAAGAg0DAQIHAQUDBAADBAsAAQELAAACAgABAQQABQKCAAkBGgAFAQUCBwMGAQkDBAEAAwEAAgEHAw4CBQMAAgUDAQIBAQAABgEBAwACAwAHBBkABQEBAAYCgAALARsAAAEBAAABAAAFAgcDBgEIAwUBAAAEAQcDDgINAwQABQEBAgQACQQMAAECCAAFAQMAAQIBAAQCfAAMAQEAAQEEAAEBFAAGAgUDAQIGAQUDAAIMAQYDEQIBAwECBwMEAAUBAQIDAA8EAwAGBAYABwEHAAQCegATAQAABQESAAYCBQMBAgEBAQMCAQUDDAEHAwcCAQABAgEAAQIBAAQCBQMHAAEBAgIBAQIAHAQEAAcBBgAGAnkAEwEAAAcBEQAHAgEDAwIFAwIBAQMOAQcDAAACAgMAAAIKAAICBgMIAAACBQEBAxsEBQAFAQcABwJ5AB0BBgAAAgcAAQIBAQECAQAAAgEBAQIAAQUDFAEFAwAAAQIRAAICAQAGAwUAAQIFAQEDHAQEAAUBBwAHAnQAAAMDAB0BAgABAQICAQEEAAYBAAAFAQcDEwEFAwAAAQIUAAgDBQAAAgUBBAMaBAYAAQEJAAcCdAAAAwUAEAEAABUBAAAIAQAAAwEJAxMBBQMXAAkDAAIBAAICBQEEAx0EEAAFAnUAAQMFAA8BAAAVAQAACwELAxMBBQMWAAoDBgIFAQEDIQQNAAEBAwIBAXQAAQMHAA0BAAAiAQoDEgEAAAcDFQAKAwEABAIFASUEBQAAAgQABwEXAAMBWAAAAwwAAQEAAAUBAQMfAQ0DAgEBAwYBBwAHAxYACgMBAAICAQMAAgEBAQIlBAwABQEXAAUBVwAAAwcAAQMFAAMBBQMTAQACBgENAwABAAAAAQUDAwEIAAYDDwABAgUABgMDAgAAAQIFAwECKQQBAAEDAwAHAQMABQEMAAcBXQAFAwQAAgEFAxMBAAAGAQoDAgICAAUDAwEIAAYDDwABAgYAAAIBAwACAwEEAgUDAQIrBAEAAQUAAwEFEgEKAAgBXAAFAwQAAQEHAwsBAgABAQEAAQIAAwEBDQMBAgIABwMBAQACBwAHAwIAAQIAAAECBgAEAgEAAQIAAAEDAgAAAgIBAgIHAwECLAQBBQEAAAMHAQADCQEAAgEAAwEBAAoBWwAHAwUABwMAAQEDBwEFAAQCDQMDAgIABwMBAQECBgAHAwIABgIEAAcCBQMAAAYCBwMAAgABLgQAAAECAQMBAQAFAgMLAQAAEgFaAAcDBgALAwUBBAAAAwICBQMAAAUDAQIAAAQCAgAIAwECAgABAQEABgMDAAYCBQAFAgABBQMBAAABBQIFAwECAQEvBAACBwMgAVoABQMHAAsDBAEBAAEDAAAAAwMCDAMHAgEAAAEIAwECAAADAQgDAgAIAgMABgIHAwAAAQMDAgAABQMAAgMBAAMtBAkDFwEAAAcBWQAFAwkAAQMAAAcDAwEHAwACCwMAAAMCAQAEAgIBBwMBAAMBCAMCAAgCAQAGAg4DBAABAwAAAQIDARUEAAUYBAUDAQUAAxcBAAAHAVsAAwMHAAACAwAHAwEBAQATAwEAAQMDAgEAAAIEAQcDAAADAQkDAQEAAAcCAAMLAgsDCAABAgIBGAQAAgEDEwQAAgEBAgMBBQADAQUBAQEDAQEAAA0BAQAHAVsABQMDAAECBQAFAwEBAQAVAwEAAAMBAgEDAAEBAgUBBQMBAAMBCAMEARMCDAMHAAECAQMbBAIDEgQBAQUDAQUFAwAADQECAAUBUwABAwYABQMDAAECBQAFAwMBFQMCAAAFAQIAAwEABgEHAwAAAwEHAwQBAQIAAAoCAQEFAgEDAAIHAwcAAwMbBAIDAQAQBAIBDAMBABQBVAADAwMABwMBAAMCBgABAwYBCgMAAAcDBQAAAgADAAAAAggBBQMAAAMBBwMFAQAACQIAAQECBAEAAwMCAAAIAwUAAwMdBAEDAgACBAADCgQABQEAAAMCBgEDAQUFAwAAEgEAA1UAAwMDAAcDAQADAgcABwEJAwMABQMFAAADAwIFAQACBwMBAAEBAQAHAwMBCAIAAQAFBwEEAgAACAMEAAUDHAQCAwIABAMHBAQABAYBBQADAQIEAxIBBANQAAQDAwAFAwMAAgIHAAkBBwMFAAEDCgABAgMBAQMAAgcDBwAFAwIBAgAFAgYBAAICAQMCAwAHAwMABQMdBAEDAAAIAwUEBQAEBgUCAQEAAxMBBwNMAAUDAgAFAwMAAQIJAAwBAQMUAAABAQMAAQsDBwAHAwEBAQAAAQUCBAEAAgUBAgIDAAcDBAAEAx4EDAMBBAICBAAEBgUCFwEIA0oABQMEAAEDEQAMAQECBwAAAgoAEQMGAAcDAQEBAAIBAQIGAQACAQMDAQICBAAFAwUAAwMhBAsDAQIGAAYGBAIAAxYBCANJAAYDFQABAQEFCgEAAgcAAwIFAAEDAAARAwcABQMPAQUDAwEAAgQABQMAAgEAAAIDAAEDIwQJAwECBgAJBgECAQMFAQIDDwEGA0gABgMJAAEBBwAPAQECBwADAgMAFQMBAAECBAAFAw8BBQMFAQMAAQEBAwEBBQICACYEBgMBAgkACAYAAwcBAwMQAQEDAgECA0UABgMBAQUABQEFAA8BAQAAAgUABQIAABcDAQADAgQAAQMBAA4BCQMCAQIABwEEAgEAAAEoBAQDAQIKAAEGAwEBAgADBQEFAxYBAAMCBUMABQMEAQMABQEEAA8BCQAEAhcDAwEDAggACgEBAwEBCwMDAAcBAAABAgIFAAABASoEAQACAgUABAYFAQACAAYFAQMDGQEDBUIABQMEAQIABwEDAA0BCgAFAg4DAAIBAwEABQMBAQMCCQAHAQUDAAEKAwQABQEAAAUFAgEsBAICBQABBgkBAAYEAQQDGQEEBQAABQc6AAADAAEBAwcBAQAJAQIACwELAAQCCgMAAAEDAQABAgEABgMCAQMCCAACAQECAgEFAwABCwMDAAUBAAAFBQMBDwQCAgQEAwgRBAICAQAAAgwBAAYQAQADEgEBBQsHNwAAAwsBAQAIAQIABQEBAwEBDgADAgoDAQAAAwIBAAAJAwEBAwIFAAEDAQAFAgcDAAIKAwUAAQEBAAUFAQADAQ4EAwIAAAEEBQgSBAICDQEBBg8BAQMRAQAFDQc2AAwBAQAJAQMAAQEFAwYAAQMFAAQCBwMCAAUBCQMAAQICBQAFAwQCAAEHAwABAQMBAgUDCgABBQEAAAUAAgEABQEDBAADBQQFAgIABwgABAAFDwQBAg4BAAYOAQAAAAMSAQ8HNQADAQAACAECAAcBBQAFAwQABQMDAAQCBQMEAAQBCQMBAQICAQMCAAABBQMEAgEBBQMBAQACAgEFAwkAAAUJAAEBAAABAQIAAgMBBAADAQAGAgAACQgBBQ8EDgEABgMBAAAJAQEAEQETBzIAAwEBAAcBAwACAQEDAAEFAAcDAwAFAwQAAwIBAAEDAAEAAAICAAAFAQsDAAIFAwAABwMCAgIBBQMBAgUBAQMCAgEAAgIDAAAFEwACAwQABQIJCAACAQUOBA4BAAIDAQAGAQAHAQEAEAEXBy8AAwECAAUBBAAAAQUDBAAHAwIABwMEAAACAgABAgIAAQIBAAQBDAMAAgUDAAEHAwICBAEBAwABAgIFAQAACAIBAAABAAURAAcDAwAEAgkIAgIPBAAAEgEABgAABwEBAAIBAAMMARoHLAAEAQEABQEFAAUDBQAFAwMABwMNAAEBAQAEARsDAAABAwECBQECAgcBBwIDAQAFDwAJAwIAAQMAAAECAQMAAgcIAgIABQAADQQDAA8BAAYBAAsBAwMJARsHKwAEAQMAAQEGAAcDBAAFAwQABQMDAAMBAAIAAAEBAAALAR8DBQECAgcBDQIFAAECAQAAAgIAFgMAAAQIAgIGAAkEAgAAAg8BAAABCQABAQAIAQQDBwEeBykAAwEBAwsABwMGAAEDBgAFAwEAFgEYAwABBQMBAgEBBQIFAQkCAQAAAgcABAICABYDBAADAggABgQCAAECAgEBAgoBAgkAAQIABwEFAwYBHwcoAAEBBQMKAAUDEgABAwICGAEYAwEGBAMBBgYCBQECAgEBAgIKAAcCAAAdAwACCwAFBAIAAQICAQACAAYLAQEJAQMDAAUBAAAEAwUBAAMgBycAAQEFAwkAAAIFAxQAAQEAAhoBBgMAAAwDAAACBgQDAQYGAgEAAQEBAAACBQEAAgsAAAUBAgEBAgIfAwwAAQQEAAACEQEACQQDAwACAQAABwMDAQADIQcmAwABBwMGAAQCAQMLAAEBBgAgAQAAAQMDAAACCwMAAAIGAwMCBgACAQABAgEDBQAAAgUBDAAABQUBAAIfAxQAEQEBCQMDBwAIAwMBIgclAwABBwMDAQIABQIHAAADAQAFAQQAGgEABQMBCAAFAwAABQMCBgIDAwYCAAUDAgABAwYBCQABAwAFBQEBAB8DEwAPAQIGAAkEAwQACgMDASIHJQMBAQUDBgEHAgYAAQMAAAUBAwASAQAFCgEBAgoAAQMCAAUDAgYBAwMGAwAFAwAABQMEAQcABQMFAQAAHwMDAAABBQAABQYAAAYPAQMGBAMAAgMACwMCASIHJQMAAAABBQMGAQUCAQEHAAADBwECABABBAUBAgIBBgINAAYDAgYAAgMGAwANAwMBAwABAQAAAAIAAAUDBQEBAA0DAgYMAwAAAQMBAAIBAQAAAQYAAQYQAQMGBAMDAAgDAgEAAwIBIwckAwEAAQEBAwkBAgIFAQYABwEDAAoBAAABAQEAAQUGAAICAQMCAg0ABgMGBgEAEQMCAQEABQEHAwMBAwAAAQkDBgYRAwoAAQYQAQMGBAMDAAgDAwEBAyUHIwMBAA0BAgIFAQcABQEEAAwBAgABBQEBBAAAAgUDDwAFAwQGAQATAwABAwAFAQcDAwECAAMBBQMJBgADAAAFAwABCQMIAAEGEAEDBgUDAQABAQUDBQEAAAADJQcnAAEBAAASAQYABQEGAAoBAgAFAQMABQMAAAEDCwAGAwAAAwYBAAsDAAIFAwQABwEFAwAFAQEABQECAQAFAQIDAgYECgUGAQMCAQoDAQABAgQAAQYQAQEGAgkEAwEAAQEFAwUBAQsABSYHKAASAQcAAAMBAQcADAEBAAUBAgALAwkAAQMAAAEDAgACBg4DAAIFAwAAAQEBAAcBBQMEBQACAAABCwUBAwYGCgYGAQMAAQsDBAIBAAEBAAYFAQEABwEBBgUJAAMCBgQBAQMFAQULJwcoAA8BAQIEAAEBCgAMAQAABwEBAAsDCQABAwAAAQMDAAEGDgMCAQEDBgEAAAUBAgABAwEAAwUAAAULAwEDBgYKBgYBAwEBDgMDAhABAgYGCQIGBwEAAAABAAAICycHKAAOAQECAgAFAQcADAEBAAcBAQAABQsDAQIFAAcDAQABBg8DCQEDDAMBCQAHCwIBBAYJCgQGAQMAARADAQINAQIJAgYGCQEGAQAFAQMACAsoBycADQEAAAEBAQIAAAUBBgANAQAAAQIFAQAAAQIABQsDAQIFAAcDAAASAwgBBAwBAQkACgsBAQMGAAkKCgQGAgMAAA4DAQABAgsBAQMCAAIJAgECCQIABQECAAoLKAccAgEBBgAbAQUABwEBAAEBAgABAgUBAAUAAgMAAQMAAAgDAQIBAB0DBwEFDAMBBgANCwQGCwoEBgEDAQAOAwAAAQIMAQMAAgkDAQYAAQEEAAoLKQcbAAEBAQABAQIAGwEEAAgBBwACAgEBAAIJAAUDAAAEAwIADwMEAAcDBgEIDAABBgAOCwEGAAkABgsKBAYCAwACDgMBAAACAAMMAQMAAQkDAQwACwsqBxoAAQIBAAEBAwAbAQACAQAABQcBCAAFAggAAQMAAAMDAAAFAwEADwMDAAABBwMGAQoMBAAQCwIGCwoFBgEDAgISAwsBBQkAAQIAAAUBAAMCBAAMCykHGgABAgcAGwEBAgIABQEAAAECAAABAQIABQIJAAADAQAKAwAADgMFAAEBBQMCAQMACwwCABMLAQYMCgQGAAMAAgEDAQIVAwgBBQkAAAAFAwAEAgILAAAMCwACKQcZAAICAwABAQIAAQEAAA0BAQMHAQACAgAFAQECBQEAAAUCAAABAwkAGQMCBQEAAAIBAQYDAAEFAAsMAAAAARULAQYDCgAJBgoFBhkDAAYMAQIJAwADAhQLAAUAAigHFwACAgEABQEEAAUBAAAFAQAAAAMBAQIJAgEFAAEBAAUCAgUBAgABAgAABQMEAAACGwMAAgIFAAICAQUDAQEEAAACCwwAABYLAQYDCQAGBgoFBhcDAQYOAQIJAgADBhYLAgIoBxQAAAEAAgIABQEEAAUBAAAICQMNAQkAAgQAAQEAAAICBwECAAcDBAAbAwAAAAIBBQMBBwMDAAECAAALDAABFwsABgMJAAYGCgUGCwMBAQkDEQEBCQAABAYYCwACKgcTAAIBAAAHAQUAAQEAAAgJBg0ACQECAQAFAQECBwECAAgDAwAAAwECGQMCAAMBBwMAAgQACwwAABgLAQYCCQEGBwoEBgkDAwEFAxQBAQADBgECGQsrBxIAAgEAAAcBBwAJCQYNAQkAAgEABQEBAgAABQECAAkDAgADAhkDAQAFAQUDAAIBAwEAAQILDAAAGAsDBgAJAQYICgUGBwMDAQUDFAEBAAEGAwAAAhgLLAcRAAMBAAAFAQYAAAMAAAkJBg0BCQEDBwEBAgUBAQAJAwQAAQEAAgEAAQMAABMDAgAFAQoDAQAKDAEAGQsCBgAJAgYHCgYGBwMEAQEDFwECBgQAGgsrBxAAAwEAAAUBBwAKCQYNAgkAAwcBAQIBAAEBAQALAwIABQEDABMDAAABAwQBCwMBAAoMAQAZCwADBAYCCQUKBgYHAyABAwAAAgEAGgsqBxAABAEBAAEBAgABAgQACQkIDQEJBwEAAgMFAQAAAgAACQMEAAUBAQMDABYDAAEOAwAACQwDABgLAQMEBgcKBwYFAyIBAAABBgICGgsqBxAABAELAAkJCg0CCQYBAAIDBQICCAMFAAQBBQMBACYDAAAKDAIAGAsBAwMGBwoACQcGBQMKAQAGFwEBBgAAAQIbCyoHDwADAQsACQkNDQEJBAEAAAACAQMABQEDAAUIAwYAAAEBAwEBBQMAABsDAwcGAwIACQwCABgLAgMABgAJAAYFCgAJAQYBCQQGBAMMAQEGFwEBAAACHAsqBw8ABAEKAAkJAQ0BCQsNAQkCAQAAAAINAwYAGgMKBwADBwcEAwMACAwCABgLAgMBBgAJBQoACQEGAwkCBgUDJQEAAAECHAsqBw8ABgEBAAECAwAJCQINAgkMDQEJAgAAAg4DAwAZAxYHAQMGAAcMAwAXCwIDAgYFCgAGAQkCBgAJAAYABAYDAgEBAAEBAAUdAQAAAQYbCysHEAAFAQICBAAJCRMNAQkBAA8DAgAaAxgHBgAHDAMAFgsEAwEGAAkDCgYGAQkIAwEBAgACBQEBAQYYAQACAQYAAhoLKwcPAAcBAQIEAAoJEw0BCQACBwMAAgcDAQAZAxoHAQMBAgAAAAIHDAQAFQsAAAMDAgYDCQYGAQkIAwAAAQEFAAABAwYWAQECAQAYCy0HDwAHAQICAwAKCRMNAgkHAwACIwMbBwIDAQIHDAQAAAITCwADAAAFAwAGAwkFBgEJCQMEAQQABAYFAQECDQECAAAGFgsvBw8ABgEIAAcJFQ0CCQcDAQIdAwMHAQEbBwEDAgIGDAUAAAISCwIABQMAAQAGAgkABgUJCQMEAQQACwYAAg0BAAYBAAEGFAsDBi0HDgAGAQgABwkLDQIJAQ0ICQUDAgIbAyQHAQMAAQACBgwFAAECEQsCAAUDAQEAAwQGAQkABgoDBQEFAAoGDQECBgAAAAYUCwQGLgcPAAEBCgABAR8JBQMAAh0DJAcBAwABBQIGAAQCDgsAAQMAAAECAwQBAAMDBgsDBgEFAAoGDQEDBgEAEgsGBjAHGQADAR0JAAIAAAEDAgAXAysHAgEBAgIAAAIEAAIJAAMCAg0LAwAAAQUDAwEPAwUBCQAHBg0BAwYBAAAOEQsHBjEHGAACARwJAQMEABYDLgcBAQECAAABAwACAgAGCQADAAIMCwABAQACAQUDAwEAAA0DBgEKAAUGDgEAAAMGAgAABg4LCQYyBxYAAwETCQACAAAFCQEDBAAWAy8HAAEAAAUDAQIGCQADAQIKCwMAAQEHAwEBAQUMAwYBAQUCAAAFBQADBgAADgEBAgUGAQABBgwLCQYzBxcAAQENCQEBAQkCAQEAAAMBCQIDAwAIAwACDQMwBwEBBQMAAggJAAMBAggLAgEAAAIBBwMFAQkDCAEMAAEGAAANAQACCQYAAAEGAAUICwsGNAcVAAIBAQABCQAAAQEBCQgBAAAAAQIABQMDAAgDAgILAxsHAQETBwcDCAkAAwACAAAAAQYLAwEAAAMBBQMHAQAABwMIAQwAAQYAAA0BAAIBBgECCAYAAhUGNAcTAA0BAQAFAQUABAMCAAcDBgIJAxoHBAERBwcDCAkBAgAAAgECCwYBAAACAQUDBwEJAwYBCwAAAQAAAgYNAQEGAAIJBgABAAIVBjUHEQANAQEABwEEAAQDAgAHAwYCAAAFAwAAAQMaBwQBEwcEAwgJAAMDAAsBAAAEAQEDCQELAwQBCwAAAQAAAgYMAQYGAAAEBgAFAQIVBjYHDwANAQEAAAIHAQUAAAIEAwEABQMHAgAACQMbBwMBEgcEAwgJAAMDAAoBAwABAQACAAAHAQAFAgEKAwAAAQEBAAABBQAABQEAAQEBBQIGCwECAAEGBwABAQECFQY2BwoAAQEAAA8BAQABAgUBBgACAgsDBAIBAwIABwMdBwABAAATBwIDAAEAAgUJAgMFAAEBAAAFAQcABwEBBQEBCwMHAAEBAAAABQAAAQEBAAIFAQAJAQIGAAACBgAAAgYCAAIBAAIVBjYHAAAAAgEBBAATAQMAAAIFAQUABQICAwEABgMAAgUDAAAIAxwHAAEAAxQHAQMAAQACBQkBAwkABAEFAAABAAUAAAcBAQUDAQkDBQAFAQAFBQAABQIABgEAAgAAAAMBBgADAgYAAAIGAgACAQACFQY3BwQBAgARAQACAQABAQEAAQIBAQECBQAJAhcDHgcAAxYHAwIBCQMDAAIAAAMCAQAIAQEAAgECBQUBAQABBQQBBgMGAAUBAAUHAAAFAgACAQECAAUDAwMGBQAAAwAAAwETBjgHBAEBABIBAAAFAQcCAQAMAhQDOgcDAgEDAQEEAhEBAQUFAQEAAgUEAQUDBQAAAQEDBQEIAAACAgABBQUDAwYBBQMAAQMDARMGOAcFAQAAEQEBAAcBEQIBAwACFAM6BwMCBQEAAhMBAAAHAQAAAgUGAQEDBgAFAwUBCgAIAwEBAAMABQYAAwETBjgHBQEBABABAAAJAQsCAQMAAhADAQcAAwEHAAAAAw0HAQEtBwACAQAFAQACBQEAAAwBAAUIAQIFBwEHAAUDBQEJAAkDAQEBBgYAAAMCAQAAEQY5BwQBAgAIAQMAAQEAAAADAAAHAQgCAQMAAhMDFgcBAS8HDgEBABQBAAUJAQYABwMFAQQAAQEBAAEDAQAEAwECAAMBBgcAAAEDAA8GOgcEAQQAAQEAAAEBBAACAgEAAQIFAQkCDgMAAgEDAAACA0oHDQEBAB8BBgAHAwQBAQMBAAUBBQACAwECAAMJAAABBAANBjoHAQIBAQACAAENAAcCBQEIAg8DAgICAAADTAcDAQACBwEBAB4BBwAFAwMBBQMFAQUAAgMDAAIGBAAAAQEABAMLBjsHBAIBAQwACQIBAQYCAQMBAg4DBAIBACkHAAMjBwIBAAIHAQEAHgEHAAUDAwEFAwYBCwACBgQAAAEAAAgDBQYAAz0HBQIAAQsAEAIAAAYDAQALAwQCAQBQBwABAAAAAgUBAQAfAQEAAQECAAIFAQMBBQEAAAEHAwUBAAABAQkAAQYCAAIBEAM8BwYCAQEBAwgADwIIAwAADAMGAgAATwcAAQEABQEBACUBAAAGBQIABwMKAQcAAQYBAAIBEQM8BwEDAwIAAQUDBgAAAQwCGAMAAAEDAAIDAAMHAQ8JBwAAPwcDAAEBAgAmAQEFAAEEBQMABQMLAQYAAgYAAAMBEQM9BwADAwIAAQUDAAEEAAEBCwIeAwAAAQMDBwEPCQcBAAgHAQAcBwEBFgcGABgBAAAQAQMFAwAFAwwBBQACBgAAAwESAz0HAQIBAAcDBAADAQcCIwMOBwEBAAAIBwAAAQIJBwABAAINBwQBFwcAAQQAFQECABEBAQUBAQQAAQMOAQcAAQYCARMDPQcBAgEABwMFAAMBBQIAACMDDgcCAQEABQcBAAECBwcDAQ4HBAEYBwABAgAMAQAABwEAABkBAwARAQUAAgYBARMDPQcCAAABAAIFAwQABAEGAiMDEAcBAQAABwcBAgcHBgEMBwAAAwEYBwABAQABAQEABwECAAcBAAASAQAFBQECABMBBAACBgEBEAMCAD0HAgAAAQACBQMEAAIBBgIAABADAAAJAwAABwMbBwECBwcGAQwHAAAFARcHAQEFAAECAgEEAAgBAQAJAQIACgEBABEBBgACBgAACgMAAAQDAgAAAz0HAQACAQACAAABAwIAAgEBAwEBBAIBAAkDAAAGAwAACAMBAAYDGwcAAAICCAcEAQwHAgABAQEAFwcBAQUAAwIDAAEDEwEBBQABAgAABQcBAAAOAQUAAAMAAQIAAAEBBgAACQMAAggAAAM9BwEAAgEAAgUAAAEFAwQCAQAIAwMADwMCAAEDAAABAxsHAwINBwABCgcAAgcAGAcAAQUAAgIBAAUDCAEAAAcBAwUAAAACAQUFAQEADgEAAAEDAQAAAgUAAQYAAAkDCQAAAz0HAAIBAAMBAAIBAAABAQIFAwMCAQAJAwEAAAIBAAwDAAABAwUAGwcAAAUCGQcFAAABGAcAAQUAAwIAAAUDCQEABQUBBAUBAgAAAAUKAQEDCAEFAwcAAQIKAwAABQkCAD0HAgICAQICAQMAAgcDAAABAgAACQMCAAECEgMCAB0HAAAFAhgHAwADARgHBAAEAgcDCAEABQUBBQUBAgIFAQEABQMBBQMGAQUDCAABAgkDBwkCADwHBAIAAQACDAMCAAACCQMBAAECEwMAAAEDHAcBCQUCGQcCAAQBGAcDAAMCAAAHAwcBAgUAAAEBCQUBAgEFAAIEAQUDBQEHAwMAAQMBAAEBCAMJCQEAHwcAABsHAAEFAgEJCQMDAAsDAAABAhUDGgcGCQEBAAAAAhoHBgEZBwAABQIAAAABBQMIAQIFAQABAQoFAgIDAQcDBAEHAwEABQMAAQAACAMJCQECHwcABQIBGAcAAQMCAwkJAwMACwMAAhcDGAcICQIBHAcGARkHBAIAAAEBBQMGAQMFAgAEAQcFAQECAgEBBwMFAQUDAgAHAwAABwMJCQECAAMeBwYBAQMTBwEBAQIECQQDAAABAwUAAgkHAwAABQMAABEDFgcLCQABHwcEAQgHAQAPBwMCAAADAQEDBwEEBQIABgEGBQABAgICAQUDBgEFAwEAEQMJCQACAQMeBwcBAAMTBwEBAQIECQEDAwkGAAUJBQMCAAEDAQIBABADFgcCCQEQBgklBwACCAcBAA8HAQICAA0BAQUCAAgBBgUFAgABBQMIAQEDAgEAABEDCQkCAx4HBwEAAxMHAAECAAQJAQMICQAACAkBAwYAAAIBABEDFQcDCQAQAxEDCS8HAgAOBwECAgAcAQQFBAIBAQACAQABAwEADwEQAwkJAwMdBwcBAQMSBwABAgAECQEDDAkBAwQJBwAAAgEAEAMWBwMJABADEQMJMAcDAA0HAAIDABwBAwUCAgMBAQIGAAsBAQAKAwAABQMHCQUDHAcGAQIDEgcACQMAAQkAAwIJAQMCCQMGAwkBBgQJCAAAAgEADQMAAgADFwcDCQERARAECREHAQYbBwYACgcAAgQAGwEBBQACAAEAAgUBAwAAAQEACwEEAAABBwMBAAYDBQkHAxsHAAAEAQQDEQcGCQADAgkCAwEJAwYACQEGAAkBBgIJAQABCQYAAAIBABADFgcECQEQBQkPBwABAAACBhoHCAAIBwECAwAfAQACBQEDAA0BBQACAQUDAQARAwMBGgcBAAkDEAcGCQkDAAkBBgAJAQYCCQAAAgkAAwEJBQADAgEADgMYBwkJDwcBAQAABAYYBwEBAQAAAQMAAAEGBwICBAAmAQIABwEBAAEBAQABAQAAAQEBAAMBAQMDABADBQEZBwAACgMQBwYJCQMBAAEJAQYDCQABAQkBAgABAQkDAAcCDgMLBwADDAcGCRAHAgAEBhYHBQEDAAEBBQcBAgQAAAISAQEFBwEAAAgBAgAFAQUADgEBAAIBDwMGARgHAQAJAxAHAQAAAQAACwMDAAMJBAYACQICAQkBAAABAAABAgAAAAMBAgEAAAIPAwkHAgMMBwIJEwcBAAMGAAAAARUHBAEDAAABAwMBBwABAwIBAAACAAATAQEFEAECAAYBBQAUAQkDAwECAAIDAgEXBwEACQMQBwIBAQAKAwAAAQkAAAEGAQkFBgAJAgIAAQEJAwAFAhIDBQcFAyMHBAYAAAABFAcFAQMAAAEFAwABBAICABMBAgUIAQAABQEBAAYBBQAWAQYDBAEDAAIBAAMDARQHAgAGAwICAAMPBwABAwAFAwAAAQMBAAMJAQYDCQMGAAkBAgQJAgAEAhkDAAAEAyMHAAYBBwIGAAAAAQcHAgMIBwMBBQAHAwQCAwASAQIFAAEBAwQBAwABAQMABgEFABcBBQMEAQMAAgEBAwMBEwcBAAMDBwIPBwABBQABAwAAAgMBCQAABAkGBgIJAQIFCQAABQIXAwIABQMAACYHAAYAAAABBwcCAwcHBAEFAAcDAAACAgQABQEABQwBAAUFAwMBBwAIAQUAFwEEAwMBAAMDAAIBAQMDARMHDQIPBwABCAACAwEJAQABCQADAAkGBgUJAAAAAQMJAgIXAwQABQMDAA4HAwABBwIDDgcBAAcHAgMGBwMBBwAFAwABAAACAgQAAAEBAwIBAAUMAQAABQMFAQUABwEGABgBAAICAwIBAAMGEgcBCgcCAAMHAAEOAg4HCAACAwYJAQMCCQMGBQkAAwEBAgkaAwQAAxIBAwMADQcGAAMDDgcAAAkHAAAFBwQBBwAFAwEBAgIBAQAAAAEFAw0BAAAHAwUBBQAFAQACBwAAAwEBAAAIAQEABwEBAAACAAMDAQgSBwEIBwMAAgcHAQcCDwcAAQYAAgMGCQIDAwkBBgYJAgMBCRoDAAABAwEACRIBAA0HBAAFAw0HAQIJBwECAgcBAAMBAwABAwEAAQEBAwMBAAIFAQUDDQEAAAcDBwECAAcBAAIIAAoBAQAIAQEABAEJEgcBAQcCAQIHAwABBwkBBgIPBwABBAAEAwMJBwMJCQADAQIhAwsSAAANBwQABwMMBwACCQcAAgUHBQECAAEDBwEBAgQBBwMCAQAABwEBAAABBQMIAQIABwEJAA0BAAALAQsSAAAHAQAHAgEBBwMAAQcLAQUCDwcEABIDBwkFAgwDAQIQAwsSAQAABQwHAgABAgUDAAABAwsHAQIPBwQBAgAJAQACBQEHAwIBAQACAQAFAQECAAABBQMSAQkAGgENEgMACAEABwMADQEFAg8HAwARAwACAwkCAwACAAMEAg0DAQIBBQ0DDBIBAAABDAcBAAICBQMAAAEDCwcCAg8HBQEAAAkBAAIGAQUDAgEAAAYBAAUAAAQBAQMTAQECCAAJAQAADwEOEgsBBAACAQIACQEDAg8HAwASAwMJAgMAAgEDAwIMAwICAQUMAw0SAAEAAAABAAUKBwAABgIBAwIAAQEBAwoHAQIPBw8BAAAHAQUDAgEAAAYBAQUNAQECCAEFAgABAwALAQEABQEGAAEBDhILAQMAAwECAAoBAgIPBwIAAAITAwIJFgMFAgsDDRIAAQEAAAEKBwAACAICAAABAQcCAQgHAgIPBxcBAAUAAQEDDQEBBQwBAQIIAQUCAgEBAAkBAwAFAQQAAwEOEgsBBAACAQIACwEAAgEADgcBAAECAAAqAwcCCwMNEgEBAAACAQYHAQADAgEDAwIBAA8HBAINBxYBAQUGAQAAAAEBAAUBAQALAQEAAAIBAQMCAQEHAgABAQAHAQUADwEOEgwBAwACAQMACgEBAAADDgcBAQIABQMBAB4DAAIBAwgCCgMOEgUBBgABBQECBQMBAgEADgcFAgwHFwEAAAcBBQABAQUAAgEAAgUBAwAOAgABAQAHAQUADwEOEg4BAQACAQMACgEBAAADDgcBAQAAAQEBAAEDAwAjAwICAg0KAw8SBAEHAAABAQUAAgUDAAIAAQAADwcFAgwHFgEAAAgBBQABAQUAAwEBAgEBBQANAgoBBwAOAQ4SDQEBBgAAAgEEAAgBAgABAw0HAwEJAAkDAAIXAwACBw0HAw8SAAADAQgAAQUHAwEBEAcBAgEHAAINBxQBAQIBAwUBDwACAQICBwAJAgYJBgEGAA4BDxIMAQIGAwEFAAYBAwABAw0HAgEKACMDCQ0FAxASAwEIAAABAAAHAwABJQcPAQELAAEAAAUDAwEPAAQBAAIHAAkCCQkBAQgADQEQEgsBBAYCAQYABAEFAAEDDAcBAQ0AIAMKDQUDERIAAQEDAAICAAMGAgAABQUDAAUAASUHDQEICwIDBAECAAEEAAABBQUABwEFAAkCAAEJCQEBCAANARASCQEHBgMBBAAEAQYAAAMMBwEBDAAAAggDAQIAAwEFEgMKDQUDERIEAwEACQYDAwEFJgcMAQoLAQMDAQAABQQABQUABwEFAAkCAAENCQMAEAEPEgoBBwYEAQAACQEEAAADDAcDAQoAAQIHAwECAAMBBQYDAQIBAwECBAMLDQQDAAUREgQDAQAJBgEDAAADBSUHCgEAAwwLAAMEAQYEAQIBAAICBwECAAYCAQEBAgIBDQkDAA8BDhILAQcGBAEAAAoBAwABAwsHAwEJAAICEwMHAgIDCw0EAwEFEBIDAwIGAwAFBgAAAgYCBScHBgECAw0LAwEIBAUCBgEBAAcCCAEMCQEAEQEMEgwBCAYQAQMAAQMLBwQBAAIHAAQCAQMAAgIDAwACAwAFAwMIAgEDCw0DAwIFAwMLEgQDAgYEAAACBAAEBgIFJQcHAQADDgsBBAEBCAQEAgcBAQAHAgIBAQIGAQkJAQASAQMSAQYEEg0BCQYPAQMAAQMLBwQBAAIIAAUCAwMFAAECAwMFAgQDCw0DAwECAAUDAwYSCQMCBgMAAgICAAUGAgUDAwoHAQMVBwYBAAMPCwIEAAIIBAQCBQEDAAUCAQEEAggBBgkBAhUBAwYRAQoGDgEDAAIDCgcDAQoABQIDAwcAAQMBAAUCBAMLDQIDAgIABQMDBRIFAwIGAgMCAA4GAAAABQABAAIEAwUHBQMUBwYBEAsMBAQCBQEAAgAAAQEFAgEBBQIAAAEBAQACAQYJAQIUAQYGAgEAAwoBCwYOAQMAAgMKBwMBDAABAgUDAQABAgEABQMAAAcCAgMIDQQDAwIEAwMSBQMDBgADAQEBAgAACwYDAAAFAAMAAgYDAQcHAxMHBwERCwsEBAIFAQICAgEBAgABAwIBAQMCAgAFAQACAwkCAhIBBwYDAQAAAgMFAQcGDAEAAAUBAwACAwoHAQEOAAACBwMAAAECAQAFAwAAAAIAAwIFAgIQAwMCAwMAAgkDAwYCAQICCwYCAAEDAwIBAwECCgMMBwABBQcGARILDQQBAgcBAQIDAQMCBQEBAgIABQEHAhEBCAYFAQADAQkEAQIGAgMBAAwBAgADAQMAAwMJBwABEAAHAwMABwMGBQICAQMBAAEFCAMCAg4DAwYFAQECAAMFBgACAgYCAAEDAQIEAQsDCgcEAQEHCAERCxAEBwECAgIBAwIFAQECAwAFAQUCEQEIBgADBQEAAwEJAgAEAQYDBQAEAQIABAECAAMDCQcBAQYAAQMHAAUDBAAHAwUFAQECAgIDAwUFAwUFAwMAAgUDBwYEAQsGAAAAAgEDAQEAAgQBDAMHBxABEgsRBAUBAwIBAQMCBwEDAgAABQEFAhEBCAYCAwUBAAMCAAQBBgMDAAEDAwEGAAIBAQADAwkHAQEGAAEDAAABAgQABQMFAAUDAAIBBQEDBQEAAgIDAwUCAwETBwUBAwECDQYEAQsGAAIAAwUBAQMCAQsDBQcRARMLEwQDAQICAgEDAgcBAAIBBAECAAMAAAEBAQABAQECEwECBgIDAQYBAwIFAgMCAQIABQENAwgABAEEAwgHAgEFAAABBQIEAAEDBwAFAwACBQMDAQAFAgIFBQITBwUAAhAGBAELBgICAQAAAgUDAAENAwEHEwETCxMEAQEEAgMBBgQAAQcEAgMCAAMBAQAJAQMCAQEAAgMGAgMBEwEDAgUCAwABARMCAAUBDQMDAQQABQEDAwgHAgEDAAIBBQIBAQwAAQIBAwICBQMEAQMCBAUCEwcFARMPBgAFBwEGBgECBAAFAwABAAAOAxIBFAsUBAEBAQIAARYEAQMEAAIEAQAEAQkCAgYDAwITAQMCBQEDAhMCAAoBCAMFAQMABQECAwgHAQECAAMBBwIAAQIAAQUIAAQCBwMDAQMCAwUAAgITBwUCEwMGAwAFAwAFCAEFBgABAQIDAAcDAQAKAxQBFAsBBQEBAQQAAQ4EAgEaBAIABgQDAQcCAAUBAgEGBAMDEwEDAQUAAwMTAgAMAQUDAAQFAQQABQECAwcHAQEAAAUBBwIBAQwABAIHAwIBBQICBQACAxMFBQMTAQYBAgEAAwYDAwAFAAEFBggBAAIEAAcDAQEHAxcBFAsBBQUBDAQBAh4EAAAGBAAAAAEBAAoCBgMEEwIDAxMDAA0BBAMABAADBQEDAAUBAAICAwYHAgAGAQUCAgEGAAEDAAAAAQMFAQIBBQUDAwEFAgMFBBMDBQQTAgICAAMGBAMAAQgGBAEBAgUABQMCAQcDFgEUCwoBNAQEAAcCBwMLEwMABAMJAQMDAAQAAwYBAgAFAQECAgMFBwEACAEEAgEBBQAFAwcFBQMBAQYCBAUNEwIGAgADBgQDCgYDAQICBAAFAwMBAAAFAxYBFAsDAQEECQEvBAQABwIHAwoTBAAGAwIBAAMDAQIDAQQCAwwBAwICAwQHAQAJAQECAwEFAAUDBwUBAQEDAwEABQUCAgUAAQEDCxMAAwIGBAAEAwwGBAEBAwYAAQMEAQgDFAEUCwEBDQQAAC8EBQAGAgoDBRMFAAwDAgEBAwIEAwMKAQUCBAMBBwECAAAIAQEAAQEGAAcDBgUAAgUBAAUAAgEFAQIBBQACAAUEAwkTAQMCBgQABAMMBgIBBQMFAAUBBQMXARMLAAFABAUABwIPAwUAAgkNAwMEBAMDAQECAAEKAgQDAwIHAQEAAQEGAAcDBQUBAgUBAAUCAgEFAgIABQYDBhMFAwYAAQMIBgEBAQIDAQUDBQAEAQYDFwETCwABPwQFAAkCAQYLAwYAAwkLAwQEBQMDAQECAQEJAgMDAwIAAAUBAAAFAQMABwMGBQMCAQEKAhUDBgAAAg0GAQEHAwYAAQEMAwMBAAIGAQMCAwEQCwEBQAQFAAoCAAYLAwYABgkFAwEGBgQAAQQDAgECAgEBCQICAwQCBQEAAAUBAgAAAgcDAAUAAAMFEQIVAwACBAAAAgABDgYAAQcDCAALAxQBDwsCAUAEBQAIAgEBAAIABgoDBgAHCQADAgAAAwEGBgQBAQMDAgEOAgIDBAIBAAEBAQAEAQEAAAEBAAECBQMBAAECAQMTAhMDAgQAAAIGAAIAAQMGBAkGBgABBQMGAA0DFwELCwEAAgEiBAIBHAQEAAgCAAEAAgAECwMIAAUDBQAGBAIBAwMBAQ4CAgMDAgYAAgEFAAECBwMAAAAFAgIBABECBQMAAAMDAAIGAwQEBQYBAwcJAAEJBgADBAANAxsBCAsCAAMBFwQBAC0EBwIBAQAEBQYFAwsAAgMIAAMEAwEEAwECAQMCAQADBgICAwMCBQABAQECBQABAgcDAQAFAgEFDwIAAAEDAgAHAwACAQMFBAUGAAMICQABCgYAAAIDAAANAxIBBQwDAQcLAgADARYEAgAvBAQCAgEABAUGBAMDAAADBwACAwoAAQQDAQQDAAEDAwECAAMGAgIDAQIBAQUAAgIHAAECBQMCAAMCAAUBAQIFDQIFAAgDAAIHBAQGAAIJCQABCwYQAxIBBwwDAQULAwAEARQEAAEBAAACLwQDAgEBAAIABQYGAwMDAAUDBAABBgkAAQQFAQgDAAIAAwYCAgMDAQQAAAECAgcAAQIFAwEAAwIFAQAFEAIBAAkDAAIHBAQGAAICCQgNCgYRAxEBCAwCAQIAAgsDAAUBAAACBAABDwQCAC8EAAIBAAIBAAIABQgGAQMCAAUDAAkEAAMGCAABAgUBBwMAAgEDBgIBAwIBBQAEAgUAAgUBAAEDAwADAgUBAQURAgcDAAIBAwcEBAYAAgEJCQ0ACQkGEwMPAQkMAQEAAgUAAAEDAAEBAgAEAQ8EAQAAAi8EBAABAgkGAAMCAAQDAQYSAAACAgACAQsDAgIAAwECAQMCAQUABAIFAAAFBwAEAgcBAAUKAgAABAICBAQDBAIFBAQGAQIBCQkNAAkJBhIDDwEAAAACCgwBAAEDAgACAQAAAQEDAAYBQAQGAAkGBQAAAwAGAgAAAxYAAgEOAwICAAMAAQYABwIBAAACAQUFAAAFBQIHAQ8CBQQDAwUCAwQEBgECAAMBCQgNAQkIBhIDEAEBBQECCQwEAwgBAAAHAQACAQAuBAACDQQGAAACBwYLAAADGQANAwoACwIBBQcABgIFAQAFCgIAAAICBwQAAwkCAAMEBgAAAQIAAwcJAg0AAgEDBgYAAwIEBgMAAQAABgMIAQACAQEBAAIBBAIJDAMDEQEAAgIALgQBAgsEBwAGBhEAAwYTAA4DBwAHAgADAgIBBQcAAAUBAwMCBQEKAgIAAAINBAMCAgMDBgAAAwIBAwQJBQQAAwUGBQQEAwIAAgMCAAADCAEAAgUBAQAFAgcMBAMIAQUMAAIFABsEAAEQBAACDAQHAAYGBAACAwIAAQMEAAADAAYCAAMGDgAPAwAAAQMCAAcCAAEEAgEFBQAFAwECAAAAAgEBDAICABUEAwYAAAMCAQUAAAICBwQCBgEDBwQDAwMAAQMCAAEBAAIGAQEABAEBAAYCBgwEAwgBBgwFABoEAQEdBAkABQYCAAEGBwMCAAADBQADBgEEAAMMAA8DAQECAAcCAAEEAgEFBQAFAwMAAAUMAgIAFgQCBgADAgIABQEBAAADAggEAgMIBAEDBQACAwAACAEBAgQAAAEBAAcCBgwDAwgBBwwHADgEAAIGAAACAQAEBgIAAgYKAwUAAgYBBAIDCgAQAwMBAQAFAgABAAIAAwECBQUBAAAFBwMCAAAFAAAHAgUAFwQCBgADAAAAAgUBAAIKBAIDCAQJAAADAAAEAQACAgEAAggABwIDDAABBQMBAQAABQEHDAADBQABAzUEBQIBAAEBAAICAAoGCQMCAAUGAAQDAwkAEQMDAQACAAAFAgABAwIIBQcDAQABAwEABAIBAwAAAQICABkEAAMCAAUBCwQAAwsECgACAQAAAwIIAAkCAwwCAQEDAgkDAAEBAQMHDAcAAAM1BAcCAQMBAgIBCQYDAwEGAgMABgMABAYBAw8ADgMEAQEAAAEBAgIBAgIKBQUDAgAABQADAQACAgUDAAIAAAACBwQAAAADAAAPBAADAQAFARsECAABAg0ACgIDDAMBAAADCQMAAQEAAwcMBwABAzUEAQEEAgEDBQIJBgIDAQYCAwAGGgAOAwIBBQADAQACAQEKBQUDAAAAAwEFAAMDAAACBQMCAAcEAgAAAhAEBgEcBAUAAwINAAACAQAHAgcBAAAECQMAAAEAAwgMBQACAzUEAQEDAgIDBgIIBgIDBgYZAA4DAgEFAAcBBQUAAAEFAQIAAAEDAgACAwEFAgAIAwAABgQCAAICFQQAAR0EBAAEAgIAAAIHAAADBAADAgIABQEBAAUJBAAAAwcMBQADAwAAMgQBAQQCAAMBAQcCFAYGAAADAQIMAAoDAQIBAwACAAEHAAYBBQUAAAICBwAFBQAACAMBAAoEAAICBAECLwQFAAACAQEDAAECBgAAAwQAAQICAAEDBQEBAAUJBAABAwcMAAMBAAYDMgQBAQMCBQECAgMFDwYCAwEGAQICAAADDwAKAwQCAAEHAAACBwEBBQIAAQIIAAECAwUAAAACCAMWBAABKQQFAAQBAwABAQIAAAECAwcAAQICAAEBAwAHCQMAAQMGDAABAQAEAQADKgQAAgAFBAQBAQUCAQADAQECBwUFBgQDAQYCAwMCDAABAwQACwMEAgYAAQIHAQACAQADAgQAAQEFAgIFAAAGAzgEAwoFBAUABQEEAAADAQEEAxMACAkAAAMJAAEEDAQAAQEAAAADKgQBBQMCAAMFAgUABwEFBQIBBQMBAQIDAwIMAAIDBAALAwEBAQIGAAICBQEAAAUCAwAFAQMCAAUEAAMDOAQCCgICAwQGAAYBAwAAAgUDDQAAAgcACwkAAQQMAAABAwEAAQEBAAADLAQCAgADBQIFAAgBAgUCAQcDAQEBBAYCAAMJAAMDBAAKAwEBAAIAAAEBAAIBAAQCBQECAAMCAwAFAQQCBAACAxsEAAEeBAAKAQIFAQMAAwEBAwIBAgAAAQACBQMDAAEDBgABAgcADAkEDAQDAwEAAy4EBgIGAA8BBAMCAQMEBAIBAwABEQALAwECAAABAQkCAQEEAAECAAMAAAECAAAHAQMCAgACAh0EAQIeBAECBQEBAAMBBQMCAAEBAgIBAwABAgAFAwEAAQEAAAMCBQAMCQABAQMAAAUDAwEAAAEDMAQCAgUAEQEABQIDBwQEAwABEwAKAwABAgABAQgCBwAFAgcBAgIDAAECHgQCAgQEAAAYBAcBAAADAQUDAgABAQEAAAIEAAACBQMFAQQCBAADCQMBAwkAAQEABwMDAQAAAAMBAgAEAQ0tBAECBAARAQEFAQMHBAQDAAEOAAADAwAKAwACAAMBAAEBCAIHAAADBQIFAQUCAAABAiAEBgIBARcEBwEAAAIBBwMBBQcAAQIHAwQBAwIDAAEDAwkJAQAABwMDAQIABQ0rBAECBAARAQIFAQIAAQIDAgQEAwABDAAAAwUACgMAAgADAwABAQYCAAMFAAADBgIFAQACAQECAgAAIgQFAgEBGAQAAwcBAAABAQcDAAECAAECAwABAgcDBQEAAAECAwACAwIJCQEBAAUDBAEBAAABBg0ZBAAAEAQAAwECAAABBBABBAUBAQIDAgQBAQMDFgAIAwUABQICAwUAAAMIAgEBAAAFAQACJAQCAhsEAQMHAQAAAgEFAwMBBAIAAAMCBQMGAQACBAAHAwcBAgAFAwEMAgEBAAcNGQQBAA8EAAMBAgMEDwEDBQABBAMFAQMDFQAIAwcAAQIGAwEAAgMAAAkCAAAFASUEAAUAAhQEAQUEBAEDAgABAQAAAAEBAgMABQMDAQQCAAADAgUDBQEGAAcDAAEAAAUBAwAGDAEAAQwAAAgNFwQBAQAAEAQAAwACBAQCAQAEAQUJAQIFAAECAwgBAwMUAAgDBwACAwEFAgMAAAECAQMBAAkCBQE+BAAABgMEAAMCBQABAwYBBAIAAAQCAQMBAAUBBAAIAwEBAgABAQQADAwIDQkEAQALBAIBAQMDBAACFQQBBQgBAgUAAQIDCQECAxkAAgMABAcAAgMBBQIDAQACAwIAAAMFAgYBEgQABSsEBQMGAAEDAQIGAAcBBAIAAAUCBAABAQYACAMAAQMAAQMDAA4MCA0CBAEAAQQBAAMCCAQDAQIDAgACAhMEAgUHAQIFDAEDAxoAAAMBBAYADQMHAgcBQAQEAwUABQMHAAUBAAADAgMAAQIAAAEBCwAHAwIBAQAFAwAACwwBAAEMCA0IAAECAgcIBAMBAAMFAAECAAEAAxAEAAMCBQUBAQMBBQcBAAUAAwEBBAMbAAEEBgAFAwECBQMHAgYBNQQAAwkEBgMCAAEFBQMHAAUBAQACAgQABQEDAAEBAwAHAwIBAQAEAw0MAQABDAADCA0GAAYHBwQDAQADBQAAAgIBEQQDBQMBAwMABQYBAwMAAQUDEwAAAwEEBAAABAUABAMFAgQDBQIHATEEAAICAwkEBwMCAAAFBwMIAAEBAwAAAgUAAAIFAQEABQECAAUDBAEFAw0MAgAADAADCA0GAAYHCAQCAQcAAwEQBAADBAUHAwUBDwMOAAADAgQDAAAEBQACAwcCAQEAAwcCBwEwBAEBAgMHBAIABQMBAAEFAAAHAxUABwEAAAUBAQAAAgUDAgEBAAUDCAwHAAEMAAMIDQEAAgsIBwcEAgEHAAMBEAQBAwIFCQMCAQsDDwABAwIAAwQKAAIDEwIEATEEAwEBAwYEAwAFAwUABQMDAAEBDgABAhEBAAAAAgEDBAECAAQDCAwGAAIMAAMIDQcLAQcBAAEHCAQCAQUAAQMEAQ0EAAENAwIBAAUGAwQBDwABAwIAAwQKAAEDFAIDAS4EAwEDBAEDBgQFAAEDBwAFAwEABQEKAAQCBQEAABEBAwABAwEAAAMDAAQMBwADDAYNCwsCAAABBwQCAQUAAQMFAQsEAgEKAwUBBQMDARIAAQMDBAIAAAQIAAEDFgIAAS4EAAIIBAABBgQPAAEBAQMBAQEABQEJAAEBAAIBAAACBQEBABEBCwAEDAcAAgwECwINDQsBAAYEBAEAAwEABAMEAQoEAwEKAwUBBAMDARUAAwQCAAEECQAAAxUCLQQCCxAECQAAAgMADwEGAAUBAgACAQMAEAEBAxgAFwsCAAUEBgEFAwYBAQQAAQEEAQEABAQBCQMGAQAEBgMAARUAAwQCAAAEBAABAwUADQIAAQEAAgMAAisEBgsOBAoAAAICAA8BBgAFAQIAAgEBAAMCDAEFAxYAGQsAAAEDAQQBAwYBBgMMAQAEBQEHAwcBAAQDAQIDAAEPAAAEBAAHBAQAAQMFAA0CAAEBAAIDLAQHCw0EAAEJAAACAwAFAQEABQEGAAQBAQMAAQIAAgEBAwECAAAMAQUDDQABAgUAGgsAAAUDBAEHAw0BAAQGAQMDCQEAAwMBAwMEAQcAAQEOBA4ACgIBAQECAQMAASwECAsNBAABCAADAgEABQEBAgEDAwEGAAIBBQMBAAABBQMAAAsBBwMKAAUCAwAbCwYDAwEFAyQBAAMEAQYDDAEIBBMACAICAwABAQIAAS0ECgsLBAADCQAEAgIAAwEFAwkAAQEFAwAAAQEFAwAACwEHAwQAAAEBAAABAQAFAgIAAQMaCwYDAgEHAwwBAQMAAAwBAQQDAQEDBAEGAw0BAgMEBBIABAIAAwECAQMBAAADAQIAASoEDgsLBAABCAAFAgIAAwEFAwkAAAEHAwABBwMMAQUDAAIJAQcCAQABAxoLBQMDAQcDCgEEAwsBBgQBAwUBBgMNAQIDAwQFAAIECQAEAgQDAQAAAwECKQQQCwoEAAMAAAEBCAABAgMAAwEHAwkABwMAAQcDAAALAQUDCgEHAgAFAwMZCwUDAAIDAQUDAgEBBQYBBQMLAQUEAQMJAQIDDQEDAwsEBwAAAgEBBAIEAwECAAEqBBELAQIGBAEAAQEPAAMBBwMKAAUDAAABAQUDAQALAQECAQMBAgsBBQIABQAABAMYCwEJAQMBCQICAQEFAwIBAQUFAQYDEAEDAwYBBgMLAQMDCwQGAAUBBAIAAwICKwQUCwICAQEVAAQBBQMLAAUDAQEAAAUDAwABAQMABAEDAgwBBgIBAAUDFQsHCQUCAQMMAQUDEQEEAwUBBgMCBQcBAQACAwsEBgAFAQECAAMEAisEFwsBAQACFQAEAQUDCgACAQEDBQEAAAEDCwAEAQMCCgEIAgEABQMAABQLCAkCAhEBAwMPAQIJBgMDAQYDBAUAAAMBAwAAAwwEBQAHAQECAAMBAgADFwQAAwABEgQXCwEBBAABAQMAAQMBAAADBQAHAQEDAgEHAAwBDwAFAQECAAkJAQkCAgABAwEAAAESCwwJAAIRAQIDDwEDCQYDBQEFAwMFCgAKBAADBQAHAQECAQMYBAEDAQEQBBkLAwAFAQEAAwMGAAwBBgAQAQwABwEACQgBBwIAAAECBQACAQ8LDgkdAQEDBAEECQcDBQEEAw8ACAQBAwYABQEDAgoEAQEKBAQDAAABAQECAAALBBkLAwAFAQQDAAUFAA4BBQADAQEADAEEAAABBQAFAQMJAQEACQMBBwIAAAICAgAAAgAAAgENCwcJAgEBCQEBAQkDAQECAQEBABIBBAMCAQQJAAEGAwcBAgMQAAYEAgMGAAUBAgIKBAMBCAQBAgADAQIAAwMJAgAKBBkLAgABAQEDAwEAAwICAAAAAgEAAQEAAA4BAwAEAQMACwEEAAEBBAACAQECAAEICQEBAAAGAgAAAQICAAECBAELCwgJCAEAAAABAAIBAAICAgACAwEBAQMJAQcDAQkBBQEJAAUHAwUBAwMQAAMEBQMGAAAFAAABAQQCCQQEAQAABQQAAgAABAIACQEGAQkAAwAACwQZCwIABQMBAQICAQAAAhQBAQACAQEDAAEAAwIADAEBAAUBAwADAgsJAAEGAgADAAkAAwMCAAAGAQgLCQkJAQUAAAIBAQoDBQEHAwAEAQkCBQAJAwUACQMDBAEAAwAABAMOAAIEBgMHAAYCCQQEAQEAAAIDBAEDAAIDBgACAgYBBQEKCwQZCwIABQMAAQAAAAIEABYBBgMAAAEBAAALAQEABgECAAMCBwkAAQIJAAEBCQECAQkBAgAJAAMEAggBBgsJCQkBBQABAgoDBQEIAwAEAQkCBQAJAwUBCQMDAAQBAQEDAgACAwUAAQMFAAIEBwMHAAUCCAQAAgUBAQABAgAAAQUBAwACAwYACgEGBAoKBAACAAQYCwEABwMAAAACAwAHAQAADgEGAw4BAQAHAQADAAEFAgUJAwEHCQECAQkABQMCAAAJAQAMAQsKCQkBBwAAAgkDBgEIAwABDQkBAwIEAAMDAAIDBAADAwMAAAQKAwYABgIIBAECAAADAQMAAQIAAwQCAQYHCggEAwIYCwEACQMBAQEABwECAAwBBwMNAQEACQEFAgUJAwEKCQgCBQEFDAkJCQEHAAACCgMBAQIDAAEHAwAEAAENCQIDAQQAAwMAAgMCAAEBEwMGAAYCBwQAAAEFAAAFAQAAAAMJAgAKAhQECgYEAQIAAAABAAIXCwMACAMDAQAABQEFAAEBAwIAAQECAQEHAwsBAgALAQUCAAEBCQYBCQkKAgMBBQwHCQwBAwACAwACFwMBAQkJAAEAAwIJAwMBBAYAAgMAARQDAAEEAAADBgIAAAUEAQABBQAABQEAAAQCAgMCAgAKAxQECgMEAQICAAIBFgsDAAkDAgEAAAUBAwAJAgIKBgMKAQIADQEFAgkBCAkLAgIBBwwKCQgBAgAEAwAAFwMKCQABAQMCCQMDBgAZAwABBAABAwYCAAACBAACAAABAgEABwEGAgIDAgoEFAEKAAIDCgECAgACARULBgAHAwMBAQABAQIAAQEIAgQKAAAFAwsBAQAPAQECDAEHCQwCAQEHDA0JBwEGAwABFgMKCQEBAAMDCQEDAAABBgMACAMCAQ4DAQEFAAcCAAAHAgcBAgMDAgADAAIFCgIUAAoBAgMKAQIBAAEDAAAAAwACFAsCAAACAwAFAwQBBAABAgEBBwIKCg0BAAAJAQAADQEBAwQBBgkAAQwCAgEFDAwJCQEGAwIBEwMCBQgJAgEICQAGAwAIAwIBDQMBAQUABwIBAAICAQACAgUBAQMBAgMDAgYICgACAQoFAgABAQMAAAEDAAIRCwIAAgIDAAUDAwEEAAEBCgIBCgYNAgoVAQIABAEBAAIBAAAAAQUDAQEHCQEBCwICAQUMBAkBAwUJCQEGAwQBDgMGBQcJAwEICQEGAQAIAwMBDAMAAQYABwIBAAECAAAEAgUBAQMBAgIDCgYECgUCAAEDAAABAAIICwsABAICAAABAQMFAQECAAAFAQAABwIBCgcNAQoNAQAABQEFAAABBQAAAQEABQMBAQIJAQMGCQECAAkFAgAJBAEBDAEBAgkFAwAJDQEEAwQBDwMGBQcJAAUDAQMJAQYCCQAGAQAIAwQBCwMAAQYABgIAAAsCAQEDAwQCCgYDCgYCBAABAwAABQsMAAcCAAAHAQEAAQIFAQgCAQoHDQIKAQMKAQAAAgEBAwABDgAHAwEJBQMACQEFBgkDAgEJBgEDCQUDAAkJAQAJAwECAwUBDgMHBQcJBAEDCQEGBQkABgYDBgEKAwgABQIAAAECAAABAgEAAwIAAwECAwMDAgAKCQYDCgAABQICAAECAAABAgIDAQsCAwsACAIAAAUBAgAAAgcBAwIAAwECAQoGDQQKAgMAAAgBAQAFAwEAAQEJAAcDAAkAAgUDAQIEBgQJAQIACQACBgECCQYDCgEACQwBBAMCCQUDAAkGBQIJAAMFCQQBAgkBBgUJAgYDAwgBCQIIAAUCAwABAgAACAIBAwECAAMCCgkGAgoAAwAABQICAAECAAABAgcDCQAIAggBAAABAwAABwEEAgADAgoEDQUKAwMAAAUBAQMBAAsDBwAAAwAABQMBAgcDAAIEBgcJAQIAAAIBBAkGAwMBAgIDAQIJCwEAAwcJAgMBCQUFCwkDAQIJAAYBCQAGAwkFBgECBwEJAgYABAIABQECAQANAgEDAgIQCgAAAwIBAAEDAAEFAAUDCgAIAgEAAAEAAAIBAAAFAwUBAQMDAgMKAg0CCgIDAgoFAwEBAAMBAAADAQALAwACBwAGAwECBwMBCQIGCgkBAgcJBQMFAQACAwEGCQcBDgkDBQwJBAEFCQEGAgkBBgEJAgYAAgcBCAIGAAECAQAABQECAQAMAgQDAQIDCgECBwoABgEKAQIAAAcDBAAFAwUAAAECAAcCBQAAAQIABQMDAQUDAAIAAw4KAQ0HAwEAAAEBAAkDAgIHAAEDAAABAwAJAwIFAwECDgkBAgcJBQMFAQEJAwEACQEBAgkGASEJAwEGCQAGCgkAAgcBBwIFAAECAgACAgAADQIFAwYCAgoEBgIKAQIAAAkDBAABAwAAAAIJAAcCBQACAQcDAAIBAQUDAAIAAw0KAg0IAwEBAQAJAwQCAQAGAwIJAwIFAwECBAkDCgwJBBQBAwMJAwECCQIBBgkDARYJAAMNCQEBAwkABgEJAQYJCQIGBgEGAgUAFgICAwECAQMFAgIKAQYEFQIDAQAIAwQAAQMAAAICAQAAAgcAAwIHAAEBBwMAAAACBwMAAgkKAQIBCgINAgIIAwEBBwMHAgUDBAkEAgEDAgIFCQUKAQYICQQUBQkBAwQJAgEwCQABBwkABgIJAAYGCQQGBAEGAAADBgATAgMDCQICCgEGBBUCAwEABwMFAAEBAAAAAwAFAQIAAwoAAQIHAAIBBQMBAQACBgMGCgACAgoAAwMCAQ0DAggDAwIBAwECAQMHAgAABAMECQkCBQkHCgEJAQYECQUUCwkDAQUJBgEDCQEFIwkCBgQJAAYECQQGBAEGAAADAQABAQEAGQIAAwcCBAoKFQUDAAIBAAEHAQABAQEHAQUBAxMAAwEFAwEBAAIAAQQDBQoAAgAAAgoCAwUCAAMAAQEAARQAAAADAgkAAwgCAQMFAgEABQMFCQECAQkBAgcJCAoACQMGAgkFFAsJAwEFCQcBAAkFBQEJARMdCQQGAgkABgEJAAYBCQAAAQYAAAYBBgAFASECAgoACQEKChUGAwsHDgAAAgUAAAICAQACAAEBAwUBAwMFCgACAwoBAwEJBQIAAwABAxQGCQcCAQMFAgcDEwkKCgMGAgkEFAsJAwEFCQcBAAkGBQQTGwkBBgsJAwMGAQUDAAAFAQEABQIBAAUDEwICCQAKChUAAQAAAQMCAAsHAgAAAwoAAgIBAAICAAECAgcBAQIBAwsKBQkBAgMDAxQCCQITAAkAAwUCBAMBAgoDFAkJCgEGCAoMCQMBCAkCAQATBwUEExoJAgYDCQEGBQkDAwYBBQMHAQAABQIAAAUDGQIJFQIBAgANBw4ABQIAAAQCBQECAgEDCAoAAgcJAgABAwUUAAkEEwAJBQIBAwMCCwMJCQEDCQkABhgKBgkEAQgJAhMIBQQTFgkBBAAJAgYCCQMGBQkDAwUBBQMHAQEAAgICAAUDHQIEFQMBAQMAAA0HDgAGAgEDAgIFAQQCAQMAAgQKAQIICQIAAAMGFAUTAAkAAwECAwMDAgsDBwkFAwUJAwYYCgYJAwEICQITCAUEExYJAAQCCQEGAAACCQYGAQkDAwABAgUCAQQDAAAFAQACBAAJAx0CAhUFAQADAQALBwAFBAACAQgACwIBAQ8CCgkBAAADBxQFEwAJAAAIAwECCAMICQUDBQkFBhYKBgkDAQcJAxMIBQQTGgkCBgIJAAYAAAMGAAABCQMDBAUBAQQDAAAFAQUACQMeAgIVBAEBAAwHBgADAQEAAgIBABwCBgkAEwMJAgAHFAUTAAkAAAIDAhMCAwECCAMHCQcDBQkFBhUKEgkEEwYFBRMBCQEBFwkCBgEJAAYAAAEGAQkAAAEJAAYBAwYFAQEDAwAAAQIBAQACBwABAgADAQICAyECABUDAQIABwcAAAEHAQABAQYAAgEAAAEBAAIBAQ4CAQMJAhAJBxQFEwIJAAMEEwECCwMGCQcDBQkDBgIJFAoSCQQTBgUEEx0JAQYCCQIGAQkAAAEJAQYACQYFAQEEAAECCQAAAwECAAMBAgEDBgIAAxsCAwEDAAUHBQABAQcABwEMAgUDAQIAAAMCCwkAEwUJBxQEEwIJBhMAAgADAgAGAwgJBQMOCREKFAkGEwIFBhMAAwEBGwkBBgEJAAYECQMGAAkGBQEBDwAIAyMCABUAAQUAAAcIEwwABQENAgYDAgIOCQETBQkHFAQTAAkHEwADBAAFAwgJBQMGCQIDBQkPCgsJAgEHCQ4TAgMAASUJAwYACQYFAAEOAAYDAQIBAyMCAhUEAAoTCgAHAQACAQMEAgABAQIIAwACCgkHEwUJCBQDEwAJBxMEAAQKAAMLCQEDAgkJAwQJDwoLCQUBBAkNEwQDBQkAARMJAAEFCQAGBwkGBQ4ABwMBAgADJAICFQQAAhMDAwQTCQAGAQYDAQIBAQkDAAIJCQgTAQkEEwgUCxMDAAgKDQkLAwMJDwoACQAMCAkGAQUJCxMFAwIBAgkBAQ4JBQEOCQUFAAEEAAECBQADAwECBQMkAgYVARYAEwUDBBMJAAUBCAMEAgUDAAEKCRATCBQJEw8KCgkMAwMJDwoACQEMAgkAAQIJAwEAAwQTBAkIEwcDAgECCQEBDQkGAQ4JBgUEAAMCAwADAwECBwMeAgwVARYEAwQTBwAAAgAAAg0BAQkDAgIBAQUDAAAKCRETCBQHExIKCAkMAwQJAQwCCQIDDAkGAQADBhMAAwQJBBMBCQgDBgEOCQQBDwkGBQQAAwICAA0DHgICFQAACxUAFgMDBBMBBwcABQ0JAwECAQEAAgABAQMAAgEABAkCCgIJEhMHFAYTCAoDAAYKAAkBAgQJBgMECgADBAkBCgIMAgkCDAYJAxMFAQADChMFAwACAgkIAwwBCAkEAQ8JBwUDAAwCBwMFAgABFgIDFQAADRUCAwQTAwcGAAYNBwMDAgIBBAAACQIEAwoCCRITChQKCgMABBQEBAUJAgMCEw0KAgwACQABBAwCCQcTBAEMEwUDAgkAAQcDDAEICQMBAQQPCQYFAwAMAgQDAQIAAxwCAxUEAAwVAAMEEwEBAQcIAAQNBgMAAgUBBQADBAgKDxMBCQkUCQoOFAUJAgMCEwIKABMJCgATAAwAAAABAAIQEwEKAAEAAA0TBQMBCQEBBQMNAQkJAQEDBA4JBwUCAAMCAAAJAwECAAAeAgMVBwAFAwUVBBMCAQAHCQAFDQQDAAADAQYAAgQKCgMTBgoRFAQKABQBChEUAQkBBAUUAxMEChoTAQoBABATAgMCCQEBAwMQAQIJAAEDCQYEDQkAAQYFAgADAgAABwMjAgQVBgAHAwMVABYCEwQBCAABFAQNABQBAw0AAgQVChIUAQQIFAEMFRQDEwAAHhMBCgEAERMBAwMJEQEBAAEBAgkAAQMJBgQNCQABBwUBAAECAQAIAyMCBBUEAAETBwMFFQIAAwEIAAEUBA0DFAYAAAIHBBAKAQwBChkUBgwBCgMAAAQPFAETAAAFEwIAAAEBEwIUEBMCChUTBgkOAQAAAgEGCQYEDQkBAQcFBAAIAyICBhUDAAETBwMGFQIAAgEIAAMUAg0DFAYACAQMCgETBQoHFAsKBgAICgEADBQABAcUBBMBAAEBARMDFAITChQAEwAUCAoSEwIJDwEAAAIBBwkEBA0JAgEIBQMABwMiAgAVAAAEFQQAAhMABQUDBhUDAAEBCQAKFAQABAQYCgMUAAQNCggACgoMFAAEAhQBCgIUBBMXFAATARQJChETAQkTAQkJAwQLCQQBBwUDAAQDAQAAAwABEQIAAQ4CAAAFFQQAAhMCBQMDBxUCAAABCwABAQcUBAADBBYKBBQADA4KCQAKCgAABAoFFAEEAhQCCgIUAxMQFAIKABQABAYUBwoSEwAJFQEHCQMECwkFAQYFAwACAwQAAQEPAgMDARUKAgYVBAACEwYFABYGFQIAAAMLAAEBBxQEAAIEBQoAFAAEBwoBBAIKBhQGCgEEBwoJAAACAwADCgETAAAFCgIAAQQDCgAEAwoOFAEKAhQLCgYUAwoUEwQBBBMKAQgJAgQLCQYBBQUDAAIDBQABAQ4CAwMBFQoCBhUEAAITBgUDAAQVAAAAAwwACRQDAAAJAAQGCgEUAwQCFAAECBQABAUKBRUDBAIKAAEJAAACBAAFEwAADgoABAMKAAQMFBEKBxQCABQTAgEHEwgBBAkABAMJAQQMCQQBAQYEBQMAAQMGAAIBDQIDAwIVCAIHFQQACRMDAAUVAAQLAAEBBBQBAQEUAAABAQAJBQoBAw8UAgoABAUKCBUEBAABBxUBBAAAChMCABcKABcGFBMKBBQEAAAUERMBCgkTCAEZCQIBAwYDBQMAAQMHAAADAQEAAwQCBwMDFQAABBUEAggVAwAJEwMABRUBBAkAAwEDFAEBARQAAAIJBAoAAwEMAgMKFAAEBQoOFQMECxULEwIAFgoBFwIUABcBFBQKAxQEAAAUAAQPEwIKChMHAQQJAQQPCQIBBgYDBQMAAgMFABEDCBUFAggVAwAJEwMABhUABAcABQEAFAMEAxQCCQMKAQMCDAEDCBQICh4VDBMBABUKBxcBFAgKAgkCFQQKAxQEAAIUDRMDCgsTCAECCQMEAgkABAgJBAEFBgMFAwACAwUAEAMJFQUCCRUDAAgTBAAFFQEEBgAGAQEECBQCBAAUAQMCDAEDARQNCgEEHhUOEwEABwoBAAcKAAQAAAgXBBQDCgUJAAADFQYUAgAACQMUChMDCgwTCQEBCQcEAgEECQYBBQYCBQMAAgMFABADCBUAAQQCCxURAAQVAQQGAAQBAAIECgoUBQMAFAAECgoFBB4VDxMCAAUKAwAABAQKAQAJFwgUBQkCAAMJBRQCCQIUCRMHCgoTCwEBBAIBAAQEAQEJCAEGBgEFAwACAwUAEAMIFQUCDBULAAABAwAEFQEEBgADAQYKCxQEAwETCAoBBgUEGxUBAxETAgAECgkADBcHFA0JAxQDCQATAhQABAEUAAQCFAETBwoLEyABCAYDAAIDBQAPAwgVAAEEAgABEBUGAQAVBAAEFQEEBgABAQcKDRQBAwMTBAoBEwABAAYUFQMBBxUCAQAEAQMSEwEAAwoIAAwXAQAIFAMJAAAFCQQUBAkMFAMKDxMeAQkGAwACAwUADgMJFQABBAIAARsVAAAAAwQVAQQAAwQAAAIAAQYKAxQABAcUAwEMEwABDBUAAAUVAAELFQMBFxMCCgcADBcAAgIACBQACQMAAxUGFAMJABMMFAETBgoIEx4BCgYDAAIDBQAOAwcVAgEEAgEBGhUAAAcDAwAICgwUAwEPEwwVAAQEFQEACxUEAQATAAAIEwUABhMJAA4XAgAIFAMAAhUJFAMTCxQBEwcKBxMcAQwGAwACAwUADQMHFQMBBAIFAQAAFRUGAwMECQoDFAAEBxQUEwwVAAADFQIACxUEAQIABxMGAAkTAQACAQAAExcGFAMAAhUJFAYTARQBEwoUAAUFCgQTEAEABAIBAAYGAQwGAwACAwUADAMHFQIBAAAFAgUBAQAUFQUDBAQICgwUFRMKFQAECAAKFQAAAwEEAAcTBwALEwEBAAAYFwAUAQACFAEVCRQNEwkUBQoEEwQBAQYCAQEEAgECBAIGBgEMBgMAAgMFAAwDBhUCAQEABQIFAQEADxUEAAABBAMABAoKBBQABAAUAgoDFBYTChUABAIAAgIAAAACAAEIFQECAAABAQYACRMGAAsTAQEAAAIXAgATFw4UAQkJEwIKABMKFAUKARMEAQYGBgQCBgYBDAYDAAIDBQALAwABBRUAAQADAwAEAgYBAwANFQMAAQEEAwAECQoDFAYKARQAARETARcDEwcVBwEBAggBAgMAAgQBAQIDAAsTCQAHEwABBAAHFwATDRcKFAADBQkHEwMKABMKFAQKABMEAQcGBgQDBgQBDQYDAAIDBQAKAwEBBBUBAQADAwAEAgYBBwAIFQMAAQMAAQMDBAoCDAMKABQJCgIDERMEFwABAAYEFQADHgEBAgIADxMFAAYTAAEDAAYXAxMOFwgUAQMGCQUTBAoBEwkUAwoGAQYGBgQEBgIBDgYDAAIDBQAKAwEBAxUBAQEDAgEFAgcBBwAAAQQVAQMCAAMDAAEAAwQKAAQGDAsKAAUBARETBRcABgMVBQMbAQECAAABAxATBgAEEwQVAAADFwQTDhcHFAABAgMDCQgTBAoAEwkUAwoGAQYGBgQWBgMAAgMFAAoDDAEFAggBBgAEAQADAAIEAAMDBQoABAUMCgoCBQABChMDFwQTBRcAAQECAQMAAiABAQIBAxETBgACEwYVAxcEExAXBhQAAw8TBAoAEwQUAAAEFAgBBwYFBBYGAwACAwUACQMNAQQCCQEGAAQBAAMGAAcKBwwFCgcFAAEKEwQXAAEEBQMXAAEBAhEBAQMEAQICCAEAAgIDChMFFwACBwAHFQIXBRMQFwcUEBMBCgIJAAoAEwgUBwEIBgUEFgYDAAIDBQAJAw0BBAIEAQEAAAIAAQYABAEBAwMACQoHDAAEAgIJBQEBChMEFwgGAgEAAgMBAAIgAQITAAMJEwoXAwAHFQIXBhMAAhAXBRQAEwIUDBMBCgIJAAoBEwgUBwEHBgUEFgYDAAIDBQAJAwwBBQICAQMAAAEHAAYBAQALCgUMAQQAAAoFAwEKEwMXBAYBCQIGHAEHCQECAwEMEw0XAAAHFQIXBhMAAgIXAhUKFwwUCRMBCgQJAAoAAQcUBwEHBgAEAgYABBcGAwACAwUACgMLAQUCBQABAQgABAEBAAYKAAQCCgQMAwQBAAgFAAMEAQQTBRcCAQAACwkCAQAJAgEAAg4BDwkCAQ4TDBcEFQQXBxMGFQkXDRQLEwQJAQoGFAcBJAYDAAIDBQALAwoBBAIAFQUAAQEJAAMBAAAKCgQMAAMDBAABAAABAQQFAQMFAQQTBRcBAQ0JAQEFCQECCQEAAxIJAQEQEwIAABMHFwMVBBcIEwUVCBcSFAATAgEEEwUJAQoLASUGAwACAwUADwMGAQQCBgACAQgAAgEAAAsKAwwBAwIBCAUAAAgBBBMDFwIGCAkBAAIJAQAECQMCCQEICQUKBAkAARgTChcMEwMVCBcTFAIGBBMACgYJABMCBgYBJgYDAAIDBQARAwQBBAIGAAMBCgAKCgUMAAMAAQgFDQEEEwIXAQYHCQQAAQkBAAMJAAIJAQACCwkHCgMJBxMCBg4TCRcNEwEVCRcCFAAXEBQDBgITAQoFCQATBAYCASgGAwACAwUAEwMCAQQCBQAGAQgACQoEDAEDAAEJBQcBAAAFAQQTAwYFCQEAAwkAAAcJCAEBCQUKBgkICgIJAhQAEwEJARMDBg0TCRcBEwAVChMAFQYXAAACFwEUARcQFAMGAxMCCgMJABMwBgMAAgMFABQDAQADAgYABwEGAAIKAAAFCgMMAgELBQcBAQAGAQcGAgkABgYJAAAHCQYBAgkGCgcJBwoAFAEJABQGCQYGERMAFwQTBRUEEwAVChcAAAMXBBQAAAsUAgYCEwIKBBMwBgMAAgMFABQDAQADAgYACAEFAAcKBQwBAQoFARULAAQBCwYDCQIAAgkDAAAJBAEECQMKDQkECgEUCgkGBgkTAAAEEwABAxMDCgMVBBMAFQcXAwACFwAAAAEAFAMXAwAJFAIGCRMvBgMAAgMFABQDAQADAgcABwEEAAcKBQwABAACBwUIFwgAAgEAAAIBAgkFBgIJAwADCQQAAwEFCQIKEAkFFAMJARQDCQAFAAAEBgATCAYKEwQKARUGEwIXAQICFwIAAxcBAAQXARQBAAoUAgYKEy0GAwACAwUAFAMBAAMCCAACAQACAQEFAAYKBQwBCggFCBcLAAIBBAkCBgMJAQAECQIGAwADAQQJAgobCQEUAwkBAAQGAAALBgcTBQoAEwIKAxMJFwECARcAAAYXAhQBAAoUBAYHEy0GAwACAwUAFAMOAAUCBAAGCgAAAQwAAQEMAAoIBQoXCQABBQIBAAkCAAEJAQYCCQAABgkDBgIAAAICAQMJAgoaCQMUBAkCAAIGAAALBgQTBAoAAQgKARMVFxAUBgYEEy0GAwACAwUAFAMOAAUCBAAFCgAAAgwABAAMAAoHBQwXAhUGAAEFAgkDAAEJAAYJCQYGAQABAgEBAwkCCgkJAAAFCQEUBwkDFAQJCwAAFQUGAhMGCgEJAAoDCQMKABMSFxMUOQYDAAIDBQAUAw4ABQIEAAMKAAMFDAAKBwUNFwIVBgAABQABAQkDAAoJAQAHBgEAFAkBAAUJABQFCQUUBAkACgoAAAMCCQwKBgkDCgATAhcCEwsXFRQ4BgMAAgMFABQDDgAEAgQAAwoBAwUMAAoGBQ4XAhUFAAAFAgEDAAEJAQYDCQUABwYAAAADIQkHFAQJAwoBAwMADAkACgMTAAoGCQMKBhMDFwACBRcWFDgGAwACAwUAFAMOAAMCBQACCgACAQMEDAEKBAULFwAVAxcCFQQABAECAAEJAgYCCQMGAAEIBgADCAkBChYJCRQDCQUKAAMDAA0JAAoDEwcJAgoBBgUTBxcIFAEADhQ3BgMAAgMFABQDDgADAgcAAQIAAwUMAQoDBQsXBxUEBQkBCgYBAwIGAAMCBgADBAkAAwABAwoWCQsUAQkDFAMKBgAEAwATBAkACgITCQkHBgETBRcIFAIAEBQ2BgMAAgMFABQDDgADAgYAAgIAAwQMAgoCBQsXCBUEBQkBCgYCAwMBAAQHCQMKDQkDFAQJAxQECgoUAwoFAAUDAQoAEwEJAAoBBgATCQkIBgATBRcJFAAADxQ4BgMAAgMFABQDDgACAgYAAwIAAwMMAAEDCgwXCRUCAAAFCgEJBgQDAQEICQMKDQkEFAIJBRQECgsUAwoIAAEDBAkBCgEGABMBCQAGBQkBCgcGBBcbFDgGAwACAwUAFAMOAAECBwADAgADAgwAAQQKChcMFQIABwECBgABBwYFAwEBCAkCCg4JBBQBCQUUAwoOFAMKCAAAAwQJAQoBBgkJAwoGBgYXDhQABgIUAAYEFDgGAwACAwUAFAMOAAECBwADAgADAgwAAQQKBxcPFQMABQEEBgABAgYAAAgDAQEICQAKDwkFFAEJBRQBChEUAgkACggABAkBCgEGCQkECgUGBhcOFAUGBBQ3BgMAAgMFABQDDgABAgYAAAEDAgEDAQwAAQMKAAEGFwADBhUAAQcVAwAEAQYGBAABAQQDAQEbCQQUAQkFFAEKERQCCQAKCAAGCQAGBwkABgEJAAoABgIKBQYBFQQXBxQABgQUBwYCFDgGAwACAwUAFAMOAAECBgAAAQMCAQMBDAEBAgoAAQYXAAMFFQEBBxUDAAQBBgYFAAEBAgMAAQEFGAkAFAIJAxQBCQQUAQoSFAIJAAoHAA8JAAYCCQEKAAYCCgQGBRUBBgUUAgYCFEQGAwACAwUAFAMOAAECBgAAAQMCAQMBDAUBBhcAAwQVAgEHFQIABQEGBgUABAEBBQACAQkABQYJABgMCQEUAgkDFAQJAwoRFAIJAQoHABMJBQoEBgUVUgYDAAIDBQAUAw4AAAIGAAEBAwIBAwEMAwEIFwUVAgYGFQIABAYCAQQGBgACAQIFAAITCQAUAgkDFAEJAxQECQIKCBQBCgYUAgkAFAEKBgABAwgJAhMBAQUJAQoHBgUVUgYDAAIDBQAUAw4AAAIGAAEBAwIBAwEMAwEIFwQVAAMCBgQVAwEGBgEJAAECBgEJBAAAAQQFAAIOCQABAgkBAQ0UBAkBCgcUBAoFFAIJABQBCgAUAgABAQIDAAoHCQATAwEGCQAKBwYFFVIGAwACAwUAFAMOAAACBgABAQMCAQMBDAMBBhcAAAADBBUAAwMGBgEIBgUJAQECAAYFAAINCQIUAQkAAQ0UAQoBCQAKABQDCgIUBwoFFAIJABQCCgAUAAADAQEDAAoCCQEKDgkACgcGBRVSBgMAAgMFABQDDgABAgUAAQEDAgEDAQwDAQUXAAIAAAADBBUAAwMGBgEJBgMJBAEHBQACCAkYFBAKCRQECQAKAgkAAQMJAAMACgIJAgoMCQEKBwYFFQAGAgFOBgMAAgMFABQDDgABAgYAAAEDAgEDAQwHAQICAAAAAwQVAAMEBgQBCwYACQIGAgEABQIGAQUCAAgJBhQBCQAUAgkLFAcKABQFCgkUAwkAFAwJAAoCCQEKAwkAAAQJAQYBCgkGBRUEAU0GAwACAwUAFAMOAAECBgAAAQMCAQMBDAcBAgIAAAADBBUAAwUGAgERBgABAAUEBgIABwkACgUUBwkKFAoKCxQGCQIUAgkACgYJAAoBCQIKCQkBBgEKAAEIBgQVBgFMBgMAAgMFABQDDgABAgYAAAEDAgEDAQwHAQICAAABAwIAAQMHBgABGQYAAAUJAQoAAgYUBgkLFAMKABQGCgoUBgkEFAEKBgkFCggJAQYCCgAGAQEGBgQVBgFMBgMAAgMFABQDDgACAgYAAwIBAwEMBwECAgAAAAMEAAADIgYAAAUJAAoAAgcUBQkNFAEKAhQBCQQKCBQICQMUAQoAFAcJAwoKCQEKAgYCAQQGBBUGAUwGAwACAwUAFAMOAAICBgADAgEDAQwHAQICAAEGACIGAAAECQAACxQACgQJCxQBCgEUAgkFCgcUCgkFFAcJAgoKCQEKCgYFFQQBTQYDAAIDBQAUAw4AAgIHAAICAQMBDAcBAQILAAUGAQEEBgABCQYBBQQGAAAECQcUAQkBFAIKABQECQkUBA0CCgAJBAoHFAoJBRQHCQMKCgkACgoGBRUABgIBTgYDAAIDBQAUAw4AAwIHAAECAQMBDAcBAAINAAMGCQEHBgMFAgYAAQQJCBQDCQMKBAkCFA0NBwoGFAoJBhQGCQIKDAkNBgIVUgYDAAIDBQAUAw4AAwIIAAACAQMBDAcBEAAABgsBAgYJBQEBBAkIFAMJBAoCCQMUEQ0ECggUBQkJFAUJAgoNCQ0GARUJBgQBQwYDAAIDBQAUAw4AAwIIAAACAQMBDAYBEgAJAQ0FAwECCQgUCwoACQMUEw0CCggUAQkAFAIJCRQFCQIKDQkEBgIBBgYAFQgGBgFCBgMAAgMFABQDDgADAgkAAQMBDAUBFAAHAQ0FAwEAFAIJCBQBCgIUCQoAFBYNAQoHFAEJABQCCQkUBQkCCgIJAAMGCQAKAQkDBgMBDAYLAUEGAwACAwUAFAMOAAQCCAABAwEMBQEUAAYBCwUACQQBARQCCQEUAwkBFAIKBhQGChcNAQoFFAIJAhQBCggUBQkBCgUJAAIECQAKAQkCBgQBCwYMAUEGAwACAwUAFAMOAAUCBwABAwEMBQEUAAACBQEKBQABAQkBAQMUCAkBFAEKBhQGChgNAgoEFAEJAxQBCggUBgkAAAoJAAYACgEJAgYFAQkGDQFBBgMAAgMFABQDDgAGAgYAAQMBDAYBBQAAAQEDAAEIAAABAgIDAQcFBAEBCQYUBgkBFAQKAxQGChkNAQoEFAEJAwoKFAADBQkBAAoJAAYBCQIGBgEIBgwBQgYDAAIDBQAUAw4ABgIGAAEDAQwHAQMABAMDAQMAAQEDAgEBBwUFAQcUAwkGFA4KGg0FFAEJAwoKFAADBQkBAA0JAwYEAQAGAAMIBgoBQwYDAAIDBQAUAw4ABgIGAAEDAQwHAQICAAAFAwkBBAIGBQUBBxQJCQIUBgoAFAEKAhQAChoNBRQBCQEUAQoKFAIDAwkBCgQJAAIHCQQGAgEBBgEDCAYGAUYGAwACAwUAFAMOAAcCBAAAAgEDAQwHAQICAAAGAwkBAwIGBQQBCBQJCQ8UGw0BFAMKDxQDAwIJAAABCgQJAQIHCQgGAgMIBgYBRQYDAAIDBQAUAw4ABwIAAQIAAQIBAwEMBwECAgAABgMDAgYBAwIEBQAJAgEKFAIJARQBCQAUBAkKFAEJHA0ECg4UBAMCCQAAAQoFCQICAAMACgUJBAYCAQIDCAYGAUQGAwACAwUAFAMOAAcCAQEDAgEDAQwHAQICAAAGAwMCBgEEAgIFAQkBARQUAwkKFAEJGA0ACgINAQoQFAEBAgMAAQEJAQABCgECAwkCAgADAAYBCgQJAgYEAQEDAAEIBgUBRAYDAAIDBQAUAw4ABwIBAQMCAQMBDAcBAgIAAAYDAwIJAQICBAEXFAEJCRQDCQMNABQSDQAKAg0RFAgBAQABCgICAwkAAgIDAgoDCQEGBgEAAwEBCAYEAUQGAwACAwUAFAMOAAcCAQEDAgEDAQwHAQICAAAGAwQCDwEYFAEJCRQDCRwNDhQJAQEAAAECCgECAwkDAwgGBgEAAwIBBwYDAUUGAwACAwUAFAMOAAcCAQEDAgEDAQwHAQICAAAGAwUCDQEZFAEJCRQFCQMNAQkKDQIUBg0LFAsBAgAAAQIKAgECCQQDBwYGAQEDAgEGBgIBRgYDAAIDBQAUAw4ABwIBAQMCAQMBDAcBAgIAAAYDCAIJARsUAQkIFA0JBg0BCgQUBA0JFAAABwEHAAABAgoDAQEJBAMIBgQBAwMCAU8G"
+  },
+  "environment": {
+    "sky_set": "cloudless",
+    "sun_color": [
+      0.9569,
+      0.9216,
+      0.8039
+    ],
+    "sun_elevation": 0.510983,
+    "sun_rotation": -1.15355,
+    "ambient_color": [
+      0.3294,
+      0.4196,
+      0.502
+    ],
+    "fog_color": [
+      0.9451,
+      0.902,
+      0.7882
+    ],
+    "fog_factor": 0.002979,
+    "fog_thickness": 0.001953,
+    "water_type": "lake",
+    "water_color": [
+      0.2941,
+      0.349,
+      0.6941
+    ],
+    "water_tint": [
+      0.2745,
+      0.2941,
+      0.5843
+    ],
+    "water_waviness": 4.0,
+    "water_murkiness": 0.45,
+    "water_wind_angle": 0.233165,
+    "brightness": 0.0,
+    "contrast": 1.04395,
+    "saturation": 0.943359,
+    "bloom": 0.140234,
+    "post_effect": "hdr"
+  }
 }

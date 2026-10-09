@@ -105,6 +105,14 @@ class RtsoWorldView : public Node3D {
 	int tree_kind_count = 1;
 	std::string tree_biome_;
 	void pick_tree_kinds(const std::string &biome);
+	// Trees and fruit bushes with their own FloraKind (a ported map's templates, a
+	// random map's rmbiome trees) draw that plant, one batch per kind; FLORA_DEFAULT
+	// ones take the biome's pick above.
+	static constexpr int FLORA_KINDS = 12; // rtso::FLORA_COUNT
+	MultiMeshInstance3D *flora_mmi[FLORA_KINDS] = {};
+	Ref<MultiMesh> flora_mm[FLORA_KINDS];
+	float flora_scale[FLORA_KINDS] = {};
+	float flora_y[FLORA_KINDS] = {};
 	// Swaying copies of tree meshes (shaders/tree_wind.gdshader), by source mesh.
 	std::unordered_map<int64_t, Ref<Mesh>> wind_cache_;
 	// 0 A.D. carry shuttles (art/actors/props/units/shuttle_*.xml) and the

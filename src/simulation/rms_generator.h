@@ -133,6 +133,18 @@ public:
 	};
 
 	static bool generate(Simulation &sim, const Config &config);
+	// Paints the per-tile terrain textures (Simulation::set_terrain_tiles) of a
+	// generated map from its biome's 0 A.D. terrains (terrain_biomes.h): water,
+	// shore and shore blend by height, cliffs and hills by slope, forest floor
+	// under the trees, road round each civic centre, dirt under the mines and
+	// 0 A.D.'s tier patches over the main terrain. Uses its own hash of seed, so
+	// no other placement changes.
+	static void paint_terrain(Simulation &sim, uint32_t seed);
+	// Gives each tree and fruit bush of a generated map its biome's 0 A.D. plant
+	// (terrain_biomes.h biome_flora): trees in a forest share tree1/tree2 or
+	// tree4/tree5, lone trees take tree1, tree2, tree4 or tree3, bushes the
+	// fruitBush. Only the drawing reads it; hashed from seed like paint_terrain.
+	static void plant_flora(Simulation &sim, uint32_t seed);
 
 private:
 	// Map-specific terrain synthesizers
@@ -226,6 +238,8 @@ private:
 	static void distribute_neutral_resources(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config);
 	static void distribute_wildlife(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config);
 	static void distribute_relics(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config);
+	static void synth_survival_of_the_fittest(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players);
+	static void place_survival_entities(Simulation &sim, const HeightmapGrid &hm, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config);
 	static void place_trigger_map_entities(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config);
 	static void distribute_fish(Simulation &sim, const HeightmapGrid &hm, float water_h, const Config &config);
 	// Map-specific wood and mines of the Ambush, Schwarzwald and Oasis ports.

@@ -4121,139 +4121,139 @@
   ],
   "resources": [
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -78.46,
       "z": -42.79,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -76.1,
       "z": -44.05,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -70.66,
       "z": -42.19,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -68.61,
       "z": -63.34,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -68.59,
       "z": -48.48,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -68.31,
       "z": -43.74,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -69.07,
       "z": -41.2,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -73.53,
       "z": -40.0,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -76.7,
       "z": -40.36,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -79.4,
       "z": -40.6,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -82.45,
       "z": -41.45,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -80.72,
       "z": -43.32,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -75.43,
       "z": -41.97,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -73.24,
       "z": -43.01,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -71.21,
       "z": -45.54,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -67.18,
       "z": -46.57,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -89.03,
       "z": -34.54,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -92.16,
       "z": -33.27,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -92.16,
       "z": -32.46,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -92.16,
       "z": -34.03,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -89.69,
       "z": -37.31,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -88.11,
       "z": -36.92,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -86.42,
       "z": -37.12,
       "amount": 200
@@ -4343,73 +4343,73 @@
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -56.53,
       "z": -71.85,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -54.06,
       "z": -72.83,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -54.95,
       "z": -74.77,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -53.77,
       "z": -78.01,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -52.61,
       "z": -77.42,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -51.7,
       "z": -75.73,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -50.49,
       "z": -74.39,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -50.47,
       "z": -76.76,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -50.37,
       "z": -78.74,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -48.29,
       "z": -78.89,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -47.5,
       "z": -77.92,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -44.74,
       "z": -78.38,
       "amount": 200
@@ -4541,463 +4541,463 @@
       "amount": 1000
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -79.62,
       "z": 58.72,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -84.47,
       "z": 57.73,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -81.74,
       "z": 56.0,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -81.52,
       "z": 55.48,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -78.81,
       "z": 54.5,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -78.52,
       "z": 53.03,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -79.09,
       "z": 51.71,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -80.67,
       "z": 50.92,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -79.97,
       "z": 48.99,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -79.26,
       "z": 48.06,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -77.63,
       "z": 47.41,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -80.63,
       "z": 46.32,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -87.78,
       "z": 44.5,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -83.42,
       "z": 54.14,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -81.76,
       "z": 58.31,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -82.89,
       "z": 51.02,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -49.34,
       "z": 40.55,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -49.86,
       "z": 37.91,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -51.74,
       "z": 36.73,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -49.93,
       "z": 36.41,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -52.76,
       "z": 35.28,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -55.31,
       "z": 66.24,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -54.68,
       "z": 65.01,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -54.12,
       "z": 63.97,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -53.6,
       "z": 62.93,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -53.18,
       "z": 61.97,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -52.72,
       "z": 61.13,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -54.58,
       "z": 66.91,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -54.05,
       "z": 65.64,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -53.64,
       "z": 64.68,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -53.12,
       "z": 63.65,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -52.7,
       "z": 62.69,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -52.19,
       "z": 61.59,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -53.89,
       "z": 67.62,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -53.36,
       "z": 66.44,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -52.91,
       "z": 65.66,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -52.56,
       "z": 64.76,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -51.98,
       "z": 63.43,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -51.56,
       "z": 62.35,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 29.08,
       "z": 86.94,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 27.32,
       "z": 83.51,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 27.89,
       "z": 80.41,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 28.62,
       "z": 77.92,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 31.04,
       "z": 73.08,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 31.6,
       "z": 68.71,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 32.4,
       "z": 67.34,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 31.5,
       "z": 78.76,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 40.02,
       "z": 58.33,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 42.41,
       "z": 52.94,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 44.79,
       "z": 51.82,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 45.1,
       "z": 50.67,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 48.05,
       "z": 50.52,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 47.76,
       "z": 51.5,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 45.33,
       "z": 52.88,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 44.73,
       "z": 55.39,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 54.05,
       "z": 78.76,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 58.3,
       "z": 78.36,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 57.08,
       "z": 76.15,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 58.55,
       "z": 74.77,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 60.39,
       "z": 76.11,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 61.43,
       "z": 75.55,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 63.08,
       "z": 71.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 63.2,
       "z": 68.92,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 64.94,
       "z": 68.19,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 66.27,
       "z": 68.92,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 65.77,
       "z": 66.35,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 67.26,
       "z": 64.14,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 92.16,
       "z": 57.73,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 79.16,
       "z": 65.59,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 86.91,
       "z": 59.97,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 86.0,
       "z": 61.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 76.23,
       "z": 61.13,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 92.16,
       "z": 60.34,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 92.16,
       "z": 56.92,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 79.0,
       "z": 61.65,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 71.2,
       "z": 63.53,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 52.09,
       "z": 81.61,
       "amount": 200
@@ -5177,385 +5177,385 @@
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 59.64,
       "z": 92.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 57.68,
       "z": 92.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 51.04,
       "z": 88.55,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 59.0,
       "z": 87.56,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 58.84,
       "z": 87.49,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 59.05,
       "z": 83.97,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 59.91,
       "z": 83.51,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 53.78,
       "z": 88.67,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 59.51,
       "z": 88.35,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 60.59,
       "z": 90.34,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 57.58,
       "z": 86.7,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 51.13,
       "z": 91.94,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 54.72,
       "z": 91.53,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 53.54,
       "z": 92.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 56.51,
       "z": 92.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 56.34,
       "z": 85.33,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 57.73,
       "z": 83.3,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 82.07,
       "z": 73.97,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 83.08,
       "z": 76.35,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 92.16,
       "z": 77.28,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 92.16,
       "z": 77.31,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 92.16,
       "z": 76.79,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 90.34,
       "z": 76.25,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 88.81,
       "z": 75.01,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 89.04,
       "z": 73.22,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 91.72,
       "z": 74.81,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 92.16,
       "z": 75.3,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 92.16,
       "z": 74.38,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 92.16,
       "z": 72.13,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 92.16,
       "z": 73.68,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 92.16,
       "z": 73.39,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 88.56,
       "z": 86.88,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 90.26,
       "z": 87.7,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 92.16,
       "z": 88.92,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 78.74,
       "z": 81.3,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 92.16,
       "z": 89.3,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 92.16,
       "z": 87.54,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 92.16,
       "z": 87.44,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 91.87,
       "z": 86.61,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 82.06,
       "z": 71.19,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 83.1,
       "z": 69.28,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 83.49,
       "z": 60.75,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 75.75,
       "z": 75.6,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 74.22,
       "z": 74.69,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 72.8,
       "z": 73.96,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 71.1,
       "z": 74.7,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 69.35,
       "z": 75.86,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 68.12,
       "z": 76.26,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 70.07,
       "z": 72.99,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 72.03,
       "z": 71.86,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 74.13,
       "z": 72.67,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 81.43,
       "z": 67.09,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 81.87,
       "z": 65.55,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 87.03,
       "z": 67.73,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 89.59,
       "z": 60.89,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 91.37,
       "z": 60.92,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 92.16,
       "z": 67.26,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 92.16,
       "z": 66.18,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 92.16,
       "z": 65.35,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 92.16,
       "z": 64.6,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 91.32,
       "z": 64.29,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 92.16,
       "z": 62.2,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 88.06,
       "z": 64.18,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 85.17,
       "z": 64.75,
       "amount": 200
@@ -5567,199 +5567,199 @@
       "amount": 5000
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -87.97,
       "z": 80.69,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -80.46,
       "z": 87.75,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -77.5,
       "z": 78.21,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -68.71,
       "z": 74.54,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -66.72,
       "z": 87.42,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -61.26,
       "z": 78.07,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -52.87,
       "z": 73.62,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -51.68,
       "z": 83.91,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -42.61,
       "z": 86.65,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -33.09,
       "z": 79.05,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -34.27,
       "z": 67.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -19.5,
       "z": 75.45,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -32.86,
       "z": 89.53,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -22.81,
       "z": 92.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -28.09,
       "z": 68.84,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -31.02,
       "z": 57.36,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -34.83,
       "z": 41.76,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -34.87,
       "z": 46.26,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -36.85,
       "z": 42.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -54.09,
       "z": 9.44,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -27.56,
       "z": 33.53,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -57.38,
       "z": 12.5,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -51.36,
       "z": 5.99,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -56.82,
       "z": 20.7,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -48.36,
       "z": 2.11,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -80.01,
       "z": 8.15,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -87.95,
       "z": 21.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -79.27,
       "z": 28.49,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -79.79,
       "z": 63.54,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -82.4,
       "z": 64.23,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -92.16,
       "z": 91.86,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -46.31,
       "z": 0.68,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -68.12,
       "z": 35.99,
       "amount": 200
@@ -5843,169 +5843,169 @@
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -64.93,
       "z": 76.9,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -67.93,
       "z": 67.68,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -63.75,
       "z": 78.85,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -65.38,
       "z": 69.5,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -64.57,
       "z": 70.95,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -70.55,
       "z": 25.32,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -72.63,
       "z": 22.95,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -72.37,
       "z": 20.42,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -71.34,
       "z": 15.82,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -71.54,
       "z": 12.74,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -72.58,
       "z": 10.98,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -75.53,
       "z": 18.62,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -76.83,
       "z": 21.66,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -77.34,
       "z": 26.03,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -92.16,
       "z": 50.41,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -92.16,
       "z": 51.14,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -92.16,
       "z": 53.67,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -90.95,
       "z": 50.17,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -92.16,
       "z": 33.65,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -21.15,
       "z": 21.2,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -25.31,
       "z": 17.21,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -27.25,
       "z": 15.28,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -22.84,
       "z": 19.32,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -23.51,
       "z": 28.66,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -27.84,
       "z": 38.87,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -45.92,
       "z": 63.14,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -57.89,
       "z": 36.05,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -41.15,
       "z": 67.16,
       "amount": 200
@@ -6047,223 +6047,223 @@
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 57.09,
       "z": -31.84,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 57.67,
       "z": -36.31,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 60.03,
       "z": -33.14,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 61.14,
       "z": -33.38,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 62.4,
       "z": -35.97,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 64.8,
       "z": -40.93,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 60.14,
       "z": -40.19,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 29.03,
       "z": -30.61,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 4.81,
       "z": -21.05,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 21.29,
       "z": -27.29,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 34.33,
       "z": -23.81,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 24.95,
       "z": -30.25,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 30.51,
       "z": -29.27,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 35.87,
       "z": -21.92,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 17.91,
       "z": -24.04,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 12.55,
       "z": -18.44,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 32.22,
       "z": -27.13,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 35.41,
       "z": -56.61,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 34.07,
       "z": -60.92,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 37.42,
       "z": -59.62,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 30.31,
       "z": -59.58,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 32.62,
       "z": -56.61,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 32.24,
       "z": -59.11,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 37.19,
       "z": -61.62,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 35.87,
       "z": -63.0,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 35.15,
       "z": -66.62,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 33.07,
       "z": -63.84,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 73.22,
       "z": -58.82,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 74.5,
       "z": -57.2,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 73.6,
       "z": -53.09,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 73.84,
       "z": -50.64,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 75.88,
       "z": -51.25,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 75.32,
       "z": -55.29,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 72.74,
       "z": -55.08,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 76.23,
       "z": -58.74,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 74.17,
       "z": -60.95,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 76.38,
       "z": -61.78,
       "amount": 200
@@ -6329,109 +6329,109 @@
       "amount": 1000
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 68.16,
       "z": -53.42,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 68.13,
       "z": -54.4,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 68.16,
       "z": -55.45,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 68.2,
       "z": -56.48,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 68.24,
       "z": -57.37,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 68.33,
       "z": -58.07,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 68.99,
       "z": -53.3,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 69.04,
       "z": -54.32,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 69.07,
       "z": -55.28,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 69.13,
       "z": -56.19,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 69.12,
       "z": -57.08,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 69.21,
       "z": -57.89,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 69.96,
       "z": -52.96,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 69.92,
       "z": -54.02,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 69.98,
       "z": -55.16,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 69.89,
       "z": -56.14,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 69.97,
       "z": -56.9,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 70.06,
       "z": -57.77,
       "amount": 200
@@ -6569,361 +6569,361 @@
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -4.96,
       "z": -29.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 2.9,
       "z": -21.9,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -0.64,
       "z": -25.87,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -1.86,
       "z": -33.17,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 1.78,
       "z": -36.59,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 4.55,
       "z": -39.28,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 7.98,
       "z": -42.8,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 12.94,
       "z": -43.29,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 11.8,
       "z": -13.54,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 15.33,
       "z": -8.72,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 18.87,
       "z": -4.88,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 23.84,
       "z": -5.63,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 26.8,
       "z": -8.98,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 30.14,
       "z": -12.48,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 33.94,
       "z": -15.58,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 36.88,
       "z": -18.32,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 25.3,
       "z": -74.6,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 32.73,
       "z": -90.06,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 44.02,
       "z": -90.29,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 56.83,
       "z": -87.76,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 64.3,
       "z": -78.17,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 51.54,
       "z": -76.66,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 74.91,
       "z": -83.84,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 80.38,
       "z": -91.75,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 86.6,
       "z": -80.35,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 90.64,
       "z": -68.68,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 85.77,
       "z": -65.63,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 89.21,
       "z": -44.8,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 82.07,
       "z": -46.04,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 87.93,
       "z": -22.06,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 62.02,
       "z": -13.87,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 47.56,
       "z": -14.87,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 67.54,
       "z": -27.63,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 22.23,
       "z": -53.52,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 22.85,
       "z": -43.88,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 13.58,
       "z": -63.79,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 12.83,
       "z": -84.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 14.21,
       "z": -92.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 58.82,
       "z": -92.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 56.05,
       "z": -92.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 56.76,
       "z": -92.01,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 54.28,
       "z": -90.32,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 59.16,
       "z": -88.41,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 53.48,
       "z": -87.91,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 52.26,
       "z": -8.2,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 49.98,
       "z": -5.89,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 49.0,
       "z": -9.71,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 51.72,
       "z": -13.12,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 49.22,
       "z": -12.01,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 52.62,
       "z": -11.83,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 50.33,
       "z": -9.69,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 50.27,
       "z": -15.02,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -59.75,
       "z": -71.64,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -58.02,
       "z": -75.27,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -57.86,
       "z": -78.05,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -56.74,
       "z": -79.36,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -44.27,
       "z": -83.69,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -45.38,
       "z": -83.74,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -47.9,
       "z": -82.21,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -89.14,
       "z": -40.73,
       "amount": 200
@@ -7007,607 +7007,607 @@
       "amount": 1000
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 65.69,
       "z": -11.0,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 66.03,
       "z": -11.79,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 66.44,
       "z": -12.49,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 66.82,
       "z": -13.14,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 67.94,
       "z": -14.14,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 68.62,
       "z": -14.5,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 69.29,
       "z": -14.86,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 69.85,
       "z": -15.09,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 70.37,
       "z": -15.27,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 71.52,
       "z": -15.54,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 71.96,
       "z": -15.62,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 72.56,
       "z": -15.69,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 73.14,
       "z": -15.8,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 73.98,
       "z": -15.76,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 74.58,
       "z": -15.74,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 74.72,
       "z": -15.71,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 75.31,
       "z": -15.68,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 75.84,
       "z": -15.44,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 76.39,
       "z": -15.32,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 76.91,
       "z": -15.19,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 70.99,
       "z": -15.43,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 66.41,
       "z": -11.08,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 66.54,
       "z": -11.44,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 67.16,
       "z": -12.3,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 67.39,
       "z": -12.56,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 67.75,
       "z": -12.98,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 68.36,
       "z": -13.38,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 68.71,
       "z": -13.56,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 68.97,
       "z": -13.69,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 70.22,
       "z": -14.1,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 69.53,
       "z": -13.9,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 70.58,
       "z": -14.2,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 71.12,
       "z": -14.35,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 71.63,
       "z": -14.49,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 72.16,
       "z": -14.56,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 72.67,
       "z": -14.66,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 73.3,
       "z": -14.79,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 73.93,
       "z": -14.79,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 74.43,
       "z": -14.9,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 74.88,
       "z": -14.8,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 75.56,
       "z": -14.7,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 75.93,
       "z": -14.61,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 76.63,
       "z": -14.5,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 77.22,
       "z": -14.38,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 67.24,
       "z": -11.16,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 67.35,
       "z": -11.21,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 67.83,
       "z": -11.83,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 67.94,
       "z": -11.98,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 68.56,
       "z": -12.49,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 67.39,
       "z": -13.72,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 69.04,
       "z": -12.69,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 69.52,
       "z": -12.88,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 69.93,
       "z": -13.13,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 70.56,
       "z": -13.23,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 71.14,
       "z": -13.47,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 71.73,
       "z": -13.52,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 72.22,
       "z": -13.62,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 72.75,
       "z": -13.77,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 73.3,
       "z": -13.95,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 73.67,
       "z": -14.01,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 74.25,
       "z": -14.07,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 74.86,
       "z": -14.1,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 74.94,
       "z": -14.08,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 75.54,
       "z": -13.96,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 76.33,
       "z": -13.82,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 76.58,
       "z": -13.77,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 77.14,
       "z": -13.64,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 67.26,
       "z": -10.83,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 67.14,
       "z": -10.15,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 67.14,
       "z": -10.02,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 67.1,
       "z": -9.18,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 67.14,
       "z": -9.15,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 67.31,
       "z": -8.49,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 67.37,
       "z": -8.43,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 67.74,
       "z": -7.66,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 67.87,
       "z": -7.33,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 68.18,
       "z": -6.84,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 68.34,
       "z": -6.62,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 66.35,
       "z": -10.45,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 66.31,
       "z": -9.72,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 66.45,
       "z": -9.22,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 66.58,
       "z": -8.63,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 66.79,
       "z": -8.18,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 66.91,
       "z": -7.53,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 67.18,
       "z": -6.97,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 67.48,
       "z": -6.16,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 67.76,
       "z": -5.08,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 65.45,
       "z": -10.01,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 65.49,
       "z": -9.3,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 65.54,
       "z": -9.06,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 65.68,
       "z": -8.32,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 65.8,
       "z": -7.97,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 66.13,
       "z": -7.27,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 66.34,
       "z": -6.58,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 66.43,
       "z": -6.23,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 66.88,
       "z": -5.4,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 67.06,
       "z": -4.88,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 61.03,
       "z": -7.77,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 60.43,
       "z": -4.88,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 59.24,
       "z": -0.99,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 62.16,
       "z": -3.46,
       "amount": 200
@@ -7727,43 +7727,43 @@
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 58.74,
       "z": -14.33,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 58.49,
       "z": -10.92,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 62.99,
       "z": -9.84,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 63.62,
       "z": -3.18,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 62.16,
       "z": 0.19,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 64.51,
       "z": -0.2,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 59.12,
       "z": -7.5,
       "amount": 200
@@ -8219,199 +8219,199 @@
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 56.89,
       "z": 47.08,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 61.67,
       "z": 46.14,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 62.84,
       "z": 43.92,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 60.0,
       "z": 46.84,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 57.09,
       "z": 42.54,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 59.62,
       "z": 42.68,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 60.58,
       "z": 43.13,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 61.62,
       "z": 41.79,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 61.91,
       "z": 41.31,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 63.56,
       "z": 40.51,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 59.09,
       "z": 41.33,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 48.07,
       "z": 48.48,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 54.85,
       "z": 44.04,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 53.47,
       "z": 46.29,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 57.19,
       "z": 43.89,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 54.83,
       "z": 47.15,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "oak",
       "x": 55.16,
       "z": 47.48,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "oak",
       "x": 58.49,
       "z": 45.29,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "oak",
       "x": 51.61,
       "z": 48.62,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "oak",
       "x": 50.99,
       "z": 47.05,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "oak",
       "x": 49.5,
       "z": 46.74,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "oak",
       "x": 50.27,
       "z": 45.06,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "oak",
       "x": 51.73,
       "z": 44.27,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "oak",
       "x": 52.35,
       "z": 44.49,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "oak",
       "x": 52.29,
       "z": 45.97,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -54.44,
       "z": 22.94,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -52.55,
       "z": 25.26,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -59.58,
       "z": 17.82,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -43.0,
       "z": 31.82,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -40.59,
       "z": 34.68,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -34.62,
       "z": 39.4,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -24.97,
       "z": 31.83,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -21.55,
       "z": 27.08,
       "amount": 200
@@ -11201,745 +11201,745 @@
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -20.3,
       "z": 87.36,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -20.42,
       "z": 86.31,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -20.56,
       "z": 85.45,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -20.36,
       "z": 84.76,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -20.2,
       "z": 84.14,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -19.87,
       "z": 83.47,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -19.61,
       "z": 82.78,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -19.11,
       "z": 81.99,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -18.77,
       "z": 81.62,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -18.22,
       "z": 80.92,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -17.78,
       "z": 80.44,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -17.13,
       "z": 79.89,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -16.42,
       "z": 79.41,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -15.74,
       "z": 79.05,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -15.19,
       "z": 78.78,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -14.7,
       "z": 78.72,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -14.19,
       "z": 78.58,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -13.61,
       "z": 78.49,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -12.94,
       "z": 78.36,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -19.97,
       "z": 87.9,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -20.39,
       "z": 86.77,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -19.57,
       "z": 88.33,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -19.03,
       "z": 88.77,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -18.66,
       "z": 89.21,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -17.97,
       "z": 89.32,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -18.92,
       "z": 90.39,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -19.33,
       "z": 90.14,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -19.68,
       "z": 89.9,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -20.05,
       "z": 89.42,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -20.55,
       "z": 89.14,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -20.96,
       "z": 88.48,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -21.31,
       "z": 87.95,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -21.41,
       "z": 87.42,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -21.54,
       "z": 86.71,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -21.39,
       "z": 85.9,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -21.35,
       "z": 85.21,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -21.1,
       "z": 84.51,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -20.93,
       "z": 83.86,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -20.67,
       "z": 83.19,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -20.3,
       "z": 82.51,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -19.97,
       "z": 81.96,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -19.72,
       "z": 81.43,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -19.29,
       "z": 81.0,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -18.72,
       "z": 80.44,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -18.27,
       "z": 79.85,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -17.7,
       "z": 79.49,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -17.0,
       "z": 78.99,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -16.34,
       "z": 78.59,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -15.59,
       "z": 78.28,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -14.91,
       "z": 78.11,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -17.37,
       "z": 88.58,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -18.04,
       "z": 88.44,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -18.69,
       "z": 87.9,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -19.08,
       "z": 87.45,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -19.32,
       "z": 86.9,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -19.52,
       "z": 86.26,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -19.48,
       "z": 85.76,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -19.45,
       "z": 85.21,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -19.33,
       "z": 84.69,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -19.25,
       "z": 84.18,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -19.0,
       "z": 83.58,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -18.83,
       "z": 83.2,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -18.45,
       "z": 82.85,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -18.16,
       "z": 82.29,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -17.72,
       "z": 81.73,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -17.27,
       "z": 81.22,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -16.68,
       "z": 80.68,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -16.26,
       "z": 80.36,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -15.87,
       "z": 80.08,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -15.35,
       "z": 79.85,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -14.88,
       "z": 79.65,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -14.08,
       "z": 79.48,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -13.57,
       "z": 79.25,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -13.0,
       "z": 79.21,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -12.22,
       "z": 78.99,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -2.35,
       "z": 85.65,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 10.49,
       "z": 76.65,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 16.55,
       "z": 62.43,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 15.67,
       "z": 75.53,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 28.31,
       "z": 56.86,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 17.37,
       "z": 46.52,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 49.66,
       "z": 29.12,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 75.43,
       "z": 20.97,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 70.09,
       "z": 7.93,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 87.34,
       "z": 28.8,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 48.53,
       "z": 17.55,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 44.34,
       "z": 34.19,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -11.71,
       "z": -8.95,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -20.63,
       "z": 11.35,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -18.52,
       "z": 6.32,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -16.08,
       "z": 4.18,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -11.36,
       "z": 3.84,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -9.14,
       "z": 1.35,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -6.88,
       "z": 0.32,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -13.38,
       "z": 2.79,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -16.02,
       "z": 7.22,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -12.81,
       "z": 6.24,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -8.23,
       "z": 3.26,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -10.69,
       "z": 2.69,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -20.06,
       "z": 8.0,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -23.14,
       "z": -37.63,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -15.28,
       "z": -32.84,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -10.58,
       "z": -39.37,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -22.16,
       "z": -48.7,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -14.19,
       "z": -48.34,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -29.12,
       "z": -57.62,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -33.13,
       "z": -66.29,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -23.25,
       "z": -60.32,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -29.73,
       "z": -76.7,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -36.93,
       "z": -80.29,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -27.41,
       "z": -87.15,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -24.11,
       "z": -92.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -14.7,
       "z": -92.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -0.42,
       "z": -92.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 5.89,
       "z": -88.91,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 24.72,
       "z": -88.95,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -42.68,
       "z": -36.22,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -68.92,
       "z": -3.17,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -56.1,
       "z": -0.95,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -59.79,
       "z": 2.8,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -86.22,
       "z": 6.86,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 7.52,
       "z": 63.52,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -24.98,
       "z": 50.44,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -23.46,
       "z": 64.99,
       "amount": 200
@@ -12065,247 +12065,247 @@
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -0.98,
       "z": 17.04,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 0.45,
       "z": 16.1,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 1.95,
       "z": 15.0,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 4.02,
       "z": 13.07,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 24.69,
       "z": 40.76,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 23.8,
       "z": 44.07,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 21.9,
       "z": 47.59,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 20.03,
       "z": 49.96,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 22.22,
       "z": 51.19,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 21.71,
       "z": 54.13,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -13.06,
       "z": 76.51,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -10.5,
       "z": 77.46,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -9.03,
       "z": 79.09,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -7.2,
       "z": -6.36,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -12.01,
       "z": -5.87,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -15.87,
       "z": -4.4,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -18.67,
       "z": -1.55,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -24.13,
       "z": 2.74,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -72.05,
       "z": 5.36,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -69.89,
       "z": 5.94,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -60.78,
       "z": -7.94,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -88.02,
       "z": 0.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -92.16,
       "z": 12.27,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 4.17,
       "z": 72.4,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 6.28,
       "z": 77.86,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 10.86,
       "z": 84.22,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 66.42,
       "z": 30.03,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 70.11,
       "z": 20.05,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 78.62,
       "z": 14.02,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 81.19,
       "z": 28.67,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 52.18,
       "z": 2.31,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 52.96,
       "z": -0.6,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 17.19,
       "z": -86.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 17.78,
       "z": -83.62,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 16.27,
       "z": -80.71,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 14.2,
       "z": -76.58,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -33.0,
       "z": -92.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -34.06,
       "z": -92.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -35.56,
       "z": -89.48,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -29.01,
       "z": -44.24,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -9.09,
       "z": -21.77,
       "amount": 200
@@ -12449,19 +12449,19 @@
       "amount": 1000
     },
     {
-      "type": "food",
+      "type": "apple",
       "x": 33.97,
       "z": 46.61,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "apple",
       "x": -57.13,
       "z": 77.27,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "apple",
       "x": 66.22,
       "z": -69.05,
       "amount": 400
@@ -12527,97 +12527,97 @@
       "amount": 1000
     },
     {
-      "type": "food",
+      "type": "apple",
       "x": 31.74,
       "z": 49.09,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "apple",
       "x": 36.87,
       "z": 42.8,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "apple",
       "x": 39.42,
       "z": 40.22,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "apple",
       "x": 37.12,
       "z": 38.69,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "apple",
       "x": 34.66,
       "z": 41.48,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "apple",
       "x": 31.97,
       "z": 44.96,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "apple",
       "x": 29.92,
       "z": 47.25,
       "amount": 400
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -91.94,
       "z": 18.1,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -92.16,
       "z": 21.23,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -89.67,
       "z": 19.54,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -89.1,
       "z": 16.16,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -86.94,
       "z": 19.02,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -91.59,
       "z": 23.05,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -91.91,
       "z": -2.98,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -89.48,
       "z": -28.44,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": -3.93,
       "z": -39.32,
       "amount": 200
@@ -14476,5 +14476,86 @@
       "angle": 2.3562,
       "scale": 0.25
     }
-  ]
+  ],
+  "terrain": {
+    "res": 192,
+    "names": [
+      "medit_sea_depths",
+      "medit_sea_coral_deep",
+      "medit_sea_coral_plants",
+      "medit_rocks_shrubs",
+      "medit_rocks_wet",
+      "medit_sand_messy",
+      "medit_rocks",
+      "medit_grass_field",
+      "medit_shrubs",
+      "grass1_spring",
+      "medit_grass_field_a",
+      "medit_grass_field_b",
+      "medit_grass_field_dry",
+      "medit_shrubs_golden",
+      "medit_rocks_grass_shrubs",
+      "medit_forestfloor_a",
+      "medit_grass_wild",
+      "medit_dirt_b",
+      "medit_rocks_grass",
+      "medit_shrubs_dry",
+      "medit_dirt",
+      "medit_cliff_grass",
+      "medit_dirt_c",
+      "medit_cliff_greek",
+      "medit_cliff_greek_2",
+      "medit_grass_shrubs",
+      "medit_cliff_aegean",
+      "medit_city_tile",
+      "medit_city_pavement",
+      "farmland_a",
+      "medit_grass_flowers",
+      "medit_cliff_aegean_shrubs",
+      "medit_cliff_italia_grass",
+      "medit_riparian_mud",
+      "medit_grass_field_brown"
+    ],
+    "rle": "EwADAQECAAMEBAsFAAYEBAIHAwQBCAEJAwgjCQ8KAwstDAcNDgwBCRMAAwEBAgADBAQLBQAGBAQCBwMEAggACQMIHwkTCgMLLQwIDQ4MAAkTAAMBAQIAAwQECwUABgQEAAgABwAOAwQCCAAJBAgcCRUKAwsgDAEPCgwJDQ4MEwADAQECAAMEBAsFBQQACAEOAwQCCAAJBAgQCQMKBgkWCgMLHwwCDwkMCg0ODBMAAgECAgUECQUHBAEIAwQDCAAJBAgQCQMKBgkWCgMLHAwFDwkMCw0NDBIAAwECAgUECQUHBAEIAwQGCAAJAQgQCQQKBQkVCgQLHAwEDwoMCw0NDBAAAwEDAgAQBQQIBQgEAQgCBAEIAg4CCAAJAggPCQEKAAkBCgEJAQoBCRUKCQsEDAMNDQwFDwoMDA0MDA8AAwEEAgAQBAQBBgIFEgQBCAIOAggACQQICQkBCgAJCQoBCRQKCwsCDAUNDAwFDwoMDA0MDA4AAwEDAgMQBAQDBREEAQgDDgIIAAkFCAUJAQoACQwKAgkSCgwLAgwFDQ0MBA8KDAwNDAwLAAUBAwICEAYEAgUCBAERDQQBCAMOCQgDCQAKBw8DCwQKAwkQCg0LAgwFDR0MDA0MDAoABQEDAgMQBgQBBQIEAREOBAAIAg4HCAEJAQgDCQAKDQ8BCgUJDgoOCwEMBg0eDAQNAAwFDQwMAQAACQADAQAIAQQCAhAMBAERDgQBCAIOAggBCQMIAAkCCAIJEA8FCQ4KDQsBDAINAhIADQATJQwDDQcMAwsBDAAJCwEFAgADABAOBAAUDAQECAEOAwgBCQgIAQkQDwAJAhUBCQ4KAQcICwMMAQ0EEgANMAwGCwAMAAMJAQUCAQMOBAIUBQQDBgEOBQgBDgIIAwkHCAEJDw8BCQIVAgkNCgAHCAsDDAENARIADQISAA0LDAQLHgwICwADAwEJAgIJDgQCFAIEAhECBgMIAg8FCAEJAggACQcIAQkRDwAJARUDCQwKAAcICwIMAg0BEgENABIADQsMBgsXDAQLAAwICwwCAAkCEA4EAhQDBAIRAgYACAUPAQgFCQkIAgkTDwIJARUGCQAHBQoABwkLAQwADQASAA0AEgENARILDAcLBwwDCwoMDwsKAgIJARAOBAMUAgQCEQIOABIFDwIIBQkKCAAJFA8CCQIVAAcBCQEHAAkABwUKAAcJCwEMAA0CEgANARIMDAgLBQwFCwgMEAsBCQcDBQkNBAEWARQCBAIRAA4BDwAOAw8ACAEPAggFCQMKBggVDwEJAAcEFQAJAQcACQAHBQoABwkLAQwBDQMSAA0LDAkLBAwGCwAMBQsBDBALAQkAEAYDBQkMBAIWARQBBAIRABIADgUPAQgBDwYJBwoCCQEICw8AEwkPABMBBwAJAxUDCQUKAAcDCgULAgwCDQASAA0LDB4LAAwQCwEJAxADAwMJDAQEFgAUAgQCFgASCg8CCAMJAgoACAQKAwkPDwAJBQ8AEwMJAxUCCQsKAwsTDDELBQQAEAIDAQkOBAMWABEAFAIEARYBEgkPAAkFCAAJAQoDCQEIAAoDCQYPAgkFDwAJAQcDDwATBAkCFQIJCwoCCxIMAwsJCiULGgQBFgIDABECBAAWARIIDwMJBQgBCgMJAQgACgMJAQ8ACQMPAwkDDwAJAgcPCQsKAgsQDAMLDAogCwAJAgsZBAEUAwMAEQEEAREBEgYPAA4HCQIIAQoECQIKAgkBDwgJAQoCCQEHEAkLCgILDwwDCxAKHQsBCQELGQQBFAMDABEBBAARABIBDgIPBA4BCQQIAwkCCgQJAQoSCQEHEQkKCgMLDgwCCw0KAg4CCgcLBAoECwUKAgsECRgEARQDAwMEABEAEgEOABIACQQOABcBFQIXAQgDEwQKAgkBChIJAAcFCAIJAQcACQEHAAkBBwAJAQcCCQYKBAsLDAQLDQoDDgQKAQsICgILDQoACRcEAhQDAwMEABQAEgEOABIACQIOBxUBFwQTBAoBCQEKAggPCQAHBggBCQEHAAkBBwAJAQcACQEHAQkABwUKBQsEDAoLDgoDDg8KAQsPChYEBBQBAwIEARQBEgEOAQkADgYVAhgDFQITAQkDCgAJAQoCCA8JAAcCCAIZAAgOCQAHBQoFCwMMCwsICgQJBA4PCgALEAoWBAIUBQQCFAESAQ4BCQIVAhgBGgIYBRUBEwIJAgoACQEKAggOCQAHAggCGQAIDwkFCgcLAAwMCwEKAhYBCgYJAg4jChUEAxQEBAIUAhICDgMVAhgAGgMYARoDFQETAwkECgAJAggBCQEHAQkFBwAJAQcBCAMZEQkDChYLBRYACgYJAQ4RCgAHEQoACQEDEAQCBQAUAwQCBQEUBBIADgMVBBoFGAQVARMCCQQKAAkCCAEJCQcACQIHAAgEGQcJAhUICQcLBQoCDwMKAgsFFgMJBg4NCgEQAAkABxEKBQMCDgADAAYGBAAUAwUCBAQFARQEEgAOAhUEGgMYABoBGAEaAhUBEwMJBAoACQIIAQcACQEHCAkABwAIBRkACAIJBRUICQQLCAoDDwMKAAsACQEWAhEDFgAJCA4ACQgKBRARCgYDAQ4EBgIEBQUCBAQFABQCDgESAAkCFQMaBRgAFQIaABUAGgEVAhMECQMKAggBBwgJAwcACAYZAAgBCQUVCAkDCwgKBA8DCgEJARYDEQIWAAkDDgAJAQ4BFAAOCAkFEAAIBAoLCAUDAAYBDgQGAQQAEQUFAQQCBQARAgUCDgASAAkCFQMaARcDGAEXABUDGgIVARMECQQKAggBCQEVBQkDBwAIARkABwMZAAgBBwIJAhUICQILCAoFDwMKAQ4ACQEOABEEDgAJAg4BCQEOAhQBDgUJAxACDwAQAggGCgYIBAMIBgEEABQDBQAUAQUABAUFAg4BEgMVAhoDFwMOABcAFQMaAhUCEwIJAgoACQEKAggBCQEVBQkBBwEJAAgBGQEHAhkACAEHAAkCBwkJDAoFDwMKCg4CCQMSBBQBDgQJAxACDwAQAAgKCgQIAgMKBgAEARQDBQEEBQUEDgASAAkCFQIaAxcCDgEPARcCGgAVABoBFQITAgkBCgIJAQoCCAAJARUJCQAIBhkBCAEJARUABwEJAQcBCQEHAAkMCggPAAoACQgOAQkGEgQUAQ4FCQIQAg8BCA0KAQgBAwoGAQQDBQAUAgQEBQEOABIDDgMVARoEFwUPABcAFQMaARUCEwIJBAoABwEDAQgACQQVBwkACAQZAggBCQEVAAkDBwEJAQcACQwKCA8ACQgOCxIBFAUJAQoACQUPAAgQCgoGCgQEBQAOARIEDgIVBBoBFwYPABcAFQMaAhUBEwEJBQoACAMDAAgFFQkJAAcBGQAHAwkBFQAJAQcACQEHAgkLCgELAg8ACQMPAQkHDgUSBRsDEgMJAA8BCgAJBQ8ACBAKBAYOBAYFAA4BEgUOABcFGgEXBg8ACAAXABUCGgIVARMBCQIKAQgACgAIAwMACAMJARUJCQQHCAkBBwIJCgoCCQYPAgkEDgUSCRsCEgIJAwoACQYPAAgPCgIGABQPBAQFABIBDgESBA4ACQAXBBoBFwcPAAgAEgAVAxoBFQATAgkCCgEIAAoBCAIDAAgAChEJAQcACQEHCQkJCgAJAQcBCQYPAgkCDgADBBIHGwEcAhsBEgEJBAoHDwAIDwoBBgMEABYBFAwEABEBFAQSAg4ACQAVBRoBFwASAw8ACAMPABIAFQMaARUAEwEJBAoACQAHAAoACAIDAQgRCQEHAAkBBwgJAAcICgEJAQcCCQQPAgkAAwIOAAMCEgQbBxwBGwEDAQkFCgYPAgsNCgAUBAQFFAoEARQEEgAJARABFQUaARcACAMPAAgADgIPABcEGgEVABMBCQQKAQkABwEIAQMBCAAKEAkDBwkJCQoDCQEHAAkBDwEHAgkBAwIOAAMAEQEDAhsKHAAbAQMBCQUKBg8HCwgKABQCBAcUCgQBFAQSARADFQQaABcBCAIPBAgBFwMaAhUABwEJAQoACQEKAQkABwEIAQMBCAAKEgkBBwIJAQcECQkKAwkBBwIJAQcACQMDAg4BEQIbDBwAGwIDAAkFCgUPCgsGCgIEARQCBwEUBQQAFgARAhQBBAAUBBIACQAQBBUAFwMaABcBCAEPBAgBFwQaAhUCCQEKAAkBCgIJAAoACAEDAQgAChUJAwcACQEHAAkKCgkJAAcEAwEOAQMAEQIbDBwAGwIDAAkFCgMPAQcLCwUKAgQBFAMHABQDBAIWAAkEFAISAg4ACQAQBRUCGgAXAwgBAwIIARcFGgIVAgkBCgAJAQoBCQAHAAoACAEDAAkBChUJAwcACQEHAAkDCgEDAwoFCQEHAgkJAwIbDRwBGwEDAAkFCgMPAQcNCwEKAQsBBAEUAwcBFAIEABEAFgQSAAkDEgIOAhABFQAQAhUCEgEIBAMBCAEXBhoCFQEHAgoABwEKAAcACQEHAwgBChcJAQcDCQMKAAMABgADAQoCCQEHAAkDBwsDARsOHAEbAQMBCQMKAAkDDwMLBQwJCwEEARQDBwEUAgQAEQoSAQ4CEAIVABAACQEVAhIBCAQDAAgAFwgaBRUFCgAJAgoDCAAKAQcPCQEHBgkBBwAJAwoCBgYDAAkCBwsDAhsOHAEbAQMCCQAPAQoACQMPAQsJDAcLAQQCFAEHARQAEQIEABEKEgEOAhACFQESARUAGgESAQgEAwAIABcIGgUVAA4BCgAJAQoACQMKAwgBBwAJAQgMCQEHBgkBBwAJAwoABgADBwYCCQsDABEBGw8cABsCAwMJAQoACQELAQ8ACwoMBwsBBAUUAwQAEQAJAhIEDgESAA4CDwIQBRUCEgEIAwMACAEXBxoHFQAHAQkBCgIJAQcACQIIAgkCAwAIAQcUCQAHAwoABwcGAAMBCQsDABECGw0cARsCAwMJAQoECwwMBQsADAEEBBQEBAARAAkCEgQOABIACQMPAgkFFQISAQgDAwAIARcHGgcVAAcECgIJAAcFCgAJBAMCCgAHBQkBBwkJAwcBCQADBgYAAwEHCgMCEQAbDhwAGwIDBgkECwwMBQsADAEEAxQDBAERAQkBEgUOBQ8CCQIVABcBFQESAggCAwEIABcIGgAOBRUADgIKAAkFCgIdBAoACAMDAQoABwUJAQcMCQEHAQkGBgADAQcIAwQRABsOHAAbAgMFCQQLDwwBCwIMAQQDFAIEABQACQkOBg8CCQAVBRcAEgIIAgMBCAAXBxoAFwAOAxUBDgIKAgkECgIdBgoCAwIKBQkBBwwJAQcCCQADBAYAAwEJBwMFEgARDhwAGwIDBQkDCxUMAQQCFAIEABQACQkOBw8CCQAXAxgBFwASAggBAwAIARIAFwcaABcADgMVAQ4ACgQJAgcFHQYKAQMCCAAJAQcCCQEHBQkDCAIJAQcCCQEDBAYBCQcDBhICHAEbCBwBGwIDBAkDCxYMAQQBFAMEABQFDgAJAQ4IDwEJARcBGAEaABgBFwASBQgCCQEXBRoBFwAOARUCCgUJAgcGHQMKBAMBCAAKAQcBCQEHBQkFCAEJAQcDCQIDAgYBCQMDAAkCAwISAhYAEgERCRsAHAMbAQMDCQQLFgwBBAAUAwQAFAUOAwkGDwIJARcBGAIaABgBFwEJBAgECQAXARoCFQAaAhUACQEKBQkCBwgdAgoEAwIIAQoDBwUJAggACQIIAAkBBwQJAQMCBgEJAwMBCQQDAhYBEgERDBsCAwMJAwsXDAEEABQCBAEJBA4ECQUPAwkBFwEYAxoBFwESAwgFCQAXARoCFQAaAhUCCgAHBAkBBwEICB0ACAAKBQMCCAAKAgcFCQEIAR0BCQIIAQcLCQMDAQkDAwMWAxIAAwobAwMBCQULFwwEBAAUAAkCDg0JARcACQEXAhgDGgAXARIDCAAJAwMBCQAXARoFFQAOAQoBBwEJAQcACQAHAggABwcdAAgACgcDAAgBCgAHAQkBBwEJAQgEHQIIAAcOCQEDAQkBAwAOBBYEEgEJAxsBAwEbAwMACQYLGAwDBAAUAQkBDgYJBBUHFwUYABcCEgMIBQMBCQEaBRUADgEKAwkCBwMIAQcHHQAKAwMACAIDAwoBCQEHAQkACAYdAggTCQAOBBYAAwUSCwMACQcLAQwCDRMMAgQBFAAJAg4DCQcVARcDGAEXBBgBFwISAwgGAwEJABcFFQAOAQoABwAJAQcBCQAHAggCBwYdAgoDCAEKAQgCCgUJAAgGHQMIBwkACggJAA4BFgASARYADgYSCQMACQcLAQwGDREMAQQCFAIOAg8ACQQVEBgAFwESAQkDCAYDAwkEFQAOAAoBBwAJAQcCCQEIBAcEHQMKAQkDCgEIAgoECQAICB0DCAQJAwoFCQAOABYBEgIWAQ4HEgcDAAkGCwMMBg0RDAMUAAkFDwMVBBgFGgYYARICCQIICAMDDgMVAQ4DBwQJBgcDHQYKAAkHCgAJAQcBCQodBAgCCQAKAQkACgQJARYBEgEWAQkEDgQSBgMACQYLAwwIDRAMAxQADgQPAxUBGAsaABgCFwISAQkDCAMDAAkDAwMOAxUBDgMHAAkECAEKBAcBHRAKAAkBBwAJDR0DCAEJAAoBCQAKAgkDFgASABYDCQUOABIACQMSAgMBCQULBAwJDQoMAQ0DDAIJAQ4BDwEQABcCFQIYCxoAFwQSAQkFCAIDAAkDAwUOAwcBCQEHAAkECAEKBwcCAwoKBAkPHQIIBQoACQYWBgkFDgQSAQMACQULBQwIDQkMBQ0BDAUOABABBwAXAhUDGAoaAQ4DEgQIBwkCAwAJAw4ABwEJAQcBCQEHAAkBBwAJCwcCAwoKAwkQHQcKAhIDFgUJAQcACQUOAAkDEgEJBgsEDAkNCQwFDQEMBA4ABwEIAgcCFQMYABcHGgEOARoCCQMIAQkDAwkJAgcACQEHCAkLBwEJCgoACQEIDx0ACAAKAQgDCgISAQoBFgUJAB4CEAAeAgcDDgAJARICCQMLBwwIDQkMBw0ADAEJABAAFwEHAQgCBwIVAxgBFwEYAhcBEgUaAAgJAwoJAQcLCQsHAQkABwkKAAkACA8dAAgECgMSAgoADgQKAAkAHgAQAQoDEAAeAQcDDgMJAgsIDAgNAgwBDQUMBw0ADAAJABcABwYZAQcBFQIYABcFGAISBxoGAwAJAhUICQQHCAkLBwMJCAoACA8dAAgECgESBAoBDgEJBwoEEAEeAAcCDgIJAgsIDAkNAAwFDQQMBw0BFwcZAQcBFQEXAQMHGAoaAgMBCQAfBBUGCQQHAwkJFQUHBAkICgMdAAgKHQEIAAoACAEKARIECgAdBAkCCgAQAgoGEAAeAAcBDgIJAQsJDAANAQ8FDQEMBQ0EDAcNABcIGQEHAxUAAwEVBxgJGgMJAh8DFQkJAQcCCQwVAwcECQIKAAcECgAIDR0CCAIKARIECgEdBgkACgAQAAoJEAEKAAcBCQELCQwBDQEPBQ0ADAcNBAwGDQAHCBkBBwYVCRgIGgUfAQkBFQYJAQcACQAHAxgRFQMJAgoABwUKAQgKHQMIAQoBEgIKAA4ACgMdBAkABwEKChAAHgIKAgsJDAANAg8EDQEMBw0EDAYNAAcBGQAIBBkACAEHAQMFFQkYBxoEHwEaAhUGCQEHAAkABwYYARcPFQAJAgoABwUKAAkBCAkdAAgDCgESAgoADgAJBR0CCQEHAAoMEAEKAgsDDAENBAwADQIPBA0CDAUNBgwFDQAHARkACAMZAQgCBwEDAAgDFQoYBhoBHwMaAxUJCQYYARcBGAAaARgBGgAXABgBFQEYBBUCCgAHBQoABwIIBx0BCAIKARIECgcdAwcACgwQAAoDCwEMBQ0DDAYNAwwHDQQMBQ0CBwIIAQcBCAIHAAMCCAAJBBUJGAkaAxUBCQISBAkFGAMaARgAGgEYBxoFFQgKAAcDCAQdAggBCgISAwoKHQEHAAkCCgIQAhIEEAMLAgwFDQMMBQ0EDAEKBQ0GDAINAAwCBwEIAgcCCAAHAgkBCAEJAAgDFQkYBxoCFQAJBRIDCQQYDhoBGAIaABgDFQgKAAcACQMIAx0DCgESAgoAFgAJAx0ABwcdAAkABwMKBRIDEAMLAQwHDQQMAQ0FDAIKBA0LDAgHAggCCQEIAQkBCAQVCRgDGgMVAAkFEgIJAAcEGAAaARgGGgAXABgDGgEYBBoCFQgKAgkDCAEdAwoBEgMKAAkDHQAJCR0ABwMKBhIBEAAKAwsBDAcNAwwIDQIKAQ0ADAENCwwIBwIIAgkFCAAJBBUKGAAJAxUFEgMVAAkABwQYABoBGBMaAAkBFQgKAgkBBwMIAwoAEgQKDx0ECgYSARAECwIMBQ0DDAoNAQoBDQ4MCgcDCQMIAxMACwMVCRgDFQUSBBUACQAHAhcFGgEXEhoBCQcKAQcACQEHAQkACAMKABIBCgASAAoACREdAwoGEgEKBAsCDAUNAgwDDQEIAQsDDAQKDQwABwUPAgcECQAIBxMACwAYAxUGGAMVBRICFQESAQkABwMaAxgAFwQVABcAGAYaARcEGgEJAAcGCgIHAgkABwAIAgoBEgIKAAkDHQAJDR0DCgYSAAoECwUMAQ0DDAMNAAwFCAEMBQoADQsMAAcIDwULCRMFFQMYAxUGEgIVARIBCQAXAxoBGAEXARgFFQMYAhoBFwUaAQkFCgEJAQcCCQAHAgoBEgEKABYACQMdAAkCHQAJBR0ACQIdAAcDCgQSAQoECwsMBA0ACwkIAAwCCgENCgwACQgPBQsCEwILBRMKFQcSAxUBCQAHABcDGgAYARcAFQEYABUACQMVBBgJGgIJAAcDCgAJAQcECQAKAA4BEgEKABYACQgdAAkJHQEHAgoEEgEKAQsCDwkMBQ0ACwEIAgcGCAALAQoEDQUMAQsACQgPDAsADAALBRMGFQMSARUEEgEVABIACQAHABcCGgAYARcDFQIDAAkBFQAJAQcBFwkaAQoCCQIKAAkBBwMJAQoBEgEKABYACQgdAAkJHQAJAQcICgILAg8JDAMNAAwCCAkZAQgCCgcNAwsACQgPABMCCwQMAAsAHQALAQwCCwQTAxUAFgQSAhUACQASAgMCEgAJARcBGAEXAhUEAwUHAhcDGgAXAxoBCgAJBwcDCQEKABICFgEJBh0ABwAJCR0BCQMHBAoABwMLAw8HDAMNAAsDCAMZAw8EGQQKAAsEDQALAQkADAgPABMBCwQMAAsBHQALAwwCCwITAQoDFgISAxUGAwASAAkAFwEYABcCGAAVBAMGBwAJBRcDGgIKAAkCBwEDAAcDFgEJAAcCEgAWAgkABxAdBQkGBwALBw8FDAALAA0CDwMIABkJDwMZBAoACAAHBA0ACQAMBg8DEwALAwwEHQQMBQsACgMWARIEFQcDAAkAFwUYABUCAwEJAQcCCQwaAgoACQIHAQMEFgERARIBFgAHAgkBBwMdAAkEHQEHAh0ABwYJBQcACwgPAwwCCwIPAQgAGQsPBBkABwIKAAgBBwQNBg8EEwALAgwGHQUMAwsCFgAKAhICFQIaBgMAEgAXBRgAFwEDAgkBBwAJDhoACQEKAgkABwQWAxEAEgEWBwkGHQEJAx0BBwcJBAcACwgPAwwCCwIPAAgBGQMPDBkBBwIIAgcDDQUPBBMACwIMBx0ACwUMAQsDFgAKARIIGgEDARIAAwASAAkAFwMYABcACQEDAgkABw8aAQkCCgEJBRYDEQEWAAcBCQEHBAkKHQgJAQgACQMHAAsJDwAMAgsDDwAIAAkAGQIPBxkACAkZAggABwMNBA8FEwALAQwJHQALBAwBCwIWAwsJGgADBBIGGgMJERoBCQIKAAkAAwUWABECFgAJAQcBCQEHBAkDHQAJBB0BBwYJAggBCQEHAAkBCwgPAwsDDwEJABkCDxQZAQgDDQIPBRMCCwAMCh0BCwMMAQsBFgULAAwHGgAJBBIGGgEJEhoBCwEJAQoACQoWDAkGHQEJAQcCCQEHBAgECQELBA8ACwIPAwsDDwAJABMCDxYZAQgCDQILBRMCDAgdAAsBHQELBAwCFgAMAQsADAELAwwFGgQSBRoACRIaAwsBCQAKBRYCEQMWAQkBBwAJAQcGCQQdBgkCBwMIBgkBCwMPBwsDDwEIAg8AGQAIFRkACAINAgsBDAETBAwKHQALAB0BCwMMARYBDAULAwwBGgUYABIBGBYaBQsBCQAKAxYDEQAWBAMACQEHAAkBBwcJAh0HCQEHBgkBBwAJAQcCCwEPCAsDDwEIAg8AGQAIDxkBCAQZAg0KDA0dBAsADAEWAQwFCwQMABoJGBMaAwsBCgELAAkACgIWBREFAwAJAQcVCQYKAQkBBwAJAAcBCAsLAAcAEwMPAAgAEwIPAAgSGQAIAhkCDQsMDR0DCwUMBAsFDAAaCRgPGgAKAgsHCgMWBBECAwQJAQcRCQoIAQoABwIJAggABwcLAAkBBwATAw8BCQIPAAgTGQIIAAkBDQwMDB0CCwQMAhYADAILBgwBGgkYChoACgEJAAoBCwcKBBYDEQAJAQMECQEHEQkJCAEVAgoCCQIIBQoACQEHAgkAEwMPAAcACQAZAQ8UGQIIAAkBDQ0MCx0BCwAMBAsCFgoMBBoGGAgaAwoBCQkKBBYDEQAJAQMACQIVAAkBBwUVABoJCQEOAQgACgMVAAoEFQEKAgkCCAYKAAcBCQUPAAcBCRYZAAkBCAAJAQ0NDAALAB0ACwcdAQsBDAMLAhYNDAIaARIAGgMYBxoBCgAJAgoACQcKBhYECQ4VAhoKDgsVABMBDwIKAggGCgAHAAkFDwIJAhkEBwMZAAkJGQAJAQgCCQwMAQsIHQELAgwBCwEMAhYBCw8MCxoBCQIKAAkHCgcWAQcCCQMVABgDGgEYBhoAGAAaCQ4JFQAKABUFDwAKAggHCgATAQ8BEwEPAAkBBwAJBQcDGQAJAhkBCQUZAAcBCAIJCQwEEQALBh0BCwMMAQsBDAEWAgsSDAYaBQoACwEJBQoGFgMPBBUBGA4aARgHDgYVBBoAGAUPCwoAEwEPARMBDwIHAgkDBwYZAgkEGQEHAQgCCQgMBREBCwQdAgsDDAMLARYDCxIMBRoECgELAQkCCgAJBxYEDwMVAhgRGgEYAw4CFQoaABgCFQEPCwoAEwEPABMDBwMJBAcGGQIJBBkCBwMJBQwCCwYRAAsDHQILBAwDCwEWAwsTDAMaAgoACQALAAkBCwEJAAoIFgAJBQ8CFRYaARgCDgIVCxoAGAEVAQ8KCgATAg8CBwEJBRoBBwYZAAgFCQQHAwkFDAILBhEBCwEdAwsEDAMLARYBDAILDAwCCwMMARoCCgEJAgsBCQAKBxYHDwMVFhoDGAEODhoAGAIPABMICgQPBBUCGAIaAQcFGQEIAAcCDwMJAgcACQEIAAkGDAMRBgsAHQMLBAwBFgQLAAwECwMMAQsFDAQLAgwDCgEJAQsCCQUWCQ8DFQkaARgLGgQYAxULGgAYAw8AEwcKBA8DFQMYABoABwIIAhkECAUPAwkFCAUMAxEFCwEMBwsCFgAMBgsADAILAgwCCwAMAR0CDAcLAwoBCwIJBBYIDwQVARgFGgIYBhUBGAUaAxgFFQoaABgAFQIPABMCCgEIAQoFDwEYABUEGAEHAQgDGQQIBQ8DCQYIBAwCEQIMDQsBFgMMCAsCDAILAAwCHQQMBAsECgIJBBYIDwQVCBoAGAAXAxUDFgEVABgDGgQYBRUCGgEYBRoAGAAVAw8BCgIIAAoAEwUPBBgBFQAHAggDGQQIAAkBDwEHAg8ECQUIBwwPCwIWAwwJCwMMAx0FDAALAAwBCwUKAAkFFgYPBRUIGgAYAhUBFgISAQMAFgMVBhgFFQEaABgACgEYAxoBGAEVAg8ABwAKAQgBCgUPARgCGgAYARUDCAIZAwgACQkPAwkCCAADAQgCEgQMCAsGDAALARYFCwIMAQsFDAUdBAwFCwQKAxYBCQQPAhUAGAIVBRoCGAAXAhUAFgEcAhICAwAWAhUGGAUVBA4CGAMaARUCDwAHAggBCgQPARgDGgAYABUMCAkPAgkCCAAJBhIBCAEMCAsCDAQKARYFCwgMCB0EDAALAQwCCwIKAxYCCQMPAhUAGAIVBhoCGAIVARYBHAISAwMAFgMOARgAFwIYABUJDgAYBBoBFQATAQ8ABwEIAgoDDwEYAxoBGAoIAAcBCAkPAQkECAYSAAMBCAYKAgwHCgEWAQoADAERAAoCEQUMCR0DDAcLAAoDFgIJAg8GFQcaAhgAFQMWBRwBAwUSAA4BFQ0OABcEGgEVAg8DBwAKABMDDwAVABgDGgAYBAgBCgEIAAcCCQIICQ8FCAkSAAgFCgELBAoDDAEWAgoFEQAKAwwLHQMMBAsADAALAAoCFgQJCBUGGgEYABYCAwkcBxIADgUSCA4ACgQaARUCDwMHAAoAEwIPABUAGAQaABgECAIKBQkCBwEPAQcEDwIIAAkBCAADCBIACAAHAwkBCwMKAAsJCgURAwwNHQMMBAsCEgEWBAkHFQYaARgAFgIDDBwNEgcOABUEGgEVAg8DBwAKABMCDwAVABgEGgAYASACCAIKDQkDDwEIAQkBCAADCBICCAEHAAkBCwIKAAwKCgIRAgoCDA8dAwwACwMSAgsADAELAQkCGAUVBRoBGAAWAwMNHAwSBg4ACgYaABMBDwATAwcACgATAg8BGAQaABgBIAEIAAkDCgwJAw8BCAEJAQgBAwQSCAgBCwIKAQsBCgIMCQoCDA8dBAwBEggLAAkGFQAaAhgDGgAYARYDAwAGDRwMEgUOAAcAGAYaABMBDwATAgcBCgATAg8AGAUaABgBIAAIAQkECgwJAQ8GCAIDAhIBAwYIAwsBDAELAwoADAkKAQwPHQQMARIBCwMMAgsADAAYBRUCGgYYARICHAASDxwLEgEOARcDGAYaABMBDwQHAQoCDwAVBhoBIAIJBAoMCQEPAQkECAgDAwgAAwMLAgwGCwkKEB0EDAESAgsEDAELAQwDFQQaBRgAAwASChwABggcChIBFwYYBhoAEwEPBAcBCgIPBxoBIAIJAAoBCAIKDgkAAwMIAAkJAwIIAwsDDAYLCQoPHQMMAAsBEgELBgwBCwEMAhUFGgMYABYAAwASFRwIEgAJARcDGgMYBRoBEwEPAgcBCAEKABMCDwUaAiAACQEHAAoBCAAJAQoOCQIDAgkDAwYPAAgECwgMCwoADA0dAwwACwESAAsFDAEdBAwAGAEVBhoAGAAWAhUTHAASABkHEgAZAQkAFwUaAxgDGgAHAhMDBwEIAQoAEwIPBRoCIAAJAQcCCgAJAgoACQEKEAkCAwcPAAMECwAMEwoBDAsdAgwBCwESAAsEDAQdBAwBFQAXBRoAFgAVDRwABgYcARYCGQQOAQkABwEYBRoGGAAOAAcBEwUHAgoAEwIPBBoCIAIJAAcCCgAJAgoACQEKEAkBAwgPAAMBCwAMAAsVCgIMCR0DDAALARIACwQMBh0ACgIMARUAFwUaABUIHAAGBBwAEgUcAhYDGQMXBBgFGgUYAQ4ABwETBAcDCgATAg8DGgMgAwkDCgAJAQoACQMKDgkBAwYPABIBAwELAAwACwMKBgwLCgIMAx0ADAIdAwwACwAMABIACwMMCR0CCgEVABgFGgAVCBwABgIcAQMAEgEcABYAFxEYBRoCGAMOAQcBEwMHBgoBGAYgBAkGCgAJAwoOCQEDBg8AEgADAgsADAELCQwMCgIMBR0DDAALAAwAEgALAwwLHQEKARUBGAMaARUIHAAGABwEAwEWABcBGAMaBRgDGgMYAxoAGAYOAggEBwYKAQcFIAUJBgoACQIKDwkBEgADAw8CEgADAQsBDAELBgwBDQAMDAoDDAMdAwwACwAMARIDDAgdAAoCHQEKARUFGAEVChwDAwEWABcBGAUaAxgFGgYYBA4CBwIIAgcHCgIHCwkGCgAJAgoICQYDARIEAwISAAMCCwAMAQsGDAENAQwMCgMMAR0EDAALARIEDAcdAgoDHQEVABgDGgAYABUAFgkcAQMCFgAJARcBGAUaAxgFGgUYBw4CCAMHBQoBCQEHDAkBCgAJAwoABwoJBwMBEgQDBBIBCwAMAQsGDAENAQwPCgcMARICDAEKAh0ACgMdAwoDHQEVBRoAFQEWBRwABgEcAAMBFgEJAhcBGAUaAxgFGgAYAw8AEwIOBwgABwAKAgcECgEJAQcMCQEKAAcFCggJCAMCEgMDBRIDCwYMAQ0BDA8KBQwCEgEMAgoBHQEKAx0DCgQdAAoAGAUaABUBFgQcAQYAHAMSAQkCFwEYBRoDGAUaABgIDwUIBQcFCg8JAQoABwEIAwoGCQoDBRIAAwUSAwsGDAINAQwOCgQMARIDDAAKAx0ACgQdAwoCHQMKBRoAGAAHARYCEgIGBRIACQIXAhgDGgQJABcDGgAYAg8AEwUPABMECAYHBQoOCQIKAQgACgYJDQMFEgIDAxICCwcMAw0BDA4KAgwBEgQMAAoCHQAKBR0CCgIdBAoFGgAYAQ4AFgsSAAcDFwMYBgkBFwIYAg8AEwYPABMECAYHBQoOCQIKAQgACgUJDgMFEgMDAhICCwUMAQ0ADAMNAQwNCgAMARIEDAAKAx0ACgYdAgoCHQADAwoAGAMaARgBDgEWChICBwwJARcCGAIPABMFDwATBAgIBwUKDgkBCAYJAwMACQsDBBIEAwISAgsEDAMNAAwCDQIMCwoADAISBAwACgIdAQoGHQEKAh0BAwMKARUFGAEOAhYJEgQHAAkBBwYJAxcACQcPABMFCAYHAQgABwEKAAkCCg0JAggECRwDAhICCwQMAw0ADAINBAwACwUKAA0BDAISBQwACgMdAAoGHQAKAh0AAwEPAwoBFQUYABcCDgEWCxIEBwsJBg8BEwQIBwcBCAIKAAkECgkJBAgECRwDAhICCwQMBg0EDAcLBBIFDAIKCB0CCgIdAg8DCgEVBRgBFwUVARIAFQcSAgcACQEHCgkEDwYIBAcBCQEHAQgDCgEJBAoACQEIAgkFCAQJHwMADgILBAwFDQUMAgsCCgALARICCwYMAwoFHQIKAh0EDwMKARUDGgEYARcFFQMYBxIABwEJAQcHCQEHCwgFBwEJAAcCCAQKAQkECgEIAQkECAUJHwMABwAOAQsPDAMLBAoAEgAKAgsGDAQKBB0ACgMdBA8ECgEVBBoAGAEXAxUAFwUYAhIABwgSBgkBBwUICwcBCQMIBAoACQEHAQkCCgIJAggGCQYDCBIOAwMHAQsJDAILAQwECwAKAgcAEgIKAQ8ACwYMBAoHHQMPBgoBFQQaABgAFwMSARcGGAEOAhMKEgIJBAcBCAgHAQoABwYIAwoBCQEHEQkFAwoSBAMABwMDBgcCCwYMBAsBDwMLAAoEBwASAAcBCgMPAgsCDAUKBR0AAwIPBQoBDwEVBBoAFwUSABcHGAAOABMCDwQTBRIBCQoHAAkDBwEKCQgCChMJAwMOEgMDAAcDIQYHAwsFDAQLAQ8CCwAKAxYBBwASAQcACgQPAwsADAUKBB0BAwgKAQ8BFQQaABcFEgAXCBgAEwMPBBMBCQMSAAkOBwMeAQgBDQQIAgoECQEHCAkBBwQDAxIAFgsSAgMGIQQHAwsFDAELAQwECgEHAxYBBwASAgcEDwELAQwBCwUKAh0ACgADCAoCDwEVBBoAFQUSABcIGAAOABMGDwATAgkCEgUJCAcAEAQTAg0BCAUKBAkBBwgJAAcEAwMSBBYEBAYSByEEBwILBQwBCwQKAgcFFgAHABIDBwAKAQ8DCwAMAQsAEgcKAQMICgIPARUEGgAVBRIBFwcYAA4AEwYPAgkABwMSBAkGBwMTAQ8BEwANAwgECgsJAg8ACQQDAxIGFggEAhIIIQMHAgsFDAELAgoEBwUWARIGBwYLARIFCgADCQoCDwAXABgFGgAVBRIAFQEXBxgAEwcPAQkBBwMSAgkDBwIKAxMCDwETBAgBBwkJAwMDDwQDBBIGFgsECCEEBwELBQwBCwEKBQcBFgARAhYAEggHAAoECwISAwoBDwcKAQ4CDwAXABgFGgADBRIAFQEXCBgHDwQJAhIBCQMHAQoBEAEPABMDDwATABACCAMHAgkBBwIJAQ8BAwQPAwMEEgkWCgQJIQMHAQsFDAELAAoCEgMHBRYAEggHAQoDCwMSBA8CCgQLAA4CDwAXAhgDGgAXAAMGEgEXCBgHDwUJARIFBwEKABACDwATAg8BEwAQAgoBCQEHAgkABwUPAAMEDwMDBBIKFgoECSEDBwILBAwBCwMSAQcCEgMWABEAEgkHAQoCCwMMBA8HCwAOAQ8ADgEVBRgAFwADBhICFwcYABMFDwATAQcDCQESBQcACggPARMAHgAHAQoECQwPAwMFBQkWDAQJIQMHAgsDDAILChIAFgERABIJBwEKAgsCDAUPAQsADAYLAQ4BFQMaARgAFwADBhIAAwIXARgDGgAYABMFDwATAQcDCQESBQcAHgcPAhAAHgAJAQoECQsPABIJBRYECCEEBwALAg8AIgEMAQsMEgERARIIBwEKAgsCDAUPAQsADAUKAg4CFQMaABgAFwADBhIAAwIXABgFGgATBQ8FCQAHARIEBwAQCA8BHgAKAQkBCgQJCQ8LBRcECCEEBwALAg8BEwAMAQsCEgAHABIABwESAQcCEgERAAcAEggHAgoCCwEMBQ8CDAUKAA4EFQMaABgAFwADAAsFEgEDARcAGAUaABMFDwUJAhIDBwEQBw8AEAEeAAcBCQEKAgkBAwcPARIHBRsEByEFBwALBA8ACgEDARIABwASAAcCEgERARIABwIRAxIGBwEKAgsCDAQPAgwFCgAOBBUDGgAYABcBAwYSAQMAFwAYBRoBEwQPAwkBBwISAgcAEAETBw8CHgAJAwoBCQEDBQ8AAwISCAUbBAchBQcFDwALAAMCEgAHAhIBBwERABIBFAIbARIABwESBAcCCgYLAw8BCwAMBQoADgQVAxoAGAIDBxIAAwAXABgDGgEVABcAEwEPABMBDwMJAAcCEgMHABABEwUPABACHgAJAwoBCQADBA8AAwUSBQUOBAMKAgQDBQQEBiEGBwMPARMBAwESAAcCEgQRARYDGwAHAhIABwESAgcBCgcLAw8BCwAMBQoADgQVAxoAGAIDCBIBFwAYAhoBFQETAg8AEwQJAxIDBwAQARMDDwAiARABHgAJAwoCCQADAg8AAwMSBwUOBAMKAw4ABAQFAwQBBwIhCAcAEwEPAhMAAwUSAAcCFgwbAhIABwEKBAsBBwELAAwBDwAMAgsADAUKAQ4BFQMaARgCAwgSARcAGAMaABgCEwEPABMACQEHAQkBEgUHABABEwMPAhAAHgAHAwoBCQYDAhIEBQ8EAw4CCgMOAAQFBQIECwcEDwETAQMEEgEHAhYMGwgSAAsDBwALBAwBCwAMAQoACQILAQ4BFQUYAAoBAwgSARcFGgAYARMBDwEJAQcBCQISBAcAEAMTAxAECgIJBgMCEgUFDwQDDgMKBQQDBQIECwcEDwETAQMDEgEHAhYNGwASAAcHEgMHAAsADQYMAAoCCQAHAAsBDgEVBRgACgEDCBIBFwUaABgBFwcJAhICBwEJABACEwAQAh4ECgAHAAkHAwMSBQUFBAgFAQQCChAECQcGDwATAQMEEgEHARYNGwMRAQoAEQMSAwcACwANAwwBCwAMAQoBCQEHAQ4BFQUYAAoBAwgSARcFGgAYAhUHCQESAwcACQAKAxABHgMKAAcBCQYDBRIGBQQECAUVBAkHCA8AEQESABEAEgIHARYMGwMWBBEGBwENAwwBCwAMAgoCCQEOAhUEGAAKAQMIEgADABcFGgAYAhUACQEHBAkBEgQHCQoABwIJBQMGEgYFAwQGBRgECgcHDwIRAwcCFgwbAxYDEQcHBQwBCwEMAgoBCQEOAhUEGAAHAQMIEgAHABcAGAMaARgCFQAJAQcECQISAwcFCgQHAgkEAwYSBwUDBAEFHQQLBwMPARMACwADAhECBwIWABELGwARCQcACgELAQcJDAUKAA4CFQIYAxoBAwcSAAcAFwYYAhUACQIHAwkCEgAJAgcECgIHBQkDAwISDQUiBAkHAQ4GDwALAxECBwIRCxsKBwILAQ0FDAELAQwHCgAVAhgFGgMHAxIBBwAaBhgCFQMHAwkBEgIJAQcDCgAHAQkBBwQJAgMCEgAEDQUiBAcHAAMBDgcPAAsBEgcRABYJGwARCgcCCwANBgwBCwEMBwoAFQAYARUFGgAYBwcBGAMaARgCFQEHAQkBBwIJARILCQEHAAkBBwEJAgMCEgAEDQUfBAIWBgcBAwEOCA8BEgYRARYJGwUHAQoCBwILCAwBCwEMCAoAGAEVBRoBGAIHABoDGAUaABgCFQMJAQcCCQESCwkBBwAJAQcACQMDARIBBA0FEgQEFgUEBBYFBwMDAA4IDwISAxECEgIWBRsHBwEKAgcCCwwMCAoAGAEVChoEGAUaABgBFQAYCwkBCA4JAwMBEgEEDQUMBAgWBRIGFgMHABIEAwAOBw8ACwMSABEIEgIbAREHBwEKAgcBCwkMAQsBDAkKAhUKGgMYBRoCFQAHAgkBBwIJAQgACQEZAQgMCQAHAgMCEgEEBwUABAQFCQQJFgcSAAkFFgMSBQMADgcPAQsNEgEbABECBwQTAgoBBwILAwwCEgIMAgsADAALCAoCFQMYBhoDGAQaAxUBCQMHAQkDCAEZAQgHCQEHAgkABwIDARIEBAEFDwQNFgQSBg8FEgYDAxMDDwADAQsOEgARARIBBwQTAgoABwILAgwFEgEMBAsBFgUKAQkDFQEYBhoEGAMaAhUCCQQHAAkCCAIZAQgHCQEHAQkEAwASFAQHFgMSAg4CEgEPABIJDwASAg4CAwYNABMBDwEQAAMAFgALBRIEBwYSAAcEEwMKAAwCCwIMBRIDDAALBBYDCgEJAAcFFQYaBhgBEwEVAQkGBwIIAxkMCQQDARISBAMWAgkEEgUOABIODwQOBw0ADgEPARABAwQSAAsABwEKAgcGEgAHAxMECgILAgwGEgQMBBYDCgEJAQcBCQQVAxoEGAQTAAcCCQMHAAkBBwEIAAkCGQwJBQMAEgwEAgcCBAQWAAkFEgcOBg8FDgEPAw4AEwMNABMCDQQOAQMCEgILAgoFBwMSAAcDEwAKAAcCCgILAgwGEgIMAAsGFgIKBQkAEw4VARMABwMJAwcBCQIIAQkBCAoJBgMBEgsEABACBwEEBBYACQQSCA4PDwIOBhMCDQQOAQMCFgELAAMCCgUHAhIACgQTAAoABwEKAgsDDAYSAgwACwYWBQoDCQETDBUBDwQJAwcDCAIJAQgKCQUDAhIKBAAQAgcBBAQWAAkDEgEOAhIFDg4PABUBDgYTAA4BEwAMBA4CAwEWAQsAAwIKBQcCEgAKBBMACgEHAAoCCwMMBBICDwEMBxYGCgIJARMCDwkTAQ8CBwIIAwcBCAEJBAcICQYDAhIKBAAQAgcABAUWAAkCEgIOAxIEDgMPAAkABwAVAw8EFQEOBRMBDgETAAwBDQMMAwMBCwADAgoFBwESAQoDEwEKAgcBCwUMAhIADAIPAAwIFgcKAQkBEwQPBRMDDwAHBQgEBwAJBQcHCQMDAAkEEgsEAgcABAUWAAkCEgMOBRICDgIPAQ4DFQYaAA4DEgAOBRMADAINBgwDCwIKBgcICgAHAgsMDAkWBwoBBwMTDA8ABwEIAAcDCQcHAAkBBwcJAgMFEgwEAgcGFgAJARIFDgQSAg4BDwEOARUJGgUSBBMADgAiBA0EDAQLAgoEBwIKAAcFCgAHAgsMDAkWBwoBBwAJAxMJDwEHAggABwUJCAcGCQIDBhIOBAYWAAkBEgcOBBIEDgEVChoFEgAOBhMEDQMMBAsADAMKAgcCCgEHBAoADAELDQwHFgAMCAoJCQcHAggBBwIJBAgGBwYJAgMEEg8EBhYBCQESAw4DDwEOAxIDDgEVBBoDFQEaBRIBDgUTASICDQMMBAsBDAQKAAcBCgYHAQwBCw4MBBYECwAJBAoQCQEHAQgBBwIJBQgGBwUJAgMEEgAWDwQFFgAJAhIEDgUPAA4CEgMOARUDGgYVBRIBDAUTACIDDQYMAQsCDAYKBQcBDAILDwwBFgEMBAsVCQIHBQkDCAAJAQgFBwMJAQcACQIDBBIQBAMWAAkDEgQOBg8BDgISAg4BFQIaABcAFQMPAAMAFQUSBA0CEwAiAQ0IDAALAQ8EDAMKAgcEDAILBAwEDQgMAQsCDAALDwkDBwEJAQcGCQIIAQcBCQgHAAkBBwIDBRIPBAQWARIFDgEJAw8ADgEPAQ4CEgIOARUBGgAXARUDDwEDAAwNDQAiCQwACwEPBAwHIgIMAgsFDAYNBgwBCwIMAAsOCQkHAAkBBwEJAQcACQEIAAcBCQgHAgkCAwMSABYQBAMWAhIEDgIJAQ8HDgESAg4AFQAXARoAFQUPAQMHDQAiBQ0EDAQNAAwBCwUMDQsFDAYNBgwCCwEMAAsLCQsHBAgACQEHAAkCCAEJBAcGCQEDAxIAFhAEAxYACQESAg4FCQYVAg4CEgEOABUAFwEaABUFDwEDBg0BDAAiAw0EDAUNAAwCCwMMDAsHDAMNCgwCCwAMBwkDDwcHAQgABwEJBAgECQMIBAcFCQIDAxIAFhAEAxYCEgIOBAkJFQAOAhIBDgEVAhoAFQQPAQMADAcNCQwBDQQMCQsADAUiCwwDDQkMAgsADAUJBQ8DCAMHAQgABwEJAAgBBwcJAggEBwUJAQMCEgIWDwQCFgMSAg4CCQUVARoGFQESAQ4BFQQaAw8BFQIMBQ0RDAcLAQwFIgwMAg0EDAILAgwCCwQJBg8ECAMHAAgABwIJAgcICQEIAwcFCQEDARIACQIWDwQBFgISBA4BCQUVAxoFFQISAA4BFQYaAxUCDAALAg0dDAUiFAwDCwIMAQsDCQMPAAcGCAQHAAgDCQIHAxIFCQEIAgcFCQEDAhIBFgYEAQMHBAEWARIEDgEJAxUIGgMVAhIADgEVAAkJGgAMBQ0EDAISAA0VDAQiFAwFCwAMAQsCCQMPBwgIBwAJAwcDEgcJAgcFCQEDAhIBFgYEAQMGBAIWARICDgIJARUCGgIYBhoCFQAOBBIACQkaBQ0FDAISAA0qDAELAgwJCwAJAw8ICAIHAQkIBwQSBQcACQEHBgkBAwESARYHBAEDBgQBFgISAA4DDwAJARUBGgMYBxoCFQQSAAkJGgMNBwwCEigMBAsCDAoLAg8JCAEHAQgACQgHBBIIBwUJAgMAEgAJARYHBAEDBQQBFgISAQ4DDwIVABoCGAIaARIAFwMaAhUADgMSAAkJGgEMAg0GDAISAA0RDAMNEQwCCwQMAgsBDAQLAg8OCAAJAgcACAIHAAgABwQSAQcCCQQHBAkBAwISARYGBAIDBAQAFgQSAA4EDwEVARoBGAIaABcBEgAXAxoCFQAOAxIBCQgaAQwCDQUMAxIADREMBA0ZDAELAgwBCQELAg8ICAAJBAgBCQIIAQcBCAYHAAgDCQMHBAkBAwISARYGBAIDBAQAFgQSBA8ACQEVABoCGAAaAhcBEgAXAhoEEgAOAhIDCQYaAgwBDQQMBBIBDAENDwwFDRYMAwsADAAKAgkACwIPDggECQEHAgkCBwEJAQgECQIHBAkBAwESAhYGBAEDBQQAFgQSBA8ACQEVABoCGAAaAhcBEgAXBxIADgMSAAkFDwIJAgwBDQMMBRIDDQ8MAQ0ADAINCwwGCwMMBAsACgIJAAsCDw4IDgkBCAsJAgMDEgAWBgQBAwUEABYDEgUPAAkBFQAaAhgAFQAXBxIGDwAJAhIGDwEJAgwBDQMMBBIEDQoMAg0BDAENDgwQCwUJAg8BCAQJBggOCQIICgkCAwMSABYGBAEDBAQCFgISBQ8CFQAaARgBGgAXBxIHDwISBg8BCQIMAQ0DDAMSBA0IDAUNAQwBDQsMDwsADAILBQkDDwkJAQgPCQIICgkBAwAJAhIBFg0EARYACQESBw8BFQIYABoBFwYSCQ8CEgUPAQkCDAENAAwKDQkMBA0QDAwLAgwJCQMPCQkDCAUJAQgGCQEICgkBAwISAhYNBAEWAAkBEgcPABUAGgIYABoBFwMSABcBEgkPAAkDEgIPAgkCDA0NBgwECxIMAgsBDAgLAQwKCQATAg8JCQMIBAkCCBMJAQMCEgIWDQQBFgISBw8AFQAaAhgAGgMXARIAFwEaCg8EEgEPAgkCDAMNDAwICxIMAgsADAkLAAwMCQITCgkECAIJAQgUCQEDARIDFg0EARYBEgAOBw8AFQQaARcBEgAXAxoAEgkPAQkEEgIJAwwBDQ0MCAsSDA0LHgkCCAEJAQgUCQEDAhICFg0EABYCEgEOBg8AFQQaARcBEgQaABIODwMSAAkTDAcLFAwECwAMBgsfCQEIAQkBCBQJAQMCEgIWDQQCEgIOBg8BFQgaAA4EGgEJCw8EEhMMBgsbDAYLOgkBAwAJARICFg0EAhICDgAJBQ8BFQMaAQgBGQAOBRoECQgPAQkCEg=="
+  },
+  "environment": {
+    "sky_set": "stormy",
+    "sun_color": [
+      0.7765,
+      0.749,
+      0.5765
+    ],
+    "sun_elevation": 0.785398,
+    "sun_rotation": -0.785396,
+    "ambient_color": [
+      0.3922,
+      0.4745,
+      0.6549
+    ],
+    "fog_color": [
+      0.8,
+      0.8,
+      0.898
+    ],
+    "fog_factor": 0.0,
+    "fog_thickness": 0.5,
+    "water_type": "lake",
+    "water_color": [
+      0.2941,
+      0.349,
+      0.6941
+    ],
+    "water_tint": [
+      0.0,
+      0.502,
+      1.0
+    ],
+    "water_waviness": 4.0,
+    "water_murkiness": 0.947266,
+    "brightness": 0.0,
+    "contrast": 1.0,
+    "saturation": 0.99,
+    "bloom": 0.1999,
+    "post_effect": "default"
+  }
 }
