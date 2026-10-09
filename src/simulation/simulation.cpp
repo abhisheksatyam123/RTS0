@@ -363,7 +363,6 @@ void Simulation::set_map_half(float h) {
 	const size_t cells = (size_t)grid_res_ * (size_t)grid_res_;
 	fow_grid_.assign(cells, FOW_UNEXPLORED);
 	for (auto &g : player_fow_) g.clear();
-	petra_fow_.assign(cells, FOW_UNEXPLORED);
 	reset_los();
 	fow_cell_height_.clear();
 	fow_cell_hmax_.clear();
@@ -669,7 +668,6 @@ void Simulation::spawn_war(int total_units) {
 	scenery_.clear();
 	std::fill(fow_grid_.begin(), fow_grid_.end(), (uint8_t)FOW_UNEXPLORED);
 	for (auto &g : player_fow_) g.clear();
-	std::fill(petra_fow_.begin(), petra_fow_.end(), (uint8_t)FOW_UNEXPLORED);
 	reset_los();
 
 	total_units = std::clamp(total_units, 4, (int)UNIT_CAP - 64);
@@ -10875,42 +10873,9 @@ void Simulation::update_petra_bases(float dt) {
 }
 
 void Simulation::petra_manage_scouting(float dt) {
-	// 1. Update Petra Fog of War from Team 1 vision. A revealed map shows Petra
-	// everything too; an explored one starts it with the terrain known.
-	const bool revealed = reveal_map_;
-	if (revealed) {
-		if (!petra_fow_.empty() && petra_fow_[0] != FOW_VISIBLE) std::fill(petra_fow_.begin(), petra_fow_.end(), (uint8_t)FOW_VISIBLE);
-	} else {
-		const uint8_t floor = explore_map_ ? FOW_EXPLORED : FOW_UNEXPLORED;
-		for (auto &c : petra_fow_) c = c == FOW_VISIBLE ? (uint8_t)FOW_EXPLORED : std::max(c, floor);
-	}
-
-	const float half = map_half_;
-	const int G = grid_res_;
-	const float cell = (half * 2.0f) / (float)G;
-
-	auto vision_radius = [](uint8_t utype) -> float {
-		switch (utype) {
-			case UNIT_ARCHER:   return 22.0f;
-			case UNIT_CAVALRY:  return 24.0f;
-			case UNIT_CATAPULT: return 24.0f;
-			case UNIT_TRIREME:  return 28.0f;
-			case UNIT_ELEPHANT: return 20.0f;
-			case UNIT_HERO:     return 20.0f;
-			default:            return 16.0f;
-		}
-	};
-
-	if (!revealed) {
-		ensure_fow_cell_heights();
-		reveal_viewers(petra_fow_, petra_fow_views_,
-				[&](size_t u) { return units_.alive[u] && units_.team[u] == petra_pid_ ? vision_radius(units_.unit_type[u]) : 0.0f; },
-				[&](const Building &b) {
-					if (b.team != petra_pid_ || b.build_progress < 0.5f) return 0.0f;
-					if (const float cv = civ_building_vision(b.type); cv > 0.0f) return cv; // e.g. the Ptolemaic Lighthouse
-					return (b.type == BLD_TOWER || b.type == BLD_FORTRESS) ? 24.0f : ((b.type == BLD_DOCK) ? 28.0f : 18.0f);
-				});
-	}
+	// Petra sees what its player sees: the simulation's line of sight (los_visible /
+	// los_explored, 0 A.D. CCmpRangeManager), shared with allies and revealed or explored
+	// maps alike.
 
 	// 2. Validate current scout unit or recruit candidate
 	bool scout_valid = false;
@@ -11006,11 +10971,8 @@ void Simulation::petra_manage_scouting(float dt) {
 			candidate_x = std::clamp(candidate_x, -map_half_ + 4.0f, map_half_ - 4.0f);
 			candidate_z = std::clamp(candidate_z, -map_half_ + 4.0f, map_half_ - 4.0f);
 
-			int cell_x = std::clamp((int)((candidate_x + map_half_) / cell), 0, G - 1);
-			int cell_z = std::clamp((int)((candidate_z + map_half_) / cell), 0, G - 1);
-
 			// Stay out of enemy territory until we can fight (town phase).
-			if (petra_fow_[cell_z * G + cell_x] == FOW_UNEXPLORED &&
+			if (!los_explored(petra_pid_, candidate_x, candidate_z) &&
 			    !(village && enemy_land_at(candidate_x, candidate_z)) &&
 			    get_terrain_height(candidate_x, candidate_z) > terrain_water_height_ + 0.3f &&
 			    is_position_safe(candidate_x, candidate_z, 5.0f)) {
@@ -11024,9 +10986,7 @@ void Simulation::petra_manage_scouting(float dt) {
 		if (!target_found) {
 			for (const auto &relic : relics_) {
 				if (!relic.claimed) {
-					int rcx = std::clamp((int)((relic.x + map_half_) / cell), 0, G - 1);
-					int rcz = std::clamp((int)((relic.z + map_half_) / cell), 0, G - 1);
-					if (petra_fow_[rcz * G + rcx] != FOW_VISIBLE && is_position_safe(relic.x, relic.z, 5.0f) &&
+					if (!los_visible(petra_pid_, relic.x, relic.z) && is_position_safe(relic.x, relic.z, 5.0f) &&
 					    !(village && enemy_land_at(relic.x, relic.z))) {
 						target_wx = relic.x;
 						target_wz = relic.z;
@@ -13391,11 +13351,8 @@ void Simulation::petra_manage_buildings(float dt) {
 				float rx = resources_.x[r];
 				float rz = resources_.z[r];
 
-				// Check if explored in Petra FoW
-				const float fow_cell = (map_half_ * 2.0f) / (float)grid_res_;
-				int rcx = std::clamp((int)((rx + map_half_) / fow_cell), 0, grid_res_ - 1);
-				int rcz = std::clamp((int)((rz + map_half_) / fow_cell), 0, grid_res_ - 1);
-				if (petra_fow_[rcz * grid_res_ + rcx] == FOW_UNEXPLORED) continue;
+				if (!los_explored(petra_pid_, rx, rz)) continue; // known to Petra
+
 				// Storehouses and farmsteads need our own territory (0 A.D. BuildRestrictions).
 				if (territory_owner_at(rx, rz) != petra_pid_) continue;
 				if (!is_position_safe(rx, rz, 5.0f)) continue;
@@ -16726,7 +16683,6 @@ void Simulation::petra_reset_ai_state() {
 	petra_bases_.clear();
 	petra_fnd_watch_.clear();
 	petra_bases_.push_back({1, 0, 48.0f, 48.0f, true, 0, 32.0f, 0.0f, false});
-	petra_fow_.assign((size_t)grid_res_ * (size_t)grid_res_, (uint8_t)FOW_UNEXPLORED);
 	memset(petra_threat_map_.danger, 0, sizeof(petra_threat_map_.danger));
 	memset(petra_threat_map_.enemy_threat, 0, sizeof(petra_threat_map_.enemy_threat));
 	memset(petra_threat_map_.friendly_defense, 0, sizeof(petra_threat_map_.friendly_defense));
@@ -16872,7 +16828,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 drops Petra's own fog grid (Petra reads los_visible / los_explored)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -16923,7 +16879,6 @@ bool Simulation::save_state(const char *filepath) const {
 	// v4 FoW: retain explored terrain and current visibility across saves.
 	// Sized by the current map's grid; load expects the same map to be loaded.
 	out.write((const char *)fow_grid_.data(), (std::streamsize)fow_grid_.size());
-	out.write((const char *)petra_fow_.data(), (std::streamsize)petra_fow_.size());
 
 	// 2. Resources
 	uint32_t num_res = (uint32_t)resources_.count;
@@ -17159,7 +17114,7 @@ bool Simulation::load_state(const char *filepath) {
 	}
 	if (version >= 4) {
 		in.read((char *)fow_grid_.data(), (std::streamsize)fow_grid_.size());
-		in.read((char *)petra_fow_.data(), (std::streamsize)petra_fow_.size());
+		if (version < 44) in.ignore((std::streamsize)fow_grid_.size()); // v4-v43: Petra's own fog grid
 		if (!in.good()) return false;
 	}
 
@@ -17736,6 +17691,12 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	};
 	auto field = [&](auto &v) {
 		using T = std::decay_t<decltype(v)>;
+		if constexpr (std::is_same_v<T, Petra>) {
+			if (ar.version < 44) { // v4-v43 kept each AI's own fog grid just before its fleets
+				std::vector<uint8_t> fow;
+				io_vec_pod(ar, fow, (uint32_t)S::MAX_GRID_RES * S::MAX_GRID_RES);
+			}
+		}
 		if constexpr (std::is_same_v<T, S::AttackPlan>) {
 			ar.pod(v.type); ar.pod(v.state); ar.pod(v.target_building_id);
 			ar.pod(v.staging_x); ar.pod(v.staging_z); ar.pod(v.target_x); ar.pod(v.target_z);
@@ -17796,8 +17757,6 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		} else if constexpr (std::is_same_v<T, PetraSentDiplomacy>) {
 			if (ar.version >= 27) ar.pod(v);
 			else v = PetraSentDiplomacy{};
-		} else if constexpr (std::is_same_v<T, std::vector<uint8_t>>) {
-			io_vec_pod(ar, v, (uint32_t)S::MAX_GRID_RES * S::MAX_GRID_RES);
 		} else {
 			// Raw: only plain values and structs without padding (check with -Wpadded).
 			static_assert(std::is_trivially_copyable_v<T>, "give this Petra field its own case in tick_state_io");
