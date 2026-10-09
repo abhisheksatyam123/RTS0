@@ -160,7 +160,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 49; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 50; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -203,6 +203,9 @@ public:
 	// players it shares vision with (VisionSharing.js, los_shared_mask) see;
 	// "Revealed map" shows everything and "Explored map" explores everything.
 	uint8_t los_shared_mask(uint8_t player) const;
+	// Player.js UpdateSharedLos: a viewer sees through its mutual allies once it has researched
+	// Cartography (unlock_shared_los); its own entities always.
+	bool shares_los(uint8_t viewer, uint8_t owner) const;
 	bool los_visible(uint8_t player, float x, float z) const;
 	bool los_explored(uint8_t player, float x, float z) const;
 	const LosGrid &los() const { return los_; }
@@ -801,9 +804,15 @@ public:
 	// JSON maps list theirs under "trigger_scripts". Returns false for an unported script.
 	bool register_trigger_script(const std::string &name);
 	// TriggerPoint.js: a trigger point the map places (trigger/trigger_point_<ref>).
-	void add_trigger_point(uint8_t ref, float x, float z) { triggers_.add_point(ref, x, z); }
+	void add_trigger_point(uint8_t ref, float x, float z, uint8_t owner = GAIA_PLAYER) { triggers_.add_point(ref, x, z, owner); }
 	// TriggerHelper.SetPlayerWon: pid and its allies win, everyone else is defeated.
 	void set_player_won(uint8_t pid);
+	// TriggerHelper.DefeatPlayer (cmpPlayer.SetState("defeated")): pid's units and
+	// structures turn Gaia and it watches the rest of the match.
+	void defeat_player(uint8_t pid);
+	// Map scripts' SetDisabledTemplates (structures) and SetInvulnerability.
+	bool building_disabled_by_trigger(uint8_t player, uint8_t type) const { return triggers_.building_disabled(player, type); }
+	bool invulnerable(uint32_t unit_id) const { return !triggers_.invulnerable.empty() && triggers_.is_invulnerable(unit_id); }
 	// Time notifications (GuiInterface.AddTimeNotification) shown to `player` right now.
 	std::vector<const TimeNotification *> time_notifications_for(uint8_t player) const;
 	// WaterManager.SetWaterLevel as the rising-water scripts use it: moves the water
@@ -1940,6 +1949,11 @@ private:
 	void trigger_polar_sea_wave();
 	void trigger_treasure_islands_collected(const TriggerEventData &data);
 	void tick_trigger_attack_orders();
+	void tick_trigger_watches();
+	void trigger_survival_init();
+	void trigger_survival_wave();
+	void trigger_survival_treasures();
+	void trigger_survival_ownership(const TriggerEventData &data);
 	PlayerState gaia_stock_; // scratch for player(GAIA_PLAYER); never saved or hashed
 	// Player.js SetState("defeated"): hand every unit and structure of these players to Gaia.
 	void convert_to_gaia(uint8_t players);
