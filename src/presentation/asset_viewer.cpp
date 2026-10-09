@@ -1,6 +1,7 @@
 #include "asset_viewer.h"
 #include "popup_safe.h"
 #include "../graphics/assets/model_library.h"
+#include "../graphics/assets/unit_template_models.h"
 #include "../simulation/sim_types.h"
 
 #include <godot_cpp/core/class_db.hpp>
@@ -382,6 +383,17 @@ void RtsoAssetViewer::rebuild_item_list() {
 			it.cat = "units";
 			it.id = rtso::civ_unit_model(civ, (uint8_t)t);
 			it.label = String(info.name) + "  (" + String(cinfo.code) + "_" + String(info.model_id) + ")";
+			items.push_back(it);
+		}
+		// The civ's roster templates drawn with their own 0 A.D. actor.
+		const String prefix = String(cinfo.code) + "_";
+		for (int k = 0; k < rtso::UNIT_TEMPLATE_DRAW_MODEL_COUNT; ++k) {
+			const String id = rtso::unit_template_draw_model(k);
+			if (!id.begins_with(prefix)) continue;
+			CatalogItem it;
+			it.cat = "units";
+			it.id = id;
+			it.label = id;
 			items.push_back(it);
 		}
 	} else if (cat == 1) {
