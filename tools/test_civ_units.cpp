@@ -266,6 +266,27 @@ int main() {
 		CHECK(b.cmd_train_template(0, stb, cav));
 	}
 
+	// The Carthaginian Cothon (structures/cart/super_dock): Carthage only, laid on
+	// a shore, a territory root that trains warships but no fishing boats.
+	{
+		CHECK(civ_can_build(CIV_CARTHAGINIANS, BLD_SUPER_DOCK) && !civ_can_build(CIV_ATHENIANS, BLD_SUPER_DOCK));
+		CHECK(civ_building_territory_radius(BLD_SUPER_DOCK) > civ_building_territory_radius(BLD_MILITARY_COLONY));
+		CHECK(building_type_info(BLD_SUPER_DOCK).territory_decay_rate == 0.0f);
+		const uint16_t arrow = roster_id("cart/ship_arrow"), fishing = roster_id("cart/ship_fishing");
+		CHECK(civ_unit_template(arrow).trainers & bld_bit(BLD_SUPER_DOCK));
+		CHECK(!(civ_unit_template(fishing).trainers & bld_bit(BLD_SUPER_DOCK)));
+		static Simulation c;
+		c.set_sim_seed(11);
+		c.set_team_civ(0, CIV_CARTHAGINIANS);
+		c.reset();
+		c.player(0).phase = 3;
+		for (float &r : c.player(0).res) r = 5000.0f;
+		CHECK(c.cmd_build(0, 10.0f, 10.0f, BLD_SUPER_DOCK) == 0); // inland
+		const uint32_t cothon = c.spawn_building_world(30.0f, -30.0f, BLD_SUPER_DOCK, 0, 1.0f);
+		CHECK(c.cmd_train_template(0, cothon, arrow));
+		CHECK(!c.cmd_train_template(0, cothon, fishing));
+	}
+
 	// Mercenaries (mixins/mercenary.xml) and Neodamodes keep the Citizen class but
 	// have no ResourceGatherer, so they gather nothing; citizen soldiers do.
 	{
