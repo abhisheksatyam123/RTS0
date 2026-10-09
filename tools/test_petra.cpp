@@ -748,21 +748,36 @@ static void test_tribute_request_paid_later() {
 	run_for(*s, 20.0f);
 	s->petra_send_diplomacy_request();
 	if (!s->petra_sent_diplo_.sent_type[3]) { CHECK(false, "AI 1 asks AI 3"); return; }
+	// AI 3 accepts a pact outright 80% of the time (handleDiplomacyRequest), so
+	// give it the other answer here, as petra_handle_diplomacy_request would:
+	// a neutrality pact for 1000 food, asked of AI 1.
+	s->petra_diplo_request_inbox_[3][1] = 0;
+	{
+		PetraReceivedRequest &req = s->petra_slots_[3].petra_diplo_.received[1];
+		req = PetraReceivedRequest{};
+		req.status = PetraReceivedRequest::WAITING_FOR_TRIBUTE;
+		req.type = 1;
+		req.resource = RES_FOOD;
+		req.wanted = 1000;
+		req.warn_time = s->petra_slots_[3].petra_diplo_.elapsed + 60.0f;
+		s->petra_tribute_request_wanted_[1][3] = req.wanted;
+		s->petra_tribute_request_res_[1][3] = req.resource;
+	}
 	for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 0.0f; // broke when AI 3 answers
-	bool asked = false;
+	bool asked = true;
 	for (float t = 0.0f; t < 30.0f; t += Simulation::FIXED_STEP) {
 		s->players_[1].res[RES_GOLD] = s->players_[1].res[RES_FOOD] = s->players_[1].res[RES_WOOD] = s->players_[1].res[RES_STONE] = 0.0f;
 		s->tick(Simulation::FIXED_STEP);
-		asked |= s->petra_slots_[3].petra_diplo_.received[1].status == PetraReceivedRequest::WAITING_FOR_TRIBUTE;
+		asked &= s->petra_slots_[3].petra_diplo_.received[1].status == PetraReceivedRequest::WAITING_FOR_TRIBUTE;
 	}
 	for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] += 2000.0f;
 	float t = 0.0f;
 	for (; t < 60.0f && !(s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL && s->get_diplomacy(1, 3) == Simulation::DIPLO_NEUTRAL);
 	     t += Simulation::FIXED_STEP)
 		s->tick(Simulation::FIXED_STEP);
-	std::printf("  tribute asked of a broke AI: asked %s, paid and neutral %s after %.0fs more\n",
+	std::printf("  tribute asked of a broke AI: request stood %s, paid and neutral %s after %.0fs more\n",
 	            asked ? "yes" : "no", s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL ? "yes" : "no", t);
-	CHECK(asked, "AI 3 asks AI 1 for a tribute");
+	CHECK(asked, "AI 3's tribute request stands while AI 1 is broke");
 	CHECK(s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL && s->get_diplomacy(1, 3) == Simulation::DIPLO_NEUTRAL,
 	      "AI 1 pays once it can, and the pact is sealed");
 }
@@ -1136,7 +1151,8 @@ static void test_army_answers_attackers() {
 	CHECK(half > 0.0f, "an enemy house to attack");
 	if (half <= 0.0f) return;
 	std::vector<uint32_t> squad;
-	for (int k = 0; k < 3; ++k) squad.push_back(s->spawn_unit(hx + half + 1.0f, hz + 1.5f * (float)k, 1, UNIT_SPEARMAN));
+	// Sturdy enough that player 0's own units nearby can't break up the squad first.
+	for (int k = 0; k < 3; ++k) squad.push_back(s->spawn_unit(hx + half + 1.0f, hz + 1.5f * (float)k, 1, UNIT_SPEARMAN, 1.0e4f));
 	s->order_attack_building(squad.data(), squad.size(), house);
 	auto &plan = s->petra_attack_plan_;
 	plan.squad = squad;

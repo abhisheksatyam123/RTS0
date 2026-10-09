@@ -44,6 +44,9 @@ struct ArrowCounter {
 static void fresh(Simulation &s, uint32_t seed = 7) {
 	s.set_sim_seed(seed);
 	s.reset();
+	// Two human seats: no Petra sends the foes off to build or gather.
+	s.set_player_active(0, true, false);
+	s.set_player_active(1, true, false);
 	s.set_player_resources(0, 5000, 5000, 5000, 5000);
 }
 

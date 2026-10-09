@@ -140,8 +140,8 @@ Models:
 Animations (363 unit GLBs):
 - 20 GLBs (ships, projectiles) have no clips; ships do not rock or animate sails.
 - One `Attack` clip per unit: no melee/ranged split per weapon. `Slaughter` is separate, and the 166 biped GLBs carry 0 A.D.'s `Capture` clip (`biped/infantry/capturing_a.dae`, added by `tools/add_0ad_clips.py`). Cavalry, siege and ships fall back to `Attack` when capturing.
-- One `Idle` and one `Death` clip; 0 A.D.'s random idle and death variants are not used. 25 GLBs have no `Walk`.
-- Siege has no pack/unpack clips. `GatherFish` is on 3 GLBs only.
+- One `Idle` and one `Death` clip; 0 A.D.'s random idle and death variants are not used.
+- Siege: the 25 unpacked engines have no `Walk`, as in 0 A.D., where an engine only moves packed. A packed engine shows its 0 A.D. `*_packed` actor (a wagon with horses or oxen, crew and cargo) in 13 GLBs from `tools/extract_0ad_packed_siege.py`, mapped in `src/graphics/assets/packed_siege_models.h`. 0 A.D. has no pack/unpack clips: the model swaps when packing or unpacking ends. `GatherFish` is on 3 GLBs only.
 - Done: citizen-soldier gather/build clips, per-resource carry walks and the promotion clip (#149, added at runtime from `.psa`).
 
 Textures:

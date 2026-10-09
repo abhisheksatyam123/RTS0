@@ -2910,9 +2910,7 @@ void Simulation::order_build_or_repair(const uint32_t *unit_ids_in, size_t count
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx]) continue;
-		uint8_t ut = units_.unit_type[uidx];
-		if (ut != UNIT_VILLAGER && ut != UNIT_FEMALE_CITIZEN && ut != UNIT_WORKER_ELEPHANT)
-			continue;
+		if (!unit_can_build(units_.unit_type[uidx], units_.tmpl[uidx])) continue;
 
 		// 0 A.D. UnitAI: workers sent to their own finished, undamaged field farm it.
 		if (b.type == BLD_FIELD && b.team == units_.team[uidx] && b.build_progress >= 1.0f && b.hp >= b.max_hp) {
@@ -8610,7 +8608,7 @@ void Simulation::apply_rally_point(uint32_t uid, const Building &b, bool ignore_
 	const int32_t i = lookup_unit(uid);
 	if (i < 0) return;
 	const uint8_t ut = units_.unit_type[i];
-	const bool builder = ut == UNIT_VILLAGER || ut == UNIT_FEMALE_CITIZEN || ut == UNIT_WORKER_ELEPHANT;
+	const bool builder = unit_can_build(ut, units_.tmpl[i]);
 	auto rit = res_id_to_idx_.find(b.rally_target_res_id);
 	if (b.rally_target_res_id != 0 && rit != res_id_to_idx_.end() && can_gather((size_t)i, rit->second)) {
 		order_gather(&uid, 1, b.rally_target_res_id);
@@ -15472,7 +15470,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				F.fauna_type[f] = old->fauna_type[f]; F.behavior[f] = old->behavior[f]; F.alive[f] = old->alive[f];
 				F.state_timer[f] = old->state_timer[f]; F.attack_timer[f] = old->attack_timer[f];
 				F.target_unit_id[f] = old->target_unit_id[f]; F.corral_id[f] = old->corral_id[f];
-				F.fatten_timer[f] = old->fatten_timer[f]; F.home_x[f] = F.pos_x[f]; F.home_z[f] = F.pos_z[f];
+				F.flee_distance[f] = 0.0f; F.home_x[f] = F.pos_x[f]; F.home_z[f] = F.pos_z[f];
 			}
 		}
 	}
@@ -15482,7 +15480,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		arr(d.rot_y, v.rot_y); arr(d.hp, v.hp); arr(d.max_hp, v.max_hp); arr(d.food_amount, v.food_amount);
 		arr(d.fauna_type, v.fauna_type); arr(d.behavior, v.behavior); arr(d.alive, v.alive);
 		arr(d.state_timer, v.state_timer); arr(d.attack_timer, v.attack_timer); arr(d.target_unit_id, v.target_unit_id);
-		arr(d.corral_id, v.corral_id); arr(d.fatten_timer, v.fatten_timer);
+		arr(d.corral_id, v.corral_id); arr(d.flee_distance, v.flee_distance);
 		arr(d.home_x, v.home_x); arr(d.home_z, v.home_z);
 	});
 	if constexpr (Ar::loading) {
@@ -16106,7 +16104,7 @@ uint32_t Simulation::spawn_fauna(float x, float z, uint8_t ftype) {
 	fauna_.attack_timer[idx] = 0.0f;
 	fauna_.target_unit_id[idx] = 0;
 	fauna_.corral_id[idx] = 0;
-	fauna_.fatten_timer[idx] = 0.0f;
+	fauna_.flee_distance[idx] = 0.0f;
 	fauna_.home_x[idx] = fauna_.pos_x[idx];
 	fauna_.home_z[idx] = fauna_.pos_z[idx];
 	fauna_id_to_idx_[fid] = idx;
@@ -16161,9 +16159,20 @@ void Simulation::fauna_attacked(size_t f, uint32_t attacker_id) {
 		}
 		return;
 	}
+	// INDIVIDUAL.FLEEING: run until FleeDistance further away than the attacker was, so a
+	// ranged hunter is fled from too. A new attacker takes over only if it is nearer.
+	const int32_t a = lookup_unit(attacker_id);
+	auto dist_to = [&](int32_t u) {
+		return u < 0 ? 1e9f : std::hypot(units_.pos_x[u] - fauna_.pos_x[f], units_.pos_z[u] - fauna_.pos_z[f]);
+	};
+	if (b == FAUNA_FLEE) {
+		if (attacker_id == fauna_.target_unit_id[f]) return;
+		const int32_t cur = lookup_unit(fauna_.target_unit_id[f]);
+		if (cur >= 0 && units_.alive[cur] && dist_to(a) > dist_to(cur)) return;
+	}
 	fauna_.behavior[f] = FAUNA_FLEE;
 	fauna_.target_unit_id[f] = attacker_id;
-	fauna_.state_timer[f] = 8.0f; // give up a flee that can't open the distance
+	fauna_.flee_distance[f] = (a >= 0 ? dist_to(a) : 0.0f) + info.flee_distance;
 }
 
 // An animal's Attack/Melee lands on a unit: 0 A.D. Attack.js damage, sum(Dmg * 0.9^Armor).
@@ -16444,10 +16453,11 @@ void Simulation::tick_fauna(float dt) {
 				if (info.stance == FAUNA_STANCE_AGGRESSIVE) {
 					keep = td2 <= info.vision * info.vision; // respondChase, not beyond vision
 				} else if (info.stance != FAUNA_STANCE_VIOLENT) {
-					// respondHoldGround: fight near the held position, back home when drawn > 10 m away.
-					const float hdx = fx - fauna_.home_x[i], hdz = fz - fauna_.home_z[i];
-					const float leash = 10.0f * FAUNA_DISTANCE_SCALE + info.vision;
-					keep = hdx * hdx + hdz * hdz <= leash * leash;
+					// respondHoldGround (CheckTargetDistanceFromHeldPosition): the target must stay
+					// within half the vision plus the attack range of the held position.
+					const float hdx = units_.pos_x[t] - fauna_.home_x[i], hdz = units_.pos_z[t] - fauna_.home_z[i];
+					const float leash = info.vision * 0.5f + info.attack_range;
+					keep = hdx * hdx + hdz * hdz < leash * leash;
 				}
 			}
 			if (!keep) {
@@ -16478,7 +16488,7 @@ void Simulation::tick_fauna(float dt) {
 			continue;
 		}
 
-		// 4. Fleeing (INDIVIDUAL.FLEEING): run from the attacker until FleeDistance away.
+		// 4. Fleeing (INDIVIDUAL.FLEEING): run from the attacker until distanceToFlee away.
 		if (fauna_.behavior[i] == FAUNA_FLEE) {
 			const int32_t t = lookup_unit(fauna_.target_unit_id[i]);
 			float away_x = 0.0f, away_z = 0.0f, dist = 1e9f;
@@ -16487,7 +16497,7 @@ void Simulation::tick_fauna(float dt) {
 				away_z = fz - units_.pos_z[t];
 				dist = std::sqrt(away_x * away_x + away_z * away_z);
 			}
-			if (dist >= info.flee_distance || fauna_.state_timer[i] <= 0.0f) {
+			if (dist >= fauna_.flee_distance[i]) {
 				fauna_.behavior[i] = FAUNA_IDLE_GRAZE;
 				fauna_.target_unit_id[i] = 0;
 				fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
@@ -16505,6 +16515,13 @@ void Simulation::tick_fauna(float dt) {
 				// Cornered (water, cliff or map edge): slide sideways.
 				const float sx = -away_z / dist * sp, sz = away_x / dist * sp;
 				step(i, sx, sz);
+				if (fauna_.pos_x[i] == before_x && fauna_.pos_z[i] == before_z) {
+					// MovementUpdate likelyFailure: nowhere left to run.
+					fauna_.behavior[i] = FAUNA_IDLE_GRAZE;
+					fauna_.target_unit_id[i] = 0;
+					fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
+					fauna_.state_timer[i] = timer(info.feed_time_min, info.feed_time_max);
+				}
 			}
 			continue;
 		}
@@ -16564,7 +16581,7 @@ void Simulation::tick_fauna(float dt) {
 				fauna_.fauna_type[w] = fauna_.fauna_type[r]; fauna_.behavior[w] = fauna_.behavior[r]; fauna_.alive[w] = 1;
 				fauna_.state_timer[w] = fauna_.state_timer[r]; fauna_.attack_timer[w] = fauna_.attack_timer[r];
 				fauna_.target_unit_id[w] = fauna_.target_unit_id[r]; fauna_.corral_id[w] = fauna_.corral_id[r];
-				fauna_.fatten_timer[w] = fauna_.fatten_timer[r]; fauna_.home_x[w] = fauna_.home_x[r]; fauna_.home_z[w] = fauna_.home_z[r];
+				fauna_.flee_distance[w] = fauna_.flee_distance[r]; fauna_.home_x[w] = fauna_.home_x[r]; fauna_.home_z[w] = fauna_.home_z[r];
 			}
 			++w;
 		}
