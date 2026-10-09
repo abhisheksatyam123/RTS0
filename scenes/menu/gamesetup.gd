@@ -88,6 +88,12 @@ const RMS_MAPS := [
 	["random_english_channel", "English Channel (RMS)", "Random", 8, 128, "temperate", "Two coasts split by the Channel; ships needed to cross. Supports 2-8 players."],
 	["random_dodecanese", "Dodecanese (RMS)", "Random", 8, 128, "mediterranean", "Aegean islands, a few joined by bridges. Supports 2-8 players."],
 	["random_fortress", "Fortress (RMS)", "Random", 8, 128, "temperate", "Every player starts inside a walled fortress. Supports 2-8 players."],
+	["random_mediterranean_0ad", "Mediterranean (RMS)", "Random", 8, 128, "mediterranean", "The Mediterranean Sea and its coasts from a real elevation map. Supports 2-8 players."],
+	["random_elephantine", "Elephantine (RMS)", "Random", 8, 128, "savanna", "The Nile at its first cataract; ships needed to cross. Supports 2-8 players."],
+	["random_island_stronghold", "Island Stronghold (RMS)", "Random", 8, 128, "temperate", "Each team starts packed together on its own island. Supports 2-8 players."],
+	["random_pompeii", "Pompeii (RMS)", "Random", 8, 128, "volcanic", "The Bay of Naples under Vesuvius from a real elevation map. Supports 2-8 players."],
+	["random_latium", "Latium (RMS)", "Random", 8, 128, "latium", "Rolling Italian land between two seas, with cliffs and plateaus. Supports 2-8 players."],
+	["random_unknown", "Unknown (RMS)", "Random", 8, 128, "temperate", "One of 13 land and naval landscapes, picked at random. Supports 2-8 players."],
 ]
 
 # 0 A.D. population limits per player (0 = unlimited) and ceasefire lengths in minutes.
