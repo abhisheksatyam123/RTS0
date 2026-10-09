@@ -90,5 +90,8 @@ func go(path: String) -> int:
 	var tree := get_tree()
 	if tree == null:
 		return ERR_UNAVAILABLE
+	# 0 A.D. starts every match through page_loading.xml (tips, quotes, progress).
+	if path == "res://scenes/main.tscn":
+		path = "res://scenes/menu/loading.tscn"
 	tree.change_scene_to_file.call_deferred(path)
 	return OK

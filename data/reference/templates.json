@@ -7387,6 +7387,146 @@
     "Minister"
    ],
    "builds": []
+  },
+  "athen/catafalque": {
+   "generic_name": "Athenian Catafalque",
+   "specific_name": "Solon",
+   "tooltip": "A catafalque that holds the remains of a great leader.",
+   "history": "",
+   "classes": [
+    "Relic"
+   ],
+   "builds": []
+  },
+  "spart/catafalque": {
+   "generic_name": "Spartan Catafalque",
+   "specific_name": "Lycurgus",
+   "tooltip": "A catafalque that holds the remains of a great leader.",
+   "history": "",
+   "classes": [
+    "Relic"
+   ],
+   "builds": []
+  },
+  "pers/catafalque": {
+   "generic_name": "Persian Catafalque",
+   "specific_name": "Artaxšaçā",
+   "tooltip": "A catafalque that holds the remains of a great leader.",
+   "history": "",
+   "classes": [
+    "Relic"
+   ],
+   "builds": []
+  },
+  "rome/catafalque": {
+   "generic_name": "Roman Catafalque",
+   "specific_name": "Lūcius Iūnius Brūtus",
+   "tooltip": "A catafalque that holds the remains of a great leader.",
+   "history": "",
+   "classes": [
+    "Relic"
+   ],
+   "builds": []
+  },
+  "cart/catafalque": {
+   "generic_name": "Carthaginian Catafalque",
+   "specific_name": "Hasdrubal (Quartermaster)",
+   "tooltip": "A catafalque that holds the remains of a great leader.",
+   "history": "",
+   "classes": [
+    "Relic"
+   ],
+   "builds": []
+  },
+  "mace/catafalque": {
+   "generic_name": "Macedonian Catafalque",
+   "specific_name": "Philip V",
+   "tooltip": "A catafalque that holds the remains of a great leader.",
+   "history": "",
+   "classes": [
+    "Relic"
+   ],
+   "builds": []
+  },
+  "brit/catafalque": {
+   "generic_name": "Briton Catafalque",
+   "specific_name": "Cassiuellaunos",
+   "tooltip": "A catafalque that holds the remains of a great leader.",
+   "history": "",
+   "classes": [
+    "Relic"
+   ],
+   "builds": []
+  },
+  "gaul/catafalque": {
+   "generic_name": "Gallic Catafalque",
+   "specific_name": "Ambiorix",
+   "tooltip": "A catafalque that holds the remains of a great leader.",
+   "history": "",
+   "classes": [
+    "Relic"
+   ],
+   "builds": []
+  },
+  "iber/catafalque": {
+   "generic_name": "Iberian Catafalque",
+   "specific_name": "Mandonius",
+   "tooltip": "A catafalque that holds the remains of a great leader.",
+   "history": "",
+   "classes": [
+    "Relic"
+   ],
+   "builds": []
+  },
+  "maur/catafalque": {
+   "generic_name": "Mauryan Catafalque",
+   "specific_name": "Bindusara",
+   "tooltip": "A catafalque that holds the remains of a great leader.",
+   "history": "",
+   "classes": [
+    "Relic"
+   ],
+   "builds": []
+  },
+  "kush/catafalque": {
+   "generic_name": "Kushite Catafalque",
+   "specific_name": "Shanakdakheto",
+   "tooltip": "A catafalque that holds the remains of a great leader.",
+   "history": "",
+   "classes": [
+    "Relic"
+   ],
+   "builds": []
+  },
+  "ptol/catafalque": {
+   "generic_name": "Ptolemaic Catafalque",
+   "specific_name": "Ptolemy III Euergetes (Benefactor)",
+   "tooltip": "A catafalque that holds the remains of a great leader.",
+   "history": "",
+   "classes": [
+    "Relic"
+   ],
+   "builds": []
+  },
+  "sele/catafalque": {
+   "generic_name": "Seleucid Catafalque",
+   "specific_name": "Antiochus I Soter (Savior)",
+   "tooltip": "A catafalque that holds the remains of a great leader.",
+   "history": "",
+   "classes": [
+    "Relic"
+   ],
+   "builds": []
+  },
+  "han/catafalque": {
+   "generic_name": "Han Catafalque",
+   "specific_name": "Emperor Wǔ (Liu Che)",
+   "tooltip": "A catafalque that holds the remains of a great leader.",
+   "history": "",
+   "classes": [
+    "Relic"
+   ],
+   "builds": []
   }
  },
  "structures": {

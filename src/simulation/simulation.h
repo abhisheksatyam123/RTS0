@@ -148,7 +148,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 33; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 34; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -203,7 +203,12 @@ public:
 		int cell_x, cell_y;
 		int footprint; // 1 or 2
 		float rot = DEFAULT_BUILDING_ROT; // 0 A.D. Position rotation: 0 faces +z, pi/2 faces +x (the obstruction stays an axis-aligned square)
-		float attack_timer; // for defensive arrows
+		// 0 A.D. BuildingAI.js FireArrows: attack_timer counts down to the next of the ten
+		// rounds per RepeatTime; the timer runs only while enemies are in range.
+		float attack_timer;
+		uint8_t arrow_round = 0;      // currentRound
+		int16_t arrows_left = 0;      // arrowsLeft of this RepeatTime
+		bool arrow_timer_on = false;  // a FireArrows timer is set
 		bool is_burning = false; // Structure fire under 33% HP
 
 		// Multi-slot production queue
@@ -332,6 +337,9 @@ public:
 	// Rank effects (unit_advanced.json, unit_elite.json) for unit index i.
 	float rank_melee_armor(size_t i) const;
 	float unit_capture_attack_at(size_t i) const;
+	// Read-only, for the renderer: unit i is attacking a structure it captures
+	// rather than damages (the tick_combat check), so it plays 0 A.D.'s capture clip.
+	bool unit_capturing(size_t i) const;
 	float healer_range_of(size_t h) const;
 	float heal_amount_of(size_t h) const;
 	// 0 A.D. team bonuses (data/auras/teambonuses): the product a player gets on `stat`
@@ -444,6 +452,12 @@ public:
 	void cmd_delete(uint8_t player, const uint32_t *ids, size_t count);
 	// 0 A.D. "back-to-work" (UnitAI BackToWork): resume the last gather or build order.
 	void order_back_to_work(const uint32_t *unit_ids, size_t count);
+	// 0 A.D. Commands.js "remove-guard" (UnitAI RemoveGuard): end a Guard order, or drop
+	// the queued ones.
+	void order_remove_guard(const uint32_t *unit_ids, size_t count);
+	// 0 A.D. Commands.js "call-to-arms": Soldiers, Warships, Siege and Healers drop their load
+	// at the nearest dropsite (DropAtNearestDropSite), then attack-walk to (x, z).
+	void order_call_to_arms(const uint32_t *unit_ids, size_t count, float x, float z, bool queued = false);
 	// The unit's current order and its Shift-queued ones (empty if none).
 	UnitOrder unit_order(uint32_t unit_id) const;
 	const std::vector<UnitOrder> *unit_order_queue(uint32_t unit_id) const;
@@ -533,6 +547,12 @@ public:
 	bool is_siege_tower_at(size_t i) const;
 	// Garrisoned Infantry in a siege tower = arrows per volley (capped).
 	int siege_tower_arrows(size_t i) const;
+	// 0 A.D. BuildingAI.js GetArrowCount: arrows per RepeatTime for a finished structure.
+	int building_arrow_count(const Building &b) const;
+	// Attack/Ranged/MaxRange with technologies, measured from the structure's edge (0 = never shoots).
+	float building_arrow_range(const Building &b) const;
+	// A unit's hack, pierce and crush resistance levels (template, techs, rank, armour auras).
+	void unit_resistance(size_t i, float out[3]) const;
 	int get_transport_capacity(uint32_t transport_id) const;
 	// Ships as GarrisonHolders (template_unit_ship*.xml): capacity and List per
 	// template, LoadingRange 10 m, Pickup, EjectClassesOnDestroy. `i` is a SoA index.
@@ -1328,8 +1348,6 @@ private:
 	// 0 A.D. helpers/Attack.js CauseDamageOverArea for an Attack Splash landing at (ox, oz).
 	void cause_damage_over_area(uint8_t splash, uint32_t attacker_id, uint8_t attacker_team,
 			float ox, float oz, float dir_x, float dir_z);
-	// A unit's hack, pierce and crush resistance levels (template, techs, rank, armour auras).
-	void unit_resistance(size_t i, float out[3]) const;
 	void tick_gates(float dt);
 	void tick_waves(float dt);
 	void tick_petra_ai(float dt);
@@ -1499,6 +1517,17 @@ private:
 	mutable uint64_t resource_block_tick_ = UINT64_MAX;
 	mutable size_t resource_block_count_ = SIZE_MAX;
 	mutable int resource_block_w_ = 0;
+	void ensure_resource_block_cells() const;
+	// petra_place_building searches that found no spot, with the signature of what
+	// they read (petra_placement_signature). Exact, so derived state: never saved.
+	struct PetraPlaceMiss {
+		uint64_t sig;
+		int cx, cz;
+		int16_t min_r, max_r;
+		uint8_t pid, btype;
+	};
+	std::vector<PetraPlaceMiss> petra_place_misses_;
+	uint64_t petra_placement_signature(uint8_t btype, int start_cx, int start_cz, int max_r) const;
 
 	uint32_t next_id_ = 1;
 	uint32_t sim_seed_ = 1337;
