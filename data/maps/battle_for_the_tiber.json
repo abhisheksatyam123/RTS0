@@ -23158,7 +23158,392 @@
       "z": -24.53
     }
   ],
-  "gaia_structures": [],
+  "gaia_structures": [
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -79.95,
+      "z": -55.81
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -77.15,
+      "z": -58.74
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -74.39,
+      "z": -55.81
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -77.23,
+      "z": -52.88
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -89.64,
+      "z": -47.61
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -92.35,
+      "z": -44.88
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -89.68,
+      "z": -42.17
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -86.86,
+      "z": -45.13
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -58.94,
+      "z": -106.38
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -56.13,
+      "z": -103.81
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -58.88,
+      "z": -100.83
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -61.5,
+      "z": -103.35
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -113.56,
+      "z": -100.4
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -110.77,
+      "z": -103.51
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -113.62,
+      "z": -105.87
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -116.21,
+      "z": -103.02
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -34.12,
+      "z": 94.52
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -36.81,
+      "z": 91.46
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -31.51,
+      "z": 91.05
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -33.87,
+      "z": 88.72
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -53.65,
+      "z": 50.84
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -56.8,
+      "z": 53.79
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -56.28,
+      "z": 47.9
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -59.29,
+      "z": 51.17
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -79.6,
+      "z": 53.05
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -82.32,
+      "z": 50.48
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -79.34,
+      "z": 47.73
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -76.91,
+      "z": 50.16
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -108.43,
+      "z": 90.86
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -111.08,
+      "z": 94.13
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -113.7,
+      "z": 91.42
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": -111.08,
+      "z": 88.37
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 66.33,
+      "z": 68.59
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 69.13,
+      "z": 65.57
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 63.65,
+      "z": 65.89
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 66.23,
+      "z": 62.83
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 83.65,
+      "z": 52.2
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 86.55,
+      "z": 49.04
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 86.49,
+      "z": 54.82
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 89.27,
+      "z": 51.68
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 105.25,
+      "z": 61.91
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 102.65,
+      "z": 59.06
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 99.92,
+      "z": 62.01
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 102.37,
+      "z": 64.61
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 107.95,
+      "z": 72.11
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 110.82,
+      "z": 69.25
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 110.42,
+      "z": 74.6
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 113.28,
+      "z": 71.83
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 57.18,
+      "z": -58.24
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 63.85,
+      "z": -55.61
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 61.12,
+      "z": -58.31
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 59.12,
+      "z": -60.3
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 56.43,
+      "z": -53.15
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 59.18,
+      "z": -56.31
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 59.13,
+      "z": -50.88
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 61.75,
+      "z": -53.72
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 55.92,
+      "z": -95.18
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 58.71,
+      "z": -98.44
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 53.23,
+      "z": -97.89
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 55.99,
+      "z": -100.86
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 98.46,
+      "z": -109.88
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 100.93,
+      "z": -112.88
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 103.59,
+      "z": -110.13
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/rome/field",
+      "x": 101.11,
+      "z": -107.34
+    }
+  ],
   "gaia_units": [],
   "scenery": [
     {
