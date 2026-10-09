@@ -34,6 +34,17 @@ uniform sampler2D paint_tex : hint_default_black, filter_linear, repeat_disable;
 uniform float paint_half = 0.0;
 uniform float water_level = -1000.0;
 
+// Per-tile terrain (0 A.D. CTerrain tiles, Simulation::terrain_tiles): tile_index
+// holds each tile's layer of tile_layers over [-tile_half, tile_half]^2, tile_res
+// tiles a side. Each tile blends into its neighbours with ragged edges, as 0 A.D.
+// blends a tile over its lower-priority neighbours. tile_res 0 = paint by biome.
+uniform sampler2DArray tile_layers : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D tile_index : filter_nearest, repeat_disable;
+uniform float tile_res = 0.0;
+uniform float tile_half = 0.0;
+// World units a terrain texture spans (0 A.D. terrains repeat every 8 tiles).
+uniform float tile_repeat = 8.0;
+
 varying vec2 v_uv;
 varying vec3 v_world_pos;
 varying vec3 v_world_normal;
@@ -91,9 +102,30 @@ void fragment() {
 	// Composite albedo
 	vec3 final_color = grass_sample * grass_weight + dirt_sample * dirt_weight + rock_sample * rock_weight;
 
+	if (tile_res > 0.0) {
+		// The four tiles round this point, weighted bilinearly with the edges
+		// sharpened and roughened by noise.
+		vec2 tc = (v_world_pos.xz + vec2(tile_half)) / (2.0 * tile_half) * tile_res - 0.5;
+		vec2 i0 = floor(tc);
+		vec2 en = vec2(texture(noise_tex, v_world_pos.xz * 0.37).r, texture(noise_tex, v_world_pos.xz * 0.37 + vec2(0.53, 0.21)).r);
+		vec2 f = smoothstep(vec2(0.18), vec2(0.82), clamp(tc - i0 + (en - 0.5) * 0.5, 0.0, 1.0));
+		ivec2 c0 = clamp(ivec2(i0), ivec2(0), ivec2(int(tile_res) - 1));
+		ivec2 c1 = clamp(ivec2(i0) + ivec2(1), ivec2(0), ivec2(int(tile_res) - 1));
+		float l00 = floor(texelFetch(tile_index, c0, 0).r * 255.0 + 0.5);
+		float l10 = floor(texelFetch(tile_index, ivec2(c1.x, c0.y), 0).r * 255.0 + 0.5);
+		float l01 = floor(texelFetch(tile_index, ivec2(c0.x, c1.y), 0).r * 255.0 + 0.5);
+		float l11 = floor(texelFetch(tile_index, c1, 0).r * 255.0 + 0.5);
+		vec2 tuv = v_world_pos.xz / tile_repeat;
+		vec3 s00 = texture(tile_layers, vec3(tuv, l00)).rgb;
+		vec3 s10 = l10 == l00 ? s00 : texture(tile_layers, vec3(tuv, l10)).rgb;
+		vec3 s01 = l01 == l00 ? s00 : texture(tile_layers, vec3(tuv, l01)).rgb;
+		vec3 s11 = l11 == l10 ? s10 : (l11 == l01 ? s01 : texture(tile_layers, vec3(tuv, l11)).rgb);
+		final_color = mix(mix(s00, s10, f.x), mix(s01, s11, f.x), f.y);
+	}
+
 	// Painted tiles go under cliffs: rock keeps its share.
 	float ground = 1.0 - rock_weight;
-	if (paint_half > 0.0) {
+	if (paint_half > 0.0 && tile_res <= 0.0) {
 		vec3 paint = texture(paint_tex, (v_world_pos.xz + vec2(paint_half)) / (2.0 * paint_half)).rgb;
 		float fw = smoothstep(0.15, 0.85, paint.g + (noise_splat - 0.5) * 0.5) * ground * 0.85;
 		// Shaded by the canopy, as 0 A.D.'s tree shadows darken it.
@@ -102,7 +134,7 @@ void fragment() {
 		float mw = smoothstep(0.2, 0.9, paint.b + (noise_splat - 0.5) * 0.4) * ground;
 		final_color = mix(final_color, dirt_sample, mw);
 	}
-	if (water_level > -999.0) {
+	if (water_level > -999.0 && tile_res <= 0.0) {
 		float shore_h = v_height + (noise_splat - 0.5) * 0.8;
 		float sw = (1.0 - smoothstep(water_level + 0.3, water_level + 1.4, shore_h)) * (1.0 - cliff_weight * 0.7);
 		vec3 shore_sample = texture(shore_tex, uv * 1.6).rgb;
