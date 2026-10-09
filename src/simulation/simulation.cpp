@@ -1437,10 +1437,31 @@ bool Simulation::cmd_train(uint8_t player_id, uint32_t building_id, UnitType u_t
 	}
 	uint16_t tmpl = civ_default_template(civ_of(b.team), (uint8_t)u_type);
 	if (tmpl == CIV_UNIT_TEMPLATE_NONE) return false; // not in this civ's roster
+	// The civ's unit of this class that this building trains (0 A.D. Trainer
+	// lists), cheapest phase first; else the class's standard unit, except that
+	// heroes and champions only ever come from their own structures.
+	if (!(civ_unit_template(tmpl).trainers & bld_bit(b.type))) {
+		const uint8_t civ = civ_of(b.team);
+		uint16_t best = CIV_UNIT_TEMPLATE_NONE;
+		for (uint16_t i = civ_roster_begin(civ); i < civ_roster_end(civ); ++i) {
+			const CivUnitTemplate &u = civ_unit_template(i);
+			if (u.unit_type != (uint8_t)u_type || (u.flags & ROSTER_SIEGE_TOWER) || !(u.trainers & bld_bit(b.type))) continue;
+			if (best == CIV_UNIT_TEMPLATE_NONE || u.phase < civ_unit_template(best).phase) best = i;
+		}
+		if (best != CIV_UNIT_TEMPLATE_NONE) tmpl = best;
+		else if (civ_unit_template(tmpl).flags & (ROSTER_HERO | ROSTER_CHAMPION)) return false;
+		else return cmd_train_template_at(player_id, building_id, tmpl, false);
+	}
 	return cmd_train_template(player_id, building_id, tmpl);
 }
 
 bool Simulation::cmd_train_template(uint8_t player_id, uint32_t building_id, uint16_t tmpl) {
+	return cmd_train_template_at(player_id, building_id, tmpl, true);
+}
+
+// `exclusive`: the building must be one 0 A.D. trains the unit at (by-name
+// training); cmd_train's class requests keep generic buildings working.
+bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, uint16_t tmpl, bool exclusive) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return false;
 	Building &b = buildings_[bit->second];
@@ -1451,6 +1472,7 @@ bool Simulation::cmd_train_template(uint8_t player_id, uint32_t building_id, uin
 	PlayerState &ps = players_[player_id];
 	const CivUnitTemplate &t = civ_unit_template(tmpl);
 	if (t.civ != ps.civ) return false;
+	if (exclusive && !(t.trainers & bld_bit(b.type))) return false; // 0 A.D. Trainer list
 	if (t.phase > ps.phase) return false; // 0 A.D. Identity/Requirements: phase_town / phase_city
 
 	const UnitTypeInfo &uinfo = civ_template_unit_info(tmpl, t.unit_type);
@@ -8130,16 +8152,19 @@ void Simulation::petra_manage_military_production(float dt) {
 	bool is_emergency = (max_threat >= 7.0f);
 
 	// Our finished buildings that train soldiers (roster `trainers`: barracks,
-	// fortress, and the Town Center and temple for heroes).
+	// fortress, civ structures such as the gymnasium, and the Town Center and
+	// temple for heroes).
+	const uint8_t ai_civ = petra_ps().civ;
+	uint64_t trainer_types = 0;
+	for (uint16_t k = civ_roster_begin(ai_civ); k < civ_roster_end(ai_civ); ++k)
+		trainer_types |= civ_unit_template(k).trainers;
 	std::vector<uint32_t> trainers;
 	for (const auto &b : buildings_) {
 		if (b.team != petra_pid_ || b.build_progress < 1.0f || b.queue.size() >= 4) continue;
-		if (b.type == BLD_BARRACKS || b.type == BLD_FORTRESS || b.type == BLD_TOWN_CENTER || b.type == BLD_TEMPLE)
-			trainers.push_back(b.id);
+		if (trainer_types & bld_bit(b.type)) trainers.push_back(b.id);
 	}
 	if (trainers.empty()) return;
 	if (pop_current(petra_pid_) >= pop_max(petra_pid_)) return;
-	const uint8_t ai_civ = petra_ps().civ;
 	const uint8_t phase = petra_ps().phase;
 
 	// A building of ours that trains roster unit `tmpl` (heroes and soldiers
@@ -9769,7 +9794,7 @@ void Simulation::petra_manage_buildings(float dt) {
 
 // config.js `buildings`: each civ's advanced structures, in Petra's order
 // (Carthage's three embassies are RTS0's one; Kush's camps and Amun temple and
-// Rome's Vesta temple are not modelled yet).
+// Rome's Vesta temple are buildings now but not in these lists yet).
 static std::vector<uint8_t> petra_advanced_buildings(uint8_t civ) {
 	switch (civ) {
 		case CIV_ATHENIANS: return {BLD_GYMNASIUM, BLD_PRYTANEION, BLD_THEATER};
@@ -13531,22 +13556,10 @@ void Simulation::update_player_fow(std::vector<uint8_t> &grid, SharesVision shar
 	for (auto &c : grid) c = c == FOW_VISIBLE ? (uint8_t)FOW_EXPLORED : std::max(c, floor);
 
 	// Steps 2 and 3: every unit and finished building whose vision the player shares lights the
-	// tiles within its vision radius. Vision radius per unit type (in world units):
-	//   Villager/Infantry: 16m, Cavalry: 20m, Archer: 22m, Catapult: 24m, Hero: 18m, Elephant: 20m, Trireme: 28m
-	auto vision_radius = [](uint8_t utype) -> float {
-		switch (utype) {
-			case UNIT_ARCHER:   return 22.0f;
-			case UNIT_CAVALRY:  return 20.0f;
-			case UNIT_CATAPULT: return 24.0f;
-			case UNIT_TRIREME:  return 28.0f;
-			case UNIT_ELEPHANT: return 20.0f;
-			case UNIT_HERO:     return 18.0f;
-			default:            return 16.0f;
-		}
-	};
+	// tiles within its vision radius (unit_vision_range, 0 A.D. Vision/Range).
 
 	reveal_viewers(grid, views,
-			[&](size_t u) { return units_.alive[u] && shares_vision(units_.team[u]) ? vision_radius(units_.unit_type[u]) : 0.0f; },
+			[&](size_t u) { return units_.alive[u] && shares_vision(units_.team[u]) ? unit_vision_range(units_.unit_type[u]) : 0.0f; },
 			[&](const Building &b) {
 				if (!shares_vision(b.team) || b.build_progress < 1.0f) return 0.0f;
 				float bvr = 18.0f; // default building vision

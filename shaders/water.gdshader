@@ -57,6 +57,8 @@ void fragment() {
 	if (terrain_half > 0.0) {
 		vec2 h_uv = (v_world_pos.xz + vec2(terrain_half)) / (2.0 * terrain_half);
 		depth = max(water_level - texture(height_tex, h_uv).r, 0.0);
+		// Off the map edge there is no seabed: open water, no shore.
+		if (any(lessThan(h_uv, vec2(0.0))) || any(greaterThan(h_uv, vec2(1.0)))) depth = 3.0;
 		murk = 1.0 - exp(-depth * murkiness);
 	}
 	vec4 water_base = mix(shallow_color, deep_color, murk);
