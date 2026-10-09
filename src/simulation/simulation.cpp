@@ -855,7 +855,7 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 
 	for (int dx = 0; dx < footprint; ++dx) {
 		for (int dy = 0; dy < footprint; ++dy) {
-			occupied_cells_.insert({cell_x + dx, cell_y + dy});
+			occupied_cells_.insert(cell_x + dx, cell_y + dy);
 		}
 	}
 	if (progress >= 0.99f && !bulk_spawn_) {
@@ -927,7 +927,7 @@ void Simulation::remove_player_structures() {
 		const Building &b = buildings_[i];
 		building_id_to_idx_[b.id] = i;
 		for (int dx = 0; dx < b.footprint; ++dx)
-			for (int dy = 0; dy < b.footprint; ++dy) occupied_cells_.insert({b.cell_x + dx, b.cell_y + dy});
+			for (int dy = 0; dy < b.footprint; ++dy) occupied_cells_.insert(b.cell_x + dx, b.cell_y + dy);
 	}
 }
 
@@ -1271,7 +1271,7 @@ bool Simulation::can_place(int cell_x, int cell_y, int footprint) const {
 			int cx = cell_x + dx;
 			int cy = cell_y + dy;
 			if (std::abs(cx) > limit || std::abs(cy) > limit) return false;
-			if (occupied_cells_.find({cx, cy}) != occupied_cells_.end()) return false;
+			if (occupied_cells_.contains(cx, cy)) return false;
 		}
 	}
 	return true;
@@ -14837,7 +14837,7 @@ bool Simulation::load_state(const char *filepath) {
 		building_id_to_idx_[bld.id] = buildings_.size() - 1;
 		for (int dx = 0; dx < bld.footprint; ++dx) {
 			for (int dy = 0; dy < bld.footprint; ++dy) {
-				occupied_cells_.insert({bld.cell_x + dx, bld.cell_y + dy});
+				occupied_cells_.insert(bld.cell_x + dx, bld.cell_y + dy);
 			}
 		}
 	}

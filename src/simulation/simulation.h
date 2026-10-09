@@ -7,6 +7,7 @@
 #include "nav/footprint.h"
 #include "nav/obstacle_grid.h"
 #include "aura_manager.h"
+#include "cell_set.h"
 #include "petra_ai.h"
 #include "sim_types.h"
 #include "statistics_tracker.h"
@@ -1447,12 +1448,7 @@ private:
 	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0) const;
 	std::unordered_map<uint32_t, size_t> building_id_to_idx_;
 
-	struct CellHash {
-		size_t operator()(const std::pair<int, int> &p) const {
-			return (size_t)p.first * 73856093 ^ (size_t)p.second * 19349663;
-		}
-	};
-	std::unordered_set<std::pair<int, int>, CellHash> occupied_cells_;
+	CellSet occupied_cells_; // every building's footprint cells (can_place)
 	// check_placement's cells (GRID-sized, from -map_half_) that a Gaia resource's
 	// obstruction touches. A cache of resources_, rebuilt when the tick or the
 	// resource count changes; never saved or hashed.
