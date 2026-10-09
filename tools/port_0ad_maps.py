@@ -5,6 +5,7 @@
                                                   # libyan_oases_4p), fetched from 0 A.D.'s GitHub
   python3 tools/port_0ad_maps.py --github-builtin # the built-in list, fetched from GitHub
   python3 tools/port_0ad_maps.py --github-scenarios [NAME..]  # scenario maps, same way
+  python3 tools/port_0ad_maps.py --terrain-only   # add each ported map's per-tile terrain from GitHub
 
 Maps fetched with --github get their world size from the .pmp (one RTS0 world unit per
 0 A.D. tile, clamped to 128..512) and a heightmap of one sample per 4 tiles.
@@ -21,6 +22,7 @@ import urllib.parse
 import urllib.request
 import urllib.error
 import time
+import base64
 
 zip_path = "/home/abhi/project/0ad/binaries/data/mods/public/public.zip"
 GITHUB_RAW = "https://raw.githubusercontent.com/0ad/0ad/master/binaries/data/mods/public/"
@@ -70,6 +72,56 @@ def extract_pmp_heights(raw_pmp, target_res=64, height_scale=HEIGHT_PER_METRE):
             heights.append(round(val_m, 2))
 
     return heights, vert_side
+
+def extract_pmp_terrain(raw_pmp):
+    """The per-tile terrain textures (CTerrain STileDesc tex1) after the heights:
+    {"res": tiles per side, "names": [0 A.D. terrain ids], "rle": base64 of
+    (run - 1, name index) byte pairs over the tiles, row-major from the -x/-z
+    corner like the heightmap}. The .pmp stores tiles patch by patch (16 x 16
+    tiles each). None when the file has no terrain section."""
+    if raw_pmp[:4] != b"PSMP":
+        return None
+    patches = struct.unpack('<I', raw_pmp[12:16])[0]
+    vert_side = patches * 16 + 1
+    o = 16 + vert_side * vert_side * 2
+    if o + 4 > len(raw_pmp):
+        return None
+    count = struct.unpack('<I', raw_pmp[o:o + 4])[0]
+    o += 4
+    names = []
+    for _ in range(count):
+        n = struct.unpack('<I', raw_pmp[o:o + 4])[0]
+        o += 4
+        names.append(os.path.splitext(raw_pmp[o:o + n].decode('utf-8'))[0])
+        o += n
+    side = patches * 16
+    if not names or len(names) > 255 or side > 1024 or o + side * side * 8 > len(raw_pmp):
+        return None
+    tiles = bytearray(side * side)
+    for pz in range(patches):
+        for px in range(patches):
+            for j in range(16):
+                for i in range(16):
+                    tex1 = struct.unpack_from('<H', raw_pmp, o)[0]
+                    o += 8  # tex1, tex2 (unused), priority
+                    tiles[(pz * 16 + j) * side + px * 16 + i] = tex1 if tex1 < len(names) else 0
+    # Only the names the tiles use, in first-use order.
+    used = []
+    remap = {}
+    for t in tiles:
+        if t not in remap:
+            remap[t] = len(used)
+            used.append(names[t])
+    rle = bytearray()
+    k = 0
+    while k < len(tiles):
+        v = tiles[k]
+        run = 1
+        while k + run < len(tiles) and tiles[k + run] == v and run < 256:
+            run += 1
+        rle += bytes((run - 1, remap[v]))
+        k += run
+    return {"res": side, "names": used, "rle": base64.b64encode(bytes(rle)).decode('ascii')}
 
 def gaia_entity(ltpl, wx, wz):
     """0 A.D. gaia/fauna_*, gaia/treasure/* and gaia/ruins/* templates as RTS0 map
@@ -258,7 +310,8 @@ def gaia_resource(source, ltpl, wx, wz):
         return None
     return {"type": rtype, "x": wx, "z": wz, "amount": int(amount)}
 
-def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean", height_scale=None, source=None, gaia_only=False):
+def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean", height_scale=None, source=None, gaia_only=False,
+             terrain_only=False):
     print(f"Porting map: {map_id} ({xml_rel})...")
     with (source if source is not None else zipfile.ZipFile(zip_path, 'r')) as z:
         files = z  # `z` is reused below for entity positions
@@ -284,6 +337,19 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             # to another size, so slopes stay 0 A.D.'s.
             height_scale = HEIGHT_PER_METRE * world_size_m / pmp_tiles(raw_pmp)
         heightmap, vert_side = extract_pmp_heights(raw_pmp, target_res=target_res, height_scale=height_scale)
+        terrain = extract_pmp_terrain(raw_pmp)
+        if terrain_only:
+            # Keep the existing map; only add or refresh its per-tile terrain.
+            out_path = f"data/maps/{map_id}.json"
+            if not os.path.exists(out_path) or terrain is None:
+                return
+            with open(out_path) as f:
+                old = json.load(f)
+            old["terrain"] = terrain
+            with open(out_path, "w") as f:
+                json.dump(old, f, indent=2)
+            print(f"  -> {out_path}: {terrain['res']}x{terrain['res']} tiles, {len(terrain['names'])} terrains")
+            return
 
         # Water settings
         water_height = -1.0
@@ -484,6 +550,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             "water_height": water_height,
             "heightmap_res": target_res,
             "heightmap": heightmap,
+            "terrain": terrain,
             "players": list(players.values()),
             "resources": resources,
             "fauna": fauna,
@@ -591,23 +658,25 @@ for _civ in ["athenians", "britons", "carthaginians", "gauls", "han", "iberians"
     github_scenarios[f"sandbox_{_civ}"] = (f"sandbox_{_civ}", "mediterranean")
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "--gaia-only":
-        # Refresh fauna, treasures and ruins of every ported map from 0 A.D.'s GitHub.
+    if len(sys.argv) > 1 and sys.argv[1] in ("--gaia-only", "--terrain-only"):
+        # Refresh fauna, treasures and ruins (or only the per-tile terrain) of every
+        # ported map from 0 A.D.'s GitHub.
+        only = {"gaia_only": True} if sys.argv[1] == "--gaia-only" else {"terrain_only": True}
         for mid, xrel, prel, size, bome, hscale in maps_list:
             try:
-                port_map(mid, xrel, prel, size, bome, hscale, source=GithubSource(), gaia_only=True)
+                port_map(mid, xrel, prel, size, bome, hscale, source=GithubSource(), **only)
             except Exception as e:
                 print(f"  !! {mid}: {e}")
         for name, (mid, bome) in sorted(github_skirmishes.items()):
             try:
                 port_map(mid, f"maps/skirmishes/{name}.xml", f"maps/skirmishes/{name}.pmp", None, bome, None,
-                         source=GithubSource(), gaia_only=True)
+                         source=GithubSource(), **only)
             except Exception as e:
                 print(f"  !! {mid}: {e}")
         for name, (mid, bome) in sorted(github_scenarios.items()):
             try:
                 port_map(mid, f"maps/scenarios/{name}.xml", f"maps/scenarios/{name}.pmp", None, bome, None,
-                         source=GithubSource(), gaia_only=True)
+                         source=GithubSource(), **only)
             except Exception as e:
                 print(f"  !! {mid}: {e}")
     elif len(sys.argv) > 1 and sys.argv[1] == "--github-scenarios":

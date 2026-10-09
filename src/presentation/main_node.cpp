@@ -4776,6 +4776,15 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		heights[i] = (float)h_arr[i];
 	}
 	sim->set_terrain_data(heights, h_res, water_h);
+	// 0 A.D. per-tile terrain textures (port_0ad_maps.py extract_pmp_terrain).
+	if (d.has("terrain") && d["terrain"].get_type() == Variant::DICTIONARY) {
+		Dictionary t = d["terrain"];
+		Array tn = t.get("names", Array());
+		std::vector<std::string> names;
+		for (int i = 0; i < tn.size(); ++i) names.push_back(String(tn[i]).utf8().get_data());
+		sim->set_terrain_tiles(rtso::Simulation::terrain_tiles_from_rle((int)t.get("res", 0), std::move(names),
+				String(t.get("rle", "")).utf8().get_data()));
+	}
 
 	// Spawn Resources
 	Array res_arr = d.get("resources", Array());

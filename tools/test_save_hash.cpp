@@ -212,6 +212,14 @@ static void check_reset_load(TurnManager &tm, const char *path) {
 	a.cmd_set_trading_goods(1, goods);
 	a.set_water_level_mode(Simulation::WATER_LEVEL_DEEP);
 	a.set_sea_level_rise_minutes(40);
+	{
+		// Per-tile terrain textures (v44).
+		Simulation::TerrainTiles tt;
+		tt.res = 4;
+		tt.names = {"medit_grass_field", "medit_rocks"};
+		tt.tiles = {0, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 1, 0, 0};
+		a.set_terrain_tiles(tt);
+	}
 	a.spawn_unit(-10.0f, 10.0f, 0, UNIT_CATAPULT);
 	const uint32_t unpacking = a.spawn_unit(-14.0f, 10.0f, 0, UNIT_CATAPULT);
 	a.order_pack(&unpacking, 1, false);
@@ -249,6 +257,10 @@ static void check_reset_load(TurnManager &tm, const char *path) {
 	}
 	if (b.water_level_mode() != Simulation::WATER_LEVEL_DEEP || b.sea_level_rise_minutes() != 40) {
 		std::printf("  FAIL map trigger Game Setup options not restored (%d, %d)\n", b.water_level_mode(), b.sea_level_rise_minutes());
+		++failures;
+	}
+	if (b.terrain_tiles().res != 4 || b.terrain_tiles().tiles != a.terrain_tiles().tiles || b.terrain_tiles().names != a.terrain_tiles().names) {
+		std::printf("  FAIL per-tile terrain not restored (res %d)\n", b.terrain_tiles().res);
 		++failures;
 	}
 	if (failures == before) std::printf("Town Center + wall, packed/unpacked catapults, a defeated player and a wonder hold into a reset sim: ok\n");

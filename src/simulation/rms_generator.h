@@ -133,6 +133,13 @@ public:
 	};
 
 	static bool generate(Simulation &sim, const Config &config);
+	// Paints the per-tile terrain textures (Simulation::set_terrain_tiles) of a
+	// generated map from its biome's 0 A.D. terrains (terrain_biomes.h): water,
+	// shore and shore blend by height, cliffs and hills by slope, forest floor
+	// under the trees, road round each civic centre, dirt under the mines and
+	// 0 A.D.'s tier patches over the main terrain. Uses its own hash of seed, so
+	// no other placement changes.
+	static void paint_terrain(Simulation &sim, uint32_t seed);
 
 private:
 	// Map-specific terrain synthesizers

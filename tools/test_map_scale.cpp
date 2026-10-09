@@ -22,10 +22,13 @@
 //  7. Shallow water is walkable and sailable; deep water is ships only.
 //  8. Red Sea and Hellas are painted from 0 A.D.'s heightmap images.
 //  9. English Channel splits the players by sea; Fortress walls every base.
+// 10. Random maps paint 0 A.D. per-tile terrains (water, forest floor, road) and the
+//     map JSON tile encoding decodes; bad tiles are refused.
 //  Exit: 0 = PASS, 1 = FAIL.
 #include "simulation/simulation.h"
 #include "simulation/rms_generator.h"
 #include "network/net_types.h"
+#include "simulation/terrain_biomes.h"
 
 #include <algorithm>
 #include <cmath>
@@ -407,6 +410,54 @@ int main() {
 			if (b.type == BLD_TOWN_CENTER) ftc.push_back({b.x + 6.0f, b.z + 6.0f});
 		CHECK(ftc.size() == 4 && can_reach(fort.nav_grid(), ftc[0].first, ftc[0].second, ftc[1].first, ftc[1].second, PASS_INFANTRY),
 		      "fortress: no way out through the gates");
+	}
+
+	// 10. Per-tile terrain (0 A.D. CTerrain tiles).
+	for (int size : kSizes) {
+		Simulation sim;
+		sim.generate_random_map(MAP_RANDOM_ARCHIPELAGO, 12, 2, size * 0.5f);
+		const auto &t = sim.terrain_tiles();
+		CHECK(t.res == size && t.tiles.size() == (size_t)size * size && !t.names.empty(), "size %d: %d tiles a side", size, t.res);
+		const TerrainBiome &tb = terrain_biome(sim.current_map_biome().c_str());
+		auto name_at = [&](float x, float z) { const int i = sim.terrain_tile_at(x, z); return i < 0 ? std::string() : t.names[i]; };
+		int under_water = 0, water_ok = 0, forest = 0, forest_ok = 0, roads = 0;
+		for (int z = -size / 2 + 1; z < size / 2; z += 2)
+			for (int x = -size / 2 + 1; x < size / 2; x += 2)
+				if (sim.get_terrain_height((float)x + 0.5f, (float)z + 0.5f) < sim.water_height() - 0.05f) {
+					++under_water;
+					water_ok += name_at((float)x + 0.5f, (float)z + 0.5f) == tb.water;
+				}
+		const auto rv = sim.resources();
+		for (size_t i = 0; i < rv.count; ++i)
+			if (rv.alive[i] && rv.type[i] == RES_WOOD) {
+				++forest;
+				const std::string n = name_at(rv.x[i], rv.z[i]);
+				forest_ok += n == tb.forest[0] || (tb.forest[1] && n == tb.forest[1]) ||
+				             n == tb.cliff[0] || (tb.cliff[1] && n == tb.cliff[1]) || n == tb.hill[0] || (tb.hill[1] && n == tb.hill[1]) ||
+				             n == tb.shore || n == tb.water || n == tb.road_wild || n == tb.road; // base woodlines stand in the city patch
+			}
+		for (const auto &b : sim.buildings())
+			if (b.type == BLD_TOWN_CENTER) roads += name_at(b.x, b.z) == tb.road;
+		CHECK(under_water > 0 && water_ok == under_water, "size %d: %d of %d tiles under water painted %s", size, water_ok, under_water, tb.water);
+		CHECK(forest > 0 && forest_ok >= forest * 9 / 10, "size %d: %d of %d trees stand on forest floor", size, forest_ok, forest);
+		CHECK(roads == 2, "size %d: %d civic centres on the road terrain", size, roads);
+		Simulation again;
+		again.generate_random_map(MAP_RANDOM_ARCHIPELAGO, 12, 2, size * 0.5f);
+		CHECK(again.terrain_tiles().tiles == t.tiles && again.terrain_tiles().names == t.names, "size %d: terrain differs for one seed", size);
+	}
+	{
+		// "AQAAAQAA" is the (run - 1, name) pairs (1, 0) (0, 1) (0, 0): 0, 0, 1, 0.
+		auto t = Simulation::terrain_tiles_from_rle(2, {"a", "b"}, "AQAAAQAA");
+		CHECK(t.res == 2 && t.tiles == std::vector<uint8_t>({0, 0, 1, 0}), "terrain RLE decodes (%d tiles)", (int)t.tiles.size());
+		CHECK(Simulation::terrain_tiles_from_rle(2, {"a"}, "AQAAAQAA").empty(), "an index past the names is refused");
+		CHECK(Simulation::terrain_tiles_from_rle(3, {"a", "b"}, "AQAAAQAA").empty(), "too few tiles are refused");
+		Simulation sim;
+		Simulation::TerrainTiles bad;
+		bad.res = 2;
+		bad.names = {"a"};
+		bad.tiles = {0, 0, 0};
+		sim.set_terrain_tiles(bad);
+		CHECK(sim.terrain_tiles().empty(), "set_terrain_tiles refuses a short tile array");
 	}
 
 	if (g_failures) {
