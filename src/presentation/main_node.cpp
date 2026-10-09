@@ -188,6 +188,7 @@ void RtsoMain::_bind_methods() {
 	bind_enum("BuildingType", "TEMPLE_AMUN", rtso::BLD_TEMPLE_AMUN);
 	bind_enum("BuildingType", "TEMPLE_VESTA", rtso::BLD_TEMPLE_VESTA);
 	bind_enum("BuildingType", "TEMPLE_MARS", rtso::BLD_TEMPLE_MARS);
+	bind_enum("BuildingType", "ICE_HOUSE", rtso::BLD_ICE_HOUSE);
 
 	bind_enum("Civilization", "ATHENIANS", rtso::CIV_ATHENIANS);
 	bind_enum("Civilization", "SPARTANS", rtso::CIV_SPARTANS);
