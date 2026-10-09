@@ -231,8 +231,19 @@ def civ_structure_researchers(src: Source) -> dict[str, str]:
             if bld is None:
                 continue
             for t in template_researchables(src, tpl):
-                out.setdefault(t.replace("{civ}", civ), bld)
+                for name in pair_members(src, t.replace("{civ}", civ)):
+                    out.setdefault(name, bld)
     return out
+
+
+def pair_members(src: Source, name: str) -> list[str]:
+    """A researcher lists a pair_*.json as one entry; the player picks its "top" or
+    its "bottom" technology, and researching one forbids the other."""
+    if not name.startswith("pair_"):
+        return [name]
+    data = src.read(f"simulation/data/technologies/{name}.json")
+    j = json.loads(data) if data else {}
+    return [j[k] for k in ("top", "bottom") if k in j]
 
 
 def unit_unlock_techs(src: Source) -> set[str]:
@@ -451,7 +462,10 @@ def main() -> int:
                 op, val = "TOP_SET", float(m["replace"])
             else:
                 continue
-            a_start, a_count = affects_index(m.get("affects", tech_aff))
+            aff = m.get("affects", tech_aff)
+            if stat.startswith("TSTAT_TRICKLE_") and aff in (["Player"], "Player"):
+                aff = None  # template_player.xml's ResourceTrickle: an unfiltered trickle row
+            a_start, a_count = affects_index(aff)
             if a_count < 0:
                 continue
             out.append(f"\t\t{{{stat}, {op}, {a_start}, {a_count}, {val!r}f}}, // {name}")
@@ -564,6 +578,26 @@ def main() -> int:
     w("\t};")
     w("\tif (tech_id >= TECH_COUNT) return kTable[TECH_NONE];")
     w("\treturn kTable[tech_id];")
+    w("}")
+    w("")
+    # 0 A.D. pair_*.json: each technology's "pair" partner (Researcher offers the two
+    # side by side; researching or queueing one removes the other).
+    pairs: dict[str, str] = {}
+    for name in order:
+        j = load(name) or {}
+        if "pair" not in j:
+            continue
+        pj = json.loads(src.read(f"simulation/data/technologies/{j['pair']}.json") or b"{}")
+        other = pj.get("bottom") if pj.get("top") == name else pj.get("top")
+        if other in ids:
+            pairs[name] = other
+    w("// The technology paired with `tech_id` (0 A.D. pair_*.json), or TECH_NONE.")
+    w("inline uint8_t tech_pair_partner(uint8_t tech_id) {")
+    w("\tswitch (tech_id) {")
+    for name, other in pairs.items():
+        w(f"\t\tcase {ids[name]}: return {ids[other]};")
+    w("\t\tdefault: return TECH_NONE;")
+    w("\t}")
     w("}")
     w("")
     w("#endif // RTSO_TECH_DATA_H")
