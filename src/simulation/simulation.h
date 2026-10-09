@@ -151,7 +151,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 43; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 44; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_RALLY = 44; // rally resource kind, Shift-added rally positions, flee source
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -248,6 +249,17 @@ public:
 		float rally_x, rally_z;
 		uint32_t rally_target_res_id;
 		uint32_t rally_target_bld_id;
+		// 0 A.D. RallyPoint keeps the resource type (generic + specific) of a gather
+		// target, so a trained unit gathers near the spot once the target is gone
+		// (gather-near-position). 0xFF: no resource target.
+		uint8_t rally_res_type = 0xFF, rally_res_sub = 0xFF;
+		// Shift-added positions after the first (RallyPoint.AddPosition), in order.
+		struct RallyStep {
+			float x, z;
+			uint32_t res_id, bld_id;
+			uint8_t res_type, res_sub;
+		};
+		std::vector<RallyStep> rally_more;
 
 		// Garrison
 		std::vector<uint32_t> garrisoned_units;
@@ -455,7 +467,11 @@ public:
 	// resources (Petra team 1 via petra_try_pay) so Petra docks can train.
 	bool cmd_maintain_fleet(uint32_t building_id, UnitType u_type, uint8_t team);
 	bool cmd_cancel_train(uint8_t player, uint32_t building_id, size_t queue_idx);
-	void cmd_set_rally_point(uint8_t player, uint32_t building_id, float rx, float rz, uint32_t res_id = 0, uint32_t bld_id = 0);
+	// queued (Shift) adds a position after the ones already set (RallyPoint.AddPosition).
+	void cmd_set_rally_point(uint8_t player, uint32_t building_id, float rx, float rz, uint32_t res_id = 0, uint32_t bld_id = 0,
+			bool queued = false);
+	// 0 A.D. "unset-rallypoint": the structure forgets every rally position.
+	void cmd_unset_rally_point(uint8_t player, uint32_t building_id);
 
 	// Player orders (0 A.D. Commands.js / UnitAI.js). `queued` is the Shift key: the order
 	// goes to the end of each busy unit's order queue instead of replacing its orders.
@@ -2172,6 +2188,7 @@ private:
 			const std::unordered_map<uint32_t, FieldGatherers> *busy = nullptr, uint32_t skip = 0) const;
 	uint32_t find_nearby_foundation(float x, float z, uint8_t team) const;
 	void apply_rally_point(uint32_t uid, const Building &b, bool ignore_self_garrison = false);
+	void apply_rally_step(uint32_t uid, const Building &b, const Building::RallyStep &st, bool queued, bool ignore_self_garrison);
 	void rally_after_ungarrison(uint32_t uid, uint32_t building_id);
 	void on_construction_finished(const Building &b, size_t builder);
 	void next_after_construction(size_t k, const Building &b, bool food, bool other);
