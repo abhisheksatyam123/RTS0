@@ -72,6 +72,8 @@
 //     gone target, and a save round trip.
 // 43. UnitAI FLEEING: the flight re-aims from where the attacker is now, ignores attackers
 //     farther than the one fled from, and the source survives a save.
+// 44. UnitAI REPAIRING autoharvest: a forced build turns into autoharvest at work, and only
+//     such builders farm the field or gather near the dropsite they finish.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_unit_orders.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -1684,6 +1686,32 @@ static void test_flee_source() {
 			"the one fled from survives a save");
 }
 
+
+static void test_autoharvest() {
+	std::printf("44. only the player's own builders farm the field or gather by the dropsite they finish\n");
+	Simulation s;
+	setup(s);
+	const uint32_t store = s.spawn_building_world(0, 0, BLD_STOREHOUSE, 0, 0.9f);
+	s.spawn_resource_world(10, 0, RES_WOOD, 500);
+	uint32_t mine = s.spawn_unit(-4, 0, 0, UNIT_FEMALE_CITIZEN);
+	uint32_t sent = s.spawn_unit(-4, 2, 0, UNIT_FEMALE_CITIZEN);
+	s.order_build_or_repair(&mine, 1, store);
+	s.order_build_or_repair(&sent, 1, store, false, false); // as UnitAI sends a builder over
+	const bool started = run_until(s, 10.0f, [&] { return bld(s, store)->build_progress > 0.91f; });
+	const uint8_t f = s.units_.order_flags[idx_of(s, mine)];
+	check(started && !(f & ORDER_FLAG_FORCE) && (f & ORDER_FLAG_AUTOHARVEST),
+			"at work the player's builder is no longer forced but keeps autoharvest");
+	check(!(s.units_.order_flags[idx_of(s, sent)] & ORDER_FLAG_AUTOHARVEST), "the one UnitAI sent has none");
+	// Interrupted and back to work: autoharvest stays.
+	const UnitOrder o = s.current_order((size_t)idx_of(s, mine));
+	s.apply_order(mine, o);
+	check(s.units_.order_flags[idx_of(s, mine)] & ORDER_FLAG_AUTOHARVEST, "resuming the build keeps autoharvest");
+	const bool done = run_until(s, 40.0f, [&] { return bld(s, store)->build_progress >= 1.0f; });
+	run(s, 1.0f);
+	check(done && s.unit_order(mine).kind == ORDER_GATHER, "the player's builder gathers the wood nearby");
+	check(s.unit_order(sent).kind != ORDER_GATHER, "the other one doesn't");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -1730,6 +1758,7 @@ int main(int argc, char **argv) {
 	test_next_prey();
 	test_rally_positions();
 	test_flee_source();
+	test_autoharvest();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
