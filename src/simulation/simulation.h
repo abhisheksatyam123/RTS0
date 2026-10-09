@@ -160,7 +160,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 48; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 49; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -203,6 +203,9 @@ public:
 	// players it shares vision with (VisionSharing.js, los_shared_mask) see;
 	// "Revealed map" shows everything and "Explored map" explores everything.
 	uint8_t los_shared_mask(uint8_t player) const;
+	// Player.js UpdateSharedLos: a viewer sees through its mutual allies once it has researched
+	// Cartography (unlock_shared_los); its own entities always.
+	bool shares_los(uint8_t viewer, uint8_t owner) const;
 	bool los_visible(uint8_t player, float x, float z) const;
 	bool los_explored(uint8_t player, float x, float z) const;
 	const LosGrid &los() const { return los_; }
@@ -403,7 +406,10 @@ public:
 	void unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo &info, float out[RES_COUNT]) const;
 	uint32_t spawn_resource(int cell_x, int cell_y, uint8_t type, int32_t amount = 600);
 	// max_gatherers 0: the gaia template default (resource_default_max_gatherers).
-	uint32_t spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount = 600, uint8_t subtype = 0, uint8_t max_gatherers = 0);
+	// flora: the FloraKind the supply shows (FLORA_DEFAULT: the biome's pick).
+	uint32_t spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount = 600, uint8_t subtype = 0, uint8_t max_gatherers = 0,
+			uint8_t flora = 0);
+	void set_resource_flora(uint32_t res_id, uint8_t flora);
 	// ResourceSupply/MaxGatherers of a resource (0 if there is none with that id).
 	int resource_max_gatherers(uint32_t res_id) const {
 		auto it = res_id_to_idx_.find(res_id);
@@ -423,6 +429,28 @@ public:
 	float water_height() const { return terrain_water_height_; }
 	const std::vector<float>& terrain_heights() const { return terrain_heights_; }
 	int terrain_res() const { return terrain_res_; }
+	// 0 A.D. per-tile terrain textures (CTerrain tiles, STileDesc tex1): the
+	// map's terrain names (0 A.D. ids, drawn from assets/textures/terrain/<name>.png)
+	// and one name index per tile, res x res tiles over the whole map, row-major
+	// from the -x/-z corner. res 0 = the map has none (the view paints by biome).
+	struct TerrainTiles {
+		int res = 0;
+		std::vector<std::string> names;
+		std::vector<uint8_t> tiles;
+		bool empty() const { return res <= 0 || names.empty(); }
+		uint8_t at(int tx, int tz) const { return tiles[(size_t)tz * (size_t)res + (size_t)tx]; }
+	};
+	static constexpr int MAX_TERRAIN_TILE_RES = 1024;
+	static constexpr size_t MAX_TERRAIN_NAMES = 255;
+	// Takes the tiles when they are consistent (res x res indices below the
+	// name count, res and names within the limits); otherwise clears them.
+	void set_terrain_tiles(TerrainTiles t);
+	const TerrainTiles &terrain_tiles() const { return terrain_tiles_; }
+	// Map JSON "terrain" (tools/port_0ad_maps.py extract_pmp_terrain): base64 of
+	// (run - 1, name index) byte pairs over the res x res tiles. Empty on bad data.
+	static TerrainTiles terrain_tiles_from_rle(int res, std::vector<std::string> names, const std::string &rle_base64);
+	// The terrain name index of the tile under (x, z), or -1 with no tiles.
+	int terrain_tile_at(float x, float z) const;
 	const std::string& current_map_id() const { return current_map_id_; }
 	const std::string& current_map_name() const { return current_map_name_; }
 	const std::string& current_map_biome() const { return current_map_biome_; }
@@ -895,6 +923,9 @@ public:
 	// Centre of the nearest ship-passable cell around a building's footprint, and its
 	// ship region; false when none is near (ProductionQueue.js spawns ships there).
 	bool nearest_ship_cell(const Building &b, float &out_x, float &out_z, uint16_t *out_sea = nullptr) const;
+	// 0 A.D. Footprint.PickSpawnPoint: a free spot for a unit of `type` in rows around the
+	// footprint, the front (or the side facing the rally point) first; skip_uid is ignored.
+	bool pick_spawn_point(const Building &b, uint8_t type, uint32_t skip_uid, float &out_x, float &out_z) const;
 	void order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id,
 			bool queued = false);
 	void order_trade_auto(const uint32_t *unit_ids, size_t count); // farthest pair of tradable markets
@@ -994,6 +1025,7 @@ public:
 		const float *x, *z;
 		const int32_t *amount;
 		const uint8_t *type, *subtype, *alive;
+		const uint8_t *flora; // FloraKind
 		const uint32_t *id;
 		size_t count;
 	};
@@ -1486,6 +1518,8 @@ private:
 		float idle_regen[UNIT_TYPE_COUNT];  // Health.js IdleRegenRate, added while idle
 		float range_mul[UNIT_TYPE_COUNT];   // Attack/Ranged/MaxRange multiplier (range adds after it)
 		float vision[UNIT_TYPE_COUNT];      // Vision/Range multiplier
+		float vision_add[UNIT_TYPE_COUNT];  // ... then added metres (Healing Range)
+		float spread[UNIT_TYPE_COUNT];      // Attack/Ranged/Projectile/Spread multiplier
 		float capture[UNIT_TYPE_COUNT];     // Attack/Capture/Capture multiplier
 		float required_xp[UNIT_TYPE_COUNT]; // Promotion/RequiredXp multiplier
 		float bld_health[BLD_TYPE_COUNT];
@@ -1504,6 +1538,10 @@ private:
 		float bld_international_add[BLD_TYPE_COUNT]; // ... added before it (Commercial Treaty)
 		float bld_territory[BLD_TYPE_COUNT];       // TerritoryInfluence/Radius multiplier
 		float bld_tech_cost[BLD_TYPE_COUNT][RES_COUNT]; // Researcher/TechCostMultiplier of what it researches
+		float bld_vision[BLD_TYPE_COUNT];          // Vision/Range multiplier (Carrier Pigeons)
+		float bld_vision_add[BLD_TYPE_COUNT];      // ... then added metres (Arrow Shooters)
+		float bld_garrison_arrows[BLD_TYPE_COUNT]; // BuildingAI/GarrisonArrowMultiplier multiplier (Crenellations)
+		float bld_min_range[BLD_TYPE_COUNT];       // Attack/Ranged/MinRange replaced (Murder Holes), < 0 unchanged
 		// Player-wide modifiers from global relic auras.
 		float loot_add[RES_COUNT];    // Looter/Resource/<res> added to every kill's loot
 		float trickle_add[RES_COUNT]; // ResourceTrickle/Rates/<res> of the player, per second
@@ -1514,7 +1552,7 @@ private:
 		struct Template {
 			float gather[GK_COUNT];
 			float attack, health, speed, range, train_time;
-			float range_mul, vision, capture, required_xp;
+			float range_mul, vision, vision_add, spread, capture, required_xp;
 			float armor[3];
 			float cost[RES_COUNT];
 		} tmpl[CIV_UNIT_TEMPLATE_COUNT];
@@ -1531,7 +1569,7 @@ private:
 	void apply_tech_mods_to_unit(size_t idx);
 	const TechMods &tech_mods(uint8_t player_id) const { return tech_mods_[player_id < MAX_PLAYERS ? player_id : 0]; }
 	// A unit's technology multipliers: its roster template's when it has one, else its unit_type's.
-	struct UnitTechMods { float attack, health, speed, range, train_time, range_mul, vision, capture, required_xp; const float *armor, *gather; };
+	struct UnitTechMods { float attack, health, speed, range, train_time, range_mul, vision, vision_add, spread, capture, required_xp; const float *armor, *gather; };
 	static UnitTechMods unit_tech_mods(const TechMods &m, uint8_t unit_type, uint16_t tmpl);
 	UnitTechMods unit_tech_mods(uint8_t player_id, uint8_t unit_type, uint16_t tmpl) const {
 		return unit_tech_mods(tech_mods(player_id), unit_type, tmpl);
@@ -1826,6 +1864,7 @@ private:
 		uint8_t pid, btype;
 	};
 	std::vector<PetraPlaceMiss> petra_place_misses_;
+	bool petra_place_no_room_ = false; // last petra_place_building found no spot (read at once, not saved)
 	uint64_t petra_placement_signature(uint8_t btype, int start_cx, int start_cz, int max_r) const;
 
 	uint32_t next_id_ = 1;
@@ -2070,6 +2109,14 @@ private:
 	bool petra_can_fish_safely(float x, float z, uint16_t sea) const;
 	void petra_manage_buildings(float dt);
 	void petra_manage_research(float dt);
+	// researchManager.js: the techs Petra could research now at a structure it owns
+	// (gamestate.js findAvailableTech, phases left out), and one research start.
+	void petra_available_techs(std::vector<uint8_t> &out) const;
+	int petra_accounted_workers() const;
+	bool petra_phasing() const;
+	bool petra_start_research(uint8_t tech_id);
+	void petra_research_population_bonus();
+	void petra_research_trade_bonus();
 	void petra_manage_military_production(float dt);
 	void petra_manage_tactical_attacks(float dt);
 	void petra_retake_civic_centres(); // defenseManager.js OwnershipChanged -> switchDefenseToAttack
@@ -2297,6 +2344,7 @@ private:
 	void apply_rally_step(uint32_t uid, const Building &b, const Building::RallyStep &st, bool queued, bool ignore_self_garrison);
 	void rally_after_ungarrison(uint32_t uid, uint32_t building_id);
 	void on_construction_finished(const Building &b, size_t builder);
+	void enter_repairing(size_t i);
 	void next_after_construction(size_t k, const Building &b, bool food, bool other);
 	void destroy_building(Building &b);
 	bool can_capture_building(uint8_t player, const Building &b) const;
@@ -2321,6 +2369,7 @@ private:
 	float map_half_ = 64.0f;
 	int terrain_res_ = 64;
 	std::vector<float> terrain_heights_;
+	TerrainTiles terrain_tiles_; // saved v49, after the heightmap
 	float terrain_water_height_ = -1.0f;
 	std::string current_map_id_ = "default";
 	std::string current_map_name_ = "Standard Arena";
