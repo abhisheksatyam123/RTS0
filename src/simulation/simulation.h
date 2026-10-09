@@ -494,6 +494,7 @@ public:
 	// Ships as GarrisonHolders (template_unit_ship*.xml): capacity and List per
 	// template, LoadingRange 10 m, Pickup, EjectClassesOnDestroy. `i` is a SoA index.
 	int ship_garrison_capacity(size_t i) const;
+	static int ship_template_capacity(uint8_t unit_type, uint16_t tmpl);
 	bool ship_garrison_allowed(size_t ship, uint8_t unit_type) const;
 	float ship_loading_reach(size_t ship, size_t unit) const;
 	bool ship_unload_point(size_t ship, float &out_x, float &out_z) const;
@@ -1605,6 +1606,36 @@ private:
 	void petra_manage_economy(float dt);
 	void petra_manage_trading(float dt);
 	void petra_manage_naval(float dt);
+	// navalManager.js: lands, seas and the seas between them (accessibility.js).
+	struct PetraNavalTopo {
+		float cell_m2 = 0.0f;
+		uint32_t total = 0;                         // nav cells on the map
+		std::vector<uint32_t> land_size, sea_size;  // cells per region id
+		std::vector<uint32_t> links;                // land << 16 | sea, sorted (regionLinks)
+		bool naval_map = false;                     // headquarters.js navalMap
+		std::vector<bool> naval;                    // navalRegions, by sea id
+		bool linked(uint16_t land, uint16_t sea) const {
+			return std::binary_search(links.begin(), links.end(), ((uint32_t)land << 16) | sea);
+		}
+		uint16_t sea_between(uint16_t a, uint16_t b) const;
+		void classify(uint16_t home_land);
+	};
+	void petra_naval_topology(PetraNavalTopo &t) const;
+	const PetraNavalTopo &petra_topo() const;
+	mutable PetraNavalTopo petra_topo_cache_; // derived from nav_grid_.cells, not saved
+	mutable uint64_t petra_topo_cache_key_ = 0;
+	mutable bool petra_topo_cache_valid_ = false;
+	uint16_t petra_land_at(float x, float z) const;
+	uint16_t petra_building_land(const Building &b, const PetraNavalTopo *topo = nullptr, uint16_t prefer = 0) const;
+	uint16_t petra_home_land(float x, float z, const PetraNavalTopo *topo = nullptr) const;
+	uint16_t petra_overseas(const PetraNavalTopo &t, float from_x, float from_z, uint32_t target_id) const;
+	uint16_t petra_plan_overseas(float base_x, float base_z, uint32_t target_id) const;
+	bool petra_aboard(uint32_t uid) const;
+	bool petra_is_transport_ship(size_t unit_idx) const;
+	uint16_t petra_ship_sea(size_t unit_idx) const;
+	int petra_transport_ships_on(uint16_t sea) const;
+	uint16_t petra_best_ship(bool fishing) const;
+	bool petra_can_fish_safely(float x, float z, uint16_t sea) const;
 	void petra_manage_buildings(float dt);
 	void petra_manage_research(float dt);
 	void petra_manage_military_production(float dt);
@@ -1669,7 +1700,7 @@ private:
 	int petra_player_entities(uint8_t player) const;
 	bool petra_path_crosses_water(float x0, float z0, float x1, float z1) const;
 	bool petra_find_beach(float land_x, float land_z, float toward_x, float toward_z, float &out_x, float &out_z) const;
-	bool petra_start_transport(const std::vector<uint32_t> &unit_ids, float from_x, float from_z, float to_x, float to_z);
+	bool petra_start_transport(const std::vector<uint32_t> &unit_ids, float from_x, float from_z, float to_x, float to_z, uint16_t sea = 0);
 	uint32_t petra_place_building(uint8_t btype, float near_x, float near_z, int min_r, int max_r, uint8_t queue);
 
 	bool bulk_spawn_ = false;
