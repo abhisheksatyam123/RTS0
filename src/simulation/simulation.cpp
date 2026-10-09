@@ -12131,7 +12131,7 @@ void Simulation::petra_manage_military_production(float dt) {
 	// trainMoreWorkers does); else the village phase never reaches popPhase2.
 	if (!rush_wants && !raid_wants) {
 		const float staffed = (phase == 1) ? 0.8f : 0.5f;
-		if ((float)petra_accounted_workers() < staffed * (float)petra_config_.target_num_workers) return;
+		if ((float)petra_accounted_workers() < staffed * (float)petra_target_workers()) return;
 	}
 
 	int enemy_infantry = 0;
@@ -12392,7 +12392,7 @@ int Simulation::petra_train_more_workers() {
 		}
 	}
 	const int total = workers + queued_supports + queued_soldiers;
-	const int target = petra_config_.target_num_workers;
+	const int target = petra_target_workers();
 	const int shortfall = std::max(0, target - total);
 	if (total > target) return 0;
 	const bool researching_town = research_check(petra_pid_, TECH_PHASE_TOWN) == TECH_ERR_IN_PROGRESS;
@@ -12761,10 +12761,11 @@ void Simulation::petra_staff_foundations() {
 // What Petra wants in stock for its next plans (phase, techs, attack, houses):
 // petra_manage_economy splits its workers by the shortfall against it.
 void Simulation::petra_resource_demand(float out[RES_COUNT]) const {
-	float demand_food = 300.0f;
-	float demand_wood = 400.0f;
-	float demand_gold = 250.0f;
-	float demand_stone = (petra_ps().phase >= 2) ? 200.0f : 50.0f;
+	// config.js queues.short: what wantedGatherRates asks for with every queue empty.
+	float demand_food = 200.0f;
+	float demand_wood = 200.0f;
+	float demand_gold = 100.0f;
+	float demand_stone = (petra_ps().phase >= 2) ? 100.0f : 50.0f;
 
 	// Tech & Phase Priorities: the phase is the majorTech plan once checkPhase wants it.
 	if (!petra_phasing()) {
@@ -12788,21 +12789,6 @@ void Simulation::petra_resource_demand(float out[RES_COUNT]) const {
 		if (q == PETRA_QUEUE_VILLAGER || (q == PETRA_QUEUE_TECH && petra_phasing())) continue;
 		const PetraQueueAccount &w = petra_queues_.wants[q];
 		demand_food += w.food; demand_wood += w.wood; demand_gold += w.gold; demand_stone += w.stone;
-	}
-
-	// Military & Siege Priorities:
-	if (petra_attack_plan_.type == AttackPlan::PLAN_SIEGE) {
-		// Heavy siege requires wood, gold, and stone
-		demand_wood += 350.0f;
-		demand_gold += 250.0f;
-		demand_stone += 200.0f;
-	} else if (petra_attack_plan_.type == AttackPlan::PLAN_RAID) {
-		demand_food += 250.0f;
-		demand_gold += 200.0f;
-	} else {
-		demand_food += 200.0f;
-		demand_wood += 200.0f;
-		demand_gold += 150.0f;
 	}
 
 	// Housing and Building Needs:
@@ -12830,7 +12816,12 @@ void Simulation::petra_manage_economy(float dt) {
 	const int worker_shortfall = petra_train_more_workers();
 
 	// 2. Count workers currently on each resource
-	int workers_food = 0, workers_wood = 0, workers_gold = 0, workers_stone = 0;
+	// Gatherers per resource weighted by their rate (pickMostNeededResources compares
+	// gather rates): a citizen soldier farms at half a woman's rate, so it counts as half.
+	float workers_food = 0, workers_wood = 0, workers_gold = 0, workers_stone = 0;
+	auto food_weight = [&](size_t i) {
+		return unit_gather_class(units_.unit_type[i], units_.tmpl[i]) == GATHER_INFANTRY ? 0.5f : 1.0f;
+	};
 	std::vector<size_t> reassignable_workers;
 
 	// worker.js: citizen soldiers gather too (most of 0 A.D. Petra's workforce, Economy.supportRatio
@@ -12876,7 +12867,7 @@ void Simulation::petra_manage_economy(float dt) {
 				auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
 				if (rit != res_id_to_idx_.end()) {
 					uint8_t rtype = resources_.type[rit->second];
-					if (rtype == RES_FOOD) workers_food++;
+					if (rtype == RES_FOOD) workers_food += food_weight(i);
 					else if (rtype == RES_WOOD) workers_wood++;
 					else if (rtype == RES_GOLD) workers_gold++;
 					else if (rtype == RES_STONE) workers_stone++;
@@ -12895,11 +12886,11 @@ void Simulation::petra_manage_economy(float dt) {
 	// queueManager.js wantedGatherRates counts the queued plans: the worker queue keeps a batch
 	// of up to 5 (trainMoreWorkers) waiting to be paid while workers are short; a citizen-soldier
 	// batch also needs wood (or gold), so the batch the queue waits on is counted as it costs.
-	if (worker_shortfall > 0) {
+	{
 		const PetraQueueAccount &want = petra_queues_.wants[PETRA_QUEUE_VILLAGER];
 		if (want.food + want.wood + want.gold + want.stone > 0.0f) {
 			demand_food += want.food; demand_wood += want.wood; demand_gold += want.gold; demand_stone += want.stone;
-		} else {
+		} else if (worker_shortfall > 0) {
 			demand_food += 50.0f * (float)std::min(5, worker_shortfall);
 		}
 	}
@@ -12916,18 +12907,18 @@ void Simulation::petra_manage_economy(float dt) {
 	float pct_gold  = need_gold / total_need;
 	float pct_stone = need_stone / total_need;
 
-	int total_workers = std::max(1, workers_food + workers_wood + workers_gold + workers_stone + (int)reassignable_workers.size());
-	int target_food  = std::max(1, (int)std::round(pct_food * total_workers));
-	int target_wood  = std::max(1, (int)std::round(pct_wood * total_workers));
-	int target_gold  = std::max(1, (int)std::round(pct_gold * total_workers));
-	int target_stone = std::max(0, (int)std::round(pct_stone * total_workers));
+	const float total_workers = std::max(1.0f, workers_food + workers_wood + workers_gold + workers_stone + (float)reassignable_workers.size());
+	const float target_food  = std::max(1.0f, std::round(pct_food * total_workers));
+	const float target_wood  = std::max(1.0f, std::round(pct_wood * total_workers));
+	const float target_gold  = std::max(1.0f, std::round(pct_gold * total_workers));
+	const float target_stone = std::max(0.0f, std::round(pct_stone * total_workers));
 
 	// baseManager.js setWorkersIdleByPriority (every 8 s, one switch at a time): a gatherer moves
 	// from the resource least in need to the one most in need when the gap is wide enough;
 	// citizen soldiers leave food first and support workers (Civilian) go to food first.
 	if ((ticks_ / (uint64_t)std::lround(1.0f / FIXED_STEP)) % 8 == 0) {
-		const int cur[RES_COUNT] = {workers_wood, workers_gold, workers_stone, workers_food};
-		const int want[RES_COUNT] = {target_wood, target_gold, target_stone, target_food};
+		const float cur[RES_COUNT] = {workers_wood, workers_gold, workers_stone, workers_food};
+		const float want[RES_COUNT] = {target_wood, target_gold, target_stone, target_food};
 		int more = -1, less = -1;
 		for (int r = 0; r < RES_COUNT; ++r) {
 			if (more < 0 || want[r] - cur[r] > want[more] - cur[more]) more = r;
@@ -12949,7 +12940,7 @@ void Simulation::petra_manage_economy(float dt) {
 				uint32_t uid = units_.id[pick];
 				cmd_stop(&uid, 1);
 				reassignable_workers.push_back(pick);
-				if (less == RES_FOOD) workers_food--;
+				if (less == RES_FOOD) workers_food -= food_weight(pick);
 				else if (less == RES_WOOD) workers_wood--;
 				else if (less == RES_GOLD) workers_gold--;
 				else workers_stone--;
@@ -13021,7 +13012,7 @@ void Simulation::petra_manage_economy(float dt) {
 	// Assign reassignable workers to nearest safe dropsite and resource
 	for (size_t widx : reassignable_workers) {
 		uint8_t chosen_res_type = RES_FOOD;
-		int max_deficit = target_food - workers_food;
+		float max_deficit = target_food - workers_food;
 
 		if (target_wood - workers_wood > max_deficit) {
 			max_deficit = target_wood - workers_wood;
@@ -13046,7 +13037,7 @@ void Simulation::petra_manage_economy(float dt) {
 		// gatherer hunts next (livestock and carcasses near a dropsite).
 		if (petra_gather_treasure(widx, hunt_scan)) continue;
 		if (chosen_res_type == RES_FOOD && petra_start_hunting(widx, hunt_scan)) {
-			workers_food++;
+			workers_food += 1.0f; // hunting: meat at the same rate for all
 			continue;
 		}
 
@@ -13057,7 +13048,7 @@ void Simulation::petra_manage_economy(float dt) {
 		// Fall back to the other resource types, neediest first, when the
 		// chosen one has nothing safe left (a depleted map left workers idle).
 		uint8_t order[4] = {chosen_res_type, RES_WOOD, RES_FOOD, RES_GOLD};
-		int deficits[RES_COUNT] = {};
+		float deficits[RES_COUNT] = {};
 		deficits[RES_FOOD] = target_food - workers_food;
 		deficits[RES_WOOD] = target_wood - workers_wood;
 		deficits[RES_GOLD] = target_gold - workers_gold;
@@ -13094,7 +13085,7 @@ void Simulation::petra_manage_economy(float dt) {
 		if (best_rid != 0) {
 			uint32_t uid = units_.id[widx];
 			order_gather(&uid, 1, best_rid);
-			if (got_type == RES_FOOD) workers_food++;
+			if (got_type == RES_FOOD) workers_food += food_weight(widx);
 			else if (got_type == RES_WOOD) workers_wood++;
 			else if (got_type == RES_GOLD) workers_gold++;
 			else if (got_type == RES_STONE) workers_stone++;
@@ -13102,7 +13093,7 @@ void Simulation::petra_manage_economy(float dt) {
 	}
 
 	petra_manage_hunters(hunt_scan);
-	petra_manage_fields(target_food);
+	petra_manage_fields((int)target_food);
 }
 
 // 0 A.D. distances are metres squared; one RTS0 unit is 4 m, so they divide by 16.
@@ -14826,12 +14817,33 @@ int Simulation::petra_accounted_workers() const {
 	return workers;
 }
 
+// config.js setConfig: Economy.targetNumWorkers and workPhase3 from the game's population
+// limit (maxPop): a third of it up to 120 from Medium up, half up to 60 on Easy, all of it
+// up to 40 below; workPhase3 is 65 scaled by popScaling (times sqrt(maxPop/300) under 300),
+// at least 40 and at most two thirds of maxPop and the worker target.
+int Simulation::petra_target_workers() const {
+	const int max_pop = pop_cap() > 0 ? pop_cap() : 300;
+	const uint8_t d = petra_config_.difficulty;
+	int target = d < PETRA_EASY ? std::min(40, max_pop) : d < PETRA_MEDIUM ? std::min(60, max_pop / 2)
+	                                                                        : std::min(120, max_pop / 3);
+	return std::max({1, target, petra_config_.pop_phase2});
+}
+
+int Simulation::petra_work_phase3() const {
+	if (petra_config_.difficulty == PETRA_SANDBOX) return 999; // config.js: sandbox never cities
+	const int max_pop = pop_cap() > 0 ? pop_cap() : 300;
+	float scaling = petra_config_.pop_scaling;
+	if (max_pop < 300) scaling *= std::sqrt((float)max_pop / 300.0f);
+	const int work = std::min(std::max((int)(65.0f * scaling), 40), max_pop * 2 / 3);
+	return std::min(work, petra_target_workers());
+}
+
 // researchManager.js:15 checkPhase: Town at pop >= Economy.popPhase2, City when
 // workers > Economy.workPhase3. While it holds, the phase is the majorTech plan.
 bool Simulation::petra_phasing() const {
 	const uint8_t phase = petra_ps().phase;
 	if (phase == 1) return pop_current(petra_pid_) >= petra_config_.pop_phase2;
-	if (phase == 2) return petra_accounted_workers() > petra_config_.work_phase3;
+	if (phase == 2) return petra_accounted_workers() > petra_work_phase3();
 	return false;
 }
 

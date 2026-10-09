@@ -1477,7 +1477,7 @@ static void test_worker_mix() {
 	            supports, soldiers, start_soldiers, gathering, max_houses);
 	CHECK(soldiers + (int)s->petra_defense_army_.defender_ids.size() >= 5, "trains citizen infantry as workers");
 	CHECK(gathering * 2 >= soldiers, "most worker soldiers gather");
-	const float support_max = 0.5f * (float)s->petra_config_.target_num_workers; // supportRatio is 0.35-0.5 by difficulty
+	const float support_max = 0.5f * (float)s->petra_target_workers(); // supportRatio is 0.35-0.5 by difficulty
 	CHECK(supports > 10 && (float)supports <= support_max + 5.0f, "support units follow supportRatio");
 	CHECK(max_houses >= 1 && max_houses <= 3, "houses go up a few at a time");
 }
