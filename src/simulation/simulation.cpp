@@ -7809,6 +7809,10 @@ float Simulation::healer_range_of(size_t h) const {
 float Simulation::heal_amount_of(size_t h) const {
 	float hp = HEAL_HP;
 	for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[h], 3); ++r) hp += rank_bonus(r).heal_add;
+	// Heal/Health auras (Hippocrates' Hippocratic Oath: allied healers +1).
+	if (aura_mgr_.has(AURA_HEAL_AMOUNT))
+		hp += aura_mgr_.query_modifier(units_.pos_x[h], units_.pos_z[h], units_.team[h], AURA_HEAL_AMOUNT,
+			units_.tmpl[h], &unit_combat_at(h).classes);
 	return hp;
 }
 
