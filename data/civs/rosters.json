@@ -932,7 +932,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
-   "unlock_tech": "TECH_NONE",
+   "unlock_tech": "TECH_IPHICRATEAN_REFORMS",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -1314,7 +1314,7 @@
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY"
    ],
-   "unlock_tech": "TECH_NONE",
+   "unlock_tech": "TECH_IPHICRATEAN_REFORMS",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -2652,7 +2652,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
-   "unlock_tech": "TECH_NONE",
+   "unlock_tech": "TECH_UNLOCK_NEODAMODES",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -4943,7 +4943,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
-   "unlock_tech": "TECH_NONE",
+   "unlock_tech": "TECH_ROMAN_REFORMS",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -5220,7 +5220,7 @@
    "flags": [
     "ROSTER_CITIZEN"
    ],
-   "unlock_tech": "TECH_NONE",
+   "unlock_tech": "TECH_ROMAN_REFORMS",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -5827,7 +5827,7 @@
     "ROSTER_RANGED",
     "ROSTER_PACKABLE"
    ],
-   "unlock_tech": "TECH_NONE",
+   "unlock_tech": "TECH_ROMAN_REFORMS",
    "auras": [],
    "civ_bonuses": [
     "rome_siege"

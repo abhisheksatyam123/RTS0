@@ -1021,12 +1021,26 @@ private:
 		float bld_arrow_mul[BLD_TYPE_COUNT];
 		float bld_arrow_add[BLD_TYPE_COUNT];
 		float bld_garrison_heal[BLD_TYPE_COUNT]; // added hp per second for garrisoned units
+		// The same unit multipliers per civ roster template, matched against the
+		// template's own 0 A.D. classes (Champion Infantry Spearman, Javelineer, ...),
+		// which its RTS0 unit_type only approximates.
+		struct Template {
+			float gather[GK_COUNT];
+			float attack, health, speed, range, train_time;
+			float armor[3];
+		} tmpl[CIV_UNIT_TEMPLATE_COUNT];
 	};
 	void compute_tech_mods(uint8_t player_id, TechMods &out) const;
 	void rebuild_all_tech_mods();
 	void complete_research(uint8_t player_id, uint8_t tech_id);
 	void apply_tech_mods_to_unit(size_t idx);
 	const TechMods &tech_mods(uint8_t player_id) const { return tech_mods_[player_id < MAX_PLAYERS ? player_id : 0]; }
+	// A unit's technology multipliers: its roster template's when it has one, else its unit_type's.
+	struct UnitTechMods { float attack, health, speed, range, train_time; const float *armor, *gather; };
+	static UnitTechMods unit_tech_mods(const TechMods &m, uint8_t unit_type, uint16_t tmpl);
+	UnitTechMods unit_tech_mods(uint8_t player_id, uint8_t unit_type, uint16_t tmpl) const {
+		return unit_tech_mods(tech_mods(player_id), unit_type, tmpl);
+	}
 	int32_t carry_cap(size_t unit_idx, uint8_t res) const;
 	uint32_t find_free_field(uint8_t team, float x, float z);
 	void tick_combat(float dt);
@@ -1413,6 +1427,18 @@ private:
 	void petra_refresh_queue_accounts(float dt);
 	void petra_staff_foundations();
 	void petra_manage_fields(int target_food);
+	// worker.js startHunting: food dropsites and each supply's gatherers, gathered once per pass.
+	struct PetraHuntScan {
+		std::vector<std::pair<float, float>> food_drops;
+		std::unordered_map<uint32_t, int> on_animal;  // live animal id -> units hunting it
+		std::unordered_map<uint32_t, int> on_carcass; // meat resource id -> units gathering it
+		std::vector<uint32_t> treasures_taken;        // treasures one of ours is already on its way to
+	};
+	PetraHuntScan petra_hunt_scan() const;
+	uint32_t petra_find_hunt(size_t u, float px, float pz, const PetraHuntScan &scan, bool &live) const;
+	bool petra_start_hunting(size_t u, PetraHuntScan &scan);
+	bool petra_gather_treasure(size_t u, PetraHuntScan &scan); // entityExtend.js gatherTreasure
+	void petra_manage_hunters(PetraHuntScan &scan);
 	int petra_villager_target() const;
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);

@@ -508,6 +508,26 @@ def tech_enums():
     return _TECH_ENUMS
 
 
+_TECH_CLASSES = None
+# Newer 0 A.D. templates call older technologies' "Civilian" class "Support".
+TECH_CLASS_ALIASES = {"Support": "Civilian"}
+
+
+def tech_class_bits(classes):
+    """0 A.D. classes as a sim_types.h TechClass mask (bits from tech_data.h)."""
+    global _TECH_CLASSES
+    if _TECH_CLASSES is None:
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "simulation", "tech_data.h")
+        with open(path, encoding="utf-8") as f:
+            _TECH_CLASSES = {m.group(1): int(m.group(2))
+                             for m in re.finditer(r"^\tTC_([A-Z0-9]+) = 1ull << (\d+),", f.read(), re.M)}
+    bits = 0
+    for c in list(classes) + [TECH_CLASS_ALIASES[c] for c in classes if c in TECH_CLASS_ALIASES]:
+        if c.upper() in _TECH_CLASSES:
+            bits |= 1 << _TECH_CLASSES[c.upper()]
+    return bits
+
+
 def unlock_tech_of(t):
     """The non-phase technology 0 A.D.'s Identity/Requirements names (e.g.
     unlock_champion_infantry), as an RTS0 enum, or TECH_NONE."""
@@ -990,7 +1010,8 @@ def emit_header(rows, auras, civ_json, bonuses, team):
     w("\tstatic const CivUnitTemplate kTable[CIV_UNIT_TEMPLATE_COUNT] = {")
     w("\t\t// id, name, specific name, civ, class, phase, flags, trainers,")
     w("\t\t// hp, speed, range, damage, cooldown, hack/pierce/crush dmg, hack/pierce/crush armour,")
-    w("\t\t// food, wood, gold, stone, pop, train_time, carry, aura slots (-1 = none), unlock tech")
+    w("\t\t// food, wood, gold, stone, pop, train_time, carry, aura slots (-1 = none), unlock tech,")
+    w("\t\t// TechClass mask of the template's 0 A.D. classes")
     for r in rows:
         s = r["stats"]
         flags = " | ".join(r["flags"]) or "0"
@@ -1001,12 +1022,12 @@ def emit_header(rows, auras, civ_json, bonuses, team):
         w("\t\t{%s, %s, %s, %s, %s, %d, %s, %s," % (
             cstr(r["id"]), cstr(r["name"]), cstr(r["specific_name"]),
             CIV_ENUM[CIVS.index(r["civ"])], r["class"], r["phase"], flags, trainers))
-        w("\t\t %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %d, %d, %d, %d, %d, %s, %d, %d, %d, %d, %s}," % (
+        w("\t\t %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %d, %d, %d, %d, %d, %s, %d, %d, %d, %d, %s, 0x%xull}," % (
             f(s["hp"]), f(s["speed"]), f(s["range"]), f(s["damage"]), f(s["cooldown"]),
             f(s["hack_dmg"]), f(s["pierce_dmg"]), f(s["crush_dmg"]),
             f(s["hack_armor"]), f(s["pierce_armor"]), f(s["crush_armor"]),
             s["food"], s["wood"], s["gold"], s["stone"], s["pop"], f(s["train_time"]),
-            s["carry"], a[0], a[1], a[2], r.get("unlock_tech", "TECH_NONE")))
+            s["carry"], a[0], a[1], a[2], r.get("unlock_tech", "TECH_NONE"), tech_class_bits(r["classes"])))
     w("\t};")
     w("\treturn kTable;")
     w("}")

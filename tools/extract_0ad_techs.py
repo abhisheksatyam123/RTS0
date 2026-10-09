@@ -7,9 +7,16 @@ simulation/templates/template_structure_*.xml for which structure researches
 it. Only technologies researched at one of RTS0's generic building types are
 kept. Modifications RTS0's simulation can apply become TechEffect rows; the
 others are dropped (the tech stays researchable for whatever effects remain).
+Civ-only technologies of the civs' own structures (structures/<civ>/*.xml, e.g.
+the Spartan Gerousia's Agoge) are appended after those, at RTS0's civ-specific
+building types (ids 26-45) or the generic type the civ's variant inherits from.
+Technologies with no effect RTS0 can apply are kept only when they unlock a unit.
 
 Usage:
-    python3 tools/extract_0ad_techs.py --public PATH [--out src/simulation/tech_data.h]
+    python3 tools/extract_0ad_techs.py --public PATH [--out src/simulation/tech_data.h] [--append]
+
+--append keeps every technology already in --out (ids and rows unchanged, even if
+PATH is a different 0 A.D. version) and adds only the civ-only ones it lacks.
 
 PATH is either 0 A.D.'s public.zip or a directory it was unzipped into.
 The 0 A.D. data is CC BY-SA 3.0, (C) Wildfire Games; see docs/0AD_ATTRIBUTION.md.
@@ -72,7 +79,30 @@ CLASSES = [
     "SentryTower", "StoneTower", "Fortress", "Wall", "Temple", "Wonder", "Dock", "Market",
     "Storehouse", "Farmstead", "Field", "Corral", "Forge", "Arsenal", "Outpost", "Civic",
     "Defensive", "Village", "Town", "City", "Domestic",
+    # Appended for civ-only technologies (bits 57..62).
+    "Javelineer", "Immortal", "Crossbowman", "Mercenary", "SiegeTower", "Minister",
 ]
+assert len(CLASSES) <= 64, "TechClass is a uint64_t mask"
+
+# Civ-only technologies left out on purpose.
+CIV_TECH_SKIP = {
+    "unlock_females_house",  # newer 0 A.D. name of unlock_civilians_house_generic (id 77)
+    "equine_transports",     # cavalry trained aboard triremes; RTS0 ships train nothing
+}
+
+# RTS0 civ-specific BuildingType -> 0 A.D. structures/<civ>/<stem>.xml stems
+# (sim_types.h ids 26-45, see tools/extract_0ad_rosters.py UNIQUE_BUILDINGS).
+CIV_STRUCTURES = {
+    "gymnasium": "BLD_GYMNASIUM", "prytaneion": "BLD_PRYTANEION",
+    "gerousia": "BLD_GEROUSIA", "syssiton": "BLD_SYSSITON", "tachara": "BLD_TACHARA",
+    "army_camp": "BLD_ARMY_CAMP", "amphitheater_pompeii": "BLD_AMPHITHEATER",
+    "library": "BLD_LIBRARY", "kennel": "BLD_KENNEL", "assembly": "BLD_ASSEMBLY",
+    "monument": "BLD_MONUMENT", "palace": "BLD_PALACE", "pillar_ashoka": "BLD_PILLAR",
+    "pyramid_large": "BLD_PYRAMID_LARGE", "pyramid_small": "BLD_PYRAMID_SMALL",
+    "mercenary_camp": "BLD_MERCENARY_CAMP", "lighthouse": "BLD_LIGHTHOUSE",
+    "military_colony": "BLD_MILITARY_COLONY", "academy": "BLD_ACADEMY",
+    "ministry": "BLD_MINISTRY",
+}
 
 GATHER_KINDS = {"food.grain": "GATHER_GRAIN", "food.fruit": "GATHER_FRUIT",
                 "food.meat": "GATHER_MEAT", "food.fish": "GATHER_FISH",
@@ -153,6 +183,59 @@ def template_researchables(src: Source, name: str) -> list[str]:
     return techs
 
 
+def template_parents(src: Source, name: str) -> list[str]:
+    """`name` and every template it inherits from, nearest first."""
+    data = src.read(f"simulation/templates/{name}.xml")
+    if data is None:
+        return []
+    out = [name]
+    for parent in (ET.fromstring(data).get("parent") or "").split("|"):
+        if parent:
+            out += template_parents(src, parent)
+    return out
+
+
+def civ_structure_researchers(src: Source) -> dict[str, str]:
+    """Civ-only technologies researched at structures/<civ>/*.xml, by the RTS0
+    BuildingType of that structure (a civ-specific one, or the generic one the
+    civ's variant inherits from)."""
+    generic = {tpl: bld for bld, tpl in BUILDINGS}
+    out: dict[str, str] = {}
+    for civ in CIVS:
+        prefix = f"simulation/templates/structures/{civ}/"
+        if src.zip:
+            names = sorted(n[len(prefix):-4] for n in src.zip.namelist()
+                           if n.startswith(prefix) and n.endswith(".xml"))
+        else:
+            d = os.path.join(src.root, prefix)
+            names = sorted(f[:-4] for f in os.listdir(d) if f.endswith(".xml")) if os.path.isdir(d) else []
+        for stem in names:
+            tpl = f"structures/{civ}/{stem}"
+            bld = next((b for k, b in CIV_STRUCTURES.items() if stem == k or stem.startswith(k + "_")), None)
+            if bld is None:
+                bld = next((generic[p] for p in template_parents(src, tpl) if p in generic), None)
+            if bld is None:
+                continue
+            for t in template_researchables(src, tpl):
+                out.setdefault(t.replace("{civ}", civ), bld)
+    return out
+
+
+def unit_unlock_techs(src: Source) -> set[str]:
+    """Technologies named by a unit's Identity/Requirements/Techs (they unlock it)."""
+    out: set[str] = set()
+    pat = re.compile(rb"<Requirements>\s*<Techs[^>]*>([^<]*)</Techs>")
+    if src.zip:
+        names = [n for n in src.zip.namelist() if n.startswith("simulation/templates/units/") and n.endswith(".xml")]
+    else:
+        base = os.path.join(src.root, "simulation/templates/units")
+        names = [os.path.relpath(os.path.join(r, f), src.root) for r, _, fs in os.walk(base) for f in fs if f.endswith(".xml")]
+    for n in names:
+        for m in pat.finditer(src.read(n) or b""):
+            out.update(m.group(1).decode().split())
+    return out
+
+
 def civ_mask(req) -> int:
     """Civs (bitmask over CIVS) for which a requirements tree can hold."""
     full = (1 << len(CIVS)) - 1
@@ -200,6 +283,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--public", required=True, help="0 A.D. public.zip or unzipped public mod dir")
     ap.add_argument("--out", default=os.path.join(os.path.dirname(__file__), "..", "src", "simulation", "tech_data.h"))
+    ap.add_argument("--append", action="store_true",
+                    help="keep --out's existing technologies (ids, rows) and append only the civ-only ones it lacks")
     args = ap.parse_args()
     src = Source(args.public)
 
@@ -226,6 +311,27 @@ def main() -> int:
         if civ_mask(j.get("requirements")) == 0:
             continue  # only civs RTS0 doesn't have
         order.append(name)
+    # Civ-only technologies of civ-specific structures (and of civ variants of
+    # the generic ones), appended so the ids above stay the same.
+    full = (1 << len(CIVS)) - 1
+    unlockers = unit_unlock_techs(src)
+    civ_researcher = civ_structure_researchers(src)
+    civ_only: list[str] = []
+    for name in sorted(civ_researcher):
+        if name in order or name in CIV_TECH_SKIP or name.startswith(("pair_", "phase_")):
+            continue
+        j = load(name)
+        if not j or not j.get("cost") or "researchTime" not in j:
+            continue
+        mask = civ_mask(j.get("requirements"))
+        if mask in (0, full):
+            continue  # all-civ techs belong to the generic buildings above
+        mods = [m for m in j.get("modifications", []) if stat_of(m["value"])]
+        if not mods and name not in unlockers:
+            continue
+        order.append(name)
+        civ_only.append(name)
+        researcher.setdefault(name, civ_researcher[name])
     # Keep the ids an existing tech_data.h already gave (saves and lockstep store them);
     # technologies new to it get the next ids.
     previous = []
@@ -238,7 +344,34 @@ def main() -> int:
         print("too many technologies for uint8_t ids", file=sys.stderr)
         return 1
 
+    # --append: the technologies already in --out keep their ids and rows
+    # verbatim (they may come from another 0 A.D. version), and only the
+    # civ-only ones they lack are generated and appended after them.
+    kept_ids: list[tuple[str, str]] = []
+    kept_affects: list[str] = []
+    kept_effects: list[str] = []
+    kept_techs: list[str] = []
+    emit = order
+    if args.append:
+        text = open(args.out, encoding="utf-8").read()
+
+        def block(start: str) -> list[str]:
+            body = text.split(start, 1)[1].split("\n\t};", 1)[0]
+            return [l for l in body.split("\n")[2:] if l.strip()]  # skip the header and fixed first row
+        kept_ids = re.findall(r"^\t(TECH_[A-Z0-9_]+) = \d+, // (\S+)$", text, re.M)
+        kept_affects = block("static const TechClassExpr kAffects[] = {")
+        kept_effects = block("static const TechEffect kEffects[] = {")
+        kept_techs = block("static const TechInfo kTable[TECH_COUNT] = {")
+        kept = {name for _, name in kept_ids}
+        emit = [name for name in civ_only if name not in kept]
+        order = [name for _, name in kept_ids] + emit
+        if len(order) + 1 > 255:
+            print("too many technologies for uint8_t ids", file=sys.stderr)
+            return 1
+
     ids: dict[str, str | None] = {name: None for name in order}
+    for sym, name in kept_ids:
+        ids[name] = sym
     for (sym, name) in LEGACY:
         ids[name] = sym
     for name in order:
@@ -279,9 +412,9 @@ def main() -> int:
             start += len(k)
         else:
             affects_rows.append(key)
-        return (start + 1, len(rows))  # slot 0 is reserved for "no filter"
+        return (len(kept_affects) + start + 1, len(rows))  # slot 0 is reserved for "no filter"
 
-    for name in order:
+    for name in emit:
         j = load(name)
         cost = j.get("cost") or {}
         reqs: list[str] = []
@@ -302,7 +435,7 @@ def main() -> int:
         elif name == "phase_city_generic":
             phase = 2
         cmask = civ_mask(j.get("requirements"))
-        e_begin = len(effects)
+        e_begin = len(kept_effects) + len(effects)
         tech_aff = j.get("affects")
         for m in j.get("modifications", []):
             stat = stat_of(m["value"])
@@ -318,7 +451,7 @@ def main() -> int:
             if a_count < 0:
                 continue
             effects.append(f"\t\t{{{stat}, {op}, {a_start}, {a_count}, {val!r}f}}, // {name}")
-        e_count = len(effects) - e_begin
+        e_count = len(kept_effects) + len(effects) - e_begin
         desc = j.get("tooltip", "").replace("\n", " ")
         bld = researcher.get(name, "BLD_TOWN_CENTER")
         if name in ("phase_town_generic", "phase_city_generic"):
@@ -356,6 +489,7 @@ def main() -> int:
     w("inline const TechClassExpr *tech_affects_table() {")
     w("\tstatic const TechClassExpr kAffects[] = {")
     w("\t\t{0, 0}, // unused: affects index 0 means \"no filter\"")
+    lines.extend(kept_affects)
     for row in affects_rows:
         for expr in row:
             w(f"\t\t{expr},")
@@ -366,16 +500,18 @@ def main() -> int:
     w("inline const TechEffect *tech_effects_table() {")
     w("\tstatic const TechEffect kEffects[] = {")
     w("\t\t{TSTAT_NONE, TOP_MUL, 0, 0, 1.0f},")
+    lines.extend(kept_effects)
     for e in effects:
         w(e)
     w("\t};")
     w("\treturn kEffects + 1;")
     w("}")
-    w(f"constexpr int TECH_EFFECT_COUNT = {len(effects)};")
+    w(f"constexpr int TECH_EFFECT_COUNT = {len(kept_effects) + len(effects)};")
     w("")
     w("inline const TechInfo &tech_info(uint8_t tech_id) {")
     w("\tstatic const TechInfo kTable[TECH_COUNT] = {")
     w("\t\t{\"None\", \"\", 0, 0, 0, 0, 0.0f, 0, BLD_TOWN_CENTER, TECH_NONE, 0, 0, 0, \"\"},")
+    lines.extend(kept_techs)
     lines.extend(techs)
     w("\t};")
     w("\tif (tech_id >= TECH_COUNT) return kTable[TECH_NONE];")
@@ -385,7 +521,8 @@ def main() -> int:
     w("#endif // RTSO_TECH_DATA_H")
     with open(args.out, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
-    print(f"wrote {args.out}: {len(order)} technologies, {len(effects)} effects")
+    print(f"wrote {args.out}: {len(order)} technologies ({len(emit)} generated), "
+          f"{len(kept_effects) + len(effects)} effects")
     return 0
 
 
