@@ -3214,9 +3214,12 @@ void RtsoMain::update_command_panel() {
 					rtso::BLD_WONDER
 				};
 				static const char *kPhaseNames[4] = {"", "Village", "Town", "City"};
-				// Generic structures, then the local civ's own (0 A.D. structures/<civ>/).
+				// Generic structures the civ's 0 A.D. Builder lists name, then the civ's
+				// own (0 A.D. structures/<civ>/).
 				const uint8_t my_civ = sim->player_civ(local_player());
-				std::vector<int> menu(std::begin(b_types), std::end(b_types));
+				std::vector<int> menu;
+				for (int bt : b_types)
+					if (rtso::civ_can_build(my_civ, (uint8_t)bt)) menu.push_back(bt);
 				for (int bt = rtso::CIV_BUILDING_FIRST; bt < rtso::BLD_TYPE_COUNT; ++bt)
 					if (rtso::civ_can_build(my_civ, (uint8_t)bt)) menu.push_back(bt);
 				for (int bt : menu) {
@@ -4481,7 +4484,11 @@ void RtsoMain::apply_match_settings() {
 	if (victory >= 0 && victory < rtso::VICTORY_COUNT) sim->set_victory_condition((uint8_t)victory);
 	sim->set_waves_enabled((bool)ms->get("waves_enabled"));
 	sim->set_last_man_standing((bool)ms->get("last_man_standing"));
-	sim->set_pop_cap((int)ms->get("pop_cap"));
+	{
+		const int pc = (int)ms->get("pop_cap"); // negative: World Population (0 A.D. WorldPopulationCap)
+		if (pc < 0) sim->set_world_pop_cap(-pc);
+		else sim->set_pop_cap(pc);
+	}
 	sim->set_ceasefire_seconds(60.0f * (float)std::clamp((int)ms->get("ceasefire_min"), 0, 60));
 	sim->set_reveal_map((bool)ms->get("reveal_map"));
 	sim->set_explore_map((bool)ms->get("explore_map"));
@@ -5038,6 +5045,8 @@ void RtsoMain::_on_lobby_start_pressed() {
 		setup.waves = (bool)ms->get("waves_enabled") ? 1 : 0;
 		setup.lms = (bool)ms->get("last_man_standing") ? 1 : 0;
 		setup.pop_cap = (uint16_t)std::clamp((int)ms->get("pop_cap"), 0, 1000);
+		// A negative pop_cap is Game Setup's World Population.
+		setup.world_pop = (uint16_t)std::clamp(-(int)ms->get("pop_cap"), 0, rtso::Simulation::MAX_WORLD_POP);
 		setup.ceasefire = (uint8_t)std::clamp((int)ms->get("ceasefire_min"), 0, 60);
 		setup.reveal = (bool)ms->get("reveal_map") ? 1 : 0;
 		setup.explore = (bool)ms->get("explore_map") ? 1 : 0;
@@ -5155,7 +5164,8 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	sim->set_victory_condition(setup.victory >= rtso::VICTORY_COUNT ? 0 : setup.victory);
 	sim->set_waves_enabled(setup.waves != 0);
 	sim->set_last_man_standing(setup.lms != 0);
-	sim->set_pop_cap(setup.pop_cap);
+	if (setup.world_pop) sim->set_world_pop_cap(setup.world_pop);
+	else sim->set_pop_cap(setup.pop_cap);
 	sim->set_ceasefire_seconds(60.0f * (float)setup.ceasefire);
 	sim->set_reveal_map(setup.reveal != 0);
 	sim->set_explore_map(setup.explore != 0);
@@ -5202,7 +5212,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		ms->set("victory", (int)sim->victory_condition());
 		ms->set("waves_enabled", sim->waves_enabled());
 		ms->set("last_man_standing", sim->last_man_standing());
-		ms->set("pop_cap", sim->pop_cap());
+		ms->set("pop_cap", sim->pop_cap_setting()); // negative: World Population
 		ms->set("ceasefire_min", (int)(sim->ceasefire_seconds() / 60.0f));
 		ms->set("reveal_map", sim->reveal_map());
 		ms->set("explore_map", sim->explore_map());
