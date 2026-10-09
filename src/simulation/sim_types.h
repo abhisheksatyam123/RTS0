@@ -382,7 +382,8 @@ enum BuildingType : uint8_t {
 	BLD_TEMPLE_VESTA = 49,    // rome/temple_vesta
 	BLD_TEMPLE_MARS = 50,     // rome/temple_mars
 	BLD_ICE_HOUSE = 51,       // pers/ice_house
-	BLD_TYPE_COUNT = 52
+	BLD_SUPER_DOCK = 52,      // cart/super_dock (Cothon)
+	BLD_TYPE_COUNT = 53
 };
 
 #include "civ_building_data.h"

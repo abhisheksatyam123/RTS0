@@ -161,7 +161,6 @@ TRAINER_BUILDING = {
     "camp_blemmye": "BLD_BARRACKS", "camp_noba": "BLD_BARRACKS",
     "practice_range": "BLD_RANGE",
     "temple_mars": "BLD_TEMPLE", "temple_vesta": "BLD_TEMPLE", "tophet": "BLD_TEMPLE",
-    "super_dock": "BLD_DOCK",
 }
 # Civ-specific 0 A.D. structures RTS0 models as their own BuildingType
 # (appended after BLD_EMBASSY): enum, 0 A.D. file stems, model id, portrait id.
@@ -192,6 +191,7 @@ UNIQUE_BUILDINGS = [
     ("BLD_TEMPLE_VESTA", ["temple_vesta"], "temple", "temple_vesta"),
     ("BLD_TEMPLE_MARS", ["temple_mars"], "temple", "temple_mars"),
     ("BLD_ICE_HOUSE", ["ice_house"], "farmstead", "ice_house"),
+    ("BLD_SUPER_DOCK", ["super_dock"], "dock", "super_dock"),
 ]
 # Units of a civ-specific structure train only there, as in 0 A.D. (Petra builds
 # these structures since #105).
@@ -1291,7 +1291,7 @@ def unique_building_rows(sim_root):
             "capture": t.num("Capturable/CapturePoints", 500.0),
             "regen": t.num("Capturable/RegenRate", 5.0),
             "garrison_regen": t.num("Capturable/GarrisonRegenRate", 1.0),
-            "decay": t.num("TerritoryDecay/DecayRate", 20.0),
+            "decay": t.num("TerritoryDecay/DecayRate", 0.0),  # disable="" (Cothon): no decay,
             "phase": phase_of(t),
             # TerritoryInfluence roots on RTS0's scale (0 A.D. civil centre 140 m -> 32).
             "territory": (t.num("TerritoryInfluence/Radius") * 32.0 / 140.0
