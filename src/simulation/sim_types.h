@@ -1052,6 +1052,15 @@ enum TechStat : uint8_t {
 	TSTAT_CAPTURE_POINTS, TSTAT_COST_FOOD, TSTAT_COST_WOOD, TSTAT_COST_STONE, TSTAT_COST_METAL,
 	TSTAT_TRICKLE_FOOD, TSTAT_TRICKLE_WOOD, TSTAT_TRICKLE_STONE, TSTAT_TRICKLE_METAL, // ResourceTrickle/Rates/<res>
 	TSTAT_TRADE_INTERNATIONAL, // Market/InternationalBonus of markets and docks
+	// Paths only global relic auras change so far (relic_aura_data.h).
+	TSTAT_GATHER_ALL,       // ResourceGatherer/BaseSpeed
+	TSTAT_VISION,           // Vision/Range
+	TSTAT_TERRITORY_RADIUS, // TerritoryInfluence/Radius
+	TSTAT_CAPTURE_ATTACK,   // Attack/Capture/Capture
+	TSTAT_MAX_POP,          // Player/MaxPopulation (the match's population limit)
+	TSTAT_REQUIRED_XP,      // Promotion/RequiredXp
+	TSTAT_TECH_COST_FOOD, TSTAT_TECH_COST_WOOD, TSTAT_TECH_COST_STONE, TSTAT_TECH_COST_METAL, // Researcher/TechCostMultiplier
+	TSTAT_LOOT_FOOD, TSTAT_LOOT_WOOD, TSTAT_LOOT_STONE, TSTAT_LOOT_METAL, // Looter/Resource/<res>
 	TSTAT_COUNT
 };
 
@@ -1362,7 +1371,45 @@ struct CivUnitTemplate {
 	float vision; // 0 A.D. Vision/Range x0.28 (RTS0 units)
 };
 
+// 0 A.D. Upgrade on a unit (Upgrade.js): a paid, timed change to another roster row
+// (Roman elite infantry to Centurion, the Immortals' spear-and-bow switch).
+struct CivUnitUpgrade {
+	uint16_t from; // civ_unit_template_table() row, 0xFFFF ends the table
+	uint8_t from_rank; // rank the unit needs (1 basic, 2 advanced, 3 elite), 0 = any
+	uint16_t to;
+	int16_t food_cost;
+	int16_t wood_cost;
+	int16_t gold_cost; // 0 A.D. metal
+	int16_t stone_cost;
+	float time; // seconds
+	uint8_t phase; // phase the choice's Requirements name, 1 = none
+};
+
 #include "civ_roster_data.h"
+#include "aura_modifier_data.h"
+
+// The relic_global_auras() row of civ_hero_aura `aura`, or -1 (a range aura, or not a catafalque's).
+inline int relic_global_aura_index(int16_t aura) {
+	static const auto kIndex = [] {
+		std::array<int8_t, CIV_HERO_AURA_COUNT> idx{};
+		for (uint16_t a = 0; a < CIV_HERO_AURA_COUNT; ++a) {
+			idx[a] = -1;
+			for (uint16_t g = 0; g < RELIC_GLOBAL_AURA_COUNT; ++g)
+				if (std::strcmp(civ_hero_aura_table()[a].id, relic_global_auras()[g].id) == 0) idx[a] = (int8_t)g;
+		}
+		return idx;
+	}();
+	return aura >= 0 && aura < CIV_HERO_AURA_COUNT ? kIndex[(size_t)aura] : -1;
+}
+static_assert(RELIC_GLOBAL_AURA_COUNT <= 32, "relic aura masks are uint32_t");
+
+// Does an entity with these TechClass bits match relic aura modifier `m`?
+inline bool relic_modifier_applies(const RelicAuraModifier &m, uint64_t classes) {
+	if (m.alt_count == 0) return true;
+	for (uint8_t i = 0; i < m.alt_count; ++i)
+		if ((classes & m.alts[i].need) == m.alts[i].need && (classes & m.alts[i].forbid) == 0) return true;
+	return false;
+}
 #include "civ_attack_data.h"
 #include "splash_data.h"
 #include "preference_data.h"
