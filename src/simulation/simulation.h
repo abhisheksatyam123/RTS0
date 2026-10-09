@@ -1458,6 +1458,9 @@ private:
 	// walker takes a short path round the idle units (0 A.D. CheckMovement and HandleObstructedMove).
 	void avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, const float *aim_x, const float *aim_z,
 			float *npx, float *npz, float *want_x, float *want_z, uint8_t *blocked);
+	// A walker at (x, z) already within reach of the task it walks for (a resource it gathers, a
+	// foundation it builds, a unit it attacks): 0 A.D.'s move to the target's range is done there.
+	bool walk_in_reach(size_t i, float x, float z) const;
 	// The key of a short path kept round idle units (ShortPathMemo): a short path among this tick's
 	// buildings (short_path_key_) that also went round units.
 	uint32_t idle_path_key() const { const uint32_t k = short_path_key_ ^ 0x5BD1E995u; return k ? k : 1u; }

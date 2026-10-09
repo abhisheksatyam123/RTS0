@@ -6902,7 +6902,10 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 // there. A unit square is the unit's clearance (unit_push_clearance) on each side, expanded by the
 // walker's; a walker standing in one already may walk out of it, and its target never obstructs it.
 // The search range grows with failed turns as ShortPathSearchRange does (12 m, 4 m more for each
-// turn after the first, at most 56 m; at PUSH_SCALE). Ships are left to separation().
+// turn after the first, at most 56 m), at the map's 4 m a unit. The path leads to the task's range
+// round its target once that is within the search range, as ComputeGoal shapes it, so a worker
+// finds a free spot beside a tree others already stand at. A walker already within reach of its
+// task (walk_in_reach) stays where it is instead. Ships are left to separation().
 void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, const float *aim_x, const float *aim_z,
 		float *npx, float *npz, float *want_x, float *want_z, uint8_t *blocked) {
 	const size_t n = units_.count;
@@ -6926,10 +6929,65 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 	UnitGrid grid;
 	if (!grid.build(arena, n, px, pz, idle, map_half_)) return;
 
-	constexpr float RANGE_MIN = 12.0f * PUSH_SCALE, RANGE_STEP = 4.0f * PUSH_SCALE, RANGE_MAX = 56.0f * PUSH_SCALE;
+	constexpr float RANGE_MIN = 12.0f / 4.0f, RANGE_STEP = 4.0f / 4.0f, RANGE_MAX = 56.0f / 4.0f; // map lengths: 4 m a unit
 	const uint64_t per_turn = (uint64_t)std::max(1L, std::lround(0.2f / dt)); // 0 A.D. turns last 200 ms
 	const uint32_t key = idle_path_key();
 	const nav::Vec2 U(1.0f, 0.0f), V(0.0f, 1.0f); // unit obstructions are axis-aligned squares
+	// The range unit i's task is done in, as CCmpUnitMotion::ComputeGoal shapes a move to a target's
+	// range: a circle round a unit or resource, a square round a structure (the corners within reach
+	// at 2/3 of it, as 0 A.D. does for MaxRange), a little inside the reach the task's tick checks
+	// (g_GoalDelta). `building` is the structure, which mustn't obstruct the way to it. False for a
+	// walk to a point.
+	auto task_goal = [&](size_t i, nav::ShortPathGoal &g, uint32_t &building) {
+		const uint8_t st = units_.action_state[i];
+		const float r = unit_collision_radius(units_.unit_type[i]);
+		auto circle = [&](float x, float z, float reach) {
+			g.type = nav::ShortPathGoal::CIRCLE;
+			g.center = nav::Vec2(x, z);
+			g.hw = reach * 0.9f;
+			return true;
+		};
+		auto square = [&](const auto &b, float reach) {
+			g.type = nav::ShortPathGoal::SQUARE;
+			g.center = nav::Vec2(b.x, b.z);
+			g.u = nav::footprint_u(b);
+			g.v = nav::footprint_v(b);
+			g.hw = b.hu + (reach + r) * (2.0f / 3.0f);
+			g.hh = b.hv + (reach + r) * (2.0f / 3.0f);
+			building = b.id;
+			return true;
+		};
+		if (st == ACTION_GATHER && units_.target_resource_id[i] != 0) { // tick_gather
+			const auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
+			if (rit == res_id_to_idx_.end()) return false;
+			const size_t k = rit->second;
+			return circle(resources_.x[k], resources_.z[k], resources_.subtype[k] == RES_SUB_FISH ? FISH_GATHER_REACH : 2.5f);
+		}
+		if (st == ACTION_ATTACK && units_.target_unit_id[i] != 0) { // tick_combat
+			const int32_t t = lookup_unit(units_.target_unit_id[i]);
+			return t >= 0 && circle(px[t], pz[t], units_.attack_range[i]);
+		}
+		if (st == ACTION_ATTACK && units_.target_building_id[i] != 0) {
+			// move_units stops an attacker within 0.9 of its reach, the smaller of its attack and
+			// capture ranges here.
+			const auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
+			return bit != building_id_to_idx_.end() &&
+			       square(buildings_[bit->second], 0.9f * std::min(units_.attack_range[i], CAPTURE_RANGE));
+		}
+		if (st == ACTION_BUILD && units_.target_building_id[i] != 0) { // tick_construction
+			const auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
+			return bit != building_id_to_idx_.end() && square(buildings_[bit->second], kBuildReach);
+		}
+		if (st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE) {
+			// The dropsite (tick_gather) or market (the trader tick) at the walk's target, or a
+			// worker elephant to drop at.
+			const float tx = units_.target_x[i], tz = units_.target_z[i];
+			for (const SteerObstacle &b : steer_obstacles_)
+				if (b.x == tx && b.z == tz) return square(b, st == ACTION_TRADE ? 2.0f : 1.5f);
+			return st == ACTION_RETURN_DROPSITE && circle(tx, tz, 2.5f);
+		}
+		return false;
+	};
 	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		if (!(walk[i] & WALK_STEER) || !units_.alive[i] || unit_is_ship(units_.unit_type[i])) return;
 		const float x0 = px[i], z0 = pz[i];
@@ -6954,16 +7012,21 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		};
 		if (!step_blocked(npx[i], npz[i])) return;
 
-		// Obstructed: the unit stays put this tick.
+		// Obstructed: the unit stays put this tick. One within reach of its task is where 0 A.D.'s
+		// move to the target's range would have ended: it works from there without a short path.
 		ShortPathMemo &memo = units_.short_path[i];
 		if (memo.key == key) memo.key = 0; // the way to its waypoint is blocked now
 		npx[i] = x0;
 		npz[i] = z0;
-		blocked[i] = 1;
 		units_.vel_x[i] = units_.vel_z[i] = 0.0f;
-		if ((ticks_ + units_.id[i]) % per_turn != 0) return;
-
+		if (walk_in_reach(i, x0, z0)) return;
+		blocked[i] = 1;
+		// A short path on the unit's own tick of each turn; one stuck for more than four turns
+		// searches every fourth turn, which keeps a crowd's cost down while it waits.
 		const uint8_t failed = units_.motion[i].failed;
+		const uint64_t turn_ticks = failed > 4 ? per_turn * 4 : per_turn;
+		if ((ticks_ + units_.id[i]) % turn_ticks != 0) return;
+
 		const float range = std::min(RANGE_MAX, RANGE_MIN + RANGE_STEP * (float)std::max(0, (int)failed - 1));
 		thread_local std::vector<nav::ShortPathSquare> squares;
 		squares.clear();
@@ -6973,10 +7036,19 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			const float cj = unit_push_clearance(units_.unit_type[j]);
 			squares.push_back(nav::ShortPathSquare{nav::Vec2(px[j], pz[j]), U, V, nav::Vec2(cj, cj)});
 		});
+		// The goal: the task's range once it is within the search range (InShortPathRange), where idle
+		// units working there may stand on the target's own point; else the point the unit walks to.
 		const nav::Vec2 pos(x0, z0), aim(aim_x[i], aim_z[i]);
+		nav::ShortPathGoal goal;
+		uint32_t building = units_.target_building_id[i];
+		if (!task_goal(i, goal, building) || (goal.nearest_point(pos) - pos).lengthSq() >= range * range) {
+			goal = nav::ShortPathGoal{};
+			goal.center = aim;
+			building = units_.target_building_id[i];
+		}
 		nav::Vec2 w, next;
-		if (!nav::search_short_path_with_units(pos, aim, unit_building_clearance(units_.unit_type[i]), ci, range,
-				steer_obstacles_, units_.target_building_id[i], squares, nav_grid_, w, next))
+		if (!nav::search_short_path_with_units(pos, aim, goal, unit_building_clearance(units_.unit_type[i]), ci, range,
+				steer_obstacles_, building, squares, nav_grid_, w, next))
 			return;
 		const float reach = unit_walk_speed(i) * dt;
 		// A first waypoint within this tick's step is reached now and the unit keeps the second, as
@@ -6991,6 +7063,14 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		const float step = std::min(len, reach);
 		const float sx = x0 + to.x / len * step, sz = z0 + to.y / len * step;
 		if (step_blocked(sx, sz)) return;
+		// As in move_units, a land unit doesn't step off dry land into deep water.
+		if (!nav_grid_.cells.blank()) {
+			auto deep = [&](float x, float z) {
+				auto [cx, cy] = nav_grid_.world_to_cell(x, z);
+				return nav_grid_.cells.inside(cx, cy) && nav_grid_.cells.at(cx, cy) == NAV_WATER;
+			};
+			if (deep(sx, sz) && !deep(x0, z0)) return;
+		}
 		npx[i] = sx;
 		npz[i] = sz;
 		want_x[i] = sx - x0;
@@ -7000,6 +7080,34 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		units_.vel_z[i] = want_z[i] / dt;
 		memo = ShortPathMemo{keep.x, keep.y, aim.x, aim.y, key};
 	});
+}
+
+bool Simulation::walk_in_reach(size_t i, float x, float z) const {
+	const uint8_t st = units_.action_state[i];
+	if (st == ACTION_GATHER && units_.target_resource_id[i] != 0) {
+		// tick_gather's reach.
+		auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
+		if (rit == res_id_to_idx_.end()) return false;
+		const size_t r = rit->second;
+		const float reach = resources_.subtype[r] == RES_SUB_FISH ? FISH_GATHER_REACH : 2.5f;
+		const float dx = x - resources_.x[r], dz = z - resources_.z[r];
+		return dx * dx + dz * dz < reach * reach;
+	}
+	if (st == ACTION_ATTACK && units_.target_unit_id[i] != 0) {
+		// tick_combat's range, on the flat.
+		const int32_t t = lookup_unit(units_.target_unit_id[i]);
+		if (t < 0) return false;
+		const float dx = x - units_.pos_x[t], dz = z - units_.pos_z[t];
+		return dx * dx + dz * dz <= units_.attack_range[i] * units_.attack_range[i];
+	}
+	if (st == ACTION_BUILD && units_.target_building_id[i] != 0) {
+		// tick_construction's build range. (A worker returning a load drops it as soon as it is
+		// within reach, in tick_gather.)
+		auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
+		return bit != building_id_to_idx_.end() &&
+				outside_and_in_build_range(buildings_[bit->second], x, z, unit_collision_radius(units_.unit_type[i]));
+	}
+	return false;
 }
 
 // 0 A.D. CCmpUnitMotionManager pushing (pathfinder.xml <Pushing>, CCmpUnitMotion_System.cpp Push).

@@ -155,13 +155,15 @@ bool search_short_path(Vec2 pos, Vec2 aim, float radius,
 }
 
 // search_short_path among the nearby buildings and the unit squares in `units` (axis-aligned, half
-// size each unit's own clearance), within `range` of `pos`. A unit square is expanded by
-// `unit_radius` where a building is expanded by `radius` (0 A.D. gives every unit obstruction the
-// moving unit's pathfinding clearance; RTS0 keeps units further from units than from buildings).
-// `out` is the first waypoint and `next` the second (the first again on a one-waypoint path).
+// size each unit's own clearance), within `range` of `pos`, to `goal` (a point, or a task's range
+// round its target). `aim` picks the buildings that don't count, as above. A unit square is
+// expanded by `unit_radius` where a building is expanded by `radius` (0 A.D. gives every unit
+// obstruction the moving unit's pathfinding clearance; RTS0 keeps units further from units than
+// from buildings). `out` is the first waypoint and `next` the second (the first again on a
+// one-waypoint path).
 template <class Buildings>
-bool search_short_path_with_units(Vec2 pos, Vec2 aim, float radius, float unit_radius, float range,
-		const Buildings& buildings, uint32_t ignore_building_id,
+bool search_short_path_with_units(Vec2 pos, Vec2 aim, const ShortPathGoal& goal, float radius, float unit_radius,
+		float range, const Buildings& buildings, uint32_t ignore_building_id,
 		const std::vector<ShortPathSquare>& units, const NavGrid& nav, Vec2& out, Vec2& next)
 {
 	thread_local std::vector<ShortPathSquare> statics;
@@ -180,8 +182,7 @@ bool search_short_path_with_units(Vec2 pos, Vec2 aim, float radius, float unit_r
 	req.clearance = radius;
 	req.range = range;
 	req.unit_clearance_bias = radius - unit_radius; // unit squares grow by unit_radius
-	req.goal.type = ShortPathGoal::POINT;
-	req.goal.center = aim;
+	req.goal = goal;
 	auto land_rows = [&nav](int i, int j, int n, uint8_t* out) {
 		const Grid<uint8_t>& cells = nav.cells;
 		if (j >= 0 && j < cells.h && i >= 0 && i + n <= cells.w) {
