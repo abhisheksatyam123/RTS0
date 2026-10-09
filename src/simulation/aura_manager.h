@@ -18,8 +18,9 @@ enum AuraType : uint8_t {
     AURA_ARMOR  = 4,
     AURA_HEALTH = 5, // Health/Max multiplier
     AURA_VISION = 6, // Vision/Range multiplier
-    AURA_REQUIRED_XP = 7, // Promotion/RequiredXp multiplier
-    AURA_COUNT  = 8
+    AURA_HEAL_AMOUNT = 7, // Heal/Health added to what a healer restores per heal
+    AURA_REQUIRED_XP = 8, // Promotion/RequiredXp multiplier
+    AURA_COUNT  = 9
 };
 
 // 0 A.D. Auras.js affectedPlayers as bits over the source's owner (CivHeroAura::players).
@@ -91,7 +92,7 @@ public:
     //   AURA_ATTACK / AURA_SPEED / AURA_HEALTH / AURA_VISION / AURA_REQUIRED_XP: strongest bonus times
     //     strongest penalty
     //     (0 when none reaches the unit).
-    //   AURA_ARMOR: strongest bonus plus strongest penalty.
+    //   AURA_ARMOR / AURA_HEAL_AMOUNT: strongest bonus plus strongest penalty.
     float query_modifier(float qx, float qz, uint8_t qowner, AuraType type,
             uint16_t qtmpl = CIV_UNIT_TEMPLATE_NONE, const CombatClasses *qclasses = nullptr) const {
         if (type >= AURA_COUNT || of_type_[type].empty()) return 0.0f;
