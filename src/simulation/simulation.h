@@ -1415,6 +1415,18 @@ private:
 	void petra_refresh_queue_accounts(float dt);
 	void petra_staff_foundations();
 	void petra_manage_fields(int target_food);
+	// worker.js startHunting: food dropsites and each supply's gatherers, gathered once per pass.
+	struct PetraHuntScan {
+		std::vector<std::pair<float, float>> food_drops;
+		std::unordered_map<uint32_t, int> on_animal;  // live animal id -> units hunting it
+		std::unordered_map<uint32_t, int> on_carcass; // meat resource id -> units gathering it
+		std::vector<uint32_t> treasures_taken;        // treasures one of ours is already on its way to
+	};
+	PetraHuntScan petra_hunt_scan() const;
+	uint32_t petra_find_hunt(size_t u, float px, float pz, const PetraHuntScan &scan, bool &live) const;
+	bool petra_start_hunting(size_t u, PetraHuntScan &scan);
+	bool petra_gather_treasure(size_t u, PetraHuntScan &scan); // entityExtend.js gatherTreasure
+	void petra_manage_hunters(PetraHuntScan &scan);
 	int petra_villager_target() const;
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);

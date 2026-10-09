@@ -7675,7 +7675,8 @@ void Simulation::petra_manage_scouting(float dt) {
 		// Priority 1: Light Cavalry
 		for (size_t i = 0; i < units_.count; ++i) {
 			if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
-			if (units_.unit_type[i] == UNIT_CAVALRY) {
+			// Only an idle rider: hunters keep hunting (petra_manage_hunters).
+			if (units_.unit_type[i] == UNIT_CAVALRY && units_.action_state[i] == ACTION_IDLE) {
 				uint32_t uid = units_.id[i];
 				if (!petra_unit_reserved(uid)) {
 					petra_scout_unit_id_ = uid;
@@ -8234,6 +8235,8 @@ void Simulation::petra_manage_economy(float dt) {
 		    (units_.unit_type[i] != UNIT_VILLAGER && units_.unit_type[i] != UNIT_FEMALE_CITIZEN)) continue;
 		if (units_.action_state[i] == ACTION_IDLE) {
 			reassignable_workers.push_back(i);
+		} else if (units_.action_state[i] == ACTION_ATTACK && is_fauna_id(units_.target_unit_id[i])) {
+			workers_food++; // hunting: the carcass is gathered next
 		} else if (units_.action_state[i] == ACTION_GATHER || units_.action_state[i] == ACTION_RETURN_DROPSITE) {
 			if (units_.target_resource_id[i] != 0) {
 				auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
@@ -8356,6 +8359,8 @@ void Simulation::petra_manage_economy(float dt) {
 		}
 	}
 
+	PetraHuntScan hunt_scan = petra_hunt_scan();
+
 	// Assign reassignable workers to nearest safe dropsite and resource
 	for (size_t widx : reassignable_workers) {
 		uint8_t chosen_res_type = RES_FOOD;
@@ -8372,6 +8377,14 @@ void Simulation::petra_manage_economy(float dt) {
 		if (target_stone - workers_stone > max_deficit) {
 			max_deficit = target_stone - workers_stone;
 			chosen_res_type = RES_STONE;
+		}
+
+		// worker.js startGathering: any gatherer takes a treasure nearby first, and a food
+		// gatherer hunts next (livestock and carcasses near a dropsite).
+		if (petra_gather_treasure(widx, hunt_scan)) continue;
+		if (chosen_res_type == RES_FOOD && petra_start_hunting(widx, hunt_scan)) {
+			workers_food++;
+			continue;
 		}
 
 		float wx = units_.pos_x[widx];
@@ -8424,7 +8437,182 @@ void Simulation::petra_manage_economy(float dt) {
 		}
 	}
 
+	petra_manage_hunters(hunt_scan);
 	petra_manage_fields(target_food);
+}
+
+// 0 A.D. distances are metres squared; one RTS0 unit is 4 m, so they divide by 16.
+static constexpr float PETRA_HUNT_FAR_D2 = 25000.0f / 16.0f;      // only FastMoving hunt further
+static constexpr float PETRA_HUNT_DROP_FAST_D2 = 35000.0f / 16.0f; // supply to food dropsite, FastMoving
+static constexpr float PETRA_HUNT_DROP_FLEE_D2 = 7000.0f / 16.0f;  // ... others on an animal that flees
+static constexpr float PETRA_HUNT_DROP_D2 = 12000.0f / 16.0f;      // ... others on livestock or a carcass
+
+Simulation::PetraHuntScan Simulation::petra_hunt_scan() const {
+	PetraHuntScan scan;
+	for (const auto &b : buildings_) {
+		if (b.team != petra_pid_ || b.hp <= 0 || b.build_progress < 1.0f) continue;
+		if (b.type == BLD_TOWN_CENTER || b.type == BLD_FARMSTEAD || b.type == BLD_DOCK || civ_building_is_dropsite(b.type))
+			scan.food_drops.push_back({b.x, b.z});
+	}
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i]) continue;
+		const uint32_t tid = units_.target_unit_id[i];
+		if (tid != 0 && units_.action_state[i] == ACTION_ATTACK && is_fauna_id(tid) && lookup_unit(tid) < 0)
+			scan.on_animal[tid]++;
+		else if (units_.target_resource_id[i] != 0)
+			scan.on_carcass[units_.target_resource_id[i]]++;
+		if (units_.team[i] == petra_pid_ && units_.order_kind[i] == ORDER_COLLECT_TREASURE)
+			scan.treasures_taken.push_back(units_.order_target[i]);
+	}
+	return scan;
+}
+
+// entityExtend.js gatherTreasure: the nearest treasure on the unit's land outside
+// enemy territory, within 120000 m² (14000 m² outside our own territory, as the
+// AI has no line of sight). One collector per treasure stands in for 0 A.D.'s
+// 20 s "lastGathered" wait between tries.
+bool Simulation::petra_gather_treasure(size_t u, PetraHuntScan &scan) {
+	if (treasures_.empty()) return false;
+	const uint8_t ut = units_.unit_type[u];
+	if (unit_is_ship(ut) || ut == UNIT_WAR_DOG) return false; // isTreasureCollector
+	const uint8_t pass = formation_unit_mounted(ut) ? PASS_CAVALRY : PASS_INFANTRY;
+	const float px = units_.pos_x[u], pz = units_.pos_z[u];
+	auto [ucx, ucz] = nav_grid_.world_to_cell(px, pz);
+	uint32_t best = 0;
+	float best_d2 = 1e18f;
+	for (const auto &t : treasures_) {
+		if (std::find(scan.treasures_taken.begin(), scan.treasures_taken.end(), t.id) != scan.treasures_taken.end()) continue;
+		const int terr = territory_owner_at(t.x, t.z);
+		if (terr >= 0 && !is_ally(petra_pid_, (uint8_t)terr)) continue;
+		const float d2 = (t.x - px) * (t.x - px) + (t.z - pz) * (t.z - pz);
+		if (d2 > 120000.0f / 16.0f || (terr != (int)petra_pid_ && d2 > 14000.0f / 16.0f)) continue;
+		if (d2 > best_d2) continue;
+		auto [cx, cz] = nav_grid_.world_to_cell(t.x, t.z);
+		if (!nav_grid_.reachable(ucx, ucz, cx, cz, pass)) continue;
+		best_d2 = d2;
+		best = t.id;
+	}
+	if (best == 0) return false;
+	order_collect_treasure(&units_.id[u], 1, best);
+	scan.treasures_taken.push_back(best);
+	return true;
+}
+
+// worker.js startHunting: the nearest live animal or carcass from (px, pz) that
+// is worth one more gatherer, on the hunter's land, outside enemy territory and
+// close enough to one of our food dropsites. Only FastMoving (cavalry) and
+// ranged units chase animals that flee, and only FastMoving hunt far away.
+uint32_t Simulation::petra_find_hunt(size_t u, float px, float pz, const PetraHuntScan &scan, bool &live) const {
+	if (scan.food_drops.empty()) return 0;
+	const uint8_t ut = units_.unit_type[u];
+	const bool fast = formation_unit_mounted(ut);
+	const bool ranged = template_has_ranged_attack(units_.tmpl[u], ut, civ_of(petra_pid_));
+	const uint8_t pass = fast ? PASS_CAVALRY : PASS_INFANTRY;
+	auto [ucx, ucz] = nav_grid_.world_to_cell(units_.pos_x[u], units_.pos_z[u]);
+
+	uint32_t best = 0;
+	float best_d2 = 1e18f;
+	auto consider = [&](uint32_t id, float x, float z, int amount, int max_gatherers, int gatherers, bool can_flee,
+	                    int owner, bool is_live) {
+		if (max_gatherers > 0 && gatherers >= max_gatherers) return; // IsSupplyFull
+		if (gatherers > 0 && amount / (1 + gatherers) < 30) return;
+		if (can_flee && !fast && !ranged) return;
+		const float d2 = (x - px) * (x - px) + (z - pz) * (z - pz);
+		if (d2 > best_d2) return;
+		if (!fast && d2 > PETRA_HUNT_FAR_D2) return;
+		const int terr = territory_owner_at(x, z);
+		if (terr >= 0 && !is_ally(petra_pid_, (uint8_t)terr)) return; // avoid enemy territory
+		if (terr >= 0 && terr != (int)petra_pid_ && owner == terr) return; // nor an ally's cattle
+		if (!fast && can_flee && terr < 0) return;
+		const float drop_d2 = fast ? PETRA_HUNT_DROP_FAST_D2 : (can_flee ? PETRA_HUNT_DROP_FLEE_D2 : PETRA_HUNT_DROP_D2);
+		bool near_drop = false;
+		for (const auto &d : scan.food_drops)
+			if ((x - d.first) * (x - d.first) + (z - d.second) * (z - d.second) < drop_d2) { near_drop = true; break; }
+		if (!near_drop) return;
+		auto [cx, cz] = nav_grid_.world_to_cell(x, z);
+		if (!nav_grid_.reachable(ucx, ucz, cx, cz, pass)) return;
+		best_d2 = d2;
+		best = id;
+		live = is_live;
+	};
+
+	for (size_t f = 0; f < fauna_.count; ++f) {
+		if (!fauna_.alive[f] || fauna_.hp[f] <= 0.0f || fauna_.food_amount[f] <= 0) continue;
+		const auto &info = fauna_type_info(fauna_.fauna_type[f]);
+		if (info.is_naval() || (info.flags & FAUNA_F_FISH)) continue; // isHuntable skips SeaCreatures
+		if (fauna_.behavior[f] == FAUNA_HERDED) continue;
+		int owner = -1;
+		if (fauna_.behavior[f] == FAUNA_CORRALLED) {
+			auto bit = building_id_to_idx_.find(fauna_.corral_id[f]);
+			if (bit != building_id_to_idx_.end()) owner = buildings_[bit->second].team;
+			if (owner >= 0 && owner != (int)petra_pid_) continue; // someone else's livestock
+		}
+		auto git = scan.on_animal.find(fauna_.id[f]);
+		consider(fauna_.id[f], fauna_.pos_x[f], fauna_.pos_z[f], fauna_.food_amount[f], info.max_gatherers,
+		         git == scan.on_animal.end() ? 0 : git->second, !info.is_domestic(), owner, true);
+	}
+	for (size_t r = 0; r < resources_.count; ++r) {
+		if (!resources_.alive[r] || resources_.amount[r] <= 0 || resources_.subtype[r] != RES_SUB_MEAT) continue;
+		auto git = scan.on_carcass.find(resources_.id[r]);
+		consider(resources_.id[r], resources_.x[r], resources_.z[r], resources_.amount[r], 0,
+		         git == scan.on_carcass.end() ? 0 : git->second, false, -1, false);
+	}
+	return best;
+}
+
+bool Simulation::petra_start_hunting(size_t u, PetraHuntScan &scan) {
+	if (petra_gather_treasure(u, scan)) return true; // "First look for possible treasure if any"
+	bool live = false;
+	const uint32_t target = petra_find_hunt(u, units_.pos_x[u], units_.pos_z[u], scan, live);
+	if (target == 0) return false;
+	uint32_t uid = units_.id[u];
+	if (live) {
+		order_hunt(&uid, 1, target);
+		scan.on_animal[target]++;
+	} else {
+		order_gather(&uid, 1, target);
+		scan.on_carcass[target]++;
+	}
+	return true;
+}
+
+// worker.js "hunter" subrole: Petra's citizen cavalry hunt (baseManager.js
+// reassignIdleWorkers gives it to FastMoving units that gather food and can
+// attack animals). An idle hunter looks around itself, then around each base
+// and rides there; one that drifted into enemy territory looks again.
+void Simulation::petra_manage_hunters(PetraHuntScan &scan) {
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.unit_type[i] != UNIT_CAVALRY) continue;
+		if (carry_cap(i, RES_FOOD) <= 0) continue; // champion cavalry gather nothing
+		const uint32_t uid = units_.id[i];
+		const uint8_t st = units_.action_state[i];
+		const bool idle = st == ACTION_IDLE;
+		if (!idle) {
+			// Hunting units that drifted into enemy territory during the chase go home.
+			const bool hunting = (st == ACTION_ATTACK && is_fauna_id(units_.target_unit_id[i])) ||
+			                     ((st == ACTION_GATHER || st == ACTION_RETURN_DROPSITE) && units_.res_type_carried[i] == RES_FOOD);
+			if (hunting && petra_foe(territory_owner_at(units_.pos_x[i], units_.pos_z[i]))) petra_start_hunting(i, scan);
+			if (uid != petra_scout_unit_id_) continue;
+		}
+		if (uid != petra_scout_unit_id_ && petra_unit_reserved(uid)) continue;
+		if (uid == petra_scout_unit_id_) {
+			// The hunt comes first (0 A.D. Petra has no scout); the scout goes back to it.
+			bool live = false;
+			bool any = petra_find_hunt(i, units_.pos_x[i], units_.pos_z[i], scan, live) != 0;
+			for (size_t b = 0; !any && b < petra_bases_.size(); ++b)
+				any = petra_find_hunt(i, petra_bases_[b].x, petra_bases_[b].z, scan, live) != 0;
+			if (!any) continue;
+			petra_scout_unit_id_ = 0;
+		}
+		if (petra_start_hunting(i, scan)) continue;
+		// Nothing around: try another base.
+		for (const auto &base : petra_bases_) {
+			bool live = false;
+			if (petra_find_hunt(i, base.x, base.z, scan, live) == 0) continue;
+			cmd_move(&units_.id[i], 1, base.x, base.z);
+			break;
+		}
+	}
 }
 
 // headquarters.js / baseManager.js: once the hunt and berries near our
