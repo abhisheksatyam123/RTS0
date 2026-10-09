@@ -1360,7 +1360,11 @@ private:
 	void tick_unit_ai(float dt);
 	void tick_status_effects(float dt);
 	void apply_status(size_t t, const CombatProfile &att);
-	void attack_approach(size_t i);
+	static constexpr float ATTACK_DUE = 1.0e-6f; // attack_timer: the hit lands this tick
+	void tick_attack_timer(size_t i, float dt);
+	bool attack_under_way(size_t i) const;
+	bool attack_ready(size_t i, bool in_range, float prepare);
+	void attack_done(size_t i, bool in_range, float repeat);
 	float unit_attack_damage(size_t i, size_t t); // Attack ApplyStatus (Poisoned, Burning)
 	static float status_dps(uint8_t kind);
 	void tick_projectiles(float dt);

@@ -6722,7 +6722,7 @@ void Simulation::tick_combat(float dt) {
 	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		// tick_gather uses attack_timer as the harvest clock; counting it down
 		// here as well cancelled every harvest tick, so nobody ever gathered.
-		if (units_.attack_timer[i] > 0 && units_.action_state[i] != ACTION_GATHER) units_.attack_timer[i] -= dt;
+		tick_attack_timer(i, dt);
 		target_idx[i] = -1;
 		if (!units_.alive[i]) return;
 		if (units_.attack_damage[i] <= 0.0f) return;
@@ -6788,7 +6788,8 @@ void Simulation::tick_combat(float dt) {
 			// Capturing a relic (tick_relics drives it).
 			if (is_relic_unit(tidx) && units_.order_kind[i] == ORDER_CAPTURE_RELIC) return;
 			if (tidx >= 0 && units_.alive[tidx] && can_attack(units_.team[i], units_.team[tidx]) &&
-					unit_can_target(i, (size_t)tidx) && (explicit_target || within_stance(tidx))) {
+					unit_can_target(i, (size_t)tidx) &&
+					(explicit_target || within_stance(tidx) || attack_under_way(i))) { // Attack.js hits before its range check
 				const float tx = units_.pos_x[tidx] - pxi, tz = units_.pos_z[tidx] - pzi;
 				// A target it picked itself that came too close is dropped; a player's
 				// target stays and move_units backs away from it.
@@ -6946,13 +6947,10 @@ void Simulation::tick_combat(float dt) {
 
 		// 0 A.D. Exact Parabolic Range Equation (CCmpRangeManager.cpp)
 		const float minr = units_.attack_range[i] * unit_min_range_ratio(units_.unit_type[i]);
-		if (!in_parabolic_range(d2, att_y, def_y, units_.attack_range[i]) || d2 < minr * minr) { // Attack.js MinRange
-			attack_approach(i);
-			continue;
-		}
-		if (units_.attack_timer[i] > 0) continue;
+		const bool in_range = in_parabolic_range(d2, att_y, def_y, units_.attack_range[i]) && d2 >= minr * minr; // Attack.js MinRange
+		if (!attack_ready(i, in_range, unit_combat_at(i).prepare)) continue;
 
-		units_.attack_timer[i] = units_.attack_cooldown[i];
+		attack_done(i, in_range, units_.attack_cooldown[i]);
 		units_.action_state[i] = ACTION_ATTACK;
 		units_.attacked_by[t] = units_.id[i]; // UnitAI "Attacked", answered by tick_unit_ai
 
@@ -7078,11 +7076,9 @@ void Simulation::tick_combat(float dt) {
 					&units_.target_x[i], &units_.target_z[i]);
 			units_.has_order[i] = 1;
 			units_.action_state[i] = ACTION_ATTACK;
-			if (!capture) attack_approach(i);
-			continue;
 		}
-		if (units_.attack_timer[i] > 0) continue;
 		if (capture) {
+			if (!in_range || (units_.attack_timer[i] > 0.0f && units_.attack_timer[i] != ATTACK_DUE)) continue;
 			units_.attack_timer[i] = CAPTURE_REPEAT_S;
 			units_.action_state[i] = ACTION_ATTACK;
 			capture_attack_[bit->second][units_.team[i]] += capture_strength;
@@ -7090,8 +7086,9 @@ void Simulation::tick_combat(float dt) {
 			continue;
 		}
 		if (!pack_state_can_attack(units_.pack_state[i])) continue; // Pack.js: unpack before firing
+		if (!attack_ready(i, in_range, unit_combat_at(i).prepare)) continue;
 
-		units_.attack_timer[i] = units_.attack_cooldown[i];
+		attack_done(i, in_range, units_.attack_cooldown[i]);
 		units_.action_state[i] = ACTION_ATTACK;
 
 		const auto &uinfo_att = unit_info_at(i);
@@ -7853,19 +7850,47 @@ float Simulation::unit_attack_damage(size_t i, size_t t) {
 		uinfo_att.crush_damage * dmg_scale * mul * powf(0.9f, target_armor[2]));
 }
 
-// Attack.js StartAttacking: the first hit comes PrepareTime after the attack starts, or
-// when the last one's RepeatTime runs out if that is later. While a unit closes in,
-// its timer is held at PrepareTime at least, so it never strikes on arrival.
-void Simulation::attack_approach(size_t i) {
-	// attack_timer is the harvest, heal, cheer and flight clock in those states.
-	switch (units_.action_state[i]) {
-	case ACTION_IDLE: case ACTION_MOVE: case ACTION_ATTACK: case ACTION_ATTACK_MOVE:
-	case ACTION_PATROL: case ACTION_GUARD:
-		units_.attack_timer[i] = std::max(units_.attack_timer[i], unit_combat_at(i).prepare);
-		break;
-	default:
-		break;
+// A unit's attack timer runs as 0 A.D. Attack.js's interval timer:
+//  < 0          an attack is under way: -timer is left of PrepareTime or RepeatTime;
+//  ATTACK_DUE   it ran out this tick: the hit lands wherever the target now is;
+//  >= 0         not attacking; timer is what is left of RepeatTime since the last hit.
+// attack_timer is also the harvest, heal, cheer and flight clock (always >= 0) in those
+// states, so only an attack under way, which no other clock sets, can fall due.
+void Simulation::tick_attack_timer(size_t i, float dt) {
+	float &tm = units_.attack_timer[i];
+	if (tm == ATTACK_DUE) tm = 0.0f; // nothing took last tick's hit: Attack.js StopAttacking
+	const uint8_t st = units_.action_state[i];
+	if (st == ACTION_GATHER) return; // tick_gather counts its harvests on it
+	if (tm < 0.0f) {
+		const bool fighting = st == ACTION_IDLE || st == ACTION_MOVE || st == ACTION_ATTACK ||
+				st == ACTION_ATTACK_MOVE || st == ACTION_PATROL || st == ACTION_GUARD;
+		if (!fighting) tm = -tm; // the attack stopped; the rest of RepeatTime still applies
+		else if ((tm += dt) >= 0.0f) tm = ATTACK_DUE;
+	} else if (tm > 0.0f) {
+		tm = std::max(0.0f, tm - dt);
+		if (tm == ATTACK_DUE) tm = 0.0f;
 	}
+}
+
+// Whether unit i strikes now. Attack.js StartAttacking: an attacker within reach
+// starts its timer at max(PrepareTime, RepeatTime left), so it never strikes on arrival.
+bool Simulation::attack_ready(size_t i, bool in_range, float prepare) {
+	float &tm = units_.attack_timer[i];
+	if (tm == ATTACK_DUE) return true;
+	if (tm < 0.0f || !in_range) return false;
+	tm = -std::max(std::max(prepare, tm), 2.0f * ATTACK_DUE);
+	return false;
+}
+
+bool Simulation::attack_under_way(size_t i) const {
+	const float tm = units_.attack_timer[i];
+	return tm < 0.0f || tm == ATTACK_DUE;
+}
+
+// After a hit, Attack.js checks the range: in reach the next comes after RepeatTime,
+// out of reach the unit stops attacking (and must wait the rest of RepeatTime anyway).
+void Simulation::attack_done(size_t i, bool in_range, float repeat) {
+	units_.attack_timer[i] = in_range ? -repeat : repeat;
 }
 
 void Simulation::tick_status_effects(float dt) {
@@ -16848,19 +16873,16 @@ void Simulation::tick_hunters() {
 		// The animal's footprint; a penned animal is reached over the corral fence.
 		float reach = (slaughter ? std::max(units_.attack_range[i], 2.0f * 0.6f) : units_.attack_range[i]) + 1.0f;
 		if (fauna_.behavior[f] == FAUNA_CORRALLED) reach += 3.0f;
-		if (dx * dx + dz * dz > reach * reach) {
-			if (!slaughter) attack_approach(i);
-			continue;
-		}
-		if (units_.attack_timer[i] > 0.0f) continue;
+		const bool in_reach = dx * dx + dz * dz <= reach * reach;
+		if (!attack_ready(i, in_reach, slaughter ? 0.0f : unit_combat_at(i).prepare)) continue;
 
 		const auto &uinfo = unit_info_at(i);
 		float dmg;
 		if (slaughter) {
-			units_.attack_timer[i] = 1.0f;
+			attack_done(i, in_reach, 1.0f);
 			dmg = 1000.0f * powf(0.9f, finfo.hack_armor);
 		} else {
-			units_.attack_timer[i] = units_.attack_cooldown[i];
+			attack_done(i, in_reach, units_.attack_cooldown[i]);
 			const float scale = uinfo.attack_damage > 0.0f ? units_.attack_damage[i] / uinfo.attack_damage : 1.0f;
 			dmg = uinfo.hack_damage * scale * powf(0.9f, finfo.hack_armor) +
 			      uinfo.pierce_damage * scale * powf(0.9f, finfo.pierce_armor) +

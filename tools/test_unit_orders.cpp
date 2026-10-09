@@ -432,12 +432,15 @@ static void test_capture() {
 	setup(s);
 	const uint32_t house = s.spawn_building_world(0, 0, BLD_BARRACKS, 1, 1.0f);
 	const Simulation::Building *b = bld(s, house);
-	const float hp0 = b->hp, cp0 = b->capture_points_by_team[1];
+	const float cp0 = b->capture_points_by_team[1];
 	// Units standing near the structure without orders take no points any more.
 	uint32_t idle[2] = {s.spawn_unit(-8, 0, 0, UNIT_SPEARMAN), s.spawn_unit(-8, 2, 0, UNIT_SPEARMAN)};
 	s.order_set_stance(idle, 2, STANCE_STAND_GROUND);
 	run(s, 5.0f);
 	check(bld(s, house)->capture_points_by_team[1] == cp0, "idle units near it don't capture");
+	// They do stab it (stand ground, in reach): walk them off so only the capturers count.
+	s.order_walk(idle, 2, -40, 0);
+	const float hp1 = bld(s, house)->hp;
 	uint32_t cap[6];
 	for (int k = 0; k < 6; ++k) cap[k] = s.spawn_unit(-12.0f, -5.0f + 2.0f * k, 0, UNIT_SPEARMAN);
 	s.order_attack_building(cap, 6, house, false, true);
@@ -445,7 +448,7 @@ static void test_capture() {
 	check(s.unit_capturing(idx_of(s, cap[0])), "the renderer sees it capturing (Capture clip)");
 	const bool flipped = run_until(s, 240.0f, [&] { return bld(s, house)->team == 0; });
 	check(flipped, "six spearmen ordered to capture take it");
-	check(bld(s, house)->hp >= hp0 * 0.999f, "without damaging it");
+	check(bld(s, house)->hp >= hp1 * 0.999f, "without damaging it");
 	run(s, 2.0f);
 	check(s.unit_order(cap[0]).kind == ORDER_NONE && act_of(s, cap[0]) != ACTION_ATTACK, "and stop once it is theirs");
 
