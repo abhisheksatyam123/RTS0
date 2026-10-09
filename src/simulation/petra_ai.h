@@ -81,6 +81,7 @@ struct PetraConfig {
 	int prio_tech      = 700;
 	int prio_trade     = 1;
 	int prio_naval     = 90;
+	static constexpr int PRIO_MINOR_TECH = 250; // config.js priorities.minorTech (prio_tech is majorTech)
 
 	void recompute() {
 		switch (behavior) {
