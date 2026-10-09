@@ -323,6 +323,14 @@ Simulation::~Simulation() = default;
 
 void Simulation::reset() {
 	territory_regions_dirty_ = true;
+	// A new game brings its own terrain (set_terrain_data or load_state); the
+	// previous map's heights would otherwise move projectiles and water.
+	terrain_heights_.clear();
+	terrain_res_ = 64;
+	terrain_water_height_ = -1.0f;
+	fow_cell_height_.clear();
+	fow_cell_hmax_.clear();
+	fow_block_hmax_.clear();
 	triggers_.clear();
 	units_.free_all(); units_.init(UNIT_CAP);
 	resources_.free_all(); resources_.init(512);
@@ -786,6 +794,10 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	b.cell_x = cell_x;
 	b.cell_y = cell_y;
 	b.footprint = footprint;
+	if (type == BLD_DOCK) { // GuiInterface GetFoundationSnapData: a dock faces the open water
+		const float a = dock_angle(wx, wz, half);
+		if (!std::isnan(a)) b.rot = a;
+	}
 	b.attack_timer = 0.0f;
 	b.is_burning = false;
 	b.has_rally_point = false;
@@ -1329,7 +1341,49 @@ Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell
 	return PLACE_OK;
 }
 
-uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b_type) {
+float Simulation::dock_angle(float x, float z, float half_size) const {
+	// Commands.js GetDockAngle: sample 16 points on a circle, find the longest run of
+	// consecutive water points and face its middle; widen the circle while every
+	// point (or none) is water.
+	constexpr int NUM_POINTS = 16;
+	constexpr float TWO_PI = 6.28318530718f;
+	if (terrain_heights_.empty()) return NAN;
+	for (int dist = 0; dist < 4; ++dist) {
+		int water[NUM_POINTS];
+		int n = 0;
+		const float d = half_size * (float)(dist + 1);
+		for (int i = 0; i < NUM_POINTS; ++i) {
+			const float a = (float)i / NUM_POINTS * TWO_PI;
+			if (get_terrain_height(x - d * std::sin(a), z + d * std::cos(a)) < terrain_water_height_) water[n++] = i;
+		}
+		if (!n) continue;
+		int start = 0, count = 0;
+		for (int i = 0; i < n; ++i) {
+			int c = 0;
+			for (int j = 0; j < n - 1; ++j) {
+				if ((water[(i + j) % n] + 1) % NUM_POINTS == water[(i + j + 1) % n]) ++c;
+				else break;
+			}
+			if (c > count) { start = i; count = c; }
+		}
+		if (count != NUM_POINTS - 1)
+			return -std::fmod((float)water[start] + count * 0.5f, (float)NUM_POINTS) / NUM_POINTS * TWO_PI;
+	}
+	return NAN;
+}
+
+uint32_t Simulation::pack_angle(float angle) {
+	constexpr float TWO_PI = 6.28318530718f;
+	float t = std::fmod(angle - DEFAULT_BUILDING_ROT, TWO_PI);
+	if (t < 0.0f) t += TWO_PI;
+	return (uint32_t)std::lround(t / TWO_PI * 65536.0f) & 0xFFFFu;
+}
+
+float Simulation::unpack_angle(uint32_t packed) {
+	return DEFAULT_BUILDING_ROT + (float)(packed & 0xFFFFu) / 65536.0f * 6.28318530718f;
+}
+
+uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b_type, float angle) {
 	if (player >= MAX_PLAYERS || b_type >= BLD_TYPE_COUNT) return 0;
 	if (!civ_can_build(players_[player].civ, b_type)) return 0; // civ-specific structures
 	const BuildingTypeInfo &binfo = building_type_info(b_type);
@@ -1355,6 +1409,7 @@ uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b
 		return 0;
 
 	uint32_t bid = spawn_building(cell_x, cell_y, b_type, player, 0.0f);
+	if (b_type != BLD_DOCK) buildings_[building_id_to_idx_[bid]].rot = unpack_angle(pack_angle(angle));
 	if (player == 0) record_.buildings_constructed++;
 	return bid;
 }
@@ -12773,12 +12828,21 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
 	// reset(), a replay, a rejoin) sizes the FoW, nav and territory grids before reading them.
 	out.write((const char *)&map_half_, sizeof(map_half_));
+	// v31: the heightmap, so a load restores the saved map's terrain (projectile
+	// heights, water, line of sight) instead of keeping whatever the sim held.
+	{
+		const int32_t res = terrain_res_;
+		const uint32_t n = (uint32_t)terrain_heights_.size();
+		out.write((const char *)&res, sizeof(res));
+		out.write((const char *)&n, sizeof(n));
+		if (n) out.write((const char *)terrain_heights_.data(), (std::streamsize)(n * sizeof(float)));
+	}
 
 	// 1. Sim scalars
 	out.write((const char *)&ticks_, sizeof(ticks_));
@@ -12902,6 +12966,7 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&b.is_burning, sizeof(b.is_burning));
 		out.write((const char *)&b.gate_open, sizeof(b.gate_open));
 		out.write((const char *)&b.gate_locked, sizeof(b.gate_locked));
+		out.write((const char *)&b.rot, sizeof(b.rot));
 
 		uint32_t q_sz = (uint32_t)b.queue.size();
 		out.write((const char *)&q_sz, sizeof(q_sz));
@@ -12960,6 +13025,17 @@ bool Simulation::load_state(const char *filepath) {
 		in.read((char *)&half, sizeof(half));
 		if (!in.good() || !(half > 0.0f) || half > 4096.0f) return false;
 		if (half != map_half_) set_map_half(half);
+	}
+	if (version >= 31) {
+		int32_t res = 0;
+		uint32_t n = 0;
+		in.read((char *)&res, sizeof(res));
+		in.read((char *)&n, sizeof(n));
+		if (!in.good() || res < 0 || res > 8193 || (n && (uint64_t)n != (uint64_t)res * (uint64_t)res)) return false;
+		std::vector<float> heights(n);
+		if (n) in.read((char *)heights.data(), (std::streamsize)(n * sizeof(float)));
+		if (!in.good()) return false;
+		set_terrain_data(heights, res, terrain_water_height_); // the water level comes with the tick state
 	}
 
 	// 1. Sim scalars
@@ -13209,6 +13285,7 @@ bool Simulation::load_state(const char *filepath) {
 			in.read((char *)&bld.gate_open, sizeof(bld.gate_open));
 			in.read((char *)&bld.gate_locked, sizeof(bld.gate_locked));
 		}
+		if (version >= 31) in.read((char *)&bld.rot, sizeof(bld.rot));
 		const auto &bi = building_type_info(bld.type);
 		bld.capture_regen_rate = bi.capture_regen_rate;
 		bld.capture_garrison_regen_rate = bi.capture_garrison_regen_rate;
