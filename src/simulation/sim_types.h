@@ -143,7 +143,13 @@ enum MapType : uint8_t {
 	MAP_BAHRAIN = 68,
 	MAP_BOTSWANAN_HAVEN = 69,
 	MAP_SCYTHIAN_RIVULET = 70,
-	MAP_TYPE_COUNT = 71
+	MAP_AMBUSH = 71,
+	MAP_ARCTIC_SUMMER = 72,
+	MAP_EMPIRE = 73,
+	MAP_SCHWARZWALD = 74,
+	MAP_RATUMACOS = 75,
+	MAP_OASIS_0AD = 76,
+	MAP_TYPE_COUNT = 77
 };
 
 struct MapTypeInfo {
@@ -227,7 +233,13 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_MARMARA, "marmara", "Marmara (RMS)", "aegean", true, "The Propontis (Sea of Marmara) between Thrace and Asia Minor, joined by the Bosporus and the Hellespont; players start on fertile land."},
 		{MAP_BAHRAIN, "bahrain", "Bahrain (RMS)", "desert", true, "Bahrain, the pearl island of the Sinus Persicus, stands empty between the coasts of Arabia: will you be its next ruler?"},
 		{MAP_BOTSWANAN_HAVEN, "botswanan_haven", "Botswanan Haven (RMS)", "savanna", true, "Botswana in the wet season: herds graze amid tall, lush grasses where lions wait, and crocodiles lurk in the shallow pools."},
-		{MAP_SCYTHIAN_RIVULET, "scythian_rivulet", "Scythian Rivulet (RMS)", "polar", true, "Carpeted in snow, a land of wolf packs either side of a frozen rivulet; players must conquer - or be conquered."}
+		{MAP_SCYTHIAN_RIVULET, "scythian_rivulet", "Scythian Rivulet (RMS)", "polar", true, "Carpeted in snow, a land of wolf packs either side of a frozen rivulet; players must conquer - or be conquered."},
+		{MAP_AMBUSH, "ambush", "Ambush (RMS)", "temperate", true, "High bluffs overlook the terrain below; rich resources await on the cliffs, but beware of an ambush."},
+		{MAP_ARCTIC_SUMMER, "arctic_summer", "Arctic Summer (RMS)", "polar", true, "Summer in the far north: wolves, deer, hares and muskox roam the plains between hills and lakes."},
+		{MAP_EMPIRE, "empire", "Empire (RMS)", "mediterranean", true, "A neighbouring province has pledged allegiance to you: every player starts with two civic centres."},
+		{MAP_SCHWARZWALD, "schwarzwald", "Schwarzwald (RMS)", "temperate", true, "A forest heavy map with a lake in the middle and plenty of resources."},
+		{MAP_RATUMACOS, "ratumacos", "Ratumacos (RMS)", "alpine", true, "Players start on the banks of the Sequana (Seine) in northern Gaul, near the settlement of Ratumacos."},
+		{MAP_OASIS_0AD, "oasis_0ad", "Oasis (0 A.D.) (RMS)", "oasis", true, "Players start around a small oasis in the centre of the map, which holds much of the wood."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Bake the random-map heightmap images into a C++ header.
 
-0 A.D.'s Hellas, Red Sea, Marmara and Bahrain scripts paint the map from a greyscale PNG
+0 A.D.'s Hellas, Red Sea, Marmara, Bahrain and Ratumacos scripts paint the map from a greyscale PNG
 (Engine.LoadHeightmapImage). The headless simulation has no image decoder,
 so this script decodes the PNGs in assets/maps/heightmaps/, halves them with
-a 2x2 box filter (Red Sea, Marmara and Bahrain 512 -> 256, Hellas 720 -> 360; the RTS0 grid is at
+a 2x2 box filter (Red Sea, Marmara, Bahrain and Ratumacos 512 -> 256, Hellas 720 -> 360; the RTS0 grid is at
 most 257 vertices across) and writes the 8-bit samples to
 src/simulation/heightmap_images.h as base64 chunks.
 
@@ -24,6 +24,7 @@ IMAGES = [
     ("hellas", "assets/maps/heightmaps/hellas.png", 2),
     ("marmara", "assets/maps/heightmaps/marmara.png", 2),
     ("bahrain", "assets/maps/heightmaps/bahrain.png", 2),
+    ("ratumacos", "assets/maps/heightmaps/ratumacos.png", 2),
 ]
 OUT = ROOT / "src/simulation/heightmap_images.h"
 CHUNK = 4000  # characters per string literal (MSVC caps single literals)

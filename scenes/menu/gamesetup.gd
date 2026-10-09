@@ -102,6 +102,12 @@ const RMS_MAPS := [
 	["random_bahrain", "Bahrain (RMS)", "Random", 8, 128, "desert", "Arabian coasts round the island of Bahrain from a real elevation map; ships needed. Supports 2-8 players."],
 	["random_botswanan_haven", "Botswanan Haven (RMS)", "Random", 8, 128, "savanna", "Wet-season savanna with hills and shallow marsh pools. Supports 2-8 players."],
 	["random_scythian_rivulet", "Scythian Rivulet (RMS)", "Random", 8, 128, "polar", "Snowy land either side of a shallow frozen rivulet. Supports 2-8 players."],
+	["random_ambush", "Ambush (RMS)", "Random", 8, 128, "temperate", "High bluffs with rich resources overlook the plain. Supports 2-8 players."],
+	["random_arctic_summer", "Arctic Summer (RMS)", "Random", 8, 128, "polar", "Northern summer plains with hills, lakes and plenty of game. Supports 2-8 players."],
+	["random_empire", "Empire (RMS)", "Random", 8, 128, "mediterranean", "Every player starts with two civic centres. Supports 2-8 players."],
+	["random_schwarzwald", "Schwarzwald (RMS)", "Random", 8, 128, "temperate", "Heavy forest round a central lake. Supports 2-8 players."],
+	["random_ratumacos", "Ratumacos (RMS)", "Random", 8, 128, "alpine", "Both banks of the Seine near Ratumacos (Rouen). Supports 2-8 players."],
+	["random_oasis_0ad", "Oasis (0 A.D.) (RMS)", "Random", 8, 128, "oasis", "Desert round a central oasis that holds most of the wood. Supports 2-8 players."],
 ]
 
 # 0 A.D. population limits per player (0 = unlimited) and ceasefire lengths in minutes.
