@@ -82,7 +82,10 @@ static void test_buildings_and_capture() {
 	CHECK(s->los_visible(2, -20.0f, -20.0f), "a finished house gives its owner vision");
 	CHECK(!s->los_visible(3, 20.0f, 20.0f), "a foundation gives none");
 	for (auto &b : s->buildings_)
-		if (b.id == bid) b.team = 4;
+		if (b.id == bid) { // captured: the new owner holds the capture points too
+			b.team = 4;
+			std::swap(b.capture_points_by_team[2], b.capture_points_by_team[4]);
+		}
 	s->tick(0.25f); // one LOS update (4 Hz)
 	CHECK(!s->los_visible(2, -20.0f, -20.0f) && s->los_visible(4, -20.0f, -20.0f), "a captured house's vision moves to its new owner");
 	CHECK(s->los_explored(2, -20.0f, -20.0f), "the old owner keeps it explored");
