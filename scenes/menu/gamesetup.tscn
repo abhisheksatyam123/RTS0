@@ -136,6 +136,11 @@ layout_mode = 2
 tooltip_text = "Remove every treasure from the map when the match starts."
 text = "No treasures"
 
+[node name="LockTeams" type="CheckBox" parent="VBox/HBox/Left/StartRow"]
+layout_mode = 2
+tooltip_text = "Toggle the locked teams. Players can't change diplomacy during the match."
+text = "Lock teams"
+
 [node name="MapVisRow" type="HBoxContainer" parent="VBox/HBox/Left"]
 layout_mode = 2
 

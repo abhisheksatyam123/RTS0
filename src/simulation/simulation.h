@@ -604,8 +604,11 @@ public:
 	void set_disable_treasures(bool on) { disable_treasures_ = on; }
 	bool disable_treasures() const { return disable_treasures_; }
 	// 0 A.D. RegicideGarrison: the Regicide hero may garrison (else it spawns "ungarrisonable|").
-	void set_regicide_garrison(bool on) { regicide_garrison_ = on; }
-	bool regicide_garrison() const { return regicide_garrison_; }
+	void set_regicide_garrison(bool on) { set_setup_flag(SETUP_REGICIDE_GARRISON, on); }
+	bool regicide_garrison() const { return setup_flags_ & SETUP_REGICIDE_GARRISON; }
+	// 0 A.D. LockTeams (Diplomacy.LockTeam): no player can change diplomacy all match.
+	void set_lock_teams(bool on) { set_setup_flag(SETUP_LOCK_TEAMS, on); }
+	bool teams_locked() const { return setup_flags_ & SETUP_LOCK_TEAMS; }
 	uint32_t regicide_hero(uint8_t pid) const { return pid < MAX_PLAYERS ? regicide_hero_[pid] : 0; }
 	// False for a Regicide hero while RegicideGarrison is off: it can't enter structures,
 	// siege engines or ships.
@@ -1596,7 +1599,10 @@ private:
 	bool nomad_start_ = false;        // the map was generated Nomad: tick 0 places the top-up treasures
 	bool disable_treasures_ = false;
 	void spawn_nomad_treasures();
-	bool regicide_garrison_ = false;
+	// Game Setup switches kept in the byte v32 saves as RegicideGarrison (old saves read as bit 0).
+	static constexpr uint8_t SETUP_REGICIDE_GARRISON = 1, SETUP_LOCK_TEAMS = 2, SETUP_FLAGS_ALL = 3;
+	uint8_t setup_flags_ = 0;
+	void set_setup_flag(uint8_t flag, bool on) { setup_flags_ = on ? (setup_flags_ | flag) : (setup_flags_ & ~flag); }
 	uint32_t regicide_hero_[MAX_PLAYERS] = {};
 	uint8_t player_color_[MAX_PLAYERS] = {0, 1, 2, 3, 4, 5, 6, 7};
 	void remove_player_structures(); // Nomad
