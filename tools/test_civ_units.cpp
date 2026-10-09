@@ -286,7 +286,8 @@ int main() {
 		CHECK(e.entity_limit_allows_unit(4, UNIT_SWORDSMAN, centurion, 8));
 		CHECK(!e.entity_limit_allows_unit(4, UNIT_SWORDSMAN, centurion, 9));
 		// Heroes: one at a time, queued or alive.
-		CHECK(e.entity_limit(0, LIMIT_HERO) == 1 && e.entity_limit(0, LIMIT_ANIMAL) == 50);
+		CHECK(e.entity_limit(0, LIMIT_HERO) == 1 && e.entity_limit(0, LIMIT_ANIMAL) == 50 &&
+		      BUILDING_LIMIT_CATEGORY[BLD_ICE_HOUSE] == LIMIT_YAKHCHAL && e.entity_limit(0, LIMIT_YAKHCHAL) == 5);
 		CHECK(!e.entity_limit_allows_unit(1, UNIT_HERO, find_template(CIV_PTOLEMIES, "Cleopatra VII")));
 	}
 
