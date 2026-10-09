@@ -273,6 +273,7 @@ public:
 	void set_game_speed(float speed);
 	float get_game_speed() const { return game_speed; }
 	void toggle_pause();
+	void toggle_summary();
 	void quicksave();
 	void quickload();
 	void show_notice(const String &text);
@@ -388,6 +389,7 @@ public:
 	bool trade_route_click(const rtso::Simulation::Building &b, bool execute, bool queued, String *tooltip);
 	Dictionary debug_trade_route_clicks();
 	Dictionary debug_guard_step(int step);
+	PackedStringArray debug_train_buttons(int btype);
 	uint32_t trade_origin_market_ = 0;
 	Label *cursor_tip_ = nullptr;
 	std::vector<uint32_t> trade_origin_traders_;
@@ -493,6 +495,7 @@ private:
 	bool load_pending_save();
 	void tick_match_archive();
 	Dictionary statistics_summary() const;
+	Dictionary summary_gui(bool in_game) const;
 	bool write_save_metadata(const String &path, const String &description) const;
 	void write_save_thumbnail(const String &path);
 };

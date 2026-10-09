@@ -14,18 +14,18 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{"Spartan Senate", "great_hall", "gerousia", 2000.0f, 2, 0, 0, 200, 100, 0, 5, 50.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/spart/gerousia */ \
 		{"Military Mess Hall", "great_hall", "syssiton", 2000.0f, 2, 0, 0, 200, 200, 0, 10, 50.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/spart/syssiton */ \
 		{"Winter Palace", "palace", "tachara", 3000.0f, 2, 0, 0, 200, 200, 0, 10, 75.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/pers/tachara */ \
-		{"Army Camp", "barracks", "army_camp", 1750.0f, 2, 0, 400, 0, 150, 0, 20, 62.5f, 1500.0f, 10.0f, 1.0f, 20.0f}, /* structures/rome/army_camp */ \
+		{"Army Camp", "barracks", "army_camp", 1750.0f, 2, 0, 400, 0, 150, 0, 20, 62.5f, 1500.0f, 10.0f, 1.0f, 0.0f}, /* structures/rome/army_camp */ \
 		{"Amphitheater", "amphitheater", "amphitheater", 2000.0f, 2, 0, 0, 500, 500, 0, 5, 125.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/rome/amphitheater_pompeii */ \
 		{"Library", "library", "library", 2000.0f, 2, 0, 0, 200, 200, 0, 5, 50.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/mace/library */ \
 		{"Kennel", "kennel", "kennel", 500.0f, 1, 0, 100, 0, 0, 0, 10, 12.5f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/brit/kennel */ \
 		{"Assembly of Princes", "great_hall", "assembly", 2000.0f, 2, 0, 400, 0, 0, 0, 20, 50.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/gaul/assembly */ \
-		{"Revered Monument", "pyramid_minor", "monument", 1200.0f, 1, 0, 0, 100, 100, 0, 0, 30.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/iber/monument */ \
+		{"Revered Monument", "pyramid_minor", "monument", 1200.0f, 1, 0, 0, 100, 100, 0, 0, 30.0f, 500.0f, 5.0f, 1.0f, 0.0f}, /* structures/iber/monument */ \
 		{"Palace", "palace", "palace", 3000.0f, 2, 0, 0, 200, 200, 0, 5, 50.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/maur/palace */ \
-		{"Edict Pillar of Ashoka", "pyramid_minor", "pillar", 1000.0f, 1, 0, 0, 100, 100, 0, 0, 20.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/maur/pillar_ashoka */ \
+		{"Edict Pillar of Ashoka", "pyramid_minor", "pillar", 1000.0f, 1, 0, 0, 100, 100, 0, 0, 20.0f, 500.0f, 5.0f, 1.0f, 0.0f}, /* structures/maur/pillar_ashoka */ \
 		{"Large Pyramid", "pyramid_large", "pyramid_large", 3000.0f, 2, 0, 0, 150, 450, 0, 0, 75.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/kush/pyramid_large */ \
 		{"Small Pyramid", "pyramid_small", "pyramid_small", 2000.0f, 2, 0, 0, 75, 150, 0, 0, 30.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/kush/pyramid_small */ \
 		{"Mercenary Camp", "barracks", "mercenary_camp", 1200.0f, 2, 0, 100, 100, 100, 0, 10, 75.0f, 500.0f, 0.5f, 1.0f, 1.0f}, /* structures/ptol/mercenary_camp */ \
-		{"Lighthouse", "lighthouse", "lighthouse", 2000.0f, 2, 0, 0, 200, 200, 0, 5, 50.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/ptol/lighthouse */ \
+		{"Lighthouse", "lighthouse", "lighthouse", 2000.0f, 2, 0, 0, 200, 200, 0, 5, 50.0f, 500.0f, 0.5f, 1.0f, 0.0f}, /* structures/ptol/lighthouse */ \
 		{"Military Colony", "town_center", "military_colony", 2000.0f, 2, 0, 200, 150, 200, 20, 20, 75.0f, 2500.0f, 5.0f, 1.0f, 20.0f}, /* structures/ptol/military_colony */ \
 		{"Imperial Academy", "academy", "academy", 2000.0f, 2, 0, 0, 300, 300, 0, 10, 50.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/han/academy */ \
 		{"Imperial Ministry", "imperial_ministry", "ministry", 3000.0f, 2, 0, 0, 200, 200, 20, 9, 50.0f, 3000.0f, 5.0f, 1.0f, 20.0f}, /* structures/han/ministry */ \
@@ -35,6 +35,7 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{"Temple of Vesta", "temple", "temple_vesta", 2000.0f, 2, 0, 0, 0, 300, 0, 20, 50.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/rome/temple_vesta */ \
 		{"Temple of Mars", "temple", "temple_mars", 2000.0f, 2, 0, 0, 0, 300, 0, 30, 50.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/rome/temple_mars */ \
 		{"Ice House", "farmstead", "ice_house", 800.0f, 2, 0, 100, 0, 100, 0, 0, 15.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/pers/ice_house */ \
+		{"Naval Shipyard", "dock", "super_dock", 5000.0f, 2, 0, 300, 0, 200, 0, 5, 125.0f, 2000.0f, 0.5f, 2.0f, 0.0f}, /* structures/cart/super_dock */ \
 
 
 // LootInfo rows (xp, food, wood, stone, metal) for building_loot(), in BuildingType order.
@@ -65,11 +66,20 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{0, 0, 0, 60, 0}, /* structures/rome/temple_vesta */ \
 		{0, 0, 0, 60, 0}, /* structures/rome/temple_mars */ \
 		{0, 0, 20, 20, 0}, /* structures/pers/ice_house */ \
+		{0, 0, 60, 40, 0}, /* structures/cart/super_dock */ \
 
 
-// Civilizations (bit per Civilization) that may build a civ-specific structure.
+// Civilizations (bit per Civilization) that may build a structure: the civ-specific
+// ones, and generic ones only for the civs whose 0 A.D. Builder lists name them.
 inline uint16_t civ_building_civ_mask(uint8_t type) {
 	switch (type) {
+		case BLD_GATE: return 0x3ffd; // athen pers rome cart mace brit gaul iber maur kush ptol sele han
+		case BLD_WALL_SEGMENT: return 0x3ffd; // athen pers rome cart mace brit gaul iber maur kush ptol sele han
+		case BLD_RANGE: return 0x0000; // none
+		case BLD_WALL_TOWER: return 0x3ffd; // athen pers rome cart mace brit gaul iber maur kush ptol sele han
+		case BLD_ELEPHANT_STABLE: return 0x1e14; // pers cart maur kush ptol sele
+		case BLD_THEATER: return 0x1823; // athen spart mace ptol sele
+		case BLD_EMBASSY: return 0x0010; // cart
 		case BLD_GYMNASIUM: return 0x0001; // athen
 		case BLD_PRYTANEION: return 0x0001; // athen
 		case BLD_GEROUSIA: return 0x0002; // spart
@@ -96,6 +106,7 @@ inline uint16_t civ_building_civ_mask(uint8_t type) {
 		case BLD_TEMPLE_VESTA: return 0x0008; // rome
 		case BLD_TEMPLE_MARS: return 0x0008; // rome
 		case BLD_ICE_HOUSE: return 0x0004; // pers
+		case BLD_SUPER_DOCK: return 0x0010; // cart
 		default: return 0xFFFF;
 	}
 }
@@ -129,6 +140,7 @@ inline uint8_t civ_building_phase(uint8_t type) {
 		case BLD_TEMPLE_VESTA: return 2;
 		case BLD_TEMPLE_MARS: return 3;
 		case BLD_ICE_HOUSE: return 1;
+		case BLD_SUPER_DOCK: return 3;
 		default: return 0;
 	}
 }
@@ -140,6 +152,7 @@ inline float civ_building_territory_radius(uint8_t type) {
 		case BLD_PALACE: return 8.7f;
 		case BLD_MILITARY_COLONY: return 17.1f;
 		case BLD_MINISTRY: return 13.7f;
+		case BLD_SUPER_DOCK: return 45.7f;
 		default: return 0.0f;
 	}
 }
@@ -151,6 +164,7 @@ inline float civ_building_vision(uint8_t type) {
 		case BLD_LIGHTHOUSE: return 60.0f;
 		case BLD_MILITARY_COLONY: return 27.0f;
 		case BLD_MINISTRY: return 24.0f;
+		case BLD_SUPER_DOCK: return 30.0f;
 		default: return 0.0f;
 	}
 }

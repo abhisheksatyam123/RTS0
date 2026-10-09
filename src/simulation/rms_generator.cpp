@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <vector>
 #include <cstring>
+#include <limits>
+#include <queue>
 
 namespace rtso {
 
@@ -630,6 +632,24 @@ void HeightmapGrid::carve_canyon_network(RmsRng &rng, float border_margin, float
 // `radius_frac` of the map half (a circle) sits at least 0.4 above the nav water
 // line. The invented noise maps could otherwise sink nearly everything but the
 // base pads, leaving each player on an island of their own.
+// Places n gaia/tree trees (TREE_WOOD_SUPPLY wood each) for one tree spot: the
+// first on the spot, the rest around it at `spread`, on ground above min_h. RTS0's
+// groves were laid out for 800-wood trees; two 200-wood trees per spot bring a
+// 256 map's wood near what 0 A.D.'s random maps carry. The offsets come from a
+// hash of the spot so the generator's random stream is unchanged.
+static void spawn_trees(Simulation &sim, const HeightmapGrid &hm, float x, float z, float min_h, int n = 2, float spread = 0.9f) {
+	sim.spawn_resource_world(x, z, RES_WOOD, TREE_WOOD_SUPPLY);
+	const uint32_t hsh = (uint32_t)(int32_t)std::floor(x * 16.0f) * 73856093u ^ (uint32_t)(int32_t)std::floor(z * 16.0f) * 19349663u;
+	const float a0 = (float)((hsh >> 4) & 1023u) * (6.2831853f / 1024.0f);
+	const float lim = hm.map_half - 1.0f;
+	for (int k = 1; k < n; ++k) {
+		const float a = a0 + 6.2831853f * (float)(k - 1) / (float)std::max(1, n - 1);
+		const float tx = x + std::cos(a) * spread, tz = z + std::sin(a) * spread;
+		if (std::fabs(tx) < lim && std::fabs(tz) < lim && hm.sample_world(tx, tz) > min_h)
+			sim.spawn_resource_world(tx, tz, RES_WOOD, TREE_WOOD_SUPPLY);
+	}
+}
+
 static void lift_noise_to_land(HeightmapGrid &hm, float water_h, float radius_frac, int wet_percent) {
 	std::vector<float> inner;
 	const float r_in = hm.map_half * radius_frac;
@@ -1803,17 +1823,23 @@ void RmsGenerator::synth_cantabrian_highlands(HeightmapGrid &hm, RmsRng &rng, fl
 	hm.apply_fbm(rng, 4, 0.025f, 0.5f, 2.0f, 2.0f);
 	const float start = rng.range_float(0.0f, 6.2831853f);
 	const float ring_r = half * 0.70f;
+	// Bases are levelled before the hills go up: levelling a base on its hill (14 units and a
+	// 6-unit blend) would fill the upper half of its ramp back in, leaving a cliff.
+	place_ring_spawns(hm, spawns, num_players, ring_r, start, 6.2831853f, water_h + 1.5f);
 	for (int i = 0; i < num_players; ++i) {
 		const float a = start + 6.2831853f * (float)i / (float)std::max(1, num_players);
 		// The ramp points back towards the centre, give or take pi / 8.
 		const float ramp = a + 3.14159265f * (1.0f + rng.range_float(-1.0f, 1.0f) / 8.0f);
 		hm.raise_plateau(std::cos(a) * ring_r, std::sin(a) * ring_r, 19.0f, ramp, 0.3f, 7.0f, 6.0f);
 	}
-	place_ring_spawns(hm, spawns, num_players, ring_r, start, 6.2831853f, water_h + 1.5f);
 	scatter_ponds(hm, rng, spawns, scale_by_map_size(1, 4, half) * std::max(1, num_players) / 2,
 	              half * 0.05f + 3.0f, 30.0f, 12.0f, half * 0.95f, 3.0f, water_h);
 	hm.blur(1, 0.3f);
-	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 15.0f, 3.0f, sp.base_height);
+	// The hilltop inside the ramp's start (half the hill's radius).
+	for (auto &sp : spawns) {
+		sp.base_height = hm.sample_world(sp.x, sp.z);
+		lift_area(hm, sp.x, sp.z, 8.0f, 1.5f, sp.base_height);
+	}
 }
 
 void RmsGenerator::synth_pyrenean_sierra(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
@@ -3670,7 +3696,7 @@ void RmsGenerator::place_trigger_map_entities(Simulation &sim, const HeightmapGr
 				const float d = rng.range_float(0.0f, 0.25f * 2.0f * half);
 				const float x = std::cos(a) * d, z = std::sin(a) * d;
 				if (hm.sample_world(x, z) < 6.0f * kTriggerMapHeight - 0.5f || hm.compute_slope_world(x, z) > 0.7f) continue;
-				sim.spawn_resource_world(x, z, res, 5000);
+				sim.spawn_resource_world(x, z, res, LARGE_MINE_SUPPLY);
 				++i;
 			}
 		}
@@ -3828,7 +3854,7 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 			sim.spawn_resource_world(bx, bz, RES_FOOD, 450);
 		}
 
-		// 5. Primary Forest: Dense Woodline (10 trees, 800 wood each)
+		// 5. Primary Forest: Dense Woodline (10 spots of two 200-wood trees)
 		float forest_cx = px - fx * 10.5f + rx * 3.5f;
 		float forest_cz = pz - fz * 10.5f + rz * 3.5f;
 		dry(px, pz, forest_cx, forest_cz, 5.0f);
@@ -3836,45 +3862,36 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 			float ta = -1.2f + (2.4f * t) / 9.0f;
 			float tx = forest_cx + std::cos(ta) * 4.0f + rng.range_float(-0.4f, 0.4f);
 			float tz = forest_cz + std::sin(ta) * 4.0f + rng.range_float(-0.4f, 0.4f);
-			sim.spawn_resource_world(tx, tz, RES_WOOD, 800);
+			spawn_trees(sim, hm, tx, tz, dry_h);
 		}
 
-		// 6. Primary Gold Mine (3 Gold Rocks, 1200 gold each)
+		// 6-7. rmgen placePlayerBaseMines: one large metal mine and one large
+		// stone mine (template_gaia_ore_large / _rock_large, 5000 each).
 		float gold_cx = px + fx * 3.5f - rx * 11.5f;
 		float gold_cz = pz + fz * 3.5f - rz * 11.5f;
 		dry(px, pz, gold_cx, gold_cz, 2.8f);
-		for (int g = 0; g < 3; ++g) {
-			float ga = (6.2831853f * g) / 3.0f;
-			float gx = gold_cx + std::cos(ga) * 1.8f;
-			float gz = gold_cz + std::sin(ga) * 1.8f;
-			sim.spawn_resource_world(gx, gz, RES_GOLD, 1200);
-		}
+		sim.spawn_resource_world(gold_cx, gold_cz, RES_GOLD, LARGE_MINE_SUPPLY);
 
-		// 7. Primary Stone Mine (2 Stone Rocks, 1200 stone each)
 		float stone_cx = px - fx * 8.5f - rx * 9.5f;
 		float stone_cz = pz - fz * 8.5f - rz * 9.5f;
 		dry(px, pz, stone_cx, stone_cz, 2.5f);
-		for (int s = 0; s < 2; ++s) {
-			float sx = stone_cx + (s == 0 ? -1.2f : 1.2f);
-			float sz = stone_cz + (s == 0 ? -0.8f : 0.8f);
-			sim.spawn_resource_world(sx, sz, RES_STONE, 1200);
-		}
+		sim.spawn_resource_world(stone_cx, stone_cz, RES_STONE, LARGE_MINE_SUPPLY);
 
-		// 8. Secondary Forward Gold Mine (Expansion)
+		// 8. Secondary Forward Gold Mine (Expansion): small metal rocks, 1000 each
 		float sec_gold_cx = px + fx * 22.0f + rx * 6.0f;
 		float sec_gold_cz = pz + fz * 22.0f + rz * 6.0f;
 		dry(px, pz, sec_gold_cx, sec_gold_cz, 2.8f);
 		for (int g = 0; g < 3; ++g) {
 			float ga = (6.2831853f * g) / 3.0f;
-			sim.spawn_resource_world(sec_gold_cx + std::cos(ga) * 1.8f, sec_gold_cz + std::sin(ga) * 1.8f, RES_GOLD, 1500);
+			sim.spawn_resource_world(sec_gold_cx + std::cos(ga) * 1.8f, sec_gold_cz + std::sin(ga) * 1.8f, RES_GOLD, MINE_SUPPLY);
 		}
 
-		// 9. Secondary Stone Mine (Flank)
+		// 9. Secondary Stone Mine (Flank): small stone rocks, 1000 each
 		float sec_stone_cx = px + fx * 18.0f - rx * 16.0f;
 		float sec_stone_cz = pz + fz * 18.0f - rz * 16.0f;
 		dry(px, pz, sec_stone_cx, sec_stone_cz, 2.5f);
 		for (int s = 0; s < 2; ++s) {
-			sim.spawn_resource_world(sec_stone_cx + (s == 0 ? -1.3f : 1.3f), sec_stone_cz, RES_STONE, 1500);
+			sim.spawn_resource_world(sec_stone_cx + (s == 0 ? -1.3f : 1.3f), sec_stone_cz, RES_STONE, MINE_SUPPLY);
 		}
 
 		const BiomeFauna bf = biome_fauna(config.biome, (int)config.seed);
@@ -3923,18 +3940,18 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 	// Map-specific landmark resource clusters
 	if (config.map_type == MAP_DANUBIUS) {
 		// Central Island Fortress Resources
-		sim.spawn_resource_world(-2.5f, 0.0f, RES_GOLD, 1600);
-		sim.spawn_resource_world( 2.5f, 0.0f, RES_GOLD, 1600);
-		sim.spawn_resource_world(0.0f, -2.5f, RES_STONE, 1600);
-		sim.spawn_resource_world(0.0f,  2.5f, RES_STONE, 1600);
+		sim.spawn_resource_world(-2.5f, 0.0f, RES_GOLD, MINE_SUPPLY);
+		sim.spawn_resource_world( 2.5f, 0.0f, RES_GOLD, MINE_SUPPLY);
+		sim.spawn_resource_world(0.0f, -2.5f, RES_STONE, MINE_SUPPLY);
+		sim.spawn_resource_world(0.0f,  2.5f, RES_STONE, MINE_SUPPLY);
 		// Oak grove on fortress island
 		for (int t = 0; t < 8; ++t) {
 			float a = (6.2831853f * t) / 8.0f;
-			sim.spawn_resource_world(std::cos(a) * 5.0f, std::sin(a) * 5.0f, RES_WOOD, 850);
+			spawn_trees(sim, hm, std::cos(a) * 5.0f, std::sin(a) * 5.0f, water_h + 0.3f);
 		}
 		// Sandbar resources
-		sim.spawn_resource_world(-half * 0.30f, 0.0f, RES_STONE, 1200);
-		sim.spawn_resource_world( half * 0.30f, 0.0f, RES_STONE, 1200);
+		sim.spawn_resource_world(-half * 0.30f, 0.0f, RES_STONE, MINE_SUPPLY);
+		sim.spawn_resource_world( half * 0.30f, 0.0f, RES_STONE, MINE_SUPPLY);
 	} else if (config.map_type == MAP_SAHARAN_OASES) {
 		// Date palm tree rings and berry groves around each oasis
 		std::vector<std::pair<float, float>> oases_centers = {
@@ -3953,9 +3970,7 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 				float a = (6.2831853f * p) / (float)num_palms + rng.range_float(-0.2f, 0.2f);
 				float tx = ox + std::cos(a) * o_rad;
 				float tz = oz + std::sin(a) * o_rad;
-				if (hm.sample_world(tx, tz) > water_h + 0.15f) {
-					sim.spawn_resource_world(tx, tz, RES_WOOD, 800);
-				}
+				if (hm.sample_world(tx, tz) > water_h + 0.15f) spawn_trees(sim, hm, tx, tz, water_h + 0.15f);
 			}
 			// Oasis date/grape berry bushes
 			for (int b = 0; b < 3; ++b) {
@@ -3981,23 +3996,22 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 			uint8_t mtype = (mi % 2 == 0) ? RES_GOLD : RES_STONE;
 			float mx = rim_mines[mi].first;
 			float mz = rim_mines[mi].second;
-			sim.spawn_resource_world(mx - 1.2f, mz, mtype, 1600);
-			sim.spawn_resource_world(mx + 1.2f, mz, mtype, 1600);
+			sim.spawn_resource_world(mx, mz, mtype, LARGE_MINE_SUPPLY);
 		}
 	} else if (config.map_type == MAP_JEBEL_BARKAL) {
 		// Summit of Jebel Barkal high-ground treasure & quarries
 		float mesa_z = half * 0.06f;
-		sim.spawn_resource_world(-2.5f, mesa_z, RES_GOLD, 1800);
-		sim.spawn_resource_world( 2.5f, mesa_z, RES_GOLD, 1800);
-		sim.spawn_resource_world( 0.0f, mesa_z + 2.5f, RES_STONE, 1800);
-		sim.spawn_resource_world( 0.0f, mesa_z - 2.5f, RES_STONE, 1800);
+		sim.spawn_resource_world(-2.5f, mesa_z, RES_GOLD, MINE_SUPPLY);
+		sim.spawn_resource_world( 2.5f, mesa_z, RES_GOLD, MINE_SUPPLY);
+		sim.spawn_resource_world( 0.0f, mesa_z + 2.5f, RES_STONE, MINE_SUPPLY);
+		sim.spawn_resource_world( 0.0f, mesa_z - 2.5f, RES_STONE, MINE_SUPPLY);
 		for (int t = 0; t < 6; ++t) {
 			float a = (6.2831853f * t) / 6.0f;
-			sim.spawn_resource_world(std::cos(a) * 4.5f, mesa_z + std::sin(a) * 4.5f, RES_WOOD, 800);
+			spawn_trees(sim, hm, std::cos(a) * 4.5f, mesa_z + std::sin(a) * 4.5f, water_h + 0.3f);
 		}
 		// Surrounding savanna quarries along base
-		sim.spawn_resource_world(-half * 0.48f,  half * 0.42f, RES_STONE, 1500);
-		sim.spawn_resource_world( half * 0.48f,  half * 0.42f, RES_STONE, 1500);
+		sim.spawn_resource_world(-half * 0.48f,  half * 0.42f, RES_STONE, LARGE_MINE_SUPPLY);
+		sim.spawn_resource_world( half * 0.48f,  half * 0.42f, RES_STONE, LARGE_MINE_SUPPLY);
 	}
 
 	if (config.map_type == MAP_PHOENICIAN_LEVANT || config.map_type == MAP_BAHRAIN) {
@@ -4037,10 +4051,14 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 			if (crowded) continue;
 			placed.push_back(p);
 			const uint8_t type = levant ? (g % 3 == 1 ? RES_GOLD : RES_STONE) : (rng.range_int(0, 1) ? RES_GOLD : RES_STONE);
-			const int rocks = levant && g % 3 == 2 ? 3 : 2;
-			for (int r = 0; r < rocks; ++r) {
-				const float a = 6.2831853f * (float)r / (float)rocks;
-				sim.spawn_resource_world(p.first + std::cos(a) * 1.6f, p.second + std::sin(a) * 1.6f, type, 1400);
+			if (levant && g % 3 == 2) {
+				// The small stone group: three template_gaia_rock rocks.
+				for (int r = 0; r < 3; ++r) {
+					const float a = 6.2831853f * (float)r / 3.0f;
+					sim.spawn_resource_world(p.first + std::cos(a) * 1.6f, p.second + std::sin(a) * 1.6f, type, MINE_SUPPLY);
+				}
+			} else {
+				sim.spawn_resource_world(p.first, p.second, type, LARGE_MINE_SUPPLY);
 			}
 			++g;
 		}
@@ -4071,9 +4089,7 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 			float r = std::sqrt(rng.next_float()) * grove_r;
 			float tx = gx + std::cos(a) * r;
 			float tz = gz + std::sin(a) * r;
-			if (hm.sample_world(tx, tz) > water_h + 0.2f) {
-				sim.spawn_resource_world(tx, tz, RES_WOOD, 800);
-			}
+			if (hm.sample_world(tx, tz) > water_h + 0.2f) spawn_trees(sim, hm, tx, tz, water_h + 0.2f);
 		}
 	}
 
@@ -4093,11 +4109,17 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 		float h = hm.sample_world(mx, mz);
 		if (h < water_h + 0.4f || hm.compute_slope_world(mx, mz) > 0.7f) continue;
 
+		// Like rmgen's mine passes: a large mine (5000), or a group of
+		// small rocks (1000 each).
 		uint8_t res_type = (m % 2 == 0) ? RES_GOLD : RES_STONE;
 		int rocks = rng.range_int(2, 4);
+		if (rocks == 2) {
+			sim.spawn_resource_world(mx, mz, res_type, LARGE_MINE_SUPPLY);
+			continue;
+		}
 		for (int r = 0; r < rocks; ++r) {
 			float a = (6.2831853f * r) / (float)rocks;
-			sim.spawn_resource_world(mx + std::cos(a) * 1.6f, mz + std::sin(a) * 1.6f, res_type, 1400);
+			sim.spawn_resource_world(mx + std::cos(a) * 1.6f, mz + std::sin(a) * 1.6f, res_type, MINE_SUPPLY);
 		}
 	}
 
@@ -6662,8 +6684,7 @@ void RmsGenerator::distribute_land_extras(Simulation &sim, const HeightmapGrid &
 				const auto &other = kind == 0 ? stone : metal;
 				if ((int)own.size() >= 61 || !clear_of(own, x, z, 20.0f) || !clear_of(other, x, z, 10.0f) || !clear_of(groves, x, z, 6.0f)) continue;
 				own.push_back({x, z});
-				for (int r = 0; r < 2; ++r)
-					sim.spawn_resource_world(x + (r ? 1.2f : -1.2f), z, kind == 0 ? RES_GOLD : RES_STONE, 1400);
+				sim.spawn_resource_world(x, z, kind == 0 ? RES_GOLD : RES_STONE, LARGE_MINE_SUPPLY);
 			} else {
 				if (dist_to_bases(x, z) < 20.0f || (int)groves.size() >= 120 || !clear_of(groves, x, z, 10.0f) ||
 				    !clear_of(metal, x, z, 5.0f) || !clear_of(stone, x, z, 5.0f)) continue;
@@ -6673,7 +6694,7 @@ void RmsGenerator::distribute_land_extras(Simulation &sim, const HeightmapGrid &
 				for (int k = 0; k < trees; ++k) {
 					const auto p = polar(rng.range_float(0.0f, kTwoPi), std::sqrt(rng.next_float()) * gr);
 					if (hm.sample_world(x + p.first, z + p.second) > top - 1.0f)
-						sim.spawn_resource_world(x + p.first, z + p.second, RES_WOOD, 800);
+						spawn_trees(sim, hm, x + p.first, z + p.second, top - 1.0f);
 				}
 			}
 		}
@@ -6683,7 +6704,7 @@ void RmsGenerator::distribute_land_extras(Simulation &sim, const HeightmapGrid &
 		// 15 tiles from a base to 1 at 30 x |size/3 - r| / (size/3) x 0.75, off
 		// the water and the low open shore and 1-2 tiles clear of the paths
 		// between every base and the centre. RTS0 tests every other tile
-		// along each axis (a quarter of the trees).
+		// along each axis and plants four trees for each hit.
 		const int n = (int)spawns.size();
 		const float max_d = std::min(256.0f * (192.0f + 8.0f * (float)n) / (size * size), 1.0f);
 		const float res_r = size / 3.0f;
@@ -6715,7 +6736,7 @@ void RmsGenerator::distribute_land_extras(Simulation &sim, const HeightmapGrid &
 				const float tx = x + rng.range_float(-0.5f, 0.5f), tz = z + rng.range_float(-0.5f, 0.5f);
 				if (hm.sample_world(tx, tz) < open_h + (border ? 0.0f : 0.2f)) continue;
 				if (path_dist(tx, tz) < (border ? 1.0f : 2.0f) + 1.5f) continue;
-				sim.spawn_resource_world(tx, tz, RES_WOOD, 800);
+				spawn_trees(sim, hm, tx, tz, open_h, 4, 0.7f);
 			}
 	} else if (config.map_type == MAP_OASIS_0AD) {
 		// oasis.js: the central oasis's palm band (pOasisForestLight, a palm
@@ -6729,7 +6750,7 @@ void RmsGenerator::distribute_land_extras(Simulation &sim, const HeightmapGrid &
 				if (r < r0 || r > rt) continue;
 				if (rng.next_float() >= 2.0f / 9.0f) continue;
 				const float tx = x + rng.range_float(-0.3f, 0.3f), tz = z + rng.range_float(-0.3f, 0.3f);
-				if (hm.sample_world(tx, tz) > wade_height(water_h) + 0.1f) sim.spawn_resource_world(tx, tz, RES_WOOD, 800);
+				if (hm.sample_world(tx, tz) > wade_height(water_h) + 0.1f) sim.spawn_resource_world(tx, tz, RES_WOOD, TREE_WOOD_SUPPLY);
 			}
 	}
 }
@@ -7818,6 +7839,125 @@ void RmsGenerator::synth_unknown(HeightmapGrid &hm, RmsRng &rng, float &water_h,
 	finish_spawns(hm, spawns, locs, land, 18.0f, water_h);
 }
 
+namespace {
+// Eases the heights along a route of navcells (cell indices in res x res) wherever it crosses one
+// steeper than land units may (LAND_MAX_TERRAIN_SLOPE): each steep stretch, and as much of the
+// route on either side as a ramp of half that slope needs, gets heights falling evenly from one
+// end to the other, flat across a corridor 2.5 units each side of the route.
+void ease_route(HeightmapGrid &hm, const NavGrid &g, const std::vector<float> &slope, const std::vector<int32_t> &route) {
+	const int res = g.res;
+	const float cell = 2.0f * hm.map_half / (float)res;
+	constexpr float RAMP = 0.5f * LAND_MAX_TERRAIN_SLOPE; // along the route, leaving room for its corners
+	const int m = (int)route.size();
+	std::vector<float> cx(m), cz(m), h(m), along(m);
+	for (int i = 0; i < m; ++i) {
+		cx[i] = ((float)(route[i] % res) + 0.5f) * cell - hm.map_half;
+		cz[i] = ((float)(route[i] / res) + 0.5f) * cell - hm.map_half;
+		h[i] = hm.sample_world(cx[i], cz[i]);
+		along[i] = (float)i * cell;
+	}
+	for (int i = 0; i < m;) {
+		if (!(slope[route[i]] > LAND_MAX_TERRAIN_SLOPE)) { ++i; continue; }
+		int a = i, c = i;
+		while (c + 1 < m && (slope[route[c + 1]] > LAND_MAX_TERRAIN_SLOPE ||
+		                     (c + 3 < m && slope[route[c + 3]] > LAND_MAX_TERRAIN_SLOPE)))
+			++c;
+		a = std::max(0, a - 1);
+		c = std::min(m - 1, c + 1);
+		while (std::fabs(h[c] - h[a]) > RAMP * (along[c] - along[a]) && (a > 0 || c < m - 1)) {
+			a = std::max(0, a - 1);
+			c = std::min(m - 1, c + 1);
+		}
+		const float full = 1.25f * cell, edge = 2.5f * cell;
+		const float x0 = *std::min_element(cx.begin() + a, cx.begin() + c + 1) - edge;
+		const float x1 = *std::max_element(cx.begin() + a, cx.begin() + c + 1) + edge;
+		const float z0 = *std::min_element(cz.begin() + a, cz.begin() + c + 1) - edge;
+		const float z1 = *std::max_element(cz.begin() + a, cz.begin() + c + 1) + edge;
+		const float step = 2.0f * hm.map_half / (float)(hm.res - 1);
+		const int vx0 = std::max(0, (int)std::floor((x0 + hm.map_half) / step)), vx1 = std::min(hm.res - 1, (int)std::ceil((x1 + hm.map_half) / step));
+		const int vz0 = std::max(0, (int)std::floor((z0 + hm.map_half) / step)), vz1 = std::min(hm.res - 1, (int)std::ceil((z1 + hm.map_half) / step));
+		const float span = std::max(along[c] - along[a], 1e-3f);
+		for (int vz = vz0; vz <= vz1; ++vz)
+			for (int vx = vx0; vx <= vx1; ++vx) {
+				const float wx = -hm.map_half + (float)vx * step, wz = -hm.map_half + (float)vz * step;
+				int near = -1;
+				float nd = edge;
+				for (int k = a; k <= c; ++k) {
+					const float d = std::hypot(wx - cx[k], wz - cz[k]);
+					if (d < nd) { nd = d; near = k; }
+				}
+				if (near < 0) continue;
+				const float target = h[a] + (h[c] - h[a]) * (along[near] - along[a]) / span;
+				const float t = nd <= full ? 1.0f : 1.0f - smoothstep(full, edge, nd);
+				const float cur = hm.get(vx, vz);
+				hm.set(vx, vz, cur + (target - cur) * t);
+			}
+		i = c + 1;
+	}
+}
+
+// RTS0's safety net for MaxTerrainSlope, which every land unit obeys: a port's hills, ridges or
+// bumps can come out steeper or wider than the 0 A.D. script makes them and wall a base off where
+// the script leaves a way through. Where the gentlest land route from the first base to another
+// crosses a navcell too steep, ease_route turns that stretch into a ramp. Water stays as it is: a
+// base the sea cuts off stays on its island.
+void ease_routes_between_bases(HeightmapGrid &hm, const std::vector<RmsGenerator::PlayerSpawn> &spawns, float water_h) {
+	if (spawns.size() < 2) return;
+	const int res = Simulation::grid_res_for_map(hm.map_half);
+	constexpr float NONE = std::numeric_limits<float>::infinity();
+	for (int round = 0; round < 8; ++round) {
+		NavGrid g;
+		g.init(hm.map_half, res);
+		g.set_water_from_heights(hm.data, hm.res, water_h);
+		if (!g.any_steep()) return;
+		std::vector<float> slope((size_t)res * (size_t)res);
+		for (int y = 0; y < res; ++y)
+			for (int x = 0; x < res; ++x) slope[(size_t)y * res + x] = g.compute_cell_slope(x, y, hm.data, hm.res);
+		// The route whose steepest navcell is least steep (a bottleneck Dijkstra over land
+		// navcells). (slope, cell) keys are all distinct, so every standard library's heap pops
+		// them in the same order.
+		std::vector<float> best((size_t)res * (size_t)res, NONE);
+		std::vector<int32_t> prev((size_t)res * (size_t)res, -1);
+		using Key = std::pair<float, int32_t>;
+		std::priority_queue<Key, std::vector<Key>, std::greater<Key>> open;
+		const auto [sx, sy] = g.world_to_cell(spawns[0].x, spawns[0].z);
+		best[(size_t)sy * res + sx] = 0.0f;
+		open.push({0.0f, sy * res + sx});
+		while (!open.empty()) {
+			const auto [d, k] = open.top();
+			open.pop();
+			if (d > best[(size_t)k]) continue;
+			const int x = k % res, y = k / res;
+			static const int dirs[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+			for (const auto &dir : dirs) {
+				const int nx = x + dir[0], ny = y + dir[1];
+				if (!g.cells.inside(nx, ny)) continue;
+				const uint8_t c = g.cells.at(nx, ny);
+				if (c != NAV_PASSABLE && c != NAV_SHALLOW) continue;
+				const int32_t n = ny * res + nx;
+				const float nd = std::max(d, slope[(size_t)n]);
+				if (nd < best[(size_t)n]) {
+					best[(size_t)n] = nd;
+					prev[(size_t)n] = k;
+					open.push({nd, n});
+				}
+			}
+		}
+		bool eased = false;
+		for (size_t b = 1; b < spawns.size(); ++b) {
+			const auto [bx, by] = g.world_to_cell(spawns[b].x, spawns[b].z);
+			const int32_t t = by * res + bx;
+			if (best[(size_t)t] == NONE || !(best[(size_t)t] > LAND_MAX_TERRAIN_SLOPE)) continue;
+			std::vector<int32_t> route;
+			for (int32_t k = t; k >= 0; k = prev[(size_t)k]) route.push_back(k);
+			ease_route(hm, g, slope, route);
+			eased = true;
+		}
+		if (!eased) return;
+	}
+}
+} // namespace
+
 // =========================================================================
 // Main RmsGenerator Entry Point
 // =========================================================================
@@ -8091,6 +8231,9 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 			synth_peloponnese(hm, rng, water_h, spawns, config.num_players);
 			break;
 	}
+
+	// Survival of the Fittest's cliffs are meant to keep the bases apart; the waves come over them.
+	if (config.map_type != MAP_SURVIVAL_OF_THE_FITTEST) ease_routes_between_bases(hm, spawns, water_h);
 
 	// Transfer heightmap to simulation
 	sim.set_terrain_data(hm.data, hm.res, water_h);

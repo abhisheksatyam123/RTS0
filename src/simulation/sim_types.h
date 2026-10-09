@@ -384,7 +384,8 @@ enum BuildingType : uint8_t {
 	BLD_TEMPLE_VESTA = 49,    // rome/temple_vesta
 	BLD_TEMPLE_MARS = 50,     // rome/temple_mars
 	BLD_ICE_HOUSE = 51,       // pers/ice_house
-	BLD_TYPE_COUNT = 52
+	BLD_SUPER_DOCK = 52,      // cart/super_dock (Cothon)
+	BLD_TYPE_COUNT = 53
 };
 
 #include "civ_building_data.h"
@@ -406,6 +407,13 @@ enum ResourceSubtype : uint8_t {
 	RES_SUB_FISH = 3, // food.fish: only fishing boats gather it
 	RES_SUB_RUINS = 4 // stone.ruins / metal.ruins (template_gaia_ruins): gather_class_ruins_rate
 };
+
+// 0 A.D. Gaia ResourceSupply Max amounts that random maps place: gaia/tree/* hold
+// 200 wood, template_gaia_ore and template_gaia_rock 1000 metal or stone, and their
+// _large variants 5000. (Ported JSON maps read each entity's own template instead.)
+constexpr int32_t TREE_WOOD_SUPPLY = 200;
+constexpr int32_t MINE_SUPPLY = 1000;
+constexpr int32_t LARGE_MINE_SUPPLY = 5000;
 
 // 0 A.D. template_gaia_fish.xml ResourceSupply: 1000 food, at most 4 gatherers,
 // and +1 food every 2 s while nobody gathers it (Change/Spawn, notGathered) up to Max.
@@ -439,7 +447,7 @@ enum UnitOrderKind : uint8_t {
 	ORDER_GATHER = 6,         // target resource
 	ORDER_BUILD = 7,          // target building (build or repair)
 	ORDER_GARRISON = 8,       // target building
-	ORDER_GUARD = 9,          // target unit (Guard.js)
+	ORDER_GUARD = 9,          // target unit or structure (Guard.js)
 	ORDER_HEAL = 10,          // target unit (UnitAI Heal)
 	ORDER_TRADE = 11,         // target = first market, x2 holds the second market's id bits (UnitAI Trade)
 	ORDER_RETURN_RESOURCE = 12, // target = the dropsite (UnitAI ReturnResource)
@@ -551,10 +559,8 @@ enum StatusEffect : uint8_t {
 	EFFECT_NONE = 0,
 	EFFECT_POISON = 1,
 	EFFECT_BURNING = 2,
-	EFFECT_SNARE = 4,
-	EFFECT_KNOCKBACK = 8,
-	EFFECT_SLOW = 16,
-	EFFECT_BLEED = 32
+	// Bits 4-32 were RTS0's invented snare, knockback, slow and bleed; tick_status_effects
+	// clears them from saves made before they went.
 };
 
 enum VictoryCondition : uint8_t {
@@ -700,6 +706,19 @@ inline bool unit_is_ship(uint8_t type) {
 	return type == UNIT_TRIREME || type == UNIT_FISHING_BOAT || type == UNIT_MERCHANT_SHIP;
 }
 
+// How close a unit's centre comes to a building: its 0 A.D. passability class Clearance
+// (simulation/data/pathfinder.xml) in RTS0 units, "default" 0.8 m and "large" 3 m, the class of
+// siege engines and elephants (template_unit_siege, template_unit_champion_elephant,
+// template_unit_support_elephant, template_unit_hero_elephant_melee). Ships keep their hull
+// radius: docks are the only buildings they meet. Between units RTS0 keeps unit_collision_radius.
+inline float unit_building_clearance(uint8_t type) {
+	switch (type) {
+		case UNIT_CATAPULT: case UNIT_SIEGE_RAM: case UNIT_BOLT_SHOOTER:
+		case UNIT_ELEPHANT: case UNIT_WORKER_ELEPHANT: return 3.0f / 4.0f;
+		default: return unit_is_ship(type) ? unit_collision_radius(type) : 0.8f / 4.0f;
+	}
+}
+
 inline bool unit_is_siege_engine(uint8_t type) {
 	return type == UNIT_SIEGE_RAM || type == UNIT_CATAPULT || type == UNIT_BOLT_SHOOTER;
 }
@@ -835,6 +854,13 @@ inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 	};
 	if (type >= BLD_TYPE_COUNT) return kTable[BLD_HOUSE];
 	return kTable[type];
+}
+
+// Half the depth (along the footprint's v axis, nav/footprint.h) of a building of `type` whose half
+// width is `half_w`. Every RTS0 building so far is square; 0 A.D.'s walls are long and thin.
+inline float building_half_depth(uint8_t type, float half_w) {
+	(void)type;
+	return half_w;
 }
 
 // 0 A.D. Identity/Requirements/Techs per structure: 1 = phase_village,
@@ -1108,7 +1134,7 @@ inline constexpr uint64_t bld_bit(uint8_t type) { return (type < 64) ? (1ull << 
 // model fallback and AI role.
 // ---------------------------------------------------------------------------
 
-enum CivRosterFlag : uint8_t {
+enum CivRosterFlag : uint16_t {
 	ROSTER_HERO = 1,
 	ROSTER_CHAMPION = 2,
 	ROSTER_RANGED = 4,
@@ -1116,13 +1142,36 @@ enum CivRosterFlag : uint8_t {
 	ROSTER_MERCENARY = 16,
 	ROSTER_PACKABLE = 32, // 0 A.D. Pack component (10 s to pack or unpack)
 	ROSTER_SIEGE_TOWER = 64,
-	ROSTER_RELIC = 128 // a catafalque (template_unit_catafalque): Capture the Relic
+	ROSTER_RELIC = 128, // a catafalque (template_unit_catafalque): Capture the Relic
+	ROSTER_NO_GATHER = 256 // a Citizen whose template disables ResourceGatherer (mercenaries)
 };
 
 inline constexpr uint16_t civ_bit(uint8_t civ) { return (civ < 16) ? (uint16_t)(1u << civ) : 0u; }
 
 // Roster tables hold at most 64 * CIV_TEMPLATE_WORDS_MAX unit templates.
 inline constexpr uint16_t CIV_TEMPLATE_WORDS_MAX = 8;
+
+// A unit's short path around buildings (nav/building_steering.h), kept between ticks as 0 A.D.'s
+// CCmpUnitMotion keeps m_ShortPath: the first waypoint (x, z), the aim it leads towards, and the
+// obstacle key it was searched among. key 0 = no short path. Saved raw (no padding).
+struct ShortPathMemo {
+	float x = 0.0f, z = 0.0f;
+	float aim_x = 0.0f, aim_z = 0.0f;
+	uint32_t key = 0;
+};
+static_assert(sizeof(ShortPathMemo) == 20, "ShortPathMemo is saved raw");
+
+// CCmpUnitMotion's m_FailedMovements and the move of the 0 A.D. turn under way (200 ms, four RTS0
+// ticks), which motion_feedback() judges when the turn ends, as UnitMotion judges each turn's Move.
+struct MotionTurn {
+	float from_x = 0.0f, from_z = 0.0f; // where the unit stood before its first step this turn
+	float want_x = 0.0f, want_z = 0.0f; // the steps it tried this turn, summed
+	uint8_t failed = 0;  // m_FailedMovements: obstructed turns in a row
+	uint8_t stepped = 0; // it tried a step this turn
+	uint8_t blocked = 0; // a closed gate stopped one of this turn's steps
+	uint8_t pad = 0;
+};
+static_assert(sizeof(MotionTurn) == 20, "MotionTurn is saved raw");
 
 struct CivHeroAura {
 	const char *id;
@@ -1188,7 +1237,7 @@ struct CivUnitTemplate {
 	uint8_t civ;
 	uint8_t unit_type; // RTS0 behaviour class (UnitType)
 	uint8_t phase; // 1 village, 2 town, 3 city
-	uint8_t flags; // CivRosterFlag bits
+	uint16_t flags; // CivRosterFlag bits
 	uint64_t trainers; // bld_bit() of each BuildingType that trains it
 	float hp;
 	float speed;
@@ -1211,6 +1260,7 @@ struct CivUnitTemplate {
 	int16_t auras[3]; // index into civ_hero_aura_table(), -1 = none
 	uint8_t unlock_tech; // TechnologyId from 0 A.D. Identity/Requirements (unlock_champion_*), or TECH_NONE
 	uint64_t tech_classes; // TechClass bits of 0 A.D. Identity/Classes + VisibleClasses
+	float vision; // 0 A.D. Vision/Range x0.28 (RTS0 units)
 };
 
 #include "civ_roster_data.h"
@@ -1296,7 +1346,8 @@ inline uint8_t unit_gather_class(uint8_t unit_type, uint16_t tmpl) {
 	if (tmpl != CIV_UNIT_TEMPLATE_NONE) {
 		// Roster rows: only citizen soldiers (ROSTER_CITIZEN; three citizen champions inherit
 		// template_unit_infantry too) gather.
-		if (!(civ_unit_template(tmpl).flags & ROSTER_CITIZEN)) return GATHER_NONE;
+		const uint16_t flags = civ_unit_template(tmpl).flags;
+		if (!(flags & ROSTER_CITIZEN) || (flags & ROSTER_NO_GATHER)) return GATHER_NONE;
 		return infantry ? GATHER_INFANTRY : cavalry ? GATHER_CAVALRY : GATHER_NONE;
 	}
 	return infantry ? GATHER_INFANTRY : cavalry ? GATHER_CAVALRY : GATHER_NONE;
@@ -1443,7 +1494,7 @@ inline const UnitTypeInfo &civ_template_unit_info(uint16_t tmpl, uint8_t type) {
 			u.attack_cooldown = t.attack_cooldown;
 			u.carry_capacity = t.carry_capacity;
 			// template_unit_cavalry ResourceGatherer: citizen cavalry carry 20 meat (Capacities/food).
-			if (t.unit_type == UNIT_CAVALRY && (t.flags & ROSTER_CITIZEN) && u.carry_capacity == 0) u.carry_capacity = 20;
+			if (t.unit_type == UNIT_CAVALRY && (t.flags & ROSTER_CITIZEN) && !(t.flags & ROSTER_NO_GATHER) && u.carry_capacity == 0) u.carry_capacity = 20;
 			if (t.attack_range > u.aggro_range) u.aggro_range = t.attack_range;
 			u.hack_armor = t.hack_armor;
 			u.pierce_armor = t.pierce_armor;
@@ -1554,7 +1605,7 @@ inline LootInfo unit_class_loot(uint8_t type) {
 // differ from the class their RTS0 UnitType names.
 inline LootInfo unit_loot(uint16_t tmpl, uint8_t type) {
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
-		const uint8_t flags = civ_unit_template(tmpl).flags;
+		const uint16_t flags = civ_unit_template(tmpl).flags;
 		if (flags & ROSTER_HERO) return {400, 10, 0, 0, 25};          // template_unit_hero
 		if (flags & ROSTER_SIEGE_TOWER) return {250, 0, 100, 0, 60};  // template_unit_siege_tower
 		if (flags & ROSTER_CHAMPION) {
@@ -1574,7 +1625,7 @@ inline LootInfo unit_loot(uint16_t tmpl, uint8_t type) {
 inline float unit_capture_attack(uint16_t tmpl, uint8_t type) {
 	const float base = unit_capture_strength(type);
 	if (base <= 0.0f || tmpl >= CIV_UNIT_TEMPLATE_COUNT) return base;
-	const uint8_t flags = civ_unit_template(tmpl).flags;
+	const uint16_t flags = civ_unit_template(tmpl).flags;
 	if (flags & ROSTER_HERO) return 10.0f;
 	if (flags & ROSTER_CHAMPION) return 5.0f;
 	return base;
@@ -1686,6 +1737,10 @@ inline float combat_bonus(const CombatProfile &attacker, const CombatProfile &ta
 // A projectile's footprint test radius in RTS0 units (PositionHelper.TestCollision).
 inline float combat_footprint(const CombatProfile &p) { return p.footprint * COMBAT_DISTANCE_SCALE; }
 // unit_advanced.json and unit_elite.json each multiply Attack/Ranged/Spread by 0.8.
+// StatusEffect bit for a CombatProfile::status (1 Poisoned, 2 Burning).
+inline uint8_t status_effect_bit(uint8_t status) {
+	return status == 1 ? EFFECT_POISON : status == 2 ? EFFECT_BURNING : EFFECT_NONE;
+}
 inline float spread_rank_multiplier(uint8_t rank) {
 	return rank >= 3 ? 0.64f : (rank == 2 ? 0.8f : 1.0f);
 }

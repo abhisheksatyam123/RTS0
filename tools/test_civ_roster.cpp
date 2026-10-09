@@ -142,7 +142,7 @@ int main()
 			const CivUnitTemplate &u = civ_unit_template(i);
 			if (u.flags & ROSTER_SIEGE_TOWER)
 				tower = u.unit_type == UNIT_BOLT_SHOOTER && (u.flags & ROSTER_RANGED) && u.hp >= 400.0f &&
-					!(u.flags & ROSTER_PACKABLE) && (u.trainers & bld_bit(BLD_FORTRESS));
+					!(u.flags & ROSTER_PACKABLE) && (u.trainers & bld_bit(BLD_ARSENAL));
 		}
 		std::snprintf(msg, sizeof(msg), "%s trains a siege tower", civ_info(c).code);
 		check(tower, msg);

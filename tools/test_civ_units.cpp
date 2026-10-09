@@ -237,6 +237,72 @@ int main() {
 		CHECK(claimed() > before);
 	}
 
+	// 0 A.D. Builder lists decide which generic structures a civ lays, and units
+	// train at their own 0 A.D. buildings: cavalry at the stable, siege at the
+	// arsenal, Carthaginian mercenaries at the embassy.
+	{
+		CHECK(civ_can_build(CIV_MAURYANS, BLD_ELEPHANT_STABLE) && !civ_can_build(CIV_ATHENIANS, BLD_ELEPHANT_STABLE));
+		CHECK(civ_can_build(CIV_CARTHAGINIANS, BLD_EMBASSY) && !civ_can_build(CIV_HAN, BLD_EMBASSY));
+		CHECK(civ_can_build(CIV_ATHENIANS, BLD_THEATER) && !civ_can_build(CIV_HAN, BLD_THEATER));
+		CHECK(!civ_can_build(CIV_SPARTANS, BLD_WALL_SEGMENT) && civ_can_build(CIV_ATHENIANS, BLD_WALL_SEGMENT));
+		CHECK(civ_can_build(CIV_HAN, BLD_STABLE) && civ_can_build(CIV_HAN, BLD_HOUSE));
+		const uint16_t cav = roster_id("athen/cavalry_swordsman_b");
+		const uint16_t ram = roster_id("athen/siege_ram");
+		const uint16_t merc = roster_id("cart/infantry_swordsman_gaul_b");
+		CHECK(cav != CIV_UNIT_TEMPLATE_NONE && ram != CIV_UNIT_TEMPLATE_NONE && merc != CIV_UNIT_TEMPLATE_NONE);
+		CHECK(civ_unit_template(cav).trainers == bld_bit(BLD_STABLE));
+		CHECK(civ_unit_template(ram).trainers == bld_bit(BLD_ARSENAL));
+		CHECK(civ_unit_template(merc).trainers == bld_bit(BLD_EMBASSY));
+		static Simulation b;
+		b.set_sim_seed(9);
+		b.set_team_civ(0, CIV_ATHENIANS);
+		b.reset();
+		b.player(0).phase = 3;
+		for (float &r : b.player(0).res) r = 5000.0f;
+		CHECK(b.cmd_build(0, 10.0f, 10.0f, BLD_ELEPHANT_STABLE) == 0);
+		const uint32_t bar = b.spawn_building_world(-20.0f, -20.0f, BLD_BARRACKS, 0, 1.0f);
+		const uint32_t stb = b.spawn_building_world(20.0f, -20.0f, BLD_STABLE, 0, 1.0f);
+		CHECK(!b.cmd_train_template(0, bar, cav));
+		CHECK(b.cmd_train_template(0, stb, cav));
+	}
+
+	// The Carthaginian Cothon (structures/cart/super_dock): Carthage only, laid on
+	// a shore, a territory root that trains warships but no fishing boats.
+	{
+		CHECK(civ_can_build(CIV_CARTHAGINIANS, BLD_SUPER_DOCK) && !civ_can_build(CIV_ATHENIANS, BLD_SUPER_DOCK));
+		CHECK(civ_building_territory_radius(BLD_SUPER_DOCK) > civ_building_territory_radius(BLD_MILITARY_COLONY));
+		CHECK(building_type_info(BLD_SUPER_DOCK).territory_decay_rate == 0.0f);
+		const uint16_t arrow = roster_id("cart/ship_arrow"), fishing = roster_id("cart/ship_fishing");
+		CHECK(civ_unit_template(arrow).trainers & bld_bit(BLD_SUPER_DOCK));
+		CHECK(!(civ_unit_template(fishing).trainers & bld_bit(BLD_SUPER_DOCK)));
+		static Simulation c;
+		c.set_sim_seed(11);
+		c.set_team_civ(0, CIV_CARTHAGINIANS);
+		c.reset();
+		c.player(0).phase = 3;
+		for (float &r : c.player(0).res) r = 5000.0f;
+		CHECK(c.cmd_build(0, 10.0f, 10.0f, BLD_SUPER_DOCK) == 0); // inland
+		const uint32_t cothon = c.spawn_building_world(30.0f, -30.0f, BLD_SUPER_DOCK, 0, 1.0f);
+		CHECK(c.cmd_train_template(0, cothon, arrow));
+		CHECK(!c.cmd_train_template(0, cothon, fishing));
+	}
+
+	// Mercenaries (mixins/mercenary.xml) and Neodamodes keep the Citizen class but
+	// have no ResourceGatherer, so they gather nothing; citizen soldiers do.
+	{
+		const uint16_t merc = roster_id("athen/infantry_archer_b");
+		const uint16_t merc_cav = roster_id("cart/cavalry_swordsman_gaul_b");
+		const uint16_t neo = roster_id("spart/infantry_spearman_neodamodes");
+		const uint16_t hoplite = roster_id("athen/infantry_spearman_b");
+		CHECK(merc != CIV_UNIT_TEMPLATE_NONE && merc_cav != CIV_UNIT_TEMPLATE_NONE);
+		CHECK(neo != CIV_UNIT_TEMPLATE_NONE && hoplite != CIV_UNIT_TEMPLATE_NONE);
+		CHECK(civ_unit_template(merc).flags & ROSTER_CITIZEN);
+		CHECK(unit_gather_class(civ_unit_template(merc).unit_type, merc) == GATHER_NONE);
+		CHECK(unit_gather_class(civ_unit_template(merc_cav).unit_type, merc_cav) == GATHER_NONE);
+		CHECK(unit_gather_class(civ_unit_template(neo).unit_type, neo) == GATHER_NONE);
+		CHECK(unit_gather_class(civ_unit_template(hoplite).unit_type, hoplite) == GATHER_INFANTRY);
+	}
+
 	// 0 A.D. EntityLimits (template_player.xml): limits per category, raised by
 	// LimitChangers and lifted by LimitRemovers.
 	{
