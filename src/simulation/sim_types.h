@@ -149,7 +149,13 @@ enum MapType : uint8_t {
 	MAP_SCHWARZWALD = 74,
 	MAP_RATUMACOS = 75,
 	MAP_OASIS_0AD = 76,
-	MAP_TYPE_COUNT = 77
+	MAP_MEDITERRANEAN = 77,
+	MAP_ELEPHANTINE = 78,
+	MAP_ISLAND_STRONGHOLD = 79,
+	MAP_POMPEII = 80,
+	MAP_LATIUM = 81,
+	MAP_UNKNOWN = 82,
+	MAP_TYPE_COUNT = 83
 };
 
 struct MapTypeInfo {
@@ -239,7 +245,13 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_EMPIRE, "empire", "Empire (RMS)", "mediterranean", true, "A neighbouring province has pledged allegiance to you: every player starts with two civic centres."},
 		{MAP_SCHWARZWALD, "schwarzwald", "Schwarzwald (RMS)", "temperate", true, "A forest heavy map with a lake in the middle and plenty of resources."},
 		{MAP_RATUMACOS, "ratumacos", "Ratumacos (RMS)", "alpine", true, "Players start on the banks of the Sequana (Seine) in northern Gaul, near the settlement of Ratumacos."},
-		{MAP_OASIS_0AD, "oasis_0ad", "Oasis (0 A.D.) (RMS)", "oasis", true, "Players start around a small oasis in the centre of the map, which holds much of the wood."}
+		{MAP_OASIS_0AD, "oasis_0ad", "Oasis (0 A.D.) (RMS)", "oasis", true, "Players start around a small oasis in the centre of the map, which holds much of the wood."},
+		{MAP_MEDITERRANEAN, "mediterranean_0ad", "Mediterranean (RMS)", "mediterranean", true, "The Mediterranean, almost completely enclosed by land, painted from a real elevation map."},
+		{MAP_ELEPHANTINE, "elephantine", "Elephantine (RMS)", "savanna", true, "The fortified island of Elephantine on the Nile at the first cataract, between Egypt and Kush."},
+		{MAP_ISLAND_STRONGHOLD, "island_stronghold", "Island Stronghold (RMS)", "temperate", true, "Teams start off with nearly adjacent civic centers on a small island, offering a fortified base from which to expand."},
+		{MAP_POMPEII, "pompeii", "Pompeii (RMS)", "volcanic", true, "Pompeii, an ancient Roman coastal city in Campania, buried under ash and pumice when Mount Vesuvius erupted in AD 79."},
+		{MAP_LATIUM, "latium", "Latium (RMS)", "latium", true, "The Italian peninsula: the fertile volcanic region of central western Italy where Rome was founded."},
+		{MAP_UNKNOWN, "unknown", "Unknown (RMS)", "temperate", true, "The unknown: one of 13 land and naval landscapes, picked at random."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
@@ -257,6 +269,7 @@ inline bool map_is_naval(int type) {
 		case MAP_ENGLISH_CHANNEL: case MAP_DODECANESE: case MAP_FLOOD: case MAP_RANDOM_ARCHIPELAGO:
 		case MAP_AEGEAN_SEA: case MAP_ARCHIPELAGO_0AD: case MAP_ISLANDS: case MAP_CYCLADIC_ARCHIPELAGO:
 		case MAP_CORSICA: case MAP_BAHRAIN:
+		case MAP_ELEPHANTINE: case MAP_ISLAND_STRONGHOLD: case MAP_UNKNOWN:
 			return true;
 		default:
 			return false;
