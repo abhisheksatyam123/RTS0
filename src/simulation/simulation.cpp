@@ -3323,13 +3323,16 @@ int Simulation::get_transport_capacity(uint32_t transport_id) const {
 // fishing boat 1, warship_arrow / warship_ram 30, warship_siege 50,
 // warship_scout 10; fire ships have none (GarrisonHolder disable).
 int Simulation::ship_garrison_capacity(size_t i) const {
-	switch (units_.unit_type[i]) {
+	return ship_template_capacity(units_.unit_type[i], units_.tmpl[i]);
+}
+
+int Simulation::ship_template_capacity(uint8_t unit_type, uint16_t tmpl) {
+	switch (unit_type) {
 		case UNIT_FISHING_BOAT: return 1;
 		case UNIT_MERCHANT_SHIP: return 15;
 		case UNIT_TRIREME: break;
 		default: return 0;
 	}
-	const uint16_t tmpl = units_.tmpl[i];
 	if (tmpl == CIV_UNIT_TEMPLATE_NONE || tmpl >= CIV_UNIT_TEMPLATE_COUNT) return TRANSPORT_CAPACITY;
 	const char *id = civ_unit_template(tmpl).id;
 	const char *slash = std::strrchr(id, '/');
@@ -10129,242 +10132,413 @@ void Simulation::petra_manage_trading(float dt) {
 	}
 }
 
+// accessibility.js for navalManager.js: the land (PASS_INFANTRY) and sea
+// (PASS_SHIP) regions of the nav grid, their sizes, and which seas touch which
+// lands (regionLinks). Rebuilt on each use, as region ids change with buildings.
+void Simulation::petra_naval_topology(PetraNavalTopo &t) const {
+	t = PetraNavalTopo();
+	if (nav_grid_.cells.blank()) return;
+	const int w = nav_grid_.cells.w, h = nav_grid_.cells.h;
+	const float cell_m = 2.0f * nav_grid_.map_half / (float)nav_grid_.res * 4.0f; // 1 world unit = 4 m
+	t.cell_m2 = cell_m * cell_m;
+	t.total = (uint32_t)w * (uint32_t)h;
+	std::vector<uint16_t> land((size_t)w * h), sea((size_t)w * h);
+	for (int y = 0; y < h; ++y)
+		for (int x = 0; x < w; ++x) {
+			const size_t k = (size_t)y * w + x;
+			land[k] = nav_grid_.global_region_at(x, y, PASS_INFANTRY);
+			sea[k] = nav_grid_.global_region_at(x, y, PASS_SHIP);
+			auto bump = [](std::vector<uint32_t> &v, uint16_t id) {
+				if (!id) return;
+				if (v.size() <= id) v.resize((size_t)id + 1, 0);
+				++v[id];
+			};
+			bump(t.land_size, land[k]);
+			bump(t.sea_size, sea[k]);
+		}
+	for (int y = 0; y < h; ++y)
+		for (int x = 0; x < w; ++x) {
+			const uint16_t l = land[(size_t)y * w + x];
+			if (!l) continue;
+			const int nb[5][2] = {{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+			for (const auto &d : nb) {
+				const int nx = x + d[0], ny = y + d[1];
+				if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+				const uint16_t s = sea[(size_t)ny * w + nx];
+				if (s) t.links.push_back(((uint32_t)l << 16) | s);
+			}
+		}
+	std::sort(t.links.begin(), t.links.end());
+	t.links.erase(std::unique(t.links.begin(), t.links.end()), t.links.end());
+}
+
+// headquarters.js getSeaBetweenIndices: a sea both lands touch.
+uint16_t Simulation::PetraNavalTopo::sea_between(uint16_t a, uint16_t b) const {
+	if (!a || !b || a == b) return 0;
+	auto it = std::lower_bound(links.begin(), links.end(), (uint32_t)a << 16);
+	for (; it != links.end() && (*it >> 16) == a; ++it)
+		if (linked(b, (uint16_t)(*it & 0xFFFF))) return (uint16_t)(*it & 0xFFFF);
+	return 0;
+}
+
+// startingStrategy.js regionsInit, from the land of our first base: the map is
+// naval when a sea covers a fifth of it, or joins our land to another land
+// (over 320 m²) that is big itself or across a big sea. navalRegions are those
+// seas and any other over 3600 m².
+void Simulation::PetraNavalTopo::classify(uint16_t home) {
+	naval_map = false;
+	naval.assign(sea_size.size(), false);
+	const float min_land = 0.1f * (float)total, min_water = 0.2f * (float)total;
+	for (size_t s = 1; s < sea_size.size(); ++s) {
+		if ((float)sea_size[s] > min_water) { naval_map = true; naval[s] = true; }
+		else if (cell_m2 * (float)sea_size[s] > 3600.0f) naval[s] = true;
+	}
+	if (!home) return;
+	for (size_t l = 1; l < land_size.size(); ++l) {
+		if (l == home || cell_m2 * (float)land_size[l] <= 320.0f) continue;
+		const uint16_t s = sea_between(home, (uint16_t)l);
+		if (s && ((float)land_size[l] > min_land || (float)sea_size[s] > min_water)) {
+			naval_map = true;
+			naval[s] = true;
+		}
+	}
+}
+
+// PETRA.getLandAccess: the land region at (x, z), or of the nearest land cell
+// within a few cells when it stands on a blocked one.
+uint16_t Simulation::petra_land_at(float x, float z) const {
+	auto [cx, cz] = nav_grid_.world_to_cell(x, z);
+	for (int r = 0; r <= 4; ++r)
+		for (int dz = -r; dz <= r; ++dz)
+			for (int dx = -r; dx <= r; ++dx) {
+				if (std::abs(dx) != r && std::abs(dz) != r) continue;
+				const uint16_t l = nav_grid_.global_region_at(cx + dx, cz + dz, PASS_INFANTRY);
+				if (l) return l;
+			}
+	return 0;
+}
+
+// A structure's land: the land just outside its footprint (a dock's shore side).
+uint16_t Simulation::petra_building_land(const Building &b) const {
+	const float r = b.half_size + GRID;
+	const float off[4][2] = {{r, 0.0f}, {-r, 0.0f}, {0.0f, r}, {0.0f, -r}};
+	for (const auto &o : off) {
+		auto [cx, cz] = nav_grid_.world_to_cell(b.x + o[0], b.z + o[1]);
+		const uint16_t l = nav_grid_.global_region_at(cx, cz, PASS_INFANTRY);
+		if (l) return l;
+	}
+	return petra_land_at(b.x, b.z);
+}
+
+// The land of our first base (an anchored base's structure), else of (x, z).
+uint16_t Simulation::petra_home_land(float x, float z) const {
+	if (const PetraBase *pb = get_primary_petra_base()) {
+		auto it = building_id_to_idx_.find(pb->anchor_building_id);
+		if (it != building_id_to_idx_.end()) return petra_building_land(buildings_[it->second]);
+		return petra_land_at(pb->x, pb->z);
+	}
+	return petra_land_at(x, z);
+}
+
+// attackPlan.js overseas: the sea an army from (from_x, from_z) crosses to reach
+// target_id, or 0 when it walks there (or no sea joins the two lands).
+uint16_t Simulation::petra_overseas(const PetraNavalTopo &t, float from_x, float from_z, uint32_t target_id) const {
+	auto it = building_id_to_idx_.find(target_id);
+	if (it == building_id_to_idx_.end()) return 0;
+	const uint16_t from = petra_home_land(from_x, from_z);
+	const uint16_t to = petra_building_land(buildings_[it->second]);
+	return from == to ? 0 : t.sea_between(from, to);
+}
+
+uint16_t Simulation::petra_plan_overseas(float base_x, float base_z, uint32_t target_id) const {
+	PetraNavalTopo topo;
+	petra_naval_topology(topo);
+	return petra_overseas(topo, base_x, base_z, target_id);
+}
+
+// A unit of ours aboard Petra's transport ship (alive again once it lands).
+bool Simulation::petra_aboard(uint32_t uid) const {
+	if (petra_transport_.state == PetraTransportPlan::IDLE || petra_transport_.state == PetraTransportPlan::FAILED) return false;
+	const auto *p = get_transport_passengers(petra_transport_.ship_id);
+	return p && std::find(p->begin(), p->end(), uid) != p->end();
+}
+
+// navalManager.js transportShips: own ships that carry units (warships, which
+// are all of them but the fire ship; not fishing boats nor merchantmen).
+bool Simulation::petra_is_transport_ship(size_t i) const {
+	return units_.unit_type[i] == UNIT_TRIREME && ship_garrison_capacity(i) >= 2;
+}
+
+uint16_t Simulation::petra_ship_sea(size_t i) const {
+	auto [cx, cz] = nav_grid_.world_to_cell(units_.pos_x[i], units_.pos_z[i]);
+	return nav_grid_.global_region_at(cx, cz, PASS_SHIP);
+}
+
+int Simulation::petra_transport_ships_on(uint16_t sea) const {
+	int n = 0;
+	for (size_t i = 0; i < units_.count; ++i)
+		if (units_.alive[i] && units_.team[i] == petra_pid_ && petra_is_transport_ship(i) && petra_ship_sea(i) == sea) ++n;
+	return n;
+}
+
+// navalManager.js getBestShip: for "transport" the most GarrisonHolder room,
+// +50 when it carries siege engines (no RTS0 ship has BuildingAI arrows, as in
+// 0 A.D. now); for "fishing" the fishing boat. Ties go to the later template.
+uint16_t Simulation::petra_best_ship(bool fishing) const {
+	const uint8_t pid = petra_pid_;
+	uint16_t best_tmpl = CIV_UNIT_TEMPLATE_NONE;
+	int best = 0;
+	for (uint16_t tmpl = 0; tmpl < CIV_UNIT_TEMPLATE_COUNT; ++tmpl) {
+		const CivUnitTemplate &t = civ_unit_template(tmpl);
+		if (t.civ != players_[pid].civ || t.phase > players_[pid].phase || !unit_is_ship(t.unit_type)) continue;
+		if (!can_train_at(pid, t.unit_type, BLD_DOCK, tmpl)) continue;
+		if (fishing) {
+			if (t.unit_type == UNIT_FISHING_BOAT) best_tmpl = tmpl;
+			continue;
+		}
+		if (t.unit_type != UNIT_TRIREME && t.unit_type != UNIT_MERCHANT_SHIP) continue;
+		int capacity = ship_template_capacity(t.unit_type, tmpl);
+		if (capacity < 2) continue;
+		if (t.unit_type == UNIT_TRIREME && capacity != 10) capacity += 50; // List Siege (not the scout ship)
+		if (best > capacity) continue;
+		best = capacity;
+		best_tmpl = tmpl;
+	}
+	return best_tmpl;
+}
+
+// navalManager.js getFishSea "opensea" and canFishSafely: fish with open water
+// of its sea 120 m around is safe; any other only without enemy territory at
+// 120 m and 60 m in eight directions.
+bool Simulation::petra_can_fish_safely(float x, float z, uint16_t sea) const {
+	static const float around[8][2] = {{-0.7f, 0.7f}, {0.0f, 1.0f}, {0.7f, 0.7f}, {1.0f, 0.0f},
+	                                   {0.7f, -0.7f}, {0.0f, -1.0f}, {-0.7f, -0.7f}, {-1.0f, 0.0f}};
+	constexpr float R = 120.0f / 4.0f;
+	const float edge = map_half_;
+	bool open = true;
+	for (const auto &a : around) {
+		bool ok = true;
+		for (int t = 0; t < 4; ++t) {
+			const float r = R * (float)(4 - t) / 4.0f;
+			const float px = x + a[0] * r, pz = z + a[1] * r;
+			if (std::fabs(px) >= edge || std::fabs(pz) >= edge) continue;
+			auto [cx, cz] = nav_grid_.world_to_cell(px, pz);
+			if (nav_grid_.global_region_at(cx, cz, PASS_INFANTRY) != 0) { ok = false; break; } // land
+			const uint16_t s = nav_grid_.global_region_at(cx, cz, PASS_SHIP);
+			if (s == sea) break;
+			if (s != 0) { ok = false; break; }
+		}
+		if (!ok) { open = false; break; }
+	}
+	if (open) return true;
+	for (const auto &a : around)
+		for (int t = 0; t < 2; ++t) {
+			const float r = R * (float)(2 - t) / 2.0f;
+			const float px = x + a[0] * r, pz = z + a[1] * r;
+			if (std::fabs(px) >= edge || std::fabs(pz) >= edge) continue;
+			const int owner = territory_owner_at(px, pz);
+			if (owner >= 0 && owner != GAIA_PLAYER && petra_foe(owner)) return false;
+		}
+	return true;
+}
+
+// navalManager.js update (checkLevels, maintainFleet, buildNavalStructures,
+// moveApart) with worker.js fishing. Petra builds a dock per sea its bases touch
+// once its population passes popForDock, trains the transport ships its attacks
+// across water need and one fishing boat per sea with fish, and fights no naval
+// war of its own (defenseManager.js leaves ships alone).
 void Simulation::petra_manage_naval(float dt) {
 	petra_naval_timer_ += dt;
 	if (petra_naval_timer_ < 2.0f) return;
 	petra_naval_timer_ = 0.0f;
+	if (nav_grid_.cells.blank()) return;
 
-	// Check if map is coastal / island / archipelago
-	bool is_water_map = (terrain_water_height_ > 0.0f) ||
-	                    (map_preset_ == MAP_AEGEAN_ARCHIPELAGO) ||
-	                    (map_preset_ == MAP_PELOPONNESE) ||
-	                    (biome_ == BIOME_AEGEAN);
+	bool any_water = false;
+	for (int y = 0; y < nav_grid_.cells.h && !any_water; y += 2)
+		for (int x = 0; x < nav_grid_.cells.w && !any_water; x += 2)
+			any_water = nav_grid_.cells.at(x, y) == NAV_WATER;
+	if (!any_water) return;
 
-	if (!is_water_map && nav_grid_.cells.w > 0) {
-		for (int y = 0; y < nav_grid_.cells.h && !is_water_map; y += 4) {
-			for (int x = 0; x < nav_grid_.cells.w && !is_water_map; x += 4) {
-				if (nav_grid_.cells.at(x, y) == NAV_WATER) is_water_map = true;
-			}
-		}
+	PetraNavalTopo topo;
+	petra_naval_topology(topo);
+	float home_x = 0.0f, home_z = 0.0f;
+	if (const PetraBase *pb = get_primary_petra_base()) { home_x = pb->x; home_z = pb->z; }
+	const uint16_t home = petra_home_land(home_x, home_z);
+	topo.classify(home);
+	auto naval = [&](uint16_t s) { return s < topo.naval.size() && topo.naval[s]; };
+	const size_t nseas = topo.sea_size.size();
+
+	// startingStrategy.js: a starting land under 25000 m² docks at 16 population
+	// and wants two fishing boats per sea (config.js popForDock 25, targetNumFishers 1).
+	const bool small_land = home && home < topo.land_size.size() && topo.cell_m2 * (float)topo.land_size[home] < 25000.0f;
+	const int pop_for_dock = small_land ? 16 : 25;
+	const int target_fishers = small_land ? 2 : 1;
+
+	// Our docks by sea; ships by sea.
+	std::vector<uint32_t> sea_dock(nseas, 0); // a finished dock on each sea
+	bool dock_foundation = false;
+	for (const Building &b : buildings_) {
+		if (b.team != petra_pid_ || b.type != BLD_DOCK || b.wrecked || b.hp <= 0.0f) continue;
+		if (b.build_progress < 1.0f) { dock_foundation = true; continue; }
+		const uint16_t s = dock_sea(b);
+		if (s && s < nseas && !sea_dock[s]) sea_dock[s] = b.id;
 	}
-	if (!is_water_map) return;
-
-	// 1. Construct BLD_DOCK if AI has none
-	int dock_count = 0;
-	std::vector<uint32_t> dock_ids;
-	for (const auto &b : buildings_) {
-		if (b.team == petra_pid_ && b.type == BLD_DOCK) {
-			dock_count++;
-			if (b.build_progress >= 1.0f) dock_ids.push_back(b.id);
-		}
+	std::vector<int> transports(nseas, 0), fishers(nseas, 0);
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != petra_pid_ || !unit_is_ship(units_.unit_type[i])) continue;
+		const uint16_t s = petra_ship_sea(i);
+		if (!s || s >= nseas) continue;
+		if (units_.unit_type[i] == UNIT_FISHING_BOAT) ++fishers[s];
+		else if (petra_is_transport_ship(i)) ++transports[s];
 	}
 
-	if (dock_count == 0) {
-		float base_x = 36.0f, base_z = 36.0f;
-		if (const auto *pbase = get_primary_petra_base()) {
-			base_x = pbase->x; base_z = pbase->z;
-		}
-		int start_cx = (int)(base_x / GRID);
-		int start_cz = (int)(base_z / GRID);
-		bool placed = false;
-		for (int r = 4; r <= 14 && !placed; ++r) {
-			for (int dx = -r; dx <= r && !placed; ++dx) {
-				for (int dz = -r; dz <= r && !placed; ++dz) {
-					if (std::abs(dx) != r && std::abs(dz) != r) continue;
-					int cx = start_cx + dx;
-					int cz = start_cz + dz;
-					float wx = cx * GRID;
-					float wz = cz * GRID;
-					float h = get_terrain_height(wx, wz);
-					if (h >= terrain_water_height_ - 0.5f && h <= terrain_water_height_ + 1.8f) {
-						if (petra_can_place(cx, cz, 2, BLD_DOCK) && is_position_safe(wx, wz, 6.0f) &&
-						    petra_try_pay(PETRA_QUEUE_NAVAL, 0.0f, 200.0f, 0.0f, 100.0f)) {
-							uint32_t bid = spawn_building(cx, cz, BLD_DOCK, petra_pid_, 0.0f);
-							auto idle_workers = get_idle_workers(petra_pid_);
-							if (!idle_workers.empty()) {
-								order_build_or_repair(idle_workers.data(), std::min((size_t)3, idle_workers.size()), bid);
-							}
+	// 1. buildNavalStructures: a dock on the first sea a base's land touches
+	// without one of ours, once the population passes popForDock.
+	if (topo.naval_map && !dock_foundation && pop_current(petra_pid_) > pop_for_dock) {
+		const BuildingTypeInfo &info = building_type_info(BLD_DOCK);
+		bool started = false;
+		for (const PetraBase &base : petra_bases_) {
+			if (started) break;
+			auto ait = building_id_to_idx_.find(base.anchor_building_id);
+			if (ait == building_id_to_idx_.end() || buildings_[ait->second].build_progress < 1.0f) continue;
+			const uint16_t land = petra_building_land(buildings_[ait->second]);
+			auto lo = std::lower_bound(topo.links.begin(), topo.links.end(), (uint32_t)land << 16);
+			for (; lo != topo.links.end() && (*lo >> 16) == land && !started; ++lo) {
+				const uint16_t sea = (uint16_t)(*lo & 0xFFFF);
+				if (!naval(sea)) continue;
+				bool connected = false; // getUnconnectedSeas: a dock of ours on this land and sea
+				for (const Building &b : buildings_)
+					if (b.team == petra_pid_ && b.type == BLD_DOCK && !b.wrecked && b.hp > 0.0f &&
+					    petra_building_land(b) == land && dock_sea(b) == sea) { connected = true; break; }
+				if (connected) continue;
+				started = true; // the first unconnected sea of the first base without a dock there
+				// queueplanBuilding.js findDockPosition: the nearest shore spot on that sea.
+				const int sx = (int)std::floor(base.x / GRID), sz = (int)std::floor(base.z / GRID);
+				bool placed = false;
+				for (int r = 2; r <= 30 && !placed; ++r)
+					for (int dx = -r; dx <= r && !placed; ++dx)
+						for (int dz = -r; dz <= r && !placed; ++dz) {
+							if (std::abs(dx) != r && std::abs(dz) != r) continue;
+							const int cx = sx + dx, cz = sz + dz;
+							if (!petra_can_place(cx, cz, info.footprint, BLD_DOCK)) continue;
+							Building probe;
+							probe.half_size = info.footprint * GRID * 0.5f;
+							probe.x = (cx + info.footprint * 0.5f) * GRID;
+							probe.z = (cz + info.footprint * 0.5f) * GRID;
+							if (dock_sea(probe) != sea || petra_building_land(probe) != land) continue;
 							placed = true;
+							if (!petra_try_pay(PETRA_QUEUE_NAVAL, (float)info.food_cost, (float)info.wood_cost,
+							                   (float)info.gold_cost, (float)info.stone_cost)) break;
+							const uint32_t bid = spawn_building(cx, cz, BLD_DOCK, petra_pid_, 0.0f);
+							auto idle = get_idle_workers(petra_pid_);
+							if (bid && !idle.empty()) order_build_or_repair(idle.data(), std::min((size_t)3, idle.size()), bid);
 						}
-					}
-				}
 			}
 		}
 	}
 
-	// 2. Train UNIT_TRIREME warships for maritime defense
-	int ai_triremes = 0;
-	for (size_t i = 0; i < units_.count; ++i) {
-		if (units_.alive[i] && units_.team[i] == petra_pid_ && units_.unit_type[i] == UNIT_TRIREME) {
-			ai_triremes++;
-		}
+	// 2. checkLevels / maintainFleet: transport ships for attacks across water
+	// (attackPlan.js setMinimalTransportShips: neededShips 1 for rushes and raids,
+	// 3 for attacks, 5 for huge attacks, times popScaling), then fishing boats
+	// for each sea holding over 1000 food of fish. One ship in training at a time.
+	std::vector<int> want_transport(nseas, 0), want_fish(nseas, 0);
+	auto need_ships = [&](uint8_t kind) {
+		const int n = (kind == PETRA_ATTACK_HUGE) ? 5 : (kind == PETRA_ATTACK_ATTACK ? 3 : 1);
+		return std::max(1, (int)std::ceil(petra_config_.pop_scaling * (float)n));
+	};
+	auto plan_wants = [&](const AttackPlan &plan, uint8_t kind) {
+		if (plan.state != AttackPlan::MUSTER && plan.state != AttackPlan::WALKING) return;
+		const uint16_t s = petra_overseas(topo, home_x, home_z, plan.target_building_id);
+		if (s && s < nseas) want_transport[s] = std::max(want_transport[s], need_ships(kind));
+	};
+	plan_wants(petra_attack_plan_, petra_attack_mgr_.kind);
+	plan_wants(petra_raid_plan_, PETRA_ATTACK_RAID);
+	std::vector<int> fish_food(nseas, 0);
+	for (size_t r = 0; r < resources_.count; ++r) {
+		if (!resources_.alive[r] || resources_.amount[r] <= 0 || resources_.subtype[r] != RES_SUB_FISH) continue;
+		auto [fx, fz] = nav_grid_.world_to_cell(resources_.x[r], resources_.z[r]);
+		const uint16_t s = nav_grid_.global_region_at(fx, fz, PASS_SHIP);
+		if (s && s < nseas) fish_food[s] += resources_.amount[r];
+	}
+	for (size_t s = 1; s < nseas; ++s)
+		if (naval((uint16_t)s) && fish_food[s] > 1000) want_fish[s] = target_fishers;
+
+	bool training = false; // queues.ships.hasQueuedUnits()
+	for (const Building &b : buildings_)
+		if (b.team == petra_pid_ && b.type == BLD_DOCK)
+			for (const ProductionOrder &o : b.queue)
+				if (o.unit_type == UNIT_TRIREME || o.unit_type == UNIT_FISHING_BOAT) training = true;
+	for (size_t s = 1; s < nseas && !training; ++s) {
+		if (!sea_dock[s]) continue;
+		uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE;
+		if (transports[s] < want_transport[s]) tmpl = petra_best_ship(false);
+		if (tmpl == CIV_UNIT_TEMPLATE_NONE && fishers[s] < want_fish[s]) tmpl = petra_best_ship(true);
+		if (tmpl != CIV_UNIT_TEMPLATE_NONE && petra_train_template(PETRA_QUEUE_NAVAL, sea_dock[s], tmpl)) training = true;
 	}
 
-	int target_triremes = (petra_ps().phase == 1) ? 1 : ((petra_ps().phase == 2) ? 2 : 4);
-	if (ai_triremes < target_triremes && !dock_ids.empty() && pop_current(petra_pid_) < pop_max(petra_pid_)) {
-		const UnitTypeInfo &tinfo = civ_unit_info(civ_of(petra_pid_), UNIT_TRIREME);
-		if (petra_try_pay(PETRA_QUEUE_NAVAL, 0.0f, (float)tinfo.wood_cost, (float)tinfo.gold_cost, 0.0f)) {
-			auto bit = building_id_to_idx_.find(dock_ids[0]);
-			if (bit != building_id_to_idx_.end() && buildings_[bit->second].queue.size() < 3) {
-				ProductionOrder order;
-				order.unit_type = UNIT_TRIREME;
-				order.timer = 0.0f;
-				order.duration = tinfo.train_time * 0.75f * tech_mods(petra_pid_).train_time[UNIT_TRIREME] * ai_time_mult(petra_pid_);
-				buildings_[bit->second].queue.push_back(order);
-			}
-		}
-	}
-
-	// 2b. navalManager.js — fishing boats on food clusters near docks
-	int ai_fishers = 0;
-	for (size_t i = 0; i < units_.count; ++i) {
-		if (units_.alive[i] && units_.team[i] == petra_pid_ && units_.unit_type[i] == UNIT_FISHING_BOAT)
-			ai_fishers++;
-	}
-	int target_fishers = (petra_ps().phase >= 2) ? 3 : 2;
-	if (ai_fishers < target_fishers && !dock_ids.empty() && pop_current(petra_pid_) < pop_max(petra_pid_)) {
-		const UnitTypeInfo &finfo = civ_unit_info(civ_of(petra_pid_), UNIT_FISHING_BOAT);
-		if (petra_try_pay(PETRA_QUEUE_NAVAL, 0.0f, (float)finfo.wood_cost, (float)finfo.gold_cost, 0.0f)) {
-			auto bit = building_id_to_idx_.find(dock_ids[0]);
-			if (bit != building_id_to_idx_.end() && buildings_[bit->second].queue.size() < 3) {
-				ProductionOrder order;
-				order.unit_type = UNIT_FISHING_BOAT;
-				order.timer = 0.0f;
-				order.duration = finfo.train_time * 0.75f * tech_mods(petra_pid_).train_time[UNIT_FISHING_BOAT] * ai_time_mult(petra_pid_);
-				buildings_[bit->second].queue.push_back(order);
-			}
-		}
-	}
+	// 3. worker.js fishing: an idle boat takes the nearest fish of its sea that
+	// it can fish safely.
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.unit_type[i] != UNIT_FISHING_BOAT) continue;
-		if (units_.action_state[i] != ACTION_IDLE && units_.action_state[i] != ACTION_MOVE) continue;
-		if (units_.carry[i] > 0) continue;
+		if (units_.action_state[i] != ACTION_IDLE) continue;
+		const uint16_t sea = petra_ship_sea(i);
 		uint32_t best_rid = 0;
-		float best_d2 = 40.0f * 40.0f;
+		float best_d2 = 1e18f;
 		for (size_t r = 0; r < resources_.count; ++r) {
-			if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
-			if (resources_.subtype[r] != RES_SUB_FISH) continue;
-			// navalManager.js:223 canFishSafely — skip fish in enemy territory
-			int owner = territory_owner_at(resources_.x[r], resources_.z[r]);
-			if (owner >= 0 && owner != petra_pid_) continue;
-			auto [fcx, fcy] = nav_grid_.world_to_cell(resources_.x[r], resources_.z[r]);
-			if (!nav_grid_.is_passable_for(fcx, fcy, PASS_SHIP) &&
-			    nav_grid_.cells.at(fcx, fcy) != NAV_WATER)
-				continue;
-			float dx = resources_.x[r] - units_.pos_x[i];
-			float dz = resources_.z[r] - units_.pos_z[i];
-			float d2 = dx * dx + dz * dz;
-			if (d2 < best_d2) {
-				best_d2 = d2;
-				best_rid = resources_.id[r];
-			}
+			if (!resources_.alive[r] || resources_.amount[r] <= 0 || resources_.subtype[r] != RES_SUB_FISH) continue;
+			const float dx = resources_.x[r] - units_.pos_x[i], dz = resources_.z[r] - units_.pos_z[i];
+			const float d2 = dx * dx + dz * dz;
+			if (d2 >= best_d2) continue;
+			auto [fx, fz] = nav_grid_.world_to_cell(resources_.x[r], resources_.z[r]);
+			if (nav_grid_.global_region_at(fx, fz, PASS_SHIP) != sea) continue;
+			if (!petra_can_fish_safely(resources_.x[r], resources_.z[r], sea)) continue;
+			best_d2 = d2;
+			best_rid = resources_.id[r];
 		}
 		if (best_rid) {
-			uint32_t uid = units_.id[i];
+			const uint32_t uid = units_.id[i];
 			order_gather(&uid, 1, best_rid);
 		}
 	}
 
-	// 3. Coastal Patrol & Maritime Defense
-	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.unit_type[i] != UNIT_TRIREME) continue;
-		if (ship_garrison_capacity(i) == 0) continue; // fire ships carry no one
-		if (units_.action_state[i] == ACTION_IDLE) {
-			float tx = units_.pos_x[i];
-			float tz = units_.pos_z[i];
-			float best_d2 = 25.0f * 25.0f;
-			bool enemy_found = false;
-
-			for (size_t j = 0; j < units_.count; ++j) {
-				if (!units_.alive[j] || !petra_foe(units_.team[j])) continue;
-				float dx = units_.pos_x[j] - units_.pos_x[i];
-				float dz = units_.pos_z[j] - units_.pos_z[i];
-				float d2 = dx * dx + dz * dz;
-				if (d2 < best_d2) {
-					best_d2 = d2;
-					tx = units_.pos_x[j];
-					tz = units_.pos_z[j];
-					enemy_found = true;
-				}
-			}
-
-			if (enemy_found) {
-				uint32_t uid = units_.id[i];
-				order_attack_move(&uid, 1, tx, tz);
-			}
-		}
-	}
-
-	// navalManager.js:58, :546 assignShipsToPlans — per-sea fleet accounting
-	// registry (0 A.D. NavalManager.seaWarShips). Groups team-1 warships by sea/region
-	// index (capped at kMaxSeas=8 and 16 warships per sea) rather than a single
-	// unpartitioned collection, while preserving the bounded assignment to active
-	// attack plans and never reserving fishing/merchant ships.
+	// navalManager.js:58 seaWarShips: our warships by sea, for the attack targets.
 	petra_fleets_.clear_sea_fleets();
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
-		uint8_t ut = units_.unit_type[i];
-		// Exclude fishing and merchant ships via existing role check (unit_is_ship / petra_is_support_unit)
+		const uint8_t ut = units_.unit_type[i];
 		if (!unit_is_ship(ut) || petra_is_support_unit(ut)) continue;
-
-		// Determine sea id using grid_nav ship region lookup (PASS_SHIP).
-		// Fallback to sea 0 if grid_nav lookup returns 0 (unassigned / land cell) or exceeds kMaxSeas.
-		int sea_id = 0;
-		auto [scx, scz] = nav_grid_.world_to_cell(units_.pos_x[i], units_.pos_z[i]);
-		uint16_t ship_reg = nav_grid_.global_region_at(scx, scz, PASS_SHIP);
-		if (ship_reg > 0 && static_cast<int>(ship_reg - 1) < Petra::kMaxSeas) {
-			sea_id = static_cast<int>(ship_reg - 1);
-		} else {
-			// Sea 0 fallback: ship not in a mapped ship region, outside grid, or region >= kMaxSeas
-			sea_id = 0;
-		}
-
-		if (petra_fleets_.sea_warship_count[sea_id] < 16) {
-			petra_fleets_.sea_warships[sea_id][petra_fleets_.sea_warship_count[sea_id]] = units_.id[i];
-			petra_fleets_.sea_warship_count[sea_id]++;
-		}
+		const uint16_t reg = petra_ship_sea(i);
+		const int sea_id = (reg > 0 && (int)(reg - 1) < Petra::kMaxSeas) ? (int)(reg - 1) : 0;
+		if (petra_fleets_.sea_warship_count[sea_id] < 16)
+			petra_fleets_.sea_warships[sea_id][petra_fleets_.sea_warship_count[sea_id]++] = units_.id[i];
 	}
 	int active_seas = 0;
-	for (int s = 0; s < Petra::kMaxSeas; ++s) {
-		if (petra_fleets_.sea_warship_count[s] > 0) {
-			active_seas = s + 1;
-		}
-	}
+	for (int s = 0; s < Petra::kMaxSeas; ++s)
+		if (petra_fleets_.sea_warship_count[s] > 0) active_seas = s + 1;
 	petra_fleets_.sea_count_ = active_seas;
 
-	if (petra_attack_plan_.state == AttackPlan::WALKING ||
-	    petra_attack_plan_.state == AttackPlan::ATTACKED) {
-		uint32_t target_id = petra_attack_plan_.target_building_id;
-		auto target_it = building_id_to_idx_.find(target_id);
-		if (target_id != 0 && target_it != building_id_to_idx_.end() &&
-		    buildings_[target_it->second].hp > 0.0f) {
-			size_t assigned = 0;
-			for (size_t i = 0; i < units_.count && assigned < 2; ++i) {
-				if (!units_.alive[i] || units_.team[i] != petra_pid_ ||
-				    units_.unit_type[i] != UNIT_TRIREME ||
-				    units_.action_state[i] != ACTION_IDLE) continue;
-				uint32_t uid = units_.id[i];
-				if (units_.has_order[i]) continue;
-				order_attack_building(&uid, 1, target_id);
-				assigned++;
-			}
-		}
-	}
-
-	// navalManager.js:568 moveApart — idle ships must not stack on the dock
+	// 4. moveApart: an idle ship within 70 m of an allied dock on its sea moves
+	// out to 70-75 m so it leaves the dock free.
 	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
-		uint8_t ut = units_.unit_type[i];
-		if (ut != UNIT_TRIREME && ut != UNIT_FISHING_BOAT && ut != UNIT_MERCHANT_SHIP) continue;
-		if (units_.action_state[i] != ACTION_IDLE) continue;
-		for (const auto &b : buildings_) {
-			if (b.team != petra_pid_ || b.type != BLD_DOCK || b.hp <= 0) continue;
-			float dx = units_.pos_x[i] - b.x;
-			float dz = units_.pos_z[i] - b.z;
-			if (dx * dx + dz * dz > 49.0f) continue;
-			float ang = (float)(units_.id[i] % 8) * 0.78539816f;
-			uint32_t uid = units_.id[i];
-			cmd_move(&uid, 1, b.x + std::cos(ang) * 12.0f, b.z + std::sin(ang) * 12.0f);
+		if (!units_.alive[i] || units_.team[i] != petra_pid_ || !unit_is_ship(units_.unit_type[i])) continue;
+		if (units_.action_state[i] != ACTION_IDLE || units_.has_order[i]) continue;
+		if (units_.id[i] == petra_transport_.ship_id && petra_transport_.state != PetraTransportPlan::IDLE &&
+		    petra_transport_.state != PetraTransportPlan::FAILED) continue;
+		const uint16_t sea = petra_ship_sea(i);
+		for (const Building &b : buildings_) {
+			if (b.type != BLD_DOCK || b.wrecked || b.hp <= 0.0f || !is_ally(petra_pid_, b.team)) continue;
+			float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
+			const float d2 = dx * dx + dz * dz;
+			if (d2 > (70.0f / 4.0f) * (70.0f / 4.0f) || dock_sea(b) != sea) continue;
+			const float d = std::sqrt(d2);
+			if (d > 0.01f) { dx /= d; dz /= d; }
+			else { const float ang = (float)(units_.id[i] % 8) * 0.78539816f; dx = std::cos(ang); dz = std::sin(ang); }
+			const float to = 72.5f / 4.0f;
+			float wx = b.x + dx * to, wz = b.z + dz * to;
+			const size_t ship = i;
+			if (!nearest_water_for_ship(ship, wx, wz, wx, wz)) break;
+			const uint32_t uid = units_.id[i];
+			cmd_move(&uid, 1, wx, wz);
 			break;
 		}
 	}
@@ -11227,7 +11401,7 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 	auto &squad = petra_attack_plan_.squad;
 	squad.erase(std::remove_if(squad.begin(), squad.end(), [&](uint32_t uid) {
 		int32_t uidx = lookup_unit(uid);
-		return (uidx < 0 || !units_.alive[uidx] || units_.team[uidx] != petra_pid_);
+		return (uidx < 0 || (!units_.alive[uidx] && !petra_aboard(uid)) || units_.team[uidx] != petra_pid_);
 	}), squad.end());
 	petra_strike_force_.unit_ids = squad;
 
@@ -11360,6 +11534,10 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 				petra_attack_plan_.target_building_id = target_id;
 				petra_attack_plan_.target_x = tx;
 				petra_attack_plan_.target_z = tz;
+				// attackPlan.js updatePreparation: an army bound overseas waits for a
+				// transport ship on that sea (navalManager trains it meanwhile).
+				const uint16_t overseas = petra_plan_overseas(base_x, base_z, target_id);
+				if (overseas && petra_transport_ships_on(overseas) == 0) return;
 
 				float sx = base_x * 0.65f, sz = base_z * 0.65f;
 				pick_petra_safe_staging(base_x, base_z, tx, tz, sx, sz);
@@ -11377,11 +11555,11 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 					return;
 				}
 
-				bool water = petra_path_crosses_water(base_x, base_z, tx, tz) ||
-				             petra_path_crosses_water(sx, sz, tx, tz);
-				if (water) {
-					if (!petra_start_transport(squad, base_x, base_z, tx, tz))
-						cmd_move(squad.data(), squad.size(), sx, sz);
+				if (overseas) {
+					// attackPlan.js "transporting": the army sails, and gathers where it lands.
+					if (!petra_start_transport(squad, base_x, base_z, tx, tz, overseas)) return; // the ship is busy
+					petra_attack_plan_.staging_x = petra_strike_force_.staging_x = petra_transport_.drop_x;
+					petra_attack_plan_.staging_z = petra_strike_force_.staging_z = petra_transport_.drop_z;
 				} else {
 					cmd_move(squad.data(), squad.size(), sx, sz);
 				}
@@ -11401,6 +11579,25 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 			    petra_transport_.state == PetraTransportPlan::SAILING ||
 			    petra_transport_.state == PetraTransportPlan::UNLOADING) {
 				return;
+			}
+			// navalManager.js requireTransport: the ship comes back for those still on
+			// our land (a failed transport leaves them, as a plan without ships does).
+			if (petra_transport_.state == PetraTransportPlan::IDLE) {
+				const uint16_t overseas = petra_plan_overseas(base_x, base_z, petra_attack_plan_.target_building_id);
+				if (overseas) {
+					const uint16_t home = petra_home_land(base_x, base_z);
+					std::vector<uint32_t> left;
+					for (uint32_t uid : squad) {
+						const int32_t idx = lookup_unit(uid);
+						if (idx >= 0 && units_.alive[idx] && petra_land_at(units_.pos_x[idx], units_.pos_z[idx]) == home)
+							left.push_back(uid);
+					}
+					if (!left.empty() && petra_start_transport(left, base_x, base_z, petra_attack_plan_.target_x,
+					                                           petra_attack_plan_.target_z, overseas)) {
+						petra_attack_plan_.state_timer = 0.0f;
+						return;
+					}
+				}
 			}
 
 			float staging_danger = get_threat_at(petra_attack_plan_.staging_x, petra_attack_plan_.staging_z);
@@ -11718,7 +11915,7 @@ void Simulation::petra_manage_raid(float dt) {
 	plan.state_timer += dt;
 	plan.squad.erase(std::remove_if(plan.squad.begin(), plan.squad.end(), [&](uint32_t uid) {
 		int32_t idx = lookup_unit(uid);
-		return idx < 0 || !units_.alive[idx] || units_.team[idx] != petra_pid_;
+		return idx < 0 || (!units_.alive[idx] && !petra_aboard(uid)) || units_.team[idx] != petra_pid_;
 	}), plan.squad.end());
 
 	float base_x = 36.0f, base_z = 36.0f;
@@ -11786,6 +11983,11 @@ void Simulation::petra_manage_raid(float dt) {
 		const bool ready = plan.squad.size() >= 4 || (plan.squad.size() >= 3 && plan.state_timer >= 30.0f);
 		if (!ready) return;
 		const float tx = plan.target_x, tz = plan.target_z;
+		// A raid overseas waits for a transport ship there, and for it to be free.
+		const uint16_t overseas = petra_plan_overseas(base_x, base_z, plan.target_building_id);
+		if (overseas && (petra_transport_ships_on(overseas) == 0 ||
+		                 (petra_transport_.state != PetraTransportPlan::IDLE && petra_transport_.state != PetraTransportPlan::FAILED)))
+			return;
 		plan.initial_squad_size = plan.squad.size();
 		plan.state = AttackPlan::WALKING;
 		plan.state_timer = 0.0f;
@@ -11793,8 +11995,8 @@ void Simulation::petra_manage_raid(float dt) {
 		petra_say(PETRA_CHAT_ATTACK, tx, tz);
 		// Mirror the assault plan's transportPlan.js branch: a raid that
 		// crosses water boards a transport instead of issuing a ground move.
-		if (petra_path_crosses_water(base_x, base_z, tx, tz)) {
-			if (!petra_start_transport(plan.squad, base_x, base_z, tx, tz))
+		if (overseas) {
+			if (!petra_start_transport(plan.squad, base_x, base_z, tx, tz, overseas))
 				order_attack_move(plan.squad.data(), plan.squad.size(), tx, tz, false, false, true);
 		} else {
 			order_attack_move(plan.squad.data(), plan.squad.size(), tx, tz, false, false, true);
@@ -12124,21 +12326,32 @@ bool Simulation::petra_find_beach(float land_x, float land_z, float toward_x, fl
 	return found;
 }
 
-bool Simulation::petra_start_transport(const std::vector<uint32_t> &unit_ids, float from_x, float from_z, float to_x, float to_z) {
-	uint32_t ship = 0;
-	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.unit_type[i] != UNIT_TRIREME) continue;
-		if (units_.id[i] == petra_transport_.ship_id && petra_transport_.state != PetraTransportPlan::IDLE &&
-		    petra_transport_.state != PetraTransportPlan::FAILED) continue;
-		ship = units_.id[i];
-		break;
-	}
-	if (ship == 0) return false;
-
+bool Simulation::petra_start_transport(const std::vector<uint32_t> &unit_ids, float from_x, float from_z, float to_x, float to_z, uint16_t sea) {
 	float pickup_x = from_x, pickup_z = from_z;
 	float drop_x = to_x, drop_z = to_z;
 	petra_find_beach(from_x, from_z, to_x, to_z, pickup_x, pickup_z);
 	petra_find_beach(to_x, to_z, from_x, from_z, drop_x, drop_z);
+
+	// transportPlan.js assignShip: a free transport ship of that sea, the
+	// roomiest (+50 for siege, as getBestShip), then the nearest to the pickup.
+	uint32_t ship = 0;
+	int best_room = -1;
+	float best_d2 = 0.0f;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != petra_pid_ || !petra_is_transport_ship(i)) continue;
+		if (units_.id[i] == petra_transport_.ship_id && petra_transport_.state != PetraTransportPlan::IDLE &&
+		    petra_transport_.state != PetraTransportPlan::FAILED) continue;
+		if (sea && petra_ship_sea(i) != sea) continue;
+		const int cap = ship_garrison_capacity(i);
+		const int room = cap + (cap != 10 ? 50 : 0);
+		const float dx = units_.pos_x[i] - pickup_x, dz = units_.pos_z[i] - pickup_z;
+		const float d2 = dx * dx + dz * dz;
+		if (room < best_room || (room == best_room && d2 >= best_d2)) continue;
+		best_room = room;
+		best_d2 = d2;
+		ship = units_.id[i];
+	}
+	if (ship == 0) return false;
 
 	petra_transport_ = PetraTransportPlan();
 	petra_transport_.state = PetraTransportPlan::BOARDING;
@@ -12180,13 +12393,20 @@ void Simulation::petra_manage_transport(float dt) {
 	}
 
 	if (tp.state == PetraTransportPlan::BOARDING) {
+		size_t aboard = get_transport_passenger_count(tp.ship_id);
 		if (tp.state_timer > 28.0f) {
-			tp.state = PetraTransportPlan::FAILED;
-			tp.failed = true;
+			if (aboard == 0) {
+				tp.state = PetraTransportPlan::FAILED;
+				tp.failed = true;
+				return;
+			}
+			cmd_move(&tp.ship_id, 1, tp.drop_x, tp.drop_z); // sail with whoever made it aboard
+			tp.state = PetraTransportPlan::SAILING;
+			tp.state_timer = 0.0f;
 			return;
 		}
 		order_board_transport(tp.passenger_ids.data(), tp.passenger_ids.size(), tp.ship_id);
-		size_t aboard = get_transport_passenger_count(tp.ship_id);
+		aboard = get_transport_passenger_count(tp.ship_id);
 		float dx = units_.pos_x[sidx] - tp.pickup_x;
 		float dz = units_.pos_z[sidx] - tp.pickup_z;
 		bool ship_ready = (dx * dx + dz * dz) <= 36.0f;

@@ -448,8 +448,17 @@ static void test_attack_plans() {
 		std::vector<int> kinds;
 		auto last = Simulation::AttackPlan::UNEXECUTED;
 		// HugeAttack launches around 11-12 min on this map; 14 min leaves room for map changes.
+		// An army that razes the idle player finds it rebuilt, so every plan has a target.
+		float home_x = 0.0f, home_z = 0.0f;
+		for (const auto &b : s->buildings()) if (b.team == 0 && b.type == BLD_TOWN_CENTER) { home_x = b.x; home_z = b.z; }
+		int step = 0;
 		for (float t = 0.0f; t < 14.0f * 60.0f; t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
+			if (++step % 200 == 0) {
+				bool any = false;
+				for (const auto &b : s->buildings()) any |= b.team == 0 && b.hp > 0.0f;
+				if (!any) s->spawn_building_world(home_x, home_z, BLD_TOWN_CENTER, 0, 1.0f);
+			}
 			const auto &m = s->petra_attack_manager();
 			const auto st = s->petra_attack_plan().state;
 			if (st == Simulation::AttackPlan::MUSTER && last != st) {
