@@ -10,6 +10,7 @@
 #include "sim_types.h"
 #include "statistics_tracker.h"
 #include "triggers.h"
+#include "turret_data.h"
 #include <cstdint>
 #include <vector>
 #include <unordered_map>
@@ -140,7 +141,10 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
-	static constexpr uint32_t SAVE_VERSION = 30; // save_state's format; see the history beside it
+	// Facing of a building nobody rotated: toward -z, the way every building was drawn
+	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
+	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
+	static constexpr uint32_t SAVE_VERSION = 31; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -191,6 +195,7 @@ public:
 		bool wrecked = false;   // hp already applied; keep entity for collapse + rubble
 		int cell_x, cell_y;
 		int footprint; // 1 or 2
+		float rot = DEFAULT_BUILDING_ROT; // 0 A.D. Position rotation: 0 faces +z, pi/2 faces +x (the obstruction stays an axis-aligned square)
 		float attack_timer; // for defensive arrows
 		bool is_burning = false; // Structure fire under 33% HP
 
@@ -276,6 +281,15 @@ public:
 	// 0 A.D. Promotion.js GetRequiredXp for unit index i after the owner's technologies,
 	// or -1 when the unit has no next rank.
 	float promotion_required_xp(size_t i) const;
+	// 0 A.D. TurretHolder / Turretable: ranged infantry stand on the turret points of
+	// walls, gates and outposts, visible and fighting from the structure's height.
+	bool unit_turretable(size_t i) const;
+	uint32_t turret_holder_of(uint32_t unit_id) const; // 0 when not on a turret
+	float unit_height_offset(size_t i) const { // above the terrain (a turret point's height)
+		if (turret_height_.empty()) return 0.0f;
+		auto it = turret_height_.find(units_.id[i]);
+		return it == turret_height_.end() ? 0.0f : it->second;
+	}
 	// Training time multiplier of a template trained above Basic (Cost/BuildTime per rank).
 	static float promotion_train_time_mult(uint16_t tmpl);
 	// Rank effects (unit_advanced.json, unit_elite.json) for unit index i.
@@ -334,7 +348,15 @@ public:
 	void cmd_stop(const uint32_t *unit_ids, size_t count);
 	// Player commands (0 A.D. Commands.js): `player` is the issuing player id. Each one
 	// rejects buildings the player doesn't own and charges/refunds that player's stock.
-	uint32_t cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b_type);
+	// `angle` is the placement rotation (0 A.D. placementSupport.angle); docks ignore it and face the sea.
+	uint32_t cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b_type, float angle = DEFAULT_BUILDING_ROT);
+	// 0 A.D. Commands.js GetDockAngle: the facing of a dock at (x, z) toward the most open water,
+	// or NAN when no shoreline is in reach.
+	float dock_angle(float x, float z, float half_size) const;
+	// Lockstep cmd 5 carries the angle in target_id, in 1/65536ths of a turn from
+	// DEFAULT_BUILDING_ROT, so older commands (target_id 0) keep the default facing.
+	static uint32_t pack_angle(float angle);
+	static float unpack_angle(uint32_t packed);
 	bool cmd_train(uint8_t player, uint32_t building_id, UnitType u_type);
 	// Train a specific roster unit (a hero, a champion, a second unit of the same class).
 	bool cmd_train_template(uint8_t player, uint32_t building_id, uint16_t tmpl);
@@ -421,6 +443,11 @@ public:
 	// Commands.js unload / unload-all-by-owner: the holder's owner may unload anyone; an
 	// ally only its own units. count 0 unloads every unit `player` may unload.
 	void cmd_unload(uint8_t player, uint32_t building_id, const uint32_t *unit_ids, size_t count);
+	// AlertRaiser.js on a structure of `player`: RaiseAlert sends its civilians (women; a
+	// market's land traders) into the nearest structures with room, or stops them;
+	// EndOfAlert unloads them and sends them back to work. False when it has no alert.
+	bool cmd_raise_alert(uint8_t player, uint32_t building_id);
+	bool cmd_end_alert(uint8_t player, uint32_t building_id);
 	void order_guard(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
 	// UnitAI Heal: healers walk to an injured allied unit and heal it (Heal.js).
 	void order_heal(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
@@ -436,7 +463,8 @@ public:
 	bool cmd_breed_livestock(uint8_t player, uint32_t building_id);
 
 	// Naval Transport Logistics (GarrisonHolder.js / UnitAI.js)
-	static constexpr int TRANSPORT_CAPACITY = 15;
+	static constexpr int TRANSPORT_CAPACITY = 30; // 0 A.D. template_unit_ship_warship_arrow GarrisonHolder Max
+	static constexpr float SHIP_LOADING_RANGE = 10.0f * 0.28f; // GarrisonHolder LoadingRange 10 m in RTS0 scale
 	void order_board_transport(const uint32_t *unit_ids, size_t count, uint32_t transport_id);
 	void order_disembark(uint32_t transport_id, float target_x, float target_z);
 	void order_disembark_all(uint32_t transport_id);
@@ -452,6 +480,14 @@ public:
 	// Garrisoned Infantry in a siege tower = arrows per volley (capped).
 	int siege_tower_arrows(size_t i) const;
 	int get_transport_capacity(uint32_t transport_id) const;
+	// Ships as GarrisonHolders (template_unit_ship*.xml): capacity and List per
+	// template, LoadingRange 10 m, Pickup, EjectClassesOnDestroy. `i` is a SoA index.
+	int ship_garrison_capacity(size_t i) const;
+	bool ship_garrison_allowed(size_t ship, uint8_t unit_type) const;
+	float ship_loading_reach(size_t ship, size_t unit) const;
+	bool ship_unload_point(size_t ship, float &out_x, float &out_z) const;
+	bool nearest_water_for_ship(size_t ship, float x, float z, float &out_x, float &out_z) const;
+	void unload_sunk_ship(size_t ship);
 
 	// Garrison & Turret System (GarrisonHolder.js, TurretHolder.js)
 	int get_garrison_count(uint32_t building_id) const;
@@ -1256,6 +1292,15 @@ private:
 	} fauna_;
 	std::unordered_map<uint32_t, size_t> fauna_id_to_idx_;
 	std::unordered_map<uint32_t, std::vector<uint32_t>> transport_passengers_;
+	// Turret units (unit id -> point height), rebuilt from the holders' garrison lists each
+	// tick, and the stance each had before it went up (UnitAI previousStance).
+	std::unordered_map<uint32_t, float> turret_height_;
+	std::unordered_map<uint32_t, uint8_t> turret_prev_stance_;
+	const TurretPointSet *turret_points_of(const Building &b) const;
+	int structure_garrison_cap(const Building &b) const;
+	void occupy_turret(size_t i, Building &b);
+	void leave_turret(size_t i, const Building &b);
+	void tick_turrets();
 	std::vector<FormationController> formations_; // in creation order
 	uint32_t next_formation_id_ = 1;
 	// Controller id per unit index, 0 outside formations: members of one formation share an
@@ -1504,6 +1549,19 @@ private:
 	// incoming[building index]: our units walking to garrison there.
 	void petra_garrison_units_inside(size_t holder_idx, bool allow_melee, std::vector<int> &incoming);
 	uint32_t petra_garrison_holder_for(size_t unit_idx, bool heals_only, bool siege, std::vector<int> &incoming) const;
+	std::vector<int> petra_garrison_incoming() const;
+	bool petra_same_land(size_t unit_idx, const Building &b) const; // PETRA.getLandAccess match
+	// defenseManager.js garrisonAttackedUnit: the nearest healing structure, or with
+	// emergency the nearest holder at all (unloading one unit when it is full).
+	bool petra_garrison_attacked_unit(size_t unit_idx, bool emergency, std::vector<int> &incoming);
+	size_t petra_attacked_unit_holder(size_t unit_idx, bool emergency, const std::vector<int> &incoming) const; // building index or SIZE_MAX
+	// victoryManager.js: regicide heroes and the units guarding them.
+	bool petra_is_critical_ent(size_t unit_idx) const;
+	bool petra_guards_critical_ent(size_t unit_idx) const;
+	void petra_retreat_critical_ent(size_t unit_idx, bool emergency, std::vector<int> &incoming);
+	void petra_manage_critical_ent_guards();
+	void petra_manage_critical_ent_healers();
+	void petra_capture_gaia_relics();
 	void petra_manage_garrisons();
 	void petra_build_advanced();
 	void petra_manage_victory(float dt);

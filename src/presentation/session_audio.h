@@ -252,9 +252,20 @@ public:
 		}
 		seen_.swap(seen);
 		trained_this_frame_ = false;
+		if (fire) tick_work_sounds(sim, me, uv, t);
 		battle_.update(t);
 		primed_ = true;
 	}
+
+	// Where the camera looks; work sounds play only near it.
+	void set_listener(float x, float z) {
+		listener_x_ = x;
+		listener_z_ = z;
+	}
+	int work_sounds_played() const { return work_sounds_; }
+	int workers_at_work() const { return workers_at_work_; } // gathering or building, anywhere
+	int workers_in_earshot() const { return workers_heard_; }
+	godot::Vector2 listener() const { return godot::Vector2(listener_x_, listener_z_); }
 
 	bool in_battle() const { return battle_.in_battle(); }
 	godot::String last_played() const { return last_played_; }
@@ -290,6 +301,92 @@ public:
 	}
 
 private:
+	// Gather and build sounds: 0 A.D. actors fire the unit's Sound group
+	// (gather_tree, gather_grain, build...) on each swing of the gather or build
+	// animation. RTS0 has no animation events here, so each visible worker near
+	// the camera swings every 1.6-2.4 s, with a cap so a crowd doesn't drown the rest.
+	static const char *work_group(uint8_t res_type, uint8_t sub, const char **dir) {
+		*dir = "resource/mining";
+		if (sub == RES_SUB_GRAIN) { *dir = "resource/farming"; return "hoe"; }          // farm.xml
+		if (sub == RES_SUB_MEAT) { *dir = "resource/gathering"; return "gather_meat"; }  // gather_meat.xml
+		if (sub == RES_SUB_FISH) return nullptr;                                         // ships have no gather sound
+		if (sub == RES_SUB_RUINS) return "mine_metal";                                   // mining.xml
+		switch (res_type) {
+			case RES_WOOD: *dir = "resource/lumbering"; return "lumber_tree";            // lumbering.xml
+			case RES_FOOD: *dir = "resource/foraging"; return "leaves";                  // forage_leaves.xml
+			case RES_STONE: return "mine_stone";                                         // pickaxe.xml
+			case RES_GOLD: return "mine_metal";                                          // mining.xml
+			default: return nullptr;
+		}
+	}
+
+	void tick_work_sounds(const Simulation *sim, uint8_t me, const Simulation::UnitView &uv, double t) {
+		if (!spatial_) return;
+		constexpr float kHear2 = 40.0f * 40.0f;
+		constexpr int kMaxPerHalfSecond = 3;
+		if (t - work_window_start_ >= 0.5) {
+			work_window_start_ = t;
+			work_in_window_ = 0;
+		}
+		if (t - res_index_time_ > 2.0 || res_index_time_ > t) {
+			res_index_time_ = t;
+			res_index_.clear();
+			auto rv = sim->resources();
+			for (size_t r = 0; r < rv.count; ++r) res_index_[rv.id[r]] = r;
+		}
+		auto rv = sim->resources();
+		std::unordered_map<uint32_t, double> next;
+		workers_at_work_ = workers_heard_ = 0;
+		for (size_t i = 0; i < uv.count; ++i) {
+			const uint8_t st = uv.action_state[i];
+			if (!uv.alive[i] || (st != ACTION_GATHER && st != ACTION_BUILD)) continue;
+			++workers_at_work_;
+			const float dx = uv.pos_x[i] - listener_x_, dz = uv.pos_z[i] - listener_z_;
+			if (dx * dx + dz * dz > kHear2) continue;
+			if (!sim->is_entity_visible_to_viewer(uv.pos_x[i], uv.pos_z[i], uv.team[i], me)) continue;
+			++workers_heard_;
+			const uint32_t id = uv.id[i];
+			auto it = work_next_.find(id);
+			double due = it == work_next_.end() ? t + 0.2 + (rng_() % 1000) / 1000.0 : it->second;
+			if (t >= due && work_in_window_ < kMaxPerHalfSecond) {
+				const char *dir = nullptr;
+				const char *prefix = nullptr;
+				if (st == ACTION_BUILD) {
+					dir = "resource/construction";
+					prefix = "con_wood"; // con_wood.xml
+				} else if (uv.target_resource_id) {
+					auto rit = res_index_.find(uv.target_resource_id[i]);
+					if (rit != res_index_.end() && rit->second < rv.count && rv.id[rit->second] == uv.target_resource_id[i])
+						prefix = work_group(rv.type[rit->second], rv.subtype[rit->second], &dir);
+				}
+				if (prefix) {
+					const auto &g = sound_group(dir, (std::string(prefix) + "_").c_str());
+					if (!g.empty()) {
+						godot::Ref<godot::AudioStream> snd = stream(g[rng_() % g.size()]);
+						if (snd.is_valid()) {
+							spatial_(snd, godot::Vector3(uv.pos_x[i], 0.5f, uv.pos_z[i]), -8.0f);
+							++work_in_window_;
+							++work_sounds_;
+						}
+					}
+				}
+				due = t + 1.6 + (rng_() % 800) / 1000.0;
+			}
+			next[id] = due;
+		}
+		work_next_.swap(next);
+	}
+
+	float listener_x_ = 0.0f, listener_z_ = 0.0f;
+	std::unordered_map<uint32_t, double> work_next_;
+	std::unordered_map<uint32_t, size_t> res_index_;
+	double res_index_time_ = -100.0;
+	double work_window_start_ = 0.0;
+	int work_in_window_ = 0;
+	int work_sounds_ = 0;
+	int workers_at_work_ = 0;
+	int workers_heard_ = 0;
+
 	struct Seen {
 		float hp;
 		uint8_t type, team;

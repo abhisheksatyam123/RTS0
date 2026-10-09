@@ -1319,7 +1319,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		} else if (c.cmd_type == 4) { // Gather
 			sim.order_gather(ids, n, c.target_id, queued);
 		} else if (c.cmd_type == 5) { // Build
-			uint32_t bid = sim.cmd_build(pl, (int)c.target_x, (int)c.target_z, c.param);
+			uint32_t bid = sim.cmd_build(pl, (int)c.target_x, (int)c.target_z, c.param, Simulation::unpack_angle(c.target_id));
 			if (bid && n)
 				sim.order_build_or_repair(ids, n, bid);
 		} else if (c.cmd_type == 6) { // Train
@@ -1378,6 +1378,9 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			// Ids travel as floats; a whole number below 2^24 is exact.
 			if (c.target_x >= 1.0f && c.target_x < 16777216.0f && c.target_x == (float)(uint32_t)c.target_x)
 				sim.order_trade(ids, n, c.target_id, (uint32_t)c.target_x, queued);
+		} else if (c.cmd_type == 36) { // Raise (param 0) or end (1) an alert
+			if (c.param == 1) sim.cmd_end_alert(pl, c.target_id);
+			else sim.cmd_raise_alert(pl, c.target_id);
 		} else if (c.cmd_type == 26) { // Structure upgrade — target_id=building, param 0 start / 1 cancel.
 			if (c.param == 1) sim.cmd_cancel_upgrade(pl, c.target_id);
 			else sim.cmd_upgrade_building(pl, c.target_id);

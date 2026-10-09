@@ -168,6 +168,14 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	bool build_mode = false;
 	bool wall_drag_mode = false;
 	Vector3 wall_drag_start_pos;
+	bool wall_start_snapped = false; // the wall starts at an existing wall tower
+	// 0 A.D. placementSupport.angle: [ and ] turn the preview by pi/12, and a click
+	// held and dragged turns it toward the cursor (input.js INPUT_BUILDING_DRAG).
+	float placement_angle = rtso::Simulation::DEFAULT_BUILDING_ROT;
+	bool build_click_pending = false;
+	Vector2 build_click_screen;
+	Vector3 build_click_ground;
+	int build_click_cell_x = 0, build_click_cell_y = 0;
 	bool attack_move_mode = false;
 	bool patrol_mode = false;
 	bool guard_mode = false;
@@ -247,6 +255,7 @@ public:
 	void _on_speed_button_pressed();
 	void _on_menu_button_pressed();
 	void _on_ungarrison_pressed();
+	void _on_alert_pressed(int end);
 	void _on_selection_group_clicked(int key);
 	void _on_garrison_group_clicked(int key);
 	void _on_stance_selected(int stance);
@@ -325,6 +334,8 @@ public:
 	void _toggle_session_dialog(String name);
 	double last_flare_time_ = -10.0; // input.js g_LastFlareTime
 	int get_target_marker_count() const { return (int)range_overlays_.marker_count(); } // tests
+	int get_work_sound_count() const { return session_audio_.work_sounds_played(); } // tests
+	void debug_gather_nearest();
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
 
@@ -358,6 +369,11 @@ private:
 	void update_command_panel();
 	void enter_build_mode(bool enable, uint8_t btype = rtso::BLD_HOUSE);
 	void update_ghost_mesh();
+	// The placement rotation for a building at (x, z): docks face the sea (GetDockAngle).
+	float placement_angle_at(uint8_t btype, float x, float z) const;
+	// GetFoundationSnapData snapEntities: a wall end within half a tower of one of
+	// the player's wall towers snaps onto it.
+	Vector3 snap_wall_point(const Vector3 &p, bool &snapped) const;
 	void try_train_unit(rtso::UnitType utype);
 	void try_train_template(uint32_t building_id, uint16_t tmpl);
 	void update_roster_list(const rtso::Simulation::Building *b);
