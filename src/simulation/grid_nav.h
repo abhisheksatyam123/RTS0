@@ -875,13 +875,23 @@ inline bool NavGrid::find_path(float sx, float sz, float tx, float tz, WaypointP
             int best_d = 1 << 30;
             int bx = tcx, by = tcy;
             bool found = false;
+            // The nearest navcell of the start's region, ties going to the lowest row, then the
+            // lowest column. Rings of growing Chebyshev radius r round the goal hold only cells at
+            // least r away, so the search stops once r * r passes the best distance: a target
+            // across a channel costs a few rings, not the whole grid.
             if (want != 0) {
-                for (int y = 0; y < res; ++y) {
-                    for (int x = 0; x < res; ++x) {
-                        if (global_region_at(x, y, rpass) != want) continue;
-                        int dx = x - tcx, dy = y - tcy;
-                        int d = dx * dx + dy * dy;
-                        if (d < best_d) {
+                const int max_r = std::max(std::max(tcx, res - 1 - tcx), std::max(tcy, res - 1 - tcy));
+                for (int r = 1; r <= max_r && (!found || r * r <= best_d); ++r) {
+                    for (int y = std::max(0, tcy - r); y <= std::min(res - 1, tcy + r); ++y) {
+                        const int dy = y - tcy;
+                        const bool edge_row = dy == -r || dy == r;
+                        for (int x = std::max(0, tcx - r); x <= std::min(res - 1, tcx + r);
+                                x += (edge_row || x == tcx + r) ? 1 : std::max(1, tcx + r - x)) {
+                            const int dx = x - tcx;
+                            if (!edge_row && dx != -r && dx != r) continue;
+                            const int d = dx * dx + dy * dy;
+                            if (d > best_d || (d == best_d && (y > by || (y == by && x > bx)))) continue;
+                            if (global_region_at(x, y, rpass) != want) continue;
                             best_d = d;
                             bx = x;
                             by = y;

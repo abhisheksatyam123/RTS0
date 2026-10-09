@@ -151,7 +151,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 45; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 46; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -182,7 +182,6 @@ public:
 		if (player == 0xFF) return revealed_fow_.data();
 		if (player == 0 || player >= MAX_PLAYERS) return fow_grid_.data();
 		if (player_fow_[player].size() == fow_grid_.size()) return player_fow_[player].data();
-		if (player == PETRA_PLAYER && petra_runs_for(PETRA_PLAYER)) return petra_fow_.data();
 		return unexplored_fow_.data();
 	}
 	int fow_res() const { return grid_res_; }
@@ -1180,7 +1179,6 @@ public:
 	int ai_pop_current() const;
 	int ai_pop_max() const;
 
-	const uint8_t* petra_fow_grid() const { return petra_fow_.data(); }
 
 	// Petra Multi-Base HQ & BasesManager (0 A.D. ai/petra/headquarters.js / baseManager.js)
 	struct PetraBase {
@@ -1421,6 +1419,13 @@ private:
 	void separation(float dt, Arena &arena);
 	void motion_feedback(float dt, const MoveSteps &steps);
 	void patrol_next_leg(size_t i);
+	// A chase (UnitAI COMBAT.APPROACHING / CHASING): the target (the unit, or the centre of the
+	// structure) and the point the unit walks to (the unit, or tick_combat's stand point beside the
+	// structure). False when unit i chases no unit or structure.
+	bool chase_goal(size_t i, float &key_x, float &key_z, float &to_x, float &to_z) const;
+	bool chase_path_kept(size_t i) const;
+	bool chase_falls_short(size_t i) const;
+	void give_up_attack(size_t i);
 	void tick_gather(float dt);
 	// Fields (0 A.D. template_structure_resource_field): a finished field owns
 	// one infinite grain resource at its centre. Derived from buildings_, so it
@@ -2124,7 +2129,6 @@ private:
 	bool bulk_spawn_ = false;
 	int grid_res_ = MIN_GRID_RES; // nav/FoW/territory resolution, grid_res_for_map(map_half_)
 	std::vector<uint8_t> fow_grid_ = std::vector<uint8_t>(MIN_GRID_RES * MIN_GRID_RES, 0); // FoW state per tile
-	std::vector<uint8_t> petra_fow_ = std::vector<uint8_t>(MIN_GRID_RES * MIN_GRID_RES, 0); // FoW state per tile for Petra AI
 	uint8_t fow_viewer_ = 0;
 	std::array<std::vector<uint8_t>, MAX_PLAYERS> player_fow_; // per-player FoW for players 1..7 (index 0 unused: fow_grid_)
 	std::vector<uint8_t> unexplored_fow_ = std::vector<uint8_t>((size_t)MAX_GRID_RES * MAX_GRID_RES, 0);
@@ -2143,7 +2147,7 @@ private:
 	X(petra_diplo_timer_) X(ai_wonder_victory_timer_) X(petra_bases_) X(petra_fnd_watch_) \
 	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
-	X(petra_fow_) X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
+	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_)
 	struct PetraSlot {
 		bool initialized = false;
@@ -2162,9 +2166,8 @@ private:
 	static constexpr int FOW_LOS_BLOCK = 4; // FoW cells per side of a fow_block_hmax_ block
 	std::vector<float> fow_block_hmax_; // fow_cell_hmax_ max per block, filled with fow_cell_height_
 	uint32_t fow_view_gen_ = 0; // bumped each time fow_cell_height_ is filled, so FowViews from older terrain miss
-	// reveal_fow() views of units (by index) and buildings (by buildings_ index), for Petra's
-	// scouting and for update_player_fow(); their vision radii differ, so each keeps its own.
-	FowViews petra_fow_views_, player_fow_views_;
+	// reveal_fow() views of units (by index) and buildings (by buildings_ index) for update_player_fow().
+	FowViews player_fow_views_;
 	std::vector<uint32_t> fow_moved_units_; // reveal_viewers() scratch: units revealed last
 	NavGrid nav_grid_; // Phase1: SoA nav mesh (buildings + water), mirrors 0AD Grid<NavcellData>
 	Grid<uint8_t> territory_grid_; // grid_res_^2 player id per cell, G2 (CCmpTerritoryManager)
