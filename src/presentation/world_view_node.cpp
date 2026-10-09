@@ -905,7 +905,8 @@ void RtsoWorldView::update_fog(const rtso::Simulation *sim, float delta) {
 	mirages_.update(*sim, local_player_);
 	const int res = sim->fow_res();
 	const bool new_map = res != los_.res() || los_half_ != sim->map_half();
-	los_.set_target(sim->fow_grid(local_player_), res);
+	// The sim's per-player LOS (Simulation::los), as FogMirages built it this frame.
+	los_.set_target(mirages_.view().size() == (size_t)res * (size_t)res ? mirages_.view().data() : nullptr, res);
 	if (new_map) {
 		los_.snap();
 		los_half_ = sim->map_half();
@@ -2167,7 +2168,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	auto uview = sim->units();
 	auto rview_g = sim->resources();
 	auto entity_visible = [sim, this](float x, float z, uint8_t team) {
-		return sim->is_entity_visible_to_viewer(x, z, team, local_player_);
+		return rtso::los_sees_unit(*sim, local_player_, x, z, team);
 	};
 	std::unordered_map<uint32_t, uint8_t> res_sub;
 	res_sub.reserve(rview_g.count);
