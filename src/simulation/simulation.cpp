@@ -14249,21 +14249,6 @@ void Simulation::petra_manage_victory(float dt) {
 	float bx = pbase ? pbase->x : 36.0f;
 	float bz = pbase ? pbase->z : 36.0f;
 
-	auto assign_guards = [&](float gx, float gz, int want) {
-		int assigned = 0;
-		for (size_t i = 0; i < units_.count && assigned < want; ++i) {
-			if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
-			if (!petra_is_combat_unit(units_.unit_type[i])) continue;
-			if (units_.id[i] == petra_scout_unit_id_) continue;
-			if (units_.action_state[i] != ACTION_IDLE && units_.action_state[i] != ACTION_GUARD) continue;
-			uint32_t uid = units_.id[i];
-			float ox = gx + (float)((assigned % 3) - 1) * 2.4f;
-			float oz = gz + (float)((assigned / 3) - 1) * 2.4f;
-			if (units_.action_state[i] == ACTION_IDLE) order_walk(&uid, 1, ox, oz, false);
-			assigned++;
-		}
-	};
-
 	if (victory_condition_ == VICTORY_WONDER && petra_ps().phase >= 3) {
 		uint32_t wonder_id = 0;
 		bool complete = false;
@@ -14292,13 +14277,10 @@ void Simulation::petra_manage_victory(float dt) {
 			if (!builders.empty()) {
 				petra_order_builders(builders, 8, wonder_id);
 			}
-		} else {
-			auto bit = building_id_to_idx_.find(wonder_id);
-			if (bit != building_id_to_idx_.end()) {
-				assign_guards(buildings_[bit->second].x, buildings_[bit->second].z, 4);
-			}
 		}
 	}
+	// A finished wonder is a critical entity: manageCriticalEntGuards guards it.
+	if (victory_condition_ == VICTORY_WONDER) petra_manage_critical_ent_guards();
 
 	if (victory_condition_ == VICTORY_REGICIDE) {
 		petra_manage_critical_ent_guards();
@@ -14322,11 +14304,20 @@ bool Simulation::petra_is_critical_ent(size_t i) const {
 		units_.team[i] == petra_pid_ && units_.unit_type[i] == UNIT_HERO;
 }
 
-// guardEnts: ours guarding a hero (a military guard, or a healer).
+// victoryManager.js criticalEnts: in wonder victory, our finished wonders.
+bool Simulation::petra_is_critical_wonder(uint32_t id) const {
+	if (victory_condition_ != VICTORY_WONDER) return false;
+	auto it = building_id_to_idx_.find(id);
+	if (it == building_id_to_idx_.end()) return false;
+	const Building &b = buildings_[it->second];
+	return b.team == petra_pid_ && b.type == BLD_WONDER && b.build_progress >= 1.0f && !b.wrecked && b.hp > 0.0f;
+}
+
+// guardEnts: ours guarding a hero (a military guard, or a healer) or a wonder.
 bool Simulation::petra_guards_critical_ent(size_t i) const {
 	if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.order_kind[i] != ORDER_GUARD) return false;
 	const int32_t t = lookup_unit(units_.order_target[i]);
-	return t >= 0 && petra_is_critical_ent((size_t)t);
+	return t >= 0 ? petra_is_critical_ent((size_t)t) : petra_is_critical_wonder(units_.order_target[i]);
 }
 
 // pickCriticalEntRetreatLocation: garrison, else turn passive (flee attacks)
@@ -14349,7 +14340,8 @@ void Simulation::petra_retreat_critical_ent(size_t i, bool emergency, std::vecto
 	if (best) order_walk(&uid, 1, best->x, best->z, false);
 }
 
-// manageCriticalEntGuards: 4 + 5 * defensive soldiers guard each hero,
+// manageCriticalEntGuards: 4 + 5 * defensive soldiers guard each hero and
+// 10 + 5 * defensive each wonder,
 // champions first; citizen soldiers only while there are workers to spare.
 void Simulation::petra_manage_critical_ent_guards() {
 	int workers = 0;
@@ -14364,24 +14356,32 @@ void Simulation::petra_manage_critical_ent_guards() {
 			++workers;
 		}
 	}
-	const int want = 4 + (int)std::round(petra_config_.defensive * 5.0f);
 	const int min_workers = 25, delta_workers = 3;
-	for (size_t h = 0; h < units_.count; ++h) {
-		if (!petra_is_critical_ent(h)) continue;
-		const uint32_t hero = units_.id[h];
+	// criticalEnts: our heroes in regicide, our finished wonders in wonder victory.
+	struct Critical { uint32_t id; size_t hero; uint16_t land; int want; };
+	std::vector<Critical> crit;
+	const int extra = (int)std::round(petra_config_.defensive * 5.0f);
+	for (size_t h = 0; h < units_.count; ++h)
+		if (petra_is_critical_ent(h)) {
+			auto [hx, hz] = nav_grid_.world_to_cell(units_.pos_x[h], units_.pos_z[h]);
+			crit.push_back({units_.id[h], h, nav_grid_.global_region_at(hx, hz, PASS_INFANTRY), 4 + extra});
+		}
+	for (const auto &b : buildings_)
+		if (petra_is_critical_wonder(b.id)) crit.push_back({b.id, SIZE_MAX, petra_building_land(b), 10 + extra});
+	for (const Critical &c : crit) {
+		const int want = c.want;
 		int assigned = 0;
 		for (size_t i = 0; i < units_.count; ++i)
-			if (units_.order_kind[i] == ORDER_GUARD && units_.order_target[i] == hero && units_.alive[i] &&
+			if (units_.order_kind[i] == ORDER_GUARD && units_.order_target[i] == c.id && units_.alive[i] &&
 			    units_.team[i] == petra_pid_ && units_.unit_type[i] != UNIT_HEALER) ++assigned;
 		if (assigned >= want) continue;
-		// tryAssignMilitaryGuard: units in no plan, on the hero's land (overseas guards need transports).
+		// tryAssignMilitaryGuard: units in no plan, on its land (overseas guards need transports).
 		auto free_for_guard = [&](size_t i) {
-			if (!units_.alive[i] || units_.team[i] != petra_pid_ || i == h) return false;
+			if (!units_.alive[i] || units_.team[i] != petra_pid_ || i == c.hero) return false;
 			if (units_.order_kind[i] == ORDER_GUARD || units_.order_kind[i] == ORDER_GARRISON) return false;
 			if (units_.action_state[i] == ACTION_GARRISONED || petra_unit_reserved(units_.id[i]) || petra_is_critical_ent(i)) return false;
-			auto [hx, hz] = nav_grid_.world_to_cell(units_.pos_x[h], units_.pos_z[h]);
 			auto [ux, uz] = nav_grid_.world_to_cell(units_.pos_x[i], units_.pos_z[i]);
-			return nav_grid_.global_region_at(hx, hz, PASS_INFANTRY) == nav_grid_.global_region_at(ux, uz, PASS_INFANTRY);
+			return c.land == nav_grid_.global_region_at(ux, uz, PASS_INFANTRY);
 		};
 		auto champion = [&](size_t i) {
 			return (unit_tech_classes(units_.unit_type[i]) & TC_CHAMPION) ||
@@ -14393,7 +14393,7 @@ void Simulation::petra_manage_critical_ent_guards() {
 				if (!(unit_tech_classes(units_.unit_type[i]) & TC_SOLDIER) || champion(i) != (pass == 0)) continue;
 				if (unit_is_ship(units_.unit_type[i]) || !free_for_guard(i)) continue;
 				const uint32_t uid = units_.id[i];
-				order_guard(&uid, 1, hero);
+				order_guard(&uid, 1, c.id);
 				++assigned;
 				if (pass == 1) --workers;
 			}

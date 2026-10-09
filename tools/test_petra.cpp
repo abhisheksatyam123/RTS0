@@ -1360,6 +1360,42 @@ static void test_repairs() {
 	CHECK(!house_id || (h2 && h2->hp > h2->max_hp * 0.5f), "the damaged house is repaired too");
 }
 
+// victoryManager.js: in wonder victory a finished wonder is a critical entity,
+// guarded by up to 10 + 5 * defensive soldiers, champions first, who turn on
+// whoever attacks it.
+static void test_wonder_guards() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_WONDER);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	const float wx = tx * 0.8f, wz = tz * 0.8f;
+	const uint32_t wonder = s->spawn_building_world(wx, wz, BLD_WONDER, 1, 1.0f);
+	std::vector<uint32_t> champs;
+	for (int i = 0; i < 4; ++i) champs.push_back(s->spawn_unit(tx + 10.0f + 3.0f * (float)i, tz + 10.0f, 1, UNIT_ELEPHANT));
+	run_for(*s, 4.0f);
+	auto &u = s->units_;
+	int guarding = 0;
+	for (uint32_t id : champs) {
+		const int32_t c = s->lookup_unit(id);
+		if (c >= 0 && u.order_kind[c] == ORDER_GUARD && u.order_target[c] == wonder) ++guarding;
+	}
+	const uint32_t foe = s->spawn_unit(wx + 8.0f, wz, 0, UNIT_SWORDSMAN);
+	s->order_attack_building(&foe, 1, wonder);
+	const int32_t f = s->lookup_unit(foe);
+	const float foe_hp = u.hp[f];
+	run_for(*s, 20.0f);
+	const bool hurt = !u.alive[f] || u.hp[f] < foe_hp;
+	std::printf("  wonder guards: %d of 4 champions guard the wonder, its attacker %s\n", guarding,
+	            !u.alive[f] ? "killed" : (hurt ? "hurt" : "untouched"));
+	CHECK(wonder != 0 && guarding == 4, "champions guard Petra's finished wonder");
+	CHECK(hurt, "and fight whoever attacks it");
+}
+
 static void test_retreat_walk_forced() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -1427,6 +1463,7 @@ int main() {
 	test_retreat_walk_forced();
 	test_expansion_small_nodes();
 	test_repairs();
+	test_wonder_guards();
 	test_placement_miss_memory_exact();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
