@@ -143,15 +143,28 @@ int main()
 		(civ_unit_template(civ_default_template(CIV_ROMANS, UNIT_CATAPULT)).flags & ROSTER_PACKABLE),
 		"Roman catapult packs");
 
-	// Champion unlocks come from each template's 0 A.D. Identity/Requirements.
+	// Champion unlocks come from each template's 0 A.D. Identity/Requirements;
+	// other rows are only gated by civ-only techs (Neodamodes, Marian Reforms, ...).
 	int gated = 0;
 	for (uint16_t i = 0; i < CIV_UNIT_TEMPLATE_COUNT; ++i) {
 		const CivUnitTemplate &u = civ_unit_template(i);
 		if (u.unlock_tech == TECH_NONE) continue;
 		++gated;
-		if (!(u.flags & ROSTER_CHAMPION)) check(false, u.id);
+		if (!(u.flags & ROSTER_CHAMPION) && tech_info(u.unlock_tech).civ_mask == (1u << CIV_COUNT) - 1)
+			check(false, u.id);
 	}
 	check(gated >= 20, "champion rows carry their unlock technology");
+	bool neodamodes = false, champion_hoplite = false;
+	for (uint16_t i = civ_roster_begin(CIV_SPARTANS); i < civ_roster_end(CIV_SPARTANS); ++i) {
+		const CivUnitTemplate &u = civ_unit_template(i);
+		if (std::strcmp(u.id, "spart/infantry_spearman_neodamodes") == 0)
+			neodamodes = u.unlock_tech == TECH_UNLOCK_NEODAMODES;
+		if (std::strcmp(u.id, "spart/champion_infantry_spear") == 0)
+			champion_hoplite = (u.tech_classes & (TC_CHAMPION | TC_INFANTRY | TC_SPEARMAN))
+				== (TC_CHAMPION | TC_INFANTRY | TC_SPEARMAN) && !(u.tech_classes & TC_CITIZENSOLDIER);
+	}
+	check(neodamodes, "Neodamodes wait for Unlock Neodamodes at the Gerousia");
+	check(champion_hoplite, "Spartan champion hoplites carry 0 A.D.'s Champion Infantry Spearman classes");
 	for (uint16_t i = civ_roster_begin(CIV_ROMANS); i < civ_roster_end(CIV_ROMANS); ++i)
 		if (std::strcmp(civ_unit_template(i).id, "rome/champion_infantry_swordsman") == 0)
 			check(civ_unit_template(i).unlock_tech == TECH_UNLOCK_CHAMPION_INFANTRY,
