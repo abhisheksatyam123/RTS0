@@ -12298,5 +12298,17 @@
       "x": 74.39,
       "z": -28.86
     }
+  ],
+  "gaia_structures": [
+    {
+      "type": "mercenary_camp",
+      "x": -135.52,
+      "z": 106.13
+    },
+    {
+      "type": "mercenary_camp",
+      "x": 134.81,
+      "z": -78.86
+    }
   ]
 }

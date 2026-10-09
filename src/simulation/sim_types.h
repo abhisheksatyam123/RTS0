@@ -319,7 +319,8 @@ enum ResourceSubtype : uint8_t {
 	RES_SUB_NONE = 0,
 	RES_SUB_MEAT = 1,
 	RES_SUB_GRAIN = 2,
-	RES_SUB_FISH = 3 // food.fish: only fishing boats gather it
+	RES_SUB_FISH = 3, // food.fish: only fishing boats gather it
+	RES_SUB_RUINS = 4 // stone.ruins / metal.ruins (template_gaia_ruins): 4x a rock's gather rate
 };
 
 // 0 A.D. template_gaia_fish.xml ResourceSupply: 1000 food, at most 4 gatherers,
@@ -357,7 +358,9 @@ enum UnitOrderKind : uint8_t {
 	ORDER_GUARD = 9,          // target unit (Guard.js)
 	ORDER_HEAL = 10,          // target unit (UnitAI Heal)
 	ORDER_TRADE = 11,         // target = first market, x2 holds the second market's id bits (UnitAI Trade)
-	ORDER_KIND_COUNT = 12
+	ORDER_RETURN_RESOURCE = 12, // target = the dropsite (UnitAI ReturnResource)
+	ORDER_COLLECT_TREASURE = 13, // target treasure (UnitAI CollectTreasure)
+	ORDER_KIND_COUNT = 14
 };
 
 enum UnitOrderFlag : uint8_t {

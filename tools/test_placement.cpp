@@ -48,6 +48,49 @@ static Simulation::PlacementResult at(const Simulation &s, uint8_t player, float
 			(int)std::floor((z - half) / Simulation::GRID), type);
 }
 
+static float seconds_until(Simulation &s, uint32_t bid, bool (*done)(const Simulation::Building &)) {
+	for (int t = 0; t < 20 * 600; ++t) {
+		for (const auto &b : s.buildings())
+			if (b.id == bid && done(b)) return t * Simulation::FIXED_STEP;
+		s.tick(Simulation::FIXED_STEP);
+	}
+	return -1.0f;
+}
+
+// Foundation.js / Repairable.js: n builders work at n^0.7 / n each, and a repair
+// takes RepairTimeRatio (2) x the build time for the missing health.
+static void test_build_and_repair() {
+	static Simulation s;
+	const float build_time = building_type_info(BLD_HOUSE).build_time;
+	float took[2] = {};
+	for (int k = 0; k < 2; ++k) {
+		const int builders = k ? 3 : 1;
+		fresh(s);
+		s.spawn_building_world(-40.0f, 40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		const uint32_t house = s.spawn_building_world(-30.0f, 50.0f, BLD_HOUSE, 0, 0.0f);
+		std::vector<uint32_t> ids;
+		for (int b = 0; b < builders; ++b) ids.push_back(s.spawn_unit(-31.0f + b, 52.5f, 0, UNIT_FEMALE_CITIZEN));
+		s.order_build_or_repair(ids.data(), ids.size(), house);
+		took[k] = seconds_until(s, house, [](const Simulation::Building &b) { return b.build_progress >= 1.0f; });
+	}
+	const float speedup = took[0] / took[1];
+	std::printf("  house: %.1f s with one builder (template %.0f s), %.1f s with three (x%.2f, 0 A.D. x%.2f)\n",
+	            took[0], build_time, took[1], speedup, std::pow(3.0f, 0.7f));
+	CHECK(std::fabs(took[0] - build_time) < 1.5f);
+	CHECK(std::fabs(speedup - std::pow(3.0f, 0.7f)) < 0.15f);
+
+	// Repair half a house's health with one builder: 0.5 x 2 x build time.
+	fresh(s);
+	s.spawn_building_world(-40.0f, 40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	const uint32_t house = s.spawn_building_world(-30.0f, 50.0f, BLD_HOUSE, 0, 1.0f);
+	for (auto &b : s.buildings_) if (b.id == house) b.hp = b.max_hp * 0.5f;
+	const uint32_t woman = s.spawn_unit(-31.0f, 52.5f, 0, UNIT_FEMALE_CITIZEN);
+	s.order_build_or_repair(&woman, 1, house);
+	const float repair = seconds_until(s, house, [](const Simulation::Building &b) { return b.hp >= b.max_hp; });
+	std::printf("  house repair from half health: %.1f s (0 A.D. %.0f s)\n", repair, build_time);
+	CHECK(std::fabs(repair - build_time) < 1.5f);
+}
+
 int main() {
 	static Simulation s;
 	fresh(s);
@@ -107,6 +150,8 @@ int main() {
 	CHECK(s.cmd_build(0, 15, 25, BLD_HOUSE) == 0); // neutral ground
 	CHECK(s.player_resource(0, RES_WOOD) == wood);
 	CHECK(s.cmd_build(0, -16, 24, BLD_HOUSE) != 0);
+
+	test_build_and_repair();
 
 	std::printf("RESULT: %s (%d)\n", failures ? "FAIL" : "PASS", failures);
 	return failures ? 1 : 0;
