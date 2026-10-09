@@ -1205,6 +1205,8 @@ private:
 		float bld_garrison_heal[BLD_TYPE_COUNT]; // added hp per second for garrisoned units
 		float bld_capture[BLD_TYPE_COUNT];        // Capturable/CapturePoints multiplier
 		float bld_cost[BLD_TYPE_COUNT][RES_COUNT]; // Cost/Resources multipliers
+		float bld_international_mul[BLD_TYPE_COUNT]; // Market/InternationalBonus (Silk Road)
+		float bld_international_add[BLD_TYPE_COUNT]; // ... added before it (Commercial Treaty)
 		// The same unit multipliers per civ roster template, matched against the
 		// template's own 0 A.D. classes (Champion Infantry Spearman, Javelineer, ...),
 		// which its RTS0 unit_type only approximates.
@@ -1859,6 +1861,8 @@ private:
 	void finish_order(size_t i);
 	void resume_order(size_t i);
 	void respond_to_attack(size_t i);
+	void respond_to_attacker(size_t i, uint32_t attacker_id, float ax, float az, bool melee);
+	std::vector<uint16_t> combat_wild_scratch_; // tick_combat: dangerous animals this tick
 	// ResourceGatherer.CanGather: unit index i has a Rates entry for resource index r.
 	bool can_gather(size_t i, size_t r) const;
 	// With `busy`, skips `skip` and resources whose MaxGatherers are all taken (ResourceSupply.IsAvailable).
