@@ -13350,8 +13350,8 @@ void Simulation::petra_manage_buildings(float dt) {
 				if (resources_.subtype[r] == RES_SUB_FISH) continue; // the dock serves fish
 				float rx = resources_.x[r];
 				float rz = resources_.z[r];
-
-				if (!los_explored(petra_pid_, rx, rz)) continue; // known to Petra
+				// No line-of-sight test: Petra's resource maps (baseManager.js / headquarters.js
+				// dropsite placement) cover every resource on the map.
 
 				// Storehouses and farmsteads need our own territory (0 A.D. BuildRestrictions).
 				if (territory_owner_at(rx, rz) != petra_pid_) continue;
