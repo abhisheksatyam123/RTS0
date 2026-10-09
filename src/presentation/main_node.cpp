@@ -79,6 +79,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("toggle_objectives"), &RtsoMain::toggle_objectives);
 	ClassDB::bind_method(D_METHOD("_toggle_session_dialog", "name"), &RtsoMain::_toggle_session_dialog);
 	ClassDB::bind_method(D_METHOD("get_target_marker_count"), &RtsoMain::get_target_marker_count);
+	ClassDB::bind_method(D_METHOD("get_work_sound_count"), &RtsoMain::get_work_sound_count);
+	ClassDB::bind_method(D_METHOD("debug_gather_nearest"), &RtsoMain::debug_gather_nearest);
 	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);
 	ClassDB::bind_method(D_METHOD("_on_diplo_tribute_pressed", "player_idx", "res_type"), &RtsoMain::_on_diplo_tribute_pressed);
 	ClassDB::bind_method(D_METHOD("set_use_english_voice_orders", "enable"), &RtsoMain::set_use_english_voice_orders);
@@ -919,9 +921,12 @@ void RtsoMain::_ready() {
 		if (view) view->play_spatial_sound(s, pos, db, 75.0f, 1.0f);
 	});
 
-	if (ResourceLoader::get_singleton()->exists("res://assets/sounds/ambient/nature_ambient.ogg")) {
-		Ref<AudioStream> amb_stream = ResourceLoader::get_singleton()->load("res://assets/sounds/ambient/nature_ambient.ogg");
+	// gui/session/Ambient.js: one looping dayscape track ("TODO: Let the map decide the tracks").
+	{
+		Ref<AudioStream> amb_stream = rtso::load_audio("res://assets/audio/ambient/dayscape/day_temperate_gen_03.ogg");
+		if (amb_stream.is_null()) amb_stream = rtso::load_audio("res://assets/sounds/ambient/nature_ambient.ogg");
 		if (amb_stream.is_valid()) {
+			amb_stream->set("loop", true);
 			ambient_player = memnew(AudioStreamPlayer);
 			ambient_player->set_stream(amb_stream);
 			ambient_player->set_autoplay(true);
@@ -1106,6 +1111,32 @@ void RtsoMain::play_civ_voice(const char *action) {
 // BattleDetection says the player is fighting, victory or defeat at the end
 // (with alarm_victory / alarm_defeated).
 // Music state, current track and last sound event (headless smoke tests).
+// Test hook (single player): sends the local idle workers to the nearest
+// resource and centres the camera there, so smoke tests can hear gathering.
+void RtsoMain::debug_gather_nearest() {
+	if (!sim || net_lockstep()) return;
+	std::vector<uint32_t> idle = sim->get_idle_workers(local_player());
+	if (idle.empty()) return;
+	auto uv = sim->units();
+	float x = 0.0f, z = 0.0f;
+	for (size_t i = 0; i < uv.count; ++i)
+		if (uv.id[i] == idle.front()) { x = uv.pos_x[i]; z = uv.pos_z[i]; break; }
+	auto rv = sim->resources();
+	uint32_t best = 0;
+	float best_d = 1e30f;
+	for (size_t r = 0; r < rv.count; ++r) {
+		if (!rv.alive[r] || rv.amount[r] <= 0 || rv.subtype[r] == rtso::RES_SUB_FISH) continue;
+		const float d = (rv.x[r] - x) * (rv.x[r] - x) + (rv.z[r] - z) * (rv.z[r] - z);
+		if (d < best_d) { best_d = d; best = rv.id[r]; }
+	}
+	if (!best) return;
+	if (turn_cmds()) // offline local turns keep it in the replay
+		post_lockstep(4, idle.data(), idle.size(), 0, 0, best, 0);
+	else
+		sim->order_gather(idle.data(), idle.size(), best, false);
+	if (cam_rig) cam_rig->set_target_pos(Vector3(x, 0.0f, z));
+}
+
 Dictionary RtsoMain::get_audio_state() const {
 	static const char *kStates[] = {"off", "menu", "peace", "battle", "victory", "defeat"};
 	Dictionary d;
@@ -1113,6 +1144,10 @@ Dictionary RtsoMain::get_audio_state() const {
 	d["track"] = music_.current_track();
 	d["last_sound"] = session_audio_.last_played();
 	d["in_battle"] = session_audio_.in_battle();
+	d["work_sounds"] = session_audio_.work_sounds_played();
+	d["workers_at_work"] = session_audio_.workers_at_work();
+	d["workers_in_earshot"] = session_audio_.workers_in_earshot();
+	d["listener"] = session_audio_.listener();
 	return d;
 }
 
@@ -1927,6 +1962,10 @@ void RtsoMain::_process(double delta) {
 
 	// Sound events and the music state (0 A.D. music.js: battle while
 	// BattleDetection says so, victory and defeat playlists at the end).
+	if (cam_rig) {
+		const Vector3 focus = cam_rig->get_target_pos();
+		session_audio_.set_listener(focus.x, focus.z);
+	}
 	session_audio_.tick(sim, local_player(), match_elapsed_time, true);
 	update_music_state();
 
