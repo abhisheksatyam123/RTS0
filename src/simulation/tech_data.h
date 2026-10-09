@@ -92,7 +92,21 @@ enum TechnologyId : uint8_t {
 	TECH_WARSHIP_RANGED_ATTACK = 83, // warship_ranged_attack
 	TECH_WARSHIP_SIEGE_ATTACK = 84, // warship_siege_attack
 	TECH_GARRISON_HEAL = 85, // garrison_heal
-	TECH_COUNT = 86
+	TECH_AGOGE = 86, // agoge
+	TECH_ARCHITECTURE_KUSH = 87, // architecture_kush
+	TECH_ARCHITECTURE_PERS = 88, // architecture_pers
+	TECH_COLONIZATION = 89, // colonization
+	TECH_CROSSBOW_TRAINING = 90, // crossbow_training
+	TECH_HELOT_ECONOMY = 91, // helot_economy
+	TECH_IMMORTALS = 92, // immortals
+	TECH_IPHICRATEAN_REFORMS = 93, // iphicratean_reforms
+	TECH_KRYPTEIA = 94, // krypteia
+	TECH_OSTRACISM = 95, // ostracism
+	TECH_PARADE_OF_DAPHNE = 96, // parade_of_daphne
+	TECH_ROMAN_REFORMS = 97, // roman_reforms
+	TECH_TYRTEAN_PAEANS = 98, // tyrtean_paeans
+	TECH_UNLOCK_NEODAMODES = 99, // unlock_neodamodes
+	TECH_COUNT = 100
 };
 
 enum TechClass : uint64_t {
@@ -153,6 +167,12 @@ enum TechClass : uint64_t {
 	TC_TOWN = 1ull << 54,
 	TC_CITY = 1ull << 55,
 	TC_DOMESTIC = 1ull << 56,
+	TC_JAVELINEER = 1ull << 57,
+	TC_IMMORTAL = 1ull << 58,
+	TC_CROSSBOWMAN = 1ull << 59,
+	TC_MERCENARY = 1ull << 60,
+	TC_SIEGETOWER = 1ull << 61,
+	TC_MINISTER = 1ull << 62,
 };
 
 // One 0 A.D. "affects" alternative: every `need` class and no `forbid` class.
@@ -195,6 +215,17 @@ inline const TechClassExpr *tech_affects_table() {
 		{TC_ARROWSHIP, 0},
 		{TC_RANGED | TC_WARSHIP, 0},
 		{TC_STRUCTURE, TC_OUTPOST | TC_WALL},
+		{TC_CHAMPION | TC_INFANTRY | TC_SPEARMAN, 0},
+		{TC_CIVIC, 0},
+		{TC_STRUCTURE, TC_WONDER},
+		{TC_CROSSBOWMAN, 0},
+		{TC_INFANTRY | TC_JAVELINEER, 0},
+		{TC_IMMORTAL, 0},
+		{TC_CHAMPION, 0},
+		{TC_CITIZEN | TC_INFANTRY | TC_JAVELINEER, 0},
+		{TC_CITIZENSOLDIER, 0},
+		{TC_HERO, 0},
+		{TC_CHAMPION | TC_MELEE | TC_INFANTRY, TC_HERO},
 	};
 	return kAffects;
 }
@@ -324,10 +355,28 @@ inline const TechEffect *tech_effects_table() {
 		{TSTAT_RANGED_CRUSH, TOP_MUL, 33, 1, 1.1f}, // warship_ranged_attack
 		{TSTAT_RANGED_PIERCE, TOP_MUL, 33, 1, 1.1f}, // warship_ranged_attack
 		{TSTAT_GARRISON_HEAL, TOP_ADD, 34, 1, 1.0f}, // garrison_heal
+		{TSTAT_BUILD_TIME, TOP_MUL, 35, 1, 1.05f}, // agoge
+		{TSTAT_HEALTH, TOP_MUL, 35, 1, 1.25f}, // agoge
+		{TSTAT_BUILD_TIME, TOP_MUL, 36, 1, 1.2f}, // architecture_kush
+		{TSTAT_HEALTH, TOP_MUL, 36, 1, 1.2f}, // architecture_kush
+		{TSTAT_BUILD_TIME, TOP_MUL, 37, 1, 1.2f}, // architecture_pers
+		{TSTAT_HEALTH, TOP_MUL, 37, 1, 1.25f}, // architecture_pers
+		{TSTAT_BUILD_TIME, TOP_MUL, 36, 1, 0.75f}, // colonization
+		{TSTAT_BUILD_TIME, TOP_MUL, 38, 1, 0.8f}, // crossbow_training
+		{TSTAT_RANGED_PIERCE, TOP_MUL, 39, 1, 0.9f}, // helot_economy
+		{TSTAT_GATHER_GRAIN, TOP_MUL, 39, 1, 2.0f}, // helot_economy
+		{TSTAT_BUILD_TIME, TOP_MUL, 40, 1, 0.5f}, // immortals
+		{TSTAT_MELEE_HACK, TOP_MUL, 41, 1, 1.1f}, // krypteia
+		{TSTAT_MELEE_PIERCE, TOP_MUL, 41, 1, 1.1f}, // krypteia
+		{TSTAT_BUILD_TIME, TOP_MUL, 42, 1, 1.3f}, // krypteia
+		{TSTAT_HEALTH, TOP_MUL, 43, 1, 1.05f}, // ostracism
+		{TSTAT_HEALTH, TOP_MUL, 44, 1, 0.6f}, // ostracism
+		{TSTAT_BUILD_TIME, TOP_MUL, 41, 1, 0.8f}, // parade_of_daphne
+		{TSTAT_SPEED, TOP_MUL, 45, 1, 1.1f}, // tyrtean_paeans
 	};
 	return kEffects + 1;
 }
-constexpr int TECH_EFFECT_COUNT = 122;
+constexpr int TECH_EFFECT_COUNT = 140;
 
 inline const TechInfo &tech_info(uint8_t tech_id) {
 	static const TechInfo kTable[TECH_COUNT] = {
@@ -417,6 +466,20 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Flaming Projectiles", "Ranged Warships +10% attack damage.", 0, 400, 300, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x0400, 119, 2, "warship_ranged_attack"},
 		{"Naval Ballistae", "Siege Ships +20% attack range and vision range.", 0, 300, 300, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x3818, 121, 0, "warship_siege_attack"},
 		{"Living Conditions", "Structures +1 garrison heal rate.", 500, 0, 250, 0, 40.0f, 2, BLD_TEMPLE, TECH_NONE, 0x3fff, 121, 1, "garrison_heal"},
+		{"The Agoge", "Champion Hoplites +25% health, but +5% training time.", 500, 0, 200, 0, 60.0f, 3, BLD_GEROUSIA, TECH_NONE, 0x0002, 122, 2, "agoge"},
+		{"Monumental Architecture", "Civic Structures +20% build time, +20% health, and +20% capture points.", 0, 0, 0, 600, 60.0f, 2, BLD_TOWN_CENTER, TECH_NONE, 0x0400, 124, 2, "architecture_kush"},
+		{"Achaemenid Architecture", "Structures +25% health and capture points, but also +20% build time.", 0, 200, 0, 200, 60.0f, 1, BLD_TOWN_CENTER, TECH_NONE, 0x0004, 126, 2, "architecture_pers"},
+		{"Colonization", "Civic Structures (Civic Center, Temples, and Houses) −25% build time and resource costs.", 0, 200, 200, 0, 20.0f, 1, BLD_TOWN_CENTER, TECH_NONE, 0x0010, 128, 1, "colonization"},
+		{"Crossbow Training", "Crossbow Infantry −20% train time.", 400, 400, 0, 0, 40.0f, 2, BLD_BARRACKS, TECH_NONE, 0x2000, 129, 1, "crossbow_training"},
+		{"Helot Economy", "Infantry Javelineers +100% grain gather rate, but −10% ranged attack pierce damage.", 200, 200, 0, 0, 40.0f, 1, BLD_TOWN_CENTER, TECH_NONE, 0x0002, 130, 2, "helot_economy"},
+		{"Immortals", "Immortals −50% training time.", 200, 0, 200, 0, 60.0f, 3, BLD_TACHARA, TECH_NONE, 0x0004, 132, 1, "immortals"},
+		{"Iphicratean Reforms", "Athenian Docks and Triremes can train Marines and Cretan Mercenary Archers.", 200, 0, 200, 0, 30.0f, 2, BLD_DOCK, TECH_NONE, 0x0001, 133, 0, "iphicratean_reforms"},
+		{"Krypteia", "Champion Hoplites +10% melee attack damage, but Citizen Infantry Javelineers +30% training time.", 200, 0, 200, 0, 50.0f, 2, BLD_GEROUSIA, TECH_NONE, 0x0002, 133, 3, "krypteia"},
+		{"Ostracism", "Citizen soldiers +5% health, but Heroes −40% health.", 300, 0, 300, 0, 60.0f, 3, BLD_PRYTANEION, TECH_NONE, 0x0001, 136, 2, "ostracism"},
+		{"Parade of Daphne", "Champions −20% training time.", 500, 0, 300, 0, 60.0f, 3, BLD_FORTRESS, TECH_NONE, 0x1000, 138, 1, "parade_of_daphne"},
+		{"Marian Reforms", "Convert Infantry to Marian Legionaries, Cavalry to Auxiliary Cavalry, unlock Onagers and Centurions, but lose access to Spear Cavalry and Italic Heavy Infantry.", 1200, 0, 1000, 0, 60.0f, 3, BLD_FORTRESS, TECH_NONE, 0x0008, 139, 0, "roman_reforms"},
+		{"Tyrtean Paeans", "Champion Hoplites +10% movement speed.", 200, 0, 200, 0, 50.0f, 2, BLD_GEROUSIA, TECH_NONE, 0x0002, 139, 1, "tyrtean_paeans"},
+		{"Unlock Neodamodes", "Unlock the ability to train Spearman Neodamodes at the Barracks.", 500, 0, 0, 0, 60.0f, 3, BLD_GEROUSIA, TECH_NONE, 0x0002, 140, 0, "unlock_neodamodes"},
 	};
 	if (tech_id >= TECH_COUNT) return kTable[TECH_NONE];
 	return kTable[tech_id];
