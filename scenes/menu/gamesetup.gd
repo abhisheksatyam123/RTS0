@@ -90,6 +90,30 @@ const RMS_MAPS := [
 	["random_english_channel", "English Channel (RMS)", "Random", 8, 128, "temperate", "Two coasts split by the Channel; ships needed to cross. Supports 2-8 players."],
 	["random_dodecanese", "Dodecanese (RMS)", "Random", 8, 128, "mediterranean", "Aegean islands, a few joined by bridges. Supports 2-8 players."],
 	["random_fortress", "Fortress (RMS)", "Random", 8, 128, "temperate", "Every player starts inside a walled fortress. Supports 2-8 players."],
+	["random_aegean_sea", "Aegean Sea (RMS)", "Random", 8, 128, "aegean", "Two coasts across a sea with scattered islands; ships needed to cross. Supports 2-8 players."],
+	["random_archipelago_0ad", "Archipelago, 0 A.D. (RMS)", "Random", 8, 128, "temperate", "A maze of islands of different sizes and shapes. Supports 2-8 players."],
+	["random_islands", "Islands (RMS)", "Random", 8, 128, "temperate", "Each player starts on a small island with a dock, among many others. Supports 2-8 players."],
+	["random_cycladic_archipelago", "Cycladic Archipelago (RMS)", "Random", 8, 128, "aegean", "Each player starts on an island of the Cyclades. Supports 2-8 players."],
+	["random_snowflake_searocks", "Snowflake Searocks (RMS)", "Random", 8, 128, "temperate", "Small rocky islands joined by narrow causeways. Supports 2-8 players."],
+	["random_harbor", "Harbor (RMS)", "Random", 8, 128, "temperate", "A sheltered harbor for each player, cliffs and a deep central sea. Supports 2-8 players."],
+	["random_corsica", "Corsica vs Sardinia (RMS)", "Random", 8, 128, "mediterranean", "Two opposing islands with jagged relief; ships needed to land. Supports 2-8 players."],
+	["random_phoenician_levant", "Phoenician Levant (RMS)", "Random", 8, 128, "mediterranean", "Players start in the east, a great sea and Cyprus to the west. Supports 2-8 players."],
+	["random_marmara", "Marmara (RMS)", "Random", 8, 128, "aegean", "The Sea of Marmara between Thrace and Asia Minor from a real elevation map. Supports 2-8 players."],
+	["random_bahrain", "Bahrain (RMS)", "Random", 8, 128, "desert", "Arabian coasts round the island of Bahrain from a real elevation map; ships needed. Supports 2-8 players."],
+	["random_botswanan_haven", "Botswanan Haven (RMS)", "Random", 8, 128, "savanna", "Wet-season savanna with hills and shallow marsh pools. Supports 2-8 players."],
+	["random_scythian_rivulet", "Scythian Rivulet (RMS)", "Random", 8, 128, "polar", "Snowy land either side of a shallow frozen rivulet. Supports 2-8 players."],
+	["random_ambush", "Ambush (RMS)", "Random", 8, 128, "temperate", "High bluffs with rich resources overlook the plain. Supports 2-8 players."],
+	["random_arctic_summer", "Arctic Summer (RMS)", "Random", 8, 128, "polar", "Northern summer plains with hills, lakes and plenty of game. Supports 2-8 players."],
+	["random_empire", "Empire (RMS)", "Random", 8, 128, "mediterranean", "Every player starts with two civic centres. Supports 2-8 players."],
+	["random_schwarzwald", "Schwarzwald (RMS)", "Random", 8, 128, "temperate", "Heavy forest round a central lake. Supports 2-8 players."],
+	["random_ratumacos", "Ratumacos (RMS)", "Random", 8, 128, "alpine", "Both banks of the Seine near Ratumacos (Rouen). Supports 2-8 players."],
+	["random_oasis_0ad", "Oasis (0 A.D.) (RMS)", "Random", 8, 128, "oasis", "Desert round a central oasis that holds most of the wood. Supports 2-8 players."],
+	["random_mediterranean_0ad", "Mediterranean (RMS)", "Random", 8, 128, "mediterranean", "The Mediterranean Sea and its coasts from a real elevation map. Supports 2-8 players."],
+	["random_elephantine", "Elephantine (RMS)", "Random", 8, 128, "savanna", "The Nile at its first cataract; ships needed to cross. Supports 2-8 players."],
+	["random_island_stronghold", "Island Stronghold (RMS)", "Random", 8, 128, "temperate", "Each team starts packed together on its own island. Supports 2-8 players."],
+	["random_pompeii", "Pompeii (RMS)", "Random", 8, 128, "volcanic", "The Bay of Naples under Vesuvius from a real elevation map. Supports 2-8 players."],
+	["random_latium", "Latium (RMS)", "Random", 8, 128, "latium", "Rolling Italian land between two seas, with cliffs and plateaus. Supports 2-8 players."],
+	["random_unknown", "Unknown (RMS)", "Random", 8, 128, "temperate", "One of 13 land and naval landscapes, picked at random. Supports 2-8 players."],
 ]
 
 # 0 A.D. population limits per player (0 = unlimited) and ceasefire lengths in minutes.
@@ -109,8 +133,11 @@ const MAP_SIZES := [[128, "Tiny (128 m)"], [192, "Small (192 m)"], [256, "Medium
 # Index == rtso::VictoryCondition id (sim_types.h).
 const VICTORIES := ["Conquest — destroy all enemies", "Wonder — hold a Wonder", "Relic — claim and hold all relics", "Endless — no victory, sandbox",
 	"Conquest Units — kill every enemy unit", "Conquest Structures — raze every enemy structure", "Regicide — kill the enemy hero, keep yours"]
-const START_RES := ["Sparse (150/200/150/100)", "Normal (300/400/300/200)", "Generous (500/700/500/350)", "Abundant (900/1200/900/600)"]
+# 0 A.D. settings/starting_resources.json: the same amount of every resource.
+const START_RES := ["Very Low (100)", "Low (300)", "Medium (500)", "High (1000)", "Very High (3000)", "Deathmatch (50000)"]
 const DIFFS := ["Sandbox", "Very Easy", "Easy", "Medium", "Hard", "Very Hard"]
+# Options-page aibehavior values -> RTS0 PetraBehavior (petra_ai.h).
+const AI_BEHAVIOR_IDS := {"random": 0, "defensive": 1, "balanced": 2, "aggressive": 3}
 const BEHAVIORS := ["Random", "Defensive", "Balanced", "Aggressive"]
 # Random-map biome override (index - 1 == rtso::BiomeType) and 0 A.D. game speeds.
 const BIOMES := ["Map default", "Aegean", "Latium", "Alpine", "Oasis", "Temperate", "Steppe", "Savanna", "Polar", "India"]
@@ -265,6 +292,8 @@ func _update_preview() -> void:
 	if lbl:
 		lbl.text = "%s\n[%s • %s • %dm • %d players]\n\n%s\n\n%s" % [
 			m["name"], m["kind"], m["biome"], int(m["size"]), int(m["players"]), seed_txt, m["desc"]]
+		if _slot_rows.size() > 0 and int(_slot_rows[0]["kind"]) == 1:
+			lbl.text += "\n\nNo Human slot: you watch the AIs play with the map revealed."
 	# Civ preview follows slot 0 (the human player).
 	var civ := _slot_civ(0)
 	if crest and civ >= 0 and civ < CIVS.size():
@@ -287,9 +316,10 @@ func _ensure_slot_rows(n: int) -> void:
 		_slot_rows.append({
 			"kind": 1 if i > 0 else 0,
 			"civ": i % CIVS.size(),
-			"team": i + 1,
-			"diff": 3,
-			"beh": 2,
+			"team": 0, # 0 A.D.: no team until you pick one
+			# 0 A.D. gui.gamesetup.aidifficulty / aibehavior from the options page.
+			"diff": clampi(int(UserSettings.cfg.get_number("gui.gamesetup.aidifficulty")), 0, 5),
+			"beh": AI_BEHAVIOR_IDS.get(UserSettings.cfg.get_value("gui.gamesetup.aibehavior"), 0),
 			"color": _unused_color(),
 		})
 	if _slot_rows.size() > n:
@@ -328,18 +358,17 @@ func refresh_slots() -> void:
 func _add_slot_row(grid: GridContainer, i: int) -> void:
 	var row: Dictionary = _slot_rows[i]
 	var name := Label.new()
-	name.text = "P%d%s" % [i + 1, " (You)" if i == 0 else ""]
+	name.text = "P%d%s" % [i + 1, " (You)" if i == 0 and int(row["kind"]) == 0 else ""]
 	grid.add_child(name)
 	# kind
 	var kind_slot := Control.new()
 	kind_slot.custom_minimum_size = Vector2(92, 28)
 	grid.add_child(kind_slot)
 	var kind := _make_option(kind_slot)
-	for k in SLOT_KINDS:
+	# Slot 1 is you, or AI: with no Human slot you watch the AIs play (0 A.D. lets every slot be AI).
+	for k in (SLOT_KINDS if i > 0 else SLOT_KINDS.slice(0, 2)):
 		kind.add_item(k)
-	kind.select(int(row["kind"]) if i > 0 else 0)
-	if i == 0:
-		kind.select(0)
+	kind.select(int(row["kind"]) if i > 0 else mini(int(row["kind"]), 1))
 	kind.item_selected.connect(_on_slot_kind.bind(i))
 	# civ
 	var civ_slot := Control.new()
@@ -358,9 +387,10 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	team_slot.custom_minimum_size = Vector2(64, 28)
 	grid.add_child(team_slot)
 	var team := _make_option(team_slot)
+	team.add_item("None")
 	for t in range(1, 5):
 		team.add_item("T%d" % t)
-	team.select(clampi(int(row["team"]) - 1, 0, 3))
+	team.select(clampi(int(row["team"]), 0, 4))
 	team.item_selected.connect(_on_slot_team.bind(i))
 	# AI difficulty (per-slot; slot 0 uses the global default row)
 	var diff_slot := Control.new()
@@ -394,6 +424,8 @@ func _on_slot_kind(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
 		return
 	_slot_rows[slot]["kind"] = idx
+	if slot == 0:
+		refresh_slots.call_deferred() # the "(You)" label follows slot 1's kind
 	_update_preview()
 
 func _on_slot_civ(idx: int, slot: int) -> void:
@@ -405,7 +437,7 @@ func _on_slot_civ(idx: int, slot: int) -> void:
 func _on_slot_team(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
 		return
-	_slot_rows[slot]["team"] = idx + 1
+	_slot_rows[slot]["team"] = idx
 
 func _on_slot_diff(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
@@ -551,7 +583,7 @@ func _restore_settings() -> void:
 	for i in range(MAP_SIZES.size()):
 		if int(MAP_SIZES[i][0]) == int(ms.get("map_size")):
 			msz.select(i)
-	res.select(clampi(int(ms.get("start_res")), 0, 3))
+	res.select(clampi(int(ms.get("start_res")), 0, START_RES.size() - 1))
 	bio.select(clampi(int(ms.get("biome")), 0, BIOMES.size() - 1))
 	for i in range(SPEEDS.size()):
 		if is_equal_approx(float(SPEEDS[i][0]), float(ms.get("game_speed"))):
@@ -578,7 +610,7 @@ func _restore_settings() -> void:
 			if i < civs.size():
 				_slot_rows[i]["civ"] = clampi(int(civs[i]), 0, CIVS.size() - 1)
 			if i < teams.size():
-				_slot_rows[i]["team"] = clampi(int(teams[i]), 1, 4)
+				_slot_rows[i]["team"] = clampi(int(teams[i]), 0, 4)
 			if i < sdiffs.size():
 				_slot_rows[i]["diff"] = clampi(int(sdiffs[i]), 0, 5)
 			if i < sbehs.size():
@@ -586,7 +618,7 @@ func _restore_settings() -> void:
 			if i < scolors.size():
 				_slot_rows[i]["color"] = clampi(int(scolors[i]), 0, PLAYER_COLORS.size() - 1)
 			if i == 0:
-				_slot_rows[i]["kind"] = 0
+				_slot_rows[i]["kind"] = mini(int(_slot_rows[i]["kind"]), 1)
 		refresh_slots()
 
 # ---------------------------------------------------------------- start ---
@@ -622,7 +654,7 @@ func _collect_setup() -> Dictionary:
 	for i in range(n):
 		var k := int(_slot_rows[i]["kind"])
 		if i == 0:
-			k = 0
+			k = mini(k, 1) # Human or AI, never closed
 		if k == 2:
 			continue # closed: 0 A.D. drops the slot, so later players move up
 		types.append(k)
@@ -700,11 +732,14 @@ func _on_start_pressed() -> void:
 	if st["map"].is_empty():
 		_show_error("No map selected.")
 		return
-	if int(st["humans"]) < 1:
-		_show_error("Slot 1 must be Human.")
+	if int(st["humans"]) < 1 and int(st["ai"]) < 2:
+		_show_error("Watching a game needs at least 2 AI players.")
 		return
 	if int(st["ai"]) < 1:
 		_show_error("Need at least 1 AI opponent.")
+		return
+	if int(st["humans"]) > 0 and int(st["types"][0]) != 0:
+		_show_error("Slot 1 must be Human, or make every slot AI to watch.")
 		return
 	var m: Dictionary = st["map"]
 	if str(m["kind"]) == "Scenario" and int(st["slots"]) != int(m["players"]):

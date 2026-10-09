@@ -130,10 +130,8 @@ enum class NetCommandType : uint8_t {
 	NET_CMD_DIPLOMACY     = 22,
 	NET_CMD_BARTER        = 23,
 	// --- RTS0-local, appended after the frozen 1..23 block -------------------
-	// P3 maintainFleet upkeep (navalManager.js:507). target_id = unit type to
-	// commission (UNIT_TRIREME=8 warship / UNIT_FISHING_BOAT=15 fishing boat),
-	// param = reserved (0). Queued, never applied directly: see
-	// TurnManager::request_fleet_upkeep / TurnManager::maintain_fleet_upkeep.
+	// Retired: Petra's fleet upkeep (navalManager.js maintainFleet) runs inside
+	// the sim's naval manager now. The id stays reserved; nothing sends it.
 	NET_CMD_MAINTAIN_FLEET = 24,
 	// Train one civ roster unit by template (a hero, champion or mercenary that
 	// the class-based NET_CMD_TRAIN can't name). target_id = building,
@@ -173,8 +171,14 @@ enum class NetCommandType : uint8_t {
 	// 0 A.D. "alert-raise" / "alert-end" (AlertRaiser.js) on structure target_id;
 	// param 0 raises, 1 ends.
 	NET_CMD_ALERT = 36,
+	// 0 A.D. "remove-guard" (UnitAI RemoveGuard) on the units in entity_ids.
+	NET_CMD_REMOVE_GUARD = 37,
+	// 0 A.D. "call-to-arms": the Soldiers, Warships, Siege and Healers in entity_ids drop
+	// their load at the nearest dropsite, then attack-walk to (target_x, target_z).
+	// param bit NET_PARAM_QUEUED queues it.
+	NET_CMD_CALL_TO_ARMS = 38,
 	// Session control, not game commands (200+ is reserved for these; game command
-	// ids keep growing from 36). Only the host sends them, inside its own turn batch,
+	// ids keep growing from 38). Only the host sends them, inside its own turn batch,
 	// so every client learns of a seat change before the turn it affects (0 A.D.
 	// NetServerTurnManager::InitialiseClient / UninitialiseClient). The sim ignores them.
 	// A client takes a seat: target_id = client id, param = player, target_x = the
@@ -324,7 +328,7 @@ struct GameSetupParams {
 	uint16_t map_size = 128; // random-map width in meters, 128..512
 	uint8_t difficulty = 3; // Petra 0..5 sandbox..very hard
 	uint8_t behavior = 2;   // Petra 0..3 random/def/bal/agg
-	uint8_t start_res = 1;  // 0 sparse, 1 normal, 2 generous, 3 abundant
+	uint8_t start_res = 1;  // 0 A.D. starting resources: 0 Very Low (100) .. 5 Deathmatch (50000), 1 Low (300)
 	uint8_t civs[8] = {0, 1, 0, 0, 0, 0, 0, 0};
 	char slot_types[8] = {'h', 'a', 'x', 'x', 'x', 'x', 'x', 'x'};
 	uint8_t teams[8] = {1, 2, 0, 0, 0, 0, 0, 0};
@@ -513,7 +517,7 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 			}
 			else if (k == "diff") { uint8_t x; if (detail::parse_u8(v, 0, 5, x)) out.difficulty = x; }
 			else if (k == "behavior") { uint8_t x; if (detail::parse_u8(v, 0, 3, x)) out.behavior = x; }
-			else if (k == "res") { uint8_t x; if (detail::parse_u8(v, 0, 3, x)) out.start_res = x; }
+			else if (k == "res") { uint8_t x; if (detail::parse_u8(v, 0, 5, x)) out.start_res = x; }
 			else if (k.size() == 4 && k[0] == 'c' && k[1] == 'i' && k[2] == 'v' && k[3] >= '0' && k[3] <= '7') {
 				uint8_t x; if (detail::parse_u8(v, 0, 13, x)) out.civs[k[3] - '0'] = x;
 			}

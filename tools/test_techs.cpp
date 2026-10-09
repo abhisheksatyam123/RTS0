@@ -220,12 +220,14 @@ int main() {
 			s.spawn_building_world(0.0f, 0.0f, BLD_TOWER, 1, 1.0f);   // enemy tower
 			uint32_t sp = s.spawn_unit(8.0f, 0.0f, 0, UNIT_SPEARMAN, 400.0f); // under its arrows
 			uint32_t healer = s.spawn_unit(22.0f, 0.0f, 0, UNIT_HEALER);
+			s.order_set_stance(&healer, 1, STANCE_STAND_GROUND); // heals only whom its range reaches
 			s.cmd_stop(&healer, 1);
 			s.cmd_stop(&sp, 1);
-			run(s, 10.0f);
+			s.order_set_stance(&sp, 1, STANCE_STAND_GROUND); // stays put rather than charging the tower
+			run(s, 30.0f); // long enough that healing outweighs which arrows happen to land
 			hp_left[with] = unit_hp(s, sp);
 		}
-		std::printf("spearman hp after 10 s under fire: %.0f healed, %.0f not\n", hp_left[1], hp_left[0]);
+		std::printf("spearman hp after 30 s under fire: %.0f healed, %.0f not\n", hp_left[1], hp_left[0]);
 		CHECK(hp_left[0] >= 0.0f && hp_left[1] > hp_left[0]);
 	}
 
@@ -335,6 +337,36 @@ int main() {
 		s.unit_train_cost(0, healer, civ_template_unit_info(healer, UNIT_HEALER), cost);
 		CHECK(cost[RES_GOLD] == 0.0f);
 
+		// Dock warship techs: Flanking Maneuvers and Bronze Ram reach ramming ships
+		// (0 A.D. NavalRam) only, Bronze Ram needs Flanking Maneuvers, and the
+		// Athenian Arsenal of Philon (after Shipwrights) repairs warships.
+		fresh(s);
+		s.set_player_civ(CIV_ATHENIANS);
+		s.player(0).phase = 3;
+		uint16_t ram = CIV_UNIT_TEMPLATE_NONE, arrow = CIV_UNIT_TEMPLATE_NONE;
+		for (uint16_t i = civ_roster_begin(CIV_ATHENIANS); i < civ_roster_end(CIV_ATHENIANS); ++i) {
+			if (std::strcmp(civ_unit_template(i).id, "athen/ship_ram") == 0) ram = i;
+			if (std::strcmp(civ_unit_template(i).id, "athen/ship_arrow") == 0) arrow = i;
+		}
+		CHECK(ram != CIV_UNIT_TEMPLATE_NONE && arrow != CIV_UNIT_TEMPLATE_NONE);
+		CHECK(!tech_available_to_civ(TECH_WARSHIP_RAMMING_SPEED, CIV_BRITONS)); // brit fire ships are melee warships too
+		CHECK(tech_info(TECH_WARSHIP_RAMMING_ATTACK).prerequisite == TECH_WARSHIP_RAMMING_SPEED);
+		CHECK(tech_info(TECH_ARSENAL_PHILON).prerequisite == TECH_DOCK_EFFICIENCY);
+		CHECK(!tech_available_to_civ(TECH_ARSENAL_PHILON, CIV_SPARTANS));
+		research(TECH_WARSHIP_RAMMING_SPEED, -10.0f);
+		CHECK(std::fabs(s.tech_mods(0).tmpl[ram].speed - 1.25f) < 1e-4f);
+		CHECK(s.tech_mods(0).tmpl[arrow].speed == 1.0f);
+		research(TECH_WARSHIP_RAMMING_ATTACK, -30.0f);
+		CHECK(std::fabs(s.tech_mods(0).tmpl[ram].attack - 1.3f) < 1e-4f);
+		CHECK(s.tech_mods(0).tmpl[arrow].attack == 1.0f);
+		research(TECH_WARSHIP_HEALTH, -50.0f); // Undergirding Cables: arrow and ramming ships
+		CHECK(std::fabs(s.tech_mods(0).tmpl[ram].health - 1.2f) < 1e-4f);
+		CHECK(s.tech_mods(0).regen[UNIT_TRIREME] == 0.0f);
+		research(TECH_DOCK_EFFICIENCY, -70.0f);
+		research(TECH_ARSENAL_PHILON, -90.0f);
+		CHECK(s.tech_mods(0).regen[UNIT_TRIREME] == 1.0f);
+		CHECK(s.tech_mods(0).regen[UNIT_FISHING_BOAT] == 0.0f);
+
 		s.set_player_civ(civ_before);
 	}
 
@@ -367,6 +399,8 @@ int main() {
 			}
 			uint32_t foe = s.spawn_unit(-12.0f, -30.0f, 1, UNIT_SWORDSMAN, 4000.0f);
 			s.cmd_stop(&foe, 1);
+			// Stays out of the tower's MinRange rather than walking up to hack at it.
+			s.order_set_stance(&foe, 1, STANCE_STAND_GROUND);
 			float hp0 = unit_hp(s, foe);
 			run(s, 12.0f);
 			dmg[with] = hp0 - unit_hp(s, foe);
@@ -410,8 +444,8 @@ int main() {
 	run(b, tech_info(TECH_FARMING_1).research_time + 1.0f);
 	CHECK(a.is_tech_researched(TECH_FARMING_1) && !b.is_tech_researched(TECH_FARMING_1));
 	CHECK(tm.compute_sim_hash(a) != tm.compute_sim_hash(b));
-	int with = farm_for(a, 40.0f), without = farm_for(b, 40.0f);
-	std::printf("food in 40 s: %d with Iron Plow, %d without\n", with, without);
+	int with = farm_for(a, 150.0f), without = farm_for(b, 150.0f);
+	std::printf("food in 150 s: %d with Iron Plow, %d without\n", with, without);
 	CHECK(without > 0 && with > without);
 
 	// Lockstep: identical research on two sims keeps them in sync.

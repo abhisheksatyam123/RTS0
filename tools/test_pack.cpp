@@ -17,6 +17,7 @@
 //  5. Target out of range: an unpacked bolt shooter packs, closes in, unpacks and fires.
 //  6. order_pack (the Pack/Unpack command) and save/load keep the pack state.
 //  7. Lockstep command 29 (NET_CMD_PACK) unpacks and packs the sender's own engines only.
+//  8. Walking away from an enemy in range packs and leaves (walks don't acquire targets by sight).
 //  Exit: 0 = PASS, 1 = FAIL.
 #include "simulation/simulation.h"
 #include "network/turn_manager.h"
@@ -227,6 +228,26 @@ static void test_lockstep() {
 	check(pack_of(s, mine) == PACK_PACKED, "command 29 with param 1 packs it again");
 }
 
+static void test_retreat_under_fire() {
+	std::printf("8. retreat while enemies are in range\n");
+	Simulation s;
+	setup(s);
+	uint32_t cat = s.spawn_unit(0, 0, 0, UNIT_CATAPULT);
+	const float r = s.unit_info_at(idx_of(s, cat)).attack_range;
+	uint32_t tgt = dummy(s, r * 0.6f, 0.0f);
+	s.order_attack(&cat, 1, tgt);
+	run(s, 12.0f);
+	check(pack_of(s, cat) == PACK_UNPACKED, "unpacked and firing");
+	// A walk, even an unforced one, never picks targets it sees (UnitAI
+	// INDIVIDUAL.WALKING), so the engine packs and leaves instead of
+	// unpacking again for the enemy still in range.
+	s.cmd_move(&cat, 1, -30.0f, 0.0f);
+	run(s, 10.4f);
+	check(pack_of(s, cat) == PACK_PACKED, "packs within 10 s");
+	run(s, 6.0f);
+	check(x_of(s, cat) < -2.0f, "and walks away");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_pack.sav";
 	test_who_packs();
@@ -236,6 +257,7 @@ int main(int argc, char **argv) {
 	test_out_of_range();
 	test_save_load(save.c_str());
 	test_lockstep();
+	test_retreat_under_fire();
 	if (g_failures) {
 		std::printf("test_pack: FAIL (%d)\n", g_failures);
 		return 1;

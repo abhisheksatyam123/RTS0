@@ -112,12 +112,19 @@ class RtsoWorldView : public Node3D {
 	// model and the flag style its 0 A.D. actor props there.
 	struct FlagPoint { Vector3 pos; float scale = 1.0f; int style = 0; };
 	std::unordered_map<std::string, FlagPoint> flag_points_;
+	// Same file: GLB units per 0 A.D. metre and the GLB height of 0 A.D.'s ground
+	// plane, by building model (meshes are grounded at their lowest vertex).
+	struct ModelGround { float scale = 0.0f; float ground = 0.0f; };
+	std::unordered_map<std::string, ModelGround> model_ground_;
 	std::vector<Ref<ShaderMaterial>> flag_mats_;
 	Ref<Mesh> flag_mesh_;
 	bool flags_loaded_ = false;
 	void load_garrison_flags();
-	void update_garrison_flag(BuildingVis &v, const String &model_id, bool show, uint8_t owner,
+	void update_garrison_flag(BuildingVis &v, const String &model_id, bool show, const Color &owner_color,
 			float b_scale, float y_offset);
+	// World height of a unit standing on a turret point `offset` above the terrain
+	// (sim units), placed on the holder's model as drawn.
+	float turret_draw_y(const rtso::Simulation *sim, uint32_t unit_id, float offset, float x, float z);
 	Ref<Shader> wind_shader_;
 	Ref<Mesh> wind_mesh(const Ref<Mesh> &src);
 	MultiMeshInstance3D *gold_mmi = nullptr;   // gold_vein.glb
@@ -129,10 +136,25 @@ class RtsoWorldView : public Node3D {
 	MultiMeshInstance3D *ruins_mmi = nullptr;
 	MultiMeshInstance3D *treasure_mmi = nullptr;
 	Ref<MultiMesh> ruins_mm, treasure_mm;
-	// Gaia scenery (fences, columns, obelisks): boxes of each obstruction's size until the
-	// rendering pipeline has their 0 A.D. actors.
+	// Gaia scenery (fences, columns, obelisks): 0 A.D.'s actor meshes from
+	// data/scenery_actors.json, one MultiMesh per type and mesh variant; a box of
+	// the obstruction's size for a type without one.
 	MultiMeshInstance3D *scenery_mmi = nullptr;
 	Ref<MultiMesh> scenery_mm;
+	struct SceneryVariant { Ref<MultiMesh> mm; int count = 0; };
+	std::vector<SceneryVariant> scenery_variants_[rtso::SCENERY_TYPE_COUNT];
+	void load_scenery_actors();
+	// 0 A.D. ambient birds (template_bird: birds/buzzard, the hawk actor): no
+	// gameplay effect, so they live in the view only, from data/birds.json.
+	struct Bird {
+		Node3D *node = nullptr;
+		Vector2 pos, target;
+		float yaw = 0.0f, y = 0.0f;
+		uint32_t rng = 1;
+	};
+	std::vector<Bird> birds_;
+	std::string birds_map_;
+	void update_birds(const rtso::Simulation *sim, float delta);
 
 	// flying projectiles (arrows + warship bolts + catapult stones)
 	MultiMeshInstance3D *arrow_mmi = nullptr;
@@ -177,7 +199,7 @@ class RtsoWorldView : public Node3D {
 	// Crowd units: one MultiMesh per (civ, UnitType, crowd clip), made the first
 	// time a unit of that civ and type shows, so every civ in the match renders
 	// with its own 0 A.D. models. Each clip is a few baked poses cycled in place.
-	static constexpr int CROWD_CLIP_COUNT = 22; // see kCrowdClips in world_view_node.cpp
+	static constexpr int CROWD_CLIP_COUNT = 25; // see kCrowdClips in world_view_node.cpp
 	static constexpr int FAUNA_CLIP_COUNT = 4;  // idle, move, attack, death
 	static constexpr int CROWD_FRAMES_PER_CLIP = 6;
 	struct CrowdPuppet {
@@ -194,7 +216,10 @@ class RtsoWorldView : public Node3D {
 		Ref<Mesh> rest;
 		bool no_scene = false; // model has no skinned scene: rest pose only
 	};
-	std::unique_ptr<CrowdBatch> crowd_[rtso::CIV_COUNT][rtso::UNIT_TYPE_COUNT];
+	// Crowd keys: a unit type, or UNIT_TYPE_COUNT + type for a siege engine
+	// shown packed (its 0 A.D. wagon, packed_siege_models.h).
+	static constexpr int CROWD_KEY_COUNT = 2 * rtso::UNIT_TYPE_COUNT;
+	std::unique_ptr<CrowdBatch> crowd_[rtso::CIV_COUNT][CROWD_KEY_COUNT];
 	Node3D *crowd_bake_root = nullptr;
 	std::vector<uint8_t> crowd_slot_scratch_; // crowd clip slot per unit index this frame
 
@@ -262,12 +287,16 @@ public:
 	void rebuild_terrain(const rtso::Simulation *sim);
 	// Player whose units draw as "own" (crowd bank 0, player colours).
 	void set_local_player(uint8_t p) { local_player_ = p; }
+	// session.showstatusbars (Tab): bars over every visible unit and structure.
+	void set_show_all_status_bars(bool on) { show_all_status_bars_ = on; }
+	bool show_all_status_bars() const { return show_all_status_bars_; }
 
 	void play_spatial_sound(const Ref<AudioStream> &stream, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
 	void play_spatial_sound_path(const String &path, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
 
 private:
 	uint8_t local_player_ = 0;
+	bool show_all_status_bars_ = false;
 
 	// Fog of war (0 A.D. Fogging.js/Mirage.js + CLOSTexture): what the local
 	// player remembers, and the smoothed LOS bitmap that shades the world.
@@ -308,18 +337,18 @@ private:
 	static Node *instantiate_building_id(const String &id);
 	void play_unit_clip(UnitVis &v, const StringName &clip, bool loop);
 	void hide_unit_vis(UnitVis &v);
-	CrowdBatch &crowd_batch(uint8_t civ, uint8_t utype);
+	CrowdBatch &crowd_batch(uint8_t civ, uint8_t key);
 	MultiMesh *crowd_mm(CrowdBatch &b, int clip);
 	// Bakes the skinned poses of every clip in `want` (array of ClipId) that `done` lacks.
 	void bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, const uint8_t *want,
-			const bool *needed, int count, int death_slot, bool female = false);
+			const bool *needed, int count, uint32_t death_slots, bool female = false);
 	// Adds the 0 A.D. clips the unit GLBs lack (per-resource carry, promotion)
 	// to a biped's animation library from assets/animations/*.psa.
 	void ensure_runtime_clips(AnimationPlayer *ap, bool female);
 	// Parents the carry shuttle for `clip` (a carry variant) to its 0 A.D. prop point.
 	Node3D *attach_carry_prop(Node *model, uint8_t clip, bool female);
-	void cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts, int count, int death_slot);
-	void ensure_crowd_frames(uint8_t civ, uint8_t utype, const int *counts);
+	void cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts, int count, uint32_t death_slots);
+	void ensure_crowd_frames(uint8_t civ, uint8_t key, const int *counts);
 	void ensure_fauna_frames(uint8_t ftype);
 	void init_animation_controllers();
 };

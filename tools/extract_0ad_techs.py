@@ -85,6 +85,11 @@ CLASSES = [
 ]
 assert len(CLASSES) <= 64, "TechClass is a uint64_t mask"
 
+# 0 A.D. classes RTS0 has no bit for, spelled as classes it has. Exact for the
+# civs that research them: NavalRam (warship_ramming_speed) is a melee warship
+# for every civ in its civ list (the melee fire ships are brit, gaul and iber).
+CLASS_ALIASES = {"NavalRam": "Warship Melee"}
+
 # Civ-only technologies left out on purpose.
 CIV_TECH_SKIP = {
     "unlock_females_house",  # newer 0 A.D. name of unlock_civilians_house_generic (id 77)
@@ -153,6 +158,7 @@ def stat_of(path: str):
         "Cost/Resources/wood": "TSTAT_COST_WOOD",
         "Cost/Resources/stone": "TSTAT_COST_STONE",
         "Cost/Resources/metal": "TSTAT_COST_METAL",
+        "Market/InternationalBonus": "TSTAT_TRADE_INTERNATIONAL",
     }.get(path)
 
 
@@ -310,9 +316,14 @@ def main() -> int:
     ap.add_argument("--out", default=os.path.join(os.path.dirname(__file__), "..", "src", "simulation", "tech_data.h"))
     ap.add_argument("--append", action="store_true",
                     help="keep --out's existing technologies (ids, rows) and append only the civ-only ones it lacks")
+    ap.add_argument("--add-techs", default="",
+                    help="with --append: comma-separated generic technologies to append as well")
     ap.add_argument("--add-stats", default="",
                     help="with --append: comma-separated TechStats newly mapped in stat_of(); every kept "
                          "technology also gets its modifications of those stats from --public")
+    ap.add_argument("--add-classes", default="",
+                    help="with --append: comma-separated 0 A.D. classes newly spelled in CLASSES or "
+                         "CLASS_ALIASES; every kept technology gains rows for its affects entries naming them")
     args = ap.parse_args()
     src = Source(args.public)
 
@@ -392,15 +403,23 @@ def main() -> int:
         kept_techs = block("static const TechInfo kTable[TECH_COUNT] = {")
         kept = {name for _, name in kept_ids}
         emit = [name for name in civ_only if name not in kept]
-        if args.add_stats:
-            new_stats = set(args.add_stats.split(","))
-            pending_kept = (kept_effects, kept_techs, new_stats)
+        # --add-techs: generic technologies newly portable (a stat stat_of() now maps).
+        extra = [n for n in args.add_techs.split(",") if n]
+        missing = [n for n in extra if n not in order]
+        if missing:
+            print("--add-techs: not researchable or nothing RTS0 applies: " + ",".join(missing), file=sys.stderr)
+            return 1
+        emit += [n for n in extra if n not in kept and n not in emit]
+        if args.add_stats or args.add_classes:
+            new_stats = set(filter(None, args.add_stats.split(",")))
+            new_classes = set(filter(None, args.add_classes.split(",")))
+            pending_kept = (kept_effects, kept_techs, new_stats, new_classes)
         order = [name for _, name in kept_ids] + emit
         if len(order) + 1 > 255:
             print("too many technologies for uint8_t ids", file=sys.stderr)
             return 1
 
-    if not (args.append and args.add_stats):
+    if not (args.append and (args.add_stats or args.add_classes)):
         pending_kept = None
     ids: dict[str, str | None] = {name: None for name in order}
     for sym, name in kept_ids:
@@ -417,6 +436,7 @@ def main() -> int:
 
     def class_expr(tokens: str) -> str | None:
         need, forbid = [], []
+        tokens = " ".join(CLASS_ALIASES.get(t, t) for t in tokens.split())
         for tok in tokens.split():
             neg = tok.startswith("!")
             tok = tok[1:] if neg else tok
@@ -447,7 +467,9 @@ def main() -> int:
             affects_rows.append(key)
         return (len(kept_affects) + start + 1, len(rows))  # slot 0 is reserved for "no filter"
 
-    def effect_lines(name, j, only=None):
+    def effect_lines(name, j, only=None, classes=None):
+        """Effect rows of technology j: only the stats in `only`, and with `classes`
+        only the affects entries that name one of those classes."""
         out = []
         tech_aff = j.get("affects")
         for m in j.get("modifications", []):
@@ -463,18 +485,26 @@ def main() -> int:
             else:
                 continue
             aff = m.get("affects", tech_aff)
+            if classes is not None:
+                entries = [aff] if isinstance(aff, str) else (aff or [])
+                aff = [a for a in entries if classes & set(a.split())]
+                if not aff:
+                    continue
             if stat.startswith("TSTAT_TRICKLE_") and aff in (["Player"], "Player"):
                 aff = None  # template_player.xml's ResourceTrickle: an unfiltered trickle row
+            if stat == "TSTAT_TRADE_INTERNATIONAL" and aff in (["Trade"], "Trade"):
+                aff = ["Market", "Dock"]  # the Trade class: markets and docks (Market component)
             a_start, a_count = affects_index(aff)
             if a_count < 0:
                 continue
             out.append(f"\t\t{{{stat}, {op}, {a_start}, {a_count}, {val!r}f}}, // {name}")
         return out
 
-    # --add-stats: each kept technology keeps its effect rows and gains rows
-    # for the newly mapped stats; effect_begin/effect_count are renumbered.
+    # --add-stats / --add-classes: each kept technology keeps its effect rows and
+    # gains rows for the newly mapped stats or classes; effect_begin/effect_count
+    # are renumbered.
     if pending_kept:
-        k_effects, k_techs, new_stats = pending_kept
+        k_effects, k_techs, new_stats, new_classes = pending_kept
         rebuilt_effects: list[str] = []
         rebuilt_techs: list[str] = []
         row_re = re.compile(r", (\d+), (\d+), (\"[^\"]*\")\},$")
@@ -484,9 +514,26 @@ def main() -> int:
             nb = len(rebuilt_effects)
             rebuilt_effects.extend(k_effects[begin:begin + count])
             j = load(tname)
+            head = row[:mo.start()]
             if j:
-                rebuilt_effects.extend(effect_lines(tname, j, new_stats))
-            rebuilt_techs.append(row[:mo.start()] + f", {nb}, {len(rebuilt_effects) - nb}, \"{tname}\"}},")
+                if new_stats:
+                    rebuilt_effects.extend(effect_lines(tname, j, new_stats))
+                if new_classes:
+                    # A stat the kept rows already change keeps their value (they may
+                    # come from another 0 A.D. version), so the tooltip stays true.
+                    old = {}
+                    for e in k_effects[begin:begin + count]:
+                        em = re.match(r"\t\t\{(\w+), (\w+), \d+, \d+, ([^}]+)\}", e)
+                        old[(em.group(1), em.group(2))] = em.group(3)
+                    for e in effect_lines(tname, j, None, new_classes):
+                        em = re.match(r"(\t\t\{(\w+), (\w+), \d+, \d+, )([^}]+)(\}.*)", e)
+                        rebuilt_effects.append(em.group(1) + old.get((em.group(2), em.group(3)), em.group(4)) + em.group(5))
+                # A technology this run appends that a kept one supersedes becomes
+                # its prerequisite (Bronze Ram after Flanking Maneuvers).
+                if j.get("supersedes") in emit:
+                    sup = "TECH_" + re.sub(r"[^A-Z0-9]", "_", j["supersedes"].upper())
+                    head = re.sub(r", TECH_NONE(, 0x[0-9a-f]+)$", r", " + sup + r"\1", head)
+            rebuilt_techs.append(head + f", {nb}, {len(rebuilt_effects) - nb}, \"{tname}\"}},")
         kept_effects[:] = rebuilt_effects
         kept_techs[:] = rebuilt_techs
 
@@ -506,6 +553,10 @@ def main() -> int:
                 phase = max(phase, 3)
             elif r in ids:
                 prereq = ids[r]
+        # "supersedes": the technology replaces an earlier one in its slot, so
+        # that one has to be researched first (Silk Road after Advanced Handicraft).
+        if prereq == "TECH_NONE" and j.get("supersedes") in ids:
+            prereq = ids[j["supersedes"]]
         if name == "phase_town_generic":
             phase = 1
         elif name == "phase_city_generic":

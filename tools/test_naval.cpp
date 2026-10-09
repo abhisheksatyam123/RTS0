@@ -353,6 +353,40 @@ static void test_transport() {
 	std::printf("transport: capacities, lists, pickup, unloading and sinking match 0 A.D.: %s\n", failures ? "see failures" : "ok");
 }
 
+// Deep water is impassable for land units (passability classes): a walk out to sea stops
+// on the beach (MakeGoalReachable), and a unit boarding a busy ship waits on the shore
+// until the ship comes within LoadingRange.
+static void test_no_wading() {
+	static Simulation s;
+	fresh(s);
+	auto deep = [&](uint32_t uid) {
+		const int32_t i = idx(s, uid);
+		auto [cx, cy] = s.nav_grid().world_to_cell(s.units().pos_x[i], s.units().pos_z[i]);
+		return s.nav_grid().cells.at(cx, cy) == NAV_WATER;
+	};
+	const uint32_t walker = s.spawn_unit(-20.0f, 30.0f, 0, UNIT_SPEARMAN);
+	s.order_walk(&walker, 1, -20.0f, 0.0f, false, true); // a player's walk
+	const uint32_t ship = s.spawn_unit(-40.0f, 0.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));
+	s.cmd_move(&ship, 1, -40.0f, -8.0f); // busy: no Pickup
+	const uint32_t boarder = s.spawn_unit(-40.0f, 30.0f, 0, UNIT_SPEARMAN);
+	s.order_board_transport(&boarder, 1, ship);
+	bool waded = false;
+	for (int t = 0; t < (int)(15.0f / Simulation::FIXED_STEP); ++t) {
+		s.tick(Simulation::FIXED_STEP);
+		waded = waded || deep(walker) || (!aboard(s, ship, boarder) && deep(boarder));
+	}
+	const int32_t w = idx(s, walker);
+	std::printf("  walk to sea stopped at (%.1f, %.1f); boarder waits at z %.1f\n",
+			s.units().pos_x[w], s.units().pos_z[w], s.units().pos_z[idx(s, boarder)]);
+	CHECK(!waded);
+	CHECK(std::fabs(s.units().pos_x[w] + 20.0f) < 2.0f && s.units().pos_z[w] > 10.0f && !s.unit_has_order(walker));
+	CHECK(!aboard(s, ship, boarder));
+	// The ship comes in to the beach: the waiting unit boards.
+	s.cmd_move(&ship, 1, -40.0f, 12.0f);
+	run(s, 10.0f);
+	CHECK(aboard(s, ship, boarder));
+}
+
 // A ship moored beside a house on the shore still sails off: its path starts on
 // the centre of its own cell, closer to the house than the ship can stand, which
 // move_units' crowded-waypoint skip passes over for ships too (seen on an island
@@ -484,6 +518,58 @@ static void test_petra_overseas_attack() {
 	CHECK(across >= 1);
 }
 
+// headquarters.js findEconomicCCLocation on a naval map: with nothing to settle on
+// its own land, Petra lays out a Civic Centre on the other land, a transport ship
+// takes builders across (navalManager.requireTransport) and they build it there.
+static void test_petra_overseas_base() {
+	static Simulation s;
+	fresh(s);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.players_[1].phase = 2;
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	for (int k = 0; k < 10; ++k) s.spawn_unit(-40.0f + 2.0f * k, 52.0f, 1, UNIT_VILLAGER);
+	// Wood on the south land only.
+	for (int k = 0; k < 8; ++k) s.spawn_resource_world(-36.0f + 3.0f * k, -44.0f, RES_WOOD, 600);
+	const uint16_t north = s.petra_land_at(-30.0f, 40.0f), south = s.petra_land_at(-30.0f, -40.0f);
+	uint32_t cc = 0;
+	float placed_at = -1.0f, first_ashore = -1.0f;
+	int waded = 0; // land units are not stopped by deep water yet: none may try
+	for (int k = 0; k < 360; ++k) {
+		run(s, 1.0f);
+		for (size_t i = 0; i < s.units().count; ++i)
+			if (s.units().alive[i] && s.units().team[i] == 1 && s.units().unit_type[i] == UNIT_VILLAGER &&
+			    std::fabs(s.units().pos_z[i]) < 14.0f) ++waded;
+		for (const auto &b : s.buildings())
+			if (!cc && b.team == 1 && b.type == BLD_TOWN_CENTER && b.z < -16.0f) { cc = b.id; placed_at = (float)k; }
+		if (first_ashore < 0.0f)
+			for (size_t i = 0; i < s.units().count; ++i)
+				if (s.units().alive[i] && s.units().team[i] == 1 && s.units().unit_type[i] == UNIT_VILLAGER &&
+				    s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) == south) { first_ashore = (float)k; break; }
+	}
+	const Simulation::Building *b = cc ? bld(s, cc) : nullptr;
+	int south_workers = 0, north_gathering_south = 0;
+	for (size_t i = 0; i < s.units().count; ++i) {
+		if (!s.units().alive[i] || s.units().team[i] != 1 || s.units().unit_type[i] != UNIT_VILLAGER) continue;
+		const uint16_t l = s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]);
+		if (l == south) ++south_workers;
+		const uint32_t rid = s.units().target_resource_id[i];
+		if (l == north && rid) {
+			auto it = s.res_id_to_idx_.find(rid);
+			if (it != s.res_id_to_idx_.end() && s.petra_land_at(s.resources_.x[it->second], s.resources_.z[it->second]) == south)
+				++north_gathering_south;
+		}
+	}
+	std::printf("Petra overseas base: CC laid out at %.0fs, first builder ashore at %.0fs, built %.0f%%, %d workers on the south land, %d wading\n",
+	            placed_at, first_ashore, b ? 100.0f * b->build_progress : 0.0f, south_workers, waded);
+	CHECK(north && south && north != south);
+	CHECK(cc != 0);
+	CHECK(first_ashore >= 0.0f && south_workers >= 2);
+	CHECK(b && b->build_progress > 0.3f);
+	CHECK(north_gathering_south == 0 && waded == 0);
+}
+
 // DeathDamage.js: a fire ship (mixins/fireship.xml) burns down at RegenRate -5 and, dying,
 // deals 500 Fire over 20 m to everyone, its own side too, with quadratic falloff.
 // Other ships and structures deal nothing when they die.
@@ -528,6 +614,7 @@ static void test_fire_ship() {
 
 int main() {
 	test_transport();
+	test_no_wading();
 	test_dock_trade();
 	test_fishing();
 	test_petra_sea_trade();
@@ -535,6 +622,7 @@ int main() {
 	test_ship_leaves_shore_house();
 	test_petra_navy();
 	test_petra_overseas_attack();
+	test_petra_overseas_base();
 	test_fire_ship();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;

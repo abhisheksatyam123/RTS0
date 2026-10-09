@@ -148,7 +148,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 33; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 37; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -203,7 +203,12 @@ public:
 		int cell_x, cell_y;
 		int footprint; // 1 or 2
 		float rot = DEFAULT_BUILDING_ROT; // 0 A.D. Position rotation: 0 faces +z, pi/2 faces +x (the obstruction stays an axis-aligned square)
-		float attack_timer; // for defensive arrows
+		// 0 A.D. BuildingAI.js FireArrows: attack_timer counts down to the next of the ten
+		// rounds per RepeatTime; the timer runs only while enemies are in range.
+		float attack_timer;
+		uint8_t arrow_round = 0;      // currentRound
+		int16_t arrows_left = 0;      // arrowsLeft of this RepeatTime
+		bool arrow_timer_on = false;  // a FireArrows timer is set
 		bool is_burning = false; // Structure fire under 33% HP
 
 		// Multi-slot production queue
@@ -282,7 +287,12 @@ public:
 	// 0 A.D. Identity classes, RestrictedClasses, Bonuses and Spread of the unit at SoA index i.
 	const CombatProfile &unit_combat_at(size_t i) const { return unit_combat(units_.tmpl[i], units_.unit_type[i]); }
 	// Attack.js CanAttack: may unit i attack unit j / building b at all (RestrictedClasses)?
-	bool unit_can_target(size_t i, size_t j) const { return combat_can_target(unit_combat_at(i), unit_combat_at(j)); }
+	// A relic (catafalque) has no Health, so no attack but Capture reaches it.
+	bool unit_can_target(size_t i, size_t j) const {
+		return units_.unit_type[j] != UNIT_CATAFALQUE && combat_can_target(unit_combat_at(i), unit_combat_at(j));
+	}
+	// Capturable.js CanCapture / Attack.js Capture: may unit i capture relic unit r?
+	bool can_capture_relic(size_t i, int32_t r) const;
 	bool unit_can_target_building(size_t i, uint8_t building_type) const {
 		return combat_can_target(unit_combat_at(i), building_combat(building_type));
 	}
@@ -296,6 +306,26 @@ public:
 	uint32_t turret_holder_of(uint32_t unit_id) const;
 	// Total damage `player`'s entities have dealt to other (non-Gaia) players this session
 	// (0 A.D. BattleDetection input); not saved, starts again at 0 after a load.
+	// One hit that cost an entity health: 0 A.D.'s MT_Attacked message, read by the
+	// session's AttackDetection (under-attack alerts). Presentation only: never saved,
+	// hashed or read by the simulation; at most kMaxAttackedEvents wait between reads
+	// so a headless sim without a reader stays bounded.
+	struct AttackedEvent {
+		uint32_t attacker_id; // unit or structure, 0 for none (DeathDamage, fauna)
+		uint32_t target_id;
+		uint8_t attacker_owner;
+		uint8_t target_owner;
+		uint8_t target_is_building;
+		float x, z; // the target's position
+		float damage;
+	};
+	static constexpr size_t kMaxAttackedEvents = 4096;
+	// Hands over the hits since the last call.
+	std::vector<AttackedEvent> take_attacked_events() {
+		std::vector<AttackedEvent> out;
+		out.swap(attacked_events_);
+		return out;
+	}
 	double battle_damage_dealt(uint8_t player) const { return player < MAX_PLAYERS ? battle_damage_[player] : 0.0; } // 0 when not on a turret
 	float unit_height_offset(size_t i) const { // above the terrain (a turret point's height)
 		if (turret_height_.empty()) return 0.0f;
@@ -307,6 +337,9 @@ public:
 	// Rank effects (unit_advanced.json, unit_elite.json) for unit index i.
 	float rank_melee_armor(size_t i) const;
 	float unit_capture_attack_at(size_t i) const;
+	// Read-only, for the renderer: unit i is attacking a structure it captures
+	// rather than damages (the tick_combat check), so it plays 0 A.D.'s capture clip.
+	bool unit_capturing(size_t i) const;
 	float healer_range_of(size_t h) const;
 	float heal_amount_of(size_t h) const;
 	// 0 A.D. team bonuses (data/auras/teambonuses): the product a player gets on `stat`
@@ -319,10 +352,20 @@ public:
 	// Resource cost of training template `tmpl` for `pid` after team bonuses, indexed by ResourceType.
 	void unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo &info, float out[RES_COUNT]) const;
 	uint32_t spawn_resource(int cell_x, int cell_y, uint8_t type, int32_t amount = 600);
-	uint32_t spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount = 600, uint8_t subtype = 0);
+	// max_gatherers 0: the gaia template default (resource_default_max_gatherers).
+	uint32_t spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount = 600, uint8_t subtype = 0, uint8_t max_gatherers = 0);
+	// ResourceSupply/MaxGatherers of a resource (0 if there is none with that id).
+	int resource_max_gatherers(uint32_t res_id) const {
+		auto it = res_id_to_idx_.find(res_id);
+		return it == res_id_to_idx_.end() ? 0 : resources_.max_gatherers[it->second];
+	}
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f);
 	uint32_t spawn_building_world(float wx, float wz, uint8_t type, uint8_t team = 0, float progress = 1.0f);
-	uint32_t spawn_relic(float x, float z, uint8_t res_type, int amount = 300);
+	// CaptureTheRelic.js: a Gaia catafalque of a civ picked from its id; returns the unit id.
+	uint32_t spawn_relic(float x, float z);
+	// Right-click on a relic that is not ours or an ally's: walk up and Capture it.
+	void order_capture_relic(const uint32_t *unit_ids, size_t count, uint32_t relic_id, bool queued = false);
+	bool is_relic_unit(int32_t i) const { return i >= 0 && units_.unit_type[i] == UNIT_CATAFALQUE; }
 
 	float get_terrain_height(float x, float z) const;
 	float map_half() const { return map_half_; }
@@ -385,8 +428,13 @@ public:
 	// goes to the end of each busy unit's order queue instead of replacing its orders.
 	// Player orders are forced (order.data.force); Petra's cmd_move walks are not, so its
 	// units still turn to fight on the way.
-	void order_walk(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false);
-	void order_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id, bool queued = false);
+	// beach_goal: a player's walk, which ends on the beach when (tx, tz) is out at sea
+	// (MakeGoalReachable). Internal walks (Petra, rally points) keep their goal.
+	void order_walk(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false,
+			bool beach_goal = false);
+	// A player's Gather and Repair are forced (UnitAI Gather / Repair) until work starts;
+	// UnitAI's own follow-up gathers and repairs (PerformGather force false) are not.
+	void order_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id, bool queued = false, bool force = true);
 	void order_attack(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
 	// allow_capture: capture the structure (0 A.D.'s default right-click) instead of
 	// damaging it (Ctrl). Units that can't capture, or structures that can't be
@@ -398,12 +446,18 @@ public:
 	void order_attack_move(const uint32_t *unit_ids, size_t count, float tx, float tz,
 			bool queued = false, bool units_only = false, bool allow_capture = false);
 	void order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false);
-	void order_build_or_repair(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false);
+	void order_build_or_repair(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false, bool force = true);
 	// 0 A.D. "delete-entities": kills the player's own units and destroys its own
 	// structures (not ones it holds under half the capture points of).
 	void cmd_delete(uint8_t player, const uint32_t *ids, size_t count);
 	// 0 A.D. "back-to-work" (UnitAI BackToWork): resume the last gather or build order.
 	void order_back_to_work(const uint32_t *unit_ids, size_t count);
+	// 0 A.D. Commands.js "remove-guard" (UnitAI RemoveGuard): end a Guard order, or drop
+	// the queued ones.
+	void order_remove_guard(const uint32_t *unit_ids, size_t count);
+	// 0 A.D. Commands.js "call-to-arms": Soldiers, Warships, Siege and Healers drop their load
+	// at the nearest dropsite (DropAtNearestDropSite), then attack-walk to (x, z).
+	void order_call_to_arms(const uint32_t *unit_ids, size_t count, float x, float z, bool queued = false);
 	// The unit's current order and its Shift-queued ones (empty if none).
 	UnitOrder unit_order(uint32_t unit_id) const;
 	const std::vector<UnitOrder> *unit_order_queue(uint32_t unit_id) const;
@@ -440,7 +494,7 @@ public:
 		std::vector<uint32_t> members;
 		std::vector<FormationSlot> slots;
 		WaypointPath path;
-		// v33: the attack order (UnitAI FORMATIONCONTROLLER.COMBAT / MEMBER) and patrol.
+		// v37: the attack order (UnitAI FORMATIONCONTROLLER.COMBAT / MEMBER) and patrol.
 		uint32_t target_unit = 0;       // Order.Attack target unit
 		uint32_t target_building = 0;   // Order.Attack target structure
 		uint8_t allow_capture = 0;      // Attack.js allowCapture for the members
@@ -507,6 +561,12 @@ public:
 	bool is_siege_tower_at(size_t i) const;
 	// Garrisoned Infantry in a siege tower = arrows per volley (capped).
 	int siege_tower_arrows(size_t i) const;
+	// 0 A.D. BuildingAI.js GetArrowCount: arrows per RepeatTime for a finished structure.
+	int building_arrow_count(const Building &b) const;
+	// Attack/Ranged/MaxRange with technologies, measured from the structure's edge (0 = never shoots).
+	float building_arrow_range(const Building &b) const;
+	// A unit's hack, pierce and crush resistance levels (template, techs, rank, armour auras).
+	void unit_resistance(size_t i, float out[3]) const;
 	int get_transport_capacity(uint32_t transport_id) const;
 	// Ships as GarrisonHolders (template_unit_ship*.xml): capacity and List per
 	// template, LoadingRange 10 m, Pickup, EjectClassesOnDestroy. `i` is a SoA index.
@@ -588,6 +648,14 @@ public:
 	const TriggerState &trigger_state() const { return triggers_; }
 	uint32_t trigger_hash() const { return triggers_.hash(); }
 	void trigger_event(uint8_t event, const TriggerEventData &data = {});
+	// A map's TriggerScripts by name ("polar_sea_triggers", "treasure_islands"): registers
+	// the ported script's triggers. Random maps do it in generate_random_map; data/maps
+	// JSON maps list theirs under "trigger_scripts". Returns false for an unported script.
+	bool register_trigger_script(const std::string &name);
+	// TriggerPoint.js: a trigger point the map places (trigger/trigger_point_<ref>).
+	void add_trigger_point(uint8_t ref, float x, float z) { triggers_.add_point(ref, x, z); }
+	// TriggerHelper.SetPlayerWon: pid and its allies win, everyone else is defeated.
+	void set_player_won(uint8_t pid);
 	// Time notifications (GuiInterface.AddTimeNotification) shown to `player` right now.
 	std::vector<const TimeNotification *> time_notifications_for(uint8_t player) const;
 	// WaterManager.SetWaterLevel as the rising-water scripts use it: moves the water
@@ -789,6 +857,28 @@ public:
 	void set_starting_resources(int food, int wood, int gold, int stone) {
 		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) set_player_resources(p, food, wood, gold, stone);
 	}
+	// 0 A.D. settings/starting_resources.json: Very Low, Low (default), Medium, High,
+	// Very High, Deathmatch; every resource starts at the same amount.
+	static constexpr int STARTING_RESOURCE_PRESETS[] = {100, 300, 500, 1000, 3000, 50000};
+	static constexpr int STARTING_RESOURCE_PRESET_COUNT = 6;
+	static constexpr int STARTING_RESOURCE_PRESET_DEFAULT = 1;
+	void set_starting_resources_preset(int preset) {
+		if (preset < 0 || preset >= STARTING_RESOURCE_PRESET_COUNT) preset = STARTING_RESOURCE_PRESET_DEFAULT;
+		const int r = STARTING_RESOURCE_PRESETS[preset];
+		set_starting_resources(r, r, r, r);
+	}
+	// Game Setup teams (0 A.D. Diplomacy ChangeTeam): setup[p] is 0 for "None" or
+	// team 1-4. A player with no team stays alone (team = its own id); a team's id is
+	// its lowest member, so it can never match a teamless player's id.
+	void set_setup_teams(const uint8_t setup[MAX_PLAYERS]) {
+		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+			uint8_t id = p;
+			if (setup[p] != 0)
+				for (uint8_t q = 0; q < p; ++q)
+					if (setup[q] == setup[p]) { id = q; break; }
+			set_player_team(p, id);
+		}
+	}
 
 	float food_rate(uint8_t pid = 0) const { return player(pid).gathered_window[RES_FOOD] * 6.0f; } // per min approx
 	float wood_rate(uint8_t pid = 0) const { return player(pid).gathered_window[RES_WOOD] * 6.0f; }
@@ -821,7 +911,8 @@ public:
 	enum ResearchCheck : uint8_t {
 		TECH_OK = 0, TECH_ERR_INVALID, TECH_ERR_RESEARCHED, TECH_ERR_IN_PROGRESS, TECH_ERR_CIV,
 		TECH_ERR_PHASE, TECH_ERR_PREREQUISITE, TECH_ERR_STRUCTURES, TECH_ERR_BUILDING, TECH_ERR_COST,
-		TECH_ERR_PAIRED // its pair_*.json partner is researched or being researched
+		TECH_ERR_PAIRED, // its pair_*.json partner is researched or being researched
+		TECH_ERR_DISABLED // the map's trigger script disabled it (cmpPlayer.SetDisabledTechnologies)
 	};
 	ResearchCheck research_check(uint8_t player_id, uint8_t tech_id, uint32_t building_id = 0) const;
 	// 0 A.D. Heal/Range and Heal/Interval after the player's technologies.
@@ -832,11 +923,21 @@ public:
 	// With `tmpl` (a roster row) the row's own 0 A.D. unlock tech decides.
 	uint8_t train_unlock_tech(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
 			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE) const;
-	int heroes_of(uint8_t player_id) const; // alive or queued (EntityLimits Hero: 1)
+	// 0 A.D. EntityLimits (entity_limits_data.h): a player's entities of a limit
+	// category, alive or queued, foundations included; its limit with the
+	// LimitChangers it owns, or -1 while a LimitRemover lifts it (or there is none).
+	int entity_limit_count(uint8_t player_id, uint8_t category) const;
+	int entity_limit(uint8_t player_id, uint8_t category) const;
+	// AllowedToTrain / AllowedToBuild: room for `count` more of the unit (roster
+	// row `tmpl`, else the class) or of the structure.
+	bool entity_limit_allows_unit(uint8_t player_id, uint8_t unit_type, uint16_t tmpl, int count = 1) const;
+	bool entity_limit_allows_building(uint8_t player_id, uint8_t bld_type) const;
 	bool can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
 			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE) const;
 	// 0 A.D. phase_town / phase_city requirement: finished Village (1) or Town (2) class structures.
 	int phase_structures(uint8_t player_id, uint8_t phase) const;
+	// UnitAI.IsGuardOf: the unit's current order is to guard someone (remove-guard button).
+	bool unit_is_guarding(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx >= 0 && (size_t)idx < units_.count && units_.order_kind[idx] == ORDER_GUARD; }
 	bool unit_has_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.has_order[idx]; }
 	const Grid<uint8_t>& territory_grid() const { return territory_grid_; }
 	const Grid<uint8_t>& influence_grid() const { return influence_grid_; }
@@ -1037,12 +1138,14 @@ public:
 	void order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
 	bool is_fauna_id(uint32_t id) const { return fauna_id_to_idx_.count(id) != 0; }
 
-	struct TreasureRelic {
+	// A Capture the Relic catafalque (template_unit_catafalque.xml). id is the catafalque
+	// unit's; x, z and the owner follow the unit each tick.
+	struct Relic {
 		uint32_t id;
 		float x, z;
-		uint8_t res_type;
-		int amount;
-		bool claimed;
+		uint8_t civ;            // whose catafalque
+		int capture_cp;         // the owner's Capturable points x100 (0..RELIC_CAPTURE_POINTS*100)
+		bool claimed;           // owned by a player, not Gaia
 		uint8_t owner_team = 255;
 	};
 
@@ -1099,7 +1202,7 @@ public:
 
 	float wonder_time_remaining() const { return std::max(0.0f, wonder_duration_ - wonder_victory_timer_); }
 	bool is_wonder_active() const { return has_active_wonder_; }
-	const std::vector<TreasureRelic> &relics() const { return relics_; }
+	const std::vector<Relic> &relics() const { return relics_; }
 
 	std::vector<uint32_t> get_idle_workers(uint8_t team = 0) const;
 
@@ -1182,6 +1285,8 @@ private:
 		float bld_garrison_heal[BLD_TYPE_COUNT]; // added hp per second for garrisoned units
 		float bld_capture[BLD_TYPE_COUNT];        // Capturable/CapturePoints multiplier
 		float bld_cost[BLD_TYPE_COUNT][RES_COUNT]; // Cost/Resources multipliers
+		float bld_international_mul[BLD_TYPE_COUNT]; // Market/InternationalBonus (Silk Road)
+		float bld_international_add[BLD_TYPE_COUNT]; // ... added before it (Commercial Treaty)
 		// The same unit multipliers per civ roster template, matched against the
 		// template's own 0 A.D. classes (Champion Infantry Spearman, Javelineer, ...),
 		// which its RTS0 unit_type only approximates.
@@ -1275,13 +1380,12 @@ private:
 	void credit_trade(uint8_t player, uint8_t res, int amount);
 	void tick_trickle(float dt);
 	int corral_count(uint32_t corral_id) const;
-	void tick_entity_limits(float dt);
+	// Han ministers garrisoned in `b` (their garrison auras: han_minister_garrison*.json).
+	int garrisoned_ministers(const Building &b) const;
 	void tick_death_damage(float dt);
 	// 0 A.D. helpers/Attack.js CauseDamageOverArea for an Attack Splash landing at (ox, oz).
 	void cause_damage_over_area(uint8_t splash, uint32_t attacker_id, uint8_t attacker_team,
 			float ox, float oz, float dir_x, float dir_z);
-	// A unit's hack, pierce and crush resistance levels (template, techs, rank, armour auras).
-	void unit_resistance(size_t i, float out[3]) const;
 	void tick_gates(float dt);
 	void tick_waves(float dt);
 	void tick_petra_ai(float dt);
@@ -1351,11 +1455,14 @@ private:
 	void note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uint32_t target_id, uint8_t target_owner,
 			bool target_is_building, float damage);
 	double battle_damage_[MAX_PLAYERS] = {};
+	std::vector<AttackedEvent> attacked_events_;
 	bool looter_present(uint32_t looter_id, bool *infantry) const;
 	void collect_loot(uint32_t looter_id, uint8_t looter_player, LootInfo loot, float mult, uint8_t carried_type, int32_t carried);
 	void collect_unit_loot(uint32_t looter_id, uint8_t looter_player, size_t victim);
 	void collect_building_loot(uint32_t looter_id, uint8_t looter_player, const Building &b);
 	void check_victory_conditions(float dt);
+	// The match ends with these players as the winners; everyone else has lost.
+	void end_match(uint8_t winners);
 	void spawn_regicide_heroes();
 
 	struct FaunaStorage {
@@ -1377,7 +1484,7 @@ private:
 		float attack_timer[MAX_FAUNA] = {};
 		uint32_t target_unit_id[MAX_FAUNA] = {};
 		uint32_t corral_id[MAX_FAUNA] = {};
-		float fatten_timer[MAX_FAUNA] = {};
+		float flee_distance[MAX_FAUNA] = {}; // UnitAI FLEEING distanceToFlee (was the unused fatten timer)
 		float home_x[MAX_FAUNA] = {}; // UnitAI heldPosition: where a hold-ground animal returns
 		float home_z[MAX_FAUNA] = {};
 	} fauna_;
@@ -1386,6 +1493,7 @@ private:
 	// Turret units (unit id -> point height), rebuilt from the holders' garrison lists each
 	// tick, and the stance each had before it went up (UnitAI previousStance).
 	std::unordered_map<uint32_t, float> turret_height_;
+	bool beach_goal_ = false; // set by order_walk(..., beach_goal) around its cmd_move
 	std::unordered_map<uint32_t, uint8_t> turret_prev_stance_;
 	const TurretPointSet *turret_points_of(const Building &b) const;
 	int structure_garrison_cap(const Building &b) const;
@@ -1404,9 +1512,10 @@ private:
 	ResourceSoA resources_;
 	std::vector<Building> buildings_;
 	std::vector<Projectile> projectiles_;
-	std::vector<TreasureRelic> relics_;
+	std::vector<Relic> relics_;
 	std::vector<Treasure> treasures_;
 	void tick_treasures(float dt);
+	void tick_relics();
 	float wonder_victory_timer_ = 0.0f;
 	bool has_active_wonder_ = false;
 	VictoryCondition victory_condition_ = VICTORY_CONQUEST;
@@ -1426,15 +1535,11 @@ private:
 	struct FieldGatherers { int total = 0; int slots_taken = 0; };
 	std::unordered_map<uint32_t, FieldGatherers> field_gatherers_; // per tick, keyed by grain resource id
 	std::unordered_map<uint32_t, FieldGatherers> fish_gatherers_; // per tick, keyed by fish resource id
-	std::unordered_map<uint32_t, FieldGatherers> ruins_gatherers_; // per tick, keyed by ruins resource id
-	// Each ruins resource's ResourceSupply MaxGatherers (gaia/ruins/*.xml); saved.
+	// Per tick, every other resource: units ordered to gather it (total) and the ones working it (slots_taken, up to MaxGatherers).
+	std::unordered_map<uint32_t, FieldGatherers> supply_gatherers_;
+	// v28 saves kept each ruin's MaxGatherers in a list; resources_.max_gatherers holds it since.
 	struct RuinsCap { uint32_t res_id; uint16_t max_gatherers; uint16_t pad; };
-	std::vector<RuinsCap> ruins_caps_;
 	std::vector<Scenery> scenery_; // saved
-	int ruins_cap(uint32_t res_id) const {
-		for (const RuinsCap &c : ruins_caps_) if (c.res_id == res_id) return c.max_gatherers;
-		return 1;
-	}
 	// Nearest fish on `sea` (ship region) within max_d of (x, z) with a free gatherer slot; 0 if none.
 	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0) const;
 	std::unordered_map<uint32_t, size_t> building_id_to_idx_;
@@ -1452,6 +1557,17 @@ private:
 	mutable uint64_t resource_block_tick_ = UINT64_MAX;
 	mutable size_t resource_block_count_ = SIZE_MAX;
 	mutable int resource_block_w_ = 0;
+	void ensure_resource_block_cells() const;
+	// petra_place_building searches that found no spot, with the signature of what
+	// they read (petra_placement_signature). Exact, so derived state: never saved.
+	struct PetraPlaceMiss {
+		uint64_t sig;
+		int cx, cz;
+		int16_t min_r, max_r;
+		uint8_t pid, btype;
+	};
+	std::vector<PetraPlaceMiss> petra_place_misses_;
+	uint64_t petra_placement_signature(uint8_t btype, int start_cx, int start_cz, int max_r) const;
 
 	uint32_t next_id_ = 1;
 	uint32_t sim_seed_ = 1337;
@@ -1468,7 +1584,7 @@ private:
 	float rate_window_timer_ = 0.0f;
 	float barter_timer_ = 0.0f;
 	float upkeep_timer_ = 0.0f; // unused since soldier upkeep was removed (no 0 A.D. template has Upkeep); kept for the save layout
-	float entity_limits_timer_ = 0.0f;
+	float entity_limits_timer_ = 0.0f; // unused since EntityLimits checks creation; kept for the save format
 	float gate_timer_ = 0.0f;
 	static constexpr size_t MAX_RECENT_DEATHS = 64;
 	std::array<RecentDeath, MAX_RECENT_DEATHS> recent_deaths_{};
@@ -1518,6 +1634,9 @@ private:
 	void trigger_flood_rise_step(float final_level);
 	void trigger_volcano_rise_step();
 	void trigger_volcano_garrison_towers();
+	void trigger_polar_sea_wave();
+	void trigger_treasure_islands_collected(const TriggerEventData &data);
+	void tick_trigger_attack_orders();
 	PlayerState gaia_stock_; // scratch for player(GAIA_PLAYER); never saved or hashed
 	// Player.js SetState("defeated"): hand every unit and structure of these players to Gaia.
 	void convert_to_gaia(uint8_t players);
@@ -1605,6 +1724,7 @@ private:
 	bool petra_raid_target_ok(uint32_t bld_id) const;
 	bool petra_allow_capture(const std::vector<uint32_t> &squad, uint32_t uid, const Building &b) const;
 	void petra_check_captures(const std::vector<uint32_t> &squad, float tx, float tz);
+	void petra_answer_attackers(const std::vector<uint32_t> &squad, float tx, float tz);
 	bool petra_unit_reserved(uint32_t uid) const;
 
 	std::vector<PetraBase> petra_bases_;
@@ -1642,6 +1762,8 @@ private:
 		std::vector<uint32_t> links;                // land << 16 | sea, sorted (regionLinks)
 		bool naval_map = false;                     // headquarters.js navalMap
 		std::vector<bool> naval;                    // navalRegions, by sea id
+		std::vector<bool> land_ok;                  // landRegions, by land id (classify)
+		bool land_region(uint16_t l) const { return l < land_ok.size() && land_ok[l]; }
 		bool linked(uint16_t land, uint16_t sea) const {
 			return std::binary_search(links.begin(), links.end(), ((uint32_t)land << 16) | sea);
 		}
@@ -1654,6 +1776,15 @@ private:
 	mutable uint64_t petra_topo_cache_key_ = 0;
 	mutable bool petra_topo_cache_valid_ = false;
 	uint16_t petra_land_at(float x, float z) const;
+	// This AI's topology classified from its home land (headquarters.js navalMap, landRegions).
+	const PetraNavalTopo &petra_classified_topo(uint16_t &home) const;
+	mutable PetraNavalTopo petra_class_topo_; // per AI turn, derived: not saved
+	mutable uint16_t petra_class_home_ = 0;
+	mutable int petra_class_topo_pid_ = -1;
+	mutable uint64_t petra_class_key_ = 0; // petra_topo_cache_key_ it was classified from
+	mutable uint8_t petra_class_for_ = 0;
+	mutable bool petra_class_valid_ = false;
+	void petra_order_builders(const std::vector<uint32_t> &workers, size_t max, uint32_t bid);
 	uint16_t petra_building_land(const Building &b, const PetraNavalTopo *topo = nullptr, uint16_t prefer = 0) const;
 	uint16_t petra_home_land(float x, float z, const PetraNavalTopo *topo = nullptr) const;
 	uint16_t petra_overseas(const PetraNavalTopo &t, float from_x, float from_z, uint32_t target_id) const;
@@ -1719,6 +1850,9 @@ private:
 	void petra_set_trading_goods();   // tradeManager.js setTradingGoods
 	int petra_villager_target() const;
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
+	bool petra_limit_allows_building(uint8_t btype) const;
+	mutable uint64_t petra_limit_cache_key_ = 0; // derived per tick, never saved
+	mutable std::array<uint8_t, BLD_TYPE_COUNT> petra_limit_cache_{};
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
 	void petra_say(uint8_t kind, float x = 0.0f, float z = 0.0f, uint8_t to = 0xFF, int amount = 0, uint8_t res = 0);
 	void petra_handle_diplomacy_request(uint8_t player, uint8_t type);
@@ -1846,11 +1980,18 @@ private:
 	void finish_order(size_t i);
 	void resume_order(size_t i);
 	void respond_to_attack(size_t i);
-	uint32_t find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team, int subtype = -1) const;
+	void respond_to_attacker(size_t i, uint32_t attacker_id, float ax, float az, bool melee);
+	std::vector<uint16_t> combat_wild_scratch_; // tick_combat: dangerous animals this tick
+	// ResourceGatherer.CanGather: unit index i has a Rates entry for resource index r.
+	bool can_gather(size_t i, size_t r) const;
+	// With `busy`, skips `skip` and resources whose MaxGatherers are all taken (ResourceSupply.IsAvailable).
+	uint32_t find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team, int subtype = -1,
+			const std::unordered_map<uint32_t, FieldGatherers> *busy = nullptr, uint32_t skip = 0) const;
 	uint32_t find_nearby_foundation(float x, float z, uint8_t team) const;
 	void apply_rally_point(uint32_t uid, const Building &b, bool ignore_self_garrison = false);
 	void rally_after_ungarrison(uint32_t uid, uint32_t building_id);
 	void on_construction_finished(const Building &b, size_t builder);
+	void next_after_construction(size_t k, const Building &b, bool food, bool other);
 	void destroy_building(Building &b);
 	bool can_capture_building(uint8_t player, const Building &b) const;
 	bool can_heal(size_t healer, int32_t target) const;         // Heal.js CanHeal

@@ -1,5 +1,6 @@
 #include "world_view_node.h"
 #include "territory_boundary.h"
+#include "../graphics/assets/packed_siege_models.h"
 #include "../animation/psa_loader.h"
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/transform3d.hpp>
@@ -176,7 +177,9 @@ void RtsoWorldView::init_animation_controllers() {
 	anim_controllers[rtso::UNIT_ARCHER].load_rig(rtso::RigType::Archer);
 	anim_controllers[rtso::UNIT_CAVALRY].load_rig(rtso::RigType::Mounted);
 	anim_controllers[rtso::UNIT_HEALER].load_rig(rtso::RigType::Healer);
+	anim_controllers[rtso::UNIT_MINISTER].load_rig(rtso::RigType::Healer); // robed, like the healer model it borrows
 	anim_controllers[rtso::UNIT_SIEGE_RAM].load_rig(rtso::RigType::SiegeRam);
+	anim_controllers[rtso::UNIT_CATAFALQUE].load_rig(rtso::RigType::SiegeRam); // a wheeled bier, on the ram model
 	anim_controllers[rtso::UNIT_HERO].load_rig(rtso::RigType::Biped);
 	anim_controllers[rtso::UNIT_TRADER].load("trader");
 	anim_controllers[rtso::UNIT_ARCHER_MAIDEN].load_rig(rtso::RigType::Archer);
@@ -346,6 +349,7 @@ void RtsoWorldView::_ready() {
 		scenery_mmi->set_material_override(mat);
 		add_child(scenery_mmi);
 	}
+	load_scenery_actors();
 	fish_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "fish").mesh), true);
 	fish_mmi = memnew(MultiMeshInstance3D); fish_mmi->set_multimesh(fish_mm); add_child(fish_mmi);
 	fish_mmi->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
@@ -376,6 +380,7 @@ void RtsoWorldView::_ready() {
 		spatial_players[p]->set_max_distance(80.0f);
 		spatial_players[p]->set_unit_size(8.0f);
 		spatial_players[p]->set_volume_db(0.0f);
+		spatial_players[p]->set_bus("Action"); // sound.actiongain
 		add_child(spatial_players[p]);
 	}
 
@@ -562,14 +567,10 @@ void RtsoWorldView::update_damage_fx(BuildingVis &v, uint8_t level, float half_s
 	if (v.fx_flame) v.fx_flame->set_emitting(level >= 2);
 }
 
-// 0 A.D. player_defaults.json colours for players 1-8 (RTS0 player ids 0-7).
-static Color player_display_color(uint8_t pid) {
-	static const uint8_t rgb[8][3] = {
-		{ 21, 55, 149 }, { 150, 20, 20 }, { 86, 180, 31 }, { 231, 200, 5 },
-		{ 50, 170, 170 }, { 160, 80, 200 }, { 220, 115, 16 }, { 64, 64, 64 },
-	};
-	const uint8_t *c = rgb[pid % 8];
-	return Color(c[0] / 255.0f, c[1] / 255.0f, c[2] / 255.0f, 1.0f);
+// The player's Game Setup colour (0 A.D. PlayerColor, rtso::PLAYER_COLORS).
+static Color player_display_color(const rtso::Simulation *sim, uint8_t pid) {
+	const uint32_t rgb = sim->player_color(pid);
+	return Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, 1.0f);
 }
 
 void RtsoWorldView::load_garrison_flags() {
@@ -590,6 +591,8 @@ void RtsoWorldView::load_garrison_flags() {
 	Array keys = models.keys();
 	for (int i = 0; i < keys.size(); ++i) {
 		Dictionary e = models[keys[i]];
+		const std::string mid = String(keys[i]).utf8().get_data();
+		model_ground_[mid] = ModelGround{ (float)e.get("scale", 0.0), (float)e.get("ground", 0.0) };
 		Array pos = e.get("pos", Array());
 		String style = e.get("flag", "hele");
 		if (pos.size() != 3) continue;
@@ -607,13 +610,161 @@ void RtsoWorldView::load_garrison_flags() {
 		fp.pos = Vector3((float)pos[0], (float)pos[1], (float)pos[2]);
 		fp.scale = (float)e.get("scale", 1.0);
 		fp.style = it->second;
-		flag_points_[String(keys[i]).utf8().get_data()] = fp;
+		flag_points_[mid] = fp;
 	}
+}
+
+void RtsoWorldView::load_scenery_actors() {
+	Ref<FileAccess> f = FileAccess::open("res://data/scenery_actors.json", FileAccess::READ);
+	if (!f.is_valid()) return;
+	Dictionary types = Dictionary(JSON::parse_string(f->get_as_text())).get("types", Dictionary());
+	Array keys = types.keys();
+	for (int i = 0; i < keys.size(); ++i) {
+		const uint8_t t = rtso::scenery_type_by_name(String(keys[i]).utf8().get_data());
+		if (t >= rtso::SCENERY_TYPE_COUNT) continue;
+		Array files = types[keys[i]];
+		for (int v = 0; v < files.size(); ++v) {
+			// "scenery/fence_long_0.glb" -> ModelLibrary id "fence_long_0" in category "scenery".
+			const String id = String(files[v]).get_file().get_basename();
+			Ref<Mesh> mesh = rtso::ModelLibrary::get("scenery", id).mesh;
+			if (mesh.is_null()) continue;
+			enable_instance_tint(mesh);
+			SceneryVariant k;
+			k.mm = create_multimesh(mesh, true);
+			MultiMeshInstance3D *mmi = memnew(MultiMeshInstance3D);
+			mmi->set_multimesh(k.mm);
+			add_child(mmi);
+			scenery_variants_[t].push_back(k);
+		}
+	}
+}
+
+// UnitMotionFlying of template_bird.xml, in RTS0 units (1 unit = 4 m):
+// MaxSpeed 15 m/s, TurnRate 0.5 rad/s, FlyingHeight 40 m, ClimbRate 4 m/s.
+// UnitAI roams them over the whole map (RoamDistance 1000 m).
+static constexpr float BIRD_SPEED = 15.0f / 4.0f;
+static constexpr float BIRD_TURN_RATE = 0.5f;
+static constexpr float BIRD_HEIGHT = 40.0f / 4.0f;
+static constexpr float BIRD_CLIMB = 4.0f / 4.0f;
+static constexpr float BIRD_SCALE = 0.25f; // the hawk mesh is in metres
+
+static float bird_rand(uint32_t &s) { // xorshift32 in [0, 1); view only, never hashed
+	s ^= s << 13; s ^= s >> 17; s ^= s << 5;
+	return (float)(s & 0xFFFFFF) / (float)0x1000000;
+}
+
+void RtsoWorldView::update_birds(const rtso::Simulation *sim, float delta) {
+	const float half = sim->map_half();
+	if (sim->current_map_id() != birds_map_) {
+		birds_map_ = sim->current_map_id();
+		for (Bird &b : birds_)
+			if (b.node) b.node->queue_free();
+		birds_.clear();
+		Ref<FileAccess> f = FileAccess::open("res://data/birds.json", FileAccess::READ);
+		auto entry = rtso::ModelLibrary::get("units", "hawk");
+		if (!f.is_valid() || !entry.scene.is_valid()) return;
+		Dictionary root = JSON::parse_string(f->get_as_text());
+		const String mid = birds_map_.c_str();
+		uint32_t seed = 2166136261u;
+		for (char c : birds_map_) seed = (seed ^ (uint8_t)c) * 16777619u;
+		std::vector<Vector2> spawn;
+		Array placed = Dictionary(root.get("maps", Dictionary())).get(mid, Array());
+		for (int i = 0; i < placed.size(); ++i) {
+			Array uv = placed[i];
+			if (uv.size() == 2) spawn.push_back(Vector2((float)uv[0], (float)uv[1]) * (2.0f * half));
+		}
+		Dictionary rnd = Dictionary(root.get("random", Dictionary())).get(mid, Dictionary());
+		if (!rnd.is_empty()) {
+			int n = 0;
+			if (rnd.has("per_player")) {
+				uint32_t teams = 0;
+				for (const auto &b : sim->buildings())
+					if (b.team < rtso::MAX_PLAYERS) teams |= 1u << b.team;
+				n = (int)rnd["per_player"] * std::max(1, __builtin_popcount(teams));
+			} else {
+				// rmgen scaleByMapSize(min, max): linear from 128 to 512 tiles (1 tile = 1 unit).
+				const float t = Math::clamp((2.0f * half - 128.0f) / 384.0f, 0.0f, 1.0f);
+				n = (int)std::ceil((float)rnd["min"] + ((float)rnd["max"] - (float)rnd["min"]) * t);
+			}
+			uint32_t s = seed | 1u;
+			for (int i = 0; i < n; ++i)
+				spawn.push_back(Vector2(bird_rand(s) - 0.5f, bird_rand(s) - 0.5f) * (1.6f * half));
+		}
+		for (size_t i = 0; i < spawn.size(); ++i) {
+			Node3D *n = Object::cast_to<Node3D>(entry.scene->instantiate());
+			if (!n) continue;
+			rtso::ModelLibrary::apply_imported_material_fixups(n);
+			add_child(n);
+			TypedArray<Node> aps = n->find_children("*", "AnimationPlayer", true, false);
+			if (AnimationPlayer *ap = aps.is_empty() ? nullptr : Object::cast_to<AnimationPlayer>(aps[0])) {
+				const StringName walk("Walk"); // hawk_flight
+				if (ap->has_animation(walk)) {
+					if (Ref<Animation> a = ap->get_animation(walk); a.is_valid()) a->set_loop_mode(Animation::LOOP_LINEAR);
+					ap->play(walk);
+					ap->seek(0.37 * (double)i, true); // out of step
+				}
+			}
+			Bird b;
+			b.node = n;
+			b.pos = b.target = spawn[i];
+			b.rng = (seed + 0x9E3779B9u * (uint32_t)(i + 1)) | 1u;
+			b.yaw = bird_rand(b.rng) * (float)Math_TAU;
+			b.y = sim->get_terrain_height(b.pos.x, b.pos.y) + BIRD_HEIGHT;
+			birds_.push_back(b);
+		}
+	}
+	for (Bird &b : birds_) {
+		// Roam: fly toward a target anywhere on the map, pick a new one on arrival.
+		if (b.pos.distance_squared_to(b.target) < 16.0f)
+			b.target = Vector2(bird_rand(b.rng) - 0.5f, bird_rand(b.rng) - 0.5f) * (1.8f * half);
+		const Vector2 d = b.target - b.pos;
+		const float want = Math::atan2(-d.x, -d.y);
+		const float turn = Math::wrapf(want - b.yaw, -(float)Math_PI, (float)Math_PI);
+		b.yaw += Math::clamp(turn, -BIRD_TURN_RATE * delta, BIRD_TURN_RATE * delta);
+		b.pos += Vector2(-Math::sin(b.yaw), -Math::cos(b.yaw)) * (BIRD_SPEED * delta);
+		const float want_y = sim->get_terrain_height(b.pos.x, b.pos.y) + BIRD_HEIGHT;
+		b.y += Math::clamp(want_y - b.y, -BIRD_CLIMB * delta, BIRD_CLIMB * delta);
+		// Banks into the turn like the hawk actor's glide.
+		const float bank = Math::clamp(turn, -0.6f, 0.6f) * 0.5f;
+		b.node->set_transform(Transform3D(Basis(Vector3(0, 1, 0), b.yaw) * Basis(Vector3(0, 0, 1), -bank) *
+						Basis().scaled(Vector3(BIRD_SCALE, BIRD_SCALE, BIRD_SCALE)),
+				Vector3(b.pos.x, b.y, b.pos.y)));
+		b.node->set_visible(los_brightness(b.pos.x, b.pos.y) > 0.0f);
+	}
+}
+
+// 0 A.D. turret points (TurretHolder) are metres above the holder's ground
+// plane, and the sim scales them by COMBAT_DISTANCE_SCALE. Buildings are drawn
+// fitted to a target height and grounded at their lowest vertex (wall meshes
+// reach metres below 0 A.D.'s ground), so map the point onto the drawn model.
+float RtsoWorldView::turret_draw_y(const rtso::Simulation *sim, uint32_t unit_id, float offset, float x, float z) {
+	const uint32_t holder = sim->turret_holder_of(unit_id);
+	const rtso::Simulation::Building *hb = nullptr;
+	if (holder)
+		for (const rtso::Simulation::Building &b : sim->buildings())
+			if (b.id == holder) { hb = &b; break; }
+	if (!hb) return sim->get_terrain_height(x, z) + offset;
+	if (!flags_loaded_) load_garrison_flags();
+	const String mid = rtso::civ_building_model(sim->team_civ(hb->team), hb->type);
+	auto entry = rtso::ModelLibrary::get("buildings", mid);
+	const float b_scale = entry.scale > 0.05f ? entry.scale : 1.0f;
+	const float base = sim->get_terrain_height(hb->x, hb->z) + entry.y_offset;
+	// ModelLibrary falls back to the civ-less model ("athen_outpost" -> "outpost").
+	auto it = model_ground_.find(mid.utf8().get_data());
+	if (it == model_ground_.end()) {
+		const int us = mid.find("_");
+		if (us > 0) it = model_ground_.find(mid.substr(us + 1).utf8().get_data());
+	}
+	if (it != model_ground_.end() && it->second.scale > 0.0f) {
+		const float metres = offset / rtso::COMBAT_DISTANCE_SCALE;
+		return base + (it->second.ground + metres * it->second.scale) * b_scale;
+	}
+	return base + std::min(offset, entry.aabb.size.y * b_scale);
 }
 
 // Structures prop their civ's flag on the "garrisoned" point while anyone is
 // inside (the actors' garrisoned variant, picked by GarrisonHolder.js).
-void RtsoWorldView::update_garrison_flag(BuildingVis &v, const String &model_id, bool show, uint8_t owner,
+void RtsoWorldView::update_garrison_flag(BuildingVis &v, const String &model_id, bool show, const Color &owner_color,
 		float b_scale, float y_offset) {
 	if (!flags_loaded_ && show) load_garrison_flags();
 	const FlagPoint *fp = nullptr;
@@ -632,7 +783,7 @@ void RtsoWorldView::update_garrison_flag(BuildingVis &v, const String &model_id,
 		v.root->add_child(v.flag);
 	}
 	v.flag->set_material_override(flag_mats_[fp->style]);
-	v.flag->set_instance_shader_parameter("player_color", player_display_color(owner));
+	v.flag->set_instance_shader_parameter("player_color", owner_color);
 	const float fs = b_scale * fp->scale;
 	v.flag->set_transform(Transform3D(Basis().scaled(Vector3(fs, fs, fs)),
 			Vector3(0, y_offset, 0) + fp->pos * b_scale));
@@ -692,7 +843,7 @@ void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 		if (b.points.size() < 3) continue;
 		rtso::smooth_points_average(b.points);
 		rtso::interpolate_points_rns(b.points, separation / cell);
-		const Color col = player_display_color((uint8_t)(b.owner - 1));
+		const Color col = player_display_color(sim, (uint8_t)(b.owner - 1));
 		const int n = (int)b.points.size();
 		const int base = verts.size();
 		float run = 0.0f;
@@ -846,6 +997,9 @@ enum ClipId : uint8_t {
 	CLIP_CARRY_WOOD,
 	CLIP_CARRY_STONE,
 	CLIP_CARRY_METAL,
+	CLIP_CAPTURE,
+	CLIP_IDLE2,
+	CLIP_DEATH2,
 	CLIP_COUNT
 };
 
@@ -859,7 +1013,8 @@ static const StringName &clip_name(ClipId id) {
 		StringName("Build"), StringName("Carry"), StringName("Heal"),
 		StringName("Slaughter"), StringName("Promotion"),
 		StringName("CarryFood"), StringName("CarryMeat"), StringName("CarryWood"),
-		StringName("CarryStone"), StringName("CarryMetal")
+		StringName("CarryStone"), StringName("CarryMetal"), StringName("Capture"),
+		StringName("Idle2"), StringName("Death2")
 	};
 	return names[id < CLIP_COUNT ? id : CLIP_NONE];
 }
@@ -930,7 +1085,7 @@ struct WantAnim {
 };
 
 static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int32_t carry,
-		uint8_t utype, uint8_t res_type, uint8_t res_sub) {
+		uint8_t utype, uint8_t res_type, uint8_t res_sub, bool capturing) {
 	WantAnim w;
 	// A laden unit keeps the carry variant through any movement clip.
 	const bool laden_move = carry > 0 && (speed2 > 0.001f || uaction == rtso::ACTION_MOVE);
@@ -974,7 +1129,8 @@ static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int
 			// Ships: Attack.js keeps attack_ranged until StopAttacking (sail falls back to idle).
 			if (speed2 <= 8.0f || rtso::unit_is_ship(utype)) {
 				const bool hunt = (utype == rtso::UNIT_VILLAGER || utype == rtso::UNIT_FEMALE_CITIZEN);
-				w.clip = hunt ? CLIP_SLAUGHTER : CLIP_ATTACK;
+				// variants/biped/attack_capture.xml: "capture" while taking a structure.
+				w.clip = capturing ? CLIP_CAPTURE : (hunt ? CLIP_SLAUGHTER : CLIP_ATTACK);
 				w.state = rtso::AnimState::Attack;
 				return w;
 			}
@@ -994,6 +1150,16 @@ static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int
 	if (speed2 > 0.001f) return w_move;
 	w.clip = CLIP_IDLE;
 	w.state = rtso::AnimState::Idle;
+	return w;
+}
+
+// 0 A.D. picks one of an actor's same-named animations at random; here each
+// unit keeps one by its id: half fall with the second death, and a quarter
+// stand with the second idle (the first is the most frequent in 0 A.D.).
+static WantAnim with_variant(WantAnim w, uint32_t id) {
+	const uint32_t h = id * 2654435761u;
+	if (w.clip == CLIP_DEATH && (h & 0x80000000u)) w.clip = CLIP_DEATH2;
+	else if (w.clip == CLIP_IDLE && (h >> 29) == 3u) w.clip = CLIP_IDLE2;
 	return w;
 }
 
@@ -1030,6 +1196,9 @@ static ClipId resolve_clip_fallback(AnimationPlayer *anim, ClipId want) {
 		case CLIP_BUILD:     alt = CLIP_GATHER; break;
 		case CLIP_HEAL:      alt = CLIP_GATHER; break;
 		case CLIP_SLAUGHTER: alt = CLIP_ATTACK; break;
+		case CLIP_CAPTURE:   alt = CLIP_ATTACK; break;
+		case CLIP_IDLE2:     alt = CLIP_IDLE; break;
+		case CLIP_DEATH2:    alt = CLIP_DEATH; break;
 		default:             break;
 	}
 	if (alt != CLIP_NONE && anim->has_animation(clip_name(alt))) return alt;
@@ -1256,10 +1425,11 @@ static const uint8_t kCrowdClips[] = {
 	CLIP_GATHER_TREE, CLIP_GATHER_ORE, CLIP_GATHER_ROCK, CLIP_GATHER_FRUIT, CLIP_GATHER_GRAIN,
 	CLIP_GATHER_MEAT, CLIP_GATHER_FISH, CLIP_HEAL, CLIP_SLAUGHTER,
 	CLIP_CARRY_FOOD, CLIP_CARRY_MEAT, CLIP_CARRY_WOOD, CLIP_CARRY_STONE, CLIP_CARRY_METAL,
-	CLIP_PROMOTION,
+	CLIP_PROMOTION, CLIP_CAPTURE, CLIP_IDLE2, CLIP_DEATH2,
 };
-static_assert(sizeof(kCrowdClips) == 22, "kCrowdClips must match CROWD_CLIP_COUNT");
-static constexpr int CROWD_DEATH_SLOT = 3;
+static_assert(sizeof(kCrowdClips) == 25, "kCrowdClips must match CROWD_CLIP_COUNT");
+// Death clips play once and hold their last frame (slots 3 and 24).
+static constexpr uint32_t CROWD_DEATH_SLOTS = (1u << 3) | (1u << 24);
 
 static int crowd_slot_of(ClipId clip) {
 	switch (clip) {
@@ -1285,17 +1455,42 @@ static int crowd_slot_of(ClipId clip) {
 		case CLIP_CARRY_STONE: return 19;
 		case CLIP_CARRY_METAL: return 20;
 		case CLIP_PROMOTION: return 21;
+		case CLIP_CAPTURE: return 22;
+		case CLIP_IDLE2: return 23;
+		case CLIP_DEATH2: return 24;
 		default: return 0;
 	}
 }
 
-RtsoWorldView::CrowdBatch &RtsoWorldView::crowd_batch(uint8_t civ, uint8_t utype) {
+// 0 A.D. Pack.js swaps to the packed template once packing ends and back once
+// unpacking ends, so the wagon shows from PACKED through UNPACKING.
+static bool shows_packed(uint8_t pack_state) {
+	return pack_state == rtso::PACK_PACKED || pack_state == rtso::PACK_UNPACKING;
+}
+
+// The model a crowd key draws: the unit's own, or its packed wagon.
+static const char *crowd_key_model(uint8_t civ, uint8_t key) {
+	const uint8_t utype = key % rtso::UNIT_TYPE_COUNT;
+	const char *model = rtso::civ_unit_model(civ, utype);
+	if (key >= rtso::UNIT_TYPE_COUNT) {
+		if (const char *packed = rtso::packed_siege_model(model)) return packed;
+	}
+	return model;
+}
+
+static uint8_t crowd_key_of(uint8_t civ, uint8_t utype, uint8_t pack_state) {
+	if (shows_packed(pack_state) && rtso::packed_siege_model(rtso::civ_unit_model(civ, utype)))
+		return (uint8_t)(rtso::UNIT_TYPE_COUNT + utype);
+	return utype;
+}
+
+RtsoWorldView::CrowdBatch &RtsoWorldView::crowd_batch(uint8_t civ, uint8_t key) {
 	if (civ >= rtso::CIV_COUNT) civ = rtso::CIV_ATHENIANS;
-	if (utype >= rtso::UNIT_TYPE_COUNT) utype = rtso::UNIT_VILLAGER;
-	std::unique_ptr<CrowdBatch> &slot = crowd_[civ][utype];
+	if (key >= CROWD_KEY_COUNT) key = rtso::UNIT_VILLAGER;
+	std::unique_ptr<CrowdBatch> &slot = crowd_[civ][key];
 	if (!slot) {
 		slot = std::make_unique<CrowdBatch>();
-		auto entry = rtso::ModelLibrary::get("units", rtso::civ_unit_model(civ, utype));
+		auto entry = rtso::ModelLibrary::get("units", crowd_key_model(civ, key));
 		slot->rest = entry.crowd_mesh.is_valid() ? entry.crowd_mesh : entry.mesh;
 		slot->no_scene = !entry.scene.is_valid();
 	}
@@ -1316,7 +1511,7 @@ MultiMesh *RtsoWorldView::crowd_mm(CrowdBatch &b, int clip) {
 }
 
 void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, const uint8_t *want,
-		const bool *needed, int count, int death_slot, bool female) {
+		const bool *needed, int count, uint32_t death_slots, bool female) {
 	AnimationPlayer *ap = find_anim_player(inst);
 	if (ap) {
 		ap->set_active(true);
@@ -1350,7 +1545,7 @@ void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, 
 			for (int f = 0; f < n; ++f) {
 				double t = 0.0;
 				if (len > 0.0) {
-					if (c == death_slot) {
+					if (death_slots & (1u << c)) {
 						t = (n > 1) ? len * (double)f / (double)(n - 1) : 0.0;
 					} else {
 						t = len * (double)f / (double)n;
@@ -1372,11 +1567,11 @@ void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, 
 	if (ap) ap->stop();
 }
 
-void RtsoWorldView::cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts, int count, int death_slot) {
+void RtsoWorldView::cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts, int count, uint32_t death_slots) {
 	for (int c = 0; c < count; ++c) {
 		if (!meshes[c].is_valid() || row[c].baked_count <= 0 || counts[c] <= 0) continue;
 		int frame;
-		if (c == death_slot) {
+		if (death_slots & (1u << c)) {
 			frame = (int)(anim_time * 5.0f);
 			if (frame > row[c].baked_count - 1) frame = row[c].baked_count - 1;
 		} else {
@@ -1401,8 +1596,9 @@ static Node *instantiate_for_bake(Node3D *bake_root, const Ref<PackedScene> &sce
 	return inst;
 }
 
-void RtsoWorldView::ensure_crowd_frames(uint8_t civ, uint8_t utype, const int *counts) {
-	CrowdBatch &b = crowd_batch(civ, utype);
+void RtsoWorldView::ensure_crowd_frames(uint8_t civ, uint8_t key, const int *counts) {
+	CrowdBatch &b = crowd_batch(civ, key);
+	const uint8_t utype = key % rtso::UNIT_TYPE_COUNT;
 	if (b.no_scene) return;
 	bool needed[CROWD_CLIP_COUNT] = {};
 	bool any = false;
@@ -1412,7 +1608,7 @@ void RtsoWorldView::ensure_crowd_frames(uint8_t civ, uint8_t utype, const int *c
 	}
 	if (!any) return;
 
-	auto entry = rtso::ModelLibrary::get("units", rtso::civ_unit_model(civ, utype));
+	auto entry = rtso::ModelLibrary::get("units", crowd_key_model(civ, key));
 	if (!entry.scene.is_valid()) {
 		b.no_scene = true;
 		return;
@@ -1426,7 +1622,7 @@ void RtsoWorldView::ensure_crowd_frames(uint8_t civ, uint8_t utype, const int *c
 	if (!inst) return;
 	const bool female = unit_is_female(utype);
 	ensure_runtime_clips(find_anim_player(inst), female);
-	bake_puppet_clips(inst, b.puppet, b.clip_baked, kCrowdClips, needed, CROWD_CLIP_COUNT, CROWD_DEATH_SLOT, female);
+	bake_puppet_clips(inst, b.puppet, b.clip_baked, kCrowdClips, needed, CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS, female);
 	for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
 		if (needed[c] && b.mm[c].is_valid() && b.puppet[c].posed_frames[0].is_valid())
 			b.mm[c]->set_mesh(b.puppet[c].posed_frames[0]);
@@ -1458,7 +1654,7 @@ void RtsoWorldView::ensure_fauna_frames(uint8_t ftype) {
 	if (ap && ap->has_animation(clip_name(CLIP_RUN))) want[1] = CLIP_RUN;
 	const bool needed[FAUNA_CLIP_COUNT] = { true, true, true, true };
 	bool done[FAUNA_CLIP_COUNT] = {};
-	bake_puppet_clips(inst, fauna_puppet[ftype], done, want, needed, FAUNA_CLIP_COUNT, 3);
+	bake_puppet_clips(inst, fauna_puppet[ftype], done, want, needed, FAUNA_CLIP_COUNT, 1u << 3);
 	for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) {
 		if (fauna_mm[ftype][c].is_valid() && fauna_puppet[ftype][c].posed_frames[0].is_valid()) {
 			fauna_mm[ftype][c]->set_mesh(fauna_puppet[ftype][c].posed_frames[0]);
@@ -1972,11 +2168,12 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			auto it = res_sub.find(uview.target_resource_id[i]);
 			if (it != res_sub.end()) sub = it->second;
 		}
-		return resolve_unit_anim(uview.action_state[i], vx * vx + vz * vz, uview.alive[i] != 0,
-				uview.carry[i], ut, uview.res_type_carried[i], sub);
+		WantAnim w = resolve_unit_anim(uview.action_state[i], vx * vx + vz * vz, uview.alive[i] != 0,
+				uview.carry[i], ut, uview.res_type_carried[i], sub, sim->unit_capturing(i));
+		return with_variant(w, uview.id[i]);
 	};
 	crowd_slot_scratch_.assign(uview.count, 0xFF);
-	static int counts[rtso::CIV_COUNT][rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT];
+	static int counts[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT];
 	std::memset(counts, 0, sizeof(counts));
 	for (size_t i = 0; i < uview.count; ++i) {
 		if (!entity_visible(uview.pos_x[i], uview.pos_z[i], uview.team[i])) continue;
@@ -1986,10 +2183,10 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (civ >= rtso::CIV_COUNT) civ = rtso::CIV_ATHENIANS;
 		const int slot = crowd_slot_of(anim_of(i).clip);
 		crowd_slot_scratch_[i] = (uint8_t)slot;
-		counts[civ][t][slot]++;
+		counts[civ][crowd_key_of(civ, t, uview.pack_state[i])][slot]++;
 	}
 	for (int civ = 0; civ < rtso::CIV_COUNT; ++civ) {
-		for (int t = 0; t < rtso::UNIT_TYPE_COUNT; ++t) {
+		for (int t = 0; t < CROWD_KEY_COUNT; ++t) {
 			int any = 0;
 			for (int c = 0; c < CROWD_CLIP_COUNT; ++c) any += counts[civ][t][c];
 			if (any == 0 && !crowd_[civ][t]) continue;
@@ -2000,12 +2197,12 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 					if (counts[civ][t][c] > 0) crowd_mm(cb, c);
 			}
 			CrowdBatch &cb = *crowd_[civ][t];
-			cycle_puppet_meshes(cb.puppet, cb.mm, counts[civ][t], CROWD_CLIP_COUNT, CROWD_DEATH_SLOT);
+			cycle_puppet_meshes(cb.puppet, cb.mm, counts[civ][t], CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS);
 			for (int c = 0; c < CROWD_CLIP_COUNT; ++c)
 				if (cb.mm[c].is_valid()) cb.mm[c]->set_instance_count(counts[civ][t][c]);
 		}
 	}
-	static int written[rtso::CIV_COUNT][rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT];
+	static int written[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT];
 	std::memset(written, 0, sizeof(written));
 
 	const Color col_player(0.55f, 0.72f, 1.0f);
@@ -2078,10 +2275,12 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 		uint8_t uciv = sim->team_civ(uview.team[i]);
 		if (uciv >= rtso::CIV_COUNT) uciv = rtso::CIV_ATHENIANS;
-		String utype_str = rtso::civ_unit_model(uciv, utype);
+		const uint8_t ckey = crowd_key_of(uciv, utype, uview.pack_state[i]);
+		String utype_str = crowd_key_model(uciv, ckey);
 		String cat_units3 = "units";
 		auto entry = rtso::ModelLibrary::get(cat_units3, utype_str);
-		float y = sim->get_terrain_height(x, z) + sim->unit_height_offset(i) + entry.y_offset; // turret points stand on walls
+		const float turret_h = sim->unit_height_offset(i); // turret points stand on walls
+		float y = (turret_h > 0.0f ? turret_draw_y(sim, id, turret_h, x, z) : sim->get_terrain_height(x, z)) + entry.y_offset;
 		float sc = entry.scale > 0.05f ? entry.scale : 1.0f;
 		Transform3D xf(Basis(Vector3(0, 1, 0), yaw).scaled(Vector3(sc, sc, sc)), Vector3(x, y, z));
 		const bool dying = !uview.alive[i] || uaction == rtso::ACTION_DYING;
@@ -2094,9 +2293,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			apply_unit_death_xform(xf, utype, death_t, x, z, entry.aabb.size.y * sc, false);
 		}
 		const int clip = crowd_slot_scratch_[i];
-		MultiMesh *cmm = crowd_[uciv][utype] ? crowd_[uciv][utype]->mm[clip].ptr() : nullptr;
+		MultiMesh *cmm = crowd_[uciv][ckey] ? crowd_[uciv][ckey]->mm[clip].ptr() : nullptr;
 		if (cmm) {
-			const int slot = written[uciv][utype][clip]++;
+			const int slot = written[uciv][ckey][clip]++;
 			if (detailed.count(id) > 0) {
 				Transform3D hidden;
 				hidden.origin = Vector3(x, y, z);
@@ -2119,7 +2318,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		UnitVis &v = acquire_unit_slot(id);
 		v.vis_stamp = unit_vis_stamp;
 		v.yaw = yaw;
-		attach_unit_model(v, rtso::civ_unit_model(uciv, utype));
+		attach_unit_model(v, utype_str);
 		if (v.anim && UtilityFunctions::is_instance_valid(v.anim))
 			ensure_runtime_clips(v.anim, unit_is_female(utype));
 
@@ -2172,7 +2371,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 		v.ring_on = is_selected;
 
-		bool show_hp = is_selected && uview.alive[i];
+		// Selected units, or every visible one while Tab is toggled (0 A.D. g_ShowAllStatusBars).
+		bool show_hp = (is_selected || show_all_status_bars_) && uview.alive[i];
 		v.hp_bg->set_visible(show_hp);
 		v.hp_fg->set_visible(show_hp);
 		if (show_hp) {
@@ -2361,10 +2561,10 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			update_damage_fx(v, lvl, b.half_size, entry.aabb.size.y * b_scale);
 		}
 		update_garrison_flag(v, visual_id, v.phase == 0 && !b.miraged && sim->get_garrison_count(b.id) > 0,
-				b.team, b_scale, entry.y_offset);
+				player_display_color(sim, b.team), b_scale, entry.y_offset);
 
 		// Building Health & Construction Progress Bar
-		bool show_bhp = !destroyed && (b_progress < 1.0f || b.hp < b.max_hp * 0.98f);
+		bool show_bhp = !destroyed && (show_all_status_bars_ || b_progress < 1.0f || b.hp < b.max_hp * 0.98f);
 		v.hp_bg->set_visible(show_bhp);
 		v.hp_fg->set_visible(show_bhp);
 
@@ -2634,19 +2834,43 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 	}
 
-	// Gaia scenery: a box the size of its 0 A.D. obstruction, turned by its map orientation
-	// (Basis about y by `angle` takes local x to (cos, -sin), CCmpObstruction's u axis).
+	update_birds(sim, delta);
+
+	// Gaia scenery: the 0 A.D. actor mesh (metres, 0 A.D. axes, origin on the
+	// ground) scaled like its obstruction and turned by its map orientation
+	// (Basis about y by `angle` takes local x to (cos, -sin), CCmpObstruction's
+	// u axis). A type without a mesh is a box the size of its obstruction.
 	{
 		const auto &sv = sim->scenery();
 		int ns = 0;
-		for (const auto &sc : sv) if (los_brightness(sc.x, sc.z) > 0.0f) ++ns;
+		for (auto &kinds : scenery_variants_)
+			for (auto &k : kinds) k.count = 0;
+		for (const auto &sc : sv) {
+			if (los_brightness(sc.x, sc.z) <= 0.0f) continue;
+			auto &kinds = scenery_variants_[sc.type < rtso::SCENERY_TYPE_COUNT ? sc.type : 0];
+			if (kinds.empty()) ++ns;
+			else ++kinds[sc.id % kinds.size()].count;
+		}
 		scenery_mm->set_instance_count(ns);
+		for (auto &kinds : scenery_variants_)
+			for (auto &k : kinds) {
+				k.mm->set_instance_count(k.count);
+				k.count = 0;
+			}
 		int is = 0;
 		for (const auto &sc : sv) {
 			const float lit = los_brightness(sc.x, sc.z);
 			if (lit <= 0.0f) continue;
 			const rtso::SceneryTypeInfo &info = rtso::scenery_type_info(sc.type);
 			const float scale = info.width > 0.0f ? 2.0f * sc.half_w / info.width : 0.25f;
+			auto &kinds = scenery_variants_[sc.type < rtso::SCENERY_TYPE_COUNT ? sc.type : 0];
+			if (!kinds.empty()) {
+				SceneryVariant &k = kinds[sc.id % kinds.size()];
+				const Basis b = Basis(Vector3(0, 1, 0), sc.angle).scaled_local(Vector3(scale, scale, scale));
+				k.mm->set_instance_transform(k.count, Transform3D(b, Vector3(sc.x, sim->get_terrain_height(sc.x, sc.z), sc.z)));
+				k.mm->set_instance_color(k.count++, Color(lit, lit, lit, 1.0f));
+				continue;
+			}
 			const float h = std::max(0.2f, info.height * scale * (info.wooden ? 0.35f : 0.6f));
 			Basis b = Basis(Vector3(0, 1, 0), sc.angle).scaled_local(Vector3(2.0f * sc.half_w, h, 2.0f * sc.half_d));
 			scenery_mm->set_instance_transform(is, Transform3D(b, Vector3(sc.x, sim->get_terrain_height(sc.x, sc.z) + 0.5f * h, sc.z)));
@@ -2680,7 +2904,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		int any = 0;
 		for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) any += f_counts[ft][c];
 		if (any > 0) ensure_fauna_frames((uint8_t)ft);
-		cycle_puppet_meshes(fauna_puppet[ft], fauna_mm[ft], f_counts[ft], FAUNA_CLIP_COUNT, 3);
+		cycle_puppet_meshes(fauna_puppet[ft], fauna_mm[ft], f_counts[ft], FAUNA_CLIP_COUNT, 1u << 3);
 		for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) {
 			if (fauna_mm[ft][c].is_valid()) {
 				fauna_mm[ft][c]->set_instance_count(f_counts[ft][c]);

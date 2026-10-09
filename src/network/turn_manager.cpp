@@ -591,8 +591,6 @@ void TurnManager::reset() {
 	boot_hash_ = 0;
 	boot_hash_captured_ = false;
 	last_game_start_attributes_.clear();
-	fleet_upkeep_requests_ = 0;
-	fleet_upkeep_paused_ = false;
 	join_sync_round_trips_ = 0;
 	join_sync_accepted_ = false;
 	join_sync_error_ = 0;
@@ -922,8 +920,8 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_u32(r.id);
 		mix_float(r.x);
 		mix_float(r.z);
-		mix_u8(r.res_type);
-		mix_i32(r.amount);
+		mix_u8(r.civ);
+		mix_i32(r.capture_cp);
 		mix_u8(r.claimed ? 1 : 0);
 	}
 
@@ -997,146 +995,6 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 	mix_u32(sim.sim_rng_state());
 
 	return hash;
-}
-
-// ---- P3: maintainFleet upkeep (0 A.D. navalManager.js:507-543) --------------
-// 0 A.D. semantics reproduced here, using only Simulation's public API:
-//
-//   if (queues.ships.hasQueuedUnits()) return;                       // already training
-//   if (!docks.filter(isBuilt).hasEntities()) return;                // no dock -> no ship
-//   for (let sea of activeSeas) {
-//     if (countOwnQueuedEntitiesWithMetadata("sea", sea) > 0) continue;
-//     if (seaTransportShips[sea].length < wantedTransportShips[sea]) { train one; continue; }
-//     if (seaFishShips[sea].length     < wantedFishShips[sea])     { train one; continue; }
-//   }
-//
-// RTS0 collapses the per-sea partitioning (Simulation exposes a per-sea warship
-// registry but no per-sea transport/fish wishlists or per-sea training queues),
-// so the loop runs over active seas and trains at most one ship per turn: that
-// keeps the production rate on the same side of the 0 A.D. behaviour as the
-// existing trireme/fisher targets in Simulation::petra_manage_naval
-// (1/2/4 triremes, 2/3 fishing boats by phase) without double-producing.
-//
-// TODO(sim owner): a real navalManager seam does not exist on the Simulation side.
-// When src/simulation exposes the equivalent of
-//   Simulation::tick_petra_ai -> Simulation::petra_manage_naval
-//     (navalManager.js:876 call site, simulation.cpp:7366)
-// add `bool cmd_maintain_fleet(uint8_t team, uint8_t unit_type)` alongside the
-// other cmd_* entry points and call it from there; it can then honour
-// per-sea queues, wantedTransportShips/wantedFishShips and the per-sea
-// naval registry exactly. Until then this turn-boundary pass is the substitute
-// and must stay deterministic (same world -> same commands) because it feeds the
-// lockstep hash through the command stream.
-std::vector<NetCommand> TurnManager::generate_fleet_upkeep_commands(const Simulation &sim) const {
-	std::vector<NetCommand> out;
-	if (fleet_upkeep_paused_) return out;
-
-	// 1. queues.ships.hasQueuedUnits(): any dock already training blocks upkeep.
-	//    RTS0 has one naval queue per dock, so this is the whole naval queue set.
-	// 2. docks.filter(isBuilt): a dock that is fully built (build_progress >= 1).
-	struct DockInfo { uint32_t id = 0; float x = 0.0f, z = 0.0f; };
-	std::vector<DockInfo> docks;
-	for (const auto &b : sim.buildings()) {
-		if (b.team != 1 || b.type != BLD_DOCK) continue;
-		if (b.hp <= 0.0f || b.build_progress < 1.0f) continue;
-		docks.push_back(DockInfo{b.id, b.x, b.z});
-	}
-	if (docks.empty()) return out;
-	// queues.ships hasQueuedUnits() -> anything already training blocks the upkeep.
-	// Scoped to the OWNING team: RTS0 docks are team 1 while a human barracks is
-	// team 0, and the two never share a naval queue. Counting the human's queue
-	// here would starve Petra's navy for the whole game, which is the opposite of
-	// navalManager.js:509 (whose `queues` is Petra's own ship queue).
-	for (const auto &d : docks) {
-		for (const auto &b : sim.buildings()) {
-			if (b.id != d.id) continue;
-			if (b.queue.size() > 0) return out;
-			break;
-		}
-	}
-
-	// Count the existing fleet by class. Counting from units() in id order keeps
-	// this a pure function of sim state (no per-sea accessor exists on the
-	// Simulation side yet -- see the TODO above).
-	int warships = 0, fishers = 0;
-	auto uview = sim.units();
-	for (size_t i = 0; i < uview.count; ++i) {
-		if (!uview.alive[i] || uview.team[i] != 1) continue;
-		if (uview.unit_type[i] == UNIT_TRIREME) warships++;
-		else if (uview.unit_type[i] == UNIT_FISHING_BOAT) fishers++;
-	}
-
-	// 0 A.D. iterates the seas the AI has ships in. Without the per-sea registry
-	// on the Simulation side the whole map is one sea here, so active_seas is 1;
-	// the wishlists keep the per-sea multiples correct if that accessor lands.
-	const int active_seas = 1;
-
-	// One commission per turn: warships (transport) first, then fishing, mirroring
-	// the `continue`-after-train order inside 0 A.D.'s per-sea loop. The wishlists
-	// match the trireme/fisher targets Simulation::petra_manage_naval already uses
-	// (1/2/4 triremes, 2/3 fishing boats), read out of the shared PetraConfig.
-	const int wanted_warships = (sim.petra_config().difficulty >= PETRA_HARD) ? 4
-	                        : ((sim.petra_config().difficulty >= PETRA_EASY) ? 2 : 1);
-	const int wanted_fishers = (sim.petra_phase() >= 2) ? 3 : 2;
-
-	uint8_t type = 0;
-	if (warships < active_seas * wanted_warships) {
-		type = UNIT_TRIREME;
-	} else if (fishers < active_seas * wanted_fishers) {
-		type = UNIT_FISHING_BOAT;
-	}
-	if (!type) return out;
-
-	NetCommand c;
-	c.client_id = local_client_id_;
-	c.cmd_type = static_cast<uint8_t>(NetCommandType::NET_CMD_MAINTAIN_FLEET);
-	c.target_id = type;
-	c.param = 0;
-	c.target_x = docks[0].x; // anchor: the built dock the commission hangs off
-	c.target_z = docks[0].z;
-	c.entity_ids.push_back(docks[0].id);
-	out.push_back(std::move(c));
-	return out;
-}
-
-// Called from tick() AFTER the turn's commands and BEFORE the TICKS_PER_TURN sim
-// steps, so a fleet command follows the same 0 A.D. ordering as the Petra naval
-// pass it stands in for. Any Petra-enabled mode reaches this path; a mode with the
-// AI off simply has no dock, and generate_fleet_upkeep_commands() then returns
-// empty because its first gate is "a built dock must exist".
-void TurnManager::maintain_fleet_upkeep(Simulation &sim) {
-	std::vector<NetCommand> cmds = generate_fleet_upkeep_commands(sim);
-	if (cmds.empty()) return;
-	fleet_upkeep_requests_ += (uint32_t)cmds.size();
-
-	// BLOCKED on src/simulation, which is a separate ownership stream. The
-	// commission must be produced by Simulation so that
-	//     Simulation::tick_petra_ai -> Simulation::petra_manage_naval
-	//     (navalManager.js:876 call site, simulation.cpp:7366)
-	// is the single writer of the naval queue, exactly like the rest of the Petra
-	// trainers. Exact hook point for the sim owner:
-	//
-	//   1. simulation.h, next to `bool cmd_set_diplomacy(uint8_t, uint8_t);`
-	//      (simulation.h:239) add
-	//          bool cmd_maintain_fleet(uint8_t team, uint8_t unit_type);
-	//          uint32_t naval_upkeep_requests() const { return naval_upkeep_requests_; }
-	//   2. simulation.cpp: extend Simulation::petra_manage_naval
-	//      (simulation.cpp:5258) with a navalManager.js:507 maintainFleet() block
-	//      placed AFTER the per-sea registry fill (simulation.cpp:5427-5458) so it
-	//      sees this turn's fleet, and call cmd_maintain_fleet() from there.
-	//   3. turn_manager.cpp: replace this loop with
-	//          const uint32_t before = sim.naval_upkeep_requests();
-	//          sim.cmd_maintain_fleet(1, type);   // per generated command
-	//          fleet_upkeep_requests_ += sim.naval_upkeep_requests() - before;
-	//
-	// Until that lands the GENERATION half is complete and deterministic (it is a
-	// pure function of sim state at the turn boundary) and only the commit is
-	// missing. It is intentionally NOT emulated from this layer: enqueuing here
-	// would (a) write Petra's naval queue from the network layer and (b) mint
-	// building ids through a second allocator, both of which desync.
-	// Singleplayer is unaffected by construction: the first gate in
-	// generate_fleet_upkeep_commands() is "a built dock must exist".
-	(void)sim;
 }
 
 // ---- P3: late-join turn-0 state resend -------------------------------------
@@ -1384,7 +1242,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		const bool queued = (c.param & NET_PARAM_QUEUED) != 0;
 		const bool capture = (c.param & NET_PARAM_NO_CAPTURE) == 0;
 		if (c.cmd_type == 1) { // Move (a player's walk: forced, ignores enemies)
-			sim.order_walk(ids, n, c.target_x, c.target_z, queued);
+			sim.order_walk(ids, n, c.target_x, c.target_z, queued, true);
 		} else if (c.cmd_type == 2) { // Stop
 			sim.cmd_stop(ids, n);
 		} else if (c.cmd_type == 3) { // Attack
@@ -1455,6 +1313,10 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			// Ids travel as floats; a whole number below 2^24 is exact.
 			if (c.target_x >= 1.0f && c.target_x < 16777216.0f && c.target_x == (float)(uint32_t)c.target_x)
 				sim.order_trade(ids, n, c.target_id, (uint32_t)c.target_x, queued);
+		} else if (c.cmd_type == 37) { // Remove guard
+			sim.order_remove_guard(ids, n);
+		} else if (c.cmd_type == 38) { // Call to arms — attack-walk to (target_x, target_z).
+			sim.order_call_to_arms(ids, n, c.target_x, c.target_z, queued);
 		} else if (c.cmd_type == 36) { // Raise (param 0) or end (1) an alert
 			if (c.param == 1) sim.cmd_end_alert(pl, c.target_id);
 			else sim.cmd_raise_alert(pl, c.target_id);
@@ -1490,12 +1352,6 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			sim.cmd_set_diplomacy(pl, (uint8_t)c.target_id, c.param);
 		}
 	}
-
-	// P3 maintainFleet upkeep. 0 A.D. navalManager.js:876 calls maintainFleet()
-	// inside the naval manage() pass, i.e. AFTER the turn's orders and BEFORE the
-	// sim steps -- the same slot this occupies, so the fleet command the upkeep
-	// produces is visible to the turn's sim steps and to the hash.
-	maintain_fleet_upkeep(sim);
 
 	// HashSerializer runs after the turn's simulation steps, not before
 	for (int i = 0; i < TICKS_PER_TURN; ++i)

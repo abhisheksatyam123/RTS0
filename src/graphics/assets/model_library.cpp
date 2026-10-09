@@ -1,6 +1,8 @@
 #include "model_library.h"
 #include "procedural.h"
 #include "../../core/diagnostics/logger.h"
+#include "../../simulation/sim_types.h"
+#include "packed_siege_models.h"
 #include <godot_cpp/classes/packed_scene.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/node.hpp>
@@ -57,6 +59,13 @@ float ModelLibrary::target_height(const String &category, const String &id, floa
 		if (id == "boar") return 1.15f;
 		if (id == "sheep") return 0.95f;
 		if (id == "wolf") return 1.05f;
+		// Animal GLBs come out of the extractors already sized (a chicken 0.5,
+		// a bush elephant 3.2), so they keep their own height.
+		for (int f = 0; f < FAUNA_COUNT; ++f) {
+			if (id == fauna_type_info((uint8_t)f).model_id) return natural_h;
+		}
+		// So do the packed siege wagons (tools/extract_0ad_packed_siege.py).
+		if (is_packed_siege_model(id.utf8().get_data())) return natural_h;
 		return 1.8f;
 	}
 	if (category == "buildings") {

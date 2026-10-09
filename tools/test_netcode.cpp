@@ -163,7 +163,7 @@ void build_world(Simulation &s, uint32_t seed, ScriptRefs &refs) {
     s.spawn_fauna(48.0f, -20.0f, FAUNA_BOAR);
 
     // --- Relic (capture victory path) -------------------------------------
-    s.spawn_relic(10.0f, 10.0f, RES_GOLD, 400);
+    s.spawn_relic(10.0f, 10.0f);
 }
 
 // Emit this turn's scripted commands. MUST be a pure function of
@@ -656,11 +656,12 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     std::vector<uint32_t> host_squad;
     for (int i = 0; i < 4; ++i) host_squad.push_back(sim.spawn_unit(-36.0f + 2.0f * (float)i, 22.0f, 0, UNIT_SPEARMAN));
     // A villager carrying wood the host sends to drop it off (cmd 34, UnitAI ReturnResource).
+    // Half a load: a full one (ResourceGatherer Capacities wood 10) goes back by itself.
     const uint32_t host_carrier = sim.spawn_unit(-40.0f, 2.0f, 0, UNIT_VILLAGER, 100.0f);
     {
         const int32_t ci = sim.lookup_unit(host_carrier);
         sim.units_.res_type_carried[ci] = RES_WOOD;
-        sim.units_.carry[ci] = 10;
+        sim.units_.carry[ci] = 5;
     }
     // Two markets and a trader the host walks off, then sends on a Shift-queued
     // route between them (cmd 35, 0 A.D. setup-trade-route).
@@ -1281,18 +1282,19 @@ int run_legacy_tests() {
         Simulation s;
         s.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
         s.set_victory_condition(VICTORY_RELIC);
-        const uint32_t relic = s.spawn_relic(0.0f, 0.0f, RES_GOLD, 100);
-        const uint32_t explorer = s.spawn_unit(0.0f, 0.0f, 0, UNIT_VILLAGER);
-        assert(relic != 0 && explorer != 0);
-        s.tick(0.1f);
+        const uint32_t relic = s.spawn_relic(30.0f, 0.0f);
+        assert(relic != 0);
+        std::vector<uint32_t> captors;
+        for (int k = 0; k < 6; ++k) captors.push_back(s.spawn_unit(26.0f, -3.0f + k, 0, UNIT_SPEARMAN));
+        s.order_attack(captors.data(), captors.size(), relic);
+        for (int k = 0; k < 60 * 20 && !s.relics()[0].claimed; ++k) s.tick(Simulation::FIXED_STEP);
         assert(s.relics().size() == 1 && s.relics()[0].claimed);
         assert(s.relics()[0].owner_team == 0);
-        s.tick(179.0f);
+        for (int k = 0; k < 179 * 20; ++k) s.tick(Simulation::FIXED_STEP);
         assert(!s.is_victory());
-        s.tick(1.0f);
+        for (int k = 0; k < 2 * 20; ++k) s.tick(Simulation::FIXED_STEP);
         assert(s.is_victory() && s.is_game_over());
-        assert(s.gold() >= 100);
-        std::cout << "  [PASS] relic claim, ownership, resource award, and 180-second victory." << std::endl;
+        std::cout << "  [PASS] relic capture, ownership, and 180-second victory." << std::endl;
     }
 
     std::cout << "[Test 15] Capturable per-team capture points..." << std::endl;

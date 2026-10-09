@@ -13,6 +13,7 @@ Manifest counts come from `assets/models/manifest.json`. The disk column was cou
 |---|---|---|
 | models | **742** (units 363, buildings 367, vegetation 12) | 363 / 367 / 12 `.glb` (vegetation 12 includes the 0 A.D. fish shoal, `fish.glb`, from `tools/dae_to_glb.gd`) |
 | props | not in the manifest | 8 `.glb` in `assets/models/props/` (7 carried-resource shuttles, the garrison flag) from `tools/dae_to_glb.gd` with `prop`; 11 flag skins in `assets/textures/garrison_flags/` |
+| scenery | not in the manifest | 22 `.glb` in `assets/models/scenery/` for the 19 Gaia scenery types (`data/scenery_actors.json`), from `tools/extract_0ad_scenery.py` |
 | particles | **3** | `flame.png`, `smoke_64a.png`, `dust_256a.png` in `assets/textures/particles/` |
 | animations | **1316** | 1316 `.psa` + 1316 `.json` in `assets/animations/` |
 | skeletons | **98** | 98 `.xml` in `assets/skeletons/` |
@@ -24,7 +25,7 @@ Manifest counts come from `assets/models/manifest.json`. The disk column was cou
 
 ### Silhouette coverage
 
-- Units 23/23, buildings 14/14 and fauna 4/4 each have their own GLB on disk (checked 2026-10-08).
+- The 23 unit classes and the first 14 building types each have their own GLB on disk (checked 2026-10-08). Per-template, per-civ and fauna coverage is much lower: see "Gaps against 0 A.D." below (checked 2026-10-09).
 - Civ-prefixed ids (e.g. `athen_elephant`) have no GLB of their own in most cases. They resolve at runtime to the base-unit GLB (see the fallback chain below).
 
 ## Unit matrix: 23/23 canonical ids ship a unique GLB (`UNIT_TYPE_COUNT = 23`, `src/simulation/sim_types.h:128`)
@@ -57,7 +58,7 @@ Clip count `(n)` is the number of embedded GLB clips reported by `audit_assets.p
 | 21 | Persian/Arabian Camel | `camel` | `assets/models/units/camel.glb` | Y/Y (8) |
 | 22 | Seleucid Scythed Chariot | `scythed_chariot` | `assets/models/units/scythed_chariot.glb` | Y/Y (5) |
 
-## Building matrix: 14/14 canonical ids ship a unique GLB (`BLD_TYPE_COUNT = 14`, `src/simulation/sim_types.h:162`)
+## Building matrix: the first 14 types (`BLD_TYPE_COUNT` is now 52; the other 38 are listed under "Gaps against 0 A.D.")
 
 | # | BuildingType | model_id | GLB |
 |---|---|---|---|
@@ -78,7 +79,7 @@ Clip count `(n)` is the number of embedded GLB clips reported by `audit_assets.p
 
 Buildings carry no clips (static GLBs).
 
-## Fauna matrix: 4/4 ship a unique GLB (`FAUNA_COUNT = 4`, `src/simulation/sim_types.h:729`)
+## Fauna matrix: the original 4 (61 species now use 51 models; see "Gaps against 0 A.D.")
 
 | # | FaunaType | model_id | GLB | Clips (audit) |
 |---|---|---|---|---|
@@ -128,16 +129,36 @@ Open terrain items:
 - **Single global triple.** `Assets::load_terrain_material()` (`assets.cpp:54`) takes no biome input, so there is no per-biome switching. Biome switching is a follow-up.
 - **`territory_map` is never bound.** `shaders/terrain.gdshader:18` declares it, and `:78-81` samples it only when `territory_strength > 0` (default 0). No C++ code binds it, so the territory overlay is inert.
 
+## Gaps against 0 A.D. (checked 2026-10-09, in code)
+
+Models:
+- **Units.** The roster has 376 0 A.D. unit templates, but `world_view_node` draws by `civ_unit_model(civ, UnitType)`: 213 civ × class buckets, so 255 templates share a model with another template. Only 20 templates have a GLB named after them. Champions (55) use their class base model; 43 heroes are drawn with about 14 hero models; cavalry javelineer and swordsman look alike.
+- **Buildings (52 types × 14 civs).** No civ-specific GLB for most civs: stable (11 civs), range (11), arsenal (13), blacksmith (12), theater (14), embassy (14), sentry tower (14), outpost (12), elephant stable (12). They show one generic model. The palisade has no GLB at all (procedural box). Field plots are generic in 0 A.D. too.
+- **Fauna.** 61 species use 51 models (checked 2026-10-09). The 10 remaining pairs share one 0 A.D. actor too (for example both sheep, both camels, the wild and domestic zebu). The 29 converted with `tools/extract_0ad_fauna_models.py` (Collada source, PR #179) have 0 A.D.'s own mesh, texture and Idle/Walk/Run/Attack/Death clips. Still missing: per-species idle and death variants.
+- **Props and scenery.** 19 Gaia scenery types now use 0 A.D. actors (22 GLBs); ambient hawks fly on 34 maps. Turreted units stand at 0 A.D.'s turret point.
+
+Animations (363 unit GLBs):
+- 23 unit GLBs have no clips: projectiles, and hulls and animals whose 0 A.D. actors have none either (Celtic, Han, Iberian and Mauryan warships, the merchant ships, the Iberian fishing ship, muskox, walrus, humpback whale; checked 2026-10-09). Every hull rocks in the world view (`apply_ship_wave_xform`).
+- One `Attack` clip per unit: no melee/ranged split per weapon. `Slaughter` is separate, and the 166 biped GLBs carry 0 A.D.'s `Capture` clip (`biped/infantry/capturing_a.dae`, added by `tools/add_0ad_clips.py`). Cavalry, siege and ships fall back to `Attack` when capturing.
+- Idle and death variants: 0 A.D. picks one of an actor's same-named clips at random. 110 biped GLBs carry a second idle (`Idle2`) and 140 a second death (`Death2`), the actor's next most frequent (`tools/add_0ad_clips.py --variants`), and each unit keeps one by its id. Cavalry, camel and elephant variants are still missing.
+- Siege: the 25 unpacked engines have no `Walk`, as in 0 A.D., where an engine only moves packed. A packed engine shows its 0 A.D. `*_packed` actor (a wagon with horses or oxen, crew and cargo) in 13 GLBs from `tools/extract_0ad_packed_siege.py`, mapped in `src/graphics/assets/packed_siege_models.h`. 0 A.D. has no pack/unpack clips: the model swaps when packing or unpacking ends. `GatherFish` is on 3 GLBs only.
+- Done: citizen-soldier gather/build clips, per-resource carry walks and the promotion clip (#149, added at runtime from `.psa`).
+
+Textures:
+- **Player colour.** `extract_0ad_assets.py` bakes a fixed tint into each skin where the `player_trans` alpha is below 250, so units and buildings do not show their owner's colour. Fixing it needs `public.zip` to re-extract the mask. Borders, garrison flags and the minimap already use `Simulation::player_color`.
+- No normal, specular or parallax maps (see Open todos).
+
 ## Open todos (moved here from ASSET_MAPPING.md, checked 2026-10-08)
 
 - **Unit shader is baked-only.** `shaders/unit_thronefall.gdshader` has no specular, normal or parallax sampling (grep). Upstream material variants such as `player_trans_norm_spec` are not sampled.
 - **UI coverage.** Files on disk under `assets/textures/ui/`:
   - Emblems: 13 civs (`emblems/`, athenians through seleucids).
   - Phase icons: 3 (`phases/`: village, town, city).
+  - Loading screen: 57 (`loading/`: 47 tip pictures, 6 progress bar pieces, parchment, tip gradient, background tile). 0 A.D.'s `gradient_4x3.png` is not used.
+  - Reference portraits: `portraits/catafalque.png` for the Catafalque Overview.
   - Formations: 12 PNG (`formations/`). The 0 A.D. formation count of 14 comes from the 2026-08-29 audit and was not re-verified (zip absent).
   - Auras and minimap: 19 and 22 files matched by name. Runtime wiring of these was not re-audited.
   - Cursors: 22 (`assets/textures/cursors/`: 21 `action-*` and `cursor-rally`), wired by `update_cursor`. 0 A.D.'s remaining cursors (set-rally variants, the disabled variants, the arrow) are not copied yet.
-- **Fauna skipped for rigging.** `elephant_african_bush` (58-bone mesh, no matching PSA key set) and `hippopotamus` (no matching PSA keys). See the G7-H2 log below.
 - **2026-08-29 gap list: closed.** The 18 missing GLBs from the 2026-08-29 gap list are all shipped (see the matrices above). Re-export a single id with `python3 tools/extract_0ad_assets.py --only <ids>` (see [assets/README.md](../assets/README.md)).
 
 ## G7-H2 push (2026-10-05): HIGH-VISIBILITY class batch, +31 models (507 → 538)
