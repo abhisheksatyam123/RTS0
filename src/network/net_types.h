@@ -166,11 +166,15 @@ enum class NetCommandType : uint8_t {
 	// 0 A.D. "returnresource" (UnitAI ReturnResource): carriers in entity_ids drop their
 	// load at dropsite target_id. param bit NET_PARAM_QUEUED queues it.
 	NET_CMD_RETURN_RESOURCE = 34,
+	// 0 A.D. "setup-trade-route" (Commands.js, UnitAI Trade): traders in entity_ids
+	// trade between market target_id and the market whose id is target_x.
+	// param bit NET_PARAM_QUEUED queues it.
+	NET_CMD_SETUP_TRADE_ROUTE = 35,
 	// 0 A.D. "alert-raise" / "alert-end" (AlertRaiser.js) on structure target_id;
 	// param 0 raises, 1 ends.
-	NET_CMD_ALERT = 35,
+	NET_CMD_ALERT = 36,
 	// Session control, not game commands (200+ is reserved for these; game command
-	// ids keep growing from 35). Only the host sends them, inside its own turn batch,
+	// ids keep growing from 36). Only the host sends them, inside its own turn batch,
 	// so every client learns of a seat change before the turn it affects (0 A.D.
 	// NetServerTurnManager::InitialiseClient / UninitialiseClient). The sim ignores them.
 	// A client takes a seat: target_id = client id, param = player, target_x = the

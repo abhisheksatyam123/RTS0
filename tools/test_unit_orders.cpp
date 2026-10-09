@@ -40,7 +40,7 @@
 //     units (UnloadTemplate), an enemy can't unload, lockstep cmd 13 carries the units.
 // 28. AlertRaiser: raising an alert at a storehouse sends nearby women into the nearest
 //     structures with room (not soldiers, not women far away); ending it unloads them and
-//     sends them back to work; lockstep cmd 35.
+//     sends them back to work; lockstep cmd 36.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_unit_orders.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -906,7 +906,7 @@ static void test_alert() {
 	check(alive(s, w[0]) && alive(s, w[1]) && alive(s, w[2]), "they come out");
 	check(s.unit_order(w[0]).kind == ORDER_GATHER && s.unit_order(w[0]).target == tree, "and go back to their tree, not the rally point");
 
-	// Lockstep cmd 35.
+	// Lockstep cmd 36.
 	Simulation l;
 	setup(l);
 	const uint32_t st2 = l.spawn_building_world(0, 0, BLD_STOREHOUSE, 0, 1.0f);
@@ -919,7 +919,7 @@ static void test_alert() {
 	c.target_id = st2;
 	tm.post_local_command(c);
 	for (int i = 0; i < 4; ++i) tm.tick(TurnManager::TURN_DURATION, l);
-	check(c.cmd_type == 35 && l.unit_order(x).kind == ORDER_GARRISON, "lockstep raise alert (35)");
+	check(c.cmd_type == 36 && l.unit_order(x).kind == ORDER_GARRISON, "lockstep raise alert (36)");
 }
 
 int main(int argc, char **argv) {
