@@ -3544,6 +3544,120 @@ void RmsGenerator::synth_extinct_volcano(HeightmapGrid &hm, RmsRng &rng, float &
 	for (const auto &sp : spawns) hm.level_area(sp.x, sp.z, 14.0f, 4.0f, sp.base_height);
 }
 
+// survivalofthefittest.js heights times this (0 A.D. metres to RTS0 random-map units).
+constexpr float kSurvivalHeight = 0.35f;
+
+void RmsGenerator::synth_survival_of_the_fittest(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// survivalofthefittest.js: everything starts as a plateau at heightHill (30); a central
+	// area (0.15 of the map across) and a passage from it to the map edge between each pair
+	// of neighbours are cut down to heightLand (3). Players sit on the plateau at 0.3, their
+	// attackers come from 0.45 behind them; hills (55) stand on the rest of the plateau.
+	const float k = kSurvivalHeight;
+	water_h = -5.0f;
+	hm.init(hm.res, hm.map_half, 30.0f * k);
+	const float half = hm.map_half, size = 2.0f * half;
+	const int n = std::max(1, num_players);
+	hm.level_area(0.0f, 0.0f, 0.15f * size, 3.0f, 3.0f * k);
+	const float start = rng.range_float(0.0f, 6.2831853f);
+	place_ring_spawns(hm, spawns, num_players, 0.3f * size, start, 6.2831853f, 30.0f * k);
+	// Passages: PathPlacer(mapCenter, passage[i], scaleByMapSize(14, 24)), smoothed over 4 tiles.
+	const float width = (float)scale_by_map_size(14, 24, half);
+	for (int i = 0; i < n; ++i) {
+		const float a = start + 3.14159265f / (float)n + 6.2831853f * (float)i / (float)n;
+		const float ex = std::cos(a) * 0.5f * size, ez = std::sin(a) * 0.5f * size;
+		const float len = std::hypot(ex, ez);
+		for (float t = 0.0f; t <= len; t += 2.0f)
+			hm.level_area(ex * t / len, ez * t / len, width * 0.5f, 4.0f, 3.0f * k);
+	}
+	// The plateau's hills, clear of each base, its attacker point and the halfway point
+	// (clPlayer) and of the low land.
+	auto clear = [&](float x, float z, float r) {
+		for (int i = 0; i < n; ++i) {
+			const float a = start + 6.2831853f * (float)i / (float)n;
+			for (float f : {0.3f, 0.375f, 0.45f})
+				if (std::hypot(x - std::cos(a) * f * size, z - std::sin(a) * f * size) < 20.0f + r) return false;
+		}
+		return true;
+	};
+	const int hills = scale_by_map_size(3, 12, half) * n;
+	for (int i = 0, tries = 0; i < hills && tries < hills * 40; ++tries) {
+		const float x = rng.range_float(-half, half), z = rng.range_float(-half, half);
+		const float r = rng.range_float(4.0f, 8.0f);
+		if (std::hypot(x, z) > half - r - 2.0f || !clear(x, z, r) || hm.sample_world(x, z) < 30.0f * k - 0.5f) continue;
+		bool flat = true;
+		for (int d = 0; d < 8 && flat; ++d)
+			flat = hm.sample_world(x + std::cos(0.785398f * d) * (r + 5.0f), z + std::sin(0.785398f * d) * (r + 5.0f)) >= 30.0f * k - 0.5f;
+		if (!flat) continue;
+		hm.raise_plateau(x, z, r, 0.0f, 0.0f, 25.0f * k, 3.0f);
+		++i;
+	}
+	for (auto &sp : spawns) sp.base_height = 30.0f * k;
+}
+
+void RmsGenerator::place_survival_entities(Simulation &sim, const HeightmapGrid &hm, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config) {
+	const float k = kSurvivalHeight;
+	const float half = hm.map_half, size = 2.0f * half;
+	const int n = (int)spawns.size();
+	const float land_r = 0.15f * size;
+	for (int i = 0; i < n; ++i) {
+		const auto &sp = spawns[(size_t)i];
+		const uint8_t team = sp.team;
+		const float a = std::atan2(sp.z, sp.x);
+		// getStartingEntities filtered to the civic centre and the infantry.
+		sim.spawn_building_world(sp.x, sp.z, BLD_TOWN_CENTER, team, 1.0f);
+		const float fx = sp.forward_dir_x, fz = sp.forward_dir_z, rx = -fz, rz = fx;
+		sim.spawn_unit(sp.x + fx * 6.0f + rx * 2.0f, sp.z + fz * 6.0f + rz * 2.0f, team, UNIT_SPEARMAN);
+		sim.spawn_unit(sp.x + fx * 6.0f - rx * 2.0f, sp.z + fz * 6.0f - rz * 2.0f, team, UNIT_SPEARMAN);
+		sim.spawn_unit(sp.x + fx * 5.0f + rx * 4.5f, sp.z + fz * 5.0f + rz * 4.5f, team, UNIT_ARCHER);
+		sim.spawn_unit(sp.x + fx * 5.0f - rx * 4.5f, sp.z + fz * 5.0f - rz * 4.5f, team, UNIT_ARCHER);
+		// The treasure seeker: findLocationInDirectionBasedOnHeight(player, centre, -3, 3.5, 3),
+		// the first spot towards the centre down at the low land, then 3 tiles on.
+		float wx = sp.x, wz = sp.z;
+		const float d = std::hypot(sp.x, sp.z);
+		for (float t = 0.0f; t < d; t += 0.5f) {
+			const float x = sp.x - std::cos(a) * t, z = sp.z - std::sin(a) * t;
+			if (hm.sample_world(x, z) <= 3.5f * k) {
+				wx = x - std::cos(a) * 3.0f;
+				wz = z - std::sin(a) * 3.0f;
+				break;
+			}
+		}
+		sim.spawn_unit(wx, wz, team, UNIT_FEMALE_CITIZEN);
+		// The attacker spawn point, owned by the player.
+		sim.add_trigger_point('A', std::cos(a) * 0.45f * size, std::sin(a) * 0.45f * size, team);
+	}
+	// Treasure points B, C and D: scaleByMapSize(40, 140) each in the central area,
+	// 5 tiles inside its edge.
+	const int count = scale_by_map_size(40, 140, half);
+	for (uint8_t ref : {(uint8_t)'B', (uint8_t)'C', (uint8_t)'D'})
+		for (int i = 0, tries = 0; i < count && tries < count * 100; ++tries) {
+			const float r = (land_r - 5.0f) * std::sqrt(rng.next_float()), t = rng.range_float(0.0f, 6.2831853f);
+			const float x = std::cos(t) * r, z = std::sin(t) * r;
+			if (hm.sample_world(x, z) > 3.0f * k + 0.5f) continue;
+			sim.add_trigger_point(ref, x, z);
+			++i;
+		}
+	// Forests and straggler trees in the central area (stayClasses(clLand, 4)), clear of
+	// the treasure seekers.
+	auto near_women = [&](float x, float z) {
+		for (const auto &sp : spawns) {
+			const float a = std::atan2(sp.z, sp.x);
+			if (std::hypot(x - std::cos(a) * land_r, z - std::sin(a) * land_r) < 8.0f) return true;
+		}
+		return false;
+	};
+	const int forests = scale_by_map_size(3, 10, half);
+	for (int f = 0; f < forests; ++f) {
+		const float r = (land_r - 8.0f) * std::sqrt(rng.next_float()), t = rng.range_float(0.0f, 6.2831853f);
+		const float cx = std::cos(t) * r, cz = std::sin(t) * r;
+		if (near_women(cx, cz)) continue;
+		const int trees = rng.range_int(4, 8);
+		for (int j = 0; j < trees; ++j)
+			sim.spawn_resource_world(cx + rng.range_float(-3.0f, 3.0f), cz + rng.range_float(-3.0f, 3.0f), RES_WOOD, 800);
+	}
+	(void)config;
+}
+
 // Map-specific entities of the trigger maps.
 void RmsGenerator::place_trigger_map_entities(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config) {
 	const float half = hm.map_half;
@@ -7896,6 +8010,9 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 		case MAP_EXTINCT_VOLCANO:
 			synth_extinct_volcano(hm, rng, water_h, spawns, config.num_players);
 			break;
+		case MAP_SURVIVAL_OF_THE_FITTEST:
+			synth_survival_of_the_fittest(hm, rng, water_h, spawns, config.num_players);
+			break;
 		case MAP_AEGEAN_SEA:
 			synth_aegean_sea(hm, rng, water_h, spawns, config.num_players, config.teams);
 			break;
@@ -7977,6 +8094,13 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 
 	// Transfer heightmap to simulation
 	sim.set_terrain_data(hm.data, hm.res, water_h);
+
+	// Survival of the Fittest places only its own entities: civic centres, infantry, the
+	// treasure seekers, trigger points and the central forests (no mines, hunt or relics).
+	if (config.map_type == MAP_SURVIVAL_OF_THE_FITTEST) {
+		place_survival_entities(sim, hm, spawns, rng, config);
+		return true;
+	}
 
 	// Distribute balanced player bases and starter clusters
 	distribute_player_bases(sim, hm, spawns, rng, config);
