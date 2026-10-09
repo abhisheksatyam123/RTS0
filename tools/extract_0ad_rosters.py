@@ -860,6 +860,27 @@ def collect(sim_root):
                 slot["buildings"].add(bld)
                 slot["kinds"].add(kind)
                 slot["phase"] = min(slot["phase"], sphase)
+        # Units no structure trains but a trained unit promotes into (0 A.D.
+        # Promotion/Entity to another unit: Marian Reforms' auxiliary cavalry and
+        # Antesignani, the Olympic champion, ...): rows with no trainer.
+        pending = sorted(trainers)
+        while pending:
+            src_name = origin = pending.pop()
+            node, seen = loader.load(src_name), set()
+            while node.value("Promotion/Entity") and src_name not in seen:
+                seen.add(src_name)
+                tgt = node.value("Promotion/Entity").replace("{civ}", node.value("Identity/Civ") or civ)
+                if not loader.exists(tgt):
+                    break
+                rank_base = lambda n: re.sub(r"_[abe](_dock)?$", "", n)  # noqa: E731
+                if rank_base(tgt) != rank_base(src_name) and rank_base(tgt) not in {rank_base(n) for n in trainers}:
+                    base = re.sub(r"_[ae]$", "_b", tgt)
+                    tgt = base if loader.exists(base) else tgt
+                    if tgt not in trainers:
+                        trainers[tgt] = {"buildings": set(), "kinds": set(), "phase": trainers[origin]["phase"]}
+                        pending.append(tgt)
+                    break
+                src_name, node = tgt, loader.load(tgt)
         for name in sorted(trainers):
             t = loader.load(name)
             cls = rts0_class(name, t, civ)
