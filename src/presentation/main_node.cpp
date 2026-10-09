@@ -73,6 +73,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_chat_channel_btn_pressed", "channel_idx"), &RtsoMain::_on_chat_channel_btn_pressed);
 	ClassDB::bind_method(D_METHOD("toggle_diplomacy"), &RtsoMain::toggle_diplomacy);
 	ClassDB::bind_method(D_METHOD("toggle_objectives"), &RtsoMain::toggle_objectives);
+	ClassDB::bind_method(D_METHOD("_toggle_session_dialog", "name"), &RtsoMain::_toggle_session_dialog);
 	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);
 	ClassDB::bind_method(D_METHOD("_on_diplo_tribute_pressed", "player_idx", "res_type"), &RtsoMain::_on_diplo_tribute_pressed);
 	ClassDB::bind_method(D_METHOD("set_use_english_voice_orders", "enable"), &RtsoMain::set_use_english_voice_orders);
@@ -161,6 +162,11 @@ void RtsoMain::_bind_methods() {
 	bind_enum("BuildingType", "MILITARY_COLONY", rtso::BLD_MILITARY_COLONY);
 	bind_enum("BuildingType", "ACADEMY", rtso::BLD_ACADEMY);
 	bind_enum("BuildingType", "MINISTRY", rtso::BLD_MINISTRY);
+	bind_enum("BuildingType", "CAMP_BLEMMYE", rtso::BLD_CAMP_BLEMMYE);
+	bind_enum("BuildingType", "CAMP_NOBA", rtso::BLD_CAMP_NOBA);
+	bind_enum("BuildingType", "TEMPLE_AMUN", rtso::BLD_TEMPLE_AMUN);
+	bind_enum("BuildingType", "TEMPLE_VESTA", rtso::BLD_TEMPLE_VESTA);
+	bind_enum("BuildingType", "TEMPLE_MARS", rtso::BLD_TEMPLE_MARS);
 
 	bind_enum("Civilization", "ATHENIANS", rtso::CIV_ATHENIANS);
 	bind_enum("Civilization", "SPARTANS", rtso::CIV_SPARTANS);
@@ -402,6 +408,14 @@ void RtsoMain::_ready() {
 	top_hud_panel->add_child(top_hbox);
 
 	top_panel_.build(this, top_hbox, sim->player_civ());
+	{
+		auto first_key = [](const char *name) {
+			const auto *combos = rtso::hotkeys::table().get(name);
+			return (combos && !combos->empty()) ? String::utf8(rtso::hotkeys::combo_to_string(combos->front()).c_str()) : String();
+		};
+		top_panel_.set_dialog_tooltips(first_key("session.gui.diplomacy.toggle"),
+				first_key("session.gui.barter.toggle"), first_key("session.gui.objectives.toggle"));
+	}
 
 	time_notification_label_ = memnew(Label);
 	time_notification_label_->set_anchor(SIDE_LEFT, 0.0f);
@@ -446,6 +460,7 @@ void RtsoMain::_ready() {
 		map_selector->add_item(title, i);
 	}
 	map_selector->connect("item_selected", Callable(this, "_on_map_selected"));
+	map_selector->set_visible(false); // set in Game Setup; 0 A.D.'s top panel has no setup controls
 	top_hbox->add_child(map_selector);
 
 	civ_selector = memnew(RtsoSafeSelect);
@@ -466,6 +481,7 @@ void RtsoMain::_ready() {
 	civ_selector->add_item("Han Chinese", rtso::CIV_HAN);
 	civ_selector->connect("item_selected", Callable(this, "_on_civ_selected"));
 	civ_selector->select((int)sim->player_civ());
+	civ_selector->set_visible(false); // set in Game Setup; 0 A.D.'s top panel has no setup controls
 	top_hbox->add_child(civ_selector);
 
 	ai_diff_selector = memnew(RtsoSafeSelect);
@@ -478,6 +494,7 @@ void RtsoMain::_ready() {
 	ai_diff_selector->add_item("AI Very Hard", rtso::PETRA_VERY_HARD);
 	ai_diff_selector->select(rtso::PETRA_MEDIUM);
 	ai_diff_selector->connect("item_selected", Callable(this, "_on_ai_diff_selected"));
+	ai_diff_selector->set_visible(false); // set in Game Setup; 0 A.D.'s top panel has no setup controls
 	top_hbox->add_child(ai_diff_selector);
 
 	ai_behavior_selector = memnew(RtsoSafeSelect);
@@ -487,6 +504,7 @@ void RtsoMain::_ready() {
 	ai_behavior_selector->add_item("AI Aggressive", rtso::PETRA_BEHAVIOR_AGGRESSIVE);
 	ai_behavior_selector->add_item("AI Random", rtso::PETRA_BEHAVIOR_RANDOM);
 	ai_behavior_selector->connect("item_selected", Callable(this, "_on_ai_behavior_selected"));
+	ai_behavior_selector->set_visible(false); // set in Game Setup; 0 A.D.'s top panel has no setup controls
 	top_hbox->add_child(ai_behavior_selector);
 
 	victory_selector = memnew(RtsoSafeSelect);
@@ -502,6 +520,7 @@ void RtsoMain::_ready() {
 	victory_selector->set_disabled(true);
 	victory_selector->set_tooltip_text("Victory condition (set in Game Setup)");
 	victory_selector->connect("item_selected", Callable(this, "_on_victory_selected"));
+	victory_selector->set_visible(false); // set in Game Setup; 0 A.D.'s top panel has no setup controls
 	top_hbox->add_child(victory_selector);
 
 	voice_btn = memnew(Button);
@@ -509,6 +528,7 @@ void RtsoMain::_ready() {
 	voice_btn->set_text("Voice: EN");
 	voice_btn->add_theme_font_size_override("font_size", 12);
 	voice_btn->connect("pressed", Callable(this, "_on_voice_button_pressed"));
+	voice_btn->set_visible(false); // set in Game Setup; 0 A.D.'s top panel has no setup controls
 	top_hbox->add_child(voice_btn);
 
 	lobby_btn = memnew(Button);
@@ -2076,6 +2096,8 @@ std::pair<int, int> RtsoMain::mouse_cell(Vector2 mouse_pos) const {
 
 void RtsoMain::update_hud() {
 	top_panel_.update(sim, local_player(), match_elapsed_time);
+	// GameSpeedButton is hidden in networked games.
+	if (speed_btn) speed_btn->set_visible(!net_lockstep());
 }
 
 // Selection details (0 A.D. gui/session/selection_details.js): real values
@@ -4585,6 +4607,13 @@ void RtsoMain::_on_chat_text_submitted(const String &text) {
 
 void RtsoMain::toggle_objectives() {
 	objectives_dialog_.toggle(sim, local_player());
+}
+
+// Top panel IconButtons: DiplomacyDialogButton, TradeDialogButton, ObjectivesDialogButton.
+void RtsoMain::_toggle_session_dialog(String name) {
+	if (name == "DiplomacyDialog") toggle_diplomacy();
+	else if (name == "Objectives") toggle_objectives();
+	else if (Node *n = get_node_or_null(NodePath(name))) n->call("toggle");
 }
 
 void RtsoMain::toggle_diplomacy() {

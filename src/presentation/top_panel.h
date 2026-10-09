@@ -1,10 +1,12 @@
 #ifndef RTSO_TOP_PANEL_H
 #define RTSO_TOP_PANEL_H
 
-// P4 stage-2 leaf widget: Top HUD Bar (0 A.D. gui/session/top_panel.js parity).
-// Owns civ & phase emblem badges, 4 resource counters (food, wood, metal/gold,
-// stone), population gauge, idle worker trigger button, match clock, and wave /
-// wonder countdown banner.
+// P4 stage-2 leaf widget: Top HUD Bar (0 A.D. gui/session/top_panel parity).
+// Owns civ & phase emblem badges; CounterResource counters in 0 A.D. order (food,
+// wood, stone, metal) with the stock abbreviated like abbreviateLargeNumbers and
+// the current gatherers beside it; CounterPopulation's "count/limit (max)" with
+// the total gatherers; the idle worker button; the IconButtons (Diplomacy,
+// Barter & Trade, Objectives); the match clock and the wave / wonder banner.
 
 #include <godot_cpp/classes/button.hpp>
 #include <godot_cpp/classes/control.hpp>
@@ -19,6 +21,7 @@
 #include <godot_cpp/variant/string.hpp>
 #include <godot_cpp/variant/vector2.hpp>
 
+#include <cmath>
 #include <cstdint>
 
 #include "../simulation/simulation.h"
@@ -60,47 +63,62 @@ public:
 		phase_emblem_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/phases/village.png"));
 		top_hbox->add_child(phase_emblem_);
 
-		// 3. Resource Items (Food, Wood, Gold, Stone)
-		const char *res_paths[4] = {
-			"res://assets/textures/ui/icons/food.png",
-			"res://assets/textures/ui/icons/wood.png",
-			"res://assets/textures/ui/icons/metal.png",
-			"res://assets/textures/ui/icons/stone.png"
-		};
+		// 3. Resource counters (CounterResource.js), 0 A.D. order: food, wood, stone, metal.
 		for (int i = 0; i < 4; ++i) {
 			HBoxContainer *rc = memnew(HBoxContainer);
 			rc->add_theme_constant_override("separation", 4);
+			rc->set_mouse_filter(Control::MOUSE_FILTER_PASS);
+			res_panels_[i] = rc;
 
 			res_icons_[i] = memnew(TextureRect);
 			res_icons_[i]->set_custom_minimum_size(Vector2(26, 26));
 			res_icons_[i]->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
 			res_icons_[i]->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
-			res_icons_[i]->set_texture(rtso::load_ui_texture(res_paths[i]));
+			res_icons_[i]->set_texture(rtso::load_ui_texture(String("res://assets/textures/ui/icons/") + kResIcon[i] + ".png"));
+			res_icons_[i]->set_mouse_filter(Control::MOUSE_FILTER_PASS);
 			rc->add_child(res_icons_[i]);
 
 			res_labels_[i] = memnew(Label);
-			res_labels_[i]->set_custom_minimum_size(Vector2(95, 26));
-			res_labels_[i]->add_theme_font_size_override("font_size", 13);
+			res_labels_[i]->set_custom_minimum_size(Vector2(48, 26));
+			res_labels_[i]->add_theme_font_size_override("font_size", 14);
 			res_labels_[i]->add_theme_color_override("font_color", Color(0.95f, 0.95f, 0.98f));
+			res_labels_[i]->set_mouse_filter(Control::MOUSE_FILTER_PASS);
 			rc->add_child(res_labels_[i]);
+
+			res_stats_[i] = memnew(Label);
+			res_stats_[i]->set_custom_minimum_size(Vector2(24, 26));
+			res_stats_[i]->add_theme_font_size_override("font_size", 11);
+			res_stats_[i]->set_mouse_filter(Control::MOUSE_FILTER_PASS);
+			rc->add_child(res_stats_[i]);
 
 			top_hbox->add_child(rc);
 		}
 
-		// 4. Population Item
+		// 4. Population counter (CounterPopulation.js)
 		HBoxContainer *pop_box = memnew(HBoxContainer);
 		pop_box->add_theme_constant_override("separation", 4);
+		pop_box->set_mouse_filter(Control::MOUSE_FILTER_PASS);
+		pop_box->set_tooltip_text("Population: current/limit (max)");
+		pop_panel_ = pop_box;
 		pop_icon_ = memnew(TextureRect);
 		pop_icon_->set_custom_minimum_size(Vector2(26, 26));
 		pop_icon_->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
 		pop_icon_->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
 		pop_icon_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/icons/population.png"));
+		pop_icon_->set_mouse_filter(Control::MOUSE_FILTER_PASS);
 		pop_box->add_child(pop_icon_);
 
 		pop_label_ = memnew(Label);
-		pop_label_->set_custom_minimum_size(Vector2(75, 26));
-		pop_label_->add_theme_font_size_override("font_size", 13);
+		pop_label_->set_custom_minimum_size(Vector2(86, 26));
+		pop_label_->add_theme_font_size_override("font_size", 14);
+		pop_label_->set_mouse_filter(Control::MOUSE_FILTER_PASS);
 		pop_box->add_child(pop_label_);
+
+		pop_stats_ = memnew(Label);
+		pop_stats_->set_custom_minimum_size(Vector2(24, 26));
+		pop_stats_->add_theme_font_size_override("font_size", 11);
+		pop_stats_->set_mouse_filter(Control::MOUSE_FILTER_PASS);
+		pop_box->add_child(pop_stats_);
 		top_hbox->add_child(pop_box);
 
 		// 5. Idle Worker Button
@@ -111,7 +129,29 @@ public:
 		idle_worker_btn_->connect("pressed", Callable(owner, "_on_idle_worker_clicked"));
 		top_hbox->add_child(idle_worker_btn_);
 
-		// 6. Clock & Wave
+		// 6. IconButtons: DiplomacyDialogButton, TradeDialogButton, ObjectivesDialogButton.
+		// Tooltips lead with the hotkey like colorizeHotkey; owner->_toggle_session_dialog opens them.
+		const char *dialog_names[3] = {"DiplomacyDialog", "BarterDialog", "Objectives"};
+		const char *dialog_icons[3] = {"res://assets/textures/ui/archive/icons/diplomacy.png",
+				"res://assets/textures/ui/archive/icons/economics.png", ""};
+		const char *dialog_text[3] = {"Diplo", "Trade", "Obj"};
+		for (int i = 0; i < 3; ++i) {
+			Button *b = memnew(Button);
+			b->set_custom_minimum_size(Vector2(32, 30));
+			b->add_theme_font_size_override("font_size", 11);
+			Ref<Texture2D> tex = dialog_icons[i][0] ? rtso::load_ui_texture(dialog_icons[i]) : Ref<Texture2D>();
+			if (tex.is_valid()) {
+				b->set_button_icon(tex);
+				b->set_expand_icon(true);
+			} else {
+				b->set_text(dialog_text[i]);
+			}
+			b->connect("pressed", Callable(owner, "_toggle_session_dialog").bind(String(dialog_names[i])));
+			dialog_btns_[i] = b;
+			top_hbox->add_child(b);
+		}
+
+		// 7. Clock & Wave
 		clock_label_ = memnew(Label);
 		clock_label_->set_custom_minimum_size(Vector2(65, 26));
 		clock_label_->add_theme_font_size_override("font_size", 13);
@@ -152,18 +192,34 @@ public:
 			else phase_emblem_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/phases/city.png"));
 		}
 
-		// Resource counts & rates
-		res_labels_[0]->set_text(String::num_int64(sim->food(me)) + " (+" + String::num(sim->food_rate(me), 0) + "/m)");
-		res_labels_[1]->set_text(String::num_int64(sim->wood(me)) + " (+" + String::num(sim->wood_rate(me), 0) + "/m)");
-		res_labels_[2]->set_text(String::num_int64(sim->gold(me)) + " (+" + String::num(sim->gold_rate(me), 0) + "/m)");
-		res_labels_[3]->set_text(String::num_int64(sim->stone(me)) + " (+" + String::num(sim->stone_rate(me), 0) + "/m)");
+		// CounterResource / CounterPopulation. Gatherers are units in the gather
+		// state (0 A.D. Player.AddResourceGatherer counts them while they gather).
+		int gatherers[4] = {0, 0, 0, 0};
+		auto uv = sim->units();
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.alive[i] && uv.team[i] == me && uv.action_state[i] == rtso::ACTION_GATHER &&
+					uv.res_type_carried[i] < rtso::RES_COUNT)
+				++gatherers[uv.res_type_carried[i]];
+		const auto &ps = sim->player(me);
+		int total = 0;
+		for (int i = 0; i < 4; ++i) {
+			const int r = kResType[i];
+			res_labels_[i]->set_text(abbreviate((int64_t)std::floor(ps.res[r])));
+			set_gatherers(res_stats_[i], gatherers[r]);
+			total += gatherers[r];
+			res_panels_[i]->set_tooltip_text(String(kResTitle[i]) + "\n\nGatherers: current " +
+					String::num_int64(gatherers[r]) + "\nIncome: " + String::num(rate(sim, me, r), 0) + " per minute");
+		}
 
-		// Pop & Idle
-		int cur_pop = sim->pop_current(me);
-		int max_pop = sim->pop_max(me);
-		pop_label_->set_text(String::num_int64(cur_pop) + "/" + String::num_int64(max_pop));
-		if (cur_pop >= max_pop) pop_label_->add_theme_color_override("font_color", Color(1.0f, 0.3f, 0.3f));
-		else pop_label_->add_theme_color_override("font_color", Color(0.95f, 0.95f, 0.98f));
+		const int cur_pop = sim->pop_current(me);
+		const int max_pop = sim->pop_max(me);
+		pop_label_->set_text(String::num_int64(cur_pop) + "/" + String::num_int64(max_pop) + " (" +
+				String::num_int64(sim->pop_cap()) + ")");
+		// CounterPopulation flashes orange while training is blocked; RTS0 refuses to
+		// queue past the limit instead, so a full house shows orange.
+		pop_label_->add_theme_color_override("font_color", cur_pop >= max_pop ? Color(1.0f, 0.65f, 0.0f) : Color(1, 1, 1));
+		set_gatherers(pop_stats_, total);
+		pop_panel_->set_tooltip_text(String("Population: current/limit (max)\n\nGatherers: current ") + String::num_int64(total));
 
 		auto idle_workers = sim->get_idle_workers(me);
 		idle_worker_btn_->set_text("Idle: " + String::num_int64(idle_workers.size()));
@@ -196,7 +252,52 @@ public:
 		}
 	}
 
+	// Hotkey text for the IconButtons' tooltips, e.g. "Ctrl+B" (set by the owner).
+	void set_dialog_tooltips(const godot::String &diplomacy, const godot::String &trade, const godot::String &objectives) {
+		const godot::String keys[3] = {diplomacy, trade, objectives};
+		const char *names[3] = {"Diplomacy", "Barter & Trade", "Objectives"};
+		for (int i = 0; i < 3; ++i)
+			if (dialog_btns_[i]) dialog_btns_[i]->set_tooltip_text(keys[i].is_empty() ? godot::String(names[i]) : "[" + keys[i] + "] " + names[i]);
+	}
+
+	// tooltips.js abbreviateLargeNumbers.
+	static godot::String abbreviate(int64_t n) {
+		using godot::String;
+		if (n >= 1000000) return String::num_int64(n / 1000000) + "M";
+		if (n >= 100000) return String::num_int64(n / 1000) + "k";
+		if (n >= 10000) {
+			const int64_t tenths = n / 100; // toFixed(1) after /1e3, rounded down like the floor above
+			String s = String::num_int64(tenths / 10);
+			if (tenths % 10) s += "." + String::num_int64(tenths % 10);
+			return s + "k";
+		}
+		return String::num_int64(n);
+	}
+
 private:
+	static constexpr int kResType[4] = {rtso::RES_FOOD, rtso::RES_WOOD, rtso::RES_STONE, rtso::RES_GOLD};
+	static constexpr const char *kResIcon[4] = {"food", "wood", "stone", "metal"};
+	static constexpr const char *kResTitle[4] = {"Food", "Wood", "Stone", "Metal"};
+	static float rate(rtso::Simulation *sim, uint8_t me, int r) {
+		switch (r) {
+			case rtso::RES_FOOD: return sim->food_rate(me);
+			case rtso::RES_WOOD: return sim->wood_rate(me);
+			case rtso::RES_STONE: return sim->stone_rate(me);
+			default: return sim->gold_rate(me);
+		}
+	}
+
+	// DefaultResourceGatherersColor gold, "200 200 200" at zero.
+	static void set_gatherers(godot::Label *l, int n) {
+		l->set_text(godot::String::num_int64(n));
+		l->add_theme_color_override("font_color", n ? godot::Color(1.0f, 0.84f, 0.0f) : godot::Color(200 / 255.0f, 200 / 255.0f, 200 / 255.0f));
+	}
+
+	godot::Control *res_panels_[4] = {nullptr};
+	godot::Label *res_stats_[4] = {nullptr};
+	godot::Control *pop_panel_ = nullptr;
+	godot::Label *pop_stats_ = nullptr;
+	godot::Button *dialog_btns_[3] = {nullptr};
 	godot::TextureRect *civ_emblem_ = nullptr;
 	godot::TextureRect *phase_emblem_ = nullptr;
 	godot::TextureRect *res_icons_[4] = {nullptr};

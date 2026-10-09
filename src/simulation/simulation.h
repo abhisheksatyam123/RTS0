@@ -311,6 +311,7 @@ public:
 	bool cmd_train(uint8_t player, uint32_t building_id, UnitType u_type);
 	// Train a specific roster unit (a hero, a champion, a second unit of the same class).
 	bool cmd_train_template(uint8_t player, uint32_t building_id, uint16_t tmpl);
+	bool cmd_train_template_at(uint8_t player, uint32_t building_id, uint16_t tmpl, bool exclusive);
 	// P3 maintainFleet upkeep seam (0 A.D. navalManager.js:507-543): team-aware
 	// naval queue entry used by TurnManager NET_CMD_MAINTAIN_FLEET. Unlike
 	// cmd_train (team-0/human only) this honours the building's own team
@@ -1455,6 +1456,9 @@ private:
 	bool petra_gather_treasure(size_t u, PetraHuntScan &scan); // entityExtend.js gatherTreasure
 	void petra_manage_hunters(PetraHuntScan &scan);
 	void petra_build_first_base(); // startingStrategy.js buildFirstBase
+	void petra_resource_demand(float out[RES_COUNT]) const;
+	bool petra_perform_barter();      // tradeManager.js performBarter
+	void petra_set_trading_goods();   // tradeManager.js setTradingGoods
 	int petra_villager_target() const;
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
