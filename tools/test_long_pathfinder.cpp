@@ -11,14 +11,14 @@
 //     passable cells that never cuts an obstructed corner.
 //  3. Unreachable goals return false with a legal partial path that ends at the
 //     jump point closest to the goal (0 A.D. iBest/jBest).
-//  4. NavGrid::find_path with JPS reaches every goal the legacy A* reaches, ends
-//     at the same waypoint, and is deterministic across runs. Also counts how
-//     many reachable goals the legacy A* misses (informational).
-//  5. Timing: JPS vs legacy A* on the same queries (informational).
+//  4. NavGrid::find_path reaches exactly the goals Dijkstra reaches, ends at the
+//     goal, and is deterministic across runs.
+//  5. Timing of the JPS queries (informational).
 //  Exit: 0 = PASS, 1 = FAIL.
 #include "simulation/grid_nav.h"
 
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <cstdint>
 #include <cstdio>
@@ -121,8 +121,8 @@ static long walk_cost(const NavGrid &nav, const std::vector<std::pair<int, int>>
 
 int main() {
 	std::printf("RTS0 JPS long pathfinder test (src/simulation/nav/long_pathfinder.h)\n");
-	int compared = 0, unreachable = 0, astar_missed = 0;
-	double t_jps = 0, t_astar = 0;
+	int compared = 0, unreachable = 0;
+	double t_jps = 0;
 	long steps_jps = 0;
 	for (int seed = 1; seed <= 400; ++seed) {
 		Rng rng{static_cast<uint32_t>(seed) * 2654435761u + 1u};
@@ -140,11 +140,7 @@ int main() {
 			const auto a = std::chrono::steady_clock::now();
 			const bool ok = nav::compute_jps_path(RES, RES, passable, sx, sy, tx, ty, cells, &st);
 			const auto b = std::chrono::steady_clock::now();
-			std::vector<std::pair<int, int>> ref;
-			const bool ok_astar = nav.search_cells_astar(sx, sy, tx, ty, PASS_INFANTRY, ref);
-			const auto c = std::chrono::steady_clock::now();
 			t_jps += std::chrono::duration<double, std::micro>(b - a).count();
-			t_astar += std::chrono::duration<double, std::micro>(c - b).count();
 			steps_jps += st.steps;
 
 			const long want = dijkstra(nav, sx, sy, tx, ty);
@@ -152,8 +148,6 @@ int main() {
 			if (cells.empty() || cells.front() != std::make_pair(sx, sy)) fail("path does not start at start", seed, sx, sy, tx, ty, 0, 0);
 			if (got < 0) fail("illegal segment", seed, sx, sy, tx, ty, got, want);
 			if (ok != (want >= 0)) fail("reachability differs from Dijkstra", seed, sx, sy, tx, ty, ok, want >= 0);
-			if (ok && !ok_astar) ++astar_missed;
-			if (ok_astar && !ok) fail("legacy A* found a path JPS missed", seed, sx, sy, tx, ty, ok, ok_astar);
 			if (ok) {
 				if (cells.back() != std::make_pair(tx, ty)) fail("path does not end at goal", seed, sx, sy, tx, ty, 0, 0);
 				if (got != want) fail("cost differs from Dijkstra", seed, sx, sy, tx, ty, got, want);
@@ -163,22 +157,20 @@ int main() {
 				++unreachable;
 			}
 
-			// find_path end to end: same reachability and end point as legacy A*,
+			// find_path end to end: reaches the goals Dijkstra reaches (these grids
+			// have no regions, so it never moves the goal), ends at the goal and is
 			// deterministic across repeated calls.
 			const float wx0 = ((sx + 0.5f) / RES) * 128.f - 64.f, wz0 = ((sy + 0.5f) / RES) * 128.f - 64.f;
 			const float wx1 = ((tx + 0.5f) / RES) * 128.f - 64.f, wz1 = ((ty + 0.5f) / RES) * 128.f - 64.f;
-			WaypointPath p1, p2, p3;
+			WaypointPath p1, p2;
 			const bool r1 = nav.find_path(wx0, wz0, wx1, wz1, p1);
 			const bool r2 = nav.find_path(wx0, wz0, wx1, wz1, p2);
-			nav.use_jps = false;
-			const bool r3 = nav.find_path(wx0, wz0, wx1, wz1, p3);
-			nav.use_jps = true;
-			if (r3 && !r1) fail("find_path: legacy A* reached a goal JPS missed", seed, sx, sy, tx, ty, r1, r3);
+			if (r1 != (want >= 0)) fail("find_path: reachability differs from Dijkstra", seed, sx, sy, tx, ty, r1, want >= 0);
 			if (r1 != r2 || p1.count != p2.count) fail("find_path not deterministic", seed, sx, sy, tx, ty, p1.count, p2.count);
 			for (int k = 0; k < p1.count && k < p2.count; ++k)
 				if (p1.xs[k] != p2.xs[k] || p1.zs[k] != p2.zs[k]) fail("find_path not deterministic", seed, sx, sy, tx, ty, k, k);
-			if (r1 && r3 && (p1.xs[p1.count - 1] != p3.xs[p3.count - 1] || p1.zs[p1.count - 1] != p3.zs[p3.count - 1]))
-				fail("find_path end waypoint JPS vs A*", seed, sx, sy, tx, ty, 0, 0);
+			if (r1 && (p1.count == 0 || std::fabs(p1.xs[p1.count - 1] - wx1) > 0.1f || std::fabs(p1.zs[p1.count - 1] - wz1) > 0.1f))
+				fail("find_path does not end at the goal", seed, sx, sy, tx, ty, p1.count, 0);
 		}
 	}
 
@@ -200,10 +192,8 @@ int main() {
 	}
 
 	std::printf("  optimal vs Dijkstra: %d reachable queries, %d unreachable, 400 grids\n", compared, unreachable);
-	std::printf("  legacy A* failed on %d of those reachable queries (cardinal run skip never expands the cell next to a turn)\n", astar_missed);
-	std::printf("  avg JPS %.1f us (%.1f pops/query), legacy A* %.1f us, speedup %.2fx\n",
-			t_jps / (compared + unreachable), double(steps_jps) / (compared + unreachable),
-			t_astar / (compared + unreachable), t_astar / t_jps);
+	std::printf("  avg JPS %.1f us (%.1f pops/query)\n",
+			t_jps / (compared + unreachable), double(steps_jps) / (compared + unreachable));
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;

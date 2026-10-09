@@ -557,10 +557,8 @@ enum StatusEffect : uint8_t {
 	EFFECT_NONE = 0,
 	EFFECT_POISON = 1,
 	EFFECT_BURNING = 2,
-	EFFECT_SNARE = 4,
-	EFFECT_KNOCKBACK = 8,
-	EFFECT_SLOW = 16,
-	EFFECT_BLEED = 32
+	// Bits 4-32 were RTS0's invented snare, knockback, slow and bleed; tick_status_effects
+	// clears them from saves made before they went.
 };
 
 enum VictoryCondition : uint8_t {
@@ -706,6 +704,19 @@ inline bool unit_is_ship(uint8_t type) {
 	return type == UNIT_TRIREME || type == UNIT_FISHING_BOAT || type == UNIT_MERCHANT_SHIP;
 }
 
+// How close a unit's centre comes to a building: its 0 A.D. passability class Clearance
+// (simulation/data/pathfinder.xml) in RTS0 units, "default" 0.8 m and "large" 3 m, the class of
+// siege engines and elephants (template_unit_siege, template_unit_champion_elephant,
+// template_unit_support_elephant, template_unit_hero_elephant_melee). Ships keep their hull
+// radius: docks are the only buildings they meet. Between units RTS0 keeps unit_collision_radius.
+inline float unit_building_clearance(uint8_t type) {
+	switch (type) {
+		case UNIT_CATAPULT: case UNIT_SIEGE_RAM: case UNIT_BOLT_SHOOTER:
+		case UNIT_ELEPHANT: case UNIT_WORKER_ELEPHANT: return 3.0f / 4.0f;
+		default: return unit_is_ship(type) ? unit_collision_radius(type) : 0.8f / 4.0f;
+	}
+}
+
 inline bool unit_is_siege_engine(uint8_t type) {
 	return type == UNIT_SIEGE_RAM || type == UNIT_CATAPULT || type == UNIT_BOLT_SHOOTER;
 }
@@ -841,6 +852,13 @@ inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 	};
 	if (type >= BLD_TYPE_COUNT) return kTable[BLD_HOUSE];
 	return kTable[type];
+}
+
+// Half the depth (along the footprint's v axis, nav/footprint.h) of a building of `type` whose half
+// width is `half_w`. Every RTS0 building so far is square; 0 A.D.'s walls are long and thin.
+inline float building_half_depth(uint8_t type, float half_w) {
+	(void)type;
+	return half_w;
 }
 
 // 0 A.D. Identity/Requirements/Techs per structure: 1 = phase_village,
@@ -1131,6 +1149,28 @@ inline constexpr uint16_t civ_bit(uint8_t civ) { return (civ < 16) ? (uint16_t)(
 // Roster tables hold at most 64 * CIV_TEMPLATE_WORDS_MAX unit templates.
 inline constexpr uint16_t CIV_TEMPLATE_WORDS_MAX = 8;
 
+// A unit's short path around buildings (nav/building_steering.h), kept between ticks as 0 A.D.'s
+// CCmpUnitMotion keeps m_ShortPath: the first waypoint (x, z), the aim it leads towards, and the
+// obstacle key it was searched among. key 0 = no short path. Saved raw (no padding).
+struct ShortPathMemo {
+	float x = 0.0f, z = 0.0f;
+	float aim_x = 0.0f, aim_z = 0.0f;
+	uint32_t key = 0;
+};
+static_assert(sizeof(ShortPathMemo) == 20, "ShortPathMemo is saved raw");
+
+// CCmpUnitMotion's m_FailedMovements and the move of the 0 A.D. turn under way (200 ms, four RTS0
+// ticks), which motion_feedback() judges when the turn ends, as UnitMotion judges each turn's Move.
+struct MotionTurn {
+	float from_x = 0.0f, from_z = 0.0f; // where the unit stood before its first step this turn
+	float want_x = 0.0f, want_z = 0.0f; // the steps it tried this turn, summed
+	uint8_t failed = 0;  // m_FailedMovements: obstructed turns in a row
+	uint8_t stepped = 0; // it tried a step this turn
+	uint8_t blocked = 0; // a closed gate stopped one of this turn's steps
+	uint8_t pad = 0;
+};
+static_assert(sizeof(MotionTurn) == 20, "MotionTurn is saved raw");
+
 struct CivHeroAura {
 	const char *id;
 	const char *name;
@@ -1218,6 +1258,7 @@ struct CivUnitTemplate {
 	int16_t auras[3]; // index into civ_hero_aura_table(), -1 = none
 	uint8_t unlock_tech; // TechnologyId from 0 A.D. Identity/Requirements (unlock_champion_*), or TECH_NONE
 	uint64_t tech_classes; // TechClass bits of 0 A.D. Identity/Classes + VisibleClasses
+	float vision; // 0 A.D. Vision/Range x0.28 (RTS0 units)
 };
 
 #include "civ_roster_data.h"

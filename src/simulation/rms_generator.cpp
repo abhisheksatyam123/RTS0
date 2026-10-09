@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <vector>
 #include <cstring>
+#include <limits>
+#include <queue>
 
 namespace rtso {
 
@@ -1821,17 +1823,23 @@ void RmsGenerator::synth_cantabrian_highlands(HeightmapGrid &hm, RmsRng &rng, fl
 	hm.apply_fbm(rng, 4, 0.025f, 0.5f, 2.0f, 2.0f);
 	const float start = rng.range_float(0.0f, 6.2831853f);
 	const float ring_r = half * 0.70f;
+	// Bases are levelled before the hills go up: levelling a base on its hill (14 units and a
+	// 6-unit blend) would fill the upper half of its ramp back in, leaving a cliff.
+	place_ring_spawns(hm, spawns, num_players, ring_r, start, 6.2831853f, water_h + 1.5f);
 	for (int i = 0; i < num_players; ++i) {
 		const float a = start + 6.2831853f * (float)i / (float)std::max(1, num_players);
 		// The ramp points back towards the centre, give or take pi / 8.
 		const float ramp = a + 3.14159265f * (1.0f + rng.range_float(-1.0f, 1.0f) / 8.0f);
 		hm.raise_plateau(std::cos(a) * ring_r, std::sin(a) * ring_r, 19.0f, ramp, 0.3f, 7.0f, 6.0f);
 	}
-	place_ring_spawns(hm, spawns, num_players, ring_r, start, 6.2831853f, water_h + 1.5f);
 	scatter_ponds(hm, rng, spawns, scale_by_map_size(1, 4, half) * std::max(1, num_players) / 2,
 	              half * 0.05f + 3.0f, 30.0f, 12.0f, half * 0.95f, 3.0f, water_h);
 	hm.blur(1, 0.3f);
-	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 15.0f, 3.0f, sp.base_height);
+	// The hilltop inside the ramp's start (half the hill's radius).
+	for (auto &sp : spawns) {
+		sp.base_height = hm.sample_world(sp.x, sp.z);
+		lift_area(hm, sp.x, sp.z, 8.0f, 1.5f, sp.base_height);
+	}
 }
 
 void RmsGenerator::synth_pyrenean_sierra(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
@@ -7717,6 +7725,125 @@ void RmsGenerator::synth_unknown(HeightmapGrid &hm, RmsRng &rng, float &water_h,
 	finish_spawns(hm, spawns, locs, land, 18.0f, water_h);
 }
 
+namespace {
+// Eases the heights along a route of navcells (cell indices in res x res) wherever it crosses one
+// steeper than land units may (LAND_MAX_TERRAIN_SLOPE): each steep stretch, and as much of the
+// route on either side as a ramp of half that slope needs, gets heights falling evenly from one
+// end to the other, flat across a corridor 2.5 units each side of the route.
+void ease_route(HeightmapGrid &hm, const NavGrid &g, const std::vector<float> &slope, const std::vector<int32_t> &route) {
+	const int res = g.res;
+	const float cell = 2.0f * hm.map_half / (float)res;
+	constexpr float RAMP = 0.5f * LAND_MAX_TERRAIN_SLOPE; // along the route, leaving room for its corners
+	const int m = (int)route.size();
+	std::vector<float> cx(m), cz(m), h(m), along(m);
+	for (int i = 0; i < m; ++i) {
+		cx[i] = ((float)(route[i] % res) + 0.5f) * cell - hm.map_half;
+		cz[i] = ((float)(route[i] / res) + 0.5f) * cell - hm.map_half;
+		h[i] = hm.sample_world(cx[i], cz[i]);
+		along[i] = (float)i * cell;
+	}
+	for (int i = 0; i < m;) {
+		if (!(slope[route[i]] > LAND_MAX_TERRAIN_SLOPE)) { ++i; continue; }
+		int a = i, c = i;
+		while (c + 1 < m && (slope[route[c + 1]] > LAND_MAX_TERRAIN_SLOPE ||
+		                     (c + 3 < m && slope[route[c + 3]] > LAND_MAX_TERRAIN_SLOPE)))
+			++c;
+		a = std::max(0, a - 1);
+		c = std::min(m - 1, c + 1);
+		while (std::fabs(h[c] - h[a]) > RAMP * (along[c] - along[a]) && (a > 0 || c < m - 1)) {
+			a = std::max(0, a - 1);
+			c = std::min(m - 1, c + 1);
+		}
+		const float full = 1.25f * cell, edge = 2.5f * cell;
+		const float x0 = *std::min_element(cx.begin() + a, cx.begin() + c + 1) - edge;
+		const float x1 = *std::max_element(cx.begin() + a, cx.begin() + c + 1) + edge;
+		const float z0 = *std::min_element(cz.begin() + a, cz.begin() + c + 1) - edge;
+		const float z1 = *std::max_element(cz.begin() + a, cz.begin() + c + 1) + edge;
+		const float step = 2.0f * hm.map_half / (float)(hm.res - 1);
+		const int vx0 = std::max(0, (int)std::floor((x0 + hm.map_half) / step)), vx1 = std::min(hm.res - 1, (int)std::ceil((x1 + hm.map_half) / step));
+		const int vz0 = std::max(0, (int)std::floor((z0 + hm.map_half) / step)), vz1 = std::min(hm.res - 1, (int)std::ceil((z1 + hm.map_half) / step));
+		const float span = std::max(along[c] - along[a], 1e-3f);
+		for (int vz = vz0; vz <= vz1; ++vz)
+			for (int vx = vx0; vx <= vx1; ++vx) {
+				const float wx = -hm.map_half + (float)vx * step, wz = -hm.map_half + (float)vz * step;
+				int near = -1;
+				float nd = edge;
+				for (int k = a; k <= c; ++k) {
+					const float d = std::hypot(wx - cx[k], wz - cz[k]);
+					if (d < nd) { nd = d; near = k; }
+				}
+				if (near < 0) continue;
+				const float target = h[a] + (h[c] - h[a]) * (along[near] - along[a]) / span;
+				const float t = nd <= full ? 1.0f : 1.0f - smoothstep(full, edge, nd);
+				const float cur = hm.get(vx, vz);
+				hm.set(vx, vz, cur + (target - cur) * t);
+			}
+		i = c + 1;
+	}
+}
+
+// RTS0's safety net for MaxTerrainSlope, which every land unit obeys: a port's hills, ridges or
+// bumps can come out steeper or wider than the 0 A.D. script makes them and wall a base off where
+// the script leaves a way through. Where the gentlest land route from the first base to another
+// crosses a navcell too steep, ease_route turns that stretch into a ramp. Water stays as it is: a
+// base the sea cuts off stays on its island.
+void ease_routes_between_bases(HeightmapGrid &hm, const std::vector<RmsGenerator::PlayerSpawn> &spawns, float water_h) {
+	if (spawns.size() < 2) return;
+	const int res = Simulation::grid_res_for_map(hm.map_half);
+	constexpr float NONE = std::numeric_limits<float>::infinity();
+	for (int round = 0; round < 8; ++round) {
+		NavGrid g;
+		g.init(hm.map_half, res);
+		g.set_water_from_heights(hm.data, hm.res, water_h);
+		if (!g.any_steep()) return;
+		std::vector<float> slope((size_t)res * (size_t)res);
+		for (int y = 0; y < res; ++y)
+			for (int x = 0; x < res; ++x) slope[(size_t)y * res + x] = g.compute_cell_slope(x, y, hm.data, hm.res);
+		// The route whose steepest navcell is least steep (a bottleneck Dijkstra over land
+		// navcells). (slope, cell) keys are all distinct, so every standard library's heap pops
+		// them in the same order.
+		std::vector<float> best((size_t)res * (size_t)res, NONE);
+		std::vector<int32_t> prev((size_t)res * (size_t)res, -1);
+		using Key = std::pair<float, int32_t>;
+		std::priority_queue<Key, std::vector<Key>, std::greater<Key>> open;
+		const auto [sx, sy] = g.world_to_cell(spawns[0].x, spawns[0].z);
+		best[(size_t)sy * res + sx] = 0.0f;
+		open.push({0.0f, sy * res + sx});
+		while (!open.empty()) {
+			const auto [d, k] = open.top();
+			open.pop();
+			if (d > best[(size_t)k]) continue;
+			const int x = k % res, y = k / res;
+			static const int dirs[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+			for (const auto &dir : dirs) {
+				const int nx = x + dir[0], ny = y + dir[1];
+				if (!g.cells.inside(nx, ny)) continue;
+				const uint8_t c = g.cells.at(nx, ny);
+				if (c != NAV_PASSABLE && c != NAV_SHALLOW) continue;
+				const int32_t n = ny * res + nx;
+				const float nd = std::max(d, slope[(size_t)n]);
+				if (nd < best[(size_t)n]) {
+					best[(size_t)n] = nd;
+					prev[(size_t)n] = k;
+					open.push({nd, n});
+				}
+			}
+		}
+		bool eased = false;
+		for (size_t b = 1; b < spawns.size(); ++b) {
+			const auto [bx, by] = g.world_to_cell(spawns[b].x, spawns[b].z);
+			const int32_t t = by * res + bx;
+			if (best[(size_t)t] == NONE || !(best[(size_t)t] > LAND_MAX_TERRAIN_SLOPE)) continue;
+			std::vector<int32_t> route;
+			for (int32_t k = t; k >= 0; k = prev[(size_t)k]) route.push_back(k);
+			ease_route(hm, g, slope, route);
+			eased = true;
+		}
+		if (!eased) return;
+	}
+}
+} // namespace
+
 // =========================================================================
 // Main RmsGenerator Entry Point
 // =========================================================================
@@ -7987,6 +8114,8 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 			synth_peloponnese(hm, rng, water_h, spawns, config.num_players);
 			break;
 	}
+
+	ease_routes_between_bases(hm, spawns, water_h);
 
 	// Transfer heightmap to simulation
 	sim.set_terrain_data(hm.data, hm.res, water_h);
