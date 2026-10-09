@@ -3,6 +3,8 @@
 
 // Spatial index for Simulation::separation()'s per-unit building scan.
 
+#include "simulation/nav/footprint.h"
+
 #include <algorithm>
 #include <bit>
 #include <cmath>
@@ -14,7 +16,7 @@ namespace rtso {
 namespace nav {
 
 // A building list as one bit set per square cell: bit i of a cell is set when building i's
-// footprint (x, z) +- half_size overlaps the cell. A query ORs the cells under its box and visits
+// footprint's bounding box (x, z) +- footprint_extent overlaps the cell. A query ORs the cells under its box and visits
 // the set bits, so candidates come in list order, once each, and a loop over them that applies the
 // same tests as a loop over the whole list adds up the same results in the same order. Rebuild it
 // whenever the list changes.
@@ -30,8 +32,9 @@ public:
 		masks_.assign(static_cast<size_t>(w_) * w_ * words_, 0);
 		for (size_t i = 0; i < count_; ++i) {
 			const auto& b = buildings[i];
-			const int x0 = axis(b.x - b.half_size), x1 = axis(b.x + b.half_size);
-			const int z0 = axis(b.z - b.half_size), z1 = axis(b.z + b.half_size);
+			const float e = footprint_extent(b);
+			const int x0 = axis(b.x - e), x1 = axis(b.x + e);
+			const int z0 = axis(b.z - e), z1 = axis(b.z + e);
 			for (int cz = z0; cz <= z1; ++cz)
 				for (int cx = x0; cx <= x1; ++cx)
 					masks_[(static_cast<size_t>(cz) * w_ + cx) * words_ + i / 64] |= uint64_t{1} << (i % 64);
