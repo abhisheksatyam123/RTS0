@@ -843,6 +843,28 @@ public:
 	void set_starting_resources(int food, int wood, int gold, int stone) {
 		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) set_player_resources(p, food, wood, gold, stone);
 	}
+	// 0 A.D. settings/starting_resources.json: Very Low, Low (default), Medium, High,
+	// Very High, Deathmatch; every resource starts at the same amount.
+	static constexpr int STARTING_RESOURCE_PRESETS[] = {100, 300, 500, 1000, 3000, 50000};
+	static constexpr int STARTING_RESOURCE_PRESET_COUNT = 6;
+	static constexpr int STARTING_RESOURCE_PRESET_DEFAULT = 1;
+	void set_starting_resources_preset(int preset) {
+		if (preset < 0 || preset >= STARTING_RESOURCE_PRESET_COUNT) preset = STARTING_RESOURCE_PRESET_DEFAULT;
+		const int r = STARTING_RESOURCE_PRESETS[preset];
+		set_starting_resources(r, r, r, r);
+	}
+	// Game Setup teams (0 A.D. Diplomacy ChangeTeam): setup[p] is 0 for "None" or
+	// team 1-4. A player with no team stays alone (team = its own id); a team's id is
+	// its lowest member, so it can never match a teamless player's id.
+	void set_setup_teams(const uint8_t setup[MAX_PLAYERS]) {
+		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+			uint8_t id = p;
+			if (setup[p] != 0)
+				for (uint8_t q = 0; q < p; ++q)
+					if (setup[q] == setup[p]) { id = q; break; }
+			set_player_team(p, id);
+		}
+	}
 
 	float food_rate(uint8_t pid = 0) const { return player(pid).gathered_window[RES_FOOD] * 6.0f; } // per min approx
 	float wood_rate(uint8_t pid = 0) const { return player(pid).gathered_window[RES_WOOD] * 6.0f; }
