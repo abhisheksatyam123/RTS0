@@ -14,6 +14,9 @@
 //     heals only its owner's humans by 1 hp/s within 40 m.
 //  8. Health regeneration: Battlefield Medicine gives idle organic units +0.5 hp/s,
 //     not siege engines and not before it is researched.
+//  9. Health and vision auras: Ptolemy IV's pikemen get +40% max and current health
+//     while near him and lose it when they leave; Han Xin gives allied soldiers +25%
+//     vision everywhere.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_combat.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -315,6 +318,40 @@ static void test_regen() {
 	check(s.units_.hp[idx(s, ram)] == 50.0f, "a ram (not organic) does not regenerate");
 }
 
+static void test_health_vision_auras() {
+	std::printf("9. health and vision auras\n");
+	Simulation s;
+	setup(s);
+	s.set_mutual_ally(0, 2);
+	const uint16_t ptolemy = template_named("hero_ptolemy_iv");
+	const uint16_t pike = template_named("ptol/infantry_pikeman_b");
+	const uint16_t han_xin = template_named("han/hero_han_xin_horse");
+	check(ptolemy != CIV_UNIT_TEMPLATE_NONE && pike != CIV_UNIT_TEMPLATE_NONE && han_xin != CIV_UNIT_TEMPLATE_NONE,
+		"roster has Ptolemy IV, a Ptolemaic pikeman and Han Xin");
+	uint32_t hero = s.spawn_unit(-20.0f, 20.0f, 0, UNIT_HERO, 0.0f, ptolemy);
+	s.order_set_stance(&hero, 1, STANCE_STAND_GROUND);
+	uint32_t p = s.spawn_unit(-18.0f, 20.0f, 0, UNIT_SPEARMAN, 0.0f, pike);
+	s.order_set_stance(&p, 1, STANCE_STAND_GROUND);
+	const float max0 = s.units_.max_hp[idx(s, p)];
+	s.units_.hp[idx(s, p)] = max0 * 0.5f;
+	for (int k = 0; k < 20; ++k) s.tick(DT);
+	int i = idx(s, p);
+	check(std::fabs(s.units_.max_hp[i] - max0 * 1.4f) < 0.01f, "pikeman near Ptolemy IV: max health x1.4");
+	check(std::fabs(s.units_.hp[i] / s.units_.max_hp[i] - 0.5f) < 0.01f, "health fraction kept");
+	s.units_.pos_x[i] = 20.0f; s.units_.pos_z[i] = -20.0f;
+	for (int k = 0; k < 20; ++k) s.tick(DT);
+	i = idx(s, p);
+	check(std::fabs(s.units_.max_hp[i] - max0) < 0.01f, "pikeman away from him: max health back");
+
+	s.spawn_unit(-30.0f, -30.0f, 0, UNIT_HERO, 0.0f, han_xin);
+	uint32_t ally = s.spawn_unit(30.0f, -30.0f, 2, UNIT_SWORDSMAN);
+	uint32_t foe = s.spawn_unit(30.0f, 30.0f, 1, UNIT_SWORDSMAN);
+	s.rebuild_auras();
+	const float base = unit_vision_range(UNIT_SWORDSMAN);
+	check(std::fabs(s.unit_vision_at(idx(s, ally)) - base * 1.25f) < 1e-3f, "Han Xin: allied soldier +25% vision, map-wide");
+	check(std::fabs(s.unit_vision_at(idx(s, foe)) - base) < 1e-3f, "Han Xin: enemy soldier unchanged");
+}
+
 int main() {
 	test_data();
 	test_bonus();
@@ -324,6 +361,7 @@ int main() {
 	test_no_invented();
 	test_auras();
 	test_regen();
+	test_health_vision_auras();
 	if (g_failures) {
 		std::printf("test_combat: FAIL (%d)\n", g_failures);
 		return 1;

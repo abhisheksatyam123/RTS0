@@ -21630,7 +21630,11 @@
      "multiply": 1.1
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_HEALTH",
+    1.1,
+    8.4
+   ]
   },
   {
    "id": "ptol_hero_cleopatra_vii_3",
@@ -21650,7 +21654,11 @@
      "multiply": 0.9
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_HEALTH",
+    0.9,
+    8.4
+   ]
   },
   {
    "id": "ptol_hero_ptolemy_i_1",
@@ -21722,7 +21730,11 @@
      "multiply": 1.4
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_HEALTH",
+    1.4,
+    16.8
+   ]
   },
   {
    "id": "sele_hero_antiochus_iii",
@@ -21776,7 +21788,11 @@
      "multiply": 0.8
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_HEALTH",
+    0.8,
+    22.400000000000002
+   ]
   },
   {
    "id": "sele_hero_seleucus_i",
@@ -21852,7 +21868,11 @@
      "multiply": 1.25
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_VISION",
+    1.25,
+    1000.0
+   ]
   },
   {
    "id": "han_hero_liu_bang_1",

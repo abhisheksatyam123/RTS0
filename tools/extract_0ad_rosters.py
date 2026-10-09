@@ -765,7 +765,9 @@ def load_team_bonuses(sim_root, rows):
 
 
 # RTS0 AuraManager kinds (aura_manager.h AuraType).
-AURA_KIND = {"AURA_GATHER": 0, "AURA_HEAL": 1, "AURA_ATTACK": 2, "AURA_SPEED": 3, "AURA_ARMOR": 4}
+AURA_KIND = {"AURA_GATHER": 0, "AURA_HEAL": 1, "AURA_ATTACK": 2, "AURA_SPEED": 3, "AURA_ARMOR": 4,
+             "AURA_HEALTH": 5, "AURA_VISION": 6}
+MULTIPLY_AURAS = ("AURA_ATTACK", "AURA_SPEED", "AURA_HEALTH", "AURA_VISION")
 GLOBAL_AURA_RANGE = 1000.0
 
 
@@ -797,6 +799,10 @@ def rts0_aura_effect(a):
             kind, value = "AURA_ATTACK", 1.0 / m["multiply"]
         elif v == "UnitMotion/WalkSpeed" and "multiply" in m:
             kind, value = "AURA_SPEED", m["multiply"]
+        elif v == "Health/Max" and "multiply" in m:
+            kind, value = "AURA_HEALTH", m["multiply"]
+        elif v == "Vision/Range" and "multiply" in m:
+            kind, value = "AURA_VISION", m["multiply"]
         elif v.startswith("Resistance/Entity/Damage/") and "add" in m:
             kind, value = "AURA_ARMOR", m["add"]
         elif v in ("Health/IdleRegenRate", "Health/RegenRate") and "add" in m:
@@ -805,8 +811,8 @@ def rts0_aura_effect(a):
             kind, value = "AURA_GATHER", 1.0 - 1.0 / m["multiply"]
         if kind is None:
             continue
-        gain = value - 1.0 if kind in ("AURA_ATTACK", "AURA_SPEED") else value
-        if enemy and kind in ("AURA_ATTACK", "AURA_SPEED", "AURA_ARMOR"):
+        gain = value - 1.0 if kind in MULTIPLY_AURAS else value
+        if enemy and kind in MULTIPLY_AURAS + ("AURA_ARMOR",):
             gain = -gain
         if gain <= 0:
             continue
@@ -1182,6 +1188,9 @@ def unique_building_rows(sim_root):
             # Vision/Range on RTS0's scale (x0.3, never below the 18 every structure gets).
             "vision": max(18.0, t.num("Vision/Range") * 0.3),
             "dropsite": bool(t.tokens("ResourceDropsite/Types")),
+            # Structures with a 0 A.D. ranged Attack (BuildingAI: the Army Camp, Military
+            # Colony) shoot like RTS0's civil centre row until BuildingAI itself is ported.
+            "shoots": t.get("Attack/Ranged") is not None,
             # Loot/* a destroyed or captured structure yields (Looter.js), metal -> gold.
             "loot": [int(t.num("Loot/" + k)) for k in ("xp", "food", "wood", "stone", "metal")],
         })
@@ -1203,10 +1212,11 @@ def emit_buildings(rows):
     w("// BuildingTypeInfo rows for building_type_info(), in BuildingType order.")
     w("#define RTSO_CIV_BUILDING_INFO_ROWS \\")
     for r in rows:
-        w("\t\t{%s, %s, %s, %s, %d, %d, %d, %d, %d, %d, %d, %s, 0.0f, 0.0f, 0.0f, %s, %s, %s, %s}, /* %s */ \\" % (
+        attack = "16.0f, 18.0f, 1.0f" if r["shoots"] else "0.0f, 0.0f, 0.0f"  # Town Center's range, damage, cooldown
+        w("\t\t{%s, %s, %s, %s, %d, %d, %d, %d, %d, %d, %d, %s, %s, %s, %s, %s, %s}, /* %s */ \\" % (
             cstr(r["name"]), cstr(r["model"]), cstr(r["portrait"]), f(r["hp"]), r["foot"],
             r["food"], r["wood"], r["gold"], r["stone"], r["pop"], r["garrison"], f(r["build_time"]),
-            f(r["capture"]), f(r["regen"]), f(r["garrison_regen"]), f(r["decay"]), r["src"]))
+            attack, f(r["capture"]), f(r["regen"]), f(r["garrison_regen"]), f(r["decay"]), r["src"]))
     w("")
     w("")
     w("// LootInfo rows (xp, food, wood, stone, metal) for building_loot(), in BuildingType order.")
