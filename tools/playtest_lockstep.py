@@ -291,13 +291,13 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
                   "attack_walk": form_at(365, 369, "2:2:4")}
     form_ok = forms[0] == forms[1] and all(v is not None for v in form_turns.values())
     # Return resource (cmd 34) and trade routes (cmd 35): the carrier takes the
-    # drop-off order (12) and empties its 10 wood; the trader walks (1) with the
+    # drop-off order (12) and empties its 5 wood; the trader walks (1) with the
     # Shift-queued route behind it, then trades (11). Same turns on both peers.
     def steps(e, key):
         rows = [(t, e[t].get(key)) for t in sorted(e) if key in e[t]]
         return [(t, b) for (_, a), (t, b) in zip(rows, rows[1:]) if a != b]
     carries, trades = [steps(e, "carry") for e in extras], [steps(e, "trade") for e in extras]
-    carry_turns = {"order": next((t for t, b in carries[0] if 430 < t <= 434 and b == "12:10"), None),
+    carry_turns = {"order": next((t for t, b in carries[0] if 430 < t <= 434 and b == "12:5"), None),
                    "dropped": next((t for t, b in carries[0] if 430 < t <= 530 and b.endswith(":0")), None)}
     trade_turns = {"walk": next((t for t, b in trades[0] if 422 < t <= 426 and b == "1:1"), None),
                    "trade": next((t for t, b in trades[0] if 422 < t <= 560 and b.startswith("11:")), None)}
