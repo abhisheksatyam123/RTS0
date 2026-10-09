@@ -1072,6 +1072,10 @@ inline float building_garrison_heal(uint8_t type) {
 		default: return 0.0f;
 	}
 }
+// 0 A.D. structures/wall_garrisoned on walls, gates and outposts: turreted Soldiers
+// +3 resistance to each damage type and +20 m vision (x0.28 like every Vision range).
+inline constexpr float WALL_TURRET_ARMOR = 3.0f;
+inline constexpr float WALL_TURRET_VISION = 20.0f * 0.28f;
 inline float building_eject_health(uint8_t type) {
 	switch (type) {
 		case BLD_FORTRESS: return 0.075f;
