@@ -160,7 +160,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 49; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 50; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -1153,6 +1153,11 @@ public:
 	bool match_limit_allows(uint8_t player_id, uint16_t tmpl, int count = 1) const;
 	static constexpr int HERO_MATCH_LIMIT = 1;
 	std::array<std::vector<uint16_t>, MAX_PLAYERS> match_trained_; // hero templates each player trained (saved v42)
+	// Petra's army soldiers (0 A.D. units trained without metadata role "worker"): the citizen
+	// infantry an AI player trained outside its civic centres, sorted ids (saved v50). Every
+	// other citizen soldier of an AI is a worker (trainMoreWorkers, the starting units).
+	std::array<std::vector<uint32_t>, MAX_PLAYERS> petra_army_ids_;
+	bool petra_is_worker(size_t i) const;
 	bool entity_limit_allows_unit(uint8_t player_id, uint8_t unit_type, uint16_t tmpl, int count = 1) const;
 	bool entity_limit_allows_building(uint8_t player_id, uint8_t bld_type) const;
 	bool can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
@@ -2187,6 +2192,7 @@ private:
 	bool petra_perform_barter();      // tradeManager.js performBarter
 	void petra_set_trading_goods();   // tradeManager.js setTradingGoods
 	int petra_train_more_workers();
+	int petra_pop_room() const; // population left after Petra's queued batches
 	float petra_template_strength(const UnitTypeInfo &ui) const;
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
 	bool petra_limit_allows_building(uint8_t btype) const;

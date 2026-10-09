@@ -107,7 +107,8 @@ static void test_phase_up() {
 		if (town_at < 0.0f && s->petra_phase() >= 2) town_at = t;
 		if (city_at < 0.0f && s->petra_phase() >= 3) city_at = t;
 		if ((int)(t * 20.0f) % 200 == 0) {
-			int w = count_units(*s, 1, true);
+			int w = 0;
+			for (size_t i = 0; i < s->units_.count; ++i) w += s->units_.alive[i] && s->units_.team[i] == 1 && s->petra_is_worker(i);
 			if (w > peak_workers) peak_workers = w;
 			int f = 0;
 			for (const auto &b : s->buildings())
