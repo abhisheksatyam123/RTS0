@@ -101,8 +101,16 @@ def random_preview(script):
 
 
 def random_ids():
+    """Game setup's random map ids, plus every simulation map type (map_type_info in
+    sim_types.h, "random_" + id) so a map gets its preview before setup lists it."""
     src = open("scenes/menu/gamesetup.gd", encoding="utf-8").read()
-    return re.findall(r'^\s*\["(random_[a-z0-9_]+)"', src, re.M)
+    ids = re.findall(r'^\s*\["(random_[a-z0-9_]+)"', src, re.M)
+    types = open("src/simulation/sim_types.h", encoding="utf-8").read()
+    for tid in re.findall(r'^\s*\{MAP_[A-Z0-9_]+, "([a-z0-9_]+)", "[^"]*\(RMS\)"', types, re.M):
+        rid = tid if tid.startswith("random_") else "random_" + tid
+        if rid not in ids:
+            ids.append(rid)
+    return ids
 
 
 def save(map_id, png_name, cache):
