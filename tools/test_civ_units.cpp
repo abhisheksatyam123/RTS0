@@ -106,6 +106,29 @@ int main() {
 	}
 	CHECK(got_pericles);
 	CHECK(!m.cmd_train_template(0, pryt, themi));
+	// MatchLimit 1 (template_unit_hero.xml): once Pericles dies he cannot be trained
+	// again this match, while another hero can; a save keeps it.
+	{
+		auto v = m.units();
+		uint32_t pid = 0;
+		for (size_t u = 0; u < v.count; ++u)
+			if (v.team[u] == 0 && v.tmpl[u] == peri) pid = v.id[u];
+		m.cmd_delete(0, &pid, 1);
+		for (int i = 0; i < 20 * 15; ++i) m.tick(Simulation::FIXED_STEP);
+		bool alive = false;
+		auto w = m.units();
+		for (size_t u = 0; u < w.count; ++u)
+			if (w.alive[u] && w.tmpl[u] == peri) alive = true;
+		CHECK(!alive);
+		CHECK(!m.cmd_train_template(0, pryt, peri));
+		const char *mpath = "/tmp/rts0_match_limit.sav";
+		CHECK(m.save_state(mpath));
+		static Simulation r;
+		CHECK(r.load_state(mpath));
+		CHECK(!r.cmd_train_template(0, pryt, peri));
+		CHECK(r.cmd_train_template(0, pryt, themi));
+		CHECK(m.cmd_train_template(0, pryt, themi));
+	}
 
 	// Classes a civ lacks are refused (Athenians field no elephants).
 	CHECK(!m.cmd_train(0, tc, UNIT_ELEPHANT));
