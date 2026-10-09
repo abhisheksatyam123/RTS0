@@ -10223,6 +10223,17 @@ void Simulation::finish_order(size_t i) {
 			units_.action_state[i] = ACTION_RETURN_DROPSITE;
 			return;
 		}
+		// Empty-handed: head to the dropsite anyway, "a nice enough place to congregate and idle".
+		if (const uint32_t d = nearest_dropsite(i); d != 0) {
+			const Building &b = buildings_[building_id_to_idx_.at(d)];
+			float tx, tz;
+			stand_outside(b, uid, units_.pos_x[i], units_.pos_z[i], &tx, &tz);
+			uint32_t id = uid;
+			cmd_move(&id, 1, tx, tz);
+			set_order(i, ORDER_WALK, 0, 0, tx, tz); // an unforced walk: it answers attacks on the way
+			units_.target_resource_id[i] = 0;
+			return;
+		}
 	}
 	auto it = queued;
 	if (it != order_queues_.end() && !it->second.empty()) {
