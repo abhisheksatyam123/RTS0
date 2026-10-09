@@ -894,6 +894,9 @@ public:
 	// Centre of the nearest ship-passable cell around a building's footprint, and its
 	// ship region; false when none is near (ProductionQueue.js spawns ships there).
 	bool nearest_ship_cell(const Building &b, float &out_x, float &out_z, uint16_t *out_sea = nullptr) const;
+	// 0 A.D. Footprint.PickSpawnPoint: a free spot for a unit of `type` in rows around the
+	// footprint, the front (or the side facing the rally point) first; skip_uid is ignored.
+	bool pick_spawn_point(const Building &b, uint8_t type, uint32_t skip_uid, float &out_x, float &out_z) const;
 	void order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id,
 			bool queued = false);
 	void order_trade_auto(const uint32_t *unit_ids, size_t count); // farthest pair of tradable markets

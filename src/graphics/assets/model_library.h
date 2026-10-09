@@ -51,6 +51,7 @@ public:
 			godot::Transform3D rigid_xf;
 			std::vector<godot::Vector3> rest_v;
 			std::vector<godot::Vector3> rest_n;
+			std::vector<float> rest_t; // tangents (4 per vertex) for normal-mapped materials
 			std::vector<godot::Vector2> uv;
 			std::vector<godot::Color> col;
 			std::vector<int32_t> idx;
