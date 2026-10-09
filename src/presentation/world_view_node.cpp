@@ -378,6 +378,7 @@ void RtsoWorldView::_ready() {
 		spatial_players[p]->set_max_distance(80.0f);
 		spatial_players[p]->set_unit_size(8.0f);
 		spatial_players[p]->set_volume_db(0.0f);
+		spatial_players[p]->set_bus("Action"); // sound.actiongain
 		add_child(spatial_players[p]);
 	}
 
