@@ -288,9 +288,10 @@ def merge_into(base, elem):
                 elif tok not in old:
                     old.append(tok)
             node.text = " ".join(old)
-        elif op in ("add", "mul", "mul_round") and node.text not in (None, ""):
+        elif op in ("add", "mul", "mul_round"):
+            # CParamNode::ApplyLayer: a missing value counts as 0 (ToFixed of "").
             try:
-                a = float(node.text)
+                a = float(node.text) if node.text not in (None, "") else 0.0
                 b = float(text)
                 r = a + b if op == "add" else a * b
                 if op == "mul_round":

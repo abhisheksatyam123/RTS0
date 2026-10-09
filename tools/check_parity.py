@@ -550,6 +550,9 @@ def check_petra_parity():
         "Concurrent raid AttackPlan (petra_raid_plan_)": "petra_raid_plan_" in htxt and "petra_manage_raid" in ctxt and "find_petra_raid_target" in ctxt,
         "startingStrategy.js opening House/Storehouse/Barracks": "petra_manage_opening" in ctxt and "petra_opening_step_" in htxt,
         "naval fishing boats + gather": "UNIT_FISHING_BOAT" in ctxt and "target_fishers" in ctxt,
+        "navalManager.js lands and seas (regionsInit navalMap, getSeaBetweenIndices)": "void Simulation::petra_naval_topology" in ctxt and "PetraNavalTopo::classify" in ctxt and "PetraNavalTopo::sea_between" in ctxt,
+        "navalManager.js buildNavalStructures + maintainFleet (docks per sea, getBestShip, fishers per sea)": "pop_for_dock" in ctxt and "petra_best_ship(" in ctxt and "petra_can_fish_safely(" in ctxt,
+        "attackPlan.js overseas: wait for transport ships, sail, ferry the rest": "petra_plan_overseas(" in ctxt and "petra_transport_ships_on(overseas)" in ctxt,
         "research pop-gated Town/City phase": "work_phase3" in ctxt and "TECH_PHASE_TOWN" in ctxt and "pop_phase2" in ctxt,
         "navalManager.js moveApart idle ships": "moveApart" in ctxt and "UNIT_MERCHANT_SHIP" in ctxt,
     }
