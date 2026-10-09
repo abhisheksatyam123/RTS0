@@ -787,6 +787,9 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     bool save_ok = false;
     uint64_t oos_since = 0;
     std::set<uint32_t> waited_on;
+    // The last non-empty status report: the host's empties once the joiner has
+    // finished and gone, which can happen before this peer's last turn.
+    std::vector<ClientPerformanceMsg::Entry> last_perf;
     bool kick_done = false;
 
     while (tm.current_turn() < turns) {
@@ -974,6 +977,7 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
         // 0 A.D. "Waiting for players": whom this peer was held on.
         if (!tm.is_paused() && tm.waiting_ms() > 300)
             for (uint32_t c : tm.waiting_on()) waited_on.insert(c);
+        if (!net.clientPerformance().empty()) last_perf = net.clientPerformance();
         float dt = (float)(now - last) * 1e-6f * speed;
         last = now;
         if (net.kickedSelf()) {
@@ -1094,7 +1098,7 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     {
         // Network status (0 A.D. NMT_CLIENT_PERFORMANCE): the host's last report.
         std::string rtt, waited;
-        for (const auto &e : net.clientPerformance())
+        for (const auto &e : last_perf)
             rtt += (rtt.empty() ? "" : ",") + std::to_string(e.client) + ":" + std::to_string(e.rtt_ms);
         for (uint32_t c : waited_on) waited += (waited.empty() ? "" : ",") + std::to_string(c);
         std::printf("[net-peer] %s: status reports=%llu rtt=%s waited_on=%s\n", host ? "host" : "join",
