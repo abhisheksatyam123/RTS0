@@ -1437,6 +1437,44 @@ static void test_research_choices() {
 	CHECK(fights3 >= 2, "researches other technologies at random in the city phase");
 }
 
+// headquarters.js trainMoreWorkers: the civic centre trains citizen infantry as workers
+// once support units pass supportRatio's curve, and they gather. buildMoreHouses: houses
+// go up before the population is full, at most 3 at once below 80 population.
+static void test_worker_mix() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	int start_soldiers = 0;
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 1 &&
+		    unit_gather_class(s->units_.unit_type[i], s->units_.tmpl[i]) == GATHER_INFANTRY) ++start_soldiers;
+	int max_houses = 0;
+	for (int k = 0; k < 8 * 60; ++k) {
+		run_for(*s, 1.0f);
+		int houses = 0;
+		for (const auto &b : s->buildings_) houses += b.team == 1 && b.type == BLD_HOUSE && b.build_progress < 1.0f;
+		if (s->pop_current(1) <= 80) max_houses = std::max(max_houses, houses);
+	}
+	int supports = 0, soldiers = 0, gathering = 0;
+	for (size_t i = 0; i < s->units_.count; ++i) {
+		if (!s->units_.alive[i] || s->units_.team[i] != 1) continue;
+		const uint8_t g = unit_gather_class(s->units_.unit_type[i], s->units_.tmpl[i]);
+		if (g == GATHER_SUPPORT) ++supports;
+		if (g != GATHER_INFANTRY) continue;
+		++soldiers;
+		gathering += s->units_.action_state[i] == ACTION_GATHER || s->units_.action_state[i] == ACTION_RETURN_DROPSITE;
+	}
+	std::printf("  8 min: %d support, %d citizen infantry (%d at start, %d gathering), at most %d houses at once\n",
+	            supports, soldiers, start_soldiers, gathering, max_houses);
+	CHECK(soldiers >= start_soldiers + 5, "trains citizen infantry as workers");
+	CHECK(gathering * 2 >= soldiers, "most worker soldiers gather");
+	const float support_max = 0.5f * (float)s->petra_config_.target_num_workers; // supportRatio is 0.35-0.5 by difficulty
+	CHECK(supports > 10 && (float)supports <= support_max + 5.0f, "support units follow supportRatio");
+	CHECK(max_houses >= 1 && max_houses <= 3, "houses go up a few at a time");
+}
+
 // victoryManager.js: in wonder victory a finished wonder is a critical entity,
 // guarded by up to 10 + 5 * defensive soldiers, champions first, who turn on
 // whoever attacks it.
@@ -1891,6 +1929,7 @@ int main() {
 	test_defend_allies();
 	test_retake_civic_centre();
 	test_research_choices();
+	test_worker_mix();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }
