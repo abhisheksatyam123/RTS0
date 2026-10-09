@@ -4,6 +4,7 @@
 #include "../core/memory/arena.h"
 #include "../core/memory/soa_storage.h"
 #include "grid_nav.h"
+#include "los_grid.h"
 #include "nav/footprint.h"
 #include "nav/obstacle_grid.h"
 #include "aura_manager.h"
@@ -150,7 +151,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 40; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 41; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -189,6 +190,15 @@ public:
 	// player in multiplayer). Presentation-only: not hashed, not used by the sim.
 	void set_fow_viewer(uint8_t player) { fow_viewer_ = player; }
 	uint8_t fow_state_at(float x, float z, uint8_t viewer_team = 0) const;
+	// Per-player line of sight (0 A.D. CCmpRangeManager LOS; see los_grid.h),
+	// hashed and saved. Player p sees what its own sources and those of the
+	// players it shares vision with (VisionSharing.js, los_shared_mask) see;
+	// "Revealed map" shows everything and "Explored map" explores everything.
+	uint8_t los_shared_mask(uint8_t player) const;
+	bool los_visible(uint8_t player, float x, float z) const;
+	bool los_explored(uint8_t player, float x, float z) const;
+	const LosGrid &los() const { return los_; }
+	uint32_t los_hash() const { return los_.hash(); }
 	bool is_entity_visible_to_viewer(float x, float z, uint8_t entity_team, uint8_t viewer_team = 0) const;
 
 	struct Building {
@@ -834,6 +844,39 @@ public:
 	};
 	PlacementResult check_placement(uint8_t player, int cell_x, int cell_y, uint8_t b_type) const;
 
+	// 0 A.D. WallSet walls (helpers/Walls.js GetWallPlacement, Commands.js "construct-wall").
+	struct WallPiece {
+		uint8_t type;   // BLD_WALL_TOWER or BLD_WALL_SEGMENT
+		float x, z;     // centre
+		float rot;      // Position angle: a segment's length lies along its u axis
+		float half_w;   // half its length (a segment) or its half size (a tower)
+	};
+	// The pieces of a wall from (sx, sz) to (ex, ez), in order along it: a tower at each end, none
+	// where that end snaps onto one of `player`'s wall towers (its id goes in *start_tower or
+	// *end_tower, else 0), and segments joined by towers. Empty when the ends are too close.
+	std::vector<WallPiece> wall_placement(uint8_t player, float sx, float sz, float ex, float ez,
+			uint32_t *start_tower = nullptr, uint32_t *end_tower = nullptr) const;
+	// The wall tower of `player`'s that a wall end at (x, z) snaps onto (input.js snaps to towers
+	// under the cursor), or 0.
+	uint32_t wall_snap_tower(uint8_t player, float x, float z) const;
+	// check_placement for one wall piece, with the buildings in `ignore` (the towers it joins and
+	// the pieces between them) left out of the obstruction test, as 0 A.D. obstruction control
+	// groups do.
+	PlacementResult check_wall_piece(uint8_t player, const WallPiece &p, const uint32_t *ignore = nullptr,
+			size_t ignore_n = 0) const;
+	// Commands.js TryConstructWall: lays the pieces of the wall from (sx, sz) to (ex, ez) as
+	// foundations in order, paying for each, and stops at the first that is blocked or unaffordable;
+	// `builders` build them one after another. Returns the number of pieces laid.
+	size_t cmd_build_wall(uint8_t player, float sx, float sz, float ex, float ez, const uint32_t *builders = nullptr,
+			size_t builder_n = 0, bool queued = false);
+	// Lockstep cmd NET_CMD_BUILD_WALL carries a wall's start point in target_id: x and z in
+	// 1/32 world units from -1024, 16 bits each.
+	static uint32_t pack_wall_point(float x, float z);
+	static void unpack_wall_point(uint32_t packed, float &x, float &z);
+	// The GRID cells a building takes in occupied_cells_: its footprint's square of cells, or for
+	// a WallSet piece every cell its turned rectangle overlaps.
+	std::vector<std::pair<int, int>> building_cells(const Building &b) const;
+
 	void tick(float dt);
 
 	// Views
@@ -868,6 +911,7 @@ public:
 	ResourceView resources() const;
 
 	const std::vector<Building> &buildings() const { return buildings_; }
+	float building_vision_range(const Building &b) const; // 0 when b gives no vision
 	const std::vector<Projectile> &projectiles() const { return projectiles_; }
 
 	// Per-player table. Out-of-range ids clamp to player 0 so stray team bytes can't index past the array.
@@ -1267,6 +1311,7 @@ public:
 	// Diagnostic only: never read by the simulation, so lockstep is unaffected.
 	struct MapScaleStats {
 		uint64_t fow_us = 0, fow_calls = 0;
+		uint64_t los_us = 0, los_calls = 0;
 		uint64_t path_us = 0, path_calls = 0;
 		uint64_t territory_us = 0, territory_calls = 0;
 		uint64_t threat_us = 0, threat_calls = 0;
@@ -1469,6 +1514,8 @@ private:
 	void fauna_hit_unit(size_t f, size_t u);              // an animal's melee attack lands on unit u
 	bool fauna_can_step(size_t f, float x, float z) const;
 	void tick_fow();  // updates FoW each sim tick
+	void tick_los();  // moves every LOS source that changed since the last tick
+	void reset_los();
 	void ensure_fow_cell_heights();
 	// The cells one viewer lit, kept while it stands still (CCmpRangeManager likewise redoes a
 	// viewer's LOS only when it moves). Derived from the terrain alone: never saved or hashed, and
@@ -1630,6 +1677,17 @@ private:
 	mutable size_t resource_block_count_ = SIZE_MAX;
 	mutable int resource_block_w_ = 0;
 	void ensure_resource_block_cells() const;
+	// check_placement over the cells `cells` of a footprint whose bounds are [x0, x1] x [z0, z1]
+	// and centre (cx, cz); `rect` is a turned footprint (a WallSet piece) or null for a square, and
+	// occupied cells in `ignore_cells` don't obstruct it.
+	PlacementResult check_placement_cells(uint8_t player, uint8_t b_type, const std::vector<std::pair<int, int>> &cells,
+			float x0, float z0, float x1, float z1, float cx, float cz, const Building *rect,
+			const std::vector<std::pair<int, int>> *ignore_cells) const;
+	// A wall piece laid as a foundation (progress 0) or a finished one, with its WallSet extents.
+	uint32_t spawn_wall_piece(const WallPiece &p, uint8_t team, float progress);
+	// Cost.js: pays `b_type`'s cost after civ, team and technology bonuses (stone_override, when
+	// not negative, in place of its template stone). False, paying nothing, if unaffordable.
+	bool pay_for_structure(uint8_t player, uint8_t b_type, float stone_override = -1.0f);
 	// petra_place_building searches that found no spot, with the signature of what
 	// they read (petra_placement_signature). Exact, so derived state: never saved.
 	struct PetraPlaceMiss {
@@ -1959,6 +2017,9 @@ private:
 	std::array<std::vector<uint8_t>, MAX_PLAYERS> player_fow_; // per-player FoW for players 1..7 (index 0 unused: fow_grid_)
 	std::vector<uint8_t> unexplored_fow_ = std::vector<uint8_t>((size_t)MAX_GRID_RES * MAX_GRID_RES, 0);
 	std::vector<uint8_t> revealed_fow_ = std::vector<uint8_t>((size_t)MAX_GRID_RES * MAX_GRID_RES, FOW_VISIBLE);
+	LosGrid los_;                         // per-player LOS counts and visible/explored bits (saved v41)
+	std::vector<LosSource> los_unit_src_; // the circle each unit index last added
+	std::vector<LosSource> los_bld_src_;  // the circle each buildings_ index last added
 
 	// Per-AI Petra state. The petra_* members above hold the state of the AI being
 	// run (PETRA_PLAYER between ticks); every other AI slot's state is parked here
