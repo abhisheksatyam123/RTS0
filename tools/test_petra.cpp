@@ -21,6 +21,9 @@
 //     and cavalry raid an enemy structure inside Petra's territory.
 //  7. Each AI slot keeps its own difficulty and behaviour (game setup's
 //     per-player AI settings), through its turns and a save and load.
+//  8. Hunting (worker.js startHunting): gatherers collect a treasure nearby,
+//     food gatherers kill the livestock by their dropsite first, citizen
+//     cavalry hunt animals that flee, and no one hunts inside enemy territory.
 //  Exit: 0 = PASS, 1 = FAIL.
 // The ally check reads the sim's death log, which has no public accessor.
 #define private public
@@ -665,6 +668,60 @@ static void test_diplomacy_requests() {
 	      "both AIs end up neutral to each other");
 }
 
+// worker.js startHunting: Petra's food gatherers slaughter the chickens by
+// their Town Center, its citizen cavalry chase the deer, and an animal grazing
+// in the enemy's territory is left alone.
+static void test_hunting() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float ex = 0.0f, ez = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) { ex = b.x; ez = b.z; }
+	CHECK(s->territory_owner_at(ex + 6.0f, ez) == 0, "the enemy's Town Center holds its land");
+	const uint32_t foreign = s->spawn_fauna(ex + 6.0f, ez, FAUNA_SHEEP);
+	float px = 0.0f, pz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { px = b.x; pz = b.z; }
+	const uint32_t treasure = s->spawn_resource_treasure(px + 9.0f, pz - 3.0f, RES_WOOD);
+	auto &u = s->units_;
+	auto &f = s->fauna_;
+	std::vector<uint32_t> chickens;
+	for (size_t i = 0; i < f.count; ++i)
+		if (f.alive[i] && f.fauna_type[i] == FAUNA_CHICKEN && f.pos_x[i] < 0.0f) chickens.push_back(f.id[i]);
+	CHECK(chickens.size() == 4, "Petra's base has its four chickens");
+	bool cav_hunted_deer = false, worker_on_chicken = false, foreign_hunted = false;
+	for (float t = 0.0f; t < 90.0f; t += Simulation::FIXED_STEP) {
+		s->tick(Simulation::FIXED_STEP);
+		for (size_t i = 0; i < u.count; ++i) {
+			if (!u.alive[i] || u.team[i] != 1 || u.action_state[i] != ACTION_ATTACK) continue;
+			const uint32_t tid = u.target_unit_id[i];
+			auto it = s->fauna_id_to_idx_.find(tid);
+			if (it == s->fauna_id_to_idx_.end() || s->lookup_unit(tid) >= 0) continue;
+			const uint8_t ft = f.fauna_type[it->second];
+			if (u.unit_type[i] == UNIT_CAVALRY && ft == FAUNA_DEER) cav_hunted_deer = true;
+			if ((u.unit_type[i] == UNIT_VILLAGER || u.unit_type[i] == UNIT_FEMALE_CITIZEN) && ft == FAUNA_CHICKEN) worker_on_chicken = true;
+			if (tid == foreign) foreign_hunted = true;
+		}
+	}
+	int chickens_left = 0;
+	for (uint32_t id : chickens) {
+		auto it = s->fauna_id_to_idx_.find(id);
+		if (it != s->fauna_id_to_idx_.end() && f.alive[it->second]) ++chickens_left;
+	}
+	const bool treasure_taken = !s->is_treasure_id(treasure);
+	std::printf("  treasure by Petra's Town Center collected: %s\n", treasure_taken ? "yes" : "no");
+	CHECK(treasure_taken, "Petra's gatherers collect a treasure by their base (gatherTreasure)");
+	std::printf("  hunting: workers slaughter chickens %s (%d of %zu left after 90s), cavalry hunt deer %s, sheep in enemy land hunted %s\n",
+	            worker_on_chicken ? "yes" : "no", chickens_left, chickens.size(), cav_hunted_deer ? "yes" : "no", foreign_hunted ? "yes" : "no");
+	CHECK(worker_on_chicken && chickens_left * 2 <= (int)chickens.size(), "food gatherers slaughter the livestock by their dropsite");
+	CHECK(cav_hunted_deer, "citizen cavalry hunt animals that flee");
+	CHECK(!foreign_hunted, "no one hunts in enemy territory");
+}
+
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
@@ -678,6 +735,7 @@ int main() {
 	test_allow_capture();
 	test_garrisons();
 	test_diplomacy_requests();
+	test_hunting();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }
