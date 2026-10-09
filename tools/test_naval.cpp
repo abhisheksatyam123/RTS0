@@ -387,6 +387,137 @@ static void test_no_wading() {
 	CHECK(aboard(s, ship, boarder));
 }
 
+// A ship moored beside a house on the shore still sails off: its path starts on
+// the centre of its own cell, closer to the house than the ship can stand, which
+// move_units' crowded-waypoint skip passes over for ships too (seen on an island
+// map: Petra's transport sat beside a house for the rest of the game).
+static void test_ship_leaves_shore_house() {
+	// The spot from the bench: the Tiny continental map of seed 7 is two islands.
+	static Simulation s;
+	s.reset();
+	s.set_sim_seed(7);
+	s.set_waves_enabled(false);
+	s.generate_random_map(MAP_RANDOM_CONTINENTAL, 7, 2, 64.0f);
+	s.spawn_building_world(-15.0f, -15.0f, BLD_HOUSE, 1, 1.0f);
+	s.spawn_building_world(-19.0f, -13.0f, BLD_HOUSE, 1, 1.0f);
+	const uint32_t ship = s.spawn_unit(-12.439f, -12.439f, 1, UNIT_TRIREME, 0.0f);
+	s.cmd_move(&ship, 1, 13.0f, 13.0f);
+	run(s, 60.0f);
+	const int32_t i = idx(s, ship);
+	const float moved = std::hypot(s.units().pos_x[i] + 12.439f, s.units().pos_z[i] + 12.439f);
+	std::printf("ship beside a shore house: sailed %.1f toward the other island\n", moved);
+	CHECK(moved > 10.0f);
+}
+
+static int count_units(const Simulation &s, uint8_t team, uint8_t type) {
+	int n = 0;
+	for (size_t i = 0; i < s.units().count; ++i)
+		if (s.units().alive[i] && s.units().team[i] == team && s.units().unit_type[i] == type) ++n;
+	return n;
+}
+
+// Petra's navalManager.js: the regions it reads the map with, a dock once its
+// population passes popForDock, one fishing boat per sea with fish and no warships.
+static void test_petra_navy() {
+	static Simulation s;
+	fresh(s);
+	// Lands and seas (accessibility.js): the sea joins the north and south lands,
+	// the lake touches only the north.
+	Simulation::PetraNavalTopo topo;
+	s.petra_naval_topology(topo);
+	const uint16_t north = s.petra_land_at(-30.0f, 40.0f), south = s.petra_land_at(-30.0f, -40.0f);
+	auto [scx, scz] = s.nav_grid_.world_to_cell(0.0f, 0.0f);
+	auto [lcx, lcz] = s.nav_grid_.world_to_cell(44.0f, 44.0f);
+	const uint16_t sea = s.nav_grid_.global_region_at(scx, scz, PASS_SHIP);
+	const uint16_t lake = s.nav_grid_.global_region_at(lcx, lcz, PASS_SHIP);
+	CHECK(north && south && north != south && sea && lake && sea != lake);
+	CHECK(topo.sea_between(north, south) == sea && topo.linked(north, lake) && !topo.linked(south, lake));
+	topo.classify(north);
+	// The sea is a quarter of the map: a naval map. The lake (~4000 m²) is a naval region too.
+	CHECK(topo.naval_map && topo.naval[sea] && topo.naval[lake]);
+
+	// Population 20: no dock yet. Over 25: a dock on a sea of its land.
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	for (int k = 0; k < 4; ++k) s.spawn_resource_world(-40.0f + 10.0f * k, 0.0f, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+	for (int k = 0; k < 20; ++k) s.spawn_unit(-40.0f + (float)(k % 10) * 2.0f, 50.0f + (float)(k / 10) * 2.0f, 1, UNIT_VILLAGER);
+	auto petra_docks = [&](bool built) {
+		int n = 0;
+		for (const auto &b : s.buildings()) if (b.team == 1 && b.type == BLD_DOCK && (!built || b.build_progress >= 1.0f)) ++n;
+		return n;
+	};
+	run(s, 6.0f);
+	CHECK(petra_docks(false) == 0);
+	for (int k = 0; k < 8; ++k) s.spawn_unit(-40.0f + (float)k * 2.0f, 56.0f, 1, UNIT_VILLAGER);
+	run(s, 6.0f);
+	uint32_t dock = 0;
+	for (const auto &b : s.buildings()) if (b.team == 1 && b.type == BLD_DOCK) dock = b.id;
+	std::printf("Petra navy: dock %s at population %d\n", dock ? "placed" : "not placed", s.pop_current(1));
+	CHECK(dock != 0);
+	const Simulation::Building *db = bld(s, dock);
+	CHECK(db && s.petra_building_land(*db) == north && (s.dock_sea(*db) == sea || s.dock_sea(*db) == lake));
+
+	// A finished dock on the sea: one fishing boat (targetNumFishers 1 on a large
+	// land), out fishing, and no warship while no attack crosses the water.
+	static Simulation t;
+	fresh(t);
+	t.set_player_active(1, true, true);
+	t.set_player_resources(1, 5000, 5000, 5000, 5000);
+	t.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	t.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	for (int k = 0; k < 4; ++k) t.spawn_resource_world(-40.0f + 10.0f * k, 0.0f, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+	run(t, 90.0f);
+	int fishing = 0;
+	for (size_t i = 0; i < t.units().count; ++i)
+		if (t.units().alive[i] && t.units().team[i] == 1 && t.units().unit_type[i] == UNIT_FISHING_BOAT &&
+		    (t.units().action_state[i] == ACTION_GATHER || t.units().action_state[i] == ACTION_RETURN_DROPSITE)) ++fishing;
+	std::printf("Petra navy: %d fishing boats (%d fishing), %d warships\n", count_units(t, 1, UNIT_FISHING_BOAT), fishing, count_units(t, 1, UNIT_TRIREME));
+	CHECK(count_units(t, 1, UNIT_FISHING_BOAT) == 1 && fishing == 1);
+	CHECK(count_units(t, 1, UNIT_TRIREME) == 0);
+}
+
+// attackPlan.js overseas: an attack on the other land waits for a transport ship,
+// which navalManager.js trains (getBestShip "transport"), then sails across.
+static void test_petra_overseas_attack() {
+	static Simulation s;
+	fresh(s);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.players_[1].phase = 2;
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t house = s.spawn_building_world(20.0f, -40.0f, BLD_HOUSE, 0);
+	std::vector<uint32_t> army;
+	for (int k = 0; k < 6; ++k) army.push_back(s.spawn_unit(-36.0f + 2.0f * k, 30.0f, 1, UNIT_SPEARMAN));
+	run(s, 1.0f);
+	auto &slot = s; // player 1 is PETRA_PLAYER: its state lives in the petra_* members
+	slot.petra_attack_mgr_.kind = PETRA_ATTACK_ATTACK;
+	slot.petra_attack_mgr_.target_size = 6;
+	slot.petra_attack_mgr_.min_size = 6;
+	slot.petra_attack_mgr_.rushes_set = 1;
+	slot.petra_attack_plan_.state = Simulation::AttackPlan::MUSTER;
+	slot.petra_attack_plan_.target_building_id = house;
+	slot.petra_attack_plan_.state_timer = 0.0f;
+	run(s, 4.0f);
+	// Ready, but nothing to sail in: it waits, and a transport ship is in training.
+	CHECK(s.petra_attack_plan_.state == Simulation::AttackPlan::MUSTER);
+	run(s, 60.0f);
+	int ships = count_units(s, 1, UNIT_TRIREME);
+	std::printf("Petra overseas attack: %d transport ship(s) trained\n", ships);
+	CHECK(ships >= 1);
+	int across = 0;
+	for (int k = 0; k < 120 && across == 0; ++k) {
+		run(s, 1.0f);
+		for (uint32_t uid : army) {
+			const int32_t i = idx(s, uid);
+			if (i >= 0 && s.units().alive[i] && s.units().pos_z[i] < -16.0f) ++across;
+		}
+	}
+	std::printf("Petra overseas attack: %d of 6 spearmen landed on the south shore\n", across);
+	CHECK(across >= 1);
+}
+
 // DeathDamage.js: a fire ship (mixins/fireship.xml) burns down at RegenRate -5 and, dying,
 // deals 500 Fire over 20 m to everyone, its own side too, with quadratic falloff.
 // Other ships and structures deal nothing when they die.
@@ -436,6 +567,9 @@ int main() {
 	test_fishing();
 	test_petra_sea_trade();
 	test_ship_height();
+	test_ship_leaves_shore_house();
+	test_petra_navy();
+	test_petra_overseas_attack();
 	test_fire_ship();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
