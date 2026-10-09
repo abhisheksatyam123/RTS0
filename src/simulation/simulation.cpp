@@ -3550,25 +3550,6 @@ float Simulation::building_arrow_range(const Building &b) const {
 	return ai.max_range + (b.team < MAX_PLAYERS ? tech_mods(b.team).bld_range[b.type] : 0.0f);
 }
 
-// Resistance.js levels a unit has right now: its template's, researched armour, rank
-// (melee units +1 per rank) and armour auras.
-void Simulation::unit_resistance(size_t t, float armor[3]) const {
-	const auto &info = unit_info_at(t);
-	armor[0] = info.hack_armor;
-	armor[1] = info.pierce_armor;
-	armor[2] = info.crush_armor;
-	if (units_.team[t] < MAX_PLAYERS && units_.unit_type[t] < UNIT_TYPE_COUNT) {
-		const float *tech = unit_tech_mods(units_.team[t], units_.unit_type[t], units_.tmpl[t]).armor;
-		for (int k = 0; k < 3; ++k) armor[k] += tech[k];
-	}
-	if (const float ra = rank_melee_armor(t); ra > 0.0f)
-		for (int k = 0; k < 3; ++k) armor[k] += ra;
-	const float aura = aura_mgr_.query_modifier(units_.pos_x[t], units_.pos_z[t], units_.team[t], AURA_ARMOR,
-		units_.tmpl[t], &unit_combat_at(t).classes);
-	armor[0] += aura;
-	armor[1] += aura;
-}
-
 // Who may board: same owner, not a transport itself; land siege only takes
 // 0 A.D.'s Support and Infantry classes.
 bool Simulation::can_board(size_t transport_idx, size_t unit_idx) const {
@@ -6342,34 +6323,6 @@ void Simulation::tick_combat(float dt) {
 				           unit_splash(units_.tmpl[i], u_att));
 			}
 
-			// If War Trireme has garrisoned passengers, fire deck archer barrage
-			if (u_att == UNIT_TRIREME) {
-				auto pit = transport_passengers_.find(units_.id[i]);
-				if (pit != transport_passengers_.end() && !pit->second.empty()) {
-					int p_archers = 0;
-					float p_bonus_dmg = 0.0f;
-					for (uint32_t puid : pit->second) {
-						int32_t pidx = lookup_unit(puid);
-						if (pidx < 0) continue;
-						uint8_t pt = units_.unit_type[pidx];
-						if (pt == UNIT_ARCHER || pt == UNIT_ARCHER_MAIDEN || pt == UNIT_BOLT_SHOOTER) {
-							p_archers += 1;
-							p_bonus_dmg += 3.0f;
-						} else {
-							p_bonus_dmg += 1.0f;
-						}
-					}
-					int extra = std::clamp(1 + p_archers + (int)pit->second.size() / 3, 1, 6);
-					for (int a = 0; a < extra; ++a) {
-						float sp = (a - extra * 0.5f) * 0.3f;
-						float deck_y = unit_height(i) + 2.5f;
-						float hit_y = unit_height(t) + 0.8f;
-						fire_arrow(units_.pos_x[i] + sp, deck_y, units_.pos_z[i] + sp,
-								   units_.pos_x[t], hit_y, units_.pos_z[t],
-								   12.0f + p_bonus_dmg, units_.team[i], units_.id[t], 0, 1, false, 0, units_.id[i]);
-					}
-				}
-			}
 		} else {
 			award_damage_xp(units_.id[i], (size_t)t, final_dmg);
 			note_attacked(units_.id[i], units_.team[i], units_.id[t], units_.team[t], false, final_dmg);

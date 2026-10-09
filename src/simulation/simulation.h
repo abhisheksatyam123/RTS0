@@ -508,9 +508,8 @@ public:
 	int building_arrow_count(const Building &b) const;
 	// Attack/Ranged/MaxRange with technologies, measured from the structure's edge (0 = never shoots).
 	float building_arrow_range(const Building &b) const;
-	// Resistance.js hack, pierce and crush levels of unit `t` (SoA index), with technologies,
-	// rank and armour auras.
-	void unit_resistance(size_t t, float armor[3]) const;
+	// A unit's hack, pierce and crush resistance levels (template, techs, rank, armour auras).
+	void unit_resistance(size_t i, float out[3]) const;
 	int get_transport_capacity(uint32_t transport_id) const;
 	// Ships as GarrisonHolders (template_unit_ship*.xml): capacity and List per
 	// template, LoadingRange 10 m, Pickup, EjectClassesOnDestroy. `i` is a SoA index.
@@ -1270,8 +1269,6 @@ private:
 	// 0 A.D. helpers/Attack.js CauseDamageOverArea for an Attack Splash landing at (ox, oz).
 	void cause_damage_over_area(uint8_t splash, uint32_t attacker_id, uint8_t attacker_team,
 			float ox, float oz, float dir_x, float dir_z);
-	// A unit's hack, pierce and crush resistance levels (template, techs, rank, armour auras).
-	void unit_resistance(size_t i, float out[3]) const;
 	void tick_gates(float dt);
 	void tick_waves(float dt);
 	void tick_petra_ai(float dt);
