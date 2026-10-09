@@ -57,6 +57,11 @@
 //     way are ignored, attacks at work are answered.
 // 35. A load of another type is dropped when gathering starts; builders take their load to
 //     the dropsite they finished; guards stop guarding a unit that changed owner.
+// 38. UnitAI audit batch: a queued order after a gather goes first (with a drop-off ahead
+//     of it); arrows from a structure are attacks; a capturing unit answers a ranged attacker;
+//     garrisoning at a dropsite drops the load; the killer of a wolf cheers; CanGuard; guards
+//     repair the structure they guard; idle healers in a formation heal; a siege engine
+//     (un)packing ignores attacks.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_unit_orders.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -1364,6 +1369,127 @@ static void test_guard_structure() {
 	}
 }
 
+static void test_unitai_audit() {
+	std::printf("38. UnitAI audit batch\n");
+	{
+		Simulation s;
+		setup(s);
+		s.spawn_building_world(-20, 0, BLD_STOREHOUSE, 0, 1.0f);
+		const uint32_t small = s.spawn_resource_world(0, 0, RES_WOOD, 4);
+		s.spawn_resource_world(5, 0, RES_WOOD, 500);
+		uint32_t w = s.spawn_unit(-1.5f, 0, 0, UNIT_FEMALE_CITIZEN);
+		s.order_gather(&w, 1, small);
+		s.order_walk(&w, 1, 0.0f, 20.0f, true);
+		const float wood0 = s.player(0).res[RES_WOOD];
+		const bool walked = run_until(s, 60.0f, [&] { return dist(s, w, 0.0f, 20.0f) < 2.0f; });
+		check(walked && s.player(0).res[RES_WOOD] >= wood0 + 4.0f,
+				"a queued walk after a gather goes before the next tree, after a drop-off (FINDINGNEWTARGET)");
+	}
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t tower = s.spawn_building_world(30, 0, BLD_TOWER, 1, 1.0f);
+		uint32_t w = s.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN);
+		s.order_set_stance(&w, 1, STANCE_PASSIVE);
+		uint32_t sol = s.spawn_unit(0, 6, 0, UNIT_SPEARMAN);
+		s.units_.attacked_by[idx_of(s, w)] = tower;
+		s.units_.attacked_by[idx_of(s, sol)] = tower;
+		s.tick(DT);
+		check(act_of(s, w) == ACTION_FLEE, "a woman shot by a tower flees from it");
+		check(s.units_.target_building_id[idx_of(s, sol)] == tower, "an idle soldier shot by a tower goes for it");
+	}
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t house = s.spawn_building_world(10, 0, BLD_HOUSE, 1, 1.0f);
+		uint32_t c = s.spawn_unit(5, 0, 0, UNIT_SPEARMAN);
+		s.order_attack_building(&c, 1, house, false, true);
+		const bool capturing = run_until(s, 10.0f, [&] { return s.unit_capturing(idx_of(s, c)); });
+		uint32_t archer = post(s, 5, 12, UNIT_ARCHER);
+		s.units_.attacked_by[idx_of(s, c)] = archer;
+		s.tick(DT);
+		check(capturing && target_of(s, c) == 0, "a player's capture order ignores a ranged attacker (order.data.force)");
+		s.order_set_stance(&c, 1, STANCE_VIOLENT);
+		s.units_.attacked_by[idx_of(s, c)] = archer;
+		s.tick(DT);
+		check(target_of(s, c) == archer, "a violent capturer turns on it (ATTACKING Attacked, targetAttackersAlways)");
+	}
+	{
+		Simulation s;
+		setup(s);
+		uint32_t cc = 0;
+		for (const auto &b : s.buildings()) if (b.type == BLD_TOWN_CENTER && b.team == 0) cc = b.id;
+		uint32_t w = s.spawn_unit(-46, -46, 0, UNIT_FEMALE_CITIZEN);
+		s.units_.carry[idx_of(s, w)] = 8;
+		s.units_.res_type_carried[idx_of(s, w)] = RES_STONE;
+		const float stone0 = s.player(0).res[RES_STONE];
+		s.order_garrison(&w, 1, cc);
+		const bool in = run_until(s, 20.0f, [&] { return act_of(s, w) == ACTION_GARRISONED; });
+		check(in && s.player(0).res[RES_STONE] >= stone0 + 8.0f && s.units_.carry[idx_of(s, w)] == 0,
+				"garrisoning at a dropsite drops the load first");
+	}
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t wolf = s.spawn_fauna(3, 0, FAUNA_WOLF);
+		s.fauna_.hp[s.fauna_id_to_idx_.at(wolf)] = 1.0f;
+		uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
+		s.order_attack(&a, 1, wolf);
+		const bool cheered = run_until(s, 10.0f, [&] { return act_of(s, a) == ACTION_CHEER; });
+		check(cheered, "the unit that kills a wolf cheers (shouldCheer)");
+	}
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t store = s.spawn_building_world(0, 0, BLD_STOREHOUSE, 0, 1.0f);
+		uint32_t ram = s.spawn_unit(10, 0, 0, UNIT_SIEGE_RAM);
+		uint32_t trader = s.spawn_unit(10, 4, 0, UNIT_TRADER);
+		s.order_guard(&ram, 1, store);
+		s.order_guard(&trader, 1, store);
+		check(s.unit_order(ram).kind != ORDER_GUARD && s.unit_order(trader).kind != ORDER_GUARD,
+				"siege engines and traders don't guard (CanGuard)");
+		uint32_t enemy = s.spawn_unit(10, 8, 1, UNIT_SPEARMAN);
+		uint32_t g = s.spawn_unit(12, 8, 0, UNIT_SPEARMAN);
+		s.order_guard(&g, 1, enemy);
+		check(s.unit_order(g).kind != ORDER_GUARD, "nor guard an enemy unit");
+		uint32_t w = s.spawn_unit(-8, 0, 0, UNIT_FEMALE_CITIZEN);
+		s.order_guard(&w, 1, store);
+		run(s, 2.0f);
+		for (auto &b : s.buildings_) if (b.id == store) b.hp = b.max_hp * 0.5f;
+		const bool repairing = run_until(s, 4.0f, [&] { return act_of(s, w) == ACTION_BUILD; });
+		const bool fixed = run_until(s, 120.0f, [&] { return bld(s, store)->hp >= bld(s, store)->max_hp; });
+		run(s, 1.0f);
+		check(repairing && fixed, "a woman guarding a damaged storehouse repairs it (GUARDING Timer)");
+		check(s.unit_order(w).kind == ORDER_GUARD && s.unit_order(w).target == store, "then guards it again");
+	}
+	{
+		Simulation s;
+		setup(s);
+		uint32_t ids[5];
+		for (int k = 0; k < 4; ++k) ids[k] = s.spawn_unit(-2.0f + 1.5f * k, 0, 0, UNIT_SPEARMAN);
+		ids[4] = s.spawn_unit(0, -2, 0, UNIT_HEALER);
+		s.order_set_formation(ids, 5, FORMATION_BOX);
+		run(s, 3.0f);
+		check(s.formation_group_[idx_of(s, ids[4])] != 0, "a healer in a box formation");
+		s.set_unit_hp(ids[0], 20.0f);
+		const bool heals = run_until(s, 6.0f, [&] { return act_of(s, ids[4]) == ACTION_HEAL; });
+		check(heals, "an idle healer in a formation heals a hurt member (FORMATIONMEMBER.IDLE)");
+	}
+	{
+		Simulation s;
+		setup(s);
+		uint32_t cat = s.spawn_unit(0, 0, 0, UNIT_CATAPULT);
+		s.order_pack(&cat, 1, false);
+		s.tick(DT);
+		const uint8_t ps = s.units_.pack_state[idx_of(s, cat)];
+		uint32_t e = post(s, 0, 8, UNIT_SWORDSMAN);
+		s.units_.attacked_by[idx_of(s, cat)] = e;
+		s.tick(DT);
+		check(ps == PACK_UNPACKING && s.units_.pack_state[idx_of(s, cat)] == PACK_UNPACKING && target_of(s, cat) == 0,
+				"a catapult unpacking ignores an attack");
+	}
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -1404,6 +1530,7 @@ int main(int argc, char **argv) {
 	test_loads_and_guards();
 	test_remove_guard_call_to_arms();
 	test_guard_structure();
+	test_unitai_audit();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
