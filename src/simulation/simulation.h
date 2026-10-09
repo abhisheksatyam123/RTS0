@@ -2042,10 +2042,12 @@ private:
 	void apply_order(uint32_t uid, const UnitOrder &o);
 	bool order_still_valid(size_t i, const UnitOrder &o) const;
 	int32_t structure_attacker(uint32_t building_id, uint8_t team) const;
+	uint32_t nearest_dropsite(size_t i) const;
+	void deposit_carry(size_t i);
 	void finish_order(size_t i);
 	void resume_order(size_t i);
 	void respond_to_attack(size_t i);
-	void respond_to_attacker(size_t i, uint32_t attacker_id, float ax, float az, bool melee);
+	void respond_to_attacker(size_t i, uint32_t attacker_id, float ax, float az, bool melee, bool structure = false);
 	std::vector<uint16_t> combat_wild_scratch_; // tick_combat: dangerous animals this tick
 	// ResourceGatherer.CanGather: unit index i has a Rates entry for resource index r.
 	bool can_gather(size_t i, size_t r) const;
