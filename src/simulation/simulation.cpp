@@ -3890,6 +3890,7 @@ void Simulation::tick_statistics() {
 		stats_[p].peak_percent_map_controlled = stat_samples_.back().players[p].peak_percent_map_controlled;
 		stats_[p].team_peak_percent_map_controlled = stat_samples_.back().players[p].team_peak_percent_map_controlled;
 	}
+}
 
 // fire_arrow's horizontal speed by projectile look (arrow, warship bolt, stone).
 float Simulation::projectile_speed(uint8_t visual) {
