@@ -258,6 +258,7 @@ public:
 	void _on_speed_button_pressed();
 	void _on_menu_button_pressed();
 	void _on_ungarrison_pressed();
+	void _on_alert_pressed(int end);
 	void _on_selection_group_clicked(int key);
 	void _on_garrison_group_clicked(int key);
 	void _on_stance_selected(int stance);
