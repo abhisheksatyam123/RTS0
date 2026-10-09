@@ -1240,6 +1240,7 @@ public:
 
 	uint32_t spawn_fauna(float x, float z, uint8_t ftype);
 	void order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
+	uint32_t find_nearby_prey(size_t i, float x, float z) const;
 	bool is_fauna_id(uint32_t id) const { return fauna_id_to_idx_.count(id) != 0; }
 
 	// A Capture the Relic catafalque (template_unit_catafalque.xml). id is the catafalque
