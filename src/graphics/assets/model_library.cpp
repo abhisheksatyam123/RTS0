@@ -191,6 +191,24 @@ Ref<ShaderMaterial> player_color_material(const Ref<BaseMaterial3D> &bm) {
 }
 } // namespace
 
+// tools/extract_0ad_structures.py: civs whose 0 A.D. structure actor is the
+// same share one GLB, named in data/building_models.json.
+String ModelLibrary::building_glb_id(const String &id) {
+	static HashMap<String, String> aliases;
+	static bool loaded = false;
+	if (!loaded) {
+		loaded = true;
+		Ref<FileAccess> f = FileAccess::open("res://data/building_models.json", FileAccess::READ);
+		if (f.is_valid()) {
+			Dictionary root = JSON::parse_string(f->get_as_text());
+			Array keys = root.keys();
+			for (int i = 0; i < keys.size(); ++i) aliases.insert(keys[i], root[keys[i]]);
+		}
+	}
+	if (const String *a = aliases.getptr(id)) return *a;
+	return id;
+}
+
 bool ModelLibrary::is_player_color_material(const Ref<Material> &mat) {
 	Ref<ShaderMaterial> sm = mat;
 	return sm.is_valid() && sm->get_shader().is_valid() && sm->get_shader() == player_color_shader();
@@ -804,6 +822,10 @@ ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id)
 	Entry e;
 
 	Vector<String> candidates;
+	if (category == "buildings") {
+		const String glb = building_glb_id(id);
+		if (glb != id) candidates.push_back(String("res://assets/models/buildings/") + glb + String(".glb"));
+	}
 	candidates.push_back(String("res://assets/models/") + category + String("/") + id + String(".glb"));
 	candidates.push_back(String("res://assets/models/units/") + id + String(".glb"));
 	candidates.push_back(String("res://assets/models/buildings/") + id + String(".glb"));
