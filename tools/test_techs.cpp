@@ -411,8 +411,8 @@ int main() {
 	run(b, tech_info(TECH_FARMING_1).research_time + 1.0f);
 	CHECK(a.is_tech_researched(TECH_FARMING_1) && !b.is_tech_researched(TECH_FARMING_1));
 	CHECK(tm.compute_sim_hash(a) != tm.compute_sim_hash(b));
-	int with = farm_for(a, 40.0f), without = farm_for(b, 40.0f);
-	std::printf("food in 40 s: %d with Iron Plow, %d without\n", with, without);
+	int with = farm_for(a, 150.0f), without = farm_for(b, 150.0f);
+	std::printf("food in 150 s: %d with Iron Plow, %d without\n", with, without);
 	CHECK(without > 0 && with > without);
 
 	// Lockstep: identical research on two sims keeps them in sync.
