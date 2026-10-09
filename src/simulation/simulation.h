@@ -1567,6 +1567,10 @@ private:
 		void classify(uint16_t home_land);
 	};
 	void petra_naval_topology(PetraNavalTopo &t) const;
+	const PetraNavalTopo &petra_topo() const;
+	mutable PetraNavalTopo petra_topo_cache_; // derived from nav_grid_.cells, not saved
+	mutable uint64_t petra_topo_cache_key_ = 0;
+	mutable bool petra_topo_cache_valid_ = false;
 	uint16_t petra_land_at(float x, float z) const;
 	uint16_t petra_building_land(const Building &b, const PetraNavalTopo *topo = nullptr, uint16_t prefer = 0) const;
 	uint16_t petra_home_land(float x, float z, const PetraNavalTopo *topo = nullptr) const;

@@ -10212,6 +10212,25 @@ void Simulation::petra_naval_topology(PetraNavalTopo &t) const {
 	t.links.erase(std::unique(t.links.begin(), t.links.end()), t.links.end());
 }
 
+// The topology of the nav grid as it is now, rebuilt only when a cell or a region
+// id changed: attack plans ask about it on every AI tick. A pure function of the
+// nav grid, so the cache needs no saving.
+const Simulation::PetraNavalTopo &Simulation::petra_topo() const {
+	uint64_t key = 1469598103934665603ull ^ nav_grid_.cells.data.size() ^ (uint64_t)nav_grid_.regions_ready_;
+	for (uint8_t c : nav_grid_.cells.data) key = (key ^ c) * 1099511628211ull;
+	// Region ids too: a full rebuild (a loaded game) may number them afresh.
+	for (const GlobalRegionIds *g : {&nav_grid_.global_region_map_, &nav_grid_.ship_region_map_}) {
+		for (uint32_t f : g->first) key = (key ^ f) * 1099511628211ull;
+		for (uint16_t id : g->id) key = (key ^ id) * 1099511628211ull;
+	}
+	if (!petra_topo_cache_valid_ || key != petra_topo_cache_key_) {
+		petra_naval_topology(petra_topo_cache_);
+		petra_topo_cache_key_ = key;
+		petra_topo_cache_valid_ = true;
+	}
+	return petra_topo_cache_;
+}
+
 // headquarters.js getSeaBetweenIndices: a sea both lands touch.
 uint16_t Simulation::PetraNavalTopo::sea_between(uint16_t a, uint16_t b) const {
 	if (!a || !b || a == b) return 0;
@@ -10320,8 +10339,7 @@ uint16_t Simulation::petra_plan_overseas(float base_x, float base_z, uint32_t ta
 	for (uint16_t h : home)
 		for (uint16_t t : there)
 			if (h && h == t) return 0;
-	PetraNavalTopo topo;
-	petra_naval_topology(topo);
+	const PetraNavalTopo &topo = petra_topo();
 	return petra_overseas(topo, base_x, base_z, target_id);
 }
 
@@ -10436,8 +10454,7 @@ void Simulation::petra_manage_naval(float dt) {
 			any_water = nav_grid_.cells.at(x, y) == NAV_WATER;
 	if (!any_water) return;
 
-	PetraNavalTopo topo;
-	petra_naval_topology(topo);
+	PetraNavalTopo topo = petra_topo(); // classify() below marks this AI's naval seas
 	float home_x = 0.0f, home_z = 0.0f;
 	if (const PetraBase *pb = get_primary_petra_base()) { home_x = pb->x; home_z = pb->z; }
 	const uint16_t home = petra_home_land(home_x, home_z, &topo);
@@ -11661,8 +11678,7 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 			// our land (a failed transport leaves them, as a plan without ships does).
 			if (petra_transport_.state == PetraTransportPlan::IDLE &&
 			    petra_plan_overseas(base_x, base_z, petra_attack_plan_.target_building_id)) {
-				PetraNavalTopo topo;
-				petra_naval_topology(topo);
+				const PetraNavalTopo &topo = petra_topo();
 				const uint32_t target_id = petra_attack_plan_.target_building_id;
 				const uint16_t overseas = petra_overseas(topo, base_x, base_z, target_id);
 				auto tit = building_id_to_idx_.find(target_id);
