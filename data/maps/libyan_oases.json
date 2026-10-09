@@ -17596,5 +17596,21 @@
     }
   ],
   "gaia_structures": [],
-  "gaia_units": []
+  "gaia_units": [],
+  "scenery": [
+    {
+      "type": "obelisk",
+      "x": -123.03,
+      "z": 10.38,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "obelisk",
+      "x": 45.55,
+      "z": -57.69,
+      "angle": 2.3562,
+      "scale": 0.25
+    }
+  ]
 }

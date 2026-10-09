@@ -22712,5 +22712,105 @@
       "z": -27.01
     }
   ],
-  "gaia_units": []
+  "gaia_units": [],
+  "scenery": [
+    {
+      "type": "fence_short",
+      "x": -33.33,
+      "z": -37.89,
+      "angle": -0.978,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -56.47,
+      "z": 2.38,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -54.65,
+      "z": 4.66,
+      "angle": -0.8323,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -54.45,
+      "z": 2.47,
+      "angle": -2.4506,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -56.65,
+      "z": 4.51,
+      "angle": -2.4992,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -147.58,
+      "z": -36.02,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen",
+      "x": -145.53,
+      "z": -34.04,
+      "angle": 2.5028,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -132.61,
+      "z": -69.76,
+      "angle": -0.5165,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -149.34,
+      "z": -31.96,
+      "angle": -1.5323,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen",
+      "x": -134.19,
+      "z": -67.11,
+      "angle": 0.5207,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen",
+      "x": -147.55,
+      "z": -33.1,
+      "angle": 0.6408,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen",
+      "x": -124.66,
+      "z": -85.94,
+      "angle": -2.0627,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric",
+      "x": -125.1,
+      "z": -84.99,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric",
+      "x": -122.05,
+      "z": -86.21,
+      "angle": -2.3909,
+      "scale": 0.25
+    }
+  ]
 }
