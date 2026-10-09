@@ -4967,6 +4967,14 @@
 1.0
 ]
 },
+"buildings/s_iberians_sb_1_tex2": {
+"mask": "res://assets/textures/player_masks/props/iber_prop_shields_128x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "buildings/s_iberians_stable_tex0": {
 "mask": "res://assets/textures/player_masks/structural/iber_struct_512x256.png",
 "tint": [
@@ -5009,6 +5017,30 @@
 },
 "buildings/s_kushites_pyramid_small_tex0": {
 "mask": "res://assets/textures/player_masks/structural/kush_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_kushites_temple_amun_tex0": {
+"mask": "res://assets/textures/player_masks/structural/kush_struct_02_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_kushites_temple_amun_tex2": {
+"mask": "res://assets/textures/player_masks/structural/ptol_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_kushites_temple_amun_tex3": {
+"mask": "res://assets/textures/player_masks/props/lion_statue_512x512.png",
 "tint": [
 1.0,
 1.0,
@@ -5095,6 +5127,46 @@
 1.0
 ]
 },
+"buildings/s_mercenaries_camp_blemmye_tex2": {
+"mask": "res://assets/textures/player_masks/structural/tent_greek_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_mercenaries_camp_blemmye_tex3": {
+"mask": "res://assets/textures/player_masks/structural/ptol_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_mercenaries_camp_blemmye_tex6": {
+"mask": "res://assets/textures/player_masks/structural/tent_big_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_mercenaries_camp_blemmye_tex7": {
+"mask": "res://assets/textures/player_masks/structural/tent_arab_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_mercenaries_camp_nuba_tex0": {
+"mask": "res://assets/textures/player_masks/structural/kush_nuba_camp_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "buildings/s_persians_blacksmith_tex0": {
 "mask": "res://assets/textures/player_masks/structural/pers_struct_512x512.png",
 "tint": [
@@ -5127,6 +5199,14 @@
 1.0
 ]
 },
+"buildings/s_persians_ice_house_tex0": {
+"mask": "res://assets/textures/player_masks/structural/pers_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "buildings/s_persians_range_tex0": {
 "mask": "res://assets/textures/player_masks/structural/pers_struct_512x512.png",
 "tint": [
@@ -5151,6 +5231,30 @@
 1.0
 ]
 },
+"buildings/s_persians_tachara_tex0": {
+"mask": "res://assets/textures/player_masks/structural/pers_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_persians_tachara_tex3": {
+"mask": "res://assets/textures/player_masks/props/shield/pers_rect_c_128x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_persians_tachara_tex7": {
+"mask": "res://assets/textures/player_masks/props/shield/pers_rect_c_128x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "buildings/s_persians_wooden_tower_tex0": {
 "mask": "res://assets/textures/player_masks/structural/pers_struct_512x512.png",
 "tint": [
@@ -5161,6 +5265,14 @@
 },
 "buildings/s_persians_workshop_tex0": {
 "mask": "res://assets/textures/player_masks/structural/pers_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_props_mauryas_ashoka_pillar_tex2": {
+"mask": "res://assets/textures/player_masks/structural/maur_struct_512x512.png",
 "tint": [
 1.0,
 1.0,
@@ -5207,8 +5319,64 @@
 1.0
 ]
 },
+"buildings/s_ptolemies_military_colony_tex0": {
+"mask": "res://assets/textures/player_masks/structural/ptol_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_ptolemies_military_colony_tex2": {
+"mask": "res://assets/textures/player_masks/structural/Sele_struct_2_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_ptolemies_military_colony_tex3": {
+"mask": "res://assets/textures/player_masks/structural/hele_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "buildings/s_ptolemies_range_tex0": {
 "mask": "res://assets/textures/player_masks/structural/ptol_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_ptolemies_settlement_tex3": {
+"mask": "res://assets/textures/player_masks/structural/ptol_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_ptolemies_settlement_tex5": {
+"mask": "res://assets/textures/player_masks/structural/tent_greek_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_ptolemies_settlement_tex6": {
+"mask": "res://assets/textures/player_masks/structural/tent_arab_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_ptolemies_settlement_tex7": {
+"mask": "res://assets/textures/player_masks/structural/tent_big_256x256.png",
 "tint": [
 1.0,
 1.0,
@@ -5287,6 +5455,22 @@
 1.0
 ]
 },
+"buildings/s_romans_camp_tex3": {
+"mask": "res://assets/textures/player_masks/structural/rome_struct_2_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_romans_camp_tex4": {
+"mask": "res://assets/textures/player_masks/props/rome_sb_tent_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "buildings/s_romans_range_tex0": {
 "mask": "res://assets/textures/player_masks/structural/rome_struct_2_512x512.png",
 "tint": [
@@ -5297,6 +5481,30 @@
 },
 "buildings/s_romans_stable_tex0": {
 "mask": "res://assets/textures/player_masks/structural/rome_struct_2_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_romans_temple_mars_tex0": {
+"mask": "res://assets/textures/player_masks/structural/rome_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_romans_temple_mars_tex1": {
+"mask": "res://assets/textures/player_masks/props/rome_cc_statues_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_romans_temple_vesta_tex0": {
+"mask": "res://assets/textures/player_masks/structural/rome_struct_512x512.png",
 "tint": [
 1.0,
 1.0,
@@ -5336,6 +5544,14 @@
 ]
 },
 "buildings/s_seleucids_library_tex0": {
+"mask": "res://assets/textures/player_masks/structural/Sele_struct_2_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_seleucids_military_colony_tex0": {
 "mask": "res://assets/textures/player_masks/structural/Sele_struct_2_512x512.png",
 "tint": [
 1.0,
@@ -5384,6 +5600,14 @@
 ]
 },
 "buildings/s_spartans_blacksmith_tex0": {
+"mask": "res://assets/textures/player_masks/structural/sparta_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_spartans_gerousia_tex0": {
 "mask": "res://assets/textures/player_masks/structural/sparta_struct_512x256.png",
 "tint": [
 1.0,

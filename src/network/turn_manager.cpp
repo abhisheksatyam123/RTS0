@@ -890,6 +890,7 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 	mix_u8(sim.is_game_over() ? 1 : 0);
 	// Map triggers (Trigger.js timers) and the water level the rising-water maps move.
 	mix_u32(sim.trigger_hash());
+	mix_u32(sim.los_hash()); // per-player LOS (visible and explored bits)
 	mix_float(sim.water_height());
 
 	// 6. Active Projectiles & Relics
@@ -1317,6 +1318,10 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			sim.order_remove_guard(ids, n);
 		} else if (c.cmd_type == 38) { // Call to arms — attack-walk to (target_x, target_z).
 			sim.order_call_to_arms(ids, n, c.target_x, c.target_z, queued);
+		} else if (c.cmd_type == 41) { // WallSet wall — from the point in target_id to (target_x, target_z).
+			float sx, sz;
+			Simulation::unpack_wall_point(c.target_id, sx, sz);
+			sim.cmd_build_wall(pl, sx, sz, c.target_x, c.target_z, ids, n, queued);
 		} else if (c.cmd_type == 36) { // Raise (param 0) or end (1) an alert
 			if (c.param == 1) sim.cmd_end_alert(pl, c.target_id);
 			else sim.cmd_raise_alert(pl, c.target_id);
@@ -1342,6 +1347,9 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			// sim->cmd_barter locally even in lockstep -> resource/price divergence.
 			sim.cmd_barter(pl, (rtso::ResourceType)(int)c.target_x,
 			               (rtso::ResourceType)(int)c.target_z, (int)c.target_id);
+		} else if (c.cmd_type == 39) { // Cheat (0 A.D. Cheat.js) — param=action, target_id=number,
+			// target_x=resource or tech; acts on the raw selection, whoever owns it.
+			sim.cmd_cheat(pl, c.param, (int32_t)c.target_id, (uint32_t)c.target_x, c.entity_ids.data(), c.entity_ids.size());
 		} else if (c.cmd_type == 22) { // Diplomacy stance — target_id=player, param=stance.
 			// 0 A.D. Diplomacy.js / DiplomacyDialog.js parity. Applied at the turn
 			// boundary on EVERY peer (deterministic: diplomacy_state() is mixed into

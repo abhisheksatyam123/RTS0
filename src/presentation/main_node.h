@@ -184,7 +184,6 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	bool build_mode = false;
 	bool wall_drag_mode = false;
 	Vector3 wall_drag_start_pos;
-	bool wall_start_snapped = false; // the wall starts at an existing wall tower
 	// 0 A.D. placementSupport.angle: [ and ] turn the preview by pi/12, and a click
 	// held and dragged turns it toward the cursor (input.js INPUT_BUILDING_DRAG).
 	float placement_angle = rtso::Simulation::DEFAULT_BUILDING_ROT;
@@ -342,6 +341,7 @@ public:
 	String chat_civ_name() { return rtso::civ_info(sim->player_civ(local_player())).name; }
 	// NMT_CHAT, or a host's 0 A.D. chat command (/kick name, /ban name).
 	void chat_send_wire(const std::string &wire);
+	bool chat_try_cheat(const String &text);
 	rtso::Simulation *ui_sim() override { return sim; }
 	uint32_t ui_selected_building_id() const override { return selected_building_id; }
 	void _on_barter_requested(int sell_type, int buy_type, int amount);
@@ -435,7 +435,6 @@ private:
 	float placement_angle_at(uint8_t btype, float x, float z) const;
 	// GetFoundationSnapData snapEntities: a wall end within half a tower of one of
 	// the player's wall towers snaps onto it.
-	Vector3 snap_wall_point(const Vector3 &p, bool &snapped) const;
 	void try_train_unit(rtso::UnitType utype);
 	void try_train_template(uint32_t building_id, uint16_t tmpl);
 	void try_breed(uint32_t building_id, uint8_t ftype);
