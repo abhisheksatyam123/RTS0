@@ -1676,7 +1676,23 @@ void RtsoMain::_on_roster_item_clicked(int index, Vector2 at, int mouse_button) 
 	if (!roster_list || index < 0 || index >= roster_list->get_item_count()) return;
 	roster_list->deselect_all();
 	if (mouse_button != MOUSE_BUTTON_LEFT || roster_list->is_item_disabled(index)) return;
-	try_train_template(selected_building_id, (uint16_t)(int)roster_list->get_item_metadata(index));
+	const int meta = (int)roster_list->get_item_metadata(index);
+	if (meta & ROSTER_ANIMAL) {
+		try_breed(selected_building_id, (uint8_t)(meta & 0xFF));
+		return;
+	}
+	try_train_template(selected_building_id, (uint16_t)meta);
+}
+
+// Corral training (0 A.D. Trainer at the corral): the lockstep Train command with no unit
+// type and the animal in target_x.
+void RtsoMain::try_breed(uint32_t building_id, uint8_t ftype) {
+	if (building_id == 0) return;
+	if (turn_cmds()) {
+		post_lockstep(6, nullptr, 0, (float)ftype, 0.0f, building_id, (uint8_t)rtso::UNIT_TYPE_NONE);
+		return;
+	}
+	sim->cmd_breed_livestock(local_player(), building_id, ftype);
 }
 
 void RtsoMain::_on_build_btn_pressed(int btype) {
@@ -3052,6 +3068,25 @@ void RtsoMain::update_roster_list(const rtso::Simulation::Building *b) {
 	if (key == roster_list_key_) return;
 	roster_list_key_ = key;
 	roster_list->clear();
+	// A corral trains its civ's animals (structures/<civ>/corral.xml Trainer/Entities);
+	// metadata ROSTER_ANIMAL | FaunaType tells the click handler to breed one.
+	if (b->type == rtso::BLD_CORRAL) {
+		const rtso::CorralTrainable &ct = rtso::CORRAL_TRAINABLE[civ < rtso::CIV_COUNT ? civ : 0];
+		for (uint8_t k = 0; k < ct.count; ++k) {
+			const uint8_t f = ct.fauna[k];
+			const rtso::FaunaTrainCost &c = rtso::fauna_train_cost(f);
+			String label = String::utf8(rtso::fauna_type_info(f).name) + " (" + String::num_int64(c.res[0]) + "f)";
+			int idx = roster_list->add_item(label);
+			roster_list->set_item_metadata(idx, ROSTER_ANIMAL | (int)f);
+			roster_list->set_item_tooltip(idx, String::utf8(rtso::fauna_type_info(f).name) + "\nTrain " +
+					String::num(sim->livestock_train_time(pid, f), 0) + " s, " +
+					String::num_int64(rtso::fauna_type_info(f).food_amount) + " food when slaughtered, " +
+					String::num(rtso::fauna_corral_food(f), 0) + " food every " +
+					String::num(rtso::CORRAL_TRICKLE_INTERVAL, 0) + " s while penned");
+		}
+		roster_list->set_visible(roster_list->get_item_count() > 0);
+		return;
+	}
 	for (uint16_t i = rtso::civ_roster_begin(civ); i < rtso::civ_roster_end(civ); ++i) {
 		const rtso::CivUnitTemplate &u = rtso::civ_unit_template(i);
 		if (!(u.trainers & rtso::bld_bit(b->type))) continue;
