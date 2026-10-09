@@ -518,6 +518,58 @@ static void test_petra_overseas_attack() {
 	CHECK(across >= 1);
 }
 
+// headquarters.js findEconomicCCLocation on a naval map: with nothing to settle on
+// its own land, Petra lays out a Civic Centre on the other land, a transport ship
+// takes builders across (navalManager.requireTransport) and they build it there.
+static void test_petra_overseas_base() {
+	static Simulation s;
+	fresh(s);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.players_[1].phase = 2;
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	for (int k = 0; k < 10; ++k) s.spawn_unit(-40.0f + 2.0f * k, 52.0f, 1, UNIT_VILLAGER);
+	// Wood on the south land only.
+	for (int k = 0; k < 8; ++k) s.spawn_resource_world(-36.0f + 3.0f * k, -44.0f, RES_WOOD, 600);
+	const uint16_t north = s.petra_land_at(-30.0f, 40.0f), south = s.petra_land_at(-30.0f, -40.0f);
+	uint32_t cc = 0;
+	float placed_at = -1.0f, first_ashore = -1.0f;
+	int waded = 0; // land units are not stopped by deep water yet: none may try
+	for (int k = 0; k < 360; ++k) {
+		run(s, 1.0f);
+		for (size_t i = 0; i < s.units().count; ++i)
+			if (s.units().alive[i] && s.units().team[i] == 1 && s.units().unit_type[i] == UNIT_VILLAGER &&
+			    std::fabs(s.units().pos_z[i]) < 14.0f) ++waded;
+		for (const auto &b : s.buildings())
+			if (!cc && b.team == 1 && b.type == BLD_TOWN_CENTER && b.z < -16.0f) { cc = b.id; placed_at = (float)k; }
+		if (first_ashore < 0.0f)
+			for (size_t i = 0; i < s.units().count; ++i)
+				if (s.units().alive[i] && s.units().team[i] == 1 && s.units().unit_type[i] == UNIT_VILLAGER &&
+				    s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) == south) { first_ashore = (float)k; break; }
+	}
+	const Simulation::Building *b = cc ? bld(s, cc) : nullptr;
+	int south_workers = 0, north_gathering_south = 0;
+	for (size_t i = 0; i < s.units().count; ++i) {
+		if (!s.units().alive[i] || s.units().team[i] != 1 || s.units().unit_type[i] != UNIT_VILLAGER) continue;
+		const uint16_t l = s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]);
+		if (l == south) ++south_workers;
+		const uint32_t rid = s.units().target_resource_id[i];
+		if (l == north && rid) {
+			auto it = s.res_id_to_idx_.find(rid);
+			if (it != s.res_id_to_idx_.end() && s.petra_land_at(s.resources_.x[it->second], s.resources_.z[it->second]) == south)
+				++north_gathering_south;
+		}
+	}
+	std::printf("Petra overseas base: CC laid out at %.0fs, first builder ashore at %.0fs, built %.0f%%, %d workers on the south land, %d wading\n",
+	            placed_at, first_ashore, b ? 100.0f * b->build_progress : 0.0f, south_workers, waded);
+	CHECK(north && south && north != south);
+	CHECK(cc != 0);
+	CHECK(first_ashore >= 0.0f && south_workers >= 2);
+	CHECK(b && b->build_progress > 0.3f);
+	CHECK(north_gathering_south == 0 && waded == 0);
+}
+
 // DeathDamage.js: a fire ship (mixins/fireship.xml) burns down at RegenRate -5 and, dying,
 // deals 500 Fire over 20 m to everyone, its own side too, with quadratic falloff.
 // Other ships and structures deal nothing when they die.
@@ -570,6 +622,7 @@ int main() {
 	test_ship_leaves_shore_house();
 	test_petra_navy();
 	test_petra_overseas_attack();
+	test_petra_overseas_base();
 	test_fire_ship();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;

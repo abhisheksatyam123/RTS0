@@ -237,6 +237,22 @@ int main() {
 		CHECK(claimed() > before);
 	}
 
+	// Mercenaries (mixins/mercenary.xml) and Neodamodes keep the Citizen class but
+	// have no ResourceGatherer, so they gather nothing; citizen soldiers do.
+	{
+		const uint16_t merc = roster_id("athen/infantry_archer_b");
+		const uint16_t merc_cav = roster_id("cart/cavalry_swordsman_gaul_b");
+		const uint16_t neo = roster_id("spart/infantry_spearman_neodamodes");
+		const uint16_t hoplite = roster_id("athen/infantry_spearman_b");
+		CHECK(merc != CIV_UNIT_TEMPLATE_NONE && merc_cav != CIV_UNIT_TEMPLATE_NONE);
+		CHECK(neo != CIV_UNIT_TEMPLATE_NONE && hoplite != CIV_UNIT_TEMPLATE_NONE);
+		CHECK(civ_unit_template(merc).flags & ROSTER_CITIZEN);
+		CHECK(unit_gather_class(civ_unit_template(merc).unit_type, merc) == GATHER_NONE);
+		CHECK(unit_gather_class(civ_unit_template(merc_cav).unit_type, merc_cav) == GATHER_NONE);
+		CHECK(unit_gather_class(civ_unit_template(neo).unit_type, neo) == GATHER_NONE);
+		CHECK(unit_gather_class(civ_unit_template(hoplite).unit_type, hoplite) == GATHER_INFANTRY);
+	}
+
 	// 0 A.D. EntityLimits (template_player.xml): limits per category, raised by
 	// LimitChangers and lifted by LimitRemovers.
 	{

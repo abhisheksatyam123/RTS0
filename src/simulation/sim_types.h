@@ -1106,7 +1106,7 @@ inline constexpr uint64_t bld_bit(uint8_t type) { return (type < 64) ? (1ull << 
 // model fallback and AI role.
 // ---------------------------------------------------------------------------
 
-enum CivRosterFlag : uint8_t {
+enum CivRosterFlag : uint16_t {
 	ROSTER_HERO = 1,
 	ROSTER_CHAMPION = 2,
 	ROSTER_RANGED = 4,
@@ -1114,7 +1114,8 @@ enum CivRosterFlag : uint8_t {
 	ROSTER_MERCENARY = 16,
 	ROSTER_PACKABLE = 32, // 0 A.D. Pack component (10 s to pack or unpack)
 	ROSTER_SIEGE_TOWER = 64,
-	ROSTER_RELIC = 128 // a catafalque (template_unit_catafalque): Capture the Relic
+	ROSTER_RELIC = 128, // a catafalque (template_unit_catafalque): Capture the Relic
+	ROSTER_NO_GATHER = 256 // a Citizen whose template disables ResourceGatherer (mercenaries)
 };
 
 inline constexpr uint16_t civ_bit(uint8_t civ) { return (civ < 16) ? (uint16_t)(1u << civ) : 0u; }
@@ -1186,7 +1187,7 @@ struct CivUnitTemplate {
 	uint8_t civ;
 	uint8_t unit_type; // RTS0 behaviour class (UnitType)
 	uint8_t phase; // 1 village, 2 town, 3 city
-	uint8_t flags; // CivRosterFlag bits
+	uint16_t flags; // CivRosterFlag bits
 	uint64_t trainers; // bld_bit() of each BuildingType that trains it
 	float hp;
 	float speed;
@@ -1294,10 +1295,18 @@ inline uint8_t unit_gather_class(uint8_t unit_type, uint16_t tmpl) {
 	if (tmpl != CIV_UNIT_TEMPLATE_NONE) {
 		// Roster rows: only citizen soldiers (ROSTER_CITIZEN; three citizen champions inherit
 		// template_unit_infantry too) gather.
-		if (!(civ_unit_template(tmpl).flags & ROSTER_CITIZEN)) return GATHER_NONE;
+		const uint16_t flags = civ_unit_template(tmpl).flags;
+		if (!(flags & ROSTER_CITIZEN) || (flags & ROSTER_NO_GATHER)) return GATHER_NONE;
 		return infantry ? GATHER_INFANTRY : cavalry ? GATHER_CAVALRY : GATHER_NONE;
 	}
 	return infantry ? GATHER_INFANTRY : cavalry ? GATHER_CAVALRY : GATHER_NONE;
+}
+
+// 0 A.D. Builder (mixins/builder): citizen infantry (template_unit_infantry) and the support
+// workers build and repair; cavalry, champions, heroes, siege and ships do not.
+inline bool unit_can_build(uint8_t unit_type, uint16_t tmpl) {
+	if (unit_type == UNIT_FEMALE_CITIZEN || unit_type == UNIT_VILLAGER || unit_type == UNIT_WORKER_ELEPHANT) return true;
+	return unit_gather_class(unit_type, tmpl) == GATHER_INFANTRY;
 }
 
 // ResourceGatherer/Rates in units a second, by Simulation::GatherKind
@@ -1434,7 +1443,7 @@ inline const UnitTypeInfo &civ_template_unit_info(uint16_t tmpl, uint8_t type) {
 			u.attack_cooldown = t.attack_cooldown;
 			u.carry_capacity = t.carry_capacity;
 			// template_unit_cavalry ResourceGatherer: citizen cavalry carry 20 meat (Capacities/food).
-			if (t.unit_type == UNIT_CAVALRY && (t.flags & ROSTER_CITIZEN) && u.carry_capacity == 0) u.carry_capacity = 20;
+			if (t.unit_type == UNIT_CAVALRY && (t.flags & ROSTER_CITIZEN) && !(t.flags & ROSTER_NO_GATHER) && u.carry_capacity == 0) u.carry_capacity = 20;
 			if (t.attack_range > u.aggro_range) u.aggro_range = t.attack_range;
 			u.hack_armor = t.hack_armor;
 			u.pierce_armor = t.pierce_armor;
@@ -1545,7 +1554,7 @@ inline LootInfo unit_class_loot(uint8_t type) {
 // differ from the class their RTS0 UnitType names.
 inline LootInfo unit_loot(uint16_t tmpl, uint8_t type) {
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
-		const uint8_t flags = civ_unit_template(tmpl).flags;
+		const uint16_t flags = civ_unit_template(tmpl).flags;
 		if (flags & ROSTER_HERO) return {400, 10, 0, 0, 25};          // template_unit_hero
 		if (flags & ROSTER_SIEGE_TOWER) return {250, 0, 100, 0, 60};  // template_unit_siege_tower
 		if (flags & ROSTER_CHAMPION) {
@@ -1565,7 +1574,7 @@ inline LootInfo unit_loot(uint16_t tmpl, uint8_t type) {
 inline float unit_capture_attack(uint16_t tmpl, uint8_t type) {
 	const float base = unit_capture_strength(type);
 	if (base <= 0.0f || tmpl >= CIV_UNIT_TEMPLATE_COUNT) return base;
-	const uint8_t flags = civ_unit_template(tmpl).flags;
+	const uint16_t flags = civ_unit_template(tmpl).flags;
 	if (flags & ROSTER_HERO) return 10.0f;
 	if (flags & ROSTER_CHAMPION) return 5.0f;
 	return base;
