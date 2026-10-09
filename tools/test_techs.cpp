@@ -173,7 +173,7 @@ int main() {
 		CHECK(s.cmd_research(0, dock, TECH_FISHING_BOAT_GATHER_RATE));
 		float expect = tech_info(TECH_FISHING_BOAT_GATHER_RATE).research_time * 0.8f;
 		for (const auto &b : s.buildings())
-			if (b.id == dock) CHECK(std::fabs(b.research_duration - expect) < 0.01f);
+			if (b.id == dock) CHECK(!b.queue.empty() && std::fabs(b.queue.front().duration - expect) < 0.01f);
 	}
 
 	// Handicraft: traders gain 15% more per trip.
@@ -251,8 +251,9 @@ int main() {
 		CHECK(s.train_unlock_tech(0, UNIT_ARCHER_MAIDEN, BLD_BARRACKS) == TECH_UNLOCK_CHAMPION_INFANTRY); // class fallback
 		CHECK(!s.cmd_train_template(0, bar, warrior));
 		CHECK(s.cmd_train(0, bar, UNIT_SWORDSMAN)); // citizen swordsman: no unlock
+		const float swordsman_time = queued_duration(s, bar); // the tech queues behind him (ProductionQueue.js)
 		CHECK(s.cmd_research(0, bar, TECH_UNLOCK_CHAMPION_INFANTRY));
-		run(s, tech_info(TECH_UNLOCK_CHAMPION_INFANTRY).research_time + 1.0f);
+		run(s, swordsman_time + tech_info(TECH_UNLOCK_CHAMPION_INFANTRY).research_time + 1.0f);
 		CHECK(s.can_train_at(0, UNIT_SWORDSMAN, BLD_BARRACKS, warrior));
 		CHECK(s.cmd_train_template(0, bar, warrior));
 	}

@@ -962,6 +962,7 @@ struct TechInfo {
 
 #include "tech_data.h"
 #include "building_ai_data.h"
+#include "trainer_data.h"
 
 // Researched technologies for one player. 256 bits covers every uint8_t id.
 struct TechSet {

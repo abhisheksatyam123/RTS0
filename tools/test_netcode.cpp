@@ -1394,7 +1394,7 @@ int run_legacy_tests() {
         assert(s.cmd_research(0, tc, TECH_PHASE_TOWN));
         {
             bool queued = false;
-            for (const auto &b : s.buildings()) if (b.id == tc) queued = b.research_tech == TECH_PHASE_TOWN;
+            for (const auto &b : s.buildings()) if (b.id == tc) queued = Simulation::researching(b) == TECH_PHASE_TOWN;
             assert(queued);
         }
         for (int i = 0; i < 32 && !s.is_tech_researched(TECH_PHASE_TOWN); ++i) s.tick(1.0f);
