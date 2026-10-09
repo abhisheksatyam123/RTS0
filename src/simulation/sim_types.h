@@ -420,6 +420,23 @@ inline constexpr float HEAL_INTERVAL_S = 2.0f;
 inline constexpr float HEAL_PREPARE_S = 1.0f;
 inline constexpr float CHEER_TIME_S = 2.8f;
 inline constexpr float CHEER_NOTIFY_RANGE = 30.0f;
+// AlertRaiser.js per structure template: the classes it alerts (FemaleCitizen, or
+// Trader+!Ship for the market) and its ranges in RTS0 units (0 A.D. metres x 0.28;
+// a negative range reaches the whole map).
+struct AlertRaiserInfo {
+	bool traders = false;
+	float raise_range = 0.0f, end_range = 0.0f, search_range = 0.0f;
+};
+inline bool building_alert_raiser(uint8_t type, AlertRaiserInfo &out) {
+	constexpr float S = 0.28f;
+	switch (type) {
+		case BLD_TOWN_CENTER: case BLD_MILITARY_COLONY: out = {false, 120 * S, 180 * S, 100 * S}; return true;
+		case BLD_STOREHOUSE: case BLD_FARMSTEAD: out = {false, 50 * S, 100 * S, 100 * S}; return true;
+		case BLD_MARKET: out = {true, -1.0f, -1.0f, 100 * S}; return true;
+		default: return false;
+	}
+}
+
 inline constexpr float GARRISON_LOADING_RANGE = 2.0f * 0.28f; // 0 A.D. metres to RTS0, plus the unit's radius
 // Attack.js Ranged MinRange as a share of MaxRange: template_unit_siege_stonethrower.xml
 // 26 of 85, template_unit_siege_boltshooter.xml 15 of 90. Scaled to each unit's own range.
