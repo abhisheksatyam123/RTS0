@@ -1,5 +1,6 @@
 #include "main_node.h"
 #include <godot_cpp/classes/os.hpp>
+#include <unordered_set>
 #include <godot_cpp/classes/theme.hpp>
 #include "popup_safe.h"
 #include <godot_cpp/core/class_db.hpp>
@@ -32,6 +33,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_speed_button_pressed"), &RtsoMain::_on_speed_button_pressed);
 	ClassDB::bind_method(D_METHOD("_on_menu_button_pressed"), &RtsoMain::_on_menu_button_pressed);
 	ClassDB::bind_method(D_METHOD("get_audio_state"), &RtsoMain::get_audio_state);
+	ClassDB::bind_method(D_METHOD("get_trade_dialog_state"), &RtsoMain::get_trade_dialog_state);
+	ClassDB::bind_method(D_METHOD("_on_trading_goods_requested", "shares"), &RtsoMain::_on_trading_goods_requested);
 	ClassDB::bind_method(D_METHOD("_on_ungarrison_pressed"), &RtsoMain::_on_ungarrison_pressed);
 	ClassDB::bind_method(D_METHOD("_on_selection_group_clicked", "key"), &RtsoMain::_on_selection_group_clicked);
 	ClassDB::bind_method(D_METHOD("_on_garrison_group_clicked", "key"), &RtsoMain::_on_garrison_group_clicked);
@@ -202,6 +205,50 @@ static Ref<Texture2D> load_tex(const String &path) {
 		if (tex.is_valid()) return tex;
 	}
 	return Ref<Texture2D>();
+}
+
+// Building names in data/maps/*.json "structures" and "gaia_structures" (tools/port_0ad_maps.py).
+// BLD_TYPE_COUNT for a name it doesn't know.
+static uint8_t map_building_type(const String &n) {
+	if (n == "town_center" || n == "civic" || n == "civil_centre") return rtso::BLD_TOWN_CENTER;
+	if (n == "house" || n == "apartment" || n == "hut" || n == "longhouse") return rtso::BLD_HOUSE;
+	if (n == "barracks" || n == "hall" || n == "arsenal" || n == "elephant_stable") return rtso::BLD_BARRACKS;
+	if (n == "stable") return rtso::BLD_STABLE;
+	if (n == "range") return rtso::BLD_RANGE;
+	if (n == "storehouse" || n == "forge") return rtso::BLD_STOREHOUSE;
+	if (n == "farmstead" || n == "field" || n == "mill" || n == "rotarymill") return rtso::BLD_FARMSTEAD;
+	if (n == "market") return rtso::BLD_MARKET;
+	if (n == "tower" || n == "defense_tower") return rtso::BLD_TOWER;
+	if (n == "sentry_tower") return rtso::BLD_SENTRY_TOWER;
+	if (n == "outpost") return rtso::BLD_OUTPOST;
+	if (n == "fortress" || n == "palisades_fort" || n == "keep") return rtso::BLD_FORTRESS;
+	if (n == "gate" || n == "wall_gate") return rtso::BLD_GATE;
+	if (n == "temple" || n == "tophet" || n == "shrine" || n == "pyramid") return rtso::BLD_TEMPLE;
+	if (n == "wonder") return rtso::BLD_WONDER;
+	if (n == "dock") return rtso::BLD_DOCK;
+	if (n == "wall" || n == "wall_segment") return rtso::BLD_WALL_SEGMENT;
+	if (n == "palisade") return rtso::BLD_PALISADE;
+	if (n == "wall_tower") return rtso::BLD_WALL_TOWER;
+	if (n == "corral") return rtso::BLD_CORRAL;
+	if (n == "mercenary_camp") return rtso::BLD_MERCENARY_CAMP;
+	return rtso::BLD_TYPE_COUNT;
+}
+
+// Unit class names in data/maps/*.json "units" and "gaia_units".
+static rtso::UnitType map_unit_type(const String &n) {
+	static const struct { const char *name; rtso::UnitType type; } kTypes[] = {
+		{"swordsman", rtso::UNIT_SWORDSMAN}, {"spearman", rtso::UNIT_SPEARMAN}, {"archer", rtso::UNIT_ARCHER},
+		{"cavalry", rtso::UNIT_CAVALRY}, {"trader", rtso::UNIT_TRADER}, {"catapult", rtso::UNIT_CATAPULT},
+		{"hero", rtso::UNIT_HERO}, {"trireme", rtso::UNIT_TRIREME}, {"elephant", rtso::UNIT_ELEPHANT},
+		{"siege_ram", rtso::UNIT_SIEGE_RAM}, {"healer", rtso::UNIT_HEALER}, {"chariot", rtso::UNIT_CHARIOT},
+		{"war_dog", rtso::UNIT_WAR_DOG}, {"bolt_shooter", rtso::UNIT_BOLT_SHOOTER}, {"fishing_boat", rtso::UNIT_FISHING_BOAT},
+		{"merchant_ship", rtso::UNIT_MERCHANT_SHIP}, {"female_citizen", rtso::UNIT_FEMALE_CITIZEN}, {"carnyx", rtso::UNIT_CARNYX},
+		{"worker_elephant", rtso::UNIT_WORKER_ELEPHANT}, {"archer_maiden", rtso::UNIT_ARCHER_MAIDEN}, {"camel", rtso::UNIT_CAMEL},
+		{"scythed_chariot", rtso::UNIT_SCYTHED_CHARIOT},
+	};
+	for (const auto &t : kTypes)
+		if (n == t.name) return t.type;
+	return rtso::UNIT_VILLAGER;
 }
 
 void RtsoMain::_ready() {
@@ -927,6 +974,7 @@ void RtsoMain::_ready() {
 	Node *barter = get_node_or_null(NodePath("BarterDialog"));
 	if (barter) {
 		barter->connect("barter_requested", Callable(this, "_on_barter_requested"));
+		barter->connect("trading_goods_requested", Callable(this, "_on_trading_goods_requested"));
 	}
 
 	apply_match_settings();
@@ -1495,6 +1543,91 @@ void RtsoMain::_on_barter_requested(int sell_type, int buy_type, int amount) {
 		play_sfx("res://assets/sounds/ui/bonus.ogg");
 		// Price labels will be refreshed on next update_hud / barter dialog visibility
 	}
+}
+
+// 0 A.D. TradeDialog: everything the barter and trade panels show for the local
+// player. Barter quotes follow BarterButton.update (sell 100, or 500 with
+// session.massbarter); trader counts follow GuiInterface.GetTraderNumber, where a
+// land trader counts as garrisoned while it rides a merchant ship that is trading.
+Dictionary RtsoMain::get_trade_dialog_state() const {
+	Dictionary d;
+	if (!sim) return d;
+	const uint8_t me = local_player();
+	const auto &ps = sim->player(me);
+	d["player"] = (int)me;
+	d["can_barter"] = sim->can_barter(me);
+	d["controls"] = !sim->is_defeated(me);
+	// Barter.js: 100 per click, 5x with session.massbarter (the only amounts cmd_barter takes).
+	const int multiplier = 5;
+	const int amount = 100 * (rtso::hotkeys::held("session.massbarter") ? multiplier : 1);
+	d["amount"] = amount;
+	d["multiplier"] = multiplier;
+	PackedInt32Array stock, goods, quotes;
+	for (int r = 0; r < rtso::RES_COUNT; ++r) {
+		stock.push_back((int)ps.res[r]);
+		goods.push_back((int)sim->trading_goods(me)[r]);
+	}
+	// quotes[sell * RES_COUNT + buy]: what one click buys.
+	for (int sell = 0; sell < rtso::RES_COUNT; ++sell)
+		for (int buy = 0; buy < rtso::RES_COUNT; ++buy)
+			quotes.push_back(sim->barter_quote((rtso::ResourceType)sell, (rtso::ResourceType)buy, amount));
+	d["stock"] = stock;
+	d["trading_goods"] = goods;
+	d["quotes"] = quotes;
+
+	auto uv = sim->units();
+	std::unordered_set<uint32_t> trading_ships;
+	int land_total = 0, land_trading = 0, ship_total = 0, ship_trading = 0, land_garrisoned = 0;
+	for (size_t i = 0; i < uv.count; ++i) {
+		if (uv.team[i] != me || uv.hp[i] <= 0.0f || !rtso::unit_is_trader(uv.unit_type[i])) continue;
+		if (uv.action_state[i] == rtso::ACTION_DYING) continue;
+		const bool trading = uv.alive[i] && uv.action_state[i] == rtso::ACTION_TRADE;
+		if (uv.unit_type[i] == rtso::UNIT_MERCHANT_SHIP) {
+			++ship_total;
+			if (trading) { ++ship_trading; trading_ships.insert(uv.id[i]); }
+		} else {
+			++land_total;
+			if (trading) ++land_trading;
+		}
+	}
+	for (const auto &[ship, passengers] : sim->transport_passengers()) {
+		if (!trading_ships.count(ship)) continue;
+		for (uint32_t pid : passengers)
+			for (size_t i = 0; i < uv.count; ++i)
+				if (uv.id[i] == pid) {
+					if (uv.unit_type[i] == rtso::UNIT_TRADER && uv.team[i] == me && uv.hp[i] > 0.0f) ++land_garrisoned;
+					break;
+				}
+	}
+	Dictionary land, ship;
+	land["total"] = land_total;
+	land["trading"] = land_trading;
+	land["garrisoned"] = land_garrisoned;
+	ship["total"] = ship_total;
+	ship["trading"] = ship_trading;
+	d["land"] = land;
+	d["ship"] = ship;
+	return d;
+}
+
+// TradeButtonManager.setTradingGoods: shares by ResourceType, summing to 100.
+// Lockstep command 33 packs one percent byte per resource into target_id.
+void RtsoMain::_on_trading_goods_requested(const PackedInt32Array &shares) {
+	if (!sim || shares.size() != rtso::RES_COUNT) return;
+	uint8_t pct[rtso::RES_COUNT];
+	int sum = 0;
+	uint32_t packed = 0;
+	for (int r = 0; r < rtso::RES_COUNT; ++r) {
+		if (shares[r] < 0 || shares[r] > 100) return;
+		pct[r] = (uint8_t)shares[r];
+		sum += pct[r];
+		packed |= (uint32_t)pct[r] << (8 * r);
+	}
+	if (sum != 100) return;
+	if (net_lockstep())
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_SET_TRADING_GOODS, nullptr, 0, 0, 0, packed, 0);
+	else
+		sim->cmd_set_trading_goods(local_player(), pct);
 }
 
 bool RtsoMain::save_game(String path) {
@@ -3903,30 +4036,28 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		uint8_t team = (player <= 1) ? 0 : (uint8_t)(player - 1);
 		if (team >= rtso::MAX_PLAYERS) team = 1;
 
-		uint8_t btype = rtso::BLD_HOUSE;
-		if (stype_str == "town_center" || stype_str == "civic" || stype_str == "civil_centre") btype = rtso::BLD_TOWN_CENTER;
-		else if (stype_str == "house" || stype_str == "apartment" || stype_str == "hut" || stype_str == "longhouse") btype = rtso::BLD_HOUSE;
-		else if (stype_str == "barracks" || stype_str == "range" || stype_str == "stable" || stype_str == "hall" || stype_str == "arsenal" || stype_str == "elephant_stable") btype = rtso::BLD_BARRACKS;
-		else if (stype_str == "storehouse" || stype_str == "forge") btype = rtso::BLD_STOREHOUSE;
-		else if (stype_str == "farmstead" || stype_str == "field" || stype_str == "mill" || stype_str == "rotarymill") btype = rtso::BLD_FARMSTEAD;
-		else if (stype_str == "market") btype = rtso::BLD_MARKET;
-		else if (stype_str == "tower" || stype_str == "defense_tower" || stype_str == "sentry_tower" || stype_str == "outpost") btype = rtso::BLD_TOWER;
-		else if (stype_str == "fortress" || stype_str == "palisades_fort" || stype_str == "keep") btype = rtso::BLD_FORTRESS;
-		else if (stype_str == "gate" || stype_str == "wall_gate") btype = rtso::BLD_GATE;
-		else if (stype_str == "temple" || stype_str == "tophet" || stype_str == "shrine" || stype_str == "pyramid") btype = rtso::BLD_TEMPLE;
-		else if (stype_str == "wonder") btype = rtso::BLD_WONDER;
-		else if (stype_str == "dock") btype = rtso::BLD_DOCK;
-		else if (stype_str == "wall" || stype_str == "wall_segment" || stype_str == "palisade") btype = rtso::BLD_WALL_SEGMENT;
-		else if (stype_str == "corral") btype = rtso::BLD_CORRAL;
-
+		uint8_t btype = map_building_type(stype_str);
+		if (btype >= rtso::BLD_TYPE_COUNT) btype = rtso::BLD_HOUSE;
 		sim->spawn_building_world(bx, bz, btype, team, 1.0f);
 	}
-	// Gaia-owned structures (structures/merc_camp_egyptian): capture them to use them.
+	// Gaia-owned structures (Player 0 in 0 A.D.'s map: towers, palisades, houses, docks,
+	// structures/merc_camp_egyptian): hostile to everyone, captured or destroyed like 0 A.D.'s.
 	Array gaia_str_arr = d.get("gaia_structures", Array());
+	std::vector<uint32_t> gaia_structure_ids(gaia_str_arr.size(), 0);
 	for (int i = 0; i < gaia_str_arr.size(); ++i) {
 		Dictionary b = gaia_str_arr[i];
-		if (String(b.get("type", "")) != "mercenary_camp") continue;
-		sim->spawn_building_world((float)b.get("x", 0.0), (float)b.get("z", 0.0), rtso::BLD_MERCENARY_CAMP, rtso::GAIA_PLAYER, 1.0f);
+		const uint8_t btype = map_building_type(b.get("type", ""));
+		if (btype >= rtso::BLD_TYPE_COUNT) continue;
+		gaia_structure_ids[i] = sim->spawn_building_world((float)b.get("x", 0.0), (float)b.get("z", 0.0), btype, rtso::GAIA_PLAYER, 1.0f);
+	}
+	// Gaia scenery (fences, columns, obelisks): oriented obstructions.
+	Array scenery_arr = d.get("scenery", Array());
+	for (int i = 0; i < scenery_arr.size(); ++i) {
+		Dictionary sc = scenery_arr[i];
+		const uint8_t st = rtso::scenery_type_by_name(String(sc.get("type", "")).utf8().get_data());
+		if (st < rtso::SCENERY_TYPE_COUNT)
+			sim->spawn_scenery((float)sc.get("x", 0.0), (float)sc.get("z", 0.0), st, (float)sc.get("angle", 0.0),
+					(float)sc.get("scale", 0.25));
 	}
 	sim->end_bulk_spawn();
 
@@ -3942,30 +4073,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		uint8_t team = (player <= 1) ? 0 : (uint8_t)(player - 1);
 		if (team >= rtso::MAX_PLAYERS) team = 1;
 
-		rtso::UnitType utype = rtso::UNIT_VILLAGER;
-		if (utype_str == "swordsman") utype = rtso::UNIT_SWORDSMAN;
-		else if (utype_str == "spearman") utype = rtso::UNIT_SPEARMAN;
-		else if (utype_str == "archer") utype = rtso::UNIT_ARCHER;
-		else if (utype_str == "cavalry") utype = rtso::UNIT_CAVALRY;
-		else if (utype_str == "trader") utype = rtso::UNIT_TRADER;
-		else if (utype_str == "catapult") utype = rtso::UNIT_CATAPULT;
-		else if (utype_str == "hero") utype = rtso::UNIT_HERO;
-		else if (utype_str == "trireme") utype = rtso::UNIT_TRIREME;
-		else if (utype_str == "elephant") utype = rtso::UNIT_ELEPHANT;
-		else if (utype_str == "siege_ram") utype = rtso::UNIT_SIEGE_RAM;
-		else if (utype_str == "healer") utype = rtso::UNIT_HEALER;
-		else if (utype_str == "chariot") utype = rtso::UNIT_CHARIOT;
-		else if (utype_str == "war_dog") utype = rtso::UNIT_WAR_DOG;
-		else if (utype_str == "bolt_shooter") utype = rtso::UNIT_BOLT_SHOOTER;
-		else if (utype_str == "fishing_boat") utype = rtso::UNIT_FISHING_BOAT;
-		else if (utype_str == "merchant_ship") utype = rtso::UNIT_MERCHANT_SHIP;
-		else if (utype_str == "female_citizen") utype = rtso::UNIT_FEMALE_CITIZEN;
-		else if (utype_str == "carnyx") utype = rtso::UNIT_CARNYX;
-		else if (utype_str == "worker_elephant") utype = rtso::UNIT_WORKER_ELEPHANT;
-		else if (utype_str == "archer_maiden") utype = rtso::UNIT_ARCHER_MAIDEN;
-		else if (utype_str == "camel") utype = rtso::UNIT_CAMEL;
-		else if (utype_str == "scythed_chariot") utype = rtso::UNIT_SCYTHED_CHARIOT;
-
+		const rtso::UnitType utype = map_unit_type(utype_str);
 		const auto &uinfo = rtso::unit_type_info(utype);
 		unit_ids[i] = sim->spawn_unit(ux, uz, team, utype, uinfo.hp);
 	}
@@ -3976,6 +4084,24 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		int holder = (int)u.get("garrison_in", -1);
 		if (holder < 0 || holder >= (int)unit_ids.size() || !unit_ids[i] || !unit_ids[holder]) continue;
 		sim->order_board_transport(&unit_ids[i], 1, unit_ids[holder]);
+	}
+	// Gaia-owned units: 0 A.D. template ("gaul/infantry_javelineer_a"), its rank, and the
+	// Gaia ship or structure it starts in.
+	Array gaia_units_arr = d.get("gaia_units", Array());
+	std::vector<uint32_t> gaia_unit_ids(gaia_units_arr.size(), 0);
+	for (int i = 0; i < gaia_units_arr.size(); ++i) {
+		Dictionary u = gaia_units_arr[i];
+		gaia_unit_ids[i] = sim->spawn_gaia_unit((float)u.get("x", 0.0), (float)u.get("z", 0.0),
+				map_unit_type(u.get("type", "")), String(u.get("template", "")).utf8().get_data(), (int)u.get("rank", 1));
+	}
+	for (int i = 0; i < gaia_units_arr.size(); ++i) {
+		Dictionary u = gaia_units_arr[i];
+		if (!gaia_unit_ids[i]) continue;
+		const int ship = (int)u.get("garrison_in", -1), str = (int)u.get("garrison_in_structure", -1);
+		if (ship >= 0 && ship < (int)gaia_unit_ids.size() && gaia_unit_ids[ship])
+			sim->order_board_transport(&gaia_unit_ids[i], 1, gaia_unit_ids[ship]);
+		else if (str >= 0 && str < (int)gaia_structure_ids.size() && gaia_structure_ids[str])
+			sim->garrison_unit_now(gaia_unit_ids[i], gaia_structure_ids[str]);
 	}
 
 	// Rebuild World View 3D terrain and bounds
