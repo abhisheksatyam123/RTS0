@@ -8156,9 +8156,9 @@ void Simulation::petra_manage_military_production(float dt) {
 	// A siege tower we cannot pay for yet holds the siege slot: cheaper siege
 	// engines don't take it in the meantime (queueManager waits for its plan).
 	bool siege_waiting = false;
-	// config.js priorities: the city phase (majorTech, 700) and then the fortress
-	// (defenseBuilding, 70) outrank citizen soldiers (50) and attack plans' queues, so while
-	// one waits on resources soldiers only train from what its price leaves.
+	// Petra raises what it is waiting on above its soldiers: phasing up (researchManager.js
+	// checkPhase, headquarters.js checkPhaseRequirements at priority 1000) and the first fortress
+	// (defenseBuilding doubled). Here soldiers train only from what that price leaves.
 	float reserve[RES_COUNT] = {};
 	if (phase == 2) {
 		const ResearchCheck rc = research_check(petra_pid_, TECH_PHASE_CITY);
@@ -9839,13 +9839,15 @@ void Simulation::petra_manage_research(float dt) {
 			++workers;
 	}
 
-	// headquarters.js buildMarket (Economy.popForMarket 50) and buildForge (Military.popForForge
-	// 65), scaled like popPhase2: the town phase raises them before the city phase needs them.
+	// headquarters.js update, from the town phase: buildMarket at once, then buildForge once
+	// the accounted population reaches Military.popForForge (65, scaled as config.js does:
+	// at least 30, at most half the population cap) and a market stands.
 	if (petra_ps().phase >= 2 && home) {
-		const float k = std::min(1.0f, petra_config_.pop_scaling);
-		if (pop >= (int)std::lround(50.0f * k) && !have_building(BLD_MARKET))
+		const int cap = pop_cap_ > 0 ? pop_cap_ : 200;
+		const int pop_for_forge = std::min(std::max((int)std::floor(65.0f * petra_config_.pop_scaling), 30), cap / 2);
+		if (!have_building(BLD_MARKET))
 			petra_place_building(BLD_MARKET, home->x, home->z, 4, 16, PETRA_QUEUE_TECH);
-		else if (pop >= (int)std::lround(65.0f * k) && !have_building(BLD_FORGE))
+		else if (pop >= pop_for_forge && !have_building(BLD_FORGE))
 			petra_place_building(BLD_FORGE, home->x, home->z, 4, 16, PETRA_QUEUE_TECH);
 	}
 
