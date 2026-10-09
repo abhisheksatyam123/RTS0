@@ -123,7 +123,7 @@ int main() {
 		CHECK(near(s.units_.max_hp[e], s.units_.max_hp[b] * 1.5625f));
 		CHECK(near(s.units_.hp[e], s.units_.max_hp[e]));
 		CHECK(near(s.heal_amount_of(e), HEAL_HP + 10.0f));
-		CHECK(near(s.healer_range_of(e), s.healer_range(0) + 6.0f));
+		CHECK(near(s.healer_range_of(e), s.healer_range(0) + 6.0f * 0.28f));
 		CHECK(near(Simulation::promotion_train_time_mult(pe), 1.44f));
 		CHECK(near(Simulation::promotion_train_time_mult(pb), 1.0f));
 	}

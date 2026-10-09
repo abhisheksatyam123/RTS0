@@ -379,9 +379,9 @@ static void test_health_vision_auras() {
 	uint32_t ally = s.spawn_unit(30.0f, -30.0f, 2, UNIT_SWORDSMAN);
 	uint32_t foe = s.spawn_unit(30.0f, 30.0f, 1, UNIT_SWORDSMAN);
 	s.rebuild_auras();
-	const float base = unit_vision_range(UNIT_SWORDSMAN);
-	check(std::fabs(s.unit_vision_at(idx(s, ally)) - base * 1.25f) < 1e-3f, "Han Xin: allied soldier +25% vision, map-wide");
-	check(std::fabs(s.unit_vision_at(idx(s, foe)) - base) < 1e-3f, "Han Xin: enemy soldier unchanged");
+	check(std::fabs(s.unit_vision_at(idx(s, ally)) - s.unit_base_vision(idx(s, ally)) * 1.25f) < 1e-3f,
+			"Han Xin: allied soldier +25% vision, map-wide");
+	check(std::fabs(s.unit_vision_at(idx(s, foe)) - s.unit_base_vision(idx(s, foe))) < 1e-3f, "Han Xin: enemy soldier unchanged");
 }
 
 static void test_status() {
