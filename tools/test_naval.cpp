@@ -9,6 +9,7 @@
 #undef private
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <vector>
 
 using namespace rtso;
@@ -234,10 +235,130 @@ static void test_fishing() {
 	(void)lone;
 }
 
+// Ships float (0 A.D. Position FloatOnWater): range and launch height come from the water
+// surface, not the seabed. A trireme just off the shore wins against a lone archer on the beach.
+static void test_ship_height() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	const uint32_t tri = s.spawn_unit(0.0f, 12.0f, 0, UNIT_TRIREME);
+	const uint32_t archer = s.spawn_unit(0.0f, 18.0f, 1, UNIT_ARCHER);
+	auto idx = [&](uint32_t id) { for (size_t i = 0; i < s.units().count; ++i) if (s.units().id[i] == id) return (int)i; return -1; };
+	CHECK(s.unit_height((size_t)idx(tri)) == s.water_height());
+	run(s, 30.0f);
+	const int t = idx(tri), a = idx(archer);
+	const bool tri_alive = t >= 0 && s.units().alive[t];
+	const bool archer_alive = a >= 0 && s.units().alive[a];
+	std::printf("ship height: trireme %s, archer %s\n", tri_alive ? "alive" : "sunk", archer_alive ? "alive" : "dead");
+	CHECK(tri_alive && !archer_alive);
+}
+
+static uint16_t tmpl_of(const char *id) {
+	for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
+		if (std::strcmp(civ_unit_template(t).id, id) == 0) return t;
+	return CIV_UNIT_TEMPLATE_NONE;
+}
+
+static bool aboard(const Simulation &s, uint32_t ship, uint32_t uid) {
+	const auto *p = s.get_transport_passengers(ship);
+	if (!p) return false;
+	for (uint32_t id : *p) if (id == uid) return true;
+	return false;
+}
+
+static int32_t idx(const Simulation &s, uint32_t id) {
+	for (size_t i = 0; i < s.units().count; ++i) if (s.units().id[i] == id) return (int32_t)i;
+	return -1;
+}
+
+// Ships as 0 A.D. GarrisonHolders (template_unit_ship*.xml): capacity and List per
+// template, LoadingRange 10 m with Pickup, unload only onto dry ground beside the
+// hull, and EjectClassesOnDestroy when a ship sinks.
+static void test_transport() {
+	static Simulation s;
+	fresh(s);
+	// Capacities: warship_arrow 30, warship_siege 50, warship_scout 10, merchant 15,
+	// fishing boat 1, fire ship none.
+	const uint32_t arrow = s.spawn_unit(-20.0f, 10.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));
+	const uint32_t siege = s.spawn_unit(-10.0f, 0.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("cart/ship_siege"));
+	const uint32_t scout = s.spawn_unit(0.0f, 0.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_scout"));
+	const uint32_t fire = s.spawn_unit(10.0f, 0.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("brit/ship_fire"));
+	const uint32_t merchant = s.spawn_unit(20.0f, 0.0f, 0, UNIT_MERCHANT_SHIP);
+	const uint32_t fisher = s.spawn_unit(30.0f, 0.0f, 0, UNIT_FISHING_BOAT);
+	CHECK(s.get_transport_capacity(arrow) == 30);
+	CHECK(s.get_transport_capacity(siege) == 50);
+	CHECK(s.get_transport_capacity(scout) == 10);
+	CHECK(s.get_transport_capacity(merchant) == 15);
+	CHECK(s.get_transport_capacity(fisher) == 1);
+	CHECK(!s.is_transport(fire));
+
+	// Lists: cavalry boards a warship or a merchant ship but not a fishing boat;
+	// siege boards an arrow ship but not a scout ship.
+	const int32_t ia = idx(s, arrow), ism = idx(s, scout), im = idx(s, merchant), iff = idx(s, fisher);
+	const uint32_t rider = s.spawn_unit(-20.0f, 17.5f, 0, UNIT_CAVALRY);
+	const uint32_t ram = s.spawn_unit(-21.0f, 17.5f, 0, UNIT_SIEGE_RAM);
+	const int32_t ir = idx(s, rider), irm = idx(s, ram);
+	CHECK(s.can_board(ia, ir) && s.can_board(im, ir) && !s.can_board(iff, ir));
+	CHECK(s.can_board(ia, irm) && !s.can_board(ism, irm));
+
+	// Boarding from the beach: the arrow ship lies 10 m off the shore line (z = 16).
+	const uint32_t spear = s.spawn_unit(-19.0f, 17.5f, 0, UNIT_SPEARMAN);
+	const uint32_t party[] = {spear, rider};
+	s.order_board_transport(party, 2, arrow);
+	run(s, 3.0f);
+	CHECK(aboard(s, arrow, spear) && aboard(s, arrow, rider));
+
+	// Out at sea there is no shore to unload onto: everyone stays aboard.
+	s.cmd_move(&arrow, 1, -20.0f, 0.0f);
+	run(s, 8.0f);
+	s.order_disembark_all(arrow);
+	CHECK(s.get_transport_passenger_count(arrow) == 2);
+
+	// Sunk at sea: everyone drowns.
+	s.units_.hp[idx(s, arrow)] = 0.0f;
+	s.units_.alive[idx(s, arrow)] = 0;
+	run(s, 0.1f);
+	CHECK(s.get_transport_passengers(arrow) == nullptr);
+	CHECK(!s.units().alive[idx(s, spear)] && !s.units().alive[idx(s, rider)]);
+
+	// Sunk beside the beach: the spearman swims ashore, the rider (not in
+	// EjectClassesOnDestroy) goes down with the ship.
+	const uint32_t ship2 = s.spawn_unit(-40.0f, 13.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));
+	const uint32_t spear2 = s.spawn_unit(-40.0f, 17.5f, 0, UNIT_SPEARMAN);
+	const uint32_t rider2 = s.spawn_unit(-39.0f, 17.5f, 0, UNIT_CAVALRY);
+	const uint32_t party2[] = {spear2, rider2};
+	s.order_board_transport(party2, 2, ship2);
+	run(s, 2.0f);
+	CHECK(s.get_transport_passenger_count(ship2) == 2);
+	s.units_.hp[idx(s, ship2)] = 0.0f;
+	s.units_.alive[idx(s, ship2)] = 0;
+	run(s, 0.1f);
+	const int32_t isp2 = idx(s, spear2);
+	std::printf("  sunk by the beach: spearman %s at z %.1f\n", isp2 >= 0 && s.units().alive[isp2] ? "ashore" : "drowned", isp2 >= 0 ? s.units().pos_z[isp2] : 0.0f);
+	CHECK(isp2 >= 0 && s.units().alive[isp2] && s.get_terrain_height(s.units().pos_x[isp2], s.units().pos_z[isp2]) > 0.15f);
+	CHECK(!s.units().alive[idx(s, rider2)]);
+
+	// Pickup: an idle ship sails toward units ordered aboard from inland.
+	const uint32_t ship3 = s.spawn_unit(40.0f, -2.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));
+	const uint32_t archer = s.spawn_unit(40.0f, 24.0f, 0, UNIT_ARCHER);
+	s.order_board_transport(&archer, 1, ship3);
+	run(s, 15.0f);
+	std::printf("  pickup: ship at z %.1f, archer %s\n", s.units().pos_z[idx(s, ship3)], aboard(s, ship3, archer) ? "aboard" : "ashore");
+	CHECK(aboard(s, ship3, archer));
+	// Unloading beside the beach puts the archer back on dry ground.
+	s.order_disembark_all(ship3);
+	const int32_t iar = idx(s, archer);
+	CHECK(!aboard(s, ship3, archer) && s.units().alive[iar] && s.get_terrain_height(s.units().pos_x[iar], s.units().pos_z[iar]) > 0.15f);
+	CHECK(s.units().pos_z[idx(s, ship3)] < 16.0f); // the ship stayed on the water
+	std::printf("transport: capacities, lists, pickup, unloading and sinking match 0 A.D.: %s\n", failures ? "see failures" : "ok");
+}
+
 int main() {
+	test_transport();
 	test_dock_trade();
 	test_fishing();
 	test_petra_sea_trade();
+	test_ship_height();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

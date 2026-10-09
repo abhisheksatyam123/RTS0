@@ -168,6 +168,7 @@ void FogMirages::update(const Simulation &sim, uint8_t viewer) {
 		f.x = b.x;
 		f.z = b.z;
 		f.half_size = b.half_size;
+		f.rot = b.rot;
 		f.hp = b.hp;
 		f.max_hp = b.max_hp;
 		f.build_progress = b.build_progress;

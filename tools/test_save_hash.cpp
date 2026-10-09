@@ -304,6 +304,11 @@ static void check_other_size_load(TurnManager &tm, const char *path) {
 		            a.fow_grid_.size(), b.fow_grid_.size());
 		++failures;
 	}
+	if (b.terrain_heights() != a.terrain_heights() || b.get_terrain_height(40.0f, -60.0f) != a.get_terrain_height(40.0f, -60.0f)) {
+		std::printf("  FAIL the heightmap did not come back with the save (%zu -> %zu heights)\n",
+		            a.terrain_heights().size(), b.terrain_heights().size());
+		++failures;
+	}
 	compare(a, b);
 	if (tm.compute_sim_hash(a) != tm.compute_sim_hash(b)) {
 		std::printf("  FAIL map half 192: hash %08x saved, %08x loaded into a reset sim\n",
@@ -314,9 +319,50 @@ static void check_other_size_load(TurnManager &tm, const char *path) {
 	if (failures == before) std::printf("map half 192 into a reset sim: ok\n");
 }
 
+// A sim that played a random map and was then reset() must save and load like a
+// fresh one: reset() has to clear every bit of hashed state the map left behind.
+static void check_reused_sim(TurnManager &tm, const char *path) {
+	static Simulation a, b;
+	for (int pass = 0; pass < 2; ++pass) {
+		Simulation &used = pass ? b : a; // pass 0: the saver was reused; pass 1: the loader
+		build(used);
+		run(used, 400);
+		a.reset();
+		a.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 0);
+		a.spawn_unit(-10.0f, 10.0f, 0, UNIT_SWORDSMAN);
+		a.spawn_unit(10.0f, 10.0f, 1, UNIT_SPEARMAN);
+		run(a, 100);
+		const int before = failures;
+		if (!a.save_state(path)) { std::printf("FAIL save (reused sim)\n"); ++failures; return; }
+		b.reset();
+		if (!b.load_state(path)) { std::printf("FAIL load (reused sim)\n"); ++failures; return; }
+		compare(a, b);
+		const uint32_t ha = tm.compute_sim_hash(a), hb = tm.compute_sim_hash(b);
+		if (ha != hb || failures != before) {
+			++failures;
+			std::printf("  FAIL %s sim reused after a random map: hash %08x saved, %08x loaded\n", pass ? "loading" : "saving", ha, hb);
+			print_diffs();
+		}
+		int diverged = -1;
+		for (int t = 0; t < 200 && diverged < 0; ++t) {
+			a.tick(Simulation::FIXED_STEP);
+			b.tick(Simulation::FIXED_STEP);
+			if (tm.compute_sim_hash(a) != tm.compute_sim_hash(b)) diverged = t + 1;
+		}
+		if (diverged > 0) {
+			++failures;
+			std::printf("  FAIL %s sim reused after a random map: diverged %d ticks after the load\n", pass ? "loading" : "saving", diverged);
+			compare(a, b);
+			print_diffs();
+		}
+		if (failures == before) std::printf("%s sim reused after a random map and reset(): ok\n", pass ? "loading" : "saving");
+	}
+}
+
 int main() {
 	static Simulation live, loaded;
 	TurnManager tm;
+	check_reused_sim(tm, "/tmp/rts0_test_save_hash.sav");
 	check_identical_saves();
 	check_reset_load(tm, "/tmp/rts0_test_save_hash.sav");
 	check_other_size_load(tm, "/tmp/rts0_test_save_hash.sav");

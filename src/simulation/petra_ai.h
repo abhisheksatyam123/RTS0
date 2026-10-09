@@ -102,7 +102,9 @@ struct PetraConfig {
 		static const float kTime[6]    = { 1.40f, 1.25f, 1.10f, 1.00f, 1.00f, 1.00f };
 		static const int   kWorkers[6] = { 18, 28, 40, 60, 80, 100 };
 		static const int   kTraders[6] = { 0, 1, 2, 3, 4, 5 };
+		// config.js criticalPopulationFactors / criticalStructureFactors / criticalRootFactors
 		static const float kEmerg[6]   = { 0.80f, 0.80f, 0.70f, 0.60f, 0.50f, 0.35f };
+		static const float kRoots[6]   = { 0.80f, 0.80f, 0.67f, 0.50f, 0.35f, 0.20f };
 		uint8_t d = (difficulty > PETRA_VERY_HARD) ? PETRA_MEDIUM : difficulty;
 		pop_scaling = kPop[d];
 		gather_rate = kRate[d];
@@ -111,7 +113,7 @@ struct PetraConfig {
 		target_num_traders = kTraders[d];
 		emergency_pop_factor = kEmerg[d];
 		emergency_struct_factor = kEmerg[d];
-		emergency_root_factor = std::max(0.20f, kEmerg[d] - 0.10f);
+		emergency_root_factor = kRoots[d];
 
 		defense_ratio_own = 1.6f + 0.8f * defensive + 0.15f * (float)d;
 		muster_delta = 0;
@@ -196,7 +198,8 @@ enum PetraChatKind : uint8_t {
 	PETRA_CHAT_NEUTRAL_REQUEST  = 11,
 	PETRA_CHAT_ALLY_EXPIRED     = 12,
 	PETRA_CHAT_NEUTRAL_EXPIRED  = 13,
-	PETRA_CHAT_TRIBUTE_REQUEST  = 14 // to an ally: "I am in need of <res>"
+	PETRA_CHAT_TRIBUTE_REQUEST  = 14, // to an ally: "I am in need of <res>"
+	PETRA_CHAT_EMERGENCY_EXIT   = 15  // emergencyManager.js: the emergency is over
 };
 
 // diplomacyManager.js receivedDiplomacyRequests: what one AI decided about a
