@@ -77,6 +77,8 @@ public:
 	// instance uniform of shaders/player_color.gdshader).
 	static void set_player_color(godot::Node *root, const godot::Color &c);
 	static bool is_player_color_material(const godot::Ref<godot::Material> &mat);
+	// The GLB a building model id draws with (data/building_models.json), or id itself.
+	static godot::String building_glb_id(const godot::String &id);
 	// Hide every tool_* mesh except the one for this clip (or tool_Weapon).
 	static void apply_clip_tools(godot::Node *root, const godot::StringName &clip);
 
