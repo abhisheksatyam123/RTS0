@@ -57,6 +57,7 @@ public:
 			std::vector<int32_t> bones;
 			std::vector<float> weights;
 			int stride = 4;
+			bool attached = false; // rigid prop under a BoneAttachment3D
 			godot::Ref<godot::Material> mat;
 		};
 		std::vector<Rig> rigs;

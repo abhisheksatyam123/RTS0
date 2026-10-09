@@ -45,6 +45,9 @@
 //     GatherNearPosition); queued attacks on the dead and garrisons into a full house are skipped.
 // 30. A unit that collected a treasure goes for the nearest one within 64 m of it (COLLECTTREASURE
 //     FINDINGNEWTARGET), not one farther away, and not when it has a queued order.
+// 31. Target choice follows the attacker's PreferredClasses (Attack.js GetPreference, UnitAI
+//     AttackEntitiesByPreference): an archer (Human) shoots a farther spearman before a nearer
+//     ram, the nearest of equals before a wounded one, and a ram if nothing else is there.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_unit_orders.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -316,7 +319,9 @@ static void test_rally() {
 	const bool sp = run_until(s, 30.0f, [&] { return find_new() != 0; });
 	run(s, 1.0f);
 	const uint32_t spear = find_new();
-	check(sp && s.unit_order(spear).kind == ORDER_WALK, "a unit that can't gather walks to the rally point");
+	// Citizen soldiers gather (template_unit_infantry ResourceGatherer).
+	check(sp && s.unit_order(spear).kind == ORDER_GATHER && s.unit_order(spear).target == tree,
+			"a citizen soldier rallied onto a tree gathers it");
 }
 
 static void test_builders_after_dropsite() {
@@ -983,6 +988,46 @@ static void test_next_treasure() {
 	check(got3 && s.unit_order(u).kind == ORDER_WALK, "a queued order comes first");
 }
 
+static void test_preferred_classes() {
+	std::printf("31. target choice by PreferredClasses\n");
+	{
+		Simulation s;
+		setup(s);
+		s.spawn_unit(0, 0, 0, UNIT_ARCHER);
+		uint32_t ram = s.spawn_unit(4, 0, 1, UNIT_SIEGE_RAM);
+		uint32_t spear = s.spawn_unit(0, 9, 1, UNIT_SPEARMAN);
+		uint32_t still[2] = {ram, spear};
+		s.order_set_stance(still, 2, STANCE_STAND_GROUND);
+		const float r0 = hp_of(s, ram), s0 = hp_of(s, spear);
+		run(s, 4.0f);
+		check(hp_of(s, spear) < s0 && hp_of(s, ram) == r0, "an archer shoots the spearman before the nearer ram");
+	}
+	{
+		Simulation s;
+		setup(s);
+		s.spawn_unit(0, 0, 0, UNIT_ARCHER);
+		uint32_t near = s.spawn_unit(5, 0, 1, UNIT_SPEARMAN);
+		uint32_t hurt = s.spawn_unit(0, 8, 1, UNIT_SPEARMAN);
+		s.set_unit_hp(hurt, 5.0f);
+		uint32_t still[2] = {near, hurt};
+		s.order_set_stance(still, 2, STANCE_STAND_GROUND);
+		const float n0 = hp_of(s, near);
+		run(s, 4.0f);
+		check(hp_of(s, near) < n0 && alive(s, hurt) && hp_of(s, hurt) == 5.0f,
+				"the nearest of equals, not a wounded one farther off");
+	}
+	{
+		Simulation s;
+		setup(s);
+		s.spawn_unit(0, 0, 0, UNIT_ARCHER);
+		uint32_t ram = s.spawn_unit(5, 0, 1, UNIT_SIEGE_RAM);
+		s.order_set_stance(&ram, 1, STANCE_STAND_GROUND);
+		const float r0 = hp_of(s, ram);
+		run(s, 4.0f);
+		check(hp_of(s, ram) < r0, "and the ram when nothing it prefers is there");
+	}
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -1015,6 +1060,7 @@ int main(int argc, char **argv) {
 	test_alert();
 	test_queue_edges();
 	test_next_treasure();
+	test_preferred_classes();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

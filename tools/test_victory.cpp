@@ -336,6 +336,7 @@ int main() {
 		p.behs[1] = 3; p.behs[2] = 1;
 		p.colors[0] = 23; p.colors[1] = 0; p.colors[2] = 10;
 		p.nomad = 1; p.regicide_garrison = 1; p.no_treasures = 1;
+		p.names[0] = "Stan; the=Great, 100%"; p.names[1] = "Ptolemy Philadelphus"; p.names[2] = "";
 		GameSetupParams q;
 		CHECK(parse_game_start_full(format_game_start_full(p), q));
 		CHECK(q.victory == VICTORY_REGICIDE && q.waves == 1 && q.map_size == 384 && q.lms == 1 && q.pop_cap == 300 && q.ceasefire == 10);
@@ -344,6 +345,9 @@ int main() {
 		CHECK(q.behs[0] == 2 && q.behs[1] == 3 && q.behs[2] == 1);
 		CHECK(q.colors[0] == 23 && q.colors[1] == 0 && q.colors[2] == 10 && q.colors[3] == 3);
 		CHECK(q.nomad == 1 && q.regicide_garrison == 1 && q.no_treasures == 1);
+		CHECK(q.names[0] == "Stan; the=Great, 100%" && q.names[1] == "Ptolemy Philadelphus" && q.names[2].empty() && q.names[3].empty());
+		GameSetupParams longname; longname.names[0] = std::string(60, 'x'); longname.slot_count = 1;
+		CHECK(parse_game_start_full(format_game_start_full(longname), q) && q.names[0].size() == 48);
 		GameSetupParams d;
 		CHECK(d.wonder_min == 20 && d.relic_min == 20 && d.relics == 2); // 0 A.D.'s defaults
 	}

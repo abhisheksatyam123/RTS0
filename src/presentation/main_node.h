@@ -309,11 +309,17 @@ public:
 	// In a replay it is the player whose panels the viewer follows.
 	uint8_t local_player() const {
 		if (turn_mgr_.is_replaying()) return replay_hud_player_;
-		return net_lockstep() ? turn_mgr_.local_player() : (uint8_t)0;
+		if (net_lockstep()) return turn_mgr_.local_player();
+		return local_observer_ ? (uint8_t)0xFF : (uint8_t)0; // 0xFF: no player, as a multiplayer observer
 	}
 	// Whose sight the world, minimap and fog show: the local player, or in a
 	// replay the perspective picked (a player, or rtso::OBSERVER_VIEW).
 	uint8_t view_player() const { return turn_mgr_.is_replaying() ? replay_view_ : local_player(); }
+	// 0 A.D. PlayerName: a human's lobby name in multiplayer, else Game Setup's name
+	// (AI slots get one from their civ's AINames), else "Player N".
+	String player_display_name(uint8_t pid) const;
+	String player_names_[rtso::MAX_PLAYERS];
+	void apply_player_names(const Array &names);
 	void post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
 	                   float x = 0, float z = 0, uint32_t tid = 0, uint8_t param = 0);
 	// P4.1 host hooks for chat_window.h / diplomacy_dialog.h: thin inline
@@ -453,6 +459,9 @@ private:
 	Button *replay_pause_btn_ = nullptr;
 	uint8_t replay_view_ = rtso::OBSERVER_VIEW; // replay perspective (0 A.D. replay "Player view")
 	uint8_t replay_hud_player_ = 0;
+	// Single player with no Human slot (0 A.D. Game Setup lets every slot be AI):
+	// you watch the AIs play with the map revealed and give no orders.
+	bool local_observer_ = false;
 	bool loading_replay_start_ = false; // load_game is restoring a replay's starting save
 	void build_replay_view_picker();
 	void begin_recording_from_save(const String &save_path);

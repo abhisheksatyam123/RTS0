@@ -148,7 +148,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 32; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 33; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -293,7 +293,10 @@ public:
 	// 0 A.D. TurretHolder / Turretable: ranged infantry stand on the turret points of
 	// walls, gates and outposts, visible and fighting from the structure's height.
 	bool unit_turretable(size_t i) const;
-	uint32_t turret_holder_of(uint32_t unit_id) const; // 0 when not on a turret
+	uint32_t turret_holder_of(uint32_t unit_id) const;
+	// Total damage `player`'s entities have dealt to other (non-Gaia) players this session
+	// (0 A.D. BattleDetection input); not saved, starts again at 0 after a load.
+	double battle_damage_dealt(uint8_t player) const { return player < MAX_PLAYERS ? battle_damage_[player] : 0.0; } // 0 when not on a turret
 	float unit_height_offset(size_t i) const { // above the terrain (a turret point's height)
 		if (turret_height_.empty()) return 0.0f;
 		auto it = turret_height_.find(units_.id[i]);
@@ -316,7 +319,13 @@ public:
 	// Resource cost of training template `tmpl` for `pid` after team bonuses, indexed by ResourceType.
 	void unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo &info, float out[RES_COUNT]) const;
 	uint32_t spawn_resource(int cell_x, int cell_y, uint8_t type, int32_t amount = 600);
-	uint32_t spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount = 600, uint8_t subtype = 0);
+	// max_gatherers 0: the gaia template default (resource_default_max_gatherers).
+	uint32_t spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount = 600, uint8_t subtype = 0, uint8_t max_gatherers = 0);
+	// ResourceSupply/MaxGatherers of a resource (0 if there is none with that id).
+	int resource_max_gatherers(uint32_t res_id) const {
+		auto it = res_id_to_idx_.find(res_id);
+		return it == res_id_to_idx_.end() ? 0 : resources_.max_gatherers[it->second];
+	}
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f);
 	uint32_t spawn_building_world(float wx, float wz, uint8_t type, uint8_t team = 0, float progress = 1.0f);
 	uint32_t spawn_relic(float x, float z, uint8_t res_type, int amount = 300);
@@ -382,7 +391,10 @@ public:
 	// goes to the end of each busy unit's order queue instead of replacing its orders.
 	// Player orders are forced (order.data.force); Petra's cmd_move walks are not, so its
 	// units still turn to fight on the way.
-	void order_walk(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false);
+	// beach_goal: a player's walk, which ends on the beach when (tx, tz) is out at sea
+	// (MakeGoalReachable). Internal walks (Petra, rally points) keep their goal.
+	void order_walk(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false,
+			bool beach_goal = false);
 	void order_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id, bool queued = false);
 	void order_attack(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
 	// allow_capture: capture the structure (0 A.D.'s default right-click) instead of
@@ -803,7 +815,8 @@ public:
 	// now (building_id 0 skips the building checks).
 	enum ResearchCheck : uint8_t {
 		TECH_OK = 0, TECH_ERR_INVALID, TECH_ERR_RESEARCHED, TECH_ERR_IN_PROGRESS, TECH_ERR_CIV,
-		TECH_ERR_PHASE, TECH_ERR_PREREQUISITE, TECH_ERR_STRUCTURES, TECH_ERR_BUILDING, TECH_ERR_COST
+		TECH_ERR_PHASE, TECH_ERR_PREREQUISITE, TECH_ERR_STRUCTURES, TECH_ERR_BUILDING, TECH_ERR_COST,
+		TECH_ERR_PAIRED // its pair_*.json partner is researched or being researched
 	};
 	ResearchCheck research_check(uint8_t player_id, uint8_t tech_id, uint32_t building_id = 0) const;
 	// 0 A.D. Heal/Range and Heal/Interval after the player's technologies.
@@ -814,7 +827,15 @@ public:
 	// With `tmpl` (a roster row) the row's own 0 A.D. unlock tech decides.
 	uint8_t train_unlock_tech(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
 			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE) const;
-	int heroes_of(uint8_t player_id) const; // alive or queued (EntityLimits Hero: 1)
+	// 0 A.D. EntityLimits (entity_limits_data.h): a player's entities of a limit
+	// category, alive or queued, foundations included; its limit with the
+	// LimitChangers it owns, or -1 while a LimitRemover lifts it (or there is none).
+	int entity_limit_count(uint8_t player_id, uint8_t category) const;
+	int entity_limit(uint8_t player_id, uint8_t category) const;
+	// AllowedToTrain / AllowedToBuild: room for `count` more of the unit (roster
+	// row `tmpl`, else the class) or of the structure.
+	bool entity_limit_allows_unit(uint8_t player_id, uint8_t unit_type, uint16_t tmpl, int count = 1) const;
+	bool entity_limit_allows_building(uint8_t player_id, uint8_t bld_type) const;
 	bool can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
 			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE) const;
 	// 0 A.D. phase_town / phase_city requirement: finished Village (1) or Town (2) class structures.
@@ -1244,7 +1265,8 @@ private:
 	void credit_trade(uint8_t player, uint8_t res, int amount);
 	void tick_trickle(float dt);
 	int corral_count(uint32_t corral_id) const;
-	void tick_entity_limits(float dt);
+	// Han ministers garrisoned in `b` (their garrison auras: han_minister_garrison*.json).
+	int garrisoned_ministers(const Building &b) const;
 	void tick_death_damage(float dt);
 	// 0 A.D. helpers/Attack.js CauseDamageOverArea for an Attack Splash landing at (ox, oz).
 	void cause_damage_over_area(uint8_t splash, uint32_t attacker_id, uint8_t attacker_team,
@@ -1316,6 +1338,10 @@ private:
 	// 0 A.D. Loot.js / Looter.js / Promotion.js (see simulation.cpp).
 	void gain_xp(size_t idx, float amount);
 	void award_damage_xp(uint32_t attacker_id, size_t victim, float damage);
+	// attacker_id is 0 when no entity is left to name (a fire ship's death damage).
+	void note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uint32_t target_id, uint8_t target_owner,
+			bool target_is_building, float damage);
+	double battle_damage_[MAX_PLAYERS] = {};
 	bool looter_present(uint32_t looter_id, bool *infantry) const;
 	void collect_loot(uint32_t looter_id, uint8_t looter_player, LootInfo loot, float mult, uint8_t carried_type, int32_t carried);
 	void collect_unit_loot(uint32_t looter_id, uint8_t looter_player, size_t victim);
@@ -1351,6 +1377,7 @@ private:
 	// Turret units (unit id -> point height), rebuilt from the holders' garrison lists each
 	// tick, and the stance each had before it went up (UnitAI previousStance).
 	std::unordered_map<uint32_t, float> turret_height_;
+	bool beach_goal_ = false; // set by order_walk(..., beach_goal) around its cmd_move
 	std::unordered_map<uint32_t, uint8_t> turret_prev_stance_;
 	const TurretPointSet *turret_points_of(const Building &b) const;
 	int structure_garrison_cap(const Building &b) const;
@@ -1391,15 +1418,11 @@ private:
 	struct FieldGatherers { int total = 0; int slots_taken = 0; };
 	std::unordered_map<uint32_t, FieldGatherers> field_gatherers_; // per tick, keyed by grain resource id
 	std::unordered_map<uint32_t, FieldGatherers> fish_gatherers_; // per tick, keyed by fish resource id
-	std::unordered_map<uint32_t, FieldGatherers> ruins_gatherers_; // per tick, keyed by ruins resource id
-	// Each ruins resource's ResourceSupply MaxGatherers (gaia/ruins/*.xml); saved.
+	// Per tick, every other resource: units ordered to gather it (total) and the ones working it (slots_taken, up to MaxGatherers).
+	std::unordered_map<uint32_t, FieldGatherers> supply_gatherers_;
+	// v28 saves kept each ruin's MaxGatherers in a list; resources_.max_gatherers holds it since.
 	struct RuinsCap { uint32_t res_id; uint16_t max_gatherers; uint16_t pad; };
-	std::vector<RuinsCap> ruins_caps_;
 	std::vector<Scenery> scenery_; // saved
-	int ruins_cap(uint32_t res_id) const {
-		for (const RuinsCap &c : ruins_caps_) if (c.res_id == res_id) return c.max_gatherers;
-		return 1;
-	}
 	// Nearest fish on `sea` (ship region) within max_d of (x, z) with a free gatherer slot; 0 if none.
 	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0) const;
 	std::unordered_map<uint32_t, size_t> building_id_to_idx_;
@@ -1433,7 +1456,7 @@ private:
 	float rate_window_timer_ = 0.0f;
 	float barter_timer_ = 0.0f;
 	float upkeep_timer_ = 0.0f; // unused since soldier upkeep was removed (no 0 A.D. template has Upkeep); kept for the save layout
-	float entity_limits_timer_ = 0.0f;
+	float entity_limits_timer_ = 0.0f; // unused since EntityLimits checks creation; kept for the save format
 	float gate_timer_ = 0.0f;
 	static constexpr size_t MAX_RECENT_DEATHS = 64;
 	std::array<RecentDeath, MAX_RECENT_DEATHS> recent_deaths_{};
@@ -1570,6 +1593,7 @@ private:
 	bool petra_raid_target_ok(uint32_t bld_id) const;
 	bool petra_allow_capture(const std::vector<uint32_t> &squad, uint32_t uid, const Building &b) const;
 	void petra_check_captures(const std::vector<uint32_t> &squad, float tx, float tz);
+	void petra_answer_attackers(const std::vector<uint32_t> &squad, float tx, float tz);
 	bool petra_unit_reserved(uint32_t uid) const;
 
 	std::vector<PetraBase> petra_bases_;
@@ -1684,6 +1708,9 @@ private:
 	void petra_set_trading_goods();   // tradeManager.js setTradingGoods
 	int petra_villager_target() const;
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
+	bool petra_limit_allows_building(uint8_t btype) const;
+	mutable uint64_t petra_limit_cache_key_ = 0; // derived per tick, never saved
+	mutable std::array<uint8_t, BLD_TYPE_COUNT> petra_limit_cache_{};
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
 	void petra_say(uint8_t kind, float x = 0.0f, float z = 0.0f, uint8_t to = 0xFF, int amount = 0, uint8_t res = 0);
 	void petra_handle_diplomacy_request(uint8_t player, uint8_t type);
@@ -1811,7 +1838,11 @@ private:
 	void finish_order(size_t i);
 	void resume_order(size_t i);
 	void respond_to_attack(size_t i);
-	uint32_t find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team, int subtype = -1) const;
+	// ResourceGatherer.CanGather: unit index i has a Rates entry for resource index r.
+	bool can_gather(size_t i, size_t r) const;
+	// With `busy`, skips `skip` and resources whose MaxGatherers are all taken (ResourceSupply.IsAvailable).
+	uint32_t find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team, int subtype = -1,
+			const std::unordered_map<uint32_t, FieldGatherers> *busy = nullptr, uint32_t skip = 0) const;
 	uint32_t find_nearby_foundation(float x, float z, uint8_t team) const;
 	void apply_rally_point(uint32_t uid, const Building &b, bool ignore_self_garrison = false);
 	void rally_after_ungarrison(uint32_t uid, uint32_t building_id);

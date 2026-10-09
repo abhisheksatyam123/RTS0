@@ -148,6 +148,7 @@ const PLAYER_COLORS := [Color8(21, 55, 149), Color8(150, 20, 20), Color8(86, 180
 	Color8(220, 160, 220), Color8(80, 255, 190), Color8(50, 150, 255), Color8(100, 150, 30),
 	Color8(100, 60, 30), Color8(128, 0, 64), Color8(255, 200, 140), Color8(80, 80, 80)]
 const VICTORY_REGICIDE := 6
+const CivAINames = preload("res://scenes/menu/civ_ai_names.gd")
 var _color_icons: Array = []
 
 var _maps: Array = []          # all map dicts
@@ -288,6 +289,8 @@ func _update_preview() -> void:
 	if lbl:
 		lbl.text = "%s\n[%s • %s • %dm • %d players]\n\n%s\n\n%s" % [
 			m["name"], m["kind"], m["biome"], int(m["size"]), int(m["players"]), seed_txt, m["desc"]]
+		if _slot_rows.size() > 0 and int(_slot_rows[0]["kind"]) == 1:
+			lbl.text += "\n\nNo Human slot: you watch the AIs play with the map revealed."
 	# Civ preview follows slot 0 (the human player).
 	var civ := _slot_civ(0)
 	if crest and civ >= 0 and civ < CIVS.size():
@@ -351,18 +354,17 @@ func refresh_slots() -> void:
 func _add_slot_row(grid: GridContainer, i: int) -> void:
 	var row: Dictionary = _slot_rows[i]
 	var name := Label.new()
-	name.text = "P%d%s" % [i + 1, " (You)" if i == 0 else ""]
+	name.text = "P%d%s" % [i + 1, " (You)" if i == 0 and int(row["kind"]) == 0 else ""]
 	grid.add_child(name)
 	# kind
 	var kind_slot := Control.new()
 	kind_slot.custom_minimum_size = Vector2(92, 28)
 	grid.add_child(kind_slot)
 	var kind := _make_option(kind_slot)
-	for k in SLOT_KINDS:
+	# Slot 1 is you, or AI: with no Human slot you watch the AIs play (0 A.D. lets every slot be AI).
+	for k in (SLOT_KINDS if i > 0 else SLOT_KINDS.slice(0, 2)):
 		kind.add_item(k)
-	kind.select(int(row["kind"]) if i > 0 else 0)
-	if i == 0:
-		kind.select(0)
+	kind.select(int(row["kind"]) if i > 0 else mini(int(row["kind"]), 1))
 	kind.item_selected.connect(_on_slot_kind.bind(i))
 	# civ
 	var civ_slot := Control.new()
@@ -417,6 +419,8 @@ func _on_slot_kind(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
 		return
 	_slot_rows[slot]["kind"] = idx
+	if slot == 0:
+		refresh_slots.call_deferred() # the "(You)" label follows slot 1's kind
 	_update_preview()
 
 func _on_slot_civ(idx: int, slot: int) -> void:
@@ -609,7 +613,7 @@ func _restore_settings() -> void:
 			if i < scolors.size():
 				_slot_rows[i]["color"] = clampi(int(scolors[i]), 0, PLAYER_COLORS.size() - 1)
 			if i == 0:
-				_slot_rows[i]["kind"] = 0
+				_slot_rows[i]["kind"] = mini(int(_slot_rows[i]["kind"]), 1)
 		refresh_slots()
 
 # ---------------------------------------------------------------- start ---
@@ -645,7 +649,7 @@ func _collect_setup() -> Dictionary:
 	for i in range(n):
 		var k := int(_slot_rows[i]["kind"])
 		if i == 0:
-			k = 0
+			k = mini(k, 1) # Human or AI, never closed
 		if k == 2:
 			continue # closed: 0 A.D. drops the slot, so later players move up
 		types.append(k)
@@ -661,6 +665,7 @@ func _collect_setup() -> Dictionary:
 			humans += 1
 		elif k == 1:
 			ai_total += 1
+	var names := _player_names(types, civs)
 	# Single-player Petra settings: the first AI slot's picks (per-slot AI is next).
 	var diff := 3
 	var beh := 2
@@ -685,23 +690,51 @@ func _collect_setup() -> Dictionary:
 		"res": res.get_selected(), "beh": beh, "diff": diff,
 		"biome": maxi(bio.get_selected(), 0),
 		"speed": float(SPEEDS[maxi(spd.get_selected(), 0)][0]),
-		"types": types, "civs": civs, "teams": teams, "diffs": diffs, "behs": behs, "colors": colors,
+		"types": types, "civs": civs, "teams": teams, "diffs": diffs, "behs": behs, "colors": colors, "names": names,
 		# Nomad only on random maps, RegicideGarrison only with Regicide (as 0 A.D. settings).
 		"nomad": $VBox/HBox/Left/StartRow/Nomad.button_pressed and not m.is_empty() and str(m.get("kind", "")) == "Random",
 		"regicide_garrison": $VBox/HBox/Left/StartRow/RegicideGarrison.button_pressed and vic.get_selected() == VICTORY_REGICIDE,
 		"disable_treasures": $VBox/HBox/Left/StartRow/DisableTreasures.button_pressed,
 		"humans": humans, "ai": ai_total, "slots": types.size()}
 
+# 0 A.D. PlayerName: slot 1 is you (Options > player name), AI slots take an unused name from
+# their civ's AINames ("Name 2" when the list runs out), other humans are "Player N".
+func _player_names(types: Array, civs: Array) -> Array:
+	var you := "Player 1"
+	var cfg := ConfigFile.new()
+	if cfg.load("user://config.ini") == OK:
+		you = str(cfg.get_value("general", "player_name_sp", you)).strip_edges()
+	var picked: Array = []
+	var names: Array = []
+	for i in range(types.size()):
+		if i == 0 and int(types[i]) == 0:
+			names.append(you if not you.is_empty() else "Player 1")
+		elif int(types[i]) == 1:
+			var pool: Array = CivAINames.AI_NAMES[clampi(int(civs[i]), 0, CivAINames.AI_NAMES.size() - 1)]
+			var free: Array = pool.filter(func(n): return not picked.has(n))
+			if free.is_empty():
+				free = pool
+			var chosen: String = free[randi() % free.size()]
+			var dup := picked.count(chosen)
+			picked.append(chosen)
+			names.append(chosen if dup == 0 else "%s %d" % [chosen, dup + 1])
+		else:
+			names.append("Player %d" % (i + 1))
+	return names
+
 func _on_start_pressed() -> void:
 	var st := _collect_setup()
 	if st["map"].is_empty():
 		_show_error("No map selected.")
 		return
-	if int(st["humans"]) < 1:
-		_show_error("Slot 1 must be Human.")
+	if int(st["humans"]) < 1 and int(st["ai"]) < 2:
+		_show_error("Watching a game needs at least 2 AI players.")
 		return
 	if int(st["ai"]) < 1:
 		_show_error("Need at least 1 AI opponent.")
+		return
+	if int(st["humans"]) > 0 and int(st["types"][0]) != 0:
+		_show_error("Slot 1 must be Human, or make every slot AI to watch.")
 		return
 	var m: Dictionary = st["map"]
 	if str(m["kind"]) == "Scenario" and int(st["slots"]) != int(m["players"]):
@@ -735,6 +768,7 @@ func _on_start_pressed() -> void:
 	ms.slot_diffs = st["diffs"]
 	ms.slot_behs = st["behs"]
 	ms.slot_colors = st["colors"]
+	ms.slot_names = st["names"]
 	ms.nomad = bool(st["nomad"])
 	ms.regicide_garrison = bool(st["regicide_garrison"])
 	ms.disable_treasures = bool(st["disable_treasures"])
