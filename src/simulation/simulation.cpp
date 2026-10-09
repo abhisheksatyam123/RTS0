@@ -6477,8 +6477,13 @@ bool Simulation::try_commit_foundation(Building &b) {
 		if (std::fabs(units_.pos_x[i] - b.x) >= b.half_size || std::fabs(units_.pos_z[i] - b.z) >= b.half_size) continue;
 		if (!turret_height_.empty() && turret_height_.count(units_.id[i])) continue;
 		blocked = true;
-		// WillMoveFromFoundation: only units allied to the foundation's owner make way.
-		if (units_.team[i] < MAX_PLAYERS && is_ally(units_.team[i], b.team)) leave_foundation(i, b);
+		// WillMoveFromFoundation: anyone makes way (a structure has no UnitAI, so enemies too),
+		// except units that pack or can't move; a fighting unit ignores the order (COMBAT).
+		const uint8_t st = units_.action_state[i];
+		if (units_.pack_state[i] != PACK_NONE || units_.speed[i] <= 0.0f || st == ACTION_GARRISONED ||
+				(st == ACTION_ATTACK && (units_.target_unit_id[i] != 0 || units_.target_building_id[i] != 0)))
+			continue;
+		leave_foundation(i, b);
 	}
 	if (blocked) return false;
 	b.committed = true;
@@ -8589,9 +8594,15 @@ void Simulation::order_guard(const uint32_t *unit_ids_in, size_t count_in, uint3
 	for (uint32_t uid : now) {
 		int32_t idx = lookup_unit(uid);
 		if (idx < 0 || !units_.alive[idx] || uid == target_unit_id) continue;
-		// Guard.js CanGuard: one's own or an ally's.
+		// UnitAI CanGuard: siege engines, traders, merchant and fishing ships and
+		// catafalques never guard (template_unit_* CanGuard false).
+		const uint8_t ut = units_.unit_type[idx];
+		if (unit_is_siege_engine(ut) || ut == UNIT_TRADER || ut == UNIT_MERCHANT_SHIP || ut == UNIT_FISHING_BOAT ||
+				ut == UNIT_CATAFALQUE)
+			continue;
+		// Guard.js: one's own or an ally's.
 		const uint8_t gteam = tb ? tb->team : units_.team[tidx];
-		if (tb && gteam != units_.team[idx] && !is_ally(units_.team[idx], gteam)) continue;
+		if (gteam != units_.team[idx] && !is_ally(units_.team[idx], gteam)) continue;
 		set_order(idx, ORDER_GUARD, 0, target_unit_id, gx, gz);
 		units_.action_state[idx] = ACTION_GUARD;
 		units_.has_order[idx] = 1;
@@ -8846,10 +8857,13 @@ void Simulation::finish_order(size_t i) {
 			}
 		}
 	} else if (units_.order_kind[i] == ORDER_GATHER && !order_still_valid(i, current_order(i))) {
-		// FINDINGNEWTARGET with no orders queued: the same kind of resource, near the unit,
+		// FINDINGNEWTARGET with no orders queued: the same kind of resource, near the unit
+		// (not for a forced order: it may have sent the unit across the map on purpose),
 		// else near where it was.
 		const int sub = (units_.order_flags[i] & ORDER_FLAG_SUB_MASK) >> ORDER_FLAG_SUB_SHIFT;
-		uint32_t r = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], units_.res_type_carried[i], units_.team[i], sub);
+		uint32_t r = 0;
+		if (!(units_.order_flags[i] & ORDER_FLAG_FORCE))
+			r = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], units_.res_type_carried[i], units_.team[i], sub);
 		if (r == 0)
 			r = find_nearby_resource(units_.order_x[i], units_.order_z[i], units_.res_type_carried[i], units_.team[i], sub);
 		if (r != 0) {
@@ -8858,8 +8872,9 @@ void Simulation::finish_order(size_t i) {
 			apply_order(uid, o);
 			return;
 		}
-		// GATHER FINDINGNEWTARGET: nothing left to gather nearby; drop off what it carries.
-		if (units_.carry[i] > 0) {
+		// GATHER FINDINGNEWTARGET: nothing left to gather nearby; drop off what it carries,
+		// or head to the dropsite anyway, "a nice enough place to congregate and idle".
+		if (units_.carry[i] > 0 || nearest_dropsite(i) != 0) {
 			set_order(i, ORDER_NONE, 0, 0, units_.pos_x[i], units_.pos_z[i]);
 			units_.target_resource_id[i] = 0;
 			units_.action_state[i] = ACTION_RETURN_DROPSITE;
@@ -8909,6 +8924,9 @@ void Simulation::resume_order(size_t i) {
 // UnitAI "Attacked" -> RespondToTargetedEntities: fight back as the stance allows,
 // or flee (passive stance, or a unit that can't attack).
 void Simulation::respond_to_attack(size_t i) {
+	// PACKING / UNPACKING "Attacked": a siege engine told to (un)pack ignores attacks.
+	const uint8_t ps = units_.pack_state[i];
+	if ((ps == PACK_PACKING || ps == PACK_UNPACKING) && units_.action_state[i] != ACTION_ATTACK) return;
 	const int32_t a = lookup_unit(units_.attacked_by[i]);
 	if (a < 0) {
 		// "Attacked" by a structure's arrows (BuildingAI): flee from it or go for it.
@@ -9162,6 +9180,25 @@ void Simulation::tick_unit_ai(float dt) {
 					units_.target_x[i] = units_.pos_x[a];
 					units_.target_z[i] = units_.pos_z[a];
 					units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED;
+					continue;
+				}
+			}
+			// GUARDING Timer: a builder repairs the structure it guards once it is damaged
+			// (PushOrderFront Repair), then guards again.
+			if ((i + ticks_) % 4 == 0 && unit_can_build(units_.unit_type[i], units_.tmpl[i])) {
+				auto bit = building_id_to_idx_.find(units_.order_target[i]);
+				if (bit != building_id_to_idx_.end()) {
+					const Building &gb = buildings_[bit->second];
+					if (gb.build_progress >= 1.0f && gb.hp > 0.0f && gb.hp < gb.max_hp) {
+						const uint32_t uid = units_.id[i];
+						auto &q = order_queues_[uid];
+						q.insert(q.begin(), current_order(i));
+						const bool was = applying_queued_;
+						applying_queued_ = true; // keep the queue: the guard resumes after the repair
+						order_build_or_repair(&uid, 1, gb.id, false, false);
+						applying_queued_ = was;
+						continue;
+					}
 				}
 			}
 		} else if (units_.order_kind[i] == ORDER_GUARD && units_.action_state[i] == ACTION_GUARD) {
@@ -9215,6 +9252,10 @@ void Simulation::tick_unit_ai(float dt) {
 					units_.action_state[i] = ACTION_IDLE;
 					units_.has_order[i] = 0;
 				}
+			} else if (now == ACTION_IDLE && units_.unit_type[i] == UNIT_HEALER && (i + ticks_) % 4 == 0) {
+				// FORMATIONMEMBER.IDLE is INDIVIDUAL.IDLE: a healer heals whoever is hurt nearby.
+				const uint32_t t = find_heal_target(i);
+				if (t != 0) start_heal(i, t, 0);
 			}
 			continue;
 		}
