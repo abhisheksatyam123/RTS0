@@ -17,8 +17,9 @@ var victory: int = 0
 var waves_enabled: bool = false
 # 0 A.D. "Last Man Standing": no allied victory, play until one player is left.
 var last_man_standing: bool = false
-# 0 A.D. population limit per player (0 = unlimited) and ceasefire length in minutes.
-var pop_cap: int = 200
+# 0 A.D. population limit per player (0 = unlimited, negative = World Population shared by
+# the players still in the game) and ceasefire length in minutes.
+var pop_cap: int = 300
 var ceasefire_min: int = 0
 # 0 A.D. map visibility: everything visible, or terrain known from the start.
 var reveal_map: bool = false
@@ -55,10 +56,10 @@ var ai_behavior: int = 2
 var start_res: int = 1
 # Per-slot setup, slot 0 is always the human player.
 # slot_types: 0 human, 1 AI, 2 closed. slot_civs: civ index per slot.
-# slot_teams: team number per slot (1-based, like 0 A.D.).
+# slot_teams: team per slot, 0 = None, 1-4 = T1..T4 (0 A.D. Team -1 / 0-3).
 var slot_types: Array = [0, 1]
 var slot_civs: Array = [0, 1]
-var slot_teams: Array = [1, 2]
+var slot_teams: Array = [0, 0]
 # Set by the replay menu / load dialog, consumed (and cleared) by the match scene:
 # a replay folder (user://replays/<id>/) to watch, or a saved game to load.
 var replay_dir: String = ""

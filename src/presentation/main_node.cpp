@@ -3212,9 +3212,12 @@ void RtsoMain::update_command_panel() {
 					rtso::BLD_WONDER
 				};
 				static const char *kPhaseNames[4] = {"", "Village", "Town", "City"};
-				// Generic structures, then the local civ's own (0 A.D. structures/<civ>/).
+				// Generic structures the civ's 0 A.D. Builder lists name, then the civ's
+				// own (0 A.D. structures/<civ>/).
 				const uint8_t my_civ = sim->player_civ(local_player());
-				std::vector<int> menu(std::begin(b_types), std::end(b_types));
+				std::vector<int> menu;
+				for (int bt : b_types)
+					if (rtso::civ_can_build(my_civ, (uint8_t)bt)) menu.push_back(bt);
 				for (int bt = rtso::CIV_BUILDING_FIRST; bt < rtso::BLD_TYPE_COUNT; ++bt)
 					if (rtso::civ_can_build(my_civ, (uint8_t)bt)) menu.push_back(bt);
 				for (int bt : menu) {
@@ -4475,7 +4478,11 @@ void RtsoMain::apply_match_settings() {
 	if (victory >= 0 && victory < rtso::VICTORY_COUNT) sim->set_victory_condition((uint8_t)victory);
 	sim->set_waves_enabled((bool)ms->get("waves_enabled"));
 	sim->set_last_man_standing((bool)ms->get("last_man_standing"));
-	sim->set_pop_cap((int)ms->get("pop_cap"));
+	{
+		const int pc = (int)ms->get("pop_cap"); // negative: World Population (0 A.D. WorldPopulationCap)
+		if (pc < 0) sim->set_world_pop_cap(-pc);
+		else sim->set_pop_cap(pc);
+	}
 	sim->set_ceasefire_seconds(60.0f * (float)std::clamp((int)ms->get("ceasefire_min"), 0, 60));
 	sim->set_reveal_map((bool)ms->get("reveal_map"));
 	sim->set_explore_map((bool)ms->get("explore_map"));
@@ -4491,11 +4498,13 @@ void RtsoMain::apply_match_settings() {
 	}
 	sim->set_water_level_mode(std::clamp((int)ms->get("water_level"), 0, 2));
 	sim->set_sea_level_rise_minutes(std::clamp((int)ms->get("sea_level_rise_min"), 0, 60));
-	// Game-setup teams (1-based T1..T4) decide allied victory, shared vision and territory.
-	Array slot_teams = ms->get("slot_teams");
-	for (int p = 0; p < 8 && p < slot_teams.size(); ++p) {
-		int tm = (int)slot_teams[p];
-		if (tm >= 1 && tm <= 8) sim->set_player_team((uint8_t)p, (uint8_t)(tm - 1));
+	// Game-setup teams (0 = None, 1-4 = T1..T4) decide allied victory, shared vision and territory.
+	{
+		Array slot_teams = ms->get("slot_teams");
+		uint8_t teams[rtso::MAX_PLAYERS] = {};
+		for (int p = 0; p < rtso::MAX_PLAYERS && p < slot_teams.size(); ++p)
+			teams[p] = (uint8_t)std::clamp((int)slot_teams[p], 0, 8);
+		sim->set_setup_teams(teams);
 	}
 	sim->apply_team_diplomacy(); // stances follow the lobby's teams
 	sync_victory_selector();
@@ -4515,14 +4524,7 @@ void RtsoMain::apply_match_settings() {
 		const float sp = (float)(double)ms->get("game_speed");
 		game_speed = (sp >= 0.25f && sp <= 3.0f) ? sp : 1.0f;
 	}
-	// Starting-resources presets (0 sparse / 1 normal / 2 generous / 3 abundant).
-	static const int kStartRes[4][4] = {
-		{150, 200, 150, 100}, {300, 400, 300, 200},
-		{500, 700, 500, 350}, {900, 1200, 900, 600},
-	};
-	if (start_res < 0 || start_res > 3) start_res = 1;
-	sim->set_starting_resources(kStartRes[start_res][0], kStartRes[start_res][1],
-			kStartRes[start_res][2], kStartRes[start_res][3]);
+	sim->set_starting_resources_preset(start_res); // 0 A.D. Very Low .. Deathmatch
 	// Per-slot civs (slot 0 = human; extra slots honor team civs the
 	// RMS/JSON spawns actually created - Petra only drives team 1).
 	for (int t = 0; t < rtso::MAX_PLAYERS && t < slot_civs.size(); ++t) {
@@ -5037,6 +5039,8 @@ void RtsoMain::_on_lobby_start_pressed() {
 		setup.waves = (bool)ms->get("waves_enabled") ? 1 : 0;
 		setup.lms = (bool)ms->get("last_man_standing") ? 1 : 0;
 		setup.pop_cap = (uint16_t)std::clamp((int)ms->get("pop_cap"), 0, 1000);
+		// A negative pop_cap is Game Setup's World Population.
+		setup.world_pop = (uint16_t)std::clamp(-(int)ms->get("pop_cap"), 0, rtso::Simulation::MAX_WORLD_POP);
 		setup.ceasefire = (uint8_t)std::clamp((int)ms->get("ceasefire_min"), 0, 60);
 		setup.reveal = (bool)ms->get("reveal_map") ? 1 : 0;
 		setup.explore = (bool)ms->get("explore_map") ? 1 : 0;
@@ -5093,7 +5097,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 	if (setup.victory >= rtso::VICTORY_COUNT) setup.victory = sim->victory_condition();
 	if (setup.difficulty > 5) setup.difficulty = sim->petra_difficulty();
 	if (setup.behavior > 3) setup.behavior = sim->petra_behavior();
-	if (setup.start_res > 3) setup.start_res = 1;
+	if (setup.start_res >= rtso::Simulation::STARTING_RESOURCE_PRESET_COUNT) setup.start_res = 1;
 	// Every connected joiner needs a human slot to play: if the lobby left too
 	// few, turn the first AI slots into human ones (before broadcast, so both
 	// peers seat players identically in assign_slot_players).
@@ -5154,7 +5158,8 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	sim->set_victory_condition(setup.victory >= rtso::VICTORY_COUNT ? 0 : setup.victory);
 	sim->set_waves_enabled(setup.waves != 0);
 	sim->set_last_man_standing(setup.lms != 0);
-	sim->set_pop_cap(setup.pop_cap);
+	if (setup.world_pop) sim->set_world_pop_cap(setup.world_pop);
+	else sim->set_pop_cap(setup.pop_cap);
 	sim->set_ceasefire_seconds(60.0f * (float)setup.ceasefire);
 	sim->set_reveal_map(setup.reveal != 0);
 	sim->set_explore_map(setup.explore != 0);
@@ -5166,8 +5171,10 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) sim->set_player_color(p, setup.colors[p]);
 	sim->set_water_level_mode(setup.water_level);
 	sim->set_sea_level_rise_minutes(setup.sea_rise_min);
-	for (uint8_t p = 0; p < 8 && p < setup.slot_count; ++p) {
-		if (setup.teams[p] >= 1 && setup.teams[p] <= 8) sim->set_player_team(p, (uint8_t)(setup.teams[p] - 1));
+	{
+		uint8_t teams[rtso::MAX_PLAYERS] = {};
+		for (uint8_t p = 0; p < rtso::MAX_PLAYERS && p < setup.slot_count; ++p) teams[p] = setup.teams[p];
+		sim->set_setup_teams(teams);
 	}
 	sim->apply_team_diplomacy();
 	sync_victory_selector();
@@ -5177,13 +5184,8 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		sim->set_petra_difficulty(p, setup.diffs[p]);
 		sim->set_petra_behavior(p, setup.behs[p]);
 	}
-	static const int kStartRes[4][4] = {
-		{150, 200, 150, 100}, {300, 400, 300, 200},
-		{500, 700, 500, 350}, {900, 1200, 900, 600},
-	};
-	uint8_t sr = setup.start_res > 3 ? 1 : setup.start_res;
-	sim->set_starting_resources(kStartRes[sr][0], kStartRes[sr][1],
-			kStartRes[sr][2], kStartRes[sr][3]);
+	const uint8_t sr = setup.start_res < rtso::Simulation::STARTING_RESOURCE_PRESET_COUNT ? setup.start_res : 1;
+	sim->set_starting_resources_preset(sr);
 	for (uint8_t t = 0; t < rtso::MAX_PLAYERS && t < setup.slot_count; ++t) {
 		if (setup.civs[t] < rtso::CIV_COUNT) sim->set_team_civ(t, setup.civs[t]);
 	}
@@ -5204,7 +5206,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		ms->set("victory", (int)sim->victory_condition());
 		ms->set("waves_enabled", sim->waves_enabled());
 		ms->set("last_man_standing", sim->last_man_standing());
-		ms->set("pop_cap", sim->pop_cap());
+		ms->set("pop_cap", sim->pop_cap_setting()); // negative: World Population
 		ms->set("ceasefire_min", (int)(sim->ceasefire_seconds() / 60.0f));
 		ms->set("reveal_map", sim->reveal_map());
 		ms->set("explore_map", sim->explore_map());

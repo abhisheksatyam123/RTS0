@@ -34,6 +34,12 @@
 
 using namespace godot;
 
+// Preview models in player 1's colour (0 A.D. player_trans surfaces).
+static void preview_player_color(Node *n) {
+	const uint32_t rgb = rtso::PLAYER_COLORS[1];
+	rtso::ModelLibrary::set_player_color(n, Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f));
+}
+
 void RtsoAssetViewer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_cat_selected", "index"), &RtsoAssetViewer::_on_cat_selected);
 	ClassDB::bind_method(D_METHOD("_on_civ_selected", "index"), &RtsoAssetViewer::_on_civ_selected);
@@ -498,6 +504,7 @@ void RtsoAssetViewer::load_preview() {
 		preview_scene = e.scene->instantiate();
 		if (preview_scene) {
 			rtso::ModelLibrary::apply_imported_material_fixups(preview_scene);
+			preview_player_color(preview_scene);
 			preview_root->add_child(preview_scene);
 			Node3D *n3 = Object::cast_to<Node3D>(preview_scene);
 			if (n3) {
@@ -621,6 +628,7 @@ void RtsoAssetViewer::load_preview() {
 			if (se.scene.is_valid()) {
 				n = se.scene->instantiate();
 				rtso::ModelLibrary::apply_imported_material_fixups(n);
+				preview_player_color(n);
 			} else if (se.mesh.is_valid()) {
 				MeshInstance3D *mi = memnew(MeshInstance3D);
 				mi->set_mesh(se.mesh);

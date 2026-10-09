@@ -83,6 +83,7 @@ struct UnitSoA {
 	uint8_t *work_kind = nullptr;
 	uint32_t *work_target = nullptr;
 	float *xp_partial = nullptr; // Promotion.js xp below one point (healing grants a little each tick)
+	float *aura_hp_mult = nullptr; // Health/Max multiplier from auras now applied to max_hp (1 = none)
 
 	size_t cap = 0;
 	size_t count = 0;
@@ -105,6 +106,7 @@ struct UnitSoA {
 		FREE(pack_state); FREE(pack_elapsed);
 		FREE(order_kind); FREE(order_flags); FREE(order_target); FREE(order_x); FREE(order_z); FREE(order_x2); FREE(order_z2); FREE(attacked_by); FREE(work_kind); FREE(work_target);
 		FREE(xp_partial);
+		FREE(aura_hp_mult);
 		#undef FREE
 		cap = count = 0;
 	}
@@ -181,6 +183,7 @@ struct UnitSoA {
 		realloc_aligned(work_kind, c * sizeof(uint8_t));
 		realloc_aligned(work_target, c * sizeof(uint32_t));
 		realloc_aligned(xp_partial, c * sizeof(float));
+		realloc_aligned(aura_hp_mult, c * sizeof(float));
 		cap = c;
 	}
 
@@ -233,6 +236,7 @@ struct UnitSoA {
 		work_kind[i] = 0;
 		work_target[i] = 0;
 		xp_partial[i] = 0.0f;
+		aura_hp_mult[i] = 1.0f;
 		hp[i] = max_hp[i] = info.hp;
 		attack_range[i] = info.attack_range;
 		attack_damage[i] = info.attack_damage;
@@ -292,6 +296,7 @@ struct UnitSoA {
 			work_kind[idx] = work_kind[last];
 			work_target[idx] = work_target[last];
 			xp_partial[idx] = xp_partial[last];
+			aura_hp_mult[idx] = aura_hp_mult[last];
 		}
 		count--;
 	}

@@ -405,6 +405,13 @@ enum ResourceSubtype : uint8_t {
 	RES_SUB_RUINS = 4 // stone.ruins / metal.ruins (template_gaia_ruins): gather_class_ruins_rate
 };
 
+// 0 A.D. Gaia ResourceSupply Max amounts that random maps place: gaia/tree/* hold
+// 200 wood, template_gaia_ore and template_gaia_rock 1000 metal or stone, and their
+// _large variants 5000. (Ported JSON maps read each entity's own template instead.)
+constexpr int32_t TREE_WOOD_SUPPLY = 200;
+constexpr int32_t MINE_SUPPLY = 1000;
+constexpr int32_t LARGE_MINE_SUPPLY = 5000;
+
 // 0 A.D. template_gaia_fish.xml ResourceSupply: 1000 food, at most 4 gatherers,
 // and +1 food every 2 s while nobody gathers it (Change/Spawn, notGathered) up to Max.
 constexpr int32_t FISH_FOOD_SUPPLY = 1000;
@@ -1107,7 +1114,7 @@ inline constexpr uint64_t bld_bit(uint8_t type) { return (type < 64) ? (1ull << 
 // model fallback and AI role.
 // ---------------------------------------------------------------------------
 
-enum CivRosterFlag : uint8_t {
+enum CivRosterFlag : uint16_t {
 	ROSTER_HERO = 1,
 	ROSTER_CHAMPION = 2,
 	ROSTER_RANGED = 4,
@@ -1115,7 +1122,8 @@ enum CivRosterFlag : uint8_t {
 	ROSTER_MERCENARY = 16,
 	ROSTER_PACKABLE = 32, // 0 A.D. Pack component (10 s to pack or unpack)
 	ROSTER_SIEGE_TOWER = 64,
-	ROSTER_RELIC = 128 // a catafalque (template_unit_catafalque): Capture the Relic
+	ROSTER_RELIC = 128, // a catafalque (template_unit_catafalque): Capture the Relic
+	ROSTER_NO_GATHER = 256 // a Citizen whose template disables ResourceGatherer (mercenaries)
 };
 
 inline constexpr uint16_t civ_bit(uint8_t civ) { return (civ < 16) ? (uint16_t)(1u << civ) : 0u; }
@@ -1187,7 +1195,7 @@ struct CivUnitTemplate {
 	uint8_t civ;
 	uint8_t unit_type; // RTS0 behaviour class (UnitType)
 	uint8_t phase; // 1 village, 2 town, 3 city
-	uint8_t flags; // CivRosterFlag bits
+	uint16_t flags; // CivRosterFlag bits
 	uint64_t trainers; // bld_bit() of each BuildingType that trains it
 	float hp;
 	float speed;
@@ -1295,7 +1303,8 @@ inline uint8_t unit_gather_class(uint8_t unit_type, uint16_t tmpl) {
 	if (tmpl != CIV_UNIT_TEMPLATE_NONE) {
 		// Roster rows: only citizen soldiers (ROSTER_CITIZEN; three citizen champions inherit
 		// template_unit_infantry too) gather.
-		if (!(civ_unit_template(tmpl).flags & ROSTER_CITIZEN)) return GATHER_NONE;
+		const uint16_t flags = civ_unit_template(tmpl).flags;
+		if (!(flags & ROSTER_CITIZEN) || (flags & ROSTER_NO_GATHER)) return GATHER_NONE;
 		return infantry ? GATHER_INFANTRY : cavalry ? GATHER_CAVALRY : GATHER_NONE;
 	}
 	return infantry ? GATHER_INFANTRY : cavalry ? GATHER_CAVALRY : GATHER_NONE;
@@ -1442,7 +1451,7 @@ inline const UnitTypeInfo &civ_template_unit_info(uint16_t tmpl, uint8_t type) {
 			u.attack_cooldown = t.attack_cooldown;
 			u.carry_capacity = t.carry_capacity;
 			// template_unit_cavalry ResourceGatherer: citizen cavalry carry 20 meat (Capacities/food).
-			if (t.unit_type == UNIT_CAVALRY && (t.flags & ROSTER_CITIZEN) && u.carry_capacity == 0) u.carry_capacity = 20;
+			if (t.unit_type == UNIT_CAVALRY && (t.flags & ROSTER_CITIZEN) && !(t.flags & ROSTER_NO_GATHER) && u.carry_capacity == 0) u.carry_capacity = 20;
 			if (t.attack_range > u.aggro_range) u.aggro_range = t.attack_range;
 			u.hack_armor = t.hack_armor;
 			u.pierce_armor = t.pierce_armor;
@@ -1553,7 +1562,7 @@ inline LootInfo unit_class_loot(uint8_t type) {
 // differ from the class their RTS0 UnitType names.
 inline LootInfo unit_loot(uint16_t tmpl, uint8_t type) {
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
-		const uint8_t flags = civ_unit_template(tmpl).flags;
+		const uint16_t flags = civ_unit_template(tmpl).flags;
 		if (flags & ROSTER_HERO) return {400, 10, 0, 0, 25};          // template_unit_hero
 		if (flags & ROSTER_SIEGE_TOWER) return {250, 0, 100, 0, 60};  // template_unit_siege_tower
 		if (flags & ROSTER_CHAMPION) {
@@ -1573,7 +1582,7 @@ inline LootInfo unit_loot(uint16_t tmpl, uint8_t type) {
 inline float unit_capture_attack(uint16_t tmpl, uint8_t type) {
 	const float base = unit_capture_strength(type);
 	if (base <= 0.0f || tmpl >= CIV_UNIT_TEMPLATE_COUNT) return base;
-	const uint8_t flags = civ_unit_template(tmpl).flags;
+	const uint16_t flags = civ_unit_template(tmpl).flags;
 	if (flags & ROSTER_HERO) return 10.0f;
 	if (flags & ROSTER_CHAMPION) return 5.0f;
 	return base;
@@ -1685,6 +1694,10 @@ inline float combat_bonus(const CombatProfile &attacker, const CombatProfile &ta
 // A projectile's footprint test radius in RTS0 units (PositionHelper.TestCollision).
 inline float combat_footprint(const CombatProfile &p) { return p.footprint * COMBAT_DISTANCE_SCALE; }
 // unit_advanced.json and unit_elite.json each multiply Attack/Ranged/Spread by 0.8.
+// StatusEffect bit for a CombatProfile::status (1 Poisoned, 2 Burning).
+inline uint8_t status_effect_bit(uint8_t status) {
+	return status == 1 ? EFFECT_POISON : status == 2 ? EFFECT_BURNING : EFFECT_NONE;
+}
 inline float spread_rank_multiplier(uint8_t rank) {
 	return rank >= 3 ? 0.64f : (rank == 2 ? 0.8f : 1.0f);
 }

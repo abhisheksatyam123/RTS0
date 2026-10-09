@@ -104,7 +104,7 @@ inline const char *stat_building_class_name(uint8_t c) {
 
 // The 0 A.D. classes a unit of this behaviour type and roster flags carries
 // (template_unit_*.xml VisibleClasses), as a bit mask over StatUnitClass.
-inline uint32_t stat_unit_classes(uint8_t unit_type, uint8_t roster_flags) {
+inline uint32_t stat_unit_classes(uint8_t unit_type, uint16_t roster_flags) {
 	uint32_t m = 0;
 	auto set = [&](StatUnitClass c) { m |= 1u << c; };
 	switch (unit_type) {

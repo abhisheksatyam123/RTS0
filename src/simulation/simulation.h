@@ -148,7 +148,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 36; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 37; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -579,9 +579,16 @@ public:
 	// 0 A.D. "Last Man Standing": allies don't share a win; the match goes on until one player is left.
 	bool last_man_standing() const { return last_man_standing_; }
 	void set_last_man_standing(bool on) { last_man_standing_ = on; }
-	// 0 A.D. population limit per player (game setup); 0 means unlimited.
-	int pop_cap() const { return pop_cap_; }
+	// 0 A.D. population limit per player (game setup); 0 means unlimited. A negative
+	// setting is 0 A.D.'s World Population: -setting shared evenly by the players
+	// still in the game (PlayerManager.RedistributeWorldPopulation), so each
+	// defeat raises everyone else's share. Stored in pop_cap_, so no save change.
+	static constexpr int MAX_WORLD_POP = 63000; // 0 A.D. world_population_capacities.json
+	int pop_cap() const;
+	int pop_cap_setting() const { return pop_cap_; }
+	int world_pop_cap() const { return pop_cap_ < 0 ? -pop_cap_ : 0; }
 	void set_pop_cap(int cap) { pop_cap_ = std::max(0, cap); }
+	void set_world_pop_cap(int world) { pop_cap_ = world > 0 ? -std::min(world, MAX_WORLD_POP) : 0; }
 	// 0 A.D. ceasefire: no player can attack another for the first N seconds of the match.
 	// 0 A.D. map visibility options: everything visible, or terrain known from the start.
 	bool reveal_map() const { return reveal_map_; }
@@ -842,6 +849,28 @@ public:
 	// Must be called AFTER map load: reset()/generate() overwrite stocks.
 	void set_starting_resources(int food, int wood, int gold, int stone) {
 		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) set_player_resources(p, food, wood, gold, stone);
+	}
+	// 0 A.D. settings/starting_resources.json: Very Low, Low (default), Medium, High,
+	// Very High, Deathmatch; every resource starts at the same amount.
+	static constexpr int STARTING_RESOURCE_PRESETS[] = {100, 300, 500, 1000, 3000, 50000};
+	static constexpr int STARTING_RESOURCE_PRESET_COUNT = 6;
+	static constexpr int STARTING_RESOURCE_PRESET_DEFAULT = 1;
+	void set_starting_resources_preset(int preset) {
+		if (preset < 0 || preset >= STARTING_RESOURCE_PRESET_COUNT) preset = STARTING_RESOURCE_PRESET_DEFAULT;
+		const int r = STARTING_RESOURCE_PRESETS[preset];
+		set_starting_resources(r, r, r, r);
+	}
+	// Game Setup teams (0 A.D. Diplomacy ChangeTeam): setup[p] is 0 for "None" or
+	// team 1-4. A player with no team stays alone (team = its own id); a team's id is
+	// its lowest member, so it can never match a teamless player's id.
+	void set_setup_teams(const uint8_t setup[MAX_PLAYERS]) {
+		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+			uint8_t id = p;
+			if (setup[p] != 0)
+				for (uint8_t q = 0; q < p; ++q)
+					if (setup[q] == setup[p]) { id = q; break; }
+			set_player_team(p, id);
+		}
 	}
 
 	float food_rate(uint8_t pid = 0) const { return player(pid).gathered_window[RES_FOOD] * 6.0f; } // per min approx
@@ -1299,6 +1328,8 @@ private:
 	// flee), returns fighters to their order, turns patrols, follows the order queue.
 	void tick_unit_ai(float dt);
 	void tick_status_effects(float dt);
+	void apply_status(size_t t, const CombatProfile &att); // Attack ApplyStatus (Poisoned, Burning)
+	static float status_dps(uint8_t kind);
 	void tick_projectiles(float dt);
 	void tick_construction(float dt);
 	// Foundation.js Commit: own and allied units standing on the foundation are told to
@@ -1373,10 +1404,13 @@ private:
 	void reveal_viewers(std::vector<uint8_t> &grid, FowViews &views, UnitVision unit_vr, BuildingVision building_vr);
 	bool terrain_blocks_los(float sx, float sz, float sy, float tx, float tz, float ty) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
+	bool line_crosses_deep_water(float x0, float z0, float x1, float z1) const;
 	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
 	void rebuild_auras(); // G4: rebuild AuraManager from temples/heroes/carnyx/female citizens
+	void apply_health_auras(); // Health/Max auras: rescale max_hp and hp as units enter or leave them
+	float unit_vision_at(size_t i) const; // Vision/Range with Vision auras (0 A.D. Vision.js)
 	uint16_t aura_affected_players(uint8_t owner, uint8_t players) const;
 	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false, uint8_t visual = 0, uint32_t source_id = 0, uint8_t splash = 0);
 	static float projectile_speed(uint8_t visual);
@@ -1713,6 +1747,8 @@ private:
 		std::vector<uint32_t> links;                // land << 16 | sea, sorted (regionLinks)
 		bool naval_map = false;                     // headquarters.js navalMap
 		std::vector<bool> naval;                    // navalRegions, by sea id
+		std::vector<bool> land_ok;                  // landRegions, by land id (classify)
+		bool land_region(uint16_t l) const { return l < land_ok.size() && land_ok[l]; }
 		bool linked(uint16_t land, uint16_t sea) const {
 			return std::binary_search(links.begin(), links.end(), ((uint32_t)land << 16) | sea);
 		}
@@ -1725,6 +1761,15 @@ private:
 	mutable uint64_t petra_topo_cache_key_ = 0;
 	mutable bool petra_topo_cache_valid_ = false;
 	uint16_t petra_land_at(float x, float z) const;
+	// This AI's topology classified from its home land (headquarters.js navalMap, landRegions).
+	const PetraNavalTopo &petra_classified_topo(uint16_t &home) const;
+	mutable PetraNavalTopo petra_class_topo_; // per AI turn, derived: not saved
+	mutable uint16_t petra_class_home_ = 0;
+	mutable int petra_class_topo_pid_ = -1;
+	mutable uint64_t petra_class_key_ = 0; // petra_topo_cache_key_ it was classified from
+	mutable uint8_t petra_class_for_ = 0;
+	mutable bool petra_class_valid_ = false;
+	void petra_order_builders(const std::vector<uint32_t> &workers, size_t max, uint32_t bid);
 	uint16_t petra_building_land(const Building &b, const PetraNavalTopo *topo = nullptr, uint16_t prefer = 0) const;
 	uint16_t petra_home_land(float x, float z, const PetraNavalTopo *topo = nullptr) const;
 	uint16_t petra_overseas(const PetraNavalTopo &t, float from_x, float from_z, uint32_t target_id) const;
