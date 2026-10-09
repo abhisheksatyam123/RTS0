@@ -5,8 +5,10 @@
 #include "../core/memory/soa_storage.h"
 #include "grid_nav.h"
 #include "los_grid.h"
+#include "nav/footprint.h"
 #include "nav/obstacle_grid.h"
 #include "aura_manager.h"
+#include "cell_set.h"
 #include "petra_ai.h"
 #include "sim_types.h"
 #include "statistics_tracker.h"
@@ -149,7 +151,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 38; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 39; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -202,7 +204,8 @@ public:
 	struct Building {
 		uint32_t id;
 		float x, z;
-		float half_size;
+		float half_size; // half the footprint's width, along its u axis
+		float half_d = 0.0f; // half its depth, along v (building_half_depth); set both with set_extents
 		uint8_t type; // BLD_*
 		uint8_t team; // 0=player, 1=enemy
 		float hp;
@@ -212,7 +215,22 @@ public:
 		bool wrecked = false;   // hp already applied; keep entity for collapse + rubble
 		int cell_x, cell_y;
 		int footprint; // 1 or 2
-		float rot = DEFAULT_BUILDING_ROT; // 0 A.D. Position rotation: 0 faces +z, pi/2 faces +x (the obstruction stays an axis-aligned square)
+		float rot = DEFAULT_BUILDING_ROT; // 0 A.D. Position rotation: 0 faces +z, pi/2 faces +x; set with set_rot
+		// The footprint's u axis and half extents along u and v (nav/footprint.h), turned with rot. A
+		// quarter turn swaps width and depth.
+		float ux = 1.0f, uz = 0.0f, hu = 0.0f, hv = 0.0f;
+		void set_rot(float a) {
+			rot = a;
+			bool swapped;
+			nav::footprint_axis(a, ux, uz, swapped);
+			hu = swapped ? half_d : half_size;
+			hv = swapped ? half_size : half_d;
+		}
+		void set_extents(float half_w, float half_depth) {
+			half_size = half_w;
+			half_d = half_depth;
+			set_rot(rot);
+		}
 		// 0 A.D. BuildingAI.js FireArrows: attack_timer counts down to the next of the ten
 		// rounds per RepeatTime; the timer runs only while enemies are in range.
 		float attack_timer;
@@ -294,6 +312,8 @@ public:
 			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE);
 	// Stats of the unit at SoA index i (its civ roster template, else its class).
 	const UnitTypeInfo &unit_info_at(size_t i) const { return civ_template_unit_info(units_.tmpl[i], units_.unit_type[i]); }
+	// Walk speed of the unit at SoA index i: its speed with technologies times any speed aura it stands in.
+	float unit_walk_speed(size_t i) const;
 	// 0 A.D. Identity classes, RestrictedClasses, Bonuses and Spread of the unit at SoA index i.
 	const CombatProfile &unit_combat_at(size_t i) const { return unit_combat(units_.tmpl[i], units_.unit_type[i]); }
 	// Attack.js CanAttack: may unit i attack unit j / building b at all (RestrictedClasses)?
@@ -505,9 +525,9 @@ public:
 		std::vector<FormationSlot> slots;
 		WaypointPath path;
 		// v37: the attack order (UnitAI FORMATIONCONTROLLER.COMBAT / MEMBER) and patrol.
-		uint32_t target_unit = 0;       // Order.Attack target unit
-		uint32_t target_building = 0;   // Order.Attack target structure
-		uint8_t allow_capture = 0;      // Attack.js allowCapture for the members
+		uint32_t target_unit = 0;       // Order.Attack/Heal target unit, Order.Gather resource
+		uint32_t target_building = 0;   // Order.Attack/Repair/Garrison target structure
+		uint8_t task_flags = 0;         // FormationTask << FTASK_SHIFT | FTASK_CAPTURE (Attack.js allowCapture)
 		uint8_t returning = 0;          // order.data.returningState: where MEMBER goes back to
 		float member_timer = 0.0f;      // MEMBER / CHECKINGWAYPOINT one-second timer
 		float patrol_x = 0.0f, patrol_z = 0.0f; // patrolStartPosOrder: the other end of the patrol
@@ -520,6 +540,13 @@ public:
 		FORDER_IDLE = 0, FORDER_WALK = 1, FORDER_ATTACK_WALK = 2, FORDER_APPROACH = 3,
 		FORDER_MEMBER = 4, FORDER_PATROL = 5, FORDER_PATROL_WAIT = 6
 	};
+	// The order the controller walks up for (APPROACH) and then hands to the members:
+	// FORMATIONCONTROLLER Order.Attack, Order.Gather, Order.Repair, Order.Garrison, Order.Heal.
+	enum FormationTask : uint8_t {
+		FTASK_ATTACK = 0, FTASK_GATHER = 1, FTASK_REPAIR = 2, FTASK_GARRISON = 3, FTASK_HEAL = 4
+	};
+	static constexpr uint8_t FTASK_CAPTURE = 1, FTASK_SHIFT = 4;
+	static uint8_t formation_task(const FormationController &fc) { return fc.task_flags >> FTASK_SHIFT; }
 	const std::vector<FormationController> &formations() const { return formations_; }
 	// Controller id of the formation unit_id belongs to, 0 when none.
 	uint32_t formation_of_unit(uint32_t unit_id) const;
@@ -797,7 +824,7 @@ public:
 	enum PlacementResult : uint8_t {
 		PLACE_OK = 0,
 		PLACE_OBSTRUCTED, // off the map, on another building or on a resource
-		PLACE_TERRAIN,    // water under a land building, deep water under a wall
+		PLACE_TERRAIN,    // water under a land building, deep water under a wall, a slope too steep
 		PLACE_TERRITORY,  // territory the template does not allow
 		PLACE_SHORE,      // a dock not on a shoreline facing a sea
 		PLACE_DISTANCE,   // too close to the player's own building of the same class
@@ -1272,8 +1299,17 @@ public:
 	StatisticsSample statistics_snapshot() const;
 
 private:
-	void move_units(float dt, Arena &arena);
+	// Each unit's own step this tick (arena memory), for motion_feedback().
+	struct MoveSteps {
+		const float *from_x = nullptr, *from_z = nullptr; // where it stood before move_units()
+		const float *want_x = nullptr, *want_z = nullptr; // the step it tried to take
+		const uint8_t *blocked = nullptr; // a closed gate stopped the step (CheckMovement failed)
+		size_t count = 0;
+	};
+	void move_units(float dt, Arena &arena, MoveSteps &steps);
 	void separation(float dt, Arena &arena);
+	void motion_feedback(float dt, const MoveSteps &steps);
+	void patrol_next_leg(size_t i);
 	void tick_gather(float dt);
 	// Fields (0 A.D. template_structure_resource_field): a finished field owns
 	// one infinite grain resource at its centre. Derived from buildings_, so it
@@ -1355,7 +1391,18 @@ private:
 	std::vector<uint32_t> formation_take_patrol(const std::vector<uint32_t> &ids, float tx, float tz); // Order.Patrol
 	bool formation_target_in_range(const FormationController &fc) const; // CheckFormationTargetAttackRange
 	bool formation_target_pos(const FormationController &fc, float &x, float &z) const;
-	void formation_members_attack(size_t ci);   // CallMemberFunction("Attack")
+	void formation_members_attack(size_t ci);   // CallMemberFunction("Attack"/"Gather"/"Repair"/...)
+	// Commands.js "gather"/"repair"/"garrison"/"heal" through GetFormationUnitAIs: whole
+	// formations in ids walk up as one (APPROACH), then their members do the work (MEMBER).
+	std::vector<uint32_t> formation_take_task(const std::vector<uint32_t> &ids, uint8_t task, uint32_t target);
+	bool formation_acting_ = false; // the members are being handed the controller's order
+	// A member at work on an order of its own (gathering, building, garrisoning, healing):
+	// UnitAI runs it, and the formation waits for it in MEMBER.
+	bool member_working(size_t i) const {
+		const uint8_t k = units_.order_kind[i];
+		return k == ORDER_GATHER || k == ORDER_BUILD || k == ORDER_GARRISON || k == ORDER_HEAL ||
+				k == ORDER_RETURN_RESOURCE;
+	}
 	void formation_merge_twins();               // Formation.js ShapeUpdate twin merge
 	void formation_delete_twins(FormationController &fc); // Formation.js DeleteTwinFormations
 	void formation_size(const FormationController &fc, float &width, float &depth) const; // GetSize
@@ -1449,7 +1496,7 @@ private:
 	void reveal_viewers(std::vector<uint8_t> &grid, FowViews &views, UnitVision unit_vr, BuildingVision building_vr);
 	bool terrain_blocks_los(float sx, float sz, float sy, float tx, float tz, float ty) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
-	bool line_crosses_deep_water(float x0, float z0, float x1, float z1) const;
+	bool line_crosses_impassable(float x0, float z0, float x1, float z1) const;
 	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
@@ -1575,12 +1622,7 @@ private:
 	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0) const;
 	std::unordered_map<uint32_t, size_t> building_id_to_idx_;
 
-	struct CellHash {
-		size_t operator()(const std::pair<int, int> &p) const {
-			return (size_t)p.first * 73856093 ^ (size_t)p.second * 19349663;
-		}
-	};
-	std::unordered_set<std::pair<int, int>, CellHash> occupied_cells_;
+	CellSet occupied_cells_; // every building's footprint cells (can_place)
 	// check_placement's cells (GRID-sized, from -map_half_) that a Gaia resource's
 	// obstruction touches. A cache of resources_, rebuilt when the tick or the
 	// resource count changes; never saved or hashed.
@@ -1907,7 +1949,7 @@ private:
 	std::array<std::vector<uint8_t>, MAX_PLAYERS> player_fow_; // per-player FoW for players 1..7 (index 0 unused: fow_grid_)
 	std::vector<uint8_t> unexplored_fow_ = std::vector<uint8_t>((size_t)MAX_GRID_RES * MAX_GRID_RES, 0);
 	std::vector<uint8_t> revealed_fow_ = std::vector<uint8_t>((size_t)MAX_GRID_RES * MAX_GRID_RES, FOW_VISIBLE);
-	LosGrid los_;                         // per-player LOS counts and visible/explored bits (saved v38)
+	LosGrid los_;                         // per-player LOS counts and visible/explored bits (saved v39)
 	std::vector<LosSource> los_unit_src_; // the circle each unit index last added
 	std::vector<LosSource> los_bld_src_;  // the circle each buildings_ index last added
 
@@ -1981,11 +2023,13 @@ private:
 	// fields nav/building_steering.h reads, so its per-unit scans read a short packed list.
 	struct SteerObstacle {
 		uint32_t id;
-		float x, z, half_size;
+		float x, z;
+		float ux, uz, hu, hv; // Building::ux, uz, hu, hv
 		uint8_t type;
 		bool wrecked;
 	};
 	std::vector<SteerObstacle> steer_obstacles_;
+	uint32_t short_path_key_ = 1; // this tick's steering obstacles and water level (ShortPathMemo::key)
 	std::vector<SteerObstacle> sep_obstacles_; // separation()'s list, built the same way
 	nav::ObstacleGrid sep_grid_; // sep_obstacles_ by cell, rebuilt with it
 	// tick_capture()'s count and strength of nearby capturers per building and team, and the grid of
@@ -2015,10 +2059,12 @@ private:
 	void apply_order(uint32_t uid, const UnitOrder &o);
 	bool order_still_valid(size_t i, const UnitOrder &o) const;
 	int32_t structure_attacker(uint32_t building_id, uint8_t team) const;
+	uint32_t nearest_dropsite(size_t i) const;
+	void deposit_carry(size_t i);
 	void finish_order(size_t i);
 	void resume_order(size_t i);
 	void respond_to_attack(size_t i);
-	void respond_to_attacker(size_t i, uint32_t attacker_id, float ax, float az, bool melee);
+	void respond_to_attacker(size_t i, uint32_t attacker_id, float ax, float az, bool melee, bool structure = false);
 	std::vector<uint16_t> combat_wild_scratch_; // tick_combat: dangerous animals this tick
 	// ResourceGatherer.CanGather: unit index i has a Rates entry for resource index r.
 	bool can_gather(size_t i, size_t r) const;

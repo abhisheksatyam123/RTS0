@@ -126,9 +126,10 @@ static void test_rotation() {
 	CHECK(std::isnan(s.dock_angle(-30.0f, 50.0f, dhalf))); // inland: no shoreline in reach
 }
 
-// Foundation.js Commit / UnitAI LeaveFoundation: own and allied units standing on a
-// foundation walk off it before work starts and then carry on with their order;
-// an enemy on the site keeps it from starting. Once committed, it blocks movement.
+// Foundation.js Commit / UnitAI LeaveFoundation: units standing on a foundation walk off
+// it before work starts and then carry on with their order. Enemies make way too
+// (WillMoveFromFoundation: a structure has no UnitAI); one that can't move keeps work
+// from starting. Once committed, it blocks movement.
 static void test_foundation_clearing() {
 	static Simulation s;
 	auto bld = [&](uint32_t id) -> const Simulation::Building & {
@@ -163,22 +164,25 @@ static void test_foundation_clearing() {
 	CHECK(!on_site(patroller, bld(barracks)));
 	CHECK(s.units_.order_kind[pi] == ORDER_PATROL);
 
-	// An enemy on the site: no work until it has gone (no Civic Centre here to shoot it).
+	// An enemy on the site walks off it too (no Civic Centre here to shoot it).
 	fresh(s);
 	const uint32_t h2 = s.spawn_building_world(-30.0f, 50.0f, BLD_HOUSE, 0, 0.0f);
 	const uint32_t enemy = s.spawn_unit(-30.0f, 50.0f, 1, UNIT_FEMALE_CITIZEN);
 	s.order_set_stance(&enemy, 1, STANCE_PASSIVE);
 	const uint32_t w2 = s.spawn_unit(-31.0f, 52.5f, 0, UNIT_FEMALE_CITIZEN);
 	s.order_set_stance(&w2, 1, STANCE_PASSIVE);
+	const int32_t ei = s.lookup_unit(enemy);
+	const float enemy_speed = s.units_.speed[ei];
+	s.units_.speed[ei] = 0.0f; // one that can't move stays, and work waits
 	s.order_build_or_repair(&w2, 1, h2);
 	for (int t = 0; t < 20 * 5; ++t) s.tick(Simulation::FIXED_STEP);
 	CHECK(on_site(enemy, bld(h2)));
 	CHECK(!bld(h2).committed && bld(h2).build_progress == 0.0f);
 	const auto [cx, cy] = s.nav_grid().world_to_cell(-30.0f, 50.0f);
 	CHECK(s.nav_grid().cells.at(cx, cy) != NAV_OBSTRUCTED);
-	const int32_t ei = s.lookup_unit(enemy);
-	s.units_.pos_x[ei] = -10.0f; s.units_.pos_z[ei] = 50.0f;
-	for (int t = 0; t < 20 && !bld(h2).committed; ++t) s.tick(Simulation::FIXED_STEP);
+	s.units_.speed[ei] = enemy_speed;
+	for (int t = 0; t < 20 * 10 && !bld(h2).committed; ++t) s.tick(Simulation::FIXED_STEP);
+	CHECK(!on_site(enemy, bld(h2)));
 	CHECK(bld(h2).committed);
 	CHECK(s.nav_grid().cells.at(cx, cy) == NAV_OBSTRUCTED); // committed: units path around it
 }
