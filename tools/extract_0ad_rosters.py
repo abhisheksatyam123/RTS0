@@ -125,6 +125,10 @@ RTS0_ONLY = ("UNIT_VILLAGER",)
 # 0 A.D. structure (file stem, without trailing _N upgrade suffix) to the RTS0
 # BuildingType that trains its units. Buildings RTS0 lacks fall back to the
 # closest one RTS0 has; the 0 A.D. name stays in the data for later remaps.
+# Gaia structures whose Trainer lists "units/{civ}/..." for their captor:
+# template stem -> structure kind (TRAINER_BUILDING key).
+GAIA_TRAINERS = {"merc_camp_egyptian": "mercenary_camp"}
+
 TRAINER_BUILDING = {
     "civil_centre": "BLD_TOWN_CENTER", "military_colony": "BLD_TOWN_CENTER",
     "civil_centre_court": "BLD_TOWN_CENTER", "palace": "BLD_TOWN_CENTER",
@@ -178,18 +182,17 @@ UNIQUE_BUILDINGS = [
     ("BLD_MILITARY_COLONY", ["military_colony"], "town_center", "military_colony"),
     ("BLD_ACADEMY", ["academy"], "academy", "academy"),
     ("BLD_MINISTRY", ["ministry"], "imperial_ministry", "ministry"),
+    ("BLD_CAMP_BLEMMYE", ["camp_blemmye"], "barracks", "camp_blemmye"),
+    ("BLD_CAMP_NOBA", ["camp_noba"], "barracks", "camp_noba"),
+    ("BLD_TEMPLE_AMUN", ["temple_amun"], "temple", "temple_amun"),
+    ("BLD_TEMPLE_VESTA", ["temple_vesta"], "temple", "temple_vesta"),
+    ("BLD_TEMPLE_MARS", ["temple_mars"], "temple", "temple_mars"),
 ]
-# Units of a civ-specific structure also stay trainable at the generic building
-# they fell back to before it existed, so Petra (which does not build these
-# structures yet) keeps its heroes and champions.
-TRAINER_FALLBACK = {}
+# Units of a civ-specific structure train only there, as in 0 A.D. (Petra builds
+# these structures since #105).
 for _enum, _stems, _model, _portrait in UNIQUE_BUILDINGS:
     for _st in _stems:
-        if _st in TRAINER_BUILDING:
-            TRAINER_FALLBACK[_st] = TRAINER_BUILDING[_st]
         TRAINER_BUILDING[_st] = _enum
-for _st in ("tachara_food", "tachara_wood", "tachara_stone", "tachara_metal", "imperial_ministry"):
-    TRAINER_FALLBACK[_st] = TRAINER_BUILDING[_st]
 TRAINER_BUILDING.update({"tachara_food": "BLD_TACHARA", "tachara_wood": "BLD_TACHARA",
                          "tachara_stone": "BLD_TACHARA", "tachara_metal": "BLD_TACHARA",
                          "imperial_ministry": "BLD_MINISTRY"})
@@ -766,9 +769,24 @@ AURA_KIND = {"AURA_GATHER": 0, "AURA_HEAL": 1, "AURA_ATTACK": 2, "AURA_SPEED": 3
 GLOBAL_AURA_RANGE = 1000.0
 
 
+# 0 A.D. Auras.js affectedPlayers -> AuraPlayers bits in sim_types.h: 1 = the
+# owner, 2 = the owner's other allies, 4 = enemies (GetAllies() includes the
+# owner itself; ExclusiveMutualAlly does not).
+AURA_PLAYER_BITS = {"Player": 1, "Ally": 3, "MutualAlly": 3, "ExclusiveMutualAlly": 2, "Enemy": 4}
+
+
+def aura_players_mask(a):
+    mask = 0
+    for p in a.get("players", ["Player"]):
+        mask |= AURA_PLAYER_BITS.get(p, 0)
+    return mask
+
+
 def rts0_aura_effect(a):
     """Strongest effect of a 0 A.D. aura that RTS0's AuraManager can model:
-    (kind, value, range) or None."""
+    (kind, value, range) or None. Auras on enemies keep their strongest
+    penalty (an attack or speed multiplier below 1, negative armour)."""
+    enemy = aura_players_mask(a) == 4
     best = None
     for m in a.get("modifications", []):
         v = m.get("value", "")
@@ -788,6 +806,8 @@ def rts0_aura_effect(a):
         if kind is None:
             continue
         gain = value - 1.0 if kind in ("AURA_ATTACK", "AURA_SPEED") else value
+        if enemy and kind in ("AURA_ATTACK", "AURA_SPEED", "AURA_ARMOR"):
+            gain = -gain
         if gain <= 0:
             continue
         if best is None or gain > best[3]:
@@ -817,18 +837,19 @@ def collect(sim_root):
         native = civ
         sdir = os.path.join(loader.root, "structures", civ)
         trainers = {}  # unit template -> {buildings}, structure phase
-        for fn in sorted(os.listdir(sdir)):
-            if not fn.endswith(".xml"):
-                continue
-            stem = fn[:-4]
-            s = loader.load("structures/%s/%s" % (civ, stem))
+        # The civ's own structures, then Gaia ones that train "{civ}" units for
+        # whoever captures them (the mercenary camp).
+        structs = [("structures/%s/%s" % (civ, fn[:-4]), structure_kind(fn[:-4]))
+                   for fn in sorted(os.listdir(sdir)) if fn.endswith(".xml")]
+        structs += [("structures/" + stem, kind) for stem, kind in sorted(GAIA_TRAINERS.items())]
+        for path, kind in structs:
+            s = loader.load(path)
             ents = s.tokens("Trainer/Entities")
             if not ents:
                 continue
-            kind = structure_kind(stem)
             bld = TRAINER_BUILDING.get(kind)
             if bld is None:
-                skipped.append("%s structure %s (no RTS0 building)" % (civ, stem))
+                skipped.append("%s structure %s (no RTS0 building)" % (civ, path.rsplit("/", 1)[1]))
                 continue
             sphase = phase_of(s)
             for e in ents:
@@ -837,8 +858,6 @@ def collect(sim_root):
                     continue
                 slot = trainers.setdefault(e, {"buildings": set(), "kinds": set(), "phase": 9})
                 slot["buildings"].add(bld)
-                if kind in TRAINER_FALLBACK:
-                    slot["buildings"].add(TRAINER_FALLBACK[kind])
                 slot["kinds"].add(kind)
                 slot["phase"] = min(slot["phase"], sphase)
         for name in sorted(trainers):
@@ -893,6 +912,7 @@ def collect(sim_root):
                     "type": a.get("type", "range"),
                     "radius": float(a.get("radius", 0)),
                     "affects": a.get("affects", []),
+                    "players": a.get("affectedPlayers", ["Player"]),
                     "modifications": a.get("modifications", []),
                 })
                 auras[-1]["rts0"] = rts0_aura_effect(auras[-1])
@@ -972,6 +992,7 @@ def emit_header(rows, auras, civ_json, bonuses, team):
     w("\tstatic const CivHeroAura kAuras[CIV_HERO_AURA_COUNT] = {")
     w("\t\t// id, name, description, radius (0 A.D. metres; 0 = global),")
     w("\t\t// RTS0 AuraManager effect: kind (AuraType, 255 = none modelled), value, range,")
+    w("\t\t// affected players (AuraPlayers bits: 1 owner, 2 other allies, 4 enemies),")
     w("\t\t// bitset of civ_unit_template_table() rows the aura affects")
     for a in auras:
         bits = [0] * words
@@ -981,8 +1002,8 @@ def emit_header(rows, auras, civ_json, bonuses, team):
         radius = a["radius"] if a["type"] == "range" else 0.0
         eff = a.get("rts0")
         kind, value, rng = (AURA_KIND[eff[0]], eff[1], eff[2]) if eff else (255, 0.0, 0.0)
-        w("\t\t{%s, %s, %s, %s, %d, %s, %s, %s}," % (cstr(a["id"]), cstr(a["name"]), cstr(a["description"]),
-                                                 f(radius), kind, f(value), f(rng), bitset))
+        w("\t\t{%s, %s, %s, %s, %d, %s, %s, %d, %s}," % (cstr(a["id"]), cstr(a["name"]), cstr(a["description"]),
+                                                     f(radius), kind, f(value), f(rng), aura_players_mask(a), bitset))
     w("\t};")
     w("\treturn kAuras;")
     w("}")

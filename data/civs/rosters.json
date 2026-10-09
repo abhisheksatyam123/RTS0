@@ -820,7 +820,6 @@
    "specific_name": "Epílektos",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS",
     "BLD_GYMNASIUM"
    ],
    "trained_at_0ad": [
@@ -872,7 +871,6 @@
    "specific_name": "Epibátēs Athēnaîos",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS",
     "BLD_GYMNASIUM"
    ],
    "trained_at_0ad": [
@@ -975,7 +973,6 @@
    "specific_name": "Toxótēs Skythikós",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS",
     "BLD_GYMNASIUM"
    ],
    "trained_at_0ad": [
@@ -1080,7 +1077,6 @@
    "specific_name": "Iphikratēs",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER",
     "BLD_PRYTANEION"
    ],
    "trained_at_0ad": [
@@ -1136,7 +1132,6 @@
    "specific_name": "Periklēs",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER",
     "BLD_PRYTANEION"
    ],
    "trained_at_0ad": [
@@ -1191,7 +1186,6 @@
    "specific_name": "Themistoklēs",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER",
     "BLD_PRYTANEION"
    ],
    "trained_at_0ad": [
@@ -1246,10 +1240,12 @@
    "specific_name": "Toxótēs Krētikós",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -1361,10 +1357,12 @@
    "specific_name": "Peltastḗs Thrâx",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -1420,11 +1418,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -1478,11 +1478,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
-    "civil_centre"
+    "civil_centre",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -2261,7 +2263,6 @@
    "specific_name": "Spartiátēs",
    "phase": 1,
    "trainers": [
-    "BLD_TOWN_CENTER",
     "BLD_SYSSITON"
    ],
    "trained_at_0ad": [
@@ -2313,10 +2314,12 @@
    "specific_name": "Ékdromos Skirítēs",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -2367,7 +2370,6 @@
    "specific_name": "Agis",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER",
     "BLD_SYSSITON"
    ],
    "trained_at_0ad": [
@@ -2422,7 +2424,6 @@
    "specific_name": "Brasidas",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER",
     "BLD_SYSSITON"
    ],
    "trained_at_0ad": [
@@ -2476,7 +2477,6 @@
    "specific_name": "Leōnidēs",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER",
     "BLD_SYSSITON"
    ],
    "trained_at_0ad": [
@@ -2531,11 +2531,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -2589,11 +2591,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
-    "civil_centre"
+    "civil_centre",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -3742,7 +3746,6 @@
    "specific_name": "Kuruš",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER",
     "BLD_TACHARA"
    ],
    "trained_at_0ad": [
@@ -3801,7 +3804,6 @@
    "specific_name": "Dārayavahuš",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER",
     "BLD_TACHARA"
    ],
    "trained_at_0ad": [
@@ -3862,7 +3864,6 @@
    "specific_name": "Xšayāršā",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER",
     "BLD_TACHARA"
    ],
    "trained_at_0ad": [
@@ -3922,11 +3923,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -3979,10 +3982,12 @@
    "specific_name": "Pastiš Spardiya",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -4036,11 +4041,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
-    "civil_centre"
+    "civil_centre",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -4772,7 +4779,6 @@
    "specific_name": "Hoplomachus",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS",
     "BLD_AMPHITHEATER"
    ],
    "trained_at_0ad": [
@@ -4828,7 +4834,6 @@
    "specific_name": "Murmillo",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS",
     "BLD_AMPHITHEATER"
    ],
    "trained_at_0ad": [
@@ -4884,10 +4889,12 @@
    "specific_name": "Extrāōrdinārius",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CHAMPION"
@@ -5151,11 +5158,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -5267,7 +5276,6 @@
    "specific_name": "Triārius",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS",
     "BLD_ARMY_CAMP"
    ],
    "trained_at_0ad": [
@@ -5322,10 +5330,12 @@
    "specific_name": "Triārius",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -5376,7 +5386,6 @@
    "specific_name": "Hastātus",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS",
     "BLD_ARMY_CAMP"
    ],
    "trained_at_0ad": [
@@ -5432,11 +5441,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
-    "civil_centre"
+    "civil_centre",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -5868,7 +5879,6 @@
    "specific_name": "Ariēs",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS",
     "BLD_FORTRESS",
     "BLD_ARMY_CAMP"
    ],
@@ -6066,7 +6076,9 @@
    "specific_name": "Medicus",
    "phase": 2,
    "trainers": [
-    "BLD_TEMPLE"
+    "BLD_TEMPLE",
+    "BLD_TEMPLE_VESTA",
+    "BLD_TEMPLE_MARS"
    ],
    "trained_at_0ad": [
     "temple",
@@ -6742,11 +6754,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -6916,11 +6930,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
-    "civil_centre"
+    "civil_centre",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -7966,10 +7982,12 @@
    "specific_name": "Hypaspistḗs",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CHAMPION"
@@ -8017,10 +8035,12 @@
    "specific_name": "Rhomphaiaphoros",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CHAMPION"
@@ -8232,10 +8252,12 @@
    "specific_name": "Toxótēs Krētikós",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -8291,11 +8313,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -8349,11 +8373,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
-    "civil_centre"
+    "civil_centre",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -8404,10 +8430,12 @@
    "specific_name": "Sphendonḗtēs Rhódios",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -9283,10 +9311,12 @@
    "specific_name": "Argos",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CHAMPION"
@@ -9501,10 +9531,12 @@
    "specific_name": "Adretos",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -9560,12 +9592,14 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
     "crannog",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -9621,12 +9655,14 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
-    "crannog"
+    "crannog",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -10154,7 +10190,6 @@
    "specific_name": "Agrocuna",
    "phase": 1,
    "trainers": [
-    "BLD_BARRACKS",
     "BLD_KENNEL"
    ],
    "trained_at_0ad": [
@@ -10461,10 +10496,12 @@
    "specific_name": "Soliduros",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CHAMPION"
@@ -10512,7 +10549,6 @@
    "specific_name": "Carnucos",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER",
     "BLD_ASSEMBLY"
    ],
    "trained_at_0ad": [
@@ -10564,7 +10600,6 @@
    "specific_name": "Brennos",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER",
     "BLD_ASSEMBLY"
    ],
    "trained_at_0ad": [
@@ -10618,7 +10653,6 @@
    "specific_name": "Uercingetorix",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER",
     "BLD_ASSEMBLY"
    ],
    "trained_at_0ad": [
@@ -10673,7 +10707,6 @@
    "specific_name": "Britomaros",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER",
     "BLD_ASSEMBLY"
    ],
    "trained_at_0ad": [
@@ -10728,11 +10761,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -10785,10 +10820,12 @@
    "specific_name": "Talmoris",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -10842,11 +10879,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
-    "civil_centre"
+    "civil_centre",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -11574,10 +11613,12 @@
    "specific_name": "Leial Ezpatari",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CHAMPION"
@@ -11788,11 +11829,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -11845,10 +11888,12 @@
    "specific_name": "Habailari",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -11901,10 +11946,12 @@
    "specific_name": "Ezkutari",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -11956,11 +12003,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
-    "civil_centre"
+    "civil_centre",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -12740,10 +12789,12 @@
    "specific_name": "Yōddha",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CHAMPION"
@@ -12791,7 +12842,6 @@
    "specific_name": "Visha Kanya",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER",
     "BLD_PALACE"
    ],
    "trained_at_0ad": [
@@ -12843,7 +12893,6 @@
    "specific_name": "Visha Kanya",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER",
     "BLD_PALACE"
    ],
    "trained_at_0ad": [
@@ -12951,7 +13000,6 @@
    "specific_name": "Aśoka Devānāmpriya",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER",
     "BLD_PALACE"
    ],
    "trained_at_0ad": [
@@ -13009,7 +13057,6 @@
    "specific_name": "Acharya Chāṇakya",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER",
     "BLD_PALACE"
    ],
    "trained_at_0ad": [
@@ -13062,7 +13109,6 @@
    "specific_name": "Chandragupta Maurya",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER",
     "BLD_PALACE"
    ],
    "trained_at_0ad": [
@@ -13117,11 +13163,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -13175,11 +13223,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
-    "civil_centre"
+    "civil_centre",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -13230,10 +13280,12 @@
    "specific_name": "Khadagdhari",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -13857,10 +13909,12 @@
    "specific_name": "nhw Bulahau gml",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_MERCENARY_CAMP",
+    "BLD_CAMP_BLEMMYE"
    ],
    "trained_at_0ad": [
-    "camp_blemmye"
+    "camp_blemmye",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_RANGED",
@@ -14070,7 +14124,7 @@
    "specific_name": "rs ʿImn",
    "phase": 3,
    "trainers": [
-    "BLD_TEMPLE"
+    "BLD_TEMPLE_AMUN"
    ],
    "trained_at_0ad": [
     "temple_amun"
@@ -14174,10 +14228,12 @@
    "specific_name": "Hry pdty",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -14393,11 +14449,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -14450,7 +14508,7 @@
    "specific_name": "nhw ʿhȝw Noba",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_CAMP_NOBA"
    ],
    "trained_at_0ad": [
     "camp_noba"
@@ -14507,7 +14565,7 @@
    "specific_name": "nhw Noba",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_CAMP_NOBA"
    ],
    "trained_at_0ad": [
     "camp_noba"
@@ -14563,10 +14621,12 @@
    "specific_name": "siȝwrd",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -14618,11 +14678,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
-    "civil_centre"
+    "civil_centre",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -14673,10 +14735,12 @@
    "specific_name": "knw hps",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -15153,7 +15217,7 @@
    "specific_name": "wʿb nsw",
    "phase": 3,
    "trainers": [
-    "BLD_TEMPLE"
+    "BLD_TEMPLE_AMUN"
    ],
    "trained_at_0ad": [
     "temple_amun"
@@ -15344,8 +15408,6 @@
    "specific_name": "Hippeús Tarantînos",
    "phase": 2,
    "trainers": [
-    "BLD_TOWN_CENTER",
-    "BLD_BARRACKS",
     "BLD_MERCENARY_CAMP",
     "BLD_MILITARY_COLONY"
    ],
@@ -15404,8 +15466,6 @@
    "specific_name": "Hippeús Makedonikós",
    "phase": 2,
    "trainers": [
-    "BLD_TOWN_CENTER",
-    "BLD_BARRACKS",
     "BLD_MERCENARY_CAMP",
     "BLD_MILITARY_COLONY"
    ],
@@ -16021,8 +16081,6 @@
    "specific_name": "Thureophóros Misthophóros",
    "phase": 2,
    "trainers": [
-    "BLD_TOWN_CENTER",
-    "BLD_BARRACKS",
     "BLD_MERCENARY_CAMP",
     "BLD_MILITARY_COLONY"
    ],
@@ -16081,8 +16139,6 @@
    "specific_name": "Gallikós Mistophorós",
    "phase": 2,
    "trainers": [
-    "BLD_TOWN_CENTER",
-    "BLD_BARRACKS",
     "BLD_MERCENARY_CAMP",
     "BLD_MILITARY_COLONY"
    ],
@@ -16959,10 +17015,11 @@
    "specific_name": "Hippos Hetairike",
    "phase": 2,
    "trainers": [
-    "BLD_TOWN_CENTER",
+    "BLD_MERCENARY_CAMP",
     "BLD_MILITARY_COLONY"
    ],
    "trained_at_0ad": [
+    "mercenary_camp",
     "military_colony"
    ],
    "flags": [
@@ -17173,10 +17230,12 @@
    "specific_name": "Argyraspis",
    "phase": 1,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CHAMPION"
@@ -17224,10 +17283,12 @@
    "specific_name": "Thorakitès Rhomaïkós",
    "phase": 1,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CHAMPION"
@@ -17435,7 +17496,6 @@
    "specific_name": "Toxótēs Syrías",
    "phase": 2,
    "trainers": [
-    "BLD_TOWN_CENTER",
     "BLD_MILITARY_COLONY"
    ],
    "trained_at_0ad": [
@@ -17494,11 +17554,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -17551,10 +17613,12 @@
    "specific_name": "Phalangitēs",
    "phase": 1,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -17606,11 +17670,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
-    "civil_centre"
+    "civil_centre",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -17661,10 +17727,11 @@
    "specific_name": "Rhomphaiaphoros Thrakikós",
    "phase": 2,
    "trainers": [
-    "BLD_TOWN_CENTER",
+    "BLD_MERCENARY_CAMP",
     "BLD_MILITARY_COLONY"
    ],
    "trained_at_0ad": [
+    "mercenary_camp",
     "military_colony"
    ],
    "flags": [
@@ -18541,7 +18608,6 @@
    "specific_name": "Wu Wei Yin Cao Cao Guard",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS",
     "BLD_ACADEMY"
    ],
    "trained_at_0ad": [
@@ -18594,7 +18660,6 @@
    "specific_name": "Zhanche",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS",
     "BLD_ACADEMY"
    ],
    "trained_at_0ad": [
@@ -18649,7 +18714,6 @@
    "specific_name": "Juezhang",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS",
     "BLD_ACADEMY"
    ],
    "trained_at_0ad": [
@@ -18702,7 +18766,6 @@
    "specific_name": "Hǔ Bēn",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS",
     "BLD_ACADEMY"
    ],
    "trained_at_0ad": [
@@ -18927,10 +18990,12 @@
    "specific_name": "Shè Shǒu",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
+    "mercenary_camp",
     "practice_range",
     "range"
    ],
@@ -19044,10 +19109,12 @@
    "specific_name": "Jǐ Bīng",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -19099,12 +19166,14 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
-    "civil_centre_court"
+    "civil_centre_court",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -19770,6 +19839,9 @@
    "affects": [
     "Human"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Health/RegenRate",
@@ -19791,6 +19863,9 @@
    "affects": [
     "Healer"
    ],
+   "players": [
+    "MutualAlly"
+   ],
    "modifications": [
     {
      "value": "Heal/Health",
@@ -19807,6 +19882,9 @@
    "radius": 40.0,
    "affects": [
     "Soldier"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -19837,6 +19915,9 @@
    "affects": [
     "Infantry Javelineer"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "UnitMotion/WalkSpeed",
@@ -19860,6 +19941,9 @@
     "Ship",
     "Siege",
     "Structure"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -19898,6 +19982,9 @@
    "affects": [
     "Structure"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Researcher/TechCostMultiplier/food",
@@ -19931,6 +20018,9 @@
    "affects": [
     "Ship"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Cost/BuildTime",
@@ -19961,6 +20051,9 @@
     "Wall",
     "Palisade"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Cost/BuildTime",
@@ -19986,6 +20079,9 @@
    "affects": [
     "Soldier"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Cost/BuildTime",
@@ -20005,6 +20101,9 @@
    "type": "range",
    "radius": 0.0,
    "affects": [],
+   "players": [
+    "Player"
+   ],
    "modifications": [],
    "rts0": null
   },
@@ -20016,6 +20115,9 @@
    "radius": 60.0,
    "affects": [
     "Citizen Infantry Javelineer"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -20050,6 +20152,9 @@
    "affects": [
     "Spearman"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Attack/Capture/Capture",
@@ -20082,6 +20187,9 @@
    "radius": 45.0,
    "affects": [
     "Cavalry"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -20130,6 +20238,9 @@
     "Siege",
     "Trader"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "UnitMotion/WalkSpeed",
@@ -20150,6 +20261,9 @@
    "radius": 60.0,
    "affects": [
     "Worker"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -20176,6 +20290,9 @@
    "radius": 60.0,
    "affects": [
     "Cavalry"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -20218,6 +20335,9 @@
    "affects": [
     "Infantry"
    ],
+   "players": [
+    "Enemy"
+   ],
    "modifications": [
     {
      "value": "Attack/Melee/Damage/Hack",
@@ -20244,7 +20364,11 @@
      "multiply": 0.9
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_ATTACK",
+    0.9,
+    8.4
+   ]
   },
   {
    "id": "rome_hero_maximus",
@@ -20255,6 +20379,9 @@
    "affects": [
     "Human",
     "Structure"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -20285,6 +20412,9 @@
    "affects": [
     "Soldier",
     "Siege"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -20332,6 +20462,9 @@
     "Soldier",
     "Siege"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "UnitMotion/WalkSpeed",
@@ -20352,6 +20485,9 @@
    "radius": 60.0,
    "affects": [
     "Mercenary"
+   ],
+   "players": [
+    "Enemy"
    ],
    "modifications": [
     {
@@ -20379,7 +20515,11 @@
      "multiply": 0.8
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_ATTACK",
+    0.8,
+    16.8
+   ]
   },
   {
    "id": "cart_hero_hannibal",
@@ -20390,6 +20530,9 @@
    "affects": [
     "Soldier",
     "Siege"
+   ],
+   "players": [
+    "Ally"
    ],
    "modifications": [
     {
@@ -20436,6 +20579,9 @@
    "affects": [
     "Melee Cavalry"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Attack/Melee/Damage/Hack",
@@ -20464,6 +20610,9 @@
    "radius": 60.0,
    "affects": [
     "Soldier"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -20511,6 +20660,9 @@
     "Soldier",
     "Structure"
    ],
+   "players": [
+    "Enemy"
+   ],
    "modifications": [
     {
      "value": "Attack/Melee/Damage/Hack",
@@ -20537,7 +20689,11 @@
      "multiply": 0.9
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_ATTACK",
+    0.9,
+    8.4
+   ]
   },
   {
    "id": "mace_hero_alexander_iii_3",
@@ -20547,6 +20703,9 @@
    "radius": 60.0,
    "affects": [
     "CivilCentre"
+   ],
+   "players": [
+    "Enemy"
    ],
    "modifications": [
     {
@@ -20564,6 +20723,9 @@
    "radius": 60.0,
    "affects": [
     "Siege"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -20626,6 +20788,9 @@
    "affects": [
     "Champion"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Attack/Capture/Capture",
@@ -20670,6 +20835,9 @@
    "radius": 40.0,
    "affects": [
     "Champion"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -20721,6 +20889,9 @@
     "Soldier",
     "Siege"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Resistance/Entity/Damage/Hack",
@@ -20754,6 +20925,9 @@
    "affects": [
     "Human"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Health/RegenRate",
@@ -20777,6 +20951,9 @@
     "Siege",
     "Ship"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Looter/Resource/metal",
@@ -20794,6 +20971,9 @@
    "affects": [
     "Soldier",
     "Siege"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -20840,6 +21020,9 @@
    "affects": [
     "Worker"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "ResourceGatherer/BaseSpeed",
@@ -20862,6 +21045,9 @@
     "Structure",
     "SiegeTower"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "BuildingAI/GarrisonArrowMultiplier",
@@ -20882,6 +21068,9 @@
    "radius": 50.0,
    "affects": [
     "Soldier"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -20911,6 +21100,9 @@
    "radius": 0.0,
    "affects": [
     "Soldier"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -20945,6 +21137,9 @@
    "affects": [
     "Soldier"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "UnitMotion/WalkSpeed",
@@ -20966,6 +21161,9 @@
    "affects": [
     "Soldier",
     "Siege"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -20995,6 +21193,9 @@
    "radius": 0.0,
    "affects": [
     "Temple"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -21041,6 +21242,9 @@
    "affects": [
     "Structure"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Researcher/TechCostMultiplier/food",
@@ -21074,6 +21278,9 @@
    "affects": [
     "Human"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Health/RegenRate",
@@ -21094,6 +21301,9 @@
    "radius": 60.0,
    "affects": [
     "Soldier"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -21124,6 +21334,9 @@
    "affects": [
     "Elephant"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Attack/Melee/RepeatTime",
@@ -21152,6 +21365,9 @@
    "radius": 60.0,
    "affects": [
     "Champion"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -21199,6 +21415,9 @@
     "TempleOfAmun",
     "AmunGuard"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Cost/BuildTime",
@@ -21233,6 +21452,9 @@
     "TempleOfApedemak",
     "ApedemakGuard"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Cost/BuildTime",
@@ -21266,6 +21488,9 @@
    "affects": [
     "Healer"
    ],
+   "players": [
+    "Enemy"
+   ],
    "modifications": [
     {
      "value": "Heal/HP",
@@ -21282,6 +21507,9 @@
    "radius": 60.0,
    "affects": [
     "Soldier"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -21340,6 +21568,9 @@
    "affects": [
     "KushTrireme"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Cost/Resources/wood",
@@ -21361,6 +21592,9 @@
    "affects": [
     "Soldier",
     "Siege"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -21387,6 +21621,9 @@
    "affects": [
     "Hero"
    ],
+   "players": [
+    "ExclusiveMutualAlly"
+   ],
    "modifications": [
     {
      "value": "Health/Max",
@@ -21403,6 +21640,9 @@
    "radius": 30.0,
    "affects": [
     "Hero"
+   ],
+   "players": [
+    "Enemy"
    ],
    "modifications": [
     {
@@ -21421,6 +21661,9 @@
    "affects": [
     "Builder"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Builder/Rate",
@@ -21437,6 +21680,9 @@
    "radius": 0.0,
    "affects": [
     "Mercenary"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -21467,6 +21713,9 @@
    "affects": [
     "Pikeman"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Health/Max",
@@ -21483,6 +21732,9 @@
    "radius": 45.0,
    "affects": [
     "Cavalry"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -21515,6 +21767,9 @@
     "Ship",
     "Siege"
    ],
+   "players": [
+    "Enemy"
+   ],
    "modifications": [
     {
      "value": "Health/Max",
@@ -21531,6 +21786,9 @@
    "radius": 60.0,
    "affects": [
     "Elephant Champion"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -21565,6 +21823,9 @@
    "affects": [
     "CitizenSoldier"
    ],
+   "players": [
+    "Player"
+   ],
    "modifications": [
     {
      "value": "Promotion/RequiredXp",
@@ -21582,6 +21843,9 @@
    "affects": [
     "Soldier"
    ],
+   "players": [
+    "Ally"
+   ],
    "modifications": [
     {
      "value": "Vision/Range",
@@ -21598,6 +21862,9 @@
    "radius": 0.0,
    "affects": [
     "Wall"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -21619,6 +21886,9 @@
    "radius": 40.0,
    "affects": [
     "Cavalry"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -21660,6 +21930,9 @@
    "radius": 60.0,
    "affects": [
     "Champion"
+   ],
+   "players": [
+    "Player"
    ],
    "modifications": [
     {
@@ -21706,6 +21979,9 @@
    "affects": [
     "Cavalry"
    ],
+   "players": [
+    "Enemy"
+   ],
    "modifications": [
     {
      "value": "Attack/Melee/Damage/Hack",
@@ -21732,7 +22008,11 @@
      "multiply": 0.9
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_ATTACK",
+    0.9,
+    8.4
+   ]
   }
  ]
 }

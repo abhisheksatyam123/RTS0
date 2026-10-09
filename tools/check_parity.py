@@ -529,6 +529,7 @@ def check_petra_parity():
         "Attack march without formations, packable siege on stand ground (attackPlan.js)": "STANCE_STAND_GROUND" in ctxt and "FORMATION_" not in ctxt[ctxt.find("void Simulation::petra_manage_tactical_attacks"):ctxt.find("void Simulation::petra_manage_raid")],
         "worker.js startHunting: cavalry hunters, food gatherers hunt first": "petra_manage_hunters(hunt_scan)" in ctxt and "petra_start_hunting(widx, hunt_scan)" in ctxt,
         "startingStrategy.js buildFirstBase (found a civic centre when none is left)": "petra_build_first_base();" in ctxt and "void Simulation::petra_build_first_base()" in ctxt,
+        "tradeManager.js performBarter + setTradingGoods": "petra_perform_barter();" in ctxt and "petra_set_trading_goods();" in ctxt and "cmd_barter(petra_pid_" in ctxt,
         "Organized retreat/regroup mechanics on 60% casualties": "AttackPlan::REGROUP" in ctxt and "retreat_x" in ctxt and "retreat_base_id" in ctxt,
         "Dynamic villager allocation based on tech/military demand": "demand_food" in ctxt and "demand_wood" in ctxt and "target_food" in ctxt,
         "Dropsite proximity placement adjacent to resource clusters": "min_dropsite_dist" in ctxt and "BLD_STOREHOUSE" in ctxt and "BLD_FARMSTEAD" in ctxt,
