@@ -64,6 +64,10 @@
 //     (un)packing ignores attacks; an idle full worker stays put.
 // 39. A queued attack on a unit hidden in the fog is skipped (Order.Attack -> APPROACHING,
 //     CheckTargetVisible); one on a unit in sight goes ahead.
+// 40. UnitAI Run: a fleeing unit runs (RunMultiplier 1.67, cavalry 1.4, siege 1) and so does one
+//     chasing a fleeing target; a plain walk doesn't.
+// 41. A hunter whose carcass is eaten goes for the next animal nearby (GATHER FINDINGNEWTARGET
+//     takes live animals), not a dangerous one.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_unit_orders.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -1521,6 +1525,57 @@ static void test_fog_queued_attack() {
 	check(attacks, "a queued attack on one in sight goes ahead");
 }
 
+static void test_run_speed() {
+	std::printf("40. running while fleeing and chasing a fleeing target\n");
+	Simulation s;
+	setup(s);
+	uint32_t w = s.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN);
+	uint32_t cav = s.spawn_unit(0, 10, 0, UNIT_CAVALRY);
+	uint32_t ram = s.spawn_unit(0, -10, 0, UNIT_SIEGE_RAM);
+	const int wi = idx_of(s, w), ci = idx_of(s, cav), ri = idx_of(s, ram);
+	check(std::fabs(s.unit_walk_speed(wi) - s.units_.speed[wi]) < 1e-4f, "a woman standing still walks at her walk speed");
+	s.units_.action_state[wi] = ACTION_FLEE;
+	s.units_.action_state[ci] = ACTION_FLEE;
+	s.units_.action_state[ri] = ACTION_FLEE;
+	check(std::fabs(s.unit_walk_speed(wi) - 1.67f * s.units_.speed[wi]) < 1e-3f, "she runs at 1.67x while fleeing");
+	check(std::fabs(s.unit_walk_speed(ci) - 1.4f * s.units_.speed[ci]) < 1e-3f, "cavalry run at 1.4x");
+	check(std::fabs(s.unit_walk_speed(ri) - s.units_.speed[ri]) < 1e-3f, "a ram doesn't run");
+
+	Simulation t;
+	setup(t);
+	uint32_t woman = t.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN);
+	t.order_set_stance(&woman, 1, STANCE_PASSIVE);
+	uint32_t sp = t.spawn_unit(4, 0, 1, UNIT_SPEARMAN);
+	t.order_attack(&sp, 1, woman);
+	const bool fled = run_until(t, 10.0f, [&] { return act_of(t, woman) == ACTION_FLEE; });
+	const int si = idx_of(t, sp);
+	check(fled && t.unit_running((size_t)si) && t.unit_running((size_t)idx_of(t, woman)),
+			"the woman flees from the spearman and both run");
+	const float x0 = x_of(t, woman), z0 = z_of(t, woman);
+	t.tick(DT);
+	const float moved = std::hypot(x_of(t, woman) - x0, z_of(t, woman) - z0);
+	check(moved > t.units_.speed[idx_of(t, woman)] * DT * 1.2f, "she covers more ground per turn than walking");
+}
+
+static void test_next_prey() {
+	std::printf("41. hunters move on to the next animal\n");
+	Simulation s;
+	setup(s);
+	s.spawn_building_world(-20, 0, BLD_STOREHOUSE, 0, 1.0f);
+	s.spawn_building_world(-20, 8, BLD_FARMSTEAD, 0, 1.0f);
+	const uint32_t d1 = s.spawn_fauna(4, 0, FAUNA_DEER);
+	const uint32_t d2 = s.spawn_fauna(10, 6, FAUNA_DEER);
+	s.spawn_fauna(6, -4, FAUNA_WOLF);
+	const size_t f1 = s.fauna_id_to_idx_.at(d1);
+	s.fauna_.hp[f1] = 1.0f;
+	s.fauna_.food_amount[f1] = 5;
+	uint32_t c = s.spawn_unit(0, 0, 0, UNIT_CAVALRY);
+	s.order_set_stance(&c, 1, STANCE_PASSIVE); // leave the wolf alone
+	s.order_hunt(&c, 1, d1);
+	const bool next = run_until(s, 60.0f, [&] { return target_of(s, c) == d2; });
+	check(next, "a horseman who has eaten up his deer goes for the next deer, not the wolf");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -1563,6 +1618,8 @@ int main(int argc, char **argv) {
 	test_guard_structure();
 	test_unitai_audit();
 	test_fog_queued_attack();
+	test_run_speed();
+	test_next_prey();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
