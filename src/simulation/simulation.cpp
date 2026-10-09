@@ -1,4 +1,5 @@
 #include "simulation.h"
+#include "entity_limits_data.h"
 #include "promotion_data.h"
 #include "rms_generator.h"
 #include "nav/building_steering.h"
@@ -1463,6 +1464,7 @@ uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b
 	rebuild_territory(); // territory from every finished root so far (a no-op when nothing changed)
 	if (check_placement(player, cell_x, cell_y, b_type) != PLACE_OK) return 0;
 	if (building_required_phase(b_type) > players_[player].phase) return 0;
+	if (!entity_limit_allows_building(player, b_type)) return 0; // EntityLimits.js AllowedToBuild
 
 	// 0 A.D. civ structure cost bonuses (e.g. Iberian walls, Han stone discount).
 	const Civilization civ = civ_of(player);
@@ -1556,27 +1558,92 @@ uint8_t Simulation::train_unlock_tech(uint8_t player_id, uint8_t unit_type, uint
 	return TECH_NONE; // champion elephants come with the elephant stable
 }
 
-// 0 A.D. EntityLimits (template_player.xml <Hero>1</Hero>): heroes alive or in
-// a production queue, counted the way EntityLimits.js counts trained and
-// queued entities.
-int Simulation::heroes_of(uint8_t player_id) const {
+// 0 A.D. EntityLimits.js: the limit category of a unit (TrainingRestrictions/Category
+// of its roster row, else of its class's generic template; a corral's queued
+// livestock is an Animal).
+static uint8_t unit_limit_category(uint8_t unit_type, uint16_t tmpl) {
+	if (unit_type == UNIT_TYPE_NONE) return LIMIT_ANIMAL; // `tmpl` is then the fauna type
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) return UNIT_LIMITS[tmpl].category;
+	return unit_type < UNIT_TYPE_COUNT ? UNIT_TYPE_LIMIT_CATEGORY[unit_type] : LIMIT_NONE;
+}
+
+// EntityLimits.js counts every entity the player owns with the category
+// (OnGlobalOwnershipChanged, foundations included) plus what its Trainers have
+// queued (Trainer.js ChangeCount when a batch is queued).
+int Simulation::entity_limit_count(uint8_t player_id, uint8_t category) const {
+	if (category == LIMIT_NONE || category >= LIMIT_CATEGORY_COUNT) return 0;
 	int n = 0;
 	for (size_t i = 0; i < units_.count; ++i)
-		if (units_.alive[i] && units_.team[i] == player_id && units_.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT &&
-		    (civ_unit_template(units_.tmpl[i]).flags & ROSTER_HERO))
+		if (units_.alive[i] && units_.team[i] == player_id &&
+		    unit_limit_category(units_.unit_type[i], units_.tmpl[i]) == category)
 			++n;
 	for (const auto &b : buildings_) {
-		if (b.team != player_id) continue;
+		if (b.team != player_id || b.hp <= 0.0f || b.wrecked) continue;
+		if (b.type < BLD_TYPE_COUNT && BUILDING_LIMIT_CATEGORY[b.type] == category) ++n;
 		for (const auto &o : b.queue)
-			if (o.tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(o.tmpl).flags & ROSTER_HERO)) ++n;
+			if (unit_limit_category(o.unit_type, o.tmpl) == category) ++n;
 	}
+	if (category == LIMIT_ANIMAL) // livestock penned in the player's corrals
+		for (size_t f = 0; f < fauna_.count; ++f) {
+			if (!fauna_.alive[f] || fauna_.behavior[f] != FAUNA_CORRALLED) continue;
+			auto bit = building_id_to_idx_.find(fauna_.corral_id[f]);
+			if (bit != building_id_to_idx_.end() && buildings_[bit->second].team == player_id) ++n;
+		}
 	return n;
+}
+
+int Simulation::entity_limit(uint8_t player_id, uint8_t category) const {
+	if (player_id >= MAX_PLAYERS || category == LIMIT_NONE || category >= LIMIT_CATEGORY_COUNT) return -1;
+	const uint8_t civ = civ_of(player_id);
+	int limit = CIV_ENTITY_LIMITS[civ][category];
+	if (limit < 0) return -1;
+	// LimitRemovers: lifted once every RequiredTechs is in and the player owns an
+	// entity of every RequiredClasses class.
+	for (const LimitRemover &r : LIMIT_REMOVERS) {
+		if (r.civ != civ || r.category != category) continue;
+		const PlayerState &ps = players_[player_id];
+		bool lifted = ps.phase >= r.phase && (r.tech == TECH_NONE || ps.has_tech(r.tech));
+		if (lifted && r.flags) {
+			bool owned = false;
+			for (size_t i = 0; i < units_.count && !owned; ++i)
+				owned = units_.alive[i] && units_.team[i] == player_id && units_.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT &&
+				        (civ_unit_template(units_.tmpl[i]).flags & r.flags) == r.flags;
+			lifted = owned;
+		}
+		if (lifted) return -1;
+	}
+	// LimitChangers: each finished entity with the class adds its value.
+	for (const LimitChanger &c : LIMIT_CHANGERS) {
+		if (c.civ != civ || c.category != category) continue;
+		if (c.bld < BLD_TYPE_COUNT) {
+			for (const auto &b : buildings_)
+				if (b.team == player_id && b.type == c.bld && b.hp > 0.0f && !b.wrecked && b.build_progress >= 1.0f)
+					limit += c.value;
+		} else {
+			for (size_t i = 0; i < units_.count; ++i)
+				if (units_.alive[i] && units_.team[i] == player_id && units_.tmpl[i] == c.tmpl) limit += c.value;
+		}
+	}
+	return limit;
+}
+
+bool Simulation::entity_limit_allows_unit(uint8_t player_id, uint8_t unit_type, uint16_t tmpl, int count) const {
+	const uint8_t cat = unit_limit_category(unit_type, tmpl);
+	if (cat == LIMIT_NONE) return true;
+	const int limit = entity_limit(player_id, cat);
+	return limit < 0 || entity_limit_count(player_id, cat) + count <= limit;
+}
+
+bool Simulation::entity_limit_allows_building(uint8_t player_id, uint8_t bld_type) const {
+	const uint8_t cat = bld_type < BLD_TYPE_COUNT ? BUILDING_LIMIT_CATEGORY[bld_type] : LIMIT_NONE;
+	if (cat == LIMIT_NONE) return true;
+	const int limit = entity_limit(player_id, cat);
+	return limit < 0 || entity_limit_count(player_id, cat) + 1 <= limit;
 }
 
 bool Simulation::can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_type, uint16_t tmpl) const {
 	if (player_id >= MAX_PLAYERS) return false;
-	if (tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(tmpl).flags & ROSTER_HERO) && heroes_of(player_id) >= 1)
-		return false; // one hero at a time
+	if (!entity_limit_allows_unit(player_id, unit_type, tmpl)) return false; // EntityLimits (Hero 1, WarDog, ...)
 	// Houses only ever train citizens, and only once their civ's festival is in.
 	if (bld_type == BLD_HOUSE && !(unit_tech_classes(unit_type) & TC_CIVILIAN)) return false;
 	uint8_t tech = train_unlock_tech(player_id, unit_type, bld_type, tmpl);
@@ -1600,7 +1667,7 @@ bool Simulation::cmd_train(uint8_t player_id, uint32_t building_id, UnitType u_t
 	if (!(civ_unit_template(tmpl).trainers & bld_bit(b.type))) {
 		const uint8_t civ = civ_of(b.team);
 		uint16_t best = CIV_UNIT_TEMPLATE_NONE;
-		for (uint16_t i = civ_roster_begin(civ); i < civ_roster_end(civ); ++i) {
+		for (uint16_t i : civ_roster_ids(civ)) {
 			const CivUnitTemplate &u = civ_unit_template(i);
 			if (u.unit_type != (uint8_t)u_type || (u.flags & ROSTER_SIEGE_TOWER) || !(u.trainers & bld_bit(b.type))) continue;
 			if (best == CIV_UNIT_TEMPLATE_NONE || u.phase < civ_unit_template(best).phase) best = i;
@@ -1794,6 +1861,13 @@ Simulation::ResearchCheck Simulation::research_check(uint8_t player_id, uint8_t 
 	if (ps.has_tech(tech_id)) return TECH_ERR_RESEARCHED;
 	for (const auto &b : buildings_)
 		if (b.team == player_id && b.research_tech == tech_id) return TECH_ERR_IN_PROGRESS;
+	// 0 A.D. pair_*.json (Researcher.js, TechnologyManager.js): the player picks one of the
+	// two; once either is researched or started, the other is gone.
+	if (const uint8_t partner = tech_pair_partner(tech_id); partner != TECH_NONE) {
+		if (ps.has_tech(partner)) return TECH_ERR_PAIRED;
+		for (const auto &b : buildings_)
+			if (b.team == player_id && b.research_tech == partner) return TECH_ERR_PAIRED;
+	}
 	if (!tech_available_to_civ(tech_id, ps.civ)) return TECH_ERR_CIV;
 	if (tinfo.required_phase > ps.phase) return TECH_ERR_PHASE;
 	if (tinfo.prerequisite != TECH_NONE && !ps.has_tech(tinfo.prerequisite)) return TECH_ERR_PREREQUISITE;
@@ -1824,8 +1898,11 @@ bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t t
 	// Team bonuses on techs researched here (e.g. Athenian Democracy at the civic centre).
 	const uint8_t civ = civ_of(player_id);
 	const uint16_t allies = ally_civ_mask(player_id);
+	// han_minister_garrison.json (Excellency of Works): each minister garrisoned in a
+	// structure other than the Imperial Ministry cuts its technologies' cost and time by 2%.
+	const float ministers = b.type == BLD_MINISTRY ? 1.0f : std::pow(0.98f, (float)garrisoned_ministers(b));
 	auto team = [&](uint8_t stat, int8_t r) {
-		return civ_team_bonus_mult(civ, allies, stat, r, CIV_UNIT_TEMPLATE_NONE, b.type);
+		return civ_team_bonus_mult(civ, allies, stat, r, CIV_UNIT_TEMPLATE_NONE, b.type) * ministers;
 	};
 	players_[player_id].pay(std::round(tinfo.food_cost * team(TEAM_BONUS_TECH_COST, RES_FOOD)),
 		std::round(tinfo.wood_cost * team(TEAM_BONUS_TECH_COST, RES_WOOD)),
@@ -2551,6 +2628,14 @@ void Simulation::cmd_move_individual(const uint32_t *unit_ids, size_t count, flo
 			// rebuild_nav_grid via set_water_from_heights -> compute_slopes_from_heights.
 			pass = PASS_CAVALRY;
 		find_path(units_.pos_x[idx], units_.pos_z[idx], dest_x, dest_z, wp, pass);
+		if (beach_goal_ && pass != PASS_SHIP && wp.count > 0) {
+			// A player's walk out to sea ends on the beach the path leads to (MakeGoalReachable).
+			auto [gcx, gcy] = nav_grid_.world_to_cell(dest_x, dest_z);
+			if (nav_grid_.cells.inside(gcx, gcy) && nav_grid_.cells.at(gcx, gcy) == NAV_WATER) {
+				units_.target_x[idx] = units_.anchor_x[idx] = wp.xs[wp.count - 1];
+				units_.target_z[idx] = units_.anchor_z[idx] = wp.zs[wp.count - 1];
+			}
+		}
 		unit_paths_[idx] = wp;
 		units_.waypoint_cur[idx] = static_cast<int16_t>(wp.cur);
 		units_.waypoint_count[idx] = static_cast<int16_t>(wp.count);
@@ -2674,10 +2759,12 @@ void Simulation::order_attack_building(const uint32_t *unit_ids_in, size_t count
 	}
 }
 
-void Simulation::order_walk(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued) {
+void Simulation::order_walk(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued, bool beach_goal) {
 	UnitOrder o; o.kind = ORDER_WALK; o.flags = ORDER_FLAG_FORCE; o.x = tx; o.z = tz;
 	const std::vector<uint32_t> now = split_queued(unit_ids, count, o, queued);
+	beach_goal_ = beach_goal;
 	cmd_move(now.data(), now.size(), tx, tz);
+	beach_goal_ = false;
 	for (uint32_t uid : now) {
 		const int32_t idx = lookup_unit(uid);
 		if (idx >= 0 && units_.alive[idx] && units_.order_kind[idx] == ORDER_WALK) units_.order_flags[idx] = ORDER_FLAG_FORCE;
@@ -4134,6 +4221,7 @@ bool Simulation::cmd_breed_livestock(uint8_t player_id, uint32_t building_id, ui
 	Building &b = buildings_[bit->second];
 	if (b.team != player_id || b.build_progress < 1.0f || b.type != BLD_CORRAL) return false;
 	if (b.queue.size() >= 8) return false;
+	if (!entity_limit_allows_unit(player_id, UNIT_TYPE_NONE, CIV_UNIT_TEMPLATE_NONE)) return false; // Animal 50
 	const uint8_t animal = corral_animal_for(civ_of(b.team), ftype);
 	const FaunaTrainCost &c = fauna_train_cost(animal);
 	if (!player(b.team).pay((float)c.res[0], (float)c.res[1], (float)c.res[3], (float)c.res[2])) return false;
@@ -4758,7 +4846,6 @@ void Simulation::tick(float dt) {
 	tick_upgrades(dt);       // 0 A.D. Upgrade.js: structure upgrades (sentry tower -> tower, wall -> gate)
 	tick_siege_garrisons();  // 0 A.D. GarrisonHolder EjectHealth / OnDestroy for siege towers and rams
 	tick_garrison_holders(); // 0 A.D. GarrisonHolder BuffHeal / EjectHealth for structures
-	tick_entity_limits(dt);  // 0 A.D. EntityLimits.js:7-12: enforce category limits per player (Wonder: 1, Fortress: 10)
 	tick_gates(dt);          // 0 A.D. Gate.js:145-180: auto open / close when allied units in pass range
 
 	// 5. Commerce & Trade
@@ -5134,6 +5221,23 @@ void Simulation::move_units(float dt, Arena &arena) {
 		}
 		npx[i] = std::clamp(px[i] + move_dx, -map_half_, map_half_);
 		npz[i] = std::clamp(pz[i] + move_dz, -map_half_, map_half_);
+		// Deep water is impassable for land units (template_unit.xml passability classes).
+		// Walks get a goal on the beach from find_path; a land unit following a ship
+		// (boarding it, or chasing it) has no path, so it stops at the shore and slides
+		// along it instead of stepping off. One already in deep water may still move.
+		const int32_t followed = units_.target_unit_id[i] != 0 ? lookup_unit(units_.target_unit_id[i]) : -1;
+		if (followed >= 0 && !unit_is_ship(units_.unit_type[i]) && unit_is_ship(units_.unit_type[followed]) &&
+				!nav_grid_.cells.blank()) {
+			auto deep = [&](float x, float z) {
+				auto [cx, cy] = nav_grid_.world_to_cell(x, z);
+				return nav_grid_.cells.inside(cx, cy) && nav_grid_.cells.at(cx, cy) == NAV_WATER;
+			};
+			if (deep(npx[i], npz[i]) && !deep(px[i], pz[i])) {
+				if (!deep(npx[i], pz[i])) npz[i] = pz[i];
+				else if (!deep(px[i], npz[i])) npx[i] = px[i];
+				else { npx[i] = px[i]; npz[i] = pz[i]; }
+			}
+		}
 		// A closed gate is solid: slide along it, never step into it.
 		if (!closed_gates_.empty()) {
 			const float r = unit_collision_radius(units_.unit_type[i]);
@@ -6081,7 +6185,8 @@ void Simulation::tick_combat(float dt) {
 		// 0 A.D. UnitAI target choice, by stance (g_Stances) and order:
 		//  - passive units never pick targets (an explicit attack order still stands);
 		//  - workers and fleeing units only answer attacks (tick_unit_ai);
-		//  - a player's walk order ignores enemies (order.data.force);
+		//  - a walk ignores enemies it sees (INDIVIDUAL.WALKING has no LosRangeUpdate);
+		//    only an unforced one answers attacks (respond_to_attack);
 		//  - a target the unit picked itself is dropped once the stance leash says so
 		//    (ShouldAbandonChase); a player's attack target never is.
 		const uint8_t st = units_.action_state[i];
@@ -6098,8 +6203,7 @@ void Simulation::tick_combat(float dt) {
 		if (st == ACTION_GATHER || st == ACTION_BUILD || st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE ||
 				st == ACTION_FLEE || st == ACTION_GARRISONED)
 			return;
-		if (st == ACTION_MOVE && (units_.order_kind[i] == ORDER_WALK || units_.order_kind[i] == ORDER_GARRISON) &&
-				(units_.order_flags[i] & ORDER_FLAG_FORCE))
+		if (st == ACTION_MOVE && (units_.order_kind[i] == ORDER_WALK || units_.order_kind[i] == ORDER_GARRISON))
 			return;
 		const bool guarding = st == ACTION_GUARD; // target_unit_id is the guarded unit
 		const bool walk_and_fight = st == ACTION_ATTACK_MOVE || st == ACTION_PATROL;
@@ -7588,8 +7692,26 @@ void Simulation::tick_trickle(float dt) {
 
 	// template_player.xml: Interval 1000, Rates 0, raised by the Ptolemaic team bonus
 	// (ptol_player_teambonus.json, Breadbasket of the Mediterranean: +1 food for the
-	// Ptolemies and their mutual allies). Only players who own a building get it.
+	// Ptolemies and their mutual allies; only players who own a building get it) and by
+	// technologies that affect "Player" (Serapis Cult: +2 metal). Their trickle effects
+	// are the unfiltered ones (tools/extract_0ad_techs.py).
+	static constexpr uint8_t kTrickleRes[4] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD};
+	auto is_player_trickle = [](const TechEffect &e) {
+		return e.stat >= TSTAT_TRICKLE_FOOD && e.stat <= TSTAT_TRICKLE_METAL && e.affects_count == 0;
+	};
 	if (due(1.0f)) {
+		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+			PlayerState &ps = players_[p];
+			if (is_defeated(p)) continue;
+			for (uint8_t id = 1; id < TECH_COUNT; ++id) {
+				if (!ps.has_tech(id)) continue;
+				const TechInfo &ti = tech_info(id);
+				const TechEffect *fx = tech_effects_table() + ti.effect_begin;
+				for (uint16_t k = 0; k < ti.effect_count; ++k)
+					if (is_player_trickle(fx[k]) && fx[k].op == TOP_ADD)
+						ps.res[kTrickleRes[fx[k].stat - TSTAT_TRICKLE_FOOD]] += fx[k].value;
+			}
+		}
 		uint16_t civs_present = 0;
 		for (const auto &b : buildings_)
 			if (b.team < MAX_PLAYERS && b.hp > 0.0f) civs_present |= civ_bit(players_[b.team].civ);
@@ -7619,7 +7741,9 @@ void Simulation::tick_trickle(float dt) {
 			if (b.type == BLD_WONDER) {
 				rate[RES_FOOD] = rate[RES_WOOD] = rate[RES_STONE] = rate[RES_GOLD] = 1.0f;
 			} else if (b.type == BLD_MINISTRY) {
-				rate[RES_WOOD] = rate[RES_STONE] = rate[RES_GOLD] = 0.1f;
+				// han_minister_garrison_ministry.json (Nationalized Industries): +0.1 wood,
+				// stone and metal for each minister garrisoned inside.
+				rate[RES_WOOD] = rate[RES_STONE] = rate[RES_GOLD] = 0.1f * (1 + garrisoned_ministers(b));
 			} else if (b.type == BLD_ICE_HOUSE) {
 				rate[RES_FOOD] = 1.0f;
 			} else {
@@ -7633,9 +7757,9 @@ void Simulation::tick_trickle(float dt) {
 				const TechEffect *fx = tech_effects_table() + ti.effect_begin;
 				for (uint16_t k = 0; k < ti.effect_count; ++k) {
 					const TechEffect &e = fx[k];
-					if (e.stat < TSTAT_TRICKLE_FOOD || e.stat > TSTAT_TRICKLE_METAL || !tech_effect_applies(e, classes)) continue;
-					static constexpr uint8_t kRes[4] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD};
-					float &v = rate[kRes[e.stat - TSTAT_TRICKLE_FOOD]];
+					if (e.stat < TSTAT_TRICKLE_FOOD || e.stat > TSTAT_TRICKLE_METAL || is_player_trickle(e)
+					    || !tech_effect_applies(e, classes)) continue;
+					float &v = rate[kTrickleRes[e.stat - TSTAT_TRICKLE_FOOD]];
 					v = (e.op == TOP_MUL) ? v * e.value : (e.op == TOP_SET) ? e.value : v + e.value;
 				}
 			}
@@ -7654,40 +7778,21 @@ void Simulation::tick_trickle(float dt) {
 	}
 }
 
+int Simulation::garrisoned_ministers(const Building &b) const {
+	int n = 0;
+	for (uint32_t id : b.garrisoned_units) {
+		const int32_t u = lookup_unit(id);
+		n += u >= 0 && units_.unit_type[u] == UNIT_MINISTER;
+	}
+	return n;
+}
+
 // Animals garrisoned in a corral (GarrisonHolder/Max CORRAL_GARRISON_MAX).
 int Simulation::corral_count(uint32_t corral_id) const {
 	int n = 0;
 	for (size_t f = 0; f < fauna_.count; ++f)
 		n += fauna_.alive[f] && fauna_.behavior[f] == FAUNA_CORRALLED && fauna_.corral_id[f] == corral_id;
 	return n;
-}
-
-// 0 A.D. EntityLimits.js:7-12: enforce category limits per player (Wonder: 1, Fortress: 10)
-void Simulation::tick_entity_limits(float dt) {
-	entity_limits_timer_ += dt;
-	if (entity_limits_timer_ < 1.0f) return;
-	entity_limits_timer_ = 0.0f;
-
-	// In 0 A.D. EntityLimits.js, players have strict maximum counts for special categories
-	// (<Wonder>1</Wonder>, <Fortress>10</Fortress>). Sweep alive buildings per team and
-	// mark newest excess structures wrecked.
-	int wonder_count[8] = {};
-	int fortress_count[8] = {};
-
-	for (auto &b : buildings_) {
-		if (b.hp <= 0.0f || b.wrecked || b.team >= 8) continue;
-		if (b.type == BLD_WONDER) {
-			wonder_count[b.team]++;
-			if (wonder_count[b.team] > 1) {
-				mark_building_wreck(b);
-			}
-		} else if (b.type == BLD_FORTRESS) {
-			fortress_count[b.team]++;
-			if (fortress_count[b.team] > 10) {
-				mark_building_wreck(b);
-			}
-		}
-	}
 }
 
 // 0 A.D. DeathDamage.js: only templates with a DeathDamage element hurt anything when
@@ -8753,7 +8858,22 @@ void Simulation::note_kill(uint32_t killer_id, uint32_t victim_id) {
 // clearance for the same reason); tight packing left builders stranded.
 bool Simulation::petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype) const {
 	if (!can_place(cell_x - 1, cell_y - 1, footprint + 2)) return false;
-	return btype >= BLD_TYPE_COUNT || check_placement(petra_pid_, cell_x, cell_y, btype) == PLACE_OK;
+	return btype >= BLD_TYPE_COUNT || (check_placement(petra_pid_, cell_x, cell_y, btype) == PLACE_OK &&
+	                                   petra_limit_allows_building(btype)); // EntityLimits
+}
+
+// EntityLimits for a placement search: counting the player's entities walks every
+// unit and structure, so an AI turn asks once per structure type (a new
+// foundation changes the count, so it asks again). Cleared each AI turn.
+bool Simulation::petra_limit_allows_building(uint8_t btype) const {
+	const uint64_t key = ((uint64_t)buildings_.size() << 8) | ((uint64_t)petra_pid_ << 1) | 0x1;
+	if (petra_limit_cache_key_ != key) {
+		petra_limit_cache_key_ = key;
+		petra_limit_cache_.fill(0);
+	}
+	uint8_t &v = petra_limit_cache_[btype]; // 0 unknown, 1 refused, 2 allowed
+	if (v == 0) v = entity_limit_allows_building(petra_pid_, btype) ? 2 : 1;
+	return v == 2;
 }
 
 void Simulation::update_petra_threat_map(float dt) {
@@ -9143,13 +9263,20 @@ void Simulation::petra_manage_scouting(float dt) {
 	float sz = units_.pos_z[s_idx];
 	petra_scout_timer_ += dt;
 
+	// Head home with a forced walk, ordered once: re-ordering every turn cost a
+	// fresh path search each time.
+	auto head_home = [&](float bx, float bz) {
+		if (units_.order_kind[s_idx] == ORDER_WALK && units_.action_state[s_idx] == ACTION_MOVE &&
+		    std::fabs(units_.order_x[s_idx] - bx) < 1.0f && std::fabs(units_.order_z[s_idx] - bz) < 1.0f) return;
+		if ((sx - bx) * (sx - bx) + (sz - bz) * (sz - bz) < 9.0f) return; // home already
+		order_walk(&petra_scout_unit_id_, 1, bx, bz, false);
+	};
+
 	// Check if scout is in danger
 	float local_threat = get_threat_at(sx, sz);
 	if (local_threat >= 6.0f) {
 		const PetraBase *pbase = get_primary_petra_base();
-		float bx = pbase ? pbase->x : 36.0f;
-		float bz = pbase ? pbase->z : 36.0f;
-		cmd_move(&petra_scout_unit_id_, 1, bx, bz);
+		head_home(pbase ? pbase->x : 36.0f, pbase ? pbase->z : 36.0f);
 		return;
 	}
 
@@ -9159,7 +9286,7 @@ void Simulation::petra_manage_scouting(float dt) {
 	auto enemy_land_at = [&](float x, float z) { return petra_foe(territory_owner_at(x, z)); };
 	if (village && (enemy_land_at(sx, sz) || units_.action_state[s_idx] == ACTION_ATTACK)) {
 		if (const PetraBase *pbase = get_primary_petra_base()) {
-			cmd_move(&petra_scout_unit_id_, 1, pbase->x, pbase->z);
+			head_home(pbase->x, pbase->z);
 			petra_scout_timer_ = 0.0f;
 		}
 		return;
@@ -9287,7 +9414,7 @@ void Simulation::petra_manage_workers(float dt) {
 					float dz = units_.pos_z[i] - sb.z;
 					const float reach = sb.half_size + 2.5f;
 					if (dx * dx + dz * dz <= reach * reach && (int)sb.garrisoned_units.size() < sb.garrison_cap &&
-					    petra_around(sb).unit) { // else garrisonManager would let it straight out
+					    unit_garrisonable(i) && petra_around(sb).unit) { // else garrisonManager would let it straight out
 						uint32_t uid = units_.id[i];
 						order_garrison(&uid, 1, sb.id);
 					}
@@ -9320,7 +9447,7 @@ void Simulation::petra_manage_military_production(float dt) {
 	// temple for heroes).
 	const uint8_t ai_civ = petra_ps().civ;
 	uint64_t trainer_types = 0;
-	for (uint16_t k = civ_roster_begin(ai_civ); k < civ_roster_end(ai_civ); ++k)
+	for (uint16_t k : civ_roster_ids(ai_civ))
 		trainer_types |= civ_unit_template(k).trainers;
 	std::vector<uint32_t> trainers;
 	for (const auto &b : buildings_) {
@@ -9470,7 +9597,7 @@ void Simulation::petra_manage_military_production(float dt) {
 		uint32_t bld_id;
 	};
 	std::vector<Option> options;
-	for (uint16_t tmpl = civ_roster_begin(ai_civ); tmpl < civ_roster_end(ai_civ); ++tmpl) {
+	for (uint16_t tmpl : civ_roster_ids(ai_civ)) {
 		const CivUnitTemplate &t = civ_unit_template(tmpl);
 		if (t.phase > phase) continue;
 		float score;
@@ -11097,7 +11224,7 @@ void Simulation::petra_manage_buildings(float dt) {
 			}
 		}
 
-		if (!tc_in_progress) {
+		if (!tc_in_progress && petra_limit_allows_building(BLD_TOWN_CENTER)) { // EntityLimits CivilCentre
 			float p_x = 36.0f, p_z = 36.0f;
 			if (const auto *pbase = get_primary_petra_base()) {
 				p_x = pbase->x; p_z = pbase->z;
@@ -11434,13 +11561,15 @@ void Simulation::petra_build_advanced() {
 	std::vector<uint8_t> advanced;
 	for (uint8_t t : petra_advanced_buildings(civ))
 		if (civ_can_build(civ, t)) advanced.push_back(t);
+	// canBuild: one its EntityLimits refuse is skipped (the Mauryan Pillar only
+	// stands while Ashoka lives), so Petra goes on to the next.
 	const int pop = pop_current(petra_pid_);
 	if (pop < 80 || advanced.empty()) return;
 	int n = 0;
 	for (uint8_t t : advanced) n += count(t);
 	if (n && !(n < (int)advanced.size() && pop > 110)) return;
 	for (uint8_t t : advanced) {
-		if (count(t) > 0) continue;
+		if (count(t) > 0 || !petra_limit_allows_building(t)) continue;
 		build(t);
 		return;
 	}
@@ -12981,6 +13110,8 @@ void Simulation::petra_manage_transport(float dt) {
 }
 
 uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float near_z, int min_r, int max_r, uint8_t queue) {
+	// queueManager/canBuild: no search for a structure the EntityLimits refuse.
+	if (btype < BLD_TYPE_COUNT && !petra_limit_allows_building(btype)) return 0;
 	const BuildingTypeInfo &info = building_type_info(btype);
 	int start_cx = (int)(near_x / GRID);
 	int start_cz = (int)(near_z / GRID);
@@ -13067,7 +13198,7 @@ void Simulation::petra_garrison_units_inside(size_t holder_idx, bool allow_melee
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
 		const uint64_t c = unit_tech_classes(units_.unit_type[i]);
-		if (!(c & TC_INFANTRY) || units_.unit_type[i] == UNIT_HERO || (!allow_melee && (c & TC_MELEE))) continue;
+		if (!(c & TC_INFANTRY) || units_.unit_type[i] == UNIT_HERO || (!allow_melee && (c & TC_MELEE)) || !unit_garrisonable(i)) continue;
 		if (units_.order_kind[i] == ORDER_GARRISON || units_.id[i] == petra_scout_unit_id_) continue;
 		const uint32_t uid = units_.id[i];
 		const auto &main = petra_attack_plan_.squad, &raid = petra_raid_plan_.squad;
@@ -13152,6 +13283,9 @@ size_t Simulation::petra_attacked_unit_holder(size_t i, bool emergency, const st
 }
 
 bool Simulation::petra_garrison_attacked_unit(size_t i, bool emergency, std::vector<int> &incoming) {
+	// A Regicide hero with RegicideGarrison off can't garrison (no canGarrison):
+	// the caller walks it home instead of ordering a garrison that is refused.
+	if (!unit_garrisonable(i)) return false;
 	if (incoming.size() < buildings_.size()) incoming.resize(buildings_.size(), 0);
 	const size_t best = petra_attacked_unit_holder(i, emergency, incoming);
 	if (best == SIZE_MAX) return false;
@@ -14140,6 +14274,7 @@ void Simulation::tick_petra_ai(float dt) {
 void Simulation::tick_petra_ai_player(float dt) {
 	// 0 A.D. Petra Autonomous AI System
 	petra_timer_ += dt;
+	petra_limit_cache_key_ = 0; // EntityLimits answers last one AI turn
 
 	petra_refresh_queue_accounts(dt);
 

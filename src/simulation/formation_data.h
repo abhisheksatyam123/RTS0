@@ -434,6 +434,7 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x007efu, 0x114u}, // rome/cavalry_auxiliary_b
 		{0x007cfu, 0x070u}, // rome/infantry_antesignanus
 		{0x0879fu, 0x02au}, // mace/champion_infantry_spearman_02
+		{0x0078fu, 0x000u}, // han/support_minister
 	};
 	return kRows;
 }
@@ -458,12 +459,13 @@ inline FormationUnitInfo formation_generic_info(uint8_t unit_type) {
 		{0x0078fu, 0x010u}, // UNIT_BOLT_SHOOTER: template_unit_siege_boltshooter
 		{0x00000u, 0x000u}, // UNIT_FISHING_BOAT: template_unit_ship_fishing
 		{0x00000u, 0x000u}, // UNIT_MERCHANT_SHIP: template_unit_ship_merchant
-		{0x0078fu, 0x02au}, // UNIT_CARNYX: template_unit_champion_infantry_trumpeter
 		{0x00000u, 0x000u}, // UNIT_FEMALE_CITIZEN: template_unit_support_female_citizen
+		{0x0078fu, 0x02au}, // UNIT_CARNYX: template_unit_champion_infantry_trumpeter
 		{0x00000u, 0x000u}, // UNIT_WORKER_ELEPHANT: template_unit_support_elephant
 		{0x007cfu, 0x130u}, // UNIT_ARCHER_MAIDEN: template_unit_infantry_ranged_archer
 		{0x007efu, 0x114u}, // UNIT_CAMEL: template_unit_cavalry_ranged_archer
 		{0x007afu, 0x00eu}, // UNIT_SCYTHED_CHARIOT: template_unit_champion_cavalry_swordsman
+		{0x0078fu, 0x000u}, // UNIT_MINISTER: units/han/support_minister
 	};
 	return unit_type < UNIT_TYPE_COUNT ? kGeneric[unit_type] : FormationUnitInfo{0u, 0u};
 }

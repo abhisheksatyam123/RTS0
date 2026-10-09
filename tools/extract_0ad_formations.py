@@ -26,6 +26,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import extract_0ad_rosters as roster  # noqa: E402  (same CParamNode loader)
+import extract_0ad_attack as atk  # noqa: E402  (RTS0 UnitType order)
 
 REPO = os.path.dirname(HERE)
 OUT_HEADER = os.path.join(REPO, "src", "simulation", "formation_data.h")
@@ -149,7 +150,8 @@ def collect(sim_root):
         rows.append((rid, formation_mask(t.tokens("UnitAI/Formations")), class_mask(t), ""))
 
     generic = []
-    for cls, tmpl in roster.GENERIC.items():
+    for cls in atk.UNIT_TYPES:  # kGeneric is indexed by UnitType
+        tmpl = roster.GENERIC[cls]
         if cls in roster.RTS0_ONLY:
             generic.append((cls, 0, 0, tmpl))
             continue

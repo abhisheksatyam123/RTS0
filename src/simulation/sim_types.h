@@ -2,6 +2,7 @@
 #define RTSO_SIM_TYPES_H
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -243,7 +244,8 @@ enum UnitType : uint8_t {
 	UNIT_ARCHER_MAIDEN = 20,
 	UNIT_CAMEL = 21,
 	UNIT_SCYTHED_CHARIOT = 22,
-	UNIT_TYPE_COUNT = 23,
+	UNIT_MINISTER = 23, // Han Imperial Minister (units/han/support_minister)
+	UNIT_TYPE_COUNT = 24,
 	UNIT_TYPE_NONE = 255
 };
 
@@ -569,7 +571,8 @@ inline const UnitTypeInfo &unit_type_info(uint8_t type) {
 		{"Mauryan Worker Elephant", "worker_elephant", "worker_elephant", 600.0f, 3.2f, 2.0f, 12.0f, 1.2f, 100, 6.0f, 4.0f, 6.0f, 20.0f, 180, 80, 0, 0, 2, 25.0f, 8.0f, 0.0f, 4.0f},
 		{"Mauryan Archer Maiden", "archer_maiden", "archer_maiden", 95.0f, 3.6f, 17.0f, 8.5f, 1.1f, 0, 17.0f, 2.0f, 2.0f, 15.0f, 40, 60, 40, 0, 1, 14.0f, 0.0f, 8.5f, 0.0f},
 		{"Persian/Arabian Camel", "camel", "camel", 190.0f, 5.2f, 2.4f, 12.0f, 1.2f, 0, 12.0f, 3.0f, 3.0f, 15.0f, 60, 0, 70, 0, 2, 16.0f, 12.0f, 0.0f, 0.0f},
-		{"Seleucid Scythed Chariot", "scythed_chariot", "scythed_chariot", 320.0f, 5.6f, 2.2f, 24.0f, 1.0f, 0, 14.0f, 5.0f, 5.0f, 25.0f, 100, 80, 120, 0, 3, 26.0f, 18.0f, 0.0f, 6.0f}
+		{"Seleucid Scythed Chariot", "scythed_chariot", "scythed_chariot", 320.0f, 5.6f, 2.2f, 24.0f, 1.0f, 0, 14.0f, 5.0f, 5.0f, 25.0f, 100, 80, 120, 0, 3, 26.0f, 18.0f, 0.0f, 6.0f},
+		{"Imperial Minister", "healer", "healer", 200.0f, 3.204f, 1.8f, 10.0f, 1.0f, 0, 8.0f, 2.0f, 4.0f, 6.0f, 100, 0, 100, 0, 1, 15.0f, 10.0f, 0.0f, 0.0f}
 	};
 	if (type >= UNIT_TYPE_COUNT) return kTable[UNIT_VILLAGER];
 	return kTable[type];
@@ -600,6 +603,7 @@ inline float unit_collision_radius(uint8_t type) {
 		case UNIT_ARCHER_MAIDEN: return 0.50f;
 		case UNIT_CAMEL: return 0.90f;
 		case UNIT_SCYTHED_CHARIOT: return 1.35f;
+		case UNIT_MINISTER: return 0.50f;
 		default: return 0.55f;
 	}
 }
@@ -617,6 +621,7 @@ inline float unit_capture_strength(uint8_t type) {
 		case UNIT_ARCHER_MAIDEN: case UNIT_ELEPHANT: case UNIT_CARNYX:
 		case UNIT_WAR_DOG: return 2.5f;
 		case UNIT_HERO: return 10.0f;
+		case UNIT_MINISTER: return 8.0f; // units/han/support_minister Attack/Capture
 		default: return 0.0f;
 	}
 }
@@ -669,6 +674,7 @@ inline uint8_t unit_default_stance(uint8_t type) {
 		case UNIT_TRADER:
 		case UNIT_FEMALE_CITIZEN:
 		case UNIT_HEALER:
+		case UNIT_MINISTER:
 			return STANCE_PASSIVE;
 		default:
 			return STANCE_AGGRESSIVE;
@@ -926,6 +932,7 @@ inline uint64_t unit_tech_classes(uint8_t type) {
 		case UNIT_CAMEL: return cs | TC_CAVALRY | TC_MELEE;
 		case UNIT_TRADER: return org | TC_TRADER | TC_CIVILIAN;
 		case UNIT_HEALER: return org | TC_HEALER | TC_CIVILIAN;
+		case UNIT_MINISTER: return org | TC_CIVILIAN | TC_MINISTER; // Support (Civilian) Minister
 		case UNIT_HERO: return org | TC_HERO | TC_SOLDIER | TC_INFANTRY | TC_MELEE; // template_unit_hero VisibleClasses: Soldier
 		case UNIT_ELEPHANT: return org | TC_SOLDIER | TC_ELEPHANT | TC_CHAMPION | TC_MELEE;
 		case UNIT_CHARIOT: return org | TC_SOLDIER | TC_CAVALRY | TC_CHARIOT | TC_RANGED | TC_CHAMPION;
@@ -1278,6 +1285,22 @@ inline uint16_t civ_roster_end(uint8_t civ) {
 	return civ_roster_offsets()[civ + 1];
 }
 
+// Every trainable row of a civ: its block [civ_roster_begin, civ_roster_end) and the
+// rows added after the promotion-only ones (template ids, which saves and replays
+// store, never move; tools/extract_0ad_rosters.py keep_previous_ids).
+inline const std::vector<uint16_t> &civ_roster_ids(uint8_t civ) {
+	static const auto kIds = [] {
+		std::array<std::vector<uint16_t>, CIV_COUNT> ids;
+		for (uint8_t c = 0; c < CIV_COUNT; ++c) {
+			for (uint16_t i = civ_roster_begin(c); i < civ_roster_end(c); ++i) ids[c].push_back(i);
+			for (uint16_t i = CIV_ROSTER_PROMOTION_ONLY_FIRST; i < CIV_UNIT_TEMPLATE_COUNT; ++i)
+				if (civ_unit_template(i).civ == c && civ_unit_template(i).trainers) ids[c].push_back(i);
+		}
+		return ids;
+	}();
+	return kIds[civ < CIV_COUNT ? civ : CIV_ATHENIANS];
+}
+
 // The civ's standard unit for an RTS0 class: the citizen-soldier or support
 // unit a generic "train a spearman" request should produce. Prefers non-hero,
 // non-champion units with the earliest phase. CIV_UNIT_TEMPLATE_NONE if the
@@ -1293,7 +1316,7 @@ inline uint16_t civ_default_template(uint8_t civ, uint8_t type) {
 			for (uint8_t t = 0; t < UNIT_TYPE_COUNT; ++t) {
 				uint16_t best = CIV_UNIT_TEMPLATE_NONE;
 				int best_score = 1 << 30;
-				for (uint16_t i = civ_roster_begin(c); i < civ_roster_end(c); ++i) {
+				for (uint16_t i : civ_roster_ids(c)) {
 					const CivUnitTemplate &u = civ_unit_template(i);
 					// Siege towers share the bolt shooter's class but are only trained by name;
 					// units only reached by promotion (no trainer) are never trained.
@@ -1434,6 +1457,7 @@ inline LootInfo unit_class_loot(uint8_t type) {
 		{150, 8, 6, 0, 8},    // ARCHER_MAIDEN: champion_infantry_archer
 		{130, 10, 5, 0, 0},   // CAMEL: template_unit_cavalry
 		{200, 15, 8, 0, 10},  // SCYTHED_CHARIOT: champion_cavalry
+		{150, 10, 0, 0, 10},  // MINISTER: units/han/support_minister
 	};
 	return type < UNIT_TYPE_COUNT ? table[type] : LootInfo{};
 }
@@ -1587,7 +1611,7 @@ inline uint32_t civ_train_mask(uint8_t civ) {
 	static const CivTrainMasks masks = [] {
 		CivTrainMasks out{};
 		for (uint8_t c = 0; c < CIV_COUNT; ++c)
-			for (uint16_t i = civ_roster_begin(c); i < civ_roster_end(c); ++i)
+			for (uint16_t i : civ_roster_ids(c))
 				if (!(civ_unit_template(i).flags & ROSTER_SIEGE_TOWER))
 					out.mask[c] |= unit_bit(civ_unit_template(i).unit_type);
 		return out;
