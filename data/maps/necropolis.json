@@ -38622,7 +38622,392 @@
       "z": 200.59
     }
   ],
-  "gaia_structures": [],
+  "gaia_structures": [
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -127.92,
+      "z": -89.3
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -123.45,
+      "z": -93.98
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -119.02,
+      "z": -89.29
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -123.56,
+      "z": -84.61
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -144.27,
+      "z": -77.44
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -148.97,
+      "z": -71.82
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -143.48,
+      "z": -67.47
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -138.97,
+      "z": -72.21
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -94.3,
+      "z": -170.21
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -89.81,
+      "z": -166.1
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -94.2,
+      "z": -161.33
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -98.4,
+      "z": -165.36
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -181.7,
+      "z": -160.65
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -177.23,
+      "z": -165.61
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -181.8,
+      "z": -169.39
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -185.93,
+      "z": -164.83
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -74.39,
+      "z": 147.29
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -78.88,
+      "z": 142.91
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -74.19,
+      "z": 138.2
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -70.02,
+      "z": 142.31
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -95.02,
+      "z": 108.95
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -90.14,
+      "z": 103.8
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -99.07,
+      "z": 104.43
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -94.41,
+      "z": 99.82
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -127.36,
+      "z": 84.87
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -131.71,
+      "z": 80.76
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -126.94,
+      "z": 76.37
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -123.06,
+      "z": 80.25
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -173.49,
+      "z": 145.38
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -177.73,
+      "z": 150.61
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -181.93,
+      "z": 146.27
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -177.72,
+      "z": 141.4
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 106.12,
+      "z": 109.75
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 110.61,
+      "z": 104.91
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 101.84,
+      "z": 105.43
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 105.96,
+      "z": 100.53
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 133.84,
+      "z": 83.53
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 138.48,
+      "z": 78.47
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 138.39,
+      "z": 87.7
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 142.83,
+      "z": 82.69
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 168.41,
+      "z": 99.05
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 164.23,
+      "z": 94.5
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 159.87,
+      "z": 99.22
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 163.8,
+      "z": 103.38
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 172.73,
+      "z": 115.38
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 177.31,
+      "z": 110.8
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 176.67,
+      "z": 119.37
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 181.26,
+      "z": 114.93
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 111.32,
+      "z": -99.65
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 106.77,
+      "z": -94.82
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 102.49,
+      "z": -99.24
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 106.92,
+      "z": -103.94
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 90.29,
+      "z": -85.04
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 94.69,
+      "z": -90.09
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 94.61,
+      "z": -81.42
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 98.79,
+      "z": -85.96
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 89.47,
+      "z": -152.29
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 93.94,
+      "z": -157.51
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 85.16,
+      "z": -156.63
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 89.58,
+      "z": -161.38
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 157.53,
+      "z": -175.8
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 161.49,
+      "z": -180.6
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 165.74,
+      "z": -176.21
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 161.78,
+      "z": -171.75
+    }
+  ],
   "gaia_units": [],
   "scenery": [
     {

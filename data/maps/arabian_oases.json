@@ -12062,6 +12062,90 @@
       "template": "structures/mill_saharan",
       "x": -53.24,
       "z": 67.62
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": -45.92,
+      "z": 67.06
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": -50.78,
+      "z": 72.41
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": -54.8,
+      "z": 77.6
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": -59.89,
+      "z": 72.62
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": -58.01,
+      "z": 64.02
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": -53.61,
+      "z": 60.66
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": -48.84,
+      "z": 63.63
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": -102.4,
+      "z": 20.97
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": -96.78,
+      "z": 15.5
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": -101.27,
+      "z": 11.27
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": -106.45,
+      "z": 8.06
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": -111.52,
+      "z": 12.48
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": -114.63,
+      "z": 16.61
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": -110.97,
+      "z": 22.49
     }
   ],
   "gaia_units": [],

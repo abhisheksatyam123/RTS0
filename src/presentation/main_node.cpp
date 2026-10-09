@@ -235,6 +235,7 @@ static uint8_t map_building_type(const String &n) {
 	if (n == "palisade") return rtso::BLD_PALISADE;
 	if (n == "wall_tower") return rtso::BLD_WALL_TOWER;
 	if (n == "corral") return rtso::BLD_CORRAL;
+	if (n == "field_plot") return rtso::BLD_FIELD; // a Gaia field (map "field" stays a farmstead)
 	if (n == "mercenary_camp") return rtso::BLD_MERCENARY_CAMP;
 	return rtso::BLD_TYPE_COUNT;
 }
@@ -1393,7 +1394,9 @@ void RtsoMain::update_cursor() {
 					if (b.wrecked || !near2(b.x, b.z, b.half_size + 1.2f)) continue;
 					// 0 A.D. "capture" is the default on enemy structures; session.attack
 					// (or attack-move's Ctrl) attacks instead.
-					if (b.team != me)
+					if (b.team == rtso::GAIA_PLAYER && b.type == rtso::BLD_FIELD && sim->field_resource_id(b.id))
+						want = "action-gather-grain";
+					else if (b.team != me)
 						want = !sim->is_hostile(me, b.team) ? ""
 								: (rtso::hotkeys::held("session.attack") || rtso::hotkeys::held("session.attackmove") ||
 										  b.max_capture_points <= 0.0f)
@@ -3627,7 +3630,14 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				float dz = b.z - click_pos.z;
 				float hit_r = b.half_size + 1.2f;
 				if (dx * dx + dz * dz <= hit_r * hit_r) {
-					if (b.team != local_player()) {
+					const uint32_t gaia_grain = b.team == rtso::GAIA_PLAYER && b.type == rtso::BLD_FIELD ? sim->field_resource_id(b.id) : 0;
+					if (gaia_grain) { // a Gaia field: anyone may farm it (0 A.D. "gather" comes before "capture")
+						if (net_lockstep())
+							post_lockstep(4, sel_ptr, sel_n, 0, 0, gaia_grain, qbit);
+						else
+							sim->order_gather(sel_ptr, sel_n, gaia_grain, queue_shift);
+						play_civ_voice("gather");
+					} else if (b.team != local_player()) {
 						if (net_lockstep())
 							post_lockstep(15, sel_ptr, sel_n, 0, 0, b.id, qbit); // capture (0 A.D. default)
 						else
