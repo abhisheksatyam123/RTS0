@@ -4912,6 +4912,16 @@ bool Simulation::nearest_water_for_ship(size_t ship, float x, float z, float &ou
 bool Simulation::ship_unload_point(size_t ship, float &out_x, float &out_z) const {
 	const float sx = units_.pos_x[ship], sz = units_.pos_z[ship];
 	const float reach = SHIP_LOADING_RANGE + unit_collision_radius(units_.unit_type[ship]) + 0.5f;
+	// Another ship's hull obstructs the spot (a passenger set down there is pushed off
+	// it, into the water).
+	struct Hull { float x, z, r2; };
+	std::vector<Hull> hulls;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (i == ship || !units_.alive[i] || !unit_is_ship(units_.unit_type[i])) continue;
+		const float hr = unit_collision_radius(units_.unit_type[i]) + 0.5f;
+		const float dx = units_.pos_x[i] - sx, dz = units_.pos_z[i] - sz;
+		if (dx * dx + dz * dz <= (reach + hr) * (reach + hr)) hulls.push_back({units_.pos_x[i], units_.pos_z[i], hr * hr});
+	}
 	for (float r = 0.5f; r <= reach; r += 0.5f) {
 		for (int a = 0; a < 16; ++a) {
 			const float ang = (float)a * 0.39269908f;
@@ -4922,6 +4932,9 @@ bool Simulation::ship_unload_point(size_t ship, float &out_x, float &out_z) cons
 			// The passengers' own passability (PickSpawnPoint): not a cliff a footman can't stand on,
 			// where separation would shove them back into the sea.
 			if (!nav_grid_.cells.blank() && nav_grid_.cells.inside(nx, ny) && !nav_grid_.is_passable_for(nx, ny, PASS_INFANTRY)) continue;
+			if (std::any_of(hulls.begin(), hulls.end(), [&](const Hull &h) {
+				    return (h.x - cx) * (h.x - cx) + (h.z - cz) * (h.z - cz) < h.r2; }))
+				continue;
 			out_x = cx;
 			out_z = cz;
 			return true;
@@ -12509,11 +12522,11 @@ void Simulation::petra_resource_demand(float out[RES_COUNT]) const {
 		demand_gold += (float)tinfo.gold_cost;
 	}
 
-	// Economic & Military Techs:
-	if (petra_ps().phase >= 2) {
-		if (!petra_ps().has_tech(TECH_FARMING_1)) { demand_food += 150.0f; demand_wood += 100.0f; }
-		if (!petra_ps().has_tech(TECH_WOODCUTTING_1)) { demand_wood += 150.0f; demand_gold += 50.0f; }
-		if (!petra_ps().has_tech(TECH_MINING_1)) { demand_gold += 100.0f; demand_stone += 100.0f; }
+	// queueManager.js wantedGatherRates counts the minorTech plan: the technology the
+	// research manager picked and waits to pay for (a phase is counted above).
+	if (!petra_phasing()) {
+		const PetraQueueAccount &tech = petra_queues_.wants[PETRA_QUEUE_TECH];
+		demand_food += tech.food; demand_wood += tech.wood; demand_gold += tech.gold; demand_stone += tech.stone;
 	}
 
 	// Military & Siege Priorities:
@@ -13239,6 +13252,13 @@ void Simulation::petra_manage_trading(float dt) {
 	// Every 60 AI turns in 0 A.D.; here every 20 s of game time while a route exists.
 	if (has_trade_route(petra_pid_) && (int)(petra_timer_ / 20.0f) != (int)((petra_timer_ - 2.0f) / 20.0f))
 		petra_set_trading_goods();
+	// tradeManager.js update: researchTradeBonus every 20 AI turns (4 s) with two traders.
+	if ((int)(petra_timer_ / 4.0f) != (int)((petra_timer_ - 2.0f) / 4.0f)) {
+		int traders = 0;
+		for (size_t i = 0; i < units_.count && traders < 2; ++i)
+			if (units_.alive[i] && units_.team[i] == petra_pid_ && unit_is_trader(units_.unit_type[i])) ++traders;
+		if (traders >= 2) petra_research_trade_bonus();
+	}
 
 	// 1. Build Market if AI has none, or build secondary Market at forward base
 	int market_count = 0;
@@ -14293,7 +14313,10 @@ void Simulation::petra_manage_buildings(float dt) {
 			if (const auto *pbase = get_primary_petra_base()) {
 				base_x = pbase->x; base_z = pbase->z;
 			}
-			petra_place_building(BLD_HOUSE, base_x, base_z, 3, 16, PETRA_QUEUE_VILLAGER);
+			// buildMoreHouses: no room to place a house, so try a population technology.
+			if (!petra_place_building(BLD_HOUSE, base_x, base_z, 3, 16, PETRA_QUEUE_VILLAGER) && petra_place_no_room_ &&
+			    (int)petra_timer_ != (int)(petra_timer_ - dt))
+				petra_research_population_bonus();
 		}
 	}
 
@@ -14491,71 +14514,167 @@ void Simulation::petra_build_advanced() {
 	}
 }
 
-void Simulation::petra_manage_research(float dt) {
-	(void)dt;
-	// Priority Queue 4: Technology / Phase Research — spend only from TECH account.
-	// researchManager.js researches each tech at the structure that offers it.
-	// queueplanResearch.js start: the researcher with the shortest queue (trainingQueueTime).
-	auto researcher_for = [&](uint8_t btype) -> Building * {
-		Building *best = nullptr;
-		float best_time = 0.0f;
-		for (auto &b : buildings_) {
-			if (b.team != petra_pid_ || b.type != btype || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked ||
-			    b.upgrade_to != BLD_TYPE_COUNT || b.queue.size() >= PRODUCTION_QUEUE_MAX)
-				continue;
-			float t = 0.0f;
-			for (const auto &o : b.queue) t += o.duration - o.timer;
-			if (!best || t < best_time) { best = &b; best_time = t; }
-		}
-		return best;
+// researchManager.js reads a technology's modifications by their path; RTS0's
+// TechStat is the same path (tech_data.h).
+static bool petra_tech_modifies(uint8_t tech_id, std::initializer_list<uint8_t> stats) {
+	const TechInfo &ti = tech_info(tech_id);
+	const TechEffect *fx = tech_effects_table() + ti.effect_begin;
+	for (uint16_t i = 0; i < ti.effect_count; ++i)
+		for (uint8_t s : stats)
+			if (fx[i].stat == s) return true;
+	return false;
+}
+
+// Does any of the technology's effects list `cls` alone among its affects?
+static bool petra_tech_affects_only(uint8_t tech_id, uint64_t cls) {
+	const TechInfo &ti = tech_info(tech_id);
+	if (ti.effect_count == 0) return false;
+	const TechEffect *fx = tech_effects_table() + ti.effect_begin;
+	for (uint16_t i = 0; i < ti.effect_count; ++i) {
+		if (fx[i].affects_count != 1) return false;
+		const TechClassExpr &row = tech_affects_table()[fx[i].affects];
+		if (row.need != cls || row.forbid != 0) return false;
+	}
+	return true;
+}
+
+static bool petra_tech_affects(uint8_t tech_id, uint64_t cls) {
+	const TechInfo &ti = tech_info(tech_id);
+	const TechEffect *fx = tech_effects_table() + ti.effect_begin;
+	for (uint16_t i = 0; i < ti.effect_count; ++i)
+		for (uint16_t a = 0; a < fx[i].affects_count; ++a)
+			if (tech_affects_table()[fx[i].affects + a].need & cls) return true;
+	return false;
+}
+
+// headquarters.js getAccountedWorkers: every unit with the Worker role, citizen soldiers
+// included, but not the ones serving in a plan.
+int Simulation::petra_accounted_workers() const {
+	auto in_plan = [&](uint32_t id) {
+		return std::find(petra_attack_plan_.squad.begin(), petra_attack_plan_.squad.end(), id) != petra_attack_plan_.squad.end() ||
+		       std::find(petra_raid_plan_.squad.begin(), petra_raid_plan_.squad.end(), id) != petra_raid_plan_.squad.end();
 	};
+	int workers = 0;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
+		const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
+		if (gcls == GATHER_FISHING || ((gcls == GATHER_INFANTRY || gcls == GATHER_SUPPORT) && !in_plan(units_.id[i])))
+			++workers;
+	}
+	return workers;
+}
+
+// researchManager.js:15 checkPhase: Town at pop >= Economy.popPhase2, City when
+// workers > Economy.workPhase3. While it holds, the phase is the majorTech plan.
+bool Simulation::petra_phasing() const {
+	const uint8_t phase = petra_ps().phase;
+	if (phase == 1) return pop_current(petra_pid_) >= petra_config_.pop_phase2;
+	if (phase == 2) return petra_accounted_workers() > petra_config_.work_phase3;
+	return false;
+}
+
+void Simulation::petra_available_techs(std::vector<uint8_t> &out) const {
+	out.clear();
+	bool has[BLD_TYPE_COUNT] = {};
+	for (const auto &b : buildings_)
+		if (b.team == petra_pid_ && b.type < BLD_TYPE_COUNT && b.build_progress >= 1.0f && b.hp > 0.0f && !b.wrecked)
+			has[b.type] = true;
+	for (uint8_t t = 1; t < TECH_COUNT; ++t) {
+		if (t == TECH_PHASE_TOWN || t == TECH_PHASE_CITY) continue; // phases are treated separately
+		const TechInfo &ti = tech_info(t);
+		if (ti.researcher >= BLD_TYPE_COUNT || !has[ti.researcher]) continue;
+		const ResearchCheck rc = research_check(petra_pid_, t);
+		if (rc == TECH_OK || rc == TECH_ERR_COST) out.push_back(t);
+	}
+}
+
+bool Simulation::petra_start_research(uint8_t tech_id) {
+	if (petra_ps().has_tech(tech_id)) return false;
+	// Same civ / phase / prerequisite / structure rules as the player
+	// (cost is checked against the TECH account below).
+	ResearchCheck rc = research_check(petra_pid_, tech_id);
+	if (rc != TECH_OK && rc != TECH_ERR_COST) return false;
+	const TechInfo &tinfo = tech_info(tech_id);
+	// queueplanResearch.js start: the researcher with the shortest queue (trainingQueueTime).
+	Building *at = nullptr;
+	bool have = false;
+	float best_time = 0.0f;
+	for (auto &b : buildings_) {
+		if (b.team != petra_pid_ || b.type != tinfo.researcher || b.hp <= 0.0f || b.wrecked) continue;
+		have = true;
+		if (b.build_progress < 1.0f || b.upgrade_to != BLD_TYPE_COUNT || b.queue.size() >= PRODUCTION_QUEUE_MAX) continue;
+		float t = 0.0f;
+		for (const auto &o : b.queue) t += o.duration - o.timer;
+		if (!at || t < best_time) { at = &b; best_time = t; }
+	}
+	if (!at) {
+		// No free researcher: lay one out if we have none at all.
+		const PetraBase *home = get_primary_petra_base();
+		if (!have && home && tinfo.researcher != BLD_TOWN_CENTER && building_phase_class(tinfo.researcher) <= petra_ps().phase)
+			petra_place_building(tinfo.researcher, home->x, home->z, 4, 14, PETRA_QUEUE_TECH);
+		return false;
+	}
+	const float *tc = tech_mods(petra_pid_).bld_tech_cost[at->type];
+	if (!petra_try_pay(PETRA_QUEUE_TECH, tinfo.food_cost * tc[RES_FOOD], tinfo.wood_cost * tc[RES_WOOD],
+	                   tinfo.gold_cost * tc[RES_GOLD], tinfo.stone_cost * tc[RES_STONE]))
+		return false;
+	ProductionOrder order;
+	order.unit_type = UNIT_TYPE_COUNT;
+	order.tech = tech_id;
+	order.timer = 0.0f;
+	order.paid[RES_FOOD] = (float)tinfo.food_cost;
+	order.paid[RES_WOOD] = (float)tinfo.wood_cost;
+	order.paid[RES_GOLD] = (float)tinfo.gold_cost;
+	order.paid[RES_STONE] = (float)tinfo.stone_cost;
+	order.duration = tinfo.research_time * 0.75f * tech_mods(petra_pid_).bld_research_time[at->type] * ai_time_mult(petra_pid_);
+	// researchManager.js plans the next phase as a rush: stopAllProduction(0.45) drops every
+	// item less than 45% done (refunded) before the phase joins the queue.
+	if (tech_id == TECH_PHASE_TOWN || tech_id == TECH_PHASE_CITY)
+		for (size_t q = at->queue.size(); q-- > 0;) {
+			const ProductionOrder &o = at->queue[q];
+			if (o.duration > 0.0f && o.timer / o.duration >= 0.45f) continue;
+			cmd_cancel_train(petra_pid_, at->id, q);
+		}
+	at->queue.push_back(order);
+	return true;
+}
+
+// researchManager.js researchPopulationBonus: headquarters.js buildMoreHouses
+// found no room for a house.
+void Simulation::petra_research_population_bonus() {
+	std::vector<uint8_t> techs;
+	petra_available_techs(techs);
+	for (uint8_t t : techs) {
+		const TechInfo &ti = tech_info(t);
+		if (ti.effect_count && tech_effects_table()[ti.effect_begin].stat == TSTAT_POP_BONUS) {
+			petra_start_research(t);
+			return;
+		}
+	}
+}
+
+// researchManager.js researchTradeBonus: a trader speed or gain technology.
+void Simulation::petra_research_trade_bonus() {
+	std::vector<uint8_t> techs;
+	petra_available_techs(techs);
+	for (uint8_t t : techs) {
+		const TechInfo &ti = tech_info(t);
+		if (!ti.effect_count || !petra_tech_affects(t, TC_TRADER)) continue;
+		const uint8_t first = tech_effects_table()[ti.effect_begin].stat;
+		if (first != TSTAT_SPEED && first != TSTAT_TRADE_GAIN) continue;
+		petra_start_research(t);
+		return;
+	}
+}
+
+void Simulation::petra_manage_research(float dt) {
+	auto start_tech = [&](uint8_t tech_id) { return petra_start_research(tech_id); };
 	auto have_building = [&](uint8_t btype) {
 		for (const auto &b : buildings_)
 			if (b.team == petra_pid_ && b.type == btype && b.hp > 0.0f && !b.wrecked) return true;
 		return false;
 	};
 	const PetraBase *home = get_primary_petra_base();
-
-	auto start_tech = [&](uint8_t tech_id) -> bool {
-		if (petra_ps().has_tech(tech_id)) return false;
-		// Same civ / phase / prerequisite / structure rules as the player
-		// (cost is checked against the TECH account below).
-		ResearchCheck rc = research_check(petra_pid_, tech_id);
-		if (rc != TECH_OK && rc != TECH_ERR_COST) return false;
-		const TechInfo &tinfo = tech_info(tech_id);
-		Building *at = researcher_for(tinfo.researcher);
-		if (!at) {
-			// No free researcher: lay one out if we have none at all.
-			if (!have_building(tinfo.researcher) && home && tinfo.researcher != BLD_TOWN_CENTER &&
-			    building_phase_class(tinfo.researcher) <= petra_ps().phase)
-				petra_place_building(tinfo.researcher, home->x, home->z, 4, 14, PETRA_QUEUE_TECH);
-			return false;
-		}
-		const float *tc = tech_mods(petra_pid_).bld_tech_cost[at->type];
-		if (!petra_try_pay(PETRA_QUEUE_TECH, tinfo.food_cost * tc[RES_FOOD], tinfo.wood_cost * tc[RES_WOOD],
-		                   tinfo.gold_cost * tc[RES_GOLD], tinfo.stone_cost * tc[RES_STONE])) {
-			return false;
-		}
-		ProductionOrder order;
-		order.unit_type = UNIT_TYPE_COUNT;
-		order.tech = tech_id;
-		order.timer = 0.0f;
-		order.paid[RES_FOOD] = (float)tinfo.food_cost;
-		order.paid[RES_WOOD] = (float)tinfo.wood_cost;
-		order.paid[RES_GOLD] = (float)tinfo.gold_cost;
-		order.paid[RES_STONE] = (float)tinfo.stone_cost;
-		order.duration = tinfo.research_time * 0.75f * tech_mods(petra_pid_).bld_research_time[at->type] * ai_time_mult(petra_pid_);
-		// researchManager.js plans the next phase as a rush: stopAllProduction(0.45) drops every
-		// item less than 45% done (refunded) before the phase joins the queue.
-		if (tech_id == TECH_PHASE_TOWN || tech_id == TECH_PHASE_CITY)
-			for (size_t q = at->queue.size(); q-- > 0;) {
-				const ProductionOrder &o = at->queue[q];
-				if (o.duration > 0.0f && o.timer / o.duration >= 0.45f) continue;
-				cmd_cancel_train(petra_pid_, at->id, q);
-			}
-		at->queue.push_back(order);
-		return true;
-	};
 
 	// headquarters.js checkPhaseRequirements: build the structures the next
 	// phase asks for (5 Village / 3 Town class) before researching it.
@@ -14574,20 +14693,8 @@ void Simulation::petra_manage_research(float dt) {
 		}
 	};
 
-	// researchManager.js:15 checkPhase — Town at pop >= Economy.popPhase2,
-	// City when workers > Economy.workPhase3 (not a 0.55 fudge).
-	int pop = pop_current(petra_pid_);
-	// headquarters.js getAccountedWorkers: every unit with the Worker role, citizen soldiers
-	// included, but not the ones serving in a plan.
-	std::unordered_set<uint32_t> in_plan(petra_attack_plan_.squad.begin(), petra_attack_plan_.squad.end());
-	in_plan.insert(petra_raid_plan_.squad.begin(), petra_raid_plan_.squad.end());
-	int workers = 0;
-	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
-		const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
-		if (gcls == GATHER_FISHING || ((gcls == GATHER_INFANTRY || gcls == GATHER_SUPPORT) && !in_plan.count(units_.id[i])))
-			++workers;
-	}
+	const int pop = pop_current(petra_pid_);
+	const int workers = petra_accounted_workers();
 
 	// headquarters.js update, from the town phase: buildMarket at once, then buildForge once
 	// the accounted population reaches Military.popForForge (65, scaled as config.js does:
@@ -14601,31 +14708,104 @@ void Simulation::petra_manage_research(float dt) {
 			petra_place_building(BLD_FORGE, home->x, home->z, 4, 16, PETRA_QUEUE_TECH);
 	}
 
-	if (petra_ps().phase == 1) {
-		if (pop < petra_config_.pop_phase2) {
-			if (start_tech(TECH_FARMING_1)) return;   // researchWantedTechs village
-			if (start_tech(TECH_WOODCUTTING_1)) return;
+	// checkPhase, then checkPhaseRequirements while phasing. A phase in the majorTech
+	// queue holds back every minor technology (update returns while it waits).
+	const uint8_t phase = petra_ps().phase;
+	if (petra_phasing()) {
+		build_phase_structures(phase, phase == 1 ? 5 : 3);
+		start_tech(phase == 1 ? TECH_PHASE_TOWN : TECH_PHASE_CITY);
+		return;
+	}
+
+	// headquarters.js update: researchManager.update every 5th AI turn (once a second).
+	if ((int)petra_timer_ == (int)(petra_timer_ - dt)) return;
+	// queueManager.js checkPausedQueues: minorTech waits while workers are under two
+	// thirds of workersMin (min(max(12, 24 * popScaling), popPhase2)).
+	const int workers_min = std::min(std::max(12, (int)(24.0f * petra_config_.pop_scaling)), petra_config_.pop_phase2);
+	if (workers * 3 < workers_min * 2) return;
+	std::vector<uint8_t> techs;
+	petra_available_techs(techs);
+	// Only a researcher with room in its queue can take the technology.
+	auto free_researcher = [&](uint8_t t) {
+		const uint8_t r = tech_info(t).researcher;
+		for (const auto &b : buildings_)
+			if (b.team == petra_pid_ && b.type == r && b.build_progress >= 1.0f && b.hp > 0.0f && !b.wrecked &&
+			    b.upgrade_to == BLD_TYPE_COUNT && b.queue.size() < PRODUCTION_QUEUE_MAX)
+				return true;
+		return false;
+	};
+	techs.erase(std::remove_if(techs.begin(), techs.end(), [&](uint8_t t) { return !free_researcher(t); }), techs.end());
+	if (techs.empty()) return;
+
+	// In the phase where a list starts, skip a technology the economy is far from
+	// affording: more than 10 per worker short of one resource (queueManager
+	// getAvailableResources: stock less what the queues hold).
+	auto too_costly = [&](uint8_t t) {
+		const TechInfo &ti = tech_info(t);
+		const float cost[4] = {(float)ti.food_cost, (float)ti.wood_cost, (float)ti.gold_cost, (float)ti.stone_cost};
+		const float stock[4] = {petra_ps().food(), petra_ps().wood(), petra_ps().gold(), petra_ps().stone()};
+		float held[4] = {};
+		for (int q = 0; q < PetraQueueManager::QUEUE_COUNT; ++q) {
+			if (q == PETRA_QUEUE_TECH) continue; // this plan's own reserve stays available to it
+			const PetraQueueAccount &a = petra_queues_.accounts[q];
+			held[0] += a.food; held[1] += a.wood; held[2] += a.gold; held[3] += a.stone;
+		}
+		float short_max = 0.0f;
+		for (int r = 0; r < 4; ++r) short_max = std::max(short_max, cost[r] - (stock[r] - held[r]));
+		return 10.0f * (float)workers < short_max;
+	};
+	// The picks are deterministic, so a technology waiting for its resources is
+	// picked again until paid for (queueManager keeps the plan queued).
+	auto pick = [&](uint8_t t) { start_tech(t); };
+
+	// researchWantedTechs: champions first, then gather rates (fish on a naval map),
+	// carrying capacities and ranged range.
+	uint16_t home_land = 0;
+	const bool naval_map = petra_classified_topo(home_land).naval_map;
+	for (uint8_t t : techs) {
+		if (t == TECH_UNLOCK_CHAMPION_INFANTRY || t == TECH_UNLOCK_CHAMPION_CAVALRY || t == TECH_UNLOCK_CHAMPION_CHARIOTS) {
+			pick(t);
 			return;
 		}
-		build_phase_structures(1, 5);
-		if (start_tech(TECH_PHASE_TOWN)) return;
+		if (phase == 1 && too_costly(t)) continue;
+		if ((naval_map && petra_tech_modifies(t, {TSTAT_GATHER_FISH})) ||
+		    petra_tech_modifies(t, {TSTAT_GATHER_FRUIT, TSTAT_GATHER_GRAIN, TSTAT_GATHER_WOOD, TSTAT_CARRY_FOOD,
+		                            TSTAT_CARRY_WOOD, TSTAT_CARRY_STONE, TSTAT_CARRY_METAL, TSTAT_RANGE})) {
+			pick(t);
+			return;
+		}
 	}
-	if (petra_ps().phase >= 2) {
-		if (start_tech(TECH_FARMING_1)) return;
-		if (start_tech(TECH_WOODCUTTING_1)) return;
-		if (start_tech(TECH_MINING_1)) return;
+	if (phase < 2) return;
+
+	// researchPreferredTechs: stone and metal rates, tower arrows, health regeneration.
+	for (uint8_t t : techs) {
+		if (phase == 2 && too_costly(t)) continue;
+		if (petra_tech_modifies(t, {TSTAT_GATHER_STONE, TSTAT_GATHER_METAL, TSTAT_ARROWS, TSTAT_REGEN, TSTAT_IDLE_REGEN})) {
+			pick(t);
+			return;
+		}
 	}
-	if (petra_ps().phase == 2 && workers > petra_config_.work_phase3) {
-		build_phase_structures(2, 3);
-		if (start_tech(TECH_PHASE_CITY)) return;
-	}
-	if (petra_ps().phase >= 3) {
-		// researchWantedTechs: any unlock_champion_* first, at raised priority.
-		for (uint8_t t : {TECH_UNLOCK_CHAMPION_INFANTRY, TECH_UNLOCK_CHAMPION_CAVALRY, TECH_UNLOCK_CHAMPION_CHARIOTS})
-			if (tech_available_to_civ(t, petra_ps().civ) && start_tech(t)) return;
-		if (start_tech(TECH_WEAPONS_1)) return;
-		if (start_tech(TECH_ARMOR_1)) return;
-	}
+	if (phase < 3) return;
+
+	// Then any technology at random, leaving out those only for healers, outposts or
+	// walls, and Config.unusedNoAllyTechs when Petra has no ally.
+	bool has_ally = false;
+	for (uint8_t p = 0; p < MAX_PLAYERS && !has_ally; ++p)
+		has_ally = p != petra_pid_ && player_in_match(p) && is_ally(petra_pid_, p);
+	techs.erase(std::remove_if(techs.begin(), techs.end(), [&](uint8_t t) {
+		if (petra_tech_affects_only(t, TC_HEALER) || petra_tech_affects_only(t, TC_OUTPOST) || petra_tech_affects_only(t, TC_WALL))
+			return true;
+		const TechInfo &ti = tech_info(t);
+		return !has_ally && ti.effect_count == 1 && tech_effects_table()[ti.effect_begin].stat == TSTAT_TRADE_INTERNATIONAL;
+	}), techs.end());
+	if (techs.empty()) return;
+	// pickRandom, kept while the pick waits for resources: the draw is a hash of
+	// what Petra has researched, so it is the same until a research completes.
+	const TechSet &done = petra_ps().techs;
+	uint64_t h = 0x9E3779B97F4A7C15ull * (petra_pid_ + 1);
+	for (uint64_t w : done.words) h = (h ^ w) * 0xBF58476D1CE4E5B9ull;
+	h ^= h >> 31;
+	pick(techs[h % techs.size()]);
 }
 
 bool Simulation::pick_petra_safe_staging(float base_x, float base_z, float target_x, float target_z, float &out_sx, float &out_sz) const {
@@ -15843,7 +16023,9 @@ void Simulation::petra_refresh_queue_accounts(float dt) {
 		petra_config_.prio_emergency,
 		petra_config_.prio_villager,
 		petra_config_.prio_military,
-		petra_config_.prio_tech,
+		// Config.priorities majorTech while a phase is wanted, else minorTech (one
+		// TECH queue here holds both).
+		petra_phasing() ? petra_config_.prio_tech : PetraConfig::PRIO_MINOR_TECH,
 		petra_config_.prio_trade,
 		petra_config_.prio_naval
 	};
@@ -16167,6 +16349,7 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 }
 
 uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float near_z, int min_r, int max_r, uint8_t queue) {
+	petra_place_no_room_ = false;
 	// queueManager/canBuild: no search for a structure the EntityLimits refuse.
 	if (btype < BLD_TYPE_COUNT && !petra_limit_allows_building(btype)) return 0;
 	const BuildingTypeInfo &info = building_type_info(btype);
@@ -16185,7 +16368,7 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 	};
 	auto miss = remember ? std::find_if(petra_place_misses_.begin(), petra_place_misses_.end(), same_search)
 	                     : petra_place_misses_.end();
-	if (miss != petra_place_misses_.end() && miss->sig == sig) return 0;
+	if (miss != petra_place_misses_.end() && miss->sig == sig) { petra_place_no_room_ = true; return 0; }
 	for (int r = min_r; r <= max_r; ++r) {
 		for (int dx = -r; dx <= r; ++dx) {
 			for (int dz = -r; dz <= r; ++dz) {
@@ -16208,6 +16391,7 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 			petra_place_misses_.push_back(key);
 		}
 	}
+	petra_place_no_room_ = true;
 	return 0;
 }
 
