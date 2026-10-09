@@ -73,6 +73,10 @@ public:
 	// 0 A.D. stores tiling albedo on UV0 and unique AO on UV1. Godot's glTF
 	// importer enables AO but samples it with UV0 unless FLAG_AO_ON_UV2 is set.
 	static void apply_imported_material_fixups(godot::Node *root);
+	// Owner colour for the 0 A.D. player_trans surfaces under root (the
+	// instance uniform of shaders/player_color.gdshader).
+	static void set_player_color(godot::Node *root, const godot::Color &c);
+	static bool is_player_color_material(const godot::Ref<godot::Material> &mat);
 	// Hide every tool_* mesh except the one for this clip (or tool_Weapon).
 	static void apply_clip_tools(godot::Node *root, const godot::StringName &clip);
 

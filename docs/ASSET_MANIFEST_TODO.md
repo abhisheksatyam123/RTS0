@@ -14,6 +14,7 @@ Manifest counts come from `assets/models/manifest.json`. The disk column was cou
 | models | **742** (units 363, buildings 367, vegetation 12) | 363 / 367 / 12 `.glb` (vegetation 12 includes the 0 A.D. fish shoal, `fish.glb`, from `tools/dae_to_glb.gd`) |
 | props | not in the manifest | 8 `.glb` in `assets/models/props/` (7 carried-resource shuttles, the garrison flag) from `tools/dae_to_glb.gd` with `prop`; 11 flag skins in `assets/textures/garrison_flags/` |
 | scenery | not in the manifest | 22 `.glb` in `assets/models/scenery/` for the 19 Gaia scenery types (`data/scenery_actors.json`), from `tools/extract_0ad_scenery.py` |
+| player masks | not in the manifest | 359 L8 `.png` in `assets/textures/player_masks/` (1 - alpha of 0 A.D.'s `player_trans` skins) and `data/player_masks.json` (1424 GLB images), from `tools/extract_player_masks.py` |
 | particles | **3** | `flame.png`, `smoke_64a.png`, `dust_256a.png` in `assets/textures/particles/` |
 | animations | **1316** | 1316 `.psa` + 1316 `.json` in `assets/animations/` |
 | skeletons | **98** | 98 `.xml` in `assets/skeletons/` |
@@ -145,7 +146,7 @@ Animations (363 unit GLBs):
 - Done: citizen-soldier gather/build clips, per-resource carry walks and the promotion clip (#149, added at runtime from `.psa`).
 
 Textures:
-- **Player colour.** `extract_0ad_assets.py` bakes a fixed tint into each skin where the `player_trans` alpha is below 250, so units and buildings do not show their owner's colour. Fixing it needs `public.zip` to re-extract the mask. Borders, garrison flags and the minimap already use `Simulation::player_color`.
+- **Player colour: done (player colour PR).** `extract_0ad_assets.py` bakes a fixed tint into each skin where the `player_trans` alpha is below 250. `tools/extract_player_masks.py` recovers 0 A.D.'s mask for 1424 GLB images (328 unit and 338 building models) and `shaders/player_color.gdshader` swaps the baked tint for the owner's colour. Not coloured: fauna, rubble and foundations, plus 12 unit models (Gaul and Briton citizens and archers, catapults, the bolt shooter) and 10 structures (Gaul walls and towers, the sentry and defense towers, pyramids, siege wall, rowboat) whose skins on 0 A.D.'s current master have no mask or no longer match the extracted ones.
 - No normal, specular or parallax maps (see Open todos).
 
 ## Open todos (moved here from ASSET_MAPPING.md, checked 2026-10-08)
