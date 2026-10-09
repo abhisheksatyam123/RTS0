@@ -5271,8 +5271,10 @@ void Simulation::move_units(float dt, Arena &arena) {
 			auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
 			if (bit != building_id_to_idx_.end()) {
 				const Building &b = buildings_[bit->second];
+				// Capture reach only where tick_combat captures (a palisade can't be: it is attacked).
 				const bool capture = (units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE) &&
-						unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) > 0.0f;
+						unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) > 0.0f &&
+						units_.team[i] < MAX_PLAYERS && can_capture_building(units_.team[i], b);
 				const float reach = capture ? CAPTURE_RANGE : units_.attack_range[i];
 				const float eff_d = structure_gap(b, px[i], pz[i], unit_collision_radius(units_.unit_type[i]));
 				at_building = eff_d <= reach * 0.9f;
