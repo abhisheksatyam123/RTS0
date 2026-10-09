@@ -1151,7 +1151,8 @@ static void test_army_answers_attackers() {
 	CHECK(half > 0.0f, "an enemy house to attack");
 	if (half <= 0.0f) return;
 	std::vector<uint32_t> squad;
-	for (int k = 0; k < 3; ++k) squad.push_back(s->spawn_unit(hx + half + 1.0f, hz + 1.5f * (float)k, 1, UNIT_SPEARMAN));
+	// Sturdy enough that player 0's own units nearby can't break up the squad first.
+	for (int k = 0; k < 3; ++k) squad.push_back(s->spawn_unit(hx + half + 1.0f, hz + 1.5f * (float)k, 1, UNIT_SPEARMAN, 1.0e4f));
 	s->order_attack_building(squad.data(), squad.size(), house);
 	auto &plan = s->petra_attack_plan_;
 	plan.squad = squad;
