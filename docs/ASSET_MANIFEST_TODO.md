@@ -155,6 +155,7 @@ Textures:
   - Emblems: 13 civs (`emblems/`, athenians through seleucids).
   - Phase icons: 3 (`phases/`: village, town, city).
   - Loading screen: 57 (`loading/`: 47 tip pictures, 6 progress bar pieces, parchment, tip gradient, background tile). 0 A.D.'s `gradient_4x3.png` is not used.
+  - Reference portraits: `portraits/catafalque.png` for the Catafalque Overview.
   - Formations: 12 PNG (`formations/`). The 0 A.D. formation count of 14 comes from the 2026-08-29 audit and was not re-verified (zip absent).
   - Auras and minimap: 19 and 22 files matched by name. Runtime wiring of these was not re-audited.
   - Cursors: 22 (`assets/textures/cursors/`: 21 `action-*` and `cursor-rally`), wired by `update_cursor`. 0 A.D.'s remaining cursors (set-rally variants, the disabled variants, the arrow) are not copied yet.

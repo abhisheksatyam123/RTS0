@@ -150,6 +150,10 @@ Each `synth_<id>` function generates RTS0's version of the 0 A.D. map script of 
 | `data/civs/civinfo.json` | Civ bonuses with their history text and AI names from `simulation/data/civs/*.json` | `tools/extract_0ad_civinfo.py` |
 | `scenes/menu/loading.gd`, `RtsoMain` `load_progress` signal | `gui/loading/` (loading.js, ProgressBar.js, TitleDisplay.js, TipDisplay.js, QuoteDisplay.js; layout from loading.xml) | Hand-ported |
 | `scenes/reference/manual.gd` | `gui/manual/manual.js` and `manual.xml` | Hand-ported |
+| `scenes/reference/catafalque_page.gd`, `RtsoReference.get_catafalques` | `gui/reference/catafalque/` (CatafalquePage.js, Emblem.js, catafalque.xml, styles.xml), `getAurasTooltip` from `gui/common/tooltips.js` | Hand-ported |
+| `scenes/reference/credits_page.gd` | `gui/credits/credits.js` and `credits.xml` | Hand-ported |
+| `data/reference/credits/*.json` | `gui/credits/texts/*.json` (all ten credits files) | Copied as is |
+| `assets/textures/ui/portraits/catafalque.png` | `art/textures/ui/reference/portraits/catafalque.png` | Copied as is |
 | `data/reference/loading.json`, `data/reference/manual.json` | `gui/text/tips/*.txt` (47 tips), `gui/text/quotes.txt` (199 quotes), `gui/manual/intro.txt` | `tools/extract_0ad_loading.py` |
 | `assets/textures/ui/loading/` | `art/textures/ui/loading/`: 47 tip pictures, `parchment.png`, `gradient_tips.png`, `background-tile.png` and the 6 progress bar pieces | `tools/extract_0ad_loading.py` (copied as is) |
 | `data/reference/templates.json` | `Identity/Tooltip`, `History`, `SpecificName`, `VisibleClasses` and `Builder/Entities` of every roster unit (`simulation/templates/units/`) and structure (`structures/<civ>/` and `template_structure_*`), technology `tooltip`, `description` and `requirementsTooltip` (`simulation/data/technologies/`), each civ's `History` (`simulation/templates/special/players/<civ>.xml`) | `tools/extract_0ad_reference.py` |

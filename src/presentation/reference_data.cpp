@@ -1,5 +1,7 @@
 #include "reference_data.h"
 
+#include <cstring>
+
 #include "../simulation/sim_types.h"
 
 #include <cmath>
@@ -126,6 +128,7 @@ void RtsoReference::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_civ_info", "civ"), &RtsoReference::get_civ_info);
 	ClassDB::bind_method(D_METHOD("get_structure_tree", "civ"), &RtsoReference::get_structure_tree);
 	ClassDB::bind_method(D_METHOD("get_unit", "tmpl"), &RtsoReference::get_unit);
+	ClassDB::bind_method(D_METHOD("get_catafalques"), &RtsoReference::get_catafalques);
 	ClassDB::bind_method(D_METHOD("get_structure", "type", "civ"), &RtsoReference::get_structure);
 	ClassDB::bind_method(D_METHOD("get_tech", "id", "civ"), &RtsoReference::get_tech);
 	ClassDB::bind_static_method("RtsoReference", D_METHOD("phase_icon", "phase"), &RtsoReference::phase_icon);
@@ -244,6 +247,20 @@ Array RtsoReference::get_structure_tree(int civ) const {
 String RtsoReference::phase_icon(int phase) {
 	static const char *const kIcons[] = {"village", "village", "town", "city"};
 	return String("res://assets/textures/ui/phases/") + kIcons[phase < 0 ? 0 : phase > 3 ? 3 : phase] + ".png";
+}
+
+// gui/reference/catafalque Emblem.CatafalqueTemplateMethod: "units/<civ>/catafalque",
+// one per civ in civ order, with the auras its tooltip lists.
+Array RtsoReference::get_catafalques() const {
+	Array out;
+	for (uint16_t t = 0; t < rtso::CIV_UNIT_TEMPLATE_COUNT; ++t) {
+		const char *id = rtso::civ_unit_template(t).id;
+		const size_t n = id ? std::strlen(id) : 0;
+		static const char kSuffix[] = "/catafalque";
+		if (n < sizeof(kSuffix) - 1 || std::strcmp(id + n - (sizeof(kSuffix) - 1), kSuffix) != 0) continue;
+		out.push_back(get_unit(t));
+	}
+	return out;
 }
 
 Dictionary RtsoReference::get_unit(int tmpl) const {
