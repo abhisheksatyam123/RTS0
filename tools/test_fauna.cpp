@@ -186,6 +186,50 @@ int main() {
 		CHECK(!s.units_.alive[uidx(s, w)]);
 	}
 
+	// 7b. FLEEING runs FleeDistance further than the attacker was (UnitAI.js distanceToFlee),
+	// so a deer flees a ranged hunter too, and it only turns from a nearer new attacker.
+	{
+		fresh(s);
+		const auto &di = fauna_type_info(FAUNA_DEER);
+		uint32_t far_u = s.spawn_unit(-10.0f, 0.0f, 0, UNIT_ARCHER);
+		uint32_t near_u = s.spawn_unit(0.0f, 6.0f, 0, UNIT_SPEARMAN);
+		uint32_t deer = s.spawn_fauna(0.0f, 0.0f, FAUNA_DEER);
+		int32_t f = fidx(s, deer);
+		s.fauna_attacked((size_t)f, far_u);
+		CHECK(s.fauna_.behavior[f] == FAUNA_FLEE && s.fauna_.target_unit_id[f] == far_u);
+		CHECK(std::fabs(s.fauna_.flee_distance[f] - (10.0f + di.flee_distance)) < 0.01f);
+		s.fauna_attacked((size_t)f, near_u); // nearer: it now flees the spearman
+		CHECK(s.fauna_.target_unit_id[f] == near_u);
+		s.fauna_attacked((size_t)f, far_u); // farther: no change
+		CHECK(s.fauna_.target_unit_id[f] == near_u);
+		for (uint32_t u : {far_u, near_u}) s.units_.speed[uidx(s, u)] = 0.0f, s.cmd_stop(&u, 1);
+		run(s, 10.0f);
+		f = fidx(s, deer);
+		const float d = std::hypot(s.fauna_.pos_x[f] - s.units_.pos_x[uidx(s, near_u)], s.fauna_.pos_z[f] - s.units_.pos_z[uidx(s, near_u)]);
+		std::printf("flee: deer ran to %.1f from the spearman (needed %.1f)\n", d, 6.0f + di.flee_distance);
+		CHECK(d >= 6.0f + di.flee_distance - 0.5f && s.fauna_.behavior[f] != FAUNA_FLEE);
+	}
+
+	// 7c. Hold ground (CheckTargetDistanceFromHeldPosition): a boar drops a target that is
+	// more than vision / 2 + attack range from where it was attacked.
+	{
+		fresh(s);
+		const auto &bi = fauna_type_info(FAUNA_BOAR);
+		const float leash = bi.vision * 0.5f + bi.attack_range;
+		uint32_t boar = s.spawn_fauna(0.0f, 0.0f, FAUNA_BOAR);
+		uint32_t u = s.spawn_unit(1.5f, 0.0f, 0, UNIT_SPEARMAN, 1.0e6f);
+		s.order_set_stance(&u, 1, STANCE_PASSIVE);
+		s.fauna_attacked((size_t)fidx(s, boar), u);
+		run(s, 1.0f);
+		CHECK(s.fauna_.behavior[fidx(s, boar)] == FAUNA_ATTACK);
+		s.units_.pos_x[uidx(s, u)] = leash + 1.0f; // out of the leash
+		s.cmd_stop(&u, 1);
+		s.units_.speed[uidx(s, u)] = 0.0f;
+		run(s, 0.5f);
+		CHECK(s.fauna_.behavior[fidx(s, boar)] != FAUNA_ATTACK);
+		std::printf("leash: boar leash %.1f, gave up %s\n", leash, s.fauna_.behavior[fidx(s, boar)] != FAUNA_ATTACK ? "yes" : "no");
+	}
+
 	// 8. Herding works for every player: player 1 herds a sheep into its own corral.
 	{
 		fresh(s);
