@@ -14477,6 +14477,31 @@ void Simulation::petra_manage_garrisons() {
 	}
 }
 
+// getMaxStrength (entityExtend.js) with config.js DamageTypeImportance: attack and
+// resistance per damage type (Hack, Pierce, Crush, Fire), range and repeat time,
+// all scaled by max health.
+bool Simulation::petra_passenger(uint32_t uid) const {
+	for (const auto &tp : petra_transports_)
+		if (std::find(tp.passenger_ids.begin(), tp.passenger_ids.end(), uid) != tp.passenger_ids.end()) return true;
+	return false;
+}
+
+float Simulation::petra_unit_strength(size_t i) const {
+	const UnitTypeInfo &ui = unit_info_at(i);
+	float s = 0.0f;
+	if (units_.attack_damage[i] > 0.0f) {
+		const float scale = ui.attack_damage > 0.0f ? units_.attack_damage[i] / ui.attack_damage : 1.0f;
+		s += (0.085f * ui.hack_damage + 0.075f * ui.pierce_damage + 0.065f * ui.crush_damage) * scale / 4.0f;
+		const bool ranged = (unit_tech_classes(units_.unit_type[i]) & TC_RANGED) != 0;
+		s += units_.attack_range[i] / (ranged ? 0.28f : 0.6f) * 0.0125f; // back to 0 A.D. metres
+		s += units_.attack_cooldown[i] * 1000.0f / 100000.0f;
+	}
+	float res[3];
+	unit_resistance(i, res);
+	s += (0.085f * res[0] + 0.075f * res[1] + 0.065f * res[2]) / 4.0f;
+	return s * units_.max_hp[i] / 100.0f;
+}
+
 void Simulation::petra_manage_defense(float dt) {
 	petra_defense_timer_ += dt;
 	if (petra_defense_timer_ < 0.5f) return;
@@ -14490,12 +14515,39 @@ void Simulation::petra_manage_defense(float dt) {
 		return petra_unit_reserved(uid);
 	};
 
-	// Detect enemies inside own territory (defenseManager.isDangerous). The base
-	// radius only stands in for territory while a base has no anchor building:
-	// a 32 m radius reaches into a close neighbour's land and starts border fights.
+	// Detect enemies inside own territory (defenseManager.isDangerous): a unit that can
+	// attack (no Support unit) within 6000 m² of one of our structures, or a ranged one
+	// within its range + 30 m. The base radius only stands in for territory while a base
+	// has no anchor building: a 32 m radius reaches into a close neighbour's land and
+	// starts border fights.
+	std::vector<const Building *> own_structures;
+	for (const auto &b : buildings_)
+		if (b.team == petra_pid_ && b.build_progress > 0.0f && !b.wrecked && b.hp > 0.0f) own_structures.push_back(&b);
+	auto near_own_structure = [&](size_t i) {
+		float reach = 6000.0f / 16.0f; // m² to RTS0 units² (4 m each)
+		if (unit_tech_classes(units_.unit_type[i]) & TC_RANGED) {
+			const float m = units_.attack_range[i] / 0.28f + 30.0f; // ranged ranges are x0.28
+			reach = m * m / 16.0f;
+		}
+		for (const Building *b : own_structures) {
+			const float dx = units_.pos_x[i] - b->x, dz = units_.pos_z[i] - b->z;
+			if (dx * dx + dz * dz <= reach) return true;
+		}
+		return false;
+	};
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || !petra_foe(units_.team[i])) continue;
-		bool dangerous = (territory_owner_at(units_.pos_x[i], units_.pos_z[i]) == petra_pid_);
+		if (petra_is_support_unit(units_.unit_type[i]) || (unit_tech_classes(units_.unit_type[i]) & TC_HEALER) ||
+		    (units_.attack_damage[i] <= 0.0f && unit_capture_strength(units_.unit_type[i]) <= 0.0f)) continue;
+		const int terr = territory_owner_at(units_.pos_x[i], units_.pos_z[i]); // -1 neutral
+		bool dangerous = terr == petra_pid_ && near_own_structure(i);
+		// checkEvents makeIntoArmy: a unit attacking one of ours in our territory joins the
+		// defence anywhere in it; ships are left alone. (Attacks on neutral or allied land
+		// are the outside-territory defence, not handled here yet.)
+		if (!dangerous && terr == petra_pid_ && !unit_is_ship(units_.unit_type[i]) && units_.action_state[i] == ACTION_ATTACK) {
+			const int32_t t = units_.target_unit_id[i] ? lookup_unit(units_.target_unit_id[i]) : -1;
+			dangerous = t >= 0 && units_.alive[t] && units_.team[t] == petra_pid_;
+		}
 		if (!dangerous) {
 			for (const auto &base : petra_bases_) {
 				if (base.anchor_building_id != 0) continue;
@@ -14559,33 +14611,61 @@ void Simulation::petra_manage_defense(float dt) {
 	}
 
 	army.active = true;
-	size_t needed = (size_t)std::ceil((float)army.foe_ids.size() * petra_config_.defense_ratio_own);
-	needed = std::min(needed, (size_t)24);
-
-	for (size_t i = 0; i < units_.count && army.defender_ids.size() < needed; ++i) {
-		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
-		if (!petra_is_combat_unit(units_.unit_type[i])) continue;
-		if (units_.id[i] == petra_scout_unit_id_) continue;
-		if (units_.action_state[i] == ACTION_GARRISONED || units_.action_state[i] == ACTION_DYING) continue;
-		if (units_.order_kind[i] == ORDER_GARRISON) continue; // garrisonManager has it
-		if (in_attack_squad(units_.id[i]) || petra_is_critical_ent(i) || petra_guards_critical_ent(i)) continue;
-		if (std::find(army.defender_ids.begin(), army.defender_ids.end(), units_.id[i]) != army.defender_ids.end())
-			continue;
-		army.defender_ids.push_back(units_.id[i]);
-	}
 
 	// Centroid of foes for compact-army assignment
 	army.cx = 0.0f;
 	army.cz = 0.0f;
 	int foe_n = 0;
+	float foe_strength = 0.0f, own_strength = 0.0f;
 	for (uint32_t fid : army.foe_ids) {
 		int32_t fi = lookup_unit(fid);
 		if (fi < 0) continue;
 		army.cx += units_.pos_x[fi];
 		army.cz += units_.pos_z[fi];
+		foe_strength += petra_unit_strength((size_t)fi);
 		foe_n++;
 	}
 	if (foe_n > 0) { army.cx /= (float)foe_n; army.cz /= (float)foe_n; }
+	for (uint32_t uid : army.defender_ids) {
+		const int32_t idx = lookup_unit(uid);
+		if (idx >= 0) own_strength += petra_unit_strength((size_t)idx);
+	}
+
+	// defenseArmy.js needsDefenders: foe strength x defenseRatio.own beyond what the army
+	// already has; assignDefenders adds the nearest units that can fight, those on the foes'
+	// land first, until the need is met (getMaxStrength each).
+	float need = foe_strength * petra_config_.defense_ratio_own - own_strength;
+	if (need > 0.0f) {
+		uint16_t foe_land = 0;
+		for (uint32_t fid : army.foe_ids)
+			if (const int32_t fi = lookup_unit(fid); fi >= 0) { foe_land = petra_land_at(units_.pos_x[fi], units_.pos_z[fi]); break; }
+		std::vector<std::pair<float, size_t>> candidates;
+		for (size_t i = 0; i < units_.count; ++i) {
+			if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
+			if (!petra_is_combat_unit(units_.unit_type[i]) || units_.attack_damage[i] <= 0.0f) continue;
+			if (unit_tech_classes(units_.unit_type[i]) & (TC_STONETHROWER | TC_SHIP)) continue;
+			if (units_.id[i] == petra_scout_unit_id_) continue;
+			if (units_.action_state[i] == ACTION_GARRISONED || units_.action_state[i] == ACTION_DYING) continue;
+			if (units_.order_kind[i] == ORDER_GARRISON) continue; // garrisonManager has it
+			if (in_attack_squad(units_.id[i]) || petra_is_critical_ent(i) || petra_guards_critical_ent(i)) continue;
+			if (petra_ship_in_plan(units_.id[i]) || petra_passenger(units_.id[i])) continue;
+			if (std::find(army.defender_ids.begin(), army.defender_ids.end(), units_.id[i]) != army.defender_ids.end())
+				continue;
+			const float dx = units_.pos_x[i] - army.cx, dz = units_.pos_z[i] - army.cz;
+			candidates.push_back({dx * dx + dz * dz, i});
+		}
+		std::sort(candidates.begin(), candidates.end());
+		for (int pass = 0; pass < 2 && need > 0.0f; ++pass)
+			for (auto &c : candidates) {
+				if (c.second == SIZE_MAX) continue;
+				const size_t i = c.second;
+				if (pass == 0 && foe_land && petra_land_at(units_.pos_x[i], units_.pos_z[i]) != foe_land) continue;
+				army.defender_ids.push_back(units_.id[i]);
+				need -= petra_unit_strength(i);
+				c.second = SIZE_MAX;
+				if (need <= 0.0f) break;
+			}
+	}
 
 	for (uint32_t uid : army.defender_ids) {
 		int32_t idx = lookup_unit(uid);

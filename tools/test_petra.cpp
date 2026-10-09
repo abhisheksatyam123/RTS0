@@ -1466,6 +1466,39 @@ static void test_idle_return() {
 	CHECK(ordered && dropped, "an idle worker carrying a load is sent to a dropsite");
 }
 
+// defenseManager.js isDangerous / defenseArmy.js needsDefenders: Support units in our
+// territory are no threat, and the defence is sized by strength (getMaxStrength), so
+// war elephants draw more defenders than the same number of spearmen would.
+static void test_defense_by_strength() {
+	for (int phase = 0; phase < 2; ++phase) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		run_for(*s, 20.0f);
+		const Simulation::Building *cc = nullptr;
+		for (const auto &b : s->buildings_)
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+		CHECK(cc != nullptr, "Petra has a civic centre");
+		if (!cc) return;
+		const float cx = cc->x, cz = cc->z;
+		for (int k = 0; k < 30; ++k) s->spawn_unit(cx - 10.0f + (float)(k % 6), cz - 10.0f - (float)(k / 6), 1, UNIT_SPEARMAN);
+		const UnitType foe = phase == 0 ? UNIT_FEMALE_CITIZEN : UNIT_ELEPHANT;
+		for (int k = 0; k < 2; ++k) s->spawn_unit(cx + 6.0f + (float)k, cz + 6.0f, 0, foe);
+		run_for(*s, 1.0f);
+		const size_t n = s->petra_defense_army_.defender_ids.size();
+		const size_t by_count = (size_t)std::ceil(2.0f * s->petra_config_.defense_ratio_own);
+		if (phase == 0) {
+			std::printf("  defense: 2 enemy women by the civic centre draw %zu defenders\n", n);
+			CHECK(n == 0, "Support units are not dangerous (isDangerous)");
+		} else {
+			std::printf("  defense: 2 war elephants draw %zu defenders (%zu by head count)\n", n, by_count);
+			CHECK(n > by_count && n < 30, "defenders sized by strength (needsDefenders)");
+		}
+	}
+}
+
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
@@ -1495,6 +1528,7 @@ int main() {
 	test_expansion_small_nodes();
 	test_repairs();
 	test_idle_return();
+	test_defense_by_strength();
 	test_wonder_guards();
 	test_placement_miss_memory_exact();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
