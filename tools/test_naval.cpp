@@ -9,6 +9,7 @@
 #undef private
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <vector>
 
 using namespace rtso;
@@ -252,11 +253,155 @@ static void test_ship_height() {
 	CHECK(tri_alive && !archer_alive);
 }
 
+static uint16_t tmpl_of(const char *id) {
+	for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
+		if (std::strcmp(civ_unit_template(t).id, id) == 0) return t;
+	return CIV_UNIT_TEMPLATE_NONE;
+}
+
+static bool aboard(const Simulation &s, uint32_t ship, uint32_t uid) {
+	const auto *p = s.get_transport_passengers(ship);
+	if (!p) return false;
+	for (uint32_t id : *p) if (id == uid) return true;
+	return false;
+}
+
+static int32_t idx(const Simulation &s, uint32_t id) {
+	for (size_t i = 0; i < s.units().count; ++i) if (s.units().id[i] == id) return (int32_t)i;
+	return -1;
+}
+
+// Ships as 0 A.D. GarrisonHolders (template_unit_ship*.xml): capacity and List per
+// template, LoadingRange 10 m with Pickup, unload only onto dry ground beside the
+// hull, and EjectClassesOnDestroy when a ship sinks.
+static void test_transport() {
+	static Simulation s;
+	fresh(s);
+	// Capacities: warship_arrow 30, warship_siege 50, warship_scout 10, merchant 15,
+	// fishing boat 1, fire ship none.
+	const uint32_t arrow = s.spawn_unit(-20.0f, 10.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));
+	const uint32_t siege = s.spawn_unit(-10.0f, 0.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("cart/ship_siege"));
+	const uint32_t scout = s.spawn_unit(0.0f, 0.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_scout"));
+	const uint32_t fire = s.spawn_unit(10.0f, 0.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("brit/ship_fire"));
+	const uint32_t merchant = s.spawn_unit(20.0f, 0.0f, 0, UNIT_MERCHANT_SHIP);
+	const uint32_t fisher = s.spawn_unit(30.0f, 0.0f, 0, UNIT_FISHING_BOAT);
+	CHECK(s.get_transport_capacity(arrow) == 30);
+	CHECK(s.get_transport_capacity(siege) == 50);
+	CHECK(s.get_transport_capacity(scout) == 10);
+	CHECK(s.get_transport_capacity(merchant) == 15);
+	CHECK(s.get_transport_capacity(fisher) == 1);
+	CHECK(!s.is_transport(fire));
+
+	// Lists: cavalry boards a warship or a merchant ship but not a fishing boat;
+	// siege boards an arrow ship but not a scout ship.
+	const int32_t ia = idx(s, arrow), ism = idx(s, scout), im = idx(s, merchant), iff = idx(s, fisher);
+	const uint32_t rider = s.spawn_unit(-20.0f, 17.5f, 0, UNIT_CAVALRY);
+	const uint32_t ram = s.spawn_unit(-21.0f, 17.5f, 0, UNIT_SIEGE_RAM);
+	const int32_t ir = idx(s, rider), irm = idx(s, ram);
+	CHECK(s.can_board(ia, ir) && s.can_board(im, ir) && !s.can_board(iff, ir));
+	CHECK(s.can_board(ia, irm) && !s.can_board(ism, irm));
+
+	// Boarding from the beach: the arrow ship lies 10 m off the shore line (z = 16).
+	const uint32_t spear = s.spawn_unit(-19.0f, 17.5f, 0, UNIT_SPEARMAN);
+	const uint32_t party[] = {spear, rider};
+	s.order_board_transport(party, 2, arrow);
+	run(s, 3.0f);
+	CHECK(aboard(s, arrow, spear) && aboard(s, arrow, rider));
+
+	// Out at sea there is no shore to unload onto: everyone stays aboard.
+	s.cmd_move(&arrow, 1, -20.0f, 0.0f);
+	run(s, 8.0f);
+	s.order_disembark_all(arrow);
+	CHECK(s.get_transport_passenger_count(arrow) == 2);
+
+	// Sunk at sea: everyone drowns.
+	s.units_.hp[idx(s, arrow)] = 0.0f;
+	s.units_.alive[idx(s, arrow)] = 0;
+	run(s, 0.1f);
+	CHECK(s.get_transport_passengers(arrow) == nullptr);
+	CHECK(!s.units().alive[idx(s, spear)] && !s.units().alive[idx(s, rider)]);
+
+	// Sunk beside the beach: the spearman swims ashore, the rider (not in
+	// EjectClassesOnDestroy) goes down with the ship.
+	const uint32_t ship2 = s.spawn_unit(-40.0f, 13.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));
+	const uint32_t spear2 = s.spawn_unit(-40.0f, 17.5f, 0, UNIT_SPEARMAN);
+	const uint32_t rider2 = s.spawn_unit(-39.0f, 17.5f, 0, UNIT_CAVALRY);
+	const uint32_t party2[] = {spear2, rider2};
+	s.order_board_transport(party2, 2, ship2);
+	run(s, 2.0f);
+	CHECK(s.get_transport_passenger_count(ship2) == 2);
+	s.units_.hp[idx(s, ship2)] = 0.0f;
+	s.units_.alive[idx(s, ship2)] = 0;
+	run(s, 0.1f);
+	const int32_t isp2 = idx(s, spear2);
+	std::printf("  sunk by the beach: spearman %s at z %.1f\n", isp2 >= 0 && s.units().alive[isp2] ? "ashore" : "drowned", isp2 >= 0 ? s.units().pos_z[isp2] : 0.0f);
+	CHECK(isp2 >= 0 && s.units().alive[isp2] && s.get_terrain_height(s.units().pos_x[isp2], s.units().pos_z[isp2]) > 0.15f);
+	CHECK(!s.units().alive[idx(s, rider2)]);
+
+	// Pickup: an idle ship sails toward units ordered aboard from inland.
+	const uint32_t ship3 = s.spawn_unit(40.0f, -2.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));
+	const uint32_t archer = s.spawn_unit(40.0f, 24.0f, 0, UNIT_ARCHER);
+	s.order_board_transport(&archer, 1, ship3);
+	run(s, 15.0f);
+	std::printf("  pickup: ship at z %.1f, archer %s\n", s.units().pos_z[idx(s, ship3)], aboard(s, ship3, archer) ? "aboard" : "ashore");
+	CHECK(aboard(s, ship3, archer));
+	// Unloading beside the beach puts the archer back on dry ground.
+	s.order_disembark_all(ship3);
+	const int32_t iar = idx(s, archer);
+	CHECK(!aboard(s, ship3, archer) && s.units().alive[iar] && s.get_terrain_height(s.units().pos_x[iar], s.units().pos_z[iar]) > 0.15f);
+	CHECK(s.units().pos_z[idx(s, ship3)] < 16.0f); // the ship stayed on the water
+	std::printf("transport: capacities, lists, pickup, unloading and sinking match 0 A.D.: %s\n", failures ? "see failures" : "ok");
+}
+
+// DeathDamage.js: a fire ship (mixins/fireship.xml) burns down at RegenRate -5 and, dying,
+// deals 500 Fire over 20 m to everyone, its own side too, with quadratic falloff.
+// Other ships and structures deal nothing when they die.
+static void test_fire_ship() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	const uint32_t fire = s.spawn_unit(0.0f, 12.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("brit/ship_fire"));
+	const uint32_t enemy = s.spawn_unit(3.0f, 12.0f, 1, UNIT_TRIREME);
+	const uint32_t own = s.spawn_unit(-3.5f, 12.0f, 0, UNIT_TRIREME);
+	const uint32_t far_enemy = s.spawn_unit(12.0f, 12.0f, 1, UNIT_TRIREME);
+	uint32_t all[4] = {fire, enemy, own, far_enemy};
+	s.order_set_stance(all, 4, STANCE_PASSIVE);
+	s.order_set_stance(&all[1], 1, STANCE_PASSIVE);
+	s.order_set_stance(&all[3], 1, STANCE_PASSIVE);
+	auto hp = [&](uint32_t id) { const int32_t i = idx(s, id); return i >= 0 ? s.units().hp[i] : -1.0f; };
+	const float f0 = hp(fire), e0 = hp(enemy), o0 = hp(own), x0 = hp(far_enemy);
+	run(s, 10.0f);
+	const float burnt = f0 - hp(fire);
+	std::printf("fire ship: %.1f hp burnt in 10 s\n", burnt);
+	CHECK(burnt > 45.0f && burnt < 55.0f);
+	s.set_unit_hp(fire, 1.0f);
+	run(s, 1.0f);
+	CHECK(!s.units().alive[idx(s, fire)]);
+	std::printf("fire ship blast: enemy %.0f -> %.0f, own %.0f -> %.0f, far %.0f -> %.0f\n",
+			e0, hp(enemy), o0, hp(own), x0, hp(far_enemy));
+	CHECK(hp(enemy) < e0 - 100.0f);       // close: most of 500
+	CHECK(hp(own) < o0 - 50.0f);          // friendly fire
+	CHECK(hp(far_enemy) == x0);           // 12 tiles away is outside 20 m
+
+	// A trireme that sinks hurts nobody (no DeathDamage in template_unit_ship).
+	const uint32_t a = s.spawn_unit(-3.0f, 20.0f, 0, UNIT_TRIREME);
+	const uint32_t b = s.spawn_unit(0.0f, 20.0f, 1, UNIT_TRIREME);
+	uint32_t ab[2] = {a, b};
+	s.order_set_stance(ab, 1, STANCE_PASSIVE);
+	s.order_set_stance(&ab[1], 1, STANCE_PASSIVE);
+	const float b0 = hp(b);
+	s.cmd_delete(0, &a, 1);
+	run(s, 1.0f);
+	CHECK(hp(b) == b0);
+}
+
 int main() {
+	test_transport();
 	test_dock_trade();
 	test_fishing();
 	test_petra_sea_trade();
 	test_ship_height();
+	test_fire_ship();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

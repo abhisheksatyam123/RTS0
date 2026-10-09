@@ -7,7 +7,10 @@
 // same folder layout: commands.rts0rec is TurnManager::save_replay's turn
 // stream and metadata.json holds the setup, the players and the statistics.
 // Single-player orders run through the TurnManager too (0 A.D. CLocalTurnManager),
-// so they land in the replay.
+// so they land in the replay. A game continued from a save is recorded too: its
+// replay folder keeps a copy of the save (start.rts0sav) to start from.
+// Watching one, the viewer picks whose sight to follow or watches as an
+// observer with the map revealed (0 A.D. replay "Player view").
 //
 // Saved games follow gui/savedgames: user://saves/<name>.rts0sav with a
 // <name>.json beside it (date, description, map, setup), so the save and load
@@ -15,7 +18,12 @@
 // is rebuilt from the setup first, as Simulation::load_state expects).
 
 #include "main_node.h"
+#include <godot_cpp/classes/canvas_layer.hpp>
 #include <godot_cpp/classes/dir_access.hpp>
+#include <godot_cpp/classes/h_box_container.hpp>
+#include <godot_cpp/classes/image.hpp>
+#include <godot_cpp/classes/viewport.hpp>
+#include <godot_cpp/classes/viewport_texture.hpp>
 #include <godot_cpp/classes/project_settings.hpp>
 #include <godot_cpp/classes/time.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
@@ -32,7 +40,7 @@ const char *const kSetupKeys[] = {
 	"player_civ", "ai_civ",
 };
 
-constexpr uint32_t kReplayFormat = 1;
+constexpr uint32_t kReplayFormat = 2; // 2: may start from a save (start_save)
 constexpr uint32_t kReplayWriteEveryTurns = 300; // a minute of game time: a crash loses at most that
 
 String timestamp_id() {
@@ -244,6 +252,9 @@ Dictionary RtsoMain::statistics_summary() const {
 
 // --- Replays -------------------------------------------------------------------
 
+int RtsoMain::get_save_version() { return (int)rtso::Simulation::SAVE_VERSION; }
+int RtsoMain::get_replay_format() { return (int)kReplayFormat; }
+
 void RtsoMain::begin_match_recording(const rtso::GameSetupParams *mp_setup) {
 	if (!sim || turn_mgr_.is_replaying()) return;
 	if (!mp_setup) turn_mgr_.reset(); // offline: turn 1 is the first turn of this match
@@ -277,6 +288,20 @@ void RtsoMain::begin_match_recording(const rtso::GameSetupParams *mp_setup) {
 	}
 	replay_meta_["local_player"] = (int)local_player();
 	replay_recording_ = true;
+}
+
+// A loaded game goes on as a new replay, which starts from a copy of the save.
+void RtsoMain::begin_recording_from_save(const String &save_path) {
+	begin_match_recording(nullptr);
+	if (!replay_recording_) return;
+	const String start = replay_dir_ + "start.rts0sav";
+	if (DirAccess::copy_absolute(ProjectSettings::get_singleton()->globalize_path(save_path),
+	                             ProjectSettings::get_singleton()->globalize_path(start)) != OK) {
+		replay_recording_ = false; // without its starting state the replay could not be played
+		return;
+	}
+	replay_meta_["start_save"] = "start.rts0sav";
+	replay_meta_["start_time"] = (double)sim->stats().ticks * rtso::Simulation::FIXED_STEP;
 }
 
 void RtsoMain::write_replay() {
@@ -333,6 +358,17 @@ bool RtsoMain::start_pending_replay() {
 	} else {
 		apply_settings_snapshot(meta.get("settings", Dictionary()));
 		apply_match_settings();
+		const String start = meta.get("start_save", "");
+		if (!start.is_empty()) {
+			// Continued from a save: the save it started from, then its turns.
+			loading_replay_start_ = true;
+			const bool loaded = load_game(dir.path_join(start));
+			loading_replay_start_ = false;
+			if (!loaded) {
+				UtilityFunctions::printerr("[RTS0] Replay start save unreadable: ", dir.path_join(start));
+				return false;
+			}
+		}
 		turn_mgr_.reset();
 	}
 	if (!turn_mgr_.load_replay(cmd_path.utf8().get_data())) {
@@ -342,6 +378,9 @@ bool RtsoMain::start_pending_replay() {
 	replay_recording_ = false;
 	replay_finished_ = false;
 	replay_meta_ = meta;
+	// 0 A.D. starts a replay with the map revealed; the picker follows one player.
+	replay_view_ = rtso::OBSERVER_VIEW;
+	replay_hud_player_ = (uint8_t)std::clamp((int)meta.get("local_player", 0), 0, (int)rtso::MAX_PLAYERS - 1);
 	UtilityFunctions::print("[RTS0] Playing replay ", dir, " (", (int64_t)turn_mgr_.turn_history().size(), " turns)");
 	return true;
 }
@@ -356,6 +395,10 @@ Dictionary RtsoMain::get_replay_status() const {
 	d["out_of_sync_turn"] = (int64_t)turn_mgr_.replay_out_of_sync_turn();
 	d["recording"] = replay_recording_;
 	d["replay_dir"] = replay_dir_;
+	d["view"] = turn_mgr_.is_replaying() && replay_view_ < rtso::MAX_PLAYERS ? (int)replay_view_ : -1;
+	d["start_time"] = (double)replay_meta_.get("start_time", 0.0);
+	d["speed"] = game_speed;
+	d["paused"] = is_game_paused();
 	return d;
 }
 
@@ -374,6 +417,7 @@ void RtsoMain::tick_match_archive() {
 		layer->set_layer(5);
 		add_child(layer);
 		layer->add_child(replay_label_);
+		build_replay_view_picker();
 	}
 	const int64_t total = (int64_t)turn_mgr_.turn_history().size();
 	const int64_t turn = std::min<int64_t>((int64_t)turn_mgr_.current_turn(), total);
@@ -381,7 +425,9 @@ void RtsoMain::tick_match_archive() {
 		const int64_t s = (int64_t)((double)turns * rtso::TurnManager::TURN_DURATION);
 		return String::num_int64(s / 60).pad_zeros(2) + ":" + String::num_int64(s % 60).pad_zeros(2);
 	};
-	String text = "REPLAY  " + clock(turn) + " / " + clock(total);
+	// A replay continued from a save shows the game clock, which starts at the save's time.
+	const int64_t start_turns = (int64_t)((double)replay_meta_.get("start_time", 0.0) / rtso::TurnManager::TURN_DURATION + 0.5);
+	String text = "REPLAY  " + clock(start_turns + turn) + " / " + clock(start_turns + total);
 	if (turn_mgr_.replay_out_of_sync())
 		text += "  (out of sync at turn " + String::num_int64(turn_mgr_.replay_out_of_sync_turn()) + ")";
 	if (!replay_finished_ && turn_mgr_.replay_complete()) {
@@ -392,6 +438,72 @@ void RtsoMain::tick_match_archive() {
 	}
 	if (replay_finished_) text += "  finished";
 	replay_label_->set_text(text);
+}
+
+// 0 A.D. replay "Player view": Observer (everything revealed) or one player's
+// sight and panels. Presentation only, so the replay's hashes are unaffected.
+void RtsoMain::build_replay_view_picker() {
+	if (replay_view_picker_ || !replay_label_) return;
+	HBoxContainer *row = memnew(HBoxContainer);
+	row->set_position(Vector2(16.0f, 92.0f));
+	Label *caption = memnew(Label);
+	caption->set_text("Player view:");
+	row->add_child(caption);
+	replay_view_picker_ = memnew(OptionButton);
+	replay_view_picker_->add_item("Observer", 0);
+	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
+		if (!sim->player_in_match(p) && !((sim->participant_mask() >> p) & 1)) continue;
+		const String name = "Player " + String::num_int64(p + 1) + " (" + String(rtso::civ_info(sim->player(p).civ).name) + ")";
+		replay_view_picker_->add_item(name, p + 1);
+	}
+	replay_view_picker_->set_focus_mode(Control::FOCUS_NONE);
+	replay_view_picker_->connect("item_selected", Callable(this, "_on_replay_view_selected"));
+	row->add_child(replay_view_picker_);
+	// Game speed and pause, as the session menu offers them in a 0 A.D. replay.
+	Label *speed_caption = memnew(Label);
+	speed_caption->set_text("  Speed:");
+	row->add_child(speed_caption);
+	replay_speed_picker_ = memnew(OptionButton);
+	const Array speeds = speed_choices(true);
+	for (int i = 0; i < speeds.size(); ++i) {
+		replay_speed_picker_->add_item(speed_text((float)speeds[i]), i);
+		replay_speed_picker_->set_item_metadata(i, speeds[i]);
+		if ((float)speeds[i] == game_speed) replay_speed_picker_->select(i);
+	}
+	replay_speed_picker_->set_focus_mode(Control::FOCUS_NONE);
+	replay_speed_picker_->connect("item_selected", Callable(this, "_on_replay_speed_selected"));
+	row->add_child(replay_speed_picker_);
+	replay_pause_btn_ = memnew(Button);
+	replay_pause_btn_->set_text(is_game_paused() ? "Resume" : "Pause");
+	replay_pause_btn_->set_focus_mode(Control::FOCUS_NONE);
+	replay_pause_btn_->connect("pressed", Callable(this, "toggle_pause"));
+	row->add_child(replay_pause_btn_);
+	replay_label_->get_parent()->add_child(row);
+}
+
+void RtsoMain::_on_replay_speed_selected(int index) {
+	if (replay_speed_picker_ && index >= 0 && index < replay_speed_picker_->get_item_count())
+		set_game_speed((float)replay_speed_picker_->get_item_metadata(index));
+}
+
+void RtsoMain::_on_replay_view_selected(int index) {
+	if (!replay_view_picker_) return;
+	set_replay_view(replay_view_picker_->get_item_id(index) - 1);
+}
+
+void RtsoMain::set_replay_view(int player) {
+	if (!turn_mgr_.is_replaying()) return;
+	if (player < 0 || player >= rtso::MAX_PLAYERS) {
+		replay_view_ = rtso::OBSERVER_VIEW;
+	} else {
+		replay_view_ = (uint8_t)player;
+		replay_hud_player_ = (uint8_t)player;
+	}
+	clear_selection();
+	if (replay_view_picker_)
+		for (int i = 0; i < replay_view_picker_->get_item_count(); ++i)
+			if (replay_view_picker_->get_item_id(i) == (replay_view_ == rtso::OBSERVER_VIEW ? 0 : replay_view_ + 1))
+				replay_view_picker_->select(i);
 }
 
 // --- Saved games ---------------------------------------------------------------
@@ -412,6 +524,23 @@ bool RtsoMain::write_save_metadata(const String &path, const String &description
 	meta["players"] = player_list();
 	meta["local_player"] = (int)local_player();
 	return write_text(path.get_basename() + ".json", JSON::stringify(meta, "\t"));
+}
+
+// A screenshot beside the save (<name>.png) for the load dialog. Headless runs
+// have no rendered frame, so the save simply has no picture.
+void RtsoMain::write_save_thumbnail(const String &path) {
+	const String png = path.get_basename() + ".png";
+	if (FileAccess::file_exists(png)) DirAccess::remove_absolute(ProjectSettings::get_singleton()->globalize_path(png));
+	Viewport *vp = get_viewport();
+	if (!vp) return;
+	Ref<ViewportTexture> tex = vp->get_texture();
+	if (tex.is_null()) return;
+	Ref<Image> img = tex->get_image();
+	if (img.is_null() || img->is_empty()) return;
+	const int w = 320;
+	const int h = std::max(1, (int)std::lround((double)w * img->get_height() / std::max(1, img->get_width())));
+	img->resize(w, h, Image::INTERPOLATE_BILINEAR);
+	img->save_png(png);
 }
 
 bool RtsoMain::save_game_as(String name, String description) {

@@ -830,6 +830,119 @@ static void test_civ_structures() {
 	}
 }
 
+// emergencyManager.js: a lost civil centre is an emergency Petra tells its
+// allies (only them) about; a new one ends it. Losing units alone is not.
+static void test_emergency() {
+	auto s = three_player_match(7);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	s->set_mutual_ally(1, 2);
+	run_for(*s, 3.0f);
+	// Most of AI 1's units die, its structures stand: no emergency (both must fall).
+	auto &u = s->units_;
+	int killed = 0, own = 0;
+	for (size_t i = 0; i < u.count; ++i) if (u.alive[i] && u.team[i] == 1) ++own;
+	for (size_t i = 0; i < u.count && killed * 10 < own * 7; ++i)
+		if (u.alive[i] && u.team[i] == 1) { u.hp[i] = 0.0f; ++killed; }
+	run_for(*s, 2.0f);
+	const bool units_only = s->petra_in_emergency();
+	// Its Town Center falls: the only territory root.
+	float tx = 0.0f, tz = 0.0f;
+	for (auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { b.hp = 0.0f; tx = b.x; tz = b.z; }
+	s->clear_petra_chat();
+	bool entered = false, told_ally = false, told_foe = false;
+	for (float t = 0.0f; t < 3.0f && !entered; t += Simulation::FIXED_STEP) {
+		s->tick(Simulation::FIXED_STEP);
+		entered = s->petra_in_emergency();
+	}
+	told_ally = said_to(*s, 1, 2, PETRA_CHAT_EMERGENCY);
+	told_foe = said_to(*s, 1, 0, PETRA_CHAT_EMERGENCY) || said_to(*s, 1, 0xFF, PETRA_CHAT_EMERGENCY);
+	// A new civil centre is a root more than when the emergency began.
+	s->clear_petra_chat();
+	s->spawn_building((int)((tx + 20.0f) / Simulation::GRID), (int)(tz / Simulation::GRID), BLD_TOWN_CENTER, 1, 1.0f);
+	bool left = false;
+	for (float t = 0.0f; t < 3.0f && !left; t += Simulation::FIXED_STEP) {
+		s->tick(Simulation::FIXED_STEP);
+		left = !s->petra_in_emergency();
+	}
+	std::printf("  emergency: units only %s; TC lost %s (ally told %s, enemy %s); new TC ends it %s\n",
+		units_only ? "yes" : "no", entered ? "yes" : "no", told_ally ? "yes" : "no", told_foe ? "yes" : "no", left ? "yes" : "no");
+	CHECK(!units_only, "losing units while the structures stand is no emergency");
+	CHECK(entered && told_ally && !told_foe, "losing the last root is an emergency told to allies only");
+	CHECK(left && said_to(*s, 1, 2, PETRA_CHAT_EMERGENCY_EXIT), "a new root ends it");
+}
+
+// victoryManager.js in regicide: soldiers guard the hero; attacked below 70%
+// health it goes to heal in a temple, and the guards stay out of attacks.
+static void test_regicide_hero() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_REGICIDE);
+	run_for(*s, 1.0f);
+	auto &u = s->units_;
+	uint32_t hero = 0;
+	for (size_t i = 0; i < u.count; ++i)
+		if (u.alive[i] && u.team[i] == 1 && u.unit_type[i] == UNIT_HERO) hero = u.id[i];
+	CHECK(hero != 0, "regicide gives AI 1 a hero");
+	if (!hero) return;
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	std::vector<uint32_t> champs;
+	for (int i = 0; i < 2; ++i) champs.push_back(s->spawn_unit(tx + 10.0f + 3.0f * (float)i, tz + 10.0f, 1, UNIT_ELEPHANT));
+	run_for(*s, 3.0f);
+	int guarding = 0;
+	for (uint32_t id : champs) {
+		const int32_t c = s->lookup_unit(id);
+		if (c >= 0 && u.order_kind[c] == ORDER_GUARD && u.order_target[c] == hero) ++guarding;
+	}
+	// A temple across the Town Center; the hero is hurt and under attack.
+	const uint32_t temple = s->spawn_building((int)((tx - 14.0f) / Simulation::GRID), (int)(tz / Simulation::GRID), BLD_TEMPLE, 1, 1.0f);
+	const int32_t h = s->lookup_unit(hero);
+	const uint32_t foe = s->spawn_unit(u.pos_x[h] + 3.0f, u.pos_z[h], 0, UNIT_SWORDSMAN);
+	s->order_attack(&foe, 1, hero);
+	bool healing = false;
+	for (float t = 0.0f; t < 15.0f && !healing; t += Simulation::FIXED_STEP) {
+		const int32_t hh = s->lookup_unit(hero);
+		if (hh < 0 || !u.alive[hh]) break;
+		u.hp[hh] = u.max_hp[hh] * 0.6f;
+		s->tick(Simulation::FIXED_STEP);
+		(void)temple;
+		for (const auto &b : s->buildings())
+			if (b.team == 1 && s->structure_garrison_heal(b) > 0.0f &&
+			    std::find(b.garrisoned_units.begin(), b.garrisoned_units.end(), hero) != b.garrisoned_units.end()) healing = true;
+	}
+	std::printf("  regicide: %d of 2 champions guard the hero; hurt and attacked, it heals inside: %s\n", guarding, healing ? "yes" : "no");
+	CHECK(guarding == 2, "champions guard the regicide hero");
+	CHECK(healing, "an attacked hero below 70% health garrisons in a healing structure");
+}
+
+// victoryManager.js capture_the_relic: Petra goes for a Gaia relic in its
+// territory, not for one it has never seen.
+static void test_relic_capture() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_RELIC);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	s->spawn_unit(tx + 6.0f, tz + 6.0f, 1, UNIT_SPEARMAN);
+	s->relics_.clear();
+	s->relics_.push_back({s->next_id_++, tx + 12.0f, tz - 12.0f, RES_GOLD, 100, false});
+	s->relics_.push_back({s->next_id_++, -tx, -tz, RES_GOLD, 100, false}); // far side, unseen
+	run_for(*s, 40.0f);
+	const auto &near = s->relics_[0], &far = s->relics_[1];
+	std::printf("  relics: own-territory relic %s, unseen relic %s\n",
+		near.claimed ? (near.owner_team == 1 ? "taken by AI 1" : "taken by another") : "left", far.claimed ? "taken" : "left alone");
+	CHECK(near.claimed && near.owner_team == 1, "Petra captures a Gaia relic in its territory");
+	CHECK(!far.claimed, "and leaves a relic it has never seen");
+}
+
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
@@ -847,6 +960,9 @@ int main() {
 	test_first_base();
 	test_barter();
 	test_civ_structures();
+	test_emergency();
+	test_regicide_hero();
+	test_relic_capture();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }
