@@ -68,7 +68,7 @@ static float max_penetration(const Simulation &s) {
 		if (!u.alive[i] || u.team[i] != 0) continue;
 		const float r = unit_building_clearance(u.unit_type[i]);
 		for (const auto &b : s.buildings()) {
-			if (b.wrecked || !building_blocks_movement(b.type)) continue;
+			if (b.wrecked || !Simulation::blocks_movement_now(b)) continue; // an uncommitted foundation blocks nothing
 			// In the footprint's own axes, u = (cos a, -sin a) and v = (sin a, cos a) (0 A.D.
 			// GetObstructionSquare), worked out here rather than taken from nav/footprint.h.
 			const float c = std::cos(b.rot), sn = std::sin(b.rot);
@@ -243,9 +243,14 @@ static void out_of_house_cluster() {
 	s.spawn_building_world(-25.0f, -31.0f, BLD_HOUSE, 0, 1.0f);
 	const uint32_t cat = s.spawn_unit(-22.89f, -35.68f, 0, UNIT_CATAPULT, 0.0f);
 	for (int t = 0; t < 20; ++t) s.tick(DT);
-	s.spawn_building_world(-23.0f, -37.0f, BLD_HOUSE, 0, 0.0f); // foundations placed on top of it
+	// Foundations placed on top of it: the builder's arrival sends the catapult off each one
+	// (Foundation.js Commit, UnitAI LeaveFoundation), and the committed foundation blocks it.
+	const uint32_t builder = s.spawn_unit(-21.0f, -40.0f, 0, UNIT_FEMALE_CITIZEN, 0.0f);
+	const uint32_t f1 = s.spawn_building_world(-23.0f, -37.0f, BLD_HOUSE, 0, 0.0f);
+	s.order_build_or_repair(&builder, 1, f1);
 	for (int t = 0; t < 400; ++t) s.tick(DT);
-	s.spawn_building_world(-19.0f, -37.0f, BLD_HOUSE, 0, 0.0f);
+	const uint32_t f2 = s.spawn_building_world(-19.0f, -37.0f, BLD_HOUSE, 0, 0.0f);
+	s.order_build_or_repair(&builder, 1, f2);
 	for (int t = 0; t < 400; ++t) s.tick(DT);
 	s.cmd_move(&cat, 1, 9.0f, -35.0f);
 	int arrived = -1;

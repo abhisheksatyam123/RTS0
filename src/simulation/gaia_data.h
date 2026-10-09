@@ -202,6 +202,114 @@ inline uint8_t fauna_type_by_name(const char *s) {
 	return FAUNA_COUNT;
 }
 
+// The corral (template_structure_resource_corral.xml): ResourceTrickle/Interval and
+// GarrisonHolder/Max, and the food each garrisoned animal adds to the corral's trickle
+// every interval (its structures/corral_garrison_{small,medium,large} aura, stackable).
+inline constexpr float CORRAL_TRICKLE_INTERVAL = 5.0f;
+inline constexpr int CORRAL_GARRISON_MAX = 8;
+
+// The animals each civ's corral trains (structures/<civ>/corral.xml Trainer/Entities),
+// indexed by Civilization: CIV_ATHENIANS, CIV_SPARTANS, CIV_PERSIANS, CIV_ROMANS, CIV_CARTHAGINIANS, CIV_MACEDONIANS, CIV_BRITONS, CIV_GAULS, CIV_IBERIANS, CIV_MAURYANS, CIV_KUSHITES, CIV_PTOLEMIES, CIV_SELEUCIDS, CIV_HAN.
+inline constexpr int CORRAL_TRAINABLE_MAX = 4;
+struct CorralTrainable {
+	uint8_t count;
+	uint8_t fauna[CORRAL_TRAINABLE_MAX];
+};
+inline constexpr CorralTrainable CORRAL_TRAINABLE[14] = {
+	{4, {FAUNA_GOAT_TRAINABLE, FAUNA_SHEEP_TRAINABLE, FAUNA_PIG_TRAINABLE, FAUNA_CATTLE_COW_TRAINABLE}}, // athen
+	{4, {FAUNA_GOAT_TRAINABLE, FAUNA_SHEEP_TRAINABLE, FAUNA_PIG_TRAINABLE, FAUNA_CATTLE_COW_TRAINABLE}}, // spart
+	{4, {FAUNA_GOAT_TRAINABLE, FAUNA_SHEEP_TRAINABLE, FAUNA_PIG_TRAINABLE, FAUNA_CATTLE_COW_TRAINABLE}}, // pers
+	{4, {FAUNA_GOAT_TRAINABLE, FAUNA_SHEEP_TRAINABLE, FAUNA_PIG_TRAINABLE, FAUNA_CATTLE_COW_TRAINABLE}}, // rome
+	{4, {FAUNA_GOAT_TRAINABLE, FAUNA_SHEEP_TRAINABLE, FAUNA_PIG_TRAINABLE, FAUNA_CATTLE_SANGA_TRAINABLE}}, // cart
+	{4, {FAUNA_GOAT_TRAINABLE, FAUNA_SHEEP_TRAINABLE, FAUNA_PIG_TRAINABLE, FAUNA_CATTLE_COW_TRAINABLE}}, // mace
+	{4, {FAUNA_GOAT_TRAINABLE, FAUNA_SHEEP_TRAINABLE, FAUNA_PIG_TRAINABLE, FAUNA_CATTLE_COW_TRAINABLE}}, // brit
+	{4, {FAUNA_GOAT_TRAINABLE, FAUNA_SHEEP_TRAINABLE, FAUNA_PIG_TRAINABLE, FAUNA_CATTLE_COW_TRAINABLE}}, // gaul
+	{4, {FAUNA_GOAT_TRAINABLE, FAUNA_SHEEP_TRAINABLE, FAUNA_PIG_TRAINABLE, FAUNA_CATTLE_COW_TRAINABLE}}, // iber
+	{4, {FAUNA_GOAT_TRAINABLE, FAUNA_SHEEP_TRAINABLE, FAUNA_PIG_TRAINABLE, FAUNA_CATTLE_ZEBU_TRAINABLE}}, // maur
+	{4, {FAUNA_GOAT_TRAINABLE, FAUNA_SHEEP_TRAINABLE, FAUNA_PIG_TRAINABLE, FAUNA_CATTLE_SANGA_TRAINABLE}}, // kush
+	{4, {FAUNA_GOAT_TRAINABLE, FAUNA_SHEEP_TRAINABLE, FAUNA_PIG_TRAINABLE, FAUNA_CATTLE_SANGA_TRAINABLE}}, // ptol
+	{4, {FAUNA_GOAT_TRAINABLE, FAUNA_SHEEP_TRAINABLE, FAUNA_PIG_TRAINABLE, FAUNA_CATTLE_COW_TRAINABLE}}, // sele
+	{4, {FAUNA_GOAT_TRAINABLE, FAUNA_PIG_TRAINABLE, FAUNA_CATTLE_COW_TRAINABLE, FAUNA_CATTLE_ZEBU_TRAINABLE}}, // han
+};
+
+// What training an animal costs (Cost/Resources: food, wood, stone, metal) and takes (Cost/BuildTime, s).
+struct FaunaTrainCost {
+	int16_t res[4];
+	float time;
+};
+
+inline const FaunaTrainCost &fauna_train_cost(uint8_t ftype) {
+	static constexpr FaunaTrainCost kCost[FAUNA_COUNT] = {
+		{{0, 0, 0, 0}, 1.0f}, // fauna_deer
+		{{0, 0, 0, 0}, 1.0f}, // fauna_boar
+		{{50, 0, 0, 0}, 40.0f}, // fauna_sheep
+		{{0, 0, 0, 0}, 1.0f}, // fauna_wolf
+		{{0, 0, 0, 0}, 1.0f}, // fauna_bear_black
+		{{0, 0, 0, 0}, 1.0f}, // fauna_bear_brown
+		{{0, 0, 0, 0}, 1.0f}, // fauna_bear_polar
+		{{0, 0, 0, 0}, 1.0f}, // fauna_camel
+		{{0, 0, 0, 0}, 1.0f}, // fauna_camel_trainable
+		{{0, 0, 0, 0}, 1.0f}, // fauna_cattle_bull
+		{{150, 0, 0, 0}, 60.0f}, // fauna_cattle_cow
+		{{150, 0, 0, 0}, 60.0f}, // fauna_cattle_cow_trainable
+		{{150, 0, 0, 0}, 60.0f}, // fauna_cattle_sanga
+		{{150, 0, 0, 0}, 60.0f}, // fauna_cattle_sanga_trainable
+		{{150, 0, 0, 0}, 60.0f}, // fauna_cattle_zebu
+		{{150, 0, 0, 0}, 60.0f}, // fauna_cattle_zebu_trainable
+		{{0, 0, 0, 0}, 1.0f}, // fauna_chicken
+		{{0, 0, 0, 0}, 1.0f}, // fauna_crocodile_nile
+		{{0, 0, 0, 0}, 1.0f}, // fauna_dog_mastiff
+		{{0, 0, 0, 0}, 1.0f}, // fauna_dog_wolfhound
+		{{0, 0, 0, 0}, 1.0f}, // fauna_donkey
+		{{0, 0, 0, 0}, 1.0f}, // fauna_elephant_african_bush
+		{{0, 0, 0, 0}, 1.0f}, // fauna_elephant_african_infant
+		{{0, 0, 0, 0}, 1.0f}, // fauna_elephant_asian
+		{{0, 0, 0, 0}, 1.0f}, // fauna_elephant_asian_infant
+		{{0, 0, 0, 0}, 1.0f}, // fauna_elephant_north_african
+		{{0, 0, 0, 0}, 1.0f}, // fauna_fox_arctic
+		{{0, 0, 0, 0}, 1.0f}, // fauna_fox_red
+		{{0, 0, 0, 0}, 1.0f}, // fauna_gazelle
+		{{0, 0, 0, 0}, 1.0f}, // fauna_giraffe
+		{{0, 0, 0, 0}, 1.0f}, // fauna_giraffe_infant
+		{{35, 0, 0, 0}, 30.0f}, // fauna_goat
+		{{35, 0, 0, 0}, 30.0f}, // fauna_goat_trainable
+		{{0, 0, 0, 0}, 1.0f}, // fauna_hippopotamus
+		{{0, 0, 0, 0}, 1.0f}, // fauna_horse
+		{{0, 0, 0, 0}, 1.0f}, // fauna_horse_breed
+		{{0, 0, 0, 0}, 1.0f}, // fauna_horse_lusitano
+		{{0, 0, 0, 0}, 1.0f}, // fauna_horse_marwari
+		{{0, 0, 0, 0}, 1.0f}, // fauna_horse_persian
+		{{0, 0, 0, 0}, 1.0f}, // fauna_horse_pony
+		{{0, 0, 0, 0}, 1.0f}, // fauna_horse_trainable
+		{{0, 0, 0, 0}, 1.0f}, // fauna_lion
+		{{0, 0, 0, 0}, 1.0f}, // fauna_lioness
+		{{0, 0, 0, 0}, 1.0f}, // fauna_muskox
+		{{0, 0, 0, 0}, 1.0f}, // fauna_peacock
+		{{75, 0, 0, 0}, 50.0f}, // fauna_pig
+		{{75, 0, 0, 0}, 50.0f}, // fauna_pig_flaming
+		{{75, 0, 0, 0}, 50.0f}, // fauna_pig_trainable
+		{{75, 0, 0, 0}, 50.0f}, // fauna_piglet
+		{{0, 0, 0, 0}, 1.0f}, // fauna_rabbit
+		{{0, 0, 0, 0}, 1.0f}, // fauna_rhinoceros_white
+		{{0, 0, 0, 0}, 1.0f}, // fauna_shark
+		{{50, 0, 0, 0}, 40.0f}, // fauna_sheep_trainable
+		{{0, 0, 0, 0}, 1.0f}, // fauna_tiger
+		{{0, 0, 0, 0}, 1.0f}, // fauna_walrus
+		{{0, 0, 0, 0}, 1.0f}, // fauna_whale_fin
+		{{0, 0, 0, 0}, 1.0f}, // fauna_whale_humpback
+		{{0, 0, 0, 0}, 1.0f}, // fauna_wildebeest
+		{{0, 0, 0, 0}, 1.0f}, // fauna_wolf_arctic
+		{{0, 0, 0, 0}, 1.0f}, // fauna_wolf_arctic_violent
+		{{0, 0, 0, 0}, 1.0f}, // fauna_zebra
+	};
+	return kCost[ftype < FAUNA_COUNT ? ftype : 0];
+}
+
+inline float fauna_corral_food(uint8_t ftype) {
+	static constexpr float kFood[FAUNA_COUNT] = {0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 2.0f, 2.0f, 0.0f, 3.0f, 3.0f, 3.0f, 3.0f, 3.0f, 3.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 0.0f, 0.0f, 0.0f, 0.0f, 2.0f, 2.0f, 2.0f, 2.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+	return ftype < FAUNA_COUNT ? kFood[ftype] : 0.0f;
+}
+
 // Treasure.js: what a treasure gives (food, wood, stone, metal) and how long it takes to collect.
 enum TreasureType : uint8_t {
 	TREASURE_FOOD_BARREL = 0,
