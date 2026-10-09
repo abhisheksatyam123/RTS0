@@ -1328,7 +1328,9 @@ private:
 	// flee), returns fighters to their order, turns patrols, follows the order queue.
 	void tick_unit_ai(float dt);
 	void tick_status_effects(float dt);
-	void apply_status(size_t t, const CombatProfile &att); // Attack ApplyStatus (Poisoned, Burning)
+	void apply_status(size_t t, const CombatProfile &att);
+	void attack_approach(size_t i);
+	float unit_attack_damage(size_t i, size_t t); // Attack ApplyStatus (Poisoned, Burning)
 	static float status_dps(uint8_t kind);
 	void tick_projectiles(float dt);
 	void tick_construction(float dt);
@@ -1414,6 +1416,8 @@ private:
 	uint16_t aura_affected_players(uint8_t owner, uint8_t players) const;
 	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false, uint8_t visual = 0, uint32_t source_id = 0, uint8_t splash = 0);
 	static float projectile_speed(uint8_t visual);
+	const CombatProfile *projectile_profile(uint32_t source_id) const;
+	float projectile_speed_of(uint32_t source_id, uint8_t visual) const;
 	int32_t projectile_hit_unit(const Projectile &p) const;
 	void random_normal_2d(float &x, float &z);
 	void mark_building_wreck(Building &b, uint8_t killer = 0xFF); // killer: StatisticsTracker credit

@@ -22,6 +22,10 @@
 //     over 9 s; rams are immune to poison; spearmen no longer snare.
 // 11. ObstructionManager IsInTargetRange: a swordsman just off a fortress's corner is in
 //     reach (edge to edge) and hits it where it stands instead of walking to a side.
+// 12. Attack timing and projectiles: a spearman that walks up strikes PrepareTime
+//     (0.5 s) after it reaches its foe, then every RepeatTime; an arrow flies at its
+//     shooter's Projectile Speed (at the distance scale) with a Gravity arc; an arrow
+//     that lands on another unit deals what the archer's attack does to that unit.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_combat.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -419,6 +423,84 @@ static void test_status() {
 	check(!snared, "spearmen hitting cavalry apply no invented snare");
 }
 
+static void test_timing_projectiles() {
+	std::printf("12. attack timing and projectiles\n");
+	const CombatProfile &spear = unit_combat(CIV_UNIT_TEMPLATE_NONE, UNIT_SPEARMAN);
+	const CombatProfile &arch = unit_combat(CIV_UNIT_TEMPLATE_NONE, UNIT_ARCHER);
+	check(spear.prepare == 0.5f && spear.proj_speed == 0.0f, "spearman: PrepareTime 0.5 s, no projectile");
+	check(arch.proj_speed == 100.0f && arch.proj_gravity == 50.0f, "archer: Projectile Speed 100, Gravity 50");
+
+	// A spearman closes in on a dummy; time from first being in reach to the first hit.
+	{
+		Simulation s;
+		setup(s);
+		uint32_t a = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN);
+		uint32_t d = dummy(s, 6.0f, 0.0f, UNIT_SWORDSMAN);
+		const int ai = idx(s, a), di = idx(s, d);
+		s.order_attack(&a, 1, d);
+		const float hp0 = s.units_.hp[di];
+		float t = 0.0f, reached = -1.0f, first = -1.0f, second = -1.0f;
+		float last_hp = hp0;
+		for (int k = 0; k < 400 && second < 0.0f; ++k) {
+			s.tick(DT);
+			t += DT;
+			const float dx = s.units_.pos_x[ai] - s.units_.pos_x[di], dz = s.units_.pos_z[ai] - s.units_.pos_z[di];
+			const float r = s.units_.attack_range[ai];
+			if (reached < 0.0f && dx * dx + dz * dz <= r * r) reached = t;
+			if (s.units_.hp[di] < last_hp) {
+				if (first < 0.0f) first = t; else second = t;
+				last_hp = s.units_.hp[di];
+			}
+		}
+		std::printf("      in reach at %.2f s, hits at %.2f and %.2f s\n", reached, first, second);
+		check(reached >= 0.0f && first - reached >= 0.5f - DT - 1e-3f && first - reached <= 0.5f + 2 * DT,
+				"the first hit comes PrepareTime after reaching the foe");
+		check(std::fabs((second - first) - s.units_.attack_cooldown[ai]) <= DT + 1e-3f, "then one every RepeatTime");
+	}
+
+	// An archer's first arrow: its speed and flight time follow the template.
+	{
+		Simulation s;
+		setup(s);
+		uint32_t a = s.spawn_unit(0.0f, 0.0f, 0, UNIT_ARCHER);
+		uint32_t d = dummy(s, 14.0f, 0.0f, UNIT_SWORDSMAN);
+		s.order_attack(&a, 1, d);
+		const Projectile *p = nullptr;
+		for (int k = 0; k < 200 && !p; ++k) {
+			s.tick(DT);
+			for (const auto &q : s.projectiles_) if (q.alive && q.source_id == a) { p = &q; break; }
+		}
+		const CombatProfile &ap = s.unit_combat_at((size_t)idx(s, a));
+		std::printf("      arrow speed %.2f units/s for Speed %.0f m/s\n", p ? p->speed : 0.0f, ap.proj_speed);
+		check(p && ap.proj_speed > 0.0f && std::fabs(p->speed - ap.proj_speed * COMBAT_DISTANCE_SCALE) < 1e-3f,
+				"the arrow flies at its template's Projectile Speed, scaled");
+		if (p) {
+			const float hx = p->target_x - p->start_x, hz = p->target_z - p->start_z;
+			const float tf = std::sqrt(hx * hx + hz * hz) / p->speed;
+			check(std::fabs(p->arc_height - ap.proj_gravity * tf * tf / 8.0f * COMBAT_DISTANCE_SCALE) < 1e-3f, "its arc follows its Gravity");
+		}
+	}
+
+	// A stray arrow: aimed at a cavalryman, it lands on a spearman instead.
+	{
+		Simulation s;
+		setup(s);
+		uint32_t a = s.spawn_unit(0.0f, 0.0f, 0, UNIT_ARCHER);
+		uint32_t aimed = dummy(s, 30.0f, 30.0f, UNIT_CAVALRY, 500.0f);
+		uint32_t hit = dummy(s, 12.0f, 0.0f, UNIT_SPEARMAN, 500.0f);
+		s.order_set_stance(&a, 1, STANCE_STAND_GROUND);
+		const int ai = idx(s, a), hi = idx(s, hit), mi = idx(s, aimed);
+		const float want = s.unit_attack_damage((size_t)ai, (size_t)hi);
+		const float wrong = s.unit_attack_damage((size_t)ai, (size_t)mi);
+		const float hp0 = s.units_.hp[hi];
+		s.fire_arrow(0.0f, 1.4f, 0.0f, 12.0f, s.get_terrain_height(12.0f, 0.0f) + 0.8f, 0.0f, wrong, 0, aimed, EFFECT_NONE, 1, false, 0, a);
+		for (int k = 0; k < 40; ++k) s.tick_projectiles(DT);
+		std::printf("      stray hit for %.2f (the spearman takes %.2f, the cavalryman would %.2f)\n", hp0 - s.units_.hp[hi], want, wrong);
+		check(std::fabs((hp0 - s.units_.hp[hi]) - want) < 1e-3f && std::fabs(want - wrong) > 0.1f,
+				"a stray deals the archer's damage against the unit it hits");
+	}
+}
+
 int main() {
 	test_data();
 	test_bonus();
@@ -431,6 +513,7 @@ int main() {
 	test_health_vision_auras();
 	test_status();
 	test_corner_reach();
+	test_timing_projectiles();
 	if (g_failures) {
 		std::printf("test_combat: FAIL (%d)\n", g_failures);
 		return 1;
