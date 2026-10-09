@@ -2241,6 +2241,9 @@ void Simulation::order_trade(const uint32_t *unit_ids, size_t count, uint32_t ma
 			auto dit = building_id_to_idx_.find(leg == 0 ? market_a_id : market_b_id);
 			units_.action_state[uidx] = ACTION_TRADE;
 			units_.has_order[uidx] = 1;
+			// The order it resumes may follow another (a queued walk): it is trading again.
+			set_order(uidx, ORDER_TRADE, 0, market_a_id, bA.x, bA.z);
+			units_.order_x2[uidx] = o.x2;
 			units_.target_unit_id[uidx] = 0;
 			units_.target_building_id[uidx] = 0;
 			units_.waypoint_cur[uidx] = units_.waypoint_count[uidx] = 0;
