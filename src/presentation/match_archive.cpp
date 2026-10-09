@@ -21,6 +21,9 @@
 #include <godot_cpp/classes/canvas_layer.hpp>
 #include <godot_cpp/classes/dir_access.hpp>
 #include <godot_cpp/classes/h_box_container.hpp>
+#include <godot_cpp/classes/image.hpp>
+#include <godot_cpp/classes/viewport.hpp>
+#include <godot_cpp/classes/viewport_texture.hpp>
 #include <godot_cpp/classes/project_settings.hpp>
 #include <godot_cpp/classes/time.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
@@ -394,6 +397,8 @@ Dictionary RtsoMain::get_replay_status() const {
 	d["replay_dir"] = replay_dir_;
 	d["view"] = turn_mgr_.is_replaying() && replay_view_ < rtso::MAX_PLAYERS ? (int)replay_view_ : -1;
 	d["start_time"] = (double)replay_meta_.get("start_time", 0.0);
+	d["speed"] = game_speed;
+	d["paused"] = is_game_paused();
 	return d;
 }
 
@@ -454,7 +459,31 @@ void RtsoMain::build_replay_view_picker() {
 	replay_view_picker_->set_focus_mode(Control::FOCUS_NONE);
 	replay_view_picker_->connect("item_selected", Callable(this, "_on_replay_view_selected"));
 	row->add_child(replay_view_picker_);
+	// Game speed and pause, as the session menu offers them in a 0 A.D. replay.
+	Label *speed_caption = memnew(Label);
+	speed_caption->set_text("  Speed:");
+	row->add_child(speed_caption);
+	replay_speed_picker_ = memnew(OptionButton);
+	const Array speeds = speed_choices(true);
+	for (int i = 0; i < speeds.size(); ++i) {
+		replay_speed_picker_->add_item(speed_text((float)speeds[i]), i);
+		replay_speed_picker_->set_item_metadata(i, speeds[i]);
+		if ((float)speeds[i] == game_speed) replay_speed_picker_->select(i);
+	}
+	replay_speed_picker_->set_focus_mode(Control::FOCUS_NONE);
+	replay_speed_picker_->connect("item_selected", Callable(this, "_on_replay_speed_selected"));
+	row->add_child(replay_speed_picker_);
+	replay_pause_btn_ = memnew(Button);
+	replay_pause_btn_->set_text(is_game_paused() ? "Resume" : "Pause");
+	replay_pause_btn_->set_focus_mode(Control::FOCUS_NONE);
+	replay_pause_btn_->connect("pressed", Callable(this, "toggle_pause"));
+	row->add_child(replay_pause_btn_);
 	replay_label_->get_parent()->add_child(row);
+}
+
+void RtsoMain::_on_replay_speed_selected(int index) {
+	if (replay_speed_picker_ && index >= 0 && index < replay_speed_picker_->get_item_count())
+		set_game_speed((float)replay_speed_picker_->get_item_metadata(index));
 }
 
 void RtsoMain::_on_replay_view_selected(int index) {
@@ -495,6 +524,23 @@ bool RtsoMain::write_save_metadata(const String &path, const String &description
 	meta["players"] = player_list();
 	meta["local_player"] = (int)local_player();
 	return write_text(path.get_basename() + ".json", JSON::stringify(meta, "\t"));
+}
+
+// A screenshot beside the save (<name>.png) for the load dialog. Headless runs
+// have no rendered frame, so the save simply has no picture.
+void RtsoMain::write_save_thumbnail(const String &path) {
+	const String png = path.get_basename() + ".png";
+	if (FileAccess::file_exists(png)) DirAccess::remove_absolute(ProjectSettings::get_singleton()->globalize_path(png));
+	Viewport *vp = get_viewport();
+	if (!vp) return;
+	Ref<ViewportTexture> tex = vp->get_texture();
+	if (tex.is_null()) return;
+	Ref<Image> img = tex->get_image();
+	if (img.is_null() || img->is_empty()) return;
+	const int w = 320;
+	const int h = std::max(1, (int)std::lround((double)w * img->get_height() / std::max(1, img->get_width())));
+	img->resize(w, h, Image::INTERPOLATE_BILINEAR);
+	img->save_png(png);
 }
 
 bool RtsoMain::save_game_as(String name, String description) {

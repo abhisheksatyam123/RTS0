@@ -363,7 +363,7 @@ static void test_fire_ship() {
 	const uint32_t fire = s.spawn_unit(0.0f, 12.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("brit/ship_fire"));
 	const uint32_t enemy = s.spawn_unit(3.0f, 12.0f, 1, UNIT_TRIREME);
 	const uint32_t own = s.spawn_unit(-3.5f, 12.0f, 0, UNIT_TRIREME);
-	const uint32_t far_enemy = s.spawn_unit(12.0f, 12.0f, 1, UNIT_TRIREME);
+	const uint32_t far_enemy = s.spawn_unit(16.0f, 12.0f, 1, UNIT_TRIREME);
 	uint32_t all[4] = {fire, enemy, own, far_enemy};
 	s.order_set_stance(all, 4, STANCE_PASSIVE);
 	s.order_set_stance(&all[1], 1, STANCE_PASSIVE);
@@ -381,7 +381,7 @@ static void test_fire_ship() {
 			e0, hp(enemy), o0, hp(own), x0, hp(far_enemy));
 	CHECK(hp(enemy) < e0 - 100.0f);       // close: most of 500
 	CHECK(hp(own) < o0 - 50.0f);          // friendly fire
-	CHECK(hp(far_enemy) == x0);           // 12 tiles away is outside 20 m
+	CHECK(hp(far_enemy) == x0);           // 16 units away is outside 20 m (x0.6)
 
 	// A trireme that sinks hurts nobody (no DeathDamage in template_unit_ship).
 	const uint32_t a = s.spawn_unit(-3.0f, 20.0f, 0, UNIT_TRIREME);

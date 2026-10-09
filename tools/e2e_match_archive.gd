@@ -63,6 +63,12 @@ func run() -> void:
 	await frames(1200)
 	check(m.save_game_as("e2e_test", "end-to-end test"), "save_game_as writes a save")
 	check(FileAccess.file_exists("user://saves/e2e_test.json"), "the save has its metadata")
+	m.quicksave()
+	var qmeta = JSON.parse_string(FileAccess.get_file_as_string("user://saves/quicksave.json"))
+	check(qmeta is Dictionary and qmeta.get("description", "") == "Quicksave", "quicksave writes the quicksave slot")
+	m.set_game_speed(10.0)
+	check(is_equal_approx(m.get_game_speed(), 2.0), "a game outside replays tops out at 2x")
+	m.set_game_speed(1.0)
 	var stats: Dictionary = m.get_match_statistics()
 	check(stats.get("players", []).size() >= 2, "statistics list every player")
 	check(stats.get("samples", []).size() >= 2, "statistics have 30 s rows")
@@ -81,12 +87,22 @@ func run() -> void:
 	ms.replay_dir = replay_dir
 	m = await start_scene()
 	check(m.is_replay_playback(), "the match scene plays the replay")
+	await frames(30)
+	m.toggle_pause()
+	var paused_turn: int = m.get_replay_status().turn
+	await frames(120)
+	check(m.get_replay_status().paused and int(m.get_replay_status().turn) == paused_turn, "a paused replay holds its turn")
+	m.toggle_pause()
+	m.set_game_speed(10.0)
+	check(is_equal_approx(float(m.get_replay_status().speed), 10.0), "a replay plays at 10x")
 	var guard := 0
 	while not m.get_replay_status().finished and guard < 20000:
 		await process_frame
 		guard += 1
 	st = m.get_replay_status()
-	print("  replayed to turn ", st.turn, " of ", st.turns)
+	print("  replayed to turn ", st.turn, " of ", st.turns, " in ", guard, " frames")
+	check(guard < 600, "10x reaches the end of a 40 s replay well inside 10 s of frames")
+	m.set_game_speed(1.0)
 	check(st.finished, "the replay reaches its last turn")
 	check(not st.out_of_sync, "every replayed turn matches its recorded hash")
 	check(int(st.turns) >= turns_recorded, "the replay holds every recorded turn")
@@ -127,6 +143,8 @@ func run() -> void:
 	check(int(st.turns) >= turns_continued, "the continued replay holds every recorded turn")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://saves/e2e_test.rts0sav"))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://saves/e2e_test.json"))
+	for f in ["quicksave.rts0sav", "quicksave.json", "quicksave.png", "e2e_test.png"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path("user://saves/" + f))
 
 	print("RESULT: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(1 if failures else 0)

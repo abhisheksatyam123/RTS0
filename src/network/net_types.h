@@ -314,6 +314,10 @@ struct GameSetupParams {
 	uint8_t biome = 0;       // random-map biome: 0 = the map's own, else BIOME_* + 1
 	uint8_t diffs[8] = {3, 3, 3, 3, 3, 3, 3, 3}; // per-slot Petra difficulty 0..5
 	uint8_t behs[8] = {2, 2, 2, 2, 2, 2, 2, 2};  // per-slot Petra behaviour 0..3
+	uint8_t colors[8] = {0, 1, 2, 3, 4, 5, 6, 7}; // per-slot PLAYER_COLORS index 0..23 (one base-36 digit)
+	uint8_t nomad = 0;             // 1 = Nomad start (random maps)
+	uint8_t regicide_garrison = 0; // 1 = the Regicide hero may garrison
+	uint8_t no_treasures = 0;      // 1 = 0 A.D. DisableTreasures
 	uint8_t water_level = 0; // Flood: 0 rising, 1 shallow, 2 deep (0 A.D. WaterLevel)
 	uint8_t sea_rise_min = 25; // Extinct Volcano: minutes until the water rises, 0..60 (0 A.D. SeaLevelRiseTime)
 	uint16_t map_size = 128; // random-map width in meters, 128..512
@@ -346,7 +350,16 @@ inline std::string format_game_start_full(const GameSetupParams &p) {
 			b += (char)('0' + (p.behs[i] <= 3 ? p.behs[i] : 2));
 		}
 		s += ";diffs=" + d + ";behs=" + b;
+		std::string c;
+		for (unsigned i = 0; i < p.slot_count && i < 8; ++i) {
+			if (i) c += ',';
+			c += "0123456789abcdefghijklmn"[p.colors[i] < 24 ? p.colors[i] : 0];
+		}
+		s += ";colors=" + c;
 	}
+	s += ";nomad=" + std::to_string((unsigned)p.nomad);
+	s += ";rgarrison=" + std::to_string((unsigned)p.regicide_garrison);
+	s += ";notreasures=" + std::to_string((unsigned)p.no_treasures);
 	s += ";waterlevel=" + std::to_string((unsigned)p.water_level);
 	s += ";searise=" + std::to_string((unsigned)p.sea_rise_min);
 	s += ";mapsize=" + std::to_string((unsigned)p.map_size);
@@ -420,6 +433,16 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 			else if (k == "relicdur") { uint8_t x; if (detail::parse_u8(v, 0, 60, x)) out.relic_min = x; }
 			else if (k == "relics") { uint8_t x; if (detail::parse_u8(v, 1, 16, x)) out.relics = x; }
 			else if (k == "biome") { uint8_t x; if (detail::parse_u8(v, 0, 9, x)) out.biome = x; }
+			else if (k == "nomad") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.nomad = x; }
+			else if (k == "notreasures") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.no_treasures = x; }
+			else if (k == "rgarrison") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.regicide_garrison = x; }
+			else if (k == "colors") {
+				for (size_t i = 0, slot = 0; i < v.size() && slot < 8; i += 2, ++slot) {
+					const char c = v[i];
+					if (c >= '0' && c <= '9') out.colors[slot] = (uint8_t)(c - '0');
+					else if (c >= 'a' && c <= 'n') out.colors[slot] = (uint8_t)(c - 'a' + 10);
+				}
+			}
 			else if (k == "diffs" || k == "behs") {
 				const bool diffs = k == "diffs";
 				for (size_t i = 0, slot = 0; i < v.size() && slot < 8; i += 2, ++slot) {
