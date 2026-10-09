@@ -14936,15 +14936,15 @@ void Simulation::petra_manage_garrisons() {
 	}
 }
 
-// getMaxStrength (entityExtend.js) with config.js DamageTypeImportance: attack and
-// resistance per damage type (Hack, Pierce, Crush, Fire), range and repeat time,
-// all scaled by max health.
 bool Simulation::petra_passenger(uint32_t uid) const {
 	for (const auto &tp : petra_transports_)
 		if (std::find(tp.passenger_ids.begin(), tp.passenger_ids.end(), uid) != tp.passenger_ids.end()) return true;
 	return false;
 }
 
+// getMaxStrength (entityExtend.js) with config.js DamageTypeImportance: attack and
+// resistance per damage type (Hack, Pierce, Crush, Fire), range and repeat time,
+// all scaled by max health.
 float Simulation::petra_unit_strength(size_t i) const {
 	const UnitTypeInfo &ui = unit_info_at(i);
 	float s = 0.0f;

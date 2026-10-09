@@ -1090,6 +1090,12 @@ static void test_nomad_first_base() {
 		return n;
 	};
 	const int at_start = town_centers(false);
+	// The idle player's Nomad starting army stands close by on this small map; it holds
+	// its fire, so the check measures Petra founding its base, not an early skirmish.
+	std::vector<uint32_t> idle_army;
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 0) idle_army.push_back(s->units_.id[i]);
+	s->order_set_stance(idle_army.data(), idle_army.size(), STANCE_PASSIVE);
 	run_for(*s, 150.0f);
 	int buildings = 0;
 	for (const auto &b : s->buildings())
