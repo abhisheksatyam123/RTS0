@@ -40,6 +40,8 @@ var nomad: bool = false
 var regicide_garrison: bool = false
 # 0 A.D. LockTeams: nobody can change diplomacy during the match.
 var lock_teams: bool = false
+# 0 A.D. CheatsEnabled: chat cheat codes ("i want pizza", ...) work.
+var cheats: bool = false
 # 0 A.D. DisableTreasures: no treasures on the map.
 var disable_treasures: bool = false
 # Random-map biome: 0 = the map's own, else rtso::BiomeType + 1. Game speed at the start.

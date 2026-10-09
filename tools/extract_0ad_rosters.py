@@ -814,7 +814,7 @@ def load_team_bonuses(sim_root, rows):
 
 # RTS0 AuraManager kinds (aura_manager.h AuraType).
 AURA_KIND = {"AURA_GATHER": 0, "AURA_HEAL": 1, "AURA_ATTACK": 2, "AURA_SPEED": 3, "AURA_ARMOR": 4,
-             "AURA_HEALTH": 5, "AURA_VISION": 6}
+             "AURA_HEALTH": 5, "AURA_VISION": 6, "AURA_HEAL_AMOUNT": 7}
 MULTIPLY_AURAS = ("AURA_ATTACK", "AURA_SPEED", "AURA_HEALTH", "AURA_VISION")
 GLOBAL_AURA_RANGE = 1000.0
 
@@ -884,6 +884,8 @@ def aura_modifications(a):
             kind, value = "AURA_ARMOR", m["add"]
         elif v in ("Health/IdleRegenRate", "Health/RegenRate") and "add" in m:
             kind, value = "AURA_HEAL", m["add"]
+        elif v == "Heal/Health" and "add" in m:
+            kind, value = "AURA_HEAL_AMOUNT", m["add"]
         elif v == "ResourceGatherer/BaseSpeed" and "multiply" in m and m["multiply"] > 1:
             kind, value = "AURA_GATHER", 1.0 - 1.0 / m["multiply"]
         if kind is None:

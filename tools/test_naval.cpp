@@ -485,6 +485,7 @@ static void test_petra_navy() {
 static void test_petra_overseas_attack() {
 	static Simulation s;
 	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
 	s.set_player_active(1, true, true);
 	s.set_player_resources(1, 5000, 5000, 5000, 5000);
 	s.players_[1].phase = 2;
@@ -519,6 +520,26 @@ static void test_petra_overseas_attack() {
 	}
 	std::printf("Petra overseas attack: %d of 6 spearmen landed on the south shore\n", across);
 	CHECK(across >= 1);
+	// With nothing left to attack the army comes home (headquarters.js assignEntity):
+	// by ship, as navalManager.requireTransport does, not through the sea.
+	int waded = 0, home = 0;
+	for (int k = 0; k < 240; ++k) {
+		run(s, 1.0f);
+		for (uint32_t uid : army) {
+			const int32_t i = idx(s, uid);
+			if (i >= 0 && s.units().alive[i] && std::fabs(s.units().pos_z[i]) < 14.0f) ++waded;
+		}
+	}
+	// Home is the north land, beach included. Two spearmen that captured the house
+	// share a navcell and block each other on its centre until #103's path start fix.
+	const uint16_t north = s.petra_land_at(-30.0f, 40.0f);
+	for (uint32_t uid : army) {
+		const int32_t i = idx(s, uid);
+		if (i >= 0 && s.units().alive[i] && s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) == north) ++home;
+	}
+	std::printf("Petra overseas attack: house %s, %d spearmen back home, %d wading\n",
+	            bld(s, house) && bld(s, house)->team == 1 ? "captured" : "standing", home, waded);
+	CHECK(home >= 4 && waded == 0);
 }
 
 // headquarters.js findEconomicCCLocation on a naval map: with nothing to settle on
@@ -571,6 +592,104 @@ static void test_petra_overseas_base() {
 	CHECK(first_ashore >= 0.0f && south_workers >= 2);
 	CHECK(b && b->build_progress > 0.3f);
 	CHECK(north_gathering_south == 0 && waded == 0);
+}
+
+// navalManager.js keeps a transportPlan per ship: an army sailing to attack does
+// not wait for the builders bound for a new base, each crossing on its own ship.
+static void test_petra_concurrent_transports() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.players_[1].phase = 2;
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t house = s.spawn_building_world(30.0f, -40.0f, BLD_HOUSE, 0);
+	s.spawn_unit(-40.0f, 10.0f, 1, UNIT_TRIREME);
+	s.spawn_unit(-20.0f, 10.0f, 1, UNIT_TRIREME);
+	std::vector<uint32_t> army;
+	for (int k = 0; k < 6; ++k) army.push_back(s.spawn_unit(-36.0f + 2.0f * k, 30.0f, 1, UNIT_SPEARMAN));
+	for (int k = 0; k < 10; ++k) s.spawn_unit(-40.0f + 2.0f * k, 52.0f, 1, UNIT_VILLAGER);
+	// Wood on the south land only: Petra settles there.
+	for (int k = 0; k < 8; ++k) s.spawn_resource_world(-36.0f + 3.0f * k, -44.0f, RES_WOOD, 600);
+	const uint16_t south = s.petra_land_at(-30.0f, -40.0f);
+	auto plan_of = [&](uint8_t owner) -> const PetraTransportPlan * {
+		for (const auto &p : s.petra_transport_plans()) if (p.owner == owner) return &p;
+		return nullptr;
+	};
+	// The builders' crossing first; the attack sets out while it is under way.
+	for (int k = 0; k < 240 && !plan_of(PETRA_TRANSPORT_BUILDERS); ++k) run(s, 1.0f);
+	CHECK(plan_of(PETRA_TRANSPORT_BUILDERS) != nullptr);
+	// One plan per owner: a second builders' crossing waits for the first.
+	CHECK(!s.petra_start_transport(army, -30.0f, 40.0f, -30.0f, -40.0f, 0, PETRA_TRANSPORT_BUILDERS));
+	s.petra_attack_mgr_.kind = PETRA_ATTACK_ATTACK;
+	s.petra_attack_mgr_.target_size = 6;
+	s.petra_attack_mgr_.min_size = 6;
+	s.petra_attack_mgr_.rushes_set = 1;
+	s.petra_attack_plan_.state = Simulation::AttackPlan::MUSTER;
+	s.petra_attack_plan_.target_building_id = house;
+	s.petra_attack_plan_.state_timer = 0.0f;
+	bool both = false, shared = false;
+	std::vector<uint32_t> landed;
+	for (int k = 0; k < 120; ++k) {
+		run(s, 1.0f);
+		const PetraTransportPlan *a = plan_of(PETRA_TRANSPORT_ATTACK), *b = plan_of(PETRA_TRANSPORT_BUILDERS);
+		if (a && b) {
+			both = true;
+			shared |= a->ship_id == b->ship_id;
+			for (uint32_t uid : a->passenger_ids)
+				shared |= std::find(b->passenger_ids.begin(), b->passenger_ids.end(), uid) != b->passenger_ids.end();
+		}
+		for (uint32_t uid : army) {
+			const int32_t i = idx(s, uid);
+			if (i >= 0 && s.units().alive[i] && s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) == south &&
+			    std::find(landed.begin(), landed.end(), uid) == landed.end()) landed.push_back(uid);
+		}
+	}
+	int villagers_south = 0;
+	for (size_t i = 0; i < s.units().count; ++i)
+		if (s.units().alive[i] && s.units().team[i] == 1 && s.units().unit_type[i] == UNIT_VILLAGER &&
+		    s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) == south) ++villagers_south;
+	std::printf("Petra concurrent transports: both under way at once %s, %zu of 6 spearmen landed, %d villagers on the south land\n",
+	            both ? "yes" : "no", landed.size(), villagers_south);
+	CHECK(both && !shared);
+	CHECK(landed.size() >= 4 && villagers_south >= 1);
+}
+
+
+// navalManager.checkEvents: a transport ship sunk while its passengers board leaves
+// the plan waiting for another ship, which takes them across instead.
+static void test_petra_transport_ship_lost() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t first = s.spawn_unit(-30.0f, 8.0f, 1, UNIT_TRIREME);
+	const uint32_t second = s.spawn_unit(30.0f, 8.0f, 1, UNIT_TRIREME);
+	std::vector<uint32_t> crew;
+	for (int k = 0; k < 4; ++k) crew.push_back(s.spawn_unit(-34.0f + 2.0f * k, 26.0f, 1, UNIT_SPEARMAN));
+	run(s, 0.5f);
+	CHECK(s.petra_start_transport(crew, -30.0f, 30.0f, -30.0f, -40.0f, 0, PETRA_TRANSPORT_ATTACK));
+	CHECK(s.petra_transport_plans().size() == 1 && s.petra_transport_plans()[0].ship_id == first);
+	s.cmd_delete(1, &first, 1);
+	uint32_t took = 0;
+	int landed = 0;
+	for (int k = 0; k < 150; ++k) {
+		run(s, 1.0f);
+		if (!s.petra_transport_plans().empty() && s.petra_transport_plans()[0].ship_id) took = s.petra_transport_plans()[0].ship_id;
+		landed = 0;
+		for (uint32_t uid : crew) {
+			const int32_t i = idx(s, uid);
+			if (i >= 0 && s.units().alive[i] && s.units().pos_z[i] < -16.0f) ++landed;
+		}
+		if (landed == (int)crew.size()) break;
+	}
+	std::printf("Petra transport ship lost: plan moved to ship %s, %d of 4 landed\n", took == second ? "two" : "none", landed);
+	CHECK(took == second && landed >= 3); // it sails with whoever made it aboard
 }
 
 // DeathDamage.js: a fire ship (mixins/fireship.xml) burns down at RegenRate -5 and, dying,
@@ -635,6 +754,32 @@ static void test_gather_around_lake() {
 	CHECK(!waded && reached);
 }
 
+// navalManager.js buildNavalStructures: from the town phase, with a dock and a market
+// and population past popPhase2 + 15, a Carthaginian Petra lays out its Cothon (super
+// dock) on the dock's sea; a civ without one in its Builder lists builds none.
+static void test_petra_cothon() {
+	for (Civilization civ : {CIV_CARTHAGINIANS, CIV_ATHENIANS}) {
+		static Simulation s;
+		fresh(s);
+		s.set_team_civ(1, civ);
+		s.set_victory_condition(VICTORY_ENDLESS);
+		s.set_player_active(1, true, true);
+		s.set_player_resources(1, 5000, 5000, 5000, 5000);
+		s.players_[1].phase = 2;
+		s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+		const uint32_t dock = s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+		s.spawn_building_world(-10.0f, 50.0f, BLD_MARKET, 1);
+		for (int k = 0; k < 60; ++k) s.spawn_unit(-40.0f + (float)(k % 15) * 2.0f, 50.0f + (float)(k / 15) * 2.0f, 1, UNIT_VILLAGER);
+		run(s, 8.0f);
+		const Simulation::Building *cothon = nullptr;
+		for (const auto &b : s.buildings()) if (b.team == 1 && b.type == BLD_SUPER_DOCK) cothon = &b;
+		const Simulation::Building *db = bld(s, dock);
+		std::printf("Petra Cothon (%s): %s\n", civ_info(civ).name, cothon ? "laid out" : "none");
+		if (civ == CIV_CARTHAGINIANS) CHECK(cothon && db && s.dock_sea(*cothon) == s.dock_sea(*db));
+		else CHECK(cothon == nullptr);
+	}
+}
+
 // A worker on the far shore carries its load only to a dropsite on its own land (0 A.D.
 // picks reachable dropsites): with the only storehouse across the sea it waits, and once
 // one stands on its side it drops off there.
@@ -690,6 +835,9 @@ int main() {
 	test_petra_navy();
 	test_petra_overseas_attack();
 	test_petra_overseas_base();
+	test_petra_concurrent_transports();
+	test_petra_transport_ship_lost();
+	test_petra_cothon();
 	test_fire_ship();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
