@@ -758,7 +758,7 @@ float RtsoWorldView::turret_draw_y(const rtso::Simulation *sim, uint32_t unit_id
 	const float b_scale = entry.scale > 0.05f ? entry.scale : 1.0f;
 	const float base = sim->get_terrain_height(hb->x, hb->z) + entry.y_offset;
 	// ModelLibrary falls back to the civ-less model ("athen_outpost" -> "outpost").
-	auto it = model_ground_.find(mid.utf8().get_data());
+	auto it = model_ground_.find(rtso::ModelLibrary::building_glb_id(mid).utf8().get_data());
 	if (it == model_ground_.end()) {
 		const int us = mid.find("_");
 		if (us > 0) it = model_ground_.find(mid.substr(us + 1).utf8().get_data());
@@ -777,7 +777,7 @@ void RtsoWorldView::update_garrison_flag(BuildingVis &v, const String &model_id,
 	if (!flags_loaded_ && show) load_garrison_flags();
 	const FlagPoint *fp = nullptr;
 	if (show && flag_mesh_.is_valid()) {
-		auto it = flag_points_.find(model_id.utf8().get_data());
+		auto it = flag_points_.find(rtso::ModelLibrary::building_glb_id(model_id).utf8().get_data());
 		if (it != flag_points_.end()) fp = &it->second;
 	}
 	if (!fp) {
