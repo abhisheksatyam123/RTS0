@@ -46289,6 +46289,18 @@
   ],
   "gaia_structures": [
     {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 113.61,
+      "z": -1.13
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 109.53,
+      "z": 6.91
+    },
+    {
       "type": "house",
       "template": "structures/rome/tent",
       "x": -136.82,
@@ -46371,6 +46383,18 @@
       "template": "structures/palisades_curve",
       "x": -149.55,
       "z": 118.06
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/iber/field",
+      "x": -117.53,
+      "z": 99.42
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/iber/field",
+      "x": -105.45,
+      "z": 96.45
     },
     {
       "type": "market",
@@ -46635,6 +46659,12 @@
       "template": "structures/palisades_tower",
       "x": 153.13,
       "z": 49.93
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/maur/field",
+      "x": 120.69,
+      "z": -57.75
     }
   ],
   "gaia_units": [
