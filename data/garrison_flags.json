@@ -2005,6 +2005,18 @@
    ],
    "flag": "hele"
   },
+  "s_athenians_wall_long": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_athenians_wall_medium": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_athenians_wall_short": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
   "s_britons_blacksmith": {
    "scale": 0.20453,
    "ground": 1.4118,
@@ -2034,6 +2046,22 @@
     0.9425
    ],
    "flag": "celt"
+  },
+  "s_britons_wall_gate": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_britons_wall_long": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_britons_wall_medium": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_britons_wall_short": {
+   "scale": 0.25,
+   "ground": 0.0
   },
   "s_britons_wooden_tower": {
    "scale": 0.22235,
@@ -2094,6 +2122,18 @@
     0.2936
    ],
    "flag": "kart"
+  },
+  "s_carthaginians_wall_long": {
+   "scale": 0.21415,
+   "ground": 0.0
+  },
+  "s_carthaginians_wall_medium": {
+   "scale": 0.21233,
+   "ground": 0.0
+  },
+  "s_carthaginians_wall_short": {
+   "scale": 0.2149,
+   "ground": 0.0
   },
   "s_carthaginians_wooden_tower": {
    "scale": 0.24331,
@@ -2165,6 +2205,18 @@
    ],
    "flag": "celt"
   },
+  "s_gauls_wall_long": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_gauls_wall_medium": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_gauls_wall_short": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
   "s_gauls_wooden_tower": {
    "scale": 0.25018,
    "ground": 2.5449,
@@ -2208,6 +2260,30 @@
   "s_han_wall_long": {
    "scale": 0.05437,
    "ground": 0.2074
+  },
+  "s_han_wall_long_wall_long": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_han_wall_medium": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_han_wall_short": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_hellenes_wall_long": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_hellenes_wall_medium": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_hellenes_wall_short": {
+   "scale": 0.25,
+   "ground": 0.0
   },
   "s_hellenes_wooden_tower": {
    "scale": 0.28057,
@@ -2273,6 +2349,18 @@
    ],
    "flag": "iber"
   },
+  "s_iberians_wall_long": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_iberians_wall_medium": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_iberians_wall_short": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
   "s_iberians_wooden_tower": {
    "scale": 0.23075,
    "ground": 2.7583,
@@ -2333,6 +2421,22 @@
    ],
    "flag": "kush"
   },
+  "s_kushites_wall_gate": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_kushites_wall_long": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_kushites_wall_medium": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_kushites_wall_short": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
   "s_kushites_workshop": {
    "scale": 0.16655,
    "ground": 1.147,
@@ -2346,6 +2450,18 @@
   "s_macedonians_theater": {
    "scale": 0.12901,
    "ground": 1.4184
+  },
+  "s_mauryas_wall_long": {
+   "scale": 0.25037,
+   "ground": 0.0
+  },
+  "s_mauryas_wall_medium": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_mauryas_wall_short": {
+   "scale": 0.25,
+   "ground": 0.0
   },
   "s_mauryas_wooden_tower": {
    "scale": 0.24319,
@@ -2455,6 +2571,18 @@
    ],
    "flag": "persians"
   },
+  "s_persians_wall_long": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_persians_wall_medium": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_persians_wall_short": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
   "s_persians_wooden_tower": {
    "scale": 0.35235,
    "ground": 4.1314,
@@ -2544,6 +2672,18 @@
     0.0967
    ],
    "flag": "ptol"
+  },
+  "s_ptolemies_wall_long": {
+   "scale": 0.24745,
+   "ground": 0.0
+  },
+  "s_ptolemies_wall_medium": {
+   "scale": 0.2504,
+   "ground": 0.0
+  },
+  "s_ptolemies_wall_short": {
+   "scale": 0.25105,
+   "ground": 0.0
   },
   "s_ptolemies_wooden_tower": {
    "scale": 0.2419,
@@ -2639,6 +2779,18 @@
    ],
    "flag": "rome"
   },
+  "s_romans_wall_long": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_romans_wall_medium": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_romans_wall_short": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
   "s_romans_wooden_tower": {
    "scale": 0.24245,
    "ground": 1.7978,
@@ -2728,6 +2880,22 @@
     1.1578
    ],
    "flag": "seleucids"
+  },
+  "s_seleucids_wall_gate": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_seleucids_wall_long": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_seleucids_wall_medium": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_seleucids_wall_short": {
+   "scale": 0.25,
+   "ground": 0.0
   },
   "s_seleucids_wooden_tower": {
    "scale": 0.23901,
