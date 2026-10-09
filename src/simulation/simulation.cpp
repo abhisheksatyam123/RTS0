@@ -8335,7 +8335,9 @@ void Simulation::petra_manage_economy(float dt) {
 			chosen_res_type = RES_STONE;
 		}
 
-		// worker.js startGathering: a food gatherer hunts first (livestock and carcasses near a dropsite).
+		// worker.js startGathering: any gatherer takes a treasure nearby first, and a food
+		// gatherer hunts next (livestock and carcasses near a dropsite).
+		if (petra_gather_treasure(widx, hunt_scan)) continue;
 		if (chosen_res_type == RES_FOOD && petra_start_hunting(widx, hunt_scan)) {
 			workers_food++;
 			continue;
@@ -8415,8 +8417,41 @@ Simulation::PetraHuntScan Simulation::petra_hunt_scan() const {
 			scan.on_animal[tid]++;
 		else if (units_.target_resource_id[i] != 0)
 			scan.on_carcass[units_.target_resource_id[i]]++;
+		if (units_.team[i] == petra_pid_ && units_.order_kind[i] == ORDER_COLLECT_TREASURE)
+			scan.treasures_taken.push_back(units_.order_target[i]);
 	}
 	return scan;
+}
+
+// entityExtend.js gatherTreasure: the nearest treasure on the unit's land outside
+// enemy territory, within 120000 m² (14000 m² outside our own territory, as the
+// AI has no line of sight). One collector per treasure stands in for 0 A.D.'s
+// 20 s "lastGathered" wait between tries.
+bool Simulation::petra_gather_treasure(size_t u, PetraHuntScan &scan) {
+	if (treasures_.empty()) return false;
+	const uint8_t ut = units_.unit_type[u];
+	if (unit_is_ship(ut) || ut == UNIT_WAR_DOG) return false; // isTreasureCollector
+	const uint8_t pass = formation_unit_mounted(ut) ? PASS_CAVALRY : PASS_INFANTRY;
+	const float px = units_.pos_x[u], pz = units_.pos_z[u];
+	auto [ucx, ucz] = nav_grid_.world_to_cell(px, pz);
+	uint32_t best = 0;
+	float best_d2 = 1e18f;
+	for (const auto &t : treasures_) {
+		if (std::find(scan.treasures_taken.begin(), scan.treasures_taken.end(), t.id) != scan.treasures_taken.end()) continue;
+		const int terr = territory_owner_at(t.x, t.z);
+		if (terr >= 0 && !is_ally(petra_pid_, (uint8_t)terr)) continue;
+		const float d2 = (t.x - px) * (t.x - px) + (t.z - pz) * (t.z - pz);
+		if (d2 > 120000.0f / 16.0f || (terr != (int)petra_pid_ && d2 > 14000.0f / 16.0f)) continue;
+		if (d2 > best_d2) continue;
+		auto [cx, cz] = nav_grid_.world_to_cell(t.x, t.z);
+		if (!nav_grid_.reachable(ucx, ucz, cx, cz, pass)) continue;
+		best_d2 = d2;
+		best = t.id;
+	}
+	if (best == 0) return false;
+	order_collect_treasure(&units_.id[u], 1, best);
+	scan.treasures_taken.push_back(best);
+	return true;
 }
 
 // worker.js startHunting: the nearest live animal or carcass from (px, pz) that
@@ -8482,6 +8517,7 @@ uint32_t Simulation::petra_find_hunt(size_t u, float px, float pz, const PetraHu
 }
 
 bool Simulation::petra_start_hunting(size_t u, PetraHuntScan &scan) {
+	if (petra_gather_treasure(u, scan)) return true; // "First look for possible treasure if any"
 	bool live = false;
 	const uint32_t target = petra_find_hunt(u, units_.pos_x[u], units_.pos_z[u], scan, live);
 	if (target == 0) return false;
