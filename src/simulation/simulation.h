@@ -1456,6 +1456,9 @@ private:
 	bool petra_gather_treasure(size_t u, PetraHuntScan &scan); // entityExtend.js gatherTreasure
 	void petra_manage_hunters(PetraHuntScan &scan);
 	void petra_build_first_base(); // startingStrategy.js buildFirstBase
+	void petra_resource_demand(float out[RES_COUNT]) const;
+	bool petra_perform_barter();      // tradeManager.js performBarter
+	void petra_set_trading_goods();   // tradeManager.js setTradingGoods
 	int petra_villager_target() const;
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
