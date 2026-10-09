@@ -3,7 +3,9 @@
 //   g++ -std=c++20 -O2 -Isrc tools/test_techs.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_techs && /tmp/test_techs
+#define private public // units_ xp/rank and tech_mods() for the promotion and cost checks
 #include "simulation/simulation.h"
+#undef private
 #include "network/turn_manager.h"
 #include <cmath>
 #include <cstdio>
@@ -289,6 +291,76 @@ int main() {
 		run(s, tech_info(TECH_UNLOCK_NEODAMODES).research_time + 1.0f);
 		CHECK(s.can_train_at(0, nt, BLD_BARRACKS, neo));
 		CHECK(s.cmd_train_template(0, bar, neo));
+	}
+
+	// Capture-point, cost and promotion technologies (Capturable/CapturePoints,
+	// Cost/Resources, Promotion/RequiredXp).
+	{
+		const uint8_t civ_before = s.player(0).civ; // later blocks keep the civ they ran with
+		auto research = [&](uint8_t tech, float x) {
+			const uint32_t r = s.spawn_building_world(x, 20.0f, tech_info(tech).researcher, 0, 1.0f);
+			CHECK(s.cmd_research(0, r, tech));
+			run(s, tech_info(tech).research_time + 1.0f);
+			CHECK(s.is_tech_researched(tech));
+		};
+		// Persian Architecture: structures +25% capture points, built or not yet built.
+		fresh(s);
+		s.set_player_civ(CIV_PERSIANS);
+		s.player(0).phase = 3;
+		const uint32_t before = s.spawn_building_world(20.0f, -20.0f, BLD_BARRACKS, 0, 1.0f);
+		const float cp = find_bld(s, before)->max_capture_points;
+		research(TECH_ARCHITECTURE_PERS, -10.0f);
+		CHECK(std::fabs(find_bld(s, before)->max_capture_points - 1.25f * cp) < 0.01f);
+		const uint32_t after = s.spawn_building_world(0.0f, -20.0f, BLD_BARRACKS, 0, 1.0f);
+		CHECK(std::fabs(find_bld(s, after)->max_capture_points - 1.25f * cp) < 0.01f);
+
+		// Colonization: Carthaginian civic structures cost 25% less.
+		fresh(s);
+		s.set_player_civ(CIV_CARTHAGINIANS);
+		s.player(0).phase = 3;
+		CHECK(s.tech_mods(0).bld_cost[BLD_HOUSE][RES_WOOD] == 1.0f);
+		research(TECH_COLONIZATION, -10.0f);
+		CHECK(s.tech_mods(0).bld_cost[BLD_HOUSE][RES_WOOD] == 0.75f);
+		CHECK(s.tech_mods(0).bld_cost[BLD_BARRACKS][RES_WOOD] == 1.0f); // not Civic
+
+		// Hippocratic Oath (cost_healer): healers cost no metal.
+		fresh(s);
+		s.set_player_civ(CIV_ATHENIANS);
+		s.player(0).phase = 3;
+		const uint16_t healer = civ_default_template(CIV_ATHENIANS, UNIT_HEALER);
+		CHECK(healer != CIV_UNIT_TEMPLATE_NONE);
+		float cost[RES_COUNT];
+		s.unit_train_cost(0, healer, civ_template_unit_info(healer, UNIT_HEALER), cost);
+		CHECK(cost[RES_GOLD] > 0.0f);
+		research(TECH_COST_HEALER, -10.0f);
+		s.unit_train_cost(0, healer, civ_template_unit_info(healer, UNIT_HEALER), cost);
+		CHECK(cost[RES_GOLD] == 0.0f);
+
+		// Hoplite Tradition halves the xp a hoplite needs; Marian Reforms promotes
+		// Roman soldiers at once.
+		fresh(s);
+		s.player(0).phase = 3;
+		const uint16_t hop = civ_default_template(CIV_ATHENIANS, UNIT_SPEARMAN);
+		const uint32_t h = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN, 0.0f, hop);
+		auto idx = [&](uint32_t id) {
+			for (size_t i = 0; i < s.units_.count; ++i) if (s.units_.id[i] == id) return i;
+			return (size_t)-1;
+		};
+		s.units_.xp[idx(h)] = 160.0f;
+		run(s, 0.2f);
+		CHECK(s.units_.rank[idx(h)] < 2);
+		research(TECH_HOPLITE_TRADITION, -10.0f);
+		CHECK(s.units_.rank[idx(h)] == 2);
+		fresh(s);
+		s.set_player_civ(CIV_ROMANS);
+		s.player(0).phase = 3;
+		const uint16_t hast = civ_default_template(CIV_ROMANS, UNIT_SWORDSMAN);
+		const uint32_t r = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SWORDSMAN, 0.0f, hast);
+		const uint32_t fem = s.spawn_unit(2.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		research(TECH_ROMAN_REFORMS, -10.0f);
+		CHECK(s.units_.rank[idx(r)] == 3);
+		CHECK(s.units_.rank[idx(fem)] < 2);
+		s.set_player_civ(civ_before);
 	}
 
 	// Fertility Festival: houses train citizens, and only citizens.

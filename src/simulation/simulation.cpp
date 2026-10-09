@@ -717,7 +717,9 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	b.capture_points = 0.0f;
 	// 0 A.D. Capturable/TerritoryDecay template values.
 	b.max_capture_points = binfo.capture_max_points;
-	if (team < MAX_PLAYERS) b.max_capture_points *= civ_bonus_mult(civ_of(team), CIV_BONUS_BUILDING_CAPTURE_POINTS, type);
+	if (team < MAX_PLAYERS)
+		b.max_capture_points *= civ_bonus_mult(civ_of(team), CIV_BONUS_BUILDING_CAPTURE_POINTS, type) *
+		                        tech_mods(team).bld_capture[type];
 	b.capture_regen_rate = binfo.capture_regen_rate;
 	b.capture_garrison_regen_rate = binfo.capture_garrison_regen_rate;
 	b.territory_decay_rate = binfo.territory_decay_rate;
@@ -1256,8 +1258,11 @@ uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b
 	const Civilization civ = civ_of(player);
 	// Team bonuses (e.g. Persian Training Regimes, Mauryan temples) from the player and its allies.
 	const uint16_t allies = ally_civ_mask(player);
+	// ... and Cost/Resources technologies (Carthage's Colonization).
+	const float *tech_cost = tech_mods(player).bld_cost[b_type];
 	auto team = [&](ResourceType r) {
-		return civ_team_bonus_mult(civ, allies, TEAM_BONUS_BUILDING_COST, (int8_t)r, CIV_UNIT_TEMPLATE_NONE, b_type);
+		return civ_team_bonus_mult(civ, allies, TEAM_BONUS_BUILDING_COST, (int8_t)r, CIV_UNIT_TEMPLATE_NONE, b_type) *
+		       tech_cost[r];
 	};
 	const float wood = binfo.wood_cost * civ_bonus_mult(civ, CIV_BONUS_BUILDING_WOOD_COST, b_type) * team(RES_WOOD);
 	const float stone = binfo.stone_cost * civ_bonus_mult(civ, CIV_BONUS_BUILDING_STONE_COST, b_type) * team(RES_STONE);
@@ -1449,8 +1454,11 @@ void Simulation::unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo 
 	if (pid >= MAX_PLAYERS) return;
 	const uint8_t civ = players_[pid].civ;
 	const uint16_t allies = ally_civ_mask(pid);
+	// Cost/Resources technologies (e.g. Hippocratic Oath's free healers) by the template's own classes.
+	const float *tech_cost = tmpl < CIV_UNIT_TEMPLATE_COUNT ? tech_mods(pid).tmpl[tmpl].cost : nullptr;
 	for (int r = 0; r < RES_COUNT; ++r)
-		out[r] = std::round(out[r] * civ_team_bonus_mult(civ, allies, TEAM_BONUS_UNIT_COST, (int8_t)r, tmpl));
+		out[r] = std::round(out[r] * civ_team_bonus_mult(civ, allies, TEAM_BONUS_UNIT_COST, (int8_t)r, tmpl) *
+		                    (tech_cost ? tech_cost[r] : 1.0f));
 }
 
 bool Simulation::cmd_cancel_train(uint8_t player_id, uint32_t building_id, size_t queue_idx) {
@@ -1670,7 +1678,8 @@ void Simulation::finish_upgrade(Building &b) {
 	b.max_hp = structure_max_hp(to, b.team);
 	b.hp = b.max_hp * health_level;
 	float new_capture = ninfo.capture_max_points;
-	if (b.team < MAX_PLAYERS) new_capture *= civ_bonus_mult(civ_of(b.team), CIV_BONUS_BUILDING_CAPTURE_POINTS, to);
+	if (b.team < MAX_PLAYERS)
+		new_capture *= civ_bonus_mult(civ_of(b.team), CIV_BONUS_BUILDING_CAPTURE_POINTS, to) * tech_mods(b.team).bld_capture[to];
 	if (b.max_capture_points > 0.0f) {
 		const float scale = new_capture / b.max_capture_points;
 		for (float &c : b.capture_points_by_team) c *= scale;
@@ -1715,9 +1724,12 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		m.train_time[t] = m.heal_interval[t] = m.trade_gain[t] = m.pack_time[t] = 1.0f;
 		m.range[t] = m.heal_range[t] = 0.0f;
 		m.armor[t][0] = m.armor[t][1] = m.armor[t][2] = 0.0f;
-	}	for (auto &tm : m.tmpl) {
+		m.promotion_xp[t] = 1.0f;
+	}
+	for (auto &tm : m.tmpl) {
 		for (float &g : tm.gather) g = 1.0f;
-		tm.attack = tm.health = tm.speed = tm.train_time = 1.0f;
+		for (float &c : tm.cost) c = 1.0f;
+		tm.attack = tm.health = tm.speed = tm.train_time = tm.promotion_xp = 1.0f;
 		tm.range = tm.armor[0] = tm.armor[1] = tm.armor[2] = 0.0f;
 	}
 
@@ -1725,6 +1737,8 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		m.bld_health[b] = m.bld_attack[b] = m.bld_build_time[b] = m.bld_pop_bonus[b] = 1.0f;
 		m.bld_research_time[b] = m.bld_arrow_mul[b] = 1.0f;
 		m.bld_range[b] = m.bld_arrow_add[b] = m.bld_garrison_heal[b] = 0.0f;
+		m.bld_capture[b] = 1.0f;
+		for (float &c : m.bld_cost[b]) c = 1.0f;
 	}
 	if (player_id >= MAX_PLAYERS) return;
 	const PlayerState &ps = players_[player_id];
@@ -1735,7 +1749,12 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		const TechEffect *fx = tech_effects_table() + ti.effect_begin;
 		for (uint16_t k = 0; k < ti.effect_count; ++k) {
 			const TechEffect &e = fx[k];
-			auto apply = [&](float &v) { v = (e.op == TOP_MUL) ? v * e.value : v + e.value; };
+			auto apply = [&](float &v) {
+				v = (e.op == TOP_MUL) ? v * e.value : (e.op == TOP_SET) ? e.value : v + e.value;
+			};
+			// Cost/Resources/<res>: TechStat order is food, wood, stone, metal.
+			const int cost_res = e.stat == TSTAT_COST_FOOD ? RES_FOOD : e.stat == TSTAT_COST_WOOD ? RES_WOOD
+				: e.stat == TSTAT_COST_STONE ? RES_STONE : e.stat == TSTAT_COST_METAL ? RES_GOLD : -1;
 			for (uint8_t t = 0; t < UNIT_TYPE_COUNT; ++t) {
 				if (!tech_effect_applies(e, unit_tech_classes(t))) continue;
 				const UnitTypeInfo &ui = unit_type_info(t);
@@ -1768,6 +1787,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_HEAL_INTERVAL: apply(m.heal_interval[t]); break;
 					case TSTAT_TRADE_GAIN: apply(m.trade_gain[t]); break;
 					case TSTAT_PACK_TIME: apply(m.pack_time[t]); break;
+					case TSTAT_PROMOTION_XP: apply(m.promotion_xp[t]); break;
 					default: break;
 				}
 			}
@@ -1794,6 +1814,9 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_SPEED: apply(tm.speed); break;
 					case TSTAT_RANGE: if (ranged) apply(tm.range); break;
 					case TSTAT_BUILD_TIME: apply(tm.train_time); break;
+					case TSTAT_COST_FOOD: case TSTAT_COST_WOOD: case TSTAT_COST_STONE: case TSTAT_COST_METAL:
+						apply(tm.cost[cost_res]); break;
+					case TSTAT_PROMOTION_XP: apply(tm.promotion_xp); break;
 					default: break;
 				}
 			}
@@ -1812,6 +1835,9 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 						else m.bld_arrow_add[b] += e.value;
 						break;
 					case TSTAT_GARRISON_HEAL: apply(m.bld_garrison_heal[b]); break;
+					case TSTAT_CAPTURE_POINTS: apply(m.bld_capture[b]); break;
+					case TSTAT_COST_FOOD: case TSTAT_COST_WOOD: case TSTAT_COST_STONE: case TSTAT_COST_METAL:
+						apply(m.bld_cost[b][cost_res]); break;
 					default: break;
 				}
 			}
@@ -1877,6 +1903,13 @@ void Simulation::complete_research(uint8_t player_id, uint8_t tech_id) {
 		if (r != 1.0f) {
 			b.max_hp *= r;
 			b.hp *= r;
+		}
+		// Capturable.js OnValueModification: every side's points scale with the new maximum.
+		const float cr = m.bld_capture[b.type] / old.bld_capture[b.type];
+		if (cr != 1.0f) {
+			b.max_capture_points *= cr;
+			b.capture_points *= cr;
+			for (float &p : b.capture_points_by_team) p *= cr;
 		}
 	}
 }
@@ -5688,13 +5721,24 @@ void Simulation::tick_promotion(float dt) {
 
 void Simulation::promote_if_due(size_t i) {
 	{
-		if (units_.rank[i] < 2 && (units_.xp[i] >= 300 || units_.kills[i] >= 3)) {
+		// Promotion/RequiredXp technologies scale both thresholds (Hoplite Tradition
+		// halves them; Marian Reforms and Silver Shields set them to 0: at once).
+		float xp_mul = 1.0f;
+		if (const uint8_t team = units_.team[i]; team < MAX_PLAYERS) {
+			const TechMods &m = tech_mods_[team];
+			const uint16_t tmpl = units_.tmpl[i];
+			// Heroes have no Promotion component in 0 A.D.
+			if (tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(tmpl).flags & ROSTER_HERO)) return;
+			xp_mul = tmpl < CIV_UNIT_TEMPLATE_COUNT ? m.tmpl[tmpl].promotion_xp
+				: units_.unit_type[i] < UNIT_TYPE_COUNT ? m.promotion_xp[units_.unit_type[i]] : 1.0f;
+		}
+		if (units_.rank[i] < 2 && (units_.xp[i] >= 300 * xp_mul || units_.kills[i] >= 3)) {
 			units_.rank[i] = 2; // Advanced
 			units_.max_hp[i] *= 1.15f;
 			units_.hp[i] = std::min(units_.max_hp[i], units_.hp[i] + 20.0f);
 			units_.attack_damage[i] *= 1.10f;
 		}
-		if (units_.rank[i] < 3 && (units_.xp[i] >= 700 || units_.kills[i] >= 7)) {
+		if (units_.rank[i] < 3 && (units_.xp[i] >= 700 * xp_mul || units_.kills[i] >= 7)) {
 			units_.rank[i] = 3; // Elite
 			units_.max_hp[i] *= 1.15f;
 			units_.hp[i] = std::min(units_.max_hp[i], units_.hp[i] + 30.0f);

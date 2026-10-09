@@ -1029,6 +1029,7 @@ private:
 		float heal_interval[UNIT_TYPE_COUNT]; // < 1 heals faster
 		float trade_gain[UNIT_TYPE_COUNT];
 		float pack_time[UNIT_TYPE_COUNT];   // siege pack/unpack time multiplier
+		float promotion_xp[UNIT_TYPE_COUNT];      // Promotion/RequiredXp multiplier (0: promote at once)
 		float bld_health[BLD_TYPE_COUNT];
 		float bld_attack[BLD_TYPE_COUNT];
 		float bld_range[BLD_TYPE_COUNT];
@@ -1038,6 +1039,8 @@ private:
 		float bld_arrow_mul[BLD_TYPE_COUNT];
 		float bld_arrow_add[BLD_TYPE_COUNT];
 		float bld_garrison_heal[BLD_TYPE_COUNT]; // added hp per second for garrisoned units
+		float bld_capture[BLD_TYPE_COUNT];        // Capturable/CapturePoints multiplier
+		float bld_cost[BLD_TYPE_COUNT][RES_COUNT]; // Cost/Resources multipliers
 		// The same unit multipliers per civ roster template, matched against the
 		// template's own 0 A.D. classes (Champion Infantry Spearman, Javelineer, ...),
 		// which its RTS0 unit_type only approximates.
@@ -1045,6 +1048,8 @@ private:
 			float gather[GK_COUNT];
 			float attack, health, speed, range, train_time;
 			float armor[3];
+			float cost[RES_COUNT];
+			float promotion_xp;
 		} tmpl[CIV_UNIT_TEMPLATE_COUNT];
 	};
 	void compute_tech_mods(uint8_t player_id, TechMods &out) const;
