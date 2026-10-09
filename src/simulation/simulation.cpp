@@ -836,7 +836,7 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	b.cell_x = cell_x;
 	b.cell_y = cell_y;
 	b.footprint = footprint;
-	if (type == BLD_DOCK) { // GuiInterface GetFoundationSnapData: a dock faces the open water
+	if (type == BLD_DOCK || type == BLD_SUPER_DOCK) { // GuiInterface GetFoundationSnapData: a dock faces the open water
 		const float a = dock_angle(wx, wz, half);
 		if (!std::isnan(a)) b.rot = a;
 	}
@@ -1340,8 +1340,9 @@ BuildRestriction build_restriction(uint8_t type) {
 	case BLD_TOWER: case BLD_SENTRY_TOWER: return {PLACE_LAND, TERR_OWN, DIST_TOWER, 60.0f / 4.0f};
 	case BLD_FORTRESS: return {PLACE_LAND, TERR_OWN, DIST_FORTRESS, 80.0f / 4.0f};
 	// Civ-specific: civil_centre_military_colony (own neutral, 120 m from a
-	// CivilCentre) and ptol/lighthouse (shore, own ally neutral).
+	// CivilCentre), ptol/lighthouse and cart/super_dock (shore, own ally neutral).
 	case BLD_MILITARY_COLONY: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_CIVIL_CENTRE, 120.0f / 4.0f};
+	case BLD_SUPER_DOCK:
 	case BLD_LIGHTHOUSE: return {PLACE_SHORE_TYPE, TERR_OWN | TERR_ALLY | TERR_NEUTRAL, DIST_NONE, 0.0f};
 	default: return {PLACE_LAND, TERR_OWN, DIST_NONE, 0.0f};
 	}
@@ -1600,7 +1601,7 @@ uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b
 		return 0;
 
 	uint32_t bid = spawn_building(cell_x, cell_y, b_type, player, 0.0f);
-	if (b_type != BLD_DOCK) buildings_[building_id_to_idx_[bid]].rot = unpack_angle(pack_angle(angle));
+	if (b_type != BLD_DOCK && b_type != BLD_SUPER_DOCK) buildings_[building_id_to_idx_[bid]].rot = unpack_angle(pack_angle(angle));
 	if (player == 0) record_.buildings_constructed++;
 	return bid;
 }
@@ -17595,7 +17596,7 @@ void Simulation::set_water_level(float h, float drown_depth) {
 	// here they are gone. Docks float with the water.
 	bool lost_building = false, lost_root = false;
 	for (Building &b : buildings_) {
-		if (b.wrecked || b.hp <= 0.0f || b.type == BLD_DOCK || !submerged(b.x, b.z)) continue;
+		if (b.wrecked || b.hp <= 0.0f || b.type == BLD_DOCK || b.type == BLD_SUPER_DOCK || !submerged(b.x, b.z)) continue;
 		for (uint32_t uid : b.garrisoned_units) {
 			const int32_t u = lookup_unit(uid);
 			if (u < 0) continue;
