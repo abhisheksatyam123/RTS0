@@ -179,7 +179,11 @@ struct PetraTransportPlan {
 	float drop_x = 0.0f, drop_z = 0.0f;
 	float state_timer = 0.0f;
 	bool failed = false;
+	uint8_t owner = 0; // PetraTransportOwner: the plan that asked for it
+	uint16_t sea = 0;  // the sea it crosses (0: any, from an older save)
 };
+// navalManager.js runs a transportPlan per ship; each asker here has at most one.
+enum PetraTransportOwner : uint8_t { PETRA_TRANSPORT_ATTACK = 0, PETRA_TRANSPORT_RAID = 1, PETRA_TRANSPORT_BUILDERS = 2 };
 
 enum PetraChatKind : uint8_t {
 	PETRA_CHAT_ATTACK    = 0,
