@@ -37,6 +37,7 @@
 // The ally check reads the sim's death log, which has no public accessor.
 #define private public
 #include "simulation/simulation.h"
+#include "simulation/entity_limits_data.h"
 #undef private
 #include <algorithm>
 #include <cmath>
@@ -952,6 +953,108 @@ static void test_regicide_hero() {
 	CHECK(healing, "an attacked hero below 70% health garrisons in a healing structure");
 }
 
+// With RegicideGarrison off the hero can't garrison: victoryManager.js
+// pickCriticalEntRetreatLocation sends it home on foot instead (no garrison
+// order that is refused and retried every turn).
+static void test_regicide_hero_no_garrison() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_REGICIDE);
+	s->set_regicide_garrison(false);
+	run_for(*s, 1.0f);
+	auto &u = s->units_;
+	uint32_t hero = 0;
+	for (size_t i = 0; i < u.count; ++i)
+		if (u.alive[i] && u.team[i] == 1 && u.unit_type[i] == UNIT_HERO) hero = u.id[i];
+	CHECK(hero != 0, "regicide gives AI 1 a hero");
+	if (!hero) return;
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	// Out in the field toward the map centre, hurt and attacked.
+	const float hx = tx * 0.55f, hz = tz * 0.55f;
+	int32_t h = s->lookup_unit(hero);
+	u.pos_x[h] = hx; u.pos_z[h] = hz;
+	const uint32_t foe = s->spawn_unit(hx + 3.0f, hz, 0, UNIT_SWORDSMAN);
+	s->order_attack(&foe, 1, hero);
+	int garrison_orders = 0;
+	bool inside = false;
+	for (float t = 0.0f; t < 12.0f; t += Simulation::FIXED_STEP) {
+		h = s->lookup_unit(hero);
+		if (h < 0 || !u.alive[h]) break;
+		u.hp[h] = u.max_hp[h] * 0.6f;
+		s->tick(Simulation::FIXED_STEP);
+		h = s->lookup_unit(hero);
+		if (h >= 0 && u.order_kind[h] == ORDER_GARRISON) ++garrison_orders;
+		if (h >= 0 && u.action_state[h] == ACTION_GARRISONED) inside = true;
+	}
+	h = s->lookup_unit(hero);
+	const float d0 = std::hypot(hx - tx, hz - tz);
+	const float d1 = h >= 0 ? std::hypot(u.pos_x[h] - tx, u.pos_z[h] - tz) : d0;
+	std::printf("  regicide, no hero garrison: garrison orders %d, inside %s, distance to its Town Center %.1f -> %.1f\n",
+	            garrison_orders, inside ? "yes" : "no", d0, d1);
+	CHECK(!inside && garrison_orders == 0, "an ungarrisonable hero gets no garrison order");
+	CHECK(d1 < d0 - 5.0f, "it walks home instead");
+}
+
+// Nomad (game setup): no civic centre at the start, so startingStrategy.js
+// buildFirstBase founds one where the workers stand and the economy carries on.
+static void test_nomad_first_base() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_nomad(true);
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	auto town_centers = [&](bool built) {
+		int n = 0;
+		for (const auto &b : s->buildings())
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER && !b.wrecked && (!built || b.build_progress >= 1.0f)) ++n;
+		return n;
+	};
+	const int at_start = town_centers(false);
+	run_for(*s, 90.0f);
+	int buildings = 0;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && !b.wrecked && b.build_progress >= 1.0f) ++buildings;
+	std::printf("  nomad: Town Centers at start %d, built after 90 s %d, finished buildings %d, workers %d\n",
+	            at_start, town_centers(true), buildings, count_units(*s, 1, true));
+	CHECK(at_start == 0, "a Nomad start has no civic centre");
+	CHECK(town_centers(true) == 1, "Petra founds and builds its first Town Center");
+	CHECK(buildings >= 3, "and builds on from it");
+}
+
+// EntityLimits (D's #159): a Mauryan Pillar only stands while Ashoka lives.
+// Petra asks before it searches for a spot, so it neither lays one out nor
+// scans the map for one every turn (it did ~200k refused cells a game).
+static void test_entity_limit_placement() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->players_[1].civ = CIV_MAURYANS;
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	const int pillar_foot = building_type_info(BLD_PILLAR).footprint;
+	int free_cells = 0, pillar_ok = 0;
+	for (int dx = -8; dx <= 8; ++dx)
+		for (int dz = -8; dz <= 8; ++dz) {
+			const int cx = (int)(tx / Simulation::GRID) + dx, cz = (int)(tz / Simulation::GRID) + dz;
+			if (s->petra_can_place(cx, cz, pillar_foot, BLD_HOUSE)) ++free_cells;
+			if (s->petra_can_place(cx, cz, pillar_foot, BLD_PILLAR)) ++pillar_ok;
+		}
+	const size_t before = s->buildings().size();
+	const uint32_t placed = s->petra_place_building(BLD_PILLAR, tx, tz, 2, 16, Simulation::PETRA_QUEUE_MILITARY);
+	std::printf("  entity limits: Pillar limit %d without Ashoka, %d free cells, Pillar placeable on %d, placed %s\n",
+	            s->entity_limit(1, LIMIT_PILLAR), free_cells, pillar_ok, placed ? "yes" : "no");
+	CHECK(s->entity_limit(1, LIMIT_PILLAR) == 0, "no Pillar without Ashoka");
+	CHECK(free_cells > 0 && pillar_ok == 0, "Petra's placement refuses a limited structure everywhere");
+	CHECK(!placed && s->buildings().size() == before, "and lays none out");
+}
+
 // victoryManager.js capture_the_relic: Petra goes for a Gaia relic in its
 // territory, not for one it has never seen.
 static void test_relic_capture() {
@@ -1031,6 +1134,9 @@ int main() {
 	test_civ_structures();
 	test_emergency();
 	test_regicide_hero();
+	test_regicide_hero_no_garrison();
+	test_nomad_first_base();
+	test_entity_limit_placement();
 	test_relic_capture();
 	test_retreat_walk_forced();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
