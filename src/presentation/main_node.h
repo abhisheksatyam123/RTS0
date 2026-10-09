@@ -447,6 +447,8 @@ private:
 	std::string cursor_name_;
 	void notify_attack(Vector3 pos, uint8_t attacker, bool structure);
 	void play_voice(const char *path);
+	// Tells the loading page how far setup got (signal load_progress).
+	void load_progress(int percent, const char *description) { emit_signal("load_progress", percent, String(description)); }
 	void play_civ_voice(const char *action);
 	void update_music_state();
 	Dictionary get_audio_state() const;
