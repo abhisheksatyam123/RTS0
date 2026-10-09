@@ -1057,6 +1057,8 @@ private:
 		float bld_arrow_mul[BLD_TYPE_COUNT];
 		float bld_arrow_add[BLD_TYPE_COUNT];
 		float bld_garrison_heal[BLD_TYPE_COUNT]; // added hp per second for garrisoned units
+		float bld_capture[BLD_TYPE_COUNT];        // Capturable/CapturePoints multiplier
+		float bld_cost[BLD_TYPE_COUNT][RES_COUNT]; // Cost/Resources multipliers
 		// The same unit multipliers per civ roster template, matched against the
 		// template's own 0 A.D. classes (Champion Infantry Spearman, Javelineer, ...),
 		// which its RTS0 unit_type only approximates.
@@ -1064,6 +1066,7 @@ private:
 			float gather[GK_COUNT];
 			float attack, health, speed, range, train_time;
 			float armor[3];
+			float cost[RES_COUNT];
 		} tmpl[CIV_UNIT_TEMPLATE_COUNT];
 	};
 	void compute_tech_mods(uint8_t player_id, TechMods &out) const;
@@ -1617,6 +1620,7 @@ private:
 	void drop_orders(size_t i);      // orders UnitAI doesn't model (trade, hunt, board): no order, no queue
 	// Splits a Shift order: busy units get it queued, the rest are returned to run now.
 	// Without Shift every unit's queue is dropped and all of them run it now.
+	float unit_height(size_t i) const; // terrain, or the water surface under a ship
 	bool trade_route_ok(size_t i, uint32_t market_a_id, uint32_t market_b_id) const;
 	std::vector<uint32_t> split_queued(const uint32_t *ids, size_t count, const UnitOrder &o, bool queued);
 	void apply_order(uint32_t uid, const UnitOrder &o);

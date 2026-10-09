@@ -74,6 +74,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("toggle_diplomacy"), &RtsoMain::toggle_diplomacy);
 	ClassDB::bind_method(D_METHOD("toggle_objectives"), &RtsoMain::toggle_objectives);
 	ClassDB::bind_method(D_METHOD("_toggle_session_dialog", "name"), &RtsoMain::_toggle_session_dialog);
+	ClassDB::bind_method(D_METHOD("get_target_marker_count"), &RtsoMain::get_target_marker_count);
 	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);
 	ClassDB::bind_method(D_METHOD("_on_diplo_tribute_pressed", "player_idx", "res_type"), &RtsoMain::_on_diplo_tribute_pressed);
 	ClassDB::bind_method(D_METHOD("set_use_english_voice_orders", "enable"), &RtsoMain::set_use_english_voice_orders);
@@ -278,6 +279,8 @@ void RtsoMain::_ready() {
 				float fx = coords.substr(0, comma).to_float();
 				float fz = coords.substr(comma + 1).to_float();
 				if (minimap_view) minimap_view->add_ping(Vector2(fx, fz), Color(1.0f, 0.45f, 0.1f));
+				range_overlays_.add_marker(fx, fz, Color(1.0f, 0.45f, 0.1f), RtsoRangeOverlays::kFlareMarkerTime);
+				play_alarm("res://assets/audio/interface/alarm/alarmally_1.ogg");
 			}
 			return;
 		}
@@ -2034,6 +2037,7 @@ void RtsoMain::_process(double delta) {
 
 	// Update 3D Rally Point Marker
 	rtso::update_rally_marker(rally_flag, sim, selected_building_id, local_player());
+	range_overlays_.tick((float)delta);
 	range_overlays_.update(sim, local_player(), selected_building_id, selected_ids.ptr(), selected_ids.size());
 
 	static bool summary_shown = false;
@@ -3127,12 +3131,15 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (mb->is_pressed()) {
 				// Hold K and click to send a flare (0 A.D. session.flare).
 				if (rtso::hotkeys::held("session.flare")) {
+					// input.js triggerFlareAction: one flare per g_FlareCooldown (3 s).
+					const double now = Time::get_singleton()->get_ticks_msec() / 1000.0;
+					if (now < last_flare_time_ + 3.0) return;
+					last_flare_time_ = now;
 					Vector3 click_pos = get_ground_click_pos(mouse_pos);
-					if (minimap_view) {
-						minimap_view->add_ping(Vector2(click_pos.x, click_pos.z), Color(1.0f, 0.4f, 0.2f));
-						_on_flare_requested(Vector2(click_pos.x, click_pos.z));
-						play_alarm("res://assets/sounds/ui/alarm.ogg");
-					}
+					range_overlays_.add_marker(click_pos.x, click_pos.z, Color(1.0f, 0.45f, 0.1f), RtsoRangeOverlays::kFlareMarkerTime);
+					if (minimap_view) minimap_view->add_ping(Vector2(click_pos.x, click_pos.z), Color(1.0f, 0.4f, 0.2f));
+					_on_flare_requested(Vector2(click_pos.x, click_pos.z));
+					play_alarm("res://assets/audio/interface/alarm/alarmally_1.ogg");
 					return;
 				}
 
@@ -3435,6 +3442,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 			}
 			if (attack_move_mode || (!garrison_click && rtso::hotkeys::held("session.attackmove"))) {
+				range_overlays_.add_marker(click_pos.x, click_pos.z, Color(1, 1, 1, 0.9f), RtsoRangeOverlays::kMoveMarkerTime);
 				if (net_lockstep())
 					post_lockstep(10, sel_ptr, sel_n, click_pos.x, click_pos.z, 0, qbit);
 				else
@@ -3691,6 +3699,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 
 			// 5. Default: Move Order (a player's walk ignores enemies until it arrives)
+			range_overlays_.add_marker(click_pos.x, click_pos.z, Color(1, 1, 1, 0.9f), RtsoRangeOverlays::kMoveMarkerTime);
 			if (net_lockstep())
 				post_lockstep(1, sel_ptr, sel_n, click_pos.x, click_pos.z, 0, qbit);
 			else
