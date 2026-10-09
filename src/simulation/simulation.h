@@ -960,13 +960,7 @@ public:
 		PlayerState &ps = player(pid);
 		ps.food() = (float)food; ps.wood() = (float)wood; ps.gold() = (float)gold; ps.stone() = (float)stone;
 	}
-	// Diplomacy ChangeTeam: joining a team allies the player with its members.
-	void set_player_team(uint8_t pid, uint8_t team) {
-		if (pid >= MAX_PLAYERS) return;
-		players_[pid].team = team;
-		for (uint8_t q = 0; q < MAX_PLAYERS; ++q)
-			if (q != pid && players_[q].team == team) diplomacy_[pid][q] = diplomacy_[q][pid] = DIPLO_ALLY;
-	}
+	void set_player_team(uint8_t pid, uint8_t team) { if (pid < MAX_PLAYERS) players_[pid].team = team; }
 	uint8_t player_team(uint8_t pid) const { return player(pid).team; }
 	void set_player_active(uint8_t pid, bool active, bool is_ai) {
 		if (pid >= MAX_PLAYERS) return;
@@ -1113,23 +1107,23 @@ public:
 		set_diplomacy(b, a, DIPLO_ALLY);
 	}
 	void set_mutual_ally(uint8_t player_id) { set_mutual_ally(0, player_id); }
-	// Allied: a stance both players chose (0 A.D. Diplomacy IsMutualAlly). Teammates
-	// start allied (set_player_team, apply_team_diplomacy) and stay so while teams are
-	// locked; with Lock Teams off either one can break the alliance, as in 0 A.D.
+	// Allied: the same alliance team from game setup, or a stance both players
+	// chose. Teams win over stances; without Lock Teams a player who stops allying
+	// a teammate leaves the team (cmd_set_diplomacy), so stances decide from then on.
 	bool is_ally(uint8_t a, uint8_t b) const {
 		if (a == b) return true;
 		if (a >= MAX_PLAYERS || b >= MAX_PLAYERS) return false;
-		if (teams_locked() && players_[a].team == players_[b].team) return true;
+		if (players_[a].team == players_[b].team) return true;
 		return diplomacy_[a][b] == DIPLO_ALLY && diplomacy_[b][a] == DIPLO_ALLY;
 	}
 	bool is_mutual_ally(uint8_t player_id) const { return player_id != 0 && is_ally(0, player_id); }
 	// Hostile: whom a may shoot at. a's own stance decides, so a one-sided
 	// alliance leaves a holding fire while b keeps attacking (0 A.D. parity).
-	// Teammates are never hostile while teams are locked.
+	// Teammates are never hostile whatever the stances say.
 	bool is_hostile(uint8_t a, uint8_t b) const {
 		if (a == b) return false;
 		if (a >= MAX_PLAYERS || b >= MAX_PLAYERS) return true;
-		if (teams_locked() && players_[a].team == players_[b].team) return false;
+		if (players_[a].team == players_[b].team) return false;
 		return diplomacy_[a][b] == DIPLO_ENEMY;
 	}
 	// Rewrite every stance from the alliance teams: teammates ally, everyone

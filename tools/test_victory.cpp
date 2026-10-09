@@ -656,23 +656,21 @@ int main() {
 	}
 
 	// 25. Teams without Lock Teams (0 A.D. Diplomacy): teammates start allied but either
-	// one can break the alliance; locked teams stay allied whatever the stances say.
+	// one can break the alliance by leaving the team; locked teams can't change at all.
 	{
 		Simulation sim;
-		for (uint8_t p = 0; p < 3; ++p) sim.set_player_active(p, true, false);
-		const uint8_t teams[MAX_PLAYERS] = {1, 1, 0};
+		for (uint8_t p = 0; p < 4; ++p) sim.set_player_active(p, true, false);
+		const uint8_t teams[MAX_PLAYERS] = {1, 1, 0, 1};
 		sim.set_setup_teams(teams);
 		sim.apply_team_diplomacy();
-		CHECK(sim.is_ally(0, 1) && !sim.is_hostile(1, 0) && sim.is_hostile(0, 2));
+		CHECK(sim.is_ally(0, 1) && sim.is_ally(0, 3) && !sim.is_hostile(1, 0) && sim.is_hostile(0, 2));
 		CHECK(sim.cmd_set_diplomacy(0, 1, Simulation::DIPLO_ENEMY));
 		CHECK(!sim.is_ally(0, 1) && sim.is_hostile(0, 1) && !sim.is_hostile(1, 0));
+		CHECK(sim.is_ally(0, 3) && sim.is_ally(1, 3) && sim.same_team(1, 3) && !sim.same_team(0, 1));
+		CHECK(sim.player_team(1) == 1 && sim.player_team(0) == 0);
 		CHECK(sim.cmd_set_diplomacy(0, 1, Simulation::DIPLO_ALLY) && sim.is_ally(0, 1));
-		// set_player_team alone (map scripts, tests) allies the new teammates.
-		sim.set_player_team(2, sim.player_team(0));
-		CHECK(sim.is_ally(0, 2) && sim.is_ally(1, 2));
 		sim.set_lock_teams(true);
-		sim.diplomacy_[0][1] = Simulation::DIPLO_ENEMY;
-		CHECK(sim.is_ally(0, 1) && !sim.is_hostile(0, 1));
+		CHECK(!sim.cmd_set_diplomacy(1, 3, Simulation::DIPLO_ENEMY) && sim.is_ally(1, 3));
 	}
 
 	if (failures) {
