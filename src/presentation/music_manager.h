@@ -80,6 +80,7 @@ public:
 		for (auto &p : players_) {
 			p = memnew(godot::AudioStreamPlayer);
 			p->set_volume_db(-80.0f);
+			p->set_bus("Music"); // sound.musicgain
 			parent->add_child(p);
 		}
 		rng_.seed(std::random_device{}());
