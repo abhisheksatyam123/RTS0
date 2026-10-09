@@ -117,7 +117,12 @@ const RMS_MAPS := [
 ]
 
 # 0 A.D. population limits per player (0 = unlimited) and ceasefire lengths in minutes.
-const POP_CAPS := [[50, "50"], [100, "100"], [150, "150"], [200, "200"], [250, "250"], [300, "300"], [0, "Unlimited"]]
+# 0 A.D. population_capacities.json (default 300), then world_population_capacities.json:
+# a negative value is a World Population shared by the players still in the game.
+const POP_CAPS := [[50, "50"], [100, "100"], [150, "150"], [200, "200"], [250, "250"], [300, "300"], [0, "Unlimited"],
+	[-100, "World 100"], [-200, "World 200"], [-300, "World 300"], [-400, "World 400"], [-500, "World 500"],
+	[-600, "World 600"], [-700, "World 700"], [-800, "World 800"], [-900, "World 900"], [-1000, "World 1000"],
+	[-1100, "World 1100"], [-1200, "World 1200"], [-1600, "World 1600"], [-2000, "World 2000"], [-2400, "World 2400"]]
 const CEASEFIRES := [0, 1, 2, 3, 4, 5, 10, 15, 20, 30, 45, 60]
 # 0 A.D. Wonder / Capture the Relic hold times in minutes (default 20) and relic counts (default 2).
 const VICTORY_TIMES := [0, 1, 2, 5, 10, 15, 20, 30, 45, 60]
@@ -490,7 +495,7 @@ func _build_options() -> void:
 	var pop := _make_option($VBox/HBox/Left/PopCapSlot)
 	for p in POP_CAPS:
 		pop.add_item(p[1])
-	pop.select(3)
+	pop.select(5) # 0 A.D. default: 300
 	var cf := _make_option($VBox/HBox/Left/CeasefireSlot)
 	for c in CEASEFIRES:
 		cf.add_item("No ceasefire" if c == 0 else "%d min" % c)
