@@ -19,6 +19,8 @@ import os
 import sys
 import urllib.parse
 import urllib.request
+import urllib.error
+import time
 
 zip_path = "/home/abhi/project/0ad/binaries/data/mods/public/public.zip"
 GITHUB_RAW = "https://raw.githubusercontent.com/0ad/0ad/master/binaries/data/mods/public/"
@@ -84,9 +86,180 @@ def gaia_entity(ltpl, wx, wz):
         return "fauna", {"type": stem, "x": wx, "z": wz}
     return None
 
+_TEMPLATE_CACHE = {}
+
+def _read_template(source, rel):
+    """Parsed simulation/templates/<rel>.xml, or None if 0 A.D. has no such file."""
+    for attempt in range(5):
+        try:
+            return ET.fromstring(source.read(f"simulation/templates/{rel}.xml").decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                break
+            time.sleep(2 ** attempt)
+        except KeyError:  # not in the zip
+            break
+        except Exception:
+            time.sleep(2 ** attempt)
+    print(f"  ?? template {rel} not found")
+    return None
+
+
+def _supply(root):
+    rs = root.find("ResourceSupply") if root is not None else None
+    if rs is None:
+        return None, None
+    try:
+        mx = float(rs.findtext("Max"))
+    except (TypeError, ValueError):
+        mx = None
+    return (rs.findtext("Type") or "").strip() or None, mx
+
+
+def template_info(source, name):
+    """0 A.D. template `name` with its parents resolved: {"chain": [name, parent, ...],
+    "supply_type": "stone.rock" or None, "supply_max": float or None}. A parent like
+    "bush|template_gaia_tree" is the mixin simulation/templates/mixins/bush.xml applied over
+    template_gaia_tree; the leftmost part wins."""
+    if name in _TEMPLATE_CACHE:
+        return _TEMPLATE_CACHE[name]
+    if "|" in name:
+        mixin, rest = name.split("|", 1)
+        base = template_info(source, rest)
+        root = _read_template(source, f"mixins/{mixin}")
+        parent = None
+    else:
+        base = None
+        root = _read_template(source, name)
+        parent = root.get("parent") if root is not None else None
+        if parent:
+            base = template_info(source, parent)
+        mixin = name
+    st, mx = _supply(root)
+    info = {"chain": [mixin] + (base["chain"] if base else []),
+            "supply_type": st or (base["supply_type"] if base else None),
+            "supply_max": mx if mx is not None else (base["supply_max"] if base else None)}
+    _TEMPLATE_CACHE[name] = info
+    return info
+
+
+# 0 A.D. structure template class -> RTS0 building name (main_node.cpp map_building_type).
+# template_structure_special is not ported; plain template_structure is scenery (gaia_owned).
+GAIA_STRUCTURE_CLASSES = [
+    ("template_structure_civic_civil_centre", "town_center"),
+    ("template_structure_civic_house", "house"),
+    ("template_structure_civic_temple", "temple"),
+    ("template_structure_economic_market", "market"),
+    ("template_structure_economic_storehouse", "storehouse"),
+    ("template_structure_economic_farmstead", "farmstead"),
+    ("template_structure_military_barracks", "barracks"),
+    ("template_structure_military_stable", "stable"),
+    ("template_structure_military_range", "range"),
+    ("template_structure_military_dock", "dock"),
+    ("template_structure_military_fortress", "fortress"),
+    ("template_structure_defensive_tower_sentry", "sentry_tower"),
+    ("template_structure_defensive_tower_outpost", "outpost"),
+    ("template_structure_defensive_tower", "tower"),
+    ("template_structure_defensive_palisade", "palisade"),
+    ("template_structure_defensive_wall_tower", "wall_tower"),
+    ("template_structure_defensive_wall_gate", "gate"),
+    ("template_structure_defensive_wall", "wall_segment"),
+    ("template_structure_resource_corral", "corral"),
+    ("template_structure_resource_field", "field_plot"),  # anyone may farm a Gaia field
+]
+
+
+def gaia_owned(source, tpl, wx, wz, angle=0.0, scale=1.0):
+    """A Gaia-owned 0 A.D. unit or structure (Player 0 in the map) as a gaia_units,
+    gaia_structures or scenery entry; None for what RTS0 doesn't port."""
+    info = template_info(source, tpl)
+    chain = info["chain"]
+    if tpl.startswith("structures/"):
+        if len(chain) > 1 and chain[1] == "template_structure" and tpl.count("/") == 1:
+            # Fences, columns, obelisks, benches (gaia_data.h SceneryTypeInfo). scale: RTS0
+            # units per 0 A.D. metre, for the obstruction size.
+            return "scenery", {"type": tpl.split("/", 1)[1], "x": wx, "z": wz,
+                               "angle": round(angle, 4), "scale": round(scale, 5)}
+        for cls, name in GAIA_STRUCTURE_CLASSES:
+            if any(c.startswith(cls) for c in chain):
+                return "gaia_structures", {"type": name, "template": tpl, "x": wx, "z": wz}
+        return None
+    if tpl.startswith("units/"):
+        utype = unit_class(" ".join([tpl.lower()] + chain))
+        if utype is None:
+            return None
+        stem = tpl[len("units/"):]
+        rank = 2 if stem.endswith("_a") else 3 if stem.endswith("_e") else 1
+        return "gaia_units", {"type": utype, "template": stem, "rank": rank, "x": wx, "z": wz}
+    return None
+
+
+def unit_class(ltpl):
+    """RTS0 unit class for a 0 A.D. unit template name (lower case), or None."""
+    # Most specific first: a hero or champion cavalry template's chain also names its weapon.
+    for keys, utype in (
+            (["hero"], "hero"),
+            (["ship_fishing", "fishing_boat"], "fishing_boat"),
+            (["ship_merchant"], "merchant_ship"),
+            (["ship"], "trireme"),
+            (["elephant"], "elephant"),
+            (["chariot"], "chariot"),
+            (["siege_ram"], "siege_ram"),
+            (["bolt_shooter"], "bolt_shooter"),
+            (["catapult", "onager", "lithobolos"], "catapult"),
+            (["war_dog", "_dog"], "war_dog"),
+            (["healer"], "healer"),
+            (["trader"], "trader"),
+            (["female_citizen", "support_female", "citizen"], "villager"),
+            (["cavalry"], "cavalry"),
+            (["spearman", "pikeman", "hoplite"], "spearman"),
+            (["infantry_ranged", "archer", "slinger", "javelineer"], "archer"),
+            (["swordsman", "infantry_melee", "champion"], "swordsman")):
+        if any(k in ltpl for k in keys):
+            return utype
+    return None
+
+def gaia_resource(source, ltpl, wx, wz):
+    """A Gaia resource supply (tree, fruit, rock, mine) as a resources entry, typed and sized
+    by its 0 A.D. template's ResourceSupply. Templates that can't be read fall back to a
+    guess from the name."""
+    info = template_info(source, ltpl)
+    st, amount = info["supply_type"], info["supply_max"]
+    if st is None:
+        if len(info["chain"]) > 1 or not ltpl.startswith("gaia/"):
+            return None  # read and not a resource, or a prop/particle with no template
+        for keys, rtype, amt in ((["fruit", "berry", "apple", "date", "bush_berry", "grain", "food"], "food", 300),
+                                 (["stone", "rock"], "stone", 1000),
+                                 (["metal", "gold", "silver", "iron", "ore"], "gold", 1000),
+                                 (["tree", "palm", "pine", "cedar", "cypress", "oak", "carob", "poplar", "wood", "forest"], "wood", 300)):
+            if any(k in ltpl for k in keys):
+                st, amount = rtype, amt
+                break
+        else:
+            return None
+    kind = st.split(".")[0]
+    if amount is None or amount != amount or amount == float("inf"):
+        return None
+    if kind == "wood":
+        rtype = "palm" if ("palm" in ltpl or "date" in ltpl) else ("pine" if ("pine" in ltpl or "cedar" in ltpl or "cypress" in ltpl) else "tree")
+    elif kind == "stone":
+        rtype = "stone"
+    elif kind == "metal" or kind == "gold":
+        rtype = "gold"
+    elif st == "food.fish":
+        rtype = "fish"
+    elif kind == "food":
+        if st == "food.grain":
+            return None  # a Gaia field: nobody may farm it
+        rtype = "food"
+    else:
+        return None
+    return {"type": rtype, "x": wx, "z": wz, "amount": int(amount)}
+
 def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean", height_scale=0.20, source=None, gaia_only=False):
     print(f"Porting map: {map_id} ({xml_rel})...")
     with (source if source is not None else zipfile.ZipFile(zip_path, 'r')) as z:
+        files = z  # `z` is reused below for entity positions
         xml_data = z.read(xml_rel).decode('utf-8')
         root = ET.fromstring(xml_data)
 
@@ -126,6 +299,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
 
         entities_elem = root.find("Entities")
         raw_entities = []
+        angle_by_uid = {}  # uid -> Orientation y (radians)
         garrisoned_in = {}  # passenger uid -> holder uid
 
         if entities_elem is not None:
@@ -138,6 +312,9 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 x = float(pos.get("x", 0))
                 z = float(pos.get("z", 0))
                 raw_entities.append((tpl, ply, x, z, e.get("uid")))
+                orient = e.find("Orientation")
+                if orient is not None:
+                    angle_by_uid[e.get("uid")] = float(orient.get("y", 0) or 0)
                 # <Garrison><GarrisonedEntity uid=../></Garrison>: those entities start
                 # inside this one (sicilia_nomad_2p's ships); their own Position is 0,0.
                 g = e.find("Garrison")
@@ -147,7 +324,9 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
 
         # Convert entities into RTS0 format
         resources = []
-        gaia = {"fauna": [], "treasures": [], "ruins": [], "gaia_structures": []}
+        gaia = {"fauna": [], "treasures": [], "ruins": [], "gaia_structures": [], "gaia_units": [], "scenery": []}
+        gaia_unit_index = {}       # uid -> index in gaia["gaia_units"]
+        gaia_structure_index = {}  # uid -> index in gaia["gaia_structures"]
         fauna = gaia["fauna"]
         players = {}
         structures = []
@@ -171,22 +350,26 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 continue
 
             if ply == 0:
-                # Gaia resources & wildlife fauna
+                # Gaia: resources, fauna, treasures, ruins, and Gaia-owned units and structures
                 if "gaia/fish/" in ltpl:
                     # template_gaia_fish.xml: 1000 food.fish, gathered only by fishing boats
                     resources.append({"type": "fish", "x": wx, "z": wz, "amount": 1000})
                 elif gaia_entity(ltpl, wx, wz):
                     key, ent = gaia_entity(ltpl, wx, wz)
                     gaia[key].append(ent)
-                elif any(k in ltpl for k in ["fruit", "berry", "apple", "date", "bush_berry", "grain", "food"]):
-                    resources.append({"type": "food", "x": wx, "z": wz, "amount": 300})
-                elif any(k in ltpl for k in ["stone", "rock"]):
-                    resources.append({"type": "stone", "x": wx, "z": wz, "amount": 1000})
-                elif any(k in ltpl for k in ["metal", "gold", "silver", "iron", "ore"]):
-                    resources.append({"type": "gold", "x": wx, "z": wz, "amount": 1000})
-                elif any(k in ltpl for k in ["tree", "palm", "pine", "cedar", "cypress", "oak", "carob", "poplar", "wood", "forest"]):
-                    res_type = "palm" if ("palm" in ltpl or "date" in ltpl) else ("pine" if ("pine" in ltpl or "cedar" in ltpl or "cypress" in ltpl) else "tree")
-                    resources.append({"type": res_type, "x": wx, "z": wz, "amount": 300})
+                elif ltpl.startswith(("units/", "structures/")):
+                    owned = gaia_owned(files, ltpl, wx, wz, angle_by_uid.get(uid, 0.0), scale)
+                    if owned:
+                        key, ent = owned
+                        if key == "gaia_units":
+                            gaia_unit_index[uid] = len(gaia[key])
+                        elif key == "gaia_structures":
+                            gaia_structure_index[uid] = len(gaia[key])
+                        gaia[key].append(ent)
+                else:
+                    res = gaia_resource(files, ltpl, wx, wz)
+                    if res:
+                        resources.append(res)
             else:
                 # Player base / units
                 if ply not in players:
@@ -271,6 +454,10 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
         for uid, holder in garrisoned_in.items():
             if uid in unit_index and holder in unit_index:
                 units[unit_index[uid]]["garrison_in"] = unit_index[holder]
+            elif uid in gaia_unit_index and holder in gaia_unit_index:
+                gaia["gaia_units"][gaia_unit_index[uid]]["garrison_in"] = gaia_unit_index[holder]
+            elif uid in gaia_unit_index and holder in gaia_structure_index:
+                gaia["gaia_units"][gaia_unit_index[uid]]["garrison_in_structure"] = gaia_structure_index[holder]
 
         # Ensure every detected player has a town center / start position. Nomad maps
         # (no civil centre at all, e.g. sicilia_nomad_2p) start with units only.
@@ -296,6 +483,8 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             "treasures": gaia["treasures"],
             "ruins": gaia["ruins"],
             "gaia_structures": gaia["gaia_structures"],
+            "gaia_units": gaia["gaia_units"],
+            "scenery": gaia["scenery"],
             "structures": structures,
             "units": units
         }
@@ -310,12 +499,15 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 old = json.load(f)
             ws = old.get("world_size", world_size_m)
             k = ws / world_size_m
-            for key in ("fauna", "treasures", "ruins", "gaia_structures"):
+            gaia["resources"] = resources
+            for key in ("resources", "fauna", "treasures", "ruins", "gaia_structures", "gaia_units", "scenery"):
                 old[key] = [dict(e, x=round(e["x"] * k, 2), z=round(e["z"] * k, 2)) for e in gaia[key]]
+            for e in old["scenery"]:
+                e["scale"] = round(e["scale"] * k, 5)
             map_data = old
         with open(out_path, "w") as f:
             json.dump(map_data, f, indent=2)
-        print(f"  -> Generated {out_path}: {len(resources)} resources, {len(fauna)} fauna, {len(structures)} structures, {len(units)} units, {len(players)} players (Water={water_height}m).")
+        print(f"  -> Generated {out_path}: {len(resources)} resources, {len(fauna)} fauna, {len(structures)} structures, {len(units)} units, {len(gaia['gaia_structures'])} Gaia structures, {len(gaia['gaia_units'])} Gaia units, {len(players)} players (Water={water_height}m).")
 
 maps_list = [
     ("acropolis_bay", "maps/skirmishes/acropolis_bay_2p.xml", "maps/skirmishes/acropolis_bay_2p.pmp", 256.0, "mediterranean", 0.20),

@@ -131,7 +131,7 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
-	static constexpr uint32_t SAVE_VERSION = 28; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 29; // save_state's format; see the history beside it
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -948,6 +948,31 @@ public:
 		return spawn_treasure(x, z, treasure_type_for_resource(res_type));
 	}
 	void clear_treasures() { treasures_.clear(); } // Game Setup "Treasures" off
+	// Gaia scenery from a 0 A.D. map (structures/fence_*, column_*, obelisk; gaia_data.h):
+	// an oriented obstruction. angle is the map's Orientation y (radians); scale is RTS0
+	// units per 0 A.D. metre on this map.
+	struct Scenery {
+		uint32_t id;
+		float x, z;
+		float angle;
+		float half_w, half_d; // RTS0 units along the rotated x and z axes
+		float hp;
+		uint8_t type;         // SceneryType (scenery_type_info)
+		uint8_t pad[3];
+	};
+	uint32_t spawn_scenery(float x, float z, uint8_t scenery_type, float angle, float scale);
+	// The grain supply of a finished field (0 if none): a Gaia field is farmed through it.
+	uint32_t field_resource_id(uint32_t building_id) const {
+		auto it = field_res_by_bld_.find(building_id);
+		return it != field_res_by_bld_.end() && res_id_to_idx_.count(it->second) ? it->second : 0;
+	}
+	const std::vector<Scenery> &scenery() const { return scenery_; }
+	// A Gaia-owned unit from a 0 A.D. map (Player 0): roster template `template_id`
+	// ("gaul/infantry_javelineer_a"; a rank suffix falls back to the _b template), else the
+	// u_type class. rank 2/3 = Advanced/Elite, reached through Promotion xp on the next tick.
+	uint32_t spawn_gaia_unit(float x, float z, UnitType u_type, const char *template_id, int rank = 1);
+	// Puts a unit inside a structure of its owner at once, as a map's <Garrison> does.
+	bool garrison_unit_now(uint32_t unit_id, uint32_t building_id);
 	// template_gaia_ruins: a stone (or metal) supply gathered 4x as fast as a rock.
 	uint32_t spawn_ruins(float x, float z, uint8_t ruins_type);
 
@@ -1060,6 +1085,7 @@ private:
 	void formation_stop(const uint32_t *unit_ids, size_t count);
 	void cmd_move_individual(const uint32_t *unit_ids, size_t count, float tx, float tz);
 	void tick_promotion(float dt);
+	void promote_if_due(size_t i); // Promotion.js thresholds for unit index i
 	void tick_capture(float dt);
 	// 0 A.D. UnitAI per-unit order logic, before movement: answers attacks (fight back or
 	// flee), returns fighters to their order, turns patrols, follows the order queue.
@@ -1215,6 +1241,7 @@ private:
 	// Each ruins resource's ResourceSupply MaxGatherers (gaia/ruins/*.xml); saved.
 	struct RuinsCap { uint32_t res_id; uint16_t max_gatherers; uint16_t pad; };
 	std::vector<RuinsCap> ruins_caps_;
+	std::vector<Scenery> scenery_; // saved
 	int ruins_cap(uint32_t res_id) const {
 		for (const RuinsCap &c : ruins_caps_) if (c.res_id == res_id) return c.max_gatherers;
 		return 1;
@@ -1439,6 +1466,7 @@ private:
 	bool petra_start_hunting(size_t u, PetraHuntScan &scan);
 	bool petra_gather_treasure(size_t u, PetraHuntScan &scan); // entityExtend.js gatherTreasure
 	void petra_manage_hunters(PetraHuntScan &scan);
+	void petra_build_first_base(); // startingStrategy.js buildFirstBase
 	int petra_villager_target() const;
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
