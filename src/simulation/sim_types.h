@@ -869,20 +869,76 @@ inline constexpr float WALL_HALF_DEPTH = 5.0f / 4.0f * 0.5f;
 // time); wall_medium and wall_short have two thirds and a third of each, as of the length.
 inline constexpr float WALL_LONG_HEALTH = 3000.0f, WALL_LONG_STONE = 36.0f, WALL_LONG_BUILD_TIME = 36.0f * 0.25f;
 
-// Whether a wall segment or gate of half width `half_w` is a WallSet piece. The one-cell segment
-// (and the gate it upgrades to) that maps and older saves place keeps its square footprint and
-// its building_type_info row.
+// wallset_palisade.xml (template_wallset MaxTowerOverlap 0.85): palisades_long/medium/short
+// WallPiece/Length 14, 9 and 4 m with a Static depth of 2 m; palisades_tower WallPiece/Length 3 m
+// on a 5 m square footprint. RTS0 has the one palisade type: a palisade tower is a BLD_PALISADE
+// whose half width is PALISADE_TOWER_HALF, a segment one of the segment half lengths, and the
+// one-cell palisade maps and older saves place (half width 1) stays as it is.
+inline constexpr float PALISADE_SEGMENT_LENGTHS[3] = {14.0f / 4.0f, 9.0f / 4.0f, 4.0f / 4.0f};
+inline constexpr float PALISADE_TOWER_LENGTH = 3.0f / 4.0f;
+inline constexpr float PALISADE_TOWER_HALF = 5.0f / 4.0f * 0.5f;
+inline constexpr float PALISADE_HALF_DEPTH = 2.0f / 4.0f * 0.5f;
+
+enum WallSetKind : uint8_t { WALLSET_STONE = 0, WALLSET_PALISADE = 1, WALLSET_COUNT };
+
+// A WallSet's pieces and their 0 A.D. values: Health/Max, Cost (stone for walls, wood for
+// palisades) and BuildTime (x0.25) of the long, medium and short segment and of the tower. A
+// tower whose values are negative keeps its building_type_info row (the stone wall tower).
+struct WallSetInfo {
+	uint8_t segment, tower;
+	float lengths[3];
+	float tower_length, tower_half, min_overlap, max_overlap, half_depth;
+	float health[3], cost[3], build_time[3];
+	float tower_health, tower_cost, tower_build_time;
+};
+
+inline const WallSetInfo &wallset_info(uint8_t kind) {
+	static const WallSetInfo kSets[WALLSET_COUNT] = {
+		{BLD_WALL_SEGMENT, BLD_WALL_TOWER, {WALL_SEGMENT_LENGTHS[0], WALL_SEGMENT_LENGTHS[1], WALL_SEGMENT_LENGTHS[2]},
+			WALL_TOWER_LENGTH, 1.0f, WALL_MIN_TOWER_OVERLAP, WALL_MAX_TOWER_OVERLAP, WALL_HALF_DEPTH,
+			{WALL_LONG_HEALTH, WALL_LONG_HEALTH * 2.0f / 3.0f, WALL_LONG_HEALTH / 3.0f},
+			{WALL_LONG_STONE, WALL_LONG_STONE * 2.0f / 3.0f, WALL_LONG_STONE / 3.0f},
+			{WALL_LONG_BUILD_TIME, WALL_LONG_BUILD_TIME * 2.0f / 3.0f, WALL_LONG_BUILD_TIME / 3.0f},
+			-1.0f, -1.0f, -1.0f},
+		// palisades_*: Health/Max 1000 x 0.6, 0.4, 0.2 and the tower's 0.7; wood 12, 8, 4 and 14;
+		// BuildTime 12, 8, 4 and 14 s.
+		{BLD_PALISADE, BLD_PALISADE, {PALISADE_SEGMENT_LENGTHS[0], PALISADE_SEGMENT_LENGTHS[1], PALISADE_SEGMENT_LENGTHS[2]},
+			PALISADE_TOWER_LENGTH, PALISADE_TOWER_HALF, 0.05f, 0.85f, PALISADE_HALF_DEPTH,
+			{600.0f, 400.0f, 200.0f}, {12.0f, 8.0f, 4.0f}, {12.0f * 0.25f, 8.0f * 0.25f, 4.0f * 0.25f},
+			700.0f, 14.0f, 14.0f * 0.25f},
+	};
+	return kSets[kind < WALLSET_COUNT ? kind : 0];
+}
+
+inline bool is_palisade_tower(uint8_t type, float half_w) {
+	return type == BLD_PALISADE && std::fabs(half_w - PALISADE_TOWER_HALF) < 0.01f;
+}
+
+// Whether a structure of half width `half_w` is a WallSet piece. The one-cell segment (and the
+// gate it upgrades to) and palisade that maps and older saves place keep their square footprint
+// and their building_type_info row.
 inline bool is_wallset_piece(uint8_t type, float half_w) {
+	if (type == BLD_PALISADE) return std::fabs(half_w - 1.0f) > 0.01f;
 	return (type == BLD_WALL_SEGMENT || type == BLD_GATE) && half_w > 1.01f;
 }
 
-// A WallSet segment's share of a long one, by length: 1 long, 2/3 medium, 1/3 short.
-inline float wallset_share(float half_w) { return 2.0f * half_w / WALL_SEGMENT_LENGTHS[0]; }
+// A WallSet piece's 0 A.D. values (wallset_info) by its type and length; negative when it keeps
+// its building_type_info row. what: 0 Health, 1 Cost, 2 BuildTime.
+inline float wallset_piece_value(uint8_t type, float half_w, int what) {
+	if (!is_wallset_piece(type, half_w) || type == BLD_GATE) return -1.0f;
+	const WallSetInfo &ws = wallset_info(type == BLD_PALISADE ? WALLSET_PALISADE : WALLSET_STONE);
+	if (is_palisade_tower(type, half_w)) return what == 0 ? ws.tower_health : what == 1 ? ws.tower_cost : ws.tower_build_time;
+	const float *v = what == 0 ? ws.health : what == 1 ? ws.cost : ws.build_time;
+	for (int k = 0; k < 3; ++k)
+		if (std::fabs(0.5f * ws.lengths[k] - half_w) < 0.01f) return v[k];
+	return v[0] * 2.0f * half_w / ws.lengths[0]; // any other length: its share of a long one
+}
 
 // Half the depth (along the footprint's v axis, nav/footprint.h) of a building of `type` whose half
-// width is `half_w`. RTS0's buildings are square but for WallSet pieces, long and thin.
+// width is `half_w`. RTS0's buildings are square but for WallSet segments, long and thin.
 inline float building_half_depth(uint8_t type, float half_w) {
-	return is_wallset_piece(type, half_w) ? WALL_HALF_DEPTH : half_w;
+	if (!is_wallset_piece(type, half_w) || is_palisade_tower(type, half_w)) return half_w;
+	return type == BLD_PALISADE ? PALISADE_HALF_DEPTH : WALL_HALF_DEPTH;
 }
 
 // 0 A.D. Identity/Requirements/Techs per structure: 1 = phase_village,
