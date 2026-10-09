@@ -1439,62 +1439,23 @@ void RtsoMain::find_idle_unit(IdleKind kind) {
 	play_civ_voice("select");
 }
 
-// Under-attack alerts. 0 A.D. raises them from the sim's Attacked message
-// (AttackDetection.js OnGlobalAttacked); RTS0's sim has no attack events, so
-// the UI notices a local unit or structure losing health with a hostile unit
-// near it, and runs 0 A.D.'s suppression rules (attack_detection.h) on that.
-void RtsoMain::detect_attacks() {
+// Under-attack alerts (0 A.D. AttackDetection.js AttackAlert, called for every
+// Attacked message): a hit on one of the local player's entities by another
+// player runs 0 A.D.'s suppression rules (attack_detection.h) and may notify.
+void RtsoMain::detect_attacks(const std::vector<rtso::Simulation::AttackedEvent> &attacks) {
 	if (!sim) return;
 	const uint8_t me = local_player();
 	if (me != attack_watch_player_) {
-		// New match seat (load, net start): forget old health so nothing fires.
+		// New match seat (load, net start): forget suppressed attacks.
 		attack_watch_player_ = me;
-		prev_unit_hp_.clear();
-		prev_building_hp_.clear();
 		attack_detection_.clear();
 	}
-	auto uview = sim->units();
-	// Nearest hostile unit within reach of (x, z): the attacker, if any.
-	auto attacker_near = [&](float x, float z, float reach) -> int {
-		int best = -1;
-		float best_d2 = reach * reach;
-		for (size_t i = 0; i < uview.count; ++i) {
-			if (!uview.alive[i] || !sim->is_hostile(me, uview.team[i])) continue;
-			const float dx = uview.pos_x[i] - x, dz = uview.pos_z[i] - z;
-			const float d2 = dx * dx + dz * dz;
-			if (d2 < best_d2) {
-				best_d2 = d2;
-				best = (int)uview.team[i];
-			}
-		}
-		return best;
-	};
-	// Longest RTS0 attack reach (siege and archers) plus a margin.
-	constexpr float kReach = 30.0f;
-	std::unordered_map<uint32_t, float> unit_hp;
-	unit_hp.reserve(prev_unit_hp_.size() + 8);
-	for (size_t i = 0; i < uview.count; ++i) {
-		if (!uview.alive[i] || uview.team[i] != me) continue;
-		unit_hp[uview.id[i]] = uview.hp[i];
-		auto it = prev_unit_hp_.find(uview.id[i]);
-		if (it == prev_unit_hp_.end() || uview.hp[i] >= it->second) continue;
-		const int attacker = attacker_near(uview.pos_x[i], uview.pos_z[i], kReach);
-		if (attacker >= 0 && attack_detection_.report(uview.pos_x[i], uview.pos_z[i], match_elapsed_time))
-			notify_attack(Vector3(uview.pos_x[i], 0, uview.pos_z[i]), (uint8_t)attacker, false);
+	for (const auto &a : attacks) {
+		// Attacks against other players, or dealt by myself, are not registered.
+		if (a.target_owner != me || a.attacker_owner == me) continue;
+		if (attack_detection_.report(a.x, a.z, match_elapsed_time))
+			notify_attack(Vector3(a.x, 0, a.z), a.attacker_owner, a.target_is_building != 0);
 	}
-	prev_unit_hp_.swap(unit_hp);
-	std::unordered_map<uint32_t, float> bld_hp;
-	bld_hp.reserve(prev_building_hp_.size() + 4);
-	for (const auto &b : sim->buildings()) {
-		if (b.team != me || b.wrecked) continue;
-		bld_hp[b.id] = b.hp;
-		auto it = prev_building_hp_.find(b.id);
-		if (it == prev_building_hp_.end() || b.hp >= it->second) continue;
-		const int attacker = attacker_near(b.x, b.z, kReach + b.half_size);
-		if (attacker >= 0 && attack_detection_.report(b.x, b.z, match_elapsed_time))
-			notify_attack(Vector3(b.x, 0, b.z), (uint8_t)attacker, true);
-	}
-	prev_building_hp_.swap(bld_hp);
 }
 
 // 0 A.D. messages.js "attack" notification: remember the spot for
@@ -2234,7 +2195,8 @@ void RtsoMain::_process(double delta) {
 	}
 	update_inspector();
 	update_command_panel();
-	detect_attacks();
+	const auto attacks = sim->take_attacked_events();
+	detect_attacks(attacks);
 	update_cursor();
 	chat_window_.tick_overlay();
 	if (objectives_dialog_.is_open()) objectives_dialog_.refresh(sim, local_player());
@@ -3553,6 +3515,11 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (fired("rts0.debug.battle1000")) { spawn_large_battle(1000); return; }
 		if (fired("rts0.debug.battle2000")) { spawn_large_battle(2000); return; }
 
+		// gui/session/hotkeys/misc.xml session.showstatusbars -> toggleStatusBars().
+		if (fired("session.showstatusbars")) {
+			if (view) view->set_show_all_status_bars(!view->show_all_status_bars());
+			return;
+		}
 		if (fired("session.toggleattackrange")) { range_overlays_.show_attack = !range_overlays_.show_attack; return; }
 		if (fired("session.toggleaurasrange")) { range_overlays_.show_auras = !range_overlays_.show_auras; return; }
 		if (fired("session.togglehealrange")) { range_overlays_.show_heal = !range_overlays_.show_heal; return; }
