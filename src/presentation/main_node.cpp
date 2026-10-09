@@ -117,6 +117,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_train_buttons", "btype"), &RtsoMain::debug_train_buttons);
 	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);
 	ClassDB::bind_method(D_METHOD("_on_diplo_tribute_pressed", "player_idx", "res_type"), &RtsoMain::_on_diplo_tribute_pressed);
+	ClassDB::bind_method(D_METHOD("_on_diplo_spy_pressed", "player_idx"), &RtsoMain::_on_diplo_spy_pressed);
 	ClassDB::bind_method(D_METHOD("set_use_english_voice_orders", "enable"), &RtsoMain::set_use_english_voice_orders);
 	ClassDB::bind_method(D_METHOD("is_use_english_voice_orders"), &RtsoMain::is_use_english_voice_orders);
 	ClassDB::bind_method(D_METHOD("_on_lobby_button_pressed"), &RtsoMain::_on_lobby_button_pressed);
@@ -1465,6 +1466,9 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 		{"back to the future", S::CHEAT_CHANGE_PHASE, 0, "", false},
 		{"brainiac", S::CHEAT_RESEARCH, 0, "", false},
 		{"gift from the gods", S::CHEAT_META, 0, "100000", true},
+		{"the hive master", S::CHEAT_MAX_POPULATION, 0, "", false},
+		{"TARDIS", S::CHEAT_CHANGE_MAX_POPULATION, 0, "", false},
+		{"i am too busy", S::CHEAT_FAST_ACTIONS, 0, "", false},
 	};
 	const uint8_t me = local_player();
 	if (!sim || !sim->cheats_enabled() || me >= rtso::MAX_PLAYERS || sim->is_defeated(me)) return false;
@@ -2530,9 +2534,11 @@ void RtsoMain::_process(double delta) {
 			const Vector3 drag_curr_pos = get_ground_click_pos(mouse_pos);
 			std::vector<rtso::Simulation::WallPiece> pieces;
 			uint32_t start_tower = 0, end_tower = 0;
+			const uint8_t wall_kind = current_build_type == rtso::BLD_PALISADE ? rtso::WALLSET_PALISADE : rtso::WALLSET_STONE;
+			const rtso::WallSetInfo &wall_set = rtso::wallset_info(wall_kind);
 			if (sim)
 				pieces = sim->wall_placement(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
-						drag_curr_pos.x, drag_curr_pos.z, &start_tower, &end_tower);
+						drag_curr_pos.x, drag_curr_pos.z, &start_tower, &end_tower, wall_kind);
 			while (wall_ghosts.size() < pieces.size()) {
 				MeshInstance3D *g = memnew(MeshInstance3D);
 				g->set_visible(false);
@@ -2550,17 +2556,17 @@ void RtsoMain::_process(double delta) {
 			const float yaw = std::atan2(drag_curr_pos.x - wall_drag_start_pos.x, drag_curr_pos.z - wall_drag_start_pos.z);
 			for (size_t i = 0; i < pieces.size(); ++i) {
 				const auto &p = pieces[i];
-				const bool is_tower = p.type == rtso::BLD_WALL_TOWER;
+				const bool is_tower = p.type == wall_set.tower && p.half_w == wall_set.tower_half;
 				MeshInstance3D *g = wall_ghosts[i];
-				// Along the wall (the box's z): the segment's length; across it: 0 A.D.'s 5 m.
-				if (is_tower && tower_entry.valid) {
+				// Along the wall (the box's z): the segment's length; across it: its 0 A.D. depth.
+				if (is_tower && tower_entry.valid && wall_kind == rtso::WALLSET_STONE) {
 					g->set_mesh(tower_entry.mesh);
 					g->set_scale(Vector3(tower_entry.scale, tower_entry.scale, tower_entry.scale));
 				} else {
 					Ref<BoxMesh> box;
 					box.instantiate();
-					box->set_size(is_tower ? Vector3(2.2f, 4.5f, 2.2f)
-							: Vector3(2.0f * rtso::WALL_HALF_DEPTH, 2.5f, 2.0f * p.half_w));
+					box->set_size(is_tower ? Vector3(2.2f * p.half_w, 4.5f, 2.2f * p.half_w)
+							: Vector3(2.0f * wall_set.half_depth, 2.5f, 2.0f * p.half_w));
 					g->set_mesh(box);
 					g->set_scale(Vector3(1.0f, 1.0f, 1.0f));
 				}
@@ -3890,7 +3896,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 
 				if (build_mode) {
-					if (current_build_type == rtso::BLD_WALL_SEGMENT) {
+					if (current_build_type == rtso::BLD_WALL_SEGMENT || current_build_type == rtso::BLD_PALISADE) {
 						wall_drag_mode = true;
 						wall_drag_start_pos = get_ground_click_pos(mouse_pos);
 						return;
@@ -3957,17 +3963,18 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					const uint32_t *builders = order_one ? &one_builder : (const uint32_t *)selected_ids.ptr();
 					const size_t builder_n = order_one ? 1 : (size_t)selected_ids.size();
 					const bool queued = rtso::hotkeys::held("session.queue");
+					const uint8_t wall_kind = current_build_type == rtso::BLD_PALISADE ? rtso::WALLSET_PALISADE : rtso::WALLSET_STONE;
 					const bool any = sim && !sim->wall_placement(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
-							drag_end_pos.x, drag_end_pos.z).empty();
+							drag_end_pos.x, drag_end_pos.z, nullptr, nullptr, wall_kind).empty();
 					if (any) {
 						if (turn_cmds()) {
 							post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_BUILD_WALL, builders, builder_n,
 									drag_end_pos.x, drag_end_pos.z,
 									rtso::Simulation::pack_wall_point(wall_drag_start_pos.x, wall_drag_start_pos.z),
-									queued ? rtso::NET_PARAM_QUEUED : 0);
+									(uint8_t)(wall_kind | (queued ? rtso::NET_PARAM_QUEUED : 0)));
 						} else {
 							sim->cmd_build_wall(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
-									drag_end_pos.x, drag_end_pos.z, builders, builder_n, queued);
+									drag_end_pos.x, drag_end_pos.z, builders, builder_n, queued, wall_kind);
 						}
 						play_civ_voice("build");
 						if (order_one) pop_from_selection(selected_ids, one_builder);
@@ -4570,6 +4577,7 @@ void RtsoMain::apply_match_settings() {
 		}
 	}
 	sim->set_biome_override((int)ms->get("biome") - 1); // 0 = the map's own biome
+	sim->set_team_placement((int)ms->get("team_placement"));
 	// Civs before the map: spawn_unit gives each starting unit its owner's
 	// roster template (Simulation::reset keeps civs), as 0 A.D. spawns
 	// StartEntities from the player's own civ.
@@ -4604,6 +4612,7 @@ void RtsoMain::apply_match_settings() {
 	sim->set_regicide_garrison((bool)ms->get("regicide_garrison"));
 	sim->set_lock_teams((bool)ms->get("lock_teams"));
 	sim->set_cheats_enabled((bool)ms->get("cheats"));
+	sim->set_disable_spies((bool)ms->get("disable_spies"));
 	sim->set_disable_treasures((bool)ms->get("disable_treasures"));
 	{
 		Array scolors = ms->get("slot_colors");
@@ -5175,10 +5184,12 @@ void RtsoMain::_on_lobby_start_pressed() {
 		setup.regicide_garrison = (bool)ms->get("regicide_garrison") ? 1 : 0;
 		setup.lock_teams = (bool)ms->get("lock_teams") ? 1 : 0;
 		setup.cheats = (bool)ms->get("cheats") ? 1 : 0;
+		setup.no_spies = (bool)ms->get("disable_spies") ? 1 : 0;
 		setup.no_treasures = (bool)ms->get("disable_treasures") ? 1 : 0;
 		Array snames = ms->get("slot_names");
 		for (int i = 0; i < 8 && i < snames.size(); ++i) setup.names[i] = String(snames[i]).utf8().get_data();
 		setup.water_level = (uint8_t)std::clamp((int)ms->get("water_level"), 0, 2);
+		setup.team_placement = (uint8_t)std::clamp((int)ms->get("team_placement"), 0, (int)rtso::TEAM_PLACEMENT_COUNT - 1);
 		setup.sea_rise_min = (uint8_t)std::clamp((int)ms->get("sea_level_rise_min"), 0, 60);
 		int msz = (int)ms->get("map_size");
 		setup.map_size = (uint16_t)((msz >= 128 && msz <= 512) ? msz : 128);
@@ -5262,6 +5273,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	for (uint8_t i = 0; i < rtso::MAX_PLAYERS; ++i)
 		random_map_teams[i] = (i < setup.slot_count && setup.teams[i] >= 1 && setup.teams[i] <= 8) ? setup.teams[i] : 0;
 	sim->set_biome_override((int)setup.biome - 1);
+	sim->set_team_placement(setup.team_placement);
 	// Civs before the map, so starting units take their owner's roster templates.
 	for (uint8_t t = 0; t < rtso::MAX_PLAYERS && t < setup.slot_count; ++t) {
 		if (setup.civs[t] < rtso::CIV_COUNT) sim->set_team_civ(t, setup.civs[t]);
@@ -5285,6 +5297,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	sim->set_regicide_garrison(setup.regicide_garrison != 0);
 	sim->set_lock_teams(setup.lock_teams != 0);
 	sim->set_cheats_enabled(setup.cheats != 0);
+	sim->set_disable_spies(setup.no_spies != 0);
 	sim->set_disable_treasures(setup.no_treasures != 0);
 	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) sim->set_player_color(p, setup.colors[p]);
 	sim->set_water_level_mode(setup.water_level);
@@ -5346,12 +5359,14 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		ms->set("regicide_garrison", setup.regicide_garrison != 0);
 		ms->set("lock_teams", setup.lock_teams != 0);
 		ms->set("cheats", setup.cheats != 0);
+		ms->set("disable_spies", setup.no_spies != 0);
 		ms->set("disable_treasures", setup.no_treasures != 0);
 		Array snames;
 		for (uint8_t i = 0; i < setup.slot_count && i < 8; ++i) snames.push_back(String::utf8(setup.names[i].c_str()));
 		ms->set("slot_names", snames);
 		apply_player_names(snames);
 		ms->set("water_level", sim->water_level_mode());
+		ms->set("team_placement", (int)setup.team_placement);
 		ms->set("sea_level_rise_min", sim->sea_level_rise_minutes());
 		ms->set("map_size", random_map_size);
 		ms->set("ai_difficulty", (int)sim->petra_difficulty());
@@ -5541,4 +5556,8 @@ void RtsoMain::_on_diplo_stance_changed(int stance, int player_idx) {
 
 void RtsoMain::_on_diplo_tribute_pressed(int player_idx, int res_type) {
 	diplo_dialog_.tribute_pressed(player_idx, res_type);
+}
+
+void RtsoMain::_on_diplo_spy_pressed(int player_idx) {
+	diplo_dialog_.spy_pressed(player_idx);
 }

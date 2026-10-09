@@ -42,6 +42,8 @@ var regicide_garrison: bool = false
 var lock_teams: bool = false
 # 0 A.D. CheatsEnabled: chat cheat codes ("i want pizza", ...) work.
 var cheats: bool = false
+# 0 A.D. DisableSpies: Espionage can't be researched, so nobody bribes units for vision.
+var disable_spies: bool = false
 # 0 A.D. DisableTreasures: no treasures on the map.
 var disable_treasures: bool = false
 # Random-map biome: 0 = the map's own, else rtso::BiomeType + 1. Game speed at the start.
@@ -51,6 +53,8 @@ var game_speed: float = 1.0
 # 0 rising, 1 shallow, 2 deep; Extinct Volcano minutes until the water rises.
 var water_level: int = 0
 var sea_level_rise_min: int = 25
+# 0 A.D. TeamPlacement for Ambush and Frontier: rtso::TeamPlacement, 0 = the map picks.
+var team_placement: int = 0
 # Random-map width in meters, 0 A.D.'s sizes 128 (Tiny) to 512 (Giant).
 var map_size: int = 128
 # Petra difficulty 0..5 (sandbox..very hard), behavior 0..3.

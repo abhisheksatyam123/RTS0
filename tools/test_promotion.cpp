@@ -261,6 +261,22 @@ int main() {
 		CHECK(s.units_.tmpl[idx(s, u)] == imm);
 	}
 
+	// RequiredXp auras: Han Xin's Northern Army (a 30 m range aura, Citizen Soldiers -20%)
+	// reaches only nearby soldiers of his owner.
+	{
+		fresh(s, CIV_HAN);
+		const uint16_t spear = tmpl_of("han/infantry_spearman_b");
+		const size_t a = idx(s, s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN, 0.0f, spear));
+		const uint32_t far_id = s.spawn_unit(30.0f, 0.0f, 0, UNIT_SPEARMAN, 0.0f, spear);
+		const uint32_t foe_id = s.spawn_unit(0.0f, 3.0f, 1, UNIT_SPEARMAN, 0.0f, spear);
+		const float base = s.promotion_required_xp(a);
+		s.spawn_unit(2.0f, 0.0f, 0, UNIT_HERO, 0.0f, tmpl_of("han/hero_han_xin_horse"));
+		s.rebuild_auras();
+		CHECK(near(s.promotion_required_xp(a), base * 0.8f));
+		CHECK(near(s.promotion_required_xp(idx(s, far_id)), base));
+		CHECK(near(s.promotion_required_xp(idx(s, foe_id)), base));
+	}
+
 	if (failures) {
 		std::printf("test_promotion: %d failure(s)\n", failures);
 		return 1;
