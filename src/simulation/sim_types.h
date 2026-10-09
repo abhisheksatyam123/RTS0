@@ -1219,6 +1219,7 @@ struct CivHeroAura {
 	float range; // RTS0 units
 	uint8_t players; // AuraPlayers bits (0 A.D. affectedPlayers)
 	uint64_t affects[CIV_TEMPLATE_WORDS_MAX]; // bitset of roster rows the aura buffs
+	bool structures; // "Structure" in its affects classes (Antiochus IV's Health/Max on enemy structures)
 };
 
 enum CivBonusStat : uint8_t {
