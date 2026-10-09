@@ -4003,7 +4003,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		if (ship >= 0 && ship < (int)gaia_unit_ids.size() && gaia_unit_ids[ship])
 			sim->order_board_transport(&gaia_unit_ids[i], 1, gaia_unit_ids[ship]);
 		else if (str >= 0 && str < (int)gaia_structure_ids.size() && gaia_structure_ids[str])
-			sim->garrison_instantly(gaia_unit_ids[i], gaia_structure_ids[str]);
+			sim->garrison_unit_now(gaia_unit_ids[i], gaia_structure_ids[str]);
 	}
 
 	// Rebuild World View 3D terrain and bounds
