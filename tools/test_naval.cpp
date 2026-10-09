@@ -728,9 +728,30 @@ static void test_fire_ship() {
 	CHECK(hp(b) == b0);
 }
 
+// A worker sent to a tree across the north-east lake walks round it (UnitMotion paths
+// every move) instead of wading straight through deep water.
+static void test_gather_around_lake() {
+	static Simulation s;
+	fresh(s);
+	const uint32_t tree = s.spawn_resource_world(57.0f, 44.0f, RES_WOOD, 200);
+	const uint32_t woman = s.spawn_unit(31.0f, 44.0f, 0, UNIT_FEMALE_CITIZEN);
+	s.order_gather(&woman, 1, tree);
+	bool waded = false, reached = false;
+	for (int t = 0; t < (int)(40.0f / Simulation::FIXED_STEP) && !reached; ++t) {
+		s.tick(Simulation::FIXED_STEP);
+		const int32_t i = idx(s, woman);
+		auto [cx, cy] = s.nav_grid().world_to_cell(s.units().pos_x[i], s.units().pos_z[i]);
+		waded = waded || s.nav_grid().cells.at(cx, cy) == NAV_WATER;
+		reached = s.units().carry[i] > 0;
+	}
+	std::printf("  gather across the lake: walked round %s, gathering %s\n", waded ? "no" : "yes", reached ? "yes" : "no");
+	CHECK(!waded && reached);
+}
+
 int main() {
 	test_transport();
 	test_no_wading();
+	test_gather_around_lake();
 	test_dock_trade();
 	test_fishing();
 	test_petra_sea_trade();

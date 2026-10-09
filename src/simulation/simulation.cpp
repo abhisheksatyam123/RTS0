@@ -1110,6 +1110,24 @@ void Simulation::rebuild_territory() {
 	nav_grid_.blur_territory(influence_grid_, territory_grid_);
 }
 
+// Whether the straight walk from (x0, z0) to (x1, z1) crosses a navcell too deep for land
+// units (the end cells excepted: a dock or a shoreline resource may sit on one).
+bool Simulation::line_crosses_deep_water(float x0, float z0, float x1, float z1) const {
+	if (terrain_water_height_ < -0.5f || nav_grid_.cells.blank()) return false;
+	auto [cx0, cy0] = nav_grid_.world_to_cell(x0, z0);
+	auto [cx1, cy1] = nav_grid_.world_to_cell(x1, z1);
+	int dx = std::abs(cx1 - cx0), sx = cx0 < cx1 ? 1 : -1;
+	int dy = -std::abs(cy1 - cy0), sy = cy0 < cy1 ? 1 : -1;
+	int err = dx + dy, x = cx0, y = cy0;
+	while (x != cx1 || y != cy1) {
+		if ((x != cx0 || y != cy0) && nav_grid_.cells.inside(x, y) && nav_grid_.cells.at(x, y) == NAV_WATER) return true;
+		const int e2 = 2 * err;
+		if (e2 >= dy) { err += dy; x += sx; }
+		if (e2 <= dx) { err += dx; y += sy; }
+	}
+	return false;
+}
+
 bool Simulation::find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass) const {
 	ScopedUs prof(map_scale_stats_.path_us, map_scale_stats_.path_calls);
 	return nav_grid_.find_path(sx, sz, tx, tz, out, pass);
@@ -5135,15 +5153,16 @@ void Simulation::move_units(float dt, Arena &arena) {
 		// while (tx, tz) stays within 2 world units of the target it was computed for.
 		const uint8_t st = units_.action_state[i];
 		bool task_path = false;
-		if ((st == ACTION_GATHER || st == ACTION_BUILD || st == ACTION_RETURN_DROPSITE) &&
+		if ((st == ACTION_GATHER || st == ACTION_BUILD || st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE) &&
 		    (size_t)i < unit_paths_.size() && !unit_is_ship(units_.unit_type[i])) {
 			WaypointPath &wp = unit_paths_[i];
 			const float gdx = wp.goal_x - tx[i];
 			const float gdz = wp.goal_z - tz[i];
 			task_path = wp.has_goal && gdx * gdx + gdz * gdz <= 4.0f;
-			if (!task_path && rtso::nav::line_blocked_by_buildings(rtso::nav::Vec2(px[i], pz[i]),
+			if (!task_path && (rtso::nav::line_blocked_by_buildings(rtso::nav::Vec2(px[i], pz[i]),
 					rtso::nav::Vec2(tx[i], tz[i]), 2.0f * map_half_, unit_collision_radius(units_.unit_type[i]),
-					steer_obstacles_, units_.target_building_id[i])) {
+					steer_obstacles_, units_.target_building_id[i]) ||
+					line_crosses_deep_water(px[i], pz[i], tx[i], tz[i]))) {
 				const uint8_t ut = units_.unit_type[i];
 				const bool mounted = ut == UNIT_CAVALRY || ut == UNIT_CHARIOT || ut == UNIT_CAMEL || ut == UNIT_SCYTHED_CHARIOT;
 				find_path(px[i], pz[i], tx[i], tz[i], wp, mounted ? PASS_CAVALRY : PASS_INFANTRY);

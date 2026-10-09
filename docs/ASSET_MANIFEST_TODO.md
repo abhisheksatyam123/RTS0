@@ -14,6 +14,7 @@ Manifest counts come from `assets/models/manifest.json`. The disk column was cou
 | models | **742** (units 363, buildings 367, vegetation 12) | 363 / 367 / 12 `.glb` (vegetation 12 includes the 0 A.D. fish shoal, `fish.glb`, from `tools/dae_to_glb.gd`) |
 | props | not in the manifest | 8 `.glb` in `assets/models/props/` (7 carried-resource shuttles, the garrison flag) from `tools/dae_to_glb.gd` with `prop`; 11 flag skins in `assets/textures/garrison_flags/` |
 | scenery | not in the manifest | 22 `.glb` in `assets/models/scenery/` for the 19 Gaia scenery types (`data/scenery_actors.json`), from `tools/extract_0ad_scenery.py` |
+| player masks | not in the manifest | 359 L8 `.png` in `assets/textures/player_masks/` (1 - alpha of 0 A.D.'s `player_trans` skins) and `data/player_masks.json` (1424 GLB images), from `tools/extract_player_masks.py` |
 | particles | **3** | `flame.png`, `smoke_64a.png`, `dust_256a.png` in `assets/textures/particles/` |
 | animations | **1316** | 1316 `.psa` + 1316 `.json` in `assets/animations/` |
 | skeletons | **98** | 98 `.xml` in `assets/skeletons/` |
@@ -140,12 +141,12 @@ Models:
 Animations (363 unit GLBs):
 - 23 unit GLBs have no clips: projectiles, and hulls and animals whose 0 A.D. actors have none either (Celtic, Han, Iberian and Mauryan warships, the merchant ships, the Iberian fishing ship, muskox, walrus, humpback whale; checked 2026-10-09). Every hull rocks in the world view (`apply_ship_wave_xform`).
 - One `Attack` clip per unit: no melee/ranged split per weapon. `Slaughter` is separate, and the 166 biped GLBs carry 0 A.D.'s `Capture` clip (`biped/infantry/capturing_a.dae`, added by `tools/add_0ad_clips.py`). Cavalry, siege and ships fall back to `Attack` when capturing.
-- Idle and death variants: 0 A.D. picks one of an actor's same-named clips at random. 110 biped GLBs carry a second idle (`Idle2`) and 140 a second death (`Death2`), the actor's next most frequent (`tools/add_0ad_clips.py --variants`), and each unit keeps one by its id. Cavalry, camel and elephant variants are still missing.
+- Idle and death variants: 0 A.D. picks one of an actor's same-named clips at random. 110 biped GLBs carry a second idle (`Idle2`) and 140 a second death (`Death2`), the actor's next most frequent (`tools/add_0ad_clips.py --variants`), and each unit keeps one by its id. The horse, camel and elephant GLBs add 52 `Idle2` and 34 `Death2` (`--mounts`): the mount's next clip, with the rider playing its own on the mount's prop point. Horse manes and tails are rigid on the `hair` bone instead of skinned to the horse as in 0 A.D., so they hang in place while a horse dies or rears.
 - Siege: the 25 unpacked engines have no `Walk`, as in 0 A.D., where an engine only moves packed. A packed engine shows its 0 A.D. `*_packed` actor (a wagon with horses or oxen, crew and cargo) in 13 GLBs from `tools/extract_0ad_packed_siege.py`, mapped in `src/graphics/assets/packed_siege_models.h`. 0 A.D. has no pack/unpack clips: the model swaps when packing or unpacking ends. `GatherFish` is on 3 GLBs only.
 - Done: citizen-soldier gather/build clips, per-resource carry walks and the promotion clip (#149, added at runtime from `.psa`).
 
 Textures:
-- **Player colour.** `extract_0ad_assets.py` bakes a fixed tint into each skin where the `player_trans` alpha is below 250, so units and buildings do not show their owner's colour. Fixing it needs `public.zip` to re-extract the mask. Borders, garrison flags and the minimap already use `Simulation::player_color`.
+- **Player colour: done (player colour PR).** `extract_0ad_assets.py` bakes a fixed tint into each skin where the `player_trans` alpha is below 250. `tools/extract_player_masks.py` recovers 0 A.D.'s mask for 1424 GLB images (328 unit and 338 building models) and `shaders/player_color.gdshader` swaps the baked tint for the owner's colour. Not coloured: fauna, rubble and foundations, plus 12 unit models (Gaul and Briton citizens and archers, catapults, the bolt shooter) and 10 structures (Gaul walls and towers, the sentry and defense towers, pyramids, siege wall, rowboat) whose skins on 0 A.D.'s current master have no mask or no longer match the extracted ones.
 - No normal, specular or parallax maps (see Open todos).
 
 ## Open todos (moved here from ASSET_MAPPING.md, checked 2026-10-08)
