@@ -262,6 +262,13 @@ jobs:
             src/network/net_host.cpp -lpthread -o /tmp/test_building_steering
           /tmp/test_building_steering
 
+      - name: Unit pushing scenarios
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_unit_pushing.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+            src/network/net_host.cpp -lpthread -o /tmp/test_unit_pushing
+          /tmp/test_unit_pushing
+
       - name: Siege packing scenarios
         run: |
           g++ -std=c++20 -O2 -Isrc tools/test_pack.cpp src/simulation/simulation.cpp \
