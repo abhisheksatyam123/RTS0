@@ -915,7 +915,7 @@ inline uint64_t unit_tech_classes(uint8_t type) {
 		case UNIT_CAMEL: return cs | TC_CAVALRY | TC_MELEE;
 		case UNIT_TRADER: return org | TC_TRADER | TC_CIVILIAN;
 		case UNIT_HEALER: return org | TC_HEALER | TC_CIVILIAN;
-		case UNIT_HERO: return org | TC_HERO | TC_INFANTRY | TC_MELEE;
+		case UNIT_HERO: return org | TC_HERO | TC_SOLDIER | TC_INFANTRY | TC_MELEE; // template_unit_hero VisibleClasses: Soldier
 		case UNIT_ELEPHANT: return org | TC_SOLDIER | TC_ELEPHANT | TC_CHAMPION | TC_MELEE;
 		case UNIT_CHARIOT: return org | TC_SOLDIER | TC_CAVALRY | TC_CHARIOT | TC_RANGED | TC_CHAMPION;
 		case UNIT_SCYTHED_CHARIOT: return org | TC_SOLDIER | TC_CAVALRY | TC_CHARIOT | TC_MELEE | TC_CHAMPION;
@@ -1221,8 +1221,9 @@ inline uint16_t civ_default_template(uint8_t civ, uint8_t type) {
 				int best_score = 1 << 30;
 				for (uint16_t i = civ_roster_begin(c); i < civ_roster_end(c); ++i) {
 					const CivUnitTemplate &u = civ_unit_template(i);
-					// Siege towers share the bolt shooter's class but are only trained by name.
-					if (u.unit_type != t || (u.flags & ROSTER_SIEGE_TOWER)) continue;
+					// Siege towers share the bolt shooter's class but are only trained by name;
+					// units only reached by promotion (no trainer) are never trained.
+					if (u.unit_type != t || (u.flags & ROSTER_SIEGE_TOWER) || !u.trainers) continue;
 					int score = u.phase * 4;
 					if (u.flags & ROSTER_HERO) score += 100;
 					if (u.flags & ROSTER_CHAMPION) score += 20;

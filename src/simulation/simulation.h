@@ -175,6 +175,8 @@ public:
 		if (player == OBSERVER_VIEW) return revealed_fow_.data();
 		// A defeated player observes: the whole map is revealed (0 A.D. parity).
 		if (player < MAX_PLAYERS && ((defeated_mask_ >> player) & 1)) return revealed_fow_.data();
+		// So does a multiplayer observer, which has no player (0xFF).
+		if (player == 0xFF) return revealed_fow_.data();
 		if (player == 0 || player >= MAX_PLAYERS) return fow_grid_.data();
 		if (player_fow_[player].size() == fow_grid_.size()) return player_fow_[player].data();
 		if (player == PETRA_PLAYER && petra_runs_for(PETRA_PLAYER)) return petra_fow_.data();
