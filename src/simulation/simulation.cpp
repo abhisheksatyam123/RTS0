@@ -2519,6 +2519,7 @@ void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint
 	float rz = resources_.z[ridx];
 	const uint8_t sub_bits = (uint8_t)((resources_.subtype[ridx] << ORDER_FLAG_SUB_SHIFT) & ORDER_FLAG_SUB_MASK);
 	UnitOrder o; o.kind = ORDER_GATHER; o.flags = sub_bits; o.target = resource_id; o.x = rx; o.z = rz;
+	o.res_type = (uint8_t)(resources_.type[ridx] + 1);
 	const std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
 	const uint32_t *unit_ids = now.data();
 	const size_t count = now.size();
@@ -7762,7 +7763,19 @@ void Simulation::apply_order(uint32_t uid, const UnitOrder &o) {
 		case ORDER_PATROL: order_patrol(&uid, 1, o.x, o.z); break;
 		case ORDER_ATTACK: order_attack(&uid, 1, o.target); break;
 		case ORDER_ATTACK_BUILDING: order_attack_building(&uid, 1, o.target, false, capture); break;
-		case ORDER_GATHER: order_gather(&uid, 1, o.target); break;
+		case ORDER_GATHER: {
+			uint32_t r = o.target;
+			// Order.Gather on a resource that is gone -> FINDINGNEWTARGET (GatherNearPosition):
+			// the same kind of resource near where it was.
+			const int32_t i = lookup_unit(uid);
+			auto rit = res_id_to_idx_.find(r);
+			const bool gone = rit == res_id_to_idx_.end() || !resources_.alive[rit->second] || resources_.amount[rit->second] <= 0;
+			if (gone && o.res_type != 0 && i >= 0)
+				r = find_nearby_resource(o.x, o.z, (uint8_t)(o.res_type - 1), units_.team[i],
+						(o.flags & ORDER_FLAG_SUB_MASK) >> ORDER_FLAG_SUB_SHIFT);
+			order_gather(&uid, 1, r);
+			break;
+		}
 		case ORDER_BUILD: order_build_or_repair(&uid, 1, o.target); break;
 		case ORDER_GARRISON: order_garrison(&uid, 1, o.target); break;
 		case ORDER_GUARD: order_guard(&uid, 1, o.target); break;
