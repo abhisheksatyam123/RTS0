@@ -41,6 +41,8 @@
 // 28. AlertRaiser: raising an alert at a storehouse sends nearby women into the nearest
 //     structures with room (not soldiers, not women far away); ending it unloads them and
 //     sends them back to work; lockstep cmd 36.
+// 29. A queued gather whose resource is gone gathers the same kind nearby (FINDINGNEWTARGET,
+//     GatherNearPosition); queued attacks on the dead and garrisons into a full house are skipped.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_unit_orders.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -922,6 +924,39 @@ static void test_alert() {
 	check(c.cmd_type == 36 && l.unit_order(x).kind == ORDER_GARRISON, "lockstep raise alert (36)");
 }
 
+static void test_queue_edges() {
+	std::printf("29. queued orders whose target is gone\n");
+	Simulation s;
+	setup(s);
+	uint32_t w = s.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN);
+	const uint32_t t1 = s.spawn_resource_world(20, 0, RES_WOOD, 1); // cut before w gets there
+	const uint32_t t2 = s.spawn_resource_world(22, 3, RES_WOOD, 500);
+	uint32_t other = s.spawn_unit(19, 0, 0, UNIT_FEMALE_CITIZEN);
+	s.order_gather(&other, 1, t1);
+	s.order_walk(&w, 1, 10, 0);
+	s.order_gather(&w, 1, t1, true);
+	s.order_walk(&w, 1, -10, 0, true);
+	const bool found = run_until(s, 30.0f, [&] { return s.unit_order(w).kind == ORDER_GATHER; });
+	check(found && s.unit_order(w).target == t2, "the gather goes to the tree next to the one that was cut");
+	check(s.unit_order_queue(w) && s.unit_order_queue(w)->size() == 1, "the walk after it still waits");
+
+	uint32_t a = s.spawn_unit(0, 5, 0, UNIT_SPEARMAN);
+	const uint32_t house = s.spawn_building_world(20, -20, BLD_HOUSE, 0, 1.0f);
+	const Simulation::Building *hb = bld(s, house);
+	for (int k = 0; k < hb->garrison_cap; ++k) {
+		const uint32_t f = s.spawn_unit(18, -16.0f + k * 0.5f, 0, UNIT_FEMALE_CITIZEN);
+		s.garrison_unit_now(f, house);
+	}
+	const uint32_t e = s.spawn_unit(40, 40, 1, UNIT_SPEARMAN);
+	s.order_walk(&a, 1, 10, 5);
+	s.order_attack(&a, 1, e, true);
+	s.order_garrison(&a, 1, house, true);
+	s.order_walk(&a, 1, 10, 25, true);
+	s.cmd_delete(1, &e, 1);
+	const bool walked = run_until(s, 30.0f, [&] { return dist(s, a, 10, 25) < 1.5f; });
+	check(walked && alive(s, a), "an attack on the dead and a garrison into a full house are skipped");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -952,6 +987,7 @@ int main(int argc, char **argv) {
 	test_return_resource();
 	test_ungarrison_rally();
 	test_alert();
+	test_queue_edges();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
