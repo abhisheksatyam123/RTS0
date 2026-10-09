@@ -21241,7 +21241,11 @@
      "add": 1.0
     }
    ],
-   "rts0": null
+   "rts0": [
+    "AURA_HEAL_AMOUNT",
+    1.0,
+    1000.0
+   ]
   },
   {
    "id": "athen_hero_iphicrates_1",

@@ -4,6 +4,7 @@
 #include "../core/memory/arena.h"
 #include "../core/memory/soa_storage.h"
 #include "grid_nav.h"
+#include "los_grid.h"
 #include "nav/footprint.h"
 #include "nav/obstacle_grid.h"
 #include "aura_manager.h"
@@ -150,7 +151,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 40; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 41; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -189,6 +190,15 @@ public:
 	// player in multiplayer). Presentation-only: not hashed, not used by the sim.
 	void set_fow_viewer(uint8_t player) { fow_viewer_ = player; }
 	uint8_t fow_state_at(float x, float z, uint8_t viewer_team = 0) const;
+	// Per-player line of sight (0 A.D. CCmpRangeManager LOS; see los_grid.h),
+	// hashed and saved. Player p sees what its own sources and those of the
+	// players it shares vision with (VisionSharing.js, los_shared_mask) see;
+	// "Revealed map" shows everything and "Explored map" explores everything.
+	uint8_t los_shared_mask(uint8_t player) const;
+	bool los_visible(uint8_t player, float x, float z) const;
+	bool los_explored(uint8_t player, float x, float z) const;
+	const LosGrid &los() const { return los_; }
+	uint32_t los_hash() const { return los_.hash(); }
 	bool is_entity_visible_to_viewer(float x, float z, uint8_t entity_team, uint8_t viewer_team = 0) const;
 
 	struct Building {
@@ -470,6 +480,16 @@ public:
 	// 0 A.D. "delete-entities": kills the player's own units and destroys its own
 	// structures (not ones it holds under half the capture points of).
 	void cmd_delete(uint8_t player, const uint32_t *ids, size_t count);
+	// 0 A.D. Cheat.js, for a player when Game Setup's Cheats is on. `parameter` is the
+	// number typed after the code; `extra` is the resource (ADD_RESOURCE) or the tech id
+	// (RESEARCH); `selected` is the player's selection, whoever owns it. CONVERT_UNITS and
+	// DEFEAT_PLAYER take an RTS0 player id (GAIA_PLAYER for Gaia, 0xFF for yourself).
+	enum CheatAction : uint8_t {
+		CHEAT_ADD_RESOURCE, CHEAT_REVEAL_MAP, CHEAT_CONVERT_UNITS, CHEAT_KILL_UNITS, CHEAT_DEFEAT_PLAYER,
+		CHEAT_CREATE_UNITS, CHEAT_CHANGE_PHASE, CHEAT_RESEARCH, CHEAT_META, CHEAT_COUNT
+	};
+	bool cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, uint32_t extra,
+			const uint32_t *selected, size_t count);
 	// 0 A.D. "back-to-work" (UnitAI BackToWork): resume the last gather or build order.
 	void order_back_to_work(const uint32_t *unit_ids, size_t count);
 	// 0 A.D. Commands.js "remove-guard" (UnitAI RemoveGuard): end a Guard order, or drop
@@ -651,6 +671,9 @@ public:
 	// 0 A.D. LockTeams (Diplomacy.LockTeam): no player can change diplomacy all match.
 	void set_lock_teams(bool on) { set_setup_flag(SETUP_LOCK_TEAMS, on); }
 	bool teams_locked() const { return setup_flags_ & SETUP_LOCK_TEAMS; }
+	// 0 A.D. CheatsEnabled: chat cheat codes work for every player (cmd_cheat).
+	void set_cheats_enabled(bool on) { set_setup_flag(SETUP_CHEATS, on); }
+	bool cheats_enabled() const { return setup_flags_ & SETUP_CHEATS; }
 	uint32_t regicide_hero(uint8_t pid) const { return pid < MAX_PLAYERS ? regicide_hero_[pid] : 0; }
 	// False for a Regicide hero while RegicideGarrison is off: it can't enter structures,
 	// siege engines or ships.
@@ -855,6 +878,7 @@ public:
 	ResourceView resources() const;
 
 	const std::vector<Building> &buildings() const { return buildings_; }
+	float building_vision_range(const Building &b) const; // 0 when b gives no vision
 	const std::vector<Projectile> &projectiles() const { return projectiles_; }
 
 	// Per-player table. Out-of-range ids clamp to player 0 so stray team bytes can't index past the array.
@@ -1254,6 +1278,7 @@ public:
 	// Diagnostic only: never read by the simulation, so lockstep is unaffected.
 	struct MapScaleStats {
 		uint64_t fow_us = 0, fow_calls = 0;
+		uint64_t los_us = 0, los_calls = 0;
 		uint64_t path_us = 0, path_calls = 0;
 		uint64_t territory_us = 0, territory_calls = 0;
 		uint64_t threat_us = 0, threat_calls = 0;
@@ -1456,6 +1481,8 @@ private:
 	void fauna_hit_unit(size_t f, size_t u);              // an animal's melee attack lands on unit u
 	bool fauna_can_step(size_t f, float x, float z) const;
 	void tick_fow();  // updates FoW each sim tick
+	void tick_los();  // moves every LOS source that changed since the last tick
+	void reset_los();
 	void ensure_fow_cell_heights();
 	// The cells one viewer lit, kept while it stands still (CCmpRangeManager likewise redoes a
 	// viewer's LOS only when it moves). Derived from the terrain alone: never saved or hashed, and
@@ -1675,7 +1702,8 @@ private:
 	bool disable_treasures_ = false;
 	void spawn_nomad_treasures();
 	// Game Setup switches kept in the byte v32 saves as RegicideGarrison (old saves read as bit 0).
-	static constexpr uint8_t SETUP_REGICIDE_GARRISON = 1, SETUP_LOCK_TEAMS = 2, SETUP_FLAGS_ALL = 3;
+	static constexpr uint8_t SETUP_REGICIDE_GARRISON = 1, SETUP_LOCK_TEAMS = 2, SETUP_CHEATS = 4, SETUP_FLAGS_ALL = 7;
+	void cheat_convert(uint8_t to, const uint32_t *ids, size_t count);
 	uint8_t setup_flags_ = 0;
 	void set_setup_flag(uint8_t flag, bool on) { setup_flags_ = on ? (setup_flags_ | flag) : (setup_flags_ & ~flag); }
 	uint32_t regicide_hero_[MAX_PLAYERS] = {};
@@ -1946,6 +1974,9 @@ private:
 	std::array<std::vector<uint8_t>, MAX_PLAYERS> player_fow_; // per-player FoW for players 1..7 (index 0 unused: fow_grid_)
 	std::vector<uint8_t> unexplored_fow_ = std::vector<uint8_t>((size_t)MAX_GRID_RES * MAX_GRID_RES, 0);
 	std::vector<uint8_t> revealed_fow_ = std::vector<uint8_t>((size_t)MAX_GRID_RES * MAX_GRID_RES, FOW_VISIBLE);
+	LosGrid los_;                         // per-player LOS counts and visible/explored bits (saved v41)
+	std::vector<LosSource> los_unit_src_; // the circle each unit index last added
+	std::vector<LosSource> los_bld_src_;  // the circle each buildings_ index last added
 
 	// Per-AI Petra state. The petra_* members above hold the state of the AI being
 	// run (PETRA_PLAYER between ticks); every other AI slot's state is parked here

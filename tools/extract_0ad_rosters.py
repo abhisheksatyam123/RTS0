@@ -167,31 +167,31 @@ TRAINER_BUILDING = {
 UNIQUE_BUILDINGS = [
     ("BLD_GYMNASIUM", ["gymnasium"], "gymnasium", "gymnasium"),
     ("BLD_PRYTANEION", ["prytaneion"], "prytaneion", "prytaneion"),
-    ("BLD_GEROUSIA", ["gerousia"], "great_hall", "gerousia"),
-    ("BLD_SYSSITON", ["syssiton"], "great_hall", "syssiton"),
-    ("BLD_TACHARA", ["tachara"], "palace", "tachara"),
-    ("BLD_ARMY_CAMP", ["army_camp"], "barracks", "army_camp"),
+    ("BLD_GEROUSIA", ["gerousia"], "gerousia", "gerousia"),
+    ("BLD_SYSSITON", ["syssiton"], "syssiton", "syssiton"),
+    ("BLD_TACHARA", ["tachara"], "tachara", "tachara"),
+    ("BLD_ARMY_CAMP", ["army_camp"], "army_camp", "army_camp"),
     ("BLD_AMPHITHEATER", ["amphitheater_pompeii"], "amphitheater", "amphitheater"),
     ("BLD_LIBRARY", ["library"], "library", "library"),
     ("BLD_KENNEL", ["kennel"], "kennel", "kennel"),
-    ("BLD_ASSEMBLY", ["assembly"], "great_hall", "assembly"),
-    ("BLD_MONUMENT", ["monument"], "pyramid_minor", "monument"),
+    ("BLD_ASSEMBLY", ["assembly"], "assembly", "assembly"),
+    ("BLD_MONUMENT", ["monument"], "monument", "monument"),
     ("BLD_PALACE", ["palace"], "palace", "palace"),
-    ("BLD_PILLAR", ["pillar_ashoka"], "pyramid_minor", "pillar"),
+    ("BLD_PILLAR", ["pillar_ashoka"], "pillar", "pillar"),
     ("BLD_PYRAMID_LARGE", ["pyramid_large"], "pyramid_large", "pyramid_large"),
     ("BLD_PYRAMID_SMALL", ["pyramid_small"], "pyramid_small", "pyramid_small"),
-    ("BLD_MERCENARY_CAMP", ["mercenary_camp"], "barracks", "mercenary_camp"),
+    ("BLD_MERCENARY_CAMP", ["mercenary_camp"], "mercenary_camp", "mercenary_camp"),
     ("BLD_LIGHTHOUSE", ["lighthouse"], "lighthouse", "lighthouse"),
-    ("BLD_MILITARY_COLONY", ["military_colony"], "town_center", "military_colony"),
+    ("BLD_MILITARY_COLONY", ["military_colony"], "military_colony", "military_colony"),
     ("BLD_ACADEMY", ["academy"], "academy", "academy"),
     ("BLD_MINISTRY", ["ministry"], "imperial_ministry", "ministry"),
-    ("BLD_CAMP_BLEMMYE", ["camp_blemmye"], "barracks", "camp_blemmye"),
-    ("BLD_CAMP_NOBA", ["camp_noba"], "barracks", "camp_noba"),
-    ("BLD_TEMPLE_AMUN", ["temple_amun"], "temple", "temple_amun"),
-    ("BLD_TEMPLE_VESTA", ["temple_vesta"], "temple", "temple_vesta"),
-    ("BLD_TEMPLE_MARS", ["temple_mars"], "temple", "temple_mars"),
-    ("BLD_ICE_HOUSE", ["ice_house"], "farmstead", "ice_house"),
-    ("BLD_SUPER_DOCK", ["super_dock"], "dock", "super_dock"),
+    ("BLD_CAMP_BLEMMYE", ["camp_blemmye"], "camp_blemmye", "camp_blemmye"),
+    ("BLD_CAMP_NOBA", ["camp_noba"], "camp_noba", "camp_noba"),
+    ("BLD_TEMPLE_AMUN", ["temple_amun"], "temple_amun", "temple_amun"),
+    ("BLD_TEMPLE_VESTA", ["temple_vesta"], "temple_vesta", "temple_vesta"),
+    ("BLD_TEMPLE_MARS", ["temple_mars"], "temple_mars", "temple_mars"),
+    ("BLD_ICE_HOUSE", ["ice_house"], "ice_house", "ice_house"),
+    ("BLD_SUPER_DOCK", ["super_dock"], "super_dock", "super_dock"),
 ]
 # Units of a civ-specific structure train only there, as in 0 A.D. (Petra builds
 # these structures since #105).
@@ -814,7 +814,7 @@ def load_team_bonuses(sim_root, rows):
 
 # RTS0 AuraManager kinds (aura_manager.h AuraType).
 AURA_KIND = {"AURA_GATHER": 0, "AURA_HEAL": 1, "AURA_ATTACK": 2, "AURA_SPEED": 3, "AURA_ARMOR": 4,
-             "AURA_HEALTH": 5, "AURA_VISION": 6}
+             "AURA_HEALTH": 5, "AURA_VISION": 6, "AURA_HEAL_AMOUNT": 7}
 MULTIPLY_AURAS = ("AURA_ATTACK", "AURA_SPEED", "AURA_HEALTH", "AURA_VISION")
 GLOBAL_AURA_RANGE = 1000.0
 
@@ -884,6 +884,8 @@ def aura_modifications(a):
             kind, value = "AURA_ARMOR", m["add"]
         elif v in ("Health/IdleRegenRate", "Health/RegenRate") and "add" in m:
             kind, value = "AURA_HEAL", m["add"]
+        elif v == "Heal/Health" and "add" in m:
+            kind, value = "AURA_HEAL_AMOUNT", m["add"]
         elif v == "ResourceGatherer/BaseSpeed" and "multiply" in m and m["multiply"] > 1:
             kind, value = "AURA_GATHER", 1.0 - 1.0 / m["multiply"]
         if kind is None:

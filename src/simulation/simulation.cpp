@@ -359,6 +359,7 @@ void Simulation::set_map_half(float h) {
 	fow_grid_.assign(cells, FOW_UNEXPLORED);
 	for (auto &g : player_fow_) g.clear();
 	petra_fow_.assign(cells, FOW_UNEXPLORED);
+	reset_los();
 	fow_cell_height_.clear();
 	fow_cell_hmax_.clear();
 	fow_block_hmax_.clear();
@@ -431,6 +432,7 @@ void Simulation::reset() {
 	frame_arena_.reset_all();
 	std::fill(fow_grid_.begin(), fow_grid_.end(), (uint8_t)FOW_UNEXPLORED);
 	for (auto &g : player_fow_) g.clear();
+	reset_los();
 	barter_timer_ = 0.0f;
 	upkeep_timer_ = 0.0f;
 	entity_limits_timer_ = 0.0f;
@@ -661,6 +663,7 @@ void Simulation::spawn_war(int total_units) {
 	std::fill(fow_grid_.begin(), fow_grid_.end(), (uint8_t)FOW_UNEXPLORED);
 	for (auto &g : player_fow_) g.clear();
 	std::fill(petra_fow_.begin(), petra_fow_.end(), (uint8_t)FOW_UNEXPLORED);
+	reset_los();
 
 	total_units = std::clamp(total_units, 4, (int)UNIT_CAP - 64);
 	const int half = total_units / 2;
@@ -5536,6 +5539,7 @@ void Simulation::tick(float dt) {
 	if (fow_timer_ >= 0.25f) {
 		fow_timer_ = 0.0f;
 		tick_fow();
+		tick_los(); // 0 A.D. moves LOS once a turn; RTS0 at the fog's 4 Hz
 	}
 
 	frame_arena_.flip();
@@ -7809,6 +7813,10 @@ float Simulation::healer_range_of(size_t h) const {
 float Simulation::heal_amount_of(size_t h) const {
 	float hp = HEAL_HP;
 	for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[h], 3); ++r) hp += rank_bonus(r).heal_add;
+	// Heal/Health auras (Hippocrates' Hippocratic Oath: allied healers +1).
+	if (aura_mgr_.has(AURA_HEAL_AMOUNT))
+		hp += aura_mgr_.query_modifier(units_.pos_x[h], units_.pos_z[h], units_.team[h], AURA_HEAL_AMOUNT,
+			units_.tmpl[h], &unit_combat_at(h).classes);
 	return hp;
 }
 
@@ -9469,7 +9477,7 @@ void Simulation::on_construction_finished(const Building &b, size_t builder) {
 		if (units_.alive[k] && units_.team[k] == b.team &&
 				(k == builder || (units_.action_state[k] == ACTION_BUILD && units_.target_building_id[k] == b.id)))
 			builders.push_back(units_.id[k]);
-	const bool food = b.type == BLD_FARMSTEAD || b.type == BLD_DOCK;
+	const bool food = b.type == BLD_FARMSTEAD;
 	const bool other = b.type == BLD_STOREHOUSE;
 	for (uint32_t uid : builders) {
 		const int32_t k = lookup_unit(uid);
@@ -9503,10 +9511,11 @@ void Simulation::next_after_construction(size_t k, const Building &b, bool food,
 			order_gather(&uid, 1, ensure_field_resource(b), false, false);
 			return;
 		}
-		if (food || other || b.type == BLD_TOWN_CENTER) {
+		const bool takes_all = b.type == BLD_TOWN_CENTER || b.type == BLD_DOCK; // food wood stone metal
+		if (food || other || takes_all) {
 			// Prefer what the unit gathered last (lastGathered), if the dropsite takes it.
 			uint8_t pref = units_.res_type_carried[k];
-			const bool takes_pref = b.type == BLD_TOWN_CENTER || (food ? pref == RES_FOOD : pref != RES_FOOD);
+			const bool takes_pref = takes_all || (food ? pref == RES_FOOD : pref != RES_FOOD);
 			uint32_t r = takes_pref ? find_nearby_resource(b.x, b.z, pref, b.team) : 0;
 			if (r == 0) {
 				if (food) r = find_nearby_resource(b.x, b.z, RES_FOOD, b.team);
@@ -9762,6 +9771,136 @@ void Simulation::cmd_delete(uint8_t player, const uint32_t *ids, size_t count) {
 	}
 }
 
+bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, uint32_t extra,
+		const uint32_t *selected, size_t count) {
+	if (!cheats_enabled() || player >= MAX_PLAYERS || is_defeated(player) || action >= CHEAT_COUNT) return false;
+	PlayerState &ps = players_[player];
+	auto change_phase = [&]() {
+		if (!ps.has_tech(TECH_PHASE_TOWN)) complete_research(player, TECH_PHASE_TOWN);
+		else if (!ps.has_tech(TECH_PHASE_CITY)) complete_research(player, TECH_PHASE_CITY);
+	};
+	switch (action) {
+	case CHEAT_ADD_RESOURCE: // "i want pizza", "bring me my axe", "i see a mountain here", "your money or your life"
+		if (extra >= RES_COUNT) return false;
+		ps.res[extra] = std::max(0.0f, ps.res[extra] + (float)parameter);
+		return true;
+	case CHEAT_REVEAL_MAP: // "jame jam": SetLosRevealAll(-1)
+		set_reveal_map(true);
+		return true;
+	case CHEAT_CONVERT_UNITS: { // "wololo": to the given player, else to yourself
+		const uint8_t to = (parameter >= 0 && parameter < MAX_PLAYERS) || parameter == GAIA_PLAYER ? (uint8_t)parameter : player;
+		cheat_convert(to, selected, count);
+		return true;
+	}
+	case CHEAT_KILL_UNITS: // "black death": Health.Kill, whoever owns them
+		for (size_t k = 0; k < count; ++k) {
+			const int32_t i = lookup_unit(selected[k]);
+			if (i >= 0) {
+				if (!units_.alive[i] || is_relic_unit(i)) continue;
+				units_.hp[i] = 0.0f;
+				units_.alive[i] = 0;
+				units_.action_state[i] = ACTION_DYING;
+				order_queues_.erase(selected[k]);
+				record_unit_death(i, player);
+				stat_unit_lost((size_t)i, player);
+				continue;
+			}
+			auto it = building_id_to_idx_.find(selected[k]);
+			if (it != building_id_to_idx_.end() && !buildings_[it->second].wrecked) destroy_building(buildings_[it->second]);
+		}
+		return true;
+	case CHEAT_DEFEAT_PLAYER: { // "exodia": Player.Defeat
+		if (parameter < 0 || parameter >= MAX_PLAYERS || is_defeated((uint8_t)parameter)) return false;
+		const uint8_t bit = (uint8_t)(1u << parameter);
+		participant_mask_ |= bit;
+		convert_to_gaia(bit);
+		defeated_mask_ |= bit;
+		return true;
+	}
+	case CHEAT_CREATE_UNITS: { // "salad bowl": a spearman of each civ in turn from the selected trainer
+		static const char *const kSaladBowl[] = {"athen/infantry_spearman_b", "brit/infantry_spearman_b",
+			"cart/infantry_spearman_b", "gaul/infantry_spearman_b", "iber/infantry_spearman_b",
+			"kush/infantry_spearman_b", "mace/infantry_pikeman_b", "maur/infantry_spearman_b",
+			"pers/infantry_spearman_b", "ptol/infantry_pikeman_b", "rome/infantry_spearman_b",
+			"sele/infantry_spearman_b", "spart/infantry_spearman_b"};
+		static const std::vector<uint16_t> templates = [] {
+			std::vector<uint16_t> out;
+			for (const char *name : kSaladBowl)
+				for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
+					if (std::strcmp(civ_unit_template(t).id, name) == 0) { out.push_back(t); break; }
+			return out;
+		}();
+		if (!count || templates.empty()) return false;
+		auto it = building_id_to_idx_.find(selected[0]);
+		if (it == building_id_to_idx_.end()) return false;
+		const Building &b = buildings_[it->second];
+		bool trains = false;
+		for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT && !trains; ++t)
+			trains = (civ_unit_template(t).trainers >> b.type) & 1;
+		if (!trains || b.wrecked || b.build_progress < 1.0f) return false;
+		const int n = std::min(parameter, pop_max(player) - pop_current(player));
+		const float sx = b.x + (b.footprint + 0.6f) * GRID, sz = b.z;
+		for (int i = 0; i < n; ++i) {
+			const uint16_t t = templates[(size_t)i % templates.size()];
+			const uint32_t uid = spawn_unit(sx, sz, b.team, (UnitType)civ_unit_template(t).unit_type, 0.0f, t);
+			if (int32_t ui = lookup_unit(uid); ui >= 0) stat_unit_trained((size_t)ui);
+			if (b.has_rally_point) apply_rally_point(uid, b);
+		}
+		return true;
+	}
+	case CHEAT_CHANGE_PHASE: // "back to the future"
+		change_phase();
+		return true;
+	case CHEAT_RESEARCH: // "brainiac": the GUI resolves the name or the selected structure's Nth tech
+		if (extra == TECH_NONE || extra >= TECH_COUNT) return false;
+		complete_research(player, (uint8_t)extra);
+		return true;
+	case CHEAT_META: // "gift from the gods": every resource and both phases (RTS0 has no pop or speed cheats yet)
+		for (uint8_t r = 0; r < RES_COUNT; ++r) ps.res[r] = std::max(0.0f, ps.res[r] + (float)parameter);
+		change_phase();
+		change_phase();
+		return true;
+	}
+	return false;
+}
+
+void Simulation::cheat_convert(uint8_t to, const uint32_t *ids, size_t count) {
+	// Ownership.SetOwner on each selected entity, as convert_to_gaia does for a defeated player.
+	bool roots = false;
+	for (size_t k = 0; k < count; ++k) {
+		const int32_t u = lookup_unit(ids[k]);
+		if (u >= 0) {
+			if (!units_.alive[u] || is_relic_unit(u) || units_.team[u] == to) continue;
+			units_.team[u] = to;
+			units_.has_order[u] = 0;
+			units_.target_unit_id[u] = 0;
+			units_.target_building_id[u] = 0;
+			units_.target_resource_id[u] = 0;
+			if (units_.action_state[u] != ACTION_GARRISONED) units_.action_state[u] = ACTION_IDLE;
+			order_queues_.erase(ids[k]);
+			trader_routes_.erase(ids[k]);
+			trader_leg_.erase(ids[k]);
+			continue;
+		}
+		auto it = building_id_to_idx_.find(ids[k]);
+		if (it == building_id_to_idx_.end()) continue;
+		Building &b = buildings_[it->second];
+		if (b.wrecked || b.team == to) continue;
+		b.has_rally_point = false;
+		order_ungarrison(b.id);
+		cancel_upgrade(b, b.team);
+		b.queue.clear();
+		b.research_tech = TECH_NONE;
+		b.research_timer = 0.0f;
+		b.team = to;
+		b.capture_points_by_team.fill(0.0f);
+		if (to < MAX_PLAYERS) b.capture_points_by_team[to] = b.max_capture_points;
+		b.capture_points = to < MAX_PLAYERS ? b.max_capture_points : 0.0f;
+		roots |= b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER;
+	}
+	if (roots) rebuild_territory();
+}
+
 void Simulation::order_remove_guard(const uint32_t *unit_ids, size_t count) {
 	for (size_t k = 0; k < count; ++k) {
 		const int32_t i = lookup_unit(unit_ids[k]);
@@ -9882,15 +10021,16 @@ void Simulation::set_unit_hp(uint32_t unit_id, float hp) {
 	if (i >= 0 && units_.alive[i]) units_.hp[i] = std::clamp(hp, 1.0f, units_.max_hp[i]);
 }
 
-// The dropsite rule tick_gather uses: the unit's own finished Civic Centre or civ dropsite,
-// a storehouse for wood/stone/metal, a farmstead or dock for food; boats only at docks.
+// The dropsite rule tick_gather uses (ResourceDropsite Types): the unit's own finished Civic
+// Centre, dock or civ dropsite takes everything, a storehouse wood/stone/metal, a farmstead
+// food; boats only at docks.
 bool Simulation::dropsite_accepts(size_t i, const Building &b) const {
 	if (b.wrecked || b.hp <= 0.0f || b.team != units_.team[i] || b.build_progress < 1.0f) return false;
 	const uint8_t rt = units_.res_type_carried[i];
 	if (units_.unit_type[i] == UNIT_FISHING_BOAT) return b.type == BLD_DOCK;
-	if (b.type == BLD_TOWN_CENTER || civ_building_is_dropsite(b.type)) return true;
+	if (b.type == BLD_TOWN_CENTER || b.type == BLD_DOCK || civ_building_is_dropsite(b.type)) return true;
 	if (b.type == BLD_STOREHOUSE) return rt != RES_FOOD;
-	return (b.type == BLD_FARMSTEAD || b.type == BLD_DOCK) && rt == RES_FOOD;
+	return b.type == BLD_FARMSTEAD && rt == RES_FOOD;
 }
 
 bool Simulation::can_return_resource(uint32_t unit_id, uint32_t dropsite_id) const {
@@ -16112,7 +16252,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -17222,6 +17362,34 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		io_vec_pod(ar, g, (uint32_t)(S::MAX_GRID_RES * S::MAX_GRID_RES));
 		if (!g.empty() && g.size() != (size_t)s.stats_explore_res_ * (size_t)s.stats_explore_res_) { ar.ok = false; return; }
 	}
+
+	// 11. Per-player LOS (v41): the circle each unit and building slot added
+	// and every cell's explored bits. The counts and visible bits are those
+	// circles added again, so they are not stored. Older saves start with the
+	// sources of the loaded entities and nothing explored.
+	if (ar.version < 41) {
+		if constexpr (Ar::loading) s.reset_los(), s.tick_los();
+		return;
+	}
+	io_vec_pod(ar, s.los_unit_src_, (uint32_t)S::UNIT_CAP);
+	io_vec_pod(ar, s.los_bld_src_, 1u << 16);
+	std::vector<uint8_t> explored;
+	if constexpr (!Ar::loading) {
+		explored.resize(s.los_.cells());
+		for (size_t c = 0; c < explored.size(); ++c) explored[c] = s.los_.explored_bits((int)c);
+	}
+	io_vec_pod(ar, explored, (uint32_t)(S::MAX_GRID_RES * S::MAX_GRID_RES));
+	if constexpr (Ar::loading) {
+		if (!ar.ok) return;
+		std::vector<LosSource> units, blds;
+		units.swap(s.los_unit_src_);
+		blds.swap(s.los_bld_src_);
+		s.reset_los();
+		if (explored.size() != s.los_.cells()) { ar.ok = false; return; }
+		for (const LosSource &want : units) s.los_.update(s.los_unit_src_.emplace_back(), want);
+		for (const LosSource &want : blds) s.los_.update(s.los_bld_src_.emplace_back(), want);
+		for (size_t c = 0; c < explored.size(); ++c) s.los_.set_explored((int)c, explored[c]);
+	}
 }
 
 void Simulation::save_tick_state(std::ofstream &out) const {
@@ -17518,14 +17686,73 @@ void Simulation::update_player_fow(std::vector<uint8_t> &grid, SharesVision shar
 
 	reveal_viewers(grid, views,
 			[&](size_t u) { return units_.alive[u] && shares_vision(units_.team[u]) ? unit_vision_at(u) : 0.0f; },
-			[&](const Building &b) {
-				if (!shares_vision(b.team) || b.build_progress < 1.0f) return 0.0f;
-				float bvr = 18.0f; // default building vision
-				if (b.type == BLD_TOWER || b.type == BLD_FORTRESS) bvr = 24.0f;
-				if (b.type == BLD_DOCK) bvr = 28.0f;
-				if (const float cv = civ_building_vision(b.type); cv > 0.0f) bvr = cv; // e.g. the Ptolemaic Lighthouse
-				return bvr;
-			});
+			[&](const Building &b) { return shares_vision(b.team) ? building_vision_range(b) : 0.0f; });
+}
+
+float Simulation::building_vision_range(const Building &b) const {
+	if (b.build_progress < 1.0f) return 0.0f;
+	float bvr = 18.0f; // default building vision
+	if (b.type == BLD_TOWER || b.type == BLD_FORTRESS) bvr = 24.0f;
+	if (b.type == BLD_DOCK) bvr = 28.0f;
+	if (const float cv = civ_building_vision(b.type); cv > 0.0f) bvr = cv; // e.g. the Ptolemaic Lighthouse
+	return bvr;
+}
+
+void Simulation::reset_los() {
+	los_.init(grid_res_, map_half_);
+	los_unit_src_.clear();
+	los_bld_src_.clear();
+}
+
+void Simulation::tick_los() {
+	// CCmpRangeManager moves an entity's LOS when its position, owner or
+	// vision range changes (OnPositionChanged, OnOwnershipChanged,
+	// OnValueModification) and drops it when it leaves the world. RTS0 compares
+	// each unit and building slot with the circle it last added, which also
+	// covers slots that a removal refilled with another entity.
+	ScopedUs prof(map_scale_stats_.los_us, map_scale_stats_.los_calls);
+	if (los_.res() != grid_res_) reset_los();
+	const size_t nu = units_.count;
+	if (los_unit_src_.size() < nu) los_unit_src_.resize(nu);
+	for (size_t u = 0; u < los_unit_src_.size(); ++u) {
+		LosSource want;
+		if (u < nu && units_.alive[u])
+			want = los_.source_near(los_unit_src_[u], units_.pos_x[u], units_.pos_z[u], unit_vision_at(u), units_.team[u]);
+		los_.update(los_unit_src_[u], want);
+	}
+	los_unit_src_.resize(nu);
+	const size_t nb = buildings_.size();
+	if (los_bld_src_.size() < nb) los_bld_src_.resize(nb);
+	for (size_t i = 0; i < los_bld_src_.size(); ++i) {
+		LosSource want;
+		if (i < nb) {
+			const Building &b = buildings_[i];
+			if (b.hp > 0.0f && !b.wrecked) want = los_.source_at(b.x, b.z, building_vision_range(b), b.team);
+		}
+		los_.update(los_bld_src_[i], want);
+	}
+	los_bld_src_.resize(nb);
+}
+
+uint8_t Simulation::los_shared_mask(uint8_t player) const {
+	// VisionSharing.js, as update_player_fow applies it: allies share vision.
+	if (player >= MAX_PLAYERS) return 0;
+	uint8_t m = 0;
+	for (uint8_t q = 0; q < MAX_PLAYERS; ++q)
+		if (q == player || is_ally(player, q)) m |= (uint8_t)(1u << q);
+	return m;
+}
+
+bool Simulation::los_visible(uint8_t player, float x, float z) const {
+	if (reveal_map_) return true;
+	if (los_.cells() == 0) return false;
+	return (los_.visible_bits(los_.cell_of(x, z)) & los_shared_mask(player)) != 0;
+}
+
+bool Simulation::los_explored(uint8_t player, float x, float z) const {
+	if (reveal_map_ || explore_map_) return true;
+	if (los_.cells() == 0) return false;
+	return (los_.explored_bits(los_.cell_of(x, z)) & los_shared_mask(player)) != 0;
 }
 
 template <typename UnitVision, typename BuildingVision>

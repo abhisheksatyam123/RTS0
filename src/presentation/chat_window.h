@@ -45,6 +45,8 @@ public:
 	virtual String chat_civ_name() = 0; // sim->player_civ() display name
 	// -> NetHost::sendChat (net_host.cpp:327), 0 A.D. NMT_CHAT parity.
 	virtual void chat_send_wire(const std::string &wire) = 0;
+	// 0 A.D. Cheats.executeCheat: true when `text` was a cheat code (it is not sent as chat).
+	virtual bool chat_try_cheat(const String &text) = 0;
 };
 
 class RtsoChatWindow {
@@ -207,6 +209,11 @@ public:
 	void send_pressed() {
 		if (!host_ || !input_ || !log_) return;
 		String text = input_->get_text().strip_edges();
+		if (!text.is_empty() && host_->chat_try_cheat(text)) {
+			input_->clear();
+			if (panel_) panel_->set_visible(false);
+			return;
+		}
 		if (!text.is_empty()) {
 			int ch = channel_ ? channel_->get_selected() : 0;
 			String ch_prefix = "[color=#55bbff][All][/color]";
