@@ -231,6 +231,7 @@ func _on_summary_pressed() -> void:
 		return
 	var s = load("res://scenes/session/summary_screen.tscn").instantiate()
 	add_child(s)
+	s.configure({"isReplay": true, "replayDirectory": r.dir})
 	s.close_only()
 	var summary: Dictionary = r.meta.summary
 	s.show_summary(summary.get("victory", false), summary, float(r.meta.get("duration", 0.0)))
