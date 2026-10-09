@@ -6,6 +6,7 @@
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/panel.hpp>
 #include <godot_cpp/classes/button.hpp>
+#include <godot_cpp/classes/option_button.hpp>
 #include <godot_cpp/classes/texture_rect.hpp>
 #include <godot_cpp/classes/progress_bar.hpp>
 #include <godot_cpp/classes/h_box_container.hpp>
@@ -255,6 +256,7 @@ public:
 	void _on_speed_button_pressed();
 	void _on_menu_button_pressed();
 	void _on_ungarrison_pressed();
+	void _on_alert_pressed(int end);
 	void _on_selection_group_clicked(int key);
 	void _on_garrison_group_clicked(int key);
 	void _on_stance_selected(int stance);
@@ -287,7 +289,14 @@ public:
 	// (0 A.D. CLocalTurnManager), so every match records a replay.
 	bool turn_cmds() const override { return net_lockstep() || local_turns_; }
 	// The player this client controls: its lockstep slot in multiplayer, player 0 otherwise.
-	uint8_t local_player() const { return net_lockstep() ? turn_mgr_.local_player() : (uint8_t)0; }
+	// In a replay it is the player whose panels the viewer follows.
+	uint8_t local_player() const {
+		if (turn_mgr_.is_replaying()) return replay_hud_player_;
+		return net_lockstep() ? turn_mgr_.local_player() : (uint8_t)0;
+	}
+	// Whose sight the world, minimap and fog show: the local player, or in a
+	// replay the perspective picked (a player, or rtso::OBSERVER_VIEW).
+	uint8_t view_player() const { return turn_mgr_.is_replaying() ? replay_view_ : local_player(); }
 	void post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
 	                   float x = 0, float z = 0, uint32_t tid = 0, uint8_t param = 0);
 	// P4.1 host hooks for chat_window.h / diplomacy_dialog.h: thin inline
@@ -335,6 +344,14 @@ public:
 	int get_target_marker_count() const { return (int)range_overlays_.marker_count(); } // tests
 	int get_work_sound_count() const { return session_audio_.work_sounds_played(); } // tests
 	void debug_gather_nearest();
+	// 0 A.D. unit_actions "setup-trade-route": traders take a route in two right-clicks,
+	// the origin market, then the destination (lockstep command 35 sends both).
+	// Returns false when no selected trader trades at b; *tooltip gets the cursor text.
+	bool trade_route_click(const rtso::Simulation::Building &b, bool execute, bool queued, String *tooltip);
+	Dictionary debug_trade_route_clicks();
+	uint32_t trade_origin_market_ = 0;
+	Label *cursor_tip_ = nullptr;
+	std::vector<uint32_t> trade_origin_traders_;
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
 
@@ -350,6 +367,11 @@ public:
 	// Replays (0 A.D. ps/Replay.cpp + gui/replaymenu).
 	bool is_replay_playback() const { return turn_mgr_.is_replaying(); }
 	Dictionary get_replay_status() const;
+	void set_replay_view(int player); // -1: observer
+	// What this build reads, for the replay menu's compatibility check.
+	static int get_save_version();
+	static int get_replay_format();
+	void _on_replay_view_selected(int index);
 	bool save_game(String path = "user://saves/quicksave.rts0sav", String description = "");
 	bool load_game(String path = "user://saves/quicksave.rts0sav");
 	PackedByteArray get_fow_grid() const;
@@ -375,6 +397,8 @@ private:
 	Vector3 snap_wall_point(const Vector3 &p, bool &snapped) const;
 	void try_train_unit(rtso::UnitType utype);
 	void try_train_template(uint32_t building_id, uint16_t tmpl);
+	void try_breed(uint32_t building_id, uint8_t ftype);
+	static constexpr int ROSTER_ANIMAL = 0x10000; // roster_list metadata flag: a corral animal
 	void update_roster_list(const rtso::Simulation::Building *b);
 	void cycle_idle_worker();
 	enum IdleKind { IDLE_WORKER, IDLE_WARRIOR, IDLE_ANY, IDLE_BUILDER };
@@ -407,6 +431,12 @@ private:
 	Dictionary replay_meta_;       // its metadata.json, minus what is filled at write time
 	uint32_t replay_written_turn_ = 0;
 	Label *replay_label_ = nullptr;
+	OptionButton *replay_view_picker_ = nullptr;
+	uint8_t replay_view_ = rtso::OBSERVER_VIEW; // replay perspective (0 A.D. replay "Player view")
+	uint8_t replay_hud_player_ = 0;
+	bool loading_replay_start_ = false; // load_game is restoring a replay's starting save
+	void build_replay_view_picker();
+	void begin_recording_from_save(const String &save_path);
 	Dictionary match_settings_snapshot(uint32_t seed) const;
 	void apply_settings_snapshot(const Dictionary &settings);
 	Array player_list() const;

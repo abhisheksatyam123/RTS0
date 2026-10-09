@@ -1323,7 +1323,11 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			if (bid && n)
 				sim.order_build_or_repair(ids, n, bid);
 		} else if (c.cmd_type == 6) { // Train
-			sim.cmd_train(pl, c.target_id, (UnitType)c.param);
+			// At a corral target_x names the animal (corral Trainer list); 0 is the civ's default.
+			if (c.param == UNIT_TYPE_NONE && c.target_x > 0.0f)
+				sim.cmd_breed_livestock(pl, c.target_id, (uint8_t)c.target_x);
+			else
+				sim.cmd_train(pl, c.target_id, (UnitType)c.param);
 		} else if (c.cmd_type == 7) { // Stance
 			sim.order_set_stance(ids, n, c.param);
 		} else if (c.cmd_type == 8) { // Formation
@@ -1378,6 +1382,9 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			// Ids travel as floats; a whole number below 2^24 is exact.
 			if (c.target_x >= 1.0f && c.target_x < 16777216.0f && c.target_x == (float)(uint32_t)c.target_x)
 				sim.order_trade(ids, n, c.target_id, (uint32_t)c.target_x, queued);
+		} else if (c.cmd_type == 36) { // Raise (param 0) or end (1) an alert
+			if (c.param == 1) sim.cmd_end_alert(pl, c.target_id);
+			else sim.cmd_raise_alert(pl, c.target_id);
 		} else if (c.cmd_type == 26) { // Structure upgrade — target_id=building, param 0 start / 1 cancel.
 			if (c.param == 1) sim.cmd_cancel_upgrade(pl, c.target_id);
 			else sim.cmd_upgrade_building(pl, c.target_id);

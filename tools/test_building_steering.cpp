@@ -16,6 +16,8 @@
 //     unit's straight line.
 //  5. Walk across fields: fields don't block movement (0 A.D. BlockMovement=false), so a unit
 //     walks straight over a row of them instead of around.
+//  6. Out of a house cluster: a catapult among houses, whose long path starts on navcells in
+//     2-unit gaps it can't stand in, moves on past those waypoints instead of pushing at them for good.
 //  For every scenario the unit bodies must never overlap a footprint that blocks movement by more
 //  than MAX_PENETRATION (separation() alone allows deep overlap when a unit walks head-on into a wall).
 //  Exit: 0 = PASS, 1 = FAIL. Prints the measurements either way.
@@ -55,7 +57,7 @@ static float max_penetration(const Simulation &s) {
 		if (!u.alive[i] || u.team[i] != 0) continue;
 		const float r = unit_collision_radius(u.unit_type[i]);
 		for (const auto &b : s.buildings()) {
-			if (b.wrecked || !building_blocks_movement(b.type)) continue;
+			if (b.wrecked || !Simulation::blocks_movement_now(b)) continue; // an uncommitted foundation blocks nothing
 			const float ex = b.half_size + r - std::fabs(u.pos_x[i] - b.x);
 			const float ez = b.half_size + r - std::fabs(u.pos_z[i] - b.z);
 			if (ex > 0.0f && ez > 0.0f) worst = std::max(worst, std::min(ex, ez));
@@ -215,6 +217,43 @@ static void walk_across_fields() {
 	check(max_dev <= 2.0f, "unit walked around the fields instead of across");
 }
 
+// 6. Out of a house cluster: Petra builds houses around an idle catapult (test_petra's roster
+// army, #136). The catapult's long path starts on navcells in 2-unit gaps between the houses, closer to
+// them than a catapult can stand, so it could never reach those waypoints and stayed put.
+static void out_of_house_cluster() {
+	Simulation s;
+	setup(s);
+	s.spawn_building_world(-21.0f, -33.0f, BLD_HOUSE, 0, 1.0f);
+	s.spawn_building_world(-17.0f, -33.0f, BLD_HOUSE, 0, 1.0f);
+	s.spawn_building_world(-25.0f, -31.0f, BLD_HOUSE, 0, 1.0f);
+	const uint32_t cat = s.spawn_unit(-22.89f, -35.68f, 0, UNIT_CATAPULT, 0.0f);
+	for (int t = 0; t < 20; ++t) s.tick(DT);
+	// Foundations placed on top of it: the builder's arrival sends the catapult off each one
+	// (Foundation.js Commit, UnitAI LeaveFoundation), and the committed foundation blocks it.
+	const uint32_t builder = s.spawn_unit(-21.0f, -40.0f, 0, UNIT_FEMALE_CITIZEN, 0.0f);
+	const uint32_t f1 = s.spawn_building_world(-23.0f, -37.0f, BLD_HOUSE, 0, 0.0f);
+	s.order_build_or_repair(&builder, 1, f1);
+	for (int t = 0; t < 400; ++t) s.tick(DT);
+	const uint32_t f2 = s.spawn_building_world(-19.0f, -37.0f, BLD_HOUSE, 0, 0.0f);
+	s.order_build_or_repair(&builder, 1, f2);
+	for (int t = 0; t < 400; ++t) s.tick(DT);
+	s.cmd_move(&cat, 1, 9.0f, -35.0f);
+	int arrived = -1;
+	float pen = 0.0f;
+	for (int t = 0; t < 1200 && arrived < 0; ++t) {
+		s.tick(DT);
+		pen = std::max(pen, max_penetration(s));
+		const int i = index_of(s, cat);
+		if (i < 0) break;
+		const Simulation::UnitView u = s.units();
+		const float dx = u.pos_x[i] - 9.0f, dz = u.pos_z[i] + 35.0f;
+		if (dx * dx + dz * dz <= 1.0f) arrived = t;
+	}
+	std::printf("  out of a house cluster: catapult arrived after %d ticks (-1 = never in 1200), max penetration %.3f\n", arrived, pen);
+	check(arrived >= 0, "catapult never left the house cluster");
+	check(pen <= MAX_PENETRATION, "catapult overlapped a house");
+}
+
 int main() {
 	std::printf("RTS0 building steering test (src/simulation/nav/building_steering.h)\n");
 	guard_behind_wall();
@@ -222,6 +261,7 @@ int main() {
 	move_through_gap();
 	gather_behind_long_wall();
 	walk_across_fields();
+	out_of_house_cluster();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;
