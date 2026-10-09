@@ -39,6 +39,7 @@
 #include "simulation/simulation.h"
 #undef private
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <memory>
 #include <vector>
@@ -136,6 +137,12 @@ static void test_roster_army() {
 		for (float t = 0.0f; t < 20.0f * 60.0f && !s->is_game_over(); t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			if (s->ticks_ % 20 != 0) continue; // once a second
+			// A strong economy can raze the idle player before its siege is out: give
+			// it a new fortress so the siege still has a target to march to and shell.
+			bool idle_alive = false;
+			for (const auto &b : s->buildings())
+				if (b.team == 0 && b.hp > 0.0f && !b.wrecked) idle_alive = true;
+			if (!idle_alive) s->spawn_building_world(42.0f, 42.0f, BLD_FORTRESS, 0, 1.0f);
 			for (const auto &b : s->buildings())
 				if (b.team == 1 && b.build_progress >= 1.0f && !b.wrecked) {
 					if (b.type == BLD_GYMNASIUM || b.type == BLD_THEATER) advanced = true;
@@ -450,8 +457,17 @@ static void test_attack_plans() {
 		std::vector<int> kinds;
 		auto last = Simulation::AttackPlan::UNEXECUTED;
 		// HugeAttack launches around 11-12 min on this map; 14 min leaves room for map changes.
+		// An army that razes the idle player finds it rebuilt, so every plan has a target.
+		float home_x = 0.0f, home_z = 0.0f;
+		for (const auto &b : s->buildings()) if (b.team == 0 && b.type == BLD_TOWN_CENTER) { home_x = b.x; home_z = b.z; }
+		int step = 0;
 		for (float t = 0.0f; t < 14.0f * 60.0f; t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
+			if (++step % 200 == 0) {
+				bool any = false;
+				for (const auto &b : s->buildings()) any |= b.team == 0 && b.hp > 0.0f;
+				if (!any) s->spawn_building_world(home_x, home_z, BLD_TOWN_CENTER, 0, 1.0f);
+			}
 			const auto &m = s->petra_attack_manager();
 			const auto st = s->petra_attack_plan().state;
 			if (st == Simulation::AttackPlan::MUSTER && last != st) {
@@ -885,6 +901,7 @@ static void test_regicide_hero() {
 	s->reset();
 	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
 	s->set_victory_condition(VICTORY_REGICIDE);
+	s->set_regicide_garrison(true); // victoryManager.js garrisons the hero only when it is garrisonable
 	run_for(*s, 1.0f);
 	auto &u = s->units_;
 	uint32_t hero = 0;
@@ -924,6 +941,78 @@ static void test_regicide_hero() {
 	CHECK(healing, "an attacked hero below 70% health garrisons in a healing structure");
 }
 
+// With RegicideGarrison off the hero can't garrison: victoryManager.js
+// pickCriticalEntRetreatLocation sends it home on foot instead (no garrison
+// order that is refused and retried every turn).
+static void test_regicide_hero_no_garrison() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_REGICIDE);
+	s->set_regicide_garrison(false);
+	run_for(*s, 1.0f);
+	auto &u = s->units_;
+	uint32_t hero = 0;
+	for (size_t i = 0; i < u.count; ++i)
+		if (u.alive[i] && u.team[i] == 1 && u.unit_type[i] == UNIT_HERO) hero = u.id[i];
+	CHECK(hero != 0, "regicide gives AI 1 a hero");
+	if (!hero) return;
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	// Out in the field toward the map centre, hurt and attacked.
+	const float hx = tx * 0.55f, hz = tz * 0.55f;
+	int32_t h = s->lookup_unit(hero);
+	u.pos_x[h] = hx; u.pos_z[h] = hz;
+	const uint32_t foe = s->spawn_unit(hx + 3.0f, hz, 0, UNIT_SWORDSMAN);
+	s->order_attack(&foe, 1, hero);
+	int garrison_orders = 0;
+	bool inside = false;
+	for (float t = 0.0f; t < 12.0f; t += Simulation::FIXED_STEP) {
+		h = s->lookup_unit(hero);
+		if (h < 0 || !u.alive[h]) break;
+		u.hp[h] = u.max_hp[h] * 0.6f;
+		s->tick(Simulation::FIXED_STEP);
+		h = s->lookup_unit(hero);
+		if (h >= 0 && u.order_kind[h] == ORDER_GARRISON) ++garrison_orders;
+		if (h >= 0 && u.action_state[h] == ACTION_GARRISONED) inside = true;
+	}
+	h = s->lookup_unit(hero);
+	const float d0 = std::hypot(hx - tx, hz - tz);
+	const float d1 = h >= 0 ? std::hypot(u.pos_x[h] - tx, u.pos_z[h] - tz) : d0;
+	std::printf("  regicide, no hero garrison: garrison orders %d, inside %s, distance to its Town Center %.1f -> %.1f\n",
+	            garrison_orders, inside ? "yes" : "no", d0, d1);
+	CHECK(!inside && garrison_orders == 0, "an ungarrisonable hero gets no garrison order");
+	CHECK(d1 < d0 - 5.0f, "it walks home instead");
+}
+
+// Nomad (game setup): no civic centre at the start, so startingStrategy.js
+// buildFirstBase founds one where the workers stand and the economy carries on.
+static void test_nomad_first_base() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_nomad(true);
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	auto town_centers = [&](bool built) {
+		int n = 0;
+		for (const auto &b : s->buildings())
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER && !b.wrecked && (!built || b.build_progress >= 1.0f)) ++n;
+		return n;
+	};
+	const int at_start = town_centers(false);
+	run_for(*s, 90.0f);
+	int buildings = 0;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && !b.wrecked && b.build_progress >= 1.0f) ++buildings;
+	std::printf("  nomad: Town Centers at start %d, built after 90 s %d, finished buildings %d, workers %d\n",
+	            at_start, town_centers(true), buildings, count_units(*s, 1, true));
+	CHECK(at_start == 0, "a Nomad start has no civic centre");
+	CHECK(town_centers(true) == 1, "Petra founds and builds its first Town Center");
+	CHECK(buildings >= 3, "and builds on from it");
+}
+
 // victoryManager.js capture_the_relic: Petra goes for a Gaia relic in its
 // territory, not for one it has never seen.
 static void test_relic_capture() {
@@ -948,6 +1037,42 @@ static void test_relic_capture() {
 	CHECK(!far.claimed, "and leaves a relic it has never seen");
 }
 
+// attackPlan.js moves armies with forced walks: a retreating army ignores what it
+// sees on the way. An unforced walk let an unpacked catapult beside an enemy
+// unpack to fire, then pack for the walk, for ever.
+static void test_retreat_walk_forced() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	const float cx = tx * 0.4f, cz = tz * 0.4f; // well away from Petra's base
+	const uint32_t cat = s->spawn_unit(cx, cz, 1, UNIT_CATAPULT);
+	const uint32_t spear = s->spawn_unit(cx, cz + 2.0f, 1, UNIT_SPEARMAN);
+	s->order_pack(&cat, 1, false);
+	run_for(*s, 11.0f);
+	const int32_t ci = s->lookup_unit(cat);
+	const float r = s->unit_info_at((size_t)ci).attack_range;
+	s->spawn_unit(cx + r * 0.7f, cz, 0, UNIT_SPEARMAN, 1.0e6f); // fights back and never dies
+	run_for(*s, 1.0f);
+	const bool unpacked = s->units_.pack_state[ci] == PACK_UNPACKED;
+	auto &plan = s->petra_attack_plan_;
+	plan.squad = {cat, spear};
+	plan.initial_squad_size = 2;
+	plan.state = Simulation::AttackPlan::ABORT;
+	run_for(*s, 25.0f);
+	const int32_t c2 = s->lookup_unit(cat);
+	const float moved = c2 >= 0 ? std::hypot(s->units().pos_x[c2] - cx, s->units().pos_z[c2] - cz) : 0.0f;
+	std::printf("  retreat: unpacked catapult beside a fighting enemy %s, moved %.1f toward base in 25 s\n",
+	            unpacked ? "yes" : "no", moved);
+	CHECK(unpacked, "the catapult stood unpacked beside the enemy");
+	CHECK(moved > 5.0f, "a retreat walk packs the catapult and leaves (forced walk)");
+}
+
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
@@ -967,7 +1092,10 @@ int main() {
 	test_civ_structures();
 	test_emergency();
 	test_regicide_hero();
+	test_regicide_hero_no_garrison();
+	test_nomad_first_base();
 	test_relic_capture();
+	test_retreat_walk_forced();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }

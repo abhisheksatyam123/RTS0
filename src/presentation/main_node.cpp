@@ -31,6 +31,14 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_flare_requested", "world_pos"), &RtsoMain::_on_flare_requested);
 	ClassDB::bind_method(D_METHOD("_on_idle_worker_clicked"), &RtsoMain::_on_idle_worker_clicked);
 	ClassDB::bind_method(D_METHOD("_on_speed_button_pressed"), &RtsoMain::_on_speed_button_pressed);
+	ClassDB::bind_method(D_METHOD("_on_speed_selected", "id"), &RtsoMain::_on_speed_selected);
+	ClassDB::bind_method(D_METHOD("set_game_speed", "speed"), &RtsoMain::set_game_speed);
+	ClassDB::bind_method(D_METHOD("get_game_speed"), &RtsoMain::get_game_speed);
+	ClassDB::bind_method(D_METHOD("toggle_pause"), &RtsoMain::toggle_pause);
+	ClassDB::bind_method(D_METHOD("quicksave"), &RtsoMain::quicksave);
+	ClassDB::bind_method(D_METHOD("quickload"), &RtsoMain::quickload);
+	ClassDB::bind_method(D_METHOD("_on_replay_speed_selected", "index"), &RtsoMain::_on_replay_speed_selected);
+	ClassDB::bind_method(D_METHOD("is_game_paused"), &RtsoMain::is_game_paused);
 	ClassDB::bind_method(D_METHOD("_on_menu_button_pressed"), &RtsoMain::_on_menu_button_pressed);
 	ClassDB::bind_method(D_METHOD("get_audio_state"), &RtsoMain::get_audio_state);
 	ClassDB::bind_method(D_METHOD("get_trade_dialog_state"), &RtsoMain::get_trade_dialog_state);
@@ -180,6 +188,7 @@ void RtsoMain::_bind_methods() {
 	bind_enum("BuildingType", "TEMPLE_AMUN", rtso::BLD_TEMPLE_AMUN);
 	bind_enum("BuildingType", "TEMPLE_VESTA", rtso::BLD_TEMPLE_VESTA);
 	bind_enum("BuildingType", "TEMPLE_MARS", rtso::BLD_TEMPLE_MARS);
+	bind_enum("BuildingType", "ICE_HOUSE", rtso::BLD_ICE_HOUSE);
 
 	bind_enum("Civilization", "ATHENIANS", rtso::CIV_ATHENIANS);
 	bind_enum("Civilization", "SPARTANS", rtso::CIV_SPARTANS);
@@ -1498,7 +1507,7 @@ void RtsoMain::notify_attack(Vector3 pos, uint8_t attacker, bool structure) {
 	session_audio_.play_group("interface/alarm", gaia ? "alarm_attacked_gaia" : "alarmattackplayer", 0.25f);
 	if (!chat_window_.is_ready()) return;
 	String who = gaia ? String("Gaia")
-			: "Player " + String::num_int64(attacker + 1) + " (" + String(rtso::civ_info(sim->player_civ(attacker)).name) + ")";
+			: player_display_name(attacker) + " (" + String(rtso::civ_info(sim->player_civ(attacker)).name) + ")";
 	(void)structure; // 0 A.D. words unit and structure attacks the same way
 	const String what = "You have been attacked";
 	const String key = rtso::hotkeys::table().label("camera.lastattackfocus").c_str();
@@ -1615,12 +1624,92 @@ void RtsoMain::update_cursor() {
 	in->set_custom_mouse_cursor(tex, Input::CURSOR_ARROW, hot);
 }
 
-void RtsoMain::_on_speed_button_pressed() {
-	if (game_speed == 1.0f) game_speed = 1.5f;
-	else if (game_speed == 1.5f) game_speed = 2.0f;
-	else game_speed = 1.0f;
+// Game speeds offered in the session's speed menu (as 0 A.D.'s game-speed
+// dropdown); a replay also offers the fast speeds for skimming through it.
+static const char *const kQuicksavePath = "user://saves/quicksave.rts0sav";
 
-	if (speed_btn) speed_btn->set_text(String::num(game_speed, 1) + "x");
+static const float kGameSpeeds[] = {0.1f, 0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f};
+static const float kReplaySpeeds[] = {3.0f, 5.0f, 10.0f, 20.0f};
+
+String RtsoMain::speed_text(float speed) { return String::num(speed, 2) + "x"; }
+
+Array RtsoMain::speed_choices(bool replay) {
+	Array out;
+	for (float sp : kGameSpeeds) out.push_back(sp);
+	if (replay)
+		for (float sp : kReplaySpeeds) out.push_back(sp);
+	return out;
+}
+
+void RtsoMain::_on_speed_button_pressed() {
+	if (!speed_btn) return;
+	if (!speed_menu_) {
+		speed_menu_ = memnew(PopupMenu);
+		speed_menu_->connect("id_pressed", Callable(this, "_on_speed_selected"));
+		speed_btn->add_child(speed_menu_);
+	}
+	speed_menu_->clear();
+	int id = 0;
+	for (float sp : kGameSpeeds) speed_menu_->add_radio_check_item(speed_text(sp), id++);
+	if (turn_mgr_.is_replaying())
+		for (float sp : kReplaySpeeds) speed_menu_->add_radio_check_item(speed_text(sp), id++);
+	for (int i = 0; i < speed_menu_->get_item_count(); ++i) {
+		const int k = speed_menu_->get_item_id(i);
+		const float sp = k < (int)std::size(kGameSpeeds) ? kGameSpeeds[k] : kReplaySpeeds[k - std::size(kGameSpeeds)];
+		speed_menu_->set_item_checked(i, sp == game_speed);
+	}
+	speed_menu_->set_position(Vector2i(speed_btn->get_screen_position() + Vector2(0, speed_btn->get_size().y)));
+	speed_menu_->popup();
+}
+
+void RtsoMain::_on_speed_selected(int id) {
+	const int n = (int)std::size(kGameSpeeds);
+	if (id >= 0 && id < n) set_game_speed(kGameSpeeds[id]);
+	else if (id >= n && id < n + (int)std::size(kReplaySpeeds)) set_game_speed(kReplaySpeeds[id - n]);
+}
+
+// Offline and in replays only: networked games run at the host's speed.
+void RtsoMain::set_game_speed(float speed) {
+	if (net_lockstep() || !(speed > 0.0f)) return;
+	const float most = turn_mgr_.is_replaying() ? kReplaySpeeds[std::size(kReplaySpeeds) - 1] : kGameSpeeds[std::size(kGameSpeeds) - 1];
+	game_speed = std::clamp(speed, kGameSpeeds[0], most);
+	if (speed_btn) speed_btn->set_text(speed_text(game_speed));
+	if (replay_speed_picker_)
+		for (int i = 0; i < replay_speed_picker_->get_item_count(); ++i)
+			if ((float)replay_speed_picker_->get_item_metadata(i) == game_speed) replay_speed_picker_->select(i);
+}
+
+// The pause hotkey and the replay's Pause button. Networked, the pause holds
+// every peer's turns (0 A.D. NMT_CLIENT_PAUSED).
+// 0 A.D. session hotkeys quicksave/quickload: one quicksave slot, not offered
+// in networked games or while watching a replay; a short notice says what happened.
+void RtsoMain::show_notice(const String &text) {
+	if (!banner_label || !banner_panel || hotkey_paused_) return;
+	banner_label->set_text(text);
+	banner_panel->set_visible(true);
+	notice_until_ = Time::get_singleton()->get_ticks_msec() + 2000;
+}
+
+void RtsoMain::quicksave() {
+	if (net_lockstep() || turn_mgr_.is_replaying()) return;
+	show_notice(save_game(kQuicksavePath, "Quicksave") ? "Quicksaved game" : "Quicksave failed");
+}
+
+void RtsoMain::quickload() {
+	if (net_lockstep() || turn_mgr_.is_replaying()) return;
+	if (!FileAccess::file_exists(kQuicksavePath)) {
+		show_notice("No quicksave to load");
+		return;
+	}
+	show_notice(load_game(kQuicksavePath) ? "Quickloaded game" : "Quickload failed");
+}
+
+void RtsoMain::toggle_pause() {
+	hotkey_paused_ = !hotkey_paused_;
+	if (net_lockstep()) turn_mgr_.set_local_paused(hotkey_paused_ || paused_via_menu);
+	if (banner_label) banner_label->set_text(hotkey_paused_ ? "Game paused" : "");
+	if (banner_panel) banner_panel->set_visible(hotkey_paused_);
+	if (replay_pause_btn_) replay_pause_btn_->set_text(hotkey_paused_ ? "Resume" : "Pause");
 }
 
 void RtsoMain::_on_menu_button_pressed() {
@@ -1871,6 +1960,7 @@ bool RtsoMain::save_game(String path, String description) {
 	if (res) {
 		// The save and load dialogs list saves by this metadata (0 A.D. gui/savedgames).
 		write_save_metadata(path, description);
+		write_save_thumbnail(path);
 		print_line("[RTS0] Game saved successfully to " + path);
 	}
 	return res;
@@ -1983,6 +2073,10 @@ void RtsoMain::_process(double delta) {
 	// Networked: keep running TurnManager::tick, which holds turns for everyone
 	// while any client is paused, so this peer still sees remote pauses end.
 	music_.tick(delta);
+	if (notice_until_ && Time::get_singleton()->get_ticks_msec() >= notice_until_) {
+		notice_until_ = 0;
+		if (!hotkey_paused_ && banner_panel) banner_panel->set_visible(false);
+	}
 	if ((paused_via_menu || hotkey_paused_) && !net_lockstep()) return;
 	double scaled_delta = delta * game_speed;
 	match_elapsed_time += scaled_delta;
@@ -2022,7 +2116,7 @@ void RtsoMain::_process(double delta) {
 				String who;
 				for (uint32_t c : turn_mgr_.paused_clients()) {
 					const uint8_t pl = turn_mgr_.player_for_client(c);
-					who += (who.is_empty() ? "" : ", ") + (pl < 8 ? "Player " + String::num_int64(pl + 1) : "an observer");
+					who += (who.is_empty() ? "" : ", ") + (pl < 8 ? player_display_name(pl) : String("an observer"));
 				}
 				lobby_status->set_text("Game paused by " + who);
 			} else if (lobby_status) {
@@ -2079,7 +2173,8 @@ void RtsoMain::_process(double delta) {
 		// turns a frame; the timer keeps any remainder for the next frame.
 		if (!replay_finished_) {
 			float step = (float)scaled_delta;
-			for (int t = 0; t < 4 && turn_mgr_.tick(step, *sim); ++t) {
+			const int max_turns = std::max(4, (int)std::ceil(game_speed * 2.0f)); // fast replays
+			for (int t = 0; t < max_turns && turn_mgr_.tick(step, *sim); ++t) {
 				ticks += rtso::TurnManager::TICKS_PER_TURN;
 				step = 0.0f;
 			}
@@ -2131,7 +2226,7 @@ void RtsoMain::_process(double delta) {
 	if (sim && chat_window_.is_ready()) {
 		for (const auto &line : sim->pending_petra_chat()) {
 			if (line.to != 0xFF && line.to != local_player()) continue; // addressed to someone else
-			chat_window_.append_line("[color=#88ccff]Player " + String::num_int64(line.from + 1) + " (AI):[/color] " +
+			chat_window_.append_line("[color=#88ccff]" + player_display_name(line.from) + " (AI):[/color] " +
 			                         String(line.text) + "\n");
 		}
 		if (!sim->pending_petra_chat().empty()) sim->clear_petra_chat();
@@ -2402,7 +2497,7 @@ void RtsoMain::update_inspector() {
 			inspector_title->set_text(String(binfo.name));
 			const uint8_t owner = found_b->team;
 			String owner_name = owner == rtso::GAIA_PLAYER ? String("Gaia")
-					: "Player " + String::num_int64(owner + 1) + " (" + String(rtso::civ_info(sim->player_civ(owner)).name) + ")";
+					: player_display_name(owner) + " (" + String(rtso::civ_info(sim->player_civ(owner)).name) + ")";
 			inspector_class->set_text(owner_name + (found_b->garrison_cap > 0
 					? " - Garrison: " + String::num_int64(found_b->garrisoned_units.size()) + " / " + String::num_int64(found_b->garrison_cap)
 					: String()));
@@ -2497,7 +2592,7 @@ void RtsoMain::update_inspector() {
 		}
 		inspector_title->set_text(name);
 		const uint8_t owner = uview.team[u];
-		inspector_class->set_text("Player " + String::num_int64(owner + 1) + " (" + String(rtso::civ_info(sim->player_civ(owner)).name) +
+		inspector_class->set_text(player_display_name(owner) + " (" + String(rtso::civ_info(sim->player_civ(owner)).name) +
 				") - Kills: " + String::num_int64(uview.kills[u]));
 
 		// Experience toward the next rank (Promotion.js GetRequiredXp after technologies).
@@ -2729,7 +2824,8 @@ void RtsoMain::update_command_panel() {
 				const rtso::TechInfo &ti = rtso::tech_info((uint8_t)t);
 				if (ti.researcher != found_b->type || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
 				rtso::Simulation::ResearchCheck rc = sim->research_check(local_player(), (uint8_t)t, found_b->id);
-				if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_CIV) continue;
+				if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_CIV
+				    || rc == rtso::Simulation::TECH_ERR_PAIRED) continue;
 				Button *btn = memnew(Button);
 				String cost;
 				auto add_cost = [&](int v, const char *suffix) {
@@ -2986,6 +3082,13 @@ void RtsoMain::update_command_panel() {
 			}
 		}
 	}
+}
+
+// Drops one unit from the selection after an orderone command
+// (0 A.D. gui/session/input.js popOneFromSelection -> g_Selection.removeList).
+static void pop_from_selection(PackedInt32Array &sel, uint32_t id) {
+	const int64_t at = sel.find((int32_t)id);
+	if (at >= 0) sel.remove_at(at);
 }
 
 void RtsoMain::enter_build_mode(bool enable, uint8_t btype) {
@@ -3307,20 +3410,16 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			return;
 		}
 		if (fired("pause")) {
-			// Networked, the pause holds every peer's turns (0 A.D. NMT_CLIENT_PAUSED).
-			hotkey_paused_ = !hotkey_paused_;
-			if (net_lockstep()) turn_mgr_.set_local_paused(hotkey_paused_ || paused_via_menu);
-			if (banner_label) banner_label->set_text(hotkey_paused_ ? "Game paused" : "");
-			if (banner_panel) banner_panel->set_visible(hotkey_paused_);
+			toggle_pause();
 			return;
 		}
 		// 0 A.D. misc.xml: quicksave/quickload are disabled in networked games.
 		if (fired("quicksave")) {
-			if (!net_lockstep()) save_game("user://saves/quicksave.rts0sav");
+			quicksave();
 			return;
 		}
 		if (fired("quickload")) {
-			if (!net_lockstep()) load_game("user://saves/quicksave.rts0sav");
+			quickload();
 			return;
 		}
 
@@ -3518,16 +3617,25 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					const float fp = (float)rtso::building_type_info(current_build_type).footprint;
 					const float angle = placement_angle_at(current_build_type, (cell_x + fp * 0.5f) * rtso::Simulation::GRID,
 							(cell_y + fp * 0.5f) * rtso::Simulation::GRID);
+					// Shift or Alt keeps placing; Alt sends one builder, which leaves the
+					// selection (input.js:895 and popOneFromSelection).
+					const bool order_one = rtso::hotkeys::held("session.orderone") && !selected_ids.is_empty();
+					const bool keep_placing = order_one || rtso::hotkeys::held("session.queue");
+					const uint32_t one_builder = order_one ? (uint32_t)selected_ids[0] : 0;
+					const uint32_t *builders = order_one ? &one_builder : (const uint32_t *)selected_ids.ptr();
+					const size_t builder_n = order_one ? 1 : (size_t)selected_ids.size();
 					if (turn_cmds()) {
-						post_lockstep(5, (const uint32_t *)selected_ids.ptr(), selected_ids.size(),
+						post_lockstep(5, builders, builder_n,
 								(float)cell_x, (float)cell_y, rtso::Simulation::pack_angle(angle), current_build_type);
 						play_civ_voice("build");
-						enter_build_mode(false);
+						if (order_one) pop_from_selection(selected_ids, one_builder);
+						if (!keep_placing) enter_build_mode(false);
 					} else if (uint32_t bid = sim->cmd_build(local_player(), cell_x, cell_y, current_build_type, angle)) {
-						if (!selected_ids.is_empty())
-							sim->order_build_or_repair((const uint32_t *)selected_ids.ptr(), selected_ids.size(), bid);
+						if (builder_n > 0)
+							sim->order_build_or_repair(builders, builder_n, bid);
 						play_civ_voice("build");
-						enter_build_mode(false);
+						if (order_one) pop_from_selection(selected_ids, one_builder);
+						if (!keep_placing) enter_build_mode(false);
 					} else {
 						session_audio_.play_invalid_placement();
 					}
@@ -3549,16 +3657,21 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 
 						// Commit wall nodes through existing lockstep/build command paths
 						// (0 A.D. gui/session/building_placement.js:45-92 / placement.js)
+						// Alt hands the whole wall to one builder (popOneFromSelection).
+						const bool order_one = rtso::hotkeys::held("session.orderone") && !selected_ids.is_empty();
+						const uint32_t one_builder = order_one ? (uint32_t)selected_ids[0] : 0;
+						const uint32_t *builders = order_one ? &one_builder : (const uint32_t *)selected_ids.ptr();
+						const size_t builder_n = order_one ? 1 : (size_t)selected_ids.size();
 						auto place_wall_node = [&](const Vector3 &p, uint8_t btype) {
 							int cx = (int)std::floor(p.x / rtso::Simulation::GRID);
 							int cz = (int)std::floor(p.z / rtso::Simulation::GRID);
 							if (turn_cmds()) {
-								post_lockstep(5, (const uint32_t *)selected_ids.ptr(), selected_ids.size(),
+								post_lockstep(5, builders, builder_n,
 								              (float)cx, (float)cz, rtso::Simulation::pack_angle(wall_angle), btype);
 							} else if (sim) {
 								uint32_t bid = sim->cmd_build(local_player(), cx, cz, btype, wall_angle);
-								if (bid && !selected_ids.is_empty()) {
-									sim->order_build_or_repair((const uint32_t *)selected_ids.ptr(), selected_ids.size(), bid);
+								if (bid && builder_n > 0) {
+									sim->order_build_or_repair(builders, builder_n, bid);
 								}
 							}
 						};
@@ -3576,6 +3689,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							}
 						}
 						play_civ_voice("build");
+						if (order_one) pop_from_selection(selected_ids, one_builder);
 					}
 					enter_build_mode(false);
 					return;
@@ -3771,7 +3885,22 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			const bool queue_shift = rtso::hotkeys::held("session.queue");
 			const uint8_t qbit = queue_shift ? rtso::NET_PARAM_QUEUED : 0;
 			const uint32_t *sel_ptr = (const uint32_t *)selected_ids.ptr();
-			const size_t sel_n = selected_ids.size();
+			size_t sel_n = selected_ids.size();
+			// Alt orders only one unit, which then leaves the selection (0 A.D.
+			// gui/session/input.js popOneFromSelection, session.orderone).
+			uint32_t one_id = 0;
+			struct PopOne {
+				PackedInt32Array &sel;
+				const uint32_t &id;
+				~PopOne() {
+					if (id != 0) pop_from_selection(sel, id);
+				}
+			} pop_one{ selected_ids, one_id };
+			if (rtso::hotkeys::held("session.orderone")) {
+				one_id = sel_ptr[0];
+				sel_ptr = &one_id;
+				sel_n = 1;
+			}
 
 			// Ctrl over an enemy structure attacks it instead of capturing it (0 A.D.
 			// session.attack); Ctrl over anything else is attack-move (session.attackmove).
@@ -3862,6 +3991,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 			}
 			if (has_loaded_transport && sim->get_terrain_height(click_pos.x, click_pos.z) >= sim->water_height() + 0.1f) {
+				if (one_id != 0) one_id = transport_sel_id;
 				if (turn_cmds())
 					post_lockstep(19, &transport_sel_id, 1, click_pos.x, click_pos.z);
 				else
@@ -3883,20 +4013,26 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 			if (clicked_transport_id != 0) {
 				if (turn_cmds())
-					post_lockstep(18, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0, 0, clicked_transport_id);
+					post_lockstep(18, sel_ptr, sel_n, 0, 0, clicked_transport_id);
 				else
-					sim->order_board_transport((const uint32_t *)selected_ids.ptr(), selected_ids.size(), clicked_transport_id);
+					sim->order_board_transport(sel_ptr, sel_n, clicked_transport_id);
 				play_civ_voice("move");
 				return;
 			}
 
 			// 1b. Healers right-clicking an injured own or allied unit heal it (0 A.D. "heal" cursor).
 			{
-				bool any_healer = false;
-				for (size_t k = 0; k < sel_n && !any_healer; ++k) {
+				// With orderone the first healer of the selection is the one ordered
+				// (input.js firstAbleEntity).
+				uint32_t first_healer = 0;
+				for (int k = 0; k < selected_ids.size() && !first_healer; ++k) {
 					for (size_t i = 0; i < uview.count; ++i)
-						if (uview.id[i] == sel_ptr[k]) { any_healer = uview.unit_type[i] == rtso::UNIT_HEALER; break; }
+						if (uview.id[i] == (uint32_t)selected_ids[k]) {
+							if (uview.unit_type[i] == rtso::UNIT_HEALER) first_healer = uview.id[i];
+							break;
+						}
 				}
+				const bool any_healer = first_healer != 0;
 				uint32_t heal_id = 0;
 				float best_hd2 = 2.2f * 2.2f;
 				for (size_t i = 0; any_healer && i < uview.count; ++i) {
@@ -3907,6 +4043,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					if (d2 < best_hd2) { best_hd2 = d2; heal_id = uview.id[i]; }
 				}
 				if (heal_id != 0) {
+					if (one_id != 0) one_id = first_healer;
 					if (turn_cmds())
 						post_lockstep(32, sel_ptr, sel_n, 0, 0, heal_id, qbit);
 					else
@@ -3978,11 +4115,11 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				const auto &finfo = rtso::fauna_type_info(clicked_fauna_type);
 				uint8_t herd = finfo.is_domestic() && fview.behavior[best_f] != rtso::FAUNA_CORRALLED ? 1 : 0;
 				if (turn_cmds())
-					post_lockstep(17, (const uint32_t *)selected_ids.ptr(), selected_ids.size(), 0, 0, clicked_fauna_id, herd);
+					post_lockstep(17, sel_ptr, sel_n, 0, 0, clicked_fauna_id, herd);
 				else if (herd)
-					sim->order_herd((const uint32_t *)selected_ids.ptr(), selected_ids.size(), clicked_fauna_id);
+					sim->order_herd(sel_ptr, sel_n, clicked_fauna_id);
 				else
-					sim->order_hunt((const uint32_t *)selected_ids.ptr(), selected_ids.size(), clicked_fauna_id);
+					sim->order_hunt(sel_ptr, sel_n, clicked_fauna_id);
 				play_civ_voice(herd ? "gather" : "attack");
 				return;
 			}
@@ -4128,6 +4265,7 @@ void RtsoMain::apply_match_settings() {
 		}
 	}
 	sim->set_biome_override((int)ms->get("biome") - 1); // 0 = the map's own biome
+	sim->set_nomad((bool)ms->get("nomad")); // random maps only (generate_random_map)
 	if (!load_map_seeded(map_id, seed)) {
 		UtilityFunctions::printerr("[RtsoMain] GameSetup map failed: ", map_id, " - default arena.");
 		if (civ >= 0 && civ < rtso::CIV_COUNT) sim->set_player_civ((uint8_t)civ);
@@ -4145,6 +4283,13 @@ void RtsoMain::apply_match_settings() {
 	sim->set_wonder_duration(60.0f * (float)std::clamp((int)ms->get("wonder_min"), 0, 60));
 	sim->set_relic_duration(60.0f * (float)std::clamp((int)ms->get("relic_min"), 0, 60));
 	sim->set_relic_count((int)ms->get("relic_count"));
+	sim->set_regicide_garrison((bool)ms->get("regicide_garrison"));
+	sim->set_disable_treasures((bool)ms->get("disable_treasures"));
+	{
+		Array scolors = ms->get("slot_colors");
+		for (int p = 0; p < rtso::MAX_PLAYERS; ++p)
+			sim->set_player_color((uint8_t)p, (uint8_t)(p < scolors.size() ? std::clamp((int)scolors[p], 0, rtso::PLAYER_COLOR_COUNT - 1) : p));
+	}
 	sim->set_water_level_mode(std::clamp((int)ms->get("water_level"), 0, 2));
 	sim->set_sea_level_rise_minutes(std::clamp((int)ms->get("sea_level_rise_min"), 0, 60));
 	// Game-setup teams (1-based T1..T4) decide allied victory, shared vision and territory.
@@ -4193,6 +4338,7 @@ void RtsoMain::apply_match_settings() {
 			sim->set_player_active((uint8_t)t, seated || t == 0, t > 0 && seated && ty == 1);
 		}
 	}
+	apply_player_names(ms->get("slot_names")); // after seating: the diplomacy labels read civ and AI
 	UtilityFunctions::print("[RtsoMain] GameSetup ", map_id, " seed ", (int64_t)seed,
 			" civ ", rtso::civ_info(sim->player_civ()).name,
 			" vs ", rtso::civ_info(sim->team_civ(1)).name);
@@ -4279,7 +4425,10 @@ PackedStringArray RtsoMain::get_available_maps() const {
 
 bool RtsoMain::load_map(String map_id) {
 	uint32_t seed = (uint32_t)Time::get_singleton()->get_ticks_msec();
-	if (sim) sim->set_biome_override(-1); // a map picked in game keeps its own biome
+	if (sim) {
+		sim->set_biome_override(-1); // a map picked in game keeps its own biome
+		sim->set_nomad(false);
+	}
 	return load_map_seeded(map_id, seed);
 }
 
@@ -4545,6 +4694,29 @@ void RtsoMain::_on_ai_behavior_selected(int index) {
 	sim->set_petra_behavior((uint8_t)ai_behavior_selector->get_item_id(index));
 }
 
+String RtsoMain::player_display_name(uint8_t pid) const {
+	if (pid >= rtso::MAX_PLAYERS) return pid == rtso::GAIA_PLAYER ? String("Gaia") : String("an observer");
+	// 0 A.D. onFinalizeAttributes: a seated client's own name replaces the slot's.
+	if (net_lockstep())
+		for (const auto &e : net_host_.playerAssignment())
+			if (e.player == pid && !e.name.empty()) return String::utf8(e.name.c_str());
+	if (!player_names_[pid].is_empty()) return player_names_[pid];
+	return "Player " + String::num_int64(pid + 1);
+}
+
+void RtsoMain::apply_player_names(const Array &names) {
+	for (int p = 0; p < rtso::MAX_PLAYERS; ++p)
+		player_names_[p] = p < names.size() ? String(names[p]).strip_edges().left(48) : String();
+	if (!sim) return;
+	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
+		const auto &ps = sim->player(p);
+		String label = ps.active ? player_display_name(p) + " (" + String(rtso::civ_info(ps.civ).name) + ")" : String("-");
+		if (ps.active && p == local_player()) label += " (You)";
+		else if (ps.active && ps.is_ai) label += " (AI)";
+		diplo_dialog_.set_player_label(p, label);
+	}
+}
+
 void RtsoMain::sync_victory_selector() {
 	if (!sim || !victory_selector) return;
 	for (int i = 0; i < victory_selector->get_item_count(); ++i) {
@@ -4665,6 +4837,14 @@ void RtsoMain::_on_lobby_start_pressed() {
 			if (i < sdiffs.size()) setup.diffs[i] = (uint8_t)std::clamp((int)sdiffs[i], 0, 5);
 			if (i < sbehs.size()) setup.behs[i] = (uint8_t)std::clamp((int)sbehs[i], 0, 3);
 		}
+		Array scolors = ms->get("slot_colors");
+		for (int i = 0; i < 8 && i < scolors.size(); ++i)
+			setup.colors[i] = (uint8_t)std::clamp((int)scolors[i], 0, rtso::PLAYER_COLOR_COUNT - 1);
+		setup.nomad = (bool)ms->get("nomad") ? 1 : 0;
+		setup.regicide_garrison = (bool)ms->get("regicide_garrison") ? 1 : 0;
+		setup.no_treasures = (bool)ms->get("disable_treasures") ? 1 : 0;
+		Array snames = ms->get("slot_names");
+		for (int i = 0; i < 8 && i < snames.size(); ++i) setup.names[i] = String(snames[i]).utf8().get_data();
 		setup.water_level = (uint8_t)std::clamp((int)ms->get("water_level"), 0, 2);
 		setup.sea_rise_min = (uint8_t)std::clamp((int)ms->get("sea_level_rise_min"), 0, 60);
 		int msz = (int)ms->get("map_size");
@@ -4749,6 +4929,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	for (uint8_t i = 0; i < rtso::MAX_PLAYERS; ++i)
 		random_map_teams[i] = (i < setup.slot_count && setup.teams[i] >= 1 && setup.teams[i] <= 8) ? setup.teams[i] : 0;
 	sim->set_biome_override((int)setup.biome - 1);
+	sim->set_nomad(setup.nomad != 0);
 	if (!load_map_seeded(String(setup.map_id.c_str()), setup.seed)) {
 		if (lobby_status) lobby_status->set_text("GameStart failed: map regen failed");
 		return;
@@ -4763,6 +4944,9 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	sim->set_wonder_duration(60.0f * (float)setup.wonder_min);
 	sim->set_relic_duration(60.0f * (float)setup.relic_min);
 	sim->set_relic_count(setup.relics);
+	sim->set_regicide_garrison(setup.regicide_garrison != 0);
+	sim->set_disable_treasures(setup.no_treasures != 0);
+	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) sim->set_player_color(p, setup.colors[p]);
 	sim->set_water_level_mode(setup.water_level);
 	sim->set_sea_level_rise_minutes(setup.sea_rise_min);
 	for (uint8_t p = 0; p < 8 && p < setup.slot_count; ++p) {
@@ -4818,6 +5002,16 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		}
 		ms->set("slot_diffs", sdiffs);
 		ms->set("slot_behs", sbehs);
+		Array scolors;
+		for (uint8_t i = 0; i < setup.slot_count && i < 8; ++i) scolors.push_back((int)setup.colors[i]);
+		ms->set("slot_colors", scolors);
+		ms->set("nomad", setup.nomad != 0);
+		ms->set("regicide_garrison", setup.regicide_garrison != 0);
+		ms->set("disable_treasures", setup.no_treasures != 0);
+		Array snames;
+		for (uint8_t i = 0; i < setup.slot_count && i < 8; ++i) snames.push_back(String::utf8(setup.names[i].c_str()));
+		ms->set("slot_names", snames);
+		apply_player_names(snames);
 		ms->set("water_level", sim->water_level_mode());
 		ms->set("sea_level_rise_min", sim->sea_level_rise_minutes());
 		ms->set("map_size", random_map_size);
