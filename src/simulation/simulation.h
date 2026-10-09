@@ -8,6 +8,7 @@
 #include "aura_manager.h"
 #include "petra_ai.h"
 #include "sim_types.h"
+#include "statistics_tracker.h"
 #include "triggers.h"
 #include <cstdint>
 #include <vector>
@@ -90,6 +91,7 @@ static constexpr uint8_t GAIA_PLAYER = 0xFE;
 struct PlayerState {
 	float res[RES_COUNT] = {};             // indexed by ResourceType
 	float gathered_window[RES_COUNT] = {}; // decaying gather-rate window for the HUD
+	float used[RES_COUNT] = {};            // everything pay() took (StatisticsTracker resourcesUsed)
 	TechSet techs;                         // researched TechnologyIds
 	uint8_t phase = 1;                     // 1=Village, 2=Town, 3=City
 	Civilization civ = CIV_ATHENIANS;
@@ -113,7 +115,14 @@ struct PlayerState {
 	bool pay(float f, float w, float g, float s) {
 		if (!can_afford(f, w, g, s)) return false;
 		res[RES_FOOD] -= f; res[RES_WOOD] -= w; res[RES_GOLD] -= g; res[RES_STONE] -= s;
+		used[RES_FOOD] += f; used[RES_WOOD] += w; used[RES_GOLD] += g; used[RES_STONE] += s;
 		return true;
+	}
+	// Gives back a cancelled payment (ProductionQueue.RemoveItem, Upgrade.CancelUpgrade):
+	// the statistics count it as never used.
+	void refund(float f, float w, float g, float s) {
+		add(f, w, g, s);
+		used[RES_FOOD] -= f; used[RES_WOOD] -= w; used[RES_GOLD] -= g; used[RES_STONE] -= s;
 	}
 	void add(float f, float w, float g, float s) {
 		res[RES_FOOD] += f; res[RES_WOOD] += w; res[RES_GOLD] += g; res[RES_STONE] += s;
@@ -131,7 +140,8 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
-	static constexpr uint32_t SAVE_VERSION = 29; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 30; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -1025,6 +1035,19 @@ public:
 	};
 	const MatchRecord &record() const { return record_; }
 
+	// 0 A.D. StatisticsTracker.js, one per player (statistics_tracker.h).
+	PlayerStatistics statistics(uint8_t player) const;
+	// GetPercentMapExplored / GetTeamPercentMapExplored, 0..100.
+	float percent_map_explored(uint8_t player) const;
+	float team_percent_map_explored(uint8_t player) const;
+	// GetPercentMapControlled / GetTeamPercentMapControlled, 0..100.
+	float percent_map_controlled(uint8_t player) const;
+	float team_percent_map_controlled(uint8_t player) const;
+	// One row every STATISTICS_SAMPLE_INTERVAL seconds of game time (the summary charts).
+	const std::vector<StatisticsSample> &statistics_samples() const { return stat_samples_; }
+	// The row a sample would hold right now (the summary's final column).
+	StatisticsSample statistics_snapshot() const;
+
 private:
 	void move_units(float dt, Arena &arena);
 	void separation(float dt, Arena &arena);
@@ -1183,8 +1206,18 @@ private:
 	static float projectile_speed(uint8_t visual);
 	int32_t projectile_hit_unit(const Projectile &p) const;
 	void random_normal_2d(float &x, float &z);
-	void mark_building_wreck(Building &b);
+	void mark_building_wreck(Building &b, uint8_t killer = 0xFF); // killer: StatisticsTracker credit
 	void record_death(float x, float z, uint8_t team, uint8_t killer_team, uint8_t type, bool is_building);
+	// StatisticsTracker hooks. `killer` is the player credited with the kill
+	// (out of range or the victim's own owner credits nobody).
+	void stat_unit_trained(size_t idx);
+	void stat_unit_lost(size_t idx, uint8_t killer);
+	void stat_building_constructed(const Building &b);
+	void stat_building_lost(const Building &b, uint8_t killer);
+	void stat_building_captured(const Building &b, uint8_t from);
+	void stat_gathered(uint8_t player, uint8_t res, int amount, bool vegetarian);
+	void tick_statistics();
+	void update_statistics_explored();
 	void bind_unit_index(uint32_t id, size_t idx);
 	int32_t lookup_unit(uint32_t id) const;
 	// 0 A.D. Loot.js / Looter.js / Promotion.js (see simulation.cpp).
@@ -1350,6 +1383,13 @@ private:
 	float wonder_hold_[MAX_PLAYERS] = {}; // seconds each player has held a finished wonder
 
 	MatchRecord record_;
+	// StatisticsTracker state, saved through tick_state_io (save v19+).
+	std::array<PlayerStatistics, MAX_PLAYERS> stats_{};
+	std::vector<StatisticsSample> stat_samples_;
+	static constexpr size_t MAX_STATISTICS_SAMPLES = 4096; // 34 hours of 30 s rows
+	// Cells each player has seen, STATISTICS_EXPLORE_CELL wide (1 = explored).
+	int32_t stats_explore_res_ = 0;
+	std::array<std::vector<uint8_t>, MAX_PLAYERS> stats_explored_;
 
 	uint64_t tick_us_ = 0;
 	uint64_t ticks_ = 0;
