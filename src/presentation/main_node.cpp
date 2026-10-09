@@ -3957,11 +3957,15 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					float dz = b.z - click_pos.z;
 					if (dx * dx + dz * dz < 3.0f * 3.0f) { target_bld = b.id; break; }
 				}
+				// session.queue (Shift) adds a position after the ones set (RallyPoint.AddPosition).
+				const bool rally_queued = rtso::hotkeys::held("session.queue");
 				if (turn_cmds()) {
 					uint32_t extra[2] = {target_res, target_bld};
-					post_lockstep(14, extra, 2, click_pos.x, click_pos.z, selected_building_id);
+					post_lockstep(14, extra, 2, click_pos.x, click_pos.z, selected_building_id,
+							rally_queued ? rtso::NET_PARAM_QUEUED : 0);
 				} else {
-					sim->cmd_set_rally_point(local_player(), selected_building_id, click_pos.x, click_pos.z, target_res, target_bld);
+					sim->cmd_set_rally_point(local_player(), selected_building_id, click_pos.x, click_pos.z, target_res, target_bld,
+							rally_queued);
 				}
 				play_civ_voice("select");
 				return;

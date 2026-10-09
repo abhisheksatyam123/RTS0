@@ -119,7 +119,7 @@ enum class NetCommandType : uint8_t {
 	NET_CMD_PATROL        = 11,
 	NET_CMD_GARRISON      = 12,
 	NET_CMD_UNGARRISON    = 13,
-	NET_CMD_RALLY         = 14,
+	NET_CMD_RALLY         = 14, // param 1 = unset-rallypoint; NET_PARAM_QUEUED adds a position (Shift)
 	NET_CMD_ATTACK_BUILD  = 15,
 	NET_CMD_BUILD_REPAIR  = 16,
 	NET_CMD_HUNT          = 17,

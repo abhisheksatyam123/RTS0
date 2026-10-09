@@ -1295,6 +1295,69 @@ static void test_remove_guard_call_to_arms() {
 	}
 }
 
+static void test_rally_positions() {
+	std::printf("37. Shift rally positions, unset-rallypoint, gather near a gone target\n");
+	Simulation s;
+	setup(s);
+	const uint32_t brk = s.spawn_building_world(-20, -20, BLD_BARRACKS, 0, 1.0f);
+	const uint32_t tree = s.spawn_resource_world(10, -10, RES_WOOD, 500);
+	const uint32_t tree2 = s.spawn_resource_world(12, -12, RES_WOOD, 500);
+	auto bref = [&]() -> const Simulation::Building & { return *bld(s, brk); };
+	s.cmd_set_rally_point(0, brk, 0, -20);
+	s.cmd_set_rally_point(0, brk, 10, -10, tree, 0, true);
+	s.cmd_set_rally_point(0, brk, 20, 0, 0, 0, true);
+	check(bref().rally_more.size() == 2 && bref().rally_more[0].res_type == RES_WOOD, "Shift adds positions after the first");
+	uint32_t sp = s.spawn_unit(-15, -20, 0, UNIT_SPEARMAN);
+	s.apply_rally_point(sp, bref());
+	const auto *q = s.unit_order_queue(sp);
+	check(s.unit_order(sp).kind == ORDER_WALK && q && q->size() == 2 && (*q)[0].kind == ORDER_GATHER &&
+			(*q)[0].target == tree && (*q)[1].kind == ORDER_WALK, "a trained unit walks, then gathers, then walks on");
+
+	// gather-near-position: the rally tree is gone.
+	s.cmd_set_rally_point(0, brk, 10, -10, tree, 0);
+	check(bref().rally_more.empty(), "a click without Shift starts over");
+	const int32_t ti = s.res_id_to_idx_.count(tree) ? (int32_t)s.res_id_to_idx_[tree] : -1;
+	s.resources_.amount[ti] = 0;
+	s.resources_.alive[ti] = 0;
+	uint32_t w = s.spawn_unit(-15, -20, 0, UNIT_FEMALE_CITIZEN);
+	s.apply_rally_point(w, bref());
+	check(s.unit_order(w).kind == ORDER_GATHER && s.unit_order(w).target == tree2, "she gathers the next tree of that kind there");
+
+	// Save round trip.
+	s.cmd_set_rally_point(0, brk, 5, 5, 0, 0, true);
+	const char *path = "/tmp/rts0_test_rally_positions.sav";
+	check(s.save_state(path), "saved");
+	Simulation t;
+	check(t.load_state(path), "loaded");
+	const Simulation::Building *tb = bld(t, brk);
+	check(tb && tb->rally_res_type == RES_WOOD && tb->rally_more.size() == 1 && tb->rally_more[0].x == 5.0f,
+			"the resource kind and the extra position survive a save");
+
+	s.cmd_unset_rally_point(0, brk);
+	check(!bref().has_rally_point && bref().rally_more.empty(), "unset-rallypoint forgets them");
+
+	// Lockstep cmd 14: Shift adds (NET_PARAM_QUEUED), param 1 unsets.
+	TurnManager tm;
+	NetCommand a;
+	a.client_id = 0;
+	a.cmd_type = (uint8_t)NetCommandType::NET_CMD_RALLY;
+	a.target_id = brk;
+	a.target_x = 1;
+	a.target_z = -20;
+	tm.post_local_command(a);
+	NetCommand b2 = a;
+	b2.target_x = 2;
+	b2.param = NET_PARAM_QUEUED;
+	tm.post_local_command(b2);
+	for (int i = 0; i < 4; ++i) tm.tick(TurnManager::TURN_DURATION, s);
+	check(bref().has_rally_point && bref().rally_x == 1.0f && bref().rally_more.size() == 1, "lockstep Shift rally");
+	NetCommand u = a;
+	u.param = 1;
+	tm.post_local_command(u);
+	for (int i = 0; i < 4; ++i) tm.tick(TurnManager::TURN_DURATION, s);
+	check(!bref().has_rally_point, "lockstep unset-rallypoint");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -1333,6 +1396,7 @@ int main(int argc, char **argv) {
 	test_forced_work_orders();
 	test_loads_and_guards();
 	test_remove_guard_call_to_arms();
+	test_rally_positions();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
