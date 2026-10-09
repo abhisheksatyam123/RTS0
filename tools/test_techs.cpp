@@ -3,7 +3,9 @@
 //   g++ -std=c++20 -O2 -Isrc tools/test_techs.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_techs && /tmp/test_techs
+#define private public // tech_mods() for the cost checks
 #include "simulation/simulation.h"
+#undef private
 #include "network/turn_manager.h"
 #include <cmath>
 #include <cstdio>
@@ -289,6 +291,51 @@ int main() {
 		run(s, tech_info(TECH_UNLOCK_NEODAMODES).research_time + 1.0f);
 		CHECK(s.can_train_at(0, nt, BLD_BARRACKS, neo));
 		CHECK(s.cmd_train_template(0, bar, neo));
+	}
+
+	// Capture-point and cost technologies (Capturable/CapturePoints, Cost/Resources).
+	{
+		const uint8_t civ_before = s.player(0).civ; // later blocks keep the civ they ran with
+		auto research = [&](uint8_t tech, float x) {
+			const uint32_t r = s.spawn_building_world(x, 20.0f, tech_info(tech).researcher, 0, 1.0f);
+			CHECK(s.cmd_research(0, r, tech));
+			run(s, tech_info(tech).research_time + 1.0f);
+			CHECK(s.is_tech_researched(tech));
+		};
+		// Persian Architecture: structures +25% capture points, built or not yet built.
+		fresh(s);
+		s.set_player_civ(CIV_PERSIANS);
+		s.player(0).phase = 3;
+		const uint32_t before = s.spawn_building_world(20.0f, -20.0f, BLD_BARRACKS, 0, 1.0f);
+		const float cp = find_bld(s, before)->max_capture_points;
+		research(TECH_ARCHITECTURE_PERS, -10.0f);
+		CHECK(std::fabs(find_bld(s, before)->max_capture_points - 1.25f * cp) < 0.01f);
+		const uint32_t after = s.spawn_building_world(0.0f, -20.0f, BLD_BARRACKS, 0, 1.0f);
+		CHECK(std::fabs(find_bld(s, after)->max_capture_points - 1.25f * cp) < 0.01f);
+
+		// Colonization: Carthaginian civic structures cost 25% less.
+		fresh(s);
+		s.set_player_civ(CIV_CARTHAGINIANS);
+		s.player(0).phase = 3;
+		CHECK(s.tech_mods(0).bld_cost[BLD_HOUSE][RES_WOOD] == 1.0f);
+		research(TECH_COLONIZATION, -10.0f);
+		CHECK(s.tech_mods(0).bld_cost[BLD_HOUSE][RES_WOOD] == 0.75f);
+		CHECK(s.tech_mods(0).bld_cost[BLD_BARRACKS][RES_WOOD] == 1.0f); // not Civic
+
+		// Hippocratic Oath (cost_healer): healers cost no metal.
+		fresh(s);
+		s.set_player_civ(CIV_ATHENIANS);
+		s.player(0).phase = 3;
+		const uint16_t healer = civ_default_template(CIV_ATHENIANS, UNIT_HEALER);
+		CHECK(healer != CIV_UNIT_TEMPLATE_NONE);
+		float cost[RES_COUNT];
+		s.unit_train_cost(0, healer, civ_template_unit_info(healer, UNIT_HEALER), cost);
+		CHECK(cost[RES_GOLD] > 0.0f);
+		research(TECH_COST_HEALER, -10.0f);
+		s.unit_train_cost(0, healer, civ_template_unit_info(healer, UNIT_HEALER), cost);
+		CHECK(cost[RES_GOLD] == 0.0f);
+
+		s.set_player_civ(civ_before);
 	}
 
 	// Fertility Festival: houses train citizens, and only citizens.
