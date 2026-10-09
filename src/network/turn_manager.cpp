@@ -920,8 +920,8 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_u32(r.id);
 		mix_float(r.x);
 		mix_float(r.z);
-		mix_u8(r.res_type);
-		mix_i32(r.amount);
+		mix_u8(r.civ);
+		mix_i32(r.capture_cp);
 		mix_u8(r.claimed ? 1 : 0);
 	}
 

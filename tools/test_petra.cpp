@@ -1156,9 +1156,9 @@ static void test_relic_capture() {
 		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
 	s->spawn_unit(tx + 6.0f, tz + 6.0f, 1, UNIT_SPEARMAN);
 	s->relics_.clear();
-	s->relics_.push_back({s->next_id_++, tx + 12.0f, tz - 12.0f, RES_GOLD, 100, false});
-	s->relics_.push_back({s->next_id_++, -tx, -tz, RES_GOLD, 100, false}); // far side, unseen
-	run_for(*s, 40.0f);
+	s->spawn_relic(tx + 12.0f, tz - 12.0f);
+	s->spawn_relic(-tx, -tz); // far side, unseen
+	run_for(*s, 60.0f);
 	const auto &near = s->relics_[0], &far = s->relics_[1];
 	std::printf("  relics: own-territory relic %s, unseen relic %s\n",
 		near.claimed ? (near.owner_team == 1 ? "taken by AI 1" : "taken by another") : "left", far.claimed ? "taken" : "left alone");
