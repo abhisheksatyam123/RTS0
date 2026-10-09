@@ -32,6 +32,8 @@ var slot_diffs: Array = []
 var slot_behs: Array = []
 # Per-slot rtso::PLAYER_COLORS index (0 A.D. PlayerColor), in slot order.
 var slot_colors: Array = []
+# Per-slot player names (0 A.D. PlayerName), in slot order; empty = "Player N".
+var slot_names: Array = []
 # 0 A.D. Nomad (random maps: no starting structures) and RegicideGarrison (the Regicide hero may garrison).
 var nomad: bool = false
 var regicide_garrison: bool = false
