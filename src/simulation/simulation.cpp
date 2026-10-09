@@ -1359,10 +1359,31 @@ bool Simulation::cmd_train(uint8_t player_id, uint32_t building_id, UnitType u_t
 	}
 	uint16_t tmpl = civ_default_template(civ_of(b.team), (uint8_t)u_type);
 	if (tmpl == CIV_UNIT_TEMPLATE_NONE) return false; // not in this civ's roster
+	// The civ's unit of this class that this building trains (0 A.D. Trainer
+	// lists), cheapest phase first; else the class's standard unit, except that
+	// heroes and champions only ever come from their own structures.
+	if (!(civ_unit_template(tmpl).trainers & bld_bit(b.type))) {
+		const uint8_t civ = civ_of(b.team);
+		uint16_t best = CIV_UNIT_TEMPLATE_NONE;
+		for (uint16_t i = civ_roster_begin(civ); i < civ_roster_end(civ); ++i) {
+			const CivUnitTemplate &u = civ_unit_template(i);
+			if (u.unit_type != (uint8_t)u_type || (u.flags & ROSTER_SIEGE_TOWER) || !(u.trainers & bld_bit(b.type))) continue;
+			if (best == CIV_UNIT_TEMPLATE_NONE || u.phase < civ_unit_template(best).phase) best = i;
+		}
+		if (best != CIV_UNIT_TEMPLATE_NONE) tmpl = best;
+		else if (civ_unit_template(tmpl).flags & (ROSTER_HERO | ROSTER_CHAMPION)) return false;
+		else return cmd_train_template_at(player_id, building_id, tmpl, false);
+	}
 	return cmd_train_template(player_id, building_id, tmpl);
 }
 
 bool Simulation::cmd_train_template(uint8_t player_id, uint32_t building_id, uint16_t tmpl) {
+	return cmd_train_template_at(player_id, building_id, tmpl, true);
+}
+
+// `exclusive`: the building must be one 0 A.D. trains the unit at (by-name
+// training); cmd_train's class requests keep generic buildings working.
+bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, uint16_t tmpl, bool exclusive) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return false;
 	Building &b = buildings_[bit->second];
@@ -1373,6 +1394,7 @@ bool Simulation::cmd_train_template(uint8_t player_id, uint32_t building_id, uin
 	PlayerState &ps = players_[player_id];
 	const CivUnitTemplate &t = civ_unit_template(tmpl);
 	if (t.civ != ps.civ) return false;
+	if (exclusive && !(t.trainers & bld_bit(b.type))) return false; // 0 A.D. Trainer list
 	if (t.phase > ps.phase) return false; // 0 A.D. Identity/Requirements: phase_town / phase_city
 
 	const UnitTypeInfo &uinfo = civ_template_unit_info(tmpl, t.unit_type);
@@ -7953,16 +7975,19 @@ void Simulation::petra_manage_military_production(float dt) {
 	bool is_emergency = (max_threat >= 7.0f);
 
 	// Our finished buildings that train soldiers (roster `trainers`: barracks,
-	// fortress, and the Town Center and temple for heroes).
+	// fortress, civ structures such as the gymnasium, and the Town Center and
+	// temple for heroes).
+	const uint8_t ai_civ = petra_ps().civ;
+	uint64_t trainer_types = 0;
+	for (uint16_t k = civ_roster_begin(ai_civ); k < civ_roster_end(ai_civ); ++k)
+		trainer_types |= civ_unit_template(k).trainers;
 	std::vector<uint32_t> trainers;
 	for (const auto &b : buildings_) {
 		if (b.team != petra_pid_ || b.build_progress < 1.0f || b.queue.size() >= 4) continue;
-		if (b.type == BLD_BARRACKS || b.type == BLD_FORTRESS || b.type == BLD_TOWN_CENTER || b.type == BLD_TEMPLE)
-			trainers.push_back(b.id);
+		if (trainer_types & bld_bit(b.type)) trainers.push_back(b.id);
 	}
 	if (trainers.empty()) return;
 	if (pop_current(petra_pid_) >= pop_max(petra_pid_)) return;
-	const uint8_t ai_civ = petra_ps().civ;
 	const uint8_t phase = petra_ps().phase;
 
 	// A building of ours that trains roster unit `tmpl` (heroes and soldiers
@@ -8275,6 +8300,60 @@ void Simulation::petra_staff_foundations() {
 	}
 }
 
+// What Petra wants in stock for its next plans (phase, techs, attack, houses):
+// petra_manage_economy splits its workers by the shortfall against it.
+void Simulation::petra_resource_demand(float out[RES_COUNT]) const {
+	float demand_food = 300.0f;
+	float demand_wood = 400.0f;
+	float demand_gold = 250.0f;
+	float demand_stone = (petra_ps().phase >= 2) ? 200.0f : 50.0f;
+
+	// Tech & Phase Priorities:
+	if (petra_ps().phase == 1 && !petra_ps().has_tech(TECH_PHASE_TOWN)) {
+		const TechInfo &tinfo = tech_info(TECH_PHASE_TOWN);
+		demand_food += (float)tinfo.food_cost;
+		demand_wood += (float)tinfo.wood_cost;
+		demand_gold += (float)tinfo.gold_cost;
+	} else if (petra_ps().phase == 2 && !petra_ps().has_tech(TECH_PHASE_CITY)) {
+		const TechInfo &tinfo = tech_info(TECH_PHASE_CITY);
+		demand_food += (float)tinfo.food_cost;
+		demand_wood += (float)tinfo.wood_cost;
+		demand_stone += (float)tinfo.stone_cost;
+		demand_gold += (float)tinfo.gold_cost;
+	}
+
+	// Economic & Military Techs:
+	if (petra_ps().phase >= 2) {
+		if (!petra_ps().has_tech(TECH_FARMING_1)) { demand_food += 150.0f; demand_wood += 100.0f; }
+		if (!petra_ps().has_tech(TECH_WOODCUTTING_1)) { demand_wood += 150.0f; demand_gold += 50.0f; }
+		if (!petra_ps().has_tech(TECH_MINING_1)) { demand_gold += 100.0f; demand_stone += 100.0f; }
+	}
+
+	// Military & Siege Priorities:
+	if (petra_attack_plan_.type == AttackPlan::PLAN_SIEGE) {
+		// Heavy siege requires wood, gold, and stone
+		demand_wood += 350.0f;
+		demand_gold += 250.0f;
+		demand_stone += 200.0f;
+	} else if (petra_attack_plan_.type == AttackPlan::PLAN_RAID) {
+		demand_food += 250.0f;
+		demand_gold += 200.0f;
+	} else {
+		demand_food += 200.0f;
+		demand_wood += 200.0f;
+		demand_gold += 150.0f;
+	}
+
+	// Housing and Building Needs:
+	if (pop_current(petra_pid_) >= pop_max(petra_pid_) - 4) {
+		demand_wood += 150.0f;
+	}
+	out[RES_FOOD] = demand_food;
+	out[RES_WOOD] = demand_wood;
+	out[RES_GOLD] = demand_gold;
+	out[RES_STONE] = demand_stone;
+}
+
 void Simulation::petra_manage_economy(float dt) {
 	petra_econ_timer_ += dt;
 	if (petra_econ_timer_ < 1.0f) return;
@@ -8337,51 +8416,10 @@ void Simulation::petra_manage_economy(float dt) {
 	}
 
 	// 3. Dynamic Resource Demand Computation based on Military & Tech Priorities
-	float demand_food = 300.0f;
-	float demand_wood = 400.0f;
-	float demand_gold = 250.0f;
-	float demand_stone = (petra_ps().phase >= 2) ? 200.0f : 50.0f;
-
-	// Tech & Phase Priorities:
-	if (petra_ps().phase == 1 && !petra_ps().has_tech(TECH_PHASE_TOWN)) {
-		const TechInfo &tinfo = tech_info(TECH_PHASE_TOWN);
-		demand_food += (float)tinfo.food_cost;
-		demand_wood += (float)tinfo.wood_cost;
-		demand_gold += (float)tinfo.gold_cost;
-	} else if (petra_ps().phase == 2 && !petra_ps().has_tech(TECH_PHASE_CITY)) {
-		const TechInfo &tinfo = tech_info(TECH_PHASE_CITY);
-		demand_food += (float)tinfo.food_cost;
-		demand_wood += (float)tinfo.wood_cost;
-		demand_stone += (float)tinfo.stone_cost;
-		demand_gold += (float)tinfo.gold_cost;
-	}
-
-	// Economic & Military Techs:
-	if (petra_ps().phase >= 2) {
-		if (!petra_ps().has_tech(TECH_FARMING_1)) { demand_food += 150.0f; demand_wood += 100.0f; }
-		if (!petra_ps().has_tech(TECH_WOODCUTTING_1)) { demand_wood += 150.0f; demand_gold += 50.0f; }
-		if (!petra_ps().has_tech(TECH_MINING_1)) { demand_gold += 100.0f; demand_stone += 100.0f; }
-	}
-
-	// Military & Siege Priorities:
-	if (petra_attack_plan_.type == AttackPlan::PLAN_SIEGE) {
-		// Heavy siege requires wood, gold, and stone
-		demand_wood += 350.0f;
-		demand_gold += 250.0f;
-		demand_stone += 200.0f;
-	} else if (petra_attack_plan_.type == AttackPlan::PLAN_RAID) {
-		demand_food += 250.0f;
-		demand_gold += 200.0f;
-	} else {
-		demand_food += 200.0f;
-		demand_wood += 200.0f;
-		demand_gold += 150.0f;
-	}
-
-	// Housing and Building Needs:
-	if (pop_current(petra_pid_) >= pop_max(petra_pid_) - 4) {
-		demand_wood += 150.0f;
-	}
+	float demand[RES_COUNT];
+	petra_resource_demand(demand);
+	const float demand_food = demand[RES_FOOD], demand_wood = demand[RES_WOOD];
+	const float demand_gold = demand[RES_GOLD], demand_stone = demand[RES_STONE];
 
 	// Compute Resource Deficits & Proportions:
 	float need_food  = std::max(40.0f, demand_food - petra_ps().food());
@@ -8823,12 +8861,101 @@ void Simulation::petra_manage_fields(int target_food) {
 	petra_place_building(BLD_FIELD, anchor->x, anchor->z, 2, 12, PETRA_QUEUE_VILLAGER);
 }
 
+// tradeManager.js performBarter, at most one deal a pass. Necessity: buy a
+// resource the queues wait on that our gather rate won't bring in 30 s, selling
+// one we have 500 spare of and don't need, if the rate beats a floor that drops
+// with the stock. Contingency: sell spare food for the scarcest finite resource.
+bool Simulation::petra_perform_barter() {
+	if (!can_barter(petra_pid_)) return false;
+	static constexpr uint8_t kCodes[RES_COUNT] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD}; // Resources.GetCodes()
+	float avail[RES_COUNT], needs[RES_COUNT] = {}, rates[RES_COUNT];
+	const PlayerState &ps = petra_ps();
+	for (int r = 0; r < RES_COUNT; ++r) {
+		avail[r] = ps.res[r];
+		rates[r] = ps.gathered_window[r] / 10.0f; // per second (the HUD's per-minute rate / 60)
+	}
+	for (int q = 0; q < PetraQueueManager::QUEUE_COUNT; ++q) {
+		const PetraQueueAccount &a = petra_queues_.accounts[q], &w = petra_queues_.wants[q];
+		avail[RES_FOOD] -= a.food; avail[RES_WOOD] -= a.wood; avail[RES_GOLD] -= a.gold; avail[RES_STONE] -= a.stone;
+		needs[RES_FOOD] += w.food; needs[RES_WOOD] += w.wood; needs[RES_GOLD] += w.gold; needs[RES_STONE] += w.stone;
+	}
+	for (int r = 0; r < RES_COUNT; ++r) needs[r] = std::max(0.0f, needs[r] - ps.res[r]); // currentNeeds
+	auto barter_rate = [&](uint8_t buy, uint8_t sell) {
+		return (int)std::lround(100.0f * market_sell_price(sell) / market_buy_price(buy));
+	};
+	for (uint8_t buy : kCodes) {
+		if (needs[buy] == 0.0f || needs[buy] < rates[buy] * 30.0f) continue;
+		int best_sell = -1, best_rate = 0;
+		for (uint8_t sell : kCodes) {
+			if (sell == buy || needs[sell] > 0.0f || avail[sell] < 500.0f) continue;
+			int rate_min;
+			if (sell == RES_FOOD) {
+				rate_min = avail[sell] > 40000.0f ? 0 : avail[sell] > 15000.0f ? 5 : avail[sell] > 1000.0f ? 10 : 30;
+			} else {
+				rate_min = avail[sell] > 5000.0f ? 30 : avail[sell] > 1000.0f ? 50 : 70;
+				if (buy == RES_FOOD) rate_min += 20;
+			}
+			const int rate = barter_rate(buy, sell);
+			if (rate > best_rate && rate > rate_min) { best_rate = rate; best_sell = sell; }
+		}
+		if (best_sell >= 0) {
+			const int amount = avail[best_sell] > 5000.0f ? 500 : 100;
+			return cmd_barter(petra_pid_, (ResourceType)best_sell, (ResourceType)buy, amount);
+		}
+	}
+	if (avail[RES_FOOD] < 1000.0f || needs[RES_FOOD] > 0.0f) return false;
+	int best_buy = -1;
+	float best_choice = 0.0f;
+	for (uint8_t buy : kCodes) {
+		if (buy == RES_FOOD) continue;
+		int rate_min = 80;
+		if (avail[buy] < 5000.0f && avail[RES_FOOD] > 5000.0f) rate_min -= 20 - (int)std::floor(avail[buy] / 250.0f);
+		const int rate = barter_rate(buy, RES_FOOD);
+		if (rate < rate_min) continue;
+		const float choice = (float)rate / (100.0f + avail[buy]);
+		if (choice > best_choice) { best_choice = choice; best_buy = buy; }
+	}
+	if (best_buy < 0) return false;
+	return cmd_barter(petra_pid_, RES_FOOD, (ResourceType)best_buy, avail[RES_FOOD] > 5000.0f ? 500 : 100);
+}
+
+// tradeManager.js setTradingGoods: a share for each finite resource we hold
+// little of (more when our plans want it), then 70% of the rest for the most
+// needed resource and 30% for the next one if it is wanted too.
+void Simulation::petra_set_trading_goods() {
+	float demand[RES_COUNT];
+	petra_resource_demand(demand);
+	const PlayerState &ps = petra_ps();
+	float short_of[RES_COUNT];
+	for (int r = 0; r < RES_COUNT; ++r) short_of[r] = demand[r] - ps.res[r]; // > 0: wanted
+	uint8_t goods[RES_COUNT] = {};
+	int remaining = 100;
+	for (uint8_t r : {RES_WOOD, RES_STONE, RES_GOLD}) {
+		const bool wanted = short_of[r] > 0.0f;
+		if (ps.res[r] < 200.0f) goods[r] = wanted ? 20 : 10;
+		else if (ps.res[r] < 500.0f) goods[r] = wanted ? 15 : 10;
+		else if (ps.res[r] < 1000.0f) goods[r] = 10;
+		remaining -= goods[r];
+	}
+	// pickMostNeededResources: the largest shortfall first.
+	uint8_t order[RES_COUNT] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD};
+	std::stable_sort(order, order + RES_COUNT, [&](uint8_t a, uint8_t b) { return short_of[a] > short_of[b]; });
+	const int main_need = remaining * 70 / 100;
+	goods[order[0]] += main_need;
+	goods[short_of[order[1]] > 0.0f ? order[1] : order[0]] += remaining - main_need;
+	cmd_set_trading_goods(petra_pid_, goods);
+}
+
 void Simulation::petra_manage_trading(float dt) {
 	petra_trade_timer_ += dt;
 	if (petra_trade_timer_ < 2.0f) return;
 	petra_trade_timer_ = 0.0f;
 
 	if (petra_ps().phase < 2) return;
+	petra_perform_barter();
+	// Every 60 AI turns in 0 A.D.; here every 20 s of game time while a route exists.
+	if (has_trade_route(petra_pid_) && (int)(petra_timer_ / 20.0f) != (int)((petra_timer_ - 2.0f) / 20.0f))
+		petra_set_trading_goods();
 
 	// 1. Build Market if AI has none, or build secondary Market at forward base
 	int market_count = 0;
@@ -9591,8 +9718,8 @@ void Simulation::petra_manage_buildings(float dt) {
 }
 
 // config.js `buildings`: each civ's advanced structures, in Petra's order
-// (Carthage's three embassies are RTS0's one; Kush's camps and Amun temple and
-// Rome's Vesta temple are not modelled yet).
+// (Carthage's three embassies are RTS0's one). Petra never builds Rome's
+// Temple of Mars: it is in no list.
 static std::vector<uint8_t> petra_advanced_buildings(uint8_t civ) {
 	switch (civ) {
 		case CIV_ATHENIANS: return {BLD_GYMNASIUM, BLD_PRYTANEION, BLD_THEATER};
@@ -9600,12 +9727,12 @@ static std::vector<uint8_t> petra_advanced_buildings(uint8_t civ) {
 		case CIV_GAULS: return {BLD_ASSEMBLY};
 		case CIV_HAN: return {BLD_ACADEMY};
 		case CIV_IBERIANS: return {BLD_MONUMENT};
-		case CIV_KUSHITES: return {BLD_PYRAMID_LARGE, BLD_PYRAMID_SMALL};
+		case CIV_KUSHITES: return {BLD_CAMP_BLEMMYE, BLD_CAMP_NOBA, BLD_PYRAMID_LARGE, BLD_PYRAMID_SMALL, BLD_TEMPLE_AMUN};
 		case CIV_MACEDONIANS: case CIV_SELEUCIDS: return {BLD_THEATER};
 		case CIV_MAURYANS: return {BLD_PALACE, BLD_PILLAR};
 		case CIV_PERSIANS: return {BLD_TACHARA};
 		case CIV_PTOLEMIES: return {BLD_LIBRARY, BLD_THEATER};
-		case CIV_ROMANS: return {BLD_ARMY_CAMP};
+		case CIV_ROMANS: return {BLD_ARMY_CAMP, BLD_TEMPLE_VESTA};
 		case CIV_SPARTANS: return {BLD_SYSSITON, BLD_THEATER};
 		default: return {};
 	}
@@ -9745,6 +9872,9 @@ void Simulation::petra_manage_research(float dt) {
 		if (start_tech(TECH_PHASE_CITY)) return;
 	}
 	if (petra_ps().phase >= 3) {
+		// researchWantedTechs: any unlock_champion_* first, at raised priority.
+		for (uint8_t t : {TECH_UNLOCK_CHAMPION_INFANTRY, TECH_UNLOCK_CHAMPION_CAVALRY, TECH_UNLOCK_CHAMPION_CHARIOTS})
+			if (tech_available_to_civ(t, petra_ps().civ) && start_tech(t)) return;
 		if (start_tech(TECH_WEAPONS_1)) return;
 		if (start_tech(TECH_ARMOR_1)) return;
 	}
@@ -13354,22 +13484,10 @@ void Simulation::update_player_fow(std::vector<uint8_t> &grid, SharesVision shar
 	for (auto &c : grid) c = c == FOW_VISIBLE ? (uint8_t)FOW_EXPLORED : std::max(c, floor);
 
 	// Steps 2 and 3: every unit and finished building whose vision the player shares lights the
-	// tiles within its vision radius. Vision radius per unit type (in world units):
-	//   Villager/Infantry: 16m, Cavalry: 20m, Archer: 22m, Catapult: 24m, Hero: 18m, Elephant: 20m, Trireme: 28m
-	auto vision_radius = [](uint8_t utype) -> float {
-		switch (utype) {
-			case UNIT_ARCHER:   return 22.0f;
-			case UNIT_CAVALRY:  return 20.0f;
-			case UNIT_CATAPULT: return 24.0f;
-			case UNIT_TRIREME:  return 28.0f;
-			case UNIT_ELEPHANT: return 20.0f;
-			case UNIT_HERO:     return 18.0f;
-			default:            return 16.0f;
-		}
-	};
+	// tiles within its vision radius (unit_vision_range, 0 A.D. Vision/Range).
 
 	reveal_viewers(grid, views,
-			[&](size_t u) { return units_.alive[u] && shares_vision(units_.team[u]) ? vision_radius(units_.unit_type[u]) : 0.0f; },
+			[&](size_t u) { return units_.alive[u] && shares_vision(units_.team[u]) ? unit_vision_range(units_.unit_type[u]) : 0.0f; },
 			[&](const Building &b) {
 				if (!shares_vision(b.team) || b.build_progress < 1.0f) return 0.0f;
 				float bvr = 18.0f; // default building vision
