@@ -12880,6 +12880,12 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 					break;
 				}
 			}
+			// With no foe structure left find_petra_attack_target falls back to a foe unit: it
+			// stays the target while it lives, or the plan re-targets (and re-paths) every tick.
+			if (!target_alive) {
+				const int32_t tu = lookup_unit(petra_attack_plan_.target_building_id);
+				target_alive = tu >= 0 && units_.alive[tu] && petra_foe(units_.team[tu]);
+			}
 
 			petra_check_captures(squad, petra_attack_plan_.target_x, petra_attack_plan_.target_z);
 			if (!target_alive || petra_attack_plan_.state_timer >= 25.0f) {
