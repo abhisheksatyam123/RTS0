@@ -2520,6 +2520,7 @@ void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint
 	float rz = resources_.z[ridx];
 	const uint8_t sub_bits = (uint8_t)((resources_.subtype[ridx] << ORDER_FLAG_SUB_SHIFT) & ORDER_FLAG_SUB_MASK);
 	UnitOrder o; o.kind = ORDER_GATHER; o.flags = sub_bits; o.target = resource_id; o.x = rx; o.z = rz;
+	o.res_type = (uint8_t)(resources_.type[ridx] + 1);
 	const std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
 	const uint32_t *unit_ids = now.data();
 	const size_t count = now.size();
@@ -3862,6 +3863,100 @@ void Simulation::cmd_unload(uint8_t player, uint32_t building_id, const uint32_t
 		if (i < 0 || (!owner && units_.team[i] != player)) continue;
 		order_ungarrison_single(building_id, uid);
 	}
+}
+
+// Range-manager distance from a structure's obstruction to a point.
+static float edge_distance(const Simulation::Building &b, float x, float z) {
+	const float ex = std::max(0.0f, std::fabs(x - b.x) - b.half_size);
+	const float ez = std::max(0.0f, std::fabs(z - b.z) - b.half_size);
+	return std::sqrt(ex * ex + ez * ez);
+}
+
+static bool alert_filter(uint8_t unit_type, bool traders) {
+	const uint64_t c = unit_tech_classes(unit_type);
+	return traders ? (c & TC_TRADER) && !(c & TC_SHIP) : (c & TC_FEMALECITIZEN) != 0;
+}
+
+bool Simulation::cmd_raise_alert(uint8_t player, uint32_t building_id) {
+	auto bit = building_id_to_idx_.find(building_id);
+	if (bit == building_id_to_idx_.end()) return false;
+	const Building raiser = buildings_[bit->second];
+	AlertRaiserInfo info;
+	if (raiser.team != player || raiser.wrecked || raiser.build_progress < 1.0f ||
+			!building_alert_raiser(raiser.type, info))
+		return false;
+	// Free slots per holder, so units don't all head for one that will be full.
+	std::unordered_map<uint32_t, int> reserved;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != player || !alert_filter(units_.unit_type[i], info.traders)) continue;
+		const float ux = units_.pos_x[i], uz = units_.pos_z[i];
+		if (info.raise_range >= 0.0f && edge_distance(raiser, ux, uz) > info.raise_range) continue;
+		// The nearest structure of ours that can take it (queries sort by distance).
+		int32_t best = -1;
+		float best_d = info.search_range;
+		for (size_t h = 0; h < buildings_.size(); ++h) {
+			const Building &b = buildings_[h];
+			if (b.team != player || b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0 ||
+					turret_points_of(b) || !structure_has_enough_health(b)) // turrets aren't a GarrisonHolder
+				continue;
+			const float d = edge_distance(b, ux, uz);
+			if (d > best_d || (d == best_d && best >= 0)) continue;
+			if (info.end_range > 0.0f && std::hypot(b.x - raiser.x, b.z - raiser.z) > info.end_range) continue;
+			auto r = reserved.find(b.id);
+			const int room = r != reserved.end() ? r->second : b.garrison_cap - (int)b.garrisoned_units.size();
+			if (room < 1) continue;
+			best = (int32_t)h;
+			best_d = d;
+		}
+		uint32_t uid = units_.id[i];
+		if (best >= 0) {
+			const Building &h = buildings_[best];
+			auto r = reserved.find(h.id);
+			if (r == reserved.end()) r = reserved.emplace(h.id, h.garrison_cap - (int)h.garrisoned_units.size()).first;
+			--r->second;
+			order_garrison(&uid, 1, h.id);
+		} else {
+			cmd_stop(&uid, 1); // no room: stop moving
+		}
+	}
+	return true;
+}
+
+bool Simulation::cmd_end_alert(uint8_t player, uint32_t building_id) {
+	auto bit = building_id_to_idx_.find(building_id);
+	if (bit == building_id_to_idx_.end()) return false;
+	const Building raiser = buildings_[bit->second];
+	AlertRaiserInfo info;
+	if (raiser.team != player || raiser.wrecked || !building_alert_raiser(raiser.type, info)) return false;
+	auto in_range = [&](float x, float z) { return info.end_range < 0.0f || edge_distance(raiser, x, z) <= info.end_range; };
+	// Units outside: back to work if idle or still heading for shelter, else they stop.
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != player || !alert_filter(units_.unit_type[i], info.traders)) continue;
+		if (!in_range(units_.pos_x[i], units_.pos_z[i])) continue;
+		const uint8_t k = units_.order_kind[i];
+		if (k != ORDER_NONE && k != ORDER_GARRISON) continue; // ShouldRespondToEndOfAlert
+		uint32_t uid = units_.id[i];
+		cmd_stop(&uid, 1);
+		if (units_.work_kind[i] != ORDER_NONE) order_back_to_work(&uid, 1);
+	}
+	// Units inside nearby structures (and the raiser): unload, then back to work or stop.
+	std::vector<std::pair<uint32_t, uint32_t>> out;
+	for (const Building &b : buildings_) {
+		if (b.team != player || b.garrisoned_units.empty()) continue;
+		const float gap = std::hypot(b.x - raiser.x, b.z - raiser.z) - b.half_size - raiser.half_size;
+		if (b.id != raiser.id && info.end_range >= 0.0f && gap > info.end_range) continue;
+		for (uint32_t uid : b.garrisoned_units) {
+			const int32_t i = lookup_unit(uid);
+			if (i >= 0 && units_.team[i] == player && alert_filter(units_.unit_type[i], info.traders)) out.push_back({b.id, uid});
+		}
+	}
+	for (auto [bid, uid] : out) {
+		order_ungarrison_single(bid, uid);
+		cmd_stop(&uid, 1); // rather than walk to the rally point
+		const int32_t i = lookup_unit(uid);
+		if (i >= 0 && units_.work_kind[i] != ORDER_NONE) order_back_to_work(&uid, 1);
+	}
+	return true;
 }
 
 void Simulation::order_herd(const uint32_t *unit_ids, size_t count, uint32_t fauna_id) {
@@ -7696,7 +7791,19 @@ void Simulation::apply_order(uint32_t uid, const UnitOrder &o) {
 		case ORDER_PATROL: order_patrol(&uid, 1, o.x, o.z); break;
 		case ORDER_ATTACK: order_attack(&uid, 1, o.target); break;
 		case ORDER_ATTACK_BUILDING: order_attack_building(&uid, 1, o.target, false, capture); break;
-		case ORDER_GATHER: order_gather(&uid, 1, o.target); break;
+		case ORDER_GATHER: {
+			uint32_t r = o.target;
+			// Order.Gather on a resource that is gone -> FINDINGNEWTARGET (GatherNearPosition):
+			// the same kind of resource near where it was.
+			const int32_t i = lookup_unit(uid);
+			auto rit = res_id_to_idx_.find(r);
+			const bool gone = rit == res_id_to_idx_.end() || !resources_.alive[rit->second] || resources_.amount[rit->second] <= 0;
+			if (gone && o.res_type != 0 && i >= 0)
+				r = find_nearby_resource(o.x, o.z, (uint8_t)(o.res_type - 1), units_.team[i],
+						(o.flags & ORDER_FLAG_SUB_MASK) >> ORDER_FLAG_SUB_SHIFT);
+			order_gather(&uid, 1, r);
+			break;
+		}
 		case ORDER_BUILD: order_build_or_repair(&uid, 1, o.target); break;
 		case ORDER_GARRISON: order_garrison(&uid, 1, o.target); break;
 		case ORDER_GUARD: order_guard(&uid, 1, o.target); break;
