@@ -19770,10 +19770,106 @@
       "z": -85.49
     },
     {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": 32.87,
+      "z": -81.27
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": 27.81,
+      "z": -85.57
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": 32.6,
+      "z": -90.75
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": 37.46,
+      "z": -95.46
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": 42.32,
+      "z": -91.26
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": 46.79,
+      "z": -86.7
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": 42.97,
+      "z": -81.58
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": 38.48,
+      "z": -76.6
+    },
+    {
       "type": "farmstead",
       "template": "structures/mill_greek",
       "x": 66.68,
       "z": 29.02
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": 61.55,
+      "z": 33.72
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": 57.55,
+      "z": 28.67
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": 63.08,
+      "z": 23.8
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": 67.23,
+      "z": 19.85
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": 71.79,
+      "z": 24.43
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": 76.42,
+      "z": 28.83
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": 71.43,
+      "z": 32.85
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": 66.67,
+      "z": 38.51
     },
     {
       "type": "temple",
