@@ -2724,7 +2724,8 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		m.attack[t] = m.health[t] = m.speed[t] = 1.0f;
 		m.train_time[t] = m.heal_interval[t] = m.trade_gain[t] = m.pack_time[t] = 1.0f;
 		m.range[t] = m.heal_range[t] = m.regen[t] = m.idle_regen[t] = 0.0f;
-		m.range_mul[t] = m.vision[t] = m.capture[t] = m.required_xp[t] = 1.0f;
+		m.range_mul[t] = m.vision[t] = m.capture[t] = m.required_xp[t] = m.spread[t] = 1.0f;
+		m.vision_add[t] = 0.0f;
 		m.armor[t][0] = m.armor[t][1] = m.armor[t][2] = 0.0f;
 	}
 	for (auto &tm : m.tmpl) {
@@ -2732,7 +2733,8 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		for (float &c : tm.cost) c = 1.0f;
 		tm.attack = tm.health = tm.speed = tm.train_time = 1.0f;
 		tm.range = tm.armor[0] = tm.armor[1] = tm.armor[2] = 0.0f;
-		tm.range_mul = tm.vision = tm.capture = tm.required_xp = 1.0f;
+		tm.range_mul = tm.vision = tm.capture = tm.required_xp = tm.spread = 1.0f;
+		tm.vision_add = 0.0f;
 	}
 
 	for (int b = 0; b < BLD_TYPE_COUNT; ++b) {
@@ -2746,6 +2748,9 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		m.bld_international_add[b] = 0.0f;
 		m.bld_territory[b] = 1.0f;
 		for (float &c : m.bld_tech_cost[b]) c = 1.0f;
+		m.bld_vision[b] = m.bld_garrison_arrows[b] = 1.0f;
+		m.bld_vision_add[b] = 0.0f;
+		m.bld_min_range[b] = -1.0f;
 	}
 	for (int r = 0; r < RES_COUNT; ++r) m.loot_add[r] = m.trickle_add[r] = 0.0f;
 	m.max_pop = 1.0f;
@@ -2774,7 +2779,8 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_GATHER_WOOD: case TSTAT_GATHER_STONE: case TSTAT_GATHER_METAL:
 						apply(m.gather[t][e.stat - TSTAT_GATHER_GRAIN]); break;
 					case TSTAT_GATHER_ALL: for (float &g : m.gather[t]) apply(g); break;
-					case TSTAT_VISION: apply(m.vision[t]); break;
+					case TSTAT_VISION: apply(e.op == TOP_ADD ? m.vision_add[t] : m.vision[t]); break;
+					case TSTAT_SPREAD: if (ranged) apply(m.spread[t]); break;
 					case TSTAT_CAPTURE_ATTACK: apply(m.capture[t]); break;
 					case TSTAT_REQUIRED_XP: apply(m.required_xp[t]); break;
 					case TSTAT_CARRY_FOOD: m.carry[t][RES_FOOD] += (int16_t)e.value; break;
@@ -2815,7 +2821,8 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_GATHER_WOOD: case TSTAT_GATHER_STONE: case TSTAT_GATHER_METAL:
 						apply(tm.gather[e.stat - TSTAT_GATHER_GRAIN]); break;
 					case TSTAT_GATHER_ALL: for (float &g : tm.gather) apply(g); break;
-					case TSTAT_VISION: apply(tm.vision); break;
+					case TSTAT_VISION: apply(e.op == TOP_ADD ? tm.vision_add : tm.vision); break;
+					case TSTAT_SPREAD: if (ranged) apply(tm.spread); break;
 					case TSTAT_CAPTURE_ATTACK: apply(tm.capture); break;
 					case TSTAT_REQUIRED_XP: apply(tm.required_xp); break;
 					case TSTAT_MELEE_HACK: case TSTAT_MELEE_PIERCE: case TSTAT_MELEE_CRUSH:
@@ -2861,6 +2868,9 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_COST_FOOD: case TSTAT_COST_WOOD: case TSTAT_COST_STONE: case TSTAT_COST_METAL:
 						apply(m.bld_cost[b][cost_res]); break;
 					case TSTAT_TERRITORY_RADIUS: apply(m.bld_territory[b]); break;
+					case TSTAT_VISION: apply(e.op == TOP_ADD ? m.bld_vision_add[b] : m.bld_vision[b]); break;
+					case TSTAT_GARRISON_ARROWS: apply(m.bld_garrison_arrows[b]); break;
+					case TSTAT_MIN_RANGE: if (e.op == TOP_SET) m.bld_min_range[b] = e.value * 0.28f; break;
 					case TSTAT_TECH_COST_FOOD: apply(m.bld_tech_cost[b][RES_FOOD]); break;
 					case TSTAT_TECH_COST_WOOD: apply(m.bld_tech_cost[b][RES_WOOD]); break;
 					case TSTAT_TECH_COST_STONE: apply(m.bld_tech_cost[b][RES_STONE]); break;
@@ -2951,12 +2961,12 @@ void Simulation::rebuild_all_tech_mods() {
 Simulation::UnitTechMods Simulation::unit_tech_mods(const TechMods &m, uint8_t unit_type, uint16_t tmpl) {
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
 		const TechMods::Template &tm = m.tmpl[tmpl];
-		return {tm.attack, tm.health, tm.speed, tm.range, tm.train_time, tm.range_mul, tm.vision, tm.capture,
-			tm.required_xp, tm.armor, tm.gather};
+		return {tm.attack, tm.health, tm.speed, tm.range, tm.train_time, tm.range_mul, tm.vision, tm.vision_add, tm.spread,
+			tm.capture, tm.required_xp, tm.armor, tm.gather};
 	}
 	const uint8_t t = unit_type < UNIT_TYPE_COUNT ? unit_type : 0;
 	return {m.attack[t], m.health[t], m.speed[t], m.range[t], m.train_time[t], m.range_mul[t], m.vision[t],
-		m.capture[t], m.required_xp[t], m.armor[t], m.gather[t]};
+		m.vision_add[t], m.spread[t], m.capture[t], m.required_xp[t], m.armor[t], m.gather[t]};
 }
 
 void Simulation::apply_tech_mods_to_unit(size_t idx) {
@@ -4977,7 +4987,8 @@ int Simulation::building_arrow_count(const Building &b) const {
 			if (g >= 0 && (unit_classes(units_.tmpl[g], units_.unit_type[g]) & ai.garrison_arrow_classes)) ++garrisoned;
 		}
 	}
-	int count = (int)std::lround(def) + (int)std::lround(garrisoned * ai.garrison_arrow_multiplier);
+	const float per_unit = ai.garrison_arrow_multiplier * (b.team < MAX_PLAYERS ? tech_mods(b.team).bld_garrison_arrows[b.type] : 1.0f);
+	int count = (int)std::lround(def) + (int)std::lround(garrisoned * per_unit);
 	if (ai.max_arrows > 0) count = std::min(count, (int)ai.max_arrows);
 	return std::max(count, 0);
 }
@@ -8310,7 +8321,8 @@ void Simulation::tick_combat(float dt) {
 			const float flight = dist / projectile_speed(proj_vis);
 			const float aim_x = units_.pos_x[t] + units_.vel_x[t] * flight;
 			const float aim_z = units_.pos_z[t] + units_.vel_z[t] * flight;
-			const float sigma = unit_combat_at(i).spread * spread_rank_multiplier(units_.rank[i]) * dist / 100.0f;
+			const float tech_spread = units_.team[i] < MAX_PLAYERS ? unit_tech_mods(units_.team[i], units_.unit_type[i], units_.tmpl[i]).spread : 1.0f;
+			const float sigma = unit_combat_at(i).spread * spread_rank_multiplier(units_.rank[i]) * tech_spread * dist / 100.0f;
 			float launch_y = unit_height(i) + arrow_sy;
 			float land_y = (unit_is_ship(units_.unit_type[t]) ? unit_height(t)
 					: get_terrain_height(aim_x, aim_z) + unit_height_offset((size_t)t)) + 0.8f;
@@ -8525,7 +8537,8 @@ void Simulation::tick_combat(float dt) {
 		// The enemy range query: parabolic between MinRange and MaxRange from the
 		// structure's edge, measured from Origin/Y above its ground.
 		const float max_r = building_arrow_range(b);
-		const float min_r = ai.min_range;
+		const float tech_min = b.team < MAX_PLAYERS ? tech_mods(b.team).bld_min_range[b.type] : -1.0f;
+		const float min_r = tech_min >= 0.0f ? tech_min : ai.min_range; // Murder Holes
 		const float b_y = get_terrain_height(b.x, b.z) + ai.origin_y;
 		auto in_range = [&](float dx, float dz, float other_half, float def_y) {
 			const float eff_d = std::max(0.0f, sqrtf(dx * dx + dz * dz) - b.half_size - other_half);
@@ -19263,6 +19276,10 @@ float Simulation::building_vision_range(const Building &b) const {
 	if (b.type == BLD_TOWER || b.type == BLD_FORTRESS) bvr = 24.0f;
 	if (b.type == BLD_DOCK) bvr = 28.0f;
 	if (const float cv = civ_building_vision(b.type); cv > 0.0f) bvr = cv; // e.g. the Ptolemaic Lighthouse
+	if (b.team < MAX_PLAYERS) { // Carrier Pigeons, Arrow Shooters: multiplied, then added metres x0.28
+		const TechMods &m = tech_mods(b.team);
+		bvr = bvr * m.bld_vision[b.type] + m.bld_vision_add[b.type] * 0.28f;
+	}
 	return bvr;
 }
 
@@ -20266,7 +20283,10 @@ float Simulation::unit_base_vision(size_t i) const {
 
 float Simulation::unit_vision_at(size_t i) const {
 	float v = unit_base_vision(i);
-	if (units_.team[i] < MAX_PLAYERS) v *= unit_tech_mods(units_.team[i], units_.unit_type[i], units_.tmpl[i]).vision;
+	if (units_.team[i] < MAX_PLAYERS) {
+		const UnitTechMods um = unit_tech_mods(units_.team[i], units_.unit_type[i], units_.tmpl[i]);
+		v = v * um.vision + um.vision_add * 0.28f; // multiplied, then added metres x0.28
+	}
 	const float m = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_VISION,
 		units_.tmpl[i], &unit_combat_at(i).classes);
 	// structures/wall_garrisoned: a turreted Soldier sees 20 m further.
