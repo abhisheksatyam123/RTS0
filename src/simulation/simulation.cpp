@@ -3538,13 +3538,17 @@ void Simulation::order_ungarrison(uint32_t building_id) {
 			float a = angle_step * k++;
 			float ex = b.x + cosf(a) * (b.half_size + 1.2f);
 			float ez = b.z + sinf(a) * (b.half_size + 1.2f);
-			units_.pos_x[idx] = ex;
-			units_.pos_z[idx] = ez;
+			const bool turret = turret_height_.count(uid) != 0;
+			if (!turret) {
+				units_.pos_x[idx] = ex;
+				units_.pos_z[idx] = ez;
+			}
 			units_.alive[idx] = 1;
 			units_.action_state[idx] = ACTION_IDLE;
 			units_.has_order[idx] = 0;
 			units_.vel_x[idx] = 0.0f;
 			units_.vel_z[idx] = 0.0f;
+			if (turret) leave_turret((size_t)idx, b);
 		}
 	}
 	b.garrisoned_units.clear();
@@ -3559,13 +3563,17 @@ void Simulation::order_ungarrison_single(uint32_t building_id, uint32_t unit_id)
 	if (it != b.garrisoned_units.end()) {
 		int32_t idx = lookup_unit(unit_id);
 		if (idx >= 0) {
-			units_.pos_x[idx] = b.x;
-			units_.pos_z[idx] = b.z + b.half_size + 1.2f;
+			const bool turret = turret_height_.count(unit_id) != 0;
+			if (!turret) {
+				units_.pos_x[idx] = b.x;
+				units_.pos_z[idx] = b.z + b.half_size + 1.2f;
+			}
 			units_.alive[idx] = 1;
 			units_.action_state[idx] = ACTION_IDLE;
 			units_.has_order[idx] = 0;
 			units_.vel_x[idx] = 0.0f;
 			units_.vel_z[idx] = 0.0f;
+			if (turret) leave_turret((size_t)idx, b);
 		}
 		b.garrisoned_units.erase(it);
 	}
