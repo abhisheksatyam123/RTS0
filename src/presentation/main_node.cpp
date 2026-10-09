@@ -140,6 +140,7 @@ void RtsoMain::_bind_methods() {
 	bind_enum("UnitType", "CAMEL", rtso::UNIT_CAMEL);
 	bind_enum("UnitType", "SCYTHED_CHARIOT", rtso::UNIT_SCYTHED_CHARIOT);
 	bind_enum("UnitType", "MINISTER", rtso::UNIT_MINISTER);
+	bind_enum("UnitType", "CATAFALQUE", rtso::UNIT_CATAFALQUE);
 	bind_enum("UnitType", "NONE", rtso::UNIT_TYPE_NONE);
 
 	bind_enum("BuildingType", "TOWN_CENTER", rtso::BLD_TOWN_CENTER);
@@ -285,6 +286,7 @@ static rtso::UnitType map_unit_type(const String &n) {
 		{"merchant_ship", rtso::UNIT_MERCHANT_SHIP}, {"female_citizen", rtso::UNIT_FEMALE_CITIZEN}, {"carnyx", rtso::UNIT_CARNYX},
 		{"worker_elephant", rtso::UNIT_WORKER_ELEPHANT}, {"archer_maiden", rtso::UNIT_ARCHER_MAIDEN}, {"camel", rtso::UNIT_CAMEL},
 		{"scythed_chariot", rtso::UNIT_SCYTHED_CHARIOT}, {"minister", rtso::UNIT_MINISTER},
+		{"catafalque", rtso::UNIT_CATAFALQUE},
 	};
 	for (const auto &t : kTypes)
 		if (n == t.name) return t.type;
@@ -2603,9 +2605,10 @@ void RtsoMain::update_inspector() {
 				status = found_b->gate_locked ? "Gate: locked" : (found_b->gate_open ? "Gate: open" : "Gate: closed");
 			else if (!found_b->queue.empty())
 				status = "Training: " + String::num_int64(found_b->queue.size()) + " in queue (right-click a slot to cancel)";
-			if (binfo.attack_damage > 0.0f)
-				status += String(status.is_empty() ? "" : "\n") + "Attack: " + String::num(binfo.attack_damage, 0) + " pierce per arrow, interval " +
-						String::num(binfo.attack_cooldown, 1) + " s, range " + String::num(binfo.attack_range * rtso::AttackDetection::kMetresPerUnit, 0) + " m";
+			if (const rtso::BuildingAIInfo &ai = rtso::building_ai_info(found_b->type); ai.shoots())
+				status += String(status.is_empty() ? "" : "\n") + "Attack: " + String::num_int64(sim->building_arrow_count(*found_b)) + " arrows of " +
+						String::num(ai.pierce, 0) + " pierce every " + String::num(ai.repeat_time, 1) + " s, range " +
+						String::num(sim->building_arrow_range(*found_b) * rtso::AttackDetection::kMetresPerUnit, 0) + " m";
 			inspector_stats->set_text(status);
 			inspector_extra->set_text(found_b->has_rally_point ? "Rally point set" : "");
 

@@ -148,7 +148,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 33; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 34; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -203,7 +203,12 @@ public:
 		int cell_x, cell_y;
 		int footprint; // 1 or 2
 		float rot = DEFAULT_BUILDING_ROT; // 0 A.D. Position rotation: 0 faces +z, pi/2 faces +x (the obstruction stays an axis-aligned square)
-		float attack_timer; // for defensive arrows
+		// 0 A.D. BuildingAI.js FireArrows: attack_timer counts down to the next of the ten
+		// rounds per RepeatTime; the timer runs only while enemies are in range.
+		float attack_timer;
+		uint8_t arrow_round = 0;      // currentRound
+		int16_t arrows_left = 0;      // arrowsLeft of this RepeatTime
+		bool arrow_timer_on = false;  // a FireArrows timer is set
 		bool is_burning = false; // Structure fire under 33% HP
 
 		// Multi-slot production queue
@@ -282,7 +287,12 @@ public:
 	// 0 A.D. Identity classes, RestrictedClasses, Bonuses and Spread of the unit at SoA index i.
 	const CombatProfile &unit_combat_at(size_t i) const { return unit_combat(units_.tmpl[i], units_.unit_type[i]); }
 	// Attack.js CanAttack: may unit i attack unit j / building b at all (RestrictedClasses)?
-	bool unit_can_target(size_t i, size_t j) const { return combat_can_target(unit_combat_at(i), unit_combat_at(j)); }
+	// A relic (catafalque) has no Health, so no attack but Capture reaches it.
+	bool unit_can_target(size_t i, size_t j) const {
+		return units_.unit_type[j] != UNIT_CATAFALQUE && combat_can_target(unit_combat_at(i), unit_combat_at(j));
+	}
+	// Capturable.js CanCapture / Attack.js Capture: may unit i capture relic unit r?
+	bool can_capture_relic(size_t i, int32_t r) const;
 	bool unit_can_target_building(size_t i, uint8_t building_type) const {
 		return combat_can_target(unit_combat_at(i), building_combat(building_type));
 	}
@@ -348,7 +358,11 @@ public:
 	}
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f);
 	uint32_t spawn_building_world(float wx, float wz, uint8_t type, uint8_t team = 0, float progress = 1.0f);
-	uint32_t spawn_relic(float x, float z, uint8_t res_type, int amount = 300);
+	// CaptureTheRelic.js: a Gaia catafalque of a civ picked from its id; returns the unit id.
+	uint32_t spawn_relic(float x, float z);
+	// Right-click on a relic that is not ours or an ally's: walk up and Capture it.
+	void order_capture_relic(const uint32_t *unit_ids, size_t count, uint32_t relic_id, bool queued = false);
+	bool is_relic_unit(int32_t i) const { return i >= 0 && units_.unit_type[i] == UNIT_CATAFALQUE; }
 
 	float get_terrain_height(float x, float z) const;
 	float map_half() const { return map_half_; }
@@ -524,6 +538,12 @@ public:
 	bool is_siege_tower_at(size_t i) const;
 	// Garrisoned Infantry in a siege tower = arrows per volley (capped).
 	int siege_tower_arrows(size_t i) const;
+	// 0 A.D. BuildingAI.js GetArrowCount: arrows per RepeatTime for a finished structure.
+	int building_arrow_count(const Building &b) const;
+	// Attack/Ranged/MaxRange with technologies, measured from the structure's edge (0 = never shoots).
+	float building_arrow_range(const Building &b) const;
+	// A unit's hack, pierce and crush resistance levels (template, techs, rank, armour auras).
+	void unit_resistance(size_t i, float out[3]) const;
 	int get_transport_capacity(uint32_t transport_id) const;
 	// Ships as GarrisonHolders (template_unit_ship*.xml): capacity and List per
 	// template, LoadingRange 10 m, Pickup, EjectClassesOnDestroy. `i` is a SoA index.
@@ -1062,12 +1082,14 @@ public:
 	void order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
 	bool is_fauna_id(uint32_t id) const { return fauna_id_to_idx_.count(id) != 0; }
 
-	struct TreasureRelic {
+	// A Capture the Relic catafalque (template_unit_catafalque.xml). id is the catafalque
+	// unit's; x, z and the owner follow the unit each tick.
+	struct Relic {
 		uint32_t id;
 		float x, z;
-		uint8_t res_type;
-		int amount;
-		bool claimed;
+		uint8_t civ;            // whose catafalque
+		int capture_cp;         // the owner's Capturable points x100 (0..RELIC_CAPTURE_POINTS*100)
+		bool claimed;           // owned by a player, not Gaia
 		uint8_t owner_team = 255;
 	};
 
@@ -1124,7 +1146,7 @@ public:
 
 	float wonder_time_remaining() const { return std::max(0.0f, wonder_duration_ - wonder_victory_timer_); }
 	bool is_wonder_active() const { return has_active_wonder_; }
-	const std::vector<TreasureRelic> &relics() const { return relics_; }
+	const std::vector<Relic> &relics() const { return relics_; }
 
 	std::vector<uint32_t> get_idle_workers(uint8_t team = 0) const;
 
@@ -1295,8 +1317,6 @@ private:
 	// 0 A.D. helpers/Attack.js CauseDamageOverArea for an Attack Splash landing at (ox, oz).
 	void cause_damage_over_area(uint8_t splash, uint32_t attacker_id, uint8_t attacker_team,
 			float ox, float oz, float dir_x, float dir_z);
-	// A unit's hack, pierce and crush resistance levels (template, techs, rank, armour auras).
-	void unit_resistance(size_t i, float out[3]) const;
 	void tick_gates(float dt);
 	void tick_waves(float dt);
 	void tick_petra_ai(float dt);
@@ -1421,9 +1441,10 @@ private:
 	ResourceSoA resources_;
 	std::vector<Building> buildings_;
 	std::vector<Projectile> projectiles_;
-	std::vector<TreasureRelic> relics_;
+	std::vector<Relic> relics_;
 	std::vector<Treasure> treasures_;
 	void tick_treasures(float dt);
+	void tick_relics();
 	float wonder_victory_timer_ = 0.0f;
 	bool has_active_wonder_ = false;
 	VictoryCondition victory_condition_ = VICTORY_CONQUEST;
@@ -1874,6 +1895,7 @@ private:
 	void apply_rally_point(uint32_t uid, const Building &b, bool ignore_self_garrison = false);
 	void rally_after_ungarrison(uint32_t uid, uint32_t building_id);
 	void on_construction_finished(const Building &b, size_t builder);
+	void next_after_construction(size_t k, const Building &b, bool food, bool other);
 	void destroy_building(Building &b);
 	bool can_capture_building(uint8_t player, const Building &b) const;
 	bool can_heal(size_t healer, int32_t target) const;         // Heal.js CanHeal
