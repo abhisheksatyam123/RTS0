@@ -418,6 +418,9 @@ public:
 	// Hitpoints per second each unit garrisoned in `b` regains (BuffHeal plus Living Conditions).
 	float structure_garrison_heal(const Building &b) const;
 	void order_ungarrison_single(uint32_t building_id, uint32_t unit_id);
+	// Commands.js unload / unload-all-by-owner: the holder's owner may unload anyone; an
+	// ally only its own units. count 0 unloads every unit `player` may unload.
+	void cmd_unload(uint8_t player, uint32_t building_id, const uint32_t *unit_ids, size_t count);
 	void order_guard(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
 	// UnitAI Heal: healers walk to an injured allied unit and heal it (Heal.js).
 	void order_heal(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
@@ -1657,7 +1660,8 @@ private:
 	void respond_to_attack(size_t i);
 	uint32_t find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team, int subtype = -1) const;
 	uint32_t find_nearby_foundation(float x, float z, uint8_t team) const;
-	void apply_rally_point(uint32_t uid, const Building &b);
+	void apply_rally_point(uint32_t uid, const Building &b, bool ignore_self_garrison = false);
+	void rally_after_ungarrison(uint32_t uid, uint32_t building_id);
 	void on_construction_finished(const Building &b, size_t builder);
 	void destroy_building(Building &b);
 	bool can_capture_building(uint8_t player, const Building &b) const;

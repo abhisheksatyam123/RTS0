@@ -3448,7 +3448,22 @@ void Simulation::order_ungarrison(uint32_t building_id) {
 			units_.vel_z[idx] = 0.0f;
 		}
 	}
+	const std::vector<uint32_t> out = std::move(b.garrisoned_units);
 	b.garrisoned_units.clear();
+	for (uint32_t uid : out) rally_after_ungarrison(uid, b.id);
+}
+
+// Garrisonable.UnGarrison: UnitAI.Ungarrison replaces whatever was queued behind the
+// garrison order, then RallyPoint.OrderToRallyPoint(ent, ["garrison"]) has the unit
+// obey its owner's rally point, unless that only says to garrison back in here.
+void Simulation::rally_after_ungarrison(uint32_t uid, uint32_t building_id) {
+	order_queues_.erase(uid);
+	auto bit = building_id_to_idx_.find(building_id);
+	if (bit == building_id_to_idx_.end()) return;
+	const Building &b = buildings_[bit->second];
+	const int32_t i = lookup_unit(uid);
+	if (i < 0 || !b.has_rally_point || units_.team[i] != b.team) return;
+	apply_rally_point(uid, b, true);
 }
 
 void Simulation::order_ungarrison_single(uint32_t building_id, uint32_t unit_id) {
@@ -3469,6 +3484,30 @@ void Simulation::order_ungarrison_single(uint32_t building_id, uint32_t unit_id)
 			units_.vel_z[idx] = 0.0f;
 		}
 		b.garrisoned_units.erase(it);
+		rally_after_ungarrison(unit_id, building_id);
+	}
+}
+
+void Simulation::cmd_unload(uint8_t player, uint32_t building_id, const uint32_t *unit_ids, size_t count) {
+	auto bit = building_id_to_idx_.find(building_id);
+	if (bit == building_id_to_idx_.end()) return;
+	const Building &b = buildings_[bit->second];
+	const bool owner = b.team == player;
+	if (!owner && !is_ally(player, b.team)) return;
+	if (owner && count == 0) {
+		order_ungarrison(building_id);
+		return;
+	}
+	std::vector<uint32_t> out;
+	if (count == 0) {
+		out = b.garrisoned_units;
+	} else {
+		out.assign(unit_ids, unit_ids + count);
+	}
+	for (uint32_t uid : out) {
+		const int32_t i = lookup_unit(uid);
+		if (i < 0 || (!owner && units_.team[i] != player)) continue;
+		order_ungarrison_single(building_id, uid);
 	}
 }
 
@@ -6341,6 +6380,7 @@ void Simulation::capture_points_tick(Building &b, size_t bi, float dt) {
 		int best = 0;
 		for (int t = 1; t <= GAIA; ++t) if (pts[t] > pts[best]) best = t;
 		if (best == owner) return false;
+		b.has_rally_point = false; // RallyPoint.OnOwnershipChanged -> Reset
 		order_ungarrison(b.id);
 		cancel_upgrade(b, b.team);
 		const uint8_t from = b.team;
@@ -7436,7 +7476,7 @@ static bool can_gather_type(uint8_t t) {
 
 // 0 A.D. RallyPoint + Commands.js: a trained unit does what the rally target asks
 // for, if it can (gather, build, garrison, attack), and walks there otherwise.
-void Simulation::apply_rally_point(uint32_t uid, const Building &b) {
+void Simulation::apply_rally_point(uint32_t uid, const Building &b, bool ignore_self_garrison) {
 	const int32_t i = lookup_unit(uid);
 	if (i < 0) return;
 	const uint8_t ut = units_.unit_type[i];
@@ -7453,6 +7493,7 @@ void Simulation::apply_rally_point(uint32_t uid, const Building &b) {
 					order_build_or_repair(&uid, 1, t.id);
 					return;
 				}
+				if (ignore_self_garrison && t.id == b.id) return;
 				if ((int)t.garrisoned_units.size() < t.garrison_cap) {
 					order_garrison(&uid, 1, t.id);
 					return;
