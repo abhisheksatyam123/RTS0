@@ -40,6 +40,7 @@
 #include "simulation/entity_limits_data.h"
 #undef private
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <memory>
@@ -48,6 +49,43 @@ using namespace rtso;
 
 static int g_failures = 0;
 #define CHECK(cond, what) do { if (!(cond)) { std::fprintf(stderr, "  [FAIL] %s: %s\n", what, #cond); ++g_failures; } } while (0)
+
+// The point nearest (x, z) with clear land (no water, cliff or building) `clear` world units
+// round it, on the town centres' land. On the 128 Continental map the corners are sea, and an
+// army can't wade out to a structure placed there.
+static void on_land(const Simulation &s, float &x, float &z, float clear) {
+	const NavGrid &g = s.nav_grid();
+	const float cell = 2.0f * g.map_half / (float)g.res;
+	uint16_t land = 0;
+	for (const auto &b : s.buildings()) {
+		if (b.type != BLD_TOWN_CENTER) continue;
+		auto [cx, cy] = g.world_to_cell(b.x, b.z);
+		for (int r = 1; r < g.res && !land; ++r)
+			for (int dy = -r; dy <= r && !land; ++dy)
+				for (int dx = -r; dx <= r && !land; ++dx)
+					if (std::max(std::abs(dx), std::abs(dy)) == r && g.is_passable_for(cx + dx, cy + dy, PASS_INFANTRY))
+						land = g.global_region_at(cx + dx, cy + dy, PASS_INFANTRY);
+		break;
+	}
+	const int reach = (int)std::ceil(clear / cell);
+	float best = 1e30f, bx = x, bz = z;
+	for (int cy = 0; cy < g.res; ++cy) {
+		for (int cx = 0; cx < g.res; ++cx) {
+			const float wx = ((float)cx + 0.5f) * cell - g.map_half, wz = ((float)cy + 0.5f) * cell - g.map_half;
+			const float d = (wx - x) * (wx - x) + (wz - z) * (wz - z);
+			if (d >= best || g.global_region_at(cx, cy, PASS_INFANTRY) != land) continue;
+			bool ok = true;
+			for (int dy = -reach; dy <= reach && ok; ++dy)
+				for (int dx = -reach; dx <= reach && ok; ++dx)
+					ok = g.is_passable_for(cx + dx, cy + dy, PASS_INFANTRY);
+			for (const auto &b : s.buildings())
+				ok = ok && std::hypot(b.x - wx, b.z - wz) > b.half_size + clear;
+			if (ok) { best = d; bx = wx; bz = wz; }
+		}
+	}
+	x = bx;
+	z = bz;
+}
 
 static int count_units(const Simulation &s, uint8_t team, bool workers_only) {
 	const auto u = s.units();
@@ -136,7 +174,11 @@ static void test_roster_army() {
 		// Garrisoned fortresses (ten more arrows each, BuildingAI) outlast the infantry's first
 		// waves, so the siege (trained some ten minutes into the city phase at 0 A.D.'s gather
 		// rates) still has something to fire at.
-		for (const float *at : {(const float[2]){42.0f, 42.0f}, (const float[2]){26.0f, 50.0f}, (const float[2]){50.0f, 26.0f}}) {
+		float fort0_x = 0.0f, fort0_z = 0.0f;
+		for (const auto &want : {std::array<float, 2>{42.0f, 42.0f}, {26.0f, 50.0f}, {50.0f, 26.0f}}) {
+			float at[2] = {want[0], want[1]};
+			on_land(*s, at[0], at[1], 6.0f);
+			if (fort0_x == 0.0f && fort0_z == 0.0f) { fort0_x = at[0]; fort0_z = at[1]; }
 			const uint32_t fort = s->spawn_building_world(at[0], at[1], BLD_FORTRESS, 0, 1.0f);
 			std::vector<uint32_t> men;
 			for (int k = 0; k < 10; ++k)
@@ -155,7 +197,7 @@ static void test_roster_army() {
 			bool idle_alive = false;
 			for (const auto &b : s->buildings())
 				if (b.team == 0 && b.hp > 0.0f && !b.wrecked) idle_alive = true;
-			if (!idle_alive) s->spawn_building_world(42.0f, 42.0f, BLD_FORTRESS, 0, 1.0f);
+			if (!idle_alive) s->spawn_building_world(fort0_x, fort0_z, BLD_FORTRESS, 0, 1.0f);
 			for (const auto &b : s->buildings())
 				if (b.team == 1 && b.build_progress >= 1.0f && !b.wrecked) {
 					if (b.type == BLD_GYMNASIUM || b.type == BLD_THEATER) advanced = true;
@@ -452,7 +494,9 @@ static void test_attack_plans() {
 		// A storehouse more than 80 m from the idle player's Town Center is the
 		// only structure a rush may target (rushTargetFinder).
 		auto s = match(PETRA_BEHAVIOR_AGGRESSIVE);
-		const uint32_t store = s->spawn_building_world(-55.0f, 40.0f, BLD_STOREHOUSE, 0, 1.0f);
+		float store_x = -55.0f, store_z = 40.0f;
+		on_land(*s, store_x, store_z, 3.0f);
+		const uint32_t store = s->spawn_building_world(store_x, store_z, BLD_STOREHOUSE, 0, 1.0f);
 		bool rushed = false, rush_at_store = false;
 		int attack_size = 0, huge_size = 0;
 		for (float t = 0.0f; t < 20.0f * 60.0f; t += Simulation::FIXED_STEP) {
@@ -486,9 +530,11 @@ static void test_attack_plans() {
 		// Fortresses on the far side keep the idle player standing after the Attacks raze its
 		// base (an unmanned fortress shoots only its 10 default arrows, BuildingAI), so there is
 		// still a target to plan the HugeAttack against.
-		s->spawn_building_world(50.0f, 50.0f, BLD_FORTRESS, 0, 1.0f);
-		s->spawn_building_world(55.0f, 10.0f, BLD_FORTRESS, 0, 1.0f);
-		s->spawn_building_world(10.0f, 55.0f, BLD_FORTRESS, 0, 1.0f);
+		for (const auto &want : {std::array<float, 2>{50.0f, 50.0f}, {55.0f, 10.0f}, {10.0f, 55.0f}}) {
+			float at[2] = {want[0], want[1]};
+			on_land(*s, at[0], at[1], 6.0f);
+			s->spawn_building_world(at[0], at[1], BLD_FORTRESS, 0, 1.0f);
+		}
 		int attack_size = 0, huge_size = 0;
 		std::vector<int> kinds;
 		auto last = Simulation::AttackPlan::UNEXECUTED;

@@ -10650,8 +10650,9 @@ void Simulation::petra_manage_military_production(float dt) {
 			if (own_heroes > 0 || phase < 3) continue;
 			score = champion_score * 1.2f;
 		} else if (t.flags & ROSTER_SIEGE_TOWER) {
-			// One tower to carry soldiers over walls, once the siege train has started.
-			if (own_siege >= siege_cap || own_towers > 0) continue;
+			// One tower to carry soldiers over walls, once the siege train has started. It is
+			// not one of the engines under siege_cap: a full siege train still gets its tower.
+			if (own_towers > 0) continue;
 			score = siege_score * (own_siege > 0 ? 1.1f : 0.8f);
 		} else {
 			score = class_score(t.unit_type);
