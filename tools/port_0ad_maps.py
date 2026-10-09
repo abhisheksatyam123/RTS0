@@ -6,6 +6,7 @@
   python3 tools/port_0ad_maps.py --github-builtin # the built-in list, fetched from GitHub
   python3 tools/port_0ad_maps.py --github-scenarios [NAME..]  # scenario maps, same way
   python3 tools/port_0ad_maps.py --terrain-only   # add each ported map's per-tile terrain from GitHub
+  python3 tools/port_0ad_maps.py --environment-only   # add each ported map's Environment (sun, fog, water) from GitHub
 
 Maps fetched with --github get their world size from the .pmp (one RTS0 world unit per
 0 A.D. tile, clamped to 128..512) and a heightmap of one sample per 4 tiles.
@@ -345,8 +346,57 @@ def gaia_resource(source, ltpl, wx, wz):
         entry["max_gatherers"] = mg
     return entry
 
+def extract_environment(root):
+    """The map XML's <Environment> (sky, sun, ambient light, fog, water, post-processing)
+    as plain numbers for the renderer, or None when the map has none. Colours are
+    [r, g, b] in 0 A.D.'s 0-1(+) range, angles in radians."""
+    env = root.find("Environment")
+    if env is None:
+        return None
+
+    def colour(path):
+        e = env.find(path)
+        return None if e is None else [round(float(e.get(c, 0.0)), 4) for c in "rgb"]
+
+    def number(path, attr=None):
+        e = env.find(path)
+        if e is None:
+            return None
+        try:
+            return round(float(e.get(attr) if attr else e.text), 6)
+        except (TypeError, ValueError):
+            return None
+
+    def text(path):
+        e = env.find(path)
+        return e.text.strip() if e is not None and e.text else None
+
+    out = {
+        "sky_set": text("SkySet"),
+        "sun_color": colour("SunColor"),
+        "sun_elevation": number("SunElevation", "angle"),
+        "sun_rotation": number("SunRotation", "angle"),
+        "ambient_color": colour("AmbientColor"),
+        "fog_color": colour("Fog/FogColor"),
+        "fog_factor": number("Fog/FogFactor"),
+        "fog_thickness": number("Fog/FogThickness"),
+        "water_type": text("Water/WaterBody/Type"),
+        "water_color": colour("Water/WaterBody/Color"),
+        "water_tint": colour("Water/WaterBody/Tint"),
+        "water_waviness": number("Water/WaterBody/Waviness"),
+        "water_murkiness": number("Water/WaterBody/Murkiness"),
+        "water_wind_angle": number("Water/WaterBody/WindAngle"),
+        "brightness": number("Postproc/Brightness"),
+        "contrast": number("Postproc/Contrast"),
+        "saturation": number("Postproc/Saturation"),
+        "bloom": number("Postproc/Bloom"),
+        "post_effect": text("Postproc/PostEffect"),
+    }
+    return {k: v for k, v in out.items() if v is not None}
+
+
 def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean", height_scale=None, source=None, gaia_only=False,
-             terrain_only=False):
+             terrain_only=False, environment_only=False):
     print(f"Porting map: {map_id} ({xml_rel})...")
     with (source if source is not None else zipfile.ZipFile(zip_path, 'r')) as z:
         files = z  # `z` is reused below for entity positions
@@ -358,6 +408,19 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
         settings = json.loads(s_elem.text) if s_elem is not None and s_elem.text else {}
         name = settings.get("Name", map_id.replace("_", " ").title())
         desc = settings.get("Description", "")
+        environment = extract_environment(root)
+        if environment_only:
+            # Keep the existing map; only add or refresh its Environment.
+            out_path = f"data/maps/{map_id}.json"
+            if not os.path.exists(out_path) or environment is None:
+                return
+            with open(out_path) as f:
+                old = json.load(f)
+            old["environment"] = environment
+            with open(out_path, "w") as f:
+                json.dump(old, f, indent=2)
+            print(f"  -> {out_path}: environment ({len(environment)} values)")
+            return
 
         # Terrain heights from PMP
         raw_pmp = z.read(pmp_rel)
@@ -586,6 +649,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             "heightmap_res": target_res,
             "heightmap": heightmap,
             "terrain": terrain,
+            "environment": environment,
             "players": list(players.values()),
             "resources": resources,
             "fauna": fauna,
@@ -693,10 +757,11 @@ for _civ in ["athenians", "britons", "carthaginians", "gauls", "han", "iberians"
     github_scenarios[f"sandbox_{_civ}"] = (f"sandbox_{_civ}", "mediterranean")
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] in ("--gaia-only", "--terrain-only"):
-        # Refresh fauna, treasures and ruins (or only the per-tile terrain) of every
-        # ported map from 0 A.D.'s GitHub.
-        only = {"gaia_only": True} if sys.argv[1] == "--gaia-only" else {"terrain_only": True}
+    if len(sys.argv) > 1 and sys.argv[1] in ("--gaia-only", "--terrain-only", "--environment-only"):
+        # Refresh fauna, treasures and ruins (or only the per-tile terrain, or only the
+        # Environment) of every ported map from 0 A.D.'s GitHub.
+        only = {"--gaia-only": {"gaia_only": True}, "--terrain-only": {"terrain_only": True},
+                "--environment-only": {"environment_only": True}}[sys.argv[1]]
         for mid, xrel, prel, size, bome, hscale in maps_list:
             try:
                 port_map(mid, xrel, prel, size, bome, hscale, source=GithubSource(), **only)

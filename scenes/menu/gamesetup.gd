@@ -296,10 +296,22 @@ func _selected_map() -> Dictionary:
 		return {}
 	return _filtered[clampi(_sel_map, 0, _filtered.size() - 1)]
 
+## The map's preview image (assets/maps/previews, tools/fetch_0ad_previews.py): 0 A.D.'s
+## own for ported maps and maps from 0 A.D. scripts, a drawn one for RTS0's own random
+## maps; null when the map has none (some sandbox scenarios).
+static func map_preview(map_id: String) -> Texture2D:
+	var path := "res://assets/maps/previews/%s.jpg" % map_id
+	return load(path) as Texture2D if ResourceLoader.exists(path) else null
+
 func _update_preview() -> void:
 	_update_map_options()
 	var m := _selected_map()
 	var lbl := $VBox/HBox/Right/Preview/Label as Label
+	var img := $VBox/HBox/Right/Preview/Image as TextureRect
+	if img:
+		img.texture = null if m.is_empty() else map_preview(str(m["id"]))
+		img.visible = img.texture != null
+		if lbl: lbl.offset_left = 192.0 if img.visible else 12.0
 	var crest := $VBox/HBox/Right/CivPreview/Crest as TextureRect
 	var civ_lbl := $VBox/HBox/Right/CivPreview/CivLabel as Label
 	if m.is_empty():
