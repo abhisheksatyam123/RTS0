@@ -7618,22 +7618,28 @@ void Simulation::check_victory_conditions(float dt) {
 			return;
 		}
 	} else if (victory_condition_ == VICTORY_RELIC) {
-		// Relic Capture Victory: one player claims and holds all relics
+		// Capture the Relic: one side (a player and its mutual allies, or one player under
+		// Last Man Standing, side_of) holds every relic for relic_duration_.
 		if (!relics_.empty()) {
 			bool all_claimed = true;
 			int owner = -1;
+			uint8_t side = 0;
 			for (const auto &r : relics_) {
-				if (!r.claimed) {
+				if (!r.claimed || r.owner_team >= MAX_PLAYERS) {
 					all_claimed = false;
 					break;
 				}
-				if (owner < 0) owner = (int)r.owner_team;
-				else if (owner != (int)r.owner_team) all_claimed = false;
+				if (owner < 0) {
+					owner = (int)r.owner_team;
+					side = side_of((uint8_t)owner);
+				} else if (!((side >> r.owner_team) & 1)) {
+					all_claimed = false;
+				}
 			}
 			if (all_claimed && owner >= 0 && owner < MAX_TEAMS) {
 				relic_victory_timer_ += dt;
 				if (relic_victory_timer_ >= relic_duration_) {
-					end_match(side_of((uint8_t)owner));
+					end_match(side);
 					return;
 				}
 			} else {
