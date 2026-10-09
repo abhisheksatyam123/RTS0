@@ -1527,6 +1527,40 @@ static void test_gather_limits() {
 	CHECK(on_tree + on_mine > 8, "the rest go to another supply");
 }
 
+// garrisonManager.js addDecayingStructure: a defence tower of Petra's standing in enemy
+// territory decays, so Petra garrisons the soldiers that stop the decay and keeps them in.
+static void test_decay_garrison() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *foe_cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) foe_cc = &b;
+	CHECK(foe_cc != nullptr, "player 0 has a civic centre");
+	if (!foe_cc) return;
+	const float tx = foe_cc->x + 14.0f, tz = foe_cc->z;
+	const uint32_t tower = s->spawn_building_world(tx, tz, BLD_TOWER, 1);
+	for (int k = 0; k < 6; ++k) s->spawn_unit(tx + 4.0f + (float)k, tz + 4.0f, 1, UNIT_SPEARMAN);
+	int need = 0;
+	{
+		const int32_t ti = s->building_id_to_idx_.count(tower) ? (int32_t)s->building_id_to_idx_[tower] : -1;
+		CHECK(ti >= 0, "the tower stands");
+		if (ti < 0) return;
+		need = s->petra_decay_garrison_min(s->buildings_[ti]);
+	}
+	run_for(*s, 15.0f);
+	auto it = s->building_id_to_idx_.find(tower);
+	const size_t inside = it == s->building_id_to_idx_.end() ? 0 : s->buildings_[it->second].garrisoned_units.size();
+	const bool ours = it != s->building_id_to_idx_.end() && s->buildings_[it->second].team == 1;
+	const int cap = ours ? s->buildings_[it->second].garrison_cap : 0;
+	std::printf("  decaying tower in enemy land: needs %d, garrisoned %zu, still ours %s\n", need, inside, ours ? "yes" : "no");
+	CHECK(need > 0, "a tower in enemy territory decays");
+	CHECK(ours && (int)inside >= std::min(need, cap), "Petra garrisons a decaying tower (TYPE_DECAY)");
+}
+
 // defenseManager.js isDangerous / defenseArmy.js needsDefenders: Support units in our
 // territory are no threat, and the defence is sized by strength (getMaxStrength), so
 // war elephants draw more defenders than the same number of spearmen would.
@@ -1621,6 +1655,7 @@ int main() {
 	test_repairs();
 	test_idle_return();
 	test_gather_limits();
+	test_decay_garrison();
 	test_defense_by_strength();
 	test_builders_per_foundation();
 	test_wonder_guards();

@@ -14991,29 +14991,35 @@ bool Simulation::petra_keep_garrisoned(size_t i, const Building &holder, const P
 }
 
 // defenseManager.js garrisonUnitsInside: our nearest infantry (melee too unless
-// only siege threatens it) fill a shooting structure an enemy is in range of.
+// only siege threatens it) fill a shooting structure an enemy is in range of, or
+// bring a decaying one up to min_garrison with units that can capture.
 // Units in an attack or raid plan stay with it; defenders leave the army.
-void Simulation::petra_garrison_units_inside(size_t holder_idx, bool allow_melee, std::vector<int> &incoming) {
+void Simulation::petra_garrison_units_inside(size_t holder_idx, bool allow_melee, std::vector<int> &incoming, int min_garrison) {
 	const Building &holder = buildings_[holder_idx];
 	if (!structure_has_enough_health(holder)) return;
+	const bool decay = min_garrison >= 0;
+	const int want = decay ? std::min(min_garrison, holder.garrison_cap) : holder.garrison_cap;
 	int slots = (int)holder.garrisoned_units.size() + incoming[holder_idx];
-	if (slots >= holder.garrison_cap) return;
+	if (slots >= want) return;
 	std::vector<std::pair<float, uint32_t>> near;
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
 		const uint64_t c = unit_tech_classes(units_.unit_type[i]);
 		if (!(c & TC_INFANTRY) || units_.unit_type[i] == UNIT_HERO || (!allow_melee && (c & TC_MELEE)) || !unit_garrisonable(i)) continue;
+		if (decay && unit_capture_strength(units_.unit_type[i]) <= 0.0f) continue;
 		if (units_.order_kind[i] == ORDER_GARRISON || units_.id[i] == petra_scout_unit_id_) continue;
+		if (units_.action_state[i] == ACTION_GARRISONED || petra_passenger(units_.id[i])) continue;
 		const uint32_t uid = units_.id[i];
 		const auto &main = petra_attack_plan_.squad, &raid = petra_raid_plan_.squad;
 		if (std::find(main.begin(), main.end(), uid) != main.end() || std::find(raid.begin(), raid.end(), uid) != raid.end()) continue;
+		if (decay && !petra_same_land(i, holder)) continue;
 		const float dx = units_.pos_x[i] - holder.x, dz = units_.pos_z[i] - holder.z;
 		near.push_back({dx * dx + dz * dz, uid});
 	}
 	std::sort(near.begin(), near.end());
 	auto &def = petra_defense_army_.defender_ids;
 	for (const auto &[d2, uid] : near) {
-		if (slots >= holder.garrison_cap) break;
+		if (slots >= want) break;
 		def.erase(std::remove(def.begin(), def.end(), uid), def.end());
 		order_garrison(&uid, 1, holder.id);
 		++slots;
@@ -15102,24 +15108,40 @@ bool Simulation::petra_garrison_attacked_unit(size_t i, bool emergency, std::vec
 	return true;
 }
 
+int Simulation::petra_decay_garrison_min(const Building &b) {
+	// Structures useful for defence (DefaultArrowCount), and barracks (0 A.D. only just after
+	// capturing one; RTS0 keeps no capture history, so any decaying barracks of ours).
+	if (!building_ai_info(b.type).shoots() && b.type != BLD_BARRACKS) return 0;
+	if (b.territory_decay_rate <= 0.0f || b.capture_garrison_regen_rate <= 0.0f) return 0;
+	std::array<float, MAX_PLAYERS> to;
+	float to_gaia = 0.0f;
+	if (!territory_decay_targets(b, to, to_gaia)) return 0;
+	return std::max(0, (int)std::ceil((b.territory_decay_rate - b.capture_regen_rate) / b.capture_garrison_regen_rate));
+}
+
 void Simulation::petra_manage_garrisons() {
 	std::vector<int> incoming = petra_garrison_incoming();
 	// garrisonManager.js update: unload whoever no longer needs the shelter, then
-	// defenseManager.js checkEvents: arrows from a structure with an enemy in range.
+	// defenseManager.js checkEvents: arrows from a structure with an enemy in range;
+	// last, a decaying structure gets the garrison that stops its decay (TYPE_DECAY).
 	for (size_t bi = 0; bi < buildings_.size(); ++bi) {
 		const Building &b = buildings_[bi];
 		if (b.team != petra_pid_ || b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0) continue;
 		const bool shoots = building_ai_info(b.type).shoots();
-		if (b.garrisoned_units.empty() && !shoots) continue;
+		const int decay_min = petra_decay_garrison_min(b);
+		if (b.garrisoned_units.empty() && !shoots && decay_min == 0) continue;
 		const PetraAround around = petra_around(b);
 		std::vector<uint32_t> leave;
 		for (uint32_t uid : b.garrisoned_units) {
 			const int32_t idx = lookup_unit(uid);
-			if (idx >= 0 && units_.team[idx] == petra_pid_ && !petra_keep_garrisoned((size_t)idx, b, around)) leave.push_back(uid);
+			if (idx < 0 || units_.team[idx] != petra_pid_) continue;
+			if (decay_min > 0 && unit_capture_strength(units_.unit_type[idx]) > 0.0f) continue; // keepGarrisoned TYPE_DECAY
+			if (!petra_keep_garrisoned((size_t)idx, b, around)) leave.push_back(uid);
 		}
 		for (uint32_t uid : leave) order_ungarrison_single(b.id, uid);
 		if (shoots && (around.unit || around.melee_siege || around.range_siege))
 			petra_garrison_units_inside(bi, around.defense_structure || around.unit, incoming);
+		if (decay_min > 0) petra_garrison_units_inside(bi, true, incoming, decay_min);
 	}
 
 	// defenseManager.js checkEvents: a support unit under attack below medium
