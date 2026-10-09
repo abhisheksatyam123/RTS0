@@ -151,7 +151,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 43; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 44; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -315,6 +315,8 @@ public:
 	const UnitTypeInfo &unit_info_at(size_t i) const { return civ_template_unit_info(units_.tmpl[i], units_.unit_type[i]); }
 	// Walk speed of the unit at SoA index i: its speed with technologies times any speed aura it stands in.
 	float unit_walk_speed(size_t i) const;
+	float unit_run_multiplier(size_t i) const;
+	bool unit_running(size_t i) const;
 	// 0 A.D. Identity classes, RestrictedClasses, Bonuses and Spread of the unit at SoA index i.
 	const CombatProfile &unit_combat_at(size_t i) const { return unit_combat(units_.tmpl[i], units_.unit_type[i]); }
 	// Attack.js CanAttack: may unit i attack unit j / building b at all (RestrictedClasses)?
@@ -544,6 +546,8 @@ public:
 		float patrol_x = 0.0f, patrol_z = 0.0f; // patrolStartPosOrder: the other end of the patrol
 		uint8_t patrol_wait = 0;        // CHECKINGWAYPOINT stopSurveying
 		std::vector<uint32_t> twins;    // Formation.js twinFormations (controller ids)
+		// v39: the controller's orderQueue after its current order (Shift-queued orders).
+		std::vector<UnitOrder> queue;
 	};
 	// UnitAI FORMATIONCONTROLLER states: WALKING, WALKINGANDFIGHTING, COMBAT.APPROACHING,
 	// MEMBER (members fight on their own), PATROL.PATROLLING and PATROL.CHECKINGWAYPOINT.
@@ -1471,6 +1475,9 @@ private:
 	// Commands.js "gather"/"repair"/"garrison"/"heal" through GetFormationUnitAIs: whole
 	// formations in ids walk up as one (APPROACH), then their members do the work (MEMBER).
 	std::vector<uint32_t> formation_take_task(const std::vector<uint32_t> &ids, uint8_t task, uint32_t target);
+	// Controllers whose every member is in ids (a player ordering the whole formation).
+	std::vector<uint32_t> formation_whole_ids(const uint32_t *ids, size_t count) const;
+	void formation_apply_order(const std::vector<uint32_t> &members, const UnitOrder &o); // FinishOrder's next order
 	bool formation_acting_ = false; // the members are being handed the controller's order
 	// A member at work on an order of its own (gathering, building, garrisoning, healing):
 	// UnitAI runs it, and the formation waits for it in MEMBER.
@@ -1512,7 +1519,7 @@ private:
 	void tick_research(float dt);
 	void tick_upgrades(float dt);
 	void tick_unit_upgrades(float dt);
-	std::vector<UnitUpgrade> unit_upgrades_; // in start order (saved v43)
+	std::vector<UnitUpgrade> unit_upgrades_; // in start order (saved v44)
 	// Unloads land siege below SIEGE_EJECT_HEALTH or dead (GarrisonHolder EjectHealth / OnDestroy).
 	void tick_siege_garrisons();
 	// Structures heal their garrison each second and unload it below EjectHealth (GarrisonHolder.js).
@@ -1969,6 +1976,11 @@ private:
 	void petra_manage_research(float dt);
 	void petra_manage_military_production(float dt);
 	void petra_manage_tactical_attacks(float dt);
+	void petra_retake_civic_centres(); // defenseManager.js OwnershipChanged -> switchDefenseToAttack
+	// This tick's civic centre captures (OwnershipChanged), appended in tick_capture and
+	// read by Petra later in the same tick; cleared at the end of tick(), so never saved.
+	struct CivicCentreCapture { uint32_t building_id; uint8_t from, to; };
+	std::vector<CivicCentreCapture> cc_captures_;
 	void petra_manage_raid(float dt);
 	void petra_manage_opening(float dt);
 	void petra_manage_defense(float dt);
