@@ -1281,6 +1281,40 @@ static void test_placement_miss_memory_exact() {
 	CHECK(temple != 0, "felling the trees on a spot lets the next search use it");
 }
 
+// headquarters.js findEconomicCCLocation reads resource density, not single
+// nodes: with 0 A.D.'s 200-wood trees and nothing bigger, Petra still finds a
+// site for a second civic centre and lays out storehouses by its forests.
+static void test_expansion_small_nodes() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	auto &r = s->resources_;
+	for (size_t i = 0; i < r.count; ++i)
+		if (r.alive[i] && r.amount[i] > 200) r.amount[i] = 200;
+	s->players_[1].phase = 2;
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	const size_t stores_before = std::count_if(s->buildings().begin(), s->buildings().end(),
+		[](const Simulation::Building &b) { return b.team == 1 && b.type == BLD_STOREHOUSE; });
+	int ccs = 0;
+	size_t stores = 0;
+	float t = 0.0f;
+	for (; t < 90.0f && (ccs < 2 || stores <= stores_before); t += 1.0f) {
+		run_for(*s, 1.0f);
+		ccs = 0;
+		stores = 0;
+		for (const auto &b : s->buildings()) {
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.hp > 0.0f) ++ccs;
+			if (b.team == 1 && b.type == BLD_STOREHOUSE && b.hp > 0.0f) ++stores;
+		}
+	}
+	std::printf("  expansion on 200-wood trees: %d Town Centers after %.0fs, %zu storehouses (had %zu)\n", ccs, t, stores, stores_before);
+	CHECK(ccs >= 2, "Petra lays out a second civic centre among 200-wood trees");
+	CHECK(stores > stores_before, "and a storehouse by a forest of them");
+}
+
 static void test_retreat_walk_forced() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -1346,6 +1380,7 @@ int main() {
 	test_army_answers_attackers();
 	test_relic_capture();
 	test_retreat_walk_forced();
+	test_expansion_small_nodes();
 	test_placement_miss_memory_exact();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;

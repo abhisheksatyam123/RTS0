@@ -11733,7 +11733,9 @@ void Simulation::petra_manage_buildings(float dt) {
 			auto bucket_of = [&](float v) { return std::clamp((int)std::floor((v + map_half_) / kScoreR), 0, nb - 1); };
 			auto scan = [&](float max_dist, bool overseas) {
 				for (size_t r = 0; r < resources_.count; ++r) {
-					if (!resources_.alive[r] || resources_.amount[r] < 400) continue;
+					// Any tree or mine may anchor a site (a 0 A.D. tree holds 200); the score
+					// below sums what lies around it, as findEconomicCCLocation reads density.
+					if (!resources_.alive[r] || resources_.amount[r] < 200 || resources_.subtype[r] == RES_SUB_FISH) continue;
 					float rx = resources_.x[r];
 					float rz = resources_.z[r];
 					float dist_from_primary = std::hypot(rx - p_x, rz - p_z);
@@ -11813,7 +11815,7 @@ void Simulation::petra_manage_buildings(float dt) {
 			uint8_t best_cluster_rtype = RES_WOOD;
 
 			for (size_t r = 0; r < resources_.count; ++r) {
-				if (!resources_.alive[r] || resources_.amount[r] < 300) continue;
+				if (!resources_.alive[r] || resources_.amount[r] < 200) continue; // a whole 0 A.D. tree
 				if (resources_.subtype[r] == RES_SUB_FISH) continue; // the dock serves fish
 				float rx = resources_.x[r];
 				float rz = resources_.z[r];
