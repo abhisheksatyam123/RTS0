@@ -171,8 +171,14 @@ enum class NetCommandType : uint8_t {
 	// 0 A.D. "alert-raise" / "alert-end" (AlertRaiser.js) on structure target_id;
 	// param 0 raises, 1 ends.
 	NET_CMD_ALERT = 36,
+	// 0 A.D. "remove-guard" (UnitAI RemoveGuard) on the units in entity_ids.
+	NET_CMD_REMOVE_GUARD = 37,
+	// 0 A.D. "call-to-arms": the Soldiers, Warships, Siege and Healers in entity_ids drop
+	// their load at the nearest dropsite, then attack-walk to (target_x, target_z).
+	// param bit NET_PARAM_QUEUED queues it.
+	NET_CMD_CALL_TO_ARMS = 38,
 	// Session control, not game commands (200+ is reserved for these; game command
-	// ids keep growing from 36). Only the host sends them, inside its own turn batch,
+	// ids keep growing from 38). Only the host sends them, inside its own turn batch,
 	// so every client learns of a seat change before the turn it affects (0 A.D.
 	// NetServerTurnManager::InitialiseClient / UninitialiseClient). The sim ignores them.
 	// A client takes a seat: target_id = client id, param = player, target_x = the

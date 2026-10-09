@@ -4021,6 +4021,16 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					}
 				}
 			}
+			// session.calltoarms + right-click: Commands.js call-to-arms (drop loads, then attack-walk).
+			if (!garrison_click && rtso::hotkeys::held("session.calltoarms")) {
+				range_overlays_.add_marker(click_pos.x, click_pos.z, Color(1, 1, 1, 0.9f), RtsoRangeOverlays::kMoveMarkerTime);
+				if (turn_cmds())
+					post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_CALL_TO_ARMS, sel_ptr, sel_n, click_pos.x, click_pos.z, 0, qbit);
+				else
+					sim->order_call_to_arms(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift);
+				play_civ_voice("attack");
+				return;
+			}
 			if (attack_move_mode || (!garrison_click && rtso::hotkeys::held("session.attackmove"))) {
 				range_overlays_.add_marker(click_pos.x, click_pos.z, Color(1, 1, 1, 0.9f), RtsoRangeOverlays::kMoveMarkerTime);
 				if (turn_cmds())
