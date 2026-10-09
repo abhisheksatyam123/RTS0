@@ -1,4 +1,5 @@
 #include "simulation.h"
+#include "entity_limits_data.h"
 #include "promotion_data.h"
 #include "rms_generator.h"
 #include "nav/building_steering.h"
@@ -1456,6 +1457,7 @@ uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b
 	rebuild_territory(); // territory from every finished root so far (a no-op when nothing changed)
 	if (check_placement(player, cell_x, cell_y, b_type) != PLACE_OK) return 0;
 	if (building_required_phase(b_type) > players_[player].phase) return 0;
+	if (!entity_limit_allows_building(player, b_type)) return 0; // EntityLimits.js AllowedToBuild
 
 	// 0 A.D. civ structure cost bonuses (e.g. Iberian walls, Han stone discount).
 	const Civilization civ = civ_of(player);
@@ -1549,27 +1551,92 @@ uint8_t Simulation::train_unlock_tech(uint8_t player_id, uint8_t unit_type, uint
 	return TECH_NONE; // champion elephants come with the elephant stable
 }
 
-// 0 A.D. EntityLimits (template_player.xml <Hero>1</Hero>): heroes alive or in
-// a production queue, counted the way EntityLimits.js counts trained and
-// queued entities.
-int Simulation::heroes_of(uint8_t player_id) const {
+// 0 A.D. EntityLimits.js: the limit category of a unit (TrainingRestrictions/Category
+// of its roster row, else of its class's generic template; a corral's queued
+// livestock is an Animal).
+static uint8_t unit_limit_category(uint8_t unit_type, uint16_t tmpl) {
+	if (unit_type == UNIT_TYPE_NONE) return LIMIT_ANIMAL; // `tmpl` is then the fauna type
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) return UNIT_LIMITS[tmpl].category;
+	return unit_type < UNIT_TYPE_COUNT ? UNIT_TYPE_LIMIT_CATEGORY[unit_type] : LIMIT_NONE;
+}
+
+// EntityLimits.js counts every entity the player owns with the category
+// (OnGlobalOwnershipChanged, foundations included) plus what its Trainers have
+// queued (Trainer.js ChangeCount when a batch is queued).
+int Simulation::entity_limit_count(uint8_t player_id, uint8_t category) const {
+	if (category == LIMIT_NONE || category >= LIMIT_CATEGORY_COUNT) return 0;
 	int n = 0;
 	for (size_t i = 0; i < units_.count; ++i)
-		if (units_.alive[i] && units_.team[i] == player_id && units_.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT &&
-		    (civ_unit_template(units_.tmpl[i]).flags & ROSTER_HERO))
+		if (units_.alive[i] && units_.team[i] == player_id &&
+		    unit_limit_category(units_.unit_type[i], units_.tmpl[i]) == category)
 			++n;
 	for (const auto &b : buildings_) {
-		if (b.team != player_id) continue;
+		if (b.team != player_id || b.hp <= 0.0f || b.wrecked) continue;
+		if (b.type < BLD_TYPE_COUNT && BUILDING_LIMIT_CATEGORY[b.type] == category) ++n;
 		for (const auto &o : b.queue)
-			if (o.tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(o.tmpl).flags & ROSTER_HERO)) ++n;
+			if (unit_limit_category(o.unit_type, o.tmpl) == category) ++n;
 	}
+	if (category == LIMIT_ANIMAL) // livestock penned in the player's corrals
+		for (size_t f = 0; f < fauna_.count; ++f) {
+			if (!fauna_.alive[f] || fauna_.behavior[f] != FAUNA_CORRALLED) continue;
+			auto bit = building_id_to_idx_.find(fauna_.corral_id[f]);
+			if (bit != building_id_to_idx_.end() && buildings_[bit->second].team == player_id) ++n;
+		}
 	return n;
+}
+
+int Simulation::entity_limit(uint8_t player_id, uint8_t category) const {
+	if (player_id >= MAX_PLAYERS || category == LIMIT_NONE || category >= LIMIT_CATEGORY_COUNT) return -1;
+	const uint8_t civ = civ_of(player_id);
+	int limit = CIV_ENTITY_LIMITS[civ][category];
+	if (limit < 0) return -1;
+	// LimitRemovers: lifted once every RequiredTechs is in and the player owns an
+	// entity of every RequiredClasses class.
+	for (const LimitRemover &r : LIMIT_REMOVERS) {
+		if (r.civ != civ || r.category != category) continue;
+		const PlayerState &ps = players_[player_id];
+		bool lifted = ps.phase >= r.phase && (r.tech == TECH_NONE || ps.has_tech(r.tech));
+		if (lifted && r.flags) {
+			bool owned = false;
+			for (size_t i = 0; i < units_.count && !owned; ++i)
+				owned = units_.alive[i] && units_.team[i] == player_id && units_.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT &&
+				        (civ_unit_template(units_.tmpl[i]).flags & r.flags) == r.flags;
+			lifted = owned;
+		}
+		if (lifted) return -1;
+	}
+	// LimitChangers: each finished entity with the class adds its value.
+	for (const LimitChanger &c : LIMIT_CHANGERS) {
+		if (c.civ != civ || c.category != category) continue;
+		if (c.bld < BLD_TYPE_COUNT) {
+			for (const auto &b : buildings_)
+				if (b.team == player_id && b.type == c.bld && b.hp > 0.0f && !b.wrecked && b.build_progress >= 1.0f)
+					limit += c.value;
+		} else {
+			for (size_t i = 0; i < units_.count; ++i)
+				if (units_.alive[i] && units_.team[i] == player_id && units_.tmpl[i] == c.tmpl) limit += c.value;
+		}
+	}
+	return limit;
+}
+
+bool Simulation::entity_limit_allows_unit(uint8_t player_id, uint8_t unit_type, uint16_t tmpl, int count) const {
+	const uint8_t cat = unit_limit_category(unit_type, tmpl);
+	if (cat == LIMIT_NONE) return true;
+	const int limit = entity_limit(player_id, cat);
+	return limit < 0 || entity_limit_count(player_id, cat) + count <= limit;
+}
+
+bool Simulation::entity_limit_allows_building(uint8_t player_id, uint8_t bld_type) const {
+	const uint8_t cat = bld_type < BLD_TYPE_COUNT ? BUILDING_LIMIT_CATEGORY[bld_type] : LIMIT_NONE;
+	if (cat == LIMIT_NONE) return true;
+	const int limit = entity_limit(player_id, cat);
+	return limit < 0 || entity_limit_count(player_id, cat) + 1 <= limit;
 }
 
 bool Simulation::can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_type, uint16_t tmpl) const {
 	if (player_id >= MAX_PLAYERS) return false;
-	if (tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(tmpl).flags & ROSTER_HERO) && heroes_of(player_id) >= 1)
-		return false; // one hero at a time
+	if (!entity_limit_allows_unit(player_id, unit_type, tmpl)) return false; // EntityLimits (Hero 1, WarDog, ...)
 	// Houses only ever train citizens, and only once their civ's festival is in.
 	if (bld_type == BLD_HOUSE && !(unit_tech_classes(unit_type) & TC_CIVILIAN)) return false;
 	uint8_t tech = train_unlock_tech(player_id, unit_type, bld_type, tmpl);
@@ -4104,6 +4171,7 @@ bool Simulation::cmd_breed_livestock(uint8_t player_id, uint32_t building_id, ui
 	Building &b = buildings_[bit->second];
 	if (b.team != player_id || b.build_progress < 1.0f || b.type != BLD_CORRAL) return false;
 	if (b.queue.size() >= 8) return false;
+	if (!entity_limit_allows_unit(player_id, UNIT_TYPE_NONE, CIV_UNIT_TEMPLATE_NONE)) return false; // Animal 50
 	const uint8_t animal = corral_animal_for(civ_of(b.team), ftype);
 	const FaunaTrainCost &c = fauna_train_cost(animal);
 	if (!player(b.team).pay((float)c.res[0], (float)c.res[1], (float)c.res[3], (float)c.res[2])) return false;
@@ -4728,7 +4796,6 @@ void Simulation::tick(float dt) {
 	tick_upgrades(dt);       // 0 A.D. Upgrade.js: structure upgrades (sentry tower -> tower, wall -> gate)
 	tick_siege_garrisons();  // 0 A.D. GarrisonHolder EjectHealth / OnDestroy for siege towers and rams
 	tick_garrison_holders(); // 0 A.D. GarrisonHolder BuffHeal / EjectHealth for structures
-	tick_entity_limits(dt);  // 0 A.D. EntityLimits.js:7-12: enforce category limits per player (Wonder: 1, Fortress: 10)
 	tick_gates(dt);          // 0 A.D. Gate.js:145-180: auto open / close when allied units in pass range
 
 	// 5. Commerce & Trade
@@ -7671,34 +7738,6 @@ int Simulation::corral_count(uint32_t corral_id) const {
 	return n;
 }
 
-// 0 A.D. EntityLimits.js:7-12: enforce category limits per player (Wonder: 1, Fortress: 10)
-void Simulation::tick_entity_limits(float dt) {
-	entity_limits_timer_ += dt;
-	if (entity_limits_timer_ < 1.0f) return;
-	entity_limits_timer_ = 0.0f;
-
-	// In 0 A.D. EntityLimits.js, players have strict maximum counts for special categories
-	// (<Wonder>1</Wonder>, <Fortress>10</Fortress>). Sweep alive buildings per team and
-	// mark newest excess structures wrecked.
-	int wonder_count[8] = {};
-	int fortress_count[8] = {};
-
-	for (auto &b : buildings_) {
-		if (b.hp <= 0.0f || b.wrecked || b.team >= 8) continue;
-		if (b.type == BLD_WONDER) {
-			wonder_count[b.team]++;
-			if (wonder_count[b.team] > 1) {
-				mark_building_wreck(b);
-			}
-		} else if (b.type == BLD_FORTRESS) {
-			fortress_count[b.team]++;
-			if (fortress_count[b.team] > 10) {
-				mark_building_wreck(b);
-			}
-		}
-	}
-}
-
 // 0 A.D. DeathDamage.js: only templates with a DeathDamage element hurt anything when
 // they die. Of the trained ones that is mixins/fireship.xml (brit, gaul and iber
 // ship_fire): 500 Fire over 20 m, friendly fire on. template_unit_siege_flamethrower
@@ -8750,7 +8789,8 @@ void Simulation::note_kill(uint32_t killer_id, uint32_t victim_id) {
 // clearance for the same reason); tight packing left builders stranded.
 bool Simulation::petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype) const {
 	if (!can_place(cell_x - 1, cell_y - 1, footprint + 2)) return false;
-	return btype >= BLD_TYPE_COUNT || check_placement(petra_pid_, cell_x, cell_y, btype) == PLACE_OK;
+	return btype >= BLD_TYPE_COUNT || (check_placement(petra_pid_, cell_x, cell_y, btype) == PLACE_OK &&
+	                                   entity_limit_allows_building(petra_pid_, btype)); // EntityLimits
 }
 
 void Simulation::update_petra_threat_map(float dt) {
