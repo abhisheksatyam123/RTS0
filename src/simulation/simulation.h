@@ -181,7 +181,12 @@ public:
 		bool wrecked = false;   // hp already applied; keep entity for collapse + rubble
 		int cell_x, cell_y;
 		int footprint; // 1 or 2
-		float attack_timer; // for defensive arrows
+		// 0 A.D. BuildingAI.js FireArrows: attack_timer counts down to the next of the ten
+		// rounds per RepeatTime; the timer runs only while enemies are in range.
+		float attack_timer;
+		uint8_t arrow_round = 0;      // currentRound
+		int16_t arrows_left = 0;      // arrowsLeft of this RepeatTime
+		bool arrow_timer_on = false;  // a FireArrows timer is set
 		bool is_burning = false; // Structure fire under 33% HP
 
 		// Multi-slot production queue
@@ -444,6 +449,13 @@ public:
 	bool is_siege_tower_at(size_t i) const;
 	// Garrisoned Infantry in a siege tower = arrows per volley (capped).
 	int siege_tower_arrows(size_t i) const;
+	// 0 A.D. BuildingAI.js GetArrowCount: arrows per RepeatTime for a finished structure.
+	int building_arrow_count(const Building &b) const;
+	// Attack/Ranged/MaxRange with technologies, measured from the structure's edge (0 = never shoots).
+	float building_arrow_range(const Building &b) const;
+	// Resistance.js hack, pierce and crush levels of unit `t` (SoA index), with technologies,
+	// rank and armour auras.
+	void unit_resistance(size_t t, float armor[3]) const;
 	int get_transport_capacity(uint32_t transport_id) const;
 
 	// Garrison & Turret System (GarrisonHolder.js, TurretHolder.js)

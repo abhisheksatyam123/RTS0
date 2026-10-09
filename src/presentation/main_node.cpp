@@ -2174,9 +2174,10 @@ void RtsoMain::update_inspector() {
 				status = found_b->gate_locked ? "Gate: locked" : (found_b->gate_open ? "Gate: open" : "Gate: closed");
 			else if (!found_b->queue.empty())
 				status = "Training: " + String::num_int64(found_b->queue.size()) + " in queue (right-click a slot to cancel)";
-			if (binfo.attack_damage > 0.0f)
-				status += String(status.is_empty() ? "" : "\n") + "Attack: " + String::num(binfo.attack_damage, 0) + " pierce per arrow, interval " +
-						String::num(binfo.attack_cooldown, 1) + " s, range " + String::num(binfo.attack_range * rtso::AttackDetection::kMetresPerUnit, 0) + " m";
+			if (const rtso::BuildingAIInfo &ai = rtso::building_ai_info(found_b->type); ai.shoots())
+				status += String(status.is_empty() ? "" : "\n") + "Attack: " + String::num_int64(sim->building_arrow_count(*found_b)) + " arrows of " +
+						String::num(ai.pierce, 0) + " pierce every " + String::num(ai.repeat_time, 1) + " s, range " +
+						String::num(sim->building_arrow_range(*found_b) * rtso::AttackDetection::kMetresPerUnit, 0) + " m";
 			inspector_stats->set_text(status);
 			inspector_extra->set_text(found_b->has_rally_point ? "Rally point set" : "");
 

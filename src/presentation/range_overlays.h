@@ -51,9 +51,9 @@ public:
 		if (building_id != 0) {
 			for (const auto &b : sim->buildings()) {
 				if (b.id != building_id) continue;
-				const auto &info = rtso::building_type_info(b.type);
-				if (show_attack && info.attack_range > 0.0f && b.build_progress >= 1.0f)
-					ring(sim, b.x, b.z, info.attack_range, Color(1.0f, 0.3f, 0.25f, 0.7f));
+				const float arrows = sim->building_arrow_range(b);
+				if (show_attack && arrows > 0.0f && b.build_progress >= 1.0f)
+					ring(sim, b.x, b.z, arrows + b.half_size, Color(1.0f, 0.3f, 0.25f, 0.7f));
 				if (b.team == me && b.has_rally_point)
 					line(sim, b.x, b.z, b.rally_x, b.rally_z, Color(1.0f, 1.0f, 1.0f, 0.75f));
 				break;

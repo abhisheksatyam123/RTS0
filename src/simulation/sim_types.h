@@ -674,9 +674,7 @@ struct BuildingTypeInfo {
 	int pop_bonus;
 	int garrison_cap;
 	float build_time;
-	float attack_range;
-	float attack_damage;
-	float attack_cooldown;
+	// Arrows: building_ai_info() (0 A.D. BuildingAI and Attack/Ranged).
 	// 0 A.D. Capturable.js / TerritoryDecay.js template values.
 	float capture_max_points;
 	float capture_regen_rate;
@@ -686,40 +684,40 @@ struct BuildingTypeInfo {
 
 inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 	static const BuildingTypeInfo kTable[BLD_TYPE_COUNT] = {
-		// name, model, portrait, hp, foot, f, w, g, s, pop, garrison, build_time, range, dmg, cd,
+		// name, model, portrait, hp, foot, f, w, g, s, pop, garrison, build_time,
 		// capture max, regen, garrison regen, territory decay (Capturable from
 		// template_structure.xml 500/0.5/1.0; civil centre 2500/5, fortress x8 and 10, wonder x4,
 		// farmstead 300)
-		{"Town Center", "town_center", "town_center", 2500.0f, 2, 0, 300, 100, 200, 10, 20, 60.0f, 16.0f, 18.0f, 1.0f, 2500.0f, 5.0f, 1.0f, 20.0f},
-		{"House", "house", "house", 500.0f, 1, 0, 80, 0, 0, 5, 5, 20.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Barracks", "barracks", "barracks", 1500.0f, 2, 0, 150, 50, 50, 0, 10, 35.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Storehouse", "storehouse", "storehouse", 800.0f, 1, 0, 100, 0, 0, 0, 5, 25.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Defense Tower", "wall_tower", "tower", 1200.0f, 1, 0, 100, 0, 100, 0, 5, 30.0f, 18.0f, 20.0f, 1.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Farmstead", "farmstead", "farmstead", 800.0f, 1, 0, 100, 0, 0, 0, 5, 25.0f, 0.0f, 0.0f, 0.0f, 300.0f, 0.5f, 1.0f, 20.0f},
-		{"Market", "market", "market", 1200.0f, 2, 0, 200, 100, 0, 0, 5, 40.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Fortress", "fortress", "fortress", 3500.0f, 2, 0, 300, 200, 300, 0, 30, 80.0f, 22.0f, 30.0f, 0.8f, 4000.0f, 10.0f, 1.0f, 40.0f},
-		{"Gate", "gate", "gate", 1500.0f, 1, 0, 100, 0, 100, 0, 0, 25.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Temple", "temple", "temple", 1200.0f, 2, 0, 150, 100, 100, 0, 5, 40.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Wonder Monument", "wonder", "wonder", 5000.0f, 2, 500, 500, 500, 500, 0, 10, 120.0f, 0.0f, 0.0f, 0.0f, 2000.0f, 0.5f, 1.0f, 20.0f},
-		{"Naval Shipyard Dock", "dock", "dock", 1400.0f, 2, 0, 200, 0, 100, 0, 5, 40.0f, 16.0f, 15.0f, 1.2f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Stone Wall Segment", "wall_segment", "wall", 1800.0f, 1, 0, 0, 0, 40, 0, 5, 15.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Livestock Corral", "corral", "corral", 800.0f, 2, 0, 100, 0, 0, 5, 10, 25.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Town Center", "town_center", "town_center", 2500.0f, 2, 0, 300, 100, 200, 10, 20, 60.0f, 2500.0f, 5.0f, 1.0f, 20.0f},
+		{"House", "house", "house", 500.0f, 1, 0, 80, 0, 0, 5, 5, 20.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Barracks", "barracks", "barracks", 1500.0f, 2, 0, 150, 50, 50, 0, 10, 35.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Storehouse", "storehouse", "storehouse", 800.0f, 1, 0, 100, 0, 0, 0, 5, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Defense Tower", "wall_tower", "tower", 1200.0f, 1, 0, 100, 0, 100, 0, 5, 30.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Farmstead", "farmstead", "farmstead", 800.0f, 1, 0, 100, 0, 0, 0, 5, 25.0f, 300.0f, 0.5f, 1.0f, 20.0f},
+		{"Market", "market", "market", 1200.0f, 2, 0, 200, 100, 0, 0, 5, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Fortress", "fortress", "fortress", 3500.0f, 2, 0, 300, 200, 300, 0, 30, 80.0f, 4000.0f, 10.0f, 1.0f, 40.0f},
+		{"Gate", "gate", "gate", 1500.0f, 1, 0, 100, 0, 100, 0, 0, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Temple", "temple", "temple", 1200.0f, 2, 0, 150, 100, 100, 0, 5, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Wonder Monument", "wonder", "wonder", 5000.0f, 2, 500, 500, 500, 500, 0, 10, 120.0f, 2000.0f, 0.5f, 1.0f, 20.0f},
+		{"Naval Shipyard Dock", "dock", "dock", 1400.0f, 2, 0, 200, 0, 100, 0, 5, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Stone Wall Segment", "wall_segment", "wall", 1800.0f, 1, 0, 0, 0, 40, 0, 5, 15.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Livestock Corral", "corral", "corral", 800.0f, 2, 0, 100, 0, 0, 5, 10, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		// 0 A.D. 0.28 template_structure_* values: Health/Max, Cost/Resources,
 		// GarrisonHolder/Max, Capturable. BuildTime is scaled by 0.25 to match
 		// RTS0's compressed build times (barracks 150s -> 35s above); footprint
 		// is 2 cells when the 0 A.D. footprint is wider than 15 m.
-		{"Field", "field_plot", "field", 250.0f, 2, 0, 100, 0, 0, 0, 0, 13.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Stable", "stable", "stable", 2000.0f, 2, 0, 200, 0, 50, 0, 10, 30.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Archery Range", "range", "range", 2000.0f, 2, 0, 200, 0, 0, 0, 10, 30.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Forge", "blacksmith", "forge", 2000.0f, 2, 0, 200, 0, 0, 0, 1, 30.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Arsenal", "arsenal", "arsenal", 2000.0f, 2, 0, 300, 0, 0, 0, 5, 45.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Sentry Tower", "sentry_tower", "sentry_tower", 400.0f, 1, 0, 100, 0, 0, 0, 3, 10.0f, 16.0f, 12.0f, 1.2f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Outpost", "outpost", "outpost", 400.0f, 1, 0, 60, 0, 0, 0, 0, 8.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Palisade", "palisade", "palisade", 1000.0f, 1, 0, 14, 0, 0, 0, 0, 5.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Wall Tower", "wall_tower", "wall_tower", 4000.0f, 1, 0, 0, 0, 48, 0, 4, 12.0f, 16.0f, 12.0f, 1.2f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Elephant Stable", "stable_elephant", "elephant_stable", 3000.0f, 2, 0, 200, 0, 200, 0, 5, 45.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Theater", "theater", "theater", 3000.0f, 2, 0, 200, 200, 600, 0, 5, 125.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Embassy", "embassy", "embassy", 2000.0f, 2, 0, 200, 0, 0, 0, 6, 38.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Field", "field_plot", "field", 250.0f, 2, 0, 100, 0, 0, 0, 0, 13.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Stable", "stable", "stable", 2000.0f, 2, 0, 200, 0, 50, 0, 10, 30.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Archery Range", "range", "range", 2000.0f, 2, 0, 200, 0, 0, 0, 10, 30.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Forge", "blacksmith", "forge", 2000.0f, 2, 0, 200, 0, 0, 0, 1, 30.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Arsenal", "arsenal", "arsenal", 2000.0f, 2, 0, 300, 0, 0, 0, 5, 45.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Sentry Tower", "sentry_tower", "sentry_tower", 400.0f, 1, 0, 100, 0, 0, 0, 3, 10.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Outpost", "outpost", "outpost", 400.0f, 1, 0, 60, 0, 0, 0, 0, 8.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Palisade", "palisade", "palisade", 1000.0f, 1, 0, 14, 0, 0, 0, 0, 5.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Wall Tower", "wall_tower", "wall_tower", 4000.0f, 1, 0, 0, 0, 48, 0, 4, 12.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Elephant Stable", "stable_elephant", "elephant_stable", 3000.0f, 2, 0, 200, 0, 200, 0, 5, 45.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Theater", "theater", "theater", 3000.0f, 2, 0, 200, 200, 600, 0, 5, 125.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Embassy", "embassy", "embassy", 2000.0f, 2, 0, 200, 0, 0, 0, 6, 38.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		// Civ-specific structures, BLD_GYMNASIUM onwards (civ_building_data.h).
 		RTSO_CIV_BUILDING_INFO_ROWS
 	};
@@ -850,6 +848,7 @@ struct TechInfo {
 };
 
 #include "tech_data.h"
+#include "building_ai_data.h"
 
 // Researched technologies for one player. 256 bits covers every uint8_t id.
 struct TechSet {
