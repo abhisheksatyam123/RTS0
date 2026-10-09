@@ -1945,7 +1945,11 @@ private:
 	PetraAround petra_around(const Building &holder) const;
 	bool petra_keep_garrisoned(size_t unit_idx, const Building &holder, const PetraAround &around) const;
 	// incoming[building index]: our units walking to garrison there.
-	void petra_garrison_units_inside(size_t holder_idx, bool allow_melee, std::vector<int> &incoming);
+	// min_garrison < 0 fills the holder; >= 0 stops there and takes only units that can capture (TYPE_DECAY).
+	void petra_garrison_units_inside(size_t holder_idx, bool allow_melee, std::vector<int> &incoming, int min_garrison = -1);
+	// garrisonManager.js addDecayingStructure: the garrison a decaying structure of ours needs to stop
+	// its decay (0 when Petra leaves it to decay).
+	int petra_decay_garrison_min(const Building &b);
 	uint32_t petra_garrison_holder_for(size_t unit_idx, bool heals_only, bool siege, std::vector<int> &incoming) const;
 	std::vector<int> petra_garrison_incoming() const;
 	bool petra_same_land(size_t unit_idx, const Building &b) const; // PETRA.getLandAccess match
@@ -1958,6 +1962,7 @@ private:
 	bool petra_guards_critical_ent(size_t unit_idx) const;
 	bool petra_is_critical_wonder(uint32_t building_id) const;
 	float petra_unit_strength(size_t i) const; // getMaxStrength
+	float petra_builder_ratio() const;         // assignToFoundations builderRatio
 	bool petra_passenger(uint32_t uid) const;   // booked on one of our transport plans
 	void petra_retreat_critical_ent(size_t unit_idx, bool emergency, std::vector<int> &incoming);
 	void petra_manage_critical_ent_guards();
