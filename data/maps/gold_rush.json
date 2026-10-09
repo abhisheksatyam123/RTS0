@@ -7990,5 +7990,63 @@
     }
   ],
   "gaia_structures": [],
-  "gaia_units": []
+  "gaia_units": [],
+  "scenery": [
+    {
+      "type": "obelisk",
+      "x": -4.13,
+      "z": -14.58,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "obelisk",
+      "x": 12.39,
+      "z": -1.09,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "obelisk",
+      "x": -2.17,
+      "z": 20.44,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "obelisk",
+      "x": -21.61,
+      "z": 3.63,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen",
+      "x": 6.3,
+      "z": -38.87,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": 4.69,
+      "z": -39.23,
+      "angle": -0.9925,
+      "scale": 0.25
+    },
+    {
+      "type": "obelisk",
+      "x": 81.68,
+      "z": -82.65,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "obelisk",
+      "x": -84.97,
+      "z": 80.5,
+      "angle": 2.3562,
+      "scale": 0.25
+    }
+  ]
 }

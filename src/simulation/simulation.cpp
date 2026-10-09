@@ -288,6 +288,7 @@ void Simulation::reset() {
 	relics_.clear();
 	treasures_.clear();
 	ruins_caps_.clear();
+	scenery_.clear();
 	wonder_victory_timer_ = 0.0f;
 	has_active_wonder_ = false;
 	record_ = MatchRecord();
@@ -505,6 +506,7 @@ void Simulation::spawn_war(int total_units) {
 	relics_.clear();
 	treasures_.clear();
 	ruins_caps_.clear();
+	scenery_.clear();
 	std::fill(fow_grid_.begin(), fow_grid_.end(), (uint8_t)FOW_UNEXPLORED);
 	for (auto &g : player_fow_) g.clear();
 	std::fill(petra_fow_.begin(), petra_fow_.end(), (uint8_t)FOW_UNEXPLORED);
@@ -835,6 +837,34 @@ void Simulation::rebuild_nav_grid() {
 			nav_grid_.cells.at(cx, cy) = NAV_OBSTRUCTED;
 		}
 	}
+	// Gaia scenery: oriented rectangles (CCmpObstruction::GetObstructionSquare: u = (cos a, -sin a),
+	// v = (sin a, cos a)), rasterized the same way.
+	for (const Scenery &sc : scenery_) {
+		const float c = std::cos(sc.angle), sn = std::sin(sc.angle);
+		int covered = 0;
+		rtso::nav::rasterize_rect_with_clearance(
+			rtso::nav::Vec2(sc.x, sc.z), rtso::nav::Vec2(c, -sn), rtso::nav::Vec2(sn, c),
+			rtso::nav::Vec2(sc.half_w, sc.half_d), 0.0f, nav_cell, nav_origin,
+			nav_grid_.cells.w, nav_grid_.cells.h,
+			[&](int x, int y) {
+				nav_grid_.cells.at(x, y) = NAV_OBSTRUCTED;
+				++covered;
+			});
+		if (covered == 0) {
+			// Thinner than a navcell (a 1.5 m fence): block the cells along its centre line.
+			const float step = 0.5f * nav_cell;
+			const int nu = std::max(1, (int)std::ceil(2.0f * sc.half_w / step));
+			const int nv = std::max(1, (int)std::ceil(2.0f * sc.half_d / step));
+			for (int a = 0; a <= nu; ++a)
+				for (int b = 0; b <= nv; ++b) {
+					const float lu = -sc.half_w + 2.0f * sc.half_w * (float)a / (float)nu;
+					const float lv = -sc.half_d + 2.0f * sc.half_d * (float)b / (float)nv;
+					auto [cx, cy] = nav_grid_.world_to_cell(sc.x + lu * c + lv * sn, sc.z - lu * sn + lv * c);
+					if (nav_grid_.cells.inside(cx, cy) && nav_grid_.cells.at(cx, cy) != NAV_WATER)
+						nav_grid_.cells.at(cx, cy) = NAV_OBSTRUCTED;
+				}
+		}
+	}
 	// Precise dirty bits: diff new cells vs snapshot (covers placements,
 	// completions AND demolitions). Falls back to full remesh only when the
 	// grid was freshly initialised (no snapshot to diff against).
@@ -1140,6 +1170,13 @@ Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell
 				const int x = cell_x + dx + off, z = cell_y + dz + off;
 				if (x >= 0 && z >= 0 && x < w && z < w && resource_block_cells_[(size_t)z * w + x]) return PLACE_OBSTRUCTED;
 			}
+	}
+
+	// Gaia scenery (fences, columns) blocks foundations too: its rotated rectangle's bounds.
+	for (const Scenery &sc : scenery_) {
+		const float c = std::fabs(std::cos(sc.angle)), sn = std::fabs(std::sin(sc.angle));
+		const float ex = c * sc.half_w + sn * sc.half_d, ez = sn * sc.half_w + c * sc.half_d;
+		if (sc.x + ex > x0 && sc.x - ex < x1 && sc.z + ez > z0 && sc.z - ez < z1) return PLACE_OBSTRUCTED;
 	}
 
 	// 2. Terrain passability class: building-land has no water under the
@@ -12054,7 +12091,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -12574,6 +12611,7 @@ bool Simulation::load_state(const char *filepath) {
 		for (const auto &rl : relics_) max_id = std::max(max_id, rl.id);
 		for (size_t f = 0; f < fauna_.count; ++f) max_id = std::max(max_id, fauna_.id[f]);
 		for (const auto &t : treasures_) max_id = std::max(max_id, t.id);
+		for (const auto &sc : scenery_) max_id = std::max(max_id, sc.id);
 		next_id_ = max_id + 1;
 	}
 
@@ -12748,6 +12786,9 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		s.treasures_.clear();
 		s.ruins_caps_.clear();
 	}
+	static_assert(sizeof(S::Scenery) == 32, "Scenery is saved raw (pad[] explicit and zeroed); list a new field here");
+	if (ar.version >= 29) io_vec_pod(ar, s.scenery_, 1u << 16);
+	else if constexpr (Ar::loading) s.scenery_.clear();
 	static_assert(sizeof(S::FaunaStorage) == 68616, "list the new FaunaStorage field below");
 	if constexpr (Ar::loading) {
 		if (ar.version < 25) {
@@ -13869,6 +13910,23 @@ uint32_t Simulation::spawn_treasure(float x, float z, uint8_t type) {
 	t.type = type;
 	treasures_.push_back(t);
 	return t.id;
+}
+
+uint32_t Simulation::spawn_scenery(float x, float z, uint8_t scenery_type, float angle, float scale) {
+	if (scenery_type >= SCENERY_TYPE_COUNT) return 0;
+	const SceneryTypeInfo &info = scenery_type_info(scenery_type);
+	Scenery sc{};
+	sc.id = next_id_++;
+	sc.x = x;
+	sc.z = z;
+	sc.angle = angle;
+	sc.half_w = 0.5f * info.width * scale;
+	sc.half_d = 0.5f * info.depth * scale;
+	sc.hp = info.max_hp;
+	sc.type = scenery_type;
+	scenery_.push_back(sc);
+	if (!bulk_spawn_) rebuild_nav_grid();
+	return sc.id;
 }
 
 uint32_t Simulation::spawn_ruins(float x, float z, uint8_t ruins_type) {

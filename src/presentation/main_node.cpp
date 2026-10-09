@@ -4067,6 +4067,15 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		if (btype >= rtso::BLD_TYPE_COUNT) continue;
 		gaia_structure_ids[i] = sim->spawn_building_world((float)b.get("x", 0.0), (float)b.get("z", 0.0), btype, rtso::GAIA_PLAYER, 1.0f);
 	}
+	// Gaia scenery (fences, columns, obelisks): oriented obstructions.
+	Array scenery_arr = d.get("scenery", Array());
+	for (int i = 0; i < scenery_arr.size(); ++i) {
+		Dictionary sc = scenery_arr[i];
+		const uint8_t st = rtso::scenery_type_by_name(String(sc.get("type", "")).utf8().get_data());
+		if (st < rtso::SCENERY_TYPE_COUNT)
+			sim->spawn_scenery((float)sc.get("x", 0.0), (float)sc.get("z", 0.0), st, (float)sc.get("angle", 0.0),
+					(float)sc.get("scale", 0.25));
+	}
 	sim->end_bulk_spawn();
 
 	// Spawn Starting Units

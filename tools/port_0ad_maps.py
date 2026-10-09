@@ -169,12 +169,17 @@ GAIA_STRUCTURE_CLASSES = [
 ]
 
 
-def gaia_owned(source, tpl, wx, wz):
-    """A Gaia-owned 0 A.D. unit or structure (Player 0 in the map) as a gaia_units or
-    gaia_structures entry, or None for scenery."""
+def gaia_owned(source, tpl, wx, wz, angle=0.0, scale=1.0):
+    """A Gaia-owned 0 A.D. unit or structure (Player 0 in the map) as a gaia_units,
+    gaia_structures or scenery entry; None for what RTS0 doesn't port."""
     info = template_info(source, tpl)
     chain = info["chain"]
     if tpl.startswith("structures/"):
+        if len(chain) > 1 and chain[1] == "template_structure" and tpl.count("/") == 1:
+            # Fences, columns, obelisks, benches (gaia_data.h SceneryTypeInfo). scale: RTS0
+            # units per 0 A.D. metre, for the obstruction size.
+            return "scenery", {"type": tpl.split("/", 1)[1], "x": wx, "z": wz,
+                               "angle": round(angle, 4), "scale": round(scale, 5)}
         for cls, name in GAIA_STRUCTURE_CLASSES:
             if any(c.startswith(cls) for c in chain):
                 return "gaia_structures", {"type": name, "template": tpl, "x": wx, "z": wz}
@@ -294,6 +299,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
 
         entities_elem = root.find("Entities")
         raw_entities = []
+        angle_by_uid = {}  # uid -> Orientation y (radians)
         garrisoned_in = {}  # passenger uid -> holder uid
 
         if entities_elem is not None:
@@ -306,6 +312,9 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 x = float(pos.get("x", 0))
                 z = float(pos.get("z", 0))
                 raw_entities.append((tpl, ply, x, z, e.get("uid")))
+                orient = e.find("Orientation")
+                if orient is not None:
+                    angle_by_uid[e.get("uid")] = float(orient.get("y", 0) or 0)
                 # <Garrison><GarrisonedEntity uid=../></Garrison>: those entities start
                 # inside this one (sicilia_nomad_2p's ships); their own Position is 0,0.
                 g = e.find("Garrison")
@@ -315,7 +324,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
 
         # Convert entities into RTS0 format
         resources = []
-        gaia = {"fauna": [], "treasures": [], "ruins": [], "gaia_structures": [], "gaia_units": []}
+        gaia = {"fauna": [], "treasures": [], "ruins": [], "gaia_structures": [], "gaia_units": [], "scenery": []}
         gaia_unit_index = {}       # uid -> index in gaia["gaia_units"]
         gaia_structure_index = {}  # uid -> index in gaia["gaia_structures"]
         fauna = gaia["fauna"]
@@ -349,10 +358,13 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                     key, ent = gaia_entity(ltpl, wx, wz)
                     gaia[key].append(ent)
                 elif ltpl.startswith(("units/", "structures/")):
-                    owned = gaia_owned(files, ltpl, wx, wz)
+                    owned = gaia_owned(files, ltpl, wx, wz, angle_by_uid.get(uid, 0.0), scale)
                     if owned:
                         key, ent = owned
-                        (gaia_unit_index if key == "gaia_units" else gaia_structure_index)[uid] = len(gaia[key])
+                        if key == "gaia_units":
+                            gaia_unit_index[uid] = len(gaia[key])
+                        elif key == "gaia_structures":
+                            gaia_structure_index[uid] = len(gaia[key])
                         gaia[key].append(ent)
                 else:
                     res = gaia_resource(files, ltpl, wx, wz)
@@ -472,6 +484,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             "ruins": gaia["ruins"],
             "gaia_structures": gaia["gaia_structures"],
             "gaia_units": gaia["gaia_units"],
+            "scenery": gaia["scenery"],
             "structures": structures,
             "units": units
         }
@@ -487,8 +500,10 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             ws = old.get("world_size", world_size_m)
             k = ws / world_size_m
             gaia["resources"] = resources
-            for key in ("resources", "fauna", "treasures", "ruins", "gaia_structures", "gaia_units"):
+            for key in ("resources", "fauna", "treasures", "ruins", "gaia_structures", "gaia_units", "scenery"):
                 old[key] = [dict(e, x=round(e["x"] * k, 2), z=round(e["z"] * k, 2)) for e in gaia[key]]
+            for e in old["scenery"]:
+                e["scale"] = round(e["scale"] * k, 5)
             map_data = old
         with open(out_path, "w") as f:
             json.dump(map_data, f, indent=2)

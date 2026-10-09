@@ -13016,5 +13016,42 @@
       "z": 119.59
     }
   ],
-  "gaia_units": []
+  "gaia_units": [],
+  "scenery": [
+    {
+      "type": "fence_short",
+      "x": -3.98,
+      "z": 53.08,
+      "angle": 1.4457,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_short",
+      "x": -2.38,
+      "z": 53.12,
+      "angle": 1.5654,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_short",
+      "x": -5.46,
+      "z": 53.69,
+      "angle": 2.2627,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_short",
+      "x": 4.69,
+      "z": 59.07,
+      "angle": -3.0304,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_short",
+      "x": 4.39,
+      "z": 57.42,
+      "angle": -2.7708,
+      "scale": 0.25
+    }
+  ]
 }

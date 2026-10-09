@@ -13651,5 +13651,686 @@
       "z": -50.96
     }
   ],
-  "gaia_units": []
+  "gaia_units": [],
+  "scenery": [
+    {
+      "type": "fence_long",
+      "x": 8.81,
+      "z": -42.05,
+      "angle": 2.2968,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 15.77,
+      "z": -37.62,
+      "angle": 0.7954,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 18.16,
+      "z": -35.23,
+      "angle": 0.8021,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 11.09,
+      "z": -41.89,
+      "angle": 0.7722,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 18.12,
+      "z": -32.99,
+      "angle": 2.4079,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 16.07,
+      "z": -30.77,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 11.77,
+      "z": -26.71,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 9.54,
+      "z": -24.56,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 7.08,
+      "z": -22.51,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -2.14,
+      "z": -28.92,
+      "angle": 0.8221,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 4.58,
+      "z": -22.78,
+      "angle": 0.7893,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -0.0,
+      "z": -33.27,
+      "angle": 2.3772,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 4.5,
+      "z": -37.81,
+      "angle": -0.7161,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 6.61,
+      "z": -40.0,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 14.89,
+      "z": -19.49,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 17.12,
+      "z": -21.69,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 21.62,
+      "z": -25.9,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 23.9,
+      "z": -27.91,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 26.16,
+      "z": -30.13,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 28.16,
+      "z": -30.02,
+      "angle": 0.6307,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 29.94,
+      "z": -27.59,
+      "angle": 0.7053,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 33.73,
+      "z": -23.06,
+      "angle": 0.6425,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 30.97,
+      "z": -15.14,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 26.55,
+      "z": -10.83,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 24.33,
+      "z": -8.66,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 22.12,
+      "z": -6.42,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 20.16,
+      "z": -6.2,
+      "angle": 0.6771,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 18.19,
+      "z": -8.42,
+      "angle": 0.7187,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 14.33,
+      "z": -12.9,
+      "angle": 0.6991,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 12.48,
+      "z": -15.12,
+      "angle": 0.6346,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -2.04,
+      "z": -31.02,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 0.3,
+      "z": -26.83,
+      "angle": -2.3216,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 12.7,
+      "z": -17.5,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 33.19,
+      "z": -17.23,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 35.38,
+      "z": -19.3,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_short",
+      "x": 35.17,
+      "z": -21.16,
+      "angle": -2.4367,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -42.08,
+      "z": 27.81,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -39.87,
+      "z": 25.58,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -35.45,
+      "z": 21.18,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -33.32,
+      "z": 18.89,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -31.2,
+      "z": 16.63,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -33.42,
+      "z": 36.94,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -30.96,
+      "z": 34.36,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -26.52,
+      "z": 29.89,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -24.29,
+      "z": 27.58,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -22.09,
+      "z": 25.23,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -48.91,
+      "z": 24.35,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -46.66,
+      "z": 22.18,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -42.25,
+      "z": 17.72,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -40.06,
+      "z": 15.58,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -37.92,
+      "z": 13.51,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -57.38,
+      "z": 15.09,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -55.26,
+      "z": 12.89,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -50.99,
+      "z": 8.52,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -48.8,
+      "z": 6.37,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -46.68,
+      "z": 4.34,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -44.46,
+      "z": 4.46,
+      "angle": 0.7888,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -40.34,
+      "z": 9.05,
+      "angle": 0.747,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -38.14,
+      "z": 11.28,
+      "angle": 0.8472,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -57.49,
+      "z": 17.38,
+      "angle": 0.7506,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -55.3,
+      "z": 19.87,
+      "angle": 0.7961,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -51.02,
+      "z": 24.23,
+      "angle": 0.7778,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -42.54,
+      "z": 30.44,
+      "angle": 0.7095,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -40.47,
+      "z": 32.65,
+      "angle": 0.7958,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -35.8,
+      "z": 37.25,
+      "angle": 0.8177,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -21.79,
+      "z": 22.75,
+      "angle": 0.8029,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -26.36,
+      "z": 18.69,
+      "angle": 0.7974,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -28.63,
+      "z": 16.49,
+      "angle": 0.8225,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -2.36,
+      "z": 14.89,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": 1.52,
+      "z": 13.37,
+      "angle": -1.6306,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": 5.03,
+      "z": 17.4,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": 6.47,
+      "z": 18.24,
+      "angle": -2.3177,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": 0.9,
+      "z": 20.88,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -3.65,
+      "z": 26.62,
+      "angle": -1.0037,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -1.58,
+      "z": 24.54,
+      "angle": -0.6767,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -6.86,
+      "z": 25.41,
+      "angle": -2.808,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -0.37,
+      "z": 14.2,
+      "angle": 0.4404,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -6.69,
+      "z": 19.35,
+      "angle": -1.7811,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen",
+      "x": -3.23,
+      "z": 16.35,
+      "angle": -2.9764,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen",
+      "x": -4.97,
+      "z": 17.1,
+      "angle": 2.7902,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen",
+      "x": 5.87,
+      "z": 15.29,
+      "angle": 0.6495,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen",
+      "x": 17.19,
+      "z": 14.95,
+      "angle": 1.0158,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen",
+      "x": 3.85,
+      "z": 21.04,
+      "angle": -1.5091,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen",
+      "x": 5.74,
+      "z": 9.49,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen",
+      "x": 3.6,
+      "z": 10.49,
+      "angle": -2.0158,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": 1.75,
+      "z": 11.32,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": 2.97,
+      "z": 12.07,
+      "angle": -1.9823,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": 5.52,
+      "z": 12.44,
+      "angle": -0.9077,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -5.37,
+      "z": 15.27,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -4.16,
+      "z": 16.8,
+      "angle": -2.7831,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -7.16,
+      "z": 20.28,
+      "angle": -1.236,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": -1.81,
+      "z": 27.72,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": 0.14,
+      "z": 28.82,
+      "angle": -2.4375,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": 0.08,
+      "z": 27.43,
+      "angle": -0.595,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric",
+      "x": 8.21,
+      "z": 18.72,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric",
+      "x": -2.79,
+      "z": 25.33,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric",
+      "x": 0.84,
+      "z": 12.17,
+      "angle": 2.3562,
+      "scale": 0.25
+    }
+  ]
 }
