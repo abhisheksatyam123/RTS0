@@ -106,7 +106,8 @@ enum TechnologyId : uint8_t {
 	TECH_ROMAN_REFORMS = 97, // roman_reforms
 	TECH_TYRTEAN_PAEANS = 98, // tyrtean_paeans
 	TECH_UNLOCK_NEODAMODES = 99, // unlock_neodamodes
-	TECH_COUNT = 100
+	TECH_HEALTH_REGEN_UNITS = 100, // health_regen_units
+	TECH_COUNT = 101
 };
 
 enum TechClass : uint64_t {
@@ -226,6 +227,7 @@ inline const TechClassExpr *tech_affects_table() {
 		{TC_CITIZENSOLDIER, 0},
 		{TC_HERO, 0},
 		{TC_CHAMPION | TC_MELEE | TC_INFANTRY, TC_HERO},
+		{TC_UNIT | TC_ORGANIC, 0},
 	};
 	return kAffects;
 }
@@ -373,10 +375,11 @@ inline const TechEffect *tech_effects_table() {
 		{TSTAT_HEALTH, TOP_MUL, 44, 1, 0.6f}, // ostracism
 		{TSTAT_BUILD_TIME, TOP_MUL, 41, 1, 0.8f}, // parade_of_daphne
 		{TSTAT_SPEED, TOP_MUL, 45, 1, 1.1f}, // tyrtean_paeans
+		{TSTAT_IDLE_REGEN, TOP_ADD, 46, 1, 0.5f}, // health_regen_units
 	};
 	return kEffects + 1;
 }
-constexpr int TECH_EFFECT_COUNT = 140;
+constexpr int TECH_EFFECT_COUNT = 141;
 
 inline const TechInfo &tech_info(uint8_t tech_id) {
 	static const TechInfo kTable[TECH_COUNT] = {
@@ -480,6 +483,7 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Marian Reforms", "Convert Infantry to Marian Legionaries, Cavalry to Auxiliary Cavalry, unlock Onagers and Centurions, but lose access to Spear Cavalry and Italic Heavy Infantry.", 1200, 0, 1000, 0, 60.0f, 3, BLD_FORTRESS, TECH_NONE, 0x0008, 139, 0, "roman_reforms"},
 		{"Tyrtean Paeans", "Champion Hoplites +10% movement speed.", 200, 0, 200, 0, 50.0f, 2, BLD_GEROUSIA, TECH_NONE, 0x0002, 139, 1, "tyrtean_paeans"},
 		{"Unlock Neodamodes", "Unlock the ability to train Spearman Neodamodes at the Barracks.", 500, 0, 0, 0, 60.0f, 3, BLD_GEROUSIA, TECH_NONE, 0x0002, 140, 0, "unlock_neodamodes"},
+		{"Battlefield Medicine", "Idle Organic units +0.5 health regeneration rate.", 1000, 0, 250, 0, 40.0f, 3, BLD_TEMPLE, TECH_NONE, 0x3fff, 140, 1, "health_regen_units"},
 	};
 	if (tech_id >= TECH_COUNT) return kTable[TECH_NONE];
 	return kTable[tech_id];

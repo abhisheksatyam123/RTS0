@@ -86,7 +86,7 @@ int main() {
 	}
 
 	// 2. Several ranks in one go (Promotion.js IncreaseXp loop), and ranged units: no melee
-	//    bonus or armour, spread handled at the shot. Cavalry need 150.
+	//    bonus or armour, spread is spread_rank_multiplier at the shot. Cavalry need 150.
 	{
 		fresh(s, CIV_ATHENIANS);
 		const uint16_t arch = tmpl_of("athen/infantry_archer_b");

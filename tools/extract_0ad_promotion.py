@@ -118,7 +118,6 @@ def rank_bonus(sim_root, tech):
         "heal_range_add": add("Heal/Range"),
         "gather_mul": mul("ResourceGatherer/BaseSpeed"),
         "train_time_mul": mul("Cost/BuildTime"),
-        "ranged_spread_mul": mul("Attack/Ranged/Spread"),
     }
 
 

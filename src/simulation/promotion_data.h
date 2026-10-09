@@ -286,11 +286,10 @@ struct RankBonus {
 	float heal_range_add;
 	float gather_mul;
 	float train_time_mul;
-	float ranged_spread_mul;
 };
 
-inline constexpr RankBonus RANK_BONUS_ADVANCED = {1.25f, 1.2f, 1.0f, 0.7f, 5.0f, 3.0f, 0.7f, 1.2f, 0.8f};
-inline constexpr RankBonus RANK_BONUS_ELITE = {1.25f, 1.2f, 1.0f, 0.8f, 5.0f, 3.0f, 0.7f, 1.2f, 0.8f};
+inline constexpr RankBonus RANK_BONUS_ADVANCED = {1.25f, 1.2f, 1.0f, 0.7f, 5.0f, 3.0f, 0.7f, 1.2f};
+inline constexpr RankBonus RANK_BONUS_ELITE = {1.25f, 1.2f, 1.0f, 0.8f, 5.0f, 3.0f, 0.7f, 1.2f};
 
 // Technologies that change Promotion/RequiredXp for units with every `need` class and
 // no `forbid` class (TechClass bits): multiply, or replace with 0.
