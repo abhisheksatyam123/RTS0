@@ -576,9 +576,16 @@ public:
 	// 0 A.D. "Last Man Standing": allies don't share a win; the match goes on until one player is left.
 	bool last_man_standing() const { return last_man_standing_; }
 	void set_last_man_standing(bool on) { last_man_standing_ = on; }
-	// 0 A.D. population limit per player (game setup); 0 means unlimited.
-	int pop_cap() const { return pop_cap_; }
+	// 0 A.D. population limit per player (game setup); 0 means unlimited. A negative
+	// setting is 0 A.D.'s World Population: -setting shared evenly by the players
+	// still in the game (PlayerManager.RedistributeWorldPopulation), so each
+	// defeat raises everyone else's share. Stored in pop_cap_, so no save change.
+	static constexpr int MAX_WORLD_POP = 63000; // 0 A.D. world_population_capacities.json
+	int pop_cap() const;
+	int pop_cap_setting() const { return pop_cap_; }
+	int world_pop_cap() const { return pop_cap_ < 0 ? -pop_cap_ : 0; }
 	void set_pop_cap(int cap) { pop_cap_ = std::max(0, cap); }
+	void set_world_pop_cap(int world) { pop_cap_ = world > 0 ? -std::min(world, MAX_WORLD_POP) : 0; }
 	// 0 A.D. ceasefire: no player can attack another for the first N seconds of the match.
 	// 0 A.D. map visibility options: everything visible, or terrain known from the start.
 	bool reveal_map() const { return reveal_map_; }
