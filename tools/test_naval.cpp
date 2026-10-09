@@ -659,9 +659,27 @@ static void test_dropsite_own_land() {
 	CHECK(total(s, 0) > 0);
 }
 
+// A dock takes every resource (template_structure_military_dock ResourceDropsite Types
+// food wood stone metal), for a Return Resource order too, not only food.
+static void test_dock_takes_all() {
+	static Simulation s;
+	fresh(s);
+	const uint32_t dock = s.spawn_building_world(0.0f, 17.0f, BLD_DOCK, 0, 1.0f);
+	const uint32_t woman = s.spawn_unit(0.0f, 24.0f, 0, UNIT_FEMALE_CITIZEN);
+	const int32_t w = idx(s, woman);
+	s.units_.res_type_carried[w] = RES_WOOD;
+	s.units_.carry[w] = 10;
+	const bool ok = s.can_return_resource(woman, dock);
+	s.order_return_resource(&woman, 1, dock);
+	run(s, 15.0f);
+	std::printf("  wood to a dock: order %s, stock wood %d\n", ok ? "accepted" : "refused", s.player_resource(0, RES_WOOD));
+	CHECK(ok && s.player_resource(0, RES_WOOD) == 10);
+}
+
 int main() {
 	test_transport();
 	test_dropsite_own_land();
+	test_dock_takes_all();
 	test_no_wading();
 	test_gather_around_lake();
 	test_dock_trade();

@@ -9465,7 +9465,7 @@ void Simulation::on_construction_finished(const Building &b, size_t builder) {
 		if (units_.alive[k] && units_.team[k] == b.team &&
 				(k == builder || (units_.action_state[k] == ACTION_BUILD && units_.target_building_id[k] == b.id)))
 			builders.push_back(units_.id[k]);
-	const bool food = b.type == BLD_FARMSTEAD || b.type == BLD_DOCK;
+	const bool food = b.type == BLD_FARMSTEAD;
 	const bool other = b.type == BLD_STOREHOUSE;
 	for (uint32_t uid : builders) {
 		const int32_t k = lookup_unit(uid);
@@ -9499,10 +9499,11 @@ void Simulation::next_after_construction(size_t k, const Building &b, bool food,
 			order_gather(&uid, 1, ensure_field_resource(b), false, false);
 			return;
 		}
-		if (food || other || b.type == BLD_TOWN_CENTER) {
+		const bool takes_all = b.type == BLD_TOWN_CENTER || b.type == BLD_DOCK; // food wood stone metal
+		if (food || other || takes_all) {
 			// Prefer what the unit gathered last (lastGathered), if the dropsite takes it.
 			uint8_t pref = units_.res_type_carried[k];
-			const bool takes_pref = b.type == BLD_TOWN_CENTER || (food ? pref == RES_FOOD : pref != RES_FOOD);
+			const bool takes_pref = takes_all || (food ? pref == RES_FOOD : pref != RES_FOOD);
 			uint32_t r = takes_pref ? find_nearby_resource(b.x, b.z, pref, b.team) : 0;
 			if (r == 0) {
 				if (food) r = find_nearby_resource(b.x, b.z, RES_FOOD, b.team);
@@ -9878,15 +9879,16 @@ void Simulation::set_unit_hp(uint32_t unit_id, float hp) {
 	if (i >= 0 && units_.alive[i]) units_.hp[i] = std::clamp(hp, 1.0f, units_.max_hp[i]);
 }
 
-// The dropsite rule tick_gather uses: the unit's own finished Civic Centre or civ dropsite,
-// a storehouse for wood/stone/metal, a farmstead or dock for food; boats only at docks.
+// The dropsite rule tick_gather uses (ResourceDropsite Types): the unit's own finished Civic
+// Centre, dock or civ dropsite takes everything, a storehouse wood/stone/metal, a farmstead
+// food; boats only at docks.
 bool Simulation::dropsite_accepts(size_t i, const Building &b) const {
 	if (b.wrecked || b.hp <= 0.0f || b.team != units_.team[i] || b.build_progress < 1.0f) return false;
 	const uint8_t rt = units_.res_type_carried[i];
 	if (units_.unit_type[i] == UNIT_FISHING_BOAT) return b.type == BLD_DOCK;
-	if (b.type == BLD_TOWN_CENTER || civ_building_is_dropsite(b.type)) return true;
+	if (b.type == BLD_TOWN_CENTER || b.type == BLD_DOCK || civ_building_is_dropsite(b.type)) return true;
 	if (b.type == BLD_STOREHOUSE) return rt != RES_FOOD;
-	return (b.type == BLD_FARMSTEAD || b.type == BLD_DOCK) && rt == RES_FOOD;
+	return b.type == BLD_FARMSTEAD && rt == RES_FOOD;
 }
 
 bool Simulation::can_return_resource(uint32_t unit_id, uint32_t dropsite_id) const {
