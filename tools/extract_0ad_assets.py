@@ -2444,7 +2444,7 @@ def compose_actor(vfs, actor_path, depth=0, tint=None, sources=None, skip_actors
                         sp.bone = bone_i
                         sp.attach_name = attachpoint
                         sp.tool_tag = tag
-                        if bone_i != 0xFF:
+                        if bone_i != 0xFF and not _shares_skeleton(sp, part, world):
                             sp.force_rigid = True
                     final_parts.extend(sub_parts)
                     placed = True
@@ -2793,6 +2793,26 @@ def _psa_frame_tq(psa, frame=0):
         else:
             out.append(((0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 1.0)))
     return out
+
+
+def _shares_skeleton(sp, part, world):
+    """A prop skinned to its parent's skeleton (same bones, same rest pose) on a
+    prop point that stays at the origin: horse manes and tails on "hair".
+    0 A.D. plays the parent's clip on the prop's own copy of the skeleton, so
+    skinning it to the parent's bones draws the same thing."""
+    md, pd = sp.mesh_data or {}, part.mesh_data or {}
+    mine, theirs = md.get("bones") or [], pd.get("bones") or []
+    if len(mine) < 20 or len(mine) != len(theirs) or not md.get("blends"):
+        return False
+    if not _blends_fit_skeleton(md["blends"], len(theirs)):
+        return False
+    for (t0, q0), (t1, q1) in zip(mine, theirs):
+        if max(abs(a - b) for a, b in zip(t0, t1)) > 1e-3:
+            return False
+        if min(max(abs(a - b) for a, b in zip(q0, q1)), max(abs(a + b) for a, b in zip(q0, q1))) > 1e-3:
+            return False
+    ident = _identity()
+    return all(abs(world[r][c] - ident[r][c]) < 1e-4 for r in range(4) for c in range(4))
 
 
 def _blends_fit_skeleton(blends, n_bones):
@@ -4654,8 +4674,8 @@ def main():
         # skeletons
         skel_dir = os.path.join(out_dir, "skeletons")
         os.makedirs(skel_dir, exist_ok=True)
-        # --templates adds models only; the shared skeletons and clips stay as they are.
-        skels_to_extract = {} if args.templates else dict(SKELETONS)
+        # --templates and --only redo models only; the shared skeletons and clips stay as they are.
+        skels_to_extract = {} if args.templates or args.only else dict(SKELETONS)
         if args.all_skeletons:
             # discover all skeletons in zip
             for n in zf.namelist():
@@ -4678,7 +4698,7 @@ def main():
         # animations — copy PSSA binary + decode to JSON for runtime + manifest
         anim_dir = os.path.join(out_dir, "animations")
         os.makedirs(anim_dir, exist_ok=True)
-        anims_to_extract = {} if args.templates else dict(ANIMATIONS)
+        anims_to_extract = {} if args.templates or args.only else dict(ANIMATIONS)
         if args.all_animations:
             # discover all PSA files
             for n in zf.namelist():
