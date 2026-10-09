@@ -106,7 +106,8 @@ enum TechnologyId : uint8_t {
 	TECH_ROMAN_REFORMS = 97, // roman_reforms
 	TECH_TYRTEAN_PAEANS = 98, // tyrtean_paeans
 	TECH_UNLOCK_NEODAMODES = 99, // unlock_neodamodes
-	TECH_COUNT = 100
+	TECH_HEALTH_REGEN_UNITS = 100, // health_regen_units
+	TECH_COUNT = 101
 };
 
 enum TechClass : uint64_t {
@@ -226,6 +227,7 @@ inline const TechClassExpr *tech_affects_table() {
 		{TC_CITIZENSOLDIER, 0},
 		{TC_HERO, 0},
 		{TC_CHAMPION | TC_MELEE | TC_INFANTRY, TC_HERO},
+		{TC_UNIT | TC_ORGANIC, 0},
 		{TC_HEALER, 0},
 		{TC_CIVCENTRE, 0},
 		{TC_CIVIC, 0},
@@ -256,7 +258,7 @@ inline const TechEffect *tech_effects_table() {
 		{TSTAT_HEALTH, TOP_MUL, 9, 1, 1.1f}, // cavalry_health
 		{TSTAT_SPEED, TOP_MUL, 9, 1, 1.1f}, // cavalry_movement_speed
 		{TSTAT_BUILD_TIME, TOP_MUL, 10, 1, 0.6f}, // cost_healer
-		{TSTAT_COST_METAL, TOP_SET, 46, 1, 0.0f}, // cost_healer
+		{TSTAT_COST_METAL, TOP_SET, 47, 1, 0.0f}, // cost_healer
 		{TSTAT_BUILD_TIME, TOP_MUL, 11, 1, 0.8f}, // dock_efficiency
 		{TSTAT_BUILD_TIME, TOP_MUL, 12, 1, 0.8f}, // dock_efficiency
 		{TSTAT_RESEARCH_TIME, TOP_MUL, 12, 1, 0.8f}, // dock_efficiency
@@ -298,7 +300,7 @@ inline const TechEffect *tech_effects_table() {
 		{TSTAT_HEALTH, TOP_MUL, 16, 1, 2.0f}, // health_civilians_01
 		{TSTAT_ARROWS, TOP_MUL, 17, 1, 2.0f}, // hellenistic_metropolis
 		{TSTAT_HEALTH, TOP_MUL, 17, 1, 2.0f}, // hellenistic_metropolis
-		{TSTAT_CAPTURE_POINTS, TOP_MUL, 47, 1, 2.0f}, // hellenistic_metropolis
+		{TSTAT_CAPTURE_POINTS, TOP_MUL, 48, 1, 2.0f}, // hellenistic_metropolis
 		{TSTAT_BUILD_TIME, TOP_MUL, 18, 1, 0.75f}, // hoplite_tradition
 		{TSTAT_HEALTH, TOP_MUL, 18, 1, 1.1f}, // hoplite_tradition
 		{TSTAT_HEALTH, TOP_MUL, 19, 1, 1.25f}, // juggernauts
@@ -365,15 +367,15 @@ inline const TechEffect *tech_effects_table() {
 		{TSTAT_HEALTH, TOP_MUL, 35, 1, 1.25f}, // agoge
 		{TSTAT_BUILD_TIME, TOP_MUL, 36, 1, 1.2f}, // architecture_kush
 		{TSTAT_HEALTH, TOP_MUL, 36, 1, 1.2f}, // architecture_kush
-		{TSTAT_CAPTURE_POINTS, TOP_MUL, 48, 1, 1.2f}, // architecture_kush
+		{TSTAT_CAPTURE_POINTS, TOP_MUL, 49, 1, 1.2f}, // architecture_kush
 		{TSTAT_BUILD_TIME, TOP_MUL, 37, 1, 1.2f}, // architecture_pers
 		{TSTAT_HEALTH, TOP_MUL, 37, 1, 1.25f}, // architecture_pers
-		{TSTAT_CAPTURE_POINTS, TOP_MUL, 49, 1, 1.25f}, // architecture_pers
+		{TSTAT_CAPTURE_POINTS, TOP_MUL, 50, 1, 1.25f}, // architecture_pers
 		{TSTAT_BUILD_TIME, TOP_MUL, 36, 1, 0.75f}, // colonization
-		{TSTAT_COST_FOOD, TOP_MUL, 48, 1, 0.75f}, // colonization
-		{TSTAT_COST_WOOD, TOP_MUL, 48, 1, 0.75f}, // colonization
-		{TSTAT_COST_STONE, TOP_MUL, 48, 1, 0.75f}, // colonization
-		{TSTAT_COST_METAL, TOP_MUL, 48, 1, 0.75f}, // colonization
+		{TSTAT_COST_FOOD, TOP_MUL, 49, 1, 0.75f}, // colonization
+		{TSTAT_COST_WOOD, TOP_MUL, 49, 1, 0.75f}, // colonization
+		{TSTAT_COST_STONE, TOP_MUL, 49, 1, 0.75f}, // colonization
+		{TSTAT_COST_METAL, TOP_MUL, 49, 1, 0.75f}, // colonization
 		{TSTAT_BUILD_TIME, TOP_MUL, 38, 1, 0.8f}, // crossbow_training
 		{TSTAT_RANGED_PIERCE, TOP_MUL, 39, 1, 0.9f}, // helot_economy
 		{TSTAT_GATHER_GRAIN, TOP_MUL, 39, 1, 2.0f}, // helot_economy
@@ -385,10 +387,11 @@ inline const TechEffect *tech_effects_table() {
 		{TSTAT_HEALTH, TOP_MUL, 44, 1, 0.6f}, // ostracism
 		{TSTAT_BUILD_TIME, TOP_MUL, 41, 1, 0.8f}, // parade_of_daphne
 		{TSTAT_SPEED, TOP_MUL, 45, 1, 1.1f}, // tyrtean_paeans
+		{TSTAT_IDLE_REGEN, TOP_ADD, 46, 1, 0.5f}, // health_regen_units
 	};
 	return kEffects + 1;
 }
-constexpr int TECH_EFFECT_COUNT = 148;
+constexpr int TECH_EFFECT_COUNT = 149;
 
 inline const TechInfo &tech_info(uint8_t tech_id) {
 	static const TechInfo kTable[TECH_COUNT] = {
@@ -492,6 +495,7 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Marian Reforms", "Convert Infantry to Marian Legionaries, Cavalry to Auxiliary Cavalry, unlock Onagers and Centurions, but lose access to Spear Cavalry and Italic Heavy Infantry.", 1200, 0, 1000, 0, 60.0f, 3, BLD_FORTRESS, TECH_NONE, 0x0008, 147, 0, "roman_reforms"},
 		{"Tyrtean Paeans", "Champion Hoplites +10% movement speed.", 200, 0, 200, 0, 50.0f, 2, BLD_GEROUSIA, TECH_NONE, 0x0002, 147, 1, "tyrtean_paeans"},
 		{"Unlock Neodamodes", "Unlock the ability to train Spearman Neodamodes at the Barracks.", 500, 0, 0, 0, 60.0f, 3, BLD_GEROUSIA, TECH_NONE, 0x0002, 148, 0, "unlock_neodamodes"},
+		{"Battlefield Medicine", "Idle Organic units +0.5 health regeneration rate.", 1000, 0, 250, 0, 40.0f, 3, BLD_TEMPLE, TECH_NONE, 0x3fff, 148, 1, "health_regen_units"},
 	};
 	if (tech_id >= TECH_COUNT) return kTable[TECH_NONE];
 	return kTable[tech_id];
