@@ -14477,253 +14477,295 @@
       "type": "palm",
       "x": -118.31,
       "z": 17.6,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -96.26,
       "z": 17.43,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -70.77,
       "z": 21.33,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -50.93,
       "z": 22.6,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -14.57,
       "z": 22.14,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 12.39,
       "z": 23.83,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 41.62,
       "z": 22.03,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 83.02,
       "z": 25.59,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 115.01,
       "z": 24.37,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 102.86,
       "z": -17.33,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 75.91,
       "z": -8.9,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 64.09,
       "z": -18.17,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 41.77,
       "z": -15.94,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 9.16,
       "z": -19.79,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -4.33,
       "z": -22.51,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -36.86,
       "z": -13.51,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -36.04,
       "z": -20.0,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -70.04,
       "z": -15.95,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -92.62,
       "z": -16.55,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -116.36,
       "z": -14.92,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -80.35,
       "z": -14.96,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 56.0,
       "z": 35.5,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 26.93,
       "z": 42.35,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -5.36,
       "z": 40.66,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -53.09,
       "z": 32.31,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -35.04,
       "z": 36.54,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -80.33,
       "z": 35.66,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -97.54,
       "z": 26.62,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -113.61,
       "z": 22.82,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -81.53,
       "z": -24.78,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -62.78,
       "z": -31.18,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -41.53,
       "z": -25.02,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -18.72,
       "z": -26.96,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 10.13,
       "z": -32.12,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 22.01,
       "z": -19.99,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 43.75,
       "z": -27.61,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 67.92,
       "z": -27.85,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 86.54,
       "z": -21.57,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 95.59,
       "z": -29.39,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 115.02,
       "z": -27.59,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 103.78,
       "z": 35.18,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -23.37,
       "z": 28.54,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
@@ -16988,844 +17030,984 @@
       "amount": 100
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -39.16,
       "z": 65.68,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -17.97,
       "z": 71.8,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 31.08,
       "z": 84.37,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 16.33,
       "z": 65.02,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 8.65,
       "z": 75.63,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -0.64,
       "z": 81.16,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -35.63,
       "z": 90.1,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -45.26,
       "z": 79.84,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -67.94,
       "z": 76.28,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -71.92,
       "z": 70.14,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -69.33,
       "z": 60.25,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -62.44,
       "z": 54.47,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -91.58,
       "z": 52.62,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -99.72,
       "z": 52.7,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -84.53,
       "z": 71.99,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -52.9,
       "z": 84.55,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -48.53,
       "z": 59.46,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -23.47,
       "z": 60.66,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -15.8,
       "z": 80.74,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -17.43,
       "z": 93.07,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -1.79,
       "z": 97.59,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 9.75,
       "z": 102.61,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 9.53,
       "z": 90.55,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -6.6,
       "z": 110.85,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -25.39,
       "z": 110.11,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -54.67,
       "z": 104.45,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 27.34,
       "z": 76.17,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 33.68,
       "z": 65.53,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 45.22,
       "z": 75.83,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 54.98,
       "z": 78.19,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 62.49,
       "z": 86.69,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 45.29,
       "z": 95.19,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 23.62,
       "z": 98.19,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 59.86,
       "z": 101.26,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 67.22,
       "z": 94.22,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 76.39,
       "z": 84.86,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 82.43,
       "z": 79.54,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 80.98,
       "z": 67.31,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 62.13,
       "z": 74.57,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 75.84,
       "z": 55.09,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 91.31,
       "z": 44.6,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 104.39,
       "z": 49.21,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 91.98,
       "z": 60.96,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 52.08,
       "z": 60.64,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 35.68,
       "z": 50.6,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 21.1,
       "z": 54.23,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 2.23,
       "z": 57.83,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -11.67,
       "z": 51.26,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -34.33,
       "z": 46.57,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -51.29,
       "z": 49.01,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -76.55,
       "z": 49.73,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -95.41,
       "z": 66.49,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -103.85,
       "z": 56.29,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -109.61,
       "z": 42.21,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -110.38,
       "z": -40.97,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -93.69,
       "z": -63.69,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -83.84,
       "z": -49.36,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -77.81,
       "z": -47.7,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -66.7,
       "z": -55.87,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -64.6,
       "z": -65.58,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -56.24,
       "z": -61.36,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -44.49,
       "z": -51.83,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -31.33,
       "z": -54.76,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -32.35,
       "z": -65.54,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -26.15,
       "z": -68.05,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -12.52,
       "z": -65.9,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -7.47,
       "z": -63.57,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -2.83,
       "z": -65.02,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 11.24,
       "z": -58.57,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 19.26,
       "z": -59.36,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 23.14,
       "z": -77.95,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 42.86,
       "z": -77.47,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 58.4,
       "z": -59.39,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 61.51,
       "z": -60.28,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 56.0,
       "z": -51.76,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 23.68,
       "z": -52.45,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 70.15,
       "z": -28.78,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 79.6,
       "z": -55.55,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 91.21,
       "z": -53.3,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 99.25,
       "z": -54.35,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 99.02,
       "z": -64.92,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 87.46,
       "z": -82.45,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 71.44,
       "z": -95.18,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 57.81,
       "z": -96.96,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 39.0,
       "z": -97.78,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 59.71,
       "z": -107.9,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 51.28,
       "z": -103.82,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 42.76,
       "z": -108.48,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 26.74,
       "z": -116.02,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 21.38,
       "z": -117.14,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 10.78,
       "z": -115.15,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 3.6,
       "z": -114.22,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -10.29,
       "z": -122.68,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -32.59,
       "z": -115.34,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -44.75,
       "z": -106.88,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -52.68,
       "z": -106.58,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -62.04,
       "z": -103.36,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -70.59,
       "z": -95.03,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -77.05,
       "z": -88.4,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -61.2,
       "z": -86.33,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -53.12,
       "z": -90.02,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -34.89,
       "z": -88.62,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -27.48,
       "z": -90.08,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -14.1,
       "z": -92.28,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -14.62,
       "z": -101.59,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -26.56,
       "z": -106.79,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -40.83,
       "z": -106.2,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 5.61,
       "z": -103.14,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 15.18,
       "z": -89.36,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 1.11,
       "z": -85.88,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 7.98,
       "z": -71.48,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 42.22,
       "z": -67.66,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 34.91,
       "z": -47.6,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 51.35,
       "z": -40.53,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 85.25,
       "z": -71.9,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 65.87,
       "z": -79.24,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -44.95,
       "z": -76.59,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -82.09,
       "z": -73.93,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -104.62,
       "z": -54.56,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -92.64,
       "z": -34.52,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -96.26,
       "z": 33.02,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -14.76,
       "z": -38.02,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -16.82,
       "z": 39.67,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -26.99,
       "z": 44.87,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 11.89,
       "z": 94.53,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 7.56,
       "z": 82.36,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 27.05,
       "z": -101.84,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 32.94,
       "z": -110.45,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 42.38,
       "z": -103.38,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 45.93,
       "z": -96.18,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -80.49,
       "z": -60.38,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -83.18,
       "z": -89.24,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -102.27,
       "z": -67.81,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -66.15,
       "z": -105.28,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 83.69,
       "z": -65.16,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 72.32,
       "z": 41.41,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 68.09,
       "z": 46.42,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 69.65,
       "z": 53.08,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": 97.69,
       "z": 56.12,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
-      "type": "tree",
+      "type": "baobab",
       "x": -76.45,
       "z": 90.12,
-      "amount": 400
+      "amount": 400,
+      "max_gatherers": 9
     },
     {
       "type": "gold",
@@ -18212,61 +18394,61 @@
       "amount": 5000
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -33.98,
       "z": -100.63,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -32.88,
       "z": -97.96,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -32.87,
       "z": -100.55,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -31.72,
       "z": -98.74,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -31.62,
       "z": -97.13,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 51.12,
       "z": 74.47,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 49.69,
       "z": 73.31,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 51.37,
       "z": 71.67,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 52.82,
       "z": 74.34,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 51.93,
       "z": 75.54,
       "amount": 200
@@ -19129,5 +19311,28 @@
   "ruins": [],
   "gaia_structures": [],
   "gaia_units": [],
-  "scenery": []
+  "scenery": [],
+  "terrain": {
+    "res": 256,
+    "names": [
+      "tropic_grass_c",
+      "savanna_grass_b",
+      "tropic_plants_c",
+      "savanna_grass_a",
+      "savanna_shrubs_b",
+      "savanna_dirt_rocks_b",
+      "savanna_dirt_b",
+      "savanna_tile_a",
+      "savanna_dirt_rocks_c",
+      "savanna_tile_a_dirt_red",
+      "savanna_grass_a_wetseason",
+      "savanna_dirt_rocks_a",
+      "savanna_grass_b_wetseason",
+      "tropic_forestfloor_a",
+      "bridge_wood_b",
+      "tropic_mud_a",
+      "savanna_tile_a_red"
+    ],
+    "rle": "HgAIAQ8ABQEAAAUBBAIFAQEAAAMLAQUDAwEFAwkBAwQTAwEBGgMBAAUBawAFAQ8ABQEAAAcBAgIFAQEADQEEAwIBBQMFAQADAwEGBBADAQEaAwEABQFrAAUBEAADAQEACAEBAgUBAQMNAQQDAgEFAwUBAgMAAQcEEAMCARoDAAAIAWkABgEBAAUDCwAJAQIDAwEAAxABAgMDAQUDBQEDAwcEDwMGARgDCwFoAAUBCAMIAAoBBgMTAQADAwEGAwMBBgMEBAABDgMGARoDCwFdAAUDAQABAwUBCgMGAAoBBgMZARADBAQAAQ4DBgEcAwAACAFZAA0DBQELAwUACQEHAxgBEgMAAQIEAwELAwYBHQMIAVcADwMFARADAAAFAQsDFwEWAwUBAgMEAQEDBgEfAwcBVgARAwMBEwMDAQ0DFgELAwMBBgMWASADBQFVADQDAwEHAxMBBQMKAQUDFgEgAwUBUwAyAwgBBgMTAQUDCgEFAxUBIQMFAQEDUAAQAwMBHQMJAQcDEQEFAwsBBgMUASEDBQEEAxQACQMuAA8DBQEcAwkBCgMOAQUDCwEJAxEBHAMKAQYDEAANAysAEAMFARwDCQEKAw4BAQMCBAADCgELAxIBFAMQAQcDDgAPAyoADwMGARwDCwEIAw4BAAMEBAABAgQGAQ0DEQESAxEBCAMJABMDKgAPAwYBCQMDAQ8DAwEBAwUBBwMOAQoEBQEAAwMBCQMQAQ8DFAEJAwYAFgMoABADBQEBAwMBAwMFARIDBwEIAwEBAwMHAQsEAAMJAQkDDwEOAwMBAwMMAQsDBAAQAwMBAgMnABEDBQEAAwUBAgMFAREDCAEQAwYBDAQAAwcBCAMQAQ4DAQEGAwoBDAMAAA4DCgEBAycAEgMDAQEDDgEHAwMBAQMMAREDBgEBAwkEAgMHAQQDEwENAwABBwMCASADDgEBAyYAGQMOAQYDEgEWAwIBAQMEBAgDBwEAAxgBCwMAASIDBQEBAw8BAQMmABkDDQEHAxMBFgMCAQADAgQLAyEBCAMCARgDAwEDAxkBAQMmABoDCwECAwMBAQMTARYDAgEAAwEEDQMgAQcDAwEKAwkBAgMiAQIDJAAcAwsBAAMFAQADEwEAAwIFEwMBAQUDAQEJAxYBAAMHAQcDBAEJAy8BAgMkABwDCwEAAwUBAAMQAQYFAAEFAwIBCgMBAQUDAgEHAxUBAwMDAQgDBgEKAwcBAwMBAQMEEAEDAwYBAgMjAB0DEgEBAwYBAwMDAQYFAgEDAwQBCgMAAQYDAQEHAxQBBQMBAQgDBwELAwUBBQMEBA0BBgMGAQIDIwAdAxIBAQMFAQUDAQEGBQMBAwMEARMDAQEGAxMBBgMBAQUDCgELAwUBBAMIBAoBBQMHAQIDIwAdAxIBAQMGAQYDAgUBBgQFAAEDAwQBHAMTAQYDAQEFAwoBDgMCAQQDCAQKAQQDCAECAwsABQMRAB4DEgEAAwcBBAMDBQEGAQUCBgABAwMEARwDEgEPAwoBDwMBAQQDBwQLAQMDCAEDAwkACQMPAB8DEQEAAwcBBAMCBQcGBAcAAwMBGwMTAQ4DCwEFAwABEQMBAQIEDAECAwgBCQMBAA0DDgAgAxoBAwMBBQcGBgciAw8BBQMBCAUDDQEFAwEBCAMBBAUDAQEBBAIBAgQGAQMDBwEcAwwAIQMHAQEDEAEDAwAFBQYJByIDDgEFAwMIAwMOAQQDAQEIAwEEAgMBBAADAAECBAABBAQRAR4DCwAiAwcBAwMRAQADBAYLBwUDBQUWAwwBBgMFCAEDCwEIAwEBBwMBBAIDAQQAAwABCAQQAR8DCwAiAwYBCQMLAQUGDAcFAwUFGwMHAQcDBQgMAQgDBQQDAwYEAAMFBBMBIQMKACMDBQEKAwkBBgYNBwQDBQUcAwUBCAMGCAsBBwMWBBMBIwMKACUDAwEKAwgBBgYOBwQDBgUFAwIBEwMEAQUDCggKAQcDFgQUASIDCgAlAwMBCgMHAQcGDgcFAwUFBQMGAREDAQEFAwQIAAMFCAoBCQMUBBQBDgMFAQ4DCQAmAwMBCQMGAQIGAAEABQIGDwcHAwIFBgMHARUDAQEAAwUIAAMFCAkBCgMTBBQBDQMPAQUDCQAnAwIBCQMGAQEGAgECBg8HEQMJARgDBggAAQIICgEBAwABBgMAAQUEAAEBAwgEFQENAxABBAMJACcDAwEIAwsBAQYAAw4HEgMJARsDAggBAQIIDgEFAwEBAQQFAQIDAQQAAwQEAAEAAxABDgMRAQMDCQAoAwMBBgMOAQADDgcSAwoBGgMFAQEIAAEFAwcBBQMKAQQDBAQLARQDEwECAwoAKAMCAQYDDwEOBxEDDQEXAwgBCQMEAQUDCwEDAwQECgETAxUBAgMKACgDAgEGAw8BDQcACAEDAAEJAxMBFAMKAQsDAgEFAw8BBAQHARUDFwECAwkAKAMCAQYDDwEBCAEHAAkIBwEIAAMBAQgDFAESAwsBAQMFBQQDAQEGAw8BAwQFAQEFFQMYAQEDCQApAwEBBgMPAQEICgcBBgAIAAMBAQgDGQEKAw4BAQMFBQQDAQEHAxcBAgUUAwwBAwMIAQEDCQApAwEBBgMEAQEDCAEBCAoHAQYACAADAgEHAxsBCgMMAQEDBQUEAwABCAMUAQUFEwMIAQcDCQEBAwoAKQMCCAADAQgAAwQBBwMFAQEIBwcCBgAIAAMCAQcDGgEMAwwBAAMGBQMDAAEIAxMBBgUTAwYBCAMKAQEDCgAmAwgIAAMEAREDAgcFBgAIAQMCAQcDGQEPAwoBAAMFBQ0DEQEEBQADAgUDAwMBCgMHAQgDCQECAwsAJAMJCAADBAESAwAHBQYDAwIBBwMYAR0DBAUNAxEBAwUAAwMFAwMEAQkDBgEJAwgBAwMFCgYAIgMFCAADAggBAwQBEgMDBgYDAgEIAwkBBQMFAQEDBAUYAwQFDAMRAQQFAAMCBQUDBAEFAwMEBAEKAwYBBQMHCgUAIAMKCAADBAESAwMGBwMCAQoDBQEOAwUFGAMDBQsDAgEAAw8BBwUHAwQBAwMAAQQEAwEKAwUBBgMICgUAHgMKCAADBAETAwIGAQEFAwIBIAMCBQADAQUuAw0BBwUAAQcDAwECAwEBBgQAAQwDAwEHAwgKBgAKAwMLDQMJCAQDBAURAwEGAwEDAwMBIAMFBTIDBAEEAwgFCAMHAQgEFwMJCgUACgMGCwkDCQgEAwUFEgMLASEDBQU8AwgFAAEIAwABAwQDAQcEFgMJCgUABwMJCwkDBQgIAwUFEgMLASEDBAU+AwQFAQMCAQgDEAQVAwkKBQAHAwkLCAMECAoDBAUUAwkBIgMDBUADAgUDAwIBCQMPBBQDCQoFAAgDCAsIAwIICwMFBRYDBQEjAwMFCgMACgYDAgozAwIBDQMKBBQDCQoFAAoDBgsXAwUFQAMCBQIKBgMOCjEDAwEOAwkEEwMJCgYACQMGCxYDBwU9Ax0KMgMDAQ4DCAQTAwkKBgALAwILGAMDBQADAgU9Ax0KNQMAAQ4DAgQAAwUEEgMICggAJgMCBUIDHQpHAwgEEQMICgkAAAIYAwIKCwMACkEDHQonAwMIGwMEBAEDAgQQAwcKBAAHCgACAAoVAwYKBQMECj4DGwoCCxgDBAoJAwkIGAMDBAADAQQQAwcKAQAOChIDHQozAxsKCAsQAwcKCAMJCBkDBgQNAwEABgoAABIKDgMhCgMDAgspAx0KBwsMAw0KBgMCCAEDAggcAwUECgMEAE4KAwsDAwILIAMdCgkLCgMUCgEDAggBAwIIHwMCBAcDBwBOCgILAgYECxwDHwoLCwkDFgoDCAEDAggnAwoATQoABgELAwYECw4DAAoLAyAKBwsBCgkDGAoCCAEDAggmAwICCQBNCgcGAQsACg4DAwoHA08KAQgACgEDAQglAwIKAwIFAAEMTQoDBgkKCQNhCiEDCQoEAgEABAzJCh4DCgoEAgYM0woSAwwKAwIHDN0KBgMOCgsM8woLDPIKDAx2CgQMBwoBDGwKDAx2Cg8MagoNDDIKBQw8ChEMZwoPDDEKCAw4ChQMWQoBDAgKEQwwChQMJwobDFgKHAwKCgIMIAoYDCQKHgxVCh0MBQoJDBkKHgwjCiMMTgofDAMKDQwICgAMDAogDAkKAAwWCicMMAoBDAwKSQwICiQMBQoEDBIKGwwCAgAACwwuCgEMDAqxDAMCDQwrCgMMCgqxDAQCEAwUCgQMDAoHDAYKsQwHAg8MEgrODA0CEAwQClIMAAABAnkMDQISDA0KUwwAAAQCJgwDAEsMDgIVDAcKNQwBAh0MCgIgDAACBAAgDAICJgwOAi0MAgAiDAICHAwMAg0MAwIKDAMCBAAdDAAACAIhDA8CLAwCACIMAwIZDAEADgIJDAcCBgwFAgYABgwFAAsMBQAHAiAMDwIrDAECAgAhDAUCFAwEABICAQAZAhQABwwCAgYABwIeDAgCAQAFAigMAwIEABAMAAIMDAkCDQwAAgcALgIXAAkCAgALAhwMBwICAAcCHgwOAgIADQwDAgsMGAIHAC4CFgAKAgEADwIYDAAABwICAA4CFwwSAgAACQwGAgkMDAIAABICAAAtAgMAAQIOACQCEwwHAgMAGQILDBUCAAAQAgUMUQIBAAUCCgAqAg4MAAAHAgQAGgIHDFkCAQATAgAACQIBAAICAwAGAgkAKwIBAAkMAQAIAgQAfAIBAC4CAgABAgAAAQIAACwCDQAHAgUACQIAAAgCAQBlAgMAWAIAAAkCDAAIAgUACAIBAAkCAwBhAgUAVAIEAAgC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AAADCgEFOAoKDAkCCQwiCgIDZwoGBRAKAgU3CgACCQwLAgEAJgoIA2IKAwUACgIFEAoDBTUKAwIHDAMCAgoEAigKCwNZCgEDAwoGBREKBAUGAy0KAwIHDAECBgoAAikKCAMCBAIDVQoCAwIIAQoGBREKBAUJAwsKBAMECgIDAwoBAwoKBQIGDAECLwoCBAMDAQQBAwIEAwNUCgYIAAoEBQwKAQMBCgIDAAoEBQoDBwoIAwAKDAMHCgEABQIFDAACLgoEBAMDAQQBAwEEBgNRCgADBwgBCgEFAQMDCgEDAgoMAwIFDAMEChcDBgoCAAcCAgwBAhUKAgMUCgQEAQMEBAADAQQKA04KAgMFCEkDAwoFAAoCFAoGAwUKAgMJCgIEAAMKBAwDBQoCA0QKAAMGCEkDAQoJAAgCEwoIAwIKBwMDCgUDCwQMAwMKBgM6CgEDBQoAAwQIPwMECAYDAQoLAAYCEwodAwMEFQMCCgcDNwoFAwQKAgg/AwcIBQMNAAYCEgoaAwcEFQMBCgoDNQoFAwQKAQgACj4DCggDAw8ABAISChgDCwQTAwEKDAMyCgcDAwocAwIBIAMLCAMDEAADAhIKCgMCBAoDDAQSAwAKDgMAADAKBwMBCgUDAgETAwYBHgMFCAMDAggBAxEAAwISCgoDAgQIAw8EEwMCCwoDAAoAACIKAQMLCgUDAQoEAwYBEAMIAR0DAggAAwEIAAECAwIIAQMSAAICEwoJAwMEAQMDBAEDAQQAAwwEEwMECwkDBAoBAwAKAgMWCgUDAgoBAwQKBQMBCgQDAAEEBQABEAMJAR0DBggAAQEDAQgAAQADAwABAgwAAgITCgkDDQQAAwwEFAMFCwcDAgoKAxMKBQMACgUDBAoBAwIKBAMAAQYFAAEAAwQFCAMLARwDBwgAAwABAQgCAQYCCwABAg0KAQIECggDBwQBAxEEFQMECxcDCwoBAwIKDQMJCgQDAAEGBQABAAMEBQgDDQEEAwgBDAMAAQoIAgEBAwUCCgABAggKCAIACgwDBAQDAw8EFgMGCxYDCAoFAwAKDgMICgQDAAEFBQABBgUHAw8BAQMMAQsDCggDAQADBwIHAAICBgoJAhADAgQGAwwEDQMCAQUDCQsTAwgKBQMBCg0DCQoDAwMFAgEEBQMHAQEAAxMBAQMMAQ0DAggBAQEIBQEBAwgCBQACAgQKCwIRAwEEBAMMBA0DBgEAAwwLBwMDAQwDAQoIAwAKBQMACgUDCAoFAwMFAQEEBQUHAAEEByABCwMLAQIDCgIBAAQCAgoMAhIDAwQBAwUEBAMCBAABDAMGAQADCgsFAwMBBAUAARUDAgoBAwIKCgMDCgUDAwUAAQADAgUNBx8BDAMLAQEDIgITAwgEBAMIAQgDCAEICwUDBQEEBQABFwMHCgQDAQERAwEFDwceAQwDCwEBAyMCEgMBAQYEAgMMAQYDCAEBAwEBAQsBAwEBAQMBAQADAwEGBQABGgMECgIDBQEPAwAFEQcEAQADFAEOAwwBIwIUAwEBCQQKAQQFHwEHBR0DAAoDAwUBCAMBAQQDEgcPAQEDAgETAwwBAAMgAhYDAQEFBAABBQQIAQQFAQEBBR0BBwUUAwIBBwMBAQIIAgEFAwUBAAMAEBQHAQEDBQoBEgMQAR4CGQMBAQEEAQEJBAcBCQUbAQgFEgMGAQUDAQEECAABAQgDAwUBFgcAAwYFCAEQAwkBAAMGAR0CGwMBAQkEAQEBBAABAgQDAQkFGwEKBQ4DCAEEAwMBBggBAwcBFgcAAwYFBwEQAwgBBAMCAQADHQIdAwEBCAQEAQIEBwEFBRcBAAMBAQADAAEJBQwDCwEDAwMBBggAAwgBFgcAAwcFBQEPAwkBCQMCAgEDGAIdAwUBBAQFAQEEBwEFBRcBBAMJBQsDDAEAAwYBBggJARIHAAEAAwEHAAMHBQUBDgMKARADFQIfAw4BAQQGAQcFBwEBAwIBAgMBAQEDAQEGAwgFAAEKAxUBAQgAAQMICQEJBwABBwcAAQMDBwUCAQoDDwESAxUCHQMQAQEEBgEGBQ8BEQMFAQsDFAEGCAkBBAMMBwABBQMFBQ0DCQEAAwEBGAMUAhoDEgEBBAcBBAUBAQMDAQEBAwcBEAMGAQoDFAEFCAEDBwEFAwwHAAEGAwIBDgMHASADEgIaAxIBAgQGAQEFBQEFAwgBDwMIAQsDEgEAAwQIAQMFAQgDCgcAAQUDBAENAwYBIgMUAhADAgADAxQBAQQOAQUDCQEOAwkBDAMQAQcDAwEKAwcHAAEBBwABAAMIAQ0DBwEQAwICDwMVAgkDCQABAhIBAAMSAQUDCAEMAwwBDAMHAQ8DBAEKAwEHAQEFBwkBDQMGARADBgIBAwECCQMbAgEDCwACAhEBAAMDBA4BBQMIAQwDDAEPAwMBEwMCAQsDAgEEBwQBFAMBARQDBgIMAx0CCgACAgAABgEAAAkBAAMDBA4BBQMIAQsDCgEAAwIBDwMCARQDAQEMAwEBAwcCAS4DAgIQAx8CAQAAAgUAAgICAAIBAQAKAQEDAgQAAwMBAAMHAQUDCQEKAwsBFAMBASUDAwcBAS4DAQIRAyUCAQAFAgYACQELAwcBAwMMAQEDAgEEAwkBPwMCBwEBLgMBAhEDLQIGAAACCAENAwMBBQMTAQEDCQFCAwIBGwMDAQ0DAQIQAzACBQAAAgYBGAMMAQEEBgEAAwgBPQMAAQUDAQEIAwABAgMBAQoDBwELAwECDgM0AgEABAICARIDAgEEAwwBAgQOAT4DAAEFAwIBBQMBAQEDBgEFAwkBCwMCAgsDQAIQAwYBAwMLAQIEBwEFAwABEgMCASEDAAEEAwABBwMJAQEDCgEBAwoBCwMBAgcDKQIBABoCDgMIAQEDCgECBAcBGgMBASIDBgEIAwcBAQMYAQsDAwIBAysCBQAZAgwDCQEDAwEBAAMIBAYBFwMEBAABIQMGAQkDBgECAxcBDQMAAC8CBQAaAgsDCgEFAwcEAAECBAABGQMFBAQDAQsWAwwBCgMCAQUDFgENAwAAKgIBAAECBwAbAggDCwEGAwwEGAMGBAIDAgsVAw8BEQMUAQ4DAgAnAg0AHQIGAwoBBAMBAQEDAAEGBAABAgQSAwQEAAMHBAEDAgsUAwMBAgMKAREDEwEOAwIAJwIFAAACBQAfAgAABQMJAQIDBQEFBAMBDwMAAQMDDQQAAwMLBwMBAQkDAwEDAwwBEQMRAQ0DAgAnAg0AHwIEAAEDBwEEAwUBAwQFAQkDBwECAw0EAAMCCwgDAgEGAwMBBgMMARMDDQEOAwIAJwIIAAACAQAjAgUAAAMDAQUDBwECBAYBCAMGAREEAAMCCwoDAQEAAwUBCQMNARUDCgEMAwACAQAqAgcAJwIFAAkDEgEGAwMBAAMSBAADBAsdAw4BGwMBAQwDLwIIACgCAwAKAxEBBwMAAQIDEQQAAwQLHQMPAQcDCgEVAwEAMAIHACoCAwAIAxEBDQMBBAQDBQQBAQADBQsdAxMBAQMOAREDBQAIAgEAJAIFACoCBAAKAwEBAQMBAQEDAQEAAwQBFAMAAQQEAQEGCx4DIwEMAwACAQMBAgUABgIFACICBQAqAgYAFQMCARMDCAEGCx4DJAEJAwUCBwAFAgUAJAIBAC0CBQAsAwgBBgsBAR0DIwEJAwUCCAADAgcAUgIIACkDCQEGCwEBHQMiAQgDCAIJAAECBwAcAgEAMwIIACcDBwEJCwMBBAMDAQEDAgEQAwIBAQMbAQUDCwIJAAICBQAbAgUAMgIHAAECJAMHAQkLBAECAwwBGAMUAQQDEAIIAAECBgAaAgUAMgIGAAQCIgMHAQgLBQECAwwBGwMHAQMDAQEHAxICBwADAgYAFwIHADICBQAFAiIDBgEFCwcBAgMOARsDAAADAQ0DFQIFAAACAQACAgUAFwIHADQCAQAJAiADCAEDCwcBAgMPARkDAgAMAxkCEgAXAgUAQQIiAwUBBAsFAQQDDwEXAwYABgMfAgEAAAINABcCBQBCAiMDAgEECwQBBgMQARQDCQAnAg0AGgIBAEUCJQMECwADAQEJAw8BFAMHACkCDQAAAgEAYQIiAwULDAMOAQsDAgAEAwcALAIFAAICAQAAAgUADwICAE4CHwMGCw4DAwEAAwcBCwMPACwCBQABAgkADgI="
+  }
 }
