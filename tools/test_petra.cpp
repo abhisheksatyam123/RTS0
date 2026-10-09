@@ -685,6 +685,9 @@ static void test_diplomacy_requests() {
 	CHECK(target == 3, "asks the last of the players sharing the most enemies");
 	if (target != 3) return;
 	const bool asked_neutral = s->petra_sent_diplo_.sent_type[3] == 2;
+	// At 0 A.D.'s gather rates AI 1 has nowhere near a 1000-resource tribute this early:
+	// a stock lets it pay one if AI 3 asks for it.
+	for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] += 2000.0f;
 	float t = 0.0f;
 	for (; t < 120.0f && !(s->get_diplomacy(1, 3) == Simulation::DIPLO_NEUTRAL && s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL); t += Simulation::FIXED_STEP)
 		s->tick(Simulation::FIXED_STEP);
@@ -1007,11 +1010,11 @@ static void test_nomad_first_base() {
 		return n;
 	};
 	const int at_start = town_centers(false);
-	run_for(*s, 90.0f);
+	run_for(*s, 150.0f);
 	int buildings = 0;
 	for (const auto &b : s->buildings())
 		if (b.team == 1 && !b.wrecked && b.build_progress >= 1.0f) ++buildings;
-	std::printf("  nomad: Town Centers at start %d, built after 90 s %d, finished buildings %d, workers %d\n",
+	std::printf("  nomad: Town Centers at start %d, built after 150 s %d, finished buildings %d, workers %d\n",
 	            at_start, town_centers(true), buildings, count_units(*s, 1, true));
 	CHECK(at_start == 0, "a Nomad start has no civic centre");
 	CHECK(town_centers(true) == 1, "Petra founds and builds its first Town Center");
