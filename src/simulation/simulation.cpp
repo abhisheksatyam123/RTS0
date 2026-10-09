@@ -14962,6 +14962,31 @@ bool Simulation::petra_in_attack_squad(uint32_t uid) const {
 	return false;
 }
 
+// defenseManager.js garrisonUnitsInside: a unit of an attack or raid plan garrisons only
+// while its plan still musters, or into a decaying structure (one just captured in enemy
+// land), which may take it even from an army on the march or fighting.
+bool Simulation::petra_attack_can_spare(uint32_t uid, bool decay) const {
+	if (decay) return true;
+	const auto busy = [uid](const AttackPlan &p) {
+		return p.state != AttackPlan::UNEXECUTED && p.state != AttackPlan::MUSTER &&
+			std::find(p.squad.begin(), p.squad.end(), uid) != p.squad.end();
+	};
+	if (busy(petra_attack_plan_) || busy(petra_raid_plan_)) return false;
+	for (const AttackPlan &p : petra_started_attacks_)
+		if (busy(p)) return false;
+	return true;
+}
+
+// attackPlan.js removeUnit: the unit leaves whichever attack or raid plan has it.
+void Simulation::petra_attack_remove_unit(uint32_t uid) {
+	const auto drop = [uid](AttackPlan &p) { p.squad.erase(std::remove(p.squad.begin(), p.squad.end(), uid), p.squad.end()); };
+	drop(petra_attack_plan_);
+	drop(petra_raid_plan_);
+	for (AttackPlan &p : petra_started_attacks_) drop(p);
+	auto &sf = petra_strike_force_.unit_ids;
+	sf.erase(std::remove(sf.begin(), sf.end(), uid), sf.end());
+}
+
 // The owner of the newest started attack's target, else of the plan in preparation's.
 uint8_t Simulation::petra_attack_enemy() const {
 	auto owner = [&](const AttackPlan &p) -> uint8_t {
@@ -15770,8 +15795,7 @@ void Simulation::petra_garrison_units_inside(size_t holder_idx, bool allow_melee
 		if (units_.order_kind[i] == ORDER_GARRISON || units_.id[i] == petra_scout_unit_id_) continue;
 		if (units_.action_state[i] == ACTION_GARRISONED || petra_passenger(units_.id[i])) continue;
 		const uint32_t uid = units_.id[i];
-		const auto &raid = petra_raid_plan_.squad;
-		if (petra_in_attack_squad(uid) || std::find(raid.begin(), raid.end(), uid) != raid.end()) continue;
+		if (!petra_attack_can_spare(uid, decay)) continue;
 		if (decay && !petra_same_land(i, holder)) continue;
 		const float dx = units_.pos_x[i] - holder.x, dz = units_.pos_z[i] - holder.z;
 		near.push_back({dx * dx + dz * dz, uid});
@@ -15781,6 +15805,7 @@ void Simulation::petra_garrison_units_inside(size_t holder_idx, bool allow_melee
 	for (const auto &[d2, uid] : near) {
 		if (slots >= want) break;
 		def.erase(std::remove(def.begin(), def.end(), uid), def.end());
+		petra_attack_remove_unit(uid);
 		order_garrison(&uid, 1, holder.id);
 		++slots;
 		++incoming[holder_idx];
