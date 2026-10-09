@@ -29,6 +29,7 @@ src/simulation/civ_attack_data.h. --check fails if the checked-in file differs.
 import argparse
 import importlib.util
 import json
+import re
 import os
 import sys
 
@@ -69,28 +70,22 @@ BUILDINGS = [
     ("BLD_ELEPHANT_STABLE", "template_structure_military_elephant_stable"),
     ("BLD_THEATER", "template_structure_special_theater"),
     ("BLD_EMBASSY", "template_structure_military_embassy"),
-    # Civ-specific structures (civ_building_data.h, extract_0ad_rosters.py)
-    ("BLD_GYMNASIUM", "structures/athen/gymnasium"),
-    ("BLD_PRYTANEION", "structures/athen/prytaneion"),
-    ("BLD_GEROUSIA", "structures/spart/gerousia"),
-    ("BLD_SYSSITON", "structures/spart/syssiton"),
-    ("BLD_TACHARA", "structures/pers/tachara"),
-    ("BLD_ARMY_CAMP", "structures/rome/army_camp"),
-    ("BLD_AMPHITHEATER", "structures/rome/amphitheater_pompeii"),
-    ("BLD_LIBRARY", "structures/mace/library"),
-    ("BLD_KENNEL", "structures/brit/kennel"),
-    ("BLD_ASSEMBLY", "structures/gaul/assembly"),
-    ("BLD_MONUMENT", "structures/iber/monument"),
-    ("BLD_PALACE", "structures/maur/palace"),
-    ("BLD_PILLAR", "structures/maur/pillar_ashoka"),
-    ("BLD_PYRAMID_LARGE", "structures/kush/pyramid_large"),
-    ("BLD_PYRAMID_SMALL", "structures/kush/pyramid_small"),
-    ("BLD_MERCENARY_CAMP", "structures/ptol/mercenary_camp"),
-    ("BLD_LIGHTHOUSE", "structures/ptol/lighthouse"),
-    ("BLD_MILITARY_COLONY", "structures/ptol/military_colony"),
-    ("BLD_ACADEMY", "structures/han/academy"),
-    ("BLD_MINISTRY", "structures/han/ministry"),
 ]
+
+
+def civ_buildings():
+    """Civ-specific BuildingTypes (ids from CIV_BUILDING_FIRST on), read from
+    sim_types.h and their templates from civ_building_data.h (extract_0ad_rosters.py)."""
+    here = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "simulation")
+    enum = re.findall(r"^\t(BLD_[A-Z0-9_]+) = (\d+),", open(os.path.join(here, "sim_types.h")).read(), re.M)
+    names = [n for n, i in sorted(((n, int(i)) for n, i in enum), key=lambda x: x[1]) if i >= len(BUILDINGS)]
+    data = open(os.path.join(here, "civ_building_data.h")).read()
+    rows = data[data.index("RTSO_CIV_BUILDING_INFO_ROWS"):]
+    templates = re.findall(r"/\* (structures/[a-z0-9_/]+) \*/", rows)[:len(names)]
+    if len(templates) != len(names):
+        sys.exit("civ_building_data.h has %d rows for %d civ building types" % (len(templates), len(names)))
+    return list(zip(names, templates))
+
 
 MAX_BONUSES = 4
 
@@ -150,7 +145,7 @@ def collect(sim_root):
         name = ex.GENERIC[cls]
         generic.append((cls, name, row_of(loader.load(name))))
     buildings = []
-    for bld, name in BUILDINGS:
+    for bld, name in BUILDINGS + civ_buildings():
         buildings.append((bld, name, row_of(loader.load(name), structure=True)))
     buildings.append(("default", "template_structure", row_of(loader.load("template_structure"), structure=True)))
     return units, generic, buildings

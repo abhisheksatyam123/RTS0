@@ -452,7 +452,7 @@ inline const CombatProfile *combat_class_table() {
 inline constexpr uint8_t COMBAT_CLASS_ROWS = 23; // = UNIT_TYPE_COUNT
 
 // Structures by BuildingType; types past the table use the generic structure row.
-inline constexpr uint8_t COMBAT_BUILDING_ROWS = 46;
+inline constexpr uint8_t COMBAT_BUILDING_ROWS = 51;
 inline const CombatProfile *combat_building_table() {
 	static const CombatProfile kTable[COMBAT_BUILDING_ROWS + 1] = {
 		{{0x0000000000000100ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 1.5f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 25.0f, 35.0f, 3.0f, 18.054f}, // BLD_TOWN_CENTER: template_structure_civic_civil_centre
@@ -501,6 +501,11 @@ inline const CombatProfile *combat_building_table() {
 		{{0x0000000000000100ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 1.5f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 25.0f, 35.0f, 3.0f, 18.898f}, // BLD_MILITARY_COLONY: structures/ptol/military_colony
 		{{0x0000000000000100ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 20.0f, 35.0f, 3.0f, 13.541f}, // BLD_ACADEMY: structures/han/academy
 		{{0x0000000000000100ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 20.0f, 30.0f, 3.0f, 19.149f}, // BLD_MINISTRY: structures/han/ministry
+		{{0x0000000000000100ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 20.0f, 30.0f, 3.0f, 16.361f}, // BLD_CAMP_BLEMMYE: structures/kush/camp_blemmye
+		{{0x0000000000000100ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 20.0f, 30.0f, 3.0f, 19.747f}, // BLD_CAMP_NOBA: structures/kush/camp_noba
+		{{0x0000000000000100ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 20.0f, 30.0f, 3.0f, 25.13f}, // BLD_TEMPLE_AMUN: structures/kush/temple_amun
+		{{0x0000000000000100ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 20.0f, 30.0f, 3.0f, 11.0f}, // BLD_TEMPLE_VESTA: structures/rome/temple_vesta
+		{{0x0000000000000100ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 20.0f, 30.0f, 3.0f, 18.334f}, // BLD_TEMPLE_MARS: structures/rome/temple_mars
 		{{0x0000000000000100ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 1.0f, 10.0f, 1.0f, 0.0f}, // default: template_structure
 	};
 	return kTable;
