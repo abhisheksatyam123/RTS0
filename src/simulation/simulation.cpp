@@ -3180,6 +3180,91 @@ bool Simulation::nearest_ship_cell(const Building &b, float &out_x, float &out_z
 	return true;
 }
 
+// CCmpFootprint::PickSpawnPoint for a square footprint. Spawn points sit in rows a gap apart
+// (three unit radii) around the footprint, the first row half a gap out, as far as
+// MaxSpawnDistance (7 m, x0.28). Each row is walked from the point nearest the rally point (the
+// building's front without one), alternating either way round; the first point whose navcell the
+// unit's passability allows and where no other unit stands wins (CheckUnitPlacement).
+bool Simulation::pick_spawn_point(const Building &b, uint8_t type, uint32_t skip_uid, float &out_x, float &out_z) const {
+	float rad = unit_collision_radius(type);
+	if (rad <= 0.0f) rad = 0.25f;
+	const float gap = rad * 3.0f;
+	static constexpr float MAX_SPAWN_DISTANCE = 7.0f * 0.28f; // Footprint MaxSpawnDistance default
+	const int rows = std::max(1, (int)std::ceil(MAX_SPAWN_DISTANCE / gap));
+	// u is the front (Position rotation: 0 faces +z), v its perpendicular (CFixedVector2D::Perpendicular).
+	const float fux = std::sin(b.rot), fuz = std::cos(b.rot), fvx = fuz, fvz = -fux;
+	const nav::Vec2 bu = nav::footprint_u(b), bv = nav::footprint_v(b);
+	const float along_u = std::fabs(fux * bu.x + fuz * bu.y) * b.hu + std::fabs(fux * bv.x + fuz * bv.y) * b.hv;
+	const float along_v = std::fabs(fvx * bu.x + fvz * bu.y) * b.hu + std::fabs(fvx * bv.x + fvz * bv.y) * b.hv;
+	const float hx = along_u + gap * 0.5f, hy = along_v + gap * 0.5f;
+	int dist_x = std::max(1, (int)std::floor(hx / gap));
+	int dist_y = std::max(1, (int)std::floor(hy / gap));
+	if (rows == 1) { dist_x *= 2; dist_y *= 2; } // more points for large units
+	// Geometry::GetPerimeterDistance / GetPerimeterCoordinates.
+	auto perimeter_distance = [](int xm, int ym, int x, int y) {
+		const int quarter = xm + ym;
+		if (x == xm && y >= 0) return y;
+		if (y == ym) return quarter - x;
+		if (x == -xm) return 2 * quarter - y;
+		if (y == -ym) return 3 * quarter + x;
+		if (x == xm) return 4 * quarter + y;
+		return 0;
+	};
+	auto perimeter_coordinates = [](int xm, int ym, int k) -> std::pair<int, int> {
+		const int quarter = xm + ym;
+		k %= 4 * quarter;
+		if (k < 0) k += 4 * quarter;
+		if (k < ym) return {xm, k};
+		if (k < quarter + xm) return {quarter - k, ym};
+		if (k < 2 * quarter + ym) return {-xm, 2 * quarter - k};
+		if (k < 3 * quarter + xm) return {k - 3 * quarter, -ym};
+		return {xm, k - 4 * quarter};
+	};
+	int offset[8] = {0};
+	const int nrows = std::min(rows, 8);
+	if (b.has_rally_point) {
+		// Geometry::NearestPointOnSquare, in the (u, v) frame.
+		const float rx = b.rally_x - b.x, rz = b.rally_z - b.z;
+		const float du = rx * fux + rz * fuz, dv = rx * fvx + rz * fvz;
+		float pu, pv;
+		if (std::fabs(du) < hx && std::fabs(dv) < hy) {
+			if (std::fabs(std::fabs(du) - hx) < std::fabs(std::fabs(dv) - hy)) { pu = du >= 0.0f ? hx : -hx; pv = dv; }
+			else { pu = du; pv = dv >= 0.0f ? hy : -hy; }
+		} else {
+			pu = std::clamp(du, -hx, hx);
+			pv = std::clamp(dv, -hy, hy);
+		}
+		const int x = (int)std::lround(pu * dist_x / hx), y = (int)std::lround(pv * dist_y / hy);
+		for (int r = 0; r < nrows; ++r)
+			offset[r] = perimeter_distance(dist_x + r, dist_y + r,
+				x >= dist_x ? dist_x + r : x <= -dist_x ? -dist_x - r : x,
+				y >= dist_y ? dist_y + r : y <= -dist_y ? -dist_y - r : y);
+	}
+	const uint8_t pass = unit_is_ship(type) ? PASS_SHIP : PASS_INFANTRY;
+	auto free_at = [&](float px, float pz) {
+		if (std::fabs(px) >= map_half_ - rad || std::fabs(pz) >= map_half_ - rad) return false;
+		if (!nav_grid_.cells.blank()) {
+			const auto [cx, cy] = nav_grid_.world_to_cell(px, pz);
+			if (!nav_grid_.is_passable_for(cx, cy, pass)) return false;
+		}
+		for (size_t j = 0; j < units_.count; ++j) {
+			if (!units_.alive[j] || units_.id[j] == skip_uid) continue;
+			const float dx = units_.pos_x[j] - px, dz = units_.pos_z[j] - pz, md = rad + unit_collision_radius(units_.unit_type[j]);
+			if (dx * dx + dz * dz < md * md) return false;
+		}
+		return true;
+	};
+	for (int k = 0; k < 2 * (dist_x + dist_y + 2 * nrows); k = k > 0 ? -k : 1 - k)
+		for (int r = 0; r < nrows; ++r) {
+			const auto [px, py] = perimeter_coordinates(dist_x + r, dist_y + r, offset[r] + k);
+			const float lu = (hx + gap * r) * (float)px / (float)(dist_x + r);
+			const float lv = (hy + gap * r) * (float)py / (float)(dist_y + r);
+			const float wx = b.x + fux * lu + fvx * lv, wz = b.z + fuz * lu + fvz * lv;
+			if (free_at(wx, wz)) { out_x = wx; out_z = wz; return true; }
+		}
+	return false;
+}
+
 bool Simulation::has_trade_route(uint8_t player_id, uint8_t trader_type) const {
 	if (trader_type == UNIT_MERCHANT_SHIP) {
 		// Two docks on the same sea.
@@ -5309,6 +5394,8 @@ void Simulation::order_ungarrison(uint32_t building_id) {
 			float ex = b.x + cosf(a) * (b.half_size + 1.2f);
 			float ez = b.z + sinf(a) * (b.half_size + 1.2f);
 			const bool turret = turret_height_.count(uid) != 0;
+			// GarrisonHolder.Eject: each unit on its own spawn point; the ring is the last resort.
+			if (!turret) pick_spawn_point(b, units_.unit_type[idx], uid, ex, ez);
 			if (!turret) {
 				units_.pos_x[idx] = ex;
 				units_.pos_z[idx] = ez;
@@ -5350,8 +5437,10 @@ void Simulation::order_ungarrison_single(uint32_t building_id, uint32_t unit_id)
 		if (idx >= 0) {
 			const bool turret = turret_height_.count(unit_id) != 0;
 			if (!turret) {
-				units_.pos_x[idx] = b.x;
-				units_.pos_z[idx] = b.z + b.half_size + 1.2f;
+				float ex = b.x, ez = b.z + b.half_size + 1.2f;
+				pick_spawn_point(b, units_.unit_type[idx], unit_id, ex, ez); // GarrisonHolder.Eject
+				units_.pos_x[idx] = ex;
+				units_.pos_z[idx] = ez;
 			}
 			units_.alive[idx] = 1;
 			units_.action_state[idx] = ACTION_IDLE;
@@ -7763,6 +7852,7 @@ void Simulation::tick_production(float dt) {
 			complete_research(bteam, done.tech);
 			continue;
 		}
+		bool stuck = false;
 		for (int n = 0; n < done.count; ++n) {
 			if (animal) {
 				// An animal from the corral's Trainer list; it stays penned while there is room.
@@ -7778,11 +7868,19 @@ void Simulation::tick_production(float dt) {
 				}
 				continue;
 			}
-			// Spawn the batch beside the building, a little apart.
-			float sx = b.x + (b.footprint + 0.6f) * GRID + (float)(n / 5) * 0.8f;
-			float sz = b.z + (float)(n % 5) * 0.8f;
-			// Ships launch from the dock's water side (ProductionQueue.js FindSpawnPoint, ship passability).
-			if (unit_is_ship(done.unit_type)) nearest_ship_cell(b, sx, sz);
+			// Trainer.js Spawn: each unit on its own free spot (Footprint.PickSpawnPoint, ships on
+			// the water by their passability). Units with no room stay queued, already paid,
+			// and the batch tries again next turn ("Can't find free space to spawn trained units").
+			float sx, sz;
+			if (!pick_spawn_point(b, done.unit_type, 0, sx, sz) &&
+			    !(unit_is_ship(done.unit_type) && nearest_ship_cell(b, sx, sz))) {
+				ProductionOrder rest = done;
+				rest.count = done.count - n;
+				for (int r = 0; r < RES_COUNT; ++r) rest.paid[r] = done.paid[r] * rest.count / done.count;
+				b.queue.insert(b.queue.begin(), rest);
+				stuck = true;
+				break;
+			}
 			uint32_t uid = spawn_unit(sx, sz, bteam, (UnitType)done.unit_type, 0.0f, done.tmpl);
 			if (int32_t ti = lookup_unit(uid); ti >= 0) stat_unit_trained((size_t)ti);
 			// MatchLimit: a trained hero counts for the rest of the match.
@@ -7792,7 +7890,7 @@ void Simulation::tick_production(float dt) {
 		}
 		// Autoqueue: the same batch goes on the queue again, paid again; when it can't be,
 		// autoqueuing turns off ("Could not auto-queue unit, de-activating.").
-		if (b.autoqueue && bteam < MAX_PLAYERS) {
+		if (b.autoqueue && bteam < MAX_PLAYERS && !stuck) {
 			bool again;
 			if (animal) {
 				again = true;
