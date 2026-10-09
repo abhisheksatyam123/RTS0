@@ -7154,8 +7154,9 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		ax *= PUSH_SCALE;
 		az *= PUSH_SCALE;
 		// MinimalForce lets crowds settle, but it can also hold idle units that were put on top of
-		// one another (RTS0 trains and unloads units at one point, where 0 A.D. picks a free spawn
-		// point): an idle unit whose body overlaps another idle unit's is always pushed.
+		// one another (a ship's passengers come ashore on one point, ship_unload_point, where 0 A.D.
+		// picks a free spot for each): an idle unit whose body overlaps another idle unit's is
+		// always pushed.
 		if (!body_overlap && ax * ax + az * az <= min_push * min_push) ax = az = 0.0f;
 		fx[i] = ax;
 		fz[i] = az;
@@ -9656,9 +9657,21 @@ void Simulation::apply_relic_count() {
 			const auto &p = points[(size_t)sim_rng_.range_int(0, (int)points.size() - 1)];
 			x = p.first;
 			z = p.second;
-			// SpawnUnits / Footprint.PickSpawnPoint: the nearest free spot round the entity.
+			// SpawnUnits / Footprint.PickSpawnPoint: the nearest free spot round the entity, where
+			// the relic's navcell is passable and no unit (an earlier relic included) stands
+			// (CheckUnitPlacement).
 			if (nav_grid_.res > 0) {
 				const float a0 = sim_rng_.range_float(0.0f, 6.28318530718f);
+				const float rr = unit_collision_radius(UNIT_CATAFALQUE);
+				auto occupied = [&](float sx, float sz) {
+					for (size_t u = 0; u < units_.count; ++u) {
+						if (!units_.alive[u]) continue;
+						const float d = rr + unit_collision_radius(units_.unit_type[u]);
+						const float dx = units_.pos_x[u] - sx, dz = units_.pos_z[u] - sz;
+						if (dx * dx + dz * dz < d * d) return true;
+					}
+					return false;
+				};
 				bool found = false;
 				for (float r = 1.0f; r <= 8.0f && !found; r += 0.5f)
 					for (int t = 0; t < 12 && !found; ++t) {
@@ -9666,7 +9679,7 @@ void Simulation::apply_relic_count() {
 						const float sx = p.first + cosf(a) * r, sz = p.second + sinf(a) * r;
 						if (std::fabs(sx) > map_half_ - 2.0f || std::fabs(sz) > map_half_ - 2.0f) continue;
 						auto [cx, cy] = nav_grid_.world_to_cell(sx, sz);
-						if (!nav_grid_.is_passable_for(cx, cy, PASS_INFANTRY)) continue;
+						if (!nav_grid_.is_passable_for(cx, cy, PASS_INFANTRY) || occupied(sx, sz)) continue;
 						x = sx;
 						z = sz;
 						found = true;

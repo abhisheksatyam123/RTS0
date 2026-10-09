@@ -7,7 +7,7 @@
 //     src/network/net_host.cpp -lpthread -o /tmp/test_unit_pushing && /tmp/test_unit_pushing
 //
 //  1. A walker crosses a block of idle spearmen: it paths round them, and none of them is pushed.
-//  2. Spearmen that appear one by one on the same spot (as trained units do) spread out.
+//  2. Spearmen that appear one by one on the same spot (as a ship's passengers come ashore) spread out.
 //  3. A group walks in a crowd without overlapping and ends spread round its point.
 //  4. Two groups walking through each other both arrive.
 //  5. The heavier unit pushes harder: a ram and a spearman standing on each other part mostly by
