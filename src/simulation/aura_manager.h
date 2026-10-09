@@ -48,11 +48,10 @@ struct AuraSource {
 class AuraManager {
 public:
     std::vector<AuraSource> sources;
-    uint16_t type_count[AURA_COUNT] = {}; // sources per AuraType, so rare kinds cost nothing
 
     void clear() {
         sources.clear();
-        for (auto &c : type_count) c = 0;
+        for (auto &v : of_type_) v.clear();
     }
 
     // affected: aura_player_bit() mask of the players the aura reaches (the caller
@@ -70,17 +69,19 @@ public:
         s.alive = true;
         s.aura = aura;
         s.need_class = need_class;
+        if (type < AURA_COUNT) of_type_[type].push_back((uint32_t)sources.size());
         sources.push_back(s);
-        if (type < AURA_COUNT) ++type_count[type];
     }
 
     void unregister(uint32_t id) {
         sources.erase(std::remove_if(sources.begin(), sources.end(),
             [id](const AuraSource &s) { return s.source_id == id; }), sources.end());
-        for (auto &c : type_count) c = 0;
-        for (const auto &s : sources)
-            if (s.type < AURA_COUNT) ++type_count[s.type];
+        for (auto &v : of_type_) v.clear();
+        for (uint32_t k = 0; k < sources.size(); ++k)
+            if (sources[k].type < AURA_COUNT) of_type_[sources[k].type].push_back(k);
     }
+
+    bool has(AuraType type) const { return type < AURA_COUNT && !of_type_[type].empty(); }
 
     // Combined modifier on a unit of player qowner at (qx, qz). qtmpl is its roster
     // template (hero auras skip units their 0 A.D. "affects" classes exclude) and
@@ -91,14 +92,16 @@ public:
     //   AURA_ARMOR: strongest bonus plus strongest penalty.
     float query_modifier(float qx, float qz, uint8_t qowner, AuraType type,
             uint16_t qtmpl = CIV_UNIT_TEMPLATE_NONE, const CombatClasses *qclasses = nullptr) const {
-        if (type >= AURA_COUNT || type_count[type] == 0) return 0.0f;
+        if (type >= AURA_COUNT || of_type_[type].empty()) return 0.0f;
         const uint16_t qbit = aura_player_bit(qowner);
         bool any = false;
         float sum = 0.0f, up = 0.0f, down = 0.0f;
         const bool mul = type == AURA_ATTACK || type == AURA_SPEED || type == AURA_HEALTH || type == AURA_VISION;
         if (mul) up = down = 1.0f;
-        for (const auto &s : sources) {
-            if (!s.alive || s.type != type || !(s.affected & qbit)) continue;
+        // Only this type's sources, in the order they were registered.
+        for (uint32_t k : of_type_[type]) {
+            const AuraSource &s = sources[k];
+            if (!s.alive || !(s.affected & qbit)) continue;
             if (s.aura >= 0 && !civ_aura_affects(s.aura, qtmpl)) continue;
             if (s.need_class != 0xFF && !(qclasses && qclasses->has(s.need_class))) continue;
             float dx = qx - s.x;
@@ -117,6 +120,9 @@ public:
         if (mul) return up * down;
         return up + down;
     }
+
+private:
+    std::vector<uint32_t> of_type_[AURA_COUNT]; // indices into sources, per AuraType
 };
 
 } // namespace rtso

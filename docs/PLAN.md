@@ -19,7 +19,7 @@ Vendor JS/C++ under `src/0ad/` and `/home/abhi/project/0ad` is **reference only*
 | Unique models / PSA / civ voice | `art/meshes`, `art/animation` | `sim_types.h` `model_id`, `init_animation_controllers`, Voice EN/Civ |
 | Lockstep batch + hash-after-sim | `NetClientTurnManager.cpp:188`, `HashSerializer` | `TurnManager` 4×`FIXED_STEP` then `compute_sim_hash`; HUD `post_lockstep` 1–21 |
 | JPS long pathfinder + dirty chunks | `LongPathfinder.cpp` `ComputeJPSPath`, `HierarchicalPathfinder.cpp:480` | `nav/long_pathfinder.h` used by `find_path` (PR #1); `rebuild_dirty_chunks` |
-| Cavalry slope class | `Pathfinding.h` passability classes | `grid_nav.h` `PASS_CAVALRY` + `steep_cells_`, own region map |
+| Terrain slope limit | `Pathfinding.h` passability classes, `pathfinder.xml` MaxTerrainSlope | `grid_nav.h` `steep_cells_` for every land class (`LAND_MAX_TERRAIN_SLOPE`), `check_placement` |
 | Idle ship `moveApart` | `navalManager.js:568` | `petra_manage_naval` nudge off dock |
 | Formations | `Formation.js`, `Commands.js` `GetFormationUnitAIs`, `UnitAI.js` `CanUseFormation`, `Player.js` `GetFormations`, `special/formations/*.xml` | `formation.h`, `formation_data.h` (`tools/extract_0ad_formations.py`), `tick_formations`; lockstep cmd 8; `tools/test_formations.cpp` |
 
@@ -66,7 +66,7 @@ Verify: `python3 tools/lobby_server.py` then two `./build/linux/RTS0.x86_64` Hos
 
 ### P2 — Long-path JPS (done)
 
-Shipped in PR #1; see the table above. Further pathfinding work (obstruction manager, `VertexPathfinder`, legacy A* removal) is porting of vendored code and is ordered in [MIGRATION.md](MIGRATION.md#todo-in-priority-order).
+Shipped in PR #1; see the table above. Further pathfinding work (obstruction manager, units as short-path obstructions) is porting of vendored code and is ordered in [MIGRATION.md](MIGRATION.md#todo-in-priority-order).
 
 ### P3 — Petra naval remaining
 

@@ -151,7 +151,9 @@ static void test_forced_walk() {
 	Simulation p;
 	setup(p);
 	uint32_t b = p.spawn_unit(-20, 0, 0, UNIT_SWORDSMAN);
-	uint32_t f = post(p, 0, 3, UNIT_SPEARMAN, 5000.0f);
+	// Close enough to the straight path that the spearman, which looks for targets every fourth
+	// tick, finds the walker in reach and attacks; the walk then turns to fight.
+	uint32_t f = post(p, 0, 1.2f, UNIT_SPEARMAN, 5000.0f);
 	const float hp1 = hp_of(p, f);
 	p.cmd_move(&b, 1, 20, 0); // Petra's walk: not forced
 	run(p, 12.0f);
