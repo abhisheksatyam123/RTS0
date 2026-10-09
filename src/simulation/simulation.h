@@ -470,6 +470,16 @@ public:
 	// 0 A.D. "delete-entities": kills the player's own units and destroys its own
 	// structures (not ones it holds under half the capture points of).
 	void cmd_delete(uint8_t player, const uint32_t *ids, size_t count);
+	// 0 A.D. Cheat.js, for a player when Game Setup's Cheats is on. `parameter` is the
+	// number typed after the code; `extra` is the resource (ADD_RESOURCE) or the tech id
+	// (RESEARCH); `selected` is the player's selection, whoever owns it. CONVERT_UNITS and
+	// DEFEAT_PLAYER take an RTS0 player id (GAIA_PLAYER for Gaia, 0xFF for yourself).
+	enum CheatAction : uint8_t {
+		CHEAT_ADD_RESOURCE, CHEAT_REVEAL_MAP, CHEAT_CONVERT_UNITS, CHEAT_KILL_UNITS, CHEAT_DEFEAT_PLAYER,
+		CHEAT_CREATE_UNITS, CHEAT_CHANGE_PHASE, CHEAT_RESEARCH, CHEAT_META, CHEAT_COUNT
+	};
+	bool cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, uint32_t extra,
+			const uint32_t *selected, size_t count);
 	// 0 A.D. "back-to-work" (UnitAI BackToWork): resume the last gather or build order.
 	void order_back_to_work(const uint32_t *unit_ids, size_t count);
 	// 0 A.D. Commands.js "remove-guard" (UnitAI RemoveGuard): end a Guard order, or drop
@@ -651,6 +661,9 @@ public:
 	// 0 A.D. LockTeams (Diplomacy.LockTeam): no player can change diplomacy all match.
 	void set_lock_teams(bool on) { set_setup_flag(SETUP_LOCK_TEAMS, on); }
 	bool teams_locked() const { return setup_flags_ & SETUP_LOCK_TEAMS; }
+	// 0 A.D. CheatsEnabled: chat cheat codes work for every player (cmd_cheat).
+	void set_cheats_enabled(bool on) { set_setup_flag(SETUP_CHEATS, on); }
+	bool cheats_enabled() const { return setup_flags_ & SETUP_CHEATS; }
 	uint32_t regicide_hero(uint8_t pid) const { return pid < MAX_PLAYERS ? regicide_hero_[pid] : 0; }
 	// False for a Regicide hero while RegicideGarrison is off: it can't enter structures,
 	// siege engines or ships.
@@ -1675,7 +1688,8 @@ private:
 	bool disable_treasures_ = false;
 	void spawn_nomad_treasures();
 	// Game Setup switches kept in the byte v32 saves as RegicideGarrison (old saves read as bit 0).
-	static constexpr uint8_t SETUP_REGICIDE_GARRISON = 1, SETUP_LOCK_TEAMS = 2, SETUP_FLAGS_ALL = 3;
+	static constexpr uint8_t SETUP_REGICIDE_GARRISON = 1, SETUP_LOCK_TEAMS = 2, SETUP_CHEATS = 4, SETUP_FLAGS_ALL = 7;
+	void cheat_convert(uint8_t to, const uint32_t *ids, size_t count);
 	uint8_t setup_flags_ = 0;
 	void set_setup_flag(uint8_t flag, bool on) { setup_flags_ = on ? (setup_flags_ | flag) : (setup_flags_ & ~flag); }
 	uint32_t regicide_hero_[MAX_PLAYERS] = {};
