@@ -1,12 +1,14 @@
 // 0 A.D. unit promotion (Promotion.js, unit_advanced.json, unit_elite.json): RequiredXp per
 // template, xp carried over between ranks, rank bonuses, chains that end in another unit,
-// templates trained above Basic, RequiredXp technologies and the barracks xp trickle.
+// templates trained above Basic, RequiredXp technologies, the barracks xp trickle and
+// unit upgrades (Upgrade.js: the Centurion, the Immortals' bow).
 //   g++ -std=c++20 -O2 -Isrc tools/test_promotion.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_promotion && /tmp/test_promotion
 #define private public
 #include "simulation/simulation.h"
 #undef private
+#include "simulation/entity_limits_data.h"
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -188,6 +190,75 @@ int main() {
 		CHECK(s.units_.rank[g] == 3);
 		CHECK(s.units_.tmpl[g] == tmpl_of("athen/infantry_spearman_b"));
 		CHECK(s.units_.xp[g] == 0);
+	}
+
+	// 8. Unit upgrades (Upgrade.js): Roman elite infantry pay 100 food and 50 metal to
+	//    become Centurions (12 s for swordsmen), keeping their health fraction; the
+	//    Centurion limit counts upgrading units; cancel and death refund; a save keeps
+	//    the timer; the Immortals switch between spear and bow for free in 6 s.
+	{
+		fresh(s, CIV_ROMANS);
+		const uint16_t sw = tmpl_of("rome/infantry_swordsman_b");
+		const uint16_t cent = tmpl_of("rome/champion_infantry_swordsman_centurion");
+		auto elite = [&](float x) {
+			const uint32_t id = s.spawn_unit(x, 0.0f, 0, UNIT_SWORDSMAN, 0.0f, sw);
+			s.gain_xp(idx(s, id), 2000.0f);
+			s.promote_if_due(idx(s, id));
+			return id;
+		};
+		const uint32_t basic = s.spawn_unit(-4.0f, 0.0f, 0, UNIT_SWORDSMAN, 0.0f, sw);
+		const uint32_t a = elite(0.0f), b = elite(3.0f), c = elite(6.0f);
+		CHECK(s.units_.rank[idx(s, a)] == 3 && s.units_.tmpl[idx(s, a)] == sw);
+		s.set_player_resources(0, 1000, 0, 1000, 0);
+		CHECK(s.unit_upgrade_check(0, basic, cent) == Simulation::UPGRADE_ERR_NONE); // elite only
+		CHECK(s.unit_upgrade_check(1, a, cent) == Simulation::UPGRADE_ERR_OWNER);
+		CHECK(s.unit_upgrade_check(0, a, cent) == Simulation::UPGRADE_OK);
+		const int cent_before = s.entity_limit_count(0, LIMIT_CENTURION);
+		s.units_.hp[idx(s, a)] = s.units_.max_hp[idx(s, a)] * 0.5f;
+		const uint32_t abc[3] = {a, b, c};
+		CHECK(s.cmd_upgrade_units(0, abc, 3, cent));
+		CHECK(near(s.player(0).food(), 1000.0f - 300.0f) && near(s.player(0).gold(), 1000.0f - 150.0f));
+		CHECK(s.entity_limit_count(0, LIMIT_CENTURION) == cent_before + 3);
+		CHECK(s.unit_upgrade_check(0, a, cent) == Simulation::UPGRADE_ERR_BUSY);
+		// Cancel b: refunded. Kill c: refunded when its death is seen.
+		CHECK(s.cmd_cancel_unit_upgrades(0, &b, 1));
+		CHECK(near(s.player(0).food(), 800.0f) && near(s.player(0).gold(), 900.0f));
+		s.cmd_delete(0, &c, 1);
+		for (int t = 0; t < (int)std::lround(11.5f / Simulation::FIXED_STEP); ++t) s.tick(Simulation::FIXED_STEP);
+		CHECK(near(s.player(0).food(), 900.0f) && near(s.player(0).gold(), 950.0f));
+		CHECK(s.units_.tmpl[idx(s, a)] == sw && s.unit_upgrade_of(a));
+		// A save part way keeps the upgrade: the loaded match finishes it on time.
+		const char *path = "/tmp/rts0_unit_upgrade.sav";
+		CHECK(s.save_state(path));
+		static Simulation r;
+		CHECK(r.load_state(path));
+		std::remove(path);
+		for (Simulation *m : {&s, &r}) {
+			for (int t = 0; t < (int)std::lround(0.6f / Simulation::FIXED_STEP); ++t) m->tick(Simulation::FIXED_STEP);
+			const size_t i = (size_t)m->lookup_unit(a);
+			CHECK(m->units_.tmpl[i] == cent);
+			CHECK(m->units_.unit_type[i] == UNIT_SWORDSMAN);
+			CHECK(!m->unit_upgrade_of(a));
+			CHECK(near(m->units_.hp[i], m->units_.max_hp[i] * 0.5f));
+			CHECK(near(m->units_.max_hp[i], civ_unit_template(cent).hp));
+		}
+		CHECK(s.entity_limit_count(0, LIMIT_CENTURION) == cent_before + 1);
+		CHECK(s.unit_upgrade_check(0, a, cent) == Simulation::UPGRADE_ERR_NONE); // Centurions don't upgrade
+
+		fresh(s, CIV_PERSIANS);
+		const uint16_t imm = tmpl_of("pers/champion_infantry");
+		const uint16_t bow = tmpl_of("pers/champion_infantry_archer_upgrade");
+		CHECK(civ_unit_template(bow).trainers == 0 && (civ_unit_template(bow).flags & ROSTER_RANGED));
+		const uint32_t u = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN, 0.0f, imm);
+		s.set_player_resources(0, 0, 0, 0, 0);
+		CHECK(s.cmd_upgrade_units(0, &u, 1, bow));
+		for (int t = 0; t < (int)std::lround(6.1f / Simulation::FIXED_STEP); ++t) s.tick(Simulation::FIXED_STEP);
+		CHECK(s.units_.tmpl[idx(s, u)] == bow);
+		CHECK(s.units_.unit_type[idx(s, u)] == civ_unit_template(bow).unit_type);
+		CHECK(s.units_.attack_range[idx(s, u)] > 5.0f);
+		CHECK(s.cmd_upgrade_units(0, &u, 1, imm));
+		for (int t = 0; t < (int)std::lround(6.1f / Simulation::FIXED_STEP); ++t) s.tick(Simulation::FIXED_STEP);
+		CHECK(s.units_.tmpl[idx(s, u)] == imm);
 	}
 
 	// RequiredXp auras: Han Xin's Northern Army (a 30 m range aura, Citizen Soldiers -20%)

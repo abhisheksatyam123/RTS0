@@ -1322,6 +1322,9 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			float sx, sz;                 // param's low bits name the WallSetKind (1 palisade).
 			Simulation::unpack_wall_point(c.target_id, sx, sz);
 			sim.cmd_build_wall(pl, sx, sz, c.target_x, c.target_z, ids, n, queued, (uint8_t)(c.param & 0x7F));
+		} else if (c.cmd_type == 43) { // Unit upgrade — target_id = roster template, param 1 cancel.
+			if (c.param == 1) sim.cmd_cancel_unit_upgrades(pl, ids, n);
+			else if (c.target_id < CIV_UNIT_TEMPLATE_COUNT) sim.cmd_upgrade_units(pl, ids, n, (uint16_t)c.target_id);
 		} else if (c.cmd_type == 36) { // Raise (param 0) or end (1) an alert
 			if (c.param == 1) sim.cmd_end_alert(pl, c.target_id);
 			else sim.cmd_raise_alert(pl, c.target_id);

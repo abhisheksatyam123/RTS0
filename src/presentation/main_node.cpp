@@ -71,6 +71,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_upgrade_pressed", "cancel"), &RtsoMain::_on_upgrade_pressed);
 	ClassDB::bind_method(D_METHOD("_on_gate_lock_pressed", "lock"), &RtsoMain::_on_gate_lock_pressed);
 	ClassDB::bind_method(D_METHOD("_on_pack_pressed", "pack"), &RtsoMain::_on_pack_pressed);
+	ClassDB::bind_method(D_METHOD("_on_unit_upgrade_pressed", "to"), &RtsoMain::_on_unit_upgrade_pressed);
 	ClassDB::bind_method(D_METHOD("_on_alert_pressed", "end"), &RtsoMain::_on_alert_pressed);
 	ClassDB::bind_method(D_METHOD("save_game", "path", "description"), &RtsoMain::save_game, DEFVAL("user://saves/quicksave.rts0sav"), DEFVAL(""));
 	ClassDB::bind_method(D_METHOD("save_game_as", "name", "description"), &RtsoMain::save_game_as);
@@ -2037,6 +2038,20 @@ void RtsoMain::_on_alert_pressed(int end) {
 		sim->cmd_raise_alert(local_player(), selected_building_id);
 }
 
+// 0 A.D. unit Upgrade on the selection through lockstep command 43 (`to` = roster
+// template, -1 = cancel and refund).
+void RtsoMain::_on_unit_upgrade_pressed(int to) {
+	if (selected_ids.is_empty()) return;
+	const uint32_t *ids = (const uint32_t *)selected_ids.ptr();
+	const size_t n = selected_ids.size();
+	if (turn_cmds())
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_UPGRADE_UNIT, ids, n, 0, 0, to < 0 ? 0 : (uint32_t)to, to < 0 ? 1 : 0);
+	else if (to < 0)
+		sim->cmd_cancel_unit_upgrades(local_player(), ids, n);
+	else
+		sim->cmd_upgrade_units(local_player(), ids, n, (uint16_t)to);
+}
+
 // 0 A.D. Pack / Unpack on the selected siege engines through lockstep command 29.
 void RtsoMain::_on_pack_pressed(int pack) {
 	if (selected_ids.is_empty()) return;
@@ -3242,6 +3257,70 @@ void RtsoMain::update_command_panel() {
 					}
 					btn->set_disabled(pb.pack ? !can_pack : !can_unpack);
 					btn->connect("pressed", Callable(this, "_on_pack_pressed").bind(pb.pack));
+					production_bar->add_child(btn);
+				}
+			}
+
+			// 0 A.D. unit upgrades (selection_panels.js "Upgrade"): one button per target the
+			// selected units can upgrade to, enabled while any of them can start it, and
+			// a cancel button while any of them is upgrading.
+			{
+				uint16_t targets[8];
+				int target_n = 0;
+				bool any_upgrading = false;
+				for (int i = 0; i < selected_ids.size(); ++i) {
+					const uint32_t id = (uint32_t)selected_ids[i];
+					if (sim->unit_upgrade_of(id)) any_upgrading = true;
+					for (size_t u = 0; u < uview.count; ++u) {
+						if (uview.id[u] != id || uview.team[u] != local_player()) continue;
+						for (const rtso::CivUnitUpgrade *up = rtso::civ_unit_upgrade_table(); up->from != 0xFFFF; ++up) {
+							if (up->from != uview.tmpl[u] || (up->from_rank && uview.rank[u] < up->from_rank)) continue;
+							bool seen = false;
+							for (int t = 0; t < target_n; ++t) seen = seen || targets[t] == up->to;
+							if (!seen && target_n < 8) targets[target_n++] = up->to;
+						}
+						break;
+					}
+				}
+				for (int t = 0; t < target_n; ++t) {
+					const uint16_t to = targets[t];
+					const rtso::CivUnitUpgrade *row = nullptr;
+					const char *why = "Already upgrading";
+					for (int i = 0; i < selected_ids.size(); ++i) {
+						const rtso::Simulation::UpgradeCheck c = sim->unit_upgrade_check(local_player(), (uint32_t)selected_ids[i], to);
+						if (c == rtso::Simulation::UPGRADE_OK) { why = nullptr; break; }
+						if (c == rtso::Simulation::UPGRADE_ERR_COST) why = "Not enough resources";
+						else if (c == rtso::Simulation::UPGRADE_ERR_PHASE) why = "Requires City Phase";
+						else if (c == rtso::Simulation::UPGRADE_ERR_LIMIT) why = "Limit reached";
+					}
+					for (const rtso::CivUnitUpgrade *up = rtso::civ_unit_upgrade_table(); up->from != 0xFFFF && !row; ++up)
+						if (up->to == to) row = up;
+					String cost;
+					auto add_cost = [&](int v, const char *suffix) {
+						if (v <= 0) return;
+						if (!cost.is_empty()) cost += ",";
+						cost += String::num_int64(v) + suffix;
+					};
+					add_cost(row->food_cost, "f");
+					add_cost(row->wood_cost, "w");
+					add_cost(row->gold_cost, "g");
+					add_cost(row->stone_cost, "s");
+					Button *btn = memnew(Button);
+					btn->set_text(String("Upgrade to ") + rtso::civ_unit_template(to).name + (cost.is_empty() ? String() : " (" + cost + ")"));
+					String tip = String(rtso::civ_unit_template(to).specific_name) + "\n" + String::num((double)row->time, 0) + "s";
+					if (why) {
+						tip += String("\n") + why;
+						btn->set_disabled(true);
+					}
+					btn->set_tooltip_text(tip);
+					btn->connect("pressed", Callable(this, "_on_unit_upgrade_pressed").bind((int)to));
+					production_bar->add_child(btn);
+				}
+				if (any_upgrading) {
+					Button *btn = memnew(Button);
+					btn->set_text("Cancel upgrade");
+					btn->set_tooltip_text("Stop upgrading and get the resources back");
+					btn->connect("pressed", Callable(this, "_on_unit_upgrade_pressed").bind(-1));
 					production_bar->add_child(btn);
 				}
 			}
