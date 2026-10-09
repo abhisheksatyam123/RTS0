@@ -15303,5 +15303,126 @@
   "treasures": [],
   "ruins": [],
   "gaia_structures": [],
-  "gaia_units": []
+  "gaia_units": [],
+  "scenery": [
+    {
+      "type": "fence_long",
+      "x": -14.65,
+      "z": -42.4,
+      "angle": -2.2821,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -17.51,
+      "z": -43.57,
+      "angle": 1.6061,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -19.38,
+      "z": -45.12,
+      "angle": -2.8699,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -20.21,
+      "z": -47.65,
+      "angle": -2.4385,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 53.87,
+      "z": 53.49,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 56.76,
+      "z": 51.72,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 58.86,
+      "z": 49.65,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 59.95,
+      "z": 47.13,
+      "angle": -3.0841,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 61.08,
+      "z": 44.5,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 106.77,
+      "z": 39.05,
+      "angle": -2.3338,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 104.22,
+      "z": 36.56,
+      "angle": -2.2777,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 101.66,
+      "z": 34.17,
+      "angle": -2.2727,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": 99.23,
+      "z": 32.08,
+      "angle": -2.3375,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -52.94,
+      "z": 40.97,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -50.63,
+      "z": 38.68,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -48.84,
+      "z": 35.29,
+      "angle": 3.1218,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -61.42,
+      "z": 45.22,
+      "angle": 1.6152,
+      "scale": 0.25
+    }
+  ]
 }

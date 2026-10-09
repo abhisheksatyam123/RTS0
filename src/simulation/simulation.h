@@ -131,7 +131,7 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
-	static constexpr uint32_t SAVE_VERSION = 29; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 30; // save_state's format; see the history beside it
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -317,6 +317,7 @@ public:
 	bool cmd_train(uint8_t player, uint32_t building_id, UnitType u_type);
 	// Train a specific roster unit (a hero, a champion, a second unit of the same class).
 	bool cmd_train_template(uint8_t player, uint32_t building_id, uint16_t tmpl);
+	bool cmd_train_template_at(uint8_t player, uint32_t building_id, uint16_t tmpl, bool exclusive);
 	// P3 maintainFleet upkeep seam (0 A.D. navalManager.js:507-543): team-aware
 	// naval queue entry used by TurnManager NET_CMD_MAINTAIN_FLEET. Unlike
 	// cmd_train (team-0/human only) this honours the building's own team
@@ -947,6 +948,25 @@ public:
 		return spawn_treasure(x, z, treasure_type_for_resource(res_type));
 	}
 	void clear_treasures() { treasures_.clear(); } // Game Setup "Treasures" off
+	// Gaia scenery from a 0 A.D. map (structures/fence_*, column_*, obelisk; gaia_data.h):
+	// an oriented obstruction. angle is the map's Orientation y (radians); scale is RTS0
+	// units per 0 A.D. metre on this map.
+	struct Scenery {
+		uint32_t id;
+		float x, z;
+		float angle;
+		float half_w, half_d; // RTS0 units along the rotated x and z axes
+		float hp;
+		uint8_t type;         // SceneryType (scenery_type_info)
+		uint8_t pad[3];
+	};
+	uint32_t spawn_scenery(float x, float z, uint8_t scenery_type, float angle, float scale);
+	// The grain supply of a finished field (0 if none): a Gaia field is farmed through it.
+	uint32_t field_resource_id(uint32_t building_id) const {
+		auto it = field_res_by_bld_.find(building_id);
+		return it != field_res_by_bld_.end() && res_id_to_idx_.count(it->second) ? it->second : 0;
+	}
+	const std::vector<Scenery> &scenery() const { return scenery_; }
 	// A Gaia-owned unit from a 0 A.D. map (Player 0): roster template `template_id`
 	// ("gaul/infantry_javelineer_a"; a rank suffix falls back to the _b template), else the
 	// u_type class. rank 2/3 = Advanced/Elite, reached through Promotion xp on the next tick.
@@ -1216,6 +1236,7 @@ private:
 	std::unordered_map<uint32_t, FieldGatherers> supply_gatherers_;
 	// v28 saves kept each ruin's MaxGatherers in a list; resources_.max_gatherers holds it since.
 	struct RuinsCap { uint32_t res_id; uint16_t max_gatherers; uint16_t pad; };
+	std::vector<Scenery> scenery_; // saved
 	// Nearest fish on `sea` (ship region) within max_d of (x, z) with a free gatherer slot; 0 if none.
 	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0) const;
 	std::unordered_map<uint32_t, size_t> building_id_to_idx_;

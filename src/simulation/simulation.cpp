@@ -45,7 +45,7 @@ constexpr float kBuildReach = 2.20f;
 
 // The save version that added UnitAI orders (tick_state_io section 4).
 static constexpr uint32_t SAVE_VERSION_UNIT_ORDERS = 20;
-static constexpr uint32_t SAVE_VERSION_MAX_GATHERERS = 29;
+static constexpr uint32_t SAVE_VERSION_MAX_GATHERERS = 30;
 
 // Stand on the nearest AABB edge so pathing never aims through the footprint.
 static void stand_outside_rect(float bx, float bz, float half, uint32_t uid,
@@ -288,6 +288,7 @@ void Simulation::reset() {
 	for (float &w : wonder_hold_) w = 0.0f;
 	relics_.clear();
 	treasures_.clear();
+	scenery_.clear();
 	wonder_victory_timer_ = 0.0f;
 	has_active_wonder_ = false;
 	record_ = MatchRecord();
@@ -504,6 +505,7 @@ void Simulation::spawn_war(int total_units) {
 	occupied_cells_.clear();
 	relics_.clear();
 	treasures_.clear();
+	scenery_.clear();
 	std::fill(fow_grid_.begin(), fow_grid_.end(), (uint8_t)FOW_UNEXPLORED);
 	for (auto &g : player_fow_) g.clear();
 	std::fill(petra_fow_.begin(), petra_fow_.end(), (uint8_t)FOW_UNEXPLORED);
@@ -837,6 +839,34 @@ void Simulation::rebuild_nav_grid() {
 			nav_grid_.cells.at(cx, cy) = NAV_OBSTRUCTED;
 		}
 	}
+	// Gaia scenery: oriented rectangles (CCmpObstruction::GetObstructionSquare: u = (cos a, -sin a),
+	// v = (sin a, cos a)), rasterized the same way.
+	for (const Scenery &sc : scenery_) {
+		const float c = std::cos(sc.angle), sn = std::sin(sc.angle);
+		int covered = 0;
+		rtso::nav::rasterize_rect_with_clearance(
+			rtso::nav::Vec2(sc.x, sc.z), rtso::nav::Vec2(c, -sn), rtso::nav::Vec2(sn, c),
+			rtso::nav::Vec2(sc.half_w, sc.half_d), 0.0f, nav_cell, nav_origin,
+			nav_grid_.cells.w, nav_grid_.cells.h,
+			[&](int x, int y) {
+				nav_grid_.cells.at(x, y) = NAV_OBSTRUCTED;
+				++covered;
+			});
+		if (covered == 0) {
+			// Thinner than a navcell (a 1.5 m fence): block the cells along its centre line.
+			const float step = 0.5f * nav_cell;
+			const int nu = std::max(1, (int)std::ceil(2.0f * sc.half_w / step));
+			const int nv = std::max(1, (int)std::ceil(2.0f * sc.half_d / step));
+			for (int a = 0; a <= nu; ++a)
+				for (int b = 0; b <= nv; ++b) {
+					const float lu = -sc.half_w + 2.0f * sc.half_w * (float)a / (float)nu;
+					const float lv = -sc.half_d + 2.0f * sc.half_d * (float)b / (float)nv;
+					auto [cx, cy] = nav_grid_.world_to_cell(sc.x + lu * c + lv * sn, sc.z - lu * sn + lv * c);
+					if (nav_grid_.cells.inside(cx, cy) && nav_grid_.cells.at(cx, cy) != NAV_WATER)
+						nav_grid_.cells.at(cx, cy) = NAV_OBSTRUCTED;
+				}
+		}
+	}
 	// Precise dirty bits: diff new cells vs snapshot (covers placements,
 	// completions AND demolitions). Falls back to full remesh only when the
 	// grid was freshly initialised (no snapshot to diff against).
@@ -1144,6 +1174,13 @@ Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell
 			}
 	}
 
+	// Gaia scenery (fences, columns) blocks foundations too: its rotated rectangle's bounds.
+	for (const Scenery &sc : scenery_) {
+		const float c = std::fabs(std::cos(sc.angle)), sn = std::fabs(std::sin(sc.angle));
+		const float ex = c * sc.half_w + sn * sc.half_d, ez = sn * sc.half_w + c * sc.half_d;
+		if (sc.x + ex > x0 && sc.x - ex < x1 && sc.z + ez > z0 && sc.z - ez < z1) return PLACE_OBSTRUCTED;
+	}
+
 	// 2. Terrain passability class: building-land has no water under the
 	// footprint, a wall (default-terrain-only, centre point only) stands where
 	// land units can wade (NAV_SHALLOW, 2 m), and a dock needs land under it and
@@ -1324,10 +1361,31 @@ bool Simulation::cmd_train(uint8_t player_id, uint32_t building_id, UnitType u_t
 	}
 	uint16_t tmpl = civ_default_template(civ_of(b.team), (uint8_t)u_type);
 	if (tmpl == CIV_UNIT_TEMPLATE_NONE) return false; // not in this civ's roster
+	// The civ's unit of this class that this building trains (0 A.D. Trainer
+	// lists), cheapest phase first; else the class's standard unit, except that
+	// heroes and champions only ever come from their own structures.
+	if (!(civ_unit_template(tmpl).trainers & bld_bit(b.type))) {
+		const uint8_t civ = civ_of(b.team);
+		uint16_t best = CIV_UNIT_TEMPLATE_NONE;
+		for (uint16_t i = civ_roster_begin(civ); i < civ_roster_end(civ); ++i) {
+			const CivUnitTemplate &u = civ_unit_template(i);
+			if (u.unit_type != (uint8_t)u_type || (u.flags & ROSTER_SIEGE_TOWER) || !(u.trainers & bld_bit(b.type))) continue;
+			if (best == CIV_UNIT_TEMPLATE_NONE || u.phase < civ_unit_template(best).phase) best = i;
+		}
+		if (best != CIV_UNIT_TEMPLATE_NONE) tmpl = best;
+		else if (civ_unit_template(tmpl).flags & (ROSTER_HERO | ROSTER_CHAMPION)) return false;
+		else return cmd_train_template_at(player_id, building_id, tmpl, false);
+	}
 	return cmd_train_template(player_id, building_id, tmpl);
 }
 
 bool Simulation::cmd_train_template(uint8_t player_id, uint32_t building_id, uint16_t tmpl) {
+	return cmd_train_template_at(player_id, building_id, tmpl, true);
+}
+
+// `exclusive`: the building must be one 0 A.D. trains the unit at (by-name
+// training); cmd_train's class requests keep generic buildings working.
+bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, uint16_t tmpl, bool exclusive) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return false;
 	Building &b = buildings_[bit->second];
@@ -1338,6 +1396,7 @@ bool Simulation::cmd_train_template(uint8_t player_id, uint32_t building_id, uin
 	PlayerState &ps = players_[player_id];
 	const CivUnitTemplate &t = civ_unit_template(tmpl);
 	if (t.civ != ps.civ) return false;
+	if (exclusive && !(t.trainers & bld_bit(b.type))) return false; // 0 A.D. Trainer list
 	if (t.phase > ps.phase) return false; // 0 A.D. Identity/Requirements: phase_town / phase_city
 
 	const UnitTypeInfo &uinfo = civ_template_unit_info(tmpl, t.unit_type);
@@ -4524,7 +4583,10 @@ void Simulation::tick_gather(float dt) {
 			if (field_it != field_bld_by_res_.end()) {
 				auto bit = building_id_to_idx_.find(field_it->second);
 				FieldGatherers &fg = field_gatherers_[units_.target_resource_id[i]];
-				bool own = bit != building_id_to_idx_.end() && buildings_[bit->second].team == uteam;
+				// Our own fields, and Gaia's: 0 A.D.'s ResourceGatherer has no owner check, so a map's
+				// Gaia field (structures/*/field owned by Player 0) is anyone's to farm.
+				bool own = bit != building_id_to_idx_.end() &&
+						(buildings_[bit->second].team == uteam || buildings_[bit->second].team == GAIA_PLAYER);
 				if (!own || fg.slots_taken >= FIELD_MAX_GATHERERS) {
 					// Field full or not ours: try our nearest field with a free slot.
 					uint32_t alt = own ? find_free_field(uteam, units_.pos_x[i], units_.pos_z[i]) : 0;
@@ -6852,9 +6914,9 @@ uint32_t Simulation::find_nearby_resource(float x, float z, uint8_t res_type, ui
 			if (g != busy->end() && g->second.total >= resources_.max_gatherers[r]) continue;
 		}
 		auto f = field_bld_by_res_.find(resources_.id[r]);
-		if (f != field_bld_by_res_.end()) { // only our own fields
+		if (f != field_bld_by_res_.end()) { // only our own fields, or Gaia's
 			auto b = building_id_to_idx_.find(f->second);
-			if (b == building_id_to_idx_.end() || buildings_[b->second].team != team) continue;
+			if (b == building_id_to_idx_.end() || (buildings_[b->second].team != team && buildings_[b->second].team != GAIA_PLAYER)) continue;
 		}
 		const float dx = resources_.x[r] - x, dz = resources_.z[r] - z;
 		const float d2 = dx * dx + dz * dz;
@@ -7904,16 +7966,19 @@ void Simulation::petra_manage_military_production(float dt) {
 	bool is_emergency = (max_threat >= 7.0f);
 
 	// Our finished buildings that train soldiers (roster `trainers`: barracks,
-	// fortress, and the Town Center and temple for heroes).
+	// fortress, civ structures such as the gymnasium, and the Town Center and
+	// temple for heroes).
+	const uint8_t ai_civ = petra_ps().civ;
+	uint64_t trainer_types = 0;
+	for (uint16_t k = civ_roster_begin(ai_civ); k < civ_roster_end(ai_civ); ++k)
+		trainer_types |= civ_unit_template(k).trainers;
 	std::vector<uint32_t> trainers;
 	for (const auto &b : buildings_) {
 		if (b.team != petra_pid_ || b.build_progress < 1.0f || b.queue.size() >= 4) continue;
-		if (b.type == BLD_BARRACKS || b.type == BLD_FORTRESS || b.type == BLD_TOWN_CENTER || b.type == BLD_TEMPLE)
-			trainers.push_back(b.id);
+		if (trainer_types & bld_bit(b.type)) trainers.push_back(b.id);
 	}
 	if (trainers.empty()) return;
 	if (pop_current(petra_pid_) >= pop_max(petra_pid_)) return;
-	const uint8_t ai_civ = petra_ps().civ;
 	const uint8_t phase = petra_ps().phase;
 
 	// A building of ours that trains roster unit `tmpl` (heroes and soldiers
@@ -9636,7 +9701,7 @@ void Simulation::petra_manage_buildings(float dt) {
 
 // config.js `buildings`: each civ's advanced structures, in Petra's order
 // (Carthage's three embassies are RTS0's one; Kush's camps and Amun temple and
-// Rome's Vesta temple are not modelled yet).
+// Rome's Vesta temple are buildings now but not in these lists yet).
 static std::vector<uint8_t> petra_advanced_buildings(uint8_t civ) {
 	switch (civ) {
 		case CIV_ATHENIANS: return {BLD_GYMNASIUM, BLD_PRYTANEION, BLD_THEATER};
@@ -12161,7 +12226,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 each resource's MaxGatherers (the v28/v29 ruins list folds into it)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -12683,6 +12748,7 @@ bool Simulation::load_state(const char *filepath) {
 		for (const auto &rl : relics_) max_id = std::max(max_id, rl.id);
 		for (size_t f = 0; f < fauna_.count; ++f) max_id = std::max(max_id, fauna_.id[f]);
 		for (const auto &t : treasures_) max_id = std::max(max_id, t.id);
+		for (const auto &sc : scenery_) max_id = std::max(max_id, sc.id);
 		next_id_ = max_id + 1;
 	}
 
@@ -12864,6 +12930,9 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	} else if constexpr (Ar::loading) {
 		s.treasures_.clear();
 	}
+	static_assert(sizeof(S::Scenery) == 32, "Scenery is saved raw (pad[] explicit and zeroed); list a new field here");
+	if (ar.version >= 29) io_vec_pod(ar, s.scenery_, 1u << 16);
+	else if constexpr (Ar::loading) s.scenery_.clear();
 	static_assert(sizeof(S::FaunaStorage) == 68616, "list the new FaunaStorage field below");
 	if constexpr (Ar::loading) {
 		if (ar.version < 25) {
@@ -13424,22 +13493,10 @@ void Simulation::update_player_fow(std::vector<uint8_t> &grid, SharesVision shar
 	for (auto &c : grid) c = c == FOW_VISIBLE ? (uint8_t)FOW_EXPLORED : std::max(c, floor);
 
 	// Steps 2 and 3: every unit and finished building whose vision the player shares lights the
-	// tiles within its vision radius. Vision radius per unit type (in world units):
-	//   Villager/Infantry: 16m, Cavalry: 20m, Archer: 22m, Catapult: 24m, Hero: 18m, Elephant: 20m, Trireme: 28m
-	auto vision_radius = [](uint8_t utype) -> float {
-		switch (utype) {
-			case UNIT_ARCHER:   return 22.0f;
-			case UNIT_CAVALRY:  return 20.0f;
-			case UNIT_CATAPULT: return 24.0f;
-			case UNIT_TRIREME:  return 28.0f;
-			case UNIT_ELEPHANT: return 20.0f;
-			case UNIT_HERO:     return 18.0f;
-			default:            return 16.0f;
-		}
-	};
+	// tiles within its vision radius (unit_vision_range, 0 A.D. Vision/Range).
 
 	reveal_viewers(grid, views,
-			[&](size_t u) { return units_.alive[u] && shares_vision(units_.team[u]) ? vision_radius(units_.unit_type[u]) : 0.0f; },
+			[&](size_t u) { return units_.alive[u] && shares_vision(units_.team[u]) ? unit_vision_range(units_.unit_type[u]) : 0.0f; },
 			[&](const Building &b) {
 				if (!shares_vision(b.team) || b.build_progress < 1.0f) return 0.0f;
 				float bvr = 18.0f; // default building vision
@@ -13992,6 +14049,23 @@ uint32_t Simulation::spawn_treasure(float x, float z, uint8_t type) {
 	t.type = type;
 	treasures_.push_back(t);
 	return t.id;
+}
+
+uint32_t Simulation::spawn_scenery(float x, float z, uint8_t scenery_type, float angle, float scale) {
+	if (scenery_type >= SCENERY_TYPE_COUNT) return 0;
+	const SceneryTypeInfo &info = scenery_type_info(scenery_type);
+	Scenery sc{};
+	sc.id = next_id_++;
+	sc.x = x;
+	sc.z = z;
+	sc.angle = angle;
+	sc.half_w = 0.5f * info.width * scale;
+	sc.half_d = 0.5f * info.depth * scale;
+	sc.hp = info.max_hp;
+	sc.type = scenery_type;
+	scenery_.push_back(sc);
+	if (!bulk_spawn_) rebuild_nav_grid();
+	return sc.id;
 }
 
 uint32_t Simulation::spawn_ruins(float x, float z, uint8_t ruins_type) {

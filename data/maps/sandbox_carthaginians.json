@@ -8986,5 +8986,126 @@
     }
   ],
   "gaia_structures": [],
-  "gaia_units": []
+  "gaia_units": [],
+  "scenery": [
+    {
+      "type": "obelisk",
+      "x": -112.68,
+      "z": -2.26,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "table_rectangle",
+      "x": -49.89,
+      "z": -44.91,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "table_square",
+      "x": -45.78,
+      "z": -42.49,
+      "angle": -1.8614,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_long",
+      "x": -54.39,
+      "z": -43.12,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen",
+      "x": 85.2,
+      "z": 68.62,
+      "angle": -2.1541,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen",
+      "x": 87.54,
+      "z": 64.45,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": 84.85,
+      "z": 65.12,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": 84.71,
+      "z": 69.82,
+      "angle": 0.4942,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": 90.67,
+      "z": 66.62,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": 85.82,
+      "z": 68.06,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": 77.75,
+      "z": 72.34,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": 78.23,
+      "z": 70.14,
+      "angle": 2.8043,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": 78.68,
+      "z": 68.87,
+      "angle": -1.3273,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen_b",
+      "x": 79.2,
+      "z": 66.86,
+      "angle": 0.4947,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric_fallen",
+      "x": 80.59,
+      "z": 64.34,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "column_doric",
+      "x": 81.43,
+      "z": 68.37,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "bench",
+      "x": -45.56,
+      "z": -43.0,
+      "angle": 2.3562,
+      "scale": 0.25
+    }
+  ]
 }
