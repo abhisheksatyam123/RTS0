@@ -391,7 +391,10 @@ public:
 	// goes to the end of each busy unit's order queue instead of replacing its orders.
 	// Player orders are forced (order.data.force); Petra's cmd_move walks are not, so its
 	// units still turn to fight on the way.
-	void order_walk(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false);
+	// beach_goal: a player's walk, which ends on the beach when (tx, tz) is out at sea
+	// (MakeGoalReachable). Internal walks (Petra, rally points) keep their goal.
+	void order_walk(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false,
+			bool beach_goal = false);
 	void order_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id, bool queued = false);
 	void order_attack(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
 	// allow_capture: capture the structure (0 A.D.'s default right-click) instead of
@@ -812,7 +815,8 @@ public:
 	// now (building_id 0 skips the building checks).
 	enum ResearchCheck : uint8_t {
 		TECH_OK = 0, TECH_ERR_INVALID, TECH_ERR_RESEARCHED, TECH_ERR_IN_PROGRESS, TECH_ERR_CIV,
-		TECH_ERR_PHASE, TECH_ERR_PREREQUISITE, TECH_ERR_STRUCTURES, TECH_ERR_BUILDING, TECH_ERR_COST
+		TECH_ERR_PHASE, TECH_ERR_PREREQUISITE, TECH_ERR_STRUCTURES, TECH_ERR_BUILDING, TECH_ERR_COST,
+		TECH_ERR_PAIRED // its pair_*.json partner is researched or being researched
 	};
 	ResearchCheck research_check(uint8_t player_id, uint8_t tech_id, uint32_t building_id = 0) const;
 	// 0 A.D. Heal/Range and Heal/Interval after the player's technologies.
@@ -823,7 +827,15 @@ public:
 	// With `tmpl` (a roster row) the row's own 0 A.D. unlock tech decides.
 	uint8_t train_unlock_tech(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
 			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE) const;
-	int heroes_of(uint8_t player_id) const; // alive or queued (EntityLimits Hero: 1)
+	// 0 A.D. EntityLimits (entity_limits_data.h): a player's entities of a limit
+	// category, alive or queued, foundations included; its limit with the
+	// LimitChangers it owns, or -1 while a LimitRemover lifts it (or there is none).
+	int entity_limit_count(uint8_t player_id, uint8_t category) const;
+	int entity_limit(uint8_t player_id, uint8_t category) const;
+	// AllowedToTrain / AllowedToBuild: room for `count` more of the unit (roster
+	// row `tmpl`, else the class) or of the structure.
+	bool entity_limit_allows_unit(uint8_t player_id, uint8_t unit_type, uint16_t tmpl, int count = 1) const;
+	bool entity_limit_allows_building(uint8_t player_id, uint8_t bld_type) const;
 	bool can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
 			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE) const;
 	// 0 A.D. phase_town / phase_city requirement: finished Village (1) or Town (2) class structures.
@@ -1253,7 +1265,6 @@ private:
 	void credit_trade(uint8_t player, uint8_t res, int amount);
 	void tick_trickle(float dt);
 	int corral_count(uint32_t corral_id) const;
-	void tick_entity_limits(float dt);
 	void tick_death_damage(float dt);
 	// 0 A.D. helpers/Attack.js CauseDamageOverArea for an Attack Splash landing at (ox, oz).
 	void cause_damage_over_area(uint8_t splash, uint32_t attacker_id, uint8_t attacker_team,
@@ -1364,6 +1375,7 @@ private:
 	// Turret units (unit id -> point height), rebuilt from the holders' garrison lists each
 	// tick, and the stance each had before it went up (UnitAI previousStance).
 	std::unordered_map<uint32_t, float> turret_height_;
+	bool beach_goal_ = false; // set by order_walk(..., beach_goal) around its cmd_move
 	std::unordered_map<uint32_t, uint8_t> turret_prev_stance_;
 	const TurretPointSet *turret_points_of(const Building &b) const;
 	int structure_garrison_cap(const Building &b) const;
@@ -1442,7 +1454,7 @@ private:
 	float rate_window_timer_ = 0.0f;
 	float barter_timer_ = 0.0f;
 	float upkeep_timer_ = 0.0f; // unused since soldier upkeep was removed (no 0 A.D. template has Upkeep); kept for the save layout
-	float entity_limits_timer_ = 0.0f;
+	float entity_limits_timer_ = 0.0f; // unused since EntityLimits checks creation; kept for the save format
 	float gate_timer_ = 0.0f;
 	static constexpr size_t MAX_RECENT_DEATHS = 64;
 	std::array<RecentDeath, MAX_RECENT_DEATHS> recent_deaths_{};
