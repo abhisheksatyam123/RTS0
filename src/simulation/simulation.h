@@ -71,6 +71,7 @@ struct Projectile {
 	uint32_t target_unit_id = 0;
 	uint32_t target_building_id = 0;
 	bool alive = true;
+	uint8_t splash = 0; // splash_profiles() row of the attack that fired it (0 A.D. DelayedDamage data.splash)
 	uint32_t source_id = 0; // firing unit or building: Promotion xp and Looter.js loot go to it
 };
 
@@ -1244,6 +1245,11 @@ private:
 	int corral_count(uint32_t corral_id) const;
 	void tick_entity_limits(float dt);
 	void tick_death_damage(float dt);
+	// 0 A.D. helpers/Attack.js CauseDamageOverArea for an Attack Splash landing at (ox, oz).
+	void cause_damage_over_area(uint8_t splash, uint32_t attacker_id, uint8_t attacker_team,
+			float ox, float oz, float dir_x, float dir_z);
+	// A unit's hack, pierce and crush resistance levels (template, techs, rank, armour auras).
+	void unit_resistance(size_t i, float out[3]) const;
 	void tick_gates(float dt);
 	void tick_waves(float dt);
 	void tick_petra_ai(float dt);
@@ -1285,7 +1291,7 @@ private:
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
 	void rebuild_auras(); // G4: rebuild AuraManager from temples/heroes/carnyx/female citizens
 	uint16_t aura_affected_players(uint8_t owner, uint8_t players) const;
-	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false, uint8_t visual = 0, uint32_t source_id = 0);
+	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false, uint8_t visual = 0, uint32_t source_id = 0, uint8_t splash = 0);
 	static float projectile_speed(uint8_t visual);
 	int32_t projectile_hit_unit(const Projectile &p) const;
 	void random_normal_2d(float &x, float &z);
