@@ -17,6 +17,7 @@ config/features=PackedStringArray("4.3", "Forward Plus")
 [autoload]
 
 MatchSettings="*res://scenes/menu/match_settings.gd"
+UserSettings="*res://scenes/menu/user_settings.gd"
 
 [gui]
 

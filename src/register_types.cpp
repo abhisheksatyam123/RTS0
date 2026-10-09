@@ -15,6 +15,7 @@
 #include "presentation/safe_select.h"
 #include "presentation/hotkey_config.h"
 #include "presentation/reference_data.h"
+#include "presentation/user_config.h"
 #include "graphics/assets/model_library.h"
 #include "core/job_system.h"
 #include "core/diagnostics/logger.h"
@@ -40,6 +41,7 @@ void initialize_rtso_module(ModuleInitializationLevel p_level) {
 	GDREGISTER_CLASS(RtsoSafeSelect);
 	GDREGISTER_CLASS(RtsoHotkeyConfig);
 	GDREGISTER_CLASS(RtsoReference);
+	GDREGISTER_CLASS(RtsoUserConfig);
 
 	rtso::JobSystem::instance().start();
 	char buf[160];

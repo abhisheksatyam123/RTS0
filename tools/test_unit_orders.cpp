@@ -53,6 +53,8 @@
 // 33. Idle soldiers attack enemy structures and dangerous animals in sight (after units they
 //     prefer); an animal bite is an attack like any other; a guarding healer heals; stone
 //     throwers stand ground by default.
+// 34. A player's gather order is forced until work starts (UnitAI Gather): attacks on the
+//     way are ignored, attacks at work are answered.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_unit_orders.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -1158,6 +1160,28 @@ static void test_unitai_targets() {
 	}
 }
 
+static void test_forced_work_orders() {
+	std::printf("34. a player's Gather and Repair are forced until work starts\n");
+	Simulation s;
+	setup(s);
+	const uint32_t tree = s.spawn_resource_world(30, 0, RES_WOOD, 5000);
+	uint32_t w = s.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN, 5000.0f);
+	s.order_gather(&w, 1, tree);
+	uint32_t arch = post(s, 12, 3, UNIT_ARCHER, 5000.0f); // they shoot her as she passes
+	post(s, 8, -3, UNIT_ARCHER, 5000.0f);
+	post(s, 18, -3, UNIT_ARCHER, 5000.0f);
+	const float h0 = hp_of(s, w);
+	bool fled_on_the_way = false;
+	const bool reached = run_until(s, 30.0f, [&] {
+		fled_on_the_way = fled_on_the_way || act_of(s, w) == ACTION_FLEE;
+		return dist(s, w, 30, 0) < 2.5f;
+	});
+	check(reached && !fled_on_the_way && hp_of(s, w) < h0, "a woman sent to a tree walks on under fire");
+	s.order_attack(&arch, 1, w);
+	const bool now_flees = run_until(s, 20.0f, [&] { return act_of(s, w) == ACTION_FLEE; });
+	check(now_flees, "once at work, an attack makes her flee");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -1193,6 +1217,7 @@ int main(int argc, char **argv) {
 	test_preferred_classes();
 	test_unitai_combat();
 	test_unitai_targets();
+	test_forced_work_orders();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
