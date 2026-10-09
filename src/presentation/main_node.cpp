@@ -2463,7 +2463,14 @@ void RtsoMain::_process(double delta) {
 		String txt;
 		for (const rtso::TimeNotification *n : sim->time_notifications_for(local_player())) {
 			if (!txt.is_empty()) txt += "\n";
-			txt += String::utf8(n->text);
+			// GuiInterface time notifications: %(time)s is the time left (timeToString).
+			String line = String::utf8(n->text);
+			if (line.contains("%(time)s")) {
+				const uint32_t now = sim->trigger_state().time_ms;
+				const int left_s = n->end_ms > now ? (int)((n->end_ms - now + 999) / 1000) : 0;
+				line = line.replace("%(time)s", vformat("%d:%02d", left_s / 60, left_s % 60));
+			}
+			txt += line;
 		}
 		if (time_notification_label_->get_text() != txt) time_notification_label_->set_text(txt);
 	}
@@ -3397,6 +3404,10 @@ void RtsoMain::update_command_panel() {
 					if (rtso::civ_can_build(my_civ, (uint8_t)bt)) menu.push_back(bt);
 				for (int bt = rtso::CIV_BUILDING_FIRST; bt < rtso::BLD_TYPE_COUNT; ++bt)
 					if (rtso::civ_can_build(my_civ, (uint8_t)bt)) menu.push_back(bt);
+				// The map script's SetDisabledTemplates (Survival of the Fittest) hides those structures.
+				menu.erase(std::remove_if(menu.begin(), menu.end(), [&](int bt) {
+					return sim->building_disabled_by_trigger(local_player(), (uint8_t)bt);
+				}), menu.end());
 				for (int bt : menu) {
 					const rtso::BuildingTypeInfo &bi = rtso::building_type_info((uint8_t)bt);
 					String cost;

@@ -20,6 +20,11 @@
 //   7. Treasure Islands: the intro message, a real treasure pickup counted through
 //      OnTreasureCollected, the messages near the goal, the 18-18 battle message on
 //      its interval, and 19 treasures winning the match 5 s later.
+//   8. Survival of the Fittest: plateaus with the civic centres, the treasure seekers
+//      down in the valley (invulnerable), economic structures disabled, treasures on
+//      one of the B/C/D sets every 3-5 minutes, Gaia waves from each player's A point
+//      attack-walking to its civic centre from 4-6 minutes, and losing the civic centre
+//      defeating its player (the seeker goes, the waves stop coming for it).
 //
 //   g++ -std=c++20 -O2 -Isrc tools/test_triggers.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -347,9 +352,99 @@ static void check_treasure_islands() {
 	if (failures == before) std::printf("Treasure Islands: intro, pickup counted, near-goal and 18-18 messages, 19 wins after 5 s: ok\n");
 }
 
+static void check_survival() {
+	const int before = failures;
+	static Simulation s;
+	build(s, MAP_SURVIVAL_OF_THE_FITTEST);
+	s.tick(Simulation::FIXED_STEP); // OnInitGame: InitSurvival
+	const TriggerState &ts = s.trigger_state();
+	int a_points = 0, bcd[3] = {};
+	for (const TriggerPoint &p : ts.points) {
+		if (p.ref == 'A') { ++a_points; CHECK(p.owner < PLAYERS, "attacker point owned by %u", p.owner); }
+		else if (p.ref >= 'B' && p.ref <= 'D') ++bcd[p.ref - 'B'];
+	}
+	CHECK(a_points == PLAYERS, "%d attacker points for %d players", a_points, PLAYERS);
+	CHECK(bcd[0] > 0 && bcd[0] == bcd[1] && bcd[1] == bcd[2], "treasure points %d/%d/%d", bcd[0], bcd[1], bcd[2]);
+	CHECK((int)s.treasures().size() == bcd[0], "%zu treasures placed on a set of %d points", s.treasures().size(), bcd[0]);
+	CHECK(ts.watched.size() == 2u * PLAYERS, "%zu watched entities", ts.watched.size());
+	CHECK(ts.invulnerable.size() == (size_t)PLAYERS, "%zu invulnerable seekers", ts.invulnerable.size());
+	// No mines, hunt or extra structures: a civic centre, four infantry and the seeker each.
+	int mines = 0;
+	const auto res = s.resources();
+	for (size_t i = 0; i < res.count; ++i) mines += res.alive[i] && (res.type[i] == RES_GOLD || res.type[i] == RES_STONE);
+	CHECK(mines == 0 && s.fauna().count == 0, "%d mines and %zu animals on Survival", mines, s.fauna().count);
+	CHECK(s.buildings().size() == (size_t)PLAYERS, "%zu structures at the start", s.buildings().size());
+	for (uint8_t b : {BLD_STOREHOUSE, BLD_FARMSTEAD, BLD_FIELD, BLD_CORRAL, BLD_TOWN_CENTER, BLD_DOCK, BLD_WALL_SEGMENT, BLD_PALISADE})
+		CHECK(s.building_disabled_by_trigger(0, b) && s.building_disabled_by_trigger(1, b), "structure %d not disabled", b);
+	CHECK(!s.building_disabled_by_trigger(0, BLD_HOUSE) && !s.building_disabled_by_trigger(0, BLD_BARRACKS), "houses or barracks disabled");
+	// The seeker stands in the valley, below her plateau, and takes no damage.
+	const float k = 0.35f;
+	uint32_t seeker[PLAYERS] = {}, cc[PLAYERS] = {};
+	for (const TriggerWatch &w : ts.watched) (w.building ? cc : seeker)[w.player] = w.id;
+	for (int p = 0; p < PLAYERS; ++p) {
+		const int32_t u = s.lookup_unit(seeker[p]);
+		const auto bit = s.building_id_to_idx_.find(cc[p]);
+		CHECK(u >= 0 && bit != s.building_id_to_idx_.end(), "player %d has no seeker or civic centre", p);
+		if (u < 0 || bit == s.building_id_to_idx_.end()) return;
+		const Simulation::Building &b = s.buildings_[bit->second];
+		CHECK(s.get_terrain_height(s.units_.pos_x[u], s.units_.pos_z[u]) < 5.0f * k &&
+		      s.get_terrain_height(b.x, b.z) > 25.0f * k, "player %d: seeker at %.1f, civic centre at %.1f", p,
+		      s.get_terrain_height(s.units_.pos_x[u], s.units_.pos_z[u]), s.get_terrain_height(b.x, b.z));
+	}
+	{
+		const int32_t u = s.lookup_unit(seeker[0]);
+		const float hp = s.units_.hp[u];
+		s.units_.status_effects[u] |= EFFECT_POISON;
+		s.units_.poison_timer[u] = 5.0f;
+		for (int t = 0; t < 20; ++t) s.tick(Simulation::FIXED_STEP);
+		CHECK(s.units_.hp[u] == hp, "invulnerable seeker lost %.1f hp to poison", hp - s.units_.hp[u]);
+	}
+	// The first wave, 4 to 6 minutes in, announced with a countdown.
+	uint32_t wave_at = 0, treasures_at = 0;
+	for (const TriggerTimer &t : ts.timers) {
+		if (t.action == TRIGGER_ACTION_SURVIVAL_WAVE) wave_at = t.time_ms;
+		if (t.action == TRIGGER_ACTION_SURVIVAL_TREASURES) treasures_at = t.time_ms;
+	}
+	CHECK(wave_at >= 240000 && wave_at <= 360000, "first wave at %u ms", wave_at);
+	CHECK(treasures_at >= 180000 && treasures_at <= 300000, "next treasures at %u ms", treasures_at);
+	CHECK(shown(s, 0, "The first wave will start in %(time)s!"), "no first-wave countdown");
+	auto gaia_units = [&]() {
+		int n = 0;
+		for (size_t i = 0; i < s.units_.count; ++i) n += s.units_.alive[i] && s.units_.team[i] == GAIA_PLAYER;
+		return n;
+	};
+	run_to(s, (float)wave_at / 1000.0f - 1.0f);
+	CHECK(gaia_units() == 0, "%d Gaia units before the first wave", gaia_units());
+	run_to(s, (float)wave_at / 1000.0f + 0.1f);
+	const int w1 = gaia_units();
+	CHECK(w1 >= PLAYERS, "first wave: %d attackers", w1);
+	CHECK(shown(s, 1, "An enemy wave is attacking!"), "no wave message");
+	// Each attacker attack-walks towards its player's civic centre.
+	int walking = 0;
+	for (size_t i = 0; i < s.units_.count; ++i)
+		if (s.units_.alive[i] && s.units_.team[i] == GAIA_PLAYER) walking += s.units_.order_kind[i] == ORDER_WALK_AND_FIGHT;
+	CHECK(walking == w1, "%d of %d attackers have an order", walking, w1);
+	// Losing the civic centre defeats player 2; its seeker is gone and its waves stop.
+	{
+		auto bit = s.building_id_to_idx_.find(cc[1]);
+		s.buildings_[bit->second].hp = 0.0f;
+	}
+	run_to(s, (float)s.trigger_state().time_ms / 1000.0f + 2.0f);
+	CHECK(s.is_defeated(1) && !s.is_defeated(0), "civic centre loss: defeated %d/%d", s.is_defeated(0), s.is_defeated(1));
+	{
+		const int32_t u = s.lookup_unit(seeker[1]);
+		CHECK(u < 0 || !s.units_.alive[u], "defeated player's seeker still alive");
+		CHECK(!s.invulnerable(seeker[1]), "defeated player's seeker still invulnerable");
+	}
+	if (failures == before)
+		std::printf("Survival of the Fittest: %d treasure points a set, seekers in the valley and invulnerable, economy disabled, %d attackers in the first wave, defeat on civic centre loss: ok\n", bcd[0], w1);
+}
+
 int main() {
 	std::setvbuf(stdout, nullptr, _IONBF, 0);
 	TurnManager tm;
+	check_survival();
+	check_save_load(tm, MAP_SURVIVAL_OF_THE_FITTEST, 200.0f, 420.0f, Simulation::WATER_LEVEL_RISING, 25, "Survival of the Fittest across the first wave");
 	check_polar_sea();
 	check_treasure_islands();
 	check_save_load(tm, MAP_POLAR_SEA, 305.0f, 330.0f, Simulation::WATER_LEVEL_RISING, 25, "Polar Sea during a wolf wave");
