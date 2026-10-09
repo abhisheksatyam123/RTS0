@@ -148,7 +148,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 34; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 35; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -634,6 +634,14 @@ public:
 	const TriggerState &trigger_state() const { return triggers_; }
 	uint32_t trigger_hash() const { return triggers_.hash(); }
 	void trigger_event(uint8_t event, const TriggerEventData &data = {});
+	// A map's TriggerScripts by name ("polar_sea_triggers", "treasure_islands"): registers
+	// the ported script's triggers. Random maps do it in generate_random_map; data/maps
+	// JSON maps list theirs under "trigger_scripts". Returns false for an unported script.
+	bool register_trigger_script(const std::string &name);
+	// TriggerPoint.js: a trigger point the map places (trigger/trigger_point_<ref>).
+	void add_trigger_point(uint8_t ref, float x, float z) { triggers_.add_point(ref, x, z); }
+	// TriggerHelper.SetPlayerWon: pid and its allies win, everyone else is defeated.
+	void set_player_won(uint8_t pid);
 	// Time notifications (GuiInterface.AddTimeNotification) shown to `player` right now.
 	std::vector<const TimeNotification *> time_notifications_for(uint8_t player) const;
 	// WaterManager.SetWaterLevel as the rising-water scripts use it: moves the water
@@ -867,7 +875,8 @@ public:
 	enum ResearchCheck : uint8_t {
 		TECH_OK = 0, TECH_ERR_INVALID, TECH_ERR_RESEARCHED, TECH_ERR_IN_PROGRESS, TECH_ERR_CIV,
 		TECH_ERR_PHASE, TECH_ERR_PREREQUISITE, TECH_ERR_STRUCTURES, TECH_ERR_BUILDING, TECH_ERR_COST,
-		TECH_ERR_PAIRED // its pair_*.json partner is researched or being researched
+		TECH_ERR_PAIRED, // its pair_*.json partner is researched or being researched
+		TECH_ERR_DISABLED // the map's trigger script disabled it (cmpPlayer.SetDisabledTechnologies)
 	};
 	ResearchCheck research_check(uint8_t player_id, uint8_t tech_id, uint32_t building_id = 0) const;
 	// 0 A.D. Heal/Range and Heal/Interval after the player's technologies.
@@ -1403,6 +1412,8 @@ private:
 	void collect_unit_loot(uint32_t looter_id, uint8_t looter_player, size_t victim);
 	void collect_building_loot(uint32_t looter_id, uint8_t looter_player, const Building &b);
 	void check_victory_conditions(float dt);
+	// The match ends with these players as the winners; everyone else has lost.
+	void end_match(uint8_t winners);
 	void spawn_regicide_heroes();
 
 	struct FaunaStorage {
@@ -1574,6 +1585,9 @@ private:
 	void trigger_flood_rise_step(float final_level);
 	void trigger_volcano_rise_step();
 	void trigger_volcano_garrison_towers();
+	void trigger_polar_sea_wave();
+	void trigger_treasure_islands_collected(const TriggerEventData &data);
+	void tick_trigger_attack_orders();
 	PlayerState gaia_stock_; // scratch for player(GAIA_PLAYER); never saved or hashed
 	// Player.js SetState("defeated"): hand every unit and structure of these players to Gaia.
 	void convert_to_gaia(uint8_t players);
