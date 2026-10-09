@@ -1568,8 +1568,8 @@ private:
 	};
 	void petra_naval_topology(PetraNavalTopo &t) const;
 	uint16_t petra_land_at(float x, float z) const;
-	uint16_t petra_building_land(const Building &b) const;
-	uint16_t petra_home_land(float x, float z) const;
+	uint16_t petra_building_land(const Building &b, const PetraNavalTopo *topo = nullptr, uint16_t prefer = 0) const;
+	uint16_t petra_home_land(float x, float z, const PetraNavalTopo *topo = nullptr) const;
 	uint16_t petra_overseas(const PetraNavalTopo &t, float from_x, float from_z, uint32_t target_id) const;
 	uint16_t petra_plan_overseas(float base_x, float base_z, uint32_t target_id) const;
 	bool petra_aboard(uint32_t uid) const;

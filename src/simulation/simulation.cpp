@@ -4835,7 +4835,7 @@ void Simulation::move_units(float dt, Arena &arena) {
 				// gets as close as it can, it moves on once within WAYPOINT_NEAR of such a waypoint.
 				const float crowd = unit_collision_radius(units_.unit_type[i]) + 0.35f - ARRIVE_DIST;
 				auto crowded = [&](float wx, float wz) {
-					if (crowd <= 0.0f || unit_is_ship(units_.unit_type[i])) return false;
+					if (crowd <= 0.0f) return false; // ships too: a transport's path can start beside a shore house
 					for (const SteerObstacle &b : steer_obstacles_) {
 						if (b.id == units_.target_building_id[i]) continue;
 						const float ex = std::max(0.0f, std::fabs(wx - b.x) - b.half_size);
@@ -10259,22 +10259,30 @@ uint16_t Simulation::petra_land_at(float x, float z) const {
 }
 
 // A structure's land: the land just outside its footprint (a dock's shore side).
-uint16_t Simulation::petra_building_land(const Building &b) const {
+// RTS0's land regions, unlike 0 A.D.'s accessibility map, are cut by structures,
+// so with `topo` it is the biggest land around it, not a pocket between houses.
+uint16_t Simulation::petra_building_land(const Building &b, const PetraNavalTopo *topo, uint16_t prefer) const {
 	const float r = b.half_size + GRID;
-	const float off[4][2] = {{r, 0.0f}, {-r, 0.0f}, {0.0f, r}, {0.0f, -r}};
+	const float off[8][2] = {{r, 0.0f}, {-r, 0.0f}, {0.0f, r}, {0.0f, -r}, {r, r}, {-r, r}, {r, -r}, {-r, -r}};
+	uint16_t best = 0;
 	for (const auto &o : off) {
 		auto [cx, cz] = nav_grid_.world_to_cell(b.x + o[0], b.z + o[1]);
 		const uint16_t l = nav_grid_.global_region_at(cx, cz, PASS_INFANTRY);
-		if (l) return l;
+		if (!l) continue;
+		if (l == prefer) return l;
+		if (!topo) return l;
+		const uint32_t size = l < topo->land_size.size() ? topo->land_size[l] : 0;
+		const uint32_t best_size = best < topo->land_size.size() ? topo->land_size[best] : 0;
+		if (!best || size > best_size) best = l;
 	}
-	return petra_land_at(b.x, b.z);
+	return best ? best : petra_land_at(b.x, b.z);
 }
 
 // The land of our first base (an anchored base's structure), else of (x, z).
-uint16_t Simulation::petra_home_land(float x, float z) const {
+uint16_t Simulation::petra_home_land(float x, float z, const PetraNavalTopo *topo) const {
 	if (const PetraBase *pb = get_primary_petra_base()) {
 		auto it = building_id_to_idx_.find(pb->anchor_building_id);
-		if (it != building_id_to_idx_.end()) return petra_building_land(buildings_[it->second]);
+		if (it != building_id_to_idx_.end()) return petra_building_land(buildings_[it->second], topo);
 		return petra_land_at(pb->x, pb->z);
 	}
 	return petra_land_at(x, z);
@@ -10285,12 +10293,33 @@ uint16_t Simulation::petra_home_land(float x, float z) const {
 uint16_t Simulation::petra_overseas(const PetraNavalTopo &t, float from_x, float from_z, uint32_t target_id) const {
 	auto it = building_id_to_idx_.find(target_id);
 	if (it == building_id_to_idx_.end()) return 0;
-	const uint16_t from = petra_home_land(from_x, from_z);
-	const uint16_t to = petra_building_land(buildings_[it->second]);
+	const uint16_t from = petra_home_land(from_x, from_z, &t);
+	const uint16_t to = petra_building_land(buildings_[it->second], &t, from);
 	return from == to ? 0 : t.sea_between(from, to);
 }
 
 uint16_t Simulation::petra_plan_overseas(float base_x, float base_z, uint32_t target_id) const {
+	// Cheap first: a land touching both our first base and the target means no sea
+	// to cross, and needs no map scan (attack plans ask on every AI tick).
+	auto it = building_id_to_idx_.find(target_id);
+	if (it == building_id_to_idx_.end()) return 0;
+	auto lands_around = [&](const Building &b, uint16_t out[8]) {
+		const float r = b.half_size + GRID;
+		const float off[8][2] = {{r, 0.0f}, {-r, 0.0f}, {0.0f, r}, {0.0f, -r}, {r, r}, {-r, r}, {r, -r}, {-r, -r}};
+		for (int k = 0; k < 8; ++k) {
+			auto [cx, cz] = nav_grid_.world_to_cell(b.x + off[k][0], b.z + off[k][1]);
+			out[k] = nav_grid_.global_region_at(cx, cz, PASS_INFANTRY);
+		}
+	};
+	uint16_t home[8] = {}, there[8] = {};
+	lands_around(buildings_[it->second], there);
+	const PetraBase *pb = get_primary_petra_base();
+	auto ait = pb ? building_id_to_idx_.find(pb->anchor_building_id) : building_id_to_idx_.end();
+	if (ait != building_id_to_idx_.end()) lands_around(buildings_[ait->second], home);
+	else home[0] = petra_land_at(base_x, base_z);
+	for (uint16_t h : home)
+		for (uint16_t t : there)
+			if (h && h == t) return 0;
 	PetraNavalTopo topo;
 	petra_naval_topology(topo);
 	return petra_overseas(topo, base_x, base_z, target_id);
@@ -10309,9 +10338,17 @@ bool Simulation::petra_is_transport_ship(size_t i) const {
 	return units_.unit_type[i] == UNIT_TRIREME && ship_garrison_capacity(i) >= 2;
 }
 
+// The sea a ship is on (or beside, moored at a dock on a shore cell).
 uint16_t Simulation::petra_ship_sea(size_t i) const {
 	auto [cx, cz] = nav_grid_.world_to_cell(units_.pos_x[i], units_.pos_z[i]);
-	return nav_grid_.global_region_at(cx, cz, PASS_SHIP);
+	for (int r = 0; r <= 3; ++r)
+		for (int dz = -r; dz <= r; ++dz)
+			for (int dx = -r; dx <= r; ++dx) {
+				if (std::abs(dx) != r && std::abs(dz) != r) continue;
+				const uint16_t s = nav_grid_.global_region_at(cx + dx, cz + dz, PASS_SHIP);
+				if (s) return s;
+			}
+	return 0;
 }
 
 int Simulation::petra_transport_ships_on(uint16_t sea) const {
@@ -10403,7 +10440,7 @@ void Simulation::petra_manage_naval(float dt) {
 	petra_naval_topology(topo);
 	float home_x = 0.0f, home_z = 0.0f;
 	if (const PetraBase *pb = get_primary_petra_base()) { home_x = pb->x; home_z = pb->z; }
-	const uint16_t home = petra_home_land(home_x, home_z);
+	const uint16_t home = petra_home_land(home_x, home_z, &topo);
 	topo.classify(home);
 	auto naval = [&](uint16_t s) { return s < topo.naval.size() && topo.naval[s]; };
 	const size_t nseas = topo.sea_size.size();
@@ -10441,7 +10478,7 @@ void Simulation::petra_manage_naval(float dt) {
 			if (started) break;
 			auto ait = building_id_to_idx_.find(base.anchor_building_id);
 			if (ait == building_id_to_idx_.end() || buildings_[ait->second].build_progress < 1.0f) continue;
-			const uint16_t land = petra_building_land(buildings_[ait->second]);
+			const uint16_t land = petra_building_land(buildings_[ait->second], &topo);
 			auto lo = std::lower_bound(topo.links.begin(), topo.links.end(), (uint32_t)land << 16);
 			for (; lo != topo.links.end() && (*lo >> 16) == land && !started; ++lo) {
 				const uint16_t sea = (uint16_t)(*lo & 0xFFFF);
@@ -10449,7 +10486,7 @@ void Simulation::petra_manage_naval(float dt) {
 				bool connected = false; // getUnconnectedSeas: a dock of ours on this land and sea
 				for (const Building &b : buildings_)
 					if (b.team == petra_pid_ && b.type == BLD_DOCK && !b.wrecked && b.hp > 0.0f &&
-					    petra_building_land(b) == land && dock_sea(b) == sea) { connected = true; break; }
+					    petra_building_land(b, &topo, land) == land && dock_sea(b) == sea) { connected = true; break; }
 				if (connected) continue;
 				started = true; // the first unconnected sea of the first base without a dock there
 				// queueplanBuilding.js findDockPosition: the nearest shore spot on that sea.
@@ -10465,7 +10502,7 @@ void Simulation::petra_manage_naval(float dt) {
 							probe.half_size = info.footprint * GRID * 0.5f;
 							probe.x = (cx + info.footprint * 0.5f) * GRID;
 							probe.z = (cz + info.footprint * 0.5f) * GRID;
-							if (dock_sea(probe) != sea || petra_building_land(probe) != land) continue;
+							if (dock_sea(probe) != sea || petra_building_land(probe, &topo, land) != land) continue;
 							placed = true;
 							if (!petra_try_pay(PETRA_QUEUE_NAVAL, (float)info.food_cost, (float)info.wood_cost,
 							                   (float)info.gold_cost, (float)info.stone_cost)) break;
@@ -11622,14 +11659,19 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 			}
 			// navalManager.js requireTransport: the ship comes back for those still on
 			// our land (a failed transport leaves them, as a plan without ships does).
-			if (petra_transport_.state == PetraTransportPlan::IDLE) {
-				const uint16_t overseas = petra_plan_overseas(base_x, base_z, petra_attack_plan_.target_building_id);
-				if (overseas) {
-					const uint16_t home = petra_home_land(base_x, base_z);
+			if (petra_transport_.state == PetraTransportPlan::IDLE &&
+			    petra_plan_overseas(base_x, base_z, petra_attack_plan_.target_building_id)) {
+				PetraNavalTopo topo;
+				petra_naval_topology(topo);
+				const uint32_t target_id = petra_attack_plan_.target_building_id;
+				const uint16_t overseas = petra_overseas(topo, base_x, base_z, target_id);
+				auto tit = building_id_to_idx_.find(target_id);
+				if (overseas && tit != building_id_to_idx_.end()) {
+					const uint16_t there = petra_building_land(buildings_[tit->second], &topo);
 					std::vector<uint32_t> left;
 					for (uint32_t uid : squad) {
 						const int32_t idx = lookup_unit(uid);
-						if (idx >= 0 && units_.alive[idx] && petra_land_at(units_.pos_x[idx], units_.pos_z[idx]) == home)
+						if (idx >= 0 && units_.alive[idx] && petra_land_at(units_.pos_x[idx], units_.pos_z[idx]) != there)
 							left.push_back(uid);
 					}
 					if (!left.empty() && petra_start_transport(left, base_x, base_z, petra_attack_plan_.target_x,
@@ -12431,6 +12473,27 @@ void Simulation::petra_manage_transport(float dt) {
 		tp.failed = true;
 		return;
 	}
+	// transportPlan.js sails to the water beside the landing point: a ship
+	// ordered onto the beach itself finds no path and stays where it is.
+	auto sail_point = [&](float &x, float &z) {
+		if (!nearest_water_for_ship((size_t)sidx, tp.drop_x, tp.drop_z, x, z)) { x = tp.drop_x; z = tp.drop_z; }
+	};
+	auto sail = [&]() {
+		// Those not aboard stay behind; their boarding order would pull the ship back.
+		const auto *aboard = get_transport_passengers(tp.ship_id);
+		std::vector<uint32_t> left;
+		for (uint32_t uid : tp.passenger_ids)
+			if (!aboard || std::find(aboard->begin(), aboard->end(), uid) == aboard->end()) left.push_back(uid);
+		for (uint32_t uid : left) {
+			const int32_t i = lookup_unit(uid);
+			if (i >= 0 && units_.alive[i] && units_.target_unit_id[i] == tp.ship_id) cmd_stop(&uid, 1);
+		}
+		float x, z;
+		sail_point(x, z);
+		cmd_move(&tp.ship_id, 1, x, z);
+		tp.state = PetraTransportPlan::SAILING;
+		tp.state_timer = 0.0f;
+	};
 
 	if (tp.state == PetraTransportPlan::BOARDING) {
 		size_t aboard = get_transport_passenger_count(tp.ship_id);
@@ -12440,9 +12503,7 @@ void Simulation::petra_manage_transport(float dt) {
 				tp.failed = true;
 				return;
 			}
-			cmd_move(&tp.ship_id, 1, tp.drop_x, tp.drop_z); // sail with whoever made it aboard
-			tp.state = PetraTransportPlan::SAILING;
-			tp.state_timer = 0.0f;
+			sail(); // with whoever made it aboard
 			return;
 		}
 		order_board_transport(tp.passenger_ids.data(), tp.passenger_ids.size(), tp.ship_id);
@@ -12451,30 +12512,27 @@ void Simulation::petra_manage_transport(float dt) {
 		float dz = units_.pos_z[sidx] - tp.pickup_z;
 		bool ship_ready = (dx * dx + dz * dz) <= 36.0f;
 		if ((aboard >= 1 && aboard >= tp.passenger_ids.size()) ||
-		    (aboard >= 2 && ship_ready && tp.state_timer >= 8.0f)) {
-			cmd_move(&tp.ship_id, 1, tp.drop_x, tp.drop_z);
-			tp.state = PetraTransportPlan::SAILING;
-			tp.state_timer = 0.0f;
-		}
+		    (aboard >= 2 && ship_ready && tp.state_timer >= 8.0f))
+			sail();
 	} else if (tp.state == PetraTransportPlan::SAILING) {
-		if (tp.state_timer > 40.0f) {
-			tp.state = PetraTransportPlan::FAILED;
-			tp.failed = true;
-			return;
-		}
-		float dx = units_.pos_x[sidx] - tp.drop_x;
-		float dz = units_.pos_z[sidx] - tp.drop_z;
-		if (dx * dx + dz * dz <= 64.0f || tp.state_timer >= 18.0f) {
-			order_disembark(tp.ship_id, tp.drop_x, tp.drop_z);
+		float x, z;
+		sail_point(x, z);
+		const float dx = units_.pos_x[sidx] - x, dz = units_.pos_z[sidx] - z;
+		const bool stopped = units_.action_state[sidx] == ACTION_IDLE && tp.state_timer > 2.0f;
+		if (dx * dx + dz * dz <= 9.0f || stopped || tp.state_timer > 90.0f) {
+			order_disembark(tp.ship_id, units_.pos_x[sidx], units_.pos_z[sidx]);
 			tp.state = PetraTransportPlan::UNLOADING;
 			tp.state_timer = 0.0f;
 		}
 	} else if (tp.state == PetraTransportPlan::UNLOADING) {
-		if (get_transport_passenger_count(tp.ship_id) == 0 || tp.state_timer >= 6.0f) {
-			if (get_transport_passenger_count(tp.ship_id) > 0)
-				order_disembark(tp.ship_id, tp.drop_x, tp.drop_z);
+		if (get_transport_passenger_count(tp.ship_id) == 0) {
 			tp.state = PetraTransportPlan::IDLE;
 			tp.passenger_ids.clear();
+		} else if (tp.state_timer >= 20.0f) {
+			tp.state = PetraTransportPlan::FAILED; // no shore to unload onto: they stay aboard
+			tp.failed = true;
+		} else if (std::fmod(tp.state_timer, 3.0f) < dt) {
+			order_disembark(tp.ship_id, units_.pos_x[sidx], units_.pos_z[sidx]);
 		}
 	}
 }

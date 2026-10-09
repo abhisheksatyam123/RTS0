@@ -353,6 +353,28 @@ static void test_transport() {
 	std::printf("transport: capacities, lists, pickup, unloading and sinking match 0 A.D.: %s\n", failures ? "see failures" : "ok");
 }
 
+// A ship moored beside a house on the shore still sails off: its path starts on
+// the centre of its own cell, closer to the house than the ship can stand, which
+// move_units' crowded-waypoint skip passes over for ships too (seen on an island
+// map: Petra's transport sat beside a house for the rest of the game).
+static void test_ship_leaves_shore_house() {
+	// The spot from the bench: the Tiny continental map of seed 7 is two islands.
+	static Simulation s;
+	s.reset();
+	s.set_sim_seed(7);
+	s.set_waves_enabled(false);
+	s.generate_random_map(MAP_RANDOM_CONTINENTAL, 7, 2, 64.0f);
+	s.spawn_building_world(-15.0f, -15.0f, BLD_HOUSE, 1, 1.0f);
+	s.spawn_building_world(-19.0f, -13.0f, BLD_HOUSE, 1, 1.0f);
+	const uint32_t ship = s.spawn_unit(-12.439f, -12.439f, 1, UNIT_TRIREME, 0.0f);
+	s.cmd_move(&ship, 1, 13.0f, 13.0f);
+	run(s, 60.0f);
+	const int32_t i = idx(s, ship);
+	const float moved = std::hypot(s.units().pos_x[i] + 12.439f, s.units().pos_z[i] + 12.439f);
+	std::printf("ship beside a shore house: sailed %.1f toward the other island\n", moved);
+	CHECK(moved > 10.0f);
+}
+
 static int count_units(const Simulation &s, uint8_t team, uint8_t type) {
 	int n = 0;
 	for (size_t i = 0; i < s.units().count; ++i)
@@ -468,6 +490,7 @@ int main() {
 	test_fishing();
 	test_petra_sea_trade();
 	test_ship_height();
+	test_ship_leaves_shore_house();
 	test_petra_navy();
 	test_petra_overseas_attack();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
