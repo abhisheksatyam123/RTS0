@@ -418,6 +418,7 @@ constexpr int32_t LARGE_MINE_SUPPLY = 5000;
 constexpr int32_t FISH_FOOD_SUPPLY = 1000;
 constexpr int FISH_MAX_GATHERERS = 4;
 constexpr float FISH_REGROW_INTERVAL_S = 2.0f;
+constexpr float FRUIT_REGROW_INTERVAL_S = 6.0f; // template_gaia_fruit Regrowth Interval 6000
 // Fish footprint radius (10 m) plus a fishing boat's ResourceGatherer MaxDistance (6 m), in tiles.
 constexpr float FISH_GATHER_REACH = 4.0f;
 
@@ -1075,6 +1076,10 @@ inline float building_garrison_heal(uint8_t type) {
 		default: return 0.0f;
 	}
 }
+// 0 A.D. structures/wall_garrisoned on walls, gates and outposts: turreted Soldiers
+// +3 resistance to each damage type and +20 m vision (x0.28 like every Vision range).
+inline constexpr float WALL_TURRET_ARMOR = 3.0f;
+inline constexpr float WALL_TURRET_VISION = 20.0f * 0.28f;
 inline float building_eject_health(uint8_t type) {
 	switch (type) {
 		case BLD_FORTRESS: return 0.075f;

@@ -1447,6 +1447,73 @@ void RtsoMain::_on_flare_requested(Vector2 world_pos) {
 	net_host_.sendChat(wire);
 }
 
+// 0 A.D. gui/session/Cheats.js executeCheat with the codes of simulation/data/cheats/*.json.
+// Player numbers typed after "wololo" and "exodia" are 0 A.D.'s (0 = Gaia, 1 = the first player).
+bool RtsoMain::chat_try_cheat(const String &text) {
+	using S = rtso::Simulation;
+	struct CheatCode { const char *name; uint8_t action; int resource; const char *def; bool numeric; };
+	static const CheatCode kCheats[] = {
+		{"i want pizza", S::CHEAT_ADD_RESOURCE, rtso::RES_FOOD, "1000", true},
+		{"bring me my axe", S::CHEAT_ADD_RESOURCE, rtso::RES_WOOD, "1000", true},
+		{"i see a mountain here", S::CHEAT_ADD_RESOURCE, rtso::RES_STONE, "1000", true},
+		{"your money or your life", S::CHEAT_ADD_RESOURCE, rtso::RES_GOLD, "1000", true},
+		{"jame jam", S::CHEAT_REVEAL_MAP, 0, "", false},
+		{"wololo", S::CHEAT_CONVERT_UNITS, 0, "-1", true},
+		{"black death", S::CHEAT_KILL_UNITS, 0, "", false},
+		{"exodia", S::CHEAT_DEFEAT_PLAYER, 0, "2", true},
+		{"salad bowl", S::CHEAT_CREATE_UNITS, 0, "13", true},
+		{"back to the future", S::CHEAT_CHANGE_PHASE, 0, "", false},
+		{"brainiac", S::CHEAT_RESEARCH, 0, "", false},
+		{"gift from the gods", S::CHEAT_META, 0, "100000", true},
+	};
+	const uint8_t me = local_player();
+	if (!sim || !sim->cheats_enabled() || me >= rtso::MAX_PLAYERS || sim->is_defeated(me)) return false;
+	const CheatCode *cheat = nullptr;
+	for (const CheatCode &c : kCheats)
+		if (text.begins_with(c.name)) { cheat = &c; break; }
+	if (!cheat) return false;
+	String parameter = text.substr(String(cheat->name).length() + 1).strip_edges();
+	if (parameter.is_empty()) parameter = cheat->def;
+	if (cheat->numeric && !parameter.is_empty() && !parameter.is_valid_int()) {
+		chat_window_.append_line("[color=#eebb22]This cheat requires a numeric parameter.[/color]\n");
+		return false;
+	}
+	int64_t number = cheat->numeric && !parameter.is_empty() ? parameter.to_int() : 0;
+	uint32_t extra = (uint32_t)std::max(cheat->resource, 0);
+	if (cheat->action == S::CHEAT_CONVERT_UNITS || cheat->action == S::CHEAT_DEFEAT_PLAYER)
+		number = number < 0 ? -1 : (number == 0 ? rtso::GAIA_PLAYER : number - 1);
+	// The selection, a selected structure first (createunits and brainiac read selected[0]).
+	std::vector<uint32_t> ids;
+	if (selected_building_id) ids.push_back(selected_building_id);
+	for (int i = 0; i < selected_ids.size(); ++i) ids.push_back((uint32_t)selected_ids[i]);
+	if (cheat->action == S::CHEAT_RESEARCH) {
+		// "brainiac N" researches the selected structure's Nth technology, else a tech by its 0 A.D. name.
+		extra = rtso::TECH_NONE;
+		int btype = -1; // the selected structure's type
+		for (const auto &bb : sim->buildings())
+			if (selected_building_id && bb.id == selected_building_id) btype = bb.type;
+		if (btype >= 0 && parameter.is_valid_int()) {
+			int nth = (int)parameter.to_int();
+			for (int t = 1; t < rtso::TECH_COUNT && nth > 0; ++t) {
+				const rtso::TechInfo &ti = rtso::tech_info((uint8_t)t);
+				if (ti.researcher != btype || !(ti.civ_mask & rtso::civ_bit(sim->player_civ(me)))) continue;
+				if (--nth == 0) extra = (uint32_t)t;
+			}
+		} else {
+			const std::string want = parameter.utf8().get_data();
+			for (int t = 1; t < rtso::TECH_COUNT; ++t)
+				if (want == rtso::tech_info((uint8_t)t).template_name) extra = (uint32_t)t;
+		}
+	}
+	if (cheat->action == S::CHEAT_CREATE_UNITS && !selected_building_id) {
+		chat_window_.append_line("[color=#eebb22]You need to select a building that trains units.[/color]\n");
+		return true;
+	}
+	if (turn_cmds()) post_lockstep(39, ids.data(), ids.size(), (float)extra, 0.0f, (uint32_t)(int32_t)number, cheat->action);
+	else sim->cmd_cheat(me, cheat->action, (int32_t)number, extra, ids.data(), ids.size());
+	return true;
+}
+
 void RtsoMain::chat_send_wire(const std::string &wire) {
 	// 0 A.D. gui/session/chat/ChatCommands.js: the host removes a player by name.
 	for (const char *cmd : {"/kick ", "/ban "}) {
@@ -1956,7 +2023,7 @@ void RtsoMain::_on_gate_lock_pressed(int lock) {
 		sim->cmd_lock_gate(local_player(), selected_building_id, lock != 0);
 }
 
-// 0 A.D. ProductionQueue.js EnableAutoQueue / DisableAutoQueue through lockstep command 39.
+// 0 A.D. ProductionQueue.js EnableAutoQueue / DisableAutoQueue through lockstep command 40.
 void RtsoMain::_on_autoqueue_pressed(int on) {
 	if (selected_building_id == 0) return;
 	if (turn_cmds())
@@ -4542,6 +4609,7 @@ void RtsoMain::apply_match_settings() {
 	sim->set_relic_count((int)ms->get("relic_count"));
 	sim->set_regicide_garrison((bool)ms->get("regicide_garrison"));
 	sim->set_lock_teams((bool)ms->get("lock_teams"));
+	sim->set_cheats_enabled((bool)ms->get("cheats"));
 	sim->set_disable_treasures((bool)ms->get("disable_treasures"));
 	{
 		Array scolors = ms->get("slot_colors");
@@ -5112,6 +5180,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 		setup.nomad = (bool)ms->get("nomad") ? 1 : 0;
 		setup.regicide_garrison = (bool)ms->get("regicide_garrison") ? 1 : 0;
 		setup.lock_teams = (bool)ms->get("lock_teams") ? 1 : 0;
+		setup.cheats = (bool)ms->get("cheats") ? 1 : 0;
 		setup.no_treasures = (bool)ms->get("disable_treasures") ? 1 : 0;
 		Array snames = ms->get("slot_names");
 		for (int i = 0; i < 8 && i < snames.size(); ++i) setup.names[i] = String(snames[i]).utf8().get_data();
@@ -5221,6 +5290,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	sim->set_relic_count(setup.relics);
 	sim->set_regicide_garrison(setup.regicide_garrison != 0);
 	sim->set_lock_teams(setup.lock_teams != 0);
+	sim->set_cheats_enabled(setup.cheats != 0);
 	sim->set_disable_treasures(setup.no_treasures != 0);
 	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) sim->set_player_color(p, setup.colors[p]);
 	sim->set_water_level_mode(setup.water_level);
@@ -5281,6 +5351,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		ms->set("nomad", setup.nomad != 0);
 		ms->set("regicide_garrison", setup.regicide_garrison != 0);
 		ms->set("lock_teams", setup.lock_teams != 0);
+		ms->set("cheats", setup.cheats != 0);
 		ms->set("disable_treasures", setup.no_treasures != 0);
 		Array snames;
 		for (uint8_t i = 0; i < setup.slot_count && i < 8; ++i) snames.push_back(String::utf8(setup.names[i].c_str()));

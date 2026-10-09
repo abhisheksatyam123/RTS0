@@ -177,12 +177,13 @@ enum class NetCommandType : uint8_t {
 	// their load at the nearest dropsite, then attack-walk to (target_x, target_z).
 	// param bit NET_PARAM_QUEUED queues it.
 	NET_CMD_CALL_TO_ARMS = 38,
+	// 39 is 0 A.D.'s "cheat" command (Cheat.js; turn_manager.cpp).
 	// 0 A.D. ProductionQueue.js EnableAutoQueue / DisableAutoQueue on structure target_id:
 	// param 1 on, 0 off. (NET_CMD_TRAIN and NET_CMD_TRAIN_TEMPLATE carry their batch size
 	// in target_z; 0, as older senders write, trains one.)
-	NET_CMD_AUTOQUEUE = 39,
+	NET_CMD_AUTOQUEUE = 40,
 	// Session control, not game commands (200+ is reserved for these; game command
-	// ids keep growing from 39). Only the host sends them, inside its own turn batch,
+	// ids keep growing from 40). Only the host sends them, inside its own turn batch,
 	// so every client learns of a seat change before the turn it affects (0 A.D.
 	// NetServerTurnManager::InitialiseClient / UninitialiseClient). The sim ignores them.
 	// A client takes a seat: target_id = client id, param = player, target_x = the
@@ -327,6 +328,7 @@ struct GameSetupParams {
 	uint8_t nomad = 0;             // 1 = Nomad start (random maps)
 	uint8_t regicide_garrison = 0; // 1 = the Regicide hero may garrison
 	uint8_t lock_teams = 0;        // 1 = 0 A.D. LockTeams: no diplomacy changes
+	uint8_t cheats = 0;            // 1 = 0 A.D. CheatsEnabled
 	uint8_t no_treasures = 0;      // 1 = 0 A.D. DisableTreasures
 	std::string names[8];          // per-slot player names (0 A.D. PlayerName), empty = "Player N"
 	uint8_t water_level = 0; // Flood: 0 rising, 1 shallow, 2 deep (0 A.D. WaterLevel)
@@ -405,6 +407,7 @@ inline std::string format_game_start_full(const GameSetupParams &p) {
 	s += ";nomad=" + std::to_string((unsigned)p.nomad);
 	s += ";rgarrison=" + std::to_string((unsigned)p.regicide_garrison);
 	if (p.lock_teams) s += ";lockteams=1";
+	if (p.cheats) s += ";cheats=1";
 	s += ";notreasures=" + std::to_string((unsigned)p.no_treasures);
 	{
 		std::string n;
@@ -500,6 +503,7 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 			else if (k == "notreasures") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.no_treasures = x; }
 			else if (k == "rgarrison") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.regicide_garrison = x; }
 			else if (k == "lockteams") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.lock_teams = x; }
+			else if (k == "cheats") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.cheats = x; }
 			else if (k == "colors") {
 				for (size_t i = 0, slot = 0; i < v.size() && slot < 8; i += 2, ++slot) {
 					const char c = v[i];

@@ -208,7 +208,7 @@ int main() {
 		std::remove(path.c_str());
 	}
 
-	// 8. Lockstep: batch size in target_z of cmds 6 and 25, autoqueue as cmd 39.
+	// 8. Lockstep: batch size in target_z of cmds 6 and 25, autoqueue as cmd 40.
 	{
 		Simulation s;
 		const uint32_t b = fresh(s);
@@ -234,7 +234,7 @@ int main() {
 		tm.post_local_command(e);
 		for (int i = 0; i < 4; ++i) tm.tick(TurnManager::TURN_DURATION, s);
 		const auto &q = bld(s, b).queue;
-		CHECK(d.cmd_type == 39);
+		CHECK(d.cmd_type == 40);
 		CHECK(q.size() >= 2 && q[0].count == 4 && q[1].count == 1);
 		CHECK(bld(s, b).autoqueue);
 	}

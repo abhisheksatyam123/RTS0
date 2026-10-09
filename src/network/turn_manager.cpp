@@ -1335,7 +1335,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		} else if (c.cmd_type == 25) { // Train roster template — target_id=building, target_x=template.
 			if (c.target_x >= 0.0f && c.target_x < (float)CIV_UNIT_TEMPLATE_COUNT)
 				sim.cmd_train_template(pl, c.target_id, (uint16_t)c.target_x, batch_count(c.target_z));
-		} else if (c.cmd_type == 39) { // Autoqueue — target_id=building, param 1 on / 0 off.
+		} else if (c.cmd_type == 40) { // Autoqueue — target_id=building, param 1 on / 0 off.
 			sim.cmd_set_autoqueue(pl, c.target_id, c.param == 1);
 		} else if (c.cmd_type == 33) { // Trading goods — target_id = one percent byte per ResourceType.
 			uint8_t pct[RES_COUNT];
@@ -1349,6 +1349,9 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			// sim->cmd_barter locally even in lockstep -> resource/price divergence.
 			sim.cmd_barter(pl, (rtso::ResourceType)(int)c.target_x,
 			               (rtso::ResourceType)(int)c.target_z, (int)c.target_id);
+		} else if (c.cmd_type == 39) { // Cheat (0 A.D. Cheat.js) — param=action, target_id=number,
+			// target_x=resource or tech; acts on the raw selection, whoever owns it.
+			sim.cmd_cheat(pl, c.param, (int32_t)c.target_id, (uint32_t)c.target_x, c.entity_ids.data(), c.entity_ids.size());
 		} else if (c.cmd_type == 22) { // Diplomacy stance — target_id=player, param=stance.
 			// 0 A.D. Diplomacy.js / DiplomacyDialog.js parity. Applied at the turn
 			// boundary on EVERY peer (deterministic: diplomacy_state() is mixed into
