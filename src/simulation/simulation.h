@@ -919,6 +919,9 @@ public:
 	// Centre of the nearest ship-passable cell around a building's footprint, and its
 	// ship region; false when none is near (ProductionQueue.js spawns ships there).
 	bool nearest_ship_cell(const Building &b, float &out_x, float &out_z, uint16_t *out_sea = nullptr) const;
+	// 0 A.D. Footprint.PickSpawnPoint: a free spot for a unit of `type` in rows around the
+	// footprint, the front (or the side facing the rally point) first; skip_uid is ignored.
+	bool pick_spawn_point(const Building &b, uint8_t type, uint32_t skip_uid, float &out_x, float &out_z) const;
 	void order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id,
 			bool queued = false);
 	void order_trade_auto(const uint32_t *unit_ids, size_t count); // farthest pair of tradable markets
@@ -1510,6 +1513,8 @@ private:
 		float idle_regen[UNIT_TYPE_COUNT];  // Health.js IdleRegenRate, added while idle
 		float range_mul[UNIT_TYPE_COUNT];   // Attack/Ranged/MaxRange multiplier (range adds after it)
 		float vision[UNIT_TYPE_COUNT];      // Vision/Range multiplier
+		float vision_add[UNIT_TYPE_COUNT];  // ... then added metres (Healing Range)
+		float spread[UNIT_TYPE_COUNT];      // Attack/Ranged/Projectile/Spread multiplier
 		float capture[UNIT_TYPE_COUNT];     // Attack/Capture/Capture multiplier
 		float required_xp[UNIT_TYPE_COUNT]; // Promotion/RequiredXp multiplier
 		float bld_health[BLD_TYPE_COUNT];
@@ -1528,6 +1533,10 @@ private:
 		float bld_international_add[BLD_TYPE_COUNT]; // ... added before it (Commercial Treaty)
 		float bld_territory[BLD_TYPE_COUNT];       // TerritoryInfluence/Radius multiplier
 		float bld_tech_cost[BLD_TYPE_COUNT][RES_COUNT]; // Researcher/TechCostMultiplier of what it researches
+		float bld_vision[BLD_TYPE_COUNT];          // Vision/Range multiplier (Carrier Pigeons)
+		float bld_vision_add[BLD_TYPE_COUNT];      // ... then added metres (Arrow Shooters)
+		float bld_garrison_arrows[BLD_TYPE_COUNT]; // BuildingAI/GarrisonArrowMultiplier multiplier (Crenellations)
+		float bld_min_range[BLD_TYPE_COUNT];       // Attack/Ranged/MinRange replaced (Murder Holes), < 0 unchanged
 		// Player-wide modifiers from global relic auras.
 		float loot_add[RES_COUNT];    // Looter/Resource/<res> added to every kill's loot
 		float trickle_add[RES_COUNT]; // ResourceTrickle/Rates/<res> of the player, per second
@@ -1538,7 +1547,7 @@ private:
 		struct Template {
 			float gather[GK_COUNT];
 			float attack, health, speed, range, train_time;
-			float range_mul, vision, capture, required_xp;
+			float range_mul, vision, vision_add, spread, capture, required_xp;
 			float armor[3];
 			float cost[RES_COUNT];
 		} tmpl[CIV_UNIT_TEMPLATE_COUNT];
@@ -1555,7 +1564,7 @@ private:
 	void apply_tech_mods_to_unit(size_t idx);
 	const TechMods &tech_mods(uint8_t player_id) const { return tech_mods_[player_id < MAX_PLAYERS ? player_id : 0]; }
 	// A unit's technology multipliers: its roster template's when it has one, else its unit_type's.
-	struct UnitTechMods { float attack, health, speed, range, train_time, range_mul, vision, capture, required_xp; const float *armor, *gather; };
+	struct UnitTechMods { float attack, health, speed, range, train_time, range_mul, vision, vision_add, spread, capture, required_xp; const float *armor, *gather; };
 	static UnitTechMods unit_tech_mods(const TechMods &m, uint8_t unit_type, uint16_t tmpl);
 	UnitTechMods unit_tech_mods(uint8_t player_id, uint8_t unit_type, uint16_t tmpl) const {
 		return unit_tech_mods(tech_mods(player_id), unit_type, tmpl);
@@ -1850,6 +1859,7 @@ private:
 		uint8_t pid, btype;
 	};
 	std::vector<PetraPlaceMiss> petra_place_misses_;
+	bool petra_place_no_room_ = false; // last petra_place_building found no spot (read at once, not saved)
 	uint64_t petra_placement_signature(uint8_t btype, int start_cx, int start_cz, int max_r) const;
 
 	uint32_t next_id_ = 1;
@@ -2094,6 +2104,14 @@ private:
 	bool petra_can_fish_safely(float x, float z, uint16_t sea) const;
 	void petra_manage_buildings(float dt);
 	void petra_manage_research(float dt);
+	// researchManager.js: the techs Petra could research now at a structure it owns
+	// (gamestate.js findAvailableTech, phases left out), and one research start.
+	void petra_available_techs(std::vector<uint8_t> &out) const;
+	int petra_accounted_workers() const;
+	bool petra_phasing() const;
+	bool petra_start_research(uint8_t tech_id);
+	void petra_research_population_bonus();
+	void petra_research_trade_bonus();
 	void petra_manage_military_production(float dt);
 	void petra_manage_tactical_attacks(float dt);
 	void petra_retake_civic_centres(); // defenseManager.js OwnershipChanged -> switchDefenseToAttack

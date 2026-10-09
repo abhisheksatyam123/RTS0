@@ -1097,6 +1097,9 @@ enum TechStat : uint8_t {
 	TSTAT_TECH_COST_FOOD, TSTAT_TECH_COST_WOOD, TSTAT_TECH_COST_STONE, TSTAT_TECH_COST_METAL, // Researcher/TechCostMultiplier
 	TSTAT_LOOT_FOOD, TSTAT_LOOT_WOOD, TSTAT_LOOT_STONE, TSTAT_LOOT_METAL, // Looter/Resource/<res>
 	TSTAT_BATCH_TIME, // Trainer/BatchTimeModifier of training structures (added)
+	TSTAT_SPREAD,          // Attack/Ranged/Projectile/Spread
+	TSTAT_GARRISON_ARROWS, // BuildingAI/GarrisonArrowMultiplier
+	TSTAT_MIN_RANGE,       // Attack/Ranged/MinRange of structures
 	TSTAT_COUNT
 };
 

@@ -163,6 +163,10 @@ def stat_of(path: str):
         "Cost/Resources/metal": "TSTAT_COST_METAL",
         "Market/InternationalBonus": "TSTAT_TRADE_INTERNATIONAL",
         "Trainer/BatchTimeModifier": "TSTAT_BATCH_TIME",
+        "Vision/Range": "TSTAT_VISION",
+        "Attack/Ranged/Projectile/Spread": "TSTAT_SPREAD",
+        "BuildingAI/GarrisonArrowMultiplier": "TSTAT_GARRISON_ARROWS",
+        "Attack/Ranged/MinRange": "TSTAT_MIN_RANGE",
     }.get(path)
 
 
