@@ -144,8 +144,9 @@ int main() {
 					++paths;
 					// Every land map must connect every base on foot (Continental
 					// once split into one island per player); on naval maps the
-					// bases share a sea instead.
-					if (!map_is_naval(mt))
+					// bases share a sea instead. Survival of the Fittest walls each base
+					// in on purpose (0 A.D.'s script: only the Gaia waves cross).
+					if (!map_is_naval(mt) && mt != MAP_SURVIVAL_OF_THE_FITTEST)
 						CHECK(reached, "%s %d: no land path from base %zu to base %zu", map_type_info(mt).id, size, i, j);
 					if (map_is_naval(mt) && !reached) {
 						const auto ra = shore_ship_regions(sim.nav_grid(), sx, sz), rb = shore_ship_regions(sim.nav_grid(), tx, tz);
@@ -221,6 +222,7 @@ int main() {
 		sim.spawn_unit(-x, -z, 3, UNIT_SPEARMAN);
 		sim.set_player_team(2, 5);
 		sim.set_player_team(3, 5);
+		sim.player(2).techs.set(TECH_UNLOCK_SHARED_LOS); // Cartography: allies' vision
 		sim.set_fow_viewer(2);
 		for (int i = 0; i < 10; ++i) sim.tick(Simulation::FIXED_STEP);
 		CHECK(sim.fow_state_at(x, z, 2) == Simulation::FOW_VISIBLE, "player 2 can't see its own unit");
