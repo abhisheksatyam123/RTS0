@@ -6211,7 +6211,8 @@ void Simulation::tick_combat(float dt) {
 				const float hx = units_.pos_x[j] - anc_x, hz = units_.pos_z[j] - anc_z;
 				return hx * hx + hz * hz < held_lim * held_lim;
 			}
-			return d2 <= vision * vision;
+			// Violent: respondChaseBeyondVision.
+			return stance == STANCE_VIOLENT || d2 <= vision * vision;
 		};
 
 		int32_t found = -1;
@@ -6229,9 +6230,15 @@ void Simulation::tick_combat(float dt) {
 			}
 		}
 
-		// B. Look for a target in range of the stance (GetQueryRange)
+		// B. Look for a target in range of the stance (GetQueryRange). A fight that
+		// interrupted an order, or a player's attack with orders queued after it, is
+		// over once its target is: FINDINGNEWTARGET's FinishOrder goes on to that order
+		// rather than to FindNewTargets (attack-move and patrol look for more anyway).
+		const bool order_next = st == ACTION_ATTACK && !walk_and_fight &&
+				(((units_.order_flags[i] & ORDER_FLAG_INTERRUPTED) && units_.order_kind[i] != ORDER_NONE) ||
+				 (explicit_target && order_queues_.count(units_.id[i])));
 		int32_t found_bld = -1;
-		if (found < 0 && units_.target_building_id[i] == 0 && stance != STANCE_PASSIVE &&
+		if (found < 0 && !order_next && units_.target_building_id[i] == 0 && stance != STANCE_PASSIVE &&
 				((i + ticks_) % 4 == 0 || st == ACTION_ATTACK || walk_and_fight)) {
 			const float scan_range = stance == STANCE_STAND_GROUND ? range
 					: stance == STANCE_DEFENSIVE ? std::min(range + vision * 0.5f, vision) : vision;
@@ -8279,11 +8286,13 @@ void Simulation::resume_order(size_t i) {
 	if (o.kind == ORDER_NONE) {
 		units_.action_state[i] = ACTION_IDLE;
 		units_.has_order[i] = 0;
-		// UnitAI WalkToHeldPosition: a defensive unit goes back where it stood.
+		// UnitAI WalkToHeldPosition (FINDINGNEWTARGET, respondHoldGround): a defensive
+		// unit walks back where it stood, an unforced walk.
 		const float dx = units_.pos_x[i] - units_.anchor_x[i], dz = units_.pos_z[i] - units_.anchor_z[i];
-		if (units_.stance[i] == STANCE_DEFENSIVE && dx * dx + dz * dz > 2.0f * 2.0f) {
+		if (units_.stance[i] == STANCE_DEFENSIVE && dx * dx + dz * dz > 0.5f * 0.5f) {
 			const uint32_t uid = units_.id[i];
 			cmd_move(&uid, 1, units_.anchor_x[i], units_.anchor_z[i]);
+			units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_FORCE;
 		}
 		return;
 	}
@@ -8297,20 +8306,33 @@ void Simulation::respond_to_attack(size_t i) {
 	const int32_t a = lookup_unit(units_.attacked_by[i]);
 	if (a < 0 || !units_.alive[a] || !is_hostile(units_.team[i], units_.team[a])) return;
 	const uint8_t st = units_.action_state[i];
-	if (st == ACTION_ATTACK && (units_.target_unit_id[i] != 0 || units_.target_building_id[i] != 0)) return;
+	// TRADE "Attacked": a trader keeps trading.
+	if (st == ACTION_TRADE) return;
 	const uint8_t stance = units_.stance[i];
-	// Forced orders ignore attackers, unless the stance is violent (targetAttackersAlways).
-	if ((units_.order_flags[i] & ORDER_FLAG_FORCE) && stance != STANCE_VIOLENT && st != ACTION_IDLE && st != ACTION_FLEE) return;
+	// Forced orders ignore attackers, unless the stance is violent (targetAttackersAlways);
+	// an automatic fight (ORDER_FLAG_INTERRUPTED) is not forced.
+	const bool forced = (units_.order_flags[i] & (ORDER_FLAG_FORCE | ORDER_FLAG_INTERRUPTED)) == ORDER_FLAG_FORCE;
+	if (st == ACTION_ATTACK && (units_.target_unit_id[i] != 0 || units_.target_building_id[i] != 0)) {
+		// COMBAT "Attacked": a fighting unit ignores other attackers, except a melee one
+		// (it may block the way to the target).
+		if (units_.target_unit_id[i] == units_.attacked_by[i]) return;
+		if (template_has_ranged_attack(units_.tmpl[a], units_.unit_type[a], civ_of(units_.team[a]))) return;
+		if (forced && stance != STANCE_VIOLENT) return;
+	} else if (forced && stance != STANCE_VIOLENT && st != ACTION_IDLE && st != ACTION_FLEE) {
+		return;
+	}
 	const float dx = units_.pos_x[i] - units_.pos_x[a], dz = units_.pos_z[i] - units_.pos_z[a];
 	const float d2 = dx * dx + dz * dz;
 	const bool can_fight = units_.attack_damage[i] > 0.0f && stance != STANCE_PASSIVE;
 	if (!can_fight) {
 		if (unit_is_siege_engine(units_.unit_type[i]) || !pack_state_can_move(units_.pack_state[i])) return;
-		// UnitAI Flee: run FleeDistance away from the attacker, then carry on.
+		// UnitAI Flee (FLEEING enter): get FleeDistance further from the attacker than
+		// it is now, then carry on.
 		const float d = sqrtf(d2);
 		const float nx = d > 1e-3f ? dx / d : 1.0f, nz = d > 1e-3f ? dz / d : 0.0f;
-		units_.target_x[i] = std::clamp(units_.pos_x[i] + nx * FLEE_DISTANCE, -map_half_ + 1.0f, map_half_ - 1.0f);
-		units_.target_z[i] = std::clamp(units_.pos_z[i] + nz * FLEE_DISTANCE, -map_half_ + 1.0f, map_half_ - 1.0f);
+		const float goal = d + FLEE_DISTANCE;
+		units_.target_x[i] = std::clamp(units_.pos_x[a] + nx * goal, -map_half_ + 1.0f, map_half_ - 1.0f);
+		units_.target_z[i] = std::clamp(units_.pos_z[a] + nz * goal, -map_half_ + 1.0f, map_half_ - 1.0f);
 		units_.has_order[i] = 1;
 		units_.action_state[i] = ACTION_FLEE;
 		units_.target_unit_id[i] = 0;
@@ -8454,7 +8476,7 @@ void Simulation::tick_unit_ai(float dt) {
 		if (!units_.alive[i]) continue;
 		const uint8_t st = units_.action_state[i];
 		if (st == ACTION_DYING || st == ACTION_GARRISONED) continue;
-		if (units_.attacked_by[i] != 0) respond_to_attack(i); // traders flee, then resume_order
+		if (units_.attacked_by[i] != 0) respond_to_attack(i);
 		if (units_.action_state[i] == ACTION_TRADE) continue;
 		// Guard.js: guards answer whoever attacks the unit they guard (GuardedAttacked).
 		if (units_.order_kind[i] == ORDER_GUARD && units_.action_state[i] == ACTION_GUARD) {
