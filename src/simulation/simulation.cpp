@@ -359,6 +359,7 @@ void Simulation::set_map_half(float h) {
 	fow_grid_.assign(cells, FOW_UNEXPLORED);
 	for (auto &g : player_fow_) g.clear();
 	petra_fow_.assign(cells, FOW_UNEXPLORED);
+	reset_los();
 	fow_cell_height_.clear();
 	fow_cell_hmax_.clear();
 	fow_block_hmax_.clear();
@@ -431,6 +432,7 @@ void Simulation::reset() {
 	frame_arena_.reset_all();
 	std::fill(fow_grid_.begin(), fow_grid_.end(), (uint8_t)FOW_UNEXPLORED);
 	for (auto &g : player_fow_) g.clear();
+	reset_los();
 	barter_timer_ = 0.0f;
 	upkeep_timer_ = 0.0f;
 	entity_limits_timer_ = 0.0f;
@@ -661,6 +663,7 @@ void Simulation::spawn_war(int total_units) {
 	std::fill(fow_grid_.begin(), fow_grid_.end(), (uint8_t)FOW_UNEXPLORED);
 	for (auto &g : player_fow_) g.clear();
 	std::fill(petra_fow_.begin(), petra_fow_.end(), (uint8_t)FOW_UNEXPLORED);
+	reset_los();
 
 	total_units = std::clamp(total_units, 4, (int)UNIT_CAP - 64);
 	const int half = total_units / 2;
@@ -5783,6 +5786,7 @@ void Simulation::tick(float dt) {
 	if (fow_timer_ >= 0.25f) {
 		fow_timer_ = 0.0f;
 		tick_fow();
+		tick_los(); // 0 A.D. moves LOS once a turn; RTS0 at the fog's 4 Hz
 	}
 
 	frame_arena_.flip();
@@ -16454,7 +16458,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -17560,6 +17564,34 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		io_vec_pod(ar, g, (uint32_t)(S::MAX_GRID_RES * S::MAX_GRID_RES));
 		if (!g.empty() && g.size() != (size_t)s.stats_explore_res_ * (size_t)s.stats_explore_res_) { ar.ok = false; return; }
 	}
+
+	// 11. Per-player LOS (v41): the circle each unit and building slot added
+	// and every cell's explored bits. The counts and visible bits are those
+	// circles added again, so they are not stored. Older saves start with the
+	// sources of the loaded entities and nothing explored.
+	if (ar.version < 41) {
+		if constexpr (Ar::loading) s.reset_los(), s.tick_los();
+		return;
+	}
+	io_vec_pod(ar, s.los_unit_src_, (uint32_t)S::UNIT_CAP);
+	io_vec_pod(ar, s.los_bld_src_, 1u << 16);
+	std::vector<uint8_t> explored;
+	if constexpr (!Ar::loading) {
+		explored.resize(s.los_.cells());
+		for (size_t c = 0; c < explored.size(); ++c) explored[c] = s.los_.explored_bits((int)c);
+	}
+	io_vec_pod(ar, explored, (uint32_t)(S::MAX_GRID_RES * S::MAX_GRID_RES));
+	if constexpr (Ar::loading) {
+		if (!ar.ok) return;
+		std::vector<LosSource> units, blds;
+		units.swap(s.los_unit_src_);
+		blds.swap(s.los_bld_src_);
+		s.reset_los();
+		if (explored.size() != s.los_.cells()) { ar.ok = false; return; }
+		for (const LosSource &want : units) s.los_.update(s.los_unit_src_.emplace_back(), want);
+		for (const LosSource &want : blds) s.los_.update(s.los_bld_src_.emplace_back(), want);
+		for (size_t c = 0; c < explored.size(); ++c) s.los_.set_explored((int)c, explored[c]);
+	}
 }
 
 void Simulation::save_tick_state(std::ofstream &out) const {
@@ -17856,14 +17888,73 @@ void Simulation::update_player_fow(std::vector<uint8_t> &grid, SharesVision shar
 
 	reveal_viewers(grid, views,
 			[&](size_t u) { return units_.alive[u] && shares_vision(units_.team[u]) ? unit_vision_at(u) : 0.0f; },
-			[&](const Building &b) {
-				if (!shares_vision(b.team) || b.build_progress < 1.0f) return 0.0f;
-				float bvr = 18.0f; // default building vision
-				if (b.type == BLD_TOWER || b.type == BLD_FORTRESS) bvr = 24.0f;
-				if (b.type == BLD_DOCK) bvr = 28.0f;
-				if (const float cv = civ_building_vision(b.type); cv > 0.0f) bvr = cv; // e.g. the Ptolemaic Lighthouse
-				return bvr;
-			});
+			[&](const Building &b) { return shares_vision(b.team) ? building_vision_range(b) : 0.0f; });
+}
+
+float Simulation::building_vision_range(const Building &b) const {
+	if (b.build_progress < 1.0f) return 0.0f;
+	float bvr = 18.0f; // default building vision
+	if (b.type == BLD_TOWER || b.type == BLD_FORTRESS) bvr = 24.0f;
+	if (b.type == BLD_DOCK) bvr = 28.0f;
+	if (const float cv = civ_building_vision(b.type); cv > 0.0f) bvr = cv; // e.g. the Ptolemaic Lighthouse
+	return bvr;
+}
+
+void Simulation::reset_los() {
+	los_.init(grid_res_, map_half_);
+	los_unit_src_.clear();
+	los_bld_src_.clear();
+}
+
+void Simulation::tick_los() {
+	// CCmpRangeManager moves an entity's LOS when its position, owner or
+	// vision range changes (OnPositionChanged, OnOwnershipChanged,
+	// OnValueModification) and drops it when it leaves the world. RTS0 compares
+	// each unit and building slot with the circle it last added, which also
+	// covers slots that a removal refilled with another entity.
+	ScopedUs prof(map_scale_stats_.los_us, map_scale_stats_.los_calls);
+	if (los_.res() != grid_res_) reset_los();
+	const size_t nu = units_.count;
+	if (los_unit_src_.size() < nu) los_unit_src_.resize(nu);
+	for (size_t u = 0; u < los_unit_src_.size(); ++u) {
+		LosSource want;
+		if (u < nu && units_.alive[u])
+			want = los_.source_near(los_unit_src_[u], units_.pos_x[u], units_.pos_z[u], unit_vision_at(u), units_.team[u]);
+		los_.update(los_unit_src_[u], want);
+	}
+	los_unit_src_.resize(nu);
+	const size_t nb = buildings_.size();
+	if (los_bld_src_.size() < nb) los_bld_src_.resize(nb);
+	for (size_t i = 0; i < los_bld_src_.size(); ++i) {
+		LosSource want;
+		if (i < nb) {
+			const Building &b = buildings_[i];
+			if (b.hp > 0.0f && !b.wrecked) want = los_.source_at(b.x, b.z, building_vision_range(b), b.team);
+		}
+		los_.update(los_bld_src_[i], want);
+	}
+	los_bld_src_.resize(nb);
+}
+
+uint8_t Simulation::los_shared_mask(uint8_t player) const {
+	// VisionSharing.js, as update_player_fow applies it: allies share vision.
+	if (player >= MAX_PLAYERS) return 0;
+	uint8_t m = 0;
+	for (uint8_t q = 0; q < MAX_PLAYERS; ++q)
+		if (q == player || is_ally(player, q)) m |= (uint8_t)(1u << q);
+	return m;
+}
+
+bool Simulation::los_visible(uint8_t player, float x, float z) const {
+	if (reveal_map_) return true;
+	if (los_.cells() == 0) return false;
+	return (los_.visible_bits(los_.cell_of(x, z)) & los_shared_mask(player)) != 0;
+}
+
+bool Simulation::los_explored(uint8_t player, float x, float z) const {
+	if (reveal_map_ || explore_map_) return true;
+	if (los_.cells() == 0) return false;
+	return (los_.explored_bits(los_.cell_of(x, z)) & los_shared_mask(player)) != 0;
 }
 
 template <typename UnitVision, typename BuildingVision>
