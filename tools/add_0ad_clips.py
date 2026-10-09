@@ -15,6 +15,11 @@ animated ancestor.
 Usage:
   python3 -I tools/add_0ad_clips.py --0ad PATH/TO/0ad --clip Capture=biped/infantry/capturing_a.dae \\
       [--skeleton biped] [--only spearman ...] [--replace] [--check-against Walk]
+  python3 -I tools/add_0ad_clips.py --0ad PATH/TO/0ad --variants [--skeleton biped] [--only ...]
+
+--variants adds each unit's second Idle and Death as Idle2 and Death2, read
+from its 0 A.D. actor (the manifest's units/ actor source): 0 A.D. picks one of
+an actor's same-named animations at random, and the extractors kept the first.
 
 --check-against NAME rebuilds a clip the GLB already has from its Collada
 source and prints the largest difference instead of writing anything.
@@ -32,7 +37,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from extract_0ad_assets import mat3_to_quat  # noqa: E402
 from extract_0ad_fauna_models import (  # noqa: E402
-    ZUP, Art, node_animations, sample, scene_nodes, world_matrices)
+    ZUP, Art, node_animations, resolve_actor, sample, scene_nodes, world_matrices)
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MANIFEST = os.path.join(REPO, "assets", "models", "manifest.json")
@@ -225,21 +230,59 @@ def check_clip(path, name, art, rel, parents):
     print(f"{os.path.basename(path)} {name} <- {rel}: frame 0 max |dt| {worst_t:.4f}, max |dq| {worst_q:.4f}")
 
 
+def actor_animations(art, actor, name):
+    """(file, frequency) of every animation called `name` in the actor, in the
+    order 0 A.D. lists them. Idles come from the variants the extractors used
+    (the most frequent per group); deaths sit in their own "death" variant, so
+    every variant counts for them."""
+    if name != "death":
+        out = resolve_actor(art, actor)["anims"].get(name, [])
+    else:
+        out = []
+        for v in art.xml("actors", actor).iter("variant"):
+            chain = [v]
+            while chain[-1].get("file"):
+                chain.append(art.xml("variants", chain[-1].get("file")))
+            for el in reversed(chain):
+                for a in el.findall("animations/animation"):
+                    if (a.get("name") or "").lower() == name:
+                        out.append((a.get("file"), float(a.get("frequency") or 1)))
+    seen, uniq = set(), []
+    for f, fr in out:
+        if f not in seen:
+            seen.add(f)
+            uniq.append((f, fr))
+    return uniq
+
+
+def second_clip(art, actor, name):
+    """The variant to add beside the first (which the GLB already plays): the
+    most frequent of the rest, as 0 A.D. would pick most often after it."""
+    cands = actor_animations(art, actor, name)
+    if len(cands) < 2:
+        return None
+    rest = [c for c in cands[1:] if os.path.exists(art.path("animation", c[0]))]
+    return max(rest, key=lambda c: c[1])[0] if rest else None
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--0ad", dest="zeroad", required=True)
-    ap.add_argument("--clip", required=True, help="Name=animation/relative/path.dae")
+    ap.add_argument("--clip", help="Name=animation/relative/path.dae")
+    ap.add_argument("--variants", action="store_true", help="add Idle2/Death2 from each unit's actor")
     ap.add_argument("--skeleton", default="biped", help="manifest skeleton the GLBs must use")
     ap.add_argument("--only", nargs="+")
     ap.add_argument("--replace", action="store_true")
     ap.add_argument("--check-against")
     args = ap.parse_args()
     art = Art(args.zeroad)
-    name, rel = args.clip.split("=", 1)
+    if not args.variants and not args.clip:
+        ap.error("--clip or --variants")
     parents = bone_parents(os.path.join(REPO, "assets", "skeletons", args.skeleton + ".xml"))
     with open(MANIFEST) as fh:
         man = json.load(fh)
     changed = 0
+    added = {}
     for mid, e in sorted(man["models"].items()):
         if args.only and mid not in args.only:
             continue
@@ -247,21 +290,32 @@ def main():
         if e.get("skeleton") != args.skeleton or not e.get("animated") or not e["file"].startswith("models/units/"):
             continue
         path = os.path.join(REPO, "assets", e["file"])
-        if args.check_against:
-            check_clip(path, args.check_against, art, rel, parents)
-            continue
-        if add_clip(path, name, art, rel, parents, args.replace):
-            changed += 1
-            if name not in e["animations"]:
-                e["animations"].append(name)
-            src = f"anim:{rel}"
-            if src not in e["sources"]:
-                e["sources"] = sorted(e["sources"] + [src])
+        if args.variants:
+            actors = [x[len("actor:art/actors/"):] for x in e["sources"] if x.startswith("actor:art/actors/units/")]
+            if not actors or not os.path.exists(art.path("actors", actors[0])):
+                continue
+            jobs = [(n.capitalize() + "2", second_clip(art, actors[0], n)) for n in ("idle", "death")]
+            jobs = [(n, r) for n, r in jobs if r]
+        else:
+            jobs = [tuple(args.clip.split("=", 1))]
+        for name, rel in jobs:
+            if args.check_against:
+                check_clip(path, args.check_against, art, rel, parents)
+                continue
+            if add_clip(path, name, art, rel, parents, args.replace):
+                changed += 1
+                added[name] = added.get(name, 0) + 1
+                if name not in e["animations"]:
+                    e["animations"].append(name)
+                src = f"anim:{rel}"
+                if src not in e["sources"]:
+                    e["sources"] = sorted(e["sources"] + [src])
     if changed:
         with open(MANIFEST, "w") as fh:
             json.dump(man, fh, indent=1, sort_keys=True)
     if not args.check_against:
-        print(f"{name}: added to {changed} GLBs")
+        for name, n in sorted(added.items()):
+            print(f"{name}: added to {n} GLBs")
 
 
 if __name__ == "__main__":
