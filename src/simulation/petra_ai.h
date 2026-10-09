@@ -46,11 +46,6 @@ inline bool petra_is_combat_unit(uint8_t t) {
 // config.js garrisonHealthLevel.medium: an attacked support unit below it shelters.
 inline constexpr float PETRA_GARRISON_HP_MEDIUM = 0.55f;
 
-// defenseManager.js isDangerous: dist2Min 6000 (77.5 0 A.D. m) and ranged
-// (range + 30)^2, in RTS0 units (x0.28).
-inline constexpr float PETRA_DANGER_DIST = 21.7f;
-inline constexpr float PETRA_DANGER_RANGED_PAD = 8.4f;
-
 // config.js + difficultyLevel.js
 struct PetraConfig {
 	uint8_t difficulty = PETRA_MEDIUM;
@@ -184,7 +179,11 @@ struct PetraTransportPlan {
 	float drop_x = 0.0f, drop_z = 0.0f;
 	float state_timer = 0.0f;
 	bool failed = false;
+	uint8_t owner = 0; // PetraTransportOwner: the plan that asked for it
+	uint16_t sea = 0;  // the sea it crosses (0: any, from an older save)
 };
+// navalManager.js runs a transportPlan per ship; each asker here has at most one.
+enum PetraTransportOwner : uint8_t { PETRA_TRANSPORT_ATTACK = 0, PETRA_TRANSPORT_RAID = 1, PETRA_TRANSPORT_BUILDERS = 2 };
 
 enum PetraChatKind : uint8_t {
 	PETRA_CHAT_ATTACK    = 0,
