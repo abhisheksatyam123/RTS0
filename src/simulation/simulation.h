@@ -748,6 +748,7 @@ public:
 	// With `tmpl` (a roster row) the row's own 0 A.D. unlock tech decides.
 	uint8_t train_unlock_tech(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
 			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE) const;
+	int heroes_of(uint8_t player_id) const; // alive or queued (EntityLimits Hero: 1)
 	bool can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
 			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE) const;
 	// 0 A.D. phase_town / phase_city requirement: finished Village (1) or Town (2) class structures.
