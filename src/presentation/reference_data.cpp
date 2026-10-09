@@ -354,14 +354,17 @@ Dictionary RtsoReference::get_structure(int type, int civ) const {
 	d["capture_points"] = bi.capture_max_points;
 	d["capture_regen"] = bi.capture_regen_rate;
 	d["territory_decay"] = bi.territory_decay_rate;
-	if (bi.attack_damage > 0.0f) {
+	// BuildingAI.js: DefaultArrowCount arrows per RepeatTime, plus garrison arrows up to MaxArrowCount.
+	if (const rtso::BuildingAIInfo &ai = rtso::building_ai_info(b); ai.shoots()) {
 		Dictionary a;
 		a["type"] = "Ranged";
-		a["hack"] = 0.0f;
-		a["pierce"] = bi.attack_damage;
-		a["crush"] = 0.0f;
-		a["interval"] = bi.attack_cooldown;
-		a["range"] = bi.attack_range * 4.0f;
+		a["hack"] = ai.hack;
+		a["pierce"] = ai.pierce;
+		a["crush"] = ai.crush;
+		a["interval"] = ai.repeat_time;
+		a["range"] = ai.max_range / rtso::COMBAT_DISTANCE_SCALE;
+		a["arrows"] = ai.default_arrows;
+		a["max_arrows"] = ai.max_arrows;
 		a["bonuses"] = Array();
 		a["restricted"] = "";
 		d["attack"] = a;

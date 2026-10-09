@@ -996,6 +996,7 @@ enum ClipId : uint8_t {
 	CLIP_CARRY_WOOD,
 	CLIP_CARRY_STONE,
 	CLIP_CARRY_METAL,
+	CLIP_CAPTURE,
 	CLIP_COUNT
 };
 
@@ -1009,7 +1010,7 @@ static const StringName &clip_name(ClipId id) {
 		StringName("Build"), StringName("Carry"), StringName("Heal"),
 		StringName("Slaughter"), StringName("Promotion"),
 		StringName("CarryFood"), StringName("CarryMeat"), StringName("CarryWood"),
-		StringName("CarryStone"), StringName("CarryMetal")
+		StringName("CarryStone"), StringName("CarryMetal"), StringName("Capture")
 	};
 	return names[id < CLIP_COUNT ? id : CLIP_NONE];
 }
@@ -1080,7 +1081,7 @@ struct WantAnim {
 };
 
 static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int32_t carry,
-		uint8_t utype, uint8_t res_type, uint8_t res_sub) {
+		uint8_t utype, uint8_t res_type, uint8_t res_sub, bool capturing) {
 	WantAnim w;
 	// A laden unit keeps the carry variant through any movement clip.
 	const bool laden_move = carry > 0 && (speed2 > 0.001f || uaction == rtso::ACTION_MOVE);
@@ -1124,7 +1125,8 @@ static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int
 			// Ships: Attack.js keeps attack_ranged until StopAttacking (sail falls back to idle).
 			if (speed2 <= 8.0f || rtso::unit_is_ship(utype)) {
 				const bool hunt = (utype == rtso::UNIT_VILLAGER || utype == rtso::UNIT_FEMALE_CITIZEN);
-				w.clip = hunt ? CLIP_SLAUGHTER : CLIP_ATTACK;
+				// variants/biped/attack_capture.xml: "capture" while taking a structure.
+				w.clip = capturing ? CLIP_CAPTURE : (hunt ? CLIP_SLAUGHTER : CLIP_ATTACK);
 				w.state = rtso::AnimState::Attack;
 				return w;
 			}
@@ -1180,6 +1182,7 @@ static ClipId resolve_clip_fallback(AnimationPlayer *anim, ClipId want) {
 		case CLIP_BUILD:     alt = CLIP_GATHER; break;
 		case CLIP_HEAL:      alt = CLIP_GATHER; break;
 		case CLIP_SLAUGHTER: alt = CLIP_ATTACK; break;
+		case CLIP_CAPTURE:   alt = CLIP_ATTACK; break;
 		default:             break;
 	}
 	if (alt != CLIP_NONE && anim->has_animation(clip_name(alt))) return alt;
@@ -1406,9 +1409,9 @@ static const uint8_t kCrowdClips[] = {
 	CLIP_GATHER_TREE, CLIP_GATHER_ORE, CLIP_GATHER_ROCK, CLIP_GATHER_FRUIT, CLIP_GATHER_GRAIN,
 	CLIP_GATHER_MEAT, CLIP_GATHER_FISH, CLIP_HEAL, CLIP_SLAUGHTER,
 	CLIP_CARRY_FOOD, CLIP_CARRY_MEAT, CLIP_CARRY_WOOD, CLIP_CARRY_STONE, CLIP_CARRY_METAL,
-	CLIP_PROMOTION,
+	CLIP_PROMOTION, CLIP_CAPTURE,
 };
-static_assert(sizeof(kCrowdClips) == 22, "kCrowdClips must match CROWD_CLIP_COUNT");
+static_assert(sizeof(kCrowdClips) == 23, "kCrowdClips must match CROWD_CLIP_COUNT");
 static constexpr int CROWD_DEATH_SLOT = 3;
 
 static int crowd_slot_of(ClipId clip) {
@@ -1435,6 +1438,7 @@ static int crowd_slot_of(ClipId clip) {
 		case CLIP_CARRY_STONE: return 19;
 		case CLIP_CARRY_METAL: return 20;
 		case CLIP_PROMOTION: return 21;
+		case CLIP_CAPTURE: return 22;
 		default: return 0;
 	}
 }
@@ -2123,7 +2127,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (it != res_sub.end()) sub = it->second;
 		}
 		return resolve_unit_anim(uview.action_state[i], vx * vx + vz * vz, uview.alive[i] != 0,
-				uview.carry[i], ut, uview.res_type_carried[i], sub);
+				uview.carry[i], ut, uview.res_type_carried[i], sub, sim->unit_capturing(i));
 	};
 	crowd_slot_scratch_.assign(uview.count, 0xFF);
 	static int counts[rtso::CIV_COUNT][rtso::UNIT_TYPE_COUNT][CROWD_CLIP_COUNT];

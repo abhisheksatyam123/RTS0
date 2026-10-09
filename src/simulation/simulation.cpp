@@ -97,6 +97,9 @@ uint64_t unit_classes(uint16_t tmpl, uint8_t type) {
 
 } // namespace
 
+// 0 A.D. BuildingAI.js roundCount: firing rounds per Attack/Ranged/RepeatTime.
+static constexpr int BUILDING_AI_ROUNDS = 10;
+
 // First save version with projectile sources and partial xp (0 A.D. Loot.js port).
 static constexpr uint32_t SAVE_VERSION_LOOT = 19;
 
@@ -119,6 +122,8 @@ constexpr float kBuildReach = 2.20f;
 // The save version that added UnitAI orders (tick_state_io section 4).
 static constexpr uint32_t SAVE_VERSION_UNIT_ORDERS = 20;
 static constexpr uint32_t SAVE_VERSION_MAX_GATHERERS = 33;
+// Each structure's BuildingAI round, arrows left and timer state.
+static constexpr uint32_t SAVE_VERSION_BUILDING_AI = 34;
 
 // Stand on the nearest AABB edge so pathing never aims through the footprint.
 static void stand_outside_rect(float bx, float bz, float half, uint32_t uid,
@@ -1323,6 +1328,86 @@ uint8_t distance_class_of(uint8_t type) {
 }
 } // namespace
 
+void Simulation::ensure_resource_block_cells() const {
+	const int w = std::max(1, (int)std::ceil(2.0f * map_half_ / GRID));
+	if (resource_block_tick_ == ticks_ && resource_block_count_ == resources_.count && resource_block_w_ == w) return;
+	resource_block_tick_ = ticks_;
+	resource_block_count_ = resources_.count;
+	resource_block_w_ = w;
+	resource_block_cells_.assign((size_t)w * w, 0);
+	for (size_t r = 0; r < resources_.count; ++r) {
+		if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
+		const uint8_t sub = resources_.subtype[r];
+		if (sub == RES_SUB_GRAIN || sub == RES_SUB_MEAT) continue;
+		// Gaia resource obstructions are about 1.5 m (3/8 tile) across their centre.
+		const int gx0 = std::max(0, (int)std::floor((resources_.x[r] - 0.375f + map_half_) / GRID));
+		const int gx1 = std::min(w - 1, (int)std::floor((resources_.x[r] + 0.375f + map_half_) / GRID));
+		const int gz0 = std::max(0, (int)std::floor((resources_.z[r] - 0.375f + map_half_) / GRID));
+		const int gz1 = std::min(w - 1, (int)std::floor((resources_.z[r] + 0.375f + map_half_) / GRID));
+		for (int z = gz0; z <= gz1; ++z)
+			for (int x = gx0; x <= gx1; ++x) resource_block_cells_[(size_t)z * w + x] = 1;
+	}
+}
+
+// Everything petra_can_place reads for a ring search around (start_cx, start_cz)
+// out to max_r rings: structures touching the area (a foundation's cells stay
+// occupied), the player's own structures under btype's distance rule, the
+// resource and scenery obstructions in the area, territory at each candidate
+// centre, and diplomacy. Same signature, same search result.
+uint64_t Simulation::petra_placement_signature(uint8_t btype, int start_cx, int start_cz, int max_r) const {
+	uint64_t h = 1469598103934665603ull; // FNV-1a over 64-bit words
+	auto mix = [&h](uint64_t v) { h = (h ^ v) * 1099511628211ull; };
+	auto fbits = [](float f) { uint32_t u; std::memcpy(&u, &f, sizeof u); return (uint64_t)u; };
+	const BuildRestriction rule = build_restriction(btype);
+	const int foot = building_type_info(btype).footprint;
+	// can_place reads cells [c - 1, c + foot] for each candidate c.
+	const int ax0 = start_cx - max_r - 1, ax1 = start_cx + max_r + foot;
+	const int az0 = start_cz - max_r - 1, az1 = start_cz + max_r + foot;
+	mix(fbits(map_half_));
+	mix(((uint64_t)petra_pid_ << 8) | btype);
+	for (const Building &b : buildings_) {
+		const bool in_area = b.cell_x <= ax1 && b.cell_x + b.footprint > ax0 && b.cell_y <= az1 && b.cell_y + b.footprint > az0;
+		const bool distance_rule = rule.distance_class != DIST_NONE && b.team == petra_pid_ && b.hp > 0.0f &&
+		                           distance_class_of(b.type) == rule.distance_class;
+		if (!in_area && !distance_rule) continue;
+		mix(b.id);
+		mix(((uint64_t)(uint32_t)b.cell_x << 32) | (uint32_t)b.cell_y);
+		mix(((uint64_t)b.footprint << 16) | ((uint64_t)distance_rule << 8) | (uint64_t)(b.hp > 0.0f));
+		if (distance_rule) { mix(fbits(b.x)); mix(fbits(b.z)); mix(fbits(b.half_size)); }
+	}
+	ensure_resource_block_cells();
+	const int w = resource_block_w_, off = (int)std::lround(map_half_ / GRID);
+	for (int z = std::max(0, az0 + off); z <= std::min(w - 1, az1 + off); ++z) {
+		uint64_t row = 0;
+		for (int x = std::max(0, ax0 + off); x <= std::min(w - 1, ax1 + off); ++x)
+			row = row * 31 + resource_block_cells_[(size_t)z * w + x];
+		mix(row);
+	}
+	const float wx0 = ax0 * GRID, wx1 = (ax1 + 1) * GRID, wz0 = az0 * GRID, wz1 = (az1 + 1) * GRID;
+	for (const Scenery &sc : scenery_) {
+		const float ext = sc.half_w + sc.half_d;
+		if (sc.x + ext < wx0 || sc.x - ext > wx1 || sc.z + ext < wz0 || sc.z - ext > wz1) continue;
+		mix(sc.id); mix(fbits(sc.x)); mix(fbits(sc.z)); mix(fbits(sc.angle));
+	}
+	if (!territory_grid_.blank()) {
+		for (int dz = -max_r; dz <= max_r; ++dz) {
+			uint64_t row = 0;
+			for (int dx = -max_r; dx <= max_r; ++dx) {
+				// check_placement's centre, computed the same way.
+				const float x0 = (start_cx + dx) * GRID, z0 = (start_cz + dz) * GRID;
+				const float cxw = 0.5f * (x0 + (x0 + foot * GRID)), czw = 0.5f * (z0 + (z0 + foot * GRID));
+				row = row * 131 + (uint64_t)(territory_owner_at(cxw, czw) + 1);
+			}
+			mix(row);
+		}
+	}
+	uint64_t allies = 0;
+	for (uint8_t o = 0; o < MAX_PLAYERS; ++o)
+		if (is_ally(petra_pid_, o) && is_ally(o, petra_pid_)) allies |= 1ull << o;
+	mix(allies);
+	return h;
+}
+
 Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell_x, int cell_y, uint8_t b_type) const {
 	if (player >= MAX_PLAYERS || b_type >= BLD_TYPE_COUNT) return PLACE_OBSTRUCTED;
 	const BuildingTypeInfo &binfo = building_type_info(b_type);
@@ -1335,25 +1420,8 @@ Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell
 	const float x1 = x0 + foot * GRID, z1 = z0 + foot * GRID;
 	const float cxw = 0.5f * (x0 + x1), czw = 0.5f * (z0 + z1);
 	{
-		const int w = std::max(1, (int)std::ceil(2.0f * map_half_ / GRID));
-		if (resource_block_tick_ != ticks_ || resource_block_count_ != resources_.count || resource_block_w_ != w) {
-			resource_block_tick_ = ticks_;
-			resource_block_count_ = resources_.count;
-			resource_block_w_ = w;
-			resource_block_cells_.assign((size_t)w * w, 0);
-			for (size_t r = 0; r < resources_.count; ++r) {
-				if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
-				const uint8_t sub = resources_.subtype[r];
-				if (sub == RES_SUB_GRAIN || sub == RES_SUB_MEAT) continue;
-				// Gaia resource obstructions are about 1.5 m (3/8 tile) across their centre.
-				const int gx0 = std::max(0, (int)std::floor((resources_.x[r] - 0.375f + map_half_) / GRID));
-				const int gx1 = std::min(w - 1, (int)std::floor((resources_.x[r] + 0.375f + map_half_) / GRID));
-				const int gz0 = std::max(0, (int)std::floor((resources_.z[r] - 0.375f + map_half_) / GRID));
-				const int gz1 = std::min(w - 1, (int)std::floor((resources_.z[r] + 0.375f + map_half_) / GRID));
-				for (int z = gz0; z <= gz1; ++z)
-					for (int x = gx0; x <= gx1; ++x) resource_block_cells_[(size_t)z * w + x] = 1;
-			}
-		}
+		ensure_resource_block_cells();
+		const int w = resource_block_w_;
 		const int off = (int)std::lround(map_half_ / GRID);
 		for (int dz = 0; dz < foot; ++dz)
 			for (int dx = 0; dx < foot; ++dx) {
@@ -2022,7 +2090,10 @@ void Simulation::finish_upgrade(Building &b) {
 	b.garrison_cap = structure_garrison_cap(b);
 	while ((int)b.garrisoned_units.size() > b.garrison_cap)
 		order_ungarrison_single(b.id, b.garrisoned_units.back());
-	b.attack_timer = 0.0f;
+	b.attack_timer = 0.0f; // the new entity's BuildingAI starts fresh
+	b.arrow_round = 0;
+	b.arrows_left = 0;
+	b.arrow_timer_on = false;
 	b.upgrade_paid.fill(0.0f);
 	b.upgrade_to = BLD_TYPE_COUNT;
 	b.upgrade_timer = 0.0f;
@@ -3639,6 +3710,35 @@ int Simulation::siege_tower_arrows(size_t i) const {
 		if (p >= 0 && (unit_tech_classes(units_.unit_type[p]) & TC_INFANTRY)) ++infantry;
 	}
 	return std::min(infantry, SIEGE_TOWER_MAX_ARROWS);
+}
+
+// BuildingAI.js GetArrowCount: DefaultArrowCount (with technologies: multiplied, then
+// added, then rounded) + round(garrisoned GarrisonArrowClasses units x
+// GarrisonArrowMultiplier), at most MaxArrowCount.
+int Simulation::building_arrow_count(const Building &b) const {
+	const BuildingAIInfo &ai = building_ai_info(b.type);
+	if (b.team >= MAX_PLAYERS && b.team != GAIA_PLAYER) return 0;
+	float def = (float)ai.default_arrows;
+	if (b.team < MAX_PLAYERS) {
+		const TechMods &m = tech_mods(b.team);
+		def = def * m.bld_arrow_mul[b.type] + m.bld_arrow_add[b.type];
+	}
+	int garrisoned = 0;
+	if (ai.garrison_arrow_classes) {
+		for (uint32_t uid : b.garrisoned_units) {
+			const int32_t g = lookup_unit(uid);
+			if (g >= 0 && (unit_classes(units_.tmpl[g], units_.unit_type[g]) & ai.garrison_arrow_classes)) ++garrisoned;
+		}
+	}
+	int count = (int)std::lround(def) + (int)std::lround(garrisoned * ai.garrison_arrow_multiplier);
+	if (ai.max_arrows > 0) count = std::min(count, (int)ai.max_arrows);
+	return std::max(count, 0);
+}
+
+float Simulation::building_arrow_range(const Building &b) const {
+	const BuildingAIInfo &ai = building_ai_info(b.type);
+	if (!ai.shoots()) return 0.0f;
+	return ai.max_range + (b.team < MAX_PLAYERS ? tech_mods(b.team).bld_range[b.type] : 0.0f);
 }
 
 // Who may board: same owner, not a transport itself; land siege only takes
@@ -6460,33 +6560,9 @@ void Simulation::tick_combat(float dt) {
 		// 0 A.D. Exact Exponential Armor Formula (Attack.js + Resistance.js):
 		// Damage = sum( Dmg[Type] * 0.9^Armor[Type] )
 		const auto &uinfo_att = unit_info_at(i);
-		const auto &uinfo_dst = unit_info_at(t);
-		float target_hack = uinfo_dst.hack_armor;
-		float target_pierce = uinfo_dst.pierce_armor;
-		float target_crush = uinfo_dst.crush_armor;
-
-		// Researched armor tech bonuses
-		if (units_.team[t] < MAX_PLAYERS && units_.unit_type[t] < UNIT_TYPE_COUNT) {
-			const float *armor = unit_tech_mods(units_.team[t], units_.unit_type[t], units_.tmpl[t]).armor;
-			target_hack += armor[0];
-			target_pierce += armor[1];
-			target_crush += armor[2];
-		}
-
-		// unit_advanced.json / unit_elite.json: melee units +1 resistance per rank
-		if (const float ra = rank_melee_armor((size_t)t); ra > 0.0f) {
-			target_hack += ra;
-			target_pierce += ra;
-			target_crush += ra;
-		}
-
-		// AuraManager defensive armor buff
-		float armorAura = aura_mgr_.query_modifier(units_.pos_x[t], units_.pos_z[t], units_.team[t], AURA_ARMOR,
-			units_.tmpl[t], &unit_combat_at(t).classes);
-		if (armorAura != 0.0f) {
-			target_hack += armorAura;
-			target_pierce += armorAura;
-		}
+		float target_armor[3];
+		unit_resistance((size_t)t, target_armor);
+		const float target_hack = target_armor[0], target_pierce = target_armor[1], target_crush = target_armor[2];
 
 		float dmg_scale = (uinfo_att.attack_damage > 0.0f) ? (units_.attack_damage[i] / uinfo_att.attack_damage) : 1.0f;
 		float hack_dmg = uinfo_att.hack_damage * dmg_scale;
@@ -6557,34 +6633,6 @@ void Simulation::tick_combat(float dt) {
 				           unit_splash(units_.tmpl[i], u_att));
 			}
 
-			// If War Trireme has garrisoned passengers, fire deck archer barrage
-			if (u_att == UNIT_TRIREME) {
-				auto pit = transport_passengers_.find(units_.id[i]);
-				if (pit != transport_passengers_.end() && !pit->second.empty()) {
-					int p_archers = 0;
-					float p_bonus_dmg = 0.0f;
-					for (uint32_t puid : pit->second) {
-						int32_t pidx = lookup_unit(puid);
-						if (pidx < 0) continue;
-						uint8_t pt = units_.unit_type[pidx];
-						if (pt == UNIT_ARCHER || pt == UNIT_ARCHER_MAIDEN || pt == UNIT_BOLT_SHOOTER) {
-							p_archers += 1;
-							p_bonus_dmg += 3.0f;
-						} else {
-							p_bonus_dmg += 1.0f;
-						}
-					}
-					int extra = std::clamp(1 + p_archers + (int)pit->second.size() / 3, 1, 6);
-					for (int a = 0; a < extra; ++a) {
-						float sp = (a - extra * 0.5f) * 0.3f;
-						float deck_y = unit_height(i) + 2.5f;
-						float hit_y = unit_height(t) + 0.8f;
-						fire_arrow(units_.pos_x[i] + sp, deck_y, units_.pos_z[i] + sp,
-								   units_.pos_x[t], hit_y, units_.pos_z[t],
-								   12.0f + p_bonus_dmg, units_.team[i], units_.id[t], 0, 1, false, 0, units_.id[i]);
-					}
-				}
-			}
 		} else {
 			award_damage_xp(units_.id[i], (size_t)t, final_dmg);
 			note_attacked(units_.id[i], units_.team[i], units_.id[t], units_.team[t], false, final_dmg);
@@ -6785,78 +6833,126 @@ void Simulation::tick_combat(float dt) {
 		}
 	}
 
-	// 4. Defensive Buildings & Parapet Walls attack (TC / Tower / Fortress / Wall + Garrison volley bonus)
+	// 4. Structure arrows: 0 A.D. BuildingAI.js. While enemies are in range a timer fires
+	// ten rounds per RepeatTime (after PrepareTime). Round 0 takes GetArrowCount(); each
+	// round fires randIntInclusive(0, 2 * count / 10) of what is left and the last round
+	// the rest. Every arrow goes to a random target, Humans weighing 1 + 2 / (1 + 0)
+	// against 1 for anything else (PreferredClasses), and scatters by the structure's
+	// Projectile/Spread like a unit's arrow (Attack.js PerformAttack); it hurts whatever
+	// it lands on (tick_projectiles).
+	struct ArrowTarget { int32_t idx; bool building; float weight; };
+	std::vector<ArrowTarget> arrow_targets;
 	for (auto &b : buildings_) {
-		if (b.build_progress < 1.0f || b.hp <= 0.0f) continue;
-		const BuildingTypeInfo &binfo = building_type_info(b.type);
-		bool is_wall = (b.type == BLD_WALL_SEGMENT) && !turret_points_of(b); // turret walls: the units shoot
-
-		if (binfo.attack_damage > 0 || (is_wall && !b.garrisoned_units.empty())) {
+		const BuildingAIInfo &ai = building_ai_info(b.type);
+		if (!ai.shoots() || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked || (b.team >= MAX_PLAYERS && b.team != GAIA_PLAYER)) continue;
+		if (b.arrow_timer_on) {
 			b.attack_timer -= dt;
-			if (b.attack_timer <= 0.0f && n) {
-				const TechMods &bm = tech_mods(b.team);
-				float base_range = (is_wall ? 16.0f : binfo.attack_range) + bm.bld_range[b.type];
-				float base_dmg = (is_wall ? 15.0f : binfo.attack_damage) * bm.bld_attack[b.type];
-				float cd = is_wall ? 1.0f : binfo.attack_cooldown;
-
-				// Parapet Wall & High-Ground Elevation Advantage (+50% range on walls)
-				float wall_y = get_terrain_height(b.x, b.z) + (is_wall ? 4.5f : 3.5f);
-				float range = is_wall ? (base_range * 1.5f) : base_range;
-				float damage = is_wall ? (base_dmg * 1.25f) : base_dmg;
-
-				// Garrison & Turret System (TurretHolder.js / BuildingAI.js): arrow and damage scaling
-				float garrison_arrow_bonus = 0.0f;
-				float garrison_dmg_bonus = 0.0f;
-				for (uint32_t guid : b.garrisoned_units) {
-					int32_t gidx = lookup_unit(guid);
-					if (gidx < 0) continue;
-					uint8_t gutype = units_.unit_type[gidx];
-					if (gutype == UNIT_ARCHER || gutype == UNIT_ARCHER_MAIDEN || gutype == UNIT_BOLT_SHOOTER) {
-						garrison_arrow_bonus += 1.0f;
-						garrison_dmg_bonus += 2.5f;
-					} else if (gutype == UNIT_SWORDSMAN || gutype == UNIT_SPEARMAN || gutype == UNIT_CAVALRY || gutype == UNIT_HERO || gutype == UNIT_CARNYX) {
-						garrison_arrow_bonus += 0.5f;
-						garrison_dmg_bonus += 1.5f;
-					} else {
-						garrison_arrow_bonus += 0.25f;
-						garrison_dmg_bonus += 0.5f;
-					}
-				}
-				// Sentries / Professional Garrisons / Hellenistic Metropolis
-				// (BuildingAI DefaultArrowCount and MaxArrowCount).
-				const TechMods &abm = tech_mods(b.team);
-				const float arrow_mul = abm.bld_arrow_mul[b.type];
-				const float arrow_add = abm.bld_arrow_add[b.type];
-				int base_arrows = is_wall ? 0 : (int)std::lround(1.0f * arrow_mul);
-				int max_arrows = (b.type == BLD_FORTRESS) ? 10 : ((b.type == BLD_TOWN_CENTER) ? 8 : ((b.type == BLD_TOWER || is_wall) ? 5 : 4));
-				max_arrows = (int)std::lround(max_arrows * arrow_mul + arrow_add);
-				int total_arrows = std::clamp((int)(base_arrows + arrow_add + std::floor(garrison_arrow_bonus)),
-						is_wall ? 0 : 1, max_arrows);
-				float final_turret_dmg = damage + garrison_dmg_bonus;
-
-				int32_t hit = -1;
-				grid.visit_radius(b.x, b.z, range, [&](int32_t i) {
-					if (hit >= 0 || !units_.alive[i] || !can_attack(b.team, units_.team[i])) return;
-					float dx = b.x - units_.pos_x[i];
-					float dz = b.z - units_.pos_z[i];
-					float d2 = dx * dx + dz * dz;
-					float unit_y = unit_height(i);
-					if (in_parabolic_range(d2, wall_y, unit_y, range)) {
-						hit = i;
-					}
-				});
-				if (hit >= 0) {
-					b.attack_timer = cd;
-					for (int a = 0; a < total_arrows; ++a) {
-						float spread = (a - total_arrows * 0.5f) * 0.22f;
-						float hit_y = unit_height(hit) + 0.8f;
-						fire_arrow(b.x + spread, wall_y, b.z + spread,
-								   units_.pos_x[hit], hit_y, units_.pos_z[hit],
-								   final_turret_dmg, b.team, units_.id[hit], 0, 1, false, 0, b.id);
-					}
-				}
-			}
+			if (b.attack_timer > 0.0f) continue;
 		}
+
+		// The enemy range query: parabolic between MinRange and MaxRange from the
+		// structure's edge, measured from Origin/Y above its ground.
+		const float max_r = building_arrow_range(b);
+		const float min_r = ai.min_range;
+		const float b_y = get_terrain_height(b.x, b.z) + ai.origin_y;
+		auto in_range = [&](float dx, float dz, float other_half, float def_y) {
+			const float eff_d = std::max(0.0f, sqrtf(dx * dx + dz * dz) - b.half_size - other_half);
+			return eff_d >= min_r && in_parabolic_range(eff_d * eff_d, b_y, def_y, max_r);
+		};
+		// Gaia is shot only where it can fight back (SetupGaiaRangeQuery asks for IID_Attack).
+		auto unit_target = [&](int32_t i) {
+			return units_.alive[i] && units_.action_state[i] != ACTION_GARRISONED && can_attack(b.team, units_.team[i])
+					&& (units_.team[i] != GAIA_PLAYER || units_.attack_damage[i] > 0.0f)
+					&& in_range(units_.pos_x[i] - b.x, units_.pos_z[i] - b.z, 0.0f, unit_height(i));
+		};
+		auto building_target = [&](const Building &ob) {
+			return !ob.wrecked && ob.hp > 0.0f && can_attack(b.team, ob.team)
+					&& (ob.team != GAIA_PLAYER || building_ai_info(ob.type).shoots())
+					&& in_range(ob.x - b.x, ob.z - b.z, ob.half_size, get_terrain_height(ob.x, ob.z));
+		};
+		if (!b.arrow_timer_on) {
+			// OnRangeUpdate -> StartTimer: the first round comes PrepareTime after an enemy enters.
+			bool any = false;
+			if (n) grid.visit_radius(b.x, b.z, max_r + b.half_size, [&](int32_t i) { any = any || unit_target(i); });
+			for (size_t o = 0; o < buildings_.size() && !any; ++o) any = building_target(buildings_[o]);
+			if (!any) continue;
+			b.arrow_timer_on = true;
+			b.attack_timer = ai.prepare_time;
+			continue;
+		}
+		arrow_targets.clear();
+		if (n) {
+			grid.visit_radius(b.x, b.z, max_r + b.half_size, [&](int32_t i) {
+				if (!unit_target(i)) return;
+				const bool human = ai.prefers_human && unit_combat_at(i).classes.has(CC_HUMAN);
+				arrow_targets.push_back({i, false, human ? 3.0f : 1.0f});
+			});
+		}
+		// Structures have Resistance and Health too, so enemy buildings in range draw arrows.
+		for (size_t o = 0; o < buildings_.size(); ++o)
+			if (building_target(buildings_[o])) arrow_targets.push_back({(int32_t)o, true, 1.0f});
+		if (arrow_targets.empty()) { // FireArrows with no targets cancels the timer
+			b.arrow_timer_on = false;
+			b.attack_timer = 0.0f;
+			continue;
+		}
+		// grid.visit_radius walks cells in a fixed order; sort so the draw never depends on it.
+		std::sort(arrow_targets.begin(), arrow_targets.end(), [](const ArrowTarget &a, const ArrowTarget &c) {
+			return a.building != c.building ? c.building : a.idx < c.idx;
+		});
+		b.attack_timer += ai.repeat_time / BUILDING_AI_ROUNDS;
+
+		if (b.arrow_round > BUILDING_AI_ROUNDS - 1) b.arrow_round = 0;
+		const int count = building_arrow_count(b);
+		if (b.arrow_round == 0) b.arrows_left = (int16_t)count;
+		int to_fire = b.arrows_left;
+		if (b.arrow_round != BUILDING_AI_ROUNDS - 1) {
+			// randIntInclusive(0, max) = floor(random * (max + 1)), max may be fractional.
+			const float max_roll = 2.0f * (float)count / BUILDING_AI_ROUNDS;
+			to_fire = std::min((int)std::floor(sim_rng_.range_float(0.0f, max_roll + 1.0f)), (int)b.arrows_left);
+		}
+		++b.arrow_round;
+		if (to_fire <= 0) continue;
+
+		float total_weight = 0.0f;
+		for (const ArrowTarget &t : arrow_targets) total_weight += t.weight;
+		const float pierce_mul = b.team < MAX_PLAYERS ? tech_mods(b.team).bld_attack[b.type] : 1.0f;
+		const float hack = ai.hack, pierce = ai.pierce * pierce_mul, crush = ai.crush;
+		const float spread = building_combat(b.type).spread;
+		const float launch_y = get_terrain_height(b.x, b.z) + 3.5f; // where the arrow is drawn from
+		for (int a = 0; a < to_fire; ++a) {
+			// WeightedList.randomItem
+			float roll = sim_rng_.range_float(0.0f, total_weight);
+			size_t pick = 0;
+			while (pick + 1 < arrow_targets.size() && roll >= arrow_targets[pick].weight) roll -= arrow_targets[pick++].weight;
+			const ArrowTarget &t = arrow_targets[pick];
+			if (t.building) {
+				const Building &ob = buildings_[(size_t)t.idx];
+				const CombatProfile &oc = building_combat(ob.type);
+				// Attack.js has no minimum damage: arrows barely scratch stone.
+				const float dmg = hack * powf(0.9f, oc.hack_armor) + pierce * powf(0.9f, oc.pierce_armor) +
+						crush * powf(0.9f, oc.crush_armor);
+				fire_arrow(b.x, launch_y, b.z, ob.x, get_terrain_height(ob.x, ob.z) + 1.0f, ob.z,
+						dmg, b.team, ob.id, 0, 1, true, 0, b.id);
+				continue;
+			}
+			const size_t u = (size_t)t.idx;
+			float armor[3];
+			unit_resistance(u, armor);
+			const float dmg = hack * powf(0.9f, armor[0]) + pierce * powf(0.9f, armor[1]) + crush * powf(0.9f, armor[2]);
+			const float dx = units_.pos_x[u] - b.x, dz = units_.pos_z[u] - b.z;
+			const float dist = sqrtf(dx * dx + dz * dz);
+			const float flight = dist / projectile_speed(0);
+			const float aim_x = units_.pos_x[u] + units_.vel_x[u] * flight;
+			const float aim_z = units_.pos_z[u] + units_.vel_z[u] * flight;
+			const float sigma = spread * dist / 100.0f;
+			float disp_x = 0.0f, disp_z = 0.0f;
+			random_normal_2d(disp_x, disp_z);
+			const float land_y = (unit_is_ship(units_.unit_type[u]) ? unit_height(u) : get_terrain_height(aim_x, aim_z)) + 0.8f;
+			fire_arrow(b.x, launch_y, b.z, aim_x + disp_x * sigma, land_y, aim_z + disp_z * sigma,
+					dmg, b.team, units_.id[u], 0, 1, false, 0, b.id);
+		}
+		b.arrows_left = (int16_t)(b.arrows_left - to_fire);
 	}
 
 	// 2b. Health.js regeneration: RegenRate always, IdleRegenRate while the unit is idle
@@ -7246,11 +7342,10 @@ void Simulation::capture_points_tick(Building &b, size_t bi, float dt) {
 // 0 A.D. DelayedDamage.js Hit: a unit's projectile damages its target only if it lands
 // inside the target's footprint (PositionHelper.TestCollision); otherwise the nearest
 // enemy whose footprint holds the landing point takes it, and
-// failing that it misses. Structure arrows (BuildingAI, the buildings thread's) still
-// strike their target. Returns the unit hit, or -1.
+// failing that it misses. Structure arrows (BuildingAI) land the same way. Returns the
+// unit hit, or -1.
 int32_t Simulation::projectile_hit_unit(const Projectile &p) const {
 	const int32_t target = lookup_unit(p.target_unit_id);
-	if (p.source_id != 0 && building_id_to_idx_.count(p.source_id)) return target;
 	auto inside = [&](int32_t u) {
 		const float dx = units_.pos_x[u] - p.target_x, dz = units_.pos_z[u] - p.target_z;
 		const float r = combat_footprint(unit_combat_at((size_t)u));
@@ -7736,6 +7831,14 @@ void Simulation::tick_waves(float dt) {
 			units_.action_state[uidx] = ACTION_ATTACK;
 		}
 	}
+}
+
+bool Simulation::unit_capturing(size_t i) const {
+	if (i >= units_.count || !units_.alive[i] || units_.action_state[i] != ACTION_ATTACK) return false;
+	if (units_.target_building_id[i] == 0 || !(units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE)) return false;
+	if (units_.team[i] >= MAX_PLAYERS || unit_capture_attack_at(i) <= 0.0f) return false;
+	auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
+	return bit != building_id_to_idx_.end() && can_capture_building(units_.team[i], buildings_[bit->second]);
 }
 
 Simulation::UnitView Simulation::units() const {
@@ -12182,7 +12285,7 @@ bool Simulation::petra_allow_capture(const std::vector<uint32_t> &squad, uint32_
 	const float health = b.max_hp > 0.0f ? std::clamp(b.hp / b.max_hp, 0.0f, 1.0f) : 1.0f;
 	capture /= 0.1f + 0.9f * health;
 	const float points = std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f);
-	const bool fires = building_type_info(b.type).attack_damage > 0.0f && !b.garrisoned_units.empty();
+	const bool fires = building_ai_info(b.type).shoots() && !b.garrisoned_units.empty();
 	return capture > anti + points / (fires ? 50.0f : 80.0f);
 }
 
@@ -13306,6 +13409,19 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 	int start_cx = (int)(near_x / GRID);
 	int start_cz = (int)(near_z / GRID);
 	int foot = info.footprint;
+	// queueplanBuilding.js: a plan with no room is set unbuildable for a while
+	// (buildManager.setUnbuildable). Here a search that found no spot is not
+	// repeated until something it read changes, so the outcome is unchanged.
+	const bool remember = btype < BLD_TYPE_COUNT && build_restriction(btype).placement == PLACE_LAND;
+	const uint64_t sig = remember ? petra_placement_signature(btype, start_cx, start_cz, max_r) : 0;
+	PetraPlaceMiss key{sig, start_cx, start_cz, (int16_t)min_r, (int16_t)max_r, petra_pid_, btype};
+	auto same_search = [&key](const PetraPlaceMiss &m) {
+		return m.cx == key.cx && m.cz == key.cz && m.min_r == key.min_r && m.max_r == key.max_r &&
+		       m.pid == key.pid && m.btype == key.btype;
+	};
+	auto miss = remember ? std::find_if(petra_place_misses_.begin(), petra_place_misses_.end(), same_search)
+	                     : petra_place_misses_.end();
+	if (miss != petra_place_misses_.end() && miss->sig == sig) return 0;
 	for (int r = min_r; r <= max_r; ++r) {
 		for (int dx = -r; dx <= r; ++dx) {
 			for (int dz = -r; dz <= r; ++dz) {
@@ -13321,6 +13437,13 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 			}
 		}
 	}
+	if (remember) {
+		if (miss != petra_place_misses_.end()) miss->sig = sig;
+		else {
+			if (petra_place_misses_.size() >= 64) petra_place_misses_.erase(petra_place_misses_.begin());
+			petra_place_misses_.push_back(key);
+		}
+	}
 	return 0;
 }
 
@@ -13329,10 +13452,10 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 // siege, or other units (Gaia's only while fighting; Gaia is no foe here).
 Simulation::PetraAround Simulation::petra_around(const Building &holder) const {
 	PetraAround around;
-	const BuildingTypeInfo &info = building_type_info(holder.type);
-	const float range = info.attack_damage > 0.0f ? info.attack_range + tech_mods(holder.team).bld_range[holder.type] : 20.0f;
+	const float arrows = building_arrow_range(holder);
+	const float range = arrows > 0.0f ? arrows + holder.half_size : 20.0f;
 	for (const Building &b : buildings_) {
-		if (!petra_foe(b.team) || b.hp <= 0.0f || b.build_progress < 1.0f || building_type_info(b.type).attack_damage <= 0.0f) continue;
+		if (!petra_foe(b.team) || b.hp <= 0.0f || b.build_progress < 1.0f || !building_ai_info(b.type).shoots()) continue;
 		const float dx = b.x - holder.x, dz = b.z - holder.z;
 		if (dx * dx + dz * dz <= range * range) { around.defense_structure = true; break; }
 	}
@@ -13495,7 +13618,7 @@ void Simulation::petra_manage_garrisons() {
 	for (size_t bi = 0; bi < buildings_.size(); ++bi) {
 		const Building &b = buildings_[bi];
 		if (b.team != petra_pid_ || b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0) continue;
-		const bool shoots = building_type_info(b.type).attack_damage > 0.0f;
+		const bool shoots = building_ai_info(b.type).shoots();
 		if (b.garrisoned_units.empty() && !shoots) continue;
 		const PetraAround around = petra_around(b);
 		std::vector<uint32_t> leave;
@@ -14556,7 +14679,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -14694,6 +14817,9 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&b.is_burning, sizeof(b.is_burning));
 		out.write((const char *)&b.gate_open, sizeof(b.gate_open));
 		out.write((const char *)&b.gate_locked, sizeof(b.gate_locked));
+		out.write((const char *)&b.arrow_round, sizeof(b.arrow_round));
+		out.write((const char *)&b.arrows_left, sizeof(b.arrows_left));
+		out.write((const char *)&b.arrow_timer_on, sizeof(b.arrow_timer_on));
 		out.write((const char *)&b.rot, sizeof(b.rot));
 
 		uint32_t q_sz = (uint32_t)b.queue.size();
@@ -15014,6 +15140,17 @@ bool Simulation::load_state(const char *filepath) {
 		if (version >= 13) {
 			in.read((char *)&bld.gate_open, sizeof(bld.gate_open));
 			in.read((char *)&bld.gate_locked, sizeof(bld.gate_locked));
+		}
+		if (version >= SAVE_VERSION_BUILDING_AI) {
+			in.read((char *)&bld.arrow_round, sizeof(bld.arrow_round));
+			in.read((char *)&bld.arrows_left, sizeof(bld.arrows_left));
+			in.read((char *)&bld.arrow_timer_on, sizeof(bld.arrow_timer_on));
+		} else {
+			// Older saves kept only the volley cooldown: start a fresh RepeatTime.
+			bld.arrow_round = 0;
+			bld.arrows_left = 0;
+			bld.arrow_timer_on = false;
+			bld.attack_timer = 0.0f;
 		}
 		if (version >= 31) in.read((char *)&bld.rot, sizeof(bld.rot));
 		const auto &bi = building_type_info(bld.type);
