@@ -10445,9 +10445,11 @@ void Simulation::next_after_construction(size_t k, const Building &b, bool food,
 	{
 		// A queued order goes first (FinishOrder); fields and dropsites only apply without one.
 		// Fields and dropsites only for the player's own builders (oldData.force || autoharvest),
-		// not for those UnitAI sent over from a finished structure or a guard.
-		const bool harvest = units_.order_kind[k] == ORDER_BUILD &&
-				(units_.order_flags[k] & (ORDER_FLAG_FORCE | ORDER_FLAG_AUTOHARVEST)) != 0;
+		// not for those UnitAI sent over from a finished structure or a guard. Petra's builders
+		// keep gathering by what they built: RTS0's Petra counts on it (0 A.D.'s Petra sends
+		// autocontinue false and reassigns them itself).
+		const bool harvest = petra_runs_for(units_.team[k]) || (units_.order_kind[k] == ORDER_BUILD &&
+				(units_.order_flags[k] & (ORDER_FLAG_FORCE | ORDER_FLAG_AUTOHARVEST)) != 0);
 		auto q = order_queues_.find(uid);
 		if (q != order_queues_.end() && !q->second.empty()) { finish_order(k); return; }
 		if (harvest && b.type == BLD_FIELD) {
