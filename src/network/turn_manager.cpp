@@ -67,6 +67,11 @@ static uint64_t rejoin_now_ms();
 static constexpr uint8_t CMD_PEER_JOINED = static_cast<uint8_t>(NetCommandType::NET_CMD_PEER_JOINED);
 static constexpr uint8_t CMD_PEER_LEFT = static_cast<uint8_t>(NetCommandType::NET_CMD_PEER_LEFT);
 
+// A train command's batch size (target_z): a whole number 1..200, else one unit.
+static int batch_count(float z) {
+	return (z >= 1.0f && z <= 200.0f && z == (float)(int)z) ? (int)z : 1;
+}
+
 void TurnManager::ensure_lockstep_peers() {
 	if (!lockstep_peers_set_) {
 		lockstep_peers_.clear();
@@ -1259,7 +1264,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			if (c.param == UNIT_TYPE_NONE && c.target_x > 0.0f)
 				sim.cmd_breed_livestock(pl, c.target_id, (uint8_t)c.target_x);
 			else
-				sim.cmd_train(pl, c.target_id, (UnitType)c.param);
+				sim.cmd_train(pl, c.target_id, (UnitType)c.param, batch_count(c.target_z));
 		} else if (c.cmd_type == 7) { // Stance
 			sim.order_set_stance(ids, n, c.param);
 		} else if (c.cmd_type == 8) { // Formation
@@ -1338,7 +1343,9 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			sim.order_pack(ids, n, c.param == 1);
 		} else if (c.cmd_type == 25) { // Train roster template — target_id=building, target_x=template.
 			if (c.target_x >= 0.0f && c.target_x < (float)CIV_UNIT_TEMPLATE_COUNT)
-				sim.cmd_train_template(pl, c.target_id, (uint16_t)c.target_x);
+				sim.cmd_train_template(pl, c.target_id, (uint16_t)c.target_x, batch_count(c.target_z));
+		} else if (c.cmd_type == 44) { // Autoqueue — target_id=building, param 1 on / 0 off.
+			sim.cmd_set_autoqueue(pl, c.target_id, c.param == 1);
 		} else if (c.cmd_type == 33) { // Trading goods — target_id = one percent byte per ResourceType.
 			uint8_t pct[RES_COUNT];
 			for (int r = 0; r < RES_COUNT; ++r) pct[r] = (uint8_t)(c.target_id >> (8 * r));
