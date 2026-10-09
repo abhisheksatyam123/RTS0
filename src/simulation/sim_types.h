@@ -300,7 +300,12 @@ enum BuildingType : uint8_t {
 	BLD_MILITARY_COLONY = 43, // ptol, sele military_colony
 	BLD_ACADEMY = 44,         // han/academy
 	BLD_MINISTRY = 45,        // han/ministry
-	BLD_TYPE_COUNT = 46
+	BLD_CAMP_BLEMMYE = 46,    // kush/camp_blemmye
+	BLD_CAMP_NOBA = 47,       // kush/camp_noba
+	BLD_TEMPLE_AMUN = 48,     // kush/temple_amun
+	BLD_TEMPLE_VESTA = 49,    // rome/temple_vesta
+	BLD_TEMPLE_MARS = 50,     // rome/temple_mars
+	BLD_TYPE_COUNT = 51
 };
 
 #include "civ_building_data.h"
@@ -319,7 +324,8 @@ enum ResourceSubtype : uint8_t {
 	RES_SUB_NONE = 0,
 	RES_SUB_MEAT = 1,
 	RES_SUB_GRAIN = 2,
-	RES_SUB_FISH = 3 // food.fish: only fishing boats gather it
+	RES_SUB_FISH = 3, // food.fish: only fishing boats gather it
+	RES_SUB_RUINS = 4 // stone.ruins / metal.ruins (template_gaia_ruins): 4x a rock's gather rate
 };
 
 // 0 A.D. template_gaia_fish.xml ResourceSupply: 1000 food, at most 4 gatherers,
@@ -358,7 +364,8 @@ enum UnitOrderKind : uint8_t {
 	ORDER_HEAL = 10,          // target unit (UnitAI Heal)
 	ORDER_TRADE = 11,         // target = first market, x2 holds the second market's id bits (UnitAI Trade)
 	ORDER_RETURN_RESOURCE = 12, // target = the dropsite (UnitAI ReturnResource)
-	ORDER_KIND_COUNT = 13
+	ORDER_COLLECT_TREASURE = 13, // target treasure (UnitAI CollectTreasure)
+	ORDER_KIND_COUNT = 14
 };
 
 enum UnitOrderFlag : uint8_t {
@@ -1084,6 +1091,7 @@ struct CivUnitTemplate {
 	int16_t carry_capacity;
 	int16_t auras[3]; // index into civ_hero_aura_table(), -1 = none
 	uint8_t unlock_tech; // TechnologyId from 0 A.D. Identity/Requirements (unlock_champion_*), or TECH_NONE
+	uint64_t tech_classes; // TechClass bits of 0 A.D. Identity/Classes + VisibleClasses
 };
 
 #include "civ_roster_data.h"
