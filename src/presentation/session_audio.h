@@ -140,6 +140,8 @@ public:
 		godot::AudioStreamPlayer *p = pool_[next_++ % kPool];
 		if (!p) return false;
 		p->set_stream(s);
+		// sound.uigain for interface sounds, sound.actiongain for the rest.
+		p->set_bus(path.contains("/audio/interface/") ? "UI" : "Action");
 		p->set_volume_db(gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f);
 		p->play();
 		last_played_ = path;

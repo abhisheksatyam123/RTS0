@@ -131,6 +131,17 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	Label *inspector_stats = nullptr;
 	Label *inspector_extra = nullptr;
 	Button *ungarrison_btn = nullptr;
+	Button *template_info_btn_ = nullptr;
+	// Options page settings the session uses (refresh_user_options).
+	struct UserOptions {
+		uint32_t generation = 0;
+		int batch_size = 5;
+		float wounded_fraction = 0.33f;
+		float flare_time = 6.0f;
+		float drag_delta = 4.0f;
+		bool attack_notice = true;
+	} user_opts_;
+	void refresh_user_options();
 	RtsoSelectionGrid selection_grid_;
 	RtsoSelectionGrid garrison_grid_;
 
@@ -273,6 +284,7 @@ public:
 	PopupMenu *speed_menu_ = nullptr;
 	void _on_menu_button_pressed();
 	void _on_ungarrison_pressed();
+	void _on_template_info_pressed();
 	void _on_alert_pressed(int end);
 	void _on_selection_group_clicked(int key);
 	void _on_garrison_group_clicked(int key);
@@ -359,6 +371,7 @@ public:
 	void _toggle_session_dialog(String name);
 	double last_flare_time_ = -10.0; // input.js g_LastFlareTime
 	int get_target_marker_count() const { return (int)range_overlays_.marker_count(); } // tests
+	bool select_first_own(bool building); // tests
 	int get_work_sound_count() const { return session_audio_.work_sounds_played(); } // tests
 	void debug_gather_nearest();
 	// 0 A.D. unit_actions "setup-trade-route": traders take a route in two right-clicks,
