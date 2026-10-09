@@ -137,7 +137,13 @@ enum MapType : uint8_t {
 	MAP_CYCLADIC_ARCHIPELAGO = 62,
 	MAP_SNOWFLAKE_SEAROCKS = 63,
 	MAP_HARBOR = 64,
-	MAP_TYPE_COUNT = 65
+	MAP_CORSICA = 65,
+	MAP_PHOENICIAN_LEVANT = 66,
+	MAP_MARMARA = 67,
+	MAP_BAHRAIN = 68,
+	MAP_BOTSWANAN_HAVEN = 69,
+	MAP_SCYTHIAN_RIVULET = 70,
+	MAP_TYPE_COUNT = 71
 };
 
 struct MapTypeInfo {
@@ -215,7 +221,13 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_ISLANDS, "islands", "Islands (RMS)", "temperate", true, "Players start in small islands while there are many others around."},
 		{MAP_CYCLADIC_ARCHIPELAGO, "cycladic_archipelago", "Cycladic Archipelago (RMS)", "aegean", true, "Each player starts on an island surrounded by water."},
 		{MAP_SNOWFLAKE_SEAROCKS, "snowflake_searocks", "Snowflake Searocks (RMS)", "temperate", true, "Many small islands connected to each other by narrow passages."},
-		{MAP_HARBOR, "harbor", "Harbor (RMS)", "temperate", true, "A sheltered harbor for each player, a deep sea beyond, and narrow passages round the cliffs."}
+		{MAP_HARBOR, "harbor", "Harbor (RMS)", "temperate", true, "A sheltered harbor for each player, a deep sea beyond, and narrow passages round the cliffs."},
+		{MAP_CORSICA, "corsica", "Corsica vs Sardinia (RMS)", "mediterranean", true, "The players start on two opposing islands, both with a very jagged relief that will make landing difficult."},
+		{MAP_PHOENICIAN_LEVANT, "phoenician_levant", "Phoenician Levant (RMS)", "mediterranean", true, "Players start in the eastern part of the map while a great sea is located to the west."},
+		{MAP_MARMARA, "marmara", "Marmara (RMS)", "aegean", true, "The Propontis (Sea of Marmara) between Thrace and Asia Minor, joined by the Bosporus and the Hellespont; players start on fertile land."},
+		{MAP_BAHRAIN, "bahrain", "Bahrain (RMS)", "desert", true, "Bahrain, the pearl island of the Sinus Persicus, stands empty between the coasts of Arabia: will you be its next ruler?"},
+		{MAP_BOTSWANAN_HAVEN, "botswanan_haven", "Botswanan Haven (RMS)", "savanna", true, "Botswana in the wet season: herds graze amid tall, lush grasses where lions wait, and crocodiles lurk in the shallow pools."},
+		{MAP_SCYTHIAN_RIVULET, "scythian_rivulet", "Scythian Rivulet (RMS)", "polar", true, "Carpeted in snow, a land of wolf packs either side of a frozen rivulet; players must conquer - or be conquered."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
@@ -232,6 +244,7 @@ inline bool map_is_naval(int type) {
 	switch (type) {
 		case MAP_ENGLISH_CHANNEL: case MAP_DODECANESE: case MAP_FLOOD: case MAP_RANDOM_ARCHIPELAGO:
 		case MAP_AEGEAN_SEA: case MAP_ARCHIPELAGO_0AD: case MAP_ISLANDS: case MAP_CYCLADIC_ARCHIPELAGO:
+		case MAP_CORSICA: case MAP_BAHRAIN:
 			return true;
 		default:
 			return false;
