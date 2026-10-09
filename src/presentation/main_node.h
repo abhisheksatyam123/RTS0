@@ -342,6 +342,7 @@ public:
 	String chat_civ_name() { return rtso::civ_info(sim->player_civ(local_player())).name; }
 	// NMT_CHAT, or a host's 0 A.D. chat command (/kick name, /ban name).
 	void chat_send_wire(const std::string &wire);
+	bool chat_try_cheat(const String &text);
 	rtso::Simulation *ui_sim() override { return sim; }
 	uint32_t ui_selected_building_id() const override { return selected_building_id; }
 	void _on_barter_requested(int sell_type, int buy_type, int amount);
