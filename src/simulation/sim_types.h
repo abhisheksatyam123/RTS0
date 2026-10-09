@@ -930,6 +930,7 @@ enum TechStat : uint8_t {
 	TSTAT_CAPTURE_POINTS, TSTAT_COST_FOOD, TSTAT_COST_WOOD, TSTAT_COST_STONE, TSTAT_COST_METAL,
 	TSTAT_TRICKLE_FOOD, TSTAT_TRICKLE_WOOD, TSTAT_TRICKLE_STONE, TSTAT_TRICKLE_METAL, // ResourceTrickle/Rates/<res>
 	TSTAT_TRADE_INTERNATIONAL, // Market/InternationalBonus of markets and docks
+	TSTAT_BATCH_TIME, // Trainer/BatchTimeModifier of training structures (added)
 	TSTAT_COUNT
 };
 

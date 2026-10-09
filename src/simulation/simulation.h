@@ -1249,6 +1249,7 @@ private:
 		float bld_range[BLD_TYPE_COUNT];
 		float bld_build_time[BLD_TYPE_COUNT];
 		float bld_research_time[BLD_TYPE_COUNT];
+		float bld_batch_time_add[BLD_TYPE_COUNT]; // added to Trainer/BatchTimeModifier (Conscription)
 		float bld_pop_bonus[BLD_TYPE_COUNT];
 		float bld_arrow_mul[BLD_TYPE_COUNT];
 		float bld_arrow_add[BLD_TYPE_COUNT];

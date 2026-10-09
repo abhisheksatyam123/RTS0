@@ -239,6 +239,34 @@ int main() {
 		CHECK(bld(s, b).autoqueue);
 	}
 
+	// 9. Conscription (barracks_batch_training) adds -0.1 to the Barracks' BatchTimeModifier;
+	//    Persians get -0.1 per phase for Stables instead (phase_town_pers, phase_city_pers).
+	{
+		Simulation s;
+		const uint32_t b = fresh(s);
+		s.player(0).phase = 3;
+		const float base = s.batch_time_multiplier(0, BLD_BARRACKS, 5);
+		const float mod = trainer_batch_time_modifier(s.player_civ(0), BLD_BARRACKS);
+		CHECK(tech_info(TECH_BARRACKS_BATCH_TRAINING).researcher == BLD_BARRACKS);
+		CHECK(s.research_check(0, TECH_BARRACKS_BATCH_TRAINING, b) == Simulation::TECH_OK);
+		CHECK(s.cmd_research(0, b, TECH_BARRACKS_BATCH_TRAINING));
+		run(s, tech_info(TECH_BARRACKS_BATCH_TRAINING).research_time + 1.0f);
+		CHECK(s.is_tech_researched(TECH_BARRACKS_BATCH_TRAINING));
+		CHECK(std::fabs(base - std::pow(5.0f, mod)) < 1e-4f);
+		CHECK(std::fabs(s.batch_time_multiplier(0, BLD_BARRACKS, 5) - std::pow(5.0f, mod - 0.1f)) < 1e-4f);
+		CHECK(std::fabs(s.batch_time_multiplier(0, BLD_STABLE, 5) - std::pow(5.0f, trainer_batch_time_modifier(s.player_civ(0), BLD_STABLE))) < 1e-4f);
+
+		Simulation p;
+		fresh(p);
+		p.set_player_civ(CIV_PERSIANS);
+		const float smod = trainer_batch_time_modifier(CIV_PERSIANS, BLD_STABLE);
+		p.player(0).phase = 1;
+		CHECK(std::fabs(p.batch_time_multiplier(0, BLD_STABLE, 5) - std::pow(5.0f, smod)) < 1e-4f);
+		p.player(0).phase = 3;
+		CHECK(std::fabs(p.batch_time_multiplier(0, BLD_STABLE, 5) - std::pow(5.0f, smod - 0.2f)) < 1e-4f);
+		CHECK(!tech_available_to_civ(TECH_STABLE_BATCH_TRAINING, CIV_PERSIANS));
+	}
+
 	if (failures) {
 		std::printf("FAIL: %d checks\n", failures);
 		return 1;

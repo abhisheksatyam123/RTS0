@@ -1760,8 +1760,14 @@ bool Simulation::cmd_train_template(uint8_t player_id, uint32_t building_id, uin
 
 float Simulation::batch_time_multiplier(uint8_t player_id, uint8_t bld_type, int count) const {
 	if (count <= 1) return 1.0f;
-	const float mod = trainer_batch_time_modifier(civ_of(player_id), bld_type);
-	return std::pow((float)count, mod);
+	float mod = trainer_batch_time_modifier(civ_of(player_id), bld_type);
+	if (bld_type < BLD_TYPE_COUNT && player_id < MAX_PLAYERS) {
+		mod += tech_mods(player_id).bld_batch_time_add[bld_type]; // Conscription (barracks/stable_batch_training)
+		// phase_town_pers and phase_city_pers: Trainer/BatchTimeModifier -0.1 each for Stables.
+		if (bld_type == BLD_STABLE && civ_of(player_id) == CIV_PERSIANS)
+			mod -= 0.1f * (float)std::max(0, (int)players_[player_id].phase - 1);
+	}
+	return std::pow((float)count, std::max(0.0f, mod));
 }
 
 bool Simulation::cmd_set_autoqueue(uint8_t player_id, uint32_t building_id, bool on) {
@@ -2164,6 +2170,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 	for (int b = 0; b < BLD_TYPE_COUNT; ++b) {
 		m.bld_health[b] = m.bld_attack[b] = m.bld_build_time[b] = m.bld_pop_bonus[b] = 1.0f;
 		m.bld_research_time[b] = m.bld_arrow_mul[b] = 1.0f;
+		m.bld_batch_time_add[b] = 0.0f;
 		m.bld_range[b] = m.bld_arrow_add[b] = m.bld_garrison_heal[b] = 0.0f;
 		m.bld_capture[b] = 1.0f;
 		for (float &c : m.bld_cost[b]) c = 1.0f;
@@ -2258,6 +2265,9 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_RANGE: apply(m.bld_range[b]); break;
 					case TSTAT_BUILD_TIME: apply(m.bld_build_time[b]); break;
 					case TSTAT_RESEARCH_TIME: apply(m.bld_research_time[b]); break;
+					case TSTAT_BATCH_TIME:
+						if (e.op == TOP_ADD) m.bld_batch_time_add[b] += e.value;
+						break;
 					case TSTAT_POP_BONUS: apply(m.bld_pop_bonus[b]); break;
 					// BuildingAI arrow counts: Sentries multiplies, Professional Garrisons adds.
 					case TSTAT_ARROWS:

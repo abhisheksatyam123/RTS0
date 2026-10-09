@@ -154,6 +154,7 @@ def stat_of(path: str):
         "Cost/Resources/stone": "TSTAT_COST_STONE",
         "Cost/Resources/metal": "TSTAT_COST_METAL",
         "Market/InternationalBonus": "TSTAT_TRADE_INTERNATIONAL",
+        "Trainer/BatchTimeModifier": "TSTAT_BATCH_TIME",
     }.get(path)
 
 

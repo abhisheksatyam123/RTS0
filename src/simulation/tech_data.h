@@ -120,7 +120,9 @@ enum TechnologyId : uint8_t {
 	TECH_SERAPIS_CULT = 111, // serapis_cult
 	TECH_SILK_ROAD = 112, // silk_road
 	TECH_TRADE_COMMERCIAL_TREATY = 113, // trade_commercial_treaty
-	TECH_COUNT = 114
+	TECH_BARRACKS_BATCH_TRAINING = 114, // barracks_batch_training
+	TECH_STABLE_BATCH_TRAINING = 115, // stable_batch_training
+	TECH_COUNT = 116
 };
 
 enum TechClass : uint64_t {
@@ -254,6 +256,8 @@ inline const TechClassExpr *tech_affects_table() {
 		{TC_HERO, 0},
 		{TC_MARKET, 0},
 		{TC_DOCK, 0},
+		{TC_BARRACKS, 0},
+		{TC_STABLE, 0},
 	};
 	return kAffects;
 }
@@ -427,10 +431,12 @@ inline const TechEffect *tech_effects_table() {
 		{TSTAT_TRICKLE_METAL, TOP_ADD, 0, 0, 2.0f}, // serapis_cult
 		{TSTAT_TRADE_INTERNATIONAL, TOP_MUL, 57, 2, 1.2f}, // silk_road
 		{TSTAT_TRADE_INTERNATIONAL, TOP_ADD, 57, 2, 0.1f}, // trade_commercial_treaty
+		{TSTAT_BATCH_TIME, TOP_ADD, 59, 1, -0.1f}, // barracks_batch_training
+		{TSTAT_BATCH_TIME, TOP_ADD, 60, 1, -0.1f}, // stable_batch_training
 	};
 	return kEffects + 1;
 }
-constexpr int TECH_EFFECT_COUNT = 166;
+constexpr int TECH_EFFECT_COUNT = 168;
 
 inline const TechInfo &tech_info(uint8_t tech_id) {
 	static const TechInfo kTable[TECH_COUNT] = {
@@ -548,6 +554,8 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Serapis Cult", "+2.0 metal trickle per second.", 300, 0, 300, 0, 60.0f, 3, BLD_TEMPLE, TECH_NONE, 0x0800, 163, 1, "serapis_cult"},
 		{"Silk Road", "Traders +20% international trade bonus.", 500, 500, 0, 0, 50.0f, 3, BLD_MARKET, TECH_TRADE_GAIN_02, 0x2000, 164, 1, "silk_road"},
 		{"Commercial Treaty", "Traders +10% trade profit between allies.", 0, 0, 100, 0, 40.0f, 2, BLD_MARKET, TECH_NONE, 0x3fff, 165, 1, "trade_commercial_treaty"},
+		{"Conscription", "Decreases batch training time of units trained in Barracks.", 500, 0, 0, 0, 40.0f, 3, BLD_BARRACKS, TECH_NONE, 0x3ffb, 166, 1, "barracks_batch_training"},
+		{"Conscription", "Decrease batch training time of units trained in Stables.", 500, 0, 0, 0, 40.0f, 3, BLD_STABLE, TECH_NONE, 0x3ffb, 167, 1, "stable_batch_training"},
 	};
 	if (tech_id >= TECH_COUNT) return kTable[TECH_NONE];
 	return kTable[tech_id];
