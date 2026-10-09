@@ -8790,7 +8790,21 @@ void Simulation::note_kill(uint32_t killer_id, uint32_t victim_id) {
 bool Simulation::petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype) const {
 	if (!can_place(cell_x - 1, cell_y - 1, footprint + 2)) return false;
 	return btype >= BLD_TYPE_COUNT || (check_placement(petra_pid_, cell_x, cell_y, btype) == PLACE_OK &&
-	                                   entity_limit_allows_building(petra_pid_, btype)); // EntityLimits
+	                                   petra_limit_allows_building(btype)); // EntityLimits
+}
+
+// EntityLimits for a placement search: counting the player's entities walks every
+// unit and structure, so an AI turn asks once per structure type (a new
+// foundation changes the count, so it asks again). Cleared each AI turn.
+bool Simulation::petra_limit_allows_building(uint8_t btype) const {
+	const uint64_t key = ((uint64_t)buildings_.size() << 8) | ((uint64_t)petra_pid_ << 1) | 0x1;
+	if (petra_limit_cache_key_ != key) {
+		petra_limit_cache_key_ = key;
+		petra_limit_cache_.fill(0);
+	}
+	uint8_t &v = petra_limit_cache_[btype]; // 0 unknown, 1 refused, 2 allowed
+	if (v == 0) v = entity_limit_allows_building(petra_pid_, btype) ? 2 : 1;
+	return v == 2;
 }
 
 void Simulation::update_petra_threat_map(float dt) {
@@ -11041,7 +11055,7 @@ void Simulation::petra_manage_buildings(float dt) {
 			}
 		}
 
-		if (!tc_in_progress) {
+		if (!tc_in_progress && petra_limit_allows_building(BLD_TOWN_CENTER)) { // EntityLimits CivilCentre
 			float p_x = 36.0f, p_z = 36.0f;
 			if (const auto *pbase = get_primary_petra_base()) {
 				p_x = pbase->x; p_z = pbase->z;
@@ -11378,13 +11392,15 @@ void Simulation::petra_build_advanced() {
 	std::vector<uint8_t> advanced;
 	for (uint8_t t : petra_advanced_buildings(civ))
 		if (civ_can_build(civ, t)) advanced.push_back(t);
+	// canBuild: one its EntityLimits refuse is skipped (the Mauryan Pillar only
+	// stands while Ashoka lives), so Petra goes on to the next.
 	const int pop = pop_current(petra_pid_);
 	if (pop < 80 || advanced.empty()) return;
 	int n = 0;
 	for (uint8_t t : advanced) n += count(t);
 	if (n && !(n < (int)advanced.size() && pop > 110)) return;
 	for (uint8_t t : advanced) {
-		if (count(t) > 0) continue;
+		if (count(t) > 0 || !petra_limit_allows_building(t)) continue;
 		build(t);
 		return;
 	}
@@ -12909,6 +12925,8 @@ void Simulation::petra_manage_transport(float dt) {
 }
 
 uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float near_z, int min_r, int max_r, uint8_t queue) {
+	// queueManager/canBuild: no search for a structure the EntityLimits refuse.
+	if (btype < BLD_TYPE_COUNT && !petra_limit_allows_building(btype)) return 0;
 	const BuildingTypeInfo &info = building_type_info(btype);
 	int start_cx = (int)(near_x / GRID);
 	int start_cz = (int)(near_z / GRID);
@@ -14071,6 +14089,7 @@ void Simulation::tick_petra_ai(float dt) {
 void Simulation::tick_petra_ai_player(float dt) {
 	// 0 A.D. Petra Autonomous AI System
 	petra_timer_ += dt;
+	petra_limit_cache_key_ = 0; // EntityLimits answers last one AI turn
 
 	petra_refresh_queue_accounts(dt);
 
