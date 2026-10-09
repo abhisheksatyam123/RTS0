@@ -214,6 +214,13 @@ jobs:
             src/network/net_host.cpp -lpthread -o /tmp/test_garrison_heal
           /tmp/test_garrison_heal
 
+      - name: Structure arrow tests (0 A.D. BuildingAI)
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_building_ai.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+            src/network/net_host.cpp -lpthread -o /tmp/test_building_ai
+          /tmp/test_building_ai
+
       - name: Territory decay tests
         run: |
           g++ -std=c++20 -O2 -Isrc tools/test_territory_decay.cpp src/simulation/simulation.cpp \
