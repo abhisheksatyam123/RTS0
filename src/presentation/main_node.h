@@ -344,6 +344,14 @@ public:
 	int get_target_marker_count() const { return (int)range_overlays_.marker_count(); } // tests
 	int get_work_sound_count() const { return session_audio_.work_sounds_played(); } // tests
 	void debug_gather_nearest();
+	// 0 A.D. unit_actions "setup-trade-route": traders take a route in two right-clicks,
+	// the origin market, then the destination (lockstep command 35 sends both).
+	// Returns false when no selected trader trades at b; *tooltip gets the cursor text.
+	bool trade_route_click(const rtso::Simulation::Building &b, bool execute, bool queued, String *tooltip);
+	Dictionary debug_trade_route_clicks();
+	uint32_t trade_origin_market_ = 0;
+	Label *cursor_tip_ = nullptr;
+	std::vector<uint32_t> trade_origin_traders_;
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
 
