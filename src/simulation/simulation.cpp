@@ -2772,7 +2772,8 @@ void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint
 		units_.has_order[uidx] = 1;
 		units_.action_state[uidx] = ACTION_GATHER;
 		units_.target_resource_id[uidx] = resource_id;
-		units_.res_type_carried[uidx] = resources_.type[ridx];
+		// A load of another type stays until gathering starts (ResourceGatherer PerformGather drops it then).
+		if (units_.carry[uidx] <= 0) units_.res_type_carried[uidx] = resources_.type[ridx];
 		units_.target_unit_id[uidx] = 0;
 		units_.target_building_id[uidx] = 0;
 		set_order(uidx, ORDER_GATHER, flags, resource_id, rx, rz);
@@ -5862,6 +5863,8 @@ void Simulation::tick_gather(float dt) {
 				const float interval = 1.0f / rate;
 				// GATHERING enter: the player's order stops being forced once work starts.
 				units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_FORCE;
+				// ResourceGatherer PerformGather: a load of another type is dropped (DropResources).
+				if (units_.carry[i] > 0 && units_.res_type_carried[i] != rt) units_.carry[i] = 0;
 				units_.attack_timer[i] += dt;
 				while (units_.attack_timer[i] >= interval) {
 					units_.attack_timer[i] -= interval;
@@ -8612,12 +8615,32 @@ void Simulation::on_construction_finished(const Building &b, size_t builder) {
 		if (k < 0) continue;
 		units_.action_state[k] = ACTION_IDLE;
 		units_.target_building_id[k] = 0;
+		next_after_construction((size_t)k, b, food, other);
+		// CanReturnResource on the new structure: always take the load there first
+		// (PushOrderFront ReturnResource, ahead of whatever comes next).
+		if (units_.carry[k] > 0 && dropsite_accepts((size_t)k, b)) {
+			if (units_.order_kind[k] != ORDER_NONE) {
+				auto &q = order_queues_[uid];
+				q.insert(q.begin(), current_order((size_t)k));
+			}
+			applying_queued_ = true; // keep the queue
+			order_return_resource(&uid, 1, b.id);
+			applying_queued_ = false;
+		}
+	}
+}
+
+// The rest of ConstructionFinished for builder k: its next order, else farm a field,
+// gather what a new dropsite takes, or help with a foundation nearby.
+void Simulation::next_after_construction(size_t k, const Building &b, bool food, bool other) {
+	const uint32_t uid = units_.id[k];
+	{
 		// A queued order goes first (FinishOrder); fields and dropsites only apply without one.
 		auto q = order_queues_.find(uid);
-		if (q != order_queues_.end() && !q->second.empty()) { finish_order((size_t)k); continue; }
+		if (q != order_queues_.end() && !q->second.empty()) { finish_order(k); return; }
 		if (b.type == BLD_FIELD) {
 			order_gather(&uid, 1, ensure_field_resource(b), false, false);
-			continue;
+			return;
 		}
 		if (food || other || b.type == BLD_TOWN_CENTER) {
 			// Prefer what the unit gathered last (lastGathered), if the dropsite takes it.
@@ -8629,11 +8652,11 @@ void Simulation::on_construction_finished(const Building &b, size_t builder) {
 				else for (uint8_t t : {(uint8_t)RES_WOOD, (uint8_t)RES_STONE, (uint8_t)RES_GOLD})
 					if (r == 0) r = find_nearby_resource(b.x, b.z, t, b.team);
 			}
-			if (r != 0) { order_gather(&uid, 1, r, false, false); continue; }
+			if (r != 0) { order_gather(&uid, 1, r, false, false); return; }
 		}
 		const uint32_t f = find_nearby_foundation(b.x, b.z, b.team);
-		if (f != 0) { order_build_or_repair(&uid, 1, f, false, false); continue; }
-		set_order((size_t)k, ORDER_NONE, 0, 0, units_.pos_x[k], units_.pos_z[k]);
+		if (f != 0) { order_build_or_repair(&uid, 1, f, false, false); return; }
+		set_order(k, ORDER_NONE, 0, 0, units_.pos_x[k], units_.pos_z[k]);
 	}
 }
 
@@ -8649,6 +8672,15 @@ void Simulation::tick_unit_ai(float dt) {
 		// Guard.js: guards answer whoever attacks the unit they guard (GuardedAttacked).
 		if (units_.order_kind[i] == ORDER_GUARD && units_.action_state[i] == ACTION_GUARD) {
 			const int32_t g = lookup_unit(units_.order_target[i]);
+			// Guard.js CheckGuards (OnOwnershipChanged / OnDiplomacyChanged): a guard only
+			// guards its own or an ally's unit.
+			if (g >= 0 && units_.team[g] != units_.team[i] && !is_ally(units_.team[i], units_.team[g])) {
+				units_.target_unit_id[i] = 0;
+				units_.action_state[i] = ACTION_IDLE;
+				units_.has_order[i] = 0;
+				finish_order(i);
+				continue;
+			}
 			// GUARDING Timer / GuardedAttacked: a healer heals the unit it guards when it's
 			// hurt (PushOrderFront Heal), then guards again.
 			if (g >= 0 && units_.unit_type[i] == UNIT_HEALER && can_heal(i, g)) {
