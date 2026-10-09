@@ -724,33 +724,39 @@ static void test_diplomacy_requests() {
 // for a pact pays it once it can spare it; a request it can't pay at once
 // stands until the asker withdraws it (120 s), rather than being forgotten.
 static void test_tribute_request_paid_later() {
-	auto s = std::make_unique<Simulation>();
-	s->set_sim_seed(7);
-	s->reset();
-	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 7, 4, 128.0f);
-	s->set_player_active(0, true, false);
-	for (uint8_t p = 1; p < 4; ++p) s->set_player_active(p, true, true);
-	s->players_[3].civ = s->players_[1].civ;
-	run_for(*s, 20.0f);
-	s->petra_send_diplomacy_request();
-	if (!s->petra_sent_diplo_.sent_type[3]) { CHECK(false, "AI 1 asks AI 3"); return; }
-	for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 0.0f; // broke when AI 3 answers
-	bool asked = false;
-	for (float t = 0.0f; t < 30.0f; t += Simulation::FIXED_STEP) {
-		s->players_[1].res[RES_GOLD] = s->players_[1].res[RES_FOOD] = s->players_[1].res[RES_WOOD] = s->players_[1].res[RES_STONE] = 0.0f;
-		s->tick(Simulation::FIXED_STEP);
-		asked |= s->petra_slots_[3].petra_diplo_.received[1].status == PetraReceivedRequest::WAITING_FOR_TRIBUTE;
-	}
-	for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] += 2000.0f;
+	// AI 3 accepts a neutrality pact outright 80% of the time (diplomacyManager.js
+	// handleDiplomacyRequest), so take the first seed on which it asks for a tribute.
+	bool asked = false, sealed = false;
+	uint32_t seed = 7;
 	float t = 0.0f;
-	for (; t < 60.0f && !(s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL && s->get_diplomacy(1, 3) == Simulation::DIPLO_NEUTRAL);
-	     t += Simulation::FIXED_STEP)
-		s->tick(Simulation::FIXED_STEP);
-	std::printf("  tribute asked of a broke AI: asked %s, paid and neutral %s after %.0fs more\n",
-	            asked ? "yes" : "no", s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL ? "yes" : "no", t);
+	for (; seed < 17 && !asked; ++seed) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(seed);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, seed, 4, 128.0f);
+		s->set_player_active(0, true, false);
+		for (uint8_t p = 1; p < 4; ++p) s->set_player_active(p, true, true);
+		s->players_[3].civ = s->players_[1].civ;
+		run_for(*s, 20.0f);
+		s->petra_send_diplomacy_request();
+		if (!s->petra_sent_diplo_.sent_type[3]) continue;
+		for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 0.0f; // broke when AI 3 answers
+		for (float w = 0.0f; w < 30.0f; w += Simulation::FIXED_STEP) {
+			s->players_[1].res[RES_GOLD] = s->players_[1].res[RES_FOOD] = s->players_[1].res[RES_WOOD] = s->players_[1].res[RES_STONE] = 0.0f;
+			s->tick(Simulation::FIXED_STEP);
+			asked |= s->petra_slots_[3].petra_diplo_.received[1].status == PetraReceivedRequest::WAITING_FOR_TRIBUTE;
+		}
+		if (!asked) continue;
+		for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] += 2000.0f;
+		for (t = 0.0f; t < 60.0f && !(s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL && s->get_diplomacy(1, 3) == Simulation::DIPLO_NEUTRAL);
+		     t += Simulation::FIXED_STEP)
+			s->tick(Simulation::FIXED_STEP);
+		sealed = s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL && s->get_diplomacy(1, 3) == Simulation::DIPLO_NEUTRAL;
+	}
+	std::printf("  tribute asked of a broke AI: asked %s (seed %u), paid and neutral %s after %.0fs more\n",
+	            asked ? "yes" : "no", seed - 1, sealed ? "yes" : "no", t);
 	CHECK(asked, "AI 3 asks AI 1 for a tribute");
-	CHECK(s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL && s->get_diplomacy(1, 3) == Simulation::DIPLO_NEUTRAL,
-	      "AI 1 pays once it can, and the pact is sealed");
+	CHECK(sealed, "AI 1 pays once it can, and the pact is sealed");
 }
 
 // worker.js startHunting: Petra's food gatherers slaughter the chickens by
@@ -1122,7 +1128,8 @@ static void test_army_answers_attackers() {
 	CHECK(half > 0.0f, "an enemy house to attack");
 	if (half <= 0.0f) return;
 	std::vector<uint32_t> squad;
-	for (int k = 0; k < 3; ++k) squad.push_back(s->spawn_unit(hx + half + 1.0f, hz + 1.5f * (float)k, 1, UNIT_SPEARMAN));
+	// Sturdy enough that player 0's own units nearby can't break up the squad first.
+	for (int k = 0; k < 3; ++k) squad.push_back(s->spawn_unit(hx + half + 1.0f, hz + 1.5f * (float)k, 1, UNIT_SPEARMAN, 1.0e4f));
 	s->order_attack_building(squad.data(), squad.size(), house);
 	auto &plan = s->petra_attack_plan_;
 	plan.squad = squad;
