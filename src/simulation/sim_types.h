@@ -245,7 +245,8 @@ enum UnitType : uint8_t {
 	UNIT_CAMEL = 21,
 	UNIT_SCYTHED_CHARIOT = 22,
 	UNIT_MINISTER = 23, // Han Imperial Minister (units/han/support_minister)
-	UNIT_TYPE_COUNT = 24,
+	UNIT_CATAFALQUE = 24, // a relic (template_unit_catafalque)
+	UNIT_TYPE_COUNT = 25,
 	UNIT_TYPE_NONE = 255
 };
 
@@ -384,7 +385,8 @@ enum UnitOrderKind : uint8_t {
 	ORDER_TRADE = 11,         // target = first market, x2 holds the second market's id bits (UnitAI Trade)
 	ORDER_RETURN_RESOURCE = 12, // target = the dropsite (UnitAI ReturnResource)
 	ORDER_COLLECT_TREASURE = 13, // target treasure (UnitAI CollectTreasure)
-	ORDER_KIND_COUNT = 14
+	ORDER_CAPTURE_RELIC = 14, // target catafalque unit (UnitAI Attack with the Capture attack)
+	ORDER_KIND_COUNT = 15
 };
 
 enum UnitOrderFlag : uint8_t {
@@ -422,6 +424,9 @@ inline constexpr float NEARBY_SEARCH_RANGE = 64.0f * 0.28f;
 // MaxRange 4 is the spearman's reach, as in 0 A.D. (Melee MaxRange 4): 2.4.
 inline constexpr float CAPTURE_RANGE = 2.4f;
 inline constexpr float CAPTURE_REPEAT_S = 1.0f;
+// template_unit_catafalque.xml Capturable: CapturePoints 250, RegenRate 10 a second.
+inline constexpr int RELIC_CAPTURE_POINTS = 250;
+inline constexpr int RELIC_REGEN_RATE = 10;
 // template_unit_support_healer.xml Heal (Health 5 every Interval 2000 ms) and Heal.js
 // GetTimers (prepare 1000 ms); template_unit.xml UnitAI CheeringTime 2800 ms and
 // UnitAI notifyToCheerInRange 30; GarrisonHolder LoadingRange (1-2 m past the footprint).
@@ -572,7 +577,8 @@ inline const UnitTypeInfo &unit_type_info(uint8_t type) {
 		{"Mauryan Archer Maiden", "archer_maiden", "archer_maiden", 95.0f, 3.6f, 17.0f, 8.5f, 1.1f, 0, 17.0f, 2.0f, 2.0f, 15.0f, 40, 60, 40, 0, 1, 14.0f, 0.0f, 8.5f, 0.0f},
 		{"Persian/Arabian Camel", "camel", "camel", 190.0f, 5.2f, 2.4f, 12.0f, 1.2f, 0, 12.0f, 3.0f, 3.0f, 15.0f, 60, 0, 70, 0, 2, 16.0f, 12.0f, 0.0f, 0.0f},
 		{"Seleucid Scythed Chariot", "scythed_chariot", "scythed_chariot", 320.0f, 5.6f, 2.2f, 24.0f, 1.0f, 0, 14.0f, 5.0f, 5.0f, 25.0f, 100, 80, 120, 0, 3, 26.0f, 18.0f, 0.0f, 6.0f},
-		{"Imperial Minister", "healer", "healer", 200.0f, 3.204f, 1.8f, 10.0f, 1.0f, 0, 8.0f, 2.0f, 4.0f, 6.0f, 100, 0, 100, 0, 1, 15.0f, 10.0f, 0.0f, 0.0f}
+		{"Imperial Minister", "healer", "healer", 200.0f, 3.204f, 1.8f, 10.0f, 1.0f, 0, 8.0f, 2.0f, 4.0f, 6.0f, 100, 0, 100, 0, 1, 15.0f, 10.0f, 0.0f, 0.0f},
+		{"Catafalque", "ram", "ram", 1000.0f, 1.762f, 1.0f, 0.0f, 1.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f}
 	};
 	if (type >= UNIT_TYPE_COUNT) return kTable[UNIT_VILLAGER];
 	return kTable[type];
@@ -604,6 +610,7 @@ inline float unit_collision_radius(uint8_t type) {
 		case UNIT_CAMEL: return 0.90f;
 		case UNIT_SCYTHED_CHARIOT: return 1.35f;
 		case UNIT_MINISTER: return 0.50f;
+		case UNIT_CATAFALQUE: return 1.20f; // Footprint 5 x 12 m
 		default: return 0.55f;
 	}
 }
@@ -676,6 +683,8 @@ inline uint8_t unit_default_stance(uint8_t type) {
 		case UNIT_HEALER:
 		case UNIT_MINISTER:
 			return STANCE_PASSIVE;
+		case UNIT_CATAFALQUE:
+			return STANCE_STAND_GROUND; // template_unit_catafalque UnitAI/DefaultStance
 		case UNIT_CATAPULT: // template_unit_siege_stonethrower / _boltshooter
 		case UNIT_BOLT_SHOOTER:
 			return STANCE_STAND_GROUND;
@@ -1047,7 +1056,8 @@ enum CivRosterFlag : uint8_t {
 	ROSTER_CITIZEN = 8,
 	ROSTER_MERCENARY = 16,
 	ROSTER_PACKABLE = 32, // 0 A.D. Pack component (10 s to pack or unpack)
-	ROSTER_SIEGE_TOWER = 64
+	ROSTER_SIEGE_TOWER = 64,
+	ROSTER_RELIC = 128 // a catafalque (template_unit_catafalque): Capture the Relic
 };
 
 inline constexpr uint16_t civ_bit(uint8_t civ) { return (civ < 16) ? (uint16_t)(1u << civ) : 0u; }
@@ -1389,6 +1399,13 @@ inline const UnitTypeInfo &civ_template_unit_info(uint16_t tmpl, uint8_t type) {
 	return unit_type_info(type);
 }
 
+// The civ's catafalque (units/{civ}/catafalque), or CIV_UNIT_TEMPLATE_NONE.
+inline uint16_t civ_catafalque_template(uint8_t civ) {
+	for (uint16_t i = CIV_ROSTER_PROMOTION_ONLY_FIRST; i < CIV_UNIT_TEMPLATE_COUNT; ++i)
+		if ((civ_unit_template(i).flags & ROSTER_RELIC) && civ_unit_template(i).civ == civ) return i;
+	return CIV_UNIT_TEMPLATE_NONE;
+}
+
 // Stats of the unit a civ fields for an RTS0 class (its default template).
 inline const UnitTypeInfo &civ_unit_info(uint8_t civ, uint8_t type) {
 	return civ_template_unit_info(civ_default_template(civ, type), type);
@@ -1462,6 +1479,7 @@ inline LootInfo unit_class_loot(uint8_t type) {
 		{130, 10, 5, 0, 0},   // CAMEL: template_unit_cavalry
 		{200, 15, 8, 0, 10},  // SCYTHED_CHARIOT: champion_cavalry
 		{150, 10, 0, 0, 10},  // MINISTER: units/han/support_minister
+		{0, 0, 0, 0, 0},      // CATAFALQUE: no Loot
 	};
 	return type < UNIT_TYPE_COUNT ? table[type] : LootInfo{};
 }
