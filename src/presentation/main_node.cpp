@@ -73,6 +73,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_pack_pressed", "pack"), &RtsoMain::_on_pack_pressed);
 	ClassDB::bind_method(D_METHOD("_on_unit_upgrade_pressed", "to"), &RtsoMain::_on_unit_upgrade_pressed);
 	ClassDB::bind_method(D_METHOD("_on_alert_pressed", "end"), &RtsoMain::_on_alert_pressed);
+	ClassDB::bind_method(D_METHOD("_on_autoqueue_pressed", "on"), &RtsoMain::_on_autoqueue_pressed);
 	ClassDB::bind_method(D_METHOD("save_game", "path", "description"), &RtsoMain::save_game, DEFVAL("user://saves/quicksave.rts0sav"), DEFVAL(""));
 	ClassDB::bind_method(D_METHOD("save_game_as", "name", "description"), &RtsoMain::save_game_as);
 	ClassDB::bind_method(D_METHOD("get_match_statistics"), &RtsoMain::statistics_summary);
@@ -1980,7 +1981,7 @@ void RtsoMain::_on_roster_item_clicked(int index, Vector2 at, int mouse_button) 
 		try_breed(selected_building_id, (uint8_t)(meta & 0xFF));
 		return;
 	}
-	try_train_template(selected_building_id, (uint16_t)meta);
+	try_train_template(selected_building_id, (uint16_t)meta, train_batch());
 }
 
 // Corral training (0 A.D. Trainer at the corral): the lockstep Train command with no unit
@@ -2025,6 +2026,15 @@ void RtsoMain::_on_gate_lock_pressed(int lock) {
 		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_LOCK_GATE, nullptr, 0, 0, 0, selected_building_id, lock ? 1 : 0);
 	else
 		sim->cmd_lock_gate(local_player(), selected_building_id, lock != 0);
+}
+
+// 0 A.D. ProductionQueue.js EnableAutoQueue / DisableAutoQueue through lockstep command 44.
+void RtsoMain::_on_autoqueue_pressed(int on) {
+	if (selected_building_id == 0) return;
+	if (turn_cmds())
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_AUTOQUEUE, nullptr, 0, 0, 0, selected_building_id, on ? 1 : 0);
+	else
+		sim->cmd_set_autoqueue(local_player(), selected_building_id, on != 0);
 }
 
 // 0 A.D. AlertRaiser alert-raise / alert-end through lockstep command 35.
@@ -2751,10 +2761,11 @@ void RtsoMain::update_inspector() {
 				set_bar(inspector_xp_bar, inspector_xp_label, found_b->upgrade_timer, found_b->upgrade_duration,
 						"Upgrading to " + String(rtso::building_type_name(found_b->upgrade_to)) + " (" +
 						String::num(found_b->upgrade_duration - found_b->upgrade_timer, 0) + " s left)");
-			} else if (found_b->research_tech != rtso::TECH_NONE && found_b->research_duration > 0.0f) {
-				set_bar(inspector_xp_bar, inspector_xp_label, found_b->research_timer, found_b->research_duration,
-						"Researching " + String(rtso::tech_info(found_b->research_tech).name) + " (" +
-						String::num(found_b->research_duration - found_b->research_timer, 0) + " s left)");
+			} else if (const uint8_t rt = rtso::Simulation::researching(*found_b); rt != rtso::TECH_NONE && found_b->queue.front().duration > 0.0f) {
+				const rtso::ProductionOrder &po = found_b->queue.front();
+				set_bar(inspector_xp_bar, inspector_xp_label, po.timer, po.duration,
+						"Researching " + String(rtso::tech_info(rt).name) + " (" +
+						String::num(po.duration - po.timer, 0) + " s left)");
 			} else {
 				show_bar(inspector_xp_bar, inspector_xp_label, false);
 			}
@@ -2764,7 +2775,8 @@ void RtsoMain::update_inspector() {
 			if (found_b->type == rtso::BLD_GATE)
 				status = found_b->gate_locked ? "Gate: locked" : (found_b->gate_open ? "Gate: open" : "Gate: closed");
 			else if (!found_b->queue.empty())
-				status = "Training: " + String::num_int64(found_b->queue.size()) + " in queue (right-click a slot to cancel)";
+				status = "Production: " + String::num_int64(found_b->queue.size()) + " / " + String::num_int64((int64_t)rtso::PRODUCTION_QUEUE_MAX) +
+						" in queue" + (found_b->autoqueue ? " (autoqueue on)" : "") + " (right-click a slot to cancel)";
 			if (const rtso::BuildingAIInfo &ai = rtso::building_ai_info(found_b->type); ai.shoots())
 				status += String(status.is_empty() ? "" : "\n") + "Attack: " + String::num_int64(sim->building_arrow_count(*found_b)) + " arrows of " +
 						String::num(ai.pierce, 0) + " pierce every " + String::num(ai.repeat_time, 1) + " s, range " +
@@ -3117,6 +3129,17 @@ void RtsoMain::update_command_panel() {
 				}
 			}
 
+			// Autoqueue (0 A.D. ProductionQueue.js): each finished batch is queued again.
+			if (found_b->team == local_player() && found_b->build_progress >= 1.0f && roster_list &&
+					roster_list->get_item_count() > 0) {
+				Button *btn = memnew(Button);
+				btn->set_text(found_b->autoqueue ? "Autoqueue: on" : "Autoqueue: off");
+				btn->set_tooltip_text(found_b->autoqueue ? "Stop repeating the batches this structure trains"
+						: "Queue each batch again when it finishes, paying for it again");
+				btn->connect("pressed", Callable(this, "_on_autoqueue_pressed").bind(found_b->autoqueue ? 0 : 1));
+				production_bar->add_child(btn);
+			}
+
 			// Structure upgrade (0 A.D. Upgrade.js), or cancel one in progress.
 			if (found_b->team == local_player()) {
 				if (found_b->upgrade_to != rtso::BLD_TYPE_COUNT) {
@@ -3445,23 +3468,29 @@ void RtsoMain::try_train_unit(rtso::UnitType utype) {
 		if (bid == 0) bid = b.id;
 	}
 	if (bid == 0) return;
+	const int count = train_batch();
 	if (turn_cmds()) {
-		post_lockstep(6, nullptr, 0, 0, 0, bid, (uint8_t)utype);
+		post_lockstep(6, nullptr, 0, 0, (float)count, bid, (uint8_t)utype);
 		play_civ_voice("select");
 		return;
 	}
-	if (sim->cmd_train(local_player(), bid, utype))
+	if (sim->cmd_train(local_player(), bid, utype, count))
 		play_civ_voice("select");
 }
 
-void RtsoMain::try_train_template(uint32_t building_id, uint16_t tmpl) {
+int RtsoMain::train_batch() const {
+	return rtso::hotkeys::held("session.batchtrain") ? user_opts_.batch_size : 1;
+}
+
+// One queue item of `count` units (0 A.D. batch training: one cost x count, one shorter timer).
+void RtsoMain::try_train_template(uint32_t building_id, uint16_t tmpl, int count) {
 	if (building_id == 0 || tmpl >= rtso::CIV_UNIT_TEMPLATE_COUNT) return;
 	if (turn_cmds()) {
-		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_TRAIN_TEMPLATE, nullptr, 0, (float)tmpl, 0.0f, building_id, 0);
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_TRAIN_TEMPLATE, nullptr, 0, (float)tmpl, (float)count, building_id, 0);
 		play_civ_voice("select");
 		return;
 	}
-	if (sim->cmd_train_template(local_player(), building_id, tmpl))
+	if (sim->cmd_train_template(local_player(), building_id, tmpl, count))
 		play_civ_voice("select");
 }
 
@@ -3820,8 +3849,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				if (!fired(("session.queueunit." + std::to_string(q)).c_str())) continue;
 				if (q - 1 < roster_list->get_item_count() && !roster_list->is_item_disabled(q - 1)) {
 					const uint16_t tmpl = (uint16_t)(int)roster_list->get_item_metadata(q - 1);
-					const int batch = rtso::hotkeys::held("session.batchtrain") ? user_opts_.batch_size : 1;
-					for (int b = 0; b < batch; ++b) try_train_template(selected_building_id, tmpl);
+					try_train_template(selected_building_id, tmpl, train_batch());
 				}
 				return;
 			}
@@ -4156,11 +4184,15 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					float dz = b.z - click_pos.z;
 					if (dx * dx + dz * dz < 3.0f * 3.0f) { target_bld = b.id; break; }
 				}
+				// session.queue (Shift) adds a position after the ones set (RallyPoint.AddPosition).
+				const bool rally_queued = rtso::hotkeys::held("session.queue");
 				if (turn_cmds()) {
 					uint32_t extra[2] = {target_res, target_bld};
-					post_lockstep(14, extra, 2, click_pos.x, click_pos.z, selected_building_id);
+					post_lockstep(14, extra, 2, click_pos.x, click_pos.z, selected_building_id,
+							rally_queued ? rtso::NET_PARAM_QUEUED : 0);
 				} else {
-					sim->cmd_set_rally_point(local_player(), selected_building_id, click_pos.x, click_pos.z, target_res, target_bld);
+					sim->cmd_set_rally_point(local_player(), selected_building_id, click_pos.x, click_pos.z, target_res, target_bld,
+							rally_queued);
 				}
 				play_civ_voice("select");
 				return;
