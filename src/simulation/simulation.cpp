@@ -10577,7 +10577,12 @@ void Simulation::petra_manage_military_production(float dt) {
 			bool leaves = true;
 			for (int r = 0; r < RES_COUNT; ++r)
 				if (cost[r] > 0.0f && petra_ps().res[r] - cost[r] < reserve[r]) leaves = false;
-			if (!leaves) continue;
+			if (!leaves) {
+				// A tower waiting behind the reserve still holds the siege slot, or cheaper
+				// engines fill the cap first and it is never trained.
+				if (is_tower(opt.tmpl)) siege_waiting = true;
+				continue;
+			}
 		}
 		if (petra_train_template(PETRA_QUEUE_MILITARY, opt.bld_id, opt.tmpl)) break;
 		if (civ_unit_template(opt.tmpl).flags & ROSTER_HERO) {
