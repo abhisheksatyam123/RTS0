@@ -5883,12 +5883,35 @@ void Simulation::tick(float dt) {
 	ticks_++;
 }
 
+// UnitMotion/RunMultiplier: template_unit 1.67, cavalry 1.4, dogs 2, siege engines 1.
+float Simulation::unit_run_multiplier(size_t i) const {
+	if (units_.unit_type[i] == UNIT_WAR_DOG) return 2.0f;
+	const CombatClasses &c = unit_combat_at(i).classes;
+	if (c.has(CC_SIEGE)) return 1.0f;
+	if (c.has(CC_CAVALRY)) return 1.4f;
+	return 1.67f;
+}
+
+// UnitAI Run: a unit runs while it flees (FLEEING enter) and while it chases a target
+// that is fleeing (CHASING enter, target IsFleeing).
+bool Simulation::unit_running(size_t i) const {
+	const uint8_t st = units_.action_state[i];
+	if (st == ACTION_FLEE) return true;
+	if (st != ACTION_ATTACK || units_.target_unit_id[i] == 0) return false;
+	const uint32_t tid = units_.target_unit_id[i];
+	const int32_t t = lookup_unit(tid);
+	if (t >= 0) return units_.alive[t] && units_.action_state[t] == ACTION_FLEE;
+	auto f = fauna_id_to_idx_.find(tid);
+	return f != fauna_id_to_idx_.end() && fauna_.alive[f->second] && fauna_.behavior[f->second] == FAUNA_FLEE;
+}
+
 // UnitMotion's walk speed: the template speed with this player's technologies
 // (units_.speed) times the speed auras the unit stands in (strongest bonus times
 // strongest penalty). Auras.js modifies UnitMotion/WalkSpeed, so an aura applies
 // only while the unit is in it.
 float Simulation::unit_walk_speed(size_t i) const {
 	float spd = units_.speed[i];
+	if (unit_running(i)) spd *= unit_run_multiplier(i);
 	if (aura_mgr_.has(AURA_SPEED)) {
 		const float aura = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_SPEED,
 			units_.tmpl[i], &unit_combat_at(i).classes);
