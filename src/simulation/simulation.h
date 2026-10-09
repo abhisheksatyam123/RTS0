@@ -151,7 +151,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 41; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 42; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -210,6 +210,7 @@ public:
 		uint8_t team; // 0=player, 1=enemy
 		float hp;
 		float max_hp;
+		float aura_hp_mult = 1.0f; // Health/Max auras applied to max_hp and hp (Antiochus IV, the Persian catafalque)
 		float build_progress; // 0.0f to 1.0f (1.0f = finished)
 		bool committed = false; // 0 A.D. Foundation.committed: first builder reached the plot
 		bool wrecked = false;   // hp already applied; keep entity for collapse + rubble
@@ -1025,6 +1026,10 @@ public:
 	int entity_limit(uint8_t player_id, uint8_t category) const;
 	// AllowedToTrain / AllowedToBuild: room for `count` more of the unit (roster
 	// row `tmpl`, else the class) or of the structure.
+	// TrainingRestrictions MatchLimit: heroes train once a match (match_trained_ plus queues).
+	bool match_limit_allows(uint8_t player_id, uint16_t tmpl, int count = 1) const;
+	static constexpr int HERO_MATCH_LIMIT = 1;
+	std::array<std::vector<uint16_t>, MAX_PLAYERS> match_trained_; // hero templates each player trained (saved v42)
 	bool entity_limit_allows_unit(uint8_t player_id, uint8_t unit_type, uint16_t tmpl, int count = 1) const;
 	bool entity_limit_allows_building(uint8_t player_id, uint8_t bld_type) const;
 	bool can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
@@ -1952,7 +1957,11 @@ private:
 	PetraAround petra_around(const Building &holder) const;
 	bool petra_keep_garrisoned(size_t unit_idx, const Building &holder, const PetraAround &around) const;
 	// incoming[building index]: our units walking to garrison there.
-	void petra_garrison_units_inside(size_t holder_idx, bool allow_melee, std::vector<int> &incoming);
+	// min_garrison < 0 fills the holder; >= 0 stops there and takes only units that can capture (TYPE_DECAY).
+	void petra_garrison_units_inside(size_t holder_idx, bool allow_melee, std::vector<int> &incoming, int min_garrison = -1);
+	// garrisonManager.js addDecayingStructure: the garrison a decaying structure of ours needs to stop
+	// its decay (0 when Petra leaves it to decay).
+	int petra_decay_garrison_min(const Building &b);
 	uint32_t petra_garrison_holder_for(size_t unit_idx, bool heals_only, bool siege, std::vector<int> &incoming) const;
 	std::vector<int> petra_garrison_incoming() const;
 	bool petra_same_land(size_t unit_idx, const Building &b) const; // PETRA.getLandAccess match
@@ -1965,6 +1974,7 @@ private:
 	bool petra_guards_critical_ent(size_t unit_idx) const;
 	bool petra_is_critical_wonder(uint32_t building_id) const;
 	float petra_unit_strength(size_t i) const; // getMaxStrength
+	float petra_builder_ratio() const;         // assignToFoundations builderRatio
 	bool petra_passenger(uint32_t uid) const;   // booked on one of our transport plans
 	void petra_retreat_critical_ent(size_t unit_idx, bool emergency, std::vector<int> &incoming);
 	void petra_manage_critical_ent_guards();
@@ -2024,7 +2034,7 @@ private:
 	std::array<std::vector<uint8_t>, MAX_PLAYERS> player_fow_; // per-player FoW for players 1..7 (index 0 unused: fow_grid_)
 	std::vector<uint8_t> unexplored_fow_ = std::vector<uint8_t>((size_t)MAX_GRID_RES * MAX_GRID_RES, 0);
 	std::vector<uint8_t> revealed_fow_ = std::vector<uint8_t>((size_t)MAX_GRID_RES * MAX_GRID_RES, FOW_VISIBLE);
-	LosGrid los_;                         // per-player LOS counts and visible/explored bits (saved v41)
+	LosGrid los_;                         // per-player LOS counts and visible/explored bits (saved v42)
 	std::vector<LosSource> los_unit_src_; // the circle each unit index last added
 	std::vector<LosSource> los_bld_src_;  // the circle each buildings_ index last added
 
@@ -2135,6 +2145,7 @@ private:
 	bool order_still_valid(size_t i, const UnitOrder &o) const;
 	int32_t structure_attacker(uint32_t building_id, uint8_t team) const;
 	uint32_t nearest_dropsite(size_t i) const;
+	bool attack_target_hidden(size_t i, size_t t) const;
 	void deposit_carry(size_t i);
 	void finish_order(size_t i);
 	void resume_order(size_t i);
