@@ -45,6 +45,7 @@ The biggest gaps to 0 A.D. are game-level rather than per-system (see [REMAINING
 | U16. Triggers | 0 A.D. map triggers, then the trigger maps' scripts, tutorials and campaigns | Landed: trigger engine (Trigger.js, Timer.js, time notifications; save v26) with Flood and Extinct Volcano and their rising water, Game Setup water level and sea level rise time. Next: Danubius and Jebel Barkal Gaia attackers, then Polar Sea wolves, tutorials and campaigns |
 | U19. Unit promotion | 0 A.D. ranks and experience | Landed (promotion PR): per-template RequiredXp with xp carry-over, unit_advanced / unit_elite rank bonuses, promotion into Marian Legionaries and City Guards, units trained above Basic, Marian Reforms and Hoplite Tradition, barracks xp trickle. Open: chains into units the roster lacks, RequiredXp auras |
 | U20. Turret points | Units on walls and outposts | Landed (turrets PR): ranged infantry occupy the 0 A.D. turret points of walls, gates and outposts, shoot from their height and come down on a new order. Open: Kushite gates, Mauryan double tower, Roman siege walls |
+| U21. Resource trickle | 0 A.D. passive income | Landed (trickle PR): Wonder, Han Ministry, corral garrison and Ptolemaic team bonus trickles at 0 A.D. rates and intervals for every player; invented farmstead and market trickles and corral fattening removed. Open: ice house, tachara upgrades, Serapis Cult, minister garrison, catafalque, corral training beyond sheep |
 
 Each thread times a fixed headless AI match before and after its change with the shared benchmark tool once it's on main.
 
@@ -131,7 +132,7 @@ To preserve determinism and avoid regression in live multiplayer playtests:
 - **Component parity tests:** replace the broad 11-tick coverage estimate with per-component behavioral tests for weapons, research, vision, construction and victory conditions (see the G1–G10 table for what is already probed).
 - **Platform validation:** Windows/Linux plus Android/iOS export and runtime checks (`docs/BUILD.md`).
 - **Formation remainder:** twin-formation merge, `CanAttackAsFormation` (`FormationAttack.js`), formation patrol/guard orders, formation animation variants, Scatter (gaia only). Petra still writes the formation byte; the AI thread removes it (0 A.D. Petra uses no formations).
-- **Statistics, replays and saves (U14/U15, landed):** every player's 0 A.D. statistics with the tabbed summary and charts (save v30), every match recorded and watchable from the replay menu, named saves with save and load dialogs. Open: unit capture/bribe counters, observer perspective switch in replays, replays of matches continued from a save.
+- **Statistics, replays and saves (U14/U15, landed):** every player's 0 A.D. statistics with the tabbed summary and charts (save v30), every match recorded and watchable from the replay menu, named saves with save and load dialogs. Replays open as an observer with a Player view picker, games continued from a save are recorded, and the replay menu has filters and a compatibility check. Open: unit capture/bribe counters (no unit capture or bribes yet), replay speed control.
 - **Asset long tail:** high-use 0 A.D. actors beyond the canonical roster ([ASSET_MANIFEST_TODO.md](ASSET_MANIFEST_TODO.md)).
 
 ### P5 — Ranked lockstep (optional, last)
