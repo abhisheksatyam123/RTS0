@@ -7623,7 +7623,7 @@ void Simulation::tick_construction(float dt) {
 			// buildMultiplier HP, with buildMultiplier = n^0.7 / n for n builders at work
 			// (BuildTimeModifier 0.7). Progress is the best health fraction reached, so
 			// damage to a foundation has to be built back.
-			units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_FORCE; // REPAIRING enter: no longer forced
+			enter_repairing(i); // REPAIRING enter: no longer forced, autoharvest instead
 			const float hp_rate = b.max_hp / structure_build_time(b, units_.team[i]);
 			const float work = foundation_build_multiplier(builders_per_bld[b.id]) * builder_rate(i);
 			b.hp = std::min(b.max_hp, b.hp + work * hp_rate * dt);
@@ -7746,7 +7746,7 @@ void Simulation::tick_repair(float dt) {
 			// GetRepairRate = MaxHitpoints / (RepairTimeRatio 2.0 x BuildTime).
 			const float repair_rate = b.max_hp / (REPAIR_TIME_RATIO * structure_build_time(b, units_.team[i]));
 			const float work = foundation_build_multiplier(repairers_per_bld[b.id]) * builder_rate(i);
-			units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_FORCE; // REPAIRING enter: no longer forced
+			enter_repairing(i); // REPAIRING enter: no longer forced, autoharvest instead
 			b.hp = std::min(b.max_hp, b.hp + work * repair_rate * dt);
 			// Repairable sends ConstructionFinished too: the repairers move on to nearby work.
 			if (b.hp >= b.max_hp) on_construction_finished(b, i);
@@ -10092,7 +10092,12 @@ void Simulation::apply_order(uint32_t uid, const UnitOrder &o) {
 			order_gather(&uid, 1, r, false, !gone && (o.flags & ORDER_FLAG_FORCE));
 			break;
 		}
-		case ORDER_BUILD: order_build_or_repair(&uid, 1, o.target, false, (o.flags & ORDER_FLAG_FORCE) != 0); break;
+		case ORDER_BUILD: {
+			order_build_or_repair(&uid, 1, o.target, false, (o.flags & ORDER_FLAG_FORCE) != 0);
+			const int32_t k = lookup_unit(uid);
+			if (k >= 0 && units_.order_kind[k] == ORDER_BUILD) units_.order_flags[k] |= o.flags & ORDER_FLAG_AUTOHARVEST;
+			break;
+		}
 		case ORDER_GARRISON: order_garrison(&uid, 1, o.target); break;
 		case ORDER_GUARD: order_guard(&uid, 1, o.target); break;
 		case ORDER_HEAL: order_heal(&uid, 1, o.target); break;
@@ -10549,20 +10554,33 @@ void Simulation::on_construction_finished(const Building &b, size_t builder) {
 	}
 }
 
+// UnitAI REPAIRING enter: a forced build order becomes an unforced one with autoharvest.
+void Simulation::enter_repairing(size_t i) {
+	uint8_t &f = units_.order_flags[i];
+	if ((f & ORDER_FLAG_FORCE) && units_.order_kind[i] == ORDER_BUILD) f |= ORDER_FLAG_AUTOHARVEST;
+	f &= (uint8_t)~ORDER_FLAG_FORCE;
+}
+
 // The rest of ConstructionFinished for builder k: its next order, else farm a field,
 // gather what a new dropsite takes, or help with a foundation nearby.
 void Simulation::next_after_construction(size_t k, const Building &b, bool food, bool other) {
 	const uint32_t uid = units_.id[k];
 	{
 		// A queued order goes first (FinishOrder); fields and dropsites only apply without one.
+		// Fields and dropsites only for the player's own builders (oldData.force || autoharvest),
+		// not for those UnitAI sent over from a finished structure or a guard. Petra's builders
+		// keep gathering by what they built: RTS0's Petra counts on it (0 A.D.'s Petra sends
+		// autocontinue false and reassigns them itself).
+		const bool harvest = petra_runs_for(units_.team[k]) || (units_.order_kind[k] == ORDER_BUILD &&
+				(units_.order_flags[k] & (ORDER_FLAG_FORCE | ORDER_FLAG_AUTOHARVEST)) != 0);
 		auto q = order_queues_.find(uid);
 		if (q != order_queues_.end() && !q->second.empty()) { finish_order(k); return; }
-		if (b.type == BLD_FIELD) {
+		if (harvest && b.type == BLD_FIELD) {
 			order_gather(&uid, 1, ensure_field_resource(b), false, false);
 			return;
 		}
 		const bool takes_all = b.type == BLD_TOWN_CENTER || b.type == BLD_DOCK; // food wood stone metal
-		if (food || other || takes_all) {
+		if (harvest && (food || other || takes_all)) {
 			// Prefer what the unit gathered last (lastGathered), if the dropsite takes it.
 			uint8_t pref = units_.res_type_carried[k];
 			const bool takes_pref = takes_all || (food ? pref == RES_FOOD : pref != RES_FOOD);
