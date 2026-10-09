@@ -424,6 +424,8 @@ static void test_capture() {
 	uint32_t cap[6];
 	for (int k = 0; k < 6; ++k) cap[k] = s.spawn_unit(-12.0f, -5.0f + 2.0f * k, 0, UNIT_SPEARMAN);
 	s.order_attack_building(cap, 6, house, false, true);
+	run_until(s, 30.0f, [&] { return act_of(s, cap[0]) == ACTION_ATTACK; });
+	check(s.unit_capturing(idx_of(s, cap[0])), "the renderer sees it capturing (Capture clip)");
 	const bool flipped = run_until(s, 240.0f, [&] { return bld(s, house)->team == 0; });
 	check(flipped, "six spearmen ordered to capture take it");
 	check(bld(s, house)->hp >= hp0 * 0.999f, "without damaging it");
@@ -439,6 +441,7 @@ static void test_capture() {
 	t.order_attack_building(att, 4, h2, false, false); // Ctrl: attack
 	run(t, 20.0f);
 	check(bld(t, h2)->hp < h2hp, "Ctrl-attack damages it");
+	check(!t.unit_capturing(idx_of(t, att[0])), "and plays the Attack clip, not Capture");
 	check(bld(t, h2)->capture_points_by_team[1] >= h2cp - 0.01f && bld(t, h2)->team == 1, "and takes no capture points");
 }
 
