@@ -6960,6 +6960,7 @@ void Simulation::tick_combat(float dt) {
 		if (st == ACTION_MOVE && (units_.order_kind[i] == ORDER_WALK || units_.order_kind[i] == ORDER_GARRISON))
 			return;
 		const bool guarding = st == ACTION_GUARD; // target_unit_id is the guarded unit
+		const uint32_t prev_unit = units_.target_unit_id[i], prev_bld = units_.target_building_id[i];
 		const bool walk_and_fight = st == ACTION_ATTACK_MOVE || st == ACTION_PATROL;
 
 		const float pxi = units_.pos_x[i];
@@ -7133,6 +7134,9 @@ void Simulation::tick_combat(float dt) {
 		} else if (!guarding && st == ACTION_ATTACK) {
 			units_.target_unit_id[i] = 0; // fight over: tick_unit_ai sends the unit back to its order
 		}
+		// A new target is a new attack (Attack.js StopAttacking, then StartAttacking).
+		if (attack_under_way(i) && (units_.target_unit_id[i] != prev_unit || units_.target_building_id[i] != prev_bld))
+			stop_attack(i);
 		target_idx[i] = found;
 	});
 
@@ -8064,7 +8068,7 @@ void Simulation::tick_attack_timer(size_t i, float dt) {
 	if (tm < 0.0f) {
 		const bool fighting = st == ACTION_IDLE || st == ACTION_MOVE || st == ACTION_ATTACK ||
 				st == ACTION_ATTACK_MOVE || st == ACTION_PATROL || st == ACTION_GUARD;
-		if (!fighting) tm = -tm; // the attack stopped; the rest of RepeatTime still applies
+		if (!fighting) tm = -tm; // the attack stopped (stop_attack); the rest of it still applies
 		else if ((tm += dt) >= 0.0f) tm = ATTACK_DUE;
 	} else if (tm > 0.0f) {
 		tm = std::max(0.0f, tm - dt);
@@ -8080,6 +8084,13 @@ bool Simulation::attack_ready(size_t i, bool in_range, float prepare) {
 	if (tm < 0.0f || !in_range) return false;
 	tm = -std::max(std::max(prepare, tm), 2.0f * ATTACK_DUE);
 	return false;
+}
+
+// Attack.js StopAttacking: the swing under way is dropped; the next attack still
+// waits out what is left of it.
+void Simulation::stop_attack(size_t i) {
+	float &tm = units_.attack_timer[i];
+	tm = tm == ATTACK_DUE ? 0.0f : std::max(0.0f, -tm);
 }
 
 bool Simulation::attack_under_way(size_t i) const {
