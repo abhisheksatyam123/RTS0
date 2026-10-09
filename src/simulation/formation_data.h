@@ -430,6 +430,10 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x0078fu, 0x100u}, // han/support_healer_b
 		{0x00000u, 0x000u}, // han/support_trader
 		{0x00000u, 0x000u}, // han/rts0_villager (RTS0-only)
+		{0x0879fu, 0x02au}, // spart/champion_infantry_spear_olympian
+		{0x007efu, 0x114u}, // rome/cavalry_auxiliary_b
+		{0x007cfu, 0x070u}, // rome/infantry_antesignanus
+		{0x0879fu, 0x02au}, // mace/champion_infantry_spearman_02
 	};
 	return kRows;
 }

@@ -246,12 +246,16 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
     out_turn = [next((t for t in sorted(e) if int(e[t].get("defeated", "0")) & 2), None) for e in extras]
     over = [any(e[t].get("over") == "1" for t in e) for e in extras]
     # Tribute: the joiner's 77 stone reaches the host once, on the same turn on
-    # both peers; its second tribute, sent after its defeat, is dropped.
+    # both peers; its second tribute, sent after its defeat, is dropped. The
+    # host's trader also brings stone home, so only turns where the joiner's
+    # stone moves count.
     def stone_changes(e):
         rows = [(t, tuple(int(x) for x in e[t]["stone"].split(","))) for t in sorted(e) if "stone" in e[t]]
         return [(t, (b[0] - a[0], b[1] - a[1])) for (_, a), (t, b) in zip(rows, rows[1:]) if a != b]
     tributes = [stone_changes(e) for e in extras]
-    tribute_ok = tributes[0] == tributes[1] and [d for _, d in tributes[0]] == [(77, -77)]
+    # A tribute moves stone from one player to the other on one turn; the joiner's own
+    # stone also rises once it captures the team-2 wonder (ResourceTrickle, +1 every 2 s).
+    tribute_ok = tributes[0] == tributes[1] and [d for _, d in tributes[0] if d[0] and d[1]] == [(77, -77)]
     # Upgrade: the host's wall (12) becomes a gate (8) on the same turn on both peers.
     gate_turn = [next((t for t in sorted(e) if e[t].get("wall") == "8"), None) for e in extras]
     upgrade_ok = gate_turn[0] is not None and gate_turn[0] == gate_turn[1]
@@ -286,6 +290,19 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
     form_turns = {"box": form_at(345, 349, "2:0:4"), "walk": form_at(355, 359, "2:1:4"),
                   "attack_walk": form_at(365, 369, "2:2:4")}
     form_ok = forms[0] == forms[1] and all(v is not None for v in form_turns.values())
+    # Return resource (cmd 34) and trade routes (cmd 35): the carrier takes the
+    # drop-off order (12) and empties its 10 wood; the trader walks (1) with the
+    # Shift-queued route behind it, then trades (11). Same turns on both peers.
+    def steps(e, key):
+        rows = [(t, e[t].get(key)) for t in sorted(e) if key in e[t]]
+        return [(t, b) for (_, a), (t, b) in zip(rows, rows[1:]) if a != b]
+    carries, trades = [steps(e, "carry") for e in extras], [steps(e, "trade") for e in extras]
+    carry_turns = {"order": next((t for t, b in carries[0] if 430 < t <= 434 and b == "12:10"), None),
+                   "dropped": next((t for t, b in carries[0] if 430 < t <= 530 and b.endswith(":0")), None)}
+    trade_turns = {"walk": next((t for t, b in trades[0] if 422 < t <= 426 and b == "1:1"), None),
+                   "trade": next((t for t, b in trades[0] if 422 < t <= 560 and b.startswith("11:")), None)}
+    carry_ok = carries[0] == carries[1] and all(v is not None for v in carry_turns.values())
+    trade_ok = trades[0] == trades[1] and all(v is not None for v in trade_turns.values())
     # Network status (NMT_CLIENT_PERFORMANCE): the host reports each client's round
     # trip once a second, and the joiner hears it.
     statuses = peer_lines(outs, "status")
@@ -365,6 +382,8 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
         "ceasefire_ok": ceasefire_ok, "ceasefire_end": cf_end, "ceasefire_hits": cf_hits[:5],
         "tribute_ok": tribute_ok, "tributes": tributes, "upgrade_ok": upgrade_ok, "gate_turn": gate_turn,
         "form_ok": form_ok, "forms": forms, "form_turns": form_turns,
+        "carry_ok": carry_ok, "carries": carries, "carry_turns": carry_turns,
+        "trade_ok": trade_ok, "trades": trades, "trade_turns": trade_turns,
         "goods_ok": goods_ok, "goods": goods,
         "status_ok": status_ok, "statuses": statuses,
         "heal_ok": heal_ok, "heal_turn": heal_turn, "healed": healed,
@@ -372,7 +391,7 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
         "lock_ok": lock_ok, "locks": locks, "pack_ok": pack_ok, "packs": packs, "chat_ok": chat_ok, "chats": chats,
         "pause_ok": pause_ok, "pauses": pauses, "save_ok": save_ok, "saves": saves,
         "defeat_ok": defeat_ok, "defeat_turn": out_turn, "game_over": over,
-        "ok": divergent is None and complete and setup_ok and ceasefire_ok and defeat_ok and tribute_ok and upgrade_ok and lock_ok and pack_ok and work_ok and heal_ok and status_ok and goods_ok and form_ok and chat_ok and pause_ok and save_ok and all(rc == 0 for rc in rcs),
+        "ok": divergent is None and complete and setup_ok and ceasefire_ok and defeat_ok and tribute_ok and upgrade_ok and lock_ok and pack_ok and work_ok and heal_ok and status_ok and goods_ok and form_ok and carry_ok and trade_ok and chat_ok and pause_ok and save_ok and all(rc == 0 for rc in rcs),
     }
 
 
@@ -505,6 +524,70 @@ def run_three_human_case(binary: str, seed: int, speed: float, loss: float, port
                     print(f"   {role}: {line}")
         print(f"[net] FAIL three humans: rc={rcs} rejoin={rep} turns={ {r: len(v) for r, v in h.items()} } "
               f"first_bad={bad} relayed={relayed}")
+    return ok
+
+
+def run_observer_case(binary: str, seed: int, speed: float, loss: float, port: int, out_dir: str,
+                      timeout: int) -> bool:
+    """0 A.D. observer late join: two humans play, and a third client joins the
+    running match as an observer. It loads the host's world, then must hash the
+    same as the host on every later turn; it takes no seat, nobody waits on it,
+    and every peer's player list shows it as an observer."""
+    turns = 400
+    print("\n---- observer: a third client joins the running match to watch ----")
+    roles = ("host", "join", "obs")
+    logs = {r: os.path.join(out_dir, f"observer_{r}.log") for r in roles}
+    for path in logs.values():
+        if os.path.exists(path):
+            os.remove(path)
+    common = ["--speed", str(speed), "--loss", str(loss)]
+    def peer(role, log, *more):
+        return subprocess.Popen([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    host = peer("host", logs["host"], "--name", "alice")
+    time.sleep(0.3)
+    join = peer("join", logs["join"], "--name", "bob")
+    # Join once the match is well under way.
+    deadline = time.time() + timeout
+    while time.time() < deadline and len(read_hashes(logs["host"])) < 120 and host.poll() is None:
+        time.sleep(0.1)
+    obs = peer("join", logs["obs"], "--name", "watcher", "--observe", "1")
+    outs, rcs = {}, {}
+    for role, p in (("obs", obs), ("join", join), ("host", host)):
+        try:
+            out, _ = p.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            out, _ = p.communicate()
+        outs[role], rcs[role] = out, p.returncode
+    def lines(role, tag):
+        return peer_lines([outs[role]], tag).get("host" if role == "host" else "join", {})
+    rep = lines("obs", "rejoin")
+    h, j, o = (read_hashes(logs[r]) for r in roles)
+    t0 = int(rep.get("turn", "0"))
+    after = [t for t in sorted(o) if t > t0]
+    bad = next((t for t in after if h.get(t) != o[t]), None)
+    pair_bad = next((t for t in sorted(h) if j.get(t) != h[t]), None)
+    waited = {r: lines(r, "status").get("waited_on", "-").split(",") for r in ("host", "join")}
+    want = {"0:alice:0:0", "1:bob:1:0", "2:watcher:255:1"}
+    rosters = {r: set(lines(r, "roster").get("list", "-").split(",")) for r in roles}
+    observer_flags = {r: lines(r, "roster").get("observer") for r in roles}
+    ok = (all(rc == 0 for rc in rcs.values()) and rep.get("player") == "255" and t0 > 0
+          and len(h) == turns and len(j) == turns and pair_bad is None
+          and after == list(range(t0 + 1, turns + 1)) and bad is None
+          and all("2" not in w for w in waited.values())
+          and all(r == want for r in rosters.values())
+          and observer_flags == {"host": "0", "join": "0", "obs": "1"})
+    if ok:
+        print(f"[net] PASS observer: joined at turn {t0} as an observer, matched the host on turns {t0 + 1}-{turns}, "
+              f"never waited on; every player list shows {sorted(want)} (final hash {h[turns]})")
+    else:
+        for role in roles:
+            for line in (outs[role] or "").splitlines():
+                if line.startswith("[net-peer]") or line.startswith("[TurnManager]"):
+                    print(f"   [{role}] " + line)
+        print(f"[net] FAIL observer: rc={rcs} rejoin={rep} turns host/join/obs={len(h)}/{len(j)}/{len(o)} "
+              f"first_bad={bad} pair_bad={pair_bad} waited={waited} rosters={rosters} flags={observer_flags}")
     return ok
 
 
@@ -756,6 +839,9 @@ def main() -> int:
             ft = nr["form_turns"]
             print(f"[net] squad formed a box at turn {ft['box']}, walked in formation at {ft['walk']} and "
                   f"attack-moved at {ft['attack_walk']}, on both peers")
+            ct, tt = nr["carry_turns"], nr["trade_turns"]
+            print(f"[net] carrier took the drop-off order at turn {ct['order']} and emptied at {ct['dropped']}; "
+                  f"trader walked with its route queued at {tt['walk']} and started trading at {tt['trade']}")
             print(f"[net] network status: the joiner got {nr['statuses']['join']['reports']} reports from the "
                   f"host, last round trips (client:ms) {nr['statuses']['join']['rtt']}")
             print(f"[net] healer took the heal order at turn {nr['heal_turn']}; the swordsman wounded to 40 hp "
@@ -772,6 +858,10 @@ def main() -> int:
             print(f"[net] FAIL pack: state changes (turn, state) {nr['packs']}")
         elif not nr["form_ok"]:
             print(f"[net] FAIL formations: {nr['form_turns']}, changes (turn, tmpl:order:members) {nr['forms']}")
+        elif not nr["carry_ok"]:
+            print(f"[net] FAIL return resource: {nr['carry_turns']}, changes (turn, order:carry) {nr['carries']}")
+        elif not nr["trade_ok"]:
+            print(f"[net] FAIL trade route: {nr['trade_turns']}, changes (turn, order:queue) {nr['trades']}")
         elif not nr["goods_ok"]:
             print(f"[net] FAIL trading goods: changes (turn, goods) {nr['goods']}")
         elif not nr["status_ok"]:
@@ -811,6 +901,8 @@ def main() -> int:
                                       args.net_port + 3, out_dir, args.timeout) and net_ok
         net_ok = run_kick_case(binary_path, args.seeds[0], args.net_speed, args.net_loss,
                                args.net_port + 4, out_dir, args.timeout) and net_ok
+        net_ok = run_observer_case(binary_path, args.seeds[0], args.net_speed, args.net_loss,
+                                   args.net_port + 5, out_dir, args.timeout) and net_ok
 
     oos = [r for r in results if r["divergent_turn"] is not None]
     if not net_ok and not oos:

@@ -107,7 +107,9 @@ enum TechnologyId : uint8_t {
 	TECH_TYRTEAN_PAEANS = 98, // tyrtean_paeans
 	TECH_UNLOCK_NEODAMODES = 99, // unlock_neodamodes
 	TECH_HEALTH_REGEN_UNITS = 100, // health_regen_units
-	TECH_COUNT = 101
+	TECH_ART_OF_WAR = 101, // art_of_war
+	TECH_SILVERSHIELDS = 102, // silvershields
+	TECH_COUNT = 103
 };
 
 enum TechClass : uint64_t {
@@ -228,6 +230,10 @@ inline const TechClassExpr *tech_affects_table() {
 		{TC_HERO, 0},
 		{TC_CHAMPION | TC_MELEE | TC_INFANTRY, TC_HERO},
 		{TC_UNIT | TC_ORGANIC, 0},
+		{TC_HEALER, 0},
+		{TC_CIVCENTRE, 0},
+		{TC_CIVIC, 0},
+		{TC_STRUCTURE, TC_WONDER},
 	};
 	return kAffects;
 }
@@ -254,6 +260,7 @@ inline const TechEffect *tech_effects_table() {
 		{TSTAT_HEALTH, TOP_MUL, 9, 1, 1.1f}, // cavalry_health
 		{TSTAT_SPEED, TOP_MUL, 9, 1, 1.1f}, // cavalry_movement_speed
 		{TSTAT_BUILD_TIME, TOP_MUL, 10, 1, 0.6f}, // cost_healer
+		{TSTAT_COST_METAL, TOP_SET, 47, 1, 0.0f}, // cost_healer
 		{TSTAT_BUILD_TIME, TOP_MUL, 11, 1, 0.8f}, // dock_efficiency
 		{TSTAT_BUILD_TIME, TOP_MUL, 12, 1, 0.8f}, // dock_efficiency
 		{TSTAT_RESEARCH_TIME, TOP_MUL, 12, 1, 0.8f}, // dock_efficiency
@@ -295,6 +302,7 @@ inline const TechEffect *tech_effects_table() {
 		{TSTAT_HEALTH, TOP_MUL, 16, 1, 2.0f}, // health_civilians_01
 		{TSTAT_ARROWS, TOP_MUL, 17, 1, 2.0f}, // hellenistic_metropolis
 		{TSTAT_HEALTH, TOP_MUL, 17, 1, 2.0f}, // hellenistic_metropolis
+		{TSTAT_CAPTURE_POINTS, TOP_MUL, 48, 1, 2.0f}, // hellenistic_metropolis
 		{TSTAT_BUILD_TIME, TOP_MUL, 18, 1, 0.75f}, // hoplite_tradition
 		{TSTAT_HEALTH, TOP_MUL, 18, 1, 1.1f}, // hoplite_tradition
 		{TSTAT_HEALTH, TOP_MUL, 19, 1, 1.25f}, // juggernauts
@@ -361,9 +369,15 @@ inline const TechEffect *tech_effects_table() {
 		{TSTAT_HEALTH, TOP_MUL, 35, 1, 1.25f}, // agoge
 		{TSTAT_BUILD_TIME, TOP_MUL, 36, 1, 1.2f}, // architecture_kush
 		{TSTAT_HEALTH, TOP_MUL, 36, 1, 1.2f}, // architecture_kush
+		{TSTAT_CAPTURE_POINTS, TOP_MUL, 49, 1, 1.2f}, // architecture_kush
 		{TSTAT_BUILD_TIME, TOP_MUL, 37, 1, 1.2f}, // architecture_pers
 		{TSTAT_HEALTH, TOP_MUL, 37, 1, 1.25f}, // architecture_pers
+		{TSTAT_CAPTURE_POINTS, TOP_MUL, 50, 1, 1.25f}, // architecture_pers
 		{TSTAT_BUILD_TIME, TOP_MUL, 36, 1, 0.75f}, // colonization
+		{TSTAT_COST_FOOD, TOP_MUL, 49, 1, 0.75f}, // colonization
+		{TSTAT_COST_WOOD, TOP_MUL, 49, 1, 0.75f}, // colonization
+		{TSTAT_COST_STONE, TOP_MUL, 49, 1, 0.75f}, // colonization
+		{TSTAT_COST_METAL, TOP_MUL, 49, 1, 0.75f}, // colonization
 		{TSTAT_BUILD_TIME, TOP_MUL, 38, 1, 0.8f}, // crossbow_training
 		{TSTAT_RANGED_PIERCE, TOP_MUL, 39, 1, 0.9f}, // helot_economy
 		{TSTAT_GATHER_GRAIN, TOP_MUL, 39, 1, 2.0f}, // helot_economy
@@ -379,7 +393,7 @@ inline const TechEffect *tech_effects_table() {
 	};
 	return kEffects + 1;
 }
-constexpr int TECH_EFFECT_COUNT = 141;
+constexpr int TECH_EFFECT_COUNT = 149;
 
 inline const TechInfo &tech_info(uint8_t tech_id) {
 	static const TechInfo kTable[TECH_COUNT] = {
@@ -395,95 +409,97 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Will to Fight", "Soldiers, Siege Engines, and Ships +25% attack damage.", 1500, 1500, 1500, 1500, 40.0f, 3, BLD_FORTRESS, TECH_NONE, 0x1fff, 10, 6, "attack_soldiers_will"},
 		{"Horse Breeding", "Cavalry +10% health.", 200, 0, 75, 0, 35.0f, 2, BLD_STABLE, TECH_NONE, 0x3fff, 16, 1, "cavalry_health"},
 		{"Horse Racing", "Cavalry +10% walk speed.", 100, 0, 50, 0, 30.0f, 1, BLD_STABLE, TECH_NONE, 0x3fff, 17, 1, "cavalry_movement_speed"},
-		{"Sacrificial Ritual", "Healers –40% training time, and the metal cost is removed.", 250, 0, 0, 100, 40.0f, 2, BLD_TEMPLE, TECH_NONE, 0x3fff, 18, 1, "cost_healer"},
-		{"Shipwrights", "Docks work 20% faster (Ships −20% build time; Technologies −20% research time) and are built 20% faster. Unlocks special naval technologies for some civilizations.", 200, 0, 200, 0, 40.0f, 2, BLD_DOCK, TECH_NONE, 0x3fff, 19, 3, "dock_efficiency"},
-		{"Salt Curing", "Fishing Boats +20 food capacity.", 200, 100, 0, 0, 50.0f, 1, BLD_DOCK, TECH_NONE, 0x3fff, 22, 1, "fishing_boat_gather_capacity"},
-		{"Fishing Nets", "Fishing Boats +30% fish gather rate. Unlocks “Salt Curing.”", 0, 200, 0, 0, 40.0f, 1, BLD_DOCK, TECH_NONE, 0x3fff, 23, 1, "fishing_boat_gather_rate"},
-		{"Stockbreeding", "Domestic Animals −25% breeding time.", 100, 0, 0, 0, 40.0f, 1, BLD_CORRAL, TECH_NONE, 0x3fff, 24, 1, "gather_animals_stockbreeding"},
-		{"Baskets", "Workers +5 resource capacity.", 200, 200, 0, 0, 40.0f, 1, BLD_STOREHOUSE, TECH_NONE, 0x3fff, 25, 4, "gather_capacity_basket"},
-		{"Horse-drawn Carts", "Workers +5 resource capacity.", 600, 600, 0, 0, 60.0f, 3, BLD_STOREHOUSE, TECH_NONE, 0x3fff, 29, 4, "gather_capacity_carts"},
-		{"Wheelbarrow", "Workers +5 resource capacity.", 400, 400, 0, 0, 50.0f, 2, BLD_STOREHOUSE, TECH_NONE, 0x3fff, 33, 4, "gather_capacity_wheelbarrow"},
-		{"Chain Pump", "Workers +20% grain gather rate.", 0, 400, 300, 0, 60.0f, 3, BLD_FARMSTEAD, TECH_NONE, 0x2000, 37, 1, "gather_farming_chain_pump"},
-		{"Fertilizer", "Workers +20% grain gather rate.", 0, 400, 300, 0, 60.0f, 3, BLD_FARMSTEAD, TECH_NONE, 0x17ff, 38, 1, "gather_farming_fertilizer"},
-		{"Fertilizer", "Workers +20% grain gather rate.", 0, 400, 300, 0, 60.0f, 1, BLD_FARMSTEAD, TECH_NONE, 0x0800, 39, 1, "gather_farming_fertilizer_ptol"},
-		{"Harvesting Machine", "Workers +10% grain gather rate.", 0, 200, 100, 0, 50.0f, 2, BLD_FARMSTEAD, TECH_NONE, 0x0080, 40, 1, "gather_farming_harvester"},
-		{"Seed Drill", "Workers +20% grain gather rate.", 0, 200, 100, 0, 40.0f, 1, BLD_FARMSTEAD, TECH_NONE, 0x2000, 41, 1, "gather_farming_seed_drill"},
-		{"Gather Training", "Workers +20% grain gather rate.", 0, 300, 200, 0, 50.0f, 2, BLD_FARMSTEAD, TECH_NONE, 0x17ff, 42, 1, "gather_farming_training"},
-		{"Gather Training", "Workers +20% grain gather rate.", 0, 300, 200, 0, 50.0f, 1, BLD_FARMSTEAD, TECH_NONE, 0x0800, 43, 1, "gather_farming_training_ptol"},
-		{"Water Weeding", "Workers +20% grain gather rate.", 0, 300, 200, 0, 50.0f, 2, BLD_FARMSTEAD, TECH_NONE, 0x2000, 44, 1, "gather_farming_water_weeding"},
-		{"Sharp Axe Heads", "Workers +25% wood gather rate.", 0, 600, 300, 0, 60.0f, 3, BLD_STOREHOUSE, TECH_NONE, 0x3fff, 45, 1, "gather_lumbering_sharpaxes"},
-		{"Stronger Axe", "Workers +25% wood gather rate.", 0, 400, 200, 0, 50.0f, 2, BLD_STOREHOUSE, TECH_NONE, 0x3fff, 46, 1, "gather_lumbering_strongeraxes"},
-		{"Serfs", "Workers +25% stone gather rate.", 400, 0, 0, 200, 50.0f, 2, BLD_STOREHOUSE, TECH_NONE, 0x3fef, 47, 1, "gather_mining_serfs"},
-		{"Servants", "Workers +25% stone gather rate.", 200, 0, 0, 100, 40.0f, 1, BLD_STOREHOUSE, TECH_NONE, 0x3fef, 48, 1, "gather_mining_servants"},
-		{"Shaft Mining", "Workers +25% metal gather rate.", 400, 0, 0, 200, 50.0f, 2, BLD_STOREHOUSE, TECH_NONE, 0x3fff, 49, 1, "gather_mining_shaftmining"},
-		{"Silver Mining", "Workers +25% metal gather rate.", 600, 0, 0, 300, 60.0f, 3, BLD_STOREHOUSE, TECH_NONE, 0x3fff, 50, 1, "gather_mining_silvermining"},
-		{"Slaves", "Workers +25% stone gather rate.", 600, 0, 0, 300, 60.0f, 3, BLD_STOREHOUSE, TECH_NONE, 0x3fef, 51, 1, "gather_mining_slaves"},
-		{"Wicker Baskets", "Workers +50% fruit gather rate.", 0, 100, 0, 0, 40.0f, 1, BLD_FARMSTEAD, TECH_NONE, 0x3dff, 52, 1, "gather_wicker_baskets"},
-		{"Healing Range", "Healers +5 healing range.", 200, 0, 100, 0, 40.0f, 2, BLD_TEMPLE, TECH_NONE, 0x3fff, 53, 1, "heal_range"},
-		{"Healing Range 2", "Healers +5 healing range.", 300, 0, 150, 0, 40.0f, 3, BLD_TEMPLE, TECH_NONE, 0x3fff, 54, 1, "heal_range_2"},
-		{"Healing Rate", "Healers −20% healing time.", 200, 0, 100, 0, 40.0f, 2, BLD_TEMPLE, TECH_NONE, 0x3fff, 55, 1, "heal_rate"},
-		{"Healing Rate 2", "Healers −20% healing time.", 300, 0, 150, 0, 40.0f, 3, BLD_TEMPLE, TECH_NONE, 0x3fff, 56, 1, "heal_rate_2"},
-		{"The Loom", "Civilians +100% health.", 200, 0, 0, 0, 40.0f, 1, BLD_HOUSE, TECH_NONE, 0x3fff, 57, 1, "health_civilians_01"},
-		{"Hellenistic Metropolis", "Civic Centers +100% health and capture points, double default arrows.", 0, 0, 500, 500, 60.0f, 3, BLD_TOWN_CENTER, TECH_NONE, 0x1820, 58, 2, "hellenistic_metropolis"},
-		{"Hoplite Tradition", "Hoplites −25% training time, −50% promotion experience, and +10% health.", 400, 0, 300, 0, 60.0f, 2, BLD_TOWN_CENTER, TECH_NONE, 0x0003, 60, 2, "hoplite_tradition"},
-		{"Juggernauts", "Warships +25% health, but −10% speed.", 0, 500, 300, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x0800, 62, 2, "juggernauts"},
-		{"Nisean War Horses", "Champion Cavalry Spearmen +10% health, but +10% training time.", 400, 0, 200, 0, 60.0f, 1, BLD_STABLE, TECH_UNLOCK_CHAMPION_CAVALRY, 0x1004, 64, 2, "nisean_horses"},
-		{"Poison Arrows", "Ranged Soldiers +20% attack damage.", 1200, 0, 1200, 0, 50.0f, 3, BLD_FORTRESS, TECH_NONE, 0x2000, 66, 3, "poison_arrows"},
-		{"Poison Blades", "Melee Soldiers +20% attack damage.", 1200, 1200, 0, 0, 50.0f, 3, BLD_FORTRESS, TECH_NONE, 0x2000, 69, 3, "poison_blades"},
-		{"Home Garden", "Houses +20% population bonus.", 0, 300, 0, 100, 40.0f, 2, BLD_HOUSE, TECH_NONE, 0x3fff, 72, 1, "pop_house_01"},
-		{"Manors", "Houses +20% population bonus.", 0, 300, 0, 300, 40.0f, 3, BLD_HOUSE, TECH_NONE, 0x3fff, 73, 1, "pop_house_02"},
-		{"Roman Roads", "All Land Units +5% movement speed.", 0, 0, 0, 500, 60.0f, 2, BLD_TOWN_CENTER, TECH_NONE, 0x0008, 74, 1, "roman_roads"},
-		{"Reinforced Hull", "Ships +25% health, but −10% speed.", 0, 300, 200, 0, 50.0f, 2, BLD_DOCK, TECH_NONE, 0x01c0, 75, 2, "ship_health"},
-		{"Phoenician Naval Tradition", "Ships +10% movement speed.", 200, 200, 0, 0, 40.0f, 2, BLD_DOCK, TECH_NONE, 0x0014, 77, 1, "ship_movement_speed"},
-		{"Advanced Siege", "Siege Engines +25% attack crush damage.", 0, 800, 500, 0, 40.0f, 3, BLD_ARSENAL, TECH_NONE, 0x3fff, 78, 2, "siege_attack"},
-		{"Siegecraft", "Siege Engines −20% construction time.", 0, 600, 0, 0, 40.0f, 3, BLD_ARSENAL, TECH_NONE, 0x3fff, 80, 1, "siege_cost_time"},
-		{"Armor Plating", "Battering Rams and Siege Towers +25% health.", 0, 0, 600, 0, 40.0f, 3, BLD_ARSENAL, TECH_NONE, 0x3fff, 81, 1, "siege_health"},
-		{"Military Engineers", "Siege Engines –40% pack and unpack time.", 800, 0, 0, 0, 40.0f, 3, BLD_ARSENAL, TECH_NONE, 0x383b, 82, 1, "siege_pack_unpack"},
-		{"Iron Weapons", "Soldiers +15% melee attack damage.", 350, 0, 250, 0, 40.0f, 2, BLD_FORGE, TECH_NONE, 0x3fff, 83, 3, "soldier_attack_melee_02"},
-		{"Carburization", "Soldiers +20% melee attack damage.", 500, 0, 400, 0, 60.0f, 3, BLD_FORGE, TECH_NONE, 0x3cff, 86, 3, "soldier_attack_melee_03"},
-		{"Steel Working", "Soldiers +20% melee attack damage. Swordsmen get an additional +20% bonus.", 500, 0, 400, 0, 60.0f, 3, BLD_FORGE, TECH_NONE, 0x0300, 89, 6, "soldier_attack_melee_03_variant"},
-		{"Improved Fletching", "Soldiers +15% ranged attack damage.", 0, 200, 100, 0, 20.0f, 2, BLD_FORGE, TECH_NONE, 0x3fff, 95, 3, "soldier_attack_ranged_01"},
-		{"Iron Arrowheads", "Soldiers +15% ranged attack damage.", 0, 350, 250, 0, 40.0f, 2, BLD_FORGE, TECH_NONE, 0x3fff, 98, 3, "soldier_attack_ranged_02"},
-		{"Trilobate Arrowheads", "Soldiers +20% ranged attack damage.", 0, 500, 400, 0, 60.0f, 3, BLD_FORGE, TECH_NONE, 0x3fff, 101, 3, "soldier_attack_ranged_03"},
-		{"Laminated Linen Body Armor", "Soldiers +1 hack resistance.", 350, 0, 250, 0, 40.0f, 2, BLD_FORGE, TECH_NONE, 0x3fff, 104, 1, "soldier_resistance_hack_02"},
-		{"Mail Body Armor", "Soldiers +2 hack resistance.", 500, 0, 400, 0, 60.0f, 3, BLD_FORGE, TECH_NONE, 0x3fff, 105, 1, "soldier_resistance_hack_03"},
-		{"Wooden Shield", "Soldiers +1 pierce resistance.", 0, 200, 100, 0, 20.0f, 2, BLD_FORGE, TECH_NONE, 0x3fff, 106, 1, "soldier_resistance_pierce_01"},
-		{"Metal Rim", "Soldiers +1 pierce resistance.", 0, 350, 250, 0, 40.0f, 2, BLD_FORGE, TECH_NONE, 0x3fff, 107, 1, "soldier_resistance_pierce_02"},
-		{"Improved Shield Alloys", "Soldiers +2 pierce resistance.", 0, 500, 400, 0, 60.0f, 3, BLD_FORGE, TECH_NONE, 0x3fff, 108, 1, "soldier_resistance_pierce_03"},
-		{"Professional Garrisons", "Fortresses +6 default arrows.", 400, 0, 200, 0, 50.0f, 1, BLD_FORTRESS, TECH_NONE, 0x3fff, 109, 1, "tower_garrison"},
-		{"Sturdy Foundations", "Towers +25% health.", 0, 0, 100, 500, 40.0f, 3, BLD_TOWER, TECH_NONE, 0x3fff, 110, 1, "tower_health"},
-		{"Arrow Shooters", "Sentry and Stone Towers +8 attack range.", 0, 500, 250, 0, 40.0f, 2, BLD_TOWER, TECH_NONE, 0x3fff, 111, 1, "tower_range"},
-		{"Sentries", "Sentry and Stone Towers +50% default arrow count.", 500, 0, 0, 0, 40.0f, 1, BLD_TOWER, TECH_NONE, 0x3fff, 112, 1, "tower_watch"},
-		{"Handicraft", "Traders +15% trade gain.", 0, 150, 150, 0, 40.0f, 2, BLD_MARKET, TECH_NONE, 0x3fff, 113, 1, "trade_gain_01"},
-		{"Advanced Handicraft", "Traders +15% trade gain.", 0, 300, 300, 0, 40.0f, 3, BLD_MARKET, TECH_NONE, 0x3fff, 114, 1, "trade_gain_02"},
-		{"Trade Caravan", "Land Traders +50% health.", 300, 0, 0, 0, 40.0f, 2, BLD_MARKET, TECH_NONE, 0x3fff, 115, 1, "trader_health"},
-		{"Unlock Champion Cavalry", "Unlock Champion Cavalry at the Stable.", 600, 0, 0, 0, 60.0f, 3, BLD_STABLE, TECH_NONE, 0x1dac, 116, 0, "unlock_champion_cavalry"},
-		{"Unlock Champion Chariots", "Unlock Champion Chariots at the Stable.", 600, 0, 0, 0, 60.0f, 3, BLD_STABLE, TECH_NONE, 0x1244, 116, 0, "unlock_champion_chariots"},
-		{"Unlock Champion Infantry", "Unlock Champions Infantry at the Barracks.", 600, 0, 0, 0, 60.0f, 3, BLD_BARRACKS, TECH_NONE, 0x0fec, 116, 0, "unlock_champion_infantry"},
-		{"Fertility Festival", "Unlock the ability to train Civilians from houses.", 250, 100, 100, 0, 60.0f, 1, BLD_HOUSE, TECH_NONE, 0x3bff, 116, 0, "unlock_civilians_house_generic"},
-		{"Fertility Festival", "Unlock the ability to train Civilians from houses.", 250, 100, 100, 0, 60.0f, 1, BLD_HOUSE, TECH_NONE, 0x0400, 116, 0, "unlock_civilians_house_kush"},
-		{"Naval Oxybeles", "Arrow Ships +10 crush attack damage and +10% attack range.", 0, 200, 200, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x3fff, 116, 2, "warship_arrow_attack"},
-		{"Burning Pitch", "Fire Ships +25% health and +25% attack damage.", 0, 300, 100, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x01c0, 118, 0, "warship_fireship_attack"},
-		{"Undergirding Cables", "Arrow Ships and Ramming Ships +20% health.", 0, 0, 400, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x003b, 118, 1, "warship_health"},
-		{"Bronze Ram", "Ramming Ships +30% attack damage.", 0, 0, 400, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x183f, 119, 0, "warship_ramming_attack"},
-		{"Flaming Projectiles", "Ranged Warships +10% attack damage.", 0, 400, 300, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x0400, 119, 2, "warship_ranged_attack"},
-		{"Naval Ballistae", "Siege Ships +20% attack range and vision range.", 0, 300, 300, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x3818, 121, 0, "warship_siege_attack"},
-		{"Living Conditions", "Structures +1 garrison heal rate.", 500, 0, 250, 0, 40.0f, 2, BLD_TEMPLE, TECH_NONE, 0x3fff, 121, 1, "garrison_heal"},
-		{"The Agoge", "Champion Hoplites +25% health, but +5% training time.", 500, 0, 200, 0, 60.0f, 3, BLD_GEROUSIA, TECH_NONE, 0x0002, 122, 2, "agoge"},
-		{"Monumental Architecture", "Civic Structures +20% build time, +20% health, and +20% capture points.", 0, 0, 0, 600, 60.0f, 2, BLD_TOWN_CENTER, TECH_NONE, 0x0400, 124, 2, "architecture_kush"},
-		{"Achaemenid Architecture", "Structures +25% health and capture points, but also +20% build time.", 0, 200, 0, 200, 60.0f, 1, BLD_TOWN_CENTER, TECH_NONE, 0x0004, 126, 2, "architecture_pers"},
-		{"Colonization", "Civic Structures (Civic Center, Temples, and Houses) −25% build time and resource costs.", 0, 200, 200, 0, 20.0f, 1, BLD_TOWN_CENTER, TECH_NONE, 0x0010, 128, 1, "colonization"},
-		{"Crossbow Training", "Crossbow Infantry −20% train time.", 400, 400, 0, 0, 40.0f, 2, BLD_BARRACKS, TECH_NONE, 0x2000, 129, 1, "crossbow_training"},
-		{"Helot Economy", "Infantry Javelineers +100% grain gather rate, but −10% ranged attack pierce damage.", 200, 200, 0, 0, 40.0f, 1, BLD_TOWN_CENTER, TECH_NONE, 0x0002, 130, 2, "helot_economy"},
-		{"Immortals", "Immortals −50% training time.", 200, 0, 200, 0, 60.0f, 3, BLD_TACHARA, TECH_NONE, 0x0004, 132, 1, "immortals"},
-		{"Iphicratean Reforms", "Athenian Docks and Triremes can train Marines and Cretan Mercenary Archers.", 200, 0, 200, 0, 30.0f, 2, BLD_DOCK, TECH_NONE, 0x0001, 133, 0, "iphicratean_reforms"},
-		{"Krypteia", "Champion Hoplites +10% melee attack damage, but Citizen Infantry Javelineers +30% training time.", 200, 0, 200, 0, 50.0f, 2, BLD_GEROUSIA, TECH_NONE, 0x0002, 133, 3, "krypteia"},
-		{"Ostracism", "Citizen soldiers +5% health, but Heroes −40% health.", 300, 0, 300, 0, 60.0f, 3, BLD_PRYTANEION, TECH_NONE, 0x0001, 136, 2, "ostracism"},
-		{"Parade of Daphne", "Champions −20% training time.", 500, 0, 300, 0, 60.0f, 3, BLD_FORTRESS, TECH_NONE, 0x1000, 138, 1, "parade_of_daphne"},
-		{"Marian Reforms", "Convert Infantry to Marian Legionaries, Cavalry to Auxiliary Cavalry, unlock Onagers and Centurions, but lose access to Spear Cavalry and Italic Heavy Infantry.", 1200, 0, 1000, 0, 60.0f, 3, BLD_FORTRESS, TECH_NONE, 0x0008, 139, 0, "roman_reforms"},
-		{"Tyrtean Paeans", "Champion Hoplites +10% movement speed.", 200, 0, 200, 0, 50.0f, 2, BLD_GEROUSIA, TECH_NONE, 0x0002, 139, 1, "tyrtean_paeans"},
-		{"Unlock Neodamodes", "Unlock the ability to train Spearman Neodamodes at the Barracks.", 500, 0, 0, 0, 60.0f, 3, BLD_GEROUSIA, TECH_NONE, 0x0002, 140, 0, "unlock_neodamodes"},
-		{"Battlefield Medicine", "Idle Organic units +0.5 health regeneration rate.", 1000, 0, 250, 0, 40.0f, 3, BLD_TEMPLE, TECH_NONE, 0x3fff, 140, 1, "health_regen_units"},
+		{"Sacrificial Ritual", "Healers –40% training time, and the metal cost is removed.", 250, 0, 0, 100, 40.0f, 2, BLD_TEMPLE, TECH_NONE, 0x3fff, 18, 2, "cost_healer"},
+		{"Shipwrights", "Docks work 20% faster (Ships −20% build time; Technologies −20% research time) and are built 20% faster. Unlocks special naval technologies for some civilizations.", 200, 0, 200, 0, 40.0f, 2, BLD_DOCK, TECH_NONE, 0x3fff, 20, 3, "dock_efficiency"},
+		{"Salt Curing", "Fishing Boats +20 food capacity.", 200, 100, 0, 0, 50.0f, 1, BLD_DOCK, TECH_NONE, 0x3fff, 23, 1, "fishing_boat_gather_capacity"},
+		{"Fishing Nets", "Fishing Boats +30% fish gather rate. Unlocks “Salt Curing.”", 0, 200, 0, 0, 40.0f, 1, BLD_DOCK, TECH_NONE, 0x3fff, 24, 1, "fishing_boat_gather_rate"},
+		{"Stockbreeding", "Domestic Animals −25% breeding time.", 100, 0, 0, 0, 40.0f, 1, BLD_CORRAL, TECH_NONE, 0x3fff, 25, 1, "gather_animals_stockbreeding"},
+		{"Baskets", "Workers +5 resource capacity.", 200, 200, 0, 0, 40.0f, 1, BLD_STOREHOUSE, TECH_NONE, 0x3fff, 26, 4, "gather_capacity_basket"},
+		{"Horse-drawn Carts", "Workers +5 resource capacity.", 600, 600, 0, 0, 60.0f, 3, BLD_STOREHOUSE, TECH_NONE, 0x3fff, 30, 4, "gather_capacity_carts"},
+		{"Wheelbarrow", "Workers +5 resource capacity.", 400, 400, 0, 0, 50.0f, 2, BLD_STOREHOUSE, TECH_NONE, 0x3fff, 34, 4, "gather_capacity_wheelbarrow"},
+		{"Chain Pump", "Workers +20% grain gather rate.", 0, 400, 300, 0, 60.0f, 3, BLD_FARMSTEAD, TECH_NONE, 0x2000, 38, 1, "gather_farming_chain_pump"},
+		{"Fertilizer", "Workers +20% grain gather rate.", 0, 400, 300, 0, 60.0f, 3, BLD_FARMSTEAD, TECH_NONE, 0x17ff, 39, 1, "gather_farming_fertilizer"},
+		{"Fertilizer", "Workers +20% grain gather rate.", 0, 400, 300, 0, 60.0f, 1, BLD_FARMSTEAD, TECH_NONE, 0x0800, 40, 1, "gather_farming_fertilizer_ptol"},
+		{"Harvesting Machine", "Workers +10% grain gather rate.", 0, 200, 100, 0, 50.0f, 2, BLD_FARMSTEAD, TECH_NONE, 0x0080, 41, 1, "gather_farming_harvester"},
+		{"Seed Drill", "Workers +20% grain gather rate.", 0, 200, 100, 0, 40.0f, 1, BLD_FARMSTEAD, TECH_NONE, 0x2000, 42, 1, "gather_farming_seed_drill"},
+		{"Gather Training", "Workers +20% grain gather rate.", 0, 300, 200, 0, 50.0f, 2, BLD_FARMSTEAD, TECH_NONE, 0x17ff, 43, 1, "gather_farming_training"},
+		{"Gather Training", "Workers +20% grain gather rate.", 0, 300, 200, 0, 50.0f, 1, BLD_FARMSTEAD, TECH_NONE, 0x0800, 44, 1, "gather_farming_training_ptol"},
+		{"Water Weeding", "Workers +20% grain gather rate.", 0, 300, 200, 0, 50.0f, 2, BLD_FARMSTEAD, TECH_NONE, 0x2000, 45, 1, "gather_farming_water_weeding"},
+		{"Sharp Axe Heads", "Workers +25% wood gather rate.", 0, 600, 300, 0, 60.0f, 3, BLD_STOREHOUSE, TECH_NONE, 0x3fff, 46, 1, "gather_lumbering_sharpaxes"},
+		{"Stronger Axe", "Workers +25% wood gather rate.", 0, 400, 200, 0, 50.0f, 2, BLD_STOREHOUSE, TECH_NONE, 0x3fff, 47, 1, "gather_lumbering_strongeraxes"},
+		{"Serfs", "Workers +25% stone gather rate.", 400, 0, 0, 200, 50.0f, 2, BLD_STOREHOUSE, TECH_NONE, 0x3fef, 48, 1, "gather_mining_serfs"},
+		{"Servants", "Workers +25% stone gather rate.", 200, 0, 0, 100, 40.0f, 1, BLD_STOREHOUSE, TECH_NONE, 0x3fef, 49, 1, "gather_mining_servants"},
+		{"Shaft Mining", "Workers +25% metal gather rate.", 400, 0, 0, 200, 50.0f, 2, BLD_STOREHOUSE, TECH_NONE, 0x3fff, 50, 1, "gather_mining_shaftmining"},
+		{"Silver Mining", "Workers +25% metal gather rate.", 600, 0, 0, 300, 60.0f, 3, BLD_STOREHOUSE, TECH_NONE, 0x3fff, 51, 1, "gather_mining_silvermining"},
+		{"Slaves", "Workers +25% stone gather rate.", 600, 0, 0, 300, 60.0f, 3, BLD_STOREHOUSE, TECH_NONE, 0x3fef, 52, 1, "gather_mining_slaves"},
+		{"Wicker Baskets", "Workers +50% fruit gather rate.", 0, 100, 0, 0, 40.0f, 1, BLD_FARMSTEAD, TECH_NONE, 0x3dff, 53, 1, "gather_wicker_baskets"},
+		{"Healing Range", "Healers +5 healing range.", 200, 0, 100, 0, 40.0f, 2, BLD_TEMPLE, TECH_NONE, 0x3fff, 54, 1, "heal_range"},
+		{"Healing Range 2", "Healers +5 healing range.", 300, 0, 150, 0, 40.0f, 3, BLD_TEMPLE, TECH_NONE, 0x3fff, 55, 1, "heal_range_2"},
+		{"Healing Rate", "Healers −20% healing time.", 200, 0, 100, 0, 40.0f, 2, BLD_TEMPLE, TECH_NONE, 0x3fff, 56, 1, "heal_rate"},
+		{"Healing Rate 2", "Healers −20% healing time.", 300, 0, 150, 0, 40.0f, 3, BLD_TEMPLE, TECH_NONE, 0x3fff, 57, 1, "heal_rate_2"},
+		{"The Loom", "Civilians +100% health.", 200, 0, 0, 0, 40.0f, 1, BLD_HOUSE, TECH_NONE, 0x3fff, 58, 1, "health_civilians_01"},
+		{"Hellenistic Metropolis", "Civic Centers +100% health and capture points, double default arrows.", 0, 0, 500, 500, 60.0f, 3, BLD_TOWN_CENTER, TECH_NONE, 0x1820, 59, 3, "hellenistic_metropolis"},
+		{"Hoplite Tradition", "Hoplites −25% training time, −50% promotion experience, and +10% health.", 400, 0, 300, 0, 60.0f, 2, BLD_TOWN_CENTER, TECH_NONE, 0x0003, 62, 2, "hoplite_tradition"},
+		{"Juggernauts", "Warships +25% health, but −10% speed.", 0, 500, 300, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x0800, 64, 2, "juggernauts"},
+		{"Nisean War Horses", "Champion Cavalry Spearmen +10% health, but +10% training time.", 400, 0, 200, 0, 60.0f, 1, BLD_STABLE, TECH_UNLOCK_CHAMPION_CAVALRY, 0x1004, 66, 2, "nisean_horses"},
+		{"Poison Arrows", "Ranged Soldiers +20% attack damage.", 1200, 0, 1200, 0, 50.0f, 3, BLD_FORTRESS, TECH_NONE, 0x2000, 68, 3, "poison_arrows"},
+		{"Poison Blades", "Melee Soldiers +20% attack damage.", 1200, 1200, 0, 0, 50.0f, 3, BLD_FORTRESS, TECH_NONE, 0x2000, 71, 3, "poison_blades"},
+		{"Home Garden", "Houses +20% population bonus.", 0, 300, 0, 100, 40.0f, 2, BLD_HOUSE, TECH_NONE, 0x3fff, 74, 1, "pop_house_01"},
+		{"Manors", "Houses +20% population bonus.", 0, 300, 0, 300, 40.0f, 3, BLD_HOUSE, TECH_NONE, 0x3fff, 75, 1, "pop_house_02"},
+		{"Roman Roads", "All Land Units +5% movement speed.", 0, 0, 0, 500, 60.0f, 2, BLD_TOWN_CENTER, TECH_NONE, 0x0008, 76, 1, "roman_roads"},
+		{"Reinforced Hull", "Ships +25% health, but −10% speed.", 0, 300, 200, 0, 50.0f, 2, BLD_DOCK, TECH_NONE, 0x01c0, 77, 2, "ship_health"},
+		{"Phoenician Naval Tradition", "Ships +10% movement speed.", 200, 200, 0, 0, 40.0f, 2, BLD_DOCK, TECH_NONE, 0x0014, 79, 1, "ship_movement_speed"},
+		{"Advanced Siege", "Siege Engines +25% attack crush damage.", 0, 800, 500, 0, 40.0f, 3, BLD_ARSENAL, TECH_NONE, 0x3fff, 80, 2, "siege_attack"},
+		{"Siegecraft", "Siege Engines −20% construction time.", 0, 600, 0, 0, 40.0f, 3, BLD_ARSENAL, TECH_NONE, 0x3fff, 82, 1, "siege_cost_time"},
+		{"Armor Plating", "Battering Rams and Siege Towers +25% health.", 0, 0, 600, 0, 40.0f, 3, BLD_ARSENAL, TECH_NONE, 0x3fff, 83, 1, "siege_health"},
+		{"Military Engineers", "Siege Engines –40% pack and unpack time.", 800, 0, 0, 0, 40.0f, 3, BLD_ARSENAL, TECH_NONE, 0x383b, 84, 1, "siege_pack_unpack"},
+		{"Iron Weapons", "Soldiers +15% melee attack damage.", 350, 0, 250, 0, 40.0f, 2, BLD_FORGE, TECH_NONE, 0x3fff, 85, 3, "soldier_attack_melee_02"},
+		{"Carburization", "Soldiers +20% melee attack damage.", 500, 0, 400, 0, 60.0f, 3, BLD_FORGE, TECH_NONE, 0x3cff, 88, 3, "soldier_attack_melee_03"},
+		{"Steel Working", "Soldiers +20% melee attack damage. Swordsmen get an additional +20% bonus.", 500, 0, 400, 0, 60.0f, 3, BLD_FORGE, TECH_NONE, 0x0300, 91, 6, "soldier_attack_melee_03_variant"},
+		{"Improved Fletching", "Soldiers +15% ranged attack damage.", 0, 200, 100, 0, 20.0f, 2, BLD_FORGE, TECH_NONE, 0x3fff, 97, 3, "soldier_attack_ranged_01"},
+		{"Iron Arrowheads", "Soldiers +15% ranged attack damage.", 0, 350, 250, 0, 40.0f, 2, BLD_FORGE, TECH_NONE, 0x3fff, 100, 3, "soldier_attack_ranged_02"},
+		{"Trilobate Arrowheads", "Soldiers +20% ranged attack damage.", 0, 500, 400, 0, 60.0f, 3, BLD_FORGE, TECH_NONE, 0x3fff, 103, 3, "soldier_attack_ranged_03"},
+		{"Laminated Linen Body Armor", "Soldiers +1 hack resistance.", 350, 0, 250, 0, 40.0f, 2, BLD_FORGE, TECH_NONE, 0x3fff, 106, 1, "soldier_resistance_hack_02"},
+		{"Mail Body Armor", "Soldiers +2 hack resistance.", 500, 0, 400, 0, 60.0f, 3, BLD_FORGE, TECH_NONE, 0x3fff, 107, 1, "soldier_resistance_hack_03"},
+		{"Wooden Shield", "Soldiers +1 pierce resistance.", 0, 200, 100, 0, 20.0f, 2, BLD_FORGE, TECH_NONE, 0x3fff, 108, 1, "soldier_resistance_pierce_01"},
+		{"Metal Rim", "Soldiers +1 pierce resistance.", 0, 350, 250, 0, 40.0f, 2, BLD_FORGE, TECH_NONE, 0x3fff, 109, 1, "soldier_resistance_pierce_02"},
+		{"Improved Shield Alloys", "Soldiers +2 pierce resistance.", 0, 500, 400, 0, 60.0f, 3, BLD_FORGE, TECH_NONE, 0x3fff, 110, 1, "soldier_resistance_pierce_03"},
+		{"Professional Garrisons", "Fortresses +6 default arrows.", 400, 0, 200, 0, 50.0f, 1, BLD_FORTRESS, TECH_NONE, 0x3fff, 111, 1, "tower_garrison"},
+		{"Sturdy Foundations", "Towers +25% health.", 0, 0, 100, 500, 40.0f, 3, BLD_TOWER, TECH_NONE, 0x3fff, 112, 1, "tower_health"},
+		{"Arrow Shooters", "Sentry and Stone Towers +8 attack range.", 0, 500, 250, 0, 40.0f, 2, BLD_TOWER, TECH_NONE, 0x3fff, 113, 1, "tower_range"},
+		{"Sentries", "Sentry and Stone Towers +50% default arrow count.", 500, 0, 0, 0, 40.0f, 1, BLD_TOWER, TECH_NONE, 0x3fff, 114, 1, "tower_watch"},
+		{"Handicraft", "Traders +15% trade gain.", 0, 150, 150, 0, 40.0f, 2, BLD_MARKET, TECH_NONE, 0x3fff, 115, 1, "trade_gain_01"},
+		{"Advanced Handicraft", "Traders +15% trade gain.", 0, 300, 300, 0, 40.0f, 3, BLD_MARKET, TECH_NONE, 0x3fff, 116, 1, "trade_gain_02"},
+		{"Trade Caravan", "Land Traders +50% health.", 300, 0, 0, 0, 40.0f, 2, BLD_MARKET, TECH_NONE, 0x3fff, 117, 1, "trader_health"},
+		{"Unlock Champion Cavalry", "Unlock Champion Cavalry at the Stable.", 600, 0, 0, 0, 60.0f, 3, BLD_STABLE, TECH_NONE, 0x1dac, 118, 0, "unlock_champion_cavalry"},
+		{"Unlock Champion Chariots", "Unlock Champion Chariots at the Stable.", 600, 0, 0, 0, 60.0f, 3, BLD_STABLE, TECH_NONE, 0x1244, 118, 0, "unlock_champion_chariots"},
+		{"Unlock Champion Infantry", "Unlock Champions Infantry at the Barracks.", 600, 0, 0, 0, 60.0f, 3, BLD_BARRACKS, TECH_NONE, 0x0fec, 118, 0, "unlock_champion_infantry"},
+		{"Fertility Festival", "Unlock the ability to train Civilians from houses.", 250, 100, 100, 0, 60.0f, 1, BLD_HOUSE, TECH_NONE, 0x3bff, 118, 0, "unlock_civilians_house_generic"},
+		{"Fertility Festival", "Unlock the ability to train Civilians from houses.", 250, 100, 100, 0, 60.0f, 1, BLD_HOUSE, TECH_NONE, 0x0400, 118, 0, "unlock_civilians_house_kush"},
+		{"Naval Oxybeles", "Arrow Ships +10 crush attack damage and +10% attack range.", 0, 200, 200, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x3fff, 118, 2, "warship_arrow_attack"},
+		{"Burning Pitch", "Fire Ships +25% health and +25% attack damage.", 0, 300, 100, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x01c0, 120, 0, "warship_fireship_attack"},
+		{"Undergirding Cables", "Arrow Ships and Ramming Ships +20% health.", 0, 0, 400, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x003b, 120, 1, "warship_health"},
+		{"Bronze Ram", "Ramming Ships +30% attack damage.", 0, 0, 400, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x183f, 121, 0, "warship_ramming_attack"},
+		{"Flaming Projectiles", "Ranged Warships +10% attack damage.", 0, 400, 300, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x0400, 121, 2, "warship_ranged_attack"},
+		{"Naval Ballistae", "Siege Ships +20% attack range and vision range.", 0, 300, 300, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x3818, 123, 0, "warship_siege_attack"},
+		{"Living Conditions", "Structures +1 garrison heal rate.", 500, 0, 250, 0, 40.0f, 2, BLD_TEMPLE, TECH_NONE, 0x3fff, 123, 1, "garrison_heal"},
+		{"The Agoge", "Champion Hoplites +25% health, but +5% training time.", 500, 0, 200, 0, 60.0f, 3, BLD_GEROUSIA, TECH_NONE, 0x0002, 124, 2, "agoge"},
+		{"Monumental Architecture", "Civic Structures +20% build time, +20% health, and +20% capture points.", 0, 0, 0, 600, 60.0f, 2, BLD_TOWN_CENTER, TECH_NONE, 0x0400, 126, 3, "architecture_kush"},
+		{"Achaemenid Architecture", "Structures +25% health and capture points, but also +20% build time.", 0, 200, 0, 200, 60.0f, 1, BLD_TOWN_CENTER, TECH_NONE, 0x0004, 129, 3, "architecture_pers"},
+		{"Colonization", "Civic Structures (Civic Center, Temples, and Houses) −25% build time and resource costs.", 0, 200, 200, 0, 20.0f, 1, BLD_TOWN_CENTER, TECH_NONE, 0x0010, 132, 5, "colonization"},
+		{"Crossbow Training", "Crossbow Infantry −20% train time.", 400, 400, 0, 0, 40.0f, 2, BLD_BARRACKS, TECH_NONE, 0x2000, 137, 1, "crossbow_training"},
+		{"Helot Economy", "Infantry Javelineers +100% grain gather rate, but −10% ranged attack pierce damage.", 200, 200, 0, 0, 40.0f, 1, BLD_TOWN_CENTER, TECH_NONE, 0x0002, 138, 2, "helot_economy"},
+		{"Immortals", "Immortals −50% training time.", 200, 0, 200, 0, 60.0f, 3, BLD_TACHARA, TECH_NONE, 0x0004, 140, 1, "immortals"},
+		{"Iphicratean Reforms", "Athenian Docks and Triremes can train Marines and Cretan Mercenary Archers.", 200, 0, 200, 0, 30.0f, 2, BLD_DOCK, TECH_NONE, 0x0001, 141, 0, "iphicratean_reforms"},
+		{"Krypteia", "Champion Hoplites +10% melee attack damage, but Citizen Infantry Javelineers +30% training time.", 200, 0, 200, 0, 50.0f, 2, BLD_GEROUSIA, TECH_NONE, 0x0002, 141, 3, "krypteia"},
+		{"Ostracism", "Citizen soldiers +5% health, but Heroes −40% health.", 300, 0, 300, 0, 60.0f, 3, BLD_PRYTANEION, TECH_NONE, 0x0001, 144, 2, "ostracism"},
+		{"Parade of Daphne", "Champions −20% training time.", 500, 0, 300, 0, 60.0f, 3, BLD_FORTRESS, TECH_NONE, 0x1000, 146, 1, "parade_of_daphne"},
+		{"Marian Reforms", "Convert Infantry to Marian Legionaries, Cavalry to Auxiliary Cavalry, unlock Onagers and Centurions, but lose access to Spear Cavalry and Italic Heavy Infantry.", 1200, 0, 1000, 0, 60.0f, 3, BLD_FORTRESS, TECH_NONE, 0x0008, 147, 0, "roman_reforms"},
+		{"Tyrtean Paeans", "Champion Hoplites +10% movement speed.", 200, 0, 200, 0, 50.0f, 2, BLD_GEROUSIA, TECH_NONE, 0x0002, 147, 1, "tyrtean_paeans"},
+		{"Unlock Neodamodes", "Unlock the ability to train Spearman Neodamodes at the Barracks.", 500, 0, 0, 0, 60.0f, 3, BLD_GEROUSIA, TECH_NONE, 0x0002, 148, 0, "unlock_neodamodes"},
+		{"Battlefield Medicine", "Idle Organic units +0.5 health regeneration rate.", 1000, 0, 250, 0, 40.0f, 3, BLD_TEMPLE, TECH_NONE, 0x3fff, 148, 1, "health_regen_units"},
+		{"Sun Tzu's \"The Art of War\"", "All Citizen-Soldiers −20% required promotion experience.", 1200, 0, 1200, 0, 50.0f, 3, BLD_FORTRESS, TECH_NONE, 0x2000, 149, 0, "art_of_war"},
+		{"Silver Shields Regiment", "Upgrade Shield Bearer Champion Infantry to Silver Shields, with more health and attack damage.", 0, 0, 600, 0, 60.0f, 3, BLD_FORTRESS, TECH_NONE, 0x0020, 149, 0, "silvershields"},
 	};
 	if (tech_id >= TECH_COUNT) return kTable[TECH_NONE];
 	return kTable[tech_id];

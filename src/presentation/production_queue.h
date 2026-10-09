@@ -85,6 +85,8 @@ class RtsoProductionQueueHost {
 public:
 	virtual ~RtsoProductionQueueHost() = default;
 	virtual bool net_lockstep() const = 0;
+	// Orders go through the TurnManager (always in a match, so replays record them).
+	virtual bool turn_cmds() const = 0;
 	virtual void post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
 			float x = 0, float z = 0, uint32_t tid = 0, uint8_t param = 0) = 0;
 	virtual void play_sfx(const char *path) = 0;
@@ -220,7 +222,7 @@ public:
 		uint32_t bld_id = host_->ui_selected_building_id();
 		rtso::Simulation *sim = host_->ui_sim();
 		if (bld_id != 0 && sim) {
-			if (host_->net_lockstep()) {
+			if (host_->turn_cmds()) {
 				host_->post_lockstep(20, nullptr, 0, 0, 0, bld_id, (uint8_t)slot_idx);
 				host_->play_sfx("res://assets/sounds/ui/cancel.ogg");
 				return;

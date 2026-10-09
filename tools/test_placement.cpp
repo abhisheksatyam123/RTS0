@@ -91,6 +91,98 @@ static void test_build_and_repair() {
 	CHECK(std::fabs(repair - build_time) < 1.5f);
 }
 
+// Placement rotation (0 A.D. placementSupport.angle): cmd_build keeps the angle it is
+// given, lockstep carries it in 1/65536ths of a turn, and docks face the open water
+// (Commands.js GetDockAngle).
+static void test_rotation() {
+	static Simulation s;
+	constexpr float PI = 3.14159265f;
+	auto same_angle = [](float a, float b) {
+		const float d = std::remainder(a - b, 2.0f * PI);
+		return std::fabs(d) < 0.01f;
+	};
+	CHECK(same_angle(Simulation::unpack_angle(Simulation::pack_angle(1.25f)), 1.25f));
+	CHECK(Simulation::pack_angle(Simulation::DEFAULT_BUILDING_ROT) == 0); // older commands keep the default
+	fresh(s);
+	s.spawn_building_world(-40.0f, 40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	s.rebuild_territory();
+	const uint32_t house = s.cmd_build(0, -16, 24, BLD_HOUSE, 0.5f * PI);
+	const uint32_t plain = s.cmd_build(0, -24, 24, BLD_HOUSE);
+	// The sea is south of player 0's shore: a dock there faces -z (0 A.D. angle pi),
+	// whatever angle it was asked for.
+	const auto &dinfo = building_type_info(BLD_DOCK);
+	const float dhalf = dinfo.footprint * Simulation::GRID * 0.5f;
+	const uint32_t dock = s.cmd_build(0, (int)std::floor((-40.0f - dhalf) / Simulation::GRID),
+			(int)std::floor((18.0f - dhalf) / Simulation::GRID), BLD_DOCK, 0.0f);
+	CHECK(house && plain && dock);
+	for (const auto &b : s.buildings()) {
+		if (b.id == house) CHECK(same_angle(b.rot, 0.5f * PI));
+		if (b.id == plain) CHECK(same_angle(b.rot, Simulation::DEFAULT_BUILDING_ROT));
+		if (b.id == dock) {
+			std::printf("  dock on the north shore faces %.2f rad (sea to the south: pi)\n", b.rot);
+			CHECK(same_angle(b.rot, PI));
+		}
+	}
+	CHECK(std::isnan(s.dock_angle(-30.0f, 50.0f, dhalf))); // inland: no shoreline in reach
+}
+
+// Foundation.js Commit / UnitAI LeaveFoundation: own and allied units standing on a
+// foundation walk off it before work starts and then carry on with their order;
+// an enemy on the site keeps it from starting. Once committed, it blocks movement.
+static void test_foundation_clearing() {
+	static Simulation s;
+	auto bld = [&](uint32_t id) -> const Simulation::Building & {
+		for (const auto &b : s.buildings()) if (b.id == id) return b;
+		return s.buildings().front();
+	};
+	auto on_site = [&](uint32_t uid, const Simulation::Building &b) {
+		const int32_t i = s.lookup_unit(uid);
+		return std::fabs(s.units_.pos_x[i] - b.x) < b.half_size && std::fabs(s.units_.pos_z[i] - b.z) < b.half_size;
+	};
+	fresh(s);
+	s.spawn_building_world(-40.0f, 40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	const uint32_t house = s.spawn_building_world(-30.0f, 50.0f, BLD_HOUSE, 0, 0.0f);
+	const uint32_t idler = s.spawn_unit(-30.0f, 50.0f, 0, UNIT_SPEARMAN);
+	const uint32_t woman = s.spawn_unit(-31.0f, 52.5f, 0, UNIT_FEMALE_CITIZEN);
+	s.order_build_or_repair(&woman, 1, house);
+	const float took = seconds_until(s, house, [](const Simulation::Building &b) { return b.build_progress >= 1.0f; });
+	std::printf("  house with an own unit on the site: built in %.1f s\n", took);
+	CHECK(took > 0.0f);
+	CHECK(!on_site(idler, bld(house)));
+
+	// A busy unit on the site walks off and then resumes its order (PushOrderFront).
+	const uint32_t barracks = s.spawn_building_world(-20.0f, 50.0f, BLD_BARRACKS, 0, 0.0f);
+	const uint32_t patroller = s.spawn_unit(-20.0f, 50.5f, 0, UNIT_SPEARMAN);
+	s.order_patrol(&patroller, 1, -20.0f, 60.0f);
+	const int32_t pi = s.lookup_unit(patroller);
+	s.leave_foundation((size_t)pi, bld(barracks));
+	const auto *q = s.unit_order_queue(patroller);
+	CHECK(s.units_.order_kind[pi] == ORDER_WALK && q && !q->empty() && q->front().kind == ORDER_PATROL);
+	for (int t = 0; t < 20 * 5 && on_site(patroller, bld(barracks)); ++t) s.tick(Simulation::FIXED_STEP);
+	for (int t = 0; t < 20 && s.units_.order_kind[pi] != ORDER_PATROL; ++t) s.tick(Simulation::FIXED_STEP);
+	CHECK(!on_site(patroller, bld(barracks)));
+	CHECK(s.units_.order_kind[pi] == ORDER_PATROL);
+
+	// An enemy on the site: no work until it has gone (no Civic Centre here to shoot it).
+	fresh(s);
+	const uint32_t h2 = s.spawn_building_world(-30.0f, 50.0f, BLD_HOUSE, 0, 0.0f);
+	const uint32_t enemy = s.spawn_unit(-30.0f, 50.0f, 1, UNIT_FEMALE_CITIZEN);
+	s.order_set_stance(&enemy, 1, STANCE_PASSIVE);
+	const uint32_t w2 = s.spawn_unit(-31.0f, 52.5f, 0, UNIT_FEMALE_CITIZEN);
+	s.order_set_stance(&w2, 1, STANCE_PASSIVE);
+	s.order_build_or_repair(&w2, 1, h2);
+	for (int t = 0; t < 20 * 5; ++t) s.tick(Simulation::FIXED_STEP);
+	CHECK(on_site(enemy, bld(h2)));
+	CHECK(!bld(h2).committed && bld(h2).build_progress == 0.0f);
+	const auto [cx, cy] = s.nav_grid().world_to_cell(-30.0f, 50.0f);
+	CHECK(s.nav_grid().cells.at(cx, cy) != NAV_OBSTRUCTED);
+	const int32_t ei = s.lookup_unit(enemy);
+	s.units_.pos_x[ei] = -10.0f; s.units_.pos_z[ei] = 50.0f;
+	for (int t = 0; t < 20 && !bld(h2).committed; ++t) s.tick(Simulation::FIXED_STEP);
+	CHECK(bld(h2).committed);
+	CHECK(s.nav_grid().cells.at(cx, cy) == NAV_OBSTRUCTED); // committed: units path around it
+}
+
 int main() {
 	static Simulation s;
 	fresh(s);
@@ -152,6 +244,8 @@ int main() {
 	CHECK(s.cmd_build(0, -16, 24, BLD_HOUSE) != 0);
 
 	test_build_and_repair();
+	test_rotation();
+	test_foundation_clearing();
 
 	std::printf("RESULT: %s (%d)\n", failures ? "FAIL" : "PASS", failures);
 	return failures ? 1 : 0;
