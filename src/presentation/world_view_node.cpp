@@ -1479,9 +1479,14 @@ static bool shows_packed(uint8_t pack_state) {
 	return pack_state == rtso::PACK_PACKED || pack_state == rtso::PACK_UNPACKING;
 }
 
-// The model a crowd key draws: the unit's own, or its packed wagon.
-static const char *crowd_key_model(uint8_t civ, uint8_t key) {
-	const uint8_t utype = key % rtso::UNIT_TYPE_COUNT;
+// The model a crowd key draws: the unit's own, its packed wagon, or its
+// roster template's own model.
+static const char *crowd_key_model(uint8_t civ, uint16_t key) {
+	if (key >= 2 * rtso::UNIT_TYPE_COUNT) {
+		if (const char *own = rtso::unit_template_draw_model(key - 2 * rtso::UNIT_TYPE_COUNT)) return own;
+		key = rtso::UNIT_VILLAGER;
+	}
+	const uint8_t utype = (uint8_t)(key % rtso::UNIT_TYPE_COUNT);
 	const char *model = rtso::civ_unit_model(civ, utype);
 	if (key >= rtso::UNIT_TYPE_COUNT) {
 		if (const char *packed = rtso::packed_siege_model(model)) return packed;
@@ -1489,13 +1494,15 @@ static const char *crowd_key_model(uint8_t civ, uint8_t key) {
 	return model;
 }
 
-static uint8_t crowd_key_of(uint8_t civ, uint8_t utype, uint8_t pack_state) {
+static uint16_t crowd_key_of(uint8_t civ, uint8_t utype, uint8_t pack_state, uint16_t tmpl) {
 	if (shows_packed(pack_state) && rtso::packed_siege_model(rtso::civ_unit_model(civ, utype)))
-		return (uint8_t)(rtso::UNIT_TYPE_COUNT + utype);
+		return (uint16_t)(rtso::UNIT_TYPE_COUNT + utype);
+	const int own = rtso::unit_template_draw_index(tmpl);
+	if (own >= 0) return (uint16_t)(2 * rtso::UNIT_TYPE_COUNT + own);
 	return utype;
 }
 
-RtsoWorldView::CrowdBatch &RtsoWorldView::crowd_batch(uint8_t civ, uint8_t key) {
+RtsoWorldView::CrowdBatch &RtsoWorldView::crowd_batch(uint8_t civ, uint16_t key) {
 	if (civ >= rtso::CIV_COUNT) civ = rtso::CIV_ATHENIANS;
 	if (key >= CROWD_KEY_COUNT) key = rtso::UNIT_VILLAGER;
 	std::unique_ptr<CrowdBatch> &slot = crowd_[civ][key];
@@ -1610,9 +1617,9 @@ static Node *instantiate_for_bake(Node3D *bake_root, const Ref<PackedScene> &sce
 	return inst;
 }
 
-void RtsoWorldView::ensure_crowd_frames(uint8_t civ, uint8_t key, const int *counts) {
+void RtsoWorldView::ensure_crowd_frames(uint8_t civ, uint16_t key, const int *counts) {
 	CrowdBatch &b = crowd_batch(civ, key);
-	const uint8_t utype = key % rtso::UNIT_TYPE_COUNT;
+	const uint8_t utype = crowd_key_utype_[key < CROWD_KEY_COUNT ? key : 0];
 	if (b.no_scene) return;
 	bool needed[CROWD_CLIP_COUNT] = {};
 	bool any = false;
@@ -2197,7 +2204,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (civ >= rtso::CIV_COUNT) civ = rtso::CIV_ATHENIANS;
 		const int slot = crowd_slot_of(anim_of(i).clip);
 		crowd_slot_scratch_[i] = (uint8_t)slot;
-		counts[civ][crowd_key_of(civ, t, uview.pack_state[i])][slot]++;
+		const uint16_t key = crowd_key_of(civ, t, uview.pack_state[i], uview.tmpl[i]);
+		crowd_key_utype_[key] = t;
+		counts[civ][key][slot]++;
 	}
 	for (int civ = 0; civ < rtso::CIV_COUNT; ++civ) {
 		for (int t = 0; t < CROWD_KEY_COUNT; ++t) {
@@ -2205,8 +2214,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			for (int c = 0; c < CROWD_CLIP_COUNT; ++c) any += counts[civ][t][c];
 			if (any == 0 && !crowd_[civ][t]) continue;
 			if (any > 0) {
-				CrowdBatch &cb = crowd_batch((uint8_t)civ, (uint8_t)t);
-				ensure_crowd_frames((uint8_t)civ, (uint8_t)t, counts[civ][t]);
+				CrowdBatch &cb = crowd_batch((uint8_t)civ, (uint16_t)t);
+				ensure_crowd_frames((uint8_t)civ, (uint16_t)t, counts[civ][t]);
 				for (int c = 0; c < CROWD_CLIP_COUNT; ++c)
 					if (counts[civ][t][c] > 0) crowd_mm(cb, c);
 			}
@@ -2289,7 +2298,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 		uint8_t uciv = sim->team_civ(uview.team[i]);
 		if (uciv >= rtso::CIV_COUNT) uciv = rtso::CIV_ATHENIANS;
-		const uint8_t ckey = crowd_key_of(uciv, utype, uview.pack_state[i]);
+		const uint16_t ckey = crowd_key_of(uciv, utype, uview.pack_state[i], uview.tmpl[i]);
 		String utype_str = crowd_key_model(uciv, ckey);
 		String cat_units3 = "units";
 		auto entry = rtso::ModelLibrary::get(cat_units3, utype_str);

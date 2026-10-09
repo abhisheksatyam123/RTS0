@@ -84,6 +84,7 @@ public:
 
 private:
 	static Entry load(const godot::String &category, const godot::String &id);
+	static godot::Ref<godot::PackedScene> borrow_clips(godot::Node *inst, const godot::String &donor);
 	static float target_height(const godot::String &category, const godot::String &id, float natural_h);
 	static HashMap<godot::String, Entry> &cache();
 };

@@ -131,7 +131,8 @@ int military_score(const rtso::PlayerStatistics &st) {
 	return (int)std::llround((double)(st.enemy_units_killed_value + st.enemy_buildings_destroyed_value +
 	                                  st.buildings_captured_value) / 10.0);
 }
-int exploration_score(float percent_explored) { return (int)std::lround(percent_explored * 10.0f); }
+// RangeManager GetPercentMapExplored is a whole percent in 0 A.D.
+int exploration_score(float percent_explored) { return (int)std::floor(percent_explored) * 10; }
 
 } // namespace
 
@@ -161,13 +162,25 @@ Array RtsoMain::player_list() const {
 		const rtso::PlayerState &ps = sim->player(p);
 		Dictionary d;
 		d["id"] = (int)p;
-		d["name"] = p == local_player() ? String("You") : String("Player ") + String::num_int64(p + 1);
+		d["name"] = player_display_name(p);
 		d["civ"] = (int)ps.civ;
 		d["civ_name"] = String(rtso::civ_info(ps.civ).name);
 		d["team"] = (int)ps.team + 1;
 		d["ai"] = sim->petra_runs_for(p);
+		if (sim->petra_runs_for(p)) {
+			d["ai_difficulty"] = (int)sim->petra_config_for(p).difficulty;
+			d["ai_behavior"] = (int)sim->petra_config_for(p).behavior;
+		}
 		d["defeated"] = sim->is_defeated(p);
 		d["winner"] = (bool)((sim->winner_mask() >> p) & 1);
+		// 0 A.D. playerState.state and playerState.color (0..1 per channel).
+		d["state"] = (bool)d["winner"] ? "won" : (sim->is_defeated(p) ? "defeated" : "active");
+		const uint32_t rgb = sim->player_color(p);
+		Dictionary color;
+		color["r"] = ((rgb >> 16) & 0xFF) / 255.0;
+		color["g"] = ((rgb >> 8) & 0xFF) / 255.0;
+		color["b"] = (rgb & 0xFF) / 255.0;
+		d["color"] = color;
 		players.push_back(d);
 	}
 	return players;
@@ -195,6 +208,7 @@ Dictionary RtsoMain::statistics_summary() const {
 	out["map_id"] = String(sim->current_map_id().c_str());
 	out["game_time"] = (double)sim->stats().ticks * rtso::Simulation::FIXED_STEP;
 	out["victory"] = sim->is_victory_for(me);
+	out["map_size"] = replay_meta_.get("map_size", random_map_size);
 
 	Array players = player_list();
 	for (int i = 0; i < players.size(); ++i) {
@@ -215,7 +229,8 @@ Dictionary RtsoMain::statistics_summary() const {
 	}
 	out["players"] = players;
 
-	// Chart rows: the sampled sequences plus the state right now.
+	// Chart rows (0 A.D. playerState.sequences, one row per 30 s plus the
+	// state right now): every shown player's counters and map percentages.
 	std::vector<rtso::StatisticsSample> rows = sim->statistics_samples();
 	rows.push_back(sim->statistics_snapshot());
 	Array samples;
@@ -225,22 +240,12 @@ Dictionary RtsoMain::statistics_summary() const {
 		Array per;
 		for (int i = 0; i < players.size(); ++i) {
 			const uint8_t p = (uint8_t)(int)((Dictionary)players[i])["id"];
-			const rtso::PlayerStatistics &st = row.players[p];
-			uint32_t gathered = 0;
-			for (uint32_t g : st.resources_gathered) gathered += g;
 			Dictionary c;
-			c["economyScore"] = economy_score(st);
-			c["militaryScore"] = military_score(st);
-			c["explorationScore"] = exploration_score(row.percent_map_explored[p]);
-			c["totalScore"] = economy_score(st) + military_score(st) + exploration_score(row.percent_map_explored[p]);
-			c["resourcesGathered"] = (int64_t)gathered;
-			c["unitsTrained"] = (int64_t)st.units_trained[rtso::STAT_UNIT_TOTAL];
-			c["enemyUnitsKilled"] = (int64_t)st.enemy_units_killed[rtso::STAT_UNIT_TOTAL];
-			c["unitsLost"] = (int64_t)st.units_lost[rtso::STAT_UNIT_TOTAL];
-			c["buildingsConstructed"] = (int64_t)st.buildings_constructed[rtso::STAT_BLD_TOTAL];
-			c["percentMapControlled"] = row.percent_map_controlled[p];
+			c["stats"] = stats_dict(row.players[p]);
 			c["percentMapExplored"] = row.percent_map_explored[p];
-			c["tradeIncome"] = (int64_t)st.trade_income;
+			c["teamPercentMapExplored"] = row.team_percent_map_explored[p];
+			c["percentMapControlled"] = row.percent_map_controlled[p];
+			c["teamPercentMapControlled"] = row.team_percent_map_controlled[p];
 			per.push_back(c);
 		}
 		r["players"] = per;
@@ -248,6 +253,45 @@ Dictionary RtsoMain::statistics_summary() const {
 	}
 	out["samples"] = samples;
 	return out;
+}
+
+// The summary page's "gui" init data (0 A.D. session.js leaveGame and
+// MenuButtons Summary): where it was opened from and which players it shows.
+// In game a player sees itself and its mutual allies, whose sight RTS0
+// always shares; observers, defeated players and replays see everyone.
+Dictionary RtsoMain::summary_gui(bool in_game) const {
+	Dictionary g;
+	if (!sim) return g;
+	const bool replay = turn_mgr_.is_replaying();
+	const uint8_t me = local_player();
+	g["isInGame"] = in_game;
+	g["dialog"] = in_game;
+	g["isReplay"] = replay;
+	g["networked"] = net_lockstep();
+	g["assignedPlayer"] = replay || me >= rtso::MAX_PLAYERS ? -1 : (int)me;
+	g["replayDirectory"] = !replay && !replay_dir_.is_empty() && FileAccess::file_exists(replay_dir_ + String("metadata.json"))
+		? replay_dir_ : String();
+	if (in_game && !replay && me < rtso::MAX_PLAYERS && !sim->is_defeated(me)) {
+		Array shown;
+		for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p)
+			if (p == me || (sim->is_ally(me, p) && sim->is_ally(p, me))) shown.push_back((int)p);
+		g["shownPlayers"] = shown;
+	}
+	return g;
+}
+
+// The "summary" hotkey and the menu's Summary button: the page over the
+// running game, or back to the game when it is already open.
+void RtsoMain::toggle_summary() {
+	Node *summary = get_node_or_null(NodePath("SummaryScreen"));
+	if (!summary || !sim) return;
+	if ((bool)summary->call("is_open")) {
+		summary->call("continue_pressed");
+		return;
+	}
+	summary->call("configure", summary_gui(true));
+	summary->call("show_summary", sim->is_victory_for(local_player()), statistics_summary(),
+	              (float)((double)sim->stats().ticks * rtso::Simulation::FIXED_STEP));
 }
 
 // --- Replays -------------------------------------------------------------------
@@ -432,9 +476,11 @@ void RtsoMain::tick_match_archive() {
 		text += "  (out of sync at turn " + String::num_int64(turn_mgr_.replay_out_of_sync_turn()) + ")";
 	if (!replay_finished_ && turn_mgr_.replay_complete()) {
 		replay_finished_ = true;
-		if (Node *summary = get_node_or_null(NodePath("SummaryScreen")))
+		if (Node *summary = get_node_or_null(NodePath("SummaryScreen"))) {
+			summary->call("configure", summary_gui(false));
 			summary->call("show_summary", sim->is_victory_for(local_player()), statistics_summary(),
 			              (float)((double)total * rtso::TurnManager::TURN_DURATION));
+		}
 	}
 	if (replay_finished_) text += "  finished";
 	replay_label_->set_text(text);
