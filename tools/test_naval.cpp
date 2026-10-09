@@ -635,8 +635,33 @@ static void test_gather_around_lake() {
 	CHECK(!waded && reached);
 }
 
+// A worker on the far shore carries its load only to a dropsite on its own land (0 A.D.
+// picks reachable dropsites): with the only storehouse across the sea it waits, and once
+// one stands on its side it drops off there.
+static void test_dropsite_own_land() {
+	static Simulation s;
+	fresh(s);
+	s.spawn_building_world(0.0f, 40.0f, BLD_STOREHOUSE, 0, 1.0f);
+	const uint32_t tree = s.spawn_resource_world(4.0f, -30.0f, RES_WOOD, 500);
+	const uint32_t woman = s.spawn_unit(0.0f, -30.0f, 0, UNIT_FEMALE_CITIZEN);
+	s.order_gather(&woman, 1, tree);
+	bool left_shore = false;
+	for (int t = 0; t < (int)(60.0f / Simulation::FIXED_STEP); ++t) {
+		s.tick(Simulation::FIXED_STEP);
+		left_shore = left_shore || s.units().pos_z[idx(s, woman)] > -22.0f; // the beach is at -16
+	}
+	const int carried = s.units().carry[idx(s, woman)];
+	std::printf("  dropsite across the sea: carrying %d, %s\n", carried, left_shore ? "set off for the beach" : "stayed by the tree");
+	CHECK(!left_shore && carried > 0 && total(s, 0) == 0);
+	s.spawn_building_world(0.0f, -40.0f, BLD_STOREHOUSE, 0, 1.0f);
+	run(s, 20.0f);
+	std::printf("  storehouse on her side: stock %d\n", total(s, 0));
+	CHECK(total(s, 0) > 0);
+}
+
 int main() {
 	test_transport();
+	test_dropsite_own_land();
 	test_no_wading();
 	test_gather_around_lake();
 	test_dock_trade();
