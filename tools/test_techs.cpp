@@ -369,6 +369,8 @@ int main() {
 			}
 			uint32_t foe = s.spawn_unit(-12.0f, -30.0f, 1, UNIT_SWORDSMAN, 4000.0f);
 			s.cmd_stop(&foe, 1);
+			// Stays out of the tower's MinRange rather than walking up to hack at it.
+			s.order_set_stance(&foe, 1, STANCE_STAND_GROUND);
 			float hp0 = unit_hp(s, foe);
 			run(s, 12.0f);
 			dmg[with] = hp0 - unit_hp(s, foe);
