@@ -344,6 +344,14 @@ public:
 	int get_target_marker_count() const { return (int)range_overlays_.marker_count(); } // tests
 	int get_work_sound_count() const { return session_audio_.work_sounds_played(); } // tests
 	void debug_gather_nearest();
+	// 0 A.D. unit_actions "setup-trade-route": traders take a route in two right-clicks,
+	// the origin market, then the destination (lockstep command 35 sends both).
+	// Returns false when no selected trader trades at b; *tooltip gets the cursor text.
+	bool trade_route_click(const rtso::Simulation::Building &b, bool execute, bool queued, String *tooltip);
+	Dictionary debug_trade_route_clicks();
+	uint32_t trade_origin_market_ = 0;
+	Label *cursor_tip_ = nullptr;
+	std::vector<uint32_t> trade_origin_traders_;
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
 
@@ -389,6 +397,8 @@ private:
 	Vector3 snap_wall_point(const Vector3 &p, bool &snapped) const;
 	void try_train_unit(rtso::UnitType utype);
 	void try_train_template(uint32_t building_id, uint16_t tmpl);
+	void try_breed(uint32_t building_id, uint8_t ftype);
+	static constexpr int ROSTER_ANIMAL = 0x10000; // roster_list metadata flag: a corral animal
 	void update_roster_list(const rtso::Simulation::Building *b);
 	void cycle_idle_worker();
 	enum IdleKind { IDLE_WORKER, IDLE_WARRIOR, IDLE_ANY, IDLE_BUILDER };
