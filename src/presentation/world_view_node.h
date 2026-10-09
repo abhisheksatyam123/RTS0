@@ -199,7 +199,7 @@ class RtsoWorldView : public Node3D {
 	// Crowd units: one MultiMesh per (civ, UnitType, crowd clip), made the first
 	// time a unit of that civ and type shows, so every civ in the match renders
 	// with its own 0 A.D. models. Each clip is a few baked poses cycled in place.
-	static constexpr int CROWD_CLIP_COUNT = 22; // see kCrowdClips in world_view_node.cpp
+	static constexpr int CROWD_CLIP_COUNT = 23; // see kCrowdClips in world_view_node.cpp
 	static constexpr int FAUNA_CLIP_COUNT = 4;  // idle, move, attack, death
 	static constexpr int CROWD_FRAMES_PER_CLIP = 6;
 	struct CrowdPuppet {

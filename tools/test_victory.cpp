@@ -374,14 +374,13 @@ int main() {
 			for (size_t j = i + 1; j < sim->relics().size(); ++j)
 				spread &= std::hypot(sim->relics()[i].x - sim->relics()[j].x, sim->relics()[i].z - sim->relics()[j].z) > 1.0f;
 		CHECK(spread);
-		CHECK(map_relics > 0);
+		CHECK(map_relics == 0); // relics come from the victory condition, not the map
 		delete sim;
 	}
 	{
-		Simulation *sim = fresh(VICTORY_RELIC); // no setting: the map's relics stay
-		const size_t map_relics = sim->relics().size();
+		Simulation *sim = fresh(VICTORY_RELIC); // no setting: Setup.js's one relic
 		run(*sim, 0.1f);
-		CHECK(sim->relics().size() == map_relics);
+		CHECK(sim->relics().size() == 1);
 		delete sim;
 	}
 

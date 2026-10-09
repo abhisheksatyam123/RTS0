@@ -245,7 +245,8 @@ enum UnitType : uint8_t {
 	UNIT_CAMEL = 21,
 	UNIT_SCYTHED_CHARIOT = 22,
 	UNIT_MINISTER = 23, // Han Imperial Minister (units/han/support_minister)
-	UNIT_TYPE_COUNT = 24,
+	UNIT_CATAFALQUE = 24, // a relic (template_unit_catafalque)
+	UNIT_TYPE_COUNT = 25,
 	UNIT_TYPE_NONE = 255
 };
 
@@ -384,7 +385,8 @@ enum UnitOrderKind : uint8_t {
 	ORDER_TRADE = 11,         // target = first market, x2 holds the second market's id bits (UnitAI Trade)
 	ORDER_RETURN_RESOURCE = 12, // target = the dropsite (UnitAI ReturnResource)
 	ORDER_COLLECT_TREASURE = 13, // target treasure (UnitAI CollectTreasure)
-	ORDER_KIND_COUNT = 14
+	ORDER_CAPTURE_RELIC = 14, // target catafalque unit (UnitAI Attack with the Capture attack)
+	ORDER_KIND_COUNT = 15
 };
 
 enum UnitOrderFlag : uint8_t {
@@ -422,6 +424,9 @@ inline constexpr float NEARBY_SEARCH_RANGE = 64.0f * 0.28f;
 // MaxRange 4 is the spearman's reach, as in 0 A.D. (Melee MaxRange 4): 2.4.
 inline constexpr float CAPTURE_RANGE = 2.4f;
 inline constexpr float CAPTURE_REPEAT_S = 1.0f;
+// template_unit_catafalque.xml Capturable: CapturePoints 250, RegenRate 10 a second.
+inline constexpr int RELIC_CAPTURE_POINTS = 250;
+inline constexpr int RELIC_REGEN_RATE = 10;
 // template_unit_support_healer.xml Heal (Health 5 every Interval 2000 ms) and Heal.js
 // GetTimers (prepare 1000 ms); template_unit.xml UnitAI CheeringTime 2800 ms and
 // UnitAI notifyToCheerInRange 30; GarrisonHolder LoadingRange (1-2 m past the footprint).
@@ -572,7 +577,8 @@ inline const UnitTypeInfo &unit_type_info(uint8_t type) {
 		{"Mauryan Archer Maiden", "archer_maiden", "archer_maiden", 95.0f, 3.6f, 17.0f, 8.5f, 1.1f, 0, 17.0f, 2.0f, 2.0f, 15.0f, 40, 60, 40, 0, 1, 14.0f, 0.0f, 8.5f, 0.0f},
 		{"Persian/Arabian Camel", "camel", "camel", 190.0f, 5.2f, 2.4f, 12.0f, 1.2f, 0, 12.0f, 3.0f, 3.0f, 15.0f, 60, 0, 70, 0, 2, 16.0f, 12.0f, 0.0f, 0.0f},
 		{"Seleucid Scythed Chariot", "scythed_chariot", "scythed_chariot", 320.0f, 5.6f, 2.2f, 24.0f, 1.0f, 0, 14.0f, 5.0f, 5.0f, 25.0f, 100, 80, 120, 0, 3, 26.0f, 18.0f, 0.0f, 6.0f},
-		{"Imperial Minister", "healer", "healer", 200.0f, 3.204f, 1.8f, 10.0f, 1.0f, 0, 8.0f, 2.0f, 4.0f, 6.0f, 100, 0, 100, 0, 1, 15.0f, 10.0f, 0.0f, 0.0f}
+		{"Imperial Minister", "healer", "healer", 200.0f, 3.204f, 1.8f, 10.0f, 1.0f, 0, 8.0f, 2.0f, 4.0f, 6.0f, 100, 0, 100, 0, 1, 15.0f, 10.0f, 0.0f, 0.0f},
+		{"Catafalque", "ram", "ram", 1000.0f, 1.762f, 1.0f, 0.0f, 1.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f}
 	};
 	if (type >= UNIT_TYPE_COUNT) return kTable[UNIT_VILLAGER];
 	return kTable[type];
@@ -604,6 +610,7 @@ inline float unit_collision_radius(uint8_t type) {
 		case UNIT_CAMEL: return 0.90f;
 		case UNIT_SCYTHED_CHARIOT: return 1.35f;
 		case UNIT_MINISTER: return 0.50f;
+		case UNIT_CATAFALQUE: return 1.20f; // Footprint 5 x 12 m
 		default: return 0.55f;
 	}
 }
@@ -676,6 +683,8 @@ inline uint8_t unit_default_stance(uint8_t type) {
 		case UNIT_HEALER:
 		case UNIT_MINISTER:
 			return STANCE_PASSIVE;
+		case UNIT_CATAFALQUE:
+			return STANCE_STAND_GROUND; // template_unit_catafalque UnitAI/DefaultStance
 		case UNIT_CATAPULT: // template_unit_siege_stonethrower / _boltshooter
 		case UNIT_BOLT_SHOOTER:
 			return STANCE_STAND_GROUND;
@@ -718,9 +727,7 @@ struct BuildingTypeInfo {
 	int pop_bonus;
 	int garrison_cap;
 	float build_time;
-	float attack_range;
-	float attack_damage;
-	float attack_cooldown;
+	// Arrows: building_ai_info() (0 A.D. BuildingAI and Attack/Ranged).
 	// 0 A.D. Capturable.js / TerritoryDecay.js template values.
 	float capture_max_points;
 	float capture_regen_rate;
@@ -730,40 +737,40 @@ struct BuildingTypeInfo {
 
 inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 	static const BuildingTypeInfo kTable[BLD_TYPE_COUNT] = {
-		// name, model, portrait, hp, foot, f, w, g, s, pop, garrison, build_time, range, dmg, cd,
+		// name, model, portrait, hp, foot, f, w, g, s, pop, garrison, build_time,
 		// capture max, regen, garrison regen, territory decay (Capturable from
 		// template_structure.xml 500/0.5/1.0; civil centre 2500/5, fortress x8 and 10, wonder x4,
 		// farmstead 300)
-		{"Town Center", "town_center", "town_center", 2500.0f, 2, 0, 300, 100, 200, 10, 20, 60.0f, 16.0f, 18.0f, 1.0f, 2500.0f, 5.0f, 1.0f, 20.0f},
-		{"House", "house", "house", 500.0f, 1, 0, 80, 0, 0, 5, 5, 20.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Barracks", "barracks", "barracks", 1500.0f, 2, 0, 150, 50, 50, 0, 10, 35.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Storehouse", "storehouse", "storehouse", 800.0f, 1, 0, 100, 0, 0, 0, 5, 25.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Defense Tower", "wall_tower", "tower", 1200.0f, 1, 0, 100, 0, 100, 0, 5, 30.0f, 18.0f, 20.0f, 1.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Farmstead", "farmstead", "farmstead", 800.0f, 1, 0, 100, 0, 0, 0, 5, 25.0f, 0.0f, 0.0f, 0.0f, 300.0f, 0.5f, 1.0f, 20.0f},
-		{"Market", "market", "market", 1200.0f, 2, 0, 200, 100, 0, 0, 5, 40.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Fortress", "fortress", "fortress", 3500.0f, 2, 0, 300, 200, 300, 0, 30, 80.0f, 22.0f, 30.0f, 0.8f, 4000.0f, 10.0f, 1.0f, 40.0f},
-		{"Gate", "gate", "gate", 1500.0f, 1, 0, 100, 0, 100, 0, 0, 25.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Temple", "temple", "temple", 1200.0f, 2, 0, 150, 100, 100, 0, 5, 40.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Wonder Monument", "wonder", "wonder", 5000.0f, 2, 500, 500, 500, 500, 0, 10, 120.0f, 0.0f, 0.0f, 0.0f, 2000.0f, 0.5f, 1.0f, 20.0f},
-		{"Naval Shipyard Dock", "dock", "dock", 1400.0f, 2, 0, 200, 0, 100, 0, 5, 40.0f, 16.0f, 15.0f, 1.2f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Stone Wall Segment", "wall_segment", "wall", 1800.0f, 1, 0, 0, 0, 40, 0, 5, 15.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Livestock Corral", "corral", "corral", 800.0f, 2, 0, 100, 0, 0, 5, 10, 25.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Town Center", "town_center", "town_center", 2500.0f, 2, 0, 300, 100, 200, 10, 20, 60.0f, 2500.0f, 5.0f, 1.0f, 20.0f},
+		{"House", "house", "house", 500.0f, 1, 0, 80, 0, 0, 5, 5, 20.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Barracks", "barracks", "barracks", 1500.0f, 2, 0, 150, 50, 50, 0, 10, 35.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Storehouse", "storehouse", "storehouse", 800.0f, 1, 0, 100, 0, 0, 0, 5, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Defense Tower", "wall_tower", "tower", 1200.0f, 1, 0, 100, 0, 100, 0, 5, 30.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Farmstead", "farmstead", "farmstead", 800.0f, 1, 0, 100, 0, 0, 0, 5, 25.0f, 300.0f, 0.5f, 1.0f, 20.0f},
+		{"Market", "market", "market", 1200.0f, 2, 0, 200, 100, 0, 0, 5, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Fortress", "fortress", "fortress", 3500.0f, 2, 0, 300, 200, 300, 0, 30, 80.0f, 4000.0f, 10.0f, 1.0f, 40.0f},
+		{"Gate", "gate", "gate", 1500.0f, 1, 0, 100, 0, 100, 0, 0, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Temple", "temple", "temple", 1200.0f, 2, 0, 150, 100, 100, 0, 5, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Wonder Monument", "wonder", "wonder", 5000.0f, 2, 500, 500, 500, 500, 0, 10, 120.0f, 2000.0f, 0.5f, 1.0f, 20.0f},
+		{"Naval Shipyard Dock", "dock", "dock", 1400.0f, 2, 0, 200, 0, 100, 0, 5, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Stone Wall Segment", "wall_segment", "wall", 1800.0f, 1, 0, 0, 0, 40, 0, 5, 15.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Livestock Corral", "corral", "corral", 800.0f, 2, 0, 100, 0, 0, 5, 10, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		// 0 A.D. 0.28 template_structure_* values: Health/Max, Cost/Resources,
 		// GarrisonHolder/Max, Capturable. BuildTime is scaled by 0.25 to match
 		// RTS0's compressed build times (barracks 150s -> 35s above); footprint
 		// is 2 cells when the 0 A.D. footprint is wider than 15 m.
-		{"Field", "field_plot", "field", 250.0f, 2, 0, 100, 0, 0, 0, 0, 13.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Stable", "stable", "stable", 2000.0f, 2, 0, 200, 0, 50, 0, 10, 30.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Archery Range", "range", "range", 2000.0f, 2, 0, 200, 0, 0, 0, 10, 30.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Forge", "blacksmith", "forge", 2000.0f, 2, 0, 200, 0, 0, 0, 1, 30.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Arsenal", "arsenal", "arsenal", 2000.0f, 2, 0, 300, 0, 0, 0, 5, 45.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Sentry Tower", "sentry_tower", "sentry_tower", 400.0f, 1, 0, 100, 0, 0, 0, 3, 10.0f, 16.0f, 12.0f, 1.2f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Outpost", "outpost", "outpost", 400.0f, 1, 0, 60, 0, 0, 0, 0, 8.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Palisade", "palisade", "palisade", 1000.0f, 1, 0, 14, 0, 0, 0, 0, 5.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Wall Tower", "wall_tower", "wall_tower", 4000.0f, 1, 0, 0, 0, 48, 0, 4, 12.0f, 16.0f, 12.0f, 1.2f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Elephant Stable", "stable_elephant", "elephant_stable", 3000.0f, 2, 0, 200, 0, 200, 0, 5, 45.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Theater", "theater", "theater", 3000.0f, 2, 0, 200, 200, 600, 0, 5, 125.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Embassy", "embassy", "embassy", 2000.0f, 2, 0, 200, 0, 0, 0, 6, 38.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Field", "field_plot", "field", 250.0f, 2, 0, 100, 0, 0, 0, 0, 13.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Stable", "stable", "stable", 2000.0f, 2, 0, 200, 0, 50, 0, 10, 30.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Archery Range", "range", "range", 2000.0f, 2, 0, 200, 0, 0, 0, 10, 30.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Forge", "blacksmith", "forge", 2000.0f, 2, 0, 200, 0, 0, 0, 1, 30.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Arsenal", "arsenal", "arsenal", 2000.0f, 2, 0, 300, 0, 0, 0, 5, 45.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Sentry Tower", "sentry_tower", "sentry_tower", 400.0f, 1, 0, 100, 0, 0, 0, 3, 10.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Outpost", "outpost", "outpost", 400.0f, 1, 0, 60, 0, 0, 0, 0, 8.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Palisade", "palisade", "palisade", 1000.0f, 1, 0, 14, 0, 0, 0, 0, 5.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Wall Tower", "wall_tower", "wall_tower", 4000.0f, 1, 0, 0, 0, 48, 0, 4, 12.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Elephant Stable", "stable_elephant", "elephant_stable", 3000.0f, 2, 0, 200, 0, 200, 0, 5, 45.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Theater", "theater", "theater", 3000.0f, 2, 0, 200, 200, 600, 0, 5, 125.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Embassy", "embassy", "embassy", 2000.0f, 2, 0, 200, 0, 0, 0, 6, 38.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		// Civ-specific structures, BLD_GYMNASIUM onwards (civ_building_data.h).
 		RTSO_CIV_BUILDING_INFO_ROWS
 	};
@@ -897,6 +904,7 @@ struct TechInfo {
 };
 
 #include "tech_data.h"
+#include "building_ai_data.h"
 
 // Researched technologies for one player. 256 bits covers every uint8_t id.
 struct TechSet {
@@ -1048,7 +1056,8 @@ enum CivRosterFlag : uint8_t {
 	ROSTER_CITIZEN = 8,
 	ROSTER_MERCENARY = 16,
 	ROSTER_PACKABLE = 32, // 0 A.D. Pack component (10 s to pack or unpack)
-	ROSTER_SIEGE_TOWER = 64
+	ROSTER_SIEGE_TOWER = 64,
+	ROSTER_RELIC = 128 // a catafalque (template_unit_catafalque): Capture the Relic
 };
 
 inline constexpr uint16_t civ_bit(uint8_t civ) { return (civ < 16) ? (uint16_t)(1u << civ) : 0u; }
@@ -1390,6 +1399,13 @@ inline const UnitTypeInfo &civ_template_unit_info(uint16_t tmpl, uint8_t type) {
 	return unit_type_info(type);
 }
 
+// The civ's catafalque (units/{civ}/catafalque), or CIV_UNIT_TEMPLATE_NONE.
+inline uint16_t civ_catafalque_template(uint8_t civ) {
+	for (uint16_t i = CIV_ROSTER_PROMOTION_ONLY_FIRST; i < CIV_UNIT_TEMPLATE_COUNT; ++i)
+		if ((civ_unit_template(i).flags & ROSTER_RELIC) && civ_unit_template(i).civ == civ) return i;
+	return CIV_UNIT_TEMPLATE_NONE;
+}
+
 // Stats of the unit a civ fields for an RTS0 class (its default template).
 inline const UnitTypeInfo &civ_unit_info(uint8_t civ, uint8_t type) {
 	return civ_template_unit_info(civ_default_template(civ, type), type);
@@ -1463,6 +1479,7 @@ inline LootInfo unit_class_loot(uint8_t type) {
 		{130, 10, 5, 0, 0},   // CAMEL: template_unit_cavalry
 		{200, 15, 8, 0, 10},  // SCYTHED_CHARIOT: champion_cavalry
 		{150, 10, 0, 0, 10},  // MINISTER: units/han/support_minister
+		{0, 0, 0, 0, 0},      // CATAFALQUE: no Loot
 	};
 	return type < UNIT_TYPE_COUNT ? table[type] : LootInfo{};
 }

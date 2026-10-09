@@ -11128,7 +11128,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/archer.glb",
@@ -11155,6 +11156,7 @@
     "actor:art/actors/props/units/weapons/bow_short.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/athenians/infantry_archer_a.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_straw_01.dae",
     "mesh:props/new/head_beard_small.dae",
     "mesh:props/prop_mallet.dae",
@@ -11188,7 +11190,8 @@
     "Run",
     "Attack",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/archer_maiden.glb",
@@ -11208,6 +11211,7 @@
     "actor:art/actors/props/units/weapons/bow_long_indian.xml",
     "actor:art/actors/props/units/weapons/quiver_bamboo_arrows.xml",
     "actor:art/actors/units/mauryas/infantry_archer_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_inf_big_turban_maiden.dae",
     "mesh:props/new/head_female_c.dae",
     "mesh:props/quiver_bamboo_1.dae",
@@ -11303,7 +11307,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/athen_archer.glb",
@@ -11330,6 +11335,7 @@
     "actor:art/actors/props/units/weapons/bow_short.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/athenians/infantry_archer_a.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_straw_01.dae",
     "mesh:props/new/head_beard_small.dae",
     "mesh:props/prop_mallet.dae",
@@ -11372,7 +11378,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/athen_archer_maiden.glb",
@@ -11393,6 +11400,7 @@
     "actor:art/actors/props/units/weapons/bow_recurve.xml",
     "actor:art/actors/props/units/weapons/quiver_hip_arrows.xml",
     "actor:art/actors/units/athenians/infantry_archer_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/pers_kidaris_loose.dae",
     "mesh:props/new/capes/cape_hd_medium.dae",
     "mesh:props/new/head_beard_small.dae",
@@ -11672,7 +11680,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/athen_female_citizen.glb",
@@ -11693,6 +11702,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/athenians/female_citizen.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/dudette_head_b.dae",
     "mesh:props/prop_mallet.dae",
     "mesh:props/special/luggage_female_back.dae",
@@ -11801,7 +11811,8 @@
     "Heal",
     "Idle",
     "Walk",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/athen_healer.glb",
@@ -11818,6 +11829,7 @@
     "actor:art/actors/props/units/heads/new/head_hele_healer.xml",
     "actor:art/actors/props/units/staff.xml",
     "actor:art/actors/units/athenians/healer.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/old/hele_hood.dae",
     "mesh:props/m_staff.dae",
     "mesh:props/new/head_beard.dae",
@@ -11837,7 +11849,8 @@
     "Run",
     "Attack",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/athen_hero.glb",
@@ -11862,6 +11875,7 @@
     "actor:art/actors/props/units/weapons/sheath_xiphos_e.xml",
     "actor:art/actors/props/units/weapons/xiphos_alexander.xml",
     "actor:art/actors/units/athenians/hero_infantry_swordsman_themistocles.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_corinthian_c.dae",
     "mesh:props/helmet/props/hele_crest_a.dae",
     "mesh:props/helmet/props/hele_crest_hair_a.dae",
@@ -12066,7 +12080,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/athen_spearman.glb",
@@ -12091,6 +12106,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/spear_hoplite.xml",
     "actor:art/actors/units/athenians/infantry_spearman_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_pilos_a1.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/prop_mallet.dae",
@@ -12148,7 +12164,8 @@
     "Run",
     "Attack",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/athen_swordsman.glb",
@@ -12172,6 +12189,7 @@
     "actor:art/actors/props/units/weapons/sheath_xiphos_e.xml",
     "actor:art/actors/props/units/weapons/xiphos.xml",
     "actor:art/actors/units/athenians/infantry_swordsman_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_thracian_b.dae",
     "mesh:props/helmet/props/hele_crest_a.dae",
     "mesh:props/helmet/props/hele_crest_hair_a.dae",
@@ -12433,7 +12451,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/athen_villager.glb",
@@ -12453,6 +12472,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/athenians/citizen_male.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/prop_mallet.dae",
     "mesh:props/tool_axe.dae",
@@ -13071,7 +13091,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/brit_archer.glb",
@@ -13091,6 +13112,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/britons/infantry_slinger_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/head_longhair.dae",
     "mesh:props/prop_mallet.dae",
     "mesh:props/tool_axe.dae",
@@ -13369,7 +13391,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/brit_female_citizen.glb",
@@ -13390,6 +13413,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/britons/citizen_female.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/dudette_head_a.dae",
     "mesh:props/prop_mallet.dae",
     "mesh:props/special/luggage_female_back.dae",
@@ -13491,7 +13515,8 @@
     "Idle",
     "Walk",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/brit_healer.glb",
@@ -13509,6 +13534,7 @@
     "actor:art/actors/props/units/staff.xml",
     "actor:art/actors/props/units/weapons/csword.xml",
     "actor:art/actors/units/celts/healer.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/celt_mistletoe.dae",
     "mesh:props/m_staff.dae",
     "mesh:props/new/head_longhair.dae",
@@ -13539,7 +13565,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/brit_hero.glb",
@@ -13558,6 +13585,7 @@
     "actor:art/actors/props/units/shields/brit_battersea_b.xml",
     "actor:art/actors/props/units/weapons/csword.xml",
     "actor:art/actors/units/britons/hero_infantry_swordsman_boudicca.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/capes/cape_hd_hoplite.dae",
     "mesh:props/new/head_boudicca.dae",
     "mesh:props/shield/brit_battersea.dae",
@@ -13811,7 +13839,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/brit_spearman.glb",
@@ -13837,6 +13866,7 @@
     "actor:art/actors/props/units/weapons/sheath_celt_iron.xml",
     "actor:art/actors/props/units/weapons/spear.xml",
     "actor:art/actors/units/britons/infantry_spearman_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/capes/cape_hd_hoplite.dae",
     "mesh:props/new/head_lime.dae",
     "mesh:props/new/head_longhair.dae",
@@ -13909,7 +13939,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/brit_swordsman.glb",
@@ -13933,6 +13964,7 @@
     "actor:art/actors/props/units/weapons/csword.xml",
     "actor:art/actors/props/units/weapons/sheath_celt_iron_e.xml",
     "actor:art/actors/units/britons/infantry_swordsman_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/celt_mihovo.dae",
     "mesh:props/new/capes/cape_hd_hoplite.dae",
     "mesh:props/new/head_longhair.dae",
@@ -14142,7 +14174,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/brit_villager.glb",
@@ -14162,6 +14195,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/britons/citizen_male.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/head_longhair.dae",
     "mesh:props/prop_mallet.dae",
     "mesh:props/tool_axe.dae",
@@ -14373,7 +14407,8 @@
     "Attack",
     "Carry",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/carnyx.glb",
@@ -14389,6 +14424,7 @@
     "actor:art/actors/props/units/celt_carnyx_01.xml",
     "actor:art/actors/props/units/helmets/celt_helmet_alesia_01.xml",
     "actor:art/actors/units/gauls/infantry_carnyx_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/celt_alesia_01.dae",
     "mesh:props/standard/celt_carnyx_a.dae",
     "mesh:skeletal/new/m_armor_pants.dae",
@@ -14415,7 +14451,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/cart_archer.glb",
@@ -14439,6 +14476,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/quiver_hip_arrows.xml",
     "actor:art/actors/units/carthaginians/infantry_archer_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/head_m_ponytail.dae",
     "mesh:props/prop_mallet.dae",
     "mesh:props/quiver_hip.dae",
@@ -14475,7 +14513,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/cart_archer_maiden.glb",
@@ -14499,6 +14538,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/quiver_hip_arrows.xml",
     "actor:art/actors/units/carthaginians/infantry_archer_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/head_m_ponytail.dae",
     "mesh:props/prop_mallet.dae",
     "mesh:props/quiver_hip.dae",
@@ -14821,7 +14861,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/cart_female_citizen.glb",
@@ -14842,6 +14883,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/carthaginians/female_citizen.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/dudette_head_a.dae",
     "mesh:props/prop_mallet.dae",
     "mesh:props/special/luggage_female_back.dae",
@@ -14940,7 +14982,8 @@
     "Heal",
     "Idle",
     "Walk",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/cart_healer.glb",
@@ -14957,6 +15000,7 @@
     "actor:art/actors/props/units/helmets/kart_healer_hat.xml",
     "actor:art/actors/props/units/weapons/kart_healer_staff.xml",
     "actor:art/actors/units/carthaginians/healer.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/old/kart_healer_hat.dae",
     "mesh:props/kart_healer_staff.dae",
     "mesh:props/new/head_female_c.dae",
@@ -14986,7 +15030,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/cart_hero.glb",
@@ -15009,6 +15054,7 @@
     "actor:art/actors/props/units/weapons/falcata.xml",
     "actor:art/actors/props/units/weapons/sheath_falcata_e.xml",
     "actor:art/actors/units/carthaginians/hero_infantry_swordsman_hannibal.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_thracian_a.dae",
     "mesh:props/helmet/props/hele_crest_c.dae",
     "mesh:props/helmet/props/hele_crest_hair_c.dae",
@@ -15120,7 +15166,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/cart_spearman.glb",
@@ -15147,6 +15194,7 @@
     "actor:art/actors/props/units/weapons/spear_hoplite.xml",
     "actor:art/actors/props/units/weapons/xiphos.xml",
     "actor:art/actors/units/carthaginians/infantry_spearman_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_thracian_b.dae",
     "mesh:props/helmet/props/hele_crest_thracian_hair_a.dae",
     "mesh:props/helmet/props/hele_thracian_crest_a_small.dae",
@@ -15208,7 +15256,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/cart_swordsman.glb",
@@ -15233,6 +15282,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/xiphos.xml",
     "actor:art/actors/units/carthaginians/infantry_swordsman_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_attic_a.dae",
     "mesh:props/helmet/props/hele_attic_mask_a1.dae",
     "mesh:props/new/dude_head.dae",
@@ -15440,7 +15490,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/cart_villager.glb",
@@ -15460,6 +15511,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/carthaginians/citizen_male.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/head_beard_large.dae",
     "mesh:props/prop_mallet.dae",
     "mesh:props/tool_axe.dae",
@@ -16192,6 +16244,899 @@
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
+  "fauna_arctic_wolf": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 32,
+   "file": "models/units/fauna_arctic_wolf.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.349,
+    1.0,
+    1.489
+   ],
+   "skeleton": "fauna_arctic_wolf",
+   "sources": [
+    "actor:art/actors/fauna/arctic_wolf.xml",
+    "anim:quadraped/wolf_attack_01.dae",
+    "anim:quadraped/wolf_death_01.dae",
+    "anim:quadraped/wolf_idle_01.dae",
+    "anim:quadraped/wolf_run.dae",
+    "anim:quadraped/wolf_walk.dae",
+    "mesh:skeletal/wolf.dae",
+    "skin:skeletal/animal_wolf_white.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_bear_black": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 75,
+   "file": "models/units/fauna_bear_black.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    1.134,
+    1.5,
+    2.485
+   ],
+   "skeleton": "fauna_bear_black",
+   "sources": [
+    "actor:art/actors/fauna/bear_black.xml",
+    "anim:quadraped/bear_attack_01.dae",
+    "anim:quadraped/bear_death_01.dae",
+    "anim:quadraped/bear_idle_01.dae",
+    "anim:quadraped/bear_run.dae",
+    "anim:quadraped/bear_walk.dae",
+    "mesh:skeletal/bear.dae",
+    "skin:skeletal/animal_bear_black.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_bear_white": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 75,
+   "file": "models/units/fauna_bear_white.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    1.221,
+    1.7,
+    2.826
+   ],
+   "skeleton": "fauna_bear_white",
+   "sources": [
+    "actor:art/actors/fauna/bear_white.xml",
+    "anim:quadraped/bear_attack_01.dae",
+    "anim:quadraped/bear_death_01.dae",
+    "anim:quadraped/bear_idle_01.dae",
+    "anim:quadraped/bear_run.dae",
+    "anim:quadraped/bear_walk.dae",
+    "mesh:skeletal/bear_polar.dae",
+    "skin:skeletal/animal_bear_white.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_bull": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 31,
+   "file": "models/units/fauna_bull.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.744,
+    1.5,
+    2.392
+   ],
+   "skeleton": "fauna_bull",
+   "sources": [
+    "actor:art/actors/fauna/bull.xml",
+    "anim:quadraped/bovidae_attack.dae",
+    "anim:quadraped/bovidae_death_a.dae",
+    "anim:quadraped/bovidae_idle_a.dae",
+    "anim:quadraped/bovidae_run.dae",
+    "anim:quadraped/bovidae_walk_relax.dae",
+    "mesh:skeletal/bull_a.dae",
+    "skin:skeletal/animal_cattle_black.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_camel": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 90,
+   "file": "models/units/fauna_camel.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    0.599,
+    2.1,
+    2.461
+   ],
+   "skeleton": "fauna_camel",
+   "sources": [
+    "actor:art/actors/fauna/camel.xml",
+    "actor:art/actors/props/camel/teeths.xml",
+    "anim:quadraped/camel_attack_melee_01.dae",
+    "anim:quadraped/camel_death.dae",
+    "anim:quadraped/camel_idle_01.dae",
+    "anim:quadraped/camel_trot.dae",
+    "anim:quadraped/camel_walk.dae",
+    "mesh:props/camel_teeths.dae",
+    "mesh:skeletal/camel.dae",
+    "skin:props/camel/camel_teeths.png",
+    "skin:skeletal/animal_camel_a.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_elephant_african_baby": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Death"
+   ],
+   "bones": 72,
+   "file": "models/units/fauna_elephant_african_baby.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    1.153,
+    1.5,
+    1.835
+   ],
+   "skeleton": "fauna_elephant_african_baby",
+   "sources": [
+    "actor:art/actors/fauna/elephant_african_baby.xml",
+    "anim:quadraped/elephant_infant_death.dae",
+    "anim:quadraped/elephant_infant_idle_01.dae",
+    "anim:quadraped/elephant_infant_run.dae",
+    "anim:quadraped/elephant_infant_walk.dae",
+    "mesh:skeletal/elephant_african_baby.dae",
+    "skin:skeletal/animal-elephant-base-baby.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_elephant_asian": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 73,
+   "file": "models/units/fauna_elephant_asian.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    1.516,
+    2.9,
+    3.617
+   ],
+   "skeleton": "fauna_elephant_asian",
+   "sources": [
+    "actor:art/actors/fauna/elephant_asian.xml",
+    "anim:quadraped/elephant_asian_attack_melee_01.dae",
+    "anim:quadraped/elephant_asian_death.dae",
+    "anim:quadraped/elephant_asian_idle_01.dae",
+    "anim:quadraped/elephant_asian_run.dae",
+    "anim:quadraped/elephant_asian_walk.dae",
+    "mesh:skeletal/elephant_asian_male.dae",
+    "skin:skeletal/animal-elephant-asian-base.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "fauna_fox_arctic": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Death"
+   ],
+   "bones": 34,
+   "file": "models/units/fauna_fox_arctic.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.172,
+    0.55,
+    0.952
+   ],
+   "skeleton": "fauna_fox_arctic",
+   "sources": [
+    "actor:art/actors/fauna/fox_arctic.xml",
+    "anim:quadraped/fox_death.dae",
+    "anim:quadraped/fox_idle.dae",
+    "anim:quadraped/fox_run.dae",
+    "anim:quadraped/fox_walk.dae",
+    "mesh:skeletal/fox.dae",
+    "skin:skeletal/animal_fox_arctic.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_giraffe_baby": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Death"
+   ],
+   "bones": 31,
+   "file": "models/units/fauna_giraffe_baby.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.465,
+    2.4,
+    1.624
+   ],
+   "skeleton": "fauna_giraffe_baby",
+   "sources": [
+    "actor:art/actors/fauna/giraffe_baby.xml",
+    "anim:quadraped/giraffe_infant_death.dae",
+    "anim:quadraped/giraffe_infant_idle_01.dae",
+    "anim:quadraped/giraffe_infant_run.dae",
+    "anim:quadraped/giraffe_infant_walk.dae",
+    "mesh:skeletal/giraffe_infant.dae",
+    "skin:skeletal/animal_giraffe.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_hippopotamus": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 64,
+   "file": "models/units/fauna_hippopotamus.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    1.066,
+    1.5,
+    2.868
+   ],
+   "skeleton": "fauna_hippopotamus",
+   "sources": [
+    "actor:art/actors/fauna/hippopotamus.xml",
+    "anim:quadraped/hippopotamus_attack.dae",
+    "anim:quadraped/hippopotamus_death.dae",
+    "anim:quadraped/hippopotamus_idle_01.dae",
+    "anim:quadraped/hippopotamus_trot.dae",
+    "anim:quadraped/hippopotamus_walk.dae",
+    "mesh:skeletal/fauna_hippopotamus.dae",
+    "skin:skeletal/fauna_hippopotamus_01.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_horse": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Death"
+   ],
+   "bones": 86,
+   "file": "models/units/fauna_horse.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    0.545,
+    1.7,
+    2.152
+   ],
+   "skeleton": "fauna_horse",
+   "sources": [
+    "actor:art/actors/fauna/horse.xml",
+    "actor:art/actors/props/horse/horse_hair_mane_black_brown.xml",
+    "actor:art/actors/props/horse/horse_hair_tail_black_brown.xml",
+    "anim:quadraped/horse_death_01.dae",
+    "anim:quadraped/horse_gallop.dae",
+    "anim:quadraped/horse_idle_01.dae",
+    "anim:quadraped/horse_walk.dae",
+    "mesh:props/horse/hair_mane_01.dae",
+    "mesh:props/horse/hair_tail_01.dae",
+    "mesh:skeletal/horse_celtic.dae",
+    "skin:props/horse/hair_brown.png",
+    "skin:skeletal/horse_brown.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "fauna_horse_breed": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Death"
+   ],
+   "bones": 95,
+   "file": "models/units/fauna_horse_breed.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    0.525,
+    1.7,
+    1.999
+   ],
+   "skeleton": "fauna_horse_breed",
+   "sources": [
+    "actor:art/actors/fauna/horse_breed.xml",
+    "actor:art/actors/props/horse/fauna/horse_breed_hair_mane_black_brown.xml",
+    "actor:art/actors/props/horse/fauna/horse_breed_hair_tail_black_brown.xml",
+    "anim:quadraped/horse_breed_death.dae",
+    "anim:quadraped/horse_breed_gallop.dae",
+    "anim:quadraped/horse_breed_idle_01.dae",
+    "anim:quadraped/horse_breed_walk.dae",
+    "mesh:props/horse/hair_mane_01_breed.dae",
+    "mesh:props/horse/hair_tail_01_breed.dae",
+    "mesh:skeletal/horse_breed.dae",
+    "skin:props/horse/hair_brown.png",
+    "skin:skeletal/horse_brown.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "fauna_horse_lusitano": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Death"
+   ],
+   "bones": 86,
+   "file": "models/units/fauna_horse_lusitano.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    0.541,
+    1.7,
+    2.136
+   ],
+   "skeleton": "fauna_horse_lusitano",
+   "sources": [
+    "actor:art/actors/fauna/horse_lusitano.xml",
+    "actor:art/actors/props/horse/horse_hair_mane_gray_black.xml",
+    "actor:art/actors/props/horse/horse_hair_tail_gray_black.xml",
+    "anim:quadraped/horse_death_01.dae",
+    "anim:quadraped/horse_gallop.dae",
+    "anim:quadraped/horse_idle_01.dae",
+    "anim:quadraped/horse_walk.dae",
+    "mesh:props/horse/hair_mane_01.dae",
+    "mesh:props/horse/hair_tail_01.dae",
+    "mesh:skeletal/horse_lusitano.dae",
+    "skin:props/horse/hair_black.png",
+    "skin:skeletal/horse_black.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "fauna_horse_marwari": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Death"
+   ],
+   "bones": 86,
+   "file": "models/units/fauna_horse_marwari.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    0.534,
+    1.7,
+    2.11
+   ],
+   "skeleton": "fauna_horse_marwari",
+   "sources": [
+    "actor:art/actors/fauna/horse_marwari.xml",
+    "actor:art/actors/props/horse/horse_hair_mane_black_brown.xml",
+    "actor:art/actors/props/horse/horse_hair_tail_black_brown.xml",
+    "anim:quadraped/horse_death_01.dae",
+    "anim:quadraped/horse_gallop.dae",
+    "anim:quadraped/horse_idle_01.dae",
+    "anim:quadraped/horse_walk.dae",
+    "mesh:props/horse/hair_mane_01.dae",
+    "mesh:props/horse/hair_tail_01.dae",
+    "mesh:skeletal/horse_marwari.dae",
+    "skin:props/horse/hair_brown.png",
+    "skin:skeletal/horse_brown.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "fauna_horse_persian": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Death"
+   ],
+   "bones": 86,
+   "file": "models/units/fauna_horse_persian.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    0.541,
+    1.7,
+    2.136
+   ],
+   "skeleton": "fauna_horse_persian",
+   "sources": [
+    "actor:art/actors/fauna/horse_persian.xml",
+    "actor:art/actors/props/horse/horse_hair_mane_black_brown.xml",
+    "actor:art/actors/props/horse/horse_hair_tail_black_brown.xml",
+    "anim:quadraped/horse_death_01.dae",
+    "anim:quadraped/horse_gallop.dae",
+    "anim:quadraped/horse_idle_01.dae",
+    "anim:quadraped/horse_walk.dae",
+    "mesh:props/horse/hair_mane_01.dae",
+    "mesh:props/horse/hair_tail_01.dae",
+    "mesh:skeletal/horse_persian.dae",
+    "skin:props/horse/hair_brown.png",
+    "skin:skeletal/horse_brown.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "fauna_muskox": {
+   "animated": false,
+   "animations": [],
+   "bones": 0,
+   "file": "models/units/fauna_muskox.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.751,
+    1.4,
+    2.139
+   ],
+   "skeleton": null,
+   "sources": [
+    "actor:art/actors/fauna/muskox.xml",
+    "mesh:skeletal/muskox.dae",
+    "skin:skeletal/animal_muskox.png"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
+  "fauna_peacock": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Death"
+   ],
+   "bones": 34,
+   "file": "models/units/fauna_peacock.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.512,
+    0.9,
+    2.144
+   ],
+   "skeleton": "fauna_peacock",
+   "sources": [
+    "actor:art/actors/fauna/peacock.xml",
+    "anim:quadraped/peacock_death.dae",
+    "anim:quadraped/peacock_idle.dae",
+    "anim:quadraped/peacock_walk.dae",
+    "mesh:skeletal/peacock.dae",
+    "skin:skeletal/animal_peacock.png"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
+  "fauna_pig_flaming": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 26,
+   "file": "models/units/fauna_pig_flaming.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.528,
+    0.8,
+    1.466
+   ],
+   "skeleton": "fauna_pig_flaming",
+   "sources": [
+    "actor:art/actors/fauna/pig_flaming.xml",
+    "anim:quadraped/animal_pig_attack_01.dae",
+    "anim:quadraped/animal_pig_death_01.dae",
+    "anim:quadraped/animal_pig_idle_01.dae",
+    "anim:quadraped/animal_pig_run_01.dae",
+    "anim:quadraped/animal_pig_walk_01.dae",
+    "mesh:skeletal/pig.dae",
+    "skin:skeletal/animal_pig_01.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_piglet": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack"
+   ],
+   "bones": 26,
+   "file": "models/units/fauna_piglet.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.28,
+    0.45,
+    0.843
+   ],
+   "skeleton": "fauna_piglet",
+   "sources": [
+    "actor:art/actors/fauna/piglet.xml",
+    "anim:quadraped/animal_piglet_attack_01.dae",
+    "anim:quadraped/animal_piglet_idle_01.dae",
+    "anim:quadraped/animal_piglet_run_01.dae",
+    "anim:quadraped/animal_piglet_walk_01.dae",
+    "mesh:skeletal/animal_piglet.dae",
+    "skin:skeletal/animal_pig_01.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_pony": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Death"
+   ],
+   "bones": 95,
+   "file": "models/units/fauna_pony.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    0.413,
+    1.3,
+    1.654
+   ],
+   "skeleton": "fauna_pony",
+   "sources": [
+    "actor:art/actors/fauna/pony.xml",
+    "actor:art/actors/props/horse/fauna/pony_hair_mane_black_brown.xml",
+    "actor:art/actors/props/horse/fauna/pony_hair_tail_black_brown.xml",
+    "anim:quadraped/pony_death_a.dae",
+    "anim:quadraped/pony_gallop.dae",
+    "anim:quadraped/pony_idle_a.dae",
+    "anim:quadraped/pony_walk.dae",
+    "mesh:props/horse/pony_hair_mane_01.dae",
+    "mesh:props/horse/pony_hair_tail_01.dae",
+    "mesh:skeletal/pony.dae",
+    "skin:props/horse/hair_brown.png",
+    "skin:skeletal/horse_brown.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "fauna_rhino": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 24,
+   "file": "models/units/fauna_rhino.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    1.13,
+    1.7,
+    3.613
+   ],
+   "skeleton": "fauna_rhino",
+   "sources": [
+    "actor:art/actors/fauna/rhino.xml",
+    "anim:quadraped/rhino_attack.dae",
+    "anim:quadraped/rhino_death.dae",
+    "anim:quadraped/rhino_idle.dae",
+    "anim:quadraped/rhino_run.dae",
+    "anim:quadraped/rhino_walk.dae",
+    "mesh:skeletal/rhino.dae",
+    "skin:skeletal/animal_rhino.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_sanga_cattle": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 31,
+   "file": "models/units/fauna_sanga_cattle.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.96,
+    1.5,
+    1.949
+   ],
+   "skeleton": "fauna_sanga_cattle",
+   "sources": [
+    "actor:art/actors/fauna/sanga_cattle.xml",
+    "anim:quadraped/bovidae_attack.dae",
+    "anim:quadraped/bovidae_death_a.dae",
+    "anim:quadraped/bovidae_idle_a.dae",
+    "anim:quadraped/bovidae_run.dae",
+    "anim:quadraped/bovidae_walk_relax.dae",
+    "mesh:skeletal/sanga_cattle_a.dae",
+    "skin:skeletal/animal_zebu_brown.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_shark": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run"
+   ],
+   "bones": 8,
+   "file": "models/units/fauna_shark.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.879,
+    0.796,
+    2.6
+   ],
+   "skeleton": "fauna_shark",
+   "sources": [
+    "actor:art/actors/fauna/shark.xml",
+    "anim:other/shark_idle.dae",
+    "anim:other/shark_run.dae",
+    "anim:other/shark_walk.dae",
+    "mesh:skeletal/shark.dae",
+    "skin:skeletal/animal_shark.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_tiger": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 34,
+   "file": "models/units/fauna_tiger.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.454,
+    1.1,
+    2.429
+   ],
+   "skeleton": "fauna_tiger",
+   "sources": [
+    "actor:art/actors/fauna/tiger.xml",
+    "anim:quadraped/feline_attack.dae",
+    "anim:quadraped/feline_death.dae",
+    "anim:quadraped/feline_idle_01.dae",
+    "anim:quadraped/feline_run.dae",
+    "anim:quadraped/feline_walk.dae",
+    "mesh:skeletal/tiger.dae",
+    "skin:skeletal/animal_tiger.png"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
+  "fauna_walrus": {
+   "animated": false,
+   "animations": [],
+   "bones": 0,
+   "file": "models/units/fauna_walrus.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    1.648,
+    1.1,
+    2.606
+   ],
+   "skeleton": null,
+   "sources": [
+    "actor:art/actors/fauna/walrus.xml",
+    "mesh:skeletal/walrus.dae",
+    "skin:skeletal/animal_walrus.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_whale": {
+   "animated": false,
+   "animations": [],
+   "bones": 0,
+   "file": "models/units/fauna_whale.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    5.284,
+    2.335,
+    10.0
+   ],
+   "skeleton": null,
+   "sources": [
+    "actor:art/actors/fauna/whale.xml",
+    "mesh:skeletal/whale.dae",
+    "skin:skeletal/animal_whale.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_whale_fin": {
+   "animated": true,
+   "animations": [
+    "Idle"
+   ],
+   "bones": 8,
+   "file": "models/units/fauna_whale_fin.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    4.203,
+    2.167,
+    11.0
+   ],
+   "skeleton": "fauna_whale_fin",
+   "sources": [
+    "actor:art/actors/fauna/whale_fin.xml",
+    "anim:other/whale_fin_idle_a.dae",
+    "mesh:skeletal/whale_fin.dae",
+    "skin:skeletal/animal_whale_fin.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_wildebeest": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 31,
+   "file": "models/units/fauna_wildebeest.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.51,
+    1.4,
+    1.775
+   ],
+   "skeleton": "fauna_wildebeest",
+   "sources": [
+    "actor:art/actors/fauna/wildebeest.xml",
+    "anim:quadraped/bovidae_attack.dae",
+    "anim:quadraped/bovidae_death_a.dae",
+    "anim:quadraped/bovidae_idle_a.dae",
+    "anim:quadraped/bovidae_run.dae",
+    "anim:quadraped/bovidae_walk_relax.dae",
+    "mesh:skeletal/wildebeest_adult.dae",
+    "skin:skeletal/animal_wildebeest.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_zebu_wild": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 31,
+   "file": "models/units/fauna_zebu_wild.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.697,
+    1.5,
+    2.297
+   ],
+   "skeleton": "fauna_zebu_wild",
+   "sources": [
+    "actor:art/actors/fauna/zebu_wild.xml",
+    "anim:quadraped/bovidae_attack.dae",
+    "anim:quadraped/bovidae_death_a.dae",
+    "anim:quadraped/bovidae_idle_a.dae",
+    "anim:quadraped/bovidae_run.dae",
+    "anim:quadraped/bovidae_walk_relax.dae",
+    "mesh:skeletal/zebu.dae",
+    "skin:skeletal/animal_zebu.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
   "female_citizen": {
    "animated": true,
    "animations": [
@@ -16209,7 +17154,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/female_citizen.glb",
@@ -16230,6 +17176,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/athenians/female_citizen.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/dudette_head_b.dae",
     "mesh:props/prop_mallet.dae",
     "mesh:props/special/luggage_female_back.dae",
@@ -16904,7 +17851,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/gaul_archer.glb",
@@ -16924,6 +17872,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/gauls/infantry_slinger_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/head_longhair.dae",
     "mesh:props/prop_mallet.dae",
     "mesh:props/tool_axe.dae",
@@ -17056,7 +18005,8 @@
     "Attack",
     "Carry",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/gaul_carnyx.glb",
@@ -17072,6 +18022,7 @@
     "actor:art/actors/props/units/celt_carnyx_01.xml",
     "actor:art/actors/props/units/helmets/celt_helmet_alesia_01.xml",
     "actor:art/actors/units/gauls/infantry_carnyx_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/celt_alesia_01.dae",
     "mesh:props/standard/celt_carnyx_a.dae",
     "mesh:skeletal/new/m_armor_pants.dae",
@@ -17240,7 +18191,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/gaul_female_citizen.glb",
@@ -17261,6 +18213,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/britons/citizen_female.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/dudette_head_a.dae",
     "mesh:props/prop_mallet.dae",
     "mesh:props/special/luggage_female_back.dae",
@@ -17361,7 +18314,8 @@
     "Idle",
     "Walk",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/gaul_healer.glb",
@@ -17379,6 +18333,7 @@
     "actor:art/actors/props/units/staff.xml",
     "actor:art/actors/props/units/weapons/csword.xml",
     "actor:art/actors/units/celts/healer.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/celt_mistletoe.dae",
     "mesh:props/m_staff.dae",
     "mesh:props/new/head_longhair.dae",
@@ -17409,7 +18364,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/gaul_hero.glb",
@@ -17433,6 +18389,7 @@
     "actor:art/actors/props/units/weapons/csword.xml",
     "actor:art/actors/props/units/weapons/sheath_celt_iron_e.xml",
     "actor:art/actors/units/gauls/hero_infantry_swordsman_vercingetorix.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/capes/cape_hd_hoplite.dae",
     "mesh:props/new/head_vercingetorix.dae",
     "mesh:props/shield/oval_01.dae",
@@ -17614,7 +18571,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/gaul_spearman.glb",
@@ -17641,6 +18599,7 @@
     "actor:art/actors/props/units/weapons/sheath_celt_iron.xml",
     "actor:art/actors/props/units/weapons/spear.xml",
     "actor:art/actors/units/gauls/infantry_spearman_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/celt_port.dae",
     "mesh:props/new/capes/cape_hd_hoplite.dae",
     "mesh:props/new/head_longhair.dae",
@@ -17714,7 +18673,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/gaul_swordsman.glb",
@@ -17738,6 +18698,7 @@
     "actor:art/actors/props/units/weapons/csword.xml",
     "actor:art/actors/props/units/weapons/sheath_celt_iron_e.xml",
     "actor:art/actors/units/gauls/infantry_swordsman_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/celt_alesia_01.dae",
     "mesh:props/new/capes/cape_hd_hoplite.dae",
     "mesh:props/new/head_longhair.dae",
@@ -17942,7 +18903,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/gaul_villager.glb",
@@ -17962,6 +18924,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/britons/citizen_male.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/head_longhair.dae",
     "mesh:props/prop_mallet.dae",
     "mesh:props/tool_axe.dae",
@@ -18377,7 +19340,8 @@
     "Run",
     "Attack",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/han_archer.glb",
@@ -18400,6 +19364,7 @@
     "actor:art/actors/props/units/weapons/sheath/han_jian_sheath_left_a.xml",
     "actor:art/actors/props/units/weapons/sword/han_jian_a.xml",
     "actor:art/actors/units/han/infantry_archer_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/han_advanced_melee_helmet.dae",
     "mesh:props/helmet/han_hairbun.dae",
     "mesh:props/new/dude_head.dae",
@@ -18740,7 +19705,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/han_chariot_archer.glb",
@@ -18760,6 +19726,7 @@
     "actor:art/actors/props/units/weapons/sheath/han_jian_sheath_left_a.xml",
     "actor:art/actors/props/units/weapons/sword/han_jian_a.xml",
     "actor:art/actors/units/han/chariot_archer_d.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/han_cap.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/quivers/han_crossbow_quiver.dae",
@@ -18832,7 +19799,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/han_citizen_female.glb",
@@ -18854,6 +19822,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/han/citizen_female.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/han_ricehat.dae",
     "mesh:props/new/head_female_shorthair.dae",
     "mesh:props/prop_mallet.dae",
@@ -18914,7 +19883,8 @@
     "Walk",
     "Run",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/han_crossbowman.glb",
@@ -18935,6 +19905,7 @@
     "actor:art/actors/props/units/weapons/crossbow/han_juezhang.xml",
     "actor:art/actors/props/units/weapons/quiver_bamboo_arrows.xml",
     "actor:art/actors/units/han/infantry_crossbowman_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/han_advanced_melee_helmet.dae",
     "mesh:props/helmet/han_heavy_helmet_b.dae",
     "mesh:props/new/dude_head.dae",
@@ -19022,7 +19993,8 @@
     "Carry",
     "GatherFish",
     "Attack",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/han_fisherman.glb",
@@ -19040,6 +20012,7 @@
     "actor:art/actors/props/units/row.xml",
     "actor:art/actors/props/units/tools/fishing_net_hele.xml",
     "actor:art/actors/units/han/fisherman.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/fishing_net.dae",
     "mesh:props/helmet/han_ricehat.dae",
     "mesh:props/new/dude_head.dae",
@@ -19188,7 +20161,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/han_halberdman.glb",
@@ -19212,6 +20186,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/spear/han_ji.xml",
     "actor:art/actors/units/han/infantry_halberdman_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/han_bandana.dae",
     "mesh:props/helmet/han_hairbun.dae",
     "mesh:props/helmet/han_ricehat.dae",
@@ -19240,7 +20215,8 @@
     "Idle",
     "Walk",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/han_healer.glb",
@@ -19257,6 +20233,7 @@
     "actor:art/actors/props/units/helmets/han_hairbun.xml",
     "actor:art/actors/props/units/staff.xml",
     "actor:art/actors/units/han/healer.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/han_hairbun.dae",
     "mesh:props/m_staff.dae",
     "mesh:props/new/head_beard_small.dae",
@@ -19463,7 +20440,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/han_hero_chariot_han.glb",
@@ -19483,6 +20461,7 @@
     "actor:art/actors/props/units/weapons/sheath/han_jian_sheath_left_a.xml",
     "actor:art/actors/props/units/weapons/sword/han_jian_a.xml",
     "actor:art/actors/units/han/hero_chariot_crossbowman_d.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/han_cap.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/quivers/han_crossbow_quiver.dae",
@@ -19517,7 +20496,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/han_hero_han_xin.glb",
@@ -19537,6 +20517,7 @@
     "actor:art/actors/props/units/weapons/spear/han_halb.xml",
     "actor:art/actors/props/units/weapons/sword/han_sword_han_xin.xml",
     "actor:art/actors/units/han/hero_infantry_han_xin.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/han_hairbun.dae",
     "mesh:props/new/capes/cape_hd_hoplite.dae",
     "mesh:props/new/dude_head.dae",
@@ -19561,7 +20542,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/han_hero_liu_bang.glb",
@@ -19579,6 +20561,7 @@
     "actor:art/actors/props/units/weapons/sheath/han_jian_sheath_left_a_e.xml",
     "actor:art/actors/props/units/weapons/sword/han_jian_a.xml",
     "actor:art/actors/units/han/hero_infantry_liu_bang.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/han_hairbun.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/weapons/sheath/weap_han_sword_a_sheath.dae",
@@ -19599,7 +20582,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/han_hero_wei_qing.glb",
@@ -19619,6 +20603,7 @@
     "actor:art/actors/props/units/weapons/arrow_front.xml",
     "actor:art/actors/props/units/weapons/crossbow/han_nu.xml",
     "actor:art/actors/units/han/hero_infantry_wei_qing.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/han_hairbun.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/quivers/han_crossbow_quiver.dae",
@@ -19738,7 +20723,8 @@
     "Carry",
     "GatherFish",
     "Attack",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/han_merchant_ship.glb",
@@ -19758,6 +20744,7 @@
     "actor:art/actors/props/units/tools/fishing_net_hele.xml",
     "actor:art/actors/structures/han/merchant_ship.xml",
     "actor:art/actors/units/han/fisherman.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/fishing_net.dae",
     "mesh:props/han_merchant_sail.dae",
     "mesh:props/helmet/han_ricehat.dae",
@@ -19785,7 +20772,8 @@
     "Idle",
     "Walk",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/han_minister.glb",
@@ -19803,6 +20791,7 @@
     "actor:art/actors/props/units/weapons/sheath/han_jian_sheath_left_a.xml",
     "actor:art/actors/props/units/weapons/sword/han_jian_a.xml",
     "actor:art/actors/units/han/minister.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/han_hairbun.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/weapons/sheath/weap_han_sword_a_sheath.dae",
@@ -19917,7 +20906,8 @@
     "Walk",
     "Run",
     "Death",
-    "Attack"
+    "Attack",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/han_siege_mangonel_pivot.glb",
@@ -19941,6 +20931,7 @@
     "actor:art/actors/props/units/helmets/han_hairbun.xml",
     "actor:art/actors/units/han/siege_mangonel_packed.xml",
     "actor:art/actors/units/han/siege_mangonel_pivot_packed.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/han_mangonel_packed.dae",
     "mesh:props/helmet/han_advanced_melee_helmet.dae",
     "mesh:props/helmet/han_hairbun.dae",
@@ -19979,7 +20970,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/han_spearman.glb",
@@ -20001,6 +20993,7 @@
     "actor:art/actors/props/units/weapons/spear/han_champion_spear.xml",
     "actor:art/actors/props/units/weapons/sword/han_jian_a.xml",
     "actor:art/actors/units/han/infantry_spearman_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/han_officer_helmet_01.dae",
     "mesh:props/helmet/props/helmet_feather_a.dae",
     "mesh:props/new/capes/cape_hd_hoplite.dae",
@@ -20105,7 +21098,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/han_swordsman.glb",
@@ -20125,6 +21119,7 @@
     "actor:art/actors/props/units/weapons/sheath/han_jian_sheath_left_a_e.xml",
     "actor:art/actors/props/units/weapons/sword/han_duan_ma_jian_01.xml",
     "actor:art/actors/units/han/infantry_swordsman_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/han_heavy_helmet_b.dae",
     "mesh:props/new/capes/cape_hd_hoplite.dae",
     "mesh:props/new/dude_head.dae",
@@ -20383,7 +21378,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/han_villager.glb",
@@ -20404,6 +21400,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/han/citizen_male.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/han_ricehat.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/prop_mallet.dae",
@@ -20436,7 +21433,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/han_villager_female.glb",
@@ -20458,6 +21456,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/han/female_citizen.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/han_ricehat.dae",
     "mesh:props/new/head_female_shorthair.dae",
     "mesh:props/prop_mallet.dae",
@@ -20492,7 +21491,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/han_villager_male.glb",
@@ -20513,6 +21513,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/han/citizen_male.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/han_ricehat.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/prop_mallet.dae",
@@ -20691,7 +21692,8 @@
     "Heal",
     "Idle",
     "Walk",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/healer.glb",
@@ -20708,6 +21710,7 @@
     "actor:art/actors/props/units/heads/new/head_hele_healer.xml",
     "actor:art/actors/props/units/staff.xml",
     "actor:art/actors/units/athenians/healer.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/old/hele_hood.dae",
     "mesh:props/m_staff.dae",
     "mesh:props/new/head_beard.dae",
@@ -20737,7 +21740,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/hero.glb",
@@ -20764,6 +21768,7 @@
     "actor:art/actors/props/units/weapons/spear_hoplite.xml",
     "actor:art/actors/props/units/weapons/xiphos.xml",
     "actor:art/actors/units/spartans/hero_infantry_spearman_leonidas.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_corinthian_b.dae",
     "mesh:props/helmet/props/hele_crest_b.dae",
     "mesh:props/helmet/props/hele_crest_hair_transversal_a.dae",
@@ -20822,7 +21827,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/iber_archer.glb",
@@ -20842,6 +21848,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/iberians/infantry_slinger_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/head_longhair.dae",
     "mesh:props/prop_mallet.dae",
     "mesh:props/tool_axe.dae",
@@ -21046,7 +22053,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/iber_female_citizen.glb",
@@ -21068,6 +22076,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/iberians/female_citizen.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/old/iberian_02.dae",
     "mesh:props/new/dudette_head_a.dae",
     "mesh:props/prop_mallet.dae",
@@ -21164,7 +22173,8 @@
     "Heal",
     "Idle",
     "Walk",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/iber_healer.glb",
@@ -21182,6 +22192,7 @@
     "actor:art/actors/props/units/weapons/iber_healer_staff.xml",
     "actor:art/actors/props/units/weapons/iber_healer_staff_skull.xml",
     "actor:art/actors/units/iberians/healer.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/old/iberian_02.dae",
     "mesh:props/iber_healer_staff.dae",
     "mesh:props/new/head_iber_healer.dae",
@@ -21213,7 +22224,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/iber_hero.glb",
@@ -21236,6 +22248,7 @@
     "actor:art/actors/props/units/weapons/jav.xml",
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/units/iberians/hero_infantry_swordsman_viriato.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/celt_montefortino_01.dae",
     "mesh:props/helmet/props/hele_thracian_romanized_long_hair.dae",
     "mesh:props/jav_blade.dae",
@@ -21386,7 +22399,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/iber_spearman.glb",
@@ -21415,6 +22429,7 @@
     "actor:art/actors/props/units/weapons/sheath_falcata.xml",
     "actor:art/actors/props/units/weapons/spear.xml",
     "actor:art/actors/units/iberians/infantry_spearman_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/old/iberian_04.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/prop_mallet.dae",
@@ -21470,7 +22485,8 @@
     "Run",
     "Attack",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/iber_swordsman.glb",
@@ -21491,6 +22507,7 @@
     "actor:art/actors/props/units/weapons/gladius.xml",
     "actor:art/actors/props/units/weapons/sheath_falcata_e.xml",
     "actor:art/actors/units/iberians/infantry_swordsman_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_chalcidean_f1.dae",
     "mesh:props/helmet/props/hele_boeotian_hair.dae",
     "mesh:props/helmet/props/hele_hispano_chalcidean_mask_a.dae",
@@ -21686,7 +22703,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/iber_villager.glb",
@@ -21706,6 +22724,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/iberians/citizen_male.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/head_longhair.dae",
     "mesh:props/prop_mallet.dae",
     "mesh:props/tool_axe.dae",
@@ -21850,7 +22869,8 @@
     "Run",
     "Attack",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/kush_archer.glb",
@@ -21871,6 +22891,7 @@
     "actor:art/actors/props/units/weapons/bow_short.xml",
     "actor:art/actors/props/units/weapons/kush_quiver_hip_arrows.xml",
     "actor:art/actors/units/kushites/infantry_archer_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/kush_skull_cap.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/kush_quiver_hip.dae",
@@ -21906,7 +22927,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/kush_archer_a.glb",
@@ -21932,6 +22954,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/kush_quiver_hip_arrows.xml",
     "actor:art/actors/units/kushites/infantry_archer_a.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/heads/feather_ostrich_2.dae",
     "mesh:props/heads/hair_kush.dae",
     "mesh:props/kush_quiver_hip.dae",
@@ -21971,7 +22994,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/kush_archer_b.glb",
@@ -21997,6 +23021,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/kush_quiver_hip_arrows.xml",
     "actor:art/actors/units/kushites/infantry_archer_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/heads/feather_ostrich_1.dae",
     "mesh:props/heads/hair_kush.dae",
     "mesh:props/kush_quiver_hip.dae",
@@ -22036,7 +23061,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/kush_archer_e.glb",
@@ -22064,6 +23090,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/kush_quiver_hip_arrows.xml",
     "actor:art/actors/units/kushites/infantry_archer_e.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/heads/feather_ostrich_1.dae",
     "mesh:props/heads/feather_ostrich_2.dae",
     "mesh:props/heads/hair_kush.dae",
@@ -22097,7 +23124,8 @@
     "Run",
     "Attack",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/kush_archer_maiden.glb",
@@ -22118,6 +23146,7 @@
     "actor:art/actors/props/units/weapons/bow_short.xml",
     "actor:art/actors/props/units/weapons/kush_quiver_hip_arrows.xml",
     "actor:art/actors/units/kushites/infantry_archer_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/kush_skull_cap.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/kush_quiver_hip.dae",
@@ -22795,7 +23824,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/kush_female_citizen.glb",
@@ -22817,6 +23847,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/kushites/female_citizen.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/new/head_female_shorthair.dae",
     "mesh:props/prop_mallet.dae",
@@ -22920,7 +23951,8 @@
     "Heal",
     "Idle",
     "Walk",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/kush_healer.glb",
@@ -22936,6 +23968,7 @@
     "actor:art/actors/props/units/heads/head_kush_healer.xml",
     "actor:art/actors/props/units/staff.xml",
     "actor:art/actors/units/kushites/healer.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/m_staff.dae",
     "mesh:props/new/head_beard_small.dae",
     "mesh:skeletal/new/m_tunic_long.dae",
@@ -22953,7 +23986,8 @@
     "Run",
     "Attack",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/kush_hero.glb",
@@ -22975,6 +24009,7 @@
     "actor:art/actors/props/units/weapons/bow_recurve.xml",
     "actor:art/actors/props/units/weapons/kush_quiver_hip_arrows.xml",
     "actor:art/actors/units/kushites/hero_infantry_archer_amanirenas.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/kush_skull_cap_crown.dae",
     "mesh:props/helmet/kush_skull_cap_crown_snake_single.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
@@ -23307,7 +24342,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/kush_javelinist_a.glb",
@@ -23332,6 +24368,7 @@
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/props/units/weapons/jav_loaded.xml",
     "actor:art/actors/units/kushites/infantry_javelinist_a.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/jav_blade.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/prop_mallet.dae",
@@ -23368,7 +24405,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/kush_javelinist_b.glb",
@@ -23393,6 +24431,7 @@
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/props/units/weapons/jav_loaded.xml",
     "actor:art/actors/units/kushites/infantry_javelinist_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/jav_blade.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/prop_mallet.dae",
@@ -23429,7 +24468,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/kush_javelinist_e.glb",
@@ -23455,6 +24495,7 @@
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/props/units/weapons/jav_loaded.xml",
     "actor:art/actors/units/kushites/infantry_javelinist_e.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/jav_blade.dae",
     "mesh:props/new/dude_head.dae",
@@ -23493,7 +24534,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/kush_maceman_a.glb",
@@ -23516,6 +24558,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/kush_nubian_mace.xml",
     "actor:art/actors/units/kushites/infantry_maceman_a.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/kush_maces_a_01.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/prop_mallet.dae",
@@ -23551,7 +24594,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/kush_maceman_b.glb",
@@ -23574,6 +24618,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/kush_nubian_mace.xml",
     "actor:art/actors/units/kushites/infantry_maceman_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/kush_maces_a_01.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/prop_mallet.dae",
@@ -23609,7 +24654,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/kush_maceman_e.glb",
@@ -23633,6 +24679,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/kush_nubian_mace.xml",
     "actor:art/actors/units/kushites/infantry_maceman_e.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/kush_maces_a_01.dae",
     "mesh:props/new/dude_head.dae",
@@ -23706,7 +24753,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/kush_pikeman_a.glb",
@@ -23729,6 +24777,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/sarissa.xml",
     "actor:art/actors/units/kushites/infantry_pikeman_a.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/prop_mallet.dae",
@@ -23764,7 +24813,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/kush_pikeman_b.glb",
@@ -23787,6 +24837,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/sarissa.xml",
     "actor:art/actors/units/kushites/infantry_pikeman_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/prop_mallet.dae",
@@ -23822,7 +24873,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/kush_pikeman_e.glb",
@@ -23846,6 +24898,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/sarissa.xml",
     "actor:art/actors/units/kushites/infantry_pikeman_e.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/helmet/ptol_quilted.dae",
     "mesh:props/new/dude_head.dae",
@@ -23961,7 +25014,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/kush_spearman.glb",
@@ -23986,6 +25040,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/kush_spear.xml",
     "actor:art/actors/units/kushites/infantry_spearman_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/heads/feather_ostrich_1.dae",
     "mesh:props/kush_spear_blade.dae",
     "mesh:props/new/dude_head.dae",
@@ -24023,7 +25078,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/kush_spearman_a.glb",
@@ -24048,6 +25104,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/kush_spear.xml",
     "actor:art/actors/units/kushites/infantry_spearman_a.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/heads/feather_ostrich_2.dae",
     "mesh:props/heads/hair_kush.dae",
     "mesh:props/kush_spear_blade.dae",
@@ -24086,7 +25143,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/kush_spearman_e.glb",
@@ -24113,6 +25171,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/kush_spear.xml",
     "actor:art/actors/units/kushites/infantry_spearman_e.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/heads/feather_ostrich_1.dae",
     "mesh:props/heads/feather_ostrich_2.dae",
     "mesh:props/heads/hair_kush.dae",
@@ -24228,7 +25287,8 @@
     "Run",
     "Attack",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/kush_swordsman.glb",
@@ -24247,6 +25307,7 @@
     "actor:art/actors/props/units/shields/kush_egyptian_leopard.xml",
     "actor:art/actors/props/units/weapons/khopesh.xml",
     "actor:art/actors/units/kushites/infantry_swordsman_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/kush_skull_cap.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/new/dude_head.dae",
@@ -24279,7 +25340,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/kush_swordsman_a.glb",
@@ -24304,6 +25366,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/spatha.xml",
     "actor:art/actors/units/kushites/infantry_swordsman_a.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/helmet/ptol_quilted.dae",
     "mesh:props/kush_scabbard.dae",
@@ -24343,7 +25406,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/kush_swordsman_b.glb",
@@ -24367,6 +25431,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/spatha.xml",
     "actor:art/actors/units/kushites/infantry_swordsman_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/kush_scabbard.dae",
     "mesh:props/new/dude_head.dae",
@@ -24404,7 +25469,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/kush_swordsman_e.glb",
@@ -24429,6 +25495,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/spatha.xml",
     "actor:art/actors/units/kushites/infantry_swordsman_e.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/helmet/ptol_quilted.dae",
     "mesh:props/kush_scabbard.dae",
@@ -24645,7 +25712,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/kush_villager.glb",
@@ -24666,6 +25734,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/kushites/citizen_male.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/prop_mallet.dae",
@@ -24905,7 +25974,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/mace_archer.glb",
@@ -24932,6 +26002,7 @@
     "actor:art/actors/props/units/weapons/bow_short.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/macedonians/infantry_archer_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_kausia_cap_01.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/prop_mallet.dae",
@@ -24974,7 +26045,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/mace_archer_maiden.glb",
@@ -25001,6 +26073,7 @@
     "actor:art/actors/props/units/weapons/bow_short.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/macedonians/infantry_archer_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_kausia_cap_01.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/prop_mallet.dae",
@@ -25329,7 +26402,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/mace_female_citizen.glb",
@@ -25350,6 +26424,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/macedonians/female_citizen.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/dudette_head_a.dae",
     "mesh:props/prop_mallet.dae",
     "mesh:props/special/luggage_female_back.dae",
@@ -25461,7 +26536,8 @@
     "Heal",
     "Idle",
     "Walk",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/mace_healer.glb",
@@ -25478,6 +26554,7 @@
     "actor:art/actors/props/units/heads/new/head_hele_healer.xml",
     "actor:art/actors/props/units/staff.xml",
     "actor:art/actors/units/hellenes/healer.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/old/hele_hood.dae",
     "mesh:props/m_staff.dae",
     "mesh:props/new/head_beard.dae",
@@ -25496,7 +26573,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/mace_hero.glb",
@@ -25518,6 +26596,7 @@
     "actor:art/actors/props/units/weapons/falcata.xml",
     "actor:art/actors/props/units/weapons/sheath_falcata_e.xml",
     "actor:art/actors/units/macedonians/hero_infantry_swordsman_alexander.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/old/mace_helmet_alexander.dae",
     "mesh:props/new/capes/cape_hd_medium.dae",
     "mesh:props/new/dude_head.dae",
@@ -25724,7 +26803,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/mace_spearman.glb",
@@ -25749,6 +26829,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/sarissa.xml",
     "actor:art/actors/units/macedonians/infantry_pikeman_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_pilos_a1.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/prop_mallet.dae",
@@ -25816,7 +26897,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/mace_swordsman.glb",
@@ -25841,6 +26923,7 @@
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/props/units/weapons/rhomphaia.xml",
     "actor:art/actors/units/macedonians/infantry_swordsman_c_thracian.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_phrygian_a.dae",
     "mesh:props/helmet/props/hele_thracian_romanized_mask_b.dae",
     "mesh:props/jav_blade.dae",
@@ -26101,7 +27184,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/mace_villager.glb",
@@ -26122,6 +27206,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/macedonians/female_citizen.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/dudette_head_a.dae",
     "mesh:props/prop_mallet.dae",
     "mesh:props/special/luggage_female_back.dae",
@@ -26299,7 +27384,8 @@
     "Run",
     "Attack",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_archer.glb",
@@ -26319,6 +27405,7 @@
     "actor:art/actors/props/units/weapons/bow_long_indian.xml",
     "actor:art/actors/props/units/weapons/quiver_bamboo_arrows.xml",
     "actor:art/actors/units/mauryas/infantry_archer_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_inf_big_turban_maiden.dae",
     "mesh:props/new/head_female_c.dae",
     "mesh:props/quiver_bamboo_1.dae",
@@ -26352,7 +27439,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_archer_a.glb",
@@ -26377,6 +27465,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/quiver_bamboo_arrows.xml",
     "actor:art/actors/units/mauryas/infantry_archer_a.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_inf_tall_wrap_a.dae",
     "mesh:props/new/head_mauryan_tall_hair.dae",
     "mesh:props/prop_mallet.dae",
@@ -26414,7 +27503,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_archer_b.glb",
@@ -26439,6 +27529,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/quiver_bamboo_arrows.xml",
     "actor:art/actors/units/mauryas/infantry_archer_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_inf_short_wrap_a.dae",
     "mesh:props/new/head_mauryan_short_hair.dae",
     "mesh:props/prop_mallet.dae",
@@ -26476,7 +27567,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_archer_e.glb",
@@ -26502,6 +27594,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/quiver_bamboo_arrows.xml",
     "actor:art/actors/units/mauryas/infantry_archer_e.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/helmet/maur_inf_tall_wrap_a.dae",
     "mesh:props/new/head_mauryan_tall_hair.dae",
@@ -26532,7 +27625,8 @@
     "Run",
     "Attack",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_archer_fire.glb",
@@ -26552,6 +27646,7 @@
     "actor:art/actors/props/units/weapons/bow_long_indian.xml",
     "actor:art/actors/props/units/weapons/quiver_bamboo_arrows.xml",
     "actor:art/actors/units/mauryas/infantry_archer_c_fire.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_inf_big_turban_maiden.dae",
     "mesh:props/new/head_female_c.dae",
     "mesh:props/quiver_bamboo_1.dae",
@@ -26576,7 +27671,8 @@
     "Run",
     "Attack",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_archer_maiden.glb",
@@ -26596,6 +27692,7 @@
     "actor:art/actors/props/units/weapons/bow_long_indian.xml",
     "actor:art/actors/props/units/weapons/quiver_bamboo_arrows.xml",
     "actor:art/actors/units/mauryas/infantry_archer_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_inf_big_turban_maiden.dae",
     "mesh:props/new/head_female_c.dae",
     "mesh:props/quiver_bamboo_1.dae",
@@ -27129,7 +28226,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_chariot_archer_c.glb",
@@ -27147,6 +28245,7 @@
     "actor:art/actors/props/units/quiver_back_bamboo.xml",
     "actor:art/actors/props/units/weapons/quiver_bamboo_arrows.xml",
     "actor:art/actors/units/mauryas/chariot_archer_c_d.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_inf_short_wrap_a.dae",
     "mesh:props/new/head_mauryan_short_hair.dae",
     "mesh:props/quiver_bamboo_1.dae",
@@ -27177,7 +28276,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_citizen_female.glb",
@@ -27200,6 +28300,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/mauryas/citizen_female.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/helmet/maur_inf_big_turban_a.dae",
     "mesh:props/new/head_female_d.dae",
@@ -27374,7 +28475,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_eleph_archer_d.glb",
@@ -27394,6 +28496,7 @@
     "actor:art/actors/props/units/weapons/jav.xml",
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/units/mauryas/elephantry_archer_d.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/jav_blade.dae",
     "mesh:props/maur_shield_small.dae",
     "mesh:props/new/head_indian_1.dae",
@@ -27415,7 +28518,8 @@
     "Walk",
     "Run",
     "Death",
-    "Attack"
+    "Attack",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_eleph_archer_r1.glb",
@@ -27434,6 +28538,7 @@
     "actor:art/actors/props/units/weapons/bow_bamboo_long.xml",
     "actor:art/actors/props/units/weapons/quiver_bamboo_arrows.xml",
     "actor:art/actors/units/mauryas/elephantry_archer_r1.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/head_indian_1.dae",
     "mesh:props/quiver_bamboo_1.dae",
     "mesh:props/quiver_bamboo_arrows.dae",
@@ -27512,7 +28617,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_elephantry_c.glb",
@@ -27529,6 +28635,7 @@
     "actor:art/actors/props/units/shields/maur_small_b.xml",
     "actor:art/actors/props/units/weapons/axe_sagaris.xml",
     "actor:art/actors/units/mauryas/elephantry_c_d.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/maur_shield_small.dae",
     "mesh:props/new/head_indian_1.dae",
     "mesh:props/weapons/sagaris_01.dae",
@@ -27583,7 +28690,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_female_citizen.glb",
@@ -27605,6 +28713,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/mauryas/female_citizen.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/new/dudette_head_a.dae",
     "mesh:props/prop_mallet.dae",
@@ -27631,7 +28740,8 @@
     "Carry",
     "GatherFish",
     "Death",
-    "Attack"
+    "Attack",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_fisherman.glb",
@@ -27647,6 +28757,7 @@
     "actor:art/actors/props/units/heads/new/head_indian_a.xml",
     "actor:art/actors/props/units/tools/fishing_net_hele.xml",
     "actor:art/actors/units/mauryas/fisherman.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/fishing_net.dae",
     "mesh:props/new/head_indian_1.dae",
     "mesh:skeletal/new/m_tunic_long.dae",
@@ -27765,7 +28876,8 @@
     "Heal",
     "Idle",
     "Walk",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_healer.glb",
@@ -27781,6 +28893,7 @@
     "actor:art/actors/props/units/heads/new/head_mauryan_priest.xml",
     "actor:art/actors/props/units/staff.xml",
     "actor:art/actors/units/mauryas/healer.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/m_staff.dae",
     "mesh:props/new/head_hero_chanakya.dae",
     "mesh:skeletal/new/m_dress.dae",
@@ -27798,7 +28911,8 @@
     "Run",
     "Attack",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_hero.glb",
@@ -27819,6 +28933,7 @@
     "actor:art/actors/props/units/weapons/bow_bamboo_long.xml",
     "actor:art/actors/props/units/weapons/quiver_bamboo_arrows.xml",
     "actor:art/actors/units/mauryas/hero_infantry_archer_ashoka.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_earrings_round_1.dae",
     "mesh:props/helmet/maur_hero_turban_a.dae",
     "mesh:props/new/head_mauryan_short_hair.dae",
@@ -27844,7 +28959,8 @@
     "Run",
     "Attack",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_hero_ashoka.glb",
@@ -27865,6 +28981,7 @@
     "actor:art/actors/props/units/weapons/bow_bamboo_long.xml",
     "actor:art/actors/props/units/weapons/quiver_bamboo_arrows.xml",
     "actor:art/actors/units/mauryas/hero_infantry_archer_ashoka.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_earrings_round_1.dae",
     "mesh:props/helmet/maur_hero_turban_a.dae",
     "mesh:props/new/head_mauryan_short_hair.dae",
@@ -27889,7 +29006,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_hero_bindusara.glb",
@@ -27908,6 +29026,7 @@
     "actor:art/actors/props/units/shields/maur_bell_straight_b.xml",
     "actor:art/actors/props/units/weapons/longsword_mauryan.xml",
     "actor:art/actors/units/mauryas/hero_infantry_swordsman_bindusara.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/helmet/maur_hero_turban_a.dae",
     "mesh:props/maur_long_sword.dae",
@@ -27932,7 +29051,8 @@
     "Idle",
     "Walk",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_hero_chanakya.glb",
@@ -27948,6 +29068,7 @@
     "actor:art/actors/props/units/heads/new/head_mauryan_chanakya.xml",
     "actor:art/actors/props/units/staff.xml",
     "actor:art/actors/units/mauryas/hero_healer_chanakya.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/m_staff.dae",
     "mesh:props/new/head_hero_chanakya.dae",
     "mesh:skeletal/new/m_dress.dae",
@@ -27964,7 +29085,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_hero_chandragupta.glb",
@@ -27983,6 +29105,7 @@
     "actor:art/actors/props/units/shields/maur_bell_straight_b.xml",
     "actor:art/actors/props/units/weapons/longsword_mauryan.xml",
     "actor:art/actors/units/mauryas/hero_infantry_swordsman_chandragupta.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/helmet/maur_hero_turban_a.dae",
     "mesh:props/maur_long_sword.dae",
@@ -28005,7 +29128,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_hero_chariot.glb",
@@ -28023,6 +29147,7 @@
     "actor:art/actors/props/units/quiver_back_bamboo.xml",
     "actor:art/actors/props/units/weapons/quiver_bamboo_arrows.xml",
     "actor:art/actors/units/mauryas/hero_chariot_archer_ashoka_d.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_inf_big_turban_maiden.dae",
     "mesh:props/new/head_female_c.dae",
     "mesh:props/quiver_bamboo_1.dae",
@@ -28116,7 +29241,8 @@
     "Run",
     "Attack",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_mace_inf.glb",
@@ -28135,6 +29261,7 @@
     "actor:art/actors/props/units/shields/maur_bell_a.xml",
     "actor:art/actors/props/units/weapons/mace_mauryan.xml",
     "actor:art/actors/units/mauryas/infantry_maceman_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_earrings_round_1.dae",
     "mesh:props/helmet/maur_helmet_metal_plyr.dae",
     "mesh:props/maur_club.dae",
@@ -28468,7 +29595,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_spearman.glb",
@@ -28490,6 +29618,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/spear_bamboo.xml",
     "actor:art/actors/units/mauryas/infantry_spearman_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/maur_shield_straight.dae",
     "mesh:props/new/head_indian_1.dae",
     "mesh:props/prop_mallet.dae",
@@ -28524,7 +29653,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_spearman_a.glb",
@@ -28546,6 +29676,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/spear_bamboo.xml",
     "actor:art/actors/units/mauryas/infantry_spearman_a.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/maur_shield_straight.dae",
     "mesh:props/new/head_indian_1.dae",
     "mesh:props/prop_mallet.dae",
@@ -28580,7 +29711,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_spearman_e.glb",
@@ -28602,6 +29734,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/spear_bamboo.xml",
     "actor:art/actors/units/mauryas/infantry_spearman_e.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/maur_shield_straight.dae",
     "mesh:props/new/head_indian_1.dae",
     "mesh:props/prop_mallet.dae",
@@ -28756,7 +29889,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_support_elephant.glb",
@@ -28772,6 +29906,7 @@
     "actor:art/actors/props/units/heads/maur_earrings_1.xml",
     "actor:art/actors/props/units/heads/new/head_indian_a.xml",
     "actor:art/actors/units/mauryas/support_elephant_d.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/new/head_indian_1.dae",
     "mesh:skeletal/new/m_tunic_long.dae",
@@ -28789,7 +29924,8 @@
     "Run",
     "Attack",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_swordsman.glb",
@@ -28809,6 +29945,7 @@
     "actor:art/actors/props/units/weapons/longsword_mauryan.xml",
     "actor:art/actors/props/units/weapons/quiver_bamboo_arrows.xml",
     "actor:art/actors/units/mauryas/infantry_swordsman_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_inf_big_turban_maiden.dae",
     "mesh:props/maur_long_sword.dae",
     "mesh:props/maur_shield_tall_round.dae",
@@ -28842,7 +29979,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_swordsman_a.glb",
@@ -28865,6 +30003,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/falcata.xml",
     "actor:art/actors/units/mauryas/infantry_swordsman_a.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_inf_turban_a.dae",
     "mesh:props/maur_shield_curved.dae",
     "mesh:props/new/head_mauryan_short_hair.dae",
@@ -28900,7 +30039,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_swordsman_b.glb",
@@ -28923,6 +30063,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/falcata.xml",
     "actor:art/actors/units/mauryas/infantry_swordsman_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_inf_battle_turban_a.dae",
     "mesh:props/maur_shield_curved.dae",
     "mesh:props/new/head_mauryan_tall_hair.dae",
@@ -28958,7 +30099,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_swordsman_e.glb",
@@ -28981,6 +30123,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/falcata.xml",
     "actor:art/actors/units/mauryas/infantry_swordsman_e.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_inf_turban_a.dae",
     "mesh:props/maur_shield_curved.dae",
     "mesh:props/new/head_mauryan_short_hair.dae",
@@ -29224,7 +30367,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/maur_villager.glb",
@@ -29247,6 +30391,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/mauryas/citizen_male.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/helmet/maur_inf_big_turban_maiden.dae",
     "mesh:props/new/head_indian_1.dae",
@@ -29708,7 +30853,8 @@
     "Run",
     "Attack",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/pers_archer.glb",
@@ -29728,6 +30874,7 @@
     "actor:art/actors/props/units/weapons/bow_recurve.xml",
     "actor:art/actors/props/units/weapons/pers_quiver_arrows.xml",
     "actor:art/actors/units/persians/infantry_archer_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/pers_kidaris_tied.dae",
     "mesh:props/new/head_beard_small.dae",
     "mesh:props/pers_quiver_arrows.dae",
@@ -29752,7 +30899,8 @@
     "Run",
     "Attack",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/pers_archer_maiden.glb",
@@ -29772,6 +30920,7 @@
     "actor:art/actors/props/units/weapons/bow_recurve.xml",
     "actor:art/actors/props/units/weapons/pers_quiver_arrows.xml",
     "actor:art/actors/units/persians/infantry_archer_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/pers_kidaris_tied.dae",
     "mesh:props/new/head_beard_small.dae",
     "mesh:props/pers_quiver_arrows.dae",
@@ -30093,7 +31242,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/pers_female_citizen.glb",
@@ -30114,6 +31264,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/persians/female_citizen.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/dudette_head_a.dae",
     "mesh:props/prop_mallet.dae",
     "mesh:props/special/luggage_female_back.dae",
@@ -30218,7 +31369,8 @@
     "Heal",
     "Idle",
     "Walk",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/pers_healer.glb",
@@ -30235,6 +31387,7 @@
     "actor:art/actors/props/units/helmets/pers_kidaris_tied.xml",
     "actor:art/actors/props/units/staff.xml",
     "actor:art/actors/units/persians/healer.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/pers_kidaris_tied.dae",
     "mesh:props/m_staff.dae",
     "mesh:props/new/head_beard_small.dae",
@@ -30254,7 +31407,8 @@
     "Run",
     "Attack",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/pers_hero.glb",
@@ -30274,6 +31428,7 @@
     "actor:art/actors/props/units/weapons/arrow_back.xml",
     "actor:art/actors/props/units/weapons/bow_recurve.xml",
     "actor:art/actors/units/persians/hero_infantry_archer_xerxes.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/old/pers_crown.dae",
     "mesh:props/helmet/pers_hair.dae",
     "mesh:props/new/head_beard_wide.dae",
@@ -30499,7 +31654,8 @@
     "Run",
     "Attack",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/pers_spearman.glb",
@@ -30522,6 +31678,7 @@
     "actor:art/actors/props/units/weapons/pers_quiver_arrows.xml",
     "actor:art/actors/props/units/weapons/spear_ball.xml",
     "actor:art/actors/units/persians/infantry_spearman_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/han_bandana.dae",
     "mesh:props/helmet/pers_hair.dae",
     "mesh:props/new/head_beard_large.dae",
@@ -30735,7 +31892,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/pers_villager.glb",
@@ -30755,6 +31913,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/persians/citizen_male.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/head_beard_large.dae",
     "mesh:props/prop_mallet.dae",
     "mesh:props/tool_axe.dae",
@@ -30957,7 +32116,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/ptol_archer.glb",
@@ -30984,6 +32144,7 @@
     "actor:art/actors/props/units/weapons/bow_short.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/ptolemies/infantry_archer_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_kausia_cap_02.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/prop_mallet.dae",
@@ -31026,7 +32187,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/ptol_archer_maiden.glb",
@@ -31053,6 +32215,7 @@
     "actor:art/actors/props/units/weapons/bow_short.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/ptolemies/infantry_archer_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_kausia_cap_02.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/prop_mallet.dae",
@@ -31498,7 +32661,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/ptol_female_citizen.glb",
@@ -31520,6 +32684,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/ptolemies/female_citizen.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/new/head_ptol_female.dae",
     "mesh:props/prop_mallet.dae",
@@ -31626,7 +32791,8 @@
     "Heal",
     "Idle",
     "Walk",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/ptol_healer.glb",
@@ -31642,6 +32808,7 @@
     "actor:art/actors/props/units/heads/new/head_ptol_healer.xml",
     "actor:art/actors/props/units/staff.xml",
     "actor:art/actors/units/ptolemies/healer.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/m_staff.dae",
     "mesh:props/new/head_beard_small.dae",
     "mesh:skeletal/new/m_dress.dae",
@@ -31659,7 +32826,8 @@
     "Run",
     "Attack",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/ptol_hero.glb",
@@ -31679,6 +32847,7 @@
     "actor:art/actors/props/units/weapons/bow_recurve.xml",
     "actor:art/actors/props/units/weapons/quiver_arrows.xml",
     "actor:art/actors/units/ptolemies/hero_infantry_archer_cleopatra.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/new/head_female_d.dae",
     "mesh:props/quiver_back.dae",
@@ -31794,7 +32963,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/ptol_spearman.glb",
@@ -31819,6 +32989,7 @@
     "actor:art/actors/props/units/weapons/sheath_xiphos.xml",
     "actor:art/actors/props/units/weapons/xiphos.xml",
     "actor:art/actors/units/ptolemies/infantry_pikeman_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_thracian_b.dae",
     "mesh:props/helmet/props/hele_crest_a.dae",
     "mesh:props/helmet/props/hele_crest_hair_a.dae",
@@ -31877,7 +33048,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/ptol_swordsman.glb",
@@ -31900,6 +33072,7 @@
     "actor:art/actors/props/units/weapons/csword.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/ptolemies/infantry_swordsman_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/capes/cape_hd_hoplite.dae",
     "mesh:props/new/head_longhair.dae",
     "mesh:props/prop_mallet.dae",
@@ -32132,7 +33305,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/ptol_villager.glb",
@@ -32152,6 +33326,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/ptolemies/citizen_male.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/head_beard_large.dae",
     "mesh:props/prop_mallet.dae",
     "mesh:props/tool_axe.dae",
@@ -32466,7 +33641,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/rome_archer.glb",
@@ -32495,6 +33671,7 @@
     "actor:art/actors/props/units/weapons/jav_loaded.xml",
     "actor:art/actors/props/units/weapons/sheath_gladius.xml",
     "actor:art/actors/units/romans/infantry_javelinist_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/old/rome_wolfskin_a.dae",
     "mesh:props/jav_blade.dae",
     "mesh:props/new/dude_head.dae",
@@ -32756,7 +33933,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/rome_female_citizen.glb",
@@ -32777,6 +33955,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/romans/female_citizen.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/dudette_head_a.dae",
     "mesh:props/prop_mallet.dae",
     "mesh:props/special/luggage_female_back.dae",
@@ -32874,7 +34053,8 @@
     "Heal",
     "Idle",
     "Walk",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/rome_healer.glb",
@@ -32891,6 +34071,7 @@
     "actor:art/actors/props/units/heads/new/rome_head_veteran.xml",
     "actor:art/actors/props/units/staff.xml",
     "actor:art/actors/units/romans/healer.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/old/hele_hood.dae",
     "mesh:props/m_staff.dae",
     "mesh:props/new/dude_head.dae",
@@ -32920,7 +34101,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/rome_hero.glb",
@@ -32946,6 +34128,7 @@
     "actor:art/actors/props/units/weapons/sheath_gladius_e.xml",
     "actor:art/actors/props/units/weapons/spatha.xml",
     "actor:art/actors/units/romans/hero_infantry_swordsman_scipio.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_thracian_e.dae",
     "mesh:props/helmet/props/hele_crest_d.dae",
     "mesh:props/helmet/props/hele_crest_hair_g.dae",
@@ -33126,7 +34309,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/rome_spearman.glb",
@@ -33155,6 +34339,7 @@
     "actor:art/actors/props/units/weapons/sheath_gladius.xml",
     "actor:art/actors/props/units/weapons/spear.xml",
     "actor:art/actors/units/romans/infantry_spearman_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/rome_apulo_b.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/prop_mallet.dae",
@@ -33206,7 +34391,8 @@
     "Run",
     "Attack",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/rome_swordsman.glb",
@@ -33231,6 +34417,7 @@
     "actor:art/actors/props/units/weapons/gladius.xml",
     "actor:art/actors/props/units/weapons/sheath_gladius_e.xml",
     "actor:art/actors/units/romans/infantry_swordsman_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/props/helmet_feather_a.dae",
     "mesh:props/helmet/rome_montefortino_b_2.dae",
     "mesh:props/new/dude_head.dae",
@@ -33472,7 +34659,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/rome_villager.glb",
@@ -33492,6 +34680,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/romans/citizen_male.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/prop_mallet.dae",
     "mesh:props/tool_axe.dae",
@@ -33821,7 +35010,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/sele_archer.glb",
@@ -33848,6 +35038,7 @@
     "actor:art/actors/props/units/weapons/bow_recurve.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/seleucids/infantry_archer_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_kausia_cap_02.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/prop_mallet.dae",
@@ -33890,7 +35081,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/sele_archer_maiden.glb",
@@ -33917,6 +35109,7 @@
     "actor:art/actors/props/units/weapons/bow_recurve.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/seleucids/infantry_archer_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_kausia_cap_02.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/prop_mallet.dae",
@@ -34330,7 +35523,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/sele_female_citizen.glb",
@@ -34351,6 +35545,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/seleucids/female_citizen.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/dudette_head_a.dae",
     "mesh:props/prop_mallet.dae",
     "mesh:props/special/luggage_female_back.dae",
@@ -34449,7 +35644,8 @@
     "Heal",
     "Idle",
     "Walk",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/sele_healer.glb",
@@ -34466,6 +35662,7 @@
     "actor:art/actors/props/units/heads/new/head_hele_healer.xml",
     "actor:art/actors/props/units/staff.xml",
     "actor:art/actors/units/hellenes/healer.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/old/hele_hood.dae",
     "mesh:props/m_staff.dae",
     "mesh:props/new/head_beard.dae",
@@ -34495,7 +35692,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/sele_hero.glb",
@@ -34522,6 +35720,7 @@
     "actor:art/actors/props/units/weapons/spear_hoplite.xml",
     "actor:art/actors/props/units/weapons/xiphos.xml",
     "actor:art/actors/units/seleucids/hero_infantry_spearman_seleucid_victor.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_phrygian_a.dae",
     "mesh:props/helmet/props/hele_crest_phrygian_a.dae",
     "mesh:props/helmet/props/hele_crest_phrygian_hair_a.dae",
@@ -34705,7 +35904,8 @@
     "GatherMeat",
     "GatherRock",
     "GatherOre",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/sele_spearman.glb",
@@ -34730,6 +35930,7 @@
     "actor:art/actors/props/units/weapons/sheath_xiphos.xml",
     "actor:art/actors/props/units/weapons/xiphos.xml",
     "actor:art/actors/units/seleucids/infantry_pikeman_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_phrygian_a.dae",
     "mesh:props/helmet/props/hele_thracian_romanized_mask_b.dae",
     "mesh:props/new/capes/cape_hd_hoplite.dae",
@@ -34791,7 +35992,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/sele_swordsman.glb",
@@ -34811,6 +36013,7 @@
     "actor:art/actors/props/units/shields/sele_thureos_romanized_face.xml",
     "actor:art/actors/props/units/weapons/xiphos.xml",
     "actor:art/actors/units/seleucids/infantry_swordsman_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_thracian_f.dae",
     "mesh:props/helmet/props/hele_crest_hair_e.dae",
     "mesh:props/new/capes/cape_hd_hoplite.dae",
@@ -35057,7 +36260,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/sele_villager.glb",
@@ -35078,6 +36282,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/seleucids/citizen_male.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/new/head_beard_small.dae",
     "mesh:props/prop_mallet.dae",
@@ -35929,7 +37134,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/spart_archer.glb",
@@ -35954,6 +37160,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/sling.xml",
     "actor:art/actors/units/spartans/infantry_slinger_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/capes/cape_hd_medium.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/prop_mallet.dae",
@@ -36213,7 +37420,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/spart_female_citizen.glb",
@@ -36234,6 +37442,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/spartans/female_citizen.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/dudette_head_a.dae",
     "mesh:props/prop_mallet.dae",
     "mesh:props/special/luggage_female_back.dae",
@@ -36333,7 +37542,8 @@
     "Heal",
     "Idle",
     "Walk",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/spart_healer.glb",
@@ -36350,6 +37560,7 @@
     "actor:art/actors/props/units/heads/new/head_hele_healer.xml",
     "actor:art/actors/props/units/staff.xml",
     "actor:art/actors/units/spartans/healer.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/old/hele_hood.dae",
     "mesh:props/m_staff.dae",
     "mesh:props/new/head_beard.dae",
@@ -36379,7 +37590,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/spart_hero.glb",
@@ -36406,6 +37618,7 @@
     "actor:art/actors/props/units/weapons/spear_hoplite.xml",
     "actor:art/actors/props/units/weapons/xiphos.xml",
     "actor:art/actors/units/spartans/hero_infantry_spearman_leonidas.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_corinthian_b.dae",
     "mesh:props/helmet/props/hele_crest_b.dae",
     "mesh:props/helmet/props/hele_crest_hair_transversal_a.dae",
@@ -36594,7 +37807,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/spart_spearman.glb",
@@ -36621,6 +37835,7 @@
     "actor:art/actors/props/units/weapons/spear_hoplite.xml",
     "actor:art/actors/props/units/weapons/xiphos.xml",
     "actor:art/actors/units/spartans/infantry_spearman_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_corinthian_a.dae",
     "mesh:props/helmet/props/hele_crest_a.dae",
     "mesh:props/helmet/props/hele_crest_hair_a.dae",
@@ -36679,7 +37894,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/spart_swordsman.glb",
@@ -36707,6 +37923,7 @@
     "actor:art/actors/props/units/weapons/sheath_xiphos_e.xml",
     "actor:art/actors/props/units/weapons/xiphos.xml",
     "actor:art/actors/units/spartans/infantry_swordsman_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_illyrian_a.dae",
     "mesh:props/helmet/props/hele_crest_hair_illyrian_a.dae",
     "mesh:props/helmet/props/hele_crest_illyrian.dae",
@@ -36963,7 +38180,8 @@
     "GatherOre",
     "Build",
     "Death",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/spart_villager.glb",
@@ -36983,6 +38201,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/spartans/citizen_male.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/head_beard_longhair.dae",
     "mesh:props/prop_mallet.dae",
     "mesh:props/tool_axe.dae",
@@ -37097,7 +38316,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/spearman.glb",
@@ -37122,6 +38342,7 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/props/units/weapons/spear_hoplite.xml",
     "actor:art/actors/units/athenians/infantry_spearman_b.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_pilos_a1.dae",
     "mesh:props/new/dude_head.dae",
     "mesh:props/prop_mallet.dae",
@@ -37377,7 +38598,8 @@
     "Run",
     "Attack",
     "Slaughter",
-    "Death"
+    "Death",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/swordsman.glb",
@@ -37401,6 +38623,7 @@
     "actor:art/actors/props/units/weapons/sheath_xiphos_e.xml",
     "actor:art/actors/props/units/weapons/xiphos.xml",
     "actor:art/actors/units/athenians/infantry_swordsman_c.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/helmet/hele_thracian_b.dae",
     "mesh:props/helmet/props/hele_crest_a.dae",
     "mesh:props/helmet/props/hele_crest_hair_a.dae",
@@ -37767,7 +38990,8 @@
     "GatherRock",
     "GatherOre",
     "Build",
-    "Gather"
+    "Gather",
+    "Capture"
    ],
    "bones": 46,
    "file": "models/units/villager.glb",
@@ -37788,6 +39012,7 @@
     "actor:art/actors/props/units/tools/pick.xml",
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/athenians/female_citizen.xml",
+    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/new/dudette_head_b.dae",
     "mesh:props/prop_mallet.dae",
     "mesh:props/special/luggage_female_back.dae",

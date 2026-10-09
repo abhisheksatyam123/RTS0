@@ -920,8 +920,8 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_u32(r.id);
 		mix_float(r.x);
 		mix_float(r.z);
-		mix_u8(r.res_type);
-		mix_i32(r.amount);
+		mix_u8(r.civ);
+		mix_i32(r.capture_cp);
 		mix_u8(r.claimed ? 1 : 0);
 	}
 
@@ -1313,6 +1313,10 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			// Ids travel as floats; a whole number below 2^24 is exact.
 			if (c.target_x >= 1.0f && c.target_x < 16777216.0f && c.target_x == (float)(uint32_t)c.target_x)
 				sim.order_trade(ids, n, c.target_id, (uint32_t)c.target_x, queued);
+		} else if (c.cmd_type == 37) { // Remove guard
+			sim.order_remove_guard(ids, n);
+		} else if (c.cmd_type == 38) { // Call to arms — attack-walk to (target_x, target_z).
+			sim.order_call_to_arms(ids, n, c.target_x, c.target_z, queued);
 		} else if (c.cmd_type == 36) { // Raise (param 0) or end (1) an alert
 			if (c.param == 1) sim.cmd_end_alert(pl, c.target_id);
 			else sim.cmd_raise_alert(pl, c.target_id);

@@ -86,6 +86,7 @@ RTS0_CLASSES = {
     "UNIT_ARCHER_MAIDEN":   (95, 3.6, 17.0, 8.5, 1.1, 0, 2, 2, 15, 40, 60, 40, 0, 1, 14, 0, 8.5, 0),
     "UNIT_CAMEL":           (190, 5.2, 2.4, 12.0, 1.2, 0, 3, 3, 15, 60, 0, 70, 0, 2, 16, 12, 0, 0),
     "UNIT_SCYTHED_CHARIOT": (320, 5.6, 2.2, 24.0, 1.0, 0, 5, 5, 25, 100, 80, 120, 0, 3, 26, 18, 0, 6),
+    "UNIT_CATAFALQUE":      (1000, 1.76, 1.0, 0.0, 1.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
     "UNIT_MINISTER":        (200, 3.204, 1.8, 10.0, 1.0, 0, 2, 4, 6, 100, 0, 100, 0, 1, 15, 10, 0, 0),
 }
 RTS0_FIELDS = ("hp", "speed", "range", "damage", "cooldown", "carry",
@@ -119,6 +120,7 @@ GENERIC = {
     "UNIT_CAMEL": "template_unit_cavalry_ranged_archer",
     "UNIT_SCYTHED_CHARIOT": "template_unit_champion_cavalry_swordsman",
     "UNIT_MINISTER": "units/han/support_minister",
+    "UNIT_CATAFALQUE": "template_unit_catafalque",
 }
 
 # RTS0's male gatherer has no 0 A.D. counterpart in most civs; every civ keeps it.
@@ -445,6 +447,8 @@ def rts0_class(name, t, civ):
     stem = name.rsplit("/", 1)[-1]
     if "Minister" in c:
         return "UNIT_MINISTER"  # units/han/support_minister
+    if "Relic" in c:
+        return "UNIT_CATAFALQUE"  # template_unit_catafalque (Capture the Relic)
     if "Hero" in c:
         return "UNIT_HERO"
     if "FemaleCitizen" in c:
@@ -908,6 +912,10 @@ def collect(sim_root):
                         pending.append(tgt)
                     break
                 src_name, node = tgt, loader.load(tgt)
+        # The civ's catafalque: no structure trains it; Capture the Relic places it for Gaia.
+        relic = "units/%s/catafalque" % civ
+        if loader.exists(relic) and relic not in trainers:
+            trainers[relic] = {"buildings": set(), "kinds": set(), "phase": 9}
         for name in sorted(trainers):
             t = loader.load(name)
             cls = rts0_class(name, t, civ)
@@ -938,6 +946,8 @@ def collect(sim_root):
                 flags.append("ROSTER_PACKABLE")  # 0 A.D. Pack: unpack before firing, pack to move
             if "SiegeTower" in c:
                 flags.append("ROSTER_SIEGE_TOWER")
+            if "Relic" in c:
+                flags.append("ROSTER_RELIC")
             hero_auras = []
             for aname in t.tokens("Auras"):
                 apath = os.path.join(sim_root, "data", "auras", aname + ".json")
@@ -1017,7 +1027,7 @@ def collect(sim_root):
 # ---------------------------------------------------------------------------
 
 def cstr(s):
-    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    return '"' + s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n") + '"'
 
 
 def f(x):
@@ -1267,7 +1277,7 @@ def emit_buildings(rows):
     w("// BuildingTypeInfo rows for building_type_info(), in BuildingType order.")
     w("#define RTSO_CIV_BUILDING_INFO_ROWS \\")
     for r in rows:
-        w("\t\t{%s, %s, %s, %s, %d, %d, %d, %d, %d, %d, %d, %s, 0.0f, 0.0f, 0.0f, %s, %s, %s, %s}, /* %s */ \\" % (
+        w("\t\t{%s, %s, %s, %s, %d, %d, %d, %d, %d, %d, %d, %s, %s, %s, %s, %s}, /* %s */ \\" % (
             cstr(r["name"]), cstr(r["model"]), cstr(r["portrait"]), f(r["hp"]), r["foot"],
             r["food"], r["wood"], r["gold"], r["stone"], r["pop"], r["garrison"], f(r["build_time"]),
             f(r["capture"]), f(r["regen"]), f(r["garrison_regen"]), f(r["decay"]), r["src"]))
