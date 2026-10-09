@@ -30,6 +30,9 @@
 // 10. Barter and trading goods (tradeManager.js): Petra sells spare food for
 //     a resource its queues wait on, and with plenty of everything it sells food
 //     for the scarcest finite resource; its trading goods favour what it lacks.
+// 11. Kush builds its Blemmye and Noba camps and Temple of Amun, Rome its
+//     Temple of Vesta (config.js buildings), and Rome researches its champion
+//     unlock and trains champions (researchWantedTechs unlock_champion).
 //  Exit: 0 = PASS, 1 = FAIL.
 // The ally check reads the sim's death log, which has no public accessor.
 #define private public
@@ -798,6 +801,35 @@ static void test_barter() {
 	CHECK(g[RES_GOLD] >= 20 && g[RES_WOOD] == 0 && g[RES_STONE] == 0, "short on gold, none for what it has plenty of");
 }
 
+static void test_civ_structures() {
+	for (uint8_t civ : { (uint8_t)CIV_KUSHITES, (uint8_t)CIV_ROMANS }) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->players_[1].civ = (Civilization)civ;
+		s->set_victory_condition(VICTORY_ENDLESS);
+		bool camp = false, temple = false, champion = false;
+		for (float t = 0.0f; t < 20.0f * 60.0f; t += Simulation::FIXED_STEP) {
+			s->tick(Simulation::FIXED_STEP);
+			if (s->ticks_ % 20 != 0) continue;
+			for (const auto &b : s->buildings()) {
+				if (b.team != 1 || b.build_progress < 1.0f || b.wrecked) continue;
+				if (b.type == BLD_CAMP_BLEMMYE || b.type == BLD_CAMP_NOBA) camp = true;
+				if (b.type == BLD_TEMPLE_AMUN || b.type == BLD_TEMPLE_VESTA) temple = true;
+			}
+			const auto u = s->units();
+			for (size_t i = 0; i < u.count; ++i)
+				if (u.alive[i] && u.team[i] == 1 && u.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT &&
+				    (civ_unit_template(u.tmpl[i]).flags & ROSTER_CHAMPION)) champion = true;
+		}
+		std::printf("  %s by 20 min: camp %s, temple %s, champions %s\n", civ_info((Civilization)civ).name,
+		            camp ? "yes" : "no", temple ? "yes" : "no", champion ? "yes" : "no");
+		if (civ == CIV_KUSHITES) CHECK(camp && temple, "Kush builds its camps and the Temple of Amun");
+		else CHECK(temple && champion, "Rome builds the Temple of Vesta and unlocks its champions");
+	}
+}
+
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
@@ -814,6 +846,7 @@ int main() {
 	test_hunting();
 	test_first_base();
 	test_barter();
+	test_civ_structures();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }

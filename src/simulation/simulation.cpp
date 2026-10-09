@@ -9709,8 +9709,8 @@ void Simulation::petra_manage_buildings(float dt) {
 }
 
 // config.js `buildings`: each civ's advanced structures, in Petra's order
-// (Carthage's three embassies are RTS0's one; Kush's camps and Amun temple and
-// Rome's Vesta temple are buildings now but not in these lists yet).
+// (Carthage's three embassies are RTS0's one). Petra never builds Rome's
+// Temple of Mars: it is in no list.
 static std::vector<uint8_t> petra_advanced_buildings(uint8_t civ) {
 	switch (civ) {
 		case CIV_ATHENIANS: return {BLD_GYMNASIUM, BLD_PRYTANEION, BLD_THEATER};
@@ -9718,12 +9718,12 @@ static std::vector<uint8_t> petra_advanced_buildings(uint8_t civ) {
 		case CIV_GAULS: return {BLD_ASSEMBLY};
 		case CIV_HAN: return {BLD_ACADEMY};
 		case CIV_IBERIANS: return {BLD_MONUMENT};
-		case CIV_KUSHITES: return {BLD_PYRAMID_LARGE, BLD_PYRAMID_SMALL};
+		case CIV_KUSHITES: return {BLD_CAMP_BLEMMYE, BLD_CAMP_NOBA, BLD_PYRAMID_LARGE, BLD_PYRAMID_SMALL, BLD_TEMPLE_AMUN};
 		case CIV_MACEDONIANS: case CIV_SELEUCIDS: return {BLD_THEATER};
 		case CIV_MAURYANS: return {BLD_PALACE, BLD_PILLAR};
 		case CIV_PERSIANS: return {BLD_TACHARA};
 		case CIV_PTOLEMIES: return {BLD_LIBRARY, BLD_THEATER};
-		case CIV_ROMANS: return {BLD_ARMY_CAMP};
+		case CIV_ROMANS: return {BLD_ARMY_CAMP, BLD_TEMPLE_VESTA};
 		case CIV_SPARTANS: return {BLD_SYSSITON, BLD_THEATER};
 		default: return {};
 	}
@@ -9863,6 +9863,9 @@ void Simulation::petra_manage_research(float dt) {
 		if (start_tech(TECH_PHASE_CITY)) return;
 	}
 	if (petra_ps().phase >= 3) {
+		// researchWantedTechs: any unlock_champion_* first, at raised priority.
+		for (uint8_t t : {TECH_UNLOCK_CHAMPION_INFANTRY, TECH_UNLOCK_CHAMPION_CAVALRY, TECH_UNLOCK_CHAMPION_CHARIOTS})
+			if (tech_available_to_civ(t, petra_ps().civ) && start_tech(t)) return;
 		if (start_tech(TECH_WEAPONS_1)) return;
 		if (start_tech(TECH_ARMOR_1)) return;
 	}
