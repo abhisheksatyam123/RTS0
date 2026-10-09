@@ -390,6 +390,7 @@ public:
 	bool trade_route_click(const rtso::Simulation::Building &b, bool execute, bool queued, String *tooltip);
 	Dictionary debug_trade_route_clicks();
 	Dictionary debug_guard_step(int step);
+	PackedStringArray debug_train_buttons(int btype);
 	uint32_t trade_origin_market_ = 0;
 	Label *cursor_tip_ = nullptr;
 	std::vector<uint32_t> trade_origin_traders_;
