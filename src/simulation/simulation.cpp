@@ -957,6 +957,7 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	else if (std::strcmp(minfo.biome, "volcanic") == 0) cfg.biome = BIOME_STEPPE;
 	else cfg.biome = BIOME_AEGEAN;
 	if (biome_override_ >= 0) cfg.biome = (BiomeType)biome_override_;
+	cfg.team_placement = team_placement_;
 
 	set_sim_seed(seed);
 	RmsGenerator::generate(*this, cfg);
