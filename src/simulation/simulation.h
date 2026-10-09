@@ -1955,6 +1955,13 @@ private:
 	// garrisonManager.js addDecayingStructure: the garrison a decaying structure of ours needs to stop
 	// its decay (0 when Petra leaves it to decay).
 	int petra_decay_garrison_min(const Building &b);
+	// headquarters.js checkEvents: a decaying structure Petra is about to lose to an enemy is destroyed.
+	void petra_check_decaying_structures();
+	// Structures captured or starting to decay this tick (OwnershipChanged, TerritoryDecayChanged):
+	// filled by tick_capture and rebuild_territory, read by every Petra this tick and cleared after
+	// it, so never saved.
+	std::vector<uint32_t> petra_decay_events_, petra_decay_scratch_;
+	void rebuild_territory_grids();
 	uint32_t petra_garrison_holder_for(size_t unit_idx, bool heals_only, bool siege, std::vector<int> &incoming) const;
 	std::vector<int> petra_garrison_incoming() const;
 	bool petra_same_land(size_t unit_idx, const Building &b) const; // PETRA.getLandAccess match
