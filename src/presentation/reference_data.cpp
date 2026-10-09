@@ -169,7 +169,7 @@ Dictionary RtsoReference::get_civ_info(int civ) const {
 	}
 	d["team_bonuses"] = team;
 	Array heroes;
-	for (uint16_t t = rtso::civ_roster_begin(c); t < rtso::civ_roster_end(c); ++t) {
+	for (uint16_t t : rtso::civ_roster_ids(c)) {
 		const auto &u = rtso::civ_unit_template(t);
 		if (!(u.flags & rtso::ROSTER_HERO)) continue;
 		Dictionary h = unit_entry(t);
@@ -213,7 +213,7 @@ Array RtsoReference::get_structure_tree(int civ) const {
 		if (!rtso::civ_can_build(c, b)) continue; // other civs' own structures
 		const auto &bi = rtso::building_type_info(b);
 		Array units, techs, upgrades;
-		for (uint16_t t = rtso::civ_roster_begin(c); t < rtso::civ_roster_end(c); ++t) {
+		for (uint16_t t : rtso::civ_roster_ids(c)) {
 			if (rtso::civ_unit_template(t).trainers & rtso::bld_bit(b)) units.push_back(unit_entry(t));
 		}
 		for (uint8_t id = 1; id < rtso::TECH_COUNT; ++id) {
@@ -370,7 +370,7 @@ Dictionary RtsoReference::get_structure(int type, int civ) const {
 	d["loot"] = cost_dict(loot.food, loot.wood, loot.stone, loot.metal);
 	d["loot_xp"] = loot.xp;
 	Array trains, researches, upgrades;
-	for (uint16_t t = rtso::civ_roster_begin(c); t < rtso::civ_roster_end(c); ++t)
+	for (uint16_t t : rtso::civ_roster_ids(c))
 		if (rtso::civ_unit_template(t).trainers & rtso::bld_bit(b)) trains.push_back(unit_entry(t));
 	for (uint8_t id = 1; id < rtso::TECH_COUNT; ++id)
 		if (rtso::tech_info(id).researcher == b && rtso::tech_available_to_civ(id, c)) researches.push_back(tech_entry(id));
@@ -424,7 +424,7 @@ Dictionary RtsoReference::get_tech(int id, int civ) const {
 	d["unlocks"] = unlocks;
 	Array units;
 	if (civ >= 0 && civ < rtso::CIV_COUNT)
-		for (uint16_t t = rtso::civ_roster_begin((uint8_t)civ); t < rtso::civ_roster_end((uint8_t)civ); ++t)
+		for (uint16_t t : rtso::civ_roster_ids((uint8_t)civ))
 			if (rtso::civ_unit_template(t).unlock_tech == tid) units.push_back(unit_entry(t));
 	d["unlocks_units"] = units;
 	return d;

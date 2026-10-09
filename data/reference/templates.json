@@ -7376,6 +7376,17 @@
     "Spearman"
    ],
    "builds": []
+  },
+  "han/support_minister": {
+   "generic_name": "Imperial Minister",
+   "specific_name": "Guānlì",
+   "tooltip": "Use to boost the efficiency of nearby units and buildings. Garrison within a building to boost the efficiency of its production queue. Only Han buildings can garrison ministers.",
+   "history": "",
+   "classes": [
+    "Support",
+    "Minister"
+   ],
+   "builds": []
   }
  },
  "structures": {

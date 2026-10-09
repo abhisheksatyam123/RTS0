@@ -831,9 +831,9 @@ inline bool NavGrid::find_path(float sx, float sz, float tx, float tz, WaypointP
     auto [scx, scy] = world_to_cell(sx, sz);
     auto [tcx, tcy] = world_to_cell(tx, tz);
 
-    auto snap_to_passable = [&](int &cx, int &cy) {
+    auto snap_to_passable = [&](int &cx, int &cy, int max_r) {
         if (is_passable_for(cx, cy, pass)) return;
-        for (int r = 1; r <= 3; ++r) {
+        for (int r = 1; r <= max_r; ++r) {
             for (int dy = -r; dy <= r; ++dy) {
                 for (int dx = -r; dx <= r; ++dx) {
                     if (std::max(std::abs(dx), std::abs(dy)) != r) continue;
@@ -844,8 +844,29 @@ inline bool NavGrid::find_path(float sx, float sz, float tx, float tz, WaypointP
             }
         }
     };
-    snap_to_passable(scx, scy);
-    snap_to_passable(tcx, tcy);
+    snap_to_passable(scx, scy, 3);
+    // MakeGoalReachable: a goal out at sea becomes the nearest navcell the unit can stand
+    // on, so a land unit stops at the shore instead of wading into deep water.
+    if (!(pass & PASS_SHIP) && cells.inside(tcx, tcy) && cells.at(tcx, tcy) == NAV_WATER) {
+        int best = -1, bx = tcx, by = tcy;
+        for (int r = 1; r < res && (best < 0 || r * r <= best); ++r) {
+            for (int dy = -r; dy <= r; ++dy) {
+                for (int dx = -r; dx <= r; ++dx) {
+                    if (std::max(std::abs(dx), std::abs(dy)) != r) continue;
+                    const int d = dx * dx + dy * dy;
+                    if ((best < 0 || d < best) && is_passable_for(tcx + dx, tcy + dy, pass)) {
+                        best = d; bx = tcx + dx; by = tcy + dy;
+                    }
+                }
+            }
+        }
+        if (best >= 0) {
+            tcx = bx; tcy = by;
+            tx = ((static_cast<float>(tcx) + 0.5f) / static_cast<float>(res)) * (map_half * 2.0f) - map_half;
+            tz = ((static_cast<float>(tcy) + 0.5f) / static_cast<float>(res)) * (map_half * 2.0f) - map_half;
+        }
+    }
+    snap_to_passable(tcx, tcy, 3);
     if (!is_passable_for(scx, scy, pass) || !is_passable_for(tcx, tcy, pass)) {
         out.push_back(tx, tz);
         return false;

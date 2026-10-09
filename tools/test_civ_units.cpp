@@ -5,6 +5,7 @@
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o /tmp/test_civ_units
 //       && /tmp/test_civ_units
 #include "simulation/simulation.h"
+#include "simulation/entity_limits_data.h"
 #include <cstdio>
 #include <cstring>
 
@@ -18,6 +19,12 @@ static int32_t index_of(const Simulation &s, uint32_t uid) {
 	for (size_t i = 0; i < v.count; ++i)
 		if (v.id[i] == uid) return (int32_t)i;
 	return -1;
+}
+
+static uint16_t roster_id(const char *id) {
+	for (uint16_t i = 0; i < CIV_UNIT_TEMPLATE_COUNT; ++i)
+		if (std::strcmp(civ_unit_template(i).id, id) == 0) return i;
+	return CIV_UNIT_TEMPLATE_NONE;
 }
 
 static uint16_t find_template(uint8_t civ, const char *name) {
@@ -228,6 +235,60 @@ int main() {
 		c.spawn_building_world(40.0f, 40.0f, BLD_MILITARY_COLONY, 1, 1.0f);
 		for (int i = 0; i < 60; ++i) c.tick(Simulation::FIXED_STEP);
 		CHECK(claimed() > before);
+	}
+
+	// 0 A.D. EntityLimits (template_player.xml): limits per category, raised by
+	// LimitChangers and lifted by LimitRemovers.
+	{
+		static Simulation e;
+		e.set_sim_seed(9);
+		e.set_team_civ(0, CIV_ATHENIANS);
+		e.set_team_civ(1, CIV_PTOLEMIES);
+		e.set_team_civ(2, CIV_BRITONS);
+		e.set_team_civ(3, CIV_MAURYANS);
+		e.set_team_civ(4, CIV_ROMANS);
+		e.reset();
+		// CivilCentre 1 until phase_town (every player starts with its own).
+		e.spawn_building(-40, -40, BLD_TOWN_CENTER, 0, 1.0f);
+		CHECK(e.entity_limit(0, LIMIT_CIVIL_CENTRE) == 1);
+		CHECK(!e.entity_limit_allows_building(0, BLD_TOWN_CENTER));
+		e.player(0).phase = 2;
+		CHECK(e.entity_limit(0, LIMIT_CIVIL_CENTRE) == -1 && e.entity_limit_allows_building(0, BLD_TOWN_CENTER));
+		// Wonder 1, counting foundations; no 0 A.D. limit on fortresses.
+		CHECK(e.entity_limit_allows_building(0, BLD_WONDER));
+		e.spawn_building(40, -40, BLD_WONDER, 0, 0.0f);
+		CHECK(e.entity_limit_count(0, LIMIT_WONDER) == 1 && !e.entity_limit_allows_building(0, BLD_WONDER));
+		CHECK(e.entity_limit_allows_building(0, BLD_FORTRESS));
+		// Ptolemies and Seleucids also need a hero for more civic centres.
+		e.spawn_building(-40, 40, BLD_TOWN_CENTER, 1, 1.0f);
+		e.player(1).phase = 3;
+		CHECK(!e.entity_limit_allows_building(1, BLD_TOWN_CENTER));
+		e.spawn_unit(-30.0f, 40.0f, 1, UNIT_HERO, 0.0f, find_template(CIV_PTOLEMIES, "Ptolemy IV"));
+		CHECK(e.entity_limit_allows_building(1, BLD_TOWN_CENTER));
+		// Ptolemy IV raises the Juggernaut limit by 4.
+		CHECK(e.entity_limit(1, LIMIT_JUGGERNAUT) == 5);
+		// Britons: WarDog 0 plus 10 per finished Kennel; Kennel 2.
+		CHECK(!e.entity_limit_allows_unit(2, UNIT_WAR_DOG, roster_id("brit/war_dog")));
+		e.spawn_building(40, 40, BLD_KENNEL, 2, 0.0f);
+		CHECK(e.entity_limit(2, LIMIT_WAR_DOG) == 0); // a foundation changes no limit
+		e.spawn_building(46, 40, BLD_KENNEL, 2, 1.0f);
+		CHECK(e.entity_limit(2, LIMIT_WAR_DOG) == 10);
+		CHECK(e.entity_limit_allows_unit(2, UNIT_WAR_DOG, roster_id("brit/war_dog"), 10));
+		CHECK(!e.entity_limit_allows_unit(2, UNIT_WAR_DOG, roster_id("brit/war_dog"), 11));
+		CHECK(!e.entity_limit_allows_building(2, BLD_KENNEL));
+		// Mauryans: Pillar 0 plus 5 while Ashoka lives.
+		CHECK(!e.entity_limit_allows_building(3, BLD_PILLAR));
+		const uint32_t ashoka = e.spawn_unit(60.0f, 0.0f, 3, UNIT_HERO, 0.0f, roster_id("maur/hero_ashoka"));
+		CHECK(e.entity_limit(3, LIMIT_PILLAR) == 5 && e.entity_limit_allows_building(3, BLD_PILLAR));
+		CHECK(ashoka != 0);
+		// Romans: Centurion 8.
+		const uint16_t centurion = roster_id("rome/champion_infantry_swordsman_centurion");
+		CHECK(e.entity_limit_allows_unit(4, UNIT_SWORDSMAN, centurion, 8));
+		CHECK(!e.entity_limit_allows_unit(4, UNIT_SWORDSMAN, centurion, 9));
+		// Heroes: one at a time, queued or alive.
+		CHECK(e.entity_limit(0, LIMIT_HERO) == 1 && e.entity_limit(0, LIMIT_ANIMAL) == 50 &&
+		      BUILDING_LIMIT_CATEGORY[BLD_ICE_HOUSE] == LIMIT_YAKHCHAL && e.entity_limit(0, LIMIT_YAKHCHAL) == 5);
+		CHECK(!e.entity_limit_allows_unit(1, UNIT_HERO, find_template(CIV_PTOLEMIES, "Cleopatra VII")));
 	}
 
 	// Templates survive save/load.
