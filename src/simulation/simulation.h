@@ -528,6 +528,7 @@ public:
 	// EndOfAlert unloads them and sends them back to work. False when it has no alert.
 	bool cmd_raise_alert(uint8_t player, uint32_t building_id);
 	bool cmd_end_alert(uint8_t player, uint32_t building_id);
+	// target_unit_id: a unit or a structure, one's own or an ally's (Guard.js).
 	void order_guard(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
 	// UnitAI Heal: healers walk to an injured allied unit and heal it (Heal.js).
 	void order_heal(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
@@ -1989,6 +1990,7 @@ private:
 	std::vector<uint32_t> split_queued(const uint32_t *ids, size_t count, const UnitOrder &o, bool queued);
 	void apply_order(uint32_t uid, const UnitOrder &o);
 	bool order_still_valid(size_t i, const UnitOrder &o) const;
+	int32_t structure_attacker(uint32_t building_id, uint8_t team) const;
 	void finish_order(size_t i);
 	void resume_order(size_t i);
 	void respond_to_attack(size_t i);

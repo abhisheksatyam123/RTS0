@@ -5442,6 +5442,25 @@ void Simulation::move_units(float dt, Arena &arena) {
 			}
 			return;
 		}
+		// Guard.js on a structure: stay within 3 m of its footprint.
+		if (units_.action_state[i] == ACTION_GUARD && units_.target_unit_id[i] == 0 &&
+				units_.order_kind[i] == ORDER_GUARD) {
+			auto gb = building_id_to_idx_.find(units_.order_target[i]);
+			if (gb != building_id_to_idx_.end()) {
+				const Building &b = buildings_[gb->second];
+				const float cx = std::clamp(px[i], b.x - b.half_size, b.x + b.half_size);
+				const float cz = std::clamp(pz[i], b.z - b.half_size, b.z + b.half_size);
+				const float ex = px[i] - cx, ez = pz[i] - cz;
+				if (ex * ex + ez * ez > 3.0f * 3.0f) {
+					const float el = std::sqrt(ex * ex + ez * ez);
+					tx[i] = cx + ex / el * 1.5f; // just outside the footprint, on the guard's side
+					tz[i] = cz + ez / el * 1.5f;
+					has[i] = 1;
+				} else {
+					has[i] = 0;
+				}
+			}
+		}
 		// Guard.js — follow and protect target unit
 		if (units_.action_state[i] == ACTION_GUARD && units_.target_unit_id[i] != 0) {
 			int32_t gtidx = lookup_unit(units_.target_unit_id[i]);
@@ -8543,24 +8562,33 @@ bool Simulation::cmd_lock_gate(uint8_t player_id, uint32_t building_id, bool loc
 	return true;
 }
 
+// Guard.js guards any entity: a unit, or a structure (target_unit_id stays 0 then and
+// order_target names the structure). Unit and structure ids share one id space.
 void Simulation::order_guard(const uint32_t *unit_ids_in, size_t count_in, uint32_t target_unit_id, bool queued) {
 	int32_t tidx = lookup_unit(target_unit_id);
-	if (tidx < 0 || !units_.alive[tidx]) return;
+	const Building *tb = nullptr;
+	if (tidx < 0)
+		if (auto it = building_id_to_idx_.find(target_unit_id); it != building_id_to_idx_.end()) tb = &buildings_[it->second];
+	if (tb ? tb->wrecked || tb->hp <= 0.0f : (tidx < 0 || !units_.alive[tidx])) return;
+	const float gx = tb ? tb->x : units_.pos_x[tidx], gz = tb ? tb->z : units_.pos_z[tidx];
 	UnitOrder o; o.kind = ORDER_GUARD; o.target = target_unit_id;
 	const std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
 	formation_remove_units(now.data(), now.size()); // FORMATIONCONTROLLER Order.Guard: members guard, the formation disbands
 	for (uint32_t uid : now) {
 		int32_t idx = lookup_unit(uid);
 		if (idx < 0 || !units_.alive[idx] || uid == target_unit_id) continue;
-		set_order(idx, ORDER_GUARD, 0, target_unit_id, units_.pos_x[tidx], units_.pos_z[tidx]);
+		// Guard.js CanGuard: one's own or an ally's.
+		const uint8_t gteam = tb ? tb->team : units_.team[tidx];
+		if (tb && gteam != units_.team[idx] && !is_ally(units_.team[idx], gteam)) continue;
+		set_order(idx, ORDER_GUARD, 0, target_unit_id, gx, gz);
 		units_.action_state[idx] = ACTION_GUARD;
 		units_.has_order[idx] = 1;
-		units_.target_unit_id[idx] = target_unit_id;
+		units_.target_unit_id[idx] = tb ? 0 : target_unit_id;
 		units_.target_building_id[idx] = 0;
 		units_.target_resource_id[idx] = 0;
 		units_.waypoint_count[idx] = 0;
-		units_.target_x[idx] = units_.pos_x[tidx];
-		units_.target_z[idx] = units_.pos_z[tidx];
+		units_.target_x[idx] = gx;
+		units_.target_z[idx] = gz;
 	}
 }
 
@@ -8595,6 +8623,25 @@ void Simulation::begin_walk_order(size_t i) {
 void Simulation::drop_orders(size_t i) {
 	set_order(i, ORDER_NONE, 0, 0, units_.pos_x[i], units_.pos_z[i]);
 	order_queues_.erase(units_.id[i]);
+}
+
+// GuardedAttacked for a structure: an enemy of `team` fighting it (its attack target is
+// the structure) within 64 m of it, the nearest first; -1 if none.
+int32_t Simulation::structure_attacker(uint32_t building_id, uint8_t team) const {
+	auto it = building_id_to_idx_.find(building_id);
+	if (it == building_id_to_idx_.end()) return -1;
+	const Building &b = buildings_[it->second];
+	int32_t best = -1;
+	float best_d2 = (NEARBY_SEARCH_RANGE + b.half_size) * (NEARBY_SEARCH_RANGE + b.half_size);
+	for (size_t j = 0; j < units_.count; ++j) {
+		if (!units_.alive[j] || units_.target_building_id[j] != building_id || units_.action_state[j] != ACTION_ATTACK ||
+				!can_attack(team, units_.team[j]))
+			continue;
+		const float dx = units_.pos_x[j] - b.x, dz = units_.pos_z[j] - b.z;
+		const float d2 = dx * dx + dz * dz;
+		if (d2 < best_d2) { best_d2 = d2; best = (int32_t)j; }
+	}
+	return best;
 }
 
 UnitOrder Simulation::current_order(size_t i) const {
@@ -8746,7 +8793,9 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 		}
 		case ORDER_GUARD: {
 			const int32_t t = lookup_unit(o.target);
-			return t >= 0 && units_.alive[t];
+			if (t >= 0) return units_.alive[t];
+			const Building *b = building(o.target);
+			return b && !b->wrecked && b->hp > 0.0f && (b->team == team || is_ally(team, b->team));
 		}
 		case ORDER_HEAL: return can_heal(i, lookup_unit(o.target));
 		case ORDER_TRADE: return trade_route_ok(i, o.target, trade_market_id(o.x2));
@@ -9040,7 +9089,28 @@ void Simulation::tick_unit_ai(float dt) {
 		if (units_.attacked_by[i] != 0) respond_to_attack(i);
 		if (units_.action_state[i] == ACTION_TRADE) continue;
 		// Guard.js: guards answer whoever attacks the unit they guard (GuardedAttacked).
-		if (units_.order_kind[i] == ORDER_GUARD && units_.action_state[i] == ACTION_GUARD) {
+		if (units_.order_kind[i] == ORDER_GUARD && units_.action_state[i] == ACTION_GUARD &&
+				units_.target_unit_id[i] == 0) {
+			// Guarding a structure: let go of one that is gone or no longer ours or an ally's
+			// (CheckGuards); answer whoever attacks it (GuardedAttacked).
+			if (!order_still_valid(i, current_order(i))) {
+				units_.action_state[i] = ACTION_IDLE;
+				units_.has_order[i] = 0;
+				finish_order(i);
+				continue;
+			}
+			if (units_.attack_damage[i] > 0.0f && units_.stance[i] != STANCE_PASSIVE && (i + ticks_) % 4 == 0) {
+				const int32_t a = structure_attacker(units_.order_target[i], units_.team[i]);
+				if (a >= 0) {
+					units_.target_unit_id[i] = units_.id[a];
+					units_.action_state[i] = ACTION_ATTACK;
+					units_.has_order[i] = 1;
+					units_.target_x[i] = units_.pos_x[a];
+					units_.target_z[i] = units_.pos_z[a];
+					units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED;
+				}
+			}
+		} else if (units_.order_kind[i] == ORDER_GUARD && units_.action_state[i] == ACTION_GUARD) {
 			const int32_t g = lookup_unit(units_.order_target[i]);
 			// Guard.js CheckGuards (OnOwnershipChanged / OnDiplomacyChanged): a guard only
 			// guards its own or an ally's unit.
