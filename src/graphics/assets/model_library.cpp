@@ -11,6 +11,10 @@
 #include <godot_cpp/classes/material.hpp>
 #include <godot_cpp/classes/base_material3d.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
+#include <godot_cpp/classes/file_access.hpp>
+#include <godot_cpp/classes/json.hpp>
+#include <godot_cpp/classes/shader.hpp>
+#include <godot_cpp/classes/shader_material.hpp>
 #include <godot_cpp/classes/animation_player.hpp>
 #include <godot_cpp/classes/bone_attachment3d.hpp>
 #include <godot_cpp/classes/skeleton3d.hpp>
@@ -104,6 +108,97 @@ static AnimationPlayer *find_animation_player(Node *n) {
 	return nullptr;
 }
 
+// 0 A.D. player_trans skins: data/player_masks.json maps an extracted GLB
+// image ("units/spearman_tex0") to its player-colour mask and the tint the
+// bake left in it. Each such material becomes one shaders/player_color
+// ShaderMaterial, shared by every instance.
+namespace {
+struct PlayerMask {
+	String mask;
+	Color tint;
+};
+HashMap<String, PlayerMask> &player_masks() {
+	static HashMap<String, PlayerMask> m;
+	static bool loaded = false;
+	if (!loaded) {
+		loaded = true;
+		Ref<FileAccess> f = FileAccess::open("res://data/player_masks.json", FileAccess::READ);
+		if (f.is_valid()) {
+			Dictionary root = JSON::parse_string(f->get_as_text());
+			Array keys = root.keys();
+			for (int i = 0; i < keys.size(); ++i) {
+				Dictionary e = root[keys[i]];
+				Array t = e.get("tint", Array());
+				PlayerMask pm;
+				pm.mask = e.get("mask", String());
+				pm.tint = t.size() == 3 ? Color(t[0], t[1], t[2]) : Color(1, 1, 1);
+				m.insert(keys[i], pm);
+			}
+		}
+	}
+	return m;
+}
+Ref<Shader> &player_color_shader() {
+	static Ref<Shader> sh;
+	return sh;
+}
+HashMap<uint64_t, Ref<ShaderMaterial>> &player_color_mats() {
+	static HashMap<uint64_t, Ref<ShaderMaterial>> m;
+	return m;
+}
+
+Ref<ShaderMaterial> player_color_material(const Ref<BaseMaterial3D> &bm) {
+	const uint64_t id = bm->get_instance_id();
+	if (Ref<ShaderMaterial> *hit = player_color_mats().getptr(id)) return *hit;
+	Ref<ShaderMaterial> out;
+	Ref<Texture2D> tex = bm->get_texture(BaseMaterial3D::TEXTURE_ALBEDO);
+	if (tex.is_valid()) {
+		// res://assets/models/units/spearman_tex0.png -> units/spearman_tex0
+		String key = tex->get_path().trim_prefix("res://assets/models/").get_basename();
+		if (const PlayerMask *pm = player_masks().getptr(key)) {
+			Ref<Texture2D> mask = ResourceLoader::get_singleton()->exists(pm->mask)
+					? Ref<Texture2D>(ResourceLoader::get_singleton()->load(pm->mask))
+					: Ref<Texture2D>();
+			Ref<Shader> &sh = player_color_shader();
+			if (sh.is_null()) sh = ResourceLoader::get_singleton()->load("res://shaders/player_color.gdshader");
+			if (mask.is_valid() && sh.is_valid()) {
+				out.instantiate();
+				out->set_shader(sh);
+				out->set_shader_parameter("albedo_tex", tex);
+				out->set_shader_parameter("mask_tex", mask);
+				out->set_shader_parameter("albedo", bm->get_albedo());
+				out->set_shader_parameter("bake_tint", Vector3(pm->tint.r, pm->tint.g, pm->tint.b));
+				out->set_shader_parameter("srgb_vertex_color", bm->get_flag(BaseMaterial3D::FLAG_SRGB_VERTEX_COLOR));
+				out->set_shader_parameter("roughness", bm->get_roughness());
+				out->set_shader_parameter("metallic", bm->get_metallic());
+				out->set_shader_parameter("specular", bm->get_specular());
+			}
+		}
+	}
+	player_color_mats().insert(id, out);
+	return out;
+}
+} // namespace
+
+bool ModelLibrary::is_player_color_material(const Ref<Material> &mat) {
+	Ref<ShaderMaterial> sm = mat;
+	return sm.is_valid() && sm->get_shader().is_valid() && sm->get_shader() == player_color_shader();
+}
+
+void ModelLibrary::set_player_color(Node *n, const Color &c) {
+	if (!n) return;
+	if (MeshInstance3D *mi = Object::cast_to<MeshInstance3D>(n)) {
+		const int count = mi->get_mesh().is_valid() ? mi->get_mesh()->get_surface_count() : 0;
+		for (int s = 0; s < count; ++s) {
+			if (is_player_color_material(mi->get_active_material(s))) {
+				mi->set_instance_shader_parameter("player_color", c);
+				break;
+			}
+		}
+	}
+	for (int i = 0; i < n->get_child_count(); ++i) set_player_color(n->get_child(i), c);
+}
+
 void ModelLibrary::apply_imported_material_fixups(Node *n) {
 	if (!n) return;
 	MeshInstance3D *mi = Object::cast_to<MeshInstance3D>(n);
@@ -129,6 +224,8 @@ void ModelLibrary::apply_imported_material_fixups(Node *n) {
 			}
 			bm->set_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, has_vcol);
 			bm->set_flag(BaseMaterial3D::FLAG_SRGB_VERTEX_COLOR, has_vcol);
+			Ref<ShaderMaterial> pc = player_color_material(bm);
+			if (pc.is_valid()) mi->set_surface_override_material(s, pc);
 		}
 	}
 	for (int i = 0; i < n->get_child_count(); ++i) {
@@ -773,6 +870,7 @@ const ModelLibrary::Entry &ModelLibrary::get(const String &category, const Strin
 
 void ModelLibrary::clear() {
 	cache().clear();
+	player_color_mats().clear();
 }
 
 } // namespace rtso

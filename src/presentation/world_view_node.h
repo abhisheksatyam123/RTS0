@@ -60,6 +60,7 @@ class RtsoWorldView : public Node3D {
 		StringName clip;
 		Node3D *carry_prop = nullptr; // BoneAttachment3D holding the carried shuttle
 		uint8_t carry_clip = 0;       // ClipId the prop was attached for
+		int64_t player_rgba = -1;     // owner colour last pushed to the model (-1: none yet)
 	};
 
 	struct BuildingVis {
@@ -76,6 +77,7 @@ class RtsoWorldView : public Node3D {
 		float phase_t = 0.0f;
 		float build_progress = 1.0f;
 		float fog_dim = -1.0f; // overlay level last pushed (-1: none yet)
+		int64_t player_rgba = -1; // owner colour last pushed (-1: none yet)
 		String model_id;
 		// 0 A.D. damage variants: smoke from mediumdamage, fire from heavydamage.
 		GPUParticles3D *fx_smoke = nullptr;
@@ -215,6 +217,7 @@ class RtsoWorldView : public Node3D {
 		bool clip_baked[CROWD_CLIP_COUNT] = {};
 		Ref<Mesh> rest;
 		bool no_scene = false; // model has no skinned scene: rest pose only
+		bool player_color = false; // has 0 A.D. player_trans surfaces (owner colour in custom data)
 	};
 	std::unique_ptr<CrowdBatch> crowd_[rtso::CIV_COUNT][rtso::UNIT_TYPE_COUNT];
 	Node3D *crowd_bake_root = nullptr;
