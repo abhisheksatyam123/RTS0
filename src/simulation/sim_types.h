@@ -382,7 +382,8 @@ enum BuildingType : uint8_t {
 	BLD_TEMPLE_VESTA = 49,    // rome/temple_vesta
 	BLD_TEMPLE_MARS = 50,     // rome/temple_mars
 	BLD_ICE_HOUSE = 51,       // pers/ice_house
-	BLD_TYPE_COUNT = 52
+	BLD_SUPER_DOCK = 52,      // cart/super_dock (Cothon)
+	BLD_TYPE_COUNT = 53
 };
 
 #include "civ_building_data.h"
@@ -444,7 +445,7 @@ enum UnitOrderKind : uint8_t {
 	ORDER_GATHER = 6,         // target resource
 	ORDER_BUILD = 7,          // target building (build or repair)
 	ORDER_GARRISON = 8,       // target building
-	ORDER_GUARD = 9,          // target unit (Guard.js)
+	ORDER_GUARD = 9,          // target unit or structure (Guard.js)
 	ORDER_HEAL = 10,          // target unit (UnitAI Heal)
 	ORDER_TRADE = 11,         // target = first market, x2 holds the second market's id bits (UnitAI Trade)
 	ORDER_RETURN_RESOURCE = 12, // target = the dropsite (UnitAI ReturnResource)

@@ -12,6 +12,14 @@ func _on_resume_pressed():
 func _on_options_pressed():
 	load("res://scenes/menu/options.gd").open_overlay(get_parent())
 
+# 0 A.D. MenuButtons Summary: the summary page over the game ("summary" hotkey).
+func _on_summary_pressed():
+	var main := get_parent()
+	if main.has_method("_on_menu_button_pressed"):
+		main._on_menu_button_pressed() # close the menu the way Esc does
+	if main.has_method("toggle_summary"):
+		main.toggle_summary()
+
 func _on_lobby_pressed():
 	MatchSettings.go("res://scenes/menu/lobby.tscn")
 
