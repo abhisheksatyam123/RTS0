@@ -1674,6 +1674,7 @@ private:
 	std::vector<PetraTransportPlan> petra_transports_; // under way (BOARDING to UNLOADING), one per owner
 	const PetraTransportPlan *petra_transport_for(uint8_t owner) const;
 	bool petra_ship_in_plan(uint32_t ship_id) const;
+	size_t petra_go_home(const std::vector<uint32_t> &squad, float x, float z, uint8_t owner, bool order_here, bool attack = false);
 	std::vector<PetraChatLine> petra_chat_;
 	std::unordered_map<uint8_t, PetraDiplomacyRequest> petra_diplomacy_requests_;
 	PetraDiplomacy petra_diplo_;

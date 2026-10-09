@@ -482,6 +482,7 @@ static void test_petra_navy() {
 static void test_petra_overseas_attack() {
 	static Simulation s;
 	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
 	s.set_player_active(1, true, true);
 	s.set_player_resources(1, 5000, 5000, 5000, 5000);
 	s.players_[1].phase = 2;
@@ -516,6 +517,23 @@ static void test_petra_overseas_attack() {
 	}
 	std::printf("Petra overseas attack: %d of 6 spearmen landed on the south shore\n", across);
 	CHECK(across >= 1);
+	// With nothing left to attack the army comes home (headquarters.js assignEntity):
+	// by ship, as navalManager.requireTransport does, not through the sea.
+	int waded = 0, home = 0;
+	for (int k = 0; k < 240; ++k) {
+		run(s, 1.0f);
+		for (uint32_t uid : army) {
+			const int32_t i = idx(s, uid);
+			if (i >= 0 && s.units().alive[i] && std::fabs(s.units().pos_z[i]) < 14.0f) ++waded;
+		}
+	}
+	for (uint32_t uid : army) {
+		const int32_t i = idx(s, uid);
+		if (i >= 0 && s.units().alive[i] && s.units().pos_z[i] > 16.0f) ++home;
+	}
+	std::printf("Petra overseas attack: house %s, %d spearmen back home, %d wading\n",
+	            bld(s, house) && bld(s, house)->team == 1 ? "captured" : "standing", home, waded);
+	CHECK(home >= 4 && waded == 0);
 }
 
 // headquarters.js findEconomicCCLocation on a naval map: with nothing to settle on

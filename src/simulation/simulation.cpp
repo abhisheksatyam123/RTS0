@@ -11288,6 +11288,44 @@ bool Simulation::petra_aboard(uint32_t uid) const {
 	return false;
 }
 
+// headquarters.js assignEntity: a unit on another land than (x, z) comes back by sea
+// (navalManager.requireTransport, one plan for `owner`) rather than walking through
+// it; while no ship is free it stays where it is. Those on that land walk (or
+// attack-move) there when `order_here`. Returns how many are still on another land.
+size_t Simulation::petra_go_home(const std::vector<uint32_t> &squad, float x, float z, uint8_t owner, bool order_here, bool attack) {
+	uint16_t home = 0;
+	const PetraNavalTopo &topo = petra_classified_topo(home);
+	const uint16_t dest = topo.naval_map ? petra_land_at(x, z) : 0;
+	std::vector<uint32_t> here, away;
+	uint16_t away_land = 0;
+	size_t n_away = 0;
+	const bool shipping = petra_transport_for(owner) != nullptr;
+	float ax = 0.0f, az = 0.0f;
+	for (uint32_t uid : squad) {
+		const int32_t i = lookup_unit(uid);
+		if (i < 0) continue;
+		if (!units_.alive[i]) { n_away += petra_aboard(uid); continue; }
+		const uint16_t land = dest ? petra_land_at(units_.pos_x[i], units_.pos_z[i]) : 0;
+		if (!land || land == dest) { here.push_back(uid); continue; }
+		++n_away;
+		if (shipping) continue;
+		if (!away_land) away_land = land;
+		if (land != away_land) continue; // the next crossing takes them
+		away.push_back(uid);
+		ax += units_.pos_x[i];
+		az += units_.pos_z[i];
+	}
+	if (order_here && !here.empty()) {
+		if (attack) order_attack_move(here.data(), here.size(), x, z);
+		else order_walk(here.data(), here.size(), x, z, false);
+	}
+	if (!away.empty()) {
+		const uint16_t sea = topo.sea_between(away_land, dest);
+		if (sea) petra_start_transport(away, ax / (float)away.size(), az / (float)away.size(), x, z, sea, owner);
+	}
+	return n_away;
+}
+
 const PetraTransportPlan *Simulation::petra_transport_for(uint8_t owner) const {
 	for (const auto &tp : petra_transports_)
 		if (tp.owner == owner) return &tp;
@@ -12524,7 +12562,7 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 	// Emergency Base Defense Mobilization: if base is under attack, prioritize defense
 	float base_threat = get_threat_at(base_x, base_z);
 	if (base_threat >= 10.0f && !squad.empty() && petra_attack_plan_.state != AttackPlan::REGROUP) {
-		order_attack_move(squad.data(), squad.size(), base_x, base_z);
+		petra_go_home(squad, base_x, base_z, PETRA_TRANSPORT_ATTACK, true, true);
 		petra_attack_plan_.state = AttackPlan::REGROUP;
 		petra_attack_plan_.state_timer = 0.0f;
 		petra_attack_plan_.retreat_x = base_x;
@@ -12837,7 +12875,7 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 				petra_attack_plan_.state = AttackPlan::REGROUP;
 				petra_attack_plan_.state_timer = 0.0f;
 				if (!squad.empty()) {
-					order_walk(squad.data(), squad.size(), ret_x, ret_z, false);
+					petra_go_home(squad, ret_x, ret_z, PETRA_TRANSPORT_ATTACK, true);
 				}
 				return;
 			}
@@ -12888,7 +12926,7 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 					petra_attack_plan_.retreat_z = base_z;
 					petra_attack_plan_.state_timer = 0.0f;
 					if (!squad.empty()) {
-						order_walk(squad.data(), squad.size(), base_x, base_z, false);
+						petra_go_home(squad, base_x, base_z, PETRA_TRANSPORT_ATTACK, true);
 					}
 				}
 			}
@@ -12900,9 +12938,8 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 			float ret_x = petra_attack_plan_.retreat_x;
 			float ret_z = petra_attack_plan_.retreat_z;
 
-			if (!squad.empty() && petra_attack_plan_.state_timer < 1.0f) {
-				order_walk(squad.data(), squad.size(), ret_x, ret_z, false);
-			}
+			// Those on another land wait for a ship home (a ship may already be bringing them).
+			const size_t away = petra_go_home(squad, ret_x, ret_z, PETRA_TRANSPORT_ATTACK, petra_attack_plan_.state_timer < 1.0f);
 
 			// Compute centroid to check arrival at base
 			float cx = 0.0f, cz = 0.0f;
@@ -12918,7 +12955,8 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 			if (alive_count > 0) { cx /= (float)alive_count; cz /= (float)alive_count; }
 
 			float dsq = (cx - ret_x) * (cx - ret_x) + (cz - ret_z) * (cz - ret_z);
-			if (dsq <= 144.0f || petra_attack_plan_.state_timer >= 15.0f || squad.empty()) {
+			if ((away == 0 && (dsq <= 144.0f || petra_attack_plan_.state_timer >= 15.0f)) ||
+			    petra_attack_plan_.state_timer >= 180.0f || squad.empty()) {
 				// Safely returned to base anchor, reset for fresh reinforcements
 				squad.clear();
 				petra_attack_plan_.initial_squad_size = 0;
@@ -12932,7 +12970,7 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 		case AttackPlan::ABORT: {
 			petra_strike_force_.state = PetraStrikeForce::MUSTER;
 			if (!squad.empty()) {
-				order_walk(squad.data(), squad.size(), base_x, base_z, false);
+				petra_go_home(squad, base_x, base_z, PETRA_TRANSPORT_ATTACK, true);
 			}
 			petra_attack_plan_.state = AttackPlan::REGROUP;
 			petra_attack_plan_.retreat_x = base_x;
@@ -13133,7 +13171,7 @@ void Simulation::petra_manage_raid(float dt) {
 			plan.retreat_z = base_z;
 			plan.state_timer = 0.0f;
 			if (!plan.squad.empty())
-				order_walk(plan.squad.data(), plan.squad.size(), base_x, base_z, false);
+				petra_go_home(plan.squad, base_x, base_z, PETRA_TRANSPORT_RAID, true);
 			return;
 		}
 		bool target_ok = false;
@@ -13157,7 +13195,7 @@ void Simulation::petra_manage_raid(float dt) {
 				plan.retreat_z = base_z;
 				plan.state_timer = 0.0f;
 				if (!plan.squad.empty())
-					order_walk(plan.squad.data(), plan.squad.size(), base_x, base_z, false);
+					petra_go_home(plan.squad, base_x, base_z, PETRA_TRANSPORT_RAID, true);
 			}
 		} else if (plan.state_timer > 36.0f) {
 			plan.state = AttackPlan::REGROUP;
@@ -13165,7 +13203,7 @@ void Simulation::petra_manage_raid(float dt) {
 			plan.retreat_z = base_z;
 			plan.state_timer = 0.0f;
 			if (!plan.squad.empty())
-				order_walk(plan.squad.data(), plan.squad.size(), base_x, base_z, false);
+				petra_go_home(plan.squad, base_x, base_z, PETRA_TRANSPORT_RAID, true);
 		} else {
 			plan.state = AttackPlan::ATTACKED;
 			petra_answer_attackers(plan.squad, plan.target_x, plan.target_z);
@@ -13175,7 +13213,8 @@ void Simulation::petra_manage_raid(float dt) {
 	}
 
 	if (plan.state == AttackPlan::REGROUP) {
-		if (plan.state_timer >= 12.0f || plan.squad.empty()) {
+		const size_t away = petra_go_home(plan.squad, plan.retreat_x, plan.retreat_z, PETRA_TRANSPORT_RAID, false);
+		if ((away == 0 && plan.state_timer >= 12.0f) || plan.state_timer >= 180.0f || plan.squad.empty()) {
 			plan.squad.clear();
 			plan.initial_squad_size = 0;
 			plan.target_building_id = 0;
