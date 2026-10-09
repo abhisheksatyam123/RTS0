@@ -295,6 +295,8 @@ public:
 	rtso::Simulation *ui_sim() override { return sim; }
 	uint32_t ui_selected_building_id() const override { return selected_building_id; }
 	void _on_barter_requested(int sell_type, int buy_type, int amount);
+	Dictionary get_trade_dialog_state() const;
+	void _on_trading_goods_requested(const PackedInt32Array &shares);
 
 	// ---- barter_panel.xml parity (docs/REMAINING_GAPS.md:187) -------------
 	// Runtime quick-amount (100/500) buy/sell buttons + live price/fee labels

@@ -866,6 +866,12 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_float(t.collect_progress);
 		mix_u32(t.collector_id);
 	}
+	mix_u32((uint32_t)sim.scenery().size());
+	for (const auto &sc : sim.scenery()) {
+		mix_u32(sc.id);
+		mix_u8(sc.type);
+		mix_float(sc.hp);
+	}
 
 	// Wildlife: animals move, fight and die in the sim, so they are lockstep state.
 	const auto fv = sim.fauna();
