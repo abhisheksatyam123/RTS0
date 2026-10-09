@@ -195,19 +195,19 @@ int main() {
 		fresh(s);
 		s.player(0).phase = 3;
 		uint32_t temple = s.spawn_building_world(20.0f, -20.0f, BLD_TEMPLE, 0, 1.0f);
-		CHECK(std::fabs(s.healer_range(0) - 12.0f) < 0.01f);
+		CHECK(std::fabs(s.healer_range(0) - 12.0f * 0.28f) < 0.01f); // 12 m
 		CHECK(std::fabs(s.healer_rate(0) - 2.5f) < 0.01f); // Heal.js: 5 hp every 2 s
 		CHECK(s.cmd_research(0, temple, TECH_HEAL_RANGE));
 		run(s, tech_info(TECH_HEAL_RANGE).research_time + 1.0f);
-		CHECK(std::fabs(s.healer_range(0) - 17.0f) < 0.01f);
+		CHECK(std::fabs(s.healer_range(0) - 17.0f * 0.28f) < 0.01f);
 		CHECK(s.cmd_research(0, temple, TECH_HEAL_RATE));
 		run(s, tech_info(TECH_HEAL_RATE).research_time + 1.0f);
 		CHECK(std::fabs(s.healer_rate(0) - 3.125f) < 0.01f); // Interval x0.8
-		CHECK(s.healer_range(1) == 12.0f); // another player's healers are unaffected
+		CHECK(std::fabs(s.healer_range(1) - 12.0f * 0.28f) < 0.01f); // another player's healers are unaffected
 	}
 
 	// A healer keeps a soldier under fire alive only once Healing Range reaches
-	// him: 14 m is outside 0 A.D.'s base 12 m.
+	// him: 4 RTS0 units (14 m) is outside 0 A.D.'s base 12 m (3.36) but within 17 m.
 	{
 		float hp_left[2] = {0.0f, 0.0f};
 		for (int with = 0; with < 2; ++with) {
@@ -219,7 +219,7 @@ int main() {
 			CHECK(s.is_tech_researched(TECH_HEAL_RANGE) == (with != 0));
 			s.spawn_building_world(0.0f, 0.0f, BLD_TOWER, 1, 1.0f);   // enemy tower
 			uint32_t sp = s.spawn_unit(8.0f, 0.0f, 0, UNIT_SPEARMAN, 400.0f); // under its arrows
-			uint32_t healer = s.spawn_unit(22.0f, 0.0f, 0, UNIT_HEALER);
+			uint32_t healer = s.spawn_unit(12.0f, 0.0f, 0, UNIT_HEALER, 5000.0f);
 			s.order_set_stance(&healer, 1, STANCE_STAND_GROUND); // heals only whom its range reaches
 			s.cmd_stop(&healer, 1);
 			s.cmd_stop(&sp, 1);
@@ -419,6 +419,69 @@ int main() {
 		CHECK(s.cmd_build(0, -16, -16, BLD_WALL_TOWER) != 0); // in its Civic Centre's territory
 		float paid = stone0 - (float)s.stone();
 		CHECK(std::fabs(paid - 2.0f * building_type_info(BLD_WALL_TOWER).stone_cost) < 1.01f);
+	}
+
+	// Auras.js: Viriato's Guerrilla Tactics (+20% soldier speed) multiplies walk
+	// speed only while a soldier is in range, on top of Horse Racing (+10%), and
+	// never rewrites the speed technologies set.
+	{
+		fresh(s);
+		s.set_player_civ(CIV_IBERIANS);
+		uint32_t stable = s.spawn_building_world(20.0f, -20.0f, BLD_STABLE, 0, 1.0f);
+		CHECK(s.cmd_research(0, stable, TECH_CAVALRY_MOVEMENT_SPEED));
+		run(s, tech_info(TECH_CAVALRY_MOVEMENT_SPEED).research_time + 1.0f);
+		CHECK(s.is_tech_researched(TECH_CAVALRY_MOVEMENT_SPEED));
+		uint16_t viriato = CIV_UNIT_TEMPLATE_NONE;
+		for (uint16_t i = civ_roster_begin(CIV_IBERIANS); i < civ_roster_end(CIV_IBERIANS); ++i)
+			if (std::strcmp(civ_unit_template(i).specific_name, "Viriato") == 0) viriato = i;
+		CHECK(viriato != CIV_UNIT_TEMPLATE_NONE);
+		// Distance a horseman covers in the next second; ride() starts a fresh one
+		// riding east from (-20, z).
+		uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE;
+		uint32_t cav = 0;
+		auto x = [&] {
+			auto u = s.units();
+			for (size_t i = 0; i < u.count; ++i)
+				if (u.id[i] == cav) { tmpl = u.tmpl[i]; return u.pos_x[i]; }
+			return 0.0f;
+		};
+		auto second = [&] {
+			const float from = x();
+			run(s, 1.0f);
+			return x() - from;
+		};
+		auto ride = [&](float z) {
+			cav = s.spawn_unit(-20.0f, z, 0, UNIT_CAVALRY);
+			s.cmd_move(&cav, 1, 40.0f, z);
+			run(s, 0.2f);
+			return second();
+		};
+		const float alone = ride(0.0f);
+		const float teched = civ_unit_template(tmpl).speed * 1.1f;
+		CHECK(civ_aura_affects(civ_unit_template(viriato).auras[0], tmpl));
+		uint32_t hero = s.spawn_unit(-14.0f, 4.0f, 0, UNIT_HERO, 0.0f, viriato);
+		run(s, 0.5f); // auras are gathered every 0.4 s
+		const float inspired = ride(-4.0f);
+		// A save taken mid-ride carries the auras: the loaded copy rides on in step.
+		{
+			static Simulation copy;
+			const char *aura_path = "/tmp/rts0_test_techs_aura.sav";
+			CHECK(s.save_state(aura_path));
+			fresh(copy);
+			CHECK(copy.load_state(aura_path));
+			run(s, 1.0f);
+			run(copy, 1.0f);
+			TurnManager tm;
+			CHECK(tm.compute_sim_hash(s) == tm.compute_sim_hash(copy));
+		}
+		s.cmd_delete(0, &hero, 1);
+		run(s, 0.5f);
+		const float after = second(); // the same horseman, the aura gone
+		std::printf("horseman in 1 s: %.2f m alone, %.2f m beside Viriato, %.2f m after (teched speed %.2f)\n",
+		            alone, inspired, after, teched);
+		CHECK(std::fabs(alone - teched) < 0.03f * teched);
+		CHECK(std::fabs(inspired - teched * 1.2f) < 0.03f * teched);
+		CHECK(std::fabs(after - teched) < 0.03f * teched);
 	}
 
 	// Save/load keeps researched techs and their effects.
