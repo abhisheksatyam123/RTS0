@@ -18,6 +18,7 @@ RTS0 builds on **0 A.D.** (https://play0ad.com) by Wildfire Games.
 | `src/simulation/nav/rasterize.h` | `source/simulation2/helpers/Rasterize.*` | Port |
 | `src/simulation/nav/vertex_pathfinder.h` | `source/simulation2/helpers/VertexPathfinder.*` | Port |
 | `src/simulation/nav/footprint.h` (turned building footprints) | `source/simulation2/components/CCmpObstruction.cpp` (`GetObstructionSquare` axes), `source/simulation2/helpers/Geometry.*` (`GetHalfBoundingBox`) | Port |
+| `src/simulation/sim_types.h` (`unit_building_clearance`) | `mod/simulation/data/pathfinder.xml` (passability class Clearance), `template_unit_siege.xml`, `template_unit_champion_elephant.xml`, `template_unit_support_elephant.xml`, `template_unit_hero_elephant_melee.xml` (PassabilityClass large) | Port (constants) |
 | `src/simulation/grid_nav.h` | `Grid.h`, `HierarchicalPathfinder.*`, `Pathfinding.h` | Port |
 | `src/simulation/petra_ai.h`, `simulation.*` | `simulation/ai/petra/*.js`, `simulation/components/UnitAI.js` and other components | Port / native rewrite of game logic |
 | `PetraConfig::gather_rate`/`build_time`, `ai_gather_mult`/`ai_time_mult` | `simulation/helpers/InitGame.js` ("AI Bonus" difficulty modifiers) | Port |

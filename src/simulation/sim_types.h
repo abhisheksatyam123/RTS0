@@ -594,6 +594,19 @@ inline bool unit_is_ship(uint8_t type) {
 	return type == UNIT_TRIREME || type == UNIT_FISHING_BOAT || type == UNIT_MERCHANT_SHIP;
 }
 
+// How close a unit's centre comes to a building: its 0 A.D. passability class Clearance
+// (simulation/data/pathfinder.xml) in RTS0 units, "default" 0.8 m and "large" 3 m, the class of
+// siege engines and elephants (template_unit_siege, template_unit_champion_elephant,
+// template_unit_support_elephant, template_unit_hero_elephant_melee). Ships keep their hull
+// radius: docks are the only buildings they meet. Between units RTS0 keeps unit_collision_radius.
+inline float unit_building_clearance(uint8_t type) {
+	switch (type) {
+		case UNIT_CATAPULT: case UNIT_SIEGE_RAM: case UNIT_BOLT_SHOOTER:
+		case UNIT_ELEPHANT: case UNIT_WORKER_ELEPHANT: return 3.0f / 4.0f;
+		default: return unit_is_ship(type) ? unit_collision_radius(type) : 0.8f / 4.0f;
+	}
+}
+
 inline bool unit_is_siege_engine(uint8_t type) {
 	return type == UNIT_SIEGE_RAM || type == UNIT_CATAPULT || type == UNIT_BOLT_SHOOTER;
 }

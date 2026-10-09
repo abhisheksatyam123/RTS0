@@ -4750,7 +4750,7 @@ void Simulation::move_units(float dt, Arena &arena) {
 			const float gdz = wp.goal_z - tz[i];
 			task_path = wp.has_goal && gdx * gdx + gdz * gdz <= 4.0f;
 			if (!task_path && rtso::nav::line_blocked_by_buildings(rtso::nav::Vec2(px[i], pz[i]),
-					rtso::nav::Vec2(tx[i], tz[i]), 2.0f * map_half_, unit_collision_radius(units_.unit_type[i]),
+					rtso::nav::Vec2(tx[i], tz[i]), 2.0f * map_half_, unit_building_clearance(units_.unit_type[i]),
 					steer_obstacles_, units_.target_building_id[i])) {
 				const uint8_t ut = units_.unit_type[i];
 				const bool mounted = ut == UNIT_CAVALRY || ut == UNIT_CHARIOT || ut == UNIT_CAMEL || ut == UNIT_SCYTHED_CHARIOT;
@@ -4778,11 +4778,11 @@ void Simulation::move_units(float dt, Arena &arena) {
 			if (cur >= 0 && cur < cnt) {
 				WaypointPath &wp = unit_paths_[i];
 				// A wide unit (siege, elephants) can't get within ARRIVE_DIST of a waypoint closer to a
-				// building than separation() lets it stand (its radius + 0.35), such as a navcell in a
-				// 2-unit gap between houses: it would push against the buildings there for good. Like
-				// 0 A.D. UnitMotion, which moves on to the next long-path waypoint once its short path
-				// gets as close as it can, it moves on once within WAYPOINT_NEAR of such a waypoint.
-				const float crowd = unit_collision_radius(units_.unit_type[i]) + 0.35f - ARRIVE_DIST;
+				// building than separation() lets it stand (its building clearance): it would push
+				// against the building there for good. Like 0 A.D. UnitMotion, which moves on to the
+				// next long-path waypoint once its short path gets as close as it can, it moves on once
+				// within WAYPOINT_NEAR of such a waypoint.
+				const float crowd = unit_building_clearance(units_.unit_type[i]) - ARRIVE_DIST;
 				auto crowded = [&](float wx, float wz) {
 					if (crowd <= 0.0f || unit_is_ship(units_.unit_type[i])) return false;
 					for (const SteerObstacle &b : steer_obstacles_) {
@@ -4904,7 +4904,7 @@ void Simulation::move_units(float dt, Arena &arena) {
 		if (!unit_is_ship(units_.unit_type[i]) && !backing_off) {
 			rtso::nav::Vec2 steer;
 			if (rtso::nav::steer_around_buildings(rtso::nav::Vec2(px[i], pz[i]), rtso::nav::Vec2(aim_x, aim_z),
-					unit_collision_radius(units_.unit_type[i]), steer_obstacles_, units_.target_building_id[i],
+					unit_building_clearance(units_.unit_type[i]), steer_obstacles_, units_.target_building_id[i],
 					nav_grid_, short_path_key_, units_.short_path[i], steer)) {
 				const float sdx = steer.x - px[i];
 				const float sdz = steer.y - pz[i];
@@ -4939,7 +4939,7 @@ void Simulation::move_units(float dt, Arena &arena) {
 		npz[i] = std::clamp(pz[i] + move_dz, -map_half_, map_half_);
 		// A closed gate is solid: slide along it, never step into it.
 		if (!closed_gates_.empty()) {
-			const float r = unit_collision_radius(units_.unit_type[i]);
+			const float r = unit_building_clearance(units_.unit_type[i]);
 			auto inside = [&](float x, float z) {
 				for (const auto &g : closed_gates_)
 					if (nav::footprint_contains(g, x, z, r)) return true;
@@ -5085,10 +5085,12 @@ void Simulation::separation(float dt, Arena &arena) {
 			}
 		});
 
-		// 2. Building Obstacle Non-Penetration (keep units outside the footprint rectangle)
-		// A building more than b_req from the unit on either axis pushes nothing; the 0.5
-		// margin keeps that test clear of float rounding, so skipping it changes no result.
-		const float b_skip = ri + 0.35f + 0.5f;
+		// 2. Building Obstacle Non-Penetration (keep units outside the footprint rectangle by their
+		// building clearance, as steering does). A building more than b_req from the unit on either
+		// axis pushes nothing; the 0.5 margin keeps that test clear of float rounding, so skipping it
+		// changes no result.
+		const float b_req = unit_building_clearance(units_.unit_type[i]);
+		const float b_skip = b_req + 0.5f;
 		// Pushes (qx, qz) out of the square of half size b_half centred on (bx, bz), into (oax, oaz).
 		auto push_square = [&](float qx, float qz, float bx, float bz, float b_half, float &oax, float &oaz) {
 			float cx = std::clamp(qx, bx - b_half, bx + b_half);
@@ -5096,7 +5098,6 @@ void Simulation::separation(float dt, Arena &arena) {
 			float bdx = qx - cx;
 			float bdz = qz - cz;
 			float bd2 = bdx * bdx + bdz * bdz;
-			float b_req = ri + 0.35f;
 			bool inside = (qx > bx - b_half && qx < bx + b_half &&
 					qz > bz - b_half && qz < bz + b_half);
 			if (inside) {
@@ -7535,7 +7536,7 @@ void Simulation::tick_gates(float dt) {
 			const nav::Vec2 l = nav::footprint_local(b, units_.pos_x[i], units_.pos_z[i]);
 			const float dx = std::fabs(l.x), dz = std::fabs(l.y);
 			if (dx > reach || dz > reach) continue;
-			const float inside = b.half_size + unit_collision_radius(units_.unit_type[i]);
+			const float inside = b.half_size + unit_building_clearance(units_.unit_type[i]);
 			if (dx < inside && dz < inside) unit_inside = true;
 			if (!ally_near && b.team < MAX_PLAYERS && units_.team[i] < MAX_PLAYERS && is_ally(b.team, units_.team[i])
 			    && units_.action_state[i] != ACTION_DYING)

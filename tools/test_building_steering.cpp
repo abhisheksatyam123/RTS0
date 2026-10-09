@@ -21,6 +21,8 @@
 //  7. Walk past a turned barracks: turned 45 degrees, its corners reach 41% further along the axes
 //     than an unturned one's sides (nav/footprint.h). A unit walking along that axis must go around
 //     the corners, not the unturned square, and a woman finishes a turned house.
+//  8. Siege through a gap: a catapult keeps 0 A.D.'s "large" clearance (3 m, unit_building_clearance)
+//     from buildings, so it takes a 2-unit (8 m) gap in a long row of houses instead of going around.
 //  For every scenario the unit bodies must never overlap a footprint that blocks movement by more
 //  than MAX_PENETRATION (separation() alone allows deep overlap when a unit walks head-on into a wall).
 //  Exit: 0 = PASS, 1 = FAIL. Prints the measurements either way.
@@ -55,13 +57,14 @@ static void setup(Simulation &s) {
 	s.spawn_building_world(52.0f, 52.0f, BLD_TOWN_CENTER, 1, 1.0f);
 }
 
-// Deepest overlap of any live team-0 unit body with any building footprint, turned by its rot.
+// Deepest overlap of any live team-0 unit's building clearance with any building footprint, turned
+// by its rot.
 static float max_penetration(const Simulation &s) {
 	const Simulation::UnitView u = s.units();
 	float worst = 0.0f;
 	for (size_t i = 0; i < u.count; ++i) {
 		if (!u.alive[i] || u.team[i] != 0) continue;
-		const float r = unit_collision_radius(u.unit_type[i]);
+		const float r = unit_building_clearance(u.unit_type[i]);
 		for (const auto &b : s.buildings()) {
 			if (b.wrecked || !building_blocks_movement(b.type)) continue;
 			// In the footprint's own axes, u = (cos a, -sin a) and v = (sin a, cos a) (0 A.D.
@@ -306,6 +309,36 @@ static void walk_past_turned_building() {
 	check(pen <= MAX_PENETRATION, "unit overlapped a turned building");
 }
 
+// 8. Siege through a gap.
+static void siege_through_gap() {
+	Simulation s;
+	setup(s);
+	// Houses are 2x2: a touching row at x = 0 from z = -21 to z = 21, with a gap at z in [-1, 1].
+	for (int k = 1; k <= 10; ++k) {
+		s.spawn_building_world(0.0f, 2.0f * k, BLD_HOUSE, 0, 1.0f);
+		s.spawn_building_world(0.0f, -2.0f * k, BLD_HOUSE, 0, 1.0f);
+	}
+	const uint32_t cat = s.spawn_unit(-10.0f, 0.5f, 0, UNIT_CATAPULT, 0.0f);
+	s.cmd_move(&cat, 1, 10.0f, 0.0f);
+	int arrived = -1;
+	float pen = 0.0f, max_dev = 0.0f;
+	for (int t = 0; t < 1200 && arrived < 0; ++t) {
+		s.tick(DT);
+		pen = std::max(pen, max_penetration(s));
+		const int i = index_of(s, cat);
+		if (i < 0) break;
+		const Simulation::UnitView u = s.units();
+		max_dev = std::max(max_dev, std::fabs(u.pos_z[i]));
+		const float dx = u.pos_x[i] - 10.0f, dz = u.pos_z[i];
+		if (dx * dx + dz * dz <= 1.0f) arrived = t;
+	}
+	std::printf("  siege through a gap: catapult arrived after %d ticks (-1 = never in 1200), max sideways %.3f, "
+			"max penetration %.3f\n", arrived, max_dev, pen);
+	check(arrived >= 0, "catapult never got past the row of houses");
+	check(max_dev <= 2.0f, "catapult went around the houses instead of through the gap");
+	check(pen <= MAX_PENETRATION, "catapult overlapped a house");
+}
+
 int main() {
 	std::printf("RTS0 building steering test (src/simulation/nav/building_steering.h)\n");
 	guard_behind_wall();
@@ -315,6 +348,7 @@ int main() {
 	walk_across_fields();
 	out_of_house_cluster();
 	walk_past_turned_building();
+	siege_through_gap();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;
