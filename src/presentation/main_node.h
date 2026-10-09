@@ -168,6 +168,14 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	bool build_mode = false;
 	bool wall_drag_mode = false;
 	Vector3 wall_drag_start_pos;
+	bool wall_start_snapped = false; // the wall starts at an existing wall tower
+	// 0 A.D. placementSupport.angle: [ and ] turn the preview by pi/12, and a click
+	// held and dragged turns it toward the cursor (input.js INPUT_BUILDING_DRAG).
+	float placement_angle = rtso::Simulation::DEFAULT_BUILDING_ROT;
+	bool build_click_pending = false;
+	Vector2 build_click_screen;
+	Vector3 build_click_ground;
+	int build_click_cell_x = 0, build_click_cell_y = 0;
 	bool attack_move_mode = false;
 	bool patrol_mode = false;
 	bool guard_mode = false;
@@ -275,6 +283,9 @@ public:
 	void _on_lobby_refresh_pressed();
 	void refresh_lobby_rooms();
 	bool net_lockstep() const { return net_host_.getRole() != rtso::NetRole::None; }
+	// Orders go through the TurnManager: always in multiplayer, and offline too
+	// (0 A.D. CLocalTurnManager), so every match records a replay.
+	bool turn_cmds() const override { return net_lockstep() || local_turns_; }
 	// The player this client controls: its lockstep slot in multiplayer, player 0 otherwise.
 	uint8_t local_player() const { return net_lockstep() ? turn_mgr_.local_player() : (uint8_t)0; }
 	void post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
@@ -319,6 +330,9 @@ public:
 
 	void toggle_diplomacy();
 	void toggle_objectives();
+	void _toggle_session_dialog(String name);
+	double last_flare_time_ = -10.0; // input.js g_LastFlareTime
+	int get_target_marker_count() const { return (int)range_overlays_.marker_count(); } // tests
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
 
@@ -329,7 +343,12 @@ public:
 	Dictionary get_civ_info(int civ_idx) const;
 	Dictionary get_tech_tree() const;
 	Dictionary get_match_summary() const;
-	bool save_game(String path = "user://saves/quicksave.rts0sav");
+	// Named saves (0 A.D. gui/savedgames): writes path and its .json metadata.
+	bool save_game_as(String name, String description);
+	// Replays (0 A.D. ps/Replay.cpp + gui/replaymenu).
+	bool is_replay_playback() const { return turn_mgr_.is_replaying(); }
+	Dictionary get_replay_status() const;
+	bool save_game(String path = "user://saves/quicksave.rts0sav", String description = "");
 	bool load_game(String path = "user://saves/quicksave.rts0sav");
 	PackedByteArray get_fow_grid() const;
 	void order_guard_units(uint32_t target_id);
@@ -347,6 +366,11 @@ private:
 	void update_command_panel();
 	void enter_build_mode(bool enable, uint8_t btype = rtso::BLD_HOUSE);
 	void update_ghost_mesh();
+	// The placement rotation for a building at (x, z): docks face the sea (GetDockAngle).
+	float placement_angle_at(uint8_t btype, float x, float z) const;
+	// GetFoundationSnapData snapEntities: a wall end within half a tower of one of
+	// the player's wall towers snaps onto it.
+	Vector3 snap_wall_point(const Vector3 &p, bool &snapped) const;
 	void try_train_unit(rtso::UnitType utype);
 	void try_train_template(uint32_t building_id, uint16_t tmpl);
 	void update_roster_list(const rtso::Simulation::Building *b);
@@ -370,6 +394,28 @@ private:
 	void play_spatial_sfx(const char *path, Vector3 pos);
 
 	bool use_english_voice_orders_ = true; // Default to English orders
+
+	// ---- Match archive: replays, saves and statistics (match_archive.cpp) ----
+	bool local_turns_ = true;
+	bool summary_shown_ = false; // per match (was a function static: only the first match got one)
+	uint32_t match_seed_ = 0;
+	bool replay_recording_ = false;
+	bool replay_finished_ = false;
+	String replay_dir_;            // user://replays/<id>/ of the game being recorded
+	Dictionary replay_meta_;       // its metadata.json, minus what is filled at write time
+	uint32_t replay_written_turn_ = 0;
+	Label *replay_label_ = nullptr;
+	Dictionary match_settings_snapshot(uint32_t seed) const;
+	void apply_settings_snapshot(const Dictionary &settings);
+	Array player_list() const;
+	void begin_match_recording(const rtso::GameSetupParams *mp_setup);
+	void write_replay();
+	void stop_replay_recording();
+	bool start_pending_replay();
+	bool load_pending_save();
+	void tick_match_archive();
+	Dictionary statistics_summary() const;
+	bool write_save_metadata(const String &path, const String &description) const;
 };
 
 #endif

@@ -24,6 +24,7 @@ struct FoggedBuilding {
 	uint32_t id = 0;
 	float x = 0.0f, z = 0.0f;
 	float half_size = 0.0f;
+	float rot = 0.0f; // Simulation::Building::rot
 	float hp = 0.0f, max_hp = 0.0f;
 	float build_progress = 1.0f;
 	uint8_t type = 0;

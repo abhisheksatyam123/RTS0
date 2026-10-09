@@ -62,7 +62,8 @@ var submenu_data = {
 		"items": [
 			{"label": "Custom Matches", "tooltip": "Start a custom skirmish with RMS biomes, AI, or 0 A.D. maps.", "action": "open_setup"},
 			{"label": "Skirmish Arena", "tooltip": "Direct launch into quick tactical combat match.", "action": "open_skirmish"},
-			{"label": "Replays", "tooltip": "Watch saved deterministic lockstep replays.", "action": "open_replays"},
+			{"label": "Load Game", "tooltip": "Continue a saved game.", "action": "open_load"},
+			{"label": "Replays", "tooltip": "Watch the replay of any match you played.", "action": "open_replays"},
 			{"label": "Asset Viewer", "tooltip": "Inspect 3D unit models, animations, and civic buildings.", "action": "open_asset_viewer"}
 		]
 	},
@@ -229,6 +230,9 @@ func _execute_action(action: String) -> void:
 			_go_to_scene("res://scenes/menu/encyclopedia.tscn")
 		"open_tips":
 			_go_to_scene("res://scenes/menu/encyclopedia.tscn")
+		"open_load":
+			_close_submenu()
+			load("res://scenes/session/savegame_dialog.gd").open(self, "load")
 		"open_replays":
 			_go_to_scene("res://scenes/menu/replay_browser.tscn")
 		"open_lobby":

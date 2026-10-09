@@ -77,7 +77,14 @@ int main() {
 	CHECK(civ_unit_template(peri).phase == 3);
 	CHECK(!m.cmd_train_template(0, tc, peri));
 	m.player(0).phase = 3;
-	CHECK(m.cmd_train_template(0, tc, peri));
+	// Heroes train only where 0 A.D. trains them: Athens' at the Prytaneion.
+	CHECK(!m.cmd_train_template(0, tc, peri));
+	CHECK(!m.cmd_train(0, tc, UNIT_HERO));
+	const uint32_t pryt = m.spawn_building(-10, -30, BLD_PRYTANEION, 0, 1.0f);
+	CHECK(m.cmd_train_template(0, pryt, peri));
+	// EntityLimits Hero 1: no second hero while one is queued or alive.
+	const uint16_t themi = find_template(CIV_ATHENIANS, "Themistocles");
+	CHECK(!m.cmd_train_template(0, pryt, themi));
 	CHECK(!m.cmd_train_template(0, tc, find_template(CIV_HAN, "Infantry Crossbowman"))); // other civ's unit
 	const float food_before = m.player(0).food();
 	CHECK(m.cmd_train(0, tc, UNIT_FEMALE_CITIZEN));
@@ -91,6 +98,7 @@ int main() {
 			if (v.team[u] == 0 && v.tmpl[u] == peri) got_pericles = true;
 	}
 	CHECK(got_pericles);
+	CHECK(!m.cmd_train_template(0, pryt, themi));
 
 	// Classes a civ lacks are refused (Athenians field no elephants).
 	CHECK(!m.cmd_train(0, tc, UNIT_ELEPHANT));
@@ -128,12 +136,13 @@ int main() {
 		CHECK(cost[RES_FOOD] == 0.0f && cost[RES_WOOD] == 0.0f && cost[RES_GOLD] == 0.0f && cost[RES_STONE] == 0.0f);
 		t.set_player_resources(0, 5000, 5000, 5000, 5000);
 		t.player(0).phase = 3;
-		uint32_t tc = t.spawn_building(-20, -20, BLD_TOWN_CENTER, 0, 1.0f);
+		t.spawn_building(-20, -20, BLD_TOWN_CENTER, 0, 1.0f);
+		const uint32_t pryt = t.spawn_building(-10, -30, BLD_PRYTANEION, 0, 1.0f);
 		for (int i = 0; i < 4; ++i) t.spawn_building(-30 + i * 3, -30, BLD_HOUSE, 0, 1.0f);
 		const float gold_before = t.player(0).gold();
-		CHECK(t.cmd_train_template(0, tc, pericles));
+		CHECK(t.cmd_train_template(0, pryt, pericles));
 		CHECK(t.player(0).gold() == gold_before);
-		CHECK(t.cmd_cancel_train(0, tc, 0)); // refund matches what was paid
+		CHECK(t.cmd_cancel_train(0, pryt, 0)); // refund matches what was paid
 		CHECK(t.player(0).gold() == gold_before);
 
 		// Building and tech bonuses: Persian barracks, Athenian civic centre techs.

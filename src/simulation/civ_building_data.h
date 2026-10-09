@@ -29,6 +29,11 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{"Military Colony", "town_center", "military_colony", 2000.0f, 2, 0, 200, 150, 200, 20, 20, 75.0f, 0.0f, 0.0f, 0.0f, 2500.0f, 5.0f, 1.0f, 20.0f}, /* structures/ptol/military_colony */ \
 		{"Imperial Academy", "academy", "academy", 2000.0f, 2, 0, 0, 300, 300, 0, 10, 50.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/han/academy */ \
 		{"Imperial Ministry", "imperial_ministry", "ministry", 3000.0f, 2, 0, 0, 200, 200, 20, 9, 50.0f, 0.0f, 0.0f, 0.0f, 3000.0f, 5.0f, 1.0f, 20.0f}, /* structures/han/ministry */ \
+		{"Blemmye Camp", "barracks", "camp_blemmye", 1000.0f, 2, 0, 100, 100, 0, 0, 6, 37.5f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 1.0f}, /* structures/kush/camp_blemmye */ \
+		{"Noba Village", "barracks", "camp_noba", 1000.0f, 2, 0, 100, 100, 0, 0, 6, 37.5f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 1.0f}, /* structures/kush/camp_noba */ \
+		{"Grand Temple of Amun", "temple", "temple_amun", 4000.0f, 2, 0, 0, 0, 600, 0, 40, 100.0f, 0.0f, 0.0f, 0.0f, 1000.0f, 0.5f, 1.0f, 20.0f}, /* structures/kush/temple_amun */ \
+		{"Temple of Vesta", "temple", "temple_vesta", 2000.0f, 2, 0, 0, 0, 300, 0, 20, 50.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/rome/temple_vesta */ \
+		{"Temple of Mars", "temple", "temple_mars", 2000.0f, 2, 0, 0, 0, 300, 0, 30, 50.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/rome/temple_mars */ \
 
 
 // LootInfo rows (xp, food, wood, stone, metal) for building_loot(), in BuildingType order.
@@ -53,6 +58,11 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{0, 0, 40, 40, 30}, /* structures/ptol/military_colony */ \
 		{0, 0, 0, 60, 60}, /* structures/han/academy */ \
 		{200, 0, 0, 40, 40}, /* structures/han/ministry */ \
+		{0, 0, 20, 0, 20}, /* structures/kush/camp_blemmye */ \
+		{0, 0, 20, 0, 20}, /* structures/kush/camp_noba */ \
+		{0, 0, 0, 120, 0}, /* structures/kush/temple_amun */ \
+		{0, 0, 0, 60, 0}, /* structures/rome/temple_vesta */ \
+		{0, 0, 0, 60, 0}, /* structures/rome/temple_mars */ \
 
 
 // Civilizations (bit per Civilization) that may build a civ-specific structure.
@@ -78,6 +88,11 @@ inline uint16_t civ_building_civ_mask(uint8_t type) {
 		case BLD_MILITARY_COLONY: return 0x1800; // ptol sele
 		case BLD_ACADEMY: return 0x2000; // han
 		case BLD_MINISTRY: return 0x2000; // han
+		case BLD_CAMP_BLEMMYE: return 0x0400; // kush
+		case BLD_CAMP_NOBA: return 0x0400; // kush
+		case BLD_TEMPLE_AMUN: return 0x0400; // kush
+		case BLD_TEMPLE_VESTA: return 0x0008; // rome
+		case BLD_TEMPLE_MARS: return 0x0008; // rome
 		default: return 0xFFFF;
 	}
 }
@@ -105,6 +120,11 @@ inline uint8_t civ_building_phase(uint8_t type) {
 		case BLD_MILITARY_COLONY: return 2;
 		case BLD_ACADEMY: return 3;
 		case BLD_MINISTRY: return 2;
+		case BLD_CAMP_BLEMMYE: return 2;
+		case BLD_CAMP_NOBA: return 2;
+		case BLD_TEMPLE_AMUN: return 3;
+		case BLD_TEMPLE_VESTA: return 2;
+		case BLD_TEMPLE_MARS: return 3;
 		default: return 0;
 	}
 }

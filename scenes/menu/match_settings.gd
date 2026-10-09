@@ -57,6 +57,10 @@ var start_res: int = 1
 var slot_types: Array = [0, 1]
 var slot_civs: Array = [0, 1]
 var slot_teams: Array = [1, 2]
+# Set by the replay menu / load dialog, consumed (and cleared) by the match scene:
+# a replay folder (user://replays/<id>/) to watch, or a saved game to load.
+var replay_dir: String = ""
+var load_save_path: String = ""
 
 func strip_engine_popups(n: Node) -> void:
 	if n == null:
