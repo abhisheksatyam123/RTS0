@@ -476,7 +476,11 @@ enum UnitOrderFlag : uint8_t {
 	ORDER_FLAG_ALLOW_CAPTURE = 2,// Attack.js allowCapture: capture structures instead of damaging them
 	ORDER_FLAG_UNITS_ONLY = 4,   // attack-move targetClasses "Unit" (session.attackmoveUnit)
 	ORDER_FLAG_INTERRUPTED = 8,  // fighting or fleeing; go back to the order afterwards
-	ORDER_FLAG_CHEER = 16        // killed its target (UnitAI shouldCheer)
+	ORDER_FLAG_CHEER = 16,       // killed its target (UnitAI shouldCheer)
+	// ORDER_BUILD only (bit 5 holds a gather order's subtype): a forced build that reached its
+	// site (REPAIRING enter, order.data.autoharvest), so ConstructionFinished farms the field
+	// or gathers near the new dropsite.
+	ORDER_FLAG_AUTOHARVEST = 32
 };
 // A gather order keeps its resource's subtype (ResourceSubtype) in flag bits 5-7, so the
 // unit can look for the same kind once the resource is gone (UnitAI GATHER FINDINGNEWTARGET).
@@ -1061,6 +1065,7 @@ enum TechStat : uint8_t {
 	TSTAT_REQUIRED_XP,      // Promotion/RequiredXp
 	TSTAT_TECH_COST_FOOD, TSTAT_TECH_COST_WOOD, TSTAT_TECH_COST_STONE, TSTAT_TECH_COST_METAL, // Researcher/TechCostMultiplier
 	TSTAT_LOOT_FOOD, TSTAT_LOOT_WOOD, TSTAT_LOOT_STONE, TSTAT_LOOT_METAL, // Looter/Resource/<res>
+	TSTAT_BATCH_TIME, // Trainer/BatchTimeModifier of training structures (added)
 	TSTAT_COUNT
 };
 
@@ -1093,6 +1098,9 @@ struct TechInfo {
 
 #include "tech_data.h"
 #include "building_ai_data.h"
+#include "trainer_data.h"
+static_assert(TRAINER_BUILDING_ROWS == BLD_TYPE_COUNT && TRAINER_CIV_ROWS == CIV_COUNT,
+	"re-run tools/extract_0ad_trainer.py after adding buildings or civs");
 
 // Researched technologies for one player. 256 bits covers every uint8_t id.
 struct TechSet {

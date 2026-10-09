@@ -525,7 +525,7 @@ static void test_structure_auras() {
 	for (float &r : l.players_[0].res) r = 5000.0f;
 	check(l.cmd_research(0, store, TECH_WOODCUTTING_1), "research Iron Axe Heads");
 	const float wood_plain = 5000.0f - l.players_[0].res[RES_WOOD];
-	const float time_plain = l.buildings_[l.building_id_to_idx_[store]].research_duration;
+	const float time_plain = l.buildings_[l.building_id_to_idx_[store]].queue.front().duration;
 	Simulation l2;
 	setup(l2);
 	l2.set_team_civ(0, CIV_PTOLEMIES);
@@ -534,7 +534,7 @@ static void test_structure_auras() {
 	for (float &r : l2.players_[0].res) r = 5000.0f;
 	check(l2.cmd_research(0, store2, TECH_WOODCUTTING_1), "research Iron Axe Heads with a library");
 	check(std::fabs(5000.0f - l2.players_[0].res[RES_WOOD] - std::round(wood_plain * 0.85f)) < 1.0f, "library: tech cost x0.85");
-	check(std::fabs(l2.buildings_[l2.building_id_to_idx_[store2]].research_duration - time_plain * 0.85f) < 1e-3f,
+	check(std::fabs(l2.buildings_[l2.building_id_to_idx_[store2]].queue.front().duration - time_plain * 0.85f) < 1e-3f,
 		"library: tech time x0.85");
 	l2.rebuild_territory();
 	float cc_plain = 0.0f;

@@ -181,6 +181,36 @@ int main() {
 		else CHECK(s.is_game_over() && (s.winner_mask_ & 0x5) == 0x5 && !(s.winner_mask_ & 0x2));
 	}
 
+	// 8c. CaptureTheRelic.js: each relic is a different catafalque, spawned beside a random
+	// Gaia entity on land outside every player's territory (TriggerHelper.GetLandSpawnPoints).
+	{
+		fresh(s);
+		for (int k = 0; k < 6; ++k) s.spawn_resource_world(-10.0f + 4.0f * k, 30.0f, RES_WOOD, 200);
+		s.spawn_resource_world(-48.0f, -44.0f, RES_WOOD, 200); // inside player 0's territory
+		s.set_victory_condition(VICTORY_RELIC);
+		s.set_relic_count(5);
+		run(s, 0.1f);
+		CHECK(s.relics_.size() == 5);
+		bool distinct = true, beside = true, neutral = true, passable = true;
+		for (size_t a = 0; a < s.relics_.size(); ++a) {
+			const auto &rel = s.relics_[a];
+			for (size_t b = 0; b < a; ++b) distinct = distinct && s.relics_[b].civ != rel.civ;
+			bool near = false;
+			for (const auto &p : s.relic_spawn_points())
+				near = near || std::hypot(p.first - rel.x, p.second - rel.z) <= 8.5f;
+			beside = beside && near;
+			neutral = neutral && s.territory_owner_at(rel.x, rel.z) < 0;
+			auto [cx, cy] = s.nav_grid_.world_to_cell(rel.x, rel.z);
+			passable = passable && s.nav_grid_.is_passable_for(cx, cy, PASS_INFANTRY);
+		}
+		CHECK(distinct);
+		CHECK(beside);
+		CHECK(neutral);
+		CHECK(passable);
+		std::printf("relic placement: %zu relics, distinct %d, beside Gaia %d, neutral %d, passable %d\n",
+		            s.relics_.size(), distinct, beside, neutral, passable);
+	}
+
 	// 9. A save from before relics were catafalques: its relic gets one on the next tick.
 	{
 		fresh(s);

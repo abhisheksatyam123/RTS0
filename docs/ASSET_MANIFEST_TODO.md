@@ -147,11 +147,11 @@ Animations (363 unit GLBs):
 
 Textures:
 - **Player colour: done (player colour PR).** `extract_0ad_assets.py` bakes a fixed tint into each skin where the `player_trans` alpha is below 250. `tools/extract_player_masks.py` recovers 0 A.D.'s mask for 1424 GLB images (328 unit and 338 building models) and `shaders/player_color.gdshader` swaps the baked tint for the owner's colour. Not coloured: fauna, rubble and foundations, plus 12 unit models (Gaul and Briton citizens and archers, catapults, the bolt shooter) and 10 structures (Gaul walls and towers, the sentry and defense towers, pyramids, siege wall, rowboat) whose skins on 0 A.D.'s current master have no mask or no longer match the extracted ones.
-- No normal, specular or parallax maps (see Open todos).
+- **Normal maps: done (normal maps PR).** `tools/extract_normal_maps.py` pairs each skin with the `normTex` its 0 A.D. actor names when the actor's material is `*_norm*` or `*_parallax*`, and writes 268 maps (`assets/textures/normal_maps/`, 42 MB) for 2432 GLB images (1155 building, 1277 unit; unit bodies use 0 A.D.'s flat `default_norm`, so mostly shields, helmets and props). 175 images matched no skin and stay flat. No specular or parallax maps.
 
 ## Open todos (moved here from ASSET_MAPPING.md, checked 2026-10-08)
 
-- **Unit shader is baked-only.** `shaders/unit_thronefall.gdshader` has no specular, normal or parallax sampling (grep). Upstream material variants such as `player_trans_norm_spec` are not sampled.
+- **No specular or parallax maps.** `shaders/player_color.gdshader` and the imported materials sample 0 A.D.'s normal maps (normal maps PR) but not `specTex` or the parallax height in `normTex` alpha.
 - **UI coverage.** Files on disk under `assets/textures/ui/`:
   - Emblems: 13 civs (`emblems/`, athenians through seleucids).
   - Phase icons: 3 (`phases/`: village, town, city).
