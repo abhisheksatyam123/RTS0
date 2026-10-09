@@ -84,6 +84,31 @@ TEMPLATES = {
     "wall_segment": ("wall_long",),
     "palisade": ("palisades_long",),
 }
+CIV_BUILDING_DATA = os.path.join(REPO, "src", "simulation", "civ_building_data.h")
+
+
+def unique_buildings():
+    """(stand-in model, model id, template stem) of each civ-specific BuildingType
+    whose model id is its own, from civ_building_data.h (extract_0ad_rosters.py)."""
+    import re
+    text = open(CIV_BUILDING_DATA).read()
+    rows = re.findall(r'\{"[^"]+", "([^"]+)", "([^"]+)",[^}]*\}, /\* structures/\w+/(\w+) \*/', text)
+    return [(stand_in, mid, stem) for stand_in, mid, stem in rows]
+
+
+# extract_0ad_rosters.py UNIQUE_BUILDINGS draw these with a stand-in model until
+# they have their own (the stand-in sets the fit).
+UNIQUE_STAND_IN = {
+    "gerousia": "great_hall", "syssiton": "great_hall", "assembly": "great_hall",
+    "tachara": "palace", "army_camp": "barracks", "monument": "pyramid_minor",
+    "pillar": "pyramid_minor", "mercenary_camp": "barracks", "military_colony": "town_center",
+    "camp_blemmye": "barracks", "camp_noba": "barracks", "temple_amun": "temple",
+    "temple_vesta": "temple", "temple_mars": "temple", "ice_house": "farmstead",
+    "super_dock": "dock",
+}
+# Small monuments sized from their 0 A.D. footprint (7-8 m) rather than the stand-in.
+UNIQUE_FIT = {"pillar": ("width", 1.4), "monument": ("width", 1.6)}
+
 # Generic models with no GLB yet: model id -> template under structures/.
 GENERIC = {"palisade": "palisades_long"}
 # Fit for ids extract_0ad_assets.py never sized (width in model units).
@@ -154,11 +179,18 @@ def read_static(path):
     doc = ET.parse(path).getroot()
     nodes = scene_nodes(doc)
     rest_world = world_matrices(nodes, {n: v[2] for n, v in nodes.items()})
+    # 0 A.D.'s converter reads Y_UP files as (x, y, -z) and Z_UP ones as (x, z, y):
+    # bring a Y_UP file into Z_UP space so props from both kinds compose.
+    up = doc.find(COLLADA + "asset/" + COLLADA + "up_axis")
+    to_zup = np.eye(4)
+    if up is not None and (up.text or "").strip() == "Y_UP":
+        to_zup = np.array([[1, 0, 0, 0], [0, 0, -1, 0], [0, 1, 0, 0], [0, 0, 0, 1]], dtype=np.float64)
+        rest_world = {k: to_zup @ v for k, v in rest_world.items()}
     by_id = {v[0]: k for k, v in nodes.items()}
     geoms = {g.get("id"): g for g in doc.iter(COLLADA + "geometry")}
     pieces = []
     for n in doc.iter(COLLADA + "node"):
-        place = rest_world.get(by_id.get(n.get("id")), np.eye(4))
+        place = rest_world.get(by_id.get(n.get("id")), to_zup)
         for ig in n.findall(COLLADA + "instance_geometry"):
             g = geoms.get(ig.get("url", "").lstrip("#"))
             if g is not None and g.find(COLLADA + "mesh") is not None:
@@ -172,7 +204,7 @@ def read_static(path):
             bsm_el = skin.find(COLLADA + "bind_shape_matrix")
             bsm = _mat(bsm_el.text) if bsm_el is not None else np.eye(4)
             # Bind pose: a static building's rig rests where it was bound.
-            pieces.append((bsm, *geometry_corners(doc, g.find(COLLADA + "mesh"))))
+            pieces.append((to_zup @ bsm, *geometry_corners(doc, g.find(COLLADA + "mesh"))))
     return {"nodes": nodes, "rest_world": rest_world, "pieces": pieces}
 
 
@@ -331,6 +363,10 @@ def convert(art, model_id, actor, fit, target, masks, tex_cache):
             "generator": "tools/extract_0ad_structures.py"}
 
 
+def fit_of(base):
+    return UNIQUE_FIT.get(base) or EXTRA_FIT.get(base) or tuple(ASSETS[base][1:3])
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--0ad", dest="zeroad", required=True, help="0 A.D. git checkout")
@@ -364,6 +400,26 @@ def main():
                     jobs.setdefault(gid, (actor, mid))
                     aliases[cid] = gid
                 break
+    # Civ-specific BuildingTypes: <civ>_<model id> for every civ whose folder has
+    # the template (the Seleucids build the Macedonian library, and so on).
+    for _cur, mid, stem in unique_buildings():
+        stand_in = UNIQUE_STAND_IN.get(mid)
+        if not stand_in:
+            continue
+        for civ in CIVS:
+            actor = template_actor(tdir, f"structures/{civ}/{stem}")
+            if not actor:
+                continue
+            if ASSETS.get(mid, ("",))[0] == "art/actors/" + actor:
+                continue  # <mid>.glb is this actor already
+            gid = "s_" + os.path.splitext(actor)[0].replace("structures/", "").replace("/", "_")
+            fit_key = mid if mid in UNIQUE_FIT else stand_in
+            if gid in jobs and fit_of(jobs[gid][1]) != fit_of(fit_key):
+                gid += "_" + fit_key
+            jobs.setdefault(gid, (actor, fit_key))
+            aliases[f"{civ}_{mid}"] = gid
+            # A civ without the template (a captured building) draws the first civ's.
+            aliases.setdefault(mid, gid)
     entries = {}
     masks = {}
     tex_cache = {}
@@ -372,7 +428,7 @@ def main():
             continue
         if not args.only and not args.all and os.path.exists(os.path.join(OUT_DIR, model_id + ".glb")):
             continue
-        fit, target = EXTRA_FIT.get(base) or ASSETS[base][1:3]
+        fit, target = fit_of(base)
         e = convert(art, model_id, actor, fit, target, masks, tex_cache)
         if e:
             entries[model_id] = e

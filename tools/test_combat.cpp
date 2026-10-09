@@ -27,7 +27,7 @@
 //     speeds traders, the Temple of Amun costs heroes 5% health, the prytaneion heals
 //     garrisoned heroes, soldiers on walls get +3 armour and +20 m vision, a library
 //     makes technologies 15% cheaper and a theater widens territory by 20%; Hippocrates
-//     gives allied healers +1 per heal.
+//     gives allied healers +1 per heal and Antiochus IV costs enemy structures 20% health.
 // 13. Attack timing and projectiles: a spearman that walks up strikes PrepareTime
 //     (0.5 s) after it reaches its foe, then every RepeatTime; an arrow flies at its
 //     shooter's Projectile Speed (at the distance scale) with a Gravity arc; an arrow
@@ -557,6 +557,26 @@ static void test_structure_auras() {
 	check(std::fabs(h.heal_amount_of((size_t)idx(h, own_healer)) - plain - 1.0f) < 1e-4f, "Hippocrates: own healer +1 per heal");
 	check(std::fabs(h.heal_amount_of((size_t)idx(h, ally_healer)) - plain - 1.0f) < 1e-4f, "Hippocrates: allied healer +1 per heal");
 	check(h.heal_amount_of((size_t)idx(h, foe_healer)) == plain, "Hippocrates: enemy healer unchanged");
+
+	// Antiochus IV's Renowned Conqueror: enemy structures within 80 m -20% max and current health.
+	Simulation a;
+	setup(a);
+	const uint32_t foe_house = a.spawn_building_world(-30.0f, 30.0f, BLD_HOUSE, 1, 1.0f);
+	const uint32_t own_house = a.spawn_building_world(-30.0f, 24.0f, BLD_HOUSE, 0, 1.0f);
+	auto bld = [&](uint32_t id) -> Simulation::Building & { return a.buildings_[a.building_id_to_idx_[id]]; };
+	const float foe_max = bld(foe_house).max_hp, own_max = bld(own_house).max_hp;
+	bld(foe_house).hp = foe_max * 0.5f;
+	const uint32_t ant = a.spawn_unit(-24.0f, 30.0f, 0, UNIT_HERO, 0.0f, template_named("sele/hero_antiochus_iv"));
+	a.order_set_stance(&ant, 1, STANCE_STAND_GROUND);
+	for (int k = 0; k < 20; ++k) a.tick(DT);
+	check(std::fabs(bld(foe_house).max_hp - foe_max * 0.8f) < 0.01f, "Antiochus IV: enemy house max health x0.8");
+	check(std::fabs(bld(foe_house).hp / bld(foe_house).max_hp - 0.5f) < 0.01f, "Antiochus IV: health fraction kept");
+	check(bld(own_house).max_hp == own_max, "Antiochus IV: own house unchanged");
+	const int ai = idx(a, ant);
+	a.units_.pos_x[ai] = 40.0f; a.units_.pos_z[ai] = -40.0f;
+	a.units_.alive[ai] = 0; // gone from the field
+	for (int k = 0; k < 20; ++k) a.tick(DT);
+	check(std::fabs(bld(foe_house).max_hp - foe_max) < 0.01f, "Antiochus IV gone: enemy house health back");
 }
 
 static void test_timing_projectiles() {

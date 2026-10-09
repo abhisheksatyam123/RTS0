@@ -167,31 +167,31 @@ TRAINER_BUILDING = {
 UNIQUE_BUILDINGS = [
     ("BLD_GYMNASIUM", ["gymnasium"], "gymnasium", "gymnasium"),
     ("BLD_PRYTANEION", ["prytaneion"], "prytaneion", "prytaneion"),
-    ("BLD_GEROUSIA", ["gerousia"], "great_hall", "gerousia"),
-    ("BLD_SYSSITON", ["syssiton"], "great_hall", "syssiton"),
-    ("BLD_TACHARA", ["tachara"], "palace", "tachara"),
-    ("BLD_ARMY_CAMP", ["army_camp"], "barracks", "army_camp"),
+    ("BLD_GEROUSIA", ["gerousia"], "gerousia", "gerousia"),
+    ("BLD_SYSSITON", ["syssiton"], "syssiton", "syssiton"),
+    ("BLD_TACHARA", ["tachara"], "tachara", "tachara"),
+    ("BLD_ARMY_CAMP", ["army_camp"], "army_camp", "army_camp"),
     ("BLD_AMPHITHEATER", ["amphitheater_pompeii"], "amphitheater", "amphitheater"),
     ("BLD_LIBRARY", ["library"], "library", "library"),
     ("BLD_KENNEL", ["kennel"], "kennel", "kennel"),
-    ("BLD_ASSEMBLY", ["assembly"], "great_hall", "assembly"),
-    ("BLD_MONUMENT", ["monument"], "pyramid_minor", "monument"),
+    ("BLD_ASSEMBLY", ["assembly"], "assembly", "assembly"),
+    ("BLD_MONUMENT", ["monument"], "monument", "monument"),
     ("BLD_PALACE", ["palace"], "palace", "palace"),
-    ("BLD_PILLAR", ["pillar_ashoka"], "pyramid_minor", "pillar"),
+    ("BLD_PILLAR", ["pillar_ashoka"], "pillar", "pillar"),
     ("BLD_PYRAMID_LARGE", ["pyramid_large"], "pyramid_large", "pyramid_large"),
     ("BLD_PYRAMID_SMALL", ["pyramid_small"], "pyramid_small", "pyramid_small"),
-    ("BLD_MERCENARY_CAMP", ["mercenary_camp"], "barracks", "mercenary_camp"),
+    ("BLD_MERCENARY_CAMP", ["mercenary_camp"], "mercenary_camp", "mercenary_camp"),
     ("BLD_LIGHTHOUSE", ["lighthouse"], "lighthouse", "lighthouse"),
-    ("BLD_MILITARY_COLONY", ["military_colony"], "town_center", "military_colony"),
+    ("BLD_MILITARY_COLONY", ["military_colony"], "military_colony", "military_colony"),
     ("BLD_ACADEMY", ["academy"], "academy", "academy"),
     ("BLD_MINISTRY", ["ministry"], "imperial_ministry", "ministry"),
-    ("BLD_CAMP_BLEMMYE", ["camp_blemmye"], "barracks", "camp_blemmye"),
-    ("BLD_CAMP_NOBA", ["camp_noba"], "barracks", "camp_noba"),
-    ("BLD_TEMPLE_AMUN", ["temple_amun"], "temple", "temple_amun"),
-    ("BLD_TEMPLE_VESTA", ["temple_vesta"], "temple", "temple_vesta"),
-    ("BLD_TEMPLE_MARS", ["temple_mars"], "temple", "temple_mars"),
-    ("BLD_ICE_HOUSE", ["ice_house"], "farmstead", "ice_house"),
-    ("BLD_SUPER_DOCK", ["super_dock"], "dock", "super_dock"),
+    ("BLD_CAMP_BLEMMYE", ["camp_blemmye"], "camp_blemmye", "camp_blemmye"),
+    ("BLD_CAMP_NOBA", ["camp_noba"], "camp_noba", "camp_noba"),
+    ("BLD_TEMPLE_AMUN", ["temple_amun"], "temple_amun", "temple_amun"),
+    ("BLD_TEMPLE_VESTA", ["temple_vesta"], "temple_vesta", "temple_vesta"),
+    ("BLD_TEMPLE_MARS", ["temple_mars"], "temple_mars", "temple_mars"),
+    ("BLD_ICE_HOUSE", ["ice_house"], "ice_house", "ice_house"),
+    ("BLD_SUPER_DOCK", ["super_dock"], "super_dock", "super_dock"),
 ]
 # Units of a civ-specific structure train only there, as in 0 A.D. (Petra builds
 # these structures since #105).
@@ -1160,7 +1160,7 @@ def emit_header(rows, auras, civ_json, bonuses, team):
     w("\t\t// id, name, description, radius (0 A.D. metres; 0 = global),")
     w("\t\t// RTS0 AuraManager effect: kind (AuraType, 255 = none modelled), value, range,")
     w("\t\t// affected players (AuraPlayers bits: 1 owner, 2 other allies, 4 enemies),")
-    w("\t\t// bitset of civ_unit_template_table() rows the aura affects")
+    w("\t\t// bitset of civ_unit_template_table() rows the aura affects, whether it affects structures")
     for a in auras:
         bits = [0] * words
         for i in a["affects_rows"]:
@@ -1169,8 +1169,10 @@ def emit_header(rows, auras, civ_json, bonuses, team):
         radius = a["radius"] if a["type"] == "range" else 0.0
         eff = a.get("rts0")
         kind, value, rng = (AURA_KIND[eff[0]], eff[1], eff[2]) if eff else (255, 0.0, 0.0)
-        w("\t\t{%s, %s, %s, %s, %d, %s, %s, %d, %s}," % (cstr(a["id"]), cstr(a["name"]), cstr(a["description"]),
-                                                     f(radius), kind, f(value), f(rng), aura_players_mask(a), bitset))
+        structures = "true" if "Structure" in a["affects"] else "false"
+        w("\t\t{%s, %s, %s, %s, %d, %s, %s, %d, %s, %s}," % (cstr(a["id"]), cstr(a["name"]), cstr(a["description"]),
+                                                         f(radius), kind, f(value), f(rng), aura_players_mask(a), bitset,
+                                                         structures))
     w("\t};")
     w("\treturn kAuras;")
     w("}")
