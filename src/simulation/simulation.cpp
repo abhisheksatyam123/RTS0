@@ -394,6 +394,7 @@ void Simulation::reset() {
 	transport_passengers_.clear();
 	turret_height_.clear();
 	for (double &d : battle_damage_) d = 0.0;
+	attacked_events_.clear();
 	turret_prev_stance_.clear();
 	formations_.clear();
 	next_formation_id_ = 1;
@@ -2061,6 +2062,8 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		m.bld_range[b] = m.bld_arrow_add[b] = m.bld_garrison_heal[b] = 0.0f;
 		m.bld_capture[b] = 1.0f;
 		for (float &c : m.bld_cost[b]) c = 1.0f;
+		m.bld_international_mul[b] = 1.0f;
+		m.bld_international_add[b] = 0.0f;
 	}
 	if (player_id >= MAX_PLAYERS) return;
 	const PlayerState &ps = players_[player_id];
@@ -2158,6 +2161,10 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 						break;
 					case TSTAT_GARRISON_HEAL: apply(m.bld_garrison_heal[b]); break;
 					case TSTAT_CAPTURE_POINTS: apply(m.bld_capture[b]); break;
+					case TSTAT_TRADE_INTERNATIONAL:
+						if (e.op == TOP_ADD) m.bld_international_add[b] += e.value;
+						else apply(m.bld_international_mul[b]);
+						break;
 					case TSTAT_COST_FOOD: case TSTAT_COST_WOOD: case TSTAT_COST_STONE: case TSTAT_COST_METAL:
 						apply(m.bld_cost[b][cost_res]); break;
 					default: break;
@@ -2332,12 +2339,19 @@ Simulation::TradeGain Simulation::calculate_trade_gain(const Building &from, con
 	                    (double)tech_mods(trader_owner).trade_gain[UNIT_TRADER] * (double)ai_gather_mult(trader_owner);
 	g.trader = (int)std::lround(trade_gain_normalization(map_size) * mult * trade_gain_curve(dx * dx + dz * dz, map_size));
 	if (from.team != to.team) {
-		// Han "Silk Road": allies' markets get +20% international bonus.
-		auto bonus = [&](uint8_t owner) {
-			return MARKET_INTERNATIONAL_BONUS * (double)team_bonus_mult(owner, TEAM_BONUS_TRADE_INTERNATIONAL);
+		// Market.js GetInternationalBonus: the market's own InternationalBonus (0.2, plus
+		// Carthage's 0.1) with its owner's modifications: Commercial Treaty adds 0.1,
+		// Han's Silk Road technology and their allies' Silk Road team bonus multiply by 1.2.
+		auto bonus = [&](const Building &m) {
+			const uint8_t owner = m.team;
+			if (owner >= MAX_PLAYERS || m.type >= BLD_TYPE_COUNT) return MARKET_INTERNATIONAL_BONUS;
+			const TechMods &tm = tech_mods(owner);
+			return (MARKET_INTERNATIONAL_BONUS + (double)civ_info(civ_of(owner)).international_bonus_add +
+			        (double)tm.bld_international_add[m.type]) *
+			       (double)tm.bld_international_mul[m.type] * (double)team_bonus_mult(owner, TEAM_BONUS_TRADE_INTERNATIONAL);
 		};
-		g.market1 = (int)std::lround(g.trader * bonus(from.team));
-		g.market2 = (int)std::lround(g.trader * bonus(to.team));
+		g.market1 = (int)std::lround(g.trader * bonus(from));
+		g.market2 = (int)std::lround(g.trader * bonus(to));
 	}
 	return g;
 }
@@ -4426,9 +4440,20 @@ void Simulation::gain_xp(size_t idx, float amount) {
 // battle music; it is presentation state, so it is neither saved nor hashed.
 void Simulation::note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uint32_t target_id, uint8_t target_owner,
 		bool target_is_building, float damage) {
-	(void)attacker_id, (void)target_id, (void)target_is_building; // for the session's AttackDetection events
+	if (!(damage > 0.0f)) return;
+	// The Attacked message for the session's AttackDetection (presentation only).
+	if (attacked_events_.size() < kMaxAttackedEvents) {
+		float x = 0.0f, z = 0.0f;
+		if (target_is_building) {
+			auto bit = building_id_to_idx_.find(target_id);
+			if (bit != building_id_to_idx_.end()) x = buildings_[bit->second].x, z = buildings_[bit->second].z;
+		} else if (int32_t u = lookup_unit(target_id); u >= 0) {
+			x = units_.pos_x[u], z = units_.pos_z[u];
+		}
+		attacked_events_.push_back({attacker_id, target_id, attacker_owner, target_owner, (uint8_t)target_is_building, x, z, damage});
+	}
 	if (attacker_owner >= MAX_PLAYERS || target_owner >= MAX_PLAYERS || attacker_owner == target_owner) return;
-	if (damage > 0.0f) battle_damage_[attacker_owner] += damage;
+	battle_damage_[attacker_owner] += damage;
 }
 
 void Simulation::award_damage_xp(uint32_t attacker_id, size_t victim, float damage) {
