@@ -11544,7 +11544,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/athen_cavalry.glb",
@@ -11566,6 +11568,10 @@
     "actor:art/actors/props/units/weapons/falcata.xml",
     "actor:art/actors/units/athenians/cavalry_swordsman_b_m.xml",
     "actor:art/actors/units/athenians/cavalry_swordsman_b_r.xml",
+    "anim:biped/rider/cavalry/generic/death_02.dae",
+    "anim:biped/rider/cavalry/generic/idle_relax_04.dae",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/hele_straw_01.dae",
     "mesh:props/horse/hair_mane_01.dae",
     "mesh:props/horse/hair_tail_01.dae",
@@ -13325,7 +13331,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/brit_cavalry.glb",
@@ -13352,6 +13360,10 @@
     "actor:art/actors/props/units/weapons/sheath_celt_iron_e.xml",
     "actor:art/actors/units/britons/cavalry_swordsman_b_m.xml",
     "actor:art/actors/units/britons/cavalry_swordsman_b_r.xml",
+    "anim:biped/rider/cavalry/generic/death_shield_02.dae",
+    "anim:biped/rider/cavalry/generic/idle_shield_relax_04.dae",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/horse/blanket_short.dae",
     "mesh:props/horse/hair_mane_01.dae",
     "mesh:props/horse/hair_tail_01.dae",
@@ -14522,7 +14534,8 @@
     "Carry",
     "Death",
     "Walk",
-    "Run"
+    "Run",
+    "Idle2"
    ],
    "bones": 48,
    "file": "models/units/camel.glb",
@@ -14546,6 +14559,8 @@
     "actor:art/actors/props/units/weapons/quiver_cavalry_right_arrows.xml",
     "actor:art/actors/units/ptolemies/camel_archer_a_m.xml",
     "actor:art/actors/units/ptolemies/camel_archer_a_r.xml",
+    "anim:biped/rider/camelry/archer/idle_relax_02.dae",
+    "anim:quadraped/camel_idle_02.dae",
     "mesh:props/camel_teeths.dae",
     "mesh:props/helmet/pers_conical_a.dae",
     "mesh:props/horse/blanket_camel_01.dae",
@@ -14875,7 +14890,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/cart_cavalry.glb",
@@ -14901,6 +14918,10 @@
     "actor:art/actors/props/units/weapons/sarissa.xml",
     "actor:art/actors/units/carthaginians/cavalry_spearman_c_m.xml",
     "actor:art/actors/units/carthaginians/cavalry_spearman_c_r.xml",
+    "anim:biped/rider/cavalry/spearman/death_2h_02.dae",
+    "anim:biped/rider/cavalry/spearman/idle_relax_2h_04.dae",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/pers_conical_a.dae",
     "mesh:props/helmet/props/hele_boeotian_hair.dae",
     "mesh:props/horse/blanket.dae",
@@ -14973,7 +14994,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 58,
    "file": "models/units/cart_elephant.glb",
@@ -14994,6 +15016,8 @@
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/units/carthaginians/elephantry_c_d.xml",
     "actor:art/actors/units/carthaginians/elephantry_c_m.xml",
+    "anim:biped/rider/elephantry/driver/idle_relax.dae",
+    "anim:quadraped/elephant_african_forest_idle_02.dae",
     "mesh:props/jav_blade.dae",
     "mesh:props/new/head_longhair.dae",
     "mesh:props/shield/pelte_02_back.dae",
@@ -15603,7 +15627,8 @@
     "Death",
     "Walk",
     "Run",
-    "Attack"
+    "Attack",
+    "Idle2"
    ],
    "bones": 48,
    "file": "models/units/cart_trader.glb",
@@ -15619,6 +15644,7 @@
     "actor:art/actors/props/camel/teeths.xml",
     "actor:art/actors/props/units/kart_camel_props.xml",
     "actor:art/actors/units/carthaginians/trader.xml",
+    "anim:quadraped/camel_idle_02.dae",
     "mesh:props/camel_teeths.dae",
     "mesh:props/kart_camel_prop1.dae",
     "mesh:skeletal/camel.dae",
@@ -16017,7 +16043,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/cavalry.glb",
@@ -16039,6 +16067,10 @@
     "actor:art/actors/props/units/weapons/falcata.xml",
     "actor:art/actors/units/athenians/cavalry_swordsman_b_m.xml",
     "actor:art/actors/units/athenians/cavalry_swordsman_b_r.xml",
+    "anim:biped/rider/cavalry/generic/death_02.dae",
+    "anim:biped/rider/cavalry/generic/idle_relax_04.dae",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/hele_straw_01.dae",
     "mesh:props/horse/hair_mane_01.dae",
     "mesh:props/horse/hair_tail_01.dae",
@@ -16458,7 +16490,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 58,
    "file": "models/units/elephant.glb",
@@ -16479,6 +16512,8 @@
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/units/carthaginians/elephantry_c_d.xml",
     "actor:art/actors/units/carthaginians/elephantry_c_m.xml",
+    "anim:biped/rider/elephantry/driver/idle_relax.dae",
+    "anim:quadraped/elephant_african_forest_idle_02.dae",
     "mesh:props/jav_blade.dae",
     "mesh:props/new/head_longhair.dae",
     "mesh:props/shield/pelte_02_back.dae",
@@ -18400,7 +18435,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/gaul_cavalry.glb",
@@ -18427,6 +18464,10 @@
     "actor:art/actors/props/units/weapons/sheath_celt_iron_e.xml",
     "actor:art/actors/units/gauls/cavalry_swordsman_b_m.xml",
     "actor:art/actors/units/gauls/cavalry_swordsman_b_r.xml",
+    "anim:biped/rider/cavalry/generic/death_shield_02.dae",
+    "anim:biped/rider/cavalry/generic/idle_shield_relax_04.dae",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/horse/blanket_short.dae",
     "mesh:props/horse/hair_mane_01.dae",
     "mesh:props/horse/hair_tail_01.dae",
@@ -19838,7 +19879,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/han_cavalry_archer.glb",
@@ -19864,6 +19907,8 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/han/cavalry_archer_b_m.xml",
     "actor:art/actors/units/han/cavalry_archer_b_r.xml",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/han_bandana.dae",
     "mesh:props/helmet/han_hairbun.dae",
     "mesh:props/horse/chest_colorband_01.dae",
@@ -19900,7 +19945,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/han_cavalry_crossbow.glb",
@@ -19927,6 +19974,8 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/han/cavalry_crossbowman_c_m.xml",
     "actor:art/actors/units/han/cavalry_crossbowman_c_r.xml",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/han_cavalry_swordsman_helmet.dae",
     "mesh:props/horse/blanket_short.dae",
     "mesh:props/horse/chest_colorband_01.dae",
@@ -19965,7 +20014,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/han_cavalry_spearman.glb",
@@ -19990,6 +20041,8 @@
     "actor:art/actors/props/units/weapons/sword/han_jian_d.xml",
     "actor:art/actors/units/han/cavalry_spearman_c_m.xml",
     "actor:art/actors/units/han/cavalry_spearman_c_r.xml",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/han_heavy_cavalry_helmet.dae",
     "mesh:props/horse/blanket_short.dae",
     "mesh:props/horse/hair_mane_01.dae",
@@ -20024,7 +20077,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/han_cavalry_swordsman.glb",
@@ -20049,6 +20104,8 @@
     "actor:art/actors/props/units/weapons/sword/han_curved_dao.xml",
     "actor:art/actors/units/han/cavalry_swordsman_b_m.xml",
     "actor:art/actors/units/han/cavalry_swordsman_b_r.xml",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/han_bandana.dae",
     "mesh:props/helmet/han_hairbun.dae",
     "mesh:props/horse/chest_colorband_01.dae",
@@ -20129,7 +20186,8 @@
     "Idle",
     "Run",
     "Walk",
-    "GatherMeat"
+    "GatherMeat",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/han_chariot_general.glb",
@@ -20147,6 +20205,7 @@
     "actor:art/actors/props/horse/horse_hair_mane_black_brown.xml",
     "actor:art/actors/props/horse/horse_hair_tail_black_brown.xml",
     "actor:art/actors/units/han/chariot_archer_h_01.xml",
+    "anim:quadraped/horse_death_02.dae",
     "mesh:props/horse/blanket_short.dae",
     "mesh:props/horse/chest_colorband_01.dae",
     "mesh:props/horse/hair_mane_01.dae",
@@ -20641,7 +20700,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/han_hero_cav_han_xin.glb",
@@ -20667,6 +20728,8 @@
     "actor:art/actors/props/units/weapons/sword/han_sword_han_xin.xml",
     "actor:art/actors/units/han/hero_cavalry_spearman_han_xin_m.xml",
     "actor:art/actors/units/han/hero_cavalry_spearman_han_xin_r.xml",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/han_hairbun.dae",
     "mesh:props/horse/blanket_short.dae",
     "mesh:props/horse/chest_colorband_01.dae",
@@ -20704,7 +20767,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/han_hero_cav_liu_bang.glb",
@@ -20728,6 +20793,8 @@
     "actor:art/actors/props/units/weapons/sword/han_jian_c.xml",
     "actor:art/actors/units/han/hero_cavalry_swordsman_liu_bang_m.xml",
     "actor:art/actors/units/han/hero_cavalry_swordsman_liu_bang_r.xml",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/han_hairbun.dae",
     "mesh:props/horse/blanket_short.dae",
     "mesh:props/horse/chest_colorband_01.dae",
@@ -20761,7 +20828,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/han_hero_cav_wei_qing.glb",
@@ -20790,6 +20859,8 @@
     "actor:art/actors/props/units/weapons/sword/han_jian_d.xml",
     "actor:art/actors/units/han/hero_cavalry_crossbowman_wei_qing_m.xml",
     "actor:art/actors/units/han/hero_cavalry_crossbowman_wei_qing_r.xml",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/han_hairbun.dae",
     "mesh:props/horse/blanket_short.dae",
     "mesh:props/horse/chest_colorband_01.dae",
@@ -21775,7 +21846,8 @@
     "Death",
     "Walk",
     "Run",
-    "Attack"
+    "Attack",
+    "Idle2"
    ],
    "bones": 48,
    "file": "models/units/han_trader.glb",
@@ -21795,6 +21867,7 @@
     "actor:art/actors/props/units/weapons/trader_staff.xml",
     "actor:art/actors/units/han/trader.xml",
     "actor:art/actors/units/hellenes/trader_r.xml",
+    "anim:quadraped/camel_idle_02.dae",
     "mesh:props/camel_teeths.dae",
     "mesh:props/helmet/hele_straw_01.dae",
     "mesh:props/new/head_beard_small.dae",
@@ -22574,7 +22647,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/iber_cavalry.glb",
@@ -22603,6 +22678,10 @@
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/units/iberians/cavalry_javelinist_c_m.xml",
     "actor:art/actors/units/iberians/cavalry_javelinist_c_r.xml",
+    "anim:biped/rider/cavalry/archer/death_02.dae",
+    "anim:biped/rider/cavalry/javelin/idle_relax_04.dae",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/hele_chalcidean_f1.dae",
     "mesh:props/helmet/props/hele_boeotian_hair.dae",
     "mesh:props/helmet/props/hele_hispano_chalcidean_mask_a.dae",
@@ -23943,7 +24022,8 @@
     "Carry",
     "Death",
     "Walk",
-    "Run"
+    "Run",
+    "Idle2"
    ],
    "bones": 48,
    "file": "models/units/kush_camel.glb",
@@ -23968,6 +24048,8 @@
     "actor:art/actors/props/units/weapons/jav_loaded.xml",
     "actor:art/actors/units/kushites/camel_javelinist_b_m.xml",
     "actor:art/actors/units/kushites/camel_javelinist_b_r.xml",
+    "anim:biped/rider/camelry/archer/idle_relax_02.dae",
+    "anim:quadraped/camel_idle_02.dae",
     "mesh:props/camel_teeths.dae",
     "mesh:props/heads/head_kush_02_hair.dae",
     "mesh:props/horse/blanket_camel_01.dae",
@@ -24002,7 +24084,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/kush_cav_jav_a.glb",
@@ -24030,6 +24114,8 @@
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/units/kushites/cavalry_javelinist_a_m.xml",
     "actor:art/actors/units/kushites/cavalry_javelinist_a_r.xml",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/horse/blanket_kush.dae",
     "mesh:props/horse/hair_mane_01.dae",
@@ -24068,7 +24154,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/kush_cav_jav_b.glb",
@@ -24094,6 +24182,8 @@
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/units/kushites/cavalry_javelinist_b_m.xml",
     "actor:art/actors/units/kushites/cavalry_javelinist_b_r.xml",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/horse/blanket_kush.dae",
     "mesh:props/horse/hair_mane_01.dae",
@@ -24128,7 +24218,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/kush_cav_jav_e.glb",
@@ -24157,6 +24249,8 @@
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/units/kushites/cavalry_javelinist_e_m.xml",
     "actor:art/actors/units/kushites/cavalry_javelinist_e_r.xml",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/helmet/ptol_quilted.dae",
     "mesh:props/horse/blanket_kush.dae",
@@ -24197,7 +24291,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/kush_cav_spear_a.glb",
@@ -24223,6 +24319,8 @@
     "actor:art/actors/props/units/weapons/spear.xml",
     "actor:art/actors/units/kushites/cavalry_spearman_a_m.xml",
     "actor:art/actors/units/kushites/cavalry_spearman_a_r.xml",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/horse/blanket_kush.dae",
     "mesh:props/horse/hair_mane_01.dae",
     "mesh:props/horse/hair_tail_01.dae",
@@ -24258,7 +24356,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/kush_cav_spear_e.glb",
@@ -24286,6 +24386,8 @@
     "actor:art/actors/props/units/weapons/spear.xml",
     "actor:art/actors/units/kushites/cavalry_spearman_e_m.xml",
     "actor:art/actors/units/kushites/cavalry_spearman_e_r.xml",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/helmet/ptol_quilted.dae",
     "mesh:props/horse/blanket_kush.dae",
@@ -24325,7 +24427,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/kush_cavalry.glb",
@@ -24353,6 +24457,10 @@
     "actor:art/actors/props/units/weapons/kush_spear.xml",
     "actor:art/actors/units/kushites/cavalry_spearman_c_m.xml",
     "actor:art/actors/units/kushites/cavalry_spearman_c_r.xml",
+    "anim:biped/rider/cavalry/generic/death_shield_02.dae",
+    "anim:biped/rider/cavalry/generic/idle_shield_relax_04.dae",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/kush_skull_cap_cavalry.dae",
     "mesh:props/helmet/kushite_horse_crest.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
@@ -24449,7 +24557,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 58,
    "file": "models/units/kush_elephant.glb",
@@ -24471,6 +24580,8 @@
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/units/kushites/elephantry_c_m.xml",
     "actor:art/actors/units/kushites/elephantry_c_r.xml",
+    "anim:biped/rider/elephantry/driver/idle_relax.dae",
+    "anim:quadraped/elephant_african_forest_idle_02.dae",
     "mesh:props/helmet/kush_skull_cap.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/jav_blade.dae",
@@ -24748,7 +24859,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/kush_hero_cav_harsiotef.glb",
@@ -24777,6 +24890,8 @@
     "actor:art/actors/props/units/weapons/kush_spear.xml",
     "actor:art/actors/units/kushites/hero_cavalry_spearman_harsiotef_m.xml",
     "actor:art/actors/units/kushites/hero_cavalry_spearman_harsiotef_r.xml",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/kush_skull_cap_cavalry_crown.dae",
     "mesh:props/helmet/kush_skull_cap_crown_snake_single.dae",
     "mesh:props/helmet/kushite_horse_crest.dae",
@@ -24818,7 +24933,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/kush_hero_cav_nastasen.glb",
@@ -24847,6 +24964,8 @@
     "actor:art/actors/props/units/weapons/kush_spear.xml",
     "actor:art/actors/units/kushites/hero_cavalry_spearman_nastasen_m.xml",
     "actor:art/actors/units/kushites/hero_cavalry_spearman_nastasen_r.xml",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/kush_skull_cap_cavalry_crown.dae",
     "mesh:props/helmet/kush_skull_cap_crown_snake_single.dae",
     "mesh:props/helmet/kushite_horse_crest.dae",
@@ -24964,7 +25083,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 58,
    "file": "models/units/kush_hero_elephant.glb",
@@ -24991,6 +25111,7 @@
     "actor:art/actors/units/kushites/hero_elephantry_arakamani_d.xml",
     "actor:art/actors/units/kushites/hero_elephantry_arakamani_m.xml",
     "actor:art/actors/units/kushites/hero_elephantry_arakamani_r.xml",
+    "anim:quadraped/elephant_asian_idle_02.dae",
     "mesh:props/heads/feather_ostrich_1.dae",
     "mesh:props/heads/hair_kush.dae",
     "mesh:props/helmet/kush_skull_cap_cavalry_crown.dae",
@@ -27018,7 +27139,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/mace_cavalry.glb",
@@ -27043,6 +27166,10 @@
     "actor:art/actors/props/units/weapons/spear_lance_cavalry_reverse.xml",
     "actor:art/actors/units/macedonians/cavalry_spearman_c_m.xml",
     "actor:art/actors/units/macedonians/cavalry_spearman_c_r.xml",
+    "anim:biped/rider/cavalry/generic/death_02.dae",
+    "anim:biped/rider/cavalry/spearman/idle_relax_shoulder_04.dae",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/hele_boeotian_b.dae",
     "mesh:props/helmet/props/hele_crest_a.dae",
     "mesh:props/helmet/props/hele_crest_hair_a.dae",
@@ -28638,7 +28765,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/maur_cav_jav_a.glb",
@@ -28663,6 +28792,8 @@
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/units/mauryas/cavalry_javelinist_a_m.xml",
     "actor:art/actors/units/mauryas/cavalry_javelinist_a_r.xml",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/horse/blanket_short.dae",
     "mesh:props/horse/hair_mane_01.dae",
     "mesh:props/horse/hair_tail_01.dae",
@@ -28695,7 +28826,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/maur_cav_jav_b.glb",
@@ -28720,6 +28853,8 @@
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/units/mauryas/cavalry_javelinist_b_m.xml",
     "actor:art/actors/units/mauryas/cavalry_javelinist_b_r.xml",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/horse/blanket_short.dae",
     "mesh:props/horse/hair_mane_01.dae",
     "mesh:props/horse/hair_tail_01.dae",
@@ -28752,7 +28887,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/maur_cav_jav_e.glb",
@@ -28777,6 +28914,8 @@
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/units/mauryas/cavalry_javelinist_e_m.xml",
     "actor:art/actors/units/mauryas/cavalry_javelinist_e_r.xml",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/horse/blanket_short.dae",
     "mesh:props/horse/hair_mane_01.dae",
     "mesh:props/horse/hair_tail_01.dae",
@@ -28809,7 +28948,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/maur_cav_sword_a.glb",
@@ -28833,6 +28974,8 @@
     "actor:art/actors/props/units/weapons/longsword_mauryan.xml",
     "actor:art/actors/units/mauryas/cavalry_swordsman_a_m.xml",
     "actor:art/actors/units/mauryas/cavalry_swordsman_a_r.xml",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/maur_inf_turban_a.dae",
     "mesh:props/horse/blanket_short.dae",
     "mesh:props/horse/hair_mane_01.dae",
@@ -28865,7 +29008,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/maur_cav_sword_e.glb",
@@ -28889,6 +29034,8 @@
     "actor:art/actors/props/units/weapons/longsword_mauryan.xml",
     "actor:art/actors/units/mauryas/cavalry_swordsman_e_m.xml",
     "actor:art/actors/units/mauryas/cavalry_swordsman_e_r.xml",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/maur_inf_turban_a.dae",
     "mesh:props/horse/blanket_short.dae",
     "mesh:props/horse/hair_mane_01.dae",
@@ -28921,7 +29068,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/maur_cavalry.glb",
@@ -28945,6 +29094,10 @@
     "actor:art/actors/props/units/weapons/longsword_mauryan.xml",
     "actor:art/actors/units/mauryas/cavalry_swordsman_b_m.xml",
     "actor:art/actors/units/mauryas/cavalry_swordsman_b_r.xml",
+    "anim:biped/rider/cavalry/generic/death_shield_02.dae",
+    "anim:biped/rider/cavalry/generic/idle_shield_relax_04.dae",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/maur_inf_battle_turban_a.dae",
     "mesh:props/horse/blanket_short.dae",
     "mesh:props/horse/hair_mane_01.dae",
@@ -29183,7 +29336,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 58,
    "file": "models/units/maur_eleph_archer_a.glb",
@@ -29210,6 +29364,7 @@
     "actor:art/actors/units/mauryas/elephantry_archer_d.xml",
     "actor:art/actors/units/mauryas/elephantry_archer_r1.xml",
     "actor:art/actors/units/mauryas/elephantry_archer_r2.xml",
+    "anim:quadraped/elephant_asian_idle_02.dae",
     "mesh:props/jav_blade.dae",
     "mesh:props/maur_shield_small.dae",
     "mesh:props/new/head_indian_1.dae",
@@ -29239,7 +29394,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 58,
    "file": "models/units/maur_eleph_archer_b.glb",
@@ -29265,6 +29421,7 @@
     "actor:art/actors/units/mauryas/elephantry_archer_b_m.xml",
     "actor:art/actors/units/mauryas/elephantry_archer_d.xml",
     "actor:art/actors/units/mauryas/elephantry_archer_r1.xml",
+    "anim:quadraped/elephant_asian_idle_02.dae",
     "mesh:props/jav_blade.dae",
     "mesh:props/maur_shield_small.dae",
     "mesh:props/new/head_indian_1.dae",
@@ -29377,7 +29534,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 58,
    "file": "models/units/maur_elephant.glb",
@@ -29405,6 +29563,7 @@
     "actor:art/actors/units/mauryas/elephantry_archer_r1.xml",
     "actor:art/actors/units/mauryas/elephantry_archer_r2.xml",
     "actor:art/actors/units/mauryas/elephantry_archer_r3.xml",
+    "anim:quadraped/elephant_asian_idle_02.dae",
     "mesh:props/jav_blade.dae",
     "mesh:props/maur_shield_small.dae",
     "mesh:props/new/head_indian_1.dae",
@@ -30012,7 +30171,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 58,
    "file": "models/units/maur_hero_elephant.glb",
@@ -30035,6 +30195,7 @@
     "actor:art/actors/units/mauryas/elephantry_c_d.xml",
     "actor:art/actors/units/mauryas/hero_elephant_chandragupta_m.xml",
     "actor:art/actors/units/mauryas/hero_elephant_chandragupta_r.xml",
+    "anim:quadraped/elephant_asian_idle_02.dae",
     "mesh:props/elephant/maur_hero_howdah.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/helmet/maur_hero_turban_a.dae",
@@ -31413,7 +31574,8 @@
     "Run",
     "Attack",
     "Death",
-    "Build"
+    "Build",
+    "Idle2"
    ],
    "bones": 58,
    "file": "models/units/maur_worker_elephant.glb",
@@ -31431,6 +31593,8 @@
     "actor:art/actors/props/units/maur_support_turret.xml",
     "actor:art/actors/units/mauryas/support_elephant.xml",
     "actor:art/actors/units/mauryas/support_elephant_d.xml",
+    "anim:biped/rider/elephantry/driver/idle_relax.dae",
+    "anim:quadraped/elephant_asian_idle_02.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/maur_support_turret.dae",
     "mesh:props/new/head_indian_1.dae",
@@ -31872,7 +32036,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/pers_cavalry.glb",
@@ -31898,6 +32064,10 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/persians/cavalry_axeman_b_m.xml",
     "actor:art/actors/units/persians/cavalry_axeman_b_r.xml",
+    "anim:biped/rider/cavalry/generic/death_shield_02.dae",
+    "anim:biped/rider/cavalry/generic/idle_shield_relax_04.dae",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/pers_kidaris_loose.dae",
     "mesh:props/horse/chest_colorband_01.dae",
     "mesh:props/horse/hair_mane_01.dae",
@@ -32024,7 +32194,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 58,
    "file": "models/units/pers_elephant.glb",
@@ -32054,6 +32225,8 @@
     "actor:art/actors/units/persians/elephantry_c_d.xml",
     "actor:art/actors/units/persians/elephantry_c_m.xml",
     "actor:art/actors/units/persians/elephantry_c_r.xml",
+    "anim:biped/rider/elephantry/driver/idle_relax.dae",
+    "anim:quadraped/elephant_asian_idle_02.dae",
     "mesh:props/helmet/maur_inf_big_turban_maiden.dae",
     "mesh:props/helmet/pers_conical_b.dae",
     "mesh:props/helmet/props/hele_crest_pilos_small.dae",
@@ -32706,7 +32879,8 @@
     "Death",
     "Walk",
     "Run",
-    "Attack"
+    "Attack",
+    "Idle2"
    ],
    "bones": 48,
    "file": "models/units/pers_trader.glb",
@@ -32722,6 +32896,7 @@
     "actor:art/actors/props/camel/teeths.xml",
     "actor:art/actors/props/units/pers_camel_props.xml",
     "actor:art/actors/units/persians/trader.xml",
+    "anim:quadraped/camel_idle_02.dae",
     "mesh:props/camel_teeths.dae",
     "mesh:props/pers_camel_prop1.dae",
     "mesh:skeletal/camel.dae",
@@ -33220,7 +33395,8 @@
     "Carry",
     "Death",
     "Walk",
-    "Run"
+    "Run",
+    "Idle2"
    ],
    "bones": 48,
    "file": "models/units/ptol_camel.glb",
@@ -33244,6 +33420,8 @@
     "actor:art/actors/props/units/weapons/quiver_cavalry_right_arrows.xml",
     "actor:art/actors/units/ptolemies/camel_archer_a_m.xml",
     "actor:art/actors/units/ptolemies/camel_archer_a_r.xml",
+    "anim:biped/rider/camelry/archer/idle_relax_02.dae",
+    "anim:quadraped/camel_idle_02.dae",
     "mesh:props/camel_teeths.dae",
     "mesh:props/helmet/pers_conical_a.dae",
     "mesh:props/horse/blanket_camel_01.dae",
@@ -33328,7 +33506,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/ptol_cavalry.glb",
@@ -33361,6 +33541,10 @@
     "actor:art/actors/props/units/weapons/xiphos.xml",
     "actor:art/actors/units/ptolemies/cavalry_spearman_c_m.xml",
     "actor:art/actors/units/ptolemies/cavalry_spearman_c_r.xml",
+    "anim:biped/rider/cavalry/generic/death_aspis_02.dae",
+    "anim:biped/rider/cavalry/generic/idle_aspis_relax_04.dae",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/hele_boeotian_c.dae",
     "mesh:props/helmet/props/hele_attic_mask_a1.dae",
     "mesh:props/helmet/props/hele_boeotian_hair.dae",
@@ -33451,7 +33635,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 58,
    "file": "models/units/ptol_elephant.glb",
@@ -33486,6 +33671,8 @@
     "actor:art/actors/units/ptolemies/elephantry_c_d.xml",
     "actor:art/actors/units/ptolemies/elephantry_c_m.xml",
     "actor:art/actors/units/ptolemies/elephantry_c_r.xml",
+    "anim:biped/rider/elephantry/driver/idle_relax.dae",
+    "anim:quadraped/elephant_african_forest_idle_02.dae",
     "mesh:props/elephant/cushion_01.dae",
     "mesh:props/elephant/howdah_01.dae",
     "mesh:props/heads/feather_ostrich_1.dae",
@@ -35029,7 +35216,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/rome_cavalry.glb",
@@ -35055,6 +35244,10 @@
     "actor:art/actors/props/units/weapons/spear_lance_cavalry_reverse.xml",
     "actor:art/actors/units/romans/cavalry_spearman_b_m.xml",
     "actor:art/actors/units/romans/cavalry_spearman_b_r.xml",
+    "anim:biped/rider/cavalry/generic/death_shield_02.dae",
+    "anim:biped/rider/cavalry/generic/idle_shield_relax_04.dae",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/rome_montefortino_a.dae",
     "mesh:props/horse/chest_colorband_01.dae",
     "mesh:props/horse/hair_mane_01.dae",
@@ -36526,7 +36719,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/sele_cavalry.glb",
@@ -36552,6 +36747,10 @@
     "actor:art/actors/props/units/weapons/sarissa.xml",
     "actor:art/actors/units/seleucids/cavalry_spearman_c_m.xml",
     "actor:art/actors/units/seleucids/cavalry_spearman_c_r.xml",
+    "anim:biped/rider/cavalry/spearman/death_2h_02.dae",
+    "anim:biped/rider/cavalry/spearman/idle_relax_2h_04.dae",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/hele_thracian_romanized_b.dae",
     "mesh:props/helmet/props/hele_boeotian_hair.dae",
     "mesh:props/helmet/props/sele_mask_a.dae",
@@ -36696,7 +36895,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 58,
    "file": "models/units/sele_elephant.glb",
@@ -36722,6 +36922,8 @@
     "actor:art/actors/units/seleucids/elephantry_c_d.xml",
     "actor:art/actors/units/seleucids/elephantry_c_m.xml",
     "actor:art/actors/units/seleucids/elephantry_c_r.xml",
+    "anim:biped/rider/elephantry/driver/idle_relax.dae",
+    "anim:quadraped/elephant_asian_idle_02.dae",
     "mesh:props/elephant/howdah_02.dae",
     "mesh:props/helmet/hele_thracian_c.dae",
     "mesh:props/helmet/maur_inf_turban_a.dae",
@@ -38593,7 +38795,9 @@
     "Death",
     "GatherMeat",
     "Run",
-    "Walk"
+    "Walk",
+    "Idle2",
+    "Death2"
    ],
    "bones": 49,
    "file": "models/units/spart_cavalry.glb",
@@ -38615,6 +38819,10 @@
     "actor:art/actors/props/units/weapons/spear_lance_cavalry.xml",
     "actor:art/actors/units/spartans/cavalry_spearman_b_m.xml",
     "actor:art/actors/units/spartans/cavalry_spearman_b_r.xml",
+    "anim:biped/rider/cavalry/generic/death_02.dae",
+    "anim:biped/rider/cavalry/spearman/idle_relax_shoulder_04.dae",
+    "anim:quadraped/horse_death_02.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "mesh:props/horse/hair_mane_01.dae",
     "mesh:props/horse/hair_tail_01.dae",
     "mesh:props/horse/rein_01.dae",
@@ -40536,7 +40744,8 @@
     "Run",
     "Attack",
     "Death",
-    "Build"
+    "Build",
+    "Idle2"
    ],
    "bones": 58,
    "file": "models/units/worker_elephant.glb",
@@ -40554,6 +40763,8 @@
     "actor:art/actors/props/units/maur_support_turret.xml",
     "actor:art/actors/units/mauryas/support_elephant.xml",
     "actor:art/actors/units/mauryas/support_elephant_d.xml",
+    "anim:biped/rider/elephantry/driver/idle_relax.dae",
+    "anim:quadraped/elephant_asian_idle_02.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
     "mesh:props/maur_support_turret.dae",
     "mesh:props/new/head_indian_1.dae",
