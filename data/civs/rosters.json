@@ -3832,7 +3832,11 @@
    "specific_name": "Kuruš",
    "phase": 3,
    "trainers": [
-    "BLD_TACHARA"
+    "BLD_TACHARA",
+    "BLD_TACHARA_FOOD",
+    "BLD_TACHARA_WOOD",
+    "BLD_TACHARA_STONE",
+    "BLD_TACHARA_METAL"
    ],
    "trained_at_0ad": [
     "tachara",
@@ -3891,7 +3895,11 @@
    "specific_name": "Dārayavahuš",
    "phase": 3,
    "trainers": [
-    "BLD_TACHARA"
+    "BLD_TACHARA",
+    "BLD_TACHARA_FOOD",
+    "BLD_TACHARA_WOOD",
+    "BLD_TACHARA_STONE",
+    "BLD_TACHARA_METAL"
    ],
    "trained_at_0ad": [
     "tachara",
@@ -3952,7 +3960,11 @@
    "specific_name": "Xšayāršā",
    "phase": 3,
    "trainers": [
-    "BLD_TACHARA"
+    "BLD_TACHARA",
+    "BLD_TACHARA_FOOD",
+    "BLD_TACHARA_WOOD",
+    "BLD_TACHARA_STONE",
+    "BLD_TACHARA_METAL"
    ],
    "trained_at_0ad": [
     "tachara",
@@ -7751,7 +7763,8 @@
    "specific_name": "Aštāh",
    "phase": 1,
    "trainers": [
-    "BLD_HOUSE"
+    "BLD_HOUSE",
+    "BLD_APARTMENT"
    ],
    "trained_at_0ad": [
     "apartment",

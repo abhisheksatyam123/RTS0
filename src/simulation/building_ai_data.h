@@ -18,17 +18,17 @@ struct BuildingAIInfo {
 	bool shoots() const { return default_arrows > 0 || garrison_arrow_multiplier > 0.0f; }
 };
 
-inline constexpr uint8_t BUILDING_AI_ROWS = 52;
+inline constexpr uint8_t BUILDING_AI_ROWS = 58;
 inline const BuildingAIInfo &building_ai_info(uint8_t type) {
 	static const BuildingAIInfo kTable[BUILDING_AI_ROWS + 1] = {
-		{6, 0, 1.0f, TC_SOLDIER, 0.0f, 8.0f, 0.0f, 0.0f, 16.8f, 0.0f, 0.4f, 4.0f, true}, // BLD_TOWN_CENTER: template_structure_civic_civil_centre
+		{3, 0, 1.0f, TC_SOLDIER, 0.0f, 10.0f, 0.0f, 0.0f, 16.8f, 0.0f, 1.2f, 2.0f, true}, // BLD_TOWN_CENTER: template_structure_civic_civil_centre
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_HOUSE: template_structure_civic_house
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_BARRACKS: template_structure_military_barracks
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_STOREHOUSE: template_structure_economic_storehouse
-		{4, 0, 1.0f, TC_INFANTRY, 0.0f, 8.0f, 0.0f, 2.8f, 16.8f, 4.2f, 0.4f, 3.5f, true}, // BLD_TOWER: template_structure_defensive_tower_stone
+		{1, 0, 1.0f, TC_INFANTRY, 0.0f, 11.0f, 0.0f, 2.8f, 16.8f, 4.2f, 1.2f, 2.0f, true}, // BLD_TOWER: template_structure_defensive_tower_stone
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_FARMSTEAD: template_structure_economic_farmstead
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_MARKET: template_structure_economic_market
-		{10, 0, 1.0f, TC_SOLDIER, 0.0f, 10.0f, 0.0f, 2.8f, 16.8f, 0.0f, 0.4f, 3.5f, true}, // BLD_FORTRESS: template_structure_military_fortress
+		{4, 0, 1.0f, TC_SOLDIER, 0.0f, 10.0f, 0.0f, 0.0f, 16.8f, 0.0f, 1.2f, 2.0f, true}, // BLD_FORTRESS: template_structure_military_fortress
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_GATE: template_structure_defensive_wall_gate
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_TEMPLE: template_structure_civic_temple
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_WONDER: template_structure_wonder
@@ -40,7 +40,7 @@ inline const BuildingAIInfo &building_ai_info(uint8_t type) {
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_RANGE: template_structure_military_range
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_FORGE: template_structure_military_forge
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_ARSENAL: template_structure_military_arsenal
-		{2, 6, 1.0f, TC_INFANTRY, 0.0f, 8.0f, 0.0f, 2.8f, 16.8f, 2.52f, 0.4f, 3.5f, true}, // BLD_SENTRY_TOWER: template_structure_defensive_tower_sentry
+		{1, 4, 1.0f, TC_INFANTRY, 0.0f, 11.0f, 0.0f, 2.8f, 16.8f, 2.52f, 1.2f, 2.0f, true}, // BLD_SENTRY_TOWER: template_structure_defensive_tower_sentry
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_OUTPOST: template_structure_defensive_outpost
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_PALISADE: template_structure_defensive_palisade
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_WALL_TOWER: template_structure_defensive_wall_tower
@@ -52,7 +52,7 @@ inline const BuildingAIInfo &building_ai_info(uint8_t type) {
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_GEROUSIA: structures/spart/gerousia
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_SYSSITON: structures/spart/syssiton
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_TACHARA: structures/pers/tachara
-		{5, 18, 1.0f, TC_SOLDIER, 0.0f, 8.0f, 0.0f, 0.0f, 16.8f, 0.0f, 0.4f, 3.5f, true}, // BLD_ARMY_CAMP: structures/rome/army_camp
+		{3, 15, 1.0f, TC_SOLDIER, 0.0f, 10.0f, 0.0f, 0.0f, 16.8f, 0.0f, 1.2f, 2.0f, true}, // BLD_ARMY_CAMP: structures/rome/army_camp
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_AMPHITHEATER: structures/rome/amphitheater_pompeii
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_LIBRARY: structures/mace/library
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_KENNEL: structures/brit/kennel
@@ -64,7 +64,7 @@ inline const BuildingAIInfo &building_ai_info(uint8_t type) {
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_PYRAMID_SMALL: structures/kush/pyramid_small
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_MERCENARY_CAMP: structures/ptol/mercenary_camp
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_LIGHTHOUSE: structures/ptol/lighthouse
-		{1, 0, 1.0f, TC_SOLDIER, 0.0f, 8.0f, 0.0f, 0.0f, 16.8f, 0.0f, 0.4f, 4.0f, true}, // BLD_MILITARY_COLONY: structures/ptol/military_colony
+		{1, 0, 1.0f, TC_SOLDIER, 0.0f, 10.0f, 0.0f, 0.0f, 16.8f, 0.0f, 1.2f, 2.0f, true}, // BLD_MILITARY_COLONY: structures/ptol/military_colony
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_ACADEMY: structures/han/academy
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_MINISTRY: structures/han/ministry
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_CAMP_BLEMMYE: structures/kush/camp_blemmye
@@ -73,6 +73,12 @@ inline const BuildingAIInfo &building_ai_info(uint8_t type) {
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_TEMPLE_VESTA: structures/rome/temple_vesta
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_TEMPLE_MARS: structures/rome/temple_mars
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_ICE_HOUSE: structures/pers/ice_house
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_SUPER_DOCK: structures/cart/super_dock
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_TACHARA_FOOD: structures/pers/tachara_food
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_TACHARA_WOOD: structures/pers/tachara_wood
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_TACHARA_STONE: structures/pers/tachara_stone
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_TACHARA_METAL: structures/pers/tachara_metal
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_APARTMENT: structures/cart/apartment
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // none
 	};
 	return kTable[type < BUILDING_AI_ROWS ? type : BUILDING_AI_ROWS];

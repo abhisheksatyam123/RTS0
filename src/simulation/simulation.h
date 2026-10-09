@@ -764,8 +764,9 @@ public:
 	enum UpgradeCheck : uint8_t {
 		UPGRADE_OK = 0, UPGRADE_ERR_NONE, UPGRADE_ERR_OWNER, UPGRADE_ERR_BUSY, UPGRADE_ERR_PHASE, UPGRADE_ERR_COST
 	};
-	UpgradeCheck upgrade_check(uint8_t player_id, uint32_t building_id) const;
-	bool cmd_upgrade_building(uint8_t player_id, uint32_t building_id);
+	// `choice`: which of building_upgrade()'s choices (the Tachara has four).
+	UpgradeCheck upgrade_check(uint8_t player_id, uint32_t building_id, int choice = 0) const;
+	bool cmd_upgrade_building(uint8_t player_id, uint32_t building_id, int choice = 0);
 	// Stops an upgrade in progress and refunds what was paid (Upgrade.js CancelUpgrade).
 	bool cmd_cancel_upgrade(uint8_t player_id, uint32_t building_id);
 	// 0 A.D. Gate.js LockGate / UnlockGate: the owner keeps its own units out too.

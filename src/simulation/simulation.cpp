@@ -1979,7 +1979,7 @@ uint8_t Simulation::train_unlock_tech(uint8_t player_id, uint8_t unit_type, uint
 		// A civ without the unlock trains the unit outright, as in 0 A.D.
 		return tech_available_to_civ(tech, civ) ? tech : (uint8_t)TECH_NONE;
 	};
-	if (bld_type == BLD_HOUSE) {
+	if (bld_type == BLD_HOUSE || bld_type == BLD_APARTMENT) {
 		uint8_t tech = tech_available_to_civ(TECH_UNLOCK_CIVILIANS_HOUSE_KUSH, civ)
 				? (uint8_t)TECH_UNLOCK_CIVILIANS_HOUSE_KUSH : (uint8_t)TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC;
 		return gate(tech);
@@ -2096,7 +2096,7 @@ bool Simulation::can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_
 	if (player_id >= MAX_PLAYERS) return false;
 	if (!entity_limit_allows_unit(player_id, unit_type, tmpl)) return false; // EntityLimits (Hero 1, WarDog, ...)
 	// Houses only ever train citizens, and only once their civ's festival is in.
-	if (bld_type == BLD_HOUSE && !(unit_tech_classes(unit_type) & TC_CIVILIAN)) return false;
+	if ((bld_type == BLD_HOUSE || bld_type == BLD_APARTMENT) && !(unit_tech_classes(unit_type) & TC_CIVILIAN)) return false;
 	uint8_t tech = train_unlock_tech(player_id, unit_type, bld_type, tmpl);
 	return tech == TECH_NONE || players_[player_id].has_tech(tech);
 }
@@ -2334,7 +2334,7 @@ Simulation::ResearchCheck Simulation::research_check(uint8_t player_id, uint8_t 
 		if (b.team != player_id || b.build_progress < 1.0f || b.hp <= 0.0f || b.research_tech != TECH_NONE
 		    || b.upgrade_to != BLD_TYPE_COUNT)
 			return TECH_ERR_BUILDING;
-		if (b.type != tinfo.researcher) return TECH_ERR_BUILDING;
+		if (building_research_base(b.type) != tinfo.researcher) return TECH_ERR_BUILDING;
 	}
 	if (!ps.can_afford((float)tinfo.food_cost, (float)tinfo.wood_cost, (float)tinfo.gold_cost, (float)tinfo.stone_cost))
 		return TECH_ERR_COST;
@@ -2385,12 +2385,12 @@ float Simulation::structure_max_hp(uint8_t type, uint8_t team) const {
 	return hp;
 }
 
-Simulation::UpgradeCheck Simulation::upgrade_check(uint8_t player_id, uint32_t building_id) const {
+Simulation::UpgradeCheck Simulation::upgrade_check(uint8_t player_id, uint32_t building_id, int choice) const {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end() || player_id >= MAX_PLAYERS) return UPGRADE_ERR_NONE;
 	const Building &b = buildings_[bit->second];
 	if (b.team != player_id) return UPGRADE_ERR_OWNER;
-	const BuildingUpgradeInfo up = building_upgrade(b.type, civ_of(player_id));
+	const BuildingUpgradeInfo up = building_upgrade(b.type, civ_of(player_id), choice);
 	if (up.to >= BLD_TYPE_COUNT || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) return UPGRADE_ERR_NONE;
 	// Of the WallSet segments only wall_long has an Upgrade (to the gate).
 	if (b.type == BLD_WALL_SEGMENT && is_wallset_piece(b.type, b.half_size) &&
@@ -2405,10 +2405,10 @@ Simulation::UpgradeCheck Simulation::upgrade_check(uint8_t player_id, uint32_t b
 	return UPGRADE_OK;
 }
 
-bool Simulation::cmd_upgrade_building(uint8_t player_id, uint32_t building_id) {
-	if (upgrade_check(player_id, building_id) != UPGRADE_OK) return false;
+bool Simulation::cmd_upgrade_building(uint8_t player_id, uint32_t building_id, int choice) {
+	if (upgrade_check(player_id, building_id, choice) != UPGRADE_OK) return false;
 	Building &b = buildings_[building_id_to_idx_[building_id]];
-	const BuildingUpgradeInfo up = building_upgrade(b.type, civ_of(player_id));
+	const BuildingUpgradeInfo up = building_upgrade(b.type, civ_of(player_id), choice);
 	players_[player_id].pay((float)up.food_cost, (float)up.wood_cost, (float)up.gold_cost, (float)up.stone_cost);
 	b.upgrade_paid.fill(0.0f);
 	b.upgrade_paid[RES_FOOD] = (float)up.food_cost;
@@ -2444,7 +2444,7 @@ void Simulation::cancel_upgrade(Building &b, uint8_t refund_to) {
 // 0 A.D. helpers/Transform.js ChangeEntityTemplate: the new structure keeps the
 // owner, position, health fraction, capture share and garrison of the old one.
 void Simulation::finish_upgrade(Building &b) {
-	const uint8_t to = b.upgrade_to;
+	const uint8_t to = b.upgrade_to, from = b.type;
 	if (to >= BLD_TYPE_COUNT) return;
 	const BuildingTypeInfo &ninfo = building_type_info(to);
 	const float health_level = b.max_hp > 0.0f ? std::clamp(b.hp / b.max_hp, 0.0f, 1.0f) : 1.0f;
@@ -2476,7 +2476,9 @@ void Simulation::finish_upgrade(Building &b) {
 	b.upgrade_to = BLD_TYPE_COUNT;
 	b.upgrade_timer = 0.0f;
 	b.upgrade_duration = 0.0f;
-	if (to == BLD_TOWN_CENTER || to == BLD_FORTRESS || to == BLD_TOWER) rebuild_territory();
+	if (to == BLD_TOWN_CENTER || to == BLD_FORTRESS || to == BLD_TOWER || civ_building_territory_radius(to) > 0.0f ||
+	    civ_building_territory_radius(from) > 0.0f)
+		rebuild_territory();
 	if (to == BLD_GATE) {
 		b.gate_open = false;
 		b.gate_locked = false;
@@ -9024,6 +9026,9 @@ void Simulation::tick_trickle(float dt) {
 				rate[RES_WOOD] = rate[RES_STONE] = rate[RES_GOLD] = 0.1f * (1 + garrisoned_ministers(b));
 			} else if (b.type == BLD_ICE_HOUSE) {
 				rate[RES_FOOD] = 1.0f;
+			} else if (b.type >= BLD_TACHARA_FOOD && b.type <= BLD_TACHARA_METAL) {
+				// structures/pers/tachara_{food,wood,stone,metal}.xml: 10 of its resource.
+				rate[kTrickleRes[b.type - BLD_TACHARA_FOOD]] = 10.0f;
 			} else {
 				continue;
 			}

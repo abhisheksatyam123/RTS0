@@ -383,7 +383,13 @@ enum BuildingType : uint8_t {
 	BLD_TEMPLE_MARS = 50,     // rome/temple_mars
 	BLD_ICE_HOUSE = 51,       // pers/ice_house
 	BLD_SUPER_DOCK = 52,      // cart/super_dock (Cothon)
-	BLD_TYPE_COUNT = 53
+	// Reached only by an Upgrade (civ_building_upgrade_only).
+	BLD_TACHARA_FOOD = 53,    // pers/tachara_food
+	BLD_TACHARA_WOOD = 54,    // pers/tachara_wood
+	BLD_TACHARA_STONE = 55,   // pers/tachara_stone
+	BLD_TACHARA_METAL = 56,   // pers/tachara_metal
+	BLD_APARTMENT = 57,       // cart/apartment
+	BLD_TYPE_COUNT = 58
 };
 
 #include "civ_building_data.h"
@@ -912,7 +918,8 @@ struct BuildingUpgradeInfo {
 	const char *tooltip;
 };
 
-inline BuildingUpgradeInfo building_upgrade(uint8_t from, uint8_t civ) {
+// The generic upgrades, which every civ has (one choice each).
+inline BuildingUpgradeInfo generic_building_upgrade(uint8_t from, uint8_t civ) {
 	switch (from) {
 		case BLD_SENTRY_TOWER:
 			if (civ == CIV_IBERIANS)
@@ -925,12 +932,33 @@ inline BuildingUpgradeInfo building_upgrade(uint8_t from, uint8_t civ) {
 	}
 }
 
+// Upgrade choice k (0-based) of a `from` structure owned by a `civ` player: the
+// civ's own structure upgrades (civ_building_upgrade_table(), e.g. the Tachara's
+// four tribute forms) first, then the generic one. `to` is BLD_TYPE_COUNT past the last.
+inline BuildingUpgradeInfo building_upgrade(uint8_t from, uint8_t civ, int k = 0) {
+	const uint16_t bit = civ < 16 ? (uint16_t)(1u << civ) : 0;
+	for (const CivBuildingUpgrade *u = civ_building_upgrade_table(); u->from != BLD_TYPE_COUNT; ++u) {
+		if (u->from != from || !(u->civs & bit)) continue;
+		if (k-- == 0)
+			return {u->to, u->food_cost, u->wood_cost, u->gold_cost, u->stone_cost, u->time, u->phase, u->tooltip};
+	}
+	if (k == 0) return generic_building_upgrade(from, civ);
+	return {BLD_TYPE_COUNT, 0, 0, 0, 0, 0.0f, 1, nullptr};
+}
+
+// How many Upgrade choices building_upgrade() offers.
+inline int building_upgrade_count(uint8_t from, uint8_t civ) {
+	int n = 0;
+	while (n < 8 && building_upgrade(from, civ, n).to != BLD_TYPE_COUNT) ++n;
+	return n;
+}
+
 // 0 A.D. VisibleClasses "Village" (1) / "Town" (2): the structures that count
 // toward phase_town_generic (five Village) and phase_city_generic (three Town).
 // Civic centres, fields, towers and walls count toward neither.
 inline uint8_t building_phase_class(uint8_t type) {
 	switch (type) {
-		case BLD_HOUSE: case BLD_BARRACKS: case BLD_STOREHOUSE: case BLD_FARMSTEAD:
+		case BLD_HOUSE: case BLD_APARTMENT: case BLD_BARRACKS: case BLD_STOREHOUSE: case BLD_FARMSTEAD:
 		case BLD_DOCK: case BLD_CORRAL: case BLD_STABLE: case BLD_RANGE:
 			return 1;
 		case BLD_MARKET: case BLD_TEMPLE: case BLD_FORGE: case BLD_EMBASSY:
@@ -1123,7 +1151,7 @@ inline uint64_t building_tech_classes(uint8_t type) {
 	c |= phase == 1 ? TC_VILLAGE : phase == 2 ? TC_TOWN : TC_CITY;
 	switch (type) {
 		case BLD_TOWN_CENTER: return c | TC_CIVCENTRE | TC_CIVIC;
-		case BLD_HOUSE: return c | TC_HOUSE | TC_CIVIC;
+		case BLD_HOUSE: case BLD_APARTMENT: return c | TC_HOUSE | TC_CIVIC;
 		case BLD_BARRACKS: return c | TC_BARRACKS;
 		case BLD_STOREHOUSE: return c | TC_STOREHOUSE;
 		case BLD_TOWER: return c | TC_TOWER | TC_STONETOWER | TC_DEFENSIVE;
@@ -1148,6 +1176,13 @@ inline uint64_t building_tech_classes(uint8_t type) {
 }
 
 inline constexpr uint32_t unit_bit(uint8_t type) { return (type < 32) ? (1u << type) : 0u; }
+
+// The structure whose Researcher list an upgraded form keeps (the Tachara's tribute
+// forms research the Tachara's technologies, the apartment the house's).
+inline constexpr uint8_t building_research_base(uint8_t type) {
+	return (type >= BLD_TACHARA_FOOD && type <= BLD_TACHARA_METAL) ? (uint8_t)BLD_TACHARA
+	       : type == BLD_APARTMENT ? (uint8_t)BLD_HOUSE : type;
+}
 
 static_assert(BLD_TYPE_COUNT <= 64, "bld_bit() masks are uint64_t");
 inline constexpr uint64_t bld_bit(uint8_t type) { return (type < 64) ? (1ull << type) : 0ull; }
@@ -1793,7 +1828,8 @@ inline uint32_t civ_train_mask(uint8_t civ) {
 // Structures this civilization may build: every generic one, plus its own
 // civ-specific ones (0 A.D. structures/<civ>/, civ_building_civ_mask()).
 inline bool civ_can_build(uint8_t civ, uint8_t type) {
-	return type < BLD_TYPE_COUNT && civ < 16 && ((civ_building_civ_mask(type) >> civ) & 1u);
+	return type < BLD_TYPE_COUNT && civ < 16 && ((civ_building_civ_mask(type) >> civ) & 1u) &&
+	       !civ_building_upgrade_only(type);
 }
 
 inline bool civ_can_train(uint8_t civ, uint8_t type) {
@@ -1915,6 +1951,7 @@ inline const char *civ_building_rubble(uint8_t civ, uint8_t type) {
 		return cc_rubble[civ];
 	switch (type) {
 		case BLD_HOUSE:
+		case BLD_APARTMENT:
 		case BLD_STOREHOUSE:
 		case BLD_CORRAL:
 		case BLD_TOWER:
@@ -1934,6 +1971,7 @@ inline const char *civ_building_rubble(uint8_t civ, uint8_t type) {
 inline const char *civ_building_foundation(uint8_t type) {
 	switch (type) {
 		case BLD_HOUSE:
+		case BLD_APARTMENT:
 		case BLD_STOREHOUSE:
 		case BLD_CORRAL:
 			return "foundation_3x3";
