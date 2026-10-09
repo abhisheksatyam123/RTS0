@@ -343,6 +343,7 @@ void Simulation::reset() {
 	field_bld_by_res_.clear();
 	building_id_to_idx_.clear();
 	occupied_cells_.clear();
+	std::fill(std::begin(regicide_hero_), std::end(regicide_hero_), 0u);
 
 	next_id_ = 1;
 	sim_rng_.set_seed(sim_seed_);
@@ -882,9 +883,69 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 				"steppe", "savanna", "polar", "india"};
 		current_map_biome_ = kBiomeNames[biome_override_];
 	}
+	if (nomad_) remove_player_structures();
 	register_map_triggers(type);
 	rebuild_nav_grid();
 	rebuild_territory();
+}
+
+void Simulation::remove_player_structures() {
+	// rmgen-common placePlayerBase returns early for Nomad: no Civic Centre, walls or other
+	// starting structures; the starting units stay. Runs right after generation, before any tick.
+	std::vector<Building> kept;
+	kept.reserve(buildings_.size());
+	for (Building &b : buildings_)
+		if (b.team >= MAX_PLAYERS) kept.push_back(std::move(b));
+	buildings_ = std::move(kept);
+	nomad_start_ = true;
+	building_id_to_idx_.clear();
+	occupied_cells_.clear();
+	for (size_t i = 0; i < buildings_.size(); ++i) {
+		const Building &b = buildings_[i];
+		building_id_to_idx_[b.id] = i;
+		for (int dx = 0; dx < b.footprint; ++dx)
+			for (int dy = 0; dy < b.footprint; ++dy) occupied_cells_.insert({b.cell_x + dx, b.cell_y + dy});
+	}
+}
+
+void Simulation::spawn_nomad_treasures() {
+	// rmgen-common placePlayersNomad: next to each player's starting units, enough treasure of
+	// each resource to pay for a Civic Centre on top of the starting resources.
+	const BuildingTypeInfo &cc = building_type_info(BLD_TOWN_CENTER);
+	const int cost[RES_COUNT] = {cc.wood_cost, cc.gold_cost, cc.stone_cost, cc.food_cost}; // by ResourceType
+	static const int kAmountIdx[RES_COUNT] = {1, 3, 2, 0}; // TreasureTypeInfo::amount is food, wood, stone, metal
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+		if (!players_[p].active) continue;
+		float sx = 0.0f, sz = 0.0f;
+		int n = 0;
+		for (size_t u = 0; u < units_.count; ++u)
+			if (units_.alive[u] && units_.team[u] == p) { sx += units_.pos_x[u]; sz += units_.pos_z[u]; ++n; }
+		if (n == 0) continue;
+		sx /= (float)n; sz /= (float)n;
+		int placed = 0;
+		for (uint8_t r = 0; r < RES_COUNT; ++r) {
+			const int amount = treasure_type_info(treasure_type_for_resource(r)).amount[kAmountIdx[r]];
+			const int need = cost[r] - (int)players_[p].res[r];
+			const int count = (amount > 0 && need > 0) ? (need + amount - 1) / amount : 0;
+			for (int k = 0; k < count; ++k, ++placed) {
+				const float a = 2.39996323f * (float)placed; // golden-angle spiral, 3-5 m out (SimpleObject 3..5)
+				const float d = 3.0f + (float)(placed % 3);
+				const float x = std::clamp(sx + std::cos(a) * d, -map_half_ + 2.0f, map_half_ - 2.0f);
+				const float z = std::clamp(sz + std::sin(a) * d, -map_half_ + 2.0f, map_half_ - 2.0f);
+				spawn_resource_treasure(x, z, r);
+			}
+		}
+	}
+}
+
+uint32_t Simulation::player_color(uint8_t pid) const {
+	return pid < MAX_PLAYERS ? PLAYER_COLORS[player_color_[pid]] : 0xFFFFFFu;
+}
+
+bool Simulation::unit_garrisonable(size_t unit_idx) const {
+	if (regicide_garrison_ || victory_condition_ != VICTORY_REGICIDE) return true;
+	const uint8_t t = units_.team[unit_idx];
+	return t >= MAX_PLAYERS || regicide_hero_[t] == 0 || units_.id[unit_idx] != regicide_hero_[t];
 }
 
 void Simulation::end_bulk_spawn() {
@@ -3455,11 +3516,11 @@ int Simulation::siege_tower_arrows(size_t i) const {
 // 0 A.D.'s Support and Infantry classes.
 bool Simulation::can_board(size_t transport_idx, size_t unit_idx) const {
 	if (units_.team[unit_idx] != units_.team[transport_idx]) return false;
+	if (!unit_garrisonable(unit_idx)) return false; // an ungarrisonable Regicide hero boards nothing
 	// Ships carry rams and siege towers too (Siege on warship Lists), never other ships.
 	if (unit_is_ship(units_.unit_type[transport_idx]))
 		return !unit_is_ship(units_.unit_type[unit_idx]) && ship_garrison_allowed(transport_idx, units_.unit_type[unit_idx]);
 	if (is_transport(units_.id[unit_idx])) return false;
-
 	if (siege_garrison_capacity(transport_idx) > 0 && !siege_garrison_allowed(units_.unit_type[unit_idx])) return false;
 	return true;
 }
@@ -3544,6 +3605,7 @@ void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, ui
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx] || units_.team[uidx] != b.team) continue;
+		if (!unit_garrisonable((size_t)uidx)) continue;
 		if (turret_points_of(b) && !unit_turretable((size_t)uidx)) continue; // TurretHolder.CanOccupy
 		if (garrison_in_range((size_t)uidx, b)) {
 			if ((int)b.garrisoned_units.size() >= b.garrison_cap) continue;
@@ -7259,6 +7321,11 @@ void Simulation::check_victory_conditions(float dt) {
 	if (game_over_ || victory_) return;
 	// 0 A.D. "Endless": no victory conditions, nobody is ever defeated.
 	if (victory_condition_ == VICTORY_ENDLESS) return;
+	if (ticks_ == 0) {
+		if (disable_treasures_) clear_treasures();
+		if (nomad_start_) spawn_nomad_treasures();
+		nomad_start_ = false;
+	}
 	if (victory_condition_ == VICTORY_REGICIDE && ticks_ == 0) spawn_regicide_heroes();
 	if (victory_condition_ == VICTORY_RELIC && ticks_ == 0 && relic_count_ > 0) apply_relic_count();
 
@@ -7460,7 +7527,7 @@ void Simulation::spawn_regicide_heroes() {
 		spots.push_back({t, {units_.pos_x[u], units_.pos_z[u]}});
 	}
 	for (const auto &s : spots) {
-		spawn_unit(s.second.first + 4.0f, s.second.second + 4.0f, s.first, UNIT_HERO, 0.0f);
+		regicide_hero_[s.first] = spawn_unit(s.second.first + 4.0f, s.second.second + 4.0f, s.first, UNIT_HERO, 0.0f);
 	}
 }
 
@@ -13937,7 +14004,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -14732,6 +14799,20 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	ar.pod(s.victory_condition_); ar.pod(s.waves_enabled_); ar.pod(s.last_man_standing_); ar.pod(s.pop_cap_);
 	ar.pod(s.ceasefire_seconds_); ar.pod(s.reveal_map_); ar.pod(s.explore_map_);
 	ar.pod(s.wonder_duration_); ar.pod(s.relic_duration_); ar.pod(s.relic_count_);
+	// v32: Nomad, RegicideGarrison and the Regicide heroes, player colours, Disable Treasures.
+	if (ar.version >= 32) {
+		ar.pod(s.nomad_); ar.pod(s.regicide_garrison_); ar.pod(s.disable_treasures_);
+		for (uint32_t &h : s.regicide_hero_) ar.pod(h);
+		for (uint8_t &c : s.player_color_) {
+			ar.pod(c);
+			if constexpr (Ar::loading)
+				if (c >= PLAYER_COLOR_COUNT) ar.ok = false;
+		}
+	} else if constexpr (Ar::loading) {
+		s.nomad_ = false; s.regicide_garrison_ = false; s.disable_treasures_ = false;
+		std::fill(std::begin(s.regicide_hero_), std::end(s.regicide_hero_), 0u);
+		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) s.player_color_[p] = p;
+	}
 
 	// 3. Every AI's Petra state.
 	static_assert(sizeof(PetraConfig) == 100, "list the new PetraConfig field below");
