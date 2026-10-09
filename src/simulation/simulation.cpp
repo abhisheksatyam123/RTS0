@@ -6393,6 +6393,14 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				task_path = true;
 			}
 		}
+		// UnitAI COMBAT.APPROACHING / CHASING: an attacker's path above is its chase path. The unit
+		// stops for its target along it, and stands at its end when it can't reach the target.
+		bool chase_path = false;
+		float chase_x = 0.0f, chase_z = 0.0f;
+		if (closing_in && task_path) {
+			float key_x, key_z;
+			chase_path = chase_goal(i, key_x, key_z, chase_x, chase_z);
+		}
 
 		// G1: follow waypoint path if available (mirrors CCmpUnitMotion path following)
 		float aim_x;
@@ -6464,6 +6472,21 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				}
 			}
 		}
+		// The end of a chase path that can't reach the target (UnitMotion's short-path hack when the
+		// long path falls short): the unit stays there, obstructed, and motion_feedback gives the
+		// chase up. Walking on would take it into the water or up the cliff.
+		if (chase_path && !using_path && chase_falls_short(i)) {
+			const float sdx = aim_x - px[i], sdz = aim_z - pz[i];
+			const float sl = std::sqrt(sdx * sdx + sdz * sdz);
+			if (sl > 1e-6f) {
+				const float step = unit_walk_speed(i) * dt / sl;
+				want_x[i] = sdx * step;
+				want_z[i] = sdz * step;
+				blocked[i] = 1;
+			}
+			vx[i] = vz[i] = 0;
+			return;
+		}
 
 		// UnitMotion and MakeGoalReachable: a point closer to a building than the unit's clearance
 		// can't be reached, so a walk there (and its last waypoint, the same point) ends as close as
@@ -6530,7 +6553,13 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			}
 		}
 
-		if (!backing_off && d2 <= stop_dist * stop_dist) {
+		// Along a chase path the unit stops for its target, not at a waypoint.
+		float stop_d2 = d2;
+		if (chase_path && using_path && units_.target_building_id[i] == 0) {
+			const float cdx = chase_x - px[i], cdz = chase_z - pz[i];
+			stop_d2 = cdx * cdx + cdz * cdz;
+		}
+		if (!backing_off && stop_d2 <= stop_dist * stop_dist) {
 			vx[i] = 0;
 			vz[i] = 0;
 			if (units_.action_state[i] == ACTION_MOVE || units_.action_state[i] == ACTION_ATTACK_MOVE) {
@@ -6911,6 +6940,19 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		}
 		// MoveObstructed / MoveFailed reach UnitAI. Members of a formation follow its controller.
 		if (!formations_.empty() && formation_group_[i] != 0) continue;
+		// A chase gives up on MoveFailed (UnitAI COMBAT.APPROACHING / CHASING MovementUpdate with
+		// likelyFailure). UnitMotion fails it within two turns once its long path can't reach the
+		// target (the short-path hack sets m_FailedMovements to MAX_FAILED_MOVEMENTS - 2).
+		{
+			float kx, kz, gx, gz;
+			if (chase_goal(i, kx, kz, gx, gz)) {
+				if (move_failed || chase_falls_short(i)) {
+					m.failed = 0;
+					give_up_attack(i);
+				}
+				continue;
+			}
+		}
 		const uint8_t kind = units_.order_kind[i], st = units_.action_state[i];
 		const bool walking = (kind == ORDER_WALK && st == ACTION_MOVE) ||
 				(kind == ORDER_WALK_AND_FIGHT && st == ACTION_ATTACK_MOVE) ||
@@ -6931,6 +6973,91 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		units_.waypoint_count[i] = 0;
 		if (i < unit_paths_.size()) unit_paths_[i].clear();
 	}
+}
+
+bool Simulation::chase_goal(size_t i, float &key_x, float &key_z, float &to_x, float &to_z) const {
+	if (units_.action_state[i] != ACTION_ATTACK || units_.order_kind[i] == ORDER_CAPTURE_RELIC) return false;
+	if (units_.target_unit_id[i] != 0) {
+		const int32_t t = lookup_unit(units_.target_unit_id[i]); // tick_hunters chases animals
+		if (t < 0 || !units_.alive[t]) return false;
+		key_x = to_x = units_.pos_x[t];
+		key_z = to_z = units_.pos_z[t];
+		return true;
+	}
+	if (units_.target_building_id[i] == 0) return false;
+	const auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
+	if (bit == building_id_to_idx_.end()) return false;
+	const Building &b = buildings_[bit->second];
+	key_x = b.x;
+	key_z = b.z;
+	to_x = units_.target_x[i];
+	to_z = units_.target_z[i];
+	return true;
+}
+
+// The unit follows the path move_units made for this chase: one to the point it walks to.
+bool Simulation::chase_path_kept(size_t i) const {
+	if (i >= unit_paths_.size()) return false;
+	const WaypointPath &wp = unit_paths_[i];
+	const float dx = wp.goal_x - units_.target_x[i], dz = wp.goal_z - units_.target_z[i];
+	return wp.has_goal && dx * dx + dz * dz <= 4.0f && units_.waypoint_count[i] == wp.count;
+}
+
+// The unit has walked all of its chase path, and the path ends out of reach of the target:
+// find_path stopped it at the nearest point the unit can get to (MakeGoalReachable).
+bool Simulation::chase_falls_short(size_t i) const {
+	float kx, kz, gx, gz;
+	if (unit_is_ship(units_.unit_type[i]) || !chase_goal(i, kx, kz, gx, gz) || !chase_path_kept(i)) return false;
+	const WaypointPath &wp = unit_paths_[i];
+	if (wp.cur < wp.count) return false;
+	const float ex = wp.count > 0 ? wp.xs[wp.count - 1] : units_.pos_x[i];
+	const float ez = wp.count > 0 ? wp.zs[wp.count - 1] : units_.pos_z[i];
+	// A navcell's width of slack: a path to a point the unit can reach ends on that point.
+	const float reach = std::max(units_.attack_range[i], CAPTURE_RANGE) + 2.0f;
+	if (units_.target_unit_id[i] != 0) {
+		const float dx = ex - kx, dz = ez - kz;
+		return dx * dx + dz * dz > reach * reach;
+	}
+	const Building &b = buildings_[building_id_to_idx_.at(units_.target_building_id[i])];
+	return structure_gap(b, ex, ez, unit_collision_radius(units_.unit_type[i])) > reach;
+}
+
+// UnitAI COMBAT.APPROACHING / CHASING MovementUpdate with likelyFailure: with orders queued after it
+// the attack ends (FinishOrder); a target the unit picked itself, or an unforced attack, goes to
+// FINDINGNEWTARGET, which drops it; a player's attack becomes an unforced attack-walk to where the
+// target was (lastPos), which UnitMotion ends as close as the unit can get (MakeGoalReachable).
+void Simulation::give_up_attack(size_t i) {
+	const uint32_t uid = units_.id[i];
+	float last_x = units_.pos_x[i], last_z = units_.pos_z[i], to_x, to_z;
+	const bool short_path = chase_falls_short(i);
+	if (chase_goal(i, last_x, last_z, to_x, to_z) && short_path && unit_paths_[i].count > 0) {
+		const WaypointPath &wp = unit_paths_[i];
+		last_x = wp.xs[wp.count - 1]; // as close as the unit can get
+		last_z = wp.zs[wp.count - 1];
+	} else if (short_path) {
+		last_x = units_.pos_x[i];
+		last_z = units_.pos_z[i];
+	}
+	const uint8_t kind = units_.order_kind[i];
+	const bool own = (kind == ORDER_ATTACK && units_.target_unit_id[i] != 0 &&
+			units_.target_unit_id[i] == units_.order_target[i]) ||
+			(kind == ORDER_ATTACK_BUILDING && units_.target_building_id[i] != 0 &&
+			units_.target_building_id[i] == units_.order_target[i]);
+	if (i < unit_paths_.size()) unit_paths_[i].clear();
+	units_.waypoint_cur[i] = units_.waypoint_count[i] = 0;
+	if (!own) {
+		// A fight the unit started itself: tick_combat looks for another target, and tick_unit_ai
+		// takes the unit back to the order the fight interrupted.
+		units_.target_unit_id[i] = 0;
+		units_.target_building_id[i] = 0;
+		return;
+	}
+	if (order_queues_.count(uid) || !(units_.order_flags[i] & ORDER_FLAG_FORCE)) {
+		finish_order(i);
+		return;
+	}
+	order_attack_move(&uid, 1, last_x, last_z, false, false, (units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE) != 0);
+	units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_FORCE;
 }
 
 uint32_t Simulation::ensure_field_resource(const Building &b) {
