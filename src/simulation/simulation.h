@@ -148,7 +148,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 34; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 35; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -203,7 +203,12 @@ public:
 		int cell_x, cell_y;
 		int footprint; // 1 or 2
 		float rot = DEFAULT_BUILDING_ROT; // 0 A.D. Position rotation: 0 faces +z, pi/2 faces +x (the obstruction stays an axis-aligned square)
-		float attack_timer; // for defensive arrows
+		// 0 A.D. BuildingAI.js FireArrows: attack_timer counts down to the next of the ten
+		// rounds per RepeatTime; the timer runs only while enemies are in range.
+		float attack_timer;
+		uint8_t arrow_round = 0;      // currentRound
+		int16_t arrows_left = 0;      // arrowsLeft of this RepeatTime
+		bool arrow_timer_on = false;  // a FireArrows timer is set
 		bool is_burning = false; // Structure fire under 33% HP
 
 		// Multi-slot production queue
@@ -533,6 +538,12 @@ public:
 	bool is_siege_tower_at(size_t i) const;
 	// Garrisoned Infantry in a siege tower = arrows per volley (capped).
 	int siege_tower_arrows(size_t i) const;
+	// 0 A.D. BuildingAI.js GetArrowCount: arrows per RepeatTime for a finished structure.
+	int building_arrow_count(const Building &b) const;
+	// Attack/Ranged/MaxRange with technologies, measured from the structure's edge (0 = never shoots).
+	float building_arrow_range(const Building &b) const;
+	// A unit's hack, pierce and crush resistance levels (template, techs, rank, armour auras).
+	void unit_resistance(size_t i, float out[3]) const;
 	int get_transport_capacity(uint32_t transport_id) const;
 	// Ships as GarrisonHolders (template_unit_ship*.xml): capacity and List per
 	// template, LoadingRange 10 m, Pickup, EjectClassesOnDestroy. `i` is a SoA index.
@@ -1308,8 +1319,6 @@ private:
 	// 0 A.D. helpers/Attack.js CauseDamageOverArea for an Attack Splash landing at (ox, oz).
 	void cause_damage_over_area(uint8_t splash, uint32_t attacker_id, uint8_t attacker_team,
 			float ox, float oz, float dir_x, float dir_z);
-	// A unit's hack, pierce and crush resistance levels (template, techs, rank, armour auras).
-	void unit_resistance(size_t i, float out[3]) const;
 	void tick_gates(float dt);
 	void tick_waves(float dt);
 	void tick_petra_ai(float dt);
@@ -1890,6 +1899,7 @@ private:
 	void apply_rally_point(uint32_t uid, const Building &b, bool ignore_self_garrison = false);
 	void rally_after_ungarrison(uint32_t uid, uint32_t building_id);
 	void on_construction_finished(const Building &b, size_t builder);
+	void next_after_construction(size_t k, const Building &b, bool food, bool other);
 	void destroy_building(Building &b);
 	bool can_capture_building(uint8_t player, const Building &b) const;
 	bool can_heal(size_t healer, int32_t target) const;         // Heal.js CanHeal

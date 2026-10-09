@@ -1262,9 +1262,6 @@ def unique_building_rows(sim_root):
             # Vision/Range on RTS0's scale (x0.3, never below the 18 every structure gets).
             "vision": max(18.0, t.num("Vision/Range") * 0.3),
             "dropsite": bool(t.tokens("ResourceDropsite/Types")),
-            # Structures with a 0 A.D. ranged Attack (BuildingAI: the Army Camp, Military
-            # Colony) shoot like RTS0's civil centre row until BuildingAI itself is ported.
-            "shoots": t.get("Attack/Ranged") is not None,
             # Loot/* a destroyed or captured structure yields (Looter.js), metal -> gold.
             "loot": [int(t.num("Loot/" + k)) for k in ("xp", "food", "wood", "stone", "metal")],
         })
@@ -1286,11 +1283,10 @@ def emit_buildings(rows):
     w("// BuildingTypeInfo rows for building_type_info(), in BuildingType order.")
     w("#define RTSO_CIV_BUILDING_INFO_ROWS \\")
     for r in rows:
-        attack = "16.0f, 18.0f, 1.0f" if r["shoots"] else "0.0f, 0.0f, 0.0f"  # Town Center's range, damage, cooldown
-        w("\t\t{%s, %s, %s, %s, %d, %d, %d, %d, %d, %d, %d, %s, %s, %s, %s, %s, %s}, /* %s */ \\" % (
+        w("\t\t{%s, %s, %s, %s, %d, %d, %d, %d, %d, %d, %d, %s, %s, %s, %s, %s}, /* %s */ \\" % (
             cstr(r["name"]), cstr(r["model"]), cstr(r["portrait"]), f(r["hp"]), r["foot"],
             r["food"], r["wood"], r["gold"], r["stone"], r["pop"], r["garrison"], f(r["build_time"]),
-            attack, f(r["capture"]), f(r["regen"]), f(r["garrison_regen"]), f(r["decay"]), r["src"]))
+            f(r["capture"]), f(r["regen"]), f(r["garrison_regen"]), f(r["decay"]), r["src"]))
     w("")
     w("")
     w("// LootInfo rows (xp, food, wood, stone, metal) for building_loot(), in BuildingType order.")
