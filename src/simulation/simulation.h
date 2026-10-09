@@ -131,7 +131,7 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
-	static constexpr uint32_t SAVE_VERSION = 26; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 28; // save_state's format; see the history beside it
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -393,6 +393,11 @@ public:
 	void order_guard(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
 	// UnitAI Heal: healers walk to an injured allied unit and heal it (Heal.js).
 	void order_heal(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
+	// 0 A.D. "returnresource" (UnitAI ReturnResource): carriers take their load to this
+	// dropsite, drop it, then take the next queued order or idle.
+	void order_return_resource(const uint32_t *unit_ids, size_t count, uint32_t dropsite_id, bool queued = false);
+	bool dropsite_accepts(size_t unit_idx, const Building &b) const; // carried type, owner, finished
+	bool can_return_resource(uint32_t unit_id, uint32_t dropsite_id) const; // carries a load b accepts
 	void set_unit_hp(uint32_t unit_id, float hp); // scenarios and tests: clamped to 0..max
 
 	// Livestock & Corrals (Corral.js)
@@ -913,6 +918,32 @@ public:
 		uint8_t owner_team = 255;
 	};
 
+	// Treasure.js / TreasureCollector.js: a Gaia treasure any land unit can be ordered to
+	// collect; after CollectTime in range its owner gets the treasure's resources.
+	struct Treasure {
+		uint32_t id;
+		float x, z;
+		float collect_progress;   // seconds spent collecting by collector_id
+		uint32_t collector_id;
+		uint8_t type;             // TreasureType (gaia_data.h)
+		uint8_t pad[3];
+	};
+	uint32_t spawn_treasure(float x, float z, uint8_t type);
+	void order_collect_treasure(const uint32_t *unit_ids, size_t count, uint32_t treasure_id, bool queued = false);
+	const std::vector<Treasure> &treasures() const { return treasures_; }
+	bool is_treasure_id(uint32_t id) const {
+		for (const auto &t : treasures_) if (t.id == id) return true;
+		return false;
+	}
+	// One plain treasure of a resource (rmgen placePlayersNomad's food_bin / wood / stone / metal);
+	// its amount is the kind's, treasure_type_info(treasure_type_for_resource(res)).amount.
+	uint32_t spawn_resource_treasure(float x, float z, uint8_t res_type) {
+		return spawn_treasure(x, z, treasure_type_for_resource(res_type));
+	}
+	void clear_treasures() { treasures_.clear(); } // Game Setup "Treasures" off
+	// template_gaia_ruins: a stone (or metal) supply gathered 4x as fast as a rock.
+	uint32_t spawn_ruins(float x, float z, uint8_t ruins_type);
+
 	float wonder_time_remaining() const { return std::max(0.0f, wonder_duration_ - wonder_victory_timer_); }
 	bool is_wonder_active() const { return has_active_wonder_; }
 	const std::vector<TreasureRelic> &relics() const { return relics_; }
@@ -1014,6 +1045,10 @@ private:
 	void tick_projectiles(float dt);
 	void tick_construction(float dt);
 	void tick_repair(float dt);
+	static constexpr float REPAIR_TIME_RATIO = 2.0f; // template_structure.xml Repairable/RepairTimeRatio
+	static float foundation_build_multiplier(int builders);
+	float builder_rate(size_t unit_idx) const;
+	float structure_build_time(const Building &b, uint8_t builder_team) const;
 	void tick_production(float dt);
 	void tick_research(float dt);
 	void tick_upgrades(float dt);
@@ -1129,6 +1164,8 @@ private:
 	std::vector<Building> buildings_;
 	std::vector<Projectile> projectiles_;
 	std::vector<TreasureRelic> relics_;
+	std::vector<Treasure> treasures_;
+	void tick_treasures(float dt);
 	float wonder_victory_timer_ = 0.0f;
 	bool has_active_wonder_ = false;
 	VictoryCondition victory_condition_ = VICTORY_CONQUEST;
@@ -1148,6 +1185,14 @@ private:
 	struct FieldGatherers { int total = 0; int slots_taken = 0; };
 	std::unordered_map<uint32_t, FieldGatherers> field_gatherers_; // per tick, keyed by grain resource id
 	std::unordered_map<uint32_t, FieldGatherers> fish_gatherers_; // per tick, keyed by fish resource id
+	std::unordered_map<uint32_t, FieldGatherers> ruins_gatherers_; // per tick, keyed by ruins resource id
+	// Each ruins resource's ResourceSupply MaxGatherers (gaia/ruins/*.xml); saved.
+	struct RuinsCap { uint32_t res_id; uint16_t max_gatherers; uint16_t pad; };
+	std::vector<RuinsCap> ruins_caps_;
+	int ruins_cap(uint32_t res_id) const {
+		for (const RuinsCap &c : ruins_caps_) if (c.res_id == res_id) return c.max_gatherers;
+		return 1;
+	}
 	// Nearest fish on `sea` (ship region) within max_d of (x, z) with a free gatherer slot; 0 if none.
 	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0) const;
 	std::unordered_map<uint32_t, size_t> building_id_to_idx_;
@@ -1283,6 +1328,13 @@ private:
 	PetraDiplomacy petra_diplo_;
 	// Tribute paid to each player since its Petra last looked: [to][from][resource].
 	float petra_tribute_inbox_[MAX_PLAYERS][MAX_PLAYERS][RES_COUNT] = {};
+	// AI-to-AI diplomacy (0 A.D. DiplomacyRequest / TributeRequest events), [to][from], save v27:
+	// the stance asked for (0 none, 1 ally, 2 neutral) and a tribute asked for in return.
+	uint8_t petra_diplo_request_inbox_[MAX_PLAYERS][MAX_PLAYERS] = {};
+	int32_t petra_tribute_request_wanted_[MAX_PLAYERS][MAX_PLAYERS] = {};
+	uint8_t petra_tribute_request_res_[MAX_PLAYERS][MAX_PLAYERS] = {};
+	PetraSentDiplomacy petra_sent_diplo_;
+	void petra_send_diplomacy_request();
 	float petra_defense_timer_ = 0.0f;
 	float petra_victory_timer_ = 0.0f;
 	float petra_diplo_timer_ = 0.0f;
@@ -1382,7 +1434,8 @@ private:
 	X(petra_diplo_timer_) X(ai_wonder_victory_timer_) X(petra_bases_) X(petra_fnd_watch_) \
 	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
-	X(petra_fow_) X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_)
+	X(petra_fow_) X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
+	X(petra_sent_diplo_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};

@@ -72,6 +72,8 @@ def gaia_entity(ltpl, wx, wz):
     entries, named by template stem (see src/simulation/gaia_data.h)."""
     if "gaia/fish/" in ltpl:
         return None
+    if "merc_camp" in ltpl:  # structures/merc_camp_egyptian: a capturable Gaia mercenary camp
+        return "gaia_structures", {"type": "mercenary_camp", "x": wx, "z": wz}
     for prefix, key in (("gaia/treasure/", "treasures"), ("gaia/ruins/", "ruins")):
         if prefix in ltpl:
             return key, {"type": ltpl.split(prefix, 1)[1], "x": wx, "z": wz}
@@ -145,7 +147,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
 
         # Convert entities into RTS0 format
         resources = []
-        gaia = {"fauna": [], "treasures": [], "ruins": []}
+        gaia = {"fauna": [], "treasures": [], "ruins": [], "gaia_structures": []}
         fauna = gaia["fauna"]
         players = {}
         structures = []
@@ -293,6 +295,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             "fauna": fauna,
             "treasures": gaia["treasures"],
             "ruins": gaia["ruins"],
+            "gaia_structures": gaia["gaia_structures"],
             "structures": structures,
             "units": units
         }
@@ -307,7 +310,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 old = json.load(f)
             ws = old.get("world_size", world_size_m)
             k = ws / world_size_m
-            for key in ("fauna", "treasures", "ruins"):
+            for key in ("fauna", "treasures", "ruins", "gaia_structures"):
                 old[key] = [dict(e, x=round(e["x"] * k, 2), z=round(e["z"] * k, 2)) for e in gaia[key]]
             map_data = old
         with open(out_path, "w") as f:
