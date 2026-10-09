@@ -26,7 +26,8 @@
 //     Iberian monument buff their owner's soldiers and workers nearby, the Mauryan pillar
 //     speeds traders, the Temple of Amun costs heroes 5% health, the prytaneion heals
 //     garrisoned heroes, soldiers on walls get +3 armour and +20 m vision, a library
-//     makes technologies 15% cheaper and a theater widens territory by 20%.
+//     makes technologies 15% cheaper and a theater widens territory by 20%; Hippocrates
+//     gives allied healers +1 per heal.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_combat.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -538,6 +539,20 @@ static void test_structure_auras() {
 	float cc_theater = 0.0f;
 	for (const auto &r : l2.territory_roots_) if (r.team == 0 && r.radius >= 32.0f) cc_theater = r.radius;
 	check(cc_plain == 32.0f && std::fabs(cc_theater - 32.0f * 1.2f) < 1e-3f, "theater: civic centre territory x1.2");
+
+	// Hippocrates' Hippocratic Oath: own and allied healers +1 health per heal, anywhere.
+	Simulation h;
+	setup(h);
+	h.set_mutual_ally(0, 2);
+	const uint32_t own_healer = h.spawn_unit(-30.0f, 30.0f, 0, UNIT_HEALER);
+	const uint32_t ally_healer = h.spawn_unit(30.0f, -30.0f, 2, UNIT_HEALER);
+	const uint32_t foe_healer = h.spawn_unit(30.0f, 30.0f, 1, UNIT_HEALER);
+	const float plain = h.heal_amount_of((size_t)idx(h, own_healer));
+	h.spawn_unit(-40.0f, -40.0f, 0, UNIT_HERO, 0.0f, template_named("athen/hero_hippocrates"));
+	h.rebuild_auras();
+	check(std::fabs(h.heal_amount_of((size_t)idx(h, own_healer)) - plain - 1.0f) < 1e-4f, "Hippocrates: own healer +1 per heal");
+	check(std::fabs(h.heal_amount_of((size_t)idx(h, ally_healer)) - plain - 1.0f) < 1e-4f, "Hippocrates: allied healer +1 per heal");
+	check(h.heal_amount_of((size_t)idx(h, foe_healer)) == plain, "Hippocrates: enemy healer unchanged");
 }
 
 int main() {
