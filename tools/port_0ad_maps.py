@@ -170,9 +170,16 @@ def _supply(root):
     return (rs.findtext("Type") or "").strip() or None, mx
 
 
+def _max_gatherers(root):
+    try:
+        return int(root.find("ResourceSupply").findtext("MaxGatherers"))
+    except (AttributeError, TypeError, ValueError):
+        return None
+
+
 def template_info(source, name):
     """0 A.D. template `name` with its parents resolved: {"chain": [name, parent, ...],
-    "supply_type": "stone.rock" or None, "supply_max": float or None}. A parent like
+    "supply_type": "stone.rock" or None, "supply_max": float or None, "max_gatherers": int or None}. A parent like
     "bush|template_gaia_tree" is the mixin simulation/templates/mixins/bush.xml applied over
     template_gaia_tree; the leftmost part wins."""
     if name in _TEMPLATE_CACHE:
@@ -190,9 +197,11 @@ def template_info(source, name):
             base = template_info(source, parent)
         mixin = name
     st, mx = _supply(root)
+    mg = _max_gatherers(root)
     info = {"chain": [mixin] + (base["chain"] if base else []),
             "supply_type": st or (base["supply_type"] if base else None),
-            "supply_max": mx if mx is not None else (base["supply_max"] if base else None)}
+            "supply_max": mx if mx is not None else (base["supply_max"] if base else None),
+            "max_gatherers": mg if mg is not None else (base["max_gatherers"] if base else None)}
     _TEMPLATE_CACHE[name] = info
     return info
 
@@ -273,6 +282,27 @@ def unit_class(ltpl):
             return utype
     return None
 
+# 0 A.D. gaia/tree/* and gaia/fruit/* templates by the plant RTS0 draws for them
+# (FloraKind in sim_types.h, models in assets/models/vegetation).
+def flora_kind(ltpl):
+    name = ltpl.rsplit("/", 1)[-1]
+    for keys, kind in ((["bush", "sapling", "shrub"], "bush"), (["baobab"], "baobab"), (["acacia"], "acacia"),
+                       (["bamboo"], "bamboo"), (["palm", "date"], "palm"),
+                       (["pine", "fir", "cedar", "cypress", "juniper", "spruce", "larch", "yew"], "pine"),
+                       (["oak"], "oak")):
+        if any(k in name for k in keys):
+            return kind
+    return "broadleaf"
+
+
+def fruit_kind(ltpl):
+    name = ltpl.rsplit("/", 1)[-1]
+    for keys, kind in ((["berry", "grape"], "berry"), (["apple", "fig"], "apple"), (["date"], "date")):
+        if any(k in name for k in keys):
+            return kind
+    return "food"
+
+
 def gaia_resource(source, ltpl, wx, wz):
     """A Gaia resource supply (tree, fruit, rock, mine) as a resources entry, typed and sized
     by its 0 A.D. template's ResourceSupply. Templates that can't be read fall back to a
@@ -295,7 +325,7 @@ def gaia_resource(source, ltpl, wx, wz):
     if amount is None or amount != amount or amount == float("inf"):
         return None
     if kind == "wood":
-        rtype = "palm" if ("palm" in ltpl or "date" in ltpl) else ("pine" if ("pine" in ltpl or "cedar" in ltpl or "cypress" in ltpl) else "tree")
+        rtype = flora_kind(ltpl)
     elif kind == "stone":
         rtype = "stone"
     elif kind == "metal" or kind == "gold":
@@ -305,10 +335,15 @@ def gaia_resource(source, ltpl, wx, wz):
     elif kind == "food":
         if st == "food.grain":
             return None  # a Gaia field: nobody may farm it
-        rtype = "food"
+        rtype = fruit_kind(ltpl)
     else:
         return None
-    return {"type": rtype, "x": wx, "z": wz, "amount": int(amount)}
+    entry = {"type": rtype, "x": wx, "z": wz, "amount": int(amount)}
+    # RTS0's trees and fruit default to template_gaia_tree/fruit's 8 gatherers (banyan 12, baobab 9).
+    mg = info.get("max_gatherers")
+    if mg is not None and mg != 8 and rtype not in ("stone", "gold", "fish"):
+        entry["max_gatherers"] = mg
+    return entry
 
 def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean", height_scale=None, source=None, gaia_only=False,
              terrain_only=False):

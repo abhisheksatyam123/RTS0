@@ -386,7 +386,10 @@ public:
 	void unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo &info, float out[RES_COUNT]) const;
 	uint32_t spawn_resource(int cell_x, int cell_y, uint8_t type, int32_t amount = 600);
 	// max_gatherers 0: the gaia template default (resource_default_max_gatherers).
-	uint32_t spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount = 600, uint8_t subtype = 0, uint8_t max_gatherers = 0);
+	// flora: the FloraKind the supply shows (FLORA_DEFAULT: the biome's pick).
+	uint32_t spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount = 600, uint8_t subtype = 0, uint8_t max_gatherers = 0,
+			uint8_t flora = 0);
+	void set_resource_flora(uint32_t res_id, uint8_t flora);
 	// ResourceSupply/MaxGatherers of a resource (0 if there is none with that id).
 	int resource_max_gatherers(uint32_t res_id) const {
 		auto it = res_id_to_idx_.find(res_id);
@@ -937,6 +940,7 @@ public:
 		const float *x, *z;
 		const int32_t *amount;
 		const uint8_t *type, *subtype, *alive;
+		const uint8_t *flora; // FloraKind
 		const uint32_t *id;
 		size_t count;
 	};

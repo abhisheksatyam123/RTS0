@@ -2,6 +2,8 @@
 
 #include <cstring>
 
+#include "sim_types.h"
+
 namespace rtso {
 
 // 0 A.D. random-map terrains per biome (maps/random/rmbiome/defaultbiome.json,
@@ -71,6 +73,51 @@ inline const TerrainBiome &terrain_biome(const char *biome) {
 	for (const auto &b : kBiomes)
 		if (std::strcmp(biome, b.biome) == 0) return b;
 	return kBiomes[0];
+}
+
+// 0 A.D. random-map trees per biome (rmbiome generic/<biome>.json "Gaia" tree1-tree5 and
+// fruitBush, and setupBiome_<biome>'s pickRandom sets), as the FloraKind of each template:
+// createDefaultForests mixes tree1 with tree2 or tree4 with tree5 in each forest, and
+// createStragglerTrees picks tree1, tree2, tree4 or tree3. A set with several options holds
+// pickRandom's choices; FLORA_DEFAULT ends a list.
+struct BiomeFlora {
+	const char *biome;
+	uint8_t tree12[3][2]; // [tree1, tree2] options
+	uint8_t tree3[5];     // tree3 options
+	uint8_t tree45[3][2]; // [tree4, tree5] options
+	uint8_t fruit;        // fruitBush
+};
+
+inline const BiomeFlora *biome_flora(const char *biome) {
+	static const BiomeFlora kFlora[] = {
+		// cypress_wild, pine_maritime_short; olive, juniper_prickly, date_palm, cretan_date_palm_short,
+		// medit_fan_palm; poplar_lombardy, carob; berry_01 or grapes.
+		{"aegean", {{FLORA_PINE, FLORA_PINE}}, {FLORA_BROADLEAF, FLORA_PINE, FLORA_PALM, FLORA_PALM, FLORA_PALM},
+		 {{FLORA_BROADLEAF, FLORA_BROADLEAF}}, FLORA_BERRY},
+		// pine, fir; oak_hungarian_autumn; fir_sapling, elm.
+		{"alpine", {{FLORA_PINE, FLORA_PINE}}, {FLORA_OAK}, {{FLORA_BUSH, FLORA_BROADLEAF}}, FLORA_BERRY},
+		// arctic: fir_winter, pine_w.
+		{"polar", {{FLORA_PINE, FLORA_PINE}}, {FLORA_PINE}, {{FLORA_PINE, FLORA_PINE}}, FLORA_BERRY},
+		// sahara: date palms (cretan_date_palm_short/tall, date_palm, cretan_date_palm_patch); juniper_prickly.
+		{"oasis", {{FLORA_PALM, FLORA_PALM}}, {FLORA_PINE}, {{FLORA_PALM, FLORA_PALM}}, FLORA_DATE},
+		// oak + oak_hungarian, oak_holly + maple or oak_hungarian + oak_holly; apple (a fruit tree,
+		// drawn here as a leafy tree); pine and pine_maritime.
+		{"temperate", {{FLORA_OAK, FLORA_OAK}, {FLORA_OAK, FLORA_BROADLEAF}, {FLORA_OAK, FLORA_OAK}}, {FLORA_BROADLEAF},
+		 {{FLORA_PINE, FLORA_PINE}}, FLORA_BERRY},
+		// bush_steppe_01-03.
+		{"steppe", {{FLORA_BUSH, FLORA_BUSH}}, {FLORA_BUSH}, {{FLORA_BUSH, FLORA_BUSH}}, FLORA_BERRY},
+		// baobab, acacia; acacia; bush_tropic, bush_temperate.
+		{"savanna", {{FLORA_BAOBAB, FLORA_ACACIA}}, {FLORA_ACACIA}, {{FLORA_BUSH, FLORA_BUSH}}, FLORA_BERRY},
+		// banyan, strangler; teak; palm_palmyra, palm_tropical; date.
+		{"india", {{FLORA_BROADLEAF, FLORA_BROADLEAF}}, {FLORA_BROADLEAF}, {{FLORA_PALM, FLORA_PALM}}, FLORA_DATE},
+	};
+	static const struct { const char *from, *to; } kAliases[] = {
+		{"mediterranean", "aegean"}, {"latium", "aegean"}, {"desert", "oasis"}, {"persia", "steppe"}, {"tropical", "india"}};
+	for (const auto &a : kAliases)
+		if (std::strcmp(biome, a.from) == 0) biome = a.to;
+	for (const auto &f : kFlora)
+		if (std::strcmp(biome, f.biome) == 0) return &f;
+	return nullptr; // RTS0's own biomes (volcanic): the viewer's pick
 }
 
 } // namespace rtso

@@ -24,6 +24,8 @@
 //  9. English Channel splits the players by sea; Fortress walls every base.
 // 10. Random maps paint 0 A.D. per-tile terrains (water, forest floor, road) and the
 //     map JSON tile encoding decodes; bad tiles are refused.
+// 10b. Random maps plant their biome's rmbiome trees and fruit (FloraKind), forests
+//     and stragglers alike, and the map JSON plant names resolve.
 //  Exit: 0 = PASS, 1 = FAIL.
 #include "simulation/simulation.h"
 #include "simulation/rms_generator.h"
@@ -444,6 +446,57 @@ int main() {
 		Simulation again;
 		again.generate_random_map(MAP_RANDOM_ARCHIPELAGO, 12, 2, size * 0.5f);
 		CHECK(again.terrain_tiles().tiles == t.tiles && again.terrain_tiles().names == t.names, "size %d: terrain differs for one seed", size);
+	}
+	// 10b. Biome flora (rmbiome tree1-tree5 and fruitBush).
+	for (int biome = 0; biome < BIOME_COUNT; ++biome) {
+		Simulation sim;
+		sim.set_biome_override(biome);
+		sim.generate_random_map(MAP_MAINLAND, 7, 2, 128.0f);
+		const BiomeFlora *f = biome_flora(sim.current_map_biome().c_str());
+		CHECK(f != nullptr, "biome %s has 0 A.D. flora", sim.current_map_biome().c_str());
+		if (!f) continue;
+		bool allowed[FLORA_COUNT] = {};
+		for (const auto &o : f->tree12) { allowed[o[0]] = allowed[o[1]] = true; }
+		for (const auto &o : f->tree45) { allowed[o[0]] = allowed[o[1]] = true; }
+		for (uint8_t k : f->tree3) allowed[k] = true;
+		allowed[FLORA_DEFAULT] = false;
+		int trees = 0, trees_ok = 0, fruit = 0, fruit_ok = 0;
+		bool seen[FLORA_COUNT] = {};
+		const auto rv = sim.resources();
+		for (size_t i = 0; i < rv.count; ++i) {
+			if (rv.subtype[i] != RES_SUB_NONE) continue;
+			if (rv.type[i] == RES_WOOD) { ++trees; trees_ok += allowed[rv.flora[i]]; seen[rv.flora[i]] = true; }
+			if (rv.type[i] == RES_FOOD) { ++fruit; fruit_ok += rv.flora[i] == f->fruit; }
+		}
+		int kinds = 0;
+		for (bool b : seen) kinds += b;
+		CHECK(trees > 0 && trees_ok == trees, "%s: %d of %d trees are the biome's", f->biome, trees_ok, trees);
+		CHECK(fruit > 0 && fruit_ok == fruit, "%s: %d of %d fruit bushes are the biome's", f->biome, fruit_ok, fruit);
+		CHECK(kinds >= 1, "%s: trees of %d kinds", f->biome, kinds);
+		Simulation again;
+		again.set_biome_override(biome);
+		again.generate_random_map(MAP_MAINLAND, 7, 2, 128.0f);
+		const auto av = again.resources();
+		CHECK(av.count == rv.count && std::equal(rv.flora, rv.flora + rv.count, av.flora), "%s: flora differs for one seed", f->biome);
+	}
+	{
+		Simulation sim;
+		sim.set_biome_override(BIOME_TEMPERATE);
+		sim.generate_random_map(MAP_MAINLAND, 7, 2, 128.0f);
+		const auto rv = sim.resources();
+		bool oak = false, pine = false;
+		for (size_t i = 0; i < rv.count; ++i) { oak |= rv.flora[i] == FLORA_OAK; pine |= rv.flora[i] == FLORA_PINE; }
+		CHECK(oak && pine, "temperate mixes oak (tree1/tree2) and pine (tree4/tree5) forests");
+		CHECK(flora_kind_by_name("pine") == FLORA_PINE && flora_kind_by_name("berry") == FLORA_BERRY &&
+		      flora_kind_by_name("tree") == FLORA_DEFAULT && flora_kind_by_name("food") == FLORA_DEFAULT &&
+		      flora_kind_by_name("stone") == FLORA_COUNT && flora_is_fruit(FLORA_DATE) && !flora_is_fruit(FLORA_PALM),
+		      "map JSON plant names resolve");
+		const uint32_t id = sim.spawn_resource_world(0.0f, 0.0f, RES_WOOD, 100, RES_SUB_NONE, 1, FLORA_BAMBOO);
+		CHECK(sim.resource_max_gatherers(id) == 1, "a JSON tree keeps its MaxGatherers");
+		sim.set_resource_flora(id, 200);
+		const auto v2 = sim.resources();
+		for (size_t i = 0; i < v2.count; ++i)
+			if (v2.id[i] == id) CHECK(v2.flora[i] == FLORA_DEFAULT, "an out-of-range FloraKind falls back to the default");
 	}
 	{
 		// "AQAAAQAA" is the (run - 1, name) pairs (1, 0) (0, 1) (0, 0): 0, 0, 1, 0.

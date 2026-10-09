@@ -293,6 +293,7 @@ struct ResourceSoA {
 	uint8_t *subtype = nullptr; // ResourceSubtype: meat carcass, grain field, …
 	uint8_t *max_gatherers = nullptr; // ResourceSupply/MaxGatherers
 	int32_t *max_amount = nullptr; // ResourceSupply/Max a regrowing supply returns to (fruit), 0 = none
+	uint8_t *flora = nullptr; // FloraKind: the plant a tree or fruit supply shows
 	uint8_t *alive = nullptr;
 	uint32_t *id = nullptr;
 
@@ -306,9 +307,10 @@ struct ResourceSoA {
 		if (subtype) free(subtype);
 		if (max_gatherers) free(max_gatherers);
 		if (max_amount) free(max_amount);
+		if (flora) free(flora);
 		if (alive) free(alive);
 		if (id) free(id);
-		x = z = nullptr; amount = max_amount = nullptr; type = subtype = max_gatherers = alive = nullptr; id = nullptr; cap = count = 0;
+		x = z = nullptr; amount = max_amount = nullptr; type = subtype = max_gatherers = flora = alive = nullptr; id = nullptr; cap = count = 0;
 	}
 	~ResourceSoA() { free_all(); }
 
@@ -327,7 +329,7 @@ struct ResourceSoA {
 		ra(x, c * sizeof(float)); ra(z, c * sizeof(float));
 		ra(amount, c * sizeof(int32_t)); ra(type, c * sizeof(uint8_t));
 		ra(subtype, c * sizeof(uint8_t)); ra(max_gatherers, c * sizeof(uint8_t));
-		ra(max_amount, c * sizeof(int32_t));
+		ra(max_amount, c * sizeof(int32_t)); ra(flora, c * sizeof(uint8_t));
 		ra(alive, c * sizeof(uint8_t)); ra(id, c * sizeof(uint32_t));
 		cap = c;
 	}
@@ -336,7 +338,7 @@ struct ResourceSoA {
 		if (count >= cap) reserve(cap ? cap * 2 : 256);
 		size_t i = count++;
 		x[i] = rx; z[i] = rz; amount[i] = amt;
-		type[i] = rtype; subtype[i] = rsub; max_gatherers[i] = rmax; max_amount[i] = 0; alive[i] = 1; id[i] = rid;
+		type[i] = rtype; subtype[i] = rsub; max_gatherers[i] = rmax; max_amount[i] = 0; flora[i] = 0; alive[i] = 1; id[i] = rid;
 		return i;
 	}
 
@@ -347,7 +349,7 @@ struct ResourceSoA {
 			x[idx] = x[last]; z[idx] = z[last];
 			amount[idx] = amount[last]; type[idx] = type[last];
 			subtype[idx] = subtype[last]; max_gatherers[idx] = max_gatherers[last];
-			max_amount[idx] = max_amount[last];
+			max_amount[idx] = max_amount[last]; flora[idx] = flora[last];
 			alive[idx] = alive[last]; id[idx] = id[last];
 		}
 		count--;

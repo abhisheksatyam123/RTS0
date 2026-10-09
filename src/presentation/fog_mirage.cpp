@@ -190,6 +190,7 @@ void FogMirages::update(const Simulation &sim, uint8_t viewer) {
 		r.amount = rv.amount[i];
 		r.type = rv.type[i];
 		r.subtype = rv.subtype ? rv.subtype[i] : 0;
+		r.flora = rv.flora ? rv.flora[i] : 0;
 		add_resource(r);
 	}
 	end();

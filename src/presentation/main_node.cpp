@@ -4797,7 +4797,10 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 
 		uint8_t rtype = rtso::RES_WOOD;
 		uint8_t rsub = rtso::RES_SUB_NONE;
-		if (rtype_str == "gold" || rtype_str == "metal") rtype = rtso::RES_GOLD;
+		// A plant name ("pine", "berry", ...) is a tree or fruit supply of that FloraKind.
+		const uint8_t flora = rtso::flora_kind_by_name(rtype_str.utf8().get_data());
+		if (flora < rtso::FLORA_COUNT && rtso::flora_is_fruit(flora)) rtype = rtso::RES_FOOD;
+		else if (rtype_str == "gold" || rtype_str == "metal") rtype = rtso::RES_GOLD;
 		else if (rtype_str == "stone" || rtype_str == "rock") rtype = rtso::RES_STONE;
 		else if (rtype_str == "food" || rtype_str == "fruit") rtype = rtso::RES_FOOD;
 		else if (rtype_str == "fish") { // 0 A.D. gaia/fish/*: only fishing boats gather it
@@ -4806,7 +4809,9 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			if (!r.has("amount")) amt = rtso::FISH_FOOD_SUPPLY;
 		}
 
-		sim->spawn_resource_world(rx, rz, rtype, amt, rsub);
+		// 0 A.D. ResourceSupply/MaxGatherers when the template differs from its class (banyan 12, baobab 9).
+		const int maxg = std::clamp((int)r.get("max_gatherers", 0), 0, 255);
+		sim->spawn_resource_world(rx, rz, rtype, amt, rsub, (uint8_t)maxg, flora < rtso::FLORA_COUNT ? flora : rtso::FLORA_DEFAULT);
 	}
 
 	// Spawn Wildlife Fauna

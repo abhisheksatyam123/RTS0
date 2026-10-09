@@ -4211,73 +4211,73 @@
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -42.08,
       "z": -47.54,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -40.5,
       "z": -47.45,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -40.32,
       "z": -49.12,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -44.33,
       "z": -46.48,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -30.66,
       "z": -27.82,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -28.55,
       "z": -26.72,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -27.74,
       "z": -27.84,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -27.16,
       "z": -25.97,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -23.26,
       "z": -30.36,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -21.58,
       "z": -26.62,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -24.18,
       "z": -26.03,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -23.38,
       "z": -27.09,
       "amount": 400
@@ -4442,13 +4442,15 @@
       "type": "palm",
       "x": -37.34,
       "z": -11.23,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -61.1,
       "z": -20.9,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
@@ -4613,13 +4615,13 @@
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 23.95,
       "z": -35.63,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 43.31,
       "z": -53.76,
       "amount": 400
@@ -4634,7 +4636,8 @@
       "type": "palm",
       "x": 21.01,
       "z": -74.54,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
@@ -4649,61 +4652,61 @@
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 20.74,
       "z": -36.29,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 19.83,
       "z": -37.25,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 19.98,
       "z": -34.58,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 20.25,
       "z": -40.2,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 22.2,
       "z": -40.47,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 21.22,
       "z": -41.44,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 22.65,
       "z": -43.35,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 45.26,
       "z": -49.36,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 43.64,
       "z": -49.82,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 43.99,
       "z": -51.36,
       "amount": 400
@@ -4802,7 +4805,8 @@
       "type": "palm",
       "x": -27.09,
       "z": 6.52,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
@@ -4877,61 +4881,61 @@
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 45.46,
       "z": 20.9,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 44.56,
       "z": 19.6,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 43.13,
       "z": 20.49,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 53.93,
       "z": -0.26,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 53.49,
       "z": -2.6,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 52.11,
       "z": -2.53,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 53.23,
       "z": -4.15,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 49.27,
       "z": -8.14,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 51.34,
       "z": -6.46,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 50.02,
       "z": -6.44,
       "amount": 400
@@ -4952,7 +4956,8 @@
       "type": "palm",
       "x": 75.4,
       "z": 23.59,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
@@ -4961,13 +4966,13 @@
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 47.69,
       "z": 22.02,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 47.36,
       "z": -4.51,
       "amount": 400
@@ -5189,61 +5194,61 @@
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -32.19,
       "z": 44.7,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -31.28,
       "z": 43.41,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -32.61,
       "z": 42.37,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -9.41,
       "z": 45.43,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -7.36,
       "z": 44.22,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -7.9,
       "z": 42.94,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -5.99,
       "z": 43.43,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -3.6,
       "z": 38.35,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -4.47,
       "z": 40.87,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -4.95,
       "z": 39.64,
       "amount": 400
@@ -5264,7 +5269,8 @@
       "type": "palm",
       "x": -19.76,
       "z": 74.8,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
@@ -5273,13 +5279,13 @@
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -32.48,
       "z": 47.18,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -7.66,
       "z": 37.8,
       "amount": 400
@@ -5462,7 +5468,8 @@
       "type": "palm",
       "x": 50.92,
       "z": -10.8,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
@@ -5567,49 +5574,49 @@
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 0.88,
       "z": -70.2,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -0.3,
       "z": -72.52,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 0.86,
       "z": -71.45,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 1.24,
       "z": -74.29,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -21.46,
       "z": -65.42,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -23.27,
       "z": -65.42,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -22.32,
       "z": -64.82,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -23.24,
       "z": -64.16,
       "amount": 400
@@ -6053,13 +6060,13 @@
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 36.46,
       "z": -8.59,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": 27.8,
       "z": -19.68,
       "amount": 400
@@ -6074,7 +6081,8 @@
       "type": "palm",
       "x": 29.13,
       "z": -8.73,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
@@ -6179,19 +6187,19 @@
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "oak",
       "x": -67.49,
       "z": 21.4,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "oak",
       "x": -84.69,
       "z": 28.52,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "oak",
       "x": 68.54,
       "z": -39.21,
       "amount": 200
@@ -6395,7 +6403,7 @@
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -73.64,
       "z": 148.1,
       "amount": 400
@@ -7865,49 +7873,49 @@
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "acacia",
       "x": -80.85,
       "z": 29.65,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "acacia",
       "x": -70.85,
       "z": 23.33,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "acacia",
       "x": 41.5,
       "z": 8.57,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "acacia",
       "x": 78.66,
       "z": -54.91,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "acacia",
       "x": -41.1,
       "z": -80.85,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "acacia",
       "x": -101.62,
       "z": 28.69,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "acacia",
       "x": -51.71,
       "z": 84.75,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "acacia",
       "x": 48.66,
       "z": 93.09,
       "amount": 200

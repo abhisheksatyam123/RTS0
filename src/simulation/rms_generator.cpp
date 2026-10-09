@@ -8,6 +8,7 @@
 #include <cstring>
 #include <limits>
 #include <queue>
+#include <unordered_map>
 
 namespace rtso {
 
@@ -8138,6 +8139,58 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	place_trigger_map_entities(sim, hm, water_h, spawns, rng, config);
 
 	return true;
+}
+
+void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed) {
+	const BiomeFlora *f = biome_flora(sim.current_map_biome().c_str());
+	if (!f) return;
+	auto hash = [&](int x, int z, uint32_t salt) {
+		uint32_t h = seed * 0x9E3779B1u ^ salt * 0x85EBCA77u ^ (uint32_t)x * 0xC2B2AE3Du ^ (uint32_t)z * 0x27D4EB2Fu;
+		h ^= h >> 15; h *= 0x2C1B3C6Du; h ^= h >> 12; h *= 0x297A2D39u; h ^= h >> 15;
+		return h;
+	};
+	auto options = [](const uint8_t (*set)[2]) { int n = 0; while (n < 3 && set[n][0] != FLORA_DEFAULT) ++n; return n; };
+	// setupBiome_<biome>'s pickRandom, once per map.
+	const uint8_t *t12 = f->tree12[hash(0, 0, 1) % (uint32_t)options(f->tree12)];
+	const uint8_t *t45 = f->tree45[hash(0, 0, 2) % (uint32_t)options(f->tree45)];
+	int n3 = 0;
+	while (n3 < 5 && f->tree3[n3] != FLORA_DEFAULT) ++n3;
+	const uint8_t t3 = f->tree3[hash(0, 0, 3) % (uint32_t)n3];
+
+	const auto rv = sim.resources();
+	// Trees per 2-tile cell, to tell forests from stragglers.
+	std::unordered_map<uint64_t, int> cells;
+	auto cell_key = [](int cx, int cz) { return (uint64_t)(uint32_t)cx << 32 | (uint32_t)cz; };
+	for (size_t r = 0; r < rv.count; ++r)
+		if (rv.type[r] == RES_WOOD && rv.subtype[r] == RES_SUB_NONE)
+			++cells[cell_key((int)std::floor(rv.x[r] * 0.5f), (int)std::floor(rv.z[r] * 0.5f))];
+	for (size_t r = 0; r < rv.count; ++r) {
+		const int tx = (int)std::floor(rv.x[r]), tz = (int)std::floor(rv.z[r]);
+		if (rv.type[r] == RES_FOOD && rv.subtype[r] == RES_SUB_NONE) {
+			sim.set_resource_flora(rv.id[r], f->fruit);
+			continue;
+		}
+		if (rv.type[r] != RES_WOOD || rv.subtype[r] != RES_SUB_NONE) continue;
+		const int cx = (int)std::floor(rv.x[r] * 0.5f), cz = (int)std::floor(rv.z[r] * 0.5f);
+		int near = -1; // the tree itself
+		for (int dz = -1; dz <= 1; ++dz)
+			for (int dx = -1; dx <= 1; ++dx) {
+				auto it = cells.find(cell_key(cx + dx, cz + dz));
+				if (it != cells.end()) near += it->second;
+			}
+		const uint32_t h = hash(tx, tz, 4);
+		uint8_t kind;
+		if (near >= 4) {
+			// createDefaultForests: each forest is either a tree1/tree2 or a tree4/tree5 mix.
+			const bool second = hash((int)std::floor(rv.x[r] / 12.0f), (int)std::floor(rv.z[r] / 12.0f), 5) & 1u;
+			kind = (second ? t45 : t12)[h & 1u];
+		} else {
+			// createStragglerTrees: [tree1, tree2, tree4, tree3].
+			const uint8_t pick[4] = {t12[0], t12[1], t45[0], t3};
+			kind = pick[h % 4u];
+		}
+		sim.set_resource_flora(rv.id[r], kind);
+	}
 }
 
 void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed) {

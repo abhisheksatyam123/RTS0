@@ -327,6 +327,28 @@ void RtsoWorldView::_ready() {
 		add_child(tree_mmi[k]);
 	}
 	pick_tree_kinds("mediterranean");
+	{
+		// FloraKind -> vegetation model. Bushes and saplings are small leafy trees; a date
+		// fruit supply is a short date palm. Scales as in pick_tree_kinds.
+		static_assert(FLORA_KINDS == rtso::FLORA_COUNT, "one batch per FloraKind");
+		struct Kind { const char *id; float scale; bool tree; };
+		static const Kind kKinds[FLORA_KINDS] = {
+			{ nullptr, 1.0f, true }, { "tree", 1.0f, true }, { "pine", 1.0f, true }, { "palm", 1.0f, true },
+			{ "oak", 1.15f, true }, { "baobab", 0.45f, true }, { "acacia", 0.6f, true }, { "bamboo", 1.0f, true },
+			{ "tree", 0.45f, true }, { "fruit_bush", 1.0f, false }, { "apple", 1.0f, false }, { "palm", 0.7f, false },
+		};
+		for (int k = 1; k < FLORA_KINDS; ++k) {
+			auto e = rtso::ModelLibrary::get("vegetation", kKinds[k].id);
+			if (e.mesh.is_null()) continue;
+			enable_instance_tint(e.mesh);
+			flora_mm[k] = create_multimesh(kKinds[k].tree ? wind_mesh(e.mesh) : e.mesh, true);
+			flora_scale[k] = kKinds[k].scale;
+			flora_y[k] = e.y_offset * kKinds[k].scale;
+			flora_mmi[k] = memnew(MultiMeshInstance3D);
+			flora_mmi[k]->set_multimesh(flora_mm[k]);
+			add_child(flora_mmi[k]);
+		}
+	}
 	gold_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "gold_vein").mesh), true);
 	stone_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "stone_mine").mesh), true);
 	food_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "fruit_bush").mesh), true);
@@ -2885,10 +2907,20 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	}
 
 	if (sim->current_map_biome() != tree_biome_) pick_tree_kinds(sim->current_map_biome());
-	size_t n_kind[TREE_KINDS] = {};
-	for (const auto &r : fres)
+	// A tree or fruit bush with a FloraKind whose model loaded draws in that kind's batch.
+	auto flora_of = [&](const rtso::FoggedResource &r) -> int {
+		if (r.flora == 0 || r.flora >= FLORA_KINDS || flora_mm[r.flora].is_null()) return 0;
+		if (r.subtype != rtso::RES_SUB_NONE || (r.type != rtso::RES_WOOD && r.type != rtso::RES_FOOD)) return 0;
+		return r.flora;
+	};
+	size_t n_kind[TREE_KINDS] = {}, n_flora[FLORA_KINDS] = {};
+	for (const auto &r : fres) {
+		if (const int f = flora_of(r)) { n_flora[f]++; if (r.type == rtso::RES_FOOD) fd--; continue; }
 		if (r.type == rtso::RES_WOOD && r.subtype != rtso::RES_SUB_GRAIN) n_kind[r.id % (uint32_t)tree_kind_count]++;
+	}
 	for (int k = 0; k < TREE_KINDS; ++k) tree_mm[k]->set_instance_count((int)n_kind[k]);
+	for (int k = 1; k < FLORA_KINDS; ++k)
+		if (flora_mm[k].is_valid()) flora_mm[k]->set_instance_count((int)n_flora[k]);
 	gold_mm->set_instance_count((int)g);
 	stone_mm->set_instance_count((int)st);
 	if (food_mm.is_valid())
@@ -2896,7 +2928,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	ruins_mm->set_instance_count((int)nru);
 	fish_mm->set_instance_count((int)fish_n);
 
-	size_t ia[TREE_KINDS] = {}, ig = 0, ist = 0, ifd = 0, iru = 0, ifish = 0;
+	size_t ia[TREE_KINDS] = {}, iflora[FLORA_KINDS] = {}, ig = 0, ist = 0, ifd = 0, iru = 0, ifish = 0;
 	auto e_ruins = rtso::ModelLibrary::get("buildings", "ruins");
 	String cat_veg = "vegetation";
 	String id_gold = "gold_vein"; auto e_gold = rtso::ModelLibrary::get(cat_veg, id_gold);
@@ -2912,7 +2944,12 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		const float lit = los_brightness(rx, rz);
 		const Color tint(lit, lit, lit, 1.0f);
 
-		if (r.subtype == rtso::RES_SUB_RUINS) {
+		if (const int f = flora_of(r)) {
+			const float sc = flora_scale[f];
+			Transform3D xf(rot.scaled(Vector3(sc, sc, sc)), Vector3(rx, ry + flora_y[f], rz));
+			flora_mm[f]->set_instance_transform((int)iflora[f], xf);
+			flora_mm[f]->set_instance_color((int)iflora[f]++, tint);
+		} else if (r.subtype == rtso::RES_SUB_RUINS) {
 			Transform3D xf(rot, Vector3(rx, ry + e_ruins.y_offset, rz));
 			ruins_mm->set_instance_transform((int)iru, xf);
 			ruins_mm->set_instance_color((int)iru++, tint);

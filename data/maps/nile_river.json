@@ -4448,43 +4448,50 @@
       "type": "palm",
       "x": -58.96,
       "z": -145.21,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -60.65,
       "z": -143.91,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -63.11,
       "z": -146.14,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -62.11,
       "z": -150.13,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -61.1,
       "z": -155.77,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -57.51,
       "z": -154.6,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -56.02,
       "z": -150.73,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
@@ -6317,121 +6324,121 @@
       "amount": 5000
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -14.15,
       "z": -98.86,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -15.76,
       "z": -103.75,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -12.97,
       "z": -106.35,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -13.5,
       "z": -103.23,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -16.23,
       "z": -100.09,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -85.03,
       "z": -36.38,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -82.8,
       "z": -35.4,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -80.32,
       "z": -35.13,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -79.38,
       "z": -32.4,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -81.91,
       "z": -33.25,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 15.31,
       "z": 98.0,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 16.19,
       "z": 93.8,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 15.21,
       "z": 90.81,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 17.86,
       "z": 95.3,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 17.61,
       "z": 99.63,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 77.63,
       "z": 50.46,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 75.76,
       "z": 47.46,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 77.31,
       "z": 53.43,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 79.23,
       "z": 52.8,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 78.31,
       "z": 47.47,
       "amount": 200
@@ -6602,187 +6609,218 @@
       "type": "palm",
       "x": -158.81,
       "z": 55.63,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -110.41,
       "z": 101.15,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -164.74,
       "z": -17.23,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -105.38,
       "z": 53.44,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -62.74,
       "z": 96.96,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -50.15,
       "z": 156.67,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -122.32,
       "z": -86.54,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -146.99,
       "z": -72.69,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -134.19,
       "z": -117.38,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 40.77,
       "z": -175.48,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 67.89,
       "z": -148.66,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 95.03,
       "z": -148.9,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 126.57,
       "z": -100.26,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 146.38,
       "z": -56.78,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 132.58,
       "z": -37.12,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 160.88,
       "z": -0.59,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 163.41,
       "z": 59.51,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 89.96,
       "z": -52.79,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -85.1,
       "z": -121.04,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -105.28,
       "z": -28.77,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -100.24,
       "z": -35.78,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -105.16,
       "z": -34.38,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -14.49,
       "z": 88.25,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -11.53,
       "z": 83.0,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -9.11,
       "z": 77.71,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 85.53,
       "z": 21.11,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 84.49,
       "z": 17.41,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 81.57,
       "z": 22.28,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 18.02,
       "z": -84.31,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 21.98,
       "z": -93.27,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 25.07,
       "z": -82.59,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
@@ -7844,7 +7882,8 @@
       "type": "palm",
       "x": 5.87,
       "z": 55.07,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
@@ -9998,121 +10037,141 @@
       "type": "palm",
       "x": 120.03,
       "z": 46.5,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 120.85,
       "z": 50.24,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 123.24,
       "z": 45.93,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -0.93,
       "z": -25.85,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -58.72,
       "z": 3.34,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -12.92,
       "z": 56.13,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -25.54,
       "z": 66.09,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -25.59,
       "z": 127.33,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 11.83,
       "z": 149.12,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -94.43,
       "z": -71.95,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -87.63,
       "z": -104.49,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -71.85,
       "z": -146.79,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -73.23,
       "z": -156.28,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -62.17,
       "z": -178.21,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 25.36,
       "z": -181.43,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 22.28,
       "z": -121.49,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 26.14,
       "z": -29.12,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 2.91,
       "z": -34.19,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 50.57,
       "z": -6.93,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 68.39,
       "z": 11.36,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     }
   ],
   "fauna": [

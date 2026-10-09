@@ -4448,7 +4448,7 @@
       "amount": 5000
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 16.5,
       "z": -38.16,
       "amount": 200
@@ -4490,49 +4490,51 @@
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "bamboo",
       "x": -16.29,
       "z": -7.17,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
-      "type": "tree",
+      "type": "bamboo",
       "x": 22.78,
       "z": -14.36,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 10.93,
       "z": -38.66,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 12.77,
       "z": -41.32,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 14.79,
       "z": -36.85,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 13.96,
       "z": -42.96,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 17.03,
       "z": -40.39,
       "amount": 200
     },
     {
-      "type": "tree",
+      "type": "broadleaf",
       "x": 13.03,
       "z": -42.07,
       "amount": 200
