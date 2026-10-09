@@ -14623,12 +14623,58 @@ void Simulation::petra_manage_defense(float dt) {
 		return petra_unit_reserved(uid);
 	};
 
+	// defenseManager.js update: how many enemies attack each ally (attackedAllies), from
+	// enemy players with 8 or more units inside that ally's territory (attackingUnits).
+	int ally_units[MAX_PLAYERS][MAX_PLAYERS] = {};
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || !petra_foe(units_.team[i]) || units_.team[i] >= MAX_PLAYERS) continue;
+		const int owner = territory_owner_at(units_.pos_x[i], units_.pos_z[i]);
+		if (owner >= 0 && owner < MAX_PLAYERS && owner != petra_pid_ && is_ally(petra_pid_, (uint8_t)owner))
+			++ally_units[owner][units_.team[i]];
+	}
+	int attacked_allies[MAX_PLAYERS] = {};
+	for (int a = 0; a < MAX_PLAYERS; ++a)
+		for (int e = 0; e < MAX_PLAYERS; ++e) attacked_allies[a] += ally_units[a][e] >= 8;
+	// GetCooperationLevel: more inclined to help an ally attacked by several enemies.
+	auto cooperation = [&](uint8_t ally) {
+		return petra_config_.cooperative + (attacked_allies[ally] > 1 ? 0.2f * (float)(attacked_allies[ally] - 1) : 0.0f);
+	};
+	// isDangerous outside our own land: a fighter in neutral or allied land close to one
+	// of our structures, to a cooperative ally's civic centre, or (an ally attacked by
+	// several enemies) to that ally's structures. Enemy land is never ours to defend.
+	auto dangerous_outside = [&](size_t i, int owner) {
+		if (owner >= 0 && !is_ally(petra_pid_, (uint8_t)owner)) return false;
+		if (petra_is_support_unit(units_.unit_type[i]) || units_.attack_damage[i] <= 0.0f) return false;
+		float reach = PETRA_DANGER_DIST;
+		if (template_has_ranged_attack(units_.tmpl[i], units_.unit_type[i], civ_of(units_.team[i])))
+			reach = std::max(reach, units_.attack_range[i] + PETRA_DANGER_RANGED_PAD);
+		const float r2 = reach * reach;
+		const bool help_ally = owner >= 0 && owner != petra_pid_ && attacked_allies[owner] > 1 &&
+		                       cooperation((uint8_t)owner) > 0.7f;
+		for (const auto &b : buildings_) {
+			if (b.hp <= 0.0f || b.wrecked || b.team >= MAX_PLAYERS) continue;
+			const float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
+			if (dx * dx + dz * dz >= r2) continue;
+			if (b.team == petra_pid_) {
+				if (b.build_progress > 0.0f) return true;
+			} else if (is_ally(petra_pid_, b.team)) {
+				const float coop = cooperation(b.team);
+				if (b.type == BLD_TOWN_CENTER && b.build_progress > 0.0f &&
+				    coop >= 0.3f && (coop >= 0.6f || b.build_progress >= 1.0f))
+					return true;
+				if (help_ally && b.team == owner && b.build_progress > 0.0f) return true;
+			}
+		}
+		return false;
+	};
+
 	// Detect enemies inside own territory (defenseManager.isDangerous). The base
 	// radius only stands in for territory while a base has no anchor building:
 	// a 32 m radius reaches into a close neighbour's land and starts border fights.
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || !petra_foe(units_.team[i])) continue;
-		bool dangerous = (territory_owner_at(units_.pos_x[i], units_.pos_z[i]) == petra_pid_);
+		const int owner = territory_owner_at(units_.pos_x[i], units_.pos_z[i]);
+		bool dangerous = owner == petra_pid_;
 		if (!dangerous) {
 			for (const auto &base : petra_bases_) {
 				if (base.anchor_building_id != 0) continue;
@@ -14640,7 +14686,29 @@ void Simulation::petra_manage_defense(float dt) {
 				}
 			}
 		}
+		if (!dangerous) dangerous = dangerous_outside(i, owner);
 		if (dangerous) army.foe_ids.push_back(units_.id[i]);
+	}
+
+	// checkEvents Attacked: whoever fights one of ours from neutral or allied land joins
+	// the foes (an attack plan's own units answer for themselves). Defense runs every
+	// half second, so a foe whose current target is ours counts as well as this
+	// tick's hits.
+	auto add_attacker = [&](int32_t a) {
+		if (a < 0 || !units_.alive[a] || !petra_foe(units_.team[a]) || unit_is_ship(units_.unit_type[a])) return;
+		const int owner = territory_owner_at(units_.pos_x[a], units_.pos_z[a]);
+		if (owner >= 0 && !is_ally(petra_pid_, (uint8_t)owner)) return;
+		if (std::find(army.foe_ids.begin(), army.foe_ids.end(), units_.id[a]) == army.foe_ids.end())
+			army.foe_ids.push_back(units_.id[a]);
+	};
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i]) continue;
+		if (units_.team[i] == petra_pid_ && units_.attacked_by[i] != 0 && !petra_unit_reserved(units_.id[i])) {
+			add_attacker(lookup_unit(units_.attacked_by[i]));
+		} else if (petra_foe(units_.team[i]) && units_.action_state[i] == ACTION_ATTACK && units_.target_unit_id[i] != 0) {
+			const int32_t t = lookup_unit(units_.target_unit_id[i]);
+			if (t >= 0 && units_.team[t] == petra_pid_ && !petra_unit_reserved(units_.id[t])) add_attacker((int32_t)i);
+		}
 	}
 
 	// Enemy foundations in our territory (defenseManager targetList)
@@ -14695,18 +14763,6 @@ void Simulation::petra_manage_defense(float dt) {
 	size_t needed = (size_t)std::ceil((float)army.foe_ids.size() * petra_config_.defense_ratio_own);
 	needed = std::min(needed, (size_t)24);
 
-	for (size_t i = 0; i < units_.count && army.defender_ids.size() < needed; ++i) {
-		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
-		if (!petra_is_combat_unit(units_.unit_type[i])) continue;
-		if (units_.id[i] == petra_scout_unit_id_) continue;
-		if (units_.action_state[i] == ACTION_GARRISONED || units_.action_state[i] == ACTION_DYING) continue;
-		if (units_.order_kind[i] == ORDER_GARRISON) continue; // garrisonManager has it
-		if (in_attack_squad(units_.id[i]) || petra_is_critical_ent(i) || petra_guards_critical_ent(i)) continue;
-		if (std::find(army.defender_ids.begin(), army.defender_ids.end(), units_.id[i]) != army.defender_ids.end())
-			continue;
-		army.defender_ids.push_back(units_.id[i]);
-	}
-
 	// Centroid of foes for compact-army assignment
 	army.cx = 0.0f;
 	army.cz = 0.0f;
@@ -14719,6 +14775,27 @@ void Simulation::petra_manage_defense(float dt) {
 		foe_n++;
 	}
 	if (foe_n > 0) { army.cx /= (float)foe_n; army.cz /= (float)foe_n; }
+
+	// assignDefenders: helping outside our land, units farther than 200 m from the
+	// foes (40000 m^2, x0.28) stay home as a backup of up to 12.
+	const bool foes_outside = territory_owner_at(army.cx, army.cz) != petra_pid_;
+	constexpr float BACKUP_DIST = 56.0f;
+	int backup = 0;
+	for (size_t i = 0; i < units_.count && army.defender_ids.size() < needed; ++i) {
+		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
+		if (!petra_is_combat_unit(units_.unit_type[i])) continue;
+		if (units_.id[i] == petra_scout_unit_id_) continue;
+		if (units_.action_state[i] == ACTION_GARRISONED || units_.action_state[i] == ACTION_DYING) continue;
+		if (units_.order_kind[i] == ORDER_GARRISON) continue; // garrisonManager has it
+		if (in_attack_squad(units_.id[i]) || petra_is_critical_ent(i) || petra_guards_critical_ent(i)) continue;
+		if (std::find(army.defender_ids.begin(), army.defender_ids.end(), units_.id[i]) != army.defender_ids.end())
+			continue;
+		if (foes_outside && backup < 12) {
+			const float dx = units_.pos_x[i] - army.cx, dz = units_.pos_z[i] - army.cz;
+			if (dx * dx + dz * dz > BACKUP_DIST * BACKUP_DIST) { ++backup; continue; }
+		}
+		army.defender_ids.push_back(units_.id[i]);
+	}
 
 	for (uint32_t uid : army.defender_ids) {
 		int32_t idx = lookup_unit(uid);

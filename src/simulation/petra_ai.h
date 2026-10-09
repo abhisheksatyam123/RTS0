@@ -46,6 +46,11 @@ inline bool petra_is_combat_unit(uint8_t t) {
 // config.js garrisonHealthLevel.medium: an attacked support unit below it shelters.
 inline constexpr float PETRA_GARRISON_HP_MEDIUM = 0.55f;
 
+// defenseManager.js isDangerous: dist2Min 6000 (77.5 0 A.D. m) and ranged
+// (range + 30)^2, in RTS0 units (x0.28).
+inline constexpr float PETRA_DANGER_DIST = 21.7f;
+inline constexpr float PETRA_DANGER_RANGED_PAD = 8.4f;
+
 // config.js + difficultyLevel.js
 struct PetraConfig {
 	uint8_t difficulty = PETRA_MEDIUM;
