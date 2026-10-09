@@ -344,7 +344,7 @@ enum ResourceSubtype : uint8_t {
 	RES_SUB_MEAT = 1,
 	RES_SUB_GRAIN = 2,
 	RES_SUB_FISH = 3, // food.fish: only fishing boats gather it
-	RES_SUB_RUINS = 4 // stone.ruins / metal.ruins (template_gaia_ruins): 4x a rock's gather rate
+	RES_SUB_RUINS = 4 // stone.ruins / metal.ruins (template_gaia_ruins): gather_class_ruins_rate
 };
 
 // 0 A.D. template_gaia_fish.xml ResourceSupply: 1000 food, at most 4 gatherers,
@@ -1207,6 +1207,67 @@ inline bool civ_aura_affects(int16_t aura, uint16_t tmpl) {
 inline const CivUnitTemplate &civ_unit_template(uint16_t id) {
 	const CivUnitTemplate *t = civ_unit_template_table();
 	return t[id < CIV_UNIT_TEMPLATE_COUNT ? id : 0];
+}
+
+// 0 A.D. ResourceGatherer by template: citizen infantry (template_unit_infantry), support
+// workers (template_unit_support_female_citizen, and template_unit_support_civilian for RTS0's
+// villager, 0 A.D.'s male Civilian), citizen cavalry (template_unit_cavalry) and fishing ships
+// (template_unit_ship_fishing). Champions, heroes, siege and the Mauryan worker elephant
+// (a mobile dropsite) gather nothing.
+enum GatherClass : uint8_t { GATHER_NONE, GATHER_INFANTRY, GATHER_SUPPORT, GATHER_CAVALRY, GATHER_FISHING };
+
+inline uint8_t unit_gather_class(uint8_t unit_type, uint16_t tmpl) {
+	if (unit_type == UNIT_FEMALE_CITIZEN || unit_type == UNIT_VILLAGER) return GATHER_SUPPORT;
+	if (unit_type == UNIT_FISHING_BOAT) return GATHER_FISHING;
+	const bool infantry = unit_type == UNIT_SWORDSMAN || unit_type == UNIT_SPEARMAN || unit_type == UNIT_ARCHER;
+	const bool cavalry = unit_type == UNIT_CAVALRY || unit_type == UNIT_CAMEL;
+	if (tmpl != CIV_UNIT_TEMPLATE_NONE) {
+		// Roster rows: only citizen soldiers (ROSTER_CITIZEN; three citizen champions inherit
+		// template_unit_infantry too) gather.
+		if (!(civ_unit_template(tmpl).flags & ROSTER_CITIZEN)) return GATHER_NONE;
+		return infantry ? GATHER_INFANTRY : cavalry ? GATHER_CAVALRY : GATHER_NONE;
+	}
+	return infantry ? GATHER_INFANTRY : cavalry ? GATHER_CAVALRY : GATHER_NONE;
+}
+
+// ResourceGatherer/Rates in units a second, by Simulation::GatherKind
+// (grain, fruit, meat, fish, wood, stone, metal); 0 = can't gather it.
+inline float gather_class_rate(uint8_t cls, uint8_t kind) {
+	static const float kRates[5][7] = {
+		{0, 0, 0, 0, 0, 0, 0},
+		{0.25f, 0.5f, 1.0f, 0, 0.75f, 0.5f, 0.5f}, // infantry
+		{0.5f, 1.0f, 1.0f, 0, 0.7f, 0.35f, 0.35f},  // support: female citizen, civilian
+		{0, 0, 5.0f, 0, 0, 0, 0},                   // cavalry: food.meat only
+		{0, 0, 0, 1.8f, 0, 0, 0},                   // fishing ship: food.fish only
+	};
+	return cls < 5 && kind < 7 ? kRates[cls][kind] : 0.0f;
+}
+
+// Rates for template_gaia_ruins supplies: wood.ruins 5, stone.ruins and metal.ruins 2, the
+// same for citizen infantry and women; cavalry and ships have none.
+inline float gather_class_ruins_rate(uint8_t cls, uint8_t res_type) {
+	if (cls != GATHER_INFANTRY && cls != GATHER_SUPPORT) return 0.0f;
+	return res_type == RES_WOOD ? 5.0f : (res_type == RES_STONE || res_type == RES_GOLD) ? 2.0f : 0.0f;
+}
+
+// ResourceGatherer/Capacities (the same for every type the class gathers).
+inline int32_t gather_class_capacity(uint8_t cls) {
+	switch (cls) {
+		case GATHER_INFANTRY: case GATHER_SUPPORT: return 10;
+		case GATHER_CAVALRY: return 20;
+		case GATHER_FISHING: return 40;
+		default: return 0;
+	}
+}
+
+// ResourceSupply/MaxGatherers from the gaia templates: trees and fruit 8 (template_gaia_tree,
+// _fruit), mines 12 and large mines 24 (template_gaia_ore/_rock and their _large), fish 4,
+// fields 5, carcasses 8 unless their animal says otherwise.
+inline uint8_t resource_default_max_gatherers(uint8_t type, uint8_t subtype, int32_t amount) {
+	if (subtype == RES_SUB_FISH) return FISH_MAX_GATHERERS;
+	if (subtype == RES_SUB_GRAIN) return 5; // FIELD_MAX_GATHERERS
+	if (type == RES_GOLD || type == RES_STONE) return amount >= 5000 ? 24 : 12;
+	return 8;
 }
 
 inline const CivHeroAura &civ_hero_aura(int16_t idx) {
