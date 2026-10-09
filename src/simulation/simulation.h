@@ -2275,6 +2275,7 @@ private:
 	void apply_rally_step(uint32_t uid, const Building &b, const Building::RallyStep &st, bool queued, bool ignore_self_garrison);
 	void rally_after_ungarrison(uint32_t uid, uint32_t building_id);
 	void on_construction_finished(const Building &b, size_t builder);
+	void enter_repairing(size_t i);
 	void next_after_construction(size_t k, const Building &b, bool food, bool other);
 	void destroy_building(Building &b);
 	bool can_capture_building(uint8_t player, const Building &b) const;
