@@ -1787,6 +1787,13 @@ Simulation::ResearchCheck Simulation::research_check(uint8_t player_id, uint8_t 
 	if (ps.has_tech(tech_id)) return TECH_ERR_RESEARCHED;
 	for (const auto &b : buildings_)
 		if (b.team == player_id && b.research_tech == tech_id) return TECH_ERR_IN_PROGRESS;
+	// 0 A.D. pair_*.json (Researcher.js, TechnologyManager.js): the player picks one of the
+	// two; once either is researched or started, the other is gone.
+	if (const uint8_t partner = tech_pair_partner(tech_id); partner != TECH_NONE) {
+		if (ps.has_tech(partner)) return TECH_ERR_PAIRED;
+		for (const auto &b : buildings_)
+			if (b.team == player_id && b.research_tech == partner) return TECH_ERR_PAIRED;
+	}
 	if (!tech_available_to_civ(tech_id, ps.civ)) return TECH_ERR_CIV;
 	if (tinfo.required_phase > ps.phase) return TECH_ERR_PHASE;
 	if (tinfo.prerequisite != TECH_NONE && !ps.has_tech(tinfo.prerequisite)) return TECH_ERR_PREREQUISITE;
@@ -7572,8 +7579,26 @@ void Simulation::tick_trickle(float dt) {
 
 	// template_player.xml: Interval 1000, Rates 0, raised by the Ptolemaic team bonus
 	// (ptol_player_teambonus.json, Breadbasket of the Mediterranean: +1 food for the
-	// Ptolemies and their mutual allies). Only players who own a building get it.
+	// Ptolemies and their mutual allies; only players who own a building get it) and by
+	// technologies that affect "Player" (Serapis Cult: +2 metal). Their trickle effects
+	// are the unfiltered ones (tools/extract_0ad_techs.py).
+	static constexpr uint8_t kTrickleRes[4] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD};
+	auto is_player_trickle = [](const TechEffect &e) {
+		return e.stat >= TSTAT_TRICKLE_FOOD && e.stat <= TSTAT_TRICKLE_METAL && e.affects_count == 0;
+	};
 	if (due(1.0f)) {
+		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+			PlayerState &ps = players_[p];
+			if (is_defeated(p)) continue;
+			for (uint8_t id = 1; id < TECH_COUNT; ++id) {
+				if (!ps.has_tech(id)) continue;
+				const TechInfo &ti = tech_info(id);
+				const TechEffect *fx = tech_effects_table() + ti.effect_begin;
+				for (uint16_t k = 0; k < ti.effect_count; ++k)
+					if (is_player_trickle(fx[k]) && fx[k].op == TOP_ADD)
+						ps.res[kTrickleRes[fx[k].stat - TSTAT_TRICKLE_FOOD]] += fx[k].value;
+			}
+		}
 		uint16_t civs_present = 0;
 		for (const auto &b : buildings_)
 			if (b.team < MAX_PLAYERS && b.hp > 0.0f) civs_present |= civ_bit(players_[b.team].civ);
@@ -7617,9 +7642,9 @@ void Simulation::tick_trickle(float dt) {
 				const TechEffect *fx = tech_effects_table() + ti.effect_begin;
 				for (uint16_t k = 0; k < ti.effect_count; ++k) {
 					const TechEffect &e = fx[k];
-					if (e.stat < TSTAT_TRICKLE_FOOD || e.stat > TSTAT_TRICKLE_METAL || !tech_effect_applies(e, classes)) continue;
-					static constexpr uint8_t kRes[4] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD};
-					float &v = rate[kRes[e.stat - TSTAT_TRICKLE_FOOD]];
+					if (e.stat < TSTAT_TRICKLE_FOOD || e.stat > TSTAT_TRICKLE_METAL || is_player_trickle(e)
+					    || !tech_effect_applies(e, classes)) continue;
+					float &v = rate[kTrickleRes[e.stat - TSTAT_TRICKLE_FOOD]];
 					v = (e.op == TOP_MUL) ? v * e.value : (e.op == TOP_SET) ? e.value : v + e.value;
 				}
 			}
