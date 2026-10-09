@@ -61,6 +61,7 @@ class RtsoMiniMapView : public Control {
 	Ref<ImageTexture> territory_tex_;
 	std::vector<uint8_t> territory_tex_cache_;
 	bool ensure_territory_texture();
+	Color player_color(uint8_t pid) const;
 
 protected:
 	static void _bind_methods();

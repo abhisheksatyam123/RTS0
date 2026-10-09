@@ -1,0 +1,65 @@
+{
+ "source": "0ad/0ad@master simulation/templates/structures, art/actors/props/special/eyecandy",
+ "types": {
+  "bench": [
+   "scenery/bench_0.glb"
+  ],
+  "column_doric": [
+   "scenery/column_doric_0.glb"
+  ],
+  "column_doric_fallen": [
+   "scenery/column_doric_fallen_0.glb",
+   "scenery/column_doric_fallen_1.glb",
+   "scenery/column_doric_fallen_2.glb"
+  ],
+  "column_doric_fallen_b": [
+   "scenery/column_doric_fallen_b_0.glb",
+   "scenery/column_doric_fallen_b_1.glb"
+  ],
+  "fence_long": [
+   "scenery/fence_long_0.glb"
+  ],
+  "fence_rock_long": [
+   "scenery/fence_rock_long_0.glb"
+  ],
+  "fence_rock_medium": [
+   "scenery/fence_rock_medium_0.glb"
+  ],
+  "fence_rock_short": [
+   "scenery/fence_rock_short_0.glb"
+  ],
+  "fence_rock_stub": [
+   "scenery/fence_rock_stub_0.glb"
+  ],
+  "fence_short": [
+   "scenery/fence_short_0.glb"
+  ],
+  "fence_stone": [
+   "scenery/fence_stone_0.glb"
+  ],
+  "fence_stone_long": [
+   "scenery/fence_stone_long_0.glb"
+  ],
+  "fence_stone_medium": [
+   "scenery/fence_stone_medium_0.glb"
+  ],
+  "fence_stone_short": [
+   "scenery/fence_stone_short_0.glb"
+  ],
+  "fence_stone_stub": [
+   "scenery/fence_stone_stub_0.glb"
+  ],
+  "obelisk": [
+   "scenery/obelisk_0.glb"
+  ],
+  "sele_colonnade": [
+   "scenery/sele_colonnade_0.glb"
+  ],
+  "table_rectangle": [
+   "scenery/table_rectangle_0.glb"
+  ],
+  "table_square": [
+   "scenery/table_square_0.glb"
+  ]
+ }
+}

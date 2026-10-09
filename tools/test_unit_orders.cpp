@@ -32,7 +32,7 @@
 // 22. Repairers move on to nearby work once the structure is repaired.
 // 23. The next resource is of the same kind (type.specific): berries after berries, not grain.
 // 24. Attack.js MinRange: a catapult won't fire at a target too close; ordered to, it backs off.
-// 25. Trade orders queue; a trader flees an attack and goes back to its route with its goods.
+// 25. Trade orders queue; an attacked trader keeps to its route with its goods.
 // 26. Return resource (UnitAI ReturnResource): carriers take their load to the dropsite they
 //     are sent to, not the nearest, then idle; it queues; lockstep cmd 34.
 // 27. Ungarrison (Garrisonable.UnGarrison): units leaving a structure follow its rally point
@@ -48,12 +48,19 @@
 // 31. Target choice follows the attacker's PreferredClasses (Attack.js GetPreference, UnitAI
 //     AttackEntitiesByPreference): an archer (Human) shoots a farther spearman before a nearer
 //     ram, the nearest of equals before a wounded one, and a ram if nothing else is there.
+// 32. UnitAI COMBAT: a fighting unit turns on a melee attacker, not a ranged one; after its
+//     target dies it takes its next order; violent units chase beyond vision.
+// 33. Idle soldiers attack enemy structures and dangerous animals in sight (after units they
+//     prefer); an animal bite is an attack like any other; a guarding healer heals; stone
+//     throwers stand ground by default.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_unit_orders.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //     src/network/net_host.cpp -lpthread -o /tmp/test_unit_orders && /tmp/test_unit_orders
 //  Exit: 0 = PASS, 1 = FAIL.
+#define private public
 #include "simulation/simulation.h"
+#undef private
 #include "network/turn_manager.h"
 
 #include <cmath>
@@ -94,6 +101,7 @@ static bool alive(const Simulation &s, uint32_t uid) {
 static float x_of(const Simulation &s, uint32_t uid) { return s.units().pos_x[idx_of(s, uid)]; }
 static float z_of(const Simulation &s, uint32_t uid) { return s.units().pos_z[idx_of(s, uid)]; }
 static float hp_of(const Simulation &s, uint32_t uid) { return s.units().hp[idx_of(s, uid)]; }
+static uint32_t target_of(const Simulation &s, uint32_t uid) { return s.units_.target_unit_id[idx_of(s, uid)]; }
 static uint8_t act_of(const Simulation &s, uint32_t uid) { return s.units().action_state[idx_of(s, uid)]; }
 static float dist(const Simulation &s, uint32_t uid, float x, float z) {
 	return std::hypot(x_of(s, uid) - x, z_of(s, uid) - z);
@@ -773,11 +781,11 @@ static void test_trade_orders() {
 	run(s, 6.0f);
 	const uint8_t goods = s.units().res_type_carried[idx_of(s, t)];
 	uint32_t archer = post(s, x_of(s, t) + 6.0f, z_of(s, t) + 6.0f, UNIT_ARCHER);
-	const bool fled = run_until(s, 10.0f, [&] { return act_of(s, t) == ACTION_FLEE; });
-	check(fled, "attacked, the passive trader flees");
+	const float h0 = hp_of(s, t);
+	const bool fled = run_until(s, 6.0f, [&] { return act_of(s, t) == ACTION_FLEE; });
+	check(hp_of(s, t) < h0 && !fled && act_of(s, t) == ACTION_TRADE, "attacked, the trader keeps trading (TRADE ignores Attacked)");
 	s.cmd_delete(1, &archer, 1);
-	const bool back = run_until(s, 10.0f, [&] { return act_of(s, t) == ACTION_TRADE; });
-	check(back && s.unit_order(t).kind == ORDER_TRADE, "then goes back to its route");
+	check(s.unit_order(t).kind == ORDER_TRADE, "on its route");
 	check(s.units().carry[idx_of(s, t)] > 0 && s.units().res_type_carried[idx_of(s, t)] == goods,
 			"still carrying its goods");
 	const float before = s.player(0).res[goods];
@@ -1028,6 +1036,128 @@ static void test_preferred_classes() {
 	}
 }
 
+static void test_unitai_combat() {
+	std::printf("32. UnitAI COMBAT: melee attackers, the order after a fight, violent chases\n");
+	{
+		Simulation s;
+		setup(s);
+		uint32_t a = s.spawn_unit(0, 0, 0, UNIT_ARCHER, 5000.0f);
+		uint32_t far = post(s, 7, 0, UNIT_SPEARMAN, 5000.0f);
+		const bool shooting = run_until(s, 5.0f, [&] { return target_of(s, a) == far; });
+		uint32_t sword = s.spawn_unit(0, -3, 1, UNIT_SWORDSMAN, 5000.0f);
+		s.order_attack(&sword, 1, a);
+		const bool turned = run_until(s, 8.0f, [&] { return target_of(s, a) == sword; });
+		check(shooting && turned, "an archer shooting one enemy turns on a swordsman hitting it (Melee Attacked)");
+	}
+	{
+		Simulation s;
+		setup(s);
+		uint32_t a = s.spawn_unit(0, 0, 0, UNIT_ARCHER, 5000.0f);
+		uint32_t far = post(s, 7, 0, UNIT_SPEARMAN, 5000.0f);
+		run_until(s, 5.0f, [&] { return target_of(s, a) == far; });
+		uint32_t arch = s.spawn_unit(0, -6, 1, UNIT_ARCHER, 5000.0f);
+		s.order_attack(&arch, 1, a);
+		run(s, 6.0f);
+		check(target_of(s, a) == far, "but not on another archer shooting it");
+	}
+	{
+		Simulation s;
+		setup(s);
+		uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN, 5000.0f);
+		uint32_t weak = post(s, 2, 0, UNIT_SPEARMAN, 1.0f);
+		uint32_t other = post(s, 2, 3, UNIT_SPEARMAN, 5000.0f);
+		s.order_attack(&a, 1, weak);
+		s.order_walk(&a, 1, -20, 0, true);
+		const bool killed = run_until(s, 6.0f, [&] { return !alive(s, weak); });
+		run(s, 1.0f);
+		check(killed && s.unit_order(a).kind == ORDER_WALK && target_of(s, a) != other,
+				"after its target dies, a unit takes its next order, not the enemy beside it");
+	}
+	for (int violent = 0; violent < 2; ++violent) {
+		Simulation s;
+		setup(s);
+		// A swordsman can't catch a cavalryman riding away.
+		uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN, 5000.0f);
+		s.order_set_stance(&a, 1, violent ? STANCE_VIOLENT : STANCE_AGGRESSIVE);
+		uint32_t e = s.spawn_unit(5, 0, 1, UNIT_CAVALRY, 5000.0f);
+		s.order_set_stance(&e, 1, STANCE_PASSIVE);
+		run_until(s, 5.0f, [&] { return target_of(s, a) == e; });
+		s.order_walk(&e, 1, 50, 0);
+		const float vision = unit_vision_range(UNIT_SWORDSMAN);
+		run_until(s, 20.0f, [&] { return x_of(s, e) - x_of(s, a) > vision + 4.0f; });
+		const bool kept = target_of(s, a) == e;
+		if (violent) check(kept, "a violent unit chases beyond its vision (respondChaseBeyondVision)");
+		else check(!kept, "an aggressive one gives up there");
+	}
+}
+
+static void test_unitai_targets() {
+	std::printf("33. UnitAI targets: structures, dangerous animals, guarding healers, siege stance\n");
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t bar = s.spawn_building_world(6, 0, BLD_BARRACKS, 1, 1.0f);
+		s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
+		const float h0 = bld(s, bar)->hp;
+		run(s, 10.0f);
+		check(bld(s, bar)->hp < h0, "an idle soldier attacks an enemy structure in sight (AttackEntitiesByPreference)");
+	}
+	{
+		Simulation s;
+		setup(s);
+		uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
+		const uint32_t enemy = post(s, 3, 3, UNIT_SPEARMAN, 5000.0f);
+		s.spawn_building_world(-5, 0, BLD_BARRACKS, 1, 1.0f);
+		run(s, 3.0f);
+		check(target_of(s, a) == enemy, "but a soldier it prefers first");
+	}
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t wolf = s.spawn_fauna(8, 0, FAUNA_WOLF);
+		uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
+		const bool hunting = run_until(s, 4.0f, [&] { return target_of(s, a) == wolf; });
+		check(hunting, "an idle soldier attacks a wolf in sight (IsDangerousAnimal)");
+		Simulation t;
+		setup(t);
+		t.spawn_fauna(6, 0, FAUNA_DEER);
+		uint32_t b = t.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
+		run(t, 4.0f);
+		check(target_of(t, b) == 0, "not a deer");
+	}
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t tree = s.spawn_resource_world(0, 0, RES_WOOD, 5000);
+		uint32_t w = s.spawn_unit(1.5f, 0, 0, UNIT_FEMALE_CITIZEN);
+		s.order_gather(&w, 1, tree);
+		run(s, 2.0f);
+		s.spawn_fauna(3, 0, FAUNA_WOLF);
+		const bool fled = run_until(s, 10.0f, [&] { return act_of(s, w) == ACTION_FLEE; });
+		check(fled, "a woman bitten by a wolf flees (Attacked)");
+	}
+	{
+		Simulation s;
+		setup(s);
+		uint32_t sol = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN);
+		uint32_t h = s.spawn_unit(1, 0, 0, UNIT_HEALER);
+		s.order_guard(&h, 1, sol);
+		run(s, 1.0f);
+		s.set_unit_hp(sol, 20.0f);
+		const bool healing = run_until(s, 3.0f, [&] { return act_of(s, h) == ACTION_HEAL; });
+		run(s, 6.0f);
+		check(healing && hp_of(s, sol) > 20.0f, "a guarding healer heals the unit it guards");
+		run(s, 120.0f);
+		check(s.unit_order(h).kind == ORDER_GUARD, "then guards it again");
+	}
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t c = s.spawn_unit(0, 0, 0, UNIT_CATAPULT);
+		check(s.units().stance[idx_of(s, c)] == STANCE_STAND_GROUND, "stone throwers stand ground by default");
+	}
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -1061,6 +1191,8 @@ int main(int argc, char **argv) {
 	test_queue_edges();
 	test_next_treasure();
 	test_preferred_classes();
+	test_unitai_combat();
+	test_unitai_targets();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
