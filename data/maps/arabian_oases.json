@@ -12064,5 +12064,21 @@
       "z": 67.62
     }
   ],
-  "gaia_units": []
+  "gaia_units": [],
+  "scenery": [
+    {
+      "type": "obelisk",
+      "x": -52.56,
+      "z": 39.8,
+      "angle": 2.0285,
+      "scale": 0.25
+    },
+    {
+      "type": "obelisk",
+      "x": -56.39,
+      "z": 41.86,
+      "angle": 2.0511,
+      "scale": 0.25
+    }
+  ]
 }

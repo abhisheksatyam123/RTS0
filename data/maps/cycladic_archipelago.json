@@ -12915,5 +12915,35 @@
       "x": -15.29,
       "z": 116.79
     }
+  ],
+  "scenery": [
+    {
+      "type": "fence_stone_long",
+      "x": -8.21,
+      "z": 115.74,
+      "angle": 2.3562,
+      "scale": 0.14286
+    },
+    {
+      "type": "fence_stone_stub",
+      "x": -9.25,
+      "z": 114.7,
+      "angle": 2.3562,
+      "scale": 0.14286
+    },
+    {
+      "type": "fence_stone_stub",
+      "x": -7.14,
+      "z": 116.91,
+      "angle": 2.3562,
+      "scale": 0.14286
+    },
+    {
+      "type": "fence_stone_medium",
+      "x": -6.42,
+      "z": 117.01,
+      "angle": 3.0826,
+      "scale": 0.14286
+    }
   ]
 }

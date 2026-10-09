@@ -21430,5 +21430,119 @@
       "z": -10.24
     }
   ],
-  "gaia_units": []
+  "gaia_units": [],
+  "scenery": [
+    {
+      "type": "fence_long",
+      "x": 5.29,
+      "z": -41.89,
+      "angle": 1.1926,
+      "scale": 0.3125
+    },
+    {
+      "type": "fence_long",
+      "x": 31.56,
+      "z": -14.8,
+      "angle": 3.1078,
+      "scale": 0.3125
+    },
+    {
+      "type": "fence_long",
+      "x": 9.5,
+      "z": 6.99,
+      "angle": 0.7865,
+      "scale": 0.3125
+    },
+    {
+      "type": "fence_long",
+      "x": 12.5,
+      "z": 10.55,
+      "angle": 0.7009,
+      "scale": 0.3125
+    },
+    {
+      "type": "fence_long",
+      "x": 15.92,
+      "z": 11.63,
+      "angle": 1.6118,
+      "scale": 0.3125
+    },
+    {
+      "type": "fence_long",
+      "x": 9.16,
+      "z": -40.79,
+      "angle": -1.8578,
+      "scale": 0.3125
+    },
+    {
+      "type": "fence_long",
+      "x": 12.98,
+      "z": -39.6,
+      "angle": 1.5708,
+      "scale": 0.3125
+    },
+    {
+      "type": "fence_long",
+      "x": -5.07,
+      "z": -31.64,
+      "angle": 2.3562,
+      "scale": 0.3125
+    },
+    {
+      "type": "fence_long",
+      "x": -8.88,
+      "z": -7.1,
+      "angle": -3.1217,
+      "scale": 0.3125
+    },
+    {
+      "type": "fence_long",
+      "x": -8.72,
+      "z": -11.06,
+      "angle": 3.0333,
+      "scale": 0.3125
+    },
+    {
+      "type": "fence_long",
+      "x": -8.36,
+      "z": -15.64,
+      "angle": 3.1253,
+      "scale": 0.3125
+    },
+    {
+      "type": "fence_long",
+      "x": 29.68,
+      "z": -28.28,
+      "angle": -2.692,
+      "scale": 0.3125
+    },
+    {
+      "type": "fence_long",
+      "x": 27.82,
+      "z": -32.61,
+      "angle": 0.433,
+      "scale": 0.3125
+    },
+    {
+      "type": "fence_long",
+      "x": 19.82,
+      "z": 10.1,
+      "angle": 2.3562,
+      "scale": 0.3125
+    },
+    {
+      "type": "fence_long",
+      "x": 30.96,
+      "z": 1.76,
+      "angle": 2.3562,
+      "scale": 0.3125
+    },
+    {
+      "type": "fence_long",
+      "x": 33.77,
+      "z": 0.1,
+      "angle": 2.3562,
+      "scale": 0.3125
+    }
+  ]
 }
