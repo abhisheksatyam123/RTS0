@@ -2080,7 +2080,7 @@ void RtsoMain::update_hud() {
 
 // Selection details (0 A.D. gui/session/selection_details.js): real values
 // only. Health always; capture points for capturable structures; experience
-// toward the next rank for units (thresholds from Simulation::tick_promotion);
+// toward the next rank for units (Simulation::promotion_required_xp);
 // construction, upgrade or research progress for structures; aura names from
 // the unit's roster template; carried resources. Several units show the
 // multi-selection icon grid (selection_panels.js "Selection") and a structure
@@ -2215,9 +2215,8 @@ void RtsoMain::update_inspector() {
 		inspector_class->set_text("Player " + String::num_int64(owner + 1) + " (" + String(rtso::civ_info(sim->player_civ(owner)).name) +
 				") - Kills: " + String::num_int64(uview.kills[u]));
 
-		// Experience toward the next rank (Simulation::tick_promotion: 300, 700).
-		if (rank < 3) {
-			const float need = rank < 2 ? 300.0f : 700.0f;
+		// Experience toward the next rank (Promotion.js GetRequiredXp after technologies).
+		if (const float need = sim->promotion_required_xp(u); need > 0.0f) {
 			set_bar(inspector_xp_bar, inspector_xp_label, (float)uview.xp[u], need,
 					"Experience: " + String::num_int64(uview.xp[u]) + " / " + String::num(need, 0));
 		} else {
