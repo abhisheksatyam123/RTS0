@@ -82,25 +82,32 @@ static constexpr float NAV_WATER_MARGIN = 0.3f;
 static constexpr float LAND_MAX_WATER_DEPTH = 0.4f;
 
 // ---------------------------------------------------------------------------
-// Phase 8A / P2: Passability mask constants — mirrors 0 A.D. CCmpPathfinder pass classes.
-// PASS_INFANTRY : foot soldiers, villagers (on-land passable cells).
-// PASS_CAVALRY  : mounted units; impassable on steep slopes exceeding cavalry_max_slope.
+// Passability classes, after 0 A.D.'s pathfinder.xml PassabilityClasses.
+// PASS_INFANTRY : land units (0 A.D. "default"): land and shallow water no steeper than
+//                 LAND_MAX_TERRAIN_SLOPE.
+// PASS_CAVALRY  : mounted units. 0 A.D. gives them "default" too (and siege and elephants
+//                 "large", which differs only in Clearance), so it crosses the same cells and
+//                 shares PASS_INFANTRY's regions.
 // PASS_SHIP     : naval units only — NAV_WATER cells passable, NAV_PASSABLE blocked.
 //
-// 0 A.D. slope handling & passability references:
-// - source/simulation2/helpers/Pathfinding.h:205-241 (PathfinderPassability::IsPassable: steepness < m_MaxSlope)
-// - source/simulation2/components/CCmpPathfinder.cpp:694-703 (terrain.GetSlopeFixed(itile, jtile) passability check)
-// - source/graphics/Terrain.cpp:306-322 (CTerrain::GetSlopeFixed: fractional slope = delta / TERRAIN_TILE_SIZE)
-// - binaries/data/mods/_test.sim/simulation/data/pathfinder.xml:13 (MaxTerrainSlope: 1.0 = 100% grade / 45 deg for default)
-// For cavalry: historical equestrian limits & RTS tactical balance restrict horses to
-// ~25-45% grade (~14-24 degrees; default 0.35 = 35% grade / ~19.3 degrees) where steep
-// terrain is impassable for cavalry while remaining passable for infantry (PASS_INFANTRY).
+// 0 A.D. slope references:
+// - source/simulation2/helpers/Pathfinding.h (PathfinderPassability::IsPassable: steepness < m_MaxSlope)
+// - source/simulation2/components/CCmpPathfinder.cpp (terrain.GetSlopeFixed(itile, jtile) per tile)
+// - source/graphics/Terrain.cpp (CTerrain::GetSlopeFixed: corner height delta / TERRAIN_TILE_SIZE)
+// - simulation/data/pathfinder.xml: MaxTerrainSlope 1.0 for default, large, building-land and
+//   default-terrain-only, 1.25 for building-shore, none for the ship classes
 // ---------------------------------------------------------------------------
 static constexpr uint8_t PASS_INFANTRY = 1;
 static constexpr uint8_t PASS_CAVALRY  = 2;
 static constexpr uint8_t PASS_SHIP     = 4;
 
-static constexpr float DEFAULT_CAVALRY_MAX_SLOPE = 0.35f; // 35% grade limit (height delta / cell width)
+// 0 A.D. slopes are metres of rise per metre. An RTS0 unit is a 4 m tile and random maps raise
+// 0 A.D. metres x 0.35, so a hill there is 1.4 times as steep in RTS0 units. Ported maps raise
+// them x 0.2 (there these limits are 0 A.D.'s x 1.75), but their heightmaps hold one sample per
+// 4 tiles, which already flattens cliffs.
+static constexpr float SLOPE_0AD_TO_RTS0 = 0.35f * 4.0f;
+static constexpr float LAND_MAX_TERRAIN_SLOPE = 1.0f * SLOPE_0AD_TO_RTS0;   // default, large, building-land
+static constexpr float SHORE_MAX_TERRAIN_SLOPE = 1.25f * SLOPE_0AD_TO_RTS0; // building-shore (docks)
 
 // ---------------------------------------------------------------------------
 // Phase 8A: NavChunk — mirrors 0 A.D. HierarchicalPathfinder::Chunk at our scale.
@@ -171,14 +178,10 @@ struct NavGrid {
     Grid<uint8_t> ship_chunk_regions_;
     GlobalRegionIds ship_region_map_;
 
-    // Phase 8A / P2: Cavalry passability & hierarchical chunk region data.
-    // steep_cells_: res x res, 1 = cell slope exceeds cavalry_max_slope (impassable for PASS_CAVALRY).
-    // cavalry_chunk_regions_: local region id per navcell for PASS_CAVALRY.
-    // cavalry_region_map_: global connected-region map for PASS_CAVALRY.
+    // steep_cells_: res x res, 1 = steeper than max_slope, which no land unit crosses.
     Grid<uint8_t> steep_cells_;
-    Grid<uint8_t> cavalry_chunk_regions_;
-    GlobalRegionIds cavalry_region_map_;
-    float cavalry_max_slope = DEFAULT_CAVALRY_MAX_SLOPE;
+    bool any_steep_ = false;
+    float max_slope = LAND_MAX_TERRAIN_SLOPE;
 
     bool regions_ready_ = false;
 
@@ -193,11 +196,10 @@ struct NavGrid {
         chunks_per_axis_ = res / CHUNK_SIZE;
         chunk_regions_ = Grid<uint8_t>(res, res, 0);
         ship_chunk_regions_ = Grid<uint8_t>(res, res, 0);
-        cavalry_chunk_regions_ = Grid<uint8_t>(res, res, 0);
         steep_cells_ = Grid<uint8_t>(res, res, 0);
+        any_steep_ = false;
         global_region_map_.clear();
         ship_region_map_.clear();
-        cavalry_region_map_.clear();
         regions_ready_ = false;
     }
 
@@ -236,10 +238,6 @@ struct NavGrid {
         return is_passable_for(cx, cy, PASS_INFANTRY);
     }
 
-    bool is_passable_cavalry(int cx, int cy) const {
-        return is_passable_for(cx, cy, PASS_CAVALRY);
-    }
-
     bool is_passable_ship(int cx, int cy) const {
         return is_passable_for(cx, cy, PASS_SHIP);
     }
@@ -249,7 +247,7 @@ struct NavGrid {
         uint8_t c = cells.at(cx, cy);
         if (pass == PASS_SHIP || (pass & PASS_SHIP)) return c == NAV_WATER || c == NAV_SHALLOW;
         if (c != NAV_PASSABLE && c != NAV_SHALLOW) return false;
-        if ((pass == PASS_CAVALRY || (pass & PASS_CAVALRY)) && is_steep(cx, cy)) return false;
+        if (is_steep(cx, cy)) return false;
         return true;
     }
 
@@ -306,7 +304,6 @@ struct NavGrid {
     void rebuild_regions() {
         flood_chunk_regions(PASS_INFANTRY, chunk_regions_, global_region_map_);
         flood_chunk_regions(PASS_SHIP, ship_chunk_regions_, ship_region_map_);
-        flood_chunk_regions(PASS_CAVALRY, cavalry_chunk_regions_, cavalry_region_map_);
         regions_ready_ = true;
         if (!dirty.blank()) dirty.fill(0);
     }
@@ -478,7 +475,6 @@ struct NavGrid {
         if (!any_dirty()) return;
         rebuild_dirty_chunks(PASS_INFANTRY, chunk_regions_, global_region_map_);
         rebuild_dirty_chunks(PASS_SHIP, ship_chunk_regions_, ship_region_map_);
-        rebuild_dirty_chunks(PASS_CAVALRY, cavalry_chunk_regions_, cavalry_region_map_);
         regions_ready_ = true;
         if (!dirty.blank()) dirty.fill(0);
     }
@@ -490,9 +486,6 @@ struct NavGrid {
         if (pass == PASS_SHIP || (pass & PASS_SHIP)) {
             local = &ship_chunk_regions_;
             gmap = &ship_region_map_;
-        } else if (pass == PASS_CAVALRY || (pass & PASS_CAVALRY)) {
-            local = &cavalry_chunk_regions_;
-            gmap = &cavalry_region_map_;
         }
         if (local->blank() || !local->inside(cx, cy)) return 0;
         uint8_t lr = local->at(cx, cy);
@@ -500,10 +493,6 @@ struct NavGrid {
         const int ci = cx / CHUNK_SIZE, cj = cy / CHUNK_SIZE;
         if (ci >= chunks_per_axis_ || cj >= chunks_per_axis_) return 0;
         return gmap->get(static_cast<size_t>(cj) * chunks_per_axis_ + ci, lr);
-    }
-
-    uint16_t global_region_cavalry_at(int cx, int cy) const {
-        return global_region_at(cx, cy, PASS_CAVALRY);
     }
 
     uint16_t global_region_ship_at(int cx, int cy) const {
@@ -654,7 +643,7 @@ struct NavGrid {
         c.water_valid = false;
     }
 
-    // Computes slopes for all navcells from heightmap, flagging cells exceeding cavalry_max_slope.
+    // Computes slopes for all navcells from heightmap, flagging cells steeper than max_slope.
     void compute_slopes_from_heights(const std::vector<float>& heights, int h_res) {
         if (heights.empty() || h_res <= 0 || res <= 0) return;
         if (steep_cells_.w != res || steep_cells_.h != res) {
@@ -662,24 +651,27 @@ struct NavGrid {
         }
         sync_height_cache(heights, h_res);
         HeightSampleCache& c = height_cache_;
-        if (!c.steep_valid || !same_bits(c.steep_max_slope, cavalry_max_slope)) {
+        if (!c.steep_valid || !same_bits(c.steep_max_slope, max_slope)) {
             c.steep.resize(static_cast<size_t>(res) * static_cast<size_t>(res));
             for (int y = 0; y < res; ++y)
                 for (int x = 0; x < res; ++x)
                     c.steep[static_cast<size_t>(y) * res + x] =
-                        (compute_cell_slope(x, y, heights, h_res) > cavalry_max_slope) ? 1 : 0;
-            c.steep_max_slope = cavalry_max_slope;
+                        (compute_cell_slope(x, y, heights, h_res) > max_slope) ? 1 : 0;
+            c.steep_max_slope = max_slope;
             c.steep_valid = true;
         }
+        bool any = false;
         for (int y = 0; y < res; ++y) {
             for (int x = 0; x < res; ++x) {
                 uint8_t steep = c.steep[static_cast<size_t>(y) * res + x];
+                any |= steep != 0;
                 if (steep_cells_.at(x, y) != steep) {
                     steep_cells_.at(x, y) = steep;
                     if (!dirty.blank()) dirty.at(x, y) = 1;
                 }
             }
         }
+        any_steep_ = any;
     }
 
     void set_slopes_from_heights(const std::vector<float>& heights, int h_res) {
@@ -689,30 +681,32 @@ struct NavGrid {
     void set_steep(int cx, int cy, bool steep) {
         if (steep_cells_.blank() || !steep_cells_.inside(cx, cy)) return;
         uint8_t v = steep ? 1 : 0;
+        if (steep) any_steep_ = true;
         if (steep_cells_.at(cx, cy) != v) {
             steep_cells_.at(cx, cy) = v;
             if (!dirty.blank()) dirty.at(cx, cy) = 1;
         }
     }
 
+    // Whether any navcell is steep: no slope to check on a flat map.
+    bool any_steep() const { return any_steep_; }
+
     bool is_steep(int cx, int cy) const {
         if (steep_cells_.blank() || !steep_cells_.inside(cx, cy)) return false;
         return steep_cells_.at(cx, cy) != 0;
     }
 
-    void set_cavalry_max_slope(float s) { cavalry_max_slope = s; }
-    float get_cavalry_max_slope() const { return cavalry_max_slope; }
 
-    // Tag water navcells and compute cavalry slopes from heightmap.
+    // Tag water navcells and compute slopes from heightmap.
     // heights is res x res row-major with [-map_half, +map_half] extent.
-    // Slopes exceeding cavalry_max_slope are marked in steep_cells_ (PASS_CAVALRY exclusion).
+    // Slopes exceeding max_slope are marked in steep_cells_ (impassable on land).
     // Any navcell whose bilinear-sampled height < water_h+0.3 becomes water (and dirty=1):
     // NAV_SHALLOW within LAND_MAX_WATER_DEPTH of that line, NAV_WATER below it.
     void set_water_from_heights(const std::vector<float>& heights, int res, float water_h) {
         if (heights.empty() || res <= 0) return;
         if (cells.blank()) return;
 
-        // Compute slope steepness for PASS_CAVALRY (independent of water table)
+        // Compute slope steepness for land units (independent of water table)
         compute_slopes_from_heights(heights, res);
 
         // If water_h is sentinel (< -0.5 e.g. -1.0 in Simulation::terrain_water_height_),

@@ -41,6 +41,9 @@
 // 14. Crowds at the shore: ships packed against the shore and soldiers packed at the water's edge
 //     push each other apart, but never onto terrain they can't cross (0 A.D. pushing checks
 //     CheckMovement), so no ship runs aground and no soldier is pushed out to sea.
+// 15. Cliffs: a cliff steeper than 0 A.D.'s MaxTerrainSlope (pathfinder.xml, 1.0 for every land
+//     class) splits the map but for one ramp. A swordsman, a horseman and a gatherer all go round
+//     by the ramp instead of climbing the cliff, and no house can be placed on it.
 //  For every scenario the unit bodies must never overlap a footprint that blocks movement by more
 //  than MAX_PENETRATION (separation() alone allows deep overlap when a unit walks head-on into a wall).
 //  Exit: 0 = PASS, 1 = FAIL. Prints the measurements either way.
@@ -569,6 +572,69 @@ static void walk_into_closed_gate() {
 	check(x < 0.0f, "the unit got through the closed gate");
 }
 
+// A cliff along x = 0, 8 units high over 2 (slope 4), and a ramp for z in [16, 34] that climbs
+// the same 8 units over 20 (slope 0.4): the top is x > 10 on the ramp, x > 1 elsewhere.
+static void cliff_setup(Simulation &s) {
+	setup(s);
+	constexpr int RES = 65;
+	constexpr float HALF = 64.0f;
+	s.set_map_half(HALF);
+	std::vector<float> h((size_t)RES * RES);
+	for (int j = 0; j < RES; ++j)
+		for (int i = 0; i < RES; ++i) {
+			const float x = -HALF + 2.0f * HALF * i / (RES - 1), z = -HALF + 2.0f * HALF * j / (RES - 1);
+			const bool ramp = z >= 16.0f && z <= 34.0f;
+			h[(size_t)j * RES + i] = ramp ? 8.0f * std::clamp((x + 10.0f) / 20.0f, 0.0f, 1.0f)
+			                              : 8.0f * std::clamp((x + 1.0f) / 2.0f, 0.0f, 1.0f);
+		}
+	s.set_terrain_data(h, RES, -1.0f);
+	s.begin_bulk_spawn();
+	s.end_bulk_spawn();
+}
+
+static void cliffs() {
+	Simulation s;
+	cliff_setup(s);
+	auto steep_at = [&](float x, float z) {
+		const auto [cx, cy] = s.nav_grid_.world_to_cell(x, z);
+		return s.nav_grid_.is_steep(cx, cy);
+	};
+	check(steep_at(0.0f, 0.0f) && !steep_at(0.0f, 25.0f) && !steep_at(-20.0f, 0.0f), "the cliff is not steep or the ramp is");
+	struct Walker { uint32_t id; float gx, gz; int arrived = -1, on_cliff = 0; float max_z = -1e9f; const char *what; };
+	std::vector<Walker> w;
+	w.push_back({s.spawn_unit(-20.0f, 0.0f, 0, UNIT_SWORDSMAN, 0.0f), 20.0f, 0.0f});
+	w.back().what = "swordsman";
+	w.push_back({s.spawn_unit(-20.0f, -4.0f, 0, UNIT_CAVALRY, 0.0f), 20.0f, -4.0f});
+	w.back().what = "horseman";
+	s.cmd_move(&w[0].id, 1, w[0].gx, w[0].gz);
+	s.cmd_move(&w[1].id, 1, w[1].gx, w[1].gz);
+	const uint32_t wood = s.spawn_resource_world(20.0f, -10.0f, RES_WOOD, 5000);
+	w.push_back({s.spawn_unit(-20.0f, -10.0f, 0, UNIT_VILLAGER, 100.0f), 20.0f, -10.0f});
+	w.back().what = "gatherer";
+	s.order_gather(&w[2].id, 1, wood);
+	for (int t = 0; t < 2400; ++t) {
+		s.tick(DT);
+		const Simulation::UnitView u = s.units();
+		for (Walker &k : w) {
+			const int i = index_of(s, k.id);
+			if (i < 0 || k.arrived >= 0) continue;
+			k.on_cliff += steep_at(u.pos_x[i], u.pos_z[i]);
+			k.max_z = std::max(k.max_z, u.pos_z[i]);
+			const float dx = u.pos_x[i] - k.gx, dz = u.pos_z[i] - k.gz;
+			if (dx * dx + dz * dz <= 3.0f * 3.0f) k.arrived = t;
+		}
+	}
+	for (const Walker &k : w) {
+		std::printf("  cliffs: %s up after %d ticks (-1 = never in 2400), %d ticks on the cliff, furthest z %.1f\n",
+				k.what, k.arrived, k.on_cliff, k.max_z);
+		check(k.arrived >= 0, "a unit never got up the ramp");
+		check(k.on_cliff == 0, "a unit climbed the cliff");
+		check(k.max_z >= 16.0f, "a unit got up without taking the ramp");
+	}
+	check(s.check_placement(0, -1, -8, BLD_HOUSE) == Simulation::PLACE_TERRAIN, "a house can be placed on the cliff");
+	check(s.check_placement(0, -12, -8, BLD_HOUSE) != Simulation::PLACE_TERRAIN, "a house can't be placed on flat ground");
+}
+
 int main() {
 	std::printf("RTS0 building steering test (src/simulation/nav/building_steering.h)\n");
 	guard_behind_wall();
@@ -585,6 +651,7 @@ int main() {
 	ships_that_cannot_get_there();
 	walk_into_closed_gate();
 	crowds_at_the_shore();
+	cliffs();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;

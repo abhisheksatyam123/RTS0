@@ -1129,17 +1129,19 @@ void Simulation::rebuild_territory() {
 	nav_grid_.blur_territory(influence_grid_, territory_grid_);
 }
 
-// Whether the straight walk from (x0, z0) to (x1, z1) crosses a navcell too deep for land
-// units (the end cells excepted: a dock or a shoreline resource may sit on one).
-bool Simulation::line_crosses_deep_water(float x0, float z0, float x1, float z1) const {
-	if (terrain_water_height_ < -0.5f || nav_grid_.cells.blank()) return false;
+// Whether the straight walk from (x0, z0) to (x1, z1) crosses a navcell no land unit can cross:
+// deep water, or a slope over MaxTerrainSlope (the end cells excepted: a dock, a shoreline
+// resource or a mine on a hillside may sit on one).
+bool Simulation::line_crosses_impassable(float x0, float z0, float x1, float z1) const {
+	if ((terrain_water_height_ < -0.5f && !nav_grid_.any_steep()) || nav_grid_.cells.blank()) return false;
 	auto [cx0, cy0] = nav_grid_.world_to_cell(x0, z0);
 	auto [cx1, cy1] = nav_grid_.world_to_cell(x1, z1);
 	int dx = std::abs(cx1 - cx0), sx = cx0 < cx1 ? 1 : -1;
 	int dy = -std::abs(cy1 - cy0), sy = cy0 < cy1 ? 1 : -1;
 	int err = dx + dy, x = cx0, y = cy0;
 	while (x != cx1 || y != cy1) {
-		if ((x != cx0 || y != cy0) && nav_grid_.cells.inside(x, y) && nav_grid_.cells.at(x, y) == NAV_WATER) return true;
+		if ((x != cx0 || y != cy0) && nav_grid_.cells.inside(x, y) &&
+		    (nav_grid_.cells.at(x, y) == NAV_WATER || nav_grid_.is_steep(x, y))) return true;
 		const int e2 = 2 * err;
 		if (e2 >= dy) { err += dy; x += sx; }
 		if (e2 <= dx) { err += dx; y += sy; }
@@ -1469,19 +1471,28 @@ Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell
 		const uint8_t c = nav_grid_.cells.at(nx, ny);
 		return c == NAV_WATER || c == NAV_SHALLOW;
 	};
+	// MaxTerrainSlope: building-land and default-terrain-only take the land units' limit (the
+	// nav grid's steep cells), building-shore its own.
+	auto too_steep_for_dock = [&](int nx, int ny) {
+		return nav_grid_.compute_cell_slope(nx, ny, terrain_heights_, terrain_res_) > SHORE_MAX_TERRAIN_SLOPE;
+	};
 	if (have_nav) {
 		auto [nx0, ny0] = nav_grid_.world_to_cell(x0 + 0.01f, z0 + 0.01f);
 		auto [nx1, ny1] = nav_grid_.world_to_cell(x1 - 0.01f, z1 - 0.01f);
 		if (rule.placement == PLACE_LAND) {
 			for (int y = ny0; y <= ny1; ++y)
 				for (int x = nx0; x <= nx1; ++x)
-					if (is_water(x, y)) return PLACE_TERRAIN;
+					if (is_water(x, y) || nav_grid_.is_steep(x, y)) return PLACE_TERRAIN;
 		} else if (rule.placement == PLACE_LAND_SHORE) {
 			auto [ncx, ncy] = nav_grid_.world_to_cell(cxw, czw);
-			if (nav_grid_.cells.inside(ncx, ncy) && nav_grid_.cells.at(ncx, ncy) == NAV_WATER) return PLACE_TERRAIN;
+			if (nav_grid_.cells.inside(ncx, ncy) && (nav_grid_.cells.at(ncx, ncy) == NAV_WATER || nav_grid_.is_steep(ncx, ncy)))
+				return PLACE_TERRAIN;
 		} else {
 			// CheckShorePlacement: part of the footprint on land, a sea cell at its edge.
 			bool land = false, sea = false;
+			for (int y = ny0; y <= ny1; ++y)
+				for (int x = nx0; x <= nx1; ++x)
+					if (too_steep_for_dock(x, y)) return PLACE_TERRAIN;
 			for (int y = ny0; y <= ny1 && !land; ++y)
 				for (int x = nx0; x <= nx1 && !land; ++x)
 					land = !is_water(x, y);
@@ -2745,10 +2756,6 @@ void Simulation::cmd_move_individual(const uint32_t *unit_ids, size_t count, flo
 			pass = PASS_SHIP;
 		else if (ut == UNIT_CAVALRY || ut == UNIT_CHARIOT || ut == UNIT_CAMEL ||
 		         ut == UNIT_SCYTHED_CHARIOT)
-			// Mounted: PASS_CAVALRY excludes cells steeper than cavalry_max_slope
-			// (grid_nav.h steep_cells_, 0 A.D. pathfinder.xml MaxTerrainSlope +
-			// Pathfinding.h:205-241 IsPassable). Slope mask is refreshed on every
-			// rebuild_nav_grid via set_water_from_heights -> compute_slopes_from_heights.
 			pass = PASS_CAVALRY;
 		find_path(units_.pos_x[idx], units_.pos_z[idx], dest_x, dest_z, wp, pass);
 		// HierarchicalPathfinder::MakeGoalReachable: a player's walk to a point the unit can't reach
@@ -5202,8 +5209,9 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			return;
 		}
 
-		// GATHER, BUILD and RETURN_DROPSITE walk at (tx, tz) with no cmd_move path. When buildings
-		// block that line, path them too, as 0 A.D. UnitMotion paths every move. The path is kept
+		// GATHER, BUILD, RETURN_DROPSITE and TRADE walk at (tx, tz) with no cmd_move path. When
+		// buildings, deep water or a slope too steep block that line, path them too, as 0 A.D.
+		// UnitMotion paths every move. The path is kept
 		// while (tx, tz) stays within 2 world units of the target it was computed for.
 		const uint8_t st = units_.action_state[i];
 		bool task_path = false;
@@ -5216,7 +5224,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			if (!task_path && (rtso::nav::line_blocked_by_buildings(rtso::nav::Vec2(px[i], pz[i]),
 					rtso::nav::Vec2(tx[i], tz[i]), 2.0f * map_half_, unit_building_clearance(units_.unit_type[i]),
 					steer_obstacles_, units_.target_building_id[i]) ||
-					line_crosses_deep_water(px[i], pz[i], tx[i], tz[i]))) {
+					line_crosses_impassable(px[i], pz[i], tx[i], tz[i]))) {
 				const uint8_t ut = units_.unit_type[i];
 				const bool mounted = ut == UNIT_CAVALRY || ut == UNIT_CHARIOT || ut == UNIT_CAMEL || ut == UNIT_SCYTHED_CHARIOT;
 				find_path(px[i], pz[i], tx[i], tz[i], wp, mounted ? PASS_CAVALRY : PASS_INFANTRY);

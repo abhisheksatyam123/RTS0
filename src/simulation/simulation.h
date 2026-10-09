@@ -782,7 +782,7 @@ public:
 	enum PlacementResult : uint8_t {
 		PLACE_OK = 0,
 		PLACE_OBSTRUCTED, // off the map, on another building or on a resource
-		PLACE_TERRAIN,    // water under a land building, deep water under a wall
+		PLACE_TERRAIN,    // water under a land building, deep water under a wall, a slope too steep
 		PLACE_TERRITORY,  // territory the template does not allow
 		PLACE_SHORE,      // a dock not on a shoreline facing a sea
 		PLACE_DISTANCE,   // too close to the player's own building of the same class
@@ -1424,7 +1424,7 @@ private:
 	void reveal_viewers(std::vector<uint8_t> &grid, FowViews &views, UnitVision unit_vr, BuildingVision building_vr);
 	bool terrain_blocks_los(float sx, float sz, float sy, float tx, float tz, float ty) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
-	bool line_crosses_deep_water(float x0, float z0, float x1, float z1) const;
+	bool line_crosses_impassable(float x0, float z0, float x1, float z1) const;
 	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
