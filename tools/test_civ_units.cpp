@@ -82,6 +82,9 @@ int main() {
 	CHECK(!m.cmd_train(0, tc, UNIT_HERO));
 	const uint32_t pryt = m.spawn_building(-10, -30, BLD_PRYTANEION, 0, 1.0f);
 	CHECK(m.cmd_train_template(0, pryt, peri));
+	// EntityLimits Hero 1: no second hero while one is queued or alive.
+	const uint16_t themi = find_template(CIV_ATHENIANS, "Themistocles");
+	CHECK(!m.cmd_train_template(0, pryt, themi));
 	CHECK(!m.cmd_train_template(0, tc, find_template(CIV_HAN, "Infantry Crossbowman"))); // other civ's unit
 	const float food_before = m.player(0).food();
 	CHECK(m.cmd_train(0, tc, UNIT_FEMALE_CITIZEN));
@@ -95,6 +98,7 @@ int main() {
 			if (v.team[u] == 0 && v.tmpl[u] == peri) got_pericles = true;
 	}
 	CHECK(got_pericles);
+	CHECK(!m.cmd_train_template(0, pryt, themi));
 
 	// Classes a civ lacks are refused (Athenians field no elephants).
 	CHECK(!m.cmd_train(0, tc, UNIT_ELEPHANT));

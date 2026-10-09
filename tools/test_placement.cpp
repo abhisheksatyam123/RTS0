@@ -91,6 +91,41 @@ static void test_build_and_repair() {
 	CHECK(std::fabs(repair - build_time) < 1.5f);
 }
 
+// Placement rotation (0 A.D. placementSupport.angle): cmd_build keeps the angle it is
+// given, lockstep carries it in 1/65536ths of a turn, and docks face the open water
+// (Commands.js GetDockAngle).
+static void test_rotation() {
+	static Simulation s;
+	constexpr float PI = 3.14159265f;
+	auto same_angle = [](float a, float b) {
+		const float d = std::remainder(a - b, 2.0f * PI);
+		return std::fabs(d) < 0.01f;
+	};
+	CHECK(same_angle(Simulation::unpack_angle(Simulation::pack_angle(1.25f)), 1.25f));
+	CHECK(Simulation::pack_angle(Simulation::DEFAULT_BUILDING_ROT) == 0); // older commands keep the default
+	fresh(s);
+	s.spawn_building_world(-40.0f, 40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	s.rebuild_territory();
+	const uint32_t house = s.cmd_build(0, -16, 24, BLD_HOUSE, 0.5f * PI);
+	const uint32_t plain = s.cmd_build(0, -24, 24, BLD_HOUSE);
+	// The sea is south of player 0's shore: a dock there faces -z (0 A.D. angle pi),
+	// whatever angle it was asked for.
+	const auto &dinfo = building_type_info(BLD_DOCK);
+	const float dhalf = dinfo.footprint * Simulation::GRID * 0.5f;
+	const uint32_t dock = s.cmd_build(0, (int)std::floor((-40.0f - dhalf) / Simulation::GRID),
+			(int)std::floor((18.0f - dhalf) / Simulation::GRID), BLD_DOCK, 0.0f);
+	CHECK(house && plain && dock);
+	for (const auto &b : s.buildings()) {
+		if (b.id == house) CHECK(same_angle(b.rot, 0.5f * PI));
+		if (b.id == plain) CHECK(same_angle(b.rot, Simulation::DEFAULT_BUILDING_ROT));
+		if (b.id == dock) {
+			std::printf("  dock on the north shore faces %.2f rad (sea to the south: pi)\n", b.rot);
+			CHECK(same_angle(b.rot, PI));
+		}
+	}
+	CHECK(std::isnan(s.dock_angle(-30.0f, 50.0f, dhalf))); // inland: no shoreline in reach
+}
+
 int main() {
 	static Simulation s;
 	fresh(s);
@@ -152,6 +187,7 @@ int main() {
 	CHECK(s.cmd_build(0, -16, 24, BLD_HOUSE) != 0);
 
 	test_build_and_repair();
+	test_rotation();
 
 	std::printf("RESULT: %s (%d)\n", failures ? "FAIL" : "PASS", failures);
 	return failures ? 1 : 0;
