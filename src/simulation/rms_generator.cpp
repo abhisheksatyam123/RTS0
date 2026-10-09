@@ -626,6 +626,27 @@ void HeightmapGrid::carve_canyon_network(RmsRng &rng, float border_margin, float
 // RMS Map Synthesizers
 // =========================================================================
 
+// Lifts the whole map so that all but `wet_percent`% of the ground within
+// `radius_frac` of the map half (a circle) sits at least 0.4 above the nav water
+// line. The invented noise maps could otherwise sink nearly everything but the
+// base pads, leaving each player on an island of their own.
+static void lift_noise_to_land(HeightmapGrid &hm, float water_h, float radius_frac, int wet_percent) {
+	std::vector<float> inner;
+	const float r_in = hm.map_half * radius_frac;
+	for (int z = 0; z < hm.res; ++z)
+		for (int x = 0; x < hm.res; ++x) {
+			const float wx = -hm.map_half + 2.0f * hm.map_half * (float)x / (float)(hm.res - 1);
+			const float wz = -hm.map_half + 2.0f * hm.map_half * (float)z / (float)(hm.res - 1);
+			if (wx * wx + wz * wz < r_in * r_in) inner.push_back(hm.get(x, z));
+		}
+	if (inner.empty()) return;
+	const size_t k = inner.size() * (size_t)wet_percent / 100;
+	std::nth_element(inner.begin(), inner.begin() + (std::ptrdiff_t)k, inner.end());
+	const float lift = water_h + NAV_WATER_MARGIN + 0.4f - inner[k];
+	if (lift > 0.0f)
+		for (auto &v : hm.data) v += lift;
+}
+
 void RmsGenerator::synth_continental(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
 	water_h = 0.5f;
 	hm.init(hm.res, hm.map_half, 2.5f);
@@ -633,6 +654,10 @@ void RmsGenerator::synth_continental(HeightmapGrid &hm, RmsRng &rng, float &wate
 	// 1. Base rolling terrain with multi-octave fBm
 	hm.apply_fbm(rng, 4, 0.030f, 0.52f, 2.1f, 5.0f);
 	hm.diamond_square(rng, 2.5f, 0.65f);
+
+	// The noise alone can sink most of the map (seed 7 left only the base pads dry,
+	// so every player started on their own island).
+	lift_noise_to_land(hm, water_h, 0.68f, 15);
 
 	// 2. Radial coastal falloff
 	hm.apply_radial_falloff(0.68f, 0.95f, -2.0f);
@@ -949,6 +974,13 @@ void RmsGenerator::synth_danubius(HeightmapGrid &hm, RmsRng &rng, float &water_h
 	hm.apply_fbm(rng, 4, 0.028f, 0.52f, 2.1f, 3.8f);
 	hm.diamond_square(rng, 1.8f, 0.60f);
 
+	// Perimeter gentle falloff and smoothing come before the channels, so the
+	// blur can't sink the fords below wading depth (bases were cut off), and the
+	// valley floor is lifted so the water is the two channels, not a lake.
+	lift_noise_to_land(hm, water_h, 0.95f, 5);
+	hm.apply_radial_falloff(0.85f, 0.98f, 1.0f);
+	hm.blur(2, 0.42f);
+
 	// 2. Dual-channel river branches around central island fortress
 	// Channel 1: North Branch
 	std::vector<std::pair<float, float>> north_branch = {
@@ -984,9 +1016,6 @@ void RmsGenerator::synth_danubius(HeightmapGrid &hm, RmsRng &rng, float &water_h
 	hm.level_area(-half * 0.30f, 0.0f, 4.5f, 4.0f, 1.2f);
 	hm.level_area( half * 0.30f, 0.0f, 4.5f, 4.0f, 1.2f);
 
-	// 4. Perimeter gentle falloff
-	hm.apply_radial_falloff(0.85f, 0.98f, 1.0f);
-	hm.blur(2, 0.42f);
 
 	// Re-level central fortress island summit
 	hm.level_area(0.0f, 0.0f, half * 0.14f, 4.0f, 4.5f);
