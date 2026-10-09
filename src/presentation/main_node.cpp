@@ -26,6 +26,16 @@
 
 using namespace godot;
 
+// 0 A.D. Trainer lists (civ_unit_template(..).trainers): does a structure of type
+// `btype` train any of `civ`'s units of class `utype`?
+static bool building_trains_class(uint8_t civ, uint8_t utype, uint8_t btype) {
+	for (uint16_t i : rtso::civ_roster_ids(civ)) {
+		const rtso::CivUnitTemplate &u = rtso::civ_unit_template(i);
+		if (u.unit_type == utype && !(u.flags & rtso::ROSTER_SIEGE_TOWER) && (u.trainers & rtso::bld_bit(btype))) return true;
+	}
+	return false;
+}
+
 void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("enter_build_mode", "enable", "btype"), &RtsoMain::enter_build_mode, DEFVAL(rtso::BLD_HOUSE));
 	ClassDB::bind_method(D_METHOD("clear_selection"), &RtsoMain::clear_selection);
@@ -103,6 +113,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_gather_nearest"), &RtsoMain::debug_gather_nearest);
 	ClassDB::bind_method(D_METHOD("debug_trade_route_clicks"), &RtsoMain::debug_trade_route_clicks);
 	ClassDB::bind_method(D_METHOD("debug_guard_step", "step"), &RtsoMain::debug_guard_step);
+	ClassDB::bind_method(D_METHOD("debug_train_buttons", "btype"), &RtsoMain::debug_train_buttons);
 	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);
 	ClassDB::bind_method(D_METHOD("_on_diplo_tribute_pressed", "player_idx", "res_type"), &RtsoMain::_on_diplo_tribute_pressed);
 	ClassDB::bind_method(D_METHOD("set_use_english_voice_orders", "enable"), &RtsoMain::set_use_english_voice_orders);
@@ -202,6 +213,7 @@ void RtsoMain::_bind_methods() {
 	bind_enum("BuildingType", "TEMPLE_VESTA", rtso::BLD_TEMPLE_VESTA);
 	bind_enum("BuildingType", "TEMPLE_MARS", rtso::BLD_TEMPLE_MARS);
 	bind_enum("BuildingType", "ICE_HOUSE", rtso::BLD_ICE_HOUSE);
+	bind_enum("BuildingType", "SUPER_DOCK", rtso::BLD_SUPER_DOCK);
 
 	bind_enum("Civilization", "ATHENIANS", rtso::CIV_ATHENIANS);
 	bind_enum("Civilization", "SPARTANS", rtso::CIV_SPARTANS);
@@ -1330,6 +1342,24 @@ Dictionary RtsoMain::debug_guard_step(int step) {
 		if (Button *btn = Object::cast_to<Button>(production_bar->get_child(i))) buttons.push_back(btn->get_text());
 	d["buttons"] = buttons;
 	return d;
+}
+
+// Test hook: a finished structure of `btype` next to the Civic Centre, selected;
+// returns the production buttons it shows.
+PackedStringArray RtsoMain::debug_train_buttons(int btype) {
+	PackedStringArray out;
+	if (!sim || net_lockstep()) return out;
+	const uint8_t me = local_player();
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : sim->buildings())
+		if (b.team == me && b.type == rtso::BLD_TOWN_CENTER) { cx = b.x; cz = b.z; break; }
+	const uint32_t id = sim->spawn_building_world(cx + 24.0f, cz + 24.0f, (uint8_t)btype, me, 1.0f);
+	clear_selection();
+	selected_building_id = id;
+	update_command_panel();
+	for (int i = 0; i < production_bar->get_child_count(); ++i)
+		if (Button *btn = Object::cast_to<Button>(production_bar->get_child(i))) out.push_back(btn->get_text());
+	return out;
 }
 
 Dictionary RtsoMain::get_audio_state() const {
@@ -2892,6 +2922,7 @@ void RtsoMain::update_command_panel() {
 			uint32_t roster = rtso::civ_train_mask(pciv);
 			auto add_train = [&](rtso::UnitType t, const char *label) {
 				if ((roster & rtso::unit_bit((uint8_t)t)) == 0) return;
+				if (!building_trains_class(pciv, (uint8_t)t, found_b->type)) return;
 				Button *btn = memnew(Button);
 				btn->set_text(label);
 				// Champions wait for their unlock technology (0 A.D. unlock_champion_*).
@@ -2905,51 +2936,38 @@ void RtsoMain::update_command_panel() {
 				production_bar->add_child(btn);
 			};
 
-			if (found_b->type == rtso::BLD_TOWN_CENTER) {
-				add_train(rtso::UNIT_VILLAGER, "Villager (50f)");
-				add_train(rtso::UNIT_FEMALE_CITIZEN, "Female Citizen (40f)");
-				add_train(rtso::UNIT_HEALER, "Healer (80f,60g)");
-
-			} else if (found_b->type == rtso::BLD_BARRACKS || found_b->type == rtso::BLD_FORTRESS) {
-				add_train(rtso::UNIT_SWORDSMAN, "Swordsman (60g,30w)");
-				add_train(rtso::UNIT_ARCHER, "Archer (40g,50w)");
-				add_train(rtso::UNIT_SPEARMAN, "Spearman (30f,40w,20g)");
-				add_train(rtso::UNIT_CAVALRY, "Cavalry (80g,50f)");
-				add_train(rtso::UNIT_CAMEL, "Camel Rider (60f,70g)");
-				add_train(rtso::UNIT_CHARIOT, "Celtic Chariot (80f,100w,60g)");
-				add_train(rtso::UNIT_WAR_DOG, "War Dog (60f)");
-				add_train(rtso::UNIT_CARNYX, "Carnyx Herald (70f,40w,30g)");
-				add_train(rtso::UNIT_ARCHER_MAIDEN, "Archer Maiden (40f,60w,40g)");
-				add_train(rtso::UNIT_WORKER_ELEPHANT, "Worker Elephant (180f,80w)");
-				if (pciv == rtso::CIV_MAURYANS && pphase >= 2)
-					add_train(rtso::UNIT_ELEPHANT, "Elephant Archer (175f,75w)");
-
-				if (pphase >= 2) {
-					add_train(rtso::UNIT_HERO, "Champion Hero (200f,200g)");
-					add_train(rtso::UNIT_BOLT_SHOOTER, "Bolt Shooter (120w,80g)");
-				}
-				if (pphase >= 3) {
-					add_train(rtso::UNIT_CATAPULT, "Catapult Artillery (150w,100g,50s)");
-					add_train(rtso::UNIT_SIEGE_RAM, "Siege Ram (200w,100g)");
-					if (pciv != rtso::CIV_MAURYANS)
-						add_train(rtso::UNIT_ELEPHANT, "War Elephant (250f,200g)");
-					add_train(rtso::UNIT_SCYTHED_CHARIOT, "Scythed Chariot (100f,80w,120g)");
-				}
-			} else if (found_b->type == rtso::BLD_DOCK) {
-				add_train(rtso::UNIT_FISHING_BOAT, "Fishing Boat (75w)");
-				add_train(rtso::UNIT_MERCHANT_SHIP, "Merchant Ship (120w,40g)");
-				add_train(rtso::UNIT_TRIREME, "War Trireme (200w,150g)");
-			} else if (found_b->type == rtso::BLD_MARKET) {
-				add_train(rtso::UNIT_TRADER, "Merchant Trader (60f,60w)");
-			} else if (found_b->type == rtso::BLD_TEMPLE) {
-				add_train(rtso::UNIT_HEALER, "Temple Healer (80f,60g)");
-			} else if (found_b->type == rtso::BLD_HOUSE) {
-				// Fertility Festival (unlock_civilians_house_*) turns houses into trainers.
-				add_train(rtso::UNIT_VILLAGER, "Villager (50f)");
-				add_train(rtso::UNIT_FEMALE_CITIZEN, "Female Citizen (40f)");
-			} else if (found_b->type == rtso::BLD_FARMSTEAD || found_b->type == rtso::BLD_CORRAL) {
-				add_train(rtso::UNIT_WAR_DOG, "Guard Dog (60f)");
+			// Class buttons: each shows only where one of the civ's units of that class
+			// lists this structure as its Trainer (add_train's building_trains_class).
+			add_train(rtso::UNIT_VILLAGER, "Villager (50f)");
+			add_train(rtso::UNIT_FEMALE_CITIZEN, "Female Citizen (40f)");
+			add_train(rtso::UNIT_HEALER, "Healer (80f,60g)");
+			add_train(rtso::UNIT_SWORDSMAN, "Swordsman (60g,30w)");
+			add_train(rtso::UNIT_ARCHER, "Archer (40g,50w)");
+			add_train(rtso::UNIT_SPEARMAN, "Spearman (30f,40w,20g)");
+			add_train(rtso::UNIT_CAVALRY, "Cavalry (80g,50f)");
+			add_train(rtso::UNIT_CAMEL, "Camel Rider (60f,70g)");
+			add_train(rtso::UNIT_CHARIOT, "Celtic Chariot (80f,100w,60g)");
+			add_train(rtso::UNIT_WAR_DOG, "War Dog (60f)");
+			add_train(rtso::UNIT_CARNYX, "Carnyx Herald (70f,40w,30g)");
+			add_train(rtso::UNIT_ARCHER_MAIDEN, "Archer Maiden (40f,60w,40g)");
+			add_train(rtso::UNIT_WORKER_ELEPHANT, "Worker Elephant (180f,80w)");
+			if (pciv == rtso::CIV_MAURYANS && pphase >= 2)
+				add_train(rtso::UNIT_ELEPHANT, "Elephant Archer (175f,75w)");
+			if (pphase >= 2) {
+				add_train(rtso::UNIT_HERO, "Champion Hero (200f,200g)");
+				add_train(rtso::UNIT_BOLT_SHOOTER, "Bolt Shooter (120w,80g)");
 			}
+			if (pphase >= 3) {
+				add_train(rtso::UNIT_CATAPULT, "Catapult Artillery (150w,100g,50s)");
+				add_train(rtso::UNIT_SIEGE_RAM, "Siege Ram (200w,100g)");
+				if (pciv != rtso::CIV_MAURYANS)
+					add_train(rtso::UNIT_ELEPHANT, "War Elephant (250f,200g)");
+				add_train(rtso::UNIT_SCYTHED_CHARIOT, "Scythed Chariot (100f,80w,120g)");
+			}
+			add_train(rtso::UNIT_FISHING_BOAT, "Fishing Boat (75w)");
+			add_train(rtso::UNIT_MERCHANT_SHIP, "Merchant Ship (120w,40g)");
+			add_train(rtso::UNIT_TRIREME, "War Trireme (200w,150g)");
+			add_train(rtso::UNIT_TRADER, "Merchant Trader (60f,60w)");
 
 			// Technologies researched here (0 A.D. ProductionQueue "technologies"):
 			// one button per tech whose researcher is this building type, greyed
@@ -3300,26 +3318,15 @@ Vector3 RtsoMain::snap_wall_point(const Vector3 &p, bool &snapped) const {
 
 void RtsoMain::try_train_unit(rtso::UnitType utype) {
 	if (!sim || !rtso::civ_can_train(sim->player_civ(local_player()), (uint8_t)utype)) return;
-	uint32_t bid = selected_building_id;
-	if (bid == 0) {
-		for (const auto &b : sim->buildings()) {
-			if (b.team != local_player() || b.build_progress < 1.0f) continue;
-			bool match = false;
-			if ((utype == rtso::UNIT_VILLAGER || utype == rtso::UNIT_FEMALE_CITIZEN) && b.type == rtso::BLD_TOWN_CENTER)
-				match = true;
-			else if (utype == rtso::UNIT_TRADER && b.type == rtso::BLD_MARKET)
-				match = true;
-			else if ((utype == rtso::UNIT_TRIREME || utype == rtso::UNIT_FISHING_BOAT || utype == rtso::UNIT_MERCHANT_SHIP) && b.type == rtso::BLD_DOCK)
-				match = true;
-			else if (utype == rtso::UNIT_HEALER && (b.type == rtso::BLD_TEMPLE || b.type == rtso::BLD_TOWN_CENTER))
-				match = true;
-			else if (b.type == rtso::BLD_BARRACKS || b.type == rtso::BLD_FORTRESS)
-				match = true;
-			if (match) {
-				bid = b.id;
-				break;
-			}
-		}
+	// The selected structure if it trains the class, else the first finished one
+	// that does (0 A.D. trains a unit only where its template's Trainer lists it).
+	const uint8_t civ = sim->player_civ(local_player());
+	uint32_t bid = 0;
+	for (const auto &b : sim->buildings()) {
+		if (b.team != local_player() || b.wrecked || b.build_progress < 1.0f) continue;
+		if (!building_trains_class(civ, (uint8_t)utype, b.type)) continue;
+		if (b.id == selected_building_id) { bid = b.id; break; }
+		if (bid == 0) bid = b.id;
 	}
 	if (bid == 0) return;
 	if (turn_cmds()) {
@@ -4506,6 +4513,7 @@ void RtsoMain::apply_match_settings() {
 	sim->set_relic_duration(60.0f * (float)std::clamp((int)ms->get("relic_min"), 0, 60));
 	sim->set_relic_count((int)ms->get("relic_count"));
 	sim->set_regicide_garrison((bool)ms->get("regicide_garrison"));
+	sim->set_lock_teams((bool)ms->get("lock_teams"));
 	sim->set_disable_treasures((bool)ms->get("disable_treasures"));
 	{
 		Array scolors = ms->get("slot_colors");
@@ -5075,6 +5083,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 			setup.colors[i] = (uint8_t)std::clamp((int)scolors[i], 0, rtso::PLAYER_COLOR_COUNT - 1);
 		setup.nomad = (bool)ms->get("nomad") ? 1 : 0;
 		setup.regicide_garrison = (bool)ms->get("regicide_garrison") ? 1 : 0;
+		setup.lock_teams = (bool)ms->get("lock_teams") ? 1 : 0;
 		setup.no_treasures = (bool)ms->get("disable_treasures") ? 1 : 0;
 		Array snames = ms->get("slot_names");
 		for (int i = 0; i < 8 && i < snames.size(); ++i) setup.names[i] = String(snames[i]).utf8().get_data();
@@ -5183,6 +5192,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	sim->set_relic_duration(60.0f * (float)setup.relic_min);
 	sim->set_relic_count(setup.relics);
 	sim->set_regicide_garrison(setup.regicide_garrison != 0);
+	sim->set_lock_teams(setup.lock_teams != 0);
 	sim->set_disable_treasures(setup.no_treasures != 0);
 	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) sim->set_player_color(p, setup.colors[p]);
 	sim->set_water_level_mode(setup.water_level);
@@ -5242,6 +5252,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		ms->set("slot_colors", scolors);
 		ms->set("nomad", setup.nomad != 0);
 		ms->set("regicide_garrison", setup.regicide_garrison != 0);
+		ms->set("lock_teams", setup.lock_teams != 0);
 		ms->set("disable_treasures", setup.no_treasures != 0);
 		Array snames;
 		for (uint8_t i = 0; i < setup.slot_count && i < 8; ++i) snames.push_back(String::utf8(setup.names[i].c_str()));

@@ -254,8 +254,9 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
         return [(t, (b[0] - a[0], b[1] - a[1])) for (_, a), (t, b) in zip(rows, rows[1:]) if a != b]
     tributes = [stone_changes(e) for e in extras]
     # A tribute moves stone from one player to the other on one turn; the joiner's own
-    # stone also rises once it captures the team-2 wonder (ResourceTrickle, +1 every 2 s).
-    tribute_ok = tributes[0] == tributes[1] and [d for _, d in tributes[0] if d[0] and d[1]] == [(77, -77)]
+    # stone also rises once it captures the team-2 wonder (ResourceTrickle, +1 every 2 s),
+    # sometimes on the turn the host's trader comes home, so only a transfer counts.
+    tribute_ok = tributes[0] == tributes[1] and [d for _, d in tributes[0] if d[0] and d[0] == -d[1]] == [(77, -77)]
     # Upgrade: the host's wall (12) becomes a gate (8) on the same turn on both peers.
     gate_turn = [next((t for t in sorted(e) if e[t].get("wall") == "8"), None) for e in extras]
     upgrade_ok = gate_turn[0] is not None and gate_turn[0] == gate_turn[1]
@@ -825,7 +826,7 @@ def main() -> int:
                   f"final_hash={nr['final_hash']} ({nr['seconds']:.1f}s)")
             print(f"[net] ceasefire lifted at turn {nr['ceasefire_end'][0]} on both peers, "
                   f"no combat before it; setup {nr['setups'].get('host')}")
-            print(f"[net] tribute of 77 stone landed at turn {nr['tributes'][0][0][0]} on both peers, the "
+            print(f"[net] tribute of 77 stone landed at turn {next(t for t, d in nr['tributes'][0] if d == (77, -77))} on both peers, the "
                   f"post-defeat one was dropped; wall became a gate at turn {nr['gate_turn'][0]}, "
                   f"locked at turn {nr['locks'][0][0]} and unlocked at turn {nr['locks'][0][1]}")
             print(f"[net] stone thrower unpacked and packed again on both peers at turns "

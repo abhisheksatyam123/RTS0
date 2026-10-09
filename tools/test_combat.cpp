@@ -88,6 +88,7 @@ static void test_data() {
 static float one_hit(UnitType att, UnitType type, float *expected) {
 	Simulation s;
 	setup(s);
+	s.set_player_active(1, true, false); // no Petra: it would send a cavalry dummy off scouting
 	uint32_t a = s.spawn_unit(0, 0, 0, att);
 	uint32_t d = dummy(s, 1.0f, 0, type);
 	int ai = idx(s, a), di = idx(s, d);
@@ -378,9 +379,9 @@ static void test_health_vision_auras() {
 	uint32_t ally = s.spawn_unit(30.0f, -30.0f, 2, UNIT_SWORDSMAN);
 	uint32_t foe = s.spawn_unit(30.0f, 30.0f, 1, UNIT_SWORDSMAN);
 	s.rebuild_auras();
-	const float base = unit_vision_range(UNIT_SWORDSMAN);
-	check(std::fabs(s.unit_vision_at(idx(s, ally)) - base * 1.25f) < 1e-3f, "Han Xin: allied soldier +25% vision, map-wide");
-	check(std::fabs(s.unit_vision_at(idx(s, foe)) - base) < 1e-3f, "Han Xin: enemy soldier unchanged");
+	check(std::fabs(s.unit_vision_at(idx(s, ally)) - s.unit_base_vision(idx(s, ally)) * 1.25f) < 1e-3f,
+			"Han Xin: allied soldier +25% vision, map-wide");
+	check(std::fabs(s.unit_vision_at(idx(s, foe)) - s.unit_base_vision(idx(s, foe))) < 1e-3f, "Han Xin: enemy soldier unchanged");
 }
 
 static void test_status() {
@@ -414,7 +415,7 @@ static void test_status() {
 	bool snared = false;
 	for (int k = 0; k < 200; ++k) {
 		m.tick(DT);
-		if (m.units_.status_effects[idx(m, cav)] & (EFFECT_SNARE | EFFECT_KNOCKBACK | EFFECT_SLOW | EFFECT_BLEED)) snared = true;
+		if (m.units_.status_effects[idx(m, cav)] & ~(EFFECT_POISON | EFFECT_BURNING)) snared = true;
 	}
 	check(!snared, "spearmen hitting cavalry apply no invented snare");
 }

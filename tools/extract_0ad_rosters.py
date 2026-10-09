@@ -161,7 +161,6 @@ TRAINER_BUILDING = {
     "camp_blemmye": "BLD_BARRACKS", "camp_noba": "BLD_BARRACKS",
     "practice_range": "BLD_RANGE",
     "temple_mars": "BLD_TEMPLE", "temple_vesta": "BLD_TEMPLE", "tophet": "BLD_TEMPLE",
-    "super_dock": "BLD_DOCK",
 }
 # Civ-specific 0 A.D. structures RTS0 models as their own BuildingType
 # (appended after BLD_EMBASSY): enum, 0 A.D. file stems, model id, portrait id.
@@ -192,6 +191,7 @@ UNIQUE_BUILDINGS = [
     ("BLD_TEMPLE_VESTA", ["temple_vesta"], "temple", "temple_vesta"),
     ("BLD_TEMPLE_MARS", ["temple_mars"], "temple", "temple_mars"),
     ("BLD_ICE_HOUSE", ["ice_house"], "farmstead", "ice_house"),
+    ("BLD_SUPER_DOCK", ["super_dock"], "dock", "super_dock"),
 ]
 # Units of a civ-specific structure train only there, as in 0 A.D. (Petra builds
 # these structures since #105).
@@ -411,6 +411,7 @@ def raw_stats(t):
     return {
         "hp": t.num("Health/Max"),
         "speed": t.num("UnitMotion/WalkSpeed"),
+        "vision": t.num("Vision/Range"),
         "range": rng,
         "damage": hack + pierce + crush,
         "cooldown": rep,
@@ -452,6 +453,8 @@ def convert(cls, raw, gen):
         out[r] = int(round(out[r]))
     out["pop"] = int(round(raw["pop"]))
     out["speed"] = raw["speed"] * SPEED_SCALE
+    # Vision/Range on the ranged-range scale (0 = no own vision, e.g. some fauna-like units).
+    out["vision"] = raw.get("vision", 0.0) * RANGED_RANGE_SCALE
     out["damage"] = raw["damage"]
     if raw["damage"] > 0:
         out["range"] = raw["range"] * (RANGED_RANGE_SCALE if raw["ranged"] else MELEE_RANGE_SCALE)
@@ -671,7 +674,7 @@ def apply_unit_bonuses(raw, classes, civ, bonuses):
     Returns the ids of the bonuses that applied."""
     kind = "Ranged" if raw["ranged"] else "Melee"
     paths = {
-        "UnitMotion/WalkSpeed": "speed", "Health/Max": "hp", "Cost/BuildTime": "train_time",
+        "UnitMotion/WalkSpeed": "speed", "Vision/Range": "vision", "Health/Max": "hp", "Cost/BuildTime": "train_time",
         "Cost/Resources/food": "food", "Cost/Resources/wood": "wood",
         "Cost/Resources/metal": "gold", "Cost/Resources/stone": "stone",
         "Attack/%s/Damage/Hack" % kind: "hack_dmg", "Attack/%s/Damage/Pierce" % kind: "pierce_dmg",
@@ -1044,6 +1047,7 @@ def collect(sim_root):
             stats = {k: base[k] for k in RTS0_FIELDS}
             stats["pop"] = int(stats["pop"])
             stats["carry"] = int(stats["carry"])
+            stats["vision"] = 0.0  # unit_vision_range() of its class
             for r in ("food", "wood", "gold", "stone"):
                 stats[r] = int(stats[r])
             rows.append({
@@ -1120,7 +1124,7 @@ def emit_header(rows, auras, civ_json, bonuses, team):
     w("\t\t// id, name, specific name, civ, class, phase, flags, trainers,")
     w("\t\t// hp, speed, range, damage, cooldown, hack/pierce/crush dmg, hack/pierce/crush armour,")
     w("\t\t// food, wood, gold, stone, pop, train_time, carry, aura slots (-1 = none), unlock tech,")
-    w("\t\t// TechClass mask of the template's 0 A.D. classes")
+    w("\t\t// TechClass mask of the template's 0 A.D. classes, Vision/Range x0.28")
     for r in rows:
         s = r["stats"]
         flags = " | ".join(r["flags"]) or "0"
@@ -1131,12 +1135,13 @@ def emit_header(rows, auras, civ_json, bonuses, team):
         w("\t\t{%s, %s, %s, %s, %s, %d, %s, %s," % (
             cstr(r["id"]), cstr(r["name"]), cstr(r["specific_name"]),
             CIV_ENUM[CIVS.index(r["civ"])], r["class"], r["phase"], flags, trainers))
-        w("\t\t %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %d, %d, %d, %d, %d, %s, %d, %d, %d, %d, %s, 0x%xull}," % (
+        w("\t\t %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %d, %d, %d, %d, %d, %s, %d, %d, %d, %d, %s, 0x%xull, %s}," % (
             f(s["hp"]), f(s["speed"]), f(s["range"]), f(s["damage"]), f(s["cooldown"]),
             f(s["hack_dmg"]), f(s["pierce_dmg"]), f(s["crush_dmg"]),
             f(s["hack_armor"]), f(s["pierce_armor"]), f(s["crush_armor"]),
             s["food"], s["wood"], s["gold"], s["stone"], s["pop"], f(s["train_time"]),
-            s["carry"], a[0], a[1], a[2], r.get("unlock_tech", "TECH_NONE"), tech_class_bits(r["classes"])))
+            s["carry"], a[0], a[1], a[2], r.get("unlock_tech", "TECH_NONE"), tech_class_bits(r["classes"]),
+            f(s["vision"])))
     w("\t};")
     w("\treturn kTable;")
     w("}")
@@ -1291,7 +1296,7 @@ def unique_building_rows(sim_root):
             "capture": t.num("Capturable/CapturePoints", 500.0),
             "regen": t.num("Capturable/RegenRate", 5.0),
             "garrison_regen": t.num("Capturable/GarrisonRegenRate", 1.0),
-            "decay": t.num("TerritoryDecay/DecayRate", 20.0),
+            "decay": t.num("TerritoryDecay/DecayRate", 0.0),  # disable="" (Cothon): no decay,
             "phase": phase_of(t),
             # TerritoryInfluence roots on RTS0's scale (0 A.D. civil centre 140 m -> 32).
             "territory": (t.num("TerritoryInfluence/Radius") * 32.0 / 140.0
