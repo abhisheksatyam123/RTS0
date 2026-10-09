@@ -112,12 +112,19 @@ class RtsoWorldView : public Node3D {
 	// model and the flag style its 0 A.D. actor props there.
 	struct FlagPoint { Vector3 pos; float scale = 1.0f; int style = 0; };
 	std::unordered_map<std::string, FlagPoint> flag_points_;
+	// Same file: GLB units per 0 A.D. metre and the GLB height of 0 A.D.'s ground
+	// plane, by building model (meshes are grounded at their lowest vertex).
+	struct ModelGround { float scale = 0.0f; float ground = 0.0f; };
+	std::unordered_map<std::string, ModelGround> model_ground_;
 	std::vector<Ref<ShaderMaterial>> flag_mats_;
 	Ref<Mesh> flag_mesh_;
 	bool flags_loaded_ = false;
 	void load_garrison_flags();
-	void update_garrison_flag(BuildingVis &v, const String &model_id, bool show, uint8_t owner,
+	void update_garrison_flag(BuildingVis &v, const String &model_id, bool show, const Color &owner_color,
 			float b_scale, float y_offset);
+	// World height of a unit standing on a turret point `offset` above the terrain
+	// (sim units), placed on the holder's model as drawn.
+	float turret_draw_y(const rtso::Simulation *sim, uint32_t unit_id, float offset, float x, float z);
 	Ref<Shader> wind_shader_;
 	Ref<Mesh> wind_mesh(const Ref<Mesh> &src);
 	MultiMeshInstance3D *gold_mmi = nullptr;   // gold_vein.glb
@@ -129,10 +136,25 @@ class RtsoWorldView : public Node3D {
 	MultiMeshInstance3D *ruins_mmi = nullptr;
 	MultiMeshInstance3D *treasure_mmi = nullptr;
 	Ref<MultiMesh> ruins_mm, treasure_mm;
-	// Gaia scenery (fences, columns, obelisks): boxes of each obstruction's size until the
-	// rendering pipeline has their 0 A.D. actors.
+	// Gaia scenery (fences, columns, obelisks): 0 A.D.'s actor meshes from
+	// data/scenery_actors.json, one MultiMesh per type and mesh variant; a box of
+	// the obstruction's size for a type without one.
 	MultiMeshInstance3D *scenery_mmi = nullptr;
 	Ref<MultiMesh> scenery_mm;
+	struct SceneryVariant { Ref<MultiMesh> mm; int count = 0; };
+	std::vector<SceneryVariant> scenery_variants_[rtso::SCENERY_TYPE_COUNT];
+	void load_scenery_actors();
+	// 0 A.D. ambient birds (template_bird: birds/buzzard, the hawk actor): no
+	// gameplay effect, so they live in the view only, from data/birds.json.
+	struct Bird {
+		Node3D *node = nullptr;
+		Vector2 pos, target;
+		float yaw = 0.0f, y = 0.0f;
+		uint32_t rng = 1;
+	};
+	std::vector<Bird> birds_;
+	std::string birds_map_;
+	void update_birds(const rtso::Simulation *sim, float delta);
 
 	// flying projectiles (arrows + warship bolts + catapult stones)
 	MultiMeshInstance3D *arrow_mmi = nullptr;
@@ -262,12 +284,16 @@ public:
 	void rebuild_terrain(const rtso::Simulation *sim);
 	// Player whose units draw as "own" (crowd bank 0, player colours).
 	void set_local_player(uint8_t p) { local_player_ = p; }
+	// session.showstatusbars (Tab): bars over every visible unit and structure.
+	void set_show_all_status_bars(bool on) { show_all_status_bars_ = on; }
+	bool show_all_status_bars() const { return show_all_status_bars_; }
 
 	void play_spatial_sound(const Ref<AudioStream> &stream, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
 	void play_spatial_sound_path(const String &path, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
 
 private:
 	uint8_t local_player_ = 0;
+	bool show_all_status_bars_ = false;
 
 	// Fog of war (0 A.D. Fogging.js/Mirage.js + CLOSTexture): what the local
 	// player remembers, and the smoothed LOS bitmap that shades the world.

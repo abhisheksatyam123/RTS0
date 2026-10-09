@@ -223,6 +223,7 @@ int main() {
 			s.order_set_stance(&healer, 1, STANCE_STAND_GROUND); // heals only whom its range reaches
 			s.cmd_stop(&healer, 1);
 			s.cmd_stop(&sp, 1);
+			s.order_set_stance(&sp, 1, STANCE_STAND_GROUND); // stays put rather than charging the tower
 			run(s, 30.0f); // long enough that healing outweighs which arrows happen to land
 			hp_left[with] = unit_hp(s, sp);
 		}
