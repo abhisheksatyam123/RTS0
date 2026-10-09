@@ -152,6 +152,25 @@ int main() {
 		CHECK(s.is_defeated(1));
 	}
 
+	// 8b. CaptureTheRelic.js with allied victory: allies who split the relics between them
+	// win together; under Last Man Standing one player must hold them all.
+	for (int lms = 0; lms < 2; ++lms) {
+		fresh(s);
+		s.set_victory_condition(VICTORY_RELIC);
+		s.set_relic_count(2);
+		s.set_relic_duration(5.0f);
+		s.set_last_man_standing(lms != 0);
+		run(s, 0.1f);
+		CHECK(s.relics_.size() == 2);
+		s.units_.team[s.lookup_unit(s.relics_[0].id)] = 0;
+		s.units_.team[s.lookup_unit(s.relics_[1].id)] = 2; // player 0's ally
+		run(s, 6.0f);
+		std::printf("relics split between allies%s: game over %s\n", lms ? " (Last Man Standing)" : "",
+		            s.is_game_over() ? "yes" : "no");
+		if (lms) CHECK(!s.is_game_over());
+		else CHECK(s.is_game_over() && (s.winner_mask_ & 0x5) == 0x5 && !(s.winner_mask_ & 0x2));
+	}
+
 	// 9. A save from before relics were catafalques: its relic gets one on the next tick.
 	{
 		fresh(s);

@@ -178,7 +178,6 @@ capture = "C"                ; Modifier to capture instead of another action (e.
 attack = ""                  ; Modifier to attack instead of another action (e.g. capture)
 attackmove = Ctrl            ; Modifier to attackmove when clicking on a point
 attackmoveUnit = "Ctrl+Q"    ; Modifier to attackmove targeting only units when clicking on a point
-calltoarms = ""              ; Modifier to call the selected units to arms (drop loads, then attackmove)
 garrison = Ctrl              ; Modifier to garrison when clicking on building
 occupyturret = Ctrl ; Modifier to occupy a turret when clicking on a turret holder.
 autorallypoint = Ctrl        ; Modifier to set the rally point on the building itself

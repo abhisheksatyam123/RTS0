@@ -488,6 +488,11 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             "structures": structures,
             "units": units
         }
+        # TriggerScripts, by base name; RTS0 runs its C++ port of each (Simulation::register_trigger_script).
+        scripts = [os.path.splitext(os.path.basename(t))[0] for t in settings.get("TriggerScripts", [])
+                   if not t.startswith("scripts/")]
+        if scripts:
+            map_data["trigger_scripts"] = scripts
 
         os.makedirs("data/maps", exist_ok=True)
         out_path = f"data/maps/{map_id}.json"
@@ -562,9 +567,9 @@ github_skirmishes = {
 }
 
 # 0 A.D. scenario maps (maps/scenarios/) fetched with --github-scenarios: file -> (id, biome).
-# Left out: treasure_islands (needs its trigger script; the triggers thread ports those)
-# and the combat/pathfinding demos.
+# Left out: the combat/pathfinding demos.
 github_scenarios = {
+    "treasure_islands": ("treasure_islands", "mediterranean"),
     "gold_rush": ("gold_rush", "savanna"),
     "laconia": ("laconia", "aegean"),
     "migration": ("migration", "mediterranean"),

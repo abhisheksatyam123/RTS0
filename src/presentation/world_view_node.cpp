@@ -998,6 +998,8 @@ enum ClipId : uint8_t {
 	CLIP_CARRY_STONE,
 	CLIP_CARRY_METAL,
 	CLIP_CAPTURE,
+	CLIP_IDLE2,
+	CLIP_DEATH2,
 	CLIP_COUNT
 };
 
@@ -1011,7 +1013,8 @@ static const StringName &clip_name(ClipId id) {
 		StringName("Build"), StringName("Carry"), StringName("Heal"),
 		StringName("Slaughter"), StringName("Promotion"),
 		StringName("CarryFood"), StringName("CarryMeat"), StringName("CarryWood"),
-		StringName("CarryStone"), StringName("CarryMetal"), StringName("Capture")
+		StringName("CarryStone"), StringName("CarryMetal"), StringName("Capture"),
+		StringName("Idle2"), StringName("Death2")
 	};
 	return names[id < CLIP_COUNT ? id : CLIP_NONE];
 }
@@ -1150,6 +1153,16 @@ static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int
 	return w;
 }
 
+// 0 A.D. picks one of an actor's same-named animations at random; here each
+// unit keeps one by its id: half fall with the second death, and a quarter
+// stand with the second idle (the first is the most frequent in 0 A.D.).
+static WantAnim with_variant(WantAnim w, uint32_t id) {
+	const uint32_t h = id * 2654435761u;
+	if (w.clip == CLIP_DEATH && (h & 0x80000000u)) w.clip = CLIP_DEATH2;
+	else if (w.clip == CLIP_IDLE && (h >> 29) == 3u) w.clip = CLIP_IDLE2;
+	return w;
+}
+
 // Nearest clip a model actually ships, mirroring the extractor's own borrowing
 // (Run from Walk, Carry from Walk, Death from Idle for hulls that only float).
 static ClipId resolve_clip_fallback(AnimationPlayer *anim, ClipId want) {
@@ -1184,6 +1197,8 @@ static ClipId resolve_clip_fallback(AnimationPlayer *anim, ClipId want) {
 		case CLIP_HEAL:      alt = CLIP_GATHER; break;
 		case CLIP_SLAUGHTER: alt = CLIP_ATTACK; break;
 		case CLIP_CAPTURE:   alt = CLIP_ATTACK; break;
+		case CLIP_IDLE2:     alt = CLIP_IDLE; break;
+		case CLIP_DEATH2:    alt = CLIP_DEATH; break;
 		default:             break;
 	}
 	if (alt != CLIP_NONE && anim->has_animation(clip_name(alt))) return alt;
@@ -1410,10 +1425,11 @@ static const uint8_t kCrowdClips[] = {
 	CLIP_GATHER_TREE, CLIP_GATHER_ORE, CLIP_GATHER_ROCK, CLIP_GATHER_FRUIT, CLIP_GATHER_GRAIN,
 	CLIP_GATHER_MEAT, CLIP_GATHER_FISH, CLIP_HEAL, CLIP_SLAUGHTER,
 	CLIP_CARRY_FOOD, CLIP_CARRY_MEAT, CLIP_CARRY_WOOD, CLIP_CARRY_STONE, CLIP_CARRY_METAL,
-	CLIP_PROMOTION, CLIP_CAPTURE,
+	CLIP_PROMOTION, CLIP_CAPTURE, CLIP_IDLE2, CLIP_DEATH2,
 };
-static_assert(sizeof(kCrowdClips) == 23, "kCrowdClips must match CROWD_CLIP_COUNT");
-static constexpr int CROWD_DEATH_SLOT = 3;
+static_assert(sizeof(kCrowdClips) == 25, "kCrowdClips must match CROWD_CLIP_COUNT");
+// Death clips play once and hold their last frame (slots 3 and 24).
+static constexpr uint32_t CROWD_DEATH_SLOTS = (1u << 3) | (1u << 24);
 
 static int crowd_slot_of(ClipId clip) {
 	switch (clip) {
@@ -1440,6 +1456,8 @@ static int crowd_slot_of(ClipId clip) {
 		case CLIP_CARRY_METAL: return 20;
 		case CLIP_PROMOTION: return 21;
 		case CLIP_CAPTURE: return 22;
+		case CLIP_IDLE2: return 23;
+		case CLIP_DEATH2: return 24;
 		default: return 0;
 	}
 }
@@ -1493,7 +1511,7 @@ MultiMesh *RtsoWorldView::crowd_mm(CrowdBatch &b, int clip) {
 }
 
 void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, const uint8_t *want,
-		const bool *needed, int count, int death_slot, bool female) {
+		const bool *needed, int count, uint32_t death_slots, bool female) {
 	AnimationPlayer *ap = find_anim_player(inst);
 	if (ap) {
 		ap->set_active(true);
@@ -1527,7 +1545,7 @@ void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, 
 			for (int f = 0; f < n; ++f) {
 				double t = 0.0;
 				if (len > 0.0) {
-					if (c == death_slot) {
+					if (death_slots & (1u << c)) {
 						t = (n > 1) ? len * (double)f / (double)(n - 1) : 0.0;
 					} else {
 						t = len * (double)f / (double)n;
@@ -1549,11 +1567,11 @@ void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, 
 	if (ap) ap->stop();
 }
 
-void RtsoWorldView::cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts, int count, int death_slot) {
+void RtsoWorldView::cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts, int count, uint32_t death_slots) {
 	for (int c = 0; c < count; ++c) {
 		if (!meshes[c].is_valid() || row[c].baked_count <= 0 || counts[c] <= 0) continue;
 		int frame;
-		if (c == death_slot) {
+		if (death_slots & (1u << c)) {
 			frame = (int)(anim_time * 5.0f);
 			if (frame > row[c].baked_count - 1) frame = row[c].baked_count - 1;
 		} else {
@@ -1604,7 +1622,7 @@ void RtsoWorldView::ensure_crowd_frames(uint8_t civ, uint8_t key, const int *cou
 	if (!inst) return;
 	const bool female = unit_is_female(utype);
 	ensure_runtime_clips(find_anim_player(inst), female);
-	bake_puppet_clips(inst, b.puppet, b.clip_baked, kCrowdClips, needed, CROWD_CLIP_COUNT, CROWD_DEATH_SLOT, female);
+	bake_puppet_clips(inst, b.puppet, b.clip_baked, kCrowdClips, needed, CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS, female);
 	for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
 		if (needed[c] && b.mm[c].is_valid() && b.puppet[c].posed_frames[0].is_valid())
 			b.mm[c]->set_mesh(b.puppet[c].posed_frames[0]);
@@ -1636,7 +1654,7 @@ void RtsoWorldView::ensure_fauna_frames(uint8_t ftype) {
 	if (ap && ap->has_animation(clip_name(CLIP_RUN))) want[1] = CLIP_RUN;
 	const bool needed[FAUNA_CLIP_COUNT] = { true, true, true, true };
 	bool done[FAUNA_CLIP_COUNT] = {};
-	bake_puppet_clips(inst, fauna_puppet[ftype], done, want, needed, FAUNA_CLIP_COUNT, 3);
+	bake_puppet_clips(inst, fauna_puppet[ftype], done, want, needed, FAUNA_CLIP_COUNT, 1u << 3);
 	for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) {
 		if (fauna_mm[ftype][c].is_valid() && fauna_puppet[ftype][c].posed_frames[0].is_valid()) {
 			fauna_mm[ftype][c]->set_mesh(fauna_puppet[ftype][c].posed_frames[0]);
@@ -2150,8 +2168,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			auto it = res_sub.find(uview.target_resource_id[i]);
 			if (it != res_sub.end()) sub = it->second;
 		}
-		return resolve_unit_anim(uview.action_state[i], vx * vx + vz * vz, uview.alive[i] != 0,
+		WantAnim w = resolve_unit_anim(uview.action_state[i], vx * vx + vz * vz, uview.alive[i] != 0,
 				uview.carry[i], ut, uview.res_type_carried[i], sub, sim->unit_capturing(i));
+		return with_variant(w, uview.id[i]);
 	};
 	crowd_slot_scratch_.assign(uview.count, 0xFF);
 	static int counts[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT];
@@ -2178,7 +2197,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 					if (counts[civ][t][c] > 0) crowd_mm(cb, c);
 			}
 			CrowdBatch &cb = *crowd_[civ][t];
-			cycle_puppet_meshes(cb.puppet, cb.mm, counts[civ][t], CROWD_CLIP_COUNT, CROWD_DEATH_SLOT);
+			cycle_puppet_meshes(cb.puppet, cb.mm, counts[civ][t], CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS);
 			for (int c = 0; c < CROWD_CLIP_COUNT; ++c)
 				if (cb.mm[c].is_valid()) cb.mm[c]->set_instance_count(counts[civ][t][c]);
 		}
@@ -2885,7 +2904,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		int any = 0;
 		for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) any += f_counts[ft][c];
 		if (any > 0) ensure_fauna_frames((uint8_t)ft);
-		cycle_puppet_meshes(fauna_puppet[ft], fauna_mm[ft], f_counts[ft], FAUNA_CLIP_COUNT, 3);
+		cycle_puppet_meshes(fauna_puppet[ft], fauna_mm[ft], f_counts[ft], FAUNA_CLIP_COUNT, 1u << 3);
 		for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) {
 			if (fauna_mm[ft][c].is_valid()) {
 				fauna_mm[ft][c]->set_instance_count(f_counts[ft][c]);
