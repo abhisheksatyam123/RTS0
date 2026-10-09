@@ -78,8 +78,8 @@ static void test_no_early_rush() {
 	float t = 0.0f;
 	for (; t < 300.0f && s->petra_phase() < 2; t += Simulation::FIXED_STEP) {
 		s->tick(Simulation::FIXED_STEP);
-		const auto st = s->petra_attack_plan().state;
-		if (st == Simulation::AttackPlan::WALKING || st == Simulation::AttackPlan::ATTACKED) attacked = true;
+		for (const auto &p : s->petra_started_attacks())
+			if (p.state == Simulation::AttackPlan::WALKING || p.state == Simulation::AttackPlan::ATTACKED) attacked = true;
 	}
 	std::printf("  arena: %.0fs in village phase, player units %d -> %d, attack launched: %s, rushes allowed %d\n",
 	            t, start_units, count_units(*s, 0, false), attacked ? "yes" : "no", s->petra_attack_manager().max_rushes);
@@ -458,15 +458,15 @@ static void test_attack_plans() {
 		int attack_size = 0, huge_size = 0;
 		for (float t = 0.0f; t < 20.0f * 60.0f; t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
-			const auto &m = s->petra_attack_manager();
-			const auto &plan = s->petra_attack_plan();
-			if (plan.state != Simulation::AttackPlan::WALKING) continue;
-			if (m.kind == PETRA_ATTACK_RUSH && s->petra_phase() == 1) {
-				rushed = true;
-				rush_at_store |= plan.target_building_id == store;
+			for (const auto &plan : s->petra_started_attacks()) {
+				if (plan.state != Simulation::AttackPlan::WALKING) continue;
+				if (plan.kind == PETRA_ATTACK_RUSH && s->petra_phase() == 1) {
+					rushed = true;
+					rush_at_store |= plan.target_building_id == store;
+				}
+				if (plan.kind == PETRA_ATTACK_ATTACK) attack_size = std::max(attack_size, (int)plan.initial_squad_size);
+				if (plan.kind == PETRA_ATTACK_HUGE) huge_size = std::max(huge_size, (int)plan.initial_squad_size);
 			}
-			if (m.kind == PETRA_ATTACK_ATTACK) attack_size = m.target_size;
-			if (m.kind == PETRA_ATTACK_HUGE) huge_size = m.target_size;
 		}
 		const auto &m = s->petra_attack_manager();
 		std::printf("  aggressive: rushes allowed %d, village rush %s (at the storehouse %s), launched rush %d attack %d huge %d, sizes %d / %d\n",
@@ -524,7 +524,8 @@ static void test_attack_plans() {
 		CHECK(kinds.size() >= 3 && kinds[0] == PETRA_ATTACK_ATTACK && kinds[1] == PETRA_ATTACK_ATTACK,
 		      "the first two plans are Attack");
 		CHECK(kinds.size() >= 3 && kinds[2] == PETRA_ATTACK_HUGE, "then HugeAttack");
-		CHECK(m.launched[PETRA_ATTACK_ATTACK] == 2, "both Attack plans march");
+		// With a HugeAttack under way the next plan is an Attack again (attackManager.js).
+		CHECK(m.launched[PETRA_ATTACK_ATTACK] >= 2, "both Attack plans march");
 		CHECK(huge_size > 2 * attack_size, "a HugeAttack musters a much larger army");
 	}
 	{
@@ -1768,18 +1769,60 @@ static void test_retake_civic_centre() {
 		b.capture_points_by_team[0] = b.max_capture_points;
 	}
 	bool lost = false, switched = false;
+	size_t squad = 0;
 	for (float t = 0.0f; t < 1.0f && !switched; t += Simulation::FIXED_STEP) {
 		hold();
 		s->tick(Simulation::FIXED_STEP);
 		lost |= s->buildings()[s->building_id_to_idx_.at(tc_id)].team == 0;
-		const auto &plan = s->petra_attack_plan();
-		switched = plan.target_building_id == tc_id && plan.state == Simulation::AttackPlan::ATTACKED && !plan.squad.empty();
+		for (const auto &plan : s->petra_started_attacks())
+			if (plan.target_building_id == tc_id && plan.state == Simulation::AttackPlan::ATTACKED && !plan.squad.empty()) {
+				switched = true;
+				squad = plan.squad.size();
+			}
 	}
-	const size_t squad = s->petra_attack_plan().squad.size();
 	std::printf("  civic centre captured (%zu defending): lost %s, defense turned into an attack on it %s (%zu units)\n",
 	            defenders, lost ? "yes" : "no", switched ? "yes" : "no", squad);
 	CHECK(defenders > 0 && lost, "the enemy takes a defended Town Center");
 	CHECK(switched, "the defense army attacks the captured civic centre");
+}
+
+// attackManager.js update: a new Attack musters while another marches, as long as fewer
+// than min(2, 1 + popMax/100) are under way and more than 12 population slots are free.
+static void test_concurrent_attacks() {
+	for (int big = 0; big < 2; ++big) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		run_for(*s, 1.0f);
+		float tx = 0.0f, tz = 0.0f;
+		for (const auto &b : s->buildings())
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+		s->players_[1].phase = 2;
+		s->spawn_building_world(tx + 14.0f, tz, BLD_BARRACKS, 1, 1.0f);
+		if (big)
+			for (int k = 0; k < 16; ++k) s->spawn_building_world(tx - 16.0f + 4.0f * (float)(k % 4), tz + 12.0f + 4.0f * (float)(k / 4), BLD_HOUSE, 1, 1.0f);
+		auto &mgr = s->petra_attack_mgr_;
+		mgr.rushes_set = 1;
+		mgr.max_rushes = 0;
+		mgr.attack_number = 1;
+		// An Attack already on its way.
+		Simulation::AttackPlan marching;
+		marching.kind = PETRA_ATTACK_ATTACK;
+		marching.state = Simulation::AttackPlan::WALKING;
+		for (int k = 0; k < 4; ++k) marching.squad.push_back(s->spawn_unit(tx - 10.0f + 2.0f * (float)k, tz - 12.0f, 1, UNIT_SPEARMAN));
+		marching.initial_squad_size = marching.squad.size();
+		marching.staging_x = marching.target_x = tx;
+		marching.staging_z = marching.target_z = tz - 20.0f;
+		s->petra_started_attacks_.push_back(marching);
+		run_for(*s, 1.0f);
+		const int cap = s->pop_max(1);
+		const bool second = s->petra_attack_plan().state == Simulation::AttackPlan::MUSTER;
+		std::printf("  concurrent attacks: population cap %d, one marching, a second musters %s\n", cap, second ? "yes" : "no");
+		if (big) CHECK(cap >= 100 && second, "a second Attack musters while one marches (popMax >= 100)");
+		else CHECK(cap < 50 && !second, "a small population runs one Attack at a time");
+	}
 }
 
 int main() {
@@ -1820,6 +1863,7 @@ int main() {
 	test_placement_miss_memory_exact();
 	test_defend_allies();
 	test_retake_civic_centre();
+	test_concurrent_attacks();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }

@@ -151,7 +151,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 43; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 44; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -1168,6 +1168,7 @@ public:
 			REGROUP    = 4,
 			ABORT      = 5
 		} state = UNEXECUTED;
+		uint8_t kind = 1; // PetraAttackKind of the plan (PETRA_ATTACK_ATTACK until a plan is made)
 
 		uint32_t target_building_id = 0;
 		float staging_x = 0.0f;
@@ -1183,6 +1184,7 @@ public:
 		float retreat_z = 36.0f;
 	};
 	const AttackPlan &petra_attack_plan() const { return petra_attack_plan_; }
+	const std::vector<AttackPlan> &petra_started_attacks() const { return petra_started_attacks_; }
 	const AttackPlan &petra_raid_plan() const { return petra_raid_plan_; }
 	const PetraAttackManager &petra_attack_manager() const { return petra_attack_mgr_; }
 	int petra_opening_step() const { return petra_opening_step_; }
@@ -1833,7 +1835,8 @@ private:
 		float state_timer = 0.0f;
 	} petra_strike_force_;
 
-	AttackPlan petra_attack_plan_;
+	AttackPlan petra_attack_plan_; // attackManager.js upcomingAttacks: the plan being prepared
+	std::vector<AttackPlan> petra_started_attacks_; // attackManager.js startedAttacks: armies on their way or fighting
 	AttackPlan petra_raid_plan_;
 	PetraAttackManager petra_attack_mgr_; // attackManager.js plan counters and sizes
 	int petra_opening_step_ = 0;
@@ -1948,6 +1951,10 @@ private:
 	void petra_manage_military_production(float dt);
 	void petra_manage_tactical_attacks(float dt);
 	void petra_retake_civic_centres(); // defenseManager.js OwnershipChanged -> switchDefenseToAttack
+	void petra_update_attack_plan(AttackPlan &plan, float base_x, float base_z); // one plan's attackPlan.js step
+	uint32_t petra_plan_next_target(AttackPlan &plan, float &tx, float &tz);
+	bool petra_in_attack_squad(uint32_t uid) const; // in the prepared or a started attack's army
+	uint8_t petra_attack_enemy() const; // the player Petra's attacks are aimed at, 0xFF for none
 	// This tick's civic centre captures (OwnershipChanged), appended in tick_capture and
 	// read by Petra later in the same tick; cleared at the end of tick(), so never saved.
 	struct CivicCentreCapture { uint32_t building_id; uint8_t from, to; };
@@ -2059,7 +2066,7 @@ private:
 	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
 	X(petra_fow_) X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
-	X(petra_sent_diplo_)
+	X(petra_sent_diplo_) X(petra_started_attacks_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
