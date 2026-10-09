@@ -891,6 +891,8 @@ public:
 			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE) const;
 	// 0 A.D. phase_town / phase_city requirement: finished Village (1) or Town (2) class structures.
 	int phase_structures(uint8_t player_id, uint8_t phase) const;
+	// UnitAI.IsGuardOf: the unit's current order is to guard someone (remove-guard button).
+	bool unit_is_guarding(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx >= 0 && (size_t)idx < units_.count && units_.order_kind[idx] == ORDER_GUARD; }
 	bool unit_has_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.has_order[idx]; }
 	const Grid<uint8_t>& territory_grid() const { return territory_grid_; }
 	const Grid<uint8_t>& influence_grid() const { return influence_grid_; }
@@ -1422,7 +1424,7 @@ private:
 		float attack_timer[MAX_FAUNA] = {};
 		uint32_t target_unit_id[MAX_FAUNA] = {};
 		uint32_t corral_id[MAX_FAUNA] = {};
-		float fatten_timer[MAX_FAUNA] = {};
+		float flee_distance[MAX_FAUNA] = {}; // UnitAI FLEEING distanceToFlee (was the unused fatten timer)
 		float home_x[MAX_FAUNA] = {}; // UnitAI heldPosition: where a hold-ground animal returns
 		float home_z[MAX_FAUNA] = {};
 	} fauna_;
