@@ -137,9 +137,8 @@ func run() -> void:
 	await frames(5)
 	var browser = current_scene
 	check(browser._replays.size() >= 1 and browser._replays[0].dir + "/" == replay_dir, "the match is in the replay menu")
-	browser.replay_list.select(0)
-	browser._on_selected(0)
-	browser._on_summary_pressed()
+	browser.select_replay(0)
+	browser.show_summary()
 	await frames(2)
 	var rs = browser.find_child("SummaryScreen", true, false)
 	check(rs != null and rs.is_open(), "Summary opens the summary page")
