@@ -354,7 +354,7 @@ static void test_transport() {
 }
 
 // Deep water is impassable for land units (passability classes): a walk out to sea stops
-// on the beach (MakeGoalReachable), and a unit boarding a busy ship waits on the shore
+// on the beach (MakeGoalReachable), a player's or the AI's alike, and a unit boarding a busy ship waits on the shore
 // until the ship comes within LoadingRange.
 static void test_no_wading() {
 	static Simulation s;
@@ -366,6 +366,8 @@ static void test_no_wading() {
 	};
 	const uint32_t walker = s.spawn_unit(-20.0f, 30.0f, 0, UNIT_SPEARMAN);
 	s.order_walk(&walker, 1, -20.0f, 0.0f, false, true); // a player's walk
+	const uint32_t ai_walker = s.spawn_unit(0.0f, 30.0f, 0, UNIT_SPEARMAN);
+	s.cmd_move(&ai_walker, 1, 0.0f, 0.0f); // Petra's walks go through cmd_move
 	const uint32_t ship = s.spawn_unit(-40.0f, 0.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));
 	s.cmd_move(&ship, 1, -40.0f, -8.0f); // busy: no Pickup
 	const uint32_t boarder = s.spawn_unit(-40.0f, 30.0f, 0, UNIT_SPEARMAN);
@@ -373,13 +375,14 @@ static void test_no_wading() {
 	bool waded = false;
 	for (int t = 0; t < (int)(15.0f / Simulation::FIXED_STEP); ++t) {
 		s.tick(Simulation::FIXED_STEP);
-		waded = waded || deep(walker) || (!aboard(s, ship, boarder) && deep(boarder));
+		waded = waded || deep(walker) || deep(ai_walker) || (!aboard(s, ship, boarder) && deep(boarder));
 	}
 	const int32_t w = idx(s, walker);
 	std::printf("  walk to sea stopped at (%.1f, %.1f); boarder waits at z %.1f\n",
 			s.units().pos_x[w], s.units().pos_z[w], s.units().pos_z[idx(s, boarder)]);
 	CHECK(!waded);
 	CHECK(std::fabs(s.units().pos_x[w] + 20.0f) < 2.0f && s.units().pos_z[w] > 10.0f && !s.unit_has_order(walker));
+	CHECK(s.units().pos_z[idx(s, ai_walker)] > 10.0f);
 	CHECK(!aboard(s, ship, boarder));
 	// The ship comes in to the beach: the waiting unit boards.
 	s.cmd_move(&ship, 1, -40.0f, 12.0f);
@@ -632,8 +635,33 @@ static void test_gather_around_lake() {
 	CHECK(!waded && reached);
 }
 
+// A worker on the far shore carries its load only to a dropsite on its own land (0 A.D.
+// picks reachable dropsites): with the only storehouse across the sea it waits, and once
+// one stands on its side it drops off there.
+static void test_dropsite_own_land() {
+	static Simulation s;
+	fresh(s);
+	s.spawn_building_world(0.0f, 40.0f, BLD_STOREHOUSE, 0, 1.0f);
+	const uint32_t tree = s.spawn_resource_world(4.0f, -30.0f, RES_WOOD, 500);
+	const uint32_t woman = s.spawn_unit(0.0f, -30.0f, 0, UNIT_FEMALE_CITIZEN);
+	s.order_gather(&woman, 1, tree);
+	bool left_shore = false;
+	for (int t = 0; t < (int)(60.0f / Simulation::FIXED_STEP); ++t) {
+		s.tick(Simulation::FIXED_STEP);
+		left_shore = left_shore || s.units().pos_z[idx(s, woman)] > -22.0f; // the beach is at -16
+	}
+	const int carried = s.units().carry[idx(s, woman)];
+	std::printf("  dropsite across the sea: carrying %d, %s\n", carried, left_shore ? "set off for the beach" : "stayed by the tree");
+	CHECK(!left_shore && carried > 0 && total(s, 0) == 0);
+	s.spawn_building_world(0.0f, -40.0f, BLD_STOREHOUSE, 0, 1.0f);
+	run(s, 20.0f);
+	std::printf("  storehouse on her side: stock %d\n", total(s, 0));
+	CHECK(total(s, 0) > 0);
+}
+
 int main() {
 	test_transport();
+	test_dropsite_own_land();
 	test_no_wading();
 	test_gather_around_lake();
 	test_dock_trade();

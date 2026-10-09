@@ -836,8 +836,37 @@ def rts0_aura_effect(a):
     """Strongest effect of a 0 A.D. aura that RTS0's AuraManager can model:
     (kind, value, range) or None. Auras on enemies keep their strongest
     penalty (an attack or speed multiplier below 1, negative armour)."""
-    enemy = aura_players_mask(a) == 4
     best = None
+    for kind, value, gain in aura_modifications(a):
+        if gain <= 0:
+            continue
+        if best is None or gain > best[3]:
+            best = (kind, value, None, gain)
+    if best is None:
+        return None
+    return best[0], best[1], aura_range(a)
+
+
+def aura_range(a):
+    return a["radius"] * RANGED_RANGE_SCALE if a["type"] == "range" and a["radius"] > 0 else GLOBAL_AURA_RANGE
+
+
+def rts0_aura_effects(a):
+    """Every kind of effect of a 0 A.D. aura that RTS0's AuraManager can model,
+    the strongest of each, penalties included: [(kind, value, range)]. A
+    structure's aura row per kind (the Kushite large pyramid's attack and armour)."""
+    best = {}
+    for kind, value, gain in aura_modifications(a):
+        if gain != 0 and (kind not in best or abs(gain) > abs(best[kind][1])):
+            best[kind] = (value, gain)
+    return [(k, best[k][0], aura_range(a)) for k in AURA_KIND if k in best]
+
+
+def aura_modifications(a):
+    """(kind, value, gain) for each modification RTS0 models; gain > 0 helps
+    the affected units (an aura on enemies helps its owner by hurting them)."""
+    enemy = aura_players_mask(a) == 4
+    out = []
     for m in a.get("modifications", []):
         v = m.get("value", "")
         kind = value = None
@@ -855,21 +884,15 @@ def rts0_aura_effect(a):
             kind, value = "AURA_ARMOR", m["add"]
         elif v in ("Health/IdleRegenRate", "Health/RegenRate") and "add" in m:
             kind, value = "AURA_HEAL", m["add"]
-        elif v.startswith("ResourceGatherer/") and "multiply" in m and m["multiply"] > 1:
+        elif v == "ResourceGatherer/BaseSpeed" and "multiply" in m and m["multiply"] > 1:
             kind, value = "AURA_GATHER", 1.0 - 1.0 / m["multiply"]
         if kind is None:
             continue
         gain = value - 1.0 if kind in MULTIPLY_AURAS else value
         if enemy and kind in MULTIPLY_AURAS + ("AURA_ARMOR",):
             gain = -gain
-        if gain <= 0:
-            continue
-        if best is None or gain > best[3]:
-            best = (kind, value, None, gain)
-    if best is None:
-        return None
-    rng = a["radius"] * RANGED_RANGE_SCALE if a["type"] == "range" and a["radius"] > 0 else GLOBAL_AURA_RANGE
-    return best[0], best[1], rng
+        out.append((kind, value, gain))
+    return out
 
 
 RENUMBER = False  # --renumber: lay rows out afresh (changes saved template ids)
@@ -1063,6 +1086,37 @@ def collect(sim_root):
     # the template ids of trainable rows, which saves store, stay where they were.
     rows = [r for r in rows if r["trainers"]] + [r for r in rows if not r["trainers"]]
     rows = keep_previous_ids(rows)
+    # Civ structures' range and global auras on units (Auras.js), after the unit
+    # auras: one row per effect kind, listed per BuildingType (civ_building_auras).
+    for enum, stems, _model, _portrait in UNIQUE_BUILDINGS:
+        for civ in CIVS:
+            for st in stems:
+                path = "structures/%s/%s" % (civ, st)
+                if not loader.exists(path):
+                    continue
+                for aname in loader.load(path).tokens("Auras"):
+                    apath = os.path.join(sim_root, "data", "auras", aname + ".json")
+                    if not os.path.isfile(apath):
+                        continue
+                    with open(apath, encoding="utf-8") as fh:
+                        a = json.load(fh)
+                    affects = a.get("affects", [])
+                    if a.get("type") not in ("range", "global") or "Structure" in affects or "Player" in affects:
+                        continue  # garrison/turret auras and those on structures are code (simulation.cpp)
+                    aid = aname.rsplit("/", 1)[-1]
+                    for kind, value, rng in rts0_aura_effects(a):
+                        known = next((x for x in auras if x["id"] == aid and x["rts0"][0] == kind), None)
+                        if known is not None:
+                            if enum not in known["buildings"]:
+                                known["buildings"].append(enum)
+                            continue
+                        auras.append({
+                            "id": aid, "name": a.get("auraName", aname), "description": a.get("auraDescription", ""),
+                            "type": a["type"], "radius": float(a.get("radius", 0)), "affects": affects,
+                            "players": a.get("affectedPlayers", ["Player"]),
+                            "modifications": a.get("modifications", []),
+                            "rts0": (kind, value, rng), "buildings": [enum],
+                        })
     # Which roster units each aura affects (0 A.D. "affects" class lists).
     for a in auras:
         a["affects_rows"] = [i for i, r in enumerate(rows) if affects_match(a["affects"], set(r["classes"]))]
@@ -1117,6 +1171,22 @@ def emit_header(rows, auras, civ_json, bonuses, team):
                                                      f(radius), kind, f(value), f(rng), aura_players_mask(a), bitset))
     w("\t};")
     w("\treturn kAuras;")
+    w("}")
+    w("")
+    w("// civ_hero_aura_table() rows a finished structure of this BuildingType projects")
+    w("// (0 A.D. structures/<civ>/*.xml Auras), ending in -1.")
+    w("inline const int16_t *civ_building_auras(uint8_t type) {")
+    w("\tstatic const int16_t kNone[1] = {-1};")
+    by_bld = {}
+    for i, a in enumerate(auras):
+        for bld in a.get("buildings", []):
+            by_bld.setdefault(bld, []).append(i)
+    w("\tswitch (type) {")
+    for bld in sorted(by_bld, key=lambda b: [u[0] for u in UNIQUE_BUILDINGS].index(b)):
+        ids = by_bld[bld] + [-1]
+        w("\t\tcase %s: { static const int16_t k[%d] = {%s}; return k; }" % (bld, len(ids), ", ".join(map(str, ids))))
+    w("\t\tdefault: return kNone;")
+    w("\t}")
     w("}")
     w("")
     w("inline const CivUnitTemplate *civ_unit_template_table() {")

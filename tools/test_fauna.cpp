@@ -283,6 +283,40 @@ int main() {
 		std::remove(path);
 	}
 
+	// 11. Fruit bushes (template_gaia_fruit Regrowth 1 food / 6 s) regrow towards their Max,
+	// gathered or not; meat and fish don't; an emptied bush is gone; Max survives save/load.
+	{
+		s.set_sim_seed(5);
+		s.reset(); // no town centres: nobody trains gatherers
+		uint32_t bush = s.spawn_resource_world(20.0f, -20.0f, RES_FOOD, 200);
+		uint32_t meat = s.spawn_resource_world(-20.0f, 20.0f, RES_FOOD, 100, RES_SUB_MEAT);
+		auto amount = [&](const Simulation &sim, uint32_t id) {
+			auto it = sim.res_id_to_idx_.find(id);
+			return it == sim.res_id_to_idx_.end() ? -1 : sim.resources_.amount[it->second];
+		};
+		s.resources_.amount[s.res_id_to_idx_[bush]] = 150;
+		s.resources_.amount[s.res_id_to_idx_[meat]] = 50;
+		run(s, 60.0f);
+		CHECK(amount(s, bush) == 160);
+		CHECK(amount(s, meat) == 50);
+		run(s, 400.0f);
+		CHECK(amount(s, bush) == 200); // capped at Max
+		s.resources_.amount[s.res_id_to_idx_[bush]] = 120;
+		const char *path = "/tmp/rts0_test_fruit.sav";
+		CHECK(s.save_state(path));
+		static Simulation t;
+		CHECK(t.load_state(path));
+		CHECK(t.resources_.max_amount[t.res_id_to_idx_[bush]] == 200);
+		run(s, 30.0f);
+		run(t, 30.0f);
+		CHECK(amount(s, bush) == 125 && amount(t, bush) == 125);
+		CHECK(TurnManager().boot_sim_hash(s) == TurnManager().boot_sim_hash(t));
+		std::remove(path);
+		s.resources_.amount[s.res_id_to_idx_[bush]] = 0;
+		run(s, 7.0f);
+		CHECK(amount(s, bush) == -1);
+	}
+
 	if (failures) {
 		std::printf("test_fauna: %d failure(s)\n", failures);
 		return 1;
