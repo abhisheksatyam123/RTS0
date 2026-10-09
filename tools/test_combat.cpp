@@ -163,7 +163,7 @@ static void test_structure_armour() {
 }
 
 static void test_corner_reach() {
-	std::printf("9. edge-to-edge reach at a structure's corner\n");
+	std::printf("11. edge-to-edge reach at a structure's corner\n");
 	Simulation s;
 	setup(s);
 	uint32_t fort = s.spawn_building_world(20.0f, 20.0f, BLD_FORTRESS, 1, 1.0f);
