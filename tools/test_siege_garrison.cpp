@@ -51,6 +51,7 @@ static void fresh(Simulation &s) {
 	s.set_team_civ(0, CIV_MACEDONIANS);
 	s.spawn_building_world(-50.0f, -50.0f, BLD_TOWN_CENTER, 0, 1.0f);
 	s.spawn_building_world(50.0f, 50.0f, BLD_TOWN_CENTER, 1, 1.0f);
+	s.set_player_active(1, true, false); // player 1's units follow the test's orders, not Petra's defense
 }
 
 // Damage a siege tower with `archers` archers inside deals in `secs` to a sturdy enemy.

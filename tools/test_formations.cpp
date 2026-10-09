@@ -23,6 +23,8 @@
 // 13. Save/load mid-approach keeps the attack order.
 // 14. Gather, repair, garrison and heal: the formation walks up in formation, then the
 //     members do the work (UnitAI FORMATIONCONTROLLER Order.Gather/Repair/Heal, GARRISON).
+// 15. Shift-queued orders wait in the controller's queue and run in formation, one after
+//     another; a new order clears the queue; the queue survives save/load.
 //  Exit: 0 = PASS, 1 = FAIL.
 #define private public
 #include "simulation/simulation.h"
@@ -617,6 +619,52 @@ static void test_tasks() {
 	}
 }
 
+static void test_queue(const char *path) {
+	std::printf("15. Shift-queued formation orders\n");
+	Simulation s;
+	setup(s, CIV_ATHENIANS);
+	auto inf = spawn_block(s, 8, -30, 0, 0, UNIT_SWORDSMAN);
+	s.order_set_formation(inf.data(), inf.size(), FORMATION_BOX);
+	run(s, 3.0f);
+	const uint32_t fid = s.formations()[0].id;
+	s.order_walk(inf.data(), inf.size(), -10.0f, 0.0f);
+	s.order_walk(inf.data(), inf.size(), -10.0f, 20.0f, true);
+	s.order_walk(inf.data(), inf.size(), 10.0f, 20.0f, true);
+	check(ctrl(s, fid) && ctrl(s, fid)->queue.size() == 2 && (s.order_queues_.count(inf[0]) == 0 || s.order_queues_.at(inf[0]).empty()),
+			"the queued walks wait in the controller's queue, not the members'");
+	Simulation b;
+	check(s.save_state(path) && b.load_state(path) && b.formations().size() == 1 &&
+			b.formations()[0].queue.size() == 2, "the queue comes back after save/load");
+	bool reached_a = false, reached_b = false;
+	float cx, cz;
+	for (int k = 0; k < 600 && !(reached_b && ctrl(s, fid)->order == Simulation::FORDER_IDLE && ctrl(s, fid)->queue.empty()); ++k) {
+		run(s, 0.1f);
+		centroid(s, inf, cx, cz);
+		reached_a = reached_a || (std::hypot(cx + 10.0f, cz) < 3.0f);
+		reached_b = reached_b || (reached_a && std::hypot(cx + 10.0f, cz - 20.0f) < 3.0f);
+	}
+	centroid(s, inf, cx, cz);
+	check(reached_a && reached_b && std::hypot(cx - 10.0f, cz - 20.0f) < 3.0f && ctrl(s, fid) &&
+			ctrl(s, fid)->members.size() == 8, "the formation walks to each point in turn, still in formation");
+	s.order_walk(inf.data(), inf.size(), 0.0f, 0.0f);
+	s.order_walk(inf.data(), inf.size(), 0.0f, 10.0f, true);
+	s.order_walk(inf.data(), inf.size(), -20.0f, -20.0f);
+	check(ctrl(s, fid) && ctrl(s, fid)->queue.empty(), "a new order clears the queue");
+	// A queued attack after a walk: walk first, then approach the foe as a formation.
+	uint32_t foe = s.spawn_unit(20.0f, -20.0f, 1, UNIT_SPEARMAN, 1.0e6f);
+	s.order_set_stance(&foe, 1, STANCE_PASSIVE);
+	s.order_attack(inf.data(), inf.size(), foe, true);
+	check(ctrl(s, fid) && ctrl(s, fid)->order == Simulation::FORDER_WALK && ctrl(s, fid)->queue.size() == 1,
+			"a queued attack waits for the walk");
+	bool approached = false;
+	for (int k = 0; k < 600 && !approached; ++k) {
+		run(s, 0.1f);
+		approached = ctrl(s, fid) && ctrl(s, fid)->target_unit == foe &&
+				(ctrl(s, fid)->order == Simulation::FORDER_APPROACH || ctrl(s, fid)->order == Simulation::FORDER_MEMBER);
+	}
+	check(approached, "then the formation goes for the foe");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_formations.sav";
 	test_templates();
@@ -633,6 +681,7 @@ int main(int argc, char **argv) {
 	test_guard();
 	test_save_attack(save.c_str());
 	test_tasks();
+	test_queue(save.c_str());
 	if (g_failures) {
 		std::printf("test_formations: FAIL (%d)\n", g_failures);
 		return 1;
