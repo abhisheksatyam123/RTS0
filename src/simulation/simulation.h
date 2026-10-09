@@ -1492,6 +1492,17 @@ private:
 	mutable uint64_t resource_block_tick_ = UINT64_MAX;
 	mutable size_t resource_block_count_ = SIZE_MAX;
 	mutable int resource_block_w_ = 0;
+	void ensure_resource_block_cells() const;
+	// petra_place_building searches that found no spot, with the signature of what
+	// they read (petra_placement_signature). Exact, so derived state: never saved.
+	struct PetraPlaceMiss {
+		uint64_t sig;
+		int cx, cz;
+		int16_t min_r, max_r;
+		uint8_t pid, btype;
+	};
+	std::vector<PetraPlaceMiss> petra_place_misses_;
+	uint64_t petra_placement_signature(uint8_t btype, int start_cx, int start_cz, int max_r) const;
 
 	uint32_t next_id_ = 1;
 	uint32_t sim_seed_ = 1337;
