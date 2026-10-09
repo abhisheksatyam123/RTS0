@@ -51,9 +51,9 @@ var submenu_data = {
 	"learn": {
 		"title": "LEARN TO PLAY",
 		"items": [
+			{"label": "Manual", "tooltip": "Open the 0 A.D. Game Manual.", "action": "open_manual"},
 			{"label": "Civilization Overview", "tooltip": "Civilization bonuses, specific technologies, structures and heroes, and history.", "action": "open_encyclopedia"},
 			{"label": "Structure Tree", "tooltip": "Every structure by phase, with the units it trains and the technologies it researches.", "action": "open_tech_tree"},
-			{"label": "Tips & Tactics", "tooltip": "Review micro, economy balancing, and hotkey tricks.", "action": "open_tips"},
 			{"label": "Map Overview", "tooltip": "Preview maps, biomes, and strategic chokepoints.", "action": "open_setup"}
 		]
 	},
@@ -229,8 +229,9 @@ func _execute_action(action: String) -> void:
 		"open_tech_tree":
 			load("res://scenes/menu/encyclopedia.gd").open_structree = true
 			_go_to_scene("res://scenes/menu/encyclopedia.tscn")
-		"open_tips":
-			_go_to_scene("res://scenes/menu/encyclopedia.tscn")
+		"open_manual":
+			_close_submenu()
+			load("res://scenes/reference/manual.gd").open(self)
 		"open_load":
 			_close_submenu()
 			load("res://scenes/session/savegame_dialog.gd").open(self, "load")
