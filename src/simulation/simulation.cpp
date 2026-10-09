@@ -922,7 +922,8 @@ void Simulation::rebuild_nav_grid() {
 	const float nav_cell = 2.0f * nav_grid_.map_half / static_cast<float>(nav_grid_.res);
 	const rtso::nav::Vec2 nav_origin(-nav_grid_.map_half, -nav_grid_.map_half);
 	for (const auto &b : buildings_) {
-		if (b.build_progress < 0.99f || !blocks_pathfinding(b)) continue;
+		// A committed foundation blocks movement too (Foundation.js Commit sets its obstruction).
+		if ((b.build_progress < 0.99f && !b.committed) || !blocks_pathfinding(b)) continue;
 		int covered = 0;
 		rtso::nav::rasterize_rect_with_clearance(
 			rtso::nav::Vec2(b.x, b.z), rtso::nav::Vec2(1.0f, 0.0f), rtso::nav::Vec2(0.0f, 1.0f),
@@ -5538,6 +5539,7 @@ void Simulation::tick_construction(float dt) {
 		}
 	}
 
+	std::unordered_set<uint32_t> blocked_sites; // foundations found occupied this tick: one scan each
 	for (size_t i = 0; i < n; ++i) {
 		if (!units_.alive[i] || units_.action_state[i] != ACTION_BUILD || units_.target_building_id[i] == 0) continue;
 		auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
@@ -5563,8 +5565,12 @@ void Simulation::tick_construction(float dt) {
 		}
 
 		if (outside_and_in_build_range(b.x, b.z, b.half_size, units_.pos_x[i], units_.pos_z[i])) {
-			// 0 A.D. Foundation.Commit: first builder on site → scaffold + construction preview.
-			b.committed = true;
+			// 0 A.D. Foundation.Commit: the first builder on a clear site starts it; until the
+			// units standing on it have left, nobody builds.
+			if (!b.committed) {
+				if (!blocked_sites.empty() && blocked_sites.count(b.id)) continue;
+				if (!try_commit_foundation(b)) { blocked_sites.insert(b.id); continue; }
+			}
 			// Foundation.js Build: each builder adds work x MaxHitpoints / BuildTime x
 			// buildMultiplier HP, with buildMultiplier = n^0.7 / n for n builders at work
 			// (BuildTimeModifier 0.7). Progress is the best health fraction reached, so
@@ -5593,6 +5599,55 @@ void Simulation::tick_construction(float dt) {
 		rebuild_territory();
 	}
 
+}
+
+// UnitAI LeaveFoundation: unless it is already walking off, the unit puts its current
+// order back on the front of its queue and walks to the nearest point clear of the
+// footprint (PushOrderFront), then carries on with what it was doing.
+void Simulation::leave_foundation(size_t i, const Building &b) {
+	const float r = unit_collision_radius(units_.unit_type[i]);
+	const float reach = b.half_size + r;
+	auto outside = [&](float x, float z) {
+		return std::fabs(x - b.x) >= reach || std::fabs(z - b.z) >= reach;
+	};
+	if (units_.order_kind[i] == ORDER_WALK && units_.has_order[i] && outside(units_.order_x[i], units_.order_z[i]))
+		return;
+	const float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
+	const float out = reach + 0.5f;
+	float tx = units_.pos_x[i], tz = units_.pos_z[i];
+	if (reach - std::fabs(dx) <= reach - std::fabs(dz)) tx = b.x + (dx < 0.0f ? -out : out);
+	else tz = b.z + (dz < 0.0f ? -out : out);
+	tx = std::clamp(tx, -map_half_ + 1.0f, map_half_ - 1.0f);
+	tz = std::clamp(tz, -map_half_ + 1.0f, map_half_ - 1.0f);
+	const uint32_t uid = units_.id[i];
+	const UnitOrder cur = current_order(i);
+	if (cur.kind != ORDER_NONE && cur.kind != ORDER_WALK) {
+		std::vector<UnitOrder> &queue = order_queues_[uid];
+		queue.insert(queue.begin(), cur);
+	}
+	const bool was = applying_queued_;
+	applying_queued_ = true; // keep the queue: the order resumes once the unit is off the site
+	cmd_move(&uid, 1, tx, tz);
+	applying_queued_ = was;
+	if (units_.order_kind[i] == ORDER_WALK) units_.order_flags[i] |= ORDER_FLAG_FORCE;
+}
+
+bool Simulation::try_commit_foundation(Building &b) {
+	bool blocked = false;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || unit_is_ship(units_.unit_type[i])) continue;
+		// A unit stands on the site when its centre is inside the footprint (builders work
+		// from just outside it, outside_and_in_build_range).
+		if (std::fabs(units_.pos_x[i] - b.x) >= b.half_size || std::fabs(units_.pos_z[i] - b.z) >= b.half_size) continue;
+		if (!turret_height_.empty() && turret_height_.count(units_.id[i])) continue;
+		blocked = true;
+		// WillMoveFromFoundation: only units allied to the foundation's owner make way.
+		if (units_.team[i] < MAX_PLAYERS && is_ally(units_.team[i], b.team)) leave_foundation(i, b);
+	}
+	if (blocked) return false;
+	b.committed = true;
+	rebuild_nav_grid();
+	return true;
 }
 
 void Simulation::tick_repair(float dt) {

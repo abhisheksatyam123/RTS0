@@ -245,8 +245,10 @@ public:
 		return building_blocks_movement(b.type) && (b.type != BLD_GATE || b.gate_locked);
 	}
 	// Whether units collide with `b` right now (0 A.D. Obstruction BlockMovement).
+	// A foundation blocks nothing until it is committed (Foundation.js Commit).
 	static bool blocks_movement_now(const Building &b) {
-		return building_blocks_movement(b.type) && !(b.type == BLD_GATE && b.gate_open);
+		return building_blocks_movement(b.type) && !(b.type == BLD_GATE && b.gate_open) &&
+				(b.committed || b.build_progress >= 0.99f);
 	}
 
 	Simulation();
@@ -1167,6 +1169,11 @@ private:
 	void tick_status_effects(float dt);
 	void tick_projectiles(float dt);
 	void tick_construction(float dt);
+	// Foundation.js Commit: own and allied units standing on the foundation are told to
+	// leave (UnitAI LeaveFoundation); enemies and Gaia keep it from starting. True once
+	// the site is clear and committed, after which the foundation blocks movement.
+	bool try_commit_foundation(Building &b);
+	void leave_foundation(size_t i, const Building &b);
 	void tick_repair(float dt);
 	static constexpr float REPAIR_TIME_RATIO = 2.0f; // template_structure.xml Repairable/RepairTimeRatio
 	static float foundation_build_multiplier(int builders);
