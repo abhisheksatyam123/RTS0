@@ -393,6 +393,7 @@ void Simulation::reset() {
 	transport_passengers_.clear();
 	turret_height_.clear();
 	for (double &d : battle_damage_) d = 0.0;
+	attacked_events_.clear();
 	turret_prev_stance_.clear();
 	formations_.clear();
 	next_formation_id_ = 1;
@@ -4327,9 +4328,20 @@ void Simulation::gain_xp(size_t idx, float amount) {
 // battle music; it is presentation state, so it is neither saved nor hashed.
 void Simulation::note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uint32_t target_id, uint8_t target_owner,
 		bool target_is_building, float damage) {
-	(void)attacker_id, (void)target_id, (void)target_is_building; // for the session's AttackDetection events
+	if (!(damage > 0.0f)) return;
+	// The Attacked message for the session's AttackDetection (presentation only).
+	if (attacked_events_.size() < kMaxAttackedEvents) {
+		float x = 0.0f, z = 0.0f;
+		if (target_is_building) {
+			auto bit = building_id_to_idx_.find(target_id);
+			if (bit != building_id_to_idx_.end()) x = buildings_[bit->second].x, z = buildings_[bit->second].z;
+		} else if (int32_t u = lookup_unit(target_id); u >= 0) {
+			x = units_.pos_x[u], z = units_.pos_z[u];
+		}
+		attacked_events_.push_back({attacker_id, target_id, attacker_owner, target_owner, (uint8_t)target_is_building, x, z, damage});
+	}
 	if (attacker_owner >= MAX_PLAYERS || target_owner >= MAX_PLAYERS || attacker_owner == target_owner) return;
-	if (damage > 0.0f) battle_damage_[attacker_owner] += damage;
+	battle_damage_[attacker_owner] += damage;
 }
 
 void Simulation::award_damage_xp(uint32_t attacker_id, size_t victim, float damage) {
@@ -15529,6 +15541,7 @@ void Simulation::fauna_hit_unit(size_t f, size_t u) {
 	const float dmg = info.hack_damage * powf(0.9f, hack_a) + info.pierce_damage * powf(0.9f, pierce_a) +
 	                  info.crush_damage * powf(0.9f, crush_a);
 	units_.hp[u] -= std::max(1.0f, dmg);
+	note_attacked(0, GAIA_PLAYER, units_.id[u], units_.team[u], false, std::max(1.0f, dmg));
 	if (units_.hp[u] <= 0.0f) {
 		units_.alive[u] = 0;
 		units_.action_state[u] = ACTION_DYING;

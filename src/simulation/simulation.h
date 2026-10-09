@@ -296,6 +296,26 @@ public:
 	uint32_t turret_holder_of(uint32_t unit_id) const;
 	// Total damage `player`'s entities have dealt to other (non-Gaia) players this session
 	// (0 A.D. BattleDetection input); not saved, starts again at 0 after a load.
+	// One hit that cost an entity health: 0 A.D.'s MT_Attacked message, read by the
+	// session's AttackDetection (under-attack alerts). Presentation only: never saved,
+	// hashed or read by the simulation; at most kMaxAttackedEvents wait between reads
+	// so a headless sim without a reader stays bounded.
+	struct AttackedEvent {
+		uint32_t attacker_id; // unit or structure, 0 for none (DeathDamage, fauna)
+		uint32_t target_id;
+		uint8_t attacker_owner;
+		uint8_t target_owner;
+		uint8_t target_is_building;
+		float x, z; // the target's position
+		float damage;
+	};
+	static constexpr size_t kMaxAttackedEvents = 4096;
+	// Hands over the hits since the last call.
+	std::vector<AttackedEvent> take_attacked_events() {
+		std::vector<AttackedEvent> out;
+		out.swap(attacked_events_);
+		return out;
+	}
 	double battle_damage_dealt(uint8_t player) const { return player < MAX_PLAYERS ? battle_damage_[player] : 0.0; } // 0 when not on a turret
 	float unit_height_offset(size_t i) const { // above the terrain (a turret point's height)
 		if (turret_height_.empty()) return 0.0f;
@@ -1324,6 +1344,7 @@ private:
 	void note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uint32_t target_id, uint8_t target_owner,
 			bool target_is_building, float damage);
 	double battle_damage_[MAX_PLAYERS] = {};
+	std::vector<AttackedEvent> attacked_events_;
 	bool looter_present(uint32_t looter_id, bool *infantry) const;
 	void collect_loot(uint32_t looter_id, uint8_t looter_player, LootInfo loot, float mult, uint8_t carried_type, int32_t carried);
 	void collect_unit_loot(uint32_t looter_id, uint8_t looter_player, size_t victim);

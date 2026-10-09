@@ -233,7 +233,6 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// Under-attack alerts (0 A.D. AttackDetection.js + messages.js "attack"):
 	// last seen health of each local entity, to spot damage between frames.
 	rtso::AttackDetection attack_detection_;
-	std::unordered_map<uint32_t, float> prev_unit_hp_, prev_building_hp_;
 	uint8_t attack_watch_player_ = 0xFF;
 	// findIdleUnit cycling (0 A.D. lastIdleUnit / lastIdleClasses, input.js:1645).
 	uint32_t last_idle_unit_ = 0;
@@ -425,7 +424,7 @@ private:
 	void cycle_idle_worker();
 	enum IdleKind { IDLE_WORKER, IDLE_WARRIOR, IDLE_ANY, IDLE_BUILDER };
 	void find_idle_unit(IdleKind kind);
-	void detect_attacks();
+	void detect_attacks(const std::vector<rtso::Simulation::AttackedEvent> &attacks);
 	void update_cursor();
 	std::string cursor_name_;
 	void notify_attack(Vector3 pos, uint8_t attacker, bool structure);
