@@ -16192,6 +16192,899 @@
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
+  "fauna_arctic_wolf": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 32,
+   "file": "models/units/fauna_arctic_wolf.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.349,
+    1.0,
+    1.489
+   ],
+   "skeleton": "fauna_arctic_wolf",
+   "sources": [
+    "actor:art/actors/fauna/arctic_wolf.xml",
+    "anim:quadraped/wolf_attack_01.dae",
+    "anim:quadraped/wolf_death_01.dae",
+    "anim:quadraped/wolf_idle_01.dae",
+    "anim:quadraped/wolf_run.dae",
+    "anim:quadraped/wolf_walk.dae",
+    "mesh:skeletal/wolf.dae",
+    "skin:skeletal/animal_wolf_white.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_bear_black": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 75,
+   "file": "models/units/fauna_bear_black.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    1.134,
+    1.5,
+    2.485
+   ],
+   "skeleton": "fauna_bear_black",
+   "sources": [
+    "actor:art/actors/fauna/bear_black.xml",
+    "anim:quadraped/bear_attack_01.dae",
+    "anim:quadraped/bear_death_01.dae",
+    "anim:quadraped/bear_idle_01.dae",
+    "anim:quadraped/bear_run.dae",
+    "anim:quadraped/bear_walk.dae",
+    "mesh:skeletal/bear.dae",
+    "skin:skeletal/animal_bear_black.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_bear_white": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 75,
+   "file": "models/units/fauna_bear_white.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    1.221,
+    1.7,
+    2.826
+   ],
+   "skeleton": "fauna_bear_white",
+   "sources": [
+    "actor:art/actors/fauna/bear_white.xml",
+    "anim:quadraped/bear_attack_01.dae",
+    "anim:quadraped/bear_death_01.dae",
+    "anim:quadraped/bear_idle_01.dae",
+    "anim:quadraped/bear_run.dae",
+    "anim:quadraped/bear_walk.dae",
+    "mesh:skeletal/bear_polar.dae",
+    "skin:skeletal/animal_bear_white.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_bull": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 31,
+   "file": "models/units/fauna_bull.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.744,
+    1.5,
+    2.392
+   ],
+   "skeleton": "fauna_bull",
+   "sources": [
+    "actor:art/actors/fauna/bull.xml",
+    "anim:quadraped/bovidae_attack.dae",
+    "anim:quadraped/bovidae_death_a.dae",
+    "anim:quadraped/bovidae_idle_a.dae",
+    "anim:quadraped/bovidae_run.dae",
+    "anim:quadraped/bovidae_walk_relax.dae",
+    "mesh:skeletal/bull_a.dae",
+    "skin:skeletal/animal_cattle_black.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_camel": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 90,
+   "file": "models/units/fauna_camel.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    0.599,
+    2.1,
+    2.461
+   ],
+   "skeleton": "fauna_camel",
+   "sources": [
+    "actor:art/actors/fauna/camel.xml",
+    "actor:art/actors/props/camel/teeths.xml",
+    "anim:quadraped/camel_attack_melee_01.dae",
+    "anim:quadraped/camel_death.dae",
+    "anim:quadraped/camel_idle_01.dae",
+    "anim:quadraped/camel_trot.dae",
+    "anim:quadraped/camel_walk.dae",
+    "mesh:props/camel_teeths.dae",
+    "mesh:skeletal/camel.dae",
+    "skin:props/camel/camel_teeths.png",
+    "skin:skeletal/animal_camel_a.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_elephant_african_baby": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Death"
+   ],
+   "bones": 72,
+   "file": "models/units/fauna_elephant_african_baby.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    1.153,
+    1.5,
+    1.835
+   ],
+   "skeleton": "fauna_elephant_african_baby",
+   "sources": [
+    "actor:art/actors/fauna/elephant_african_baby.xml",
+    "anim:quadraped/elephant_infant_death.dae",
+    "anim:quadraped/elephant_infant_idle_01.dae",
+    "anim:quadraped/elephant_infant_run.dae",
+    "anim:quadraped/elephant_infant_walk.dae",
+    "mesh:skeletal/elephant_african_baby.dae",
+    "skin:skeletal/animal-elephant-base-baby.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_elephant_asian": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 73,
+   "file": "models/units/fauna_elephant_asian.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    1.516,
+    2.9,
+    3.617
+   ],
+   "skeleton": "fauna_elephant_asian",
+   "sources": [
+    "actor:art/actors/fauna/elephant_asian.xml",
+    "anim:quadraped/elephant_asian_attack_melee_01.dae",
+    "anim:quadraped/elephant_asian_death.dae",
+    "anim:quadraped/elephant_asian_idle_01.dae",
+    "anim:quadraped/elephant_asian_run.dae",
+    "anim:quadraped/elephant_asian_walk.dae",
+    "mesh:skeletal/elephant_asian_male.dae",
+    "skin:skeletal/animal-elephant-asian-base.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "fauna_fox_arctic": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Death"
+   ],
+   "bones": 34,
+   "file": "models/units/fauna_fox_arctic.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.172,
+    0.55,
+    0.952
+   ],
+   "skeleton": "fauna_fox_arctic",
+   "sources": [
+    "actor:art/actors/fauna/fox_arctic.xml",
+    "anim:quadraped/fox_death.dae",
+    "anim:quadraped/fox_idle.dae",
+    "anim:quadraped/fox_run.dae",
+    "anim:quadraped/fox_walk.dae",
+    "mesh:skeletal/fox.dae",
+    "skin:skeletal/animal_fox_arctic.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_giraffe_baby": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Death"
+   ],
+   "bones": 31,
+   "file": "models/units/fauna_giraffe_baby.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.465,
+    2.4,
+    1.624
+   ],
+   "skeleton": "fauna_giraffe_baby",
+   "sources": [
+    "actor:art/actors/fauna/giraffe_baby.xml",
+    "anim:quadraped/giraffe_infant_death.dae",
+    "anim:quadraped/giraffe_infant_idle_01.dae",
+    "anim:quadraped/giraffe_infant_run.dae",
+    "anim:quadraped/giraffe_infant_walk.dae",
+    "mesh:skeletal/giraffe_infant.dae",
+    "skin:skeletal/animal_giraffe.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_hippopotamus": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 64,
+   "file": "models/units/fauna_hippopotamus.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    1.066,
+    1.5,
+    2.868
+   ],
+   "skeleton": "fauna_hippopotamus",
+   "sources": [
+    "actor:art/actors/fauna/hippopotamus.xml",
+    "anim:quadraped/hippopotamus_attack.dae",
+    "anim:quadraped/hippopotamus_death.dae",
+    "anim:quadraped/hippopotamus_idle_01.dae",
+    "anim:quadraped/hippopotamus_trot.dae",
+    "anim:quadraped/hippopotamus_walk.dae",
+    "mesh:skeletal/fauna_hippopotamus.dae",
+    "skin:skeletal/fauna_hippopotamus_01.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_horse": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Death"
+   ],
+   "bones": 86,
+   "file": "models/units/fauna_horse.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    0.545,
+    1.7,
+    2.152
+   ],
+   "skeleton": "fauna_horse",
+   "sources": [
+    "actor:art/actors/fauna/horse.xml",
+    "actor:art/actors/props/horse/horse_hair_mane_black_brown.xml",
+    "actor:art/actors/props/horse/horse_hair_tail_black_brown.xml",
+    "anim:quadraped/horse_death_01.dae",
+    "anim:quadraped/horse_gallop.dae",
+    "anim:quadraped/horse_idle_01.dae",
+    "anim:quadraped/horse_walk.dae",
+    "mesh:props/horse/hair_mane_01.dae",
+    "mesh:props/horse/hair_tail_01.dae",
+    "mesh:skeletal/horse_celtic.dae",
+    "skin:props/horse/hair_brown.png",
+    "skin:skeletal/horse_brown.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "fauna_horse_breed": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Death"
+   ],
+   "bones": 95,
+   "file": "models/units/fauna_horse_breed.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    0.525,
+    1.7,
+    1.999
+   ],
+   "skeleton": "fauna_horse_breed",
+   "sources": [
+    "actor:art/actors/fauna/horse_breed.xml",
+    "actor:art/actors/props/horse/fauna/horse_breed_hair_mane_black_brown.xml",
+    "actor:art/actors/props/horse/fauna/horse_breed_hair_tail_black_brown.xml",
+    "anim:quadraped/horse_breed_death.dae",
+    "anim:quadraped/horse_breed_gallop.dae",
+    "anim:quadraped/horse_breed_idle_01.dae",
+    "anim:quadraped/horse_breed_walk.dae",
+    "mesh:props/horse/hair_mane_01_breed.dae",
+    "mesh:props/horse/hair_tail_01_breed.dae",
+    "mesh:skeletal/horse_breed.dae",
+    "skin:props/horse/hair_brown.png",
+    "skin:skeletal/horse_brown.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "fauna_horse_lusitano": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Death"
+   ],
+   "bones": 86,
+   "file": "models/units/fauna_horse_lusitano.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    0.541,
+    1.7,
+    2.136
+   ],
+   "skeleton": "fauna_horse_lusitano",
+   "sources": [
+    "actor:art/actors/fauna/horse_lusitano.xml",
+    "actor:art/actors/props/horse/horse_hair_mane_gray_black.xml",
+    "actor:art/actors/props/horse/horse_hair_tail_gray_black.xml",
+    "anim:quadraped/horse_death_01.dae",
+    "anim:quadraped/horse_gallop.dae",
+    "anim:quadraped/horse_idle_01.dae",
+    "anim:quadraped/horse_walk.dae",
+    "mesh:props/horse/hair_mane_01.dae",
+    "mesh:props/horse/hair_tail_01.dae",
+    "mesh:skeletal/horse_lusitano.dae",
+    "skin:props/horse/hair_black.png",
+    "skin:skeletal/horse_black.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "fauna_horse_marwari": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Death"
+   ],
+   "bones": 86,
+   "file": "models/units/fauna_horse_marwari.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    0.534,
+    1.7,
+    2.11
+   ],
+   "skeleton": "fauna_horse_marwari",
+   "sources": [
+    "actor:art/actors/fauna/horse_marwari.xml",
+    "actor:art/actors/props/horse/horse_hair_mane_black_brown.xml",
+    "actor:art/actors/props/horse/horse_hair_tail_black_brown.xml",
+    "anim:quadraped/horse_death_01.dae",
+    "anim:quadraped/horse_gallop.dae",
+    "anim:quadraped/horse_idle_01.dae",
+    "anim:quadraped/horse_walk.dae",
+    "mesh:props/horse/hair_mane_01.dae",
+    "mesh:props/horse/hair_tail_01.dae",
+    "mesh:skeletal/horse_marwari.dae",
+    "skin:props/horse/hair_brown.png",
+    "skin:skeletal/horse_brown.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "fauna_horse_persian": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Death"
+   ],
+   "bones": 86,
+   "file": "models/units/fauna_horse_persian.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    0.541,
+    1.7,
+    2.136
+   ],
+   "skeleton": "fauna_horse_persian",
+   "sources": [
+    "actor:art/actors/fauna/horse_persian.xml",
+    "actor:art/actors/props/horse/horse_hair_mane_black_brown.xml",
+    "actor:art/actors/props/horse/horse_hair_tail_black_brown.xml",
+    "anim:quadraped/horse_death_01.dae",
+    "anim:quadraped/horse_gallop.dae",
+    "anim:quadraped/horse_idle_01.dae",
+    "anim:quadraped/horse_walk.dae",
+    "mesh:props/horse/hair_mane_01.dae",
+    "mesh:props/horse/hair_tail_01.dae",
+    "mesh:skeletal/horse_persian.dae",
+    "skin:props/horse/hair_brown.png",
+    "skin:skeletal/horse_brown.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "fauna_muskox": {
+   "animated": false,
+   "animations": [],
+   "bones": 0,
+   "file": "models/units/fauna_muskox.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.751,
+    1.4,
+    2.139
+   ],
+   "skeleton": null,
+   "sources": [
+    "actor:art/actors/fauna/muskox.xml",
+    "mesh:skeletal/muskox.dae",
+    "skin:skeletal/animal_muskox.png"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
+  "fauna_peacock": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Death"
+   ],
+   "bones": 34,
+   "file": "models/units/fauna_peacock.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.512,
+    0.9,
+    2.144
+   ],
+   "skeleton": "fauna_peacock",
+   "sources": [
+    "actor:art/actors/fauna/peacock.xml",
+    "anim:quadraped/peacock_death.dae",
+    "anim:quadraped/peacock_idle.dae",
+    "anim:quadraped/peacock_walk.dae",
+    "mesh:skeletal/peacock.dae",
+    "skin:skeletal/animal_peacock.png"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
+  "fauna_pig_flaming": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 26,
+   "file": "models/units/fauna_pig_flaming.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.528,
+    0.8,
+    1.466
+   ],
+   "skeleton": "fauna_pig_flaming",
+   "sources": [
+    "actor:art/actors/fauna/pig_flaming.xml",
+    "anim:quadraped/animal_pig_attack_01.dae",
+    "anim:quadraped/animal_pig_death_01.dae",
+    "anim:quadraped/animal_pig_idle_01.dae",
+    "anim:quadraped/animal_pig_run_01.dae",
+    "anim:quadraped/animal_pig_walk_01.dae",
+    "mesh:skeletal/pig.dae",
+    "skin:skeletal/animal_pig_01.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_piglet": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack"
+   ],
+   "bones": 26,
+   "file": "models/units/fauna_piglet.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.28,
+    0.45,
+    0.843
+   ],
+   "skeleton": "fauna_piglet",
+   "sources": [
+    "actor:art/actors/fauna/piglet.xml",
+    "anim:quadraped/animal_piglet_attack_01.dae",
+    "anim:quadraped/animal_piglet_idle_01.dae",
+    "anim:quadraped/animal_piglet_run_01.dae",
+    "anim:quadraped/animal_piglet_walk_01.dae",
+    "mesh:skeletal/animal_piglet.dae",
+    "skin:skeletal/animal_pig_01.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_pony": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Death"
+   ],
+   "bones": 95,
+   "file": "models/units/fauna_pony.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    0.413,
+    1.3,
+    1.654
+   ],
+   "skeleton": "fauna_pony",
+   "sources": [
+    "actor:art/actors/fauna/pony.xml",
+    "actor:art/actors/props/horse/fauna/pony_hair_mane_black_brown.xml",
+    "actor:art/actors/props/horse/fauna/pony_hair_tail_black_brown.xml",
+    "anim:quadraped/pony_death_a.dae",
+    "anim:quadraped/pony_gallop.dae",
+    "anim:quadraped/pony_idle_a.dae",
+    "anim:quadraped/pony_walk.dae",
+    "mesh:props/horse/pony_hair_mane_01.dae",
+    "mesh:props/horse/pony_hair_tail_01.dae",
+    "mesh:skeletal/pony.dae",
+    "skin:props/horse/hair_brown.png",
+    "skin:skeletal/horse_brown.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "fauna_rhino": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 24,
+   "file": "models/units/fauna_rhino.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    1.13,
+    1.7,
+    3.613
+   ],
+   "skeleton": "fauna_rhino",
+   "sources": [
+    "actor:art/actors/fauna/rhino.xml",
+    "anim:quadraped/rhino_attack.dae",
+    "anim:quadraped/rhino_death.dae",
+    "anim:quadraped/rhino_idle.dae",
+    "anim:quadraped/rhino_run.dae",
+    "anim:quadraped/rhino_walk.dae",
+    "mesh:skeletal/rhino.dae",
+    "skin:skeletal/animal_rhino.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_sanga_cattle": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 31,
+   "file": "models/units/fauna_sanga_cattle.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.96,
+    1.5,
+    1.949
+   ],
+   "skeleton": "fauna_sanga_cattle",
+   "sources": [
+    "actor:art/actors/fauna/sanga_cattle.xml",
+    "anim:quadraped/bovidae_attack.dae",
+    "anim:quadraped/bovidae_death_a.dae",
+    "anim:quadraped/bovidae_idle_a.dae",
+    "anim:quadraped/bovidae_run.dae",
+    "anim:quadraped/bovidae_walk_relax.dae",
+    "mesh:skeletal/sanga_cattle_a.dae",
+    "skin:skeletal/animal_zebu_brown.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_shark": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run"
+   ],
+   "bones": 8,
+   "file": "models/units/fauna_shark.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.879,
+    0.796,
+    2.6
+   ],
+   "skeleton": "fauna_shark",
+   "sources": [
+    "actor:art/actors/fauna/shark.xml",
+    "anim:other/shark_idle.dae",
+    "anim:other/shark_run.dae",
+    "anim:other/shark_walk.dae",
+    "mesh:skeletal/shark.dae",
+    "skin:skeletal/animal_shark.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_tiger": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 34,
+   "file": "models/units/fauna_tiger.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.454,
+    1.1,
+    2.429
+   ],
+   "skeleton": "fauna_tiger",
+   "sources": [
+    "actor:art/actors/fauna/tiger.xml",
+    "anim:quadraped/feline_attack.dae",
+    "anim:quadraped/feline_death.dae",
+    "anim:quadraped/feline_idle_01.dae",
+    "anim:quadraped/feline_run.dae",
+    "anim:quadraped/feline_walk.dae",
+    "mesh:skeletal/tiger.dae",
+    "skin:skeletal/animal_tiger.png"
+   ],
+   "upstream_material": "basic_trans_norm_spec.xml"
+  },
+  "fauna_walrus": {
+   "animated": false,
+   "animations": [],
+   "bones": 0,
+   "file": "models/units/fauna_walrus.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    1.648,
+    1.1,
+    2.606
+   ],
+   "skeleton": null,
+   "sources": [
+    "actor:art/actors/fauna/walrus.xml",
+    "mesh:skeletal/walrus.dae",
+    "skin:skeletal/animal_walrus.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_whale": {
+   "animated": false,
+   "animations": [],
+   "bones": 0,
+   "file": "models/units/fauna_whale.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    5.284,
+    2.335,
+    10.0
+   ],
+   "skeleton": null,
+   "sources": [
+    "actor:art/actors/fauna/whale.xml",
+    "mesh:skeletal/whale.dae",
+    "skin:skeletal/animal_whale.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_whale_fin": {
+   "animated": true,
+   "animations": [
+    "Idle"
+   ],
+   "bones": 8,
+   "file": "models/units/fauna_whale_fin.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    4.203,
+    2.167,
+    11.0
+   ],
+   "skeleton": "fauna_whale_fin",
+   "sources": [
+    "actor:art/actors/fauna/whale_fin.xml",
+    "anim:other/whale_fin_idle_a.dae",
+    "mesh:skeletal/whale_fin.dae",
+    "skin:skeletal/animal_whale_fin.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_wildebeest": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 31,
+   "file": "models/units/fauna_wildebeest.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.51,
+    1.4,
+    1.775
+   ],
+   "skeleton": "fauna_wildebeest",
+   "sources": [
+    "actor:art/actors/fauna/wildebeest.xml",
+    "anim:quadraped/bovidae_attack.dae",
+    "anim:quadraped/bovidae_death_a.dae",
+    "anim:quadraped/bovidae_idle_a.dae",
+    "anim:quadraped/bovidae_run.dae",
+    "anim:quadraped/bovidae_walk_relax.dae",
+    "mesh:skeletal/wildebeest_adult.dae",
+    "skin:skeletal/animal_wildebeest.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fauna_zebu_wild": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Death"
+   ],
+   "bones": 31,
+   "file": "models/units/fauna_zebu_wild.glb",
+   "generator": "tools/extract_0ad_fauna_models.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.697,
+    1.5,
+    2.297
+   ],
+   "skeleton": "fauna_zebu_wild",
+   "sources": [
+    "actor:art/actors/fauna/zebu_wild.xml",
+    "anim:quadraped/bovidae_attack.dae",
+    "anim:quadraped/bovidae_death_a.dae",
+    "anim:quadraped/bovidae_idle_a.dae",
+    "anim:quadraped/bovidae_run.dae",
+    "anim:quadraped/bovidae_walk_relax.dae",
+    "mesh:skeletal/zebu.dae",
+    "skin:skeletal/animal_zebu.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
   "female_citizen": {
    "animated": true,
    "animations": [

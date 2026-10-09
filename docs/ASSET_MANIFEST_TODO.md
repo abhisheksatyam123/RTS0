@@ -79,7 +79,7 @@ Clip count `(n)` is the number of embedded GLB clips reported by `audit_assets.p
 
 Buildings carry no clips (static GLBs).
 
-## Fauna matrix: the original 4 (61 species now share 23 models; see "Gaps against 0 A.D.")
+## Fauna matrix: the original 4 (61 species now use 51 models; see "Gaps against 0 A.D.")
 
 | # | FaunaType | model_id | GLB | Clips (audit) |
 |---|---|---|---|---|
@@ -134,7 +134,7 @@ Open terrain items:
 Models:
 - **Units.** The roster has 376 0 A.D. unit templates, but `world_view_node` draws by `civ_unit_model(civ, UnitType)`: 213 civ × class buckets, so 255 templates share a model with another template. Only 20 templates have a GLB named after them. Champions (55) use their class base model; 43 heroes are drawn with about 14 hero models; cavalry javelineer and swordsman look alike.
 - **Buildings (52 types × 14 civs).** No civ-specific GLB for most civs: stable (11 civs), range (11), arsenal (13), blacksmith (12), theater (14), embassy (14), sentry tower (14), outpost (12), elephant stable (12). They show one generic model. The palisade has no GLB at all (procedural box). Field plots are generic in 0 A.D. too.
-- **Fauna.** 61 species use 23 models. Stand-ins: hippo, white rhino and walrus as boar; shark and whales as crocodile; 7 horse breeds as donkey; muskox and wildebeest as cow; tiger as lion; peacock as chicken. `elephant_african_bush` and `hippopotamus` were skipped for rigging.
+- **Fauna.** 61 species use 51 models (checked 2026-10-09). The 10 remaining pairs share one 0 A.D. actor too (for example both sheep, both camels, the wild and domestic zebu). The 29 converted with `tools/extract_0ad_fauna_models.py` (Collada source, PR #179) have 0 A.D.'s own mesh, texture and Idle/Walk/Run/Attack/Death clips. Still missing: per-species idle and death variants.
 - **Props and scenery.** 19 Gaia scenery types now use 0 A.D. actors (22 GLBs); ambient hawks fly on 34 maps. Turreted units stand at 0 A.D.'s turret point.
 
 Animations (363 unit GLBs):
@@ -157,7 +157,6 @@ Textures:
   - Formations: 12 PNG (`formations/`). The 0 A.D. formation count of 14 comes from the 2026-08-29 audit and was not re-verified (zip absent).
   - Auras and minimap: 19 and 22 files matched by name. Runtime wiring of these was not re-audited.
   - Cursors: 22 (`assets/textures/cursors/`: 21 `action-*` and `cursor-rally`), wired by `update_cursor`. 0 A.D.'s remaining cursors (set-rally variants, the disabled variants, the arrow) are not copied yet.
-- **Fauna skipped for rigging.** `elephant_african_bush` (58-bone mesh, no matching PSA key set) and `hippopotamus` (no matching PSA keys). See the G7-H2 log below.
 - **2026-08-29 gap list: closed.** The 18 missing GLBs from the 2026-08-29 gap list are all shipped (see the matrices above). Re-export a single id with `python3 tools/extract_0ad_assets.py --only <ids>` (see [assets/README.md](../assets/README.md)).
 
 ## G7-H2 push (2026-10-05): HIGH-VISIBILITY class batch, +31 models (507 → 538)
