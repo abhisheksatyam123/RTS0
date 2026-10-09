@@ -7260,7 +7260,8 @@
    "specific_name": "Tlat-Mašōt",
    "phase": 2,
    "trainers": [
-    "BLD_DOCK"
+    "BLD_DOCK",
+    "BLD_SUPER_DOCK"
    ],
    "trained_at_0ad": [
     "dock",
@@ -7400,7 +7401,8 @@
    "specific_name": "Tlat-Mašōt",
    "phase": 2,
    "trainers": [
-    "BLD_DOCK"
+    "BLD_DOCK",
+    "BLD_SUPER_DOCK"
    ],
    "trained_at_0ad": [
     "dock",
@@ -7449,7 +7451,8 @@
    "specific_name": "Du-Mašōt",
    "phase": 1,
    "trainers": [
-    "BLD_DOCK"
+    "BLD_DOCK",
+    "BLD_SUPER_DOCK"
    ],
    "trained_at_0ad": [
     "dock",
@@ -7500,7 +7503,8 @@
    "specific_name": "Ḥameš-Mašōt",
    "phase": 3,
    "trainers": [
-    "BLD_DOCK"
+    "BLD_DOCK",
+    "BLD_SUPER_DOCK"
    ],
    "trained_at_0ad": [
     "dock",

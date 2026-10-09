@@ -202,6 +202,7 @@ void RtsoMain::_bind_methods() {
 	bind_enum("BuildingType", "TEMPLE_VESTA", rtso::BLD_TEMPLE_VESTA);
 	bind_enum("BuildingType", "TEMPLE_MARS", rtso::BLD_TEMPLE_MARS);
 	bind_enum("BuildingType", "ICE_HOUSE", rtso::BLD_ICE_HOUSE);
+	bind_enum("BuildingType", "SUPER_DOCK", rtso::BLD_SUPER_DOCK);
 
 	bind_enum("Civilization", "ATHENIANS", rtso::CIV_ATHENIANS);
 	bind_enum("Civilization", "SPARTANS", rtso::CIV_SPARTANS);
@@ -4506,6 +4507,7 @@ void RtsoMain::apply_match_settings() {
 	sim->set_relic_duration(60.0f * (float)std::clamp((int)ms->get("relic_min"), 0, 60));
 	sim->set_relic_count((int)ms->get("relic_count"));
 	sim->set_regicide_garrison((bool)ms->get("regicide_garrison"));
+	sim->set_lock_teams((bool)ms->get("lock_teams"));
 	sim->set_disable_treasures((bool)ms->get("disable_treasures"));
 	{
 		Array scolors = ms->get("slot_colors");
@@ -5075,6 +5077,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 			setup.colors[i] = (uint8_t)std::clamp((int)scolors[i], 0, rtso::PLAYER_COLOR_COUNT - 1);
 		setup.nomad = (bool)ms->get("nomad") ? 1 : 0;
 		setup.regicide_garrison = (bool)ms->get("regicide_garrison") ? 1 : 0;
+		setup.lock_teams = (bool)ms->get("lock_teams") ? 1 : 0;
 		setup.no_treasures = (bool)ms->get("disable_treasures") ? 1 : 0;
 		Array snames = ms->get("slot_names");
 		for (int i = 0; i < 8 && i < snames.size(); ++i) setup.names[i] = String(snames[i]).utf8().get_data();
@@ -5183,6 +5186,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	sim->set_relic_duration(60.0f * (float)setup.relic_min);
 	sim->set_relic_count(setup.relics);
 	sim->set_regicide_garrison(setup.regicide_garrison != 0);
+	sim->set_lock_teams(setup.lock_teams != 0);
 	sim->set_disable_treasures(setup.no_treasures != 0);
 	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) sim->set_player_color(p, setup.colors[p]);
 	sim->set_water_level_mode(setup.water_level);
@@ -5242,6 +5246,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		ms->set("slot_colors", scolors);
 		ms->set("nomad", setup.nomad != 0);
 		ms->set("regicide_garrison", setup.regicide_garrison != 0);
+		ms->set("lock_teams", setup.lock_teams != 0);
 		ms->set("disable_treasures", setup.no_treasures != 0);
 		Array snames;
 		for (uint8_t i = 0; i < setup.slot_count && i < 8; ++i) snames.push_back(String::utf8(setup.names[i].c_str()));

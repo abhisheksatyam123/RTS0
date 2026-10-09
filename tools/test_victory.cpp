@@ -540,6 +540,27 @@ int main() {
 		CHECK(parse_game_start_full(format_game_start_full(none), back) && back.world_pop == 0);
 	}
 
+	// 22. Lock Teams (0 A.D. Commands.js "diplomacy"): no stance change while teams are
+	// locked or a ceasefire runs; the flag shares the v32 byte with RegicideGarrison.
+	{
+		Simulation sim;
+		sim.set_player_active(0, true, false);
+		sim.set_player_active(1, true, false);
+		CHECK(sim.cmd_set_diplomacy(0, 1, Simulation::DIPLO_NEUTRAL));
+		sim.set_lock_teams(true);
+		sim.set_regicide_garrison(true);
+		CHECK(sim.teams_locked() && sim.regicide_garrison());
+		CHECK(!sim.cmd_set_diplomacy(0, 1, Simulation::DIPLO_ALLY) && sim.get_diplomacy(0, 1) == Simulation::DIPLO_NEUTRAL);
+		sim.set_regicide_garrison(false);
+		CHECK(sim.teams_locked() && !sim.regicide_garrison());
+		sim.set_lock_teams(false);
+		sim.set_ceasefire_seconds(60.0f);
+		CHECK(!sim.cmd_set_diplomacy(0, 1, Simulation::DIPLO_ALLY));
+		GameSetupParams gp, back;
+		gp.lock_teams = 1;
+		CHECK(parse_game_start_full(format_game_start_full(gp), back) && back.lock_teams == 1);
+	}
+
 	if (failures) {
 		std::printf("%d check(s) failed\n", failures);
 		return 1;
