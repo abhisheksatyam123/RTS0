@@ -328,7 +328,7 @@ struct GameSetupParams {
 	uint16_t map_size = 128; // random-map width in meters, 128..512
 	uint8_t difficulty = 3; // Petra 0..5 sandbox..very hard
 	uint8_t behavior = 2;   // Petra 0..3 random/def/bal/agg
-	uint8_t start_res = 1;  // 0 sparse, 1 normal, 2 generous, 3 abundant
+	uint8_t start_res = 1;  // 0 A.D. starting resources: 0 Very Low (100) .. 5 Deathmatch (50000), 1 Low (300)
 	uint8_t civs[8] = {0, 1, 0, 0, 0, 0, 0, 0};
 	char slot_types[8] = {'h', 'a', 'x', 'x', 'x', 'x', 'x', 'x'};
 	uint8_t teams[8] = {1, 2, 0, 0, 0, 0, 0, 0};
@@ -517,7 +517,7 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 			}
 			else if (k == "diff") { uint8_t x; if (detail::parse_u8(v, 0, 5, x)) out.difficulty = x; }
 			else if (k == "behavior") { uint8_t x; if (detail::parse_u8(v, 0, 3, x)) out.behavior = x; }
-			else if (k == "res") { uint8_t x; if (detail::parse_u8(v, 0, 3, x)) out.start_res = x; }
+			else if (k == "res") { uint8_t x; if (detail::parse_u8(v, 0, 5, x)) out.start_res = x; }
 			else if (k.size() == 4 && k[0] == 'c' && k[1] == 'i' && k[2] == 'v' && k[3] >= '0' && k[3] <= '7') {
 				uint8_t x; if (detail::parse_u8(v, 0, 13, x)) out.civs[k[3] - '0'] = x;
 			}
