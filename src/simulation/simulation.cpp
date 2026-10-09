@@ -1928,6 +1928,8 @@ Simulation::ResearchCheck Simulation::research_check(uint8_t player_id, uint8_t 
 	const PlayerState &ps = players_[player_id];
 	const TechInfo &tinfo = tech_info(tech_id);
 	if (ps.has_tech(tech_id)) return TECH_ERR_RESEARCHED;
+	// Researcher.js GetTechnologiesList leaves out the player's disabled technologies.
+	if (triggers_.tech_disabled(player_id, tech_id)) return TECH_ERR_DISABLED;
 	for (const auto &b : buildings_)
 		if (b.team == player_id && b.research_tech == tech_id) return TECH_ERR_IN_PROGRESS;
 	// 0 A.D. pair_*.json (Researcher.js, TechnologyManager.js): the player picks one of the
@@ -7550,6 +7552,20 @@ uint8_t Simulation::side_of(uint8_t pid) const {
 	return side;
 }
 
+void Simulation::end_match(uint8_t winners) {
+	winners &= (uint8_t)~defeated_mask_; // a defeated ally stays defeated (0 A.D.)
+	winner_mask_ = winners;
+	convert_to_gaia((uint8_t)(participant_mask_ & ~winners & ~defeated_mask_));
+	defeated_mask_ |= (uint8_t)(participant_mask_ & ~winners);
+	victory_ = (winners & 1) != 0;
+	game_over_ = true;
+}
+
+void Simulation::set_player_won(uint8_t pid) {
+	if (game_over_ || victory_ || pid >= MAX_PLAYERS) return;
+	end_match(side_of(pid));
+}
+
 void Simulation::check_victory_conditions(float dt) {
 	if (game_over_ || victory_) return;
 	// 0 A.D. "Endless": no victory conditions, nobody is ever defeated.
@@ -7561,16 +7577,6 @@ void Simulation::check_victory_conditions(float dt) {
 	}
 	if (victory_condition_ == VICTORY_REGICIDE && ticks_ == 0) spawn_regicide_heroes();
 	if (victory_condition_ == VICTORY_RELIC && ticks_ == 0 && (relic_count_ > 0 || relics_.empty())) apply_relic_count();
-
-	// The match ends with these players as the winners; everyone else has lost.
-	auto end_match = [&](uint8_t winners) {
-		winners &= (uint8_t)~defeated_mask_; // a defeated ally stays defeated (0 A.D.)
-		winner_mask_ = winners;
-		convert_to_gaia((uint8_t)(participant_mask_ & ~winners & ~defeated_mask_));
-		defeated_mask_ |= (uint8_t)(participant_mask_ & ~winners);
-		victory_ = (winners & 1) != 0;
-		game_over_ = true;
-	};
 
 	// Tally what each player still holds (ConquestCommon.js); units_.team and Building::team
 	// are player ids. Garrisoned units count as alive.
@@ -7618,22 +7624,28 @@ void Simulation::check_victory_conditions(float dt) {
 			return;
 		}
 	} else if (victory_condition_ == VICTORY_RELIC) {
-		// Relic Capture Victory: one player claims and holds all relics
+		// Capture the Relic: one side (a player and its mutual allies, or one player under
+		// Last Man Standing, side_of) holds every relic for relic_duration_.
 		if (!relics_.empty()) {
 			bool all_claimed = true;
 			int owner = -1;
+			uint8_t side = 0;
 			for (const auto &r : relics_) {
-				if (!r.claimed) {
+				if (!r.claimed || r.owner_team >= MAX_PLAYERS) {
 					all_claimed = false;
 					break;
 				}
-				if (owner < 0) owner = (int)r.owner_team;
-				else if (owner != (int)r.owner_team) all_claimed = false;
+				if (owner < 0) {
+					owner = (int)r.owner_team;
+					side = side_of((uint8_t)owner);
+				} else if (!((side >> r.owner_team) & 1)) {
+					all_claimed = false;
+				}
 			}
 			if (all_claimed && owner >= 0 && owner < MAX_TEAMS) {
 				relic_victory_timer_ += dt;
 				if (relic_victory_timer_ >= relic_duration_) {
-					end_match(side_of((uint8_t)owner));
+					end_match(side);
 					return;
 				}
 			} else {
@@ -14703,7 +14715,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -15728,6 +15740,13 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		io_vec_pod(ar, t.points, 1u << 12);
 		io_vec_pod(ar, t.notifications, 1u << 8);
 	}
+	// v35: the map scripts' variables, disabled technologies and queued attack orders.
+	if (ar.version >= 35) {
+		TriggerState &t = s.triggers_;
+		ar.pod(t.vars);
+		ar.pod(t.disabled_techs);
+		io_vec_pod(ar, t.attack_orders, 1u << 16);
+	}
 
 	// 10. StatisticsTracker (save v30). Older saves start the counters at zero.
 	if (ar.version < S::SAVE_VERSION_STATISTICS) return;
@@ -16474,10 +16493,21 @@ void Simulation::tick_fauna(float dt) {
 			const float len = std::sqrt(dx * dx + dz * dz);
 			if (len > info.attack_range + 0.6f) {
 				const float sp = info.speed * info.run_mult;
-				fauna_.vel_x[i] = dx / len * sp;
-				fauna_.vel_z[i] = dz / len * sp;
-				fauna_.rot_y[i] = std::atan2(dx, dz);
-				step(i, fauna_.vel_x[i], fauna_.vel_z[i]);
+				// Straight at the target; when a pond or cliff is in the way, 45 or 90 degrees
+				// to either side (animals have no long-range path here; polar_sea_triggers.js
+				// sends its wolves across the whole map).
+				static const float kTurn[5] = {0.0f, 0.7853982f, -0.7853982f, 1.5707963f, -1.5707963f};
+				fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
+				for (float a : kTurn) {
+					const float c = std::cos(a), sn = std::sin(a);
+					const float vx = (dx * c - dz * sn) / len * sp, vz = (dx * sn + dz * c) / len * sp;
+					if (!fauna_can_step(i, fx + vx * dt, fz + vz * dt)) continue;
+					fauna_.vel_x[i] = vx;
+					fauna_.vel_z[i] = vz;
+					fauna_.rot_y[i] = std::atan2(vx, vz);
+					step(i, vx, vz);
+					break;
+				}
 			} else {
 				fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
 				if (fauna_.attack_timer[i] <= 0.0f) {
@@ -16706,6 +16736,13 @@ void Simulation::tick_treasures(float dt) {
 			stats_[owner].treasures_collected++;
 			for (int r = 0; r < 4; ++r) stat_gathered(owner, kRes[r], (int)info.amount[r], false);
 			raise_alert(BattleAlert::ALERT_RELIC_CLAIMED, t.x, t.z, t.id, owner);
+			// TreasureCollector.js: Engine.PostMessage(..., MT_TreasureCollected, {player, type, ...}).
+			TriggerEventData ev;
+			ev.entity = units_.id[c];
+			ev.other = t.id;
+			ev.player = owner;
+			ev.value = t.type;
+			trigger_event(TRIGGER_ON_TREASURE_COLLECTED, ev);
 		}
 		treasures_.erase(treasures_.begin() + (std::ptrdiff_t)k);
 		in_range.erase(in_range.begin() + (std::ptrdiff_t)k);
@@ -16936,7 +16973,7 @@ std::vector<const TimeNotification *> Simulation::time_notifications_for(uint8_t
 }
 
 void Simulation::tick_triggers(float dt) {
-	if (!triggers_.active() && triggers_.notifications.empty()) return;
+	if (!triggers_.active() && triggers_.notifications.empty() && triggers_.attack_orders.empty()) return;
 	// Trigger.js OnGlobalInitGame runs once Game Setup is applied, before the first turn.
 	if (!triggers_.init_game_done) {
 		triggers_.init_game_done = 1;
@@ -16962,22 +16999,34 @@ void Simulation::tick_triggers(float dt) {
 		triggers_.timers[(size_t)idx].time_ms += t.repeat_ms;
 		if (triggers_.timers[(size_t)idx].time_ms <= triggers_.time_ms) run.push_back(t.id);
 	}
+	tick_trigger_attack_orders();
 	triggers_.expire_notifications();
 }
 
 void Simulation::register_map_triggers(MapType type) {
-	// A map's TriggerScripts (its .json "TriggerScripts"); each script's top
-	// level runs from OnInitGame so it sees the final Game Setup.
+	// A random map's TriggerScripts (its .json "TriggerScripts").
 	switch (type) {
-		case MAP_FLOOD:
-			triggers_.register_trigger(TRIGGER_ON_INIT_GAME, TRIGGER_ACTION_FLOOD_INIT, true);
-			break;
-		case MAP_EXTINCT_VOLCANO:
-			triggers_.register_trigger(TRIGGER_ON_INIT_GAME, TRIGGER_ACTION_VOLCANO_INIT, true);
-			break;
-		default:
-			break;
+		case MAP_FLOOD: register_trigger_script("flood_triggers"); break;
+		case MAP_EXTINCT_VOLCANO: register_trigger_script("extinct_volcano_triggers"); break;
+		case MAP_POLAR_SEA: register_trigger_script("polar_sea_triggers"); break;
+		default: break;
 	}
+}
+
+bool Simulation::register_trigger_script(const std::string &name) {
+	// Each script's top level runs from OnInitGame so it sees the final Game Setup.
+	static const struct { const char *name; uint16_t init; } kScripts[] = {
+		{"flood_triggers", TRIGGER_ACTION_FLOOD_INIT},
+		{"extinct_volcano_triggers", TRIGGER_ACTION_VOLCANO_INIT},
+		{"polar_sea_triggers", TRIGGER_ACTION_POLAR_SEA_INIT},
+		{"treasure_islands", TRIGGER_ACTION_TREASURE_ISLANDS_INIT},
+	};
+	for (const auto &k : kScripts)
+		if (name == k.name) {
+			triggers_.register_trigger(TRIGGER_ON_INIT_GAME, k.init, true);
+			return true;
+		}
+	return false;
 }
 
 namespace {
@@ -17007,6 +17056,22 @@ const char *const kVolcanoWarnings[4] = {
 };
 // garrisonedUnits = "units/rome/champion_infantry_swordsman_02"
 const char *const kVolcanoTowerGarrison = "rome/champion_infantry_swordsman";
+
+// maps/random/polar_sea_triggers.js
+constexpr uint8_t kPolarSeaWolves = FAUNA_WOLF_ARCTIC_VIOLENT; // attackerTemplate
+constexpr int kPolarSeaMinWave = 1, kPolarSeaMaxWave = 3;      // min/maxWaveSize, wolves per trigger point
+constexpr float kPolarSeaFirstWaveMin = 5.0f;                  // firstWaveTime
+constexpr float kPolarSeaMinWaveMin = 2.0f, kPolarSeaMaxWaveMin = 4.0f; // min/maxWaveTime
+constexpr uint32_t kPolarSeaTargetCount = 3;                   // targetCount
+// DisableTechnologies: no better axes and no wicker baskets on the ice.
+constexpr uint8_t kPolarSeaDisabledTechs[] = {TECH_WOODCUTTING_1, TECH_GATHER_LUMBERING_SHARPAXES,
+	TECH_GATHER_LUMBERING_STRONGERAXES, TECH_GATHER_WICKER_BASKETS};
+
+// maps/scenarios/treasure_islands.js
+constexpr int32_t kTreasureIslandsMaximum = 36; // treasureCount.maximum
+constexpr uint8_t kTreasureIslandsPlayers = 0x03; // "players": [1, 2]
+// GuiInterface.PushNotification text messages: shown like a time notification of the default length.
+constexpr uint32_t kPushNotificationMs = 10000;
 
 uint16_t roster_template_named(const char *id) {
 	for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
@@ -17058,6 +17123,35 @@ void Simulation::run_trigger_action(uint16_t action, float arg, const TriggerEve
 		case TRIGGER_ACTION_VOLCANO_RISE_STEP:
 			trigger_volcano_rise_step();
 			break;
+		case TRIGGER_ACTION_POLAR_SEA_INIT:
+			// polar_sea_triggers.js: DisableTechnologies on OnInitGame, the first wave after firstWaveTime.
+			for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
+				for (uint8_t t : kPolarSeaDisabledTechs) triggers_.disable_tech(p, t);
+			triggers_.set_timeout((uint32_t)std::lround(kPolarSeaFirstWaveMin * 60000.0f), TRIGGER_ACTION_POLAR_SEA_WAVE);
+			break;
+		case TRIGGER_ACTION_POLAR_SEA_WAVE:
+			trigger_polar_sea_wave();
+			break;
+		case TRIGGER_ACTION_TREASURE_ISLANDS_INIT:
+			// treasure_islands.js, top level.
+			for (int32_t &v : triggers_.vars) v = 0; // treasureCount.players
+			triggers_.set_timeout(2000, TRIGGER_ACTION_TREASURE_ISLANDS_INTRO);
+			triggers_.register_trigger(TRIGGER_ON_TREASURE_COLLECTED, TRIGGER_ACTION_TREASURE_ISLANDS_COLLECTED, true);
+			break;
+		case TRIGGER_ACTION_TREASURE_ISLANDS_INTRO:
+			triggers_.add_notification("Collect the treasures before your enemy does! May the better win!",
+			                           kPushNotificationMs, kTreasureIslandsPlayers);
+			break;
+		case TRIGGER_ACTION_TREASURE_ISLANDS_COLLECTED:
+			trigger_treasure_islands_collected(data);
+			break;
+		case TRIGGER_ACTION_TREASURE_ISLANDS_BATTLE:
+			triggers_.add_notification("Defeat your enemy to win!", kPushNotificationMs, kTreasureIslandsPlayers);
+			break;
+		case TRIGGER_ACTION_TREASURE_ISLANDS_VICTORY:
+			// TriggerHelper.SetPlayerWon(playerID).
+			set_player_won((uint8_t)arg);
+			break;
 		default:
 			break;
 	}
@@ -17083,6 +17177,134 @@ void Simulation::trigger_volcano_rise_step() {
 		triggers_.set_timeout((uint32_t)std::lround(minutes * 60000.0f), TRIGGER_ACTION_VOLCANO_RISE_STEP);
 	}
 	set_water_level(level, kVolcanoDrownHeight * kTriggerHeight);
+}
+
+void Simulation::trigger_polar_sea_wave() {
+	// polar_sea_triggers.js SpawnWolvesAndAttack: waveSize violent arctic wolves at every
+	// trigger point A, each pack sent (queued attack orders) at the targetCount nearest
+	// player units that are "Organic+!Domestic". The script first looks 200 m around the
+	// pack and falls back to every non-Gaia entity when that finds fewer than three; the
+	// nearest three of all of them are the same units, so one pass over all units does.
+	const int wave = (int)std::lround(sim_rng_.range_float(0.0f, 1.0f) * (float)(kPolarSeaMaxWave - kPolarSeaMinWave)) + kPolarSeaMinWave;
+	auto target = [&](size_t u) {
+		return units_.alive[u] && units_.team[u] < MAX_PLAYERS && units_.action_state[u] != ACTION_GARRISONED &&
+		       (unit_tech_classes(units_.unit_type[u]) & TC_ORGANIC);
+	};
+	for (const TriggerPoint &p : triggers_.points) {
+		if (p.ref != 'A') continue;
+		// TriggerHelper.SpawnUnits: all at the trigger point; spread a little so they don't overlap.
+		std::vector<uint32_t> pack;
+		for (int k = 0; k < wave; ++k) {
+			const float a = 6.2831853f * (float)k / (float)wave;
+			const float r = wave > 1 ? 0.6f : 0.0f;
+			if (const uint32_t id = spawn_fauna(p.x + std::cos(a) * r, p.z + std::sin(a) * r, kPolarSeaWolves)) pack.push_back(id);
+		}
+		if (pack.empty()) continue;
+		const size_t f0 = fauna_id_to_idx_[pack[0]];
+		const float ax = fauna_.pos_x[f0], az = fauna_.pos_z[f0];
+		uint32_t best[kPolarSeaTargetCount] = {};
+		float best_d2[kPolarSeaTargetCount] = {};
+		uint32_t n = 0;
+		for (size_t u = 0; u < units_.count; ++u) {
+			if (!target(u)) continue;
+			const float dx = units_.pos_x[u] - ax, dz = units_.pos_z[u] - az;
+			const float d2 = dx * dx + dz * dz;
+			uint32_t i = n;
+			while (i > 0 && (d2 < best_d2[i - 1] || (d2 == best_d2[i - 1] && units_.id[u] < best[i - 1]))) --i;
+			if (i >= kPolarSeaTargetCount) continue;
+			for (uint32_t j = std::min(n, kPolarSeaTargetCount - 1); j > i; --j) { best[j] = best[j - 1]; best_d2[j] = best_d2[j - 1]; }
+			best[i] = units_.id[u];
+			best_d2[i] = d2;
+			n = std::min(n + 1, kPolarSeaTargetCount);
+		}
+		if (n == 0) continue;
+		for (uint32_t id : pack) {
+			const size_t f = fauna_id_to_idx_[id];
+			fauna_.behavior[f] = FAUNA_ATTACK;
+			fauna_.target_unit_id[f] = best[0];
+			fauna_.home_x[f] = fauna_.pos_x[f];
+			fauna_.home_z[f] = fauna_.pos_z[f];
+			TriggerAttackOrder o;
+			o.fauna_id = id;
+			for (uint32_t j = 0; j < n; ++j) o.targets[j] = best[j];
+			o.count = n;
+			triggers_.attack_orders.push_back(o);
+		}
+	}
+	const float minutes = sim_rng_.range_float(kPolarSeaMinWaveMin, kPolarSeaMaxWaveMin);
+	triggers_.set_timeout((uint32_t)std::lround(minutes * 60000.0f), TRIGGER_ACTION_POLAR_SEA_WAVE);
+}
+
+void Simulation::tick_trigger_attack_orders() {
+	// UnitAI's order queue for the scripts' queued attack orders: once an animal is done
+	// with its target (dead, gone into a building), it attacks the next one; with none
+	// left it goes idle where it stands (a violent animal then attacks whatever it sees).
+	auto valid = [&](uint32_t uid) {
+		const int32_t u = lookup_unit(uid);
+		return u >= 0 && units_.alive[u] && units_.team[u] < MAX_PLAYERS && units_.action_state[u] != ACTION_GARRISONED;
+	};
+	auto &orders = triggers_.attack_orders;
+	for (size_t k = 0; k < orders.size();) {
+		TriggerAttackOrder &o = orders[k];
+		auto it = fauna_id_to_idx_.find(o.fauna_id);
+		if (it == fauna_id_to_idx_.end() || !fauna_.alive[it->second] || o.count == 0) {
+			orders.erase(orders.begin() + (std::ptrdiff_t)k);
+			continue;
+		}
+		const size_t f = it->second;
+		if (fauna_.behavior[f] == FAUNA_ATTACK && fauna_.target_unit_id[f] == o.targets[0] && valid(o.targets[0])) { ++k; continue; }
+		do {
+			for (uint32_t j = 1; j < o.count; ++j) o.targets[j - 1] = o.targets[j];
+			o.targets[--o.count] = 0;
+		} while (o.count > 0 && !valid(o.targets[0]));
+		if (o.count == 0) {
+			if (fauna_.behavior[f] == FAUNA_ROAMING || fauna_.behavior[f] == FAUNA_ATTACK) {
+				fauna_.behavior[f] = FAUNA_IDLE_GRAZE;
+				fauna_.target_unit_id[f] = 0;
+				fauna_.vel_x[f] = fauna_.vel_z[f] = 0.0f;
+				fauna_.home_x[f] = fauna_.pos_x[f];
+				fauna_.home_z[f] = fauna_.pos_z[f];
+				fauna_.state_timer[f] = 0.0f;
+			}
+			orders.erase(orders.begin() + (std::ptrdiff_t)k);
+			continue;
+		}
+		fauna_.behavior[f] = FAUNA_ATTACK;
+		fauna_.target_unit_id[f] = o.targets[0];
+		fauna_.home_x[f] = fauna_.pos_x[f];
+		fauna_.home_z[f] = fauna_.pos_z[f];
+		++k;
+	}
+}
+
+void Simulation::trigger_treasure_islands_collected(const TriggerEventData &data) {
+	// treasure_islands.js TreasureCollected: the first to more than half of the 36
+	// treasures wins; 18 each means a fight to the end.
+	if (data.player > 1) return; // treasureCount counts players 1 and 2 only
+	const uint8_t me = data.player, other = me == 0 ? 1 : 0;
+	const int32_t count = ++triggers_.vars[me];
+	const int32_t goal = kTreasureIslandsMaximum / 2 + 1;
+	const uint8_t me_mask = (uint8_t)(1u << me), other_mask = (uint8_t)(1u << other);
+	if (count == kTreasureIslandsMaximum / 2 && triggers_.vars[other] == kTreasureIslandsMaximum / 2) {
+		triggers_.add_notification("No winner yet, prepare for battle!", kPushNotificationMs, kTreasureIslandsPlayers);
+		// Keep telling the players that the victory condition has changed.
+		triggers_.register_trigger(TRIGGER_ON_INTERVAL, TRIGGER_ACTION_TREASURE_ISLANDS_BATTLE, true, 12000, 10000);
+	} else if (count >= goal) {
+		triggers_.add_notification("Your enemy's treasury is filled to the brim, you lose!", kPushNotificationMs, other_mask);
+		triggers_.add_notification("Your treasury is filled to the brim, you are victorious!", kPushNotificationMs, me_mask);
+		triggers_.set_timeout(5000, TRIGGER_ACTION_TREASURE_ISLANDS_VICTORY, (float)me);
+	} else {
+		// Warn the other player when this one is three treasures from victory.
+		if (count + 3 == goal)
+			triggers_.add_notification("Hurry up! Your enemy is close to victory!", kPushNotificationMs, other_mask);
+		if (count + 3 >= goal) {
+			char text[96];
+			std::snprintf(text, sizeof(text), "Treasures remaining to collect for victory:  %d!", (int)(goal - count));
+			triggers_.add_notification(text, kPushNotificationMs, me_mask);
+		} else {
+			triggers_.add_notification("You have collected a treasure!", kPushNotificationMs, me_mask);
+		}
+	}
 }
 
 void Simulation::trigger_volcano_garrison_towers() {

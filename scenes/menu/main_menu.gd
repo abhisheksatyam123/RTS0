@@ -42,7 +42,6 @@ var mouse_pos_norm: Vector2 = Vector2.ZERO
 @onready var submenu_buttons_box: VBoxContainer = $SubmenuPanel/SubmenuContent/SubmenuButtons
 @onready var click_sfx: AudioStreamPlayer = $ClickSFX
 @onready var music_player: AudioStreamPlayer = $MusicPlayer
-@onready var credits_modal: Control = $CreditsModal
 
 var active_menu_id: String = ""
 
@@ -52,8 +51,9 @@ var submenu_data = {
 		"title": "LEARN TO PLAY",
 		"items": [
 			{"label": "Manual", "tooltip": "Open the 0 A.D. Game Manual.", "action": "open_manual"},
-			{"label": "Civilization Overview", "tooltip": "Civilization bonuses, specific technologies, structures and heroes, and history.", "action": "open_encyclopedia"},
 			{"label": "Structure Tree", "tooltip": "Every structure by phase, with the units it trains and the technologies it researches.", "action": "open_tech_tree"},
+			{"label": "Civilization Overview", "tooltip": "Civilization bonuses, specific technologies, structures and heroes, and history.", "action": "open_encyclopedia"},
+			{"label": "Catafalque Overview", "tooltip": "Compare the bonuses of catafalques featured in 0 A.D.", "action": "open_catafalque"},
 			{"label": "Map Overview", "tooltip": "Preview maps, biomes, and strategic chokepoints.", "action": "open_setup"}
 		]
 	},
@@ -94,7 +94,6 @@ func _ready() -> void:
 		music_player.play()
 
 	submenu_panel.visible = false
-	credits_modal.visible = false
 
 	# Connect main navigation buttons
 	$MainPanel/Buttons/BtnLearn.pressed.connect(func(): _toggle_submenu("learn", $MainPanel/Buttons/BtnLearn))
@@ -106,7 +105,6 @@ func _ready() -> void:
 	$MainPanel/Buttons/BtnExit.pressed.connect(_on_exit_pressed)
 
 	$CivSwitcher.pressed.connect(_cycle_background)
-	$CreditsModal/CreditsBox/BtnCloseCredits.pressed.connect(_close_credits)
 
 	# Connect hover sounds
 	for btn in $MainPanel/Buttons.get_children():
@@ -232,6 +230,9 @@ func _execute_action(action: String) -> void:
 		"open_manual":
 			_close_submenu()
 			load("res://scenes/reference/manual.gd").open(self)
+		"open_catafalque":
+			_close_submenu()
+			load("res://scenes/reference/catafalque_page.gd").open(self)
 		"open_load":
 			_close_submenu()
 			load("res://scenes/session/savegame_dialog.gd").open(self, "load")
@@ -248,14 +249,11 @@ func _on_editor_pressed() -> void:
 	play_click()
 	_go_to_scene("res://scenes/tools/asset_viewer.tscn")
 
+# 0 A.D. pushes page_credits.xml over the main menu.
 func _on_credits_pressed() -> void:
 	play_click()
 	_close_submenu()
-	credits_modal.visible = true
-
-func _close_credits() -> void:
-	play_click()
-	credits_modal.visible = false
+	load("res://scenes/reference/credits_page.gd").open(self)
 
 func _on_exit_pressed() -> void:
 	play_click()
