@@ -139,9 +139,9 @@ Models:
 
 Animations (363 unit GLBs):
 - 20 GLBs (ships, projectiles) have no clips; ships do not rock or animate sails.
-- One `Attack` clip per unit: no melee/ranged/capture split per weapon (only `Slaughter` is separate).
-- One `Idle` and one `Death` clip; 0 A.D.'s random idle and death variants are not used. 25 GLBs have no `Walk`.
-- Siege has no pack/unpack clips. `GatherFish` is on 3 GLBs only.
+- One `Attack` clip per unit: no melee/ranged split per weapon. `Slaughter` is separate, and the 166 biped GLBs carry 0 A.D.'s `Capture` clip (`biped/infantry/capturing_a.dae`, added by `tools/add_0ad_clips.py`). Cavalry, siege and ships fall back to `Attack` when capturing.
+- One `Idle` and one `Death` clip; 0 A.D.'s random idle and death variants are not used.
+- Siege: the 25 unpacked engines have no `Walk`, as in 0 A.D., where an engine only moves packed. A packed engine shows its 0 A.D. `*_packed` actor (a wagon with horses or oxen, crew and cargo) in 13 GLBs from `tools/extract_0ad_packed_siege.py`, mapped in `src/graphics/assets/packed_siege_models.h`. 0 A.D. has no pack/unpack clips: the model swaps when packing or unpacking ends. `GatherFish` is on 3 GLBs only.
 - Done: citizen-soldier gather/build clips, per-resource carry walks and the promotion clip (#149, added at runtime from `.psa`).
 
 Textures:
@@ -154,6 +154,7 @@ Textures:
 - **UI coverage.** Files on disk under `assets/textures/ui/`:
   - Emblems: 13 civs (`emblems/`, athenians through seleucids).
   - Phase icons: 3 (`phases/`: village, town, city).
+  - Loading screen: 57 (`loading/`: 47 tip pictures, 6 progress bar pieces, parchment, tip gradient, background tile). 0 A.D.'s `gradient_4x3.png` is not used.
   - Formations: 12 PNG (`formations/`). The 0 A.D. formation count of 14 comes from the 2026-08-29 audit and was not re-verified (zip absent).
   - Auras and minimap: 19 and 22 files matched by name. Runtime wiring of these was not re-audited.
   - Cursors: 22 (`assets/textures/cursors/`: 21 `action-*` and `cursor-rally`), wired by `update_cursor`. 0 A.D.'s remaining cursors (set-rally variants, the disabled variants, the arrow) are not copied yet.

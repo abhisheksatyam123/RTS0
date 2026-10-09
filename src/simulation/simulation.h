@@ -337,6 +337,9 @@ public:
 	// Rank effects (unit_advanced.json, unit_elite.json) for unit index i.
 	float rank_melee_armor(size_t i) const;
 	float unit_capture_attack_at(size_t i) const;
+	// Read-only, for the renderer: unit i is attacking a structure it captures
+	// rather than damages (the tick_combat check), so it plays 0 A.D.'s capture clip.
+	bool unit_capturing(size_t i) const;
 	float healer_range_of(size_t h) const;
 	float heal_amount_of(size_t h) const;
 	// 0 A.D. team bonuses (data/auras/teambonuses): the product a player gets on `stat`
@@ -449,6 +452,12 @@ public:
 	void cmd_delete(uint8_t player, const uint32_t *ids, size_t count);
 	// 0 A.D. "back-to-work" (UnitAI BackToWork): resume the last gather or build order.
 	void order_back_to_work(const uint32_t *unit_ids, size_t count);
+	// 0 A.D. Commands.js "remove-guard" (UnitAI RemoveGuard): end a Guard order, or drop
+	// the queued ones.
+	void order_remove_guard(const uint32_t *unit_ids, size_t count);
+	// 0 A.D. Commands.js "call-to-arms": Soldiers, Warships, Siege and Healers drop their load
+	// at the nearest dropsite (DropAtNearestDropSite), then attack-walk to (x, z).
+	void order_call_to_arms(const uint32_t *unit_ids, size_t count, float x, float z, bool queued = false);
 	// The unit's current order and its Shift-queued ones (empty if none).
 	UnitOrder unit_order(uint32_t unit_id) const;
 	const std::vector<UnitOrder> *unit_order_queue(uint32_t unit_id) const;
@@ -1486,6 +1495,17 @@ private:
 	mutable uint64_t resource_block_tick_ = UINT64_MAX;
 	mutable size_t resource_block_count_ = SIZE_MAX;
 	mutable int resource_block_w_ = 0;
+	void ensure_resource_block_cells() const;
+	// petra_place_building searches that found no spot, with the signature of what
+	// they read (petra_placement_signature). Exact, so derived state: never saved.
+	struct PetraPlaceMiss {
+		uint64_t sig;
+		int cx, cz;
+		int16_t min_r, max_r;
+		uint8_t pid, btype;
+	};
+	std::vector<PetraPlaceMiss> petra_place_misses_;
+	uint64_t petra_placement_signature(uint8_t btype, int start_cx, int start_cz, int max_r) const;
 
 	uint32_t next_id_ = 1;
 	uint32_t sim_seed_ = 1337;

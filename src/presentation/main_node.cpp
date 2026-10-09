@@ -110,6 +110,9 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_lobby_start_pressed"), &RtsoMain::_on_lobby_start_pressed);
 	ClassDB::bind_method(D_METHOD("apply_net_game_start"), &RtsoMain::apply_net_game_start);
 	ClassDB::bind_method(D_METHOD("load_map_seeded", "map_id", "seed"), &RtsoMain::load_map_seeded);
+	// 0 A.D. GUI onGameLoadProgress(progression, description): the loading page
+	// (scenes/menu/loading.gd) listens while the match is set up.
+	ADD_SIGNAL(MethodInfo("load_progress", PropertyInfo(Variant::INT, "percent"), PropertyInfo(Variant::STRING, "description")));
 	ClassDB::bind_method(D_METHOD("_on_lobby_refresh_pressed"), &RtsoMain::_on_lobby_refresh_pressed);
 
 	const StringName cls = get_class_static();
@@ -329,6 +332,7 @@ void RtsoMain::_ready() {
 	// consumed. Victory / Petra difficulty+behavior / starting resources /
 	// per-slot civs apply after the map load because reset()/generate()
 	// overwrite stocks.)
+	load_progress(30, "Loading animations");
 	anim_ctrl.load("res://assets/animations");
 
 	bool has_light = false;
@@ -2011,6 +2015,7 @@ bool RtsoMain::save_game(String path, String description) {
 bool RtsoMain::load_game(String path) {
 	if (!sim) return false;
 	String global_path = ProjectSettings::get_singleton()->globalize_path(path);
+	load_progress(50, "Loading saved game");
 	// The replay so far stays valid up to here; what follows starts from the save.
 	stop_replay_recording();
 	bool success = sim->load_state(global_path.utf8().get_data());
@@ -4021,6 +4026,16 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					}
 				}
 			}
+			// session.calltoarms + right-click: Commands.js call-to-arms (drop loads, then attack-walk).
+			if (!garrison_click && rtso::hotkeys::held("session.calltoarms")) {
+				range_overlays_.add_marker(click_pos.x, click_pos.z, Color(1, 1, 1, 0.9f), RtsoRangeOverlays::kMoveMarkerTime);
+				if (turn_cmds())
+					post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_CALL_TO_ARMS, sel_ptr, sel_n, click_pos.x, click_pos.z, 0, qbit);
+				else
+					sim->order_call_to_arms(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift);
+				play_civ_voice("attack");
+				return;
+			}
 			if (attack_move_mode || (!garrison_click && rtso::hotkeys::held("session.attackmove"))) {
 				range_overlays_.add_marker(click_pos.x, click_pos.z, Color(1, 1, 1, 0.9f), RtsoRangeOverlays::kMoveMarkerTime);
 				if (turn_cmds())
@@ -4568,7 +4583,9 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			if (map_id == id || map_id == "random_" + id) { mtype = (rtso::MapType)t; break; }
 		}
 
+		load_progress(40, "Generating map");
 		sim->generate_random_map(mtype, seed, num_p, (float)random_map_size * 0.5f, random_map_teams);
+		load_progress(70, "Building terrain");
 		view->rebuild_terrain(sim);
 
 		if (cam_rig) {
@@ -4606,6 +4623,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		}
 	}
 
+	load_progress(40, "Loading map");
 	Ref<FileAccess> fa = FileAccess::open(path, FileAccess::READ);
 	if (!fa.is_valid()) return false;
 	String content = fa->get_as_text();
@@ -4766,6 +4784,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 	}
 
 	// Rebuild World View 3D terrain and bounds
+	load_progress(70, "Building terrain");
 	view->rebuild_terrain(sim);
 	if (cam_rig) {
 		cam_rig->set_map_bounds_half(sim->map_half());
