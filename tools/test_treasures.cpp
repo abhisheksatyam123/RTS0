@@ -1,6 +1,7 @@
 // 0 A.D. Gaia content: treasures (Treasure.js / TreasureCollector.js, the CollectTreasure
 // order), ruins (template_gaia_ruins: stone.ruins at 4x a rock's rate, MaxGatherers),
-// capturable Gaia mercenary camps, random-map placement and save/load.
+// capturable Gaia mercenary camps, Gaia-owned map units and structures, random-map
+// placement and save/load.
 //   g++ -std=c++20 -O2 -Isrc tools/test_treasures.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_treasures && /tmp/test_treasures
@@ -165,6 +166,34 @@ int main() {
 		for (const auto &x : s.buildings()) if (x.id == camp) b = &x;
 		std::printf("mercenary camp: owner %d after 90 s of capture\n", b ? (int)b->team : -1);
 		CHECK(b && b->team == 0);
+	}
+
+	// 6b. Gaia-owned units and structures from a 0 A.D. map (Player 0): the roster template by
+	//     name (an _e rank falls back to the _b template, then promotes to Elite), a garrison
+	//     placed inside a Gaia tower, and Gaia's soldiers fighting a player's.
+	{
+		fresh(s);
+		uint32_t tower = s.spawn_building_world(0.0f, 0.0f, BLD_SENTRY_TOWER, GAIA_PLAYER, 1.0f);
+		uint32_t jav = s.spawn_gaia_unit(0.0f, 0.0f, UNIT_ARCHER, "gaul/infantry_javelineer_e", 3);
+		uint32_t pirate = s.spawn_gaia_unit(20.0f, 0.0f, UNIT_SPEARMAN, "pirates/no_such_template", 1);
+		CHECK(jav != 0 && pirate != 0);
+		const uint16_t jt = s.unit_template(jav);
+		CHECK(jt != CIV_UNIT_TEMPLATE_NONE && std::strcmp(civ_unit_template(jt).id, "gaul/infantry_javelineer_b") == 0);
+		CHECK(s.garrison_unit_now(jav, tower));
+		CHECK(s.get_garrison_count(tower) == 1);
+		CHECK(!s.garrison_unit_now(s.spawn_unit(-3.0f, 0.0f, 0, UNIT_SPEARMAN), tower)); // not Gaia's
+		run(s, 0.2f);
+		const int32_t ji = s.lookup_unit(jav);
+		CHECK(ji >= 0 && s.units_.rank[ji] == 3);
+		uint32_t mine = s.spawn_unit(24.0f, 0.0f, 0, UNIT_SWORDSMAN);
+		const int32_t pi = s.lookup_unit(pirate);
+		const float hp0 = s.units_.hp[pi];
+		run(s, 5.0f);
+		const int32_t pi2 = s.lookup_unit(pirate), mi = s.lookup_unit(mine);
+		const bool fought = pi2 < 0 || !s.units_.alive[pi2] || s.units_.hp[pi2] < hp0 || mi < 0 || !s.units_.alive[mi] ||
+				s.units_.hp[mi] < unit_type_info(UNIT_SWORDSMAN).hp;
+		std::printf("gaia units: javelineer rank %d in the tower, fight %s\n", (int)s.units_.rank[ji], fought ? "yes" : "no");
+		CHECK(fought);
 	}
 
 	// 7. Random maps place treasures and ruins where 0 A.D.'s scripts do.
