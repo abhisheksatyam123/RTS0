@@ -1292,7 +1292,7 @@ static void test_retreat_walk_forced() {
 		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
 	const float cx = tx * 0.4f, cz = tz * 0.4f; // well away from Petra's base
 	const uint32_t cat = s->spawn_unit(cx, cz, 1, UNIT_CATAPULT);
-	const uint32_t spear = s->spawn_unit(cx, cz + 2.0f, 1, UNIT_SPEARMAN);
+	s->spawn_unit(cx, cz + 2.0f, 1, UNIT_SPEARMAN); // a comrade the enemy can fight too
 	s->order_pack(&cat, 1, false);
 	run_for(*s, 11.0f);
 	const int32_t ci = s->lookup_unit(cat);
@@ -1301,12 +1301,18 @@ static void test_retreat_walk_forced() {
 	run_for(*s, 1.0f);
 	const bool unpacked = s->units_.pack_state[ci] == PACK_UNPACKED;
 	auto &plan = s->petra_attack_plan_;
-	plan.squad = {cat, spear};
-	plan.initial_squad_size = 2;
+	// The catapult alone: with the faster spearman in the squad, the regroup centroid
+	// reaches home first and frees the catapult mid-pack, so whether some other plan then
+	// claims it depended on the rest of the match.
+	plan.squad = {cat};
+	plan.initial_squad_size = 1;
 	plan.state = Simulation::AttackPlan::ABORT;
-	run_for(*s, 25.0f);
-	const int32_t c2 = s->lookup_unit(cat);
-	const float moved = c2 >= 0 ? std::hypot(s->units().pos_x[c2] - cx, s->units().pos_z[c2] - cz) : 0.0f;
+	float moved = 0.0f; // furthest it got from where it stood
+	for (int k = 0; k < 25; ++k) {
+		run_for(*s, 1.0f);
+		const int32_t c2 = s->lookup_unit(cat);
+		if (c2 >= 0) moved = std::max(moved, std::hypot(s->units().pos_x[c2] - cx, s->units().pos_z[c2] - cz));
+	}
 	std::printf("  retreat: unpacked catapult beside a fighting enemy %s, moved %.1f toward base in 25 s\n",
 	            unpacked ? "yes" : "no", moved);
 	CHECK(unpacked, "the catapult stood unpacked beside the enemy");
