@@ -139,6 +139,11 @@ def stat_of(path: str):
         "GarrisonHolder/BuffHeal": "TSTAT_GARRISON_HEAL",
         "Health/RegenRate": "TSTAT_REGEN",
         "Health/IdleRegenRate": "TSTAT_IDLE_REGEN",
+        "Capturable/CapturePoints": "TSTAT_CAPTURE_POINTS",
+        "Cost/Resources/food": "TSTAT_COST_FOOD",
+        "Cost/Resources/wood": "TSTAT_COST_WOOD",
+        "Cost/Resources/stone": "TSTAT_COST_STONE",
+        "Cost/Resources/metal": "TSTAT_COST_METAL",
     }.get(path)
 
 
@@ -285,6 +290,9 @@ def main() -> int:
     ap.add_argument("--out", default=os.path.join(os.path.dirname(__file__), "..", "src", "simulation", "tech_data.h"))
     ap.add_argument("--append", action="store_true",
                     help="keep --out's existing technologies (ids, rows) and append only the civ-only ones it lacks")
+    ap.add_argument("--add-stats", default="",
+                    help="with --append: comma-separated TechStats newly mapped in stat_of(); every kept "
+                         "technology also gets its modifications of those stats from --public")
     args = ap.parse_args()
     src = Source(args.public)
 
@@ -364,11 +372,16 @@ def main() -> int:
         kept_techs = block("static const TechInfo kTable[TECH_COUNT] = {")
         kept = {name for _, name in kept_ids}
         emit = [name for name in civ_only if name not in kept]
+        if args.add_stats:
+            new_stats = set(args.add_stats.split(","))
+            pending_kept = (kept_effects, kept_techs, new_stats)
         order = [name for _, name in kept_ids] + emit
         if len(order) + 1 > 255:
             print("too many technologies for uint8_t ids", file=sys.stderr)
             return 1
 
+    if not (args.append and args.add_stats):
+        pending_kept = None
     ids: dict[str, str | None] = {name: None for name in order}
     for sym, name in kept_ids:
         ids[name] = sym
@@ -414,6 +427,46 @@ def main() -> int:
             affects_rows.append(key)
         return (len(kept_affects) + start + 1, len(rows))  # slot 0 is reserved for "no filter"
 
+    def effect_lines(name, j, only=None):
+        out = []
+        tech_aff = j.get("affects")
+        for m in j.get("modifications", []):
+            stat = stat_of(m["value"])
+            if not stat or (only is not None and stat not in only):
+                continue
+            if "multiply" in m:
+                op, val = "TOP_MUL", float(m["multiply"])
+            elif "add" in m:
+                op, val = "TOP_ADD", float(m["add"])
+            elif "replace" in m and isinstance(m["replace"], (int, float)):
+                op, val = "TOP_SET", float(m["replace"])
+            else:
+                continue
+            a_start, a_count = affects_index(m.get("affects", tech_aff))
+            if a_count < 0:
+                continue
+            out.append(f"\t\t{{{stat}, {op}, {a_start}, {a_count}, {val!r}f}}, // {name}")
+        return out
+
+    # --add-stats: each kept technology keeps its effect rows and gains rows
+    # for the newly mapped stats; effect_begin/effect_count are renumbered.
+    if pending_kept:
+        k_effects, k_techs, new_stats = pending_kept
+        rebuilt_effects: list[str] = []
+        rebuilt_techs: list[str] = []
+        row_re = re.compile(r", (\d+), (\d+), (\"[^\"]*\")\},$")
+        for row in k_techs:
+            mo = row_re.search(row)
+            begin, count, tname = int(mo.group(1)), int(mo.group(2)), mo.group(3)[1:-1]
+            nb = len(rebuilt_effects)
+            rebuilt_effects.extend(k_effects[begin:begin + count])
+            j = load(tname)
+            if j:
+                rebuilt_effects.extend(effect_lines(tname, j, new_stats))
+            rebuilt_techs.append(row[:mo.start()] + f", {nb}, {len(rebuilt_effects) - nb}, \"{tname}\"}},")
+        kept_effects[:] = rebuilt_effects
+        kept_techs[:] = rebuilt_techs
+
     for name in emit:
         j = load(name)
         cost = j.get("cost") or {}
@@ -436,21 +489,7 @@ def main() -> int:
             phase = 2
         cmask = civ_mask(j.get("requirements"))
         e_begin = len(kept_effects) + len(effects)
-        tech_aff = j.get("affects")
-        for m in j.get("modifications", []):
-            stat = stat_of(m["value"])
-            if not stat:
-                continue
-            if "multiply" in m:
-                op, val = "TOP_MUL", float(m["multiply"])
-            elif "add" in m:
-                op, val = "TOP_ADD", float(m["add"])
-            else:
-                continue
-            a_start, a_count = affects_index(m.get("affects", tech_aff))
-            if a_count < 0:
-                continue
-            effects.append(f"\t\t{{{stat}, {op}, {a_start}, {a_count}, {val!r}f}}, // {name}")
+        effects.extend(effect_lines(name, j))
         e_count = len(kept_effects) + len(effects) - e_begin
         desc = j.get("tooltip", "").replace("\n", " ")
         bld = researcher.get(name, "BLD_TOWN_CENTER")

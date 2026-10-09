@@ -263,6 +263,16 @@ public:
 		return combat_can_target(unit_combat_at(i), building_combat(building_type));
 	}
 	uint16_t unit_template(uint32_t unit_id) const;
+	// 0 A.D. Promotion.js GetRequiredXp for unit index i after the owner's technologies,
+	// or -1 when the unit has no next rank.
+	float promotion_required_xp(size_t i) const;
+	// Training time multiplier of a template trained above Basic (Cost/BuildTime per rank).
+	static float promotion_train_time_mult(uint16_t tmpl);
+	// Rank effects (unit_advanced.json, unit_elite.json) for unit index i.
+	float rank_melee_armor(size_t i) const;
+	float unit_capture_attack_at(size_t i) const;
+	float healer_range_of(size_t h) const;
+	float heal_amount_of(size_t h) const;
 	// 0 A.D. team bonuses (data/auras/teambonuses): the product a player gets on `stat`
 	// from its own civ's bonus and its allies' (same team, still in the match).
 	// See civ_team_bonus_mult() for the arguments.
@@ -1048,6 +1058,8 @@ private:
 		float bld_arrow_mul[BLD_TYPE_COUNT];
 		float bld_arrow_add[BLD_TYPE_COUNT];
 		float bld_garrison_heal[BLD_TYPE_COUNT]; // added hp per second for garrisoned units
+		float bld_capture[BLD_TYPE_COUNT];        // Capturable/CapturePoints multiplier
+		float bld_cost[BLD_TYPE_COUNT][RES_COUNT]; // Cost/Resources multipliers
 		// The same unit multipliers per civ roster template, matched against the
 		// template's own 0 A.D. classes (Champion Infantry Spearman, Javelineer, ...),
 		// which its RTS0 unit_type only approximates.
@@ -1055,6 +1067,7 @@ private:
 			float gather[GK_COUNT];
 			float attack, health, speed, range, train_time;
 			float armor[3];
+			float cost[RES_COUNT];
 		} tmpl[CIV_UNIT_TEMPLATE_COUNT];
 	};
 	void compute_tech_mods(uint8_t player_id, TechMods &out) const;
@@ -1087,7 +1100,9 @@ private:
 	void formation_stop(const uint32_t *unit_ids, size_t count);
 	void cmd_move_individual(const uint32_t *unit_ids, size_t count, float tx, float tz);
 	void tick_promotion(float dt);
-	void promote_if_due(size_t i); // Promotion.js thresholds for unit index i
+	void promote_if_due(size_t i); // Promotion.js IncreaseXp: promote while xp covers RequiredXp
+	void promote_unit(size_t i, uint16_t target_tmpl, uint8_t target_rank); // Promotion.js Promote
+	void apply_rank_bonus(size_t i, uint8_t from_rank, uint8_t to_rank);
 	void tick_capture(float dt);
 	// 0 A.D. UnitAI per-unit order logic, before movement: answers attacks (fight back or
 	// flee), returns fighters to their order, turns patrols, follows the order queue.
@@ -1593,6 +1608,7 @@ private:
 	void drop_orders(size_t i);      // orders UnitAI doesn't model (trade, hunt, board): no order, no queue
 	// Splits a Shift order: busy units get it queued, the rest are returned to run now.
 	// Without Shift every unit's queue is dropped and all of them run it now.
+	float unit_height(size_t i) const; // terrain, or the water surface under a ship
 	bool trade_route_ok(size_t i, uint32_t market_a_id, uint32_t market_b_id) const;
 	std::vector<uint32_t> split_queued(const uint32_t *ids, size_t count, const UnitOrder &o, bool queued);
 	void apply_order(uint32_t uid, const UnitOrder &o);
