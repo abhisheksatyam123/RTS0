@@ -151,7 +151,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 44; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 45; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -787,12 +787,37 @@ public:
 	// 0 A.D. Upgrade.js: turn a finished structure into building_upgrade()'s
 	// target in place, keeping its health fraction, capture share and garrison.
 	enum UpgradeCheck : uint8_t {
-		UPGRADE_OK = 0, UPGRADE_ERR_NONE, UPGRADE_ERR_OWNER, UPGRADE_ERR_BUSY, UPGRADE_ERR_PHASE, UPGRADE_ERR_COST
+		UPGRADE_OK = 0, UPGRADE_ERR_NONE, UPGRADE_ERR_OWNER, UPGRADE_ERR_BUSY, UPGRADE_ERR_PHASE, UPGRADE_ERR_COST,
+		UPGRADE_ERR_LIMIT // units: the target's EntityLimits category is full
 	};
 	UpgradeCheck upgrade_check(uint8_t player_id, uint32_t building_id) const;
 	bool cmd_upgrade_building(uint8_t player_id, uint32_t building_id);
 	// Stops an upgrade in progress and refunds what was paid (Upgrade.js CancelUpgrade).
 	bool cmd_cancel_upgrade(uint8_t player_id, uint32_t building_id);
+	// 0 A.D. Upgrade.js on units (civ_unit_upgrade_table): the Roman elite infantry's
+	// Centurion rank, the Immortals' spear-and-bow switch. The owner pays up front; the
+	// unit keeps fighting while the timer runs, then becomes the `to` roster row in
+	// place (health fraction, xp and orders kept). Death refunds the cost.
+	struct UnitUpgrade {
+		uint32_t unit_id;
+		uint16_t to; // civ_unit_template_table() row
+		uint8_t player; // who paid (refunded on cancel or death)
+		uint8_t pad = 0;
+		float elapsed;
+		float time;
+		float paid[4]; // food, wood, gold, stone
+	};
+	static_assert(sizeof(UnitUpgrade) == 32, "UnitUpgrade is saved raw: keep it padding-free");
+	// The table row that upgrades unit index i to `to`, or nullptr.
+	const CivUnitUpgrade *unit_upgrade_choice(size_t i, uint16_t to) const;
+	UpgradeCheck unit_upgrade_check(uint8_t player_id, uint32_t unit_id, uint16_t to) const;
+	// Starts every listed unit's upgrade to `to` that unit_upgrade_check allows, one
+	// payment each (Commands.js "upgrade"); true if any started.
+	bool cmd_upgrade_units(uint8_t player_id, const uint32_t *unit_ids, size_t n, uint16_t to);
+	// Commands.js "cancel-upgrade": stops the listed units' upgrades and refunds them.
+	bool cmd_cancel_unit_upgrades(uint8_t player_id, const uint32_t *unit_ids, size_t n);
+	// The upgrade a unit is going through, or nullptr.
+	const UnitUpgrade *unit_upgrade_of(uint32_t unit_id) const;
 	// 0 A.D. Gate.js LockGate / UnlockGate: the owner keeps its own units out too.
 	bool cmd_lock_gate(uint8_t player_id, uint32_t building_id, bool lock);
 	// Maximum hit points of a `type` structure owned by `team`: template x civ bonus x techs.
@@ -1548,6 +1573,8 @@ private:
 	void tick_production(float dt);
 	void tick_research(float dt);
 	void tick_upgrades(float dt);
+	void tick_unit_upgrades(float dt);
+	std::vector<UnitUpgrade> unit_upgrades_; // in start order (saved v45)
 	// Unloads land siege below SIEGE_EJECT_HEALTH or dead (GarrisonHolder EjectHealth / OnDestroy).
 	void tick_siege_garrisons();
 	// Structures heal their garrison each second and unload it below EjectHealth (GarrisonHolder.js).

@@ -597,6 +597,37 @@ def phase_of(t):
         phase = max(phase, PHASE_OF_TECH.get(tech, 1))
     return phase
 
+
+RANK_SUFFIX = (("_b", 1), ("_a", 2), ("_e", 3))
+
+
+def unit_upgrades(loader, name, civ):
+    """0 A.D. Upgrade choices of a unit row and of its rank templates (the Roman
+    Centurion upgrade sits on infantry_*_e): [(entity, from rank or 0 for any,
+    {resource: cost}, time, phase)]. Upgrade.js DetermineUpgrades drops missing entities."""
+    out = []
+    base = re.sub(r"_[bae]$", "", name)
+    variants = [(base + suf, rank) for suf, rank in RANK_SUFFIX] if base != name else [(name, 0)]
+    for tname, rank in variants:
+        if not loader.exists(tname):
+            continue
+        up = loader.load(tname).get("Upgrade")
+        if up is None:
+            continue
+        for choice in sorted(up.children):
+            c = up.children[choice]
+            ent = (c.value("Entity") or "").replace("{civ}", civ).replace("{native}", civ)
+            if not loader.exists(ent):
+                continue
+            if "Ignited" in loader.load(ent).tokens("Identity/VisibleClasses"):
+                continue  # fire-ship ignition: fire damage, burning and DeathDamage aren't modelled yet
+            cost = {r: int(c.num("Cost/" + r)) for r in ("food", "wood", "stone", "metal") if c.num("Cost/" + r)}
+            phase = 1
+            for tech in c.tokens("Requirements/Techs"):
+                phase = max(phase, PHASE_OF_TECH.get(tech, 1))
+            out.append((ent, rank, cost, c.num("Time"), phase))
+    return out
+
 # ---------------------------------------------------------------------------
 # Roster walk
 # ---------------------------------------------------------------------------
@@ -966,6 +997,11 @@ def collect(sim_root):
         pending = sorted(trainers)
         while pending:
             src_name = origin = pending.pop()
+            # Upgrade/*/Entity targets (the Immortals' bow) are rows with no trainer too.
+            for ent, _rank, _cost, _time, _phase in unit_upgrades(loader, origin, civ):
+                if ent not in trainers:
+                    trainers[ent] = {"buildings": set(), "kinds": set(), "phase": trainers[origin]["phase"]}
+                    pending.append(ent)
             node, seen = loader.load(src_name), set()
             while node.value("Promotion/Entity") and src_name not in seen:
                 seen.add(src_name)
@@ -1062,6 +1098,7 @@ def collect(sim_root):
                 "civ_bonuses": civ_bonus_ids,
                 "classes": sorted(c),
                 "stats": stats,
+                "upgrades": unit_upgrades(loader, name, civ),
             })
         # RTS0-only classes every civ (or a named civ) keeps.
         for cls in RTS0_ONLY:
@@ -1191,6 +1228,26 @@ def emit_header(rows, auras, civ_json, bonuses, team):
         w("\t\tcase %s: { static const int16_t k[%d] = {%s}; return k; }" % (bld, len(ids), ", ".join(map(str, ids))))
     w("\t\tdefault: return kNone;")
     w("\t}")
+    w("}")
+    w("")
+    w("// 0 A.D. Upgrade on units (Upgrade.js): from row, rank the from unit needs (0 = any),")
+    w("// to row, food/wood/gold(metal)/stone cost, time in seconds, phase the choice requires.")
+    index = {"units/" + r["id"]: i for i, r in enumerate(rows)}
+    ups = []
+    for i, r in enumerate(rows):
+        for ent, rank, cost, secs, phase in r.get("upgrades", []):
+            if ent in index:
+                ups.append((i, rank, index[ent], cost, secs, phase))
+    w("inline constexpr uint16_t CIV_UNIT_UPGRADE_COUNT = %d;" % len(ups))
+    w("inline const CivUnitUpgrade *civ_unit_upgrade_table() {")
+    w("\tstatic const CivUnitUpgrade kUpgrades[CIV_UNIT_UPGRADE_COUNT + 1] = {")
+    for i, rank, to, cost, secs, phase in ups:
+        w("\t\t{%d, %d, %d, %d, %d, %d, %d, %s, %d}, // %s -> %s" % (
+            i, rank, to, cost.get("food", 0), cost.get("wood", 0), cost.get("metal", 0), cost.get("stone", 0),
+            f(secs), phase, rows[i]["id"], rows[to]["id"]))
+    w("\t\t{0xFFFF, 0, 0xFFFF, 0, 0, 0, 0, 0.0f, 0},")
+    w("\t};")
+    w("\treturn kUpgrades;")
     w("}")
     w("")
     w("inline const CivUnitTemplate *civ_unit_template_table() {")
@@ -1325,7 +1382,7 @@ def emit_json(rows, auras, civ_json, bonuses):
         "generator": "tools/extract_0ad_rosters.py",
         "license": "0 A.D. data, CC BY-SA 3.0, Wildfire Games",
         "civs": civs,
-        "units": rows,
+        "units": [{k: v for k, v in r.items() if k != "upgrades"} for r in rows],
         "auras": [{k: v for k, v in a.items() if k != "affects_rows"} for a in auras],
     }
     return json.dumps(doc, indent=1, ensure_ascii=False, sort_keys=False) + "\n"

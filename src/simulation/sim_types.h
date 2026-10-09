@@ -1371,6 +1371,20 @@ struct CivUnitTemplate {
 	float vision; // 0 A.D. Vision/Range x0.28 (RTS0 units)
 };
 
+// 0 A.D. Upgrade on a unit (Upgrade.js): a paid, timed change to another roster row
+// (Roman elite infantry to Centurion, the Immortals' spear-and-bow switch).
+struct CivUnitUpgrade {
+	uint16_t from; // civ_unit_template_table() row, 0xFFFF ends the table
+	uint8_t from_rank; // rank the unit needs (1 basic, 2 advanced, 3 elite), 0 = any
+	uint16_t to;
+	int16_t food_cost;
+	int16_t wood_cost;
+	int16_t gold_cost; // 0 A.D. metal
+	int16_t stone_cost;
+	float time; // seconds
+	uint8_t phase; // phase the choice's Requirements name, 1 = none
+};
+
 #include "civ_roster_data.h"
 #include "aura_modifier_data.h"
 
