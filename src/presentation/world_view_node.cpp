@@ -1825,7 +1825,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		String utype_str = rtso::civ_unit_model(uciv, utype);
 		String cat_units3 = "units";
 		auto entry = rtso::ModelLibrary::get(cat_units3, utype_str);
-		float y = sim->get_terrain_height(x, z) + entry.y_offset;
+		float y = sim->get_terrain_height(x, z) + sim->unit_height_offset(i) + entry.y_offset; // turret points stand on walls
 		float sc = entry.scale > 0.05f ? entry.scale : 1.0f;
 		Transform3D xf(Basis(Vector3(0, 1, 0), yaw).scaled(Vector3(sc, sc, sc)), Vector3(x, y, z));
 		const bool dying = !uview.alive[i] || uaction == rtso::ACTION_DYING;
