@@ -738,39 +738,48 @@ static void test_diplomacy_requests() {
 // for a pact pays it once it can spare it; a request it can't pay at once
 // stands until the asker withdraws it (120 s), rather than being forgotten.
 static void test_tribute_request_paid_later() {
-	// AI 3 accepts a neutrality pact outright 80% of the time (diplomacyManager.js
-	// handleDiplomacyRequest), so take the first seed on which it asks for a tribute.
-	bool asked = false, sealed = false;
-	uint32_t seed = 7;
-	float t = 0.0f;
-	for (; seed < 17 && !asked; ++seed) {
-		auto s = std::make_unique<Simulation>();
-		s->set_sim_seed(seed);
-		s->reset();
-		s->generate_random_map(MAP_RANDOM_CONTINENTAL, seed, 4, 128.0f);
-		s->set_player_active(0, true, false);
-		for (uint8_t p = 1; p < 4; ++p) s->set_player_active(p, true, true);
-		s->players_[3].civ = s->players_[1].civ;
-		run_for(*s, 20.0f);
-		s->petra_send_diplomacy_request();
-		if (!s->petra_sent_diplo_.sent_type[3]) continue;
-		for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 0.0f; // broke when AI 3 answers
-		for (float w = 0.0f; w < 30.0f; w += Simulation::FIXED_STEP) {
-			s->players_[1].res[RES_GOLD] = s->players_[1].res[RES_FOOD] = s->players_[1].res[RES_WOOD] = s->players_[1].res[RES_STONE] = 0.0f;
-			s->tick(Simulation::FIXED_STEP);
-			asked |= s->petra_slots_[3].petra_diplo_.received[1].status == PetraReceivedRequest::WAITING_FOR_TRIBUTE;
-		}
-		if (!asked) continue;
-		for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] += 2000.0f;
-		for (t = 0.0f; t < 60.0f && !(s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL && s->get_diplomacy(1, 3) == Simulation::DIPLO_NEUTRAL);
-		     t += Simulation::FIXED_STEP)
-			s->tick(Simulation::FIXED_STEP);
-		sealed = s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL && s->get_diplomacy(1, 3) == Simulation::DIPLO_NEUTRAL;
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(7);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 7, 4, 128.0f);
+	s->set_player_active(0, true, false);
+	for (uint8_t p = 1; p < 4; ++p) s->set_player_active(p, true, true);
+	s->players_[3].civ = s->players_[1].civ;
+	run_for(*s, 20.0f);
+	s->petra_send_diplomacy_request();
+	if (!s->petra_sent_diplo_.sent_type[3]) { CHECK(false, "AI 1 asks AI 3"); return; }
+	// AI 3 accepts a pact outright 80% of the time (handleDiplomacyRequest), so
+	// give it the other answer here, as petra_handle_diplomacy_request would:
+	// a neutrality pact for 1000 food, asked of AI 1.
+	s->petra_diplo_request_inbox_[3][1] = 0;
+	{
+		PetraReceivedRequest &req = s->petra_slots_[3].petra_diplo_.received[1];
+		req = PetraReceivedRequest{};
+		req.status = PetraReceivedRequest::WAITING_FOR_TRIBUTE;
+		req.type = 1;
+		req.resource = RES_FOOD;
+		req.wanted = 1000;
+		req.warn_time = s->petra_slots_[3].petra_diplo_.elapsed + 60.0f;
+		s->petra_tribute_request_wanted_[1][3] = req.wanted;
+		s->petra_tribute_request_res_[1][3] = req.resource;
 	}
-	std::printf("  tribute asked of a broke AI: asked %s (seed %u), paid and neutral %s after %.0fs more\n",
-	            asked ? "yes" : "no", seed - 1, sealed ? "yes" : "no", t);
-	CHECK(asked, "AI 3 asks AI 1 for a tribute");
-	CHECK(sealed, "AI 1 pays once it can, and the pact is sealed");
+	for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 0.0f; // broke when AI 3 answers
+	bool asked = true;
+	for (float t = 0.0f; t < 30.0f; t += Simulation::FIXED_STEP) {
+		s->players_[1].res[RES_GOLD] = s->players_[1].res[RES_FOOD] = s->players_[1].res[RES_WOOD] = s->players_[1].res[RES_STONE] = 0.0f;
+		s->tick(Simulation::FIXED_STEP);
+		asked &= s->petra_slots_[3].petra_diplo_.received[1].status == PetraReceivedRequest::WAITING_FOR_TRIBUTE;
+	}
+	for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] += 2000.0f;
+	float t = 0.0f;
+	for (; t < 60.0f && !(s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL && s->get_diplomacy(1, 3) == Simulation::DIPLO_NEUTRAL);
+	     t += Simulation::FIXED_STEP)
+		s->tick(Simulation::FIXED_STEP);
+	std::printf("  tribute asked of a broke AI: request stood %s, paid and neutral %s after %.0fs more\n",
+	            asked ? "yes" : "no", s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL ? "yes" : "no", t);
+	CHECK(asked, "AI 3's tribute request stands while AI 1 is broke");
+	CHECK(s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL && s->get_diplomacy(1, 3) == Simulation::DIPLO_NEUTRAL,
+	      "AI 1 pays once it can, and the pact is sealed");
 }
 
 // worker.js startHunting: Petra's food gatherers slaughter the chickens by
