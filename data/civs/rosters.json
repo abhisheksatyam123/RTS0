@@ -1270,7 +1270,8 @@
    "flags": [
     "ROSTER_RANGED",
     "ROSTER_CITIZEN",
-    "ROSTER_MERCENARY"
+    "ROSTER_MERCENARY",
+    "ROSTER_NO_GATHER"
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
@@ -1327,7 +1328,8 @@
    "flags": [
     "ROSTER_RANGED",
     "ROSTER_CITIZEN",
-    "ROSTER_MERCENARY"
+    "ROSTER_MERCENARY",
+    "ROSTER_NO_GATHER"
    ],
    "unlock_tech": "TECH_IPHICRATEAN_REFORMS",
    "auras": [],
@@ -1387,7 +1389,8 @@
    "flags": [
     "ROSTER_RANGED",
     "ROSTER_CITIZEN",
-    "ROSTER_MERCENARY"
+    "ROSTER_MERCENARY",
+    "ROSTER_NO_GATHER"
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
@@ -2673,7 +2676,8 @@
     "barracks"
    ],
    "flags": [
-    "ROSTER_CITIZEN"
+    "ROSTER_CITIZEN",
+    "ROSTER_NO_GATHER"
    ],
    "unlock_tech": "TECH_UNLOCK_NEODAMODES",
    "auras": [],
@@ -6297,7 +6301,8 @@
    ],
    "flags": [
     "ROSTER_CITIZEN",
-    "ROSTER_MERCENARY"
+    "ROSTER_MERCENARY",
+    "ROSTER_NO_GATHER"
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
@@ -6353,7 +6358,8 @@
    ],
    "flags": [
     "ROSTER_CITIZEN",
-    "ROSTER_MERCENARY"
+    "ROSTER_MERCENARY",
+    "ROSTER_NO_GATHER"
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
@@ -6409,7 +6415,8 @@
    ],
    "flags": [
     "ROSTER_CITIZEN",
-    "ROSTER_MERCENARY"
+    "ROSTER_MERCENARY",
+    "ROSTER_NO_GATHER"
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
@@ -6841,7 +6848,8 @@
    "flags": [
     "ROSTER_RANGED",
     "ROSTER_CITIZEN",
-    "ROSTER_MERCENARY"
+    "ROSTER_MERCENARY",
+    "ROSTER_NO_GATHER"
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
@@ -6899,7 +6907,8 @@
    "flags": [
     "ROSTER_RANGED",
     "ROSTER_CITIZEN",
-    "ROSTER_MERCENARY"
+    "ROSTER_MERCENARY",
+    "ROSTER_NO_GATHER"
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
@@ -7014,7 +7023,8 @@
    ],
    "flags": [
     "ROSTER_CITIZEN",
-    "ROSTER_MERCENARY"
+    "ROSTER_MERCENARY",
+    "ROSTER_NO_GATHER"
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
@@ -7071,7 +7081,8 @@
    ],
    "flags": [
     "ROSTER_CITIZEN",
-    "ROSTER_MERCENARY"
+    "ROSTER_MERCENARY",
+    "ROSTER_NO_GATHER"
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
@@ -7792,7 +7803,8 @@
    "flags": [
     "ROSTER_RANGED",
     "ROSTER_CITIZEN",
-    "ROSTER_MERCENARY"
+    "ROSTER_MERCENARY",
+    "ROSTER_NO_GATHER"
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
@@ -8282,7 +8294,8 @@
    "flags": [
     "ROSTER_RANGED",
     "ROSTER_CITIZEN",
-    "ROSTER_MERCENARY"
+    "ROSTER_MERCENARY",
+    "ROSTER_NO_GATHER"
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
@@ -8460,7 +8473,8 @@
    "flags": [
     "ROSTER_RANGED",
     "ROSTER_CITIZEN",
-    "ROSTER_MERCENARY"
+    "ROSTER_MERCENARY",
+    "ROSTER_NO_GATHER"
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
@@ -12971,7 +12985,8 @@
    ],
    "flags": [
     "ROSTER_RANGED",
-    "ROSTER_CITIZEN"
+    "ROSTER_CITIZEN",
+    "ROSTER_NO_GATHER"
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
@@ -13938,7 +13953,8 @@
    "flags": [
     "ROSTER_RANGED",
     "ROSTER_CITIZEN",
-    "ROSTER_MERCENARY"
+    "ROSTER_MERCENARY",
+    "ROSTER_NO_GATHER"
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
@@ -14535,7 +14551,8 @@
    "flags": [
     "ROSTER_RANGED",
     "ROSTER_CITIZEN",
-    "ROSTER_MERCENARY"
+    "ROSTER_MERCENARY",
+    "ROSTER_NO_GATHER"
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
@@ -14591,7 +14608,8 @@
    ],
    "flags": [
     "ROSTER_CITIZEN",
-    "ROSTER_MERCENARY"
+    "ROSTER_MERCENARY",
+    "ROSTER_NO_GATHER"
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
@@ -15437,7 +15455,8 @@
    "flags": [
     "ROSTER_RANGED",
     "ROSTER_CITIZEN",
-    "ROSTER_MERCENARY"
+    "ROSTER_MERCENARY",
+    "ROSTER_NO_GATHER"
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
@@ -15494,7 +15513,8 @@
    ],
    "flags": [
     "ROSTER_CITIZEN",
-    "ROSTER_MERCENARY"
+    "ROSTER_MERCENARY",
+    "ROSTER_NO_GATHER"
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
@@ -15873,7 +15893,8 @@
    "flags": [
     "ROSTER_RANGED",
     "ROSTER_CITIZEN",
-    "ROSTER_MERCENARY"
+    "ROSTER_MERCENARY",
+    "ROSTER_NO_GATHER"
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
@@ -15933,7 +15954,8 @@
    "flags": [
     "ROSTER_RANGED",
     "ROSTER_CITIZEN",
-    "ROSTER_MERCENARY"
+    "ROSTER_MERCENARY",
+    "ROSTER_NO_GATHER"
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
@@ -16109,7 +16131,8 @@
    ],
    "flags": [
     "ROSTER_CITIZEN",
-    "ROSTER_MERCENARY"
+    "ROSTER_MERCENARY",
+    "ROSTER_NO_GATHER"
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
@@ -16167,7 +16190,8 @@
    ],
    "flags": [
     "ROSTER_CITIZEN",
-    "ROSTER_MERCENARY"
+    "ROSTER_MERCENARY",
+    "ROSTER_NO_GATHER"
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
@@ -17043,7 +17067,8 @@
    ],
    "flags": [
     "ROSTER_CITIZEN",
-    "ROSTER_MERCENARY"
+    "ROSTER_MERCENARY",
+    "ROSTER_NO_GATHER"
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
@@ -17523,7 +17548,8 @@
    "flags": [
     "ROSTER_RANGED",
     "ROSTER_CITIZEN",
-    "ROSTER_MERCENARY"
+    "ROSTER_MERCENARY",
+    "ROSTER_NO_GATHER"
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
@@ -17755,7 +17781,8 @@
    ],
    "flags": [
     "ROSTER_CITIZEN",
-    "ROSTER_MERCENARY"
+    "ROSTER_MERCENARY",
+    "ROSTER_NO_GATHER"
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
