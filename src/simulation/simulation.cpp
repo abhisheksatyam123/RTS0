@@ -6297,9 +6297,26 @@ void Simulation::tick_statistics() {
 	}
 }
 
-// fire_arrow's horizontal speed by projectile look (arrow, warship bolt, stone).
+// fire_arrow's horizontal speed by projectile look (arrow, warship bolt, stone), for
+// shooters without a 0 A.D. Projectile.
 float Simulation::projectile_speed(uint8_t visual) {
 	return visual == 1 ? 56.0f : (visual == 2 ? 22.0f : 26.0f);
+}
+
+// The shooter's Attack/Ranged/Projectile (Speed in m/s, Gravity in m/s^2), or null.
+const CombatProfile *Simulation::projectile_profile(uint32_t source_id) const {
+	const CombatProfile *p = nullptr;
+	if (const int32_t u = lookup_unit(source_id); u >= 0) p = &unit_combat_at((size_t)u);
+	else if (auto bit = building_id_to_idx_.find(source_id); bit != building_id_to_idx_.end())
+		p = &building_combat(buildings_[bit->second].type);
+	return p && p->proj_speed > 0.0f ? p : nullptr;
+}
+
+// Horizontal speed in RTS0 units per second: the template's Projectile Speed at the
+// distance scale, so a shot takes as long to land as in 0 A.D.
+float Simulation::projectile_speed_of(uint32_t source_id, uint8_t visual) const {
+	const CombatProfile *p = projectile_profile(source_id);
+	return p ? p->proj_speed * COMBAT_DISTANCE_SCALE : projectile_speed(visual);
 }
 
 // 0 A.D. globalscripts randomNormal2D: two independent standard normals (Box-Muller)
@@ -6320,8 +6337,16 @@ void Simulation::fire_arrow(float sx, float sy, float sz, float tx, float ty, fl
 	p.target_x = tx; p.target_y = ty; p.target_z = tz;
 	p.current_x = sx; p.current_y = sy; p.current_z = sz;
 	p.progress = 0.0f;
-	p.speed = projectile_speed(visual); // warship: template_unit_ship_warship Ranged/Projectile Speed=80 Gravity=50
+	p.speed = projectile_speed(visual);
 	p.arc_height = visual == 1 ? 3.8f : (visual == 2 ? 5.5f : 2.4f);
+	if (const CombatProfile *pp = projectile_profile(source_id)) {
+		// CCmpProjectileManager: launched so Gravity brings it down at the target after
+		// distance / Speed seconds, which puts the apex Gravity * t^2 / 8 above the line.
+		p.speed = pp->proj_speed * COMBAT_DISTANCE_SCALE;
+		const float hx = tx - sx, hz = tz - sz;
+		const float t = std::sqrt(hx * hx + hz * hz) / p.speed;
+		p.arc_height = pp->proj_gravity * t * t / 8.0f * COMBAT_DISTANCE_SCALE;
+	}
 	p.visual = visual;
 	p.damage = damage;
 	p.damage_type = dmg_type;
@@ -8120,7 +8145,7 @@ void Simulation::tick_combat(float dt) {
 	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		// tick_gather uses attack_timer as the harvest clock; counting it down
 		// here as well cancelled every harvest tick, so nobody ever gathered.
-		if (units_.attack_timer[i] > 0 && units_.action_state[i] != ACTION_GATHER) units_.attack_timer[i] -= dt;
+		tick_attack_timer(i, dt);
 		target_idx[i] = -1;
 		if (!units_.alive[i]) return;
 		if (units_.attack_damage[i] <= 0.0f) return;
@@ -8149,6 +8174,7 @@ void Simulation::tick_combat(float dt) {
 		if (st == ACTION_MOVE && (units_.order_kind[i] == ORDER_WALK || units_.order_kind[i] == ORDER_GARRISON))
 			return;
 		const bool guarding = st == ACTION_GUARD; // target_unit_id is the guarded unit
+		const uint32_t prev_unit = units_.target_unit_id[i], prev_bld = units_.target_building_id[i];
 		const bool walk_and_fight = st == ACTION_ATTACK_MOVE || st == ACTION_PATROL;
 
 		const float pxi = units_.pos_x[i];
@@ -8186,7 +8212,8 @@ void Simulation::tick_combat(float dt) {
 			// Capturing a relic (tick_relics drives it).
 			if (is_relic_unit(tidx) && units_.order_kind[i] == ORDER_CAPTURE_RELIC) return;
 			if (tidx >= 0 && units_.alive[tidx] && can_attack(units_.team[i], units_.team[tidx]) &&
-					unit_can_target(i, (size_t)tidx) && (explicit_target || within_stance(tidx))) {
+					unit_can_target(i, (size_t)tidx) &&
+					(explicit_target || within_stance(tidx) || attack_under_way(i))) { // Attack.js hits before its range check
 				const float tx = units_.pos_x[tidx] - pxi, tz = units_.pos_z[tidx] - pzi;
 				// A target it picked itself that came too close is dropped; a player's
 				// target stays and move_units backs away from it.
@@ -8321,13 +8348,16 @@ void Simulation::tick_combat(float dt) {
 		} else if (!guarding && st == ACTION_ATTACK) {
 			units_.target_unit_id[i] = 0; // fight over: tick_unit_ai sends the unit back to its order
 		}
+		// A new target is a new attack (Attack.js StopAttacking, then StartAttacking).
+		if (attack_under_way(i) && (units_.target_unit_id[i] != prev_unit || units_.target_building_id[i] != prev_bld))
+			stop_attack(i);
 		target_idx[i] = found;
 	});
 
 	// 2. Unit vs Unit Attack Execution
 	for (size_t i = 0; i < n; ++i) {
 		int32_t t = target_idx[i];
-		if (t < 0 || !units_.alive[i] || units_.attack_timer[i] > 0) continue;
+		if (t < 0 || !units_.alive[i]) continue;
 		if (units_.attack_damage[i] <= 0.0f) continue;
 		if (!pack_state_can_attack(units_.pack_state[i])) continue; // Pack.js: unpack before firing
 		// Siege tower BuildingAI: DefaultArrowCount 0, one arrow per garrisoned Infantry.
@@ -8341,53 +8371,19 @@ void Simulation::tick_combat(float dt) {
 		float def_y = unit_height(t);
 
 		// 0 A.D. Exact Parabolic Range Equation (CCmpRangeManager.cpp)
-		if (!in_parabolic_range(d2, att_y, def_y, units_.attack_range[i])) continue;
 		const float minr = units_.attack_range[i] * unit_min_range_ratio(units_.unit_type[i]);
-		if (d2 < minr * minr) continue; // Attack.js MinRange
+		const bool in_range = in_parabolic_range(d2, att_y, def_y, units_.attack_range[i]) && d2 >= minr * minr; // Attack.js MinRange
+		if (!attack_ready(i, in_range, unit_combat_at(i).prepare)) continue;
 
-		units_.attack_timer[i] = units_.attack_cooldown[i];
+		attack_done(i, in_range, units_.attack_cooldown[i]);
 		units_.action_state[i] = ACTION_ATTACK;
 		units_.attacked_by[t] = units_.id[i]; // UnitAI "Attacked", answered by tick_unit_ai
 
-		// 0 A.D. Exact Exponential Armor Formula (Attack.js + Resistance.js):
-		// Damage = sum( Dmg[Type] * 0.9^Armor[Type] )
-		const auto &uinfo_att = unit_info_at(i);
-		float target_armor[3];
-		unit_resistance((size_t)t, target_armor);
-		const float target_hack = target_armor[0], target_pierce = target_armor[1], target_crush = target_armor[2];
-
-		float dmg_scale = (uinfo_att.attack_damage > 0.0f) ? (units_.attack_damage[i] / uinfo_att.attack_damage) : 1.0f;
-		float hack_dmg = uinfo_att.hack_damage * dmg_scale;
-		float pierce_dmg = uinfo_att.pierce_damage * dmg_scale;
-		float crush_dmg = uinfo_att.crush_damage * dmg_scale;
-
+		// Attack.js PerformAttack -> Attacking.HandleAttackEffects against this target.
+		const float final_dmg = unit_attack_damage(i, (size_t)t);
 		uint8_t att_team = units_.team[i];
 		Civilization att_civ = civ_of(att_team);
-
-		// 0 A.D. helpers/Attack.js GetAttackBonus: the attacker's template Bonuses
-		// (spearmen x3 against cavalry and the like).
 		uint8_t u_att = units_.unit_type[i];
-		const float bonus_mul = combat_bonus(unit_combat_at(i), unit_combat_at(t), civ_of(units_.team[t]));
-		hack_dmg *= bonus_mul;
-		pierce_dmg *= bonus_mul;
-		crush_dmg *= bonus_mul;
-
-		// Attack auras (hero bonuses, enemy carnyx and hero penalties); 0 = none in range
-		float dmgMult = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], att_team, AURA_ATTACK,
-			units_.tmpl[i], &unit_combat_at(i).classes);
-		if (dmgMult > 0.0f) {
-			hack_dmg *= dmgMult;
-			pierce_dmg *= dmgMult;
-			crush_dmg *= dmgMult;
-		}
-
-		// 0 A.D. Exact Logarithmic Armor Reduction (helpers/Attack.js:122 + Resistance.js:84):
-		// Damage = sum( Dmg[Type] * pow(0.9f, Armor[Type]) ) with hack, pierce, crush
-		float final_dmg = std::max(1.0f,
-			hack_dmg * powf(0.9f, target_hack) +
-			pierce_dmg * powf(0.9f, target_pierce) +
-			crush_dmg * powf(0.9f, target_crush)
-		);
 
 		// Height gives range only (in_parabolic_range above): 0 A.D. has no damage bonus for it.
 
@@ -8406,7 +8402,7 @@ void Simulation::tick_combat(float dt) {
 			// (x0.8 advanced, x0.8 again elite). Whether it hits is decided where it
 			// lands (tick_projectiles, DelayedDamage.js).
 			float dist = sqrtf(d2);
-			const float flight = dist / projectile_speed(proj_vis);
+			const float flight = dist / projectile_speed_of(units_.id[i], proj_vis);
 			const float aim_x = units_.pos_x[t] + units_.vel_x[t] * flight;
 			const float aim_z = units_.pos_z[t] + units_.vel_z[t] * flight;
 			const float tech_spread = units_.team[i] < MAX_PLAYERS ? unit_tech_mods(units_.team[i], units_.unit_type[i], units_.tmpl[i]).spread : 1.0f;
@@ -8468,7 +8464,7 @@ void Simulation::tick_combat(float dt) {
 	// RepeatTime 1 s) on a structure it can capture; tick_capture spends the points.
 	capture_attack_.assign(buildings_.size(), std::array<float, MAX_PLAYERS>{});
 	for (size_t i = 0; i < n; ++i) {
-		if (!units_.alive[i] || units_.target_building_id[i] == 0 || units_.attack_timer[i] > 0) continue;
+		if (!units_.alive[i] || units_.target_building_id[i] == 0) continue;
 		// Builders and repairers also carry target_building_id; leave them to tick_construction.
 		if (units_.action_state[i] == ACTION_BUILD) continue;
 		const float capture_strength = (units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE) ?
@@ -8506,9 +8502,9 @@ void Simulation::tick_combat(float dt) {
 					&units_.target_x[i], &units_.target_z[i]);
 			units_.has_order[i] = 1;
 			units_.action_state[i] = ACTION_ATTACK;
-			continue;
 		}
 		if (capture) {
+			if (!in_range || (units_.attack_timer[i] > 0.0f && units_.attack_timer[i] != ATTACK_DUE)) continue;
 			units_.attack_timer[i] = CAPTURE_REPEAT_S;
 			units_.action_state[i] = ACTION_ATTACK;
 			capture_attack_[bit->second][units_.team[i]] += capture_strength;
@@ -8516,8 +8512,9 @@ void Simulation::tick_combat(float dt) {
 			continue;
 		}
 		if (!pack_state_can_attack(units_.pack_state[i])) continue; // Pack.js: unpack before firing
+		if (!attack_ready(i, in_range, unit_combat_at(i).prepare)) continue;
 
-		units_.attack_timer[i] = units_.attack_cooldown[i];
+		attack_done(i, in_range, units_.attack_cooldown[i]);
 		units_.action_state[i] = ACTION_ATTACK;
 
 		const auto &uinfo_att = unit_info_at(i);
@@ -9167,6 +9164,13 @@ void Simulation::tick_projectiles(float dt) {
 
 			if (p.target_unit_id != 0) {
 				int32_t tidx = projectile_hit_unit(p);
+				if (tidx >= 0 && units_.alive[tidx] && units_.id[tidx] != p.target_unit_id) {
+					// DelayedDamage.js Hit: the attack's effects apply to whoever it hit, so a
+					// stray deals what the shooter's attack does to that unit. A shooter
+					// that died in flight keeps the damage it fired with.
+					const int32_t src = lookup_unit(p.source_id);
+					if (src >= 0) p.damage = unit_attack_damage((size_t)src, (size_t)tidx);
+				}
 				if (tidx >= 0 && units_.alive[tidx]) {
 					award_damage_xp(p.source_id, (size_t)tidx, p.damage);
 					note_attacked(p.source_id, p.team, units_.id[tidx], units_.team[tidx], false, p.damage);
@@ -9263,6 +9267,76 @@ float Simulation::status_dps(uint8_t kind) {
 			if (combat_template_table()[r].status == kind) { dps[kind] = combat_template_table()[r].status_dps; break; }
 	}
 	return dps[kind];
+}
+
+// The damage unit i's attack deals to unit t (0 A.D. Attacking.HandleAttackEffects):
+// its Hack, Pierce and Crush (scaled by techs) times its template Bonuses against t
+// (helpers/Attack.js GetAttackBonus) and its attack auras, each reduced by t's
+// Resistance as 0.9^armour, at least 1.
+float Simulation::unit_attack_damage(size_t i, size_t t) {
+	const auto &uinfo_att = unit_info_at(i);
+	float target_armor[3];
+	unit_resistance(t, target_armor);
+	const float dmg_scale = (uinfo_att.attack_damage > 0.0f) ? (units_.attack_damage[i] / uinfo_att.attack_damage) : 1.0f;
+	float mul = combat_bonus(unit_combat_at(i), unit_combat_at(t), civ_of(units_.team[t]));
+	// Attack auras (hero bonuses, enemy carnyx and hero penalties); 0 = none in range
+	const float aura = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_ATTACK,
+		units_.tmpl[i], &unit_combat_at(i).classes);
+	if (aura > 0.0f) mul *= aura;
+	return std::max(1.0f,
+		uinfo_att.hack_damage * dmg_scale * mul * powf(0.9f, target_armor[0]) +
+		uinfo_att.pierce_damage * dmg_scale * mul * powf(0.9f, target_armor[1]) +
+		uinfo_att.crush_damage * dmg_scale * mul * powf(0.9f, target_armor[2]));
+}
+
+// A unit's attack timer runs as 0 A.D. Attack.js's interval timer:
+//  < 0          an attack is under way: -timer is left of PrepareTime or RepeatTime;
+//  ATTACK_DUE   it ran out this tick: the hit lands wherever the target now is;
+//  >= 0         not attacking; timer is what is left of RepeatTime since the last hit.
+// attack_timer is also the harvest, heal, cheer and flight clock (always >= 0) in those
+// states, so only an attack under way, which no other clock sets, can fall due.
+void Simulation::tick_attack_timer(size_t i, float dt) {
+	float &tm = units_.attack_timer[i];
+	if (tm == ATTACK_DUE) tm = 0.0f; // nothing took last tick's hit: Attack.js StopAttacking
+	const uint8_t st = units_.action_state[i];
+	if (st == ACTION_GATHER) return; // tick_gather counts its harvests on it
+	if (tm < 0.0f) {
+		const bool fighting = st == ACTION_IDLE || st == ACTION_MOVE || st == ACTION_ATTACK ||
+				st == ACTION_ATTACK_MOVE || st == ACTION_PATROL || st == ACTION_GUARD;
+		if (!fighting) tm = -tm; // the attack stopped (stop_attack); the rest of it still applies
+		else if ((tm += dt) >= 0.0f) tm = ATTACK_DUE;
+	} else if (tm > 0.0f) {
+		tm = std::max(0.0f, tm - dt);
+		if (tm == ATTACK_DUE) tm = 0.0f;
+	}
+}
+
+// Whether unit i strikes now. Attack.js StartAttacking: an attacker within reach
+// starts its timer at max(PrepareTime, RepeatTime left), so it never strikes on arrival.
+bool Simulation::attack_ready(size_t i, bool in_range, float prepare) {
+	float &tm = units_.attack_timer[i];
+	if (tm == ATTACK_DUE) return true;
+	if (tm < 0.0f || !in_range) return false;
+	tm = -std::max(std::max(prepare, tm), 2.0f * ATTACK_DUE);
+	return false;
+}
+
+// Attack.js StopAttacking: the swing under way is dropped; the next attack still
+// waits out what is left of it.
+void Simulation::stop_attack(size_t i) {
+	float &tm = units_.attack_timer[i];
+	tm = tm == ATTACK_DUE ? 0.0f : std::max(0.0f, -tm);
+}
+
+bool Simulation::attack_under_way(size_t i) const {
+	const float tm = units_.attack_timer[i];
+	return tm < 0.0f || tm == ATTACK_DUE;
+}
+
+// After a hit, Attack.js checks the range: in reach the next comes after RepeatTime,
+// out of reach the unit stops attacking (and must wait the rest of RepeatTime anyway).
+void Simulation::attack_done(size_t i, bool in_range, float repeat) {
+	units_.attack_timer[i] = in_range ? -repeat : repeat;
 }
 
 void Simulation::tick_status_effects(float dt) {
@@ -19906,7 +19980,7 @@ void Simulation::tick_hunters() {
 		units_.target_x[i] = fx;
 		units_.target_z[i] = fz;
 		units_.has_order[i] = 1;
-		if (units_.attack_timer[i] > 0.0f || !pack_state_can_attack(units_.pack_state[i])) continue;
+		if (!pack_state_can_attack(units_.pack_state[i])) continue;
 		const auto &finfo = fauna_type_info(fauna_.fauna_type[f]);
 		const uint8_t ut = units_.unit_type[i];
 		// Attack/Slaughter (infantry, cavalry, women): 1000 hack at 2 m, every second, Domestic animals only.
@@ -19916,15 +19990,16 @@ void Simulation::tick_hunters() {
 		// Slaughter's MaxRange is 2 m even for archers, who walk up to the animal.
 		float reach = (slaughter ? SLAUGHTER_RANGE : units_.attack_range[i]) + 1.0f;
 		if (fauna_.behavior[f] == FAUNA_CORRALLED) reach += 3.0f;
-		if (dx * dx + dz * dz > reach * reach) continue;
+		const bool in_reach = dx * dx + dz * dz <= reach * reach;
+		if (!attack_ready(i, in_reach, slaughter ? 0.0f : unit_combat_at(i).prepare)) continue;
 
 		const auto &uinfo = unit_info_at(i);
 		float dmg;
 		if (slaughter) {
-			units_.attack_timer[i] = 1.0f;
+			attack_done(i, in_reach, 1.0f);
 			dmg = 1000.0f * powf(0.9f, finfo.hack_armor);
 		} else {
-			units_.attack_timer[i] = units_.attack_cooldown[i];
+			attack_done(i, in_reach, units_.attack_cooldown[i]);
 			const float scale = uinfo.attack_damage > 0.0f ? units_.attack_damage[i] / uinfo.attack_damage : 1.0f;
 			dmg = uinfo.hack_damage * scale * powf(0.9f, finfo.hack_armor) +
 			      uinfo.pierce_damage * scale * powf(0.9f, finfo.pierce_armor) +
