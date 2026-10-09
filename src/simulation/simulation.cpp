@@ -14872,24 +14872,40 @@ void Simulation::petra_manage_defense(float dt) {
 			}
 	}
 
+	// defenseArmy.js assignUnit: a defender with no foe to fight takes the foe attacking
+	// it, else the nearest foe with at most 2 already against it, else the nearest with
+	// at most 5 (8 for a hero or siege engine).
+	std::unordered_map<uint32_t, int> against;
+	for (uint32_t uid : army.defender_ids) {
+		const int32_t idx = lookup_unit(uid);
+		if (idx >= 0 && units_.action_state[idx] == ACTION_ATTACK && is_foe(units_.target_unit_id[idx]))
+			++against[units_.target_unit_id[idx]];
+	}
 	for (uint32_t uid : army.defender_ids) {
 		int32_t idx = lookup_unit(uid);
 		if (idx < 0) continue;
+		if (units_.action_state[idx] == ACTION_ATTACK && is_foe(units_.target_unit_id[idx])) continue;
 
-		uint32_t best_foe = 0;
-		float best_d2 = 1e9f;
+		uint32_t best_foe = 0, best_any = 0;
+		float best_d2 = 1e18f, best_any_d2 = 1e18f;
 		for (uint32_t fid : army.foe_ids) {
 			int32_t fi = lookup_unit(fid);
 			if (fi < 0 || !units_.alive[fi]) continue;
+			if (units_.target_unit_id[fi] == uid) { best_foe = fid; break; } // being attacked: fight back
+			const int n = against.count(fid) ? against[fid] : 0;
+			const bool big = units_.unit_type[fi] == UNIT_HERO || unit_is_siege_engine(units_.unit_type[fi]);
+			if (n > 8 || (n > 5 && !big)) continue;
 			float dx = units_.pos_x[idx] - units_.pos_x[fi];
 			float dz = units_.pos_z[idx] - units_.pos_z[fi];
 			float d2 = dx * dx + dz * dz;
-			if (d2 < best_d2) { best_d2 = d2; best_foe = fid; }
+			if (d2 < best_any_d2) { best_any_d2 = d2; best_any = fid; }
+			if (n <= 2 && d2 < best_d2) { best_d2 = d2; best_foe = fid; }
 		}
-		const bool on_foe = units_.action_state[idx] == ACTION_ATTACK && is_foe(units_.target_unit_id[idx]);
-		if (best_foe != 0 && !on_foe) {
+		if (!best_foe) best_foe = best_any;
+		if (best_foe != 0) {
+			++against[best_foe];
 			order_attack(&uid, 1, best_foe);
-		} else if (best_foe == 0 && home && units_.action_state[idx] == ACTION_ATTACK) {
+		} else if (home && units_.action_state[idx] == ACTION_ATTACK) {
 			order_walk(&uid, 1, home->x, home->z, false);
 		}
 	}
