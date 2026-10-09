@@ -2529,6 +2529,7 @@ void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint
 	float rz = resources_.z[ridx];
 	const uint8_t sub_bits = (uint8_t)((resources_.subtype[ridx] << ORDER_FLAG_SUB_SHIFT) & ORDER_FLAG_SUB_MASK);
 	UnitOrder o; o.kind = ORDER_GATHER; o.flags = sub_bits; o.target = resource_id; o.x = rx; o.z = rz;
+	o.res_type = (uint8_t)(resources_.type[ridx] + 1);
 	const std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
 	const uint32_t *unit_ids = now.data();
 	const size_t count = now.size();
@@ -5786,9 +5787,10 @@ void Simulation::tick_production(float dt) {
 					// Domestic livestock bred in Corral (Corral.js)
 					float sx = b.x + 1.6f;
 					float sz = b.z + 1.6f;
+					const bool room = corral_count(b.id) < CORRAL_GARRISON_MAX;
 					uint32_t fid = spawn_fauna(sx, sz, FAUNA_SHEEP);
 					auto fit = fauna_id_to_idx_.find(fid);
-					if (fit != fauna_id_to_idx_.end()) {
+					if (room && fit != fauna_id_to_idx_.end()) {
 						size_t fidx = fit->second;
 						fauna_.corral_id[fidx] = b.id;
 						fauna_.behavior[fidx] = FAUNA_CORRALLED;
@@ -7495,48 +7497,74 @@ Simulation::ResourceView Simulation::resources() const {
 }
 
 void Simulation::tick_trickle(float dt) {
-	// Team bonus trickle (Ptolemaic Breadbasket of the Mediterranean: +1 food/s for
-	// the Ptolemies and their allies). Only players who own a building get it.
-	uint16_t civs_present = 0;
-	for (const auto &b : buildings_)
-		if (b.team < MAX_PLAYERS && b.hp > 0.0f) civs_present |= civ_bit(players_[b.team].civ);
-	if (civs_present & civ_bit(CIV_PTOLEMIES)) {
-		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
-			bool owns = false;
-			for (const auto &b : buildings_)
-				if (b.team == p && b.hp > 0.0f) { owns = true; break; }
-			if (!owns) continue;
-			const float add = civ_team_food_trickle(players_[p].civ, ally_civ_mask(p));
-			if (add > 0.0f) players_[p].food() += add * dt;
+	(void)dt;
+	// 0 A.D. ResourceTrickle.js: each trickling entity adds its Rates to its owner every
+	// Interval. RTS0 times every interval off the match clock, so payouts land on the same
+	// ticks for every peer and need no saved timer.
+	const uint64_t elapsed = ticks_ + 1;
+	auto due = [&](float interval_s) {
+		const uint64_t n = (uint64_t)std::lround(interval_s / FIXED_STEP);
+		return n > 0 && elapsed % n == 0;
+	};
+
+	// template_player.xml: Interval 1000, Rates 0, raised by the Ptolemaic team bonus
+	// (ptol_player_teambonus.json, Breadbasket of the Mediterranean: +1 food for the
+	// Ptolemies and their mutual allies). Only players who own a building get it.
+	if (due(1.0f)) {
+		uint16_t civs_present = 0;
+		for (const auto &b : buildings_)
+			if (b.team < MAX_PLAYERS && b.hp > 0.0f) civs_present |= civ_bit(players_[b.team].civ);
+		if (civs_present & civ_bit(CIV_PTOLEMIES)) {
+			for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+				bool owns = false;
+				for (const auto &b : buildings_)
+					if (b.team == p && b.hp > 0.0f) { owns = true; break; }
+				if (!owns) continue;
+				const float add = civ_team_food_trickle(players_[p].civ, ally_civ_mask(p));
+				if (add > 0.0f) players_[p].food() += add;
+			}
 		}
 	}
 
-	// ResourceTrickle.js — passive income from key buildings
-	// Farmstead: +0.5 food/s per field, Market: +0.3 gold/s (simulates trade
-	// trickle), Wonder: +2 of all/s. 0 A.D.'s Town Center has no trickle.
-	for (const auto &b : buildings_) {
-		if (b.team != 0 || b.build_progress < 1.0f) continue;
-		PlayerState &ps = players_[0];
-		// Whole-unit increments, as in the int-stock version this replaced.
-		auto trickle = [&](uint8_t rt, float rate) {
-			ps.res[rt] = std::min(9999.0f, ps.res[rt] + (float)(int)(rate * dt));
-		};
-		switch (b.type) {
-			case BLD_FARMSTEAD:
-				trickle(RES_FOOD, 0.5f);
-				break;
-			case BLD_MARKET:
-				trickle(RES_GOLD, 0.3f);
-				break;
-			case BLD_WONDER:
-				trickle(RES_FOOD, 2.0f);
-				trickle(RES_WOOD, 2.0f);
-				trickle(RES_GOLD, 2.0f);
-				trickle(RES_STONE, 2.0f);
-				break;
-			default: break;
+	// Structures. template_structure_wonder.xml: 1 food, wood, stone and metal every 2 s.
+	// structures/han/ministry.xml: 0.1 wood, stone and metal every 2 s. A corral's own
+	// rate is 0; each garrisoned animal adds 1, 2 or 3 food every 5 s by its size
+	// (corral_garrison_{small,medium,large}.json).
+	const bool two_s = due(2.0f), corral_due = due(CORRAL_TRICKLE_INTERVAL);
+	if (two_s) {
+		for (const auto &b : buildings_) {
+			if (b.team >= MAX_PLAYERS || b.build_progress < 1.0f || b.hp <= 0.0f) continue;
+			PlayerState &ps = players_[b.team];
+			if (b.type == BLD_WONDER) {
+				ps.res[RES_FOOD] += 1.0f;
+				ps.res[RES_WOOD] += 1.0f;
+				ps.res[RES_STONE] += 1.0f;
+				ps.res[RES_GOLD] += 1.0f;
+			} else if (b.type == BLD_MINISTRY) {
+				ps.res[RES_WOOD] += 0.1f;
+				ps.res[RES_STONE] += 0.1f;
+				ps.res[RES_GOLD] += 0.1f;
+			}
 		}
 	}
+	if (corral_due) {
+		for (size_t f = 0; f < fauna_.count; ++f) {
+			if (!fauna_.alive[f] || fauna_.behavior[f] != FAUNA_CORRALLED) continue;
+			auto it = building_id_to_idx_.find(fauna_.corral_id[f]);
+			if (it == building_id_to_idx_.end()) continue;
+			const Building &b = buildings_[it->second];
+			if (b.team >= MAX_PLAYERS || b.build_progress < 1.0f || b.hp <= 0.0f) continue;
+			players_[b.team].res[RES_FOOD] += fauna_corral_food(fauna_.fauna_type[f]);
+		}
+	}
+}
+
+// Animals garrisoned in a corral (GarrisonHolder/Max CORRAL_GARRISON_MAX).
+int Simulation::corral_count(uint32_t corral_id) const {
+	int n = 0;
+	for (size_t f = 0; f < fauna_.count; ++f)
+		n += fauna_.alive[f] && fauna_.behavior[f] == FAUNA_CORRALLED && fauna_.corral_id[f] == corral_id;
+	return n;
 }
 
 // 0 A.D. EntityLimits.js:7-12: enforce category limits per player (Wonder: 1, Fortress: 10)
@@ -7798,7 +7826,19 @@ void Simulation::apply_order(uint32_t uid, const UnitOrder &o) {
 		case ORDER_PATROL: order_patrol(&uid, 1, o.x, o.z); break;
 		case ORDER_ATTACK: order_attack(&uid, 1, o.target); break;
 		case ORDER_ATTACK_BUILDING: order_attack_building(&uid, 1, o.target, false, capture); break;
-		case ORDER_GATHER: order_gather(&uid, 1, o.target); break;
+		case ORDER_GATHER: {
+			uint32_t r = o.target;
+			// Order.Gather on a resource that is gone -> FINDINGNEWTARGET (GatherNearPosition):
+			// the same kind of resource near where it was.
+			const int32_t i = lookup_unit(uid);
+			auto rit = res_id_to_idx_.find(r);
+			const bool gone = rit == res_id_to_idx_.end() || !resources_.alive[rit->second] || resources_.amount[rit->second] <= 0;
+			if (gone && o.res_type != 0 && i >= 0)
+				r = find_nearby_resource(o.x, o.z, (uint8_t)(o.res_type - 1), units_.team[i],
+						(o.flags & ORDER_FLAG_SUB_MASK) >> ORDER_FLAG_SUB_SHIFT);
+			order_gather(&uid, 1, r);
+			break;
+		}
 		case ORDER_BUILD: order_build_or_repair(&uid, 1, o.target); break;
 		case ORDER_GARRISON: order_garrison(&uid, 1, o.target); break;
 		case ORDER_GUARD: order_guard(&uid, 1, o.target); break;
@@ -15239,7 +15279,7 @@ void Simulation::tick_fauna(float dt) {
 		float fx = fauna_.pos_x[i];
 		float fz = fauna_.pos_z[i];
 
-		// 1. Corralled livestock: fattens and wanders inside its corral.
+		// 1. Corralled livestock wanders inside its corral; tick_trickle pays its food trickle.
 		if (fauna_.behavior[i] == FAUNA_CORRALLED) {
 			auto bit = building_id_to_idx_.find(fauna_.corral_id[i]);
 			if (bit == building_id_to_idx_.end() || buildings_[bit->second].hp <= 0.0f) {
@@ -15247,15 +15287,6 @@ void Simulation::tick_fauna(float dt) {
 				fauna_.corral_id[i] = 0;
 			} else {
 				const auto &corral = buildings_[bit->second];
-				const int fat_cap = std::max(400, info.food_amount);
-				fauna_.fatten_timer[i] += dt;
-				if (fauna_.fatten_timer[i] >= 2.0f) {
-					fauna_.fatten_timer[i] -= 2.0f;
-					if (fauna_.food_amount[i] < fat_cap) {
-						fauna_.food_amount[i] = std::min(fat_cap, fauna_.food_amount[i] + 5);
-						fauna_.hp[i] = std::min(fauna_.max_hp[i] * 1.5f, fauna_.hp[i] + 0.5f);
-					}
-				}
 
 				float cdx = fx - corral.x;
 				float cdz = fz - corral.z;
@@ -15302,6 +15333,7 @@ void Simulation::tick_fauna(float dt) {
 
 			for (const auto &b : buildings_) {
 				if (b.team != owner || b.build_progress < 1.0f || b.hp <= 0.0f) continue;
+				if (b.type == BLD_CORRAL && corral_count(b.id) >= CORRAL_GARRISON_MAX) continue; // GarrisonHolder/Max
 				if (b.type == BLD_CORRAL || (b.type == BLD_TOWN_CENTER && nearest_cid == 0)) {
 					float dx = b.x - fx;
 					float dz = b.z - fz;
@@ -15559,6 +15591,8 @@ void Simulation::tick_treasures(float dt) {
 	const float reach = 2.0f * 0.6f + 1.0f;
 	const size_t n = units_.count;
 	std::vector<uint8_t> in_range(treasures_.size(), 0);
+	struct NextTreasure { uint32_t uid; float x, z; };
+	std::vector<NextTreasure> next_hunt; // collectors whose treasure is gone
 	for (size_t i = 0; i < n; ++i) {
 		const uint32_t tid = units_.target_unit_id[i];
 		if (tid == 0 || !units_.alive[i] || lookup_unit(tid) >= 0) continue;
@@ -15592,6 +15626,7 @@ void Simulation::tick_treasures(float dt) {
 		const int32_t c = t.collector_id ? lookup_unit(t.collector_id) : -1;
 		if (c < 0 || t.collect_progress + 1e-4f < info.collect_time) { ++k; continue; }
 		const uint8_t owner = units_.team[c];
+		next_hunt.push_back({units_.id[c], t.x, t.z});
 		if (owner < MAX_PLAYERS) {
 			static const uint8_t kRes[4] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD};
 			PlayerState &ps = player(owner);
@@ -15616,7 +15651,24 @@ void Simulation::tick_treasures(float dt) {
 		if (units_.target_unit_id[i] == units_.order_target[i]) units_.target_unit_id[i] = 0;
 		if (units_.action_state[i] == ACTION_MOVE) units_.action_state[i] = ACTION_IDLE;
 		units_.has_order[i] = 0;
+		const float ox = units_.order_x[i], oz = units_.order_z[i];
 		finish_order(i);
+		if (units_.order_kind[i] == ORDER_NONE) next_hunt.push_back({units_.id[i], ox, oz});
+	}
+	// COLLECTTREASURE.FINDINGNEWTARGET: with no next order, the nearest treasure within
+	// 64 m of the one that is gone (FindNearbyTreasure).
+	for (const NextTreasure &nt : next_hunt) {
+		const int32_t i = lookup_unit(nt.uid);
+		if (i < 0 || !units_.alive[i] || units_.order_kind[i] != ORDER_NONE) continue;
+		auto q = order_queues_.find(nt.uid);
+		if (q != order_queues_.end() && !q->second.empty()) continue;
+		uint32_t best = 0;
+		float best_d2 = (64.0f * COMBAT_DISTANCE_SCALE) * (64.0f * COMBAT_DISTANCE_SCALE);
+		for (const Treasure &t : treasures_) {
+			const float d2 = (t.x - nt.x) * (t.x - nt.x) + (t.z - nt.z) * (t.z - nt.z);
+			if (d2 < best_d2) { best_d2 = d2; best = t.id; }
+		}
+		if (best != 0) order_collect_treasure(&nt.uid, 1, best);
 	}
 }
 

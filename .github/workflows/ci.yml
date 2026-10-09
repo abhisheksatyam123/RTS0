@@ -308,6 +308,13 @@ jobs:
             src/network/net_host.cpp -lpthread -o /tmp/test_turrets
           /tmp/test_turrets
 
+      - name: Resource trickle (wonder, ministry, corral)
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_trickle.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+            src/network/net_host.cpp -lpthread -o /tmp/test_trickle
+          /tmp/test_trickle
+
       - name: Nav parity probe
         run: python3 tools/check_parity.py --unit nav-live
 

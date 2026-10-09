@@ -386,7 +386,8 @@ enum : uint8_t {
 struct UnitOrder {
 	uint8_t kind = ORDER_NONE;
 	uint8_t flags = 0;
-	uint8_t pad[2] = {0, 0};
+	uint8_t res_type = 0; // gather: the resource's generic type + 1 (0 unknown), for GatherNearPosition
+	uint8_t pad = 0;
 	uint32_t target = 0;
 	float x = 0.0f, z = 0.0f;   // destination
 	float x2 = 0.0f, z2 = 0.0f; // patrol start
