@@ -6166,7 +6166,8 @@ void Simulation::tick_combat(float dt) {
 		// 0 A.D. UnitAI target choice, by stance (g_Stances) and order:
 		//  - passive units never pick targets (an explicit attack order still stands);
 		//  - workers and fleeing units only answer attacks (tick_unit_ai);
-		//  - a player's walk order ignores enemies (order.data.force);
+		//  - a walk ignores enemies it sees (INDIVIDUAL.WALKING has no LosRangeUpdate);
+		//    only an unforced one answers attacks (respond_to_attack);
 		//  - a target the unit picked itself is dropped once the stance leash says so
 		//    (ShouldAbandonChase); a player's attack target never is.
 		const uint8_t st = units_.action_state[i];
@@ -6183,8 +6184,7 @@ void Simulation::tick_combat(float dt) {
 		if (st == ACTION_GATHER || st == ACTION_BUILD || st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE ||
 				st == ACTION_FLEE || st == ACTION_GARRISONED)
 			return;
-		if (st == ACTION_MOVE && (units_.order_kind[i] == ORDER_WALK || units_.order_kind[i] == ORDER_GARRISON) &&
-				(units_.order_flags[i] & ORDER_FLAG_FORCE))
+		if (st == ACTION_MOVE && (units_.order_kind[i] == ORDER_WALK || units_.order_kind[i] == ORDER_GARRISON))
 			return;
 		const bool guarding = st == ACTION_GUARD; // target_unit_id is the guarded unit
 		const bool walk_and_fight = st == ACTION_ATTACK_MOVE || st == ACTION_PATROL;
