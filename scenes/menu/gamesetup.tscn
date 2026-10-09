@@ -220,6 +220,17 @@ custom_minimum_size = Vector2(120, 32)
 layout_mode = 2
 size_flags_horizontal = 3
 
+[node name="TeamPlacementLabel" type="Label" parent="VBox/HBox/Left/MapOptionsRow"]
+layout_mode = 2
+tooltip_text = "Select one of the starting position patterns of this map."
+mouse_filter = 1
+text = "Team placement"
+
+[node name="TeamPlacementSlot" type="Control" parent="VBox/HBox/Left/MapOptionsRow"]
+custom_minimum_size = Vector2(120, 32)
+layout_mode = 2
+size_flags_horizontal = 3
+
 [node name="PopCapLabel" type="Label" parent="VBox/HBox/Left"]
 layout_mode = 2
 text = "Population limit"

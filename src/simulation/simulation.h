@@ -315,6 +315,8 @@ public:
 	const UnitTypeInfo &unit_info_at(size_t i) const { return civ_template_unit_info(units_.tmpl[i], units_.unit_type[i]); }
 	// Walk speed of the unit at SoA index i: its speed with technologies times any speed aura it stands in.
 	float unit_walk_speed(size_t i) const;
+	float unit_run_multiplier(size_t i) const;
+	bool unit_running(size_t i) const;
 	// 0 A.D. Identity classes, RestrictedClasses, Bonuses and Spread of the unit at SoA index i.
 	const CombatProfile &unit_combat_at(size_t i) const { return unit_combat(units_.tmpl[i], units_.unit_type[i]); }
 	// Attack.js CanAttack: may unit i attack unit j / building b at all (RestrictedClasses)?
@@ -679,6 +681,10 @@ public:
 	// Game Setup biome for random maps: BIOME_* or -1 for the map's own.
 	void set_biome_override(int b) { biome_override_ = (b >= 0 && b < BIOME_COUNT) ? b : -1; }
 	int biome_override() const { return biome_override_; }
+	// 0 A.D. Team Placement (TEAM_PLACEMENT_*) for the random maps that offer it
+	// (map_has_team_placement); setup-time only, like the biome.
+	void set_team_placement(int t) { team_placement_ = (uint8_t)((t >= 0 && t < TEAM_PLACEMENT_COUNT) ? t : TEAM_PLACEMENT_RANDOM); }
+	uint8_t team_placement() const { return team_placement_; }
 	// 0 A.D. Nomad (gamesettings Nomad.js, rmgen-common placePlayerBase): random maps start
 	// without any player structures, only the starting units.
 	void set_nomad(bool on) { nomad_ = on; }
@@ -875,14 +881,15 @@ public:
 		float rot;      // Position angle: a segment's length lies along its u axis
 		float half_w;   // half its length (a segment) or its half size (a tower)
 	};
-	// The pieces of a wall from (sx, sz) to (ex, ez), in order along it: a tower at each end, none
-	// where that end snaps onto one of `player`'s wall towers (its id goes in *start_tower or
-	// *end_tower, else 0), and segments joined by towers. Empty when the ends are too close.
+	// The pieces of a `kind` (WallSetKind) wall from (sx, sz) to (ex, ez), in order along it: a
+	// tower at each end, none where that end snaps onto one of `player`'s towers of that WallSet
+	// (its id goes in *start_tower or *end_tower, else 0), and segments joined by towers. Empty
+	// when the ends are too close.
 	std::vector<WallPiece> wall_placement(uint8_t player, float sx, float sz, float ex, float ez,
-			uint32_t *start_tower = nullptr, uint32_t *end_tower = nullptr) const;
-	// The wall tower of `player`'s that a wall end at (x, z) snaps onto (input.js snaps to towers
-	// under the cursor), or 0.
-	uint32_t wall_snap_tower(uint8_t player, float x, float z) const;
+			uint32_t *start_tower = nullptr, uint32_t *end_tower = nullptr, uint8_t kind = WALLSET_STONE) const;
+	// The tower of `player`'s `kind` WallSet that a wall end at (x, z) snaps onto (input.js snaps
+	// to towers under the cursor), or 0.
+	uint32_t wall_snap_tower(uint8_t player, float x, float z, uint8_t kind = WALLSET_STONE) const;
 	// check_placement for one wall piece, with the buildings in `ignore` (the towers it joins and
 	// the pieces between them) left out of the obstruction test, as 0 A.D. obstruction control
 	// groups do.
@@ -892,7 +899,7 @@ public:
 	// foundations in order, paying for each, and stops at the first that is blocked or unaffordable;
 	// `builders` build them one after another. Returns the number of pieces laid.
 	size_t cmd_build_wall(uint8_t player, float sx, float sz, float ex, float ez, const uint32_t *builders = nullptr,
-			size_t builder_n = 0, bool queued = false);
+			size_t builder_n = 0, bool queued = false, uint8_t kind = WALLSET_STONE);
 	// Lockstep cmd NET_CMD_BUILD_WALL carries a wall's start point in target_id: x and z in
 	// 1/32 world units from -1024, 16 bits each.
 	static uint32_t pack_wall_point(float x, float z);
@@ -1008,6 +1015,8 @@ public:
 	int pop_max(uint8_t player = 0) const;
 	// Houses and other population bonuses (plus the hive master cheat), before the population limit.
 	int pop_max_uncapped(uint8_t player) const;
+	// The population limit after Player/MaxPopulation modifiers; 0 when unlimited.
+	int pop_limit(uint8_t player) const;
 	// Ownership checks for player commands (0 A.D. Commands.js FilterEntityList).
 	bool owns_unit(uint8_t player, uint32_t unit_id) const;
 	bool owns_building(uint8_t player, uint32_t building_id) const;
@@ -1261,6 +1270,7 @@ public:
 
 	uint32_t spawn_fauna(float x, float z, uint8_t ftype);
 	void order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
+	uint32_t find_nearby_prey(size_t i, float x, float z) const;
 	bool is_fauna_id(uint32_t id) const { return fauna_id_to_idx_.count(id) != 0; }
 
 	// A Capture the Relic catafalque (template_unit_catafalque.xml). id is the catafalque
@@ -1409,6 +1419,10 @@ private:
 		float pack_time[UNIT_TYPE_COUNT];   // siege pack/unpack time multiplier
 		float regen[UNIT_TYPE_COUNT];       // Health.js RegenRate, hp per second
 		float idle_regen[UNIT_TYPE_COUNT];  // Health.js IdleRegenRate, added while idle
+		float range_mul[UNIT_TYPE_COUNT];   // Attack/Ranged/MaxRange multiplier (range adds after it)
+		float vision[UNIT_TYPE_COUNT];      // Vision/Range multiplier
+		float capture[UNIT_TYPE_COUNT];     // Attack/Capture/Capture multiplier
+		float required_xp[UNIT_TYPE_COUNT]; // Promotion/RequiredXp multiplier
 		float bld_health[BLD_TYPE_COUNT];
 		float bld_attack[BLD_TYPE_COUNT];
 		float bld_range[BLD_TYPE_COUNT];
@@ -1422,23 +1436,36 @@ private:
 		float bld_cost[BLD_TYPE_COUNT][RES_COUNT]; // Cost/Resources multipliers
 		float bld_international_mul[BLD_TYPE_COUNT]; // Market/InternationalBonus (Silk Road)
 		float bld_international_add[BLD_TYPE_COUNT]; // ... added before it (Commercial Treaty)
+		float bld_territory[BLD_TYPE_COUNT];       // TerritoryInfluence/Radius multiplier
+		float bld_tech_cost[BLD_TYPE_COUNT][RES_COUNT]; // Researcher/TechCostMultiplier of what it researches
+		// Player-wide modifiers from global relic auras.
+		float loot_add[RES_COUNT];    // Looter/Resource/<res> added to every kill's loot
+		float trickle_add[RES_COUNT]; // ResourceTrickle/Rates/<res> of the player, per second
+		float max_pop;                // Player/MaxPopulation multiplier
 		// The same unit multipliers per civ roster template, matched against the
 		// template's own 0 A.D. classes (Champion Infantry Spearman, Javelineer, ...),
 		// which its RTS0 unit_type only approximates.
 		struct Template {
 			float gather[GK_COUNT];
 			float attack, health, speed, range, train_time;
+			float range_mul, vision, capture, required_xp;
 			float armor[3];
 			float cost[RES_COUNT];
 		} tmpl[CIV_UNIT_TEMPLATE_COUNT];
 	};
 	void compute_tech_mods(uint8_t player_id, TechMods &out) const;
 	void rebuild_all_tech_mods();
+	// Recompute a player's modifiers and rescale its existing units and structures
+	// (0 A.D. ModificationsManager: a modifier changes every entity it affects).
+	void refresh_tech_mods(uint8_t player_id);
+	// Bit g set: relic_global_auras()[g] reaches `player` (a relic it or a partner owns).
+	uint32_t relic_aura_mask(uint8_t player) const;
+	std::array<uint32_t, MAX_PLAYERS> relic_aura_masks_{}; // derived, as last applied to tech_mods_
 	void complete_research(uint8_t player_id, uint8_t tech_id);
 	void apply_tech_mods_to_unit(size_t idx);
 	const TechMods &tech_mods(uint8_t player_id) const { return tech_mods_[player_id < MAX_PLAYERS ? player_id : 0]; }
 	// A unit's technology multipliers: its roster template's when it has one, else its unit_type's.
-	struct UnitTechMods { float attack, health, speed, range, train_time; const float *armor, *gather; };
+	struct UnitTechMods { float attack, health, speed, range, train_time, range_mul, vision, capture, required_xp; const float *armor, *gather; };
 	static UnitTechMods unit_tech_mods(const TechMods &m, uint8_t unit_type, uint16_t tmpl);
 	UnitTechMods unit_tech_mods(uint8_t player_id, uint8_t unit_type, uint16_t tmpl) const {
 		return unit_tech_mods(tech_mods(player_id), unit_type, tmpl);
@@ -1720,7 +1747,7 @@ private:
 	uint32_t spawn_wall_piece(const WallPiece &p, uint8_t team, float progress);
 	// Cost.js: pays `b_type`'s cost after civ, team and technology bonuses (stone_override, when
 	// not negative, in place of its template stone). False, paying nothing, if unaffordable.
-	bool pay_for_structure(uint8_t player, uint8_t b_type, float stone_override = -1.0f);
+	bool pay_for_structure(uint8_t player, uint8_t b_type, float cost_override = -1.0f);
 	// petra_place_building searches that found no spot, with the signature of what
 	// they read (petra_placement_signature). Exact, so derived state: never saved.
 	struct PetraPlaceMiss {
@@ -1774,6 +1801,7 @@ private:
 	bool victory_ = false;
 	bool reveal_map_ = false;
 	int biome_override_ = -1; // setup-time only: applied when a random map is generated
+	uint8_t team_placement_ = TEAM_PLACEMENT_RANDOM; // setup-time only, like biome_override_
 	bool nomad_ = false;              // setup-time only: applied when a random map is generated
 	bool nomad_start_ = false;        // the map was generated Nomad: tick 0 places the top-up treasures
 	bool disable_treasures_ = false;
