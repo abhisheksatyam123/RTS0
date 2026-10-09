@@ -1160,7 +1160,7 @@ def emit_header(rows, auras, civ_json, bonuses, team):
     w("\t\t// id, name, description, radius (0 A.D. metres; 0 = global),")
     w("\t\t// RTS0 AuraManager effect: kind (AuraType, 255 = none modelled), value, range,")
     w("\t\t// affected players (AuraPlayers bits: 1 owner, 2 other allies, 4 enemies),")
-    w("\t\t// bitset of civ_unit_template_table() rows the aura affects")
+    w("\t\t// bitset of civ_unit_template_table() rows the aura affects, whether it affects structures")
     for a in auras:
         bits = [0] * words
         for i in a["affects_rows"]:
@@ -1169,8 +1169,10 @@ def emit_header(rows, auras, civ_json, bonuses, team):
         radius = a["radius"] if a["type"] == "range" else 0.0
         eff = a.get("rts0")
         kind, value, rng = (AURA_KIND[eff[0]], eff[1], eff[2]) if eff else (255, 0.0, 0.0)
-        w("\t\t{%s, %s, %s, %s, %d, %s, %s, %d, %s}," % (cstr(a["id"]), cstr(a["name"]), cstr(a["description"]),
-                                                     f(radius), kind, f(value), f(rng), aura_players_mask(a), bitset))
+        structures = "true" if "Structure" in a["affects"] else "false"
+        w("\t\t{%s, %s, %s, %s, %d, %s, %s, %d, %s, %s}," % (cstr(a["id"]), cstr(a["name"]), cstr(a["description"]),
+                                                         f(radius), kind, f(value), f(rng), aura_players_mask(a), bitset,
+                                                         structures))
     w("\t};")
     w("\treturn kAuras;")
     w("}")

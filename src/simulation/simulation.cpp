@@ -134,6 +134,9 @@ static constexpr uint32_t SAVE_VERSION_MOTION = 38;
 static constexpr uint32_t SAVE_VERSION_FRUIT_MAX = 39;
 // Petra's transport plans side by side, each with its owner.
 static constexpr uint32_t SAVE_VERSION_PETRA_TRANSPORTS = 40;
+// Heroes each player has trained (EntityLimits MatchLimit, tick_state_io section 9b) and
+// each structure's Health/Max aura multiplier.
+static constexpr uint32_t SAVE_VERSION_MATCH_LIMIT = 42;
 
 // Stand on the nearest AABB edge so pathing never aims through the footprint (half sizes hx, hz).
 static void stand_outside_rect(float bx, float bz, float hx, float hz, uint32_t uid,
@@ -395,6 +398,7 @@ void Simulation::reset() {
 	building_id_to_idx_.clear();
 	occupied_cells_.clear();
 	std::fill(std::begin(regicide_hero_), std::end(regicide_hero_), 0u);
+	for (auto &v : match_trained_) v.clear();
 
 	next_id_ = 1;
 	sim_rng_.set_seed(sim_seed_);
@@ -2038,7 +2042,21 @@ int Simulation::entity_limit(uint8_t player_id, uint8_t category) const {
 	return limit;
 }
 
+// 0 A.D. TrainingRestrictions MatchLimit (template_unit_hero.xml: 1): each hero template
+// trains once a match, counting the ones in a queue; a dead hero stays gone.
+bool Simulation::match_limit_allows(uint8_t player_id, uint16_t tmpl, int count) const {
+	if (player_id >= MAX_PLAYERS || tmpl >= CIV_UNIT_TEMPLATE_COUNT || !(civ_unit_template(tmpl).flags & ROSTER_HERO))
+		return true;
+	const auto &trained = match_trained_[player_id];
+	int n = (int)std::count(trained.begin(), trained.end(), tmpl);
+	for (const auto &b : buildings_)
+		if (b.team == player_id)
+			for (const auto &o : b.queue) n += o.tmpl == tmpl;
+	return n + count <= HERO_MATCH_LIMIT;
+}
+
 bool Simulation::entity_limit_allows_unit(uint8_t player_id, uint8_t unit_type, uint16_t tmpl, int count) const {
+	if (!match_limit_allows(player_id, tmpl, count)) return false;
 	const uint8_t cat = unit_limit_category(unit_type, tmpl);
 	if (cat == LIMIT_NONE) return true;
 	const int limit = entity_limit(player_id, cat);
@@ -2410,6 +2428,7 @@ void Simulation::finish_upgrade(Building &b) {
 	const float health_level = b.max_hp > 0.0f ? std::clamp(b.hp / b.max_hp, 0.0f, 1.0f) : 1.0f;
 	b.type = to;
 	b.max_hp = structure_max_hp(to, b.team);
+	b.aura_hp_mult = 1.0f; // the next aura pass applies the new structure's own
 	b.hp = b.max_hp * health_level;
 	float new_capture = ninfo.capture_max_points;
 	if (b.team < MAX_PLAYERS)
@@ -7186,6 +7205,9 @@ void Simulation::tick_production(float dt) {
 					if (unit_is_ship(utype)) nearest_ship_cell(b, sx, sz);
 					uint32_t uid = spawn_unit(sx, sz, bteam, (UnitType)utype, 0.0f, otmpl);
 					if (int32_t ti = lookup_unit(uid); ti >= 0) stat_unit_trained((size_t)ti);
+					// MatchLimit: a trained hero counts for the rest of the match.
+					if (bteam < MAX_PLAYERS && otmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(otmpl).flags & ROSTER_HERO))
+						match_trained_[bteam].push_back(otmpl);
 
 					// Route to Rally Point if set
 					if (b.has_rally_point) apply_rally_point(uid, b);
@@ -16566,7 +16588,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -16708,6 +16730,7 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&b.arrows_left, sizeof(b.arrows_left));
 		out.write((const char *)&b.arrow_timer_on, sizeof(b.arrow_timer_on));
 		out.write((const char *)&b.rot, sizeof(b.rot));
+		out.write((const char *)&b.aura_hp_mult, sizeof(b.aura_hp_mult));
 
 		uint32_t q_sz = (uint32_t)b.queue.size();
 		out.write((const char *)&q_sz, sizeof(q_sz));
@@ -17041,6 +17064,8 @@ bool Simulation::load_state(const char *filepath) {
 			bld.attack_timer = 0.0f;
 		}
 		if (version >= 31) in.read((char *)&bld.rot, sizeof(bld.rot));
+		bld.aura_hp_mult = 1.0f;
+		if (version >= SAVE_VERSION_MATCH_LIMIT) in.read((char *)&bld.aura_hp_mult, sizeof(bld.aura_hp_mult));
 		bld.half_d = building_half_depth(bld.type, bld.half_size);
 		bld.set_rot(bld.rot);
 		const auto &bi = building_type_info(bld.type);
@@ -17656,6 +17681,15 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		}
 	} else if constexpr (Ar::loading) {
 		s.aura_mgr_.clear();
+	}
+
+	// 9b. MatchLimit (v42): the hero templates each player has trained this match.
+	for (auto &v : s.match_trained_) {
+		if (ar.version >= SAVE_VERSION_MATCH_LIMIT) io_vec_pod(ar, v, (uint32_t)CIV_UNIT_TEMPLATE_COUNT);
+		else if constexpr (Ar::loading) v.clear();
+		if constexpr (Ar::loading)
+			for (uint16_t t : v)
+				if (t >= CIV_UNIT_TEMPLATE_COUNT) ar.ok = false;
 	}
 
 	// 10. StatisticsTracker (save v30). Older saves start the counters at zero.
@@ -18930,6 +18964,27 @@ void Simulation::apply_health_auras() {
 		units_.max_hp[i] *= r;
 		units_.hp[i] *= r;
 		units_.aura_hp_mult[i] = m;
+	}
+	// Structures: auras whose affects name Structure (Antiochus IV: enemy structures -20%
+	// within 80 m; the Persian catafalque: own structures +5%).
+	if (!aura_mgr_.has(AURA_HEALTH)) {
+		for (Building &b : buildings_) // the last source gone: undo what is still applied
+			if (b.aura_hp_mult != 1.0f && !b.wrecked) {
+				b.max_hp /= b.aura_hp_mult;
+				b.hp /= b.aura_hp_mult;
+				b.aura_hp_mult = 1.0f;
+			}
+		return;
+	}
+	for (Building &b : buildings_) {
+		if (b.wrecked || b.hp <= 0.0f) continue;
+		float m = aura_mgr_.query_modifier(b.x, b.z, b.team, AURA_HEALTH, CIV_UNIT_TEMPLATE_NONE, nullptr, true);
+		if (m <= 0.0f) m = 1.0f;
+		if (m == b.aura_hp_mult) continue;
+		const float r = m / b.aura_hp_mult;
+		b.max_hp *= r;
+		b.hp *= r;
+		b.aura_hp_mult = m;
 	}
 }
 
