@@ -47,6 +47,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_upgrade_pressed", "cancel"), &RtsoMain::_on_upgrade_pressed);
 	ClassDB::bind_method(D_METHOD("_on_gate_lock_pressed", "lock"), &RtsoMain::_on_gate_lock_pressed);
 	ClassDB::bind_method(D_METHOD("_on_pack_pressed", "pack"), &RtsoMain::_on_pack_pressed);
+	ClassDB::bind_method(D_METHOD("_on_alert_pressed", "end"), &RtsoMain::_on_alert_pressed);
 	ClassDB::bind_method(D_METHOD("save_game", "path", "description"), &RtsoMain::save_game, DEFVAL("user://saves/quicksave.rts0sav"), DEFVAL(""));
 	ClassDB::bind_method(D_METHOD("save_game_as", "name", "description"), &RtsoMain::save_game_as);
 	ClassDB::bind_method(D_METHOD("get_match_statistics"), &RtsoMain::statistics_summary);
@@ -1707,6 +1708,17 @@ void RtsoMain::_on_gate_lock_pressed(int lock) {
 		sim->cmd_lock_gate(local_player(), selected_building_id, lock != 0);
 }
 
+// 0 A.D. AlertRaiser alert-raise / alert-end through lockstep command 35.
+void RtsoMain::_on_alert_pressed(int end) {
+	if (selected_building_id == 0) return;
+	if (net_lockstep())
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_ALERT, nullptr, 0, 0, 0, selected_building_id, end ? 1 : 0);
+	else if (end)
+		sim->cmd_end_alert(local_player(), selected_building_id);
+	else
+		sim->cmd_raise_alert(local_player(), selected_building_id);
+}
+
 // 0 A.D. Pack / Unpack on the selected siege engines through lockstep command 29.
 void RtsoMain::_on_pack_pressed(int pack) {
 	if (selected_ids.is_empty()) return;
@@ -2500,7 +2512,7 @@ void RtsoMain::update_inspector() {
 			extra = "Carrying " + String::num_int64(uview.carry[u]) + " " + kRes[uview.res_type_carried[u]];
 		if (sim->is_transport((uint32_t)selected_ids[0])) {
 			const size_t p_count = sim->get_transport_passenger_count((uint32_t)selected_ids[0]);
-			extra = "Passengers: " + String::num_int64(p_count) + " / " + String::num_int64(rtso::Simulation::TRANSPORT_CAPACITY);
+			extra = "Passengers: " + String::num_int64(p_count) + " / " + String::num_int64(sim->get_transport_capacity((uint32_t)selected_ids[0]));
 			ungarrison_btn->set_text("Unload all (" + String(rtso::hotkeys::table().label("session.unload").c_str()) + ")");
 			ungarrison_btn->set_visible(p_count > 0);
 		} else {
@@ -2718,6 +2730,21 @@ void RtsoMain::update_command_panel() {
 						: "Keep the gate shut, even for your own units");
 				btn->connect("pressed", Callable(this, "_on_gate_lock_pressed").bind(found_b->gate_locked ? 0 : 1));
 				production_bar->add_child(btn);
+			}
+
+			// Alert (0 A.D. AlertRaiser.js): civilians take shelter, then go back to work.
+			rtso::AlertRaiserInfo alert;
+			if (found_b->team == local_player() && found_b->build_progress >= 1.0f &&
+					rtso::building_alert_raiser(found_b->type, alert)) {
+				const char *who = alert.traders ? "traders" : "women";
+				for (int end = 0; end < 2; ++end) {
+					Button *btn = memnew(Button);
+					btn->set_text(end ? "End alert" : "Raise alert");
+					btn->set_tooltip_text(end ? String("Send nearby ") + who + " back to work"
+							: String("Send nearby ") + who + " into the nearest structures with room");
+					btn->connect("pressed", Callable(this, "_on_alert_pressed").bind(end));
+					production_bar->add_child(btn);
+				}
 			}
 
 			// Structure upgrade (0 A.D. Upgrade.js), or cancel one in progress.
